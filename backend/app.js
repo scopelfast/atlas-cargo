@@ -32,28 +32,13 @@ const app = express();
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
 app.use(helmet({
-  contentSecurityPolicy: isDevelopment ? false : {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "https://unpkg.com", "'unsafe-inline'"],
-      styleSrc: ["'self'", "https://unpkg.com", "https://cdn.jsdelivr.net", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://unpkg.com", "https://cdn.jsdelivr.net", "data:"],
-      imgSrc: ["'self'", "data:", "https:", "blob:"],
-      connectSrc: ["'self'", "https://nominatim.openstreetmap.org", "https://unpkg.com", "https://router.project-osrm.org"],
-      frameSrc: ["'none'"],
-      objectSrc: ["'none'"]
-    }
-  },
+  contentSecurityPolicy: false, // Desabilitado para evitar problemas com estilos em produção
   // Desabilitar headers que causam problemas com HTTP em IPs locais
-  crossOriginOpenerPolicy: isDevelopment ? false : { policy: "same-origin" },
-  crossOriginEmbedderPolicy: isDevelopment ? false : false,
-  originAgentCluster: isDevelopment ? false : true,
+  crossOriginOpenerPolicy: false,
+  crossOriginEmbedderPolicy: false,
+  originAgentCluster: false,
   // CRÍTICO: Desabilitar HSTS que força HTTPS
-  strictTransportSecurity: isDevelopment ? false : {
-    maxAge: 31536000,
-    includeSubDomains: true,
-    preload: true
-  }
+  strictTransportSecurity: false
 }));
 
 // Middleware para garantir que não haja upgrade para HTTPS em desenvolvimento
@@ -76,9 +61,17 @@ app.use(express.urlencoded({ extended: true }));
 // Configurar headers corretos para arquivos estáticos
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders: (res, filePath) => {
-    // Garantir que arquivos CSS tenham o Content-Type correto
+    // Garantir que arquivos CSS tenham o Content-Type correto (crítico para produção)
     if (filePath.endsWith('.css')) {
-      res.setHeader('Content-Type', 'text/css');
+      res.setHeader('Content-Type', 'text/css; charset=utf-8');
+    }
+    // Garantir que arquivos JS tenham o Content-Type correto
+    if (filePath.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+    }
+    // Garantir que arquivos HTML tenham o Content-Type correto
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
     }
     
     // Cache em produção para melhor performance
