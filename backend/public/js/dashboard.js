@@ -215,38 +215,67 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (!ambienteInfo || !ambienteTexto) return;
     
-    // Obter ambiente atual
+    // PRIORIDADE ABSOLUTA: Detectar ambiente baseado na URL ATUAL do navegador
+    const hostname = window.location.hostname;
+    const urlAtual = window.location.origin;
+    const isLocalhost = hostname === 'localhost' || 
+                       hostname === '127.0.0.1';
+    
+    // IPs privados também são considerados "local" para desenvolvimento
+    const isIPPrivado = hostname.startsWith('192.168.') ||
+                       hostname.startsWith('10.') ||
+                       hostname.startsWith('172.');
+    
+    console.log('[DASHBOARD] ========== DETECÇÃO DE AMBIENTE ==========');
+    console.log('[DASHBOARD] URL atual:', urlAtual);
+    console.log('[DASHBOARD] Hostname:', hostname);
+    console.log('[DASHBOARD] É localhost?', isLocalhost);
+    console.log('[DASHBOARD] É IP privado?', isIPPrivado);
+    
     let ambiente = 'producao';
     let urlBase = '';
     
-    if (typeof window.obterAmbiente === 'function') {
-      ambiente = window.obterAmbiente();
-    } else {
-      const ambienteSalvo = localStorage.getItem('ambiente');
-      if (ambienteSalvo === 'local' || ambienteSalvo === 'producao') {
-        ambiente = ambienteSalvo;
-      }
-    }
-    
-    if (ambiente === 'local') {
+    // Se está em localhost ou IP privado, SEMPRE usar ambiente local
+    if (isLocalhost || isIPPrivado) {
+      ambiente = 'local';
       urlBase = 'http://localhost:3000';
+      
+      // CORRIGIR localStorage se estiver errado
+      const ambienteSalvo = localStorage.getItem('ambiente');
+      if (ambienteSalvo !== 'local') {
+        console.log('[DASHBOARD] ⚠️ CORRIGINDO: localStorage tinha', ambienteSalvo, 'mas está em localhost/IP privado');
+        localStorage.setItem('ambiente', 'local');
+        localStorage.removeItem('urlBaseProducao');
+      }
+      
       ambienteInfo.style.background = '#fff3cd';
       ambienteInfo.style.color = '#856404';
       ambienteInfo.style.border = '1px solid #ffc107';
       ambienteTexto.innerHTML = '🖥️ <strong>AMBIENTE LOCAL</strong> - ' + urlBase;
+      
+      console.log('[DASHBOARD] ✅ Ambiente: LOCAL');
     } else {
-      if (typeof window.obterUrlBaseSync === 'function') {
-        urlBase = window.obterUrlBaseSync();
-      } else {
-        urlBase = localStorage.getItem('urlBaseProducao') || window.location.origin;
-      }
+      // Está em produção (IP público), SEMPRE usar ambiente produção
+      ambiente = 'producao';
+      const urlSalva = localStorage.getItem('urlBaseProducao');
+      
+      // Usar URL atual como base (é a URL de produção)
+      urlBase = urlAtual;
+      
+      // Salvar URL atual como URL de produção
+      localStorage.setItem('urlBaseProducao', urlAtual);
+      localStorage.setItem('ambiente', 'producao');
+      
       ambienteInfo.style.background = '#d1ecf1';
       ambienteInfo.style.color = '#0c5460';
       ambienteInfo.style.border = '1px solid #17a2b8';
       ambienteTexto.innerHTML = '🌐 <strong>AMBIENTE PRODUÇÃO</strong> - ' + urlBase;
+      
+      console.log('[DASHBOARD] ✅ Ambiente: PRODUÇÃO');
     }
     
-    console.log('[DASHBOARD] Ambiente ativo:', ambiente, '| URL Base:', urlBase);
+    console.log('[DASHBOARD] URL Base final:', urlBase);
+    console.log('[DASHBOARD] =========================================');
   }
 
   initDashboard();

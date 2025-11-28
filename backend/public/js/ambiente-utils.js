@@ -6,18 +6,33 @@
  * @returns {string} 'local' ou 'producao'
  */
 function obterAmbiente() {
+  // PRIORIDADE: Detectar baseado na URL ATUAL primeiro
+  const hostname = window.location.hostname;
+  const isLocalhost = hostname === 'localhost' || 
+                      hostname === '127.0.0.1' ||
+                      hostname.startsWith('192.168.') ||
+                      hostname.startsWith('10.') ||
+                      hostname.startsWith('172.');
+  
+  // Se está em localhost, SEMPRE retornar 'local' (corrigir localStorage se necessário)
+  if (isLocalhost) {
+    const ambienteSalvo = localStorage.getItem('ambiente');
+    if (ambienteSalvo !== 'local') {
+      console.log('[AMBIENTE] Corrigindo ambiente: estava', ambienteSalvo, 'mas está em localhost, mudando para local');
+      localStorage.setItem('ambiente', 'local');
+      localStorage.removeItem('urlBaseProducao');
+    }
+    return 'local';
+  }
+  
+  // Se não está em localhost, verificar localStorage
   const ambiente = localStorage.getItem('ambiente');
   if (ambiente === 'local' || ambiente === 'producao') {
     return ambiente;
   }
   
-  // Detectar automaticamente baseado no hostname
-  const hostname = window.location.hostname;
-  const isLocalhost = hostname === 'localhost' || 
-                      hostname === '127.0.0.1' ||
-                      hostname.startsWith('192.168.');
-  
-  return isLocalhost ? 'local' : 'producao';
+  // Se não tem nada salvo e não é localhost, é produção
+  return 'producao';
 }
 
 /**
