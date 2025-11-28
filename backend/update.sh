@@ -3,10 +3,6 @@
 
 set -e  # sai se algum comando falhar
 
-# Caminho da sua aplicação — ajuste se necessário
-APP_DIR="/caminho/para/seu/projeto"
-cd "$APP_DIR"
-
 echo "==> Pulling latest changes from Git..."
 git pull origin main   # ou branch que você usa
 
