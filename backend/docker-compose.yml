@@ -5,7 +5,7 @@ services:
     build: .
     container_name: divulga_carga
     ports:
-      - "3000:3000"
+      - "8083:3000"
     environment:
       NODE_ENV: production
     command: ["node", "server.js"]
