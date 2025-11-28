@@ -1,0 +1,64 @@
+-- Script para criar tabela MOTIVORECUSA
+-- Autor: Sistema DivulgaCarga
+-- Data: 2025-11-29
+
+-- Criar tabela MOTIVORECUSA se não existir
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[MOTIVORECUSA]') AND type in (N'U'))
+BEGIN
+    CREATE TABLE [dbo].[MOTIVORECUSA] (
+        [CDMOTIVO] INT IDENTITY(1,1) NOT NULL,
+        [DSMOTIVO] VARCHAR(100) NOT NULL,
+        [FGACTIVE] CHAR(1) NOT NULL DEFAULT 'A',
+        [DHINCLUSAO] DATETIME NOT NULL DEFAULT GETDATE(),
+        [SGUSERINCLUSAO] VARCHAR(50) NOT NULL DEFAULT 'SYSTEM',
+        [DHMAINTENANCE] DATETIME NULL,
+        [SGUSER] VARCHAR(50) NULL,
+        [SERVERORIG] VARCHAR(50) NULL DEFAULT 'AppDVcargas',
+        CONSTRAINT [PK_MOTIVORECUSA] PRIMARY KEY CLUSTERED ([CDMOTIVO] ASC)
+    );
+    
+    PRINT 'Tabela MOTIVORECUSA criada com sucesso!';
+END
+ELSE
+BEGIN
+    PRINT 'Tabela MOTIVORECUSA já existe.';
+END
+
+-- Inserir motivos iniciais se não existirem
+IF NOT EXISTS (SELECT * FROM [dbo].[MOTIVORECUSA] WHERE DSMOTIVO = 'Destino')
+BEGIN
+    INSERT INTO [dbo].[MOTIVORECUSA] (DSMOTIVO, FGACTIVE, DHINCLUSAO, SGUSERINCLUSAO, SERVERORIG)
+    VALUES ('Destino', 'A', GETDATE(), 'SYSTEM', 'AppDVcargas');
+    PRINT 'Motivo "Destino" inserido.';
+END
+
+IF NOT EXISTS (SELECT * FROM [dbo].[MOTIVORECUSA] WHERE DSMOTIVO = 'Prazo de Pagamento')
+BEGIN
+    INSERT INTO [dbo].[MOTIVORECUSA] (DSMOTIVO, FGACTIVE, DHINCLUSAO, SGUSERINCLUSAO, SERVERORIG)
+    VALUES ('Prazo de Pagamento', 'A', GETDATE(), 'SYSTEM', 'AppDVcargas');
+    PRINT 'Motivo "Prazo de Pagamento" inserido.';
+END
+
+IF NOT EXISTS (SELECT * FROM [dbo].[MOTIVORECUSA] WHERE DSMOTIVO = 'Valor do Frete')
+BEGIN
+    INSERT INTO [dbo].[MOTIVORECUSA] (DSMOTIVO, FGACTIVE, DHINCLUSAO, SGUSERINCLUSAO, SERVERORIG)
+    VALUES ('Valor do Frete', 'A', GETDATE(), 'SYSTEM', 'AppDVcargas');
+    PRINT 'Motivo "Valor do Frete" inserido.';
+END
+
+IF NOT EXISTS (SELECT * FROM [dbo].[MOTIVORECUSA] WHERE DSMOTIVO = 'Peso da Carga')
+BEGIN
+    INSERT INTO [dbo].[MOTIVORECUSA] (DSMOTIVO, FGACTIVE, DHINCLUSAO, SGUSERINCLUSAO, SERVERORIG)
+    VALUES ('Peso da Carga', 'A', GETDATE(), 'SYSTEM', 'AppDVcargas');
+    PRINT 'Motivo "Peso da Carga" inserido.';
+END
+
+IF NOT EXISTS (SELECT * FROM [dbo].[MOTIVORECUSA] WHERE DSMOTIVO = 'Disponibilidade')
+BEGIN
+    INSERT INTO [dbo].[MOTIVORECUSA] (DSMOTIVO, FGACTIVE, DHINCLUSAO, SGUSERINCLUSAO, SERVERORIG)
+    VALUES ('Disponibilidade', 'A', GETDATE(), 'SYSTEM', 'AppDVcargas');
+    PRINT 'Motivo "Disponibilidade" inserido.';
+END
+
+PRINT 'Script executado com sucesso!';
+

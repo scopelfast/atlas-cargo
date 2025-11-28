@@ -1,0 +1,2071 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentação Completa - Sistema DivulgaCarga</title>
+    <link rel="stylesheet" href="modulos.css">
+    <style>
+        body {
+            background: #f5f5f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .doc-container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .doc-header {
+            background: linear-gradient(135deg, #1a2a6c 0%, #2c3e50 100%);
+            color: white;
+            padding: 40px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        .doc-header h1 {
+            margin: 0 0 10px 0;
+            font-size: 36px;
+        }
+        .doc-header p {
+            margin: 5px 0;
+            opacity: 0.9;
+            font-size: 16px;
+        }
+        .doc-header .version {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+        .section h2 {
+            color: #1a2a6c;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #1a2a6c;
+            font-size: 28px;
+        }
+        .section h3 {
+            color: #2c3e50;
+            margin: 30px 0 15px 0;
+            font-size: 20px;
+            padding-left: 10px;
+            border-left: 4px solid #3498db;
+        }
+        .section h4 {
+            color: #34495e;
+            margin: 20px 0 10px 0;
+            font-size: 16px;
+        }
+        .code-block {
+            background: #2c3e50;
+            color: #ecf0f1;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+            position: relative;
+        }
+        .code-block code {
+            color: #ecf0f1;
+        }
+        .code-block pre {
+            margin: 0;
+            padding: 0;
+            white-space: pre;
+            font-family: 'Courier New', monospace;
+        }
+        .code-block pre code {
+            display: block;
+            white-space: pre;
+            word-wrap: normal;
+            overflow-x: auto;
+        }
+        .code-block::before {
+            content: '📋';
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 18px;
+        }
+        .info-box {
+            background: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .warning-box {
+            background: #fff3cd;
+            border-left: 4px solid #f39c12;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .success-box {
+            background: #d4edda;
+            border-left: 4px solid #2ecc71;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .toc {
+            background: #f8f9fa;
+            border-left: 4px solid #1a2a6c;
+            padding: 25px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+        }
+        .toc h3 {
+            margin-top: 0;
+            color: #1a2a6c;
+            border: none;
+            padding: 0;
+        }
+        .toc ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        .toc li {
+            margin: 10px 0;
+        }
+        .toc a {
+            color: #2c3e50;
+            text-decoration: none;
+            transition: color 0.3s;
+            font-weight: 500;
+        }
+        .toc a:hover {
+            color: #1a2a6c;
+            text-decoration: underline;
+        }
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        .badge-primary { background: #1a2a6c; color: white; }
+        .badge-success { background: #2ecc71; color: white; }
+        .badge-danger { background: #e74c3c; color: white; }
+        .badge-warning { background: #f39c12; color: white; }
+        .badge-info { background: #3498db; color: white; }
+        .module-card {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .module-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .module-card h4 {
+            color: #1a2a6c;
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .module-card .icon {
+            font-size: 24px;
+        }
+        .table-responsive {
+            overflow-x: auto;
+            margin: 20px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        table th {
+            background: #1a2a6c;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+        table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        table tr:hover {
+            background: #f8f9fa;
+        }
+        .endpoint {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            display: inline-block;
+            margin: 5px 0;
+        }
+        .method-get { border-left: 4px solid #2ecc71; }
+        .method-post { border-left: 4px solid #3498db; }
+        .method-put { border-left: 4px solid #f39c12; }
+        .method-delete { border-left: 4px solid #e74c3c; }
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .feature-list {
+            list-style: none;
+            padding-left: 0;
+        }
+        .feature-list li {
+            padding: 8px 0;
+            padding-left: 30px;
+            position: relative;
+        }
+        .feature-list li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: #2ecc71;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .tech-stack {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .tech-item {
+            background: #e9ecef;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="doc-container">
+        <div class="doc-header">
+            <h1>📚 Documentação Completa do Sistema</h1>
+            <p><strong>Sistema DivulgaCarga - Gestão Completa de Transportes</strong></p>
+            <p>Documentação técnica completa com arquitetura, módulos, APIs, componentes e padrões de desenvolvimento</p>
+            <span class="version">Versão 1.3.0 | Última atualização: 24 de Novembro de 2025</span>
+        </div>
+
+        <!-- Índice -->
+        <div class="toc">
+            <h3>📑 Índice da Documentação</h3>
+            <ul>
+                <li><a href="#sobre">1. Sobre o Sistema</a></li>
+                <li><a href="#arquitetura">2. Arquitetura do Sistema</a></li>
+                <li><a href="#tecnologias">3. Stack Tecnológico</a></li>
+                <li><a href="#estrutura">4. Estrutura de Arquivos</a></li>
+                <li><a href="#modulos">5. Módulos do Sistema</a></li>
+                <li><a href="#apis">6. APIs e Endpoints</a></li>
+                <li><a href="#componentes">7. Componentes Reutilizáveis</a></li>
+                <li><a href="#banco-dados">8. Banco de Dados</a></li>
+                <li><a href="#css">9. Sistema de Estilos (CSS)</a></li>
+                <li><a href="#padroes">10. Padrões de Código</a></li>
+                <li><a href="#seguranca">11. Segurança</a></li>
+                <li><a href="#deploy">12. Deploy e Configuração</a>
+                    <ul style="margin-left: 20px; margin-top: 5px;">
+                        <li><a href="#waboxapp">12.8. Sistema de Envio Automático via WaboxApp</a></li>
+                    </ul>
+                </li>
+            </ul>
+        </div>
+
+        <!-- 1. Sobre o Sistema -->
+        <div class="section" id="sobre">
+            <h2>1. Sobre o Sistema</h2>
+            <p>O <strong>Sistema DivulgaCarga</strong> é uma aplicação web completa para gestão de transportes, desenvolvida para gerenciar cadastros, equipamentos, viagens, empresas, filiais e demais aspectos operacionais do negócio de transporte de cargas.</p>
+            
+            <h3>Funcionalidades Principais</h3>
+            <ul class="feature-list">
+                <li>Gestão completa de cadastros gerais (clientes, fornecedores, transportadores, motoristas)</li>
+                <li>Controle de equipamentos (marcas, tipos, modelos, grupos, classes de frota)</li>
+                <li>Gerenciamento de viagens e roteiros</li>
+                <li>Cadastro de empresas e filiais</li>
+                <li>Gestão de cidades com integração IBGE</li>
+                <li>Sistema de Grid com edição inline em todos os módulos</li>
+                <li>Soft delete/reativação em todos os módulos</li>
+                <li>Filtros avançados e busca</li>
+                <li>Sistema de mensagens toast profissional (vermelho para erro, verde para sucesso)</li>
+                <li>Validações e máscaras (CPF/CNPJ, CEP, Celular) com zero-padding</li>
+                <li>Integração WhatsApp no Grid de Cadastros</li>
+                <li><strong>Sistema de Convocações:</strong> Identificação de motoristas compatíveis, envio via WhatsApp, gerenciamento de respostas</li>
+                <li><strong>Sistema de Geolocalização:</strong> Captura automática da localização do motorista, indicadores visuais, visualização no mapa</li>
+                <li><strong>Links do WhatsApp:</strong> Números de celular clicáveis abrem WhatsApp diretamente</li>
+                <li><strong>Relatório de Convocações:</strong> Relatório completo com estatísticas, gráficos e filtros avançados</li>
+                <li>Interface responsiva e moderna</li>
+            </ul>
+
+            <div class="info-box">
+                <strong>💡 Nota:</strong> O sistema utiliza soft delete (desativação) em vez de exclusão física, mantendo o histórico completo dos dados.
+            </div>
+        </div>
+
+        <!-- 2. Arquitetura -->
+        <div class="section" id="arquitetura">
+            <h2>2. Arquitetura do Sistema</h2>
+            
+            <h3>2.1. Arquitetura Geral</h3>
+            <p>O sistema segue uma arquitetura <strong>MVC (Model-View-Controller)</strong> com separação clara entre frontend e backend:</p>
+            
+            <div class="grid-2">
+                <div class="module-card">
+                    <h4><span class="icon">🎨</span> Frontend</h4>
+                    <ul>
+                        <li>HTML5 + CSS3</li>
+                        <li>JavaScript ES6+ (Vanilla)</li>
+                        <li>Componentes reutilizáveis</li>
+                        <li>SPA (Single Page Application)</li>
+                        <li>Responsive Design</li>
+                    </ul>
+                </div>
+                <div class="module-card">
+                    <h4><span class="icon">⚙️</span> Backend</h4>
+                    <ul>
+                        <li>Node.js + Express.js</li>
+                        <li>MSSQL (SQL Server)</li>
+                        <li>RESTful API</li>
+                        <li>JWT Authentication</li>
+                        <li>Helmet Security</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3>2.2. Fluxo de Dados</h3>
+            <div class="code-block">
+<pre><code>Frontend (Browser)
+    ↓ (HTTP Request)
+Backend (Express.js)
+    ↓ (SQL Query)
+Database (SQL Server)
+    ↓ (Response)
+Backend (JSON)
+    ↓ (JSON Response)
+Frontend (Render)</code></pre>
+            </div>
+
+            <h3>2.3. Estrutura de Módulos</h3>
+            <p>Cada módulo do sistema segue uma estrutura padronizada:</p>
+            <ul>
+                <li><strong>Frontend:</strong> <code>/modulos/[nome-modulo]/index.html</code> e <code>/modulos/[nome-modulo]/js/script.js</code></li>
+                <li><strong>Backend:</strong> <code>/routes/[nome-modulo].routes.js</code> e <code>/controllers/[nome-modulo].controller.js</code></li>
+                <li><strong>API:</strong> Endpoints RESTful em <code>/api/[recurso]</code></li>
+            </ul>
+        </div>
+
+        <!-- 3. Stack Tecnológico -->
+        <div class="section" id="tecnologias">
+            <h2>3. Stack Tecnológico</h2>
+            
+            <h3>3.1. Backend</h3>
+            <div class="tech-stack">
+                <span class="tech-item">Node.js</span>
+                <span class="tech-item">Express.js</span>
+                <span class="tech-item">MSSQL</span>
+                <span class="tech-item">JWT</span>
+                <span class="tech-item">Helmet</span>
+                <span class="tech-item">CORS</span>
+                <span class="tech-item">dotenv</span>
+            </div>
+
+            <h3>3.2. Frontend</h3>
+            <div class="tech-stack">
+                <span class="tech-item">HTML5</span>
+                <span class="tech-item">CSS3</span>
+                <span class="tech-item">JavaScript ES6+</span>
+                <span class="tech-item">Boxicons</span>
+                <span class="tech-item">Fetch API</span>
+                <span class="tech-item">LocalStorage</span>
+            </div>
+
+            <h3>3.3. Banco de Dados</h3>
+            <div class="tech-stack">
+                <span class="tech-item">Microsoft SQL Server</span>
+                <span class="tech-item">DIVULGACARGA_PRD</span>
+                <span class="tech-item">INTEGRA_PRD (Migração)</span>
+            </div>
+
+            <h3>3.4. Integrações Externas</h3>
+            <div class="grid-2">
+                <div class="module-card">
+                    <h4><span class="icon">🌐</span> IBGE API</h4>
+                    <p><strong>Uso:</strong> Dados de municípios brasileiros</p>
+                    <p><strong>Endpoint:</strong> <code>https://servicodados.ibge.gov.br/api/v1/localidades/municipios</code></p>
+                    <p><strong>Aplicação:</strong> Migração de dados de municípios para tabela MUNICIPIO</p>
+                </div>
+                <div class="module-card">
+                    <h4><span class="icon">🗺️</span> OpenStreetMap (Nominatim)</h4>
+                    <p><strong>Uso:</strong> Geocodificação e reverse geocoding</p>
+                    <p><strong>Endpoints:</strong></p>
+                    <ul>
+                        <li><code>https://nominatim.openstreetmap.org/search</code> - Geocodificação (endereço → coordenadas)</li>
+                        <li><code>https://nominatim.openstreetmap.org/reverse</code> - Reverse geocoding (coordenadas → endereço)</li>
+                    </ul>
+                    <p><strong>Aplicação:</strong> Busca de coordenadas, preenchimento automático de endereços, seleção no mapa</p>
+                </div>
+                <div class="module-card">
+                    <h4><span class="icon">🛣️</span> OSRM (Open Source Routing Machine)</h4>
+                    <p><strong>Uso:</strong> Cálculo de rotas e distâncias reais</p>
+                    <p><strong>Endpoint:</strong> <code>https://router.project-osrm.org/route/v1/driving/</code></p>
+                    <p><strong>Aplicação:</strong> Cálculo de distâncias entre pontos usando rotas reais de estradas</p>
+                    <p><strong>Formato:</strong> <code>/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=full&geometries=geojson</code></p>
+                    <p><strong>Usado em:</strong> Roteiros, Visualização de localização do motorista, Cálculo de distância até ponto de carregamento</p>
+                </div>
+                <div class="module-card">
+                    <h4><span class="icon">📱</span> WhatsApp Web API</h4>
+                    <p><strong>Uso:</strong> Links diretos para abrir conversa no WhatsApp</p>
+                    <p><strong>Formato:</strong> <code>https://wa.me/5511999999999</code> (com código do país)</p>
+                    <p><strong>Aplicação:</strong> Números de celular clicáveis em Relatório de Convocações e Gerenciar Convocações</p>
+                    <p><strong>Características:</strong> Limpeza automática do número, adição de código do país, validação</p>
+                </div>
+                <div class="module-card">
+                    <h4><span class="icon">🌐</span> Geolocation API (Browser)</h4>
+                    <p><strong>Uso:</strong> Captura de localização do motorista (latitude/longitude)</p>
+                    <p><strong>API:</strong> <code>navigator.geolocation.getCurrentPosition()</code></p>
+                    <p><strong>Aplicação:</strong> Captura automática quando motorista acessa/responde convocação</p>
+                    <p><strong>Recursos:</strong> Modal bloqueante se permissão negada, botão manual de envio</p>
+                </div>
+                <div class="module-card">
+                    <h4><span class="icon">📦</span> GitHub (kelvins/Municipios-Brasileiros)</h4>
+                    <p><strong>Uso:</strong> Dados de DDD por município</p>
+                    <p><strong>Aplicação:</strong> Atualização em massa de DDDs na tabela CIDADE</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Estrutura de Arquivos -->
+        <div class="section" id="estrutura">
+            <h2>4. Estrutura de Arquivos</h2>
+            
+            <div class="code-block">
+<pre><code>backend/
+├── app.js                 # Configuração Express e rotas
+├── server.js              # Inicialização do servidor
+├── config/
+│   └── db.js              # Configuração do banco de dados
+├── routes/                # Rotas da API
+│   ├── auth.routes.js
+│   ├── menu.routes.js
+│   ├── cadastrogeral.routes.js
+│   ├── cidades.routes.js
+│   ├── equipamento.routes.js
+│   ├── empresa.routes.js
+│   ├── filial.routes.js
+│   └── ... (outras rotas)
+├── controllers/           # Lógica de negócio
+│   ├── cadastrogeral.controller.js
+│   └── viagemmestre.controller.js
+└── public/                # Frontend
+    ├── index.html         # Página de login
+    ├── dashboard.html     # Dashboard principal
+    ├── css/
+    │   ├── modulos.css    # Estilos compartilhados
+    │   ├── dashboard.css
+    │   └── style.css
+    ├── js/
+    │   ├── dashboard.js   # Lógica do dashboard
+    │   ├── grid-editor.js # Componente Grid reutilizável
+    │   └── utils.js       # Funções utilitárias
+    └── modulos/           # Módulos do sistema
+        ├── gerenciar-cadastro-geral/
+        ├── gerenciar-cidades/
+        ├── gerenciar-equipamentos/
+        └── ... (outros módulos)</code></pre>
+            </div>
+        </div>
+
+        <!-- 5. Módulos do Sistema -->
+        <div class="section" id="modulos">
+            <h2>5. Módulos do Sistema</h2>
+            
+            <h3>5.1. Gerenciar Cadastro Geral</h3>
+            <div class="module-card">
+                <h4><span class="icon">👥</span> Cadastro Geral</h4>
+                <p><strong>Descrição:</strong> Gerencia cadastros de clientes, fornecedores, transportadores e demais entidades.</p>
+                <p><strong>Tabela:</strong> <code>CADASTROGERAL</code></p>
+                <p><strong>Funcionalidades:</strong></p>
+                <ul>
+                    <li>CRUD completo</li>
+                    <li>Filtros por tipo de cadastro, CPF/CNPJ, nome, cidade, situação</li>
+                    <li>Grid com edição inline</li>
+                    <li>Integração WhatsApp (botão no Grid)</li>
+                    <li>Soft delete/reativação</li>
+                </ul>
+                <p><strong>Rotas API:</strong></p>
+                <ul>
+                    <li><span class="endpoint method-get">GET /api/cadastros-gerais</span> - Listar com filtros</li>
+                    <li><span class="endpoint method-post">POST /api/cadastros-gerais</span> - Criar</li>
+                    <li><span class="endpoint method-put">PUT /api/cadastros-gerais/:id</span> - Atualizar</li>
+                    <li><span class="endpoint method-delete">DELETE /api/cadastros-gerais/:id</span> - Desativar/Reativar</li>
+                </ul>
+            </div>
+
+            <h3>5.2. Gerenciar Cidades</h3>
+            <div class="module-card">
+                <h4><span class="icon">🗺️</span> Cidades</h4>
+                <p><strong>Descrição:</strong> Gestão completa de cidades com integração IBGE e busca automática de DDD.</p>
+                <p><strong>Tabela:</strong> <code>CIDADE</code> (relacionada com <code>ESTADO</code>, <code>PAIS</code>, <code>MESOREGIAO</code>, <code>MICROREGIAO</code>, <code>REGIAOFISCAL</code>)</p>
+                <p><strong>Funcionalidades:</strong></p>
+                <ul>
+                    <li>CRUD completo</li>
+                    <li>Busca automática de DDD por código IBGE</li>
+                    <li>Combos dependentes (Estado → Mesorregião/Microrregião)</li>
+                    <li>Integração com tabela MUNICIPIO (IBGE)</li>
+                    <li>Grid com edição inline</li>
+                </ul>
+                <p><strong>Rotas API Especiais:</strong></p>
+                <ul>
+                    <li><span class="endpoint method-get">GET /api/microrregioes/:cduf</span> - Microrregiões por estado</li>
+                    <li><span class="endpoint method-get">GET /api/mesorregioes/:cduf</span> - Mesorregiões por estado</li>
+                    <li><span class="endpoint method-get">GET /api/ddd-por-ibge/:codigoIBGE</span> - Buscar DDD</li>
+                </ul>
+            </div>
+
+            <h3>5.3. Gerenciar Equipamentos</h3>
+            <div class="module-card">
+                <h4><span class="icon">🚛</span> Equipamentos</h4>
+                <p><strong>Descrição:</strong> Gestão de equipamentos de transporte (caminhões, carretas, etc.).</p>
+                <p><strong>Tabela:</strong> <code>EQUIPAMENTO</code> (relacionada com <code>GRUPOEQUIPAMENTO</code>, <code>TIPOEQUIPAMENTO</code>, <code>MARCAEQUIPAMENTO</code>, <code>MODELOEQUIPAMENTO</code>, <code>CLASSEFROTA</code>)</p>
+                <p><strong>Funcionalidades:</strong></p>
+                <ul>
+                    <li>CRUD completo</li>
+                    <li>Filtros avançados (grupo, tipo, marca, modelo, classe, situação)</li>
+                    <li>Grid com edição inline</li>
+                    <li>Campos técnicos (eixos, capacidade, dimensões, rastreado)</li>
+                </ul>
+            </div>
+
+            <h3>5.4. Gerenciar Viagens</h3>
+            <div class="module-card">
+                <h4><span class="icon">🚚</span> Viagens</h4>
+                <p><strong>Descrição:</strong> Gestão completa de viagens com origem, destino, roteiros, informações de frete e sistema de convocações para motoristas.</p>
+                <p><strong>Tabela:</strong> <code>VIAGEMMESTRE</code> + <code>CONVOCACAO</code></p>
+                <p><strong>Documentação Completa:</strong> <a href="/DOCUMENTACAO_MODULO_GERENCIAR_VIAGENS.md" target="_blank" style="color: #1a2a6c; text-decoration: underline;">Manual do Sistema - Gerenciar Viagens</a></p>
+                <p><strong>Funcionalidades Principais:</strong></p>
+                <ul>
+                    <li>CRUD completo de viagens</li>
+                    <li>Filtros avançados (situação, tipo, origem, destino, datas, rastreado, motorista confirmado)</li>
+                    <li>Grid com edição inline e estatísticas de convocações</li>
+                    <li>Integração com roteiros</li>
+                    <li>Cálculo de distância e frete</li>
+                    <li><strong>Sistema de Convocações:</strong> Identificação de motoristas compatíveis, envio via WhatsApp, gerenciamento de respostas</li>
+                    <li><strong>init.sql:</strong> Execução automática de SQL ao carregar módulo</li>
+                    <li><strong>Mapa Interativo:</strong> Visualização geográfica de rotas (Leaflet)</li>
+                    <li><strong>Ordenação:</strong> Tabelas com ordenação client-side</li>
+                </ul>
+                
+                <h4>5.4.0. Estrutura de Abas</h4>
+                <p>O módulo possui <strong>6 abas principais</strong>:</p>
+                <ol>
+                    <li><strong>Filtros:</strong> Busca e filtragem avançada de viagens</li>
+                    <li><strong>Grid:</strong> Visualização em tabela editável com estatísticas</li>
+                    <li><strong>Dados:</strong> Formulário de criação/edição completo</li>
+                    <li><strong>Mapa:</strong> Visualização geográfica de origem e destino</li>
+                    <li><strong>Compatíveis:</strong> Busca de motoristas compatíveis e envio de convocações</li>
+                    <li><strong>Convocações:</strong> Gerenciamento completo de convocações enviadas</li>
+                </ol>
+                
+                <h4>5.4.0.1. init.sql - Execução Automática</h4>
+                <p><strong>Funcionalidade:</strong> Executa comandos SQL automaticamente ao carregar o módulo</p>
+                <p><strong>Localização:</strong> <code>backend/public/modulos/gerenciar-viagens/sql/init.sql</code></p>
+                <p><strong>Características:</strong></p>
+                <ul>
+                    <li>✅ Executa apenas uma vez por sessão (proteção contra execução múltipla)</li>
+                    <li>✅ Aguarda completamente antes de mudar abas</li>
+                    <li>✅ Valida comandos perigosos (DROP, TRUNCATE, etc)</li>
+                    <li>✅ Suporta múltiplos comandos separados por GO</li>
+                    <li>✅ Remove comentários automaticamente</li>
+                </ul>
+                <p><strong>Documentação:</strong> <a href="/DOCUMENTACAO_INIT_SQL.md" target="_blank" style="color: #1a2a6c; text-decoration: underline;">Documentação Completa do init.sql</a></p>
+                
+                <h4>5.4.0.2. Melhorias Recentes</h4>
+                <p><strong>2025-11-23:</strong></p>
+                <ul>
+                    <li>✅ Proteção contra execução múltipla do init.sql</li>
+                    <li>✅ Prevenção de mudanças automáticas de aba</li>
+                    <li>✅ Campo "ID Viagem" preenchido automaticamente ao editar</li>
+                    <li>✅ Ordenação em tabelas (Motoristas Compatíveis e Convocações)</li>
+                    <li>✅ Modal de links WhatsApp para múltiplos envios</li>
+                    <li>✅ Prevenção de duplicação de convocações (reutiliza PENDENTE existente)</li>
+                    <li>✅ Execução completa do SQL antes de mudar abas</li>
+                </ul>
+                <p><strong>2025-11-24:</strong></p>
+                <ul>
+                    <li>✅ <strong>Sistema de Geolocalização:</strong> Captura automática de latitude/longitude quando motorista acessa link de convocação</li>
+                    <li>✅ <strong>Indicadores Visuais:</strong> Bolinha verde (com localização) / vermelha (sem localização) em todas as telas</li>
+                    <li>✅ <strong>Botão "Ver no Mapa":</strong> Visualização da localização do motorista e rota até ponto de carregamento (OSRM)</li>
+                    <li>✅ <strong>Links do WhatsApp:</strong> Números de celular clicáveis abrem WhatsApp diretamente</li>
+                    <li>✅ <strong>Modal de Geolocalização:</strong> Força motorista a permitir acesso à localização (se negado anteriormente)</li>
+                    <li>✅ <strong>Botão Manual:</strong> Motorista pode enviar localização manualmente se necessário</li>
+                    <li>✅ <strong>Script init.sql:</strong> Desativa automaticamente viagens que já possuem veículo definido em INTEGRA_PRD</li>
+                    <li>✅ <strong>Remoção de Logs:</strong> Logs de debug removidos para console mais limpo</li>
+                    <li>✅ <strong>Scripts de Configuração:</strong> Scripts PowerShell para atualizar IP local e URL do ngrok automaticamente</li>
+                </ul>
+                
+                <h4>5.4.1. Aba Compatíveis</h4>
+                <p><strong>Funcionalidade:</strong> Lista motoristas compatíveis com uma viagem selecionada, baseado em:</p>
+                <ul>
+                    <li>✅ Compatibilidade de classe de frota</li>
+                    <li>✅ Requisito de veículo rastreado (se aplicável)</li>
+                    <li>✅ Localização (origem/destino considerando micro-regiões)</li>
+                </ul>
+                <p><strong>Recursos:</strong></p>
+                <ul>
+                    <li>Grid com motoristas compatíveis (nome, cidade, transportador, classe de frota)</li>
+                    <li>Botão WhatsApp para contato direto</li>
+                    <li>Seleção múltipla com checkboxes</li>
+                    <li>Preparação e envio de anúncio de carga via WhatsApp</li>
+                </ul>
+                
+                <h4>5.4.2. Aba Convocações</h4>
+                <p><strong>Funcionalidade:</strong> Gerenciamento completo de convocações enviadas aos motoristas.</p>
+                <p><strong>Recursos:</strong></p>
+                <ul>
+                    <li>Listagem de todas as convocações com filtros (viagem, status, motorista)</li>
+                    <li>Visualização de status: PENDENTE, ACEITA, RECUSADA, CONFIRMADA, ACEITA_DESCARTADA</li>
+                    <li>Rastreamento de acesso ao link (Data Acesso)</li>
+                    <li>Botão "Confirmar" para convocações ACEITAS</li>
+                    <li>Confirmação automática via WhatsApp ao motorista selecionado</li>
+                    <li>✅ <strong>Links do WhatsApp:</strong> Números de celular são clicáveis e abrem WhatsApp diretamente</li>
+                    <li>✅ <strong>Indicador de Geolocalização:</strong> Bolinha verde/vermelha indica se motorista colaborou com localização</li>
+                    <li>✅ <strong>Botão "Ver no Mapa":</strong> Visualiza localização do motorista e rota até o ponto de carregamento</li>
+                </ul>
+                
+                <h4>5.4.3. Grid com Estatísticas de Convocações</h4>
+                <p><strong>Novas Colunas no Grid:</strong></p>
+                <ul>
+                    <li><strong>📢 Ação:</strong> Total de motoristas acionados (convocados)</li>
+                    <li><strong>✅ Aceite:</strong> Quantidade de motoristas que aceitaram (verde se > 0)</li>
+                    <li><strong>❌ Recusa:</strong> Quantidade de motoristas que recusaram (vermelho se > 0)</li>
+                    <li><strong>✓ Confirmado:</strong> Se há motorista confirmado (SIM/NÃO)</li>
+                </ul>
+                <p><strong>Legenda:</strong> Exibida acima do grid para facilitar compreensão</p>
+                
+                <h4>5.4.4. Filtro "Motorista Confirmado"</h4>
+                <p><strong>Localização:</strong> Aba Filtros, após "Exige Veículo Rastreado"</p>
+                <p><strong>Opções:</strong></p>
+                <ul>
+                    <li><strong>Todos:</strong> Mostra todas as viagens</li>
+                    <li><strong>Sim:</strong> Apenas viagens com motorista confirmado</li>
+                    <li><strong>Não:</strong> Apenas viagens sem motorista confirmado</li>
+                </ul>
+                
+                <h4>5.4.5. Sistema de Convocações - Fluxo Completo</h4>
+                <p><strong>Etapas:</strong></p>
+                <ol>
+                    <li><strong>Selecionar Viagem:</strong> Escolher viagem pendente na aba "Compatíveis"</li>
+                    <li><strong>Buscar Compatíveis:</strong> Sistema identifica motoristas compatíveis automaticamente</li>
+                    <li><strong>Selecionar Motoristas:</strong> Marcar checkboxes dos motoristas desejados</li>
+                    <li><strong>Preparar Anúncio:</strong> Visualizar e personalizar mensagem de convocação</li>
+                    <li><strong>Enviar via WhatsApp:</strong> Sistema cria convocações e envia links únicos</li>
+                    <li><strong>Acompanhar:</strong> Monitorar respostas na aba "Convocações"</li>
+                    <li><strong>Confirmar:</strong> Confirmar motorista selecionado (outros ACEITAS ficam como ACEITA_DESCARTADA)</li>
+                </ol>
+                
+                <p><strong>Rotas API Especiais:</strong></p>
+                <ul>
+                    <li><span class="endpoint method-get">GET /api/viagens-pendentes</span> - Listar viagens sem motorista confirmado</li>
+                    <li><span class="endpoint method-get">GET /api/viagens/:idViagem/motoristas-compativel</span> - Buscar motoristas compatíveis</li>
+                    <li><span class="endpoint method-post">POST /api/convocacoes</span> - Criar convocações</li>
+                    <li><span class="endpoint method-get">GET /api/convocacoes</span> - Listar convocações com filtros</li>
+                    <li><span class="endpoint method-put">PUT /api/convocacoes/:id</span> - Atualizar convocação</li>
+                    <li><span class="endpoint method-post">POST /api/convocacoes/:id/confirmar</span> - Confirmar convocação</li>
+                    <li><span class="endpoint method-get">GET /api/public/convocacao/:id</span> - Buscar convocação pública (motorista)</li>
+                    <li><span class="endpoint method-post">POST /api/public/convocacao/:id/responder</span> - Responder convocação (aceitar/recusar)</li>
+                    <li><span class="endpoint method-post">POST /api/public/convocacao/:id/acesso</span> - Registrar acesso ao link (com geolocalização)</li>
+                    <li><span class="endpoint method-post">POST /api/public/convocacao/:id/atualizar-localizacao</span> - Atualizar localização manualmente</li>
+                    <li><span class="endpoint method-get">GET /api/public-url</span> - Obter URL pública para links</li>
+                    <li><span class="endpoint method-post">POST /api/viagens/executar-init-sql</span> - Executar init.sql (com validação de segurança)</li>
+                </ul>
+                
+                <div class="info-box">
+                    <strong>💡 Documentação Detalhada:</strong>
+                    <ul style="margin: 10px 0 0 20px;">
+                        <li><a href="/DOCUMENTACAO_MODULO_GERENCIAR_VIAGENS.md" target="_blank" style="color: #1a2a6c; text-decoration: underline;">Manual Completo do Módulo Gerenciar Viagens</a></li>
+                        <li><a href="/DOCUMENTACAO_SISTEMA_CONVOCACOES.md" target="_blank" style="color: #1a2a6c; text-decoration: underline;">Sistema de Convocações - Documentação Completa</a></li>
+                        <li><a href="/DOCUMENTACAO_INIT_SQL.md" target="_blank" style="color: #1a2a6c; text-decoration: underline;">Documentação do init.sql</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3>5.5. Gerenciar Empresas</h3>
+            <div class="module-card">
+                <h4><span class="icon">🏢</span> Empresas</h4>
+                <p><strong>Descrição:</strong> Cadastro de empresas matrizes.</p>
+                <p><strong>Tabela:</strong> <code>EMPRESA</code></p>
+                <p><strong>Funcionalidades:</strong></p>
+                <ul>
+                    <li>CRUD completo</li>
+                    <li>Validação e máscara de CNPJ</li>
+                    <li>Auto-incremento de código</li>
+                    <li>Grid com edição inline</li>
+                </ul>
+            </div>
+
+            <h3>5.6. Gerenciar Filiais</h3>
+            <div class="module-card">
+                <h4><span class="icon">🏪</span> Filiais</h4>
+                <p><strong>Descrição:</strong> Cadastro de filiais vinculadas a empresas.</p>
+                <p><strong>Tabela:</strong> <code>FILIAL</code></p>
+                <p><strong>Funcionalidades:</strong></p>
+                <ul>
+                    <li>CRUD completo</li>
+                    <li>Chave composta (CDEMPRESA + CDFILIAL)</li>
+                    <li>Validação e máscara de CNPJ</li>
+                    <li>Flag de parceiro (S/N)</li>
+                    <li>Grid com edição inline</li>
+                </ul>
+            </div>
+
+            <h3>5.7. Relatório de Convocações</h3>
+            <div class="module-card">
+                <h4><span class="icon">📊</span> Relatório de Convocações</h4>
+                <p><strong>Descrição:</strong> Relatório completo e profissional de convocações com filtros avançados, estatísticas e gráficos.</p>
+                <p><strong>Funcionalidades Principais:</strong></p>
+                <ul>
+                    <li>✅ Filtros avançados (Data início/fim, Status, ID Viagem, ID Convocação, Motorista, Viagem Confirmada)</li>
+                    <li>✅ Estatísticas em cards (Total, Pendente, Aceita, Recusada, Confirmada, Aceita Descartada, Com Acesso, Com Resposta, Total de Viagens)</li>
+                    <li>✅ Gráficos interativos (Chart.js) - Status das Convocações e Convocações por Data</li>
+                    <li>✅ Listagem detalhada com ordenação por coluna</li>
+                    <li>✅ Navegação direta para "Gerenciar Viagens" com filtro pré-preenchido</li>
+                    <li>✅ Exportação para CSV</li>
+                    <li>✅ Tooltip explicativo para coluna "Confirmada"</li>
+                    <li>✅ <strong>Links do WhatsApp:</strong> Números de celular são clicáveis e abrem WhatsApp diretamente</li>
+                    <li>✅ <strong>Indicador de Geolocalização:</strong> Bolinha verde/vermelha indica se motorista colaborou com localização</li>
+                    <li>✅ <strong>Botão "Ver no Mapa":</strong> Visualiza localização do motorista e rota até o ponto de carregamento</li>
+                </ul>
+                <p><strong>Rotas API:</strong></p>
+                <ul>
+                    <li><span class="endpoint method-get">GET /api/relatorio-convocacoes/relatorio</span> - Buscar dados do relatório com filtros</li>
+                    <li><span class="endpoint method-get">GET /api/relatorio-convocacoes/estatisticas</span> - Buscar estatísticas agregadas</li>
+                </ul>
+                <p><strong>Características Técnicas:</strong></p>
+                <ul>
+                    <li>Carregamento dinâmico do Chart.js</li>
+                    <li>Ordenação client-side na tabela</li>
+                    <li>Validação de filtros no frontend e backend</li>
+                    <li>Limpeza correta de filtros (evita bugs de estado)</li>
+                    <li>Integração com Leaflet.js para mapas</li>
+                    <li>Cálculo de rotas usando OSRM (Open Source Routing Machine)</li>
+                </ul>
+            </div>
+
+            <h3>5.8. Módulos Auxiliares</h3>
+            <div class="grid-3">
+                <div class="module-card">
+                    <h4><span class="icon">🏷️</span> Marcas</h4>
+                    <p><strong>Tabela:</strong> <code>MARCAEQUIPAMENTO</code></p>
+                </div>
+                <div class="module-card">
+                    <h4><span class="icon">📦</span> Tipos de Equipamento</h4>
+                    <p><strong>Tabela:</strong> <code>TIPOEQUIPAMENTO</code></p>
+                </div>
+                <div class="module-card">
+                    <h4><span class="icon">🚗</span> Modelos</h4>
+                    <p><strong>Tabela:</strong> <code>MODELOEQUIPAMENTO</code></p>
+                </div>
+                <div class="module-card">
+                    <h4><span class="icon">📋</span> Grupos</h4>
+                    <p><strong>Tabela:</strong> <code>GRUPOEQUIPAMENTO</code></p>
+                </div>
+                <div class="module-card">
+                    <h4><span class="icon">🏗️</span> Classes de Frota</h4>
+                    <p><strong>Tabela:</strong> <code>CLASSEFROTA</code></p>
+                </div>
+                <div class="module-card">
+                    <h4><span class="icon">🛣️</span> Tipos de Viagem</h4>
+                    <p><strong>Tabela:</strong> <code>TIPOVIAGEM</code></p>
+                </div>
+                <div class="module-card">
+                    <h4><span class="icon">✅</span> Situações de Viagem</h4>
+                    <p><strong>Tabela:</strong> <code>SITUACAOVIAGEM</code></p>
+                </div>
+                <div class="module-card">
+                    <h4><span class="icon">🗺️</span> Roteiros</h4>
+                    <p><strong>Tabela:</strong> <code>ROTEIRO</code> + <code>ROTEIROPONTOS</code></p>
+                    <p><strong>Funcionalidades:</strong> Roteiros com pontos georreferenciados, cálculo de distâncias, mapas interativos</p>
+                </div>
+            </div>
+
+            <h3>5.9. Gerenciar Roteiros (Detalhado)</h3>
+            <div class="module-card">
+                <h4><span class="icon">🗺️</span> Roteiros com Pontos Georreferenciados</h4>
+                <p><strong>Descrição:</strong> Sistema completo de gerenciamento de roteiros com pontos georreferenciados (origem, passagem, destino, parada), cálculo automático de distâncias usando rotas reais (OSRM) e visualização interativa em mapas.</p>
+                
+                <p><strong>Tabelas:</strong></p>
+                <ul>
+                    <li><code>ROTEIRO</code> - Roteiros principais (IDROTEIRO, DSROTEIRO, DISTANCIAKM, CDCIDADEORIGEM, CDCIDADEDESTINO, FGACTIVE)</li>
+                    <li><code>ROTEIROPONTOS</code> - Pontos do roteiro (IDROTEIRO, SEQUENCIA, ORDEM, DSLOCAL, DSPOSICAO, LATITUDE, LONGITUDE, TPLOCAL, KMENTREPONTOS, CDPAISPASSAGEM, ESTADOPASSAGEM)</li>
+                </ul>
+
+                <p><strong>Funcionalidades Principais:</strong></p>
+                <ul>
+                    <li>✅ CRUD completo de roteiros</li>
+                    <li>✅ CRUD completo de pontos (origem, passagem, destino, parada)</li>
+                    <li>✅ Cálculo automático de distâncias entre pontos usando OSRM (rotas reais)</li>
+                    <li>✅ Cálculo automático da distância total do roteiro</li>
+                    <li>✅ Recalculo automático ao editar pontos</li>
+                    <li>✅ Visualização no mapa com marcadores distintos por tipo</li>
+                    <li>✅ Modal de seleção de mapa arrastável e centralizado</li>
+                    <li>✅ Ajuste fino de posição (arrastar marcador ou duplo clique)</li>
+                    <li>✅ Preenchimento automático de País e Estado ao selecionar no mapa</li>
+                    <li>✅ Grid de pontos com edição inline</li>
+                    <li>✅ Ordem de pontos (1 = origem, 100 = destino, intermediários no meio)</li>
+                    <li>✅ Criação automática de origem e destino ao criar novo roteiro</li>
+                    <li>✅ Soft delete/reativação para roteiros</li>
+                    <li>✅ Exclusão física para pontos (sem FGACTIVE)</li>
+                </ul>
+
+                <p><strong>Tipos de Ponto (TPLOCAL):</strong></p>
+                <ul>
+                    <li><strong>O</strong> - Origem (Ordem 1, marcador verde 🏁)</li>
+                    <li><strong>D</strong> - Destino (Ordem 100, marcador vermelho 🏁)</li>
+                    <li><strong>P</strong> - Ponto de Passagem (Ordem 2-99, marcador azul 📍)</li>
+                    <li><strong>R</strong> - Ponto de Parada (Ordem 2-99, marcador laranja ⏸)</li>
+                </ul>
+
+                <p><strong>Rotas API Especiais:</strong></p>
+                <ul>
+                    <li><span class="endpoint method-get">GET /api/roteiros/:id/pontos</span> - Listar pontos de um roteiro</li>
+                    <li><span class="endpoint method-get">GET /api/roteiros/:id/pontos/:sequencia</span> - Buscar ponto específico</li>
+                    <li><span class="endpoint method-post">POST /api/roteiros/:id/pontos</span> - Criar novo ponto</li>
+                    <li><span class="endpoint method-put">PUT /api/roteiros/:id/pontos/:sequencia</span> - Atualizar ponto</li>
+                    <li><span class="endpoint method-delete">DELETE /api/roteiros/:id/pontos/:sequencia</span> - Excluir ponto (físico)</li>
+                </ul>
+
+                <h4>5.8.1. Sistema de Cálculo de Distâncias</h4>
+                <p><strong>OSRM (Open Source Routing Machine) - Prioritário:</strong></p>
+                <ul>
+                    <li>Usa rotas reais de estradas</li>
+                    <li>Calcula distância considerando o caminho real</li>
+                    <li>Suporta múltiplos pontos intermediários</li>
+                    <li>Retorna geometria da rota para visualização no mapa</li>
+                    <li>API: <code>https://router.project-osrm.org/route/v1/driving/</code></li>
+                </ul>
+
+                <p><strong>Haversine (Fallback):</strong></p>
+                <ul>
+                    <li>Cálculo de distância em linha reta</li>
+                    <li>Usado quando OSRM não está disponível</li>
+                    <li>Fórmula matemática precisa para distâncias curtas</li>
+                </ul>
+
+                <p><strong>Implementação:</strong></p>
+                <ul>
+                    <li>Cálculo automático ao salvar ponto</li>
+                    <li>Recalculo automático ao editar roteiro</li>
+                    <li>Atualização em tempo real no Grid</li>
+                    <li>Exibição de distância acumulada desde a origem</li>
+                </ul>
+
+                <h4>5.8.2. Modal de Seleção de Mapa</h4>
+                <p><strong>Características:</strong></p>
+                <ul>
+                    <li>✅ Modal centralizado na tela (não muito para baixo)</li>
+                    <li>✅ Arrastável pelo cabeçalho (drag & drop)</li>
+                    <li>✅ Botões sempre visíveis (sem necessidade de F11)</li>
+                    <li>✅ Carrega com coordenadas existentes (se houver)</li>
+                    <li>✅ Zoom automático (15x quando há coordenadas, 4x quando não há)</li>
+                    <li>✅ Marcador arrastável para ajuste fino</li>
+                    <li>✅ Duplo clique para criar/atualizar posição</li>
+                    <li>✅ Reverse geocoding automático</li>
+                    <li>✅ Preenchimento automático de País e Estado</li>
+                </ul>
+
+                <h4>5.8.3. Visualização no Mapa</h4>
+                <p><strong>Biblioteca:</strong> Leaflet.js (carregamento dinâmico)</p>
+                <p><strong>Funcionalidades:</strong></p>
+                <ul>
+                    <li>Marcadores distintos por tipo de ponto</li>
+                    <li>Popups informativos com detalhes completos</li>
+                    <li>Rotas desenhadas usando OSRM</li>
+                    <li>Zoom automático para mostrar toda a rota</li>
+                    <li>Exibição de distância acumulada desde a origem</li>
+                    <li>Suporte a múltiplos pontos intermediários</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- 6. APIs e Endpoints -->
+        <div class="section" id="apis">
+            <h2>6. APIs e Endpoints</h2>
+            
+            <h3>6.1. Autenticação</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Método</th>
+                        <th>Endpoint</th>
+                        <th>Descrição</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="endpoint method-post">POST</span></td>
+                        <td><code>/api/auth/login</code></td>
+                        <td>Autenticação de usuário (retorna JWT)</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>6.2. Menu</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Método</th>
+                        <th>Endpoint</th>
+                        <th>Descrição</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="endpoint method-get">GET</span></td>
+                        <td><code>/api/menu/user-menu</code></td>
+                        <td>Retorna menu do usuário (header: user-login)</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>6.3. Padrão de Endpoints por Módulo</h3>
+            <p>Todos os módulos seguem o mesmo padrão RESTful:</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Método</th>
+                        <th>Endpoint</th>
+                        <th>Descrição</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="endpoint method-get">GET</span></td>
+                        <td><code>/api/[recurso]</code></td>
+                        <td>Listar com filtros (query params)</td>
+                    </tr>
+                    <tr>
+                        <td><span class="endpoint method-get">GET</span></td>
+                        <td><code>/api/[recurso]/:id</span></td>
+                        <td>Buscar por ID</td>
+                    </tr>
+                    <tr>
+                        <td><span class="endpoint method-post">POST</span></td>
+                        <td><code>/api/[recurso]</code></td>
+                        <td>Criar novo registro</td>
+                    </tr>
+                    <tr>
+                        <td><span class="endpoint method-put">PUT</span></td>
+                        <td><code>/api/[recurso]/:id</code></td>
+                        <td>Atualizar registro</td>
+                    </tr>
+                    <tr>
+                        <td><span class="endpoint method-delete">DELETE</span></td>
+                        <td><code>/api/[recurso]/:id?action=activate|deactivate</code></td>
+                        <td>Desativar/Reativar (soft delete)</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="info-box">
+                <strong>💡 Nota:</strong> O endpoint DELETE não remove fisicamente o registro, apenas altera o campo <code>FGACTIVE</code> para 'I' (Inativo) ou 'A' (Ativo). Use o parâmetro <code>?action=activate</code> para reativar.
+            </div>
+
+            <h3>6.4. Endpoints Especiais</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Método</th>
+                        <th>Endpoint</th>
+                        <th>Descrição</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="endpoint method-get">GET</span></td>
+                        <td><code>/api/microrregioes/:cduf</code></td>
+                        <td>Microrregiões por estado</td>
+                    </tr>
+                    <tr>
+                        <td><span class="endpoint method-get">GET</span></td>
+                        <td><code>/api/mesorregioes/:cduf</code></td>
+                        <td>Mesorregiões por estado</td>
+                    </tr>
+                    <tr>
+                        <td><span class="endpoint method-get">GET</span></td>
+                        <td><code>/api/regioes-fiscais</code></td>
+                        <td>Todas as regiões fiscais</td>
+                    </tr>
+                    <tr>
+                        <td><span class="endpoint method-get">GET</span></td>
+                        <td><code>/api/paises</code></td>
+                        <td>Todos os países</td>
+                    </tr>
+                    <tr>
+                        <td><span class="endpoint method-get">GET</span></td>
+                        <td><code>/api/ddd-por-ibge/:codigoIBGE</code></td>
+                        <td>Buscar DDD por código IBGE (7 dígitos)</td>
+                    </tr>
+                    <tr>
+                        <td><span class="endpoint method-get">GET</span></td>
+                        <td><code>/api/roteiros/:id/pontos</code></td>
+                        <td>Listar pontos de um roteiro</td>
+                    </tr>
+                    <tr>
+                        <td><span class="endpoint method-get">GET</span></td>
+                        <td><code>/api/roteiros/:id/pontos/:sequencia</code></td>
+                        <td>Buscar ponto específico de um roteiro</td>
+                    </tr>
+                    <tr>
+                        <td><span class="endpoint method-post">POST</span></td>
+                        <td><code>/api/roteiros/:id/pontos</code></td>
+                        <td>Criar novo ponto em um roteiro</td>
+                    </tr>
+                    <tr>
+                        <td><span class="endpoint method-put">PUT</span></td>
+                        <td><code>/api/roteiros/:id/pontos/:sequencia</code></td>
+                        <td>Atualizar ponto de um roteiro</td>
+                    </tr>
+                    <tr>
+                        <td><span class="endpoint method-delete">DELETE</span></td>
+                        <td><code>/api/roteiros/:id/pontos/:sequencia</code></td>
+                        <td>Excluir ponto de um roteiro (exclusão física)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 7. Componentes Reutilizáveis -->
+        <div class="section" id="componentes">
+            <h2>7. Componentes Reutilizáveis</h2>
+            
+            <h3>7.1. GridEditor</h3>
+            <p><strong>Arquivo:</strong> <code>/public/js/grid-editor.js</code></p>
+            <p>Componente JavaScript reutilizável para exibir dados em grid com edição inline.</p>
+            
+            <h4>Uso Básico:</h4>
+            <div class="code-block">
+<pre><code>const grid = new GridEditor({
+  container: '#lista',
+  columns: [
+    { field: 'id', header: 'ID', editable: false, width: '60px' },
+    { field: 'nome', header: 'Nome', editable: true, type: 'text' },
+    { field: 'situacao', header: 'Situação', editable: false, 
+      formatter: (value) => value === 'S' ? 'Ativo' : 'Inativo' }
+  ],
+  apiEndpoint: '/api/marcas',
+  onEdit: async (id, updatedData) => {
+    const response = await fetch(`/api/marcas/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updatedData)
+    });
+    return response.json();
+  },
+  onDelete: async (id) => {
+    // Lógica de exclusão customizada
+  }
+});
+
+grid.render(data);</code></pre>
+            </div>
+
+            <h4>Opções do GridEditor:</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Opção</th>
+                        <th>Tipo</th>
+                        <th>Descrição</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>container</code></td>
+                        <td>string | HTMLElement</td>
+                        <td>Seletor CSS ou elemento DOM</td>
+                    </tr>
+                    <tr>
+                        <td><code>columns</code></td>
+                        <td>Array</td>
+                        <td>Definição das colunas (field, header, editable, type, formatter)</td>
+                    </tr>
+                    <tr>
+                        <td><code>apiEndpoint</code></td>
+                        <td>string</td>
+                        <td>Endpoint base da API</td>
+                    </tr>
+                    <tr>
+                        <td><code>onEdit</code></td>
+                        <td>Function</td>
+                        <td>Callback para edição (async)</td>
+                    </tr>
+                    <tr>
+                        <td><code>onDelete</code></td>
+                        <td>Function</td>
+                        <td>Callback para exclusão (async)</td>
+                    </tr>
+                    <tr>
+                        <td><code>customActions</code></td>
+                        <td>Function</td>
+                        <td>Função que retorna HTML para ações customizadas</td>
+                    </tr>
+                    <tr>
+                        <td><code>showActions</code></td>
+                        <td>boolean</td>
+                        <td>Mostrar coluna de ações (padrão: true)</td>
+                    </tr>
+                    <tr>
+                        <td><code>autoSave</code></td>
+                        <td>boolean</td>
+                        <td>Salvar automaticamente ao editar (padrão: true)</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>7.2. Sistema de Mensagens Toast</h3>
+            <p><strong>Arquivo:</strong> <code>/public/js/utils.js</code> e <code>/public/css/modulos.css</code></p>
+            <p>O sistema utiliza mensagens toast fixas no topo da tela para feedback ao usuário, garantindo visibilidade e profissionalismo.</p>
+            
+            <h4>7.2.1. Tipos de Mensagens</h4>
+            <div class="grid-2">
+                <div class="module-card">
+                    <h4><span class="icon" style="color: #e74c3c;">🔴</span> Toast Vermelho (Erro/Crítica)</h4>
+                    <p><strong>Uso:</strong> Mensagens de erro, validação falha, operações críticas</p>
+                    <p><strong>Características:</strong></p>
+                    <ul>
+                        <li>Cor vermelha (#e74c3c) com ícone de erro</li>
+                        <li>Borda lateral vermelha</li>
+                        <li>Auto-oculta após 8 segundos</li>
+                        <li>Scroll automático para campo com erro (quando aplicável)</li>
+                        <li>Destaque visual do campo com erro (borda vermelha temporária)</li>
+                    </ul>
+                    <p><strong>Exemplo:</strong></p>
+                    <div class="code-block">
+<pre><code>showMessage('CPF inválido.', 'error', null, 'cadastroCGCCPF');
+showMessage('Erro ao salvar registro.', 'error');</code></pre>
+                    </div>
+                </div>
+                <div class="module-card">
+                    <h4><span class="icon" style="color: #2ecc71;">🟢</span> Toast Verde (Sucesso/Informação)</h4>
+                    <p><strong>Uso:</strong> Confirmações de sucesso, informações positivas</p>
+                    <p><strong>Características:</strong></p>
+                    <ul>
+                        <li>Cor verde (#2ecc71) com ícone de check</li>
+                        <li>Borda lateral verde</li>
+                        <li>Auto-oculta após 5 segundos</li>
+                        <li><strong>Não faz scroll</strong> - mantém usuário na posição atual</li>
+                        <li>Não interrompe o fluxo de trabalho</li>
+                    </ul>
+                    <p><strong>Exemplo:</strong></p>
+                    <div class="code-block">
+<pre><code>showMessage('Cadastro atualizado com sucesso!', 'success');
+showMessage('Registro salvo com sucesso!', 'success');</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <h4>7.2.2. Funcionalidades do Toast</h4>
+            <ul>
+                <li><strong>Posição Fixa:</strong> Sempre visível no topo da tela (z-index: 10000)</li>
+                <li><strong>Animação:</strong> Entrada e saída suaves (fade + slide)</li>
+                <li><strong>Botão de Fechar:</strong> Usuário pode fechar manualmente (X)</li>
+                <li><strong>Auto-ocultar:</strong> Desaparece automaticamente após o tempo definido</li>
+                <li><strong>Substituição:</strong> Novo toast substitui o anterior automaticamente</li>
+                <li><strong>Responsivo:</strong> Adapta-se a diferentes tamanhos de tela (max-width: 90%)</li>
+            </ul>
+
+            <h4>7.2.3. Uso da Função showMessage</h4>
+            <div class="code-block">
+<pre><code>// Assinatura da função
+showMessage(text, type, messageElement, fieldId)
+
+// Parâmetros:
+// - text: string - Texto da mensagem
+// - type: 'success' | 'error' - Tipo da mensagem
+// - messageElement: HTMLElement (opcional) - Elemento alternativo para mensagem
+// - fieldId: string (opcional) - ID do campo com erro (apenas para erros)</code></pre>
+            </div>
+
+            <h4>7.2.4. Exemplos Práticos</h4>
+            <div class="code-block">
+<pre><code>// Erro com foco no campo
+showMessage('Celular inválido. Deve ter 11 dígitos.', 'error', null, 'cadastroCelular');
+
+// Erro genérico
+showMessage('Erro ao conectar com o servidor.', 'error');
+
+// Sucesso
+showMessage('Viagem atualizada com sucesso!', 'success');
+
+// Sucesso após criação
+showMessage('Novo registro criado com sucesso!', 'success');</code></pre>
+            </div>
+
+            <h3>7.4. GridEditor - Ordenação</h3>
+            <p><strong>Funcionalidade:</strong> Ordenação por coluna ao clicar no cabeçalho</p>
+            <p><strong>Características:</strong></p>
+            <ul>
+                <li>✅ Clique no cabeçalho para ordenar (ascendente/descendente)</li>
+                <li>✅ Indicador visual de ordenação (seta ↑ ↓)</li>
+                <li>✅ Ordenação client-side (rápida e responsiva)</li>
+                <li>✅ Suporta ordenação por texto, número e data</li>
+                <li>✅ Mantém estado de ordenação durante edição</li>
+            </ul>
+
+            <h3>7.5. Sistema de Mapas (Leaflet)</h3>
+            <p><strong>Biblioteca:</strong> Leaflet.js v1.9.4 (carregamento dinâmico)</p>
+            <p><strong>Módulos com Mapas:</strong></p>
+            <ul>
+                <li><strong>Gerenciar Roteiros:</strong> Visualização completa com todos os pontos e rota</li>
+                <li><strong>Gerenciar Viagens:</strong> Visualização de origem, destino e rota do roteiro selecionado</li>
+                <li><strong>Gerenciar Convocações:</strong> Visualização da localização do motorista e rota até ponto de carregamento</li>
+                <li><strong>Relatório de Convocações:</strong> Visualização da localização do motorista e rota até ponto de carregamento</li>
+            </ul>
+
+            <p><strong>Funcionalidades:</strong></p>
+            <ul>
+                <li>✅ Carregamento dinâmico do Leaflet (não bloqueia página inicial)</li>
+                <li>✅ Marcadores distintos por tipo (origem 🏁, destino 🏁, passagem 📍, parada ⏸)</li>
+                <li>✅ Popups informativos com detalhes do ponto</li>
+                <li>✅ Rotas desenhadas usando OSRM (rotas reais)</li>
+                <li>✅ Zoom automático para mostrar toda a rota</li>
+                <li>✅ Modal de seleção arrastável e centralizado</li>
+                <li>✅ Reverse geocoding automático</li>
+                <li>✅ Preenchimento automático de País e Estado</li>
+            </ul>
+
+            <h4>7.5.1. Modal de Seleção de Mapa</h4>
+            <p><strong>Características Técnicas:</strong></p>
+            <ul>
+                <li><strong>Posicionamento:</strong> Centralizado na tela usando flexbox</li>
+                <li><strong>Arrastável:</strong> Drag & drop pelo cabeçalho</li>
+                <li><strong>Responsivo:</strong> Adapta-se a diferentes tamanhos de tela</li>
+                <li><strong>Zoom Inicial:</strong> 15x quando há coordenadas, 4x quando não há</li>
+                <li><strong>Marcador:</strong> Arrastável para ajuste fino de posição</li>
+                <li><strong>Interação:</strong> Duplo clique para criar/atualizar posição</li>
+            </ul>
+
+            <h4>7.5.2. Cálculo de Distâncias</h4>
+            <p><strong>OSRM (Prioritário):</strong></p>
+            <div class="code-block">
+<pre><code>// Exemplo de uso do OSRM
+const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${lon1},${lat1};${lon2},${lat2}?overview=full&geometries=geojson`;
+const response = await fetch(osrmUrl);
+const data = await response.json();
+const distancia = (data.routes[0].distance / 1000).toFixed(2); // km</code></pre>
+            </div>
+
+            <p><strong>Haversine (Fallback):</strong></p>
+            <div class="code-block">
+<pre><code>function calcularDistanciaHaversine(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Raio da Terra em km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}</code></pre>
+            </div>
+
+            <div class="success-box">
+                <strong>✅ Padrão:</strong> Todos os módulos do sistema utilizam o mesmo sistema de mensagens toast, garantindo consistência visual e experiência do usuário uniforme em todo o sistema.
+            </div>
+
+            <h3>7.3. Sistema de Links do WhatsApp</h3>
+            <p><strong>Funcionalidade:</strong> Números de celular são automaticamente convertidos em links clicáveis que abrem o WhatsApp</p>
+            <p><strong>Onde é usado:</strong></p>
+            <ul>
+                <li>✅ <strong>Relatório de Convocações:</strong> Coluna "Celular"</li>
+                <li>✅ <strong>Gerenciar Convocações:</strong> Coluna "Motorista" (celular abaixo do nome)</li>
+            </ul>
+            <p><strong>Características:</strong></p>
+            <ul>
+                <li>Limpa automaticamente o número (remove espaços, parênteses, hífens, pontos)</li>
+                <li>Adiciona código do país (55 para Brasil) se não tiver</li>
+                <li>Valida número antes de criar link (mínimo 12 dígitos com código do país)</li>
+                <li>Exibe ícone do WhatsApp (📱) ao lado do número</li>
+                <li>Cor verde (#25D366) para identificação visual</li>
+                <li>Formato do link: <code>https://wa.me/5511999999999</code></li>
+            </ul>
+            <p><strong>Função:</strong> <code>criarLinkWhatsApp(celular)</code> - Disponível em ambos os módulos</p>
+
+            <h3>7.4. Sistema de Geolocalização de Motoristas</h3>
+            <p><strong>Funcionalidade:</strong> Captura automática da localização (latitude/longitude) quando motorista acessa ou responde convocação</p>
+            <p><strong>Campos no Banco:</strong></p>
+            <ul>
+                <li><code>CONVOCACAO.LATITUDE</code> - Latitude capturada (FLOAT NULL)</li>
+                <li><code>CONVOCACAO.LONGITUDE</code> - Longitude capturada (FLOAT NULL)</li>
+            </ul>
+            <p><strong>Indicadores Visuais:</strong></p>
+            <ul>
+                <li>🟢 <strong>Bolinha Verde:</strong> Motorista colaborou - localização capturada</li>
+                <li>🔴 <strong>Bolinha Vermelha:</strong> Motorista não colaborou - localização não capturada</li>
+                <li>Animação de pulso para chamar atenção</li>
+            </ul>
+            <p><strong>Onde aparece:</strong></p>
+            <ul>
+                <li>✅ Relatório de Convocações (coluna Status)</li>
+                <li>✅ Gerenciar Convocações (coluna Status)</li>
+            </ul>
+            <p><strong>Botão "Ver no Mapa":</strong></p>
+            <ul>
+                <li>Aparece apenas quando há localização + IDROTEIRO</li>
+                <li>Exibe mapa com localização do motorista e ponto de carregamento</li>
+                <li>Calcula e exibe rota usando OSRM (rotas reais)</li>
+                <li>Mostra distância e tempo estimado</li>
+                <li>Informações: Nome, celular, viagem, roteiro, frete, peso, distância</li>
+            </ul>
+            <p><strong>Página do Motorista:</strong></p>
+            <ul>
+                <li>Captura automática ao acessar link</li>
+                <li>Captura ao responder (aceitar/recusar)</li>
+                <li>Modal bloqueante se permissão foi negada</li>
+                <li>Botão manual "📍 Enviar Minha Localização"</li>
+                <li>Mensagem informativa sobre necessidade de permissão</li>
+            </ul>
+            <p><strong>Endpoints API:</strong></p>
+            <ul>
+                <li><span class="endpoint method-post">POST /api/public/convocacao/:id/acesso</span> - Registra acesso com geolocalização</li>
+                <li><span class="endpoint method-post">POST /api/public/convocacao/:id/responder</span> - Responde com geolocalização</li>
+                <li><span class="endpoint method-post">POST /api/public/convocacao/:id/atualizar-localizacao</span> - Atualiza localização manualmente</li>
+            </ul>
+
+            <h3>7.6. Utils.js - Outras Funções</h3>
+            <p><strong>Arquivo:</strong> <code>/public/js/utils.js</code></p>
+            <p>Outras funções utilitárias compartilhadas:</p>
+            <ul>
+                <li><code>showLoading(element, show)</code> - Gerencia estados de loading</li>
+                <li><code>fetchWithErrorHandling(url, options)</code> - Wrapper para fetch com tratamento de erros</li>
+                <li><code>validateRequired(fieldId, fieldName)</code> - Valida campos obrigatórios</li>
+                <li><code>debounce(func, wait)</code> - Debounce para funções</li>
+                <li><code>scrollToElement(element, options)</code> - Scroll suave para elemento</li>
+            </ul>
+
+            <div class="warning-box">
+                <strong>⚠️ Importante:</strong> Todos os módulos devem usar <code>window.showMessage</code> e <code>window.showLoading</code> do utils.js para manter consistência.
+            </div>
+        </div>
+
+        <!-- 8. Banco de Dados -->
+        <div class="section" id="banco-dados">
+            <h2>8. Banco de Dados</h2>
+            
+            <h3>8.1. Configuração</h3>
+            <p><strong>Banco Principal:</strong> <code>DIVULGACARGA_PRD</code></p>
+            <p><strong>Banco de Migração:</strong> <code>INTEGRA_PRD</code></p>
+            <p><strong>Configuração:</strong> Arquivo <code>.env</code> com variáveis de ambiente</p>
+
+            <h3>8.2. Tabelas Principais</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Tabela</th>
+                        <th>Descrição</th>
+                        <th>Chave Primária</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>CADASTROGERAL</code></td>
+                        <td>Cadastros gerais (clientes, fornecedores, transportadores)</td>
+                        <td>CDCADASTRO</td>
+                    </tr>
+                    <tr>
+                        <td><code>CIDADE</code></td>
+                        <td>Cidades brasileiras</td>
+                        <td>CDCIDADE</td>
+                    </tr>
+                    <tr>
+                        <td><code>ESTADO</code></td>
+                        <td>Estados brasileiros</td>
+                        <td>CDUF</td>
+                    </tr>
+                    <tr>
+                        <td><code>PAIS</code></td>
+                        <td>Países</td>
+                        <td>CDPAIS</td>
+                    </tr>
+                    <tr>
+                        <td><code>EQUIPAMENTO</code></td>
+                        <td>Equipamentos de transporte</td>
+                        <td>IDEQUIPAMENTO</td>
+                    </tr>
+                    <tr>
+                        <td><code>MARCAEQUIPAMENTO</code></td>
+                        <td>Marcas de equipamentos</td>
+                        <td>CDMARCAEQUIPAMENTO</td>
+                    </tr>
+                    <tr>
+                        <td><code>TIPOEQUIPAMENTO</code></td>
+                        <td>Tipos de equipamentos</td>
+                        <td>CDTIPOEQUIPAMENTO</td>
+                    </tr>
+                    <tr>
+                        <td><code>MODELOEQUIPAMENTO</code></td>
+                        <td>Modelos de equipamentos</td>
+                        <td>CDMODELOEQUIPAMENTO</td>
+                    </tr>
+                    <tr>
+                        <td><code>GRUPOEQUIPAMENTO</code></td>
+                        <td>Grupos de equipamentos</td>
+                        <td>CDGRUPOEQUIPAMENTO</td>
+                    </tr>
+                    <tr>
+                        <td><code>CLASSEFROTA</code></td>
+                        <td>Classes de frota</td>
+                        <td>CDCLASSEFROTA</td>
+                    </tr>
+                    <tr>
+                        <td><code>VIAGEMMESTRE</code></td>
+                        <td>Viagens</td>
+                        <td>IDVIAGEM</td>
+                    </tr>
+                    <tr>
+                        <td><code>TIPOVIAGEM</code></td>
+                        <td>Tipos de viagem</td>
+                        <td>CDTIPOVIAGEM</td>
+                    </tr>
+                    <tr>
+                        <td><code>SITUACAOVIAGEM</code></td>
+                        <td>Situações de viagem</td>
+                        <td>CDSITUACAOVIAGEM</td>
+                    </tr>
+                    <tr>
+                        <td><code>ROTEIRO</code></td>
+                        <td>Roteiros principais</td>
+                        <td>IDROTEIRO</td>
+                    </tr>
+                    <tr>
+                        <td><code>ROTEIROPONTOS</code></td>
+                        <td>Pontos dos roteiros (origem, passagem, destino, parada)</td>
+                        <td>IDROTEIRO, SEQUENCIA (composta)</td>
+                    </tr>
+                    <tr>
+                        <td><code>EMPRESA</code></td>
+                        <td>Empresas matrizes</td>
+                        <td>CDEMPRESA</td>
+                    </tr>
+                    <tr>
+                        <td><code>FILIAL</code></td>
+                        <td>Filiais</td>
+                        <td>CDEMPRESA, CDFILIAL (composta)</td>
+                    </tr>
+                    <tr>
+                        <td><code>MUNICIPIO</code></td>
+                        <td>Dados IBGE de municípios</td>
+                        <td>CodigoIBGE</td>
+                    </tr>
+                    <tr>
+                        <td><code>CONVOCACAO</code></td>
+                        <td>Convocações enviadas aos motoristas</td>
+                        <td>IDCONVOCACAO</td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="info-box">
+                <strong>💡 Tabela CONVOCACAO - Campos de Geolocalização:</strong>
+                <ul style="margin: 10px 0 0 20px;">
+                    <li><code>LATITUDE</code> (FLOAT NULL) - Latitude capturada quando motorista acessa/responde</li>
+                    <li><code>LONGITUDE</code> (FLOAT NULL) - Longitude capturada quando motorista acessa/responde</li>
+                    <li><code>DHACESSO</code> - Data/hora do primeiro acesso ao link</li>
+                    <li><code>DHRESPOSTA</code> - Data/hora da resposta (aceitar/recusar)</li>
+                </ul>
+            </div>
+
+            <h3>8.3. Campos Padrão</h3>
+            <p>Todas as tabelas principais possuem campos padrão de auditoria:</p>
+            <ul>
+                <li><code>FGACTIVE</code> - Flag de ativação ('A' = Ativo, 'I' = Inativo)</li>
+                <li><code>DHMAINTENANCE</code> - Data/hora da última manutenção</li>
+                <li><code>SGUSER</code> - Usuário que realizou a operação</li>
+                <li><code>SERVERORIG</code> - Servidor de origem</li>
+            </ul>
+
+            <div class="info-box">
+                <strong>💡 Soft Delete:</strong> O sistema utiliza soft delete (desativação) em vez de exclusão física. O campo <code>FGACTIVE</code> controla o status do registro.
+            </div>
+        </div>
+
+        <!-- 9. Sistema de Estilos (CSS) -->
+        <div class="section" id="css">
+            <h2>9. Sistema de Estilos (CSS)</h2>
+            
+            <h3>9.1. Arquivos CSS</h3>
+            <ul>
+                <li><code>modulos.css</code> - Estilos compartilhados entre todos os módulos</li>
+                <li><code>dashboard.css</code> - Estilos específicos do dashboard</li>
+                <li><code>style.css</code> - Estilos da página de login</li>
+            </ul>
+
+            <h3>9.2. Variáveis CSS</h3>
+            <div class="code-block">
+<pre><code>:root {
+    --primary: #1a2a6c;
+    --success: #2ecc71;
+    --danger: #e74c3c;
+    --warning: #f39c12;
+    --info: #3498db;
+    --light: #f8f9fa;
+    --dark: #343a40;
+    --gray: #6c757d;
+    --light-gray: #e9ecef;
+    --border: #dee2e6;
+    --shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+}</code></pre>
+            </div>
+
+            <h3>9.3. Componentes CSS</h3>
+            <ul>
+                <li><strong>Sistema de Abas:</strong> <code>.tabs</code>, <code>.tab-btn</code>, <code>.tab-content</code></li>
+                <li><strong>Formulários:</strong> <code>.form-box</code>, <code>.input-group</code>, <code>.input-group.double</code>, <code>.input-group.triple</code>, <code>.input-group.four-row</code></li>
+                <li><strong>Botões:</strong> <code>.btn.save</code>, <code>.btn.delete</code>, <code>.btn.cancel</code>, <code>.btn.info</code></li>
+                <li><strong>Listas:</strong> <code>.list.grid-3-columns</code>, <code>.list-item</code></li>
+                <li><strong>Mensagens:</strong> <code>.message.success</code>, <code>.message.error</code></li>
+                <li><strong>Toast:</strong> <code>.toast-message</code>, <code>.toast-success</code>, <code>.toast-error</code></li>
+                <li><strong>Modal:</strong> <code>.modal</code>, <code>.modal-content</code></li>
+            </ul>
+
+            <div class="warning-box">
+                <strong>⚠️ Padrão:</strong> Não usar CSS inline nos HTMLs dos módulos. Todos os estilos devem estar em <code>modulos.css</code>.
+            </div>
+        </div>
+
+        <!-- 10. Padrões de Código -->
+        <div class="section" id="padroes">
+            <h2>10. Padrões de Código</h2>
+            
+            <h3>10.1. Nomenclatura</h3>
+            <ul>
+                <li><strong>Arquivos:</strong> kebab-case (<code>gerenciar-cidades</code>)</li>
+                <li><strong>Variáveis JavaScript:</strong> camelCase (<code>nomeCidade</code>)</li>
+                <li><strong>Constantes:</strong> UPPER_SNAKE_CASE (<code>API_BASE_URL</code>)</li>
+                <li><strong>Classes CSS:</strong> kebab-case (<code>.input-group</code>)</li>
+                <li><strong>Tabelas SQL:</strong> UPPER_SNAKE_CASE (<code>CADASTROGERAL</code>)</li>
+            </ul>
+
+            <h3>10.2. Estrutura de Módulo</h3>
+            <p>Cada módulo deve seguir esta estrutura:</p>
+            <div class="code-block">
+<pre><code>// 1. Variáveis globais
+let dados = [];
+let editandoId = null;
+
+// 2. Inicialização
+document.addEventListener('DOMContentLoaded', () => {
+  inicializar();
+});
+
+// 3. Funções de inicialização
+function inicializar() {
+  configurarEventos();
+  carregarDados();
+}
+
+// 4. Funções de eventos
+function configurarEventos() { ... }
+
+// 5. Funções de API
+async function carregarDados() { ... }
+
+// 6. Funções auxiliares
+function validarFormulario() { ... }</code></pre>
+            </div>
+
+            <h3>10.3. Tratamento de Erros</h3>
+            <div class="code-block">
+<pre><code>try {
+  const response = await fetch('/api/endpoint');
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  const data = await response.json();
+  // Processar dados
+} catch (err) {
+  console.error('Erro:', err);
+  showMessage('Erro ao processar solicitação.', 'error');
+}</code></pre>
+            </div>
+
+            <h3>10.4. Validações</h3>
+            <ul>
+                <li>Sempre validar dados no frontend antes de enviar</li>
+                <li>Validar também no backend (nunca confiar apenas no frontend)</li>
+                <li>Usar <code>validateRequired()</code> do utils.js</li>
+                <li>Exibir mensagens claras ao usuário</li>
+            </ul>
+
+            <h3>10.5. Logs</h3>
+            <div class="warning-box">
+                <strong>⚠️ Regra:</strong> Não usar <code>console.log</code> em produção. Usar apenas <code>console.error</code> e <code>console.warn</code> quando necessário.
+            </div>
+
+            <h3>10.6. Tratamento de Dados</h3>
+            <p><strong>Truncamento Automático:</strong></p>
+            <ul>
+                <li>Campos de texto são truncados automaticamente antes de salvar no banco</li>
+                <li>Evita erro "String or binary data would be truncated"</li>
+                <li>Exemplo: <code>DSLOCAL.substring(0, 100)</code>, <code>TPLOCAL.substring(0, 2)</code></li>
+            </ul>
+
+            <p><strong>Zero-Padding:</strong></p>
+            <ul>
+                <li>CPF/CNPJ são preenchidos com zeros à esquerda</li>
+                <li>Uso de <code>padStart(14, '0')</code> no backend</li>
+                <li>Garante consistência de dados</li>
+            </ul>
+
+            <h3>10.7. Funções Assíncronas</h3>
+            <p><strong>Padrão:</strong> Sempre usar <code>async/await</code> para operações assíncronas</p>
+            <div class="code-block">
+<pre><code>// ✅ Correto
+async function carregarDados() {
+  try {
+    const response = await fetch('/api/endpoint');
+    const data = await response.json();
+    return data;
+  } catch (err) {
+    console.error('Erro:', err);
+    showMessage('Erro ao carregar dados.', 'error');
+  }
+}
+
+// ❌ Evitar
+function carregarDados() {
+  fetch('/api/endpoint')
+    .then(r => r.json())
+    .then(data => { /* ... */ })
+    .catch(err => { /* ... */ });
+}</code></pre>
+            </div>
+        </div>
+
+        <!-- 11. Segurança -->
+        <div class="section" id="seguranca">
+            <h2>11. Segurança</h2>
+            
+            <h3>11.1. Autenticação</h3>
+            <ul>
+                <li>JWT (JSON Web Token) para autenticação</li>
+                <li>Token armazenado em <code>localStorage</code></li>
+                <li>Validação de token em rotas protegidas</li>
+            </ul>
+
+            <h3>11.2. Helmet.js</h3>
+            <p>Configuração de segurança HTTP headers:</p>
+            <ul>
+                <li>Content Security Policy (CSP)</li>
+                <li>X-Frame-Options</li>
+                <li>X-Content-Type-Options</li>
+                <li>Referrer-Policy</li>
+            </ul>
+
+            <h3>11.3. Validação de Dados</h3>
+            <ul>
+                <li>Validação de tipos no backend (SQL parameterized queries)</li>
+                <li>Sanitização de inputs</li>
+                <li>Validação de CPF/CNPJ</li>
+                <li>Proteção contra SQL Injection</li>
+            </ul>
+
+            <h3>11.4. CORS</h3>
+            <p>Configurado para permitir requisições do mesmo origin.</p>
+        </div>
+
+        <!-- 12. Deploy e Configuração -->
+        <div class="section" id="deploy">
+            <h2>12. Deploy e Configuração</h2>
+            
+            <h3>12.1. Variáveis de Ambiente</h3>
+            <p>Arquivo <code>.env</code> necessário:</p>
+            <div class="code-block">
+<pre><code>PORT=3000
+DB_SERVER=seu-servidor
+DB_DATABASE=DIVULGACARGA_PRD
+DB_USER=seu-usuario
+DB_PASSWORD=sua-senha
+DB_PORT=1433
+JWT_SECRET=seu-secret-jwt
+PUBLIC_URL=http://192.168.1.173:3000
+# ou para ngrok:
+# PUBLIC_URL=https://laurence-boisterous-almost.ngrok-free.dev</code></pre>
+            </div>
+            <div class="info-box">
+                <strong>💡 PUBLIC_URL:</strong> URL pública para links de convocação. Use IP local para rede interna ou URL do ngrok para acesso externo. Execute <code>atualizar-ip-local.ps1</code> ou <code>atualizar-ngrok-env.ps1</code> para atualizar automaticamente.
+            </div>
+
+            <h3>12.2. Instalação</h3>
+            <div class="code-block">
+<pre><code># Instalar dependências
+npm install
+
+# Executar servidor
+npm start
+
+# Ou em desenvolvimento
+npm run dev</code></pre>
+            </div>
+
+            <h3>12.3. Estrutura de Banco</h3>
+            <p>O banco de dados deve estar configurado com todas as tabelas necessárias. Consulte os scripts SQL de criação de tabelas.</p>
+
+            <h3>12.4. Porta Padrão</h3>
+            <p>O servidor roda na porta <code>3000</code> por padrão (configurável via <code>PORT</code> no <code>.env</code>).</p>
+
+            <h3>12.5. Performance</h3>
+            <p><strong>Otimizações Implementadas:</strong></p>
+            <ul>
+                <li>✅ Compressão HTTP (gzip) para JSON, HTML, CSS, JS</li>
+                <li>✅ Pool de conexões otimizado (max: 50, min: 5)</li>
+                <li>✅ Timeouts configurados (acquireTimeoutMillis, createTimeoutMillis)</li>
+                <li>✅ Renderização em batch no GridEditor</li>
+                <li>✅ Carregamento dinâmico de scripts (Leaflet, GridEditor)</li>
+                <li>✅ Event delegation para melhor performance</li>
+            </ul>
+
+            <h3>12.6. Scripts de Configuração</h3>
+            <p><strong>Scripts PowerShell Disponíveis:</strong></p>
+            <div class="grid-2">
+                <div class="module-card">
+                    <h4><span class="icon">🌐</span> atualizar-ip-local.ps1</h4>
+                    <p><strong>Função:</strong> Detecta automaticamente o IP local da rede e atualiza <code>PUBLIC_URL</code> no <code>.env</code></p>
+                    <p><strong>Uso:</strong> Execute quando mudar de rede Wi-Fi ou quando o IP mudar</p>
+                    <div class="code-block">
+<pre><code>cd backend
+.\atualizar-ip-local.ps1</code></pre>
+                    </div>
+                </div>
+                <div class="module-card">
+                    <h4><span class="icon">🔗</span> atualizar-ngrok-env.ps1</h4>
+                    <p><strong>Função:</strong> Detecta a URL do ngrok em execução e atualiza <code>PUBLIC_URL</code> no <code>.env</code></p>
+                    <p><strong>Uso:</strong> Execute quando iniciar o ngrok para atualizar a URL automaticamente</p>
+                    <div class="code-block">
+<pre><code>cd backend
+.\atualizar-ngrok-env.ps1</code></pre>
+                    </div>
+                </div>
+                <div class="module-card">
+                    <h4><span class="icon">🔓</span> liberar-porta-firewall.ps1</h4>
+                    <p><strong>Função:</strong> Libera a porta 3000 no Firewall do Windows (requer Admin)</p>
+                    <p><strong>Uso:</strong> Execute como Administrador para permitir acesso pela rede local</p>
+                    <div class="code-block">
+<pre><code># Como Administrador:
+cd backend
+.\liberar-porta-firewall.ps1</code></pre>
+                    </div>
+                </div>
+                <div class="module-card">
+                    <h4><span class="icon">📋</span> iniciar-ngrok.ps1</h4>
+                    <p><strong>Função:</strong> Inicia o ngrok e atualiza <code>.env</code> automaticamente</p>
+                    <p><strong>Uso:</strong> Inicia túnel ngrok e configura <code>PUBLIC_URL</code></p>
+                </div>
+            </div>
+
+            <h3>12.7. Sistema de Geolocalização</h3>
+            <p><strong>Funcionalidade:</strong> Captura automática da localização do motorista quando acessa link de convocação</p>
+            <p><strong>Campos no Banco:</strong></p>
+            <ul>
+                <li><code>CONVOCACAO.LATITUDE</code> - Latitude capturada</li>
+                <li><code>CONVOCACAO.LONGITUDE</code> - Longitude capturada</li>
+            </ul>
+            <p><strong>Recursos:</strong></p>
+            <ul>
+                <li>✅ Captura automática ao acessar link</li>
+                <li>✅ Captura ao responder convocação (aceitar/recusar)</li>
+                <li>✅ Botão manual para enviar localização</li>
+                <li>✅ Modal bloqueante se permissão foi negada anteriormente</li>
+                <li>✅ Indicadores visuais (bolinha verde/vermelha) em todas as telas</li>
+                <li>✅ Botão "Ver no Mapa" mostra localização e rota até carregamento</li>
+            </ul>
+            <p><strong>Visualização no Mapa:</strong></p>
+            <ul>
+                <li>Biblioteca: Leaflet.js (carregamento dinâmico)</li>
+                <li>Cálculo de rota: OSRM (Open Source Routing Machine)</li>
+                <li>Fallback: Fórmula de Haversine (distância em linha reta)</li>
+                <li>Exibe: Localização do motorista, ponto de carregamento, rota completa, distância e tempo estimado</li>
+            </ul>
+
+            <h3>12.8. Sistema de Envio Automático via WaboxApp</h3>
+            <p><strong>Funcionalidade:</strong> Envio automático de mensagens WhatsApp via API do WaboxApp</p>
+            
+            <h4>12.8.1. Arquitetura e Funcionamento</h4>
+            <p><strong>⚠️ IMPORTANTE:</strong> O WaboxApp está configurado no <strong>SERVIDOR (Backend)</strong>, não nas máquinas dos usuários!</p>
+            
+            <div class="info-box">
+                <strong>💡 Como Funciona:</strong>
+                <ul style="margin: 10px 0 0 20px;">
+                    <li>✅ <strong>Configuração Centralizada:</strong> As credenciais do WaboxApp ficam no arquivo <code>.env</code> do servidor</li>
+                    <li>✅ <strong>Múltiplos Usuários:</strong> Qualquer pessoa que acessar o sistema pelo navegador pode usar o envio automático</li>
+                    <li>✅ <strong>Sem Instalação:</strong> Usuários não precisam instalar ou configurar nada nas suas máquinas</li>
+                    <li>✅ <strong>Acesso via Rede:</strong> Funciona tanto por domínio quanto por IP da rede local</li>
+                </ul>
+            </div>
+
+            <h4>12.8.2. Diagrama de Arquitetura</h4>
+            <div class="code-block">
+<pre><code>┌─────────────────────────────────────────┐
+│         SERVIDOR (Backend)              │
+│                                         │
+│  📁 backend/.env                        │
+│     WABOXAPP_ENABLED=true               │
+│     WABOXAPP_TOKEN=seu_token           │
+│     WABOXAPP_UID=seu_uid               │
+│                                         │
+│  🔧 Controller usa process.env         │
+│     para acessar as credenciais        │
+└─────────────────────────────────────────┘
+              ▲
+              │ Requisições HTTP
+              │
+┌─────────────┴───────────────────────────┐
+│    CLIENTES (Navegadores)               │
+│                                         │
+│  👤 Usuário 1 → http://dominio.com     │
+│  👤 Usuário 2 → http://192.168.1.100  │
+│  👤 Usuário 3 → http://servidor:3000  │
+│                                         │
+│  ✅ NÃO precisa configurar nada!       │
+│  ✅ Só acessa pelo navegador           │
+└─────────────────────────────────────────┘</code></pre>
+            </div>
+
+            <h4>12.8.3. Fluxo de Funcionamento</h4>
+            <ol>
+                <li><strong>Usuário acessa pelo navegador:</strong> Qualquer máquina, qualquer navegador, via domínio ou IP</li>
+                <li><strong>Clica em "🚀 Enviar Automaticamente":</strong> Frontend faz requisição HTTP para o servidor</li>
+                <li><strong>Servidor processa:</strong> Lê as credenciais do <code>.env</code> (que está no servidor) e envia via API do WaboxApp</li>
+                <li><strong>Resultado:</strong> Usuário recebe feedback de sucesso/erro no navegador</li>
+            </ol>
+
+            <h4>12.8.4. Configuração no Servidor</h4>
+            <p><strong>Arquivo:</strong> <code>backend/.env</code></p>
+            <div class="code-block">
+<pre><code># Configuração do WaboxApp (UMA VEZ no servidor)
+WABOXAPP_ENABLED=true
+WABOXAPP_TOKEN=seu_token_aqui
+WABOXAPP_UID=seu_uid_aqui</code></pre>
+            </div>
+            
+            <div class="warning-box">
+                <strong>⚠️ ATENÇÃO:</strong>
+                <ul style="margin: 10px 0 0 20px;">
+                    <li>✅ Configure <strong>UMA VEZ</strong> no servidor</li>
+                    <li>✅ Reinicie o servidor após configurar (<code>npm run dev</code>)</li>
+                    <li>✅ Todos os usuários terão acesso automaticamente</li>
+                    <li>❌ <strong>NÃO</strong> é necessário configurar em cada máquina</li>
+                </ul>
+            </div>
+
+            <h4>12.8.5. Perguntas Frequentes</h4>
+            <div class="grid-2">
+                <div class="module-card">
+                    <h4><span class="icon">❓</span> Como funciona quando outras pessoas acessarem?</h4>
+                    <p><strong>Resposta:</strong> Funciona igual! Qualquer pessoa que acessar o sistema pelo navegador pode usar o envio automático. O servidor usa as mesmas credenciais configuradas.</p>
+                </div>
+                <div class="module-card">
+                    <h4><span class="icon">❓</span> Vai funcionar o envio automático para todos?</h4>
+                    <p><strong>Resposta:</strong> Sim! Desde que o servidor esteja configurado corretamente, todos os usuários terão acesso ao botão "🚀 Enviar Automaticamente".</p>
+                </div>
+                <div class="module-card">
+                    <h4><span class="icon">❓</span> Quando for chamado através de um domínio ou pela rede, como vai ser?</h4>
+                    <p><strong>Resposta:</strong> Funciona da mesma forma! O importante é que o servidor tenha o <code>.env</code> configurado. Não importa se o acesso é por <code>http://dominio.com</code>, <code>http://192.168.1.100:3000</code> ou qualquer outra URL.</p>
+                </div>
+                <div class="module-card">
+                    <h4><span class="icon">❓</span> Todo mundo vai precisar estar com WaboxApp nas máquinas?</h4>
+                    <p><strong>Resposta:</strong> <strong>NÃO!</strong> Ninguém precisa instalar ou configurar nada nas máquinas. Basta acessar pelo navegador. A configuração é feita apenas no servidor.</p>
+                </div>
+            </div>
+
+            <h4>12.8.6. Vantagens desta Arquitetura</h4>
+            <ul class="feature-list">
+                <li><strong>Centralizado:</strong> Configuração única no servidor</li>
+                <li><strong>Seguro:</strong> Credenciais não ficam expostas nos clientes</li>
+                <li><strong>Prático:</strong> Usuários não precisam instalar nada</li>
+                <li><strong>Escalável:</strong> Funciona para quantos usuários acessarem</li>
+                <li><strong>Profissional:</strong> Padrão de arquitetura cliente-servidor</li>
+            </ul>
+
+            <h4>12.8.7. Exemplo Prático</h4>
+            <div class="success-box">
+                <strong>✅ Situação:</strong> 10 pessoas na empresa precisam enviar convocações<br><br>
+                <strong>❌ ERRADO (se fosse necessário em cada máquina):</strong>
+                <ul style="margin: 10px 0 0 20px;">
+                    <li>Configurar WaboxApp em 10 máquinas diferentes</li>
+                    <li>Cada uma com suas próprias credenciais</li>
+                    <li>Manutenção complexa</li>
+                </ul>
+                <br>
+                <strong>✅ CORRETO (como está implementado):</strong>
+                <ul style="margin: 10px 0 0 20px;">
+                    <li>Configurar UMA VEZ no servidor</li>
+                    <li>As 10 pessoas acessam pelo navegador</li>
+                    <li>Todas usam a mesma configuração centralizada</li>
+                    <li>Manutenção simples</li>
+                </ul>
+            </div>
+
+            <h4>12.8.8. Endpoints da API</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Método</th>
+                        <th>Endpoint</th>
+                        <th>Descrição</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="endpoint method-get">GET</span></td>
+                        <td><code>/api/convocacoes/verificar-waboxapp</code></td>
+                        <td>Verifica se WaboxApp está configurado (retorna <code>{configurado: true/false}</code>)</td>
+                    </tr>
+                    <tr>
+                        <td><span class="endpoint method-post">POST</span></td>
+                        <td><code>/api/convocacoes/enviar-whatsapp-automatico</code></td>
+                        <td>Envia mensagens automaticamente via WaboxApp (recebe <code>{idsConvocacoes: [1,2,3]}</code>)</td>
+                    </tr>
+                    <tr>
+                        <td><span class="endpoint method-get">GET</span></td>
+                        <td><code>/api/convocacoes/status-mensagens</code></td>
+                        <td>Verifica status de uso de mensagens (monitoramento de limite)</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h4>12.8.9. Métodos de Envio</h4>
+            <div class="grid-2">
+                <div class="module-card" style="border: 3px solid #25D366;">
+                    <h4><span class="icon">🤖</span> Método Automático (WaboxApp)</h4>
+                    <p><strong>Requisitos:</strong></p>
+                    <ul>
+                        <li>✅ WaboxApp configurado no servidor (<code>.env</code>)</li>
+                        <li>✅ Conta WaboxApp ativa</li>
+                    </ul>
+                    <p><strong>Vantagens:</strong></p>
+                    <ul>
+                        <li>✅ Envio instantâneo e automático</li>
+                        <li>✅ Relatório completo de sucessos/falhas</li>
+                        <li>✅ Registro de todas as ações (auditoria)</li>
+                        <li>✅ Ideal para muitos envios</li>
+                    </ul>
+                </div>
+                <div class="module-card" style="border: 3px solid #667eea;">
+                    <h4><span class="icon">👤</span> Método Manual (WhatsApp Web)</h4>
+                    <p><strong>Requisitos:</strong></p>
+                    <ul>
+                        <li>✅ Nenhum (sempre disponível)</li>
+                    </ul>
+                    <p><strong>Vantagens:</strong></p>
+                    <ul>
+                        <li>✅ Sempre disponível</li>
+                        <li>✅ Permite revisar cada mensagem</li>
+                        <li>✅ Não requer configuração</li>
+                        <li>✅ Ideal para poucos envios ou revisão</li>
+                    </ul>
+                    <p><strong>Como usar:</strong> Clique no botão "📱 Abrir WhatsApp" de cada motorista na lista para abrir e enviar cada mensagem individualmente.</p>
+                </div>
+            </div>
+
+            <h4>12.8.10. Verificação de Configuração</h4>
+            <p>O servidor exibe o status do WaboxApp ao iniciar:</p>
+            <div class="code-block">
+<pre><code>[WABOXAPP] Status da Configuração:
+  ✅ WaboxApp está CONFIGURADO e HABILITADO
+  📱 Token: Presente (45 caracteres)
+  🆔 UID: 554198371769
+  🚀 Envio automático DISPONÍVEL</code></pre>
+            </div>
+            <p>Se não estiver configurado, aparecerá:</p>
+            <div class="code-block">
+<pre><code>[WABOXAPP] Status da Configuração:
+  ⚠️  WaboxApp NÃO está configurado
+  - WABOXAPP_ENABLED: false (deve ser "true")
+  - WABOXAPP_TOKEN: não definido
+  - WABOXAPP_UID: não definido</code></pre>
+            </div>
+
+            <div class="success-box">
+                <strong>✅ Conclusão:</strong> O sistema está pronto para uso em produção. Basta configurar o <code>.env</code> no servidor uma vez, e todos os usuários que acessarem o sistema pelo navegador terão acesso ao envio automático, independente de como acessarem (domínio, IP, rede local, etc.).
+            </div>
+
+            <h3>12.9. Migração de Dados</h3>
+            <p><strong>Script Principal:</strong> <code>migrate_integra_to_divulgacarga_completo.sql</code></p>
+            <p><strong>Descrição:</strong> Script consolidado para migração de dados de <code>INTEGRA_PRD</code> para <code>DIVULGACARGA_PRD</code></p>
+            <p><strong>Tabelas Migradas (18 seções):</strong></p>
+            <ol>
+                <li>TIPOEQUIPAMENTO</li>
+                <li>GRUPOEQUIPAMENTO</li>
+                <li>MARCAEQUIPAMENTO</li>
+                <li>MODELOEQUIPAMENTO</li>
+                <li>EQUIPAMENTO (com lógica FGRASTREADO baseada em EQUIPAMENTORASTREADO)</li>
+                <li>CLASSEFROTA</li>
+                <li>TIPOVIAGEM</li>
+                <li>SITUACAOVIAGEM</li>
+                <li>ROTEIRO</li>
+                <li>ROTEIROPONTOS</li>
+                <li>CADASTROGERAL - CONTRATADOR</li>
+                <li>CADASTROGERAL - ADMINISTRADOR DO SISTEMA (Tipo O)</li>
+                <li>CADASTROGERAL - TRANSPORTADOR (com lógica FGRASTREADO)</li>
+                <li>CADASTROGERAL - MOTORISTA (com lógica FGRASTREADO)</li>
+                <li>EMPRESA</li>
+                <li>FILIAL</li>
+                <li>VIAGEMMESTRE (com cálculo de PESO, CUBAGEM, OBSERV, VLFRETE, DTPREVINICIO, DTPREVFINAL)</li>
+                <li>CLASSEFROTA_CG (vinculação motorista/classe)</li>
+            </ol>
+            <p><strong>Características:</strong></p>
+            <ul>
+                <li>Usa <code>MERGE</code> para inserção/atualização</li>
+                <li>Trata duplicatas com <code>ROW_NUMBER()</code></li>
+                <li>Lógica complexa para <code>FGRASTREADO</code> (verifica EQUIPAMENTORASTREADO dos últimos 30 dias)</li>
+                <li>Cálculo de campos derivados (PESO, CUBAGEM, VLFRETE)</li>
+                <li>Formatação de valores (DECIMAL com precisão)</li>
+            </ul>
+        </div>
+
+        <!-- Rodapé -->
+        <div class="section" style="text-align: center; background: #f8f9fa;">
+            <p style="margin: 0; color: #6c757d;">
+                <strong>Sistema DivulgaCarga</strong> | Documentação Técnica Completa<br>
+                Versão 1.3.0 | 24 de Novembro de 2025<br>
+                <small style="opacity: 0.7;">
+                    Sistema de mensagens toast | Zero-padding CPF/CNPJ | Grid com ordenação | 
+                    Roteiros com pontos georreferenciados | Cálculo de distâncias OSRM | 
+                    Modal de seleção de mapa arrastável | Sistema de Convocações | 
+                    Grid com estatísticas de convocações | Filtro motorista confirmado | 
+                    init.sql com execução automática | Prevenção de mudanças automáticas de aba |
+                    Relatório de Convocações | Performance otimizada | 
+                    Sistema de Geolocalização | Links WhatsApp | Ver no Mapa | 
+                    Scripts de Configuração Automática | Indicadores Visuais de Geolocalização
+                </small>
+            </p>
+        </div>
+    </div>
+</body>
+</html>

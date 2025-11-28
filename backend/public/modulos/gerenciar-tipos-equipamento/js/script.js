@@ -1,0 +1,713 @@
+// backend/public/modulos/gerenciar-tipos-equipamento/js/script.js
+(function() {
+  // Elementos
+  const tabs = document.querySelectorAll('.tab-btn');
+  const tabContents = document.querySelectorAll('.tab-content');
+  const filtroForm = document.getElementById('filtroForm');
+  const tipoForm = document.getElementById('tipoForm');
+  const list = document.getElementById('tiposList');
+  const message = document.getElementById('message');
+  const modal = document.getElementById('confirmModal');
+  let gridTab = null;
+  let lastTipos = null; // cache dos últimos resultados do filtro
+  let sqlExecutado = false;
+  let initExecutado = false;
+
+  // Funções para controlar overlay de carregamento do init.sql
+  function showLoadingOverlayInitSQL(titulo = 'Processando Inicialização', texto = 'Executando scripts de inicialização...', detalhe = 'Isso pode levar alguns segundos.') {
+    const overlay = document.getElementById('loadingOverlayInitSQL');
+    const loadingTitle = document.getElementById('loadingTitleInitSQL');
+    const loadingText = document.getElementById('loadingTextInitSQL');
+    const loadingDetail = document.getElementById('loadingDetailInitSQL');
+    
+    if (overlay && loadingTitle && loadingText && loadingDetail) {
+      loadingTitle.textContent = titulo;
+      loadingText.textContent = texto;
+      loadingDetail.textContent = detalhe;
+      overlay.style.display = 'flex';
+    }
+  }
+
+  function hideLoadingOverlayInitSQL() {
+    const overlay = document.getElementById('loadingOverlayInitSQL');
+    if (overlay) {
+      overlay.style.display = 'none';
+    }
+  }
+
+  // Função para carregar e executar o arquivo init.sql
+  async function executarInitSQL() {
+    // Proteção: Se já foi executado, não executar novamente
+    if (sqlExecutado) {
+      return;
+    }
+    
+    // Marcar como executando IMEDIATAMENTE para evitar execuções simultâneas
+    sqlExecutado = true;
+    
+    // Mostrar overlay de carregamento
+    showLoadingOverlayInitSQL('Processando Inicialização', 'Carregando script de inicialização...', 'Aguarde enquanto preparamos o módulo.');
+    
+    try {
+      // Carregar o arquivo init.sql
+      const response = await fetch('/modulos/gerenciar-tipos-equipamento/sql/init.sql');
+      
+      // Atualizar mensagem do overlay
+      showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL...', 'Isso pode levar alguns segundos.');
+      
+      if (!response.ok) {
+        // Se o arquivo não existir, não é erro - apenas não executa nada
+        if (response.status === 404) {
+          hideLoadingOverlayInitSQL();
+          return;
+        }
+        hideLoadingOverlayInitSQL();
+        return;
+      }
+      
+      const sqlContent = await response.text();
+      
+      // Remover comentários de bloco /* */ (incluindo multilinhas) usando regex
+      let sqlSemComentarios = sqlContent.replace(/\/\*[\s\S]*?\*\//g, '');
+      
+      // Remover apenas comentários, mas MANTER 'GO' pois o backend precisa dele para dividir comandos
+      const sqlLimpo = sqlSemComentarios
+        .split('\n')
+        .filter(linha => {
+          const linhaTrim = linha.trim();
+          // Manter linhas que não são apenas comentários vazios
+          // IMPORTANTE: Manter 'GO' pois o backend precisa dele para dividir comandos
+          return linhaTrim.length > 0 && 
+                 !linhaTrim.startsWith('--');
+        })
+        .join('\n')
+        .trim();
+      
+      // Se não há SQL para executar, retornar
+      if (!sqlLimpo || sqlLimpo.length === 0) {
+        hideLoadingOverlayInitSQL();
+        return;
+      }
+      
+      // Atualizar mensagem: processando comandos
+      showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL no banco de dados...', 'Aguarde, isso pode levar alguns segundos.');
+      
+      // Executar o SQL via API e AGUARDAR completamente a resposta
+      let execResponse;
+      try {
+        execResponse = await fetch('/api/tipos-equipamento/executar-init-sql', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sql: sqlLimpo }),
+          // Aumentar timeout para scripts grandes (MERGE pode demorar)
+          signal: AbortSignal.timeout(120000) // 120 segundos (2 minutos)
+        });
+      } catch (fetchError) {
+        if (fetchError.name === 'TimeoutError' || fetchError.name === 'AbortError') {
+          hideLoadingOverlayInitSQL();
+          return; // Não bloquear o módulo
+        }
+        if (fetchError.message.includes('ERR_CONNECTION_RESET') || fetchError.message.includes('Failed to fetch')) {
+          hideLoadingOverlayInitSQL();
+          return; // Não bloquear o módulo
+        }
+        hideLoadingOverlayInitSQL();
+        return;
+      }
+      
+      // Verificar se a resposta foi bem-sucedida
+      if (!execResponse.ok) {
+        hideLoadingOverlayInitSQL();
+        return; // Não bloquear o módulo
+      }
+      
+      // Atualizar mensagem: processando resultados
+      showLoadingOverlayInitSQL('Processando Inicialização', 'Processando resultados...', 'Quase terminando.');
+      
+      // Aguardar completamente a resposta JSON
+      let result;
+      try {
+        result = await execResponse.json();
+      } catch (jsonError) {
+        hideLoadingOverlayInitSQL();
+        return; // Não bloquear o módulo
+      }
+      
+      // Verificar se todos os comandos foram executados com sucesso
+      if (!result.success) {
+        hideLoadingOverlayInitSQL();
+        return; // Não bloquear o módulo
+      }
+      
+      // Verificar se há resultados e se todos os comandos foram executados
+      if (result.resultados && Array.isArray(result.resultados)) {
+        const comandosComErro = result.resultados.filter(r => r.tipo === 'ERRO');
+        if (comandosComErro.length > 0) {
+          // Filtrar erros "esperados" (como tabela já existe, índice já existe, etc.)
+          const errosReais = comandosComErro.filter(erro => {
+            const mensagem = (erro.mensagem || erro.erro || '').toLowerCase();
+            // Erros esperados que não são problemas reais
+            const errosEsperados = [
+              'already exists',
+              'já existe',
+              'duplicate',
+              'duplicado',
+              'there is already',
+              'já há'
+            ];
+            return !errosEsperados.some(esperado => mensagem.includes(esperado));
+          });
+          
+          if (errosReais.length > 0) {
+            // Log apenas erros reais críticos
+            errosReais.forEach(erro => {
+              const mensagem = erro.mensagem || erro.erro || erro.message || erro.error || 'Erro desconhecido';
+              if (typeof mensagem === 'object') {
+                console.error('Erro no init.sql:', JSON.stringify(mensagem));
+              } else {
+                console.error('Erro no init.sql:', mensagem);
+              }
+            });
+          }
+        }
+      }
+      
+      // Aguardar um pouco mais para garantir que todas as operações foram concluídas
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Esconder overlay após conclusão bem-sucedida
+      hideLoadingOverlayInitSQL();
+      
+    } catch (err) {
+      // Esconder overlay em caso de erro
+      hideLoadingOverlayInitSQL();
+      // Erros silenciosos - não bloquear o módulo
+    }
+  }
+  
+  // Função de inicialização
+  async function init() {
+    // Se já foi executado, não executar novamente
+    if (initExecutado) {
+      return;
+    }
+    
+    // Marcar como executando IMEDIATAMENTE para evitar execuções simultâneas
+    initExecutado = true;
+    
+    // Aguardar um pouco para garantir que o DOM está totalmente renderizado
+    await new Promise(resolve => setTimeout(resolve, 200));
+    
+    // IMPORTANTE: Executar SQL de inicialização (init.sql) se existir
+    // e AGUARDAR completamente antes de prosseguir
+    try {
+      await executarInitSQL();
+    } catch (err) {
+      // Erros silenciosos - não bloquear o módulo
+    }
+    
+    // Garantir que a aba de filtros está ativa e visível
+    await showTab('filtros');
+  }
+
+  // Inicialização - tentar imediatamente e também no DOMContentLoaded
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    // DOM já está pronto, executar imediatamente
+    init();
+  }
+
+  // Função para mudar abas
+  async function showTab(tabId) {
+    tabs.forEach(btn => btn.classList.remove('active'));
+    tabContents.forEach(content => content.classList.remove('active'));
+    document.querySelector(`.tab-btn[data-tab="${tabId}"]`).classList.add('active');
+    document.getElementById(`tab-${tabId}`).classList.add('active');
+
+    // Se a aba Grid foi ativada, garantir que o GridEditor seja inicializado
+    if (tabId === 'grid') {
+      // Se não temos dados, forçar uma busca
+      if (!lastTipos) {
+        await applyFilters('grid');
+        return;
+      }
+
+      if (typeof window.GridEditor === 'undefined') {
+        try { await loadScript('/js/grid-editor.js'); } catch (e) { }
+      }
+
+      if (typeof window.GridEditor !== 'undefined') {
+        if (!gridTab) inicializarGridTab();
+        try {
+          gridTab.render(lastTipos || []);
+        } catch (e) {
+          console.error('[Grid] erro ao renderizar grid na aba:', e);
+        }
+      }
+    }
+  }
+
+  // Aplicar filtros
+  async function applyFilters(openTab = 'grid') {
+    const params = new URLSearchParams();
+    const codigo = document.getElementById('filtroCodigo')?.value;
+    const descricao = document.getElementById('filtroDescricao')?.value;
+    const situacao = document.getElementById('filtroSituacao')?.value;
+    
+    if (codigo) params.append('codigo', codigo);
+    if (descricao) params.append('descricao', descricao);
+    if (situacao) params.append('situacao', situacao);
+    
+    try {
+      const response = await fetch(`/api/tipos-equipamento?${params.toString()}`);
+      const tipos = await response.json();
+
+      // salvar cache de resultados
+      lastTipos = tipos;
+
+      // Atualizar contador
+      const countEl = document.getElementById('tiposGridCountText');
+      if (countEl) {
+        const count = tipos.length || 0;
+        countEl.textContent = `${count} registro(s) encontrado(s)`;
+      }
+      
+      // Se já existe uma instância do Grid na aba, atualizá-la imediatamente
+      if (typeof window.GridEditor !== 'undefined' && gridTab) {
+        try {
+          gridTab.render(tipos);
+        } catch (e) {
+        }
+      }
+
+      // Auto-inicializar o gridTab quando houver dados (opção A)
+      try {
+        if (Array.isArray(tipos) && tipos.length > 0) {
+          if (typeof window.GridEditor === 'undefined') {
+            try {
+              await loadScript('/js/grid-editor.js');
+            } catch (loadErr) {
+            }
+          }
+
+          if (typeof window.GridEditor !== 'undefined') {
+            if (!gridTab) inicializarGridTab();
+            try {
+              gridTab.render(tipos);
+            } catch (e) {
+            }
+          } else {
+            // If the script element exists but GridEditor still undefined, try a cache-busted reload
+            const scriptEl = document.querySelector('script[src="/js/grid-editor.js"]');
+            if (scriptEl) {
+              try {
+                await new Promise((res, rej) => {
+                  const s = document.createElement('script');
+                  s.src = '/js/grid-editor.js?t=' + Date.now();
+                  s.async = true;
+                  s.onload = () => res();
+                  s.onerror = (err) => rej(err);
+                  document.head.appendChild(s);
+                });
+                if (typeof window.GridEditor !== 'undefined') {
+                  if (!gridTab) inicializarGridTab();
+                  try { gridTab.render(tipos); } catch (e) { }
+                }
+              } catch (rbErr) {
+              }
+            }
+          }
+        }
+      } catch (autoErr) {
+        console.error('[Grid] erro no fluxo de auto-init:', autoErr);
+      }
+
+      // Se o chamador pediu para abrir a aba grid, inicializar e renderizar lá
+      if (openTab === 'grid') {
+        if (typeof window.GridEditor === 'undefined') {
+          try { await loadScript('/js/grid-editor.js'); } catch (e) { }
+        }
+
+        if (typeof window.GridEditor !== 'undefined') {
+          if (!gridTab) inicializarGridTab();
+          try { gridTab.render(tipos); } catch (err) { console.error('[Grid] erro ao renderizar grid:', err); }
+        }
+      }
+
+      showTab(openTab);
+    } catch (err) {
+      console.error('Erro ao aplicar filtros:', err);
+      showMessage('Erro ao carregar tipos.', 'error');
+    }
+  }
+
+  // Renderizar lista
+  function renderList(tipos) {
+    if (!tipos || tipos.length === 0) {
+      list.innerHTML = '<p class="empty">Nenhum tipo encontrado.</p>';
+      return;
+    }
+
+    list.innerHTML = tipos.map(t => `
+      <div class="list-item ${t.FGACTIVE === 'N' ? 'inactive' : ''}" data-id="${t.CDTIPOEQUIPAMENTO}">
+        <div>
+          <strong>${t.CDTIPOEQUIPAMENTO} - ${t.DSTIPOEQUIPAMENTO}</strong>
+          <small>
+            <strong>Máscara:</strong> ${t.MASCARAIDENTIF || 'Não informada'}<br>
+            <strong>Tipo de Veículo:</strong> ${t.FGTIPOVEICULO_DESC || 'Não informado'}<br>
+            <strong>Status:</strong> ${t.FGACTIVE === 'S' ? 'Ativo' : 'Inativo'}
+          </small>
+        </div>
+        <div class="actions">
+          <button class="btn edit" data-id="${t.CDTIPOEQUIPAMENTO}">Editar</button>
+          <button class="btn delete" data-id="${t.CDTIPOEQUIPAMENTO}">Excluir</button>
+        </div>
+      </div>
+    `).join('');
+
+    // CORREÇÃO CRÍTICA: usa currentTarget para evitar ID undefined
+    document.querySelectorAll('.btn.edit, .btn.delete').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        // Tentar obter o ID de várias formas
+        const id = e.currentTarget.dataset.id || 
+                   e.currentTarget.getAttribute('data-id') ||
+                   e.currentTarget.closest('[data-id]')?.dataset?.id ||
+                   e.currentTarget.closest('[data-id]')?.getAttribute('data-id');
+
+        // Validar ID
+        if (!id || id === 'null' || id === 'undefined' || id === '') {
+          console.error('[Tipos] ID inválido:', id, 'Elemento:', e.currentTarget);
+          showMessage('Erro: ID não disponível.', 'error');
+          return;
+        }
+        
+        if (e.currentTarget.classList.contains('edit')) {
+          loadTipoParaEdicao(id);
+        } else {
+          confirmarExclusao(id);
+        }
+      });
+    });
+  }
+
+  // Carrega um script dinamicamente e aguarda o carregamento
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      // Verificar se GridEditor já está disponível globalmente
+      if (typeof GridEditor !== 'undefined') {
+        resolve();
+        return;
+      }
+      
+      // Função para carregar novo script
+      const carregarNovoScript = () => {
+        const script = document.createElement('script');
+        script.src = `${src}?t=${Date.now()}`; // Cache busting
+        script.onload = () => {
+          // Aguardar um pouco para garantir que GridEditor está disponível
+          setTimeout(() => {
+            if (typeof GridEditor !== 'undefined') {
+              resolve();
+            } else {
+              reject(new Error('GridEditor não foi carregado'));
+            }
+          }, 100);
+        };
+        script.onerror = () => reject(new Error(`Erro ao carregar script: ${src}`));
+        document.head.appendChild(script);
+      };
+      
+      // Verificar se o script já está sendo carregado ou já existe
+      const existingScript = document.querySelector(`script[src*="${src}"]`);
+      if (existingScript) {
+        // Se o script existe, aguardar ele carregar
+        let tentativas = 0;
+        const checkInterval = setInterval(() => {
+          if (typeof GridEditor !== 'undefined') {
+            clearInterval(checkInterval);
+            resolve();
+          } else if (tentativas++ > 20) {
+            clearInterval(checkInterval);
+            // Se não carregou após 2 segundos, remover e recarregar
+            existingScript.remove();
+            // Continuar com o carregamento abaixo
+            carregarNovoScript();
+          }
+        }, 100);
+        return;
+      }
+      
+      carregarNovoScript();
+    });
+  }
+
+  // Inicializar GridEditor
+  function inicializarGridTab() {
+    gridTab = new GridEditor({
+      container: '#tiposGrid',
+      columns: [
+        { field: 'CDTIPOEQUIPAMENTO', header: 'Código', editable: false, isId: true, width: '80px' },
+        { field: 'DSTIPOEQUIPAMENTO', header: 'Descrição', editable: true, type: 'text', width: '300px', maxlength: 40 },
+        { field: 'MASCARAIDENTIF', header: 'Máscara', editable: true, type: 'text', width: '150px', maxlength: 50 },
+        { field: 'FGTIPOVEICULO_DESC', header: 'Tipo Veículo', editable: false, width: '180px' },
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px',
+          options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
+          format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
+        }
+      ],
+      apiEndpoint: '/api/tipos-equipamento',
+      // Ao clicar em editar dentro do Grid, abrir o formulário de edição (mesmo comportamento da lista)
+      onBeforeEdit: async (id) => {
+        await loadTipoParaEdicao(id);
+        return false; // cancelar o modo de edição inline
+      },
+      // Garantir que a exclusão use o mesmo fluxo/modal da lista
+      onDelete: async (id) => {
+        if (!id || id === 'undefined' || id === 'null' || id === '') {
+          return;
+        }
+        await confirmarExclusao(id);
+      },
+      onAfterEdit: (id) => {
+        showMessage('Alteração salva com sucesso!', 'success');
+        // atualizar cache local mantendo sincronia
+        if (lastTipos) {
+          const idx = lastTipos.findIndex(r => String(r.CDTIPOEQUIPAMENTO) === String(id));
+          if (idx !== -1) lastTipos[idx] = { ...lastTipos[idx], ...{} };
+        }
+      }
+    });
+  }
+
+  // Carregar tipo para edição
+  async function loadTipoParaEdicao(id) {
+    try {
+      // IMPORTANTE: Limpar formulário ANTES de carregar novos dados
+      if (tipoForm) {
+        tipoForm.reset();
+      }
+      
+      const response = await fetch(`/api/tipos-equipamento`);
+      const tipos = await response.json();
+      const tipo = tipos.find(t => t.CDTIPOEQUIPAMENTO.toString() === id.toString());
+      
+      if (tipo) {
+        document.getElementById('tipoCodigo').value = tipo.CDTIPOEQUIPAMENTO;
+        document.getElementById('tipoDescricao').value = tipo.DSTIPOEQUIPAMENTO;
+        document.getElementById('tipoSituacao').value = tipo.FGACTIVE;
+        document.getElementById('tipoMascara').value = tipo.MASCARAIDENTIF === 'Não informada' ? '' : tipo.MASCARAIDENTIF;
+        document.getElementById('tipoVeiculo').value = tipo.FGTIPOVEICULO === 'Não informado' ? '' : tipo.FGTIPOVEICULO;
+        document.getElementById('formTitle').textContent = 'Editar Tipo de Equipamento';
+        showTab('dados');
+      }
+    } catch (err) {
+      console.error('Erro ao carregar tipo:', err);
+      showMessage('Erro ao carregar dados para edição.', 'error');
+    }
+  }
+
+  // Confirmar exclusão
+  async function confirmarExclusao(id) {
+    if (!id || id === 'undefined' || id === 'null' || id === '' || String(id).trim() === '') {
+      showMessage('Erro: ID não disponível.', 'error');
+      return;
+    }
+    
+    const idStr = String(id).trim();
+    const modalMessage = document.getElementById('modalMessage');
+    const confirmYes = document.getElementById('confirmYes');
+    const confirmNo = document.getElementById('confirmNo');
+    const modalEl = document.getElementById('confirmModal');
+
+    if (!modalEl || !confirmYes || !confirmNo) {
+      return;
+    }
+
+    try {
+      // Buscar o status atual do tipo
+      const idToCheck = isNaN(idStr) ? idStr : parseInt(idStr, 10);
+      const response = await fetch(`/api/tipos-equipamento/${idToCheck}`);
+      if (!response.ok) {
+        throw new Error('Erro ao buscar tipo');
+      }
+      
+      const tipo = await response.json();
+      const estaAtivo = tipo.FGACTIVE === 'S';
+      
+      // Definir mensagem e ação baseado no status atual
+      let confirmMsg, action, btnText;
+      if (estaAtivo) {
+        confirmMsg = 'Tem certeza que deseja <strong>desativar</strong> este tipo de equipamento?<br><br><small style="color: #666;">O tipo ficará inativo e não aparecerá nas listagens padrão.</small>';
+        action = 'deactivate';
+        btnText = 'Desativar';
+      } else {
+        confirmMsg = 'Tem certeza que deseja <strong>reativar</strong> este tipo de equipamento?<br><br><small style="color: #666;">O tipo voltará a aparecer nas listagens e estará disponível para uso.</small>';
+        action = 'activate';
+        btnText = 'Reativar';
+      }
+      
+      if (modalMessage) modalMessage.innerHTML = confirmMsg;
+      
+      modalEl.dataset.deleteId = idStr;
+      modalEl.dataset.action = action;
+      
+      const newConfirmYes = confirmYes.cloneNode(true);
+      const newConfirmNo = confirmNo.cloneNode(true);
+      
+      // Atualizar texto do botão de confirmação
+      newConfirmYes.textContent = btnText;
+      
+      confirmYes.parentNode.replaceChild(newConfirmYes, confirmYes);
+      confirmNo.parentNode.replaceChild(newConfirmNo, confirmNo);
+      
+      newConfirmYes.onclick = async () => {
+        try {
+          const deleteId = modalEl.dataset.deleteId || idStr;
+          const acao = modalEl.dataset.action || action;
+          
+          if (!deleteId || deleteId === 'undefined' || deleteId === 'null' || deleteId === '') {
+            showMessage('Erro: ID não disponível.', 'error');
+            modalEl.style.display = 'none';
+            return;
+          }
+          
+          const idToDelete = isNaN(deleteId) ? deleteId : parseInt(deleteId, 10);
+          const response = await fetch(`/api/tipos-equipamento/${idToDelete}?action=${acao}`, {
+            method: 'DELETE'
+          });
+          
+          const data = await response.json();
+          if (response.ok) {
+            showMessage(data.message || (acao === 'activate' ? 'Tipo de equipamento reativado com sucesso!' : 'Tipo de equipamento desativado com sucesso!'), 'success');
+            showTab('grid');
+            applyFilters('grid');
+          } else {
+            showMessage(data.error || 'Erro ao alterar status do tipo.', 'error');
+          }
+        } catch (err) {
+          console.error('[Tipos] Erro ao alterar status:', err);
+          showMessage('Erro de conexão.', 'error');
+        } finally {
+          modalEl.style.display = 'none';
+          delete modalEl.dataset.deleteId;
+          delete modalEl.dataset.action;
+        }
+      };
+    
+      newConfirmNo.onclick = () => {
+        modalEl.style.display = 'none';
+        delete modalEl.dataset.deleteId;
+        delete modalEl.dataset.action;
+      };
+      
+      modalEl.style.display = 'block';
+    } catch (err) {
+      console.error('[Tipos] Erro ao buscar status do tipo:', err);
+      showMessage('Erro ao verificar status do tipo.', 'error');
+    }
+  }
+
+  // Salvar formulário
+  tipoForm?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const id = document.getElementById('tipoCodigo')?.value;
+    const descricao = document.getElementById('tipoDescricao')?.value.trim();
+    const situacao = document.getElementById('tipoSituacao')?.value;
+    const mascara = document.getElementById('tipoMascara')?.value;
+    const veiculo = document.getElementById('tipoVeiculo')?.value;
+    
+    if (!descricao || !situacao) {
+      showMessage('Preencha todos os campos obrigatórios.', 'error');
+      return;
+    }
+
+    try {
+      const tipoData = {
+        DSTIPOEQUIPAMENTO: descricao,
+        MASCARAIDENTIF: mascara || null,
+        FGTIPOVEICULO: veiculo || null
+      };
+
+      let response;
+      if (id) {
+        tipoData.FGACTIVE = situacao;
+        response = await fetch(`/api/tipos-equipamento/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(tipoData)
+        });
+      } else {
+        response = await fetch('/api/tipos-equipamento', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(tipoData)
+        });
+      }
+
+      const data = await response.json();
+      if (response.ok) {
+        showMessage(data.message || 'Salvo com sucesso!', 'success');
+        showTab('grid');
+        applyFilters('grid');
+      } else {
+        showMessage(data.error || 'Erro ao salvar.', 'error');
+      }
+    } catch (err) {
+      console.error('Erro ao salvar:', err);
+      showMessage('Erro de conexão com o servidor.', 'error');
+    }
+  });
+
+  // Eventos
+  filtroForm?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    applyFilters('grid');
+  });
+
+  // Eventos de abas
+  tabs.forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const tabId = btn.getAttribute('data-tab');
+      await showTab(tabId);
+    });
+  });
+
+  document.getElementById('btnLimparFiltros')?.addEventListener('click', () => {
+    document.getElementById('filtroCodigo').value = '';
+    document.getElementById('filtroDescricao').value = '';
+    document.getElementById('filtroSituacao').value = '';
+  });
+
+  document.getElementById('btnVoltarFiltros')?.addEventListener('click', () => showTab('filtros'));
+  document.getElementById('btnNovoRegistro')?.addEventListener('click', () => {
+    tipoForm?.reset();
+    document.getElementById('formTitle').textContent = 'Novo Tipo de Equipamento';
+    showTab('dados');
+  });
+
+  // Grid tab buttons
+  document.getElementById('btnVoltarGrid')?.addEventListener('click', () => {
+    showTab('filtros');
+  });
+
+  document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
+    tipoForm?.reset();
+    document.getElementById('formTitle').textContent = 'Novo Tipo de Equipamento';
+    showTab('dados');
+  });
+  
+  document.getElementById('btnCancelar')?.addEventListener('click', () => showTab('grid'));
+
+  // Usar showMessage do utils.js se disponível, senão usar função local
+  // Nota: utils.js é carregado globalmente no dashboard.html
+  const showMessage = (text, type, messageElement = null, fieldId = null) => {
+    if (typeof window.showMessage !== 'undefined') {
+      window.showMessage(text, type, messageElement || message, fieldId);
+    } else if (message) {
+      message.textContent = text;
+      message.className = `message ${type} show`;
+      setTimeout(() => message.className = 'message', 5000);
+    }
+  };
+})();

@@ -1,0 +1,331 @@
+/* backend/public/css/dashboard.css */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+:root {
+  --primary: #1a2a6c;
+  --primary-dark: #131e4d;
+  --secondary: #b21f1f;
+  --text: #333;
+  --light-bg: #f8fafc;
+  --white: #ffffff;
+  --shadow: 0 4px 20px rgba(0,0,0,0.08);
+  
+  /* Tema Claro (padrão) */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
+  --bg-tertiary: #e9ecef;
+  --text-primary: #333;
+  --text-secondary: #666;
+  --text-muted: #999;
+  --border-color: #dee2e6;
+}
+
+
+body {
+  display: flex;
+  background: var(--light-bg);
+  color: var(--text);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.sidebar {
+  width: 260px;
+  background: var(--primary);
+  color: white;
+  height: 100vh;
+  position: fixed;
+  padding: 20px 0;
+  transition: all 0.3s;
+  box-shadow: var(--shadow);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.logo {
+  padding: 0 20px 25px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.logo h1 {
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.logo span {
+  color: #ff6b6b;
+}
+
+.menu {
+  padding: 20px 0;
+}
+
+.menu-item {
+  padding: 14px 25px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  transition: all 0.25s;
+  border-left: 4px solid transparent;
+}
+
+.menu-item:hover, .menu-item.active {
+  background: rgba(255,255,255,0.1);
+  border-left: 4px solid #ff6b6b;
+}
+
+.menu-item i {
+  font-size: 20px;
+  min-width: 24px;
+  text-align: center;
+}
+
+.menu-item span {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.main {
+  flex: 1;
+  margin-left: 260px;
+  padding: 25px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+}
+
+.user-info h2 {
+  font-size: 24px;
+  margin-bottom: 5px;
+  color: var(--primary);
+  transition: color 0.3s ease;
+}
+
+
+.user-info p {
+  color: #666;
+  transition: color 0.3s ease;
+}
+
+
+.content-box {
+  background: var(--white);
+  border-radius: 16px;
+  padding: 30px;
+  box-shadow: var(--shadow);
+  min-height: 400px;
+}
+
+.logout-btn {
+  background: var(--secondary);
+  color: white;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.3s;
+}
+
+.logout-btn:hover {
+  background: #9e1b1b;
+}
+
+/* Área de Boas-vindas */
+.welcome-section {
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid var(--border-color);
+  transition: border-color 0.3s ease;
+}
+
+.welcome-section h3 {
+  color: var(--primary);
+  margin-bottom: 10px;
+  font-size: 28px;
+  transition: color 0.3s ease;
+}
+
+
+.welcome-section p {
+  color: var(--text-secondary);
+  font-size: 16px;
+  transition: color 0.3s ease;
+}
+
+/* Área de Propaganda/Parceiro */
+.advertisement-section {
+  margin-top: 30px;
+}
+
+.ad-card {
+  background: linear-gradient(135deg, #1a2a6c 0%, #2c3e50 100%);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.ad-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+}
+
+.ad-header {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 20px 30px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.ad-header h4 {
+  color: white;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.ad-content {
+  padding: 30px;
+  color: white;
+}
+
+.ad-logo {
+  text-align: center;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.ad-logo h3 {
+  color: white;
+  font-size: 32px;
+  font-weight: 700;
+  margin: 0 0 10px 0;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.ad-tagline {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 16px;
+  margin: 0;
+  font-style: italic;
+}
+
+.ad-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+  margin: 30px 0;
+}
+
+.ad-feature {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  transition: background 0.3s ease;
+}
+
+.ad-feature:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.ad-feature i {
+  font-size: 24px;
+  color: #ff6b6b;
+}
+
+.ad-feature span {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.ad-contact {
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  text-align: center;
+}
+
+.ad-contact p {
+  margin: 8px 0;
+  font-size: 15px;
+}
+
+.ad-contact strong {
+  font-size: 16px;
+  display: block;
+  margin-bottom: 10px;
+}
+
+.ad-contact i {
+  margin-right: 8px;
+  color: #ff6b6b;
+}
+
+.ad-link {
+  display: inline-block;
+  margin-top: 15px;
+  padding: 12px 24px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  text-decoration: none;
+  border-radius: 8px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.ad-link:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.ad-link i {
+  margin-right: 5px;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    width: 80px;
+  }
+  .sidebar .logo h1,
+  .sidebar .menu-item span {
+    display: none;
+  }
+  .sidebar .menu-item {
+    justify-content: center;
+    padding: 16px;
+    gap: 0;
+  }
+  .sidebar .menu-item i {
+    font-size: 24px;
+  }
+  .main {
+    margin-left: 80px;
+  }
+
+  .ad-features {
+    grid-template-columns: 1fr;
+  }
+
+  .ad-logo h3 {
+    font-size: 24px;
+  }
+}
+
+/* ========== TEMA ESCURO ========== */
+

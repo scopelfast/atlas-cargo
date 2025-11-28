@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Gerenciar Classes de Frota</title>
+    <link rel="stylesheet" href="/css/modulos.css">
+</head>
+<body>
+    <div class="modulo-container">
+        <h1>Gerenciar Classes de Frota</h1>
+
+        <!-- Abas -->
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="filtros">Filtros</button>
+            <button class="tab-btn" data-tab="grid">Grid</button>
+            <button class="tab-btn" data-tab="dados">Dados</button>
+        </div>
+
+        <!-- Filtros -->
+        <div class="tab-content active" id="tab-filtros">
+            <div class="form-box">
+                <h2>Filtros de Busca</h2>
+                <form id="filtroForm">
+                    <div class="input-group triple">
+                        <div>
+                            <label for="filtroCodigo">Código</label>
+                            <input type="number" id="filtroCodigo" min="1">
+                        </div>
+                        <div>
+                            <label for="filtroDescricao">Descrição</label>
+                            <input type="text" id="filtroDescricao" maxlength="40">
+                        </div>
+                        <div>
+                            <label for="filtroSituacao">Situação</label>
+                            <select id="filtroSituacao">
+                                <option value="">Todas</option>
+                                <option value="S">Ativo</option>
+                                <option value="N">Inativo</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn save">Aplicar Filtro</button>
+                    <button type="button" id="btnLimparFiltros" class="btn cancel">Limpar</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Grid -->
+        <div class="tab-content" id="tab-grid">
+            <div class="form-box">
+                <h2>Visualização em Grid</h2>
+                <div class="actions-top">
+                    <button type="button" id="btnVoltarGrid" class="btn cancel">← Voltar aos Filtros</button>
+                    <button type="button" id="btnNovoRegistroGrid" class="btn save">+ Novo Registro</button>
+                </div>
+                <div id="classesGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
+                    <span id="classesGridCountText">0 registro(s) encontrado(s)</span>
+                </div>
+                <div id="classesGrid" class="grid-container">
+                    <p class="empty">Aplicar filtros para carregar o grid.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dados -->
+        <div class="tab-content" id="tab-dados">
+            <div class="form-box">
+                <h2 id="formTitle">Nova Classe de Frota</h2>
+                <form id="classeForm">
+                    <!-- 3 campos na mesma linha -->
+                    <div class="input-group triple">
+                        <div>
+                            <label for="classeCodigo">Código</label>
+                            <input type="text" id="classeCodigo" readonly>
+                        </div>
+                        <div>
+                            <label for="classeDescricao">Descrição *</label>
+                            <input type="text" id="classeDescricao" required maxlength="40">
+                        </div>
+                        <div>
+                            <label for="classeSituacao">Situação *</label>
+                            <select id="classeSituacao" required>
+                                <option value="S">Ativo</option>
+                                <option value="N">Inativo</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Campos adicionais em linha -->
+                    <div class="input-group double">
+                        <div>
+                            <label for="classeEixos">Número de Eixos *</label>
+                            <select id="classeEixos" required>
+                                <option value="">Selecione</option>
+                                <option value="2">2</option>
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="5">5</option>
+                                <option value="6">6</option>
+                                <option value="7">7</option>
+                                <option value="8">8</option>
+                                <option value="9">9</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="classeCapacidade">Capacidade de Carga (opcional)</label>
+                            <input type="number" id="classeCapacidade" step="0.01" min="0">
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn save">Salvar</button>
+                        <button type="button" id="btnCancelar" class="btn cancel">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Modal -->
+        <div id="confirmModal" class="modal">
+            <div class="modal-content">
+                <h3>Confirmar Ação</h3>
+                <p id="modalMessage"></p>
+                <div class="modal-actions">
+                    <button id="confirmYes" class="btn delete">Sim</button>
+                    <button id="confirmNo" class="btn cancel">Cancelar</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="message" class="message"></div>
+    </div>
+
+    <!-- Overlay de carregamento para init.sql (mesmo estilo do Gerenciar Roteiros) -->
+    <div id="loadingOverlayInitSQL" class="calculando-overlay" style="display: none;">
+      <div class="calculando-content">
+        <div class="calculando-spinner"></div>
+        <h3 id="loadingTitleInitSQL">Processando Inicialização</h3>
+        <p id="loadingTextInitSQL">Executando scripts de inicialização...</p>
+        <p class="calculando-detalhe" id="loadingDetailInitSQL">Isso pode levar alguns segundos.</p>
+      </div>
+    </div>
+
+    <script src="/js/grid-editor.js"></script>
+    <script src="js/script.js"></script>
+</body>
+</html>

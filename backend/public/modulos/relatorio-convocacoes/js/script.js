@@ -1,0 +1,1212 @@
+// backend/public/modulos/relatorio-convocacoes/js/script.js
+// Relatório de Convocações - Frontend
+// Versão: 1.0
+
+(function() {
+  let chartStatus = null;
+  let chartPorData = null;
+  let dadosAtuais = null;
+  let listaOrdenada = [];
+  let ordemAtual = { coluna: null, direcao: 'asc' };
+
+  // Carregar motivos de recusa
+  async function carregarMotivosRecusa() {
+    try {
+      const response = await fetch('/api/motivos-recusa-combo');
+      if (response.ok) {
+        const motivos = await response.json();
+        const select = document.getElementById('filtroMotivoRecusa');
+        if (select) {
+          // Limpar opções existentes (exceto "Todos")
+          select.innerHTML = '<option value="">Todos</option>';
+          motivos.forEach(motivo => {
+            const option = document.createElement('option');
+            option.value = motivo.CDMOTIVO;
+            option.textContent = motivo.DSMOTIVO;
+            select.appendChild(option);
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao carregar motivos de recusa:', err);
+    }
+  }
+
+  // Inicialização
+  function init() {
+    // Definir datas padrão (últimos 30 dias)
+    const hoje = new Date();
+    const dataFim = hoje.toISOString().split('T')[0];
+    const dataInicio = new Date(hoje.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    document.getElementById('filtroDataInicio').value = dataInicio;
+    document.getElementById('filtroDataFim').value = dataFim;
+
+    // Carregar motivos de recusa
+    carregarMotivosRecusa();
+
+    // Carregar relatório inicial
+    buscarRelatorio();
+  }
+
+  // Buscar relatório
+  window.buscarRelatorio = async function() {
+    try {
+      // Mostrar loading
+      const tabelaContainer = document.getElementById('tabelaContainer');
+      const estatisticasCards = document.getElementById('estatisticasCards');
+      
+      if (tabelaContainer) {
+        tabelaContainer.innerHTML = '<div class="loading">Carregando dados</div>';
+      }
+      if (estatisticasCards) {
+        estatisticasCards.innerHTML = '<div class="loading">Carregando estatísticas</div>';
+      }
+
+      // Coletar filtros e garantir que valores vazios sejam removidos
+      const filtroDataInicio = document.getElementById('filtroDataInicio');
+      const filtroDataFim = document.getElementById('filtroDataFim');
+      const filtroStatus = document.getElementById('filtroStatus');
+      const filtroIdViagem = document.getElementById('filtroIdViagem');
+      const filtroIdConvocacao = document.getElementById('filtroIdConvocacao');
+      const filtroMotorista = document.getElementById('filtroMotorista');
+      const filtroViagemConfirmada = document.getElementById('filtroViagemConfirmada');
+      const filtroMotivoRecusa = document.getElementById('filtroMotivoRecusa');
+
+      const filtros = {};
+      
+      // Adicionar apenas filtros com valor válido (não vazios, não null, não undefined)
+      const getValue = (element) => {
+        if (!element) return null;
+        const value = element.value;
+        if (value === null || value === undefined || value === '') return null;
+        const trimmed = String(value).trim();
+        return trimmed === '' ? null : trimmed;
+      };
+
+      const dataInicioValue = getValue(filtroDataInicio);
+      const dataFimValue = getValue(filtroDataFim);
+      const statusValue = getValue(filtroStatus);
+      const idViagemValue = getValue(filtroIdViagem);
+      const idConvocacaoValue = getValue(filtroIdConvocacao);
+      const motoristaValue = getValue(filtroMotorista);
+      const viagemConfirmadaValue = getValue(filtroViagemConfirmada);
+      const motivoRecusaValue = getValue(filtroMotivoRecusa);
+
+      if (dataInicioValue) filtros.dataInicio = dataInicioValue;
+      if (dataFimValue) filtros.dataFim = dataFimValue;
+      if (statusValue) filtros.status = statusValue;
+      if (idViagemValue && !isNaN(idViagemValue)) filtros.idViagem = idViagemValue;
+      if (idConvocacaoValue && !isNaN(idConvocacaoValue)) filtros.idConvocacao = idConvocacaoValue;
+      if (motoristaValue) filtros.motorista = motoristaValue;
+      if (viagemConfirmadaValue && (viagemConfirmadaValue === 'true' || viagemConfirmadaValue === 'false')) {
+        filtros.viagemConfirmada = viagemConfirmadaValue;
+      }
+      if (motivoRecusaValue && !isNaN(motivoRecusaValue)) filtros.motivoRecusa = motivoRecusaValue;
+
+      // Construir query string apenas com filtros válidos
+      const queryString = new URLSearchParams(filtros).toString();
+      const url = queryString 
+        ? `/api/relatorio-convocacoes/relatorio?${queryString}`
+        : `/api/relatorio-convocacoes/relatorio`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (!data) {
+        throw new Error('Nenhum dado retornado pelo servidor');
+      }
+
+      dadosAtuais = data;
+
+      // Atualizar interface
+      atualizarEstatisticas(data.estatisticas);
+      await atualizarGraficos(data);
+      atualizarTabela(data.lista);
+
+      // Mensagem de sucesso
+      if (typeof showMessage !== 'undefined') {
+        const total = data.estatisticas?.TOTAL || 0;
+        showMessage(`${total} convocação(ões) encontrada(s).`, 'success');
+      }
+
+    } catch (error) {
+      console.error('Erro ao buscar relatório:', error);
+      
+      // Usar showMessage se disponível, senão usar alert como fallback
+      const errorMsg = error.message || 'Erro ao buscar relatório. Verifique a conexão e tente novamente.';
+      
+      if (typeof showMessage !== 'undefined') {
+        showMessage(errorMsg, 'error');
+      } else {
+        alert(errorMsg);
+      }
+
+      // Mostrar estado vazio
+      const tabelaContainer = document.getElementById('tabelaContainer');
+      const estatisticasCards = document.getElementById('estatisticasCards');
+      
+      if (tabelaContainer) {
+        tabelaContainer.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><p>Erro ao carregar dados</p></div>';
+      }
+      if (estatisticasCards) {
+        estatisticasCards.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><p>Erro ao carregar estatísticas</p></div>';
+      }
+    }
+  };
+
+  // Atualizar cards de estatísticas
+  function atualizarEstatisticas(estatisticas) {
+    const container = document.getElementById('estatisticasCards');
+    
+    if (!estatisticas || !estatisticas.TOTAL) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📊</div><p>Nenhum dado encontrado</p></div>';
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="card" style="border: 2px solid #667eea; background: linear-gradient(135deg, #f8f9ff 0%, #e8ebff 100%);">
+        <div class="card-title">Total de Viagens</div>
+        <div class="card-value" style="color: #667eea; font-size: 2em; font-weight: 700;">${estatisticas.TOTAL_VIAGENS || 0}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Total</div>
+        <div class="card-value total">${estatisticas.TOTAL || 0}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Pendente</div>
+        <div class="card-value pendente">${estatisticas.PENDENTE || 0}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Aceita</div>
+        <div class="card-value aceita">${estatisticas.ACEITA || 0}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Recusada</div>
+        <div class="card-value recusada">${estatisticas.RECUSADA || 0}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Confirmada</div>
+        <div class="card-value confirmada">${estatisticas.CONFIRMADA || 0}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Aceita Descartada</div>
+        <div class="card-value">${estatisticas.ACEITA_DESCARTADA || 0}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Com Acesso</div>
+        <div class="card-value">${estatisticas.COM_ACESSO || 0}</div>
+      </div>
+      <div class="card">
+        <div class="card-title">Com Resposta</div>
+        <div class="card-value">${estatisticas.COM_RESPOSTA || 0}</div>
+      </div>
+    `;
+  }
+
+  // Aguardar Chart.js estar disponível
+  async function aguardarChartJS() {
+    // Se já está disponível, retornar
+    if (typeof Chart !== 'undefined') {
+      return true;
+    }
+
+    // Verificar se o script já foi adicionado (no head ou em qualquer lugar)
+    const existingScript = document.head.querySelector('script[src*="chart.js"]') || 
+                          document.querySelector('script[src*="chart.js"]');
+    if (existingScript) {
+      // Aguardar o Chart carregar (aumentar tempo de espera)
+      let tentativas = 0;
+      return new Promise((resolve, reject) => {
+        const checkInterval = setInterval(() => {
+          if (typeof Chart !== 'undefined') {
+            clearInterval(checkInterval);
+            resolve(true);
+          } else if (tentativas++ > 50) { // Aumentado para 50 tentativas (5 segundos)
+            clearInterval(checkInterval);
+            reject(new Error('Chart.js não carregou após aguardar'));
+          }
+        }, 100);
+      });
+    }
+
+    // Carregar Chart.js dinamicamente
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+      script.async = false; // Carregar de forma síncrona
+      script.onload = () => {
+        // Aguardar um pouco mais para garantir que Chart está disponível
+        setTimeout(() => {
+          if (typeof Chart !== 'undefined') {
+            resolve(true);
+          } else {
+            // Tentar mais algumas vezes
+            let tentativas = 0;
+            const retryInterval = setInterval(() => {
+              if (typeof Chart !== 'undefined') {
+                clearInterval(retryInterval);
+                resolve(true);
+              } else if (tentativas++ > 20) {
+                clearInterval(retryInterval);
+                reject(new Error('Chart.js carregado mas não disponível'));
+              }
+            }, 100);
+          }
+        }, 300);
+      };
+      script.onerror = () => reject(new Error('Erro ao carregar Chart.js'));
+      document.head.appendChild(script);
+    });
+  }
+
+  // Atualizar gráficos
+  async function atualizarGraficos(data) {
+    try {
+      // Aguardar Chart.js estar disponível
+      await aguardarChartJS();
+    } catch (error) {
+      console.error('Erro ao carregar Chart.js:', error);
+      const graficoContainer = document.querySelector('.graficos-section');
+      if (graficoContainer) {
+        graficoContainer.innerHTML = `
+          <div class="empty-state" style="grid-column: 1 / -1; padding: 40px;">
+            <div class="empty-state-icon">⚠️</div>
+            <p>Erro ao carregar biblioteca de gráficos</p>
+            <p style="font-size: 12px; color: #999; margin-top: 10px;">${error.message}</p>
+            <button onclick="location.reload()" class="btn btn-primary" style="margin-top: 15px;">Recarregar Página</button>
+          </div>
+        `;
+      }
+      return;
+    }
+
+    // Gráfico de Status (Pizza)
+    const ctxStatus = document.getElementById('graficoStatus');
+    if (!ctxStatus) {
+      console.error('Canvas graficoStatus não encontrado');
+      return;
+    }
+
+    if (chartStatus) {
+      chartStatus.destroy();
+    }
+
+    const estatisticas = data.estatisticas || {};
+    chartStatus = new Chart(ctxStatus, {
+      type: 'doughnut',
+      data: {
+        labels: ['Pendente', 'Aceita', 'Recusada', 'Confirmada', 'Aceita Descartada'],
+        datasets: [{
+          data: [
+            estatisticas.PENDENTE || 0,
+            estatisticas.ACEITA || 0,
+            estatisticas.RECUSADA || 0,
+            estatisticas.CONFIRMADA || 0,
+            estatisticas.ACEITA_DESCARTADA || 0
+          ],
+          backgroundColor: [
+            '#ffc107',
+            '#28a745',
+            '#dc3545',
+            '#17a2b8',
+            '#6c757d'
+          ]
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: {
+            position: 'bottom'
+          },
+          title: {
+            display: false
+          }
+        }
+      }
+    });
+
+    // Gráfico por Data (Linha)
+    const ctxPorData = document.getElementById('graficoPorData');
+    if (!ctxPorData) {
+      console.error('Canvas graficoPorData não encontrado');
+      return;
+    }
+
+    if (chartPorData) {
+      chartPorData.destroy();
+    }
+
+    const dadosPorData = data.estatisticasPorData || [];
+    const labels = dadosPorData.map(d => {
+      if (!d.DATA) return '-';
+      
+      // Tratar data sem conversão de fuso
+      let date;
+      if (typeof d.DATA === 'string' && d.DATA.includes('T')) {
+        const partes = d.DATA.split('T');
+        const dataParte = partes[0].split('-');
+        const ano = parseInt(dataParte[0]);
+        const mes = parseInt(dataParte[1]) - 1;
+        const dia = parseInt(dataParte[2]);
+        date = new Date(ano, mes, dia);
+      } else {
+        const tempDate = new Date(d.DATA);
+        const ano = tempDate.getUTCFullYear();
+        const mes = tempDate.getUTCMonth();
+        const dia = tempDate.getUTCDate();
+        date = new Date(ano, mes, dia);
+      }
+      
+      const diaStr = String(date.getDate()).padStart(2, '0');
+      const mesStr = String(date.getMonth() + 1).padStart(2, '0');
+      const anoStr = date.getFullYear();
+      return `${diaStr}/${mesStr}/${anoStr}`;
+    }).reverse();
+    
+    const dadosPendente = dadosPorData.map(d => d.PENDENTE || 0).reverse();
+    const dadosAceita = dadosPorData.map(d => d.ACEITA || 0).reverse();
+    const dadosRecusada = dadosPorData.map(d => d.RECUSADA || 0).reverse();
+    const dadosConfirmada = dadosPorData.map(d => d.CONFIRMADA || 0).reverse();
+
+    chartPorData = new Chart(ctxPorData, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Pendente',
+            data: dadosPendente,
+            borderColor: '#ffc107',
+            backgroundColor: 'rgba(255, 193, 7, 0.1)',
+            tension: 0.4
+          },
+          {
+            label: 'Aceita',
+            data: dadosAceita,
+            borderColor: '#28a745',
+            backgroundColor: 'rgba(40, 167, 69, 0.1)',
+            tension: 0.4
+          },
+          {
+            label: 'Recusada',
+            data: dadosRecusada,
+            borderColor: '#dc3545',
+            backgroundColor: 'rgba(220, 53, 69, 0.1)',
+            tension: 0.4
+          },
+          {
+            label: 'Confirmada',
+            data: dadosConfirmada,
+            borderColor: '#17a2b8',
+            backgroundColor: 'rgba(23, 162, 184, 0.1)',
+            tension: 0.4
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: {
+            position: 'bottom'
+          },
+          title: {
+            display: false
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true
+          }
+        }
+      }
+    });
+  }
+
+  // Ordenar lista
+  function ordenarLista(lista, coluna, direcao) {
+    const listaOrdenada = [...lista];
+    
+    listaOrdenada.sort((a, b) => {
+      let valorA, valorB;
+      
+      switch(coluna) {
+        case 'ID':
+          valorA = a.IDCONVOCACAO;
+          valorB = b.IDCONVOCACAO;
+          break;
+        case 'Viagem':
+          valorA = a.IDVIAGEM;
+          valorB = b.IDVIAGEM;
+          break;
+        case 'Motorista':
+          valorA = (a.NOME_MOTORISTA || '').toUpperCase();
+          valorB = (b.NOME_MOTORISTA || '').toUpperCase();
+          break;
+        case 'Celular':
+          valorA = a.NRCELULAR || '';
+          valorB = b.NRCELULAR || '';
+          break;
+        case 'Status':
+          valorA = a.STATUS || '';
+          valorB = b.STATUS || '';
+          break;
+        case 'Convocação':
+          valorA = new Date(a.DHCONVOCACAO || 0);
+          valorB = new Date(b.DHCONVOCACAO || 0);
+          break;
+        case 'Resposta':
+          valorA = new Date(a.DHRESPOSTA || 0);
+          valorB = new Date(b.DHRESPOSTA || 0);
+          break;
+        case 'Acesso':
+          valorA = new Date(a.DHACESSO || 0);
+          valorB = new Date(b.DHACESSO || 0);
+          break;
+        case 'Roteiro':
+          valorA = (a.DSROTEIRO || '').toUpperCase();
+          valorB = (b.DSROTEIRO || '').toUpperCase();
+          break;
+        case 'Confirmada':
+          valorA = a.VIAGEM_CONFIRMADA || 'N';
+          valorB = b.VIAGEM_CONFIRMADA || 'N';
+          break;
+        default:
+          return 0;
+      }
+      
+      if (valorA < valorB) return direcao === 'asc' ? -1 : 1;
+      if (valorA > valorB) return direcao === 'asc' ? 1 : -1;
+      return 0;
+    });
+    
+    return listaOrdenada;
+  }
+
+  // Função para abrir viagem no módulo de gerenciar viagens
+  window.abrirViagem = function(idViagem) {
+    try {
+      // Verificar se a função loadModuleContent está disponível
+      if (typeof window.loadModuleContent === 'function') {
+        // Carregar módulo com parâmetro
+        window.loadModuleContent('gerenciar-viagens', { idViagem: idViagem });
+        
+        if (typeof showMessage !== 'undefined') {
+          showMessage(`Abrindo viagem ${idViagem}...`, 'success');
+        }
+      } else {
+        // Fallback: tentar carregar manualmente
+        const contentArea = document.getElementById('contentArea');
+        if (contentArea) {
+          fetch('/modulos/gerenciar-viagens/index.html')
+            .then(response => response.text())
+            .then(html => {
+              contentArea.innerHTML = html;
+              const script = document.createElement('script');
+              script.src = '/modulos/gerenciar-viagens/js/script.js';
+              contentArea.appendChild(script);
+              
+              // Aguardar e aplicar filtro
+              setTimeout(() => aplicarFiltroViagem(idViagem), 1500);
+            })
+            .catch(err => {
+              console.error('Erro ao carregar módulo:', err);
+              if (typeof showMessage !== 'undefined') {
+                showMessage('Erro ao abrir módulo de viagens', 'error');
+              }
+            });
+        } else {
+          if (typeof showMessage !== 'undefined') {
+            showMessage('Não foi possível abrir o módulo de viagens', 'error');
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao abrir viagem:', error);
+      if (typeof showMessage !== 'undefined') {
+        showMessage('Erro ao abrir módulo de viagens', 'error');
+      }
+    }
+  };
+
+  // Função auxiliar para aplicar filtro de viagem
+  function aplicarFiltroViagem(idViagem) {
+    const filtroIdViagem = document.getElementById('filtroIdViagem');
+    if (filtroIdViagem) {
+      filtroIdViagem.value = idViagem;
+      
+      // Tentar submeter o formulário
+      const form = document.getElementById('filtroForm');
+      if (form) {
+        setTimeout(() => {
+          const submitBtn = form.querySelector('button[type="submit"]');
+          if (submitBtn) {
+            submitBtn.click();
+          } else {
+            // Tentar disparar evento de submit
+            form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+          }
+        }, 500);
+      }
+    } else {
+      // Tentar novamente após mais tempo
+      setTimeout(() => aplicarFiltroViagem(idViagem), 500);
+    }
+  }
+
+  // Atualizar tabela
+  function atualizarTabela(lista) {
+    const container = document.getElementById('tabelaContainer');
+    
+    if (!lista || lista.length === 0) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div><p>Nenhuma convocação encontrada</p></div>';
+      return;
+    }
+
+    // Salvar lista original
+    listaOrdenada = lista;
+    
+    // Aplicar ordenação se houver
+    if (ordemAtual.coluna) {
+      listaOrdenada = ordenarLista(lista, ordemAtual.coluna, ordemAtual.direcao);
+    }
+
+    // Função para criar header com ordenação
+    const criarHeader = (nome, chave, largura = null) => {
+      const isOrdenado = ordemAtual.coluna === nome;
+      const seta = isOrdenado ? (ordemAtual.direcao === 'asc' ? ' ▲' : ' ▼') : ' ↕';
+      const styleLargura = largura ? `width: ${largura}; min-width: ${largura}; white-space: nowrap;` : '';
+      return `<th style="cursor: pointer; user-select: none; position: relative; ${styleLargura}" onclick="ordenarTabela('${nome}')" title="Clique para ordenar">
+        ${nome}${seta}
+      </th>`;
+    };
+
+    const tabela = `
+      <table>
+        <thead>
+          <tr>
+            ${criarHeader('ID', 'IDCONVOCACAO', '50px')}
+            ${criarHeader('Viagem', 'IDVIAGEM', '80px')}
+            ${criarHeader('Motorista', 'NOME_MOTORISTA')}
+            ${criarHeader('Celular', 'NRCELULAR')}
+            ${criarHeader('Status', 'STATUS')}
+            ${criarHeader('Convocação', 'DHCONVOCACAO')}
+            ${criarHeader('Resposta', 'DHRESPOSTA')}
+            ${criarHeader('Acesso', 'DHACESSO')}
+            ${criarHeader('Roteiro', 'DSROTEIRO')}
+            <th title="Indica se a viagem já possui uma convocação confirmada (independente desta convocação)"><span style="font-size: 14px;">ℹ️</span></th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${listaOrdenada.map(item => `
+            <tr>
+              <td style="width: 50px; min-width: 50px;">${item.IDCONVOCACAO}</td>
+              <td style="width: 80px; min-width: 80px;">
+                <button onclick="abrirViagem(${item.IDVIAGEM})" 
+                        class="btn-link" 
+                        style="background: none; border: none; color: #667eea; cursor: pointer; text-decoration: underline; font-weight: 600; padding: 0;"
+                        title="Clique para ver detalhes da viagem">
+                  ${item.IDVIAGEM}
+                </button>
+              </td>
+              <td>${item.NOME_MOTORISTA || 'N/A'}</td>
+              <td>${criarLinkWhatsApp(item.NRCELULAR)}</td>
+              <td>
+                ${criarIndicadorGeolocalizacao(item.LATITUDE, item.LONGITUDE)}
+                <span class="badge badge-${item.STATUS.toLowerCase().replace('_', '-')}">
+                  ${item.STATUS === 'RECUSADA' && item.MOTIVO_RECUSA ? `RECUSADA - ${item.MOTIVO_RECUSA}` : item.STATUS}
+                </span>
+              </td>
+              <td>${formatarData(item.DHCONVOCACAO)}</td>
+              <td>${formatarData(item.DHRESPOSTA)}</td>
+              <td>${formatarData(item.DHACESSO)}</td>
+              <td>${item.DSROTEIRO || 'N/A'}</td>
+              <td title="${item.VIAGEM_CONFIRMADA === 'S' ? 'Esta viagem já possui uma convocação confirmada' : 'Esta viagem ainda não possui convocação confirmada'}">
+                ${item.VIAGEM_CONFIRMADA === 'S' ? '✅' : '❌'}
+              </td>
+              <td>
+                ${(item.IDROTEIRO && item.LATITUDE && item.LONGITUDE && !isNaN(item.LATITUDE) && !isNaN(item.LONGITUDE)) 
+                  ? `<button onclick="abrirMapaMotorista(${item.IDCONVOCACAO}, ${item.LATITUDE}, ${item.LONGITUDE}, ${item.IDROTEIRO}, ${item.IDVIAGEM})" 
+                      class="btn" 
+                      style="padding: 8px; font-size: 1.2em; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; min-width: 40px; display: inline-flex; align-items: center; justify-content: center;"
+                      title="Ver localização do motorista e rota até o carregamento">
+                        🗺️
+                    </button>`
+                  : ''}
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+
+    container.innerHTML = tabela;
+  }
+
+  // Função global para ordenar tabela
+  window.ordenarTabela = function(coluna) {
+    if (ordemAtual.coluna === coluna) {
+      // Inverter direção
+      ordemAtual.direcao = ordemAtual.direcao === 'asc' ? 'desc' : 'asc';
+    } else {
+      // Nova coluna, começar com asc
+      ordemAtual.coluna = coluna;
+      ordemAtual.direcao = 'asc';
+    }
+    
+    // Re-renderizar tabela
+    if (dadosAtuais && dadosAtuais.lista) {
+      atualizarTabela(dadosAtuais.lista);
+    }
+  };
+
+  // Formatar data (sem conversão de fuso horário)
+  function formatarData(data) {
+    if (!data) return '-';
+    
+    // Se a data já vem como string formatada, limpar segundos e milissegundos se existirem
+    if (typeof data === 'string' && data.includes('/') && data.includes(',')) {
+      // Remover segundos e milissegundos se existirem
+      // Exemplo: "27/11/2025, 09:20:49787" -> "27/11/2025, 09:20"
+      const match = data.match(/(\d{2}\/\d{2}\/\d{4}),\s*(\d{2}):(\d{2})(?::\d+)?/);
+      if (match) {
+        return `${match[1]}, ${match[2]}:${match[3]}`;
+      }
+      return data;
+    }
+    
+    try {
+      let ano, mes, dia, hora, minuto;
+      
+      // Se a string vem no formato ISO, extrair diretamente
+      if (typeof data === 'string' && data.includes('T')) {
+        // Formato ISO: "2025-11-26T05:20:03.000Z" ou "2025-11-26T05:20:03"
+        const partes = data.split('T');
+        const dataParte = partes[0].split('-');
+        const horaParte = partes[1] ? partes[1].replace(/[Z\.]/g, '').split(':') : ['00', '00'];
+        
+        ano = parseInt(dataParte[0], 10);
+        mes = parseInt(dataParte[1], 10) - 1; // JavaScript usa mês 0-11
+        dia = parseInt(dataParte[2], 10);
+        hora = parseInt(horaParte[0], 10) || 0;
+        minuto = parseInt(horaParte[1], 10) || 0;
+      } else {
+        // Fallback: usar Date e extrair componentes UTC
+        const date = new Date(data);
+        
+        if (isNaN(date.getTime())) {
+          return '-';
+        }
+        
+        // Extrair componentes UTC e tratar como local (sem conversão de fuso)
+        ano = date.getUTCFullYear();
+        mes = date.getUTCMonth();
+        dia = date.getUTCDate();
+        hora = date.getUTCHours();
+        minuto = date.getUTCMinutes();
+      }
+      
+      // Formatar para pt-BR (sem segundos)
+      const diaStr = String(dia).padStart(2, '0');
+      const mesStr = String(mes + 1).padStart(2, '0');
+      const anoStr = ano;
+      const horaStr = String(hora).padStart(2, '0');
+      const minutoStr = String(minuto).padStart(2, '0');
+      
+      return `${diaStr}/${mesStr}/${anoStr}, ${horaStr}:${minutoStr}`;
+    } catch (error) {
+      console.error('Erro ao formatar data:', error, data);
+      return '-';
+    }
+  }
+
+  // Formatar valor
+  function formatarValor(valor) {
+    if (!valor) return '0,00';
+    return parseFloat(valor).toFixed(2).replace('.', ',');
+  }
+
+  // Criar link do WhatsApp
+  function criarLinkWhatsApp(celular) {
+    if (!celular) return 'N/A';
+    
+    // Limpar número: remover espaços, parênteses, hífens, pontos
+    let numeroLimpo = String(celular).replace(/\s+/g, '').replace(/[()\-\.]/g, '');
+    
+    // Formatar número para exibição (com parênteses e hífen)
+    let celularFormatado = '';
+    if (numeroLimpo && numeroLimpo.length >= 10) {
+      // Remover código do país (55) se existir para formatação
+      let numeroParaFormatar = numeroLimpo;
+      if (numeroLimpo.startsWith('55') && numeroLimpo.length >= 12) {
+        numeroParaFormatar = numeroLimpo.substring(2); // Remove o 55
+      }
+      
+      if (numeroParaFormatar.length === 11) {
+        // Formato: (41) 99837-1769
+        celularFormatado = `(${numeroParaFormatar.substring(0, 2)}) ${numeroParaFormatar.substring(2, 7)}-${numeroParaFormatar.substring(7)}`;
+      } else if (numeroParaFormatar.length === 10) {
+        // Formato: (41) 9837-1769
+        celularFormatado = `(${numeroParaFormatar.substring(0, 2)}) ${numeroParaFormatar.substring(2, 6)}-${numeroParaFormatar.substring(6)}`;
+      } else {
+        // Formato simples se não tiver 10 ou 11 dígitos
+        celularFormatado = numeroParaFormatar;
+      }
+    } else {
+      celularFormatado = celular; // Retornar original se inválido
+    }
+    
+    // Se não começar com 55 (código do Brasil), adicionar para o link
+    if (!numeroLimpo.startsWith('55')) {
+      // Se começar com 0, remover o 0
+      if (numeroLimpo.startsWith('0')) {
+        numeroLimpo = numeroLimpo.substring(1);
+      }
+      numeroLimpo = '55' + numeroLimpo;
+    }
+    
+    // Validar se tem pelo menos 12 dígitos (55 + DDD + número)
+    if (numeroLimpo.length < 12) {
+      return celular; // Retornar número original se inválido
+    }
+    
+    const urlWhatsApp = `https://wa.me/${numeroLimpo}`;
+    
+    return `<a href="${urlWhatsApp}" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                style="color: #25D366; text-decoration: none; font-weight: 600;"
+                title="Abrir WhatsApp">
+                ${celularFormatado}
+              </a>`;
+  }
+
+  // Criar indicador de geolocalização
+  function criarIndicadorGeolocalizacao(latitude, longitude) {
+    const temLocalizacao = latitude !== null && latitude !== undefined && 
+                           longitude !== null && longitude !== undefined &&
+                           !isNaN(latitude) && !isNaN(longitude);
+    
+    const classe = temLocalizacao ? 'has-location' : 'no-location';
+    const titulo = temLocalizacao 
+      ? 'Localização capturada - Motorista colaborou' 
+      : 'Localização não capturada - Motorista não colaborou';
+    
+    return `<span class="geoloc-indicator ${classe}" title="${titulo}"></span>`;
+  }
+
+  // Limpar filtros
+  window.limparFiltros = function() {
+    // Limpar todos os campos de filtro
+    const filtroDataInicio = document.getElementById('filtroDataInicio');
+    const filtroDataFim = document.getElementById('filtroDataFim');
+    const filtroStatus = document.getElementById('filtroStatus');
+    const filtroIdViagem = document.getElementById('filtroIdViagem');
+    const filtroIdConvocacao = document.getElementById('filtroIdConvocacao');
+    const filtroMotorista = document.getElementById('filtroMotorista');
+    const filtroViagemConfirmada = document.getElementById('filtroViagemConfirmada');
+    const filtroMotivoRecusa = document.getElementById('filtroMotivoRecusa');
+    
+    // Limpar valores e garantir que estão vazios
+    if (filtroDataInicio) {
+      filtroDataInicio.value = '';
+      filtroDataInicio.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (filtroDataFim) {
+      filtroDataFim.value = '';
+      filtroDataFim.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (filtroStatus) {
+      filtroStatus.value = '';
+      filtroStatus.selectedIndex = 0; // Voltar para primeira opção
+      filtroStatus.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (filtroIdViagem) {
+      filtroIdViagem.value = '';
+      filtroIdViagem.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    if (filtroIdConvocacao) {
+      filtroIdConvocacao.value = '';
+      filtroIdConvocacao.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    if (filtroMotorista) {
+      filtroMotorista.value = '';
+      filtroMotorista.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+    if (filtroViagemConfirmada) {
+      filtroViagemConfirmada.value = '';
+      filtroViagemConfirmada.selectedIndex = 0; // Voltar para primeira opção
+      filtroViagemConfirmada.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (filtroMotivoRecusa) {
+      filtroMotivoRecusa.value = '';
+      filtroMotivoRecusa.selectedIndex = 0; // Voltar para primeira opção
+      filtroMotivoRecusa.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    
+    // Resetar ordenação
+    ordemAtual = { coluna: null, direcao: 'asc' };
+    
+    // Aguardar um pouco para garantir que os campos foram limpos
+    setTimeout(() => {
+      // Recarregar com filtros limpos
+      buscarRelatorio();
+    }, 100);
+  };
+
+  // Exportar relatório
+  window.exportarRelatorio = function() {
+    if (!dadosAtuais || !dadosAtuais.lista || dadosAtuais.lista.length === 0) {
+      alert('Não há dados para exportar.');
+      return;
+    }
+
+    // Criar CSV
+    const headers = ['ID', 'Viagem', 'Motorista', 'Celular', 'Status', 'Convocação', 'Resposta', 'Acesso', 'Roteiro', 'Confirmada'];
+    const rows = dadosAtuais.lista.map(item => [
+      item.IDCONVOCACAO,
+      item.IDVIAGEM,
+      item.NOME_MOTORISTA || '',
+      item.NRCELULAR || '',
+      item.STATUS,
+      formatarData(item.DHCONVOCACAO),
+      formatarData(item.DHRESPOSTA),
+      formatarData(item.DHACESSO),
+      item.DSROTEIRO || '',
+      item.VIAGEM_CONFIRMADA === 'S' ? 'Sim' : 'Não'
+    ]);
+
+    const csv = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    // Download
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `relatorio-convocoes-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+
+  // Variáveis e helpers do mapa (compartilhados com Gerenciar Viagens)
+  let mapaMotorista = null;
+  let mapaMotoristaLayer = null;
+
+  async function carregarLeaflet() {
+    if (typeof L !== 'undefined') {
+      return true;
+    }
+
+    if (!document.querySelector('link[href*="leaflet"]')) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
+      link.crossOrigin = '';
+      document.head.appendChild(link);
+    }
+
+    return new Promise((resolve, reject) => {
+      if (document.querySelector('script[src*="leaflet"]')) {
+        let tentativas = 0;
+        const checkInterval = setInterval(() => {
+          if (typeof L !== 'undefined') {
+            clearInterval(checkInterval);
+            resolve(true);
+          } else if (tentativas++ > 20) {
+            clearInterval(checkInterval);
+            reject(new Error('Timeout ao carregar Leaflet'));
+          }
+        }, 500);
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
+      script.crossOrigin = '';
+      script.onload = () => {
+        setTimeout(() => {
+          if (typeof L !== 'undefined') {
+            resolve(true);
+          } else {
+            reject(new Error('Leaflet carregado mas L não está disponível'));
+          }
+        }, 100);
+      };
+      script.onerror = () => reject(new Error('Erro ao carregar o script do Leaflet'));
+      document.head.appendChild(script);
+    });
+  }
+
+  window.abrirMapaMotorista = async function(idConvocacao, latMotorista, lonMotorista, idRoteiro, idViagem) {
+    try {
+      const fonteDados = (listaOrdenada && listaOrdenada.length ? listaOrdenada : (dadosAtuais?.lista || []));
+      const convocacao = fonteDados.find(c => c.IDCONVOCACAO === idConvocacao);
+
+      if (!convocacao) {
+        if (typeof showMessage !== 'undefined') {
+          showMessage('Convocação não encontrada.', 'error');
+        } else {
+          alert('Convocação não encontrada.');
+        }
+        return;
+      }
+
+      document.getElementById('mapaInfoMotorista').textContent = convocacao.NOME_MOTORISTA || '-';
+      document.getElementById('mapaInfoCelular').textContent = (convocacao.CELULAR_MOTORISTA || convocacao.NRCELULAR || '-') ;
+      document.getElementById('mapaInfoViagem').textContent = idViagem || '-';
+      document.getElementById('mapaInfoRoteiro').textContent = convocacao.DSROTEIRO || '-';
+
+      const formatarValor = (valor) => {
+        if (!valor) return 'R$ 0,00';
+        return `R$ ${parseFloat(valor).toFixed(2).replace('.', ',')}`;
+      };
+
+      const formatarPeso = (peso) => {
+        if (!peso) return '-';
+        return `${parseFloat(peso).toFixed(3).replace('.', ',')} ton`;
+      };
+
+      let vlFrete = convocacao.VLFRETE;
+      let peso = convocacao.PESO;
+      let cubagem = convocacao.CUBAGEM;
+
+      if (!vlFrete && idViagem) {
+        try {
+          const viagemResponse = await fetch(`/api/viagens/${idViagem}`);
+          if (viagemResponse.ok) {
+            const viagem = await viagemResponse.json();
+            vlFrete = viagem.VLFRETE || vlFrete;
+            peso = viagem.PESO || peso;
+            cubagem = viagem.CUBAGEM || cubagem;
+          }
+        } catch (err) {
+          console.error('Erro ao buscar dados da viagem:', err);
+        }
+      }
+
+      document.getElementById('mapaInfoFrete').textContent = formatarValor(vlFrete);
+      document.getElementById('mapaInfoPeso').textContent = formatarPeso(peso);
+      document.getElementById('mapaInfoDistancia').textContent = 'Calculando...';
+
+      const modal = document.getElementById('modalMapaMotorista');
+      modal.style.display = 'block';
+
+      let origemLat = null;
+      let origemLon = null;
+      let origemNome = 'Origem';
+
+      if (idRoteiro) {
+        try {
+          const pontosResponse = await fetch(`/api/roteiros/${idRoteiro}/pontos`);
+          if (pontosResponse.ok) {
+            const pontos = await pontosResponse.json();
+            const pontoOrigem = pontos.find(p => p.ORDEM === 1 || p.TPLOCAL === 'O');
+            if (pontoOrigem && pontoOrigem.LATITUDE && pontoOrigem.LONGITUDE) {
+              origemLat = parseFloat(pontoOrigem.LATITUDE);
+              origemLon = parseFloat(pontoOrigem.LONGITUDE);
+              origemNome = pontoOrigem.DSLOCAL || 'Origem';
+            }
+          }
+        } catch (err) {
+          console.error('Erro ao buscar pontos do roteiro:', err);
+        }
+      }
+
+      await carregarLeaflet();
+      
+      // Verificar se o elemento do mapa existe e está visível
+      const mapaDiv = document.getElementById('mapaMotorista');
+      if (!mapaDiv) {
+        console.error('Elemento mapaMotorista não encontrado');
+        return;
+      }
+
+      // Aguardar um pouco para garantir que o DOM está pronto
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Limpar mapa anterior se existir
+      if (mapaMotorista) {
+        try {
+          mapaMotorista.remove();
+        } catch (e) {
+          console.warn('Erro ao remover mapa anterior:', e);
+        }
+        mapaMotorista = null;
+        mapaMotoristaLayer = null;
+      }
+
+      // Limpar conteúdo do elemento
+      mapaDiv.innerHTML = '';
+
+      // Aguardar um pouco para garantir que o elemento está pronto
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Criar mapa
+      mapaMotorista = L.map('mapaMotorista').setView([latMotorista, lonMotorista], 8);
+      
+      // Aguardar o mapa inicializar
+      await new Promise(resolve => setTimeout(resolve, 200));
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+      }).addTo(mapaMotorista);
+
+      const iconeMotorista = L.divIcon({
+        className: 'custom-marker-motorista',
+        html: '<div style="background: #e74c3c; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 16px;">🚛</div>',
+        iconSize: [30, 30],
+        iconAnchor: [15, 15]
+      });
+
+      const iconeOrigem = L.divIcon({
+        className: 'custom-marker-origem',
+        html: '<div style="background: #2ecc71; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 16px;">📍</div>',
+        iconSize: [30, 30],
+        iconAnchor: [15, 15]
+      });
+
+      const marcadorMotorista = L.marker([latMotorista, lonMotorista], { icon: iconeMotorista })
+        .addTo(mapaMotorista)
+        .bindPopup(`
+          <div style="min-width: 200px;">
+            <h3 style="margin: 0 0 10px 0; color: #e74c3c;">🚛 Motorista</h3>
+            <p style="margin: 5px 0;"><strong>Nome:</strong> ${convocacao.NOME_MOTORISTA || '-'}</p>
+            <p style="margin: 5px 0;"><strong>Celular:</strong> ${(convocacao.CELULAR_MOTORISTA || convocacao.NRCELULAR || '-')}</p>
+            <p style="margin: 5px 0;"><strong>Status:</strong> ${convocacao.STATUS || '-'}</p>
+            <hr style="margin: 10px 0;">
+            <h4 style="margin: 10px 0 5px 0; color: #667eea;">📦 Carga</h4>
+            <p style="margin: 5px 0;"><strong>ID Viagem:</strong> ${idViagem || '-'}</p>
+            <p style="margin: 5px 0;"><strong>Roteiro:</strong> ${convocacao.DSROTEIRO || '-'}</p>
+            <p style="margin: 5px 0;"><strong>Frete:</strong> ${formatarValor(vlFrete)}</p>
+            <p style="margin: 5px 0;"><strong>Peso:</strong> ${formatarPeso(peso)}</p>
+            <p style="margin: 5px 0;"><strong>Classe:</strong> ${convocacao.DSCLASSEFROTA || '-'}</p>
+          </div>
+        `);
+
+      let marcadorOrigem = null;
+      if (origemLat && origemLon) {
+        marcadorOrigem = L.marker([origemLat, origemLon], { icon: iconeOrigem })
+          .addTo(mapaMotorista)
+          .bindPopup(`
+            <div style="min-width: 200px;">
+              <h3 style="margin: 0 0 10px 0; color: #2ecc71;">📍 Local de Carregamento</h3>
+              <p style="margin: 5px 0;"><strong>Local:</strong> ${origemNome}</p>
+              <p style="margin: 5px 0;"><strong>Roteiro:</strong> ${convocacao.DSROTEIRO || '-'}</p>
+            </div>
+          `);
+
+        try {
+          const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${lonMotorista},${latMotorista};${origemLon},${origemLat}?overview=full&geometries=geojson`;
+          const rotaResponse = await fetch(osrmUrl);
+          const rotaData = await rotaResponse.json();
+
+          if (rotaData.code === 'Ok' && rotaData.routes && rotaData.routes.length > 0) {
+            const rota = rotaData.routes[0];
+            const distanciaKm = (rota.distance / 1000).toFixed(2);
+            const duracaoMin = Math.round(rota.duration / 60);
+
+            document.getElementById('mapaInfoDistancia').textContent = `${distanciaKm} km (aprox. ${duracaoMin} min)`;
+
+            if (mapaMotoristaLayer) {
+              mapaMotorista.removeLayer(mapaMotoristaLayer);
+            }
+
+            mapaMotoristaLayer = L.geoJSON(rota.geometry, {
+              style: {
+                color: '#667eea',
+                weight: 5,
+                opacity: 0.7
+              }
+            }).addTo(mapaMotorista);
+
+            const grupo = L.featureGroup([marcadorMotorista, marcadorOrigem, mapaMotoristaLayer]);
+            mapaMotorista.fitBounds(grupo.getBounds().pad(0.1));
+          } else {
+            const distanciaHaversine = calcularDistanciaHaversine(latMotorista, lonMotorista, origemLat, origemLon);
+            document.getElementById('mapaInfoDistancia').textContent = `${distanciaHaversine.toFixed(2)} km (linha reta)`;
+            const grupo = L.featureGroup([marcadorMotorista, marcadorOrigem]);
+            mapaMotorista.fitBounds(grupo.getBounds().pad(0.1));
+          }
+        } catch (err) {
+          console.error('Erro ao calcular rota:', err);
+          const distanciaHaversine = calcularDistanciaHaversine(latMotorista, lonMotorista, origemLat, origemLon);
+          document.getElementById('mapaInfoDistancia').textContent = `${distanciaHaversine.toFixed(2)} km (linha reta)`;
+          const grupo = L.featureGroup([marcadorMotorista, marcadorOrigem]);
+          mapaMotorista.fitBounds(grupo.getBounds().pad(0.1));
+        }
+      } else {
+        mapaMotorista.setView([latMotorista, lonMotorista], 12);
+        document.getElementById('mapaInfoDistancia').textContent = 'Origem não encontrada no roteiro';
+      }
+
+      marcadorMotorista.openPopup();
+
+    } catch (err) {
+      console.error('Erro ao abrir mapa do motorista:', err);
+      if (typeof showMessage !== 'undefined') {
+        showMessage('Erro ao carregar mapa. ' + err.message, 'error');
+      } else {
+        alert('Erro ao carregar mapa. ' + err.message);
+      }
+    }
+  };
+
+  window.fecharModalMapaMotorista = function() {
+    const modal = document.getElementById('modalMapaMotorista');
+    modal.style.display = 'none';
+
+    if (mapaMotorista) {
+      mapaMotorista.remove();
+      mapaMotorista = null;
+      mapaMotoristaLayer = null;
+    }
+  };
+
+  function calcularDistanciaHaversine(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('modalMapaMotorista');
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          fecharModalMapaMotorista();
+        }
+      });
+    }
+  });
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+

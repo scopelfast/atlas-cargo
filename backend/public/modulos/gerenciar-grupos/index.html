@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Gerenciar Grupos de Equipamento</title>
+    <link rel="stylesheet" href="/css/modulos.css">
+</head>
+<body>
+    <div class="modulo-container">
+        <h1>Gerenciar Grupos de Equipamento</h1>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="filtros">Filtros</button>
+            <button class="tab-btn" data-tab="grid">Grid</button>
+            <button class="tab-btn" data-tab="dados">Dados</button>
+        </div>
+
+        <div class="tab-content active" id="tab-filtros">
+            <div class="form-box">
+                <h2>Filtros de Busca</h2>
+                <form id="filtroForm">
+                    <div class="input-group triple">
+                        <div>
+                            <label for="filtroCodigo">Código</label>
+                            <input type="number" id="filtroCodigo" min="1">
+                        </div>
+                        <div>
+                            <label for="filtroDescricao">Descrição</label>
+                            <input type="text" id="filtroDescricao" maxlength="40">
+                        </div>
+                        <div>
+                            <label for="filtroSituacao">Situação</label>
+                            <select id="filtroSituacao">
+                                <option value="">Todas</option>
+                                <option value="S">Ativo</option>
+                                <option value="N">Inativo</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn save">Aplicar Filtro</button>
+                    <button type="button" id="btnLimparFiltros" class="btn cancel">Limpar</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="tab-content" id="tab-grid">
+            <div class="form-box">
+                <h2>Visualização em Grid</h2>
+                <div class="actions-top">
+                    <button type="button" id="btnVoltarGrid" class="btn cancel">← Voltar aos Filtros</button>
+                    <button type="button" id="btnNovoRegistroGrid" class="btn save">+ Novo Registro</button>
+                </div>
+                <div id="gruposGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
+                    <span id="gruposGridCountText">0 registro(s) encontrado(s)</span>
+                </div>
+                <div id="gruposGrid" class="grid-container">
+                    <p class="empty">Aplicar filtros para carregar o grid.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="tab-dados">
+            <div class="form-box">
+                <h2 id="formTitle">Novo Grupo de Equipamento</h2>
+                <form id="grupoForm">
+                    <div class="input-group triple">
+                        <div>
+                            <label for="grupoCodigo">Código</label>
+                            <input type="text" id="grupoCodigo" readonly>
+                        </div>
+                        <div>
+                            <label for="grupoDescricao">Descrição *</label>
+                            <input type="text" id="grupoDescricao" required maxlength="40">
+                        </div>
+                        <div>
+                            <label for="grupoSituacao">Situação *</label>
+                            <select id="grupoSituacao" required>
+                                <option value="S">Ativo</option>
+                                <option value="N">Inativo</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn save">Salvar</button>
+                        <button type="button" id="btnCancelar" class="btn cancel">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="confirmModal" class="modal">
+            <div class="modal-content">
+                <h3>Confirmar Ação</h3>
+                <p id="modalMessage"></p>
+                <div class="modal-actions">
+                    <button id="confirmYes" class="btn delete">Sim</button>
+                    <button id="confirmNo" class="btn cancel">Cancelar</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="message" class="message"></div>
+    </div>
+
+    <!-- Overlay de carregamento para init.sql (mesmo estilo do Gerenciar Roteiros) -->
+    <div id="loadingOverlayInitSQL" class="calculando-overlay" style="display: none;">
+      <div class="calculando-content">
+        <div class="calculando-spinner"></div>
+        <h3 id="loadingTitleInitSQL">Processando Inicialização</h3>
+        <p id="loadingTextInitSQL">Executando scripts de inicialização...</p>
+        <p class="calculando-detalhe" id="loadingDetailInitSQL">Isso pode levar alguns segundos.</p>
+      </div>
+    </div>
+
+    <script src="/js/grid-editor.js"></script>
+    <script src="js/script.js"></script>
+</body>
+</html>

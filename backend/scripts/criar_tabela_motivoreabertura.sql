@@ -1,0 +1,41 @@
+-- Script para criar tabela MOTIVOREABERTURA
+-- Versão: 1.0
+-- Autor: Sistema DivulgaCarga
+-- Data: 2025-11-28
+
+-- Criar tabela MOTIVOREABERTURA se não existir
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[MOTIVOREABERTURA]') AND type in (N'U'))
+BEGIN
+    CREATE TABLE [dbo].[MOTIVOREABERTURA] (
+        [CDMOTIVO] INT IDENTITY(1,1) NOT NULL,
+        [DSMOTIVO] VARCHAR(100) NOT NULL,
+        [FGACTIVE] CHAR(1) NOT NULL DEFAULT 'A', -- A=Ativo, I=Inativo
+        [DHINCLUSAO] DATETIME NOT NULL DEFAULT GETDATE(),
+        [SGUSERINCLUSAO] VARCHAR(50) NOT NULL DEFAULT 'SYSTEM',
+        [DHMAINTENANCE] DATETIME NULL,
+        [SGUSER] VARCHAR(50) NULL,
+        [SERVERORIG] VARCHAR(50) NULL,
+        CONSTRAINT [PK_MOTIVOREABERTURA] PRIMARY KEY CLUSTERED ([CDMOTIVO] ASC)
+    );
+    PRINT 'Tabela MOTIVOREABERTURA criada com sucesso!';
+END
+ELSE
+BEGIN
+    PRINT 'Tabela MOTIVOREABERTURA já existe.';
+END;
+GO
+
+-- Inserir motivos padrão se não existirem
+IF NOT EXISTS (SELECT * FROM [dbo].[MOTIVOREABERTURA] WHERE DSMOTIVO = 'Motorista Desistiu da Carga')
+BEGIN
+    INSERT INTO [dbo].[MOTIVOREABERTURA] (DSMOTIVO, FGACTIVE, DHINCLUSAO, SGUSERINCLUSAO, SERVERORIG)
+    VALUES ('Motorista Desistiu da Carga', 'A', GETDATE(), 'SYSTEM', 'AppDVcargas');
+END;
+
+IF NOT EXISTS (SELECT * FROM [dbo].[MOTIVOREABERTURA] WHERE DSMOTIVO = 'Necessidade de Mais Convocações')
+BEGIN
+    INSERT INTO [dbo].[MOTIVOREABERTURA] (DSMOTIVO, FGACTIVE, DHINCLUSAO, SGUSERINCLUSAO, SERVERORIG)
+    VALUES ('Necessidade de Mais Convocações', 'A', GETDATE(), 'SYSTEM', 'AppDVcargas');
+END;
+GO
+

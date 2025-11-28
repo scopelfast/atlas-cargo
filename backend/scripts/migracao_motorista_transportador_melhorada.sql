@@ -1,0 +1,261 @@
+/******************************************************************************************
+ * 16. CADASTROGERAL - MOTORISTA (Tipo M) COM CDTRANSPORTADOR (VERSÃO MELHORADA)
+ * 
+ * MELHORIAS:
+ * 1. Trata casos onde o mesmo CPF é Motorista E Transportador
+ * 2. Preserva o tipo 'T' (Transportador) quando já existe
+ * 3. Atualiza por CGCCPF quando não encontra por CDCADASTRO
+ * 4. Garante que todos os 487 registros sejam migrados
+ ******************************************************************************************/
+
+PRINT '16. Migrando CADASTROGERAL - MOTORISTA (Tipo M) com CDTRANSPORTADOR (Versão Melhorada)...';
+GO
+
+-- ETAPA 1: MERGE por CDCADASTRO (caso normal)
+MERGE INTO [dbo].[CADASTROGERAL] AS TARGET
+USING (
+    SELECT 
+        CDCADASTRO,
+        CGCCPF,
+        RZSOCIAL,
+        NMFANTASIA,
+        FGFISICAJURIDICA,
+        CEP,
+        CDCIDADE,
+        ENDERECO,
+        NRENDERECO,
+        COMPLEND,
+        BAIRRO,
+        NRCELULAR,
+        ENDEMAIL,
+        LATITUDE,
+        LONGITUDE,
+        FGACTIVE,
+        FGTIPOCADASTRO,
+        DHMAINTENANCE,
+        SGUSER,
+        SERVERORIG,
+        CDTRANSPORTADOR,
+        FGRASTREADO
+    FROM (
+        SELECT DISTINCT 
+            C.CDCADASTRO,
+            C.CGCCPF,
+            C.RZSOCIAL,
+            C.NMFANTASIA,
+            C.FGFISICAJURIDICA,
+            C.CEP,
+            C.CDCIDADE,
+            C.ENDERECO,
+            C.NRENDERECO,
+            C.COMPLEND,
+            C.BAIRRO,
+            C.NRCELULAR,
+            C.ENDEMAIL,
+            C.LATITUDE,
+            C.LONGITUDE,
+            ISNULL(C.FGACTIVE, 'A') AS FGACTIVE,
+            'M' AS FGTIPOCADASTRO,
+            ISNULL(C.DHMAINTENANCE, GETDATE()) AS DHMAINTENANCE,
+            ISNULL(C.SGUSER, 'SYSTEM') AS SGUSER,
+            ISNULL(C.SERVERORIG, 'AppDVcargas') AS SERVERORIG,
+            M.CDTRANSPORTADOR AS CDTRANSPORTADOR,
+            CASE 
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM [INTEGRA_PRD].[dbo].[VIAGEMMESTRE] VM2
+                    INNER JOIN [INTEGRA_PRD].[dbo].[VIAGEMMOTORISTA] MV2 ON VM2.IDVIAGEM = MV2.IDVIAGEM
+                    INNER JOIN [INTEGRA_PRD].[dbo].[VIAGEMVEICULO] VV2 ON VM2.IDVIAGEM = VV2.IDVIAGEM
+                    INNER JOIN [INTEGRA_PRD].[dbo].[EQUIPAMENTORASTREAMENTO] ER2 ON VV2.IDEQUIPAMENTO = ER2.IDEQUIPAMENTO
+                    WHERE MV2.CDMOTORISTA = C.CDCADASTRO
+                      AND ER2.SGUSER = 'RASTER'
+                      AND CONVERT(DATE, ER2.DHEVENTO) > CONVERT(DATE, GETDATE() - 60)
+                      AND VM2.CDSITUACAOVIAGEM IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17)
+                      AND VM2.DHINCLUSAO > DATEADD(DAY, -60, GETDATE())
+                ) THEN 'S'
+                ELSE 'N'
+            END AS FGRASTREADO,
+            ROW_NUMBER() OVER (PARTITION BY C.CDCADASTRO ORDER BY VM.DHINCLUSAO DESC) AS RN
+        FROM [INTEGRA_PRD].[dbo].[VIAGEMMESTRE] VM
+        INNER JOIN [INTEGRA_PRD].[dbo].[VIAGEMMOTORISTA] MV ON VM.IDVIAGEM = MV.IDVIAGEM
+        INNER JOIN [INTEGRA_PRD].[dbo].[MOTORISTA] M ON MV.CDMOTORISTA = M.CDMOTORISTA
+        INNER JOIN [INTEGRA_PRD].[dbo].[CADASTROGERAL] C ON C.CDCADASTRO = M.CDMOTORISTA
+        WHERE VM.CDSITUACAOVIAGEM IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17)
+          AND VM.DHINCLUSAO > DATEADD(DAY, -60, GETDATE())
+          AND C.CDCADASTRO IS NOT NULL
+          AND C.RZSOCIAL IS NOT NULL
+          AND M.CDTRANSPORTADOR IS NOT NULL
+    ) MOT
+    WHERE MOT.RN = 1
+) AS SOURCE
+ON TARGET.CDCADASTRO = SOURCE.CDCADASTRO
+WHEN NOT MATCHED BY TARGET THEN
+    INSERT (
+        CDCADASTRO,
+        CGCCPF,
+        RZSOCIAL,
+        NMFANTASIA,
+        FGFISICAJURIDICA,
+        CEP,
+        CDCIDADE,
+        ENDERECO,
+        NRENDERECO,
+        COMPLEND,
+        BAIRRO,
+        NRCELULAR,
+        ENDEMAIL,
+        LATITUDE,
+        LONGITUDE,
+        FGACTIVE,
+        FGTIPOCADASTRO,
+        DHMAINTENANCE,
+        SGUSER,
+        SERVERORIG,
+        CDTRANSPORTADOR,
+        FGRASTREADO
+    )
+    VALUES (
+        SOURCE.CDCADASTRO,
+        SOURCE.CGCCPF,
+        SOURCE.RZSOCIAL,
+        SOURCE.NMFANTASIA,
+        SOURCE.FGFISICAJURIDICA,
+        SOURCE.CEP,
+        SOURCE.CDCIDADE,
+        SOURCE.ENDERECO,
+        SOURCE.NRENDERECO,
+        SOURCE.COMPLEND,
+        SOURCE.BAIRRO,
+        SOURCE.NRCELULAR,
+        SOURCE.ENDEMAIL,
+        SOURCE.LATITUDE,
+        SOURCE.LONGITUDE,
+        SOURCE.FGACTIVE,
+        SOURCE.FGTIPOCADASTRO,
+        SOURCE.DHMAINTENANCE,
+        SOURCE.SGUSER,
+        SOURCE.SERVERORIG,
+        SOURCE.CDTRANSPORTADOR,
+        SOURCE.FGRASTREADO
+    )
+WHEN MATCHED THEN
+    UPDATE SET
+        -- Sempre atualizar CDTRANSPORTADOR
+        CDTRANSPORTADOR = SOURCE.CDTRANSPORTADOR,
+        -- Atualizar FGRASTREADO se for 'S' na origem
+        FGRASTREADO = CASE 
+            WHEN SOURCE.FGRASTREADO = 'S' THEN 'S'
+            WHEN TARGET.FGRASTREADO = 'S' THEN 'S'
+            ELSE TARGET.FGRASTREADO
+        END,
+        -- IMPORTANTE: Preservar o tipo 'T' (Transportador) se já existir
+        -- Se não for 'T', atualizar para 'M' (Motorista)
+        FGTIPOCADASTRO = CASE 
+            WHEN TARGET.FGTIPOCADASTRO = 'T' THEN 'T'  -- Preservar Transportador
+            ELSE 'M'  -- Atualizar para Motorista
+        END,
+        -- Atualizar campos opcionais apenas se estiverem vazios
+        RZSOCIAL = CASE 
+            WHEN TARGET.RZSOCIAL IS NULL OR LTRIM(RTRIM(TARGET.RZSOCIAL)) = '' THEN SOURCE.RZSOCIAL
+            ELSE TARGET.RZSOCIAL
+        END,
+        NMFANTASIA = CASE 
+            WHEN TARGET.NMFANTASIA IS NULL OR LTRIM(RTRIM(TARGET.NMFANTASIA)) = '' THEN SOURCE.NMFANTASIA
+            ELSE TARGET.NMFANTASIA
+        END,
+        NRCELULAR = CASE 
+            WHEN TARGET.NRCELULAR IS NULL THEN SOURCE.NRCELULAR
+            ELSE TARGET.NRCELULAR
+        END,
+        ENDEMAIL = CASE 
+            WHEN TARGET.ENDEMAIL IS NULL OR LTRIM(RTRIM(TARGET.ENDEMAIL)) = '' THEN SOURCE.ENDEMAIL
+            ELSE TARGET.ENDEMAIL
+        END,
+        DHMAINTENANCE = SOURCE.DHMAINTENANCE,
+        SGUSER = SOURCE.SGUSER,
+        SERVERORIG = SOURCE.SERVERORIG;
+
+PRINT '   ✓ ETAPA 1 - MERGE por CDCADASTRO: ' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' registro(s)';
+GO
+
+-- ETAPA 2: Atualizar registros que têm o mesmo CGCCPF mas CDCADASTRO diferente
+-- (caso onde o mesmo CPF é usado como Motorista e Transportador)
+UPDATE TARGET
+SET 
+    CDTRANSPORTADOR = SOURCE.CDTRANSPORTADOR,
+    FGRASTREADO = CASE 
+        WHEN SOURCE.FGRASTREADO = 'S' THEN 'S'
+        WHEN TARGET.FGRASTREADO = 'S' THEN 'S'
+        ELSE TARGET.FGRASTREADO
+    END,
+    -- Se já é Transportador, manter; senão, pode ser Motorista também
+    FGTIPOCADASTRO = CASE 
+        WHEN TARGET.FGTIPOCADASTRO = 'T' THEN 'T'  -- Manter Transportador
+        WHEN TARGET.FGTIPOCADASTRO = 'M' THEN 'M'  -- Manter Motorista
+        ELSE 'M'  -- Se não tem tipo definido, definir como Motorista
+    END,
+    DHMAINTENANCE = GETDATE(),
+    SGUSER = 'SYSTEM',
+    SERVERORIG = 'AppDVcargas'
+FROM [dbo].[CADASTROGERAL] TARGET
+INNER JOIN (
+    SELECT DISTINCT 
+        C.CGCCPF,
+        M.CDTRANSPORTADOR,
+        CASE 
+            WHEN EXISTS (
+                SELECT 1
+                FROM [INTEGRA_PRD].[dbo].[VIAGEMMESTRE] VM2
+                INNER JOIN [INTEGRA_PRD].[dbo].[VIAGEMMOTORISTA] MV2 ON VM2.IDVIAGEM = MV2.IDVIAGEM
+                INNER JOIN [INTEGRA_PRD].[dbo].[VIAGEMVEICULO] VV2 ON VM2.IDVIAGEM = VV2.IDVIAGEM
+                INNER JOIN [INTEGRA_PRD].[dbo].[EQUIPAMENTORASTREAMENTO] ER2 ON VV2.IDEQUIPAMENTO = ER2.IDEQUIPAMENTO
+                WHERE MV2.CDMOTORISTA = C.CDCADASTRO
+                  AND ER2.SGUSER = 'RASTER'
+                  AND CONVERT(DATE, ER2.DHEVENTO) > CONVERT(DATE, GETDATE() - 60)
+                  AND VM2.CDSITUACAOVIAGEM IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17)
+                  AND VM2.DHINCLUSAO > DATEADD(DAY, -60, GETDATE())
+            ) THEN 'S'
+            ELSE 'N'
+        END AS FGRASTREADO
+    FROM [INTEGRA_PRD].[dbo].[VIAGEMMESTRE] VM
+    INNER JOIN [INTEGRA_PRD].[dbo].[VIAGEMMOTORISTA] MV ON VM.IDVIAGEM = MV.IDVIAGEM
+    INNER JOIN [INTEGRA_PRD].[dbo].[MOTORISTA] M ON MV.CDMOTORISTA = M.CDMOTORISTA
+    INNER JOIN [INTEGRA_PRD].[dbo].[CADASTROGERAL] C ON C.CDCADASTRO = M.CDMOTORISTA
+    WHERE VM.CDSITUACAOVIAGEM IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17)
+      AND VM.DHINCLUSAO > DATEADD(DAY, -60, GETDATE())
+      AND C.CDCADASTRO IS NOT NULL
+      AND C.RZSOCIAL IS NOT NULL
+      AND C.CGCCPF IS NOT NULL
+      AND M.CDTRANSPORTADOR IS NOT NULL
+) AS SOURCE ON TARGET.CGCCPF = SOURCE.CGCCPF
+WHERE (TARGET.CDTRANSPORTADOR IS NULL OR TARGET.CDTRANSPORTADOR != SOURCE.CDTRANSPORTADOR)
+  AND TARGET.CDCADASTRO NOT IN (
+      -- Excluir registros que já foram atualizados na ETAPA 1
+      SELECT C.CDCADASTRO
+      FROM [INTEGRA_PRD].[dbo].[VIAGEMMESTRE] VM
+      INNER JOIN [INTEGRA_PRD].[dbo].[VIAGEMMOTORISTA] MV ON VM.IDVIAGEM = MV.IDVIAGEM
+      INNER JOIN [INTEGRA_PRD].[dbo].[MOTORISTA] M ON MV.CDMOTORISTA = M.CDMOTORISTA
+      INNER JOIN [INTEGRA_PRD].[dbo].[CADASTROGERAL] C ON C.CDCADASTRO = M.CDMOTORISTA
+      WHERE VM.CDSITUACAOVIAGEM IN (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17)
+        AND VM.DHINCLUSAO > DATEADD(DAY, -60, GETDATE())
+        AND C.CDCADASTRO IS NOT NULL
+        AND C.RZSOCIAL IS NOT NULL
+        AND M.CDTRANSPORTADOR IS NOT NULL
+  );
+
+PRINT '   ✓ ETAPA 2 - Atualização por CGCCPF: ' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' registro(s)';
+GO
+
+-- Verificar resultado final
+SELECT 
+    COUNT(*) AS TOTAL_MOTORISTAS_COM_TRANSPORTADOR,
+    COUNT(DISTINCT CDTRANSPORTADOR) AS TRANSPORTADORES_DISTINTOS,
+    SUM(CASE WHEN FGTIPOCADASTRO = 'T' THEN 1 ELSE 0 END) AS QUE_SAO_TAMBEM_TRANSPORTADORES
+FROM [dbo].[CADASTROGERAL]
+WHERE FGTIPOCADASTRO IN ('M', 'T')
+  AND CDTRANSPORTADOR IS NOT NULL;
+GO
+
+PRINT '   ✓ CADASTROGERAL - MOTORISTA (Tipo M) com CDTRANSPORTADOR migrado com sucesso!';
+GO
+

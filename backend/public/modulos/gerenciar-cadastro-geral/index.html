@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Gerenciar Cadastro Geral</title>
+  <link rel="stylesheet" href="/css/modulos.css">
+  <style>
+    .grid-btn-whatsapp {
+      background-color: #25D366;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      text-decoration: none;
+      display: inline-block;
+      transition: background-color 0.2s;
+    }
+    .grid-btn-whatsapp:hover {
+      background-color: #128C7E;
+      color: white;
+      text-decoration: none;
+    }
+    /* Ajustar largura da coluna de ações para comportar apenas os 3 ícones */
+    .grid-actions-header {
+      width: 120px !important;
+      min-width: 120px !important;
+      max-width: 120px !important;
+    }
+    .grid-actions {
+      width: 120px !important;
+      min-width: 120px !important;
+      max-width: 120px !important;
+      padding: 8px 4px !important;
+    }
+  </style>
+</head>
+<body>
+  <!-- Overlay de carregamento (mesmo estilo do Gerenciar Roteiros) -->
+  <div id="loadingOverlay" class="calculando-overlay" style="display: none;">
+    <div class="calculando-content">
+      <div class="calculando-spinner"></div>
+      <h3 id="loadingTitle">Carregando Cadastros</h3>
+      <p id="loadingText">Por favor, aguarde enquanto carregamos os cadastros...</p>
+      <p class="calculando-detalhe">Isso pode levar alguns segundos.</p>
+    </div>
+  </div>
+
+  <div class="modulo-container">
+    <h1>Gerenciar Cadastro Geral</h1>
+
+    <!-- Abas -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="filtros">Filtros</button>
+      <button class="tab-btn" data-tab="grid">Grid</button>
+      <button class="tab-btn" data-tab="dados">Dados</button>
+      <button class="tab-btn" data-tab="classes">Classes Frota</button>
+    </div>
+
+    <!-- Filtros -->
+    <div class="tab-content active" id="tab-filtros">
+      <div class="form-box">
+        <h2>Filtros de Busca</h2>
+        <form id="filtroForm">
+          <!-- Linha 1: Código, CGCCPF, Razão Social, Transportador -->
+          <div class="input-group four-row">
+            <div>
+              <label for="filtroCodigo">Código</label>
+              <input type="number" id="filtroCodigo" min="1">
+            </div>
+            <div>
+              <label for="filtroCGCCPF">CPF/CNPJ</label>
+              <input type="text" id="filtroCGCCPF" maxlength="18">
+            </div>
+            <div>
+              <label for="filtroRazaoSocial">Razão Social</label>
+              <input type="text" id="filtroRazaoSocial" maxlength="60">
+            </div>
+            <div>
+              <label for="filtroTransportador">Transportador</label>
+              <select id="filtroTransportador">
+                <option value="">Todos</option>
+                <!-- Preenchido dinamicamente -->
+              </select>
+            </div>
+          </div>
+
+          <!-- Linha 2: Tipo Pessoa, Estado, Cidade, Celular -->
+          <div class="input-group four-row">
+            <div>
+              <label for="filtroTipoPessoa">Tipo Pessoa</label>
+              <select id="filtroTipoPessoa">
+                <option value="">Todos</option>
+                <option value="F">Física</option>
+                <option value="J">Jurídica</option>
+              </select>
+            </div>
+            <div>
+              <label for="filtroEstado">UF - Estado</label>
+              <select id="filtroEstado">
+                <option value="">Todos</option>
+                <!-- Preenchido dinamicamente -->
+              </select>
+            </div>
+            <div>
+              <label for="filtroCidade">Cidade</label>
+              <input type="text" id="filtroCidade" maxlength="40" placeholder="Digite parte do nome...">
+            </div>
+            <div>
+              <label for="filtroCelular">Celular</label>
+              <input type="text" id="filtroCelular" maxlength="15">
+            </div>
+          </div>
+
+          <!-- Linha 3: Email, Tipo Cadastro, Veículo Rastreado?, Situação -->
+          <div class="input-group four-row">
+            <div>
+              <label for="filtroEmail">Email</label>
+              <input type="text" id="filtroEmail" maxlength="200" placeholder="exemplo@email.com">
+            </div>
+            <div>
+              <label for="filtroTipoCadastro">Tipo Cadastro</label>
+              <select id="filtroTipoCadastro">
+                <option value="">Todos</option>
+                <option value="O">Operador do Sistema</option>
+                <option value="M">Motorista</option>
+                <option value="A">Agente</option>
+                <option value="G">Grupo de Divulgação</option>
+                <option value="T">Transportador</option>
+                <option value="U">Unidade de Negócio</option>
+              </select>
+            </div>
+            <div>
+              <label for="filtroRastreado">Possui Veículo Rastreado</label>
+              <select id="filtroRastreado">
+                <option value="">Todos</option>
+                <option value="S">Sim</option>
+                <option value="N">Não</option>
+              </select>
+            </div>
+            <div>
+              <label for="filtroSituacao">Situação</label>
+              <select id="filtroSituacao">
+                <option value="">Todas</option>
+                <option value="S">Ativo</option>
+                <option value="N">Inativo</option>
+              </select>
+            </div>
+          </div>
+
+          <button type="submit" class="btn save">Aplicar Filtro</button>
+          <button type="button" id="btnLimparFiltros" class="btn cancel">Limpar</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Grid -->
+    <div class="tab-content" id="tab-grid">
+      <div class="form-box">
+        <h2>Cadastros Gerais - Visualização em Grid</h2>
+        <div class="actions-top">
+          <button id="btnVoltarGrid" class="btn cancel">← Voltar aos Filtros</button>
+          <button id="btnNovoRegistroGrid" class="btn save">+ Novo Registro</button>
+        </div>
+        <div id="cadastrosGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
+          <span id="cadastrosGridCountText">0 registro(s) encontrado(s)</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+          <div style="font-size: 12px; color: #666; background: #f8f9fa; padding: 8px 12px; border-radius: 4px;">
+            <strong>✎ Editar:</strong> Clique para editar o cadastro<br>
+            <strong>🗑 Excluir:</strong> Clique para desativar o cadastro<br>
+            <strong>💬 WhatsApp:</strong> Clique para abrir o WhatsApp do cadastro (disponível apenas quando há celular válido)
+          </div>
+        </div>
+        <div id="cadastrosGrid" class="grid-container"></div>
+      </div>
+    </div>
+
+    <!-- Dados -->
+    <div class="tab-content" id="tab-dados">
+      <div class="form-box">
+        <h2 id="formTitle">Novo Cadastro Geral</h2>
+        <form id="cadastroForm">
+          <input type="hidden" id="cadastroId">
+          
+          <!-- Linha 1: Código, CGCCPF, Razão Social, Transportador -->
+          <div class="input-group four-row">
+            <div>
+              <label for="cadastroCodigo">Código</label>
+              <input type="text" id="cadastroCodigo" readonly>
+            </div>
+            <div>
+              <label for="cadastroCGCCPF">CPF/CNPJ *</label>
+              <input type="text" id="cadastroCGCCPF" required maxlength="18">
+            </div>
+            <div>
+              <label for="cadastroRazaoSocial">Razão Social *</label>
+              <input type="text" id="cadastroRazaoSocial" required maxlength="60">
+            </div>
+            <div id="divTransportador" style="display: none;">
+              <label for="cadastroTransportador">Transportador</label>
+              <select id="cadastroTransportador">
+                <option value="">Selecione</option>
+                <!-- Preenchido dinamicamente -->
+              </select>
+            </div>
+          </div>
+
+          <!-- Linha 2: Tipo Pessoa, Tipo Cadastro, Veículo Rastreado?, Situação -->
+          <div class="input-group four-row">
+            <div>
+              <label for="cadastroTipoPessoa">Tipo Pessoa *</label>
+              <select id="cadastroTipoPessoa" required>
+                <option value="">Selecione</option>
+                <option value="F">Física</option>
+                <option value="J">Jurídica</option>
+              </select>
+            </div>
+            <div>
+              <label for="cadastroTipoCadastro">Tipo Cadastro *</label>
+              <select id="cadastroTipoCadastro" required>
+                <option value="">Selecione</option>
+                <option value="O">Operador do Sistema</option>
+                <option value="M">Motorista</option>
+                <option value="A">Agente</option>
+                <option value="G">Grupo de Divulgação</option>
+                <option value="T">Transportador</option>
+                <option value="U">Unidade de Negócio</option>
+              </select>
+            </div>
+            <div>
+              <label for="cadastroRastreado">Possui Veículo Rastreado *</label>
+              <select id="cadastroRastreado" required>
+                <option value="">Selecione</option>
+                <option value="S">Sim</option>
+                <option value="N">Não</option>
+              </select>
+            </div>
+            <div>
+              <label for="cadastroSituacao">Situação *</label>
+              <select id="cadastroSituacao" required>
+                <option value="S">Ativo</option>
+                <option value="N">Inativo</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Linha 3: CEP, Endereço, Número, Bairro -->
+          <div class="input-group four-row">
+            <div>
+              <label for="cadastroCEP">CEP</label>
+              <input type="text" id="cadastroCEP" maxlength="9">
+            </div>
+            <div>
+              <label for="cadastroEndereco">Endereço *</label>
+              <input type="text" id="cadastroEndereco" required maxlength="100">
+            </div>
+            <div>
+              <label for="cadastroNumero">Número *</label>
+              <input type="number" id="cadastroNumero" min="1" required>
+            </div>
+            <div>
+              <label for="cadastroBairro">Bairro *</label>
+              <input type="text" id="cadastroBairro" required maxlength="30">
+            </div>
+          </div>
+
+          <!-- Linha 4: Complemento, Estado, Cidade, Código Cidade -->
+          <div class="input-group five-row">
+            <div>
+              <label for="cadastroComplemento">Complemento</label>
+              <input type="text" id="cadastroComplemento" maxlength="60">
+            </div>
+            <div>
+              <label for="cadastroEstado">UF - Estado</label>
+              <select id="cadastroEstado">
+                <option value="">Selecione</option>
+                <!-- Preenchido dinamicamente -->
+              </select>
+            </div>
+            <div>
+              <label for="cadastroCidade">Cidade</label>
+              <select id="cadastroCidade">
+                <option value="">Selecione um estado primeiro</option>
+                <!-- Preenchido dinamicamente -->
+              </select>
+            </div>
+            <div>
+              <label for="cadastroCodigoCidade">Código Cidade</label>
+              <input type="text" id="cadastroCodigoCidade" readonly>
+            </div>
+            <div>
+              <label for="btnBuscarCEP" class="btn-label">Buscar CEP</label>
+              <button type="button" id="btnBuscarCEP" class="btn search">Buscar</button>
+            </div>
+          </div>
+
+          <!-- Linha 5: Latitude, Longitude, Email, Celular -->
+          <div class="input-group four-row">
+            <div>
+              <label for="cadastroLatitude">Latitude</label>
+              <input type="number" id="cadastroLatitude" step="0.000001">
+            </div>
+            <div>
+              <label for="cadastroLongitude">Longitude</label>
+              <input type="number" id="cadastroLongitude" step="0.000001">
+            </div>
+            <div>
+              <label for="cadastroEmail">Email</label>
+              <input type="text" id="cadastroEmail" maxlength="200" placeholder="exemplo@email.com">
+            </div>
+            <div>
+              <label for="cadastroCelular">Celular *</label>
+              <input type="text" id="cadastroCelular" required maxlength="15">
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn save">Salvar</button>
+            <button type="button" id="btnGerenciarClasses" class="btn info">Gerenciar Classes</button>
+            <button type="button" id="btnCancelar" class="btn cancel">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Classes de Frota -->
+    <div class="tab-content" id="tab-classes">
+      <div class="form-box">
+        <h2>Classes de Frota</h2>
+        <div class="actions-top">
+          <button id="btnVoltarDados" class="btn cancel">← Voltar aos Dados</button>
+          <button id="btnSalvarClasses" class="btn save">Salvar Classes</button>
+        </div>
+        
+        <div class="form-box">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+            <h3 style="margin: 0;">Selecione as classes de frota permitidas para este cadastro:</h3>
+            <div style="display: flex; gap: 10px;">
+              <button type="button" id="btnSelecionarTodos" class="btn info" style="white-space: nowrap;">
+                <i class='bx bx-check-square'></i> Selecionar Todos
+              </button>
+              <button type="button" id="btnDesmarcarTodos" class="btn cancel" style="white-space: nowrap;">
+                <i class='bx bx-square'></i> Desmarcar Todos
+              </button>
+            </div>
+          </div>
+          <div id="classesFrotaList">
+            <div class="classes-grid">
+              <p class="empty">Carregando classes de frota...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="confirmModal" class="modal">
+      <div class="modal-content">
+        <h3>Confirmar Ação</h3>
+        <p id="modalMessage"></p>
+        <div class="modal-actions">
+          <button id="confirmYes" class="btn delete">Sim</button>
+          <button id="confirmNo" class="btn cancel">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="message" class="message"></div>
+  </div>
+
+  <!-- Overlay de carregamento para init.sql (mesmo estilo do Gerenciar Roteiros) -->
+  <div id="loadingOverlayInitSQL" class="calculando-overlay" style="display: none;">
+    <div class="calculando-content">
+      <div class="calculando-spinner"></div>
+      <h3 id="loadingTitleInitSQL">Processando Inicialização</h3>
+      <p id="loadingTextInitSQL">Executando scripts de inicialização...</p>
+      <p class="calculando-detalhe" id="loadingDetailInitSQL">Isso pode levar alguns segundos.</p>
+    </div>
+  </div>
+
+  <script src="/js/grid-editor.js"></script>
+  <script src="js/script.js" defer></script>
+</body>
+</html>

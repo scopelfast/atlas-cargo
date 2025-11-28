@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Gerenciar Roteiros</title>
+  <link rel="stylesheet" href="/css/modulos.css">
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
+        crossorigin=""/>
+</head>
+<body>
+  <div class="modulo-container">
+    <h1>Gerenciar Roteiros</h1>
+
+    <!-- Abas -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="filtros">Filtros</button>
+      <button class="tab-btn" data-tab="grid">Grid</button>
+      <button class="tab-btn" data-tab="dados">Dados</button>
+      <button class="tab-btn" data-tab="pontos">Pontos</button>
+      <button class="tab-btn" data-tab="mapa">Mapa</button>
+    </div>
+
+    <!-- Filtros -->
+    <div class="tab-content active" id="tab-filtros">
+      <div class="form-box">
+        <h2>Filtros de Busca</h2>
+        <form id="filtroForm">
+          <!-- Linha 1: Código / Descrição -->
+          <div class="input-group double">
+            <div>
+              <label for="filtroCodigo">Código do Roteiro</label>
+              <input type="number" id="filtroCodigo" min="1">
+            </div>
+            <div>
+              <label for="filtroDescricao">Descrição do Roteiro</label>
+              <input type="text" id="filtroDescricao" maxlength="60">
+            </div>
+          </div>
+
+          <!-- Linha 2: Origem -->
+          <h3>Origem</h3>
+          <div class="input-group triple">
+            <div>
+              <label for="filtroOrigemEstado">UF - Estado</label>
+              <select id="filtroOrigemEstado">
+                <option value="">Todos</option>
+                <!-- Preenchido dinamicamente -->
+              </select>
+            </div>
+            <div>
+              <label for="filtroOrigemCidade">Cidade</label>
+              <input type="text" id="filtroOrigemCidade" maxlength="40" placeholder="Digite parte do nome...">
+            </div>
+            <div>
+              <label for="filtroOrigemCodigo">Código da Cidade</label>
+              <input type="number" id="filtroOrigemCodigo" readonly>
+            </div>
+          </div>
+
+          <!-- Linha 3: Destino -->
+          <h3>Destino</h3>
+          <div class="input-group triple">
+            <div>
+              <label for="filtroDestinoEstado">UF - Estado</label>
+              <select id="filtroDestinoEstado">
+                <option value="">Todos</option>
+                <!-- Preenchido dinamicamente -->
+              </select>
+            </div>
+            <div>
+              <label for="filtroDestinoCidade">Cidade</label>
+              <input type="text" id="filtroDestinoCidade" maxlength="40" placeholder="Digite parte do nome...">
+            </div>
+            <div>
+              <label for="filtroDestinoCodigo">Código da Cidade</label>
+              <input type="number" id="filtroDestinoCodigo" readonly>
+            </div>
+          </div>
+
+          <button type="submit" class="btn save">Aplicar Filtro</button>
+          <button type="button" id="btnLimparFiltros" class="btn cancel">Limpar</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Lista -->
+    <div class="tab-content" id="tab-lista">
+      <div class="form-box">
+        <h2>Roteiros Cadastrados</h2>
+        <div class="actions-top">
+          <button id="btnVoltarFiltros" class="btn cancel">← Voltar aos Filtros</button>
+          <button id="btnNovoRegistro" class="btn save">+ Novo Registro</button>
+        </div>
+        <div id="roteirosList" class="list grid-3-columns">
+          <p class="empty">Aplicar filtros para carregar a lista.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Grid -->
+    <div class="tab-content" id="tab-grid">
+      <div class="form-box">
+        <h2>Roteiros - Visualização em Grid</h2>
+        <div class="actions-top">
+          <button id="btnVoltarGrid" class="btn cancel">← Voltar aos Filtros</button>
+          <button id="btnNovoRegistroGrid" class="btn save">+ Novo Registro</button>
+        </div>
+        <div id="roteirosGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
+          <span id="roteirosGridCountText">0 registro(s) encontrado(s)</span>
+        </div>
+        <div id="roteirosGrid" class="grid-container"></div>
+      </div>
+    </div>
+
+    <!-- Dados -->
+    <div class="tab-content" id="tab-dados">
+      <div class="form-box">
+        <h2 id="formTitle">Novo Roteiro</h2>
+        <form id="roteiroForm">
+          <input type="hidden" id="roteiroId"> <!-- 👈 Campo oculto adicionado -->
+          
+          <!-- Linha 1: Código / Descrição / Distância -->
+          <div class="input-group triple">
+            <div>
+              <label for="roteiroCodigo">Código do Roteiro</label>
+              <input type="text" id="roteiroCodigo" readonly>
+            </div>
+            <div>
+              <label for="roteiroDescricao">Descrição do Roteiro *</label>
+              <input type="text" id="roteiroDescricao" required maxlength="60">
+            </div>
+            <div>
+              <label for="roteiroDistancia">Distância (km)</label>
+              <div style="display: flex; gap: 10px; align-items: flex-end;">
+                <input type="number" id="roteiroDistancia" step="0.01" min="0" style="flex: 1;">
+                <button type="button" id="btnCalcularDistancia" class="btn info" style="white-space: nowrap;">
+                  <i class='bx bx-calculator'></i> Calcular
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Linha 2: Origem -->
+          <h3>Origem</h3>
+          <div class="input-group triple">
+            <div>
+              <label for="origemEstado">UF - Estado *</label>
+              <select id="origemEstado" required>
+                <option value="">Selecione</option>
+                <!-- Preenchido dinamicamente -->
+              </select>
+            </div>
+            <div>
+              <label for="origemCidade">Cidade *</label>
+              <select id="origemCidade" required>
+                <option value="">Selecione um estado primeiro</option>
+                <!-- Preenchido dinamicamente -->
+              </select>
+            </div>
+            <div>
+              <label for="origemCodigo">Código da Cidade</label>
+              <input type="text" id="origemCodigo" readonly>
+            </div>
+          </div>
+
+          <!-- Linha 3: Destino -->
+          <h3>Destino</h3>
+          <div class="input-group triple">
+            <div>
+              <label for="destinoEstado">UF - Estado *</label>
+              <select id="destinoEstado" required>
+                <option value="">Selecione</option>
+                <!-- Preenchido dinamicamente -->
+              </select>
+            </div>
+            <div>
+              <label for="destinoCidade">Cidade *</label>
+              <select id="destinoCidade" required>
+                <option value="">Selecione um estado primeiro</option>
+                <!-- Preenchido dinamicamente -->
+              </select>
+            </div>
+            <div>
+              <label for="destinoCodigo">Código da Cidade</label>
+              <input type="text" id="destinoCodigo" readonly>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn save">Salvar</button>
+            <button type="button" id="btnCancelar" class="btn cancel">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Pontos -->
+    <div class="tab-content" id="tab-pontos">
+      <div class="form-box">
+        <h2 id="pontosTitle">Pontos do Roteiro</h2>
+        <p style="margin-bottom: 20px; color: #666; font-style: italic;">
+          <i class='bx bx-info-circle'></i> Selecione um roteiro na aba "Dados" para gerenciar seus pontos.
+        </p>
+        
+        <!-- Soma das distâncias -->
+        <div id="somaDistancias" style="margin-bottom: 15px; padding: 10px; background: #e8f5e9; border-left: 4px solid #4caf50; border-radius: 4px; font-weight: 500; color: #2e7d32;"></div>
+        
+        <!-- Grid de Pontos -->
+        <div id="pontosGrid" class="grid-container">
+          <p class="empty">Selecione um roteiro para visualizar os pontos.</p>
+        </div>
+        
+        <!-- Formulário de Ponto -->
+        <div id="pontoFormContainer" style="display: none; margin-top: 30px;">
+          <h3 id="pontoFormTitle">Novo Ponto</h3>
+          <form id="pontoForm">
+            <input type="hidden" id="pontoIdRoteiro">
+            <input type="hidden" id="pontoSequencia">
+            
+            <!-- Linha 1: Tipo Local / Ordem / Sequência -->
+            <div class="input-group triple">
+              <div>
+                <label for="pontoTipoLocal">Tipo Local *</label>
+                <select id="pontoTipoLocal" required>
+                  <option value="">Selecione</option>
+                  <option value="O">Origem</option>
+                  <option value="D">Destino</option>
+                  <option value="P">Ponto de Passagem</option>
+                  <option value="R">Ponto de Parada</option>
+                </select>
+              </div>
+              <div>
+                <label for="pontoOrdem">Ordem *</label>
+                <input type="number" id="pontoOrdem" required min="1" max="100" placeholder="Ex: 1 para origem, 100 para destino">
+                <small style="color: #666; font-size: 0.85em;">Ordem na rota (1=origem, 100=destino)</small>
+              </div>
+              <div>
+                <label for="pontoSequenciaDisplay">Sequência</label>
+                <input type="text" id="pontoSequenciaDisplay" readonly placeholder="Gerada automaticamente">
+              </div>
+            </div>
+            
+            <!-- Linha 2: Local / Posição -->
+            <div class="input-group double">
+              <div>
+                <label for="pontoLocal">Local *</label>
+                <input type="text" id="pontoLocal" required maxlength="100" placeholder="Ex: Centro de Distribuição">
+              </div>
+              <div>
+                <label for="pontoPosicao">Posição (Endereço) *</label>
+                <div style="display: flex; gap: 10px;">
+                  <input type="text" id="pontoPosicao" required maxlength="100" placeholder="Endereço completo para geocodificação" style="flex: 1;">
+                  <button type="button" id="btnSelecionarNoMapa" class="btn info" style="white-space: nowrap;" title="Selecionar posição no mapa">
+                    <i class='bx bx-map-pin'></i> Selecionar no Mapa
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Linha 3: Coordenadas -->
+            <div class="input-group triple">
+              <div>
+                <label for="pontoLatitude">Latitude</label>
+                <input type="number" id="pontoLatitude" step="0.000001" placeholder="Ex: -23.550520">
+              </div>
+              <div>
+                <label for="pontoLongitude">Longitude</label>
+                <input type="number" id="pontoLongitude" step="0.000001" placeholder="Ex: -46.633308">
+              </div>
+              <div>
+                <label>&nbsp;</label>
+                <button type="button" id="btnBuscarCoordenadas" class="btn info" style="width: 100%;">
+                  <i class='bx bx-map'></i> Buscar Coordenadas
+                </button>
+              </div>
+            </div>
+            
+            <!-- Linha 4: País / Estado / Distância -->
+            <div class="input-group triple">
+              <div>
+                <label for="pontoPais">País</label>
+                <select id="pontoPais">
+                  <option value="">Selecione</option>
+                  <!-- Preenchido dinamicamente -->
+                </select>
+              </div>
+              <div>
+                <label for="pontoEstado">Estado (UF)</label>
+                <input type="text" id="pontoEstado" maxlength="3" placeholder="Ex: SP, RJ">
+              </div>
+              <div>
+                <label for="pontoDistancia">Distância do Ponto Anterior (km)</label>
+                <input type="number" id="pontoDistancia" step="0.0001" min="0" placeholder="0.0000">
+              </div>
+            </div>
+            
+            <div class="form-actions">
+              <button type="submit" class="btn save">Salvar Ponto</button>
+              <button type="button" id="btnCancelarPonto" class="btn cancel">Cancelar</button>
+            </div>
+          </form>
+        </div>
+        
+        <!-- Botões de ação -->
+        <div class="actions-top" style="margin-top: 20px;">
+          <button id="btnNovoPonto" class="btn save" style="display: none;">+ Novo Ponto</button>
+          <button id="btnVoltarPontos" class="btn cancel" style="display: none;">← Voltar aos Dados</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mapa -->
+    <div class="tab-content" id="tab-mapa">
+      <div class="form-box">
+        <h2>Visualização da Rota no Mapa</h2>
+        <p style="margin-bottom: 20px; color: #666;">
+          <i class='bx bx-info-circle'></i> Selecione as cidades de origem e destino na aba "Dados" para visualizar a rota no mapa.
+        </p>
+        <div id="mapaRota" style="height: 600px; width: 100%; border: 2px solid #ddd; border-radius: 8px; background: #f5f5f5;"></div>
+        <div style="margin-top: 15px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 20px; height: 20px; background: #2ecc71; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px;">🏁</div>
+            <span style="font-size: 0.9em; font-weight: 500;">Origem</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 20px; height: 20px; background: #e74c3c; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px;">🏁</div>
+            <span style="font-size: 0.9em; font-weight: 500;">Destino</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 20px; height: 20px; background: #3498db; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px;">📍</div>
+            <span style="font-size: 0.9em; font-weight: 500;">Passagem</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 20px; height: 20px; background: #f39c12; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px;">⏸</div>
+            <span style="font-size: 0.9em; font-weight: 500;">Parada</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="width: 40px; height: 4px; background: #3498db; border-radius: 2px;"></div>
+            <span style="font-size: 0.9em; font-weight: 500;">Rota</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="confirmModal" class="modal">
+      <div class="modal-content">
+        <h3>Confirmar Ação</h3>
+        <p id="modalMessage"></p>
+        <div class="modal-actions">
+          <button id="confirmYes" class="btn delete">Sim</button>
+          <button id="confirmNo" class="btn cancel">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal para seleção de posição no mapa -->
+    <div id="modalSelecionarMapa" class="modal">
+      <div class="modal-content map-modal-content">
+        <div class="map-modal-header">
+          <h3>Selecionar Posição no Mapa</h3>
+          <button type="button" id="btnFecharModalMapa" class="btn cancel" style="padding: 5px 15px;">✕ Fechar</button>
+        </div>
+        <p class="map-modal-info">
+          <i class='bx bx-info-circle'></i> Dê dois cliques no mapa para selecionar a posição ou arraste o marcador para ajustar. Um marcador será exibido na posição selecionada.
+        </p>
+        <div id="mapaSelecao" class="map-modal-map"></div>
+        <div class="map-modal-info-box">
+          <strong>Posição selecionada:</strong>
+          <div id="infoPosicaoSelecionada" class="map-modal-info-text">
+            Nenhuma posição selecionada ainda. Dê dois cliques no mapa.
+          </div>
+        </div>
+        <div class="map-modal-actions">
+          <button type="button" id="btnConfirmarPosicao" class="btn save" disabled>✓ Confirmar Posição</button>
+          <button type="button" id="btnCancelarSelecaoMapa" class="btn cancel">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="message" class="message"></div>
+  </div>
+
+  <!-- Overlay de Loading para Cálculo de Distâncias -->
+  <div id="calculandoOverlay" class="calculando-overlay" style="display: none;">
+    <div class="calculando-content">
+      <div class="calculando-spinner"></div>
+      <h3>Calculando Distâncias</h3>
+      <p>Por favor, aguarde enquanto calculamos as distâncias do roteiro...</p>
+      <p class="calculando-detalhe">Isso pode levar alguns segundos.</p>
+    </div>
+  </div>
+
+  <!-- Overlay de carregamento para init.sql (mesmo estilo do Gerenciar Roteiros) -->
+  <div id="loadingOverlayInitSQL" class="calculando-overlay" style="display: none;">
+    <div class="calculando-content">
+      <div class="calculando-spinner"></div>
+      <h3 id="loadingTitleInitSQL">Processando Inicialização</h3>
+      <p id="loadingTextInitSQL">Executando scripts de inicialização...</p>
+      <p class="calculando-detalhe" id="loadingDetailInitSQL">Isso pode levar alguns segundos.</p>
+    </div>
+  </div>
+
+  <script src="/js/grid-editor.js"></script>
+  <script src="js/script.js"></script>
+</body>
+</html>

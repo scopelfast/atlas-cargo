@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Gerenciar Filiais</title>
+    <link rel="stylesheet" href="/css/modulos.css">
+</head>
+<body>
+    <div class="modulo-container">
+        <h1>Gerenciar Filiais</h1>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="filtros">Filtros</button>
+            <button class="tab-btn" data-tab="grid">Grid</button>
+            <button class="tab-btn" data-tab="dados">Dados</button>
+        </div>
+
+        <div class="tab-content active" id="tab-filtros">
+            <div class="form-box">
+                <h2>Filtros de Busca</h2>
+                <form id="filtroForm">
+                    <div class="input-group four-row">
+                        <div>
+                            <label for="filtroEmpresa">Empresa</label>
+                            <select id="filtroEmpresa">
+                                <option value="">Todas</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="filtroFilial">Filial</label>
+                            <input type="number" id="filtroFilial" min="1">
+                        </div>
+                        <div>
+                            <label for="filtroNomeFantasia">Nome Fantasia</label>
+                            <input type="text" id="filtroNomeFantasia" maxlength="20">
+                        </div>
+                        <div>
+                            <label for="filtroSituacao">Situação</label>
+                            <select id="filtroSituacao">
+                                <option value="">Todas</option>
+                                <option value="S">Ativo</option>
+                                <option value="N">Inativo</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="input-group four-row">
+                        <div>
+                            <label for="filtroSigla">Sigla</label>
+                            <input type="text" id="filtroSigla" maxlength="5">
+                        </div>
+                        <div>
+                            <label for="filtroCgc">CNPJ</label>
+                            <input type="text" id="filtroCgc" maxlength="18" placeholder="00.000.000/0000-00">
+                        </div>
+                        <div>
+                            <label for="filtroParceiro">Parceiro</label>
+                            <select id="filtroParceiro">
+                                <option value="">Todos</option>
+                                <option value="S">Sim</option>
+                                <option value="N">Não</option>
+                            </select>
+                        </div>
+                        <div></div>
+                    </div>
+                    <button type="submit" class="btn save">Aplicar Filtro</button>
+                    <button type="button" id="btnLimparFiltros" class="btn cancel">Limpar</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="tab-content" id="tab-grid">
+            <div class="form-box">
+                <h2>Visualização em Grid</h2>
+                <div class="actions-top">
+                    <button type="button" id="btnVoltarGrid" class="btn cancel">← Voltar aos Filtros</button>
+                    <button type="button" id="btnNovoRegistroGrid" class="btn save">+ Novo Registro</button>
+                </div>
+                <div id="filiaisGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
+                    <span id="filiaisGridCountText">0 registro(s) encontrado(s)</span>
+                </div>
+                <div id="filiaisGrid" class="grid-container">
+                    <p class="empty">Aplicar filtros para carregar o grid.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="tab-dados">
+            <div class="form-box">
+                <h2 id="formTitle">Nova Filial</h2>
+                <form id="filialForm">
+                    <input type="hidden" id="filialEmpresaId">
+                    <input type="hidden" id="filialId">
+                    <div class="input-group four-row">
+                        <div>
+                            <label for="filialEmpresa">Empresa *</label>
+                            <select id="filialEmpresa" required>
+                                <option value="">Selecione</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="filialCodigo">Código Filial</label>
+                            <input type="text" id="filialCodigo" readonly>
+                        </div>
+                        <div>
+                            <label for="filialNomeFantasia">Nome Fantasia *</label>
+                            <input type="text" id="filialNomeFantasia" required maxlength="20">
+                        </div>
+                        <div>
+                            <label for="filialSigla">Sigla *</label>
+                            <input type="text" id="filialSigla" required maxlength="5">
+                        </div>
+                    </div>
+                    <div class="input-group four-row">
+                        <div>
+                            <label for="filialCgc">CNPJ *</label>
+                            <input type="text" id="filialCgc" required maxlength="18" placeholder="00.000.000/0000-00">
+                        </div>
+                        <div>
+                            <label for="filialCadastro">Código Cadastro *</label>
+                            <input type="number" id="filialCadastro" required>
+                        </div>
+                        <div>
+                            <label for="filialParceiro">Parceiro</label>
+                            <select id="filialParceiro">
+                                <option value="N">Não</option>
+                                <option value="S">Sim</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="filialSituacao">Situação *</label>
+                            <select id="filialSituacao" required>
+                                <option value="S">Ativo</option>
+                                <option value="N">Inativo</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn save">Salvar</button>
+                        <button type="button" id="btnCancelar" class="btn cancel">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="confirmModal" class="modal">
+            <div class="modal-content">
+                <h3>Confirmar Ação</h3>
+                <p id="modalMessage"></p>
+                <div class="modal-actions">
+                    <button id="confirmYes" class="btn delete">Sim</button>
+                    <button id="confirmNo" class="btn cancel">Cancelar</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="message" class="message"></div>
+    </div>
+
+    <!-- Overlay de carregamento para init.sql (mesmo estilo do Gerenciar Roteiros) -->
+    <div id="loadingOverlayInitSQL" class="calculando-overlay" style="display: none;">
+      <div class="calculando-content">
+        <div class="calculando-spinner"></div>
+        <h3 id="loadingTitleInitSQL">Processando Inicialização</h3>
+        <p id="loadingTextInitSQL">Executando scripts de inicialização...</p>
+        <p class="calculando-detalhe" id="loadingDetailInitSQL">Isso pode levar alguns segundos.</p>
+      </div>
+    </div>
+
+    <script src="/js/grid-editor.js"></script>
+    <script src="js/script.js"></script>
+</body>
+</html>
+

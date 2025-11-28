@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Gerenciar Equipamentos</title>
+    <link rel="stylesheet" href="/css/modulos.css">
+</head>
+<body>
+    <div class="modulo-container">
+        <h1>Gerenciar Equipamentos</h1>
+
+        <!-- Abas -->
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="filtros">Filtros</button>
+            <button class="tab-btn" data-tab="grid">Grid</button>
+            <button class="tab-btn" data-tab="dados">Dados</button>
+        </div>
+
+        <!-- Filtros -->
+        <div class="tab-content active" id="tab-filtros">
+            <div class="form-box">
+                <h2>Filtros de Busca</h2>
+                <form id="filtroForm">
+                    <!-- Linha 1: Referência / Tipo de Equipamento / Classe de Frota -->
+                    <div class="input-group triple">
+                        <div>
+                            <label for="filtroRef">Referência</label>
+                            <input type="text" id="filtroRef" maxlength="40">
+                        </div>
+                        <div>
+                            <label for="filtroTipo">Tipo de Equipamento</label>
+                            <select id="filtroTipo">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="filtroClasse">Classe de Frota</label>
+                            <select id="filtroClasse">
+                                <option value="">Todas</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Linha 2: Tipo de Carroceria / Tipo de Atuação / Possui Veículo Rastreado? / Situação -->
+                    <div class="input-group four-row">
+                        <div>
+                            <label for="filtroCarroceria">Tipo de Carroceria</label>
+                            <select id="filtroCarroceria">
+                                <option value="">Todos</option>
+                                <option value="01">01 - Não aplicável</option>
+                                <option value="02">02 - Aberta</option>
+                                <option value="03">03 - Fechada / Baú</option>
+                                <option value="04">04 - Graneleira</option>
+                                <option value="05">05 - Porta Container</option>
+                                <option value="06">06 - Sider</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="filtroTipoAtuacao">Tipo de Atuação</label>
+                            <select id="filtroTipoAtuacao">
+                                <option value="">Todos</option>
+                                <option value="A">A - Agregado</option>
+                                <option value="F">F - Frota Própria</option>
+                                <option value="P">P - Parceiro (Terceiro Fiel)</option>
+                                <option value="T">T - Terceiro</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="filtroRastreado">Veículo Rastreado</label>
+                            <select id="filtroRastreado">
+                                <option value="">Todos</option>
+                                <option value="S">Sim</option>
+                                <option value="N">Não</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="filtroAtivo">Situação</label>
+                            <select id="filtroAtivo">
+                                <option value="">Todas</option>
+                                <option value="S">Ativo</option>
+                                <option value="N">Inativo</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Linha 3: Grupo de Equipamento / Marca / Modelo -->
+                    <div class="input-group triple">
+                        <div>
+                            <label for="filtroGrupo">Grupo de Equipamento</label>
+                            <select id="filtroGrupo">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="filtroMarca">Marca</label>
+                            <select id="filtroMarca">
+                                <option value="">Todas</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="filtroModelo">Modelo</label>
+                            <select id="filtroModelo">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn save">Aplicar Filtro</button>
+                    <button type="button" id="btnLimparFiltros" class="btn cancel">Limpar</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Grid -->
+        <div class="tab-content" id="tab-grid">
+            <div class="form-box">
+                <h2>Grid de Equipamentos</h2>
+                <div class="actions-top">
+                    <button id="btnVoltarGrid" class="btn cancel">← Voltar aos Filtros</button>
+                    <button id="btnNovoEquipamentoGrid" class="btn save">+ Novo Registro</button>
+                </div>
+                <div id="equipamentosGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
+                    <span id="equipamentosGridCountText">0 registro(s) encontrado(s)</span>
+                </div>
+                <div id="equipamentosGrid" class="grid-container">
+                    <p class="empty">Aplicar filtros para carregar o grid.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dados -->
+        <div class="tab-content" id="tab-dados">
+            <div class="form-box">
+                <h2 id="formTitle">Novo Equipamento</h2>
+                <form id="equipamentoForm">
+                    <input type="hidden" id="equipamentoId">
+
+                    <!-- Linha 1: ID do Equipamento / Referência / Descrição / Situação -->
+                    <div class="input-group four-row">
+                        <div>
+                            <label for="equipId">ID do Equipamento</label>
+                            <input type="text" id="equipId" readonly>
+                        </div>
+                        <div>
+                            <label for="equipRef">Referência *</label>
+                            <input type="text" id="equipRef" required maxlength="40">
+                        </div>
+                        <div>
+                            <label for="equipNome">Descrição</label>
+                            <input type="text" id="equipNome" maxlength="60">
+                        </div>
+                        <div>
+                            <label for="equipAtivo">Situação *</label>
+                            <select id="equipAtivo" required>
+                                <option value="S">Ativo</option>
+                                <option value="N">Inativo</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Linha 2: Classe de Frota / Tipo de Equipamento / Tipo de Carroceria / Tipo de Atuação -->
+                    <div class="input-group four-row">
+                        <div>
+                            <label for="equipClasse">Classe de Frota</label>
+                            <select id="equipClasse">
+                                <option value="">Selecione</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="equipTipo">Tipo de Equipamento *</label>
+                            <select id="equipTipo" required>
+                                <option value="">Selecione</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="equipCarroceria">Tipo de Carroceria *</label>
+                            <select id="equipCarroceria" required>
+                                <option value="">Selecione</option>
+                                <option value="01">01 - Não aplicável</option>
+                                <option value="02">02 - Aberta</option>
+                                <option value="03">03 - Fechada / Baú</option>
+                                <option value="04">04 - Graneleira</option>
+                                <option value="05">05 - Porta Container</option>
+                                <option value="06">06 - Sider</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="equipTipoAtuacao">Tipo de Atuação *</label>
+                            <select id="equipTipoAtuacao" required>
+                                <option value="">Selecione</option>
+                                <option value="A">A - Agregado</option>
+                                <option value="F">F - Frota Própria</option>
+                                <option value="P">P - Parceiro (Terceiro Fiel)</option>
+                                <option value="T">T - Terceiro</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Linha 3: Grupo de Equipamento / Marca / Modelo / Ano de Fabricação -->
+                    <div class="input-group four-row">
+                        <div>
+                            <label for="equipGrupo">Grupo de Equipamento</label>
+                            <select id="equipGrupo">
+                                <option value="">Selecione</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="equipMarca">Marca *</label>
+                            <select id="equipMarca" required>
+                                <option value="">Selecione</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="equipModelo">Modelo</label>
+                            <select id="equipModelo">
+                                <option value="">Selecione uma marca primeiro</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="equipAno">Ano de Fabricação</label>
+                            <input type="number" id="equipAno" min="1900" max="2100">
+                        </div>
+                    </div>
+
+                    <!-- Linha 4: Capacidade de Carga / Altura / Largura / Comprimento / M³ Cúbico / Veículo Rastreado? -->
+                    <div class="input-group six-row">
+                        <div>
+                            <label for="equipCapacidade">Capacidade de Carga (ton)</label>
+                            <input type="number" id="equipCapacidade" step="0.01" min="0">
+                        </div>
+                        <div>
+                            <label for="equipAltura">Altura (m)</label>
+                            <input type="number" id="equipAltura" step="0.01" min="0">
+                        </div>
+                        <div>
+                            <label for="equipLargura">Largura (m)</label>
+                            <input type="number" id="equipLargura" step="0.01" min="0">
+                        </div>
+                        <div>
+                            <label for="equipComprimento">Comprimento (m)</label>
+                            <input type="number" id="equipComprimento" step="0.01" min="0">
+                        </div>
+                        <div>
+                            <label for="equipCubico">M³ Cúbico</label>
+                            <input type="number" id="equipCubico" step="0.01" min="0">
+                        </div>
+                        <div>
+                            <label for="equipRastreado">Veículo Rastreado *</label>
+                            <select id="equipRastreado" required>
+                                <option value="">Selecione</option>
+                                <option value="S">Sim</option>
+                                <option value="N">Não</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn save">Salvar</button>
+                        <button type="button" id="btnCancelarDados" class="btn cancel">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Modal -->
+        <div id="confirmModal" class="modal">
+            <div class="modal-content">
+                <h3>Confirmar Ação</h3>
+                <p id="modalMessage"></p>
+                <div class="modal-actions">
+                    <button id="confirmYes" class="btn delete">Sim</button>
+                    <button id="confirmNo" class="btn cancel">Cancelar</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="message" class="message"></div>
+    </div>
+
+    <!-- Overlay de carregamento para init.sql (mesmo estilo do Gerenciar Roteiros) -->
+    <div id="loadingOverlayInitSQL" class="calculando-overlay" style="display: none;">
+      <div class="calculando-content">
+        <div class="calculando-spinner"></div>
+        <h3 id="loadingTitleInitSQL">Processando Inicialização</h3>
+        <p id="loadingTextInitSQL">Executando scripts de inicialização...</p>
+        <p class="calculando-detalhe" id="loadingDetailInitSQL">Isso pode levar alguns segundos.</p>
+      </div>
+    </div>
+
+    <script src="/js/grid-editor.js"></script>
+    <script src="js/script.js"></script>
+</body>
+</html>

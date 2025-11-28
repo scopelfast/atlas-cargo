@@ -1,0 +1,77 @@
+# Dependências
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+# package-lock.json - Mantido no repositório para garantir versões consistentes
+
+# Arquivos de ambiente
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs/
+*.log
+
+# Arquivos temporários
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Arquivos de IDE
+.vscode/
+.idea/
+.vs/
+*.sublime-project
+*.sublime-workspace
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Arquivos de build
+dist/
+build/
+*.zip
+*.tar
+*.tar.gz
+
+# Arquivos de backup
+*.bak
+*.backup
+*_backup.*
+backend_*.zip
+*.zip
+
+# Arquivos de sistema
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# Arquivos específicos do projeto
+backend/backend/
+email_suporte_waboxapp.txt
+
+# Arquivos de configuração local
+*.local
+config.local.*
+
+# Arquivos de teste
+test-results/
+coverage/
+
+# Arquivos de migração temporários
+migrate_*.js
+update_*.js
+

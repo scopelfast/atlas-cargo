@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teste Mobile - Links de Convocação</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .info-box {
+      background: #f8f9fa;
+      border-left: 4px solid #667eea;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+    .info-box h3 {
+      color: #667eea;
+      margin-bottom: 10px;
+    }
+    .info-box p {
+      color: #666;
+      line-height: 1.6;
+    }
+    .test-section {
+      margin-bottom: 30px;
+    }
+    .test-section h2 {
+      color: #333;
+      margin-bottom: 15px;
+      font-size: 20px;
+    }
+    .input-group {
+      margin-bottom: 15px;
+    }
+    .input-group label {
+      display: block;
+      margin-bottom: 5px;
+      color: #333;
+      font-weight: 600;
+    }
+    .input-group input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-size: 16px;
+    }
+    .input-group input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    .btn {
+      width: 100%;
+      padding: 15px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-top: 10px;
+    }
+    .btn:hover {
+      background: #5568d3;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+    }
+    .btn-secondary {
+      background: #28a745;
+    }
+    .btn-secondary:hover {
+      background: #218838;
+    }
+    .link-result {
+      margin-top: 20px;
+      padding: 15px;
+      background: #e7f3ff;
+      border-radius: 8px;
+      word-break: break-all;
+    }
+    .link-result a {
+      color: #0066cc;
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .link-result a:hover {
+      text-decoration: underline;
+    }
+    .status {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    .status.success {
+      background: #d4edda;
+      color: #155724;
+    }
+    .status.error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    .status.info {
+      background: #d1ecf1;
+      color: #0c5460;
+    }
+    .instructions {
+      background: #fff3cd;
+      border-left: 4px solid #ffc107;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+    .instructions h3 {
+      color: #856404;
+      margin-bottom: 10px;
+    }
+    .instructions ol {
+      margin-left: 20px;
+      color: #856404;
+    }
+    .instructions li {
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📱 Teste de Links de Convocação</h1>
+    
+    <div class="instructions">
+      <h3>🔧 Como usar o Modo Mobile no PC:</h3>
+      <ol>
+        <li>Pressione <strong>F12</strong> para abrir o DevTools</li>
+        <li>Clique no ícone de <strong>dispositivo móvel</strong> (ou pressione <strong>Ctrl+Shift+M</strong>)</li>
+        <li>Escolha um dispositivo (iPhone, Android, etc.) ou defina uma resolução customizada</li>
+        <li>Teste os links abaixo nesta página</li>
+      </ol>
+    </div>
+
+    <div class="info-box">
+      <h3>ℹ️ Informação</h3>
+      <p>Esta página ajuda a testar os links de convocação como se estivesse em um celular. Use o DevTools do navegador para simular um dispositivo móvel.</p>
+    </div>
+
+    <div class="test-section">
+      <h2>1. Verificar URL Pública</h2>
+      <button class="btn" id="btnVerificarUrl">Verificar URL Pública Configurada</button>
+      <div id="urlStatus"></div>
+    </div>
+
+    <div class="test-section">
+      <h2>2. Testar Link de Convocação</h2>
+      <div class="input-group">
+        <label for="idConvocacao">ID da Convocação:</label>
+        <input type="number" id="idConvocacao" placeholder="Ex: 6" value="6">
+      </div>
+      <button class="btn btn-secondary" id="btnGerarLink">Gerar e Testar Link</button>
+      <div id="linkResult"></div>
+    </div>
+
+    <div class="test-section">
+      <h2>3. Testar WhatsApp Link</h2>
+      <div class="input-group">
+        <label for="celular">Celular (apenas números):</label>
+        <input type="text" id="celular" placeholder="Ex: 11999875510" value="11999875510">
+      </div>
+      <div class="input-group">
+        <label for="mensagem">Mensagem:</label>
+        <input type="text" id="mensagem" placeholder="Mensagem de teste" value="Teste de convocação">
+      </div>
+      <button class="btn" id="btnGerarWhatsApp">Gerar Link WhatsApp</button>
+      <div id="whatsappResult"></div>
+    </div>
+  </div>
+
+  <script>
+    async function verificarUrlPublica() {
+      const statusDiv = document.getElementById('urlStatus');
+      statusDiv.innerHTML = '<div class="status info">Verificando...</div>';
+      
+      try {
+        const response = await fetch('/api/public-url');
+        const data = await response.json();
+        
+        let html = `<div class="status ${data.warning ? 'error' : 'success'}">`;
+        html += `<strong>URL Pública:</strong> ${data.url}<br>`;
+        if (data.warning) {
+          html += `<br><strong>Aviso:</strong> ${data.warning}`;
+        }
+        html += '</div>';
+        
+        statusDiv.innerHTML = html;
+      } catch (err) {
+        statusDiv.innerHTML = `<div class="status error">Erro: ${err.message}</div>`;
+      }
+    }
+
+    async function gerarLinkConvocacao() {
+      const idConvocacao = document.getElementById('idConvocacao').value;
+      const resultDiv = document.getElementById('linkResult');
+      
+      if (!idConvocacao) {
+        resultDiv.innerHTML = '<div class="status error">Digite um ID de convocação</div>';
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/public-url');
+        const data = await response.json();
+        const urlBase = data.url || window.location.origin;
+        const link = `${urlBase}/convocacao/${idConvocacao}`;
+        
+        let html = '<div class="link-result">';
+        html += `<strong>Link gerado:</strong><br>`;
+        html += `<a href="${link}" target="_blank">${link}</a><br><br>`;
+        html += `<button class="btn" id="btnAbrirLink" data-link="${link}">Abrir Link</button>`;
+        html += '</div>';
+        
+        resultDiv.innerHTML = html;
+        
+        // Adicionar event listener ao botão gerado dinamicamente
+        const btnAbrirLink = document.getElementById('btnAbrirLink');
+        if (btnAbrirLink) {
+          btnAbrirLink.addEventListener('click', function() {
+            window.open(this.getAttribute('data-link'), '_blank');
+          });
+        }
+      } catch (err) {
+        resultDiv.innerHTML = `<div class="status error">Erro: ${err.message}</div>`;
+      }
+    }
+
+    function gerarLinkWhatsApp() {
+      const celular = document.getElementById('celular').value.replace(/\D/g, '');
+      const mensagem = document.getElementById('mensagem').value;
+      const resultDiv = document.getElementById('whatsappResult');
+      
+      if (!celular || celular.length < 10) {
+        resultDiv.innerHTML = '<div class="status error">Digite um celular válido</div>';
+        return;
+      }
+      
+      const textoEncoded = encodeURIComponent(mensagem);
+      const link = `https://wa.me/55${celular}?text=${textoEncoded}`;
+      
+      let html = '<div class="link-result">';
+      html += `<strong>Link WhatsApp:</strong><br>`;
+      html += `<a href="${link}" target="_blank">${link}</a><br><br>`;
+      html += `<button class="btn" id="btnAbrirWhatsApp" data-link="${link}">Abrir WhatsApp</button>`;
+      html += '</div>';
+      
+      resultDiv.innerHTML = html;
+      
+      // Adicionar event listener ao botão gerado dinamicamente
+      const btnAbrirWhatsApp = document.getElementById('btnAbrirWhatsApp');
+      if (btnAbrirWhatsApp) {
+        btnAbrirWhatsApp.addEventListener('click', function() {
+          window.open(this.getAttribute('data-link'), '_blank');
+        });
+      }
+    }
+
+    // Inicializar event listeners quando a página carregar
+    window.addEventListener('load', function() {
+      // Verificar URL pública ao carregar
+      verificarUrlPublica();
+      
+      // Adicionar event listeners aos botões
+      const btnVerificarUrl = document.getElementById('btnVerificarUrl');
+      if (btnVerificarUrl) {
+        btnVerificarUrl.addEventListener('click', verificarUrlPublica);
+      }
+      
+      const btnGerarLink = document.getElementById('btnGerarLink');
+      if (btnGerarLink) {
+        btnGerarLink.addEventListener('click', gerarLinkConvocacao);
+      }
+      
+      const btnGerarWhatsApp = document.getElementById('btnGerarWhatsApp');
+      if (btnGerarWhatsApp) {
+        btnGerarWhatsApp.addEventListener('click', gerarLinkWhatsApp);
+      }
+    });
+  </script>
+</body>
+</html>
+

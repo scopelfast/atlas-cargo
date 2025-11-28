@@ -1,0 +1,1525 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Responder Convocação - DivulgaCarga</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 800px;
+      width: 100%;
+      padding: 40px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .header h1 {
+      color: #333;
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+    .header p {
+      color: #666;
+      font-size: 16px;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 20px;
+    }
+    .status-pendente {
+      background: #fff3cd;
+      color: #856404;
+    }
+    .status-aceita {
+      background: #d4edda;
+      color: #155724;
+    }
+    .status-recusada {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    .info-section {
+      background: #f8f9fa;
+      border-radius: 12px;
+      padding: 25px;
+      margin-bottom: 25px;
+    }
+    .info-section h2 {
+      color: #333;
+      font-size: 20px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #667eea;
+      padding-bottom: 10px;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+    }
+    .info-item {
+      display: flex;
+      flex-direction: column;
+    }
+    .info-label {
+      font-size: 12px;
+      color: #666;
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-bottom: 5px;
+    }
+    .info-value {
+      font-size: 16px;
+      color: #333;
+      font-weight: 500;
+    }
+    .actions {
+      display: flex;
+      gap: 15px;
+      margin-top: 30px;
+    }
+    .btn {
+      flex: 1;
+      padding: 15px 30px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .btn-aceitar {
+      background: #28a745;
+      color: white;
+    }
+    .btn-aceitar:hover {
+      background: #218838;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+    }
+    .btn-recusar {
+      background: #dc3545;
+      color: white;
+    }
+    .btn-recusar:hover {
+      background: #c82333;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
+    }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+    .error {
+      background: #f8d7da;
+      color: #721c24;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .success {
+      background: #d4edda;
+      color: #155724;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    /* Modal de confirmação personalizado */
+    .modal-confirm {
+      display: none;
+      position: fixed;
+      z-index: 10000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(4px);
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .modal-confirm-content {
+      background: white;
+      margin: 15% auto;
+      padding: 0;
+      border-radius: 16px;
+      width: 90%;
+      max-width: 450px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+      animation: slideDown 0.3s ease;
+      overflow: hidden;
+    }
+    @keyframes slideDown {
+      from {
+        transform: translateY(-50px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+    .modal-confirm-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 25px;
+      text-align: center;
+    }
+    .modal-confirm-header h3 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 600;
+    }
+    .modal-confirm-body {
+      padding: 30px;
+      text-align: center;
+    }
+    .modal-confirm-body .icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+    }
+    .modal-confirm-body .icon.aceitar {
+      color: #28a745;
+    }
+    .modal-confirm-body .icon.recusar {
+      color: #dc3545;
+    }
+    .modal-confirm-body p {
+      color: #333;
+      font-size: 16px;
+      line-height: 1.6;
+      margin: 0;
+    }
+    .modal-confirm-body .detalhes {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 15px;
+      margin-top: 20px;
+      text-align: left;
+    }
+    .modal-confirm-body .detalhes strong {
+      color: #667eea;
+      display: block;
+      margin-bottom: 5px;
+    }
+    .modal-confirm-actions {
+      display: flex;
+      gap: 10px;
+      padding: 20px 30px;
+      background: #f8f9fa;
+      border-top: 1px solid #e0e0e0;
+    }
+    .modal-confirm-btn {
+      flex: 1;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .modal-confirm-btn-confirmar {
+      background: linear-gradient(135deg, #28a745, #218838);
+      color: white;
+    }
+    .modal-confirm-btn-confirmar:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+    }
+    .modal-confirm-btn-cancelar {
+      background: #6c757d;
+      color: white;
+    }
+    .modal-confirm-btn-cancelar:hover {
+      background: #5a6268;
+      transform: translateY(-2px);
+    }
+    /* Estilo para select de motivo de recusa */
+    #selectMotivoRecusa:hover {
+      border-color: #764ba2;
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+    }
+    #selectMotivoRecusa:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    #selectMotivoRecusa option {
+      padding: 10px;
+    }
+    /* Mensagem de geolocalização */
+    .geolocalizacao-info {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 25px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+      animation: slideDown 0.5s ease;
+    }
+    .geolocalizacao-info .icon {
+      font-size: 32px;
+      flex-shrink: 0;
+    }
+    .geolocalizacao-info .content {
+      flex: 1;
+    }
+    .geolocalizacao-info .content h3 {
+      margin: 0 0 8px 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    .geolocalizacao-info .content p {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.5;
+      opacity: 0.95;
+    }
+    .geolocalizacao-info .btn-fechar {
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.3s;
+      flex-shrink: 0;
+    }
+    .geolocalizacao-info .btn-fechar:hover {
+      background: rgba(255, 255, 255, 0.3);
+      transform: translateY(-1px);
+    }
+    /* Modal bloqueante de geolocalização */
+    .modal-geolocalizacao {
+      display: none;
+      position: fixed;
+      z-index: 20000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(5px);
+      animation: fadeIn 0.3s ease;
+    }
+    .modal-geolocalizacao-content {
+      background: white;
+      margin: 10% auto;
+      padding: 0;
+      border-radius: 16px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      animation: slideDown 0.3s ease;
+      overflow: hidden;
+    }
+    .modal-geolocalizacao-header {
+      background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+      color: white;
+      padding: 25px;
+      text-align: center;
+    }
+    .modal-geolocalizacao-header h3 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 600;
+    }
+    .modal-geolocalizacao-body {
+      padding: 30px;
+      text-align: center;
+    }
+    .modal-geolocalizacao-body .icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+    }
+    .modal-geolocalizacao-body p {
+      color: #333;
+      font-size: 16px;
+      line-height: 1.8;
+      margin: 0 0 20px 0;
+    }
+    .modal-geolocalizacao-body .instrucoes {
+      background: #f8f9fa;
+      border-left: 4px solid #e74c3c;
+      padding: 15px;
+      margin: 20px 0;
+      text-align: left;
+      border-radius: 4px;
+    }
+    .modal-geolocalizacao-body .instrucoes h4 {
+      margin: 0 0 10px 0;
+      color: #e74c3c;
+      font-size: 16px;
+    }
+    .modal-geolocalizacao-body .instrucoes ol {
+      margin: 0;
+      padding-left: 20px;
+    }
+    .modal-geolocalizacao-body .instrucoes li {
+      margin: 8px 0;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .modal-geolocalizacao-actions {
+      display: flex;
+      gap: 10px;
+      padding: 20px 30px;
+      background: #f8f9fa;
+      border-top: 1px solid #e0e0e0;
+    }
+    .modal-geolocalizacao-btn {
+      flex: 1;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .modal-geolocalizacao-btn-tentar {
+      background: linear-gradient(135deg, #28a745, #218838);
+      color: white;
+    }
+    .modal-geolocalizacao-btn-tentar:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+    }
+    .modal-geolocalizacao-btn-tentar:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <!-- Modal bloqueante de geolocalização (quando permissão foi negada) -->
+  <div id="modalGeolocalizacao" class="modal-geolocalizacao">
+    <div class="modal-geolocalizacao-content">
+      <div class="modal-geolocalizacao-header">
+        <h3>⚠️ Localização Obrigatória</h3>
+      </div>
+      <div class="modal-geolocalizacao-body">
+        <div class="icon">📍</div>
+        <p><strong>A localização é obrigatória para continuar!</strong></p>
+        <p>Precisamos da sua localização para garantir o bom funcionamento do sistema e verificar sua proximidade com o local de carregamento.</p>
+        <div class="instrucoes">
+          <h4>Como permitir a localização:</h4>
+          <ol>
+            <li>Clique no ícone de <strong>cadeado</strong> ou <strong>informações</strong> na barra de endereço do navegador</li>
+            <li>Procure por <strong>"Localização"</strong> ou <strong>"Location"</strong></li>
+            <li>Altere de <strong>"Bloquear"</strong> para <strong>"Permitir"</strong></li>
+            <li>Recarregue a página ou clique em "Tentar Novamente"</li>
+          </ol>
+        </div>
+        <p style="color: #e74c3c; font-weight: 600; margin-top: 20px;">⚠️ Você não poderá continuar sem permitir a localização.</p>
+      </div>
+      <div class="modal-geolocalizacao-actions">
+        <button id="btnTentarGeolocalizacao" class="modal-geolocalizacao-btn modal-geolocalizacao-btn-tentar">🔄 Tentar Novamente</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de confirmação personalizado -->
+  <div id="modalConfirm" class="modal-confirm">
+    <div class="modal-confirm-content">
+      <div class="modal-confirm-header">
+        <h3 id="modalConfirmTitle">Confirmar Ação</h3>
+      </div>
+      <div class="modal-confirm-body">
+        <div id="modalConfirmIcon" class="icon">⚠️</div>
+        <p id="modalConfirmMessage"></p>
+        <div id="modalConfirmDetalhes" class="detalhes" style="display: none;">
+          <strong>Detalhes da Convocação:</strong>
+          <span id="modalConfirmDetalhesText"></span>
+        </div>
+        <div id="modalConfirmMotivoRecusa" style="display: none; margin-top: 25px; text-align: left;">
+          <label for="selectMotivoRecusa" style="display: block; margin-bottom: 12px; font-weight: 600; color: #333; font-size: 15px;">
+            📋 Por favor, informe o motivo da recusa: <span style="color: #dc3545;">*</span>
+          </label>
+          <select id="selectMotivoRecusa" style="width: 100%; padding: 14px; border: 2px solid #667eea; border-radius: 8px; font-size: 16px; background: white; color: #333; cursor: pointer; transition: all 0.3s;">
+            <option value="">Selecione o motivo...</option>
+          </select>
+          <p id="erroMotivoRecusa" style="color: #dc3545; font-size: 14px; margin-top: 8px; display: none; font-weight: 500;">
+            ⚠️ Por favor, selecione um motivo antes de confirmar.
+          </p>
+        </div>
+      </div>
+      <div class="modal-confirm-actions">
+        <button id="modalConfirmBtnCancelar" class="modal-confirm-btn modal-confirm-btn-cancelar">Cancelar</button>
+        <button id="modalConfirmBtnConfirmar" class="modal-confirm-btn modal-confirm-btn-confirmar">Confirmar</button>
+      </div>
+    </div>
+  </div>
+  <div class="container">
+    <div id="loading" class="loading">
+      <p>Carregando convocação...</p>
+    </div>
+    <div id="content" style="display: none;">
+      <div class="header">
+        <h1>🚚 Convocação de Carga</h1>
+        <p>Você foi convidado para realizar uma viagem</p>
+        <span id="statusBadge" class="status-badge"></span>
+      </div>
+      
+      <div id="errorMessage" class="error" style="display: none;"></div>
+      <div id="successMessage" class="success" style="display: none;"></div>
+      
+      <!-- Mensagem informativa sobre geolocalização -->
+      <div id="geolocalizacaoInfo" class="geolocalizacao-info" style="display: none;">
+        <div class="icon">📍</div>
+        <div class="content">
+          <h3>Permissão de Localização Necessária</h3>
+          <p>Para garantir o bom funcionamento da ferramenta e melhorar nossos serviços, precisamos da sua permissão para acessar sua localização. Isso nos ajuda a verificar sua proximidade com o local de carregamento e otimizar a distribuição de cargas.</p>
+        </div>
+        <button class="btn-fechar" onclick="document.getElementById('geolocalizacaoInfo').style.display='none'">Entendi</button>
+      </div>
+      
+      <!-- Botão para enviar localização manualmente -->
+      <div id="botaoEnviarLocalizacao" style="display: none; margin-bottom: 20px; text-align: center;">
+        <button id="btnEnviarLocalizacao" class="btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; font-size: 16px; font-weight: 600; border-radius: 8px; border: none; cursor: pointer; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); transition: all 0.3s;">
+          📍 Enviar Minha Localização
+        </button>
+        <p style="margin-top: 10px; color: #666; font-size: 14px;">Clique para compartilhar sua localização atual</p>
+      </div>
+      
+      <div class="info-section">
+        <h2>📋 Dados da Viagem</h2>
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="info-label">ID da Viagem</span>
+            <span class="info-value" id="idViagem">-</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Tipo</span>
+            <span class="info-value" id="tipoViagem">-</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Classe de Frota</span>
+            <span class="info-value" id="classeFrota">-</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Exige Rastreado</span>
+            <span class="info-value" id="rastreado">-</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="info-section">
+        <h2>📍 Rota</h2>
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="info-label">Origem</span>
+            <span class="info-value" id="origem">-</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Destino</span>
+            <span class="info-value" id="destino">-</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="info-section">
+        <h2>⏰ Horários</h2>
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="info-label">Carregamento</span>
+            <span class="info-value" id="carregamento">-</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Descarga</span>
+            <span class="info-value" id="descarga">-</span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="info-section">
+        <h2>💰 Valores</h2>
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="info-label">Frete</span>
+            <span class="info-value" id="frete">-</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Peso</span>
+            <span class="info-value" id="peso">-</span>
+          </div>
+          <div class="info-item">
+            <span class="info-label">Cubagem</span>
+            <span class="info-value" id="cubagem">-</span>
+          </div>
+        </div>
+      </div>
+      
+      <div id="detalhesSection" class="info-section" style="display: none;">
+        <h2>📝 Detalhes da Viagem</h2>
+        <p id="detalhes" style="color: #333; line-height: 1.6;"></p>
+      </div>
+      
+      <!-- Mensagem de Status (quando não está pendente) -->
+      <div id="statusMessage" style="display: none; margin: 30px 0;"></div>
+      
+      <div id="actionsSection" class="actions">
+        <button id="btnAceitar" class="btn btn-aceitar">✅ Aceitar Convocação</button>
+        <button id="btnRecusar" class="btn btn-recusar">❌ Recusar Convocação</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const idConvocacao = urlParams.get('id') || window.location.pathname.split('/').pop();
+    
+    let convocacaoData = null;
+    let localizacaoAtual = null; // Armazenar localização capturada
+    const STORAGE_KEY_PERMISSAO_NEGADA = `geolocalizacao_negada_${idConvocacao}`;
+
+    // Verificar se a permissão foi negada anteriormente
+    function verificarPermissaoNegada() {
+      return localStorage.getItem(STORAGE_KEY_PERMISSAO_NEGADA) === 'true';
+    }
+
+    // Marcar que a permissão foi negada
+    function marcarPermissaoNegada() {
+      localStorage.setItem(STORAGE_KEY_PERMISSAO_NEGADA, 'true');
+    }
+
+    // Limpar marcação de permissão negada (quando conseguir capturar)
+    function limparPermissaoNegada() {
+      localStorage.removeItem(STORAGE_KEY_PERMISSAO_NEGADA);
+    }
+
+    // Mostrar modal bloqueante de geolocalização
+    function mostrarModalGeolocalizacao() {
+      const modal = document.getElementById('modalGeolocalizacao');
+      if (modal) {
+        modal.style.display = 'block';
+        // Bloquear scroll do body
+        document.body.style.overflow = 'hidden';
+      }
+    }
+
+    // Ocultar modal bloqueante de geolocalização
+    function ocultarModalGeolocalizacao() {
+      const modal = document.getElementById('modalGeolocalizacao');
+      if (modal) {
+        modal.style.display = 'none';
+        // Restaurar scroll do body
+        document.body.style.overflow = 'auto';
+      }
+    }
+
+    // Função para mostrar mensagem informativa sobre geolocalização
+    function mostrarMensagemGeolocalizacao() {
+      // Garantir que o conteúdo esteja visível primeiro
+      const contentDiv = document.getElementById('content');
+      if (contentDiv && contentDiv.style.display === 'none') {
+        contentDiv.style.display = 'block';
+      }
+      
+      const infoDiv = document.getElementById('geolocalizacaoInfo');
+      if (infoDiv) {
+        // Aguardar um pouco para garantir que o DOM está pronto
+        setTimeout(() => {
+          infoDiv.style.display = 'flex';
+          // Auto-ocultar após 15 segundos
+          setTimeout(() => {
+            if (infoDiv && infoDiv.style.display === 'flex') {
+              infoDiv.style.display = 'none';
+            }
+          }, 15000);
+        }, 100);
+      }
+    }
+
+    // Função para capturar geolocalização do motorista
+    async function capturarGeolocalizacao(mostrarMensagem = false, forcar = false) {
+      return new Promise((resolve) => {
+        if (!navigator.geolocation) {
+          console.warn('[GEOLOCALIZAÇÃO] API de geolocalização não suportada pelo navegador.');
+          if (mostrarMensagem) {
+            mostrarMensagemGeolocalizacao();
+          }
+          resolve(null);
+          return;
+        }
+
+        // Se forçar e permissão foi negada antes, mostrar modal bloqueante
+        if (forcar && verificarPermissaoNegada()) {
+          // Modal será mostrado após o conteúdo carregar
+          setTimeout(() => {
+            mostrarModalGeolocalizacao();
+          }, 500);
+        }
+        // Nota: A mensagem informativa será mostrada após o conteúdo carregar (no carregarConvocacao)
+
+        // Opções para melhor precisão
+        const opcoes = {
+          enableHighAccuracy: true, // Tentar usar GPS
+          timeout: 15000, // Timeout de 15 segundos (aumentado para dar mais tempo)
+          maximumAge: 0 // Não usar cache, sempre buscar nova localização
+        };
+
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const coords = {
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              accuracy: position.coords.accuracy // Precisão em metros
+            };
+            console.log('[GEOLOCALIZAÇÃO] Localização capturada:', coords);
+            localizacaoAtual = coords;
+            
+            // Limpar marcação de permissão negada (conseguiu capturar!)
+            limparPermissaoNegada();
+            
+            // Ocultar mensagens e modais
+            const infoDiv = document.getElementById('geolocalizacaoInfo');
+            if (infoDiv) {
+              infoDiv.style.display = 'none';
+            }
+            ocultarModalGeolocalizacao();
+            
+            // Reabilitar botões se estavam desabilitados
+            const btnAceitar = document.getElementById('btnAceitar');
+            const btnRecusar = document.getElementById('btnRecusar');
+            if (btnAceitar && btnAceitar.disabled) {
+              btnAceitar.disabled = false;
+            }
+            if (btnRecusar && btnRecusar.disabled) {
+              btnRecusar.disabled = false;
+            }
+            
+            resolve(coords);
+          },
+          (error) => {
+            console.warn('[GEOLOCALIZAÇÃO] Erro ao capturar localização:', error.message, 'Código:', error.code);
+            
+            // Se negou permissão (código 1 = PERMISSION_DENIED)
+            if (error.code === 1) {
+              // Marcar que foi negada
+              marcarPermissaoNegada();
+              
+              // Se está forçando, mostrar modal bloqueante
+              if (forcar) {
+                mostrarModalGeolocalizacao();
+                // Não resolver ainda - esperar nova tentativa
+                resolve(null);
+                return;
+              } else if (mostrarMensagem) {
+                // Se não está forçando, apenas mostrar mensagem
+                const infoDiv = document.getElementById('geolocalizacaoInfo');
+                if (infoDiv) {
+                  infoDiv.style.display = 'flex';
+                  const contentDiv = infoDiv.querySelector('.content p');
+                  if (contentDiv) {
+                    contentDiv.innerHTML = '<strong>⚠️ Permissão negada:</strong> A localização não foi capturada. Você pode continuar usando o sistema normalmente, mas algumas funcionalidades podem não estar disponíveis.';
+                  }
+                }
+              }
+            }
+            
+            // Para outros erros, não bloquear
+            resolve(null);
+          },
+          opcoes
+        );
+      });
+    }
+
+    async function carregarConvocacao() {
+      try {
+        // Verificar se a permissão foi negada anteriormente
+        const permissaoNegada = verificarPermissaoNegada();
+        
+        // Capturar geolocalização antes de registrar acesso
+        // Se foi negada antes, forçar modal bloqueante
+        const geolocalizacao = await capturarGeolocalizacao(true, permissaoNegada);
+        
+        // Se permissão foi negada e não conseguiu capturar, tentar novamente após 2 segundos
+        if (permissaoNegada && !geolocalizacao) {
+          // Aguardar um pouco e tentar novamente
+          setTimeout(async () => {
+            const geolocalizacaoRetry = await capturarGeolocalizacao(false, true);
+            if (geolocalizacaoRetry) {
+              // Se conseguiu na segunda tentativa, registrar acesso agora
+              await registrarAcessoComGeolocalizacao(geolocalizacaoRetry);
+            }
+          }, 2000);
+        }
+        
+        // Registrar acesso ao link (primeiro acesso)
+        await registrarAcessoComGeolocalizacao(geolocalizacao);
+        
+        const response = await fetch(`/api/public/convocacao/${idConvocacao}`);
+        if (!response.ok) {
+          throw new Error('Convocação não encontrada');
+        }
+        
+        convocacaoData = await response.json();
+        exibirConvocacao(convocacaoData);
+        
+        // Se permissão foi negada e não tem localização, desabilitar botões até conseguir
+        if (permissaoNegada && !geolocalizacao) {
+          const btnAceitar = document.getElementById('btnAceitar');
+          const btnRecusar = document.getElementById('btnRecusar');
+          if (btnAceitar) btnAceitar.disabled = true;
+          if (btnRecusar) btnRecusar.disabled = true;
+        }
+      } catch (err) {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('content').style.display = 'block';
+        document.getElementById('errorMessage').style.display = 'block';
+        document.getElementById('errorMessage').textContent = 'Erro ao carregar convocação: ' + err.message;
+      }
+    }
+
+    function exibirConvocacao(data) {
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+      
+      // Mostrar mensagem de geolocalização após o conteúdo estar visível
+      // Sempre mostrar no primeiro acesso para informar o motorista
+      setTimeout(() => {
+        const permissaoNegada = verificarPermissaoNegada();
+        // Se não tem permissão negada anteriormente, mostrar mensagem informativa
+        // (se foi negada, o modal bloqueante já será mostrado)
+        if (!permissaoNegada) {
+          mostrarMensagemGeolocalizacao();
+        }
+      }, 500);
+      
+      // Status
+      const statusBadge = document.getElementById('statusBadge');
+      statusBadge.textContent = data.STATUS;
+      statusBadge.className = 'status-badge status-' + data.STATUS.toLowerCase();
+      
+      // Dados básicos
+      document.getElementById('idViagem').textContent = data.IDVIAGEM || '-';
+      document.getElementById('tipoViagem').textContent = data.DSTIPOVIAGEM || '-';
+      document.getElementById('classeFrota').textContent = data.DSCLASSEFROTA || '-';
+      document.getElementById('rastreado').textContent = data.FGRASTREADO === 'S' ? 'Sim' : 'Não';
+      
+      // Rota
+      document.getElementById('origem').textContent = `${data.ORIGEM_CIDADE || '-'}/${data.ORIGEM_ESTADO || '-'}`;
+      document.getElementById('destino').textContent = `${data.DESTINO_CIDADE || '-'}/${data.DESTINO_ESTADO || '-'}`;
+      
+      // Horários
+      const formatarData = (data) => {
+        if (!data) return '-';
+        
+        // SQL Server retorna datas no formato ISO: 2025-11-21T10:39:24.123Z
+        // Quando o JavaScript cria new Date(), ele interpreta como UTC e converte para o fuso local
+        // Precisamos tratar a string diretamente para evitar conversão de fuso
+        
+        if (typeof data === 'string') {
+          // Remover o Z se existir e tratar como data local
+          let dataStr = data.replace('Z', '');
+          
+          // Se tem T, substituir por espaço
+          if (dataStr.includes('T')) {
+            dataStr = dataStr.replace('T', ' ');
+          }
+          
+          // Extrair partes da data: 2025-11-21 10:39:24.123
+          const match = dataStr.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
+          if (match) {
+            const [, year, month, day, hour, minute, second] = match;
+            // Criar data no fuso local (sem conversão UTC)
+            const d = new Date(
+              parseInt(year),
+              parseInt(month) - 1,
+              parseInt(day),
+              parseInt(hour),
+              parseInt(minute),
+              parseInt(second || 0)
+            );
+            
+            return d.toLocaleString('pt-BR', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+          }
+        }
+        
+        // Fallback: usar new Date() normalmente
+        const d = new Date(data);
+        return d.toLocaleString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      };
+      document.getElementById('carregamento').textContent = formatarData(data.DTPREVINICIO);
+      document.getElementById('descarga').textContent = formatarData(data.DTPREVFINAL);
+      
+      // Valores
+      document.getElementById('frete').textContent = data.VLFRETE ? `R$ ${parseFloat(data.VLFRETE).toFixed(2).replace('.', ',')}` : '-';
+      document.getElementById('peso').textContent = data.PESO ? `${parseFloat(data.PESO).toFixed(3).replace('.', ',')} ton` : '-';
+      document.getElementById('cubagem').textContent = data.CUBAGEM ? `${parseFloat(data.CUBAGEM).toFixed(3).replace('.', ',')} m³` : '-';
+      
+      // Detalhes
+      if (data.OBSERV) {
+        document.getElementById('detalhesSection').style.display = 'block';
+        document.getElementById('detalhes').textContent = data.OBSERV;
+      }
+      
+      // Mensagem de status e ações
+      const statusMessageDiv = document.getElementById('statusMessage');
+      const actionsSection = document.getElementById('actionsSection');
+      
+      // Limpar mensagem anterior
+      statusMessageDiv.style.display = 'none';
+      statusMessageDiv.innerHTML = '';
+      
+      // Função para formatar telefone
+      const formatarTelefone = (telefone) => {
+        if (!telefone) return 'Não informado';
+        const tel = telefone.toString().replace(/\D/g, '');
+        if (tel.length === 11) {
+          return `(${tel.substring(0, 2)}) ${tel.substring(2, 7)}-${tel.substring(7)}`;
+        } else if (tel.length === 10) {
+          return `(${tel.substring(0, 2)}) ${tel.substring(2, 6)}-${tel.substring(6)}`;
+        }
+        return telefone.toString();
+      };
+      
+      // Verificar status e exibir mensagem apropriada
+      if (data.STATUS === 'CONFIRMADA') {
+        // Motorista foi CONFIRMADO - mostrar mensagem de parabéns completa!
+        const rotaTexto = data.DSROTEIRO || `${data.ORIGEM_CIDADE || '-'}/${data.ORIGEM_ESTADO || '-'} → ${data.DESTINO_CIDADE || '-'}/${data.DESTINO_ESTADO || '-'}`;
+        
+        // Dados do contratador para exibição
+        
+        const contratadorNome = data.CONTRATADOR_NOME || null;
+        const contratadorCelular = data.CONTRATADOR_CELULAR ? formatarTelefone(data.CONTRATADOR_CELULAR) : null;
+        const celularFormatadoWhatsApp = data.CONTRATADOR_CELULAR ? data.CONTRATADOR_CELULAR.toString().replace(/\D/g, '') : null;
+        const linkWhatsApp = celularFormatadoWhatsApp && celularFormatadoWhatsApp.length >= 10 
+          ? `https://wa.me/55${celularFormatadoWhatsApp}` 
+          : null;
+        
+        statusMessageDiv.style.display = 'block';
+        statusMessageDiv.innerHTML = `
+          <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 25px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(17, 153, 142, 0.4);">
+            <div style="font-size: 56px; margin-bottom: 20px;">🎉</div>
+            <h2 style="margin: 0 0 15px 0; font-size: 24px; font-weight: 700;">PARABÉNS! Você foi selecionado!</h2>
+            <div style="background: rgba(255, 255, 255, 0.15); padding: 20px; border-radius: 8px; margin: 20px 0; text-align: left; backdrop-filter: blur(10px);">
+              <p style="margin: 0 0 15px 0; font-size: 16px; line-height: 1.8;">
+                Olá <strong>${data.NOME_MOTORISTA || 'Motorista'}</strong>,
+              </p>
+              <p style="margin: 0 0 15px 0; font-size: 15px; line-height: 1.8;">
+                Temos uma ótima notícia! Você foi <strong>SELECIONADO</strong> para realizar a viagem:
+              </p>
+              <div style="margin: 15px 0; padding-left: 10px; border-left: 3px solid rgba(255, 255, 255, 0.5);">
+                <p style="margin: 5px 0; font-size: 14px;"><strong>🆔 ID da Viagem:</strong> ${data.IDVIAGEM || '-'}</p>
+                <p style="margin: 5px 0; font-size: 14px;"><strong>🗺️ Rota:</strong> ${rotaTexto}</p>
+                <p style="margin: 5px 0; font-size: 14px;"><strong>📅 Carregamento:</strong> ${formatarData(data.DTPREVINICIO)}</p>
+                <p style="margin: 5px 0; font-size: 14px;"><strong>📅 Descarga:</strong> ${formatarData(data.DTPREVFINAL)}</p>
+              </div>
+              <p style="margin: 15px 0 0 0; font-size: 15px; line-height: 1.8;">
+                ✅ <strong>Sua convocação foi CONFIRMADA!</strong>
+              </p>
+              <p style="margin: 15px 0 0 0; font-size: 15px; line-height: 1.8;">
+                Por favor, entre em contato conosco para os próximos passos.
+              </p>
+              <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.3);">
+                <p style="margin: 0 0 12px 0; font-size: 15px; font-weight: 700;">📞 Entre em Contato:</p>
+                ${contratadorNome ? `
+                  <p style="margin: 0 0 8px 0; font-size: 15px;"><strong>${contratadorNome}</strong></p>
+                ` : `
+                  <p style="margin: 0 0 8px 0; font-size: 14px; opacity: 0.9;">Contratador não informado</p>
+                `}
+                ${linkWhatsApp ? `
+                  <a href="${linkWhatsApp}" target="_blank" style="display: inline-block; margin-top: 8px; padding: 12px 24px; background: rgba(255, 255, 255, 0.25); color: white; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 15px; transition: all 0.3s; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.3);">
+                    📱 WhatsApp: ${contratadorCelular}
+                  </a>
+                ` : contratadorCelular ? `
+                  <p style="margin: 8px 0 0 0; font-size: 15px; font-weight: 600;">📱 ${contratadorCelular}</p>
+                ` : `
+                  <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9; font-style: italic; background: rgba(255, 255, 255, 0.1); padding: 10px; border-radius: 6px;">
+                    ⚠️ Telefone do contratador não cadastrado. Entre em contato através dos canais de comunicação da empresa.
+                  </p>
+                `}
+              </div>
+            </div>
+            <p style="margin: 20px 0 0 0; font-size: 15px; line-height: 1.8; font-weight: 600;">
+              Aguardamos seu retorno! 🚛
+            </p>
+          </div>
+        `;
+        actionsSection.style.display = 'none';
+        document.getElementById('btnAceitar').disabled = true;
+        document.getElementById('btnRecusar').disabled = true;
+      } else if (data.STATUS === 'ACEITA_DESCARTADA') {
+        // Motorista aceitou mas não foi escolhido
+        statusMessageDiv.style.display = 'block';
+        statusMessageDiv.innerHTML = `
+          <div style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(255, 152, 0, 0.4);">
+            <div style="font-size: 48px; margin-bottom: 15px;">ℹ️</div>
+            <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 700;">Convocação Não Selecionada</h3>
+            <p style="margin: 0; font-size: 15px; line-height: 1.6; opacity: 0.95;">
+              Você <strong>ACEITOU</strong> esta convocação, mas outro motorista foi selecionado para realizar a viagem.<br>
+              Obrigado pelo seu interesse e continue acompanhando nossas oportunidades!
+            </p>
+          </div>
+        `;
+        actionsSection.style.display = 'none';
+        document.getElementById('btnAceitar').disabled = true;
+        document.getElementById('btnRecusar').disabled = true;
+      } else if (data.STATUS === 'ACEITA') {
+        // Motorista aceitou e está aguardando confirmação
+        statusMessageDiv.style.display = 'block';
+        statusMessageDiv.innerHTML = `
+          <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);">
+            <div style="font-size: 48px; margin-bottom: 15px;">⏳</div>
+            <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 700;">Aguardando Confirmação</h3>
+            <p style="margin: 0; font-size: 15px; line-height: 1.6; opacity: 0.95;">
+              Você já <strong>ACEITOU</strong> esta convocação!<br>
+              Estamos analisando e em breve entraremos em contato.
+            </p>
+          </div>
+        `;
+        actionsSection.style.display = 'none';
+        document.getElementById('btnAceitar').disabled = true;
+        document.getElementById('btnRecusar').disabled = true;
+      } else if (data.STATUS === 'RECUSADA') {
+        // Motorista recusou
+        statusMessageDiv.style.display = 'block';
+        statusMessageDiv.innerHTML = `
+          <div style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(250, 112, 154, 0.4);">
+            <div style="font-size: 48px; margin-bottom: 15px;">❌</div>
+            <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 700;">Convocação Recusada</h3>
+            <p style="margin: 0; font-size: 15px; line-height: 1.6; opacity: 0.95;">
+              Você <strong>RECUSOU</strong> esta convocação.<br>
+              Continue acompanhando nossas oportunidades!
+            </p>
+          </div>
+        `;
+        actionsSection.style.display = 'none';
+        document.getElementById('btnAceitar').disabled = true;
+        document.getElementById('btnRecusar').disabled = true;
+      } else if (data.STATUS === 'PENDENTE' && data.VIAGEM_JA_CONFIRMADA === 1) {
+        // PENDENTE mas viagem já foi confirmada para outro motorista (nunca acessou)
+        statusMessageDiv.style.display = 'block';
+        statusMessageDiv.innerHTML = `
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
+            <div style="font-size: 48px; margin-bottom: 15px;">📋</div>
+            <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 700;">Carga Já Fechada</h3>
+            <p style="margin: 0; font-size: 15px; line-height: 1.6; opacity: 0.95;">
+              Esta carga já foi <strong>FECHADA</strong> e programada para outro motorista.<br>
+              Obrigado pelo seu interesse e continue acompanhando nossas oportunidades!
+            </p>
+          </div>
+        `;
+        actionsSection.style.display = 'none';
+        document.getElementById('btnAceitar').disabled = true;
+        document.getElementById('btnRecusar').disabled = true;
+      } else {
+        // PENDENTE - mostrar botões normalmente
+        statusMessageDiv.style.display = 'none';
+        actionsSection.style.display = 'block';
+        document.getElementById('btnAceitar').disabled = false;
+        document.getElementById('btnRecusar').disabled = false;
+      }
+      
+      // Mostrar botão de enviar localização (sempre visível para permitir atualização)
+      const botaoEnviarLocalizacao = document.getElementById('botaoEnviarLocalizacao');
+      if (botaoEnviarLocalizacao) {
+        botaoEnviarLocalizacao.style.display = 'block';
+      }
+    }
+
+    // Variável global para armazenar motivos de recusa
+    let motivosRecusa = [];
+
+    // Carregar motivos de recusa
+    async function carregarMotivosRecusa() {
+      try {
+        const response = await fetch('/api/motivos-recusa-combo');
+        if (response.ok) {
+          motivosRecusa = await response.json();
+        }
+      } catch (err) {
+        console.error('Erro ao carregar motivos de recusa:', err);
+      }
+    }
+
+    // Função para mostrar modal de confirmação personalizado
+    function showConfirmModal(status, convocacaoData) {
+      return new Promise((resolve) => {
+        const modal = document.getElementById('modalConfirm');
+        const title = document.getElementById('modalConfirmTitle');
+        const icon = document.getElementById('modalConfirmIcon');
+        const message = document.getElementById('modalConfirmMessage');
+        const detalhes = document.getElementById('modalConfirmDetalhes');
+        const detalhesText = document.getElementById('modalConfirmDetalhesText');
+        const motivoRecusaDiv = document.getElementById('modalConfirmMotivoRecusa');
+        const selectMotivoRecusa = document.getElementById('selectMotivoRecusa');
+        const erroMotivoRecusa = document.getElementById('erroMotivoRecusa');
+        const btnConfirmar = document.getElementById('modalConfirmBtnConfirmar');
+        const btnCancelar = document.getElementById('modalConfirmBtnCancelar');
+        
+        // Limpar erro anterior
+        erroMotivoRecusa.style.display = 'none';
+        selectMotivoRecusa.value = '';
+        
+        // Configurar conteúdo baseado no status
+        if (status === 'ACEITA') {
+          title.textContent = '✅ Confirmar Aceitação';
+          icon.textContent = '✅';
+          icon.className = 'icon aceitar';
+          message.textContent = 'Tem certeza que deseja ACEITAR esta convocação?';
+          btnConfirmar.textContent = 'Sim, Aceitar';
+          btnConfirmar.className = 'modal-confirm-btn modal-confirm-btn-confirmar';
+          motivoRecusaDiv.style.display = 'none';
+        } else {
+          title.textContent = '❌ Confirmar Recusa';
+          icon.textContent = '❌';
+          icon.className = 'icon recusar';
+          message.textContent = 'Tem certeza que deseja RECUSAR esta convocação?';
+          btnConfirmar.textContent = 'Sim, Recusar';
+          btnConfirmar.className = 'modal-confirm-btn modal-confirm-btn-confirmar';
+          btnConfirmar.style.background = 'linear-gradient(135deg, #dc3545, #c82333)';
+          btnConfirmar.style.color = 'white';
+          motivoRecusaDiv.style.display = 'block';
+          
+          // Preencher select de motivos
+          selectMotivoRecusa.innerHTML = '<option value="">Selecione o motivo...</option>';
+          motivosRecusa.forEach(motivo => {
+            const option = document.createElement('option');
+            option.value = motivo.CDMOTIVO;
+            option.textContent = motivo.DSMOTIVO;
+            selectMotivoRecusa.appendChild(option);
+          });
+        }
+        
+        // Resetar estilo do botão confirmar quando for aceitar
+        if (status === 'ACEITA') {
+          btnConfirmar.style.background = '';
+          btnConfirmar.style.color = '';
+        }
+        
+        // Adicionar detalhes da viagem
+        if (convocacaoData) {
+          let detalhesStr = '';
+          if (convocacaoData.IDVIAGEM) detalhesStr += `Viagem: ${convocacaoData.IDVIAGEM}\n`;
+          if (convocacaoData.DSROTEIRO) detalhesStr += `Rota: ${convocacaoData.DSROTEIRO}\n`;
+          if (convocacaoData.VLFRETE) detalhesStr += `Frete: R$ ${parseFloat(convocacaoData.VLFRETE).toFixed(2).replace('.', ',')}`;
+          
+          if (detalhesStr) {
+            detalhesText.textContent = detalhesStr.trim();
+            detalhes.style.display = 'block';
+          } else {
+            detalhes.style.display = 'none';
+          }
+        } else {
+          detalhes.style.display = 'none';
+        }
+        
+        // Mostrar modal
+        modal.style.display = 'block';
+        
+        // Event listeners
+        const handleConfirmar = () => {
+          // Se for recusa, validar motivo
+          if (status === 'RECUSADA') {
+            const motivoSelecionado = selectMotivoRecusa.value;
+            if (!motivoSelecionado || motivoSelecionado === '') {
+              erroMotivoRecusa.style.display = 'block';
+              selectMotivoRecusa.focus();
+              return;
+            }
+          }
+          
+          modal.style.display = 'none';
+          const motivoRecusa = status === 'RECUSADA' ? selectMotivoRecusa.value : null;
+          resolve({ confirmado: true, motivoRecusa });
+          btnConfirmar.removeEventListener('click', handleConfirmar);
+          btnCancelar.removeEventListener('click', handleCancelar);
+          modal.removeEventListener('click', handleOutsideClick);
+        };
+        
+        const handleCancelar = () => {
+          modal.style.display = 'none';
+          resolve({ confirmado: false });
+          btnConfirmar.removeEventListener('click', handleConfirmar);
+          btnCancelar.removeEventListener('click', handleCancelar);
+          modal.removeEventListener('click', handleOutsideClick);
+        };
+        
+        const handleOutsideClick = (e) => {
+          if (e.target === modal) {
+            handleCancelar();
+          }
+        };
+        
+        btnConfirmar.addEventListener('click', handleConfirmar);
+        btnCancelar.addEventListener('click', handleCancelar);
+        modal.addEventListener('click', handleOutsideClick);
+      });
+    }
+
+    async function responderConvocacao(status) {
+      const resultado = await showConfirmModal(status, convocacaoData);
+      if (!resultado || !resultado.confirmado) {
+        return;
+      }
+
+      try {
+        document.getElementById('btnAceitar').disabled = true;
+        document.getElementById('btnRecusar').disabled = true;
+        
+        // Capturar geolocalização atual (pode ter mudado desde o acesso)
+        const geolocalizacao = await capturarGeolocalizacao();
+        
+        const bodyResposta = { status };
+        if (geolocalizacao) {
+          bodyResposta.latitude = geolocalizacao.latitude;
+          bodyResposta.longitude = geolocalizacao.longitude;
+        }
+        
+        // Adicionar motivo se for recusa
+        if (status === 'RECUSADA' && resultado.motivoRecusa) {
+          bodyResposta.motivoRecusa = resultado.motivoRecusa;
+        }
+        
+        const response = await fetch(`/api/public/convocacao/${idConvocacao}/responder`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(bodyResposta)
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Erro ao responder convocação');
+        }
+
+        const result = await response.json();
+        
+        // Atualizar status
+        convocacaoData.STATUS = status;
+        const statusBadge = document.getElementById('statusBadge');
+        statusBadge.textContent = status;
+        statusBadge.className = 'status-badge status-' + status.toLowerCase();
+        
+        // Se foi aceitação, mostrar mensagem com dados do contratador
+        if (status === 'ACEITA') {
+          document.getElementById('actionsSection').style.display = 'none';
+          document.getElementById('successMessage').style.display = 'none';
+          
+          // Função para formatar telefone
+          const formatarTelefone = (telefone) => {
+            if (!telefone) return null;
+            const tel = telefone.toString().replace(/\D/g, '');
+            if (tel.length === 11) {
+              return `(${tel.substring(0, 2)}) ${tel.substring(2, 7)}-${tel.substring(7)}`;
+            } else if (tel.length === 10) {
+              return `(${tel.substring(0, 2)}) ${tel.substring(2, 6)}-${tel.substring(6)}`;
+            }
+            return telefone.toString();
+          };
+          
+          const contratadorNome = convocacaoData.CONTRATADOR_NOME || null;
+          const contratadorCelular = convocacaoData.CONTRATADOR_CELULAR ? formatarTelefone(convocacaoData.CONTRATADOR_CELULAR) : null;
+          const celularFormatadoWhatsApp = convocacaoData.CONTRATADOR_CELULAR ? convocacaoData.CONTRATADOR_CELULAR.toString().replace(/\D/g, '') : null;
+          const linkWhatsApp = celularFormatadoWhatsApp && celularFormatadoWhatsApp.length >= 10 
+            ? `https://wa.me/55${celularFormatadoWhatsApp}` 
+            : null;
+          
+          const statusMessageDiv = document.getElementById('statusMessage');
+          statusMessageDiv.style.display = 'block';
+          statusMessageDiv.innerHTML = `
+            <div style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 25px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);">
+              <div style="font-size: 56px; margin-bottom: 20px;">✅</div>
+              <h2 style="margin: 0 0 15px 0; font-size: 24px; font-weight: 700;">CONVOCAÇÃO ACEITA COM SUCESSO!</h2>
+              <div style="background: rgba(255, 255, 255, 0.15); padding: 20px; border-radius: 8px; margin: 20px 0; text-align: left; backdrop-filter: blur(10px);">
+                <p style="margin: 0 0 15px 0; font-size: 16px; line-height: 1.8;">
+                  Olá <strong>${convocacaoData.NOME_MOTORISTA || 'Motorista'}</strong>,
+                </p>
+                <p style="margin: 0 0 15px 0; font-size: 15px; line-height: 1.8;">
+                  Sua <strong>ACEITAÇÃO</strong> foi registrada com sucesso! Agora é importante que você entre em contato com o <strong>CONTRATADOR</strong> para os próximos passos.
+                </p>
+                <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.3);">
+                  <p style="margin: 0 0 12px 0; font-size: 15px; font-weight: 700;">📞 Entre em Contato com o Contratador:</p>
+                  ${contratadorNome ? `
+                    <p style="margin: 0 0 8px 0; font-size: 15px;"><strong>${contratadorNome}</strong></p>
+                  ` : `
+                    <p style="margin: 0 0 8px 0; font-size: 14px; opacity: 0.9;">Contratador não informado</p>
+                  `}
+                  ${linkWhatsApp ? `
+                    <a href="${linkWhatsApp}" target="_blank" style="display: inline-block; margin-top: 8px; padding: 12px 24px; background: rgba(255, 255, 255, 0.25); color: white; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 15px; transition: all 0.3s; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.3);">
+                      📱 WhatsApp: ${contratadorCelular}
+                    </a>
+                  ` : contratadorCelular ? `
+                    <p style="margin: 8px 0 0 0; font-size: 15px; font-weight: 600;">📱 ${contratadorCelular}</p>
+                  ` : `
+                    <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9; font-style: italic; background: rgba(255, 255, 255, 0.1); padding: 10px; border-radius: 6px;">
+                      ⚠️ Telefone do contratador não cadastrado. Entre em contato através dos canais de comunicação da empresa.
+                    </p>
+                  `}
+                </div>
+              </div>
+              <p style="margin: 20px 0 0 0; font-size: 15px; line-height: 1.8; font-weight: 600;">
+                Aguardamos seu contato! 🚛
+              </p>
+            </div>
+          `;
+        } else if (status === 'RECUSADA') {
+          // Se foi recusa, mostrar mensagem simples e aplicar reload
+          document.getElementById('successMessage').style.display = 'block';
+          document.getElementById('successMessage').textContent = result.message;
+          document.getElementById('actionsSection').style.display = 'none';
+          
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000);
+        } else {
+          // Para outros status, usar mensagem padrão
+          document.getElementById('successMessage').style.display = 'block';
+          document.getElementById('successMessage').textContent = result.message;
+          document.getElementById('actionsSection').style.display = 'none';
+        }
+        
+      } catch (err) {
+        // Mostrar erro de forma estilizada
+        const errorDiv = document.getElementById('errorMessage');
+        if (errorDiv) {
+          errorDiv.style.display = 'block';
+          errorDiv.textContent = '❌ Erro ao responder convocação: ' + err.message;
+          errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          alert('Erro ao responder convocação: ' + err.message);
+        }
+        document.getElementById('btnAceitar').disabled = false;
+        document.getElementById('btnRecusar').disabled = false;
+      }
+    }
+
+    // Função auxiliar para registrar acesso com geolocalização
+    async function registrarAcessoComGeolocalizacao(geolocalizacao) {
+      try {
+        console.log(`[CONVOCACAO] Registrando acesso para convocação ${idConvocacao}`);
+        const bodyAcesso = {};
+        if (geolocalizacao) {
+          bodyAcesso.latitude = geolocalizacao.latitude;
+          bodyAcesso.longitude = geolocalizacao.longitude;
+        }
+        
+        const acessoResponse = await fetch(`/api/public/convocacao/${idConvocacao}/acesso`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(bodyAcesso)
+        });
+        
+        if (!acessoResponse.ok) {
+          const errorData = await acessoResponse.json().catch(() => ({}));
+          console.error(`[CONVOCACAO] Erro ao registrar acesso: ${acessoResponse.status}`, errorData);
+        } else {
+          const acessoData = await acessoResponse.json();
+          console.log(`[CONVOCACAO] Acesso registrado com sucesso:`, acessoData);
+        }
+      } catch (err) {
+        console.error('[CONVOCACAO] Erro ao registrar acesso:', err);
+      }
+    }
+
+    // Event listener para botão "Tentar Novamente" do modal
+    document.getElementById('btnTentarGeolocalizacao').addEventListener('click', async () => {
+      const btn = document.getElementById('btnTentarGeolocalizacao');
+      btn.disabled = true;
+      btn.textContent = '🔄 Tentando...';
+      
+      // Tentar capturar geolocalização novamente
+      const geolocalizacao = await capturarGeolocalizacao(false, true);
+      
+      if (geolocalizacao) {
+        // Se conseguiu, registrar acesso
+        await registrarAcessoComGeolocalizacao(geolocalizacao);
+        btn.disabled = false;
+        btn.textContent = '🔄 Tentar Novamente';
+      } else {
+        // Se não conseguiu, manter modal aberto e reabilitar botão
+        btn.disabled = false;
+        btn.textContent = '🔄 Tentar Novamente';
+        // Mostrar mensagem de erro temporária
+        const bodyDiv = document.querySelector('.modal-geolocalizacao-body');
+        if (bodyDiv) {
+          const msgErro = document.createElement('p');
+          msgErro.style.color = '#e74c3c';
+          msgErro.style.fontWeight = '600';
+          msgErro.style.marginTop = '10px';
+          msgErro.textContent = '❌ Ainda não foi possível capturar a localização. Verifique as configurações do navegador.';
+          bodyDiv.appendChild(msgErro);
+          setTimeout(() => msgErro.remove(), 5000);
+        }
+      }
+    });
+
+    // Função auxiliar para exibir mensagens
+    function showMessage(message, type) {
+      const errorMsg = document.getElementById('errorMessage');
+      const successMsg = document.getElementById('successMessage');
+      
+      if (type === 'error') {
+        if (errorMsg) {
+          errorMsg.textContent = message;
+          errorMsg.style.display = 'block';
+          successMsg.style.display = 'none';
+          // Ocultar após 5 segundos
+          setTimeout(() => {
+            errorMsg.style.display = 'none';
+          }, 5000);
+        } else {
+          alert(message);
+        }
+      } else if (type === 'success') {
+        if (successMsg) {
+          successMsg.textContent = message;
+          successMsg.style.display = 'block';
+          errorMsg.style.display = 'none';
+          // Ocultar após 5 segundos
+          setTimeout(() => {
+            successMsg.style.display = 'none';
+          }, 5000);
+        } else {
+          alert(message);
+        }
+      }
+    }
+
+    // Função para enviar localização manualmente
+    async function enviarLocalizacaoManual() {
+      const btn = document.getElementById('btnEnviarLocalizacao');
+      if (!btn) return;
+      
+      btn.disabled = true;
+      btn.textContent = '📍 Capturando localização...';
+      
+      try {
+        // Capturar geolocalização
+        const geolocalizacao = await capturarGeolocalizacao(false, false);
+        
+        if (!geolocalizacao) {
+          showMessage('Não foi possível capturar sua localização. Verifique as configurações do navegador.', 'error');
+          btn.disabled = false;
+          btn.textContent = '📍 Enviar Minha Localização';
+          return;
+        }
+        
+        // Enviar para o servidor
+        const response = await fetch(`/api/public/convocacao/${idConvocacao}/atualizar-localizacao`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            latitude: geolocalizacao.latitude,
+            longitude: geolocalizacao.longitude
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error('Erro ao enviar localização');
+        }
+        
+        const result = await response.json();
+        
+        // Atualizar localização atual
+        localizacaoAtual = geolocalizacao;
+        
+        // Limpar marcação de permissão negada (conseguiu enviar!)
+        limparPermissaoNegada();
+        
+        // Reabilitar botões se estavam desabilitados
+        const btnAceitar = document.getElementById('btnAceitar');
+        const btnRecusar = document.getElementById('btnRecusar');
+        if (btnAceitar && btnAceitar.disabled) {
+          btnAceitar.disabled = false;
+        }
+        if (btnRecusar && btnRecusar.disabled) {
+          btnRecusar.disabled = false;
+        }
+        
+        // Ocultar modal bloqueante se estiver aberto
+        ocultarModalGeolocalizacao();
+        
+        showMessage('✅ Localização enviada com sucesso!', 'success');
+        btn.textContent = '✅ Localização Enviada!';
+        btn.style.background = 'linear-gradient(135deg, #2ecc71, #27ae60)';
+        
+        // Restaurar botão após 3 segundos
+        setTimeout(() => {
+          btn.disabled = false;
+          btn.textContent = '📍 Enviar Minha Localização';
+          btn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+        }, 3000);
+        
+      } catch (err) {
+        console.error('Erro ao enviar localização:', err);
+        showMessage('Erro ao enviar localização. Tente novamente.', 'error');
+        btn.disabled = false;
+        btn.textContent = '📍 Enviar Minha Localização';
+      }
+    }
+
+    // Event listener para botão de enviar localização
+    const btnEnviarLocalizacao = document.getElementById('btnEnviarLocalizacao');
+    if (btnEnviarLocalizacao) {
+      btnEnviarLocalizacao.addEventListener('click', enviarLocalizacaoManual);
+    }
+
+    document.getElementById('btnAceitar').addEventListener('click', () => responderConvocacao('ACEITA'));
+    document.getElementById('btnRecusar').addEventListener('click', () => responderConvocacao('RECUSADA'));
+
+    // Carregar motivos de recusa e convocação ao iniciar
+    carregarMotivosRecusa().then(() => {
+      carregarConvocacao();
+    });
+  </script>
+</body>
+</html>
+

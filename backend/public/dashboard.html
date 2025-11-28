@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>sys - Divulga Cargas</title>
+  <link href="/css/boxicons.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/css/modulos.css">
+  <link rel="stylesheet" href="/css/dashboard.css">
+</head>
+<body>
+  <div class="sidebar">
+    <div class="logo">
+      <h1>Divulga<span>Carga</span></h1>
+    </div>
+    <div class="menu" id="menuContainer">
+      <div class="menu-item">
+        <span>Carregando menu...</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="header">
+      <div class="user-info">
+        <h2 id="userName">Carregando...</h2>
+        <p id="userEmail">-</p>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <button class="logout-btn" id="docLink" style="background: #3498db; padding: 10px 20px;">
+          <i class='bx bx-book' style="margin-right: 5px;"></i>Documentação CSS
+        </button>
+        <button class="logout-btn" id="logoutBtn">Sair</button>
+      </div>
+    </div>
+
+    <div class="content-box">
+      <div id="contentArea">
+        <!-- Área de Boas-vindas -->
+        <div class="welcome-section">
+          <h3>Bem-vindo ao sistema!</h3>
+          <p>Selecione uma opção no menu lateral para começar.</p>
+        </div>
+
+        <!-- Área de Conteúdo Customizável - Edite este bloco conforme necessário -->
+        <div class="advertisement-section" id="customContentBlock">
+          <!-- Adicione seu conteúdo aqui -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/utils.js"></script>
+  <script src="/js/permissions.js"></script>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>
