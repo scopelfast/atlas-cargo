@@ -12,6 +12,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('userName').textContent = user.nome || 'Usuário';
     document.getElementById('userEmail').textContent = user.email || '';
 
+    // Exibir ambiente ativo
+    atualizarIndicadorAmbiente();
+
     await loadUserMenu(user.login);
 
     // Vincula botão de logout
@@ -204,6 +207,47 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     `;
   };
+
+  // Função para atualizar indicador de ambiente
+  function atualizarIndicadorAmbiente() {
+    const ambienteInfo = document.getElementById('ambienteInfo');
+    const ambienteTexto = document.getElementById('ambienteTexto');
+    
+    if (!ambienteInfo || !ambienteTexto) return;
+    
+    // Obter ambiente atual
+    let ambiente = 'producao';
+    let urlBase = '';
+    
+    if (typeof window.obterAmbiente === 'function') {
+      ambiente = window.obterAmbiente();
+    } else {
+      const ambienteSalvo = localStorage.getItem('ambiente');
+      if (ambienteSalvo === 'local' || ambienteSalvo === 'producao') {
+        ambiente = ambienteSalvo;
+      }
+    }
+    
+    if (ambiente === 'local') {
+      urlBase = 'http://localhost:3000';
+      ambienteInfo.style.background = '#fff3cd';
+      ambienteInfo.style.color = '#856404';
+      ambienteInfo.style.border = '1px solid #ffc107';
+      ambienteTexto.innerHTML = '🖥️ <strong>AMBIENTE LOCAL</strong> - ' + urlBase;
+    } else {
+      if (typeof window.obterUrlBaseSync === 'function') {
+        urlBase = window.obterUrlBaseSync();
+      } else {
+        urlBase = localStorage.getItem('urlBaseProducao') || window.location.origin;
+      }
+      ambienteInfo.style.background = '#d1ecf1';
+      ambienteInfo.style.color = '#0c5460';
+      ambienteInfo.style.border = '1px solid #17a2b8';
+      ambienteTexto.innerHTML = '🌐 <strong>AMBIENTE PRODUÇÃO</strong> - ' + urlBase;
+    }
+    
+    console.log('[DASHBOARD] Ambiente ativo:', ambiente, '| URL Base:', urlBase);
+  }
 
   initDashboard();
 });

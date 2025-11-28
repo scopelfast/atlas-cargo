@@ -3348,7 +3348,18 @@
   }
 
   // Função para obter URL pública (para funcionar no celular)
+  // Agora usa o utilitário de ambiente se disponível
   async function obterUrlPublica() {
+    // Se a função utilitária estiver disponível, usar ela
+    if (typeof window !== 'undefined' && typeof window.obterUrlBase === 'function') {
+      try {
+        return await window.obterUrlBase();
+      } catch (err) {
+        console.warn('[URL] Erro ao obter URL base do utilitário, usando fallback:', err);
+      }
+    }
+    
+    // Fallback: método original
     try {
       const response = await fetch('/api/public-url');
       const data = await response.json();
@@ -5157,12 +5168,17 @@
     }
 
     try {
+      showMessage('Preparando links com mensagens formatadas...', 'info');
+      
       const urlBase = await obterUrlPublica();
       const linksWhatsApp = [];
       let semCelular = 0;
       let semConvocacao = 0;
       const motoristasSemCelular = []; // Lista de nomes dos motoristas sem celular
 
+      // Agrupar convocações por viagem para buscar dados uma vez por viagem
+      const viagensMap = new Map();
+      
       for (const conv of convocacoes) {
         const nomeMotorista = conv.NOME_MOTORISTA || 'Motorista';
         
@@ -5187,8 +5203,106 @@
           continue;
         }
 
+        // Buscar dados completos da viagem se ainda não tiver
+        let viagemData = viagensMap.get(conv.IDVIAGEM);
+        if (!viagemData) {
+          try {
+            const responseViagem = await fetch(`/api/viagens/${conv.IDVIAGEM}`);
+            if (responseViagem.ok) {
+              viagemData = await responseViagem.json();
+              viagensMap.set(conv.IDVIAGEM, viagemData);
+            }
+          } catch (err) {
+            console.error(`Erro ao buscar dados da viagem ${conv.IDVIAGEM}:`, err);
+          }
+        }
+
+        // Gerar mensagem formatada completa (mesma lógica do enviarAnuncioWhatsApp)
         const linkConvocacao = `${urlBase}/convocacao/${conv.IDCONVOCACAO}`;
-        const linkWhatsApp = `https://wa.me/${numeroLimpo}?text=${encodeURIComponent(`Olá ${conv.NOME_MOTORISTA || 'Motorista'}! Você foi convocado para uma viagem. Acesse o link para mais detalhes: ${linkConvocacao}`)}`;
+        const nomeMotoristaConvocacao = conv.NOME_MOTORISTA || 'Motorista';
+        
+        // Função para formatar data/hora (mesma lógica do prepararAnuncioCarga)
+        const formatarDataHora = (dataHora) => {
+          if (!dataHora) return 'Não informado';
+          if (typeof dataHora === 'string') {
+            let dataStr = dataHora.replace('Z', '');
+            if (dataStr.includes('T')) {
+              dataStr = dataStr.replace('T', ' ');
+            }
+            const match = dataStr.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
+            if (match) {
+              const [, year, month, day, hour, minute] = match;
+              return `${day}/${month}/${year} ${hour}:${minute}`;
+            }
+          }
+          try {
+            const date = new Date(dataHora);
+            if (isNaN(date.getTime())) return 'Data inválida';
+            const dia = String(date.getUTCDate()).padStart(2, '0');
+            const mes = String(date.getUTCMonth() + 1).padStart(2, '0');
+            const ano = date.getUTCFullYear();
+            const hora = String(date.getUTCHours()).padStart(2, '0');
+            const minuto = String(date.getUTCMinutes()).padStart(2, '0');
+            return `${dia}/${mes}/${ano} ${hora}:${minuto}`;
+          } catch (err) {
+            return 'Data inválida';
+          }
+        };
+
+        // Gerar texto base do anúncio (mesmo formato do prepararAnuncioCarga)
+        let textoBase = '';
+        if (viagemData) {
+          textoBase = `🚚 *CARGA DISPONÍVEL*\n\n`;
+          textoBase += `🆔 *ID:* ${viagemData.IDVIAGEM || 'N/A'}\n`;
+          textoBase += `📦 *Tipo:* ${viagemData.DSTIPOVIAGEM || viagemData.CDTIPOVIAGEM || 'Não informado'}\n`;
+          textoBase += `🚛 *Classe:* ${viagemData.DSCLASSEFROTA || viagemData.CDCLASSEFROTA || 'Não informado'}\n`;
+          textoBase += `🗺️ *Rota:* ${viagemData.DSROTEIRO ? `${viagemData.IDROTEIRO || ''} - ${viagemData.DSROTEIRO}` : (viagemData.IDROTEIRO ? `${viagemData.IDROTEIRO} - ` : '') + `${viagemData.ORIGEM_CIDADE || 'N/A'}/${viagemData.ORIGEM_ESTADO || 'N/A'} → ${viagemData.DESTINO_CIDADE || 'N/A'}/${viagemData.DESTINO_ESTADO || 'N/A'}`}\n\n`;
+          textoBase += `⏰ *HORÁRIOS*\n`;
+          textoBase += `📅 *Carregamento:* ${formatarDataHora(viagemData.DTPREVINICIO)}\n`;
+          textoBase += `📅 *Descarga:* ${formatarDataHora(viagemData.DTPREVFINAL)}\n\n`;
+          if (viagemData.FGRASTREADO === 'S') {
+            textoBase += `✅ *REQUISITOS*\n`;
+            textoBase += `✅ *Exige Veículo Rastreado:* SIM\n\n`;
+          }
+          textoBase += `👤 *CONTRATADOR*\n`;
+          textoBase += `${viagemData.CONTRATADOR_NOME || viagemData.CDCONTRATADOR || 'Não informado'}\n\n`;
+          textoBase += `💰 *VALORES*\n`;
+          textoBase += `💵 *Frete:* R$ ${viagemData.VLFRETE ? parseFloat(viagemData.VLFRETE).toFixed(2).replace('.', ',') : '0,00'}\n`;
+          textoBase += `📊 *Peso:* ${viagemData.PESO ? parseFloat(viagemData.PESO).toFixed(3).replace('.', ',') : '0,000'} ton\n`;
+          textoBase += `📦 *Cubagem:* ${viagemData.CUBAGEM ? parseFloat(viagemData.CUBAGEM).toFixed(3).replace('.', ',') : '0,000'} m³\ \n`;
+          if (viagemData.OBSERV) {
+            textoBase += `\n📝 *DETALHES DA VIAGEM*\n`;
+            textoBase += `${viagemData.OBSERV}\n`;
+          }
+        } else {
+          // Fallback se não conseguir buscar dados da viagem
+          textoBase = `🚚 *CARGA DISPONÍVEL*\n\n`;
+          textoBase += `🆔 *ID:* ${conv.IDVIAGEM || 'N/A'}\n`;
+          textoBase += `🚛 *Classe:* ${conv.DSCLASSEFROTA || 'N/A'}\n`;
+          textoBase += `🗺️ *Rota:* ${conv.ORIGEM_CIDADE || 'N/A'}/${conv.ORIGEM_ESTADO || 'N/A'} → ${conv.DESTINO_CIDADE || 'N/A'}/${conv.DESTINO_ESTADO || 'N/A'}\n\n`;
+        }
+
+        // Personalizar mensagem para cada motorista
+        const mensagemPersonalizada = `Olá *${nomeMotoristaConvocacao.toUpperCase()}*! Você foi convocado para uma viagem.\n\n${textoBase}`;
+        
+        // Verificar tipo de URL e adicionar instruções apropriadas
+        const isLocalIP = urlBase.includes('192.168.') || urlBase.includes('localhost') || urlBase.includes('127.0.0.1');
+        let textoComLink;
+        
+        if (isLocalIP) {
+          textoComLink = `${mensagemPersonalizada}\n\n🔗 *Acesse o link para mais detalhes:*\n\n${linkConvocacao}\n\n💡 *Importante:*\n• Links locais não são clicáveis no WhatsApp\n• Copie o link acima (toque e segure)\n• Cole no navegador do celular\n• Certifique-se de estar na mesma rede Wi-Fi`;
+        } else {
+          // Verificar se é ngrok (tem página de aviso)
+          const isNgrok = urlBase.includes('ngrok-free.dev') || urlBase.includes('ngrok.io');
+          
+          if (isNgrok) {
+            textoComLink = `${mensagemPersonalizada}\n\n🔗 *Acesse o link para mais detalhes:*\n\n${linkConvocacao}\n\n👆 *Toque no link acima para responder*\n\n💡 *Aviso:* Na primeira vez, você verá uma página de segurança. Clique em "Visit Site" para continuar.`;
+          } else {
+            textoComLink = `${mensagemPersonalizada}\n\n🔗 *Acesse o link para mais detalhes:*\n\n${linkConvocacao}`;
+          }
+        }
+
+        const linkWhatsApp = `https://wa.me/${numeroLimpo}?text=${encodeURIComponent(textoComLink)}`;
 
         const linkItem = {
           idConvocacao: conv.IDCONVOCACAO,

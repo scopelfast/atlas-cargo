@@ -601,9 +601,39 @@
     </div>
   </div>
 
+  <script src="/js/ambiente-utils.js"></script>
   <script>
+    // Extrair ID da convocação da URL
     const urlParams = new URLSearchParams(window.location.search);
-    const idConvocacao = urlParams.get('id') || window.location.pathname.split('/').pop();
+    let idConvocacao = urlParams.get('id');
+    
+    // Se não encontrou no query string, tentar extrair do pathname
+    if (!idConvocacao) {
+      const pathParts = window.location.pathname.split('/').filter(p => p);
+      // Procurar por 'convocacao' e pegar o próximo elemento
+      const convocacaoIndex = pathParts.indexOf('convocacao');
+      if (convocacaoIndex !== -1 && pathParts[convocacaoIndex + 1]) {
+        idConvocacao = pathParts[convocacaoIndex + 1];
+      } else {
+        // Fallback: pegar o último elemento do path
+        idConvocacao = pathParts[pathParts.length - 1];
+      }
+    }
+    
+    console.log('[CONVOCACAO] ID extraído da URL:', idConvocacao);
+    console.log('[CONVOCACAO] URL completa:', window.location.href);
+    console.log('[CONVOCACAO] Pathname:', window.location.pathname);
+    
+    if (!idConvocacao || isNaN(parseInt(idConvocacao))) {
+      console.error('[CONVOCACAO] ID inválido:', idConvocacao);
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('content').style.display = 'block';
+      const errorMsg = document.getElementById('errorMessage');
+      if (errorMsg) {
+        errorMsg.style.display = 'block';
+        errorMsg.textContent = 'Erro: ID de convocação inválido na URL. Verifique se o link está correto.';
+      }
+    }
     
     let convocacaoData = null;
     let localizacaoAtual = null; // Armazenar localização capturada
@@ -783,16 +813,51 @@
           }, 2000);
         }
         
-        // Registrar acesso ao link (primeiro acesso)
-        await registrarAcessoComGeolocalizacao(geolocalizacao);
+        // PRIMEIRO: Buscar a convocação (mais importante)
+        // Construir URL da API usando utilitário de ambiente
+        const baseUrl = await obterUrlBase();
+        const apiUrl = `${baseUrl}/api/public/convocacao/${idConvocacao}`;
+        console.log('[CONVOCACAO] Base URL:', baseUrl);
+        console.log('[CONVOCACAO] Buscando convocação:', apiUrl);
+        console.log('[CONVOCACAO] ID Convocação:', idConvocacao);
         
-        const response = await fetch(`/api/public/convocacao/${idConvocacao}`);
+        if (!idConvocacao || isNaN(parseInt(idConvocacao))) {
+          throw new Error('ID de convocação inválido. Verifique se o link está correto.');
+        }
+        
+        // Criar AbortController para timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos
+        
+        const response = await fetch(apiUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
         if (!response.ok) {
-          throw new Error('Convocação não encontrada');
+          const errorText = await response.text();
+          console.error('[CONVOCACAO] Erro na resposta:', response.status, errorText);
+          throw new Error(`Erro ${response.status}: ${errorText || 'Convocação não encontrada'}`);
         }
         
         convocacaoData = await response.json();
+        console.log('[CONVOCACAO] Dados recebidos:', convocacaoData);
+        
+        // Exibir a convocação primeiro (não bloquear por causa do registro de acesso)
         exibirConvocacao(convocacaoData);
+        
+        // DEPOIS: Registrar acesso ao link (não bloquear se falhar)
+        // Fazer isso de forma assíncrona para não bloquear a exibição
+        registrarAcessoComGeolocalizacao(geolocalizacao).catch(err => {
+          console.warn('[CONVOCACAO] Erro ao registrar acesso (não crítico):', err);
+          // Não mostrar erro para o usuário, pois a convocação já foi carregada
+        });
         
         // Se permissão foi negada e não tem localização, desabilitar botões até conseguir
         if (permissaoNegada && !geolocalizacao) {
@@ -802,10 +867,32 @@
           if (btnRecusar) btnRecusar.disabled = true;
         }
       } catch (err) {
+        console.error('[CONVOCACAO] Erro completo:', err);
+        console.error('[CONVOCACAO] Tipo do erro:', err.name);
+        console.error('[CONVOCACAO] Mensagem:', err.message);
+        
         document.getElementById('loading').style.display = 'none';
         document.getElementById('content').style.display = 'block';
-        document.getElementById('errorMessage').style.display = 'block';
-        document.getElementById('errorMessage').textContent = 'Erro ao carregar convocação: ' + err.message;
+        const errorMsg = document.getElementById('errorMessage');
+        if (errorMsg) {
+          errorMsg.style.display = 'block';
+          // Mostrar mensagem mais detalhada
+          let mensagemErro = 'Erro ao carregar convocação: ' + err.message;
+          
+          if (err.name === 'AbortError') {
+            mensagemErro = '⏱️ Tempo de espera esgotado. O servidor não respondeu a tempo.\n\n💡 Verifique se o servidor está online e tente novamente.';
+          } else if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError') || err.name === 'TypeError') {
+            mensagemErro = '🌐 Erro de conexão com o servidor.\n\n💡 Verifique:\n• Sua conexão com a internet\n• Se o servidor está online\n• Se a URL está correta\n\n🔗 URL tentada: ' + (window.location.origin + '/api/public/convocacao/' + idConvocacao);
+          } else if (err.message.includes('ID de convocação inválido')) {
+            mensagemErro = '❌ ' + err.message + '\n\n🔗 URL atual: ' + window.location.href;
+          }
+          
+          errorMsg.textContent = mensagemErro;
+          errorMsg.style.whiteSpace = 'pre-line';
+          errorMsg.style.textAlign = 'left';
+        } else {
+          alert('Erro ao carregar convocação: ' + err.message);
+        }
       }
     }
 
@@ -1347,7 +1434,12 @@
           bodyAcesso.longitude = geolocalizacao.longitude;
         }
         
-        const acessoResponse = await fetch(`/api/public/convocacao/${idConvocacao}/acesso`, {
+        // Usar URL base do ambiente
+        const baseUrl = await obterUrlBase();
+        const acessoUrl = `${baseUrl}/api/public/convocacao/${idConvocacao}/acesso`;
+        console.log('[CONVOCACAO] URL de acesso:', acessoUrl);
+        
+        const acessoResponse = await fetch(acessoUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'

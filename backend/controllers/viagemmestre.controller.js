@@ -1595,6 +1595,12 @@ const viagemController = {
   buscarConvocacaoPublica: async (req, res) => {
     try {
       const { id } = req.params;
+      console.log(`[CONVOCACAO PUBLICA] Buscando convocação ID: ${id}`);
+      
+      if (!id || isNaN(parseInt(id))) {
+        return res.status(400).json({ error: 'ID de convocação inválido.' });
+      }
+      
       const pool = await poolPromise;
       const result = await pool
         .request()
@@ -1704,10 +1710,15 @@ const viagemController = {
         console.log('[DEBUG CONTRATADOR] Contratador encontrado via JOIN:', convocacao.CONTRATADOR_NOME, '| Celular:', convocacao.CONTRATADOR_CELULAR || 'Não informado');
       }
 
+      console.log(`[CONVOCACAO PUBLICA] Convocação encontrada: ID ${id}, Status: ${convocacao.STATUS}`);
       res.json(convocacao);
     } catch (err) {
-      console.error('Erro ao buscar convocação pública:', err);
-      res.status(500).json({ error: 'Erro ao buscar convocação.' });
+      console.error(`[CONVOCACAO PUBLICA] Erro ao buscar convocação ID ${req.params.id}:`, err);
+      console.error('[CONVOCACAO PUBLICA] Stack trace:', err.stack);
+      res.status(500).json({ 
+        error: 'Erro ao buscar convocação.',
+        details: process.env.NODE_ENV === 'development' ? err.message : undefined
+      });
     }
   },
 
