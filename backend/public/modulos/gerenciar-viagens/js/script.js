@@ -3502,15 +3502,8 @@
           // Para IPs locais, formatar o link de forma destacada para facilitar cópia
           textoComLink = `${mensagemPersonalizada}\n\n🔗 *Acesse o link para mais detalhes:*\n\n${linkConvocacao}\n\n💡 *Importante:*\n• Links locais não são clicáveis no WhatsApp\n• Copie o link acima (toque e segure)\n• Cole no navegador do celular\n• Certifique-se de estar na mesma rede Wi-Fi`;
         } else {
-          // Para domínios públicos (HTTPS), link clicável
-          // Verificar se é ngrok (tem página de aviso)
-          const isNgrok = urlBase.includes('ngrok-free.dev') || urlBase.includes('ngrok.io');
-          
-          if (isNgrok) {
-            textoComLink = `${mensagemPersonalizada}\n\n🔗 *Acesse o link para mais detalhes:*\n\n${linkConvocacao}\n\n👆 *Toque no link acima para responder*\n\n💡 *Aviso:* Na primeira vez, você verá uma página de segurança. Clique em "Visit Site" para continuar.`;
-          } else {
-            textoComLink = `${mensagemPersonalizada}\n\n🔗 *Acesse o link para mais detalhes:*\n\n${linkConvocacao}`;
-          }
+          // Para domínios públicos, link clicável
+          textoComLink = `${mensagemPersonalizada}\n\n🔗 *Acesse o link para mais detalhes:*\n\n${linkConvocacao}`;
         }
         
         // Sempre atualizar convocação no banco com texto e link atualizados
@@ -3579,418 +3572,8 @@
     }
   }
 
-  // ============================================================================
-  // FUNÇÕES DE ENVIO AUTOMÁTICO VIA WABOXAPP (NOVO - ISOLADO)
-  // ============================================================================
-  
-  // Verificar se envio automático está disponível (usando endpoint específico)
-  async function verificarEnvioAutomaticoDisponivel() {
-    try {
-      // Usar endpoint específico de verificação (não gera erros)
-      // Adicionar timestamp para evitar cache
-      const url = `/api/convocacoes/verificar-waboxapp?_t=${Date.now()}`;
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache'
-        },
-        cache: 'no-store'
-      });
-      
-      if (!response.ok) {
-        console.warn('[WABOXAPP] Erro ao verificar disponibilidade:', response.status, response.statusText);
-        // Se der 404, tentar novamente sem cache
-        if (response.status === 404) {
-          console.log('[WABOXAPP] Tentando novamente sem cache...');
-          const retryResponse = await fetch('/api/convocacoes/verificar-waboxapp', {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' },
-            cache: 'no-store'
-          });
-          if (retryResponse.ok) {
-            const retryResult = await retryResponse.json();
-            return retryResult.configurado === true;
-          }
-        }
-        return false;
-      }
-      
-      const result = await response.json();
-      
-      // Log de debug (apenas no console)
-      console.log('[WABOXAPP] Resposta da verificação:', result);
-      
-      if (result.debug) {
-        console.log('[WABOXAPP] Status da configuração:', {
-          configurado: result.configurado,
-          enabled: result.debug.enabled,
-          hasToken: result.debug.hasToken,
-          hasUid: result.debug.hasUid,
-          enabledValue: result.debug.enabledValue
-        });
-        
-        if (!result.configurado && result.detalhes) {
-          console.warn('[WABOXAPP] Detalhes do problema:', result.detalhes);
-        }
-      }
-      
-      return result.configurado === true;
-    } catch (err) {
-      console.error('[WABOXAPP] Erro ao verificar disponibilidade:', err);
-      return false;
-    }
-  }
 
-  // Enviar WhatsApp automaticamente via Waboxapp
-  async function enviarWhatsAppAutomatico(linksWhatsApp) {
-    if (!linksWhatsApp || linksWhatsApp.length === 0) {
-      showMessage('Nenhuma convocação para enviar.', 'error');
-      return;
-    }
-
-    // Filtrar apenas convocações com celular válido
-    const convocacoesValidas = linksWhatsApp.filter(item => {
-      if (!item.celular) return false;
-      const celularLimpo = String(item.celular).replace(/\D/g, '');
-      return celularLimpo.length >= 10;
-    });
-
-    if (convocacoesValidas.length === 0) {
-      showMessage('Nenhuma convocação com celular válido para enviar.', 'error');
-      return;
-    }
-
-    // Se houver convocações filtradas, avisar
-    if (convocacoesValidas.length < linksWhatsApp.length) {
-      const filtradas = linksWhatsApp.length - convocacoesValidas.length;
-      const mensagem = `
-        <div style="max-width: 600px;">
-          <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px 15px; margin-bottom: 20px; border-radius: 4px;">
-            <strong style="color: #856404;">⚠️ Atenção:</strong>
-            <span style="color: #856404;"> ${filtradas} convocação(ões) sem celular válido serão ignoradas.</span>
-          </div>
-          
-          <div style="margin-bottom: 20px;">
-            <p style="margin: 10px 0; font-size: 16px;">
-              <strong>Deseja enviar <span style="color: #25D366; font-size: 18px;">${convocacoesValidas.length}</span> mensagem(ns) automaticamente?</strong>
-            </p>
-          </div>
-          
-          <div style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f8f9fa;">
-            <div style="padding: 10px; margin-bottom: 8px; background: #fff; border-radius: 4px; border-left: 3px solid #28a745;">
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 18px;">✅</span>
-                <span style="color: #495057;">As mensagens serão enviadas imediatamente</span>
-              </div>
-            </div>
-            <div style="padding: 10px; margin-bottom: 8px; background: #fff; border-radius: 4px; border-left: 3px solid #17a2b8;">
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 18px;">📊</span>
-                <span style="color: #495057;">Você receberá um relatório de sucessos e falhas</span>
-              </div>
-            </div>
-            <div style="padding: 10px; background: #fff; border-radius: 4px; border-left: 3px solid #6c757d;">
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 18px;">📝</span>
-                <span style="color: #495057;">Todas as ações serão registradas para auditoria</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-      
-      const confirmar = await showConfirmModal('📱 Envio Automático via WhatsApp', mensagem);
-      if (!confirmar) {
-        return;
-      }
-    } else {
-      // Confirmar ação
-      const mensagem = `
-        <div style="max-width: 600px;">
-          <div style="margin-bottom: 20px;">
-            <p style="margin: 10px 0; font-size: 16px;">
-              <strong>Deseja enviar <span style="color: #25D366; font-size: 18px;">${convocacoesValidas.length}</span> mensagem(ns) automaticamente?</strong>
-            </p>
-          </div>
-          
-          <div style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; padding: 15px; background: #f8f9fa;">
-            <div style="padding: 10px; margin-bottom: 8px; background: #fff; border-radius: 4px; border-left: 3px solid #28a745;">
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 18px;">✅</span>
-                <span style="color: #495057;">As mensagens serão enviadas imediatamente</span>
-              </div>
-            </div>
-            <div style="padding: 10px; margin-bottom: 8px; background: #fff; border-radius: 4px; border-left: 3px solid #17a2b8;">
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 18px;">📊</span>
-                <span style="color: #495057;">Você receberá um relatório de sucessos e falhas</span>
-              </div>
-            </div>
-            <div style="padding: 10px; background: #fff; border-radius: 4px; border-left: 3px solid #6c757d;">
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <span style="font-size: 18px;">📝</span>
-                <span style="color: #495057;">Todas as ações serão registradas para auditoria</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-      
-      const confirmar = await showConfirmModal('📱 Envio Automático via WhatsApp', mensagem);
-      if (!confirmar) {
-        return;
-      }
-    }
-
-    try {
-      // Mostrar loading
-      const btnEnviar = document.getElementById('btnEnviarAutomaticamente');
-      if (btnEnviar) {
-        btnEnviar.disabled = true;
-        btnEnviar.textContent = '⏳ Enviando...';
-      }
-
-      showMessage('Enviando mensagens automaticamente...', 'info');
-
-      // Extrair IDs das convocações (apenas as válidas)
-      const idsConvocacoes = convocacoesValidas
-        .map(item => {
-          const id = item.idConvocacao;
-        // Filtrar apenas IDs válidos
-          return id;
-        })
-        .filter(id => id !== undefined && id !== null && id !== '' && !isNaN(parseInt(id)));
-
-      if (idsConvocacoes.length === 0) {
-        showMessage('Erro: Nenhum ID de convocação válido encontrado.', 'error');
-        return;
-      }
-
-      // Chamar endpoint
-      const response = await fetch('/api/convocacoes/enviar-whatsapp-automatico', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idsConvocacoes })
-      });
-
-      let result;
-      try {
-        const textResponse = await response.text();
-        result = JSON.parse(textResponse);
-        console.log('[WABOXAPP] Resposta completa do servidor:', result);
-      } catch (jsonError) {
-        const textResponse = await response.text();
-        console.error('[WABOXAPP] Erro ao parsear JSON:', jsonError);
-        console.error('[WABOXAPP] Resposta do servidor:', textResponse);
-        showMessage(`Erro ao processar resposta do servidor: ${response.status} ${response.statusText}\n\nResposta: ${textResponse.substring(0, 500)}`, 'error');
-        return;
-      }
-
-      if (!response.ok) {
-        // Montar mensagem de erro mais detalhada
-        let mensagemErro = result.error || result.message || `Erro ${response.status}: ${response.statusText}`;
-        if (result.details) {
-          mensagemErro += `\n\nDetalhes: ${result.details}`;
-        }
-        if (result.idsInvalidos) {
-          mensagemErro += `\n\nIDs inválidos: ${result.idsInvalidos.join(', ')}`;
-        }
-        if (result.received) {
-          mensagemErro += `\n\nValor recebido: ${JSON.stringify(result.received)}`;
-        }
-        
-        console.error('[WABOXAPP] Erro na resposta:', mensagemErro);
-        showMessage(mensagemErro, 'error');
-        return;
-      }
-
-      // Mostrar resultado
-      console.log('[WABOXAPP] Processando resultado:', result);
-      const { resumo, resultados, erros } = result;
-      
-      if (!resumo || !resultados) {
-        console.error('[WABOXAPP] Estrutura de resposta inválida:', result);
-        showMessage('Erro: Resposta do servidor em formato inválido.', 'error');
-        return;
-      }
-      
-      let mensagemResultado = '';
-      if (resumo.sucessos > 0) {
-        mensagemResultado += `✅ ${resumo.sucessos} mensagem(ns) enviada(s) com sucesso!\n`;
-      }
-      if (resumo.falhas > 0) {
-        mensagemResultado += `❌ ${resumo.falhas} mensagem(ns) falharam.\n`;
-      }
-      if (resumo.errosValidacao > 0) {
-        mensagemResultado += `⚠️ ${resumo.errosValidacao} erro(s) de validação.\n`;
-      }
-
-      // Mostrar detalhes em modal
-      let detalhesHtml = `
-        <div style="max-width: 600px;">
-          <h3 style="color: #25D366; margin-bottom: 15px;">📊 Relatório de Envio</h3>
-          <div style="margin-bottom: 20px;">
-            <p><strong>Total:</strong> ${resumo.total} mensagem(ns)</p>
-            <p style="color: #28a745;"><strong>✅ Sucessos:</strong> ${resumo.sucessos}</p>
-            ${resumo.falhas > 0 ? `<p style="color: #dc3545;"><strong>❌ Falhas:</strong> ${resumo.falhas}</p>` : ''}
-            ${resumo.errosValidacao > 0 ? `<p style="color: #ffc107;"><strong>⚠️ Erros:</strong> ${resumo.errosValidacao}</p>` : ''}
-          </div>
-      `;
-
-      if (resultados.length > 0) {
-        detalhesHtml += `
-          <div style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; padding: 10px;">
-            <h4 style="margin-top: 0;">Detalhes:</h4>
-        `;
-        
-        resultados.forEach(r => {
-          const statusIcon = r.status === 'ENVIADO' ? '✅' : '❌';
-          const statusColor = r.status === 'ENVIADO' ? '#28a745' : '#dc3545';
-          detalhesHtml += `
-            <div style="padding: 8px; margin-bottom: 5px; background: #f5f5f5; border-radius: 4px;">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 18px;">${statusIcon}</span>
-                <div style="flex: 1;">
-                  <strong>${r.nomeMotorista}</strong> (${r.celular})
-                  ${r.mensagemErro ? `<br><small style="color: ${statusColor};">${r.mensagemErro}</small>` : ''}
-                </div>
-              </div>
-            </div>
-          `;
-        });
-        
-        detalhesHtml += `</div>`;
-      }
-
-      // Mostrar erros de validação se houver
-      if (erros && erros.length > 0) {
-        detalhesHtml += `
-          <div style="margin-top: 15px; padding: 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px;">
-            <h4 style="margin-top: 0; color: #856404;">⚠️ Erros de Validação:</h4>
-            <div style="max-height: 200px; overflow-y: auto;">
-        `;
-        
-        erros.forEach(erro => {
-          detalhesHtml += `
-            <div style="padding: 8px; margin-bottom: 5px; background: #fff; border-radius: 4px; border-left: 3px solid #ffc107;">
-              <strong>Convocacao ${erro.idConvocacao || 'N/A'}:</strong> ${erro.erro || erro.message || 'Erro desconhecido'}
-              ${erro.nomeMotorista ? `<br><small>Motorista: ${erro.nomeMotorista}</small>` : ''}
-            </div>
-          `;
-        });
-        
-        detalhesHtml += `
-            </div>
-          </div>
-        `;
-      }
-
-      detalhesHtml += `
-          <div style="margin-top: 20px; text-align: center;">
-            <button onclick="this.closest('.modal').style.display='none'" 
-                    class="btn" 
-                    style="background: #25D366; color: white; padding: 10px 30px;">
-              Fechar
-            </button>
-          </div>
-        </div>
-      `;
-
-      // Mostrar modal com resultado
-      console.log('[WABOXAPP] Preparando para exibir modal de resultado...');
-      let modalResultado = document.getElementById('modalResultadoEnvio');
-      if (!modalResultado) {
-        console.log('[WABOXAPP] Criando novo modal de resultado...');
-        modalResultado = document.createElement('div');
-        modalResultado.id = 'modalResultadoEnvio';
-        modalResultado.className = 'modal';
-        modalResultado.style.display = 'flex';
-        modalResultado.style.alignItems = 'center';
-        modalResultado.style.justifyContent = 'center';
-        modalResultado.style.position = 'fixed';
-        modalResultado.style.top = '0';
-        modalResultado.style.left = '0';
-        modalResultado.style.width = '100%';
-        modalResultado.style.height = '100%';
-        modalResultado.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-        modalResultado.style.zIndex = '10000';
-        document.body.appendChild(modalResultado);
-      }
-
-      modalResultado.innerHTML = `
-        <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.3);">
-          ${detalhesHtml}
-        </div>
-      `;
-      
-      modalResultado.style.display = 'flex';
-      console.log('[WABOXAPP] Modal de resultado exibido!');
-      
-      // Fechar ao clicar fora do modal
-      modalResultado.onclick = (e) => {
-        if (e.target === modalResultado) {
-          modalResultado.style.display = 'none';
-        }
-      };
-      
-      modalResultado.style.display = 'flex';
-      modalResultado.style.alignItems = 'center';
-      modalResultado.style.justifyContent = 'center';
-      
-      // Fechar ao clicar fora
-      modalResultado.onclick = (e) => {
-        if (e.target === modalResultado) {
-          modalResultado.style.display = 'none';
-        }
-      };
-      modalResultado.style.display = 'flex';
-      modalResultado.style.alignItems = 'center';
-      modalResultado.style.justifyContent = 'center';
-
-      // Fechar ao clicar fora
-      modalResultado.onclick = (e) => {
-        if (e.target === modalResultado) {
-          modalResultado.style.display = 'none';
-        }
-      };
-
-      // Mensagem de sucesso
-      if (resumo.sucessos > 0) {
-        showMessage(`✅ ${resumo.sucessos} mensagem(ns) enviada(s) automaticamente!`, 'success');
-      } else {
-        showMessage('Nenhuma mensagem foi enviada. Verifique os erros no relatório.', 'error');
-      }
-
-      // Fechar modal de links (opcional)
-      const modalLinks = document.getElementById('modalLinksWhatsApp');
-      if (modalLinks && resumo.sucessos === resumo.total) {
-        // Se todos foram enviados, pode fechar o modal de links
-        setTimeout(() => {
-          modalLinks.style.display = 'none';
-        }, 2000);
-      }
-
-    } catch (err) {
-      console.error('Erro ao enviar WhatsApp automático:', err);
-      showMessage('Erro ao enviar mensagens automaticamente: ' + err.message, 'error');
-      
-      // Mostrar mensagem de fallback
-      showMessage(
-        'O envio automático falhou. Use o botão "Abrir Todos" para enviar manualmente.',
-        'warning'
-      );
-    } finally {
-      // Reabilitar botão
-      const btnEnviar = document.getElementById('btnEnviarAutomaticamente');
-      if (btnEnviar) {
-        btnEnviar.disabled = false;
-        btnEnviar.textContent = '🚀 Enviar Automaticamente';
-      }
-    }
-  }
-
+  // Função para mostrar modal com links do WhatsApp
   // ============================================================================
   // FIM DAS FUNÇÕES DE ENVIO AUTOMÁTICO
   // ============================================================================
@@ -4071,39 +3654,10 @@
         
         <div style="margin-top: 20px; padding: 20px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px; border: 2px solid #dee2e6;">
           <p style="margin: 0 0 20px 0; font-weight: 700; color: #2c3e50; font-size: 16px; text-align: center;">
-            🚀 Dois métodos disponíveis - Escolha o que melhor se adequa
+            📱 Método de Envio
           </p>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-            <div style="background: #fff; border: 3px solid #25D366; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(37, 211, 102, 0.2);">
-              <div style="text-align: center; margin-bottom: 15px;">
-                <div style="font-size: 48px; margin-bottom: 5px;">🤖</div>
-                <h4 style="margin: 0; color: #25D366; font-size: 18px; font-weight: 700;">Método Automático</h4>
-                <p style="margin: 5px 0 0 0; color: #666; font-size: 12px;">Via WaboxApp</p>
-              </div>
-              <button type="button" id="btnEnviarAutomaticamente" 
-                      style="width: 100%; padding: 15px; background: linear-gradient(135deg, #25D366 0%, #128C7E 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 16px; text-align: center; transition: all 0.3s; box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3); display: none;"
-                      onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(37, 211, 102, 0.5)';"
-                      onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(37, 211, 102, 0.3)';">
-                🚀 Enviar Automaticamente
-                <div style="font-size: 12px; margin-top: 5px; opacity: 0.9;">⚡ ${linksWhatsApp.length} mensagem(ns)</div>
-              </button>
-              <div id="mensagemWaboxAppNaoDisponivel" style="display: none; margin-top: 10px; padding: 15px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; font-size: 13px; color: #856404;">
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                  <span style="font-size: 24px;">⚠️</span>
-                  <div style="flex: 1;">
-                    <strong>WaboxApp não está configurado.</strong>
-                    <p style="margin: 5px 0 0 0; font-size: 12px;">Use o método manual abaixo ou configure o WaboxApp para envio automático.</p>
-                  </div>
-                </div>
-                <button type="button" id="btnComoConfigurarWaboxApp" 
-                        style="width: 100%; padding: 10px; background: #ffc107; color: #856404; border: 1px solid #ffc107; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 13px; margin-top: 8px; transition: all 0.3s;"
-                        onmouseover="this.style.background='#ffb300'; this.style.transform='translateY(-2px)';"
-                        onmouseout="this.style.background='#ffc107'; this.style.transform='translateY(0)';">
-                  📖 Como Configurar o WaboxApp
-                </button>
-              </div>
-            </div>
-            <div style="background: #fff; border: 3px solid #667eea; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);">
+          <div style="display: flex; justify-content: center;">
+            <div style="background: #fff; border: 3px solid #667eea; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2); max-width: 400px; width: 100%;">
               <div style="text-align: center; margin-bottom: 15px;">
                 <div style="font-size: 48px; margin-bottom: 5px;">👤</div>
                 <h4 style="margin: 0; color: #667eea; font-size: 18px; font-weight: 700;">Método Manual</h4>
@@ -4128,26 +3682,6 @@
               <span>Como Enviar as Mensagens - Passo a Passo</span>
             </h4>
             
-            <!-- Processo Automático -->
-            <div style="background: #fff; border: 2px solid #25D366; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
-              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                <span style="font-size: 28px;">🤖</span>
-                <h5 style="margin: 0; color: #25D366; font-size: 15px; font-weight: 700;">MÉTODO AUTOMÁTICO (WaboxApp)</h5>
-              </div>
-              <div id="passosAutomatico" style="display: none; padding-left: 5px;">
-                <ol style="margin: 0; padding-left: 20px; color: #333; line-height: 2;">
-                  <li>Clique no botão <strong>"🚀 Enviar Automaticamente"</strong> acima</li>
-                  <li>Confirme o envio no pop-up que aparecer</li>
-                  <li>Aguarde alguns segundos enquanto o sistema processa</li>
-                  <li>Você receberá um <strong>relatório</strong> mostrando quais foram enviadas com sucesso</li>
-                  <li><strong>Pronto!</strong> Todas as mensagens foram enviadas automaticamente</li>
-                </ol>
-              </div>
-              <div id="avisoAutomatico" style="padding: 10px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; color: #856404; font-size: 13px; margin-top: 10px;">
-                ⚠️ <strong>WaboxApp não está configurado.</strong> Use o método manual abaixo.
-              </div>
-            </div>
-            
             <!-- Processo Manual -->
             <div style="background: #fff; border: 2px solid #667eea; border-radius: 8px; padding: 15px;">
               <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
@@ -4161,10 +3695,10 @@
               </div>
             </div>
             
-            <div style="margin-top: 15px; padding: 12px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; text-align: center;">
-              <p style="margin: 0; color: #856404; font-size: 13px; line-height: 1.6;">
-                💡 <strong>Dica:</strong> Se você tem <strong>muitas convocações</strong>, use o método automático (quando disponível). 
-                Se precisa <strong>revisar cada mensagem</strong>, use o método manual.
+            <div style="margin-top: 15px; padding: 12px; background: #e3f2fd; border: 1px solid #2196F3; border-radius: 8px; text-align: center;">
+              <p style="margin: 0; color: #1565C0; font-size: 13px; line-height: 1.6;">
+                💡 <strong>Dica:</strong> Use o método manual para <strong>revisar cada mensagem</strong> antes de enviar. 
+                Cada link abre o WhatsApp Web com a mensagem pré-formatada.
               </p>
             </div>
           </div>
@@ -4294,82 +3828,6 @@
       };
     }
     
-    // Verificar se envio automático está disponível (via API) - sem gerar erros
-    verificarEnvioAutomaticoDisponivel().then(disponivel => {
-      const btnEnviarAutomatico = document.getElementById('btnEnviarAutomaticamente');
-      const mensagemNaoDisponivel = document.getElementById('mensagemWaboxAppNaoDisponivel');
-      const passosAutomatico = document.getElementById('passosAutomatico');
-      const avisoAutomatico = document.getElementById('avisoAutomatico');
-      const containerBotoes = btnEnviarAutomatico?.parentElement?.parentElement;
-      
-      if (btnEnviarAutomatico && disponivel) {
-        // WaboxApp está disponível - mostrar botão automático e passos
-        btnEnviarAutomatico.style.display = 'block';
-        if (mensagemNaoDisponivel) mensagemNaoDisponivel.style.display = 'none';
-        if (passosAutomatico) passosAutomatico.style.display = 'block';
-        if (avisoAutomatico) avisoAutomatico.style.display = 'none';
-        btnEnviarAutomatico.onclick = () => {
-          // Fechar o modal de links do WhatsApp antes de iniciar o envio
-          const modalLinks = document.getElementById('modalLinksWhatsApp');
-          if (modalLinks) {
-            modalLinks.style.display = 'none';
-          }
-          // Aguardar um pouco para o modal fechar antes de mostrar o modal de confirmação
-          setTimeout(() => {
-            enviarWhatsAppAutomatico(linksWhatsApp);
-          }, 300);
-        };
-        if (containerBotoes) {
-          containerBotoes.style.gridTemplateColumns = '1fr 1fr';
-        }
-      } else {
-        // WaboxApp NÃO está disponível - ocultar botão automático e mostrar mensagem
-        if (btnEnviarAutomatico) {
-          btnEnviarAutomatico.style.display = 'none';
-        }
-        if (mensagemNaoDisponivel) {
-          mensagemNaoDisponivel.style.display = 'block';
-        }
-        if (passosAutomatico) passosAutomatico.style.display = 'none';
-        if (avisoAutomatico) avisoAutomatico.style.display = 'block';
-        if (containerBotoes) {
-          containerBotoes.style.gridTemplateColumns = '1fr';
-        }
-      }
-    }).catch(() => {
-      // Em caso de erro na verificação, assumir que não está disponível
-      const btnEnviarAutomatico = document.getElementById('btnEnviarAutomaticamente');
-      const mensagemNaoDisponivel = document.getElementById('mensagemWaboxAppNaoDisponivel');
-      const passosAutomatico = document.getElementById('passosAutomatico');
-      const avisoAutomatico = document.getElementById('avisoAutomatico');
-      const containerBotoes = btnEnviarAutomatico?.parentElement?.parentElement;
-      
-      if (btnEnviarAutomatico) {
-        btnEnviarAutomatico.style.display = 'none';
-      }
-      if (mensagemNaoDisponivel) {
-        mensagemNaoDisponivel.style.display = 'block';
-      }
-      if (passosAutomatico) passosAutomatico.style.display = 'none';
-      if (avisoAutomatico) avisoAutomatico.style.display = 'block';
-      if (containerBotoes) {
-        containerBotoes.style.gridTemplateColumns = '1fr';
-      }
-      
-      // Event listener para botão de configuração (mesmo em caso de erro)
-      const btnConfigWaboxApp = document.getElementById('btnComoConfigurarWaboxApp');
-      if (btnConfigWaboxApp) {
-        btnConfigWaboxApp.onclick = mostrarGuiaConfigWaboxApp;
-      }
-    });
-    
-    // Event listener para botão de configuração (também adicionar aqui para garantir)
-    setTimeout(() => {
-      const btnConfigWaboxApp = document.getElementById('btnComoConfigurarWaboxApp');
-      if (btnConfigWaboxApp && !btnConfigWaboxApp.onclick) {
-        btnConfigWaboxApp.onclick = mostrarGuiaConfigWaboxApp;
-      }
-    }, 500);
 
   }
 
@@ -4392,35 +3850,6 @@
         
         <div style="margin-bottom: 25px;">
           <h3 style="color: #2c3e50; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 24px;">🤖</span>
-            <span>Envio Automático (WaboxApp)</span>
-          </h3>
-          <div style="padding: 20px; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); border-left: 4px solid #25D366; border-radius: 8px; margin-bottom: 15px;">
-            <p style="margin: 0 0 10px 0; font-weight: 600; color: #2e7d32;">Quando usar:</p>
-            <ul style="margin: 0; padding-left: 20px; color: #388e3c;">
-              <li>Você tem WaboxApp configurado</li>
-              <li>Quer enviar várias mensagens rapidamente</li>
-              <li>Não precisa personalizar cada mensagem</li>
-            </ul>
-          </div>
-          <div style="padding: 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6;">
-            <p style="margin: 0 0 10px 0; font-weight: 600;">Como fazer:</p>
-            <ol style="margin: 0; padding-left: 20px; color: #495057;">
-              <li>Crie as convocações normalmente</li>
-              <li>No modal de links, clique em <strong>"🤖 Enviar Automaticamente"</strong></li>
-              <li>Confirme o envio</li>
-              <li>Pronto! Mensagens enviadas automaticamente</li>
-            </ol>
-          </div>
-          <div style="margin-top: 15px; padding: 12px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 8px;">
-            <p style="margin: 0; color: #856404; font-size: 13px;">
-              <strong>⚡ Vantagens:</strong> Envio instantâneo • Totalmente automático • Log completo • Economiza tempo
-            </p>
-          </div>
-        </div>
-        
-        <div style="margin-bottom: 25px;">
-          <h3 style="color: #2c3e50; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
             <span style="font-size: 24px;">👤</span>
             <span>Envio Manual</span>
           </h3>
@@ -4429,7 +3858,7 @@
             <ul style="margin: 0; padding-left: 20px; color: #1976d2;">
               <li>Quer revisar cada mensagem antes de enviar</li>
               <li>Precisa personalizar alguma mensagem</li>
-              <li>WaboxApp não está configurado</li>
+              <li>Controle total sobre o envio</li>
             </ul>
           </div>
           <div style="padding: 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6;">
@@ -4461,27 +3890,6 @@
               <li><strong>Escolha o método:</strong> Automático ou Manual</li>
               <li><strong>Pronto!</strong> Mensagem de confirmação enviada</li>
             </ol>
-          </div>
-        </div>
-        
-        <div style="padding: 20px; background: #f8f9fa; border-radius: 12px; border: 2px solid #6c757d;">
-          <h3 style="color: #495057; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 24px;">⚙️</span>
-            <span>Configurar WaboxApp</span>
-          </h3>
-          <div style="padding: 15px; background: white; border-radius: 8px;">
-            <ol style="margin: 0; padding-left: 20px; color: #495057;">
-              <li>Criar conta: <a href="https://www.waboxapp.com/" target="_blank" style="color: #667eea; font-weight: 600;">https://www.waboxapp.com/</a></li>
-              <li>Conectar WhatsApp: Escanear QR Code</li>
-              <li>Copiar credenciais: Token e UID</li>
-              <li>Configurar no arquivo <code style="background: #f1f1f1; padding: 2px 6px; border-radius: 4px;">backend/.env</code></li>
-              <li>Reiniciar servidor</li>
-            </ol>
-            <div style="margin-top: 15px; padding: 12px; background: #e9ecef; border-radius: 6px; font-family: monospace; font-size: 12px; color: #495057;">
-              WABOXAPP_ENABLED=true<br>
-              WABOXAPP_TOKEN=seu_token<br>
-              WABOXAPP_UID=seu_uid
-            </div>
           </div>
         </div>
         
@@ -4780,198 +4188,6 @@
     }
   }
   
-  // Função para mostrar o guia de configuração do WaboxApp
-  function mostrarGuiaConfigWaboxApp() {
-    const modal = document.getElementById('modalConfigurarWaboxApp');
-    const conteudo = document.getElementById('conteudoConfigWaboxApp');
-    
-    if (!modal || !conteudo) {
-      console.error('Modal de configuração WaboxApp não encontrado');
-      return;
-    }
-    
-    // Garantir que o modal fique na frente (z-index alto)
-    modal.style.zIndex = '10001';
-    modal.style.position = 'fixed';
-    
-    conteudo.innerHTML = `
-      <div style="max-width: 850px; margin: 0 auto;">
-        <!-- Introdução -->
-        <div style="background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%); color: white; padding: 25px; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3);">
-          <h3 style="margin: 0 0 15px 0; font-size: 24px; display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 32px;">⚙️</span>
-            <span>Como Configurar o WaboxApp</span>
-          </h3>
-          <p style="margin: 0; font-size: 16px; line-height: 1.6; opacity: 0.95;">
-            O WaboxApp permite enviar mensagens do WhatsApp <strong>automaticamente</strong> via API. 
-            Siga os passos abaixo para configurar.
-          </p>
-        </div>
-
-        <!-- Passo 1 -->
-        <div style="background: #fff; border: 2px solid #2196F3; border-radius: 12px; padding: 25px; margin-bottom: 25px;">
-          <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
-            <div style="background: #2196F3; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 20px;">1</div>
-            <h4 style="margin: 0; color: #2196F3; font-size: 18px;">Criar Conta no WaboxApp</h4>
-          </div>
-          <ol style="margin: 0; padding-left: 20px; color: #333; line-height: 2;">
-            <li>Acesse: <a href="https://www.waboxapp.com/" target="_blank" style="color: #2196F3; font-weight: 600;">https://www.waboxapp.com/</a></li>
-            <li>Crie uma conta (plano gratuito: até 100 mensagens/mês)</li>
-            <li>Faça login no dashboard</li>
-            <li>Conecte seu número de WhatsApp:
-              <ul style="margin-top: 8px; padding-left: 20px;">
-                <li>No dashboard, procure por "Conectar WhatsApp"</li>
-                <li>Escaneie o QR Code com seu WhatsApp</li>
-                <li>Aguarde a confirmação de conexão</li>
-              </ul>
-            </li>
-          </ol>
-          <div style="margin-top: 15px; padding: 12px; background: #e3f2fd; border-left: 4px solid #2196F3; border-radius: 4px;">
-            <p style="margin: 0; color: #1565C0; font-size: 13px;">
-              💰 <strong>Preços:</strong> Gratuito (100 msg/mês) | $12/mês (1.000 msg) | $17/mês (10.000 msg)
-            </p>
-          </div>
-        </div>
-
-        <!-- Passo 2 -->
-        <div style="background: #fff; border: 2px solid #4CAF50; border-radius: 12px; padding: 25px; margin-bottom: 25px;">
-          <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
-            <div style="background: #4CAF50; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 20px;">2</div>
-            <h4 style="margin: 0; color: #4CAF50; font-size: 18px;">Obter TOKEN e UID</h4>
-          </div>
-          <p style="margin: 0 0 15px 0; color: #333; line-height: 1.8;">
-            Após conectar seu WhatsApp, você encontrará suas credenciais em uma destas localizações:
-          </p>
-          <div style="background: #f8f9fa; border-left: 4px solid #4CAF50; padding: 15px; margin-bottom: 15px; border-radius: 4px;">
-            <p style="margin: 0 0 10px 0; color: #2e7d32; font-weight: 600;">📍 Onde encontrar:</p>
-            <ul style="margin: 0; padding-left: 20px; color: #333; line-height: 1.8;">
-              <li><strong>Página de API/Documentação:</strong> Procure por "API" ou "Documentation"</li>
-              <li><strong>Configurações da Conta:</strong> Vá em "Settings" → "API Credentials"</li>
-              <li><strong>Ao criar instância:</strong> Alguns dashboards mostram logo após conectar</li>
-            </ul>
-          </div>
-          <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 4px;">
-            <p style="margin: 0; color: #856404; font-weight: 600; margin-bottom: 8px;">📋 Você precisa copiar:</p>
-            <ul style="margin: 0; padding-left: 20px; color: #333; line-height: 1.8;">
-              <li><strong>TOKEN:</strong> Uma string longa (ex: <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">abc123def456...</code>)</li>
-              <li><strong>UID:</strong> Seu ID de usuário (geralmente um número, ex: <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">554198371769</code>)</li>
-            </ul>
-          </div>
-        </div>
-
-        <!-- Passo 3 -->
-        <div style="background: #fff; border: 2px solid #9C27B0; border-radius: 12px; padding: 25px; margin-bottom: 25px;">
-          <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
-            <div style="background: #9C27B0; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 20px;">3</div>
-            <h4 style="margin: 0; color: #9C27B0; font-size: 18px;">Configurar no Sistema</h4>
-          </div>
-          <p style="margin: 0 0 15px 0; color: #333; line-height: 1.8;">
-            Abra o arquivo <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-family: monospace;">backend/.env</code> e adicione/modifique estas linhas:
-          </p>
-          <div style="background: #2d2d2d; color: #f8f8f2; padding: 20px; border-radius: 8px; margin-bottom: 15px; font-family: 'Courier New', monospace; font-size: 13px; overflow-x: auto;">
-            <div style="color: #75715e; margin-bottom: 10px;"># Configuração WaboxApp</div>
-            <div style="margin-bottom: 5px;"><span style="color: #a6e22e;">WABOXAPP_ENABLED</span>=<span style="color: #ae81ff;">true</span></div>
-            <div style="margin-bottom: 5px;"><span style="color: #a6e22e;">WABOXAPP_TOKEN</span>=<span style="color: #e6db74;">cole_seu_token_aqui</span></div>
-            <div><span style="color: #a6e22e;">WABOXAPP_UID</span>=<span style="color: #e6db74;">cole_seu_uid_aqui</span></div>
-          </div>
-          <div style="background: #e3f2fd; border-left: 4px solid #2196F3; padding: 15px; border-radius: 4px;">
-            <p style="margin: 0; color: #1565C0; font-size: 13px; line-height: 1.8;">
-              ⚠️ <strong>Importante:</strong>
-            </p>
-            <ul style="margin: 10px 0 0 20px; color: #333; line-height: 1.8; font-size: 13px;">
-              <li>Substitua <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">cole_seu_token_aqui</code> pelo TOKEN que você copiou</li>
-              <li>Substitua <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">cole_seu_uid_aqui</code> pelo UID que você copiou</li>
-              <li>Não deixe espaços antes ou depois do <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">=</code></li>
-              <li>Não use aspas nos valores</li>
-            </ul>
-          </div>
-        </div>
-
-        <!-- Passo 4 -->
-        <div style="background: #fff; border: 2px solid #FF9800; border-radius: 12px; padding: 25px; margin-bottom: 25px;">
-          <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
-            <div style="background: #FF9800; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 20px;">4</div>
-            <h4 style="margin: 0; color: #FF9800; font-size: 18px;">Reiniciar o Servidor</h4>
-          </div>
-          <p style="margin: 0 0 15px 0; color: #333; line-height: 1.8;">
-            Após salvar o arquivo <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-family: monospace;">.env</code>, você precisa reiniciar o servidor:
-          </p>
-          <div style="background: #2d2d2d; color: #f8f8f2; padding: 20px; border-radius: 8px; margin-bottom: 15px; font-family: 'Courier New', monospace; font-size: 13px;">
-            <div style="color: #75715e;"># No terminal, pare o servidor (Ctrl+C) e inicie novamente:</div>
-            <div style="margin-top: 10px;"><span style="color: #a6e22e;">cd</span> <span style="color: #e6db74;">backend</span></div>
-            <div><span style="color: #a6e22e;">npm</span> <span style="color: #ae81ff;">run</span> <span style="color: #ae81ff;">dev</span></div>
-          </div>
-          <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 4px;">
-            <p style="margin: 0; color: #856404; font-size: 13px; line-height: 1.8;">
-              ✅ <strong>Pronto!</strong> Após reiniciar, o botão "🚀 Enviar Automaticamente" aparecerá na tela de links do WhatsApp.
-            </p>
-          </div>
-        </div>
-
-        <!-- Verificação -->
-        <div style="background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%); color: white; padding: 25px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);">
-          <h4 style="margin: 0 0 15px 0; font-size: 18px; display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 28px;">✅</span>
-            <span>Como Verificar se Está Funcionando</span>
-          </h4>
-          <ol style="margin: 0; padding-left: 20px; line-height: 2; opacity: 0.95;">
-            <li>Reinicie o servidor após configurar</li>
-            <li>Vá até a tela de "Links do WhatsApp"</li>
-            <li>Se o botão <strong>"🚀 Enviar Automaticamente"</strong> aparecer, está configurado! ✅</li>
-            <li>Se não aparecer, verifique:
-              <ul style="margin-top: 8px; padding-left: 20px;">
-                <li>Se o arquivo <code style="background: rgba(255,255,255,0.2); padding: 2px 6px; border-radius: 3px;">.env</code> está correto</li>
-                <li>Se o servidor foi reiniciado</li>
-                <li>Se o TOKEN e UID estão corretos (sem espaços extras)</li>
-              </ul>
-            </li>
-          </ol>
-        </div>
-
-        <!-- Alternativas -->
-        <div style="background: #f8f9fa; border: 2px solid #6c757d; border-radius: 12px; padding: 25px;">
-          <h4 style="margin: 0 0 15px 0; color: #495057; font-size: 18px; display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 24px;">💡</span>
-            <span>Não Quer Configurar Agora?</span>
-          </h4>
-          <p style="margin: 0; color: #333; line-height: 1.8;">
-            Sem problemas! O sistema funciona <strong>perfeitamente</strong> sem o WaboxApp. 
-            Você pode usar o <strong>método manual</strong> (abrir links do WhatsApp) que está sempre disponível.
-          </p>
-          <div style="margin-top: 15px; padding: 12px; background: #e3f2fd; border-left: 4px solid #2196F3; border-radius: 4px;">
-            <p style="margin: 0; color: #1565C0; font-size: 13px; line-height: 1.6;">
-              📱 <strong>Método Manual:</strong> Clique em "📱 Abrir Todos os Links" e envie cada mensagem manualmente pelo WhatsApp Web.
-            </p>
-          </div>
-        </div>
-      </div>
-    `;
-    
-    // Garantir que o modal fique na frente de tudo (z-index maior que outros modais)
-    modal.style.zIndex = '10001';
-    modal.style.position = 'fixed';
-    modal.style.top = '0';
-    modal.style.left = '0';
-    modal.style.right = '0';
-    modal.style.bottom = '0';
-    modal.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-    modal.style.display = 'flex';
-    
-    // Garantir que o conteúdo também tenha z-index alto
-    const modalContent = modal.querySelector('.modal-content');
-    if (modalContent) {
-      modalContent.style.position = 'relative';
-      modalContent.style.zIndex = '10002';
-    }
-    
-    // Fechar ao clicar fora
-    modal.onclick = (e) => {
-      if (e.target === modal) {
-        modal.style.display = 'none';
-      }
-    };
-  }
-
   // Função para mostrar o guia completo de envio
   function mostrarGuiaCompletoEnvio() {
     const modal = document.getElementById('modalGuiaCompletoEnvio');
@@ -4988,60 +4204,17 @@
             <span>Guia Completo: Envio de Convocações</span>
           </h3>
           <p style="margin: 0; font-size: 16px; line-height: 1.6; opacity: 0.95;">
-            Este guia explica os <strong>dois métodos</strong> disponíveis para enviar convocações aos motoristas: 
-            <strong>Automático (WaboxApp)</strong> e <strong>Manual (WhatsApp Web)</strong>. 
-            Escolha o método que melhor se adequa à sua necessidade!
+            Este guia explica como enviar convocações aos motoristas via <strong>WhatsApp Web</strong>. 
+            O sistema utiliza o método manual para garantir controle total sobre cada mensagem.
           </p>
         </div>
 
-        <!-- Método 1: Automático -->
-        <div style="background: #fff; border: 3px solid #25D366; border-radius: 12px; padding: 25px; margin-bottom: 30px; box-shadow: 0 4px 15px rgba(37, 211, 102, 0.2);">
-          <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
-            <div style="font-size: 48px;">🤖</div>
-            <div>
-              <h3 style="margin: 0; color: #25D366; font-size: 22px;">Método 1: Envio Automático (WaboxApp)</h3>
-              <p style="margin: 5px 0 0 0; color: #666; font-size: 14px;">Envio em massa via API - Rápido e eficiente</p>
-            </div>
-          </div>
-          
-          <div style="background: #f0f9f4; border-left: 4px solid #25D366; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
-            <p style="margin: 0; color: #2e7d32; font-weight: 600;">✅ <strong>Vantagens:</strong></p>
-            <ul style="margin: 10px 0 0 20px; color: #333; line-height: 1.8;">
-              <li>Envia <strong>todas as mensagens de uma vez</strong></li>
-              <li>Não precisa abrir o WhatsApp manualmente</li>
-              <li>Relatório automático de sucessos e falhas</li>
-              <li>Ideal para <strong>grandes volumes</strong> de convocações</li>
-              <li>Economiza tempo e esforço</li>
-            </ul>
-          </div>
-          
-          <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
-            <p style="margin: 0; color: #856404; font-weight: 600;">⚠️ <strong>Requisitos:</strong></p>
-            <ul style="margin: 10px 0 0 20px; color: #333; line-height: 1.8;">
-              <li>WaboxApp configurado no sistema (variáveis de ambiente)</li>
-              <li>Conta WaboxApp ativa e com créditos</li>
-              <li>O botão "🚀 Enviar Automaticamente" aparecerá apenas se estiver configurado</li>
-            </ul>
-          </div>
-          
-          <div style="background: #e3f2fd; border-left: 4px solid #2196F3; padding: 15px; border-radius: 4px;">
-            <p style="margin: 0 0 10px 0; color: #1565C0; font-weight: 600;">📋 <strong>Como usar:</strong></p>
-            <ol style="margin: 0; padding-left: 20px; color: #333; line-height: 1.8;">
-              <li>Após criar as convocações, clique em <strong>"🔗 Ver Links WhatsApp"</strong></li>
-              <li>No modal que abrir, você verá o botão <strong>"🤖 Enviar Automaticamente"</strong> (se WaboxApp estiver configurado)</li>
-              <li>Clique no botão e confirme o envio</li>
-              <li>Aguarde o processamento (pode levar alguns segundos)</li>
-              <li>Você receberá um <strong>relatório detalhado</strong> com o resultado de cada envio</li>
-            </ol>
-          </div>
-        </div>
-
-        <!-- Método 2: Manual -->
+        <!-- Método de Envio -->
         <div style="background: #fff; border: 3px solid #667eea; border-radius: 12px; padding: 25px; margin-bottom: 30px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2);">
           <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
             <div style="font-size: 48px;">👤</div>
             <div>
-              <h3 style="margin: 0; color: #667eea; font-size: 22px;">Método 2: Envio Manual (WhatsApp Web)</h3>
+              <h3 style="margin: 0; color: #667eea; font-size: 22px;">Envio via WhatsApp Web</h3>
               <p style="margin: 5px 0 0 0; color: #666; font-size: 14px;">Controle total sobre cada mensagem</p>
             </div>
           </div>
@@ -5067,84 +4240,18 @@
           <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 4px;">
             <p style="margin: 0 0 10px 0; color: #856404; font-weight: 600;">💡 <strong>Dica:</strong></p>
             <p style="margin: 0; color: #333; line-height: 1.6;">
-              O método manual é <strong>sempre disponível</strong>, mesmo sem WaboxApp configurado. 
-              Use quando precisar de controle total sobre as mensagens ou quando o volume for pequeno.
+              O método manual oferece <strong>controle total</strong> sobre cada mensagem, permitindo revisar e personalizar antes de enviar.
             </p>
           </div>
         </div>
 
-        <!-- Comparação -->
-        <div style="background: #f8f9fa; border: 2px solid #dee2e6; border-radius: 12px; padding: 25px; margin-bottom: 30px;">
-          <h3 style="margin: 0 0 20px 0; color: #2c3e50; font-size: 20px; text-align: center;">⚖️ Comparação Rápida</h3>
-          <table style="width: 100%; border-collapse: collapse;">
-            <thead>
-              <tr style="background: #667eea; color: white;">
-                <th style="padding: 12px; text-align: left; border-radius: 8px 0 0 0;">Característica</th>
-                <th style="padding: 12px; text-align: center;">🤖 Automático</th>
-                <th style="padding: 12px; text-align: center; border-radius: 0 8px 0 0;">👤 Manual</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr style="background: #fff;">
-                <td style="padding: 12px; border-bottom: 1px solid #dee2e6; font-weight: 600;">Velocidade</td>
-                <td style="padding: 12px; text-align: center; border-bottom: 1px solid #dee2e6;">⚡ Muito Rápido</td>
-                <td style="padding: 12px; text-align: center; border-bottom: 1px solid #dee2e6;">🐢 Mais Lento</td>
-              </tr>
-              <tr style="background: #f8f9fa;">
-                <td style="padding: 12px; border-bottom: 1px solid #dee2e6; font-weight: 600;">Controle</td>
-                <td style="padding: 12px; text-align: center; border-bottom: 1px solid #dee2e6;">📊 Automático</td>
-                <td style="padding: 12px; text-align: center; border-bottom: 1px solid #dee2e6;">✋ Total</td>
-              </tr>
-              <tr style="background: #fff;">
-                <td style="padding: 12px; border-bottom: 1px solid #dee2e6; font-weight: 600;">Revisão</td>
-                <td style="padding: 12px; text-align: center; border-bottom: 1px solid #dee2e6;">❌ Não</td>
-                <td style="padding: 12px; text-align: center; border-bottom: 1px solid #dee2e6;">✅ Sim</td>
-              </tr>
-              <tr style="background: #f8f9fa;">
-                <td style="padding: 12px; border-bottom: 1px solid #dee2e6; font-weight: 600;">Configuração</td>
-                <td style="padding: 12px; text-align: center; border-bottom: 1px solid #dee2e6;">⚙️ Requer WaboxApp</td>
-                <td style="padding: 12px; text-align: center; border-bottom: 1px solid #dee2e6;">✅ Sempre Disponível</td>
-              </tr>
-              <tr style="background: #fff;">
-                <td style="padding: 12px; font-weight: 600;">Ideal para</td>
-                <td style="padding: 12px; text-align: center;">📦 Grandes Volumes</td>
-                <td style="padding: 12px; text-align: center;">📝 Pequenos Volumes</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Quando usar cada um -->
-        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px; padding: 25px; margin-bottom: 30px;">
-          <h3 style="margin: 0 0 20px 0; color: #2c3e50; font-size: 20px; text-align: center;">🎯 Quando usar cada método?</h3>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-            <div style="background: #fff; padding: 20px; border-radius: 8px; border: 2px solid #25D366;">
-              <h4 style="margin: 0 0 10px 0; color: #25D366;">🤖 Use Automático quando:</h4>
-              <ul style="margin: 0; padding-left: 20px; color: #333; line-height: 1.8;">
-                <li>Você tem <strong>muitas convocações</strong> para enviar</li>
-                <li>As mensagens estão <strong>padronizadas</strong> e não precisam de revisão</li>
-                <li>Você quer <strong>economizar tempo</strong></li>
-                <li>WaboxApp está <strong>configurado e funcionando</strong></li>
-              </ul>
-            </div>
-            <div style="background: #fff; padding: 20px; border-radius: 8px; border: 2px solid #667eea;">
-              <h4 style="margin: 0 0 10px 0; color: #667eea;">👤 Use Manual quando:</h4>
-              <ul style="margin: 0; padding-left: 20px; color: #333; line-height: 1.8;">
-                <li>Você tem <strong>poucas convocações</strong></li>
-                <li>Precisa <strong>revisar ou personalizar</strong> cada mensagem</li>
-                <li>WaboxApp <strong>não está configurado</strong></li>
-                <li>Quer <strong>interagir diretamente</strong> com o motorista</li>
-              </ul>
-            </div>
-          </div>
-        </div>
 
         <!-- Conclusão -->
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 25px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);">
           <h3 style="margin: 0 0 15px 0; font-size: 22px;">✨ Pronto para começar!</h3>
           <p style="margin: 0; font-size: 16px; line-height: 1.6; opacity: 0.95;">
-            Agora você conhece os dois métodos de envio. Escolha o que melhor se adequa à sua situação e 
-            comece a enviar convocações de forma eficiente! 🚀
+            Agora você conhece como enviar convocações via WhatsApp Web. 
+            Comece a enviar convocações de forma eficiente! 🚀
           </p>
         </div>
       </div>
@@ -5292,14 +4399,8 @@
         if (isLocalIP) {
           textoComLink = `${mensagemPersonalizada}\n\n🔗 *Acesse o link para mais detalhes:*\n\n${linkConvocacao}\n\n💡 *Importante:*\n• Links locais não são clicáveis no WhatsApp\n• Copie o link acima (toque e segure)\n• Cole no navegador do celular\n• Certifique-se de estar na mesma rede Wi-Fi`;
         } else {
-          // Verificar se é ngrok (tem página de aviso)
-          const isNgrok = urlBase.includes('ngrok-free.dev') || urlBase.includes('ngrok.io');
-          
-          if (isNgrok) {
-            textoComLink = `${mensagemPersonalizada}\n\n🔗 *Acesse o link para mais detalhes:*\n\n${linkConvocacao}\n\n👆 *Toque no link acima para responder*\n\n💡 *Aviso:* Na primeira vez, você verá uma página de segurança. Clique em "Visit Site" para continuar.`;
-          } else {
-            textoComLink = `${mensagemPersonalizada}\n\n🔗 *Acesse o link para mais detalhes:*\n\n${linkConvocacao}`;
-          }
+          // Para domínios públicos, link clicável
+          textoComLink = `${mensagemPersonalizada}\n\n🔗 *Acesse o link para mais detalhes:*\n\n${linkConvocacao}`;
         }
 
         const linkWhatsApp = `https://wa.me/${numeroLimpo}?text=${encodeURIComponent(textoComLink)}`;
@@ -5834,9 +4935,6 @@
       c.STATUS === 'ACEITA'
     ).length;
     
-    // Verificar se WaboxApp está disponível
-    const waboxappDisponivel = await verificarEnvioAutomaticoDisponivel();
-    
     // Mostrar modal de confirmação personalizado
     let mensagemAtencao = '';
     if (outrasAceitas > 0) {
@@ -5853,57 +4951,11 @@
       `;
     }
     
-    // Variável para armazenar o método de envio escolhido
-    let metodoEnvioEscolhido = 'waboxapp'; // Padrão: automático quando disponível
-    
-    // Opção de escolha entre manual e WaboxApp - Interface mais prática e visual
-    let opcaoEnvio = '';
-    if (waboxappDisponivel) {
-      opcaoEnvio = `
-        <div style="margin-top: 25px; padding: 20px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px; border: 2px solid #dee2e6;">
-          <p style="margin: 0 0 15px 0; font-weight: 700; color: #2c3e50; font-size: 16px; text-align: center;">
-            📱 Escolha como enviar a mensagem de confirmação
-          </p>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
-            <button type="button" id="btnEscolherWaboxApp" 
-                    style="padding: 20px; background: linear-gradient(135deg, #25D366 0%, #128C7E 100%); color: white; border: 3px solid #25D366; border-radius: 12px; cursor: pointer; font-weight: 700; font-size: 16px; text-align: center; transition: all 0.3s; box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3);"
-                    onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 6px 20px rgba(37, 211, 102, 0.5)';"
-                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(37, 211, 102, 0.3)';"
-                    onclick="window.metodoEnvioEscolhidoConfirmacao = 'waboxapp'; document.querySelector('input[name=\\'metodoEnvio\\'][value=\\'waboxapp\\']').checked=true; document.getElementById('btnEscolherWaboxApp').style.border='3px solid #25D366'; document.getElementById('btnEscolherWaboxApp').style.background='linear-gradient(135deg, #25D366 0%, #128C7E 100%)'; document.getElementById('btnEscolherManual').style.border='3px solid #6c757d'; document.getElementById('btnEscolherManual').style.background='linear-gradient(135deg, #6c757d 0%, #5a6268 100%)';">
-              <div style="font-size: 48px; margin-bottom: 10px;">🤖</div>
-              <div style="font-size: 18px; margin-bottom: 5px;">Automático</div>
-              <div style="font-size: 12px; opacity: 0.9; font-weight: 400;">Envio via WaboxApp</div>
-              <div style="font-size: 11px; margin-top: 8px; opacity: 0.8;">⚡ Instantâneo</div>
-            </button>
-            <button type="button" id="btnEscolherManual"
-                    style="padding: 20px; background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%); color: white; border: 3px solid #6c757d; border-radius: 12px; cursor: pointer; font-weight: 700; font-size: 16px; text-align: center; transition: all 0.3s; box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);"
-                    onmouseover="this.style.transform='translateY(-3px)'; this.style.boxShadow='0 6px 20px rgba(108, 117, 125, 0.5)';"
-                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(108, 117, 125, 0.3)';"
-                    onclick="window.metodoEnvioEscolhidoConfirmacao = 'manual'; document.querySelector('input[name=\\'metodoEnvio\\'][value=\\'manual\\']').checked=true; document.getElementById('btnEscolherManual').style.border='3px solid #667eea'; document.getElementById('btnEscolherManual').style.background='linear-gradient(135deg, #667eea 0%, #764ba2 100%)'; document.getElementById('btnEscolherWaboxApp').style.border='3px solid #25D366'; document.getElementById('btnEscolherWaboxApp').style.background='linear-gradient(135deg, #25D366 0%, #128C7E 100%)';">
-              <div style="font-size: 48px; margin-bottom: 10px;">👤</div>
-              <div style="font-size: 18px; margin-bottom: 5px;">Manual</div>
-              <div style="font-size: 12px; opacity: 0.9; font-weight: 400;">Você envia pelo WhatsApp</div>
-              <div style="font-size: 11px; margin-top: 8px; opacity: 0.8;">✏️ Personalize antes</div>
-            </button>
-          </div>
-          <input type="radio" name="metodoEnvio" value="waboxapp" checked style="display: none;">
-          <input type="radio" name="metodoEnvio" value="manual" style="display: none;">
-          <div style="margin-top: 15px; padding: 12px; background: rgba(255, 255, 255, 0.7); border-radius: 8px; font-size: 13px; color: #495057; text-align: center;">
-            <strong>💡 Dica:</strong> Automático é mais rápido, Manual permite personalizar a mensagem antes de enviar
-          </div>
-        </div>
-      `;
-    }
-    
-    // Inicializar variável global para armazenar método escolhido
-    window.metodoEnvioEscolhidoConfirmacao = waboxappDisponivel ? 'waboxapp' : 'manual';
-    
     const mensagemCompleta = `
       <div style="text-align: left; line-height: 1.8;">
         <p><strong>Viagem:</strong> ${convocacao.IDVIAGEM}</p>
         <p><strong>Motorista:</strong> ${convocacao.NOME_MOTORISTA || 'N/A'}</p>
         ${mensagemAtencao}
-        ${opcaoEnvio}
       </div>
     `;
     
@@ -5916,22 +4968,8 @@
       return;
     }
     
-    // Obter método de envio escolhido (da variável global ou do radio button como fallback)
-    let metodoEnvio = 'manual';
-    if (waboxappDisponivel) {
-      // Priorizar variável global (mais confiável)
-      if (window.metodoEnvioEscolhidoConfirmacao) {
-        metodoEnvio = window.metodoEnvioEscolhidoConfirmacao;
-      } else {
-        // Fallback: tentar ler do radio button
-        const radioSelecionado = document.querySelector('input[name="metodoEnvio"]:checked');
-        metodoEnvio = radioSelecionado ? radioSelecionado.value : 'waboxapp'; // Padrão automático se disponível
-      }
-      // Limpar variável global após uso
-      delete window.metodoEnvioEscolhidoConfirmacao;
-    }
-    
-    console.log('[CONFIRMAR] Método de envio escolhido:', metodoEnvio, 'WaboxApp disponível:', waboxappDisponivel);
+    // Método de envio: sempre manual
+    const metodoEnvio = 'manual';
 
     try {
       showMessage('Confirmando convocação...', 'info');
@@ -5971,88 +5009,21 @@
         throw new Error('Erro ao processar resposta do servidor');
       }
       
-      // Enviar mensagem de confirmação conforme método escolhido
-      console.log('[CONFIRMAR] Verificando método de envio:', { metodoEnvio, waboxappDisponivel, condicao: metodoEnvio === 'waboxapp' && waboxappDisponivel });
-      
-      if (metodoEnvio === 'waboxapp' && waboxappDisponivel) {
-        // Enviar automaticamente via WaboxApp
-        console.log('[CONFIRMAR] Usando método AUTOMÁTICO (WaboxApp)');
-        try {
-          showMessage('Enviando mensagem de confirmação via WaboxApp...', 'info');
-          
-          // Preparar mensagem de confirmação
-          let mensagemConfirmacao = result.mensagemConfirmacao;
-          
-          // Se não veio no resultado, tentar extrair do link WhatsApp
-          if (!mensagemConfirmacao && result.whatsappLink) {
-            try {
-              const urlParams = new URL(result.whatsappLink);
-              const textParam = urlParams.searchParams.get('text');
-              if (textParam) {
-                mensagemConfirmacao = decodeURIComponent(textParam);
-              }
-            } catch (e) {
-              console.warn('Erro ao extrair texto do link:', e);
-            }
+      // Método manual: abrir WhatsApp
+      console.log('[CONFIRMAR] Usando método MANUAL (WhatsApp Web)');
+      if (result.whatsappLink) {
+        showMessage(result.message || 'Convocação confirmada com sucesso! WhatsApp será aberto para o motorista selecionado.', 'success');
+        
+        // Aguardar um pouco antes de abrir WhatsApp
+        setTimeout(() => {
+          const opened = window.open(result.whatsappLink, '_blank');
+          if (!opened) {
+            console.warn('Falha ao abrir WhatsApp. Pode estar bloqueado pelo navegador.');
+            showMessage('Convocação confirmada! Mas não foi possível abrir o WhatsApp automaticamente. Link: ' + result.whatsappLink, 'info');
           }
-          
-          if (mensagemConfirmacao && result.motorista && result.motorista.celular) {
-            console.log('[CONFIRMAR] Enviando via WaboxApp para:', result.motorista.celular);
-            const responseWabox = await fetch('/api/convocacoes/enviar-whatsapp-automatico', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                idsConvocacoes: [idConvocacao],
-                textoPersonalizado: mensagemConfirmacao
-              })
-            });
-            
-            const resultWabox = await responseWabox.json();
-            console.log('[CONFIRMAR] Resposta WaboxApp:', resultWabox);
-            
-            if (responseWabox.ok && resultWabox.sucessos > 0) {
-              showMessage('Convocação confirmada e mensagem enviada automaticamente via WaboxApp!', 'success');
-              // NÃO abrir WhatsApp quando método automático foi escolhido e funcionou
-            } else {
-              const erroMsg = resultWabox.error || 'Erro desconhecido';
-              console.error('[CONFIRMAR] Erro ao enviar via WaboxApp:', erroMsg);
-              showMessage(`Convocação confirmada, mas houve erro ao enviar via WaboxApp: ${erroMsg}. Use o método manual.`, 'error');
-              // Fallback: abrir WhatsApp manualmente apenas se o usuário quiser
-              // Removido: não abrir automaticamente para não confundir o usuário
-            }
-          } else {
-            console.warn('[CONFIRMAR] Dados insuficientes para envio automático:', { 
-              temMensagem: !!mensagemConfirmacao, 
-              temMotorista: !!result.motorista, 
-              temCelular: !!(result.motorista && result.motorista.celular) 
-            });
-            showMessage('Convocação confirmada, mas não foi possível enviar automaticamente. Use o método manual.', 'error');
-            // Removido: não abrir WhatsApp automaticamente
-          }
-        } catch (err) {
-          console.error('[CONFIRMAR] Erro ao enviar via WaboxApp:', err);
-          showMessage('Convocação confirmada, mas houve erro ao enviar via WaboxApp. Use o método manual.', 'error');
-          // Removido: não abrir WhatsApp automaticamente como fallback
-        }
+        }, 500);
       } else {
-        // Método manual: abrir WhatsApp
-        console.log('[CONFIRMAR] Usando método MANUAL (WhatsApp Web)');
-        if (result.whatsappLink) {
-          showMessage(result.message || 'Convocação confirmada com sucesso! WhatsApp será aberto para o motorista selecionado.', 'success');
-          
-          // Aguardar um pouco antes de abrir WhatsApp
-          setTimeout(() => {
-            const opened = window.open(result.whatsappLink, '_blank');
-            if (!opened) {
-              console.warn('Falha ao abrir WhatsApp. Pode estar bloqueado pelo navegador.');
-              showMessage('Convocação confirmada! Mas não foi possível abrir o WhatsApp automaticamente. Link: ' + result.whatsappLink, 'info');
-            }
-          }, 500);
-        } else {
-          showMessage(result.message || 'Convocação confirmada com sucesso!', 'success');
-        }
+        showMessage(result.message || 'Convocação confirmada com sucesso!', 'success');
       }
 
       // Recarregar a lista de convocações
@@ -8392,14 +7363,6 @@
     if (btnFecharGuiaCompleto) {
       btnFecharGuiaCompleto.addEventListener('click', () => {
         document.getElementById('modalGuiaCompletoEnvio').style.display = 'none';
-      });
-    }
-    
-    // Botão fechar modal de configuração WaboxApp
-    const btnFecharConfigWaboxApp = document.getElementById('btnFecharConfigWaboxApp');
-    if (btnFecharConfigWaboxApp) {
-      btnFecharConfigWaboxApp.addEventListener('click', () => {
-        document.getElementById('modalConfigurarWaboxApp').style.display = 'none';
       });
     }
   }

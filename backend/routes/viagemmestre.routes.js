@@ -36,43 +36,6 @@ router.get('/viagens/:idViagem/motoristas-compativel', viagemController.buscarMo
 router.post('/convocacoes', viagemController.criarConvocacoes);
 router.get('/convocacoes', viagemController.listarConvocacoes);
 
-// ⚠️ IMPORTANTE: Rotas específicas DEVEM vir ANTES das rotas com parâmetros
-// Rota para verificar se WaboxApp está configurado (sem gerar erros)
-router.get('/convocacoes/verificar-waboxapp', viagemController.verificarWaboxAppConfigurado);
-
-// Rota de debug para verificar variáveis de ambiente (apenas desenvolvimento)
-router.get('/convocacoes/debug-waboxapp', (req, res) => {
-  if (process.env.NODE_ENV === 'production') {
-    return res.status(403).json({ error: 'Debug não disponível em produção' });
-  }
-  res.json({
-    WABOXAPP_ENABLED: process.env.WABOXAPP_ENABLED,
-    WABOXAPP_ENABLED_RAW: `"${process.env.WABOXAPP_ENABLED}"`,
-    WABOXAPP_ENABLED_IS_TRUE: process.env.WABOXAPP_ENABLED === 'true',
-    WABOXAPP_TOKEN_PRESENT: !!process.env.WABOXAPP_TOKEN,
-    WABOXAPP_TOKEN_LENGTH: process.env.WABOXAPP_TOKEN ? process.env.WABOXAPP_TOKEN.length : 0,
-    WABOXAPP_TOKEN_PREVIEW: process.env.WABOXAPP_TOKEN ? process.env.WABOXAPP_TOKEN.substring(0, 10) + '...' : 'não definido',
-    WABOXAPP_UID_PRESENT: !!process.env.WABOXAPP_UID,
-    WABOXAPP_UID_VALUE: process.env.WABOXAPP_UID || 'não definido',
-    CONFIGURADO: process.env.WABOXAPP_ENABLED === 'true' && !!process.env.WABOXAPP_TOKEN && !!process.env.WABOXAPP_UID,
-    NODE_ENV: process.env.NODE_ENV
-  });
-});
-
-// Rota de teste para enviar uma mensagem de teste via WaboxApp
-router.post('/convocacoes/testar-waboxapp', viagemController.testarWaboxApp);
-
-// Rota para diagnóstico completo do WaboxApp
-router.get('/convocacoes/diagnostico-waboxapp', viagemController.diagnosticoWaboxApp);
-
-// ⚠️ IMPORTANTE: Rotas específicas DEVEM vir ANTES das rotas com parâmetros
-// Rota para verificar status de uso de mensagens (monitoramento)
-router.get('/convocacoes/status-mensagens', viagemController.verificarStatusMensagens);
-
-// Rota para envio automático via Waboxapp (NOVO - ISOLADO)
-// Esta rota é totalmente opcional e não interfere no sistema atual
-router.post('/convocacoes/enviar-whatsapp-automatico', viagemController.enviarWhatsAppAutomatico);
-
 // Rotas com parâmetros (devem vir DEPOIS das rotas específicas)
 router.get('/convocacoes/:id', viagemController.buscarConvocacaoPorId);
 router.put('/convocacoes/:id', viagemController.atualizarConvocacao);

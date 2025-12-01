@@ -52,28 +52,4 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Servidor rodando na porta ${PORT}`);
   console.log(`📊 Ambiente: ${process.env.NODE_ENV || 'development'}`);
   
-  // Log de status do WaboxApp na inicialização
-  console.log('\n[WABOXAPP] Status da Configuração:');
-  const waboxappEnabled = process.env.WABOXAPP_ENABLED === 'true';
-  const waboxappToken = process.env.WABOXAPP_TOKEN;
-  const waboxappUid = process.env.WABOXAPP_UID;
-  
-  if (waboxappEnabled && waboxappToken && waboxappUid) {
-    console.log('  ✅ WaboxApp está CONFIGURADO e HABILITADO');
-    console.log(`  📱 Token: Presente (${waboxappToken.length} caracteres)`);
-    console.log(`  🆔 UID: ${waboxappUid}`);
-    console.log('  🚀 Envio automático DISPONÍVEL\n');
-  } else {
-    console.log('  ⚠️  WaboxApp NÃO está configurado');
-    if (!waboxappEnabled) {
-      console.log(`     - WABOXAPP_ENABLED: ${process.env.WABOXAPP_ENABLED || 'não definido'} (deve ser "true")`);
-    }
-    if (!waboxappToken) {
-      console.log('     - WABOXAPP_TOKEN: não definido');
-    }
-    if (!waboxappUid) {
-      console.log('     - WABOXAPP_UID: não definido');
-    }
-    console.log('  📝 Use o método MANUAL (sempre disponível)\n');
-  }
 });

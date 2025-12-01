@@ -869,15 +869,22 @@ const viagemController = {
       query += ` ORDER BY cg.RZSOCIAL, cfcg.CDCLASSEFROTA`;
 
       // Verificações de diagnóstico
-      // Verificar motoristas na micro-região
-      const diagMotoristasMicro = await pool.request().query(`
-        SELECT COUNT(*) AS TOTAL
-        FROM [dbo].[CADASTROGERAL] cg
-        INNER JOIN [dbo].[CIDADE] c ON cg.CDCIDADE = c.CDCIDADE
-        WHERE cg.FGTIPOCADASTRO = 'M'
-          AND cg.FGACTIVE = 'A'
-          AND c.CDMICROREGIAO IN (${microregioes.join(', ')})
-      `);
+      // Verificar motoristas na micro-região (apenas se houver micro-regiões)
+      if (microregioes.length > 0) {
+        try {
+          const diagMotoristasMicro = await pool.request().query(`
+            SELECT COUNT(*) AS TOTAL
+            FROM [dbo].[CADASTROGERAL] cg
+            INNER JOIN [dbo].[CIDADE] c ON cg.CDCIDADE = c.CDCIDADE
+            WHERE cg.FGTIPOCADASTRO = 'M'
+              AND cg.FGACTIVE = 'A'
+              AND c.CDMICROREGIAO IN (${microregioes.join(', ')})
+          `);
+        } catch (diagErr) {
+          // Ignorar erros de diagnóstico, não são críticos
+          console.warn('Erro na query de diagnóstico (não crítico):', diagErr.message);
+        }
+      }
       
       const result = await request.query(query);
       
@@ -1560,7 +1567,7 @@ const viagemController = {
           success: true, 
           message: mensagem,
           whatsappLink: whatsappLink,
-          mensagemConfirmacao: textoMensagem || null, // Mensagem formatada para envio via WaboxApp
+          mensagemConfirmacao: textoMensagem || null,
           motorista: motorista ? {
             nome: motorista.NOME_MOTORISTA,
             celular: motorista.NRCELULAR
@@ -2353,950 +2360,74 @@ const viagemController = {
   },
 
   // ============================================================================
-  // ENVIO AUTOMÁTICO VIA WABOXAPP (NOVO - ISOLADO)
+  // MÉTODOS PARA GERENCIAR VEÍCULO DA VIAGEM
   // ============================================================================
-  // Esta função é totalmente isolada e não interfere no sistema atual
-  // Só funciona se WABOXAPP_ENABLED=true no .env
-  // ============================================================================
-  
-  // Verificar se WaboxApp está configurado (endpoint de verificação)
-  verificarWaboxAppConfigurado: async (req, res) => {
+
+  // Buscar equipamento por placa ou código
+  buscarEquipamento: async (req, res) => {
     try {
-      // Log removido para evitar poluição do console em verificações rotineiras
-      // Este endpoint é chamado frequentemente para verificar disponibilidade
+      const { placa, codigo } = req.query;
       
-      const waboxappEnabled = process.env.WABOXAPP_ENABLED === 'true';
-      const waboxappToken = process.env.WABOXAPP_TOKEN;
-      const waboxappUid = process.env.WABOXAPP_UID;
-
-      // Logs de debug removidos - apenas logar em caso de erro
-
-      if (!waboxappEnabled || !waboxappToken || !waboxappUid) {
-        const detalhes = [];
-        if (!waboxappEnabled) detalhes.push('WABOXAPP_ENABLED não está como "true"');
-        if (!waboxappToken) detalhes.push('WABOXAPP_TOKEN não está definido');
-        if (!waboxappUid) detalhes.push('WABOXAPP_UID não está definido');
-        
-        return res.json({ 
-          configurado: false,
-          message: 'WaboxApp não está configurado ou está desabilitado.',
-          detalhes: detalhes,
-          debug: {
-            enabled: waboxappEnabled,
-            hasToken: !!waboxappToken,
-            hasUid: !!waboxappUid,
-            enabledValue: process.env.WABOXAPP_ENABLED
-          }
-        });
+      if (!placa && !codigo) {
+        return res.status(400).json({ error: 'Informe a placa ou o código do equipamento.' });
       }
-
-      return res.json({ 
-        configurado: true,
-        message: 'WaboxApp está configurado e pronto para uso.'
-      });
-    } catch (err) {
-      console.error('[WABOXAPP] Erro ao verificar configuração:', err);
-      return res.json({ 
-        configurado: false,
-        message: 'Erro ao verificar configuração do WaboxApp.',
-        erro: err.message
-      });
-    }
-  },
-
-  enviarWhatsAppAutomatico: async (req, res) => {
-    try {
-      console.log('[WABOXAPP] ========================================');
-      console.log('[WABOXAPP] Requisição recebida:', req.body);
-      
-      // Verificar se está habilitado
-      const waboxappEnabled = process.env.WABOXAPP_ENABLED === 'true';
-      const waboxappToken = process.env.WABOXAPP_TOKEN;
-      const waboxappUid = process.env.WABOXAPP_UID;
-
-      console.log('[WABOXAPP] Configuração:', {
-        enabled: waboxappEnabled,
-        hasToken: !!waboxappToken,
-        hasUid: !!waboxappUid,
-        tokenLength: waboxappToken ? waboxappToken.length : 0,
-        uid: waboxappUid
-      });
-
-      if (!waboxappEnabled || !waboxappToken || !waboxappUid) {
-        console.warn('[WABOXAPP] ⚠️ Configuração incompleta ou desabilitada');
-        return res.status(503).json({ 
-          error: 'Envio automático via Waboxapp não está configurado ou está desabilitado.',
-          message: 'Configure WABOXAPP_ENABLED, WABOXAPP_TOKEN e WABOXAPP_UID no arquivo .env',
-          fallback: 'Use o método manual (botão "Abrir Todos") que continua funcionando normalmente.'
-        });
-      }
-
-      let { idsConvocacoes, textoPersonalizado } = req.body;
-      console.log('[WABOXAPP] IDs recebidos:', idsConvocacoes);
-      console.log('[WABOXAPP] Texto personalizado fornecido:', textoPersonalizado ? 'Sim' : 'Não');
-
-      if (!idsConvocacoes) {
-        return res.status(400).json({ 
-          error: 'Campo "idsConvocacoes" não foi informado.',
-          details: 'O corpo da requisição deve conter um array "idsConvocacoes" com os IDs das convocações.'
-        });
-      }
-
-      if (!Array.isArray(idsConvocacoes)) {
-        return res.status(400).json({ 
-          error: 'Campo "idsConvocacoes" deve ser um array.',
-          received: typeof idsConvocacoes,
-          value: idsConvocacoes
-        });
-      }
-
-      // Filtrar IDs inválidos (0, null, undefined, NaN) para verificação de disponibilidade
-      const idsValidos = idsConvocacoes.filter(id => id && id !== 0 && !isNaN(parseInt(id)) && parseInt(id) > 0);
-      
-      if (idsValidos.length === 0) {
-        // Se não há IDs válidos, pode ser uma verificação de disponibilidade
-        // Retornar 400 mas com configured: true para indicar que o serviço está configurado
-        console.log('[WABOXAPP] Verificação de disponibilidade: retornando configured: true');
-        return res.status(400).json({ 
-          success: false,
-          error: 'É necessário informar pelo menos um ID de convocação válido.',
-          received: idsConvocacoes,
-          configured: true // Indica que está configurado, só precisa de dados válidos
-        });
-      }
-
-      // Usar apenas os IDs válidos
-      idsConvocacoes = idsValidos;
 
       const pool = await poolPromise;
-      const resultados = [];
-      const erros = [];
+      let query = `
+        SELECT 
+          e.IDEQUIPAMENTO,
+          e.REFEQUIPAMENTO,
+          e.DSEQUIPAMENTO,
+          e.CDGRUPOEQUIPAMENTO,
+          g.DSGRUPOEQUIPAMENTO AS GRUPO_NOME,
+          e.CDTIPOEQUIPAMENTO,
+          t.DSTIPOEQUIPAMENTO AS TIPO_NOME,
+          e.CDMARCAEQUIPAMENTO,
+          m.DSMARCAEQUIPAMENTO AS MARCA_NOME,
+          e.CDMODELOEQUIPAMENTO,
+          mod.DSMODELOEQUIPAMENTO AS MODELO_NOME,
+          e.CDCLASSEFROTA,
+          c.DSCLASSEFROTA AS CLASSE_NOME,
+          e.FGACTIVE,
+          e.FGTIPOATUACAO,
+          e.FGTIPOCARROCERIA,
+          e.NREIXOS,
+          e.CAPACIDCARGA,
+          e.ANOFABRICA,
+          e.ALTURA,
+          e.LARGURA,
+          e.COMPRIMENTO,
+          e.MTCUBICO,
+          e.FGRASTREADO
+        FROM [dbo].[EQUIPAMENTO] e
+        LEFT JOIN [dbo].[GRUPOEQUIPAMENTO] g ON e.CDGRUPOEQUIPAMENTO = g.CDGRUPOEQUIPAMENTO
+        LEFT JOIN [dbo].[TIPOEQUIPAMENTO] t ON e.CDTIPOEQUIPAMENTO = t.CDTIPOEQUIPAMENTO
+        LEFT JOIN [dbo].[MARCAEQUIPAMENTO] m ON e.CDMARCAEQUIPAMENTO = m.CDMARCAEQUIPAMENTO
+        LEFT JOIN [dbo].[MODELOEQUIPAMENTO] mod ON e.CDMODELOEQUIPAMENTO = mod.CDMODELOEQUIPAMENTO
+        LEFT JOIN [dbo].[CLASSEFROTA] c ON e.CDCLASSEFROTA = c.CDCLASSEFROTA
+        WHERE 1=1
+      `;
 
-      // Verificar se a tabela LOG_ENVIO_WHATSAPP existe
-      try {
-        const tabelaExiste = await pool.request().query(`
-          SELECT COUNT(*) AS TOTAL
-          FROM INFORMATION_SCHEMA.TABLES
-          WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'LOG_ENVIO_WHATSAPP'
-        `);
-        
-        if (tabelaExiste.recordset[0].TOTAL === 0) {
-          console.warn('[WABOXAPP] ⚠️ Tabela LOG_ENVIO_WHATSAPP não existe. Execute o script criar_tabela_log_envio_whatsapp.sql');
-        }
-      } catch (err) {
-        console.warn('[WABOXAPP] ⚠️ Erro ao verificar tabela LOG_ENVIO_WHATSAPP:', err.message);
+      const request = pool.request();
+      if (placa) {
+        query += ` AND UPPER(e.REFEQUIPAMENTO) = UPPER(@PLACA)`;
+        request.input('PLACA', sql.VarChar(20), placa.toUpperCase().trim());
+      }
+      if (codigo) {
+        query += ` AND e.IDEQUIPAMENTO = @CODIGO`;
+        request.input('CODIGO', sql.Decimal(15, 0), parseFloat(codigo));
       }
 
-      // Buscar dados das convocações
-      for (const idConvocacao of idsConvocacoes) {
-        try {
-          console.log(`[WABOXAPP] Processando convocação ${idConvocacao}...`);
-          
-          // Buscar convocação com dados completos
-          const convocacaoResult = await pool
-            .request()
-            .input('IDCONVOCACAO', sql.Int, parseInt(idConvocacao))
-            .query(`
-              SELECT 
-                c.IDCONVOCACAO,
-                c.IDVIAGEM,
-                c.CDCADASTRO_MOTORISTA,
-                c.NRCELULAR,
-                c.TXTCONVOCACAO,
-                c.LINKCONVOCACAO,
-                c.STATUS,
-                cg.RZSOCIAL AS NOME_MOTORISTA
-              FROM [dbo].[CONVOCACAO] c
-              INNER JOIN [dbo].[CADASTROGERAL] cg ON c.CDCADASTRO_MOTORISTA = cg.CDCADASTRO
-              WHERE c.IDCONVOCACAO = @IDCONVOCACAO
-            `);
-
-          if (convocacaoResult.recordset.length === 0) {
-            console.warn(`[WABOXAPP] Convocação ${idConvocacao} não encontrada`);
-            erros.push({
-              idConvocacao,
-              erro: 'Convocação não encontrada'
-            });
-            continue;
-          }
-
-          const convocacao = convocacaoResult.recordset[0];
-          console.log(`[WABOXAPP] Convocação ${idConvocacao} encontrada: ${convocacao.NOME_MOTORISTA}`);
-
-          // Se não tem celular na convocação, buscar no CADASTROGERAL
-          let celularParaEnvio = convocacao.NRCELULAR ? String(convocacao.NRCELULAR).trim() : null;
-          if (!celularParaEnvio || celularParaEnvio === '') {
-            console.log(`[WABOXAPP] Convocação ${idConvocacao} sem celular, buscando no CADASTROGERAL...`);
-            const motoristaResult = await pool
-              .request()
-              .input('CDCADASTRO', sql.Decimal(15, 0), convocacao.CDCADASTRO_MOTORISTA)
-              .query(`
-                SELECT NRCELULAR
-                FROM [dbo].[CADASTROGERAL]
-                WHERE CDCADASTRO = @CDCADASTRO
-              `);
-            
-            if (motoristaResult.recordset.length > 0 && motoristaResult.recordset[0].NRCELULAR) {
-              celularParaEnvio = String(motoristaResult.recordset[0].NRCELULAR).trim();
-              console.log(`[WABOXAPP] Celular encontrado no CADASTROGERAL: ${celularParaEnvio}`);
-            }
-          }
-
-          // Se foi fornecido texto personalizado (ex: mensagem de confirmação), usar ele
-          // Caso contrário, usar o texto da convocação ou gerar texto básico
-          let textoParaEnvio = null;
-          
-          if (textoPersonalizado && typeof textoPersonalizado === 'string' && textoPersonalizado.trim() !== '') {
-            // Usar texto personalizado fornecido (ex: mensagem de confirmação)
-            textoParaEnvio = textoPersonalizado.trim();
-            console.log(`[WABOXAPP] Usando texto personalizado fornecido: ${textoParaEnvio.substring(0, 100)}...`);
-          } else {
-            // Usar texto da convocação ou gerar texto básico
-            textoParaEnvio = convocacao.TXTCONVOCACAO ? String(convocacao.TXTCONVOCACAO).trim() : null;
-            if (!textoParaEnvio || textoParaEnvio === '') {
-              console.log(`[WABOXAPP] Convocação ${idConvocacao} sem texto, gerando texto básico...`);
-              const urlBase = process.env.PUBLIC_URL || 'http://localhost:3000';
-              const linkConvocacao = `${urlBase}/convocacao/${idConvocacao}`;
-              // Mensagem personalizada para cada motorista
-              const nomeMotorista = convocacao.NOME_MOTORISTA || 'Motorista';
-              textoParaEnvio = `Olá *${nomeMotorista.toUpperCase()}*! Você foi convocado para uma viagem.\n\n🔗 Acesse o link para mais detalhes:\n\n${linkConvocacao}`;
-              console.log(`[WABOXAPP] Texto gerado: ${textoParaEnvio.substring(0, 100)}...`);
-            }
-          }
-
-          // Validar se tem celular e texto após tentar buscar/gerar
-          if (!celularParaEnvio || celularParaEnvio === '' || !textoParaEnvio || textoParaEnvio === '') {
-            console.warn(`[WABOXAPP] Convocação ${idConvocacao} sem celular ou texto após tentativas:`, {
-              temCelular: !!celularParaEnvio && celularParaEnvio !== '',
-              temTexto: !!textoParaEnvio && textoParaEnvio !== ''
-            });
-            erros.push({
-              idConvocacao,
-              nomeMotorista: convocacao.NOME_MOTORISTA,
-              erro: 'Convocação sem celular ou texto de convocação (não foi possível buscar/gerar)'
-            });
-            continue;
-          }
-
-          // Limpar número de celular (remover caracteres não numéricos)
-          const celularOriginal = celularParaEnvio.toString().trim();
-          const celularLimpo = celularOriginal.replace(/\D/g, '');
-          
-          console.log(`[WABOXAPP] ========================================`);
-          console.log(`[WABOXAPP] PROCESSANDO NÚMERO:`);
-          console.log(`[WABOXAPP]   Original: "${celularOriginal}"`);
-          console.log(`[WABOXAPP]   Limpo: "${celularLimpo}" (${celularLimpo.length} dígitos)`);
-          
-          // Validar número antes de formatar (deve ter pelo menos 10 dígitos)
-          if (celularLimpo.length < 10) {
-            console.error(`[WABOXAPP] ❌ Número muito curto: ${celularLimpo} (${celularLimpo.length} dígitos, mínimo: 10)`);
-            erros.push({
-              idConvocacao,
-              nomeMotorista: convocacao.NOME_MOTORISTA,
-              celular: celularParaEnvio || convocacao.NRCELULAR,
-              erro: `Número de celular muito curto (${celularLimpo.length} dígitos, mínimo: 10)`
-            });
-            continue;
-          }
-          
-          // Adicionar código do país se não tiver
-          let numeroFormatado = celularLimpo;
-          const tinhaCodigoPais = numeroFormatado.startsWith('55');
-          
-          if (!tinhaCodigoPais) {
-            // Remover zero inicial se houver (formato antigo: 041999598887)
-            if (numeroFormatado.startsWith('0') && numeroFormatado.length === 11) {
-              numeroFormatado = numeroFormatado.substring(1);
-              console.log(`[WABOXAPP]   Removido zero inicial: ${numeroFormatado}`);
-            }
-            numeroFormatado = '55' + numeroFormatado;
-            console.log(`[WABOXAPP]   Adicionado código do país: ${numeroFormatado}`);
-          } else {
-            console.log(`[WABOXAPP]   Já tinha código do país: ${numeroFormatado}`);
-          }
-
-          // Validar número final (deve ter exatamente 13 dígitos: 55 + DDD (2) + número (9 ou 8))
-          // Formato esperado: 55 + DDD (2 dígitos) + número (8 ou 9 dígitos) = 12 ou 13 dígitos
-          console.log(`[WABOXAPP]   Número formatado: ${numeroFormatado} (${numeroFormatado.length} dígitos)`);
-          
-          if (numeroFormatado.length < 12 || numeroFormatado.length > 13) {
-            console.error(`[WABOXAPP] ❌ Número inválido após formatação: ${numeroFormatado} (tamanho: ${numeroFormatado.length}, esperado: 12-13)`);
-            erros.push({
-              idConvocacao,
-              nomeMotorista: convocacao.NOME_MOTORISTA,
-              celular: celularParaEnvio || convocacao.NRCELULAR,
-              erro: `Número de celular inválido após formatação (tamanho: ${numeroFormatado.length}, esperado: 12-13 dígitos)`
-            });
-            continue;
-          }
-
-          // Verificar se o número não começa com 55 seguido de DDD válido (11-99)
-          const ddd = numeroFormatado.substring(2, 4);
-          const dddNum = parseInt(ddd, 10);
-          const numeroSemDDD = numeroFormatado.substring(4);
-          
-          console.log(`[WABOXAPP]   DDD: ${ddd} (${dddNum})`);
-          console.log(`[WABOXAPP]   Número sem DDD: ${numeroSemDDD} (${numeroSemDDD.length} dígitos)`);
-          
-          if (isNaN(dddNum) || dddNum < 11 || dddNum > 99) {
-            console.error(`[WABOXAPP] ❌ DDD inválido: ${ddd} (número completo: ${numeroFormatado})`);
-            erros.push({
-              idConvocacao,
-              nomeMotorista: convocacao.NOME_MOTORISTA,
-              celular: celularParaEnvio || convocacao.NRCELULAR,
-              erro: `DDD inválido: ${ddd}`
-            });
-            continue;
-          }
-          
-          // Validar se o número tem 8 ou 9 dígitos após o DDD
-          if (numeroSemDDD.length < 8 || numeroSemDDD.length > 9) {
-            console.error(`[WABOXAPP] ❌ Número de telefone inválido: ${numeroSemDDD} (${numeroSemDDD.length} dígitos, esperado: 8-9)`);
-            erros.push({
-              idConvocacao,
-              nomeMotorista: convocacao.NOME_MOTORISTA,
-              celular: celularParaEnvio || convocacao.NRCELULAR,
-              erro: `Número de telefone inválido após DDD (${numeroSemDDD.length} dígitos, esperado: 8-9)`
-            });
-            continue;
-          }
-          
-          console.log(`[WABOXAPP] ✅ Número validado com sucesso: ${numeroFormatado}`);
-
-          // NOTA: A API do WaboxApp não possui endpoint público para verificar status
-          // Vamos assumir que está conectado e confiar na resposta da API de envio
-          // Se a mensagem não chegar, o problema será identificado pelo usuário
-          let whatsappConectado = null; // null = não verificado (API não suporta)
-          console.log(`[WABOXAPP] ⚠️ Não é possível verificar status da conexão via API.`);
-          console.log(`[WABOXAPP] ⚠️ Verifique manualmente no painel do WaboxApp se o número está conectado.`);
-
-          // Enviar via Waboxapp API
-          const textoMensagem = textoParaEnvio;
-          const textoEncoded = encodeURIComponent(textoMensagem);
-          
-          // IMPORTANTE: Verificar se o número de destino não é o mesmo do UID (não pode enviar para si mesmo)
-          if (numeroFormatado === waboxappUid) {
-            console.error(`[WABOXAPP] ❌ ERRO: Número de destino é o mesmo do UID (não pode enviar para si mesmo)`);
-            erros.push({
-              idConvocacao,
-              nomeMotorista: convocacao.NOME_MOTORISTA,
-              celular: celularParaEnvio || convocacao.NRCELULAR,
-              erro: 'Número de destino é o mesmo do número que envia (UID). Verifique o cadastro do motorista.'
-            });
-            continue;
-          }
-          
-          // URL da API do WaboxApp - formato: https://www.waboxapp.com/api/send/chat?token=TOKEN&uid=UID&to=NUMERO&text=TEXTO
-          const waboxappUrl = `https://www.waboxapp.com/api/send/chat?token=${waboxappToken}&uid=${waboxappUid}&to=${numeroFormatado}&text=${textoEncoded}`;
-          
-          console.log(`[WABOXAPP] ========================================`);
-          console.log(`[WABOXAPP] PREPARANDO ENVIO:`);
-          console.log(`[WABOXAPP]   Motorista: ${convocacao.NOME_MOTORISTA}`);
-          console.log(`[WABOXAPP]   Número de destino: ${numeroFormatado}`);
-          console.log(`[WABOXAPP]   Número que envia (UID): ${waboxappUid}`);
-          console.log(`[WABOXAPP]   Tamanho do texto: ${textoMensagem.length} caracteres`);
-          console.log(`[WABOXAPP]   Token: ${waboxappToken ? waboxappToken.substring(0, 10) + '...' + waboxappToken.substring(waboxappToken.length - 5) : 'N/A'}`);
-          console.log(`[WABOXAPP] ⚠️ IMPORTANTE: Se a mensagem não chegar, verifique no painel do WaboxApp se o WhatsApp está conectado!`);
-          
-          let tentativas = 0;
-          let sucesso = false;
-          let mensagemErro = null;
-          let idRespostaApi = null;
-
-          // Retry até 3 tentativas
-          while (tentativas < 3 && !sucesso) {
-            try {
-              console.log(`[WABOXAPP] Tentativa ${tentativas + 1} de 3...`);
-              console.log(`[WABOXAPP] URL completa (sem texto): https://www.waboxapp.com/api/send/chat?token=${waboxappToken}&uid=${waboxappUid}&to=${numeroFormatado}&text=[${textoMensagem.length} caracteres]`);
-              
-              // WaboxApp - requisição GET simples (sem headers customizados que podem causar problemas)
-              const response = await axios.get(waboxappUrl, {
-                timeout: 30000
-              });
-
-              console.log(`[WABOXAPP] Status HTTP: ${response.status}`);
-              console.log(`[WABOXAPP] Headers da resposta:`, response.headers);
-              console.log(`[WABOXAPP] Resposta completa da API:`, JSON.stringify(response.data, null, 2));
-
-              // Verificar status HTTP primeiro
-              if (response.status !== 200) {
-                mensagemErro = `Status HTTP ${response.status}: ${response.statusText || 'Erro desconhecido'}`;
-                console.warn(`[WABOXAPP] ❌ Status HTTP inválido:`, mensagemErro);
-                if (response.data) {
-                  console.warn(`[WABOXAPP] Dados do erro:`, response.data);
-                }
-                // Continuar para próxima tentativa
-                tentativas++;
-                continue;
-              }
-
-              // A API do Waboxapp pode retornar diferentes formatos de sucesso:
-              // { success: true, custom_uid: '...' }
-              // { sent: true, id: '...' }
-              // { success: 1, custom_uid: '...' }
-              // { sent: 1, id: '...' }
-              // { status: 'sent', id: '...' }
-              // { status: 'success', custom_uid: '...' }
-              const data = response.data || {};
-              
-              // Verificar múltiplos formatos de sucesso
-              const isSuccess = data.success === true || data.success === 1 || 
-                               data.sent === true || data.sent === 1 ||
-                               (data.status && (data.status === 'sent' || data.status === 'success' || data.status === 'ok')) ||
-                               (data.result && data.result === 'success') ||
-                               (data.ok === true || data.ok === 1);
-              
-              if (isSuccess) {
-                sucesso = true;
-                idRespostaApi = data.custom_uid || data.id || data.message_id || data.uid || null;
-                console.log(`[WABOXAPP] ✅ API retornou sucesso!`);
-                console.log(`[WABOXAPP]   ID da mensagem: ${idRespostaApi}`);
-                console.log(`[WABOXAPP]   Resposta completa:`, JSON.stringify(data, null, 2));
-                
-                // AVISO: Mesmo com sucesso da API, verificar se há avisos
-                if (data.warning || data.warning_message) {
-                  console.warn(`[WABOXAPP] ⚠️ AVISO da API:`, data.warning || data.warning_message);
-                }
-                
-                // Verificar se há informações sobre o status real da mensagem
-                if (data.status) {
-                  console.log(`[WABOXAPP]   Status da mensagem: ${data.status}`);
-                }
-                
-                // IMPORTANTE: Verificar se há campos que indicam problema
-                if (data.error || data.error_message || data.failed) {
-                  console.error(`[WABOXAPP] ❌ ERRO na resposta mesmo com success=true:`, data.error || data.error_message || data.failed);
-                  sucesso = false;
-                  mensagemErro = data.error || data.error_message || 'Erro na API mesmo com success=true';
-                } else {
-                  // CRÍTICO: Aviso importante sobre verificação manual
-                  console.warn(`[WABOXAPP] ⚠️⚠️⚠️ ATENÇÃO CRÍTICA ⚠️⚠️⚠️`);
-                  console.warn(`[WABOXAPP] A API retornou sucesso, MAS isso NÃO garante que a mensagem foi entregue!`);
-                  console.warn(`[WABOXAPP] Se o destinatário não recebeu a mensagem:`);
-                  console.warn(`[WABOXAPP]   1. TESTE MANUAL: Acesse o painel do WaboxApp → Desenvolvedores`);
-                  console.warn(`[WABOXAPP]      Envie manualmente para ${numeroFormatado} e veja se funciona`);
-                  console.warn(`[WABOXAPP]   2. Verifique se o número ${numeroFormatado} tem WhatsApp instalado`);
-                  console.warn(`[WABOXAPP]   3. Verifique se o número ${numeroFormatado} não bloqueou ${waboxappUid}`);
-                  console.warn(`[WABOXAPP]   4. Verifique no painel se o número ${waboxappUid} está CONECTADO (status verde)`);
-                  console.warn(`[WABOXAPP]   5. Verifique se há créditos disponíveis na conta`);
-                  console.warn(`[WABOXAPP]   6. CONTATE O SUPORTE DO WABOXAPP se o teste manual também não funcionar`);
-                }
-                
-                break;
-              } else {
-                // Verificar se há mensagem de erro específica
-                mensagemErro = data.error || data.message || data.error_message || data.msg ||
-                              (data.status === 'error' ? 'Erro na API' : 
-                               data.status === 'failed' ? 'Falha no envio' :
-                               'Resposta inválida da API');
-                console.warn(`[WABOXAPP] ❌ Erro na resposta:`, mensagemErro);
-                console.warn(`[WABOXAPP] Dados completos da resposta:`, JSON.stringify(data, null, 2));
-                
-                // Se o erro for definitivo (ex: número inválido, token inválido), não tentar novamente
-                const erroDefinitivo = mensagemErro.toLowerCase().includes('invalid') ||
-                                      mensagemErro.toLowerCase().includes('token') ||
-                                      mensagemErro.toLowerCase().includes('unauthorized') ||
-                                      mensagemErro.toLowerCase().includes('forbidden') ||
-                                      (data.error_code && [401, 403, 400].includes(parseInt(data.error_code)));
-                
-                if (erroDefinitivo) {
-                  console.error(`[WABOXAPP] ⚠️ Erro definitivo detectado, não tentando novamente`);
-                  break; // Sair do loop de tentativas
-                }
-              }
-            } catch (apiError) {
-              // Tratamento detalhado de erros
-              if (apiError.response) {
-                // A requisição foi feita e o servidor respondeu com um status de erro
-                mensagemErro = apiError.response.data?.error || 
-                              apiError.response.data?.message || 
-                              apiError.response.data?.error_message ||
-                              `Erro HTTP ${apiError.response.status}: ${apiError.response.statusText}`;
-                console.error(`[WABOXAPP] ❌ Erro HTTP na tentativa ${tentativas + 1}:`, {
-                  status: apiError.response.status,
-                  statusText: apiError.response.statusText,
-                  data: apiError.response.data,
-                  message: mensagemErro
-                });
-              } else if (apiError.request) {
-                // A requisição foi feita mas não houve resposta
-                mensagemErro = 'Sem resposta do servidor WaboxApp (timeout ou servidor offline)';
-                console.error(`[WABOXAPP] ❌ Timeout/Offline na tentativa ${tentativas + 1}:`, {
-                  message: apiError.message,
-                  code: apiError.code
-                });
-              } else {
-                // Erro ao configurar a requisição
-                mensagemErro = apiError.message || 'Erro ao configurar requisição';
-                console.error(`[WABOXAPP] ❌ Erro de configuração na tentativa ${tentativas + 1}:`, {
-                  message: apiError.message,
-                  stack: apiError.stack
-                });
-              }
-              
-              // Aguardar antes de tentar novamente (backoff exponencial)
-              if (tentativas < 2) {
-                const delay = (tentativas + 1) * 2000; // 2s, 4s
-                console.log(`[WABOXAPP] Aguardando ${delay}ms antes da próxima tentativa...`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-              }
-            }
-            tentativas++;
-          }
-          
-          if (!sucesso) {
-            console.error(`[WABOXAPP] ❌ Falha após ${tentativas} tentativa(s): ${mensagemErro}`);
-          }
-
-          // Registrar no log
-          const statusEnvio = sucesso ? 'ENVIADO' : 'ERRO';
-          const dhEnvio = sucesso ? new Date() : null;
-          const dhRespostaApi = sucesso ? new Date() : null;
-
-          try {
-            await pool
-              .request()
-              .input('IDCONVOCACAO', sql.Int, parseInt(idConvocacao))
-              .input('NRCELULAR', sql.VarChar(20), String(celularParaEnvio || ''))
-              .input('STATUS_ENVIO', sql.VarChar(20), statusEnvio)
-              .input('MENSAGEM_ERRO', sql.NVarChar(500), mensagemErro)
-              .input('DHENVIO', sql.DateTime, dhEnvio)
-              .input('DHRESPOSTA_API', sql.DateTime, dhRespostaApi)
-              .input('IDRESPOSTA_API', sql.VarChar(100), idRespostaApi)
-              .input('TENTATIVAS', sql.Int, tentativas)
-              .query(`
-                INSERT INTO [dbo].[LOG_ENVIO_WHATSAPP] (
-                  IDCONVOCACAO, NRCELULAR, STATUS_ENVIO, MENSAGEM_ERRO,
-                  DHENVIO, DHRESPOSTA_API, IDRESPOSTA_API, TENTATIVAS,
-                  DHMAINTENANCE, SGUSER, SERVERORIG
-                )
-                VALUES (
-                  @IDCONVOCACAO, @NRCELULAR, @STATUS_ENVIO, @MENSAGEM_ERRO,
-                  @DHENVIO, @DHRESPOSTA_API, @IDRESPOSTA_API, @TENTATIVAS,
-                  GETDATE(), 'SYSTEM', 'AppDVcargas'
-                )
-              `);
-            console.log(`[WABOXAPP] Log registrado com sucesso para convocação ${idConvocacao}`);
-          } catch (logError) {
-            // Se a tabela não existir ainda, apenas loga o erro mas não falha
-            console.error(`[WABOXAPP] ⚠️ Erro ao registrar log (tabela pode não existir ainda):`, logError.message);
-            console.error(`[WABOXAPP] ⚠️ Detalhes do erro:`, logError);
-          }
-
-          // Adicionar avisos importantes ao resultado
-          const avisos = [];
-          // Sempre adicionar aviso para verificar no painel, já que não podemos verificar via API
-          if (sucesso) {
-            avisos.push('API retornou sucesso. Se a mensagem não chegou, verifique no painel do WaboxApp se o WhatsApp está conectado.');
-          }
-
-          resultados.push({
-            idConvocacao,
-            nomeMotorista: convocacao.NOME_MOTORISTA,
-            celular: celularParaEnvio || convocacao.NRCELULAR,
-            celularFormatado: numeroFormatado,
-            status: statusEnvio,
-            tentativas,
-            mensagemErro: mensagemErro || null,
-            idRespostaApi,
-            observacao: 'Status da conexão não pode ser verificado via API - verifique no painel do WaboxApp',
-            avisos: avisos.length > 0 ? avisos : null
-          });
-
-        } catch (err) {
-          console.error(`Erro ao processar convocação ${idConvocacao}:`, err);
-          erros.push({
-            idConvocacao,
-            erro: err.message || 'Erro desconhecido'
-          });
-        }
-      }
-
-      const sucessos = resultados.filter(r => r.status === 'ENVIADO').length;
-      const falhas = resultados.filter(r => r.status === 'ERRO').length;
-      const comAvisos = resultados.filter(r => r.avisos && r.avisos.length > 0).length;
-
-      // Mensagem com avisos importantes
-      let mensagemFinal = `${sucessos} mensagem(ns) enviada(s) com sucesso. ${falhas} falha(s). ${erros.length} erro(s) de validação.`;
-      if (comAvisos > 0) {
-        mensagemFinal += ` ⚠️ ${comAvisos} mensagem(ns) com avisos - verifique se o WhatsApp está conectado!`;
-      }
-
-      res.json({
-        success: true,
-        message: mensagemFinal,
-        resultados,
-        erros,
-        resumo: {
-          total: idsConvocacoes.length,
-          sucessos,
-          falhas,
-          errosValidacao: erros.length,
-          comAvisos: comAvisos
-        },
-        avisosImportantes: comAvisos > 0 ? [
-          'Algumas mensagens foram marcadas como enviadas, mas o WhatsApp pode não estar conectado.',
-          'Verifique no painel do WaboxApp se o número está conectado ao WhatsApp.',
-          'Acesse: /api/convocacoes/diagnostico-waboxapp para diagnóstico completo.'
-        ] : null
-      });
-
-    } catch (err) {
-      console.error('Erro ao enviar WhatsApp automático:', err);
-      res.status(500).json({ 
-        error: 'Erro ao processar envio automático.',
-        message: err.message,
-        fallback: 'Use o método manual (botão "Abrir Todos") que continua funcionando normalmente.'
-      });
-    }
-  },
-
-  // ============================================================================
-  // TESTE DE ENVIO WABOXAPP
-  // ============================================================================
-  testarWaboxApp: async (req, res) => {
-    try {
-      const { numero, mensagem } = req.body;
+      const result = await request.query(query);
       
-      if (!numero || !mensagem) {
-        return res.status(400).json({ 
-          error: 'Número e mensagem são obrigatórios',
-          exemplo: {
-            numero: '41999887766',
-            mensagem: 'Mensagem de teste'
-          }
-        });
+      if (result.recordset.length === 0) {
+        return res.status(404).json({ error: 'Equipamento não encontrado.' });
       }
 
-      const waboxappEnabled = process.env.WABOXAPP_ENABLED === 'true';
-      const waboxappToken = process.env.WABOXAPP_TOKEN;
-      const waboxappUid = process.env.WABOXAPP_UID;
-
-      if (!waboxappEnabled || !waboxappToken || !waboxappUid) {
-        return res.status(503).json({ 
-          error: 'WaboxApp não está configurado',
-          configurado: false
-        });
-      }
-
-      // Limpar e formatar número
-      const celularLimpo = numero.toString().replace(/\D/g, '');
-      let numeroFormatado = celularLimpo;
-      if (!numeroFormatado.startsWith('55')) {
-        if (numeroFormatado.startsWith('0')) {
-          numeroFormatado = numeroFormatado.substring(1);
-        }
-        numeroFormatado = '55' + numeroFormatado;
-      }
-
-      if (numeroFormatado.length < 12 || numeroFormatado.length > 13) {
-        return res.status(400).json({ 
-          error: 'Número inválido',
-          numeroRecebido: numero,
-          numeroFormatado: numeroFormatado,
-          tamanho: numeroFormatado.length
-        });
-      }
-
-      const textoEncoded = encodeURIComponent(mensagem);
-      const waboxappUrl = `https://www.waboxapp.com/api/send/chat?token=${waboxappToken}&uid=${waboxappUid}&to=${numeroFormatado}&text=${textoEncoded}`;
-
-      console.log('[TESTE WABOXAPP] Enviando mensagem de teste...');
-      console.log('[TESTE WABOXAPP] URL:', waboxappUrl.substring(0, 150) + '...');
-
-      const response = await axios.get(waboxappUrl, {
-        timeout: 30000,
-        headers: {
-          'User-Agent': 'Mozilla/5.0',
-          'Accept': 'application/json'
-        },
-        validateStatus: () => true
-      });
-
-      console.log('[TESTE WABOXAPP] Status:', response.status);
-      console.log('[TESTE WABOXAPP] Resposta:', JSON.stringify(response.data, null, 2));
-
-      const data = response.data || {};
-      const isSuccess = data.success === true || data.success === 1 || 
-                       data.sent === true || data.sent === 1 ||
-                       (data.status && (data.status === 'sent' || data.status === 'success'));
-
-      if (isSuccess) {
-        res.json({
-          success: true,
-          message: 'Mensagem de teste enviada com sucesso!',
-          numeroFormatado: numeroFormatado,
-          respostaApi: data
-        });
-      } else {
-        res.status(400).json({
-          success: false,
-          error: data.error || data.message || 'Erro ao enviar mensagem',
-          status: response.status,
-          respostaApi: data
-        });
-      }
-
+      res.json(result.recordset[0]);
     } catch (err) {
-      console.error('[TESTE WABOXAPP] Erro:', err);
-      res.status(500).json({
-        success: false,
-        error: err.message,
-        detalhes: err.response?.data || err.message
-      });
-    }
-  },
-
-  // ============================================================================
-  // DIAGNÓSTICO COMPLETO DO WABOXAPP
-  // ============================================================================
-  diagnosticoWaboxApp: async (req, res) => {
-    try {
-      const waboxappEnabled = process.env.WABOXAPP_ENABLED === 'true';
-      const waboxappToken = process.env.WABOXAPP_TOKEN;
-      const waboxappUid = process.env.WABOXAPP_UID;
-
-      const diagnostico = {
-        configuracao: {
-          habilitado: waboxappEnabled,
-          tokenPresente: !!waboxappToken,
-          tokenLength: waboxappToken ? waboxappToken.length : 0,
-          uidPresente: !!waboxappUid,
-          uid: waboxappUid || 'não definido',
-          configurado: waboxappEnabled && !!waboxappToken && !!waboxappUid
-        },
-        statusConexao: null,
-        testeEnvio: null,
-        erros: []
-      };
-
-      if (!diagnostico.configuracao.configurado) {
-        return res.json({
-          ...diagnostico,
-          mensagem: 'WaboxApp não está configurado corretamente'
-        });
-      }
-
-      // 1. Verificar status da conexão do WhatsApp
-      // NOTA: A API do WaboxApp pode não ter endpoint de status público
-      // Vamos tentar verificar através de um teste de envio ou verificar no painel
-      diagnostico.statusConexao = {
-        observacao: 'A API do WaboxApp não possui endpoint público para verificar status da conexão.',
-        recomendacao: 'Verifique manualmente no painel do WaboxApp (https://www.waboxapp.com) se o número está conectado ao WhatsApp.',
-        urlPainel: 'https://www.waboxapp.com'
-      };
-
-      // 3. Teste de envio (opcional - apenas se número fornecido)
-      const { numeroTeste } = req.query;
-      if (numeroTeste) {
-        try {
-          console.log('[DIAGNOSTICO] Testando envio para:', numeroTeste);
-          
-          // Limpar e formatar número
-          const celularLimpo = numeroTeste.toString().replace(/\D/g, '');
-          let numeroFormatado = celularLimpo;
-          if (!numeroFormatado.startsWith('55')) {
-            if (numeroFormatado.startsWith('0')) {
-              numeroFormatado = numeroFormatado.substring(1);
-            }
-            numeroFormatado = '55' + numeroFormatado;
-          }
-
-          if (numeroFormatado === waboxappUid) {
-            diagnostico.testeEnvio = {
-              erro: 'Número de teste não pode ser o mesmo do UID (não pode enviar para si mesmo)',
-              numeroFormatado: numeroFormatado,
-              uid: waboxappUid
-            };
-          } else {
-            const mensagemTeste = `Teste de envio automático - ${new Date().toLocaleString('pt-BR')}`;
-            const textoEncoded = encodeURIComponent(mensagemTeste);
-            const testUrl = `https://www.waboxapp.com/api/send/chat?token=${waboxappToken}&uid=${waboxappUid}&to=${numeroFormatado}&text=${textoEncoded}`;
-
-            const testResponse = await axios.get(testUrl, {
-              timeout: 30000,
-              validateStatus: () => true
-            });
-
-            const testData = testResponse.data || {};
-            const isSuccess = testData.success === true || testData.success === 1 || 
-                             testData.sent === true || testData.sent === 1 ||
-                             (testData.status && (testData.status === 'sent' || testData.status === 'success'));
-
-            diagnostico.testeEnvio = {
-              numeroFormatado: numeroFormatado,
-              statusHttp: testResponse.status,
-              sucesso: isSuccess,
-              respostaApi: testData,
-              mensagem: isSuccess ? 'Mensagem de teste enviada com sucesso (verifique se chegou)' : 'Falha no envio da mensagem de teste'
-            };
-
-            console.log('[DIAGNOSTICO] Resultado do teste:', diagnostico.testeEnvio);
-          }
-        } catch (testError) {
-          diagnostico.testeEnvio = {
-            erro: testError.message,
-            detalhes: testError.response?.data || testError.message
-          };
-          console.error('[DIAGNOSTICO] Erro no teste de envio:', testError);
-        }
-      }
-
-      // Resumo e recomendações
-      const recomendacoes = [];
-      
-      // Sempre recomendar verificar no painel, já que não temos como verificar via API
-      recomendacoes.push({
-        nivel: 'IMPORTANTE',
-        problema: 'Verificar conexão do WhatsApp no painel',
-        solucao: 'Acesse https://www.waboxapp.com → Meus telefones → Verifique se o número está conectado (status verde). Se não estiver, escaneie o QR Code novamente.'
-      });
-
-      if (diagnostico.testeEnvio && !diagnostico.testeEnvio.sucesso) {
-        recomendacoes.push({
-          nivel: 'ALTO',
-          problema: 'Falha no teste de envio',
-          solucao: 'Verifique se o número de destino está correto e se está registrado no WhatsApp. Verifique também se há créditos disponíveis na conta.'
-        });
-      }
-
-      if (diagnostico.configuracao.uid && diagnostico.testeEnvio?.numeroFormatado === diagnostico.configuracao.uid) {
-        recomendacoes.push({
-          nivel: 'ALTO',
-          problema: 'Número de destino é o mesmo do UID',
-          solucao: 'O número que envia (UID) não pode ser o mesmo do número que recebe. Verifique o cadastro do motorista.'
-        });
-      }
-
-      if (recomendacoes.length === 0 && diagnostico.statusConexao?.conectado) {
-        recomendacoes.push({
-          nivel: 'INFO',
-          mensagem: 'Tudo parece estar configurado corretamente. Se as mensagens não estão chegando, verifique: 1) Se o número de destino está correto, 2) Se o destinatário tem WhatsApp instalado, 3) Se há bloqueios ou restrições.'
-        });
-      }
-
-      res.json({
-        ...diagnostico,
-        recomendacoes,
-        timestamp: new Date().toISOString()
-      });
-
-    } catch (err) {
-      console.error('[DIAGNOSTICO] Erro geral:', err);
-      res.status(500).json({
-        error: 'Erro ao executar diagnóstico',
-        message: err.message,
-        stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
-      });
-    }
-  },
-
-  // ============================================================================
-  // MONITORAMENTO DE USO DE MENSAGENS - WABOXAPP
-  // ============================================================================
-  verificarStatusMensagens: async (req, res) => {
-    try {
-      const pool = await poolPromise;
-
-      // Verificar se a tabela existe
-      const tabelaExiste = await pool.request().query(`
-        SELECT COUNT(*) AS TOTAL
-        FROM INFORMATION_SCHEMA.TABLES
-        WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'LOG_ENVIO_WHATSAPP'
-      `);
-
-      if (tabelaExiste.recordset[0].TOTAL === 0) {
-        return res.json({
-          tabelaExiste: false,
-          mensagem: 'Tabela de log ainda não foi criada. Execute o script SQL primeiro.',
-          mensagensEnviadas: 0,
-          limiteGratuito: 100,
-          porcentagemUsada: 0,
-          alerta: null
-        });
-      }
-
-      // Contar mensagens enviadas no mês atual
-      const hoje = new Date();
-      const primeiroDiaMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-      const ultimoDiaMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0, 23, 59, 59);
-
-      const resultado = await pool.request()
-        .input('DATA_INICIO', sql.DateTime, primeiroDiaMes)
-        .input('DATA_FIM', sql.DateTime, ultimoDiaMes)
-        .query(`
-          SELECT 
-            COUNT(*) AS TOTAL_ENVIADAS,
-            COUNT(CASE WHEN STATUS_ENVIO = 'ENVIADO' THEN 1 END) AS ENVIADAS_SUCESSO,
-            COUNT(CASE WHEN STATUS_ENVIO = 'ERRO' THEN 1 END) AS ENVIADAS_ERRO
-          FROM [dbo].[LOG_ENVIO_WHATSAPP]
-          WHERE DHENVIO >= @DATA_INICIO AND DHENVIO <= @DATA_FIM
-        `);
-
-      const mensagensEnviadas = resultado.recordset[0].TOTAL_ENVIADAS || 0;
-      const mensagensSucesso = resultado.recordset[0].ENVIADAS_SUCESSO || 0;
-      const mensagensErro = resultado.recordset[0].ENVIADAS_ERRO || 0;
-
-      // Limites dos planos (em ordem crescente)
-      const limites = {
-        gratuito: 100,
-        basico: 1000,
-        intermediario: 10000,
-        avancado: 25000
-      };
-
-      // Determinar qual plano está sendo usado (assumindo gratuito por padrão)
-      // Você pode ajustar isso baseado na configuração do usuário
-      const limiteAtual = limites.gratuito; // Por padrão, assume plano gratuito
-      const porcentagemUsada = (mensagensEnviadas / limiteAtual) * 100;
-
-      // Gerar alertas
-      let alerta = null;
-      if (mensagensEnviadas >= limiteAtual) {
-        alerta = {
-          nivel: 'CRITICO',
-          mensagem: `⚠️ LIMITE ATINGIDO! Você já enviou ${mensagensEnviadas} mensagens este mês. O plano gratuito permite apenas ${limiteAtual} mensagens. Considere fazer upgrade ou usar o método manual.`,
-          cor: 'red'
-        };
-      } else if (porcentagemUsada >= 90) {
-        alerta = {
-          nivel: 'ALTO',
-          mensagem: `⚠️ ATENÇÃO! Você já usou ${mensagensEnviadas} de ${limiteAtual} mensagens (${porcentagemUsada.toFixed(1)}%). Restam apenas ${limiteAtual - mensagensEnviadas} mensagens gratuitas.`,
-          cor: 'orange'
-        };
-      } else if (porcentagemUsada >= 80) {
-        alerta = {
-          nivel: 'MEDIO',
-          mensagem: `ℹ️ Você já usou ${mensagensEnviadas} de ${limiteAtual} mensagens (${porcentagemUsada.toFixed(1)}%). Restam ${limiteAtual - mensagensEnviadas} mensagens gratuitas.`,
-          cor: 'yellow'
-        };
-      }
-
-      res.json({
-        tabelaExiste: true,
-        mensagensEnviadas,
-        mensagensSucesso,
-        mensagensErro,
-        limiteGratuito: limiteAtual,
-        mensagensRestantes: Math.max(0, limiteAtual - mensagensEnviadas),
-        porcentagemUsada: parseFloat(porcentagemUsada.toFixed(2)),
-        periodo: {
-          inicio: primeiroDiaMes.toISOString().split('T')[0],
-          fim: ultimoDiaMes.toISOString().split('T')[0],
-          mes: hoje.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })
-        },
-        alerta,
-        recomendacao: mensagensEnviadas >= limiteAtual 
-          ? 'Considere fazer upgrade para um plano pago ou usar o método manual (botão "Abrir Todos").'
-          : null
-      });
-
-    } catch (err) {
-      console.error('Erro ao verificar status de mensagens:', err);
-      res.status(500).json({
-        error: 'Erro ao verificar status de mensagens.',
-        message: err.message
-      });
+      console.error('Erro ao buscar equipamento:', err);
+      res.status(500).json({ error: 'Erro ao buscar equipamento.' });
     }
   },
 
@@ -3418,8 +2549,7 @@ const viagemController = {
           WHERE vv.IDVIAGEM = @IDVIAGEM
           ORDER BY vv.IDEQUIPAMENTO
         `);
-
-      // Retornar lista (pode estar vazia - isso é normal)
+      
       res.json(result.recordset);
     } catch (err) {
       console.error('Erro ao buscar veículos da viagem:', err);
@@ -3556,10 +2686,6 @@ const viagemController = {
       
       if (result.recordset.length === 0) {
         return res.status(404).json({ error: 'Cadastro não encontrado.' });
-      }
-
-      if (result.recordset.length > 1 && (cpf || codigo)) {
-        return res.json(result.recordset[0]);
       }
 
       res.json(result.recordset);
@@ -3735,7 +2861,7 @@ const viagemController = {
 
         if (result.rowsAffected[0] === 0) {
           await transaction.rollback();
-          return res.status(404).json({ error: 'Veículo não encontrado para esta viagem.' });
+          return res.status(404).json({ error: 'Veículo não encontrado nesta viagem.' });
         }
 
         await transaction.commit();
