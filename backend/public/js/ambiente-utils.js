@@ -23,7 +23,6 @@ function obterAmbiente() {
   if (isLocalhost) {
     const ambienteSalvo = localStorage.getItem('ambiente');
     if (ambienteSalvo !== 'local') {
-      console.log('[AMBIENTE] Corrigindo ambiente: estava', ambienteSalvo, 'mas está em localhost/IP privado, mudando para local');
       localStorage.setItem('ambiente', 'local');
       localStorage.removeItem('urlBaseProducao');
     }
@@ -34,7 +33,6 @@ function obterAmbiente() {
   // Salvar automaticamente como produção se ainda não estiver salvo
   const ambienteSalvo = localStorage.getItem('ambiente');
   if (ambienteSalvo !== 'producao') {
-    console.log('[AMBIENTE] Detectado ambiente de PRODUÇÃO:', hostname);
     localStorage.setItem('ambiente', 'producao');
     // Salvar a URL atual como URL de produção
     const urlAtual = window.location.origin;
@@ -54,20 +52,16 @@ async function obterUrlBase() {
   
   if (ambiente === 'local') {
     // Ambiente local: sempre usar localhost:3000
-    const urlLocal = 'http://localhost:3000';
-    console.log('[AMBIENTE] ✅ Ambiente LOCAL detectado:', urlLocal);
-    return urlLocal;
+    return 'http://localhost:3000';
   } else {
     // Ambiente produção: usar URL salva no localStorage ou origem atual
     const urlSalva = localStorage.getItem('urlBaseProducao');
     if (urlSalva) {
-      console.log('[AMBIENTE] ✅ Ambiente PRODUÇÃO - URL salva:', urlSalva);
       return urlSalva;
     }
     
     // Se não tem URL salva, usar a origem atual (onde o usuário está acessando)
     const urlAtual = window.location.origin;
-    console.log('[AMBIENTE] ✅ Ambiente PRODUÇÃO - URL atual detectada:', urlAtual);
     // Salvar para próxima vez
     localStorage.setItem('urlBaseProducao', urlAtual);
     return urlAtual;
@@ -84,21 +78,17 @@ function obterUrlBaseSync() {
   const ambiente = obterAmbiente();
   
   if (ambiente === 'local') {
-    const urlLocal = 'http://localhost:3000';
-    console.log('[AMBIENTE] ✅ Ambiente LOCAL (sync):', urlLocal);
-    return urlLocal;
+    return 'http://localhost:3000';
   } else {
     // Em produção, usar URL salva no localStorage ou origem atual
     const urlSalva = localStorage.getItem('urlBaseProducao');
     if (urlSalva) {
-      console.log('[AMBIENTE] ✅ Ambiente PRODUÇÃO (sync) - URL salva:', urlSalva);
       return urlSalva;
     }
     
     // Se não tem URL salva, usar a origem atual e salvar
     const urlAtual = window.location.origin;
     localStorage.setItem('urlBaseProducao', urlAtual);
-    console.log('[AMBIENTE] ✅ Ambiente PRODUÇÃO (sync) - URL atual:', urlAtual);
     return urlAtual;
   }
 }

@@ -12,9 +12,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('userName').textContent = user.nome || 'Usuário';
     document.getElementById('userEmail').textContent = user.email || '';
 
-    // Exibir ambiente ativo
-    atualizarIndicadorAmbiente();
-
     await loadUserMenu(user.login);
 
     // Vincula botão de logout
@@ -106,11 +103,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Retornar o ícone correspondente ou fallback padrão
     const icon = icons[idNum] || 'grid';
     
-    // Debug: verificar se o ícone está sendo retornado corretamente
-    if (!icon || icon === 'grid') {
-      console.warn(`[Menu] Ícone não encontrado para ID ${idNum} (${id})`);
-    }
-    
     return icon;
   };
 
@@ -135,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const script = document.createElement('script');
         script.src = `/modulos/${programa}/js/script.js`;
         script.onerror = () => {
-          console.warn(`Script não encontrado: /modulos/${programa}/js/script.js`);
+          // Script não encontrado - silencioso
         };
         script.onload = () => {
           // Aplicar restrições de permissão após o módulo carregar
@@ -207,76 +199,6 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     `;
   };
-
-  // Função para atualizar indicador de ambiente
-  function atualizarIndicadorAmbiente() {
-    const ambienteInfo = document.getElementById('ambienteInfo');
-    const ambienteTexto = document.getElementById('ambienteTexto');
-    
-    if (!ambienteInfo || !ambienteTexto) return;
-    
-    // PRIORIDADE ABSOLUTA: Detectar ambiente baseado na URL ATUAL do navegador
-    const hostname = window.location.hostname;
-    const urlAtual = window.location.origin;
-    const isLocalhost = hostname === 'localhost' || 
-                       hostname === '127.0.0.1';
-    
-    // IPs privados também são considerados "local" para desenvolvimento
-    const isIPPrivado = hostname.startsWith('192.168.') ||
-                       hostname.startsWith('10.') ||
-                       hostname.startsWith('172.');
-    
-    console.log('[DASHBOARD] ========== DETECÇÃO DE AMBIENTE ==========');
-    console.log('[DASHBOARD] URL atual:', urlAtual);
-    console.log('[DASHBOARD] Hostname:', hostname);
-    console.log('[DASHBOARD] É localhost?', isLocalhost);
-    console.log('[DASHBOARD] É IP privado?', isIPPrivado);
-    
-    let ambiente = 'producao';
-    let urlBase = '';
-    
-    // Se está em localhost ou IP privado, SEMPRE usar ambiente local
-    if (isLocalhost || isIPPrivado) {
-      ambiente = 'local';
-      urlBase = 'http://localhost:3000';
-      
-      // CORRIGIR localStorage se estiver errado
-      const ambienteSalvo = localStorage.getItem('ambiente');
-      if (ambienteSalvo !== 'local') {
-        console.log('[DASHBOARD] ⚠️ CORRIGINDO: localStorage tinha', ambienteSalvo, 'mas está em localhost/IP privado');
-        localStorage.setItem('ambiente', 'local');
-        localStorage.removeItem('urlBaseProducao');
-      }
-      
-      ambienteInfo.style.background = '#fff3cd';
-      ambienteInfo.style.color = '#856404';
-      ambienteInfo.style.border = '1px solid #ffc107';
-      ambienteTexto.innerHTML = '🖥️ <strong>AMBIENTE LOCAL</strong> - ' + urlBase;
-      
-      console.log('[DASHBOARD] ✅ Ambiente: LOCAL');
-    } else {
-      // Está em produção (IP público), SEMPRE usar ambiente produção
-      ambiente = 'producao';
-      const urlSalva = localStorage.getItem('urlBaseProducao');
-      
-      // Usar URL atual como base (é a URL de produção)
-      urlBase = urlAtual;
-      
-      // Salvar URL atual como URL de produção
-      localStorage.setItem('urlBaseProducao', urlAtual);
-      localStorage.setItem('ambiente', 'producao');
-      
-      ambienteInfo.style.background = '#d1ecf1';
-      ambienteInfo.style.color = '#0c5460';
-      ambienteInfo.style.border = '1px solid #17a2b8';
-      ambienteTexto.innerHTML = '🌐 <strong>AMBIENTE PRODUÇÃO</strong> - ' + urlBase;
-      
-      console.log('[DASHBOARD] ✅ Ambiente: PRODUÇÃO');
-    }
-    
-    console.log('[DASHBOARD] URL Base final:', urlBase);
-    console.log('[DASHBOARD] =========================================');
-  }
 
   initDashboard();
 });

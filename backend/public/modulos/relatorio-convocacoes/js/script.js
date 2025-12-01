@@ -452,10 +452,6 @@
           valorA = (a.NOME_MOTORISTA || '').toUpperCase();
           valorB = (b.NOME_MOTORISTA || '').toUpperCase();
           break;
-        case 'Celular':
-          valorA = a.NRCELULAR || '';
-          valorB = b.NRCELULAR || '';
-          break;
         case 'Status':
           valorA = a.STATUS || '';
           valorB = b.STATUS || '';
@@ -472,9 +468,11 @@
           valorA = new Date(a.DHACESSO || 0);
           valorB = new Date(b.DHACESSO || 0);
           break;
-        case 'Roteiro':
-          valorA = (a.DSROTEIRO || '').toUpperCase();
-          valorB = (b.DSROTEIRO || '').toUpperCase();
+        case 'Rota':
+          const rotaA = `${(a.ORIGEM_CIDADE || '')}/${(a.ORIGEM_ESTADO || '')} → ${(a.DESTINO_CIDADE || '')}/${(a.DESTINO_ESTADO || '')}`;
+          const rotaB = `${(b.ORIGEM_CIDADE || '')}/${(b.ORIGEM_ESTADO || '')} → ${(b.DESTINO_CIDADE || '')}/${(b.DESTINO_ESTADO || '')}`;
+          valorA = rotaA.toUpperCase();
+          valorB = rotaB.toUpperCase();
           break;
         case 'Confirmada':
           valorA = a.VIAGEM_CONFIRMADA || 'N';
@@ -584,8 +582,12 @@
     const criarHeader = (nome, chave, largura = null) => {
       const isOrdenado = ordemAtual.coluna === nome;
       const seta = isOrdenado ? (ordemAtual.direcao === 'asc' ? ' ▲' : ' ▼') : ' ↕';
-      const styleLargura = largura ? `width: ${largura}; min-width: ${largura}; white-space: nowrap;` : '';
-      return `<th style="cursor: pointer; user-select: none; position: relative; ${styleLargura}" onclick="ordenarTabela('${nome}')" title="Clique para ordenar">
+      const styleLargura = largura ? `width: ${largura}; min-width: ${largura};` : '';
+      return `<th style="padding: 12px; text-align: left; cursor: pointer; user-select: none; ${styleLargura}" 
+                onclick="ordenarTabela('${nome}')" 
+                onmouseover="this.style.background='#e8e8e8'" 
+                onmouseout="this.style.background='#f5f5f5'"
+                title="Clique para ordenar">
         ${nome}${seta}
       </th>`;
     };
@@ -593,59 +595,104 @@
     const tabela = `
       <table>
         <thead>
-          <tr>
-            ${criarHeader('ID', 'IDCONVOCACAO', '50px')}
-            ${criarHeader('Viagem', 'IDVIAGEM', '80px')}
-            ${criarHeader('Motorista', 'NOME_MOTORISTA')}
-            ${criarHeader('Celular', 'NRCELULAR')}
-            ${criarHeader('Status', 'STATUS')}
-            ${criarHeader('Convocação', 'DHCONVOCACAO')}
-            ${criarHeader('Resposta', 'DHRESPOSTA')}
-            ${criarHeader('Acesso', 'DHACESSO')}
-            ${criarHeader('Roteiro', 'DSROTEIRO')}
-            <th title="Indica se a viagem já possui uma convocação confirmada (independente desta convocação)"><span style="font-size: 14px;">ℹ️</span></th>
-            <th>Ações</th>
+          <tr style="background: #f5f5f5; border-bottom: 2px solid #ddd;">
+            ${criarHeader('ID', 'IDCONVOCACAO', '60px')}
+            ${criarHeader('Viagem', 'IDVIAGEM', '100px')}
+            ${criarHeader('Rota', 'ORIGEM_CIDADE', '150px')}
+            ${criarHeader('Status', 'STATUS', '120px')}
+            ${criarHeader('Motorista', 'NOME_MOTORISTA', '180px')}
+            ${criarHeader('Convocação', 'DHCONVOCACAO', '70px')}
+            ${criarHeader('Acesso', 'DHACESSO', '70px')}
+            ${criarHeader('Resposta', 'DHRESPOSTA', '70px')}
+            <th style="padding: 12px; text-align: left; width: 30px;" title="Indica se a viagem já possui uma convocação confirmada (independente desta convocação)"><span style="font-size: 14px;">ℹ️</span></th>
+            <th style="padding: 12px; text-align: left; width: 50px;">Ações</th>
           </tr>
         </thead>
         <tbody>
-          ${listaOrdenada.map(item => `
-            <tr>
-              <td style="width: 50px; min-width: 50px;">${item.IDCONVOCACAO}</td>
-              <td style="width: 80px; min-width: 80px;">
+          ${listaOrdenada.map((item, index) => {
+            const rowStyle = index % 2 === 0 ? 'background: #fafafa;' : '';
+            
+            // Formatar status igual ao gerenciar-viagens
+            let statusClass = '';
+            let statusDisplay = item.STATUS || 'PENDENTE';
+            
+            if (item.STATUS === 'PENDENTE') {
+              statusClass = 'background: #fff3cd; color: #856404;';
+            } else if (item.STATUS === 'ACEITA') {
+              statusClass = 'background: #d4edda; color: #155724;';
+            } else if (item.STATUS === 'ACEITA_DESCARTADA') {
+              statusClass = 'background: #ffeaa7; color: #856404;';
+              statusDisplay = 'ACEITA (Não Selecionada)';
+            } else if (item.STATUS === 'RECUSADA') {
+              statusClass = 'background: #f8d7da; color: #721c24;';
+              if (item.MOTIVO_RECUSA) {
+                statusDisplay = `RECUSADA - ${item.MOTIVO_RECUSA}`;
+              }
+            } else if (item.STATUS === 'CONFIRMADA') {
+              statusClass = 'background: #cce5ff; color: #004085;';
+            }
+            
+            return `
+            <tr style="border-bottom: 1px solid #eee; ${rowStyle}">
+              <td style="padding: 12px;">${item.IDCONVOCACAO}</td>
+              <td style="padding: 12px;">
                 <button onclick="abrirViagem(${item.IDVIAGEM})" 
                         class="btn-link" 
                         style="background: none; border: none; color: #667eea; cursor: pointer; text-decoration: underline; font-weight: 600; padding: 0;"
                         title="Clique para ver detalhes da viagem">
-                  ${item.IDVIAGEM}
-                </button>
+                  <strong>${item.IDVIAGEM}</strong>
+                </button><br>
+                <small style="color: #666;">${item.DSCLASSEFROTA || '-'}</small>
               </td>
-              <td>${item.NOME_MOTORISTA || 'N/A'}</td>
-              <td>${criarLinkWhatsApp(item.NRCELULAR)}</td>
-              <td>
+              <td style="padding: 12px;">
+                ${item.ORIGEM_CIDADE || '-'}/${item.ORIGEM_ESTADO || '-'}<br>
+                <small style="color: #666;">→ ${item.DESTINO_CIDADE || '-'}/${item.DESTINO_ESTADO || '-'}</small>
+              </td>
+              <td style="padding: 12px;">
                 ${criarIndicadorGeolocalizacao(item.LATITUDE, item.LONGITUDE)}
-                <span class="badge badge-${item.STATUS.toLowerCase().replace('_', '-')}">
-                  ${item.STATUS === 'RECUSADA' && item.MOTIVO_RECUSA ? `RECUSADA - ${item.MOTIVO_RECUSA}` : item.STATUS}
+                <span style="padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; ${statusClass}">
+                  ${statusDisplay}
                 </span>
               </td>
-              <td>${formatarData(item.DHCONVOCACAO)}</td>
-              <td>${formatarData(item.DHRESPOSTA)}</td>
-              <td>${formatarData(item.DHACESSO)}</td>
-              <td>${item.DSROTEIRO || 'N/A'}</td>
-              <td title="${item.VIAGEM_CONFIRMADA === 'S' ? 'Esta viagem já possui uma convocação confirmada' : 'Esta viagem ainda não possui convocação confirmada'}">
+              <td style="padding: 12px;">
+                ${item.NOME_MOTORISTA || 'N/A'}<br>
+                <small style="color: #666; font-size: 11px;">${item.NRCELULAR && item.NRCELULAR !== 'N/A' ? '📱 ' : ''}${criarLinkWhatsApp(item.NRCELULAR)}</small>
+              </td>
+              <td style="padding: 12px; font-size: 12px;">${formatarData(item.DHCONVOCACAO)}</td>
+              <td style="padding: 12px; font-size: 12px;">
+                ${item.DHACESSO 
+                  ? `<div style="display: flex; align-items: center; gap: 6px;">
+                       <span style="color: #28a745; font-size: 16px;">✅</span>
+                       <div>
+                         <div style="color: #28a745; font-weight: 600; font-size: 12px;">Acessou</div>
+                         <small style="color: #666; font-size: 10px;">${formatarData(item.DHACESSO)}</small>
+                       </div>
+                     </div>` 
+                  : `<div style="display: flex; align-items: center; gap: 6px;">
+                       <span style="color: #dc3545; font-size: 16px;">❌</span>
+                       <div>
+                         <div style="color: #dc3545; font-weight: 600; font-size: 12px;">Não acessou</div>
+                         <small style="color: #999; font-size: 10px;">Aguardando</small>
+                       </div>
+                     </div>`}
+              </td>
+              <td style="padding: 12px; font-size: 12px;">${formatarData(item.DHRESPOSTA)}</td>
+              <td style="padding: 12px; text-align: center;" title="${item.VIAGEM_CONFIRMADA === 'S' ? 'Esta viagem já possui uma convocação confirmada' : 'Esta viagem ainda não possui convocação confirmada'}">
                 ${item.VIAGEM_CONFIRMADA === 'S' ? '✅' : '❌'}
               </td>
-              <td>
+              <td style="padding: 12px;">
                 ${(item.IDROTEIRO && item.LATITUDE && item.LONGITUDE && !isNaN(item.LATITUDE) && !isNaN(item.LONGITUDE)) 
                   ? `<button onclick="abrirMapaMotorista(${item.IDCONVOCACAO}, ${item.LATITUDE}, ${item.LONGITUDE}, ${item.IDROTEIRO}, ${item.IDVIAGEM})" 
                       class="btn" 
-                      style="padding: 8px; font-size: 1.2em; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; min-width: 40px; display: inline-flex; align-items: center; justify-content: center;"
+                      style="padding: 8px 10px; font-size: 1.2em; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-width: 36px;"
                       title="Ver localização do motorista e rota até o carregamento">
                         🗺️
                     </button>`
                   : ''}
               </td>
             </tr>
-          `).join('')}
+          `;
+          }).join('')}
         </tbody>
       </table>
     `;
@@ -674,58 +721,55 @@
   function formatarData(data) {
     if (!data) return '-';
     
-    // Se a data já vem como string formatada, limpar segundos e milissegundos se existirem
-    if (typeof data === 'string' && data.includes('/') && data.includes(',')) {
-      // Remover segundos e milissegundos se existirem
-      // Exemplo: "27/11/2025, 09:20:49787" -> "27/11/2025, 09:20"
-      const match = data.match(/(\d{2}\/\d{2}\/\d{4}),\s*(\d{2}):(\d{2})(?::\d+)?/);
-      if (match) {
-        return `${match[1]}, ${match[2]}:${match[3]}`;
+    // SQL Server retorna datas no formato ISO: 2025-11-21T10:39:24.123Z
+    // Quando o JavaScript cria new Date(), ele interpreta como UTC e converte para o fuso local
+    // Precisamos tratar a string diretamente para evitar conversão de fuso
+    
+    if (typeof data === 'string') {
+      // Remover o Z se existir e tratar como data local
+      let dataStr = data.replace('Z', '');
+      
+      // Se tem T, substituir por espaço
+      if (dataStr.includes('T')) {
+        dataStr = dataStr.replace('T', ' ');
       }
-      return data;
+      
+      // Extrair partes da data: 2025-11-21 10:39:24.123
+      const match = dataStr.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
+      if (match) {
+        const [, year, month, day, hour, minute] = match;
+        // Formatar manualmente para pt-BR (sem conversão de fuso)
+        const diaStr = String(day).padStart(2, '0');
+        const mesStr = String(month).padStart(2, '0');
+        const anoStr = year;
+        const horaStr = String(hour).padStart(2, '0');
+        const minutoStr = String(minute).padStart(2, '0');
+        
+        return `${diaStr}/${mesStr}/${anoStr} ${horaStr}:${minutoStr}`;
+      }
     }
     
+    // Fallback: extrair componentes UTC e tratar como local (sem conversão de fuso)
     try {
-      let ano, mes, dia, hora, minuto;
+      const date = new Date(data);
+      if (isNaN(date.getTime())) return '-';
       
-      // Se a string vem no formato ISO, extrair diretamente
-      if (typeof data === 'string' && data.includes('T')) {
-        // Formato ISO: "2025-11-26T05:20:03.000Z" ou "2025-11-26T05:20:03"
-        const partes = data.split('T');
-        const dataParte = partes[0].split('-');
-        const horaParte = partes[1] ? partes[1].replace(/[Z\.]/g, '').split(':') : ['00', '00'];
-        
-        ano = parseInt(dataParte[0], 10);
-        mes = parseInt(dataParte[1], 10) - 1; // JavaScript usa mês 0-11
-        dia = parseInt(dataParte[2], 10);
-        hora = parseInt(horaParte[0], 10) || 0;
-        minuto = parseInt(horaParte[1], 10) || 0;
-      } else {
-        // Fallback: usar Date e extrair componentes UTC
-        const date = new Date(data);
-        
-        if (isNaN(date.getTime())) {
-          return '-';
-        }
-        
-        // Extrair componentes UTC e tratar como local (sem conversão de fuso)
-        ano = date.getUTCFullYear();
-        mes = date.getUTCMonth();
-        dia = date.getUTCDate();
-        hora = date.getUTCHours();
-        minuto = date.getUTCMinutes();
-      }
+      // Extrair componentes UTC e tratar como local (sem conversão de fuso)
+      const ano = date.getUTCFullYear();
+      const mes = date.getUTCMonth();
+      const dia = date.getUTCDate();
+      const hora = date.getUTCHours();
+      const minuto = date.getUTCMinutes();
       
-      // Formatar para pt-BR (sem segundos)
+      // Formatar manualmente para pt-BR
       const diaStr = String(dia).padStart(2, '0');
       const mesStr = String(mes + 1).padStart(2, '0');
       const anoStr = ano;
       const horaStr = String(hora).padStart(2, '0');
       const minutoStr = String(minuto).padStart(2, '0');
       
-      return `${diaStr}/${mesStr}/${anoStr}, ${horaStr}:${minutoStr}`;
+      return `${diaStr}/${mesStr}/${anoStr} ${horaStr}:${minutoStr}`;
     } catch (error) {
-      console.error('Erro ao formatar data:', error, data);
       return '-';
     }
   }
@@ -785,7 +829,7 @@
     return `<a href="${urlWhatsApp}" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                style="color: #25D366; text-decoration: none; font-weight: 600;"
+                style="color: #25D366; text-decoration: none; font-weight: 500; font-size: 11px;"
                 title="Abrir WhatsApp">
                 ${celularFormatado}
               </a>`;
@@ -872,19 +916,24 @@
     }
 
     // Criar CSV
-    const headers = ['ID', 'Viagem', 'Motorista', 'Celular', 'Status', 'Convocação', 'Resposta', 'Acesso', 'Roteiro', 'Confirmada'];
-    const rows = dadosAtuais.lista.map(item => [
-      item.IDCONVOCACAO,
-      item.IDVIAGEM,
-      item.NOME_MOTORISTA || '',
-      item.NRCELULAR || '',
-      item.STATUS,
-      formatarData(item.DHCONVOCACAO),
-      formatarData(item.DHRESPOSTA),
-      formatarData(item.DHACESSO),
-      item.DSROTEIRO || '',
-      item.VIAGEM_CONFIRMADA === 'S' ? 'Sim' : 'Não'
-    ]);
+    const headers = ['ID', 'Viagem', 'Motorista', 'Celular', 'Status', 'Convocação', 'Resposta', 'Acesso', 'Rota', 'Confirmada'];
+    const rows = dadosAtuais.lista.map(item => {
+      const rota = item.ORIGEM_CIDADE && item.ORIGEM_ESTADO && item.DESTINO_CIDADE && item.DESTINO_ESTADO
+        ? `${item.ORIGEM_CIDADE}/${item.ORIGEM_ESTADO} → ${item.DESTINO_CIDADE}/${item.DESTINO_ESTADO}`
+        : (item.DSROTEIRO || '');
+      return [
+        item.IDCONVOCACAO,
+        item.IDVIAGEM,
+        item.NOME_MOTORISTA || '',
+        item.NRCELULAR || '',
+        item.STATUS,
+        formatarData(item.DHCONVOCACAO),
+        formatarData(item.DHRESPOSTA),
+        formatarData(item.DHACESSO),
+        rota,
+        item.VIAGEM_CONFIRMADA === 'S' ? 'Sim' : 'Não'
+      ];
+    });
 
     const csv = [
       headers.join(','),

@@ -52,23 +52,24 @@
 ### Configuração e Ambiente
 - **[README_URL_PUBLICA.md](README_URL_PUBLICA.md)** ✅
   - Configuração de URL pública
-  - ngrok e IP local
+  - IP local
   - Testes no celular
 
-- **[README_NGROK_RAPIDO.md](README_NGROK_RAPIDO.md)** ✅
-  - Guia rápido do ngrok
-  - Comandos essenciais
-
-- **[GUIA_NGROK.md](GUIA_NGROK.md)** ✅
-  - Documentação completa do ngrok
-  - Instalação e configuração
-  - Troubleshooting
+- **[ATUALIZAR_ENV.md](ATUALIZAR_ENV.md)** ✅
+  - Atualização do arquivo .env
+  - Remoção de configurações obsoletas (WaboxApp, ngrok)
+  - Configurações atuais
 
 ### Integrações
 - **[SOLUCAO_LINKS_WHATSAPP.md](SOLUCAO_LINKS_WHATSAPP.md)** ✅
   - Solução para problemas com links WhatsApp
   - Configuração de URLs
   - Testes
+
+- **[SOLUCAO_LINKS_CONVOCACAO.md](SOLUCAO_LINKS_CONVOCACAO.md)** ✅
+  - Detecção automática de ambiente
+  - Geração de links de convocação
+  - Configuração
 
 - **[GUIA_SIMULACAO_MOBILE.md](GUIA_SIMULACAO_MOBILE.md)** ✅
   - Como testar no celular
@@ -166,7 +167,7 @@
 
 ### 📱 Para Integrações
 1. [SOLUCAO_LINKS_WHATSAPP.md](SOLUCAO_LINKS_WHATSAPP.md) - WhatsApp
-2. [GUIA_NGROK.md](GUIA_NGROK.md) - ngrok
+2. [SOLUCAO_LINKS_CONVOCACAO.md](SOLUCAO_LINKS_CONVOCACAO.md) - Links de Convocação
 3. [GUIA_SIMULACAO_MOBILE.md](GUIA_SIMULACAO_MOBILE.md) - Mobile
 
 ### 🔍 Para Troubleshooting
@@ -182,8 +183,8 @@
 - Sistema de Convocações
 - init.sql
 - Configuração de URL Pública
-- Guias ngrok
 - Solução Links WhatsApp
+- Solução Links Convocação
 - Guia Simulação Mobile
 - Estrutura de Documentação
 - README Principal

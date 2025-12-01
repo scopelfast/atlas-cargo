@@ -423,46 +423,6 @@
             </span>
           </div>
           
-          <!-- Seletor de Ambiente -->
-          <div class="input-box" style="margin-bottom: 20px;">
-            <i class='bx bx-server input-icon'></i>
-            <select id="ambiente" style="width: 100%; padding: 16px 16px 16px 50px; border: 2px solid #e0e0e0; border-radius: 12px; font-size: 15px; background: #f8f9fa; color: #333; appearance: none; -webkit-appearance: none; -moz-appearance: none; cursor: pointer; transition: all 0.3s ease;" onfocus="this.style.borderColor='#1a2a6c'; this.style.background='white'; this.style.boxShadow='0 0 0 4px rgba(26, 42, 108, 0.1)';" onblur="this.style.borderColor='#e0e0e0'; this.style.background='#f8f9fa'; this.style.boxShadow='none';" onchange="toggleUrlProducao(this.value)">
-              <option value="local">🖥️ Ambiente Local (localhost:3000)</option>
-              <option value="producao">🌐 Ambiente Produção (Servidor Público)</option>
-            </select>
-            <label for="ambiente" style="position: absolute; left: 50px; top: -10px; font-size: 12px; color: #1a2a6c; background: white; padding: 0 8px; pointer-events: none;">Ambiente</label>
-          </div>
-          
-          <!-- Campo para URL de Produção (aparece apenas quando seleciona Produção) -->
-          <div id="urlProducaoBox" class="input-box" style="margin-bottom: 20px; display: none;">
-            <i class='bx bx-link input-icon'></i>
-            <input type="text" id="urlProducao" placeholder=" " value="http://cargas.integrabrasil.com:8083" />
-            <label for="urlProducao">URL do Servidor de Produção</label>
-            <small style="display: block; margin-top: 5px; color: #666; font-size: 12px;">Digite a URL completa do servidor (ex: http://cargas.integrabrasil.com:8083)</small>
-          </div>
-          
-          <script>
-            function toggleUrlProducao(ambiente) {
-              const urlBox = document.getElementById('urlProducaoBox');
-              if (ambiente === 'producao') {
-                urlBox.style.display = 'block';
-              } else {
-                urlBox.style.display = 'none';
-              }
-            }
-            
-            // Verificar ambiente salvo ao carregar
-            document.addEventListener('DOMContentLoaded', () => {
-              const ambienteSelect = document.getElementById('ambiente');
-              if (ambienteSelect) {
-                const ambienteSalvo = localStorage.getItem('ambiente');
-                if (ambienteSalvo === 'producao') {
-                  toggleUrlProducao('producao');
-                }
-              }
-            });
-          </script>
-          
           <div class="error-message" id="errorMessage"></div>
           <button type="submit" class="btn">
             <span>Entrar</span>
@@ -477,7 +437,6 @@
     </div>
   </div>
 
-  <script src="/js/ambiente-utils.js"></script>
   <script src="/js/login.js"></script>
 </body>
 </html>

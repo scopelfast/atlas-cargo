@@ -29,14 +29,14 @@ O **DivulgaCarga** é um sistema completo de gestão de transportes desenvolvido
 
 - ✅ **Gerenciamento de Viagens**: Criação, edição e acompanhamento de viagens
 - ✅ **Múltiplos Veículos e Motoristas**: Suporte a vários veículos e motoristas por viagem
-- ✅ **Sistema de Convocações**: Convite automático de motoristas via WhatsApp
+- ✅ **Sistema de Convocações**: Convite de motoristas via WhatsApp (envio manual)
 - ✅ **Motivo de Recusa**: Registro do motivo quando motorista recusa convocação
 - ✅ **Reativação de Convocações**: Sistema para reativar convocações confirmadas
 - ✅ **Histórico de Reabertura**: Rastreamento completo de reaberturas de convocações
 - ✅ **Cadastro Geral**: Gestão completa de motoristas, transportadores e contratadores
 - ✅ **Roteiros**: Gerenciamento de rotas e pontos de parada
 - ✅ **Relatórios**: Análise de convocações e estatísticas
-- ✅ **Integração WhatsApp**: Envio automático de convites e contato direto com motoristas
+- ✅ **Links WhatsApp**: Geração automática de links para envio manual via WhatsApp Web
 - ✅ **Visualização de Dados**: Modais estilizados para visualização completa de informações
 
 ### Tecnologias Utilizadas

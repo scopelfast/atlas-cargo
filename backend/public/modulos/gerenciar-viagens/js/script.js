@@ -3354,7 +3354,7 @@
     if (typeof window !== 'undefined' && typeof window.obterUrlBase === 'function') {
       try {
         const urlBase = await window.obterUrlBase();
-        console.log('[CONVOCAÇÃO] URL base obtida (automática):', urlBase);
+        // URL base obtida automaticamente
         return urlBase;
       } catch (err) {
         console.warn('[URL] Erro ao obter URL base do utilitário, usando fallback:', err);
@@ -3370,13 +3370,13 @@
                         hostname.startsWith('172.');
     
     if (isLocalhost) {
-      console.log('[CONVOCAÇÃO] Ambiente LOCAL detectado (fallback): http://localhost:3000');
+      // Ambiente LOCAL detectado
       return 'http://localhost:3000';
     }
     
     // PRIORIDADE 3: Usar origem atual (produção)
     const urlAtual = window.location.origin;
-    console.log('[CONVOCAÇÃO] Ambiente PRODUÇÃO detectado (fallback):', urlAtual);
+    // Ambiente PRODUÇÃO detectado
     return urlAtual;
   }
 
@@ -4544,13 +4544,30 @@
       
       const urlWhatsApp = `https://wa.me/${numeroLimpo}`;
       
+      // Formatar número para exibição (com parênteses e hífen)
+      let celularFormatado = '';
+      if (numeroLimpo && numeroLimpo.length >= 12) {
+        // Remover código do país (55) para formatação
+        let numeroParaFormatar = numeroLimpo.substring(2); // Remove o 55
+        if (numeroParaFormatar.length === 11) {
+          // Formato: (41) 99837-1769
+          celularFormatado = `(${numeroParaFormatar.substring(0, 2)}) ${numeroParaFormatar.substring(2, 7)}-${numeroParaFormatar.substring(7)}`;
+        } else if (numeroParaFormatar.length === 10) {
+          // Formato: (41) 9837-1769
+          celularFormatado = `(${numeroParaFormatar.substring(0, 2)}) ${numeroParaFormatar.substring(2, 6)}-${numeroParaFormatar.substring(6)}`;
+        } else {
+          celularFormatado = numeroParaFormatar;
+        }
+      } else {
+        celularFormatado = celular;
+      }
+      
       return `<a href="${urlWhatsApp}" 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  style="color: #25D366; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; font-weight: 600;"
+                  style="color: #25D366; text-decoration: none; font-weight: 500; font-size: 11px;"
                   title="Abrir WhatsApp">
-                  <span style="font-size: 1.2em;">📱</span>
-                  <span>${celular}</span>
+                  ${celularFormatado}
                 </a>`;
     };
 
@@ -4742,7 +4759,7 @@
           </td>
           <td style="padding: 12px;">
             ${conv.NOME_MOTORISTA || '-'}<br>
-            <small style="color: #666;">${criarLinkWhatsApp(conv.CELULAR_MOTORISTA)}</small>
+            <small style="color: #666;">${conv.CELULAR_MOTORISTA && conv.CELULAR_MOTORISTA !== 'N/A' && conv.CELULAR_MOTORISTA !== '-' ? '📱 ' : ''}${criarLinkWhatsApp(conv.CELULAR_MOTORISTA)}</small>
           </td>
           <td style="padding: 12px; font-size: 12px;">${formatarData(conv.DHCONVOCACAO)}</td>
           <td style="padding: 12px; font-size: 12px;">
@@ -4891,7 +4908,7 @@
       }
       
       // Método manual: abrir WhatsApp
-      console.log('[CONFIRMAR] Usando método MANUAL (WhatsApp Web)');
+      // Usando método MANUAL (WhatsApp Web)
       if (result.whatsappLink) {
         showMessage(result.message || 'Convocação confirmada com sucesso! WhatsApp será aberto para o motorista selecionado.', 'success');
         

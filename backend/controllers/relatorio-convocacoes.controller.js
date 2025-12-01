@@ -68,6 +68,8 @@ const relatorioController = {
       
       if (viagemConfirmada && (viagemConfirmada === 'true' || viagemConfirmada === '1')) {
         whereConditions.push('EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] c2 WHERE c2.IDVIAGEM = c.IDVIAGEM AND c2.STATUS = \'CONFIRMADA\')');
+      } else if (viagemConfirmada && (viagemConfirmada === 'false' || viagemConfirmada === '0')) {
+        whereConditions.push('NOT EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] c2 WHERE c2.IDVIAGEM = c.IDVIAGEM AND c2.STATUS = \'CONFIRMADA\')');
       }
       
       if (isValidValue(motivoRecusa) && !isNaN(motivoRecusa.trim())) {
@@ -98,6 +100,10 @@ const relatorioController = {
           v.DTPREVINICIO,
           v.DTPREVFINAL,
           r.DSROTEIRO,
+          co.ESTADO AS ORIGEM_ESTADO,
+          co.NMCIDADE AS ORIGEM_CIDADE,
+          cd.ESTADO AS DESTINO_ESTADO,
+          cd.NMCIDADE AS DESTINO_CIDADE,
           cf.DSCLASSEFROTA,
           tv.DSTIPOVIAGEM,
           cg_contratador.RZSOCIAL AS CONTRATADOR,
@@ -110,6 +116,8 @@ const relatorioController = {
         LEFT JOIN [dbo].[CADASTROGERAL] cg ON c.CDCADASTRO_MOTORISTA = cg.CDCADASTRO
         LEFT JOIN [dbo].[VIAGEMMESTRE] v ON c.IDVIAGEM = v.IDVIAGEM
         LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
+        LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
+        LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
         LEFT JOIN [dbo].[CLASSEFROTA] cf ON v.CDCLASSEFROTA = cf.CDCLASSEFROTA
         LEFT JOIN [dbo].[TIPOVIAGEM] tv ON v.CDTIPOVIAGEM = tv.CDTIPOVIAGEM
         LEFT JOIN [dbo].[CADASTROGERAL] cg_contratador ON v.CDCONTRATADOR = cg_contratador.CDCADASTRO
