@@ -1,5 +1,9 @@
 # 🚀 Guia Rápido - Push para GitHub
 
+## ✨ **NOVO:** Agora funciona de qualquer diretório!
+
+O script detecta automaticamente a raiz do repositório Git, então você pode executá-lo de **qualquer pasta** dentro do projeto!
+
 ## 📋 Scripts Disponíveis
 
 ### Opção 1: Script PowerShell (Recomendado)
@@ -7,9 +11,13 @@
 .\push-github.ps1 "Sua mensagem de commit aqui"
 ```
 
-**Exemplo:**
+**Exemplos:**
 ```powershell
+# Da raiz do projeto
 .\push-github.ps1 "Removido WaboxApp e simplificada interface"
+
+# De qualquer subdiretório (ex: backend/)
+.\push-github.ps1 "Correção de bugs"
 ```
 
 ### Opção 2: Script Batch (Windows)
