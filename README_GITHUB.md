@@ -30,11 +30,13 @@ Usa a mensagem padrão: "Atualização do sistema"
 
 ## ⚡ O que o script faz automaticamente:
 
-1. ✅ Verifica se está em um repositório Git
-2. ✅ Mostra as alterações encontradas
-3. ✅ Adiciona todos os arquivos modificados (`git add .`)
-4. ✅ Faz commit com a mensagem fornecida
-5. ✅ Faz push para o GitHub (`git push`)
+1. ✅ **Encontra automaticamente a raiz do repositório Git** (pode ser executado de qualquer diretório)
+2. ✅ Verifica se está em um repositório Git
+3. ✅ Mostra as alterações encontradas
+4. ✅ Adiciona todos os arquivos modificados (`git add .`)
+5. ✅ Faz commit com a mensagem fornecida
+6. ✅ Verifica atualizações remotas e faz pull se necessário
+7. ✅ Faz push para o GitHub (`git push`)
 
 ## 📝 Exemplos de Uso
 
@@ -62,7 +64,8 @@ Usa a mensagem padrão: "Atualização do sistema"
 ## 🔧 Troubleshooting
 
 ### Erro: "Este diretório não é um repositório Git"
-- Execute o script na raiz do projeto (onde está a pasta `.git`)
+- O script pode ser executado de **qualquer diretório** dentro do repositório
+- Certifique-se de estar dentro de um repositório Git válido
 
 ### Erro: "Erro ao fazer push"
 - Verifique sua conexão com a internet

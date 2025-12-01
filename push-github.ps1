@@ -1,5 +1,6 @@
 # Script para agilizar push para GitHub
 # Uso: .\push-github.ps1 "Mensagem do commit"
+# Pode ser executado de qualquer diretorio dentro do repositorio
 
 param(
     [Parameter(Mandatory=$false)]
@@ -9,12 +10,20 @@ param(
 Write-Host "Iniciando push para GitHub..." -ForegroundColor Cyan
 Write-Host ""
 
-# Verificar se esta no diretorio raiz do repositorio
-if (-not (Test-Path ".git")) {
+# Encontrar a raiz do repositorio Git automaticamente
+$gitRoot = git rev-parse --show-toplevel 2>$null
+
+if (-not $gitRoot) {
     Write-Host "Erro: Este diretorio nao e um repositorio Git!" -ForegroundColor Red
-    Write-Host "   Execute este script na raiz do projeto (onde esta a pasta .git)" -ForegroundColor Yellow
+    Write-Host "   Execute este script dentro de um repositorio Git" -ForegroundColor Yellow
     exit 1
 }
+
+# Mudar para a raiz do repositorio
+$originalLocation = Get-Location
+Set-Location $gitRoot
+Write-Host "Diretorio do repositorio: $gitRoot" -ForegroundColor Gray
+Write-Host ""
 
 # Verificar status
 Write-Host "Verificando status do repositorio..." -ForegroundColor Yellow
@@ -103,5 +112,9 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "   - O repositorio remoto tem alteracoes que precisam ser integradas" -ForegroundColor Gray
     Write-Host "   - Problemas de conexao ou credenciais" -ForegroundColor Gray
     Write-Host "   - Execute git pull manualmente e tente novamente" -ForegroundColor Gray
+    Set-Location $originalLocation
     exit 1
 }
+
+# Voltar para o diretorio original
+Set-Location $originalLocation
