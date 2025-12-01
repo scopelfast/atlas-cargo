@@ -3348,27 +3348,36 @@
   }
 
   // Função para obter URL pública (para funcionar no celular)
-  // Agora usa o utilitário de ambiente se disponível
+  // USA DETECÇÃO AUTOMÁTICA: Detecta ambiente baseado na URL atual do navegador
   async function obterUrlPublica() {
-    // Se a função utilitária estiver disponível, usar ela
+    // PRIORIDADE 1: Usar o utilitário de ambiente se disponível (detecção automática)
     if (typeof window !== 'undefined' && typeof window.obterUrlBase === 'function') {
       try {
-        return await window.obterUrlBase();
+        const urlBase = await window.obterUrlBase();
+        console.log('[CONVOCAÇÃO] URL base obtida (automática):', urlBase);
+        return urlBase;
       } catch (err) {
         console.warn('[URL] Erro ao obter URL base do utilitário, usando fallback:', err);
       }
     }
     
-    // Fallback: método original
-    try {
-      const response = await fetch('/api/public-url');
-      const data = await response.json();
-      
-      return data.url || window.location.origin;
-    } catch (err) {
-      console.error('Erro ao obter URL pública:', err);
-      return window.location.origin;
+    // PRIORIDADE 2: Detecção manual baseada no hostname
+    const hostname = window.location.hostname;
+    const isLocalhost = hostname === 'localhost' || 
+                        hostname === '127.0.0.1' ||
+                        hostname.startsWith('192.168.') ||
+                        hostname.startsWith('10.') ||
+                        hostname.startsWith('172.');
+    
+    if (isLocalhost) {
+      console.log('[CONVOCAÇÃO] Ambiente LOCAL detectado (fallback): http://localhost:3000');
+      return 'http://localhost:3000';
     }
+    
+    // PRIORIDADE 3: Usar origem atual (produção)
+    const urlAtual = window.location.origin;
+    console.log('[CONVOCAÇÃO] Ambiente PRODUÇÃO detectado (fallback):', urlAtual);
+    return urlAtual;
   }
 
   // Enviar anúncio via WhatsApp para motoristas selecionados
@@ -3642,67 +3651,6 @@
     
     html += `
         </div>
-        
-        <!-- Separador Visual -->
-        <div style="margin: 30px 0; display: flex; align-items: center; gap: 15px;">
-          <div style="flex: 1; height: 2px; background: linear-gradient(to right, transparent, #dee2e6, transparent);"></div>
-          <div style="padding: 8px 20px; background: #667eea; color: white; border-radius: 20px; font-weight: 600; font-size: 14px; white-space: nowrap;">
-            📱 Escolha o Método de Envio
-          </div>
-          <div style="flex: 1; height: 2px; background: linear-gradient(to left, transparent, #dee2e6, transparent);"></div>
-        </div>
-        
-        <div style="margin-top: 20px; padding: 20px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 12px; border: 2px solid #dee2e6;">
-          <p style="margin: 0 0 20px 0; font-weight: 700; color: #2c3e50; font-size: 16px; text-align: center;">
-            📱 Método de Envio
-          </p>
-          <div style="display: flex; justify-content: center;">
-            <div style="background: #fff; border: 3px solid #667eea; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.2); max-width: 400px; width: 100%;">
-              <div style="text-align: center; margin-bottom: 15px;">
-                <div style="font-size: 48px; margin-bottom: 5px;">👤</div>
-                <h4 style="margin: 0; color: #667eea; font-size: 18px; font-weight: 700;">Método Manual</h4>
-                <p style="margin: 5px 0 0 0; color: #666; font-size: 12px;">Via WhatsApp Web</p>
-              </div>
-              <button type="button" id="btnAbrirTodosWhatsApp" 
-                      style="width: 100%; padding: 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 700; font-size: 16px; text-align: center; transition: all 0.3s; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);"
-                      onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(102, 126, 234, 0.5)';"
-                      onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(102, 126, 234, 0.3)';">
-                📱 Abrir Todos os Links
-                <div style="font-size: 12px; margin-top: 5px; opacity: 0.9;">✏️ ${linksWhatsApp.length} link(s)</div>
-              </button>
-              <p style="margin: 10px 0 0 0; font-size: 11px; color: #666; text-align: center; line-height: 1.4;">
-                ✅ Sempre disponível - Não requer configuração
-              </p>
-            </div>
-          </div>
-          <!-- Guia Rápido de Como Usar -->
-          <div style="margin-top: 20px; padding: 20px; background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border: 2px solid #2196F3; border-radius: 12px;">
-            <h4 style="margin: 0 0 15px 0; color: #1565C0; font-size: 16px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px;">
-              <span style="font-size: 24px;">📖</span>
-              <span>Como Enviar as Mensagens - Passo a Passo</span>
-            </h4>
-            
-            <!-- Processo Manual -->
-            <div style="background: #fff; border: 2px solid #667eea; border-radius: 8px; padding: 15px;">
-              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                <span style="font-size: 28px;">👤</span>
-                <h5 style="margin: 0; color: #667eea; font-size: 15px; font-weight: 700;">MÉTODO MANUAL (WhatsApp Web)</h5>
-              </div>
-              <div style="padding-left: 5px;">
-                <p style="margin: 0; color: #333; line-height: 1.8; font-size: 14px;">
-                  Para envio manual, clique no botão <strong>"📱 Abrir WhatsApp"</strong> de cada motorista na lista acima para abrir e enviar cada mensagem individualmente.
-                </p>
-              </div>
-            </div>
-            
-            <div style="margin-top: 15px; padding: 12px; background: #e3f2fd; border: 1px solid #2196F3; border-radius: 8px; text-align: center;">
-              <p style="margin: 0; color: #1565C0; font-size: 13px; line-height: 1.6;">
-                💡 <strong>Dica:</strong> Use o método manual para <strong>revisar cada mensagem</strong> antes de enviar. 
-                Cada link abre o WhatsApp Web com a mensagem pré-formatada.
-              </p>
-            </div>
-          </div>
-        </div>
     `;
     
     if (semCelular > 0 || semConvocacao > 0) {
@@ -3760,73 +3708,6 @@
         modal.style.display = 'none';
       }
     };
-    
-    // Abrir todos os links (melhorado)
-    const btnAbrirTodos = document.getElementById('btnAbrirTodosWhatsApp');
-    if (btnAbrirTodos) {
-      btnAbrirTodos.onclick = () => {
-        // Desabilitar botão durante o processo
-        btnAbrirTodos.disabled = true;
-        btnAbrirTodos.innerHTML = `
-          <div style="font-size: 48px; margin-bottom: 10px;">⏳</div>
-          <div style="font-size: 18px; margin-bottom: 5px;">Abrindo...</div>
-          <div style="font-size: 12px; opacity: 0.9; font-weight: 400;">Aguarde</div>
-        `;
-        
-        let abertos = 0;
-        const total = linksWhatsApp.length;
-        
-        // Mostrar progresso (criar elemento de progresso personalizado)
-        let elementoProgresso = null;
-        const mensagemEl = document.getElementById('message');
-        if (mensagemEl) {
-          mensagemEl.innerHTML = `<div style="display: flex; align-items: center; gap: 10px;"><span>⏳</span><span id="progressoAbertura">Abrindo WhatsApp(s)... 0/${total}</span></div>`;
-          mensagemEl.className = 'message info';
-          mensagemEl.style.display = 'block';
-          elementoProgresso = document.getElementById('progressoAbertura');
-        }
-        
-        linksWhatsApp.forEach((item, index) => {
-          setTimeout(() => {
-            try {
-              window.open(item.link, '_blank');
-              abertos++;
-              
-              // Atualizar mensagem de progresso
-              if (elementoProgresso) {
-                elementoProgresso.textContent = `Abrindo WhatsApp(s)... ${abertos}/${total}`;
-              }
-              
-              // Se foi o último, reabilitar botão
-              if (abertos === total) {
-                setTimeout(() => {
-                  btnAbrirTodos.disabled = false;
-                  btnAbrirTodos.innerHTML = `
-                    <div style="font-size: 48px; margin-bottom: 10px;">👤</div>
-                    <div style="font-size: 18px; margin-bottom: 5px;">Enviar Manualmente</div>
-                    <div style="font-size: 12px; opacity: 0.9; font-weight: 400;">Abrir WhatsApp</div>
-                    <div style="font-size: 11px; margin-top: 8px; opacity: 0.8;">✏️ ${total} link(s)</div>
-                  `;
-                  showMessage(`✅ ${total} WhatsApp(s) aberto(s) com sucesso!`, 'success');
-                }, 500);
-              }
-            } catch (err) {
-              console.error('Erro ao abrir WhatsApp:', err);
-              abertos++;
-              if (abertos === total) {
-                btnAbrirTodos.disabled = false;
-                btnAbrirTodos.innerHTML = `
-                  <div style="font-size: 48px; margin-bottom: 10px;">👤</div>
-                  <div style="font-size: 18px; margin-bottom: 5px;">Enviar Manualmente</div>
-                  <div style="font-size: 12px; opacity: 0.9; font-weight: 400;">Abrir WhatsApp</div>
-                  <div style="font-size: 11px; margin-top: 8px; opacity: 0.8;">✏️ ${total} link(s)</div>
-                `;
-              }
-            }
-          }, index * 1500); // Delay de 1.5 segundos entre cada abertura (mais seguro)
-        });
-      };
-    }
     
 
   }
@@ -4547,27 +4428,27 @@
     };
     
     let html = `
-      <div id="legendaGrid" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 20px; align-items: center;">
+      <div id="legendaGrid" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 15px; align-items: center;">
         <div style="font-weight: 600; color: #495057; margin-right: 10px;">Legenda:</div>
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 18px;">🔗</span>
-          <span><strong>Ver Link:</strong> Clique para abrir o link da convocação</span>
+          <span><strong>Link da convocação</strong></span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 18px;">🗺️</span>
-          <span><strong>Ver no Mapa:</strong> Clique para ver a localização do motorista e a rota até o ponto de carregamento (disponível apenas quando há localização e roteiro)</span>
+          <span><strong>Ver Motorista no Mapa</strong></span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 18px; color: #28a745;">✅</span>
-          <span><strong>Confirmar:</strong> Clique para confirmar a convocação (apenas para status ACEITA)</span>
+          <span><strong>Confirmar Convocação</strong></span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 18px; color: #ff9800;">🔄</span>
-          <span><strong>Reativar:</strong> Clique para reativar convocação confirmada (apenas para status CONFIRMADA)</span>
+          <span><strong>Reativar Convocação</strong></span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
           <span style="font-size: 18px; color: #dc3545;">⚠️</span>
-          <span><strong>Histórico de Reabertura:</strong> Indica que a convocação foi confirmada e depois reativada (motorista declinou após confirmação)</span>
+          <span><strong>Histórico de Reabertura</strong></span>
         </div>
       </div>
       <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
