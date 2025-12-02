@@ -403,15 +403,9 @@ const motoristaAppController = {
 
       const params = [];
 
-      // Filtro por classes de frota do motorista
-      if (idmotorista) {
-        query += ` AND EXISTS (
-          SELECT 1 FROM [dbo].[CADASTROCLASSEFROTA] ccf
-          WHERE ccf.CDCADASTRO = @idmotorista
-          AND ccf.CDCLASSEFROTA = v.CDCLASSEFROTA
-        )`;
-        params.push({ name: 'idmotorista', value: parseFloat(idmotorista), type: sql.Decimal(15, 0) });
-      }
+      // TODO: Filtro por classes de frota do motorista
+      // Precisa verificar se tabela CADASTROCLASSEFROTA existe
+      // Por enquanto, mostra todas as cargas
 
       if (estado) {
         query += ` AND (co.ESTADO = @estado OR cd.ESTADO = @estado)`;
