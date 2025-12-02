@@ -459,8 +459,19 @@
 
     function toggleCard(idConvocacao) {
       const card = document.getElementById(`card-${idConvocacao}`);
+      
       if (card) {
-        card.classList.toggle('expandido');
+        const jaExpandido = card.classList.contains('expandido');
+        
+        // Fechar TODOS os cards primeiro
+        document.querySelectorAll('.card').forEach(c => {
+          c.classList.remove('expandido');
+        });
+        
+        // Se NÃO estava expandido, abrir este
+        if (!jaExpandido) {
+          card.classList.add('expandido');
+        }
       }
     }
 
