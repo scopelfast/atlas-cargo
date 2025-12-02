@@ -238,6 +238,10 @@
     <button class="btn btn-warning" onclick="testarGPS()" style="background: #ffc107; color: #000;">
       🧪 Testar Permissão GPS
     </button>
+    
+    <button class="btn" onclick="simularGPS()" style="background: #6c757d; color: white;">
+      🎮 Simular GPS (Desenvolvimento)
+    </button>
 
     <!-- HISTÓRICO -->
     <div class="card">
@@ -615,10 +619,75 @@
       }
     }, 30000);
     
+    // SIMULAR GPS (para desenvolvimento em HTTP)
+    async function simularGPS() {
+      console.log('🎮 Simulando GPS...');
+      
+      // Coordenadas simuladas (Curitiba, PR)
+      const latitudes = [-25.4284, -25.4290, -25.4295, -25.4300];
+      const longitudes = [-49.2733, -49.2740, -49.2745, -49.2750];
+      const random = Math.floor(Math.random() * latitudes.length);
+      
+      const dados = {
+        idviagem: idViagem,
+        idmotorista: motorista.id,
+        latitude: latitudes[random],
+        longitude: longitudes[random],
+        velocidade: Math.random() * 80,
+        precisao: Math.round(Math.random() * 20 + 5),
+        bateria: await getBateria() || 85
+      };
+
+      console.log('📦 GPS Simulado:', dados);
+
+      // Adicionar ao histórico
+      adicionarHistorico({
+        hora: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        lat: dados.latitude.toFixed(6),
+        lng: dados.longitude.toFixed(6),
+        enviado: false
+      });
+
+      // Tentar enviar
+      try {
+        if (window.OfflineDB.isOnline()) {
+          const response = await fetch('/api/motorista/gps', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(dados)
+          });
+
+          if (response.ok) {
+            console.log('✅ GPS simulado enviado!');
+            atualizarUltimoHistorico(true);
+            alert('✅ Posição simulada enviada!\n\n' + 
+                  `Lat: ${dados.latitude.toFixed(6)}\n` +
+                  `Lng: ${dados.longitude.toFixed(6)}`);
+            document.getElementById('gpsDetalhe').textContent = 
+              `✅ Última posição (simulada): ${new Date().toLocaleTimeString('pt-BR')}`;
+          } else {
+            await window.OfflineDB.adicionarFila('filaGPS', dados);
+            atualizarUltimoHistorico(false);
+          }
+        } else {
+          await window.OfflineDB.adicionarFila('filaGPS', dados);
+          atualizarUltimoHistorico(false);
+          alert('📴 Offline - GPS simulado salvo na fila');
+        }
+      } catch (err) {
+        console.error('Erro ao enviar GPS simulado:', err);
+        alert('Erro ao enviar');
+      }
+    }
+    
     // Log para debug
     console.log('📱 Página GPS carregada');
     console.log('👤 Motorista:', motorista);
     console.log('🔑 Token:', token ? 'Presente' : 'Ausente');
+    console.log('⚠️ AVISO: GPS real só funciona em HTTPS (produção)');
   </script>
 </body>
 </html>
