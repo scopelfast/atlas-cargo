@@ -9,7 +9,7 @@
   // ==========================================
   async function initDB() {
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open('MotoristaDB', 1);
+      const request = indexedDB.open('MotoristaDB', 2); // Versão 2 - adicionado 'cargas' e 'filaMensagens'
 
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
@@ -27,6 +27,12 @@
           convocacoes.createIndex('dataCache', 'dataCache', { unique: false });
         }
 
+        // Store para cargas disponíveis (cache)
+        if (!db.objectStoreNames.contains('cargas')) {
+          const cargas = db.createObjectStore('cargas', { keyPath: 'IDVIAGEM' });
+          cargas.createIndex('dataCache', 'dataCache', { unique: false });
+        }
+
         // Store para fila de GPS
         if (!db.objectStoreNames.contains('filaGPS')) {
           db.createObjectStore('filaGPS', { keyPath: 'id', autoIncrement: true });
@@ -40,6 +46,11 @@
         // Store para fila de ações (aceitar/recusar)
         if (!db.objectStoreNames.contains('filaAcoes')) {
           db.createObjectStore('filaAcoes', { keyPath: 'id', autoIncrement: true });
+        }
+
+        // Store para fila de mensagens (chat)
+        if (!db.objectStoreNames.contains('filaMensagens')) {
+          db.createObjectStore('filaMensagens', { keyPath: 'id', autoIncrement: true });
         }
       };
     });
