@@ -74,20 +74,28 @@ app.use(express.static(path.join(__dirname, 'public'), {
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
     }
     
-    // Cache em produção para melhor performance
+    // Cache otimizado - evita problemas de versão antiga
     if (isDevelopment) {
       // Desabilitar cache em desenvolvimento para facilitar debug
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
     } else {
-      // Cache agressivo em produção para arquivos estáticos
-      if (filePath.endsWith('.css') || filePath.endsWith('.js') || 
-          filePath.endsWith('.png') || filePath.endsWith('.jpg') || 
-          filePath.endsWith('.jpeg') || filePath.endsWith('.gif') || 
-          filePath.endsWith('.ico') || filePath.endsWith('.svg')) {
-        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      // PRODUÇÃO: Cache moderado para evitar problema de versão antiga
+      if (filePath.endsWith('.css') || filePath.endsWith('.js')) {
+        // CSS e JS: cache de 1 hora apenas (permite atualizações rápidas)
+        res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate');
+      } else if (filePath.endsWith('.html')) {
+        // HTML: SEM cache (sempre atualizado)
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+      } else if (filePath.endsWith('.png') || filePath.endsWith('.jpg') || 
+                 filePath.endsWith('.jpeg') || filePath.endsWith('.gif') || 
+                 filePath.endsWith('.ico') || filePath.endsWith('.svg')) {
+        // Imagens: cache longo (raramente mudam)
+        res.setHeader('Cache-Control', 'public, max-age=86400, immutable'); // 1 dia
       } else {
+        // Outros arquivos: cache de 1 hora
         res.setHeader('Cache-Control', 'public, max-age=3600');
       }
     }

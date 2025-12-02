@@ -111,9 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
     contentArea.innerHTML = '<p>Carregando módulo...</p>';
 
     try {
-      // Adicionar versão à URL do módulo para evitar cache
-      const moduleUrl = window.addVersion ? window.addVersion(`/modulos/${programa}/index.html`) : `/modulos/${programa}/index.html`;
-      const response = await fetch(moduleUrl);
+      const response = await fetch(`/modulos/${programa}/index.html`);
       if (response.ok) {
         const html = await response.text();
         contentArea.innerHTML = html;
@@ -121,14 +119,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // Carregar script de permissões primeiro (se ainda não estiver carregado)
         if (!window.Permissions) {
           const permissionsScript = document.createElement('script');
-          permissionsScript.src = window.addVersion ? window.addVersion('/js/permissions.js') : '/js/permissions.js';
+          permissionsScript.src = '/js/permissions.js';
           contentArea.appendChild(permissionsScript);
         }
 
-        // Carrega o script do módulo, se existir (com versão para evitar cache)
+        // Carrega o script do módulo, se existir
         const script = document.createElement('script');
-        const scriptSrc = `/modulos/${programa}/js/script.js`;
-        script.src = window.addVersion ? window.addVersion(scriptSrc) : scriptSrc;
+        script.src = `/modulos/${programa}/js/script.js`;
         script.onerror = () => {
           // Script não encontrado - silencioso
         };

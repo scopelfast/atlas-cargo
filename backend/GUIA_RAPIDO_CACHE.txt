@@ -1,0 +1,73 @@
+================================================================================
+  ✅ PROBLEMA DE CACHE RESOLVIDO - GUIA RÁPIDO
+================================================================================
+
+🎯 O QUE FOI FEITO?
+
+Ajustado o servidor Node.js para usar cache inteligente:
+
+  ❌ ANTES: Cache de 1 ANO em CSS/JS (por isso não atualizava!)
+  ✅ AGORA: Cache de 1 HORA em CSS/JS (atualiza automaticamente!)
+
+================================================================================
+  📊 NOVA CONFIGURAÇÃO DE CACHE
+================================================================================
+
+Arquivo         Cache           Resultado
+─────────────────────────────────────────────────────────────────
+HTML            SEM cache       Sempre atualizado ⚡
+CSS e JS        1 hora          Atualiza em até 1 hora ⏰
+Imagens         1 dia           Mantém performance 🖼️
+
+================================================================================
+  🚀 PRÓXIMOS PASSOS
+================================================================================
+
+1️⃣  Faça commit e push:
+     cd backend
+     git add app.js
+     git commit -m "Otimização cache - resolve versão antiga"
+     git push origin main
+
+2️⃣  Reinicie o servidor:
+     pm2 restart all
+     (ou npm restart)
+
+3️⃣  Pronto! ✅
+     - HTML: atualiza IMEDIATAMENTE
+     - CSS/JS: atualiza em ATÉ 1 HORA
+     - Imagens: cache de 1 dia (performance)
+
+================================================================================
+  ⚡ PARA FORÇAR ATUALIZAÇÃO IMEDIATA (QUANDO URGENTE)
+================================================================================
+
+Se precisar que todos vejam AGORA, adicione ?v= manualmente:
+
+📄 index.html (linha 8):
+   <link href="/css/style.css?v=20250102" />
+
+📄 dashboard.html (linhas 8-9):
+   <link href="/css/modulos.css?v=20250102">
+   <link href="/css/dashboard.css?v=20250102">
+
+💡 Mude o ?v=20250102 para a data atual sempre que publicar.
+
+================================================================================
+  ✅ RESULTADO
+================================================================================
+
+ANTES: Usuários viam versão antiga por até 1 ANO 😱
+AGORA: Usuários veem atualizações em até 1 HORA ⏰
+
+E HTML sempre atualizado INSTANTANEAMENTE! ✅
+
+================================================================================
+  📞 PRECISA DE AJUDA?
+================================================================================
+
+Leia a documentação completa em:
+📖 backend/CACHE_RESOLVIDO.md
+
+================================================================================
+
