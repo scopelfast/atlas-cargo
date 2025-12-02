@@ -234,6 +234,10 @@
     <button class="btn btn-primary" id="btnEnviarAgora" onclick="enviarPosicaoAgora()">
       📍 Enviar Posição Agora
     </button>
+    
+    <button class="btn btn-warning" onclick="testarGPS()" style="background: #ffc107; color: #000;">
+      🧪 Testar Permissão GPS
+    </button>
 
     <!-- HISTÓRICO -->
     <div class="card">
@@ -262,6 +266,42 @@
     let timerInterval = null;
     let idViagem = null; // TODO: Pegar da viagem aceita
 
+    // TESTAR GPS (força solicitação de permissão)
+    async function testarGPS() {
+      try {
+        console.log('🧪 Testando GPS...');
+        
+        if (!navigator.geolocation) {
+          alert('❌ Este dispositivo não suporta GPS');
+          return;
+        }
+
+        alert('✅ GPS disponível!\n\nAgora vou pedir permissão.\nQuando o Chrome perguntar, clique em PERMITIR!');
+
+        const pos = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            resolve, 
+            reject, 
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+          );
+        });
+
+        alert(`✅ GPS FUNCIONANDO!\n\nLocalização capturada:\n\nLatitude: ${pos.coords.latitude.toFixed(6)}\nLongitude: ${pos.coords.longitude.toFixed(6)}\n\nPrecisão: ${Math.round(pos.coords.accuracy)} metros`);
+
+        console.log('✅ GPS OK:', pos.coords);
+      } catch (err) {
+        console.error('❌ Erro GPS:', err);
+        
+        if (err.code === 1) {
+          alert('❌ PERMISSÃO NEGADA!\n\nVocê clicou em "Bloquear".\n\nPara corrigir:\n1. Recarregue a página\n2. Clique novamente neste botão\n3. Quando perguntar, clique em PERMITIR');
+        } else if (err.code === 2) {
+          alert('❌ GPS INDISPONÍVEL!\n\nVerifique:\n- GPS do celular está ativado?\n- Está em local aberto? (não funciona bem dentro de prédios)');
+        } else if (err.code === 3) {
+          alert('⏱️ TIMEOUT!\n\nO GPS demorou muito.\n\nTente:\n- Sair de dentro de prédios\n- Aguardar 1 minuto\n- Tentar novamente');
+        }
+      }
+    }
+
     // SOLICITAR PERMISSÃO GPS
     async function solicitarPermissaoGPS() {
       if (!navigator.geolocation) {
@@ -274,12 +314,12 @@
           navigator.geolocation.getCurrentPosition(
             resolve, 
             reject, 
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
           );
         });
         return true;
       } catch (err) {
-        alert('❌ Permissão de GPS negada! Habilite nas configurações.');
+        console.error('Erro permissão GPS:', err);
         return false;
       }
     }
