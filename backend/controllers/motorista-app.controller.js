@@ -483,15 +483,26 @@ const motoristaAppController = {
   // ==========================================
   registrarEvento: async (req, res) => {
     try {
-      const { idviagem, tipo, descricao, latitude, longitude } = req.body;
-      const { idmotorista } = req.user || req.body;
+      console.log('📝 Recebido evento:', req.body);
+      
+      const { idviagem, idmotorista, tipo, descricao, latitude, longitude, foto } = req.body;
 
-      if (!idviagem || !tipo) {
-        return res.status(400).json({ error: 'Dados obrigatórios: idviagem, tipo' });
+      if (!idviagem || !tipo || !idmotorista) {
+        console.error('❌ Dados faltando:', { idviagem, tipo, idmotorista });
+        return res.status(400).json({ 
+          error: 'Dados obrigatórios: idviagem, tipo, idmotorista',
+          recebido: req.body 
+        });
       }
 
+      console.log('✅ Dados OK:', { idviagem, idmotorista, tipo });
+
       const pool = await poolPromise;
-      await pool
+      
+      // TODO: Salvar foto se tiver
+      // Por enquanto, salvar apenas os dados do evento
+      
+      const result = await pool
         .request()
         .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
         .input('cdcadastro', sql.Decimal(15, 0), parseFloat(idmotorista))
@@ -508,10 +519,15 @@ const motoristaAppController = {
           )
         `);
 
+      console.log('✅ Evento salvo no banco!');
+      
       res.json({ success: true, message: 'Evento registrado com sucesso!' });
     } catch (err) {
-      console.error('Erro ao registrar evento:', err);
-      res.status(500).json({ error: 'Erro ao registrar evento.' });
+      console.error('❌ Erro ao registrar evento:', err);
+      res.status(500).json({ 
+        error: 'Erro ao registrar evento.',
+        detalhes: err.message 
+      });
     }
   }
 };
