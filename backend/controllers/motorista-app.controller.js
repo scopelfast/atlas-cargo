@@ -354,7 +354,7 @@ const motoristaAppController = {
   // ==========================================
   cargasDisponiveis: async (req, res) => {
     try {
-      const { estado, distanciaMax, freteMin } = req.query;
+      const { estado, distanciaMax, freteMin, idmotorista } = req.query;
 
       const pool = await poolPromise;
       let query = `
@@ -367,6 +367,7 @@ const motoristaAppController = {
           v.CUBAGEM,
           v.DISTANCIAKM,
           v.OBSERV,
+          v.FGRASTREADO,
           v.CDSITUACAOVIAGEM,
           sv.DSSITUACAOVIAGEM,
           v.CDTIPOVIAGEM,
@@ -376,9 +377,12 @@ const motoristaAppController = {
           r.DSROTEIRO,
           co.NMCIDADE AS ORIGEM_CIDADE,
           co.ESTADO AS ORIGEM_ESTADO,
+          co.LATITUDE AS ORIGEM_LATITUDE,
+          co.LONGITUDE AS ORIGEM_LONGITUDE,
           cd.NMCIDADE AS DESTINO_CIDADE,
           cd.ESTADO AS DESTINO_ESTADO,
           cont.RZSOCIAL AS CONTRATADOR,
+          cont.NRCELULAR AS CONTRATADOR_CELULAR,
           (SELECT COUNT(*) FROM [dbo].[CONVOCACAO] WHERE IDVIAGEM = v.IDVIAGEM) AS TOTAL_CONVOCACOES
         FROM [dbo].[VIAGEMMESTRE] v
         LEFT JOIN [dbo].[SITUACAOVIAGEM] sv ON v.CDSITUACAOVIAGEM = sv.CDSITUACAOVIAGEM
@@ -396,6 +400,18 @@ const motoristaAppController = {
             AND STATUS IN ('CONFIRMADA', 'ACEITA')
           )
       `;
+
+      const params = [];
+
+      // Filtro por classes de frota do motorista
+      if (idmotorista) {
+        query += ` AND EXISTS (
+          SELECT 1 FROM [dbo].[CADASTROCLASSEFROTA] ccf
+          WHERE ccf.CDCADASTRO = @idmotorista
+          AND ccf.CDCLASSEFROTA = v.CDCLASSEFROTA
+        )`;
+        params.push({ name: 'idmotorista', value: parseFloat(idmotorista), type: sql.Decimal(15, 0) });
+      }
 
       const params = [];
 

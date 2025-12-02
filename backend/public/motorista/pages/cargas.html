@@ -107,6 +107,7 @@
       const distancia = document.getElementById('filtroDistancia').value;
 
       let url = '/api/motorista/cargas-disponiveis?';
+      url += `idmotorista=${motorista.id}&`; // Filtrar por classes do motorista
       if (estado) url += `estado=${estado}&`;
       if (distancia) url += `distanciaMax=${distancia}&`;
 
@@ -175,19 +176,39 @@
         const origem = c.ORIGEM_CIDADE && c.ORIGEM_ESTADO ? `${c.ORIGEM_CIDADE} - ${c.ORIGEM_ESTADO}` : 'Não informado';
         const destino = c.DESTINO_CIDADE && c.DESTINO_ESTADO ? `${c.DESTINO_CIDADE} - ${c.DESTINO_ESTADO}` : 'Não informado';
 
+        const linkMaps = c.ORIGEM_LATITUDE && c.ORIGEM_LONGITUDE 
+          ? `https://www.google.com/maps?q=${c.ORIGEM_LATITUDE},${c.ORIGEM_LONGITUDE}`
+          : `https://www.google.com/maps/search/${encodeURIComponent(origem)}`;
+        
+        const linkWhatsApp = c.CONTRATADOR_CELULAR 
+          ? `https://wa.me/55${c.CONTRATADOR_CELULAR.toString().replace(/\D/g, '')}`
+          : null;
+
         return `
           <div class="card">
             <div class="card-header">
               <div class="card-title">🚚 Viagem #${c.IDVIAGEM}</div>
-              <div class="card-subtitle">💰 ${formatarMoeda(c.VLFRETE)} • 📏 ${(c.DISTANCIAKM || 0).toLocaleString('pt-BR')} km</div>
+              <div class="card-subtitle">${c.DSTIPOVIAGEM || 'Tipo não definido'}</div>
             </div>
             <div class="card-body">
+              <div style="background: #e3f2fd; padding: 12px; border-radius: 10px; margin-bottom: 14px;">
+                <div style="font-size: 12px; font-weight: 600; color: #1976d2; margin-bottom: 6px;">
+                  🚛 ${c.DSCLASSEFROTA || 'Classe não definida'}
+                </div>
+                <div style="font-size: 11px; color: #666;">
+                  ${c.FGRASTREADO === 'S' ? '📡 Exige Rastreamento' : '📍 Não exige rastreamento'}
+                </div>
+              </div>
+
               <div class="route-section">
                 <div class="route-item">
                   <div class="route-icon origem">📍</div>
-                  <div>
+                  <div style="flex: 1;">
                     <div class="route-label">Origem</div>
                     <div class="route-cidade">${origem}</div>
+                    <a href="${linkMaps}" target="_blank" style="font-size: 11px; color: #667eea; text-decoration: none; font-weight: 600; margin-top: 4px; display: inline-block;">
+                      🗺️ Abrir no Mapa
+                    </a>
                   </div>
                 </div>
                 <div class="route-item">
@@ -198,6 +219,7 @@
                   </div>
                 </div>
               </div>
+
               <div class="info-grid">
                 <div class="info-item">
                   <div class="info-icon">📏</div>
@@ -215,11 +237,27 @@
                   <div class="info-value">${(c.PESO || 0).toLocaleString('pt-BR', {maximumFractionDigits: 0})} kg</div>
                 </div>
                 <div class="info-item">
+                  <div class="info-icon">📦</div>
+                  <div class="info-label">Cubagem</div>
+                  <div class="info-value">${(c.CUBAGEM || 0).toLocaleString('pt-BR', {maximumFractionDigits: 2})} m³</div>
+                </div>
+                <div class="info-item">
                   <div class="info-icon">📅</div>
                   <div class="info-label">Início</div>
                   <div class="info-value">${formatarData(c.DTPREVINICIO)}</div>
                 </div>
+                <div class="info-item">
+                  <div class="info-icon">🏢</div>
+                  <div class="info-label">Contratador</div>
+                  <div class="info-value" style="font-size: 12px;">${(c.CONTRATADOR || 'N/I').substring(0, 15)}</div>
+                </div>
               </div>
+
+              ${linkWhatsApp ? `
+                <a href="${linkWhatsApp}" target="_blank" style="display: block; padding: 12px; background: #25D366; color: white; text-align: center; border-radius: 10px; text-decoration: none; font-weight: 700; margin: 14px 0;">
+                  💬 WhatsApp do Contratador
+                </a>
+              ` : ''}
               ${c.OBSERV ? `
                 <div class="obs-box">
                   <div class="obs-titulo">Observações</div>
