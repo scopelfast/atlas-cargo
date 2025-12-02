@@ -1,13 +1,29 @@
 // backend/public/js/dashboard.js
 document.addEventListener('DOMContentLoaded', () => {
   const initDashboard = async () => {
+    // Proteção anti-loop
+    const loopCount = parseInt(sessionStorage.getItem('dashboardLoopCount') || '0');
+    if (loopCount > 3) {
+      console.error('❌ Loop detectado! Limpando...');
+      sessionStorage.clear();
+      localStorage.clear();
+      alert('Erro detectado. Faça login novamente.');
+      window.location.href = '/';
+      return;
+    }
+    sessionStorage.setItem('dashboardLoopCount', (loopCount + 1).toString());
+    
     const token = localStorage.getItem('token');
     const user = JSON.parse(localStorage.getItem('user'));
 
     if (!token || !user) {
+      sessionStorage.removeItem('dashboardLoopCount');
       window.location.href = '/';
       return;
     }
+    
+    // Se OK, resetar contador
+    setTimeout(() => sessionStorage.removeItem('dashboardLoopCount'), 1000);
 
     document.getElementById('userName').textContent = user.nome || 'Usuário';
     document.getElementById('userEmail').textContent = user.email || '';
