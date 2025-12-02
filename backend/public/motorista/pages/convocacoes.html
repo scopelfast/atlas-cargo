@@ -4,120 +4,93 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Minhas Convocações - Motorista</title>
-  <link rel="stylesheet" href="../css/style.css">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
     html, body { 
       background: #f0f2f5; 
-      margin: 0; 
-      padding: 0; 
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       width: 100%;
+      height: 100%;
       overflow-x: hidden;
     }
     
+    /* NAVBAR */
     .navbar {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
-      padding: 16px 20px;
+      padding: 14px 16px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.15);
       display: flex;
-      justify-content: center;
       align-items: center;
-      box-shadow: 0 2px 15px rgba(0,0,0,0.15);
-      position: relative;
-      width: 100%;
+      gap: 12px;
     }
     
     .btn-voltar { 
-      position: absolute;
-      left: 16px;
       background: rgba(255,255,255,0.25); 
       border: none; 
       color: white; 
-      padding: 8px 16px; 
-      border-radius: 20px; 
+      padding: 8px 14px; 
+      border-radius: 8px; 
       cursor: pointer;
       font-weight: 600;
-      transition: all 0.3s;
       font-size: 14px;
-    }
-    
-    .btn-voltar:active { 
-      background: rgba(255,255,255,0.4); 
-      transform: scale(0.95); 
+      flex-shrink: 0;
     }
     
     .navbar h1 { 
       font-size: 18px; 
-      margin: 0; 
       font-weight: 600;
-      text-align: center;
+      flex: 1;
     }
     
-    #statusIndicador {
-      padding: 12px 20px;
+    /* STATUS */
+    .status-bar {
+      padding: 10px 16px;
       text-align: center;
       font-size: 13px;
       font-weight: 600;
-      letter-spacing: 0.3px;
-      width: 100%;
-      box-sizing: border-box;
-      display: block;
     }
     
-    .status-online { 
-      background: #d4edda; 
-      color: #155724;
-      border-bottom: 2px solid #c3e6cb;
-    }
-    .status-offline { 
-      background: #f8d7da; 
-      color: #721c24;
-      border-bottom: 2px solid #f5c6cb;
-    }
-    .status-syncing { 
-      background: #fff3cd; 
-      color: #856404;
-      border-bottom: 2px solid #ffeeba;
+    .status-online { background: #d4edda; color: #155724; }
+    .status-offline { background: #f8d7da; color: #721c24; }
+    .status-syncing { background: #fff3cd; color: #856404; }
+    
+    /* CONTAINER */
+    .container { 
+      padding: 16px;
+      max-width: 100%;
     }
     
-    .container { padding: 16px; max-width: 600px; margin: 0 auto; }
-    
+    /* CARD */
     .card {
       background: white;
       border-radius: 16px;
-      padding: 0;
       margin-bottom: 16px;
       box-shadow: 0 2px 12px rgba(0,0,0,0.08);
       overflow: hidden;
-      border: 1px solid #e8e8e8;
     }
     
     .card-header {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
-      padding: 16px;
+      padding: 14px 16px;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
     
     .card-title { 
-      font-size: 18px; 
-      font-weight: 700; 
-      display: flex;
-      align-items: center;
-      gap: 8px;
+      font-size: 17px; 
+      font-weight: 700;
     }
     
     .badge {
-      padding: 6px 12px;
-      border-radius: 20px;
+      padding: 5px 12px;
+      border-radius: 16px;
       font-size: 11px;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
     }
     
     .badge-pendente { background: #ffc107; color: #000; }
@@ -125,61 +98,56 @@
     .badge-confirmada { background: #007bff; color: white; }
     .badge-recusada { background: #dc3545; color: white; }
     
-    .card-body {
-      padding: 16px;
-    }
+    .card-body { padding: 16px; }
     
+    /* ROTA */
     .route-section {
       background: #f8f9fa;
-      padding: 16px;
+      padding: 14px;
       border-radius: 12px;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
     
     .route-item {
       display: flex;
-      align-items: flex-start;
+      align-items: center;
       gap: 12px;
-      margin: 12px 0;
-      position: relative;
-    }
-    
-    .route-item:not(:last-child)::after {
-      content: '';
-      position: absolute;
-      left: 18px;
-      top: 32px;
-      width: 2px;
-      height: calc(100% + 12px);
-      background: #ddd;
-      z-index: 0;
+      margin: 10px 0;
     }
     
     .route-icon {
-      width: 36px;
-      height: 36px;
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 18px;
+      font-size: 20px;
       flex-shrink: 0;
-      z-index: 1;
-      position: relative;
     }
     
     .route-icon.origem { background: #28a745; color: white; }
     .route-icon.destino { background: #dc3545; color: white; }
     
-    .route-text { flex: 1; }
-    .route-label { font-size: 12px; color: #666; font-weight: 500; text-transform: uppercase; }
-    .route-cidade { font-size: 16px; color: #333; font-weight: 600; margin-top: 4px; }
+    .route-label { 
+      font-size: 11px; 
+      color: #666; 
+      font-weight: 600; 
+      text-transform: uppercase; 
+      margin-bottom: 4px;
+    }
+    .route-cidade { 
+      font-size: 15px; 
+      color: #333; 
+      font-weight: 600;
+    }
     
+    /* INFO GRID */
     .info-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-top: 16px;
+      gap: 10px;
+      margin-bottom: 14px;
     }
     
     .info-item {
@@ -189,52 +157,73 @@
       text-align: center;
     }
     
-    .info-icon { font-size: 24px; margin-bottom: 6px; }
-    .info-label { font-size: 11px; color: #666; text-transform: uppercase; font-weight: 600; }
-    .info-value { font-size: 16px; color: #333; font-weight: 700; margin-top: 4px; }
+    .info-icon { font-size: 22px; margin-bottom: 6px; }
+    .info-label { 
+      font-size: 10px; 
+      color: #666; 
+      text-transform: uppercase; 
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .info-value { 
+      font-size: 15px; 
+      color: #333; 
+      font-weight: 700;
+    }
     
+    /* OBSERVAÇÕES */
+    .obs-box {
+      margin-top: 14px;
+      padding: 12px;
+      background: #fffbea;
+      border-left: 4px solid #ffc107;
+      border-radius: 8px;
+    }
+    
+    .obs-title {
+      font-size: 11px;
+      color: #856404;
+      font-weight: 600;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    
+    .obs-text {
+      font-size: 13px;
+      color: #333;
+      line-height: 1.4;
+    }
+    
+    /* BOTÕES */
     .buttons {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-top: 16px;
-      padding-top: 16px;
+      gap: 10px;
+      margin-top: 14px;
+      padding-top: 14px;
       border-top: 2px solid #f0f0f0;
     }
     
     .btn {
-      padding: 14px;
+      padding: 12px;
       border: none;
-      border-radius: 12px;
+      border-radius: 10px;
       font-size: 15px;
       font-weight: 700;
       cursor: pointer;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
+      transition: transform 0.1s;
     }
     
     .btn:active { transform: scale(0.96); }
     
-    .btn-success { background: #28a745; color: white; box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3); }
-    .btn-danger { background: #dc3545; color: white; box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3); }
-    .btn-info { background: #17a2b8; color: white; box-shadow: 0 4px 12px rgba(23, 162, 184, 0.3); }
+    .btn-success { background: #28a745; color: white; }
+    .btn-danger { background: #dc3545; color: white; }
     
-    .btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
-    
-    .empty {
+    /* LOADING/EMPTY */
+    .loading, .empty {
       text-align: center;
       padding: 60px 20px;
       color: #999;
-    }
-    
-    .empty-icon { font-size: 64px; margin-bottom: 16px; opacity: 0.3; }
-    
-    .loading {
-      text-align: center;
-      padding: 60px 20px;
     }
     
     .spinner {
@@ -244,7 +233,7 @@
       width: 50px;
       height: 50px;
       animation: spin 1s linear infinite;
-      margin: 0 auto 20px;
+      margin: 0 auto 16px;
     }
     
     @keyframes spin {
@@ -254,15 +243,18 @@
   </style>
 </head>
 <body>
+  <!-- NAVBAR -->
   <div class="navbar">
     <button class="btn-voltar" onclick="voltar()">← Voltar</button>
     <h1>📦 Minhas Convocações</h1>
   </div>
 
-  <div id="statusIndicador" class="status-offline">
+  <!-- STATUS BAR -->
+  <div id="statusIndicador" class="status-bar status-offline">
     🔴 Carregando...
   </div>
 
+  <!-- CONTEÚDO -->
   <div class="container">
     <div id="convocacoesList">
       <div class="loading">
@@ -281,7 +273,6 @@
       window.location.href = '../index.html';
     }
 
-    // Formatar moeda
     function formatarMoeda(valor) {
       return new Intl.NumberFormat('pt-BR', { 
         style: 'currency', 
@@ -289,22 +280,17 @@
       }).format(valor || 0);
     }
 
-    // Formatar data
     function formatarData(data) {
       if (!data) return '-';
       return new Date(data).toLocaleDateString('pt-BR', {
         day: '2-digit',
         month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+        year: 'numeric'
       });
     }
 
-    // Carregar convocações
     async function carregarConvocacoes() {
       try {
-        // Tentar buscar do servidor
         if (window.OfflineDB.isOnline()) {
           const response = await fetch(`/api/motorista/convocacoes/${motorista.id}`, {
             headers: { 'Authorization': `Bearer ${token}` }
@@ -312,16 +298,12 @@
 
           if (response.ok) {
             const convocacoes = await response.json();
-            
-            // Salvar no cache
             await window.OfflineDB.salvarCache('convocacoes', convocacoes);
-            
             renderizar(convocacoes);
             return;
           }
         }
 
-        // Se offline ou erro, buscar do cache
         const convocacoes = await window.OfflineDB.buscarCache('convocacoes');
         renderizar(convocacoes);
         
@@ -329,26 +311,22 @@
           alert('📴 Offline - Mostrando dados salvos');
         }
       } catch (err) {
-        console.error('Erro ao carregar convocações:', err);
-        
-        // Tentar cache
+        console.error('Erro:', err);
         try {
           const convocacoes = await window.OfflineDB.buscarCache('convocacoes');
           renderizar(convocacoes);
-          alert('📴 Sem conexão - Mostrando dados salvos');
-        } catch (cacheErr) {
+        } catch {
           document.getElementById('convocacoesList').innerHTML = 
-            '<div class="empty">Erro ao carregar convocações</div>';
+            '<div class="empty">❌ Erro ao carregar</div>';
         }
       }
     }
 
-    // Renderizar lista
     function renderizar(convocacoes) {
       const lista = document.getElementById('convocacoesList');
       
       if (!convocacoes || convocacoes.length === 0) {
-        lista.innerHTML = '<div class="empty">📭 Nenhuma convocação encontrada</div>';
+        lista.innerHTML = '<div class="empty">📭 Nenhuma convocação</div>';
         return;
       }
 
@@ -358,11 +336,8 @@
           'PENDENTE': 'Pendente',
           'ACEITA': 'Aceita',
           'CONFIRMADA': 'Confirmada',
-          'RECUSADA': 'Recusada',
-          'ACEITA_DESCARTADA': 'Descartada'
+          'RECUSADA': 'Recusada'
         }[c.STATUS] || c.STATUS;
-
-        const podeAceitar = c.STATUS === 'PENDENTE';
 
         const origem = c.ORIGEM_CIDADE && c.ORIGEM_ESTADO 
           ? `${c.ORIGEM_CIDADE} - ${c.ORIGEM_ESTADO}` 
@@ -372,12 +347,12 @@
           ? `${c.DESTINO_CIDADE} - ${c.DESTINO_ESTADO}` 
           : (c.DSROTEIRO ? c.DSROTEIRO.split(' → ')[1] || 'Não informado' : 'Não informado');
 
+        const podeAceitar = c.STATUS === 'PENDENTE';
+
         return `
           <div class="card">
             <div class="card-header">
-              <div class="card-title">
-                🚚 Viagem #${c.IDVIAGEM}
-              </div>
+              <div class="card-title">🚚 Viagem #${c.IDVIAGEM}</div>
               <span class="badge ${badgeClass}">${statusTexto}</span>
             </div>
 
@@ -385,7 +360,7 @@
               <div class="route-section">
                 <div class="route-item">
                   <div class="route-icon origem">📍</div>
-                  <div class="route-text">
+                  <div>
                     <div class="route-label">Origem</div>
                     <div class="route-cidade">${origem}</div>
                   </div>
@@ -393,7 +368,7 @@
 
                 <div class="route-item">
                   <div class="route-icon destino">🎯</div>
-                  <div class="route-text">
+                  <div>
                     <div class="route-label">Destino</div>
                     <div class="route-cidade">${destino}</div>
                   </div>
@@ -422,14 +397,14 @@
                 <div class="info-item">
                   <div class="info-icon">📅</div>
                   <div class="info-label">Início</div>
-                  <div class="info-value">${formatarData(c.DTPREVINICIO).split(',')[0]}</div>
+                  <div class="info-value">${formatarData(c.DTPREVINICIO)}</div>
                 </div>
               </div>
 
               ${c.OBSERV ? `
-                <div style="margin-top: 16px; padding: 12px; background: #fffbea; border-left: 4px solid #ffc107; border-radius: 8px;">
-                  <div style="font-size: 11px; color: #856404; font-weight: 600; text-transform: uppercase; margin-bottom: 4px;">Observações</div>
-                  <div style="font-size: 13px; color: #333;">${c.OBSERV.substring(0, 100)}${c.OBSERV.length > 100 ? '...' : ''}</div>
+                <div class="obs-box">
+                  <div class="obs-title">Observações</div>
+                  <div class="obs-text">${c.OBSERV.substring(0, 150)}${c.OBSERV.length > 150 ? '...' : ''}</div>
                 </div>
               ` : ''}
 
@@ -449,13 +424,10 @@
       }).join('');
     }
 
-    // Aceitar convocação
     async function aceitar(idConvocacao, idViagem) {
       if (!confirm('Deseja aceitar esta viagem?')) return;
 
-      // Capturar GPS se possível
-      let latitude = null;
-      let longitude = null;
+      let latitude = null, longitude = null;
 
       try {
         const pos = await new Promise((resolve, reject) => {
@@ -467,43 +439,37 @@
         console.log('GPS não disponível');
       }
 
-      const dados = { latitude, longitude };
-
       try {
         if (window.OfflineDB.isOnline()) {
-          // Online: enviar direto
           const response = await fetch(`/api/motorista/aceitar-convocacao/${idConvocacao}`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify(dados)
+            body: JSON.stringify({ latitude, longitude })
           });
 
           if (response.ok) {
-            alert('✅ Convocação aceita com sucesso!');
+            alert('✅ Convocação aceita!');
             carregarConvocacoes();
           } else {
-            alert('Erro ao aceitar convocação');
+            alert('Erro ao aceitar');
           }
         } else {
-          // Offline: adicionar à fila
           await window.OfflineDB.adicionarFila('filaAcoes', {
             tipo: 'aceitar',
             url: `/api/motorista/aceitar-convocacao/${idConvocacao}`,
             method: 'POST',
-            data: dados
+            data: { latitude, longitude }
           });
 
-          alert('📴 Offline - Será enviado quando voltar online');
+          alert('📴 Offline - Será enviado quando online');
           
-          // Atualizar cache local
           const convocacoes = await window.OfflineDB.buscarCache('convocacoes');
-          const convocacao = convocacoes.find(c => c.IDCONVOCACAO === idConvocacao);
-          if (convocacao) {
-            convocacao.STATUS = 'ACEITA';
-            convocacao.DHRESPOSTA = new Date().toISOString();
+          const conv = convocacoes.find(c => c.IDCONVOCACAO === idConvocacao);
+          if (conv) {
+            conv.STATUS = 'ACEITA';
             await window.OfflineDB.salvarCache('convocacoes', convocacoes);
             renderizar(convocacoes);
           }
@@ -511,12 +477,10 @@
 
         await window.OfflineDB.atualizarIndicador();
       } catch (err) {
-        console.error('Erro ao aceitar:', err);
-        alert('Erro ao aceitar convocação');
+        alert('Erro ao aceitar');
       }
     }
 
-    // Recusar convocação
     async function recusar(idConvocacao) {
       if (!confirm('Deseja recusar esta viagem?')) return;
 
@@ -535,7 +499,6 @@
             carregarConvocacoes();
           }
         } else {
-          // Offline: adicionar à fila
           await window.OfflineDB.adicionarFila('filaAcoes', {
             tipo: 'recusar',
             url: `/api/motorista/recusar-convocacao/${idConvocacao}`,
@@ -543,24 +506,20 @@
             data: {}
           });
 
-          alert('📴 Offline - Será enviado quando voltar online');
+          alert('📴 Offline - Será enviado quando online');
         }
 
         await window.OfflineDB.atualizarIndicador();
       } catch (err) {
-        console.error('Erro ao recusar:', err);
-        alert('Erro ao recusar convocação');
+        alert('Erro ao recusar');
       }
     }
 
-    // Voltar
     function voltar() {
       window.location.href = 'dashboard.html';
     }
 
-    // Carregar ao iniciar
     carregarConvocacoes();
   </script>
 </body>
 </html>
-
