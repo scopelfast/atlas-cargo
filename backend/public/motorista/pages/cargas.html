@@ -87,6 +87,7 @@
   </div>
 
   <script src="../js/offline.js"></script>
+  <script src="../js/notifications.js"></script>
   <script>
     const motorista = JSON.parse(localStorage.getItem('motorista') || '{}');
     const token = localStorage.getItem('token');
@@ -232,7 +233,15 @@
     }
 
     async function aceitarCarga(idViagem) {
-      if (!confirm('Deseja aceitar esta carga?')) return;
+      const confirmado = await window.Notificacoes.confirmar({
+        titulo: 'Aceitar Carga',
+        mensagem: 'Deseja aceitar esta viagem?',
+        icone: '🚚',
+        confirmar: '✓ Aceitar',
+        cancelar: '✗ Cancelar'
+      });
+      
+      if (!confirmado) return;
 
       const dados = { idmotorista: motorista.id };
 
@@ -245,10 +254,10 @@
           });
 
           if (response.ok) {
-            alert('✅ Carga aceita!\n\nVeja em "Minhas Convocações"');
+            window.Notificacoes.sucesso('Carga aceita! Veja em "Minhas Convocações"', 4000);
             aplicarFiltros();
           } else {
-            alert('Erro ao aceitar');
+            window.Notificacoes.erro('Erro ao aceitar carga');
           }
         } else {
           await window.OfflineDB.adicionarFila('filaAcoes', {
@@ -257,10 +266,10 @@
             method: 'POST',
             data: dados
           });
-          alert('📴 Offline - Será enviado quando online');
+          window.Notificacoes.info('Offline - Será enviado quando conectar');
         }
       } catch (err) {
-        alert('Erro');
+        window.Notificacoes.erro('Erro ao aceitar carga');
       }
     }
 

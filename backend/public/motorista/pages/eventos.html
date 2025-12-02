@@ -119,6 +119,7 @@
   </div>
 
   <script src="../js/offline.js"></script>
+  <script src="../js/notifications.js"></script>
   <script>
     const motorista = JSON.parse(localStorage.getItem('motorista') || '{}');
     const token = localStorage.getItem('token');
@@ -151,7 +152,7 @@
 
     async function salvarEvento() {
       if (!tipoSelecionado) {
-        alert('Selecione o tipo de evento!');
+        window.Notificacoes.aviso('Selecione o tipo de evento primeiro!');
         return;
       }
 
@@ -178,24 +179,24 @@
           });
 
           if (response.ok) {
-            alert('✅ Evento registrado!');
+            window.Notificacoes.sucesso('Evento registrado com sucesso!');
             adicionarHistorico(evento, true);
             limparFormulario();
           } else {
             await window.OfflineDB.adicionarFila('filaEventos', evento);
-            alert('⚠️ Erro ao enviar - Salvo na fila offline');
+            window.Notificacoes.aviso('Erro ao enviar - Salvo na fila offline');
             adicionarHistorico(evento, false);
             limparFormulario();
           }
         } else {
           await window.OfflineDB.adicionarFila('filaEventos', evento);
-          alert('📴 Offline - Evento salvo, será enviado quando online');
+          window.Notificacoes.info('Offline - Evento salvo, será enviado quando conectar');
           adicionarHistorico(evento, false);
           limparFormulario();
         }
       } catch (err) {
         console.error('Erro:', err);
-        alert('Erro ao salvar evento');
+        window.Notificacoes.erro('Erro ao salvar evento');
       }
     }
 
