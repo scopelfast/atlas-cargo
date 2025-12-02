@@ -379,7 +379,13 @@
         let mensagemErro = 'Erro ao capturar localização';
         
         if (err.code === 1) {
-          mensagemErro = '❌ Permissão GPS negada!\n\nPor favor, habilite a localização nas configurações do navegador.';
+          mensagemErro = '❌ Permissão GPS negada!\n\nClique no cadeado (⚠️) ao lado da URL e permita "Localização"';
+          
+          // Oferecer ajuda
+          if (confirm(mensagemErro + '\n\nDeseja ver instruções detalhadas?')) {
+            window.open('ajuda-gps.html', '_blank');
+          }
+          return;
         } else if (err.code === 2) {
           mensagemErro = '❌ GPS indisponível!\n\nVerifique se o GPS do celular está ativado.';
         } else if (err.code === 3) {
