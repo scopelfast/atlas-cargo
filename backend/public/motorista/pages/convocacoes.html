@@ -56,6 +56,49 @@
     .status-offline { background: #f8d7da; color: #721c24; }
     .status-syncing { background: #fff3cd; color: #856404; }
     
+    /* FILTROS */
+    .filtros {
+      background: white;
+      padding: 14px 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      margin-bottom: 16px;
+    }
+    
+    .filtros-titulo {
+      font-size: 13px;
+      color: #666;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    
+    .filtros-buttons {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+    }
+    
+    .filtro-btn {
+      padding: 8px 16px;
+      border: 2px solid #e0e0e0;
+      background: white;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    
+    .filtro-btn.active {
+      background: #667eea;
+      color: white;
+      border-color: #667eea;
+    }
+    
+    .filtro-btn:active {
+      transform: scale(0.95);
+    }
+    
     /* CONTAINER */
     .container { 
       padding: 16px;
