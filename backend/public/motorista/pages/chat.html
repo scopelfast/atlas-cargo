@@ -192,19 +192,30 @@
       const container = document.getElementById('chatContainer');
       
       if (mensagens.length === 0) {
-        container.innerHTML = '<div class="empty">Nenhuma mensagem ainda<br>Envie uma mensagem abaixo!</div>';
+        container.innerHTML = `
+          <div class="empty">
+            <div class="empty-icon">💬</div>
+            <strong>Nenhuma mensagem ainda</strong><br>
+            Envie uma mensagem para começar a conversa!
+          </div>
+        `;
         return;
       }
 
       container.innerHTML = mensagens.map(m => {
         const hora = new Date(m.timestamp).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
         const classe = m.remetente === 'motorista' ? 'motorista' : 'operador';
+        const remetente = m.remetente === 'motorista' ? '👤 Você' : '👨‍💼 Operador';
+        const status = m.enviado ? '✓✓' : '⏳';
 
         return `
           <div class="mensagem ${classe}">
             <div class="mensagem-bubble">
+              <div style="font-size: 11px; font-weight: 600; color: #666; margin-bottom: 4px;">
+                ${remetente}
+              </div>
               <div class="mensagem-texto">${m.mensagem}</div>
-              <div class="mensagem-hora">${hora} ${m.enviado ? '✓✓' : '⏳'}</div>
+              <div class="mensagem-hora">${hora} ${status}</div>
             </div>
           </div>
         `;
