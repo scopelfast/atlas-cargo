@@ -51,8 +51,8 @@ async function obterUrlBase() {
   const ambiente = obterAmbiente();
   
   if (ambiente === 'local') {
-    // Ambiente local: sempre usar localhost:3000
-    return 'http://localhost:3000';
+    // Ambiente local: usar a URL ATUAL (pode ser localhost ou IP)
+    return window.location.origin;
   } else {
     // Ambiente produção: usar URL salva no localStorage ou origem atual
     const urlSalva = localStorage.getItem('urlBaseProducao');
@@ -78,7 +78,8 @@ function obterUrlBaseSync() {
   const ambiente = obterAmbiente();
   
   if (ambiente === 'local') {
-    return 'http://localhost:3000';
+    // Ambiente local: usar a URL ATUAL (pode ser localhost ou IP)
+    return window.location.origin;
   } else {
     // Em produção, usar URL salva no localStorage ou origem atual
     const urlSalva = localStorage.getItem('urlBaseProducao');
