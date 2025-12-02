@@ -349,6 +349,26 @@
   });
 
   // ==========================================
+  // LIMPAR TODAS AS FILAS
+  // ==========================================
+  async function limparTodasFilas() {
+    if (!db) await initDB();
+    
+    const stores = ['filaGPS', 'filaEventos', 'filaAcoes', 'filaMensagens'];
+    
+    for (const store of stores) {
+      try {
+        const transaction = db.transaction([store], 'readwrite');
+        const objectStore = transaction.objectStore(store);
+        await objectStore.clear();
+        console.log(`🧹 Fila ${store} limpa`);
+      } catch (err) {
+        console.error(`Erro ao limpar ${store}:`, err);
+      }
+    }
+  }
+
+  // ==========================================
   // EXPORTAR FUNÇÕES
   // ==========================================
   window.OfflineDB = {
@@ -361,7 +381,8 @@
     deletarDaFila,
     isOnline,
     atualizarIndicador,
-    sincronizarTudo
+    sincronizarTudo,
+    limparTodasFilas
   };
 
   // Inicializar automaticamente

@@ -93,28 +93,57 @@
     addToConsole('⚠️ ' + args.join(' '), 'warn');
   };
 
-  // Botão limpar
+  // Botões de controle
+  const controles = document.createElement('div');
+  controles.style.cssText = `
+    position: sticky;
+    top: 0;
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+  `;
+  
   const btnLimpar = document.createElement('button');
   btnLimpar.textContent = '🗑️ Limpar';
   btnLimpar.style.cssText = `
-    position: sticky;
-    top: 0;
-    width: 100%;
+    flex: 1;
     padding: 8px;
     background: #667eea;
     color: white;
     border: none;
     font-weight: 700;
     cursor: pointer;
-    margin-bottom: 8px;
+    border-radius: 6px;
   `;
   btnLimpar.onclick = () => {
     consoleOverlay.innerHTML = '';
-    consoleOverlay.appendChild(btnLimpar);
+    consoleOverlay.appendChild(controles);
     addToConsole('Console limpo', 'log');
   };
   
-  consoleOverlay.appendChild(btnLimpar);
+  const btnLimparFila = document.createElement('button');
+  btnLimparFila.textContent = '🧹 Limpar Fila';
+  btnLimparFila.style.cssText = `
+    flex: 1;
+    padding: 8px;
+    background: #dc3545;
+    color: white;
+    border: none;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 6px;
+  `;
+  btnLimparFila.onclick = async () => {
+    if (confirm('Limpar TODA a fila offline?')) {
+      await window.OfflineDB.limparTodasFilas();
+      addToConsole('🧹 Filas limpas!', 'log');
+      await window.OfflineDB.atualizarIndicador();
+    }
+  };
+  
+  controles.appendChild(btnLimpar);
+  controles.appendChild(btnLimparFila);
+  consoleOverlay.appendChild(controles);
 
   console.log('✅ Console Mobile ativado - Clique no botão 🐛 para abrir');
 })();
