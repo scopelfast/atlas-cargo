@@ -99,6 +99,8 @@
     function formatarData(d) { return d ? new Date(d).toLocaleDateString('pt-BR') : '-'; }
 
     async function aplicarFiltros() {
+      console.log('🔍 Aplicando filtros...');
+      
       const estado = document.getElementById('filtroEstado').value;
       const distancia = document.getElementById('filtroDistancia').value;
 
@@ -106,20 +108,56 @@
       if (estado) url += `estado=${estado}&`;
       if (distancia) url += `distanciaMax=${distancia}&`;
 
+      console.log('📡 URL:', url);
+      console.log('🔑 Token:', token ? 'Presente' : 'Ausente');
+
       try {
-        if (window.OfflineDB.isOnline()) {
-          const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
-          if (response.ok) {
-            const cargas = await response.json();
+        console.log('🌐 Verificando conexão...');
+        
+        const response = await fetch(url, { 
+          headers: { 'Authorization': `Bearer ${token}` } 
+        });
+        
+        console.log('📨 Resposta:', response.status);
+        
+        if (response.ok) {
+          const cargas = await response.json();
+          console.log('✅ Cargas recebidas:', cargas.length);
+          
+          if (window.OfflineDB) {
             await window.OfflineDB.salvarCache('cargas', cargas);
-            renderizar(cargas);
-            return;
+          }
+          renderizar(cargas);
+        } else {
+          const erro = await response.text();
+          console.error('❌ Erro servidor:', erro);
+          
+          // Tentar cache
+          if (window.OfflineDB) {
+            const cargas = await window.OfflineDB.buscarCache('cargas');
+            renderizar(cargas || []);
+            alert('Erro ao buscar cargas. Mostrando cache.');
+          } else {
+            renderizar([]);
           }
         }
-        const cargas = await window.OfflineDB.buscarCache('cargas');
-        renderizar(cargas || []);
       } catch (err) {
-        renderizar([]);
+        console.error('❌ ERRO:', err);
+        
+        // Tentar cache
+        try {
+          if (window.OfflineDB) {
+            const cargas = await window.OfflineDB.buscarCache('cargas');
+            renderizar(cargas || []);
+            alert('📴 Sem conexão. Mostrando dados salvos.');
+          } else {
+            renderizar([]);
+            alert('Erro ao carregar cargas');
+          }
+        } catch (cacheErr) {
+          renderizar([]);
+          alert('Erro ao carregar');
+        }
       }
     }
 
