@@ -6,53 +6,53 @@
   <title>Minhas Convocações - Motorista</title>
   <link rel="stylesheet" href="../css/style.css">
   <style>
-    body { background: #f0f2f5; padding: 0; margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    html, body { 
+      background: #f0f2f5; 
+      margin: 0; 
+      padding: 0; 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      width: 100%;
+      overflow-x: hidden;
+    }
     
     .navbar {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
       padding: 16px 20px;
       display: flex;
-      justify-content: space-between;
+      justify-content: center;
       align-items: center;
       box-shadow: 0 2px 15px rgba(0,0,0,0.15);
-      position: sticky;
-      top: 0;
-      z-index: 100;
+      position: relative;
       width: 100%;
-      box-sizing: border-box;
-    }
-    
-    .navbar-left {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    
-    .navbar h1 { 
-      font-size: 18px; 
-      margin: 0; 
-      font-weight: 600; 
-      flex: 1;
     }
     
     .btn-voltar { 
+      position: absolute;
+      left: 16px;
       background: rgba(255,255,255,0.25); 
       border: none; 
       color: white; 
       padding: 8px 16px; 
       border-radius: 20px; 
       cursor: pointer;
-      font-weight: 500;
+      font-weight: 600;
       transition: all 0.3s;
       font-size: 14px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
     }
+    
     .btn-voltar:active { 
       background: rgba(255,255,255,0.4); 
       transform: scale(0.95); 
+    }
+    
+    .navbar h1 { 
+      font-size: 18px; 
+      margin: 0; 
+      font-weight: 600;
+      text-align: center;
     }
     
     #statusIndicador {
@@ -255,11 +255,8 @@
 </head>
 <body>
   <div class="navbar">
-    <div class="navbar-left">
-      <button class="btn-voltar" onclick="voltar()">← Voltar</button>
-    </div>
+    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
     <h1>📦 Minhas Convocações</h1>
-    <div style="width: 90px;"></div>
   </div>
 
   <div id="statusIndicador" class="status-offline">
@@ -269,6 +266,7 @@
   <div class="container">
     <div id="convocacoesList">
       <div class="loading">
+        <div class="spinner"></div>
         <p>Carregando convocações...</p>
       </div>
     </div>
