@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Minhas Convocações - Motorista</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    body { background: #f5f5f5; padding: 0; margin: 0; }
+    
+    .navbar {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .navbar h1 { font-size: 20px; margin: 0; }
+    .navbar button { background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 15px; border-radius: 8px; cursor: pointer; }
+    
+    #statusIndicador {
+      padding: 10px 15px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .status-online { background: #d4edda; color: #155724; }
+    .status-offline { background: #f8d7da; color: #721c24; }
+    .status-syncing { background: #fff3cd; color: #856404; }
+    
+    .container { padding: 15px; }
+    
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 15px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .card-title { font-size: 16px; font-weight: 600; color: #333; }
+    
+    .badge {
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    
+    .badge-pendente { background: #fff3cd; color: #856404; }
+    .badge-aceita { background: #d4edda; color: #155724; }
+    .badge-confirmada { background: #cce5ff; color: #004085; }
+    .badge-recusada { background: #f8d7da; color: #721c24; }
+    
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      margin: 8px 0;
+      font-size: 14px;
+    }
+    
+    .info-label { color: #666; }
+    .info-value { color: #333; font-weight: 500; }
+    
+    .buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    
+    .btn {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .btn-success {
+      background: #28a745;
+      color: white;
+    }
+    
+    .btn-danger {
+      background: #dc3545;
+      color: white;
+    }
+    
+    .btn-info {
+      background: #17a2b8;
+      color: white;
+    }
+    
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: #999;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 40px;
+    }
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <h1>📦 Minhas Convocações</h1>
+    <button onclick="voltar()">← Voltar</button>
+  </div>
+
+  <div id="statusIndicador" class="status-offline">
+    🔴 Carregando...
+  </div>
+
+  <div class="container">
+    <div id="convocacoesList">
+      <div class="loading">
+        <p>Carregando convocações...</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/offline.js"></script>
+  <script>
+    const motorista = JSON.parse(localStorage.getItem('motorista') || '{}');
+    const token = localStorage.getItem('token');
+    
+    if (!token) {
+      window.location.href = '../index.html';
+    }
+
+    // Formatar moeda
+    function formatarMoeda(valor) {
+      return new Intl.NumberFormat('pt-BR', { 
+        style: 'currency', 
+        currency: 'BRL' 
+      }).format(valor || 0);
+    }
+
+    // Formatar data
+    function formatarData(data) {
+      if (!data) return '-';
+      return new Date(data).toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    // Carregar convocações
+    async function carregarConvocacoes() {
+      try {
+        // Tentar buscar do servidor
+        if (window.OfflineDB.isOnline()) {
+          const response = await fetch(`/api/motorista/convocacoes/${motorista.id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+
+          if (response.ok) {
+            const convocacoes = await response.json();
+            
+            // Salvar no cache
+            await window.OfflineDB.salvarCache('convocacoes', convocacoes);
+            
+            renderizar(convocacoes);
+            return;
+          }
+        }
+
+        // Se offline ou erro, buscar do cache
+        const convocacoes = await window.OfflineDB.buscarCache('convocacoes');
+        renderizar(convocacoes);
+        
+        if (!window.OfflineDB.isOnline()) {
+          alert('📴 Offline - Mostrando dados salvos');
+        }
+      } catch (err) {
+        console.error('Erro ao carregar convocações:', err);
+        
+        // Tentar cache
+        try {
+          const convocacoes = await window.OfflineDB.buscarCache('convocacoes');
+          renderizar(convocacoes);
+          alert('📴 Sem conexão - Mostrando dados salvos');
+        } catch (cacheErr) {
+          document.getElementById('convocacoesList').innerHTML = 
+            '<div class="empty">Erro ao carregar convocações</div>';
+        }
+      }
+    }
+
+    // Renderizar lista
+    function renderizar(convocacoes) {
+      const lista = document.getElementById('convocacoesList');
+      
+      if (!convocacoes || convocacoes.length === 0) {
+        lista.innerHTML = '<div class="empty">📭 Nenhuma convocação encontrada</div>';
+        return;
+      }
+
+      lista.innerHTML = convocacoes.map(c => {
+        const badgeClass = `badge-${c.STATUS.toLowerCase()}`;
+        const statusTexto = {
+          'PENDENTE': 'Pendente',
+          'ACEITA': 'Aceita',
+          'CONFIRMADA': 'Confirmada',
+          'RECUSADA': 'Recusada',
+          'ACEITA_DESCARTADA': 'Descartada'
+        }[c.STATUS] || c.STATUS;
+
+        const podeAceitar = c.STATUS === 'PENDENTE';
+
+        return `
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">
+                Viagem #${c.IDVIAGEM}
+              </div>
+              <span class="badge ${badgeClass}">${statusTexto}</span>
+            </div>
+
+            <div class="info-row">
+              <span class="info-label">📍 Origem:</span>
+              <span class="info-value">${c.ORIGEM_CIDADE} - ${c.ORIGEM_ESTADO}</span>
+            </div>
+
+            <div class="info-row">
+              <span class="info-label">🎯 Destino:</span>
+              <span class="info-value">${c.DESTINO_CIDADE} - ${c.DESTINO_ESTADO}</span>
+            </div>
+
+            <div class="info-row">
+              <span class="info-label">📏 Distância:</span>
+              <span class="info-value">${c.DISTANCIAKM || 0} km</span>
+            </div>
+
+            <div class="info-row">
+              <span class="info-label">💰 Frete:</span>
+              <span class="info-value">${formatarMoeda(c.VLFRETE)}</span>
+            </div>
+
+            <div class="info-row">
+              <span class="info-label">📅 Início Previsto:</span>
+              <span class="info-value">${formatarData(c.DTPREVINICIO)}</span>
+            </div>
+
+            ${podeAceitar ? `
+              <div class="buttons">
+                <button class="btn btn-success" onclick="aceitar(${c.IDCONVOCACAO}, ${c.IDVIAGEM})">
+                  ✓ Aceitar
+                </button>
+                <button class="btn btn-danger" onclick="recusar(${c.IDCONVOCACAO})">
+                  ✗ Recusar
+                </button>
+              </div>
+            ` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Aceitar convocação
+    async function aceitar(idConvocacao, idViagem) {
+      if (!confirm('Deseja aceitar esta viagem?')) return;
+
+      // Capturar GPS se possível
+      let latitude = null;
+      let longitude = null;
+
+      try {
+        const pos = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+        });
+        latitude = pos.coords.latitude;
+        longitude = pos.coords.longitude;
+      } catch (err) {
+        console.log('GPS não disponível');
+      }
+
+      const dados = { latitude, longitude };
+
+      try {
+        if (window.OfflineDB.isOnline()) {
+          // Online: enviar direto
+          const response = await fetch(`/api/motorista/aceitar-convocacao/${idConvocacao}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(dados)
+          });
+
+          if (response.ok) {
+            alert('✅ Convocação aceita com sucesso!');
+            carregarConvocacoes();
+          } else {
+            alert('Erro ao aceitar convocação');
+          }
+        } else {
+          // Offline: adicionar à fila
+          await window.OfflineDB.adicionarFila('filaAcoes', {
+            tipo: 'aceitar',
+            url: `/api/motorista/aceitar-convocacao/${idConvocacao}`,
+            method: 'POST',
+            data: dados
+          });
+
+          alert('📴 Offline - Será enviado quando voltar online');
+          
+          // Atualizar cache local
+          const convocacoes = await window.OfflineDB.buscarCache('convocacoes');
+          const convocacao = convocacoes.find(c => c.IDCONVOCACAO === idConvocacao);
+          if (convocacao) {
+            convocacao.STATUS = 'ACEITA';
+            convocacao.DHRESPOSTA = new Date().toISOString();
+            await window.OfflineDB.salvarCache('convocacoes', convocacoes);
+            renderizar(convocacoes);
+          }
+        }
+
+        await window.OfflineDB.atualizarIndicador();
+      } catch (err) {
+        console.error('Erro ao aceitar:', err);
+        alert('Erro ao aceitar convocação');
+      }
+    }
+
+    // Recusar convocação
+    async function recusar(idConvocacao) {
+      if (!confirm('Deseja recusar esta viagem?')) return;
+
+      try {
+        if (window.OfflineDB.isOnline()) {
+          const response = await fetch(`/api/motorista/recusar-convocacao/${idConvocacao}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            }
+          });
+
+          if (response.ok) {
+            alert('Convocação recusada');
+            carregarConvocacoes();
+          }
+        } else {
+          // Offline: adicionar à fila
+          await window.OfflineDB.adicionarFila('filaAcoes', {
+            tipo: 'recusar',
+            url: `/api/motorista/recusar-convocacao/${idConvocacao}`,
+            method: 'POST',
+            data: {}
+          });
+
+          alert('📴 Offline - Será enviado quando voltar online');
+        }
+
+        await window.OfflineDB.atualizarIndicador();
+      } catch (err) {
+        console.error('Erro ao recusar:', err);
+        alert('Erro ao recusar convocação');
+      }
+    }
+
+    // Voltar
+    function voltar() {
+      window.location.href = 'dashboard.html';
+    }
+
+    // Carregar ao iniciar
+    carregarConvocacoes();
+  </script>
+</body>
+</html>
+

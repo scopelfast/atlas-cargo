@@ -48,19 +48,33 @@
       </div>
       
       <h3>🎉 Bem-vindo ao APP do Motorista!</h3>
-      <p>Sistema em desenvolvimento...</p>
+      <p>Selecione uma opção abaixo:</p>
       
       <div style="margin-top: 20px;">
-        <h4>✅ Funcionalidades Disponíveis:</h4>
-        <ul>
+        <h4>📋 Menu Principal:</h4>
+        <button class="btn" onclick="window.location.href='convocacoes.html'" style="width: 100%; margin: 10px 0; background: #28a745;">
+          📦 Minhas Convocações
+        </button>
+        <button class="btn" onclick="alert('Em desenvolvimento')" style="width: 100%; margin: 10px 0; opacity: 0.5;" disabled>
+          🚚 Cargas Disponíveis (em breve)
+        </button>
+        <button class="btn" onclick="alert('Em desenvolvimento')" style="width: 100%; margin: 10px 0; opacity: 0.5;" disabled>
+          📍 Rastreamento GPS (em breve)
+        </button>
+      </div>
+      
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
+        <h4>✅ Status:</h4>
+        <ul style="font-size: 14px; color: #666;">
           <li>✅ Login funcionando</li>
-          <li>⏳ Minhas Convocações (em breve)</li>
-          <li>⏳ Cargas Disponíveis (em breve)</li>
-          <li>⏳ Rastreamento GPS (em breve)</li>
+          <li>✅ Minhas Convocações (com offline!)</li>
+          <li>⏳ Aceitar/Recusar viagens (com offline!)</li>
+          <li>⏳ Cargas Disponíveis</li>
+          <li>⏳ Rastreamento GPS</li>
         </ul>
       </div>
       
-      <button class="btn" onclick="logout()">Sair</button>
+      <button class="btn" onclick="logout()" style="margin-top: 20px;">Sair</button>
     </div>
   </div>
 

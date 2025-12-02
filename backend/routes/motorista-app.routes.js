@@ -27,6 +27,8 @@ router.get('/perfil/:id', motoristaAppController.perfil);
 
 // Convocações
 router.get('/convocacoes/:idmotorista', motoristaAppController.minhasConvocacoes);
+router.post('/aceitar-convocacao/:id', motoristaAppController.aceitarConvocacao);
+router.post('/recusar-convocacao/:id', motoristaAppController.recusarConvocacao);
 
 // GPS
 router.post('/gps', motoristaAppController.registrarGPS);

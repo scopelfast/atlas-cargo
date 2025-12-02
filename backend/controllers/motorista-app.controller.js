@@ -197,27 +197,117 @@ const motoristaAppController = {
             c.STATUS,
             c.DHCONVOCACAO,
             c.DHRESPOSTA,
+            c.DHACESSO,
             c.TXTCONVOCACAO,
+            c.NRCELULAR,
+            c.LATITUDE,
+            c.LONGITUDE,
             v.DTPREVINICIO,
             v.DTPREVFINAL,
             v.VLFRETE,
+            v.PESO,
+            v.CUBAGEM,
             v.DISTANCIAKM,
+            v.OBSERV,
+            v.CDSITUACAOVIAGEM,
+            sv.DSSITUACAOVIAGEM,
+            v.CDTIPOVIAGEM,
+            tv.DSTIPOVIAGEM,
+            v.CDCLASSEFROTA,
+            cf.DSCLASSEFROTA,
             r.DSROTEIRO,
-            co.NMCIDADE + ' - ' + co.ESTADO AS ORIGEM,
-            cd.NMCIDADE + ' - ' + cd.ESTADO AS DESTINO
+            co.NMCIDADE AS ORIGEM_CIDADE,
+            co.ESTADO AS ORIGEM_ESTADO,
+            cd.NMCIDADE AS DESTINO_CIDADE,
+            cd.ESTADO AS DESTINO_ESTADO,
+            cont.RZSOCIAL AS CONTRATADOR
           FROM [dbo].[CONVOCACAO] c
           INNER JOIN [dbo].[VIAGEMMESTRE] v ON c.IDVIAGEM = v.IDVIAGEM
+          LEFT JOIN [dbo].[SITUACAOVIAGEM] sv ON v.CDSITUACAOVIAGEM = sv.CDSITUACAOVIAGEM
+          LEFT JOIN [dbo].[TIPOVIAGEM] tv ON v.CDTIPOVIAGEM = tv.CDTIPOVIAGEM
+          LEFT JOIN [dbo].[CLASSEFROTA] cf ON v.CDCLASSEFROTA = cf.CDCLASSEFROTA
           LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
           LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
           LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
+          LEFT JOIN [dbo].[CADASTROGERAL] cont ON v.CDCONTRATADOR = cont.CDCADASTRO
           WHERE c.CDCADASTRO_MOTORISTA = @idmotorista
-          ORDER BY c.DHCONVOCACAO DESC
+          ORDER BY 
+            CASE 
+              WHEN c.STATUS = 'PENDENTE' THEN 1
+              WHEN c.STATUS = 'ACEITA' THEN 2
+              WHEN c.STATUS = 'CONFIRMADA' THEN 3
+              ELSE 4
+            END,
+            c.DHCONVOCACAO DESC
         `);
 
       res.json(result.recordset);
     } catch (err) {
       console.error('Erro ao listar convocações:', err);
       res.status(500).json({ error: 'Erro ao buscar convocações.' });
+    }
+  },
+
+  // ==========================================
+  // ACEITAR CONVOCAÇÃO
+  // ==========================================
+  aceitarConvocacao: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { latitude, longitude } = req.body;
+
+      const pool = await poolPromise;
+      
+      // Atualizar status para ACEITA
+      await pool
+        .request()
+        .input('id', sql.Int, parseInt(id))
+        .input('latitude', sql.Float, latitude || null)
+        .input('longitude', sql.Float, longitude || null)
+        .query(`
+          UPDATE [dbo].[CONVOCACAO]
+          SET 
+            STATUS = 'ACEITA',
+            DHRESPOSTA = GETDATE(),
+            LATITUDE = COALESCE(@latitude, LATITUDE),
+            LONGITUDE = COALESCE(@longitude, LONGITUDE)
+          WHERE IDCONVOCACAO = @id
+        `);
+
+      res.json({ success: true, message: 'Convocação aceita com sucesso!' });
+    } catch (err) {
+      console.error('Erro ao aceitar convocação:', err);
+      res.status(500).json({ error: 'Erro ao aceitar convocação.' });
+    }
+  },
+
+  // ==========================================
+  // RECUSAR CONVOCAÇÃO
+  // ==========================================
+  recusarConvocacao: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { motivo } = req.body;
+
+      const pool = await poolPromise;
+      
+      await pool
+        .request()
+        .input('id', sql.Int, parseInt(id))
+        .input('motivo', sql.Int, motivo || null)
+        .query(`
+          UPDATE [dbo].[CONVOCACAO]
+          SET 
+            STATUS = 'RECUSADA',
+            DHRESPOSTA = GETDATE(),
+            CDMOTIVORECUSA = @motivo
+          WHERE IDCONVOCACAO = @id
+        `);
+
+      res.json({ success: true, message: 'Convocação recusada.' });
+    } catch (err) {
+      console.error('Erro ao recusar convocação:', err);
+      res.status(500).json({ error: 'Erro ao recusar convocação.' });
     }
   },
 
