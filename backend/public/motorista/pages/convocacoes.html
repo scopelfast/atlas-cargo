@@ -66,9 +66,15 @@
     .card {
       background: white;
       border-radius: 16px;
-      margin-bottom: 16px;
+      margin-bottom: 12px;
       box-shadow: 0 2px 12px rgba(0,0,0,0.08);
       overflow: hidden;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .card:active {
+      transform: scale(0.98);
     }
     
     .card-header {
@@ -98,7 +104,51 @@
     .badge-confirmada { background: #007bff; color: white; }
     .badge-recusada { background: #dc3545; color: white; }
     
-    .card-body { padding: 16px; }
+    .card-body { 
+      padding: 16px;
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease-out;
+    }
+    
+    .card.expandido .card-body {
+      max-height: 2000px;
+      transition: max-height 0.5s ease-in;
+    }
+    
+    /* RESUMO (quando colapsado) */
+    .card-resumo {
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f8f9fa;
+    }
+    
+    .card.expandido .card-resumo {
+      display: none;
+    }
+    
+    .resumo-info {
+      flex: 1;
+    }
+    
+    .resumo-rota {
+      font-size: 14px;
+      color: #333;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    
+    .resumo-detalhes {
+      font-size: 12px;
+      color: #666;
+    }
+    
+    .resumo-icone {
+      font-size: 24px;
+      color: #667eea;
+    }
     
     /* ROTA */
     .route-section {
@@ -254,6 +304,19 @@
     <h1>📦 Minhas Convocações</h1>
   </div>
 
+  <!-- FILTROS -->
+  <div class="filtros">
+    <div class="filtros-titulo">📅 Período:</div>
+    <div class="filtros-buttons">
+      <button class="filtro-btn" onclick="filtrarPeriodo(7)">7 dias</button>
+      <button class="filtro-btn" onclick="filtrarPeriodo(15)">15 dias</button>
+      <button class="filtro-btn active" onclick="filtrarPeriodo(30)">30 dias</button>
+      <button class="filtro-btn" onclick="filtrarPeriodo(60)">60 dias</button>
+      <button class="filtro-btn" onclick="filtrarPeriodo(90)">90 dias</button>
+      <button class="filtro-btn" onclick="filtrarPeriodo(0)">Todos</button>
+    </div>
+  </div>
+
   <!-- CONTEÚDO -->
   <div class="container">
     <div id="convocacoesList">
@@ -298,14 +361,16 @@
 
           if (response.ok) {
             const convocacoes = await response.json();
+            convocacoesGlobal = convocacoes;
             await window.OfflineDB.salvarCache('convocacoes', convocacoes);
-            renderizar(convocacoes);
+            filtrarPeriodo(periodoAtual);
             return;
           }
         }
 
         const convocacoes = await window.OfflineDB.buscarCache('convocacoes');
-        renderizar(convocacoes);
+        convocacoesGlobal = convocacoes || [];
+        filtrarPeriodo(periodoAtual);
         
         if (!window.OfflineDB.isOnline()) {
           alert('📴 Offline - Mostrando dados salvos');
@@ -314,7 +379,8 @@
         console.error('Erro:', err);
         try {
           const convocacoes = await window.OfflineDB.buscarCache('convocacoes');
-          renderizar(convocacoes);
+          convocacoesGlobal = convocacoes || [];
+          filtrarPeriodo(periodoAtual);
         } catch {
           document.getElementById('convocacoesList').innerHTML = 
             '<div class="empty">❌ Erro ao carregar</div>';
@@ -322,11 +388,44 @@
       }
     }
 
+    let convocacoesGlobal = [];
+    let periodoAtual = 30;
+
+    function filtrarPeriodo(dias) {
+      periodoAtual = dias;
+      
+      // Atualizar botões ativos
+      document.querySelectorAll('.filtro-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+      
+      // Filtrar convocações
+      let filtradas = convocacoesGlobal;
+      
+      if (dias > 0) {
+        const dataLimite = new Date();
+        dataLimite.setDate(dataLimite.getDate() - dias);
+        
+        filtradas = convocacoesGlobal.filter(c => {
+          const dataConv = new Date(c.DHCONVOCACAO);
+          return dataConv >= dataLimite;
+        });
+      }
+      
+      renderizar(filtradas);
+    }
+
+    function toggleCard(idConvocacao) {
+      const card = document.getElementById(`card-${idConvocacao}`);
+      if (card) {
+        card.classList.toggle('expandido');
+      }
+    }
+
     function renderizar(convocacoes) {
       const lista = document.getElementById('convocacoesList');
       
       if (!convocacoes || convocacoes.length === 0) {
-        lista.innerHTML = '<div class="empty">📭 Nenhuma convocação</div>';
+        lista.innerHTML = '<div class="empty">📭 Nenhuma convocação no período</div>';
         return;
       }
 
@@ -350,10 +449,20 @@
         const podeAceitar = c.STATUS === 'PENDENTE';
 
         return `
-          <div class="card">
+          <div class="card" id="card-${c.IDCONVOCACAO}" onclick="toggleCard(${c.IDCONVOCACAO})">
             <div class="card-header">
               <div class="card-title">🚚 Viagem #${c.IDVIAGEM}</div>
               <span class="badge ${badgeClass}">${statusTexto}</span>
+            </div>
+
+            <div class="card-resumo">
+              <div class="resumo-info">
+                <div class="resumo-rota">📍 ${origem} → 🎯 ${destino}</div>
+                <div class="resumo-detalhes">
+                  ${(c.DISTANCIAKM || 0).toLocaleString('pt-BR')} km • ${formatarMoeda(c.VLFRETE)} • ${formatarData(c.DTPREVINICIO)}
+                </div>
+              </div>
+              <div class="resumo-icone">▼</div>
             </div>
 
             <div class="card-body">
