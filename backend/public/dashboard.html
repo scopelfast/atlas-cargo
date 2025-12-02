@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>sys - Divulga Cargas</title>
+  <!-- Sistema de Cache Busting - Atualizar versão a cada publicação -->
+  <script src="/js/version.js"></script>
   <link href="/css/boxicons.min.css" rel="stylesheet">
   <link rel="stylesheet" href="/css/modulos.css">
   <link rel="stylesheet" href="/css/dashboard.css">
@@ -50,9 +52,22 @@
     </div>
   </div>
 
-  <script src="/js/ambiente-utils.js"></script>
-  <script src="/js/utils.js"></script>
-  <script src="/js/permissions.js"></script>
-  <script src="/js/dashboard.js"></script>
+  <script>
+    // Carregar scripts com versão
+    (function() {
+      const scripts = [
+        '/js/ambiente-utils.js',
+        '/js/utils.js',
+        '/js/permissions.js',
+        '/js/dashboard.js'
+      ];
+      
+      scripts.forEach(function(src) {
+        const script = document.createElement('script');
+        script.src = window.addVersion ? window.addVersion(src) : src;
+        document.body.appendChild(script);
+      });
+    })();
+  </script>
 </body>
 </html>

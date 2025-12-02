@@ -549,6 +549,47 @@
           }
         }, 100);
       }
+
+      // Se for a aba Integração Meta, carregar logs do banco e atualizar
+      if (tabId === 'integracao-meta') {
+        setTimeout(async () => {
+          // Carregar logs do banco de dados
+          try {
+            const response = await fetch('/api/logs-webhook-meta?limite=100');
+            if (response.ok) {
+              const logsDoBanco = await response.json();
+              console.log('[LOGS META] Carregados', logsDoBanco.length, 'logs do banco de dados');
+              
+              // Converter logs do banco para o formato esperado
+              logsIntegracaoMeta = logsDoBanco.map(log => ({
+                tipo: log.TIPO,
+                titulo: log.TITULO,
+                mensagem: log.MENSAGEM,
+                detalhes: log.DETALHES,
+                timestamp: log.timestamp || log.DHLOG,
+                id: log.IDLOG
+              }));
+              
+              // Atualizar exibição
+              if (typeof window.atualizarExibicaoLogsMeta === 'function') {
+                window.atualizarExibicaoLogsMeta();
+              }
+            } else {
+              console.warn('[LOGS META] Erro ao carregar logs do banco:', await response.text());
+              // Mesmo com erro, tentar atualizar com logs em memória
+              if (typeof window.atualizarExibicaoLogsMeta === 'function') {
+                window.atualizarExibicaoLogsMeta();
+              }
+            }
+          } catch (err) {
+            console.error('[LOGS META] Erro ao carregar logs do banco:', err);
+            // Mesmo com erro, tentar atualizar com logs em memória
+            if (typeof window.atualizarExibicaoLogsMeta === 'function') {
+              window.atualizarExibicaoLogsMeta();
+            }
+          }
+        }, 100);
+      }
     } catch (err) {
       // Erro silencioso ao mudar aba - forçar mudança mesmo em caso de erro
       try {
@@ -3919,20 +3960,108 @@
     // Usar modal de confirmação estilizado
     const confirmar = await showConfirmModal(
       'Confirmar Disparo de Convocações',
-      `Deseja realmente disparar <strong>${selecionados.length}</strong> convocação(ões) para esta viagem?<br><br><small style="color: #666;">Os motoristas receberão uma mensagem via WhatsApp com os detalhes da carga.</small>`
+      `Deseja realmente disparar <strong>${selecionados.length}</strong> convocação(ões) para esta viagem?<br><br><small style="color: #666;">As convocações serão criadas e os campos de celular, texto e link serão preenchidos automaticamente.</small>`
     );
     if (!confirmar) return;
 
     try {
       showMessage('Disparando convocações...', 'info');
       
-      const motoristasParaEnvio = selecionados.map(m => ({
-        CDCADASTRO_MOTORISTA: m.CDCADASTRO_MOTORISTA
-      }));
-
+      // Buscar dados da viagem para gerar texto e link
+      const responseViagem = await fetch(`/api/viagens/${viagemSelecionada}`);
+      if (!responseViagem.ok) {
+        throw new Error('Erro ao buscar dados da viagem');
+      }
+      const viagemAtual = await responseViagem.json();
+      
+      if (!viagemAtual || !viagemAtual.IDVIAGEM) {
+        throw new Error('Dados da viagem não encontrados');
+      }
+      
+      // Função para formatar data/hora
+      const formatarDataHora = (dataHora) => {
+        if (!dataHora) return 'Não informado';
+        
+        if (typeof dataHora === 'string') {
+          let dataStr = dataHora.replace('Z', '');
+          if (dataStr.includes('T')) {
+            dataStr = dataStr.replace('T', ' ');
+          }
+          
+          const match = dataStr.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
+          if (match) {
+            const [, year, month, day, hour, minute] = match;
+            const diaStr = String(day).padStart(2, '0');
+            const mesStr = String(month).padStart(2, '0');
+            const anoStr = year;
+            const horaStr = String(hour).padStart(2, '0');
+            const minutoStr = String(minute).padStart(2, '0');
+            
+            return `${diaStr}/${mesStr}/${anoStr} ${horaStr}:${minutoStr}`;
+          }
+        }
+        
+        try {
+          const date = new Date(dataHora);
+          if (isNaN(date.getTime())) return 'Data inválida';
+          
+          const ano = date.getUTCFullYear();
+          const mes = date.getUTCMonth();
+          const dia = date.getUTCDate();
+          const hora = date.getUTCHours();
+          const minuto = date.getUTCMinutes();
+          
+          const diaStr = String(dia).padStart(2, '0');
+          const mesStr = String(mes + 1).padStart(2, '0');
+          const anoStr = ano;
+          const horaStr = String(hora).padStart(2, '0');
+          const minutoStr = String(minuto).padStart(2, '0');
+          
+          return `${diaStr}/${mesStr}/${anoStr} ${horaStr}:${minutoStr}`;
+        } catch (err) {
+          return 'Data inválida';
+        }
+      };
+      
+      // Gerar texto base formatado
+      let textoBase = `🚚 *CARGA DISPONÍVEL*\n\n`;
+      textoBase += `🆔 *ID:* ${viagemAtual.IDVIAGEM || 'N/A'}\n`;
+      textoBase += `📦 *Tipo:* ${viagemAtual.DSTIPOVIAGEM || viagemAtual.CDTIPOVIAGEM || 'Não informado'}\n`;
+      textoBase += `🚛 *Classe:* ${viagemAtual.DSCLASSEFROTA || viagemAtual.CDCLASSEFROTA || 'Não informado'}\n`;
+      textoBase += `🗺️ *Rota:* ${viagemAtual.DSROTEIRO ? `${viagemAtual.IDROTEIRO || ''} - ${viagemAtual.DSROTEIRO}` : (viagemAtual.IDROTEIRO ? `${viagemAtual.IDROTEIRO} - ` : '') + `${viagemAtual.ORIGEM_CIDADE || 'N/A'}/${viagemAtual.ORIGEM_ESTADO || 'N/A'} → ${viagemAtual.DESTINO_CIDADE || 'N/A'}/${viagemAtual.DESTINO_ESTADO || 'N/A'}`}\n\n`;
+      textoBase += `⏰ *HORÁRIOS*\n`;
+      textoBase += `📅 *Carregamento:* ${formatarDataHora(viagemAtual.DTPREVINICIO)}\n`;
+      textoBase += `📅 *Descarga:* ${formatarDataHora(viagemAtual.DTPREVFINAL)}\n\n`;
+      
+      if (viagemAtual.FGRASTREADO === 'S') {
+        textoBase += `✅ *REQUISITOS*\n`;
+        textoBase += `✅ *Exige Veículo Rastreado:* SIM\n\n`;
+      }
+      
+      textoBase += `👤 *CONTRATADOR*\n`;
+      textoBase += `${viagemAtual.CONTRATADOR_NOME || viagemAtual.CDCONTRATADOR || 'Não informado'}\n\n`;
+      textoBase += `💰 *VALORES*\n`;
+      textoBase += `💵 *Frete:* R$ ${viagemAtual.VLFRETE ? parseFloat(viagemAtual.VLFRETE).toFixed(2).replace('.', ',') : '0,00'}\n`;
+      textoBase += `📊 *Peso:* ${viagemAtual.PESO ? parseFloat(viagemAtual.PESO).toFixed(3).replace('.', ',') : '0,000'} ton\n`;
+      textoBase += `📦 *Cubagem:* ${viagemAtual.CUBAGEM ? parseFloat(viagemAtual.CUBAGEM).toFixed(3).replace('.', ',') : '0,000'} m³\ \n`;
+      
+      if (viagemAtual.OBSERV) {
+        textoBase += `\n📝 *DETALHES DA VIAGEM*\n`;
+        textoBase += `${viagemAtual.OBSERV}\n`;
+      }
+      
+      // Obter URL base pública
+      const urlBase = await obterUrlPublica();
+      
       // Obter usuário logado do localStorage
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       const userLogin = user.login || 'SYSTEM';
+      
+      // Primeiro, criar as convocações para obter os IDs reais
+      // Depois atualizaremos com os dados completos
+      const motoristasParaCriacao = selecionados.map(m => ({
+        CDCADASTRO_MOTORISTA: m.CDCADASTRO_MOTORISTA
+      }));
       
       const response = await fetch('/api/convocacoes', {
         method: 'POST',
@@ -3942,7 +4071,7 @@
         },
         body: JSON.stringify({
           idViagem: viagemSelecionada,
-          motoristas: motoristasParaEnvio
+          motoristas: motoristasParaCriacao
         })
       });
 
@@ -3952,7 +4081,370 @@
       }
 
       const result = await response.json();
-      showMessage(result.message || 'Convocações disparadas com sucesso!', 'success');
+      const todasConvocacoes = result.convocacoes || [];
+      
+      // Agora atualizar todas as convocações com os dados completos (celular, texto e link)
+      // Armazenar dados gerados para reutilizar no webhook
+      const dadosGeradosMap = new Map();
+      const atualizacoesPromises = [];
+      let atualizacoesSucesso = 0;
+      let atualizacoesErro = 0;
+      
+      for (const motorista of selecionados) {
+        const convocacao = todasConvocacoes.find(c => c.CDCADASTRO_MOTORISTA === motorista.CDCADASTRO_MOTORISTA);
+        if (!convocacao || !convocacao.IDCONVOCACAO) {
+          console.warn(`Convocação não encontrada para motorista ${motorista.CDCADASTRO_MOTORISTA}`);
+          continue;
+        }
+        
+        const celularFormatado = motorista.CELULAR ? motorista.CELULAR.toString().replace(/\D/g, '') : '';
+        const idConvocacao = convocacao.IDCONVOCACAO;
+        const linkConvocacao = `${urlBase}/convocacao/${idConvocacao}`;
+        
+        // Personalizar mensagem para cada motorista
+        const nomeMotoristaConvocacao = motorista.NOME_MOTORISTA || 'Motorista';
+        const mensagemPersonalizada = `Olá *${nomeMotoristaConvocacao.toUpperCase()}*! Você foi convocado para uma viagem.\n\n${textoBase}`;
+        
+        // Verificar se é IP local (HTTP) - WhatsApp não torna clicável
+        const isLocalIP = urlBase.includes('192.168.') || urlBase.includes('localhost') || urlBase.includes('127.0.0.1');
+        
+        let textoComLink;
+        if (isLocalIP) {
+          // Para IPs locais, formatar o link de forma destacada para facilitar cópia
+          textoComLink = `${mensagemPersonalizada}\n\n🔗 *Acesse o link para mais detalhes:*\n\n${linkConvocacao}\n\n💡 *Importante:*\n• Links locais não são clicáveis no WhatsApp\n• Copie o link acima (toque e segure)\n• Cole no navegador do celular\n• Certifique-se de estar na mesma rede Wi-Fi`;
+        } else {
+          // Para domínios públicos, link clicável
+          textoComLink = `${mensagemPersonalizada}\n\n🔗 *Acesse o link para mais detalhes:*\n\n${linkConvocacao}`;
+        }
+        
+        // Formatar rota (exatamente como no textoBase linha 3999)
+        const rotaFormatada = viagemAtual.DSROTEIRO 
+          ? `${viagemAtual.IDROTEIRO || ''} - ${viagemAtual.DSROTEIRO}` 
+          : (viagemAtual.IDROTEIRO ? `${viagemAtual.IDROTEIRO} - ` : '') + `${viagemAtual.ORIGEM_CIDADE || 'N/A'}/${viagemAtual.ORIGEM_ESTADO || 'N/A'} → ${viagemAtual.DESTINO_CIDADE || 'N/A'}/${viagemAtual.DESTINO_ESTADO || 'N/A'}`;
+        
+        // Formatar tipo (exatamente como no textoBase linha 3997)
+        const tipoFormatado = viagemAtual.DSTIPOVIAGEM || viagemAtual.CDTIPOVIAGEM || 'Não informado';
+        
+        // Formatar classe (exatamente como no textoBase linha 3998)
+        const classeFormatada = viagemAtual.DSCLASSEFROTA || viagemAtual.CDCLASSEFROTA || 'Não informado';
+        
+        // Armazenar dados gerados para uso no webhook (incluindo os 11 campos solicitados)
+        // Usando exatamente os mesmos dados e formatação que são usados na mensagem (textoBase)
+        dadosGeradosMap.set(idConvocacao, {
+          IDCONVOCACAO: idConvocacao,
+          NRCELULAR: celularFormatado && celularFormatado.length >= 10 ? celularFormatado : null,
+          TXTCONVOCACAO: textoComLink,
+          LINKCONVOCACAO: linkConvocacao,
+          // Campos adicionais (11 campos) - usando os mesmos dados que montam a mensagem
+          ID: viagemAtual.IDVIAGEM || null,
+          TIPO: tipoFormatado,
+          CLASSE: classeFormatada,
+          ROTA: rotaFormatada,
+          CARREGAMENTO: formatarDataHora(viagemAtual.DTPREVINICIO),
+          DESCARGA: formatarDataHora(viagemAtual.DTPREVFINAL),
+          CONTRATADOR: viagemAtual.CONTRATADOR_NOME || viagemAtual.CDCONTRATADOR || 'Não informado',
+          FRETE: viagemAtual.VLFRETE ? parseFloat(viagemAtual.VLFRETE).toFixed(2).replace('.', ',') : '0,00',
+          PESO: viagemAtual.PESO ? parseFloat(viagemAtual.PESO).toFixed(3).replace('.', ',') : '0,000',
+          CUBAGEM: viagemAtual.CUBAGEM ? parseFloat(viagemAtual.CUBAGEM).toFixed(3).replace('.', ',') : '0,000',
+          DETALHES: viagemAtual.OBSERV || ''
+        });
+        
+        // Preparar dados para atualização
+        // SEMPRE enviar TXTCONVOCACAO e LINKCONVOCACAO
+        const dadosAtualizacao = {
+          TXTCONVOCACAO: textoComLink,
+          LINKCONVOCACAO: linkConvocacao
+        };
+        
+        // Adicionar NRCELULAR apenas se houver celular válido
+        // Se não houver, não enviar o campo (o controller só atualiza se o campo for fornecido)
+        if (celularFormatado && celularFormatado.length >= 10) {
+          dadosAtualizacao.NRCELULAR = celularFormatado;
+        }
+        
+        // Validar que temos pelo menos texto e link
+        if (!dadosAtualizacao.TXTCONVOCACAO || !dadosAtualizacao.LINKCONVOCACAO) {
+          console.error(`[DISPARAR] Dados incompletos para convocação ${idConvocacao}:`, dadosAtualizacao);
+          atualizacoesErro++;
+          continue;
+        }
+        
+        console.log(`[DISPARAR] Atualizando convocação ${idConvocacao} com dados:`, {
+          NRCELULAR: dadosAtualizacao.NRCELULAR || 'não informado',
+          TXTCONVOCACAO: dadosAtualizacao.TXTCONVOCACAO ? `${dadosAtualizacao.TXTCONVOCACAO.substring(0, 50)}...` : 'vazio',
+          LINKCONVOCACAO: dadosAtualizacao.LINKCONVOCACAO || 'vazio'
+        });
+        
+        // Atualizar convocação no banco com todos os dados
+        atualizacoesPromises.push(
+          fetch(`/api/convocacoes/${idConvocacao}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(dadosAtualizacao)
+          }).then(async (response) => {
+            const responseData = await response.json();
+            if (!response.ok) {
+              console.error(`[DISPARAR] Erro ao atualizar convocação ${idConvocacao}:`, responseData);
+              atualizacoesErro++;
+              return { success: false, id: idConvocacao, error: responseData };
+            }
+            console.log(`[DISPARAR] Convocação ${idConvocacao} atualizada com sucesso. Linhas afetadas:`, responseData.rowsAffected);
+            atualizacoesSucesso++;
+            return { success: true, id: idConvocacao, response: responseData };
+          }).catch(err => {
+            console.error(`[DISPARAR] Erro ao atualizar convocação ${idConvocacao}:`, err);
+            atualizacoesErro++;
+            return { success: false, id: idConvocacao, error: err.message };
+          })
+        );
+      }
+      
+      // Aguardar todas as atualizações (não falhar se algumas derem erro)
+      const resultados = await Promise.allSettled(atualizacoesPromises);
+      
+      // Verificar resultados
+      const sucessos = resultados.filter(r => r.status === 'fulfilled' && r.value && r.value.success).length;
+      const erros = resultados.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && r.value && !r.value.success)).length;
+      
+      console.log(`[DISPARAR] Resultado das atualizações: ${sucessos} sucesso(s), ${erros} erro(s) de ${atualizacoesPromises.length} total`);
+      
+      // Preparar dados para envio ao webhook (reutilizar dados já gerados)
+      // Primeiro, buscar convocações do banco para verificar DHENVIOMETA
+      const convocacoesParaEnviar = [];
+      
+      for (const resultado of resultados) {
+        if (resultado.status === 'fulfilled' && resultado.value && resultado.value.success) {
+          const idConvocacao = resultado.value.id;
+          const dadosGerados = dadosGeradosMap.get(idConvocacao);
+          
+          if (dadosGerados) {
+            // Buscar convocação do banco para verificar DHENVIOMETA
+            try {
+              const responseConvocacao = await fetch(`/api/convocacoes/${idConvocacao}`);
+              if (responseConvocacao.ok) {
+                const convocacaoCompleta = await responseConvocacao.json();
+                // Só adicionar se DHENVIOMETA estiver vazio/null
+                if (!convocacaoCompleta.DHENVIOMETA) {
+                  convocacoesParaEnviar.push(dadosGerados);
+                  console.log(`[WEBHOOK] Convocação ${idConvocacao} será enviada (DHENVIOMETA está vazio)`);
+                } else {
+                  console.log(`[WEBHOOK] Convocação ${idConvocacao} já foi enviada anteriormente (DHENVIOMETA: ${convocacaoCompleta.DHENVIOMETA})`);
+                }
+              }
+            } catch (err) {
+              console.error(`[WEBHOOK] Erro ao verificar convocação ${idConvocacao}:`, err);
+            }
+          }
+        }
+      }
+      
+      // Enviar dados para o webhook INDIVIDUALMENTE com intervalo de 1 segundo
+      if (convocacoesParaEnviar.length > 0) {
+        console.log(`[WEBHOOK] Preparando envio INDIVIDUAL de ${convocacoesParaEnviar.length} convocação(ões) para o webhook`);
+        console.log(`[WEBHOOK] Intervalo entre disparos: 1 segundo`);
+        
+        let enviadosComSucesso = 0;
+        let enviadosComErro = 0;
+        
+        for (let i = 0; i < convocacoesParaEnviar.length; i++) {
+          const dadosConvocacao = convocacoesParaEnviar[i];
+          
+          // Remover TXTCONVOCACAO do objeto antes de enviar ao webhook
+          const { TXTCONVOCACAO, ...dadosParaWebhook } = dadosConvocacao;
+          
+          // Log do JSON que será enviado
+          console.log(`[WEBHOOK] [${i + 1}/${convocacoesParaEnviar.length}] Enviando convocação ${dadosParaWebhook.IDCONVOCACAO}:`, JSON.stringify(dadosParaWebhook, null, 2));
+          
+          try {
+            const inicioEnvio = Date.now();
+            console.log(`[WEBHOOK] 📤 [${i + 1}/${convocacoesParaEnviar.length}] ENVIANDO convocação ${dadosParaWebhook.IDCONVOCACAO}...`);
+            console.log(`[WEBHOOK] 📤 URL: https://ia.riochat.com.br/webhook/aviso-rota-integra`);
+            console.log(`[WEBHOOK] 📤 Método: POST`);
+            console.log(`[WEBHOOK] 📤 Headers: Content-Type: application/json`);
+            console.log(`[WEBHOOK] 📤 Body (JSON):`, JSON.stringify(dadosParaWebhook, null, 2));
+            
+            // Adicionar log de envio na aba
+            console.log('[WEBHOOK] Verificando se adicionarLogMeta existe:', typeof window.adicionarLogMeta);
+            if (typeof window.adicionarLogMeta === 'function') {
+              console.log('[WEBHOOK] Chamando adicionarLogMeta para envio...');
+              window.adicionarLogMeta({
+                tipo: 'envio',
+                titulo: `Enviando Convocação ${dadosParaWebhook.IDCONVOCACAO}`,
+                mensagem: `[${i + 1}/${convocacoesParaEnviar.length}] Enviando convocação ${dadosParaWebhook.IDCONVOCACAO} para o webhook Meta`,
+                detalhes: {
+                  url: 'https://ia.riochat.com.br/webhook/aviso-rota-integra',
+                  metodo: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: dadosParaWebhook
+                }
+              });
+            }
+            
+            const webhookResponse = await fetch('https://ia.riochat.com.br/webhook/aviso-rota-integra', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(dadosParaWebhook) // Enviar objeto individual, não array (sem TXTCONVOCACAO)
+            });
+            
+            const tempoResposta = Date.now() - inicioEnvio;
+            
+            console.log(`[WEBHOOK] 📥 [${i + 1}/${convocacoesParaEnviar.length}] RESPOSTA recebida para convocação ${dadosParaWebhook.IDCONVOCACAO}:`);
+            console.log(`[WEBHOOK] 📥 Status: ${webhookResponse.status} ${webhookResponse.statusText}`);
+            console.log(`[WEBHOOK] 📥 Tempo de resposta: ${tempoResposta}ms`);
+            console.log(`[WEBHOOK] 📥 Headers da resposta:`, Object.fromEntries(webhookResponse.headers.entries()));
+            
+            // Tentar ler o body da resposta
+            let responseBody = null;
+            const contentType = webhookResponse.headers.get('content-type');
+            
+            try {
+              if (contentType && contentType.includes('application/json')) {
+                responseBody = await webhookResponse.json();
+                console.log(`[WEBHOOK] 📥 Body (JSON):`, JSON.stringify(responseBody, null, 2));
+              } else {
+                responseBody = await webhookResponse.text();
+                console.log(`[WEBHOOK] 📥 Body (Texto):`, responseBody);
+              }
+            } catch (bodyErr) {
+              console.warn(`[WEBHOOK] ⚠️ Não foi possível ler o body da resposta:`, bodyErr);
+            }
+            
+            // Adicionar log de resposta na aba
+            if (typeof window.adicionarLogMeta === 'function') {
+              window.adicionarLogMeta({
+                tipo: 'resposta',
+                titulo: `Resposta - Convocação ${dadosParaWebhook.IDCONVOCACAO}`,
+                mensagem: `Status: ${webhookResponse.status} ${webhookResponse.statusText} | Tempo: ${tempoResposta}ms`,
+                detalhes: {
+                  idConvocacao: dadosParaWebhook.IDCONVOCACAO, // Garantir que IDCONVOCACAO está presente para salvar no banco
+                  status: webhookResponse.status,
+                  statusText: webhookResponse.statusText,
+                  headers: Object.fromEntries(webhookResponse.headers.entries()),
+                  body: responseBody,
+                  tempoResposta: `${tempoResposta}ms`
+                }
+              });
+            }
+            
+            if (webhookResponse.ok) {
+              console.log(`[WEBHOOK] ✅ [${i + 1}/${convocacoesParaEnviar.length}] Convocação ${dadosParaWebhook.IDCONVOCACAO} enviada com SUCESSO!`);
+              console.log(`[WEBHOOK] ✅ Resposta completa:`, {
+                status: webhookResponse.status,
+                statusText: webhookResponse.statusText,
+                body: responseBody,
+                tempoResposta: `${tempoResposta}ms`
+              });
+              
+              // Adicionar log de sucesso na aba
+              if (typeof window.adicionarLogMeta === 'function') {
+                window.adicionarLogMeta({
+                  tipo: 'sucesso',
+                  titulo: `✅ Sucesso - Convocação ${dadosParaWebhook.IDCONVOCACAO}`,
+                  mensagem: `Convocação ${dadosParaWebhook.IDCONVOCACAO} enviada com sucesso para o webhook Meta`,
+                  detalhes: {
+                    idConvocacao: dadosParaWebhook.IDCONVOCACAO,
+                    resposta: responseBody,
+                    tempoResposta: `${tempoResposta}ms`
+                  }
+                });
+              }
+              
+              // Atualizar campo DHENVIOMETA após envio bem-sucedido
+              try {
+                console.log(`[WEBHOOK] 🔄 Atualizando campo DHENVIOMETA para convocação ${dadosParaWebhook.IDCONVOCACAO}...`);
+                const updateResponse = await fetch(`/api/convocacoes/${dadosParaWebhook.IDCONVOCACAO}/atualizar-envio-meta`, {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/json'
+                  }
+                });
+                
+                if (updateResponse.ok) {
+                  const updateResult = await updateResponse.json();
+                  console.log(`[WEBHOOK] ✅ Campo DHENVIOMETA atualizado com sucesso para convocação ${dadosParaWebhook.IDCONVOCACAO}:`, updateResult);
+                } else {
+                  const updateError = await updateResponse.text();
+                  console.warn(`[WEBHOOK] ⚠️ Não foi possível atualizar DHENVIOMETA para convocação ${dadosParaWebhook.IDCONVOCACAO}. Status: ${updateResponse.status}`, updateError);
+                }
+              } catch (updateErr) {
+                console.error(`[WEBHOOK] ❌ Erro ao atualizar DHENVIOMETA para convocação ${dadosParaWebhook.IDCONVOCACAO}:`, updateErr);
+              }
+              
+              enviadosComSucesso++;
+            } else {
+              console.error(`[WEBHOOK] ❌ [${i + 1}/${convocacoesParaEnviar.length}] ERRO ao enviar convocação ${dadosParaWebhook.IDCONVOCACAO}`);
+              console.error(`[WEBHOOK] ❌ Status: ${webhookResponse.status} ${webhookResponse.statusText}`);
+              console.error(`[WEBHOOK] ❌ Resposta completa:`, {
+                status: webhookResponse.status,
+                statusText: webhookResponse.statusText,
+                body: responseBody,
+                tempoResposta: `${tempoResposta}ms`
+              });
+              
+              // Adicionar log de erro na aba
+              if (typeof window.adicionarLogMeta === 'function') {
+                window.adicionarLogMeta({
+                  tipo: 'erro',
+                  titulo: `❌ Erro - Convocação ${dadosParaWebhook.IDCONVOCACAO}`,
+                  mensagem: `Erro ao enviar convocação ${dadosParaWebhook.IDCONVOCACAO}: Status ${webhookResponse.status} ${webhookResponse.statusText}`,
+                  detalhes: {
+                    idConvocacao: dadosParaWebhook.IDCONVOCACAO,
+                    status: webhookResponse.status,
+                    statusText: webhookResponse.statusText,
+                    body: responseBody,
+                    tempoResposta: `${tempoResposta}ms`
+                  }
+                });
+              }
+              
+              enviadosComErro++;
+            }
+          } catch (webhookErr) {
+            console.error(`[WEBHOOK] ❌ [${i + 1}/${convocacoesParaEnviar.length}] ERRO DE CONEXÃO ao enviar convocação ${dadosParaWebhook.IDCONVOCACAO}:`);
+            console.error(`[WEBHOOK] ❌ Tipo do erro:`, webhookErr.name);
+            console.error(`[WEBHOOK] ❌ Mensagem:`, webhookErr.message);
+            console.error(`[WEBHOOK] ❌ Stack:`, webhookErr.stack);
+            
+            // Adicionar log de erro de conexão na aba
+            if (typeof window.adicionarLogMeta === 'function') {
+              window.adicionarLogMeta({
+                tipo: 'erro',
+                titulo: `❌ Erro de Conexão - Convocação ${dadosParaWebhook.IDCONVOCACAO}`,
+                mensagem: `Erro de conexão ao enviar convocação ${dadosParaWebhook.IDCONVOCACAO}: ${webhookErr.message}`,
+                detalhes: {
+                  idConvocacao: dadosParaWebhook.IDCONVOCACAO,
+                  tipoErro: webhookErr.name,
+                  mensagem: webhookErr.message,
+                  stack: webhookErr.stack
+                }
+              });
+            }
+            
+            enviadosComErro++;
+          }
+          
+          // Aguardar 1 segundo antes do próximo envio (exceto no último)
+          if (i < convocacoesParaEnviar.length - 1) {
+            console.log(`[WEBHOOK] Aguardando 1 segundo antes do próximo envio...`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+        
+        console.log(`[WEBHOOK] Resumo: ${enviadosComSucesso} enviado(s) com sucesso, ${enviadosComErro} com erro(s)`);
+      } else {
+        console.warn(`[WEBHOOK] ⚠️ Nenhuma convocação válida para enviar ao webhook (todas já foram enviadas ou não têm dados válidos)`);
+      }
+      
+      if (erros > 0) {
+        console.warn(`[DISPARAR] ⚠️ Algumas convocações não foram atualizadas. Verifique os logs acima.`);
+        showMessage(`${result.message || 'Convocações criadas'} | ${sucessos} atualizada(s) com sucesso, ${erros} com erro(s). Verifique o console para detalhes.`, erros === atualizacoesPromises.length ? 'error' : 'warning');
+      } else {
+        showMessage(`${result.message || 'Convocações disparadas com sucesso!'} | Todos os campos foram atualizados.`, 'success');
+      }
       
       // Limpar seleções
       motoristasCompatíveis.forEach(m => m.selecionado = false);
@@ -3963,6 +4455,213 @@
       showMessage(err.message || 'Erro ao disparar convocações.', 'error');
     }
   }
+
+  // ========== FUNCIONALIDADES DE INTEGRAÇÃO META ==========
+  
+  let logsIntegracaoMeta = [];
+  
+  // Função para adicionar log à lista (definida no escopo global)
+  window.adicionarLogMeta = async function(log) {
+    console.log('[LOGS META] Adicionando log:', log);
+    const logCompleto = {
+      ...log,
+      timestamp: new Date().toISOString(),
+      id: Date.now() + Math.random()
+    };
+    
+    logsIntegracaoMeta.unshift(logCompleto); // Adiciona no início (mais recente primeiro)
+    console.log('[LOGS META] Total de logs após adicionar:', logsIntegracaoMeta.length);
+    
+    // Limitar a 100 logs em memória para não sobrecarregar
+    if (logsIntegracaoMeta.length > 100) {
+      logsIntegracaoMeta = logsIntegracaoMeta.slice(0, 100);
+    }
+    
+    // Salvar no banco de dados
+    try {
+      // Extrair IDCONVOCACAO de diferentes fontes dependendo do tipo de log
+      let idConvocacao = null;
+      
+      if (log.detalhes?.body?.IDCONVOCACAO) {
+        // Log de envio - IDCONVOCACAO está no body
+        idConvocacao = log.detalhes.body.IDCONVOCACAO;
+      } else if (log.detalhes?.idConvocacao) {
+        // Log de sucesso/erro - IDCONVOCACAO está em idConvocacao
+        idConvocacao = log.detalhes.idConvocacao;
+      } else if (log.titulo) {
+        // Tentar extrair do título (ex: "Enviando Convocação 161" ou "Resposta - Convocação 161")
+        const match = log.titulo.match(/Convocação\s+(\d+)/);
+        if (match) {
+          idConvocacao = parseInt(match[1]);
+        }
+      }
+      
+      const dadosParaSalvar = {
+        IDCONVOCACAO: idConvocacao,
+        tipo: log.tipo,
+        titulo: log.titulo,
+        mensagem: log.mensagem,
+        detalhes: log.detalhes,
+        status_http: log.detalhes?.status || null,
+        tempo_resposta: log.detalhes?.tempoResposta ? parseInt(log.detalhes.tempoResposta.replace('ms', '')) : null
+      };
+      
+      if (dadosParaSalvar.IDCONVOCACAO) {
+        const response = await fetch('/api/logs-webhook-meta', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(dadosParaSalvar)
+        });
+        
+        if (response.ok) {
+          console.log(`[LOGS META] Log ${log.tipo} salvo no banco de dados com sucesso! IDCONVOCACAO: ${idConvocacao}`);
+        } else {
+          console.warn('[LOGS META] Erro ao salvar log no banco:', await response.text());
+        }
+      } else {
+        console.warn('[LOGS META] IDCONVOCACAO não encontrado para log tipo:', log.tipo, 'Título:', log.titulo);
+      }
+    } catch (err) {
+      console.error('[LOGS META] Erro ao salvar log no banco:', err);
+    }
+    
+    console.log('[LOGS META] Verificando se atualizarExibicaoLogsMeta existe:', typeof window.atualizarExibicaoLogsMeta);
+    if (typeof window.atualizarExibicaoLogsMeta === 'function') {
+      console.log('[LOGS META] Chamando atualizarExibicaoLogsMeta...');
+      window.atualizarExibicaoLogsMeta();
+    } else {
+      console.warn('[LOGS META] Função atualizarExibicaoLogsMeta não encontrada!');
+    }
+  };
+  
+  // Função para atualizar a exibição dos logs (definida no escopo global)
+  window.atualizarExibicaoLogsMeta = function() {
+    console.log('[LOGS META] Atualizando exibição. Total de logs:', logsIntegracaoMeta.length);
+    const container = document.getElementById('logsIntegracaoMeta');
+    if (!container) {
+      console.warn('[LOGS META] Container logsIntegracaoMeta não encontrado! Tentando novamente em 500ms...');
+      // Tentar novamente após um pequeno delay caso a aba não esteja carregada
+      setTimeout(() => {
+        const containerRetry = document.getElementById('logsIntegracaoMeta');
+        if (containerRetry) {
+          console.log('[LOGS META] Container encontrado no retry! Atualizando...');
+          window.atualizarExibicaoLogsMeta();
+        } else {
+          console.warn('[LOGS META] Container ainda não encontrado após retry. A aba pode não estar visível.');
+        }
+      }, 500);
+      return;
+    }
+    console.log('[LOGS META] Container encontrado! Atualizando HTML...');
+    
+    if (logsIntegracaoMeta.length === 0) {
+      container.innerHTML = `
+        <div style="color: #6c757d; text-align: center; padding: 40px;">
+          Nenhum log disponível. Os logs aparecerão aqui quando houver envios para o webhook Meta.
+        </div>
+      `;
+      return;
+    }
+    
+    let html = '';
+    
+    logsIntegracaoMeta.forEach((log, index) => {
+      const dataHora = new Date(log.timestamp).toLocaleString('pt-BR');
+      const tipoIcon = log.tipo === 'envio' ? '📤' : log.tipo === 'resposta' ? '📥' : log.tipo === 'sucesso' ? '✅' : log.tipo === 'erro' ? '❌' : 'ℹ️';
+      const tipoCor = log.tipo === 'envio' ? '#007bff' : log.tipo === 'resposta' ? '#17a2b8' : log.tipo === 'sucesso' ? '#28a745' : log.tipo === 'erro' ? '#dc3545' : '#6c757d';
+      
+      html += `
+        <div style="border-left: 4px solid ${tipoCor}; padding: 12px; margin-bottom: 10px; background: #f8f9fa; border-radius: 4px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 16px;">${tipoIcon}</span>
+              <strong style="color: ${tipoCor};">${log.titulo || log.tipo}</strong>
+            </div>
+            <span style="color: #6c757d; font-size: 11px;">${dataHora}</span>
+          </div>
+          ${log.mensagem ? `<div style="color: #333; margin-bottom: 8px;">${log.mensagem}</div>` : ''}
+          ${log.detalhes ? `
+            <details style="margin-top: 8px;">
+              <summary style="cursor: pointer; color: #007bff; font-weight: 600; user-select: none;">Ver detalhes</summary>
+              <pre style="background: #fff; padding: 10px; border-radius: 4px; margin-top: 8px; overflow-x: auto; font-size: 11px; line-height: 1.4;">${JSON.stringify(log.detalhes, null, 2)}</pre>
+            </details>
+          ` : ''}
+        </div>
+      `;
+    });
+    
+    container.innerHTML = html;
+    console.log('[LOGS META] HTML atualizado com sucesso!');
+    
+    // Atualizar contadores
+    const totalEnvios = logsIntegracaoMeta.filter(l => l.tipo === 'envio').length;
+    const totalSucessos = logsIntegracaoMeta.filter(l => l.tipo === 'sucesso').length;
+    const totalErros = logsIntegracaoMeta.filter(l => l.tipo === 'erro').length;
+    const ultimaAtualizacao = logsIntegracaoMeta.length > 0 ? new Date(logsIntegracaoMeta[0].timestamp).toLocaleString('pt-BR') : '-';
+    
+    const totalEnviosEl = document.getElementById('totalEnviosMeta');
+    const totalSucessosEl = document.getElementById('totalSucessosMeta');
+    const totalErrosEl = document.getElementById('totalErrosMeta');
+    const ultimaAtualizacaoEl = document.getElementById('ultimaAtualizacaoMeta');
+    
+    if (totalEnviosEl) totalEnviosEl.textContent = totalEnvios;
+    if (totalSucessosEl) totalSucessosEl.textContent = totalSucessos;
+    if (totalErrosEl) totalErrosEl.textContent = totalErros;
+    if (ultimaAtualizacaoEl) ultimaAtualizacaoEl.textContent = ultimaAtualizacao;
+  };
+  
+  // Função para limpar logs (definida no escopo global)
+  window.limparLogsMeta = function() {
+    if (confirm('Deseja realmente limpar todos os logs da integração Meta?')) {
+      logsIntegracaoMeta = [];
+      if (typeof window.atualizarExibicaoLogsMeta === 'function') {
+        window.atualizarExibicaoLogsMeta();
+      }
+      showMessage('Logs limpos com sucesso!', 'success');
+    }
+  }
+  
+  // Função para exportar logs (definida no escopo global)
+  window.exportarLogsMeta = function() {
+    if (logsIntegracaoMeta.length === 0) {
+      showMessage('Nenhum log para exportar.', 'warning');
+      return;
+    }
+    
+    const dadosExportacao = {
+      dataExportacao: new Date().toISOString(),
+      totalLogs: logsIntegracaoMeta.length,
+      logs: logsIntegracaoMeta
+    };
+    
+    const blob = new Blob([JSON.stringify(dadosExportacao, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `logs-integracao-meta-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showMessage('Logs exportados com sucesso!', 'success');
+  }
+  
+  // Inicializar event listeners da aba Integração Meta
+  document.addEventListener('DOMContentLoaded', () => {
+    const btnLimparLogs = document.getElementById('btnLimparLogsMeta');
+    const btnExportarLogs = document.getElementById('btnExportarLogsMeta');
+    
+    if (btnLimparLogs) {
+      btnLimparLogs.addEventListener('click', window.limparLogsMeta);
+    }
+    
+    if (btnExportarLogs) {
+      btnExportarLogs.addEventListener('click', window.exportarLogsMeta);
+    }
+  });
 
   // ========== FUNCIONALIDADES DE CONVOCAÇÕES ==========
   

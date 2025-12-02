@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DivulgaCargas</title>
+  <!-- Sistema de Cache Busting - Atualizar versão a cada publicação -->
+  <script src="/js/version.js"></script>
   <link href="/css/boxicons.min.css" rel="stylesheet" type="text/css" />
   <link rel="stylesheet" href="/css/style.css" type="text/css" />
   <style>
@@ -351,6 +353,20 @@
 </head>
 <body>
   <!-- Redirecionamento via script externo recomendado -->
+  <script>
+    // Adicionar versão aos scripts carregados
+    document.addEventListener('DOMContentLoaded', function() {
+      if (window.addVersion) {
+        document.querySelectorAll('script[src], link[rel="stylesheet"]').forEach(function(el) {
+          const attr = el.tagName === 'SCRIPT' ? 'src' : 'href';
+          const url = el.getAttribute(attr);
+          if (url && !url.includes('v=') && !url.startsWith('http') && url !== '/js/version.js') {
+            el.setAttribute(attr, window.addVersion(url));
+          }
+        });
+      }
+    });
+  </script>
   <script src="/js/redirect.js" type="text/javascript"></script>
 
   <div class="login-container">
@@ -437,6 +453,13 @@
     </div>
   </div>
 
-  <script src="/js/login.js"></script>
+  <script>
+    // Carregar login.js com versão
+    (function() {
+      const script = document.createElement('script');
+      script.src = window.addVersion ? window.addVersion('/js/login.js') : '/js/login.js';
+      document.body.appendChild(script);
+    })();
+  </script>
 </body>
 </html>

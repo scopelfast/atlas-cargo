@@ -30,6 +30,11 @@ O **DivulgaCarga** é um sistema completo de gestão de transportes desenvolvido
 - ✅ **Gerenciamento de Viagens**: Criação, edição e acompanhamento de viagens
 - ✅ **Múltiplos Veículos e Motoristas**: Suporte a vários veículos e motoristas por viagem
 - ✅ **Sistema de Convocações**: Convite de motoristas via WhatsApp (envio manual)
+- ✅ **Integração Meta (DeskRio)**: Integração completa com webhook para envio automático de convocações
+  - Envio individual de convocações para webhook Meta
+  - Logs de integração em tempo real
+  - Callback para receber respostas do Meta
+  - Atualização automática de status, localização e motivo de recusa
 - ✅ **Motivo de Recusa**: Registro do motivo quando motorista recusa convocação
 - ✅ **Reativação de Convocações**: Sistema para reativar convocações confirmadas
 - ✅ **Histórico de Reabertura**: Rastreamento completo de reaberturas de convocações
@@ -283,6 +288,7 @@ Veja mais detalhes em: [README_URL_PUBLICA.md](backend/README_URL_PUBLICA.md)
 - `GET /api/convocacoes` - Listar convocações
 - `POST /api/convocacoes` - Criar convocações
 - `PUT /api/convocacoes/:id` - Atualizar convocação
+- `PUT /api/convocacoes/:id/atualizar-envio-meta` - Atualizar data de envio para Meta
 - `POST /api/convocacoes/:id/confirmar` - Confirmar convocação
 - `POST /api/convocacoes/:id/reativar` - Reativar convocação confirmada
 - `GET /api/convocacoes/:id/historico-reabertura` - Buscar histórico de reabertura
@@ -291,6 +297,11 @@ Veja mais detalhes em: [README_URL_PUBLICA.md](backend/README_URL_PUBLICA.md)
 - `POST /api/public/convocacao/:id` - Obter convocação (público)
 - `POST /api/public/convocacao/:id/resposta` - Responder convocação (público)
 
+#### Integração Meta (Webhook)
+- `POST /api/webhook-meta-callback` - Receber callback do Meta/DeskRio
+- `POST /api/logs-webhook-meta` - Salvar log de integração Meta
+- `GET /api/logs-webhook-meta` - Listar logs de integração Meta
+
 #### Relatórios
 - `GET /api/relatorio-convocacoes/relatorio` - Dados do relatório
 - `GET /api/relatorio-convocacoes/estatisticas` - Estatísticas
@@ -298,6 +309,19 @@ Veja mais detalhes em: [README_URL_PUBLICA.md](backend/README_URL_PUBLICA.md)
 ### Integração WhatsApp
 
 O sistema gera links únicos para cada convocação e permite envio via WhatsApp Web/App. Veja mais em: [DOCUMENTACAO_SISTEMA_CONVOCACOES.md](backend/DOCUMENTACAO_SISTEMA_CONVOCACOES.md)
+
+### Integração Meta (DeskRio)
+
+O sistema possui integração completa com o webhook Meta para envio automático de convocações:
+
+- **Envio para Meta**: Quando convocações são disparadas, são enviadas individualmente para o webhook Meta
+- **Logs de Integração**: Todos os envios e respostas são registrados em tempo real
+- **Callback do Meta**: Endpoint para receber retornos do Meta (status, localização, motivo de recusa)
+- **Atualização Automática**: Status, localização e motivo de recusa são atualizados automaticamente
+
+**Documentação Completa:**
+- [Estrutura do Webhook de Envio](ESTRUTURA_WEBHOOK_AVISO_ROTA_COMPLETA.md)
+- [Estrutura do Webhook de Callback](WEBHOOK_CALLBACK_META.md)
 
 ---
 
@@ -365,6 +389,43 @@ Para suporte técnico ou dúvidas:
 ---
 
 ## 📝 Changelog
+
+### Versão 1.3.0 (2025-12-01)
+
+#### ✅ Funcionalidades
+- **Integração Meta (DeskRio)**: Sistema completo de integração com webhook Meta
+  - Envio individual de convocações para webhook `https://ia.riochat.com.br/webhook/aviso-rota-integra`
+  - Intervalo de 1 segundo entre cada envio
+  - Verificação de `DHENVIOMETA` para evitar duplicatas
+  - Payload completo com 11 campos: ID, TIPO, CLASSE, ROTA, CARREGAMENTO, DESCARGA, CONTRATADOR, FRETE, PESO, CUBAGEM, DETALHES
+  - Formatação numérica para FRETE, PESO e CUBAGEM (sem unidades)
+- **Aba Integração Meta**: Nova aba no módulo "Gerenciar Viagens"
+  - Visualização de logs em tempo real (envio, resposta, sucesso, erro)
+  - Contadores de envios e erros
+  - Exportação de logs
+  - Limpeza de logs
+- **Logs Persistidos**: Sistema de logs de webhook Meta
+  - Tabela `LOGSWEBHOOKMETA` para armazenar todos os logs
+  - Tipos de log: envio, resposta, sucesso, erro, erro_conexao
+  - Campos: IDCONVOCACAO, tipo, titulo, mensagem, detalhes, status_http, tempo_resposta
+- **Callback do Meta**: Endpoint para receber retornos do DeskRio
+  - Atualização automática de STATUS, DHRESPOSTA, LATITUDE, LONGITUDE, CDMOTIVORECUSA
+  - Lógica inteligente de determinação de STATUS
+  - Campo SGUSER atualizado para 'DESKRIO'
+
+#### 🔧 Melhorias
+- **Padronização de Layout**: "Relatório de Convocações" padronizado com "Gerenciar Convocações"
+  - Coluna Rota formatada igual
+  - Nome do motorista + número de celular abaixo
+  - Formatação de data/hora padronizada
+  - Largura da coluna Ações otimizada
+- **Correção de Filtros**: Filtro "Viagem Confirmada: Não" corrigido no relatório
+- **Geração de Dados**: Campos NRCELULAR, TXTCONVOCACAO e LINKCONVOCACAO sempre preenchidos ao disparar convocações
+
+#### 🐛 Correções
+- Correção do preenchimento de NRCELULAR, TXTCONVOCACAO e LINKCONVOCACAO na tabela CONVOCACAO
+- Correção do filtro "Viagem Confirmada" no relatório de convocações
+- Correção de sintaxe JavaScript na aba Integração Meta
 
 ### Versão 1.2.0 (2025-11-28)
 
@@ -505,7 +566,7 @@ Este projeto é proprietário e confidencial.
 
 ---
 
-**Versão do Documento:** 1.2.0  
-**Última Revisão:** 2025-11-28  
+**Versão do Documento:** 1.3.0  
+**Última Revisão:** 2025-12-01  
 **Documentação Completa:** ✅ Todas as funcionalidades documentadas
 

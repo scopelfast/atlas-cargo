@@ -1166,6 +1166,7 @@ const viagemController = {
             c.DHCONVOCACAO,
             c.DHRESPOSTA,
             c.SGUSUARIO_OPERADOR,
+            c.DHENVIOMETA,
             v.CDCLASSEFROTA,
             v.DTPREVINICIO,
             v.DTPREVFINAL,
@@ -1207,6 +1208,12 @@ const viagemController = {
       const { id } = req.params;
       const { NRCELULAR, TXTCONVOCACAO, LINKCONVOCACAO } = req.body;
       
+      console.log(`[ATUALIZAR CONVOCACAO] ID: ${id}, Dados recebidos:`, {
+        NRCELULAR: NRCELULAR ? `${NRCELULAR.substring(0, 20)}...` : 'null/undefined',
+        TXTCONVOCACAO: TXTCONVOCACAO ? `${TXTCONVOCACAO.substring(0, 50)}...` : 'null/undefined',
+        LINKCONVOCACAO: LINKCONVOCACAO || 'null/undefined'
+      });
+      
       if (!id) {
         return res.status(400).json({ error: 'ID da convocação não informado.' });
       }
@@ -1217,41 +1224,85 @@ const viagemController = {
       
       let updates = [];
       
-      if (NRCELULAR !== undefined && NRCELULAR !== null) {
+      if (NRCELULAR !== undefined && NRCELULAR !== null && NRCELULAR !== '') {
         updates.push('NRCELULAR = @NRCELULAR');
         request.input('NRCELULAR', sql.VarChar(20), NRCELULAR);
+        console.log(`[ATUALIZAR CONVOCACAO] Adicionando NRCELULAR: ${NRCELULAR}`);
       }
       
-      if (TXTCONVOCACAO !== undefined && TXTCONVOCACAO !== null) {
+      if (TXTCONVOCACAO !== undefined && TXTCONVOCACAO !== null && TXTCONVOCACAO !== '') {
         updates.push('TXTCONVOCACAO = @TXTCONVOCACAO');
         request.input('TXTCONVOCACAO', sql.NVarChar(sql.MAX), TXTCONVOCACAO);
+        console.log(`[ATUALIZAR CONVOCACAO] Adicionando TXTCONVOCACAO (tamanho: ${TXTCONVOCACAO.length})`);
       }
       
-      if (LINKCONVOCACAO !== undefined && LINKCONVOCACAO !== null) {
+      if (LINKCONVOCACAO !== undefined && LINKCONVOCACAO !== null && LINKCONVOCACAO !== '') {
         updates.push('LINKCONVOCACAO = @LINKCONVOCACAO');
         request.input('LINKCONVOCACAO', sql.VarChar(500), LINKCONVOCACAO);
+        console.log(`[ATUALIZAR CONVOCACAO] Adicionando LINKCONVOCACAO: ${LINKCONVOCACAO}`);
       }
       
       if (updates.length === 0) {
+        console.error(`[ATUALIZAR CONVOCACAO] Nenhum campo para atualizar. Dados recebidos:`, req.body);
         return res.status(400).json({ error: 'Nenhum campo para atualizar foi informado.' });
       }
       
       updates.push('DHMAINTENANCE = GETDATE()');
       
-      await request.query(`
+      const query = `
         UPDATE [dbo].[CONVOCACAO]
         SET ${updates.join(', ')}
         WHERE IDCONVOCACAO = @IDCONVOCACAO
-      `);
+      `;
+      
+      console.log(`[ATUALIZAR CONVOCACAO] Executando query:`, query);
+      
+      const result = await request.query(query);
+      
+      console.log(`[ATUALIZAR CONVOCACAO] Query executada. Linhas afetadas:`, result.rowsAffected);
       
       res.json({ 
         success: true, 
-        message: 'Convocação atualizada com sucesso!' 
+        message: 'Convocação atualizada com sucesso!',
+        rowsAffected: result.rowsAffected[0]
       });
     } catch (err) {
-      console.error('Erro ao atualizar convocação:', err);
+      console.error('[ATUALIZAR CONVOCACAO] Erro ao atualizar convocação:', err);
       res.status(500).json({ 
         error: 'Erro ao atualizar convocação.',
+        details: err.message 
+      });
+    }
+  },
+
+  // Atualizar campo DHENVIOMETA após envio para webhook
+  atualizarEnvioMeta: async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      if (!id) {
+        return res.status(400).json({ error: 'ID da convocação não informado.' });
+      }
+
+      const pool = await poolPromise;
+      
+      await pool.request()
+        .input('IDCONVOCACAO', sql.Int, parseInt(id))
+        .query(`
+          UPDATE [dbo].[CONVOCACAO]
+          SET DHENVIOMETA = GETDATE(),
+              DHMAINTENANCE = GETDATE()
+          WHERE IDCONVOCACAO = @IDCONVOCACAO
+        `);
+      
+      res.json({ 
+        success: true, 
+        message: 'Campo DHENVIOMETA atualizado com sucesso!'
+      });
+    } catch (err) {
+      console.error('[ATUALIZAR ENVIO META] Erro ao atualizar DHENVIOMETA:', err);
+      res.status(500).json({ 
+        error: 'Erro ao atualizar DHENVIOMETA.',
         details: err.message 
       });
     }
@@ -2925,6 +2976,215 @@ const viagemController = {
     } catch (err) {
       console.error('Erro ao remover motorista da viagem:', err);
       res.status(500).json({ error: 'Erro ao remover motorista da viagem.' });
+    }
+  },
+
+  // ========== LOGS WEBHOOK META ==========
+  
+  // Salvar log do webhook Meta
+  salvarLogWebhookMeta: async (req, res) => {
+    try {
+      const { IDCONVOCACAO, tipo, titulo, mensagem, detalhes, status_http, tempo_resposta } = req.body;
+      
+      if (!IDCONVOCACAO || !tipo) {
+        return res.status(400).json({ error: 'IDCONVOCACAO e tipo são obrigatórios.' });
+      }
+      
+      const pool = await poolPromise;
+      const request = pool.request()
+        .input('IDCONVOCACAO', sql.Int, parseInt(IDCONVOCACAO))
+        .input('TIPO', sql.VarChar(20), tipo)
+        .input('TITULO', sql.NVarChar(200), titulo || null)
+        .input('MENSAGEM', sql.NVarChar(sql.MAX), mensagem || null)
+        .input('DETALHES', sql.NVarChar(sql.MAX), detalhes ? JSON.stringify(detalhes) : null)
+        .input('STATUS_HTTP', sql.Int, status_http || null)
+        .input('TEMPO_RESPOSTA', sql.Int, tempo_resposta || null);
+      
+      const result = await request.query(`
+        INSERT INTO [dbo].[LOGSWEBHOOKMETA] 
+          (IDCONVOCACAO, TIPO, TITULO, MENSAGEM, DETALHES, STATUS_HTTP, TEMPO_RESPOSTA, DHLOG, DHMAINTENANCE, SGUSER, SERVERORIG)
+        VALUES 
+          (@IDCONVOCACAO, @TIPO, @TITULO, @MENSAGEM, @DETALHES, @STATUS_HTTP, @TEMPO_RESPOSTA, GETDATE(), GETDATE(), 'SYSTEM', 'AppDVcargas')
+      `);
+      
+      res.json({ success: true, message: 'Log salvo com sucesso!' });
+    } catch (err) {
+      console.error('[LOGS WEBHOOK META] Erro ao salvar log:', err);
+      res.status(500).json({ error: 'Erro ao salvar log.', details: err.message });
+    }
+  },
+  
+  // Listar logs do webhook Meta
+  listarLogsWebhookMeta: async (req, res) => {
+    try {
+      const { limite = 100, idConvocacao } = req.query;
+      
+      const pool = await poolPromise;
+      let query = `
+        SELECT TOP (@LIMITE)
+          IDLOG,
+          IDCONVOCACAO,
+          TIPO,
+          TITULO,
+          MENSAGEM,
+          DETALHES,
+          STATUS_HTTP,
+          TEMPO_RESPOSTA,
+          DHLOG
+        FROM [dbo].[LOGSWEBHOOKMETA]
+        WHERE 1=1
+      `;
+      
+      const request = pool.request()
+        .input('LIMITE', sql.Int, parseInt(limite));
+      
+      if (idConvocacao) {
+        query += ` AND IDCONVOCACAO = @IDCONVOCACAO`;
+        request.input('IDCONVOCACAO', sql.Int, parseInt(idConvocacao));
+      }
+      
+      query += ` ORDER BY DHLOG DESC`;
+      
+      const result = await request.query(query);
+      
+      // Parse dos detalhes JSON
+      const logs = result.recordset.map(log => ({
+        ...log,
+        detalhes: log.DETALHES ? JSON.parse(log.DETALHES) : null,
+        timestamp: log.DHLOG.toISOString()
+      }));
+      
+      res.json(logs);
+    } catch (err) {
+      console.error('[LOGS WEBHOOK META] Erro ao listar logs:', err);
+      res.status(500).json({ error: 'Erro ao listar logs.', details: err.message });
+    }
+  },
+  
+  // ========== WEBHOOK CALLBACK META ==========
+  
+  // Receber retorno do webhook Meta (callback)
+  receberRetornoWebhookMeta: async (req, res) => {
+    try {
+      const { IDCONVOCACAO, LATITUDE, LONGITUDE, CDMOTIVORECUSA, STATUS } = req.body;
+      
+      console.log('[WEBHOOK CALLBACK META] Dados recebidos:', {
+        IDCONVOCACAO,
+        LATITUDE,
+        LONGITUDE,
+        CDMOTIVORECUSA,
+        STATUS
+      });
+      
+      if (!IDCONVOCACAO) {
+        return res.status(400).json({ error: 'IDCONVOCACAO é obrigatório.' });
+      }
+      
+      const pool = await poolPromise;
+      const request = pool.request()
+        .input('IDCONVOCACAO', sql.Int, parseInt(IDCONVOCACAO));
+      
+      // Verificar se a convocação existe e obter STATUS atual
+      const checkResult = await request.query(`
+        SELECT IDCONVOCACAO, STATUS FROM [dbo].[CONVOCACAO] WHERE IDCONVOCACAO = @IDCONVOCACAO
+      `);
+      
+      if (checkResult.recordset.length === 0) {
+        return res.status(404).json({ error: 'Convocação não encontrada.' });
+      }
+      
+      const statusAtual = checkResult.recordset[0].STATUS;
+      
+      // Determinar STATUS baseado nos dados recebidos
+      // Se CDMOTIVORECUSA foi enviado, significa que foi RECUSADA
+      // Se não tem CDMOTIVORECUSA mas tem localização, pode ser ACEITA
+      // Se STATUS foi enviado explicitamente, usar esse valor
+      let novoStatus = null;
+      
+      if (STATUS) {
+        // Se STATUS foi enviado explicitamente, usar esse valor
+        novoStatus = STATUS.toUpperCase();
+      } else if (CDMOTIVORECUSA !== undefined && CDMOTIVORECUSA !== null && CDMOTIVORECUSA !== '') {
+        // Se tem motivo de recusa, status é RECUSADA
+        novoStatus = 'RECUSADA';
+      } else if (LATITUDE !== undefined && LONGITUDE !== undefined && 
+                 LATITUDE !== null && LONGITUDE !== null && 
+                 LATITUDE !== '' && LONGITUDE !== '') {
+        // Se tem localização mas não tem motivo de recusa, pode ser ACEITA
+        // Mas só atualiza se ainda estiver PENDENTE
+        if (statusAtual === 'PENDENTE') {
+          novoStatus = 'ACEITA';
+        }
+      }
+      
+      // Montar query de atualização dinamicamente
+      let updateFields = [];
+      const updateRequest = pool.request()
+        .input('IDCONVOCACAO', sql.Int, parseInt(IDCONVOCACAO));
+      
+      // Sempre atualizar DHRESPOSTA quando houver retorno
+      updateFields.push('DHRESPOSTA = GETDATE()');
+      
+      // Atualizar STATUS se determinado
+      if (novoStatus) {
+        updateFields.push('STATUS = @STATUS');
+        updateRequest.input('STATUS', sql.VarChar(20), novoStatus);
+      }
+      
+      if (LATITUDE !== undefined && LATITUDE !== null && LATITUDE !== '') {
+        updateFields.push('LATITUDE = @LATITUDE');
+        updateRequest.input('LATITUDE', sql.Decimal(18, 15), parseFloat(LATITUDE));
+      }
+      
+      if (LONGITUDE !== undefined && LONGITUDE !== null && LONGITUDE !== '') {
+        updateFields.push('LONGITUDE = @LONGITUDE');
+        updateRequest.input('LONGITUDE', sql.Decimal(18, 15), parseFloat(LONGITUDE));
+      }
+      
+      if (CDMOTIVORECUSA !== undefined && CDMOTIVORECUSA !== null && CDMOTIVORECUSA !== '') {
+        updateFields.push('CDMOTIVORECUSA = @CDMOTIVORECUSA');
+        updateRequest.input('CDMOTIVORECUSA', sql.Int, parseInt(CDMOTIVORECUSA));
+      }
+      
+      // Adicionar campos de manutenção
+      updateFields.push('DHMAINTENANCE = GETDATE()');
+      updateFields.push('SGUSER = \'DESKRIO\'');
+      
+      const updateQuery = `
+        UPDATE [dbo].[CONVOCACAO]
+        SET ${updateFields.join(', ')}
+        WHERE IDCONVOCACAO = @IDCONVOCACAO
+      `;
+      
+      console.log('[WEBHOOK CALLBACK META] Executando query:', updateQuery);
+      console.log('[WEBHOOK CALLBACK META] Parâmetros:', {
+        IDCONVOCACAO: parseInt(IDCONVOCACAO),
+        STATUS: novoStatus,
+        LATITUDE: LATITUDE !== undefined ? parseFloat(LATITUDE) : undefined,
+        LONGITUDE: LONGITUDE !== undefined ? parseFloat(LONGITUDE) : undefined,
+        CDMOTIVORECUSA: CDMOTIVORECUSA !== undefined ? parseInt(CDMOTIVORECUSA) : undefined
+      });
+      
+      const result = await updateRequest.query(updateQuery);
+      
+      console.log('[WEBHOOK CALLBACK META] Convocação atualizada com sucesso. Linhas afetadas:', result.rowsAffected);
+      
+      res.json({ 
+        success: true, 
+        message: 'Dados recebidos e atualizados com sucesso!',
+        camposAtualizados: {
+          STATUS: novoStatus || 'não alterado',
+          DHRESPOSTA: 'atualizado',
+          LATITUDE: LATITUDE !== undefined ? 'atualizado' : 'não fornecido',
+          LONGITUDE: LONGITUDE !== undefined ? 'atualizado' : 'não fornecido',
+          CDMOTIVORECUSA: CDMOTIVORECUSA !== undefined ? 'atualizado' : 'não fornecido',
+          DHMAINTENANCE: 'atualizado',
+          SGUSER: 'DESKRIO'
+        }
+      });
+    } catch (err) {
+      console.error('[WEBHOOK CALLBACK META] Erro ao processar retorno:', err);
+      res.status(500).json({ error: 'Erro ao processar retorno do webhook.', details: err.message });
     }
   }
 };

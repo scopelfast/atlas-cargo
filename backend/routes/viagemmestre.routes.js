@@ -40,6 +40,14 @@ router.get('/convocacoes', viagemController.listarConvocacoes);
 router.get('/convocacoes/:id', viagemController.buscarConvocacaoPorId);
 router.put('/convocacoes/:id', viagemController.atualizarConvocacao);
 router.put('/convocacoes/:id/status', viagemController.atualizarStatusConvocacao);
+router.put('/convocacoes/:id/atualizar-envio-meta', viagemController.atualizarEnvioMeta);
+
+// Rotas para logs do webhook Meta
+router.post('/logs-webhook-meta', viagemController.salvarLogWebhookMeta);
+router.get('/logs-webhook-meta', viagemController.listarLogsWebhookMeta);
+
+// Rota para receber retorno do webhook Meta (callback)
+router.post('/webhook-meta-callback', viagemController.receberRetornoWebhookMeta);
 router.post('/convocacoes/:id/confirmar', viagemController.confirmarConvocacao);
 router.post('/convocacoes/:id/reativar', viagemController.reativarConvocacao);
 router.get('/convocacoes/:id/historico-reabertura', viagemController.listarHistoricoReabertura);

@@ -285,7 +285,10 @@
       container: '#tiposAtividadeGrid',
       columns: [
         { field: 'CDTIPOATIVIDADE', header: 'Código', editable: false, isId: true, width: '80px' },
-        { field: 'DSTIPOATIVIDADE', header: 'Descrição', editable: false, width: '400px' },
+        { field: 'DSTIPOATIVIDADE', header: 'Descrição', editable: false, width: '300px' },
+        { field: 'DSPROGRAMA', header: 'Programa', editable: false, width: '280px',
+          format: (val) => val || '-'
+        },
         { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '100px',
           options: [{ value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' }],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
@@ -323,6 +326,7 @@
       document.getElementById('tipoAtividadeCodigo').value = tipo.CDTIPOATIVIDADE;
       document.getElementById('tipoAtividadeCodigo').readOnly = true;
       document.getElementById('tipoAtividadeDescricao').value = tipo.DSTIPOATIVIDADE || '';
+      document.getElementById('tipoAtividadePrograma').value = tipo.DSPROGRAMA || '';
       document.getElementById('tipoAtividadeSituacao').value = tipo.FGACTIVE || 'S';
 
       document.getElementById('formTitle').textContent = 'Editar Tipo de Atividade';
@@ -338,6 +342,7 @@
     const codigoOriginal = document.getElementById('tipoAtividadeCodigoOriginal').value;
     const codigo = document.getElementById('tipoAtividadeCodigo').value;
     const descricao = document.getElementById('tipoAtividadeDescricao').value.trim();
+    const programa = document.getElementById('tipoAtividadePrograma').value.trim();
     const situacao = document.getElementById('tipoAtividadeSituacao').value;
 
     if (!codigo || !descricao) {
@@ -355,6 +360,7 @@
         body: JSON.stringify({
           CDTIPOATIVIDADE: parseInt(codigo),
           DSTIPOATIVIDADE: descricao,
+          DSPROGRAMA: programa || null,
           FGACTIVE: situacao
         })
       });
@@ -381,6 +387,7 @@
     document.getElementById('tipoAtividadeCodigo').value = '';
     document.getElementById('tipoAtividadeCodigo').readOnly = false;
     document.getElementById('tipoAtividadeDescricao').value = '';
+    document.getElementById('tipoAtividadePrograma').value = '';
     document.getElementById('tipoAtividadeSituacao').value = 'S';
     document.getElementById('formTitle').textContent = 'Novo Tipo de Atividade';
   }

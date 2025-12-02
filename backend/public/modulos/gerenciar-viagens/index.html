@@ -344,6 +344,7 @@
       <button class="tab-btn" data-tab="convocações">Convocações</button>
       <button class="tab-btn" data-tab="veiculo">Veículo</button>
       <button class="tab-btn" data-tab="motorista">Motorista</button>
+      <button class="tab-btn" data-tab="integracao-meta">🔗 Integração Meta</button>
     </div>
 
     <!-- Filtros -->
@@ -1280,6 +1281,44 @@
       </div>
       <div id="conteudoGuiaCompleto" style="line-height: 1.8; color: #333;">
         <!-- Conteúdo será preenchido via JavaScript -->
+      </div>
+    </div>
+
+    <!-- Aba Integração Meta -->
+    <div class="tab-content" id="tab-integracao-meta">
+      <div class="form-box">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <h2 style="margin: 0;">🔗 Integração Meta - Logs de Webhook</h2>
+          <div style="display: flex; gap: 10px;">
+            <button id="btnLimparLogsMeta" type="button" class="btn cancel" style="padding: 8px 16px;">🗑️ Limpar Logs</button>
+            <button id="btnExportarLogsMeta" type="button" class="btn save" style="padding: 8px 16px;">📥 Exportar Logs</button>
+          </div>
+        </div>
+        
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+          <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+            <div>
+              <strong>Total de Envios:</strong> <span id="totalEnviosMeta">0</span>
+            </div>
+            <div>
+              <strong>Sucessos:</strong> <span id="totalSucessosMeta" style="color: #28a745;">0</span>
+            </div>
+            <div>
+              <strong>Erros:</strong> <span id="totalErrosMeta" style="color: #dc3545;">0</span>
+            </div>
+            <div>
+              <strong>Última Atualização:</strong> <span id="ultimaAtualizacaoMeta">-</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; max-height: 600px; overflow-y: auto;">
+          <div id="logsIntegracaoMeta" style="font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.6;">
+            <div style="color: #6c757d; text-align: center; padding: 40px;">
+              Nenhum log disponível. Os logs aparecerão aqui quando houver envios para o webhook Meta.
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

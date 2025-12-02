@@ -7,6 +7,134 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [1.3.0] - 2025-12-01
+
+### ✅ Adicionado
+
+#### Integração Meta (DeskRio) - Sistema Completo
+- **Envio para Webhook Meta**: Sistema completo de envio de convocações para webhook
+  - Endpoint: `https://ia.riochat.com.br/webhook/aviso-rota-integra`
+  - Envio individual (um registro por requisição POST)
+  - Intervalo de 1 segundo entre cada envio
+  - Verificação de `DHENVIOMETA` para evitar duplicatas
+  - Atualização automática de `DHENVIOMETA` após envio bem-sucedido
+- **Payload Completo**: Estrutura JSON com 11 campos
+  - `IDCONVOCACAO`: ID da convocação
+  - `NRCELULAR`: Número do celular do motorista
+  - `LINKCONVOCACAO`: Link completo da convocação
+  - `ID`: ID da viagem
+  - `TIPO`: Tipo de viagem formatado
+  - `CLASSE`: Classe de frota formatada
+  - `ROTA`: Rota formatada (origem → destino)
+  - `CARREGAMENTO`: Data/hora de carregamento formatada
+  - `DESCARGA`: Data/hora de descarga formatada
+  - `CONTRATADOR`: Nome do contratador
+  - `FRETE`: Valor do frete (apenas numérico, formato: "3392,55")
+  - `PESO`: Peso da carga (apenas numérico, formato: "3790,000")
+  - `CUBAGEM`: Cubagem da carga (apenas numérico, formato: "0,000")
+  - `DETALHES`: Observações da viagem
+  - **Nota**: Campo `TXTCONVOCACAO` foi removido do payload (não é enviado)
+- **Aba Integração Meta**: Nova aba no módulo "Gerenciar Viagens"
+  - Visualização de logs em tempo real
+  - Contadores: Total de envios, Sucessos, Erros
+  - Área de logs com cores por tipo (envio, resposta, sucesso, erro)
+  - Botões: Limpar Logs, Exportar Logs
+  - Carregamento automático de logs salvos ao abrir a aba
+- **Sistema de Logs Persistidos**: Tabela `LOGSWEBHOOKMETA`
+  - Campos: IDLOG, IDCONVOCACAO, TIPO, TITULO, MENSAGEM, DETALHES, STATUS_HTTP, TEMPO_RESPOSTA, DHLOG, DHMAINTENANCE, SGUSER, SERVERORIG
+  - Tipos de log: envio, resposta, sucesso, erro, erro_conexao
+  - Índices para performance
+  - Endpoints: `POST /api/logs-webhook-meta` (salvar), `GET /api/logs-webhook-meta` (listar)
+- **Callback do Meta**: Endpoint para receber retornos do DeskRio
+  - Endpoint: `POST /api/webhook-meta-callback`
+  - Recebe: IDCONVOCACAO, LATITUDE, LONGITUDE, CDMOTIVORECUSA, STATUS (opcional)
+  - Atualiza automaticamente:
+    - `STATUS`: Determinado logicamente ou pelo campo enviado
+    - `DHRESPOSTA`: Sempre atualizado para `GETDATE()` quando há retorno
+    - `LATITUDE`: Se fornecido
+    - `LONGITUDE`: Se fornecido
+    - `CDMOTIVORECUSA`: Se fornecido
+    - `DHMAINTENANCE`: Sempre atualizado para `GETDATE()`
+    - `SGUSER`: Sempre atualizado para `'DESKRIO'`
+  - Lógica de STATUS:
+    - Se `CDMOTIVORECUSA` fornecido → STATUS = `'RECUSADA'`
+    - Se `LATITUDE` e `LONGITUDE` fornecidos (sem `CDMOTIVORECUSA`) e STATUS atual = `'PENDENTE'` → STATUS = `'ACEITA'`
+    - Se `STATUS` fornecido explicitamente → Usa o valor fornecido
+    - Caso contrário → STATUS não é alterado
+
+#### Melhorias de Interface
+- **Padronização de Layout**: "Relatório de Convocações" padronizado com "Gerenciar Convocações"
+  - Coluna Rota formatada igual (IDROTEIRO - DSROTEIRO ou ORIGEM → DESTINO)
+  - Nome do motorista + número de celular abaixo (fonte menor, 11px)
+  - Formatação de data/hora padronizada (fonte e tamanho)
+  - Largura da coluna Ações otimizada (50px, apenas para ícone do mapa)
+  - Link clicável no ID da viagem para visualizar detalhes
+
+### 🔧 Modificado
+
+#### Sistema de Convocações
+- **dispararConvocacoes**: Refatorado completamente
+  - Busca dados detalhados da viagem antes de gerar mensagens
+  - Gera `NRCELULAR`, `TXTCONVOCACAO` e `LINKCONVOCACAO` para cada convocação
+  - Atualiza convocações via `PUT /api/convocacoes/:id`
+  - Envia individualmente para webhook Meta com intervalo de 1 segundo
+  - Verifica `DHENVIOMETA` antes de enviar
+  - Atualiza `DHENVIOMETA` após envio bem-sucedido
+  - Gera logs de envio, resposta, sucesso e erro
+  - Salva logs no banco de dados
+- **criarConvocacoes**: Agora aceita e salva `NRCELULAR`, `TXTCONVOCACAO` e `LINKCONVOCACAO` durante a criação
+- **atualizarEnvioMeta**: Nova função para atualizar `DHENVIOMETA` após envio bem-sucedido
+- **salvarLogWebhookMeta**: Nova função para salvar logs de webhook no banco
+- **listarLogsWebhookMeta**: Nova função para listar logs de webhook
+- **webhookMetaCallback**: Nova função para receber callback do Meta
+
+#### Frontend - Gerenciar Viagens
+- **dispararConvocacoes**: Refatorado completamente
+  - Gera dados completos antes de enviar
+  - Envia individualmente para webhook com delay
+  - Adiciona logs em tempo real
+  - Atualiza exibição de logs na aba Integração Meta
+- **Aba Integração Meta**: Nova aba adicionada
+  - HTML: Botão de aba e conteúdo
+  - JavaScript: Funções para gerenciar logs (`adicionarLogMeta`, `atualizarExibicaoLogsMeta`, `limparLogsMeta`, `exportarLogsMeta`)
+  - Carregamento de logs salvos ao abrir a aba
+- **Formatação de Dados**: Ajustes para webhook
+  - FRETE, PESO e CUBAGEM formatados como numéricos apenas (sem "R$", "ton", "m³")
+  - Rota formatada igual ao texto da mensagem
+  - Tipo e Classe formatados igual ao texto da mensagem
+
+#### Frontend - Relatório de Convocações
+- **Padronização**: Layout padronizado com "Gerenciar Convocações"
+  - Coluna Rota formatada igual
+  - Nome do motorista + celular abaixo
+  - Formatação de data/hora padronizada
+  - Largura da coluna Ações otimizada
+  - Link clicável no ID da viagem
+
+### 🐛 Corrigido
+
+#### Bugs Críticos
+- ✅ Correção do preenchimento de `NRCELULAR`, `TXTCONVOCACAO` e `LINKCONVOCACAO` na tabela `CONVOCACAO`
+  - Agora são preenchidos durante a criação e atualizados após geração completa
+- ✅ Correção do filtro "Viagem Confirmada: Não" no relatório de convocações
+  - Adicionado `NOT EXISTS` para filtrar corretamente
+- ✅ Correção de sintaxe JavaScript na aba Integração Meta
+  - Erro de parênteses faltando corrigido
+
+#### Bugs Menores
+- ✅ Correção de formatação de dados para webhook (FRETE, PESO, CUBAGEM)
+- ✅ Correção de exibição de logs na aba Integração Meta
+- ✅ Melhoria de tratamento de erros no envio para webhook
+
+### 📚 Documentação
+- ✅ Criado `ESTRUTURA_WEBHOOK_AVISO_ROTA_COMPLETA.md` com estrutura completa do payload
+- ✅ Criado `WEBHOOK_CALLBACK_META.md` com documentação do endpoint de callback
+- ✅ Criado script SQL `criar_tabela_logs_webhook_meta.sql` para tabela de logs
+- ✅ Atualizado README.md com informações sobre integração Meta
+- ✅ Atualizado CHANGELOG.md com versão 1.3.0
+
+---
+
 ## [1.2.0] - 2025-11-28
 
 ### ✅ Adicionado
@@ -361,5 +489,5 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ---
 
 **Mantido por:** Equipe DivulgaCarga  
-**Última atualização:** 2025-11-28
+**Última atualização:** 2025-12-01
 

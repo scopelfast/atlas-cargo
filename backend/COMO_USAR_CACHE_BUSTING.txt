@@ -1,0 +1,135 @@
+================================================================================
+  🔄 SISTEMA DE CACHE BUSTING - DIVULGACARGA
+  Como Resolver Problema de Cache no Servidor de Produção
+================================================================================
+
+📋 RESUMO DO PROBLEMA:
+- Usuários veem versão antiga do sistema em produção
+- Só conseguem ver atualizações no modo anônimo
+- Navegador mantém arquivos antigos em cache
+
+✅ SOLUÇÃO IMPLEMENTADA:
+Sistema automático de versão que força o navegador a baixar novos arquivos!
+
+================================================================================
+  🚀 COMO USAR - MÉTODO RÁPIDO
+================================================================================
+
+1️⃣ OPÇÃO FÁCIL: Use o script automático
+
+   - Dê dois cliques em: atualizar-versao.bat
+   - Digite a nova versão (ex: 20250102-1600)
+   - Confirme o commit e push
+   - Pronto! ✅
+
+2️⃣ OPÇÃO MANUAL: Edite o arquivo version.js
+
+   Arquivo: backend/public/js/version.js
+   
+   Antes:
+   window.APP_VERSION = '20250102-1500';
+   
+   Depois:
+   window.APP_VERSION = '20250102-1600';  ← MUDE AQUI!
+   
+   Salve e publique no servidor.
+
+================================================================================
+  📅 FORMATO DA VERSÃO
+================================================================================
+
+Use: YYYYMMDD-HHMM (Data + Hora)
+
+Exemplos:
+✅ 20250102-1500  (02/Jan/2025 às 15:00)
+✅ 20250102-1630  (02/Jan/2025 às 16:30)
+✅ 20250215-0900  (15/Fev/2025 às 09:00)
+
+Ou use números simples:
+✅ v1.0.1
+✅ v1.1.0
+✅ v2.0.0
+
+================================================================================
+  ⚡ QUANDO ATUALIZAR A VERSÃO?
+================================================================================
+
+Atualize SEMPRE que modificar:
+✅ Arquivos JavaScript (.js)
+✅ Arquivos CSS (.css)
+✅ Arquivos HTML dos módulos
+✅ Qualquer recurso que precisa ser atualizado no navegador
+
+================================================================================
+  🔍 COMO VERIFICAR SE FUNCIONOU?
+================================================================================
+
+1. Abra o site: http://cargas.integrabrasil.com:8083/
+2. Pressione F12 (abrir Console do navegador)
+3. Procure a mensagem: [Sistema] Versão: 20250102-1600
+4. Se aparecer a versão NOVA, está funcionando! ✅
+
+================================================================================
+  🛠️ SOLUÇÃO DE PROBLEMAS
+================================================================================
+
+❌ Problema: Usuário ainda vê versão antiga
+
+✅ Solução 1: Peça para fazer Ctrl + F5 (recarregar sem cache)
+✅ Solução 2: Limpar cache do navegador (Ctrl + Shift + Delete)
+✅ Solução 3: Abrir aba anônima (Ctrl + Shift + N)
+
+---
+
+❌ Problema: Versão não mudou no servidor
+
+✅ Solução: Verifique se fez o push:
+   git status
+   git add .
+   git commit -m "Atualização versão"
+   git push origin main
+
+---
+
+❌ Problema: Deu erro no Git
+
+✅ Solução: Faça pull antes do push:
+   git pull origin main
+   git push origin main
+
+================================================================================
+  📂 ARQUIVOS MODIFICADOS
+================================================================================
+
+Arquivos criados/modificados:
+✅ backend/public/js/version.js           (controla a versão)
+✅ backend/public/index.html              (login - atualizado)
+✅ backend/public/dashboard.html          (dashboard - atualizado)
+✅ backend/public/js/dashboard.js         (módulos - atualizado)
+✅ backend/atualizar-versao.bat          (script automático)
+✅ backend/ATUALIZAR_VERSAO.md           (documentação completa)
+✅ backend/COMO_USAR_CACHE_BUSTING.txt   (este arquivo)
+
+================================================================================
+  ✅ CHECKLIST ANTES DE PUBLICAR
+================================================================================
+
+[ ] 1. Atualizei a versão em version.js?
+[ ] 2. Testei localmente? (Ctrl + F5 para limpar cache local)
+[ ] 3. Fiz commit das alterações?
+[ ] 4. Fiz push para o repositório?
+[ ] 5. Publiquei no servidor de produção?
+[ ] 6. Testei em produção e verifiquei a versão no console?
+
+================================================================================
+  🎉 PRONTO!
+================================================================================
+
+Agora o sistema atualiza automaticamente para todos os usuários!
+
+Dúvidas? Entre em contato com o suporte.
+
+Desenvolvido por: Cleverson Scopel
+Data: 02/01/2025
+================================================================================
+
