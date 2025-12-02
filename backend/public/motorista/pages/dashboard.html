@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - Motorista</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    body {
+      background: #f5f5f5;
+    }
+    .dashboard {
+      max-width: 600px;
+      margin: 20px auto;
+      padding: 20px;
+    }
+    .card {
+      background: white;
+      border-radius: 15px;
+      padding: 20px;
+      margin-bottom: 15px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 15px 15px 0 0;
+      margin: -20px -20px 20px;
+    }
+    .btn {
+      padding: 10px 20px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="dashboard">
+    <div class="card">
+      <div class="header">
+        <h2 id="nomeMotorista">Carregando...</h2>
+        <p id="cpfMotorista">CPF: -</p>
+      </div>
+      
+      <h3>🎉 Bem-vindo ao APP do Motorista!</h3>
+      <p>Sistema em desenvolvimento...</p>
+      
+      <div style="margin-top: 20px;">
+        <h4>✅ Funcionalidades Disponíveis:</h4>
+        <ul>
+          <li>✅ Login funcionando</li>
+          <li>⏳ Minhas Convocações (em breve)</li>
+          <li>⏳ Cargas Disponíveis (em breve)</li>
+          <li>⏳ Rastreamento GPS (em breve)</li>
+        </ul>
+      </div>
+      
+      <button class="btn" onclick="logout()">Sair</button>
+    </div>
+  </div>
+
+  <script>
+    // Verificar se está logado
+    const token = localStorage.getItem('token');
+    const motorista = JSON.parse(localStorage.getItem('motorista') || '{}');
+    
+    if (!token) {
+      window.location.href = '../index.html';
+    }
+    
+    // Mostrar dados do motorista
+    document.getElementById('nomeMotorista').textContent = motorista.nome || 'Motorista';
+    document.getElementById('cpfMotorista').textContent = `CPF: ${motorista.cpf || '-'}`;
+    
+    // Logout
+    function logout() {
+      localStorage.removeItem('token');
+      localStorage.removeItem('motorista');
+      window.location.href = '../index.html';
+    }
+  </script>
+</body>
+</html>
+

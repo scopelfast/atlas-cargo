@@ -24,6 +24,7 @@ const filialRoutes = require('./routes/filial.routes');
 const relatorioConvocacoesRoutes = require('./routes/relatorio-convocacoes.routes');
 const usuarioRoutes = require('./routes/usuario.routes');
 const tipoAtividadeRoutes = require('./routes/tipoatividade.routes');
+const motoristaAppRoutes = require('./routes/motorista-app.routes');
 
 const app = express();
 
@@ -123,6 +124,7 @@ app.use('/api', filialRoutes);
 app.use('/api/relatorio-convocacoes', relatorioConvocacoesRoutes);
 app.use('/api', usuarioRoutes);
 app.use('/api', tipoAtividadeRoutes);
+app.use('/api/motorista', motoristaAppRoutes);
 
 // Rota pública para motorista responder convocação
 app.get('/convocacao/:id', (req, res) => {

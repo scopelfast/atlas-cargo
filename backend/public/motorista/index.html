@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#667eea">
+  <meta name="description" content="App DivulgaCarga para Motoristas">
+  <title>DivulgaCarga - Motorista</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="/img/logo7.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="login-container">
+    <div class="logo-section">
+      <img src="/img/logo7.png" alt="Logo DivulgaCarga" class="logo">
+      <h1>DivulgaCarga</h1>
+      <p class="subtitle">Motorista</p>
+    </div>
+
+    <div class="form-section">
+      <h2>Bem-vindo!</h2>
+      <p class="description">Entre com seus dados para acessar o sistema</p>
+
+      <form id="loginForm">
+        <div class="input-group">
+          <label for="cpf">CPF</label>
+          <input 
+            type="text" 
+            id="cpf" 
+            placeholder="000.000.000-00" 
+            maxlength="14"
+            required
+          >
+        </div>
+
+        <div class="input-group">
+          <label for="senha">Senha</label>
+          <input 
+            type="password" 
+            id="senha" 
+            placeholder="Digite sua senha" 
+            required
+          >
+        </div>
+
+        <button type="submit" class="btn-primary">
+          <span>Entrar</span>
+        </button>
+      </form>
+
+      <div id="message" class="message"></div>
+
+      <div class="links">
+        <a href="pages/cadastro.html">Cadastrar-se</a>
+        <a href="pages/recuperar-senha.html">Esqueci minha senha</a>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p>© 2025 DivulgaCarga - Sistema para Motoristas</p>
+      <p class="version">Versão 1.0.0</p>
+    </div>
+  </div>
+
+  <script src="js/auth.js"></script>
+</body>
+</html>

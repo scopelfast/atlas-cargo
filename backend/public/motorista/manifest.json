@@ -1,0 +1,19 @@
+{
+  "name": "DivulgaCarga Motorista",
+  "short_name": "Motorista",
+  "description": "App para motoristas - DivulgaCarga",
+  "start_url": "/motorista/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#667eea",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/img/logo7.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
+
