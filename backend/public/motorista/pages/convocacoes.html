@@ -19,10 +19,24 @@
       position: sticky;
       top: 0;
       z-index: 100;
+      width: 100%;
+      box-sizing: border-box;
     }
     
-    .navbar h1 { font-size: 18px; margin: 0; font-weight: 600; }
-    .navbar button { 
+    .navbar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .navbar h1 { 
+      font-size: 18px; 
+      margin: 0; 
+      font-weight: 600; 
+      flex: 1;
+    }
+    
+    .btn-voltar { 
       background: rgba(255,255,255,0.25); 
       border: none; 
       color: white; 
@@ -31,8 +45,15 @@
       cursor: pointer;
       font-weight: 500;
       transition: all 0.3s;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
-    .navbar button:active { background: rgba(255,255,255,0.4); transform: scale(0.95); }
+    .btn-voltar:active { 
+      background: rgba(255,255,255,0.4); 
+      transform: scale(0.95); 
+    }
     
     #statusIndicador {
       padding: 12px 20px;
@@ -40,11 +61,26 @@
       font-size: 13px;
       font-weight: 600;
       letter-spacing: 0.3px;
+      width: 100%;
+      box-sizing: border-box;
+      display: block;
     }
     
-    .status-online { background: #d4edda; color: #155724; }
-    .status-offline { background: #f8d7da; color: #721c24; }
-    .status-syncing { background: #fff3cd; color: #856404; }
+    .status-online { 
+      background: #d4edda; 
+      color: #155724;
+      border-bottom: 2px solid #c3e6cb;
+    }
+    .status-offline { 
+      background: #f8d7da; 
+      color: #721c24;
+      border-bottom: 2px solid #f5c6cb;
+    }
+    .status-syncing { 
+      background: #fff3cd; 
+      color: #856404;
+      border-bottom: 2px solid #ffeeba;
+    }
     
     .container { padding: 16px; max-width: 600px; margin: 0 auto; }
     
@@ -219,8 +255,11 @@
 </head>
 <body>
   <div class="navbar">
+    <div class="navbar-left">
+      <button class="btn-voltar" onclick="voltar()">← Voltar</button>
+    </div>
     <h1>📦 Minhas Convocações</h1>
-    <button onclick="voltar()">← Voltar</button>
+    <div style="width: 90px;"></div>
   </div>
 
   <div id="statusIndicador" class="status-offline">
