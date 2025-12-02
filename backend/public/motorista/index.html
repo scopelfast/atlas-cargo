@@ -64,5 +64,14 @@
   </div>
 
   <script src="js/auth.js"></script>
+  
+  <script>
+    // Registrar Service Worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/motorista/sw.js')
+        .then(() => console.log('✅ Service Worker registrado'))
+        .catch(err => console.error('❌ Erro SW:', err));
+    }
+  </script>
 </body>
 </html>
