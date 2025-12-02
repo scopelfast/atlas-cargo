@@ -413,8 +413,6 @@ const motoristaAppController = {
         params.push({ name: 'idmotorista', value: parseFloat(idmotorista), type: sql.Decimal(15, 0) });
       }
 
-      const params = [];
-
       if (estado) {
         query += ` AND (co.ESTADO = @estado OR cd.ESTADO = @estado)`;
         params.push({ name: 'estado', value: estado });
