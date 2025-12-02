@@ -21,7 +21,7 @@ GO
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'MOTORISTA_COMPLEMENTO')
 BEGIN
     CREATE TABLE [dbo].[MOTORISTA_COMPLEMENTO] (
-        CDCADASTRO INT PRIMARY KEY,              -- FK para CADASTROGERAL
+        CDCADASTRO DECIMAL(15,0) PRIMARY KEY,    -- FK para CADASTROGERAL (mesmo tipo!)
         NRCNH VARCHAR(11) UNIQUE,                -- Número da CNH (11 dígitos)
         CATEGORIACNH VARCHAR(5),                 -- A, B, AB, C, D, E, AC, AD, AE
         VALIDADECNH DATE,                        -- Data de validade
@@ -62,7 +62,7 @@ IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'MOTORISTA_VEICULO')
 BEGIN
     CREATE TABLE [dbo].[MOTORISTA_VEICULO] (
         IDVEICULOMOTORISTA INT IDENTITY(1,1) PRIMARY KEY,
-        CDCADASTRO INT NOT NULL,                 -- Motorista (FK CADASTROGERAL)
+        CDCADASTRO DECIMAL(15,0) NOT NULL,       -- Motorista (FK CADASTROGERAL - mesmo tipo!)
         PLACA VARCHAR(10) NOT NULL,              -- ABC-1234 ou ABC1D34 (Mercosul)
         RENAVAM VARCHAR(11),                     -- RENAVAM (11 dígitos)
         CDTIPOEQUIPAMENTO SMALLINT,              -- FK TIPOEQUIPAMENTO
@@ -111,7 +111,7 @@ BEGIN
     CREATE TABLE [dbo].[VIAGEM_RASTREAMENTO] (
         IDRASTREAMENTO BIGINT IDENTITY(1,1) PRIMARY KEY,
         IDVIAGEM DECIMAL(15,0) NOT NULL,         -- FK VIAGEMMESTRE
-        CDCADASTRO INT NOT NULL,                 -- Motorista
+        CDCADASTRO DECIMAL(15,0) NOT NULL,       -- Motorista (FK CADASTROGERAL - mesmo tipo!)
         LATITUDE DECIMAL(10,8) NOT NULL,         -- -25.42847234
         LONGITUDE DECIMAL(11,8) NOT NULL,        -- -49.27339123
         VELOCIDADE DECIMAL(5,2),                 -- km/h
@@ -151,7 +151,7 @@ BEGIN
     CREATE TABLE [dbo].[VIAGEM_EVENTO] (
         IDEVENTO INT IDENTITY(1,1) PRIMARY KEY,
         IDVIAGEM DECIMAL(15,0) NOT NULL,
-        CDCADASTRO INT NOT NULL,                 -- Motorista
+        CDCADASTRO DECIMAL(15,0) NOT NULL,       -- Motorista (FK CADASTROGERAL - mesmo tipo!)
         TIPO CHAR(1) NOT NULL,                   -- P=Parada, A=Abast, R=Refeição, M=Mecânico, I=Imprevisto, C=Coleta, E=Entrega
         DESCRICAO VARCHAR(500),                  -- Descrição do evento
         LATITUDE DECIMAL(10,8),                  -- Onde aconteceu
@@ -226,7 +226,7 @@ BEGIN
     CREATE TABLE [dbo].[VIAGEM_CHAT] (
         IDMENSAGEM INT IDENTITY(1,1) PRIMARY KEY,
         IDVIAGEM DECIMAL(15,0) NOT NULL,
-        CDCADASTRO INT,                          -- Motorista (se enviou)
+        CDCADASTRO DECIMAL(15,0),                -- Motorista (FK CADASTROGERAL - mesmo tipo!)
         CDUSUARIO INT,                           -- Operador (se enviou)
         TIPO CHAR(1) NOT NULL,                   -- M=Motorista, O=Operador
         MENSAGEM VARCHAR(1000) NOT NULL,

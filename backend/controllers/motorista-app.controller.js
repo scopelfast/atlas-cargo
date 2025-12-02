@@ -118,7 +118,7 @@ const motoristaAppController = {
       const pool = await poolPromise;
       const result = await pool
         .request()
-        .input('id', sql.Int, parseInt(id))
+        .input('id', sql.Decimal(15, 0), parseFloat(id))
         .query(`
           SELECT 
             cg.CDCADASTRO,
@@ -189,7 +189,7 @@ const motoristaAppController = {
       const pool = await poolPromise;
       const result = await pool
         .request()
-        .input('idmotorista', sql.Int, parseInt(idmotorista))
+        .input('idmotorista', sql.Decimal(15, 0), parseFloat(idmotorista))
         .query(`
           SELECT 
             c.IDCONVOCACAO,
@@ -237,7 +237,7 @@ const motoristaAppController = {
       await pool
         .request()
         .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
-        .input('cdcadastro', sql.Int, parseInt(idmotorista))
+        .input('cdcadastro', sql.Decimal(15, 0), parseFloat(idmotorista))
         .input('latitude', sql.Decimal(10, 8), parseFloat(latitude))
         .input('longitude', sql.Decimal(11, 8), parseFloat(longitude))
         .input('velocidade', sql.Decimal(5, 2), velocidade || null)
@@ -275,7 +275,7 @@ const motoristaAppController = {
       await pool
         .request()
         .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
-        .input('cdcadastro', sql.Int, parseInt(idmotorista))
+        .input('cdcadastro', sql.Decimal(15, 0), parseFloat(idmotorista))
         .input('tipo', sql.Char(1), tipo)
         .input('descricao', sql.VarChar(500), descricao || null)
         .input('latitude', sql.Decimal(10, 8), latitude || null)
