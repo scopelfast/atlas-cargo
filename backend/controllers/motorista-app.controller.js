@@ -377,8 +377,6 @@ const motoristaAppController = {
           r.DSROTEIRO,
           co.NMCIDADE AS ORIGEM_CIDADE,
           co.ESTADO AS ORIGEM_ESTADO,
-          co.LATITUDE AS ORIGEM_LATITUDE,
-          co.LONGITUDE AS ORIGEM_LONGITUDE,
           cd.NMCIDADE AS DESTINO_CIDADE,
           cd.ESTADO AS DESTINO_ESTADO,
           cont.RZSOCIAL AS CONTRATADOR,

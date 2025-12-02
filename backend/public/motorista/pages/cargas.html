@@ -176,9 +176,7 @@
         const origem = c.ORIGEM_CIDADE && c.ORIGEM_ESTADO ? `${c.ORIGEM_CIDADE} - ${c.ORIGEM_ESTADO}` : 'Não informado';
         const destino = c.DESTINO_CIDADE && c.DESTINO_ESTADO ? `${c.DESTINO_CIDADE} - ${c.DESTINO_ESTADO}` : 'Não informado';
 
-        const linkMaps = c.ORIGEM_LATITUDE && c.ORIGEM_LONGITUDE 
-          ? `https://www.google.com/maps?q=${c.ORIGEM_LATITUDE},${c.ORIGEM_LONGITUDE}`
-          : `https://www.google.com/maps/search/${encodeURIComponent(origem)}`;
+        const linkMaps = `https://www.google.com/maps/search/${encodeURIComponent(origem)}`;
         
         const linkWhatsApp = c.CONTRATADOR_CELULAR 
           ? `https://wa.me/55${c.CONTRATADOR_CELULAR.toString().replace(/\D/g, '')}`
