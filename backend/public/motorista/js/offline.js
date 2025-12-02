@@ -236,8 +236,12 @@
     try {
       // 1. Sincronizar ações (aceitar/recusar)
       const acoes = await buscarFila('filaAcoes');
+      console.log(`📋 Ações na fila: ${acoes.length}`);
+      
       for (const acao of acoes) {
         try {
+          console.log('📤 Enviando ação:', acao.tipo, acao.url);
+          
           const response = await fetch(acao.url, {
             method: acao.method,
             headers: {
@@ -247,19 +251,28 @@
             body: JSON.stringify(acao.data)
           });
 
+          console.log('📨 Resposta ação:', response.status);
+
           if (response.ok) {
             await deletarDaFila('filaAcoes', acao.id);
             console.log('✅ Ação sincronizada:', acao.tipo);
+          } else {
+            const erro = await response.text();
+            console.error('❌ Erro servidor:', response.status, erro);
           }
         } catch (err) {
-          console.error('Erro ao sincronizar ação:', err);
+          console.error('❌ Erro ao sincronizar ação:', err);
         }
       }
 
       // 2. Sincronizar GPS
       const gps = await buscarFila('filaGPS');
+      console.log(`📍 GPS na fila: ${gps.length}`);
+      
       for (const pos of gps) {
         try {
+          console.log('📤 Enviando GPS:', pos);
+          
           const response = await fetch('/api/motorista/gps', {
             method: 'POST',
             headers: {
@@ -269,19 +282,28 @@
             body: JSON.stringify(pos)
           });
 
+          console.log('📨 Resposta GPS:', response.status);
+
           if (response.ok) {
             await deletarDaFila('filaGPS', pos.id);
             console.log('✅ GPS sincronizado');
+          } else {
+            const erro = await response.text();
+            console.error('❌ Erro GPS:', response.status, erro);
           }
         } catch (err) {
-          console.error('Erro ao sincronizar GPS:', err);
+          console.error('❌ Erro ao sincronizar GPS:', err);
         }
       }
 
       // 3. Sincronizar eventos
       const eventos = await buscarFila('filaEventos');
+      console.log(`📝 Eventos na fila: ${eventos.length}`);
+      
       for (const evento of eventos) {
         try {
+          console.log('📤 Enviando evento:', evento);
+          
           const response = await fetch('/api/motorista/evento', {
             method: 'POST',
             headers: {
@@ -291,12 +313,17 @@
             body: JSON.stringify(evento)
           });
 
+          console.log('📨 Resposta evento:', response.status);
+
           if (response.ok) {
             await deletarDaFila('filaEventos', evento.id);
             console.log('✅ Evento sincronizado');
+          } else {
+            const erro = await response.text();
+            console.error('❌ Erro evento:', response.status, erro);
           }
         } catch (err) {
-          console.error('Erro ao sincronizar evento:', err);
+          console.error('❌ Erro ao sincronizar evento:', err);
         }
       }
 
