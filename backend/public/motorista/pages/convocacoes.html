@@ -457,7 +457,12 @@
       renderizar(filtradas);
     }
 
-    function toggleCard(idConvocacao) {
+    function toggleCard(event, idConvocacao) {
+      // Prevenir propagação se clicou em botão
+      if (event.target.tagName === 'BUTTON') {
+        return;
+      }
+      
       const card = document.getElementById(`card-${idConvocacao}`);
       
       if (card) {
@@ -503,7 +508,7 @@
         const podeAceitar = c.STATUS === 'PENDENTE';
 
         return `
-          <div class="card" id="card-${c.IDCONVOCACAO}" onclick="toggleCard(${c.IDCONVOCACAO})">
+          <div class="card" id="card-${c.IDCONVOCACAO}" onclick="toggleCard(event, ${c.IDCONVOCACAO})">
             <div class="card-header">
               <div class="card-title">🚚 Viagem #${c.IDVIAGEM}</div>
               <span class="badge ${badgeClass}">${statusTexto}</span>
