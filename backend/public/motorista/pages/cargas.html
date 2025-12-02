@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cargas Disponíveis - Motorista</title>
+  <link rel="stylesheet" href="../css/style.css">
+  <style>
+    body { background: #f0f2f5; margin: 0; padding: 0; font-family: -apple-system, sans-serif; }
+    
+    .navbar {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 14px 16px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .btn-voltar { background: rgba(255,255,255,0.25); border: none; color: white; padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; }
+    .navbar h1 { font-size: 18px; font-weight: 600; flex: 1; }
+    
+    .status-bar { padding: 10px 16px; text-align: center; font-size: 13px; font-weight: 600; }
+    .status-online { background: #d4edda; color: #155724; }
+    .status-offline { background: #f8d7da; color: #721c24; }
+    
+    .filtros { background: white; padding: 14px 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    .filtros-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .filtro-input { padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; }
+    .btn-filtrar { width: 100%; padding: 12px; background: #667eea; color: white; border: none; border-radius: 8px; font-weight: 700; margin-top: 10px; }
+    
+    .container { padding: 16px; }
+    
+    .card { background: white; border-radius: 16px; margin-bottom: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); overflow: hidden; }
+    
+    .card-header { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 14px 16px; }
+    .card-title { font-size: 17px; font-weight: 700; }
+    .card-subtitle { font-size: 13px; opacity: 0.9; margin-top: 4px; }
+    
+    .card-body { padding: 16px; }
+    
+    .route-section { background: #f8f9fa; padding: 14px; border-radius: 12px; margin-bottom: 14px; }
+    .route-item { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
+    .route-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+    .route-icon.origem { background: #28a745; color: white; }
+    .route-icon.destino { background: #dc3545; color: white; }
+    .route-label { font-size: 11px; color: #666; font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
+    .route-cidade { font-size: 15px; color: #333; font-weight: 600; }
+    
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+    .info-item { background: #f8f9fa; padding: 12px; border-radius: 10px; text-align: center; }
+    .info-icon { font-size: 22px; margin-bottom: 6px; }
+    .info-label { font-size: 10px; color: #666; text-transform: uppercase; font-weight: 600; }
+    .info-value { font-size: 15px; color: #333; font-weight: 700; margin-top: 4px; }
+    
+    .btn-aceitar { width: 100%; padding: 14px; background: #28a745; color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; }
+    .btn-aceitar:active { transform: scale(0.96); }
+    
+    .empty { text-align: center; padding: 60px 20px; color: #999; }
+    .loading { text-align: center; padding: 60px 20px; }
+    .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div id="statusIndicador" class="status-bar status-offline">🔴 Carregando...</div>
+
+  <div class="navbar">
+    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
+    <h1>🚚 Cargas Disponíveis</h1>
+  </div>
+
+  <div class="filtros">
+    <div style="font-size: 13px; color: #666; font-weight: 600; margin-bottom: 10px;">🔍 Filtros:</div>
+    <div class="filtros-grid">
+      <select class="filtro-input" id="filtroEstado">
+        <option value="">Todos os Estados</option>
+        <option value="PR">PR - Paraná</option>
+        <option value="SP">SP - São Paulo</option>
+        <option value="SC">SC - Santa Catarina</option>
+        <option value="RS">RS - Rio Grande do Sul</option>
+        <option value="RJ">RJ - Rio de Janeiro</option>
+      </select>
+      <input type="number" class="filtro-input" id="filtroDistancia" placeholder="Dist. máx (km)">
+    </div>
+    <button class="btn-filtrar" onclick="aplicarFiltros()">Buscar Cargas</button>
+  </div>
+
+  <div class="container">
+    <div id="cargasList">
+      <div class="loading"><div class="spinner"></div><p>Carregando cargas...</p></div>
+    </div>
+  </div>
+
+  <script src="../js/offline.js"></script>
+  <script>
+    const motorista = JSON.parse(localStorage.getItem('motorista') || '{}');
+    const token = localStorage.getItem('token');
+    
+    if (!token) window.location.href = '../index.html';
+
+    let cargasGlobal = [];
+
+    function formatarMoeda(valor) {
+      return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor || 0);
+    }
+
+    function formatarData(data) {
+      if (!data) return '-';
+      return new Date(data).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+
+    async function aplicarFiltros() {
+      const estado = document.getElementById('filtroEstado').value;
+      const distancia = document.getElementById('filtroDistancia').value;
+
+      let url = '/api/motorista/cargas-disponiveis?';
+      if (estado) url += `estado=${estado}&`;
+      if (distancia) url += `distanciaMax=${distancia}&`;
+
+      try {
+        if (window.OfflineDB.isOnline()) {
+          const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+
+          if (response.ok) {
+            const cargas = await response.json();
+            cargasGlobal = cargas;
+            await window.OfflineDB.salvarCache('cargas', cargas);
+            renderizar(cargas);
+            return;
+          }
+        }
+
+        const cargas = await window.OfflineDB.buscarCache('cargas');
+        cargasGlobal = cargas || [];
+        renderizar(cargas);
+        if (!window.OfflineDB.isOnline()) alert('📴 Offline - Mostrando dados salvos');
+      } catch (err) {
+        console.error('Erro:', err);
+        const cargas = await window.OfflineDB.buscarCache('cargas');
+        renderizar(cargas || []);
+      }
+    }
+
+    function renderizar(cargas) {
+      const lista = document.getElementById('cargasList');
+      
+      if (!cargas || cargas.length === 0) {
+        lista.innerHTML = '<div class="empty">📭 Nenhuma carga disponível no momento</div>';
+        return;
+      }
+
+      lista.innerHTML = cargas.map(c => {
+        const origem = c.ORIGEM_CIDADE && c.ORIGEM_ESTADO 
+          ? `${c.ORIGEM_CIDADE} - ${c.ORIGEM_ESTADO}` 
+          : (c.DSROTEIRO ? c.DSROTEIRO.split(' → ')[0] : 'Não informado');
+        
+        const destino = c.DESTINO_CIDADE && c.DESTINO_ESTADO 
+          ? `${c.DESTINO_CIDADE} - ${c.DESTINO_ESTADO}` 
+          : (c.DSROTEIRO ? c.DSROTEIRO.split(' → ')[1] || 'Não informado' : 'Não informado');
+
+        return `
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">🚚 Viagem #${c.IDVIAGEM}</div>
+              <div class="card-subtitle">💰 ${formatarMoeda(c.VLFRETE)} • 📏 ${(c.DISTANCIAKM || 0).toLocaleString('pt-BR')} km</div>
+            </div>
+
+            <div class="card-body">
+              <div class="route-section">
+                <div class="route-item">
+                  <div class="route-icon origem">📍</div>
+                  <div>
+                    <div class="route-label">Origem</div>
+                    <div class="route-cidade">${origem}</div>
+                  </div>
+                </div>
+
+                <div class="route-item">
+                  <div class="route-icon destino">🎯</div>
+                  <div>
+                    <div class="route-label">Destino</div>
+                    <div class="route-cidade">${destino}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="info-grid">
+                <div class="info-item">
+                  <div class="info-icon">📏</div>
+                  <div class="info-label">Distância</div>
+                  <div class="info-value">${(c.DISTANCIAKM || 0).toLocaleString('pt-BR')} km</div>
+                </div>
+
+                <div class="info-item">
+                  <div class="info-icon">💰</div>
+                  <div class="info-label">Frete</div>
+                  <div class="info-value">${formatarMoeda(c.VLFRETE)}</div>
+                </div>
+
+                <div class="info-item">
+                  <div class="info-icon">📦</div>
+                  <div class="info-label">Peso</div>
+                  <div class="info-value">${(c.PESO || 0).toLocaleString('pt-BR', {maximumFractionDigits: 0})} kg</div>
+                </div>
+
+                <div class="info-item">
+                  <div class="info-icon">📅</div>
+                  <div class="info-label">Início</div>
+                  <div class="info-value">${formatarData(c.DTPREVINICIO)}</div>
+                </div>
+              </div>
+
+              ${c.OBSERV ? `
+                <div style="margin: 14px 0; padding: 12px; background: #fffbea; border-left: 4px solid #ffc107; border-radius: 8px;">
+                  <div style="font-size: 11px; color: #856404; font-weight: 600; text-transform: uppercase; margin-bottom: 4px;">Observações</div>
+                  <div style="font-size: 13px; color: #333;">${c.OBSERV.substring(0, 100)}${c.OBSERV.length > 100 ? '...' : ''}</div>
+                </div>
+              ` : ''}
+
+              <button class="btn-aceitar" onclick="aceitarCarga(${c.IDVIAGEM})">
+                ✓ Aceitar Esta Carga
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function aceitarCarga(idViagem) {
+      if (!confirm('Deseja aceitar esta carga?')) return;
+
+      let latitude = null, longitude = null;
+
+      const dados = { idmotorista: motorista.id, latitude, longitude };
+
+      try {
+        if (window.OfflineDB.isOnline()) {
+          const response = await fetch(`/api/motorista/aceitar-carga/${idViagem}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(dados)
+          });
+
+          if (response.ok) {
+            alert('✅ Carga aceita!\n\nAcesse "Minhas Convocações" para ver detalhes.');
+            aplicarFiltros();
+          } else {
+            alert('Erro ao aceitar carga');
+          }
+        } else {
+          await window.OfflineDB.adicionarFila('filaAcoes', {
+            tipo: 'aceitar-carga',
+            url: `/api/motorista/aceitar-carga/${idViagem}`,
+            method: 'POST',
+            data: dados
+          });
+          alert('📴 Offline - Será enviado quando online');
+        }
+      } catch (err) {
+        alert('Erro ao aceitar');
+      }
+    }
+
+    function voltar() {
+      window.location.href = 'dashboard.html';
+    }
+
+    aplicarFiltros();
+  </script>
+</body>
+</html>
+

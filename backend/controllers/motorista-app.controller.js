@@ -350,6 +350,135 @@ const motoristaAppController = {
   },
 
   // ==========================================
+  // CARGAS DISPONÍVEIS - Listar viagens abertas
+  // ==========================================
+  cargasDisponiveis: async (req, res) => {
+    try {
+      const { estado, distanciaMax, freteMin } = req.query;
+
+      const pool = await poolPromise;
+      let query = `
+        SELECT 
+          v.IDVIAGEM,
+          v.DTPREVINICIO,
+          v.DTPREVFINAL,
+          v.VLFRETE,
+          v.PESO,
+          v.CUBAGEM,
+          v.DISTANCIAKM,
+          v.OBSERV,
+          v.CDSITUACAOVIAGEM,
+          sv.DSSITUACAOVIAGEM,
+          v.CDTIPOVIAGEM,
+          tv.DSTIPOVIAGEM,
+          v.CDCLASSEFROTA,
+          cf.DSCLASSEFROTA,
+          r.DSROTEIRO,
+          co.NMCIDADE AS ORIGEM_CIDADE,
+          co.ESTADO AS ORIGEM_ESTADO,
+          cd.NMCIDADE AS DESTINO_CIDADE,
+          cd.ESTADO AS DESTINO_ESTADO,
+          cont.RZSOCIAL AS CONTRATADOR,
+          (SELECT COUNT(*) FROM [dbo].[CONVOCACAO] WHERE IDVIAGEM = v.IDVIAGEM) AS TOTAL_CONVOCACOES
+        FROM [dbo].[VIAGEMMESTRE] v
+        LEFT JOIN [dbo].[SITUACAOVIAGEM] sv ON v.CDSITUACAOVIAGEM = sv.CDSITUACAOVIAGEM
+        LEFT JOIN [dbo].[TIPOVIAGEM] tv ON v.CDTIPOVIAGEM = tv.CDTIPOVIAGEM
+        LEFT JOIN [dbo].[CLASSEFROTA] cf ON v.CDCLASSEFROTA = cf.CDCLASSEFROTA
+        LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
+        LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
+        LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
+        LEFT JOIN [dbo].[CADASTROGERAL] cont ON v.CDCONTRATADOR = cont.CDCADASTRO
+        WHERE v.FGSITVIAGEM = 'D'
+          AND v.FGACTIVE = 'S'
+          AND NOT EXISTS (
+            SELECT 1 FROM [dbo].[CONVOCACAO] 
+            WHERE IDVIAGEM = v.IDVIAGEM 
+            AND STATUS IN ('CONFIRMADA', 'ACEITA')
+          )
+      `;
+
+      const params = [];
+
+      if (estado) {
+        query += ` AND (co.ESTADO = @estado OR cd.ESTADO = @estado)`;
+        params.push({ name: 'estado', value: estado });
+      }
+
+      if (distanciaMax) {
+        query += ` AND v.DISTANCIAKM <= @distanciaMax`;
+        params.push({ name: 'distanciaMax', value: parseFloat(distanciaMax) });
+      }
+
+      if (freteMin) {
+        query += ` AND v.VLFRETE >= @freteMin`;
+        params.push({ name: 'freteMin', value: parseFloat(freteMin) });
+      }
+
+      query += ` ORDER BY v.DHINCLUSAO DESC`;
+
+      const request = pool.request();
+      params.forEach(p => request.input(p.name, p.value));
+
+      const result = await request.query(query);
+      res.json(result.recordset);
+    } catch (err) {
+      console.error('Erro ao listar cargas disponíveis:', err);
+      res.status(500).json({ error: 'Erro ao buscar cargas.' });
+    }
+  },
+
+  // ==========================================
+  // ACEITAR CARGA - Cria convocação
+  // ==========================================
+  aceitarCarga: async (req, res) => {
+    try {
+      const { idviagem } = req.params;
+      const { idmotorista } = req.body;
+      const { latitude, longitude } = req.body;
+
+      const pool = await poolPromise;
+
+      // Buscar dados do motorista
+      const motorista = await pool
+        .request()
+        .input('id', sql.Decimal(15, 0), parseFloat(idmotorista))
+        .query(`
+          SELECT NRCELULAR FROM CADASTROGERAL WHERE CDCADASTRO = @id
+        `);
+
+      if (motorista.recordset.length === 0) {
+        return res.status(404).json({ error: 'Motorista não encontrado.' });
+      }
+
+      const celular = motorista.recordset[0].NRCELULAR;
+
+      // Criar convocação
+      await pool
+        .request()
+        .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
+        .input('cdcadastro', sql.Decimal(15, 0), parseFloat(idmotorista))
+        .input('celular', sql.Decimal(15, 0), celular)
+        .input('latitude', sql.Float, latitude || null)
+        .input('longitude', sql.Float, longitude || null)
+        .query(`
+          INSERT INTO [dbo].[CONVOCACAO] (
+            IDVIAGEM, CDCADASTRO_MOTORISTA, STATUS, DHCONVOCACAO, 
+            NRCELULAR, TXTCONVOCACAO, LATITUDE, LONGITUDE, SGUSUARIO_OPERADOR
+          )
+          VALUES (
+            @idviagem, @cdcadastro, 'ACEITA', GETDATE(),
+            @celular, 'Carga aceita pelo motorista via APP', @latitude, @longitude, 'APP_MOTORISTA'
+          )
+        `);
+
+      res.json({ success: true, message: 'Carga aceita com sucesso!' });
+    } catch (err) {
+      console.error('Erro ao aceitar carga:', err);
+      res.status(500).json({ error: 'Erro ao aceitar carga.' });
+    }
+  },
+
+  // ==========================================
   // EVENTO - Registrar evento (parada, etc)
   // ==========================================
   registrarEvento: async (req, res) => {

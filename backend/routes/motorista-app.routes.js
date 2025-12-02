@@ -30,6 +30,10 @@ router.get('/convocacoes/:idmotorista', motoristaAppController.minhasConvocacoes
 router.post('/aceitar-convocacao/:id', motoristaAppController.aceitarConvocacao);
 router.post('/recusar-convocacao/:id', motoristaAppController.recusarConvocacao);
 
+// Cargas Disponíveis
+router.get('/cargas-disponiveis', motoristaAppController.cargasDisponiveis);
+router.post('/aceitar-carga/:idviagem', motoristaAppController.aceitarCarga);
+
 // GPS
 router.post('/gps', motoristaAppController.registrarGPS);
 
