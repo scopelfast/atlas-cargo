@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eventos e Fotos - Motorista</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f0f2f5; font-family: -apple-system, sans-serif; }
+    
+    .navbar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
+    .btn-voltar { background: rgba(255,255,255,0.25); border: none; color: white; padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+    .navbar h1 { font-size: 18px; font-weight: 600; flex: 1; }
+    
+    .status-bar { padding: 10px 16px; text-align: center; font-size: 13px; font-weight: 600; }
+    .status-online { background: #d4edda; color: #155724; }
+    
+    .container { padding: 16px; }
+    
+    .card { background: white; border-radius: 16px; padding: 16px; margin-bottom: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+    .card-title { font-size: 16px; font-weight: 700; color: #333; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 2px solid #f0f0f0; }
+    
+    .evento-tipos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
+    .evento-btn { padding: 16px; border: 2px solid #e0e0e0; background: white; border-radius: 12px; cursor: pointer; text-align: center; transition: all 0.2s; }
+    .evento-btn:active { transform: scale(0.95); }
+    .evento-btn.ativo { border-color: #667eea; background: #f0f4ff; }
+    .evento-icon { font-size: 32px; margin-bottom: 8px; }
+    .evento-nome { font-size: 13px; font-weight: 600; color: #333; }
+    
+    .input-group { margin: 16px 0; }
+    .input-label { font-size: 13px; color: #666; font-weight: 600; margin-bottom: 8px; display: block; }
+    .input-field { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 15px; }
+    
+    .foto-container { margin: 16px 0; }
+    .btn-foto { width: 100%; padding: 16px; background: #667eea; color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    
+    .foto-preview { margin-top: 12px; max-width: 100%; border-radius: 12px; display: none; }
+    
+    .btn-salvar { width: 100%; padding: 16px; background: #28a745; color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; margin-top: 16px; }
+    .btn-salvar:active { transform: scale(0.96); }
+    
+    .historico-item { background: white; border-radius: 12px; padding: 14px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .historico-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
+    .historico-tipo { font-weight: 700; color: #667eea; }
+    .historico-hora { font-size: 12px; color: #999; }
+    .historico-desc { font-size: 14px; color: #333; margin: 8px 0; }
+    .historico-foto { max-width: 100%; border-radius: 8px; margin-top: 8px; cursor: pointer; }
+    
+    .empty { text-align: center; padding: 40px 20px; color: #999; }
+  </style>
+</head>
+<body>
+  <div id="statusIndicador" class="status-bar status-online">🟢 Online</div>
+
+  <div class="navbar">
+    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
+    <h1>📸 Eventos e Fotos</h1>
+  </div>
+
+  <div class="container">
+    <!-- REGISTRAR NOVO EVENTO -->
+    <div class="card">
+      <div class="card-title">➕ Registrar Evento</div>
+      
+      <div class="evento-tipos" id="tiposEvento">
+        <div class="evento-btn" onclick="selecionarTipo('P')">
+          <div class="evento-icon">⏸️</div>
+          <div class="evento-nome">Parada</div>
+        </div>
+        <div class="evento-btn" onclick="selecionarTipo('A')">
+          <div class="evento-icon">⛽</div>
+          <div class="evento-nome">Abastecimento</div>
+        </div>
+        <div class="evento-btn" onclick="selecionarTipo('R')">
+          <div class="evento-icon">🍽️</div>
+          <div class="evento-nome">Refeição</div>
+        </div>
+        <div class="evento-btn" onclick="selecionarTipo('M')">
+          <div class="evento-icon">🔧</div>
+          <div class="evento-nome">Mecânico</div>
+        </div>
+        <div class="evento-btn" onclick="selecionarTipo('I')">
+          <div class="evento-icon">⚠️</div>
+          <div class="evento-nome">Imprevisto</div>
+        </div>
+        <div class="evento-btn" onclick="selecionarTipo('C')">
+          <div class="evento-icon">📦</div>
+          <div class="evento-nome">Coleta</div>
+        </div>
+        <div class="evento-btn" onclick="selecionarTipo('E')">
+          <div class="evento-icon">✅</div>
+          <div class="evento-nome">Entrega</div>
+        </div>
+      </div>
+
+      <div class="input-group">
+        <label class="input-label">Descrição (opcional)</label>
+        <textarea id="descricaoEvento" class="input-field" rows="3" placeholder="Descreva o que aconteceu..."></textarea>
+      </div>
+
+      <div class="foto-container">
+        <input type="file" id="inputFoto" accept="image/*" capture="environment" style="display: none;" onchange="previewFoto()">
+        <button class="btn-foto" onclick="document.getElementById('inputFoto').click()">
+          📷 Tirar Foto
+        </button>
+        <img id="fotoPreview" class="foto-preview">
+      </div>
+
+      <button class="btn-salvar" onclick="salvarEvento()">💾 Salvar Evento</button>
+    </div>
+
+    <!-- HISTÓRICO DE EVENTOS -->
+    <div class="card">
+      <div class="card-title">📋 Histórico de Eventos</div>
+      <div id="historicoEventos">
+        <div class="empty">Nenhum evento registrado</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/offline.js"></script>
+  <script>
+    const motorista = JSON.parse(localStorage.getItem('motorista') || '{}');
+    const token = localStorage.getItem('token');
+    if (!token) window.location.href = '../index.html';
+
+    let tipoSelecionado = null;
+    let fotoAtual = null;
+    let historico = [];
+    const idViagem = 82250; // TODO: Pegar da viagem atual
+
+    function selecionarTipo(tipo) {
+      tipoSelecionado = tipo;
+      document.querySelectorAll('.evento-btn').forEach(btn => btn.classList.remove('ativo'));
+      event.target.closest('.evento-btn').classList.add('ativo');
+    }
+
+    function previewFoto() {
+      const file = document.getElementById('inputFoto').files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        fotoAtual = e.target.result;
+        const preview = document.getElementById('fotoPreview');
+        preview.src = fotoAtual;
+        preview.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function salvarEvento() {
+      if (!tipoSelecionado) {
+        alert('Selecione o tipo de evento!');
+        return;
+      }
+
+      const descricao = document.getElementById('descricaoEvento').value.trim();
+
+      const evento = {
+        idviagem: idViagem,
+        idmotorista: motorista.id,
+        tipo: tipoSelecionado,
+        descricao: descricao || null,
+        foto: fotoAtual,
+        timestamp: new Date().toISOString()
+      };
+
+      try {
+        if (window.OfflineDB.isOnline()) {
+          const response = await fetch('/api/motorista/evento', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(evento)
+          });
+
+          if (response.ok) {
+            alert('✅ Evento registrado!');
+            adicionarHistorico(evento, true);
+            limparFormulario();
+          } else {
+            await window.OfflineDB.adicionarFila('filaEventos', evento);
+            alert('⚠️ Erro ao enviar - Salvo na fila offline');
+            adicionarHistorico(evento, false);
+            limparFormulario();
+          }
+        } else {
+          await window.OfflineDB.adicionarFila('filaEventos', evento);
+          alert('📴 Offline - Evento salvo, será enviado quando online');
+          adicionarHistorico(evento, false);
+          limparFormulario();
+        }
+      } catch (err) {
+        console.error('Erro:', err);
+        alert('Erro ao salvar evento');
+      }
+    }
+
+    function adicionarHistorico(evento, enviado) {
+      const tipoNomes = {
+        'P': 'Parada', 'A': 'Abastecimento', 'R': 'Refeição',
+        'M': 'Mecânico', 'I': 'Imprevisto', 'C': 'Coleta', 'E': 'Entrega'
+      };
+
+      historico.unshift({
+        tipo: tipoNomes[evento.tipo],
+        descricao: evento.descricao,
+        foto: evento.foto,
+        hora: new Date(evento.timestamp).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'}),
+        enviado
+      });
+
+      renderizarHistorico();
+      localStorage.setItem('eventos_historico', JSON.stringify(historico));
+    }
+
+    function renderizarHistorico() {
+      const container = document.getElementById('historicoEventos');
+      
+      if (historico.length === 0) {
+        container.innerHTML = '<div class="empty">Nenhum evento registrado</div>';
+        return;
+      }
+
+      container.innerHTML = historico.map(h => `
+        <div class="historico-item">
+          <div class="historico-header">
+            <span class="historico-tipo">${h.tipo}</span>
+            <span class="historico-hora">${h.hora} ${h.enviado ? '✅' : '⏳'}</span>
+          </div>
+          ${h.descricao ? `<div class="historico-desc">${h.descricao}</div>` : ''}
+          ${h.foto ? `<img src="${h.foto}" class="historico-foto" onclick="abrirFoto(this.src)">` : ''}
+        </div>
+      `).join('');
+    }
+
+    function abrirFoto(src) {
+      window.open(src, '_blank');
+    }
+
+    function limparFormulario() {
+      tipoSelecionado = null;
+      document.querySelectorAll('.evento-btn').forEach(btn => btn.classList.remove('ativo'));
+      document.getElementById('descricaoEvento').value = '';
+      document.getElementById('inputFoto').value = '';
+      document.getElementById('fotoPreview').style.display = 'none';
+      fotoAtual = null;
+    }
+
+    function voltar() {
+      window.location.href = 'dashboard.html';
+    }
+
+    // Carregar histórico salvo
+    const salvo = localStorage.getItem('eventos_historico');
+    if (salvo) {
+      historico = JSON.parse(salvo);
+      renderizarHistorico();
+    }
+  </script>
+</body>
+</html>
+
