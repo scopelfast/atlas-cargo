@@ -287,13 +287,26 @@
     // CAPTURAR E ENVIAR POSIÇÃO
     async function capturarPosicao() {
       try {
+        console.log('📍 Capturando GPS...');
+        
+        // Verificar se GPS está disponível
+        if (!navigator.geolocation) {
+          throw new Error('GPS não disponível neste dispositivo');
+        }
+
         const pos = await new Promise((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(
             resolve,
             reject,
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+            { 
+              enableHighAccuracy: true, 
+              timeout: 15000,  // 15 segundos
+              maximumAge: 0 
+            }
           );
         });
+
+        console.log('✅ GPS capturado:', pos.coords.latitude, pos.coords.longitude);
 
         const dados = {
           idviagem: idViagem,
@@ -301,49 +314,86 @@
           latitude: pos.coords.latitude,
           longitude: pos.coords.longitude,
           velocidade: pos.coords.speed || 0,
-          precisao: pos.coords.accuracy,
+          precisao: Math.round(pos.coords.accuracy),
           bateria: await getBateria()
         };
+
+        console.log('📦 Dados GPS:', dados);
 
         // Adicionar ao histórico local
         adicionarHistorico({
           hora: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          lat: pos.coords.latitude.toFixed(6),
+          lng: pos.coords.longitude.toFixed(6),
           enviado: false
         });
 
         // Tentar enviar
         if (window.OfflineDB.isOnline()) {
-          const response = await fetch('/api/motorista/gps', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(dados)
-          });
+          console.log('🌐 Enviando para servidor...');
+          
+          try {
+            const response = await fetch('/api/motorista/gps', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify(dados)
+            });
 
-          if (response.ok) {
-            console.log('✅ GPS enviado');
-            atualizarUltimoHistorico(true);
-            document.getElementById('gpsDetalhe').textContent = 
-              `Última posição: ${new Date().toLocaleTimeString('pt-BR')}`;
-          } else {
-            // Erro ao enviar - adicionar à fila
+            const resultado = await response.json();
+            console.log('📡 Resposta servidor:', resultado);
+
+            if (response.ok) {
+              console.log('✅ GPS enviado com sucesso!');
+              atualizarUltimoHistorico(true);
+              document.getElementById('gpsDetalhe').textContent = 
+                `✅ Última posição: ${new Date().toLocaleTimeString('pt-BR')}`;
+            } else {
+              console.error('❌ Erro do servidor:', resultado);
+              // Erro ao enviar - adicionar à fila
+              await window.OfflineDB.adicionarFila('filaGPS', dados);
+              console.log('⏳ GPS adicionado à fila (erro servidor)');
+              atualizarUltimoHistorico(false);
+            }
+          } catch (fetchErr) {
+            console.error('❌ Erro na requisição:', fetchErr);
+            // Erro de rede - adicionar à fila
             await window.OfflineDB.adicionarFila('filaGPS', dados);
-            console.log('⏳ GPS adicionado à fila');
+            atualizarUltimoHistorico(false);
           }
         } else {
           // Offline - adicionar à fila
+          console.log('📴 Offline - adicionando à fila');
           await window.OfflineDB.adicionarFila('filaGPS', dados);
-          console.log('📴 Offline - GPS na fila');
           document.getElementById('gpsDetalhe').textContent = 
-            `Offline - Posição será enviada quando conectar`;
+            `📴 Offline - Posição será enviada quando conectar`;
+          atualizarUltimoHistorico(false);
         }
 
         await window.OfflineDB.atualizarIndicador();
       } catch (err) {
-        console.error('Erro ao capturar GPS:', err);
-        alert('❌ Erro ao capturar localização');
+        console.error('❌ ERRO GPS:', err);
+        
+        let mensagemErro = 'Erro ao capturar localização';
+        
+        if (err.code === 1) {
+          mensagemErro = '❌ Permissão GPS negada!\n\nPor favor, habilite a localização nas configurações do navegador.';
+        } else if (err.code === 2) {
+          mensagemErro = '❌ GPS indisponível!\n\nVerifique se o GPS do celular está ativado.';
+        } else if (err.code === 3) {
+          mensagemErro = '⏱️ Timeout ao capturar GPS!\n\nTentando novamente...';
+        } else if (err.message) {
+          mensagemErro = `❌ ${err.message}`;
+        }
+        
+        alert(mensagemErro);
+        
+        // Se estava rastreando, pausar
+        if (rastreando) {
+          pausarRastreamento();
+        }
       }
     }
 
@@ -446,6 +496,22 @@
       historico.unshift(item);
       if (historico.length > 10) historico.pop();
       renderizarHistorico();
+      
+      // Salvar no localStorage
+      localStorage.setItem('gps_historico', JSON.stringify(historico));
+    }
+    
+    // Carregar histórico salvo
+    function carregarHistorico() {
+      try {
+        const salvo = localStorage.getItem('gps_historico');
+        if (salvo) {
+          historico = JSON.parse(salvo);
+          renderizarHistorico();
+        }
+      } catch (err) {
+        console.error('Erro ao carregar histórico:', err);
+      }
     }
 
     function atualizarUltimoHistorico(enviado) {
@@ -465,7 +531,10 @@
 
       lista.innerHTML = historico.map(h => `
         <div class="historico-item">
-          <span class="historico-hora">📍 ${h.hora}</span>
+          <div>
+            <div class="historico-hora">📍 ${h.hora}</div>
+            ${h.lat ? `<div style="font-size: 11px; color: #999; margin-top: 2px;">${h.lat}, ${h.lng}</div>` : ''}
+          </div>
           <span class="historico-status ${h.enviado ? 'enviado' : 'aguardando'}">
             ${h.enviado ? '✅ Enviado' : '⏳ Aguardando'}
           </span>
@@ -490,12 +559,20 @@
     document.getElementById('infoDestino').textContent = 'Itapevi - SP';
     document.getElementById('infoDistancia').textContent = '34 km';
 
+    // Carregar histórico salvo
+    carregarHistorico();
+
     // AUTO-SINCRONIZAR
     setInterval(() => {
       if (window.OfflineDB && window.OfflineDB.isOnline()) {
         window.OfflineDB.sincronizarTudo();
       }
     }, 30000);
+    
+    // Log para debug
+    console.log('📱 Página GPS carregada');
+    console.log('👤 Motorista:', motorista);
+    console.log('🔑 Token:', token ? 'Presente' : 'Ausente');
   </script>
 </body>
 </html>
