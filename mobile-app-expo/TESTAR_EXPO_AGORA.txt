@@ -1,0 +1,108 @@
+╔════════════════════════════════════════════════════════════════════════╗
+║                                                                        ║
+║     📱 EXPO - TESTAR EM 3 PASSOS! (SEM ANDROID STUDIO!) 🚀           ║
+║                                                                        ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  PASSO 1: INSTALAR "EXPO GO" NO CELULAR                              ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+    ┌──────────────────────────┐
+    │  📱 Seu Celular          │
+    ├──────────────────────────┤
+    │                          │
+    │  📲 Google Play Store    │
+    │                          │
+    │  🔍 Procurar: "Expo Go"  │
+    │                          │
+    │  [ 💾 INSTALAR ]         │
+    │                          │
+    └──────────────────────────┘
+
+    ✅ Instalar o app "Expo Go"
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  PASSO 2: INSTALAR E INICIAR                                         ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+    Abrir PowerShell e executar:
+
+    cd C:\Users\cleverson.scopel\Documents\GitHub\SysScopel\mobile-app-expo
+    
+    npm install
+    
+    npx expo start
+
+    ⏱️  Vai aparecer um QR CODE na tela!
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  PASSO 3: ESCANEAR QR CODE                                           ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+    ┌──────────────────────────┐        ┌──────────────────────────┐
+    │  💻 PowerShell           │        │  📱 Expo Go              │
+    ├──────────────────────────┤        ├──────────────────────────┤
+    │                          │        │                          │
+    │  Metro waiting...        │        │  [ Scan QR Code ]        │
+    │                          │        │                          │
+    │  ┌────────────────┐      │   →    │     📷                   │
+    │  │  ████  ██  ██  │      │        │    (camera)              │
+    │  │  ██  ████  ██  │      │        │                          │
+    │  │  ██  ██  ████  │      │        │  Apontando para          │
+    │  └────────────────┘      │        │  o QR Code...            │
+    │   👆 QR CODE AQUI        │        │                          │
+    │                          │        └──────────────────────────┘
+    └──────────────────────────┘
+
+    1. No celular, abrir "Expo Go"
+    2. Tocar em "Scan QR Code"
+    3. Apontar câmera para o QR Code no PC
+    4. PRONTO! APP abre automaticamente! 🎉
+
+
+═══════════════════════════════════════════════════════════════════════
+
+                    ✅ É SÓ ISSO!
+
+    NÃO PRECISA de Android Studio
+    NÃO PRECISA configurar nada
+    NÃO PRECISA cabo USB
+    
+    Apenas escanear e usar! 📱✨
+
+═══════════════════════════════════════════════════════════════════════
+
+
+╔════════════════════════════════════════════════════════════════════════╗
+║                                                                        ║
+║                    🎯 COMANDOS RESUMIDOS                              ║
+║                                                                        ║
+║  cd mobile-app-expo                                                    ║
+║  npm install                                                           ║
+║  npx expo start                                                        ║
+║  → Escanear QR Code no celular                                        ║
+║                                                                        ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+
+╔════════════════════════════════════════════════════════════════════════╗
+║                                                                        ║
+║                    ⚠️  LEMBRAR                                        ║
+║                                                                        ║
+║  ✅ Backend rodando: http://192.168.1.173:3000                        ║
+║  ✅ Celular e PC na MESMA rede WiFi                                   ║
+║  ✅ App "Expo Go" instalado no celular                                ║
+║                                                                        ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+
+                    🎉 MUITO MAIS FÁCIL! 🎉
+
+                Teste agora e veja o APP funcionando!
+
+═══════════════════════════════════════════════════════════════════════
+
