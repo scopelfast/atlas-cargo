@@ -25,6 +25,29 @@
   let gridTab = null;
   let lastViagens = null;
 
+  // ====================================
+  // CONFIGURAÇÕES DE MAPA E ROTEAMENTO
+  // ====================================
+  const MAP_CONFIG = {
+    // Servidor de tiles do mapa
+    tileServer: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    // Alternativas:
+    // 'https://tile.openstreetmap.de/{z}/{x}/{y}.png'
+    // 'https://tiles.wmflabs.org/osm/{z}/{x}/{y}.png'
+    
+    // Servidor de roteamento OSRM
+    osrmServer: 'https://router.project-osrm.org/route/v1/driving',
+    // Alternativa: 'https://routing.openstreetmap.de/routed-car/route/v1/driving'
+    
+    // Timeout para requisições de rota (ms)
+    routeTimeout: 15000,
+    
+    // Atribuição
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    
+    maxZoom: 19
+  };
+
   // Função para carregar o Leaflet dinamicamente
   async function carregarLeaflet() {
     // Se já está carregado, retornar
@@ -587,6 +610,19 @@
             if (typeof window.atualizarExibicaoLogsMeta === 'function') {
               window.atualizarExibicaoLogsMeta();
             }
+          }
+        }, 100);
+      }
+
+      // Se for a aba Histórico, inicializar
+      if (tabId === 'historico') {
+        setTimeout(async () => {
+          inicializarAbaHistorico();
+          
+          // Se houver um roteiro selecionado, carregar automaticamente
+          const selectRoteiro = document.getElementById('viagemRoteiro');
+          if (selectRoteiro && selectRoteiro.value && selectRoteiro.value !== '') {
+            await carregarHistoricoRoteiro();
           }
         }, 100);
       }
@@ -2078,8 +2114,9 @@
   async function calcularDistanciaOSRM(coords) {
     try {
       const coordsStr = coords.map(c => `${c.lon},${c.lat}`).join(';');
-      const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full`;
-      const response = await fetch(osrmUrl);
+      const config = window.MAP_CONFIG || {};
+      const osrmUrl = `${config.osrmServer || 'https://router.project-osrm.org/route/v1/driving'}/${coordsStr}?overview=full`;
+      const response = await fetch(osrmUrl, { signal: AbortSignal.timeout(config.routeTimeout || 15000) });
       const data = await response.json();
       
       if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
@@ -2336,9 +2373,14 @@
       }).setView([-14.2350, -51.9253], 4);
 
       // Adicionar camada de tiles do OpenStreetMap
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
+      const tileConfig = window.getTileLayerConfig ? window.getTileLayerConfig() : {
+        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        attribution: '© OpenStreetMap',
         maxZoom: 19
+      };
+      L.tileLayer(tileConfig.url, {
+        attribution: tileConfig.attribution,
+        maxZoom: tileConfig.maxZoom
       }).addTo(mapa);
       
       // Aguardar o mapa carregar completamente
@@ -2580,9 +2622,10 @@
               // Desenhar rota usando OSRM com todos os pontos
               try {
                 const coordsStr = latlngs.map(c => `${c[1]},${c[0]}`).join(';');
-                const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`;
+                const config = window.MAP_CONFIG || {};
+                const osrmUrl = `${config.osrmServer || 'https://router.project-osrm.org/route/v1/driving'}/${coordsStr}?overview=full&geometries=geojson`;
                 
-                const response = await fetch(osrmUrl);
+                const response = await fetch(osrmUrl, { signal: AbortSignal.timeout(config.routeTimeout || 15000) });
                 const data = await response.json();
                 
                 if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
@@ -3024,6 +3067,14 @@
           valorA = (a.CLASSE_FROTA_NOME || '').toLowerCase();
           valorB = (b.CLASSE_FROTA_NOME || '').toLowerCase();
           break;
+        case 'viagens':
+          valorA = parseInt(a.QTVIAGENS) || 0;
+          valorB = parseInt(b.QTVIAGENS) || 0;
+          break;
+        case 'rota':
+          valorA = parseInt(a.QTVIAGENS_NESTA_ROTA) || 0;
+          valorB = parseInt(b.QTVIAGENS_NESTA_ROTA) || 0;
+          break;
         default:
           return 0;
       }
@@ -3109,6 +3160,20 @@
                 onmouseout="this.style.background='#f5f5f5'">
               Classe Frota ${getSortIcon('classe')}
             </th>
+            <th style="padding: 12px; text-align: center; cursor: pointer; user-select: none; width: 80px;" 
+                onclick="ordenarMotoristasCompatíveis('viagens')" 
+                onmouseover="this.style.background='#e8e8e8'" 
+                onmouseout="this.style.background='#f5f5f5'"
+                title="Quantidade total de viagens que o motorista já fez">
+              🚛 Total ${getSortIcon('viagens')}
+            </th>
+            <th style="padding: 12px; text-align: center; cursor: pointer; user-select: none; width: 80px;" 
+                onclick="ordenarMotoristasCompatíveis('rota')" 
+                onmouseover="this.style.background='#e8e8e8'" 
+                onmouseout="this.style.background='#f5f5f5'"
+                title="Quantas vezes o motorista já fez ESTA ROTA específica">
+              ⭐ Rota ${getSortIcon('rota')}
+            </th>
             <th style="padding: 12px; text-align: left; width: 120px;">Ações</th>
           </tr>
         </thead>
@@ -3168,6 +3233,19 @@
           </td>
           <td style="padding: 12px;">
             ${motorista.CLASSE_FROTA_NOME || 'N/A'}
+          </td>
+          <td style="padding: 12px; text-align: center;">
+            <span style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 14px;">
+              ${motorista.QTVIAGENS || 0}
+            </span>
+          </td>
+          <td style="padding: 12px; text-align: center;">
+            ${motorista.QTVIAGENS_NESTA_ROTA > 0 
+              ? `<span style="display: inline-block; background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); color: white; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 14px; box-shadow: 0 2px 8px rgba(255,215,0,0.4);" title="Motorista experiente nesta rota!">
+                  ⭐ ${motorista.QTVIAGENS_NESTA_ROTA}
+                </span>` 
+              : `<span style="color: #999; font-size: 18px;" title="Nunca fez esta rota">-</span>`
+            }
           </td>
           <td style="padding: 12px;">
             ${temWhatsApp ? `
@@ -6429,10 +6507,15 @@
       // Aguardar o mapa inicializar
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      // Adicionar tile layer
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
+      // Adicionar tile layer  
+      const tileConfig = window.getTileLayerConfig ? window.getTileLayerConfig() : {
+        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        attribution: '© OpenStreetMap',
         maxZoom: 19
+      };
+      L.tileLayer(tileConfig.url, {
+        attribution: tileConfig.attribution,
+        maxZoom: tileConfig.maxZoom
       }).addTo(mapaMotorista);
 
       // Criar ícones personalizados
@@ -6484,8 +6567,9 @@
 
         // Calcular e desenhar rota usando OSRM
         try {
-          const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${lonMotorista},${latMotorista};${origemLon},${origemLat}?overview=full&geometries=geojson`;
-          const rotaResponse = await fetch(osrmUrl);
+          const config = window.MAP_CONFIG || {};
+          const osrmUrl = `${config.osrmServer || 'https://router.project-osrm.org/route/v1/driving'}/${lonMotorista},${latMotorista};${origemLon},${origemLat}?overview=full&geometries=geojson`;
+          const rotaResponse = await fetch(osrmUrl, { signal: AbortSignal.timeout(config.routeTimeout || 15000) });
           const rotaData = await rotaResponse.json();
 
           if (rotaData.code === 'Ok' && rotaData.routes && rotaData.routes.length > 0) {
@@ -8010,5 +8094,244 @@
   window.buscarMotoristaPorCpf = buscarMotoristaPorCpf;
   window.buscarMotoristaPorNome = buscarMotoristaPorNome;
   window.buscarMotoristaPorCodigo = buscarMotoristaPorCodigo;
+
+  // =======================
+  // ABA HISTÓRICO
+  // =======================
+  
+  let historicoCarregado = false;
+  let historicoViagens = [];
+  
+  // Inicializar aba Histórico
+  function inicializarAbaHistorico() {
+    const btnVoltarHistorico = document.getElementById('btnVoltarHistorico');
+    const btnCarregarHistorico = document.getElementById('btnCarregarHistorico');
+    
+    if (btnVoltarHistorico && !btnVoltarHistorico.dataset.listenerAdded) {
+      btnVoltarHistorico.dataset.listenerAdded = 'true';
+      btnVoltarHistorico.addEventListener('click', () => {
+        showTab('filtros');
+      });
+    }
+    
+    if (btnCarregarHistorico && !btnCarregarHistorico.dataset.listenerAdded) {
+      btnCarregarHistorico.dataset.listenerAdded = 'true';
+      btnCarregarHistorico.addEventListener('click', carregarHistoricoRoteiro);
+    }
+  }
+  
+  // Carregar histórico do roteiro
+  async function carregarHistoricoRoteiro() {
+    try {
+      // Pegar o ID do roteiro da aba Dados
+      const selectRoteiro = document.getElementById('viagemRoteiro');
+      const idRoteiro = selectRoteiro?.value;
+      
+      if (!idRoteiro || idRoteiro === '') {
+        showMessage('Por favor, selecione um roteiro na aba Dados primeiro.', 'error');
+        return;
+      }
+      
+      // Pegar o nome do roteiro para exibir
+      const nomeRoteiro = selectRoteiro?.selectedOptions[0]?.text || 'Roteiro';
+      console.log('[HISTÓRICO] Carregando histórico do roteiro:', idRoteiro, nomeRoteiro);
+      
+      showMessage('Carregando histórico...', 'info');
+      
+      const response = await fetch(`/api/viagens/historico-roteiro?idRoteiro=${idRoteiro}`);
+      
+      if (!response.ok) {
+        throw new Error('Erro ao carregar histórico');
+      }
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        historicoViagens = data.viagens || [];
+        historicoCarregado = true;
+        
+        // Atualizar título com nome do roteiro
+        const tituloHistorico = document.querySelector('#tab-historico h2');
+        if (tituloHistorico) {
+          tituloHistorico.innerHTML = `Histórico de Viagens do Roteiro <span style="color: #667eea;">${nomeRoteiro}</span>`;
+        }
+        
+        // Atualizar contador
+        const countDiv = document.getElementById('historicoCount');
+        const countText = document.getElementById('historicoCountText');
+        if (countDiv && countText) {
+          countText.textContent = `${data.totalRegistros || 0} viagem(ns) encontrada(s) no roteiro ${nomeRoteiro}`;
+          countDiv.style.display = 'block';
+        }
+        
+        // Renderizar resumo
+        renderizarResumoHistorico(data.resumo || []);
+        
+        // Renderizar viagens
+        renderizarHistoricoViagens(historicoViagens);
+        
+        // Mostrar legenda
+        const legenda = document.getElementById('historicoLegenda');
+        if (legenda) {
+          legenda.style.display = historicoViagens.length > 0 ? 'block' : 'none';
+        }
+        
+        showMessage(`${data.totalRegistros || 0} viagem(ns) carregada(s) com sucesso!`, 'success');
+      } else {
+        throw new Error(data.error || 'Erro ao carregar histórico');
+      }
+    } catch (err) {
+      console.error('Erro ao carregar histórico:', err);
+      showMessage('Erro ao carregar histórico: ' + err.message, 'error');
+    }
+  }
+  
+  // Renderizar resumo por classe de frota
+  function renderizarResumoHistorico(resumo) {
+    const resumoDiv = document.getElementById('historicoResumo');
+    const resumoContent = document.getElementById('historicoResumoContent');
+    
+    if (!resumoDiv || !resumoContent) return;
+    
+    if (!resumo || resumo.length === 0) {
+      resumoDiv.style.display = 'none';
+      return;
+    }
+    
+    resumoDiv.style.display = 'block';
+    
+    let html = '';
+    resumo.forEach(item => {
+      html += `
+        <div style="background: white; padding: 15px 20px; border-radius: 8px; border: 1px solid #e9ecef; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <strong style="color: #2c3e50; font-size: 16px;">${item.classefrota}</strong>
+            <span style="background: #667eea; color: white; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600;">
+              ${item.quantidade} viagem(ns)
+            </span>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 12px;">
+            <div>
+              <div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">Valor Mínimo</div>
+              <div style="font-size: 15px; font-weight: 600; color: #27ae60;">R$ ${item.valorMinimo}</div>
+            </div>
+            <div>
+              <div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">Valor Máximo</div>
+              <div style="font-size: 15px; font-weight: 600; color: #e74c3c;">R$ ${item.valorMaximo}</div>
+            </div>
+            <div>
+              <div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">Valor Médio</div>
+              <div style="font-size: 15px; font-weight: 600; color: #3498db;">R$ ${item.valorMedio}</div>
+            </div>
+            <div>
+              <div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">Peso Total</div>
+              <div style="font-size: 15px; font-weight: 600; color: #9b59b6;">${item.pesoTotal} kg</div>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    
+    resumoContent.innerHTML = html;
+  }
+  
+  // Renderizar viagens do histórico
+  function renderizarHistoricoViagens(viagens) {
+    const grid = document.getElementById('historicoViagensGrid');
+    if (!grid) return;
+    
+    if (!viagens || viagens.length === 0) {
+      grid.innerHTML = '<p class="empty">Nenhuma viagem encontrada para este roteiro.</p>';
+      return;
+    }
+    
+    let html = '<div style="display: grid; gap: 12px;">';
+    
+    viagens.forEach(viagem => {
+      const rastreado = viagem.rastreado === 'Sim';
+      const iconRastreado = rastreado 
+        ? '<span style="color: #27ae60; font-size: 16px;" title="Rastreado">●</span>' 
+        : '<span style="color: #e74c3c; font-size: 16px;" title="Não Rastreado">●</span>';
+      
+      const dtInicio = viagem.dtPrevInicio ? new Date(viagem.dtPrevInicio).toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }) : 'Não informado';
+      
+      html += `
+        <div style="background: #ffffff; border: 1px solid #dee2e6; border-left: 4px solid #667eea; border-radius: 6px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: all 0.2s ease;" 
+             onmouseover="this.style.boxShadow='0 3px 8px rgba(0,0,0,0.12)'; this.style.borderLeftColor='#764ba2'; this.style.transform='translateX(2px)';" 
+             onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.08)'; this.style.borderLeftColor='#667eea'; this.style.transform='translateX(0)';">
+          
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 15px;">
+            <div style="display: flex; align-items: center; gap: 8px; flex: 1; flex-wrap: wrap;">
+              <h3 style="margin: 0; color: #2c3e50; font-size: 16px; font-weight: 700; white-space: nowrap;">
+                ${iconRastreado} #${viagem.idViagem}
+              </h3>
+              <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; white-space: nowrap;">
+                ${viagem.situacaoViagem || 'N/A'}
+              </span>
+              <span style="color: #6c757d; font-size: 12px;">
+                ${viagem.tipoViagem || 'N/A'} • ${viagem.classeFrota || 'N/A'}
+              </span>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 20px; font-weight: 700; color: #27ae60; white-space: nowrap;">R$ ${viagem.vlFrete}</div>
+              <div style="font-size: 11px; color: #6c757d; white-space: nowrap;">Peso: ${viagem.peso} kg</div>
+            </div>
+          </div>
+          
+          <div style="border-top: 1px solid #e9ecef; padding-top: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;">
+            <div>
+              <div style="font-size: 11px; color: #6c757d; margin-bottom: 3px; font-weight: 500;">📅 Data Prevista</div>
+              <div style="font-size: 13px; font-weight: 600; color: #2c3e50;">${dtInicio}</div>
+            </div>
+            
+            <div>
+              <div style="font-size: 11px; color: #6c757d; margin-bottom: 3px; font-weight: 500;">🏢 Contratador</div>
+              <div style="font-size: 13px; font-weight: 600; color: #2c3e50;">${viagem.contratador || 'Não informado'}</div>
+              ${viagem.celContratador ? `
+                <a href="https://wa.me/55${String(viagem.celContratador).replace(/\D/g, '')}" 
+                   target="_blank" 
+                   style="font-size: 13px; color: #25D366; margin-top: 4px; display: inline-flex; align-items: center; gap: 4px; text-decoration: none; font-weight: 600;"
+                   onmouseover="this.style.color='#20BA59'; this.style.textDecoration='underline';" 
+                   onmouseout="this.style.color='#25D366'; this.style.textDecoration='none';"
+                   title="Clique para abrir WhatsApp">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                  </svg>
+                  ${viagem.celContratador}
+                </a>
+              ` : ''}
+            </div>
+            
+            <div>
+              <div style="font-size: 11px; color: #6c757d; margin-bottom: 3px; font-weight: 500;">👤 Motorista</div>
+              <div style="font-size: 13px; font-weight: 600; color: #2c3e50;">${viagem.motorista}</div>
+              ${viagem.celMotorista ? `
+                <a href="https://wa.me/55${String(viagem.celMotorista).replace(/\D/g, '')}" 
+                   target="_blank" 
+                   style="font-size: 13px; color: #25D366; margin-top: 4px; display: inline-flex; align-items: center; gap: 4px; text-decoration: none; font-weight: 600;"
+                   onmouseover="this.style.color='#20BA59'; this.style.textDecoration='underline';" 
+                   onmouseout="this.style.color='#25D366'; this.style.textDecoration='none';"
+                   title="Clique para abrir WhatsApp">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                  </svg>
+                  ${viagem.celMotorista}
+                </a>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    });
+    
+    html += '</div>';
+    grid.innerHTML = html;
+  }
 
 })();

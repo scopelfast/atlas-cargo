@@ -1719,6 +1719,17 @@
         }
         loadClassesFrotaParaCadastro(cadastroId);
         await showTab('classes');
+      } else if (tabId === 'validades') {
+        const cadastroId = document.getElementById('cadastroId')?.value;
+        const tpCadastro = obterTipoCadastro();
+        if (!cadastroId) {
+          showMessage('Selecione um cadastro antes de gerenciar validades.', 'error');
+          return;
+        }
+        await showTab('validades');
+        setTimeout(() => {
+          inicializarAbaValidades();
+        }, 100);
       } else {
         await showTab(tabId);
       }
@@ -1898,5 +1909,471 @@
         confirmarExclusao(id);
       }
     });
+  }
+
+  // =======================
+  // ABA VALIDADES
+  // =======================
+  
+  let validadesCarregadas = false;
+  let cadastroAtualValidades = null;
+  
+  // Inicializar aba Validades
+  async function inicializarAbaValidades() {
+    const btnVoltar = document.getElementById('btnVoltarDadosValidades');
+    const btnNova = document.getElementById('btnNovaValidade');
+    const btnCancelar = document.getElementById('btnCancelarValidade');
+    const formValidade = document.getElementById('formValidade');
+    
+    if (btnVoltar && !btnVoltar.dataset.listenerAdded) {
+      btnVoltar.dataset.listenerAdded = 'true';
+      btnVoltar.addEventListener('click', () => showTab('dados'));
+    }
+    
+    if (btnNova && !btnNova.dataset.listenerAdded) {
+      btnNova.dataset.listenerAdded = 'true';
+      btnNova.addEventListener('click', abrirModalNovaValidade);
+    }
+    
+    const btnFechar = document.getElementById('btnFecharModalValidade');
+    
+    if (btnCancelar && !btnCancelar.dataset.listenerAdded) {
+      btnCancelar.dataset.listenerAdded = 'true';
+      btnCancelar.addEventListener('click', () => {
+        document.getElementById('modalValidade').style.display = 'none';
+      });
+    }
+    
+    if (btnFechar && !btnFechar.dataset.listenerAdded) {
+      btnFechar.dataset.listenerAdded = 'true';
+      btnFechar.addEventListener('click', () => {
+        document.getElementById('modalValidade').style.display = 'none';
+      });
+    }
+    
+    if (formValidade && !formValidade.dataset.listenerAdded) {
+      formValidade.dataset.listenerAdded = 'true';
+      formValidade.addEventListener('submit', salvarValidade);
+    }
+    
+    // Carregar validades do cadastro atual
+    const cdCadastro = document.getElementById('cadastroId')?.value || document.getElementById('cadastroCodigo')?.value;
+    const tpCadastro = obterTipoCadastro();
+    
+    console.log('[VALIDADES] Carregando:', { cdCadastro, tpCadastro });
+    
+    if (cdCadastro && tpCadastro) {
+      await carregarValidadesCadastro(tpCadastro, cdCadastro);
+    }
+  }
+  
+  function obterTipoCadastro() {
+    const tipoCadSelect = document.getElementById('cadastroTipoCadastro');
+    if (!tipoCadSelect) return 'MOT';
+    
+    const tipoCadastro1Char = tipoCadSelect.value || 'M';
+    
+    // Mapear código de 1 caractere para 3 caracteres
+    const mapeamento = {
+      'M': 'MOT',  // Motorista
+      'T': 'TRA',  // Transportador
+      'C': 'CLI',  // Cliente
+      'F': 'CLI',  // Fornecedor (usa CLI)
+      'O': 'CLI',  // Operador (usa CLI)
+      'A': 'CLI',  // Agente (usa CLI)
+      'G': 'CLI',  // Grupo (usa CLI)
+      'U': 'CLI'   // Unidade (usa CLI)
+    };
+    
+    return mapeamento[tipoCadastro1Char] || 'MOT';
+  }
+  
+  async function carregarValidadesCadastro(tpCadastro, cdCadastro) {
+    try {
+      // Atualizar info do cadastro
+      const nomeCadastro = document.getElementById('cadastroRazaoSocial')?.value || 'Cadastro';
+      document.getElementById('validadesNomeCadastro').textContent = nomeCadastro;
+      document.getElementById('validadesCodigoCadastro').textContent = cdCadastro;
+      const tipoNome = tpCadastro === 'MOT' ? 'Motorista' : tpCadastro === 'EQP' ? 'Equipamento' : 'Cadastro';
+      document.getElementById('validadesTipoCadastro').textContent = tipoNome;
+      document.getElementById('validadesCadastroInfo').style.display = 'block';
+      
+      // Buscar validades
+      const response = await fetch(`/api/validades/${tpCadastro}/${cdCadastro}`);
+      const validades = await response.json();
+      
+      cadastroAtualValidades = { tpCadastro, cdCadastro };
+      
+      // Atualizar contador
+      const countText = document.getElementById('validadesCountText');
+      if (countText) {
+        countText.textContent = `${validades.length} validade(s) encontrada(s)`;
+        document.getElementById('validadesCount').style.display = 'block';
+      }
+      
+      renderizarValidadesGrid(validades);
+      
+      // Carregar combos para o modal
+      await carregarCombosTiposValidade(tpCadastro);
+      await carregarCombosCertificadoras();
+      
+      validadesCarregadas = true;
+    } catch (err) {
+      console.error('Erro ao carregar validades:', err);
+      showMessage('Erro ao carregar validades', 'error');
+    }
+  }
+  
+  function renderizarValidadesGrid(validades) {
+    const grid = document.getElementById('validadesGrid');
+    if (!grid) return;
+    
+    if (!validades || validades.length === 0) {
+      grid.innerHTML = '<p class="empty">Nenhuma validade cadastrada para este cadastro.</p>';
+      return;
+    }
+    
+    let html = '<div style="display: grid; gap: 12px;">';
+    
+    validades.forEach(val => {
+      const dtLib = new Date(val.DTLIBERACAO).toLocaleDateString('pt-BR');
+      const dtVal = new Date(val.DTVALIDADE).toLocaleDateString('pt-BR');
+      const dias = val.DIAS_RESTANTES;
+      
+      let corStatus = '#27ae60';
+      let textoStatus = `✓ Válida (${dias} dias)`;
+      
+      if (val.STATUS_VALIDADE === 'VENCIDA') {
+        corStatus = '#e74c3c';
+        textoStatus = `✗ VENCIDA (${Math.abs(dias)} dias atrás)`;
+      } else if (val.STATUS_VALIDADE === 'VENCENDO') {
+        corStatus = '#f39c12';
+        textoStatus = `⚠ Vencendo (${dias} dias)`;
+      }
+      
+      html += `
+        <div style="background: #fff; border: 1px solid #dee2e6; border-left: 4px solid ${corStatus}; border-radius: 6px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); margin-bottom: 8px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div style="flex: 1;">
+              <strong style="font-size: 15px; color: #2c3e50; display: block; margin-bottom: 6px;">${val.DSTIPOVALIDADE}</strong>
+              <div style="font-size: 12px; color: #6c757d;">
+                <span style="background: ${corStatus}; color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-right: 8px;">
+                  ${textoStatus}
+                </span>
+                <span style="color: #95a5a6; font-weight: 600; font-size: 10px; margin-right: 8px;">${val.TPCADASTRO}</span>
+                <span>Nº <strong>${val.NRLIBERACAO}</strong></span>
+                ${val.CERTIFICADORA_NOME ? ` • Certif: <strong>${val.CERTIFICADORA_NOME}</strong>` : ''}
+              </div>
+            </div>
+            <div style="display: flex; gap: 6px; align-items: center;">
+              <button onclick="window.editarValidade('${val.SEQUENCIA}')" 
+                      style="background: #3498db; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;"
+                      onmouseover="this.style.background='#2980b9'" 
+                      onmouseout="this.style.background='#3498db'">
+                👁️ Ver Dados
+              </button>
+              <button onclick="window.excluirValidade('${val.SEQUENCIA}')" 
+                      style="background: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;"
+                      onmouseover="this.style.background='#c0392b'" 
+                      onmouseout="this.style.background='#e74c3c'">
+                🗑️ Remover
+              </button>
+            </div>
+          </div>
+          <div style="display: flex; gap: 20px; padding-top: 10px; border-top: 1px solid #f0f0f0; font-size: 12px;">
+            <div>
+              <span style="color: #95a5a6;">📅 Liberação:</span> <strong style="color: #2c3e50;">${dtLib}</strong>
+            </div>
+            <div>
+              <span style="color: #95a5a6;">⏰ Validade:</span> <strong style="color: ${corStatus};">${dtVal}</strong>
+            </div>
+            ${val.DSLIBERACAO ? `<div style="flex: 1;"><span style="color: #95a5a6;">📝 Obs:</span> <strong style="color: #6c757d;">${val.DSLIBERACAO}</strong></div>` : ''}
+          </div>
+        </div>
+      `;
+    });
+    
+    html += '</div>';
+    grid.innerHTML = html;
+  }
+  
+  async function carregarCombosTiposValidade(tpCadastro) {
+    try {
+      console.log('[VALIDADES] Carregando tipos para:', tpCadastro);
+      const response = await fetch(`/api/validades/tipos-combo/${tpCadastro}`);
+      
+      if (!response.ok) {
+        console.error('[VALIDADES] Erro ao buscar tipos:', response.status);
+        return;
+      }
+      
+      const tipos = await response.json();
+      console.log('[VALIDADES] Tipos carregados:', tipos);
+      
+      const select = document.getElementById('validadeTipo');
+      if (select) {
+        select.innerHTML = '<option value="">Selecione...</option>';
+        
+        if (Array.isArray(tipos)) {
+          tipos.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t.CDTIPOVALIDADE;
+            opt.textContent = t.DSTIPOVALIDADE;
+            opt.dataset.exigeCert = t.FGEXIGECERTIFICADORA;
+            select.appendChild(opt);
+          });
+          console.log('[VALIDADES] Combo tipos populado com', tipos.length, 'itens');
+        } else {
+          console.error('[VALIDADES] Tipos não é array:', tipos);
+        }
+      }
+    } catch (err) {
+      console.error('[VALIDADES] Erro ao carregar tipos:', err);
+    }
+  }
+  
+  async function carregarCombosCertificadoras() {
+    try {
+      console.log('[VALIDADES] Carregando certificadoras...');
+      const response = await fetch('/api/validades/certificadoras-combo');
+      
+      if (!response.ok) {
+        console.error('[VALIDADES] Erro ao buscar certificadoras:', response.status);
+        return;
+      }
+      
+      const certs = await response.json();
+      console.log('[VALIDADES] Certificadoras carregadas:', certs);
+      
+      const select = document.getElementById('validadeCertificadora');
+      if (select) {
+        select.innerHTML = '<option value="">Não Aplicável</option>';
+        
+        if (Array.isArray(certs)) {
+          certs.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.CDCADASTRO;
+            opt.textContent = `${c.CDCADASTRO} - ${c.RZSOCIAL}`;
+            select.appendChild(opt);
+          });
+          console.log('[VALIDADES] Combo certificadoras populado com', certs.length, 'itens');
+        } else {
+          console.error('[VALIDADES] Certificadoras não é array:', certs);
+        }
+      }
+    } catch (err) {
+      console.error('[VALIDADES] Erro ao carregar certificadoras:', err);
+    }
+  }
+  
+  function abrirModalNovaValidade() {
+    const nomeCadastro = document.getElementById('cadastroRazaoSocial')?.value || 'Cadastro';
+    document.getElementById('modalValidadeTitulo').textContent = '📋 Nova Validade';
+    document.getElementById('modalValidadeSubtitulo').textContent = `Cadastrando validade para: ${nomeCadastro}`;
+    
+    // Limpar formulário
+    document.getElementById('formValidade').reset();
+    document.getElementById('validadeSequencia').value = '';
+    
+    // Limpar certificadora
+    document.getElementById('validadeCertificadora').value = '';
+    document.getElementById('certCpfCnpj').value = '';
+    document.getElementById('certCodigo').value = '';
+    document.getElementById('certNome').value = '';
+    document.getElementById('certTexto').textContent = 'Nenhuma certificadora selecionada';
+    document.getElementById('certResultado').style.background = '#e9ecef';
+    
+    document.getElementById('modalValidade').style.display = 'block';
+  }
+  
+  window.editarValidade = async function(sequencia) {
+    if (!cadastroAtualValidades) return;
+    
+    try {
+      const { tpCadastro, cdCadastro } = cadastroAtualValidades;
+      
+      // IMPORTANTE: Carregar combos ANTES de buscar os dados
+      await carregarCombosTiposValidade(tpCadastro);
+      await carregarCombosCertificadoras();
+      
+      // Aguardar renderização dos combos
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const response = await fetch(`/api/validades/${tpCadastro}/${cdCadastro}`);
+      const validades = await response.json();
+      const val = validades.find(v => v.SEQUENCIA == sequencia);
+      
+      if (val) {
+        const nomeCadastro = document.getElementById('cadastroRazaoSocial')?.value || 'Cadastro';
+        document.getElementById('modalValidadeTitulo').textContent = '✏️ Editar Validade';
+        document.getElementById('modalValidadeSubtitulo').textContent = `${val.DSTIPOVALIDADE} • ${nomeCadastro}`;
+        document.getElementById('validadeSequencia').value = val.SEQUENCIA;
+        
+        // Preencher campos APÓS combos carregados
+        document.getElementById('validadeTipo').value = val.CDTIPOVALIDADE;
+        document.getElementById('validadeNrLiberacao').value = val.NRLIBERACAO;
+        document.getElementById('validadeDtLiberacao').value = new Date(val.DTLIBERACAO).toISOString().split('T')[0];
+        document.getElementById('validadeDtValidade').value = new Date(val.DTVALIDADE).toISOString().split('T')[0];
+        document.getElementById('validadeDsLiberacao').value = val.DSLIBERACAO || '';
+        
+        // Preencher certificadora (campo hidden + mostrar nome)
+        if (val.CDCERTIFICADORA && val.CERTIFICADORA_NOME) {
+          document.getElementById('validadeCertificadora').value = val.CDCERTIFICADORA;
+          document.getElementById('certTexto').innerHTML = `<strong style="color: #27ae60;">✓ ${val.CERTIFICADORA_NOME}</strong> (Código: ${val.CDCERTIFICADORA})`;
+          document.getElementById('certResultado').style.background = '#d4edda';
+        } else if (val.CDCERTIFICADORA) {
+          // Tem código mas não tem nome (buscar)
+          document.getElementById('validadeCertificadora').value = val.CDCERTIFICADORA;
+          document.getElementById('certTexto').innerHTML = `<strong style="color: #f39c12;">⚠ Certificadora código ${val.CDCERTIFICADORA}</strong>`;
+          document.getElementById('certResultado').style.background = '#fff3cd';
+        } else {
+          document.getElementById('validadeCertificadora').value = '';
+          document.getElementById('certTexto').textContent = 'Nenhuma certificadora selecionada';
+          document.getElementById('certResultado').style.background = '#e9ecef';
+        }
+        
+        console.log('[VALIDADES] Editando:', { 
+          tipo: val.CDTIPOVALIDADE, 
+          cert: val.CDCERTIFICADORA,
+          tipoSelectValue: document.getElementById('validadeTipo').value,
+          certSelectValue: document.getElementById('validadeCertificadora').value
+        });
+        
+        document.getElementById('modalValidade').style.display = 'block';
+      }
+    } catch (err) {
+      console.error('Erro ao editar:', err);
+      showMessage('Erro ao carregar validade', 'error');
+    }
+  };
+  
+  window.excluirValidade = function(sequencia) {
+    const modalEl = document.getElementById('confirmModal');
+    const modalMsg = document.getElementById('modalMessage');
+    
+    modalMsg.textContent = 'Deseja realmente excluir esta validade?';
+    modalEl.style.display = 'block';
+    
+    const btnYes = document.getElementById('confirmYes');
+    const newYes = btnYes.cloneNode(true);
+    btnYes.parentNode.replaceChild(newYes, btnYes);
+    
+    newYes.onclick = async () => {
+      try {
+        const { tpCadastro, cdCadastro } = cadastroAtualValidades;
+        const response = await fetch(`/api/validades/${tpCadastro}/${cdCadastro}/${sequencia}`, { method: 'DELETE' });
+        const data = await response.json();
+        
+        if (response.ok) {
+          showMessage('Validade excluída!', 'success');
+          await carregarValidadesCadastro(tpCadastro, cdCadastro);
+        } else {
+          showMessage(data.error || 'Erro ao excluir', 'error');
+        }
+      } catch (err) {
+        showMessage('Erro ao excluir', 'error');
+      } finally {
+        modalEl.style.display = 'none';
+      }
+    };
+  };
+  
+  // Funções de busca de certificadora
+  window.buscarCertPorCpf = async function() {
+    const cpf = document.getElementById('certCpfCnpj').value.replace(/\D/g, '');
+    if (!cpf) {
+      showMessage('Digite o CPF/CNPJ', 'error');
+      return;
+    }
+    await buscarCertificadora('cgccpf', cpf);
+  };
+  
+  window.buscarCertPorCodigo = async function() {
+    const codigo = document.getElementById('certCodigo').value;
+    if (!codigo) {
+      showMessage('Digite o código', 'error');
+      return;
+    }
+    await buscarCertificadora('codigo', codigo);
+  };
+  
+  window.buscarCertPorNome = async function() {
+    const nome = document.getElementById('certNome').value.trim();
+    if (!nome || nome.length < 3) {
+      showMessage('Digite pelo menos 3 caracteres do nome', 'error');
+      return;
+    }
+    await buscarCertificadora('razaoSocial', nome);
+  };
+  
+  async function buscarCertificadora(tipo, valor) {
+    try {
+      const params = new URLSearchParams();
+      params.append(tipo, valor);
+      params.append('situacao', 'S'); // Apenas ativos
+      
+      const response = await fetch(`/api/cadastros-gerais?${params.toString()}`);
+      const cadastros = await response.json();
+      
+      if (cadastros && cadastros.length > 0) {
+        const cert = cadastros[0];
+        document.getElementById('validadeCertificadora').value = cert.CDCADASTRO;
+        document.getElementById('certTexto').innerHTML = `<strong style="color: #27ae60;">✓ ${cert.RZSOCIAL}</strong> (Código: ${cert.CDCADASTRO})`;
+        document.getElementById('certResultado').style.background = '#d4edda';
+        showMessage('Certificadora encontrada!', 'success');
+      } else {
+        document.getElementById('certTexto').innerHTML = '<span style="color: #e74c3c;">✗ Nenhuma certificadora encontrada</span>';
+        document.getElementById('certResultado').style.background = '#f8d7da';
+        showMessage('Certificadora não encontrada', 'error');
+      }
+    } catch (err) {
+      console.error('Erro ao buscar certificadora:', err);
+      showMessage('Erro ao buscar certificadora', 'error');
+    }
+  }
+  
+  async function salvarValidade(e) {
+    e.preventDefault();
+    
+    if (!cadastroAtualValidades) return;
+    
+    try {
+      const { tpCadastro, cdCadastro } = cadastroAtualValidades;
+      const sequencia = document.getElementById('validadeSequencia').value;
+      
+      const dados = {
+        CDTIPOVALIDADE: document.getElementById('validadeTipo').value,
+        NRLIBERACAO: document.getElementById('validadeNrLiberacao').value,
+        DTLIBERACAO: document.getElementById('validadeDtLiberacao').value,
+        DTVALIDADE: document.getElementById('validadeDtValidade').value,
+        CDCERTIFICADORA: document.getElementById('validadeCertificadora').value || null,
+        DSLIBERACAO: document.getElementById('validadeDsLiberacao').value
+      };
+      
+      const url = sequencia 
+        ? `/api/validades/${tpCadastro}/${cdCadastro}/${sequencia}`
+        : `/api/validades/${tpCadastro}/${cdCadastro}`;
+      
+      const method = sequencia ? 'PUT' : 'POST';
+      
+      const response = await fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dados)
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        showMessage(data.message || 'Validade salva!', 'success');
+        document.getElementById('modalValidade').style.display = 'none';
+        await carregarValidadesCadastro(tpCadastro, cdCadastro);
+      } else {
+        showMessage(data.error || 'Erro ao salvar', 'error');
+      }
+    } catch (err) {
+      console.error('Erro ao salvar validade:', err);
+      showMessage('Erro ao salvar validade', 'error');
+    }
   }
 })();

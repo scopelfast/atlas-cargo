@@ -56,6 +56,7 @@
       <button class="tab-btn" data-tab="grid">Grid</button>
       <button class="tab-btn" data-tab="dados">Dados</button>
       <button class="tab-btn" data-tab="classes">Classes Frota</button>
+      <button class="tab-btn" data-tab="validades">Validades</button>
     </div>
 
     <!-- Filtros -->
@@ -343,6 +344,173 @@
             <div class="classes-grid">
               <p class="empty">Carregando classes de frota...</p>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Validades -->
+    <div class="tab-content" id="tab-validades">
+      <div class="form-box">
+        <h2>Gerenciar Validades do Cadastro</h2>
+        <div class="actions-top">
+          <button id="btnVoltarDadosValidades" class="btn cancel">← Voltar aos Dados</button>
+          <button id="btnNovaValidade" class="btn save">+ Nova Validade</button>
+        </div>
+
+        <!-- Info do Cadastro -->
+        <div id="validadesCadastroInfo" style="display: none; margin: 15px 0; padding: 15px; background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); border-radius: 8px; border: 1px solid #667eea30;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <strong style="font-size: 16px; color: #2c3e50;" id="validadesNomeCadastro">-</strong>
+              <div style="font-size: 13px; color: #6c757d; margin-top: 4px;">
+                <span id="validadesTipoCadastro">-</span> • Código: <span id="validadesCodigoCadastro">-</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contador -->
+        <div id="validadesCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500; display: none;">
+          <span id="validadesCountText">0 validade(s) encontrada(s)</span>
+        </div>
+
+        <!-- Grid de Validades -->
+        <div id="validadesGrid" style="margin-top: 20px;">
+          <p class="empty">Selecione um cadastro na aba Dados para visualizar as validades.</p>
+        </div>
+
+        <!-- Modal de Edição de Validade - Padrão Profissional -->
+        <div id="modalValidade" class="modal" style="display: none;">
+          <div class="modal-content" style="max-width: 700px; padding: 0; overflow: hidden; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+            <!-- Cabeçalho -->
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px 25px; display: flex; justify-content: space-between; align-items: center;">
+              <div>
+                <h3 id="modalValidadeTitulo" style="margin: 0; font-size: 20px; font-weight: 600;">📋 Nova Validade</h3>
+                <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;" id="modalValidadeSubtitulo">Cadastro de nova validade</p>
+              </div>
+              <button type="button" id="btnFecharModalValidade" 
+                      style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: 0.3s;"
+                      onmouseover="this.style.background='rgba(255,255,255,0.3)'"
+                      onmouseout="this.style.background='rgba(255,255,255,0.2)'">
+                ✖ Fechar
+              </button>
+            </div>
+            
+            <!-- Corpo -->
+            <form id="formValidade" style="padding: 25px; background: #f8f9fa;">
+              <input type="hidden" id="validadeSequencia">
+              <input type="hidden" id="validadeTpCadastro">
+              
+              <!-- Tipo de Validade -->
+              <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #2c3e50; font-size: 14px;">
+                  📄 Tipo de Validade *
+                </label>
+                <select id="validadeTipo" required 
+                        style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 8px; font-size: 14px; background: white; transition: 0.3s;"
+                        onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
+                        onblur="this.style.borderColor='#dee2e6'; this.style.boxShadow='none'">
+                  <option value="">Selecione o tipo...</option>
+                </select>
+              </div>
+
+              <!-- Buscar Certificadora -->
+              <div style="margin-bottom: 20px; background: white; padding: 15px; border-radius: 8px; border: 2px solid #dee2e6;">
+                <label style="display: block; margin-bottom: 12px; font-weight: 600; color: #2c3e50; font-size: 14px;">
+                  🏢 Certificadora
+                </label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                  <div>
+                    <input type="text" id="certCpfCnpj" placeholder="CPF/CNPJ" style="width: 100%; padding: 10px; border: 1px solid #dee2e6; border-radius: 6px; font-size: 13px;">
+                    <button type="button" onclick="window.buscarCertPorCpf()" 
+                            style="width: 100%; margin-top: 6px; padding: 8px; background: #3498db; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;"
+                            onmouseover="this.style.background='#2980b9'" 
+                            onmouseout="this.style.background='#3498db'">
+                      🔍 Por CPF
+                    </button>
+                  </div>
+                  <div>
+                    <input type="text" id="certCodigo" placeholder="Código" style="width: 100%; padding: 10px; border: 1px solid #dee2e6; border-radius: 6px; font-size: 13px;">
+                    <button type="button" onclick="window.buscarCertPorCodigo()" 
+                            style="width: 100%; margin-top: 6px; padding: 8px; background: #3498db; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;"
+                            onmouseover="this.style.background='#2980b9'" 
+                            onmouseout="this.style.background='#3498db'">
+                      🔍 Por Código
+                    </button>
+                  </div>
+                  <div>
+                    <input type="text" id="certNome" placeholder="Nome" style="width: 100%; padding: 10px; border: 1px solid #dee2e6; border-radius: 6px; font-size: 13px;">
+                    <button type="button" onclick="window.buscarCertPorNome()" 
+                            style="width: 100%; margin-top: 6px; padding: 8px; background: #3498db; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;"
+                            onmouseover="this.style.background='#2980b9'" 
+                            onmouseout="this.style.background='#3498db'">
+                      🔍 Por Nome
+                    </button>
+                  </div>
+                </div>
+                <input type="hidden" id="validadeCertificadora">
+                <div id="certResultado" style="padding: 10px; background: #e9ecef; border-radius: 6px; font-size: 13px; color: #6c757d; min-height: 40px; display: flex; align-items: center;">
+                  <span id="certTexto">Nenhuma certificadora selecionada</span>
+                </div>
+              </div>
+
+              <!-- Nº Liberação e Datas -->
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+                <div>
+                  <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #2c3e50; font-size: 14px;">
+                    🔖 Nº Liberação *
+                  </label>
+                  <input type="text" id="validadeNrLiberacao" required maxlength="30" 
+                         style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 8px; font-size: 14px;"
+                         onfocus="this.style.borderColor='#667eea'"
+                         onblur="this.style.borderColor='#dee2e6'">
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                  <div>
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #2c3e50; font-size: 14px;">
+                      📅 Dt. Liberação *
+                    </label>
+                    <input type="date" id="validadeDtLiberacao" required 
+                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 8px; font-size: 14px;"
+                           onfocus="this.style.borderColor='#667eea'"
+                           onblur="this.style.borderColor='#dee2e6'">
+                  </div>
+                  <div>
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #2c3e50; font-size: 14px;">
+                      ⏰ Dt. Validade *
+                    </label>
+                    <input type="date" id="validadeDtValidade" required 
+                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 8px; font-size: 14px;"
+                           onfocus="this.style.borderColor='#667eea'"
+                           onblur="this.style.borderColor='#dee2e6'">
+                  </div>
+                </div>
+              </div>
+
+              <!-- Observações -->
+              <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #2c3e50; font-size: 14px;">
+                  📝 Observações
+                </label>
+                <textarea id="validadeDsLiberacao" rows="3" maxlength="256" 
+                          style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 8px; font-size: 14px; resize: vertical; font-family: inherit;"
+                          onfocus="this.style.borderColor='#667eea'"
+                          onblur="this.style.borderColor='#dee2e6'"></textarea>
+              </div>
+
+              <!-- Botões -->
+              <div style="padding-top: 20px; border-top: 2px solid #dee2e6; display: flex; gap: 12px; justify-content: flex-end;">
+                <button type="button" id="btnCancelarValidade" class="btn cancel" 
+                        style="padding: 12px 24px; font-size: 14px; font-weight: 600; border-radius: 8px;">
+                  ✖ Cancelar
+                </button>
+                <button type="submit" class="btn save" 
+                        style="padding: 12px 32px; font-size: 14px; font-weight: 600; border-radius: 8px;">
+                  Salvar
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       </div>

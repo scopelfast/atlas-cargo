@@ -8,11 +8,29 @@ const express = require('express');
 const router = express.Router();
 const viagemController = require('../controllers/viagemmestre.controller');
 
+// 🔍 ROTA DE DEBUG - Listar todas as rotas registradas
+router.get('/debug-rotas', (req, res) => {
+  const rotas = [];
+  router.stack.forEach(r => {
+    if (r.route) {
+      rotas.push({
+        path: r.route.path,
+        methods: Object.keys(r.route.methods)
+      });
+    }
+  });
+  res.json({ total: rotas.length, rotas });
+});
+
 // Rotas principais
 router.get('/viagens', viagemController.listar);
 router.post('/viagens', viagemController.criar);
 router.put('/viagens/:id', viagemController.atualizar);
 router.delete('/viagens/:id', viagemController.excluir);
+
+// Rota para Histórico de Viagens por Roteiro (DEVE vir ANTES de /viagens/:id)
+router.get('/viagens/historico-roteiro', viagemController.buscarHistoricoRoteiro);
+
 router.get('/viagens/:id', viagemController.buscarPorId);
 
 // Rotas de combos

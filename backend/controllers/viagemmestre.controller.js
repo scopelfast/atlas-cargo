@@ -744,6 +744,7 @@ const viagemController = {
           SELECT 
             v.CDCLASSEFROTA,
             v.FGRASTREADO,
+            v.IDROTEIRO,
             r.CDCIDADEORIGEM,
             r.CDCIDADEDESTINO
           FROM [dbo].[VIAGEMMESTRE] v
@@ -756,9 +757,9 @@ const viagemController = {
       }
 
       const viagem = viagemResult.recordset[0];
-      const { CDCLASSEFROTA, FGRASTREADO, CDCIDADEORIGEM, CDCIDADEDESTINO } = viagem;
+      const { CDCLASSEFROTA, FGRASTREADO, CDCIDADEORIGEM, CDCIDADEDESTINO, IDROTEIRO } = viagem;
 
-      // Buscar micro-regiões das cidades de origem e destino
+      // Buscar micro-regiões E ESTADOS das cidades de origem e destino
       const cidadesResult = await pool
         .request()
         .input('ORIGEM', CDCIDADEORIGEM || null)
@@ -767,13 +768,17 @@ const viagemController = {
           SELECT 
             CDCIDADE,
             CDMICROREGIAO,
+            CDUF,
             NMCIDADE,
             ESTADO
           FROM [dbo].[CIDADE]
           WHERE CDCIDADE IN (@ORIGEM, @DESTINO)
         `);
 
-      const microregioes = cidadesResult.recordset.map(c => c.CDMICROREGIAO).filter(m => m);
+      const microregioes = cidadesResult.recordset.map(c => ({ 
+        cduf: c.CDUF, 
+        microregiao: c.CDMICROREGIAO 
+      })).filter(m => m.microregiao);
 
       // Buscar motoristas que têm a classe de frota cadastrada na tabela CLASSEFROTA_CG
       // A relação entre motoristas e classes de frota está na tabela CLASSEFROTA_CG, não em EQUIPAMENTO
@@ -800,21 +805,42 @@ const viagemController = {
                 AND conv.IDVIAGEM = @IDVIAGEM
             ) THEN 1 
             ELSE 0 
-          END AS FOI_ACIONADO
+          END AS FOI_ACIONADO,
+          (
+            SELECT COUNT(*) 
+            FROM VIAGEMMESTRE v 
+            INNER JOIN VIAGEMMOTORISTA m ON v.IDVIAGEM = m.IDVIAGEM 
+            WHERE m.CDMOTORISTA = cg.CDCADASTRO
+          ) AS QTVIAGENS,
+          (
+            SELECT COUNT(*) 
+            FROM VIAGEMMESTRE v2 
+            INNER JOIN VIAGEMMOTORISTA m2 ON v2.IDVIAGEM = m2.IDVIAGEM 
+            WHERE m2.CDMOTORISTA = cg.CDCADASTRO
+              AND v2.IDROTEIRO = @IDROTEIRO
+          ) AS QTVIAGENS_NESTA_ROTA
         FROM [dbo].[CADASTROGERAL] cg
         INNER JOIN [dbo].[CIDADE] c ON cg.CDCIDADE = c.CDCIDADE
         INNER JOIN [dbo].[CLASSEFROTA_CG] cfcg ON cg.CDCADASTRO = cfcg.CDCADASTRO
         LEFT JOIN [dbo].[CLASSEFROTA] cf ON cfcg.CDCLASSEFROTA = cf.CDCLASSEFROTA
         LEFT JOIN [dbo].[CADASTROGERAL] t ON cg.CDTRANSPORTADOR = t.CDCADASTRO
+        LEFT JOIN [dbo].[EMPRESA] e ON t.CGCCPF = e.CGCMATRIZ
         WHERE cg.FGTIPOCADASTRO = 'M'
           AND cg.FGACTIVE = 'A'
           AND cfcg.FGACTIVE = 'S'
           AND cfcg.CDCLASSEFROTA = @CDCLASSEFROTA
+          AND e.NMREDUZIDO IS NULL
       `;
 
       const request = pool.request();
       // Adicionar IDVIAGEM para o JOIN com CONVOCACAO
       request.input('IDVIAGEM', sql.Decimal(15, 0), parseFloat(idViagem));
+      
+      // Adicionar IDROTEIRO para buscar motoristas experientes nesta rota
+      if (IDROTEIRO) {
+        request.input('IDROTEIRO', sql.Int, parseInt(IDROTEIRO));
+      }
+      
       // A classe de frota na tabela CLASSEFROTA_CG parece ser SmallInt, não Decimal
       if (CDCLASSEFROTA) {
         const classeFrotaNum = parseInt(CDCLASSEFROTA);
@@ -829,44 +855,64 @@ const viagemController = {
         query += ` AND ISNULL(cg.FGRASTREADO, 'N') = 'S'`;
       }
 
-      // Filtro de localização (micro-região ou cidade)
+      // Filtro de localização (micro-região + UF ou cidade) OU motorista que já fez esta rota
       let temFiltroLocalizacao = false;
+      let filtrosLocalizacao = [];
       
       if (microregioes.length > 0) {
-        // Buscar por micro-região
-        const microParams = microregioes.map((_, i) => {
-          const paramName = `MICRO${i}`;
-          request.input(paramName, sql.SmallInt, microregioes[i]);
-          return `@${paramName}`;
+        // Buscar por micro-região E UF (CDUF + CDMICROREGIAO)
+        const condicoesMicro = microregioes.map((micro, i) => {
+          const paramNameMicro = `MICRO${i}`;
+          const paramNameUF = `CDUF${i}`;
+          request.input(paramNameMicro, sql.SmallInt, micro.microregiao);
+          request.input(paramNameUF, sql.SmallInt, micro.cduf);
+          return `(c.CDUF = @${paramNameUF} AND c.CDMICROREGIAO = @${paramNameMicro})`;
         });
-        query += ` AND c.CDMICROREGIAO IN (${microParams.join(', ')})`;
+        filtrosLocalizacao.push(`(${condicoesMicro.join(' OR ')})`);
         temFiltroLocalizacao = true;
       }
       
       // Se não há micro-região, buscar por cidade de origem ou destino
       if (!temFiltroLocalizacao) {
         if (CDCIDADEORIGEM && CDCIDADEDESTINO) {
-          query += ` AND (c.CDCIDADE = @CIDADE_ORIGEM OR c.CDCIDADE = @CIDADE_DESTINO)`;
           request.input('CIDADE_ORIGEM', sql.Decimal(15, 0), CDCIDADEORIGEM);
           request.input('CIDADE_DESTINO', sql.Decimal(15, 0), CDCIDADEDESTINO);
+          filtrosLocalizacao.push(`(c.CDCIDADE = @CIDADE_ORIGEM OR c.CDCIDADE = @CIDADE_DESTINO)`);
           temFiltroLocalizacao = true;
         } else if (CDCIDADEORIGEM) {
-          query += ` AND c.CDCIDADE = @CIDADE_ORIGEM`;
           request.input('CIDADE_ORIGEM', sql.Decimal(15, 0), CDCIDADEORIGEM);
+          filtrosLocalizacao.push(`c.CDCIDADE = @CIDADE_ORIGEM`);
           temFiltroLocalizacao = true;
         } else if (CDCIDADEDESTINO) {
-          query += ` AND c.CDCIDADE = @CIDADE_DESTINO`;
           request.input('CIDADE_DESTINO', sql.Decimal(15, 0), CDCIDADEDESTINO);
+          filtrosLocalizacao.push(`c.CDCIDADE = @CIDADE_DESTINO`);
           temFiltroLocalizacao = true;
         }
       }
       
-      // Se não há filtro de localização, não retornar resultados
-      if (!temFiltroLocalizacao) {
+      // NOVA REGRA: Incluir motoristas que já fizeram ESTA ROTA (mesmo fora da região)
+      if (IDROTEIRO) {
+        filtrosLocalizacao.push(`
+          EXISTS (
+            SELECT 1 
+            FROM VIAGEMMESTRE v3
+            INNER JOIN VIAGEMMOTORISTA m3 ON v3.IDVIAGEM = m3.IDVIAGEM
+            WHERE m3.CDMOTORISTA = cg.CDCADASTRO
+              AND v3.IDROTEIRO = @IDROTEIRO
+          )
+        `);
+      }
+      
+      // Aplicar filtro de localização (OR entre todos)
+      if (filtrosLocalizacao.length > 0) {
+        query += ` AND (${filtrosLocalizacao.join(' OR ')})`;
+      } else {
+        // Se não há nenhum filtro, não retornar resultados
         query += ` AND 1=0`;
       }
 
-      query += ` ORDER BY cg.RZSOCIAL, cfcg.CDCLASSEFROTA`;
+      // Ordenar por: Experiência na rota DESC → Experiência geral DESC → Nome
+      query += ` ORDER BY QTVIAGENS_NESTA_ROTA DESC, QTVIAGENS DESC, cg.RZSOCIAL`;
 
       // Verificações de diagnóstico
       // Verificar motoristas na micro-região (apenas se houver micro-regiões)
@@ -3185,6 +3231,121 @@ const viagemController = {
     } catch (err) {
       console.error('[WEBHOOK CALLBACK META] Erro ao processar retorno:', err);
       res.status(500).json({ error: 'Erro ao processar retorno do webhook.', details: err.message });
+    }
+  },
+
+  // Buscar histórico de viagens por roteiro
+  buscarHistoricoRoteiro: async (req, res) => {
+    console.log('🔵 [HISTÓRICO] Método buscarHistoricoRoteiro foi chamado!');
+    console.log('🔵 [HISTÓRICO] Query params:', req.query);
+    try {
+      const { idRoteiro } = req.query;
+
+      if (!idRoteiro) {
+        console.log('🔴 [HISTÓRICO] ID do Roteiro não fornecido!');
+        return res.status(400).json({ error: 'ID do Roteiro é obrigatório' });
+      }
+      
+      console.log('🔵 [HISTÓRICO] ID do Roteiro:', idRoteiro);
+
+      const pool = await poolPromise;
+
+      // Query principal para buscar as viagens do roteiro
+      const viagensQuery = `
+        SELECT 
+          VM.IDVIAGEM,
+          TV.DSTIPOVIAGEM,
+          SV.DSSITUACAOVIAGEM,
+          CF.DSCLASSEFROTA,
+          CF.CDCLASSEFROTA,
+          UPPER(CT.RZSOCIAL) AS CONTRATADOR,
+          CT.NRCELULAR AS CELCONTRATADOR,
+          VM.DTPREVINICIO,
+          VM.VLFRETE,
+          VM.PESO,
+          VM.FGRASTREADO,
+          (SELECT TOP 1 UPPER(M.RZSOCIAL)
+           FROM VIAGEMMOTORISTA (NOLOCK) V
+           INNER JOIN CADASTROGERAL (NOLOCK) M ON V.CDMOTORISTA = M.CDCADASTRO
+           WHERE V.IDVIAGEM = VM.IDVIAGEM) AS MOTORISTA,
+          (SELECT TOP 1 M.NRCELULAR
+           FROM VIAGEMMOTORISTA (NOLOCK) V
+           INNER JOIN CADASTROGERAL (NOLOCK) M ON V.CDMOTORISTA = M.CDCADASTRO
+           WHERE V.IDVIAGEM = VM.IDVIAGEM) AS CELMOTORISTA,
+          (SELECT TOP 1 V.CDMOTORISTA
+           FROM VIAGEMMOTORISTA (NOLOCK) V
+           WHERE V.IDVIAGEM = VM.IDVIAGEM) AS CDMOTORISTA
+        FROM VIAGEMMESTRE (NOLOCK) VM
+        LEFT JOIN SITUACAOVIAGEM (NOLOCK) SV ON VM.CDSITUACAOVIAGEM = SV.CDSITUACAOVIAGEM
+        LEFT JOIN TIPOVIAGEM (NOLOCK) TV ON VM.CDTIPOVIAGEM = TV.CDTIPOVIAGEM
+        LEFT JOIN CLASSEFROTA (NOLOCK) CF ON VM.CDCLASSEFROTA = CF.CDCLASSEFROTA
+        LEFT JOIN CADASTROGERAL (NOLOCK) CT ON VM.CDCONTRATADOR = CT.CDCADASTRO
+        WHERE VM.IDROTEIRO = @IDROTEIRO
+        ORDER BY VM.DTPREVINICIO DESC, VM.IDVIAGEM
+      `;
+
+      const request = pool.request();
+      request.input('IDROTEIRO', sql.Int, parseInt(idRoteiro));
+      const result = await request.query(viagensQuery);
+
+      // Query para resumo por classe de frota
+      const resumoQuery = `
+        SELECT 
+          CF.CDCLASSEFROTA,
+          CF.DSCLASSEFROTA,
+          COUNT(*) AS QUANTIDADE,
+          MIN(CASE WHEN VM.VLFRETE >= 1 THEN VM.VLFRETE ELSE NULL END) AS VALOR_MINIMO,
+          MAX(CASE WHEN VM.VLFRETE >= 1 THEN VM.VLFRETE ELSE NULL END) AS VALOR_MAXIMO,
+          AVG(CASE WHEN VM.VLFRETE >= 1 THEN VM.VLFRETE ELSE NULL END) AS VALOR_MEDIO,
+          SUM(VM.PESO) AS PESO_TOTAL
+        FROM VIAGEMMESTRE (NOLOCK) VM
+        LEFT JOIN CLASSEFROTA (NOLOCK) CF ON VM.CDCLASSEFROTA = CF.CDCLASSEFROTA
+        WHERE VM.IDROTEIRO = @IDROTEIRO
+        GROUP BY CF.CDCLASSEFROTA, CF.DSCLASSEFROTA
+        ORDER BY CF.DSCLASSEFROTA
+      `;
+
+      const resumoRequest = pool.request();
+      resumoRequest.input('IDROTEIRO', sql.Int, parseInt(idRoteiro));
+      const resumoResult = await resumoRequest.query(resumoQuery);
+
+      // Formatar resumo
+      const resumo = resumoResult.recordset.map(item => ({
+        classefrota: item.DSCLASSEFROTA || 'Não Informada',
+        quantidade: item.QUANTIDADE,
+        valorMinimo: item.VALOR_MINIMO ? parseFloat(item.VALOR_MINIMO).toFixed(2) : '0.00',
+        valorMaximo: item.VALOR_MAXIMO ? parseFloat(item.VALOR_MAXIMO).toFixed(2) : '0.00',
+        valorMedio: item.VALOR_MEDIO ? parseFloat(item.VALOR_MEDIO).toFixed(2) : '0.00',
+        pesoTotal: item.PESO_TOTAL ? parseFloat(item.PESO_TOTAL).toFixed(2) : '0.00'
+      }));
+
+      // Formatar viagens
+      const viagens = result.recordset.map(viagem => ({
+        idViagem: viagem.IDVIAGEM,
+        tipoViagem: viagem.DSTIPOVIAGEM,
+        situacaoViagem: viagem.DSSITUACAOVIAGEM,
+        classeFrota: viagem.DSCLASSEFROTA,
+        contratador: viagem.CONTRATADOR,
+        celContratador: viagem.CELCONTRATADOR,
+        dtPrevInicio: viagem.DTPREVINICIO,
+        vlFrete: viagem.VLFRETE ? parseFloat(viagem.VLFRETE).toFixed(2) : '0.00',
+        peso: viagem.PESO ? parseFloat(viagem.PESO).toFixed(2) : '0.00',
+        rastreado: viagem.FGRASTREADO === 'S' ? 'Sim' : 'Não',
+        motorista: viagem.MOTORISTA || 'Não Informado',
+        celMotorista: viagem.CELMOTORISTA,
+        cdMotorista: viagem.CDMOTORISTA
+      }));
+
+      res.json({
+        success: true,
+        totalRegistros: viagens.length,
+        viagens: viagens,
+        resumo: resumo
+      });
+
+    } catch (err) {
+      console.error('[ERRO] Buscar histórico roteiro:', err);
+      res.status(500).json({ error: 'Erro ao buscar histórico do roteiro', details: err.message });
     }
   }
 };

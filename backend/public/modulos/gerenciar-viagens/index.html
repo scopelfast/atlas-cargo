@@ -339,6 +339,7 @@
       <button class="tab-btn active" data-tab="filtros">Filtros</button>
       <button class="tab-btn" data-tab="grid">Grid</button>
       <button class="tab-btn" data-tab="dados">Dados</button>
+      <button class="tab-btn" data-tab="historico">Histórico</button>
       <button class="tab-btn" data-tab="mapa">Mapa</button>
       <button class="tab-btn" data-tab="compatíveis">Compatíveis</button>
       <button class="tab-btn" data-tab="convocações">Convocações</button>
@@ -689,6 +690,59 @@
             <button type="button" id="btnCancelar" class="btn cancel">Cancelar</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- Histórico -->
+    <div class="tab-content" id="tab-historico">
+      <div class="form-box">
+        <h2>Histórico de Viagens do Roteiro</h2>
+        <div class="actions-top">
+          <button type="button" id="btnVoltarHistorico" class="btn cancel">← Voltar aos Filtros</button>
+          <button type="button" id="btnCarregarHistorico" class="btn save">🔄 Carregar Histórico</button>
+        </div>
+
+        <!-- Contador de Registros -->
+        <div id="historicoCount" style="padding: 15px 0; color: #666; font-size: 14px; font-weight: 500; display: none;">
+          <span id="historicoCountText">0 viagem(ns) encontrada(s)</span>
+        </div>
+
+        <!-- Resumo por Classe de Frota -->
+        <div id="historicoResumo" style="display: none; margin: 20px 0; padding: 20px; background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); border-radius: 12px; border: 1px solid #667eea30;">
+          <h3 style="margin: 0 0 15px 0; color: #2c3e50; font-size: 18px; font-weight: 600;">📊 Resumo por Classe de Frota</h3>
+          <div id="historicoResumoContent" style="display: grid; gap: 15px;">
+            <!-- Resumos serão inseridos aqui via JavaScript -->
+          </div>
+        </div>
+
+        <!-- Legenda -->
+        <div id="historicoLegenda" style="display: none; margin: 15px 0; padding: 12px 15px; background: #f8f9fa; border-left: 4px solid #667eea; border-radius: 4px;">
+          <strong style="color: #2c3e50;">Legenda:</strong>
+          <span style="margin-left: 15px; color: #666;">
+            <span style="color: #27ae60; font-weight: 600;">●</span> Rastreado
+            <span style="margin-left: 15px; color: #e74c3c; font-weight: 600;">●</span> Não Rastreado
+          </span>
+        </div>
+
+        <!-- Grid de Viagens -->
+        <div id="historicoViagensGrid" style="margin-top: 20px;">
+          <div class="empty" style="text-align: center; padding: 40px 20px; background: #f8f9fa; border-radius: 8px; border: 2px dashed #dee2e6;">
+            <div style="font-size: 48px; margin-bottom: 15px;">📋</div>
+            <h3 style="color: #2c3e50; margin-bottom: 10px;">Como visualizar o histórico?</h3>
+            <ol style="text-align: left; display: inline-block; color: #6c757d; line-height: 1.8;">
+              <li>Vá até a aba <strong>Dados</strong></li>
+              <li>Selecione um <strong>Roteiro</strong> no formulário</li>
+              <li>Retorne para esta aba <strong>Histórico</strong></li>
+              <li>O histórico será carregado automaticamente!</li>
+            </ol>
+            <div style="margin-top: 20px;">
+              <button onclick="document.querySelector('.tab-btn[data-tab=dados]').click()" 
+                      style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">
+                📝 Ir para Aba Dados
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1236,6 +1290,7 @@
   </div>
 
   <script src="/js/ambiente-utils.js"></script>
+  <script src="/js/map-config.js"></script>
   <script src="/js/grid-editor.js"></script>
   <script src="js/script.js"></script>
 

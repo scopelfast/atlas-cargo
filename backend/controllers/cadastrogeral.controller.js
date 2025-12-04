@@ -178,7 +178,7 @@ const cadastroController = {
       }
       if (tipoCadastro) {
         query += ` AND cg.FGTIPOCADASTRO = @TIPOCADASTRO`;
-        params.push({ name: 'TIPOCADASTRO', type: sql.Char(1), value: tipoCadastro.trim().toUpperCase() });
+        params.push({ name: 'TIPOCADASTRO', value: tipoCadastro.trim().toUpperCase() });
       }
       if (rastreado) {
         query += ` AND cg.FGRASTREADO = @RASTREADO`;
