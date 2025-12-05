@@ -1345,6 +1345,7 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
           <h2 style="margin: 0;">🔗 Integração Meta - Logs de Webhook</h2>
           <div style="display: flex; gap: 10px;">
+            <button id="btnAtualizarLogsMeta" type="button" class="btn" style="padding: 8px 16px; background: #007bff; color: white;">🔄 Atualizar Logs</button>
             <button id="btnLimparLogsMeta" type="button" class="btn cancel" style="padding: 8px 16px;">🗑️ Limpar Logs</button>
             <button id="btnExportarLogsMeta" type="button" class="btn save" style="padding: 8px 16px;">📥 Exportar Logs</button>
           </div>
@@ -1367,8 +1368,8 @@
           </div>
         </div>
 
-        <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; max-height: 600px; overflow-y: auto;">
-          <div id="logsIntegracaoMeta" style="font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.6;">
+        <div id="logsIntegracaoMetaParent" style="background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; max-height: 600px; overflow-y: auto; display: block; visibility: visible;">
+          <div id="logsIntegracaoMeta" style="font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.6; display: block; visibility: visible; min-height: 100px;">
             <div style="color: #6c757d; text-align: center; padding: 40px;">
               Nenhum log disponível. Os logs aparecerão aqui quando houver envios para o webhook Meta.
             </div>

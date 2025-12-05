@@ -575,43 +575,24 @@
 
       // Se for a aba Integração Meta, carregar logs do banco e atualizar
       if (tabId === 'integracao-meta') {
-        setTimeout(async () => {
-          // Carregar logs do banco de dados
-          try {
-            const response = await fetch('/api/logs-webhook-meta?limite=100');
-            if (response.ok) {
-              const logsDoBanco = await response.json();
-              console.log('[LOGS META] Carregados', logsDoBanco.length, 'logs do banco de dados');
-              
-              // Converter logs do banco para o formato esperado
-              logsIntegracaoMeta = logsDoBanco.map(log => ({
-                tipo: log.TIPO,
-                titulo: log.TITULO,
-                mensagem: log.MENSAGEM,
-                detalhes: log.DETALHES,
-                timestamp: log.timestamp || log.DHLOG,
-                id: log.IDLOG
-              }));
-              
-              // Atualizar exibição
-              if (typeof window.atualizarExibicaoLogsMeta === 'function') {
-                window.atualizarExibicaoLogsMeta();
-              }
-            } else {
-              console.warn('[LOGS META] Erro ao carregar logs do banco:', await response.text());
-              // Mesmo com erro, tentar atualizar com logs em memória
-              if (typeof window.atualizarExibicaoLogsMeta === 'function') {
-                window.atualizarExibicaoLogsMeta();
-              }
+        console.log('[LOGS META] Aba Integração Meta aberta!');
+        // Aguardar a aba estar realmente visível antes de carregar
+        setTimeout(() => {
+          const tabContent = document.getElementById('tab-integracao-meta');
+          if (tabContent && tabContent.classList.contains('active')) {
+            console.log('[LOGS META] Aba está ativa, carregando logs...');
+            if (typeof window.carregarLogsMeta === 'function') {
+              window.carregarLogsMeta();
             }
-          } catch (err) {
-            console.error('[LOGS META] Erro ao carregar logs do banco:', err);
-            // Mesmo com erro, tentar atualizar com logs em memória
-            if (typeof window.atualizarExibicaoLogsMeta === 'function') {
-              window.atualizarExibicaoLogsMeta();
-            }
+          } else {
+            console.warn('[LOGS META] Aba ainda não está ativa, tentando novamente...');
+            setTimeout(() => {
+              if (typeof window.carregarLogsMeta === 'function') {
+                window.carregarLogsMeta();
+              }
+            }, 300);
           }
-        }, 100);
+        }, 200);
       }
 
       // Se for a aba Histórico, inicializar
@@ -4560,17 +4541,42 @@
       // Extrair IDCONVOCACAO de diferentes fontes dependendo do tipo de log
       let idConvocacao = null;
       
+      console.log('[LOGS META] Tentando extrair IDCONVOCACAO do log:', {
+        tipo: log.tipo,
+        titulo: log.titulo,
+        detalhes: log.detalhes
+      });
+      
+      // Tentar múltiplas fontes para encontrar IDCONVOCACAO
       if (log.detalhes?.body?.IDCONVOCACAO) {
         // Log de envio - IDCONVOCACAO está no body
         idConvocacao = log.detalhes.body.IDCONVOCACAO;
+        console.log('[LOGS META] IDCONVOCACAO encontrado em detalhes.body.IDCONVOCACAO:', idConvocacao);
+      } else if (log.detalhes?.body?.idConvocacao) {
+        // Log de envio - IDCONVOCACAO está no body (minúsculo)
+        idConvocacao = log.detalhes.body.idConvocacao;
+        console.log('[LOGS META] IDCONVOCACAO encontrado em detalhes.body.idConvocacao:', idConvocacao);
       } else if (log.detalhes?.idConvocacao) {
         // Log de sucesso/erro - IDCONVOCACAO está em idConvocacao
         idConvocacao = log.detalhes.idConvocacao;
+        console.log('[LOGS META] IDCONVOCACAO encontrado em detalhes.idConvocacao:', idConvocacao);
+      } else if (log.detalhes?.IDCONVOCACAO) {
+        // IDCONVOCACAO direto em detalhes
+        idConvocacao = log.detalhes.IDCONVOCACAO;
+        console.log('[LOGS META] IDCONVOCACAO encontrado em detalhes.IDCONVOCACAO:', idConvocacao);
       } else if (log.titulo) {
         // Tentar extrair do título (ex: "Enviando Convocação 161" ou "Resposta - Convocação 161")
         const match = log.titulo.match(/Convocação\s+(\d+)/);
         if (match) {
           idConvocacao = parseInt(match[1]);
+          console.log('[LOGS META] IDCONVOCACAO extraído do título:', idConvocacao);
+        }
+      } else if (log.mensagem) {
+        // Tentar extrair da mensagem também
+        const match = log.mensagem.match(/convocação\s+(\d+)/i);
+        if (match) {
+          idConvocacao = parseInt(match[1]);
+          console.log('[LOGS META] IDCONVOCACAO extraído da mensagem:', idConvocacao);
         }
       }
       
@@ -4584,7 +4590,10 @@
         tempo_resposta: log.detalhes?.tempoResposta ? parseInt(log.detalhes.tempoResposta.replace('ms', '')) : null
       };
       
+      console.log('[LOGS META] Dados preparados para salvar:', dadosParaSalvar);
+      
       if (dadosParaSalvar.IDCONVOCACAO) {
+        console.log('[LOGS META] Enviando log para API...');
         const response = await fetch('/api/logs-webhook-meta', {
           method: 'POST',
           headers: {
@@ -4594,15 +4603,18 @@
         });
         
         if (response.ok) {
-          console.log(`[LOGS META] Log ${log.tipo} salvo no banco de dados com sucesso! IDCONVOCACAO: ${idConvocacao}`);
+          const result = await response.json();
+          console.log(`[LOGS META] ✅ Log ${log.tipo} salvo no banco de dados com sucesso! IDCONVOCACAO: ${idConvocacao}`, result);
         } else {
-          console.warn('[LOGS META] Erro ao salvar log no banco:', await response.text());
+          const errorText = await response.text();
+          console.error('[LOGS META] ❌ Erro ao salvar log no banco. Status:', response.status, 'Resposta:', errorText);
         }
       } else {
-        console.warn('[LOGS META] IDCONVOCACAO não encontrado para log tipo:', log.tipo, 'Título:', log.titulo);
+        console.warn('[LOGS META] ⚠️ IDCONVOCACAO não encontrado para log tipo:', log.tipo, 'Título:', log.titulo, 'Log completo:', log);
       }
     } catch (err) {
-      console.error('[LOGS META] Erro ao salvar log no banco:', err);
+      console.error('[LOGS META] ❌ Erro ao salvar log no banco:', err);
+      console.error('[LOGS META] Stack trace:', err.stack);
     }
     
     console.log('[LOGS META] Verificando se atualizarExibicaoLogsMeta existe:', typeof window.atualizarExibicaoLogsMeta);
@@ -4617,6 +4629,13 @@
   // Função para atualizar a exibição dos logs (definida no escopo global)
   window.atualizarExibicaoLogsMeta = function() {
     console.log('[LOGS META] Atualizando exibição. Total de logs:', logsIntegracaoMeta.length);
+    
+    // Verificar se há múltiplos elementos com o mesmo ID (não deveria acontecer, mas vamos verificar)
+    const containers = document.querySelectorAll('#logsIntegracaoMeta');
+    if (containers.length > 1) {
+      console.error('[LOGS META] ❌ ERRO: Múltiplos elementos com ID logsIntegracaoMeta encontrados!', containers.length);
+    }
+    
     const container = document.getElementById('logsIntegracaoMeta');
     if (!container) {
       console.warn('[LOGS META] Container logsIntegracaoMeta não encontrado! Tentando novamente em 500ms...');
@@ -4646,48 +4665,107 @@
     let html = '';
     
     logsIntegracaoMeta.forEach((log, index) => {
-      const dataHora = new Date(log.timestamp).toLocaleString('pt-BR');
+      // Tratar timestamp de forma segura
+      let dataHora = 'Data inválida';
+      try {
+        if (log.timestamp) {
+          const date = new Date(log.timestamp);
+          if (!isNaN(date.getTime())) {
+            dataHora = date.toLocaleString('pt-BR');
+          }
+        }
+      } catch (e) {
+        console.warn(`[LOGS META] Erro ao formatar data do log ${index}:`, e);
+      }
+      
       const tipoIcon = log.tipo === 'envio' ? '📤' : log.tipo === 'resposta' ? '📥' : log.tipo === 'sucesso' ? '✅' : log.tipo === 'erro' ? '❌' : 'ℹ️';
       const tipoCor = log.tipo === 'envio' ? '#007bff' : log.tipo === 'resposta' ? '#17a2b8' : log.tipo === 'sucesso' ? '#28a745' : log.tipo === 'erro' ? '#dc3545' : '#6c757d';
       
       html += `
-        <div style="border-left: 4px solid ${tipoCor}; padding: 12px; margin-bottom: 10px; background: #f8f9fa; border-radius: 4px;">
+        <div style="border-left: 4px solid ${tipoCor}; padding: 12px; margin-bottom: 10px; background: #f8f9fa; border-radius: 4px; display: block; visibility: visible; min-height: 60px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 16px;">${tipoIcon}</span>
-              <strong style="color: ${tipoCor};">${log.titulo || log.tipo}</strong>
+              <span style="font-size: 16px; display: inline-block;">${tipoIcon}</span>
+              <strong style="color: ${tipoCor}; display: inline-block;">${log.titulo || log.tipo}</strong>
             </div>
-            <span style="color: #6c757d; font-size: 11px;">${dataHora}</span>
+            <span style="color: #6c757d; font-size: 11px; display: inline-block;">${dataHora}</span>
           </div>
-          ${log.mensagem ? `<div style="color: #333; margin-bottom: 8px;">${log.mensagem}</div>` : ''}
+          ${log.mensagem ? `<div style="color: #333; margin-bottom: 8px; display: block; min-height: 20px;">${log.mensagem}</div>` : ''}
           ${log.detalhes ? `
-            <details style="margin-top: 8px;">
-              <summary style="cursor: pointer; color: #007bff; font-weight: 600; user-select: none;">Ver detalhes</summary>
-              <pre style="background: #fff; padding: 10px; border-radius: 4px; margin-top: 8px; overflow-x: auto; font-size: 11px; line-height: 1.4;">${JSON.stringify(log.detalhes, null, 2)}</pre>
+            <details style="margin-top: 8px; display: block;">
+              <summary style="cursor: pointer; color: #007bff; font-weight: 600; user-select: none; display: block;">Ver detalhes</summary>
+              <pre style="background: #fff; padding: 10px; border-radius: 4px; margin-top: 8px; overflow-x: auto; font-size: 11px; line-height: 1.4; display: block; min-height: 50px;">${JSON.stringify(log.detalhes, null, 2)}</pre>
             </details>
           ` : ''}
         </div>
       `;
     });
     
+    // Verificar se a aba está ativa antes de inserir
+    const tabContent = document.getElementById('tab-integracao-meta');
+    if (!tabContent || !tabContent.classList.contains('active')) {
+      // Se a aba não estiver ativa, tentar novamente quando estiver
+      setTimeout(() => window.atualizarExibicaoLogsMeta(), 200);
+      return;
+    }
+    
+    // Inserir HTML diretamente - mesmo padrão usado nas outras abas
     container.innerHTML = html;
-    console.log('[LOGS META] HTML atualizado com sucesso!');
+    
+    // Forçar reflow para garantir renderização
+    void container.offsetHeight;
     
     // Atualizar contadores
     const totalEnvios = logsIntegracaoMeta.filter(l => l.tipo === 'envio').length;
     const totalSucessos = logsIntegracaoMeta.filter(l => l.tipo === 'sucesso').length;
     const totalErros = logsIntegracaoMeta.filter(l => l.tipo === 'erro').length;
-    const ultimaAtualizacao = logsIntegracaoMeta.length > 0 ? new Date(logsIntegracaoMeta[0].timestamp).toLocaleString('pt-BR') : '-';
+    // Tratar última atualização de forma segura
+    let ultimaAtualizacao = '-';
+    if (logsIntegracaoMeta.length > 0 && logsIntegracaoMeta[0].timestamp) {
+      try {
+        const date = new Date(logsIntegracaoMeta[0].timestamp);
+        if (!isNaN(date.getTime())) {
+          ultimaAtualizacao = date.toLocaleString('pt-BR');
+        }
+      } catch (e) {
+        console.warn('[LOGS META] Erro ao formatar última atualização:', e);
+      }
+    }
     
     const totalEnviosEl = document.getElementById('totalEnviosMeta');
     const totalSucessosEl = document.getElementById('totalSucessosMeta');
     const totalErrosEl = document.getElementById('totalErrosMeta');
     const ultimaAtualizacaoEl = document.getElementById('ultimaAtualizacaoMeta');
     
-    if (totalEnviosEl) totalEnviosEl.textContent = totalEnvios;
-    if (totalSucessosEl) totalSucessosEl.textContent = totalSucessos;
-    if (totalErrosEl) totalErrosEl.textContent = totalErros;
-    if (ultimaAtualizacaoEl) ultimaAtualizacaoEl.textContent = ultimaAtualizacao;
+    if (totalEnviosEl) {
+      totalEnviosEl.textContent = totalEnvios;
+      console.log('[LOGS META] Contador de envios atualizado:', totalEnvios);
+    } else {
+      console.warn('[LOGS META] Elemento totalEnviosMeta não encontrado!');
+    }
+    
+    if (totalSucessosEl) {
+      totalSucessosEl.textContent = totalSucessos;
+      console.log('[LOGS META] Contador de sucessos atualizado:', totalSucessos);
+    } else {
+      console.warn('[LOGS META] Elemento totalSucessosMeta não encontrado!');
+    }
+    
+    if (totalErrosEl) {
+      totalErrosEl.textContent = totalErros;
+      console.log('[LOGS META] Contador de erros atualizado:', totalErros);
+    } else {
+      console.warn('[LOGS META] Elemento totalErrosMeta não encontrado!');
+    }
+    
+    if (ultimaAtualizacaoEl) {
+      ultimaAtualizacaoEl.textContent = ultimaAtualizacao;
+      console.log('[LOGS META] Última atualização atualizada:', ultimaAtualizacao);
+    } else {
+      console.warn('[LOGS META] Elemento ultimaAtualizacaoMeta não encontrado!');
+    }
+    
+    console.log('[LOGS META] ========== ATUALIZAÇÃO COMPLETA ==========');
   };
   
   // Função para limpar logs (definida no escopo global)
@@ -4727,10 +4805,112 @@
     showMessage('Logs exportados com sucesso!', 'success');
   }
   
+  // Função para carregar logs do banco de dados (reutilizável)
+  window.carregarLogsMeta = async function() {
+    console.log('[LOGS META] ========== INICIANDO CARREGAMENTO DE LOGS ==========');
+    console.log('[LOGS META] Carregando logs do banco de dados...');
+    try {
+      console.log('[LOGS META] Fazendo requisição para /api/logs-webhook-meta?limite=100');
+      const response = await fetch('/api/logs-webhook-meta?limite=100');
+      console.log('[LOGS META] Resposta recebida. Status:', response.status, response.statusText);
+      if (response.ok) {
+        const logsDoBanco = await response.json();
+        console.log('[LOGS META] ✅ Carregados', logsDoBanco.length, 'logs do banco de dados');
+        
+        // Converter logs do banco para o formato esperado
+        // O controller retorna campos em maiúsculas (TIPO, TITULO, etc.) e também adiciona detalhes/timestamp
+        logsIntegracaoMeta = logsDoBanco.map((log, index) => {
+          try {
+            // Tentar parsear detalhes se for string
+            let detalhesParsed = null;
+            if (log.detalhes) {
+              detalhesParsed = log.detalhes; // Já vem parseado do controller
+            } else if (log.DETALHES) {
+              if (typeof log.DETALHES === 'string') {
+                try {
+                  detalhesParsed = JSON.parse(log.DETALHES);
+                } catch (e) {
+                  console.warn(`[LOGS META] Erro ao parsear DETALHES do log ${index}:`, e);
+                  detalhesParsed = null;
+                }
+              } else {
+                detalhesParsed = log.DETALHES;
+              }
+            }
+            
+            // Obter timestamp
+            let timestampValue = null;
+            if (log.timestamp) {
+              timestampValue = log.timestamp;
+            } else if (log.DHLOG) {
+              timestampValue = new Date(log.DHLOG).toISOString();
+            } else {
+              timestampValue = new Date().toISOString();
+            }
+            
+            const logConvertido = {
+              tipo: log.TIPO || log.tipo || 'desconhecido',
+              titulo: log.TITULO || log.titulo || '',
+              mensagem: log.MENSAGEM || log.mensagem || '',
+              detalhes: detalhesParsed,
+              timestamp: timestampValue,
+              id: log.IDLOG || log.id || `log-${index}`
+            };
+            
+            console.log(`[LOGS META] Log ${index} convertido:`, {
+              tipo: logConvertido.tipo,
+              titulo: logConvertido.titulo,
+              temDetalhes: !!logConvertido.detalhes,
+              timestamp: logConvertido.timestamp
+            });
+            
+            return logConvertido;
+          } catch (parseErr) {
+            console.error(`[LOGS META] Erro ao processar log ${index}:`, log, parseErr);
+            return null;
+          }
+        }).filter(log => log !== null); // Remover logs com erro
+        
+        console.log('[LOGS META] Logs convertidos:', logsIntegracaoMeta.length, 'logs válidos');
+        if (logsIntegracaoMeta.length > 0) {
+          console.log('[LOGS META] Primeiro log exemplo:', logsIntegracaoMeta[0]);
+        }
+        
+        // Atualizar exibição
+        if (typeof window.atualizarExibicaoLogsMeta === 'function') {
+          window.atualizarExibicaoLogsMeta();
+        } else {
+          console.warn('[LOGS META] Função atualizarExibicaoLogsMeta não encontrada!');
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('[LOGS META] ❌ Erro ao carregar logs do banco. Status:', response.status, 'Resposta:', errorText);
+        // Mesmo com erro, tentar atualizar com logs em memória
+        if (typeof window.atualizarExibicaoLogsMeta === 'function') {
+          window.atualizarExibicaoLogsMeta();
+        }
+      }
+    } catch (err) {
+      console.error('[LOGS META] ❌ Erro ao carregar logs do banco:', err);
+      // Mesmo com erro, tentar atualizar com logs em memória
+      if (typeof window.atualizarExibicaoLogsMeta === 'function') {
+        window.atualizarExibicaoLogsMeta();
+      }
+    }
+  };
+  
   // Inicializar event listeners da aba Integração Meta
   document.addEventListener('DOMContentLoaded', () => {
+    const btnAtualizarLogs = document.getElementById('btnAtualizarLogsMeta');
     const btnLimparLogs = document.getElementById('btnLimparLogsMeta');
     const btnExportarLogs = document.getElementById('btnExportarLogsMeta');
+    
+    if (btnAtualizarLogs) {
+      btnAtualizarLogs.addEventListener('click', () => {
+        console.log('[LOGS META] Botão atualizar clicado!');
+        window.carregarLogsMeta();
+      });
+    }
     
     if (btnLimparLogs) {
       btnLimparLogs.addEventListener('click', window.limparLogsMeta);
@@ -4739,7 +4919,21 @@
     if (btnExportarLogs) {
       btnExportarLogs.addEventListener('click', window.exportarLogsMeta);
     }
+    
+    // Verificar se a aba Integração Meta já está ativa ao carregar a página
+    setTimeout(() => {
+      const tabIntegracaoMeta = document.getElementById('tab-integracao-meta');
+      if (tabIntegracaoMeta && tabIntegracaoMeta.classList.contains('active')) {
+        console.log('[LOGS META] Aba Integração Meta já está ativa ao carregar. Carregando logs...');
+        if (typeof window.carregarLogsMeta === 'function') {
+          window.carregarLogsMeta();
+        }
+      }
+    }, 500);
   });
+  
+  // Expor função globalmente para teste no console
+  // O usuário pode executar: window.carregarLogsMeta() no console para testar
 
   // ========== FUNCIONALIDADES DE CONVOCAÇÕES ==========
   
@@ -5457,8 +5651,10 @@
       } else if (conv.STATUS === 'RECUSADA') {
         statusClass = 'background: #f8d7da; color: #721c24;';
         // Adicionar motivo da recusa ao status se existir
-        if (conv.DSMOTIVO) {
-          statusDisplay = `RECUSADA - ${conv.DSMOTIVO}`;
+        if (conv.MOTIVO_RECUSA) {
+          statusDisplay = `RECUSADA - ${conv.MOTIVO_RECUSA}`;
+        } else if (conv.CDMOTIVORECUSA) {
+          statusDisplay = `RECUSADA (Motivo: ${conv.CDMOTIVORECUSA})`;
         }
       } else if (conv.STATUS === 'CONFIRMADA') {
         statusClass = 'background: #cce5ff; color: #004085;';
