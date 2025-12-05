@@ -575,17 +575,13 @@
 
       // Se for a aba Integração Meta, carregar logs do banco e atualizar
       if (tabId === 'integracao-meta') {
-        console.log('[LOGS META] Aba Integração Meta aberta!');
-        // Aguardar a aba estar realmente visível antes de carregar
         setTimeout(() => {
           const tabContent = document.getElementById('tab-integracao-meta');
           if (tabContent && tabContent.classList.contains('active')) {
-            console.log('[LOGS META] Aba está ativa, carregando logs...');
             if (typeof window.carregarLogsMeta === 'function') {
               window.carregarLogsMeta();
             }
           } else {
-            console.warn('[LOGS META] Aba ainda não está ativa, tentando novamente...');
             setTimeout(() => {
               if (typeof window.carregarLogsMeta === 'function') {
                 window.carregarLogsMeta();
@@ -4319,19 +4315,13 @@
           try {
             const inicioEnvio = Date.now();
             console.log('\n========================================');
-            console.log(`[WEBHOOK ENVIO] 📤 [${i + 1}/${convocacoesParaEnviar.length}] ENVIANDO CONVOCAÇÃO`);
-            console.log(`[WEBHOOK ENVIO] Timestamp:`, new Date().toISOString());
-            console.log(`[WEBHOOK ENVIO] ID Convocação:`, dadosParaWebhook.IDCONVOCACAO);
+            console.log(`[WEBHOOK ENVIO] 📤 Enviando Convocação ${dadosParaWebhook.IDCONVOCACAO}`);
             console.log(`[WEBHOOK ENVIO] URL: https://ia.riochat.com.br/webhook/aviso-rota-integra`);
-            console.log(`[WEBHOOK ENVIO] Método: POST`);
-            console.log(`[WEBHOOK ENVIO] Headers:`, { 'Content-Type': 'application/json' });
-            console.log(`[WEBHOOK ENVIO] Body completo:`, JSON.stringify(dadosParaWebhook, null, 2));
-            console.log('========================================\n');
+            console.log(`[WEBHOOK ENVIO] Body:`, JSON.stringify(dadosParaWebhook, null, 2));
+            console.log('========================================');
             
             // Adicionar log de envio na aba
-            console.log('[WEBHOOK] Verificando se adicionarLogMeta existe:', typeof window.adicionarLogMeta);
             if (typeof window.adicionarLogMeta === 'function') {
-              console.log('[WEBHOOK] Chamando adicionarLogMeta para envio...');
               window.adicionarLogMeta({
                 tipo: 'envio',
                 titulo: `Enviando Convocação ${dadosParaWebhook.IDCONVOCACAO}`,
@@ -4356,12 +4346,9 @@
             const tempoResposta = Date.now() - inicioEnvio;
             
             console.log('\n========================================');
-            console.log(`[WEBHOOK RESPOSTA] 📥 [${i + 1}/${convocacoesParaEnviar.length}] RESPOSTA RECEBIDA`);
-            console.log(`[WEBHOOK RESPOSTA] Timestamp:`, new Date().toISOString());
-            console.log(`[WEBHOOK RESPOSTA] ID Convocação:`, dadosParaWebhook.IDCONVOCACAO);
+            console.log(`[WEBHOOK RESPOSTA] 📥 Resposta Convocação ${dadosParaWebhook.IDCONVOCACAO}`);
             console.log(`[WEBHOOK RESPOSTA] Status: ${webhookResponse.status} ${webhookResponse.statusText}`);
-            console.log(`[WEBHOOK RESPOSTA] Tempo de resposta: ${tempoResposta}ms`);
-            console.log(`[WEBHOOK RESPOSTA] Headers:`, JSON.stringify(Object.fromEntries(webhookResponse.headers.entries()), null, 2));
+            console.log(`[WEBHOOK RESPOSTA] Tempo: ${tempoResposta}ms`);
             
             // Tentar ler o body da resposta
             let responseBody = null;
@@ -4370,13 +4357,13 @@
             try {
               if (contentType && contentType.includes('application/json')) {
                 responseBody = await webhookResponse.json();
-                console.log(`[WEBHOOK RESPOSTA] Body (JSON):`, JSON.stringify(responseBody, null, 2));
+                console.log(`[WEBHOOK RESPOSTA] Body:`, JSON.stringify(responseBody, null, 2));
               } else {
                 responseBody = await webhookResponse.text();
-                console.log(`[WEBHOOK RESPOSTA] Body (Texto):`, responseBody);
+                console.log(`[WEBHOOK RESPOSTA] Body:`, responseBody);
               }
             } catch (bodyErr) {
-              console.warn(`[WEBHOOK RESPOSTA] ⚠️ Não foi possível ler o body:`, bodyErr);
+              console.warn(`[WEBHOOK RESPOSTA] ⚠️ Erro ao ler body:`, bodyErr.message);
             }
             console.log('========================================\n');
             
@@ -4398,13 +4385,7 @@
             }
             
             if (webhookResponse.ok) {
-              console.log(`[WEBHOOK] ✅ [${i + 1}/${convocacoesParaEnviar.length}] Convocação ${dadosParaWebhook.IDCONVOCACAO} enviada com SUCESSO!`);
-              console.log(`[WEBHOOK] ✅ Resposta completa:`, {
-                status: webhookResponse.status,
-                statusText: webhookResponse.statusText,
-                body: responseBody,
-                tempoResposta: `${tempoResposta}ms`
-              });
+              console.log(`[WEBHOOK] ✅ Convocação ${dadosParaWebhook.IDCONVOCACAO} enviada com sucesso!`);
               
               // Adicionar log de sucesso na aba
               if (typeof window.adicionarLogMeta === 'function') {
@@ -4443,14 +4424,8 @@
               
               enviadosComSucesso++;
             } else {
-              console.error(`[WEBHOOK] ❌ [${i + 1}/${convocacoesParaEnviar.length}] ERRO ao enviar convocação ${dadosParaWebhook.IDCONVOCACAO}`);
+              console.error(`[WEBHOOK] ❌ Erro ao enviar convocação ${dadosParaWebhook.IDCONVOCACAO}`);
               console.error(`[WEBHOOK] ❌ Status: ${webhookResponse.status} ${webhookResponse.statusText}`);
-              console.error(`[WEBHOOK] ❌ Resposta completa:`, {
-                status: webhookResponse.status,
-                statusText: webhookResponse.statusText,
-                body: responseBody,
-                tempoResposta: `${tempoResposta}ms`
-              });
               
               // Adicionar log de erro na aba
               if (typeof window.adicionarLogMeta === 'function') {
@@ -4471,10 +4446,7 @@
               enviadosComErro++;
             }
           } catch (webhookErr) {
-            console.error(`[WEBHOOK] ❌ [${i + 1}/${convocacoesParaEnviar.length}] ERRO DE CONEXÃO ao enviar convocação ${dadosParaWebhook.IDCONVOCACAO}:`);
-            console.error(`[WEBHOOK] ❌ Tipo do erro:`, webhookErr.name);
-            console.error(`[WEBHOOK] ❌ Mensagem:`, webhookErr.message);
-            console.error(`[WEBHOOK] ❌ Stack:`, webhookErr.stack);
+            console.error(`[WEBHOOK] ❌ Erro de conexão ao enviar convocação ${dadosParaWebhook.IDCONVOCACAO}:`, webhookErr.message);
             
             // Adicionar log de erro de conexão na aba
             if (typeof window.adicionarLogMeta === 'function') {
@@ -4529,62 +4501,40 @@
   
   // Função para adicionar log à lista (definida no escopo global)
   window.adicionarLogMeta = async function(log) {
-    console.log('[LOGS META] Adicionando log:', log);
     const logCompleto = {
       ...log,
       timestamp: new Date().toISOString(),
       id: Date.now() + Math.random()
     };
     
-    logsIntegracaoMeta.unshift(logCompleto); // Adiciona no início (mais recente primeiro)
-    console.log('[LOGS META] Total de logs após adicionar:', logsIntegracaoMeta.length);
+    logsIntegracaoMeta.unshift(logCompleto);
     
-    // Limitar a 100 logs em memória para não sobrecarregar
+    // Limitar a 100 logs em memória
     if (logsIntegracaoMeta.length > 100) {
       logsIntegracaoMeta = logsIntegracaoMeta.slice(0, 100);
     }
     
     // Salvar no banco de dados
     try {
-      // Extrair IDCONVOCACAO de diferentes fontes dependendo do tipo de log
       let idConvocacao = null;
       
-      console.log('[LOGS META] Tentando extrair IDCONVOCACAO do log:', {
-        tipo: log.tipo,
-        titulo: log.titulo,
-        detalhes: log.detalhes
-      });
-      
-      // Tentar múltiplas fontes para encontrar IDCONVOCACAO
       if (log.detalhes?.body?.IDCONVOCACAO) {
-        // Log de envio - IDCONVOCACAO está no body
         idConvocacao = log.detalhes.body.IDCONVOCACAO;
-        console.log('[LOGS META] IDCONVOCACAO encontrado em detalhes.body.IDCONVOCACAO:', idConvocacao);
       } else if (log.detalhes?.body?.idConvocacao) {
-        // Log de envio - IDCONVOCACAO está no body (minúsculo)
         idConvocacao = log.detalhes.body.idConvocacao;
-        console.log('[LOGS META] IDCONVOCACAO encontrado em detalhes.body.idConvocacao:', idConvocacao);
       } else if (log.detalhes?.idConvocacao) {
-        // Log de sucesso/erro - IDCONVOCACAO está em idConvocacao
         idConvocacao = log.detalhes.idConvocacao;
-        console.log('[LOGS META] IDCONVOCACAO encontrado em detalhes.idConvocacao:', idConvocacao);
       } else if (log.detalhes?.IDCONVOCACAO) {
-        // IDCONVOCACAO direto em detalhes
         idConvocacao = log.detalhes.IDCONVOCACAO;
-        console.log('[LOGS META] IDCONVOCACAO encontrado em detalhes.IDCONVOCACAO:', idConvocacao);
       } else if (log.titulo) {
-        // Tentar extrair do título (ex: "Enviando Convocação 161" ou "Resposta - Convocação 161")
         const match = log.titulo.match(/Convocação\s+(\d+)/);
         if (match) {
           idConvocacao = parseInt(match[1]);
-          console.log('[LOGS META] IDCONVOCACAO extraído do título:', idConvocacao);
         }
       } else if (log.mensagem) {
-        // Tentar extrair da mensagem também
         const match = log.mensagem.match(/convocação\s+(\d+)/i);
         if (match) {
           idConvocacao = parseInt(match[1]);
-          console.log('[LOGS META] IDCONVOCACAO extraído da mensagem:', idConvocacao);
         }
       }
       
@@ -4595,71 +4545,32 @@
         mensagem: log.mensagem,
         detalhes: log.detalhes,
         status_http: log.detalhes?.status || null,
-        tempo_resposta: log.detalhes?.tempoResposta ? parseInt(log.detalhes.tempoResposta.replace('ms', '')) : null
+        tempo_resposta: log.detalhes?.tempoResposta ? parseInt(String(log.detalhes.tempoResposta).replace('ms', '')) || null : null
       };
       
-      console.log('[LOGS META] Dados preparados para salvar:', dadosParaSalvar);
-      
       if (dadosParaSalvar.IDCONVOCACAO) {
-        console.log('[LOGS META] Enviando log para API...');
-        const response = await fetch('/api/logs-webhook-meta', {
+        await fetch('/api/logs-webhook-meta', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(dadosParaSalvar)
         });
-        
-        if (response.ok) {
-          const result = await response.json();
-          console.log(`[LOGS META] ✅ Log ${log.tipo} salvo no banco de dados com sucesso! IDCONVOCACAO: ${idConvocacao}`, result);
-        } else {
-          const errorText = await response.text();
-          console.error('[LOGS META] ❌ Erro ao salvar log no banco. Status:', response.status, 'Resposta:', errorText);
-        }
-      } else {
-        console.warn('[LOGS META] ⚠️ IDCONVOCACAO não encontrado para log tipo:', log.tipo, 'Título:', log.titulo, 'Log completo:', log);
       }
     } catch (err) {
-      console.error('[LOGS META] ❌ Erro ao salvar log no banco:', err);
-      console.error('[LOGS META] Stack trace:', err.stack);
+      console.error('[LOGS META] Erro ao salvar log:', err.message);
     }
     
-    console.log('[LOGS META] Verificando se atualizarExibicaoLogsMeta existe:', typeof window.atualizarExibicaoLogsMeta);
     if (typeof window.atualizarExibicaoLogsMeta === 'function') {
-      console.log('[LOGS META] Chamando atualizarExibicaoLogsMeta...');
       window.atualizarExibicaoLogsMeta();
-    } else {
-      console.warn('[LOGS META] Função atualizarExibicaoLogsMeta não encontrada!');
     }
   };
   
   // Função para atualizar a exibição dos logs (definida no escopo global)
   window.atualizarExibicaoLogsMeta = function() {
-    console.log('[LOGS META] Atualizando exibição. Total de logs:', logsIntegracaoMeta.length);
-    
-    // Verificar se há múltiplos elementos com o mesmo ID (não deveria acontecer, mas vamos verificar)
-    const containers = document.querySelectorAll('#logsIntegracaoMeta');
-    if (containers.length > 1) {
-      console.error('[LOGS META] ❌ ERRO: Múltiplos elementos com ID logsIntegracaoMeta encontrados!', containers.length);
-    }
-    
     const container = document.getElementById('logsIntegracaoMeta');
     if (!container) {
-      console.warn('[LOGS META] Container logsIntegracaoMeta não encontrado! Tentando novamente em 500ms...');
-      // Tentar novamente após um pequeno delay caso a aba não esteja carregada
-      setTimeout(() => {
-        const containerRetry = document.getElementById('logsIntegracaoMeta');
-        if (containerRetry) {
-          console.log('[LOGS META] Container encontrado no retry! Atualizando...');
-          window.atualizarExibicaoLogsMeta();
-        } else {
-          console.warn('[LOGS META] Container ainda não encontrado após retry. A aba pode não estar visível.');
-        }
-      }, 500);
+      setTimeout(() => window.atualizarExibicaoLogsMeta(), 500);
       return;
     }
-    console.log('[LOGS META] Container encontrado! Atualizando HTML...');
     
     if (logsIntegracaoMeta.length === 0) {
       container.innerHTML = `
@@ -4815,15 +4726,10 @@
   
   // Função para carregar logs do banco de dados (reutilizável)
   window.carregarLogsMeta = async function() {
-    console.log('[LOGS META] ========== INICIANDO CARREGAMENTO DE LOGS ==========');
-    console.log('[LOGS META] Carregando logs do banco de dados...');
     try {
-      console.log('[LOGS META] Fazendo requisição para /api/logs-webhook-meta?limite=100');
       const response = await fetch('/api/logs-webhook-meta?limite=100');
-      console.log('[LOGS META] Resposta recebida. Status:', response.status, response.statusText);
       if (response.ok) {
         const logsDoBanco = await response.json();
-        console.log('[LOGS META] ✅ Carregados', logsDoBanco.length, 'logs do banco de dados');
         
         // Converter logs do banco para o formato esperado
         // O controller retorna campos em maiúsculas (TIPO, TITULO, etc.) e também adiciona detalhes/timestamp
@@ -4865,42 +4771,22 @@
               id: log.IDLOG || log.id || `log-${index}`
             };
             
-            console.log(`[LOGS META] Log ${index} convertido:`, {
-              tipo: logConvertido.tipo,
-              titulo: logConvertido.titulo,
-              temDetalhes: !!logConvertido.detalhes,
-              timestamp: logConvertido.timestamp
-            });
-            
             return logConvertido;
           } catch (parseErr) {
-            console.error(`[LOGS META] Erro ao processar log ${index}:`, log, parseErr);
             return null;
           }
-        }).filter(log => log !== null); // Remover logs com erro
+        }).filter(log => log !== null);
         
-        console.log('[LOGS META] Logs convertidos:', logsIntegracaoMeta.length, 'logs válidos');
-        if (logsIntegracaoMeta.length > 0) {
-          console.log('[LOGS META] Primeiro log exemplo:', logsIntegracaoMeta[0]);
-        }
-        
-        // Atualizar exibição
         if (typeof window.atualizarExibicaoLogsMeta === 'function') {
           window.atualizarExibicaoLogsMeta();
-        } else {
-          console.warn('[LOGS META] Função atualizarExibicaoLogsMeta não encontrada!');
         }
       } else {
-        const errorText = await response.text();
-        console.error('[LOGS META] ❌ Erro ao carregar logs do banco. Status:', response.status, 'Resposta:', errorText);
-        // Mesmo com erro, tentar atualizar com logs em memória
         if (typeof window.atualizarExibicaoLogsMeta === 'function') {
           window.atualizarExibicaoLogsMeta();
         }
       }
     } catch (err) {
-      console.error('[LOGS META] ❌ Erro ao carregar logs do banco:', err);
-      // Mesmo com erro, tentar atualizar com logs em memória
+      console.error('[LOGS META] Erro ao carregar logs:', err.message);
       if (typeof window.atualizarExibicaoLogsMeta === 'function') {
         window.atualizarExibicaoLogsMeta();
       }
@@ -4915,7 +4801,6 @@
     
     if (btnAtualizarLogs) {
       btnAtualizarLogs.addEventListener('click', () => {
-        console.log('[LOGS META] Botão atualizar clicado!');
         window.carregarLogsMeta();
       });
     }

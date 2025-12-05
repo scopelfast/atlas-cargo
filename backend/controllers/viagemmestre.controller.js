@@ -934,14 +934,22 @@ const viagemController = {
       // Verificar motoristas na micro-região (apenas se houver micro-regiões)
       if (microregioes.length > 0) {
         try {
-          const diagMotoristasMicro = await pool.request().query(`
-            SELECT COUNT(*) AS TOTAL
-            FROM [dbo].[CADASTROGERAL] cg
-            INNER JOIN [dbo].[CIDADE] c ON cg.CDCIDADE = c.CDCIDADE
-            WHERE cg.FGTIPOCADASTRO = 'M'
-              AND cg.FGACTIVE = 'A'
-              AND c.CDMICROREGIAO IN (${microregioes.join(', ')})
-          `);
+          // Extrair apenas os valores numéricos de microregiao
+          const valoresMicro = microregioes.map(m => {
+            const valor = typeof m === 'object' && m !== null ? m.microregiao : m;
+            return typeof valor === 'number' ? valor : parseInt(valor) || 0;
+          }).filter(v => v > 0);
+          
+          if (valoresMicro.length > 0) {
+            const diagMotoristasMicro = await pool.request().query(`
+              SELECT COUNT(*) AS TOTAL
+              FROM [dbo].[CADASTROGERAL] cg
+              INNER JOIN [dbo].[CIDADE] c ON cg.CDCIDADE = c.CDCIDADE
+              WHERE cg.FGTIPOCADASTRO = 'M'
+                AND cg.FGACTIVE = 'A'
+                AND c.CDMICROREGIAO IN (${valoresMicro.join(', ')})
+            `);
+          }
         } catch (diagErr) {
           // Ignorar erros de diagnóstico, não são críticos
           console.warn('Erro na query de diagnóstico (não crítico):', diagErr.message);
@@ -3048,17 +3056,7 @@ const viagemController = {
     try {
       const { IDCONVOCACAO, tipo, titulo, mensagem, detalhes, status_http, tempo_resposta } = req.body;
       
-      console.log('[LOGS WEBHOOK META] 💾 Salvando log no banco...');
-      console.log('  - IDCONVOCACAO:', IDCONVOCACAO, `(tipo: ${typeof IDCONVOCACAO})`);
-      console.log('  - TIPO:', tipo);
-      console.log('  - TITULO:', titulo);
-      console.log('  - MENSAGEM:', mensagem ? mensagem.substring(0, 100) + '...' : null);
-      console.log('  - DETALHES tipo:', typeof detalhes);
-      console.log('  - STATUS_HTTP:', status_http);
-      console.log('  - TEMPO_RESPOSTA:', tempo_resposta);
-      
       if (!IDCONVOCACAO || !tipo) {
-        console.error('[LOGS WEBHOOK META] ❌ ERRO: IDCONVOCACAO ou tipo não fornecido!');
         return res.status(400).json({ error: 'IDCONVOCACAO e tipo são obrigatórios.' });
       }
       
@@ -3066,21 +3064,16 @@ const viagemController = {
       let detalhesJson = null;
       if (detalhes) {
         if (typeof detalhes === 'string') {
-          // Já é string, verificar se é JSON válido
           try {
             JSON.parse(detalhes);
             detalhesJson = detalhes;
           } catch (e) {
-            // Não é JSON válido, converter objeto para string
             detalhesJson = JSON.stringify(detalhes);
           }
         } else {
-          // É objeto, converter para JSON string
           detalhesJson = JSON.stringify(detalhes);
         }
       }
-      
-      console.log('  - DETALHES (JSON string):', detalhesJson ? detalhesJson.substring(0, 200) + '...' : null);
       
       const pool = await poolPromise;
       const request = pool.request()
@@ -3092,21 +3085,16 @@ const viagemController = {
         .input('STATUS_HTTP', sql.Int, status_http || null)
         .input('TEMPO_RESPOSTA', sql.Int, tempo_resposta || null);
       
-      const result = await request.query(`
+      await request.query(`
         INSERT INTO [dbo].[LOGSWEBHOOKMETA] 
           (IDCONVOCACAO, TIPO, TITULO, MENSAGEM, DETALHES, STATUS_HTTP, TEMPO_RESPOSTA, DHLOG, DHMAINTENANCE, SGUSER, SERVERORIG)
         VALUES 
           (@IDCONVOCACAO, @TIPO, @TITULO, @MENSAGEM, @DETALHES, @STATUS_HTTP, @TEMPO_RESPOSTA, GETDATE(), GETDATE(), 'SYSTEM', 'AppDVcargas')
       `);
       
-      console.log('[LOGS WEBHOOK META] ✅ Log salvo com sucesso! ID:', result.recordset[0]?.IDLOG || 'N/A');
       res.json({ success: true, message: 'Log salvo com sucesso!' });
     } catch (err) {
-      console.error('[LOGS WEBHOOK META] ❌ ERRO ao salvar log:');
-      console.error('  - Tipo:', err.name);
-      console.error('  - Mensagem:', err.message);
-      console.error('  - Stack:', err.stack);
-      console.error('  - Body recebido:', JSON.stringify(req.body, null, 2));
+      console.error('[LOGS WEBHOOK META] Erro ao salvar log:', err.message);
       res.status(500).json({ error: 'Erro ao salvar log.', details: err.message });
     }
   },
@@ -3166,27 +3154,17 @@ const viagemController = {
     console.log('\n========================================');
     console.log('[WEBHOOK CALLBACK META] 📥 RETORNO RECEBIDO');
     console.log('[WEBHOOK CALLBACK META] Timestamp:', new Date().toISOString());
-    console.log('[WEBHOOK CALLBACK META] IP do cliente:', req.ip || req.connection.remoteAddress);
-    console.log('[WEBHOOK CALLBACK META] Headers:', JSON.stringify(req.headers, null, 2));
-    console.log('[WEBHOOK CALLBACK META] Body completo:', JSON.stringify(req.body, null, 2));
-    console.log('========================================\n');
+    console.log('[WEBHOOK CALLBACK META] Body:', JSON.stringify(req.body, null, 2));
+    console.log('========================================');
     
     try {
       const { IDCONVOCACAO, LATITUDE, LONGITUDE, CDMOTIVORECUSA, STATUS } = req.body;
-      
-      console.log('[WEBHOOK CALLBACK META] 📋 Dados extraídos:');
-      console.log('  - IDCONVOCACAO:', IDCONVOCACAO, `(tipo: ${typeof IDCONVOCACAO})`);
-      console.log('  - LATITUDE:', LATITUDE, `(tipo: ${typeof LATITUDE})`);
-      console.log('  - LONGITUDE:', LONGITUDE, `(tipo: ${typeof LONGITUDE})`);
-      console.log('  - CDMOTIVORECUSA:', CDMOTIVORECUSA, `(tipo: ${typeof CDMOTIVORECUSA})`);
-      console.log('  - STATUS:', STATUS, `(tipo: ${typeof STATUS})`);
       
       if (!IDCONVOCACAO) {
         console.error('[WEBHOOK CALLBACK META] ❌ ERRO: IDCONVOCACAO não fornecido!');
         return res.status(400).json({ error: 'IDCONVOCACAO é obrigatório.' });
       }
       
-      console.log('[WEBHOOK CALLBACK META] 🔍 Verificando convocação no banco...');
       const pool = await poolPromise;
       const request = pool.request()
         .input('IDCONVOCACAO', sql.Int, parseInt(IDCONVOCACAO));
@@ -3196,16 +3174,12 @@ const viagemController = {
         SELECT IDCONVOCACAO, STATUS FROM [dbo].[CONVOCACAO] WHERE IDCONVOCACAO = @IDCONVOCACAO
       `);
       
-      console.log('[WEBHOOK CALLBACK META] 📊 Resultado da verificação:');
-      console.log('  - Registros encontrados:', checkResult.recordset.length);
-      
       if (checkResult.recordset.length === 0) {
-        console.error('[WEBHOOK CALLBACK META] ❌ ERRO: Convocação não encontrada no banco!');
+        console.error('[WEBHOOK CALLBACK META] ❌ ERRO: Convocação não encontrada!');
         return res.status(404).json({ error: 'Convocação não encontrada.' });
       }
       
       const statusAtual = checkResult.recordset[0].STATUS;
-      console.log('  - STATUS atual da convocação:', statusAtual);
       
       // Determinar STATUS baseado nos dados recebidos
       // Se CDMOTIVORECUSA foi enviado, significa que foi RECUSADA
@@ -3268,22 +3242,13 @@ const viagemController = {
         WHERE IDCONVOCACAO = @IDCONVOCACAO
       `;
       
-      console.log('[WEBHOOK CALLBACK META] Executando query:', updateQuery);
-      console.log('[WEBHOOK CALLBACK META] Parâmetros:', {
-        IDCONVOCACAO: parseInt(IDCONVOCACAO),
-        STATUS: novoStatus,
-        LATITUDE: LATITUDE !== undefined ? parseFloat(LATITUDE) : undefined,
-        LONGITUDE: LONGITUDE !== undefined ? parseFloat(LONGITUDE) : undefined,
-        CDMOTIVORECUSA: CDMOTIVORECUSA !== undefined ? parseInt(CDMOTIVORECUSA) : undefined
-      });
-      
-      console.log('[WEBHOOK CALLBACK META] 🔄 Executando UPDATE no banco...');
       const result = await updateRequest.query(updateQuery);
       
       const tempoProcessamento = Date.now() - inicioProcessamento;
-      console.log('[WEBHOOK CALLBACK META] ✅ Convocação atualizada com sucesso!');
-      console.log('  - Linhas afetadas:', result.rowsAffected[0]);
-      console.log('  - Tempo de processamento:', tempoProcessamento, 'ms');
+      console.log('[WEBHOOK CALLBACK META] ✅ Convocação atualizada!');
+      console.log('  - IDCONVOCACAO:', IDCONVOCACAO);
+      console.log('  - STATUS:', novoStatus || 'não alterado');
+      console.log('  - Tempo:', tempoProcessamento, 'ms');
       console.log('========================================\n');
       
       res.json({ 
@@ -3300,15 +3265,7 @@ const viagemController = {
         }
       });
     } catch (err) {
-      const tempoProcessamento = Date.now() - inicioProcessamento;
-      console.error('\n========================================');
-      console.error('[WEBHOOK CALLBACK META] ❌ ERRO AO PROCESSAR RETORNO');
-      console.error('[WEBHOOK CALLBACK META] Tempo até erro:', tempoProcessamento, 'ms');
-      console.error('[WEBHOOK CALLBACK META] Tipo do erro:', err.name);
-      console.error('[WEBHOOK CALLBACK META] Mensagem:', err.message);
-      console.error('[WEBHOOK CALLBACK META] Stack:', err.stack);
-      console.error('[WEBHOOK CALLBACK META] Body recebido:', JSON.stringify(req.body, null, 2));
-      console.error('========================================\n');
+      console.error('[WEBHOOK CALLBACK META] ❌ ERRO:', err.message);
       res.status(500).json({ error: 'Erro ao processar retorno do webhook.', details: err.message });
     }
   },
