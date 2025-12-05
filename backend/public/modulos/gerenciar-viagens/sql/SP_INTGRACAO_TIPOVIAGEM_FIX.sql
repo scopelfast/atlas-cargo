@@ -5,6 +5,8 @@
 -- Solução: Truncar explicitamente o campo antes de inserir
 -- ============================================
 
+/*
+
 USE [DIVULGACARGA_PRD]
 GO
 
@@ -60,3 +62,4 @@ BEGIN
 END;
 GO
 
+*/

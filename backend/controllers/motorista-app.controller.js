@@ -492,6 +492,531 @@ const motoristaAppController = {
   },
 
   // ==========================================
+  // VIAGENS - Listar viagens em andamento do motorista
+  // ==========================================
+  listarViagensAndamento: async (req, res) => {
+    try {
+      const { cdMotorista } = req.params;
+
+      console.log(`🚛 [VIAGENS] Buscando viagens do motorista ${cdMotorista}`);
+
+      const pool = await poolPromise;
+
+      const result = await pool
+        .request()
+        .input('cdMotorista', sql.Decimal(15, 0), cdMotorista)
+        .query(`
+          SELECT 
+            V.IDVIAGEM,
+            R.DSROTEIRO AS ROTEIRO,
+            V.DTPREVINICIO AS DTCARREGAMENTO,
+            V.DTPREVFINAL AS DTDESCARGA,
+            S.DSSITUACAOVIAGEM AS SITUACAO,
+            T.DSTIPOVIAGEM AS TIPO,
+            F.DSCLASSEFROTA AS CLASSE,
+            P.RZSOCIAL AS CONTRATADOR,
+            P.NRCELULAR AS CELULAR_CONTRATADOR,
+            V.VLFRETE AS FRETE,
+            V.PESO,
+            V.CUBAGEM
+          FROM VIAGEMMESTRE V
+          INNER JOIN VIAGEMMOTORISTA M ON V.IDVIAGEM = M.IDVIAGEM
+          INNER JOIN CADASTROGERAL C ON M.CDMOTORISTA = C.CDCADASTRO
+          LEFT JOIN SITUACAOVIAGEM S ON V.CDSITUACAOVIAGEM = S.CDSITUACAOVIAGEM
+          LEFT JOIN TIPOVIAGEM T ON V.CDTIPOVIAGEM = T.CDTIPOVIAGEM
+          LEFT JOIN CLASSEFROTA F ON V.CDCLASSEFROTA = F.CDCLASSEFROTA
+          LEFT JOIN ROTEIRO R ON V.IDROTEIRO = R.IDROTEIRO
+          LEFT JOIN CADASTROGERAL P ON V.CDCONTRATADOR = P.CDCADASTRO
+          WHERE V.FGSITVIAGEM NOT IN ('C', 'F', 'E')
+            AND M.CDMOTORISTA = @cdMotorista
+          ORDER BY V.DTPREVINICIO
+        `);
+
+      console.log(`✅ [VIAGENS] ${result.recordset.length} viagem(ns) encontrada(s)`);
+
+      res.json(result.recordset);
+    } catch (error) {
+      console.error('❌ [VIAGENS] Erro:', error);
+      res.status(500).json({ error: 'Erro ao buscar viagens' });
+    }
+  },
+
+  // ==========================================
+  // VIAGENS - Detalhes de uma viagem específica
+  // ==========================================
+  detalhesViagem: async (req, res) => {
+    try {
+      const { idViagem } = req.params;
+
+      console.log(`🚛 [VIAGEM] Buscando detalhes da viagem ${idViagem}`);
+
+      const pool = await poolPromise;
+
+      const result = await pool
+        .request()
+        .input('idViagem', sql.Int, idViagem)
+        .query(`
+          SELECT 
+            V.*,
+            R.DSROTEIRO,
+            S.DSSITUACAOVIAGEM,
+            T.DSTIPOVIAGEM,
+            F.DSCLASSEFROTA,
+            P.RZSOCIAL AS CONTRATADOR,
+            P.NRCELULAR AS TELEFONE_CONTRATADOR,
+            M.RZSOCIAL AS MOTORISTA
+          FROM VIAGEMMESTRE V
+          LEFT JOIN ROTEIRO R ON V.IDROTEIRO = R.IDROTEIRO
+          LEFT JOIN SITUACAOVIAGEM S ON V.CDSITUACAOVIAGEM = S.CDSITUACAOVIAGEM
+          LEFT JOIN TIPOVIAGEM T ON V.CDTIPOVIAGEM = T.CDTIPOVIAGEM
+          LEFT JOIN CLASSEFROTA F ON V.CDCLASSEFROTA = F.CDCLASSEFROTA
+          LEFT JOIN CADASTROGERAL P ON V.CDCONTRATADOR = P.CDCADASTRO
+          LEFT JOIN VIAGEMMOTORISTA VM ON V.IDVIAGEM = VM.IDVIAGEM
+          LEFT JOIN CADASTROGERAL M ON VM.CDMOTORISTA = M.CDCADASTRO
+          WHERE V.IDVIAGEM = @idViagem
+        `);
+
+      if (result.recordset.length === 0) {
+        return res.status(404).json({ error: 'Viagem não encontrada' });
+      }
+
+      console.log(`✅ [VIAGEM] Detalhes encontrados`);
+
+      res.json(result.recordset[0]);
+    } catch (error) {
+      console.error('❌ [VIAGEM] Erro:', error);
+      res.status(500).json({ error: 'Erro ao buscar detalhes da viagem' });
+    }
+  },
+
+  // ==========================================
+  // MACROS - Listar tipos de ocorrência
+  // ==========================================
+  listarMacros: async (req, res) => {
+    try {
+      console.log('📝 [MACROS] Buscando tipos de ocorrência...');
+
+      const pool = await poolPromise;
+
+      // Buscar todas as macros ordenadas
+      const result = await pool.request().query(`
+        SELECT 
+          CDTIPOOCORRENCIA,
+          DSTIPOOCORRENCIA,
+          CDEDIPADRAO,
+          FGSITUACAO,
+          SEQ,
+          CASE FGSITUACAO
+            WHEN 'T' THEN 'TRÂNSITO'
+            WHEN 'C' THEN 'CARREGAMENTO'
+            WHEN 'D' THEN 'DESCARGA'
+            WHEN 'P' THEN 'PARADA'
+          END AS SITUACAO_TEXTO
+        FROM TIPOOCORRENCIA
+        ORDER BY 
+          CASE FGSITUACAO 
+            WHEN 'T' THEN 1 
+            WHEN 'C' THEN 2 
+            WHEN 'D' THEN 3 
+            WHEN 'P' THEN 4 
+          END,
+          SEQ,
+          CDTIPOOCORRENCIA
+      `);
+
+      // Adicionar ícones para cada tipo
+      const macrosComIcones = result.recordset.map(macro => {
+        let icon = '📝';
+        
+        // Ícones por tipo de ocorrência
+        if (macro.CDTIPOOCORRENCIA === 103) icon = '🚚'; // Viagem - Início
+        else if (macro.CDTIPOOCORRENCIA === 104) icon = '🔄'; // Viagem - Reinício
+        else if (macro.CDTIPOOCORRENCIA === 151) icon = '📍'; // Carga - Chegada
+        else if (macro.CDTIPOOCORRENCIA === 109) icon = '📦'; // Carga - Início
+        else if (macro.CDTIPOOCORRENCIA === 110) icon = '✅'; // Carga - Fim
+        else if (macro.CDTIPOOCORRENCIA === 159) icon = '📍'; // Descarga - Chegada
+        else if (macro.CDTIPOOCORRENCIA === 192) icon = '📤'; // Descarga - Início
+        else if (macro.CDTIPOOCORRENCIA === 111) icon = '✅'; // Descarga - Fim
+        else if (macro.CDTIPOOCORRENCIA === 105) icon = '🍽️'; // Parada - Alimentação
+        else if (macro.CDTIPOOCORRENCIA === 106) icon = '⛽'; // Parada - Abastecimento
+        else if (macro.CDTIPOOCORRENCIA === 107) icon = '😴'; // Parada - Descanso
+        else if (macro.CDTIPOOCORRENCIA === 26) icon = '🚔'; // Retido - Fiscal
+        else if (macro.CDTIPOOCORRENCIA === 58) icon = '🔧'; // Parada - Manutenção
+        
+        return {
+          ...macro,
+          icon
+        };
+      });
+
+      console.log(`✅ [MACROS] ${macrosComIcones.length} macros encontradas`);
+
+      res.json(macrosComIcones);
+    } catch (error) {
+      console.error('❌ [MACROS] Erro ao listar macros:', error);
+      res.status(500).json({ error: 'Erro ao listar macros' });
+    }
+  },
+
+  // ==========================================
+  // MACROS - Validar sequência de ocorrência
+  // ==========================================
+  validarSequenciaMacro: async (req, res) => {
+    try {
+      const { idViagem, cdTipoOcorrencia } = req.body;
+
+      console.log(`📝 [VALIDAR] Viagem ${idViagem}, Macro ${cdTipoOcorrencia}`);
+
+      if (!idViagem || !cdTipoOcorrencia) {
+        return res.status(400).json({ error: 'idViagem e cdTipoOcorrencia são obrigatórios' });
+      }
+
+      const pool = await poolPromise;
+
+      // Usar stored procedure de validação
+      const result = await pool
+        .request()
+        .input('IDVIAGEM', sql.Int, idViagem)
+        .input('CDTIPOOCORRENCIA', sql.SmallInt, cdTipoOcorrencia)
+        .output('RESULTADO', sql.VarChar(500))
+        .output('PERMITEREGISTRAR', sql.Bit)
+        .execute('sp_ValidarSequenciaOcorrencia');
+
+      const mensagem = result.output.RESULTADO;
+      const valido = result.output.PERMITEREGISTRAR;
+
+      console.log(`${valido ? '✅' : '❌'} [VALIDAR] ${mensagem}`);
+
+      res.json({
+        valido: valido,
+        mensagem: mensagem
+      });
+    } catch (error) {
+      console.error('❌ [VALIDAR] Erro:', error);
+      res.status(500).json({ error: 'Erro ao validar sequência' });
+    }
+  },
+
+  // ==========================================
+  // MACROS - Registrar ocorrência
+  // ==========================================
+  registrarMacro: async (req, res) => {
+    try {
+      console.log('📝 [MACRO] Recebendo ocorrência...');
+      console.log('📝 [MACRO] Body:', JSON.stringify(req.body, null, 2));
+
+      const {
+        idViagem,
+        cdMotorista,
+        cdTipoOcorrencia,
+        latitude,
+        longitude,
+        altitude,
+        precisao,
+        velocidade,
+        status,
+        direcao,
+        fotoBase64,
+        observacao
+      } = req.body;
+
+      // Validações
+      if (!idViagem || !cdMotorista || !cdTipoOcorrencia) {
+        return res.status(400).json({ 
+          error: 'idViagem, cdMotorista e cdTipoOcorrencia são obrigatórios' 
+        });
+      }
+
+      const pool = await poolPromise;
+
+      // Inserir ocorrência com GPS completo
+      await pool
+        .request()
+        .input('idViagem', sql.Int, idViagem)
+        .input('cdTipoOcorrencia', sql.SmallInt, cdTipoOcorrencia)
+        .input('cdMotorista', sql.Decimal(15, 0), cdMotorista)
+        .input('latitude', sql.Decimal(10, 7), latitude || null)
+        .input('longitude', sql.Decimal(10, 7), longitude || null)
+        .input('precisao', sql.Decimal(10, 2), precisao || null)
+        .input('observacao', sql.VarChar(500), observacao || null)
+        .input('fotoBase64', sql.Text, fotoBase64 || null)
+        .query(`
+          INSERT INTO VIAGEMOCORRENCIA (
+            IDVIAGEM,
+            CDTIPOOCORRENCIA,
+            CDMOTORISTA,
+            DTOCORRENCIA,
+            DSOBSERVACAO,
+            LATITUDE,
+            LONGITUDE,
+            NRPRECISAO,
+            DSFOTOBASE64,
+            FGSINCRONIZADO,
+            DTSINCRONIZACAO
+          ) VALUES (
+            @idViagem,
+            @cdTipoOcorrencia,
+            @cdMotorista,
+            GETDATE(),
+            @observacao,
+            @latitude,
+            @longitude,
+            @precisao,
+            @fotoBase64,
+            'S',
+            GETDATE()
+          )
+        `);
+
+      // Também registrar na tabela VIAGEMRASTREAMENTO (rastreamento completo)
+      const temGPS = latitude && longitude;
+      if (temGPS) {
+        await pool
+          .request()
+          .input('idViagem', sql.Decimal(15, 0), idViagem)
+          .input('cdCadastro', sql.Decimal(15, 0), cdMotorista)
+          .input('latitude', sql.Decimal(10, 8), latitude)
+          .input('longitude', sql.Decimal(11, 8), longitude)
+          .input('velocidade', sql.Decimal(5, 2), velocidade || null)
+          .input('precisao', sql.Int, precisao ? Math.round(precisao) : null)
+          .input('altitude', sql.Decimal(10, 2), altitude || null)
+          .input('status', sql.Char(1), status || 'P')
+          .input('direcao', sql.Decimal(5, 2), direcao || null)
+          .query(`
+            INSERT INTO VIAGEMRASTREAMENTO (
+              IDVIAGEM,
+              CDCADASTRO,
+              LATITUDE,
+              LONGITUDE,
+              VELOCIDADE,
+              PRECISAO,
+              ALTITUDE,
+              FGSTATUS,
+              DIRECAO,
+              DHREGISTRO,
+              TIPO,
+              FONTE,
+              VERSAOAPP
+            ) VALUES (
+              @idViagem,
+              @cdCadastro,
+              @latitude,
+              @longitude,
+              @velocidade,
+              @precisao,
+              @altitude,
+              @status,
+              @direcao,
+              GETDATE(),
+              'M',
+              'APP',
+              '1.0.0'
+            )
+          `);
+        console.log(`   📍 GPS: ${latitude}, ${longitude}`);
+      } else {
+        console.log(`   📍 GPS: Não fornecido`);
+      }
+
+      // Buscar nome da ocorrência
+      const tipoResult = await pool
+        .request()
+        .input('cdTipoOcorrencia', sql.SmallInt, cdTipoOcorrencia)
+        .query(`
+          SELECT DSTIPOOCORRENCIA 
+          FROM TIPOOCORRENCIA 
+          WHERE CDTIPOOCORRENCIA = @cdTipoOcorrencia
+        `);
+
+      const nomeMacro = tipoResult.recordset[0]?.DSTIPOOCORRENCIA || 'Ocorrência';
+      const statusTexto = status === 'P' ? 'Parado' : 'Em Movimento';
+
+      console.log(`✅ [MACRO] ${nomeMacro} registrada!`);
+      if (temGPS) {
+        console.log(`   🚗 Velocidade: ${velocidade || 0} km/h (${statusTexto})`);
+      }
+      console.log(`   ${fotoBase64 ? '📸 Com foto' : '📝 Sem foto'}`);
+
+      res.json({
+        success: true,
+        message: `${nomeMacro} registrada com sucesso`,
+        dados: {
+          tipo: nomeMacro,
+          temFoto: !!fotoBase64,
+          temGPS: temGPS,
+          velocidade: velocidade,
+          status: statusTexto,
+        }
+      });
+    } catch (error) {
+      console.error('❌ [MACRO] Erro ao registrar:', error);
+      res.status(500).json({ error: 'Erro ao registrar ocorrência' });
+    }
+  },
+
+  // ==========================================
+  // MACROS - Histórico de ocorrências da viagem
+  // ==========================================
+  historicoMacros: async (req, res) => {
+    try {
+      const { idViagem } = req.params;
+
+      console.log(`📋 [HISTÓRICO] Buscando macros da viagem ${idViagem}`);
+
+      const pool = await poolPromise;
+
+      const result = await pool
+        .request()
+        .input('idViagem', sql.Int, idViagem)
+        .query(`
+          SELECT 
+            VO.IDVIAGEM_OCORRENCIA,
+            VO.CDTIPOOCORRENCIA,
+            T.DSTIPOOCORRENCIA,
+            T.FGSITUACAO,
+            T.SEQ,
+            VO.DTOCORRENCIA,
+            VO.DSOBSERVACAO,
+            VO.LATITUDE,
+            VO.LONGITUDE,
+            CASE WHEN VO.DSCAMINHOFOTO IS NOT NULL OR VO.DSFOTOBASE64 IS NOT NULL 
+              THEN 'S' ELSE 'N' 
+            END AS TEM_FOTO,
+            VO.FGSINCRONIZADO
+          FROM VIAGEMOCORRENCIA VO
+          INNER JOIN TIPOOCORRENCIA T ON VO.CDTIPOOCORRENCIA = T.CDTIPOOCORRENCIA
+          WHERE VO.IDVIAGEM = @idViagem
+          ORDER BY VO.DTOCORRENCIA DESC
+        `);
+
+      console.log(`✅ [HISTÓRICO] ${result.recordset.length} ocorrências encontradas`);
+
+      res.json(result.recordset);
+    } catch (error) {
+      console.error('❌ [HISTÓRICO] Erro:', error);
+      
+      // Se a tabela não existe, retornar array vazio ao invés de erro
+      if (error.message && error.message.includes('Invalid object name')) {
+        console.warn('⚠️ [HISTÓRICO] Tabela VIAGEMOCORRENCIA não existe ainda');
+        console.warn('⚠️ Execute o script: backend/scripts/EXECUTAR_TUDO_APP_MOTORISTA.sql');
+        return res.json([]);
+      }
+      
+      res.status(500).json({ error: 'Erro ao buscar histórico' });
+    }
+  },
+
+  // ==========================================
+  // GPS - Registrar posição GPS
+  // ==========================================
+  registrarGPS: async (req, res) => {
+    try {
+      console.log('📍 [GPS] Recebendo posição GPS...');
+      console.log('📍 [GPS] Body:', JSON.stringify(req.body, null, 2));
+
+      const {
+        cdMotorista,
+        idViagem,
+        latitude,
+        longitude,
+        altitude,
+        precisao,
+        velocidade,
+        status,
+        direcao,
+        tipoEnvio,
+        dtPosicao,
+      } = req.body;
+
+      // Validações
+      if (!cdMotorista) {
+        return res.status(400).json({ error: 'cdMotorista é obrigatório' });
+      }
+
+      if (!latitude || !longitude) {
+        return res.status(400).json({ error: 'latitude e longitude são obrigatórios' });
+      }
+
+      const pool = await poolPromise;
+
+      // Se TEM viagem: salvar em VIAGEMRASTREAMENTO
+      if (idViagem) {
+        await pool
+          .request()
+          .input('idViagem', sql.Decimal(15, 0), idViagem)
+          .input('cdCadastro', sql.Decimal(15, 0), cdMotorista)
+          .input('latitude', sql.Decimal(10, 8), latitude)
+          .input('longitude', sql.Decimal(11, 8), longitude)
+          .input('velocidade', sql.Decimal(5, 2), velocidade || null)
+          .input('precisao', sql.Int, precisao ? Math.round(precisao) : null)
+          .input('altitude', sql.Decimal(10, 2), altitude || null)
+          .input('status', sql.Char(1), status || 'P')
+          .input('direcao', sql.Decimal(5, 2), direcao || null)
+          .input('tipo', sql.Char(1), tipoEnvio || 'M')
+          .query(`
+            INSERT INTO VIAGEMRASTREAMENTO (
+              IDVIAGEM, CDCADASTRO, LATITUDE, LONGITUDE, VELOCIDADE,
+              PRECISAO, ALTITUDE, FGSTATUS, DIRECAO, DHREGISTRO,
+              TIPO, FONTE, VERSAOAPP
+            ) VALUES (
+              @idViagem, @cdCadastro, @latitude, @longitude, @velocidade,
+              @precisao, @altitude, @status, @direcao, GETDATE(),
+              @tipo, 'APP', '1.0.0'
+            )
+          `);
+        
+        console.log(`✅ [GPS] Posição salva em VIAGEMRASTREAMENTO (viagem #${idViagem})`);
+      } 
+      // Se NÃO tem viagem: salvar em MOTORISTARASTREAMENTO
+      else {
+        await pool
+          .request()
+          .input('cdCadastro', sql.Decimal(15, 0), cdMotorista)
+          .input('latitude', sql.Decimal(10, 8), latitude)
+          .input('longitude', sql.Decimal(11, 8), longitude)
+          .input('velocidade', sql.Decimal(5, 2), velocidade || null)
+          .input('precisao', sql.Int, precisao ? Math.round(precisao) : null)
+          .input('altitude', sql.Decimal(10, 2), altitude || null)
+          .input('status', sql.Char(1), status || 'P')
+          .input('direcao', sql.Decimal(5, 2), direcao || null)
+          .input('tipo', sql.Char(1), tipoEnvio || 'M')
+          .query(`
+            INSERT INTO MOTORISTARASTREAMENTO (
+              CDCADASTRO, LATITUDE, LONGITUDE, VELOCIDADE,
+              PRECISAO, ALTITUDE, FGSTATUS, DIRECAO, DHREGISTRO,
+              TIPO, FONTE, VERSAOAPP
+            ) VALUES (
+              @cdCadastro, @latitude, @longitude, @velocidade,
+              @precisao, @altitude, @status, @direcao, GETDATE(),
+              @tipo, 'APP', '1.0.0'
+            )
+          `);
+        
+        console.log(`✅ [GPS] Posição salva em MOTORISTARASTREAMENTO (sem viagem)`);
+      }
+
+      const statusTexto = status === 'P' ? 'Parado' : 'Em Movimento';
+      const tipoTexto = tipoEnvio === 'M' ? 'Manual' : 'Automático';
+
+      console.log(`✅ [GPS] ${statusTexto}, ${velocidade || 0} km/h (${tipoTexto})`);
+
+      res.json({
+        success: true,
+        message: 'Posição GPS registrada com sucesso',
+        dados: {
+          status: statusTexto,
+          velocidade: velocidade ? `${velocidade} km/h` : 'N/A',
+          tipo: tipoTexto,
+          viagem: idViagem || 'Sem viagem',
+        },
+      });
+    } catch (error) {
+      console.error('❌ [GPS] Erro ao registrar posição:', error);
+      res.status(500).json({ error: 'Erro ao registrar posição GPS' });
+    }
+  },
+
+  // ==========================================
   // EVENTO - Registrar evento (parada, etc)
   // ==========================================
   registrarEvento: async (req, res) => {

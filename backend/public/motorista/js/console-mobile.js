@@ -134,10 +134,28 @@
     border-radius: 6px;
   `;
   btnLimparFila.onclick = async () => {
-    if (confirm('Limpar TODA a fila offline?')) {
+    // Usar modal styled se disponível, senão usar confirm nativo
+    let confirmado = false;
+    
+    if (typeof mostrarModal === 'function') {
+      const resposta = await mostrarModal(
+        '🧹 Limpar Fila Offline',
+        'Deseja limpar TODA a fila de sincronização?\n\nIsso removerá todos os dados pendentes de envio.',
+        ['Cancelar', 'Limpar Tudo']
+      );
+      confirmado = resposta === 'Limpar Tudo';
+    } else {
+      confirmado = confirm('Limpar TODA a fila offline?');
+    }
+    
+    if (confirmado) {
       await window.OfflineDB.limparTodasFilas();
       addToConsole('🧹 Filas limpas!', 'log');
       await window.OfflineDB.atualizarIndicador();
+      
+      if (typeof mostrarToast === 'function') {
+        mostrarToast('🧹 Filas offline limpas com sucesso!', 'success');
+      }
     }
   };
   

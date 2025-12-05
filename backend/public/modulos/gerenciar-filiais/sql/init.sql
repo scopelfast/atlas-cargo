@@ -1,9 +1,6 @@
 /******************************************************************************************
  * 12. FILIAL
  ******************************************************************************************/
-PRINT '12. Migrando FILIAL...';
-GO
-
 MERGE INTO [dbo].[FILIAL] AS TARGET
 USING (
     SELECT DISTINCT
@@ -51,7 +48,4 @@ WHEN NOT MATCHED BY TARGET THEN
         SOURCE.SGUSER,
         SOURCE.SERVERORIG
     );
-
-PRINT '   ✓ FILIAL migrado: ' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' registro(s)';
 GO
-

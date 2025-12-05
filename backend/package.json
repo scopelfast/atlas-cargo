@@ -4,7 +4,10 @@
   "description": "Backend para sistema DivulgaCarga",
   "main": "server.js",
   "scripts": {
-    "dev": "nodemon server.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "https": "node server-https.js",
+    "dev:https": "nodemon server-https.js"
   },
   "keywords": [],
   "author": "",

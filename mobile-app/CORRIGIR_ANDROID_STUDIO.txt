@@ -1,0 +1,71 @@
+╔════════════════════════════════════════════════════════════════════════╗
+║                                                                        ║
+║     🔧 CORRIGIR ANDROID STUDIO - PASSO A PASSO                        ║
+║                                                                        ║
+╚════════════════════════════════════════════════════════════════════════╝
+
+Os arquivos foram corrigidos! Agora siga estes passos:
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  PASSO 1: FECHAR O ANDROID STUDIO                                    ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+Se o Android Studio estiver aberto:
+→ File → Close Project
+→ Ou fechar completamente
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  PASSO 2: ABRIR NOVAMENTE                                            ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+1. Abrir Android Studio
+2. Clicar em "Open"
+3. Selecionar:
+   C:\Users\cleverson.scopel\Documents\GitHub\SysScopel\mobile-app\android
+4. Clicar em "OK"
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  PASSO 3: AGUARDAR GRADLE SYNC                                       ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+O Android Studio vai:
+✅ Detectar os novos arquivos
+✅ Baixar Gradle
+✅ Sincronizar dependências
+
+⏱️  Aguardar 3-5 minutos
+
+Se aparecer erro ainda:
+→ File → Invalidate Caches → Restart
+
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  PASSO 4: EXECUTAR                                                    ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+Quando o sync terminar:
+1. Verificar se celular aparece no topo
+2. Clicar no botão verde "Run" ▶️
+3. Aguardar compilação
+
+
+═══════════════════════════════════════════════════════════════════════
+
+SE AINDA DER ERRO, tente este comando no PowerShell:
+
+cd C:\Users\cleverson.scopel\Documents\GitHub\SysScopel\mobile-app\android
+.\gradlew clean build --refresh-dependencies
+
+═══════════════════════════════════════════════════════════════════════
+
+⚠️  LEMBRE-SE:
+
+✅ Backend deve estar rodando: http://192.168.1.173:3000
+✅ Celular conectado via USB
+✅ Depuração USB ativada
+
+═══════════════════════════════════════════════════════════════════════
+

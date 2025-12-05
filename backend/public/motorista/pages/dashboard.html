@@ -3,108 +3,363 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#667eea">
   <title>Dashboard - Motorista</title>
-  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/padrao-telas.css">
   <style>
-    body {
-      background: #f5f5f5;
-    }
-    .dashboard {
-      max-width: 600px;
-      margin: 20px auto;
-      padding: 20px;
-    }
-    .card {
-      background: white;
-      border-radius: 15px;
-      padding: 20px;
-      margin-bottom: 15px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-    }
-    .header {
+    /* Header personalizado do Dashboard */
+    .header-motorista {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
-      padding: 20px;
-      border-radius: 15px 15px 0 0;
-      margin: -20px -20px 20px;
+      padding: 50px 20px 20px;
+      border-bottom-left-radius: 30px;
+      border-bottom-right-radius: 30px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
     }
-    .btn {
-      padding: 10px 20px;
-      background: #667eea;
+
+    .header-content {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+
+    .avatar {
+      width: 70px;
+      height: 70px;
+      flex-shrink: 0;
+      border-radius: 35px;
+      background: rgba(255,255,255,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      font-weight: bold;
       color: white;
+      border: 3px solid rgba(255,255,255,0.3);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+
+    .header-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .header-nome {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .header-cpf {
+      font-size: 14px;
+      opacity: 0.9;
+      margin-bottom: 8px;
+    }
+
+    .status-badge-header {
+      display: inline-flex;
+      align-items: center;
+      background: rgba(255,255,255,0.2);
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .status-dot-header {
+      width: 8px;
+      height: 8px;
+      border-radius: 4px;
+      background: #28a745;
+      margin-right: 6px;
+    }
+
+    .logout-btn {
+      padding: 10px;
+      background: rgba(255,255,255,0.2);
       border: none;
-      border-radius: 8px;
+      color: white;
+      font-size: 24px;
       cursor: pointer;
-      margin: 5px;
+      border-radius: 8px;
+      flex-shrink: 0;
+    }
+
+    .versao-container {
+      text-align: center;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .versao-text {
+      font-size: 12px;
+      opacity: 0.8;
+    }
+
+    /* Menu Grid */
+    .menu-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 15px;
+    }
+
+    .menu-item {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      border-radius: 16px;
+      padding: 25px 10px;
+      aspect-ratio: 1;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+      transition: transform 0.2s;
+    }
+
+    .menu-item:active {
+      transform: scale(0.95);
+    }
+
+    .menu-icon {
+      font-size: 48px;
+      margin-bottom: 10px;
+      line-height: 1;
+    }
+
+    .menu-text {
+      color: white;
+      font-size: 14px;
+      font-weight: 600;
+      text-align: center;
+      line-height: 1.2;
+    }
+
+    .menu-badge {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: #dc3545;
+      color: white;
+      font-size: 12px;
+      font-weight: bold;
+      padding: 4px 8px;
+      border-radius: 12px;
+      min-width: 24px;
+      text-align: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+
+    /* Gradientes */
+    .btn-gps { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .btn-posicao { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+    .btn-macros { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+    .btn-chat { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+    .btn-viagens { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+    .btn-convocacoes { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
+    .btn-cargas { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); }
+    .btn-config { background: linear-gradient(135deg, #d299c2 0%, #fef9d7 100%); }
+
+    .section-title {
+      font-size: 22px;
+      font-weight: bold;
+      color: #333;
+      margin-bottom: 20px;
     }
   </style>
 </head>
 <body>
-  <div class="dashboard">
-    <div class="card">
-      <div class="header">
-        <h2 id="nomeMotorista">Carregando...</h2>
-        <p id="cpfMotorista">CPF: -</p>
+  <!-- HEADER -->
+  <div class="header-motorista">
+    <div class="header-content">
+      <div class="avatar" id="avatarMotorista">?</div>
+      <div class="header-info">
+        <div class="header-nome" id="nomeMotorista">Carregando...</div>
+        <div class="header-cpf" id="cpfMotorista">CPF: -</div>
+        <div class="status-badge-header">
+          <div class="status-dot-header"></div>
+          <span>Online</span>
+        </div>
       </div>
-      
-      <h3>🎉 Bem-vindo ao APP do Motorista!</h3>
-      <p>Selecione uma opção abaixo:</p>
-      
-      <div style="margin-top: 20px;">
-        <h4>📋 Menu Principal:</h4>
-        <button class="btn" onclick="window.location.href='convocacoes.html'" style="width: 100%; margin: 10px 0; background: #28a745;">
-          📦 Minhas Convocações
-        </button>
-        <button class="btn" onclick="window.location.href='rastreamento.html'" style="width: 100%; margin: 10px 0; background: #667eea;">
-          📍 Rastreamento GPS
-        </button>
-        <button class="btn" onclick="window.location.href='cargas.html'" style="width: 100%; margin: 10px 0; background: #28a745;">
-          🚚 Cargas Disponíveis
-        </button>
-      </div>
-      
-        <button class="btn" onclick="window.location.href='eventos.html'" style="width: 100%; margin: 10px 0; background: #ffc107; color: #000;">
-          📸 Eventos e Fotos
-        </button>
-        <button class="btn" onclick="window.location.href='chat.html'" style="width: 100%; margin: 10px 0; background: #17a2b8;">
-          💬 Chat com Operador
-        </button>
-      
-      <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
-        <h4>✅ Status:</h4>
-        <ul style="font-size: 14px; color: #666;">
-          <li>✅ Login funcionando</li>
-          <li>✅ Minhas Convocações</li>
-          <li>✅ Cargas Disponíveis</li>
-          <li>✅ Rastreamento GPS (simulação)</li>
-          <li>✅ Eventos e Fotos (NOVO!)</li>
-        </ul>
-      </div>
-      
-      <button class="btn" onclick="logout()" style="margin-top: 20px;">Sair</button>
+      <button class="logout-btn" onclick="logout()" title="Sair">🚪</button>
+    </div>
+    <div class="versao-container">
+      <span class="versao-text">Versão 1.0.0</span>
     </div>
   </div>
 
+  <!-- MENU -->
+  <div class="container">
+    <!-- Mini Status GPS -->
+    <div id="miniStatusGPS" style="margin-bottom: 16px;"></div>
+
+    <div class="section-title">Menu Principal</div>
+    
+    <div class="menu-grid">
+      <a href="gps.html" class="menu-item btn-gps">
+        <div class="menu-icon">📍</div>
+        <div class="menu-text">GPS</div>
+      </a>
+
+      <a href="enviar-posicao.html" class="menu-item btn-posicao">
+        <div class="menu-icon">📤</div>
+        <div class="menu-text">Enviar Posição</div>
+      </a>
+
+      <a href="macros.html" class="menu-item btn-macros">
+        <div class="menu-icon">📝</div>
+        <div class="menu-text">Macros</div>
+        <div class="menu-badge">13</div>
+      </a>
+
+      <a href="chat.html" class="menu-item btn-chat">
+        <div class="menu-icon">💬</div>
+        <div class="menu-text">Chat</div>
+      </a>
+
+      <a href="viagens.html" class="menu-item btn-viagens">
+        <div class="menu-icon">🚛</div>
+        <div class="menu-text">Viagens</div>
+      </a>
+
+      <a href="convocacoes.html" class="menu-item btn-convocacoes">
+        <div class="menu-icon">📋</div>
+        <div class="menu-text">Convocações</div>
+      </a>
+
+      <a href="cargas.html" class="menu-item btn-cargas">
+        <div class="menu-icon">📦</div>
+        <div class="menu-text">Cargas</div>
+      </a>
+
+      <a href="#" class="menu-item btn-config" onclick="mostrarToast('Em breve', 'info'); return false;">
+        <div class="menu-icon">⚙️</div>
+        <div class="menu-text">Configurações</div>
+      </a>
+    </div>
+  </div>
+
+  <div style="text-align: center; padding: 20px; color: #999; font-size: 11px;">
+    © 2025 DivulgaCarga - Todos os direitos reservados
+  </div>
+
+  <script src="../js/notifications.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/offline.js"></script>
+  <script src="../js/gps-auto.js"></script>
+  <script src="../js/console-mobile.js"></script>
+  
   <script>
-    // Verificar se está logado
-    const token = localStorage.getItem('token');
-    const motorista = JSON.parse(localStorage.getItem('motorista') || '{}');
+    if (!verificarAuth()) window.location.href = '../index.html';
+
+    const motorista = getMotorista();
+    console.log('Dados do motorista:', motorista);
     
-    if (!token) {
-      window.location.href = '../index.html';
-    }
-    
-    // Mostrar dados do motorista
     document.getElementById('nomeMotorista').textContent = motorista.nome || 'Motorista';
-    document.getElementById('cpfMotorista').textContent = `CPF: ${motorista.cpf || '-'}`;
     
-    // Logout
-    function logout() {
-      localStorage.removeItem('token');
-      localStorage.removeItem('motorista');
-      window.location.href = '../index.html';
+    let cpfFormatado = motorista.cpf || '-';
+    if (cpfFormatado !== '-' && cpfFormatado.length === 11) {
+      cpfFormatado = cpfFormatado.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
     }
+    document.getElementById('cpfMotorista').textContent = `CPF: ${cpfFormatado}`;
+    
+    const primeiraLetra = (motorista.nome || '?').charAt(0).toUpperCase();
+    document.getElementById('avatarMotorista').textContent = primeiraLetra;
+
+    async function logout() {
+      const resposta = await mostrarModal(
+        'Sair do Aplicativo',
+        'Deseja realmente sair do aplicativo?',
+        ['Cancelar', 'Sair']
+      );
+      
+      if (resposta === 'Sair') {
+        const loading = mostrarLoading('Saindo...');
+        localStorage.removeItem('token');
+        localStorage.removeItem('motorista');
+        setTimeout(() => {
+          window.location.href = '../index.html';
+        }, 500);
+      }
+    }
+
+    // =============================================
+    // Mini Status GPS
+    // =============================================
+    function atualizarMiniStatusGPS() {
+      if (typeof obterEstatisticasGPS !== 'function') return;
+      
+      const stats = obterEstatisticasGPS();
+      const miniDiv = document.getElementById('miniStatusGPS');
+
+      if (!stats.ativo || !stats.ultimoEnvio) {
+        miniDiv.innerHTML = '';
+        return;
+      }
+
+      const agora = new Date();
+      const proximo = stats.proximoEnvio;
+      let tempoProximo = '';
+      
+      if (proximo) {
+        const difMs = proximo - agora;
+        const difMin = Math.floor(difMs / 60000);
+        const difSeg = Math.floor((difMs % 60000) / 1000);
+        
+        if (difMin > 0) {
+          tempoProximo = `${difMin}:${String(difSeg).padStart(2, '0')}`;
+        } else {
+          tempoProximo = `${difSeg}s`;
+        }
+      }
+
+      miniDiv.innerHTML = `
+        <div style="background: white; padding: 12px 16px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <div class="gps-pulse"></div>
+            <div style="font-size: 13px; font-weight: 600; color: #333;">GPS Automático Ativo</div>
+          </div>
+          <div style="font-size: 12px; color: #666;">
+            <span style="font-weight: 600;">${stats.contador}</span> envios · 
+            Próximo em <span style="font-weight: 600;">${tempoProximo}</span>
+          </div>
+        </div>
+      `;
+    }
+
+    setInterval(atualizarMiniStatusGPS, 1000);
+    atualizarMiniStatusGPS();
+
+    window.addEventListener('gpsEnviado', () => {
+      atualizarMiniStatusGPS();
+      
+      // Piscar o mini status
+      const miniDiv = document.getElementById('miniStatusGPS');
+      miniDiv.style.transform = 'scale(1.02)';
+      setTimeout(() => {
+        miniDiv.style.transform = 'scale(1)';
+      }, 300);
+    });
   </script>
+  
+  <style>
+    .gps-pulse {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4caf50;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+  </style>
 </body>
 </html>
-

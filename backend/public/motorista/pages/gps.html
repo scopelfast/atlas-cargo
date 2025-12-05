@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GPS - Motorista</title>
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <style>
+    .config-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .config-item:last-child {
+      border-bottom: none;
+    }
+    
+    .config-label {
+      flex: 1;
+      margin-right: 15px;
+    }
+    
+    .config-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 4px;
+    }
+    
+    .config-desc {
+      font-size: 13px;
+      color: #666;
+    }
+    
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 50px;
+      height: 28px;
+    }
+    
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 28px;
+    }
+    
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 4px;
+      bottom: 4px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    
+    input:checked + .slider {
+      background-color: #28a745;
+    }
+    
+    input:checked + .slider:before {
+      transform: translateX(22px);
+    }
+    
+    .input-field {
+      width: 80px;
+      height: 45px;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      padding: 0 15px;
+      font-size: 16px;
+      text-align: center;
+      background: #f9f9f9;
+    }
+    
+    .checkbox-container {
+      display: flex;
+      align-items: center;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #f0f0f0;
+    }
+    
+    .checkbox {
+      width: 24px;
+      height: 24px;
+      margin-right: 10px;
+      cursor: pointer;
+    }
+    
+    .info-box {
+      background: #e3f2fd;
+      padding: 15px;
+      border-radius: 10px;
+      margin-top: 20px;
+    }
+    
+    .info-box-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 8px;
+    }
+    
+    .info-box-text {
+      font-size: 13px;
+      color: #666;
+      line-height: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div id="statusIndicador" class="status-bar status-online">🟢 Online - Sincronizado</div>
+
+  <div class="navbar">
+    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
+    <h1>⚙️ Configurações GPS</h1>
+  </div>
+
+  <div class="container">
+    <!-- Status GPS Automático -->
+    <div id="statusGPS" style="margin-bottom: 16px;"></div>
+
+    <div class="card">
+      <div class="card-body">
+        <!-- Toggle -->
+        <div class="config-item">
+          <div class="config-label">
+            <div class="config-title">📍 Posicionamento Automático</div>
+            <div class="config-desc">Enviar localização automaticamente</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="gpsAtivo">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <!-- Intervalo -->
+        <div class="config-item">
+          <div class="config-label">
+            <div class="config-title">⏱️ Intervalo de Envio</div>
+            <div class="config-desc">Em minutos (mínimo 1)</div>
+          </div>
+          <input type="number" class="input-field" id="intervalo" value="5" min="1" max="999">
+        </div>
+
+        <!-- Termos -->
+        <div class="checkbox-container" id="termosContainer" style="display: none;">
+          <input type="checkbox" class="checkbox" id="aceitoTermos">
+          <label for="aceitoTermos" style="flex: 1; font-size: 14px; color: #333; cursor: pointer;">
+            Concordo com os termos de utilização do APP
+          </label>
+        </div>
+
+        <!-- Info -->
+        <div class="info-box">
+          <div class="info-box-title">ℹ️ Informações:</div>
+          <div class="info-box-text">
+            • O GPS funcionará em segundo plano<br>
+            • Consumo moderado de bateria<br>
+            • Funciona offline (sincroniza depois)<br>
+            • Você pode pausar a qualquer momento
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-primary btn-success" onclick="salvar()">💾 Salvar Configurações</button>
+  </div>
+
+  <script src="../js/notifications.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/offline.js"></script>
+  <script src="../js/gps-auto.js"></script>
+  
+  <script>
+    if (!verificarAuth()) window.location.href = '../index.html';
+
+    function voltar() {
+      window.location.href = 'dashboard.html';
+    }
+
+    // Carregar configurações
+    const gpsAtivo = localStorage.getItem('gps_ativo') === 'true';
+    const intervalo = localStorage.getItem('gps_intervalo') || '5';
+    const termos = localStorage.getItem('gps_termos') === 'true';
+
+    document.getElementById('gpsAtivo').checked = gpsAtivo;
+    document.getElementById('intervalo').value = intervalo;
+    document.getElementById('aceitoTermos').checked = termos;
+
+    function atualizarTermos() {
+      const ativo = document.getElementById('gpsAtivo').checked;
+      document.getElementById('termosContainer').style.display = ativo ? 'flex' : 'none';
+    }
+
+    document.getElementById('gpsAtivo').addEventListener('change', atualizarTermos);
+    atualizarTermos();
+
+    // Atualizar status GPS
+    function atualizarStatusGPS() {
+      const stats = obterEstatisticasGPS();
+      const statusDiv = document.getElementById('statusGPS');
+
+      if (!stats.ativo) {
+        statusDiv.innerHTML = `
+          <div style="background: #f5f5f5; padding: 16px; border-radius: 10px; border-left: 4px solid #999; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+            <div style="font-size: 14px; font-weight: 600; color: #666;">
+              ⏸️ GPS Automático Desativado
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      const agora = new Date();
+      const ultimo = stats.ultimoEnvio;
+      const proximo = stats.proximoEnvio;
+
+      let tempoProximo = '';
+      if (proximo) {
+        const difMs = proximo - agora;
+        const difMin = Math.floor(difMs / 60000);
+        const difSeg = Math.floor((difMs % 60000) / 1000);
+        
+        if (difMin > 0) {
+          tempoProximo = `${difMin}min ${difSeg}s`;
+        } else {
+          tempoProximo = `${difSeg}s`;
+        }
+      }
+
+      statusDiv.innerHTML = `
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 16px; border-radius: 10px; box-shadow: 0 4px 12px rgba(102,126,234,0.3); color: white;">
+          <div style="display: flex; align-items: center; margin-bottom: 12px;">
+            <div style="font-size: 24px; margin-right: 10px;">📡</div>
+            <div style="flex: 1;">
+              <div style="font-size: 14px; font-weight: 600;">GPS Automático Ativo</div>
+              <div style="font-size: 12px; opacity: 0.9;">Enviando a cada ${stats.intervalo} minutos</div>
+            </div>
+          </div>
+          
+          <div style="background: rgba(255,255,255,0.15); padding: 12px; border-radius: 8px; margin-top: 12px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 12px;">
+              <div>
+                <div style="opacity: 0.8; margin-bottom: 4px;">📊 Total de Envios</div>
+                <div style="font-size: 20px; font-weight: 700;">${stats.contador}</div>
+              </div>
+              <div>
+                <div style="opacity: 0.8; margin-bottom: 4px;">⏱️ Próximo em</div>
+                <div style="font-size: 20px; font-weight: 700;">${tempoProximo || 'Aguarde...'}</div>
+              </div>
+            </div>
+            
+            ${ultimo ? `
+              <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 11px; opacity: 0.9;">
+                ✅ Último envio: ${ultimo.toLocaleTimeString('pt-BR')}
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }
+
+    // Atualizar a cada segundo
+    setInterval(atualizarStatusGPS, 1000);
+    atualizarStatusGPS();
+
+    // Listener para eventos de GPS
+    window.addEventListener('gpsEnviado', (e) => {
+      console.log('🎉 GPS enviado!', e.detail);
+      atualizarStatusGPS();
+      
+      // Piscar o indicador
+      const statusDiv = document.getElementById('statusGPS');
+      statusDiv.style.transform = 'scale(1.02)';
+      setTimeout(() => {
+        statusDiv.style.transform = 'scale(1)';
+      }, 300);
+    });
+
+    async function salvar() {
+      const ativo = document.getElementById('gpsAtivo').checked;
+      const intervaloVal = document.getElementById('intervalo').value;
+      const termosAceitos = document.getElementById('aceitoTermos').checked;
+
+      if (!intervaloVal || parseInt(intervaloVal) < 1) {
+        mostrarToast('Intervalo deve ser no mínimo 1 minuto', 'error');
+        return;
+      }
+
+      if (ativo && !termosAceitos) {
+        mostrarToast('Você precisa aceitar os termos de utilização', 'warning');
+        return;
+      }
+
+      localStorage.setItem('gps_ativo', ativo.toString());
+      localStorage.setItem('gps_intervalo', intervaloVal);
+      localStorage.setItem('gps_termos', termosAceitos.toString());
+
+      mostrarToast(
+        `GPS ${ativo ? 'ativado' : 'desativado'} com sucesso!\nIntervalo: ${intervaloVal} minutos`,
+        'success'
+      );
+
+      // Reiniciar GPS automático com as novas configurações
+      if (typeof pararGPSAutomatico === 'function') {
+        pararGPSAutomatico();
+      }
+      
+      if (ativo && typeof iniciarGPSAutomatico === 'function') {
+        setTimeout(() => {
+          iniciarGPSAutomatico();
+          atualizarStatusGPS();
+        }, 500);
+      }
+      
+      setTimeout(() => voltar(), 2000);
+    }
+  </script>
+</body>
+</html>

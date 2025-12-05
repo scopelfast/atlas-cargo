@@ -9,7 +9,7 @@
   // ==========================================
   async function initDB() {
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open('MotoristaDB', 2); // Versão 2 - adicionado 'cargas' e 'filaMensagens'
+      const request = indexedDB.open('MotoristaDB', 3); // Versão 3 - adicionado 'macros' e 'viagens'
 
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
@@ -31,6 +31,18 @@
         if (!db.objectStoreNames.contains('cargas')) {
           const cargas = db.createObjectStore('cargas', { keyPath: 'IDVIAGEM' });
           cargas.createIndex('dataCache', 'dataCache', { unique: false });
+        }
+
+        // Store para macros (cache) ⭐ NOVO
+        if (!db.objectStoreNames.contains('macros')) {
+          const macros = db.createObjectStore('macros', { keyPath: 'CDTIPOOCORRENCIA' });
+          macros.createIndex('dataCache', 'dataCache', { unique: false });
+        }
+
+        // Store para viagens (cache) ⭐ NOVO
+        if (!db.objectStoreNames.contains('viagens')) {
+          const viagens = db.createObjectStore('viagens', { keyPath: 'IDVIAGEM' });
+          viagens.createIndex('dataCache', 'dataCache', { unique: false });
         }
 
         // Store para fila de GPS

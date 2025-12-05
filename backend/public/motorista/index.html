@@ -69,8 +69,34 @@
     // Registrar Service Worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/motorista/sw.js')
-        .then(() => console.log('✅ Service Worker registrado'))
-        .catch(err => console.error('❌ Erro SW:', err));
+        .then((registration) => {
+          console.log('✅ Service Worker registrado');
+          
+          // Verificar atualizações a cada 60 segundos
+          setInterval(() => {
+            registration.update();
+          }, 60000);
+          
+          // Atualizar imediatamente
+          registration.update();
+          
+          // Listener para quando houver atualização
+          registration.addEventListener('updatefound', () => {
+            const newWorker = registration.installing;
+            
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                console.log('🆕 Nova versão disponível! Recarregando...');
+                
+                // Recarregar página para usar nova versão
+                setTimeout(() => {
+                  window.location.reload();
+                }, 1000);
+              }
+            });
+          });
+        })
+        .catch(err => console.error('❌ Erro ao registrar SW:', err));
     }
   </script>
 </body>

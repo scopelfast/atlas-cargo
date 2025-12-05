@@ -1,6 +1,55 @@
 // APP Motorista - Autenticação
 // Versão: 1.0
 
+// ==========================================
+// FUNÇÕES GLOBAIS DE AUTENTICAÇÃO
+// ==========================================
+
+/**
+ * Verificar se o usuário está autenticado
+ */
+function verificarAuth() {
+  const token = localStorage.getItem('token');
+  const motorista = localStorage.getItem('motorista');
+  return !!(token && motorista);
+}
+
+/**
+ * Obter token
+ */
+function getToken() {
+  return localStorage.getItem('token');
+}
+
+/**
+ * Obter dados do motorista
+ */
+function getMotorista() {
+  const motorista = localStorage.getItem('motorista');
+  return motorista ? JSON.parse(motorista) : null;
+}
+
+/**
+ * Fazer logout
+ */
+function doLogout() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('motorista');
+  window.location.href = '/motorista/index.html';
+}
+
+/**
+ * Verificar se token está expirado (opcional)
+ */
+function isTokenExpired() {
+  // TODO: Implementar verificação de expiração do JWT
+  return false;
+}
+
+// ==========================================
+// LOGIN FORM (IIFE)
+// ==========================================
+
 (function() {
   const loginForm = document.getElementById('loginForm');
   const cpfInput = document.getElementById('cpf');

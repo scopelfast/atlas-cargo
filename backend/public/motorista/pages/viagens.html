@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Viagens - Motorista</title>
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <style>
+    .viagem-card {
+      background: white;
+      border-radius: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+    
+    .viagem-header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .viagem-id {
+      font-size: 18px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    
+    .viagem-situacao {
+      font-size: 12px;
+      background: rgba(255,255,255,0.2);
+      padding: 4px 10px;
+      border-radius: 12px;
+    }
+    
+    .viagem-body {
+      padding: 16px;
+    }
+    
+    .viagem-roteiro {
+      font-size: 16px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .data-item {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .btn-macros {
+      margin-top: 14px;
+    }
+
+    .btn-whatsapp {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3);
+      margin-top: 10px;
+    }
+
+    .btn-whatsapp:active {
+      transform: scale(0.98);
+      box-shadow: 0 2px 8px rgba(37, 211, 102, 0.3);
+    }
+  </style>
+</head>
+<body>
+  <div id="statusIndicador" class="status-bar status-online">🟢 Online - Sincronizado</div>
+
+  <div class="navbar">
+    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
+    <h1>🚛 Minhas Viagens</h1>
+  </div>
+
+  <div class="container">
+    <div id="viagensList">
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>Carregando viagens...</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/notifications.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/offline.js"></script>
+  <script src="../js/cache-helper.js"></script>
+  
+  <script>
+    if (!verificarAuth()) window.location.href = '../index.html';
+
+    const motorista = getMotorista();
+
+    function voltar() {
+      window.location.href = 'dashboard.html';
+    }
+
+    (async () => {
+      await carregarViagens();
+      await atualizarStatusBar();
+    })();
+
+    async function carregarViagens() {
+      try {
+        const resultado = await fetchComCache(
+          `/api/motorista/viagens-andamento/${motorista.id}`,
+          'viagens',
+          300000 // 5 minutos
+        );
+
+        const viagens = resultado.dados;
+        const lista = document.getElementById('viagensList');
+        
+        if (viagens.length === 0) {
+          lista.innerHTML = `
+            <div class="empty">
+              <div class="empty-icon">🚛</div>
+              <div class="empty-text">Nenhuma viagem em andamento</div>
+            </div>
+          `;
+          return;
+        }
+
+        lista.innerHTML = viagens.map(v => `
+          <div class="viagem-card">
+            <div class="viagem-header">
+              <div class="viagem-id" onclick="verDetalhes(${v.IDVIAGEM})">
+                #${v.IDVIAGEM}
+              </div>
+              <div class="viagem-situacao">${v.SITUACAO || 'Em Andamento'}</div>
+            </div>
+            <div class="viagem-body">
+              <div class="viagem-roteiro">
+                🚚 ${v.ROTEIRO || 'Rota não definida'}
+              </div>
+              
+              <div class="data-item">
+                📅 <strong>Carregamento:</strong> ${formatarData(v.DTCARREGAMENTO || v.DTPREVINICIO)}
+              </div>
+              <div class="data-item">
+                📅 <strong>Descarga:</strong> ${formatarData(v.DTDESCARGA || v.DTPREVFINAL)}
+              </div>
+              
+              <button class="btn-primary btn-macros" onclick="irParaMacros(${v.IDVIAGEM})">
+                📝 Registrar Macros
+              </button>
+              <button class="btn-whatsapp" onclick="abrirWhatsAppContratador('${v.CONTRATADOR || 'Contratador'}', '${v.CELULAR_CONTRATADOR || ''}', ${v.IDVIAGEM})">
+                💬 WhatsApp do Contratador
+              </button>
+            </div>
+          </div>
+        `).join('');
+
+        // Indicar se veio do cache
+        if (resultado.cache) {
+          mostrarToast(`📦 Dados do cache (${resultado.idade} min atrás)`, 'info');
+        }
+
+      } catch (error) {
+        console.error('Erro ao carregar viagens:', error);
+        document.getElementById('viagensList').innerHTML = `
+          <div style="color: #dc3545; text-align: center; padding: 40px 20px;">
+            <div style="font-size: 48px; margin-bottom: 16px;">❌</div>
+            <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">
+              Erro ao carregar viagens
+            </div>
+            <div style="font-size: 14px; color: #666; margin-bottom: 20px;">
+              ${error.message}
+            </div>
+            <button class="btn-primary" onclick="location.reload()">
+              🔄 Tentar Novamente
+            </button>
+          </div>
+        `;
+      }
+    }
+
+    function formatarData(data) {
+      if (!data) return '-';
+      return new Date(data).toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    function irParaMacros(idViagem) {
+      window.location.href = `macros.html?viagem=${idViagem}`;
+    }
+
+    function abrirWhatsAppContratador(nomeContratador, celular, idViagem) {
+      if (!celular) {
+        mostrarToast('⚠️ Celular do contratador não cadastrado', 'warning');
+        return;
+      }
+
+      // Formatar número (remover caracteres especiais)
+      const numeroLimpo = celular.replace(/\D/g, '');
+      
+      // Mensagem padrão
+      const mensagem = encodeURIComponent(
+        `Olá ${nomeContratador}!\n\n` +
+        `Sou o motorista da viagem #${idViagem}.\n\n` +
+        `Gostaria de tirar uma dúvida sobre a viagem.`
+      );
+
+      // Abrir WhatsApp
+      window.open(`https://wa.me/55${numeroLimpo}?text=${mensagem}`, '_blank');
+    }
+
+    async function verDetalhes(idViagem) {
+      const loading = mostrarLoading('Carregando detalhes...');
+
+      try {
+        const response = await fetch(`/api/motorista/viagem/${idViagem}`, {
+          headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+
+        if (!response.ok) throw new Error('Erro ao carregar detalhes');
+
+        const viagem = await response.json();
+        esconderLoading();
+
+        // Montar mensagem com detalhes
+        const detalhes = `
+📋 VIAGEM #${viagem.IDVIAGEM}
+
+🚚 Roteiro: ${viagem.DSROTEIRO || '-'}
+
+📦 Tipo: ${viagem.DSTIPOVIAGEM || '-'}
+🚛 Classe: ${viagem.DSCLASSEFROTA || '-'}
+
+💰 Frete: R$ ${viagem.VRFRETE || '0,00'}
+⚖️ Peso: ${viagem.PESO || '0'} ton
+📦 Cubagem: ${viagem.CUBAGEM || '0'} m³
+
+📅 Carregamento: ${formatarData(viagem.DTCARREGAMENTO)}
+📅 Descarga: ${formatarData(viagem.DTDESCARGA)}
+
+👤 Contratador: ${viagem.CONTRATADOR || '-'}
+        `.trim();
+
+        await mostrarModal(
+          `Detalhes da Viagem #${viagem.IDVIAGEM}`,
+          detalhes,
+          ['Fechar', 'Registrar Macro']
+        ).then(opcao => {
+          if (opcao === 'Registrar Macro') {
+            irParaMacros(idViagem);
+          }
+        });
+
+      } catch (error) {
+        esconderLoading();
+        mostrarToast('Erro ao carregar detalhes da viagem', 'error');
+      }
+    }
+  </script>
+</body>
+</html>

@@ -276,11 +276,11 @@
         console.log('🧪 Testando GPS...');
         
         if (!navigator.geolocation) {
-          alert('❌ Este dispositivo não suporta GPS');
+          mostrarToast('❌ Este dispositivo não suporta GPS');
           return;
         }
 
-        alert('✅ GPS disponível!\n\nAgora vou pedir permissão.\nQuando o Chrome perguntar, clique em PERMITIR!');
+        mostrarToast('✅ GPS disponível!\n\nAgora vou pedir permissão.\nQuando o Chrome perguntar, clique em PERMITIR!');
 
         const pos = await new Promise((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(
@@ -297,11 +297,11 @@
         console.error('❌ Erro GPS:', err);
         
         if (err.code === 1) {
-          alert('❌ PERMISSÃO NEGADA!\n\nVocê clicou em "Bloquear".\n\nPara corrigir:\n1. Recarregue a página\n2. Clique novamente neste botão\n3. Quando perguntar, clique em PERMITIR');
+          mostrarToast('❌ PERMISSÃO NEGADA!\n\nVocê clicou em "Bloquear".\n\nPara corrigir:\n1. Recarregue a página\n2. Clique novamente neste botão\n3. Quando perguntar, clique em PERMITIR');
         } else if (err.code === 2) {
-          alert('❌ GPS INDISPONÍVEL!\n\nVerifique:\n- GPS do celular está ativado?\n- Está em local aberto? (não funciona bem dentro de prédios)');
+          mostrarToast('❌ GPS INDISPONÍVEL!\n\nVerifique:\n- GPS do celular está ativado?\n- Está em local aberto? (não funciona bem dentro de prédios)');
         } else if (err.code === 3) {
-          alert('⏱️ TIMEOUT!\n\nO GPS demorou muito.\n\nTente:\n- Sair de dentro de prédios\n- Aguardar 1 minuto\n- Tentar novamente');
+          mostrarToast('⏱️ TIMEOUT!\n\nO GPS demorou muito.\n\nTente:\n- Sair de dentro de prédios\n- Aguardar 1 minuto\n- Tentar novamente');
         }
       }
     }
@@ -309,7 +309,7 @@
     // SOLICITAR PERMISSÃO GPS
     async function solicitarPermissaoGPS() {
       if (!navigator.geolocation) {
-        alert('❌ GPS não disponível neste dispositivo');
+        mostrarToast('❌ GPS não disponível neste dispositivo');
         return false;
       }
 
@@ -663,7 +663,7 @@
           if (response.ok) {
             console.log('✅ GPS simulado enviado!');
             atualizarUltimoHistorico(true);
-            alert('✅ Posição simulada enviada!\n\n' + 
+            mostrarToast('✅ Posição simulada enviada!\n\n' + 
                   `Lat: ${dados.latitude.toFixed(6)}\n` +
                   `Lng: ${dados.longitude.toFixed(6)}`);
             document.getElementById('gpsDetalhe').textContent = 
@@ -675,11 +675,11 @@
         } else {
           await window.OfflineDB.adicionarFila('filaGPS', dados);
           atualizarUltimoHistorico(false);
-          alert('📴 Offline - GPS simulado salvo na fila');
+          mostrarToast('📴 Offline - GPS simulado salvo na fila');
         }
       } catch (err) {
         console.error('Erro ao enviar GPS simulado:', err);
-        alert('Erro ao enviar');
+        mostrarToast('❌ Erro ao enviar');
       }
     }
     

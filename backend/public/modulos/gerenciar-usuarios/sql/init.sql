@@ -1,25 +1,6 @@
 -- ============================================
 -- Arquivo de Inicialização - Gerenciar Usuários
 -- ============================================
--- Este arquivo é executado automaticamente ao abrir o módulo "Gerenciar Usuários"
--- VOCÊ PODE EDITAR ESTE ARQUIVO LIVREMENTE
--- ============================================
-
--- Migração de dados de USUARIO de INTEGRA_PRD para DIVULGACARGA_PRD
--- Sincroniza: Todos os usuários do sistema
-
-USE [DIVULGACARGA_PRD];
-
-GO
-
-SET NOCOUNT ON;
-
-GO
-
-/******************************************************************************************
- * 1. USUARIO - Migração de todos os usuários
- ******************************************************************************************/
-
 MERGE INTO [dbo].[USUARIO] AS TARGET
 USING (
     SELECT DISTINCT
@@ -71,9 +52,4 @@ WHEN NOT MATCHED BY TARGET THEN
         SOURCE.SGUSER,
         SOURCE.SERVERORIG
     );
-
-PRINT '   ✓ Migração de USUARIO concluída.';
-GO
-
-PRINT 'Inicialização do módulo Gerenciar Usuários concluída.';
 GO

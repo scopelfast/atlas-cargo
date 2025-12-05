@@ -351,12 +351,12 @@
   <div class="filtros">
     <div class="filtros-titulo">📅 Período:</div>
     <div class="filtros-buttons">
-      <button class="filtro-btn" onclick="filtrarPeriodo(7)">7 dias</button>
-      <button class="filtro-btn" onclick="filtrarPeriodo(15)">15 dias</button>
-      <button class="filtro-btn active" onclick="filtrarPeriodo(30)">30 dias</button>
-      <button class="filtro-btn" onclick="filtrarPeriodo(60)">60 dias</button>
-      <button class="filtro-btn" onclick="filtrarPeriodo(90)">90 dias</button>
-      <button class="filtro-btn" onclick="filtrarPeriodo(0)">Todos</button>
+      <button class="filtro-btn" data-dias="7" onclick="filtrarPeriodo(7, this)">7 dias</button>
+      <button class="filtro-btn" data-dias="15" onclick="filtrarPeriodo(15, this)">15 dias</button>
+      <button class="filtro-btn active" data-dias="30" onclick="filtrarPeriodo(30, this)">30 dias</button>
+      <button class="filtro-btn" data-dias="60" onclick="filtrarPeriodo(60, this)">60 dias</button>
+      <button class="filtro-btn" data-dias="90" onclick="filtrarPeriodo(90, this)">90 dias</button>
+      <button class="filtro-btn" data-dias="0" onclick="filtrarPeriodo(0, this)">Todos</button>
     </div>
   </div>
 
@@ -416,7 +416,7 @@
         filtrarPeriodo(periodoAtual);
         
         if (!window.OfflineDB.isOnline()) {
-          alert('📴 Offline - Mostrando dados salvos');
+          mostrarToast('📴 Offline - Mostrando dados salvos', 'warning');
         }
       } catch (err) {
         console.error('Erro:', err);
@@ -434,12 +434,22 @@
     let convocacoesGlobal = [];
     let periodoAtual = 30;
 
-    function filtrarPeriodo(dias) {
+    function filtrarPeriodo(dias, elemento) {
       periodoAtual = dias;
       
       // Atualizar botões ativos
       document.querySelectorAll('.filtro-btn').forEach(btn => btn.classList.remove('active'));
-      event.target.classList.add('active');
+      if (elemento) {
+        elemento.classList.add('active');
+      } else {
+        // Se não passou elemento, marcar o botão correspondente
+        const botoes = document.querySelectorAll('.filtro-btn');
+        botoes.forEach(btn => {
+          if (btn.getAttribute('data-dias') == dias) {
+            btn.classList.add('active');
+          }
+        });
+      }
       
       // Filtrar convocações
       let filtradas = convocacoesGlobal;
@@ -593,7 +603,13 @@
     }
 
     async function aceitar(idConvocacao, idViagem) {
-      if (!confirm('Deseja aceitar esta viagem?')) return;
+      const resposta = await mostrarModal(
+        '✅ Aceitar Viagem',
+        'Deseja aceitar esta convocação?',
+        ['Cancelar', 'Aceitar']
+      );
+      
+      if (resposta !== 'Aceitar') return;
 
       let latitude = null, longitude = null;
 
@@ -619,10 +635,10 @@
           });
 
           if (response.ok) {
-            alert('✅ Convocação aceita!');
+            mostrarToast('✅ Convocação aceita com sucesso!', 'success');
             carregarConvocacoes();
           } else {
-            alert('Erro ao aceitar');
+            mostrarToast('❌ Erro ao aceitar convocação', 'error');
           }
         } else {
           await window.OfflineDB.adicionarFila('filaAcoes', {
@@ -632,7 +648,7 @@
             data: { latitude, longitude }
           });
 
-          alert('📴 Offline - Será enviado quando online');
+          mostrarToast('💾 Salvo! Será enviado quando houver conexão', 'warning');
           
           const convocacoes = await window.OfflineDB.buscarCache('convocacoes');
           const conv = convocacoes.find(c => c.IDCONVOCACAO === idConvocacao);
@@ -645,12 +661,18 @@
 
         await window.OfflineDB.atualizarIndicador();
       } catch (err) {
-        alert('Erro ao aceitar');
+        mostrarToast('❌ Erro ao aceitar convocação', 'error');
       }
     }
 
     async function recusar(idConvocacao) {
-      if (!confirm('Deseja recusar esta viagem?')) return;
+      const resposta = await mostrarModal(
+        '❌ Recusar Viagem',
+        'Deseja recusar esta convocação?',
+        ['Cancelar', 'Recusar']
+      );
+      
+      if (resposta !== 'Recusar') return;
 
       try {
         if (window.OfflineDB.isOnline()) {
@@ -663,7 +685,7 @@
           });
 
           if (response.ok) {
-            alert('Convocação recusada');
+            mostrarToast('Convocação recusada', 'success');
             carregarConvocacoes();
           }
         } else {
@@ -674,12 +696,12 @@
             data: {}
           });
 
-          alert('📴 Offline - Será enviado quando online');
+          mostrarToast('💾 Salvo! Será enviado quando houver conexão', 'warning');
         }
 
         await window.OfflineDB.atualizarIndicador();
       } catch (err) {
-        alert('Erro ao recusar');
+        mostrarToast('❌ Erro ao recusar convocação', 'error');
       }
     }
 

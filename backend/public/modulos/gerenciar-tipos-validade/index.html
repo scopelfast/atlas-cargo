@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Gerenciar Tipos de Validade</title>
+    <link rel="stylesheet" href="/css/modulos.css">
+</head>
+<body>
+    <div class="modulo-container">
+        <h1>Gerenciar Tipos de Validade</h1>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="filtros">Filtros</button>
+            <button class="tab-btn" data-tab="grid">Grid</button>
+            <button class="tab-btn" data-tab="dados">Dados</button>
+        </div>
+
+        <div class="tab-content active" id="tab-filtros">
+            <div class="form-box">
+                <h2>Filtros de Busca</h2>
+                <form id="filtroForm">
+                    <div class="input-group triple">
+                        <div>
+                            <label for="filtroCodigo">Código</label>
+                            <input type="number" id="filtroCodigo" min="1">
+                        </div>
+                        <div>
+                            <label for="filtroDescricao">Descrição</label>
+                            <input type="text" id="filtroDescricao" maxlength="40">
+                        </div>
+                        <div>
+                            <label for="filtroTipoCadastro">Tipo de Cadastro</label>
+                            <select id="filtroTipoCadastro">
+                                <option value="">Todos</option>
+                                <option value="MOT">Motorista</option>
+                                <option value="CLI">Cliente</option>
+                                <option value="EQP">Equipamento</option>
+                                <option value="TRA">Transportador</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn save">Aplicar Filtro</button>
+                    <button type="button" id="btnLimparFiltros" class="btn cancel">Limpar</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="tab-content" id="tab-grid">
+            <div class="form-box">
+                <h2>Visualização em Grid</h2>
+                <div class="actions-top">
+                    <button id="btnVoltarFiltrosGrid" class="btn cancel">← Voltar aos Filtros</button>
+                    <button id="btnNovoRegistroGrid" class="btn save">+ Novo Registro</button>
+                </div>
+                <div id="tiposGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
+                    <span id="tiposGridCountText">0 registro(s) encontrado(s)</span>
+                </div>
+                <div id="tiposGrid" class="grid-container">
+                    <p class="empty">Aplicar filtros para carregar o grid.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="tab-dados">
+            <div class="form-box">
+                <h2 id="formTitle">Novo Tipo de Validade</h2>
+                <form id="tipoForm">
+                    <div class="input-group triple">
+                        <div>
+                            <label for="tipoCodigo">Código</label>
+                            <input type="text" id="tipoCodigo" readonly>
+                        </div>
+                        <div>
+                            <label for="tipoDescricao">Descrição *</label>
+                            <input type="text" id="tipoDescricao" required maxlength="40">
+                        </div>
+                        <div>
+                            <label>Exige Certificadora? *</label>
+                            <div class="checkbox-group">
+                                <label>
+                                    <input type="radio" name="tipoExigeCertificadora" value="S" required> Sim
+                                </label>
+                                <label>
+                                    <input type="radio" name="tipoExigeCertificadora" value="N" checked> Não
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-section">
+                        <h3>Aplicável Para:</h3>
+                        <div style="display: flex; flex-direction: column; gap: 10px; align-items: flex-start;">
+                            <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                                <input type="checkbox" id="tipoVeiculo" value="S" style="width: 18px; height: 18px; cursor: pointer;">
+                                <span>Veículo</span>
+                            </label>
+                            <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                                <input type="checkbox" id="tipoMotorista" value="S" style="width: 18px; height: 18px; cursor: pointer;">
+                                <span>Motorista</span>
+                            </label>
+                            <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                                <input type="checkbox" id="tipoTransportador" value="S" style="width: 18px; height: 18px; cursor: pointer;">
+                                <span>Transportador</span>
+                            </label>
+                            <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                                <input type="checkbox" id="tipoCliente" value="S" style="width: 18px; height: 18px; cursor: pointer;">
+                                <span>Cliente</span>
+                            </label>
+                            <label class="checkbox-label" style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+                                <input type="checkbox" id="tipoFornecedor" value="S" style="width: 18px; height: 18px; cursor: pointer;">
+                                <span>Fornecedor</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn save">Salvar</button>
+                        <button type="button" id="btnCancelar" class="btn cancel">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div id="confirmModal" class="modal">
+            <div class="modal-content">
+                <h3>Confirmar Ação</h3>
+                <p id="modalMessage"></p>
+                <div class="modal-actions">
+                    <button id="confirmYes" class="btn delete">Sim</button>
+                    <button id="confirmNo" class="btn cancel">Cancelar</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="message"></div>
+    </div>
+
+    <!-- Overlay de carregamento para init.sql -->
+    <div id="loadingOverlayInitSQL" class="calculando-overlay" style="display: none;">
+      <div class="calculando-content">
+        <div class="calculando-spinner"></div>
+        <h3 id="loadingTitleInitSQL">Processando Inicialização</h3>
+        <p id="loadingTextInitSQL">Executando scripts de inicialização...</p>
+        <p class="calculando-detalhe" id="loadingDetailInitSQL">Isso pode levar alguns segundos.</p>
+      </div>
+    </div>
+
+    <script src="/js/permissions.js"></script>
+    <script src="js/script.js"></script>
+</body>
+</html>
+

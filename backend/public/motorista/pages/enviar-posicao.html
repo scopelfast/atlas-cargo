@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enviar Posição - Motorista</title>
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <style>
+    .icon-container {
+      width: 100px;
+      height: 100px;
+      margin: 0 auto 20px;
+      border-radius: 50px;
+      background: #f0f0f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 50px;
+    }
+    
+    .card-desc {
+      font-size: 14px;
+      color: #666;
+      text-align: center;
+      margin-bottom: 20px;
+      line-height: 1.5;
+    }
+    
+    .posicao-info {
+      background: #e3f2fd;
+      border-radius: 12px;
+      padding: 15px;
+      margin: 20px 0;
+    }
+    
+    .posicao-info-titulo {
+      font-size: 15px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 12px;
+    }
+    
+    .posicao-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+    
+    .posicao-label {
+      color: #666;
+    }
+    
+    .posicao-value {
+      font-weight: 600;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <div id="statusIndicador" class="status-bar status-online">🟢 Online - Sincronizado</div>
+
+  <div class="navbar">
+    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
+    <h1>📤 Enviar Posição</h1>
+  </div>
+
+  <div class="container">
+    <!-- Seletor de Viagem -->
+    <div id="viagemSelector" style="margin-bottom: 16px;"></div>
+
+    <div class="card">
+      <div class="card-body" style="text-align: center;">
+        <div class="icon-container" id="statusIcon">📍</div>
+        
+        <h3 style="font-size: 20px; font-weight: bold; color: #333; margin-bottom: 10px;">
+          Enviar Posição
+        </h3>
+        
+        <div class="card-desc">
+          Clique no botão abaixo para enviar sua localização atual
+        </div>
+
+        <div class="posicao-info" id="ultimaPosicao" style="display: none;">
+          <div class="posicao-info-titulo">📍 Última Posição Enviada:</div>
+          <div class="posicao-row">
+            <span class="posicao-label">Status:</span>
+            <span class="posicao-value" id="infoStatus">-</span>
+          </div>
+          <div class="posicao-row">
+            <span class="posicao-label">Velocidade:</span>
+            <span class="posicao-value" id="infoVelocidade">-</span>
+          </div>
+          <div class="posicao-row">
+            <span class="posicao-label">Direção:</span>
+            <span class="posicao-value" id="infoDirecao">-</span>
+          </div>
+          <div class="posicao-row">
+            <span class="posicao-label">Coordenadas:</span>
+            <span class="posicao-value" id="infoCoordenadas" style="font-size: 12px;">-</span>
+          </div>
+          <div class="posicao-row">
+            <span class="posicao-label">Horário:</span>
+            <span class="posicao-value" id="infoHorario">-</span>
+          </div>
+        </div>
+
+        <button class="btn-primary btn-success" id="btnEnviar" onclick="enviarPosicao()">
+          <span style="font-size: 20px; margin-right: 8px;">📤</span>
+          <span>Enviar Posição Agora</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <div style="font-size: 15px; font-weight: 600; color: #333; margin-bottom: 10px;">
+          ℹ️ Como funciona:
+        </div>
+        <div style="font-size: 14px; color: #666; line-height: 22px;">
+          • A posição é capturada instantaneamente<br>
+          • Inclui velocidade e status (parado/movimento)<br>
+          • Funciona offline (sincroniza depois)<br>
+          • Informações precisas em tempo real
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/notifications.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/offline.js"></script>
+  
+  <script>
+    if (!verificarAuth()) window.location.href = '../index.html';
+
+    const motorista = getMotorista();
+    let viagens = [];
+    let viagemSelecionada = null;
+
+    function voltar() {
+      window.location.href = 'dashboard.html';
+    }
+
+    // Inicializar
+    (async () => {
+      await carregarViagens();
+    })();
+
+    // Carregar viagens do motorista
+    async function carregarViagens() {
+      try {
+        console.log('🚛 Carregando viagens do motorista:', motorista.id);
+        
+        const response = await fetch(`/api/motorista/viagens-andamento/${motorista.id}`, {
+          headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+
+        if (!response.ok) {
+          throw new Error('Erro ao buscar viagens');
+        }
+
+        const dados = await response.json();
+        viagens = Array.isArray(dados) ? dados : [];
+        
+        console.log('✅ Viagens carregadas:', viagens.length);
+        console.log('📋 Viagens:', viagens);
+        
+        renderizarSeletorViagem();
+        
+      } catch (error) {
+        console.error('❌ Erro ao carregar viagens:', error);
+        viagens = [];
+        renderizarSeletorViagem();
+      }
+    }
+
+    // Renderizar seletor
+    function renderizarSeletorViagem() {
+      const selector = document.getElementById('viagemSelector');
+
+      if (viagens.length === 0) {
+        // Sem viagem - aviso
+        selector.innerHTML = `
+          <div style="background: #fff3cd; padding: 12px; border-radius: 10px; border-left: 4px solid #ffc107;">
+            <div style="font-size: 13px; color: #856404; font-weight: 600;">
+              ⚠️ Sem viagem em andamento
+            </div>
+            <div style="font-size: 12px; color: #856404; margin-top: 4px;">
+              A posição será registrada sem viagem associada
+            </div>
+          </div>
+        `;
+        viagemSelecionada = null;
+      } 
+      else if (viagens.length === 1) {
+        // 1 viagem - selecionar automaticamente
+        viagemSelecionada = viagens[0];
+        selector.innerHTML = `
+          <div style="background: white; padding: 12px 16px; border-radius: 10px; border-left: 4px solid #667eea; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Viagem Atual:</div>
+            <div style="font-size: 15px; font-weight: 600; color: #333;">
+              #${viagemSelecionada.IDVIAGEM} - ${viagemSelecionada.ROTEIRO}
+            </div>
+          </div>
+        `;
+      }
+      else {
+        // Múltiplas viagens - mostrar select
+        selector.innerHTML = `
+          <div style="background: white; padding: 16px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+            <div style="font-size: 12px; color: #666; font-weight: 600; margin-bottom: 8px; text-transform: uppercase;">
+              Selecione a Viagem:
+            </div>
+            <select id="selectViagem" onchange="selecionarViagem()" 
+                    style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 14px; font-weight: 600;">
+              <option value="">-- Escolha uma viagem --</option>
+              ${viagens.map(v => `
+                <option value="${v.IDVIAGEM}">
+                  #${v.IDVIAGEM} - ${v.ROTEIRO}
+                </option>
+              `).join('')}
+            </select>
+          </div>
+        `;
+      }
+    }
+
+    function selecionarViagem() {
+      const select = document.getElementById('selectViagem');
+      const idViagem = select.value;
+
+      if (idViagem) {
+        viagemSelecionada = viagens.find(v => v.IDVIAGEM == idViagem);
+        mostrarToast(`✅ Viagem #${idViagem} selecionada`, 'success');
+      } else {
+        viagemSelecionada = null;
+      }
+    }
+
+    async function enviarPosicao() {
+      const btn = document.getElementById('btnEnviar');
+      btn.disabled = true;
+      btn.innerHTML = '<span style="font-size: 20px; margin-right: 8px;">⏳</span><span>Obtendo localização...</span>';
+
+      const loading = mostrarLoading('Capturando GPS...');
+
+      try {
+        const posicao = await obterGPSCompleto();
+        loading.querySelector('.loading-text').textContent = 'Enviando posição...';
+        
+        const response = await fetch('/api/motorista/gps', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${getToken()}`
+          },
+          body: JSON.stringify({
+            cdMotorista: motorista.id,
+            idViagem: viagemSelecionada?.IDVIAGEM || null,
+            latitude: posicao.latitude,
+            longitude: posicao.longitude,
+            altitude: posicao.altitude,
+            precisao: posicao.precisao,
+            velocidade: posicao.velocidade,
+            status: posicao.status,
+            direcao: posicao.direcao,
+            tipoEnvio: 'M',
+            dtPosicao: new Date().toISOString()
+          })
+        });
+
+        esconderLoading();
+
+        if (response.ok) {
+          mostrarToast(
+            `✅ Posição enviada!\n📍 ${posicao.statusTexto}\n🚗 ${posicao.velocidade || 0} km/h`,
+            'success'
+          );
+          mostrarUltimaPosicao(posicao);
+        } else {
+          throw new Error('Erro ao enviar');
+        }
+      } catch (error) {
+        console.error('Erro:', error);
+        esconderLoading();
+        
+        if (error.message.includes('localização') || error.message.includes('GPS')) {
+          await mostrarModal(
+            'GPS Necessário',
+            'Para enviar a posição, precisamos acessar sua localização.\n\nPor favor, ative o GPS e permita o acesso.',
+            ['OK']
+          );
+        } else {
+          mostrarToast('❌ ' + (error.message || 'Erro ao enviar posição'), 'error');
+        }
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span style="font-size: 20px; margin-right: 8px;">📤</span><span>Enviar Posição Agora</span>';
+      }
+    }
+
+    async function obterGPSCompleto() {
+      return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error('GPS não disponível neste dispositivo'));
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const coords = position.coords;
+            const velocidadeKmH = coords.speed !== null ? (coords.speed * 3.6).toFixed(2) : null;
+            const status = !velocidadeKmH || parseFloat(velocidadeKmH) < 5 ? 'P' : 'M';
+
+            resolve({
+              latitude: coords.latitude.toFixed(7),
+              longitude: coords.longitude.toFixed(7),
+              altitude: coords.altitude ? coords.altitude.toFixed(2) : null,
+              velocidade: velocidadeKmH,
+              direcao: coords.heading !== null ? coords.heading.toFixed(2) : null,
+              precisao: coords.accuracy ? coords.accuracy.toFixed(2) : null,
+              status: status,
+              statusTexto: status === 'P' ? 'Parado' : 'Em Movimento'
+            });
+          },
+          (error) => reject(new Error('Não foi possível obter sua localização')),
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+      });
+    }
+
+    function mostrarUltimaPosicao(posicao) {
+      document.getElementById('ultimaPosicao').style.display = 'block';
+      document.getElementById('infoStatus').textContent = posicao.statusTexto;
+      document.getElementById('infoStatus').style.color = posicao.status === 'P' ? '#ffc107' : '#28a745';
+      document.getElementById('infoVelocidade').textContent = (posicao.velocidade || '0') + ' km/h';
+      document.getElementById('infoDirecao').textContent = obterDirecaoCardinal(posicao.direcao) || 'N/A';
+      document.getElementById('infoCoordenadas').textContent = `${posicao.latitude}, ${posicao.longitude}`;
+      document.getElementById('infoHorario').textContent = new Date().toLocaleTimeString('pt-BR');
+      document.getElementById('statusIcon').textContent = posicao.status === 'P' ? '🅿️' : '🚗';
+    }
+
+    function obterDirecaoCardinal(graus) {
+      if (!graus) return null;
+      const direcoes = ['Norte', 'Nordeste', 'Leste', 'Sudeste', 'Sul', 'Sudoeste', 'Oeste', 'Noroeste'];
+      const indice = Math.round(parseFloat(graus) / 45) % 8;
+      return direcoes[indice];
+    }
+  </script>
+</body>
+</html>

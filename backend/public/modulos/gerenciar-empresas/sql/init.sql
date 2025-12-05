@@ -1,9 +1,6 @@
 /******************************************************************************************
  * 11. EMPRESA
  ******************************************************************************************/
-PRINT '11. Migrando EMPRESA...';
-GO
-
 MERGE INTO [dbo].[EMPRESA] AS TARGET
 USING (
     SELECT 
@@ -58,7 +55,4 @@ WHEN NOT MATCHED BY TARGET THEN
         SOURCE.SGUSER,
         SOURCE.SERVERORIG
     );
-
-PRINT '   ✓ EMPRESA migrado: ' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' registro(s)';
 GO
-

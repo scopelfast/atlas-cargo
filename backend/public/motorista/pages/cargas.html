@@ -88,7 +88,6 @@
 
   <script src="../js/offline.js"></script>
   <script src="../js/notifications.js"></script>
-  <script src="../js/console-mobile.js"></script>
   <script>
     const motorista = JSON.parse(localStorage.getItem('motorista') || '{}');
     const token = localStorage.getItem('token');
@@ -139,7 +138,7 @@
           if (window.OfflineDB) {
             const cargas = await window.OfflineDB.buscarCache('cargas');
             renderizar(cargas || []);
-            alert('Erro ao buscar cargas. Mostrando cache.');
+            mostrarToast('⚠️ Erro ao buscar cargas. Mostrando dados salvos.', 'warning');
           } else {
             renderizar([]);
           }
@@ -152,14 +151,14 @@
           if (window.OfflineDB) {
             const cargas = await window.OfflineDB.buscarCache('cargas');
             renderizar(cargas || []);
-            alert('📴 Sem conexão. Mostrando dados salvos.');
+            mostrarToast('📴 Sem conexão. Mostrando dados salvos.', 'warning');
           } else {
             renderizar([]);
-            alert('Erro ao carregar cargas');
+            mostrarToast('❌ Erro ao carregar cargas', 'error');
           }
         } catch (cacheErr) {
           renderizar([]);
-          alert('Erro ao carregar');
+          mostrarToast('❌ Erro ao carregar cargas', 'error');
         }
       }
     }

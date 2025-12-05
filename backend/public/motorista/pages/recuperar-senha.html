@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recuperar Senha - Motorista</title>
+  <link rel="manifest" href="../manifest.json">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      padding: 40px 30px;
+      width: 100%;
+      max-width: 400px;
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .logo-icon {
+      font-size: 60px;
+      margin-bottom: 10px;
+    }
+
+    h1 {
+      font-size: 24px;
+      color: #333;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+
+    .subtitle {
+      font-size: 14px;
+      color: #666;
+      text-align: center;
+      margin-bottom: 30px;
+      line-height: 1.5;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    input {
+      width: 100%;
+      padding: 14px 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 16px;
+      transition: all 0.3s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+    }
+
+    .btn {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-bottom: 12px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(102,126,234,0.4);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn-secondary {
+      background: #f0f2f5;
+      color: #666;
+    }
+
+    .btn-secondary:hover {
+      background: #e0e0e0;
+    }
+
+    .info-box {
+      background: #e3f2fd;
+      padding: 15px;
+      border-radius: 10px;
+      margin-top: 20px;
+      font-size: 13px;
+      color: #1976d2;
+      line-height: 1.5;
+    }
+
+    .success-message {
+      background: #d4edda;
+      color: #155724;
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .error-message {
+      background: #f8d7da;
+      color: #721c24;
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .loading {
+      display: none;
+      text-align: center;
+      padding: 20px;
+    }
+
+    .spinner {
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">
+      <div class="logo-icon">🔐</div>
+      <h1>Recuperar Senha</h1>
+      <div class="subtitle">
+        Digite seu CPF ou celular cadastrado.<br>
+        Enviaremos um código de recuperação.
+      </div>
+    </div>
+
+    <div id="successMessage" class="success-message"></div>
+    <div id="errorMessage" class="error-message"></div>
+
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <p style="margin-top: 15px; color: #666;">Processando...</p>
+    </div>
+
+    <form id="formRecuperar" style="display: block;">
+      <div class="form-group">
+        <label for="identificacao">CPF ou Celular</label>
+        <input 
+          type="text" 
+          id="identificacao" 
+          placeholder="Digite seu CPF ou celular"
+          required
+          autocomplete="off"
+        >
+      </div>
+
+      <button type="submit" class="btn btn-primary">
+        📧 Enviar Código
+      </button>
+
+      <button type="button" class="btn btn-secondary" onclick="voltar()">
+        ← Voltar para Login
+      </button>
+
+      <div class="info-box">
+        💡 <strong>Dica:</strong> O código será enviado por SMS para o celular cadastrado ou por email.
+      </div>
+    </form>
+
+    <form id="formCodigo" style="display: none;">
+      <div class="form-group">
+        <label for="codigo">Código de Verificação</label>
+        <input 
+          type="text" 
+          id="codigo" 
+          placeholder="Digite o código recebido"
+          required
+          maxlength="6"
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="novaSenha">Nova Senha</label>
+        <input 
+          type="password" 
+          id="novaSenha" 
+          placeholder="Digite a nova senha"
+          required
+          minlength="6"
+        >
+      </div>
+
+      <div class="form-group">
+        <label for="confirmarSenha">Confirmar Senha</label>
+        <input 
+          type="password" 
+          id="confirmarSenha" 
+          placeholder="Digite novamente a senha"
+          required
+          minlength="6"
+        >
+      </div>
+
+      <button type="submit" class="btn btn-primary">
+        ✅ Redefinir Senha
+      </button>
+
+      <button type="button" class="btn btn-secondary" onclick="voltar()">
+        ← Voltar para Login
+      </button>
+    </form>
+  </div>
+
+  <script>
+    function voltar() {
+      window.location.href = '../index.html';
+    }
+
+    function mostrarMensagem(tipo, mensagem) {
+      const successDiv = document.getElementById('successMessage');
+      const errorDiv = document.getElementById('errorMessage');
+      
+      successDiv.style.display = 'none';
+      errorDiv.style.display = 'none';
+      
+      if (tipo === 'success') {
+        successDiv.textContent = mensagem;
+        successDiv.style.display = 'block';
+      } else {
+        errorDiv.textContent = mensagem;
+        errorDiv.style.display = 'block';
+      }
+    }
+
+    document.getElementById('formRecuperar').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const identificacao = document.getElementById('identificacao').value;
+      const loading = document.getElementById('loading');
+      const form = document.getElementById('formRecuperar');
+      
+      loading.style.display = 'block';
+      form.style.display = 'none';
+      
+      try {
+        const response = await fetch('/api/motorista/recuperar-senha', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ identificacao }),
+        });
+
+        const data = await response.json();
+        
+        loading.style.display = 'none';
+        
+        if (response.ok) {
+          mostrarMensagem('success', '✅ Código enviado com sucesso! Verifique seu celular.');
+          document.getElementById('formCodigo').style.display = 'block';
+        } else {
+          form.style.display = 'block';
+          mostrarMensagem('error', data.error || 'Erro ao enviar código');
+        }
+      } catch (error) {
+        loading.style.display = 'none';
+        form.style.display = 'block';
+        mostrarMensagem('error', '❌ Erro de conexão. Tente novamente.');
+      }
+    });
+
+    document.getElementById('formCodigo').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const identificacao = document.getElementById('identificacao').value;
+      const codigo = document.getElementById('codigo').value;
+      const novaSenha = document.getElementById('novaSenha').value;
+      const confirmarSenha = document.getElementById('confirmarSenha').value;
+      
+      if (novaSenha !== confirmarSenha) {
+        mostrarMensagem('error', '❌ As senhas não coincidem');
+        return;
+      }
+      
+      if (novaSenha.length < 6) {
+        mostrarMensagem('error', '❌ A senha deve ter pelo menos 6 caracteres');
+        return;
+      }
+      
+      const loading = document.getElementById('loading');
+      const form = document.getElementById('formCodigo');
+      
+      loading.style.display = 'block';
+      form.style.display = 'none';
+      
+      try {
+        const response = await fetch('/api/motorista/redefinir-senha', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ identificacao, codigo, novaSenha }),
+        });
+
+        const data = await response.json();
+        
+        loading.style.display = 'none';
+        
+        if (response.ok) {
+          mostrarMensagem('success', '✅ Senha redefinida com sucesso! Redirecionando...');
+          setTimeout(() => {
+            window.location.href = '../index.html';
+          }, 2000);
+        } else {
+          form.style.display = 'block';
+          mostrarMensagem('error', data.error || 'Erro ao redefinir senha');
+        }
+      } catch (error) {
+        loading.style.display = 'none';
+        form.style.display = 'block';
+        mostrarMensagem('error', '❌ Erro de conexão. Tente novamente.');
+      }
+    });
+  </script>
+</body>
+</html>
+

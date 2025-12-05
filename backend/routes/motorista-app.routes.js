@@ -34,6 +34,16 @@ router.post('/recusar-convocacao/:id', motoristaAppController.recusarConvocacao)
 router.get('/cargas-disponiveis', motoristaAppController.cargasDisponiveis);
 router.post('/aceitar-carga/:idviagem', motoristaAppController.aceitarCarga);
 
+// Viagens
+router.get('/viagens-andamento/:cdMotorista', motoristaAppController.listarViagensAndamento);
+router.get('/viagem/:idViagem', motoristaAppController.detalhesViagem);
+
+// Macros/Ocorrências
+router.get('/macros', motoristaAppController.listarMacros);
+router.post('/validar-macro', motoristaAppController.validarSequenciaMacro);
+router.post('/macro', motoristaAppController.registrarMacro);
+router.get('/historico-macros/:idViagem', motoristaAppController.historicoMacros);
+
 // GPS
 router.post('/gps', motoristaAppController.registrarGPS);
 

@@ -1,0 +1,128 @@
+╔════════════════════════════════════════════════════════════╗
+║     📱 GUIA RÁPIDO - TESTAR NO ANDROID AGORA! 🚀           ║
+╚════════════════════════════════════════════════════════════╝
+
+┌────────────────────────────────────────────────────────────┐
+│ 1️⃣  PREPARAR O CELULAR                                     │
+└────────────────────────────────────────────────────────────┘
+
+✅ Ativar Modo Desenvolvedor:
+   → Configurações > Sobre o telefone
+   → Tocar 7x em "Número da versão"
+
+✅ Ativar Depuração USB:
+   → Configurações > Opções do desenvolvedor
+   → Ativar "Depuração USB"
+
+✅ Conectar celular via USB no PC
+
+
+┌────────────────────────────────────────────────────────────┐
+│ 2️⃣  VERIFICAR SE ESTÁ TUDO OK                              │
+└────────────────────────────────────────────────────────────┘
+
+# Abrir PowerShell e executar:
+
+adb devices
+
+# Deve aparecer algo como:
+# List of devices attached
+# ABC123456789    device    ✅
+
+
+┌────────────────────────────────────────────────────────────┐
+│ 3️⃣  CONFIGURAR IP DA API                                   │
+└────────────────────────────────────────────────────────────┘
+
+# Descobrir seu IP:
+ipconfig
+
+# Procurar por "IPv4" (exemplo: 192.168.1.173)
+
+# Editar arquivo:
+mobile-app/src/services/api.js
+
+# MUDAR esta linha:
+const API_BASE_URL = 'http://192.168.1.173:3000';
+                            ^^^^^^^^^^^^^^^ SEU IP AQUI
+
+
+┌────────────────────────────────────────────────────────────┐
+│ 4️⃣  INSTALAR E EXECUTAR                                    │
+└────────────────────────────────────────────────────────────┘
+
+cd C:\Users\cleverson.scopel\Documents\GitHub\SysScopel\mobile-app
+
+# Instalar dependências (PRIMEIRA VEZ):
+npm install
+
+# Executar no celular:
+npm run android
+
+
+┌────────────────────────────────────────────────────────────┐
+│ 5️⃣  AGUARDAR...                                            │
+└────────────────────────────────────────────────────────────┘
+
+O processo vai:
+✅ Compilar o APP
+✅ Instalar no celular
+✅ Abrir automaticamente
+
+⏱️  Primeira vez: ~5-10 minutos
+⏱️  Próximas vezes: ~2 minutos
+
+
+┌────────────────────────────────────────────────────────────┐
+│ ⚠️  SE DER ERRO                                             │
+└────────────────────────────────────────────────────────────┘
+
+1. Verificar se celular está conectado:
+   adb devices
+
+2. Limpar e tentar novamente:
+   cd android
+   .\gradlew clean
+   cd ..
+   npm run android
+
+3. Verificar se backend está rodando:
+   http://192.168.1.173:3000
+   (testar no navegador)
+
+4. Celular e PC devem estar na MESMA rede WiFi
+
+
+┌────────────────────────────────────────────────────────────┐
+│ 📦 GERAR APK PARA INSTALAR MANUALMENTE                     │
+└────────────────────────────────────────────────────────────┘
+
+cd mobile-app/android
+.\gradlew assembleDebug
+
+# APK estará em:
+android/app/build/outputs/apk/debug/app-debug.apk
+
+# Copiar para o celular e instalar
+
+
+┌────────────────────────────────────────────────────────────┐
+│ ✅ PRONTO!                                                  │
+└────────────────────────────────────────────────────────────┘
+
+O APP deve abrir no celular! 🎉
+
+Login de teste:
+CPF: (use um CPF válido do banco)
+Senha: (senha cadastrada)
+
+
+═══════════════════════════════════════════════════════════
+
+📄 Para mais detalhes, veja: GUIA_ANDROID_COMPLETO.md
+
+🆘 Problemas? Verifique os logs:
+   adb logcat | findstr "ReactNative"
+
+═══════════════════════════════════════════════════════════
+

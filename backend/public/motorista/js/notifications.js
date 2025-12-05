@@ -1,50 +1,188 @@
-// Sistema de Notificações Profissional
-// Toast + Modais Estilizados
+// APP Motorista - Sistema de Notificações Profissional
+// Versão: 2.0 - Toasts e Modais Bonitos
 
-(function() {
-  // ==========================================
-  // ESTILOS (Injetados automaticamente)
-  // ==========================================
-  const styles = `
+// ==========================================
+// TOAST (Notificação)
+// ==========================================
+
+function mostrarToast(mensagem, tipo = 'info') {
+  // Remover toast anterior se existir
+  const toastAnterior = document.querySelector('.toast-notification');
+  if (toastAnterior) {
+    toastAnterior.remove();
+  }
+
+  // Criar toast
+  const toast = document.createElement('div');
+  toast.className = `toast-notification toast-${tipo}`;
+  
+  // Ícones por tipo
+  const icones = {
+    success: '✅',
+    error: '❌',
+    warning: '⚠️',
+    info: 'ℹ️'
+  };
+  
+  toast.innerHTML = `
+    <div class="toast-icon">${icones[tipo] || 'ℹ️'}</div>
+    <div class="toast-message">${mensagem.replace(/\n/g, '<br>')}</div>
+    <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+  `;
+  
+  document.body.appendChild(toast);
+  
+  // Animar entrada
+  setTimeout(() => toast.classList.add('show'), 10);
+  
+  // Remover após 5 segundos
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, 5000);
+}
+
+// ==========================================
+// MODAL DE CONFIRMAÇÃO
+// ==========================================
+
+function mostrarModal(titulo, mensagem, botoes = ['Cancelar', 'OK']) {
+  return new Promise((resolve) => {
+    // Remover modal anterior se existir
+    const modalAnterior = document.querySelector('.modal-overlay');
+    if (modalAnterior) {
+      modalAnterior.remove();
+    }
+
+    // Criar overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    
+    // Criar modal
+    const modal = document.createElement('div');
+    modal.className = 'modal-dialog';
+    
+    modal.innerHTML = `
+      <div class="modal-header">
+        <div class="modal-title">${titulo}</div>
+      </div>
+      <div class="modal-body">
+        <p>${mensagem.replace(/\n/g, '<br>')}</p>
+      </div>
+      <div class="modal-footer">
+        ${botoes.map((btn, index) => `
+          <button class="modal-btn ${index === botoes.length - 1 ? 'modal-btn-primary' : 'modal-btn-secondary'}" 
+                  data-action="${btn}">
+            ${btn}
+          </button>
+        `).join('')}
+      </div>
+    `;
+    
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    
+    // Animar entrada
+    setTimeout(() => {
+      overlay.classList.add('show');
+      modal.classList.add('show');
+    }, 10);
+    
+    // Event listeners nos botões
+    modal.querySelectorAll('.modal-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const action = btn.getAttribute('data-action');
+        
+        // Animar saída
+        overlay.classList.remove('show');
+        modal.classList.remove('show');
+        
+        setTimeout(() => {
+          overlay.remove();
+          resolve(action);
+        }, 300);
+      });
+    });
+    
+    // Clicar fora fecha (retorna primeiro botão)
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        overlay.classList.remove('show');
+        modal.classList.remove('show');
+        setTimeout(() => {
+          overlay.remove();
+          resolve(botoes[0]);
+        }, 300);
+      }
+    });
+  });
+}
+
+// ==========================================
+// LOADING (Indicador de carregamento)
+// ==========================================
+
+function mostrarLoading(mensagem = 'Carregando...') {
+  // Remover loading anterior
+  const loadingAnterior = document.querySelector('.loading-overlay');
+  if (loadingAnterior) {
+    loadingAnterior.remove();
+  }
+
+  const loading = document.createElement('div');
+  loading.className = 'loading-overlay';
+  
+  loading.innerHTML = `
+    <div class="loading-spinner"></div>
+    <div class="loading-text">${mensagem}</div>
+  `;
+  
+  document.body.appendChild(loading);
+  setTimeout(() => loading.classList.add('show'), 10);
+  
+  return loading;
+}
+
+function esconderLoading() {
+  const loading = document.querySelector('.loading-overlay');
+  if (loading) {
+    loading.classList.remove('show');
+    setTimeout(() => loading.remove(), 300);
+  }
+}
+
+// ==========================================
+// ESTILOS CSS (Injetados automaticamente)
+// ==========================================
+
+if (!document.getElementById('notifications-styles')) {
+  const styles = document.createElement('style');
+  styles.id = 'notifications-styles';
+  styles.textContent = `
     /* TOAST */
-    .toast-container {
+    .toast-notification {
       position: fixed;
       top: 20px;
       right: 20px;
-      z-index: 9999;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      pointer-events: none;
-    }
-    
-    .toast {
+      left: 20px;
+      max-width: 500px;
+      margin: 0 auto;
       background: white;
-      padding: 16px 20px;
-      border-radius: 12px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      border-radius: 15px;
+      padding: 15px 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
       display: flex;
       align-items: center;
       gap: 12px;
-      min-width: 300px;
-      max-width: 90vw;
-      pointer-events: all;
-      animation: slideIn 0.3s ease-out;
-      border-left: 4px solid #667eea;
+      z-index: 10000;
+      transform: translateY(-100px);
+      opacity: 0;
+      transition: all 0.3s ease;
     }
     
-    @keyframes slideIn {
-      from { transform: translateX(400px); opacity: 0; }
-      to { transform: translateX(0); opacity: 1; }
-    }
-    
-    .toast.saindo {
-      animation: slideOut 0.3s ease-in forwards;
-    }
-    
-    @keyframes slideOut {
-      from { transform: translateX(0); opacity: 1; }
-      to { transform: translateX(400px); opacity: 0; }
+    .toast-notification.show {
+      transform: translateY(0);
+      opacity: 1;
     }
     
     .toast-icon {
@@ -52,26 +190,29 @@
       flex-shrink: 0;
     }
     
-    .toast-conteudo {
+    .toast-message {
       flex: 1;
-    }
-    
-    .toast-titulo {
-      font-weight: 700;
       font-size: 14px;
-      margin-bottom: 4px;
       color: #333;
+      line-height: 1.4;
     }
     
-    .toast-mensagem {
-      font-size: 13px;
-      color: #666;
+    .toast-close {
+      background: transparent;
+      border: none;
+      font-size: 24px;
+      color: #999;
+      cursor: pointer;
+      padding: 0;
+      width: 30px;
+      height: 30px;
+      flex-shrink: 0;
     }
     
-    .toast.success { border-left-color: #28a745; }
-    .toast.error { border-left-color: #dc3545; }
-    .toast.warning { border-left-color: #ffc107; }
-    .toast.info { border-left-color: #17a2b8; }
+    .toast-success { border-left: 5px solid #28a745; }
+    .toast-error { border-left: 5px solid #dc3545; }
+    .toast-warning { border-left: 5px solid #ffc107; }
+    .toast-info { border-left: 5px solid #17a2b8; }
     
     /* MODAL */
     .modal-overlay {
@@ -80,221 +221,133 @@
       left: 0;
       right: 0;
       bottom: 0;
-      background: rgba(0,0,0,0.6);
-      z-index: 10000;
-      display: none;
+      background: rgba(0,0,0,0.5);
+      z-index: 9999;
+      display: flex;
       align-items: center;
       justify-content: center;
-      animation: fadeIn 0.2s;
+      padding: 20px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
     }
     
-    .modal-overlay.ativo {
-      display: flex;
+    .modal-overlay.show {
+      opacity: 1;
     }
     
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-    
-    .modal {
+    .modal-dialog {
       background: white;
       border-radius: 20px;
-      padding: 24px;
       max-width: 400px;
-      width: 90%;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
-      animation: scaleIn 0.3s ease-out;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      transform: scale(0.9);
+      opacity: 0;
+      transition: all 0.3s ease;
     }
     
-    @keyframes scaleIn {
-      from { transform: scale(0.8); opacity: 0; }
-      to { transform: scale(1); opacity: 1; }
+    .modal-dialog.show {
+      transform: scale(1);
+      opacity: 1;
     }
     
-    .modal-icone {
-      font-size: 56px;
-      text-align: center;
-      margin-bottom: 16px;
+    .modal-header {
+      padding: 20px;
+      border-bottom: 1px solid #f0f0f0;
     }
     
-    .modal-titulo {
+    .modal-title {
       font-size: 20px;
-      font-weight: 700;
-      text-align: center;
-      margin-bottom: 12px;
+      font-weight: bold;
       color: #333;
     }
     
-    .modal-mensagem {
-      font-size: 15px;
-      text-align: center;
-      color: #666;
-      line-height: 1.5;
-      margin-bottom: 24px;
+    .modal-body {
+      padding: 20px;
     }
     
-    .modal-botoes {
+    .modal-body p {
+      font-size: 15px;
+      color: #666;
+      line-height: 1.6;
+      margin: 0;
+    }
+    
+    .modal-footer {
+      padding: 15px 20px;
       display: flex;
-      gap: 12px;
+      gap: 10px;
+      justify-content: flex-end;
     }
     
     .modal-btn {
-      flex: 1;
-      padding: 14px;
+      padding: 12px 24px;
       border: none;
-      border-radius: 12px;
+      border-radius: 10px;
       font-size: 15px;
-      font-weight: 700;
+      font-weight: 600;
       cursor: pointer;
-      transition: transform 0.1s;
+      transition: all 0.2s;
     }
     
     .modal-btn:active {
       transform: scale(0.95);
     }
     
-    .modal-btn-confirmar {
-      background: #28a745;
-      color: white;
-    }
-    
-    .modal-btn-cancelar {
-      background: #e9ecef;
+    .modal-btn-secondary {
+      background: #f0f0f0;
       color: #666;
     }
     
-    @media (max-width: 480px) {
-      .toast-container {
-        top: 10px;
-        right: 10px;
-        left: 10px;
-      }
-      
-      .toast {
-        min-width: auto;
-      }
+    .modal-btn-primary {
+      background: #667eea;
+      color: white;
+    }
+    
+    /* LOADING */
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 10001;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    
+    .loading-overlay.show {
+      opacity: 1;
+    }
+    
+    .loading-spinner {
+      width: 50px;
+      height: 50px;
+      border: 5px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .loading-text {
+      margin-top: 20px;
+      color: white;
+      font-size: 16px;
+      font-weight: 600;
     }
   `;
+  
+  document.head.appendChild(styles);
+}
 
-  // Injetar estilos
-  const styleSheet = document.createElement('style');
-  styleSheet.textContent = styles;
-  document.head.appendChild(styleSheet);
-
-  // Criar containers
-  const toastContainer = document.createElement('div');
-  toastContainer.className = 'toast-container';
-  document.body.appendChild(toastContainer);
-
-  const modalOverlay = document.createElement('div');
-  modalOverlay.className = 'modal-overlay';
-  document.body.appendChild(modalOverlay);
-
-  // ==========================================
-  // TOAST
-  // ==========================================
-  function mostrarToast(mensagem, tipo = 'info', duracao = 3000) {
-    const icones = {
-      success: '✅',
-      error: '❌',
-      warning: '⚠️',
-      info: 'ℹ️'
-    };
-
-    const titulos = {
-      success: 'Sucesso',
-      error: 'Erro',
-      warning: 'Atenção',
-      info: 'Informação'
-    };
-
-    const toast = document.createElement('div');
-    toast.className = `toast ${tipo}`;
-    toast.innerHTML = `
-      <div class="toast-icon">${icones[tipo]}</div>
-      <div class="toast-conteudo">
-        <div class="toast-titulo">${titulos[tipo]}</div>
-        <div class="toast-mensagem">${mensagem}</div>
-      </div>
-    `;
-
-    toastContainer.appendChild(toast);
-
-    // Auto-remover
-    setTimeout(() => {
-      toast.classList.add('saindo');
-      setTimeout(() => toast.remove(), 300);
-    }, duracao);
-  }
-
-  // ==========================================
-  // MODAL DE CONFIRMAÇÃO
-  // ==========================================
-  function mostrarConfirmacao(opcoes) {
-    return new Promise((resolve) => {
-      const {
-        titulo = 'Confirmar',
-        mensagem = 'Deseja continuar?',
-        icone = '❓',
-        confirmar = 'Confirmar',
-        cancelar = 'Cancelar'
-      } = opcoes;
-
-      modalOverlay.innerHTML = `
-        <div class="modal">
-          <div class="modal-icone">${icone}</div>
-          <div class="modal-titulo">${titulo}</div>
-          <div class="modal-mensagem">${mensagem}</div>
-          <div class="modal-botoes">
-            <button class="modal-btn modal-btn-cancelar" onclick="window.Notificacoes.fecharModal(false)">
-              ${cancelar}
-            </button>
-            <button class="modal-btn modal-btn-confirmar" onclick="window.Notificacoes.fecharModal(true)">
-              ${confirmar}
-            </button>
-          </div>
-        </div>
-      `;
-
-      modalOverlay.classList.add('ativo');
-
-      // Guardar resolve
-      modalOverlay.dataset.resolve = 'pending';
-      window._modalResolve = resolve;
-    });
-  }
-
-  function fecharModal(resultado) {
-    modalOverlay.classList.remove('ativo');
-    if (window._modalResolve) {
-      window._modalResolve(resultado);
-      window._modalResolve = null;
-    }
-  }
-
-  // Fechar modal clicando fora
-  modalOverlay.addEventListener('click', (e) => {
-    if (e.target === modalOverlay) {
-      fecharModal(false);
-    }
-  });
-
-  // ==========================================
-  // EXPORTAR
-  // ==========================================
-  window.Notificacoes = {
-    toast: mostrarToast,
-    confirmar: mostrarConfirmacao,
-    fecharModal,
-    
-    // Atalhos
-    sucesso: (msg, duracao) => mostrarToast(msg, 'success', duracao),
-    erro: (msg, duracao) => mostrarToast(msg, 'error', duracao),
-    aviso: (msg, duracao) => mostrarToast(msg, 'warning', duracao),
-    info: (msg, duracao) => mostrarToast(msg, 'info', duracao)
-  };
-
-  console.log('✅ Sistema de notificações carregado');
-})();
-
+// Log de inicialização
+console.log('✅ Sistema de notificações carregado');

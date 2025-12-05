@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Macros - Motorista</title>
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <style>
+    .viagem-selector {
+      background: white;
+      padding: 16px;
+      margin-bottom: 16px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    
+    .viagem-label {
+      font-size: 12px;
+      color: #666;
+      font-weight: 600;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+    
+    .viagem-select {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+      background: white;
+    }
+    
+    .viagem-info {
+      font-size: 15px;
+      font-weight: 600;
+      color: #333;
+      padding: 12px;
+      background: #f8f9fa;
+      border-radius: 10px;
+    }
+    
+    .macros-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    
+    .macro-btn {
+      aspect-ratio: 1;
+      border-radius: 12px;
+      padding: 8px 4px;
+      border: none;
+      color: white;
+      font-weight: 600;
+      font-size: 10px;
+      cursor: pointer;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      transition: transform 0.2s;
+      line-height: 1.1;
+    }
+    
+    .macro-btn:active { transform: scale(0.95); }
+    .macro-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    
+    .macro-icon { font-size: 20px; margin-bottom: 4px; }
+    .lock-badge {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      background: rgba(0,0,0,0.3);
+      border-radius: 8px;
+      padding: 2px 6px;
+      font-size: 12px;
+    }
+    
+    /* Todos os botões com a mesma cor (roxo) */
+    .situacao-T { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .situacao-C { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .situacao-D { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .situacao-P { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    
+    .historico-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .historico-item:last-child { border-bottom: none; }
+    .historico-texto { font-size: 14px; color: #333; flex: 1; }
+    .historico-hora { font-size: 12px; color: #666; }
+  </style>
+</head>
+<body>
+  <div id="statusIndicador" class="status-bar status-online">🟢 Online - Sincronizado</div>
+
+  <div class="navbar">
+    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
+    <h1>📝 Macros / Ocorrências</h1>
+    <button class="btn-voltar" onclick="forcarAtualizacao()" style="font-size: 20px; padding: 8px 12px;">🔄</button>
+  </div>
+
+  <div class="container">
+    <!-- Seletor de Viagem -->
+    <div class="viagem-selector" id="viagemSelector"></div>
+
+    <!-- Loading -->
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <p>Carregando macros...</p>
+    </div>
+
+    <!-- Grid de Macros -->
+    <div class="macros-grid" id="macrosGrid" style="display: none;"></div>
+
+    <!-- Histórico -->
+    <div class="card" id="historicoCard" style="display: none;">
+      <div class="card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+        <div class="card-title">📋 Histórico</div>
+        <div class="card-subtitle">Últimas 5 ocorrências</div>
+      </div>
+      <div class="card-body" id="historicoLista"></div>
+    </div>
+  </div>
+
+  <script src="../js/notifications.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/offline.js"></script>
+  <script src="../js/cache-helper.js"></script>
+  
+  <script>
+    if (!verificarAuth()) window.location.href = '../index.html';
+
+    const motorista = getMotorista();
+    let macros = [];
+    let historico = [];
+    let viagens = [];
+    let viagemSelecionada = null;
+
+    // Forçar atualização
+    async function forcarAtualizacao() {
+      const loading = mostrarLoading('Atualizando viagens...');
+      
+      try {
+        viagemSelecionada = null;
+        await carregarViagens(true); // Força online
+        await renderizarSeletorViagem();
+        
+        esconderLoading();
+        mostrarToast('✅ Viagens atualizadas!', 'success');
+      } catch (error) {
+        esconderLoading();
+        mostrarToast('❌ Erro ao atualizar', 'error');
+      }
+    }
+
+    function voltar() {
+      window.location.href = 'dashboard.html';
+    }
+
+    // Inicializar
+    (async () => {
+      await carregarViagens();
+      await carregarMacros();
+      await atualizarStatusBar();
+    })();
+
+    // Carregar viagens do motorista
+    async function carregarViagens(forcarOnline = false) {
+      try {
+        console.log(`🚛 Carregando viagens do motorista #${motorista.id}...`);
+        
+        let resultado;
+        
+        if (forcarOnline) {
+          // Forçar busca online (ignora cache)
+          console.log('🔄 Forçando busca online (ignorando cache)...');
+          const response = await fetch(`/api/motorista/viagens-andamento/${motorista.id}`, {
+            headers: { 'Authorization': `Bearer ${getToken()}` }
+          });
+          
+          if (response.ok) {
+            const dados = await response.json();
+            await window.OfflineDB.salvarCache('viagens', dados);
+            resultado = { dados, fonte: 'online' };
+          } else {
+            throw new Error('Erro ao buscar viagens');
+          }
+        } else {
+          // Usar cache normal
+          resultado = await fetchComCache(
+            `/api/motorista/viagens-andamento/${motorista.id}`,
+            'viagens',
+            300000
+          );
+        }
+
+        viagens = resultado.dados;
+        console.log(`✅ ${viagens.length} viagens carregadas (fonte: ${resultado.fonte || 'online'})`);
+        console.log('📋 IDs das viagens:', viagens.map(v => `#${v.IDVIAGEM}`).join(', '));
+
+        // Verificar URL (se veio de outra página com ?viagem=123)
+        const urlParams = new URLSearchParams(window.location.search);
+        const viagemParam = urlParams.get('viagem');
+
+        if (viagemParam) {
+          const viagem = viagens.find(v => v.IDVIAGEM == viagemParam);
+          if (viagem) {
+            viagemSelecionada = viagem;
+          }
+        }
+
+        await renderizarSeletorViagem();
+        
+      } catch (error) {
+        console.error('Erro ao carregar viagens:', error);
+        mostrarToast('Erro ao carregar suas viagens', 'error');
+      }
+    }
+
+    // Renderizar seletor de viagem
+    async function renderizarSeletorViagem() {
+      const selector = document.getElementById('viagemSelector');
+
+      if (viagens.length === 0) {
+        selector.innerHTML = `
+          <div style="text-align: center; color: #dc3545; padding: 20px;">
+            <div style="font-size: 40px; margin-bottom: 10px;">⚠️</div>
+            <div style="font-size: 16px; font-weight: 600;">Nenhuma viagem em andamento</div>
+            <div style="font-size: 14px; color: #666; margin-top: 8px;">
+              Você precisa ter uma viagem ativa para registrar macros
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      // Se só tem 1 viagem, selecionar automaticamente
+      if (viagens.length === 1 && !viagemSelecionada) {
+        viagemSelecionada = viagens[0];
+      }
+
+      // Se tem mais de 1, mostrar select
+      if (viagens.length > 1) {
+        selector.innerHTML = `
+          <div style="background: white; padding: 16px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+            <div style="font-size: 12px; color: #666; font-weight: 600; margin-bottom: 8px; text-transform: uppercase;">
+              Selecione a Viagem:
+            </div>
+            <select id="selectViagem" onchange="selecionarViagem()" 
+                    style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 14px; font-weight: 600;">
+              <option value="">-- Escolha uma viagem --</option>
+              ${viagens.map(v => `
+                <option value="${v.IDVIAGEM}" ${viagemSelecionada?.IDVIAGEM === v.IDVIAGEM ? 'selected' : ''}>
+                  #${v.IDVIAGEM} - ${v.ROTEIRO || 'Sem roteiro'}
+                </option>
+              `).join('')}
+            </select>
+          </div>
+        `;
+      } else {
+        // Só 1 viagem, mostrar info
+        selector.innerHTML = `
+          <div style="background: white; padding: 12px 16px; border-radius: 10px; border-left: 4px solid #667eea; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 16px;">
+            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Viagem Atual:</div>
+            <div style="font-size: 15px; font-weight: 600; color: #333;">
+              #${viagemSelecionada.IDVIAGEM} - ${viagemSelecionada.ROTEIRO || 'Sem roteiro'}
+            </div>
+          </div>
+        `;
+      }
+
+      // Se tem viagem selecionada, carregar histórico
+      if (viagemSelecionada) {
+        await carregarHistorico(viagemSelecionada.IDVIAGEM);
+        renderizarMacros();
+      }
+    }
+
+    async function selecionarViagem() {
+      const select = document.getElementById('selectViagem');
+      const idViagem = select.value;
+
+      if (!idViagem) {
+        viagemSelecionada = null;
+        renderizarMacros(); // Esconde os botões
+        return;
+      }
+
+      viagemSelecionada = viagens.find(v => v.IDVIAGEM == idViagem);
+      
+      if (viagemSelecionada) {
+        mostrarToast(`✅ Viagem #${viagemSelecionada.IDVIAGEM} selecionada`, 'success');
+        
+        // AGUARDAR histórico carregar ANTES de renderizar
+        await carregarHistorico(viagemSelecionada.IDVIAGEM);
+        renderizarMacros();
+      }
+    }
+
+    // Carregar macros
+    async function carregarMacros() {
+      try {
+        const resultado = await fetchComCache(
+          '/api/motorista/macros',
+          'macros',
+          600000
+        );
+
+        macros = resultado.dados;
+        console.log('✅ Macros carregadas:', macros.length);
+        
+        document.getElementById('loading').style.display = 'none';
+        renderizarMacros();
+        
+      } catch (error) {
+        console.error('Erro ao carregar macros:', error);
+        document.getElementById('loading').innerHTML = `
+          <div style="color: #dc3545; text-align: center;">
+            <div style="font-size: 48px; margin-bottom: 16px;">❌</div>
+            <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">
+              Erro ao carregar macros
+            </div>
+            <div style="font-size: 14px; color: #666; margin-bottom: 20px;">
+              Verifique se a tabela TIPOOCORRENCIA foi criada no banco de dados
+            </div>
+            <button class="btn-primary" onclick="location.reload()">
+              🔄 Tentar Novamente
+            </button>
+          </div>
+        `;
+      }
+    }
+
+    // Renderizar macros
+    function renderizarMacros() {
+      const grid = document.getElementById('macrosGrid');
+      
+      if (!viagemSelecionada) {
+        grid.style.display = 'none';
+        return;
+      }
+
+      grid.innerHTML = '';
+      grid.style.display = 'grid';
+
+      macros.forEach(macro => {
+        const validacao = validarSequencia(macro);
+        
+        const btn = document.createElement('button');
+        btn.className = `macro-btn situacao-${macro.FGSITUACAO}`;
+        btn.disabled = !validacao.valido;
+        btn.onclick = () => selecionarMacro(macro);
+        
+        btn.innerHTML = `
+          <div class="macro-icon">${macro.icon}</div>
+          <span>${macro.DSTIPOOCORRENCIA}</span>
+          ${!validacao.valido ? '<div class="lock-badge">🔒</div>' : ''}
+        `;
+        
+        grid.appendChild(btn);
+      });
+    }
+
+    // Carregar histórico
+    async function carregarHistorico(idViagem) {
+      // Resetar histórico ao trocar de viagem
+      historico = [];
+      
+      // Esconder card de histórico
+      const card = document.getElementById('historicoCard');
+      card.style.display = 'none';
+      
+      console.log(`📋 Carregando histórico da viagem #${idViagem}...`);
+      
+      try {
+        const response = await fetch(`/api/motorista/historico-macros/${idViagem}`, {
+          headers: { 'Authorization': `Bearer ${getToken()}` }
+        });
+
+        if (response.ok) {
+          historico = await response.json();
+          console.log(`📋 Histórico carregado: ${historico.length} macros para viagem #${idViagem}`);
+          console.log(`📋 Macros:`, historico.map(h => h.DSTIPOOCORRENCIA).join(', '));
+          
+          if (historico.length > 0) {
+            card.style.display = 'block';
+            
+            const lista = document.getElementById('historicoLista');
+            lista.innerHTML = historico.slice(0, 5).map(h => `
+              <div class="historico-item">
+                <span class="historico-texto">${h.DSTIPOOCORRENCIA}</span>
+                <span class="historico-hora">${formatarData(h.DTOCORRENCIA)}</span>
+              </div>
+            `).join('');
+          } else {
+            console.log(`📋 Viagem #${idViagem} sem macros registradas`);
+          }
+          
+          renderizarMacros();
+        } else {
+          // Erro no servidor, mas não quebra a página
+          console.warn(`⚠️ Histórico não disponível para viagem #${idViagem}`);
+          historico = [];
+        }
+      } catch (error) {
+        // Silencioso - histórico é opcional
+        console.warn(`⚠️ Erro ao carregar histórico da viagem #${idViagem}:`, error.message);
+        historico = [];
+      }
+    }
+
+    function formatarData(data) {
+      if (!data) return '-';
+      return new Date(data).toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+
+    // Validar sequência
+    function validarSequencia(macro) {
+      // Debug
+      console.log(`📝 Validando ${macro.DSTIPOOCORRENCIA}:`, {
+        historico: historico.length,
+        codigo: macro.CDTIPOOCORRENCIA,
+        situacao: macro.FGSITUACAO,
+        seq: macro.SEQ
+      });
+
+      // Se não tem histórico, só permite "Viagem - Início" (103)
+      if (historico.length === 0) {
+        const valido = macro.CDTIPOOCORRENCIA === 103;
+        console.log(`  → ${valido ? '✅' : '🔒'} ${valido ? 'Permitido' : 'Bloqueado'} (sem histórico)`);
+        
+        if (valido) {
+          return {valido: true};
+        }
+        return {valido: false, mensagem: 'Primeira macro deve ser: Viagem - Início'};
+      }
+
+      const ultima = historico[0];
+
+      // Viagem - Reinício (104): sempre permitido após paradas
+      if (macro.CDTIPOOCORRENCIA === 104) {
+        const macrosParada = [110, 111, 105, 106, 107, 26, 58];
+        if (macrosParada.includes(ultima.CDTIPOOCORRENCIA) || ultima.FGSITUACAO === 'P') {
+          return {valido: true};
+        }
+        return {valido: false};
+      }
+
+      // PARADAS (Situação P): sempre permitidas
+      if (macro.FGSITUACAO === 'P') {
+        console.log('  → ✅ Permitido (parada)');
+        return {valido: true};
+      }
+
+      // REGRA ESPECIAL: Após "Fim" permite "Chegada" (múltiplos pontos)
+      // Carga: Após Fim (110) → permite Chegada (151) novamente
+      if (macro.CDTIPOOCORRENCIA === 151 && ultima.CDTIPOOCORRENCIA === 110) {
+        console.log('  → ✅ Permitido (novo ponto de carga)');
+        return {valido: true};
+      }
+
+      // Descarga: Após Fim (111) → permite Chegada (159) novamente
+      if (macro.CDTIPOOCORRENCIA === 159 && ultima.CDTIPOOCORRENCIA === 111) {
+        console.log('  → ✅ Permitido (novo ponto de descarga)');
+        return {valido: true};
+      }
+
+      // SEQUENCIAMENTO RIGOROSO por SEQ
+      // Mesma situação (C ou D), deve seguir SEQ: 1 → 2 → 3
+      
+      // Se a macro atual é SEQ 1 (Chegada)
+      if (macro.SEQ === 1) {
+        // Só permite se última não for da mesma situação OU se for o fim (SEQ 3)
+        if (ultima.FGSITUACAO === macro.FGSITUACAO && ultima.SEQ !== 3) {
+          console.log('  → 🔒 Bloqueado (já tem chegada, precisa completar sequência)');
+          return {valido: false, mensagem: 'Complete a sequência antes de registrar nova chegada'};
+        }
+        // Permite se for de situação diferente ou após fim
+        return {valido: true};
+      }
+
+      // Se a macro atual é SEQ 2 (Início)
+      if (macro.SEQ === 2) {
+        // Só permite se a última for SEQ 1 da mesma situação
+        if (ultima.FGSITUACAO === macro.FGSITUACAO && ultima.SEQ === 1) {
+          console.log('  → ✅ Permitido (após chegada)');
+          return {valido: true};
+        }
+        console.log('  → 🔒 Bloqueado (precisa registrar chegada primeiro)');
+        return {valido: false, mensagem: 'Registre a chegada primeiro'};
+      }
+
+      // Se a macro atual é SEQ 3 (Fim)
+      if (macro.SEQ === 3) {
+        // Só permite se a última for SEQ 2 da mesma situação
+        if (ultima.FGSITUACAO === macro.FGSITUACAO && ultima.SEQ === 2) {
+          console.log('  → ✅ Permitido (após início)');
+          return {valido: true};
+        }
+        console.log('  → 🔒 Bloqueado (precisa registrar início primeiro)');
+        return {valido: false, mensagem: 'Registre o início primeiro'};
+      }
+
+      // Qualquer outra situação
+      return {valido: true};
+    }
+
+    // Selecionar macro
+    async function selecionarMacro(macro) {
+      if (!viagemSelecionada) {
+        mostrarToast('⚠️ Selecione uma viagem primeiro', 'warning');
+        return;
+      }
+
+      const opcao = await mostrarModal(
+        macro.DSTIPOOCORRENCIA,
+        'Deseja registrar esta ocorrência?',
+        ['Cancelar', 'Sem Foto', 'Com Foto']
+      );
+
+      if (opcao === 'Sem Foto') {
+        registrarMacro(macro, null);
+      } else if (opcao === 'Com Foto') {
+        tirarFoto(macro);
+      }
+    }
+
+    // Tirar foto
+    function tirarFoto(macro) {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.capture = 'environment';
+      
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const base64 = event.target.result.split(',')[1];
+            registrarMacro(macro, base64);
+          };
+          reader.readAsDataURL(file);
+        }
+      };
+      
+      input.click();
+    }
+
+    // Registrar macro
+    async function registrarMacro(macro, fotoBase64) {
+      const loading = mostrarLoading('Capturando GPS...');
+
+      try {
+        // Tentar obter GPS (opcional)
+        let posicao = null;
+        try {
+          posicao = await obterGPSCompleto();
+          console.log('✅ GPS obtido:', posicao);
+        } catch (gpsError) {
+          console.warn('⚠️ GPS não disponível:', gpsError.message);
+          console.log('📝 Registrando macro SEM GPS');
+        }
+
+        loading.querySelector('.loading-text').textContent = 'Registrando macro...';
+
+        const payload = {
+          idViagem: viagemSelecionada.IDVIAGEM,
+          cdMotorista: motorista.id,
+          cdTipoOcorrencia: macro.CDTIPOOCORRENCIA,
+          latitude: posicao?.latitude || null,
+          longitude: posicao?.longitude || null,
+          altitude: posicao?.altitude || null,
+          precisao: posicao?.precisao || null,
+          velocidade: posicao?.velocidade || null,
+          status: posicao?.status || 'P',
+          direcao: posicao?.direcao || null,
+          fotoBase64: fotoBase64
+        };
+
+        const resultado = await postComFila('/api/motorista/macro', payload, 'macro');
+        esconderLoading();
+
+        if (resultado.online) {
+          let mensagem = `✅ ${macro.DSTIPOOCORRENCIA}`;
+          
+          if (posicao) {
+            mensagem += `\n📍 ${posicao.statusTexto}\n🚗 ${posicao.velocidade || 0} km/h`;
+          } else {
+            mensagem += `\n📍 Sem GPS`;
+          }
+          
+          if (fotoBase64) {
+            mensagem += '\n📸 Com foto';
+          }
+          
+          mostrarToast(mensagem, 'success');
+        } else {
+          mostrarToast(
+            `💾 ${macro.DSTIPOOCORRENCIA} salva!\nSerá enviada quando houver conexão`,
+            'warning'
+          );
+        }
+        
+        await carregarHistorico(viagemSelecionada.IDVIAGEM);
+        await atualizarStatusBar();
+        
+      } catch (error) {
+        console.error('Erro:', error);
+        esconderLoading();
+        mostrarToast('❌ ' + (error.message || 'Erro ao registrar macro'), 'error');
+      }
+    }
+
+    async function obterGPSCompleto() {
+      return new Promise((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error('GPS não disponível'));
+          return;
+        }
+
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const coords = position.coords;
+            const velocidadeKmH = coords.speed !== null ? (coords.speed * 3.6).toFixed(2) : null;
+            const status = !velocidadeKmH || parseFloat(velocidadeKmH) < 5 ? 'P' : 'M';
+
+            resolve({
+              latitude: coords.latitude.toFixed(7),
+              longitude: coords.longitude.toFixed(7),
+              altitude: coords.altitude ? coords.altitude.toFixed(2) : null,
+              velocidade: velocidadeKmH,
+              direcao: coords.heading !== null ? coords.heading.toFixed(2) : null,
+              precisao: coords.accuracy ? coords.accuracy.toFixed(2) : null,
+              status: status,
+              statusTexto: status === 'P' ? 'Parado' : 'Em Movimento'
+            });
+          },
+          (error) => reject(new Error('Erro ao obter GPS')),
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+      });
+    }
+  </script>
+</body>
+</html>
