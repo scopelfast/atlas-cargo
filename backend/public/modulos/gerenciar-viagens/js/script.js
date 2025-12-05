@@ -4283,13 +4283,10 @@
                 // Só adicionar se DHENVIOMETA estiver vazio/null
                 if (!convocacaoCompleta.DHENVIOMETA) {
                   convocacoesParaEnviar.push(dadosGerados);
-                  console.log(`[WEBHOOK] Convocação ${idConvocacao} será enviada (DHENVIOMETA está vazio)`);
-                } else {
-                  console.log(`[WEBHOOK] Convocação ${idConvocacao} já foi enviada anteriormente (DHENVIOMETA: ${convocacaoCompleta.DHENVIOMETA})`);
                 }
               }
             } catch (err) {
-              console.error(`[WEBHOOK] Erro ao verificar convocação ${idConvocacao}:`, err);
+              // Ignorar erro ao verificar convocação
             }
           }
         }
@@ -4297,9 +4294,6 @@
       
       // Enviar dados para o webhook INDIVIDUALMENTE com intervalo de 1 segundo
       if (convocacoesParaEnviar.length > 0) {
-        console.log(`[WEBHOOK] Preparando envio INDIVIDUAL de ${convocacoesParaEnviar.length} convocação(ões) para o webhook`);
-        console.log(`[WEBHOOK] Intervalo entre disparos: 1 segundo`);
-        
         let enviadosComSucesso = 0;
         let enviadosComErro = 0;
         
@@ -4309,20 +4303,24 @@
           // Remover TXTCONVOCACAO do objeto antes de enviar ao webhook
           const { TXTCONVOCACAO, ...dadosParaWebhook } = dadosConvocacao;
           
-          // Log do JSON que será enviado
-          console.log(`[WEBHOOK] [${i + 1}/${convocacoesParaEnviar.length}] Enviando convocação ${dadosParaWebhook.IDCONVOCACAO}:`, JSON.stringify(dadosParaWebhook, null, 2));
-          
           try {
             const inicioEnvio = Date.now();
-            console.log('\n========================================');
-            console.log(`[WEBHOOK ENVIO] 📤 Enviando Convocação ${dadosParaWebhook.IDCONVOCACAO}`);
+            const timestampEnvio = new Date().toISOString();
+            
+            // Log detalhado de envio (F12)
+            console.log('========================================');
+            console.log(`[WEBHOOK ENVIO] 📤 [${i + 1}/${convocacoesParaEnviar.length}] ENVIANDO CONVOCAÇÃO`);
+            console.log(`[WEBHOOK ENVIO] Timestamp: ${timestampEnvio}`);
+            console.log(`[WEBHOOK ENVIO] ID Convocação: ${dadosParaWebhook.IDCONVOCACAO}`);
             console.log(`[WEBHOOK ENVIO] URL: https://ia.riochat.com.br/webhook/aviso-rota-integra`);
-            console.log(`[WEBHOOK ENVIO] Body:`, JSON.stringify(dadosParaWebhook, null, 2));
+            console.log(`[WEBHOOK ENVIO] Método: POST`);
+            console.log(`[WEBHOOK ENVIO] Headers:`, { 'Content-Type': 'application/json' });
+            console.log(`[WEBHOOK ENVIO] Body completo:`, JSON.stringify(dadosParaWebhook, null, 2));
             console.log('========================================');
             
-            // Adicionar log de envio na aba
+            // Adicionar log de envio na aba e salvar no banco (gera log no terminal também)
             if (typeof window.adicionarLogMeta === 'function') {
-              window.adicionarLogMeta({
+              await window.adicionarLogMeta({
                 tipo: 'envio',
                 titulo: `Enviando Convocação ${dadosParaWebhook.IDCONVOCACAO}`,
                 mensagem: `[${i + 1}/${convocacoesParaEnviar.length}] Enviando convocação ${dadosParaWebhook.IDCONVOCACAO} para o webhook Meta`,
@@ -4330,7 +4328,8 @@
                   url: 'https://ia.riochat.com.br/webhook/aviso-rota-integra',
                   metodo: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: dadosParaWebhook
+                  body: dadosParaWebhook,
+                  timestamp: timestampEnvio
                 }
               });
             }
@@ -4344,49 +4343,58 @@
             });
             
             const tempoResposta = Date.now() - inicioEnvio;
-            
-            console.log('\n========================================');
-            console.log(`[WEBHOOK RESPOSTA] 📥 Resposta Convocação ${dadosParaWebhook.IDCONVOCACAO}`);
-            console.log(`[WEBHOOK RESPOSTA] Status: ${webhookResponse.status} ${webhookResponse.statusText}`);
-            console.log(`[WEBHOOK RESPOSTA] Tempo: ${tempoResposta}ms`);
+            const timestampResposta = new Date().toISOString();
             
             // Tentar ler o body da resposta
             let responseBody = null;
             const contentType = webhookResponse.headers.get('content-type');
+            const responseHeaders = Object.fromEntries(webhookResponse.headers.entries());
             
             try {
               if (contentType && contentType.includes('application/json')) {
                 responseBody = await webhookResponse.json();
-                console.log(`[WEBHOOK RESPOSTA] Body:`, JSON.stringify(responseBody, null, 2));
               } else {
                 responseBody = await webhookResponse.text();
-                console.log(`[WEBHOOK RESPOSTA] Body:`, responseBody);
               }
             } catch (bodyErr) {
-              console.warn(`[WEBHOOK RESPOSTA] ⚠️ Erro ao ler body:`, bodyErr.message);
+              // Ignorar erro ao ler body
             }
-            console.log('========================================\n');
             
-            // Adicionar log de resposta na aba
+            // Log detalhado de resposta (F12)
+            console.log(`[WEBHOOK RESPOSTA] 📥 [${i + 1}/${convocacoesParaEnviar.length}] RESPOSTA RECEBIDA`);
+            console.log(`[WEBHOOK RESPOSTA] Timestamp: ${timestampResposta}`);
+            console.log(`[WEBHOOK RESPOSTA] ID Convocação: ${dadosParaWebhook.IDCONVOCACAO}`);
+            console.log(`[WEBHOOK RESPOSTA] Status: ${webhookResponse.status} ${webhookResponse.statusText}`);
+            console.log(`[WEBHOOK RESPOSTA] Tempo de resposta: ${tempoResposta}ms`);
+            console.log(`[WEBHOOK RESPOSTA] Headers:`, JSON.stringify(responseHeaders, null, 2));
+            if (contentType && contentType.includes('application/json')) {
+              console.log(`[WEBHOOK RESPOSTA] Body (JSON):`, JSON.stringify(responseBody, null, 2));
+            } else {
+              console.log(`[WEBHOOK RESPOSTA] Body (Texto):`, responseBody);
+            }
+            console.log('');
+            
+            // Adicionar log de resposta na aba e salvar no banco (gera log no terminal também)
             if (typeof window.adicionarLogMeta === 'function') {
-              window.adicionarLogMeta({
+              await window.adicionarLogMeta({
                 tipo: 'resposta',
                 titulo: `Resposta - Convocação ${dadosParaWebhook.IDCONVOCACAO}`,
                 mensagem: `Status: ${webhookResponse.status} ${webhookResponse.statusText} | Tempo: ${tempoResposta}ms`,
                 detalhes: {
-                  idConvocacao: dadosParaWebhook.IDCONVOCACAO, // Garantir que IDCONVOCACAO está presente para salvar no banco
+                  idConvocacao: dadosParaWebhook.IDCONVOCACAO,
                   status: webhookResponse.status,
                   statusText: webhookResponse.statusText,
-                  headers: Object.fromEntries(webhookResponse.headers.entries()),
+                  headers: responseHeaders,
                   body: responseBody,
-                  tempoResposta: `${tempoResposta}ms`
-                }
+                  tempoResposta: `${tempoResposta}ms`,
+                  timestamp: timestampResposta
+                },
+                status_http: webhookResponse.status,
+                tempo_resposta: tempoResposta
               });
             }
             
             if (webhookResponse.ok) {
-              console.log(`[WEBHOOK] ✅ Convocação ${dadosParaWebhook.IDCONVOCACAO} enviada com sucesso!`);
-              
               // Adicionar log de sucesso na aba
               if (typeof window.adicionarLogMeta === 'function') {
                 window.adicionarLogMeta({
@@ -4403,29 +4411,18 @@
               
               // Atualizar campo DHENVIOMETA após envio bem-sucedido
               try {
-                console.log(`[WEBHOOK] 🔄 Atualizando campo DHENVIOMETA para convocação ${dadosParaWebhook.IDCONVOCACAO}...`);
                 const updateResponse = await fetch(`/api/convocacoes/${dadosParaWebhook.IDCONVOCACAO}/atualizar-envio-meta`, {
                   method: 'PUT',
                   headers: {
                     'Content-Type': 'application/json'
                   }
                 });
-                
-                if (updateResponse.ok) {
-                  const updateResult = await updateResponse.json();
-                  console.log(`[WEBHOOK] ✅ Campo DHENVIOMETA atualizado com sucesso para convocação ${dadosParaWebhook.IDCONVOCACAO}:`, updateResult);
-                } else {
-                  const updateError = await updateResponse.text();
-                  console.warn(`[WEBHOOK] ⚠️ Não foi possível atualizar DHENVIOMETA para convocação ${dadosParaWebhook.IDCONVOCACAO}. Status: ${updateResponse.status}`, updateError);
-                }
               } catch (updateErr) {
-                console.error(`[WEBHOOK] ❌ Erro ao atualizar DHENVIOMETA para convocação ${dadosParaWebhook.IDCONVOCACAO}:`, updateErr);
+                // Ignorar erro ao atualizar DHENVIOMETA
               }
               
               enviadosComSucesso++;
             } else {
-              console.error(`[WEBHOOK] ❌ Erro ao enviar convocação ${dadosParaWebhook.IDCONVOCACAO}`);
-              console.error(`[WEBHOOK] ❌ Status: ${webhookResponse.status} ${webhookResponse.statusText}`);
               
               // Adicionar log de erro na aba
               if (typeof window.adicionarLogMeta === 'function') {
@@ -4446,7 +4443,7 @@
               enviadosComErro++;
             }
           } catch (webhookErr) {
-            console.error(`[WEBHOOK] ❌ Erro de conexão ao enviar convocação ${dadosParaWebhook.IDCONVOCACAO}:`, webhookErr.message);
+            console.error(`[WEBHOOK ENVIO] ❌ Erro de conexão - Convocação ${dadosParaWebhook.IDCONVOCACAO}:`, webhookErr.message);
             
             // Adicionar log de erro de conexão na aba
             if (typeof window.adicionarLogMeta === 'function') {
@@ -4468,18 +4465,12 @@
           
           // Aguardar 1 segundo antes do próximo envio (exceto no último)
           if (i < convocacoesParaEnviar.length - 1) {
-            console.log(`[WEBHOOK] Aguardando 1 segundo antes do próximo envio...`);
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
         }
-        
-        console.log(`[WEBHOOK] Resumo: ${enviadosComSucesso} enviado(s) com sucesso, ${enviadosComErro} com erro(s)`);
-      } else {
-        console.warn(`[WEBHOOK] ⚠️ Nenhuma convocação válida para enviar ao webhook (todas já foram enviadas ou não têm dados válidos)`);
       }
       
       if (erros > 0) {
-        console.warn(`[DISPARAR] ⚠️ Algumas convocações não foram atualizadas. Verifique os logs acima.`);
         showMessage(`${result.message || 'Convocações criadas'} | ${sucessos} atualizada(s) com sucesso, ${erros} com erro(s). Verifique o console para detalhes.`, erros === atualizacoesPromises.length ? 'error' : 'warning');
       } else {
         showMessage(`${result.message || 'Convocações disparadas com sucesso!'} | Todos os campos foram atualizados.`, 'success');
@@ -4555,9 +4546,9 @@
           body: JSON.stringify(dadosParaSalvar)
         });
       }
-    } catch (err) {
-      console.error('[LOGS META] Erro ao salvar log:', err.message);
-    }
+      } catch (err) {
+        // Ignorar erro ao salvar log
+      }
     
     if (typeof window.atualizarExibicaoLogsMeta === 'function') {
       window.atualizarExibicaoLogsMeta();
@@ -4594,7 +4585,7 @@
           }
         }
       } catch (e) {
-        console.warn(`[LOGS META] Erro ao formatar data do log ${index}:`, e);
+        // Ignorar erro ao formatar data
       }
       
       const tipoIcon = log.tipo === 'envio' ? '📤' : log.tipo === 'resposta' ? '📥' : log.tipo === 'sucesso' ? '✅' : log.tipo === 'erro' ? '❌' : 'ℹ️';
@@ -4647,7 +4638,7 @@
           ultimaAtualizacao = date.toLocaleString('pt-BR');
         }
       } catch (e) {
-        console.warn('[LOGS META] Erro ao formatar última atualização:', e);
+        // Ignorar erro ao formatar data
       }
     }
     
@@ -4656,35 +4647,10 @@
     const totalErrosEl = document.getElementById('totalErrosMeta');
     const ultimaAtualizacaoEl = document.getElementById('ultimaAtualizacaoMeta');
     
-    if (totalEnviosEl) {
-      totalEnviosEl.textContent = totalEnvios;
-      console.log('[LOGS META] Contador de envios atualizado:', totalEnvios);
-    } else {
-      console.warn('[LOGS META] Elemento totalEnviosMeta não encontrado!');
-    }
-    
-    if (totalSucessosEl) {
-      totalSucessosEl.textContent = totalSucessos;
-      console.log('[LOGS META] Contador de sucessos atualizado:', totalSucessos);
-    } else {
-      console.warn('[LOGS META] Elemento totalSucessosMeta não encontrado!');
-    }
-    
-    if (totalErrosEl) {
-      totalErrosEl.textContent = totalErros;
-      console.log('[LOGS META] Contador de erros atualizado:', totalErros);
-    } else {
-      console.warn('[LOGS META] Elemento totalErrosMeta não encontrado!');
-    }
-    
-    if (ultimaAtualizacaoEl) {
-      ultimaAtualizacaoEl.textContent = ultimaAtualizacao;
-      console.log('[LOGS META] Última atualização atualizada:', ultimaAtualizacao);
-    } else {
-      console.warn('[LOGS META] Elemento ultimaAtualizacaoMeta não encontrado!');
-    }
-    
-    console.log('[LOGS META] ========== ATUALIZAÇÃO COMPLETA ==========');
+    if (totalEnviosEl) totalEnviosEl.textContent = totalEnvios;
+    if (totalSucessosEl) totalSucessosEl.textContent = totalSucessos;
+    if (totalErrosEl) totalErrosEl.textContent = totalErros;
+    if (ultimaAtualizacaoEl) ultimaAtualizacaoEl.textContent = ultimaAtualizacao;
   };
   
   // Função para limpar logs (definida no escopo global)
@@ -4744,7 +4710,7 @@
                 try {
                   detalhesParsed = JSON.parse(log.DETALHES);
                 } catch (e) {
-                  console.warn(`[LOGS META] Erro ao parsear DETALHES do log ${index}:`, e);
+                  // Ignorar erro ao parsear detalhes
                   detalhesParsed = null;
                 }
               } else {
@@ -4786,7 +4752,6 @@
         }
       }
     } catch (err) {
-      console.error('[LOGS META] Erro ao carregar logs:', err.message);
       if (typeof window.atualizarExibicaoLogsMeta === 'function') {
         window.atualizarExibicaoLogsMeta();
       }
@@ -4817,7 +4782,6 @@
     setTimeout(() => {
       const tabIntegracaoMeta = document.getElementById('tab-integracao-meta');
       if (tabIntegracaoMeta && tabIntegracaoMeta.classList.contains('active')) {
-        console.log('[LOGS META] Aba Integração Meta já está ativa ao carregar. Carregando logs...');
         if (typeof window.carregarLogsMeta === 'function') {
           window.carregarLogsMeta();
         }

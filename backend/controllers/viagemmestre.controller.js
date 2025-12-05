@@ -1278,12 +1278,6 @@ const viagemController = {
       const { id } = req.params;
       const { NRCELULAR, TXTCONVOCACAO, LINKCONVOCACAO } = req.body;
       
-      console.log(`[ATUALIZAR CONVOCACAO] ID: ${id}, Dados recebidos:`, {
-        NRCELULAR: NRCELULAR ? `${NRCELULAR.substring(0, 20)}...` : 'null/undefined',
-        TXTCONVOCACAO: TXTCONVOCACAO ? `${TXTCONVOCACAO.substring(0, 50)}...` : 'null/undefined',
-        LINKCONVOCACAO: LINKCONVOCACAO || 'null/undefined'
-      });
-      
       if (!id) {
         return res.status(400).json({ error: 'ID da convocação não informado.' });
       }
@@ -1297,23 +1291,19 @@ const viagemController = {
       if (NRCELULAR !== undefined && NRCELULAR !== null && NRCELULAR !== '') {
         updates.push('NRCELULAR = @NRCELULAR');
         request.input('NRCELULAR', sql.VarChar(20), NRCELULAR);
-        console.log(`[ATUALIZAR CONVOCACAO] Adicionando NRCELULAR: ${NRCELULAR}`);
       }
       
       if (TXTCONVOCACAO !== undefined && TXTCONVOCACAO !== null && TXTCONVOCACAO !== '') {
         updates.push('TXTCONVOCACAO = @TXTCONVOCACAO');
         request.input('TXTCONVOCACAO', sql.NVarChar(sql.MAX), TXTCONVOCACAO);
-        console.log(`[ATUALIZAR CONVOCACAO] Adicionando TXTCONVOCACAO (tamanho: ${TXTCONVOCACAO.length})`);
       }
       
       if (LINKCONVOCACAO !== undefined && LINKCONVOCACAO !== null && LINKCONVOCACAO !== '') {
         updates.push('LINKCONVOCACAO = @LINKCONVOCACAO');
         request.input('LINKCONVOCACAO', sql.VarChar(500), LINKCONVOCACAO);
-        console.log(`[ATUALIZAR CONVOCACAO] Adicionando LINKCONVOCACAO: ${LINKCONVOCACAO}`);
       }
       
       if (updates.length === 0) {
-        console.error(`[ATUALIZAR CONVOCACAO] Nenhum campo para atualizar. Dados recebidos:`, req.body);
         return res.status(400).json({ error: 'Nenhum campo para atualizar foi informado.' });
       }
       
@@ -1325,11 +1315,7 @@ const viagemController = {
         WHERE IDCONVOCACAO = @IDCONVOCACAO
       `;
       
-      console.log(`[ATUALIZAR CONVOCACAO] Executando query:`, query);
-      
       const result = await request.query(query);
-      
-      console.log(`[ATUALIZAR CONVOCACAO] Query executada. Linhas afetadas:`, result.rowsAffected);
       
       res.json({ 
         success: true, 
@@ -3060,6 +3046,44 @@ const viagemController = {
         return res.status(400).json({ error: 'IDCONVOCACAO e tipo são obrigatórios.' });
       }
       
+      // Mostrar logs no terminal do servidor para envio e resposta (apenas uma vez)
+      if (tipo === 'envio' && detalhes) {
+        const detalhesObj = typeof detalhes === 'string' ? JSON.parse(detalhes) : detalhes;
+        // Extrair contador da mensagem se disponível
+        const mensagemMatch = mensagem ? mensagem.match(/\[(\d+)\/(\d+)\]/) : null;
+        const contador = mensagemMatch ? `[${mensagemMatch[1]}/${mensagemMatch[2]}]` : '';
+        
+        console.log('========================================');
+        console.log(`[WEBHOOK ENVIO] 📤 ${contador} ENVIANDO CONVOCAÇÃO`.trim());
+        console.log(`[WEBHOOK ENVIO] Timestamp: ${detalhesObj.timestamp || new Date().toISOString()}`);
+        console.log(`[WEBHOOK ENVIO] ID Convocação: ${IDCONVOCACAO}`);
+        console.log(`[WEBHOOK ENVIO] URL: ${detalhesObj.url || 'https://ia.riochat.com.br/webhook/aviso-rota-integra'}`);
+        console.log(`[WEBHOOK ENVIO] Método: ${detalhesObj.metodo || 'POST'}`);
+        console.log(`[WEBHOOK ENVIO] Headers:`, detalhesObj.headers || { 'Content-Type': 'application/json' });
+        console.log(`[WEBHOOK ENVIO] Body completo:`, JSON.stringify(detalhesObj.body || {}, null, 2));
+        console.log('========================================');
+      } else if (tipo === 'resposta' && detalhes) {
+        const detalhesObj = typeof detalhes === 'string' ? JSON.parse(detalhes) : detalhes;
+        // Extrair contador da mensagem se disponível
+        const mensagemMatch = mensagem ? mensagem.match(/\[(\d+)\/(\d+)\]/) : null;
+        const contador = mensagemMatch ? `[${mensagemMatch[1]}/${mensagemMatch[2]}]` : '';
+        
+        console.log(`[WEBHOOK RESPOSTA] 📥 ${contador} RESPOSTA RECEBIDA`.trim());
+        console.log(`[WEBHOOK RESPOSTA] Timestamp: ${detalhesObj.timestamp || new Date().toISOString()}`);
+        console.log(`[WEBHOOK RESPOSTA] ID Convocação: ${IDCONVOCACAO}`);
+        console.log(`[WEBHOOK RESPOSTA] Status: ${detalhesObj.status || status_http} ${detalhesObj.statusText || ''}`);
+        console.log(`[WEBHOOK RESPOSTA] Tempo de resposta: ${detalhesObj.tempoResposta || tempo_resposta || 'N/A'}`);
+        console.log(`[WEBHOOK RESPOSTA] Headers:`, JSON.stringify(detalhesObj.headers || {}, null, 2));
+        if (detalhesObj.body) {
+          if (typeof detalhesObj.body === 'object') {
+            console.log(`[WEBHOOK RESPOSTA] Body (JSON):`, JSON.stringify(detalhesObj.body, null, 2));
+          } else {
+            console.log(`[WEBHOOK RESPOSTA] Body (Texto):`, detalhesObj.body);
+          }
+        }
+        console.log('');
+      }
+      
       // Garantir que detalhes seja uma string JSON válida
       let detalhesJson = null;
       if (detalhes) {
@@ -3151,17 +3175,24 @@ const viagemController = {
   // Receber retorno do webhook Meta (callback)
   receberRetornoWebhookMeta: async (req, res) => {
     const inicioProcessamento = Date.now();
+    
+    // Log apenas os dados recebidos (formato limpo)
+    const dadosRecebidos = {
+      IDCONVOCACAO: req.body.IDCONVOCACAO || null,
+      LATITUDE: req.body.LATITUDE || null,
+      LONGITUDE: req.body.LONGITUDE || null,
+      CDMOTIVORECUSA: req.body.CDMOTIVORECUSA || null
+    };
+    
     console.log('\n========================================');
-    console.log('[WEBHOOK CALLBACK META] 📥 RETORNO RECEBIDO');
-    console.log('[WEBHOOK CALLBACK META] Timestamp:', new Date().toISOString());
-    console.log('[WEBHOOK CALLBACK META] Body:', JSON.stringify(req.body, null, 2));
-    console.log('========================================');
+    console.log('[WEBHOOK RETORNO] 📥 DADOS RECEBIDOS DA META');
+    console.log(JSON.stringify(dadosRecebidos, null, 2));
+    console.log('========================================\n');
     
     try {
       const { IDCONVOCACAO, LATITUDE, LONGITUDE, CDMOTIVORECUSA, STATUS } = req.body;
       
       if (!IDCONVOCACAO) {
-        console.error('[WEBHOOK CALLBACK META] ❌ ERRO: IDCONVOCACAO não fornecido!');
         return res.status(400).json({ error: 'IDCONVOCACAO é obrigatório.' });
       }
       
@@ -3175,7 +3206,6 @@ const viagemController = {
       `);
       
       if (checkResult.recordset.length === 0) {
-        console.error('[WEBHOOK CALLBACK META] ❌ ERRO: Convocação não encontrada!');
         return res.status(404).json({ error: 'Convocação não encontrada.' });
       }
       
@@ -3244,13 +3274,6 @@ const viagemController = {
       
       const result = await updateRequest.query(updateQuery);
       
-      const tempoProcessamento = Date.now() - inicioProcessamento;
-      console.log('[WEBHOOK CALLBACK META] ✅ Convocação atualizada!');
-      console.log('  - IDCONVOCACAO:', IDCONVOCACAO);
-      console.log('  - STATUS:', novoStatus || 'não alterado');
-      console.log('  - Tempo:', tempoProcessamento, 'ms');
-      console.log('========================================\n');
-      
       res.json({ 
         success: true, 
         message: 'Dados recebidos e atualizados com sucesso!',
@@ -3265,7 +3288,7 @@ const viagemController = {
         }
       });
     } catch (err) {
-      console.error('[WEBHOOK CALLBACK META] ❌ ERRO:', err.message);
+      console.error(`[WEBHOOK RETORNO] ❌ Erro ao processar retorno:`, err.message);
       res.status(500).json({ error: 'Erro ao processar retorno do webhook.', details: err.message });
     }
   },
