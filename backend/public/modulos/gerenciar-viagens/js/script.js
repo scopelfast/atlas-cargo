@@ -4318,11 +4318,15 @@
           
           try {
             const inicioEnvio = Date.now();
-            console.log(`[WEBHOOK] 📤 [${i + 1}/${convocacoesParaEnviar.length}] ENVIANDO convocação ${dadosParaWebhook.IDCONVOCACAO}...`);
-            console.log(`[WEBHOOK] 📤 URL: https://ia.riochat.com.br/webhook/aviso-rota-integra`);
-            console.log(`[WEBHOOK] 📤 Método: POST`);
-            console.log(`[WEBHOOK] 📤 Headers: Content-Type: application/json`);
-            console.log(`[WEBHOOK] 📤 Body (JSON):`, JSON.stringify(dadosParaWebhook, null, 2));
+            console.log('\n========================================');
+            console.log(`[WEBHOOK ENVIO] 📤 [${i + 1}/${convocacoesParaEnviar.length}] ENVIANDO CONVOCAÇÃO`);
+            console.log(`[WEBHOOK ENVIO] Timestamp:`, new Date().toISOString());
+            console.log(`[WEBHOOK ENVIO] ID Convocação:`, dadosParaWebhook.IDCONVOCACAO);
+            console.log(`[WEBHOOK ENVIO] URL: https://ia.riochat.com.br/webhook/aviso-rota-integra`);
+            console.log(`[WEBHOOK ENVIO] Método: POST`);
+            console.log(`[WEBHOOK ENVIO] Headers:`, { 'Content-Type': 'application/json' });
+            console.log(`[WEBHOOK ENVIO] Body completo:`, JSON.stringify(dadosParaWebhook, null, 2));
+            console.log('========================================\n');
             
             // Adicionar log de envio na aba
             console.log('[WEBHOOK] Verificando se adicionarLogMeta existe:', typeof window.adicionarLogMeta);
@@ -4351,10 +4355,13 @@
             
             const tempoResposta = Date.now() - inicioEnvio;
             
-            console.log(`[WEBHOOK] 📥 [${i + 1}/${convocacoesParaEnviar.length}] RESPOSTA recebida para convocação ${dadosParaWebhook.IDCONVOCACAO}:`);
-            console.log(`[WEBHOOK] 📥 Status: ${webhookResponse.status} ${webhookResponse.statusText}`);
-            console.log(`[WEBHOOK] 📥 Tempo de resposta: ${tempoResposta}ms`);
-            console.log(`[WEBHOOK] 📥 Headers da resposta:`, Object.fromEntries(webhookResponse.headers.entries()));
+            console.log('\n========================================');
+            console.log(`[WEBHOOK RESPOSTA] 📥 [${i + 1}/${convocacoesParaEnviar.length}] RESPOSTA RECEBIDA`);
+            console.log(`[WEBHOOK RESPOSTA] Timestamp:`, new Date().toISOString());
+            console.log(`[WEBHOOK RESPOSTA] ID Convocação:`, dadosParaWebhook.IDCONVOCACAO);
+            console.log(`[WEBHOOK RESPOSTA] Status: ${webhookResponse.status} ${webhookResponse.statusText}`);
+            console.log(`[WEBHOOK RESPOSTA] Tempo de resposta: ${tempoResposta}ms`);
+            console.log(`[WEBHOOK RESPOSTA] Headers:`, JSON.stringify(Object.fromEntries(webhookResponse.headers.entries()), null, 2));
             
             // Tentar ler o body da resposta
             let responseBody = null;
@@ -4363,14 +4370,15 @@
             try {
               if (contentType && contentType.includes('application/json')) {
                 responseBody = await webhookResponse.json();
-                console.log(`[WEBHOOK] 📥 Body (JSON):`, JSON.stringify(responseBody, null, 2));
+                console.log(`[WEBHOOK RESPOSTA] Body (JSON):`, JSON.stringify(responseBody, null, 2));
               } else {
                 responseBody = await webhookResponse.text();
-                console.log(`[WEBHOOK] 📥 Body (Texto):`, responseBody);
+                console.log(`[WEBHOOK RESPOSTA] Body (Texto):`, responseBody);
               }
             } catch (bodyErr) {
-              console.warn(`[WEBHOOK] ⚠️ Não foi possível ler o body da resposta:`, bodyErr);
+              console.warn(`[WEBHOOK RESPOSTA] ⚠️ Não foi possível ler o body:`, bodyErr);
             }
+            console.log('========================================\n');
             
             // Adicionar log de resposta na aba
             if (typeof window.adicionarLogMeta === 'function') {
