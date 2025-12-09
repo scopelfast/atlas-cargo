@@ -208,12 +208,12 @@ function getOverlayMostrado() {
       filtroDataInicio.value = dataInicioFormatada;
     }
 
-    // Data Fim = hoje + 30 dias
+    // Data Fim = hoje + 7 dias (getdate() + 7)
     const filtroDataFim = document.getElementById('filtroDataFim');
     if (filtroDataFim) {
       const hoje = new Date();
       const dataFim = new Date(hoje);
-      dataFim.setDate(dataFim.getDate() + 30);
+      dataFim.setDate(dataFim.getDate() + 7);
       // Formatar como YYYY-MM-DD para input type="date"
       const dataFimFormatada = dataFim.toISOString().split('T')[0];
       filtroDataFim.value = dataFimFormatada;
