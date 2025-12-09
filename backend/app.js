@@ -62,8 +62,9 @@ app.use(express.urlencoded({ extended: true }));
 
 // Servir arquivos estáticos da pasta 'public'
 // Configurar headers corretos para arquivos estáticos
+const fs = require('fs');
 app.use(express.static(path.join(__dirname, 'public'), {
-  setHeaders: (res, filePath) => {
+  setHeaders: (res, filePath, stat) => {
     // Garantir que arquivos CSS tenham o Content-Type correto (crítico para produção)
     if (filePath.endsWith('.css')) {
       res.setHeader('Content-Type', 'text/css; charset=utf-8');
@@ -84,14 +85,24 @@ app.use(express.static(path.join(__dirname, 'public'), {
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
     } else {
-      // PRODUÇÃO: Cache moderado para evitar problema de versão antiga
+      // PRODUÇÃO: Cache otimizado com cache busting via query string
       if (filePath.endsWith('.css') || filePath.endsWith('.js')) {
-        // CSS e JS: cache de 1 hora apenas (permite atualizações rápidas)
-        res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate');
+        // CSS e JS: Cache curto + ETag para validação
+        // O cache-buster.js adiciona ?v=timestamp, então o navegador sempre busca nova versão
+        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        // Adicionar ETag baseado no timestamp do arquivo para validação
+        // Isso permite validação eficiente sem cache agressivo
+        // O cache-buster.js adiciona ?v=timestamp, forçando busca de nova versão
+        if (stat && stat.mtime) {
+          const etag = `"${stat.mtime.getTime()}"`;
+          res.setHeader('ETag', etag);
+        }
       } else if (filePath.endsWith('.html')) {
         // HTML: SEM cache (sempre atualizado)
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
       } else if (filePath.endsWith('.png') || filePath.endsWith('.jpg') || 
                  filePath.endsWith('.jpeg') || filePath.endsWith('.gif') || 
                  filePath.endsWith('.ico') || filePath.endsWith('.svg')) {

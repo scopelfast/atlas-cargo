@@ -90,8 +90,54 @@
         return;
       }
       
-      // Atualizar mensagem: processando comandos
-      showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL no banco de dados...', 'Aguarde, isso pode levar alguns segundos.');
+      // Extrair lista de stored procedures que serão executadas para mostrar progresso
+      const procedures = [];
+      const linhas = sqlLimpo.split('\n');
+      linhas.forEach(linha => {
+        const linhaUpper = linha.toUpperCase().trim();
+        // Procurar por EXEC ou EXECUTE seguido de nome de procedure
+        const match = linhaUpper.match(/EXEC(?:UTE)?\s+(?:\[DBO\]\.)?\[?(\w+)\]?/);
+        if (match && match[1]) {
+          const procName = match[1];
+          // Remover prefixo SP_ se existir para melhor legibilidade
+          const nomeLimpo = procName.replace(/^SP_/, '');
+          if (!procedures.includes(nomeLimpo)) {
+            procedures.push(nomeLimpo);
+          }
+        }
+      });
+      
+      // Contar comandos GO para saber quantos comandos serão executados
+      const comandosGO = sqlLimpo.split(/\bGO\b/gi).filter(cmd => cmd.trim().length > 0);
+      const totalComandos = comandosGO.length;
+      
+      // Atualizar mensagem: mostrar quantas procedures serão executadas
+      if (procedures.length > 0) {
+        showLoadingOverlayInitSQL(
+          'Processando Inicialização', 
+          `Executando ${totalComandos} comando(s) SQL...`, 
+          `Procedures: ${procedures.slice(0, 5).join(', ')}${procedures.length > 5 ? ` (+${procedures.length - 5} mais)` : ''}`
+        );
+        
+        // Iniciar simulação de progresso (atualizar a cada 2 segundos)
+        let comandoAtual = 0;
+        const intervaloProgresso = setInterval(() => {
+          comandoAtual++;
+          if (comandoAtual <= totalComandos) {
+            const procedureAtual = procedures[comandoAtual - 1] || 'Comando SQL';
+            showLoadingOverlayInitSQL(
+              'Processando Inicialização', 
+              `Executando comando ${comandoAtual} de ${totalComandos}...`, 
+              `Em execução: ${procedureAtual}`
+            );
+          }
+        }, 2000); // Atualizar a cada 2 segundos
+        
+        // Armazenar intervalo para limpar depois
+        window.intervaloInitSQLEquipamentos = intervaloProgresso;
+      } else {
+        showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL no banco de dados...', 'Aguarde, isso pode levar alguns segundos.');
+      }
       
       // Executar o SQL via API e AGUARDAR completamente a resposta
       let execResponse;
@@ -173,6 +219,12 @@
         }
       }
       
+      // Limpar intervalo de progresso se existir
+      if (window.intervaloInitSQLEquipamentos) {
+        clearInterval(window.intervaloInitSQLEquipamentos);
+        delete window.intervaloInitSQLEquipamentos;
+      }
+      
       // Aguardar um pouco mais para garantir que todas as operações foram concluídas
       await new Promise(resolve => setTimeout(resolve, 500));
       
@@ -180,6 +232,12 @@
       hideLoadingOverlayInitSQL();
       
     } catch (err) {
+      // Limpar intervalo de progresso se existir
+      if (window.intervaloInitSQLEquipamentos) {
+        clearInterval(window.intervaloInitSQLEquipamentos);
+        delete window.intervaloInitSQLEquipamentos;
+      }
+      
       // Esconder overlay em caso de erro
       hideLoadingOverlayInitSQL();
       // Erros silenciosos - não bloquear o módulo

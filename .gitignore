@@ -60,7 +60,9 @@ ehthumbs.db
 Desktop.ini
 
 # Arquivos específicos do projeto
+# Prevenir duplicação de pastas backend
 backend/backend/
+**/backend/backend/
 email_suporte_waboxapp.txt
 
 # Arquivos de configuração local

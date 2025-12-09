@@ -2375,10 +2375,29 @@ const viagemController = {
       const comandos = sql.split(/\bGO\b/gi).filter(cmd => cmd.trim().length > 0);
 
       const resultados = [];
+      const totalComandos = comandos.length;
 
-      for (const comando of comandos) {
+      // Extrair nomes das procedures para log de progresso
+      const extrairNomeProcedure = (cmd) => {
+        const match = cmd.trim().toUpperCase().match(/EXEC(?:UTE)?\s+(?:\[DBO\]\.)?\[?(\w+)\]?/);
+        return match ? match[1] : null;
+      };
+
+      for (let i = 0; i < comandos.length; i++) {
+        const comando = comandos[i];
         const cmdLimpo = comando.trim();
         if (!cmdLimpo) continue;
+
+        // Extrair nome da procedure se for EXEC
+        const nomeProcedure = extrairNomeProcedure(cmdLimpo);
+        const progresso = `[${i + 1}/${totalComandos}]`;
+        
+        // Log de progresso no servidor
+        if (nomeProcedure) {
+          console.log(`${progresso} Executando: ${nomeProcedure}...`);
+        } else {
+          console.log(`${progresso} Executando comando SQL...`);
+        }
 
         try {
           // Aumentar timeout para comandos grandes (MERGE, UPDATE em massa, etc)
@@ -2388,7 +2407,16 @@ const viagemController = {
           request.timeout = 600000; // 600 segundos (10 minutos) para comandos grandes
 
           // Executar comando
+          const inicioTempo = Date.now();
           const result = await request.query(cmdLimpo);
+          const tempoDecorrido = ((Date.now() - inicioTempo) / 1000).toFixed(2);
+          
+          // Log de conclusão
+          if (nomeProcedure) {
+            console.log(`✅ ${progresso} ${nomeProcedure} concluído em ${tempoDecorrido}s`);
+          } else {
+            console.log(`✅ ${progresso} Comando concluído em ${tempoDecorrido}s`);
+          }
 
           // Se retornou dados (SELECT), incluir no resultado
           if (result.recordset && result.recordset.length > 0) {

@@ -1,8 +1,24 @@
 // backend/public/modulos/gerenciar-viagens/js/script.js
 // Gerenciar Viagens - Frontend
-// Versão: 1.0
+// Versão: 1.2
 // Autor: Sistema DivulgaCarga
 // Data: 2025-04-05
+// Última atualização: 2025-01-XX (Correção definitiva overlayMostrado)
+
+// Flag global para controlar se o overlay está visível
+// Declarada no escopo global usando window para evitar erro de redeclaração
+// se o script for carregado múltiplas vezes
+if (typeof window.overlayMostrado === 'undefined') {
+  window.overlayMostrado = false;
+}
+
+// Função helper para obter o estado do overlay (opcional, mas útil para debug)
+function getOverlayMostrado() {
+  if (typeof window.overlayMostrado === 'undefined') {
+    window.overlayMostrado = false;
+  }
+  return window.overlayMostrado;
+}
 
 (function() {
   // Elementos
@@ -24,6 +40,9 @@
   let linhaRota = null;
   let gridTab = null;
   let lastViagens = null;
+  
+  // Debug: confirmar que overlayMostrado está carregando (agora no escopo global)
+  console.log('overlayMostrado inicial (global):', window.overlayMostrado);
 
   // ====================================
   // CONFIGURAÇÕES DE MAPA E ROTEAMENTO
@@ -298,8 +317,54 @@
         return;
       }
       
-      // Atualizar mensagem: processando comandos
-      showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL no banco de dados...', 'Aguarde, isso pode levar alguns segundos.');
+      // Extrair lista de stored procedures que serão executadas para mostrar progresso
+      const procedures = [];
+      const linhas = sqlLimpo.split('\n');
+      linhas.forEach(linha => {
+        const linhaUpper = linha.toUpperCase().trim();
+        // Procurar por EXEC ou EXECUTE seguido de nome de procedure
+        const match = linhaUpper.match(/EXEC(?:UTE)?\s+(?:\[DBO\]\.)?\[?(\w+)\]?/);
+        if (match && match[1]) {
+          const procName = match[1];
+          // Remover prefixo SP_ se existir para melhor legibilidade
+          const nomeLimpo = procName.replace(/^SP_/, '');
+          if (!procedures.includes(nomeLimpo)) {
+            procedures.push(nomeLimpo);
+          }
+        }
+      });
+      
+      // Contar comandos GO para saber quantos comandos serão executados
+      const comandosGO = sqlLimpo.split(/\bGO\b/gi).filter(cmd => cmd.trim().length > 0);
+      const totalComandos = comandosGO.length;
+      
+      // Atualizar mensagem: mostrar quantas procedures serão executadas
+      if (procedures.length > 0) {
+        showLoadingOverlayInitSQL(
+          'Processando Inicialização', 
+          `Executando ${totalComandos} comando(s) SQL...`, 
+          `Procedures: ${procedures.slice(0, 5).join(', ')}${procedures.length > 5 ? ` (+${procedures.length - 5} mais)` : ''}`
+        );
+        
+        // Iniciar simulação de progresso (atualizar a cada 2 segundos)
+        let comandoAtual = 0;
+        const intervaloProgresso = setInterval(() => {
+          comandoAtual++;
+          if (comandoAtual <= totalComandos) {
+            const procedureAtual = procedures[comandoAtual - 1] || 'Comando SQL';
+            showLoadingOverlayInitSQL(
+              'Processando Inicialização', 
+              `Executando comando ${comandoAtual} de ${totalComandos}...`, 
+              `Em execução: ${procedureAtual}`
+            );
+          }
+        }, 2000); // Atualizar a cada 2 segundos
+        
+        // Armazenar intervalo para limpar depois
+        window.intervaloInitSQL = intervaloProgresso;
+      } else {
+        showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL no banco de dados...', 'Aguarde, isso pode levar alguns segundos.');
+      }
       
       // Executar o SQL via API e AGUARDAR completamente a resposta
       let execResponse;
@@ -442,6 +507,12 @@
         }
       }
       
+      // Limpar intervalo de progresso se existir
+      if (window.intervaloInitSQL) {
+        clearInterval(window.intervaloInitSQL);
+        delete window.intervaloInitSQL;
+      }
+      
       // Aguardar um pouco mais para garantir que todas as operações foram concluídas
       // Isso é importante para operações que podem ter efeitos colaterais assíncronos
       // Aumentado para 500ms para garantir que operações complexas sejam concluídas
@@ -451,6 +522,12 @@
       hideLoadingOverlayInitSQL();
       
     } catch (err) {
+      // Limpar intervalo de progresso se existir
+      if (window.intervaloInitSQL) {
+        clearInterval(window.intervaloInitSQL);
+        delete window.intervaloInitSQL;
+      }
+      
       // Esconder overlay em caso de erro
       hideLoadingOverlayInitSQL();
       // Erros silenciosos - não bloquear o módulo
@@ -2496,6 +2573,11 @@
 
   // Funções para controlar overlay de carregamento do mapa
   function showMapaLoading(titulo = 'Carregando Mapa', texto = 'Preparando visualização da rota...') {
+    // Garantir que overlayMostrado está definida (proteção contra problemas de escopo/cache)
+    if (typeof window.overlayMostrado === 'undefined') {
+      window.overlayMostrado = false;
+    }
+    
     const overlay = document.getElementById('mapaLoadingOverlay');
     const titleEl = document.getElementById('mapaLoadingTitle');
     const textEl = document.getElementById('mapaLoadingText');
@@ -2503,18 +2585,30 @@
       if (titleEl) titleEl.textContent = titulo;
       if (textEl) textEl.textContent = texto;
       overlay.style.display = 'flex';
+      window.overlayMostrado = true;
     }
   }
 
   function hideMapaLoading() {
+    // Garantir que overlayMostrado está definida (proteção contra problemas de escopo/cache)
+    if (typeof window.overlayMostrado === 'undefined') {
+      window.overlayMostrado = false;
+    }
+    
     const overlay = document.getElementById('mapaLoadingOverlay');
     if (overlay) {
       overlay.style.display = 'none';
+      window.overlayMostrado = false;
     }
   }
 
   // Função para atualizar o mapa com origem e destino
   async function atualizarMapa() {
+    // Garantir que overlayMostrado está definida (proteção contra problemas de escopo/cache)
+    if (typeof window.overlayMostrado === 'undefined') {
+      window.overlayMostrado = false;
+    }
+    
     // Verificar se Leaflet está disponível
     if (typeof L === 'undefined') {
       console.error('Leaflet não está carregado.');
@@ -2579,7 +2673,19 @@
             // Filtrar pontos com coordenadas e ordenar por ORDEM
             const pontosComCoordenadas = pontos
               .filter(p => p.LATITUDE && p.LONGITUDE)
-              .sort((a, b) => (a.ORDEM || 0) - (b.ORDEM || 0));
+              .sort((a, b) => {
+                // Converter ORDEM para número para ordenação correta
+                const ordemA = parseFloat(a.ORDEM) || 0;
+                const ordemB = parseFloat(b.ORDEM) || 0;
+                return ordemA - ordemB;
+              });
+            
+            // Debug: mostrar ordem dos pontos
+            console.log('Pontos ordenados no mapa:', pontosComCoordenadas.map(p => ({
+              ordem: p.ORDEM,
+              tipo: p.TPLOCAL,
+              local: p.DSLOCAL
+            })));
             
             if (pontosComCoordenadas.length >= 2) {
               // Criar marcadores para cada ponto
@@ -2591,8 +2697,8 @@
               };
               
               const icones = {
-                'O': '🏁',
-                'D': '🏁',
+                'O': '🏁', // Origem mostra bandeira verde
+                'D': '🏁', // Destino mostra bandeira xadrez
                 'P': '📍',
                 'R': '⏸'
               };
@@ -2610,11 +2716,43 @@
               // Calcular distâncias acumuladas desde a origem
               let distanciaAcumulada = 0;
               
+              // Ajustar tipos: garantir que apenas o primeiro seja Origem e o último seja Destino
               pontosComCoordenadas.forEach((ponto, index) => {
                 // Normalizar TPLOCAL - garantir que seja string e uppercase, tratar null/undefined
                 let tipoLocal = '';
                 if (ponto.TPLOCAL !== null && ponto.TPLOCAL !== undefined) {
                   tipoLocal = String(ponto.TPLOCAL).trim().toUpperCase();
+                }
+                
+                const isPrimeiro = index === 0;
+                const isUltimo = index === pontosComCoordenadas.length - 1;
+                const isIntermediario = !isPrimeiro && !isUltimo;
+                
+                // Lógica de ajuste de tipos:
+                // - Primeiro ponto SEMPRE é Origem (O)
+                // - Último ponto SEMPRE é Destino (D)
+                // - Pontos intermediários: manter tipo original (P ou R), mas converter O/D para P
+                
+                const tipoOriginal = tipoLocal; // Guardar tipo original para debug
+                
+                if (isPrimeiro) {
+                  // Primeiro ponto sempre é Origem
+                  tipoLocal = 'O';
+                } else if (isUltimo) {
+                  // Último ponto sempre é Destino
+                  tipoLocal = 'D';
+                } else if (isIntermediario) {
+                  // Pontos intermediários: se for O ou D, converter para Passagem
+                  // Caso contrário, manter o tipo original (P ou R)
+                  if (tipoLocal === 'O' || tipoLocal === 'D' || !tipoLocal || tipoLocal === '') {
+                    tipoLocal = 'P'; // Default para Passagem se não tiver tipo ou for O/D
+                  }
+                  // Se já é P ou R, manter o tipo original
+                }
+                
+                // Debug: mostrar ajuste de tipo
+                if (tipoOriginal !== tipoLocal) {
+                  console.log(`Ponto ${index + 1}: Tipo ajustado de "${tipoOriginal}" para "${tipoLocal}"`);
                 }
                 
                 const cor = cores[tipoLocal] || '#95a5a6';
@@ -2626,39 +2764,54 @@
                   distanciaAcumulada += parseFloat(ponto.KMENTREPONTOS) || 0;
                 }
                 
-                // Criar marcador customizado
+                // Número da ordem para exibir no marcador
+                const numeroOrdem = index + 1;
+                
+                // Criar marcador customizado com número da ordem
+                // Para Origem e Destino, mostrar apenas o ícone (sem número sobreposto)
+                // Para Passagem e Parada, mostrar número + ícone
+                const mostrarNumero = tipoLocal !== 'O' && tipoLocal !== 'D';
+                
                 const marcador = L.marker([ponto.LATITUDE, ponto.LONGITUDE], {
                   icon: L.divIcon({
                     className: 'custom-marker',
                     html: `<div style="
                       background: ${cor};
-                      width: 30px;
-                      height: 30px;
+                      width: 35px;
+                      height: 35px;
                       border-radius: 50%;
                       border: 3px solid white;
                       box-shadow: 0 2px 8px rgba(0,0,0,0.3);
                       display: flex;
                       align-items: center;
                       justify-content: center;
-                      font-size: 14px;
-                    ">${icone}</div>`,
-                    iconSize: [30, 30],
-                    iconAnchor: [15, 15]
+                      font-size: ${tipoLocal === 'O' ? '18px' : tipoLocal === 'D' ? '20px' : '12px'};
+                      font-weight: bold;
+                      color: white;
+                      position: relative;
+                    ">
+                      ${mostrarNumero ? `<span style="position: absolute; top: -2px; left: -2px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold;">${numeroOrdem}</span>` : ''}
+                      <span style="font-size: ${tipoLocal === 'O' ? '20px' : tipoLocal === 'D' ? '18px' : '18px'}; line-height: 1;">${icone}</span>
+                    </div>`,
+                    iconSize: [35, 35],
+                    iconAnchor: [17, 17]
                   })
                 }).addTo(mapa);
                 
                 // Popup com informações detalhadas
                 const popupContent = `
-                  <div style="min-width: 200px;">
+                  <div style="min-width: 250px;">
+                    <div style="background: ${cor}; color: white; padding: 8px; border-radius: 4px 4px 0 0; margin: -10px -10px 10px -10px;">
+                      <strong>Ponto ${numeroOrdem} - ${descricaoTipo}</strong>
+                    </div>
                     <strong>${ponto.DSLOCAL || 'Sem descrição'}</strong><br>
-                    <small>${ponto.DSPOSICAO || 'Sem posição'}</small><br>
+                    <small style="color: #666;">${ponto.DSPOSICAO || 'Sem posição'}</small><br>
                     <hr style="margin: 8px 0;">
-                    <strong>Tipo:</strong> ${descricaoTipo}<br>
-                    <strong>Ordem:</strong> ${ponto.ORDEM || 'N/A'}<br>
+                    <strong>Ordem no roteiro:</strong> ${ponto.ORDEM || 'N/A'}<br>
                     ${ponto.KMENTREPONTOS ? `<strong>Distância do ponto anterior:</strong> ${parseFloat(ponto.KMENTREPONTOS).toFixed(2)} km<br>` : ''}
-                    ${index > 0 ? `<strong>Distância da origem:</strong> ${distanciaAcumulada.toFixed(2)} km<br>` : ''}
+                    ${index > 0 ? `<strong>Distância acumulada da origem:</strong> ${distanciaAcumulada.toFixed(2)} km<br>` : ''}
                     <strong>Coordenadas:</strong><br>
-                    <small>${parseFloat(ponto.LATITUDE).toFixed(6)}, ${parseFloat(ponto.LONGITUDE).toFixed(6)}</small>
+                    <small style="font-family: monospace;">${parseFloat(ponto.LATITUDE).toFixed(6)}, ${parseFloat(ponto.LONGITUDE).toFixed(6)}</small>
                   </div>
                 `;
                 marcador.bindPopup(popupContent);
@@ -2739,6 +2892,12 @@
                   mapa.fitBounds(newBounds);
                 }
               }
+              
+              // Debug: mostrar quantos marcadores foram criados
+              console.log(`Marcadores criados: ${marcadores.length}`, marcadores.map((m, i) => ({
+                index: i + 1,
+                posicao: m.getLatLng()
+              })));
               
               // Esconder overlay após um pequeno delay
               requestAnimationFrame(() => {

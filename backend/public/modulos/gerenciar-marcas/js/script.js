@@ -35,27 +35,33 @@
   }
 
   // Função para carregar e executar o arquivo init.sql
+  // Usa a função padrão do helper se disponível, senão usa implementação local
   async function executarInitSQL() {
     // Proteção: Se já foi executado, não executar novamente
     if (sqlExecutado) {
       return;
     }
     
-    // Marcar como executando IMEDIATAMENTE para evitar execuções simultâneas
-    sqlExecutado = true;
+    // Se a função padrão estiver disponível, usar ela
+    if (typeof window.executarInitSQLPadrao === 'function') {
+      await window.executarInitSQLPadrao(
+        '/modulos/gerenciar-marcas/sql/init.sql',
+        '/api/marcas/executar-init-sql',
+        'marcas'
+      );
+      sqlExecutado = true;
+      return;
+    }
     
-    // Mostrar overlay de carregamento
+    // Fallback: implementação local (compatibilidade)
+    sqlExecutado = true;
     showLoadingOverlayInitSQL('Processando Inicialização', 'Carregando script de inicialização...', 'Aguarde enquanto preparamos o módulo.');
     
     try {
-      // Carregar o arquivo init.sql
       const response = await fetch('/modulos/gerenciar-marcas/sql/init.sql');
-      
-      // Atualizar mensagem do overlay
       showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL...', 'Isso pode levar alguns segundos.');
       
       if (!response.ok) {
-        // Se o arquivo não existir, não é erro - apenas não executa nada
         if (response.status === 404) {
           hideLoadingOverlayInitSQL();
           return;
@@ -65,100 +71,66 @@
       }
       
       const sqlContent = await response.text();
-      
-      // Remover comentários de bloco /* */ (incluindo multilinhas) usando regex
       let sqlSemComentarios = sqlContent.replace(/\/\*[\s\S]*?\*\//g, '');
-      
-      // Remover apenas comentários, mas MANTER 'GO' pois o backend precisa dele para dividir comandos
       const sqlLimpo = sqlSemComentarios
         .split('\n')
         .filter(linha => {
           const linhaTrim = linha.trim();
-          // Manter linhas que não são apenas comentários vazios
-          // IMPORTANTE: Manter 'GO' pois o backend precisa dele para dividir comandos
-          return linhaTrim.length > 0 && 
-                 !linhaTrim.startsWith('--');
+          return linhaTrim.length > 0 && !linhaTrim.startsWith('--');
         })
         .join('\n')
         .trim();
       
-      // Se não há SQL para executar, retornar
       if (!sqlLimpo || sqlLimpo.length === 0) {
         hideLoadingOverlayInitSQL();
         return;
       }
       
-      // Atualizar mensagem: processando comandos
       showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL no banco de dados...', 'Aguarde, isso pode levar alguns segundos.');
       
-      // Executar o SQL via API e AGUARDAR completamente a resposta
       let execResponse;
       try {
         execResponse = await fetch('/api/marcas/executar-init-sql', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sql: sqlLimpo }),
-          // Aumentar timeout para scripts grandes (MERGE pode demorar)
-          signal: AbortSignal.timeout(120000) // 120 segundos (2 minutos)
+          signal: AbortSignal.timeout(120000)
         });
       } catch (fetchError) {
-        if (fetchError.name === 'TimeoutError' || fetchError.name === 'AbortError') {
-          hideLoadingOverlayInitSQL();
-          return; // Não bloquear o módulo
-        }
-        if (fetchError.message.includes('ERR_CONNECTION_RESET') || fetchError.message.includes('Failed to fetch')) {
-          hideLoadingOverlayInitSQL();
-          return; // Não bloquear o módulo
-        }
         hideLoadingOverlayInitSQL();
         return;
       }
       
-      // Verificar se a resposta foi bem-sucedida
       if (!execResponse.ok) {
         hideLoadingOverlayInitSQL();
-        return; // Não bloquear o módulo
+        return;
       }
       
-      // Atualizar mensagem: processando resultados
       showLoadingOverlayInitSQL('Processando Inicialização', 'Processando resultados...', 'Quase terminando.');
       
-      // Aguardar completamente a resposta JSON
       let result;
       try {
         result = await execResponse.json();
       } catch (jsonError) {
         hideLoadingOverlayInitSQL();
-        return; // Não bloquear o módulo
+        return;
       }
       
-      // Verificar se todos os comandos foram executados com sucesso
       if (!result.success) {
         hideLoadingOverlayInitSQL();
-        return; // Não bloquear o módulo
+        return;
       }
       
-      // Verificar se há resultados e se todos os comandos foram executados
       if (result.resultados && Array.isArray(result.resultados)) {
         const comandosComErro = result.resultados.filter(r => r.tipo === 'ERRO');
         if (comandosComErro.length > 0) {
-          // Filtrar erros "esperados" (como tabela já existe, índice já existe, etc.)
           const errosReais = comandosComErro.filter(erro => {
             const mensagem = (erro.mensagem || erro.erro || '').toLowerCase();
-            // Erros esperados que não são problemas reais
-            const errosEsperados = [
-              'already exists',
-              'já existe',
-              'duplicate',
-              'duplicado',
-              'there is already',
-              'já há'
-            ];
+            const errosEsperados = ['already exists', 'já existe', 'duplicate', 'duplicado', 'there is already', 'já há'];
             return !errosEsperados.some(esperado => mensagem.includes(esperado));
           });
           
           if (errosReais.length > 0) {
-            // Log apenas erros reais críticos
             errosReais.forEach(erro => {
               const mensagem = erro.mensagem || erro.erro || erro.message || erro.error || 'Erro desconhecido';
               if (typeof mensagem === 'object') {
@@ -171,16 +143,11 @@
         }
       }
       
-      // Aguardar um pouco mais para garantir que todas as operações foram concluídas
       await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Esconder overlay após conclusão bem-sucedida
       hideLoadingOverlayInitSQL();
       
     } catch (err) {
-      // Esconder overlay em caso de erro
       hideLoadingOverlayInitSQL();
-      // Erros silenciosos - não bloquear o módulo
     }
   }
   

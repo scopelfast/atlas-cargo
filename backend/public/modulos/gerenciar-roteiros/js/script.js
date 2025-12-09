@@ -1,8 +1,23 @@
 // backend/public/modulos/gerenciar-roteiros/js/script.js
 // Gerenciar Roteiros - Frontend
-// Versão: 1.1 - Correção de edição
+// Versão: 1.2 - Correção overlayMostrado
 // Autor: Sistema DivulgaCarga
 // Data: 2025-04-05
+
+// Flag global para controlar se o overlay está visível
+// Declarada no escopo global usando window para evitar erro de redeclaração
+// se o script for carregado múltiplas vezes
+if (typeof window.overlayMostrado === 'undefined') {
+  window.overlayMostrado = false;
+}
+
+// Função helper para obter o estado do overlay (opcional, mas útil para debug)
+function getOverlayMostrado() {
+  if (typeof window.overlayMostrado === 'undefined') {
+    window.overlayMostrado = false;
+  }
+  return window.overlayMostrado;
+}
 
 (function() {
   // Elementos
@@ -28,6 +43,7 @@
   let roteiroAtualId = null;
   let marcadoresPontos = [];
   let linhasPontos = [];
+  let atualizandoMapaComPontos = false; // Flag para evitar múltiplas execuções simultâneas
   
   // Variáveis para Grid
   let gridTab = null;
@@ -489,7 +505,12 @@
     
     // Se mudou para aba de mapa, atualizar mapa com todos os pontos
     if (tabId === 'mapa' && roteiroAtualId) {
-      await atualizarMapaComPontos();
+      // Proteção: evitar chamadas duplicadas
+      if (!atualizandoMapaComPontos) {
+        await atualizarMapaComPontos();
+      } else {
+        console.log('[Roteiros] Ignorando chamada de atualizarMapaComPontos em showTab (já em execução)');
+      }
     }
   }
 
@@ -1643,6 +1664,11 @@ async function loadRoteiroParaEdicao(id) {
 
   // Função para atualizar o mapa com origem e destino
   async function atualizarMapa() {
+    // Garantir que overlayMostrado está definida (proteção contra problemas de escopo/cache)
+    if (typeof window.overlayMostrado === 'undefined') {
+      window.overlayMostrado = false;
+    }
+    
     // Verificar se Leaflet está disponível
     if (typeof L === 'undefined') {
       console.error('Leaflet não está carregado.');
@@ -1663,30 +1689,15 @@ async function loadRoteiroParaEdicao(id) {
       return;
     }
 
+    // SEMPRE limpar o mapa completamente antes de atualizar
+    // Isso garante que não haja "resquícios" de rotas anteriores
+    if (mapa) {
+      console.log('[Roteiros] Limpando mapa na função atualizarMapa...');
+      limparMapa();
+    }
+
     // Mostrar overlay de carregamento
     showMapaLoading('Carregando Mapa', 'Preparando visualização...');
-
-    // Limpar marcadores e rota anteriores antes de atualizar
-    if (mapa) {
-      if (marcadorOrigem) {
-        try {
-          mapa.removeLayer(marcadorOrigem);
-        } catch (e) {}
-        marcadorOrigem = null;
-      }
-      if (marcadorDestino) {
-        try {
-          mapa.removeLayer(marcadorDestino);
-        } catch (e) {}
-        marcadorDestino = null;
-      }
-      if (linhaRota) {
-        try {
-          mapa.removeLayer(linhaRota);
-        } catch (e) {}
-        linhaRota = null;
-      }
-    }
 
     // Inicializar mapa se ainda não foi inicializado
     if (!mapa) {
@@ -1851,7 +1862,7 @@ async function loadRoteiroParaEdicao(id) {
       // (o overlay já será mostrado dentro de atualizarMapaComPontos)
       if (roteiroAtualId && pontosRoteiro.length > 0) {
         // Esconder overlay se foi mostrado anteriormente
-        if (overlayMostrado) {
+        if (window.overlayMostrado) {
           hideMapaLoading();
         }
         await atualizarMapaComPontos();
@@ -2948,6 +2959,11 @@ async function loadRoteiroParaEdicao(id) {
   // Atualizar mapa com todos os pontos
   // Funções para controlar overlay de carregamento do mapa
   function showMapaLoading(titulo = 'Carregando Mapa', texto = 'Preparando visualização da rota...') {
+    // Garantir que overlayMostrado está definida (proteção contra problemas de escopo/cache)
+    if (typeof window.overlayMostrado === 'undefined') {
+      window.overlayMostrado = false;
+    }
+    
     const overlay = document.getElementById('mapaLoadingOverlay');
     const titleEl = document.getElementById('mapaLoadingTitle');
     const textEl = document.getElementById('mapaLoadingText');
@@ -2955,59 +2971,138 @@ async function loadRoteiroParaEdicao(id) {
       if (titleEl) titleEl.textContent = titulo;
       if (textEl) textEl.textContent = texto;
       overlay.style.display = 'flex';
+      window.overlayMostrado = true;
     }
   }
 
   function hideMapaLoading() {
+    // Garantir que overlayMostrado está definida (proteção contra problemas de escopo/cache)
+    if (typeof window.overlayMostrado === 'undefined') {
+      window.overlayMostrado = false;
+    }
+    
     const overlay = document.getElementById('mapaLoadingOverlay');
     if (overlay) {
       overlay.style.display = 'none';
+      window.overlayMostrado = false;
     }
+  }
+
+  // Função para limpar completamente o mapa (marcadores e rotas)
+  function limparMapa() {
+    if (!mapa || typeof L === 'undefined') {
+      console.warn('[Roteiros] Mapa não está disponível para limpeza');
+      return;
+    }
+    
+    console.log('[Roteiros] Iniciando limpeza completa do mapa...');
+    
+    // PRIMEIRO: Coletar todas as camadas que precisam ser removidas
+    const layersToRemove = [];
+    
+    // Coletar marcadores de pontos
+    marcadoresPontos.forEach(m => {
+      if (m) {
+        layersToRemove.push(m);
+      }
+    });
+    
+    // Coletar linhas de pontos
+    linhasPontos.forEach(l => {
+      if (l) {
+        layersToRemove.push(l);
+      }
+    });
+    
+    // Coletar marcadores de origem e destino
+    if (marcadorOrigem) {
+      layersToRemove.push(marcadorOrigem);
+    }
+    if (marcadorDestino) {
+      layersToRemove.push(marcadorDestino);
+    }
+    
+    // Coletar linha de rota
+    if (linhaRota) {
+      layersToRemove.push(linhaRota);
+    }
+    
+    // SEGUNDO: Iterar sobre TODAS as camadas do mapa e coletar marcadores/linhas órfãs
+    try {
+      mapa.eachLayer((layer) => {
+        // Manter apenas a camada de tiles (base do mapa)
+        if (layer instanceof L.TileLayer) {
+          return; // Não remover a camada de tiles
+        }
+        // Coletar todas as outras camadas (marcadores, linhas, círculos, etc.)
+        if (layer instanceof L.Marker || 
+            layer instanceof L.Polyline || 
+            layer instanceof L.CircleMarker || 
+            layer instanceof L.Circle ||
+            layer instanceof L.Path) {
+          // Verificar se já não está na lista
+          if (!layersToRemove.includes(layer)) {
+            layersToRemove.push(layer);
+          }
+        }
+      });
+    } catch (e) {
+      console.warn('[Roteiros] Erro ao iterar camadas do mapa:', e);
+    }
+    
+    // TERCEIRO: Remover todas as camadas coletadas
+    let removidas = 0;
+    layersToRemove.forEach(layer => {
+      try {
+        if (mapa.hasLayer && mapa.hasLayer(layer)) {
+          mapa.removeLayer(layer);
+          removidas++;
+        } else {
+          // Tentar remover mesmo sem verificar (pode ser que hasLayer não exista)
+          try {
+            mapa.removeLayer(layer);
+            removidas++;
+          } catch (e2) {
+            // Ignorar erro
+          }
+        }
+      } catch (e) {
+        // Ignorar erro se a camada já foi removida
+      }
+    });
+    
+    // QUARTO: Limpar arrays e variáveis
+    marcadoresPontos = [];
+    linhasPontos = [];
+    marcadorOrigem = null;
+    marcadorDestino = null;
+    linhaRota = null;
+    
+    console.log(`[Roteiros] Limpeza concluída: ${removidas} camada(s) removida(s)`);
   }
 
   async function atualizarMapaComPontos() {
     if (!roteiroAtualId || !mapa) return;
     
-    // Mostrar overlay de carregamento
-    showMapaLoading('Carregando Rota', 'Carregando pontos e montando rota...');
+    // Proteção: evitar múltiplas execuções simultâneas
+    if (atualizandoMapaComPontos) {
+      console.log('[Roteiros] atualizarMapaComPontos já está em execução, ignorando chamada duplicada');
+      return;
+    }
+    
+    // Marcar como executando
+    atualizandoMapaComPontos = true;
     
     try {
-      // Limpar marcadores e linhas anteriores
-      marcadoresPontos.forEach(m => {
-        try {
-          mapa.removeLayer(m);
-        } catch (e) {
-          // Ignorar erro se camada já foi removida
-        }
-      });
-      linhasPontos.forEach(l => {
-        try {
-          mapa.removeLayer(l);
-        } catch (e) {
-          // Ignorar erro se camada já foi removida
-        }
-      });
-      marcadoresPontos = [];
-      linhasPontos = [];
+      // Mostrar overlay de carregamento
+      showMapaLoading('Carregando Rota', 'Carregando pontos e montando rota...');
+      // SEMPRE limpar o mapa completamente antes de criar novos marcadores
+      // Isso garante que não haja "resquícios" de rotas anteriores
+      console.log('[Roteiros] Iniciando limpeza do mapa antes de atualizar...');
+      limparMapa();
       
-      if (marcadorOrigem) {
-        try {
-          mapa.removeLayer(marcadorOrigem);
-        } catch (e) {}
-        marcadorOrigem = null;
-      }
-      if (marcadorDestino) {
-        try {
-          mapa.removeLayer(marcadorDestino);
-        } catch (e) {}
-        marcadorDestino = null;
-      }
-      if (linhaRota) {
-        try {
-          mapa.removeLayer(linhaRota);
-        } catch (e) {}
-        linhaRota = null;
-      }
+      // Aguardar um pouco para garantir que a limpeza foi concluída
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       // Atualizar mensagem do overlay
       showMapaLoading('Carregando Pontos', 'Buscando pontos do roteiro...');
@@ -3026,8 +3121,31 @@ async function loadRoteiroParaEdicao(id) {
       // Atualizar mensagem do overlay
       showMapaLoading('Montando Rota', 'Criando marcadores e traçando rota...');
       
-      // Ordenar pontos por ORDEM
-      const pontosOrdenados = [...pontosRoteiro].sort((a, b) => (a.ORDEM || 0) - (b.ORDEM || 0));
+      // Filtrar pontos com coordenadas e ordenar por ORDEM (garantir ordenação numérica)
+      const pontosComCoordenadas = pontosRoteiro
+        .filter(p => p.LATITUDE && p.LONGITUDE)
+        .sort((a, b) => {
+          // Converter ORDEM para número para ordenação correta
+          const ordemA = parseFloat(a.ORDEM) || 0;
+          const ordemB = parseFloat(b.ORDEM) || 0;
+          return ordemA - ordemB;
+        });
+      
+      // Debug: mostrar ordem dos pontos (apenas uma vez, não repetir)
+      if (!window._roteirosDebugPontos || JSON.stringify(pontosComCoordenadas.map(p => p.ORDEM)) !== window._roteirosDebugPontos) {
+        window._roteirosDebugPontos = JSON.stringify(pontosComCoordenadas.map(p => p.ORDEM));
+        console.log('[Roteiros] Pontos ordenados no mapa:', pontosComCoordenadas.map(p => ({
+          ordem: p.ORDEM,
+          tipo: p.TPLOCAL,
+          local: p.DSLOCAL
+        })));
+      }
+      
+      if (pontosComCoordenadas.length === 0) {
+        hideMapaLoading();
+        showMessage('Nenhum ponto com coordenadas válidas encontrado.', 'error');
+        return;
+      }
       
       // Criar marcadores para cada ponto
       const cores = {
@@ -3038,10 +3156,17 @@ async function loadRoteiroParaEdicao(id) {
       };
       
       const icones = {
-        'O': '🏁',
-        'D': '🏁',
+        'O': '🏁', // Origem mostra bandeira verde
+        'D': '🏁', // Destino mostra bandeira xadrez
         'P': '📍',
         'R': '⏸'
+      };
+      
+      const tiposDescricao = {
+        'O': 'Origem',
+        'D': 'Destino',
+        'P': 'Passagem',
+        'R': 'Parada'
       };
       
       const latlngs = [];
@@ -3049,7 +3174,7 @@ async function loadRoteiroParaEdicao(id) {
       // Calcular distâncias acumuladas desde a origem
       let distanciaAcumulada = 0;
       
-      pontosOrdenados.forEach((ponto, index) => {
+      pontosComCoordenadas.forEach((ponto, index) => {
         if (!ponto.LATITUDE || !ponto.LONGITUDE) return;
         
         // Normalizar TPLOCAL - garantir que seja string e uppercase, tratar null/undefined
@@ -3058,13 +3183,36 @@ async function loadRoteiroParaEdicao(id) {
           tipoLocal = String(ponto.TPLOCAL).trim().toUpperCase();
         }
         
-        // Mapear tipo para descrição
-        const tiposDescricao = {
-          'O': 'Origem',
-          'D': 'Destino',
-          'P': 'Passagem',
-          'R': 'Parada'
-        };
+        const isPrimeiro = index === 0;
+        const isUltimo = index === pontosComCoordenadas.length - 1;
+        const isIntermediario = !isPrimeiro && !isUltimo;
+        
+        // Lógica de ajuste de tipos (mesma de Gerenciar Viagens):
+        // - Primeiro ponto SEMPRE é Origem (O)
+        // - Último ponto SEMPRE é Destino (D)
+        // - Pontos intermediários: manter tipo original (P ou R), mas converter O/D para P
+        
+        const tipoOriginal = tipoLocal; // Guardar tipo original para debug
+        
+        if (isPrimeiro) {
+          // Primeiro ponto sempre é Origem
+          tipoLocal = 'O';
+        } else if (isUltimo) {
+          // Último ponto sempre é Destino
+          tipoLocal = 'D';
+        } else if (isIntermediario) {
+          // Pontos intermediários: se for O ou D, converter para Passagem
+          // Caso contrário, manter o tipo original (P ou R)
+          if (tipoLocal === 'O' || tipoLocal === 'D' || !tipoLocal || tipoLocal === '') {
+            tipoLocal = 'P'; // Default para Passagem se não tiver tipo ou for O/D
+          }
+          // Se já é P ou R, manter o tipo original
+        }
+        
+        // Debug: mostrar ajuste de tipo
+        if (tipoOriginal !== tipoLocal) {
+          console.log(`[Roteiros] Ponto ${index + 1}: Tipo ajustado de "${tipoOriginal}" para "${tipoLocal}"`);
+        }
         
         const cor = cores[tipoLocal] || '#95a5a6';
         const icone = icones[tipoLocal] || '📍';
@@ -3075,24 +3223,29 @@ async function loadRoteiroParaEdicao(id) {
           distanciaAcumulada += parseFloat(ponto.KMENTREPONTOS) || 0;
         }
         
-        // Criar marcador customizado
+        // Criar marcador customizado com tamanho ajustado para melhor visibilidade
+        const tamanhoMarcador = (tipoLocal === 'O' || tipoLocal === 'D') ? 35 : 30;
+        const tamanhoFonte = (tipoLocal === 'O' || tipoLocal === 'D') ? 16 : 14;
+        const numeroOrdem = isIntermediario ? `<span style="font-size: 10px; font-weight: bold; position: absolute; top: -2px; right: -2px; background: white; border-radius: 50%; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; border: 2px solid ${cor};">${index + 1}</span>` : '';
+        
         const marcador = L.marker([ponto.LATITUDE, ponto.LONGITUDE], {
           icon: L.divIcon({
             className: 'custom-marker',
             html: `<div style="
               background: ${cor};
-              width: 30px;
-              height: 30px;
+              width: ${tamanhoMarcador}px;
+              height: ${tamanhoMarcador}px;
               border-radius: 50%;
               border: 3px solid white;
               box-shadow: 0 2px 8px rgba(0,0,0,0.3);
               display: flex;
               align-items: center;
               justify-content: center;
-              font-size: 14px;
-            ">${icone}</div>`,
-            iconSize: [30, 30],
-            iconAnchor: [15, 15]
+              font-size: ${tamanhoFonte}px;
+              position: relative;
+            ">${icone}${numeroOrdem}</div>`,
+            iconSize: [tamanhoMarcador, tamanhoMarcador],
+            iconAnchor: [tamanhoMarcador / 2, tamanhoMarcador / 2]
           })
         }).addTo(mapa);
         
@@ -3201,6 +3354,9 @@ async function loadRoteiroParaEdicao(id) {
       hideMapaLoading();
       console.error('Erro ao atualizar mapa com pontos:', err);
       showMessage('Erro ao atualizar mapa.', 'error');
+    } finally {
+      // SEMPRE resetar a flag, mesmo em caso de erro
+      atualizandoMapaComPontos = false;
     }
   }
   
