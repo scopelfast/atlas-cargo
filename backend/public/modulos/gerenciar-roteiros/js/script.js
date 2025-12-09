@@ -384,16 +384,16 @@ function getOverlayMostrado() {
     gridTab = new GridEditor({
       container: '#roteirosGrid',
       columns: [
-        { field: 'IDROTEIRO', header: 'Código', editable: false, isId: true, width: '80px' },
-        { field: 'DSROTEIRO', header: 'Descrição', editable: true, type: 'text', width: '250px' },
-        { field: 'ORIGEM_ESTADO', header: 'Origem UF', editable: false, width: '80px' },
-        { field: 'ORIGEM_CIDADE', header: 'Origem', editable: false, width: '150px' },
-        { field: 'DESTINO_ESTADO', header: 'Destino UF', editable: false, width: '80px' },
-        { field: 'DESTINO_CIDADE', header: 'Destino', editable: false, width: '150px' },
-        { field: 'DISTANCIAKM', header: 'Distância (km)', editable: true, type: 'number', width: '120px',
+        { field: 'IDROTEIRO', header: 'Código', editable: false, isId: true, width: '100px' },
+        { field: 'DSROTEIRO', header: 'Descrição', editable: true, type: 'text', width: '280px' },
+        { field: 'ORIGEM_ESTADO', header: 'Origem UF', editable: false, width: '100px' },
+        { field: 'ORIGEM_CIDADE', header: 'Origem', editable: false, width: '180px' },
+        { field: 'DESTINO_ESTADO', header: 'Destino UF', editable: false, width: '100px' },
+        { field: 'DESTINO_CIDADE', header: 'Destino', editable: false, width: '180px' },
+        { field: 'DISTANCIAKM', header: 'Distância (km)', editable: true, type: 'number', width: '140px',
           format: (val) => val ? parseFloat(val).toFixed(2) : '-'
         },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '100px',
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px',
           options: [
             { value: 'S', label: 'Ativo' },
             { value: 'N', label: 'Inativo' }

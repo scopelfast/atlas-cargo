@@ -310,6 +310,92 @@
       color: #1a2a6c;
     }
     
+    /* Modal Alterar Senha */
+    .modal-alterar-senha {
+      display: none;
+      position: fixed;
+      z-index: 10000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(4px);
+      animation: fadeIn 0.3s ease;
+    }
+    
+    .modal-alterar-senha-content {
+      background: white;
+      margin: 5% auto;
+      padding: 0;
+      border-radius: 16px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      animation: slideDown 0.3s ease;
+      overflow: hidden;
+    }
+    
+    .modal-alterar-senha-header {
+      background: linear-gradient(135deg, #1a2a6c, #2c3e50);
+      color: white;
+      padding: 25px 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .modal-alterar-senha-header h3 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 600;
+    }
+    
+    .modal-alterar-senha-header .btn-fechar {
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 18px;
+      font-weight: 600;
+      transition: all 0.3s;
+      border: none;
+    }
+    
+    .modal-alterar-senha-header .btn-fechar:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    
+    .modal-alterar-senha-body {
+      padding: 30px;
+    }
+    
+    .modal-alterar-senha-body .input-box {
+      margin-bottom: 20px;
+    }
+    
+    .modal-alterar-senha-body .btn {
+      margin-top: 10px;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    @keyframes slideDown {
+      from {
+        transform: translateY(-50px);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+    
     @media (max-width: 968px) {
       .login-container {
         flex-direction: column;
@@ -428,6 +514,12 @@
             <span>Entrar</span>
             <i class='bx bx-log-in'></i>
           </button>
+          
+          <div style="text-align: center; margin-top: 15px;">
+            <a href="#" id="linkAlterarSenha" style="color: #1a2a6c; text-decoration: none; font-size: 14px; display: inline-flex; align-items: center; gap: 5px;">
+              <i class='bx bx-key'></i> Alterar Senha
+            </a>
+          </div>
         </form>
 
         <div class="form-footer">
@@ -437,6 +529,56 @@
     </div>
   </div>
 
+  <!-- Modal Alterar Senha -->
+  <div id="modalAlterarSenha" class="modal-alterar-senha">
+    <div class="modal-alterar-senha-content">
+      <div class="modal-alterar-senha-header">
+        <h3><i class='bx bx-key' style="margin-right: 10px;"></i> Alterar Senha</h3>
+        <button type="button" class="btn-fechar" id="btnFecharModalSenha">&times;</button>
+      </div>
+      <div class="modal-alterar-senha-body">
+        <form id="formAlterarSenha">
+          <div class="input-box">
+            <i class='bx bxs-user input-icon'></i>
+            <input type="text" id="alterarSenhaUsuario" placeholder=" " required />
+            <label for="alterarSenhaUsuario">Usuário (Login)</label>
+          </div>
+          <div class="input-box">
+            <i class='bx bxs-lock-alt input-icon'></i>
+            <input type="password" id="alterarSenhaAtual" placeholder=" " required />
+            <label for="alterarSenhaAtual">Senha Atual</label>
+            <span class="toggle-password" id="toggleSenhaAtual">
+              <i class='bx bx-hide'></i>
+            </span>
+          </div>
+          <div class="input-box">
+            <i class='bx bxs-lock-alt input-icon'></i>
+            <input type="password" id="alterarSenhaNova" placeholder=" " required />
+            <label for="alterarSenhaNova">Nova Senha</label>
+            <span class="toggle-password" id="toggleSenhaNova">
+              <i class='bx bx-hide'></i>
+            </span>
+          </div>
+          <div class="input-box">
+            <i class='bx bxs-lock-alt input-icon'></i>
+            <input type="password" id="alterarSenhaConfirmar" placeholder=" " required />
+            <label for="alterarSenhaConfirmar">Confirmar Nova Senha</label>
+            <span class="toggle-password" id="toggleSenhaConfirmar">
+              <i class='bx bx-hide'></i>
+            </span>
+          </div>
+          
+          <div class="error-message" id="errorMessageSenha"></div>
+          <button type="submit" class="btn">
+            <span>Alterar Senha</span>
+            <i class='bx bx-check'></i>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/log-helper.js"></script>
   <script src="/js/login.js"></script>
 </body>
 </html>

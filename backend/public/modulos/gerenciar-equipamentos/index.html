@@ -4,6 +4,21 @@
     <meta charset="UTF-8">
     <title>Gerenciar Equipamentos</title>
     <link rel="stylesheet" href="/css/modulos.css">
+    <style>
+      /* Ajuste de larguras das colunas do grid */
+      #equipamentosGrid .grid-actions-header,
+      #equipamentosGrid .grid-actions {
+        width: 80px !important;
+        min-width: 80px !important;
+        max-width: 80px !important;
+        text-align: center;
+        padding: 8px 4px !important;
+      }
+      
+      #equipamentosGrid .grid-actions {
+        white-space: nowrap;
+      }
+    </style>
 </head>
 <body>
     <div class="modulo-container">
@@ -390,6 +405,7 @@
 
     <!-- Cache Buster - deve ser o primeiro script -->
     <script src="/js/cache-buster.js?v=202512091200"></script>
+    <script src="/js/log-helper.js"></script>
     <script src="/js/grid-editor.js"></script>
     <script src="js/script.js"></script>
 </body>

@@ -112,6 +112,20 @@
     .selected-item .remove-btn:hover {
       background: #c82333;
     }
+    /* Ajuste de larguras das colunas do grid */
+    #usuariosGrid .grid-actions-header,
+    #usuariosGrid .grid-actions {
+      width: 80px !important;
+      min-width: 80px !important;
+      max-width: 80px !important;
+      text-align: center;
+      padding: 8px 4px !important;
+    }
+    
+    #usuariosGrid .grid-actions {
+      white-space: nowrap;
+    }
+    
     .senha-container {
       position: relative;
     }
@@ -388,6 +402,7 @@
   <!-- Cache Buster - deve ser o primeiro script -->
   <script src="/js/cache-buster.js?v=202512091200"></script>
   <script src="/js/grid-editor.js"></script>
+  <script src="/js/log-helper.js"></script>
   <script src="js/script.js"></script>
 </body>
 </html>

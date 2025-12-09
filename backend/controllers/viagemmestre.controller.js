@@ -2392,13 +2392,6 @@ const viagemController = {
         const nomeProcedure = extrairNomeProcedure(cmdLimpo);
         const progresso = `[${i + 1}/${totalComandos}]`;
         
-        // Log de progresso no servidor
-        if (nomeProcedure) {
-          console.log(`${progresso} Executando: ${nomeProcedure}...`);
-        } else {
-          console.log(`${progresso} Executando comando SQL...`);
-        }
-
         try {
           // Aumentar timeout para comandos grandes (MERGE, UPDATE em massa, etc)
           const request = pool.request();
@@ -2407,16 +2400,7 @@ const viagemController = {
           request.timeout = 600000; // 600 segundos (10 minutos) para comandos grandes
 
           // Executar comando
-          const inicioTempo = Date.now();
-          const result = await request.query(cmdLimpo);
-          const tempoDecorrido = ((Date.now() - inicioTempo) / 1000).toFixed(2);
-          
-          // Log de conclusão
-          if (nomeProcedure) {
-            console.log(`✅ ${progresso} ${nomeProcedure} concluído em ${tempoDecorrido}s`);
-          } else {
-            console.log(`✅ ${progresso} Comando concluído em ${tempoDecorrido}s`);
-          }
+          await request.query(cmdLimpo);
 
           // Se retornou dados (SELECT), incluir no resultado
           if (result.recordset && result.recordset.length > 0) {
@@ -3372,17 +3356,12 @@ const viagemController = {
 
   // Buscar histórico de viagens por roteiro
   buscarHistoricoRoteiro: async (req, res) => {
-    console.log('🔵 [HISTÓRICO] Método buscarHistoricoRoteiro foi chamado!');
-    console.log('🔵 [HISTÓRICO] Query params:', req.query);
     try {
       const { idRoteiro } = req.query;
 
       if (!idRoteiro) {
-        console.log('🔴 [HISTÓRICO] ID do Roteiro não fornecido!');
         return res.status(400).json({ error: 'ID do Roteiro é obrigatório' });
       }
-
-      console.log('🔵 [HISTÓRICO] ID do Roteiro:', idRoteiro);
 
       const pool = await poolPromise;
 

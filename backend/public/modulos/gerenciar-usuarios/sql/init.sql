@@ -1,11 +1,12 @@
 -- ============================================
 -- Arquivo de Inicialização - Gerenciar Usuários
+-- (Apenas INSERÇÃO de novos usuários)
 -- ============================================
 MERGE INTO [dbo].[USUARIO] AS TARGET
 USING (
     SELECT DISTINCT
         SGUSUARIO,
-        UPPER(NMUSUARIO) as NMUSUARIO,
+        UPPER(NMUSUARIO) AS NMUSUARIO,
         ENDEMAIL,
         CDCADASTRO,
         NULL AS SENHA,
@@ -19,16 +20,6 @@ USING (
       AND FGACTIVE = 'A'
 ) AS SOURCE
 ON TARGET.SGUSUARIO = SOURCE.SGUSUARIO
-WHEN MATCHED THEN
-    UPDATE SET
-        NMUSUARIO = SOURCE.NMUSUARIO,
-        ENDEMAIL = SOURCE.ENDEMAIL,
-        CDCADASTRO = SOURCE.CDCADASTRO,
-        SENHA = SOURCE.SENHA,
-        FGACTIVE = SOURCE.FGACTIVE,
-        DHMAINTENANCE = SOURCE.DHMAINTENANCE,
-        SGUSER = SOURCE.SGUSER,
-        SERVERORIG = SOURCE.SERVERORIG
 WHEN NOT MATCHED BY TARGET THEN
     INSERT (
         SGUSUARIO,

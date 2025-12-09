@@ -498,24 +498,24 @@
     gridTab = new GridEditor({
       container: '#filiaisGrid',
       columns: [
-        { field: 'CDEMPRESA', header: 'Empresa', editable: false, width: '80px' },
-        { field: 'CDFILIAL', header: 'Filial', editable: false, width: '80px' },
+        { field: 'CDEMPRESA', header: 'Empresa', editable: false, width: '100px' },
+        { field: 'CDFILIAL', header: 'Filial', editable: false, width: '100px' },
         { field: 'ID_COMPOSTO', header: '', editable: false, isId: true, width: '0px', format: () => '', style: 'display: none;' }, // Campo virtual oculto usado como ID
-        { field: 'NMFANTASIA', header: 'Nome Fantasia', editable: true, type: 'text', width: '200px', maxlength: 20 },
-        { field: 'SGFILIAL', header: 'Sigla', editable: true, type: 'text', width: '100px', maxlength: 5 },
+        { field: 'NMFANTASIA', header: 'Nome Fantasia', editable: true, type: 'text', width: '250px', maxlength: 20 },
+        { field: 'SGFILIAL', header: 'Sigla', editable: true, type: 'text', width: '120px', maxlength: 5 },
         { 
           field: 'CGC', 
           header: 'CNPJ', 
           editable: true, 
           type: 'text', 
-          width: '150px',
+          width: '180px',
           format: (val) => formatarCNPJ(val)
         },
-        { field: 'FGPARCEIRO', header: 'Parceiro', editable: true, type: 'select', width: '100px',
+        { field: 'FGPARCEIRO', header: 'Parceiro', editable: true, type: 'select', width: '120px',
           options: [ { value: 'S', label: 'Sim' }, { value: 'N', label: 'Não' } ],
           format: (val) => val === 'S' ? '✓ Sim' : '✗ Não'
         },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '100px',
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px',
           options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }

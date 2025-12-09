@@ -2,6 +2,7 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { findByEmail, findByLogin } = require('../models/user.model');
+const { registrarLogin, registrarLogout, registrarLogoutPorUsuario } = require('../models/usuariologacesso.model');
 require('dotenv').config();
 
 const login = async (req, res) => {
@@ -69,9 +70,19 @@ const login = async (req, res) => {
       { expiresIn: '8h' }
     );
 
+    // Registrar login na tabela USUARIOLOGACESSO
+    let idLogAcesso = null;
+    try {
+      idLogAcesso = await registrarLogin(user.SGUSUARIO);
+    } catch (logErr) {
+      // Não falhar o login se houver erro ao registrar log
+      console.error('Erro ao registrar log de acesso:', logErr);
+    }
+
     return res.json({
       success: true,
       token,
+      idLogAcesso, // Retornar ID do log para o frontend
       user: {
         id: user.CDCADASTRO,
         login: user.SGUSUARIO,
@@ -89,4 +100,113 @@ const login = async (req, res) => {
   }
 };
 
-module.exports = { login };
+const alterarSenha = async (req, res) => {
+  const { usuario, senhaAtual, senhaNova } = req.body;
+
+  if (!usuario || !senhaAtual || !senhaNova) {
+    return res.status(400).json({
+      success: false,
+      message: 'Usuário, senha atual e nova senha são obrigatórios.'
+    });
+  }
+
+  if (senhaNova.length < 6) {
+    return res.status(400).json({
+      success: false,
+      message: 'A nova senha deve ter no mínimo 6 caracteres.'
+    });
+  }
+
+  try {
+    // Buscar usuário
+    let user = await findByLogin(usuario);
+    
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'Usuário não encontrado.'
+      });
+    }
+
+    if (user.FGACTIVE !== 'S') {
+      return res.status(403).json({
+        success: false,
+        message: 'Usuário inativo. Contate o administrador.'
+      });
+    }
+
+    // Verificar senha atual
+    let senhaValida = false;
+    
+    if (user.SENHA && (user.SENHA.startsWith('$2a$') || user.SENHA.startsWith('$2b$') || user.SENHA.startsWith('$2y$'))) {
+      senhaValida = await bcrypt.compare(senhaAtual, user.SENHA);
+    } else {
+      senhaValida = user.SENHA === senhaAtual;
+    }
+
+    if (!senhaValida) {
+      return res.status(401).json({
+        success: false,
+        message: 'Senha atual incorreta.'
+      });
+    }
+
+    // Hash da nova senha
+    const saltRounds = 10;
+    const senhaNovaHash = await bcrypt.hash(senhaNova, saltRounds);
+
+    // Atualizar senha no banco
+    const { poolPromise } = require('../config/db');
+    const pool = await poolPromise;
+    
+    await pool.request()
+      .input('login', usuario)
+      .input('senha', senhaNovaHash)
+      .query(`
+        UPDATE USUARIO 
+        SET SENHA = @senha,
+            DHMAINTENANCE = GETDATE()
+        WHERE SGUSUARIO = @login
+      `);
+
+    return res.json({
+      success: true,
+      message: 'Senha alterada com sucesso!'
+    });
+
+  } catch (err) {
+    console.error('Erro ao alterar senha:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Erro ao alterar senha. Tente novamente.'
+    });
+  }
+};
+
+const logout = async (req, res) => {
+  try {
+    const { idLogAcesso, sgUsuario } = req.body;
+
+    // Se tiver ID do log, usar ele (mais preciso)
+    if (idLogAcesso) {
+      await registrarLogout(idLogAcesso);
+    } else if (sgUsuario) {
+      // Senão, usar o login do usuário
+      await registrarLogoutPorUsuario(sgUsuario);
+    }
+
+    return res.json({
+      success: true,
+      message: 'Logout registrado com sucesso.'
+    });
+  } catch (err) {
+    console.error('Erro no logout:', err);
+    // Não falhar se houver erro ao registrar logout
+    return res.json({
+      success: true,
+      message: 'Logout realizado.'
+    });
+  }
+};
+
+module.exports = { login, alterarSenha, logout };

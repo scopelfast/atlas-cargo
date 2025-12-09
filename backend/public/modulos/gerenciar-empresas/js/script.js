@@ -369,18 +369,18 @@
     gridTab = new GridEditor({
       container: '#empresasGrid',
       columns: [
-        { field: 'CDEMPRESA', header: 'Código', editable: false, isId: true, width: '80px' },
-        { field: 'RZSOCIAL', header: 'Razão Social', editable: true, type: 'text', width: '300px', maxlength: 40 },
-        { field: 'NMREDUZIDO', header: 'Nome Reduzido', editable: true, type: 'text', width: '200px', maxlength: 20 },
+        { field: 'CDEMPRESA', header: 'Código', editable: false, isId: true, width: '100px' },
+        { field: 'RZSOCIAL', header: 'Razão Social', editable: true, type: 'text', width: '350px', maxlength: 40 },
+        { field: 'NMREDUZIDO', header: 'Nome Reduzido', editable: true, type: 'text', width: '220px', maxlength: 20 },
         { 
           field: 'CGCMATRIZ', 
           header: 'CNPJ Matriz', 
           editable: true, 
           type: 'text', 
-          width: '150px',
+          width: '180px',
           format: (val) => formatarCNPJ(val)
         },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '100px',
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px',
           options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }

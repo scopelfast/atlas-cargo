@@ -9,6 +9,20 @@
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
         crossorigin=""/>
   <style>
+    /* Ajuste de larguras das colunas do grid */
+    #roteirosGrid .grid-actions-header,
+    #roteirosGrid .grid-actions {
+      width: 80px !important;
+      min-width: 80px !important;
+      max-width: 80px !important;
+      text-align: center;
+      padding: 8px 4px !important;
+    }
+    
+    #roteirosGrid .grid-actions {
+      white-space: nowrap;
+    }
+    
     /* Overlay de carregamento do mapa */
     #mapaLoadingOverlay {
       background: rgba(0, 0, 0, 0.75);
@@ -473,6 +487,7 @@
 
   <!-- Cache Buster - deve ser o primeiro script -->
   <script src="/js/cache-buster.js?v=202512091200"></script>
+  <script src="/js/log-helper.js"></script>
   <script src="/js/grid-editor.js"></script>
   <script src="js/script.js"></script>
 </body>

@@ -5,6 +5,20 @@
   <title>Gerenciar Viagens</title>
   <link rel="stylesheet" href="/css/modulos.css">
   <style>
+    /* Ajuste de larguras das colunas do grid */
+    #viagensGrid .grid-actions-header,
+    #viagensGrid .grid-actions {
+      width: 80px !important;
+      min-width: 80px !important;
+      max-width: 80px !important;
+      text-align: center;
+      padding: 8px 4px !important;
+    }
+    
+    #viagensGrid .grid-actions {
+      white-space: nowrap;
+    }
+    
     /* Estilo específico para modal de ajuda */
     #modalAjuda.modal {
       display: none;
@@ -1361,6 +1375,7 @@
   <script src="/js/ambiente-utils.js"></script>
   <script src="/js/map-config.js"></script>
   <script src="/js/grid-editor.js"></script>
+  <script src="/js/log-helper.js"></script>
   <script src="js/script.js"></script>
 
   <!-- Modal Dados Completos do Veículo -->

@@ -167,6 +167,8 @@
     if (tabContent) tabContent.classList.add('active');
 
     if (tabId === 'acessos') {
+      // Limpar dados anteriores ao abrir a aba
+      limparDadosAcessos();
       await carregarUsuariosParaAcessos();
       await carregarTodasAtividades();
       await carregarEmpresasParaAcessos();
@@ -259,11 +261,11 @@
     gridTab = new GridEditor({
       container: '#usuariosGrid',
       columns: [
-        { field: 'SGUSUARIO', header: 'Login', editable: false, isId: true, width: '150px' },
-        { field: 'NMUSUARIO', header: 'Nome', editable: false, width: '250px' },
-        { field: 'ENDEMAIL', header: 'E-mail', editable: false, width: '200px' },
-        { field: 'CADASTRO_NOME', header: 'Cadastro', editable: false, width: '200px' },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '100px',
+        { field: 'SGUSUARIO', header: 'Login', editable: false, isId: true, width: '180px' },
+        { field: 'NMUSUARIO', header: 'Nome', editable: false, width: '280px' },
+        { field: 'ENDEMAIL', header: 'E-mail', editable: false, width: '280px' },
+        { field: 'CADASTRO_NOME', header: 'Cadastro', editable: false, width: '280px' },
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px',
           options: [{ value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' }],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }
@@ -521,12 +523,19 @@
     try {
       const url = loginOriginal ? `/api/usuarios/${loginOriginal}` : '/api/usuarios';
       const method = loginOriginal ? 'PUT' : 'POST';
-      const body = {
+      
+      // Para POST, incluir SGUSUARIO; para PUT, não incluir (vem do parâmetro da URL)
+      const body = loginOriginal ? {
+        NMUSUARIO: nome,
+        ENDEMAIL: email,
+        CDCADASTRO: cadastro || null,
+        FGACTIVE: situacao || 'S'
+      } : {
         SGUSUARIO: login,
         NMUSUARIO: nome,
         ENDEMAIL: email,
         CDCADASTRO: cadastro || null,
-        FGACTIVE: situacao
+        FGACTIVE: situacao || 'S'
       };
 
       if (senha) body.SENHA = senha;
@@ -663,6 +672,67 @@
 
   // ========== FUNÇÕES DE ACESSOS ==========
 
+  // Limpar todos os dados da aba de acessos
+  function limparDadosAcessos() {
+    // Limpar seleção de usuário
+    const selectUsuario = document.getElementById('usuarioAcessoSelect');
+    if (selectUsuario) {
+      selectUsuario.value = '';
+    }
+    
+    // Limpar título
+    const acessosTitle = document.getElementById('acessosTitle');
+    if (acessosTitle) {
+      acessosTitle.textContent = 'Gerenciar Acessos:';
+    }
+    
+    // Ocultar conteúdo
+    const acessosContent = document.getElementById('acessosContent');
+    if (acessosContent) {
+      acessosContent.style.display = 'none';
+    }
+    
+    // Limpar atividades
+    const atividadesContainer = document.getElementById('atividadesContainer');
+    if (atividadesContainer) {
+      atividadesContainer.innerHTML = '';
+    }
+    
+    // Limpar empresas selecionadas
+    const empresasSelecionadasContainer = document.getElementById('empresasSelecionadas');
+    if (empresasSelecionadasContainer) {
+      empresasSelecionadasContainer.innerHTML = '<p class="empty">Nenhuma empresa selecionada</p>';
+    }
+    
+    // Limpar filiais selecionadas
+    const filiaisSelecionadasContainer = document.getElementById('filiaisSelecionadas');
+    if (filiaisSelecionadasContainer) {
+      filiaisSelecionadasContainer.innerHTML = '<p class="empty">Nenhuma filial selecionada</p>';
+    }
+    
+    // Limpar selects de adicionar
+    const empresaSelect = document.getElementById('empresaSelect');
+    if (empresaSelect) {
+      empresaSelect.value = '';
+    }
+    
+    const empresaFilialSelect = document.getElementById('empresaFilialSelect');
+    if (empresaFilialSelect) {
+      empresaFilialSelect.value = '';
+    }
+    
+    const filialSelect = document.getElementById('filialSelect');
+    if (filialSelect) {
+      filialSelect.innerHTML = '<option value="">-- Selecione uma empresa primeiro --</option>';
+      filialSelect.disabled = true;
+    }
+    
+    // Limpar variáveis
+    usuarioSelecionadoAcessos = null;
+    empresasSelecionadas = [];
+    filiaisSelecionadas = [];
+  }
+
   // Carregar usuários para aba de acessos
   async function carregarUsuariosParaAcessos() {
     try {
@@ -746,10 +816,35 @@
   async function selecionarUsuarioAcessos() {
     const login = document.getElementById('usuarioAcessoSelect').value;
     if (!login) {
-      document.getElementById('acessosContent').style.display = 'none';
-      usuarioSelecionadoAcessos = null;
+      // Se não há seleção, limpar tudo
+      limparDadosAcessos();
       return;
     }
+
+    // Limpar dados anteriores antes de carregar novo usuário
+    // (mas manter o select de usuário)
+    const selectUsuario = document.getElementById('usuarioAcessoSelect');
+    const valorSelecionado = selectUsuario ? selectUsuario.value : null;
+    
+    // Limpar containers de dados
+    const atividadesContainer = document.getElementById('atividadesContainer');
+    if (atividadesContainer) {
+      atividadesContainer.innerHTML = '';
+    }
+    
+    const empresasSelecionadasContainer = document.getElementById('empresasSelecionadas');
+    if (empresasSelecionadasContainer) {
+      empresasSelecionadasContainer.innerHTML = '<p class="empty">Carregando...</p>';
+    }
+    
+    const filiaisSelecionadasContainer = document.getElementById('filiaisSelecionadas');
+    if (filiaisSelecionadasContainer) {
+      filiaisSelecionadasContainer.innerHTML = '<p class="empty">Carregando...</p>';
+    }
+    
+    // Limpar variáveis
+    empresasSelecionadas = [];
+    filiaisSelecionadas = [];
 
     usuarioSelecionadoAcessos = login;
     document.getElementById('acessosTitle').textContent = `Gerenciar Acessos: ${login}`;
@@ -1035,6 +1130,9 @@
       const result = await response.json();
       if (response.ok) {
         showMessage(result.message || 'Atividades salvas com sucesso!', 'success');
+        // Limpar dados de acessos e voltar para a aba Dados
+        limparDadosAcessos();
+        showTab('dados');
       } else {
         showMessage(result.error || 'Erro ao salvar atividades.', 'error');
         console.error('Erro ao salvar atividades:', result);
@@ -1110,9 +1208,7 @@
   document.getElementById('empresaFilialSelect')?.addEventListener('change', carregarFiliaisPorEmpresa);
   document.getElementById('btnSalvarAcessos')?.addEventListener('click', salvarAtividades);
   document.getElementById('btnCancelarAcessos')?.addEventListener('click', () => {
-    document.getElementById('usuarioAcessoSelect').value = '';
-    document.getElementById('acessosContent').style.display = 'none';
-    usuarioSelecionadoAcessos = null;
+    limparDadosAcessos();
   });
 
 })();

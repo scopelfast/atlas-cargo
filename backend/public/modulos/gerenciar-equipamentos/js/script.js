@@ -403,14 +403,14 @@
     gridTab = new GridEditor({
       container: '#equipamentosGrid',
       columns: [
-        { field: 'IDEQUIPAMENTO', header: 'ID', editable: false, isId: true, width: '100px' },
-        { field: 'REFEQUIPAMENTO', header: 'Referência', editable: true, type: 'text', width: '150px', maxlength: 40 },
-        { field: 'DSEQUIPAMENTO', header: 'Descrição', editable: true, type: 'text', width: '250px', maxlength: 60 },
-        { field: 'TIPO_NOME', header: 'Tipo', editable: false, width: '180px' },
-        { field: 'MARCA_NOME', header: 'Marca', editable: false, width: '150px' },
-        { field: 'MODELO_NOME', header: 'Modelo', editable: false, width: '150px' },
-        { field: 'CLASSE_NOME', header: 'Classe', editable: false, width: '150px' },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '100px',
+        { field: 'IDEQUIPAMENTO', header: 'ID', editable: false, isId: true, width: '120px' },
+        { field: 'REFEQUIPAMENTO', header: 'Referência', editable: true, type: 'text', width: '180px', maxlength: 40 },
+        { field: 'DSEQUIPAMENTO', header: 'Descrição', editable: true, type: 'text', width: '280px', maxlength: 60 },
+        { field: 'TIPO_NOME', header: 'Tipo', editable: false, width: '200px' },
+        { field: 'MARCA_NOME', header: 'Marca', editable: false, width: '180px' },
+        { field: 'MODELO_NOME', header: 'Modelo', editable: false, width: '200px' },
+        { field: 'CLASSE_NOME', header: 'Classe', editable: false, width: '180px' },
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px',
           options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }

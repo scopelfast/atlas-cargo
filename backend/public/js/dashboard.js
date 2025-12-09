@@ -1,5 +1,97 @@
 // backend/public/js/dashboard.js
 document.addEventListener('DOMContentLoaded', () => {
+  // Variáveis globais para controle de timeout
+  let inactivityTimer = null;
+  let lastActivityTime = Date.now();
+  const TIMEOUT_MINUTES = 60; // 60 minutos de inatividade
+  const TIMEOUT_MS = TIMEOUT_MINUTES * 60 * 1000;
+
+  // Função para verificar timeout e fazer logout automático
+  const verificarTimeout = () => {
+    const loginTimestamp = parseInt(localStorage.getItem('loginTimestamp') || '0');
+    const now = Date.now();
+    const tempoInativo = now - lastActivityTime;
+    const tempoTotal = now - loginTimestamp;
+
+    // Se passou mais de 60 minutos desde a última atividade OU mais de 8 horas desde o login
+    if (tempoInativo > TIMEOUT_MS || tempoTotal > (8 * 60 * 60 * 1000)) {
+      fazerLogout(true); // true = logout automático por timeout
+      return;
+    }
+
+    // Agendar próxima verificação em 1 minuto
+    inactivityTimer = setTimeout(verificarTimeout, 60000);
+  };
+
+  // Função para atualizar última atividade
+  const atualizarAtividade = () => {
+    lastActivityTime = Date.now();
+    // Resetar timer de inatividade
+    if (inactivityTimer) {
+      clearTimeout(inactivityTimer);
+    }
+    inactivityTimer = setTimeout(verificarTimeout, 60000);
+  };
+
+  // Eventos que indicam atividade do usuário
+  const eventosAtividade = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+  eventosAtividade.forEach(evento => {
+    document.addEventListener(evento, atualizarAtividade, { passive: true });
+  });
+
+  // Função para fazer logout (manual ou automático)
+  const fazerLogout = async (automatico = false) => {
+    // Limpar timers
+    if (inactivityTimer) {
+      clearTimeout(inactivityTimer);
+      inactivityTimer = null;
+    }
+
+    // Remover listeners de atividade
+    eventosAtividade.forEach(evento => {
+      document.removeEventListener(evento, atualizarAtividade);
+    });
+
+    // Registrar logout no backend
+    const idLogAcesso = localStorage.getItem('idLogAcesso');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+    if (idLogAcesso || user.login) {
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            idLogAcesso: idLogAcesso ? parseInt(idLogAcesso) : null,
+            sgUsuario: user.login || null
+          })
+        });
+      } catch (err) {
+        // Silencioso - não bloquear logout se houver erro
+        console.error('Erro ao registrar logout:', err);
+      }
+    }
+
+    // Limpar cache e storage
+    sessionStorage.clear();
+    localStorage.clear();
+
+    // Limpar cache do navegador (forçar reload)
+    if ('caches' in window) {
+      caches.keys().then(names => {
+        names.forEach(name => caches.delete(name));
+      });
+    }
+
+    // Redirecionar para login
+    if (automatico) {
+      alert('Sessão expirada por inatividade. Faça login novamente.');
+    }
+    window.location.href = '/';
+  };
+
   const initDashboard = async () => {
     // Proteção anti-loop
     const loopCount = parseInt(sessionStorage.getItem('dashboardLoopCount') || '0');
@@ -21,9 +113,20 @@ document.addEventListener('DOMContentLoaded', () => {
       window.location.href = '/';
       return;
     }
+
+    // Verificar se já passou muito tempo desde o login
+    const loginTimestamp = parseInt(localStorage.getItem('loginTimestamp') || '0');
+    if (!loginTimestamp || (Date.now() - loginTimestamp) > (8 * 60 * 60 * 1000)) {
+      fazerLogout(true);
+      return;
+    }
     
     // Se OK, resetar contador
     setTimeout(() => sessionStorage.removeItem('dashboardLoopCount'), 1000);
+
+    // Inicializar controle de atividade
+    lastActivityTime = Date.now();
+    atualizarAtividade();
 
     document.getElementById('userName').textContent = user.nome || 'Usuário';
     document.getElementById('userEmail').textContent = user.email || '';
@@ -32,9 +135,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Vincula botão de logout
     document.getElementById('logoutBtn')?.addEventListener('click', () => {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/';
+      fazerLogout(false); // false = logout manual
     });
 
     // Vincula link de documentação CSS
@@ -171,11 +272,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const html = await response.text();
         contentArea.innerHTML = html;
 
+        // Armazenar módulo atual para uso no log-helper
+        window.currentModule = programa;
+        sessionStorage.setItem('currentModule', programa);
+        
+        // Registrar abertura do módulo
+        if (window.logAberturaTela) {
+          window.logAberturaTela(programa, `Abertura do módulo: ${programa}`);
+        }
+
         // Carregar script de permissões primeiro (se ainda não estiver carregado)
         if (!window.Permissions) {
           const permissionsScript = document.createElement('script');
           permissionsScript.src = '/js/permissions.js';
           contentArea.appendChild(permissionsScript);
+        }
+
+        // Carregar log-helper se ainda não estiver carregado
+        if (!window.logAberturaTela) {
+          const logHelperScript = document.createElement('script');
+          logHelperScript.src = '/js/log-helper.js';
+          contentArea.appendChild(logHelperScript);
         }
 
         // Carrega o script do módulo, se existir

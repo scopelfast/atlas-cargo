@@ -42,7 +42,6 @@ function getOverlayMostrado() {
   let lastViagens = null;
   
   // Debug: confirmar que overlayMostrado está carregando (agora no escopo global)
-  console.log('overlayMostrado inicial (global):', window.overlayMostrado);
 
   // ====================================
   // CONFIGURAÇÕES DE MAPA E ROTEAMENTO
@@ -489,18 +488,45 @@ function getOverlayMostrado() {
           // Log apenas erros reais críticos
           if (outrosErros.length > 0) {
             outrosErros.forEach(erro => {
-              const mensagem = erro.mensagem || erro.erro || erro.message || erro.error || 'Erro desconhecido';
-              const comando = erro.comando || erro.sql || 'Comando desconhecido';
-              // Extrair nome da stored procedure se possível
-              const procedureMatch = comando.match(/EXEC\s+(?:\[dbo\]\.)?\[?(\w+)\]?/i) || 
-                                      comando.match(/EXECUTE\s+(?:\[dbo\]\.)?\[?(\w+)\]?/i) ||
-                                      comando.match(/\[?(\w+)\]?/i);
-              const procedureName = procedureMatch ? procedureMatch[1] : 'N/A';
-              
-              if (typeof mensagem === 'object') {
-                console.error(`Erro no init.sql [Procedure: ${procedureName}]:`, JSON.stringify(mensagem));
-              } else {
-                console.error(`Erro no init.sql [Procedure: ${procedureName}]:`, mensagem);
+              try {
+                // Capturar mensagem de forma segura
+                let mensagem = 'Erro desconhecido';
+                if (erro) {
+                  if (typeof erro === 'string') {
+                    mensagem = erro;
+                  } else if (erro.error) {
+                    mensagem = String(erro.error);
+                  } else if (erro.mensagem) {
+                    mensagem = String(erro.mensagem);
+                  } else if (erro.erro) {
+                    mensagem = String(erro.erro);
+                  } else if (erro.message) {
+                    mensagem = String(erro.message);
+                  } else if (typeof erro === 'object') {
+                    mensagem = JSON.stringify(erro);
+                  }
+                }
+                
+                const comando = (erro && (erro.comando || erro.sql)) ? String(erro.comando || erro.sql) : 'Comando desconhecido';
+                // Extrair nome da stored procedure se possível
+                const procedureMatch = comando.match(/EXEC\s+(?:\[dbo\]\.)?\[?(\w+)\]?/i) || 
+                                        comando.match(/EXECUTE\s+(?:\[dbo\]\.)?\[?(\w+)\]?/i) ||
+                                        comando.match(/\[?(\w+)\]?/i);
+                const procedureName = procedureMatch ? procedureMatch[1] : 'N/A';
+                
+                // Incluir detalhes adicionais se disponíveis
+                let detalhesAdicionais = '';
+                if (erro && erro.detalhes) {
+                  const detalhes = erro.detalhes;
+                  if (detalhes.numero) {
+                    detalhesAdicionais = ` (Erro SQL ${detalhes.numero})`;
+                  }
+                }
+                
+                console.error(`Erro no init.sql [Procedure: ${procedureName}]:`, mensagem + detalhesAdicionais);
+              } catch (err) {
+                // Se houver erro ao processar o erro, logar de forma simples
+                console.error('Erro ao processar erro do init.sql:', err);
               }
             });
           }
@@ -650,9 +676,41 @@ function getOverlayMostrado() {
         }, 100);
       }
 
-      // Se for a aba Integração Meta, carregar logs do banco e atualizar
+      // Se for a aba Integração Meta, verificar se há viagem selecionada antes de carregar logs
       if (tabId === 'integracao-meta') {
         setTimeout(() => {
+          // Verificar se há viagem selecionada
+          const idViagem = document.getElementById('filtroIdViagem')?.value || 
+                          document.getElementById('viagemId')?.value || 
+                          null;
+          
+          if (!idViagem || idViagem.trim() === '') {
+            // Não há viagem selecionada - mostrar mensagem
+            const container = document.getElementById('logsIntegracaoMeta');
+            if (container) {
+              container.innerHTML = `
+                <div style="color: #856404; text-align: center; padding: 40px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px;">
+                  <div style="font-size: 48px; margin-bottom: 15px;">⚠️</div>
+                  <h3 style="color: #856404; margin-bottom: 10px;">Nenhuma viagem selecionada</h3>
+                  <p style="color: #856404; margin: 0;">
+                    Selecione uma viagem na aba <strong>Dados</strong> ou <strong>Grid</strong> para visualizar os logs de integração Meta.
+                  </p>
+                </div>
+              `;
+            }
+            // Limpar contadores
+            const totalEnviosEl = document.getElementById('totalEnviosMeta');
+            const totalSucessosEl = document.getElementById('totalSucessosMeta');
+            const totalErrosEl = document.getElementById('totalErrosMeta');
+            const ultimaAtualizacaoEl = document.getElementById('ultimaAtualizacaoMeta');
+            if (totalEnviosEl) totalEnviosEl.textContent = '0';
+            if (totalSucessosEl) totalSucessosEl.textContent = '0';
+            if (totalErrosEl) totalErrosEl.textContent = '0';
+            if (ultimaAtualizacaoEl) ultimaAtualizacaoEl.textContent = '-';
+            return;
+          }
+          
+          // Há viagem selecionada - carregar logs
           const tabContent = document.getElementById('tab-integracao-meta');
           if (tabContent && tabContent.classList.contains('active')) {
             if (typeof window.carregarLogsMeta === 'function') {
@@ -854,8 +912,8 @@ function getOverlayMostrado() {
     gridTab = new GridEditor({
       container: '#viagensGrid',
       columns: [
-        { field: 'IDVIAGEM', header: 'ID', editable: false, isId: true, width: '80px' },
-        { field: 'FGSITVIAGEM_NOME', header: 'Situação Viagem', editable: true, type: 'select', width: '140px',
+        { field: 'IDVIAGEM', header: 'ID', editable: false, isId: true, width: '100px' },
+        { field: 'FGSITVIAGEM_NOME', header: 'Situação Viagem', editable: true, type: 'select', width: '160px',
           options: [
             { value: 'Aprovada', label: 'Aprovada' },
             { value: 'Cancelada', label: 'Cancelada' },
@@ -867,16 +925,16 @@ function getOverlayMostrado() {
             { value: 'Em trânsito', label: 'Em trânsito' }
           ]
         },
-        { field: 'DSTIPOVIAGEM', header: 'Tipo Viagem', editable: false, width: '150px' },
-        { field: 'DSROTEIRO', header: 'Roteiro', editable: false, width: '180px' },
-        { field: 'CONTRATADOR_NOME', header: 'Contratador', editable: false, width: '200px' },
-        { field: 'DSCLASSEFROTA', header: 'Classe Frota', editable: false, width: '150px' },
+        { field: 'DSTIPOVIAGEM', header: 'Tipo Viagem', editable: false, width: '180px' },
+        { field: 'DSROTEIRO', header: 'Roteiro', editable: false, width: '220px' },
+        { field: 'CONTRATADOR_NOME', header: 'Contratador', editable: false, width: '240px' },
+        { field: 'DSCLASSEFROTA', header: 'Classe Frota', editable: false, width: '180px' },
         { 
           field: 'DTPREVINICIO', 
           header: 'Data Início', 
           editable: true, 
           type: 'datetime-local', 
-          width: '160px',
+          width: '170px',
           format: (val) => {
             if (!val) return '';
             
@@ -906,7 +964,7 @@ function getOverlayMostrado() {
           header: 'Data Fim', 
           editable: true, 
           type: 'datetime-local', 
-          width: '160px',
+          width: '170px',
           format: (val) => {
             if (!val) return '';
             
@@ -3818,6 +3876,26 @@ function getOverlayMostrado() {
       const result = await response.json();
       const todasConvocacoes = result.convocacoes || [];
       
+      // Log de acionamento e convocações criadas
+      if (window.logAcionamento) {
+        window.logAcionamento(viagemSelecionada, selecionados.length, {
+          motoristasSelecionados: selecionados.map(m => ({
+            id: m.CDCADASTRO_MOTORISTA,
+            nome: m.NOME_MOTORISTA
+          }))
+        });
+      }
+      
+      // Log de cada convocação criada
+      todasConvocacoes.forEach(conv => {
+        if (window.logConvocacao) {
+          const tipo = conv.REUTILIZADA ? 'Reutilização' : 'Criação';
+          window.logConvocacao(viagemSelecionada, conv.IDCONVOCACAO, conv.CDCADASTRO_MOTORISTA, tipo, {
+            reutilizada: conv.REUTILIZADA || false
+          });
+        }
+      });
+      
       // Criar um mapa de motorista -> ID convocação e dados completos
       const mapaConvocacoes = {};
       todasConvocacoes.forEach(conv => {
@@ -3924,6 +4002,19 @@ function getOverlayMostrado() {
       
       // Aguardar todas as atualizações
       await Promise.all(atualizacoesPromises);
+      
+      // Log de envio WhatsApp manual
+      if (window.logWhatsAppManual && linksWhatsApp.length > 0) {
+        window.logWhatsAppManual(viagemSelecionada, linksWhatsApp.length, {
+          motoristasComLink: linksWhatsApp.map(l => ({
+            nome: l.motorista,
+            celular: l.celular,
+            idConvocacao: l.idConvocacao
+          })),
+          semCelular: semCelular,
+          semConvocacao: semConvocacao
+        });
+      }
       
       // Fechar modal de anúncio
       const modal = document.getElementById('modalAnuncio');
@@ -4418,6 +4509,28 @@ function getOverlayMostrado() {
       const result = await response.json();
       const todasConvocacoes = result.convocacoes || [];
       
+      // Log de acionamento e convocações criadas (disparo automático)
+      if (window.logAcionamento) {
+        window.logAcionamento(viagemSelecionada, selecionados.length, {
+          tipo: 'Disparo Automático',
+          motoristasSelecionados: selecionados.map(m => ({
+            id: m.CDCADASTRO_MOTORISTA,
+            nome: m.NOME_MOTORISTA
+          }))
+        });
+      }
+      
+      // Log de cada convocação criada
+      todasConvocacoes.forEach(conv => {
+        if (window.logConvocacao) {
+          const tipo = conv.REUTILIZADA ? 'Reutilização' : 'Criação';
+          window.logConvocacao(viagemSelecionada, conv.IDCONVOCACAO, conv.CDCADASTRO_MOTORISTA, tipo, {
+            reutilizada: conv.REUTILIZADA || false,
+            tipoDisparo: 'automático'
+          });
+        }
+      });
+      
       // Agora atualizar todas as convocações com os dados completos (celular, texto e link)
       // Armazenar dados gerados para reutilizar no webhook
       const dadosGeradosMap = new Map();
@@ -4754,6 +4867,16 @@ function getOverlayMostrado() {
         showMessage(`${result.message || 'Convocações criadas'} | ${sucessos} atualizada(s) com sucesso, ${erros} com erro(s). Verifique o console para detalhes.`, erros === atualizacoesPromises.length ? 'error' : 'warning');
       } else {
         showMessage(`${result.message || 'Convocações disparadas com sucesso!'} | Todos os campos foram atualizados.`, 'success');
+        
+        // Log de envio WhatsApp automático
+        if (window.logWhatsAppAutomatico && sucessos > 0) {
+          window.logWhatsAppAutomatico(viagemSelecionada, sucessos, {
+            totalAtualizacoes: atualizacoesPromises.length,
+            sucessos: sucessos,
+            erros: erros,
+            convocoesEnviadasWebhook: convocacoesParaEnviar.length
+          });
+        }
       }
       
       // Limpar seleções
@@ -4843,10 +4966,38 @@ function getOverlayMostrado() {
       return;
     }
     
+    // Verificar se há viagem selecionada
+    const idViagem = document.getElementById('filtroIdViagem')?.value || 
+                     document.getElementById('viagemId')?.value || 
+                     null;
+    
+    if (!idViagem || idViagem.trim() === '') {
+      // Não há viagem selecionada - mostrar mensagem
+      container.innerHTML = `
+        <div style="color: #856404; text-align: center; padding: 40px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px;">
+          <div style="font-size: 48px; margin-bottom: 15px;">⚠️</div>
+          <h3 style="color: #856404; margin-bottom: 10px;">Nenhuma viagem selecionada</h3>
+          <p style="color: #856404; margin: 0;">
+            Selecione uma viagem na aba <strong>Dados</strong> ou <strong>Grid</strong> para visualizar os logs de integração Meta.
+          </p>
+        </div>
+      `;
+      // Limpar contadores
+      const totalEnviosEl = document.getElementById('totalEnviosMeta');
+      const totalSucessosEl = document.getElementById('totalSucessosMeta');
+      const totalErrosEl = document.getElementById('totalErrosMeta');
+      const ultimaAtualizacaoEl = document.getElementById('ultimaAtualizacaoMeta');
+      if (totalEnviosEl) totalEnviosEl.textContent = '0';
+      if (totalSucessosEl) totalSucessosEl.textContent = '0';
+      if (totalErrosEl) totalErrosEl.textContent = '0';
+      if (ultimaAtualizacaoEl) ultimaAtualizacaoEl.textContent = '-';
+      return;
+    }
+    
     if (logsIntegracaoMeta.length === 0) {
       container.innerHTML = `
         <div style="color: #6c757d; text-align: center; padding: 40px;">
-          Nenhum log disponível. Os logs aparecerão aqui quando houver envios para o webhook Meta.
+          Nenhum log disponível para esta viagem. Os logs aparecerão aqui quando houver envios para o webhook Meta.
         </div>
       `;
       return;
@@ -5030,11 +5181,37 @@ function getOverlayMostrado() {
                        document.getElementById('viagemId')?.value || 
                        null;
       
-      // Montar URL com filtro de viagem se disponível
-      let url = '/api/logs-webhook-meta?limite=100';
-      if (idViagem && idViagem.trim() !== '') {
-        url += `&idViagem=${encodeURIComponent(idViagem.trim())}`;
+      // Verificar se há viagem selecionada
+      if (!idViagem || idViagem.trim() === '') {
+        // Não há viagem selecionada - mostrar mensagem
+        const container = document.getElementById('logsIntegracaoMeta');
+        if (container) {
+          container.innerHTML = `
+            <div style="color: #856404; text-align: center; padding: 40px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px;">
+              <div style="font-size: 48px; margin-bottom: 15px;">⚠️</div>
+              <h3 style="color: #856404; margin-bottom: 10px;">Nenhuma viagem selecionada</h3>
+              <p style="color: #856404; margin: 0;">
+                Selecione uma viagem na aba <strong>Dados</strong> ou <strong>Grid</strong> para visualizar os logs de integração Meta.
+              </p>
+            </div>
+          `;
+        }
+        // Limpar contadores
+        const totalEnviosEl = document.getElementById('totalEnviosMeta');
+        const totalSucessosEl = document.getElementById('totalSucessosMeta');
+        const totalErrosEl = document.getElementById('totalErrosMeta');
+        const ultimaAtualizacaoEl = document.getElementById('ultimaAtualizacaoMeta');
+        if (totalEnviosEl) totalEnviosEl.textContent = '0';
+        if (totalSucessosEl) totalSucessosEl.textContent = '0';
+        if (totalErrosEl) totalErrosEl.textContent = '0';
+        if (ultimaAtualizacaoEl) ultimaAtualizacaoEl.textContent = '-';
+        // Limpar array de logs
+        logsIntegracaoMeta = [];
+        return;
       }
+      
+      // Montar URL com filtro de viagem (obrigatório)
+      const url = `/api/logs-webhook-meta?limite=100&idViagem=${encodeURIComponent(idViagem.trim())}`;
       
       const response = await fetch(url);
       if (!response.ok) {
@@ -5136,6 +5313,29 @@ function getOverlayMostrado() {
         }
       }
     }, 500);
+    
+    // Adicionar listeners para recarregar logs quando uma viagem for selecionada
+    const filtroIdViagem = document.getElementById('filtroIdViagem');
+    const viagemId = document.getElementById('viagemId');
+    
+    const recarregarLogsSeAbaAtiva = () => {
+      const tabIntegracaoMeta = document.getElementById('tab-integracao-meta');
+      if (tabIntegracaoMeta && tabIntegracaoMeta.classList.contains('active')) {
+        if (typeof window.carregarLogsMeta === 'function') {
+          window.carregarLogsMeta();
+        }
+      }
+    };
+    
+    if (filtroIdViagem) {
+      filtroIdViagem.addEventListener('change', recarregarLogsSeAbaAtiva);
+      filtroIdViagem.addEventListener('input', recarregarLogsSeAbaAtiva);
+    }
+    
+    if (viagemId) {
+      viagemId.addEventListener('change', recarregarLogsSeAbaAtiva);
+      viagemId.addEventListener('input', recarregarLogsSeAbaAtiva);
+    }
   });
   
   // Expor função globalmente para teste no console
@@ -5475,6 +5675,29 @@ function getOverlayMostrado() {
         }
         
         linksWhatsApp.push(linkItem);
+      }
+
+      // Log de links WhatsApp manual (geração de links)
+      if (window.logWhatsAppManual && linksWhatsApp.length > 0) {
+        const viagensUnicas = [...new Set(convocacoes.map(c => c.IDVIAGEM))];
+        viagensUnicas.forEach(idViagem => {
+          const linksDaViagem = linksWhatsApp.filter(l => {
+            const conv = convocacoes.find(c => c.IDCONVOCACAO === l.idConvocacao);
+            return conv && conv.IDVIAGEM === idViagem;
+          });
+          if (linksDaViagem.length > 0) {
+            window.logWhatsAppManual(idViagem, linksDaViagem.length, {
+              tipo: 'Geração de Links',
+              motoristasComLink: linksDaViagem.map(l => ({
+                nome: l.motorista,
+                celular: l.celular,
+                idConvocacao: l.idConvocacao
+              })),
+              semCelular: semCelular,
+              semConvocacao: semConvocacao
+            });
+          }
+        });
       }
 
       if (linksWhatsApp.length > 0) {
@@ -6114,6 +6337,20 @@ function getOverlayMostrado() {
         showMessage(result.message || 'Convocação confirmada com sucesso!', 'success');
       }
 
+      // Log de confirmação
+      if (window.logConfirmacao && result) {
+        window.logConfirmacao(
+          convocacao.IDVIAGEM,
+          idConvocacao,
+          convocacao.CDCADASTRO_MOTORISTA,
+          {
+            nomeMotorista: convocacao.NOME_MOTORISTA,
+            outrasAceitas: outrasAceitas,
+            whatsappLink: result.whatsappLink ? 'Sim' : 'Não'
+          }
+        );
+      }
+
       // Recarregar a lista de convocações
       await carregarConvocacoes();
     } catch (err) {
@@ -6507,6 +6744,21 @@ function getOverlayMostrado() {
       }
 
       const result = await response.json();
+      
+      // Log de reativação
+      if (window.logReativacao && result) {
+        window.logReativacao(
+          result.idViagem || convocacao.IDVIAGEM,
+          idConvocacao,
+          convocacao.CDCADASTRO_MOTORISTA,
+          motivoReabertura,
+          {
+            nomeMotorista: convocacao.NOME_MOTORISTA,
+            motivoDescricao: result.motivo || motivoReabertura,
+            outrasConvocacoesReativadas: result.outrasReativadas || 0
+          }
+        );
+      }
       
       // Verificar se o motivo foi "Motorista Desistiu da Carga"
       const motivoDesistiu = result.motivo === 'Motorista Desistiu da Carga';
@@ -8842,7 +9094,6 @@ function getOverlayMostrado() {
       
       // Pegar o nome do roteiro para exibir
       const nomeRoteiro = selectRoteiro?.selectedOptions[0]?.text || 'Roteiro';
-      console.log('[HISTÓRICO] Carregando histórico do roteiro:', idRoteiro, nomeRoteiro);
       
       showMessage('Carregando histórico...', 'info');
       
