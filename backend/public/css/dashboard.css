@@ -40,10 +40,38 @@ body {
   height: 100vh;
   position: fixed;
   padding: 20px 0;
-  transition: all 0.3s;
+  transition: all 0.3s ease;
   box-shadow: var(--shadow);
   overflow-y: auto;
   overflow-x: hidden;
+  z-index: 1000;
+}
+
+.sidebar.collapsed {
+  width: 80px;
+}
+
+.sidebar.collapsed .logo h1 {
+  font-size: 18px;
+  text-align: center;
+}
+
+.sidebar.collapsed .logo span {
+  display: none;
+}
+
+.sidebar.collapsed .menu-item span {
+  display: none;
+}
+
+.sidebar.collapsed .menu-item {
+  justify-content: center;
+  padding: 14px;
+  gap: 0;
+}
+
+.sidebar.collapsed .menu-item i {
+  font-size: 24px;
 }
 
 .logo {
@@ -94,6 +122,11 @@ body {
   flex: 1;
   margin-left: 260px;
   padding: 25px;
+  transition: margin-left 0.3s ease;
+}
+
+.main.sidebar-collapsed {
+  margin-left: 80px;
 }
 
 .header {
@@ -138,6 +171,31 @@ body {
 
 .logout-btn:hover {
   background: #9e1b1b;
+}
+
+.toggle-menu-btn {
+  background: var(--primary);
+  color: white;
+  border: none;
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 24px;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 44px;
+}
+
+.toggle-menu-btn:hover {
+  background: var(--primary-dark);
+  transform: scale(1.05);
+}
+
+.toggle-menu-btn i {
+  transition: transform 0.3s;
 }
 
 /* Área de Boas-vindas */

@@ -486,6 +486,7 @@
     try {
       const params = new URLSearchParams();
       const fields = [
+        {id: 'filtroIdEquipamento', param: 'idequipamento'},
         {id: 'filtroRef', param: 'refequipamento'},
         {id: 'filtroGrupo', param: 'cdgrupo'},
         {id: 'filtroTipo', param: 'cdtipo'},
@@ -924,6 +925,8 @@
 
   document.getElementById('btnLimparFiltros')?.addEventListener('click', () => {
     document.querySelectorAll('#filtroForm select').forEach(el => el.value = '');
+    const idEquipamento = document.getElementById('filtroIdEquipamento');
+    if (idEquipamento) idEquipamento.value = '';
     const ref = document.getElementById('filtroRef');
     if (ref) ref.value = '';
   });

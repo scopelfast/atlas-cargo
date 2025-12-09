@@ -752,6 +752,15 @@ async function loadRoteiroParaEdicao(id) {
 
       showTab('dados');
 
+      // Pré-inicializar mapa em background se houver origem e destino (para carregamento rápido)
+      const origemCidadeId = document.getElementById('origemCidade')?.value;
+      const destinoCidadeId = document.getElementById('destinoCidade')?.value;
+      if (origemCidadeId && destinoCidadeId && typeof L !== 'undefined' && !mapa) {
+        inicializarMapa().catch(err => {
+          console.warn('Erro ao pré-inicializar mapa:', err);
+        });
+      }
+
       // Atualizar mapa se estiver visível
       const mapaContainer = document.getElementById('mapaContainer');
       if (mapaContainer && mapaContainer.style.display !== 'none') {
@@ -1455,6 +1464,13 @@ async function loadRoteiroParaEdicao(id) {
         showMessage(`Distância calculada (linha reta): ${distanciaTotal} km`, 'success');
       }
 
+      // Pré-inicializar mapa em background se houver origem e destino (para carregamento rápido)
+      if (origemCidadeId && destinoCidadeId && typeof L !== 'undefined' && !mapa) {
+        inicializarMapa().catch(err => {
+          console.warn('Erro ao pré-inicializar mapa:', err);
+        });
+      }
+
       // Atualizar mapa se estiver visível
       const mapaContainer = document.getElementById('mapaContainer');
       if (mapaContainer && mapaContainer.style.display !== 'none') {
@@ -1482,16 +1498,15 @@ async function loadRoteiroParaEdicao(id) {
       const tabId = tab.getAttribute('data-tab');
       if (tabId === 'mapa') {
         // Verificar se Leaflet está disponível
-        const leafletDisponivel = await aguardarLeaflet();
-        if (!leafletDisponivel) {
-          showMessage('Erro ao carregar a biblioteca de mapas. Recarregue a página.', 'error');
-          return;
+        if (typeof L === 'undefined') {
+          const leafletDisponivel = await aguardarLeaflet();
+          if (!leafletDisponivel) {
+            showMessage('Erro ao carregar a biblioteca de mapas. Recarregue a página.', 'error');
+            return;
+          }
         }
         
-        // Aguardar um pouco para garantir que a aba está totalmente visível
-        await new Promise(resolve => setTimeout(resolve, 150));
-        
-        // Inicializar mapa se ainda não foi inicializado
+        // Inicializar mapa se ainda não foi inicializado (sem delays)
         if (!mapa) {
           const inicializado = await inicializarMapa();
           if (!inicializado) {
@@ -1500,18 +1515,21 @@ async function loadRoteiroParaEdicao(id) {
           }
         }
         
-        // Invalidar tamanho para garantir renderização correta
+        // Invalidar tamanho imediatamente usando requestAnimationFrame
         if (mapa) {
-          try {
-            mapa.invalidateSize();
-          } catch (e) {
-            console.warn('Erro ao invalidar tamanho:', e);
-          }
+          requestAnimationFrame(() => {
+            try {
+              mapa.invalidateSize();
+              // Atualizar mapa após invalidar
+              atualizarMapa();
+            } catch (e) {
+              console.warn('Erro ao invalidar tamanho:', e);
+              atualizarMapa();
+            }
+          });
+        } else {
+          await atualizarMapa();
         }
-        
-        // Aguardar um pouco antes de atualizar
-        await new Promise(resolve => setTimeout(resolve, 200));
-        await atualizarMapa();
       }
     });
   });
@@ -1558,10 +1576,10 @@ async function loadRoteiroParaEdicao(id) {
 
     // Proteção contra race condition
     if (mapaInicializando) {
-      // Aguardar até que a inicialização termine
+      // Aguardar até que a inicialização termine (com timeout menor)
       let tentativas = 0;
-      while (mapaInicializando && tentativas < 20) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+      while (mapaInicializando && tentativas < 10) {
+        await new Promise(resolve => setTimeout(resolve, 50));
         tentativas++;
       }
       if (mapa) return true;
@@ -1570,49 +1588,39 @@ async function loadRoteiroParaEdicao(id) {
     mapaInicializando = true;
 
     try {
-      // Verificar se o elemento está visível antes de inicializar
+      // Garantir que a aba está visível (sem delay)
       const tabMapa = document.getElementById('tab-mapa');
-      if (tabMapa) {
-        // Garantir que a aba está visível
-        if (tabMapa.style.display === 'none') {
-          tabMapa.style.display = 'block';
-        }
-        // Aguardar um pouco para o elemento estar totalmente visível
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-
-      // Verificar novamente se o elemento está visível
-      if (mapaDiv.offsetParent === null && mapaDiv.offsetWidth === 0 && mapaDiv.offsetHeight === 0) {
-        // Elemento ainda não está visível, aguardar mais um pouco
-        await new Promise(resolve => setTimeout(resolve, 200));
+      if (tabMapa && tabMapa.style.display === 'none') {
+        tabMapa.style.display = 'block';
       }
       
       // Limpar conteúdo anterior se houver
       mapaDiv.innerHTML = '';
       
       // Criar mapa centrado no Brasil
-      mapa = L.map('mapaRota').setView([-14.2350, -51.9253], 4);
+      mapa = L.map('mapaRota', {
+        preferCanvas: false, // Usar canvas pode ser mais rápido
+        zoomControl: true
+      }).setView([-14.2350, -51.9253], 4);
 
-      // Adicionar camada de tiles do OpenStreetMap
+      // Adicionar camada de tiles do OpenStreetMap (com opções de performance)
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors',
-        maxZoom: 19
+        maxZoom: 19,
+        updateWhenIdle: false, // Atualizar enquanto move
+        updateWhenZooming: true // Atualizar durante zoom
       }).addTo(mapa);
       
-      // Aguardar o mapa carregar completamente
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Forçar invalidateSize múltiplas vezes para garantir renderização correta
-      for (let i = 0; i < 3; i++) {
-        try {
-          if (mapa) {
+      // Invalidar tamanho imediatamente usando requestAnimationFrame
+      requestAnimationFrame(() => {
+        if (mapa) {
+          try {
             mapa.invalidateSize();
+          } catch (e) {
+            console.warn('Erro ao invalidar tamanho do mapa:', e);
           }
-        } catch (e) {
-          console.warn('Erro ao invalidar tamanho do mapa:', e);
         }
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
+      });
       
       mapaInicializando = false;
       return true;
@@ -1647,22 +1655,6 @@ async function loadRoteiroParaEdicao(id) {
     const origemEstado = document.getElementById('origemEstado')?.value;
     const destinoEstado = document.getElementById('destinoEstado')?.value;
 
-    // Limpar marcadores e rota anteriores antes de atualizar
-    if (mapa) {
-      if (marcadorOrigem) {
-        mapa.removeLayer(marcadorOrigem);
-        marcadorOrigem = null;
-      }
-      if (marcadorDestino) {
-        mapa.removeLayer(marcadorDestino);
-        marcadorDestino = null;
-      }
-      if (linhaRota) {
-        mapa.removeLayer(linhaRota);
-        linhaRota = null;
-      }
-    }
-
     // Validar se há origem e destino
     if (!origemCidadeId || !destinoCidadeId || !origemEstado || !destinoEstado) {
       if (mapa) {
@@ -1671,32 +1663,62 @@ async function loadRoteiroParaEdicao(id) {
       return;
     }
 
+    // Mostrar overlay de carregamento
+    showMapaLoading('Carregando Mapa', 'Preparando visualização...');
+
+    // Limpar marcadores e rota anteriores antes de atualizar
+    if (mapa) {
+      if (marcadorOrigem) {
+        try {
+          mapa.removeLayer(marcadorOrigem);
+        } catch (e) {}
+        marcadorOrigem = null;
+      }
+      if (marcadorDestino) {
+        try {
+          mapa.removeLayer(marcadorDestino);
+        } catch (e) {}
+        marcadorDestino = null;
+      }
+      if (linhaRota) {
+        try {
+          mapa.removeLayer(linhaRota);
+        } catch (e) {}
+        linhaRota = null;
+      }
+    }
+
     // Inicializar mapa se ainda não foi inicializado
     if (!mapa) {
       const inicializado = await inicializarMapa();
       if (!inicializado) {
+        hideMapaLoading();
         console.error('Mapa não foi inicializado após tentativa');
         return;
       }
     }
     
-    // Sempre invalidar tamanho antes de atualizar para garantir renderização correta
-    try {
-      if (mapa) {
-        mapa.invalidateSize();
-        // Aguardar um pouco após invalidar
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-    } catch (e) {
-      console.warn('Erro ao invalidar tamanho do mapa:', e);
+    // Invalidar tamanho imediatamente usando requestAnimationFrame (sem delay)
+    if (mapa) {
+      requestAnimationFrame(() => {
+        try {
+          mapa.invalidateSize();
+        } catch (e) {
+          console.warn('Erro ao invalidar tamanho do mapa:', e);
+        }
+      });
     }
 
     try {
+      // Atualizar mensagem do overlay
+      showMapaLoading('Buscando Coordenadas', 'Obtendo localização das cidades...');
+      
       // Buscar informações das cidades
       const origemCidade = cidadesOrigem.find(c => c.CDCIDADE.toString() === origemCidadeId);
       const destinoCidade = cidadesDestino.find(c => c.CDCIDADE.toString() === destinoCidadeId);
 
       if (!origemCidade || !destinoCidade) {
+        hideMapaLoading();
         showMessage('Erro ao obter informações das cidades para o mapa.', 'error');
         return;
       }
@@ -1708,9 +1730,13 @@ async function loadRoteiroParaEdicao(id) {
       ]);
 
       if (!coordsOrigem || !coordsDestino) {
+        hideMapaLoading();
         showMessage('Não foi possível obter as coordenadas para exibir o mapa.', 'error');
         return;
       }
+      
+      // Atualizar mensagem do overlay
+      showMapaLoading('Montando Rota', 'Criando marcadores e traçando rota...');
 
       // Remover marcadores e rota anteriores (já foram removidos no início da função)
 
@@ -1736,6 +1762,9 @@ async function loadRoteiroParaEdicao(id) {
       }).addTo(mapa)
         .bindPopup(`<strong>Destino:</strong><br>${destinoCidade.NMCIDADE}, ${destinoEstado}`);
 
+      // Atualizar mensagem do overlay
+      showMapaLoading('Calculando Rota', 'Obtendo rota real entre origem e destino...');
+      
       // Obter rota real usando OSRM (Open Source Routing Machine) via backend
       try {
         const params = new URLSearchParams({
@@ -1744,7 +1773,13 @@ async function loadRoteiroParaEdicao(id) {
           lon2: coordsDestino.lon,
           lat2: coordsDestino.lat
         });
-        const rotaResponse = await fetch(`/api/cidades/rota?${params.toString()}`);
+        
+        // Usar AbortController para timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos de timeout
+        
+        const rotaResponse = await fetch(`/api/cidades/rota?${params.toString()}`, { signal: controller.signal });
+        clearTimeout(timeoutId);
         
         if (!rotaResponse.ok) {
           throw new Error(`Erro ${rotaResponse.status} ao obter rota`);
@@ -1787,7 +1822,9 @@ async function loadRoteiroParaEdicao(id) {
           linhaRota.bindPopup(`<strong>Distância (linha reta):</strong> ${distancia} km`);
         }
       } catch (err) {
-        console.error('Erro ao obter rota do OSRM:', err);
+        if (err.name !== 'AbortError') {
+          console.warn('Erro ao obter rota do OSRM:', err);
+        }
         // Fallback: usar linha reta em caso de erro
         linhaRota = L.polyline(
           [[coordsOrigem.lat, coordsOrigem.lon], [coordsDestino.lat, coordsDestino.lon]],
@@ -1811,12 +1848,20 @@ async function loadRoteiroParaEdicao(id) {
       // A distância já foi calculada e adicionada ao popup acima
 
       // Se houver pontos cadastrados, usar atualizarMapaComPontos
+      // (o overlay já será mostrado dentro de atualizarMapaComPontos)
       if (roteiroAtualId && pontosRoteiro.length > 0) {
+        // Esconder overlay se foi mostrado anteriormente
+        if (overlayMostrado) {
+          hideMapaLoading();
+        }
         await atualizarMapaComPontos();
         return;
       }
       
-      // Ajustar o zoom para mostrar ambas as cidades
+      // Atualizar mensagem do overlay
+      showMapaLoading('Ajustando Visualização', 'Ajustando zoom para mostrar toda a rota...');
+      
+      // Ajustar o zoom para mostrar ambas as cidades (sem delay)
       const grupo = new L.featureGroup([marcadorOrigem, marcadorDestino]);
       const bounds = grupo.getBounds();
       // Adicionar padding manualmente se pad() não estiver disponível
@@ -1834,10 +1879,16 @@ async function loadRoteiroParaEdicao(id) {
         );
         mapa.fitBounds(newBounds);
       }
-
-      // Mapa já está na aba, não precisa mostrar/ocultar
+      
+      // Esconder overlay após um pequeno delay
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          hideMapaLoading();
+        }, 300);
+      });
 
     } catch (err) {
+      hideMapaLoading();
       console.error('Erro ao atualizar mapa:', err);
       showMessage('Erro ao atualizar o mapa. Tente novamente.', 'error');
     }
@@ -2895,29 +2946,85 @@ async function loadRoteiroParaEdicao(id) {
   }
   
   // Atualizar mapa com todos os pontos
+  // Funções para controlar overlay de carregamento do mapa
+  function showMapaLoading(titulo = 'Carregando Mapa', texto = 'Preparando visualização da rota...') {
+    const overlay = document.getElementById('mapaLoadingOverlay');
+    const titleEl = document.getElementById('mapaLoadingTitle');
+    const textEl = document.getElementById('mapaLoadingText');
+    if (overlay) {
+      if (titleEl) titleEl.textContent = titulo;
+      if (textEl) textEl.textContent = texto;
+      overlay.style.display = 'flex';
+    }
+  }
+
+  function hideMapaLoading() {
+    const overlay = document.getElementById('mapaLoadingOverlay');
+    if (overlay) {
+      overlay.style.display = 'none';
+    }
+  }
+
   async function atualizarMapaComPontos() {
     if (!roteiroAtualId || !mapa) return;
     
+    // Mostrar overlay de carregamento
+    showMapaLoading('Carregando Rota', 'Carregando pontos e montando rota...');
+    
     try {
       // Limpar marcadores e linhas anteriores
-      marcadoresPontos.forEach(m => mapa.removeLayer(m));
-      linhasPontos.forEach(l => mapa.removeLayer(l));
+      marcadoresPontos.forEach(m => {
+        try {
+          mapa.removeLayer(m);
+        } catch (e) {
+          // Ignorar erro se camada já foi removida
+        }
+      });
+      linhasPontos.forEach(l => {
+        try {
+          mapa.removeLayer(l);
+        } catch (e) {
+          // Ignorar erro se camada já foi removida
+        }
+      });
       marcadoresPontos = [];
       linhasPontos = [];
       
-      if (marcadorOrigem) mapa.removeLayer(marcadorOrigem);
-      if (marcadorDestino) mapa.removeLayer(marcadorDestino);
-      if (linhaRota) mapa.removeLayer(linhaRota);
+      if (marcadorOrigem) {
+        try {
+          mapa.removeLayer(marcadorOrigem);
+        } catch (e) {}
+        marcadorOrigem = null;
+      }
+      if (marcadorDestino) {
+        try {
+          mapa.removeLayer(marcadorDestino);
+        } catch (e) {}
+        marcadorDestino = null;
+      }
+      if (linhaRota) {
+        try {
+          mapa.removeLayer(linhaRota);
+        } catch (e) {}
+        linhaRota = null;
+      }
+      
+      // Atualizar mensagem do overlay
+      showMapaLoading('Carregando Pontos', 'Buscando pontos do roteiro...');
       
       // Carregar pontos se ainda não foram carregados
       if (pontosRoteiro.length === 0) {
-        await carregarPontos(roteiroAtualId);
+        await carregarPontos(roteiroAtualId, true); // silencioso = true
       }
       
       if (pontosRoteiro.length === 0) {
+        hideMapaLoading();
         showMessage('Nenhum ponto cadastrado para este roteiro.', 'error');
         return;
       }
+      
+      // Atualizar mensagem do overlay
+      showMapaLoading('Montando Rota', 'Criando marcadores e traçando rota...');
       
       // Ordenar pontos por ORDEM
       const pontosOrdenados = [...pontosRoteiro].sort((a, b) => (a.ORDEM || 0) - (b.ORDEM || 0));
@@ -3009,14 +3116,22 @@ async function loadRoteiroParaEdicao(id) {
         latlngs.push([ponto.LATITUDE, ponto.LONGITUDE]);
       });
       
+      // Atualizar mensagem do overlay
+      showMapaLoading('Traçando Rota', 'Calculando rota real entre os pontos...');
+      
       // Desenhar linha conectando todos os pontos
       if (latlngs.length > 1) {
-        // Tentar obter rota do OSRM
+        // Tentar obter rota do OSRM (com timeout para não travar)
         try {
           const coordsStr = latlngs.map(c => `${c[1]},${c[0]}`).join(';');
           const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`;
           
-          const response = await fetch(osrmUrl);
+          // Usar AbortController para timeout
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos de timeout
+          
+          const response = await fetch(osrmUrl, { signal: controller.signal });
+          clearTimeout(timeoutId);
           const data = await response.json();
           
           if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
@@ -3031,9 +3146,19 @@ async function loadRoteiroParaEdicao(id) {
             
             const distanciaTotal = (data.routes[0].distance / 1000).toFixed(2);
             linhaRota.bindPopup(`<strong>Distância total da rota:</strong> ${distanciaTotal} km`);
+          } else {
+            // Fallback: linha reta se OSRM não retornar rota válida
+            linhaRota = L.polyline(latlngs, {
+              color: '#3498db',
+              weight: 4,
+              opacity: 0.7,
+              dashArray: '10, 10'
+            }).addTo(mapa);
           }
         } catch (err) {
-          console.warn('Erro ao obter rota do OSRM, usando linha reta:', err);
+          if (err.name !== 'AbortError') {
+            console.warn('Erro ao obter rota do OSRM, usando linha reta:', err);
+          }
           // Fallback: linha reta
           linhaRota = L.polyline(latlngs, {
             color: '#3498db',
@@ -3044,7 +3169,10 @@ async function loadRoteiroParaEdicao(id) {
         }
       }
       
-      // Ajustar zoom para mostrar todos os pontos
+      // Atualizar mensagem do overlay
+      showMapaLoading('Ajustando Visualização', 'Ajustando zoom para mostrar toda a rota...');
+      
+      // Ajustar zoom para mostrar todos os pontos (sem delay)
       if (latlngs.length > 0) {
         const grupo = new L.featureGroup(marcadoresPontos);
         const bounds = grupo.getBounds();
@@ -3062,7 +3190,15 @@ async function loadRoteiroParaEdicao(id) {
           mapa.fitBounds(newBounds);
         }
       }
+      
+      // Esconder overlay após um pequeno delay para garantir que tudo foi renderizado
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          hideMapaLoading();
+        }, 300);
+      });
     } catch (err) {
+      hideMapaLoading();
       console.error('Erro ao atualizar mapa com pontos:', err);
       showMessage('Erro ao atualizar mapa.', 'error');
     }

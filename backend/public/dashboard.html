@@ -22,9 +22,14 @@
 
   <div class="main">
     <div class="header">
-      <div class="user-info">
-        <h2 id="userName">Carregando...</h2>
-        <p id="userEmail">-</p>
+      <div style="display: flex; align-items: center; gap: 15px;">
+        <button class="toggle-menu-btn" id="toggleMenuBtn" title="Recolher/Expandir Menu">
+          <i class='bx bx-chevron-left' id="toggleMenuIcon"></i>
+        </button>
+        <div class="user-info">
+          <h2 id="userName">Carregando...</h2>
+          <p id="userEmail">-</p>
+        </div>
       </div>
       <div style="display: flex; gap: 10px; align-items: center;">
         <button class="logout-btn" id="docLink" style="background: #3498db; padding: 10px 20px;">

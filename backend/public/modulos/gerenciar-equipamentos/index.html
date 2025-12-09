@@ -22,11 +22,15 @@
             <div class="form-box">
                 <h2>Filtros de Busca</h2>
                 <form id="filtroForm">
-                    <!-- Linha 1: Referência / Tipo de Equipamento / Classe de Frota -->
-                    <div class="input-group triple">
+                    <!-- Linha 1: ID do Equipamento / Placa / Tipo de Equipamento / Classe de Frota -->
+                    <div class="input-group four-row">
                         <div>
-                            <label for="filtroRef">Referência</label>
-                            <input type="text" id="filtroRef" maxlength="40">
+                            <label for="filtroIdEquipamento">ID do Equipamento</label>
+                            <input type="number" id="filtroIdEquipamento" min="1" placeholder="Digite o código...">
+                        </div>
+                        <div>
+                            <label for="filtroRef">Placa</label>
+                            <input type="text" id="filtroRef" maxlength="40" placeholder="Digite a placa...">
                         </div>
                         <div>
                             <label for="filtroTipo">Tipo de Equipamento</label>

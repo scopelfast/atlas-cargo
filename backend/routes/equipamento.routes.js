@@ -49,6 +49,7 @@ const createComboRoute = (tableName, idField, nameField) => {
 router.get('/equipamentos', async (req, res) => {
   try {
     const {
+      idequipamento,
       refequipamento,
       cdgrupo,
       cdtipo,
@@ -98,6 +99,10 @@ router.get('/equipamentos', async (req, res) => {
 
     const params = [];
 
+    if (idequipamento) {
+      query += ` AND e.IDEQUIPAMENTO = @IDEQUIPAMENTO`;
+      params.push({ name: 'IDEQUIPAMENTO', value: parseFloat(idequipamento) });
+    }
     if (refequipamento) {
       query += ` AND e.REFEQUIPAMENTO LIKE @REFEQUIPAMENTO`;
       params.push({ name: 'REFEQUIPAMENTO', value: `%${refequipamento}%` });

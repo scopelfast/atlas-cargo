@@ -1791,9 +1791,6 @@
           return;
         }
         
-        // Aguardar um pouco para garantir que a aba está totalmente visível
-        await new Promise(resolve => setTimeout(resolve, 150));
-        
         // Inicializar mapa se ainda não foi inicializado
         if (!mapa) {
           const inicializado = await inicializarMapa();
@@ -1807,17 +1804,22 @@
         // Isso garante que mostre apenas os dados do registro selecionado
         if (mapa) {
           limparMapa();
-          // Invalidar tamanho após limpar para garantir renderização
-          try {
-            mapa.invalidateSize();
-          } catch (e) {
-            console.warn('Erro ao invalidar tamanho após limpar:', e);
-          }
+          // Invalidar tamanho após limpar usando requestAnimationFrame
+          requestAnimationFrame(() => {
+            try {
+              if (mapa) {
+                mapa.invalidateSize();
+                // Atualizar mapa após invalidar
+                atualizarMapa();
+              }
+            } catch (e) {
+              console.warn('Erro ao invalidar tamanho após limpar:', e);
+              atualizarMapa();
+            }
+          });
+        } else {
+          await atualizarMapa();
         }
-        
-        // Aguardar um pouco antes de atualizar
-        await new Promise(resolve => setTimeout(resolve, 200));
-        await atualizarMapa();
       }
     });
   });
@@ -2295,9 +2297,19 @@
     // Se já está inicializado e funcionando, não fazer nada
     if (mapa) {
       try {
-        // Verificar se o mapa está em estado válido
-        if (mapa._loaded) {
+        // Verificar se o mapa está em estado válido e se o container ainda existe
+        const container = mapa.getContainer();
+        if (mapa._loaded && container && container.parentNode === mapaDiv) {
+          // Mapa válido e no container correto
           return true;
+        } else {
+          // Mapa está em estado inválido ou container foi movido, remover
+          try {
+            mapa.remove();
+          } catch (e2) {
+            // Ignorar erro de remoção
+          }
+          mapa = null;
         }
       } catch (e) {
         // Se houver erro ao verificar, destruir e recriar
@@ -2341,12 +2353,49 @@
         await new Promise(resolve => setTimeout(resolve, 200));
       }
       
-      // Limpar conteúdo anterior se houver
-      mapaDiv.innerHTML = '';
+      // IMPORTANTE: Se já existe um mapa, remover corretamente antes de limpar o HTML
+      if (mapa) {
+        try {
+          // Remover todas as camadas primeiro
+          mapa.eachLayer((layer) => {
+            try {
+              mapa.removeLayer(layer);
+            } catch (e) {
+              // Ignorar erro
+            }
+          });
+          // Remover o mapa
+          mapa.remove();
+        } catch (e) {
+          console.warn('Erro ao remover mapa existente:', e);
+        }
+        mapa = null;
+        // Aguardar um pouco para garantir que o Leaflet limpou tudo
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      
+      // Limpar conteúdo anterior se houver (apenas se não houver mapa ativo)
+      if (mapaDiv.children.length > 0) {
+        // Verificar se há elementos do Leaflet antes de limpar
+        const hasLeafletElements = Array.from(mapaDiv.children).some(child => 
+          child.classList.contains('leaflet-container') || 
+          child.classList.contains('leaflet-pane')
+        );
+        
+        if (hasLeafletElements) {
+          // Se há elementos do Leaflet, aguardar mais um pouco antes de limpar
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        mapaDiv.innerHTML = '';
+        // Aguardar um frame para garantir que o DOM foi limpo
+        await new Promise(resolve => requestAnimationFrame(resolve));
+      }
       
       // Criar mapa centrado no Brasil
       mapa = L.map('mapaRota', {
-        preferCanvas: false
+        preferCanvas: false,
+        zoomControl: true
       }).setView([-14.2350, -51.9253], 4);
 
       // Adicionar camada de tiles do OpenStreetMap
@@ -2357,23 +2406,21 @@
       };
       L.tileLayer(tileConfig.url, {
         attribution: tileConfig.attribution,
-        maxZoom: tileConfig.maxZoom
+        maxZoom: tileConfig.maxZoom,
+        updateWhenIdle: false,
+        updateWhenZooming: true
       }).addTo(mapa);
       
-      // Aguardar o mapa carregar completamente
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Forçar invalidateSize múltiplas vezes para garantir renderização correta
-      for (let i = 0; i < 3; i++) {
-        try {
-          if (mapa) {
+      // Invalidar tamanho usando requestAnimationFrame (mais eficiente)
+      requestAnimationFrame(() => {
+        if (mapa) {
+          try {
             mapa.invalidateSize();
+          } catch (e) {
+            console.warn('Erro ao invalidar tamanho do mapa:', e);
           }
-        } catch (e) {
-          console.warn('Erro ao invalidar tamanho do mapa:', e);
         }
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
+      });
       
       mapaInicializando = false;
       return true;
@@ -2447,6 +2494,25 @@
     }
   }
 
+  // Funções para controlar overlay de carregamento do mapa
+  function showMapaLoading(titulo = 'Carregando Mapa', texto = 'Preparando visualização da rota...') {
+    const overlay = document.getElementById('mapaLoadingOverlay');
+    const titleEl = document.getElementById('mapaLoadingTitle');
+    const textEl = document.getElementById('mapaLoadingText');
+    if (overlay) {
+      if (titleEl) titleEl.textContent = titulo;
+      if (textEl) textEl.textContent = texto;
+      overlay.style.display = 'flex';
+    }
+  }
+
+  function hideMapaLoading() {
+    const overlay = document.getElementById('mapaLoadingOverlay');
+    if (overlay) {
+      overlay.style.display = 'none';
+    }
+  }
+
   // Função para atualizar o mapa com origem e destino
   async function atualizarMapa() {
     // Verificar se Leaflet está disponível
@@ -2477,29 +2543,34 @@
       return;
     }
 
+    // Mostrar overlay de carregamento
+    showMapaLoading('Carregando Mapa', 'Preparando visualização...');
+
     // Inicializar mapa se ainda não foi inicializado
     if (!mapa) {
       const inicializado = await inicializarMapa();
       if (!inicializado) {
+        hideMapaLoading();
         console.error('Mapa não foi inicializado após tentativa');
         return;
       }
     }
     
-    // Sempre invalidar tamanho antes de atualizar para garantir renderização correta
-    try {
-      if (mapa) {
-        mapa.invalidateSize();
-        // Aguardar um pouco após invalidar
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-    } catch (e) {
-      console.warn('Erro ao invalidar tamanho do mapa:', e);
+    // Invalidar tamanho antes de atualizar usando requestAnimationFrame (sem delay)
+    if (mapa) {
+      requestAnimationFrame(() => {
+        try {
+          mapa.invalidateSize();
+        } catch (e) {
+          console.warn('Erro ao invalidar tamanho do mapa:', e);
+        }
+      });
     }
 
     try {
       // Se houver roteiro selecionado, buscar e exibir os pontos do roteiro
       if (roteiroId) {
+        showMapaLoading('Carregando Pontos', 'Buscando pontos do roteiro...');
         try {
           const pontosResponse = await fetch(`/api/roteiros/${roteiroId}/pontos`);
           if (pontosResponse.ok) {
@@ -2596,13 +2667,21 @@
                 latlngs.push([ponto.LATITUDE, ponto.LONGITUDE]);
               });
               
+              // Atualizar mensagem do overlay
+              showMapaLoading('Traçando Rota', 'Calculando rota real entre os pontos...');
+              
               // Desenhar rota usando OSRM com todos os pontos
               try {
                 const coordsStr = latlngs.map(c => `${c[1]},${c[0]}`).join(';');
                 const config = window.MAP_CONFIG || {};
                 const osrmUrl = `${config.osrmServer || 'https://router.project-osrm.org/route/v1/driving'}/${coordsStr}?overview=full&geometries=geojson`;
                 
-                const response = await fetch(osrmUrl, { signal: AbortSignal.timeout(config.routeTimeout || 15000) });
+                // Usar AbortController para timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), config.routeTimeout || 10000);
+                
+                const response = await fetch(osrmUrl, { signal: controller.signal });
+                clearTimeout(timeoutId);
                 const data = await response.json();
                 
                 if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
@@ -2627,7 +2706,9 @@
                   }).addTo(mapa);
                 }
               } catch (err) {
-                // Erro ao obter rota do OSRM, usando linha reta
+                if (err.name !== 'AbortError') {
+                  console.warn('Erro ao obter rota do OSRM, usando linha reta:', err);
+                }
                 // Fallback: linha reta entre pontos
                 linhaRota = L.polyline(latlngs, {
                   color: '#3498db',
@@ -2636,6 +2717,9 @@
                   dashArray: '10, 10'
                 }).addTo(mapa);
               }
+              
+              // Atualizar mensagem do overlay
+              showMapaLoading('Ajustando Visualização', 'Ajustando zoom para mostrar toda a rota...');
               
               // Ajustar zoom para mostrar todos os pontos
               if (marcadores.length > 0) {
@@ -2656,6 +2740,13 @@
                 }
               }
               
+              // Esconder overlay após um pequeno delay
+              requestAnimationFrame(() => {
+                setTimeout(() => {
+                  hideMapaLoading();
+                }, 300);
+              });
+              
               return; // Sair da função após exibir pontos do roteiro
             }
           }
@@ -2666,11 +2757,15 @@
       }
       
       // Se não houver roteiro ou se não conseguiu buscar pontos, usar origem e destino diretos
+      // Atualizar mensagem do overlay
+      showMapaLoading('Buscando Coordenadas', 'Obtendo localização das cidades...');
+      
       // Buscar informações das cidades
       const origemCidade = cidadesOrigem.find(c => c.CDCIDADE.toString() === origemCidadeId);
       const destinoCidade = cidadesDestino.find(c => c.CDCIDADE.toString() === destinoCidadeId);
 
       if (!origemCidade || !destinoCidade) {
+        hideMapaLoading();
         showMessage('Erro ao obter informações das cidades para o mapa.', 'error');
         return;
       }
@@ -2682,9 +2777,13 @@
       ]);
 
       if (!coordsOrigem || !coordsDestino) {
+        hideMapaLoading();
         showMessage('Não foi possível obter as coordenadas para exibir o mapa.', 'error');
         return;
       }
+      
+      // Atualizar mensagem do overlay
+      showMapaLoading('Montando Rota', 'Criando marcadores e traçando rota...');
 
       // Criar marcador de origem (verde)
       marcadorOrigem = L.marker([coordsOrigem.lat, coordsOrigem.lon], {
@@ -2708,6 +2807,9 @@
       }).addTo(mapa)
         .bindPopup(`<strong>Destino:</strong><br>${destinoCidade.NMCIDADE}, ${destinoEstado}`);
 
+      // Atualizar mensagem do overlay
+      showMapaLoading('Calculando Rota', 'Obtendo rota real entre origem e destino...');
+      
       // Obter rota real usando OSRM (Open Source Routing Machine) via backend
       try {
         const params = new URLSearchParams({
@@ -2716,7 +2818,13 @@
           lon2: coordsDestino.lon,
           lat2: coordsDestino.lat
         });
-        const rotaResponse = await fetch(`/api/cidades/rota?${params.toString()}`);
+        
+        // Usar AbortController para timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos de timeout
+        
+        const rotaResponse = await fetch(`/api/cidades/rota?${params.toString()}`, { signal: controller.signal });
+        clearTimeout(timeoutId);
         
         if (!rotaResponse.ok) {
           throw new Error(`Erro ${rotaResponse.status} ao obter rota`);
@@ -2759,7 +2867,9 @@
           linhaRota.bindPopup(`<strong>Distância (linha reta):</strong> ${distancia} km`);
         }
       } catch (err) {
-        console.error('Erro ao obter rota do OSRM:', err);
+        if (err.name !== 'AbortError') {
+          console.warn('Erro ao obter rota do OSRM:', err);
+        }
         // Fallback: usar linha reta em caso de erro
         linhaRota = L.polyline(
           [[coordsOrigem.lat, coordsOrigem.lon], [coordsDestino.lat, coordsDestino.lon]],
@@ -2780,7 +2890,10 @@
         linhaRota.bindPopup(`<strong>Distância (linha reta):</strong> ${distancia} km`);
       }
 
-      // Ajustar o zoom para mostrar ambas as cidades
+      // Atualizar mensagem do overlay
+      showMapaLoading('Ajustando Visualização', 'Ajustando zoom para mostrar toda a rota...');
+      
+      // Ajustar o zoom para mostrar ambas as cidades (sem delay)
       const grupo = new L.featureGroup([marcadorOrigem, marcadorDestino]);
       const bounds = grupo.getBounds();
       // Adicionar padding manualmente se pad() não estiver disponível
@@ -2798,8 +2911,16 @@
         );
         mapa.fitBounds(newBounds);
       }
+      
+      // Esconder overlay após um pequeno delay
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          hideMapaLoading();
+        }, 300);
+      });
 
     } catch (err) {
+      hideMapaLoading();
       console.error('Erro ao atualizar mapa:', err);
       showMessage('Erro ao atualizar o mapa. Tente novamente.', 'error');
     }
@@ -4572,10 +4693,19 @@
       return;
     }
     
-    let html = '';
+    // Separar logs por tipo
+    const logsEnvios = logsIntegracaoMeta.filter(l => l.tipo === 'envio').sort((a, b) => {
+      return new Date(b.timestamp || 0) - new Date(a.timestamp || 0);
+    });
+    const logsRespostas = logsIntegracaoMeta.filter(l => l.tipo === 'resposta' || l.tipo === 'sucesso').sort((a, b) => {
+      return new Date(b.timestamp || 0) - new Date(a.timestamp || 0);
+    });
+    const logsCallbacks = logsIntegracaoMeta.filter(l => l.tipo === 'callback' || l.tipo === 'retorno').sort((a, b) => {
+      return new Date(b.timestamp || 0) - new Date(a.timestamp || 0);
+    });
     
-    logsIntegracaoMeta.forEach((log, index) => {
-      // Tratar timestamp de forma segura
+    // Função auxiliar para gerar HTML de um log
+    const gerarHtmlLog = (log) => {
       let dataHora = 'Data inválida';
       try {
         if (log.timestamp) {
@@ -4588,28 +4718,71 @@
         // Ignorar erro ao formatar data
       }
       
-      const tipoIcon = log.tipo === 'envio' ? '📤' : log.tipo === 'resposta' ? '📥' : log.tipo === 'sucesso' ? '✅' : log.tipo === 'erro' ? '❌' : 'ℹ️';
-      const tipoCor = log.tipo === 'envio' ? '#007bff' : log.tipo === 'resposta' ? '#17a2b8' : log.tipo === 'sucesso' ? '#28a745' : log.tipo === 'erro' ? '#dc3545' : '#6c757d';
+      const tipoIcon = log.tipo === 'envio' ? '📤' : log.tipo === 'resposta' ? '📥' : log.tipo === 'callback' || log.tipo === 'retorno' ? '🔄' : log.tipo === 'sucesso' ? '✅' : log.tipo === 'erro' ? '❌' : 'ℹ️';
+      const tipoCor = log.tipo === 'envio' ? '#007bff' : log.tipo === 'resposta' ? '#17a2b8' : log.tipo === 'callback' || log.tipo === 'retorno' ? '#ff9800' : log.tipo === 'sucesso' ? '#28a745' : log.tipo === 'erro' ? '#dc3545' : '#6c757d';
       
-      html += `
+      return `
         <div style="border-left: 4px solid ${tipoCor}; padding: 12px; margin-bottom: 10px; background: #f8f9fa; border-radius: 4px; display: block; visibility: visible; min-height: 60px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="font-size: 16px; display: inline-block;">${tipoIcon}</span>
-              <strong style="color: ${tipoCor}; display: inline-block;">${log.titulo || log.tipo}</strong>
+              <strong style="color: ${tipoCor}; display: inline-block; font-size: 12px;">${log.titulo || log.tipo}</strong>
             </div>
-            <span style="color: #6c757d; font-size: 11px; display: inline-block;">${dataHora}</span>
+            <span style="color: #6c757d; font-size: 10px; display: inline-block;">${dataHora}</span>
           </div>
-          ${log.mensagem ? `<div style="color: #333; margin-bottom: 8px; display: block; min-height: 20px;">${log.mensagem}</div>` : ''}
+          ${log.mensagem ? `<div style="color: #333; margin-bottom: 8px; display: block; min-height: 20px; font-size: 11px;">${log.mensagem}</div>` : ''}
           ${log.detalhes ? `
             <details style="margin-top: 8px; display: block;">
-              <summary style="cursor: pointer; color: #007bff; font-weight: 600; user-select: none; display: block;">Ver detalhes</summary>
-              <pre style="background: #fff; padding: 10px; border-radius: 4px; margin-top: 8px; overflow-x: auto; font-size: 11px; line-height: 1.4; display: block; min-height: 50px;">${JSON.stringify(log.detalhes, null, 2)}</pre>
+              <summary style="cursor: pointer; color: #007bff; font-weight: 600; user-select: none; display: block; font-size: 11px;">Ver detalhes</summary>
+              <pre style="background: #fff; padding: 10px; border-radius: 4px; margin-top: 8px; overflow-x: auto; font-size: 10px; line-height: 1.4; display: block; min-height: 50px;">${JSON.stringify(log.detalhes, null, 2)}</pre>
             </details>
           ` : ''}
         </div>
       `;
-    });
+    };
+    
+    // Gerar HTML para cada coluna
+    const htmlColuna1 = logsEnvios.length > 0 
+      ? logsEnvios.map(gerarHtmlLog).join('')
+      : '<div style="color: #6c757d; text-align: center; padding: 20px; font-size: 12px;">Nenhum envio</div>';
+    
+    const htmlColuna2 = logsRespostas.length > 0
+      ? logsRespostas.map(gerarHtmlLog).join('')
+      : '<div style="color: #6c757d; text-align: center; padding: 20px; font-size: 12px;">Nenhuma resposta</div>';
+    
+    const htmlColuna3 = logsCallbacks.length > 0
+      ? logsCallbacks.map(gerarHtmlLog).join('')
+      : '<div style="color: #6c757d; text-align: center; padding: 20px; font-size: 12px;">Nenhum callback</div>';
+    
+    // Montar HTML com 3 colunas
+    const html = `
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; width: 100%;">
+        <div style="display: flex; flex-direction: column;">
+          <div style="background: #007bff; color: white; padding: 10px; text-align: center; font-weight: bold; border-radius: 4px 4px 0 0; margin-bottom: 10px;">
+            📤 Envios (${logsEnvios.length})
+          </div>
+          <div style="flex: 1; overflow-y: auto; max-height: 500px;">
+            ${htmlColuna1}
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column;">
+          <div style="background: #17a2b8; color: white; padding: 10px; text-align: center; font-weight: bold; border-radius: 4px 4px 0 0; margin-bottom: 10px;">
+            📥 Retornos (${logsRespostas.length})
+          </div>
+          <div style="flex: 1; overflow-y: auto; max-height: 500px;">
+            ${htmlColuna2}
+          </div>
+        </div>
+        <div style="display: flex; flex-direction: column;">
+          <div style="background: #ff9800; color: white; padding: 10px; text-align: center; font-weight: bold; border-radius: 4px 4px 0 0; margin-bottom: 10px;">
+            🔄 Callbacks (${logsCallbacks.length})
+          </div>
+          <div style="flex: 1; overflow-y: auto; max-height: 500px;">
+            ${htmlColuna3}
+          </div>
+        </div>
+      </div>
+    `;
     
     // Verificar se a aba está ativa antes de inserir
     const tabContent = document.getElementById('tab-integracao-meta');
@@ -4693,65 +4866,82 @@
   // Função para carregar logs do banco de dados (reutilizável)
   window.carregarLogsMeta = async function() {
     try {
-      const response = await fetch('/api/logs-webhook-meta?limite=100');
-      if (response.ok) {
-        const logsDoBanco = await response.json();
+      // Obter ID da viagem atual
+      const idViagem = document.getElementById('filtroIdViagem')?.value || 
+                       document.getElementById('viagemId')?.value || 
+                       null;
+      
+      // Montar URL com filtro de viagem se disponível
+      let url = '/api/logs-webhook-meta?limite=100';
+      if (idViagem && idViagem.trim() !== '') {
+        url += `&idViagem=${encodeURIComponent(idViagem.trim())}`;
+      }
+      
+      const response = await fetch(url);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: `Erro ${response.status}: ${response.statusText}` }));
+        console.error('[LOGS META] Erro ao carregar logs:', errorData);
+        throw new Error(errorData.error || errorData.details || `Erro ${response.status} ao carregar logs`);
+      }
+      
+      const logsDoBanco = await response.json();
+      if (!Array.isArray(logsDoBanco)) {
+        console.error('[LOGS META] Resposta inválida do servidor:', logsDoBanco);
+        throw new Error('Resposta do servidor não é um array');
+      }
         
-        // Converter logs do banco para o formato esperado
-        // O controller retorna campos em maiúsculas (TIPO, TITULO, etc.) e também adiciona detalhes/timestamp
-        logsIntegracaoMeta = logsDoBanco.map((log, index) => {
-          try {
-            // Tentar parsear detalhes se for string
-            let detalhesParsed = null;
-            if (log.detalhes) {
-              detalhesParsed = log.detalhes; // Já vem parseado do controller
-            } else if (log.DETALHES) {
-              if (typeof log.DETALHES === 'string') {
-                try {
-                  detalhesParsed = JSON.parse(log.DETALHES);
-                } catch (e) {
-                  // Ignorar erro ao parsear detalhes
-                  detalhesParsed = null;
-                }
-              } else {
-                detalhesParsed = log.DETALHES;
+      // Converter logs do banco para o formato esperado
+      // O controller retorna campos em maiúsculas (TIPO, TITULO, etc.) e também adiciona detalhes/timestamp
+      logsIntegracaoMeta = logsDoBanco.map((log, index) => {
+        try {
+          // Tentar parsear detalhes se for string
+          let detalhesParsed = null;
+          if (log.detalhes) {
+            detalhesParsed = log.detalhes; // Já vem parseado do controller
+          } else if (log.DETALHES) {
+            if (typeof log.DETALHES === 'string') {
+              try {
+                detalhesParsed = JSON.parse(log.DETALHES);
+              } catch (e) {
+                // Ignorar erro ao parsear detalhes
+                detalhesParsed = null;
               }
-            }
-            
-            // Obter timestamp
-            let timestampValue = null;
-            if (log.timestamp) {
-              timestampValue = log.timestamp;
-            } else if (log.DHLOG) {
-              timestampValue = new Date(log.DHLOG).toISOString();
             } else {
-              timestampValue = new Date().toISOString();
+              detalhesParsed = log.DETALHES;
             }
-            
-            const logConvertido = {
-              tipo: log.TIPO || log.tipo || 'desconhecido',
-              titulo: log.TITULO || log.titulo || '',
-              mensagem: log.MENSAGEM || log.mensagem || '',
-              detalhes: detalhesParsed,
-              timestamp: timestampValue,
-              id: log.IDLOG || log.id || `log-${index}`
-            };
-            
-            return logConvertido;
-          } catch (parseErr) {
-            return null;
           }
-        }).filter(log => log !== null);
-        
-        if (typeof window.atualizarExibicaoLogsMeta === 'function') {
-          window.atualizarExibicaoLogsMeta();
+          
+          // Obter timestamp
+          let timestampValue = null;
+          if (log.timestamp) {
+            timestampValue = log.timestamp;
+          } else if (log.DHLOG) {
+            timestampValue = new Date(log.DHLOG).toISOString();
+          } else {
+            timestampValue = new Date().toISOString();
+          }
+          
+          const logConvertido = {
+            tipo: log.TIPO || log.tipo || 'desconhecido',
+            titulo: log.TITULO || log.titulo || '',
+            mensagem: log.MENSAGEM || log.mensagem || '',
+            detalhes: detalhesParsed,
+            timestamp: timestampValue,
+            id: log.IDLOG || log.id || `log-${index}`
+          };
+          
+          return logConvertido;
+        } catch (parseErr) {
+          return null;
         }
-      } else {
-        if (typeof window.atualizarExibicaoLogsMeta === 'function') {
-          window.atualizarExibicaoLogsMeta();
-        }
+      }).filter(log => log !== null);
+      
+      if (typeof window.atualizarExibicaoLogsMeta === 'function') {
+        window.atualizarExibicaoLogsMeta();
       }
     } catch (err) {
+      console.error('[LOGS META] Erro ao carregar logs:', err);
+      showMessage(`Erro ao carregar logs: ${err.message}`, 'error');
       if (typeof window.atualizarExibicaoLogsMeta === 'function') {
         window.atualizarExibicaoLogsMeta();
       }
@@ -5687,6 +5877,17 @@
       </div>
     `;
     
+    // Buscar e mostrar validades do motorista antes de confirmar
+    const cdMotorista = convocacao.CDCADASTRO_MOTORISTA;
+    if (cdMotorista) {
+      try {
+        await mostrarValidadesMotorista(cdMotorista, convocacao.NOME_MOTORISTA || 'Motorista');
+      } catch (err) {
+        console.error('Erro ao carregar validades do motorista:', err);
+        // Continuar mesmo se houver erro ao carregar validades
+      }
+    }
+    
     const confirmado = await showConfirmModal(
       '✅ Confirmar Convocação',
       mensagemCompleta
@@ -5761,6 +5962,283 @@
       showMessage('Erro ao confirmar convocação: ' + err.message, 'error');
     }
   };
+
+  // Mostrar validades do motorista
+  window.mostrarValidadesMotorista = async function(cdMotorista, nomeMotorista) {
+    const modal = document.getElementById('modalValidadesMotorista');
+    const conteudo = document.getElementById('modalValidadesMotoristaConteudo');
+    const subtitulo = document.getElementById('modalValidadesMotoristaSubtitulo');
+    const titulo = document.querySelector('#modalValidadesMotorista h3');
+    
+    if (!modal || !conteudo) {
+      console.error('Modal de validades não encontrado');
+      return;
+    }
+    
+    // Configurar event listeners do botão fechar (garantir que funcione)
+    const btnFechar = document.getElementById('btnFecharModalValidadesMotorista');
+    if (btnFechar) {
+      // Remover listeners anteriores para evitar duplicação
+      const novoBtnFechar = btnFechar.cloneNode(true);
+      btnFechar.parentNode.replaceChild(novoBtnFechar, btnFechar);
+      
+      // Adicionar novo listener
+      novoBtnFechar.addEventListener('click', () => {
+        modal.style.display = 'none';
+      });
+    }
+    
+    // Fechar ao clicar fora do modal
+    const fecharAoClicarFora = (e) => {
+      if (e.target === modal) {
+        modal.style.display = 'none';
+        modal.removeEventListener('click', fecharAoClicarFora);
+      }
+    };
+    modal.addEventListener('click', fecharAoClicarFora);
+    
+    // Atualizar título e subtítulo
+    if (titulo) {
+      titulo.textContent = '📋 Validades do Motorista';
+    }
+    if (subtitulo) {
+      subtitulo.textContent = `${nomeMotorista} • Código: ${cdMotorista}`;
+    }
+    
+    // Mostrar modal
+    modal.style.display = 'flex';
+    
+    // Mostrar loading
+    conteudo.innerHTML = '<div style="text-align: center; padding: 40px; color: #6c757d;">Carregando validades...</div>';
+    
+    try {
+      // Buscar validades do motorista (tipo MOT = Motorista)
+      const response = await fetch(`/api/validades/MOT/${cdMotorista}`);
+      
+      if (!response.ok) {
+        throw new Error(`Erro ao buscar validades: ${response.status}`);
+      }
+      
+      const validades = await response.json();
+      
+      // Renderizar validades
+      if (!validades || validades.length === 0) {
+        conteudo.innerHTML = `
+          <div style="text-align: center; padding: 40px; color: #6c757d;">
+            <p style="font-size: 16px; margin-bottom: 10px;">📋 Nenhuma validade cadastrada para este motorista.</p>
+            <p style="font-size: 13px; color: #95a5a6;">Este motorista não possui validades cadastradas no sistema.</p>
+          </div>
+        `;
+        return;
+      }
+      
+      let html = '<div style="display: grid; gap: 12px;">';
+      
+      validades.forEach(val => {
+        const dtLib = new Date(val.DTLIBERACAO).toLocaleDateString('pt-BR');
+        const dtVal = new Date(val.DTVALIDADE).toLocaleDateString('pt-BR');
+        const dias = val.DIAS_RESTANTES;
+        
+        let corStatus = '#27ae60';
+        let textoStatus = `✓ Válida (${dias} dias)`;
+        
+        if (val.STATUS_VALIDADE === 'VENCIDA') {
+          corStatus = '#e74c3c';
+          textoStatus = `✗ VENCIDA (${Math.abs(dias)} dias atrás)`;
+        } else if (val.STATUS_VALIDADE === 'VENCENDO') {
+          corStatus = '#f39c12';
+          textoStatus = `⚠ Vencendo (${dias} dias)`;
+        }
+        
+        html += `
+          <div style="background: #fff; border: 1px solid #dee2e6; border-left: 4px solid ${corStatus}; border-radius: 6px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <div style="flex: 1;">
+                <strong style="font-size: 15px; color: #2c3e50; display: block; margin-bottom: 6px;">${val.DSTIPOVALIDADE}</strong>
+                <div style="font-size: 12px; color: #6c757d;">
+                  <span style="background: ${corStatus}; color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-right: 8px;">
+                    ${textoStatus}
+                  </span>
+                  <span>Nº <strong>${val.NRLIBERACAO}</strong></span>
+                  ${val.CERTIFICADORA_NOME ? ` • Certif: <strong>${val.CERTIFICADORA_NOME}</strong>` : ''}
+                </div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 20px; padding-top: 10px; border-top: 1px solid #f0f0f0; font-size: 12px;">
+              <div>
+                <span style="color: #95a5a6;">📅 Liberação:</span> <strong style="color: #2c3e50;">${dtLib}</strong>
+              </div>
+              <div>
+                <span style="color: #95a5a6;">⏰ Validade:</span> <strong style="color: ${corStatus};">${dtVal}</strong>
+              </div>
+              ${val.DSLIBERACAO ? `<div style="flex: 1;"><span style="color: #95a5a6;">📝 Obs:</span> <strong style="color: #6c757d;">${val.DSLIBERACAO}</strong></div>` : ''}
+            </div>
+          </div>
+        `;
+      });
+      
+      html += '</div>';
+      conteudo.innerHTML = html;
+      
+    } catch (err) {
+      console.error('Erro ao carregar validades:', err);
+      conteudo.innerHTML = `
+        <div style="text-align: center; padding: 40px; color: #e74c3c;">
+          <p style="font-size: 16px; margin-bottom: 10px;">❌ Erro ao carregar validades</p>
+          <p style="font-size: 13px; color: #95a5a6;">${err.message || 'Não foi possível carregar as validades do motorista.'}</p>
+        </div>
+      `;
+    }
+  };
+  
+  // Mostrar validades do veículo
+  window.mostrarValidadesVeiculo = async function(idequipamento, nomeVeiculo) {
+    const modal = document.getElementById('modalValidadesMotorista');
+    const conteudo = document.getElementById('modalValidadesMotoristaConteudo');
+    const subtitulo = document.getElementById('modalValidadesMotoristaSubtitulo');
+    const titulo = document.querySelector('#modalValidadesMotorista h3');
+    
+    if (!modal || !conteudo) {
+      console.error('Modal de validades não encontrado');
+      return;
+    }
+    
+    // Configurar event listeners do botão fechar (garantir que funcione)
+    const btnFechar = document.getElementById('btnFecharModalValidadesMotorista');
+    if (btnFechar) {
+      // Remover listeners anteriores para evitar duplicação
+      const novoBtnFechar = btnFechar.cloneNode(true);
+      btnFechar.parentNode.replaceChild(novoBtnFechar, btnFechar);
+      
+      // Adicionar novo listener
+      novoBtnFechar.addEventListener('click', () => {
+        modal.style.display = 'none';
+      });
+    }
+    
+    // Fechar ao clicar fora do modal
+    const fecharAoClicarFora = (e) => {
+      if (e.target === modal) {
+        modal.style.display = 'none';
+        modal.removeEventListener('click', fecharAoClicarFora);
+      }
+    };
+    modal.addEventListener('click', fecharAoClicarFora);
+    
+    // Atualizar título e subtítulo
+    if (titulo) {
+      titulo.textContent = '📋 Validades do Veículo';
+    }
+    if (subtitulo) {
+      subtitulo.textContent = `${nomeVeiculo} • Código: ${idequipamento}`;
+    }
+    
+    // Mostrar modal
+    modal.style.display = 'flex';
+    
+    // Mostrar loading
+    conteudo.innerHTML = '<div style="text-align: center; padding: 40px; color: #6c757d;">Carregando validades...</div>';
+    
+    try {
+      // Buscar validades do veículo (tipo EQP = Equipamento)
+      const response = await fetch(`/api/validades/EQP/${idequipamento}`);
+      
+      if (!response.ok) {
+        throw new Error(`Erro ao buscar validades: ${response.status}`);
+      }
+      
+      const validades = await response.json();
+      
+      // Renderizar validades
+      if (!validades || validades.length === 0) {
+        conteudo.innerHTML = `
+          <div style="text-align: center; padding: 40px; color: #6c757d;">
+            <p style="font-size: 16px; margin-bottom: 10px;">📋 Nenhuma validade cadastrada para este veículo.</p>
+            <p style="font-size: 13px; color: #95a5a6;">Este veículo não possui validades cadastradas no sistema.</p>
+          </div>
+        `;
+        return;
+      }
+      
+      let html = '<div style="display: grid; gap: 12px;">';
+      
+      validades.forEach(val => {
+        const dtLib = new Date(val.DTLIBERACAO).toLocaleDateString('pt-BR');
+        const dtVal = new Date(val.DTVALIDADE).toLocaleDateString('pt-BR');
+        const dias = val.DIAS_RESTANTES;
+        
+        let corStatus = '#27ae60';
+        let textoStatus = `✓ Válida (${dias} dias)`;
+        
+        if (val.STATUS_VALIDADE === 'VENCIDA') {
+          corStatus = '#e74c3c';
+          textoStatus = `✗ VENCIDA (${Math.abs(dias)} dias atrás)`;
+        } else if (val.STATUS_VALIDADE === 'VENCENDO') {
+          corStatus = '#f39c12';
+          textoStatus = `⚠ Vencendo (${dias} dias)`;
+        }
+        
+        html += `
+          <div style="background: #fff; border: 1px solid #dee2e6; border-left: 4px solid ${corStatus}; border-radius: 6px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <div style="flex: 1;">
+                <strong style="font-size: 15px; color: #2c3e50; display: block; margin-bottom: 6px;">${val.DSTIPOVALIDADE}</strong>
+                <div style="font-size: 12px; color: #6c757d;">
+                  <span style="background: ${corStatus}; color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-right: 8px;">
+                    ${textoStatus}
+                  </span>
+                  <span>Nº <strong>${val.NRLIBERACAO}</strong></span>
+                  ${val.CERTIFICADORA_NOME ? ` • Certif: <strong>${val.CERTIFICADORA_NOME}</strong>` : ''}
+                </div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 20px; padding-top: 10px; border-top: 1px solid #f0f0f0; font-size: 12px;">
+              <div>
+                <span style="color: #95a5a6;">📅 Liberação:</span> <strong style="color: #2c3e50;">${dtLib}</strong>
+              </div>
+              <div>
+                <span style="color: #95a5a6;">⏰ Validade:</span> <strong style="color: ${corStatus};">${dtVal}</strong>
+              </div>
+              ${val.DSLIBERACAO ? `<div style="flex: 1;"><span style="color: #95a5a6;">📝 Obs:</span> <strong style="color: #6c757d;">${val.DSLIBERACAO}</strong></div>` : ''}
+            </div>
+          </div>
+        `;
+      });
+      
+      html += '</div>';
+      conteudo.innerHTML = html;
+      
+    } catch (err) {
+      console.error('Erro ao carregar validades:', err);
+      conteudo.innerHTML = `
+        <div style="text-align: center; padding: 40px; color: #e74c3c;">
+          <p style="font-size: 16px; margin-bottom: 10px;">❌ Erro ao carregar validades</p>
+          <p style="font-size: 13px; color: #95a5a6;">${err.message || 'Não foi possível carregar as validades do veículo.'}</p>
+        </div>
+      `;
+    }
+  };
+
+  // Event listener para fechar modal de validades (backup caso o modal já exista no DOM)
+  document.addEventListener('DOMContentLoaded', () => {
+    const btnFechar = document.getElementById('btnFecharModalValidadesMotorista');
+    const modal = document.getElementById('modalValidadesMotorista');
+    
+    if (btnFechar && modal) {
+      btnFechar.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        modal.style.display = 'none';
+      });
+      
+      // Fechar ao clicar fora do modal
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+          modal.style.display = 'none';
+        }
+      });
+    }
+  });
 
   // Reativar convocação (reverter CONFIRMADA ou ACEITA_DESCARTADA para ACEITA)
   window.reativarConvocacao = async function(idConvocacao) {
@@ -7107,6 +7585,13 @@
       btnVerDados.innerHTML = '👁️ Ver Dados';
       btnVerDados.onclick = () => mostrarDadosCompletosVeiculo(veiculo);
       
+      const btnValidades = document.createElement('button');
+      btnValidades.type = 'button';
+      btnValidades.className = 'btn';
+      btnValidades.style.cssText = 'padding: 8px 15px; white-space: nowrap; background: #667eea; color: white;';
+      btnValidades.innerHTML = '📋 Validades';
+      btnValidades.onclick = () => mostrarValidadesVeiculo(veiculo.IDEQUIPAMENTO, veiculo.REFEQUIPAMENTO || veiculo.DSEQUIPAMENTO || 'Veículo');
+      
       const btnRemover = document.createElement('button');
       btnRemover.type = 'button';
       btnRemover.className = 'btn cancel';
@@ -7115,6 +7600,7 @@
       btnRemover.onclick = () => removerVeiculoViagem(veiculo.IDVIAGEM, veiculo.IDEQUIPAMENTO);
       
       btnContainer.appendChild(btnVerDados);
+      btnContainer.appendChild(btnValidades);
       btnContainer.appendChild(btnRemover);
       
       card.appendChild(info);
@@ -7845,14 +8331,24 @@
       btnVerDados.innerHTML = '👁️ Ver Dados';
       btnVerDados.onclick = () => mostrarDadosCompletosMotorista(motorista);
       
+      const btnValidades = document.createElement('button');
+      btnValidades.type = 'button';
+      btnValidades.className = 'btn';
+      btnValidades.style.cssText = 'padding: 8px 15px; white-space: nowrap; background: #667eea; color: white;';
+      btnValidades.innerHTML = '📋 Validades';
+      const cdMotorista = motorista.CDMOTORISTA || motorista.CDCADASTROGERAL;
+      const nomeMotorista = motorista.RZSOCIAL || motorista.NMFANTASIA || 'Motorista';
+      btnValidades.onclick = () => mostrarValidadesMotorista(cdMotorista, nomeMotorista);
+      
       const btnRemover = document.createElement('button');
       btnRemover.type = 'button';
       btnRemover.className = 'btn cancel';
       btnRemover.style.cssText = 'padding: 8px 15px; white-space: nowrap;';
       btnRemover.innerHTML = '🗑️ Remover';
-      btnRemover.onclick = () => removerMotoristaViagem(motorista.IDVIAGEM, motorista.CDMOTORISTA || motorista.CDCADASTROGERAL);
+      btnRemover.onclick = () => removerMotoristaViagem(motorista.IDVIAGEM, cdMotorista);
       
       btnContainer.appendChild(btnVerDados);
+      btnContainer.appendChild(btnValidades);
       btnContainer.appendChild(btnRemover);
       
       card.appendChild(info);

@@ -8,6 +8,64 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
         crossorigin=""/>
+  <style>
+    /* Overlay de carregamento do mapa */
+    #mapaLoadingOverlay {
+      background: rgba(0, 0, 0, 0.75);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(2px);
+    }
+    
+    #mapaLoadingOverlay .calculando-content {
+      background: white;
+      padding: 30px 40px;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+      text-align: center;
+      max-width: 350px;
+      animation: slideUp 0.3s ease-out;
+    }
+    
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    #mapaLoadingOverlay .calculando-spinner {
+      width: 50px;
+      height: 50px;
+      border: 5px solid #e0e0e0;
+      border-top-color: #1a2a6c;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    #mapaLoadingOverlay h3 {
+      margin: 0 0 10px 0;
+      color: #333;
+      font-size: 1.2em;
+    }
+    
+    #mapaLoadingOverlay p {
+      margin: 0;
+      color: #666;
+      font-size: 0.95em;
+    }
+  </style>
 </head>
 <body>
   <div class="modulo-container">
@@ -318,7 +376,17 @@
         <p style="margin-bottom: 20px; color: #666;">
           <i class='bx bx-info-circle'></i> Selecione as cidades de origem e destino na aba "Dados" para visualizar a rota no mapa.
         </p>
-        <div id="mapaRota" style="height: 600px; width: 100%; border: 2px solid #ddd; border-radius: 8px; background: #f5f5f5;"></div>
+        <div style="position: relative;">
+          <div id="mapaRota" style="height: 600px; width: 100%; border: 2px solid #ddd; border-radius: 8px; background: #f5f5f5;"></div>
+          <!-- Overlay de carregamento do mapa -->
+          <div id="mapaLoadingOverlay" class="calculando-overlay" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 8px;">
+            <div class="calculando-content">
+              <div class="calculando-spinner"></div>
+              <h3 id="mapaLoadingTitle">Carregando Mapa</h3>
+              <p id="mapaLoadingText">Preparando visualização da rota...</p>
+            </div>
+          </div>
+        </div>
         <div style="margin-top: 15px; display: flex; gap: 20px; align-items: center; flex-wrap: wrap;">
           <div style="display: flex; align-items: center; gap: 8px;">
             <div style="width: 20px; height: 20px; background: #2ecc71; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px;">🏁</div>

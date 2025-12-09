@@ -41,6 +41,45 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('docLink')?.addEventListener('click', () => {
       window.open('/css/documentacao-modulos.html', '_blank');
     });
+
+    // Inicializar toggle do menu
+    initMenuToggle();
+  };
+
+  // Função para inicializar o toggle do menu
+  const initMenuToggle = () => {
+    const sidebar = document.querySelector('.sidebar');
+    const main = document.querySelector('.main');
+    const toggleBtn = document.getElementById('toggleMenuBtn');
+    const toggleIcon = toggleBtn?.querySelector('i');
+
+    // Verificar estado salvo no localStorage
+    const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+    if (isCollapsed) {
+      sidebar?.classList.add('collapsed');
+      main?.classList.add('sidebar-collapsed');
+      if (toggleIcon) {
+        toggleIcon.className = 'bx bx-chevron-right';
+      }
+    }
+
+    // Adicionar evento de clique no botão
+    toggleBtn?.addEventListener('click', () => {
+      sidebar?.classList.toggle('collapsed');
+      main?.classList.toggle('sidebar-collapsed');
+      
+      // Atualizar ícone
+      if (toggleIcon) {
+        if (sidebar?.classList.contains('collapsed')) {
+          toggleIcon.className = 'bx bx-chevron-right';
+        } else {
+          toggleIcon.className = 'bx bx-chevron-left';
+        }
+      }
+
+      // Salvar estado no localStorage
+      localStorage.setItem('sidebarCollapsed', sidebar?.classList.contains('collapsed') ? 'true' : 'false');
+    });
   };
 
   const loadUserMenu = async (userLogin) => {
