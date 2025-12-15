@@ -101,18 +101,27 @@ Após configurar o linked server:
 
 ## 🐛 Troubleshooting
 
+### Erro: "You cannot specify a provider or any properties for product 'SQL Server'"
+
+**Causa:** Quando `@srvproduct = 'SQL Server'`, o SQL Server não permite especificar provider ou datasrc.
+
+**Solução:** O script foi corrigido para usar `@srvproduct = ''` (vazio) quando especificamos provider e datasrc.
+
 ### Erro: "Cannot open server 'INTEGRA_PRD'"
 
 - Verifique se o linked server foi criado: `SELECT * FROM sys.servers WHERE name = 'INTEGRA_PRD'`
 - Verifique as credenciais no linked server
 - Teste a conectividade de rede entre os servidores
+- Execute: `EXEC sp_helpserver 'INTEGRA_PRD'` para ver detalhes
 
 ### Erro: "Login failed for user"
 
 - Verifique se o usuário `sa` e senha estão corretos no INTEGRA_PRD
 - Verifique se o SQL Server do INTEGRA_PRD permite autenticação SQL Server
+- Verifique se o firewall permite conexão na porta 35987
 
 ### Erro: "Timeout"
 
 - Aumente o timeout nas opções do linked server
 - Verifique a latência de rede entre os servidores
+- Verifique se o servidor remoto está acessível: `telnet 186.250.92.131 35987`
