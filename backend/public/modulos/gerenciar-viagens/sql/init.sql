@@ -2,7 +2,6 @@
 -- Executar Sincronização via Stored Procedure
 -- IMPORTANTE: Ordem de execução respeita dependências de chaves estrangeiras
 -- ============================================
-
 -- 1. Primeiro: Tabelas base sem dependências
 EXEC [dbo].[SP_INTGRACAO_TIPOVALIDADE]; -- OK (deve vir antes de TIPOVIAGEM)
 EXEC [dbo].[SP_INTGRACAO_VALIDADE]; -- OK (CORRIGIDA: agora filtra apenas CDTIPOVALIDADE válidos)

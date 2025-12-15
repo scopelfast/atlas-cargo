@@ -31,19 +31,86 @@ const usuariologacaoRoutes = require('./routes/usuariologacao.routes');
 
 const app = express();
 
+// Configurar trust proxy para capturar IP real quando há proxy reverso (nginx, etc)
+// Isso permite que req.ip funcione corretamente com X-Forwarded-For
+app.set('trust proxy', true);
+
 // Middleware de segurança
 // Em desenvolvimento, desabilitar headers que requerem HTTPS ou localhost
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
-app.use(helmet({
-  contentSecurityPolicy: false, // Desabilitado para evitar problemas com estilos em produção
-  // Desabilitar headers que causam problemas com HTTP em IPs locais
-  crossOriginOpenerPolicy: false,
-  crossOriginEmbedderPolicy: false,
-  originAgentCluster: false,
-  // CRÍTICO: Desabilitar HSTS que força HTTPS
-  strictTransportSecurity: false
-}));
+// Configuração do Helmet - CSP mais permissivo em desenvolvimento
+const helmetConfig = {
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: [
+        "'self'",
+        "'unsafe-inline'",
+        "https://fonts.googleapis.com"
+      ],
+      styleSrcElem: [
+        "'self'",
+        "'unsafe-inline'",
+        "https://fonts.googleapis.com",
+        "https://unpkg.com" // Para Leaflet CSS
+      ],
+      fontSrc: [
+        "'self'",
+        "https://fonts.gstatic.com",
+        "https://cdn.jsdelivr.net", // Para fontes do boxicons
+        "data:"
+      ],
+      scriptSrc: [
+        "'self'",
+        "'unsafe-inline'",
+        "'unsafe-eval'",
+        "https://cdn.jsdelivr.net",
+        "https://unpkg.com" // Para Leaflet JS
+      ],
+      scriptSrcAttr: [
+        "'unsafe-inline'" // Permitir event handlers inline (onclick, onload, etc)
+      ],
+      imgSrc: [
+        "'self'",
+        "data:",
+        "https:",
+        "blob:"
+      ],
+      connectSrc: [
+        "'self'",
+        "http://localhost:*",
+        "ws://localhost:*",
+        "http://127.0.0.1:*",
+        "http://192.168.1.173:*", // IP específico da rede local
+        "https://fonts.googleapis.com",
+        "https://fonts.gstatic.com",
+        "https://cdn.jsdelivr.net",
+        "https://router.project-osrm.org", // Para cálculo de rotas no mapa
+        "https://unpkg.com", // Para Leaflet source maps
+        "https://nominatim.openstreetmap.org" // Para geocodificação reversa
+      ],
+      formAction: [
+        "'self'",
+        "http://localhost:*",
+        "http://127.0.0.1:*",
+        "http://192.168.1.173:*" // IP específico da rede local
+      ],
+      frameSrc: ["'self'"],
+      objectSrc: ["'none'"]
+    }
+  }
+};
+
+// Em desenvolvimento, desabilitar headers restritivos
+if (isDevelopment) {
+  helmetConfig.crossOriginOpenerPolicy = false;
+  helmetConfig.crossOriginEmbedderPolicy = false;
+  helmetConfig.originAgentCluster = false;
+  helmetConfig.strictTransportSecurity = false;
+}
+
+app.use(helmet(helmetConfig));
 
 // Middleware para garantir que não haja upgrade para HTTPS em desenvolvimento
 if (isDevelopment) {
@@ -61,7 +128,81 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+// Rotas de API (ANTES do express.static para garantir prioridade)
+app.use('/api/auth', authRoutes);
+app.use('/api/menu', menuRoutes);
+app.use('/api', marcasRoutes); 
+app.use('/api', grupoRoutes);
+app.use('/api', classeFrotaRoutes);
+app.use('/api', tipoViagemRoutes);
+app.use('/api', situacaoViagemRoutes);
+app.use('/api', tipoEquipamentoRoutes);
+app.use('/api', modeloEquipamentoRoutes);
+app.use('/api', equipamentoRoutes);
+app.use('/api', cidadesRoutes);
+app.use('/api', roteirosRoutes);
+app.use('/api', estadosRoutes);
+app.use('/api', cadastroGeralRoutes);
+app.use('/api', viagemRoutes);
+app.use('/api', tipoValidadeRoutes);
+app.use('/api', controleValidadeRoutes);
+app.use('/api', empresaRoutes);
+app.use('/api', filialRoutes);
+app.use('/api/relatorio-convocacoes', relatorioConvocacoesRoutes);
+app.use('/api', usuarioRoutes);
+app.use('/api', tipoAtividadeRoutes);
+app.use('/api/motorista', motoristaAppRoutes);
+app.use('/api/log', usuariologacaoRoutes);
+
+// Rotas específicas de páginas HTML (ANTES do express.static)
+// Rota pública para motorista responder convocação
+app.get('/convocacao/:id', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'convocacao.html'));
+});
+
+// Rota para página de teste mobile
+app.get('/teste-mobile', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'teste-mobile.html'));
+});
+
+// Rota para dashboard
+app.get('/dashboard', (req, res) => {
+  // Adicionar headers para garantir que não há cache
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+
+// Rota alternativa para dashboard.html (compatibilidade)
+app.get('/dashboard.html', (req, res) => {
+  // Adicionar headers para garantir que não há cache
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
+});
+
+// Rota para login: serve o index.html (login)
+app.get('/login', (req, res) => {
+  // Adicionar headers para garantir que não há cache
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Rota raiz: serve o index.html (login)
+app.get('/', (req, res) => {
+  // Adicionar headers para garantir que não há cache
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // Servir arquivos estáticos da pasta 'public'
+// IMPORTANTE: Colocado DEPOIS das rotas específicas para não interferir
 // Configurar headers corretos para arquivos estáticos
 const fs = require('fs');
 app.use(express.static(path.join(__dirname, 'public'), {
@@ -117,42 +258,6 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
-// Rotas de API (sempre ANTES do fallback)
-app.use('/api/auth', authRoutes);
-app.use('/api/menu', menuRoutes);
-app.use('/api', marcasRoutes); 
-app.use('/api', grupoRoutes);
-app.use('/api', classeFrotaRoutes);
-app.use('/api', tipoViagemRoutes);
-app.use('/api', situacaoViagemRoutes);
-app.use('/api', tipoEquipamentoRoutes);
-app.use('/api', modeloEquipamentoRoutes);
-app.use('/api', equipamentoRoutes);
-app.use('/api', cidadesRoutes);
-app.use('/api', roteirosRoutes);
-app.use('/api', estadosRoutes);
-app.use('/api', cadastroGeralRoutes);
-app.use('/api', viagemRoutes);
-app.use('/api', tipoValidadeRoutes);
-app.use('/api', controleValidadeRoutes);
-app.use('/api', empresaRoutes);
-app.use('/api', filialRoutes);
-app.use('/api/relatorio-convocacoes', relatorioConvocacoesRoutes);
-app.use('/api', usuarioRoutes);
-app.use('/api', tipoAtividadeRoutes);
-app.use('/api/motorista', motoristaAppRoutes);
-app.use('/api/log', usuariologacaoRoutes);
-
-// Rota pública para motorista responder convocação
-app.get('/convocacao/:id', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'convocacao.html'));
-});
-
-// Rota para página de teste mobile
-app.get('/teste-mobile', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'teste-mobile.html'));
-});
-
 // Rota de teste para verificar se arquivos estáticos estão sendo servidos
 app.get('/test-css', (req, res) => {
   const cssPath = path.join(__dirname, 'public', 'css', 'style.css');
@@ -161,20 +266,6 @@ app.get('/test-css', (req, res) => {
       res.status(404).send(`CSS não encontrado: ${cssPath}`);
     }
   });
-});
-
-// Rota para dashboard
-app.get('/dashboard', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
-});
-
-// Rota raiz: serve o index.html (login)
-app.get('/', (req, res) => {
-  // Adicionar headers para garantir que não há cache
-  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Qualquer outra rota não encontrada → redireciona para frontend (SPA-friendly)

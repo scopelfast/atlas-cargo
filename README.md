@@ -1,7 +1,7 @@
 # 🚚 DivulgaCarga - Sistema de Gestão de Transportes
 
-**Versão:** 1.2.0  
-**Data:** 2025-11-28  
+**Versão:** 1.4.0  
+**Data:** 2025-01-XX  
 **Status:** ✅ Produção
 
 ---
@@ -39,10 +39,14 @@ O **DivulgaCarga** é um sistema completo de gestão de transportes desenvolvido
 - ✅ **Reativação de Convocações**: Sistema para reativar convocações confirmadas
 - ✅ **Histórico de Reabertura**: Rastreamento completo de reaberturas de convocações
 - ✅ **Cadastro Geral**: Gestão completa de motoristas, transportadores e contratadores
+  - Exportação para Excel com todos os dados e tabelas auxiliares
+- ✅ **Equipamentos**: Gerenciamento completo de equipamentos e veículos
+  - Exportação para Excel com todos os dados e tabelas auxiliares
 - ✅ **Roteiros**: Gerenciamento de rotas e pontos de parada
 - ✅ **Relatórios**: Análise de convocações e estatísticas
 - ✅ **Links WhatsApp**: Geração automática de links para envio manual via WhatsApp Web
 - ✅ **Visualização de Dados**: Modais estilizados para visualização completa de informações
+- ✅ **Exportação Excel**: Exportação de dados para Excel em múltiplos módulos
 
 ### Tecnologias Utilizadas
 
@@ -78,15 +82,27 @@ O **DivulgaCarga** é um sistema completo de gestão de transportes desenvolvido
 
 3. **Configure o arquivo `.env`**
    ```env
-   DB_SERVER=seu-servidor-sql
-   DB_DATABASE=nome-do-banco
-   DB_USER=usuario
-   DB_PASSWORD=senha
-   DB_PORT=1433
+   # Banco Principal - DIVULGACARGA_PRD
+   DB_SERVER=200.98.128.159
+   DB_PORT=35987
+   DB_DATABASE=DIVULGACARGA_PRD
+   DB_USER=sa
+   DB_PASSWORD=!ntegr@SQL2014
+   
+   # Banco de Migração - INTEGRA_PRD (opcional)
+   INTEGRA_DB_SERVER=186.250.92.131
+   INTEGRA_DB_PORT=35987
+   INTEGRA_DB_DATABASE=INTEGRA_PRD
+   INTEGRA_DB_USER=sa
+   INTEGRA_DB_PASSWORD=SistMSQLServer2025&*
+   
+   # Outras configurações
    JWT_SECRET=sua-chave-secreta-jwt
    PUBLIC_URL=https://seu-dominio.com.br
    PORT=3000
    ```
+   
+   **📝 Nota:** Veja `backend/CONFIGURACAO_BANCOS.md` para mais detalhes sobre configuração de bancos.
 
 4. **Inicie o servidor**
    ```bash

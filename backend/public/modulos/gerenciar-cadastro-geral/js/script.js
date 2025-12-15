@@ -161,9 +161,22 @@
               'duplicate',
               'duplicado',
               'there is already',
-              'já há'
+              'já há',
+              'cannot be opened',
+              'não pode ser aberto',
+              'is offline',
+              'está offline',
+              'database.*offline',
+              'banco.*offline'
             ];
-            return !errosEsperados.some(esperado => mensagem.includes(esperado));
+            return !errosEsperados.some(esperado => {
+              // Suportar tanto string simples quanto regex
+              if (esperado.includes('*')) {
+                const regex = new RegExp(esperado.replace(/\*/g, '.*'), 'i');
+                return regex.test(mensagem);
+              }
+              return mensagem.includes(esperado);
+            });
           });
           
           if (errosReais.length > 0) {
@@ -1703,6 +1716,75 @@
     document.getElementById('cadastroCodigoCidade').value = '';
     document.getElementById('formTitle').textContent = 'Novo Cadastro Geral';
     showTab('dados');
+  });
+
+  // Exportar para Excel
+  document.getElementById('btnExportarExcel')?.addEventListener('click', async () => {
+    try {
+      // Mostrar mensagem de carregamento
+      showMessage('Gerando arquivo Excel...', 'info');
+      
+      // Coletar os mesmos filtros aplicados
+      const params = new URLSearchParams();
+      const codigo = document.getElementById('filtroCodigo')?.value;
+      const cgccpf = document.getElementById('filtroCGCCPF')?.value;
+      const razaoSocial = document.getElementById('filtroRazaoSocial')?.value;
+      const transportador = document.getElementById('filtroTransportador')?.value;
+      const tipoPessoa = document.getElementById('filtroTipoPessoa')?.value;
+      const estado = document.getElementById('filtroEstado')?.value;
+      const cidade = document.getElementById('filtroCidade')?.value;
+      const celular = document.getElementById('filtroCelular')?.value;
+      const email = document.getElementById('filtroEmail')?.value;
+      const situacao = document.getElementById('filtroSituacao')?.value;
+      const tipoCadastro = document.getElementById('filtroTipoCadastro')?.value;
+      
+      if (codigo) params.append('codigo', codigo);
+      if (cgccpf) {
+        const cgccpfRaw = cgccpf.replace(/\D/g, '');
+        if (cgccpfRaw && cgccpfRaw.length > 0) {
+          const cgccpfCompleto = cgccpfRaw.length <= 11 
+            ? cgccpfRaw.padStart(11, '0') 
+            : cgccpfRaw.padStart(14, '0');
+          params.append('cgccpf', cgccpfCompleto);
+        }
+      }
+      if (razaoSocial) params.append('razaoSocial', razaoSocial);
+      if (transportador) params.append('transportador', transportador);
+      if (tipoPessoa) params.append('tipoPessoa', tipoPessoa);
+      if (estado) params.append('cidadeEstado', estado);
+      if (cidade) params.append('cidadeNome', cidade);
+      if (celular) params.append('celular', celular.replace(/\D/g, ''));
+      if (email) params.append('email', email);
+      if (situacao) params.append('situacao', situacao);
+      if (tipoCadastro) params.append('tipoCadastro', tipoCadastro);
+      const rastreado = document.getElementById('filtroRastreado')?.value;
+      if (rastreado) params.append('rastreado', rastreado);
+      
+      // Fazer requisição para exportar
+      const response = await fetch(`/api/cadastros-gerais/exportar-excel?${params.toString()}`);
+      
+      if (!response.ok) {
+        throw new Error('Erro ao gerar arquivo Excel');
+      }
+      
+      // Obter o blob do arquivo
+      const blob = await response.blob();
+      
+      // Criar link de download
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `cadastros-gerais-${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      showMessage('Arquivo Excel gerado com sucesso!', 'success');
+    } catch (err) {
+      console.error('Erro ao exportar para Excel:', err);
+      showMessage('Erro ao exportar para Excel. Tente novamente.', 'error');
+    }
   });
   
   // Eventos de abas

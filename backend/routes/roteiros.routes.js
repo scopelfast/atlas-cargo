@@ -1,8 +1,9 @@
 // backend/routes/roteiros.routes.js
 // Gerenciar Roteiros - API
-// Versão: 1.0
+// Versão: 1.3
 // Autor: Sistema DivulgaCarga
-// Data: 2025-04-05
+// Data: 2025-01-13
+// Última atualização: Adicionado suporte ao campo RESUMOROTA
 
 const express = require('express');
 const sql = require('mssql');
@@ -41,7 +42,8 @@ router.get('/roteiros', async (req, res) => {
         co.NMCIDADE AS ORIGEM_CIDADE,
         r.CDCIDADEDESTINO,
         cd.ESTADO AS DESTINO_ESTADO,
-        cd.NMCIDADE AS DESTINO_CIDADE
+        cd.NMCIDADE AS DESTINO_CIDADE,
+        r.RESUMOROTA
     `;
     
     if (temFGACTIVE) {
@@ -98,7 +100,8 @@ router.get('/roteiros', async (req, res) => {
         ORIGEM_CIDADE: r.ORIGEM_CIDADE,
         CDCIDADEDESTINO: r.CDCIDADEDESTINO,
         DESTINO_ESTADO: r.DESTINO_ESTADO,
-        DESTINO_CIDADE: r.DESTINO_CIDADE
+        DESTINO_CIDADE: r.DESTINO_CIDADE,
+        RESUMOROTA: r.RESUMOROTA || null
       };
       
       // Adicionar FGACTIVE se existir no resultado
@@ -145,7 +148,8 @@ router.get('/roteiros/:id', async (req, res) => {
         co.NMCIDADE AS ORIGEM_CIDADE,
         r.CDCIDADEDESTINO,
         cd.ESTADO AS DESTINO_ESTADO,
-        cd.NMCIDADE AS DESTINO_CIDADE
+        cd.NMCIDADE AS DESTINO_CIDADE,
+        r.RESUMOROTA
     `;
     
     if (temFGACTIVE) {
@@ -178,7 +182,8 @@ router.get('/roteiros/:id', async (req, res) => {
       ORIGEM_CIDADE: r.ORIGEM_CIDADE,
       CDCIDADEDESTINO: r.CDCIDADEDESTINO,
       DESTINO_ESTADO: r.DESTINO_ESTADO,
-      DESTINO_CIDADE: r.DESTINO_CIDADE
+      DESTINO_CIDADE: r.DESTINO_CIDADE,
+      RESUMOROTA: r.RESUMOROTA || null
     };
     
     if (temFGACTIVE && r.FGACTIVE !== undefined) {
@@ -201,7 +206,8 @@ router.post('/roteiros', async (req, res) => {
       DSROTEIRO, 
       CDCIDADEORIGEM, 
       CDCIDADEDESTINO, 
-      DISTANCIAKM 
+      DISTANCIAKM,
+      RESUMOROTA
     } = req.body;
     
     if (!DSROTEIRO?.trim() || !CDCIDADEORIGEM || !CDCIDADEDESTINO) {
@@ -225,10 +231,25 @@ router.post('/roteiros', async (req, res) => {
     
     const temFGACTIVE = checkColumn.recordset.length > 0;
     
+    // Verificar se a tabela tem campo RESUMOROTA
+    const checkResumoColumn = await pool
+      .request()
+      .query(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'ROTEIRO' AND COLUMN_NAME = 'RESUMOROTA'
+      `);
+    
+    const temRESUMOROTA = checkResumoColumn.recordset.length > 0;
+    
     let query = `
       INSERT INTO [dbo].[ROTEIRO] (
         IDROTEIRO, DSROTEIRO, CDCIDADEORIGEM, CDCIDADEDESTINO, DISTANCIAKM,
     `;
+    
+    if (temRESUMOROTA && RESUMOROTA) {
+      query += `RESUMOROTA,`;
+    }
     
     if (temFGACTIVE) {
       query += `FGACTIVE,`;
@@ -240,6 +261,10 @@ router.post('/roteiros', async (req, res) => {
       VALUES (@IDROTEIRO, @DSROTEIRO, @CDCIDADEORIGEM, @CDCIDADEDESTINO, @DISTANCIAKM,
     `;
     
+    if (temRESUMOROTA && RESUMOROTA) {
+      query += `@RESUMOROTA,`;
+    }
+    
     if (temFGACTIVE) {
       query += `'S',`;
     }
@@ -247,14 +272,18 @@ router.post('/roteiros', async (req, res) => {
     query += `GETDATE(), 'SYSTEM', 'AppDVcargas')
     `;
 
-    await pool
-      .request()
+    const request = pool.request()
       .input('IDROTEIRO', sql.Decimal(15, 0), novoId)
       .input('DSROTEIRO', DSROTEIRO.trim())
       .input('CDCIDADEORIGEM', sql.Int, CDCIDADEORIGEM)
       .input('CDCIDADEDESTINO', sql.Int, CDCIDADEDESTINO)
-      .input('DISTANCIAKM', DISTANCIAKM ? parseFloat(DISTANCIAKM) : null)
-      .query(query);
+      .input('DISTANCIAKM', DISTANCIAKM ? parseFloat(DISTANCIAKM) : null);
+    
+    if (temRESUMOROTA && RESUMOROTA) {
+      request.input('RESUMOROTA', sql.NVarChar(sql.MAX), RESUMOROTA.trim());
+    }
+    
+    await request.query(query);
 
     res.status(201).json({ success: true, message: 'Roteiro cadastrado com sucesso!' });
   } catch (err) {
@@ -272,6 +301,7 @@ router.put('/roteiros/:id', async (req, res) => {
       CDCIDADEORIGEM, 
       CDCIDADEDESTINO, 
       DISTANCIAKM,
+      RESUMOROTA,
       FGACTIVE
     } = req.body;
 
@@ -282,16 +312,17 @@ router.put('/roteiros/:id', async (req, res) => {
     const pool = await poolPromise;
     const idNumerico = parseFloat(id);
 
-    // Verificar se a tabela tem campo FGACTIVE
+    // Verificar se a tabela tem campo FGACTIVE e RESUMOROTA
     const checkColumn = await pool
       .request()
       .query(`
         SELECT COLUMN_NAME 
         FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE TABLE_NAME = 'ROTEIRO' AND COLUMN_NAME = 'FGACTIVE'
+        WHERE TABLE_NAME = 'ROTEIRO' AND COLUMN_NAME IN ('FGACTIVE', 'RESUMOROTA')
       `);
     
-    const temFGACTIVE = checkColumn.recordset.length > 0;
+    const temFGACTIVE = checkColumn.recordset.some(r => r.COLUMN_NAME === 'FGACTIVE');
+    const temRESUMOROTA = checkColumn.recordset.some(r => r.COLUMN_NAME === 'RESUMOROTA');
     
     let query = `
       UPDATE [dbo].[ROTEIRO] 
@@ -301,6 +332,10 @@ router.put('/roteiros/:id', async (req, res) => {
         CDCIDADEDESTINO = @CDCIDADEDESTINO,
         DISTANCIAKM = @DISTANCIAKM,
     `;
+    
+    if (temRESUMOROTA && RESUMOROTA !== undefined) {
+      query += `RESUMOROTA = @RESUMOROTA,`;
+    }
     
     if (temFGACTIVE && FGACTIVE) {
       query += `FGACTIVE = @FGACTIVE,`;
@@ -319,6 +354,10 @@ router.put('/roteiros/:id', async (req, res) => {
       .input('CDCIDADEORIGEM', sql.Int, CDCIDADEORIGEM)
       .input('CDCIDADEDESTINO', sql.Int, CDCIDADEDESTINO)
       .input('DISTANCIAKM', DISTANCIAKM ? parseFloat(DISTANCIAKM) : null);
+    
+    if (temRESUMOROTA && RESUMOROTA !== undefined) {
+      request.input('RESUMOROTA', sql.NVarChar(sql.MAX), RESUMOROTA ? RESUMOROTA.trim() : null);
+    }
     
     if (temFGACTIVE && FGACTIVE) {
       request.input('FGACTIVE', sql.Char(1), FGACTIVE);

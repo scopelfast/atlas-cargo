@@ -1007,6 +1007,66 @@
     showTab('dados');
   });
 
+  // Exportar para Excel
+  document.getElementById('btnExportarExcel')?.addEventListener('click', async () => {
+    try {
+      // Mostrar mensagem de carregamento
+      if (typeof window.showMessage !== 'undefined') {
+        window.showMessage('Gerando arquivo Excel...', 'info');
+      }
+      
+      // Coletar os mesmos filtros aplicados
+      const params = new URLSearchParams();
+      const fields = [
+        {id: 'filtroIdEquipamento', param: 'idequipamento'},
+        {id: 'filtroRef', param: 'refequipamento'},
+        {id: 'filtroGrupo', param: 'cdgrupo'},
+        {id: 'filtroTipo', param: 'cdtipo'},
+        {id: 'filtroMarca', param: 'cdmarca'},
+        {id: 'filtroModelo', param: 'cdmodelo'},
+        {id: 'filtroClasse', param: 'cdclasse'},
+        {id: 'filtroAtivo', param: 'fgactive'},
+        {id: 'filtroTipoAtuacao', param: 'fgtipoatuacao'},
+        {id: 'filtroCarroceria', param: 'fgtipocarroceria'},
+        {id: 'filtroRastreado', param: 'fgrastreado'}
+      ];
+
+      fields.forEach(({id, param}) => {
+        const el = document.getElementById(id);
+        if (el && el.value) params.append(param, el.value);
+      });
+      
+      // Fazer requisição para exportar
+      const response = await fetch(`/api/equipamentos/exportar-excel?${params.toString()}`);
+      
+      if (!response.ok) {
+        throw new Error('Erro ao gerar arquivo Excel');
+      }
+      
+      // Obter o blob do arquivo
+      const blob = await response.blob();
+      
+      // Criar link de download
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `equipamentos-${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      if (typeof window.showMessage !== 'undefined') {
+        window.showMessage('Arquivo Excel gerado com sucesso!', 'success');
+      }
+    } catch (err) {
+      console.error('Erro ao exportar para Excel:', err);
+      if (typeof window.showMessage !== 'undefined') {
+        window.showMessage('Erro ao exportar para Excel. Tente novamente.', 'error');
+      }
+    }
+  });
+
   // =======================
   // ABA VALIDADES
   // =======================

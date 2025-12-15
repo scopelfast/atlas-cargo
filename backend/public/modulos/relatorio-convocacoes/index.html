@@ -135,6 +135,7 @@
       padding: 20px;
       border-radius: 8px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      min-height: 400px;
     }
 
     .grafico-container h3 {
@@ -142,6 +143,11 @@
       margin-bottom: 15px;
       color: #333;
       font-size: 18px;
+    }
+
+    .grafico-container canvas {
+      max-height: 350px !important;
+      height: 350px !important;
     }
 
     .tabela-section {
@@ -482,6 +488,13 @@
             <!-- Preenchido dinamicamente -->
           </select>
         </div>
+        <div class="filtro-item">
+          <label>Contratador</label>
+          <select id="filtroContratador">
+            <option value="">Todos</option>
+            <!-- Preenchido dinamicamente -->
+          </select>
+        </div>
       </div>
       <div class="btn-group">
         <button class="btn btn-primary" onclick="buscarRelatorio()">
@@ -596,9 +609,53 @@
 
   <!-- Cache Buster - deve ser o primeiro script -->
   <script src="/js/cache-buster.js?v=202512091200"></script>
+  <!-- Carregar Chart.js ANTES do script principal -->
+  <script>
+    // Carregar Chart.js de forma síncrona e verificar se carregou
+    (function() {
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
+      script.async = false; // Carregar de forma síncrona
+      script.onload = function() {
+        console.log('✅ Chart.js script carregado via script tag');
+        // Aguardar um pouco para garantir que Chart está disponível
+        setTimeout(() => {
+          if (typeof Chart !== 'undefined') {
+            console.log('✅ Chart.js disponível globalmente');
+            window.chartJsLoaded = true;
+          } else {
+            console.warn('⚠️ Chart.js carregado mas não disponível globalmente');
+          }
+        }, 100);
+      };
+      script.onerror = function() {
+        console.error('❌ Erro ao carregar Chart.js via script tag');
+        window.chartJsLoaded = false;
+      };
+      document.head.appendChild(script);
+    })();
+  </script>
   <!-- Carregar utils.js para ter acesso ao showMessage -->
   <script src="/js/utils.js"></script>
   <script src="/js/log-helper.js"></script>
+  <!-- Aguardar um pouco para garantir que Chart.js carregou -->
+  <script>
+    // Verificar se Chart.js está disponível antes de carregar o script principal
+    (function() {
+      let tentativas = 0;
+      const checkChart = setInterval(() => {
+        if (typeof Chart !== 'undefined') {
+          console.log('✅ Chart.js disponível antes do script principal');
+          window.chartJsReady = true;
+          clearInterval(checkChart);
+        } else if (tentativas++ > 100) { // Aumentado para 10 segundos
+          console.warn('⚠️ Chart.js ainda não disponível após 10 segundos');
+          window.chartJsReady = false;
+          clearInterval(checkChart);
+        }
+      }, 100);
+    })();
+  </script>
   <script src="/modulos/relatorio-convocacoes/js/script.js"></script>
 </body>
 </html>

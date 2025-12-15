@@ -18,7 +18,8 @@ const relatorioController = {
         idConvocacao,
         motorista,
         viagemConfirmada,
-        motivoRecusa
+        motivoRecusa,
+        contratador
       } = req.query;
 
       const pool = await poolPromise;
@@ -75,6 +76,10 @@ const relatorioController = {
       if (isValidValue(motivoRecusa) && !isNaN(motivoRecusa.trim())) {
         whereConditions.push('c.CDMOTIVORECUSA = @motivoRecusa');
       }
+      
+      if (isValidValue(contratador) && !isNaN(contratador.trim())) {
+        whereConditions.push('v.CDCONTRATADOR = @contratador');
+      }
 
       const whereClause = whereConditions.length > 0 
         ? 'WHERE ' + whereConditions.join(' AND ')
@@ -86,7 +91,7 @@ const relatorioController = {
           c.IDCONVOCACAO,
           c.IDVIAGEM,
           c.CDCADASTRO_MOTORISTA,
-          cg.RZSOCIAL AS NOME_MOTORISTA,
+          upper(cg.RZSOCIAL) AS NOME_MOTORISTA,
           c.NRCELULAR,
           c.STATUS,
           c.CDMOTIVORECUSA,
@@ -106,7 +111,7 @@ const relatorioController = {
           cd.NMCIDADE AS DESTINO_CIDADE,
           cf.DSCLASSEFROTA,
           tv.DSTIPOVIAGEM,
-          cg_contratador.RZSOCIAL AS CONTRATADOR,
+          upper(cg_contratador.RZSOCIAL) AS CONTRATADOR,
           v.VLFRETE,
           CASE 
             WHEN EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] c2 WHERE c2.IDVIAGEM = c.IDVIAGEM AND c2.STATUS = 'CONFIRMADA') 
@@ -126,7 +131,7 @@ const relatorioController = {
         ORDER BY c.DHCONVOCACAO DESC
       `;
 
-      // Query de estatísticas (precisa do JOIN para filtro de motorista)
+      // Query de estatísticas (precisa do JOIN para filtro de motorista ou contratador)
       let queryEstatisticas = `
         SELECT 
           COUNT(*) AS TOTAL,
@@ -143,17 +148,26 @@ const relatorioController = {
         FROM [dbo].[CONVOCACAO] c
       `;
       
-      // Se houver filtro de motorista (texto), precisa do JOIN
-      if (motorista && isNaN(motorista)) {
-        queryEstatisticas = queryEstatisticas.replace(
-          'FROM [dbo].[CONVOCACAO] c',
-          'FROM [dbo].[CONVOCACAO] c LEFT JOIN [dbo].[CADASTROGERAL] cg ON c.CDCADASTRO_MOTORISTA = cg.CDCADASTRO'
-        );
+      // Se houver filtro de motorista (texto) ou contratador, precisa do JOIN
+      if ((motorista && isNaN(motorista)) || (contratador && isValidValue(contratador))) {
+        let joins = [];
+        if (motorista && isNaN(motorista)) {
+          joins.push('LEFT JOIN [dbo].[CADASTROGERAL] cg ON c.CDCADASTRO_MOTORISTA = cg.CDCADASTRO');
+        }
+        if (contratador && isValidValue(contratador)) {
+          joins.push('LEFT JOIN [dbo].[VIAGEMMESTRE] v ON c.IDVIAGEM = v.IDVIAGEM');
+        }
+        if (joins.length > 0) {
+          queryEstatisticas = queryEstatisticas.replace(
+            'FROM [dbo].[CONVOCACAO] c',
+            `FROM [dbo].[CONVOCACAO] c ${joins.join(' ')}`
+          );
+        }
       }
       
       queryEstatisticas += whereClause;
 
-      // Query de estatísticas por data (precisa do JOIN para filtro de motorista)
+      // Query de estatísticas por data (precisa do JOIN para filtro de motorista ou contratador)
       let queryEstatisticasPorData = `
         SELECT 
           CAST(c.DHCONVOCACAO AS DATE) AS DATA,
@@ -165,12 +179,21 @@ const relatorioController = {
         FROM [dbo].[CONVOCACAO] c
       `;
       
-      // Se houver filtro de motorista (texto), precisa do JOIN
-      if (motorista && isNaN(motorista)) {
-        queryEstatisticasPorData = queryEstatisticasPorData.replace(
-          'FROM [dbo].[CONVOCACAO] c',
-          'FROM [dbo].[CONVOCACAO] c LEFT JOIN [dbo].[CADASTROGERAL] cg ON c.CDCADASTRO_MOTORISTA = cg.CDCADASTRO'
-        );
+      // Se houver filtro de motorista (texto) ou contratador, precisa do JOIN
+      if ((motorista && isNaN(motorista)) || (contratador && isValidValue(contratador))) {
+        let joins = [];
+        if (motorista && isNaN(motorista)) {
+          joins.push('LEFT JOIN [dbo].[CADASTROGERAL] cg ON c.CDCADASTRO_MOTORISTA = cg.CDCADASTRO');
+        }
+        if (contratador && isValidValue(contratador)) {
+          joins.push('LEFT JOIN [dbo].[VIAGEMMESTRE] v ON c.IDVIAGEM = v.IDVIAGEM');
+        }
+        if (joins.length > 0) {
+          queryEstatisticasPorData = queryEstatisticasPorData.replace(
+            'FROM [dbo].[CONVOCACAO] c',
+            `FROM [dbo].[CONVOCACAO] c ${joins.join(' ')}`
+          );
+        }
       }
       
       queryEstatisticasPorData += `${whereClause}
@@ -233,6 +256,12 @@ const relatorioController = {
         requestLista.input('motivoRecusa', sql.Int, motivoRecusaValue);
         requestEstatisticas.input('motivoRecusa', sql.Int, motivoRecusaValue);
         requestEstatisticasPorData.input('motivoRecusa', sql.Int, motivoRecusaValue);
+      }
+      if (isValidValue(contratador) && !isNaN(contratador.trim())) {
+        const contratadorValue = parseFloat(contratador.trim());
+        requestLista.input('contratador', sql.Decimal(15, 0), contratadorValue);
+        requestEstatisticas.input('contratador', sql.Decimal(15, 0), contratadorValue);
+        requestEstatisticasPorData.input('contratador', sql.Decimal(15, 0), contratadorValue);
       }
 
       // Executar queries

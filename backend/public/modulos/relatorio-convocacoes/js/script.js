@@ -32,18 +32,67 @@
     }
   }
 
+  // Carregar contratadores (apenas os que têm convocações)
+  async function carregarContratadores() {
+    try {
+      // Passar parâmetro para retornar apenas contratadores com convocações
+      const response = await fetch('/api/contratadores-combo?apenasComConvocacoes=true');
+      if (response.ok) {
+        const contratadores = await response.json();
+        const select = document.getElementById('filtroContratador');
+        if (select) {
+          // Limpar opções existentes (exceto "Todos")
+          select.innerHTML = '<option value="">Todos</option>';
+          contratadores.forEach(contratador => {
+            const option = document.createElement('option');
+            option.value = contratador.CDCADASTRO;
+            option.textContent = contratador.RZSOCIAL;
+            select.appendChild(option);
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao carregar contratadores:', err);
+    }
+  }
+
   // Inicialização
-  function init() {
+  async function init() {
+    // Aguardar Chart.js estar disponível antes de inicializar
+    console.log('🚀 Iniciando módulo de relatório de convocações...');
+    
+    // Aguardar um pouco para garantir que scripts externos carregaram
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Verificar se Chart.js está disponível
+    if (typeof Chart === 'undefined') {
+      console.log('⏳ Chart.js não disponível, aguardando...');
+      try {
+        await aguardarChartJS();
+        console.log('✅ Chart.js carregado na inicialização');
+      } catch (err) {
+        console.warn('⚠️ Chart.js não carregou na inicialização, continuando sem gráficos:', err);
+      }
+    } else {
+      console.log('✅ Chart.js já disponível na inicialização');
+    }
+    
     // Definir datas padrão (últimos 30 dias)
     const hoje = new Date();
     const dataFim = hoje.toISOString().split('T')[0];
     const dataInicio = new Date(hoje.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     
-    document.getElementById('filtroDataInicio').value = dataInicio;
-    document.getElementById('filtroDataFim').value = dataFim;
+    const filtroDataInicio = document.getElementById('filtroDataInicio');
+    const filtroDataFim = document.getElementById('filtroDataFim');
+    
+    if (filtroDataInicio) filtroDataInicio.value = dataInicio;
+    if (filtroDataFim) filtroDataFim.value = dataFim;
 
     // Carregar motivos de recusa
     carregarMotivosRecusa();
+
+    // Carregar contratadores
+    carregarContratadores();
 
     // Carregar relatório inicial
     buscarRelatorio();
@@ -72,6 +121,7 @@
       const filtroMotorista = document.getElementById('filtroMotorista');
       const filtroViagemConfirmada = document.getElementById('filtroViagemConfirmada');
       const filtroMotivoRecusa = document.getElementById('filtroMotivoRecusa');
+      const filtroContratador = document.getElementById('filtroContratador');
 
       const filtros = {};
       
@@ -92,6 +142,7 @@
       const motoristaValue = getValue(filtroMotorista);
       const viagemConfirmadaValue = getValue(filtroViagemConfirmada);
       const motivoRecusaValue = getValue(filtroMotivoRecusa);
+      const contratadorValue = getValue(filtroContratador);
 
       if (dataInicioValue) filtros.dataInicio = dataInicioValue;
       if (dataFimValue) filtros.dataFim = dataFimValue;
@@ -103,6 +154,7 @@
         filtros.viagemConfirmada = viagemConfirmadaValue;
       }
       if (motivoRecusaValue && !isNaN(motivoRecusaValue)) filtros.motivoRecusa = motivoRecusaValue;
+      if (contratadorValue && !isNaN(contratadorValue)) filtros.contratador = contratadorValue;
 
       // Construir query string apenas com filtros válidos
       const queryString = new URLSearchParams(filtros).toString();
@@ -212,86 +264,173 @@
 
   // Aguardar Chart.js estar disponível
   async function aguardarChartJS() {
-    // Se já está disponível, retornar
+    // Se já está disponível, retornar imediatamente
     if (typeof Chart !== 'undefined') {
+      console.log('✅ Chart.js já está disponível');
       return true;
     }
 
+    console.log('⏳ Chart.js não encontrado, aguardando carregamento...');
+
     // Verificar se o script já foi adicionado (no head ou em qualquer lugar)
     const existingScript = document.head.querySelector('script[src*="chart.js"]') || 
-                          document.querySelector('script[src*="chart.js"]');
+                          document.head.querySelector('script[src*="Chart.js"]') ||
+                          document.querySelector('script[src*="chart.js"]') ||
+                          document.querySelector('script[src*="Chart.js"]');
+    
     if (existingScript) {
+      console.log('📦 Script do Chart.js encontrado no HTML:', existingScript.src);
+      
+      // Verificar se o script já foi carregado (tem complete ou readyState)
+      if (existingScript.complete || existingScript.readyState === 'complete') {
+        console.log('📦 Script já marcado como completo');
+        // Aguardar um pouco para ver se Chart está disponível
+        await new Promise(resolve => setTimeout(resolve, 500));
+        if (typeof Chart !== 'undefined') {
+          console.log('✅ Chart.js disponível após verificar script completo');
+          return true;
+        }
+      }
+      
+      console.log('⏳ Aguardando script carregar...');
       // Aguardar o Chart carregar (aumentar tempo de espera)
       let tentativas = 0;
       return new Promise((resolve, reject) => {
         const checkInterval = setInterval(() => {
           if (typeof Chart !== 'undefined') {
+            console.log('✅ Chart.js carregado após', tentativas * 100, 'ms');
             clearInterval(checkInterval);
             resolve(true);
-          } else if (tentativas++ > 50) { // Aumentado para 50 tentativas (5 segundos)
+          } else if (tentativas++ > 150) { // Aumentado para 150 tentativas (15 segundos)
             clearInterval(checkInterval);
+            console.error('❌ Timeout: Chart.js não carregou após 15 segundos');
+            console.error('📋 Debug info:', {
+              scriptSrc: existingScript.src,
+              scriptComplete: existingScript.complete,
+              scriptReadyState: existingScript.readyState,
+              windowChart: typeof window.Chart,
+              globalChart: typeof Chart
+            });
             reject(new Error('Chart.js não carregou após aguardar'));
           }
         }, 100);
       });
     }
 
-    // Carregar Chart.js dinamicamente
+    console.log('📥 Chart.js não encontrado no HTML, carregando dinamicamente...');
+    // Carregar Chart.js dinamicamente (fallback)
     return new Promise((resolve, reject) => {
       const script = document.createElement('script');
       script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
       script.async = false; // Carregar de forma síncrona
       script.onload = () => {
+        console.log('📦 Script do Chart.js carregado dinamicamente, verificando disponibilidade...');
         // Aguardar um pouco mais para garantir que Chart está disponível
         setTimeout(() => {
           if (typeof Chart !== 'undefined') {
+            console.log('✅ Chart.js disponível após carregamento dinâmico');
             resolve(true);
           } else {
             // Tentar mais algumas vezes
             let tentativas = 0;
             const retryInterval = setInterval(() => {
               if (typeof Chart !== 'undefined') {
+                console.log('✅ Chart.js disponível após', tentativas * 100, 'ms');
                 clearInterval(retryInterval);
                 resolve(true);
-              } else if (tentativas++ > 20) {
+              } else if (tentativas++ > 50) {
                 clearInterval(retryInterval);
                 reject(new Error('Chart.js carregado mas não disponível'));
               }
             }, 100);
           }
-        }, 300);
+        }, 500);
       };
-      script.onerror = () => reject(new Error('Erro ao carregar Chart.js'));
+      script.onerror = (err) => {
+        console.error('❌ Erro ao carregar script do Chart.js:', err);
+        console.error('📋 Verifique se há bloqueio de CSP ou erro de rede');
+        reject(new Error('Erro ao carregar Chart.js - verifique CSP ou conexão'));
+      };
       document.head.appendChild(script);
     });
   }
 
   // Atualizar gráficos
   async function atualizarGraficos(data) {
+    console.log('📊 Iniciando atualização de gráficos...', data);
+    
+    // Verificar se os canvas existem antes de continuar
+    const ctxStatus = document.getElementById('graficoStatus');
+    const ctxPorData = document.getElementById('graficoPorData');
+    
+    if (!ctxStatus || !ctxPorData) {
+      console.error('❌ Canvas não encontrados. Aguardando...');
+      // Aguardar um pouco e tentar novamente
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const ctxStatusRetry = document.getElementById('graficoStatus');
+      const ctxPorDataRetry = document.getElementById('graficoPorData');
+      if (!ctxStatusRetry || !ctxPorDataRetry) {
+        console.error('❌ Canvas ainda não encontrados após espera');
+        return;
+      }
+    }
+    
     try {
-      // Aguardar Chart.js estar disponível
-      await aguardarChartJS();
+      // Aguardar Chart.js estar disponível (com timeout maior)
+      // Primeiro, verificar se já está disponível (pode ter sido carregado antes)
+      if (typeof Chart === 'undefined') {
+        console.log('⏳ Chart.js não disponível, aguardando...');
+        await Promise.race([
+          aguardarChartJS(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout ao carregar Chart.js')), 15000))
+        ]);
+      } else {
+        console.log('✅ Chart.js já disponível antes da verificação');
+      }
+      console.log('✅ Chart.js carregado com sucesso');
     } catch (error) {
-      console.error('Erro ao carregar Chart.js:', error);
+      console.error('❌ Erro ao carregar Chart.js:', error);
+      // NÃO remover os canvas - apenas mostrar mensagem de erro sem destruir o HTML
       const graficoContainer = document.querySelector('.graficos-section');
       if (graficoContainer) {
-        graficoContainer.innerHTML = `
-          <div class="empty-state" style="grid-column: 1 / -1; padding: 40px;">
-            <div class="empty-state-icon">⚠️</div>
-            <p>Erro ao carregar biblioteca de gráficos</p>
-            <p style="font-size: 12px; color: #999; margin-top: 10px;">${error.message}</p>
-            <button onclick="location.reload()" class="btn btn-primary" style="margin-top: 15px;">Recarregar Página</button>
-          </div>
-        `;
+        // Adicionar mensagem de erro sem remover os canvas
+        let errorDiv = graficoContainer.querySelector('.chart-error-message');
+        if (!errorDiv) {
+          errorDiv = document.createElement('div');
+          errorDiv.className = 'chart-error-message';
+          errorDiv.style.cssText = 'grid-column: 1 / -1; padding: 20px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; margin-bottom: 20px;';
+          errorDiv.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 24px;">⚠️</span>
+              <div>
+                <strong>Erro ao carregar biblioteca de gráficos</strong>
+                <p style="margin: 5px 0 0 0; font-size: 12px; color: #856404;">${error.message}</p>
+                <button onclick="location.reload()" class="btn btn-primary" style="margin-top: 10px; padding: 5px 15px; font-size: 12px;">Recarregar Página</button>
+              </div>
+            </div>
+          `;
+          graficoContainer.insertBefore(errorDiv, graficoContainer.firstChild);
+        }
       }
       return;
     }
 
-    // Gráfico de Status (Pizza)
-    const ctxStatus = document.getElementById('graficoStatus');
-    if (!ctxStatus) {
-      console.error('Canvas graficoStatus não encontrado');
+    // Gráfico de Status (Pizza) - Re-buscar canvas após carregar Chart.js (se necessário)
+    let ctxStatusFinal = ctxStatus;
+    if (!ctxStatusFinal) {
+      ctxStatusFinal = document.getElementById('graficoStatus');
+    }
+    if (!ctxStatusFinal) {
+      console.error('❌ Canvas graficoStatus não encontrado após carregar Chart.js');
       return;
+    }
+    
+    console.log('📊 Criando gráfico de status...', ctxStatusFinal);
+    
+    // Remover mensagem de erro se existir
+    const errorDiv = document.querySelector('.chart-error-message');
+    if (errorDiv) {
+      errorDiv.remove();
     }
 
     if (chartStatus) {
@@ -299,45 +438,60 @@
     }
 
     const estatisticas = data.estatisticas || {};
-    chartStatus = new Chart(ctxStatus, {
-      type: 'doughnut',
-      data: {
-        labels: ['Pendente', 'Aceita', 'Recusada', 'Confirmada', 'Aceita Descartada'],
-        datasets: [{
-          data: [
-            estatisticas.PENDENTE || 0,
-            estatisticas.ACEITA || 0,
-            estatisticas.RECUSADA || 0,
-            estatisticas.CONFIRMADA || 0,
-            estatisticas.ACEITA_DESCARTADA || 0
-          ],
-          backgroundColor: [
-            '#ffc107',
-            '#28a745',
-            '#dc3545',
-            '#17a2b8',
-            '#6c757d'
-          ]
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        plugins: {
-          legend: {
-            position: 'bottom'
-          },
-          title: {
-            display: false
+    console.log('📊 Estatísticas para gráfico:', estatisticas);
+    
+    const dadosStatus = [
+      estatisticas.PENDENTE || 0,
+      estatisticas.ACEITA || 0,
+      estatisticas.RECUSADA || 0,
+      estatisticas.CONFIRMADA || 0,
+      estatisticas.ACEITA_DESCARTADA || 0
+    ];
+    console.log('📊 Dados do gráfico de status:', dadosStatus);
+    
+    try {
+      chartStatus = new Chart(ctxStatusFinal, {
+        type: 'doughnut',
+        data: {
+          labels: ['Pendente', 'Aceita', 'Recusada', 'Confirmada', 'Aceita Descartada'],
+          datasets: [{
+            data: dadosStatus,
+            backgroundColor: [
+              '#ffc107',
+              '#28a745',
+              '#dc3545',
+              '#17a2b8',
+              '#6c757d'
+            ]
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          aspectRatio: 1.5,
+          plugins: {
+            legend: {
+              position: 'bottom'
+            },
+            title: {
+              display: false
+            }
           }
         }
-      }
-    });
+      });
+      console.log('✅ Gráfico de status criado');
+    } catch (err) {
+      console.error('❌ Erro ao criar gráfico de status:', err);
+      // Não remover o canvas, apenas logar o erro
+    }
 
-    // Gráfico por Data (Linha)
-    const ctxPorData = document.getElementById('graficoPorData');
-    if (!ctxPorData) {
-      console.error('Canvas graficoPorData não encontrado');
+    // Gráfico por Data (Linha) - Re-buscar canvas se necessário
+    let ctxPorDataFinal = ctxPorData;
+    if (!ctxPorDataFinal) {
+      ctxPorDataFinal = document.getElementById('graficoPorData');
+    }
+    if (!ctxPorDataFinal) {
+      console.error('❌ Canvas graficoPorData não encontrado');
       return;
     }
 
@@ -346,6 +500,7 @@
     }
 
     const dadosPorData = data.estatisticasPorData || [];
+    console.log('📊 Dados por data:', dadosPorData);
     const labels = dadosPorData.map(d => {
       if (!d.DATA) return '-';
       
@@ -377,59 +532,69 @@
     const dadosRecusada = dadosPorData.map(d => d.RECUSADA || 0).reverse();
     const dadosConfirmada = dadosPorData.map(d => d.CONFIRMADA || 0).reverse();
 
-    chartPorData = new Chart(ctxPorData, {
-      type: 'line',
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: 'Pendente',
-            data: dadosPendente,
-            borderColor: '#ffc107',
-            backgroundColor: 'rgba(255, 193, 7, 0.1)',
-            tension: 0.4
-          },
-          {
-            label: 'Aceita',
-            data: dadosAceita,
-            borderColor: '#28a745',
-            backgroundColor: 'rgba(40, 167, 69, 0.1)',
-            tension: 0.4
-          },
-          {
-            label: 'Recusada',
-            data: dadosRecusada,
-            borderColor: '#dc3545',
-            backgroundColor: 'rgba(220, 53, 69, 0.1)',
-            tension: 0.4
-          },
-          {
-            label: 'Confirmada',
-            data: dadosConfirmada,
-            borderColor: '#17a2b8',
-            backgroundColor: 'rgba(23, 162, 184, 0.1)',
-            tension: 0.4
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: true,
-        plugins: {
-          legend: {
-            position: 'bottom'
-          },
-          title: {
-            display: false
-          }
+    console.log('📊 Criando gráfico por data...', { labels, dadosPendente, dadosAceita, dadosRecusada, dadosConfirmada });
+    
+    try {
+      chartPorData = new Chart(ctxPorDataFinal, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Pendente',
+              data: dadosPendente,
+              borderColor: '#ffc107',
+              backgroundColor: 'rgba(255, 193, 7, 0.1)',
+              tension: 0.4
+            },
+            {
+              label: 'Aceita',
+              data: dadosAceita,
+              borderColor: '#28a745',
+              backgroundColor: 'rgba(40, 167, 69, 0.1)',
+              tension: 0.4
+            },
+            {
+              label: 'Recusada',
+              data: dadosRecusada,
+              borderColor: '#dc3545',
+              backgroundColor: 'rgba(220, 53, 69, 0.1)',
+              tension: 0.4
+            },
+            {
+              label: 'Confirmada',
+              data: dadosConfirmada,
+              borderColor: '#17a2b8',
+              backgroundColor: 'rgba(23, 162, 184, 0.1)',
+              tension: 0.4
+            }
+          ]
         },
-        scales: {
-          y: {
-            beginAtZero: true
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          aspectRatio: 1.5,
+          plugins: {
+            legend: {
+              position: 'bottom'
+            },
+            title: {
+              display: false
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true
+            }
           }
         }
-      }
-    });
+      });
+      console.log('✅ Gráfico por data criado');
+      console.log('✅ Todos os gráficos atualizados com sucesso');
+    } catch (err) {
+      console.error('❌ Erro ao criar gráfico por data:', err);
+      // Não remover o canvas, apenas logar o erro
+    }
   }
 
   // Ordenar lista
@@ -860,6 +1025,7 @@
     const filtroMotorista = document.getElementById('filtroMotorista');
     const filtroViagemConfirmada = document.getElementById('filtroViagemConfirmada');
     const filtroMotivoRecusa = document.getElementById('filtroMotivoRecusa');
+    const filtroContratador = document.getElementById('filtroContratador');
     
     // Limpar valores e garantir que estão vazios
     if (filtroDataInicio) {
@@ -896,6 +1062,11 @@
       filtroMotivoRecusa.value = '';
       filtroMotivoRecusa.selectedIndex = 0; // Voltar para primeira opção
       filtroMotivoRecusa.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    if (filtroContratador) {
+      filtroContratador.value = '';
+      filtroContratador.selectedIndex = 0; // Voltar para primeira opção
+      filtroContratador.dispatchEvent(new Event('change', { bubbles: true }));
     }
     
     // Resetar ordenação
@@ -1252,10 +1423,19 @@
     }
   });
 
+  // Aguardar DOM e scripts carregarem antes de inicializar
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', () => {
+      // Aguardar um pouco mais para garantir que scripts externos carregaram
+      setTimeout(() => {
+        init();
+      }, 1000);
+    });
   } else {
-    init();
+    // DOM já carregado, aguardar scripts externos
+    setTimeout(() => {
+      init();
+    }, 1000);
   }
 })();
 

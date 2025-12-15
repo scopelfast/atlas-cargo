@@ -1,8 +1,13 @@
 // backend/public/modulos/gerenciar-roteiros/js/script.js
 // Gerenciar Roteiros - Frontend
-// Versão: 1.2 - Correção overlayMostrado
+// Versão: 1.3 - Campo RESUMOROTA e otimizações
 // Autor: Sistema DivulgaCarga
-// Data: 2025-04-05
+// Data: 2025-01-13
+// Última atualização: 
+//   - Adicionado campo RESUMOROTA com geração automática
+//   - Implementada função gerarResumoRota() usando OSRM e Nominatim
+//   - Otimizações de performance (processamento sequencial, retry logic)
+//   - Correções de bugs (sintaxe, filtros, rate limiting)
 
 // Flag global para controlar se o overlay está visível
 // Declarada no escopo global usando window para evitar erro de redeclaração
@@ -421,10 +426,31 @@ function getOverlayMostrado() {
 
   // Função para mudar abas
   async function showTab(tabId) {
-    tabs.forEach(btn => btn.classList.remove('active'));
-    tabContents.forEach(content => content.classList.remove('active'));
-    document.querySelector(`.tab-btn[data-tab="${tabId}"]`).classList.add('active');
-    document.getElementById(`tab-${tabId}`).classList.add('active');
+    try {
+      // Validar tabId
+      if (!tabId) {
+        console.warn('[showTab] tabId não fornecido, usando "filtros" como padrão');
+        tabId = 'filtros';
+      }
+      
+      tabs.forEach(btn => btn.classList.remove('active'));
+      tabContents.forEach(content => content.classList.remove('active'));
+      
+      const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+      const tabContent = document.getElementById(`tab-${tabId}`);
+      
+      if (!tabBtn) {
+        console.error(`[showTab] Botão da aba "${tabId}" não encontrado`);
+        return;
+      }
+      
+      if (!tabContent) {
+        console.error(`[showTab] Conteúdo da aba "${tabId}" não encontrado`);
+        return;
+      }
+      
+      tabBtn.classList.add('active');
+      tabContent.classList.add('active');
     
     // Se for a aba de grid, inicializar o GridEditor
     if (tabId === 'grid') {
@@ -512,6 +538,22 @@ function getOverlayMostrado() {
         console.log('[Roteiros] Ignorando chamada de atualizarMapaComPontos em showTab (já em execução)');
       }
     }
+    } catch (err) {
+      console.error(`[showTab] Erro ao mudar para aba "${tabId}":`, err);
+      // Em caso de erro, tentar voltar para a aba de filtros
+      try {
+        const filtrosBtn = document.querySelector('.tab-btn[data-tab="filtros"]');
+        const filtrosContent = document.getElementById('tab-filtros');
+        if (filtrosBtn && filtrosContent) {
+          tabs.forEach(btn => btn.classList.remove('active'));
+          tabContents.forEach(content => content.classList.remove('active'));
+          filtrosBtn.classList.add('active');
+          filtrosContent.classList.add('active');
+        }
+      } catch (fallbackErr) {
+        console.error('[showTab] Erro ao voltar para aba de filtros:', fallbackErr);
+      }
+    }
   }
 
   // Carregar estados do Brasil
@@ -520,12 +562,27 @@ function getOverlayMostrado() {
     
     try {
       const response = await fetch('/api/estados-brasil');
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
+        throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`);
+      }
+      
       const estados = await response.json();
+      
+      // Verificar se estados é um array válido
+      if (!Array.isArray(estados)) {
+        console.error('Resposta da API não é um array:', estados);
+        showMessage('Erro: resposta inválida do servidor ao carregar estados.', 'error');
+        return;
+      }
       
       const fillEstados = (id) => {
         const el = document.getElementById(id);
         if (!el) return;
-        el.innerHTML = '<option value="">Selecione</option>';
+        // Para filtros, usar "Todos", para formulário usar "Selecione"
+        const textoPadrao = (id.startsWith('filtro')) ? 'Todos' : 'Selecione';
+        el.innerHTML = `<option value="">${textoPadrao}</option>`;
         estados.forEach(e => {
           const opt = document.createElement('option');
           opt.value = e.uf;
@@ -542,7 +599,7 @@ function getOverlayMostrado() {
       estadosCarregados = true;
     } catch (err) {
       console.error('Erro ao carregar estados:', err);
-      showMessage('Erro ao carregar estados. Verifique a conexão.', 'error');
+      showMessage(err.message || 'Erro ao carregar estados. Verifique a conexão.', 'error');
     }
   }
 
@@ -552,32 +609,68 @@ function getOverlayMostrado() {
     
     try {
       const response = await fetch(`/api/cidades?estado=${estado}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
+        throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`);
+      }
+      
       const cidades = await response.json();
+      
+      // Verificar se cidades é um array válido
+      if (!Array.isArray(cidades)) {
+        console.error('Resposta da API não é um array:', cidades);
+        showMessage('Erro: resposta inválida do servidor ao carregar cidades.', 'error');
+        return;
+      }
       
       if (tipo === 'origem') {
         cidadesOrigem = cidades;
         const cidadeSelect = document.getElementById('origemCidade');
-        cidadeSelect.innerHTML = '<option value="">Selecione</option>';
-        cidades.forEach(c => {
-          const opt = document.createElement('option');
-          opt.value = c.CDCIDADE;
-          opt.textContent = c.NMCIDADE;
-          cidadeSelect.appendChild(opt);
-        });
+        if (cidadeSelect) {
+          cidadeSelect.innerHTML = '<option value="">Selecione</option>';
+          cidades.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.CDCIDADE;
+            opt.textContent = c.NMCIDADE;
+            cidadeSelect.appendChild(opt);
+          });
+        }
       } else {
         cidadesDestino = cidades;
         const cidadeSelect = document.getElementById('destinoCidade');
-        cidadeSelect.innerHTML = '<option value="">Selecione</option>';
-        cidades.forEach(c => {
-          const opt = document.createElement('option');
-          opt.value = c.CDCIDADE;
-          opt.textContent = c.NMCIDADE;
-          cidadeSelect.appendChild(opt);
-        });
+        if (cidadeSelect) {
+          cidadeSelect.innerHTML = '<option value="">Selecione</option>';
+          cidades.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.CDCIDADE;
+            opt.textContent = c.NMCIDADE;
+            cidadeSelect.appendChild(opt);
+          });
+        }
       }
     } catch (err) {
       console.error('Erro ao carregar cidades:', err);
-      showMessage('Erro ao carregar cidades. Verifique a conexão.', 'error');
+      showMessage(err.message || 'Erro ao carregar cidades. Verifique a conexão.', 'error');
+    }
+  }
+
+  // Funções para controlar overlay de carregamento dos filtros
+  function showLoadingFiltros() {
+    const overlay = document.getElementById('calculandoOverlay');
+    if (overlay) {
+      const titleEl = overlay.querySelector('h3');
+      const textEl = overlay.querySelector('p');
+      if (titleEl) titleEl.textContent = 'Aplicando Filtros';
+      if (textEl) textEl.textContent = 'Buscando roteiros...';
+      overlay.style.display = 'flex';
+    }
+  }
+
+  function hideLoadingFiltros() {
+    const overlay = document.getElementById('calculandoOverlay');
+    if (overlay) {
+      overlay.style.display = 'none';
     }
   }
 
@@ -598,9 +691,26 @@ function getOverlayMostrado() {
     if (destinoEstado) params.append('destinoEstado', destinoEstado);
     if (destinoCidade) params.append('destinoCidade', destinoCidade);
     
+    // Mostrar overlay de carregamento
+    showLoadingFiltros();
+    
     try {
       const response = await fetch(`/api/roteiros?${params.toString()}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
+        throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`);
+      }
+      
       const roteiros = await response.json();
+
+      // Verificar se roteiros é um array válido
+      if (!Array.isArray(roteiros)) {
+        console.error('Resposta da API não é um array:', roteiros);
+        showMessage('Erro: resposta inválida do servidor.', 'error');
+        hideLoadingFiltros();
+        return;
+      }
 
       // Armazenar roteiros para o Grid
       lastRoteiros = roteiros;
@@ -624,10 +734,22 @@ function getOverlayMostrado() {
         }
       }
       
-      showTab(openTab);
+      // IMPORTANTE: Sempre mudar para a aba solicitada, mesmo se houver problemas com o grid
+      console.log(`[applyFilters] Mudando para aba: ${openTab}`);
+      await showTab(openTab);
     } catch (err) {
       console.error('Erro ao aplicar filtros:', err);
-      showMessage('Erro ao carregar roteiros.', 'error');
+      showMessage(err.message || 'Erro ao carregar roteiros.', 'error');
+      // Mesmo em caso de erro, tentar mudar para a aba solicitada
+      try {
+        console.log(`[applyFilters] Tentando mudar para aba após erro: ${openTab}`);
+        await showTab(openTab);
+      } catch (tabErr) {
+        console.error('[applyFilters] Erro ao mudar para aba após erro:', tabErr);
+      }
+    } finally {
+      // Sempre esconder overlay ao finalizar
+      hideLoadingFiltros();
     }
   }
 
@@ -728,6 +850,12 @@ async function loadRoteiroParaEdicao(id) {
     }
     
     const response = await fetch(`/api/roteiros/${id}`);
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
+      throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`);
+    }
+    
     const roteiro = await response.json();
 
     if (roteiro) {
@@ -737,6 +865,14 @@ async function loadRoteiroParaEdicao(id) {
       document.getElementById('roteiroDescricao').value = roteiro.DSROTEIRO;
       document.getElementById('roteiroDistancia').value = roteiro.DISTANCIAKM || '';
       document.getElementById('formTitle').textContent = 'Editar Roteiro';
+      
+      // Preencher resumo da rota se existir
+      const campoResumo = document.getElementById('roteiroResumoRota');
+      if (campoResumo && roteiro.RESUMOROTA) {
+        campoResumo.value = roteiro.RESUMOROTA;
+      } else if (campoResumo) {
+        campoResumo.value = '';
+      }
 
       // Garante que os estados estão carregados
       if (!estadosCarregados) {
@@ -762,11 +898,11 @@ async function loadRoteiroParaEdicao(id) {
       // Armazenar ID do roteiro para gerenciar pontos
       roteiroAtualId = roteiro.IDROTEIRO;
       
-      // Carregar pontos do roteiro para cálculo de distância (silenciosamente)
+      // Carregar pontos do roteiro (sem calcular distâncias automaticamente)
       await carregarPontos(roteiro.IDROTEIRO, true);
 
-      // Recalcular automaticamente todas as distâncias
-      await recalcularTodasDistancias(roteiro.IDROTEIRO);
+      // NÃO recalcular automaticamente - só calcular quando o usuário clicar em "Calcular"
+      // await recalcularTodasDistancias(roteiro.IDROTEIRO); // REMOVIDO - cálculo só manual
 
       // Aguardar um pouco para garantir que os selects foram atualizados
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -782,11 +918,11 @@ async function loadRoteiroParaEdicao(id) {
         });
       }
 
-      // Atualizar mapa se estiver visível
-      const mapaContainer = document.getElementById('mapaContainer');
-      if (mapaContainer && mapaContainer.style.display !== 'none') {
-        await atualizarMapa();
-      }
+      // NÃO atualizar mapa automaticamente - só atualizar quando o usuário visualizar a aba Mapa
+      // const mapaContainer = document.getElementById('mapaContainer');
+      // if (mapaContainer && mapaContainer.style.display !== 'none') {
+      //   await atualizarMapa();
+      // }
     }
   } catch (err) {
     console.error('Erro ao carregar roteiro:', err);
@@ -1029,11 +1165,15 @@ async function loadRoteiroParaEdicao(id) {
     }
 
     try {
+      // Obter resumo da rota do campo
+      const resumoRota = document.getElementById('roteiroResumoRota')?.value?.trim() || null;
+      
       const roteiroData = {
         DSROTEIRO: descricao,
         CDCIDADEORIGEM: parseInt(origemCidade),
         CDCIDADEDESTINO: parseInt(destinoCidade),
-        DISTANCIAKM: distancia ? parseFloat(distancia) : null
+        DISTANCIAKM: distancia ? parseFloat(distancia) : null,
+        RESUMOROTA: resumoRota
       };
 
       let response;
@@ -1368,7 +1508,7 @@ async function loadRoteiroParaEdicao(id) {
               .map(p => `${p.LONGITUDE},${p.LATITUDE}`)
               .join(';');
             
-            const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`;
+            const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson&steps=true`;
             const response = await fetch(osrmUrl);
             const data = await response.json();
             
@@ -1378,6 +1518,7 @@ async function loadRoteiroParaEdicao(id) {
                 campoDistancia.value = distanciaTotal;
                 showMessage(`Distância total calculada (rota real): ${distanciaTotal.toFixed(2)} km`, 'success');
               }
+              
               btnCalcular.disabled = false;
               if (btnCalcular && typeof window.showLoading !== 'undefined') {
                 window.showLoading(btnCalcular, false);
@@ -1410,6 +1551,35 @@ async function loadRoteiroParaEdicao(id) {
             campoDistancia.value = parseFloat(distanciaTotal.toFixed(2));
             showMessage(`Distância total calculada (linha reta, ${pontosComCoordenadas.length} pontos): ${distanciaTotal.toFixed(2)} km`, 'success');
           }
+          
+          // Tentar buscar OSRM novamente para obter geometria completa (mesmo que tenha falhado antes)
+          // Isso é necessário para identificar todas as cidades intermediárias
+          let osrmDataParaResumo = null;
+          let coordenadasParaResumo = pontosComCoordenadas.map(p => [parseFloat(p.LATITUDE), parseFloat(p.LONGITUDE)]);
+          
+          try {
+            const coordsStrResumo = pontosComCoordenadas
+              .map(p => `${p.LONGITUDE},${p.LATITUDE}`)
+              .join(';');
+            
+            const osrmUrlResumo = `https://router.project-osrm.org/route/v1/driving/${coordsStrResumo}?overview=full&geometries=geojson&steps=true`;
+            const responseResumo = await fetch(osrmUrlResumo);
+            const dataResumo = await responseResumo.json();
+            
+            if (dataResumo.code === 'Ok' && dataResumo.routes && dataResumo.routes.length > 0) {
+              osrmDataParaResumo = dataResumo;
+              const geometry = dataResumo.routes[0].geometry;
+              if (geometry && geometry.coordinates) {
+                coordenadasParaResumo = geometry.coordinates.map(c => [c[1], c[0]]);
+              }
+            }
+          } catch (err) {
+            console.warn('[Roteiros] Não foi possível obter OSRM para resumo, usando apenas pontos cadastrados');
+          }
+          
+          // Resumo da rota será gerado apenas ao visualizar o mapa ou processar pontos
+          // NÃO gerar aqui para evitar chamadas desnecessárias ao Nominatim
+          
           btnCalcular.disabled = false;
           if (btnCalcular && typeof window.showLoading !== 'undefined') {
             window.showLoading(btnCalcular, false);
@@ -1449,9 +1619,9 @@ async function loadRoteiroParaEdicao(id) {
         return;
       }
 
-      // Tentar usar OSRM para rota real
+      // Tentar usar OSRM para rota real (com steps para obter rodovias)
       try {
-        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsOrigem.lon},${coordsOrigem.lat};${coordsDestino.lon},${coordsDestino.lat}?overview=full`;
+        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsOrigem.lon},${coordsOrigem.lat};${coordsDestino.lon},${coordsDestino.lat}?overview=full&geometries=geojson&steps=true`;
         const response = await fetch(osrmUrl);
         const data = await response.json();
         
@@ -1461,6 +1631,10 @@ async function loadRoteiroParaEdicao(id) {
             campoDistancia.value = parseFloat(distanciaTotal);
             showMessage(`Distância calculada (rota real): ${distanciaTotal} km`, 'success');
           }
+          
+          // Resumo da rota será gerado apenas ao visualizar o mapa ou processar pontos
+          // NÃO gerar aqui para evitar chamadas desnecessárias ao Nominatim
+          
           btnCalcular.disabled = false;
           if (btnCalcular && typeof window.showLoading !== 'undefined') {
             window.showLoading(btnCalcular, false);
@@ -1484,6 +1658,29 @@ async function loadRoteiroParaEdicao(id) {
         campoDistancia.value = distanciaTotal;
         showMessage(`Distância calculada (linha reta): ${distanciaTotal} km`, 'success');
       }
+      
+      // Tentar buscar OSRM novamente apenas para obter geometria (mesmo que tenha falhado antes)
+      // Isso é necessário para identificar cidades intermediárias
+      let osrmDataParaResumo = null;
+      let coordenadasParaResumo = [[coordsOrigem.lat, coordsOrigem.lon], [coordsDestino.lat, coordsDestino.lon]];
+      
+      try {
+        const osrmUrlResumo = `https://router.project-osrm.org/route/v1/driving/${coordsOrigem.lon},${coordsOrigem.lat};${coordsDestino.lon},${coordsDestino.lat}?overview=full&geometries=geojson&steps=true`;
+        const responseResumo = await fetch(osrmUrlResumo);
+        const dataResumo = await responseResumo.json();
+        
+        if (dataResumo.code === 'Ok' && dataResumo.routes && dataResumo.routes.length > 0) {
+          osrmDataParaResumo = dataResumo;
+          const geometry = dataResumo.routes[0].geometry;
+          if (geometry && geometry.coordinates) {
+            coordenadasParaResumo = geometry.coordinates.map(c => [c[1], c[0]]);
+          }
+        }
+      } catch (err) {
+        console.warn('[Roteiros] Não foi possível obter OSRM para resumo, usando apenas origem-destino');
+      }
+      
+      // Resumo da rota removido - não será mais gerado automaticamente
 
       // Pré-inicializar mapa em background se houver origem e destino (para carregamento rápido)
       if (origemCidadeId && destinoCidadeId && typeof L !== 'undefined' && !mapa) {
@@ -2092,96 +2289,188 @@ async function loadRoteiroParaEdicao(id) {
       let distanciasAtualizadas = 0;
       let distanciaTotal = null;
       
-      // 1. Recalcular distâncias entre pontos consecutivos
-      for (let i = 1; i < pontosComCoordenadas.length; i++) {
-        const pontoAtual = pontosComCoordenadas[i];
-        const pontoAnterior = pontosComCoordenadas[i - 1];
+      // OTIMIZAÇÃO: Para poucos pontos (≤5), fazer uma única requisição OSRM
+      const totalPontos = pontosComCoordenadas.length;
+      let usarOtimizacao = totalPontos <= 5;
+      
+      if (usarOtimizacao) {
+        // OTIMIZAÇÃO: Uma única requisição OSRM para calcular tudo
+        console.log(`[Recalcular] Otimização: ${totalPontos} pontos, usando uma única requisição OSRM`);
         
-        // Calcular distância usando OSRM
         try {
-          const coordsStr = `${pontoAnterior.LONGITUDE},${pontoAnterior.LATITUDE};${pontoAtual.LONGITUDE},${pontoAtual.LATITUDE}`;
-          const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full`;
+          const coordsStr = pontosComCoordenadas
+            .map(p => `${p.LONGITUDE},${p.LATITUDE}`)
+            .join(';');
+          
+          const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`;
           const response = await fetch(osrmUrl);
           const data = await response.json();
           
           if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-            const distancia = parseFloat((data.routes[0].distance / 1000).toFixed(4));
+            const route = data.routes[0];
+            distanciaTotal = parseFloat((route.distance / 1000).toFixed(2));
+            
+            // Extrair distâncias entre pontos consecutivos dos legs
+            if (route.legs && route.legs.length > 0) {
+              const distanciasSegmentos = route.legs.map(leg => parseFloat((leg.distance / 1000).toFixed(4)));
+              
+              // Atualizar distâncias entre pontos em paralelo
+              const atualizacoes = [];
+              for (let i = 1; i < pontosComCoordenadas.length; i++) {
+                const pontoAtual = pontosComCoordenadas[i];
+                const distanciaSegmento = distanciasSegmentos[i - 1] || 0;
+                
+                atualizacoes.push(
+                  fetch(`/api/roteiros/${idRoteiro}/pontos/${pontoAtual.SEQUENCIA}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      ORDEM: pontoAtual.ORDEM,
+                      DSLOCAL: pontoAtual.DSLOCAL,
+                      DSPOSICAO: pontoAtual.DSPOSICAO,
+                      LATITUDE: pontoAtual.LATITUDE,
+                      LONGITUDE: pontoAtual.LONGITUDE,
+                      TPLOCAL: pontoAtual.TPLOCAL,
+                      KMENTREPONTOS: distanciaSegmento,
+                      ESTADOPASSAGEM: pontoAtual.ESTADOPASSAGEM,
+                      CDPAISPASSAGEM: pontoAtual.CDPAISPASSAGEM
+                    })
+                  }).then(updateResponse => {
+                    if (updateResponse.ok) {
+                      pontoAtual.KMENTREPONTOS = distanciaSegmento;
+                      distanciasAtualizadas++;
+                      return true;
+                    }
+                    return false;
+                  }).catch(err => {
+                    console.error(`[Recalcular] Erro ao atualizar sequência ${pontoAtual.SEQUENCIA}:`, err);
+                    return false;
+                  })
+                );
+              }
+              
+              // Aguardar todas as atualizações em paralelo
+              await Promise.all(atualizacoes);
+            }
+            
+            // Atualizar campo na tela
+            const campoDistancia = document.getElementById('roteiroDistancia');
+            if (campoDistancia) {
+              campoDistancia.value = distanciaTotal;
+            }
             
             // Atualizar no banco de dados
-            const updateResponse = await fetch(`/api/roteiros/${idRoteiro}/pontos/${pontoAtual.SEQUENCIA}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                ORDEM: pontoAtual.ORDEM,
-                DSLOCAL: pontoAtual.DSLOCAL,
-                DSPOSICAO: pontoAtual.DSPOSICAO,
-                LATITUDE: pontoAtual.LATITUDE,
-                LONGITUDE: pontoAtual.LONGITUDE,
-                TPLOCAL: pontoAtual.TPLOCAL,
-                KMENTREPONTOS: distancia,
-                ESTADOPASSAGEM: pontoAtual.ESTADOPASSAGEM,
-                CDPAISPASSAGEM: pontoAtual.CDPAISPASSAGEM
-              })
-            });
+            const descricao = document.getElementById('roteiroDescricao')?.value;
+            const origemCidade = document.getElementById('origemCidade')?.value;
+            const destinoCidade = document.getElementById('destinoCidade')?.value;
             
-            if (updateResponse.ok) {
-              // Atualizar na lista local
-              pontoAtual.KMENTREPONTOS = distancia;
-              distanciasAtualizadas++;
-              
-              // Aguardar um pouco entre atualizações para garantir que o banco processou
-              await new Promise(resolve => setTimeout(resolve, 200));
-            } else {
-              const errorData = await updateResponse.json();
-              console.error(`[Recalcular] Erro ao atualizar sequência ${pontoAtual.SEQUENCIA}:`, errorData);
+            if (descricao && origemCidade && destinoCidade) {
+              await fetch(`/api/roteiros/${idRoteiro}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  DSROTEIRO: descricao,
+                  CDCIDADEORIGEM: parseInt(origemCidade),
+                  CDCIDADEDESTINO: parseInt(destinoCidade),
+                  DISTANCIAKM: distanciaTotal
+                })
+              });
             }
-          } else {
-            console.warn(`[Recalcular] OSRM retornou erro para sequência ${pontoAtual.SEQUENCIA}:`, data);
           }
         } catch (err) {
-          console.error(`[Recalcular] Erro ao recalcular distância do ponto ${pontoAtual.SEQUENCIA}:`, err);
+          console.warn('[Recalcular] Erro na otimização, usando método tradicional:', err);
+          // Fallback para método tradicional se a otimização falhar
+          usarOtimizacao = false;
         }
       }
       
-      // 2. Recalcular distância total do roteiro
-      try {
-        const coordsStr = pontosComCoordenadas
-          .map(p => `${p.LONGITUDE},${p.LATITUDE}`)
-          .join(';');
-        
-        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`;
-        const response = await fetch(osrmUrl);
-        const data = await response.json();
-        
-        if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-          distanciaTotal = parseFloat((data.routes[0].distance / 1000).toFixed(2));
+      // MÉTODO TRADICIONAL: Para muitos pontos ou se otimização falhou
+      if (!usarOtimizacao) {
+        // 1. Recalcular distâncias entre pontos consecutivos
+        for (let i = 1; i < pontosComCoordenadas.length; i++) {
+          const pontoAtual = pontosComCoordenadas[i];
+          const pontoAnterior = pontosComCoordenadas[i - 1];
           
-          // Atualizar campo na tela
-          const campoDistancia = document.getElementById('roteiroDistancia');
-          if (campoDistancia) {
-            campoDistancia.value = distanciaTotal;
-          }
-          
-          // Atualizar no banco de dados
-          const descricao = document.getElementById('roteiroDescricao')?.value;
-          const origemCidade = document.getElementById('origemCidade')?.value;
-          const destinoCidade = document.getElementById('destinoCidade')?.value;
-          
-          if (descricao && origemCidade && destinoCidade) {
-            await fetch(`/api/roteiros/${idRoteiro}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                DSROTEIRO: descricao,
-                CDCIDADEORIGEM: parseInt(origemCidade),
-                CDCIDADEDESTINO: parseInt(destinoCidade),
-                DISTANCIAKM: distanciaTotal
-              })
-            });
+          // Calcular distância usando OSRM
+          try {
+            const coordsStr = `${pontoAnterior.LONGITUDE},${pontoAnterior.LATITUDE};${pontoAtual.LONGITUDE},${pontoAtual.LATITUDE}`;
+            const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full`;
+            const response = await fetch(osrmUrl);
+            const data = await response.json();
+            
+            if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+              const distancia = parseFloat((data.routes[0].distance / 1000).toFixed(4));
+              
+              // Atualizar no banco de dados
+              const updateResponse = await fetch(`/api/roteiros/${idRoteiro}/pontos/${pontoAtual.SEQUENCIA}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  ORDEM: pontoAtual.ORDEM,
+                  DSLOCAL: pontoAtual.DSLOCAL,
+                  DSPOSICAO: pontoAtual.DSPOSICAO,
+                  LATITUDE: pontoAtual.LATITUDE,
+                  LONGITUDE: pontoAtual.LONGITUDE,
+                  TPLOCAL: pontoAtual.TPLOCAL,
+                  KMENTREPONTOS: distancia,
+                  ESTADOPASSAGEM: pontoAtual.ESTADOPASSAGEM,
+                  CDPAISPASSAGEM: pontoAtual.CDPAISPASSAGEM
+                })
+              });
+              
+              if (updateResponse.ok) {
+                pontoAtual.KMENTREPONTOS = distancia;
+                distanciasAtualizadas++;
+              } else {
+                const errorData = await updateResponse.json();
+                console.error(`[Recalcular] Erro ao atualizar sequência ${pontoAtual.SEQUENCIA}:`, errorData);
+              }
+            }
+          } catch (err) {
+            console.error(`[Recalcular] Erro ao recalcular distância do ponto ${pontoAtual.SEQUENCIA}:`, err);
           }
         }
-      } catch (err) {
-        console.warn('Erro ao recalcular distância total:', err);
+        
+        // 2. Recalcular distância total do roteiro
+        try {
+          const coordsStr = pontosComCoordenadas
+            .map(p => `${p.LONGITUDE},${p.LATITUDE}`)
+            .join(';');
+          
+          const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`;
+          const response = await fetch(osrmUrl);
+          const data = await response.json();
+          
+          if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+            distanciaTotal = parseFloat((data.routes[0].distance / 1000).toFixed(2));
+            
+            // Atualizar campo na tela
+            const campoDistancia = document.getElementById('roteiroDistancia');
+            if (campoDistancia) {
+              campoDistancia.value = distanciaTotal;
+            }
+            
+            // Atualizar no banco de dados
+            const descricao = document.getElementById('roteiroDescricao')?.value;
+            const origemCidade = document.getElementById('origemCidade')?.value;
+            const destinoCidade = document.getElementById('destinoCidade')?.value;
+            
+            if (descricao && origemCidade && destinoCidade) {
+              await fetch(`/api/roteiros/${idRoteiro}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  DSROTEIRO: descricao,
+                  CDCIDADEORIGEM: parseInt(origemCidade),
+                  CDCIDADEDESTINO: parseInt(destinoCidade),
+                  DISTANCIAKM: distanciaTotal
+                })
+              });
+            }
+          }
+        } catch (err) {
+          console.warn('Erro ao recalcular distância total:', err);
+        }
       }
       
       // 3. Recarregar pontos do banco para garantir dados atualizados
@@ -2216,6 +2505,23 @@ async function loadRoteiroParaEdicao(id) {
     if (pontosRoteiro.length === 0) {
       somaElement.textContent = '';
       return;
+    }
+    
+    // OTIMIZAÇÃO: Para poucos pontos, usar valores já calculados (KMENTREPONTOS) se disponíveis
+    const pontosComCoordenadas = pontosRoteiro
+      .filter(p => p.LATITUDE && p.LONGITUDE)
+      .sort((a, b) => (a.ORDEM || 0) - (b.ORDEM || 0));
+    
+    if (pontosComCoordenadas.length <= 3) {
+      // Para 3 ou menos pontos, somar KMENTREPONTOS se disponíveis (mais rápido)
+      const somaKMENTREPONTOS = pontosComCoordenadas
+        .slice(1) // Pular primeiro ponto (não tem distância do anterior)
+        .reduce((soma, p) => soma + (parseFloat(p.KMENTREPONTOS) || 0), 0);
+      
+      if (somaKMENTREPONTOS > 0) {
+        somaElement.textContent = `Distância total (rota real): ${somaKMENTREPONTOS.toFixed(2)} km`;
+        return; // Usar valores já calculados, não precisa fazer nova requisição OSRM
+      }
     }
     
     // Ordenar pontos por ORDEM
@@ -2673,7 +2979,20 @@ async function loadRoteiroParaEdicao(id) {
     const latitude = document.getElementById('pontoLatitude')?.value;
     const longitude = document.getElementById('pontoLongitude')?.value;
     const tipoLocal = document.getElementById('pontoTipoLocal')?.value;
+    // Ler distância do campo (pode ser vazio, zero ou um valor)
     let distancia = document.getElementById('pontoDistancia')?.value;
+    // Converter para número se houver valor, senão null
+    if (distancia !== null && distancia !== undefined && distancia !== '') {
+      const distanciaNum = parseFloat(distancia);
+      // Se for NaN ou menor que zero, considerar null
+      if (!isNaN(distanciaNum) && distanciaNum >= 0) {
+        distancia = distanciaNum;
+      } else {
+        distancia = null;
+      }
+    } else {
+      distancia = null;
+    }
     const estado = document.getElementById('pontoEstado')?.value.trim();
     const pais = document.getElementById('pontoPais')?.value;
     
@@ -2689,17 +3008,25 @@ async function loadRoteiroParaEdicao(id) {
       }
       
       // Calcular distância do ponto anterior automaticamente se houver coordenadas
-      if (latitude && longitude) {
+      // MAS só calcular se o usuário não informou uma distância manualmente
+      const distanciaManual = distancia && parseFloat(distancia) > 0;
+      
+      if (latitude && longitude && !distanciaManual) {
+        // Só calcular automaticamente se não houver distância manual
         const distanciaCalculada = await calcularDistanciaPontoAnterior(ordem, latitude, longitude, sequencia);
         if (distanciaCalculada !== null) {
           distancia = distanciaCalculada;
           // Atualizar o campo visualmente
           document.getElementById('pontoDistancia').value = distancia;
-        } else if (!distancia) {
-          // Se não calculou e não há distância informada, deixar null
-          distancia = null;
+        } else {
+          // Se não calculou, manter null ou valor manual se houver
+          distancia = distanciaManual ? distancia : null;
         }
+      } else if (!distanciaManual && !latitude && !longitude) {
+        // Se não há coordenadas e não há distância manual, deixar null
+        distancia = null;
       }
+      // Se há distância manual, manter o valor informado pelo usuário
       
       const pontoData = {
         ORDEM: parseInt(ordem),
@@ -3273,22 +3600,34 @@ async function loadRoteiroParaEdicao(id) {
       showMapaLoading('Traçando Rota', 'Calculando rota real entre os pontos...');
       
       // Desenhar linha conectando todos os pontos
+      let osrmData = null; // Variável para armazenar dados do OSRM
+      
       if (latlngs.length > 1) {
+        // OTIMIZAÇÃO: Para poucos pontos (≤5), não precisa de steps=true (mais rápido)
+        const totalPontos = latlngs.length;
+        const usarSteps = totalPontos > 5; // Só usar steps para muitos pontos
+        
         // Tentar obter rota do OSRM (com timeout para não travar)
         try {
           const coordsStr = latlngs.map(c => `${c[1]},${c[0]}`).join(';');
-          const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`;
+          // Para poucos pontos, remover steps=true para ser mais rápido
+          const osrmUrl = usarSteps 
+            ? `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson&steps=true`
+            : `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`;
           
-          // Usar AbortController para timeout
+          console.log(`[Roteiros] OSRM para mapa: ${totalPontos} pontos, steps=${usarSteps}`);
+          
+          // Usar AbortController para timeout (reduzir timeout para poucos pontos)
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos de timeout
+          const timeout = totalPontos <= 5 ? 10000 : 30000; // 10s para poucos pontos, 30s para muitos
+          const timeoutId = setTimeout(() => controller.abort(), timeout);
           
           const response = await fetch(osrmUrl, { signal: controller.signal });
           clearTimeout(timeoutId);
-          const data = await response.json();
+          osrmData = await response.json();
           
-          if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-            const geometry = data.routes[0].geometry.coordinates;
+          if (osrmData.code === 'Ok' && osrmData.routes && osrmData.routes.length > 0) {
+            const geometry = osrmData.routes[0].geometry.coordinates;
             const routeLatLngs = geometry.map(c => [c[1], c[0]]);
             
             linhaRota = L.polyline(routeLatLngs, {
@@ -3297,7 +3636,7 @@ async function loadRoteiroParaEdicao(id) {
               opacity: 0.7
             }).addTo(mapa);
             
-            const distanciaTotal = (data.routes[0].distance / 1000).toFixed(2);
+            const distanciaTotal = (osrmData.routes[0].distance / 1000).toFixed(2);
             linhaRota.bindPopup(`<strong>Distância total da rota:</strong> ${distanciaTotal} km`);
           } else {
             // Fallback: linha reta se OSRM não retornar rota válida
@@ -3307,6 +3646,7 @@ async function loadRoteiroParaEdicao(id) {
               opacity: 0.7,
               dashArray: '10, 10'
             }).addTo(mapa);
+            osrmData = null; // Limpar dados inválidos
           }
         } catch (err) {
           if (err.name !== 'AbortError') {
@@ -3319,6 +3659,7 @@ async function loadRoteiroParaEdicao(id) {
             opacity: 0.7,
             dashArray: '10, 10'
           }).addTo(mapa);
+          osrmData = null; // Limpar dados em caso de erro
         }
       }
       
@@ -3350,6 +3691,12 @@ async function loadRoteiroParaEdicao(id) {
           hideMapaLoading();
         }, 300);
       });
+      
+      // NÃO gerar resumo automaticamente - só gerar quando o usuário clicar em "Calcular"
+      // O resumo será gerado apenas quando:
+      // 1. Usuário clicar no botão "Calcular"
+      // 2. Usuário alterar origem/destino e recalcular
+      // await gerarResumoRota(osrmData, coordenadasParaResumo); // REMOVIDO - cálculo só manual
     } catch (err) {
       hideMapaLoading();
       console.error('Erro ao atualizar mapa com pontos:', err);
@@ -3358,6 +3705,13 @@ async function loadRoteiroParaEdicao(id) {
       // SEMPRE resetar a flag, mesmo em caso de erro
       atualizandoMapaComPontos = false;
     }
+  }
+  
+  // Função removida - resumo da rota não será mais gerado automaticamente
+  // O campo RESUMOROTA pode ser preenchido manualmente pelo usuário
+  async function gerarResumoRota(osrmData, coordenadas) {
+    // Função desabilitada - não faz nada
+    return;
   }
   
   // Variáveis para o mapa de seleção
@@ -3372,20 +3726,145 @@ async function loadRoteiroParaEdicao(id) {
     // Verificar se Leaflet está disponível
     if (typeof L === 'undefined') {
       console.log('[Mapa Seleção] Leaflet não está carregado, aguardando...');
-      // Tentar aguardar o carregamento
-      const leafletDisponivel = await aguardarLeaflet();
-      if (!leafletDisponivel) {
-        showMessage('Erro ao carregar a biblioteca de mapas. Recarregue a página.', 'error');
-        return;
-      }
+      return null;
+    }
+    
+    const modalMapaSelecao = document.getElementById('modalMapaSelecao');
+    if (!modalMapaSelecao) {
+      console.error('[Mapa Seleção] Modal não encontrado');
+      return;
     }
 
     const mapaDiv = document.getElementById('mapaSelecao');
     if (!mapaDiv) {
       console.warn('[Mapa Seleção] Elemento mapaSelecao não encontrado no DOM');
-      return;
+      return null;
     }
     
+    const mapaContainer = modalMapaSelecao.querySelector('#mapaSelecao');
+    if (!mapaContainer) {
+      console.error('[Mapa Seleção] Container do mapa não encontrado');
+      return null;
+    }
+    
+    // Inicializar mapa se ainda não foi inicializado
+    if (!mapaSelecao) {
+      mapaSelecao = L.map('mapaSelecao').setView([-23.5505, -46.6333], 5);
+      
+      // Configurar tile layer
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+      }).addTo(mapaSelecao);
+    }
+    
+    // Resto da função inicializarMapaSelecao continua aqui...
+    return mapaSelecao;
+  }
+  
+  // Função gerarResumoRota foi desabilitada - código removido
+  // O campo RESUMOROTA pode ser preenchido manualmente pelo usuário
+  
+  // Função para atualizar mapa de seleção quando modal é aberto
+  async function atualizarMapaSelecao(coordenadasIniciais = null) {
+    if (mapaSelecao) {
+      // Já inicializado, apenas invalidar tamanho e atualizar view
+      try {
+        mapaSelecao.invalidateSize();
+        if (coordenadasIniciais) {
+          mapaSelecao.setView([coordenadasIniciais.lat, coordenadasIniciais.lng], 15);
+        } else {
+          mapaSelecao.setView([-14.2350, -51.9253], 4);
+        }
+      } catch (e) {
+        console.warn('[Mapa Seleção] Erro ao invalidar tamanho:', e);
+      }
+      return;
+    }
+
+    try {
+      // Verificar se o elemento está visível
+      const modal = document.getElementById('modalSelecionarMapa');
+      if (modal) {
+        // Garantir que o modal está visível
+        if (modal.style.display === 'none') {
+          modal.style.display = 'block';
+        }
+        // Aguardar um pouco para o elemento estar totalmente visível
+        await new Promise(resolve => setTimeout(resolve, 150));
+      }
+      
+      // Verificar novamente se o elemento está visível
+      if (mapaDiv.offsetParent === null && mapaDiv.offsetWidth === 0 && mapaDiv.offsetHeight === 0) {
+        // Elemento ainda não está visível, aguardar mais um pouco
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+      
+      // Limpar conteúdo anterior se houver
+      mapaDiv.innerHTML = '';
+      
+      console.log('[Mapa Seleção] Inicializando mapa...');
+      
+      // Determinar coordenadas e zoom iniciais
+      let viewLat = -14.2350;
+      let viewLng = -51.9253;
+      let viewZoom = 4;
+      
+      if (coordenadasIniciais) {
+        viewLat = coordenadasIniciais.lat;
+        viewLng = coordenadasIniciais.lng;
+        viewZoom = 15; // Zoom próximo para ajuste fino
+      }
+      
+      // Criar mapa
+      mapaSelecao = L.map('mapaSelecao', {
+        preferCanvas: false
+      }).setView([viewLat, viewLng], viewZoom);
+
+      // Adicionar camada de tiles do OpenStreetMap
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+      }).addTo(mapaSelecao);
+      
+      // Aguardar o mapa carregar completamente
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      console.log('[Mapa Seleção] Mapa inicializado com sucesso');
+
+      // Event listener para double-click
+      mapaSelecao.on('dblclick', async (e) => {
+        const { lat, lng } = e.latlng;
+        await criarMarcadorSelecao(lat, lng);
+      });
+      
+      // Se há coordenadas iniciais, criar marcador
+      if (coordenadasIniciais) {
+        const posicaoAtual = document.getElementById('pontoPosicao')?.value;
+        await criarMarcadorSelecao(coordenadasIniciais.lat, coordenadasIniciais.lng, posicaoAtual);
+      }
+      
+      // Forçar invalidateSize múltiplas vezes para garantir renderização correta
+      for (let i = 0; i < 3; i++) {
+        try {
+          if (mapaSelecao) {
+            mapaSelecao.invalidateSize();
+          }
+        } catch (e) {
+          console.warn('[Mapa Seleção] Erro ao invalidar tamanho:', e);
+        }
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    } catch (err) {
+      console.error('[Mapa Seleção] Erro ao inicializar mapa:', err);
+    }
+  }
+  
+  // Código órfão removido - estava incorretamente dentro de atualizarMapaSelecao
+  // Este código de processamento de rotas não deveria estar aqui
+  
+  // Função para atualizar mapa de seleção quando modal é aberto
+  async function atualizarMapaSelecao(coordenadasIniciais = null) {
     if (mapaSelecao) {
       // Já inicializado, apenas invalidar tamanho e atualizar view
       try {

@@ -14,6 +14,7 @@ if (!process.env.DB_SERVER) {
   });
 }
 
+// Configuração do banco principal DIVULGACARGA_PRD
 const config = {
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
@@ -35,22 +36,58 @@ const config = {
   }
 };
 
+// Configuração do banco INTEGRA_PRD (banco de migração)
+const configIntegra = {
+  user: process.env.INTEGRA_DB_USER || 'sa',
+  password: process.env.INTEGRA_DB_PASSWORD || 'SistMSQLServer2025&*',
+  server: process.env.INTEGRA_DB_SERVER || '186.250.92.131',
+  port: parseInt(process.env.INTEGRA_DB_PORT, 10) || 35987,
+  database: process.env.INTEGRA_DB_DATABASE || 'INTEGRA_PRD',
+  options: {
+    encrypt: false,
+    trustServerCertificate: true,
+    requestTimeout: 600000,
+    connectionTimeout: 30000
+  },
+  pool: {
+    max: 20,
+    min: 2,
+    idleTimeoutMillis: 30000,
+    acquireTimeoutMillis: 60000,
+    createTimeoutMillis: 30000
+  }
+};
+
 const poolPromise = new sql.ConnectionPool(config)
   .connect()
   .then(pool => {
+    console.log('✅ Conexão com DIVULGACARGA_PRD estabelecida');
     return pool;
   })
   .catch(err => {
-    console.error('❌ Erro na conexão com SQL Server:', err);
+    console.error('❌ Erro na conexão com SQL Server (DIVULGACARGA_PRD):', err);
     console.warn('⚠️ Servidor continuará rodando, mas funcionalidades do banco não estarão disponíveis.');
     console.warn('⚠️ Verifique se o servidor SQL está acessível e as credenciais estão corretas.');
-    // Não matar o servidor - permitir que continue para testar interface
-    // Em produção, você pode querer process.exit(1) aqui
-    // Por enquanto, retornamos uma promise rejeitada que pode ser tratada
     return Promise.reject(err);
+  });
+
+// Pool para INTEGRA_PRD (conexão separada)
+const poolIntegraPromise = new sql.ConnectionPool(configIntegra)
+  .connect()
+  .then(pool => {
+    console.log('✅ Conexão com INTEGRA_PRD estabelecida');
+    return pool;
+  })
+  .catch(err => {
+    console.warn('⚠️ Aviso: Não foi possível conectar ao INTEGRA_PRD:', err.message);
+    console.warn('⚠️ Funcionalidades que dependem do INTEGRA_PRD podem não funcionar.');
+    // Não rejeitar completamente - permitir que o sistema continue funcionando
+    // A conexão será tentada novamente quando necessário
+    return null;
   });
 
 module.exports = {
   sql,
-  poolPromise
+  poolPromise,
+  poolIntegraPromise
 };

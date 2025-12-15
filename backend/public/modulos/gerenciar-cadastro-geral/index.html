@@ -161,7 +161,10 @@
       <div class="form-box">
         <h2>Cadastros Gerais - Visualização em Grid</h2>
         <div class="actions-top">
-          <button id="btnVoltarGrid" class="btn cancel">← Voltar aos Filtros</button>
+          <div style="display: flex; gap: 10px;">
+            <button id="btnVoltarGrid" class="btn cancel">← Voltar aos Filtros</button>
+            <button id="btnExportarExcel" class="btn save" style="background-color: #27ae60;">📥 Exportar para Excel</button>
+          </div>
           <button id="btnNovoRegistroGrid" class="btn save">+ Novo Registro</button>
         </div>
         <div id="cadastrosGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">

@@ -53,9 +53,10 @@ function getOverlayMostrado() {
     // 'https://tile.openstreetmap.de/{z}/{x}/{y}.png'
     // 'https://tiles.wmflabs.org/osm/{z}/{x}/{y}.png'
     
-    // Servidor de roteamento OSRM
+    // Servidor de roteamento OSRM (com fallback)
     osrmServer: 'https://router.project-osrm.org/route/v1/driving',
-    // Alternativa: 'https://routing.openstreetmap.de/routed-car/route/v1/driving'
+    osrmServerAlt: 'https://routing.openstreetmap.de/routed-car/route/v1/driving',
+    // Alternativa adicional: 'https://osrm.5apps.com/route/v1/driving'
     
     // Timeout para requisições de rota (ms)
     routeTimeout: 15000,
@@ -406,14 +407,22 @@ function getOverlayMostrado() {
         return; // Não bloquear o módulo
       }
       
-      // Verificar se todos os comandos foram executados com sucesso
-      if (!result.success) {
+      // Verificar se result foi definido corretamente
+      if (!result || typeof result !== 'object') {
         hideLoadingOverlayInitSQL();
+        console.warn('[Init SQL] Resultado não definido ou inválido');
+        return; // Não bloquear o módulo
+      }
+      
+      // Verificar se todos os comandos foram executados com sucesso
+      if (result.success === false || (result.success === undefined && result.error)) {
+        hideLoadingOverlayInitSQL();
+        console.warn('[Init SQL] Execução não foi bem-sucedida:', result.error || 'Erro desconhecido');
         return; // Não bloquear o módulo
       }
       
       // Verificar se há resultados e se todos os comandos foram executados
-      if (result.resultados && Array.isArray(result.resultados)) {
+      if (result && result.resultados && Array.isArray(result.resultados)) {
         // Incluir também resultados do tipo 'AVISO' (truncamentos em procedures)
         const comandosComProblema = result.resultados.filter(r => r.tipo === 'ERRO' || r.tipo === 'AVISO');
         const comandosComErro = result.resultados.filter(r => r.tipo === 'ERRO');
@@ -523,7 +532,15 @@ function getOverlayMostrado() {
                   }
                 }
                 
-                console.error(`Erro no init.sql [Procedure: ${procedureName}]:`, mensagem + detalhesAdicionais);
+                // Verificar se mensagem está definida antes de usar
+                const mensagemFinal = mensagem && mensagem !== 'Erro desconhecido' ? (mensagem + detalhesAdicionais) : ('Erro desconhecido' + detalhesAdicionais);
+                // Verificar se a mensagem não contém "result is not defined" (erro interno do backend)
+                if (mensagemFinal && !mensagemFinal.includes('result is not defined')) {
+                  console.error(`Erro no init.sql [Procedure: ${procedureName}]:`, mensagemFinal);
+                } else {
+                  // Se for erro interno do backend, apenas avisar silenciosamente
+                  console.warn(`[Init SQL] Aviso: Procedure ${procedureName} retornou erro interno (pode ser normal em algumas situações)`);
+                }
               } catch (err) {
                 // Se houver erro ao processar o erro, logar de forma simples
                 console.error('Erro ao processar erro do init.sql:', err);
@@ -2882,22 +2899,140 @@ function getOverlayMostrado() {
               showMapaLoading('Traçando Rota', 'Calculando rota real entre os pontos...');
               
               // Desenhar rota usando OSRM com todos os pontos
+              let data = null;
+              let osrmSucesso = false;
+              let routeLatLngs = [];
+              
               try {
-                const coordsStr = latlngs.map(c => `${c[1]},${c[0]}`).join(';');
                 const config = window.MAP_CONFIG || {};
-                const osrmUrl = `${config.osrmServer || 'https://router.project-osrm.org/route/v1/driving'}/${coordsStr}?overview=full&geometries=geojson`;
                 
-                // Usar AbortController para timeout
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), config.routeTimeout || 10000);
+                // Se houver muitos pontos (mais de 5), calcular rota em segmentos para evitar timeout
+                if (latlngs.length > 5) {
+                  console.log('[MAPA] Muitos pontos detectados (' + latlngs.length + '), calculando rota em segmentos...');
+                  
+                  // Função auxiliar para tentar obter rota de um segmento com retry
+                  async function obterRotaSegmento(segmento, servidor, tentativa = 1) {
+                    const coordsStr = segmento.map(c => `${c[1]},${c[0]}`).join(';');
+                    const osrmUrl = `${servidor}/${coordsStr}?overview=full&geometries=geojson`;
+                    
+                    try {
+                      const controller = new AbortController();
+                      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos
+                      
+                      const response = await fetch(osrmUrl, { signal: controller.signal });
+                      clearTimeout(timeoutId);
+                      
+                      if (response.ok) {
+                        const segmentData = await response.json();
+                        if (segmentData.code === 'Ok' && segmentData.routes && segmentData.routes[0]) {
+                          const segmentGeometry = segmentData.routes[0].geometry.coordinates;
+                          return segmentGeometry.map(c => [c[1], c[0]]); // Converter [lon, lat] para [lat, lon]
+                        }
+                      }
+                      throw new Error(`Resposta inválida: ${response.status}`);
+                    } catch (err) {
+                      if (tentativa < 2 && err.name !== 'AbortError') {
+                        // Tentar novamente após 1 segundo
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        return obterRotaSegmento(segmento, servidor, tentativa + 1);
+                      }
+                      throw err;
+                    }
+                  }
+                  
+                  // Calcular rota segmento por segmento
+                  for (let i = 0; i < latlngs.length - 1; i++) {
+                    const segmento = [latlngs[i], latlngs[i + 1]];
+                    let segmentRoute = null;
+                    
+                    // Tentar primeiro com servidor principal
+                    try {
+                      segmentRoute = await obterRotaSegmento(segmento, config.osrmServer || 'https://router.project-osrm.org/route/v1/driving');
+                      console.log(`[MAPA] Segmento ${i + 1}/${latlngs.length - 1} calculado com sucesso`);
+                    } catch (err) {
+                      // Se falhar, tentar com servidor alternativo
+                      console.warn(`[MAPA] Segmento ${i + 1} falhou no servidor principal, tentando alternativo...`);
+                      try {
+                        segmentRoute = await obterRotaSegmento(segmento, config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving');
+                        console.log(`[MAPA] Segmento ${i + 1}/${latlngs.length - 1} calculado com servidor alternativo`);
+                      } catch (err2) {
+                        console.warn(`[MAPA] Segmento ${i + 1} falhou em ambos servidores, usando linha reta`);
+                        // Se ambos falharem, usar linha reta para esse segmento
+                        segmentRoute = segmento;
+                      }
+                    }
+                    
+                    // Adicionar segmento à rota total (evitar duplicar o último ponto)
+                    if (i === 0) {
+                      routeLatLngs.push(...segmentRoute);
+                    } else {
+                      // Se o segmento anterior tinha mais de 2 pontos, é uma rota real
+                      // Se não, é linha reta e precisamos adicionar o ponto final
+                      if (segmentRoute.length > 2) {
+                        routeLatLngs.push(...segmentRoute.slice(1)); // Pular primeiro ponto
+                      } else {
+                        routeLatLngs.push(segmentRoute[segmentRoute.length - 1]); // Adicionar último ponto
+                      }
+                    }
+                    
+                    // Pequeno delay entre segmentos para não sobrecarregar o servidor
+                    if (i < latlngs.length - 2) {
+                      await new Promise(resolve => setTimeout(resolve, 500)); // Aumentado para 500ms
+                    }
+                  }
+                  
+                  // Verificar se conseguiu calcular pelo menos alguns segmentos
+                  // Se tem mais pontos que os originais, conseguiu calcular rotas reais
+                  osrmSucesso = routeLatLngs.length > latlngs.length;
+                  
+                  // Se não conseguiu calcular nenhuma rota real, mas tem pontos, ainda é melhor que nada
+                  if (!osrmSucesso && routeLatLngs.length > 0) {
+                    console.warn('[MAPA] ⚠️ Alguns segmentos falharam, mas a rota será desenhada com os segmentos disponíveis');
+                    osrmSucesso = true; // Permitir desenhar mesmo com alguns segmentos em linha reta
+                  }
+                } else {
+                  // Para poucos pontos, fazer uma única requisição
+                  // Formato correto para OSRM: "lon,lat;lon,lat" (longitude primeiro!)
+                  const coordsStr = latlngs.map(c => `${c[1]},${c[0]}`).join(';');
+                  // Remover steps e annotations para requisições mais rápidas (podemos adicionar depois se necessário)
+                  const osrmUrl = `${config.osrmServer || 'https://router.project-osrm.org/route/v1/driving'}/${coordsStr}?overview=full&geometries=geojson`;
+                  
+                  console.log('[MAPA] Tentando obter rota do OSRM:', osrmUrl.substring(0, 150) + '...');
+                  
+                  // Usar AbortController para timeout (aumentado para 30s)
+                  const controller = new AbortController();
+                  const timeoutId = setTimeout(() => controller.abort(), config.routeTimeout || 30000);
+                  
+                  const response = await fetch(osrmUrl, { signal: controller.signal });
+                  clearTimeout(timeoutId);
+                  
+                  if (!response.ok) {
+                    throw new Error(`OSRM retornou status ${response.status}: ${response.statusText}`);
+                  }
+                  
+                  data = await response.json();
+                  
+                  console.log('[MAPA] Resposta do OSRM:', {
+                    code: data.code,
+                    routes: data.routes ? data.routes.length : 0,
+                    message: data.message || 'N/A'
+                  });
+                  
+                  if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+                    const geometry = data.routes[0].geometry.coordinates;
+                    routeLatLngs = geometry.map(c => [c[1], c[0]]); // OSRM retorna [lon, lat], Leaflet precisa [lat, lon]
+                    osrmSucesso = true;
+                  } else {
+                    throw new Error(`OSRM retornou código: ${data.code}, mensagem: ${data.message || 'N/A'}`);
+                  }
+                }
                 
-                const response = await fetch(osrmUrl, { signal: controller.signal });
-                clearTimeout(timeoutId);
-                const data = await response.json();
-                
-                if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-                  const geometry = data.routes[0].geometry.coordinates;
-                  const routeLatLngs = geometry.map(c => [c[1], c[0]]);
+                // Desenhar rota se conseguiu calcular
+                if (osrmSucesso && routeLatLngs.length > 0) {
+                  // Remover linha anterior se existir
+                  if (linhaRota) {
+                    mapa.removeLayer(linhaRota);
+                  }
                   
                   linhaRota = L.polyline(routeLatLngs, {
                     color: '#3498db',
@@ -2905,29 +3040,76 @@ function getOverlayMostrado() {
                     opacity: 0.7
                   }).addTo(mapa);
                   
-                  const distanciaTotal = (data.routes[0].distance / 1000).toFixed(2);
-                  linhaRota.bindPopup(`<strong>Distância total da rota:</strong> ${distanciaTotal} km`);
+                  // Calcular distância total se tiver dados do OSRM
+                  if (data && data.routes && data.routes[0]) {
+                    const distanciaTotal = (data.routes[0].distance / 1000).toFixed(2);
+                    linhaRota.bindPopup(`<strong>Distância total da rota:</strong> ${distanciaTotal} km`);
+                  }
+                  
+                  console.log('[MAPA] ✅ Rota OSRM desenhada com sucesso!');
                 } else {
-                  // Fallback: linha reta entre pontos
-                  linhaRota = L.polyline(latlngs, {
-                    color: '#3498db',
-                    weight: 4,
-                    opacity: 0.7,
-                    dashArray: '10, 10'
-                  }).addTo(mapa);
+                  throw new Error('Não foi possível calcular a rota');
                 }
               } catch (err) {
-                if (err.name !== 'AbortError') {
-                  console.warn('Erro ao obter rota do OSRM, usando linha reta:', err);
+                if (err.name === 'AbortError') {
+                  console.warn('[MAPA] ⏱️ Timeout ao obter rota do OSRM');
+                } else {
+                  console.error('[MAPA] ❌ Erro ao obter rota do OSRM:', err);
+                  console.error('[MAPA] Detalhes do erro:', {
+                    name: err.name,
+                    message: err.message
+                  });
                 }
                 // Fallback: linha reta entre pontos
+                if (linhaRota) {
+                  mapa.removeLayer(linhaRota);
+                }
                 linhaRota = L.polyline(latlngs, {
-                  color: '#3498db',
+                  color: '#e74c3c',
                   weight: 4,
                   opacity: 0.7,
                   dashArray: '10, 10'
                 }).addTo(mapa);
+                linhaRota.bindPopup('<strong>Atenção:</strong> Rota em linha reta (erro ao calcular rota real)');
               }
+              
+              // Processar informações detalhadas da rota (rodovias, cidades, etc.)
+              let informacoesRota = await processarInformacoesRotaOSRM(data, pontosComCoordenadas, latlngs);
+              
+              // Calcular distância total
+              let distanciaTotal = null;
+              if (data && data.routes && data.routes[0]) {
+                // Se OSRM funcionou, usar distância do OSRM
+                distanciaTotal = (data.routes[0].distance / 1000).toFixed(2) + ' km';
+              } else {
+                // Se OSRM falhou, calcular somando as distâncias entre pontos do roteiro
+                let distanciaAcumulada = 0;
+                pontosComCoordenadas.forEach((ponto, index) => {
+                  if (index > 0 && ponto.KMENTREPONTOS) {
+                    distanciaAcumulada += parseFloat(ponto.KMENTREPONTOS) || 0;
+                  }
+                });
+                // Se não tiver KMENTREPONTOS, calcular distância Haversine entre pontos consecutivos
+                if (distanciaAcumulada === 0 && pontosComCoordenadas.length > 1) {
+                  for (let i = 1; i < pontosComCoordenadas.length; i++) {
+                    const dist = calcularDistanciaHaversine(
+                      pontosComCoordenadas[i-1].LATITUDE,
+                      pontosComCoordenadas[i-1].LONGITUDE,
+                      pontosComCoordenadas[i].LATITUDE,
+                      pontosComCoordenadas[i].LONGITUDE
+                    );
+                    distanciaAcumulada += dist;
+                  }
+                }
+                distanciaTotal = distanciaAcumulada > 0 ? distanciaAcumulada.toFixed(2) + ' km' : null;
+              }
+              
+              // Debug: verificar se os pontos foram processados
+              console.log('Pontos processados:', informacoesRota.pontosIntercalados?.length || 0, 'pontos');
+              console.log('Pontos do roteiro:', pontosComCoordenadas.length);
+              console.log('Cidades de passagem:', informacoesRota.cidadesPassagem?.length || 0);
+              console.log('Rodovias:', informacoesRota.rodovias?.length || 0);
+              console.log('Distância total:', distanciaTotal);
               
               // Atualizar mensagem do overlay
               showMapaLoading('Ajustando Visualização', 'Ajustando zoom para mostrar toda a rota...');
@@ -2956,6 +3138,43 @@ function getOverlayMostrado() {
                 index: i + 1,
                 posicao: m.getLatLng()
               })));
+              
+              // Preparar dados para exibição usando informações processadas
+              // Buscar informações das cidades das variáveis globais
+              const origemCidadeObj = cidadesOrigem.find(c => c.CDCIDADE.toString() === origemCidadeId);
+              const destinoCidadeObj = cidadesDestino.find(c => c.CDCIDADE.toString() === destinoCidadeId);
+              
+              // Extrair cidade real da origem (priorizar NMCIDADE, depois DSLOCAL)
+              const cidadeOrigem = origemCidadeObj?.NMCIDADE || pontosComCoordenadas[0]?.DSLOCAL?.split(',')[0]?.trim() || pontosComCoordenadas[0]?.DSLOCAL || 'N/A';
+              // Extrair cidade real do destino (priorizar NMCIDADE, depois DSLOCAL)
+              const cidadeDestino = destinoCidadeObj?.NMCIDADE || pontosComCoordenadas[pontosComCoordenadas.length - 1]?.DSLOCAL?.split(',')[0]?.trim() || pontosComCoordenadas[pontosComCoordenadas.length - 1]?.DSLOCAL || 'N/A';
+              
+              const dadosRota = {
+                origem: {
+                  cidade: cidadeOrigem,
+                  estado: origemEstado || ''
+                },
+                destino: {
+                  cidade: cidadeDestino,
+                  estado: destinoEstado || ''
+                },
+                distancia: distanciaTotal,
+                tempoEstimado: data && data.routes && data.routes[0] && data.routes[0].duration 
+                  ? Math.round(data.routes[0].duration / 60) + ' minutos' 
+                  : null,
+                pontosIntercalados: informacoesRota.pontosIntercalados || [],
+                rodovias: informacoesRota.rodovias || [],
+                cidadesPassagem: informacoesRota.cidadesPassagem || [],
+                instrucoes: informacoesRota.instrucoes || [],
+                detalhes: [
+                  `Rota com ${pontosComCoordenadas.length} ponto(s) de referência`,
+                  data && data.routes && data.routes[0] 
+                    ? 'Distância total calculada pela rota real (OSRM)' 
+                    : 'Distância total calculada pelos pontos do roteiro',
+                  data && data.routes && data.routes[0] ? `Tempo estimado de viagem: ${Math.round(data.routes[0].duration / 60)} minutos` : null
+                ].filter(d => d !== null)
+              };
+              
               
               // Esconder overlay após um pequeno delay
               requestAnimationFrame(() => {
@@ -3027,29 +3246,49 @@ function getOverlayMostrado() {
       // Atualizar mensagem do overlay
       showMapaLoading('Calculando Rota', 'Obtendo rota real entre origem e destino...');
       
-      // Obter rota real usando OSRM (Open Source Routing Machine) via backend
+      // Obter rota real usando OSRM (Open Source Routing Machine) com informações detalhadas
+      let rotaData = null;
+      let informacoesRota = { rodovias: [], cidadesPassagem: [], instrucoes: [], pontosIntercalados: [] };
       try {
-        const params = new URLSearchParams({
-          lon1: coordsOrigem.lon,
-          lat1: coordsOrigem.lat,
-          lon2: coordsDestino.lon,
-          lat2: coordsDestino.lat
-        });
+        const config = window.MAP_CONFIG || {};
+        // Chamada direta ao OSRM (sem steps e annotations para ser mais rápido)
+        // Formato OSRM: "lon,lat;lon,lat" (longitude primeiro!)
+        const osrmUrl = `${config.osrmServer || 'https://router.project-osrm.org/route/v1/driving'}/${coordsOrigem.lon},${coordsOrigem.lat};${coordsDestino.lon},${coordsDestino.lat}?overview=full&geometries=geojson`;
+        
+        console.log('[MAPA] Tentando obter rota do OSRM (origem/destino):', osrmUrl.substring(0, 150) + '...');
         
         // Usar AbortController para timeout
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos de timeout
+        const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 segundos de timeout
         
-        const rotaResponse = await fetch(`/api/cidades/rota?${params.toString()}`, { signal: controller.signal });
+        const rotaResponse = await fetch(osrmUrl, { signal: controller.signal });
         clearTimeout(timeoutId);
         
         if (!rotaResponse.ok) {
-          throw new Error(`Erro ${rotaResponse.status} ao obter rota`);
+          throw new Error(`OSRM retornou status ${rotaResponse.status}: ${rotaResponse.statusText}`);
         }
         
-        const rotaData = await rotaResponse.json();
+        rotaData = await rotaResponse.json();
+        
+        console.log('[MAPA] Resposta do OSRM (origem/destino):', {
+          code: rotaData.code,
+          routes: rotaData.routes ? rotaData.routes.length : 0,
+          message: rotaData.message || 'N/A'
+        });
+        
+        // Processar informações detalhadas da rota
+        informacoesRota = await processarInformacoesRotaOSRM(rotaData, null, null);
+        
+        let distanciaRota = null;
+        let tempoEstimado = null;
+        let rotaDataFinal = null;
         
         if (rotaData.code === 'Ok' && rotaData.routes && rotaData.routes.length > 0) {
+          // Remover linha anterior se existir
+          if (linhaRota) {
+            mapa.removeLayer(linhaRota);
+          }
+          
           // Usar a rota real obtida do OSRM
           const coordenadasRota = rotaData.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]); // OSRM retorna [lon, lat], Leaflet precisa [lat, lon]
           
@@ -3061,14 +3300,23 @@ function getOverlayMostrado() {
           }).addTo(mapa);
           
           // Calcular distância real da rota
-          const distanciaRota = (rotaData.routes[0].distance / 1000).toFixed(2); // Converter metros para km
+          distanciaRota = (rotaData.routes[0].distance / 1000).toFixed(2); // Converter metros para km
+          tempoEstimado = rotaData.routes[0].duration ? Math.round(rotaData.routes[0].duration / 60) + ' minutos' : null;
+          rotaDataFinal = rotaData;
           linhaRota.bindPopup(`<strong>Distância da Rota:</strong> ${distanciaRota} km`);
+          
+          console.log('[MAPA] ✅ Rota OSRM desenhada com sucesso (origem/destino)!');
         } else {
+          console.warn('[MAPA] ⚠️ OSRM retornou código:', rotaData.code, 'Mensagem:', rotaData.message);
+          // Remover linha anterior se existir
+          if (linhaRota) {
+            mapa.removeLayer(linhaRota);
+          }
           // Fallback: usar linha reta se não conseguir obter a rota
           linhaRota = L.polyline(
             [[coordsOrigem.lat, coordsOrigem.lon], [coordsDestino.lat, coordsDestino.lon]],
             {
-              color: '#3498db',
+              color: '#e74c3c',
               weight: 4,
               opacity: 0.7,
               dashArray: '10, 10'
@@ -3081,17 +3329,91 @@ function getOverlayMostrado() {
             coordsDestino.lat,
             coordsDestino.lon
           );
-          linhaRota.bindPopup(`<strong>Distância (linha reta):</strong> ${distancia} km`);
+          distanciaRota = distancia.toFixed(2);
+          linhaRota.bindPopup(`<strong>Atenção: Distância (linha reta):</strong> ${distanciaRota} km`);
         }
+        
+        // Preparar dados para exibição usando informações processadas
+        const pontosIntercalados = [
+          {
+            tipo: 'ponto',
+            subtipo: 'O',
+            ordem: 10,
+            local: origemCidade.NMCIDADE || 'N/A',
+            posicao: `${origemCidade.NMCIDADE}, ${origemEstado}`,
+            distanciaAnterior: null,
+            distanciaAcumulada: 0,
+            coordenadas: `${coordsOrigem.lat.toFixed(6)}, ${coordsOrigem.lon.toFixed(6)}`
+          }
+        ];
+        
+        // Adicionar rodovias se houver
+        if (informacoesRota.rodovias && informacoesRota.rodovias.length > 0) {
+          informacoesRota.rodovias.forEach((rodovia, idx) => {
+            pontosIntercalados.push({
+              tipo: 'rodovia',
+              nome: rodovia,
+              ordem: 15 + idx
+            });
+          });
+        }
+        
+        pontosIntercalados.push({
+          tipo: 'ponto',
+          subtipo: 'D',
+          ordem: 20,
+          local: destinoCidade.NMCIDADE || 'N/A',
+          posicao: `${destinoCidade.NMCIDADE}, ${destinoEstado}`,
+          distanciaAnterior: distanciaRota ? distanciaRota + ' km' : null,
+          distanciaAcumulada: distanciaRota ? parseFloat(distanciaRota) : 0,
+          coordenadas: `${coordsDestino.lat.toFixed(6)}, ${coordsDestino.lon.toFixed(6)}`
+        });
+        
+        const dadosRota = {
+          origem: {
+            cidade: origemCidade.NMCIDADE || 'N/A',
+            estado: origemEstado || ''
+          },
+          destino: {
+            cidade: destinoCidade.NMCIDADE || 'N/A',
+            estado: destinoEstado || ''
+          },
+          distancia: distanciaRota ? distanciaRota + ' km' : null,
+          tempoEstimado: tempoEstimado,
+          pontosIntercalados: pontosIntercalados,
+          rodovias: informacoesRota.rodovias || [],
+          cidadesPassagem: informacoesRota.cidadesPassagem || [],
+          instrucoes: informacoesRota.instrucoes || [],
+          pedagios: informacoesRota.pedagios || [],
+          detalhes: [
+            'Rota direta entre origem e destino',
+            distanciaRota ? `Distância total: ${distanciaRota} km` : null,
+            tempoEstimado ? `Tempo estimado: ${tempoEstimado}` : null,
+            'Consulte o mapa para visualizar o trajeto completo'
+          ].filter(d => d !== null)
+        };
+        
+        // Função renderizarInformacoesRota removida - seção "Informações da Rota para o Motorista" foi removida
       } catch (err) {
-        if (err.name !== 'AbortError') {
-          console.warn('Erro ao obter rota do OSRM:', err);
+        if (err.name === 'AbortError') {
+          console.warn('[MAPA] ⏱️ Timeout ao obter rota do OSRM (mais de 20s)');
+        } else {
+          console.error('[MAPA] ❌ Erro ao obter rota do OSRM:', err);
+          console.error('[MAPA] Detalhes do erro:', {
+            name: err.name,
+            message: err.message,
+            stack: err.stack
+          });
+        }
+        // Remover linha anterior se existir
+        if (linhaRota) {
+          mapa.removeLayer(linhaRota);
         }
         // Fallback: usar linha reta em caso de erro
         linhaRota = L.polyline(
           [[coordsOrigem.lat, coordsOrigem.lon], [coordsDestino.lat, coordsDestino.lon]],
           {
-            color: '#3498db',
+            color: '#e74c3c',
             weight: 4,
             opacity: 0.7,
             dashArray: '10, 10'
@@ -3104,7 +3426,57 @@ function getOverlayMostrado() {
           coordsDestino.lat,
           coordsDestino.lon
         );
-        linhaRota.bindPopup(`<strong>Distância (linha reta):</strong> ${distancia} km`);
+        const distanciaRota = distancia.toFixed(2);
+        linhaRota.bindPopup(`<strong>Atenção: Distância (linha reta):</strong> ${distanciaRota} km`);
+        
+        // Preparar dados para exibição (fallback)
+        const pontosIntercaladosFallback = [
+          {
+            tipo: 'ponto',
+            subtipo: 'O',
+            ordem: 10,
+            local: origemCidade.NMCIDADE || 'N/A',
+            posicao: `${origemCidade.NMCIDADE}, ${origemEstado}`,
+            distanciaAnterior: null,
+            distanciaAcumulada: 0,
+            coordenadas: `${coordsOrigem.lat.toFixed(6)}, ${coordsOrigem.lon.toFixed(6)}`
+          },
+          {
+            tipo: 'ponto',
+            subtipo: 'D',
+            ordem: 20,
+            local: destinoCidade.NMCIDADE || 'N/A',
+            posicao: `${destinoCidade.NMCIDADE}, ${destinoEstado}`,
+            distanciaAnterior: distanciaRota + ' km',
+            distanciaAcumulada: parseFloat(distanciaRota),
+            coordenadas: `${coordsDestino.lat.toFixed(6)}, ${coordsDestino.lon.toFixed(6)}`
+          }
+        ];
+        
+        const dadosRota = {
+          origem: {
+            cidade: origemCidade.NMCIDADE || 'N/A',
+            estado: origemEstado || ''
+          },
+          destino: {
+            cidade: destinoCidade.NMCIDADE || 'N/A',
+            estado: destinoEstado || ''
+          },
+          distancia: distanciaRota + ' km',
+          tempoEstimado: null,
+          pontosIntercalados: pontosIntercaladosFallback,
+          rodovias: [],
+          cidadesPassagem: [],
+          instrucoes: [],
+          pedagios: [],
+          detalhes: [
+            'Rota calculada em linha reta (não foi possível obter rota real)',
+            `Distância: ${distanciaRota} km`,
+            'Consulte o mapa para visualizar o trajeto'
+          ]
+        };
+        
+        // Função renderizarInformacoesRota removida - seção "Informações da Rota para o Motorista" foi removida
       }
 
       // Atualizar mensagem do overlay
@@ -3142,6 +3514,568 @@ function getOverlayMostrado() {
       showMessage('Erro ao atualizar o mapa. Tente novamente.', 'error');
     }
   }
+
+  // Função para fazer geocodificação reversa e obter cidade de uma coordenada
+  async function obterCidadePorCoordenada(lat, lon) {
+    try {
+      // Usar Nominatim para reverse geocoding
+      const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`;
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'DivulgaCarga/1.0 (contact: sistema@divulgacarga.com.br)'
+        }
+      });
+      
+      if (!response.ok) return null;
+      
+      const data = await response.json();
+      if (data && data.address) {
+        const address = data.address;
+        const cidade = address.city || address.town || address.village || address.municipality || '';
+        const estado = address.state || '';
+        const estadoUF = address.state_code || '';
+        
+        return {
+          cidade: cidade,
+          estado: estado,
+          estadoUF: estadoUF,
+          displayName: data.display_name || ''
+        };
+      }
+      return null;
+    } catch (err) {
+      console.warn('Erro ao fazer reverse geocoding:', err);
+      return null;
+    }
+  }
+
+  // Função para processar informações detalhadas da rota do OSRM
+  async function processarInformacoesRotaOSRM(osrmData, pontosRoteiro, coordenadasPontos) {
+    const informacoes = {
+      rodovias: [],
+      cidadesPassagem: [],
+      instrucoes: [],
+      pontosIntercalados: [],
+      pedagios: []
+    };
+    
+    // Se não houver dados do OSRM, ainda processar os pontos do roteiro
+    const temOSRM = osrmData && osrmData.routes && osrmData.routes[0] && osrmData.routes[0].legs;
+    
+    if (!temOSRM) {
+      // Processar apenas os pontos do roteiro sem dados do OSRM
+      if (pontosRoteiro && pontosRoteiro.length > 0) {
+        pontosRoteiro.forEach((ponto, index) => {
+          let tipoLocal = '';
+          if (ponto.TPLOCAL !== null && ponto.TPLOCAL !== undefined) {
+            tipoLocal = String(ponto.TPLOCAL).trim().toUpperCase();
+          }
+          const isPrimeiro = index === 0;
+          const isUltimo = index === pontosRoteiro.length - 1;
+          if (isPrimeiro) tipoLocal = 'O';
+          else if (isUltimo) tipoLocal = 'D';
+          else if (tipoLocal === 'O' || tipoLocal === 'D' || !tipoLocal) tipoLocal = 'P';
+          
+          // Calcular distância acumulada
+          let distanciaAcumulada = 0;
+          for (let i = 1; i <= index; i++) {
+            if (pontosRoteiro[i].KMENTREPONTOS) {
+              distanciaAcumulada += parseFloat(pontosRoteiro[i].KMENTREPONTOS) || 0;
+            }
+          }
+          
+          informacoes.pontosIntercalados.push({
+            tipo: 'ponto',
+            subtipo: tipoLocal,
+            ordem: (index + 1) * 10,
+            local: ponto.DSLOCAL || 'N/A',
+            posicao: ponto.DSPOSICAO || null,
+            distanciaAnterior: ponto.KMENTREPONTOS ? parseFloat(ponto.KMENTREPONTOS).toFixed(2) + ' km' : null,
+            distanciaAcumulada: parseFloat(distanciaAcumulada.toFixed(2)),
+            coordenadas: `${parseFloat(ponto.LATITUDE).toFixed(6)}, ${parseFloat(ponto.LONGITUDE).toFixed(6)}`,
+            lat: parseFloat(ponto.LATITUDE),
+            lon: parseFloat(ponto.LONGITUDE)
+          });
+        });
+      }
+      return informacoes;
+    }
+    
+    const route = osrmData.routes[0];
+    const legs = route.legs || [];
+    const rodoviasUnicas = new Set();
+    const instrucoesDetalhadas = [];
+    
+    // Processar cada leg (trecho entre dois pontos)
+    legs.forEach((leg, legIndex) => {
+      const steps = leg.steps || [];
+      
+      steps.forEach((step, stepIndex) => {
+        // Extrair nome da estrada/rodovia
+        const nomeEstrada = step.name || step.ref || step.road || '';
+        if (nomeEstrada && nomeEstrada.trim() !== '') {
+          // Verificar se é uma rodovia (BR-xxx, rodovia, etc.)
+          const isRodovia = /^(BR|Rod\.|Rodovia|Estrada|Av\.|Avenida)/i.test(nomeEstrada) || 
+                           /BR-\d+/i.test(nomeEstrada);
+          if (isRodovia) {
+            rodoviasUnicas.add(nomeEstrada);
+          }
+        }
+        
+        // Extrair instrução de navegação (rotograma)
+        if (step.maneuver) {
+          const distancia = step.distance ? (step.distance / 1000).toFixed(2) + ' km' : '';
+          let instrucao = step.maneuver.instruction || '';
+          
+          // Se não tiver instrução, criar uma baseada no tipo de manobra
+          if (!instrucao && step.maneuver.type) {
+            const tiposManobra = {
+              'turn': 'Vire',
+              'new name': 'Continue',
+              'depart': 'Saia',
+              'arrive': 'Chegou',
+              'merge': 'Entre',
+              'ramp': 'Entre na rampa',
+              'fork': 'Mantenha-se',
+              'end of road': 'Fim da estrada',
+              'continue': 'Continue',
+              'roundabout': 'Entre na rotatória',
+              'roundabout turn': 'Vire na rotatória',
+              'notification': 'Atenção',
+              'exit roundabout': 'Saia da rotatória',
+              'exit rotary': 'Saia da rotatória'
+            };
+            
+            const tipo = tiposManobra[step.maneuver.type] || step.maneuver.type;
+            const modo = step.maneuver.modifier || '';
+            
+            if (modo) {
+              const modos = {
+                'left': 'à esquerda',
+                'right': 'à direita',
+                'slight left': 'ligeiramente à esquerda',
+                'slight right': 'ligeiramente à direita',
+                'sharp left': 'fortemente à esquerda',
+                'sharp right': 'fortemente à direita',
+                'straight': 'em frente',
+                'uturn': 'faça retorno'
+              };
+              instrucao = `${tipo} ${modos[modo] || modo}`;
+            } else {
+              instrucao = tipo;
+            }
+            
+            // Adicionar informação da estrada se disponível
+            if (nomeEstrada) {
+              instrucao += ` em direção à ${nomeEstrada}`;
+            }
+          }
+          
+          if (instrucao) {
+            instrucoesDetalhadas.push({
+              instrucao: instrucao,
+              estrada: nomeEstrada || '',
+              distancia: distancia,
+              tipo: step.maneuver.type || '',
+              modo: step.maneuver.modifier || '',
+              legIndex: legIndex,
+              stepIndex: stepIndex,
+              coordenadas: step.maneuver.location ? [step.maneuver.location[1], step.maneuver.location[0]] : null
+            });
+          }
+        }
+      });
+    });
+    
+    informacoes.rodovias = Array.from(rodoviasUnicas);
+    informacoes.instrucoes = instrucoesDetalhadas;
+    
+    // OTIMIZADO: Usar APENAS pontos do roteiro - sem geocodificação reversa para melhor performance
+    const cidadesEncontradas = new Map(); // Usar Map para evitar duplicatas
+    
+    // Adicionar cidades dos pontos do roteiro (já temos essas informações - muito mais rápido!)
+    if (pontosRoteiro && pontosRoteiro.length > 0) {
+      pontosRoteiro.forEach((ponto, index) => {
+        // Tentar extrair cidade e estado do DSLOCAL ou DSPOSICAO
+        let local = ponto.DSLOCAL || '';
+        let posicao = ponto.DSPOSICAO || '';
+        
+        // Se DSLOCAL contém "Origem" ou "Destino" genérico, usar DSPOSICAO
+        if ((local.toLowerCase().includes('origem') || local.toLowerCase().includes('destino')) && posicao) {
+          local = posicao;
+        }
+        
+        if (local) {
+          // Tentar extrair cidade e estado do local (formato comum: "Cidade, Estado" ou "Cidade/UF")
+          const localTrim = local.trim();
+          let cidade = localTrim;
+          let estado = '';
+          let estadoUF = '';
+          
+          // Tentar extrair estado se estiver no formato "Cidade, Estado" ou "Cidade/UF"
+          const matchComma = localTrim.match(/^(.+?),\s*(.+)$/);
+          const matchSlash = localTrim.match(/^(.+?)\/([A-Z]{2})$/);
+          
+          if (matchSlash) {
+            cidade = matchSlash[1].trim();
+            estadoUF = matchSlash[2].trim();
+          } else if (matchComma) {
+            cidade = matchComma[1].trim();
+            const estadoCompleto = matchComma[2].trim();
+            // Tentar extrair UF se estiver no formato "Estado (UF)" ou apenas "UF"
+            const matchUF = estadoCompleto.match(/\b([A-Z]{2})\b/);
+            if (matchUF) {
+              estadoUF = matchUF[1];
+            } else {
+              estado = estadoCompleto;
+            }
+          } else {
+            // Tentar extrair UF do final do texto
+            const matchUF = localTrim.match(/\b([A-Z]{2})\b/);
+            if (matchUF) {
+              estadoUF = matchUF[1];
+              cidade = localTrim.replace(/\b([A-Z]{2})\b/, '').trim();
+            }
+          }
+          
+          // Limpar cidade (remover palavras genéricas e descrições)
+          cidade = cidade
+            .replace(/^(Origem|Destino|Passagem|Rodovia|Integra|Filial|Matriz)[\s,/-]*/i, '')
+            .replace(/[\s,/-]+(Integra|Filial|Matriz).*$/i, '')
+            .replace(/[\s,/-]+(PR|SC|RS|SP|RJ|MG|ES|BA|GO|MT|MS|DF).*$/i, '')
+            .trim();
+          
+          // Se ainda não tem cidade válida ou contém palavras genéricas, pular
+          if (!cidade || 
+              cidade.toLowerCase() === 'origem' || 
+              cidade.toLowerCase() === 'destino' || 
+              cidade.toLowerCase() === 'passagem' ||
+              cidade.toLowerCase().includes('rodovia') ||
+              cidade.toLowerCase().includes('integra') ||
+              cidade.toLowerCase().includes('filial') ||
+              cidade.toLowerCase().includes('matriz')) {
+            return;
+          }
+          
+          // Calcular distância acumulada
+          let distanciaAcumulada = 0;
+          for (let i = 1; i <= index; i++) {
+            if (pontosRoteiro[i].KMENTREPONTOS) {
+              distanciaAcumulada += parseFloat(pontosRoteiro[i].KMENTREPONTOS) || 0;
+            }
+          }
+          
+          const chave = `${cidade}-${estadoUF || estado}`;
+          if (!cidadesEncontradas.has(chave)) {
+            cidadesEncontradas.set(chave, {
+              cidade: cidade,
+              estado: estado,
+              estadoUF: estadoUF,
+              lat: parseFloat(ponto.LATITUDE),
+              lon: parseFloat(ponto.LONGITUDE),
+              kmAproximado: distanciaAcumulada,
+              rodovias: [] // Será preenchido depois com rodovias próximas
+            });
+          }
+        }
+      });
+    }
+    
+    // REMOVIDO: Geocodificação reversa - muito lenta! Usar apenas pontos do roteiro
+    
+    // Processar cada leg para associar rodovias às cidades dos pontos do roteiro (MUITO MAIS RÁPIDO!)
+    const rodoviasPorIntervalo = []; // Array de {lat, lon, rodovia, distancia, legIndex}
+    
+    if (temOSRM) {
+      legs.forEach((leg, legIndex) => {
+        const steps = leg.steps || [];
+        let distanciaAcumulada = 0;
+        
+        steps.forEach((step, stepIndex) => {
+          const nomeEstrada = step.name || step.ref || step.road || '';
+          const isRodovia = nomeEstrada && (/^(BR|Rod\.|Rodovia)/i.test(nomeEstrada) || /BR-\d+/i.test(nomeEstrada));
+          
+          if (isRodovia) {
+            // Usar coordenada do step para associar à cidade mais próxima
+            let lat = null, lon = null;
+            if (step.maneuver && step.maneuver.location) {
+              [lon, lat] = step.maneuver.location;
+            } else if (step.geometry && step.geometry.coordinates && step.geometry.coordinates.length > 0) {
+              [lon, lat] = step.geometry.coordinates[0];
+            }
+            
+            if (lat && lon) {
+              rodoviasPorIntervalo.push({ 
+                lat, 
+                lon, 
+                rodovia: nomeEstrada, 
+                distancia: distanciaAcumulada,
+                legIndex: legIndex
+              });
+            }
+          }
+          
+          distanciaAcumulada += (step.distance || 0) / 1000;
+        });
+      });
+    }
+    
+    // Associar rodovias às cidades dos pontos do roteiro (rápido - sem API externa!)
+    if (pontosRoteiro && pontosRoteiro.length > 0 && rodoviasPorIntervalo.length > 0) {
+      cidadesEncontradas.forEach((cidadeObj, chave) => {
+        // Procurar rodovia mais próxima desta cidade (dentro de 10km)
+        let menorDistancia = Infinity;
+        let rodoviasMaisProximas = [];
+        
+        for (const rodoviaInfo of rodoviasPorIntervalo) {
+          const distLat = Math.abs(rodoviaInfo.lat - cidadeObj.lat);
+          const distLon = Math.abs(rodoviaInfo.lon - cidadeObj.lon);
+          const distancia = Math.sqrt(distLat * distLat + distLon * distLon);
+          
+          // Aumentar raio para 0.1 graus (~10km) para pegar mais rodovias
+          if (distancia < 0.1 && distancia < menorDistancia) {
+            menorDistancia = distancia;
+            rodoviasMaisProximas = [rodoviaInfo.rodovia];
+          } else if (distancia < 0.1 && distancia === menorDistancia) {
+            if (!rodoviasMaisProximas.includes(rodoviaInfo.rodovia)) {
+              rodoviasMaisProximas.push(rodoviaInfo.rodovia);
+            }
+          }
+        }
+        
+        if (rodoviasMaisProximas.length > 0) {
+          cidadeObj.rodovias = Array.from(new Set(rodoviasMaisProximas)); // Remover duplicatas
+        }
+      });
+    }
+    
+    informacoes.cidadesPassagem = Array.from(cidadesEncontradas.values())
+      .sort((a, b) => a.kmAproximado - b.kmAproximado); // Ordenar por distância
+    
+    // Intercalar pontos do roteiro com rodovias e informações da rota
+    const pontosIntercalados = [];
+    
+    if (pontosRoteiro && pontosRoteiro.length > 0) {
+      // Calcular distâncias acumuladas usando OSRM legs se disponível
+      let distanciaAcumuladaOSRM = 0;
+      const distanciasAcumuladas = [0]; // Primeiro ponto sempre tem distância 0
+      
+      if (legs && legs.length > 0) {
+        // Calcular distâncias acumuladas usando os legs do OSRM
+        legs.forEach((leg, legIndex) => {
+          if (leg.distance) {
+            distanciaAcumuladaOSRM += leg.distance / 1000; // Converter de metros para km
+            distanciasAcumuladas.push(distanciaAcumuladaOSRM);
+          } else {
+            // Se não tiver distância no leg, usar KMENTREPONTOS se disponível
+            const pontoIndex = legIndex + 1;
+            if (pontoIndex < pontosRoteiro.length && pontosRoteiro[pontoIndex].KMENTREPONTOS) {
+              distanciaAcumuladaOSRM += parseFloat(pontosRoteiro[pontoIndex].KMENTREPONTOS) || 0;
+              distanciasAcumuladas.push(distanciaAcumuladaOSRM);
+            } else {
+              distanciasAcumuladas.push(distanciaAcumuladaOSRM);
+            }
+          }
+        });
+      } else {
+        // Fallback: usar KMENTREPONTOS do banco de dados
+        let distanciaAcumulada = 0;
+        for (let i = 1; i < pontosRoteiro.length; i++) {
+          const distanciaEntrePontos = pontosRoteiro[i].KMENTREPONTOS ? parseFloat(pontosRoteiro[i].KMENTREPONTOS) : 0;
+          distanciaAcumulada += distanciaEntrePontos;
+          distanciasAcumuladas.push(distanciaAcumulada);
+        }
+      }
+      
+      pontosRoteiro.forEach((ponto, index) => {
+        let tipoLocal = '';
+        if (ponto.TPLOCAL !== null && ponto.TPLOCAL !== undefined) {
+          tipoLocal = String(ponto.TPLOCAL).trim().toUpperCase();
+        }
+        const isPrimeiro = index === 0;
+        const isUltimo = index === pontosRoteiro.length - 1;
+        if (isPrimeiro) tipoLocal = 'O';
+        else if (isUltimo) tipoLocal = 'D';
+        else if (tipoLocal === 'O' || tipoLocal === 'D' || !tipoLocal) tipoLocal = 'P';
+        
+        // Extrair cidade real do DSLOCAL ou DSPOSICAO
+        let localNome = ponto.DSLOCAL || 'N/A';
+        let localPosicao = ponto.DSPOSICAO || '';
+        
+        // Se DSLOCAL contém "Origem" ou "Destino" genérico, tentar extrair de DSPOSICAO
+        if ((localNome.toLowerCase().includes('origem') || localNome.toLowerCase().includes('destino')) && localPosicao) {
+          // Tentar extrair cidade de DSPOSICAO (formato comum: "Cidade, Estado" ou "Cidade/UF")
+          const matchComma = localPosicao.match(/^(.+?),\s*(.+)$/);
+          const matchSlash = localPosicao.match(/^(.+?)\/([A-Z]{2})$/);
+          
+          if (matchSlash) {
+            localNome = matchSlash[1].trim();
+          } else if (matchComma) {
+            localNome = matchComma[1].trim();
+          } else {
+            // Tentar extrair cidade do início de DSPOSICAO
+            const partes = localPosicao.split(/[,\/]/);
+            if (partes.length > 0 && partes[0].trim()) {
+              localNome = partes[0].trim();
+            }
+          }
+        } else if (localNome) {
+          // Tentar limpar DSLOCAL (remover "Origem", "Destino", "Passagem" genéricos)
+          localNome = localNome.replace(/^(Origem|Destino|Passagem)[\s,/-]*/i, '').trim() || localNome;
+          
+          // Se ainda contém "Origem" ou "Destino", tentar usar DSPOSICAO
+          if ((localNome.toLowerCase().includes('origem') || localNome.toLowerCase().includes('destino')) && localPosicao) {
+            const matchComma = localPosicao.match(/^(.+?),\s*(.+)$/);
+            const matchSlash = localPosicao.match(/^(.+?)\/([A-Z]{2})$/);
+            
+            if (matchSlash) {
+              localNome = matchSlash[1].trim();
+            } else if (matchComma) {
+              localNome = matchComma[1].trim();
+            }
+          }
+        }
+        
+        // Usar distância acumulada calculada
+        const distanciaAcumulada = distanciasAcumuladas[index] || 0;
+        
+        // Adicionar ponto do roteiro
+        pontosIntercalados.push({
+          tipo: 'ponto',
+          subtipo: tipoLocal,
+          ordem: (index + 1) * 10, // Multiplicar por 10 para ter espaço para intercalar
+          local: localNome,
+          posicao: localPosicao,
+          distanciaAnterior: ponto.KMENTREPONTOS ? parseFloat(ponto.KMENTREPONTOS).toFixed(2) + ' km' : null,
+          distanciaAcumulada: parseFloat(distanciaAcumulada.toFixed(2)),
+          coordenadas: `${parseFloat(ponto.LATITUDE).toFixed(6)}, ${parseFloat(ponto.LONGITUDE).toFixed(6)}`,
+          lat: parseFloat(ponto.LATITUDE),
+          lon: parseFloat(ponto.LONGITUDE)
+        });
+        
+        // Se não for o último ponto, adicionar rodovias e informações do trecho
+        if (!isUltimo && legs[index]) {
+          const leg = legs[index];
+          const steps = leg.steps || [];
+          const rodoviasTrecho = new Set();
+          
+          // Coletar rodovias deste trecho
+          steps.forEach(step => {
+            const nomeEstrada = step.name || step.ref || step.road || '';
+            if (nomeEstrada && (/^(BR|Rod\.|Rodovia)/i.test(nomeEstrada) || /BR-\d+/i.test(nomeEstrada))) {
+              rodoviasTrecho.add(nomeEstrada);
+            }
+          });
+          
+          // Adicionar rodovias do trecho após o ponto
+          let ordemRodovia = (index + 1) * 10 + 1;
+          rodoviasTrecho.forEach(rodovia => {
+            pontosIntercalados.push({
+              tipo: 'rodovia',
+              nome: rodovia,
+              ordem: ordemRodovia++,
+              legIndex: index
+            });
+          });
+        } else if (!isUltimo && legs.length > index) {
+          // Tentar usar o leg correspondente se disponível
+          const leg = legs[index];
+          if (leg && leg.steps) {
+            const steps = leg.steps || [];
+            const rodoviasTrecho = new Set();
+            
+            steps.forEach(step => {
+              const nomeEstrada = step.name || step.ref || step.road || '';
+              if (nomeEstrada && (/^(BR|Rod\.|Rodovia)/i.test(nomeEstrada) || /BR-\d+/i.test(nomeEstrada))) {
+                rodoviasTrecho.add(nomeEstrada);
+              }
+            });
+            
+            let ordemRodovia = (index + 1) * 10 + 1;
+            rodoviasTrecho.forEach(rodovia => {
+              pontosIntercalados.push({
+                tipo: 'rodovia',
+                nome: rodovia,
+                ordem: ordemRodovia++,
+                legIndex: index
+              });
+            });
+          }
+        }
+      });
+    }
+    
+    // Intercalar cidades de passagem na lista de pontos intercalados
+    if (informacoes.cidadesPassagem && informacoes.cidadesPassagem.length > 0 && pontosIntercalados.length > 0) {
+      informacoes.cidadesPassagem.forEach((cidade, idx) => {
+        // Calcular ordem aproximada baseada na distância
+        // Encontrar o ponto mais próximo para intercalar
+        let ordemAproximada = 0;
+        let menorDistancia = Infinity;
+        let pontoMaisProximo = null;
+        
+        pontosIntercalados.forEach(ponto => {
+          if (ponto.tipo === 'ponto' && ponto.lat && ponto.lon) {
+            // Calcular distância aproximada usando fórmula de Haversine simplificada
+            const latDiff = Math.abs(ponto.lat - cidade.lat);
+            const lonDiff = Math.abs(ponto.lon - cidade.lon);
+            const distancia = Math.sqrt(latDiff * latDiff + lonDiff * lonDiff);
+            
+            if (distancia < menorDistancia) {
+              menorDistancia = distancia;
+              ordemAproximada = ponto.ordem + 0.25; // Inserir antes do ponto mais próximo
+              pontoMaisProximo = ponto;
+            }
+          }
+        });
+        
+        // Se não encontrou ponto próximo, usar ordem baseada na distância km
+        if (ordemAproximada === 0 && cidade.kmAproximado) {
+          // Estimar ordem baseada na distância (assumindo que pontos estão espaçados)
+          // Calcular distância total a partir dos pontos intercalados ou usar route se disponível
+          let totalDistancia = 0;
+          if (route && route.distance) {
+            totalDistancia = route.distance / 1000; // em km
+          } else if (pontosIntercalados.length > 0) {
+            // Usar a maior distância acumulada dos pontos
+            const ultimoPonto = pontosIntercalados[pontosIntercalados.length - 1];
+            totalDistancia = ultimoPonto.distanciaAcumulada || cidade.kmAproximado;
+          }
+          
+          if (totalDistancia > 0) {
+            const proporcao = cidade.kmAproximado / totalDistancia;
+            ordemAproximada = proporcao * (pontosIntercalados.length * 10) + 0.2;
+          } else {
+            ordemAproximada = (idx + 1) * 5;
+          }
+        }
+        
+        pontosIntercalados.push({
+          tipo: 'cidade',
+          nome: cidade.cidade,
+          estado: cidade.estado || cidade.estadoUF || '',
+          ordem: ordemAproximada || (idx + 1) * 5,
+          kmAproximado: cidade.kmAproximado,
+          rodovias: cidade.rodovias || []
+        });
+      });
+    }
+    
+    // Ordenar por ordem
+    pontosIntercalados.sort((a, b) => a.ordem - b.ordem);
+    
+    informacoes.pontosIntercalados = pontosIntercalados;
+    
+    return informacoes;
+  }
+
+  // Função renderizarInformacoesRota removida - seção "Informações da Rota para o Motorista" foi removida
+
+  // Função copiarInformacoesRota removida - seção "Informações da Rota para o Motorista" foi removida
+  
+  // REMOVIDO: Código antigo desnecessário foi removido completamente
+  
+  // Variáveis globais para a aba Compatíveis
 
   // Eventos de edição e exclusão - delegação de eventos (adicionado uma vez)
   // Usar delegação de eventos para funcionar com elementos dinâmicos
@@ -3489,7 +4423,6 @@ function getOverlayMostrado() {
                 title="Quantas vezes o motorista já fez ESTA ROTA específica">
               ⭐ Rota ${getSortIcon('rota')}
             </th>
-            <th style="padding: 12px; text-align: left; width: 120px;">Ações</th>
           </tr>
         </thead>
         <tbody>
@@ -3498,12 +4431,12 @@ function getOverlayMostrado() {
     motoristasCompatíveis.forEach((motorista, index) => {
       const isChecked = motorista.selecionado || false;
       
-      // Formatar celular para WhatsApp (remover caracteres não numéricos)
+      // Formatar celular do motorista para WhatsApp (remover caracteres não numéricos)
       const celularFormatado = motorista.CELULAR ? motorista.CELULAR.toString().replace(/\D/g, '') : '';
-      const temWhatsApp = celularFormatado.length >= 10; // Celular válido tem pelo menos 10 dígitos
-      const linkWhatsApp = temWhatsApp ? `https://wa.me/55${celularFormatado}` : '#';
+      const temWhatsAppMotorista = celularFormatado.length >= 10; // Celular válido tem pelo menos 10 dígitos
+      const linkWhatsAppMotorista = temWhatsAppMotorista ? `https://wa.me/55${celularFormatado}` : '#';
       
-      // Formatar celular para exibição (com parênteses e hífen)
+      // Formatar celular do motorista para exibição (com parênteses e hífen)
       let celularExibicao = '';
       if (celularFormatado && celularFormatado.length >= 10) {
         if (celularFormatado.length === 11) {
@@ -3515,6 +4448,40 @@ function getOverlayMostrado() {
         } else {
           // Formato simples se não tiver 10 ou 11 dígitos
           celularExibicao = celularFormatado;
+        }
+      }
+      
+      // Formatar celular do transportador para WhatsApp
+      const celularTransportadorFormatado = motorista.TRANSPORTADOR_CELULAR ? motorista.TRANSPORTADOR_CELULAR.toString().replace(/\D/g, '') : '';
+      const temWhatsAppTransportador = celularTransportadorFormatado.length >= 10;
+      const linkWhatsAppTransportador = temWhatsAppTransportador ? `https://wa.me/55${celularTransportadorFormatado}` : '#';
+      
+      // Formatar celular do transportador para exibição
+      let celularTransportadorExibicao = '';
+      if (celularTransportadorFormatado && celularTransportadorFormatado.length >= 10) {
+        if (celularTransportadorFormatado.length === 11) {
+          celularTransportadorExibicao = `(${celularTransportadorFormatado.substring(0, 2)}) ${celularTransportadorFormatado.substring(2, 7)}-${celularTransportadorFormatado.substring(7)}`;
+        } else if (celularTransportadorFormatado.length === 10) {
+          celularTransportadorExibicao = `(${celularTransportadorFormatado.substring(0, 2)}) ${celularTransportadorFormatado.substring(2, 6)}-${celularTransportadorFormatado.substring(6)}`;
+        } else {
+          celularTransportadorExibicao = celularTransportadorFormatado;
+        }
+      }
+      
+      // Formatar celular do contratador para WhatsApp
+      const celularContratadorFormatado = motorista.CONTRATADOR_CELULAR ? motorista.CONTRATADOR_CELULAR.toString().replace(/\D/g, '') : '';
+      const temWhatsAppContratador = celularContratadorFormatado.length >= 10;
+      const linkWhatsAppContratador = temWhatsAppContratador ? `https://wa.me/55${celularContratadorFormatado}` : '#';
+      
+      // Formatar celular do contratador para exibição
+      let celularContratadorExibicao = '';
+      if (celularContratadorFormatado && celularContratadorFormatado.length >= 10) {
+        if (celularContratadorFormatado.length === 11) {
+          celularContratadorExibicao = `(${celularContratadorFormatado.substring(0, 2)}) ${celularContratadorFormatado.substring(2, 7)}-${celularContratadorFormatado.substring(7)}`;
+        } else if (celularContratadorFormatado.length === 10) {
+          celularContratadorExibicao = `(${celularContratadorFormatado.substring(0, 2)}) ${celularContratadorFormatado.substring(2, 6)}-${celularContratadorFormatado.substring(6)}`;
+        } else {
+          celularContratadorExibicao = celularContratadorFormatado;
         }
       }
       
@@ -3534,7 +4501,12 @@ function getOverlayMostrado() {
                 : '<span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #dc3545; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2); flex-shrink: 0;" title="Motorista não acionado (ainda não foi convocado)"></span>'}
               <div>
                 <strong>${motorista.NOME_MOTORISTA || 'N/A'}</strong><br>
-                <small style="color: #666;">ID: ${motorista.CDCADASTRO_MOTORISTA}${celularExibicao ? '  |  ' + celularExibicao : ''}</small>
+                <small style="color: #666;">Código: ${motorista.CDCADASTRO_MOTORISTA}${celularExibicao ? '  |  ' : ''}</small>
+                ${celularExibicao ? `
+                  <small style="color: #666;">
+                    ${temWhatsAppMotorista ? `<a href="${linkWhatsAppMotorista}" target="_blank" style="color: #25D366; text-decoration: none;" title="Abrir WhatsApp">📱 ${celularExibicao}</a>` : celularExibicao}
+                  </small>
+                ` : ''}
               </div>
             </div>
           </td>
@@ -3544,7 +4516,13 @@ function getOverlayMostrado() {
           </td>
           <td style="padding: 12px;">
             ${motorista.TRANSPORTADOR_NOME || 'N/A'}<br>
-            <small style="color: #666;">${motorista.CDTRANSPORTADOR ? 'ID: ' + motorista.CDTRANSPORTADOR : ''}</small>
+            <small style="color: #666;">
+              ${motorista.CDTRANSPORTADOR ? 'Código: ' + motorista.CDTRANSPORTADOR : ''}
+              ${celularTransportadorExibicao ? `
+                ${motorista.CDTRANSPORTADOR ? ' | ' : ''}
+                ${temWhatsAppTransportador ? `<a href="${linkWhatsAppTransportador}" target="_blank" style="color: #25D366; text-decoration: none;" title="Abrir WhatsApp do transportador">📱 ${celularTransportadorExibicao}</a>` : `📱 ${celularTransportadorExibicao}`}
+              ` : ''}
+            </small>
           </td>
           <td style="padding: 12px;">
             ${motorista.CLASSE_FROTA_NOME || 'N/A'}
@@ -3561,17 +4539,6 @@ function getOverlayMostrado() {
                 </span>` 
               : `<span style="color: #999; font-size: 18px;" title="Nunca fez esta rota">-</span>`
             }
-          </td>
-          <td style="padding: 12px;">
-            ${temWhatsApp ? `
-              <a href="${linkWhatsApp}" 
-                 target="_blank" 
-                 class="btn" 
-                 style="background: #25D366; color: white; padding: 8px 12px; border-radius: 4px; text-decoration: none; display: inline-flex; align-items: center; gap: 5px; font-size: 0.9em; cursor: pointer;"
-                 title="Abrir WhatsApp de ${motorista.CELULAR || ''}">
-                <span style="font-size: 1.2em;">📱</span> WhatsApp
-              </a>
-            ` : '<span style="color: #999;">Sem celular</span>'}
           </td>
         </tr>
       `;
@@ -5583,7 +6550,10 @@ function getOverlayMostrado() {
         }
 
         // Gerar mensagem formatada completa (mesma lógica do enviarAnuncioWhatsApp)
-        const linkConvocacao = `${urlBase}/convocacao/${conv.IDCONVOCACAO}`;
+        // Usar o link salvo na tabela, se existir. Caso contrário, gerar novo link
+        const linkConvocacao = conv.LINKCONVOCACAO && conv.LINKCONVOCACAO.trim() !== '' 
+          ? conv.LINKCONVOCACAO 
+          : `${urlBase}/convocacao/${conv.IDCONVOCACAO}`;
         const nomeMotoristaConvocacao = conv.NOME_MOTORISTA || 'Motorista';
         
         // Função para formatar data/hora (mesma lógica do prepararAnuncioCarga)
@@ -6089,7 +7059,10 @@ function getOverlayMostrado() {
         statusClass = 'background: #cce5ff; color: #004085;';
       }
       
-      const linkConvocacao = `${urlBase}/convocacao/${conv.IDCONVOCACAO}`;
+      // Usar o link salvo na tabela, se existir. Caso contrário, gerar novo link
+      const linkConvocacao = conv.LINKCONVOCACAO && conv.LINKCONVOCACAO.trim() !== '' 
+        ? conv.LINKCONVOCACAO 
+        : `${urlBase}/convocacao/${conv.IDCONVOCACAO}`;
       
       // Verificar se tem localização para mostrar botão "Ver no Mapa"
       const temLocalizacao = conv.LATITUDE !== null && conv.LATITUDE !== undefined && 
@@ -6140,6 +7113,23 @@ function getOverlayMostrado() {
         ? 'border-left: 4px solid #667eea; background: #f0f4ff !important;' 
         : (index % 2 === 0 ? 'background: #fafafa;' : '');
       
+      // Formatar celular do motorista para WhatsApp e exibição
+      const celularFormatado = conv.CELULAR_MOTORISTA ? String(conv.CELULAR_MOTORISTA).replace(/\D/g, '') : '';
+      const temWhatsAppMotorista = celularFormatado.length >= 10;
+      const linkWhatsAppMotorista = temWhatsAppMotorista ? `https://wa.me/55${celularFormatado}` : '#';
+      
+      // Formatar celular para exibição (com parênteses e hífen)
+      let celularExibicao = '';
+      if (celularFormatado && celularFormatado.length >= 10) {
+        if (celularFormatado.length === 11) {
+          celularExibicao = `(${celularFormatado.substring(0, 2)}) ${celularFormatado.substring(2, 7)}-${celularFormatado.substring(7)}`;
+        } else if (celularFormatado.length === 10) {
+          celularExibicao = `(${celularFormatado.substring(0, 2)}) ${celularFormatado.substring(2, 6)}-${celularFormatado.substring(6)}`;
+        } else {
+          celularExibicao = celularFormatado;
+        }
+      }
+      
       html += `
         <tr style="border-bottom: 1px solid #eee; ${rowStyle}">
           <td style="padding: 12px;">${conv.IDCONVOCACAO}</td>
@@ -6161,7 +7151,11 @@ function getOverlayMostrado() {
           </td>
           <td style="padding: 12px;">
             ${conv.NOME_MOTORISTA || '-'}<br>
-            <small style="color: #666;">${conv.CELULAR_MOTORISTA && conv.CELULAR_MOTORISTA !== 'N/A' && conv.CELULAR_MOTORISTA !== '-' ? '📱 ' : ''}${criarLinkWhatsApp(conv.CELULAR_MOTORISTA)}</small>
+            <small style="color: #666;">
+              ${conv.CDCADASTRO_MOTORISTA ? `Código: ${conv.CDCADASTRO_MOTORISTA}` : ''}
+              ${conv.CDCADASTRO_MOTORISTA && celularExibicao ? ' | ' : ''}
+              ${celularExibicao ? (temWhatsAppMotorista ? `<a href="${linkWhatsAppMotorista}" target="_blank" style="color: #25D366; text-decoration: none;" title="Abrir WhatsApp do motorista">📱 ${celularExibicao}</a>` : `📱 ${celularExibicao}`) : ''}
+            </small>
           </td>
           <td style="padding: 12px; font-size: 12px;">${formatarData(conv.DHCONVOCACAO)}</td>
           <td style="padding: 12px; font-size: 12px;">
@@ -6921,7 +7915,10 @@ function getOverlayMostrado() {
             continue;
           }
           
-          const linkConvocacao = `${urlBase}/convocacao/${conv.IDCONVOCACAO}`;
+          // Usar o link salvo na tabela, se existir. Caso contrário, gerar novo link
+          const linkConvocacao = conv.LINKCONVOCACAO && conv.LINKCONVOCACAO.trim() !== '' 
+            ? conv.LINKCONVOCACAO 
+            : `${urlBase}/convocacao/${conv.IDCONVOCACAO}`;
           
           // Personalizar mensagem para cada motorista (mesma lógica do enviarAnuncioWhatsApp)
           const nomeMotoristaConvocacao = conv.NOME_MOTORISTA || 'Motorista';

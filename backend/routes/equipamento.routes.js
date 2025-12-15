@@ -1,6 +1,7 @@
 // backend/routes/equipamento.routes.js
 const express = require('express');
 const sql = require('mssql');
+const XLSX = require('xlsx');
 const router = express.Router();
 const { poolPromise } = require('../config/db');
 
@@ -191,6 +192,197 @@ router.get('/equipamentos', async (req, res) => {
 // Rotas específicas devem vir ANTES das rotas com parâmetros
 // Rota para tipos de equipamento (combo) - deve vir antes de /equipamentos/:id
 router.get('/equipamentos/tipos-combo', createComboRoute('TIPOEQUIPAMENTO', 'CDTIPOEQUIPAMENTO', 'DSTIPOEQUIPAMENTO'));
+
+// Exportar equipamentos para Excel
+router.get('/equipamentos/exportar-excel', async (req, res) => {
+  try {
+    const {
+      idequipamento,
+      refequipamento,
+      cdgrupo,
+      cdtipo,
+      cdmarca,
+      cdmodelo,
+      cdclasse,
+      fgactive,
+      fgtipoatuacao,
+      fgtipocarroceria,
+      fgrastreado
+    } = req.query;
+
+    // Query SQL completa com todas as tabelas auxiliares
+    let query = `
+      SELECT 
+        e.IDEQUIPAMENTO AS 'ID do Equipamento',
+        e.REFEQUIPAMENTO AS 'Placa/Referência',
+        e.DSEQUIPAMENTO AS 'Descrição',
+        e.CDGRUPOEQUIPAMENTO AS 'Código Grupo',
+        g.DSGRUPOEQUIPAMENTO AS 'Grupo de Equipamento',
+        e.CDTIPOEQUIPAMENTO AS 'Código Tipo',
+        t.DSTIPOEQUIPAMENTO AS 'Tipo de Equipamento',
+        e.CDMARCAEQUIPAMENTO AS 'Código Marca',
+        m.DSMARCAEQUIPAMENTO AS 'Marca',
+        e.CDMODELOEQUIPAMENTO AS 'Código Modelo',
+        mod.DSMODELOEQUIPAMENTO AS 'Modelo',
+        e.CDCLASSEFROTA AS 'Código Classe',
+        c.DSCLASSEFROTA AS 'Classe de Frota',
+        CASE e.FGACTIVE
+          WHEN 'A' THEN 'Ativo'
+          WHEN 'I' THEN 'Inativo'
+          ELSE 'Não informado'
+        END AS 'Situação',
+        CASE e.FGTIPOATUACAO
+          WHEN 'A' THEN 'A - Agregado'
+          WHEN 'F' THEN 'F - Frota Própria'
+          WHEN 'P' THEN 'P - Parceiro (Terceiro Fiel)'
+          WHEN 'T' THEN 'T - Terceiro'
+          ELSE 'Não informado'
+        END AS 'Tipo de Atuação',
+        CASE e.FGTIPOCARROCERIA
+          WHEN '01' THEN '01 - Não aplicável'
+          WHEN '02' THEN '02 - Aberta'
+          WHEN '03' THEN '03 - Fechada / Baú'
+          WHEN '04' THEN '04 - Graneleira'
+          WHEN '05' THEN '05 - Porta Container'
+          WHEN '06' THEN '06 - Sider'
+          ELSE 'Não informado'
+        END AS 'Tipo de Carroceria',
+        e.NREIXOS AS 'Número de Eixos',
+        e.CAPACIDCARGA AS 'Capacidade de Carga (ton)',
+        e.ANOFABRICA AS 'Ano de Fabricação',
+        e.ALTURA AS 'Altura (m)',
+        e.LARGURA AS 'Largura (m)',
+        e.COMPRIMENTO AS 'Comprimento (m)',
+        e.MTCUBICO AS 'M³ Cúbico',
+        CASE e.FGRASTREADO
+          WHEN 'S' THEN 'Sim'
+          WHEN 'N' THEN 'Não'
+          ELSE 'Não informado'
+        END AS 'Veículo Rastreado'
+      FROM [dbo].[EQUIPAMENTO] e
+      LEFT JOIN [dbo].[GRUPOEQUIPAMENTO] g ON e.CDGRUPOEQUIPAMENTO = g.CDGRUPOEQUIPAMENTO
+      LEFT JOIN [dbo].[TIPOEQUIPAMENTO] t ON e.CDTIPOEQUIPAMENTO = t.CDTIPOEQUIPAMENTO
+      LEFT JOIN [dbo].[MARCAEQUIPAMENTO] m ON e.CDMARCAEQUIPAMENTO = m.CDMARCAEQUIPAMENTO
+      LEFT JOIN [dbo].[MODELOEQUIPAMENTO] mod ON e.CDMODELOEQUIPAMENTO = mod.CDMODELOEQUIPAMENTO
+      LEFT JOIN [dbo].[CLASSEFROTA] c ON e.CDCLASSEFROTA = c.CDCLASSEFROTA
+      WHERE 1=1
+    `;
+
+    const params = [];
+
+    if (idequipamento) {
+      query += ` AND e.IDEQUIPAMENTO = @IDEQUIPAMENTO`;
+      params.push({ name: 'IDEQUIPAMENTO', value: parseFloat(idequipamento) });
+    }
+    if (refequipamento) {
+      query += ` AND e.REFEQUIPAMENTO LIKE @REFEQUIPAMENTO`;
+      params.push({ name: 'REFEQUIPAMENTO', value: `%${refequipamento}%` });
+    }
+    if (cdgrupo) {
+      query += ` AND e.CDGRUPOEQUIPAMENTO = @CDGRUPO`;
+      params.push({ name: 'CDGRUPO', value: cdgrupo });
+    }
+    if (cdtipo) {
+      query += ` AND e.CDTIPOEQUIPAMENTO = @CDTIPO`;
+      params.push({ name: 'CDTIPO', value: cdtipo });
+    }
+    if (cdmarca) {
+      query += ` AND e.CDMARCAEQUIPAMENTO = @CDMARCA`;
+      params.push({ name: 'CDMARCA', value: cdmarca });
+    }
+    if (cdmodelo) {
+      query += ` AND e.CDMODELOEQUIPAMENTO = @CDMODELO`;
+      params.push({ name: 'CDMODELO', value: cdmodelo });
+    }
+    if (cdclasse) {
+      query += ` AND e.CDCLASSEFROTA = @CDCLASSE`;
+      params.push({ name: 'CDCLASSE', value: cdclasse });
+    }
+    if (fgactive) {
+      query += ` AND e.FGACTIVE = @FGACTIVE`;
+      params.push({ name: 'FGACTIVE', value: fgactive });
+    }
+    if (fgtipoatuacao) {
+      query += ` AND e.FGTIPOATUACAO = @FGTIPOATUACAO`;
+      params.push({ name: 'FGTIPOATUACAO', value: fgtipoatuacao });
+    }
+    if (fgtipocarroceria) {
+      query += ` AND e.FGTIPOCARROCERIA = @FGTIPOCARROCERIA`;
+      params.push({ name: 'FGTIPOCARROCERIA', value: fgtipocarroceria });
+    }
+    if (fgrastreado) {
+      query += ` AND e.FGRASTREADO = @FGRASTREADO`;
+      params.push({ name: 'FGRASTREADO', value: fgrastreado });
+    }
+
+    query += ` ORDER BY e.REFEQUIPAMENTO`;
+
+    const pool = await poolPromise;
+    const request = pool.request();
+
+    params.forEach(p => {
+      request.input(p.name, p.value);
+    });
+
+    const result = await request.query(query);
+    
+    // Converter para array de objetos simples
+    const dados = result.recordset.map(row => {
+      const obj = {};
+      for (const key in row) {
+        obj[key] = row[key] !== null && row[key] !== undefined ? row[key] : '';
+      }
+      return obj;
+    });
+
+    // Criar workbook Excel
+    const worksheet = XLSX.utils.json_to_sheet(dados);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Equipamentos');
+
+    // Configurar largura das colunas
+    const colWidths = [
+      { wch: 15 },  // ID do Equipamento
+      { wch: 18 },  // Placa/Referência
+      { wch: 30 },  // Descrição
+      { wch: 12 },  // Código Grupo
+      { wch: 25 },  // Grupo de Equipamento
+      { wch: 12 },  // Código Tipo
+      { wch: 25 },  // Tipo de Equipamento
+      { wch: 12 },  // Código Marca
+      { wch: 20 },  // Marca
+      { wch: 12 },  // Código Modelo
+      { wch: 30 },  // Modelo
+      { wch: 12 },  // Código Classe
+      { wch: 20 },  // Classe de Frota
+      { wch: 12 },  // Situação
+      { wch: 25 },  // Tipo de Atuação
+      { wch: 25 },  // Tipo de Carroceria
+      { wch: 15 },  // Número de Eixos
+      { wch: 20 },  // Capacidade de Carga
+      { wch: 15 },  // Ano de Fabricação
+      { wch: 12 },  // Altura
+      { wch: 12 },  // Largura
+      { wch: 15 },  // Comprimento
+      { wch: 12 },  // M³ Cúbico
+      { wch: 18 }   // Veículo Rastreado
+    ];
+    worksheet['!cols'] = colWidths;
+
+    // Gerar buffer do Excel
+    const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+    // Configurar headers para download
+    const filename = `equipamentos-${new Date().toISOString().split('T')[0]}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    res.send(excelBuffer);
+  } catch (err) {
+    console.error('Erro ao exportar equipamentos para Excel:', err);
+    res.status(500).json({ error: 'Erro ao exportar dados para Excel.' });
+  }
+});
 
 // Buscar equipamento por ID
 router.get('/equipamentos/:id', async (req, res) => {

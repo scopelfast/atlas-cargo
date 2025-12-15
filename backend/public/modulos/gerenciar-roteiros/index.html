@@ -260,6 +260,23 @@
             </div>
           </div>
 
+          <!-- Resumo da Rota -->
+          <div style="margin-top: 30px;">
+            <h3>🗺️ Resumo da Rota</h3>
+            <div style="margin-bottom: 10px;">
+              <label for="roteiroResumoRota">Resumo da Rota (gerado automaticamente)</label>
+              <textarea 
+                id="roteiroResumoRota" 
+                rows="8" 
+                readonly 
+                style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px; font-family: Arial, sans-serif; font-size: 0.95em; line-height: 1.6; background-color: #f9f9f9; resize: vertical;"
+                placeholder="O resumo da rota será gerado automaticamente quando os pontos forem processados através do mapa..."></textarea>
+            </div>
+            <p style="font-size: 0.85em; color: #666; margin-top: 5px; font-style: italic;">
+              <i class='bx bx-info-circle'></i> Este resumo é gerado automaticamente quando você visualiza a rota no mapa ou processa os pontos.
+            </p>
+          </div>
+
           <div class="form-actions">
             <button type="submit" class="btn save">Salvar</button>
             <button type="button" id="btnCancelar" class="btn cancel">Cancelar</button>
@@ -486,9 +503,9 @@
   </div>
 
   <!-- Cache Buster - deve ser o primeiro script -->
-  <script src="/js/cache-buster.js?v=202512091200"></script>
+  <script src="/js/cache-buster.js?v=202501131800"></script>
   <script src="/js/log-helper.js"></script>
   <script src="/js/grid-editor.js"></script>
-  <script src="js/script.js"></script>
+  <script src="js/script.js?v=202501131800"></script>
 </body>
 </html>

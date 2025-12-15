@@ -87,7 +87,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Redirecionar para login
     if (automatico) {
-      alert('Sessão expirada por inatividade. Faça login novamente.');
+      // Usar showMessage do padrão do sistema se disponível
+      if (typeof window.showMessage === 'function') {
+        showMessage('Sessão expirada por inatividade. Faça login novamente.', 'error');
+        // Aguardar um pouco para o usuário ver a mensagem antes de redirecionar
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 2000);
+        return;
+      }
     }
     window.location.href = '/';
   };
@@ -99,8 +107,15 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('❌ Loop detectado! Limpando...');
       sessionStorage.clear();
       localStorage.clear();
-      alert('Erro detectado. Faça login novamente.');
-      window.location.href = '/';
+      // Usar showMessage do padrão do sistema se disponível
+      if (typeof window.showMessage === 'function') {
+        showMessage('Erro detectado. Faça login novamente.', 'error');
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 2000);
+      } else {
+        window.location.href = '/';
+      }
       return;
     }
     sessionStorage.setItem('dashboardLoopCount', (loopCount + 1).toString());

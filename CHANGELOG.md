@@ -7,6 +7,62 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
+## [1.4.0] - 2025-01-XX
+
+### ✅ Adicionado
+
+#### Exportação para Excel
+- **Exportação de Cadastros Gerais**: Botão para exportar lista completa de cadastros para Excel
+  - Inclui todos os dados principais e das tabelas auxiliares (CIDADE, TRANSPORTADOR)
+  - Respeita filtros aplicados
+  - Formatação automática de colunas
+  - Arquivo: `cadastros-gerais-YYYY-MM-DD.xlsx`
+- **Exportação de Equipamentos**: Botão para exportar lista completa de equipamentos para Excel
+  - Inclui todos os dados principais e das tabelas auxiliares (GRUPO, TIPO, MARCA, MODELO, CLASSE)
+  - Respeita filtros aplicados
+  - Formatação automática de colunas
+  - Arquivo: `equipamentos-YYYY-MM-DD.xlsx`
+- **Biblioteca xlsx**: Adicionada dependência `xlsx` (v0.18.5) para geração de arquivos Excel
+
+#### Configuração de Bancos de Dados
+- **Suporte a múltiplos bancos**: Sistema configurado para trabalhar com dois bancos de dados
+  - DIVULGACARGA_PRD (banco principal)
+  - INTEGRA_PRD (banco de migração)
+- **Configuração separada**: Cada banco tem seu próprio pool de conexões
+- **Documentação completa**: Arquivo `CONFIGURACAO_BANCOS.md` com instruções detalhadas
+- **Script de Linked Server**: Script SQL para configurar linked server do INTEGRA_PRD
+  - Arquivo: `backend/scripts/configurar_linked_server_integra.sql`
+  - Documentação: `CONFIGURAR_LINKED_SERVER.md`
+
+#### Melhorias de Interface
+- **Layout de botões padronizado**: Botões "Novo Registro" alinhados à direita em todos os módulos
+- **Botão Exportar Excel**: Adicionado ao lado de "Voltar aos Filtros" (padrão consistente)
+
+### 🔧 Modificado
+
+#### Gerenciar Cadastro Geral
+- Adicionado endpoint `/api/cadastros-gerais/exportar-excel` para exportação
+- Query SQL completa com todas as tabelas auxiliares
+- Tratamento de erros melhorado para banco INTEGRA_PRD offline
+
+#### Gerenciar Equipamentos
+- Adicionado endpoint `/api/equipamentos/exportar-excel` para exportação
+- Query SQL completa com todas as tabelas auxiliares
+- Layout de botões ajustado para padrão do sistema
+
+#### Configuração de Banco de Dados
+- Arquivo `backend/config/db.js` atualizado para suportar dois bancos
+- Pool de conexões separado para INTEGRA_PRD
+- Sistema tolerante a falhas (continua funcionando se INTEGRA_PRD estiver offline)
+
+### 📝 Documentação
+- Criado `CONFIGURACAO_BANCOS.md` com instruções de configuração
+- Criado `CONFIGURAR_LINKED_SERVER.md` com instruções do linked server
+- Criado `QUERY_EXPORTACAO_EXCEL.sql` para Cadastro Geral
+- Criado `QUERY_EXPORTACAO_EXCEL.sql` para Equipamentos
+
+---
+
 ## [1.3.0] - 2025-12-01
 
 ### ✅ Adicionado

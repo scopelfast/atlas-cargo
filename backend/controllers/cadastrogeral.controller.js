@@ -6,6 +6,7 @@
 
 const sql = require('mssql');
 const axios = require('axios');
+const XLSX = require('xlsx');
 const { poolPromise } = require('../config/db');
 
 // Constantes
@@ -784,6 +785,215 @@ const cadastroController = {
     } catch (err) {
       console.error('Erro ao listar transportadores:', err);
       res.status(500).json({ error: 'Erro ao carregar transportadores.' });
+    }
+  },
+
+  // Exportar cadastros para Excel com todos os dados e tabelas auxiliares
+  exportarExcel: async (req, res) => {
+    try {
+      const {
+        codigo, cgccpf, razaoSocial, nomeFantasia, tipoPessoa,
+        cidadeEstado, cidadeNome, celular, email, situacao, tipoCadastro, rastreado, transportador
+      } = req.query;
+
+      // Query SQL completa com todas as tabelas auxiliares
+      let query = `
+        SELECT 
+          -- Dados principais do cadastro
+          cg.CDCADASTRO AS 'Código',
+          cg.CGCCPF AS 'CPF/CNPJ',
+          cg.RZSOCIAL AS 'Razão Social',
+          cg.NMFANTASIA AS 'Nome Fantasia',
+          CASE cg.FGFISICAJURIDICA 
+            WHEN 'F' THEN 'Física'
+            WHEN 'J' THEN 'Jurídica'
+            ELSE 'Não informado'
+          END AS 'Tipo Pessoa',
+          CASE cg.FGTIPOCADASTRO
+            WHEN 'O' THEN 'Operador do Sistema'
+            WHEN 'M' THEN 'Motorista'
+            WHEN 'A' THEN 'Agente'
+            WHEN 'G' THEN 'Grupo de Divulgação'
+            WHEN 'T' THEN 'Transportador'
+            WHEN 'U' THEN 'Unidade de Negócio'
+            ELSE 'Não informado'
+          END AS 'Tipo Cadastro',
+          CASE cg.FGRASTREADO
+            WHEN 'S' THEN 'Sim'
+            WHEN 'N' THEN 'Não'
+            ELSE 'Não informado'
+          END AS 'Possui Veículo Rastreado',
+          CASE cg.FGACTIVE
+            WHEN 'A' THEN 'Ativo'
+            WHEN 'I' THEN 'Inativo'
+            ELSE 'Não informado'
+          END AS 'Situação',
+          
+          -- Dados de endereço
+          cg.CEP AS 'CEP',
+          cg.ENDERECO AS 'Endereço',
+          cg.NRENDERECO AS 'Número',
+          cg.COMPLEND AS 'Complemento',
+          cg.BAIRRO AS 'Bairro',
+          
+          -- Dados da cidade (tabela auxiliar CIDADE)
+          c.ESTADO AS 'Estado',
+          c.NMCIDADE AS 'Cidade',
+          c.CDCIDADE AS 'Código Cidade',
+          
+          -- Dados de contato
+          cg.NRCELULAR AS 'Celular',
+          cg.ENDEMAIL AS 'Email',
+          
+          -- Dados de localização
+          cg.LATITUDE AS 'Latitude',
+          cg.LONGITUDE AS 'Longitude',
+          
+          -- Dados do transportador (tabela auxiliar CADASTROGERAL - Transportador)
+          cg.CDTRANSPORTADOR AS 'Código Transportador',
+          t.RZSOCIAL AS 'Nome Transportador',
+          t.CGCCPF AS 'CPF/CNPJ Transportador',
+          t.NRCELULAR AS 'Celular Transportador',
+          t.ENDEMAIL AS 'Email Transportador',
+          
+          -- Dados de manutenção
+          cg.DHMAINTENANCE AS 'Data Manutenção',
+          cg.SGUSER AS 'Usuário',
+          cg.SERVERORIG AS 'Servidor Origem'
+        FROM [dbo].[CADASTROGERAL] cg
+        LEFT JOIN [dbo].[CIDADE] c ON cg.CDCIDADE = c.CDCIDADE
+        LEFT JOIN [dbo].[CADASTROGERAL] t ON cg.CDTRANSPORTADOR = t.CDCADASTRO
+        WHERE 1=1
+      `;
+
+      const params = [];
+      if (codigo) {
+        query += ` AND cg.CDCADASTRO = @CODIGO`;
+        params.push({ name: 'CODIGO', value: parseFloat(codigo) });
+      }
+      if (cgccpf) {
+        const cgccpfStr = String(cgccpf).replace(/[^\d]+/g, '');
+        query += ` AND cg.CGCCPF = @CGCCPF`;
+        params.push({ name: 'CGCCPF', type: sql.VarChar(14), value: cgccpfStr });
+      }
+      if (razaoSocial) {
+        query += ` AND cg.RZSOCIAL LIKE @RAZAOSOCIAL`;
+        params.push({ name: 'RAZAOSOCIAL', value: `%${razaoSocial}%` });
+      }
+      if (nomeFantasia) {
+        query += ` AND cg.NMFANTASIA LIKE @NMFANTASIA`;
+        params.push({ name: 'NMFANTASIA', value: `%${nomeFantasia}%` });
+      }
+      if (tipoPessoa) {
+        query += ` AND cg.FGFISICAJURIDICA = @TIPOPESSOA`;
+        params.push({ name: 'TIPOPESSOA', value: tipoPessoa });
+      }
+      if (cidadeEstado) {
+        query += ` AND c.ESTADO = @CIDADE_ESTADO`;
+        params.push({ name: 'CIDADE_ESTADO', value: cidadeEstado });
+      }
+      if (cidadeNome) {
+        query += ` AND c.NMCIDADE LIKE @CIDADE_NOME`;
+        params.push({ name: 'CIDADE_NOME', value: `%${cidadeNome}%` });
+      }
+      if (celular) {
+        query += ` AND cg.NRCELULAR = @CELULAR`;
+        params.push({ name: 'CELULAR', value: parseFloat(celular) });
+      }
+      if (email) {
+        query += ` AND cg.ENDEMAIL LIKE @EMAIL`;
+        params.push({ name: 'EMAIL', value: `%${email}%` });
+      }
+      if (situacao) {
+        query += ` AND cg.FGACTIVE = @SITUACAO`;
+        params.push({ name: 'SITUACAO', value: situacao === 'S' ? 'A' : 'I' });
+      }
+      if (tipoCadastro) {
+        query += ` AND cg.FGTIPOCADASTRO = @TIPOCADASTRO`;
+        params.push({ name: 'TIPOCADASTRO', value: tipoCadastro.trim().toUpperCase() });
+      }
+      if (rastreado) {
+        query += ` AND cg.FGRASTREADO = @RASTREADO`;
+        params.push({ name: 'RASTREADO', value: rastreado });
+      }
+      if (transportador) {
+        query += ` AND cg.CDTRANSPORTADOR = @TRANSPORTADOR`;
+        params.push({ name: 'TRANSPORTADOR', value: parseFloat(transportador) });
+      }
+
+      query += ` ORDER BY cg.RZSOCIAL`;
+
+      const pool = await poolPromise;
+      const request = pool.request();
+      params.forEach(p => {
+        if (p.type) {
+          request.input(p.name, p.type, p.value);
+        } else {
+          request.input(p.name, p.value);
+        }
+      });
+      
+      const result = await request.query(query);
+      
+      // Converter para array de objetos simples
+      const dados = result.recordset.map(row => {
+        const obj = {};
+        for (const key in row) {
+          obj[key] = row[key] !== null && row[key] !== undefined ? row[key] : '';
+        }
+        return obj;
+      });
+
+      // Criar workbook Excel
+      const worksheet = XLSX.utils.json_to_sheet(dados);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Cadastros Gerais');
+
+      // Configurar largura das colunas
+      const colWidths = [
+        { wch: 12 },  // Código
+        { wch: 18 },  // CPF/CNPJ
+        { wch: 40 },  // Razão Social
+        { wch: 30 },  // Nome Fantasia
+        { wch: 12 },  // Tipo Pessoa
+        { wch: 20 },  // Tipo Cadastro
+        { wch: 20 },  // Possui Veículo Rastreado
+        { wch: 12 },  // Situação
+        { wch: 10 },  // CEP
+        { wch: 40 },  // Endereço
+        { wch: 10 },  // Número
+        { wch: 20 },  // Complemento
+        { wch: 25 },  // Bairro
+        { wch: 5 },   // Estado
+        { wch: 30 },  // Cidade
+        { wch: 12 },  // Código Cidade
+        { wch: 15 },  // Celular
+        { wch: 30 },  // Email
+        { wch: 15 },  // Latitude
+        { wch: 15 },  // Longitude
+        { wch: 18 },  // Código Transportador
+        { wch: 40 },  // Nome Transportador
+        { wch: 18 },  // CPF/CNPJ Transportador
+        { wch: 15 },  // Celular Transportador
+        { wch: 30 },  // Email Transportador
+        { wch: 20 },  // Data Manutenção
+        { wch: 15 },  // Usuário
+        { wch: 15 }   // Servidor Origem
+      ];
+      worksheet['!cols'] = colWidths;
+
+      // Gerar buffer do Excel
+      const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+
+      // Configurar headers para download
+      const filename = `cadastros-gerais-${new Date().toISOString().split('T')[0]}.xlsx`;
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      
+      res.send(excelBuffer);
+    } catch (err) {
+      console.error('Erro ao exportar cadastros para Excel:', err);
+      res.status(500).json({ error: 'Erro ao exportar dados para Excel.' });
     }
   }
 };

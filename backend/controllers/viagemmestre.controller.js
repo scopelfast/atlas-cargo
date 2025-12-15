@@ -42,7 +42,7 @@ const viagemController = {
           v.SGUSERINCLUSAO,
           v.DHINCLUSAO,
           v.CDCONTRATADOR,
-          cg.RZSOCIAL AS CONTRATADOR_NOME,
+          upper(cg.RZSOCIAL) AS CONTRATADOR_NOME,
           v.FGACTIVE,
           v.CDCLASSEFROTA,
           cf.DSCLASSEFROTA,
@@ -381,7 +381,7 @@ const viagemController = {
             cd.NMCIDADE AS DESTINO_CIDADE,
             cf.DSCLASSEFROTA,
             tv.DSTIPOVIAGEM,
-            cg.RZSOCIAL AS CONTRATADOR_NOME
+            upper(cg.RZSOCIAL) AS CONTRATADOR_NOME
           FROM [dbo].[VIAGEMMESTRE] v
           LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
           LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
@@ -546,15 +546,38 @@ const viagemController = {
   listarContratadores: async (req, res) => {
     try {
       const pool = await poolPromise;
-      const result = await pool
-        .request()
-        .query(`
-          SELECT CDCADASTRO, RZSOCIAL 
-          FROM [dbo].[CADASTROGERAL] 
-          WHERE FGTIPOCADASTRO = 'O' AND FGACTIVE = 'A' 
-          ORDER BY RZSOCIAL
-        `);
-      res.json(result.recordset);
+      
+      // Verificar se é para o relatório de convocações (retornar apenas contratadores com convocações)
+      const { apenasComConvocacoes } = req.query;
+      
+      if (apenasComConvocacoes === 'true') {
+        // Query para retornar apenas contratadores que têm convocações
+        const result = await pool
+          .request()
+          .query(`
+            SELECT DISTINCT 
+              cg.CDCADASTRO, 
+              upper(cg.RZSOCIAL) as RZSOCIAL  
+            FROM [dbo].[CADASTROGERAL] cg
+            INNER JOIN [dbo].[VIAGEMMESTRE] v ON cg.CDCADASTRO = v.CDCONTRATADOR
+            INNER JOIN [dbo].[CONVOCACAO] c ON v.IDVIAGEM = c.IDVIAGEM
+            WHERE cg.FGTIPOCADASTRO = 'O' 
+              AND cg.FGACTIVE = 'A'
+            ORDER BY upper(cg.RZSOCIAL)
+          `);
+        res.json(result.recordset);
+      } else {
+        // Query original: retornar todos os contratadores ativos
+        const result = await pool
+          .request()
+          .query(`
+            SELECT CDCADASTRO, upper(RZSOCIAL) as RZSOCIAL 
+            FROM [dbo].[CADASTROGERAL] 
+            WHERE FGTIPOCADASTRO = 'O' AND FGACTIVE = 'A' 
+            ORDER BY RZSOCIAL
+          `);
+        res.json(result.recordset);
+      }
     } catch (err) {
       console.error('Erro ao carregar contratadores:', err);
       res.status(500).json({ error: 'Erro ao carregar contratadores.' });
@@ -699,7 +722,7 @@ const viagemController = {
           v.CDTIPOVIAGEM,
           t.DSTIPOVIAGEM,
           v.CDCONTRATADOR,
-          cg.RZSOCIAL AS CONTRATADOR_NOME,
+          upper(cg.RZSOCIAL) AS CONTRATADOR_NOME,
           v.CDCLASSEFROTA,
           cf.DSCLASSEFROTA,
           v.FGRASTREADO,
@@ -752,7 +775,7 @@ const viagemController = {
 
       const pool = await poolPromise;
 
-      // Primeiro, buscar os dados da viagem
+      // Primeiro, buscar os dados da viagem (incluindo contratador)
       const viagemResult = await pool
         .request()
         .input('IDVIAGEM', sql.Decimal(15, 0), idViagem)
@@ -761,6 +784,7 @@ const viagemController = {
             v.CDCLASSEFROTA,
             v.FGRASTREADO,
             v.IDROTEIRO,
+            v.CDCONTRATADOR,
             r.CDCIDADEORIGEM,
             r.CDCIDADEDESTINO
           FROM [dbo].[VIAGEMMESTRE] v
@@ -773,7 +797,7 @@ const viagemController = {
       }
 
       const viagem = viagemResult.recordset[0];
-      const { CDCLASSEFROTA, FGRASTREADO, CDCIDADEORIGEM, CDCIDADEDESTINO, IDROTEIRO } = viagem;
+      const { CDCLASSEFROTA, FGRASTREADO, CDCIDADEORIGEM, CDCIDADEDESTINO, IDROTEIRO, CDCONTRATADOR } = viagem;
 
       // Buscar micro-regiões E ESTADOS das cidades de origem e destino
       const cidadesResult = await pool
@@ -807,6 +831,7 @@ const viagemController = {
           cg.ENDEMAIL AS EMAIL,
           cg.CDTRANSPORTADOR,
           t.RZSOCIAL AS TRANSPORTADOR_NOME,
+          t.NRCELULAR AS TRANSPORTADOR_CELULAR,
           c.CDCIDADE,
           c.NMCIDADE AS CIDADE_NOME,
           c.ESTADO AS CIDADE_ESTADO,
@@ -833,7 +858,7 @@ const viagemController = {
             FROM VIAGEMMESTRE v2 
             INNER JOIN VIAGEMMOTORISTA m2 ON v2.IDVIAGEM = m2.IDVIAGEM 
             WHERE m2.CDMOTORISTA = cg.CDCADASTRO
-              AND v2.IDROTEIRO = @IDROTEIRO
+              AND (@IDROTEIRO IS NULL OR v2.IDROTEIRO = @IDROTEIRO)
           ) AS QTVIAGENS_NESTA_ROTA
         FROM [dbo].[CADASTROGERAL] cg
         INNER JOIN [dbo].[CIDADE] c ON cg.CDCIDADE = c.CDCIDADE
@@ -851,11 +876,10 @@ const viagemController = {
       const request = pool.request();
       // Adicionar IDVIAGEM para o JOIN com CONVOCACAO
       request.input('IDVIAGEM', sql.Decimal(15, 0), parseFloat(idViagem));
-
+      
       // Adicionar IDROTEIRO para buscar motoristas experientes nesta rota
-      if (IDROTEIRO) {
-        request.input('IDROTEIRO', sql.Int, parseInt(IDROTEIRO));
-      }
+      // Sempre adicionar (mesmo que seja null) para evitar erro na subquery
+      request.input('IDROTEIRO', sql.Int, IDROTEIRO ? parseInt(IDROTEIRO) : null);
 
       // A classe de frota na tabela CLASSEFROTA_CG parece ser SmallInt, não Decimal
       if (CDCLASSEFROTA) {
@@ -956,12 +980,40 @@ const viagemController = {
         }
       }
 
+      // Log da query para debug (apenas em desenvolvimento)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[DEBUG] Query motoristas compatíveis:', query.substring(0, 200) + '...');
+        console.log('[DEBUG] Parâmetros:', {
+          IDVIAGEM: idViagem,
+          IDROTEIRO: IDROTEIRO || 0,
+          CDCLASSEFROTA: CDCLASSEFROTA
+        });
+      }
+
       const result = await request.query(query);
 
       res.json(result.recordset);
     } catch (err) {
       console.error('Erro ao buscar motoristas compatíveis:', err);
-      res.status(500).json({ error: 'Erro ao buscar motoristas compatíveis.' });
+      console.error('Stack trace:', err.stack);
+      // Log detalhado do erro para debug
+      if (err.message) {
+        console.error('Mensagem do erro:', err.message);
+      }
+      if (err.originalError) {
+        console.error('Erro original:', err.originalError);
+        if (err.originalError.message) {
+          console.error('Mensagem do erro original:', err.originalError.message);
+        }
+      }
+      // Log da query que causou erro (apenas em desenvolvimento)
+      if (process.env.NODE_ENV === 'development' && query) {
+        console.error('Query que causou erro:', query);
+      }
+      res.status(500).json({ 
+        error: 'Erro ao buscar motoristas compatíveis.',
+        details: process.env.NODE_ENV === 'development' ? err.message : undefined
+      });
     }
   },
 
@@ -1160,7 +1212,7 @@ const viagemController = {
           v.VLFRETE,
           v.PESO,
           v.CUBAGEM,
-          cg.RZSOCIAL AS NOME_MOTORISTA,
+          upper(cg.RZSOCIAL) AS NOME_MOTORISTA,
           cg.NRCELULAR AS CELULAR_MOTORISTA,
           cf.DSCLASSEFROTA,
           r.CDCIDADEORIGEM,
@@ -1242,7 +1294,7 @@ const viagemController = {
             v.DTPREVFINAL,
             v.FGRASTREADO,
             v.OBSERV,
-            cg.RZSOCIAL AS NOME_MOTORISTA,
+            upper(cg.RZSOCIAL) AS NOME_MOTORISTA,
             cg.NRCELULAR AS CELULAR_MOTORISTA,
             cf.DSCLASSEFROTA,
             r.CDCIDADEORIGEM,
@@ -1518,7 +1570,7 @@ const viagemController = {
           .input('IDCONVOCACAO_MOT', sql.Int, parseInt(id))
           .query(`
             SELECT 
-              cg.RZSOCIAL AS NOME_MOTORISTA,
+              upper(cg.RZSOCIAL) AS NOME_MOTORISTA,
               cg.NRCELULAR,
               v.IDVIAGEM,
               v.DTPREVINICIO,
@@ -1529,7 +1581,7 @@ const viagemController = {
               cd.NMCIDADE AS DESTINO_CIDADE,
               cd.ESTADO AS DESTINO_ESTADO,
               r.DSROTEIRO,
-              contratador.RZSOCIAL AS CONTRATADOR_NOME,
+              upper(contratador.RZSOCIAL) AS CONTRATADOR_NOME,
               contratador.NRCELULAR AS CONTRATADOR_CELULAR
             FROM [dbo].[CONVOCACAO] c
             INNER JOIN [dbo].[CADASTROGERAL] cg ON c.CDCADASTRO_MOTORISTA = cg.CDCADASTRO
@@ -1734,7 +1786,7 @@ const viagemController = {
             v.VLFRETE,
             v.PESO,
             v.CUBAGEM,
-            cg.RZSOCIAL AS NOME_MOTORISTA,
+            upper(cg.RZSOCIAL) AS NOME_MOTORISTA,
             cg.NRCELULAR,
             cf.DSCLASSEFROTA,
             r.CDCIDADEORIGEM,
@@ -1745,7 +1797,7 @@ const viagemController = {
             cd.ESTADO AS DESTINO_ESTADO,
             tv.DSTIPOVIAGEM,
             v.CDCONTRATADOR,
-            contratador.RZSOCIAL AS CONTRATADOR_NOME,
+            upper(contratador.RZSOCIAL) AS CONTRATADOR_NOME,
             contratador.NRCELULAR AS CONTRATADOR_CELULAR,
             r.DSROTEIRO,
             CASE 
@@ -1788,7 +1840,7 @@ const viagemController = {
             .request()
             .input('CDCONTRATADOR', sql.Decimal(15, 0), parseFloat(convocacao.CDCONTRATADOR))
             .query(`
-              SELECT RZSOCIAL, NRCELULAR, FGACTIVE 
+              SELECT upper(RZSOCIAL) as RZSOCIAL, NRCELULAR, FGACTIVE 
               FROM [dbo].[CADASTROGERAL] 
               WHERE CDCADASTRO = @CDCONTRATADOR AND FGACTIVE = 'A'
             `);
@@ -1799,7 +1851,7 @@ const viagemController = {
               .request()
               .input('CDCONTRATADOR', sql.Decimal(15, 0), parseFloat(convocacao.CDCONTRATADOR))
               .query(`
-                SELECT RZSOCIAL, NRCELULAR, FGACTIVE 
+                SELECT upper(RZSOCIAL) as RZSOCIAL, NRCELULAR, FGACTIVE 
                 FROM [dbo].[CADASTROGERAL] 
                 WHERE CDCADASTRO = @CDCONTRATADOR
               `);
@@ -2164,7 +2216,7 @@ const viagemController = {
             h.IDCONVOCACAO,
             h.IDVIAGEM,
             h.CDCADASTRO_MOTORISTA,
-            cg.RZSOCIAL AS NOME_MOTORISTA,
+            upper(cg.RZSOCIAL) AS NOME_MOTORISTA,
             h.STATUS_ANTERIOR,
             h.CDMOTIVOREABERTURA,
             mr.DSMOTIVO AS MOTIVO_REABERTURA,
@@ -2760,14 +2812,14 @@ const viagemController = {
         SELECT 
           cg.CDCADASTRO AS CDCADASTROGERAL,
           cg.CGCCPF,
-          cg.RZSOCIAL,
+          upper(cg.RZSOCIAL) as RZSOCIAL,
           cg.NMFANTASIA,
           cg.FGFISICAJURIDICA,
           cg.FGTIPOCADASTRO,
           cg.FGRASTREADO,
           cg.FGACTIVE,
           cg.CDTRANSPORTADOR,
-          t.RZSOCIAL AS TRANSPORTADOR_NOME,
+          upper(t.RZSOCIAL) AS TRANSPORTADOR_NOME,
           cg.CEP,
           cg.CDCIDADE,
           c.ESTADO AS CIDADE_ESTADO,
@@ -2835,7 +2887,7 @@ const viagemController = {
             cg.FGRASTREADO,
             cg.FGACTIVE,
             cg.CDTRANSPORTADOR,
-            t.RZSOCIAL AS TRANSPORTADOR_NOME,
+            upper(t.RZSOCIAL) AS TRANSPORTADOR_NOME,
             cg.CEP,
             cg.CDCIDADE,
             c.ESTADO AS CIDADE_ESTADO,
