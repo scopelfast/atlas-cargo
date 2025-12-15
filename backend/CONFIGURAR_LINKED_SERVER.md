@@ -120,6 +120,25 @@ Após configurar o linked server:
 - Verifique se o SQL Server do INTEGRA_PRD permite autenticação SQL Server
 - Verifique se o firewall permite conexão na porta 35987
 
+### Erro: "Database 'INTEGRA_PRD' cannot be opened because it is offline"
+
+**Causa:** O banco de dados INTEGRA_PRD está offline no servidor remoto.
+
+**Solução:**
+1. Conecte-se ao servidor remoto: `186.250.92.131,35987`
+2. Execute: `ALTER DATABASE [INTEGRA_PRD] SET ONLINE;`
+3. Ou use o script: `backend/scripts/verificar_ativar_integra_prd.sql`
+
+**Verificar status:**
+```sql
+SELECT name, state_desc FROM sys.databases WHERE name = 'INTEGRA_PRD';
+```
+
+**Ativar banco:**
+```sql
+ALTER DATABASE [INTEGRA_PRD] SET ONLINE;
+```
+
 ### Erro: "Timeout"
 
 - Aumente o timeout nas opções do linked server
