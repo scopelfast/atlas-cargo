@@ -7,7 +7,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
-## [1.4.0] - 2025-01-XX
+## [1.4.0] - 2025-12-15
 
 ### ✅ Adicionado
 
@@ -55,11 +55,36 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Pool de conexões separado para INTEGRA_PRD
 - Sistema tolerante a falhas (continua funcionando se INTEGRA_PRD estiver offline)
 
+### 🐛 Corrigido
+
+#### Bugs Críticos
+- ✅ **Correção de bug no controller**: Variável `result` não estava sendo definida em `executarInitSQL`
+  - Causava erro "result is not defined" ao executar stored procedures
+  - Afetava principalmente `SP_INTGRACAO_TIPOVALIDADE` (primeira no init.sql)
+- ✅ **Correção de sintaxe SQL**: Script de criação de `SP_INTGRACAO_TIPOVALIDADE` corrigido
+  - Agora usa DROP + CREATE ao invés de ALTER/CREATE dentro de IF/ELSE
+  - Funciona corretamente mesmo se a procedure não existir
+
+#### Melhorias de Tratamento de Erros
+- ✅ **Tratamento melhorado de erros do INTEGRA_PRD offline**: Frontend agora detecta e trata especificamente erros relacionados ao banco offline
+- ✅ **Mensagens mais informativas**: Avisos agora indicam claramente quando o problema é banco offline
+
 ### 📝 Documentação
 - Criado `CONFIGURACAO_BANCOS.md` com instruções de configuração
 - Criado `CONFIGURAR_LINKED_SERVER.md` com instruções do linked server
 - Criado `QUERY_EXPORTACAO_EXCEL.sql` para Cadastro Geral
 - Criado `QUERY_EXPORTACAO_EXCEL.sql` para Equipamentos
+- Criado `verificar_ativar_integra_prd.sql` para ativar banco offline
+- Criado `testar_linked_server_integra.sql` para diagnóstico do linked server
+- Atualizado `CONFIGURACAO_BANCOS.md` com informações sobre migração dos bancos para mesmo servidor
+- Atualizado `CONFIGURAR_LINKED_SERVER.md` com troubleshooting completo
+
+### 🔄 Migração de Infraestrutura
+- **Migração de bancos de dados**: Ambos os bancos (DIVULGACARGA_PRD e INTEGRA_PRD) migrados para mesmo servidor
+  - Servidor: `186.250.92.131,35987`
+  - Credenciais unificadas: `sa` / `SistMSQLServer2025&*`
+  - Configurações atualizadas em `backend/config/db.js`
+  - Documentação atualizada em todos os arquivos relevantes
 
 ---
 
@@ -545,5 +570,5 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 ---
 
 **Mantido por:** Equipe DivulgaCarga  
-**Última atualização:** 2025-12-01
+**Última atualização:** 2025-12-15
 

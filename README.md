@@ -1,7 +1,7 @@
 # 🚚 DivulgaCarga - Sistema de Gestão de Transportes
 
 **Versão:** 1.4.0  
-**Data:** 2025-01-XX  
+**Data:** 2025-12-15  
 **Status:** ✅ Produção
 
 ---
