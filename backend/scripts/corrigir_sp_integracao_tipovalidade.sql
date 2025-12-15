@@ -16,9 +16,17 @@ GO
 SET QUOTED_IDENTIFIER ON
 GO
 
--- Recriar a procedure
+-- Verificar se a procedure existe e removê-la se necessário
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[SP_INTGRACAO_TIPOVALIDADE]') AND type in (N'P', N'PC'))
+BEGIN
+    DROP PROCEDURE [dbo].[SP_INTGRACAO_TIPOVALIDADE];
+    PRINT '✅ Procedure SP_INTGRACAO_TIPOVALIDADE existente removida.';
+END
+GO
+
+-- Criar a procedure
 -- Versão testada e funcionando (15/12/2025)
-ALTER PROCEDURE [dbo].[SP_INTGRACAO_TIPOVALIDADE]
+CREATE PROCEDURE [dbo].[SP_INTGRACAO_TIPOVALIDADE]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -85,5 +93,8 @@ BEGIN
         RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
     END CATCH
 END;
+GO
+
+PRINT '✅ Procedure SP_INTGRACAO_TIPOVALIDADE criada com sucesso!';
 GO
 
