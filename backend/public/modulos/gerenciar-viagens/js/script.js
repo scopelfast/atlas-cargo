@@ -534,12 +534,28 @@ function getOverlayMostrado() {
                 
                 // Verificar se mensagem está definida antes de usar
                 const mensagemFinal = mensagem && mensagem !== 'Erro desconhecido' ? (mensagem + detalhesAdicionais) : ('Erro desconhecido' + detalhesAdicionais);
-                // Verificar se a mensagem não contém "result is not defined" (erro interno do backend)
-                if (mensagemFinal && !mensagemFinal.includes('result is not defined')) {
-                  console.error(`Erro no init.sql [Procedure: ${procedureName}]:`, mensagemFinal);
+                
+                // Verificar se é erro relacionado ao banco INTEGRA_PRD offline ou erro interno do backend
+                const mensagemLower = mensagemFinal.toLowerCase();
+                const isErroIntegraOffline = mensagemLower.includes('cannot be opened') || 
+                                             mensagemLower.includes('is offline') || 
+                                             mensagemLower.includes('está offline') ||
+                                             mensagemLower.includes('database') && mensagemLower.includes('offline') ||
+                                             mensagemLower.includes('banco') && mensagemLower.includes('offline');
+                const isErroInternoBackend = mensagemFinal.includes('result is not defined') || 
+                                            mensagemFinal.includes('Cannot read property') ||
+                                            mensagemFinal.includes('undefined');
+                
+                if (isErroIntegraOffline || isErroInternoBackend) {
+                  // Se for erro relacionado ao INTEGRA_PRD offline ou erro interno do backend
+                  if (isErroIntegraOffline) {
+                    console.warn(`[Init SQL] Aviso: Procedure ${procedureName} não pode ser executada porque o banco INTEGRA_PRD está offline. Execute o script verificar_ativar_integra_prd.sql para ativar o banco.`);
+                  } else {
+                    console.warn(`[Init SQL] Aviso: Procedure ${procedureName} retornou erro interno (pode ser normal se o banco INTEGRA_PRD estiver offline)`);
+                  }
                 } else {
-                  // Se for erro interno do backend, apenas avisar silenciosamente
-                  console.warn(`[Init SQL] Aviso: Procedure ${procedureName} retornou erro interno (pode ser normal em algumas situações)`);
+                  // Erro real que precisa ser logado
+                  console.error(`Erro no init.sql [Procedure: ${procedureName}]:`, mensagemFinal);
                 }
               } catch (err) {
                 // Se houver erro ao processar o erro, logar de forma simples

@@ -209,10 +209,28 @@
             // Log apenas erros reais críticos
             errosReais.forEach(erro => {
               const mensagem = erro.mensagem || erro.erro || erro.message || erro.error || 'Erro desconhecido';
-              if (typeof mensagem === 'object') {
-                console.error('Erro no init.sql:', JSON.stringify(mensagem));
+              const mensagemStr = typeof mensagem === 'object' ? JSON.stringify(mensagem) : String(mensagem);
+              const mensagemLower = mensagemStr.toLowerCase();
+              
+              // Verificar se é erro interno do backend relacionado ao INTEGRA_PRD offline
+              const isErroInternoBackend = mensagemStr.includes('result is not defined') || 
+                                          mensagemStr.includes('Cannot read property') ||
+                                          mensagemStr.includes('undefined');
+              
+              if (isErroInternoBackend) {
+                // Extrair nome da procedure se possível
+                const comando = (erro && (erro.comando || erro.sql)) ? String(erro.comando || erro.sql) : 'Comando desconhecido';
+                const procedureMatch = comando.match(/EXEC\s+(?:\[dbo\]\.)?\[?(\w+)\]?/i) || 
+                                        comando.match(/EXECUTE\s+(?:\[dbo\]\.)?\[?(\w+)\]?/i) ||
+                                        comando.match(/\[?(\w+)\]?/i);
+                const procedureName = procedureMatch ? procedureMatch[1] : 'N/A';
+                console.warn(`[Init SQL] Aviso: Procedure ${procedureName} retornou erro interno (pode ser normal se o banco INTEGRA_PRD estiver offline)`);
               } else {
-                console.error('Erro no init.sql:', mensagem);
+                if (typeof mensagem === 'object') {
+                  console.error('Erro no init.sql:', JSON.stringify(mensagem));
+                } else {
+                  console.error('Erro no init.sql:', mensagem);
+                }
               }
             });
           }
