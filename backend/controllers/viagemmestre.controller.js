@@ -2452,7 +2452,7 @@ const viagemController = {
           request.timeout = 600000; // 600 segundos (10 minutos) para comandos grandes
 
           // Executar comando
-          await request.query(cmdLimpo);
+          const result = await request.query(cmdLimpo);
 
           // Se retornou dados (SELECT), incluir no resultado
           if (result.recordset && result.recordset.length > 0) {
