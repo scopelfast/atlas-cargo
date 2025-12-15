@@ -19,7 +19,17 @@ GO
 -- Criar ou alterar a procedure
 -- Versão testada e funcionando (15/12/2025)
 -- Usa CREATE OR ALTER para funcionar tanto se a procedure existir quanto se não existir
-CREATE OR ALTER PROCEDURE [dbo].[SP_INTGRACAO_TIPOVALIDADE]
+-- Alternativa: Se CREATE OR ALTER não funcionar, use ALTER PROCEDURE (se já existe) ou CREATE PROCEDURE (se não existe)
+IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[SP_INTGRACAO_TIPOVALIDADE]') AND type in (N'P', N'PC'))
+BEGIN
+    -- Procedure existe, usar ALTER
+    ALTER PROCEDURE [dbo].[SP_INTGRACAO_TIPOVALIDADE]
+END
+ELSE
+BEGIN
+    -- Procedure não existe, usar CREATE
+    CREATE PROCEDURE [dbo].[SP_INTGRACAO_TIPOVALIDADE]
+END
 AS
 BEGIN
     SET NOCOUNT ON;
