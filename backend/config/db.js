@@ -37,7 +37,7 @@ const config = {
 };
 
 // Configuração do banco INTEGRA_PRD (banco de migração)
-// NOTA: Ambos os bancos (DIVULGACARGA_PRD e INTEGRA_PRD) estão no mesmo servidor
+// NOTA: Ambos os bancos (DIVULGACARGA_PRD e INTEGRA_PRD) estão no mesmo servidor (186.250.92.131,35987)
 const configIntegra = {
   user: process.env.INTEGRA_DB_USER || process.env.DB_USER || 'sa',
   password: process.env.INTEGRA_DB_PASSWORD || process.env.DB_PASSWORD || 'SistMSQLServer2025&*',
