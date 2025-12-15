@@ -16,17 +16,10 @@ GO
 SET QUOTED_IDENTIFIER ON
 GO
 
--- Verificar se a procedure existe e removê-la se necessário
-IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[SP_INTGRACAO_TIPOVALIDADE]') AND type in (N'P', N'PC'))
-BEGIN
-    DROP PROCEDURE [dbo].[SP_INTGRACAO_TIPOVALIDADE];
-    PRINT '✅ Procedure SP_INTGRACAO_TIPOVALIDADE existente removida.';
-END
-GO
-
--- Criar a procedure
+-- Criar ou alterar a procedure
 -- Versão testada e funcionando (15/12/2025)
-CREATE PROCEDURE [dbo].[SP_INTGRACAO_TIPOVALIDADE]
+-- Usa CREATE OR ALTER para funcionar tanto se a procedure existir quanto se não existir
+CREATE OR ALTER PROCEDURE [dbo].[SP_INTGRACAO_TIPOVALIDADE]
 AS
 BEGIN
     SET NOCOUNT ON;
