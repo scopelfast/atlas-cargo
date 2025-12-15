@@ -3,6 +3,8 @@
 -- ============================================
 -- Este script recria a stored procedure SP_INTGRACAO_TIPOVALIDADE
 -- para garantir que não há problemas de sintaxe ou variáveis não definidas
+-- 
+-- Versão testada e funcionando: 15/12/2025
 -- ============================================
 
 USE [DIVULGACARGA_PRD]
@@ -17,32 +19,13 @@ END
 GO
 
 -- Recriar a procedure
+-- Versão testada e funcionando (15/12/2025)
 CREATE PROCEDURE [dbo].[SP_INTGRACAO_TIPOVALIDADE]
 AS
 BEGIN
     SET NOCOUNT ON;
     
     BEGIN TRY
-        -- Verificar se o linked server INTEGRA_PRD está acessível
-        -- Tentar uma query simples primeiro para verificar conectividade
-        DECLARE @teste INT;
-        BEGIN TRY
-            SELECT @teste = COUNT(*) FROM [INTEGRA_PRD].[dbo].[TIPOVALIDADE];
-        END TRY
-        BEGIN CATCH
-            -- Se não conseguir acessar, o banco provavelmente está offline
-            DECLARE @erroTeste NVARCHAR(4000) = ERROR_MESSAGE();
-            IF @erroTeste LIKE '%cannot be opened%' OR @erroTeste LIKE '%is offline%' OR @erroTeste LIKE '%não pode ser aberto%' OR @erroTeste LIKE '%está offline%'
-            BEGIN
-                PRINT '⚠️ Aviso: Banco INTEGRA_PRD está offline. Sincronização de TIPOVALIDADE não será executada.';
-                PRINT '   Execute o script verificar_ativar_integra_prd.sql para ativar o banco.';
-                RETURN 0; -- Retornar sucesso sem erro para não bloquear outras procedures
-            END
-            -- Se for outro tipo de erro, propagar
-            THROW;
-        END CATCH
-        
-        -- Se chegou aqui, o banco está acessível, executar MERGE
         MERGE DIVULGACARGA_PRD.dbo.TIPOVALIDADE AS dest
         USING INTEGRA_PRD.dbo.TIPOVALIDADE AS src
             ON dest.CDTIPOVALIDADE = src.CDTIPOVALIDADE
@@ -94,22 +77,24 @@ BEGIN
         DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
         DECLARE @ErrorState INT = ERROR_STATE();
         
-        -- Verificar se é erro de banco offline
+        -- Verificar se é erro de banco offline (tratamento opcional para não bloquear outras procedures)
         IF @ErrorMessage LIKE '%cannot be opened%' OR @ErrorMessage LIKE '%is offline%' OR @ErrorMessage LIKE '%não pode ser aberto%' OR @ErrorMessage LIKE '%está offline%'
         BEGIN
             PRINT '⚠️ Aviso: Banco INTEGRA_PRD está offline. Sincronização de TIPOVALIDADE não será executada.';
             PRINT '   Execute o script verificar_ativar_integra_prd.sql para ativar o banco.';
-            RETURN 0; -- Retornar sucesso sem erro para não bloquear outras procedures
+            -- Opção: Retornar sucesso para não bloquear outras procedures
+            -- RETURN 0;
+            -- Ou propagar o erro (comportamento padrão)
         END
         
-        -- Para outros erros, logar mas não propagar como erro crítico
-        PRINT '⚠️ Aviso na SP_INTGRACAO_TIPOVALIDADE:';
+        PRINT '❌ Erro na SP_INTGRACAO_TIPOVALIDADE:';
         PRINT '   Número: ' + CAST(@ErrorNumber AS VARCHAR(10));
+        PRINT '   Severidade: ' + CAST(@ErrorSeverity AS VARCHAR(10));
+        PRINT '   Estado: ' + CAST(@ErrorState AS VARCHAR(10));
         PRINT '   Mensagem: ' + @ErrorMessage;
-        PRINT '   A execução continuará com as próximas procedures.';
         
-        -- Não re-lançar o erro para não bloquear outras procedures
-        RETURN 0;
+        -- Re-lançar o erro para que seja capturado pelo Node.js
+        RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
     END CATCH
 END;
 GO
