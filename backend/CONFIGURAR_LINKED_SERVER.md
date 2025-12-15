@@ -125,19 +125,28 @@ Após configurar o linked server:
 **Causa:** O banco de dados INTEGRA_PRD está offline no servidor remoto.
 
 **Solução:**
-1. Conecte-se ao servidor remoto: `186.250.92.131,35987`
-2. Execute: `ALTER DATABASE [INTEGRA_PRD] SET ONLINE;`
-3. Ou use o script: `backend/scripts/verificar_ativar_integra_prd.sql`
 
-**Verificar status:**
+1. **Conecte-se diretamente ao servidor INTEGRA_PRD:**
+   - Servidor: `186.250.92.131,35987`
+   - Usuário: `sa`
+   - Senha: `SistMSQLServer2025&*`
+
+2. **Execute o script de verificação:**
+   - Arquivo: `backend/scripts/verificar_ativar_integra_prd.sql`
+   - Ou execute manualmente:
+
 ```sql
+-- Verificar status
+SELECT name, state_desc FROM sys.databases WHERE name = 'INTEGRA_PRD';
+
+-- Ativar banco
+ALTER DATABASE [INTEGRA_PRD] SET ONLINE;
+
+-- Verificar novamente
 SELECT name, state_desc FROM sys.databases WHERE name = 'INTEGRA_PRD';
 ```
 
-**Ativar banco:**
-```sql
-ALTER DATABASE [INTEGRA_PRD] SET ONLINE;
-```
+**⚠️ IMPORTANTE:** Este comando deve ser executado **DIRETAMENTE** no servidor do INTEGRA_PRD, não através do linked server.
 
 ### Erro: "Timeout"
 
