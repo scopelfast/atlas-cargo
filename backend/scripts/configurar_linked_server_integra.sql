@@ -70,10 +70,6 @@ GO
 -- Verificar se o servidor foi criado antes de configurar opções
 IF EXISTS (SELECT * FROM sys.servers WHERE name = 'INTEGRA_PRD')
 BEGIN
-    -- Configurar banco de dados padrão (opcional, mas recomendado)
-    -- Isso permite usar [INTEGRA_PRD].[dbo].[TABELA] sem especificar o banco
-    EXEC sp_setnetname 'INTEGRA_PRD', '186.250.92.131,35987';
-    
     EXEC sp_serveroption 'INTEGRA_PRD', 'rpc out', 'true';
     EXEC sp_serveroption 'INTEGRA_PRD', 'rpc', 'true';
     EXEC sp_serveroption 'INTEGRA_PRD', 'use remote collation', 'true';
