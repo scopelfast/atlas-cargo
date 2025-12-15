@@ -37,11 +37,12 @@ const config = {
 };
 
 // Configuração do banco INTEGRA_PRD (banco de migração)
+// NOTA: Ambos os bancos (DIVULGACARGA_PRD e INTEGRA_PRD) estão no mesmo servidor
 const configIntegra = {
-  user: process.env.INTEGRA_DB_USER || 'sa',
-  password: process.env.INTEGRA_DB_PASSWORD || 'SistMSQLServer2025&*',
-  server: process.env.INTEGRA_DB_SERVER || '186.250.92.131',
-  port: parseInt(process.env.INTEGRA_DB_PORT, 10) || 35987,
+  user: process.env.INTEGRA_DB_USER || process.env.DB_USER || 'sa',
+  password: process.env.INTEGRA_DB_PASSWORD || process.env.DB_PASSWORD || 'SistMSQLServer2025&*',
+  server: process.env.INTEGRA_DB_SERVER || process.env.DB_SERVER || '186.250.92.131',
+  port: parseInt(process.env.INTEGRA_DB_PORT || process.env.DB_PORT, 10) || 35987,
   database: process.env.INTEGRA_DB_DATABASE || 'INTEGRA_PRD',
   options: {
     encrypt: false,

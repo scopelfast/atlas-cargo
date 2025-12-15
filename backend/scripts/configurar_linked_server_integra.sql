@@ -5,6 +5,7 @@
 --            com as novas credenciais e endereço
 -- 
 -- IMPORTANTE: Execute este script no banco DIVULGACARGA_PRD
+-- NOTA: Ambos os bancos (DIVULGACARGA_PRD e INTEGRA_PRD) estão no mesmo servidor
 -- ============================================
 
 USE [DIVULGACARGA_PRD];

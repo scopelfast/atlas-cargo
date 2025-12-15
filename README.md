@@ -83,13 +83,13 @@ O **DivulgaCarga** é um sistema completo de gestão de transportes desenvolvido
 3. **Configure o arquivo `.env`**
    ```env
    # Banco Principal - DIVULGACARGA_PRD
-   DB_SERVER=200.98.128.159
+   DB_SERVER=186.250.92.131
    DB_PORT=35987
    DB_DATABASE=DIVULGACARGA_PRD
    DB_USER=sa
-   DB_PASSWORD=!ntegr@SQL2014
+   DB_PASSWORD=SistMSQLServer2025&*
    
-   # Banco de Migração - INTEGRA_PRD (opcional)
+   # Banco de Migração - INTEGRA_PRD (mesmo servidor)
    INTEGRA_DB_SERVER=186.250.92.131
    INTEGRA_DB_PORT=35987
    INTEGRA_DB_DATABASE=INTEGRA_PRD

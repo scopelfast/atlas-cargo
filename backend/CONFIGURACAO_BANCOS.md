@@ -12,6 +12,8 @@ O sistema utiliza dois bancos de dados:
 - **Uso:** Banco de origem para migração de dados
 - **Configuração:** Via variáveis de ambiente específicas
 
+**⚠️ IMPORTANTE:** Ambos os bancos estão no mesmo servidor SQL Server (`186.250.92.131,35987`).
+
 ---
 
 ## 🔧 Variáveis de Ambiente
@@ -22,11 +24,11 @@ Adicione no arquivo `backend/.env`:
 
 ```env
 # Banco Principal - DIVULGACARGA_PRD
-DB_SERVER=200.98.128.159
+DB_SERVER=186.250.92.131
 DB_PORT=35987
 DB_DATABASE=DIVULGACARGA_PRD
 DB_USER=sa
-DB_PASSWORD=!ntegr@SQL2014
+DB_PASSWORD=SistMSQLServer2025&*
 ```
 
 ### Banco de Migração (INTEGRA_PRD)
@@ -35,6 +37,7 @@ Adicione no arquivo `backend/.env`:
 
 ```env
 # Banco de Migração - INTEGRA_PRD
+# NOTA: Mesmo servidor do DIVULGACARGA_PRD
 INTEGRA_DB_SERVER=186.250.92.131
 INTEGRA_DB_PORT=35987
 INTEGRA_DB_DATABASE=INTEGRA_PRD
@@ -42,7 +45,10 @@ INTEGRA_DB_USER=sa
 INTEGRA_DB_PASSWORD=SistMSQLServer2025&*
 ```
 
-**⚠️ IMPORTANTE:** Se as variáveis `INTEGRA_*` não forem definidas, o sistema usará os valores padrão acima.
+**⚠️ IMPORTANTE:** 
+- Ambos os bancos estão no mesmo servidor (`186.250.92.131,35987`)
+- Se as variáveis `INTEGRA_*` não forem definidas, o sistema usará os valores padrão acima
+- Se `INTEGRA_DB_SERVER`, `INTEGRA_DB_PORT`, `INTEGRA_DB_USER` ou `INTEGRA_DB_PASSWORD` não forem definidas, o sistema usará os valores do banco principal (DB_*)
 
 ---
 
@@ -52,14 +58,15 @@ INTEGRA_DB_PASSWORD=SistMSQLServer2025&*
 # ============================================================================
 # BANCO PRINCIPAL - DIVULGACARGA_PRD
 # ============================================================================
-DB_SERVER=200.98.128.159
+DB_SERVER=186.250.92.131
 DB_PORT=35987
 DB_DATABASE=DIVULGACARGA_PRD
 DB_USER=sa
-DB_PASSWORD=!ntegr@SQL2014
+DB_PASSWORD=SistMSQLServer2025&*
 
 # ============================================================================
 # BANCO DE MIGRAÇÃO - INTEGRA_PRD
+# NOTA: Mesmo servidor do DIVULGACARGA_PRD
 # ============================================================================
 INTEGRA_DB_SERVER=186.250.92.131
 INTEGRA_DB_PORT=35987

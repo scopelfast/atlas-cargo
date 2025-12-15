@@ -4,6 +4,8 @@
 
 As stored procedures do sistema usam a sintaxe `[INTEGRA_PRD].[dbo].[TABELA]` para acessar o banco INTEGRA_PRD. Isso requer um **Linked Server** configurado no SQL Server do DIVULGACARGA_PRD.
 
+**NOTA:** Ambos os bancos (DIVULGACARGA_PRD e INTEGRA_PRD) estão no mesmo servidor SQL Server (`186.250.92.131,35987`), mas o linked server ainda é necessário para que as stored procedures possam acessar o banco INTEGRA_PRD usando a sintaxe `[INTEGRA_PRD].[dbo].[TABELA]`.
+
 Quando o banco INTEGRA_PRD muda de endereço ou credenciais, o linked server precisa ser atualizado.
 
 ## 🔧 Solução
@@ -18,17 +20,17 @@ Execute o script SQL para configurar/atualizar o linked server:
 
 1. Abra o SQL Server Management Studio
 2. Conecte-se ao servidor do **DIVULGACARGA_PRD**:
-   - Servidor: `200.98.128.159,35987`
+   - Servidor: `186.250.92.131,35987`
    - Autenticação: SQL Server
    - Usuário: `sa`
-   - Senha: `!ntegr@SQL2014`
+   - Senha: `SistMSQLServer2025&*`
 3. Abra o arquivo `configurar_linked_server_integra.sql`
 4. Execute o script (F5)
 
 ### Opção 2: Via linha de comando (sqlcmd)
 
 ```bash
-sqlcmd -S 200.98.128.159,35987 -U sa -P "!ntegr@SQL2014" -d DIVULGACARGA_PRD -i backend/scripts/configurar_linked_server_integra.sql
+sqlcmd -S 186.250.92.131,35987 -U sa -P "SistMSQLServer2025&*" -d DIVULGACARGA_PRD -i backend/scripts/configurar_linked_server_integra.sql
 ```
 
 ## ✅ Verificação
