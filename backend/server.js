@@ -46,10 +46,21 @@ if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 32) {
 
 const app = require('./app');
 
-const PORT = process.env.PORT || 5000; // Porta fixa: 5000 (não alterar!)
+const PORT = process.env.PORT || 3000; // Porta padrão: 3000 (pode ser alterada via .env)
 
 app.listen(PORT, '0.0.0.0', () => {
+  console.log('');
+  console.log('==============================================');
   console.log(`✅ Servidor rodando na porta ${PORT}`);
   console.log(`📊 Ambiente: ${process.env.NODE_ENV || 'development'}`);
-  
+  console.log('');
+  console.log('🌐 Acesse o sistema em:');
+  console.log(`   http://localhost:${PORT}`);
+  console.log(`   http://127.0.0.1:${PORT}`);
+  console.log('');
+  console.log('📱 Para acessar de outros dispositivos na mesma rede:');
+  console.log(`   http://192.168.1.173:${PORT}`);
+  console.log('   (Substitua pelo seu IP local)');
+  console.log('==============================================');
+  console.log('');
 });

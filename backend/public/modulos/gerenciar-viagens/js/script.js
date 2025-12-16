@@ -67,6 +67,9 @@ function getOverlayMostrado() {
     maxZoom: 19
   };
 
+  // Expor MAP_CONFIG globalmente para uso em outras funções
+  window.MAP_CONFIG = MAP_CONFIG;
+
   // Função para carregar o Leaflet dinamicamente
   async function carregarLeaflet() {
     // Se já está carregado, retornar
@@ -705,6 +708,21 @@ function getOverlayMostrado() {
             if (viagemIdEmEdicao) {
               await carregarEselecionarViagemConvocacoes(viagemIdEmEdicao);
             }
+          }
+        }, 100);
+      }
+
+      // Se for a aba Rastreamento, inicializar
+      if (tabId === 'rastreamento') {
+        setTimeout(() => {
+          inicializarAbaRastreamento();
+          
+          // Se houver viagem selecionada, carregar posições
+          const idViagem = document.getElementById('filtroIdViagem')?.value || 
+                          document.getElementById('viagemId')?.value || 
+                          null;
+          if (idViagem) {
+            carregarPosicoesRastreamento(idViagem);
           }
         }, 100);
       }
@@ -10304,6 +10322,1645 @@ function getOverlayMostrado() {
     
     html += '</div>';
     grid.innerHTML = html;
+  }
+
+  // ==========================================
+  // ABA RASTREAMENTO GPS
+  // ==========================================
+  
+  let mapaRastreamento = null;
+  let marcadoresRastreamento = [];
+  let linhaRastreamento = null;
+  let marcadorOrigemRastreamento = null;
+  let marcadorDestinoRastreamento = null;
+  let linhaRotaPlanejada = null;
+  let linhaRotaRestante = null; // Rota da última posição GPS até o destino (vermelha)
+
+  // Função auxiliar para construir URL de roteamento (suporta OSRM e ORS) - escopo global
+  function construirUrlRota(servidor, coordsStr, overview = 'simplified', geometries = 'geojson') {
+    // Detectar se é ORS (OpenRouteService) ou OSRM
+    if (servidor.includes('/ors/')) {
+      // Formato ORS: /ors/v2/directions/{profile}/{coords}?overview={overview}&geometries={geometries}
+      return `${servidor}/${coordsStr}?overview=${overview}&geometries=${geometries}`;
+    } else {
+      // Formato OSRM padrão: /route/v1/{profile}/{coords}?overview={overview}&geometries={geometries}
+      return `${servidor}/${coordsStr}?overview=${overview}&geometries=${geometries}`;
+    }
+  }
+  
+  // Função auxiliar para parsear resposta (suporta OSRM e ORS) - escopo global
+  function parsearRespostaRota(data) {
+    // ORS retorna: { routes: [{ geometry: { coordinates: [[lon, lat], ...] } }] }
+    // OSRM retorna: { code: 'Ok', routes: [{ geometry: { coordinates: [[lon, lat], ...] } }] }
+    if (data.routes && data.routes[0] && data.routes[0].geometry) {
+      return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]); // Converter [lon, lat] para [lat, lon]
+    }
+    // Fallback para formato OSRM com code
+    if (data.code === 'Ok' && data.routes && data.routes[0] && data.routes[0].geometry) {
+      return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+    }
+    return null;
+  }
+
+  // Função para sincronizar rastreamento do INTEGRA_PRD
+  async function sincronizarRastreamentoIntegra(idViagem) {
+    if (!idViagem) {
+      mostrarMensagemRastreamento('ID da viagem não encontrado.', 'error');
+      return;
+    }
+
+    const btnAtualizar = document.getElementById('btnAtualizarRastreamento');
+    const textoOriginal = btnAtualizar ? btnAtualizar.innerHTML : '';
+
+    try {
+      // Mostrar loading no botão
+      if (btnAtualizar) {
+        btnAtualizar.disabled = true;
+        btnAtualizar.innerHTML = '⏳ Sincronizando...';
+      }
+
+      mostrarMensagemRastreamento('Sincronizando posições do INTEGRA_PRD...', 'info');
+
+      const response = await fetch(`/api/motorista/sincronizar-rastreamento/${idViagem}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const resultado = await response.json();
+
+      if (response.ok && resultado.success) {
+        mostrarMensagemRastreamento(
+          resultado.message || 'Sincronização concluída com sucesso!',
+          'success'
+        );
+        console.log('✅ Sincronização concluída:', resultado);
+      } else {
+        mostrarMensagemRastreamento(
+          resultado.error || 'Erro ao sincronizar rastreamento.',
+          'error'
+        );
+        console.error('❌ Erro na sincronização:', resultado);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao sincronizar rastreamento:', error);
+      mostrarMensagemRastreamento(
+        'Erro ao sincronizar rastreamento. Verifique a conexão com o servidor.',
+        'error'
+      );
+    } finally {
+      // Restaurar botão
+      if (btnAtualizar) {
+        btnAtualizar.disabled = false;
+        btnAtualizar.innerHTML = textoOriginal || '🔄 Atualizar Posições';
+      }
+    }
+  }
+
+  // Inicializar aba de rastreamento
+  function inicializarAbaRastreamento() {
+    // Botão voltar
+    const btnVoltar = document.getElementById('btnVoltarRastreamento');
+    if (btnVoltar) {
+      btnVoltar.addEventListener('click', () => {
+        mudarAba('filtros');
+      });
+    }
+
+    // Botão atualizar
+    const btnAtualizar = document.getElementById('btnAtualizarRastreamento');
+    if (btnAtualizar) {
+      btnAtualizar.addEventListener('click', async () => {
+        const idViagem = document.getElementById('filtroIdViagem')?.value || 
+                        document.getElementById('viagemId')?.value || 
+                        null;
+        if (idViagem) {
+          // Primeiro sincronizar do INTEGRA_PRD, depois recarregar posições
+          await sincronizarRastreamentoIntegra(idViagem);
+          // Recarregar posições após sincronização
+          carregarPosicoesRastreamento(idViagem);
+        }
+      });
+    }
+  }
+
+  // Carregar posições GPS da viagem
+  async function carregarPosicoesRastreamento(idViagem) {
+    if (!idViagem) {
+      mostrarMensagemRastreamento('Nenhuma viagem selecionada.', 'warning');
+      return;
+    }
+
+    const container = document.getElementById('rastreamentoContainer');
+    const semViagem = document.getElementById('rastreamentoSemViagem');
+    const infoViagem = document.getElementById('rastreamentoInfoViagem');
+    const listaPosicoes = document.getElementById('listaPosicoes');
+
+    try {
+      // Mostrar loading
+      if (listaPosicoes) {
+        listaPosicoes.innerHTML = '<p style="text-align: center; color: #6c757d; padding: 20px;">Carregando posições...</p>';
+      }
+
+      // Buscar motorista da viagem (mesmo que não tenha posições GPS)
+      let motorista = null;
+      try {
+        const motoristaResponse = await fetch(`/api/motorista/motorista-viagem/${idViagem}`);
+        if (motoristaResponse.ok) {
+          motorista = await motoristaResponse.json();
+        }
+      } catch (err) {
+        console.warn('Erro ao buscar motorista:', err);
+      }
+
+      // Buscar dados da viagem (origem e destino)
+      let dadosViagem = null;
+      try {
+        const viagemResponse = await fetch(`/api/viagens/${idViagem}`);
+        if (viagemResponse.ok) {
+          dadosViagem = await viagemResponse.json();
+        }
+      } catch (err) {
+        console.warn('Erro ao buscar dados da viagem:', err);
+      }
+
+      // Buscar posições
+      const response = await fetch(`/api/motorista/posicoes/${idViagem}`);
+      
+      if (!response.ok) {
+        throw new Error(`Erro ao buscar posições: ${response.status}`);
+      }
+
+      const posicoesData = await response.json();
+      
+      // Debug: verificar o que foi retornado
+      console.log('📦 Dados retornados da API:', posicoesData);
+      console.log('📊 Tipo:', Array.isArray(posicoesData) ? 'Array' : typeof posicoesData);
+      
+      // A resposta pode ser um array direto (compatibilidade) ou um objeto com posicoes e ultimaPosicaoGeral
+      let posicoes, ultimaPosicaoGeral;
+      if (Array.isArray(posicoesData)) {
+        // Formato antigo (array direto) - compatibilidade
+        posicoes = posicoesData;
+        ultimaPosicaoGeral = null;
+      } else {
+        // Formato novo (objeto com posicoes e ultimaPosicaoGeral)
+        posicoes = posicoesData.posicoes || [];
+        ultimaPosicaoGeral = posicoesData.ultimaPosicaoGeral || null;
+      }
+      
+      console.log('📊 Tamanho:', posicoes.length);
+      console.log('✅ Posições processadas:', posicoes.length);
+      if (posicoes.length > 0) {
+        console.log('📍 Primeira posição:', posicoes[0]);
+      }
+      if (ultimaPosicaoGeral) {
+        console.log('📍 Última posição geral (sem filtro):', ultimaPosicaoGeral);
+      }
+
+      // Esconder mensagem "sem viagem" e mostrar container
+      if (semViagem) semViagem.style.display = 'none';
+      if (container) container.style.display = 'block';
+      if (infoViagem) infoViagem.style.display = 'block';
+
+      // Atualizar informações da viagem
+      document.getElementById('rastreamentoIdViagem').textContent = idViagem;
+      
+      // Atualizar motorista (usar das posições ou buscar separadamente)
+      const nomeMotorista = (posicoes && posicoes.length > 0 && posicoes[0].NOME_MOTORISTA) 
+        ? posicoes[0].NOME_MOTORISTA 
+        : (motorista ? motorista.NOME_MOTORISTA : 'Não informado');
+      document.getElementById('rastreamentoMotorista').textContent = nomeMotorista;
+
+      // Atualizar informações
+      if (posicoes && posicoes.length > 0) {
+        document.getElementById('rastreamentoTotalPosicoes').textContent = posicoes.length;
+        
+        // Usar última posição geral (sem filtro) se disponível, senão usar última do array filtrado
+        let ultimaDataParaExibir = null;
+        if (ultimaPosicaoGeral && ultimaPosicaoGeral.DHREGISTRO) {
+          // Tratar data do SQL Server
+          // A data vem como string no formato local (sem timezone)
+          // Precisamos interpretar como horário local do Brasil, não UTC
+          const dataStr = ultimaPosicaoGeral.DHREGISTRO;
+          if (typeof dataStr === 'string') {
+            // Se a string não tem timezone (não termina com Z ou +/-), 
+            // interpretar como horário local do Brasil
+            // Formato esperado: "2025-12-15T17:56:00" ou "2025-12-15T17:56:00.000"
+            // Vamos criar um Date interpretando como horário local
+            const partes = dataStr.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+            if (partes) {
+              // Criar Date usando componentes (ano, mês-1, dia, hora, minuto, segundo)
+              // Isso cria a data no horário local do navegador
+              ultimaDataParaExibir = new Date(
+                parseInt(partes[1]), // ano
+                parseInt(partes[2]) - 1, // mês (0-11)
+                parseInt(partes[3]), // dia
+                parseInt(partes[4]), // hora
+                parseInt(partes[5]), // minuto
+                parseInt(partes[6])  // segundo
+              );
+            } else {
+              ultimaDataParaExibir = new Date(dataStr);
+            }
+          } else {
+            ultimaDataParaExibir = new Date(dataStr);
+          }
+        } else {
+          const ultima = posicoes[posicoes.length - 1];
+          if (ultima && ultima.DHREGISTRO) {
+            ultimaDataParaExibir = new Date(ultima.DHREGISTRO);
+          }
+        }
+        
+        if (ultimaDataParaExibir && !isNaN(ultimaDataParaExibir.getTime())) {
+          // Formatar no horário local (já está no horário local após a conversão acima)
+          document.getElementById('rastreamentoUltimaAtualizacao').textContent = 
+            ultimaDataParaExibir.toLocaleString('pt-BR', { 
+              day: '2-digit', 
+              month: '2-digit', 
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+        } else {
+          document.getElementById('rastreamentoUltimaAtualizacao').textContent = '-';
+        }
+
+        // Exibir no mapa (com origem e destino se disponível)
+        await exibirMapaRastreamento(posicoes, dadosViagem);
+
+        // Exibir na lista
+        exibirListaPosicoes(posicoes);
+      } else {
+        // Nenhuma posição encontrada, mas mostrar informações da viagem
+        document.getElementById('rastreamentoTotalPosicoes').textContent = '0';
+        
+        // Mesmo sem posições filtradas, pode haver uma última posição geral
+        let ultimaDataParaExibir = null;
+        if (ultimaPosicaoGeral && ultimaPosicaoGeral.DHREGISTRO) {
+          // Tratar data do SQL Server - interpretar como horário local
+          const dataStr = ultimaPosicaoGeral.DHREGISTRO;
+          if (typeof dataStr === 'string') {
+            const partes = dataStr.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+            if (partes) {
+              ultimaDataParaExibir = new Date(
+                parseInt(partes[1]), // ano
+                parseInt(partes[2]) - 1, // mês (0-11)
+                parseInt(partes[3]), // dia
+                parseInt(partes[4]), // hora
+                parseInt(partes[5]), // minuto
+                parseInt(partes[6])  // segundo
+              );
+            } else {
+              ultimaDataParaExibir = new Date(dataStr);
+            }
+          } else {
+            ultimaDataParaExibir = new Date(dataStr);
+          }
+        }
+        
+        if (ultimaDataParaExibir && !isNaN(ultimaDataParaExibir.getTime())) {
+          // Formatar no horário local
+          document.getElementById('rastreamentoUltimaAtualizacao').textContent = 
+            ultimaDataParaExibir.toLocaleString('pt-BR', { 
+              day: '2-digit', 
+              month: '2-digit', 
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+        } else {
+          document.getElementById('rastreamentoUltimaAtualizacao').textContent = '-';
+        }
+        
+        if (listaPosicoes) {
+          listaPosicoes.innerHTML = '<p style="text-align: center; color: #6c757d; padding: 20px;">Nenhuma posição GPS registrada para esta viagem.</p>';
+        }
+        
+        // Exibir no mapa apenas origem e destino (sem posições GPS)
+        if (dadosViagem) {
+          await exibirMapaRastreamento([], dadosViagem);
+        } else {
+          // Limpar mapa se existir
+          if (mapaRastreamento) {
+            mapaRastreamento.remove();
+            mapaRastreamento = null;
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao carregar posições:', err);
+      mostrarMensagemRastreamento('Erro ao carregar posições GPS. Tente novamente.', 'error');
+      if (listaPosicoes) {
+        listaPosicoes.innerHTML = '<p style="text-align: center; color: #e74c3c; padding: 20px;">Erro ao carregar posições.</p>';
+      }
+    }
+  }
+
+  // Exibir posições no mapa
+  async function exibirMapaRastreamento(posicoes, dadosViagem = null) {
+    // Se não há posições e não há dados da viagem, não exibir mapa
+    if ((!posicoes || posicoes.length === 0) && !dadosViagem) return;
+
+    // Obter configuração do mapa
+    const config = window.MAP_CONFIG || {
+      osrmServer: 'https://router.project-osrm.org/route/v1/driving',
+      tileServer: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19
+    };
+
+    // Carregar Leaflet se necessário
+    await carregarLeaflet();
+
+    const mapaDiv = document.getElementById('mapaRastreamento');
+    if (!mapaDiv) return;
+
+    // Limpar mapa anterior
+    if (mapaRastreamento) {
+      // Remover layers antes de remover o mapa
+      if (linhaRastreamento) {
+        mapaRastreamento.removeLayer(linhaRastreamento);
+        linhaRastreamento = null;
+      }
+      if (marcadorOrigemRastreamento) {
+        mapaRastreamento.removeLayer(marcadorOrigemRastreamento);
+        marcadorOrigemRastreamento = null;
+      }
+      if (marcadorDestinoRastreamento) {
+        mapaRastreamento.removeLayer(marcadorDestinoRastreamento);
+        marcadorDestinoRastreamento = null;
+      }
+      if (linhaRotaPlanejada) {
+        mapaRastreamento.removeLayer(linhaRotaPlanejada);
+        linhaRotaPlanejada = null;
+      }
+      if (linhaRotaRestante) {
+        mapaRastreamento.removeLayer(linhaRotaRestante);
+        linhaRotaRestante = null;
+      }
+      marcadoresRastreamento.forEach(m => mapaRastreamento.removeLayer(m));
+      mapaRastreamento.remove();
+      mapaRastreamento = null;
+    }
+    marcadoresRastreamento = [];
+
+    // Criar mapa
+    mapaRastreamento = L.map('mapaRastreamento', {
+      zoomControl: true
+    });
+
+    // Adicionar tiles
+    L.tileLayer(config.tileServer, {
+      attribution: config.attribution,
+      maxZoom: config.maxZoom
+    }).addTo(mapaRastreamento);
+
+    // Ordenar posições por data/hora (garantir ordem cronológica)
+    const posicoesOrdenadas = [...posicoes].sort((a, b) => {
+      const dataA = new Date(a.DHREGISTRO || a.DHPOSICAO || 0);
+      const dataB = new Date(b.DHREGISTRO || b.DHPOSICAO || 0);
+      return dataA - dataB; // ASC: mais antiga primeiro
+    });
+
+    // Preparar coordenadas das posições GPS (já ordenadas)
+    const coordenadas = posicoesOrdenadas.map(p => [parseFloat(p.LATITUDE), parseFloat(p.LONGITUDE)]);
+    
+    // IMPORTANTE: Garantir que coordenadas está na ordem correta (primeiro → último)
+    if (coordenadas.length > 0) {
+      console.log(`📍 Primeira posição GPS (início): [${coordenadas[0][0]}, ${coordenadas[0][1]}]`);
+      console.log(`📍 Última posição GPS (fim): [${coordenadas[coordenadas.length - 1][0]}, ${coordenadas[coordenadas.length - 1][1]}]`);
+    }
+    console.log(`📍 Total de posições GPS: ${coordenadas.length}`);
+
+    // Calcular rota real usando OSRM/ORS conectando TODOS os pontos GPS consecutivos
+    if (coordenadas.length > 0) {
+      try {
+        const config = window.MAP_CONFIG || {};
+        console.log(`🛣️  Calculando rota usando servidor: ${config.osrmServer || 'padrão'}...`);
+        
+        // Função auxiliar para construir URL de roteamento (suporta OSRM e ORS)
+        // Usar a função global construirUrlRota (definida acima no escopo)
+        
+        // Usar a função global parsearRespostaRota (definida acima no escopo)
+        
+        // Função para calcular distância entre dois pontos
+        function calcularDistancia(coord1, coord2) {
+          const R = 6371e3; // Raio da Terra em metros
+          const φ1 = coord1[0] * Math.PI / 180;
+          const φ2 = coord2[0] * Math.PI / 180;
+          const Δφ = (coord2[0] - coord1[0]) * Math.PI / 180;
+          const Δλ = (coord2[1] - coord1[1]) * Math.PI / 180;
+          const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                    Math.cos(φ1) * Math.cos(φ2) *
+                    Math.sin(Δλ/2) * Math.sin(Δλ/2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          return R * c; // Distância em metros
+        }
+        
+        // Filtrar pontos muito próximos e fazer amostragem inteligente para performance
+        let pontosFiltrados = [coordenadas[0]];
+        for (let i = 1; i < coordenadas.length; i++) {
+          const distancia = calcularDistancia(pontosFiltrados[pontosFiltrados.length - 1], coordenadas[i]);
+          if (distancia >= 200) { // Aumentar para 200 metros (mais agressivo)
+            pontosFiltrados.push(coordenadas[i]);
+          }
+        }
+        // Sempre incluir último ponto
+        if (pontosFiltrados[pontosFiltrados.length - 1] !== coordenadas[coordenadas.length - 1]) {
+          pontosFiltrados.push(coordenadas[coordenadas.length - 1]);
+        }
+        
+        console.log(`   🔍 Filtragem: ${coordenadas.length} pontos → ${pontosFiltrados.length} pontos (removidos muito próximos < 200m)`);
+        
+        // NÃO fazer amostragem - usar TODOS os pontos filtrados para garantir rota completa
+        let pontosParaRota = pontosFiltrados;
+        console.log(`   📍 Usando ${pontosParaRota.length} pontos para calcular rota completa pelas estradas`);
+        
+        // NÃO exibir linha reta inicial - aguardar cálculo OSRM/ORS
+        console.log('📍 Calculando rota completa pelas estradas (aguarde)...');
+        
+        // Calcular rota conectando pontos consecutivos em pares (mais preciso)
+        // Para muitos pontos, processar em segmentos maiores para ser mais rápido
+        let routeLatLngs = [];
+        const maxPontosPorSegmento = 15; // Aumentar para 15 pontos por segmento (mais rápido)
+        
+        if (pontosParaRota.length > maxPontosPorSegmento) {
+          console.log(`   📊 Calculando rota em segmentos de ${maxPontosPorSegmento} pontos (total: ${pontosParaRota.length})...`);
+          
+          // Função auxiliar para obter rota de um segmento (com retry e servidor alternativo)
+          async function obterRotaSegmento(segmento, servidorPrincipal, servidorAlternativo = null) {
+            // IMPORTANTE: segmento já está na ordem correta (primeiro → último)
+            // Formato OSRM: lon,lat;lon,lat;...
+            const coordsStr = segmento.map(c => `${c[1]},${c[0]}`).join(';');
+            console.log(`   🔍 Segmento: ${segmento.length} pontos, primeiro: [${segmento[0][0]}, ${segmento[0][1]}], último: [${segmento[segmento.length - 1][0]}, ${segmento[segmento.length - 1][1]}]`);
+            
+            // Tentar primeiro com servidor principal
+            for (const servidor of [servidorPrincipal, servidorAlternativo].filter(s => s)) {
+              const rotaUrl = construirUrlRota(servidor, coordsStr, 'simplified', 'geojson');
+              
+              try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 segundos
+                
+                const response = await fetch(rotaUrl, { signal: controller.signal });
+                clearTimeout(timeoutId);
+                
+                if (response.ok) {
+                  const segmentData = await response.json();
+                  const segmentGeometry = parsearRespostaRota(segmentData);
+                  if (segmentGeometry && segmentGeometry.length > 0) {
+                    // Verificar se a rota está na ordem correta (primeiro ponto do segmento deve ser próximo ao primeiro ponto da rota)
+                    const primeiroPontoSegmento = segmento[0];
+                    const primeiroPontoRota = segmentGeometry[0];
+                    const ultimoPontoSegmento = segmento[segmento.length - 1];
+                    const ultimoPontoRota = segmentGeometry[segmentGeometry.length - 1];
+                    
+                    const distInicio = Math.sqrt(
+                      Math.pow(primeiroPontoRota[0] - primeiroPontoSegmento[0], 2) + 
+                      Math.pow(primeiroPontoRota[1] - primeiroPontoSegmento[1], 2)
+                    );
+                    const distFim = Math.sqrt(
+                      Math.pow(ultimoPontoRota[0] - ultimoPontoSegmento[0], 2) + 
+                      Math.pow(ultimoPontoRota[1] - ultimoPontoSegmento[1], 2)
+                    );
+                    
+                    // Se a rota está invertida (último ponto da rota está próximo ao primeiro ponto do segmento)
+                    if (distInicio > 0.01 && distFim < 0.01) {
+                      console.warn(`   ⚠️  Rota invertida detectada! Revertendo ordem...`);
+                      return segmentGeometry.reverse();
+                    }
+                    
+                    console.log(`   ✅ Rota segmento OK: primeiro [${primeiroPontoRota[0]}, ${primeiroPontoRota[1]}], último [${ultimoPontoRota[0]}, ${ultimoPontoRota[1]}]`);
+                    return segmentGeometry;
+                  }
+                }
+              } catch (err) {
+                if (err.name === 'AbortError') {
+                  console.warn(`   ⏱️  Timeout no servidor ${servidor === servidorPrincipal ? 'principal' : 'alternativo'}`);
+                } else {
+                  console.warn(`   Erro no servidor ${servidor === servidorPrincipal ? 'principal' : 'alternativo'}:`, err.message);
+                }
+                // Continuar para tentar próximo servidor ou método
+              }
+            }
+            
+            // Se ambos falharem, tentar calcular em pares menores (2 pontos por vez)
+            if (segmento.length > 2) {
+              console.log(`   🔄 Tentando calcular em pares menores (${segmento.length} pontos → pares de 2)...`);
+              let rotaPares = [];
+              
+              for (let i = 0; i < segmento.length - 1; i++) {
+                const par = [segmento[i], segmento[i + 1]];
+                const parCoordsStr = par.map(c => `${c[1]},${c[0]}`).join(';');
+                
+                // Tentar ambos servidores para cada par
+                let parRota = null;
+                for (const servidor of [servidorPrincipal, servidorAlternativo].filter(s => s)) {
+                  try {
+                    const parUrl = construirUrlRota(servidor, parCoordsStr, 'simplified', 'geojson');
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s para pares
+                    
+                    const parResponse = await fetch(parUrl, { signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    
+                    if (parResponse.ok) {
+                      const parData = await parResponse.json();
+                      parRota = parsearRespostaRota(parData);
+                      if (parRota && parRota.length > 0) {
+                        break; // Sucesso, sair do loop de servidores
+                      }
+                    }
+                  } catch (err) {
+                    // Continuar para próximo servidor
+                  }
+                }
+                
+                if (parRota && parRota.length > 0) {
+                  if (i === 0) {
+                    rotaPares.push(...parRota);
+                  } else {
+                    rotaPares.push(...parRota.slice(1)); // Pular primeiro para não duplicar
+                  }
+                  await new Promise(resolve => setTimeout(resolve, 50)); // Pequeno delay
+                } else {
+                  // Se falhar, adicionar linha reta para este par
+                  if (i === 0) {
+                    rotaPares.push(...par);
+                  } else {
+                    rotaPares.push(par[1]);
+                  }
+                }
+              }
+              
+              if (rotaPares.length > 0) {
+                console.log(`   ✅ Rota calculada em pares (${rotaPares.length} pontos)`);
+                return rotaPares;
+              }
+            }
+            
+            return null;
+          }
+          
+          // Calcular rota segmento por segmento (conectar pontos consecutivos)
+          for (let i = 0; i < pontosParaRota.length - 1; i += maxPontosPorSegmento - 1) {
+            let segmento = pontosParaRota.slice(i, Math.min(i + maxPontosPorSegmento, pontosParaRota.length));
+            
+            // Verificar se há pontos muito distantes no segmento e dividir se necessário
+            let segmentoProcessado = false;
+            for (let j = 0; j < segmento.length - 1; j++) {
+              const dist = calcularDistancia(segmento[j], segmento[j + 1]);
+              if (dist > 100000) { // Mais de 100km entre pontos consecutivos = erro de dados
+                console.warn(`   ⚠️  Pontos muito distantes detectados (${(dist/1000).toFixed(1)}km) entre posições ${i+j} e ${i+j+1}`);
+                console.log(`   🔄 Dividindo segmento em partes menores...`);
+                
+                // Processar primeira parte (até o ponto problemático)
+                if (j > 0) {
+                  const parte1 = segmento.slice(0, j + 1);
+                  if (parte1.length >= 2) {
+                    const parte1Route = await obterRotaSegmento(
+                      parte1,
+                      config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
+                      config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving'
+                    );
+                    
+                    if (parte1Route && parte1Route.length > 0) {
+                      if (i === 0 && routeLatLngs.length === 0) {
+                        routeLatLngs.push(...parte1Route);
+                      } else {
+                        routeLatLngs.push(...parte1Route.slice(1));
+                      }
+                      console.log(`   ✅ Primeira parte do segmento processada (${parte1Route.length} pontos)`);
+                    } else {
+                      // Se falhar, calcular ponto a ponto para a primeira parte
+                      console.log(`   🔄 Calculando primeira parte ponto a ponto...`);
+                        for (let k = 0; k < parte1.length - 1; k++) {
+                        const par = [parte1[k], parte1[k + 1]];
+                        const parCoordsStr = par.map(c => `${c[1]},${c[0]}`).join(';');
+                        
+                        let parRota = null;
+                        for (const servidor of [
+                          config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
+                          config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving'
+                        ].filter(s => s)) {
+                          try {
+                            const parUrl = construirUrlRota(servidor, parCoordsStr, 'simplified', 'geojson');
+                            const controller = new AbortController();
+                            const timeoutId = setTimeout(() => controller.abort(), 8000);
+                            
+                            const parResponse = await fetch(parUrl, { signal: controller.signal });
+                            clearTimeout(timeoutId);
+                            
+                            if (parResponse.ok) {
+                              const parData = await parResponse.json();
+                              parRota = parsearRespostaRota(parData);
+                              if (parRota && parRota.length > 0) {
+                                break;
+                              }
+                            }
+                          } catch (err) {
+                            // Continuar para próximo servidor
+                          }
+                        }
+                        
+                        if (parRota && parRota.length > 0) {
+                          if (i === 0 && routeLatLngs.length === 0 && k === 0) {
+                            routeLatLngs.push(...parRota);
+                          } else {
+                            routeLatLngs.push(...parRota.slice(1));
+                          }
+                        } else {
+                          // Linha reta apenas para este par
+                          if (i === 0 && routeLatLngs.length === 0 && k === 0) {
+                            routeLatLngs.push(...par);
+                          } else {
+                            routeLatLngs.push(par[1]);
+                          }
+                        }
+                        
+                        await new Promise(resolve => setTimeout(resolve, 30));
+                      }
+                      console.log(`   ✅ Primeira parte calculada ponto a ponto`);
+                    }
+                  } else if (parte1.length === 1) {
+                    // Apenas um ponto, adicionar
+                    if (i === 0 && routeLatLngs.length === 0) {
+                      routeLatLngs.push(parte1[0]);
+                    }
+                  }
+                } else {
+                  // j === 0, então o primeiro ponto do segmento já está na rota ou precisa ser adicionado
+                  if (i === 0 && routeLatLngs.length === 0) {
+                    routeLatLngs.push(segmento[0]);
+                  }
+                }
+                
+                // Tentar calcular rota OSRM mesmo para saltos grandes (pode ser viagem longa)
+                console.log(`   🔄 Tentando calcular rota OSRM para salto de ${(dist/1000).toFixed(1)}km...`);
+                const saltoPar = [segmento[j], segmento[j + 1]];
+                const saltoCoordsStr = saltoPar.map(c => `${c[1]},${c[0]}`).join(';');
+                
+                let saltoRota = null;
+                for (const servidor of [
+                  config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
+                  config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving'
+                ].filter(s => s)) {
+                  try {
+                    const saltoUrl = construirUrlRota(servidor, saltoCoordsStr, 'full', 'geojson');
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s para saltos grandes
+                    
+                    const saltoResponse = await fetch(saltoUrl, { signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    
+                    if (saltoResponse.ok) {
+                      const saltoData = await saltoResponse.json();
+                      saltoRota = parsearRespostaRota(saltoData);
+                      if (saltoRota && saltoRota.length > 0) {
+                        routeLatLngs.push(...saltoRota.slice(1)); // Adicionar rota completa
+                        console.log(`   ✅ Rota calculada para salto de ${(dist/1000).toFixed(1)}km (${saltoRota.length} pontos)`);
+                        break;
+                      }
+                    }
+                  } catch (err) {
+                    // Continuar para próximo servidor
+                  }
+                }
+                
+                // Se falhar, apenas logar - NÃO adicionar linha reta
+                if (!saltoRota) {
+                  console.error(`   ❌ ERRO: Não foi possível calcular rota para salto de ${(dist/1000).toFixed(1)}km`);
+                  // Pular este salto e continuar
+                }
+                
+                // Processar segunda parte (após o ponto problemático)
+                if (j + 1 < segmento.length - 1) {
+                  const parte2 = segmento.slice(j + 1);
+                  if (parte2.length >= 2) {
+                    const parte2Route = await obterRotaSegmento(
+                      parte2,
+                      config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
+                      config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving'
+                    );
+                    
+                    if (parte2Route && parte2Route.length > 0) {
+                      routeLatLngs.push(...parte2Route.slice(1));
+                      console.log(`   ✅ Segunda parte do segmento processada (${parte2Route.length} pontos)`);
+                    } else {
+                      // Se falhar, calcular ponto a ponto para a segunda parte
+                      console.log(`   🔄 Calculando segunda parte ponto a ponto...`);
+                      for (let k = 0; k < parte2.length - 1; k++) {
+                        const par = [parte2[k], parte2[k + 1]];
+                        const parCoordsStr = par.map(c => `${c[1]},${c[0]}`).join(';');
+                        
+                        let parRota = null;
+                        for (const servidor of [
+                          config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
+                          config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving'
+                        ].filter(s => s)) {
+                          try {
+                            const parUrl = construirUrlRota(servidor, parCoordsStr, 'simplified', 'geojson');
+                            const controller = new AbortController();
+                            const timeoutId = setTimeout(() => controller.abort(), 8000);
+                            
+                            const parResponse = await fetch(parUrl, { signal: controller.signal });
+                            clearTimeout(timeoutId);
+                            
+                            if (parResponse.ok) {
+                              const parData = await parResponse.json();
+                              parRota = parsearRespostaRota(parData);
+                              if (parRota && parRota.length > 0) {
+                                break;
+                              }
+                            }
+                          } catch (err) {
+                            // Continuar para próximo servidor
+                          }
+                        }
+                        
+                        if (parRota && parRota.length > 0) {
+                          routeLatLngs.push(...parRota.slice(1));
+                        } else {
+                          // Linha reta apenas para este par
+                          routeLatLngs.push(par[1]);
+                        }
+                        
+                        await new Promise(resolve => setTimeout(resolve, 30));
+                      }
+                      console.log(`   ✅ Segunda parte calculada ponto a ponto`);
+                    }
+                  } else if (parte2.length === 1) {
+                    // Apenas um ponto restante, adicionar
+                    routeLatLngs.push(parte2[0]);
+                  }
+                }
+                
+                segmentoProcessado = true;
+                break;
+              }
+            }
+            
+            // Se não houve problema de distância, processar segmento normalmente
+            if (!segmentoProcessado && segmento.length >= 2) {
+              const segmentRoute = await obterRotaSegmento(
+                segmento, 
+                config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
+                config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving'
+              );
+              
+              if (segmentRoute && segmentRoute.length > 0) {
+                if (i === 0) {
+                  routeLatLngs.push(...segmentRoute);
+                } else {
+                  // Pular primeiro ponto para não duplicar na junção
+                  routeLatLngs.push(...segmentRoute.slice(1));
+                }
+                console.log(`   ✅ Segmento ${Math.floor(i / (maxPontosPorSegmento - 1)) + 1} processado (${segmentRoute.length} pontos na rota)`);
+              } else {
+                // Se OSRM falhar completamente, calcular ponto a ponto (mais lento mas garante rota)
+                console.warn(`   ⚠️  Segmento ${Math.floor(i / (maxPontosPorSegmento - 1)) + 1} falhou, calculando ponto a ponto...`);
+                let rotaPontoAPonto = [];
+                
+                for (let j = 0; j < segmento.length - 1; j++) {
+                  const par = [segmento[j], segmento[j + 1]];
+                  const parCoordsStr = par.map(c => `${c[1]},${c[0]}`).join(';');
+                  
+                  // Tentar ambos servidores para cada par
+                  let parRota = null;
+                  for (const servidor of [
+                    config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
+                    config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving'
+                  ].filter(s => s)) {
+                    try {
+                      const parUrl = construirUrlRota(servidor, parCoordsStr, 'simplified', 'geojson');
+                      const controller = new AbortController();
+                      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s para pares
+                      
+                      const parResponse = await fetch(parUrl, { signal: controller.signal });
+                      clearTimeout(timeoutId);
+                      
+                      if (parResponse.ok) {
+                        const parData = await parResponse.json();
+                        parRota = parsearRespostaRota(parData);
+                        if (parRota && parRota.length > 0) {
+                          break; // Sucesso, sair do loop
+                        }
+                      }
+                    } catch (err) {
+                      // Continuar para próximo servidor
+                    }
+                  }
+                  
+                  if (parRota && parRota.length > 0) {
+                    if (j === 0 && i === 0) {
+                      rotaPontoAPonto.push(...parRota);
+                    } else {
+                      rotaPontoAPonto.push(...parRota.slice(1));
+                    }
+                  } else {
+                    // Tentar com overview=full como último recurso
+                    console.warn(`   ⚠️  Tentando par ${j + 1} com overview=full...`);
+                    for (const servidor of [
+                      config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
+                      config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving'
+                    ].filter(s => s)) {
+                      try {
+                        const parUrlFull = construirUrlRota(servidor, parCoordsStr, 'full', 'geojson');
+                        const controllerFull = new AbortController();
+                        const timeoutIdFull = setTimeout(() => controllerFull.abort(), 20000);
+                        
+                        const parResponseFull = await fetch(parUrlFull, { signal: controllerFull.signal });
+                        clearTimeout(timeoutIdFull);
+                        
+                        if (parResponseFull.ok) {
+                          const parDataFull = await parResponseFull.json();
+                          parRota = parsearRespostaRota(parDataFull);
+                          if (parRota && parRota.length > 0) {
+                            break;
+                          }
+                        }
+                      } catch (err) {
+                        // Continuar
+                      }
+                    }
+                    
+                    if (parRota && parRota.length > 0) {
+                      if (j === 0 && i === 0) {
+                        rotaPontoAPonto.push(...parRota);
+                      } else {
+                        rotaPontoAPonto.push(...parRota.slice(1));
+                      }
+                    } else {
+                      console.error(`   ❌ ERRO: Não foi possível calcular rota para par ${j + 1} após todas tentativas`);
+                      // NÃO adicionar linha reta - pular este par
+                    }
+                  }
+                  
+                  await new Promise(resolve => setTimeout(resolve, 30)); // Delay menor
+                }
+                
+                if (rotaPontoAPonto.length > 0) {
+                  if (i === 0) {
+                    routeLatLngs.push(...rotaPontoAPonto);
+                  } else {
+                    routeLatLngs.push(...rotaPontoAPonto.slice(1));
+                  }
+                  console.log(`   ✅ Segmento ${Math.floor(i / (maxPontosPorSegmento - 1)) + 1} calculado ponto a ponto (${rotaPontoAPonto.length} pontos)`);
+                }
+              }
+            } else if (segmentoValido) {
+              // Segmento válido mas com apenas 1 ponto, adicionar o ponto
+              if (i === 0) {
+                routeLatLngs.push(...segmento);
+              } else {
+                routeLatLngs.push(...segmento.slice(1));
+              }
+            }
+            
+            // Delay menor entre segmentos (mais rápido)
+            if (i + maxPontosPorSegmento < pontosParaRota.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 50)); // Reduzir delay
+              // Mostrar progresso
+              const progresso = Math.min(Math.round(((i + maxPontosPorSegmento) / pontosParaRota.length) * 100), 100);
+              console.log(`   ⏳ Progresso: ${progresso}%`);
+            }
+          }
+          
+          // Adicionar linha da rota seguindo as estradas
+          if (routeLatLngs.length > 0) {
+            // Remover linha anterior se existir
+            if (linhaRastreamento) {
+              mapaRastreamento.removeLayer(linhaRastreamento);
+            }
+            
+            // VERIFICAR SE A ROTA ESTÁ NA ORDEM CORRETA (primeiro → último)
+            const primeiraPosicaoGPS = coordenadas[0];
+            const ultimaPosicaoGPS = coordenadas[coordenadas.length - 1];
+            const primeiroPontoRota = routeLatLngs[0];
+            const ultimoPontoRota = routeLatLngs[routeLatLngs.length - 1];
+            
+            const distInicio = Math.sqrt(
+              Math.pow(primeiroPontoRota[0] - primeiraPosicaoGPS[0], 2) + 
+              Math.pow(primeiroPontoRota[1] - primeiraPosicaoGPS[1], 2)
+            );
+            const distFim = Math.sqrt(
+              Math.pow(ultimoPontoRota[0] - ultimaPosicaoGPS[0], 2) + 
+              Math.pow(ultimoPontoRota[1] - ultimaPosicaoGPS[1], 2)
+            );
+            
+            // Se a rota está invertida (último ponto da rota está próximo ao primeiro GPS)
+            if (distInicio > 0.01 && distFim < 0.01) {
+              console.warn(`⚠️  ROTA INVERTIDA DETECTADA! Revertendo ordem da rota completa...`);
+              routeLatLngs.reverse();
+              // Recalcular após inverter
+              const primeiroPontoRotaApos = routeLatLngs[0];
+              const ultimoPontoRotaApos = routeLatLngs[routeLatLngs.length - 1];
+              console.log(`✅ Rota revertida: primeiro [${primeiroPontoRotaApos[0]}, ${primeiroPontoRotaApos[1]}], último [${ultimoPontoRotaApos[0]}, ${ultimoPontoRotaApos[1]}]`);
+            }
+            
+            // Garantir que a linha verde termine EXATAMENTE na última posição GPS
+            const distanciaFinal = Math.sqrt(
+              Math.pow(routeLatLngs[routeLatLngs.length - 1][0] - ultimaPosicaoGPS[0], 2) + 
+              Math.pow(routeLatLngs[routeLatLngs.length - 1][1] - ultimaPosicaoGPS[1], 2)
+            );
+            
+            // Se não estiver exatamente na última posição, adicionar/ajustar
+            if (distanciaFinal > 0.0001) { // ~11 metros de diferença
+              routeLatLngs[routeLatLngs.length - 1] = ultimaPosicaoGPS;
+              console.log(`🟢 Ajustando fim da rota verde para última posição GPS exata`);
+            }
+            
+            // Adicionar rota OSRM (VERDE - pontos já percorridos)
+            linhaRastreamento = L.polyline(routeLatLngs, {
+              color: '#27ae60', // Verde para pontos já percorridos
+              weight: 4,
+              opacity: 0.8
+            }).addTo(mapaRastreamento);
+            console.log(`✅ Rota OSRM calculada (verde - pontos já percorridos)! (${routeLatLngs.length} pontos conectando ${pontosParaRota.length} posições GPS)`);
+            console.log(`📍 Primeiro ponto da rota verde: [${routeLatLngs[0][0]}, ${routeLatLngs[0][1]}]`);
+            console.log(`📍 Último ponto da rota verde: [${routeLatLngs[routeLatLngs.length - 1][0]}, ${routeLatLngs[routeLatLngs.length - 1][1]}]`);
+          } else {
+            // Se não conseguiu calcular rota, tentar calcular ponto a ponto como último recurso
+            console.warn('⚠️  Rota em segmentos falhou, tentando calcular ponto a ponto...');
+            let rotaPontoAPonto = [];
+            
+            for (let i = 0; i < pontosParaRota.length - 1; i++) {
+              const par = [pontosParaRota[i], pontosParaRota[i + 1]];
+              const parCoordsStr = par.map(c => `${c[1]},${c[0]}`).join(';');
+              
+              let parRota = null;
+              for (const servidor of [
+                config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
+                config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving'
+              ].filter(s => s)) {
+                try {
+                  const parUrl = construirUrlRota(servidor, parCoordsStr, 'simplified', 'geojson');
+                  const controller = new AbortController();
+                  const timeoutId = setTimeout(() => controller.abort(), 15000);
+                  
+                  const parResponse = await fetch(parUrl, { signal: controller.signal });
+                  clearTimeout(timeoutId);
+                  
+                  if (parResponse.ok) {
+                    const parData = await parResponse.json();
+                    parRota = parsearRespostaRota(parData);
+                    if (parRota && parRota.length > 0) {
+                      break;
+                    }
+                  }
+                } catch (err) {
+                  // Continuar
+                }
+              }
+              
+              if (parRota && parRota.length > 0) {
+                if (i === 0) {
+                  rotaPontoAPonto.push(...parRota);
+                } else {
+                  rotaPontoAPonto.push(...parRota.slice(1));
+                }
+              } else {
+                console.error(`   ❌ Não foi possível calcular rota para par ${i + 1}/${pontosParaRota.length - 1}`);
+              }
+              
+              await new Promise(resolve => setTimeout(resolve, 100));
+            }
+            
+            if (rotaPontoAPonto.length > 0) {
+              // VERIFICAR SE A ROTA ESTÁ NA ORDEM CORRETA (primeiro → último)
+              const primeiraPosicaoGPS = coordenadas[0];
+              const ultimaPosicaoGPS = coordenadas[coordenadas.length - 1];
+              const primeiroPontoRota = rotaPontoAPonto[0];
+              const ultimoPontoRota = rotaPontoAPonto[rotaPontoAPonto.length - 1];
+              
+              const distInicio = Math.sqrt(
+                Math.pow(primeiroPontoRota[0] - primeiraPosicaoGPS[0], 2) + 
+                Math.pow(primeiroPontoRota[1] - primeiraPosicaoGPS[1], 2)
+              );
+              const distFim = Math.sqrt(
+                Math.pow(ultimoPontoRota[0] - ultimaPosicaoGPS[0], 2) + 
+                Math.pow(ultimoPontoRota[1] - ultimaPosicaoGPS[1], 2)
+              );
+              
+              // Se a rota está invertida, reverter
+              if (distInicio > 0.01 && distFim < 0.01) {
+                console.warn(`⚠️  ROTA INVERTIDA DETECTADA (ponto a ponto)! Revertendo ordem...`);
+                rotaPontoAPonto.reverse();
+              }
+              
+              // Garantir que a linha verde termine EXATAMENTE na última posição GPS
+              const distanciaFinal = Math.sqrt(
+                Math.pow(rotaPontoAPonto[rotaPontoAPonto.length - 1][0] - ultimaPosicaoGPS[0], 2) + 
+                Math.pow(rotaPontoAPonto[rotaPontoAPonto.length - 1][1] - ultimaPosicaoGPS[1], 2)
+              );
+              
+              if (distanciaFinal > 0.0001) {
+                rotaPontoAPonto[rotaPontoAPonto.length - 1] = ultimaPosicaoGPS;
+                console.log(`🟢 Ajustando fim da rota verde (ponto a ponto) para última posição GPS exata`);
+              }
+              
+              linhaRastreamento = L.polyline(rotaPontoAPonto, {
+                color: '#27ae60', // Verde para pontos já percorridos
+                weight: 4,
+                opacity: 0.8
+              }).addTo(mapaRastreamento);
+              console.log(`✅ Rota calculada ponto a ponto (verde - pontos já percorridos)! (${rotaPontoAPonto.length} pontos)`);
+            } else {
+              console.error('❌ ERRO: Não foi possível calcular rota pelas estradas. Verifique conexão com servidor OSRM/ORS.');
+            }
+          }
+        } else {
+          // Poucos pontos: calcular rota completa de uma vez conectando todos os pontos
+          const coordsStr = pontosParaRota.map(c => `${c[1]},${c[0]}`).join(';');
+          const rotaUrl = construirUrlRota(
+            config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
+            coordsStr,
+            'simplified',
+            'geojson'
+          );
+          
+          console.log(`   🛣️  Calculando rota completa para ${pontosParaRota.length} pontos...`);
+          
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000);
+          
+          const osrmResponse = await fetch(rotaUrl, {
+            signal: controller.signal
+          });
+          
+          clearTimeout(timeoutId);
+
+          if (osrmResponse.ok) {
+            const osrmData = await osrmResponse.json();
+            const routeGeometry = parsearRespostaRota(osrmData);
+            if (routeGeometry && routeGeometry.length > 0) {
+              // routeGeometry já está no formato [lat, lon] da função parsearRespostaRota
+              let routeCoords = routeGeometry;
+
+              // VERIFICAR SE A ROTA ESTÁ NA ORDEM CORRETA (primeiro → último)
+              const primeiraPosicaoGPS = coordenadas[0];
+              const ultimaPosicaoGPS = coordenadas[coordenadas.length - 1];
+              const primeiroPontoRota = routeCoords[0];
+              const ultimoPontoRota = routeCoords[routeCoords.length - 1];
+              
+              const distInicio = Math.sqrt(
+                Math.pow(primeiroPontoRota[0] - primeiraPosicaoGPS[0], 2) + 
+                Math.pow(primeiroPontoRota[1] - primeiraPosicaoGPS[1], 2)
+              );
+              const distFim = Math.sqrt(
+                Math.pow(ultimoPontoRota[0] - ultimaPosicaoGPS[0], 2) + 
+                Math.pow(ultimoPontoRota[1] - ultimaPosicaoGPS[1], 2)
+              );
+              
+              // Se a rota está invertida, reverter
+              if (distInicio > 0.01 && distFim < 0.01) {
+                console.warn(`⚠️  ROTA INVERTIDA DETECTADA (poucos pontos)! Revertendo ordem...`);
+                routeCoords = routeCoords.reverse();
+              }
+              
+              // Garantir que a linha verde termine EXATAMENTE na última posição GPS
+              const distanciaFinal = Math.sqrt(
+                Math.pow(routeCoords[routeCoords.length - 1][0] - ultimaPosicaoGPS[0], 2) + 
+                Math.pow(routeCoords[routeCoords.length - 1][1] - ultimaPosicaoGPS[1], 2)
+              );
+              
+              if (distanciaFinal > 0.0001) {
+                routeCoords[routeCoords.length - 1] = ultimaPosicaoGPS;
+                console.log(`🟢 Ajustando fim da rota verde (poucos pontos) para última posição GPS exata`);
+              }
+
+              // Adicionar linha da rota seguindo as estradas
+              if (linhaRastreamento) {
+                mapaRastreamento.removeLayer(linhaRastreamento);
+              }
+              linhaRastreamento = L.polyline(routeCoords, {
+                color: '#27ae60', // Verde para pontos já percorridos
+                weight: 4,
+                opacity: 0.8
+              }).addTo(mapaRastreamento);
+              
+              console.log(`✅ Rota OSRM calculada! (${routeCoords.length} pontos conectando ${pontosParaRota.length} posições GPS)`);
+            } else {
+              // Tentar com servidor alternativo ou overview=full
+              console.warn('⚠️  OSRM não retornou rota, tentando servidor alternativo...');
+              const rotaUrlAlt = construirUrlRota(
+                config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving',
+                coordsStr,
+                'full',
+                'geojson'
+              );
+              
+              try {
+                const controllerAlt = new AbortController();
+                const timeoutIdAlt = setTimeout(() => controllerAlt.abort(), 30000);
+                const osrmResponseAlt = await fetch(rotaUrlAlt, { signal: controllerAlt.signal });
+                clearTimeout(timeoutIdAlt);
+                
+                if (osrmResponseAlt.ok) {
+                  const osrmDataAlt = await osrmResponseAlt.json();
+                  const routeGeometryAlt = parsearRespostaRota(osrmDataAlt);
+                  if (routeGeometryAlt && routeGeometryAlt.length > 0) {
+                    // Garantir que a linha verde termine EXATAMENTE na última posição GPS
+                    const ultimaPosicaoGPS = coordenadas[coordenadas.length - 1];
+                    const ultimoPontoRota = routeGeometryAlt[routeGeometryAlt.length - 1];
+                    
+                    const distanciaFinal = Math.sqrt(
+                      Math.pow(ultimoPontoRota[0] - ultimaPosicaoGPS[0], 2) + 
+                      Math.pow(ultimoPontoRota[1] - ultimaPosicaoGPS[1], 2)
+                    );
+                    
+                    if (distanciaFinal > 0.0001) {
+                      routeGeometryAlt[routeGeometryAlt.length - 1] = ultimaPosicaoGPS;
+                      console.log(`🟢 Ajustando fim da rota verde (servidor alt) para última posição GPS exata`);
+                    }
+                    
+                    linhaRastreamento = L.polyline(routeGeometryAlt, {
+                      color: '#27ae60', // Verde para pontos já percorridos
+                      weight: 4,
+                      opacity: 0.8
+                    }).addTo(mapaRastreamento);
+                    console.log(`✅ Rota calculada com servidor alternativo (verde - pontos já percorridos)! (${routeGeometryAlt.length} pontos)`);
+                  } else {
+                    console.error('❌ ERRO: Servidor alternativo também não retornou rota válida');
+                  }
+                } else {
+                  console.error('❌ ERRO: Servidor alternativo retornou erro');
+                }
+              } catch (err) {
+                console.error('❌ ERRO: Falha ao tentar servidor alternativo:', err);
+              }
+            }
+          } else {
+            // Tentar servidor alternativo se o principal falhou
+            console.warn('⚠️  Erro ao calcular rota OSRM, tentando servidor alternativo...');
+            const rotaUrlAlt = construirUrlRota(
+              config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving',
+              coordsStr,
+              'full',
+              'geojson'
+            );
+            
+            try {
+              const controllerAlt = new AbortController();
+              const timeoutIdAlt = setTimeout(() => controllerAlt.abort(), 30000);
+              const osrmResponseAlt = await fetch(rotaUrlAlt, { signal: controllerAlt.signal });
+              clearTimeout(timeoutIdAlt);
+              
+              if (osrmResponseAlt.ok) {
+                const osrmDataAlt = await osrmResponseAlt.json();
+              const routeGeometryAlt = parsearRespostaRota(osrmDataAlt);
+              if (routeGeometryAlt && routeGeometryAlt.length > 0) {
+                let routeCoordsAltCatch = routeGeometryAlt;
+                
+                // VERIFICAR SE A ROTA ESTÁ NA ORDEM CORRETA (primeiro → último)
+                const primeiraPosicaoGPS = coordenadas[0];
+                const ultimaPosicaoGPS = coordenadas[coordenadas.length - 1];
+                const primeiroPontoRota = routeCoordsAltCatch[0];
+                const ultimoPontoRota = routeCoordsAltCatch[routeCoordsAltCatch.length - 1];
+                
+                const distInicio = Math.sqrt(
+                  Math.pow(primeiroPontoRota[0] - primeiraPosicaoGPS[0], 2) + 
+                  Math.pow(primeiroPontoRota[1] - primeiraPosicaoGPS[1], 2)
+                );
+                const distFim = Math.sqrt(
+                  Math.pow(ultimoPontoRota[0] - ultimaPosicaoGPS[0], 2) + 
+                  Math.pow(ultimoPontoRota[1] - ultimaPosicaoGPS[1], 2)
+                );
+                
+                // Se a rota está invertida, reverter
+                if (distInicio > 0.01 && distFim < 0.01) {
+                  console.warn(`⚠️  ROTA INVERTIDA DETECTADA (servidor alt - catch)! Revertendo ordem...`);
+                  routeCoordsAltCatch = routeCoordsAltCatch.reverse();
+                }
+                
+                // Garantir que a linha verde termine EXATAMENTE na última posição GPS
+                const distanciaFinal = Math.sqrt(
+                  Math.pow(routeCoordsAltCatch[routeCoordsAltCatch.length - 1][0] - ultimaPosicaoGPS[0], 2) + 
+                  Math.pow(routeCoordsAltCatch[routeCoordsAltCatch.length - 1][1] - ultimaPosicaoGPS[1], 2)
+                );
+                
+                if (distanciaFinal > 0.0001) {
+                  routeCoordsAltCatch[routeCoordsAltCatch.length - 1] = ultimaPosicaoGPS;
+                  console.log(`🟢 Ajustando fim da rota verde (servidor alt - catch) para última posição GPS exata`);
+                }
+                
+                linhaRastreamento = L.polyline(routeCoordsAltCatch, {
+                  color: '#27ae60', // Verde para pontos já percorridos
+                  weight: 4,
+                  opacity: 0.8
+                }).addTo(mapaRastreamento);
+                console.log(`✅ Rota calculada com servidor alternativo (verde - pontos já percorridos)! (${routeCoordsAltCatch.length} pontos)`);
+                } else {
+                  console.error('❌ ERRO: Servidor alternativo não retornou rota válida');
+                }
+              } else {
+                console.error('❌ ERRO: Servidor alternativo retornou erro HTTP');
+              }
+            } catch (err) {
+              console.error('❌ ERRO: Falha ao tentar servidor alternativo:', err);
+            }
+          }
+        }
+      } catch (osrmErr) {
+        console.error('❌ ERRO CRÍTICO ao calcular rota OSRM:', osrmErr);
+        console.error('   Verifique se o servidor de roteamento está acessível');
+      }
+    }
+
+    // Buscar e exibir origem/destino e rota planejada
+    let coordsOrigem = null;
+    let coordsDestino = null;
+    let todasCoordenadas = [...coordenadas];
+
+    if (dadosViagem && dadosViagem.ORIGEM_CIDADE && dadosViagem.DESTINO_CIDADE) {
+      try {
+        // Obter coordenadas de origem e destino
+        const [coordsOrigemTemp, coordsDestinoTemp] = await Promise.all([
+          obterCoordenadasCidade(dadosViagem.ORIGEM_CIDADE, dadosViagem.ORIGEM_ESTADO),
+          obterCoordenadasCidade(dadosViagem.DESTINO_CIDADE, dadosViagem.DESTINO_ESTADO)
+        ]);
+
+        if (coordsOrigemTemp && coordsDestinoTemp) {
+          coordsOrigem = coordsOrigemTemp;
+          coordsDestino = coordsDestinoTemp;
+
+          // Adicionar origem e destino às coordenadas para ajustar o zoom
+          todasCoordenadas.push([coordsOrigem.lat, coordsOrigem.lon]);
+          todasCoordenadas.push([coordsDestino.lat, coordsDestino.lon]);
+
+          // Calcular rota real usando OSRM/ORS
+          try {
+            const coordsStr = `${coordsOrigem.lon},${coordsOrigem.lat};${coordsDestino.lon},${coordsDestino.lat}`;
+            const rotaUrl = construirUrlRota(
+              config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
+              coordsStr,
+              'full',
+              'geojson'
+            );
+            const osrmResponse = await fetch(rotaUrl, {
+              signal: AbortSignal.timeout(15000)
+            });
+
+            if (osrmResponse.ok) {
+              const osrmData = await osrmResponse.json();
+              const routeCoords = parsearRespostaRota(osrmData);
+              if (routeCoords && routeCoords.length > 0) {
+
+                // Adicionar linha da rota planejada (origem -> destino)
+                linhaRotaPlanejada = L.polyline(routeCoords, {
+                  color: '#95a5a6',
+                  weight: 3,
+                  opacity: 0.6,
+                  dashArray: '10, 10'
+                }).addTo(mapaRastreamento);
+              }
+            }
+          } catch (osrmErr) {
+            console.warn('Erro ao calcular rota OSRM:', osrmErr);
+            // Se OSRM falhar, desenhar linha reta como fallback
+            linhaRotaPlanejada = L.polyline(
+              [[coordsOrigem.lat, coordsOrigem.lon], [coordsDestino.lat, coordsDestino.lon]],
+              {
+                color: '#95a5a6',
+                weight: 3,
+                opacity: 0.6,
+                dashArray: '10, 10'
+              }
+            ).addTo(mapaRastreamento);
+          }
+
+          // Calcular e desenhar rota da última posição GPS até o destino (VERMELHA)
+          if (posicoesOrdenadas && posicoesOrdenadas.length > 0 && coordsDestino) {
+            const ultimaPosicao = posicoesOrdenadas[posicoesOrdenadas.length - 1];
+            const ultimaLat = parseFloat(ultimaPosicao.LATITUDE);
+            const ultimaLon = parseFloat(ultimaPosicao.LONGITUDE);
+            
+            console.log(`🔴 Calculando rota restante: última posição GPS → destino...`);
+            
+            try {
+              const coordsStrRestante = `${ultimaLon},${ultimaLat};${coordsDestino.lon},${coordsDestino.lat}`;
+              const rotaUrlRestante = construirUrlRota(
+                config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
+                coordsStrRestante,
+                'full',
+                'geojson'
+              );
+              
+              const osrmResponseRestante = await fetch(rotaUrlRestante, {
+                signal: AbortSignal.timeout(20000)
+              });
+              
+              if (osrmResponseRestante.ok) {
+                const osrmDataRestante = await osrmResponseRestante.json();
+                const routeCoordsRestante = parsearRespostaRota(osrmDataRestante);
+                
+                if (routeCoordsRestante && routeCoordsRestante.length > 0) {
+                  // Garantir que a linha vermelha comece EXATAMENTE na última posição GPS
+                  // O OSRM pode retornar uma rota que começa antes da última posição GPS (ex: na origem)
+                  // Precisamos encontrar o ponto mais próximo da última posição GPS e remover tudo antes dele
+                  let routeCoordsRestanteFinal = [...routeCoordsRestante];
+                  
+                  // Encontrar o índice do ponto mais próximo da última posição GPS
+                  let indiceInicio = 0;
+                  let menorDistancia = Infinity;
+                  
+                  for (let i = 0; i < routeCoordsRestanteFinal.length; i++) {
+                    const ponto = routeCoordsRestanteFinal[i];
+                    const distancia = Math.sqrt(
+                      Math.pow(ponto[0] - ultimaLat, 2) + 
+                      Math.pow(ponto[1] - ultimaLon, 2)
+                    );
+                    if (distancia < menorDistancia) {
+                      menorDistancia = distancia;
+                      indiceInicio = i;
+                    }
+                  }
+                  
+                  // Se encontrou um ponto próximo (dentro de ~100 metros), usar a partir dele
+                  // Caso contrário, usar toda a rota mas garantir que comece na última posição GPS
+                  if (menorDistancia < 0.001) { // ~111 metros
+                    // Remover todos os pontos antes do ponto mais próximo
+                    routeCoordsRestanteFinal = routeCoordsRestanteFinal.slice(indiceInicio);
+                    console.log(`🔴 Removendo ${indiceInicio} pontos anteriores à última posição GPS`);
+                  }
+                  
+                  // Garantir que o primeiro ponto seja EXATAMENTE a última posição GPS
+                  if (routeCoordsRestanteFinal.length > 0) {
+                    routeCoordsRestanteFinal[0] = [ultimaLat, ultimaLon];
+                    console.log(`🔴 Garantindo que a rota vermelha comece na última posição GPS exata: [${ultimaLat}, ${ultimaLon}]`);
+                  }
+                  
+                  // Adicionar linha da rota restante (última posição → destino) em VERMELHO
+                  linhaRotaRestante = L.polyline(routeCoordsRestanteFinal, {
+                    color: '#e74c3c', // Vermelho
+                    weight: 4,
+                    opacity: 0.8,
+                    dashArray: '5, 5' // Linha tracejada para diferenciar
+                  }).addTo(mapaRastreamento);
+                  
+                  linhaRotaRestante.bindPopup(`
+                    <div style="min-width: 200px;">
+                      <strong>🔴 Rota Restante</strong><br>
+                      <strong>Última Posição GPS → Destino</strong><br>
+                      <strong>Distância restante:</strong> Calculando...
+                    </div>
+                  `);
+                  
+                  console.log(`✅ Rota restante calculada! (${routeCoordsRestante.length} pontos)`);
+                } else {
+                  console.warn('⚠️  OSRM não retornou rota restante válida');
+                }
+              } else {
+                // Tentar servidor alternativo
+                console.warn('⚠️  Tentando servidor alternativo para rota restante...');
+                const rotaUrlRestanteAlt = construirUrlRota(
+                  config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving',
+                  coordsStrRestante,
+                  'full',
+                  'geojson'
+                );
+                
+                try {
+                  const osrmResponseRestanteAlt = await fetch(rotaUrlRestanteAlt, {
+                    signal: AbortSignal.timeout(20000)
+                  });
+                  
+                  if (osrmResponseRestanteAlt.ok) {
+                    const osrmDataRestanteAlt = await osrmResponseRestanteAlt.json();
+                    const routeCoordsRestanteAlt = parsearRespostaRota(osrmDataRestanteAlt);
+                    
+                    if (routeCoordsRestanteAlt && routeCoordsRestanteAlt.length > 0) {
+                      // Garantir que a linha vermelha comece EXATAMENTE na última posição GPS
+                      // O OSRM pode retornar uma rota que começa antes da última posição GPS (ex: na origem)
+                      // Precisamos encontrar o ponto mais próximo da última posição GPS e remover tudo antes dele
+                      let routeCoordsRestanteAltFinal = [...routeCoordsRestanteAlt];
+                      
+                      // Encontrar o índice do ponto mais próximo da última posição GPS
+                      let indiceInicioAlt = 0;
+                      let menorDistanciaAlt = Infinity;
+                      
+                      for (let i = 0; i < routeCoordsRestanteAltFinal.length; i++) {
+                        const ponto = routeCoordsRestanteAltFinal[i];
+                        const distancia = Math.sqrt(
+                          Math.pow(ponto[0] - ultimaLat, 2) + 
+                          Math.pow(ponto[1] - ultimaLon, 2)
+                        );
+                        if (distancia < menorDistanciaAlt) {
+                          menorDistanciaAlt = distancia;
+                          indiceInicioAlt = i;
+                        }
+                      }
+                      
+                      // Se encontrou um ponto próximo (dentro de ~100 metros), usar a partir dele
+                      // Caso contrário, usar toda a rota mas garantir que comece na última posição GPS
+                      if (menorDistanciaAlt < 0.001) { // ~111 metros
+                        // Remover todos os pontos antes do ponto mais próximo
+                        routeCoordsRestanteAltFinal = routeCoordsRestanteAltFinal.slice(indiceInicioAlt);
+                        console.log(`🔴 Removendo ${indiceInicioAlt} pontos anteriores à última posição GPS (alt)`);
+                      }
+                      
+                      // Garantir que o primeiro ponto seja EXATAMENTE a última posição GPS
+                      if (routeCoordsRestanteAltFinal.length > 0) {
+                        routeCoordsRestanteAltFinal[0] = [ultimaLat, ultimaLon];
+                        console.log(`🔴 Garantindo que a rota vermelha (alt) comece na última posição GPS exata: [${ultimaLat}, ${ultimaLon}]`);
+                      }
+                      
+                      linhaRotaRestante = L.polyline(routeCoordsRestanteAltFinal, {
+                        color: '#e74c3c',
+                        weight: 4,
+                        opacity: 0.8,
+                        dashArray: '5, 5'
+                      }).addTo(mapaRastreamento);
+                      
+                      linhaRotaRestante.bindPopup(`
+                        <div style="min-width: 200px;">
+                          <strong>🔴 Rota Restante</strong><br>
+                          <strong>Última Posição GPS → Destino</strong>
+                        </div>
+                      `);
+                      
+                      console.log(`✅ Rota restante calculada com servidor alternativo!`);
+                    }
+                  }
+                } catch (err) {
+                  console.warn('Erro ao calcular rota restante com servidor alternativo:', err);
+                }
+              }
+            } catch (osrmErr) {
+              console.warn('Erro ao calcular rota restante:', osrmErr);
+            }
+          }
+
+          // Adicionar marcador de origem
+          marcadorOrigemRastreamento = L.marker([coordsOrigem.lat, coordsOrigem.lon], {
+            icon: L.divIcon({
+              className: 'custom-marker origem-rastreamento',
+              html: '<div style="background: #2ecc71; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">🏁</div>',
+              iconSize: [30, 30],
+              iconAnchor: [15, 15]
+            })
+          }).addTo(mapaRastreamento)
+            .bindPopup(`
+              <div style="min-width: 200px;">
+                <strong>🏁 Origem</strong><br>
+                <strong>Cidade:</strong> ${dadosViagem.ORIGEM_CIDADE}, ${dadosViagem.ORIGEM_ESTADO}<br>
+                <strong>Coordenadas:</strong> ${coordsOrigem.lat.toFixed(6)}, ${coordsOrigem.lon.toFixed(6)}
+              </div>
+            `);
+
+          // Adicionar marcador de destino
+          marcadorDestinoRastreamento = L.marker([coordsDestino.lat, coordsDestino.lon], {
+            icon: L.divIcon({
+              className: 'custom-marker destino-rastreamento',
+              html: '<div style="background: #e74c3c; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">🏁</div>',
+              iconSize: [30, 30],
+              iconAnchor: [15, 15]
+            })
+          }).addTo(mapaRastreamento)
+            .bindPopup(`
+              <div style="min-width: 200px;">
+                <strong>🏁 Destino</strong><br>
+                <strong>Cidade:</strong> ${dadosViagem.DESTINO_CIDADE}, ${dadosViagem.DESTINO_ESTADO}<br>
+                <strong>Coordenadas:</strong> ${coordsDestino.lat.toFixed(6)}, ${coordsDestino.lon.toFixed(6)}
+              </div>
+            `);
+        }
+      } catch (err) {
+        console.warn('Erro ao buscar coordenadas de origem/destino:', err);
+      }
+    }
+
+    // Adicionar marcadores (usar posicoesOrdenadas para garantir ordem cronológica)
+    posicoesOrdenadas.forEach((pos, index) => {
+      const lat = parseFloat(pos.LATITUDE);
+      const lng = parseFloat(pos.LONGITUDE);
+      const data = new Date(pos.DHREGISTRO);
+      const velocidade = pos.VELOCIDADE ? `${parseFloat(pos.VELOCIDADE).toFixed(0)} km/h` : 'N/A';
+
+      // Ícone diferente para primeira e última posição
+      let iconColor = '#667eea';
+      let iconSize = [12, 12];
+      if (index === 0) {
+        iconColor = '#27ae60'; // Verde para início
+        iconSize = [16, 16];
+      } else if (index === posicoesOrdenadas.length - 1) {
+        iconColor = '#e74c3c'; // Vermelho para posição atual
+        iconSize = [16, 16];
+      }
+
+      const icon = L.divIcon({
+        className: 'marcador-rastreamento',
+        html: `<div style="background: ${iconColor}; width: ${iconSize[0]}px; height: ${iconSize[1]}px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
+        iconSize: iconSize,
+        iconAnchor: [iconSize[0]/2, iconSize[1]/2]
+      });
+
+      const marcador = L.marker([lat, lng], { icon }).addTo(mapaRastreamento);
+      
+      marcador.bindPopup(`
+        <div style="min-width: 200px;">
+          <strong>${index === 0 ? '📍 Início' : index === posicoesOrdenadas.length - 1 ? '📍 Posição Atual' : `📍 Posição ${index + 1}`}</strong><br>
+          <strong>Data/Hora:</strong> ${data.toLocaleString('pt-BR')}<br>
+          <strong>Velocidade:</strong> ${velocidade}<br>
+          <strong>Precisão:</strong> ${pos.PRECISAO ? pos.PRECISAO + 'm' : 'N/A'}<br>
+          <strong>Coordenadas:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}
+        </div>
+      `);
+
+      marcadoresRastreamento.push(marcador);
+    });
+
+    // Ajustar zoom para mostrar toda a rota (GPS + origem/destino)
+    if (todasCoordenadas.length > 0) {
+      mapaRastreamento.fitBounds(todasCoordenadas, { padding: [50, 50] });
+    }
+  }
+
+  // Exibir lista de posições
+  function exibirListaPosicoes(posicoes) {
+    const lista = document.getElementById('listaPosicoes');
+    if (!lista) return;
+
+    if (!posicoes || posicoes.length === 0) {
+      lista.innerHTML = '<p style="text-align: center; color: #6c757d; padding: 20px;">Nenhuma posição encontrada.</p>';
+      return;
+    }
+
+    let html = '<div style="display: flex; flex-direction: column; gap: 8px;">';
+    
+    // Ordenar do mais recente para o mais antigo
+    const posicoesOrdenadas = [...posicoes].reverse();
+
+    posicoesOrdenadas.forEach((pos, index) => {
+      const data = new Date(pos.DHREGISTRO);
+      const velocidade = pos.VELOCIDADE ? parseFloat(pos.VELOCIDADE).toFixed(0) : '0';
+      const isUltima = index === 0;
+      const isPrimeira = index === posicoesOrdenadas.length - 1;
+
+      let corBorda = '#dee2e6';
+      let corFundo = '#ffffff';
+      if (isUltima) {
+        corBorda = '#e74c3c';
+        corFundo = '#fff5f5';
+      } else if (isPrimeira) {
+        corBorda = '#27ae60';
+        corFundo = '#f0fff4';
+      }
+
+      html += `
+        <div style="background: ${corFundo}; border: 1px solid ${corBorda}; border-left: 4px solid ${corBorda}; border-radius: 6px; padding: 12px; cursor: pointer; transition: all 0.2s;"
+             onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)'; this.style.transform='translateX(2px)';"
+             onmouseout="this.style.boxShadow='none'; this.style.transform='translateX(0)';"
+             onclick="if(window.mapaRastreamento && window.marcadoresRastreamento && window.marcadoresRastreamento[${posicoes.length - 1 - index}]) { window.marcadoresRastreamento[${posicoes.length - 1 - index}].openPopup(); window.mapaRastreamento.setView([${pos.LATITUDE}, ${pos.LONGITUDE}], 15); }">
+          <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+            <div style="flex: 1;">
+              <div style="font-weight: 600; color: #2c3e50; margin-bottom: 4px;">
+                ${isUltima ? '🏁 Última' : isPrimeira ? '📍 Primeira' : `📍 #${posicoes.length - index}`}
+              </div>
+              <div style="font-size: 12px; color: #6c757d;">
+                ${data.toLocaleString('pt-BR', { 
+                  day: '2-digit', 
+                  month: '2-digit', 
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit'
+                })}
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-weight: 600; color: #667eea; font-size: 14px;">${velocidade} km/h</div>
+            </div>
+          </div>
+          <div style="font-size: 11px; color: #95a5a6; margin-top: 4px;">
+            ${parseFloat(pos.LATITUDE).toFixed(6)}, ${parseFloat(pos.LONGITUDE).toFixed(6)}
+            ${pos.PRECISAO ? ` • ${pos.PRECISAO}m` : ''}
+          </div>
+        </div>
+      `;
+    });
+
+    html += '</div>';
+    lista.innerHTML = html;
+
+    // Expor variáveis globalmente para uso no onclick
+    window.mapaRastreamento = mapaRastreamento;
+    window.marcadoresRastreamento = marcadoresRastreamento;
+  }
+
+  // Mostrar mensagem na aba de rastreamento
+  function mostrarMensagemRastreamento(mensagem, tipo = 'info') {
+    if (message) {
+      message.textContent = mensagem;
+      message.className = `message ${tipo}`;
+      message.style.display = 'block';
+      setTimeout(() => {
+        message.style.display = 'none';
+      }, 5000);
+    }
   }
 
 })();

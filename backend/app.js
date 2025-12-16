@@ -83,6 +83,13 @@ const helmetConfig = {
         "ws://localhost:*",
         "http://127.0.0.1:*",
         "http://192.168.1.173:*", // IP específico da rede local
+        "ws://192.168.1.173:*", // WebSocket para IP local
+        "http://192.168.0.0/16", // Permitir toda a faixa 192.168.x.x
+        "ws://192.168.0.0/16", // WebSocket para toda a faixa 192.168.x.x
+        "http://10.0.0.0/8", // Permitir faixa 10.x.x.x
+        "ws://10.0.0.0/8", // WebSocket para faixa 10.x.x.x
+        "http://172.16.0.0/12", // Permitir faixa 172.16.x.x - 172.31.x.x
+        "ws://172.16.0.0/12", // WebSocket para faixa 172.16.x.x - 172.31.x.x
         "https://fonts.googleapis.com",
         "https://fonts.gstatic.com",
         "https://cdn.jsdelivr.net",
@@ -94,7 +101,10 @@ const helmetConfig = {
         "'self'",
         "http://localhost:*",
         "http://127.0.0.1:*",
-        "http://192.168.1.173:*" // IP específico da rede local
+        "http://192.168.1.173:*", // IP específico da rede local
+        "http://192.168.0.0/16", // Permitir toda a faixa 192.168.x.x
+        "http://10.0.0.0/8", // Permitir faixa 10.x.x.x
+        "http://172.16.0.0/12" // Permitir faixa 172.16.x.x - 172.31.x.x
       ],
       frameSrc: ["'self'"],
       objectSrc: ["'none'"]
@@ -102,12 +112,16 @@ const helmetConfig = {
   }
 };
 
-// Em desenvolvimento, desabilitar headers restritivos
+// Em desenvolvimento, desabilitar headers restritivos e tornar CSP mais permissivo
 if (isDevelopment) {
   helmetConfig.crossOriginOpenerPolicy = false;
   helmetConfig.crossOriginEmbedderPolicy = false;
   helmetConfig.originAgentCluster = false;
   helmetConfig.strictTransportSecurity = false;
+  
+  // Em desenvolvimento, permitir conexões HTTP locais sem restrições
+  // Nota: "*" não funciona no CSP, então usamos faixas de IP específicas
+  // As faixas já foram adicionadas acima (192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12)
 }
 
 app.use(helmet(helmetConfig));
@@ -118,13 +132,41 @@ if (isDevelopment) {
     // Remover qualquer header que possa forçar HTTPS
     res.removeHeader('Strict-Transport-Security');
     res.removeHeader('Upgrade-Insecure-Requests');
+    
+    // Adicionar header para desabilitar upgrade automático (não padrão, mas pode ajudar)
+    // Alguns navegadores respeitam isso
+    res.setHeader('X-Force-HTTP', 'true');
+    
+    // Garantir que o protocolo seja HTTP
+    if (req.secure || req.get('x-forwarded-proto') === 'https') {
+      // Se vier de um proxy HTTPS mas estamos em desenvolvimento, forçar HTTP
+      console.warn('⚠️ Requisição HTTPS detectada em desenvolvimento:', req.url);
+    }
+    
     next();
   });
 }
 
 // Compressão HTTP para reduzir tamanho das respostas (JSON, HTML, CSS, JS)
 app.use(compression());
-app.use(cors());
+
+// Configurar CORS para permitir acesso via IP local em desenvolvimento
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Em desenvolvimento, permitir qualquer origem (localhost, IP local, etc)
+    if (isDevelopment || !origin) {
+      callback(null, true);
+    } else {
+      // Em produção, validar origem
+      callback(null, true); // Por enquanto permitir todas, ajustar depois se necessário
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+};
+app.use(cors(corsOptions));
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 

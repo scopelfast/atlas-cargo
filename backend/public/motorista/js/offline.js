@@ -9,7 +9,7 @@
   // ==========================================
   async function initDB() {
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open('MotoristaDB', 3); // Versão 3 - adicionado 'macros' e 'viagens'
+      const request = indexedDB.open('MotoristaDB', 5); // Versão 5 - ajustado 'viagens' e 'macros' para cache genérico
 
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
@@ -33,17 +33,23 @@
           cargas.createIndex('dataCache', 'dataCache', { unique: false });
         }
 
-        // Store para macros (cache) ⭐ NOVO
-        if (!db.objectStoreNames.contains('macros')) {
-          const macros = db.createObjectStore('macros', { keyPath: 'CDTIPOOCORRENCIA' });
-          macros.createIndex('dataCache', 'dataCache', { unique: false });
+        // Store para macros (cache) - formato genérico para cache-helper
+        // Se já existe com schema antigo, deletar e recriar
+        if (db.objectStoreNames.contains('macros')) {
+          db.deleteObjectStore('macros');
         }
+        // Criar com novo schema (keyPath 'key' para cache genérico)
+        const macros = db.createObjectStore('macros', { keyPath: 'key' });
+        macros.createIndex('timestamp', 'timestamp', { unique: false });
 
-        // Store para viagens (cache) ⭐ NOVO
-        if (!db.objectStoreNames.contains('viagens')) {
-          const viagens = db.createObjectStore('viagens', { keyPath: 'IDVIAGEM' });
-          viagens.createIndex('dataCache', 'dataCache', { unique: false });
+        // Store para viagens (cache) - formato genérico para cache-helper
+        // Se já existe com schema antigo, deletar e recriar
+        if (db.objectStoreNames.contains('viagens')) {
+          db.deleteObjectStore('viagens');
         }
+        // Criar com novo schema (keyPath 'key' para cache genérico)
+        const viagens = db.createObjectStore('viagens', { keyPath: 'key' });
+        viagens.createIndex('timestamp', 'timestamp', { unique: false });
 
         // Store para fila de GPS
         if (!db.objectStoreNames.contains('filaGPS')) {
@@ -78,14 +84,26 @@
       const transaction = db.transaction([store], 'readwrite');
       const objectStore = transaction.objectStore(store);
 
-      if (Array.isArray(data)) {
-        // Salvar múltiplos
+      // Se o store é 'viagens' ou 'macros' e o data tem estrutura de cache (com 'dados', 'timestamp', etc)
+      // Salvar como cache genérico com key fixa
+      if ((store === 'viagens' || store === 'macros') && data.dados !== undefined) {
+        // Formato de cache genérico do cache-helper
+        const cacheItem = {
+          key: store, // Chave fixa para o cache deste store
+          dados: data.dados,
+          timestamp: data.timestamp || Date.now(),
+          url: data.url || '',
+          version: data.version || '2.0'
+        };
+        objectStore.put(cacheItem);
+      } else if (Array.isArray(data)) {
+        // Salvar múltiplos (formato antigo)
         data.forEach(item => {
           item.dataCache = new Date().toISOString();
           objectStore.put(item);
         });
       } else {
-        // Salvar único
+        // Salvar único (formato antigo)
         data.dataCache = new Date().toISOString();
         objectStore.put(data);
       }
@@ -108,11 +126,19 @@
       let request;
       if (key) {
         request = objectStore.get(key);
+      } else if (store === 'viagens' || store === 'macros') {
+        // Para viagens e macros, buscar pelo key fixo do cache genérico
+        request = objectStore.get(store);
       } else {
         request = objectStore.getAll();
       }
 
-      request.onsuccess = () => resolve(request.result);
+      request.onsuccess = () => {
+        const result = request.result;
+        // Se for cache genérico (tem estrutura com 'dados'), retornar o objeto completo
+        // Se for formato antigo (array), retornar diretamente
+        resolve(result);
+      };
       request.onerror = () => reject(request.error);
     });
   }

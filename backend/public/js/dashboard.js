@@ -1,10 +1,15 @@
 // backend/public/js/dashboard.js
-document.addEventListener('DOMContentLoaded', () => {
-  // Variáveis globais para controle de timeout
-  let inactivityTimer = null;
-  let lastActivityTime = Date.now();
-  const TIMEOUT_MINUTES = 60; // 60 minutos de inatividade
-  const TIMEOUT_MS = TIMEOUT_MINUTES * 60 * 1000;
+// Função de inicialização que funciona mesmo com scripts carregados dinamicamente
+console.log('📄 dashboard.js carregado!');
+(function() {
+  // Verificar se o DOM já está pronto
+  const init = () => {
+    console.log('⚙️ Função init() executada');
+    // Variáveis globais para controle de timeout
+    let inactivityTimer = null;
+    let lastActivityTime = Date.now();
+    const TIMEOUT_MINUTES = 60; // 60 minutos de inatividade
+    const TIMEOUT_MS = TIMEOUT_MINUTES * 60 * 1000;
 
   // Função para verificar timeout e fazer logout automático
   const verificarTimeout = () => {
@@ -101,6 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const initDashboard = async () => {
+    console.log('🚀 Iniciando dashboard...');
     // Proteção anti-loop
     const loopCount = parseInt(sessionStorage.getItem('dashboardLoopCount') || '0');
     if (loopCount > 3) {
@@ -121,9 +127,23 @@ document.addEventListener('DOMContentLoaded', () => {
     sessionStorage.setItem('dashboardLoopCount', (loopCount + 1).toString());
     
     const token = localStorage.getItem('token');
-    const user = JSON.parse(localStorage.getItem('user'));
+    const userStr = localStorage.getItem('user');
+    let user = null;
+    
+    try {
+      user = userStr ? JSON.parse(userStr) : null;
+    } catch (e) {
+      console.error('❌ Erro ao fazer parse do user:', e);
+      sessionStorage.removeItem('dashboardLoopCount');
+      window.location.href = '/';
+      return;
+    }
+
+    console.log('🔐 Token:', token ? 'presente' : 'ausente');
+    console.log('👤 User:', user);
 
     if (!token || !user) {
+      console.warn('⚠️ Token ou user ausente, redirecionando para login');
       sessionStorage.removeItem('dashboardLoopCount');
       window.location.href = '/';
       return;
@@ -143,9 +163,24 @@ document.addEventListener('DOMContentLoaded', () => {
     lastActivityTime = Date.now();
     atualizarAtividade();
 
-    document.getElementById('userName').textContent = user.nome || 'Usuário';
-    document.getElementById('userEmail').textContent = user.email || '';
+    const userNameEl = document.getElementById('userName');
+    const userEmailEl = document.getElementById('userEmail');
+    
+    if (userNameEl) {
+      userNameEl.textContent = user.nome || 'Usuário';
+      console.log('✅ Nome do usuário atualizado');
+    } else {
+      console.error('❌ Elemento userName não encontrado');
+    }
+    
+    if (userEmailEl) {
+      userEmailEl.textContent = user.email || '';
+      console.log('✅ Email do usuário atualizado');
+    } else {
+      console.error('❌ Elemento userEmail não encontrado');
+    }
 
+    console.log('📋 Carregando menu para:', user.login);
     await loadUserMenu(user.login);
 
     // Vincula botão de logout
@@ -199,15 +234,35 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const loadUserMenu = async (userLogin) => {
+    console.log('📋 loadUserMenu chamado para:', userLogin);
     try {
-      const response = await fetch('/api/menu/user-menu', {
-        headers: { 'user-login': userLogin }
+      const token = localStorage.getItem('token');
+      const baseUrl = window.__BASE_URL__ || ('http://' + window.location.host);
+      const url = baseUrl + '/api/menu/user-menu';
+      
+      console.log('🌐 Fazendo requisição para:', url);
+      
+      const response = await fetch(url, {
+        headers: { 
+          'user-login': userLogin,
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json'
+        }
       });
 
+      console.log('📥 Resposta recebida:', response.status, response.statusText);
+
       const data = await response.json();
+      console.log('📦 Dados do menu:', data);
+      
       const menuContainer = document.getElementById('menuContainer');
+      if (!menuContainer) {
+        console.error('❌ Elemento menuContainer não encontrado!');
+        return;
+      }
 
       if (response.ok && data.menu && data.menu.length > 0) {
+        console.log('✅ Renderizando menu com', data.menu.length, 'itens');
         menuContainer.innerHTML = data.menu.map(item => {
           const iconName = getIcon(item.id);
           // Se o ícone começa com 'bxs-', usar 'bxs', senão usar 'bx bx-'
@@ -220,7 +275,10 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
         }).join('');
 
-        document.querySelectorAll('.menu-item').forEach(el => {
+        const menuItems = document.querySelectorAll('.menu-item');
+        console.log('✅ Menu renderizado! Itens criados:', menuItems.length);
+
+        menuItems.forEach(el => {
           el.addEventListener('click', () => {
             const programa = el.getAttribute('data-program');
             if (programa && programa !== 'default') {
@@ -233,13 +291,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
           });
         });
+        
+        console.log('✅ Event listeners do menu adicionados');
       } else {
+        console.warn('⚠️ Menu vazio ou sem permissões');
         menuContainer.innerHTML = '<div class="menu-item"><span>Sem permissões</span></div>';
       }
     } catch (err) {
-      console.error('Erro ao carregar menu:', err);
-      document.getElementById('menuContainer').innerHTML = 
-        '<div class="menu-item"><span>❌ Erro de conexão</span></div>';
+      console.error('❌ Erro ao carregar menu:', err);
+      const menuContainer = document.getElementById('menuContainer');
+      if (menuContainer) {
+        menuContainer.innerHTML = '<div class="menu-item"><span>❌ Erro de conexão</span></div>';
+      }
     }
   };
 
@@ -388,4 +451,13 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   initDashboard();
-});
+  };
+
+  // Executar imediatamente se o DOM já estiver pronto, senão esperar
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    // DOM já está pronto, executar imediatamente
+    init();
+  }
+})();

@@ -22,18 +22,28 @@ const motoristaAppController = {
       }
 
       // Limpar CPF
-      const cpfLimpo = cpf.replace(/\D/g, '');
+      let cpfLimpo = cpf.replace(/\D/g, '');
 
-      if (cpfLimpo.length !== 11) {
-        return res.status(400).json({ error: 'CPF inválido.' });
+      // Validar tamanho (aceita 10 ou 11 dígitos)
+      if (cpfLimpo.length < 10 || cpfLimpo.length > 11) {
+        return res.status(400).json({ error: 'CPF inválido. Deve ter 10 ou 11 dígitos.' });
+      }
+
+      // Se tiver 10 dígitos, adicionar zero à esquerda
+      if (cpfLimpo.length === 10) {
+        cpfLimpo = '0' + cpfLimpo;
       }
 
       const pool = await poolPromise;
 
       // Buscar motorista em CADASTROGERAL + MOTORISTA_COMPLEMENTO
+      // Tentar com e sem zero à esquerda (para compatibilidade)
+      const cpfSemZero = cpfLimpo.startsWith('0') ? cpfLimpo.substring(1) : cpfLimpo;
+      
       const result = await pool
         .request()
-        .input('cpf', sql.VarChar(14), cpfLimpo)
+        .input('cpf1', sql.VarChar(14), cpfLimpo)  // Com zero à esquerda (11 dígitos)
+        .input('cpf2', sql.VarChar(14), cpfSemZero) // Sem zero à esquerda (10 dígitos)
         .query(`
           SELECT 
             cg.CDCADASTRO,
@@ -46,10 +56,11 @@ const motoristaAppController = {
             mc.NRCNH,
             mc.CATEGORIACNH,
             mc.VALIDADECNH,
-            mc.STATUSAPROVACAO
+            mc.STATUSAPROVACAO,
+            mc.SENHA
           FROM [dbo].[CADASTROGERAL] cg
           LEFT JOIN [dbo].[MOTORISTA_COMPLEMENTO] mc ON cg.CDCADASTRO = mc.CDCADASTRO
-          WHERE cg.CGCCPF = @cpf
+          WHERE (cg.CGCCPF = @cpf1 OR cg.CGCCPF = @cpf2)
             AND cg.FGTIPOCADASTRO = 'M'
             AND cg.FGACTIVE = 'A'
         `);
@@ -60,11 +71,20 @@ const motoristaAppController = {
 
       const motorista = result.recordset[0];
 
-      // TODO: Validar senha (quando implementar campo SENHA)
-      // Por enquanto, aceitar qualquer senha (DESENVOLVIMENTO)
-      // if (!await bcrypt.compare(senha, motorista.SENHA)) {
-      //   return res.status(401).json({ error: 'Senha incorreta.' });
-      // }
+      // Validar senha
+      // Se não tiver senha definida, aceitar qualquer senha (modo desenvolvimento)
+      // Se tiver senha definida, validar com bcrypt
+      if (motorista.SENHA) {
+        // Senha está definida - validar com bcrypt
+        const senhaValida = await bcrypt.compare(senha, motorista.SENHA);
+        if (!senhaValida) {
+          return res.status(401).json({ error: 'Senha incorreta.' });
+        }
+      } else {
+        // Senha não definida - aceitar qualquer senha (modo desenvolvimento)
+        // TODO: Remover este comportamento quando todos os motoristas tiverem senha
+        console.warn(`⚠️  Motorista ${motorista.CDCADASTRO} (${motorista.CGCCPF}) não tem senha definida. Aceitando qualquer senha.`);
+      }
 
       // Verificar aprovação
       if (motorista.STATUSAPROVACAO === 'R') {
@@ -401,16 +421,16 @@ const motoristaAppController = {
 
       const params = [];
 
-      // Filtro por classes de frota do motorista
-      if (idmotorista) {
-        query += ` AND EXISTS (
-          SELECT 1 FROM [dbo].[CLASSEFROTA_CG] ccf
-          WHERE ccf.CDCADASTRO = @idmotorista
-          AND ccf.CDCLASSEFROTA = v.CDCLASSEFROTA
-          AND ccf.FGACTIVE = 'S'
-        )`;
-        params.push({ name: 'idmotorista', value: parseFloat(idmotorista), type: sql.Decimal(15, 0) });
-      }
+      // Filtro por classes de frota do motorista - COMENTADO para trazer todas as cargas
+      // if (idmotorista) {
+      //   query += ` AND EXISTS (
+      //     SELECT 1 FROM [dbo].[CLASSEFROTA_CG] ccf
+      //     WHERE ccf.CDCADASTRO = @idmotorista
+      //     AND ccf.CDCLASSEFROTA = v.CDCLASSEFROTA
+      //     AND ccf.FGACTIVE = 'S'
+      //   )`;
+      //   params.push({ name: 'idmotorista', value: parseFloat(idmotorista), type: sql.Decimal(15, 0) });
+      // }
 
       if (estado) {
         query += ` AND (co.ESTADO = @estado OR cd.ESTADO = @estado)`;
@@ -941,6 +961,9 @@ const motoristaAppController = {
 
       // Se TEM viagem: salvar em VIAGEMRASTREAMENTO
       if (idViagem) {
+        // Usar dtPosicao se fornecido, senão usar data/hora atual
+        const dataPosicao = dtPosicao ? new Date(dtPosicao) : new Date();
+        
         await pool
           .request()
           .input('idViagem', sql.Decimal(15, 0), idViagem)
@@ -953,14 +976,15 @@ const motoristaAppController = {
           .input('status', sql.Char(1), status || 'P')
           .input('direcao', sql.Decimal(5, 2), direcao || null)
           .input('tipo', sql.Char(1), tipoEnvio || 'M')
+          .input('dhPosicao', sql.DateTime, dataPosicao)
           .query(`
             INSERT INTO VIAGEMRASTREAMENTO (
               IDVIAGEM, CDCADASTRO, LATITUDE, LONGITUDE, VELOCIDADE,
-              PRECISAO, ALTITUDE, FGSTATUS, DIRECAO, DHREGISTRO,
+              PRECISAO, ALTITUDE, FGSTATUS, DIRECAO, DHPOSICAO, DHREGISTRO,
               TIPO, FONTE, VERSAOAPP
             ) VALUES (
               @idViagem, @cdCadastro, @latitude, @longitude, @velocidade,
-              @precisao, @altitude, @status, @direcao, GETDATE(),
+              @precisao, @altitude, @status, @direcao, @dhPosicao, GETDATE(),
               @tipo, 'APP', '1.0.0'
             )
           `);
@@ -1066,6 +1090,513 @@ const motoristaAppController = {
         error: 'Erro ao registrar evento.',
         detalhes: err.message 
       });
+    }
+  },
+
+  // ==========================================
+  // RASTREAMENTO - Buscar posições GPS da viagem
+  // ==========================================
+  buscarPosicoesViagem: async (req, res) => {
+    try {
+      const { idviagem } = req.params;
+
+      if (!idviagem) {
+        return res.status(400).json({ error: 'ID da viagem é obrigatório.' });
+      }
+
+      const pool = await poolPromise;
+
+      // Buscar motorista da viagem (mesmo que não tenha posições GPS)
+      let motoristaViagem = null;
+      try {
+        const motoristaResult = await pool
+          .request()
+          .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
+          .query(`
+            SELECT TOP 1
+              vm.CDMOTORISTA AS CDCADASTRO,
+              cg.RZSOCIAL AS NOME_MOTORISTA,
+              cg.CGCCPF AS CPF_MOTORISTA,
+              cg.NRCELULAR AS CELULAR
+            FROM [dbo].[VIAGEMMOTORISTA] vm
+            INNER JOIN [dbo].[CADASTROGERAL] cg ON vm.CDMOTORISTA = cg.CDCADASTRO
+            WHERE vm.IDVIAGEM = @idviagem
+            ORDER BY vm.CDMOTORISTA
+          `);
+        
+        if (motoristaResult.recordset.length > 0) {
+          motoristaViagem = motoristaResult.recordset[0];
+        }
+      } catch (err) {
+        console.warn('Erro ao buscar motorista da viagem:', err.message);
+        // Tentar com CDCADASTROGERAL se CDCADASTRO não funcionar
+        try {
+          const motoristaResult2 = await pool
+            .request()
+            .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
+            .query(`
+              SELECT TOP 1
+                vm.CDMOTORISTA AS CDCADASTRO,
+                cg.RZSOCIAL AS NOME_MOTORISTA,
+                cg.CGCCPF AS CPF_MOTORISTA,
+                cg.NRCELULAR AS CELULAR
+              FROM [dbo].[VIAGEMMOTORISTA] vm
+              INNER JOIN [dbo].[CADASTROGERAL] cg ON vm.CDMOTORISTA = cg.CDCADASTROGERAL
+              WHERE vm.IDVIAGEM = @idviagem
+              ORDER BY vm.CDMOTORISTA
+            `);
+          
+          if (motoristaResult2.recordset.length > 0) {
+            motoristaViagem = motoristaResult2.recordset[0];
+          }
+        } catch (err2) {
+          console.warn('Erro ao buscar motorista (tentativa alternativa):', err2.message);
+        }
+      }
+
+      // Verificar qual tabela existe: VIAGEMRASTREAMENTO (sem underscore) ou VIAGEM_RASTREAMENTO (com underscore)
+      let tableName = null;
+      let tableExists = false;
+      
+      // Tentar primeiro VIAGEMRASTREAMENTO (tabela existente no banco)
+      try {
+        const tableCheck1 = await pool
+          .request()
+          .query(`
+            SELECT COUNT(*) as existe
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'VIAGEMRASTREAMENTO'
+          `);
+        
+        if (tableCheck1.recordset[0].existe > 0) {
+          tableName = 'VIAGEMRASTREAMENTO';
+          tableExists = true;
+          console.log('✅ Usando tabela: VIAGEMRASTREAMENTO');
+        }
+      } catch (err) {
+        console.warn('Erro ao verificar VIAGEMRASTREAMENTO:', err.message);
+      }
+
+      // Se não encontrou, tentar VIAGEM_RASTREAMENTO (com underscore)
+      if (!tableExists) {
+        try {
+          const tableCheck2 = await pool
+            .request()
+            .query(`
+              SELECT COUNT(*) as existe
+              FROM INFORMATION_SCHEMA.TABLES
+              WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'VIAGEM_RASTREAMENTO'
+            `);
+          
+          if (tableCheck2.recordset[0].existe > 0) {
+            tableName = 'VIAGEM_RASTREAMENTO';
+            tableExists = true;
+            console.log('✅ Usando tabela: VIAGEM_RASTREAMENTO');
+          }
+        } catch (err) {
+          console.warn('Erro ao verificar VIAGEM_RASTREAMENTO:', err.message);
+        }
+      }
+
+      if (!tableExists) {
+        console.warn('Nenhuma tabela de rastreamento encontrada. Retornando array vazio.');
+        if (motoristaViagem) {
+          return res.json([]);
+        }
+        return res.status(404).json({ error: 'Tabela de rastreamento não encontrada.' });
+      }
+
+      // Buscar data de início prevista da viagem para filtrar posições (2 horas antes)
+      let dataLimite = null;
+      try {
+        const viagemResult = await pool
+          .request()
+          .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
+          .query(`
+            SELECT DTPREVINICIO
+            FROM [dbo].[VIAGEMMESTRE]
+            WHERE IDVIAGEM = @idviagem
+          `);
+        
+        if (viagemResult.recordset.length > 0 && viagemResult.recordset[0].DTPREVINICIO) {
+          const dataInicio = new Date(viagemResult.recordset[0].DTPREVINICIO);
+          // Filtrar posições até 2 horas ANTES da data de início prevista
+          // Exemplo: se início é 15/12/2025 05:00, mostrar apenas posições até 15/12/2025 03:00
+          dataLimite = new Date(dataInicio.getTime() - (2 * 60 * 60 * 1000));
+          console.log(`📅 Data início prevista: ${dataInicio.toISOString()}`);
+          console.log(`📅 Data limite (2h antes): ${dataLimite.toISOString()}`);
+          console.log(`📅 Filtrando posições com DHPOSICAO/DHREGISTRO <= ${dataLimite.toISOString()}`);
+        } else {
+          console.log('⚠️  Data de início prevista não encontrada. Mostrando todas as posições.');
+        }
+      } catch (err) {
+        console.warn('⚠️  Erro ao buscar data de início prevista:', err.message);
+        console.warn('⚠️  Continuando sem filtro de data - mostrando todas as posições');
+        // Continuar sem filtro de data se não conseguir buscar
+      }
+
+      // Buscar posições GPS da viagem - adaptar query conforme a tabela encontrada
+      let result;
+      
+      if (tableName === 'VIAGEMRASTREAMENTO') {
+        // Tabela VIAGEMRASTREAMENTO (estrutura do banco existente)
+        // Buscar motorista da viagem para fazer JOIN
+        const motoristaViagemQuery = await pool
+          .request()
+          .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
+          .query(`
+            SELECT TOP 1 CDMOTORISTA
+            FROM [dbo].[VIAGEMMOTORISTA]
+            WHERE IDVIAGEM = @idviagem
+          `);
+        
+        const cdMotorista = motoristaViagemQuery.recordset.length > 0 
+          ? motoristaViagemQuery.recordset[0].CDMOTORISTA 
+          : null;
+
+        const request = pool.request();
+        request.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
+        
+        // Adicionar filtro de data limite se disponível
+        if (dataLimite) {
+          request.input('dataLimite', sql.DateTime, dataLimite);
+        }
+        
+        // Usar DHPOSICAO se existir, senão usar DHREGISTRO
+        // LATITUDE e LONGITUDE podem ser float ou decimal
+        // Filtrar apenas posições até 2 horas antes da data de início prevista
+        // IMPORTANTE: Usar DHPOSICAO (data da posição GPS) para comparação, não DHREGISTRO (data de inserção)
+        const filtroData = dataLimite 
+          ? `AND ISNULL(vr.DHPOSICAO, vr.DHREGISTRO) <= @dataLimite`
+          : '';
+        
+        if (dataLimite) {
+          console.log(`🔍 Aplicando filtro: posições com DHPOSICAO/DHREGISTRO <= ${dataLimite.toISOString()}`);
+          console.log(`📊 Total de posições antes do filtro será verificado após a query`);
+        } else {
+          console.log(`📊 Sem filtro de data - mostrando todas as posições`);
+        }
+        
+        if (cdMotorista) {
+          request.input('cdmotorista', sql.Decimal(15, 0), parseFloat(cdMotorista));
+          result = await request.query(`
+            SELECT 
+              vr.IDVIAGEM,
+              ISNULL(vr.SEQUENCIA, 0) AS SEQUENCIA,
+              vr.DSPOSICAO,
+              CAST(vr.LATITUDE AS DECIMAL(10,8)) AS LATITUDE,
+              CAST(vr.LONGITUDE AS DECIMAL(11,8)) AS LONGITUDE,
+              ISNULL(vr.VELOCIDADE, NULL) AS VELOCIDADE,
+              ISNULL(vr.PRECISAO, 10) AS PRECISAO,
+              ISNULL(vr.BATERIA, NULL) AS BATERIA,
+              ISNULL(vr.DHPOSICAO, vr.DHREGISTRO) AS DHREGISTRO,
+              ISNULL(vr.TIPO, 'A') AS TIPO,
+              ISNULL(vr.FONTE, 'RASTER') AS FONTE,
+              vr.FGSTATUS,
+              @cdmotorista AS CDCADASTRO,
+              cg.RZSOCIAL AS NOME_MOTORISTA,
+              cg.CGCCPF AS CPF_MOTORISTA
+            FROM [dbo].[VIAGEMRASTREAMENTO] vr
+            LEFT JOIN [dbo].[CADASTROGERAL] cg ON cg.CDCADASTRO = @cdmotorista
+            WHERE vr.IDVIAGEM = @idviagem
+              ${filtroData}
+            ORDER BY ISNULL(vr.DHPOSICAO, vr.DHREGISTRO) ASC
+          `);
+          
+          console.log(`📊 Query VIAGEMRASTREAMENTO executada. Filtro: ${filtroData || 'NENHUM'}. Registros encontrados: ${result.recordset.length}`);
+          if (result.recordset.length === 0 && dataLimite) {
+            console.warn(`⚠️  Nenhuma posição encontrada com filtro. Verificando total sem filtro...`);
+            // Testar sem filtro para debug
+            const testRequest = pool.request();
+            testRequest.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
+            const testResult = await testRequest.query(`
+              SELECT COUNT(*) as total 
+              FROM [dbo].[VIAGEMRASTREAMENTO] 
+              WHERE IDVIAGEM = @idviagem
+            `);
+            const totalSemFiltro = testResult.recordset[0].total;
+            console.log(`📊 Total de posições na tabela (sem filtro): ${totalSemFiltro}`);
+            if (totalSemFiltro > 0) {
+              // Verificar algumas posições para ver as datas
+              const sampleRequest = pool.request();
+              sampleRequest.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
+              const sampleResult = await sampleRequest.query(`
+                SELECT TOP 5 
+                  ISNULL(vr.DHPOSICAO, vr.DHREGISTRO) AS DATA_POSICAO,
+                  vr.SEQUENCIA
+                FROM [dbo].[VIAGEMRASTREAMENTO] vr
+                WHERE vr.IDVIAGEM = @idviagem
+                ORDER BY ISNULL(vr.DHPOSICAO, vr.DHREGISTRO) DESC
+              `);
+              console.log(`📅 Últimas 5 posições (mais recentes):`, sampleResult.recordset);
+              console.log(`📅 Data limite do filtro: ${dataLimite.toISOString()}`);
+            }
+          }
+        } else {
+          result = await request.query(`
+            SELECT 
+              vr.IDVIAGEM,
+              ISNULL(vr.SEQUENCIA, 0) AS SEQUENCIA,
+              vr.DSPOSICAO,
+              CAST(vr.LATITUDE AS DECIMAL(10,8)) AS LATITUDE,
+              CAST(vr.LONGITUDE AS DECIMAL(11,8)) AS LONGITUDE,
+              ISNULL(vr.VELOCIDADE, NULL) AS VELOCIDADE,
+              ISNULL(vr.PRECISAO, 10) AS PRECISAO,
+              ISNULL(vr.BATERIA, NULL) AS BATERIA,
+              ISNULL(vr.DHPOSICAO, vr.DHREGISTRO) AS DHREGISTRO,
+              ISNULL(vr.TIPO, 'A') AS TIPO,
+              ISNULL(vr.FONTE, 'RASTER') AS FONTE,
+              vr.FGSTATUS,
+              ISNULL(vr.CDCADASTRO, NULL) AS CDCADASTRO,
+              NULL AS NOME_MOTORISTA,
+              NULL AS CPF_MOTORISTA
+            FROM [dbo].[VIAGEMRASTREAMENTO] vr
+            WHERE vr.IDVIAGEM = @idviagem
+              ${filtroData}
+            ORDER BY ISNULL(vr.DHPOSICAO, vr.DHREGISTRO) ASC
+          `);
+          
+          console.log(`📊 Query executada para VIAGEMRASTREAMENTO (sem motorista). Filtro: ${filtroData || 'NENHUM'}. Registros encontrados: ${result.recordset.length}`);
+          if (result.recordset.length === 0 && dataLimite) {
+            console.warn(`⚠️  Nenhuma posição encontrada com filtro. Verificando total sem filtro...`);
+            const testRequest2 = pool.request();
+            testRequest2.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
+            const testResult2 = await testRequest2.query(`
+              SELECT COUNT(*) as total 
+              FROM [dbo].[VIAGEMRASTREAMENTO] 
+              WHERE IDVIAGEM = @idviagem
+            `);
+            const totalSemFiltro2 = testResult2.recordset[0].total;
+            console.log(`📊 Total de posições na tabela (sem filtro): ${totalSemFiltro2}`);
+            if (totalSemFiltro2 > 0) {
+              const sampleRequest2 = pool.request();
+              sampleRequest2.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
+              const sampleResult2 = await sampleRequest2.query(`
+                SELECT TOP 5 
+                  ISNULL(vr.DHPOSICAO, vr.DHREGISTRO) AS DATA_POSICAO,
+                  vr.SEQUENCIA
+                FROM [dbo].[VIAGEMRASTREAMENTO] vr
+                WHERE vr.IDVIAGEM = @idviagem
+                ORDER BY ISNULL(vr.DHPOSICAO, vr.DHREGISTRO) DESC
+              `);
+              console.log(`📅 Últimas 5 posições (mais recentes):`, sampleResult2.recordset);
+              console.log(`📅 Data limite do filtro: ${dataLimite.toISOString()}`);
+            }
+          }
+          console.log(`📊 Total de registros encontrados: ${result.recordset.length}`);
+        }
+      } else {
+        // Tabela VIAGEM_RASTREAMENTO (estrutura nova)
+        try {
+          const request2 = pool.request();
+          request2.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
+          
+          // Adicionar filtro de data limite se disponível
+          if (dataLimite) {
+            request2.input('dataLimite', sql.DateTime, dataLimite);
+          }
+          
+          // Filtrar apenas posições até 2 horas antes da data de início prevista
+          const filtroData2 = dataLimite 
+            ? `AND vr.DHREGISTRO <= @dataLimite`
+            : '';
+          
+          result = await request2.query(`
+              SELECT 
+                vr.IDRASTREAMENTO,
+                vr.IDVIAGEM,
+                vr.CDCADASTRO,
+                vr.LATITUDE,
+                vr.LONGITUDE,
+                vr.VELOCIDADE,
+                vr.PRECISAO,
+                ISNULL(vr.BATERIA, NULL) AS BATERIA,
+                vr.DHREGISTRO,
+                ISNULL(vr.TIPO, 'A') AS TIPO,
+                ISNULL(vr.FONTE, 'APP') AS FONTE,
+                cg.RZSOCIAL AS NOME_MOTORISTA,
+                cg.CGCCPF AS CPF_MOTORISTA
+              FROM [dbo].[VIAGEM_RASTREAMENTO] vr
+              LEFT JOIN [dbo].[CADASTROGERAL] cg ON vr.CDCADASTRO = cg.CDCADASTRO
+              WHERE vr.IDVIAGEM = @idviagem
+                ${filtroData2}
+              ORDER BY vr.DHREGISTRO ASC
+            `);
+        } catch (err) {
+          console.warn('Tentando com estrutura alternativa...', err.message);
+          const request3 = pool.request();
+          request3.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
+          
+          // Adicionar filtro de data limite se disponível
+          if (dataLimite) {
+            request3.input('dataLimite', sql.DateTime, dataLimite);
+          }
+          
+          // Filtrar apenas posições até 2 horas antes da data de início prevista
+          const filtroData3 = dataLimite 
+            ? `AND vr.DHREGISTRO <= @dataLimite`
+            : '';
+          
+          result = await request3.query(`
+              SELECT 
+                vr.IDRASTREAMENTO,
+                vr.IDVIAGEM,
+                ISNULL(vr.CDCADASTRO, vr.CDMOTORISTA) AS CDCADASTRO,
+                vr.LATITUDE,
+                vr.LONGITUDE,
+                vr.VELOCIDADE,
+                vr.PRECISAO,
+                NULL AS BATERIA,
+                vr.DHREGISTRO,
+                ISNULL(vr.TIPO, 'A') AS TIPO,
+                'APP' AS FONTE,
+                cg.RZSOCIAL AS NOME_MOTORISTA,
+                cg.CGCCPF AS CPF_MOTORISTA
+              FROM [dbo].[VIAGEM_RASTREAMENTO] vr
+              LEFT JOIN [dbo].[CADASTROGERAL] cg ON (vr.CDCADASTRO = cg.CDCADASTRO OR vr.CDMOTORISTA = cg.CDCADASTRO)
+              WHERE vr.IDVIAGEM = @idviagem
+                ${filtroData3}
+              ORDER BY vr.DHREGISTRO ASC
+            `);
+        }
+      }
+
+      // Adicionar informações do motorista nas posições (se não vier do JOIN)
+      const posicoes = result.recordset.map(pos => {
+        if (!pos.NOME_MOTORISTA && motoristaViagem) {
+          pos.NOME_MOTORISTA = motoristaViagem.NOME_MOTORISTA;
+          pos.CPF_MOTORISTA = motoristaViagem.CPF_MOTORISTA;
+        }
+        return pos;
+      });
+
+      // Buscar a última posição geral (sem filtro de data) para exibir na "Última Atualização"
+      let ultimaPosicaoGeral = null;
+      try {
+        if (tableName === 'VIAGEMRASTREAMENTO') {
+          const ultimaPosicaoRequest = pool.request();
+          ultimaPosicaoRequest.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
+          const ultimaPosicaoResult = await ultimaPosicaoRequest.query(`
+            SELECT TOP 1
+              FORMAT(ISNULL(vr.DHPOSICAO, vr.DHREGISTRO), 'yyyy-MM-ddTHH:mm:ss') AS DHREGISTRO
+            FROM [dbo].[VIAGEMRASTREAMENTO] vr
+            WHERE vr.IDVIAGEM = @idviagem
+            ORDER BY ISNULL(vr.DHPOSICAO, vr.DHREGISTRO) DESC
+          `);
+          if (ultimaPosicaoResult.recordset.length > 0) {
+            // A data já vem formatada como string no horário local do servidor SQL
+            ultimaPosicaoGeral = {
+              DHREGISTRO: ultimaPosicaoResult.recordset[0].DHREGISTRO
+            };
+          }
+        } else if (tableName === 'VIAGEM_RASTREAMENTO') {
+          const ultimaPosicaoRequest2 = pool.request();
+          ultimaPosicaoRequest2.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
+          const ultimaPosicaoResult2 = await ultimaPosicaoRequest2.query(`
+            SELECT TOP 1
+              FORMAT(vr.DHREGISTRO, 'yyyy-MM-ddTHH:mm:ss') AS DHREGISTRO
+            FROM [dbo].[VIAGEM_RASTREAMENTO] vr
+            WHERE vr.IDVIAGEM = @idviagem
+            ORDER BY vr.DHREGISTRO DESC
+          `);
+          if (ultimaPosicaoResult2.recordset.length > 0) {
+            // A data já vem formatada como string no horário local do servidor SQL
+            ultimaPosicaoGeral = {
+              DHREGISTRO: ultimaPosicaoResult2.recordset[0].DHREGISTRO
+            };
+          }
+        }
+      } catch (err) {
+        console.warn('⚠️  Erro ao buscar última posição geral:', err.message);
+        // Continuar sem a última posição geral
+      }
+
+      // Sempre retornar array, mesmo se vazio
+      console.log(`✅ Retornando ${posicoes.length} posições para viagem ${idviagem}`);
+      if (posicoes.length === 0 && dataLimite) {
+        console.warn(`⚠️  Nenhuma posição encontrada. Verifique se o filtro de data (até ${dataLimite.toISOString()}) não está muito restritivo.`);
+      }
+      
+      // Retornar objeto com posições filtradas e última posição geral
+      res.json({
+        posicoes: posicoes,
+        ultimaPosicaoGeral: ultimaPosicaoGeral
+      });
+    } catch (err) {
+      console.error('❌ Erro ao buscar posições da viagem:', err);
+      console.error('Detalhes do erro:', {
+        message: err.message,
+        code: err.code,
+        number: err.number,
+        originalError: err.originalError,
+        stack: err.stack
+      });
+      
+      // Retornar array vazio em caso de erro, para não quebrar o frontend
+      // O frontend já trata array vazio mostrando mensagem apropriada
+      console.warn('⚠️ Retornando array vazio devido ao erro');
+      res.json([]);
+    }
+  },
+
+  // ==========================================
+  // RASTREAMENTO - Buscar motorista da viagem
+  // ==========================================
+  buscarMotoristaViagem: async (req, res) => {
+    try {
+      const { idviagem } = req.params;
+
+      if (!idviagem) {
+        return res.status(400).json({ error: 'ID da viagem é obrigatório.' });
+      }
+
+      const pool = await poolPromise;
+
+      let result;
+      try {
+        result = await pool
+          .request()
+          .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
+          .query(`
+            SELECT TOP 1
+              vm.CDMOTORISTA AS CDCADASTRO,
+              cg.CDCADASTRO,
+              cg.RZSOCIAL AS NOME_MOTORISTA,
+              cg.CGCCPF AS CPF_MOTORISTA,
+              cg.NRCELULAR AS CELULAR
+            FROM [dbo].[VIAGEMMOTORISTA] vm
+            INNER JOIN [dbo].[CADASTROGERAL] cg ON vm.CDMOTORISTA = cg.CDCADASTRO
+            WHERE vm.IDVIAGEM = @idviagem
+            ORDER BY vm.CDMOTORISTA
+          `);
+      } catch (err) {
+        // Tentar com CDCADASTROGERAL se CDCADASTRO não funcionar
+        console.warn('Tentando busca alternativa do motorista...', err.message);
+        result = await pool
+          .request()
+          .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
+          .query(`
+            SELECT TOP 1
+              vm.CDMOTORISTA AS CDCADASTRO,
+              cg.CDCADASTROGERAL AS CDCADASTRO,
+              cg.RZSOCIAL AS NOME_MOTORISTA,
+              cg.CGCCPF AS CPF_MOTORISTA,
+              cg.NRCELULAR AS CELULAR
+            FROM [dbo].[VIAGEMMOTORISTA] vm
+            INNER JOIN [dbo].[CADASTROGERAL] cg ON vm.CDMOTORISTA = cg.CDCADASTROGERAL
+            WHERE vm.IDVIAGEM = @idviagem
+            ORDER BY vm.CDMOTORISTA
+          `);
+      }
+
+      if (result.recordset.length > 0) {
+        res.json(result.recordset[0]);
+      } else {
+        res.json(null);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar motorista da viagem:', err);
+      res.status(500).json({ error: 'Erro ao buscar motorista da viagem.' });
     }
   }
 };

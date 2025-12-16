@@ -6,14 +6,62 @@
   <meta name="theme-color" content="#667eea">
   <meta name="description" content="App DivulgaCarga para Motoristas">
   <title>DivulgaCarga - Motorista</title>
-  <link rel="manifest" href="manifest.json">
-  <link rel="icon" type="image/png" href="/img/logo7.png">
-  <link rel="stylesheet" href="css/style.css">
+  <script>
+    // CRÍTICO: Executar ANTES de qualquer outro código para forçar HTTP
+    (function() {
+      // Se estiver em HTTPS, redirecionar imediatamente para HTTP
+      if (window.location.protocol === 'https:') {
+        const httpUrl = 'http:' + window.location.href.substring(window.location.protocol.length);
+        window.location.replace(httpUrl);
+        return;
+      }
+      
+      // Obter host atual
+      const host = window.location.host;
+      const baseUrl = 'http://' + host; // Forçar HTTP explicitamente
+      
+      // Criar e injetar recursos ANTES do navegador tentar fazer upgrade
+      const head = document.head || document.getElementsByTagName('head')[0];
+      
+      console.log('✅ Usando baseUrl HTTP:', baseUrl);
+      
+      // Favicon
+      const favicon = document.createElement('link');
+      favicon.rel = 'icon';
+      favicon.type = 'image/png';
+      favicon.href = baseUrl + '/img/logo7.png';
+      console.log('📦 Carregando favicon:', favicon.href);
+      head.appendChild(favicon);
+      
+      // Manifest
+      const manifest = document.createElement('link');
+      manifest.rel = 'manifest';
+      manifest.href = baseUrl + '/motorista/manifest.json';
+      head.appendChild(manifest);
+      
+      // CSS
+      const css = document.createElement('link');
+      css.rel = 'stylesheet';
+      css.href = baseUrl + '/motorista/css/style.css';
+      console.log('📦 Carregando CSS:', css.href);
+      head.appendChild(css);
+      
+      // Armazenar baseUrl globalmente para uso posterior
+      window.__BASE_URL__ = baseUrl;
+    })();
+  </script>
 </head>
 <body>
+  <!-- Script crítico: executar ANTES de qualquer coisa para forçar HTTP -->
+  <script>
+    // Redirecionar imediatamente se estiver em HTTPS
+    if (window.location.protocol === 'https:') {
+      window.location.replace('http:' + window.location.href.substring(window.location.protocol.length));
+    }
+  </script>
   <div class="login-container">
     <div class="logo-section">
-      <img src="/img/logo7.png" alt="Logo DivulgaCarga" class="logo">
+      <img id="logoImg" alt="Logo DivulgaCarga" class="logo" src="">
       <h1>DivulgaCarga</h1>
       <p class="subtitle">Motorista</p>
     </div>
@@ -63,12 +111,55 @@
     </div>
   </div>
 
-  <script src="js/auth.js"></script>
+  <script>
+    // Carregar scripts e imagem com URLs absolutas forçando HTTP
+    (function() {
+      // Usar baseUrl global ou criar novo
+      const baseUrl = window.__BASE_URL__ || ('http://' + window.location.host);
+      
+      // Carregar logo imediatamente
+      const logoImg = document.getElementById('logoImg');
+      if (logoImg) {
+        logoImg.src = baseUrl + '/img/logo7.png';
+      }
+      
+      // Carregar script auth.js
+      function loadScript(src) {
+        const script = document.createElement('script');
+        let url = baseUrl + '/motorista/' + src;
+        // Forçar http:// explicitamente
+        url = url.replace(/^https:/, 'http:');
+        script.src = url;
+        script.onerror = function() {
+          console.error('❌ Erro ao carregar script:', this.src);
+          // Tentar novamente forçando HTTP
+          this.src = this.src.replace(/^https:/, 'http:');
+        };
+        console.log('📜 Carregando script:', url);
+        document.body.appendChild(script);
+      }
+      
+      loadScript('js/auth.js');
+    })();
+  </script>
   
   <script>
-    // Registrar Service Worker
+    // Desregistrar Service Workers antigos que possam estar forçando HTTPS
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/motorista/sw.js')
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+          registration.unregister().then(function(boolean) {
+            console.log('Service Worker desregistrado:', boolean);
+          });
+        }
+      });
+    }
+    
+    // Registrar Service Worker (após limpar os antigos)
+    if ('serviceWorker' in navigator) {
+      // Aguardar um pouco antes de registrar para garantir que recursos HTTP sejam carregados primeiro
+      setTimeout(() => {
+        navigator.serviceWorker.register('/motorista/sw.js')
         .then((registration) => {
           console.log('✅ Service Worker registrado');
           
@@ -97,6 +188,7 @@
           });
         })
         .catch(err => console.error('❌ Erro ao registrar SW:', err));
+      }, 2000); // Aguardar 2 segundos antes de registrar SW
     }
   </script>
 </body>

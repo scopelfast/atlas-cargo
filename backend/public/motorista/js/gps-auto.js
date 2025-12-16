@@ -144,13 +144,94 @@ async function enviarPosicaoAutomatica() {
           }
         }
       },
-      (error) => {
-        console.error('❌ [GPS AUTO] Erro ao obter posição:', error.message);
+      async (error) => {
+        console.warn('⚠️ [GPS AUTO] Erro ao obter posição (tentativa 1):', error.message);
+        
+        // Se foi timeout, tentar novamente com configurações menos restritivas
+        if (error.code === error.TIMEOUT || error.message.includes('Timeout')) {
+          console.log('🔄 [GPS AUTO] Tentando novamente com configurações menos restritivas...');
+          
+          try {
+            await new Promise((resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                  const { latitude, longitude, altitude, accuracy, speed, heading } = position.coords;
+                  
+                  console.log(`📍 [GPS AUTO] Posição capturada (tentativa 2): ${latitude}, ${longitude}`);
+                  
+                  const velocidadeKmh = speed ? (speed * 3.6).toFixed(2) : 0;
+                  const status = velocidadeKmh > 5 ? 'M' : 'P';
+                  
+                  const dadosGPS = {
+                    cdMotorista: motorista.id,
+                    idViagem: viagemId,
+                    latitude: latitude.toFixed(8),
+                    longitude: longitude.toFixed(8),
+                    altitude: altitude ? altitude.toFixed(2) : null,
+                    precisao: Math.round(accuracy),
+                    velocidade: velocidadeKmh,
+                    status: status,
+                    direcao: heading ? heading.toFixed(2) : null,
+                    tipoEnvio: 'A',
+                    dtPosicao: new Date().toISOString(),
+                  };
+                  
+                  try {
+                    const response = await fetch('/api/motorista/gps', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${getToken()}`,
+                      },
+                      body: JSON.stringify(dadosGPS),
+                    });
+                    
+                    if (response.ok) {
+                      contadorEnvios++;
+                      ultimoEnvio = new Date();
+                      const intervalo = parseInt(localStorage.getItem('gps_intervalo') || '5');
+                      proximoEnvio = new Date(Date.now() + (intervalo * 60 * 1000));
+                      
+                      localStorage.setItem('gps_contador', contadorEnvios.toString());
+                      localStorage.setItem('gps_ultimo_envio', ultimoEnvio.toISOString());
+                      localStorage.setItem('gps_proximo_envio', proximoEnvio.toISOString());
+                      
+                      console.log(`✅ [GPS AUTO] Posição enviada com sucesso (tentativa 2)!`);
+                      atualizarIndicadorGPS();
+                      resolve();
+                    } else {
+                      reject(new Error('Erro ao enviar posição'));
+                    }
+                  } catch (err) {
+                    if (typeof adicionarFila === 'function') {
+                      await adicionarFila('gps', dadosGPS);
+                      console.log('📦 [GPS AUTO] Adicionado à fila offline');
+                    }
+                    resolve();
+                  }
+                },
+                (error2) => {
+                  console.error('❌ [GPS AUTO] Erro na tentativa 2:', error2.message);
+                  reject(error2);
+                },
+                {
+                  enableHighAccuracy: false, // Menos restritivo
+                  timeout: 15000, // Timeout menor na segunda tentativa
+                  maximumAge: 120000, // Aceitar posição com até 2 minutos de idade
+                }
+              );
+            });
+          } catch (retryError) {
+            console.error('❌ [GPS AUTO] Falha após tentativa de retry:', retryError.message);
+          }
+        } else {
+          console.error('❌ [GPS AUTO] Erro não recuperável:', error.message);
+        }
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
+        timeout: 30000, // Aumentado para 30 segundos (mais tolerante)
+        maximumAge: 60000, // Aceitar posição com até 1 minuto de idade se disponível
       }
     );
   } catch (error) {

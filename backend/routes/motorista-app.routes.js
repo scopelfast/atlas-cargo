@@ -6,6 +6,7 @@
 const express = require('express');
 const router = express.Router();
 const motoristaAppController = require('../controllers/motorista-app.controller');
+const sincronizarRastreamentoController = require('../controllers/sincronizar-rastreamento-integra.controller');
 
 // ==========================================
 // ROTAS PÚBLICAS (sem autenticação)
@@ -46,6 +47,11 @@ router.get('/historico-macros/:idViagem', motoristaAppController.historicoMacros
 
 // GPS
 router.post('/gps', motoristaAppController.registrarGPS);
+router.get('/posicoes/:idviagem', motoristaAppController.buscarPosicoesViagem);
+router.get('/motorista-viagem/:idviagem', motoristaAppController.buscarMotoristaViagem);
+
+// Sincronização de Rastreamento (INTEGRA_PRD -> DIVULGACARGA_PRD)
+router.post('/sincronizar-rastreamento/:idViagem', sincronizarRastreamentoController.sincronizarRastreamento);
 
 // Eventos
 router.post('/evento', motoristaAppController.registrarEvento);

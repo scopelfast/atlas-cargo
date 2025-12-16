@@ -4,9 +4,54 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>sys - Divulga Cargas</title>
-  <link href="/css/boxicons.min.css?v=20250102" rel="stylesheet">
-  <link rel="stylesheet" href="/css/modulos.css?v=20250102">
-  <link rel="stylesheet" href="/css/dashboard.css?v=20250102">
+  <link rel="icon" type="image/png" href="/img/logo7.png" id="faviconLink">
+  <script>
+    // CRÍTICO: Executar ANTES de qualquer outro código para forçar HTTP
+    (function() {
+      console.log('🔧 Forçando protocolo HTTP...', window.location.protocol);
+      
+      // Se estiver em HTTPS, redirecionar imediatamente para HTTP
+      if (window.location.protocol === 'https:') {
+        const httpUrl = 'http:' + window.location.href.substring(window.location.protocol.length);
+        console.log('🔄 Redirecionando de HTTPS para HTTP:', httpUrl);
+        window.location.replace(httpUrl);
+        return;
+      }
+      
+      const protocol = 'http:'; // Forçar HTTP explicitamente
+      const host = window.location.host;
+      const baseUrl = protocol + '//' + host;
+      
+      console.log('✅ Usando baseUrl HTTP:', baseUrl);
+      
+      // Função para criar elementos com URLs absolutas
+      function createLink(href) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        // Garantir que a URL seja HTTP
+        let url = href.startsWith('http') ? href.replace(/^https?:/, protocol) : baseUrl + href;
+        // Forçar http:// explicitamente
+        url = url.replace(/^https:/, 'http:');
+        link.href = url;
+        console.log('📦 Carregando CSS:', url);
+        document.head.appendChild(link);
+      }
+      
+      // Carregar CSS com URLs absolutas forçando HTTP
+      createLink('/css/boxicons.min.css?v=20250102');
+      createLink('/css/modulos.css?v=20250102');
+      createLink('/css/dashboard.css?v=20250102');
+      
+      // Corrigir favicon
+      const faviconLink = document.getElementById('faviconLink');
+      if (faviconLink) {
+        faviconLink.href = baseUrl + '/img/logo7.png';
+      }
+      
+      // Armazenar baseUrl globalmente
+      window.__BASE_URL__ = baseUrl;
+    })();
+  </script>
 </head>
 <body>
   <div class="sidebar">
@@ -55,10 +100,64 @@
     </div>
   </div>
 
-  <script src="/js/ambiente-utils.js?v=20250102"></script>
-  <script src="/js/utils.js?v=20250102"></script>
-  <script src="/js/permissions.js?v=20250102"></script>
-  <script src="/js/log-helper.js?v=20250102"></script>
-  <script src="/js/dashboard.js?v=20250102"></script>
+  <script>
+    // Carregar scripts com URLs absolutas forçando HTTP - SEQUENCIALMENTE
+    (function() {
+      const baseUrl = window.__BASE_URL__ || ('http://' + window.location.host);
+      console.log('📜 Carregando scripts com baseUrl:', baseUrl);
+      
+      function loadScript(src, callback) {
+        const script = document.createElement('script');
+        let url = src.startsWith('http') ? src.replace(/^https?:/, 'http:') : baseUrl + src;
+        // Forçar http:// explicitamente
+        url = url.replace(/^https:/, 'http:');
+        script.src = url;
+        script.onerror = function() {
+          console.error('❌ Erro ao carregar script:', this.src);
+          if (callback) callback(false);
+        };
+        script.onload = function() {
+          console.log('✅ Script carregado:', url);
+          if (callback) callback(true);
+        };
+        console.log('📜 Carregando script:', url);
+        document.body.appendChild(script);
+      }
+      
+      // Carregar scripts sequencialmente
+      const scripts = [
+        '/js/ambiente-utils.js?v=20250102',
+        '/js/utils.js?v=20250102',
+        '/js/permissions.js?v=20250102',
+        '/js/log-helper.js?v=20250102',
+        '/js/dashboard.js?v=20250102'
+      ];
+      
+      let index = 0;
+      function loadNext() {
+        if (index < scripts.length) {
+          loadScript(scripts[index], function(success) {
+            if (success || index === scripts.length - 1) {
+              index++;
+              loadNext();
+            } else {
+              console.error('❌ Falha ao carregar script, parando sequência');
+            }
+          });
+        }
+      }
+      
+      loadNext();
+    })();
+    
+    // Tratamento global de erros
+    window.addEventListener('error', function(e) {
+      console.error('❌ Erro global capturado:', e.error, e.message, e.filename, e.lineno);
+    });
+    
+    window.addEventListener('unhandledrejection', function(e) {
+      console.error('❌ Promise rejeitada não tratada:', e.reason);
+    });
+  </script>
 </body>
 </html>

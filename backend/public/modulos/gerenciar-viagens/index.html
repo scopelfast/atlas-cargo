@@ -416,6 +416,7 @@
       <button class="tab-btn" data-tab="convocações">Convocações</button>
       <button class="tab-btn" data-tab="veiculo">Veículo</button>
       <button class="tab-btn" data-tab="motorista">Motorista</button>
+      <button class="tab-btn" data-tab="rastreamento">Rastreamento</button>
       <button class="tab-btn" data-tab="integracao-meta">Integração Meta</button>
     </div>
 
@@ -1298,6 +1299,64 @@
             <button type="button" id="btnLimparMotorista" class="btn cancel">Limpar</button>
           </div>
         </form>
+      </div>
+    </div>
+
+    <!-- Aba Rastreamento -->
+    <div class="tab-content" id="tab-rastreamento">
+      <div class="form-box">
+        <h2>Rastreamento GPS da Viagem</h2>
+        <div class="actions-top">
+          <button id="btnVoltarRastreamento" type="button" class="btn cancel">← Voltar aos Filtros</button>
+          <button id="btnAtualizarRastreamento" type="button" class="btn info">🔄 Atualizar Posições</button>
+        </div>
+
+        <!-- Informações da Viagem -->
+        <div id="rastreamentoInfoViagem" style="display: none; margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+            <div>
+              <strong>ID Viagem:</strong> <span id="rastreamentoIdViagem">-</span>
+            </div>
+            <div>
+              <strong>Motorista:</strong> <span id="rastreamentoMotorista">-</span>
+            </div>
+            <div>
+              <strong>Total de Posições:</strong> <span id="rastreamentoTotalPosicoes">0</span>
+            </div>
+            <div>
+              <strong>Última Atualização:</strong> <span id="rastreamentoUltimaAtualizacao">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mensagem quando não há viagem selecionada -->
+        <div id="rastreamentoSemViagem" style="text-align: center; padding: 40px; color: #6c757d;">
+          <p style="font-size: 16px; margin-bottom: 10px;">📍 Selecione uma viagem na aba <strong>Dados</strong> ou <strong>Grid</strong> para visualizar o rastreamento GPS.</p>
+          <p style="font-size: 13px; color: #95a5a6;">O rastreamento mostra todas as posições GPS registradas pelo motorista durante a viagem.</p>
+        </div>
+
+        <!-- Container do Mapa e Lista -->
+        <div id="rastreamentoContainer" style="display: none;">
+          <div style="display: grid; grid-template-columns: 1fr 400px; gap: 20px; margin-bottom: 20px;">
+            <!-- Mapa -->
+            <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+              <div style="padding: 15px; background: #f8f9fa; border-bottom: 1px solid #dee2e6;">
+                <h3 style="margin: 0; font-size: 16px; color: #333;">🗺️ Traçado da Rota</h3>
+              </div>
+              <div id="mapaRastreamento" style="height: 500px; width: 100%;"></div>
+            </div>
+
+            <!-- Lista de Posições -->
+            <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+              <div style="padding: 15px; background: #f8f9fa; border-bottom: 1px solid #dee2e6;">
+                <h3 style="margin: 0; font-size: 16px; color: #333;">📋 Histórico de Posições</h3>
+              </div>
+              <div id="listaPosicoes" style="max-height: 500px; overflow-y: auto; padding: 10px;">
+                <p style="text-align: center; color: #6c757d; padding: 20px;">Carregando posições...</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
