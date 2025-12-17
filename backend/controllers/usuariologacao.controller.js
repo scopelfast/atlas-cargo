@@ -29,51 +29,36 @@ const registrarAcaoUsuario = async (req, res) => {
     // X-Forwarded-For pode conter múltiplos IPs separados por vírgula (primeiro é o IP original)
     let ip = null;
     
-    // Debug: Logar todos os headers relacionados a IP (temporário)
-    const ipHeaders = {
-      'x-forwarded-for': getHeader('x-forwarded-for'),
-      'x-real-ip': getHeader('x-real-ip'),
-      'x-forwarded': getHeader('x-forwarded'),
-      'forwarded-for': getHeader('forwarded-for'),
-      'cf-connecting-ip': getHeader('cf-connecting-ip'),
-      'true-client-ip': getHeader('true-client-ip'),
-      'req.ip': req.ip,
-      'req.connection.remoteAddress': req.connection?.remoteAddress,
-      'req.socket.remoteAddress': req.socket?.remoteAddress
-    };
-    
     // Tentar capturar IP em ordem de prioridade
     const xForwardedFor = getHeader('x-forwarded-for');
     if (xForwardedFor) {
       // Pegar o primeiro IP da lista (IP original do cliente)
       const forwardedIps = xForwardedFor.split(',');
       ip = forwardedIps[0].trim();
-      console.log(`[IP DEBUG] Capturado via X-Forwarded-For: ${ip} (de: ${xForwardedFor})`);
+      // Log removido para reduzir poluição de logs
     } else {
       const xRealIp = getHeader('x-real-ip');
       if (xRealIp) {
         ip = xRealIp.trim();
-        console.log(`[IP DEBUG] Capturado via X-Real-IP: ${ip}`);
       } else {
         const cfConnectingIp = getHeader('cf-connecting-ip');
         if (cfConnectingIp) {
           ip = cfConnectingIp.trim();
-          console.log(`[IP DEBUG] Capturado via CF-Connecting-IP: ${ip}`);
         } else if (req.ip && req.ip !== '::1' && req.ip !== '127.0.0.1' && !req.ip.startsWith('172.')) {
           // req.ip funciona quando trust proxy está configurado, mas ignorar IPs locais/proxy
           ip = req.ip;
-          console.log(`[IP DEBUG] Capturado via req.ip: ${ip}`);
         } else {
           // Fallback para conexão direta
           const remoteAddr = req.connection?.remoteAddress || req.socket?.remoteAddress;
           if (remoteAddr && remoteAddr !== '::1' && remoteAddr !== '127.0.0.1' && !remoteAddr.startsWith('172.')) {
             ip = remoteAddr;
-            console.log(`[IP DEBUG] Capturado via remoteAddress: ${ip}`);
           } else {
-            // Se ainda não encontrou, usar o que tiver (mas logar para debug)
+            // Se ainda não encontrou, usar o que tiver
             ip = req.ip || remoteAddr || 'DESCONHECIDO';
-            console.log(`[IP DEBUG] ⚠️ Usando IP fallback: ${ip}`);
-            console.log(`[IP DEBUG] Headers disponíveis:`, JSON.stringify(ipHeaders, null, 2));
+            // Log apenas em desenvolvimento e quando realmente não encontrar IP
+            if (process.env.NODE_ENV === 'development' && ip === 'DESCONHECIDO') {
+              console.log(`[IP DEBUG] ⚠️ Não foi possível detectar IP do cliente`);
+            }
           }
         }
       }
@@ -86,8 +71,7 @@ const registrarAcaoUsuario = async (req, res) => {
     
     // Se ainda for IP interno do proxy (172.x.x.x), tentar buscar em outros headers
     if (ip && (ip.startsWith('172.') || ip.startsWith('10.') || ip === '127.0.0.1' || ip === '::1')) {
-      console.log(`[IP DEBUG] ⚠️ IP interno detectado (${ip}), buscando em outros headers...`);
-      // Tentar todos os headers possíveis
+      // Tentar todos os headers possíveis (silencioso)
       const allHeaders = Object.keys(req.headers);
       for (const headerName of allHeaders) {
         const headerValue = req.headers[headerName];
@@ -100,7 +84,7 @@ const registrarAcaoUsuario = async (req, res) => {
             if (!foundIp.startsWith('172.') && !foundIp.startsWith('10.') && 
                 !foundIp.startsWith('192.168.') && foundIp !== '127.0.0.1') {
               ip = foundIp;
-              console.log(`[IP DEBUG] ✅ IP público encontrado no header ${headerName}: ${ip}`);
+              // Log removido para reduzir poluição de logs
               break;
             }
           }

@@ -83,6 +83,25 @@
       transform: scale(0.98);
       box-shadow: 0 2px 8px rgba(37, 211, 102, 0.3);
     }
+
+    .btn-sos {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);
+    }
+
+    .btn-sos:active {
+      transform: scale(0.98);
+      box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
+    }
   </style>
 </head>
 <body>
@@ -165,8 +184,14 @@
               <button class="btn-primary btn-macros" onclick="irParaMacros(${v.IDVIAGEM})">
                 📝 Registrar Macros
               </button>
+              <button class="btn-primary" onclick="comprovarEntrega(${v.IDVIAGEM})" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); margin-top: 8px;">
+                📦 Comprovar Entrega
+              </button>
               <button class="btn-whatsapp" onclick="abrirWhatsAppContratador('${v.CONTRATADOR || 'Contratador'}', '${v.CELULAR_CONTRATADOR || ''}', ${v.IDVIAGEM})">
                 💬 WhatsApp do Contratador
+              </button>
+              <button class="btn-sos" onclick="abrirSOS(${v.IDVIAGEM})" style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); margin-top: 10px; box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);">
+                SOS - Emergência
               </button>
             </div>
           </div>
@@ -209,6 +234,20 @@
 
     function irParaMacros(idViagem) {
       window.location.href = `macros.html?viagem=${idViagem}`;
+    }
+
+    function comprovarEntrega(idViagem) {
+      // Salvar viagem atual no localStorage para uso na página de comprovação
+      localStorage.setItem('viagemAtual', idViagem);
+      window.location.href = `comprovar-entrega.html?viagem=${idViagem}`;
+    }
+
+    function abrirSOS(idViagem) {
+      if (!confirm('⚠️ ATENÇÃO: Você está prestes a enviar um alerta de EMERGÊNCIA.\n\nEste alerta será enviado imediatamente à torre de controle.\n\nDeseja continuar?')) {
+        return;
+      }
+      localStorage.setItem('ultimaViagemSelecionada', idViagem);
+      window.location.href = `sos.html?idviagem=${idViagem}`;
     }
 
     function abrirWhatsAppContratador(nomeContratador, celular, idViagem) {

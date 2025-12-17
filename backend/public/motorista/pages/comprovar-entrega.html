@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Comprovar Entrega - Motorista</title>
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <style>
+    .form-section {
+      background: white;
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .form-section h3 {
+      margin: 0 0 16px 0;
+      color: #333;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .photo-preview {
+      width: 100%;
+      max-width: 400px;
+      height: 300px;
+      border: 2px dashed #ddd;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f8f9fa;
+      margin: 10px 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .photo-preview img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+
+    .photo-preview.has-photo {
+      border-color: #28a745;
+      background: white;
+    }
+
+    .btn-capture {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 10px;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+    }
+
+    .btn-capture:active {
+      transform: scale(0.98);
+    }
+
+    .signature-container {
+      border: 2px solid #ddd;
+      border-radius: 12px;
+      background: white;
+      margin: 10px 0;
+      position: relative;
+    }
+
+    .signature-canvas {
+      width: 100%;
+      height: 200px;
+      cursor: crosshair;
+      display: block;
+      touch-action: none;
+    }
+
+    .btn-clear-signature {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      padding: 8px 16px;
+      background: rgba(255,255,255,0.9);
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 12px;
+      z-index: 10;
+    }
+
+    .input-group {
+      margin-bottom: 16px;
+    }
+
+    .input-group label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 600;
+      color: #333;
+      font-size: 14px;
+    }
+
+    .input-group input,
+    .input-group textarea {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 15px;
+      box-sizing: border-box;
+    }
+
+    .input-group textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    .btn-submit {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 20px;
+      box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+    }
+
+    .btn-submit:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+
+    .status-indicator {
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 16px;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .status-indicator.pending {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .status-indicator.success {
+      background: #d4edda;
+      color: #155724;
+    }
+  </style>
+</head>
+<body>
+  <div id="statusIndicador" class="status-bar status-online">🟢 Online - Sincronizado</div>
+
+  <div class="navbar">
+    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
+    <h1>📦 Comprovar Entrega</h1>
+  </div>
+
+  <div class="container">
+    <!-- Informações da Viagem -->
+    <div class="form-section">
+      <h3>🚛 Viagem</h3>
+      <div id="viagemInfo">
+        <p style="color: #666;">Carregando informações da viagem...</p>
+      </div>
+    </div>
+
+    <!-- Foto -->
+    <div class="form-section">
+      <h3>📸 Foto da Entrega</h3>
+      <div class="photo-preview" id="photoPreview">
+        <div style="text-align: center; color: #999;">
+          <div style="font-size: 48px; margin-bottom: 10px;">📷</div>
+          <p>Nenhuma foto capturada</p>
+        </div>
+      </div>
+      <input type="file" id="photoInput" accept="image/*" capture="environment" style="display: none;">
+      <button type="button" class="btn-capture" onclick="capturarFoto()">
+        📷 Capturar Foto
+      </button>
+    </div>
+
+    <!-- Assinatura -->
+    <div class="form-section">
+      <h3>✍️ Assinatura do Recebedor</h3>
+      <div class="signature-container">
+        <canvas id="signatureCanvas" class="signature-canvas"></canvas>
+        <button type="button" class="btn-clear-signature" onclick="limparAssinatura()">
+          🗑️ Limpar
+        </button>
+      </div>
+      <p style="font-size: 12px; color: #666; margin-top: 8px;">
+        Desenhe a assinatura do recebedor no espaço acima
+      </p>
+    </div>
+
+    <!-- Dados do Recebedor -->
+    <div class="form-section">
+      <h3>👤 Dados do Recebedor</h3>
+      
+      <div class="input-group">
+        <label for="receiverName">Nome do Recebedor *</label>
+        <input 
+          type="text" 
+          id="receiverName" 
+          placeholder="Digite o nome completo"
+          required
+        >
+      </div>
+
+      <div class="input-group">
+        <label for="receiverDocument">CPF/RG (Opcional)</label>
+        <input 
+          type="text" 
+          id="receiverDocument" 
+          placeholder="000.000.000-00"
+        >
+      </div>
+    </div>
+
+    <!-- Observações -->
+    <div class="form-section">
+      <h3>📝 Observações</h3>
+      <div class="input-group">
+        <label for="observations">Observações sobre a entrega (Opcional)</label>
+        <textarea 
+          id="observations" 
+          placeholder="Ex: Entregue no portão, recebedor assinou comprovante, etc."
+        ></textarea>
+      </div>
+    </div>
+
+    <!-- Status -->
+    <div id="submitStatus" style="display: none;" class="status-indicator"></div>
+
+    <!-- Botão Salvar -->
+    <button type="button" class="btn-submit" id="btnSalvar" onclick="salvarComprovante()">
+      ✅ Salvar Comprovante de Entrega
+    </button>
+  </div>
+
+  <script src="../js/notifications.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/offline.js"></script>
+  <script src="js/prova-entrega.js"></script>
+</body>
+</html>

@@ -4,30 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chat - Motorista</title>
+  <link rel="stylesheet" href="../css/padrao-telas.css">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { 
-      background: #e5ddd5; 
-      font-family: -apple-system, sans-serif; 
-      height: 100vh; 
-      display: flex; 
-      flex-direction: column;
-      overflow: hidden;
-    }
-    
-    .navbar { 
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-      color: white; 
-      padding: 14px 16px; 
-      display: flex; 
-      align-items: center; 
-      gap: 12px; 
-      flex-shrink: 0; 
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-    }
-    .btn-voltar { background: rgba(255,255,255,0.25); border: none; color: white; padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: 600; }
-    .navbar h1 { font-size: 18px; font-weight: 600; flex: 1; }
-    
     .chat-container { 
       flex: 1; 
       overflow-y: auto; 
@@ -112,19 +90,37 @@
       margin-bottom: 12px;
       opacity: 0.5;
     }
+
+    .status-indicator {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      margin-left: 8px;
+    }
+
+    .status-online {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .status-offline {
+      background: #f8d7da;
+      color: #721c24;
+    }
   </style>
 </head>
 <body>
+  <div id="statusIndicador" class="status-bar status-online">🟢 Online - Sincronizado</div>
+
   <div class="navbar">
     <button class="btn-voltar" onclick="voltar()">← Voltar</button>
-    <h1>💬 Chat com Operador</h1>
+    <h1>Chat com Operador <span id="chatStatus" class="status-indicator status-offline">Offline</span></h1>
   </div>
 
   <div class="chat-container" id="chatContainer">
     <div class="empty">
       <div class="empty-icon">💬</div>
-      <strong>Nenhuma mensagem ainda</strong><br>
-      Envie uma mensagem para começar a conversa!
+      <strong>Carregando mensagens...</strong>
     </div>
   </div>
 
@@ -133,127 +129,10 @@
     <button class="btn-enviar" onclick="enviarMensagem()">📤</button>
   </div>
 
+  <script src="../js/notifications.js"></script>
+  <script src="../js/auth.js"></script>
   <script src="../js/offline.js"></script>
-  <script>
-    const motorista = JSON.parse(localStorage.getItem('motorista') || '{}');
-    const token = localStorage.getItem('token');
-    if (!token) window.location.href = '../index.html';
-
-    let mensagens = [];
-    const idViagem = 82250; // TODO: Pegar da viagem atual
-
-    async function enviarMensagem() {
-      const input = document.getElementById('inputMensagem');
-      const texto = input.value.trim();
-      
-      if (!texto) return;
-
-      const mensagem = {
-        idviagem: idViagem,
-        idmotorista: motorista.id,
-        tipo: 'M',
-        mensagem: texto,
-        timestamp: new Date().toISOString()
-      };
-
-      // Adicionar à lista local
-      mensagens.push({
-        ...mensagem,
-        remetente: 'motorista',
-        enviado: false
-      });
-
-      renderizar();
-      input.value = '';
-      scrollBottom();
-
-      // Tentar enviar
-      try {
-        if (window.OfflineDB.isOnline()) {
-          const response = await fetch('/api/motorista/chat', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(mensagem)
-          });
-
-          if (response.ok) {
-            mensagens[mensagens.length - 1].enviado = true;
-            renderizar();
-          } else {
-            await window.OfflineDB.adicionarFila('filaMensagens', mensagem);
-          }
-        } else {
-          await window.OfflineDB.adicionarFila('filaMensagens', mensagem);
-        }
-
-        localStorage.setItem('chat_mensagens', JSON.stringify(mensagens));
-      } catch (err) {
-        console.error('Erro:', err);
-      }
-    }
-
-    function renderizar() {
-      const container = document.getElementById('chatContainer');
-      
-      if (mensagens.length === 0) {
-        container.innerHTML = `
-          <div class="empty">
-            <div class="empty-icon">💬</div>
-            <strong>Nenhuma mensagem ainda</strong><br>
-            Envie uma mensagem para começar a conversa!
-          </div>
-        `;
-        return;
-      }
-
-      container.innerHTML = mensagens.map(m => {
-        const hora = new Date(m.timestamp).toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
-        const classe = m.remetente === 'motorista' ? 'motorista' : 'operador';
-        const remetente = m.remetente === 'motorista' ? '👤 Você' : '👨‍💼 Operador';
-        const status = m.enviado ? '✓✓' : '⏳';
-
-        return `
-          <div class="mensagem ${classe}">
-            <div class="mensagem-bubble">
-              <div style="font-size: 11px; font-weight: 600; color: #666; margin-bottom: 4px;">
-                ${remetente}
-              </div>
-              <div class="mensagem-texto">${m.mensagem}</div>
-              <div class="mensagem-hora">${hora} ${status}</div>
-            </div>
-          </div>
-        `;
-      }).join('');
-    }
-
-    function scrollBottom() {
-      const container = document.getElementById('chatContainer');
-      container.scrollTop = container.scrollHeight;
-    }
-
-    function voltar() {
-      window.location.href = 'dashboard.html';
-    }
-
-    // Carregar mensagens salvas
-    const salvo = localStorage.getItem('chat_mensagens');
-    if (salvo) {
-      mensagens = JSON.parse(salvo);
-      renderizar();
-      setTimeout(scrollBottom, 100);
-    }
-
-    // Auto-atualizar mensagens a cada 10 segundos
-    setInterval(async () => {
-      // TODO: Buscar novas mensagens do servidor
-      if (window.OfflineDB && window.OfflineDB.isOnline()) {
-        window.OfflineDB.sincronizarTudo();
-      }
-    }, 10000);
-  </script>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <script src="js/chat.js"></script>
 </body>
 </html>
-

@@ -337,6 +337,62 @@ const viagemController = {
         WHERE IDVIAGEM = @IDVIAGEM
       `);
 
+      // Emitir evento WebSocket para atualização de viagem
+      try {
+        const websocketTorre = req.app.get('websocketTorre');
+        if (websocketTorre) {
+          // Buscar dados atualizados da viagem
+          const viagemAtualizada = await pool
+            .request()
+            .input('IDVIAGEM', sql.Decimal(15, 0), idNumerico)
+            .query(`
+              SELECT 
+                v.IDVIAGEM,
+                v.FGSITVIAGEM,
+                v.CDSITUACAOVIAGEM,
+                s.DSSITUACAOVIAGEM,
+                v.CDTIPOVIAGEM,
+                t.DSTIPOVIAGEM,
+                v.FGACTIVE,
+                v.CDCLASSEFROTA,
+                cf.DSCLASSEFROTA,
+                v.DTPREVINICIO,
+                v.DTPREVFINAL,
+                v.IDROTEIRO,
+                r.DSROTEIRO,
+                v.DISTANCIAKM,
+                v.VLFRETE,
+                v.PESO,
+                v.CUBAGEM,
+                v.OBSERV,
+                co.ESTADO AS ORIGEM_ESTADO,
+                co.NMCIDADE AS ORIGEM_CIDADE,
+                cd.ESTADO AS DESTINO_ESTADO,
+                cd.NMCIDADE AS DESTINO_CIDADE,
+                CASE 
+                  WHEN EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] WHERE IDVIAGEM = v.IDVIAGEM AND STATUS = 'CONFIRMADA') THEN 'S'
+                  ELSE 'N'
+                END AS TEM_CONFIRMADO
+              FROM [dbo].[VIAGEMMESTRE] v
+              LEFT JOIN [dbo].[SITUACAOVIAGEM] s ON v.CDSITUACAOVIAGEM = s.CDSITUACAOVIAGEM
+              LEFT JOIN [dbo].[TIPOVIAGEM] t ON v.CDTIPOVIAGEM = t.CDTIPOVIAGEM
+              LEFT JOIN [dbo].[CLASSEFROTA] cf ON v.CDCLASSEFROTA = cf.CDCLASSEFROTA
+              LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
+              LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
+              LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
+              WHERE v.IDVIAGEM = @IDVIAGEM
+            `);
+
+          if (viagemAtualizada.recordset && viagemAtualizada.recordset[0]) {
+            const dadosViagem = viagemAtualizada.recordset[0];
+            websocketTorre.emitirAtualizacaoViagem(idNumerico, dadosViagem);
+          }
+        }
+      } catch (wsError) {
+        // Não interromper resposta se WebSocket falhar
+        console.warn('⚠️ Erro ao emitir evento WebSocket de atualização de viagem:', wsError.message);
+      }
+
       res.json({ success: true, message: 'Viagem atualizada com sucesso!' });
     } catch (err) {
       console.error('Erro ao atualizar viagem:', err);
@@ -980,15 +1036,7 @@ const viagemController = {
         }
       }
 
-      // Log da query para debug (apenas em desenvolvimento)
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[DEBUG] Query motoristas compatíveis:', query.substring(0, 200) + '...');
-        console.log('[DEBUG] Parâmetros:', {
-          IDVIAGEM: idViagem,
-          IDROTEIRO: IDROTEIRO || 0,
-          CDCLASSEFROTA: CDCLASSEFROTA
-        });
-      }
+      // Logs de debug removidos
 
       const result = await request.query(query);
 
@@ -1564,6 +1612,62 @@ const viagemController = {
         await transaction.commit();
         console.log(`[CONFIRMAR] Transação commitada com sucesso para convocação ${id}`);
 
+        // Emitir evento WebSocket para atualização de viagem (motorista atribuído)
+        try {
+          const websocketTorre = req.app.get('websocketTorre');
+          if (websocketTorre && convocacao.IDVIAGEM) {
+            // Buscar dados atualizados da viagem com motorista confirmado
+            const viagemAtualizada = await pool
+              .request()
+              .input('IDVIAGEM', sql.Decimal(15, 0), convocacao.IDVIAGEM)
+              .query(`
+                SELECT 
+                  v.IDVIAGEM,
+                  v.FGSITVIAGEM,
+                  v.CDSITUACAOVIAGEM,
+                  s.DSSITUACAOVIAGEM,
+                  v.CDTIPOVIAGEM,
+                  t.DSTIPOVIAGEM,
+                  v.FGACTIVE,
+                  v.CDCLASSEFROTA,
+                  cf.DSCLASSEFROTA,
+                  v.DTPREVINICIO,
+                  v.DTPREVFINAL,
+                  v.IDROTEIRO,
+                  r.DSROTEIRO,
+                  v.DISTANCIAKM,
+                  v.VLFRETE,
+                  co.ESTADO AS ORIGEM_ESTADO,
+                  co.NMCIDADE AS ORIGEM_CIDADE,
+                  cd.ESTADO AS DESTINO_ESTADO,
+                  cd.NMCIDADE AS DESTINO_CIDADE,
+                  cg.CDCADASTRO AS CDMOTORISTA,
+                  upper(cg.RZSOCIAL) AS MOTORISTA_NOME,
+                  cg.NRCELULAR AS MOTORISTA_CELULAR,
+                  'S' AS TEM_CONFIRMADO
+                FROM [dbo].[VIAGEMMESTRE] v
+                LEFT JOIN [dbo].[SITUACAOVIAGEM] s ON v.CDSITUACAOVIAGEM = s.CDSITUACAOVIAGEM
+                LEFT JOIN [dbo].[TIPOVIAGEM] t ON v.CDTIPOVIAGEM = t.CDTIPOVIAGEM
+                LEFT JOIN [dbo].[CLASSEFROTA] cf ON v.CDCLASSEFROTA = cf.CDCLASSEFROTA
+                LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
+                LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
+                LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
+                LEFT JOIN [dbo].[CONVOCACAO] c ON c.IDVIAGEM = v.IDVIAGEM AND c.STATUS = 'CONFIRMADA'
+                LEFT JOIN [dbo].[CADASTROGERAL] cg ON c.CDCADASTRO_MOTORISTA = cg.CDCADASTRO
+                WHERE v.IDVIAGEM = @IDVIAGEM
+              `);
+
+            if (viagemAtualizada.recordset && viagemAtualizada.recordset[0]) {
+              const dadosViagem = viagemAtualizada.recordset[0];
+              websocketTorre.emitirAtualizacaoViagem(convocacao.IDVIAGEM, dadosViagem);
+              console.log(`📡 Evento WebSocket emitido: viagem ${convocacao.IDVIAGEM} atualizada (motorista confirmado)`);
+            }
+          }
+        } catch (wsError) {
+          // Não interromper resposta se WebSocket falhar
+          console.warn('⚠️ Erro ao emitir evento WebSocket de confirmação:', wsError.message);
+        }
+
         // Buscar dados do motorista confirmado para enviar WhatsApp
         const motoristaResult = await pool
           .request()
@@ -1857,7 +1961,7 @@ const viagemController = {
               `);
 
             if (contratadorResult.recordset.length > 0) {
-              console.log('[DEBUG CONTRATADOR] Contratador encontrado mas INATIVO. FGACTIVE:', contratadorResult.recordset[0].FGACTIVE);
+              // Log de debug removido
             }
           }
 
@@ -1865,15 +1969,15 @@ const viagemController = {
             const contratador = contratadorResult.recordset[0];
             convocacao.CONTRATADOR_NOME = contratador.RZSOCIAL;
             convocacao.CONTRATADOR_CELULAR = contratador.NRCELULAR;
-            console.log('[DEBUG CONTRATADOR] Contratador encontrado via query separada:', contratador.RZSOCIAL, '| Celular:', contratador.NRCELULAR);
+            // Log de debug removido
           } else {
-            console.log('[DEBUG CONTRATADOR] Contratador NÃO EXISTE na tabela CADASTROGERAL. CDCONTRATADOR:', convocacao.CDCONTRATADOR);
+            // Log de debug removido
           }
         } catch (err) {
           console.error('[DEBUG CONTRATADOR] Erro ao buscar contratador separadamente:', err);
         }
       } else if (convocacao.CONTRATADOR_NOME) {
-        console.log('[DEBUG CONTRATADOR] Contratador encontrado via JOIN:', convocacao.CONTRATADOR_NOME, '| Celular:', convocacao.CONTRATADOR_CELULAR || 'Não informado');
+        // Log de debug removido
       }
 
       console.log(`[CONVOCACAO PUBLICA] Convocação encontrada: ID ${id}, Status: ${convocacao.STATUS}`);

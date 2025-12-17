@@ -276,7 +276,7 @@ router.get('/cidades/rota', async (req, res) => {
     }
 
     // Construir URL do OSRM
-    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${lon1},${lat1};${lon2},${lat2}?overview=full&geometries=geojson`;
+    const osrmUrl = `https://router.project-osrm.org/route/v1/driving-hgv/${lon1},${lat1};${lon2},${lat2}?overview=full&geometries=geojson`;
     
     try {
       const response = await axios.get(osrmUrl, {

@@ -15,6 +15,7 @@ router.post('/cadastros-gerais', cadastroController.criar);
 // Rotas específicas ANTES das rotas com parâmetro :id (para evitar conflito)
 router.get('/cadastros-gerais/transportadores', cadastroController.listarTransportadores);
 router.get('/cadastros-gerais/exportar-excel', cadastroController.exportarExcel);
+router.post('/cadastros-gerais/aplicar-correcao-sp-validade', cadastroController.aplicarCorrecaoSPValidade);
 router.post('/cadastros-gerais/executar-init-sql', async (req, res) => {
   try {
     const { sql } = req.body;

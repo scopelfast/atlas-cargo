@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SOS - Emergência</title>
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <style>
+    .sos-container {
+      max-width: 500px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    .sos-warning {
+      background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+      color: white;
+      padding: 30px 20px;
+      border-radius: 20px;
+      text-align: center;
+      margin-bottom: 30px;
+      box-shadow: 0 8px 24px rgba(231, 76, 60, 0.4);
+    }
+
+    .sos-warning h1 {
+      font-size: 48px;
+      margin: 0 0 10px 0;
+    }
+
+    .sos-warning p {
+      font-size: 16px;
+      margin: 0;
+      opacity: 0.95;
+    }
+
+    .sos-button {
+      width: 100%;
+      padding: 24px;
+      background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+      color: white;
+      border: none;
+      border-radius: 20px;
+      font-size: 24px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 8px 24px rgba(231, 76, 60, 0.4);
+      margin-bottom: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .sos-button:active {
+      transform: scale(0.98);
+    }
+
+    .sos-button.press-and-hold {
+      background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+      animation: pulse 0.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 8px 24px rgba(231, 76, 60, 0.4); }
+      50% { box-shadow: 0 8px 32px rgba(231, 76, 60, 0.7); }
+    }
+
+    .sos-progress {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 4px;
+      background: white;
+      transition: width 0.1s linear;
+      border-radius: 0 0 20px 20px;
+    }
+
+    .message-input {
+      width: 100%;
+      padding: 15px;
+      border: 2px solid #dee2e6;
+      border-radius: 12px;
+      font-size: 15px;
+      margin-bottom: 20px;
+      font-family: inherit;
+    }
+
+    .info-box {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      border-left: 4px solid #667eea;
+    }
+
+    .info-box h3 {
+      margin: 0 0 10px 0;
+      color: #333;
+      font-size: 16px;
+    }
+
+    .info-box p {
+      margin: 5px 0;
+      color: #666;
+      font-size: 14px;
+    }
+
+    .status-message {
+      text-align: center;
+      padding: 15px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .status-message.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .status-message.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .status-message.show {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div id="statusIndicador" class="status-bar status-online">🟢 Online</div>
+
+  <div class="navbar">
+    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
+    <h1>SOS</h1>
+  </div>
+
+  <div class="container">
+    <div class="sos-container">
+      <div class="sos-warning">
+        <p><strong>EMERGÊNCIA</strong></p>
+        <p>Mantenha pressionado por 3 segundos</p>
+      </div>
+
+      <div id="statusMessage" class="status-message"></div>
+
+      <button 
+        id="btnSOS" 
+        class="sos-button"
+        ontouchstart="iniciarSOS()"
+        ontouchend="cancelarSOS()"
+        onmousedown="iniciarSOS()"
+        onmouseup="cancelarSOS()"
+        onmouseleave="cancelarSOS()"
+      >
+        ENVIAR ALERTA DE EMERGÊNCIA
+        <div id="progressBar" class="sos-progress" style="width: 0%;"></div>
+      </button>
+
+      <div class="info-box">
+        <h3>📝 Mensagem (Opcional)</h3>
+        <input 
+          type="text" 
+          id="inputMensagem" 
+          class="message-input" 
+          placeholder="Descreva brevemente a emergência..."
+          maxlength="500"
+        >
+      </div>
+
+      <div class="info-box">
+        <h3>ℹ️ Informações</h3>
+        <p><strong>ID Viagem:</strong> <span id="viagemId">-</span></p>
+        <p><strong>Localização:</strong> <span id="localizacao">Obtendo GPS...</span></p>
+        <p><strong>Status:</strong> <span id="statusConexao">Online</span></p>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/notifications.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/offline.js"></script>
+  <script src="js/sos.js"></script>
+</body>
+</html>

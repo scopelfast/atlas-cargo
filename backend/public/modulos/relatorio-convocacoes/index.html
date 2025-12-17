@@ -617,11 +617,9 @@
       script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
       script.async = false; // Carregar de forma síncrona
       script.onload = function() {
-        console.log('✅ Chart.js script carregado via script tag');
         // Aguardar um pouco para garantir que Chart está disponível
         setTimeout(() => {
           if (typeof Chart !== 'undefined') {
-            console.log('✅ Chart.js disponível globalmente');
             window.chartJsLoaded = true;
           } else {
             console.warn('⚠️ Chart.js carregado mas não disponível globalmente');
@@ -645,10 +643,9 @@
       let tentativas = 0;
       const checkChart = setInterval(() => {
         if (typeof Chart !== 'undefined') {
-          console.log('✅ Chart.js disponível antes do script principal');
           window.chartJsReady = true;
           clearInterval(checkChart);
-        } else if (tentativas++ > 100) { // Aumentado para 10 segundos
+        } else if (tentativas++ > 100) { // 10 segundos
           console.warn('⚠️ Chart.js ainda não disponível após 10 segundos');
           window.chartJsReady = false;
           clearInterval(checkChart);

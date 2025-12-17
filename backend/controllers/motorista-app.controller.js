@@ -990,6 +990,24 @@ const motoristaAppController = {
           `);
         
         console.log(`✅ [GPS] Posição salva em VIAGEMRASTREAMENTO (viagem #${idViagem})`);
+        
+        // Emitir evento WebSocket para Torre de Controle
+        try {
+          const websocketTorre = req.app ? req.app.get('websocketTorre') : null;
+          if (websocketTorre && idViagem) {
+            websocketTorre.emitirAtualizacaoGPS(idViagem, {
+              latitude: parseFloat(latitude),
+              longitude: parseFloat(longitude),
+              velocidade: velocidade ? parseFloat(velocidade) : null,
+              precisao: precisao ? Math.round(precisao) : null,
+              altitude: altitude ? parseFloat(altitude) : null,
+              direcao: direcao ? parseFloat(direcao) : null,
+              timestamp: new Date().toISOString()
+            });
+          }
+        } catch (err) {
+          console.warn('⚠️ Erro ao emitir evento WebSocket GPS:', err.message);
+        }
       } 
       // Se NÃO tem viagem: salvar em MOTORISTARASTREAMENTO
       else {
@@ -1171,7 +1189,7 @@ const motoristaAppController = {
         if (tableCheck1.recordset[0].existe > 0) {
           tableName = 'VIAGEMRASTREAMENTO';
           tableExists = true;
-          console.log('✅ Usando tabela: VIAGEMRASTREAMENTO');
+          // Log removido
         }
       } catch (err) {
         console.warn('Erro ao verificar VIAGEMRASTREAMENTO:', err.message);
@@ -1223,9 +1241,7 @@ const motoristaAppController = {
           // Filtrar posições até 2 horas ANTES da data de início prevista
           // Exemplo: se início é 15/12/2025 05:00, mostrar apenas posições até 15/12/2025 03:00
           dataLimite = new Date(dataInicio.getTime() - (2 * 60 * 60 * 1000));
-          console.log(`📅 Data início prevista: ${dataInicio.toISOString()}`);
-          console.log(`📅 Data limite (2h antes): ${dataLimite.toISOString()}`);
-          console.log(`📅 Filtrando posições com DHPOSICAO/DHREGISTRO <= ${dataLimite.toISOString()}`);
+          // Logs removidos
         } else {
           console.log('⚠️  Data de início prevista não encontrada. Mostrando todas as posições.');
         }
@@ -1274,7 +1290,7 @@ const motoristaAppController = {
           console.log(`🔍 Aplicando filtro: posições com DHPOSICAO/DHREGISTRO <= ${dataLimite.toISOString()}`);
           console.log(`📊 Total de posições antes do filtro será verificado após a query`);
         } else {
-          console.log(`📊 Sem filtro de data - mostrando todas as posições`);
+          // Log removido
         }
         
         if (cdMotorista) {
@@ -1315,7 +1331,7 @@ const motoristaAppController = {
               WHERE IDVIAGEM = @idviagem
             `);
             const totalSemFiltro = testResult.recordset[0].total;
-            console.log(`📊 Total de posições na tabela (sem filtro): ${totalSemFiltro}`);
+            // Log removido
             if (totalSemFiltro > 0) {
               // Verificar algumas posições para ver as datas
               const sampleRequest = pool.request();
@@ -1356,7 +1372,7 @@ const motoristaAppController = {
             ORDER BY ISNULL(vr.DHPOSICAO, vr.DHREGISTRO) ASC
           `);
           
-          console.log(`📊 Query executada para VIAGEMRASTREAMENTO (sem motorista). Filtro: ${filtroData || 'NENHUM'}. Registros encontrados: ${result.recordset.length}`);
+          // Log removido
           if (result.recordset.length === 0 && dataLimite) {
             console.warn(`⚠️  Nenhuma posição encontrada com filtro. Verificando total sem filtro...`);
             const testRequest2 = pool.request();
@@ -1379,8 +1395,7 @@ const motoristaAppController = {
                 WHERE vr.IDVIAGEM = @idviagem
                 ORDER BY ISNULL(vr.DHPOSICAO, vr.DHREGISTRO) DESC
               `);
-              console.log(`📅 Últimas 5 posições (mais recentes):`, sampleResult2.recordset);
-              console.log(`📅 Data limite do filtro: ${dataLimite.toISOString()}`);
+              // Logs removidos
             }
           }
           console.log(`📊 Total de registros encontrados: ${result.recordset.length}`);
@@ -1512,7 +1527,7 @@ const motoristaAppController = {
       }
 
       // Sempre retornar array, mesmo se vazio
-      console.log(`✅ Retornando ${posicoes.length} posições para viagem ${idviagem}`);
+      // Log removido
       if (posicoes.length === 0 && dataLimite) {
         console.warn(`⚠️  Nenhuma posição encontrada. Verifique se o filtro de data (até ${dataLimite.toISOString()}) não está muito restritivo.`);
       }

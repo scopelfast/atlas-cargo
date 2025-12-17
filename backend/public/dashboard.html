@@ -8,12 +8,9 @@
   <script>
     // CRÍTICO: Executar ANTES de qualquer outro código para forçar HTTP
     (function() {
-      console.log('🔧 Forçando protocolo HTTP...', window.location.protocol);
-      
       // Se estiver em HTTPS, redirecionar imediatamente para HTTP
       if (window.location.protocol === 'https:') {
         const httpUrl = 'http:' + window.location.href.substring(window.location.protocol.length);
-        console.log('🔄 Redirecionando de HTTPS para HTTP:', httpUrl);
         window.location.replace(httpUrl);
         return;
       }
@@ -21,8 +18,6 @@
       const protocol = 'http:'; // Forçar HTTP explicitamente
       const host = window.location.host;
       const baseUrl = protocol + '//' + host;
-      
-      console.log('✅ Usando baseUrl HTTP:', baseUrl);
       
       // Função para criar elementos com URLs absolutas
       function createLink(href) {
@@ -33,7 +28,6 @@
         // Forçar http:// explicitamente
         url = url.replace(/^https:/, 'http:');
         link.href = url;
-        console.log('📦 Carregando CSS:', url);
         document.head.appendChild(link);
       }
       
@@ -101,26 +95,71 @@
   </div>
 
   <script>
+    // Fallback inline para funções críticas (caso ambiente-utils.js não carregue)
+    (function() {
+      if (typeof window.obterAmbiente === 'undefined') {
+        window.obterAmbiente = function() {
+          const hostname = window.location.hostname;
+          return (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.')) ? 'local' : 'producao';
+        };
+        window.obterUrlBaseSync = function() {
+          return window.location.origin;
+        };
+        window.obterUrlBase = async function() {
+          return window.location.origin;
+        };
+      }
+    })();
+
     // Carregar scripts com URLs absolutas forçando HTTP - SEQUENCIALMENTE
     (function() {
       const baseUrl = window.__BASE_URL__ || ('http://' + window.location.host);
-      console.log('📜 Carregando scripts com baseUrl:', baseUrl);
       
-      function loadScript(src, callback) {
+      function loadScript(src, callback, retries = 2) {
         const script = document.createElement('script');
         let url = src.startsWith('http') ? src.replace(/^https?:/, 'http:') : baseUrl + src;
         // Forçar http:// explicitamente
         url = url.replace(/^https:/, 'http:');
         script.src = url;
+        
+        let attempts = 0;
+        const maxAttempts = retries;
+        
         script.onerror = function() {
-          console.error('❌ Erro ao carregar script:', this.src);
-          if (callback) callback(false);
+          attempts++;
+          console.error('❌ Erro ao carregar script:', this.src, `(tentativa ${attempts}/${maxAttempts + 1})`);
+          
+          // Tentar novamente se houver tentativas restantes
+          if (attempts <= maxAttempts) {
+            setTimeout(() => {
+              loadScript(src, callback, maxAttempts - attempts);
+            }, 1000);
+          } else {
+            // Criar stubs para funções críticas se o script falhar completamente
+            if (src.includes('ambiente-utils.js')) {
+              console.warn('⚠️ ambiente-utils.js não carregou, usando fallback inline');
+              // Já está definido acima como fallback
+            } else if (src.includes('utils.js')) {
+              console.warn('⚠️ utils.js não carregou, criando stubs básicos');
+              if (typeof window.showMessage === 'undefined') {
+                window.showMessage = function(msg, type) { alert(msg); };
+              }
+            } else if (src.includes('permissions.js')) {
+              console.warn('⚠️ permissions.js não carregou');
+            } else if (src.includes('log-helper.js')) {
+              console.warn('⚠️ log-helper.js não carregou');
+              if (typeof window.logAcao === 'undefined') {
+                window.logAcao = function() {}; // Stub vazio
+              }
+            }
+            if (callback) callback(false);
+          }
         };
+        
         script.onload = function() {
-          console.log('✅ Script carregado:', url);
           if (callback) callback(true);
         };
-        console.log('📜 Carregando script:', url);
+        
         document.body.appendChild(script);
       }
       
@@ -134,16 +173,20 @@
       ];
       
       let index = 0;
+      let hasErrors = false;
       function loadNext() {
         if (index < scripts.length) {
           loadScript(scripts[index], function(success) {
-            if (success || index === scripts.length - 1) {
-              index++;
-              loadNext();
-            } else {
-              console.error('❌ Falha ao carregar script, parando sequência');
+            if (!success) {
+              console.warn('⚠️ Script falhou, mas continuando:', scripts[index]);
+              hasErrors = true;
             }
+            index++;
+            loadNext();
           });
+        } else {
+          // Todos os scripts foram processados
+          // Dashboard.js já inicializa automaticamente quando carrega
         }
       }
       

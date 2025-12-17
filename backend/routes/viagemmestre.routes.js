@@ -7,6 +7,7 @@
 const express = require('express');
 const router = express.Router();
 const viagemController = require('../controllers/viagemmestre.controller');
+const { cacheComboMiddleware } = require('../middleware/cache.middleware');
 
 // 🔍 ROTA DE DEBUG - Listar todas as rotas registradas
 router.get('/debug-rotas', (req, res) => {
@@ -33,20 +34,20 @@ router.get('/viagens/historico-roteiro', viagemController.buscarHistoricoRoteiro
 
 router.get('/viagens/:id', viagemController.buscarPorId);
 
-// Rotas de combos
-router.get('/tipos-viagem-combo', viagemController.listarTiposViagem);
-router.get('/situacoes-viagem-combo', viagemController.listarSituacoesViagem);
-router.get('/classes-frota-combo', viagemController.listarClassesFrota);
-router.get('/contratadores-combo', viagemController.listarContratadores);
-router.get('/roteiros-combo', viagemController.listarRoteiros);
-router.get('/motivos-recusa-combo', viagemController.listarMotivosRecusa);
-router.get('/motivos-reabertura-combo', viagemController.listarMotivosReabertura);
+// Rotas de combos (com cache de 10 minutos)
+router.get('/tipos-viagem-combo', cacheComboMiddleware(), viagemController.listarTiposViagem);
+router.get('/situacoes-viagem-combo', cacheComboMiddleware(), viagemController.listarSituacoesViagem);
+router.get('/classes-frota-combo', cacheComboMiddleware(), viagemController.listarClassesFrota);
+router.get('/contratadores-combo', cacheComboMiddleware(), viagemController.listarContratadores);
+router.get('/roteiros-combo', cacheComboMiddleware(), viagemController.listarRoteiros);
+router.get('/motivos-recusa-combo', cacheComboMiddleware(), viagemController.listarMotivosRecusa);
+router.get('/motivos-reabertura-combo', cacheComboMiddleware(), viagemController.listarMotivosReabertura);
 
-// Rota para estados brasileiros
-router.get('/estados-brasil', viagemController.listarEstadosBrasil);
+// Rota para estados brasileiros (com cache de 10 minutos)
+router.get('/estados-brasil', cacheComboMiddleware(), viagemController.listarEstadosBrasil);
 
-// Rota para cidades por estado
-router.get('/cidades-por-estado/:estado', viagemController.listarCidadesPorEstado);
+// Rota para cidades por estado (com cache de 10 minutos)
+router.get('/cidades-por-estado/:estado', cacheComboMiddleware(), viagemController.listarCidadesPorEstado);
 
 // Rotas para convocações e motoristas compatíveis
 router.get('/viagens-pendentes', viagemController.listarViagensPendentes);

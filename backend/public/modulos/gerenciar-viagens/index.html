@@ -83,6 +83,170 @@
       opacity: 0.9;
     }
     
+    /* Estilos para Alertas */
+    .alerta-card {
+      background: white;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .alerta-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    .alerta-card.severity-high {
+      border-left: 4px solid #e74c3c;
+    }
+    
+    .alerta-card.severity-medium {
+      border-left: 4px solid #f39c12;
+    }
+    
+    .alerta-card.severity-low {
+      border-left: 4px solid #3498db;
+    }
+    
+    .alerta-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+    
+    .alerta-tipo {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    
+    .alerta-tipo.atraso {
+      background: #fee;
+      color: #c0392b;
+    }
+    
+    .alerta-tipo.parada {
+      background: #fff3cd;
+      color: #856404;
+    }
+    
+    .alerta-tipo.offline {
+      background: #f8d7da;
+      color: #721c24;
+    }
+    
+    .alerta-tipo.desvio {
+      background: #d1ecf1;
+      color: #0c5460;
+    }
+    
+    .alerta-message {
+      font-size: 16px;
+      font-weight: 600;
+      color: #2c3e50;
+      margin-bottom: 8px;
+    }
+    
+    .alerta-details {
+      font-size: 13px;
+      color: #6c757d;
+      margin-top: 8px;
+    }
+    
+    .alerta-actions {
+      margin-top: 15px;
+      display: flex;
+      gap: 10px;
+    }
+
+    /* Estilos para Chat */
+    .mensagem-chat {
+      display: flex;
+      margin-bottom: 12px;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .mensagem-chat.operador {
+      justify-content: flex-end;
+    }
+
+    .mensagem-chat.motorista {
+      justify-content: flex-start;
+    }
+
+    .mensagem-bubble-chat {
+      max-width: 70%;
+      padding: 10px 14px;
+      border-radius: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      word-wrap: break-word;
+    }
+
+    .mensagem-chat.operador .mensagem-bubble-chat {
+      background: #667eea;
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+
+    .mensagem-chat.motorista .mensagem-bubble-chat {
+      background: white;
+      color: #333;
+      border: 1px solid #dee2e6;
+      border-bottom-left-radius: 4px;
+    }
+
+    .mensagem-header-chat {
+      font-size: 11px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      opacity: 0.8;
+    }
+
+    .mensagem-texto-chat {
+      font-size: 14px;
+      margin-bottom: 4px;
+      line-height: 1.4;
+    }
+
+    .mensagem-hora-chat {
+      font-size: 11px;
+      opacity: 0.7;
+      text-align: right;
+    }
+
+    /* Estilos para SOS */
+    @keyframes pulseSOS {
+      0%, 100% {
+        box-shadow: 0 2px 8px rgba(231, 76, 60, 0.1);
+      }
+      50% {
+        box-shadow: 0 4px 16px rgba(231, 76, 60, 0.4);
+      }
+    }
+
+    /* Estilos para Ranking */
+    .reputacao-score-excelente { color: #28a745; }
+    .reputacao-score-bom { color: #ffc107; }
+    .reputacao-score-regular { color: #fd7e14; }
+    .reputacao-score-ruim { color: #dc3545; }
+    
     /* Modal de dados completos (veículo e motorista) */
     .modal-dados-completos {
       display: none;
@@ -417,6 +581,10 @@
       <button class="tab-btn" data-tab="veiculo">Veículo</button>
       <button class="tab-btn" data-tab="motorista">Motorista</button>
       <button class="tab-btn" data-tab="rastreamento">Rastreamento</button>
+      <button class="tab-btn" data-tab="alertas">Alertas</button>
+      <button class="tab-btn" data-tab="chat">Chat</button>
+      <button class="tab-btn" data-tab="sos">SOS</button>
+      <button class="tab-btn" data-tab="ranking">Ranking</button>
       <button class="tab-btn" data-tab="integracao-meta">Integração Meta</button>
     </div>
 
@@ -851,6 +1019,13 @@
           </div>
         </div>
         
+        <!-- Campo para exibir resumo da rota -->
+        <div id="resumoRotaContainer" style="margin-top: 20px; display: none;">
+          <h3 style="margin-bottom: 10px; color: #333; font-size: 1.1em;">Detalhes da Rota</h3>
+          <div id="resumoRota" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; white-space: pre-wrap; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 0.95em; line-height: 1.6; color: #333; max-height: 400px; overflow-y: auto;">
+            <p style="color: #666; font-style: italic;">Carregando resumo da rota...</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1360,6 +1535,50 @@
       </div>
     </div>
 
+    <!-- Aba Alertas Inteligentes -->
+    <div class="tab-content" id="tab-alertas">
+      <div class="form-box">
+        <h2>Alertas Inteligentes</h2>
+        <div class="actions-top">
+          <button id="btnVoltarAlertas" type="button" class="btn cancel">← Voltar aos Filtros</button>
+          <button id="btnVerificarAlertas" type="button" class="btn info">🔍 Verificar Alertas</button>
+          <button id="btnAtualizarAlertas" type="button" class="btn save">🔄 Atualizar</button>
+        </div>
+
+        <!-- Mensagem quando não há viagem selecionada -->
+        <div id="alertasSemViagem" style="text-align: center; padding: 40px; color: #6c757d;">
+          <p style="font-size: 16px; margin-bottom: 10px;">Selecione uma viagem na aba <strong>Dados</strong> ou <strong>Grid</strong> para visualizar os alertas.</p>
+          <p style="font-size: 13px; color: #95a5a6;">Os alertas detectam automaticamente: atrasos, paradas prolongadas, desvios de rota e motoristas offline.</p>
+        </div>
+
+        <!-- Container de Alertas -->
+        <div id="alertasContainer" style="display: none;">
+          <!-- Informações da Viagem -->
+          <div id="alertasInfoViagem" style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+              <div>
+                <strong>ID Viagem:</strong> <span id="alertasIdViagem">-</span>
+              </div>
+              <div>
+                <strong>Motorista:</strong> <span id="alertasMotorista">-</span>
+              </div>
+              <div>
+                <strong>Total de Alertas:</strong> <span id="alertasTotal">0</span>
+              </div>
+              <div>
+                <strong>Última Verificação:</strong> <span id="alertasUltimaVerificacao">-</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Lista de Alertas -->
+          <div id="alertasLista" style="display: grid; gap: 15px;">
+            <!-- Alertas serão inseridos aqui dinamicamente -->
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div id="message" class="message"></div>
   </div>
 
@@ -1427,15 +1646,21 @@
       <h3 id="loadingTitleFiltros">Aplicando Filtros</h3>
       <p id="loadingTextFiltros">Por favor, aguarde enquanto aplicamos os filtros...</p>
       <p class="calculando-detalhe">Isso pode levar alguns segundos.</p>
+      <button type="button" onclick="hideLoadingOverlayFiltros()" class="btn cancel" style="margin-top: 15px;">
+        Cancelar
+      </button>
     </div>
   </div>
 
   <!-- Cache Buster - deve ser o primeiro script -->
   <script src="/js/cache-buster.js?v=202512091200"></script>
   <script src="/js/ambiente-utils.js"></script>
+  <script src="/js/skeleton-loader.js"></script>
   <script src="/js/map-config.js"></script>
   <script src="/js/grid-editor.js"></script>
   <script src="/js/log-helper.js"></script>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <script src="js/websocket-torre.js"></script>
   <script src="js/script.js?v=202501131600"></script>
 
   <!-- Modal Dados Completos do Veículo -->
@@ -1509,9 +1734,122 @@
             Carregando validades...
           </div>
         </div>
+        </div>
       </div>
     </div>
-  </div>
+
+    <!-- Aba Chat -->
+    <div class="tab-content" id="tab-chat">
+      <div class="form-box">
+        <h2>Chat com Motorista</h2>
+        <div class="actions-top">
+          <button id="btnVoltarChat" type="button" class="btn cancel">← Voltar aos Filtros</button>
+          <button id="btnAtualizarChat" type="button" class="btn save">🔄 Atualizar</button>
+        </div>
+
+        <!-- Mensagem quando não há viagem selecionada -->
+        <div id="chatSemViagem" style="text-align: center; padding: 40px; color: #6c757d;">
+          <p style="font-size: 16px; margin-bottom: 10px;">Selecione uma viagem na aba <strong>Dados</strong> ou <strong>Grid</strong> para abrir o chat.</p>
+          <p style="font-size: 13px; color: #95a5a6;">Comunique-se com o motorista em tempo real sobre a viagem.</p>
+        </div>
+
+        <!-- Container de Chat -->
+        <div id="chatContainer" style="display: none;">
+          <!-- Informações da Viagem -->
+          <div id="chatInfoViagem" style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+              <div>
+                <strong>ID Viagem:</strong> <span id="chatIdViagem">-</span>
+              </div>
+              <div>
+                <strong>Motorista:</strong> <span id="chatMotorista">-</span>
+              </div>
+              <div>
+                <strong>Status:</strong> <span id="chatStatusConexao" style="padding: 4px 8px; border-radius: 4px; font-size: 12px; background: #d4edda; color: #155724;">Online</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Área de Mensagens -->
+          <div id="chatMensagens" style="height: 400px; overflow-y: auto; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; background: #f8f9fa; margin-bottom: 15px;">
+            <div id="chatMensagensLista" style="display: flex; flex-direction: column; gap: 10px;">
+              <div style="text-align: center; padding: 40px; color: #999;">
+                Carregando mensagens...
+              </div>
+            </div>
+          </div>
+
+          <!-- Área de Envio -->
+          <div style="display: flex; gap: 10px;">
+            <input 
+              type="text" 
+              id="chatInputMensagem" 
+              placeholder="Digite sua mensagem..." 
+              style="flex: 1; padding: 12px; border: 1px solid #dee2e6; border-radius: 8px; font-size: 14px;"
+              onkeypress="if(event.key==='Enter') enviarMensagemAdmin()"
+            >
+            <button 
+              id="btnEnviarChat" 
+              type="button" 
+              class="btn save"
+              onclick="enviarMensagemAdmin()"
+            >
+              📤 Enviar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Aba SOS (Emergência) -->
+    <div class="tab-content" id="tab-sos">
+      <div class="form-box">
+        <h2>Alertas de Emergência (SOS)</h2>
+        <div class="actions-top">
+          <button id="btnVoltarSOS" type="button" class="btn cancel">← Voltar aos Filtros</button>
+          <button id="btnAtualizarSOS" type="button" class="btn save">🔄 Atualizar</button>
+        </div>
+
+        <!-- Lista de Alertas SOS Ativos -->
+        <div id="sosContainer">
+          <div id="sosLista" style="display: grid; gap: 15px;">
+            <div style="text-align: center; padding: 40px; color: #6c757d;">
+              <strong>Carregando alertas SOS...</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Aba Ranking de Motoristas -->
+    <div class="tab-content" id="tab-ranking">
+      <div class="form-box">
+        <h2>Ranking de Motoristas</h2>
+        <div class="actions-top">
+          <button id="btnVoltarRanking" type="button" class="btn cancel">← Voltar aos Filtros</button>
+          <button id="btnAtualizarRanking" type="button" class="btn save">🔄 Atualizar</button>
+          <button id="btnRecalcularRanking" type="button" class="btn info">🔄 Recalcular Todas</button>
+        </div>
+
+        <!-- Informações do Ranking -->
+        <div id="rankingInfo" style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
+          <p style="margin: 0; font-size: 14px; color: #666;">
+            <strong>Como funciona:</strong> O ranking é calculado automaticamente com base em pontualidade, número de entregas e cancelamentos. 
+            Atualizado diariamente às 02:00.
+          </p>
+        </div>
+
+        <!-- Lista de Ranking -->
+        <div id="rankingContainer">
+          <div id="rankingLista" style="display: grid; gap: 15px;">
+            <div style="text-align: center; padding: 40px; color: #6c757d;">
+              <div style="font-size: 48px; margin-bottom: 12px; opacity: 0.5;">⭐</div>
+              <strong>Carregando ranking...</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Aba Integração Meta -->
     <div class="tab-content" id="tab-integracao-meta">

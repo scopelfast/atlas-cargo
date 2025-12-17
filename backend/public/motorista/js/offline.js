@@ -9,7 +9,7 @@
   // ==========================================
   async function initDB() {
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open('MotoristaDB', 5); // Versão 5 - ajustado 'viagens' e 'macros' para cache genérico
+      const request = indexedDB.open('MotoristaDB', 7); // Versão 7 - adicionada store 'filaSOS' (prioridade)
 
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
@@ -69,6 +69,16 @@
         // Store para fila de mensagens (chat)
         if (!db.objectStoreNames.contains('filaMensagens')) {
           db.createObjectStore('filaMensagens', { keyPath: 'id', autoIncrement: true });
+        }
+
+        // Store para fila de comprovantes de entrega
+        if (!db.objectStoreNames.contains('filaComprovantes')) {
+          db.createObjectStore('filaComprovantes', { keyPath: 'id', autoIncrement: true });
+        }
+
+        // Store para fila de alertas SOS (prioridade máxima)
+        if (!db.objectStoreNames.contains('filaSOS')) {
+          db.createObjectStore('filaSOS', { keyPath: 'id', autoIncrement: true });
         }
       };
     });
@@ -241,8 +251,10 @@
     const filaGPS = await buscarFila('filaGPS');
     const filaEventos = await buscarFila('filaEventos');
     const filaAcoes = await buscarFila('filaAcoes');
+    const filaComprovantes = await buscarFila('filaComprovantes');
+    const filaSOS = await buscarFila('filaSOS');
     
-    const total = filaGPS.length + filaEventos.length + filaAcoes.length;
+    const total = filaGPS.length + filaEventos.length + filaAcoes.length + filaComprovantes.length + filaSOS.length;
 
     if (isOnline()) {
       if (total === 0) {
@@ -272,6 +284,43 @@
     console.log('🔄 Iniciando sincronização...');
 
     try {
+      // PRIORIDADE MÁXIMA: Sincronizar alertas SOS primeiro (emergência)
+      const alertasSOS = await buscarFila('filaSOS');
+      console.log(`🆘 Alertas SOS na fila: ${alertasSOS.length}`);
+      
+      for (const alerta of alertasSOS) {
+        try {
+          console.log('🆘 Enviando alerta SOS:', alerta.id);
+          
+          const dadosEnvio = alerta.data || alerta;
+          delete dadosEnvio.id;
+          delete dadosEnvio.timestamp;
+          delete dadosEnvio.enviado;
+          
+          const baseUrl = window.__BASE_URL__ || ('http://' + window.location.host);
+          const response = await fetch(baseUrl + '/api/motorista/sos', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify(dadosEnvio)
+          });
+
+          console.log('📨 Resposta SOS:', response.status);
+
+          if (response.ok) {
+            await deletarDaFila('filaSOS', alerta.id);
+            console.log('✅ Alerta SOS sincronizado');
+          } else {
+            const erro = await response.text();
+            console.error('❌ Erro SOS:', response.status, erro);
+          }
+        } catch (err) {
+          console.error('❌ Erro ao sincronizar SOS:', err);
+        }
+      }
+
       // 1. Sincronizar ações (aceitar/recusar)
       const acoes = await buscarFila('filaAcoes');
       console.log(`📋 Ações na fila: ${acoes.length}`);
@@ -365,6 +414,91 @@
         }
       }
 
+      // 4. Sincronizar mensagens de chat
+      const mensagensChat = await buscarFila('filaMensagens');
+      console.log(`💬 Mensagens na fila: ${mensagensChat.length}`);
+      
+      for (const mensagem of mensagensChat) {
+        try {
+          console.log('📤 Enviando mensagem:', mensagem.idviagem);
+          
+          const endpoint = mensagem.endpoint || '/api/messages';
+          const method = mensagem.method || 'POST';
+          
+          // Remover campos internos antes de enviar
+          const dadosEnvio = mensagem.data || mensagem;
+          delete dadosEnvio.id;
+          delete dadosEnvio.endpoint;
+          delete dadosEnvio.method;
+          delete dadosEnvio.timestamp;
+          delete dadosEnvio.enviado;
+          
+          const baseUrl = window.__BASE_URL__ || ('http://' + window.location.host);
+          const response = await fetch(baseUrl + endpoint, {
+            method: method,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify(dadosEnvio)
+          });
+
+          console.log('📨 Resposta mensagem:', response.status);
+
+          if (response.ok) {
+            await deletarDaFila('filaMensagens', mensagem.id);
+            console.log('✅ Mensagem sincronizada');
+          } else {
+            const erro = await response.text();
+            console.error('❌ Erro mensagem:', response.status, erro);
+          }
+        } catch (err) {
+          console.error('❌ Erro ao sincronizar mensagem:', err);
+        }
+      }
+
+      // 5. Sincronizar comprovantes de entrega
+      const comprovantes = await buscarFila('filaComprovantes');
+      console.log(`📦 Comprovantes na fila: ${comprovantes.length}`);
+      
+      for (const comprovante of comprovantes) {
+        try {
+          console.log('📤 Enviando comprovante:', comprovante.idviagem);
+          
+          // Usar endpoint e method do comprovante (se tiver), senão padrão
+          const endpoint = comprovante.endpoint || '/api/motorista/delivery-proof';
+          const method = comprovante.method || 'POST';
+          
+          // Remover campos internos antes de enviar
+          const dadosEnvio = { ...comprovante };
+          delete dadosEnvio.id;
+          delete dadosEnvio.endpoint;
+          delete dadosEnvio.method;
+          
+          const baseUrl = window.__BASE_URL__ || ('http://' + window.location.host);
+          const response = await fetch(baseUrl + endpoint, {
+            method: method,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            },
+            body: JSON.stringify(dadosEnvio)
+          });
+
+          console.log('📨 Resposta comprovante:', response.status);
+
+          if (response.ok) {
+            await deletarDaFila('filaComprovantes', comprovante.id);
+            console.log('✅ Comprovante sincronizado');
+          } else {
+            const erro = await response.text();
+            console.error('❌ Erro comprovante:', response.status, erro);
+          }
+        } catch (err) {
+          console.error('❌ Erro ao sincronizar comprovante:', err);
+        }
+      }
+
       await atualizarIndicador();
       console.log('✅ Sincronização completa!');
     } catch (err) {
@@ -392,7 +526,7 @@
   async function limparTodasFilas() {
     if (!db) await initDB();
     
-    const stores = ['filaGPS', 'filaEventos', 'filaAcoes', 'filaMensagens'];
+    const stores = ['filaGPS', 'filaEventos', 'filaAcoes', 'filaMensagens', 'filaComprovantes'];
     
     for (const store of stores) {
       try {

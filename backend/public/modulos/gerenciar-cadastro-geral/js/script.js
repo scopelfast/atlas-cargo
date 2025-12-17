@@ -2060,8 +2060,6 @@
     const cdCadastro = document.getElementById('cadastroId')?.value || document.getElementById('cadastroCodigo')?.value;
     const tpCadastro = obterTipoCadastro();
     
-    console.log('[VALIDADES] Carregando:', { cdCadastro, tpCadastro });
-    
     if (cdCadastro && tpCadastro) {
       await carregarValidadesCadastro(tpCadastro, cdCadastro);
     }
@@ -2199,7 +2197,6 @@
   
   async function carregarCombosTiposValidade(tpCadastro) {
     try {
-      console.log('[VALIDADES] Carregando tipos para:', tpCadastro);
       const response = await fetch(`/api/validades/tipos-combo/${tpCadastro}`);
       
       if (!response.ok) {
@@ -2208,7 +2205,6 @@
       }
       
       const tipos = await response.json();
-      console.log('[VALIDADES] Tipos carregados:', tipos);
       
       const select = document.getElementById('validadeTipo');
       if (select) {
@@ -2222,7 +2218,6 @@
             opt.dataset.exigeCert = t.FGEXIGECERTIFICADORA;
             select.appendChild(opt);
           });
-          console.log('[VALIDADES] Combo tipos populado com', tipos.length, 'itens');
         } else {
           console.error('[VALIDADES] Tipos não é array:', tipos);
         }
@@ -2234,7 +2229,6 @@
   
   async function carregarCombosCertificadoras() {
     try {
-      console.log('[VALIDADES] Carregando certificadoras...');
       const response = await fetch('/api/validades/certificadoras-combo');
       
       if (!response.ok) {
@@ -2243,7 +2237,6 @@
       }
       
       const certs = await response.json();
-      console.log('[VALIDADES] Certificadoras carregadas:', certs);
       
       const select = document.getElementById('validadeCertificadora');
       if (select) {
@@ -2256,7 +2249,6 @@
             opt.textContent = `${c.CDCADASTRO} - ${c.RZSOCIAL}`;
             select.appendChild(opt);
           });
-          console.log('[VALIDADES] Combo certificadoras populado com', certs.length, 'itens');
         } else {
           console.error('[VALIDADES] Certificadoras não é array:', certs);
         }
@@ -2331,13 +2323,6 @@
           document.getElementById('certTexto').textContent = 'Nenhuma certificadora selecionada';
           document.getElementById('certResultado').style.background = '#e9ecef';
         }
-        
-        console.log('[VALIDADES] Editando:', { 
-          tipo: val.CDTIPOVALIDADE, 
-          cert: val.CDCERTIFICADORA,
-          tipoSelectValue: document.getElementById('validadeTipo').value,
-          certSelectValue: document.getElementById('validadeCertificadora').value
-        });
         
         document.getElementById('modalValidade').style.display = 'block';
       }

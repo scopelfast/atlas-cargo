@@ -54,9 +54,9 @@ function getOverlayMostrado() {
     // 'https://tiles.wmflabs.org/osm/{z}/{x}/{y}.png'
     
     // Servidor de roteamento OSRM (com fallback)
-    osrmServer: 'https://router.project-osrm.org/route/v1/driving',
-    osrmServerAlt: 'https://routing.openstreetmap.de/routed-car/route/v1/driving',
-    // Alternativa adicional: 'https://osrm.5apps.com/route/v1/driving'
+    osrmServer: 'https://router.project-osrm.org/route/v1/driving-hgv',
+    osrmServerAlt: 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv',
+    // Alternativa adicional: 'https://osrm.5apps.com/route/v1/driving-hgv'
     
     // Timeout para requisições de rota (ms)
     routeTimeout: 15000,
@@ -722,8 +722,58 @@ function getOverlayMostrado() {
                           document.getElementById('viagemId')?.value || 
                           null;
           if (idViagem) {
+            // Ativar acompanhamento WebSocket para esta viagem
+            if (typeof window.WebSocketTorre !== 'undefined') {
+              window.WebSocketTorre.acompanharViagem(idViagem);
+            }
             carregarPosicoesRastreamento(idViagem);
           }
+        }, 100);
+      }
+
+      // Se for a aba Alertas, inicializar
+      if (tabId === 'alertas') {
+        setTimeout(() => {
+          inicializarAbaAlertas();
+          
+          // Se houver viagem selecionada, carregar alertas
+          const idViagem = document.getElementById('filtroIdViagem')?.value || 
+                          document.getElementById('viagemId')?.value || 
+                          null;
+          if (idViagem) {
+            carregarAlertas(idViagem);
+          }
+        }, 100);
+      }
+
+      // Se for a aba Chat, inicializar
+      if (tabId === 'chat') {
+        setTimeout(() => {
+          inicializarAbaChat();
+          
+          // Se houver viagem selecionada, carregar chat
+          const idViagem = document.getElementById('filtroIdViagem')?.value || 
+                          document.getElementById('viagemId')?.value || 
+                          null;
+          if (idViagem) {
+            carregarChat(idViagem);
+          }
+        }, 100);
+      }
+
+      // Se for a aba SOS, inicializar
+      if (tabId === 'sos') {
+        setTimeout(() => {
+          inicializarAbaSOS();
+          carregarAlertasSOS();
+        }, 100);
+      }
+
+      // Se for a aba Ranking, inicializar
+      if (tabId === 'ranking') {
+        setTimeout(() => {
+          inicializarAbaRanking();
+          carregarRanking();
         }, 100);
       }
 
@@ -1397,10 +1447,27 @@ function getOverlayMostrado() {
     // Mostrar overlay de carregamento
     showLoadingOverlayFiltros('Aplicando Filtros', 'Por favor, aguarde enquanto aplicamos os filtros...');
     
+    // Obter referência do container uma única vez
+    const gridContainer = document.getElementById('viagensGrid');
+    
+    // Mostrar skeleton loader no grid se existir
+    if (gridContainer && typeof window.showSkeleton === 'function') {
+      window.showSkeleton(gridContainer, 6, 'grid');
+    }
+    
     const btnAplicar = filtroForm?.querySelector('button[type="submit"]');
     if (btnAplicar && typeof window.showLoading !== 'undefined') {
       window.showLoading(btnAplicar, true);
     }
+
+    // Timeout de segurança: esconder loading após 30 segundos mesmo se der erro
+    const timeoutSeguranca = setTimeout(() => {
+      console.warn('⚠️ Timeout de segurança: escondendo loading após 30 segundos');
+      hideLoadingOverlayFiltros();
+      if (btnAplicar && typeof window.showLoading !== 'undefined') {
+        window.showLoading(btnAplicar, false);
+      }
+    }, 30000);
 
     try {
       // Marcar que estamos aplicando filtros para evitar mudanças automáticas de aba
@@ -1451,19 +1518,45 @@ function getOverlayMostrado() {
       }
       
       // Renderizar grid se já estiver inicializado
-      if (gridTab) {
-        gridTab.render(viagens);
-      } else if (openTab === 'grid' && typeof GridEditor === 'undefined') {
-        // Se o GridEditor não está carregado, carregar e inicializar
-        await loadScript('/js/grid-editor.js');
-        inicializarGridTab();
+      try {
         if (gridTab) {
           gridTab.render(viagens);
+        } else if (openTab === 'grid' && typeof GridEditor === 'undefined') {
+          // Se o GridEditor não está carregado, carregar e inicializar
+          await loadScript('/js/grid-editor.js');
+          inicializarGridTab();
+          if (gridTab) {
+            gridTab.render(viagens);
+          }
         }
+      } catch (renderErr) {
+        console.error('Erro ao renderizar grid:', renderErr);
+        // Continuar mesmo se falhar renderizar
       }
       
-      // Mudar para a aba solicitada
-      await showTab(openTab);
+      // Esconder skeleton loader após renderizar (usando a referência já obtida)
+      if (gridContainer && typeof window.hideSkeleton === 'function') {
+        window.hideSkeleton(gridContainer);
+      }
+      
+      // Mudar para a aba solicitada (com timeout de segurança)
+      try {
+        const tabPromise = showTab(openTab);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout ao mudar aba')), 10000)
+        );
+        await Promise.race([tabPromise, timeoutPromise]);
+      } catch (tabErr) {
+        console.error('Erro ao mudar aba:', tabErr);
+        // Continuar mesmo se falhar mudar aba
+      }
+      
+      // Esconder loading após renderizar (garantir sempre)
+      clearTimeout(timeoutSeguranca);
+      hideLoadingOverlayFiltros();
+      if (btnAplicar && typeof window.showLoading !== 'undefined') {
+        window.showLoading(btnAplicar, false);
+      }
       
       // Proteção adicional: garantir que a aba permaneça ativa por pelo menos 1 segundo
       setTimeout(() => {
@@ -1481,12 +1574,19 @@ function getOverlayMostrado() {
       }, 1000);
     } catch (err) {
       console.error('Erro ao aplicar filtros:', err);
-      showMessage('Erro ao carregar viagens.', 'error');
+      clearTimeout(timeoutSeguranca);
+      showMessage('Erro ao carregar viagens: ' + (err.message || 'Erro desconhecido'), 'error');
       bloqueandoMudancaAba = false;
-    } finally {
-      // Esconder overlay de filtros
-      hideLoadingOverlayFiltros();
       
+      // Esconder loading imediatamente em caso de erro
+      hideLoadingOverlayFiltros();
+      if (btnAplicar && typeof window.showLoading !== 'undefined') {
+        window.showLoading(btnAplicar, false);
+      }
+    } finally {
+      // Esconder overlay de filtros (garantir sempre, com múltiplas tentativas)
+      clearTimeout(timeoutSeguranca);
+      hideLoadingOverlayFiltros();
       if (btnAplicar && typeof window.showLoading !== 'undefined') {
         window.showLoading(btnAplicar, false);
       }
@@ -1662,6 +1762,8 @@ function getOverlayMostrado() {
           await new Promise(resolve => setTimeout(resolve, 200));
           if (viagem.IDROTEIRO) {
             await preencherSelect('viagemRoteiro', String(viagem.IDROTEIRO));
+            // Carregar resumo da rota
+            await carregarResumoRota(String(viagem.IDROTEIRO));
           }
         }
         
@@ -1847,8 +1949,132 @@ function getOverlayMostrado() {
   }
 
   // Salvar formulário
+  // Função de validação de formulário
+  function validarFormularioViagem() {
+    const erros = [];
+    
+    // Validar campos obrigatórios
+    const situacaoViagem = document.getElementById('viagemSituacaoViagem')?.value;
+    if (!situacaoViagem) {
+      erros.push('Situação Viagem é obrigatória');
+      // Destacar campo
+      const campo = document.getElementById('viagemSituacaoViagem');
+      if (campo) {
+        campo.style.borderColor = '#dc3545';
+        setTimeout(() => { campo.style.borderColor = ''; }, 3000);
+      }
+    }
+    
+    const situacao = document.getElementById('viagemSituacao')?.value;
+    if (!situacao) {
+      erros.push('Situação é obrigatória');
+      const campo = document.getElementById('viagemSituacao');
+      if (campo) {
+        campo.style.borderColor = '#dc3545';
+        setTimeout(() => { campo.style.borderColor = ''; }, 3000);
+      }
+    }
+    
+    const tipoViagem = document.getElementById('viagemTipoViagem')?.value;
+    if (!tipoViagem) {
+      erros.push('Tipo de Viagem é obrigatório');
+      const campo = document.getElementById('viagemTipoViagem');
+      if (campo) {
+        campo.style.borderColor = '#dc3545';
+        setTimeout(() => { campo.style.borderColor = ''; }, 3000);
+      }
+    }
+    
+    const situacaoAtiva = document.getElementById('viagemSituacaoAtiva')?.value;
+    if (!situacaoAtiva) {
+      erros.push('Situação Ativa é obrigatória');
+      const campo = document.getElementById('viagemSituacaoAtiva');
+      if (campo) {
+        campo.style.borderColor = '#dc3545';
+        setTimeout(() => { campo.style.borderColor = ''; }, 3000);
+      }
+    }
+    
+    // Validar datas (data fim deve ser maior que data início)
+    const dataInicio = document.getElementById('viagemDataInicio')?.value;
+    const dataFim = document.getElementById('viagemDataFim')?.value;
+    if (dataInicio && dataFim) {
+      const inicio = new Date(dataInicio);
+      const fim = new Date(dataFim);
+      if (fim < inicio) {
+        erros.push('Data de término deve ser maior que data de início');
+        const campoInicio = document.getElementById('viagemDataInicio');
+        const campoFim = document.getElementById('viagemDataFim');
+        if (campoInicio) {
+          campoInicio.style.borderColor = '#dc3545';
+          setTimeout(() => { campoInicio.style.borderColor = ''; }, 3000);
+        }
+        if (campoFim) {
+          campoFim.style.borderColor = '#dc3545';
+          setTimeout(() => { campoFim.style.borderColor = ''; }, 3000);
+        }
+      }
+    }
+    
+    // Validar valores numéricos
+    const distancia = document.getElementById('viagemDistancia')?.value;
+    if (distancia && (isNaN(parseFloat(distancia)) || parseFloat(distancia) < 0)) {
+      erros.push('Distância deve ser um número positivo');
+      const campo = document.getElementById('viagemDistancia');
+      if (campo) {
+        campo.style.borderColor = '#dc3545';
+        setTimeout(() => { campo.style.borderColor = ''; }, 3000);
+      }
+    }
+    
+    const frete = document.getElementById('viagemFrete')?.value;
+    if (frete && (isNaN(parseFloat(frete)) || parseFloat(frete) < 0)) {
+      erros.push('Valor do frete deve ser um número positivo');
+      const campo = document.getElementById('viagemFrete');
+      if (campo) {
+        campo.style.borderColor = '#dc3545';
+        setTimeout(() => { campo.style.borderColor = ''; }, 3000);
+      }
+    }
+    
+    const peso = document.getElementById('viagemPeso')?.value;
+    if (peso && (isNaN(parseFloat(peso)) || parseFloat(peso) < 0)) {
+      erros.push('Peso deve ser um número positivo');
+      const campo = document.getElementById('viagemPeso');
+      if (campo) {
+        campo.style.borderColor = '#dc3545';
+        setTimeout(() => { campo.style.borderColor = ''; }, 3000);
+      }
+    }
+    
+    const cubagem = document.getElementById('viagemCubagem')?.value;
+    if (cubagem && (isNaN(parseFloat(cubagem)) || parseFloat(cubagem) < 0)) {
+      erros.push('Cubagem deve ser um número positivo');
+      const campo = document.getElementById('viagemCubagem');
+      if (campo) {
+        campo.style.borderColor = '#dc3545';
+        setTimeout(() => { campo.style.borderColor = ''; }, 3000);
+      }
+    }
+    
+    return erros;
+  }
+
   viagemForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    
+    // Validar formulário antes de enviar
+    const erros = validarFormularioViagem();
+    if (erros.length > 0) {
+      showMessage('❌ Erros encontrados:\n\n' + erros.join('\n'), 'error');
+      // Scroll para o primeiro campo com erro
+      const primeiroErro = document.querySelector('input[style*="border-color: rgb(220, 53, 69)"], select[style*="border-color: rgb(220, 53, 69)"]');
+      if (primeiroErro) {
+        primeiroErro.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        primeiroErro.focus();
+      }
+      return;
+    }
     
     const btnSalvar = viagemForm.querySelector('button[type="submit"]');
     if (btnSalvar && typeof window.showLoading !== 'undefined') {
@@ -1872,8 +2098,17 @@ function getOverlayMostrado() {
     
     const rastreado = document.getElementById('viagemRastreado')?.value;
     
-    if (!situacaoViagem || !situacao || !tipoViagem || !dataInicio || !dataFim || !rastreado) {
-      showMessage('Preencha todos os campos obrigatórios.', 'error');
+    // Validação já foi feita pela função validarFormularioViagem() acima
+    // Apenas verificar se rastreado foi preenchido (campo obrigatório)
+    if (!rastreado) {
+      showMessage('Campo "Exige Veículo Rastreado?" é obrigatório.', 'error');
+      const campo = document.getElementById('viagemRastreado');
+      if (campo) {
+        campo.style.borderColor = '#dc3545';
+        setTimeout(() => { campo.style.borderColor = ''; }, 3000);
+        campo.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        campo.focus();
+      }
       if (btnSalvar && typeof window.showLoading !== 'undefined') {
         window.showLoading(btnSalvar, false);
       }
@@ -1917,11 +2152,39 @@ function getOverlayMostrado() {
 
       const data = await response.json();
       if (response.ok) {
-        showMessage(data.message || 'Salvo com sucesso!', 'success');
+        const mensagemSucesso = data.message || 'Viagem salva com sucesso!';
+        showMessage(`✅ ${mensagemSucesso}`, 'success');
+        
+        // Emitir evento WebSocket se for atualização
+        if (id && typeof window.WebSocketTorre !== 'undefined') {
+          try {
+            const websocketTorre = window.WebSocketTorre;
+            // Buscar dados atualizados da viagem para emitir evento
+            const viagemAtualizada = await fetch(`/api/viagens/${id}`).then(r => r.json());
+            if (viagemAtualizada && viagemAtualizada.IDVIAGEM) {
+              // O evento será emitido automaticamente pelo controller no backend
+              // Mas podemos forçar uma atualização na UI local se necessário
+              if (typeof window.atualizarDadosViagem === 'function') {
+                window.atualizarDadosViagem(id, viagemAtualizada);
+              }
+            }
+          } catch (wsErr) {
+            console.warn('Erro ao atualizar via WebSocket:', wsErr);
+            // Não bloquear sucesso da operação
+          }
+        }
+        
+        // Aguardar um pouco antes de mudar de aba para garantir que mensagem seja vista
+        await new Promise(resolve => setTimeout(resolve, 500));
         showTab('grid');
-        applyFilters('grid');
+        await applyFilters('grid');
       } else {
-        showMessage(data.error || 'Erro ao salvar.', 'error');
+        // Mensagem de erro mais detalhada
+        let erroMsg = data.error || 'Erro ao salvar viagem.';
+        if (data.details) {
+          erroMsg += `\n\nDetalhes: ${data.details}`;
+        }
+        showMessage(`❌ ${erroMsg}`, 'error');
       }
     } catch (err) {
       console.error('Erro ao salvar:', err);
@@ -1934,9 +2197,15 @@ function getOverlayMostrado() {
   });
 
   // Eventos
-  filtroForm?.addEventListener('submit', (e) => {
+  filtroForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    applyFilters('grid');
+    e.stopPropagation();
+    try {
+      await applyFilters('grid');
+    } catch (err) {
+      console.error('Erro ao aplicar filtros:', err);
+    }
+    return false;
   });
 
   document.getElementById('btnLimparFiltros')?.addEventListener('click', () => {
@@ -2137,6 +2406,11 @@ function getOverlayMostrado() {
         await new Promise(resolve => setTimeout(resolve, 300));
         await atualizarMapa();
       }
+      
+      // Carregar resumo da rota
+      if (roteiroId) {
+        await carregarResumoRota(roteiroId);
+      }
     }
   });
 
@@ -2169,6 +2443,50 @@ function getOverlayMostrado() {
         });
     }
   });
+
+  // Função para carregar e exibir resumo da rota
+  async function carregarResumoRota(roteiroId) {
+    try {
+      if (!roteiroId || roteiroId === '') {
+        // Ocultar container se não houver roteiro
+        const container = document.getElementById('resumoRotaContainer');
+        if (container) {
+          container.style.display = 'none';
+        }
+        return;
+      }
+      
+      const response = await fetch(`/api/roteiros/${roteiroId}`);
+      if (!response.ok) {
+        throw new Error('Erro ao buscar roteiro');
+      }
+      
+      const roteiro = await response.json();
+      const resumoRota = document.getElementById('resumoRota');
+      const container = document.getElementById('resumoRotaContainer');
+      
+      if (roteiro.RESUMOROTA && roteiro.RESUMOROTA.trim() !== '') {
+        // Exibir resumo formatado
+        if (resumoRota) {
+          resumoRota.textContent = roteiro.RESUMOROTA;
+        }
+        if (container) {
+          container.style.display = 'block';
+        }
+      } else {
+        // Ocultar se não houver resumo
+        if (container) {
+          container.style.display = 'none';
+        }
+      }
+    } catch (err) {
+      console.warn('Erro ao carregar resumo da rota:', err);
+      const container = document.getElementById('resumoRotaContainer');
+      if (container) {
+        container.style.display = 'none';
+      }
+    }
+  }
 
   // Carregar todos os roteiros para o filtro
   async function loadRoteirosParaFiltro() {
@@ -2280,7 +2598,7 @@ function getOverlayMostrado() {
     try {
       const coordsStr = coords.map(c => `${c.lon},${c.lat}`).join(';');
       const config = window.MAP_CONFIG || {};
-      const osrmUrl = `${config.osrmServer || 'https://router.project-osrm.org/route/v1/driving'}/${coordsStr}?overview=full`;
+      const osrmUrl = `${config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv'}/${coordsStr}?overview=full`;
       const response = await fetch(osrmUrl, { signal: AbortSignal.timeout(config.routeTimeout || 15000) });
       const data = await response.json();
       
@@ -2789,12 +3107,7 @@ function getOverlayMostrado() {
                 return ordemA - ordemB;
               });
             
-            // Debug: mostrar ordem dos pontos
-            console.log('Pontos ordenados no mapa:', pontosComCoordenadas.map(p => ({
-              ordem: p.ORDEM,
-              tipo: p.TPLOCAL,
-              local: p.DSLOCAL
-            })));
+            // Log removido para reduzir verbosidade
             
             if (pontosComCoordenadas.length >= 2) {
               // Criar marcadores para cada ponto
@@ -2981,13 +3294,13 @@ function getOverlayMostrado() {
                     
                     // Tentar primeiro com servidor principal
                     try {
-                      segmentRoute = await obterRotaSegmento(segmento, config.osrmServer || 'https://router.project-osrm.org/route/v1/driving');
+                      segmentRoute = await obterRotaSegmento(segmento, config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv');
                       console.log(`[MAPA] Segmento ${i + 1}/${latlngs.length - 1} calculado com sucesso`);
                     } catch (err) {
                       // Se falhar, tentar com servidor alternativo
                       console.warn(`[MAPA] Segmento ${i + 1} falhou no servidor principal, tentando alternativo...`);
                       try {
-                        segmentRoute = await obterRotaSegmento(segmento, config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving');
+                        segmentRoute = await obterRotaSegmento(segmento, config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv');
                         console.log(`[MAPA] Segmento ${i + 1}/${latlngs.length - 1} calculado com servidor alternativo`);
                       } catch (err2) {
                         console.warn(`[MAPA] Segmento ${i + 1} falhou em ambos servidores, usando linha reta`);
@@ -3029,9 +3342,9 @@ function getOverlayMostrado() {
                   // Formato correto para OSRM: "lon,lat;lon,lat" (longitude primeiro!)
                   const coordsStr = latlngs.map(c => `${c[1]},${c[0]}`).join(';');
                   // Remover steps e annotations para requisições mais rápidas (podemos adicionar depois se necessário)
-                  const osrmUrl = `${config.osrmServer || 'https://router.project-osrm.org/route/v1/driving'}/${coordsStr}?overview=full&geometries=geojson`;
+                  const osrmUrl = `${config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv'}/${coordsStr}?overview=full&geometries=geojson`;
                   
-                  console.log('[MAPA] Tentando obter rota do OSRM:', osrmUrl.substring(0, 150) + '...');
+                  // Log removido
                   
                   // Usar AbortController para timeout (aumentado para 30s)
                   const controller = new AbortController();
@@ -3046,11 +3359,7 @@ function getOverlayMostrado() {
                   
                   data = await response.json();
                   
-                  console.log('[MAPA] Resposta do OSRM:', {
-                    code: data.code,
-                    routes: data.routes ? data.routes.length : 0,
-                    message: data.message || 'N/A'
-                  });
+                  // Log removido
                   
                   if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
                     const geometry = data.routes[0].geometry.coordinates;
@@ -3080,7 +3389,7 @@ function getOverlayMostrado() {
                     linhaRota.bindPopup(`<strong>Distância total da rota:</strong> ${distanciaTotal} km`);
                   }
                   
-                  console.log('[MAPA] ✅ Rota OSRM desenhada com sucesso!');
+                  // Log removido
                 } else {
                   throw new Error('Não foi possível calcular a rota');
                 }
@@ -3138,12 +3447,7 @@ function getOverlayMostrado() {
                 distanciaTotal = distanciaAcumulada > 0 ? distanciaAcumulada.toFixed(2) + ' km' : null;
               }
               
-              // Debug: verificar se os pontos foram processados
-              console.log('Pontos processados:', informacoesRota.pontosIntercalados?.length || 0, 'pontos');
-              console.log('Pontos do roteiro:', pontosComCoordenadas.length);
-              console.log('Cidades de passagem:', informacoesRota.cidadesPassagem?.length || 0);
-              console.log('Rodovias:', informacoesRota.rodovias?.length || 0);
-              console.log('Distância total:', distanciaTotal);
+              // Distância total calculada
               
               // Atualizar mensagem do overlay
               showMapaLoading('Ajustando Visualização', 'Ajustando zoom para mostrar toda a rota...');
@@ -3167,11 +3471,7 @@ function getOverlayMostrado() {
                 }
               }
               
-              // Debug: mostrar quantos marcadores foram criados
-              console.log(`Marcadores criados: ${marcadores.length}`, marcadores.map((m, i) => ({
-                index: i + 1,
-                posicao: m.getLatLng()
-              })));
+              // Marcadores criados
               
               // Preparar dados para exibição usando informações processadas
               // Buscar informações das cidades das variáveis globais
@@ -3287,7 +3587,7 @@ function getOverlayMostrado() {
         const config = window.MAP_CONFIG || {};
         // Chamada direta ao OSRM (sem steps e annotations para ser mais rápido)
         // Formato OSRM: "lon,lat;lon,lat" (longitude primeiro!)
-        const osrmUrl = `${config.osrmServer || 'https://router.project-osrm.org/route/v1/driving'}/${coordsOrigem.lon},${coordsOrigem.lat};${coordsDestino.lon},${coordsDestino.lat}?overview=full&geometries=geojson`;
+        const osrmUrl = `${config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv'}/${coordsOrigem.lon},${coordsOrigem.lat};${coordsDestino.lon},${coordsDestino.lat}?overview=full&geometries=geojson`;
         
         console.log('[MAPA] Tentando obter rota do OSRM (origem/destino):', osrmUrl.substring(0, 150) + '...');
         
@@ -3304,11 +3604,7 @@ function getOverlayMostrado() {
         
         rotaData = await rotaResponse.json();
         
-        console.log('[MAPA] Resposta do OSRM (origem/destino):', {
-          code: rotaData.code,
-          routes: rotaData.routes ? rotaData.routes.length : 0,
-          message: rotaData.message || 'N/A'
-        });
+        // Log removido
         
         // Processar informações detalhadas da rota
         informacoesRota = await processarInformacoesRotaOSRM(rotaData, null, null);
@@ -3539,6 +3835,18 @@ function getOverlayMostrado() {
       requestAnimationFrame(() => {
         setTimeout(() => {
           hideMapaLoading();
+          
+          // Carregar resumo da rota se houver roteiro selecionado
+          const roteiroIdFinal = document.getElementById('viagemRoteiro')?.value;
+          if (roteiroIdFinal) {
+            carregarResumoRota(roteiroIdFinal);
+          } else {
+            // Ocultar resumo se não houver roteiro
+            const container = document.getElementById('resumoRotaContainer');
+            if (container) {
+              container.style.display = 'none';
+            }
+          }
         }, 300);
       });
 
@@ -3546,6 +3854,12 @@ function getOverlayMostrado() {
       hideMapaLoading();
       console.error('Erro ao atualizar mapa:', err);
       showMessage('Erro ao atualizar o mapa. Tente novamente.', 'error');
+      
+      // Tentar carregar resumo mesmo em caso de erro (pode ter roteiro válido)
+      const roteiroIdFinal = document.getElementById('viagemRoteiro')?.value;
+      if (roteiroIdFinal) {
+        carregarResumoRota(roteiroIdFinal);
+      }
     }
   }
 
@@ -4201,6 +4515,10 @@ function getOverlayMostrado() {
 
   // Carregar viagens pendentes e selecionar uma viagem específica
   async function carregarEselecionarViagem(idViagem) {
+    // Ativar acompanhamento WebSocket para esta viagem
+    if (typeof window.WebSocketTorre !== 'undefined' && idViagem) {
+      window.WebSocketTorre.acompanharViagem(idViagem);
+    }
     try {
       // Primeiro, carregar as viagens pendentes
       await carregarViagensPendentes();
@@ -4273,6 +4591,14 @@ function getOverlayMostrado() {
 
   // Buscar motoristas compatíveis
   async function buscarMotoristasCompatíveis(idViagemParam = null) {
+    // Obter referência do container uma única vez
+    const gridContainer = document.getElementById('motoristasCompatíveisGrid');
+    
+    // Mostrar skeleton loader durante busca
+    if (gridContainer && typeof window.showSkeleton === 'function') {
+      window.showSkeleton(gridContainer, 5, 'list');
+    }
+    
     let idViagem = idViagemParam;
     
     // Se não foi passado como parâmetro, pegar do select
@@ -4282,6 +4608,10 @@ function getOverlayMostrado() {
     }
     
     if (!idViagem) {
+      // Esconder skeleton se houver erro
+      if (gridContainer && typeof window.hideSkeleton === 'function') {
+        window.hideSkeleton(gridContainer);
+      }
       showMessage('Selecione uma viagem primeiro.', 'error');
       return;
     }
@@ -4296,6 +4626,11 @@ function getOverlayMostrado() {
       
       motoristasCompatíveis = await response.json();
       viagemSelecionada = idViagem;
+      
+      // Esconder skeleton antes de renderizar
+      if (gridContainer && typeof window.hideSkeleton === 'function') {
+        window.hideSkeleton(gridContainer);
+      }
       
       renderizarMotoristasCompatíveis();
       
@@ -8541,7 +8876,7 @@ function getOverlayMostrado() {
         // Calcular e desenhar rota usando OSRM
         try {
           const config = window.MAP_CONFIG || {};
-          const osrmUrl = `${config.osrmServer || 'https://router.project-osrm.org/route/v1/driving'}/${lonMotorista},${latMotorista};${origemLon},${origemLat}?overview=full&geometries=geojson`;
+          const osrmUrl = `${config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv'}/${lonMotorista},${latMotorista};${origemLon},${origemLat}?overview=full&geometries=geojson`;
           const rotaResponse = await fetch(osrmUrl, { signal: AbortSignal.timeout(config.routeTimeout || 15000) });
           const rotaData = await rotaResponse.json();
 
@@ -8692,6 +9027,40 @@ function getOverlayMostrado() {
   }
 
   // Buscar equipamento por placa
+  // Função auxiliar: Debounce para evitar múltiplas chamadas
+  function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  }
+
+  // Versão com loading state
+  const buscarEquipamentoPorPlacaComLoading = async () => {
+    const btn = document.getElementById('btnBuscarVeiculoPorPlaca');
+    const loadingText = 'Buscando...';
+    const originalText = btn?.textContent || 'Buscar';
+    
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = loadingText;
+    }
+    
+    try {
+      await buscarEquipamentoPorPlaca();
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = originalText;
+      }
+    }
+  };
+
   async function buscarEquipamentoPorPlaca() {
     const placa = document.getElementById('veiculoRefEquipamento')?.value.trim();
     if (!placa) {
@@ -9987,12 +10356,43 @@ function getOverlayMostrado() {
     if (btnBuscarVeiculoPorPlaca) {
       // Remover listener anterior se existir
       btnBuscarVeiculoPorPlaca.replaceWith(btnBuscarVeiculoPorPlaca.cloneNode(true));
-      document.getElementById('btnBuscarVeiculoPorPlaca').addEventListener('click', buscarEquipamentoPorPlaca);
+      document.getElementById('btnBuscarVeiculoPorPlaca').addEventListener('click', buscarEquipamentoPorPlacaComLoading);
+      
+      // Adicionar busca ao pressionar Enter no campo placa
+      const inputPlaca = document.getElementById('veiculoRefEquipamento');
+      if (inputPlaca) {
+        inputPlaca.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            buscarEquipamentoPorPlacaComLoading();
+          }
+        });
+      }
     }
     
     if (btnBuscarVeiculoPorCodigo) {
       btnBuscarVeiculoPorCodigo.replaceWith(btnBuscarVeiculoPorCodigo.cloneNode(true));
       document.getElementById('btnBuscarVeiculoPorCodigo').addEventListener('click', buscarEquipamentoPorCodigo);
+      
+      // Adicionar debounce para busca por código (permite busca ao digitar Enter)
+      const inputCodigo = document.getElementById('veiculoIdEquipamento');
+      if (inputCodigo) {
+        // Buscar ao pressionar Enter
+        inputCodigo.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            buscarEquipamentoPorCodigo();
+          }
+        });
+        // Buscar com debounce ao digitar (após 1.5s de inatividade)
+        const buscaComDebounce = debounce(() => {
+          const codigo = inputCodigo.value.trim();
+          if (codigo && !isNaN(codigo) && parseFloat(codigo) > 0) {
+            buscarEquipamentoPorCodigo();
+          }
+        }, 1500);
+        inputCodigo.addEventListener('input', buscaComDebounce);
+      }
     }
     
     // Botões de busca de motorista
@@ -10003,11 +10403,42 @@ function getOverlayMostrado() {
     if (btnBuscarMotoristaPorCpf) {
       btnBuscarMotoristaPorCpf.replaceWith(btnBuscarMotoristaPorCpf.cloneNode(true));
       document.getElementById('btnBuscarMotoristaPorCpf').addEventListener('click', buscarMotoristaPorCpf);
+      
+      // Adicionar busca ao pressionar Enter no campo CPF
+      const inputCpf = document.getElementById('motoristaCpf');
+      if (inputCpf) {
+        inputCpf.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            buscarMotoristaPorCpf();
+          }
+        });
+      }
     }
-    
+
     if (btnBuscarMotoristaPorNome) {
       btnBuscarMotoristaPorNome.replaceWith(btnBuscarMotoristaPorNome.cloneNode(true));
       document.getElementById('btnBuscarMotoristaPorNome').addEventListener('click', buscarMotoristaPorNome);
+      
+      // Adicionar busca com debounce ao digitar no campo Nome
+      const inputNome = document.getElementById('motoristaNome');
+      if (inputNome) {
+        // Buscar ao pressionar Enter
+        inputNome.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            buscarMotoristaPorNome();
+          }
+        });
+        // Buscar com debounce ao digitar (após 1s de inatividade e mínimo 3 caracteres)
+        const buscaComDebounce = debounce(() => {
+          const nome = inputNome.value.trim();
+          if (nome.length >= 3) {
+            buscarMotoristaPorNome();
+          }
+        }, 1000);
+        inputNome.addEventListener('input', buscaComDebounce);
+      }
     }
     
     if (btnBuscarMotoristaPorCodigo) {
@@ -10395,7 +10826,6 @@ function getOverlayMostrado() {
           resultado.message || 'Sincronização concluída com sucesso!',
           'success'
         );
-        console.log('✅ Sincronização concluída:', resultado);
       } else {
         mostrarMensagemRastreamento(
           resultado.error || 'Erro ao sincronizar rastreamento.',
@@ -10442,6 +10872,1153 @@ function getOverlayMostrado() {
           carregarPosicoesRastreamento(idViagem);
         }
       });
+    }
+  }
+
+  // ==========================================
+  // ALERTAS INTELIGENTES
+  // ==========================================
+  
+  function inicializarAbaAlertas() {
+    // Botão voltar
+    const btnVoltar = document.getElementById('btnVoltarAlertas');
+    if (btnVoltar) {
+      btnVoltar.addEventListener('click', () => {
+        mudarAba('filtros');
+      });
+    }
+
+    // Botão verificar alertas
+    const btnVerificar = document.getElementById('btnVerificarAlertas');
+    if (btnVerificar) {
+      btnVerificar.addEventListener('click', async () => {
+        const idViagem = document.getElementById('filtroIdViagem')?.value ||
+                        document.getElementById('viagemId')?.value ||
+                        null;
+        if (idViagem) {
+          await verificarAlertas(idViagem);
+        } else {
+          showMessage('Selecione uma viagem primeiro.', 'error');
+        }
+      });
+    }
+
+    // Botão atualizar
+    const btnAtualizar = document.getElementById('btnAtualizarAlertas');
+    if (btnAtualizar) {
+      btnAtualizar.addEventListener('click', async () => {
+        const idViagem = document.getElementById('filtroIdViagem')?.value ||
+                        document.getElementById('viagemId')?.value ||
+                        null;
+        if (idViagem) {
+          await carregarAlertas(idViagem);
+        }
+      });
+    }
+  }
+
+  // Carregar alertas de uma viagem
+  async function carregarAlertas(idViagem) {
+    if (!idViagem) {
+      document.getElementById('alertasSemViagem').style.display = 'block';
+      document.getElementById('alertasContainer').style.display = 'none';
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/alerts/viagem/${idViagem}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        const alertas = data.alertas || [];
+        
+        // Mostrar/ocultar containers
+        document.getElementById('alertasSemViagem').style.display = 'none';
+        document.getElementById('alertasContainer').style.display = 'block';
+        
+        // Atualizar informações da viagem
+        const viagemSelecionada = lastViagens?.find(v => v.IDVIAGEM == idViagem);
+        if (viagemSelecionada) {
+          document.getElementById('alertasIdViagem').textContent = viagemSelecionada.IDVIAGEM || '-';
+          document.getElementById('alertasMotorista').textContent = viagemSelecionada.MOTORISTA_NOME || '-';
+        }
+        
+        document.getElementById('alertasTotal').textContent = alertas.length;
+        document.getElementById('alertasUltimaVerificacao').textContent = 
+          new Date().toLocaleString('pt-BR');
+        
+        // Renderizar alertas
+        renderizarAlertas(alertas);
+        
+        // Atualizar badge na aba se houver alertas
+        const tabBtn = document.querySelector('.tab-btn[data-tab="alertas"]');
+        if (tabBtn) {
+          if (alertas.length > 0) {
+            const highSeverity = alertas.filter(a => a.SEVERITY === 'high').length;
+            tabBtn.innerHTML = `Alertas ${highSeverity > 0 ? `<span style="background: #e74c3c; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; margin-left: 5px;">${alertas.length}</span>` : ''}`;
+          } else {
+            tabBtn.innerHTML = 'Alertas';
+          }
+        }
+      } else {
+        throw new Error(data.error || 'Erro ao carregar alertas');
+      }
+    } catch (err) {
+      console.error('Erro ao carregar alertas:', err);
+      showMessage('Erro ao carregar alertas: ' + err.message, 'error');
+    }
+  }
+
+  // Verificar alertas (força nova verificação)
+  async function verificarAlertas(idViagem) {
+    try {
+      const token = localStorage.getItem('token');
+      showMessage('Verificando alertas...', 'info');
+      
+      const response = await fetch(`/api/alerts/verificar/${idViagem}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showMessage(`${data.alertasEncontrados} novo(s) alerta(s) encontrado(s)!`, 'success');
+        // Recarregar alertas após verificação
+        await carregarAlertas(idViagem);
+      } else {
+        throw new Error(data.error || 'Erro ao verificar alertas');
+      }
+    } catch (err) {
+      console.error('Erro ao verificar alertas:', err);
+      showMessage('Erro ao verificar alertas: ' + err.message, 'error');
+    }
+  }
+
+  // Renderizar lista de alertas
+  function renderizarAlertas(alertas) {
+    const container = document.getElementById('alertasLista');
+    if (!container) return;
+
+    if (!alertas || alertas.length === 0) {
+      container.innerHTML = `
+        <div style="text-align: center; padding: 40px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; color: #155724;">
+          <div style="font-size: 48px; margin-bottom: 15px;">✅</div>
+          <h3 style="color: #155724; margin: 0 0 10px 0;">Nenhum alerta ativo</h3>
+          <p style="color: #155724; margin: 0;">Tudo funcionando normalmente!</p>
+        </div>
+      `;
+      return;
+    }
+
+    let html = '';
+    alertas.forEach(alerta => {
+      const severityClass = `severity-${alerta.SEVERITY}`;
+      const tipoClass = alerta.TYPE;
+      let icon = '⚠️';
+      
+      switch (alerta.TYPE) {
+        case 'atraso': icon = '⏰'; break;
+        case 'parada': icon = '🛑'; break;
+        case 'offline': icon = '📵'; break;
+        case 'desvio': icon = '🧭'; break;
+      }
+
+      let details = '';
+      if (alerta.DETAILS) {
+        try {
+          const parsed = JSON.parse(alerta.DETAILS);
+          details = Object.entries(parsed)
+            .map(([key, value]) => `${key}: ${value}`)
+            .join(', ');
+        } catch (e) {
+          details = alerta.DETAILS;
+        }
+      }
+
+      html += `
+        <div class="alerta-card ${severityClass}">
+          <div class="alerta-header">
+            <div>
+              <span class="alerta-tipo ${tipoClass}">${icon} ${alerta.TYPE}</span>
+              <span style="margin-left: 10px; font-size: 12px; color: #6c757d;">
+                ${new Date(alerta.CREATED_AT).toLocaleString('pt-BR')}
+              </span>
+            </div>
+            <button 
+              class="btn" 
+              style="padding: 6px 12px; font-size: 12px;"
+              onclick="resolverAlerta(${alerta.ID})"
+              title="Marcar como resolvido"
+            >
+              ✓ Resolver
+            </button>
+          </div>
+          <div class="alerta-message">${alerta.MESSAGE}</div>
+          ${details ? `<div class="alerta-details">Detalhes: ${details}</div>` : ''}
+          <div style="margin-top: 10px; font-size: 12px; color: #6c757d;">
+            Severidade: <strong>${alerta.SEVERITY}</strong>
+          </div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+  }
+
+  // Resolver alerta
+  window.resolverAlerta = async function(idAlerta) {
+    if (!confirm('Deseja marcar este alerta como resolvido?')) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/alerts/${idAlerta}/resolver`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showMessage('Alerta resolvido com sucesso!', 'success');
+        
+        // Recarregar alertas
+        const idViagem = document.getElementById('filtroIdViagem')?.value ||
+                        document.getElementById('viagemId')?.value ||
+                        null;
+        if (idViagem) {
+          await carregarAlertas(idViagem);
+        }
+      } else {
+        throw new Error(data.error || 'Erro ao resolver alerta');
+      }
+    } catch (err) {
+      console.error('Erro ao resolver alerta:', err);
+      showMessage('Erro ao resolver alerta: ' + err.message, 'error');
+    }
+  };
+
+  // ==========================================
+  // CHAT INTEGRADO
+  // ==========================================
+  let chatSocket = null;
+  let chatIdViagemAtual = null;
+
+  function inicializarAbaChat() {
+    // Botão voltar
+    const btnVoltar = document.getElementById('btnVoltarChat');
+    if (btnVoltar) {
+      btnVoltar.onclick = () => {
+        document.querySelector('.tab-btn[data-tab="filtros"]').click();
+      };
+    }
+
+    // Botão atualizar
+    const btnAtualizar = document.getElementById('btnAtualizarChat');
+    if (btnAtualizar) {
+      btnAtualizar.onclick = async () => {
+        const idViagem = document.getElementById('filtroIdViagem')?.value ||
+                        document.getElementById('viagemId')?.value ||
+                        null;
+        if (idViagem) {
+          await carregarChat(idViagem);
+        }
+      };
+    }
+
+    // Conectar WebSocket
+    conectarSocketChat();
+  }
+
+  function conectarSocketChat() {
+    try {
+      if (typeof io === 'undefined') {
+        return;
+      }
+
+      chatSocket = io(window.location.origin, {
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionAttempts: 5
+      });
+
+      chatSocket.on('connect', () => {
+        console.log('✅ Chat WebSocket conectado (admin)');
+        atualizarStatusChat(true);
+        
+        // Entrar na sala da viagem atual se houver
+        if (chatIdViagemAtual) {
+          chatSocket.emit('join-viagem', chatIdViagemAtual);
+        }
+      });
+
+      chatSocket.on('disconnect', () => {
+        console.log('❌ Chat WebSocket desconectado (admin)');
+        atualizarStatusChat(false);
+      });
+
+      chatSocket.on('nova-mensagem', (mensagem) => {
+        console.log('📨 Nova mensagem recebida (admin):', mensagem);
+        
+        // Verificar se é da viagem atual
+        if (mensagem.IDVIAGEM == chatIdViagemAtual) {
+          adicionarMensagemChat(mensagem);
+          scrollChatBottom();
+          
+          // Marcar como lida
+          marcarMensagensLidas();
+          
+          // Atualizar badge (não precisa await aqui, é apenas visual)
+          if (mensagem.SENDER_TYPE === 'driver') {
+            atualizarBadgeChat([mensagem]).catch(err => console.warn('Erro ao atualizar badge:', err));
+          }
+        } else {
+          // Mensagem de outra viagem - atualizar badge geralmente
+          // (implementar contagem global se necessário)
+        }
+      });
+
+      chatSocket.on('connect_error', (err) => {
+        console.warn('⚠️ Erro de conexão WebSocket (admin):', err);
+        atualizarStatusChat(false);
+      });
+    } catch (err) {
+      console.error('Erro ao conectar WebSocket (admin):', err);
+      atualizarStatusChat(false);
+    }
+  }
+
+  function atualizarStatusChat(online) {
+    const statusEl = document.getElementById('chatStatusConexao');
+    if (statusEl) {
+      statusEl.textContent = online ? 'Online' : 'Offline';
+      statusEl.style.background = online ? '#d4edda' : '#f8d7da';
+      statusEl.style.color = online ? '#155724' : '#721c24';
+    }
+  }
+
+  async function carregarChat(idViagem) {
+    if (!idViagem) {
+      document.getElementById('chatSemViagem').style.display = 'block';
+      document.getElementById('chatContainer').style.display = 'none';
+      return;
+    }
+
+    chatIdViagemAtual = idViagem;
+
+    try {
+      // Entrar na sala da viagem via WebSocket
+      if (chatSocket && chatSocket.connected) {
+        chatSocket.emit('join-viagem', idViagem);
+      }
+
+      // Buscar dados da viagem
+      const viagemResponse = await fetch(`/api/viagens/${idViagem}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      let motoristaNome = 'Não informado';
+      if (viagemResponse.ok) {
+        const viagem = await viagemResponse.json();
+        // Tentar obter nome do motorista (pode estar em diferentes lugares)
+        motoristaNome = viagem.MOTORISTA_NOME || viagem.NOME_MOTORISTA || 'Não informado';
+      }
+
+      // Atualizar informações
+      document.getElementById('chatIdViagem').textContent = idViagem;
+      document.getElementById('chatMotorista').textContent = motoristaNome;
+
+      // Esconder mensagem e mostrar container
+      document.getElementById('chatSemViagem').style.display = 'none';
+      document.getElementById('chatContainer').style.display = 'block';
+
+      // Carregar mensagens
+      await carregarMensagensChat(idViagem);
+    } catch (err) {
+      console.error('Erro ao carregar chat:', err);
+      showMessage('Erro ao carregar chat: ' + err.message, 'error');
+    }
+  }
+
+  async function carregarMensagensChat(idViagem) {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/messages/viagem/${idViagem}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const mensagens = data.messages || [];
+        
+        renderizarMensagensChat(mensagens);
+        scrollChatBottom();
+        
+        // Marcar como lidas
+        marcarMensagensLidas();
+        
+        // Atualizar badge na aba se houver mensagens não lidas
+        await atualizarBadgeChat(mensagens);
+      } else {
+        throw new Error('Erro ao buscar mensagens');
+      }
+    } catch (err) {
+      console.error('Erro ao carregar mensagens:', err);
+      document.getElementById('chatMensagensLista').innerHTML = `
+        <div style="text-align: center; padding: 40px; color: #e74c3c;">
+          Erro ao carregar mensagens: ${err.message}
+        </div>
+      `;
+    }
+  }
+
+  function renderizarMensagensChat(mensagens) {
+    const lista = document.getElementById('chatMensagensLista');
+    
+    if (!mensagens || mensagens.length === 0) {
+      lista.innerHTML = `
+        <div style="text-align: center; padding: 40px; color: #999;">
+          <div style="font-size: 48px; margin-bottom: 12px; opacity: 0.5;">💬</div>
+          <strong>Nenhuma mensagem ainda</strong><br>
+          <span style="font-size: 13px;">Envie uma mensagem para começar a conversa!</span>
+        </div>
+      `;
+      return;
+    }
+
+    lista.innerHTML = mensagens.map(m => {
+      const hora = new Date(m.CREATED_AT).toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      const classe = m.SENDER_TYPE === 'operator' ? 'operador' : 'motorista';
+      const remetente = m.SENDER_TYPE === 'operator' ? '👨‍💼 Operador' : '👤 Motorista';
+      const nomeRemetente = m.SENDER_NAME || remetente;
+
+      return `
+        <div class="mensagem-chat ${classe}">
+          <div class="mensagem-bubble-chat">
+            <div class="mensagem-header-chat">${nomeRemetente}</div>
+            <div class="mensagem-texto-chat">${escapeHtml(m.CONTENT)}</div>
+            <div class="mensagem-hora-chat">${hora}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  function adicionarMensagemChat(mensagem) {
+    const lista = document.getElementById('chatMensagensLista');
+    
+    // Remover mensagem "nenhuma mensagem"
+    if (lista.querySelector('div[style*="text-align: center"]')) {
+      lista.innerHTML = '';
+    }
+
+    const hora = new Date(mensagem.CREATED_AT).toLocaleTimeString('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    const classe = mensagem.SENDER_TYPE === 'operator' ? 'operador' : 'motorista';
+    const nomeRemetente = mensagem.SENDER_NAME || (mensagem.SENDER_TYPE === 'operator' ? '👨‍💼 Operador' : '👤 Motorista');
+
+    const mensagemHtml = `
+      <div class="mensagem-chat ${classe}">
+        <div class="mensagem-bubble-chat">
+          <div class="mensagem-header-chat">${nomeRemetente}</div>
+          <div class="mensagem-texto-chat">${escapeHtml(mensagem.CONTENT)}</div>
+          <div class="mensagem-hora-chat">${hora}</div>
+        </div>
+      </div>
+    `;
+
+    lista.insertAdjacentHTML('beforeend', mensagemHtml);
+  }
+
+  function scrollChatBottom() {
+    const container = document.getElementById('chatMensagens');
+    if (container) {
+      setTimeout(() => {
+        container.scrollTop = container.scrollHeight;
+      }, 100);
+    }
+  }
+
+  async function marcarMensagensLidas() {
+    try {
+      const idViagem = chatIdViagemAtual;
+      if (!idViagem) return;
+
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      if (!user.id) return;
+
+      const token = localStorage.getItem('token');
+      await fetch('/api/messages/marcar-lidas', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          idviagem: idViagem,
+          userId: user.id,
+          userType: 'operator'
+        })
+      });
+    } catch (err) {
+      console.warn('Erro ao marcar como lidas:', err);
+    }
+  }
+
+  window.enviarMensagemAdmin = async function() {
+    const input = document.getElementById('chatInputMensagem');
+    const texto = input.value.trim();
+    
+    if (!texto || !chatIdViagemAtual) return;
+
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (!user.id) {
+      showMessage('Erro: Usuário não identificado', 'error');
+      return;
+    }
+
+    // Adicionar mensagem localmente (otimista)
+    const mensagemLocal = {
+      ID: Date.now(),
+      IDVIAGEM: chatIdViagemAtual,
+      SENDER_TYPE: 'operator',
+      SENDER_ID: user.id,
+      SENDER_NAME: user.nome || 'Operador',
+      CONTENT: texto,
+      CREATED_AT: new Date().toISOString()
+    };
+
+    adicionarMensagemChat(mensagemLocal);
+    input.value = '';
+    scrollChatBottom();
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          idviagem: chatIdViagemAtual,
+          content: texto,
+          senderType: 'operator',
+          senderId: user.id,
+          senderName: user.nome || 'Operador'
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Atualizar mensagem local com dados do servidor
+        const index = Array.from(document.querySelectorAll('.mensagem-chat')).length - 1;
+        if (data.message) {
+          // Substituir mensagem local pela do servidor
+          const ultimaMensagem = document.querySelectorAll('.mensagem-chat');
+          if (ultimaMensagem.length > 0) {
+            const ultima = ultimaMensagem[ultimaMensagem.length - 1];
+            const hora = new Date(data.message.CREATED_AT).toLocaleTimeString('pt-BR', {
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+            ultima.querySelector('.mensagem-hora-chat').textContent = hora;
+          }
+        }
+      } else {
+        throw new Error('Erro ao enviar mensagem');
+      }
+    } catch (err) {
+      console.error('Erro ao enviar mensagem:', err);
+      showMessage('Erro ao enviar mensagem: ' + err.message, 'error');
+    }
+  };
+
+  async function atualizarBadgeChat(mensagens) {
+    const tabBtn = document.querySelector('.tab-btn[data-tab="chat"]');
+    if (!tabBtn) return;
+
+    // Se não houver mensagens, contar não lidas da viagem atual
+    if (!mensagens && chatIdViagemAtual) {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/messages/viagem/${chatIdViagemAtual}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          mensagens = data.messages || [];
+        }
+      } catch (err) {
+        console.warn('Erro ao atualizar badge chat:', err);
+      }
+    }
+
+    if (mensagens) {
+      const mensagensNaoLidas = mensagens.filter(m => 
+        m.SENDER_TYPE === 'driver' && m.READ_BY_RECEIVER === 0
+      );
+
+      if (mensagensNaoLidas.length > 0) {
+        tabBtn.innerHTML = `Chat <span style="background: #e74c3c; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; margin-left: 5px;">${mensagensNaoLidas.length}</span>`;
+      } else {
+        tabBtn.innerHTML = 'Chat';
+      }
+    }
+  }
+
+  // ==========================================
+  // SOS (EMERGÊNCIA)
+  // ==========================================
+  let sosSocket = null;
+  let intervaloSOS = null;
+
+  function inicializarAbaSOS() {
+    // Botão voltar
+    const btnVoltar = document.getElementById('btnVoltarSOS');
+    if (btnVoltar) {
+      btnVoltar.onclick = () => {
+        document.querySelector('.tab-btn[data-tab="filtros"]').click();
+      };
+    }
+
+    // Botão atualizar
+    const btnAtualizar = document.getElementById('btnAtualizarSOS');
+    if (btnAtualizar) {
+      btnAtualizar.onclick = () => {
+        carregarAlertasSOS();
+      };
+    }
+
+    // Conectar WebSocket para receber alertas em tempo real
+    conectarSocketSOS();
+
+    // Ativar acompanhamento WebSocket global (sala de todas as viagens)
+    // A sala global já é automaticamente entrado na inicialização do WebSocket Torre
+    // Mas garantir que está conectado
+    if (typeof window.WebSocketTorre !== 'undefined') {
+      const wsTorre = window.WebSocketTorre;
+      if (wsTorre.estaConectado()) {
+        console.log('✅ Acompanhamento SOS ativo via WebSocket Torre');
+      }
+    }
+
+    // Atualizar a cada 60 segundos (fallback - WebSocket é mais rápido e responsivo)
+    // Polling aumentado porque WebSocket Torre já está ativo e é mais eficiente
+    if (intervaloSOS) clearInterval(intervaloSOS);
+    intervaloSOS = setInterval(() => {
+      // Só fazer polling se WebSocket não estiver conectado
+      const wsTorre = window.WebSocketTorre;
+      if (!wsTorre || !wsTorre.estaConectado()) {
+        carregarAlertasSOS();
+      }
+      // Se WebSocket está conectado, confiar nele (mais eficiente)
+    }, 60000); // Aumentado de 30s para 60s porque WebSocket é mais rápido
+  }
+
+  function conectarSocketSOS() {
+    try {
+      if (typeof io === 'undefined') {
+        return;
+      }
+
+      sosSocket = io(window.location.origin, {
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionAttempts: 5
+      });
+
+      sosSocket.on('connect', () => {
+        console.log('✅ SOS WebSocket conectado (admin)');
+      });
+
+      sosSocket.on('sos-alerta', (data) => {
+        console.log('🆘 Novo alerta SOS recebido:', data);
+        
+        if (data.type === 'novo') {
+          // Recarregar lista
+          carregarAlertasSOS();
+          
+          // Notificação do navegador (se permitido)
+          if ('Notification' in window && Notification.permission === 'granted') {
+            new Notification('ALERTA SOS', {
+              body: `Motorista ${data.alerta.NOME_MOTORISTA || 'Desconhecido'} enviou alerta de emergência!`,
+              icon: '/motorista/favicon.ico',
+              tag: 'sos-alerta',
+              requireInteraction: true
+            });
+          }
+
+          // Vibrar (se disponível)
+          if (navigator.vibrate) {
+            navigator.vibrate([200, 100, 200, 100, 200]);
+          }
+
+          // Mostrar toast
+          showMessage(`ALERTA SOS: ${data.alerta.NOME_MOTORISTA || 'Motorista'} precisa de ajuda urgente!`, 'error');
+        } else if (data.type === 'resolvido') {
+          carregarAlertasSOS();
+        }
+      });
+    } catch (err) {
+      console.error('Erro ao conectar WebSocket SOS:', err);
+    }
+  }
+
+  async function carregarAlertasSOS() {
+    // Obter referência do container uma única vez
+    const sosContainer = document.getElementById('sosLista');
+    
+    // Se o elemento não existe, a aba de SOS não está visível
+    if (!sosContainer) {
+      console.warn('Aba de SOS não está visível. Elemento sosLista não encontrado.');
+      return;
+    }
+    
+    // Mostrar skeleton loader durante carregamento
+    if (typeof window.showSkeleton === 'function') {
+      window.showSkeleton(sosContainer, 3, 'list');
+    }
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/sos/ativos', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao buscar alertas SOS');
+      }
+
+      const data = await response.json();
+      const alertas = data.alertas || [];
+      
+      // Esconder skeleton antes de renderizar (usando a referência já obtida)
+      if (sosContainer && typeof window.hideSkeleton === 'function') {
+        window.hideSkeleton(sosContainer);
+      }
+      
+      renderizarAlertasSOS(alertas);
+      
+      // Atualizar badge na aba
+      atualizarBadgeSOS(alertas);
+      
+      // Log para debug
+      // Log removido
+
+    } catch (err) {
+      console.error('Erro ao carregar alertas SOS:', err);
+      const sosLista = document.getElementById('sosLista');
+      if (sosLista) {
+        sosLista.innerHTML = `
+          <div style="text-align: center; padding: 40px; color: #e74c3c;">
+            <div style="font-size: 48px; margin-bottom: 12px;">❌</div>
+            <strong>Erro ao carregar alertas SOS</strong><br>
+            <span style="font-size: 13px;">${err.message}</span>
+          </div>
+        `;
+      }
+    }
+  }
+
+  function renderizarAlertasSOS(alertas) {
+    const lista = document.getElementById('sosLista');
+    
+    if (!lista) {
+      console.warn('Elemento sosLista não encontrado. A aba de SOS pode não estar visível.');
+      return;
+    }
+    
+    if (!alertas || alertas.length === 0) {
+      lista.innerHTML = `
+        <div style="text-align: center; padding: 40px; color: #999;">
+          <strong>Nenhum alerta SOS ativo</strong><br>
+          <span style="font-size: 13px;">Todos os alertas foram resolvidos.</span>
+        </div>
+      `;
+      return;
+    }
+
+    lista.innerHTML = alertas.map(alerta => {
+      const dataHora = new Date(alerta.CREATED_AT).toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      const linkMapa = alerta.LATITUDE && alerta.LONGITUDE
+        ? `https://www.google.com/maps?q=${alerta.LATITUDE},${alerta.LONGITUDE}`
+        : '#';
+
+      return `
+        <div class="alerta-card severity-high" style="border-left: 6px solid #e74c3c; animation: pulseSOS 2s infinite;">
+          <div class="alerta-header">
+            <div>
+              <div style="font-size: 24px; margin-bottom: 8px; font-weight: 700; color: #e74c3c;">EMERGÊNCIA</div>
+              <div class="alerta-tipo" style="background: #fee; color: #c0392b; font-size: 14px;">
+                ALERTA SOS CRÍTICO
+              </div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 12px; color: #666; margin-bottom: 4px;">${dataHora}</div>
+            </div>
+          </div>
+          
+          <div class="alerta-message" style="font-size: 18px; margin: 15px 0;">
+            Motorista: <strong>${alerta.NOME_MOTORISTA || 'Não informado'}</strong>
+          </div>
+
+          ${alerta.CDVIAGEM ? `
+            <div class="alerta-details">
+              <strong>ID Viagem:</strong> #${alerta.CDVIAGEM}<br>
+              ${alerta.NMORIGEM ? `<strong>Origem:</strong> ${alerta.NMORIGEM}<br>` : ''}
+              ${alerta.NMDESTINO ? `<strong>Destino:</strong> ${alerta.NMDESTINO}` : ''}
+            </div>
+          ` : ''}
+
+          ${alerta.CELULAR_MOTORISTA ? `
+            <div class="alerta-details" style="margin-top: 10px;">
+              <strong>📱 Telefone:</strong> <a href="tel:${alerta.CELULAR_MOTORISTA}" style="color: #667eea;">${alerta.CELULAR_MOTORISTA}</a>
+            </div>
+          ` : ''}
+
+          ${alerta.LATITUDE && alerta.LONGITUDE ? `
+            <div class="alerta-details" style="margin-top: 10px;">
+              <strong>📍 Localização:</strong> ${alerta.LATITUDE.toFixed(6)}, ${alerta.LONGITUDE.toFixed(6)}<br>
+              <a href="${linkMapa}" target="_blank" style="color: #667eea; text-decoration: underline; margin-top: 5px; display: inline-block;">
+                🗺️ Abrir no Google Maps
+              </a>
+            </div>
+          ` : ''}
+
+          ${alerta.MESSAGE ? `
+            <div class="alerta-details" style="margin-top: 10px; padding: 10px; background: #fff3cd; border-radius: 6px;">
+              <strong>💬 Mensagem:</strong> ${escapeHtml(alerta.MESSAGE)}
+            </div>
+          ` : ''}
+
+          <div class="alerta-actions">
+            <button 
+              type="button" 
+              class="btn save" 
+              onclick="resolverSOS(${alerta.ID})"
+              style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%);"
+            >
+              ✅ Marcar como Resolvido
+            </button>
+            ${alerta.CELULAR_MOTORISTA ? `
+              <button 
+                type="button" 
+                class="btn info" 
+                onclick="window.open('tel:${alerta.CELULAR_MOTORISTA}', '_self')"
+              >
+                📞 Ligar para Motorista
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  function atualizarBadgeSOS(alertas) {
+    const tabBtn = document.querySelector('.tab-btn[data-tab="sos"]');
+    if (!tabBtn) return;
+
+    const ativos = alertas.filter(a => a.STATUS === 'active');
+
+    if (ativos.length > 0) {
+      tabBtn.innerHTML = `SOS <span style="background: #e74c3c; color: white; padding: 2px 6px; border-radius: 10px; font-size: 11px; margin-left: 5px;">${ativos.length}</span>`;
+    } else {
+      tabBtn.innerHTML = 'SOS';
+    }
+  }
+
+  window.resolverSOS = async function(idAlerta) {
+    const notes = prompt('Observações sobre a resolução do alerta (opcional):');
+    if (notes === null) return; // Usuário cancelou
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/sos/${idAlerta}/resolver`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ notes: notes || null })
+      });
+
+      if (response.ok) {
+        showMessage('✅ Alerta SOS resolvido com sucesso!', 'success');
+        await carregarAlertasSOS();
+      } else {
+        throw new Error('Erro ao resolver alerta');
+      }
+    } catch (err) {
+      console.error('Erro ao resolver SOS:', err);
+      showMessage('Erro ao resolver alerta SOS: ' + err.message, 'error');
+    }
+  };
+
+  // Solicitar permissão de notificação ao inicializar
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+
+  // ==========================================
+  // RANKING DE MOTORISTAS
+  // ==========================================
+  function inicializarAbaRanking() {
+    // Botão voltar
+    const btnVoltar = document.getElementById('btnVoltarRanking');
+    if (btnVoltar) {
+      btnVoltar.onclick = () => {
+        document.querySelector('.tab-btn[data-tab="filtros"]').click();
+      };
+    }
+
+    // Botão atualizar
+    const btnAtualizar = document.getElementById('btnAtualizarRanking');
+    if (btnAtualizar) {
+      btnAtualizar.onclick = () => {
+        carregarRanking();
+      };
+    }
+
+    // Botão recalcular
+    const btnRecalcular = document.getElementById('btnRecalcularRanking');
+    if (btnRecalcular) {
+      btnRecalcular.onclick = async () => {
+        const confirmar = await showConfirmModal(
+          'Recalcular Reputações',
+          'Deseja recalcular todas as reputações?<br><br><small>Esta operação pode levar alguns minutos, dependendo da quantidade de motoristas e viagens no sistema.</small>'
+        );
+        if (!confirmar) {
+          return;
+        }
+        await recalcularRanking();
+      };
+    }
+  }
+
+  async function carregarRanking() {
+    // Obter referência do container uma única vez
+    const rankingContainer = document.getElementById('rankingLista');
+    
+    // Se o elemento não existe, a aba de ranking não está visível
+    if (!rankingContainer) {
+      console.warn('Aba de ranking não está visível. Elemento rankingLista não encontrado.');
+      return;
+    }
+    
+    // Mostrar skeleton loader durante carregamento
+    if (typeof window.showSkeleton === 'function') {
+      window.showSkeleton(rankingContainer, 5, 'list');
+    }
+    
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/reputation/ranking?limit=100', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Erro ao buscar ranking');
+      }
+
+      const data = await response.json();
+      const ranking = data.ranking || [];
+      
+      // Esconder skeleton antes de renderizar (usando a referência já obtida)
+      if (rankingContainer && typeof window.hideSkeleton === 'function') {
+        window.hideSkeleton(rankingContainer);
+      }
+      
+      renderizarRanking(ranking);
+
+    } catch (err) {
+      console.error('Erro ao carregar ranking:', err);
+      const rankingLista = document.getElementById('rankingLista');
+      if (rankingLista) {
+        rankingLista.innerHTML = `
+          <div style="text-align: center; padding: 40px; color: #e74c3c;">
+            <div style="font-size: 48px; margin-bottom: 12px;">❌</div>
+            <strong>Erro ao carregar ranking</strong><br>
+            <span style="font-size: 13px;">${err.message}</span>
+          </div>
+        `;
+      }
+    }
+  }
+
+  function renderizarRanking(ranking) {
+    const lista = document.getElementById('rankingLista');
+    
+    if (!lista) {
+      console.warn('Elemento rankingLista não encontrado. A aba de ranking pode não estar visível.');
+      return;
+    }
+    
+    if (!ranking || ranking.length === 0) {
+      lista.innerHTML = `
+        <div style="text-align: center; padding: 40px; color: #999;">
+          <div style="font-size: 48px; margin-bottom: 12px; opacity: 0.5;">⭐</div>
+          <strong>Nenhum motorista no ranking ainda</strong><br>
+          <span style="font-size: 13px;">As reputações serão calculadas após as primeiras entregas.</span>
+        </div>
+      `;
+      return;
+    }
+
+    lista.innerHTML = ranking.map((motorista, index) => {
+      const posicao = index + 1;
+      const medalha = posicao === 1 ? '🥇' : posicao === 2 ? '🥈' : posicao === 3 ? '🥉' : `${posicao}º`;
+      
+      const scoreClass = motorista.SCORE >= 80 ? 'excelente' :
+                        motorista.SCORE >= 60 ? 'bom' :
+                        motorista.SCORE >= 40 ? 'regular' : 'ruim';
+      
+      const taxaPontualidade = motorista.TAXA_PONTUALIDADE || 
+        (motorista.TOTAL_DELIVERIES > 0 
+          ? ((motorista.ON_TIME_DELIVERIES * 100.0) / motorista.TOTAL_DELIVERIES).toFixed(1)
+          : 0);
+
+      return `
+        <div class="alerta-card" style="display: flex; align-items: center; gap: 15px; padding: 20px;">
+          <div style="font-size: 32px; font-weight: 700; color: #667eea; min-width: 60px; text-align: center;">
+            ${medalha}
+          </div>
+          <div style="flex: 1;">
+            <div style="font-size: 18px; font-weight: 600; color: #333; margin-bottom: 8px;">
+              ${motorista.NOME_MOTORISTA || 'Motorista Desconhecido'}
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; font-size: 13px; color: #666;">
+              <div>
+                <strong>Score:</strong> 
+                <span class="reputacao-score-${scoreClass}" style="font-weight: 700; font-size: 16px;">
+                  ${motorista.SCORE.toFixed(1)}/100
+                </span>
+              </div>
+              <div><strong>Entregas:</strong> ${motorista.TOTAL_DELIVERIES || 0}</div>
+              <div><strong>No Prazo:</strong> ${motorista.ON_TIME_DELIVERIES || 0}</div>
+              <div><strong>Taxa:</strong> ${taxaPontualidade}%</div>
+              ${motorista.LATE_DELIVERIES > 0 ? `<div><strong>Atrasadas:</strong> ${motorista.LATE_DELIVERIES}</div>` : ''}
+              ${motorista.CANCELED_DELIVERIES > 0 ? `<div style="color: #dc3545;"><strong>Canceladas:</strong> ${motorista.CANCELED_DELIVERIES}</div>` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function recalcularRanking() {
+    const btnRecalcular = document.getElementById('btnRecalcularRanking');
+    
+    if (!btnRecalcular) {
+      console.warn('Botão btnRecalcularRanking não encontrado.');
+      return;
+    }
+    
+    const textoOriginal = btnRecalcular.textContent;
+    
+    btnRecalcular.disabled = true;
+    btnRecalcular.textContent = '🔄 Recalculando...';
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/reputation/recalcular-todos', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        let mensagem = data.message || 'Reputações recalculadas com sucesso!';
+        
+        if (data.resultado && data.resultado.erro > 0) {
+          mensagem += ` (${data.resultado.erro} erro(s))`;
+        }
+        
+        showMessage(`✅ ${mensagem}`, 'success');
+        await carregarRanking();
+      } else {
+        // Mostrar mensagem de erro mais detalhada
+        let erroMsg = data.error || 'Erro ao recalcular';
+        if (data.details) {
+          erroMsg += ': ' + data.details;
+        }
+        if (data.solucao) {
+          erroMsg += '\n\nSolução: ' + data.solucao;
+        }
+        throw new Error(erroMsg);
+      }
+    } catch (err) {
+      console.error('Erro ao recalcular ranking:', err);
+      let mensagem = 'Erro ao recalcular reputações: ' + (err.message || 'Erro desconhecido');
+      
+      // Se for erro de tabela não existente, mostrar mensagem clara
+      if (err.message && (err.message.includes('não existe') || err.message.includes('does not exist'))) {
+        mensagem = '❌ Tabela DRIVER_REPUTATION não encontrada!\n\nExecute o script SQL:\nbackend/scripts/criar_tabela_driver_reputation.sql';
+      }
+      
+      showMessage(mensagem, 'error');
+    } finally {
+      btnRecalcular.disabled = false;
+      btnRecalcular.textContent = textoOriginal;
     }
   }
 
@@ -10494,10 +12071,6 @@ function getOverlayMostrado() {
 
       const posicoesData = await response.json();
       
-      // Debug: verificar o que foi retornado
-      console.log('📦 Dados retornados da API:', posicoesData);
-      console.log('📊 Tipo:', Array.isArray(posicoesData) ? 'Array' : typeof posicoesData);
-      
       // A resposta pode ser um array direto (compatibilidade) ou um objeto com posicoes e ultimaPosicaoGeral
       let posicoes, ultimaPosicaoGeral;
       if (Array.isArray(posicoesData)) {
@@ -10509,14 +12082,11 @@ function getOverlayMostrado() {
         posicoes = posicoesData.posicoes || [];
         ultimaPosicaoGeral = posicoesData.ultimaPosicaoGeral || null;
       }
-      
-      console.log('📊 Tamanho:', posicoes.length);
-      console.log('✅ Posições processadas:', posicoes.length);
       if (posicoes.length > 0) {
-        console.log('📍 Primeira posição:', posicoes[0]);
+        // Log removido
       }
       if (ultimaPosicaoGeral) {
-        console.log('📍 Última posição geral (sem filtro):', ultimaPosicaoGeral);
+        // Log removido
       }
 
       // Esconder mensagem "sem viagem" e mostrar container
@@ -10666,7 +12236,7 @@ function getOverlayMostrado() {
 
     // Obter configuração do mapa
     const config = window.MAP_CONFIG || {
-      osrmServer: 'https://router.project-osrm.org/route/v1/driving',
+      osrmServer: 'https://router.project-osrm.org/route/v1/driving-hgv',
       tileServer: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19
@@ -10730,10 +12300,8 @@ function getOverlayMostrado() {
     
     // IMPORTANTE: Garantir que coordenadas está na ordem correta (primeiro → último)
     if (coordenadas.length > 0) {
-      console.log(`📍 Primeira posição GPS (início): [${coordenadas[0][0]}, ${coordenadas[0][1]}]`);
-      console.log(`📍 Última posição GPS (fim): [${coordenadas[coordenadas.length - 1][0]}, ${coordenadas[coordenadas.length - 1][1]}]`);
+      // Logs removidos para reduzir verbosidade
     }
-    console.log(`📍 Total de posições GPS: ${coordenadas.length}`);
 
     // Calcular rota real usando OSRM/ORS conectando TODOS os pontos GPS consecutivos
     if (coordenadas.length > 0) {
@@ -10773,14 +12341,10 @@ function getOverlayMostrado() {
           pontosFiltrados.push(coordenadas[coordenadas.length - 1]);
         }
         
-        console.log(`   🔍 Filtragem: ${coordenadas.length} pontos → ${pontosFiltrados.length} pontos (removidos muito próximos < 200m)`);
+        // Logs removidos para reduzir verbosidade
         
         // NÃO fazer amostragem - usar TODOS os pontos filtrados para garantir rota completa
         let pontosParaRota = pontosFiltrados;
-        console.log(`   📍 Usando ${pontosParaRota.length} pontos para calcular rota completa pelas estradas`);
-        
-        // NÃO exibir linha reta inicial - aguardar cálculo OSRM/ORS
-        console.log('📍 Calculando rota completa pelas estradas (aguarde)...');
         
         // Calcular rota conectando pontos consecutivos em pares (mais preciso)
         // Para muitos pontos, processar em segmentos maiores para ser mais rápido
@@ -10795,7 +12359,7 @@ function getOverlayMostrado() {
             // IMPORTANTE: segmento já está na ordem correta (primeiro → último)
             // Formato OSRM: lon,lat;lon,lat;...
             const coordsStr = segmento.map(c => `${c[1]},${c[0]}`).join(';');
-            console.log(`   🔍 Segmento: ${segmento.length} pontos, primeiro: [${segmento[0][0]}, ${segmento[0][1]}], último: [${segmento[segmento.length - 1][0]}, ${segmento[segmento.length - 1][1]}]`);
+            // Log removido
             
             // Tentar primeiro com servidor principal
             for (const servidor of [servidorPrincipal, servidorAlternativo].filter(s => s)) {
@@ -10923,8 +12487,8 @@ function getOverlayMostrado() {
                   if (parte1.length >= 2) {
                     const parte1Route = await obterRotaSegmento(
                       parte1,
-                      config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
-                      config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving'
+                      config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
+                      config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv'
                     );
                     
                     if (parte1Route && parte1Route.length > 0) {
@@ -10943,8 +12507,8 @@ function getOverlayMostrado() {
                         
                         let parRota = null;
                         for (const servidor of [
-                          config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
-                          config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving'
+                          config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
+                          config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv'
                         ].filter(s => s)) {
                           try {
                             const parUrl = construirUrlRota(servidor, parCoordsStr, 'simplified', 'geojson');
@@ -11005,8 +12569,8 @@ function getOverlayMostrado() {
                 
                 let saltoRota = null;
                 for (const servidor of [
-                  config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
-                  config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving'
+                  config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
+                  config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv'
                 ].filter(s => s)) {
                   try {
                     const saltoUrl = construirUrlRota(servidor, saltoCoordsStr, 'full', 'geojson');
@@ -11042,8 +12606,8 @@ function getOverlayMostrado() {
                   if (parte2.length >= 2) {
                     const parte2Route = await obterRotaSegmento(
                       parte2,
-                      config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
-                      config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving'
+                      config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
+                      config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv'
                     );
                     
                     if (parte2Route && parte2Route.length > 0) {
@@ -11058,8 +12622,8 @@ function getOverlayMostrado() {
                         
                         let parRota = null;
                         for (const servidor of [
-                          config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
-                          config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving'
+                          config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
+                          config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv'
                         ].filter(s => s)) {
                           try {
                             const parUrl = construirUrlRota(servidor, parCoordsStr, 'simplified', 'geojson');
@@ -11107,8 +12671,8 @@ function getOverlayMostrado() {
             if (!segmentoProcessado && segmento.length >= 2) {
               const segmentRoute = await obterRotaSegmento(
                 segmento, 
-                config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
-                config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving'
+                config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
+                config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv'
               );
               
               if (segmentRoute && segmentRoute.length > 0) {
@@ -11131,8 +12695,8 @@ function getOverlayMostrado() {
                   // Tentar ambos servidores para cada par
                   let parRota = null;
                   for (const servidor of [
-                    config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
-                    config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving'
+                    config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
+                    config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv'
                   ].filter(s => s)) {
                     try {
                       const parUrl = construirUrlRota(servidor, parCoordsStr, 'simplified', 'geojson');
@@ -11164,8 +12728,8 @@ function getOverlayMostrado() {
                     // Tentar com overview=full como último recurso
                     console.warn(`   ⚠️  Tentando par ${j + 1} com overview=full...`);
                     for (const servidor of [
-                      config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
-                      config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving'
+                      config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
+                      config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv'
                     ].filter(s => s)) {
                       try {
                         const parUrlFull = construirUrlRota(servidor, parCoordsStr, 'full', 'geojson');
@@ -11225,7 +12789,7 @@ function getOverlayMostrado() {
               await new Promise(resolve => setTimeout(resolve, 50)); // Reduzir delay
               // Mostrar progresso
               const progresso = Math.min(Math.round(((i + maxPontosPorSegmento) / pontosParaRota.length) * 100), 100);
-              console.log(`   ⏳ Progresso: ${progresso}%`);
+              // Log removido
             }
           }
           
@@ -11293,8 +12857,8 @@ function getOverlayMostrado() {
               
               let parRota = null;
               for (const servidor of [
-                config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
-                config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving'
+                config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
+                config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv'
               ].filter(s => s)) {
                 try {
                   const parUrl = construirUrlRota(servidor, parCoordsStr, 'simplified', 'geojson');
@@ -11376,7 +12940,7 @@ function getOverlayMostrado() {
           // Poucos pontos: calcular rota completa de uma vez conectando todos os pontos
           const coordsStr = pontosParaRota.map(c => `${c[1]},${c[0]}`).join(';');
           const rotaUrl = construirUrlRota(
-            config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
+            config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
             coordsStr,
             'simplified',
             'geojson'
@@ -11447,7 +13011,7 @@ function getOverlayMostrado() {
               // Tentar com servidor alternativo ou overview=full
               console.warn('⚠️  OSRM não retornou rota, tentando servidor alternativo...');
               const rotaUrlAlt = construirUrlRota(
-                config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving',
+                config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv',
                 coordsStr,
                 'full',
                 'geojson'
@@ -11497,7 +13061,7 @@ function getOverlayMostrado() {
             // Tentar servidor alternativo se o principal falhou
             console.warn('⚠️  Erro ao calcular rota OSRM, tentando servidor alternativo...');
             const rotaUrlAlt = construirUrlRota(
-              config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving',
+              config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv',
               coordsStr,
               'full',
               'geojson'
@@ -11595,7 +13159,7 @@ function getOverlayMostrado() {
           try {
             const coordsStr = `${coordsOrigem.lon},${coordsOrigem.lat};${coordsDestino.lon},${coordsDestino.lat}`;
             const rotaUrl = construirUrlRota(
-              config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
+              config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
               coordsStr,
               'full',
               'geojson'
@@ -11643,7 +13207,7 @@ function getOverlayMostrado() {
             try {
               const coordsStrRestante = `${ultimaLon},${ultimaLat};${coordsDestino.lon},${coordsDestino.lat}`;
               const rotaUrlRestante = construirUrlRota(
-                config.osrmServer || 'https://router.project-osrm.org/route/v1/driving',
+                config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
                 coordsStrRestante,
                 'full',
                 'geojson'
@@ -11717,7 +13281,7 @@ function getOverlayMostrado() {
                 // Tentar servidor alternativo
                 console.warn('⚠️  Tentando servidor alternativo para rota restante...');
                 const rotaUrlRestanteAlt = construirUrlRota(
-                  config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving',
+                  config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv',
                   coordsStrRestante,
                   'full',
                   'geojson'
@@ -11962,5 +13526,271 @@ function getOverlayMostrado() {
       }, 5000);
     }
   }
+
+  // ==========================================
+  // FUNÇÕES GLOBAIS PARA WEBSOCKET TORRE
+  // Mapear eventos WebSocket para atualizações de UI
+  // ==========================================
+
+  /**
+   * Atualizar posição GPS no mapa quando evento WebSocket chega
+   * @param {number} idviagem - ID da viagem
+   * @param {object} posicao - Dados da posição GPS
+   */
+  window.atualizarPosicaoGPS = async function(idviagem, posicao) {
+    try {
+      // Se estivermos na aba de rastreamento e a viagem for a mesma
+      const abaAtiva = document.querySelector('.tab-content.active');
+      if (abaAtiva && abaAtiva.id === 'rastreamento') {
+        const viagemSelecionada = abaAtiva.getAttribute('data-idviagem') || 
+                                 document.getElementById('rastreamentoIdViagem')?.textContent;
+        
+        if (viagemSelecionada && parseInt(viagemSelecionada) === parseInt(idviagem)) {
+          // Recarregar posições para atualizar o mapa
+          await carregarPosicoesRastreamento(idviagem);
+          console.log('📍 Posição GPS atualizada via WebSocket');
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao atualizar posição GPS:', err);
+    }
+  };
+
+  /**
+   * Atualizar dados da viagem quando evento WebSocket chega
+   * @param {number} idviagem - ID da viagem
+   * @param {object} viagem - Dados atualizados da viagem
+   */
+  window.atualizarDadosViagem = async function(idviagem, viagem) {
+    try {
+      // Se estivermos vendo esta viagem, recarregar detalhes
+      const viagemSelecionada = lastViagens?.find(v => v.IDVIAGEM == idviagem);
+      
+      if (viagemSelecionada) {
+        // Atualizar dados no objeto lastViagens
+        Object.assign(viagemSelecionada, viagem);
+        
+        // Se estivermos na aba de detalhes desta viagem, recarregar
+      const abaAtiva = document.querySelector('.tab-content.active');
+      if (abaAtiva && abaAtiva.id === 'detalhes') {
+        const idViagemAtual = abaAtiva.getAttribute('data-idviagem') || 
+                              document.getElementById('viagemId')?.value;
+        if (idViagemAtual && parseInt(idViagemAtual) === parseInt(idviagem)) {
+          // Recarregar detalhes da viagem
+          if (typeof carregarDetalhesViagem === 'function') {
+            await carregarDetalhesViagem(idviagem);
+          } else {
+            // Fallback: recarregar via fetch
+            try {
+              const response = await fetch(`/api/viagens/${idviagem}`);
+              if (response.ok) {
+                const dados = await response.json();
+                // Atualizar campos do formulário se estiver aberto
+                if (dados.IDVIAGEM) {
+                  Object.keys(dados).forEach(key => {
+                    const field = document.getElementById(key);
+                    if (field) {
+                      field.value = dados[key] || '';
+                    }
+                  });
+                }
+              }
+            } catch (err) {
+              console.warn('Erro ao recarregar detalhes:', err);
+            }
+          }
+          console.log('🔄 Dados da viagem atualizados via WebSocket');
+        }
+      }
+        
+        // Se estivermos no grid, atualizar o card da viagem
+        if (gridTab && typeof GridEditor !== 'undefined') {
+          atualizarCardViagemNoGrid(idviagem, viagem);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao atualizar dados da viagem:', err);
+    }
+  };
+
+  /**
+   * Atualizar card da viagem no grid
+   */
+  function atualizarCardViagemNoGrid(idviagem, novosDados) {
+    if (!gridTab || typeof GridEditor === 'undefined') return;
+    
+    try {
+      const row = GridEditor.findRow(gridTab, 'IDVIAGEM', idviagem);
+      if (row && row.rowElement) {
+        // Atualizar células relevantes
+        Object.keys(novosDados).forEach(key => {
+          const cell = GridEditor.getCell(row.rowElement, key);
+          if (cell) {
+            GridEditor.setCellValue(cell, novosDados[key]);
+          }
+        });
+        
+        // Adicionar indicador visual de atualização recente
+        row.rowElement.style.backgroundColor = '#e8f5e9';
+        setTimeout(() => {
+          row.rowElement.style.backgroundColor = '';
+        }, 2000);
+      }
+    } catch (err) {
+      console.warn('Erro ao atualizar card no grid:', err);
+    }
+  }
+
+  /**
+   * Adicionar novo alerta quando evento WebSocket chega
+   * @param {object} alerta - Dados do alerta
+   */
+  window.adicionarAlerta = async function(alerta) {
+    try {
+      // Se estivermos na aba de alertas e for da mesma viagem, recarregar
+      const abaAtiva = document.querySelector('.tab-content.active');
+      if (abaAtiva && abaAtiva.id === 'alertas') {
+        const idViagemAtual = document.getElementById('alertasIdViagem')?.textContent;
+        
+        if (alerta.IDVIAGEM && parseInt(idViagemAtual) === parseInt(alerta.IDVIAGEM)) {
+          await carregarAlertas(alerta.IDVIAGEM);
+          
+          // Mostrar notificação
+          if (alerta.SEVERITY === 'high') {
+            showMessage(`⚠️ Novo alerta crítico: ${alerta.MESSAGE || 'Alerta importante'}`, 'warning');
+          }
+          
+          console.log('⚠️ Novo alerta adicionado via WebSocket');
+        }
+      }
+      
+      // Atualizar badge na aba de alertas sempre
+      const tabBtn = document.querySelector('.tab-btn[data-tab="alertas"]');
+      if (tabBtn) {
+        // Recarregar alertas para atualizar contador
+        if (alerta.IDVIAGEM) {
+          await carregarAlertas(alerta.IDVIAGEM);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao adicionar alerta:', err);
+    }
+  };
+
+  /**
+   * Remover alerta resolvido quando evento WebSocket chega
+   * @param {number} idAlerta - ID do alerta resolvido
+   */
+  window.removerAlerta = async function(idAlerta) {
+    try {
+      // Se estivermos na aba de alertas, recarregar
+      const abaAtiva = document.querySelector('.tab-content.active');
+      if (abaAtiva && abaAtiva.id === 'alertas') {
+        const idViagemAtual = document.getElementById('alertasIdViagem')?.textContent;
+        
+        if (idViagemAtual) {
+          await carregarAlertas(idViagemAtual);
+          console.log('✅ Alerta resolvido via WebSocket');
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao remover alerta:', err);
+    }
+  };
+
+  /**
+   * Notificar SOS quando evento WebSocket chega
+   * @param {object} sos - Dados do alerta SOS
+   */
+  window.notificarSOS = function(sos) {
+    try {
+      // Mostrar notificação urgente
+      showMessage(`🆘 ALERTA SOS: ${sos.NOME_MOTORISTA || 'Motorista'} - Viagem ${sos.CDVIAGEM || ''}`, 'error');
+      
+      // Se estivermos na aba SOS, recarregar
+      const abaAtiva = document.querySelector('.tab-content.active');
+      if (abaAtiva && abaAtiva.id === 'sos') {
+        carregarAlertasSOS();
+      }
+      
+      // Tocar som de alerta (se permitido)
+      try {
+        const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBzSL0fPTgjMGHm7A7+OZURA');
+        audio.volume = 0.5;
+        audio.play().catch(() => {
+          // Ignorar erro se autoplay não for permitido
+        });
+      } catch (e) {
+        // Ignorar erro de áudio
+      }
+      
+      console.log('🆘 Alerta SOS recebido via WebSocket');
+    } catch (err) {
+      console.error('Erro ao notificar SOS:', err);
+    }
+  };
+
+  /**
+   * Atualizar reputação do motorista quando evento WebSocket chega
+   * @param {number} cdmotorista - ID do motorista
+   * @param {object} reputacao - Dados da reputação
+   */
+  window.atualizarReputacaoMotorista = async function(cdmotorista, reputacao) {
+    try {
+      // Se estivermos na aba de ranking, recarregar
+      const abaAtiva = document.querySelector('.tab-content.active');
+      if (abaAtiva && abaAtiva.id === 'ranking') {
+        await carregarRanking();
+        console.log('⭐ Reputação atualizada via WebSocket');
+      }
+    } catch (err) {
+      console.error('Erro ao atualizar reputação:', err);
+    }
+  };
+
+  /**
+   * Atualizar grid de viagens quando evento WebSocket chega
+   * @param {array} viagens - Lista atualizada de viagens
+   */
+  window.atualizarGridViagens = function(viagens) {
+    try {
+      // Se estivermos no grid, atualizar dados
+      const abaAtiva = document.querySelector('.tab-content.active');
+      if (abaAtiva && abaAtiva.id === 'grid') {
+        // Atualizar lastViagens
+        lastViagens = viagens;
+        
+        // Atualizar grid se estiver visível
+        if (gridTab && typeof GridEditor !== 'undefined') {
+          // Recarregar grid (pode ser custoso, então apenas se necessário)
+          console.log('📋 Grid de viagens atualizado via WebSocket');
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao atualizar grid:', err);
+    }
+  };
+
+  /**
+   * Acompanhar viagem automaticamente quando abrir detalhes/mapa
+   * Chamar esta função quando uma viagem for selecionada
+   */
+  window.ativarAcompanhamentoViagem = function(idviagem) {
+    if (typeof window.WebSocketTorre !== 'undefined' && idviagem) {
+      window.WebSocketTorre.acompanharViagem(idviagem);
+    }
+  };
+
+  /**
+   * Parar de acompanhar viagem
+   * Chamar esta função quando sair da viagem
+   */
+  window.desativarAcompanhamentoViagem = function(idviagem) {
+    if (typeof window.WebSocketTorre !== 'undefined' && idviagem) {
+      window.WebSocketTorre.pararAcompanharViagem(idviagem);
+    }
+  };
+
+  // Funções globais de atualização UI (WebSocket Torre) carregadas
 
 })();

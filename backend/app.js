@@ -28,8 +28,17 @@ const usuarioRoutes = require('./routes/usuario.routes');
 const tipoAtividadeRoutes = require('./routes/tipoatividade.routes');
 const motoristaAppRoutes = require('./routes/motorista-app.routes');
 const usuariologacaoRoutes = require('./routes/usuariologacao.routes');
+const alertRoutes = require('./routes/alert.routes');
+const messageRoutes = require('./routes/message.routes');
+const sosRoutes = require('./routes/sos.routes');
+const reputationRoutes = require('./routes/reputation.routes');
 
 const app = express();
+
+// Inicializar Cache Service (após criar app)
+const { getCacheService } = require('./services/cache.service');
+const cacheService = getCacheService();
+app.set('cacheService', cacheService);
 
 // Configurar trust proxy para capturar IP real quando há proxy reverso (nginx, etc)
 // Isso permite que req.ip funcione corretamente com X-Forwarded-For
@@ -90,6 +99,8 @@ const helmetConfig = {
         "ws://10.0.0.0/8", // WebSocket para faixa 10.x.x.x
         "http://172.16.0.0/12", // Permitir faixa 172.16.x.x - 172.31.x.x
         "ws://172.16.0.0/12", // WebSocket para faixa 172.16.x.x - 172.31.x.x
+        "http://cargas.integrabrasil.com:*", // Servidor de produção
+        "ws://cargas.integrabrasil.com:*", // WebSocket para servidor de produção
         "https://fonts.googleapis.com",
         "https://fonts.gstatic.com",
         "https://cdn.jsdelivr.net",
@@ -104,7 +115,8 @@ const helmetConfig = {
         "http://192.168.1.173:*", // IP específico da rede local
         "http://192.168.0.0/16", // Permitir toda a faixa 192.168.x.x
         "http://10.0.0.0/8", // Permitir faixa 10.x.x.x
-        "http://172.16.0.0/12" // Permitir faixa 172.16.x.x - 172.31.x.x
+        "http://172.16.0.0/12", // Permitir faixa 172.16.x.x - 172.31.x.x
+        "http://cargas.integrabrasil.com:*" // Servidor de produção
       ],
       frameSrc: ["'self'"],
       objectSrc: ["'none'"]
@@ -195,6 +207,10 @@ app.use('/api', usuarioRoutes);
 app.use('/api', tipoAtividadeRoutes);
 app.use('/api/motorista', motoristaAppRoutes);
 app.use('/api/log', usuariologacaoRoutes);
+app.use('/api/alerts', alertRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api', sosRoutes);
+app.use('/api/reputation', reputationRoutes);
 
 // Rotas específicas de páginas HTML (ANTES do express.static)
 // Rota pública para motorista responder convocação
@@ -314,5 +330,15 @@ app.get('/test-css', (req, res) => {
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+// Inicializar Cache Service (após tudo configurado)
+try {
+  const { getCacheService } = require('./services/cache.service');
+  cacheService = getCacheService();
+  app.set('cacheService', cacheService);
+  console.log('✅ Cache Service inicializado');
+} catch (err) {
+  console.warn('⚠️ Erro ao inicializar Cache Service:', err.message);
+}
 
 module.exports = app;

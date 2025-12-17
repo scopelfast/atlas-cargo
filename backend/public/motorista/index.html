@@ -139,6 +139,9 @@
         document.body.appendChild(script);
       }
       
+      // Carregar Background Sync Manager (melhoria opcional)
+      loadScript('js/background-sync-manager.js');
+      
       loadScript('js/auth.js');
     })();
   </script>
@@ -159,7 +162,9 @@
     if ('serviceWorker' in navigator) {
       // Aguardar um pouco antes de registrar para garantir que recursos HTTP sejam carregados primeiro
       setTimeout(() => {
-        navigator.serviceWorker.register('/motorista/sw.js')
+        // Usar sw-workbox.js (versão melhorada com cache inteligente)
+        // Para voltar ao sistema anterior, altere para '/motorista/sw.js'
+        navigator.serviceWorker.register('/motorista/sw-workbox.js')
         .then((registration) => {
           console.log('✅ Service Worker registrado');
           

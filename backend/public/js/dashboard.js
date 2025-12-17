@@ -1,10 +1,8 @@
 // backend/public/js/dashboard.js
 // Função de inicialização que funciona mesmo com scripts carregados dinamicamente
-console.log('📄 dashboard.js carregado!');
 (function() {
   // Verificar se o DOM já está pronto
   const init = () => {
-    console.log('⚙️ Função init() executada');
     // Variáveis globais para controle de timeout
     let inactivityTimer = null;
     let lastActivityTime = Date.now();
@@ -106,7 +104,6 @@ console.log('📄 dashboard.js carregado!');
   };
 
   const initDashboard = async () => {
-    console.log('🚀 Iniciando dashboard...');
     // Proteção anti-loop
     const loopCount = parseInt(sessionStorage.getItem('dashboardLoopCount') || '0');
     if (loopCount > 3) {
@@ -139,9 +136,6 @@ console.log('📄 dashboard.js carregado!');
       return;
     }
 
-    console.log('🔐 Token:', token ? 'presente' : 'ausente');
-    console.log('👤 User:', user);
-
     if (!token || !user) {
       console.warn('⚠️ Token ou user ausente, redirecionando para login');
       sessionStorage.removeItem('dashboardLoopCount');
@@ -168,19 +162,12 @@ console.log('📄 dashboard.js carregado!');
     
     if (userNameEl) {
       userNameEl.textContent = user.nome || 'Usuário';
-      console.log('✅ Nome do usuário atualizado');
-    } else {
-      console.error('❌ Elemento userName não encontrado');
     }
     
     if (userEmailEl) {
       userEmailEl.textContent = user.email || '';
-      console.log('✅ Email do usuário atualizado');
-    } else {
-      console.error('❌ Elemento userEmail não encontrado');
     }
 
-    console.log('📋 Carregando menu para:', user.login);
     await loadUserMenu(user.login);
 
     // Vincula botão de logout
@@ -234,13 +221,10 @@ console.log('📄 dashboard.js carregado!');
   };
 
   const loadUserMenu = async (userLogin) => {
-    console.log('📋 loadUserMenu chamado para:', userLogin);
     try {
       const token = localStorage.getItem('token');
       const baseUrl = window.__BASE_URL__ || ('http://' + window.location.host);
       const url = baseUrl + '/api/menu/user-menu';
-      
-      console.log('🌐 Fazendo requisição para:', url);
       
       const response = await fetch(url, {
         headers: { 
@@ -250,10 +234,7 @@ console.log('📄 dashboard.js carregado!');
         }
       });
 
-      console.log('📥 Resposta recebida:', response.status, response.statusText);
-
       const data = await response.json();
-      console.log('📦 Dados do menu:', data);
       
       const menuContainer = document.getElementById('menuContainer');
       if (!menuContainer) {
@@ -262,7 +243,6 @@ console.log('📄 dashboard.js carregado!');
       }
 
       if (response.ok && data.menu && data.menu.length > 0) {
-        console.log('✅ Renderizando menu com', data.menu.length, 'itens');
         menuContainer.innerHTML = data.menu.map(item => {
           const iconName = getIcon(item.id);
           // Se o ícone começa com 'bxs-', usar 'bxs', senão usar 'bx bx-'
@@ -276,7 +256,6 @@ console.log('📄 dashboard.js carregado!');
         }).join('');
 
         const menuItems = document.querySelectorAll('.menu-item');
-        console.log('✅ Menu renderizado! Itens criados:', menuItems.length);
 
         menuItems.forEach(el => {
           el.addEventListener('click', () => {
@@ -291,10 +270,7 @@ console.log('📄 dashboard.js carregado!');
             }
           });
         });
-        
-        console.log('✅ Event listeners do menu adicionados');
       } else {
-        console.warn('⚠️ Menu vazio ou sem permissões');
         menuContainer.innerHTML = '<div class="menu-item"><span>Sem permissões</span></div>';
       }
     } catch (err) {

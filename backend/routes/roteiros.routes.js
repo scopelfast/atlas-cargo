@@ -9,6 +9,92 @@ const express = require('express');
 const sql = require('mssql');
 const router = express.Router();
 const { poolPromise } = require('../config/db');
+const axios = require('axios');
+
+// Mapeamento de nomes de estados para UF
+const ESTADOS_PARA_UF = {
+  'Acre': 'AC',
+  'Alagoas': 'AL',
+  'Amapá': 'AP',
+  'Amazonas': 'AM',
+  'Bahia': 'BA',
+  'Ceará': 'CE',
+  'Distrito Federal': 'DF',
+  'Espírito Santo': 'ES',
+  'Goiás': 'GO',
+  'Maranhão': 'MA',
+  'Mato Grosso': 'MT',
+  'Mato Grosso do Sul': 'MS',
+  'Minas Gerais': 'MG',
+  'Pará': 'PA',
+  'Paraíba': 'PB',
+  'Paraná': 'PR',
+  'Pernambuco': 'PE',
+  'Piauí': 'PI',
+  'Rio de Janeiro': 'RJ',
+  'Rio Grande do Norte': 'RN',
+  'Rio Grande do Sul': 'RS',
+  'Rondônia': 'RO',
+  'Roraima': 'RR',
+  'Santa Catarina': 'SC',
+  'São Paulo': 'SP',
+  'Sergipe': 'SE',
+  'Tocantins': 'TO'
+};
+
+// Função para converter nome de estado para UF
+function converterEstadoParaUF(estado) {
+  if (!estado) return '';
+  
+  // Se já é uma UF (2 letras), retornar como está
+  if (estado.length === 2 && /^[A-Z]{2}$/i.test(estado)) {
+    return estado.toUpperCase();
+  }
+  
+  // Buscar no mapeamento
+  const estadoNormalizado = estado.trim();
+  const uf = ESTADOS_PARA_UF[estadoNormalizado];
+  
+  if (uf) {
+    return uf;
+  }
+  
+  // Tentar busca case-insensitive
+  for (const [nome, sigla] of Object.entries(ESTADOS_PARA_UF)) {
+    if (nome.toLowerCase() === estadoNormalizado.toLowerCase()) {
+      return sigla;
+    }
+  }
+  
+  // Se não encontrou, retornar o original (pode ser uma UF não mapeada)
+  return estado;
+}
+
+// Função para formatar cidade com UF (converte nome de estado para UF se necessário)
+function formatarCidadeComUF(cidade, estado) {
+  if (!cidade) return '';
+  
+  // Limpar cidade primeiro: remover vírgulas, pontos e estados que possam estar no nome
+  let cidadeLimpa = cidade.trim()
+    .replace(/,\s*[A-Z]{2}$/i, '') // Remove ",SP", ",MG", etc do final
+    .replace(/\.\s*[A-Z]{2}$/i, '') // Remove ".SP", ".MG", etc do final
+    .replace(/\s+[A-Z]{2}$/i, '') // Remove " SP", " MG", etc do final
+    .replace(/,\s*[A-Za-z\s]+$/i, '') // Remove vírgulas e texto após
+    .trim();
+  
+  // Se a cidade já vem no formato "Cidade/Estado", converter o estado para UF
+  if (cidadeLimpa.includes('/')) {
+    const partes = cidadeLimpa.split('/');
+    const nomeCidade = partes[0].trim();
+    const estadoNome = partes[1]?.trim() || estado;
+    const uf = converterEstadoParaUF(estadoNome);
+    return uf ? `${nomeCidade}/${uf}` : nomeCidade;
+  }
+  
+  // Se não tem estado na cidade, usar o estado fornecido
+  const uf = converterEstadoParaUF(estado);
+  return uf ? `${cidadeLimpa}/${uf}` : cidadeLimpa;
+}
 
 // Listar roteiros com filtros
 router.get('/roteiros', async (req, res) => {
@@ -792,6 +878,693 @@ router.post('/roteiros/executar-init-sql', async (req, res) => {
         detalhes: err.message 
       });
     }
+  }
+});
+
+// Gerar resumo da rota automaticamente
+router.post('/roteiros/:id/gerar-resumo', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = await poolPromise;
+    
+    // 1. Buscar roteiro para obter cidades de origem e destino
+    const roteiroResult = await pool
+      .request()
+      .input('IDROTEIRO', sql.Decimal(15, 0), parseFloat(id))
+      .query(`
+        SELECT 
+          r.CDCIDADEORIGEM,
+          co.NMCIDADE AS ORIGEM_CIDADE,
+          co.ESTADO AS ORIGEM_ESTADO,
+          r.CDCIDADEDESTINO,
+          cd.NMCIDADE AS DESTINO_CIDADE,
+          cd.ESTADO AS DESTINO_ESTADO
+        FROM [dbo].[ROTEIRO] r
+        LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
+        LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
+        WHERE r.IDROTEIRO = @IDROTEIRO
+      `);
+    
+    const roteiro = roteiroResult.recordset[0];
+    const cidadeOrigemReal = roteiro?.ORIGEM_CIDADE || null;
+    const estadoOrigemReal = roteiro?.ORIGEM_ESTADO || null;
+    const cidadeDestinoReal = roteiro?.DESTINO_CIDADE || null;
+    const estadoDestinoReal = roteiro?.DESTINO_ESTADO || null;
+    
+    // 2. Buscar pontos do roteiro
+    const pontosResult = await pool
+      .request()
+      .input('IDROTEIRO', sql.Decimal(15, 0), parseFloat(id))
+      .query(`
+        SELECT 
+          SEQUENCIA,
+          ORDEM,
+          DSLOCAL,
+          DSPOSICAO,
+          LATITUDE,
+          LONGITUDE,
+          TPLOCAL,
+          KMENTREPONTOS,
+          ESTADOPASSAGEM
+        FROM [dbo].[ROTEIROPONTOS]
+        WHERE IDROTEIRO = @IDROTEIRO
+          AND LATITUDE IS NOT NULL
+          AND LONGITUDE IS NOT NULL
+        ORDER BY ORDEM ASC, SEQUENCIA ASC
+      `);
+    
+    // Converter recordset para array JavaScript padrão
+    const pontos = Array.from(pontosResult.recordset);
+    
+    if (pontos.length < 2) {
+      return res.status(400).json({ 
+        error: 'É necessário ter pelo menos 2 pontos com coordenadas para gerar o resumo.' 
+      });
+    }
+    
+    // 3. Obter nomes reais das cidades dos pontos
+    // Identificar origem e destino pela ordem (primeiro = origem, último = destino)
+    const primeiroPonto = pontos[0];
+    const ultimoPonto = pontos[pontos.length - 1];
+    
+    for (let i = 0; i < pontos.length; i++) {
+      const ponto = pontos[i];
+      const isPrimeiro = i === 0;
+      const isUltimo = i === pontos.length - 1;
+      
+      // Se for o primeiro ponto (origem), usar nome real da cidade da tabela
+      if (isPrimeiro && cidadeOrigemReal) {
+        ponto.NMCIDADE_REAL = cidadeOrigemReal;
+        ponto.ESTADO_REAL = estadoOrigemReal;
+        console.log(`[Resumo] Ponto origem: ${cidadeOrigemReal}/${estadoOrigemReal}`);
+      }
+      // Se for o último ponto (destino), usar nome real da cidade da tabela
+      else if (isUltimo && cidadeDestinoReal) {
+        ponto.NMCIDADE_REAL = cidadeDestinoReal;
+        ponto.ESTADO_REAL = estadoDestinoReal;
+        console.log(`[Resumo] Ponto destino: ${cidadeDestinoReal}/${estadoDestinoReal}`);
+      }
+      // Para todos os outros pontos (intermediários), buscar nome real usando Nominatim
+      else {
+        try {
+          // Aguardar para respeitar rate limit (reduzido para ser mais rápido)
+          if (i > 0) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+          
+          const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?lat=${ponto.LATITUDE}&lon=${ponto.LONGITUDE}&format=json&addressdetails=1`;
+          const nomResponse = await axios.get(nominatimUrl, {
+            headers: { 
+              'User-Agent': 'DivulgaCarga/1.0 (roteiro@divulgacarga.com.br)' 
+            },
+                    timeout: 5000
+          });
+          
+          const info = nomResponse.data;
+          const cidade = info.address?.city || 
+                        info.address?.town || 
+                        info.address?.village || 
+                        info.address?.municipality ||
+                        info.address?.county || 
+                        null;
+          const estado = info.address?.state || 
+                       info.address?.state_code || 
+                       ponto.ESTADOPASSAGEM || 
+                       '';
+          
+          if (cidade && cidade.trim() && cidade !== '') {
+            // Limpar cidade: remover vírgulas, pontos e estados que possam estar no nome
+            let cidadeLimpa = cidade.trim()
+              .replace(/,\s*[A-Z]{2}$/i, '') // Remove ",SP", ",MG", etc do final
+              .replace(/\.\s*[A-Z]{2}$/i, '') // Remove ".SP", ".MG", etc do final
+              .replace(/\s+[A-Z]{2}$/i, '') // Remove " SP", " MG", etc do final
+              .replace(/,\s*[A-Za-z\s]+$/i, '') // Remove vírgulas e texto após
+              .trim();
+            
+            ponto.NMCIDADE_REAL = cidadeLimpa;
+            ponto.ESTADO_REAL = estado || ponto.ESTADOPASSAGEM || '';
+          } else {
+            // Se Nominatim não retornou cidade, usar DSPOSICAO se disponível, senão DSLOCAL
+            ponto.NMCIDADE_REAL = ponto.DSPOSICAO || ponto.DSLOCAL;
+            ponto.ESTADO_REAL = ponto.ESTADOPASSAGEM || '';
+          }
+        } catch (nomErr) {
+          // Se falhar, usar DSPOSICAO se disponível, senão DSLOCAL
+          console.warn(`[Resumo Rota] Erro ao buscar cidade real para ponto ${i} (${ponto.DSLOCAL}):`, nomErr.message);
+          ponto.NMCIDADE_REAL = ponto.DSPOSICAO || ponto.DSLOCAL;
+          ponto.ESTADO_REAL = ponto.ESTADOPASSAGEM || '';
+        }
+      }
+      
+      // Garantir que sempre tenha um nome (fallback final)
+      if (!ponto.NMCIDADE_REAL || ponto.NMCIDADE_REAL.trim() === '') {
+        ponto.NMCIDADE_REAL = ponto.DSPOSICAO || ponto.DSLOCAL || 'Cidade não identificada';
+      }
+      if (!ponto.ESTADO_REAL || ponto.ESTADO_REAL.trim() === '') {
+        ponto.ESTADO_REAL = ponto.ESTADOPASSAGEM || '';
+      }
+    }
+    
+    // 4. Montar coordenadas para OSRM (usar LONGITUDE, LATITUDE na ordem correta)
+    // Validar coordenadas antes de montar
+    const pontosValidos = pontos.filter(p => {
+      const lat = parseFloat(p.LATITUDE);
+      const lon = parseFloat(p.LONGITUDE);
+      return !isNaN(lat) && !isNaN(lon) && 
+             lat >= -90 && lat <= 90 && 
+             lon >= -180 && lon <= 180;
+    });
+    
+    if (pontosValidos.length < 2) {
+      return res.status(400).json({ 
+        error: 'É necessário ter pelo menos 2 pontos com coordenadas válidas para gerar o resumo.' 
+      });
+    }
+    
+    // Ordenar pontos por ORDEM para garantir ordem correta na rota
+    const pontosOrdenados = [...pontosValidos].sort((a, b) => {
+      const ordemA = parseFloat(a.ORDEM) || 0;
+      const ordemB = parseFloat(b.ORDEM) || 0;
+      return ordemA - ordemB;
+    });
+    
+    const coords = pontosOrdenados.map(p => `${parseFloat(p.LONGITUDE)},${parseFloat(p.LATITUDE)}`).join(';');
+    const osrmUrl = `https://router.project-osrm.org/route/v1/driving-hgv/${coords}?overview=full&geometries=geojson&steps=true`;
+    
+    // 5. Buscar rota do OSRM
+    let osrmResponse;
+    try {
+      osrmResponse = await axios.get(osrmUrl, { timeout: 30000 });
+    } catch (osrmErr) {
+      console.error('[Resumo Rota] Erro ao buscar rota do OSRM:', osrmErr.message);
+      return res.status(500).json({ 
+        error: 'Erro ao conectar com o serviço de roteamento. Tente novamente mais tarde.' 
+      });
+    }
+    
+    const rotaData = osrmResponse.data;
+    
+    if (rotaData.code !== 'Ok' || !rotaData.routes || rotaData.routes.length === 0) {
+      console.error('[Resumo Rota] OSRM retornou erro:', rotaData.code, rotaData.message);
+      return res.status(400).json({ 
+        error: 'Não foi possível calcular a rota. Verifique as coordenadas dos pontos.' 
+      });
+    }
+    
+    const route = rotaData.routes[0];
+    const distanciaTotal = (route.distance / 1000).toFixed(2);
+    const tempoEstimado = Math.round(route.duration / 3600); // em horas
+    
+    // 6. Identificar pontos principais (usando nomes reais)
+    // Usar pontos ordenados para identificar origem e destino
+    // Identificar origem e destino: primeiro por TPLOCAL, depois por ORDEM
+    let pontoOrigem = pontosOrdenados.find(p => p.TPLOCAL === 'O' || p.TPLOCAL === 'Origem');
+    let pontoDestino = pontosOrdenados.find(p => p.TPLOCAL === 'D' || p.TPLOCAL === 'Destino');
+    
+    // Se não encontrou por TPLOCAL, usar primeiro e último ponto por ORDEM
+    if (!pontoOrigem) {
+      // Primeiro ponto por ORDEM (menor ORDEM)
+      pontoOrigem = pontosOrdenados[0];
+    }
+    if (!pontoDestino) {
+      // Último ponto por ORDEM (maior ORDEM)
+      pontoDestino = pontosOrdenados[pontosOrdenados.length - 1];
+    }
+    
+    // Usar pontosOrdenados daqui em diante
+    // O recordset do SQL Server pode não ser um array padrão, então vamos usar pontosOrdenados diretamente
+    // Criar uma nova referência para os pontos ordenados
+    const pontosParaProcessar = pontosOrdenados;
+    
+    // Filtrar pontos intermediários: excluir origem e destino identificados
+    const pontosIntermediarios = pontosParaProcessar.filter(p => {
+      const isOrigem = (p.SEQUENCIA === pontoOrigem.SEQUENCIA) || 
+                       (p.ORDEM === pontoOrigem.ORDEM && pontoOrigem.ORDEM !== null && p.ORDEM === pontoOrigem.ORDEM);
+      const isDestino = (p.SEQUENCIA === pontoDestino.SEQUENCIA) || 
+                        (p.ORDEM === pontoDestino.ORDEM && pontoDestino.ORDEM !== null && p.ORDEM === pontoDestino.ORDEM);
+      return !isOrigem && !isDestino;
+    });
+    
+    // 7. Processar legs para obter informações de rodovias e cidades por trecho
+    const trechosDetalhados = [];
+    const todasRodovias = new Set();
+    const todasCidades = new Set();
+    
+    // Adicionar cidades reais dos pontos à lista de cidades de referência
+    pontos.forEach(p => {
+      if (p.NMCIDADE_REAL && p.NMCIDADE_REAL.trim()) {
+        todasCidades.add(p.NMCIDADE_REAL.trim());
+      }
+    });
+    
+    if (route.legs && route.legs.length > 0) {
+      // Garantir que temos legs suficientes para os pontos
+      const numLegs = Math.min(route.legs.length, pontos.length - 1);
+      
+      for (let legIndex = 0; legIndex < numLegs; legIndex++) {
+        const leg = route.legs[legIndex];
+        const pontoOrigemTrecho = pontos[legIndex];
+        const pontoDestinoTrecho = pontos[legIndex + 1];
+        
+        // Validar que os pontos existem
+        if (!pontoOrigemTrecho || !pontoDestinoTrecho) {
+          console.warn(`[Resumo Rota] Ponto origem ou destino não encontrado para leg ${legIndex}`);
+          continue;
+        }
+        
+        const rodoviasTrecho = new Set();
+        const cidadesTrecho = new Set();
+        const instrucoesTrecho = [];
+        
+        // Processar steps do leg para extrair rodovias (na ordem da rota)
+        const rodoviasTrechoOrdenadas = [];
+        if (leg.steps && leg.steps.length > 0) {
+          for (const step of leg.steps) {
+            // Extrair rodovias do step - OSRM pode retornar em vários campos
+            const refs = [];
+            
+            // Tentar step.ref (string ou array) - mais confiável
+            if (step.ref) {
+              if (Array.isArray(step.ref)) {
+                refs.push(...step.ref);
+              } else {
+                refs.push(step.ref);
+              }
+            }
+            
+            // Tentar step.name (pode conter rodovia)
+            if (step.name) {
+              if (Array.isArray(step.name)) {
+                refs.push(...step.name);
+              } else {
+                refs.push(step.name);
+              }
+            }
+            
+            // Tentar step.maneuver.ref
+            if (step.maneuver && step.maneuver.ref) {
+              if (Array.isArray(step.maneuver.ref)) {
+                refs.push(...step.maneuver.ref);
+              } else {
+                refs.push(step.maneuver.ref);
+              }
+            }
+            
+            // Processar todas as referências encontradas
+            for (const ref of refs) {
+              if (!ref || typeof ref !== 'string') continue;
+              
+              // Padrões: "BR-101", "BR 101", "101" (assumindo BR se não especificado), "SC-280", etc.
+              let rodoviaMatch = ref.match(/^(BR|SC|PR|RS|SP|RJ|MG|ES|BA|SE|AL|PE|PB|RN|CE|PI|MA|PA|AP|AM|RR|AC|RO|MT|MS|GO|DF|TO)[-\s]?(\d+)/i);
+              
+              // Se não encontrou prefixo, tentar apenas número (assumir BR)
+              if (!rodoviaMatch && /^\d+$/.test(ref.trim())) {
+                rodoviaMatch = ['', 'BR', ref.trim()];
+              }
+              
+              if (rodoviaMatch) {
+                const rodoviaFormatada = `${rodoviaMatch[1].toUpperCase()}-${rodoviaMatch[2]}`;
+                // Adicionar na ordem (evitar duplicatas consecutivas)
+                if (rodoviasTrechoOrdenadas.length === 0 || 
+                    rodoviasTrechoOrdenadas[rodoviasTrechoOrdenadas.length - 1] !== rodoviaFormatada) {
+                  rodoviasTrechoOrdenadas.push(rodoviaFormatada);
+                }
+                rodoviasTrecho.add(rodoviaFormatada);
+                todasRodovias.add(rodoviaFormatada);
+              }
+            }
+          }
+        }
+        
+        // Extrair cidades dos steps usando Nominatim (buscar mais cidades para rotas longas)
+        if (leg.steps && leg.steps.length > 0) {
+          const stepsParaProcessar = [];
+          const totalSteps = leg.steps.length;
+          const distanciaTrecho = leg.distance / 1000;
+          
+          // Para rotas longas (>500km), buscar mais cidades (até 8)
+          // Para rotas médias (200-500km), buscar 6-8 cidades
+          // Para rotas curtas (<200km), buscar 4-5 cidades
+          const numCidadesDesejadas = distanciaTrecho > 500 ? 8 : (distanciaTrecho > 200 ? 6 : 5);
+          
+          // Selecionar steps estratégicos distribuídos uniformemente ao longo da rota
+          // Não incluir primeiro e último step (já são origem e destino)
+          const stepsIntermediarios = totalSteps - 2; // Excluir primeiro e último
+          
+          if (stepsIntermediarios > 0) {
+            // Distribuir steps uniformemente ao longo da rota
+            // Processar apenas o número necessário de steps (não exagerar)
+            const numStepsParaProcessar = Math.min(numCidadesDesejadas, stepsIntermediarios);
+            
+            // Distribuição uniforme simples
+            for (let i = 0; i < numStepsParaProcessar; i++) {
+              // Calcular posição distribuída uniformemente
+              const posicao = Math.floor(1 + (i / Math.max(1, numStepsParaProcessar - 1)) * stepsIntermediarios);
+              if (posicao >= 1 && posicao < totalSteps - 1) {
+                // Evitar duplicatas
+                const jaExiste = stepsParaProcessar.some(s => s.index === posicao);
+                if (!jaExiste) {
+                  stepsParaProcessar.push({ step: leg.steps[posicao], index: posicao });
+                }
+              }
+            }
+            
+            // Adicionar apenas alguns steps extras em pontos estratégicos (quartis)
+            if (totalSteps > 8) {
+              const quartil1 = Math.floor(totalSteps * 0.25);
+              const quartil2 = Math.floor(totalSteps * 0.5);
+              const quartil3 = Math.floor(totalSteps * 0.75);
+              
+              [quartil1, quartil2, quartil3].forEach(q => {
+                if (q > 0 && q < totalSteps - 1) {
+                  const jaExiste = stepsParaProcessar.some(s => s.index === q);
+                  if (!jaExiste && stepsParaProcessar.length < numCidadesDesejadas + 3) {
+                    stepsParaProcessar.push({ step: leg.steps[q], index: q });
+                  }
+                }
+              });
+            }
+          }
+          
+          // Se ainda não conseguiu steps suficientes, adicionar o meio
+          if (stepsParaProcessar.length < 3 && totalSteps > 3) {
+            const meio = Math.floor(totalSteps / 2);
+            if (meio > 0 && meio < totalSteps - 1) {
+              const jaExiste = stepsParaProcessar.some(s => s.index === meio);
+              if (!jaExiste) {
+                stepsParaProcessar.push({ step: leg.steps[meio], index: meio });
+              }
+            }
+          }
+          
+          // Processar steps selecionados em paralelo (com limite de concorrência)
+          const promisesNominatim = [];
+          const maxConcorrencia = 3; // Reduzir concorrência para evitar rate limit (429)
+          
+          // Processar todos os steps selecionados (não limitar pelo numCidadesDesejadas aqui)
+          // Ordenar por índice para processar na ordem da rota
+          stepsParaProcessar.sort((a, b) => a.index - b.index);
+          
+          for (let idx = 0; idx < stepsParaProcessar.length; idx++) {
+            const { step } = stepsParaProcessar[idx];
+            
+            if (step.maneuver && step.maneuver.location) {
+              const [lon, lat] = step.maneuver.location;
+              
+              // Criar promise para processar esta cidade
+              const promise = (async () => {
+                try {
+                  // Delay escalonado para evitar rate limit do Nominatim
+                  // Aumentar delay entre grupos para evitar 429
+                  if (idx > 0 && idx % maxConcorrencia === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 2000)); // Aumentar para 2 segundos
+                  }
+                  
+                  // Delay adicional antes de cada requisição para evitar sobrecarga
+                  if (idx > 0) {
+                    await new Promise(resolve => setTimeout(resolve, 500)); // 500ms entre cada requisição
+                  }
+                  
+                  const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`;
+                  const nomResponse = await axios.get(nominatimUrl, {
+                    headers: { 
+                      'User-Agent': 'DivulgaCarga/1.0 (roteiro@divulgacarga.com.br)' 
+                    },
+                    timeout: 10000 // Aumentar timeout para 10 segundos
+                  });
+                  
+                  const info = nomResponse.data;
+                  
+                  // Tentar múltiplos campos para encontrar o nome da cidade (prioridade)
+                  let cidade = info.address?.city || 
+                              info.address?.town || 
+                              info.address?.village || 
+                              info.address?.municipality ||
+                              info.address?.county || '';
+                  
+                  // Limpar cidade: remover vírgulas, pontos e estados que possam estar no nome
+                  if (cidade) {
+                    cidade = cidade.trim()
+                      .replace(/,\s*[A-Z]{2}$/i, '') // Remove ",SP", ",MG", etc do final
+                      .replace(/\.\s*[A-Z]{2}$/i, '') // Remove ".SP", ".MG", etc do final
+                      .replace(/\s+[A-Z]{2}$/i, '') // Remove " SP", " MG", etc do final
+                      .replace(/,\s*[A-Za-z\s]+$/i, '') // Remove vírgulas e texto após
+                      .trim();
+                  }
+                  
+                  // Tentar múltiplos campos para encontrar o estado
+                  const estadoNome = info.address?.state || 
+                                    info.address?.state_code || 
+                                    '';
+                  
+                  // Verificar se encontrou uma cidade válida
+                  if (cidade && cidade.trim().length > 2) {
+                    // Ignorar apenas nomes genéricos óbvios
+                    const cidadeLower = cidade.toLowerCase().trim();
+                    const ignorar = ['brasil', 'brazil', 'unknown', 'desconhecido'];
+                    if (ignorar.includes(cidadeLower)) {
+                      return null;
+                    }
+                    
+                    // Converter nome de estado para UF e formatar cidade
+                    const cidadeCompleta = formatarCidadeComUF(cidade.trim(), estadoNome);
+                    return cidadeCompleta; // Retornar para processar depois
+                  }
+                  
+                  return null;
+                } catch (nomErr) {
+                  // Continuar mesmo se Nominatim falhar
+                  console.warn(`[Resumo Rota] Erro ao buscar cidade do Nominatim:`, nomErr.message);
+                  return null;
+                }
+              })();
+              
+              promisesNominatim.push(promise);
+            }
+          }
+          
+          // Aguardar todas as promises e processar resultados
+          const resultados = await Promise.all(promisesNominatim);
+          
+          // Função auxiliar simples para comparar cidades (só nome, case-insensitive)
+          const nomeCidade = (cidade) => {
+            if (!cidade) return '';
+            return cidade.split('/')[0].trim().toLowerCase();
+          };
+          
+          let cidadesAdicionadas = 0;
+          for (const cidadeCompleta of resultados) {
+            if (cidadeCompleta && cidadeCompleta.trim() && cidadeCompleta.trim().length > 2) {
+              // Adicionar todas as cidades únicas (sem duplicatas exatas)
+              const nomeCidadeAtual = nomeCidade(cidadeCompleta);
+              const jaExiste = Array.from(cidadesTrecho).some(c => 
+                nomeCidade(c) === nomeCidadeAtual
+              );
+              
+              if (!jaExiste) {
+                cidadesTrecho.add(cidadeCompleta);
+                todasCidades.add(cidadeCompleta);
+                cidadesAdicionadas++;
+              }
+            }
+          }
+          
+          // Log para debug
+          if (cidadesAdicionadas === 0 && promisesNominatim.length > 0) {
+            console.warn(`[Resumo Rota] ⚠️ Nenhuma cidade adicionada para trecho de ${distanciaTrecho.toFixed(1)}km. Processados: ${promisesNominatim.length} steps, Resultados válidos: ${resultados.filter(r => r && r.trim()).length}`);
+          } else if (cidadesAdicionadas > 0) {
+            console.log(`[Resumo Rota] ✅ ${cidadesAdicionadas} cidades adicionadas para trecho de ${distanciaTrecho.toFixed(1)}km: ${Array.from(cidadesTrecho).slice(0, 5).join(', ')}${cidadesTrecho.size > 5 ? '...' : ''}`);
+          }
+          
+          // Extrair instrução importante (apenas primeira) de qualquer step
+          if (leg.steps && leg.steps.length > 0) {
+            for (const step of leg.steps) {
+              if (step.maneuver && step.maneuver.instruction && instrucoesTrecho.length === 0) {
+                instrucoesTrecho.push(step.maneuver.instruction);
+                break;
+              }
+            }
+          }
+        }
+        
+        // Usar rodovias ordenadas (primeiras 3 principais do trecho)
+        const rodoviasPrincipaisTrecho = rodoviasTrechoOrdenadas
+          .filter((r, i, arr) => arr.indexOf(r) === i) // Remover duplicatas
+          .slice(0, 3);
+        
+        trechosDetalhados.push({
+          pontoOrigem: pontoOrigemTrecho,
+          pontoDestino: pontoDestinoTrecho,
+          distancia: leg.distance / 1000,
+          rodovias: rodoviasPrincipaisTrecho.length > 0 ? rodoviasPrincipaisTrecho : Array.from(rodoviasTrecho).slice(0, 3),
+          cidades: Array.from(cidadesTrecho),
+          instrucoes: instrucoesTrecho
+        });
+      }
+    }
+    
+    // 8. Montar resumo formatado seguindo o padrão do exemplo
+    // Usar texto simples em vez de emojis para evitar problemas de encoding no banco
+    let resumoTexto = `[] Resumo da Rota – Roteiro #${id}\n`;
+    
+    // Lista de pontos (origem, passagens/paradas, destino) - usando nomes reais
+    const nomeOrigem = pontoOrigem.NMCIDADE_REAL || pontoOrigem.DSLOCAL;
+    const estadoOrigem = pontoOrigem.ESTADO_REAL || pontoOrigem.ESTADOPASSAGEM || '';
+    resumoTexto += `Início (Origem): ${formatarCidadeComUF(nomeOrigem, estadoOrigem)}\n`;
+    
+    // Filtrar apenas pontos intermediários reais (já filtrado acima, mas garantir)
+    const pontosIntermediariosReais = pontosIntermediarios;
+    
+    if (pontosIntermediariosReais.length > 0) {
+      pontosIntermediariosReais.forEach(p => {
+        const tipoTexto = p.TPLOCAL === 'P' ? 'Passagem' : 'Parada';
+        const nomeCidade = p.NMCIDADE_REAL || p.DSLOCAL;
+        const estadoCidade = p.ESTADO_REAL || p.ESTADOPASSAGEM || '';
+        resumoTexto += `${tipoTexto}: ${formatarCidadeComUF(nomeCidade, estadoCidade)}\n`;
+      });
+    }
+    
+    const nomeDestino = pontoDestino.NMCIDADE_REAL || pontoDestino.DSLOCAL;
+    const estadoDestino = pontoDestino.ESTADO_REAL || pontoDestino.ESTADOPASSAGEM || '';
+    resumoTexto += `Destino (Final): ${formatarCidadeComUF(nomeDestino, estadoDestino)}\n\n`;
+    
+    // Orientações de percurso
+    resumoTexto += `[] Orientações de percurso\n`;
+    
+    // Processar cada trecho detalhadamente
+    for (let i = 0; i < trechosDetalhados.length; i++) {
+      const trecho = trechosDetalhados[i];
+      const pontoAtual = trecho.pontoOrigem;
+      const proximoPonto = trecho.pontoDestino;
+      const distanciaTrecho = trecho.distancia || proximoPonto.KMENTREPONTOS || 0;
+      
+      // Usar nomes reais das cidades com UF
+      const nomeAtual = pontoAtual.NMCIDADE_REAL || pontoAtual.DSLOCAL;
+      const estadoAtual = pontoAtual.ESTADO_REAL || pontoAtual.ESTADOPASSAGEM || '';
+      const nomeProximo = proximoPonto.NMCIDADE_REAL || proximoPonto.DSLOCAL;
+      const estadoProximo = proximoPonto.ESTADO_REAL || proximoPonto.ESTADOPASSAGEM || '';
+      
+      resumoTexto += `Trecho ${formatarCidadeComUF(nomeAtual, estadoAtual)} -> ${formatarCidadeComUF(nomeProximo, estadoProximo)} (~ ${Math.round(distanciaTrecho)} km)\n`;
+      
+      // Adicionar instruções de rodovias de forma mais detalhada
+      if (trecho.rodovias.length > 0) {
+        const rodoviasFormatadas = trecho.rodovias.slice(0, 5);
+        
+        if (i === 0) {
+          // Primeiro trecho: instrução de saída detalhada
+          if (rodoviasFormatadas.length >= 2) {
+            // Se houver múltiplas rodovias, mostrar conexão
+            // Pegar primeira cidade intermediária que não seja a origem
+            const primeiraCidadeIntermediaria = trecho.cidades && trecho.cidades.length > 0
+              ? trecho.cidades.find(c => {
+                  if (!c) return false;
+                  const cidadeNome = c.split('/')[0].trim().toLowerCase();
+                  return cidadeNome !== nomeAtual.split('/')[0].trim().toLowerCase();
+                }) || trecho.cidades[0]
+              : null;
+            
+            if (primeiraCidadeIntermediaria) {
+              resumoTexto += `Seguir pela ${rodoviasFormatadas[0]} até ${primeiraCidadeIntermediaria}.\n`;
+            } else {
+              resumoTexto += `Seguir pela ${rodoviasFormatadas[0]}.\n`;
+            }
+            resumoTexto += `Entrar na ${rodoviasFormatadas[1]} em direção a ${formatarCidadeComUF(nomeProximo, estadoProximo)}.\n`;
+          } else {
+            resumoTexto += `Pela ${rodoviasFormatadas[0]}, em direção a ${formatarCidadeComUF(nomeProximo, estadoProximo)}.\n`;
+          }
+        } else {
+          // Trechos seguintes
+          if (rodoviasFormatadas.length >= 2) {
+            resumoTexto += `Continuar pela ${rodoviasFormatadas[0]}, depois pegar a ${rodoviasFormatadas[1]}.\n`;
+          } else if (rodoviasFormatadas.length === 1) {
+            resumoTexto += `Seguir pela ${rodoviasFormatadas[0]}.\n`;
+          }
+        }
+      } else {
+        // Se não encontrou rodovias, usar descrição genérica
+        resumoTexto += `Seguir pela rota principal em direção a ${formatarCidadeComUF(nomeProximo, estadoProximo)}.\n`;
+      }
+      
+      // Adicionar cidades de referência (cidades intermediárias encontradas pelo Nominatim)
+      // Não incluir origem e destino do trecho, apenas cidades intermediárias
+      if (trecho.cidades && Array.isArray(trecho.cidades) && trecho.cidades.length > 0) {
+        // Simplificar: só remover se for EXATAMENTE igual (case-insensitive, sem estado)
+        const nomeAtualSemEstado = nomeAtual.split('/')[0].trim().toLowerCase();
+        const nomeProximoSemEstado = nomeProximo.split('/')[0].trim().toLowerCase();
+        
+        const cidadesFormatadas = trecho.cidades
+          .filter(c => {
+            if (!c || !c.trim() || c.trim().length < 3) return false;
+            
+            const cSemEstado = c.split('/')[0].trim().toLowerCase();
+            
+            // Remover apenas se for EXATAMENTE igual (case-insensitive)
+            return cSemEstado !== nomeAtualSemEstado && 
+                   cSemEstado !== nomeProximoSemEstado;
+          })
+          .slice(0, 20); // Até 20 cidades intermediárias
+        
+        // SEMPRE mostrar "Passa por..." se houver pelo menos uma cidade válida
+        if (cidadesFormatadas.length > 0) {
+          resumoTexto += `Passa por ${cidadesFormatadas.join(', ')}.\n`;
+        } else {
+          // Debug: verificar por que as cidades foram filtradas
+          console.log(`[Resumo Rota] ⚠️ Trecho ${nomeAtual} -> ${nomeProximo}: ${trecho.cidades.length} cidades coletadas, mas todas foram filtradas. Cidades:`, trecho.cidades);
+        }
+      } else {
+        // Debug: verificar por que não há cidades
+        console.log(`[Resumo Rota] ⚠️ Trecho ${nomeAtual} -> ${nomeProximo}: sem cidades. trecho.cidades =`, trecho.cidades);
+      }
+      
+      resumoTexto += `Chegada em ${formatarCidadeComUF(nomeProximo, estadoProximo)}.\n\n`;
+    }
+    
+    // Pontos importantes
+    resumoTexto += `[] Pontos importantes\n`;
+    resumoTexto += `Distância total: ${distanciaTotal} km.\n`;
+    resumoTexto += `Tempo estimado de viagem: ${tempoEstimado}–${tempoEstimado + 2} horas (dependendo de tráfego e paradas).\n`;
+    
+    // 7. Salvar resumo no banco
+    const checkResumoColumn = await pool
+      .request()
+      .query(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_NAME = 'ROTEIRO' AND COLUMN_NAME = 'RESUMOROTA'
+      `);
+    
+    const temRESUMOROTA = checkResumoColumn.recordset.length > 0;
+    
+    if (temRESUMOROTA) {
+      await pool
+        .request()
+        .input('IDROTEIRO', sql.Decimal(15, 0), parseFloat(id))
+        .input('RESUMOROTA', sql.NVarChar(sql.MAX), resumoTexto)
+        .query(`
+          UPDATE [dbo].[ROTEIRO]
+          SET RESUMOROTA = @RESUMOROTA,
+              DHMAINTENANCE = GETDATE(),
+              SGUSER = 'SYSTEM',
+              SERVERORIG = 'AppDVcargas'
+          WHERE IDROTEIRO = @IDROTEIRO
+        `);
+    }
+    
+    res.json({
+      success: true,
+      resumo: resumoTexto,
+      distanciaTotal: parseFloat(distanciaTotal),
+      tempoEstimado: tempoEstimado,
+      pontosProcessados: pontosParaProcessar.length
+    });
+    
+  } catch (err) {
+    console.error('Erro ao gerar resumo da rota:', err);
+    console.error('Stack trace:', err.stack);
+    res.status(500).json({ 
+      error: 'Erro ao gerar resumo da rota.',
+      detalhes: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 });
 

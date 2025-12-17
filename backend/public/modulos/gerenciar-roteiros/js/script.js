@@ -78,6 +78,28 @@ function getOverlayMostrado() {
     }
   }
 
+  // Funções genéricas para controlar overlay de loading genérico
+  function showCalculandoOverlay(titulo = 'Processando...', texto = 'Por favor, aguarde...', detalhe = 'Isso pode levar alguns segundos.') {
+    const overlay = document.getElementById('calculandoOverlay');
+    const overlayTitulo = document.getElementById('calculandoOverlayTitulo');
+    const overlayTexto = document.getElementById('calculandoOverlayTexto');
+    const overlayDetalhe = document.getElementById('calculandoOverlayDetalhe');
+    
+    if (overlay && overlayTitulo && overlayTexto && overlayDetalhe) {
+      overlayTitulo.textContent = titulo;
+      overlayTexto.textContent = texto;
+      overlayDetalhe.textContent = detalhe;
+      overlay.style.display = 'flex';
+    }
+  }
+
+  function hideCalculandoOverlay() {
+    const overlay = document.getElementById('calculandoOverlay');
+    if (overlay) {
+      overlay.style.display = 'none';
+    }
+  }
+
   // Função para carregar e executar o arquivo init.sql
   async function executarInitSQL() {
     // Proteção: Se já foi executado, não executar novamente
@@ -319,6 +341,57 @@ function getOverlayMostrado() {
     // Garantir que a aba de filtros está ativa e visível
     await showTab('filtros');
     await loadEstados();
+    
+    // Adicionar event listeners após o DOM estar pronto
+    // Usar delegação de eventos para garantir que funcione mesmo se o elemento for recriado
+    const roteiroForm = document.getElementById('roteiroForm');
+    if (roteiroForm) {
+      roteiroForm.addEventListener('click', (e) => {
+        if (e.target && e.target.id === 'btnGerarResumo') {
+          e.preventDefault();
+          e.stopPropagation();
+          console.log('🔘 Botão Gerar Resumo clicado (via delegação)');
+          try {
+            gerarResumoRota(e);
+          } catch (err) {
+            console.error('❌ Erro ao chamar gerarResumoRota:', err);
+          }
+        }
+      });
+      console.log('✅ Event listener (delegação) adicionado ao formulário para btnGerarResumo');
+    }
+    
+    // Também adicionar diretamente ao botão se existir
+    const btnGerarResumo = document.getElementById('btnGerarResumo');
+    if (btnGerarResumo) {
+      // Verificar se a função existe
+      if (typeof gerarResumoRota === 'function') {
+        console.log('✅ Função gerarResumoRota está disponível');
+      } else {
+        console.error('❌ Função gerarResumoRota NÃO está disponível!');
+      }
+      
+      btnGerarResumo.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        console.log('🔘 Botão Gerar Resumo clicado (direto)');
+        console.log('🔍 Tipo de gerarResumoRota:', typeof gerarResumoRota);
+        
+        if (typeof gerarResumoRota === 'function') {
+          try {
+            gerarResumoRota(e);
+          } catch (err) {
+            console.error('❌ Erro ao chamar gerarResumoRota:', err);
+          }
+        } else {
+          console.error('❌ gerarResumoRota não é uma função!');
+          alert('Erro: Função gerarResumoRota não está disponível. Recarregue a página.');
+        }
+      });
+      console.log('✅ Event listener (direto) adicionado ao botão Gerar Resumo');
+    } else {
+      console.warn('⚠️ Botão btnGerarResumo não encontrado ao inicializar');
+    }
   }
 
   // Inicialização - tentar imediatamente e também no DOMContentLoaded
@@ -520,9 +593,16 @@ function getOverlayMostrado() {
           pontosTitle.textContent = 'Pontos do Roteiro';
         }
         const btnNovoPonto = document.getElementById('btnNovoPonto');
-        if (btnNovoPonto) btnNovoPonto.style.display = 'none';
         const btnVoltarPontos = document.getElementById('btnVoltarPontos');
+        const btnCalcularPontos = document.getElementById('btnCalcularDistanciaPontos');
+        
+        if (btnNovoPonto) btnNovoPonto.style.display = 'none';
         if (btnVoltarPontos) btnVoltarPontos.style.display = 'none';
+        if (btnCalcularPontos) {
+          btnCalcularPontos.disabled = true;
+          btnCalcularPontos.style.opacity = '0.5';
+        }
+        
         if (gridPontos) {
           gridPontos.render([]);
         }
@@ -534,8 +614,6 @@ function getOverlayMostrado() {
       // Proteção: evitar chamadas duplicadas
       if (!atualizandoMapaComPontos) {
         await atualizarMapaComPontos();
-      } else {
-        console.log('[Roteiros] Ignorando chamada de atualizarMapaComPontos em showTab (já em execução)');
       }
     }
     } catch (err) {
@@ -735,14 +813,12 @@ function getOverlayMostrado() {
       }
       
       // IMPORTANTE: Sempre mudar para a aba solicitada, mesmo se houver problemas com o grid
-      console.log(`[applyFilters] Mudando para aba: ${openTab}`);
       await showTab(openTab);
     } catch (err) {
       console.error('Erro ao aplicar filtros:', err);
       showMessage(err.message || 'Erro ao carregar roteiros.', 'error');
       // Mesmo em caso de erro, tentar mudar para a aba solicitada
       try {
-        console.log(`[applyFilters] Tentando mudar para aba após erro: ${openTab}`);
         await showTab(openTab);
       } catch (tabErr) {
         console.error('[applyFilters] Erro ao mudar para aba após erro:', tabErr);
@@ -872,6 +948,16 @@ async function loadRoteiroParaEdicao(id) {
         campoResumo.value = roteiro.RESUMOROTA;
       } else if (campoResumo) {
         campoResumo.value = '';
+      }
+      
+      // Habilitar botão gerar resumo quando há roteiro selecionado
+      const btnGerarResumo = document.getElementById('btnGerarResumo');
+      if (btnGerarResumo) {
+        btnGerarResumo.disabled = false;
+        btnGerarResumo.style.opacity = '1';
+        btnGerarResumo.style.pointerEvents = 'auto';
+        btnGerarResumo.style.cursor = 'pointer';
+        console.log('✅ Botão Gerar Resumo habilitado para roteiro:', roteiroId);
       }
 
       // Garante que os estados estão carregados
@@ -1110,7 +1196,6 @@ async function loadRoteiroParaEdicao(id) {
       
       // Criar os pontos via API sequencialmente para evitar conflitos
       // Primeiro criar o ponto de origem
-      console.log('[Pontos] Criando ponto de origem:', pontoOrigem);
       const responseOrigem = await fetch(`/api/roteiros/${idRoteiro}/pontos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1127,7 +1212,6 @@ async function loadRoteiroParaEdicao(id) {
       await new Promise(resolve => setTimeout(resolve, 300));
       
       // Depois criar o ponto de destino
-      console.log('[Pontos] Criando ponto de destino:', pontoDestino);
       const responseDestino = await fetch(`/api/roteiros/${idRoteiro}/pontos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1142,7 +1226,6 @@ async function loadRoteiroParaEdicao(id) {
         return false;
       }
       
-      console.log('[Pontos] Ambos os pontos criados com sucesso');
       return true;
     } catch (err) {
       console.error('Erro ao criar pontos de origem e destino:', err);
@@ -1347,6 +1430,20 @@ async function loadRoteiroParaEdicao(id) {
     document.getElementById('roteiroCodigo').value = ''; // Limpa o código visível
     document.getElementById('formTitle').textContent = 'Novo Roteiro';
     roteiroAtualId = null; // Limpa o ID do roteiro atual
+    
+    // Desabilitar botão gerar resumo quando não há roteiro
+    const btnGerarResumo = document.getElementById('btnGerarResumo');
+    if (btnGerarResumo) {
+      btnGerarResumo.disabled = true;
+      btnGerarResumo.style.opacity = '0.5';
+    }
+    
+    // Limpar resumo
+    const campoResumo = document.getElementById('roteiroResumoRota');
+    if (campoResumo) {
+      campoResumo.value = '';
+    }
+    
     showTab('dados');
   });
   document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
@@ -1355,6 +1452,20 @@ async function loadRoteiroParaEdicao(id) {
     document.getElementById('roteiroCodigo').value = '';
     document.getElementById('formTitle').textContent = 'Novo Roteiro';
     roteiroAtualId = null;
+    
+    // Desabilitar botão gerar resumo quando não há roteiro
+    const btnGerarResumo = document.getElementById('btnGerarResumo');
+    if (btnGerarResumo) {
+      btnGerarResumo.disabled = true;
+      btnGerarResumo.style.opacity = '0.5';
+    }
+    
+    // Limpar resumo
+    const campoResumo = document.getElementById('roteiroResumoRota');
+    if (campoResumo) {
+      campoResumo.value = '';
+    }
+    
     showTab('dados');
   });
   document.getElementById('btnCancelar')?.addEventListener('click', () => showTab('grid'));
@@ -1480,7 +1591,8 @@ async function loadRoteiroParaEdicao(id) {
       return;
     }
 
-    // Mostrar loading
+    // Mostrar loading e overlay
+    showCalculandoOverlay('Calculando Distância', 'Calculando a distância entre origem e destino...', 'Aguarde, isso pode levar alguns segundos.');
     if (btnCalcular && typeof window.showLoading !== 'undefined') {
       window.showLoading(btnCalcular, true);
     }
@@ -1489,7 +1601,7 @@ async function loadRoteiroParaEdicao(id) {
     try {
       let distanciaTotal = 0;
       
-      // Se houver roteiro selecionado, tentar usar os pontos cadastrados
+      // Se houver roteiro selecionado, recalcular todas as distâncias (entre pontos e total)
       if (roteiroId) {
         // Carregar pontos do roteiro se ainda não foram carregados
         if (pontosRoteiro.length === 0) {
@@ -1502,91 +1614,18 @@ async function loadRoteiroParaEdicao(id) {
           .sort((a, b) => (a.ORDEM || 0) - (b.ORDEM || 0));
         
         if (pontosComCoordenadas.length >= 2) {
-          // Calcular distância total usando OSRM (rota real) se possível
-          try {
-            const coordsStr = pontosComCoordenadas
-              .map(p => `${p.LONGITUDE},${p.LATITUDE}`)
-              .join(';');
-            
-            const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson&steps=true`;
-            const response = await fetch(osrmUrl);
-            const data = await response.json();
-            
-            if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-              distanciaTotal = parseFloat((data.routes[0].distance / 1000).toFixed(2)); // Converter metros para km
-              if (campoDistancia) {
-                campoDistancia.value = distanciaTotal;
-                showMessage(`Distância total calculada (rota real): ${distanciaTotal.toFixed(2)} km`, 'success');
-              }
-              
-              btnCalcular.disabled = false;
-              if (btnCalcular && typeof window.showLoading !== 'undefined') {
-                window.showLoading(btnCalcular, false);
-              }
-              
-          // Atualizar soma das distâncias na aba de pontos
-          await atualizarSomaDistancias();
-          return;
-            }
-          } catch (osrmErr) {
-            console.warn('Erro ao calcular rota real com OSRM, usando cálculo por segmentos:', osrmErr);
-          }
+          // Recalcular todas as distâncias (entre pontos e total) usando a função dedicada
+          await recalcularTodasDistancias(roteiroId, false);
           
-          // Fallback: calcular distância somando segmentos entre pontos consecutivos (Haversine)
-          for (let i = 0; i < pontosComCoordenadas.length - 1; i++) {
-            const pontoAtual = pontosComCoordenadas[i];
-            const proximoPonto = pontosComCoordenadas[i + 1];
-            
-            const distanciaSegmento = calcularDistanciaHaversine(
-              parseFloat(pontoAtual.LATITUDE),
-              parseFloat(pontoAtual.LONGITUDE),
-              parseFloat(proximoPonto.LATITUDE),
-              parseFloat(proximoPonto.LONGITUDE)
-            );
-            
-            distanciaTotal += distanciaSegmento;
-          }
-          
-          if (campoDistancia) {
-            campoDistancia.value = parseFloat(distanciaTotal.toFixed(2));
-            showMessage(`Distância total calculada (linha reta, ${pontosComCoordenadas.length} pontos): ${distanciaTotal.toFixed(2)} km`, 'success');
-          }
-          
-          // Tentar buscar OSRM novamente para obter geometria completa (mesmo que tenha falhado antes)
-          // Isso é necessário para identificar todas as cidades intermediárias
-          let osrmDataParaResumo = null;
-          let coordenadasParaResumo = pontosComCoordenadas.map(p => [parseFloat(p.LATITUDE), parseFloat(p.LONGITUDE)]);
-          
-          try {
-            const coordsStrResumo = pontosComCoordenadas
-              .map(p => `${p.LONGITUDE},${p.LATITUDE}`)
-              .join(';');
-            
-            const osrmUrlResumo = `https://router.project-osrm.org/route/v1/driving/${coordsStrResumo}?overview=full&geometries=geojson&steps=true`;
-            const responseResumo = await fetch(osrmUrlResumo);
-            const dataResumo = await responseResumo.json();
-            
-            if (dataResumo.code === 'Ok' && dataResumo.routes && dataResumo.routes.length > 0) {
-              osrmDataParaResumo = dataResumo;
-              const geometry = dataResumo.routes[0].geometry;
-              if (geometry && geometry.coordinates) {
-                coordenadasParaResumo = geometry.coordinates.map(c => [c[1], c[0]]);
-              }
-            }
-          } catch (err) {
-            console.warn('[Roteiros] Não foi possível obter OSRM para resumo, usando apenas pontos cadastrados');
-          }
-          
-          // Resumo da rota será gerado apenas ao visualizar o mapa ou processar pontos
-          // NÃO gerar aqui para evitar chamadas desnecessárias ao Nominatim
+          // Opcional: Gerar resumo automaticamente após calcular distâncias
+          // (comentado para não sobrecarregar - usuário pode clicar em "Gerar Resumo" manualmente)
+          // await gerarResumoRota();
           
           btnCalcular.disabled = false;
           if (btnCalcular && typeof window.showLoading !== 'undefined') {
             window.showLoading(btnCalcular, false);
           }
           
-          // Atualizar soma das distâncias na aba de pontos
-          await atualizarSomaDistancias();
           return;
         }
       }
@@ -1621,7 +1660,7 @@ async function loadRoteiroParaEdicao(id) {
 
       // Tentar usar OSRM para rota real (com steps para obter rodovias)
       try {
-        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsOrigem.lon},${coordsOrigem.lat};${coordsDestino.lon},${coordsDestino.lat}?overview=full&geometries=geojson&steps=true`;
+        const osrmUrl = `https://router.project-osrm.org/route/v1/driving-hgv/${coordsOrigem.lon},${coordsOrigem.lat};${coordsDestino.lon},${coordsDestino.lat}?overview=full&geometries=geojson&steps=true`;
         const response = await fetch(osrmUrl);
         const data = await response.json();
         
@@ -1629,6 +1668,42 @@ async function loadRoteiroParaEdicao(id) {
           distanciaTotal = (data.routes[0].distance / 1000).toFixed(2);
           if (campoDistancia) {
             campoDistancia.value = parseFloat(distanciaTotal);
+          }
+          
+          // Se houver roteiro selecionado, salvar a distância no banco automaticamente
+          if (roteiroId) {
+            const descricao = document.getElementById('roteiroDescricao')?.value;
+            const origemCidade = document.getElementById('origemCidade')?.value;
+            const destinoCidade = document.getElementById('destinoCidade')?.value;
+            
+            if (descricao && origemCidade && destinoCidade) {
+              try {
+                const roteiroUpdateResponse = await fetch(`/api/roteiros/${roteiroId}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    DSROTEIRO: descricao,
+                    CDCIDADEORIGEM: parseInt(origemCidade),
+                    CDCIDADEDESTINO: parseInt(destinoCidade),
+                    DISTANCIAKM: parseFloat(distanciaTotal)
+                  })
+                });
+                
+                if (roteiroUpdateResponse.ok) {
+                  showMessage(`✅ Distância calculada e salva (rota real): ${distanciaTotal} km`, 'success');
+                } else {
+                  const errorData = await roteiroUpdateResponse.json().catch(() => ({}));
+                  console.error('[Calcular] Erro ao salvar distância no banco:', errorData);
+                  showMessage(`Distância calculada (rota real): ${distanciaTotal} km, mas houve erro ao salvar no banco`, 'warning');
+                }
+              } catch (err) {
+                console.error('[Calcular] Erro ao salvar distância:', err);
+                showMessage(`Distância calculada (rota real): ${distanciaTotal} km, mas houve erro ao salvar no banco`, 'warning');
+              }
+            } else {
+              showMessage(`Distância calculada (rota real): ${distanciaTotal} km`, 'success');
+            }
+          } else {
             showMessage(`Distância calculada (rota real): ${distanciaTotal} km`, 'success');
           }
           
@@ -1656,6 +1731,42 @@ async function loadRoteiroParaEdicao(id) {
       // Preencher campo
       if (campoDistancia) {
         campoDistancia.value = distanciaTotal;
+      }
+      
+      // Se houver roteiro selecionado, salvar a distância no banco automaticamente
+      if (roteiroId) {
+        const descricao = document.getElementById('roteiroDescricao')?.value;
+        const origemCidade = document.getElementById('origemCidade')?.value;
+        const destinoCidade = document.getElementById('destinoCidade')?.value;
+        
+        if (descricao && origemCidade && destinoCidade) {
+          try {
+            const roteiroUpdateResponse = await fetch(`/api/roteiros/${roteiroId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                DSROTEIRO: descricao,
+                CDCIDADEORIGEM: parseInt(origemCidade),
+                CDCIDADEDESTINO: parseInt(destinoCidade),
+                DISTANCIAKM: distanciaTotal
+              })
+            });
+            
+            if (roteiroUpdateResponse.ok) {
+              showMessage(`✅ Distância calculada e salva (linha reta): ${distanciaTotal} km`, 'success');
+            } else {
+              const errorData = await roteiroUpdateResponse.json().catch(() => ({}));
+              console.error('[Calcular] Erro ao salvar distância no banco:', errorData);
+              showMessage(`Distância calculada (linha reta): ${distanciaTotal} km, mas houve erro ao salvar no banco`, 'warning');
+            }
+          } catch (err) {
+            console.error('[Calcular] Erro ao salvar distância:', err);
+            showMessage(`Distância calculada (linha reta): ${distanciaTotal} km, mas houve erro ao salvar no banco`, 'warning');
+          }
+        } else {
+          showMessage(`Distância calculada (linha reta): ${distanciaTotal} km`, 'success');
+        }
+      } else {
         showMessage(`Distância calculada (linha reta): ${distanciaTotal} km`, 'success');
       }
       
@@ -1665,7 +1776,7 @@ async function loadRoteiroParaEdicao(id) {
       let coordenadasParaResumo = [[coordsOrigem.lat, coordsOrigem.lon], [coordsDestino.lat, coordsDestino.lon]];
       
       try {
-        const osrmUrlResumo = `https://router.project-osrm.org/route/v1/driving/${coordsOrigem.lon},${coordsOrigem.lat};${coordsDestino.lon},${coordsDestino.lat}?overview=full&geometries=geojson&steps=true`;
+        const osrmUrlResumo = `https://router.project-osrm.org/route/v1/driving-hgv/${coordsOrigem.lon},${coordsOrigem.lat};${coordsDestino.lon},${coordsDestino.lat}?overview=full&geometries=geojson&steps=true`;
         const responseResumo = await fetch(osrmUrlResumo);
         const dataResumo = await responseResumo.json();
         
@@ -1699,7 +1810,8 @@ async function loadRoteiroParaEdicao(id) {
       console.error('Erro ao calcular distância:', err);
       showMessage('Erro ao calcular distância. Tente novamente.', 'error');
     } finally {
-      // Remover loading
+      // Remover loading e overlay
+      hideCalculandoOverlay();
       if (btnCalcular && typeof window.showLoading !== 'undefined') {
         window.showLoading(btnCalcular, false);
       }
@@ -1707,8 +1819,165 @@ async function loadRoteiroParaEdicao(id) {
     }
   }
 
-  // Event listener para o botão calcular distância
+  // Função para gerar resumo da rota
+  async function gerarResumoRota(e) {
+    console.log('🔵 [INÍCIO] Função gerarResumoRota chamada');
+    
+    // Declarar variáveis fora do try para serem acessíveis no finally
+    const roteiroId = document.getElementById('roteiroId')?.value;
+    const btnGerarResumo = document.getElementById('btnGerarResumo');
+    const campoResumo = document.getElementById('roteiroResumoRota');
+    
+    try {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      
+      console.log('📋 Roteiro ID:', roteiroId);
+      console.log('🔘 Botão encontrado:', !!btnGerarResumo);
+      console.log('🔘 Botão desabilitado:', btnGerarResumo?.disabled);
+      console.log('📝 Campo resumo encontrado:', !!campoResumo);
+      
+      if (!roteiroId) {
+        const msg = 'Selecione um roteiro antes de gerar o resumo.';
+        console.warn('⚠️', msg);
+        alert(msg);
+        if (typeof showMessage !== 'undefined') {
+          showMessage(msg, 'error');
+        }
+        return;
+      }
+      
+      if (btnGerarResumo?.disabled) {
+        console.warn('⚠️ Botão está desabilitado!');
+        return;
+      }
+      
+      console.log('✅ Validações passadas, iniciando requisição...');
+      
+      // Mostrar loading e overlay
+      showCalculandoOverlay('Gerando Resumo da Rota', 'Processando informações da rota e gerando resumo detalhado...', 'Isso pode levar alguns segundos.');
+      if (btnGerarResumo && typeof window.showLoading !== 'undefined') {
+        window.showLoading(btnGerarResumo, true);
+      }
+      if (btnGerarResumo) btnGerarResumo.disabled = true;
+      
+      if (campoResumo) {
+        campoResumo.value = 'Gerando resumo da rota...\n\nAguarde, isso pode levar alguns segundos...';
+      }
+      
+      console.log('📡 Fazendo requisição para /api/roteiros/' + roteiroId + '/gerar-resumo');
+      
+      const response = await fetch(`/api/roteiros/${roteiroId}/gerar-resumo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      console.log('📥 Resposta recebida:', response.status, response.statusText);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMsg = errorData.error || `Erro ${response.status}: ${response.statusText}`;
+        console.error('❌ Erro na resposta:', errorMsg);
+        throw new Error(errorMsg);
+      }
+      
+      const data = await response.json();
+      console.log('📦 Dados recebidos:', data);
+      
+      if (campoResumo && data.resumo) {
+        campoResumo.value = data.resumo;
+        console.log('✅ Resumo atualizado no campo');
+      } else {
+        console.warn('⚠️ Campo resumo não encontrado ou dados.resumo vazio');
+      }
+      
+      if (typeof showMessage !== 'undefined') {
+        showMessage(`✅ Resumo gerado com sucesso! Distância: ${data.distanciaTotal} km, Tempo estimado: ${data.tempoEstimado} horas`, 'success');
+      } else {
+        alert(`✅ Resumo gerado com sucesso! Distância: ${data.distanciaTotal} km, Tempo estimado: ${data.tempoEstimado} horas`);
+      }
+      
+    } catch (err) {
+      console.error('❌ Erro ao gerar resumo:', err);
+      const errorMsg = 'Erro ao gerar resumo da rota: ' + err.message;
+      
+      if (typeof showMessage !== 'undefined') {
+        showMessage(errorMsg, 'error');
+      } else {
+        alert(errorMsg);
+      }
+      
+      if (campoResumo) {
+        campoResumo.value = 'Erro ao gerar resumo. Verifique se há pontos cadastrados com coordenadas válidas.';
+      }
+    } finally {
+      console.log('🔚 Finalizando função gerarResumoRota');
+      // Remover loading e overlay
+      hideCalculandoOverlay();
+      if (btnGerarResumo && typeof window.showLoading !== 'undefined') {
+        window.showLoading(btnGerarResumo, false);
+      }
+      if (btnGerarResumo) btnGerarResumo.disabled = false;
+    }
+  }
+  
+  // Event listener para o botão gerar resumo (movido para init() para garantir que o elemento existe)
+  // document.getElementById('btnGerarResumo')?.addEventListener('click', gerarResumoRota);
+  
+  // Event listener para o botão calcular distância (aba Dados)
   document.getElementById('btnCalcularDistancia')?.addEventListener('click', calcularDistancia);
+  
+  // Event listener para o botão calcular distância (aba Pontos)
+  document.getElementById('btnCalcularDistanciaPontos')?.addEventListener('click', async () => {
+    const roteiroId = document.getElementById('roteiroId')?.value;
+    
+    if (!roteiroId) {
+      showMessage('Selecione um roteiro na aba "Dados" antes de calcular as distâncias.', 'error');
+      return;
+    }
+    
+    const btnCalcular = document.getElementById('btnCalcularDistanciaPontos');
+    
+    // Mostrar loading e overlay
+    showCalculandoOverlay('Calculando Distâncias', 'Recalculando distâncias entre todos os pontos do roteiro...', 'Isso pode levar alguns segundos dependendo do número de pontos.');
+    if (btnCalcular && typeof window.showLoading !== 'undefined') {
+      window.showLoading(btnCalcular, true);
+    }
+    btnCalcular.disabled = true;
+    
+    try {
+      // Carregar pontos se ainda não foram carregados
+      if (pontosRoteiro.length === 0) {
+        await carregarPontos(roteiroId);
+      }
+      
+      // Filtrar pontos com coordenadas
+      const pontosComCoordenadas = pontosRoteiro
+        .filter(p => p.LATITUDE && p.LONGITUDE)
+        .sort((a, b) => (a.ORDEM || 0) - (b.ORDEM || 0));
+      
+      if (pontosComCoordenadas.length < 2) {
+        showMessage('É necessário ter pelo menos 2 pontos com coordenadas para calcular as distâncias.', 'error');
+        return;
+      }
+      
+      // Chamar a função de recalcular todas as distâncias
+      await recalcularTodasDistancias(roteiroId, false);
+      
+    } catch (err) {
+      console.error('Erro ao calcular distâncias:', err);
+      showMessage('Erro ao calcular distâncias. Tente novamente.', 'error');
+    } finally {
+      // Remover loading e overlay (garantir que seja removido mesmo se recalcularTodasDistancias não o fizer)
+      hideCalculandoOverlay();
+      if (btnCalcular && typeof window.showLoading !== 'undefined') {
+        window.showLoading(btnCalcular, false);
+      }
+      btnCalcular.disabled = false;
+    }
+  });
 
   // Atualizar mapa quando a aba mapa for ativada
   tabs.forEach(tab => {
@@ -1889,7 +2158,6 @@ async function loadRoteiroParaEdicao(id) {
     // SEMPRE limpar o mapa completamente antes de atualizar
     // Isso garante que não haja "resquícios" de rotas anteriores
     if (mapa) {
-      console.log('[Roteiros] Limpando mapa na função atualizarMapa...');
       limparMapa();
     }
 
@@ -2177,8 +2445,16 @@ async function loadRoteiroParaEdicao(id) {
       }
       
       // Ocultar botões
-      document.getElementById('btnNovoPonto').style.display = 'none';
-      document.getElementById('btnVoltarPontos').style.display = 'none';
+      const btnNovoPonto = document.getElementById('btnNovoPonto');
+      const btnVoltarPontos = document.getElementById('btnVoltarPontos');
+      const btnCalcularPontos = document.getElementById('btnCalcularDistanciaPontos');
+      
+      if (btnNovoPonto) btnNovoPonto.style.display = 'none';
+      if (btnVoltarPontos) btnVoltarPontos.style.display = 'none';
+      if (btnCalcularPontos) {
+        btnCalcularPontos.disabled = true;
+        btnCalcularPontos.style.opacity = '0.5';
+      }
       
       if (gridPontos) {
         gridPontos.render([]);
@@ -2198,8 +2474,16 @@ async function loadRoteiroParaEdicao(id) {
             document.getElementById('pontosTitle').textContent = `Pontos do Roteiro #${idRoteiro}`;
             
             // Mostrar botões mesmo sem pontos
-            document.getElementById('btnNovoPonto').style.display = 'block';
-            document.getElementById('btnVoltarPontos').style.display = 'block';
+            const btnNovoPonto = document.getElementById('btnNovoPonto');
+            const btnVoltarPontos = document.getElementById('btnVoltarPontos');
+            const btnCalcularPontos = document.getElementById('btnCalcularDistanciaPontos');
+            
+            if (btnNovoPonto) btnNovoPonto.style.display = 'block';
+            if (btnVoltarPontos) btnVoltarPontos.style.display = 'block';
+            if (btnCalcularPontos) {
+              btnCalcularPontos.disabled = false;
+              btnCalcularPontos.style.opacity = '1';
+            }
             
             // Renderizar grid vazio
             if (typeof GridEditor === 'undefined') {
@@ -2238,8 +2522,14 @@ async function loadRoteiroParaEdicao(id) {
         // Mostrar/ocultar botões
         const btnNovoPonto = document.getElementById('btnNovoPonto');
         const btnVoltarPontos = document.getElementById('btnVoltarPontos');
+        const btnCalcularPontos = document.getElementById('btnCalcularDistanciaPontos');
+        
         if (btnNovoPonto) btnNovoPonto.style.display = 'block';
         if (btnVoltarPontos) btnVoltarPontos.style.display = 'block';
+        if (btnCalcularPontos) {
+          btnCalcularPontos.disabled = false;
+          btnCalcularPontos.style.opacity = '1';
+        }
         
         // Renderizar grid
         if (typeof GridEditor === 'undefined') {
@@ -2267,6 +2557,11 @@ async function loadRoteiroParaEdicao(id) {
   
   // Recalcular todas as distâncias do roteiro (pontos e total)
   async function recalcularTodasDistancias(idRoteiro, silencioso = false) {
+    // Mostrar overlay apenas se não for silencioso
+    if (!silencioso) {
+      showCalculandoOverlay('Calculando Distâncias', 'Recalculando distâncias entre todos os pontos do roteiro...', 'Isso pode levar alguns segundos dependendo do número de pontos.');
+    }
+    
     try {
       // Recarregar pontos do banco para garantir dados atualizados
       const pontosResponse = await fetch(`/api/roteiros/${idRoteiro}/pontos`);
@@ -2295,14 +2590,12 @@ async function loadRoteiroParaEdicao(id) {
       
       if (usarOtimizacao) {
         // OTIMIZAÇÃO: Uma única requisição OSRM para calcular tudo
-        console.log(`[Recalcular] Otimização: ${totalPontos} pontos, usando uma única requisição OSRM`);
-        
         try {
           const coordsStr = pontosComCoordenadas
             .map(p => `${p.LONGITUDE},${p.LATITUDE}`)
             .join(';');
           
-          const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`;
+          const osrmUrl = `https://router.project-osrm.org/route/v1/driving-hgv/${coordsStr}?overview=full&geometries=geojson`;
           const response = await fetch(osrmUrl);
           const data = await response.json();
           
@@ -2335,13 +2628,16 @@ async function loadRoteiroParaEdicao(id) {
                       ESTADOPASSAGEM: pontoAtual.ESTADOPASSAGEM,
                       CDPAISPASSAGEM: pontoAtual.CDPAISPASSAGEM
                     })
-                  }).then(updateResponse => {
+                  }).then(async updateResponse => {
                     if (updateResponse.ok) {
                       pontoAtual.KMENTREPONTOS = distanciaSegmento;
                       distanciasAtualizadas++;
                       return true;
+                    } else {
+                      const errorData = await updateResponse.json().catch(() => ({}));
+                      console.error(`[Recalcular] Erro ao atualizar ponto ${pontoAtual.SEQUENCIA}:`, errorData);
+                      return false;
                     }
-                    return false;
                   }).catch(err => {
                     console.error(`[Recalcular] Erro ao atualizar sequência ${pontoAtual.SEQUENCIA}:`, err);
                     return false;
@@ -2359,13 +2655,13 @@ async function loadRoteiroParaEdicao(id) {
               campoDistancia.value = distanciaTotal;
             }
             
-            // Atualizar no banco de dados
+            // Atualizar no banco de dados - GARANTIR QUE SEJA SALVO
             const descricao = document.getElementById('roteiroDescricao')?.value;
             const origemCidade = document.getElementById('origemCidade')?.value;
             const destinoCidade = document.getElementById('destinoCidade')?.value;
             
             if (descricao && origemCidade && destinoCidade) {
-              await fetch(`/api/roteiros/${idRoteiro}`, {
+              const roteiroUpdateResponse = await fetch(`/api/roteiros/${idRoteiro}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -2375,6 +2671,14 @@ async function loadRoteiroParaEdicao(id) {
                   DISTANCIAKM: distanciaTotal
                 })
               });
+              
+              if (!roteiroUpdateResponse.ok) {
+                const errorData = await roteiroUpdateResponse.json().catch(() => ({}));
+                console.error('[Recalcular] Erro ao atualizar roteiro no banco (otimização):', errorData);
+                if (!silencioso) {
+                  showMessage('Erro ao salvar distância total no banco de dados', 'error');
+                }
+              }
             }
           }
         } catch (err) {
@@ -2394,7 +2698,7 @@ async function loadRoteiroParaEdicao(id) {
           // Calcular distância usando OSRM
           try {
             const coordsStr = `${pontoAnterior.LONGITUDE},${pontoAnterior.LATITUDE};${pontoAtual.LONGITUDE},${pontoAtual.LATITUDE}`;
-            const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full`;
+            const osrmUrl = `https://router.project-osrm.org/route/v1/driving-hgv/${coordsStr}?overview=full`;
             const response = await fetch(osrmUrl);
             const data = await response.json();
             
@@ -2437,7 +2741,7 @@ async function loadRoteiroParaEdicao(id) {
             .map(p => `${p.LONGITUDE},${p.LATITUDE}`)
             .join(';');
           
-          const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`;
+          const osrmUrl = `https://router.project-osrm.org/route/v1/driving-hgv/${coordsStr}?overview=full&geometries=geojson`;
           const response = await fetch(osrmUrl);
           const data = await response.json();
           
@@ -2450,13 +2754,13 @@ async function loadRoteiroParaEdicao(id) {
               campoDistancia.value = distanciaTotal;
             }
             
-            // Atualizar no banco de dados
+            // Atualizar no banco de dados - GARANTIR QUE SEJA SALVO
             const descricao = document.getElementById('roteiroDescricao')?.value;
             const origemCidade = document.getElementById('origemCidade')?.value;
             const destinoCidade = document.getElementById('destinoCidade')?.value;
             
             if (descricao && origemCidade && destinoCidade) {
-              await fetch(`/api/roteiros/${idRoteiro}`, {
+              const roteiroUpdateResponse = await fetch(`/api/roteiros/${idRoteiro}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -2466,6 +2770,14 @@ async function loadRoteiroParaEdicao(id) {
                   DISTANCIAKM: distanciaTotal
                 })
               });
+              
+              if (!roteiroUpdateResponse.ok) {
+                const errorData = await roteiroUpdateResponse.json().catch(() => ({}));
+                console.error('[Recalcular] Erro ao atualizar roteiro no banco (método tradicional):', errorData);
+                if (!silencioso) {
+                  showMessage('Erro ao salvar distância total no banco de dados', 'error');
+                }
+              }
             }
           }
         } catch (err) {
@@ -2489,11 +2801,19 @@ async function loadRoteiroParaEdicao(id) {
       
       // Mostrar mensagem de sucesso apenas se atualizou algo e não foi chamado silenciosamente
       if (!silencioso && (distanciasAtualizadas > 0 || distanciaTotal !== null)) {
-        showMessage(`Distâncias recalculadas: ${distanciasAtualizadas} pontos atualizados${distanciaTotal ? `, total: ${distanciaTotal.toFixed(2)} km` : ''}`, 'success');
+        const mensagem = `✅ Distâncias calculadas e salvas no banco: ${distanciasAtualizadas} pontos atualizados${distanciaTotal ? `, total: ${distanciaTotal.toFixed(2)} km` : ''}`;
+        showMessage(mensagem, 'success');
       }
     } catch (err) {
       console.error('Erro ao recalcular distâncias:', err);
-      // Não mostrar erro para não incomodar o usuário, apenas logar
+      if (!silencioso) {
+        showMessage('Erro ao calcular e salvar distâncias. Verifique o console para mais detalhes.', 'error');
+      }
+    } finally {
+      // Remover overlay apenas se não for silencioso
+      if (!silencioso) {
+        hideCalculandoOverlay();
+      }
     }
   }
   
@@ -2540,7 +2860,7 @@ async function loadRoteiroParaEdicao(id) {
         .map(p => `${p.LONGITUDE},${p.LATITUDE}`)
         .join(';');
       
-      const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`;
+      const osrmUrl = `https://router.project-osrm.org/route/v1/driving-hgv/${coordsStr}?overview=full&geometries=geojson`;
       const response = await fetch(osrmUrl);
       const data = await response.json();
       
@@ -2942,7 +3262,7 @@ async function loadRoteiroParaEdicao(id) {
       // Tentar calcular usando OSRM (rota real)
       try {
         const coordsStr = `${pontoAnterior.LONGITUDE},${pontoAnterior.LATITUDE};${longitudeAtual},${latitudeAtual}`;
-        const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full`;
+        const osrmUrl = `https://router.project-osrm.org/route/v1/driving-hgv/${coordsStr}?overview=full`;
         const response = await fetch(osrmUrl);
         const data = await response.json();
         
@@ -3322,8 +3642,6 @@ async function loadRoteiroParaEdicao(id) {
       return;
     }
     
-    console.log('[Roteiros] Iniciando limpeza completa do mapa...');
-    
     // PRIMEIRO: Coletar todas as camadas que precisam ser removidas
     const layersToRemove = [];
     
@@ -3404,8 +3722,6 @@ async function loadRoteiroParaEdicao(id) {
     marcadorOrigem = null;
     marcadorDestino = null;
     linhaRota = null;
-    
-    console.log(`[Roteiros] Limpeza concluída: ${removidas} camada(s) removida(s)`);
   }
 
   async function atualizarMapaComPontos() {
@@ -3413,7 +3729,6 @@ async function loadRoteiroParaEdicao(id) {
     
     // Proteção: evitar múltiplas execuções simultâneas
     if (atualizandoMapaComPontos) {
-      console.log('[Roteiros] atualizarMapaComPontos já está em execução, ignorando chamada duplicada');
       return;
     }
     
@@ -3425,7 +3740,6 @@ async function loadRoteiroParaEdicao(id) {
       showMapaLoading('Carregando Rota', 'Carregando pontos e montando rota...');
       // SEMPRE limpar o mapa completamente antes de criar novos marcadores
       // Isso garante que não haja "resquícios" de rotas anteriores
-      console.log('[Roteiros] Iniciando limpeza do mapa antes de atualizar...');
       limparMapa();
       
       // Aguardar um pouco para garantir que a limpeza foi concluída
@@ -3458,14 +3772,9 @@ async function loadRoteiroParaEdicao(id) {
           return ordemA - ordemB;
         });
       
-      // Debug: mostrar ordem dos pontos (apenas uma vez, não repetir)
+      // Debug: evitar logs repetidos (variável mantida para compatibilidade)
       if (!window._roteirosDebugPontos || JSON.stringify(pontosComCoordenadas.map(p => p.ORDEM)) !== window._roteirosDebugPontos) {
         window._roteirosDebugPontos = JSON.stringify(pontosComCoordenadas.map(p => p.ORDEM));
-        console.log('[Roteiros] Pontos ordenados no mapa:', pontosComCoordenadas.map(p => ({
-          ordem: p.ORDEM,
-          tipo: p.TPLOCAL,
-          local: p.DSLOCAL
-        })));
       }
       
       if (pontosComCoordenadas.length === 0) {
@@ -3536,10 +3845,7 @@ async function loadRoteiroParaEdicao(id) {
           // Se já é P ou R, manter o tipo original
         }
         
-        // Debug: mostrar ajuste de tipo
-        if (tipoOriginal !== tipoLocal) {
-          console.log(`[Roteiros] Ponto ${index + 1}: Tipo ajustado de "${tipoOriginal}" para "${tipoLocal}"`);
-        }
+        // Tipo ajustado automaticamente se necessário
         
         const cor = cores[tipoLocal] || '#95a5a6';
         const icone = icones[tipoLocal] || '📍';
@@ -3612,10 +3918,8 @@ async function loadRoteiroParaEdicao(id) {
           const coordsStr = latlngs.map(c => `${c[1]},${c[0]}`).join(';');
           // Para poucos pontos, remover steps=true para ser mais rápido
           const osrmUrl = usarSteps 
-            ? `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson&steps=true`
-            : `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson`;
-          
-          console.log(`[Roteiros] OSRM para mapa: ${totalPontos} pontos, steps=${usarSteps}`);
+            ? `https://router.project-osrm.org/route/v1/driving-hgv/${coordsStr}?overview=full&geometries=geojson&steps=true`
+            : `https://router.project-osrm.org/route/v1/driving-hgv/${coordsStr}?overview=full&geometries=geojson`;
           
           // Usar AbortController para timeout (reduzir timeout para poucos pontos)
           const controller = new AbortController();
@@ -3709,10 +4013,11 @@ async function loadRoteiroParaEdicao(id) {
   
   // Função removida - resumo da rota não será mais gerado automaticamente
   // O campo RESUMOROTA pode ser preenchido manualmente pelo usuário
-  async function gerarResumoRota(osrmData, coordenadas) {
-    // Função desabilitada - não faz nada
-    return;
-  }
+  // NOTA: Esta função foi removida para evitar conflito com gerarResumoRota() que chama a API
+  // async function gerarResumoRotaAntiga(osrmData, coordenadas) {
+  //   // Função desabilitada - não faz nada
+  //   return;
+  // }
   
   // Variáveis para o mapa de seleção
   let mapaSelecao = null;

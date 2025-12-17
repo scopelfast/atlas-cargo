@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const motoristaAppController = require('../controllers/motorista-app.controller');
 const sincronizarRastreamentoController = require('../controllers/sincronizar-rastreamento-integra.controller');
+const deliveryProofRoutes = require('./delivery-proof.routes');
 
 // ==========================================
 // ROTAS PÚBLICAS (sem autenticação)
@@ -55,6 +56,9 @@ router.post('/sincronizar-rastreamento/:idViagem', sincronizarRastreamentoContro
 
 // Eventos
 router.post('/evento', motoristaAppController.registrarEvento);
+
+// Comprovantes de Entrega (POD)
+router.use('/delivery-proof', deliveryProofRoutes);
 
 module.exports = router;
 

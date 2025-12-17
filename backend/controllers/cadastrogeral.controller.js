@@ -7,6 +7,8 @@
 const sql = require('mssql');
 const axios = require('axios');
 const XLSX = require('xlsx');
+const fs = require('fs');
+const path = require('path');
 const { poolPromise } = require('../config/db');
 
 // Constantes
@@ -994,6 +996,93 @@ const cadastroController = {
     } catch (err) {
       console.error('Erro ao exportar cadastros para Excel:', err);
       res.status(500).json({ error: 'Erro ao exportar dados para Excel.' });
+    }
+  },
+
+  // Aplicar correção da stored procedure SP_INTGRACAO_VALIDADE
+  aplicarCorrecaoSPValidade: async (req, res) => {
+    try {
+      const pool = await poolPromise;
+      const scriptPath = path.join(__dirname, '../scripts/corrigir_sp_integracao_validade.sql');
+      
+      // Ler o arquivo SQL
+      let sqlContent;
+      try {
+        sqlContent = fs.readFileSync(scriptPath, 'utf8');
+      } catch (err) {
+        console.error('Erro ao ler arquivo SQL:', err);
+        return res.status(500).json({ 
+          error: 'Erro ao ler arquivo de correção.',
+          detalhes: err.message 
+        });
+      }
+
+      // Dividir por GO se houver múltiplos comandos
+      const comandos = sqlContent.split(/\bGO\b/gi).filter(cmd => cmd.trim().length > 0);
+      const resultados = [];
+
+      for (const comando of comandos) {
+        const cmdLimpo = comando.trim();
+        if (!cmdLimpo) continue;
+
+        try {
+          const request = pool.request();
+          request.timeout = 120000; // 2 minutos
+          const result = await request.query(cmdLimpo);
+
+          if (result.recordset && result.recordset.length > 0) {
+            resultados.push({ 
+              tipo: 'SELECT', 
+              rows: result.recordset, 
+              rowCount: result.recordset.length 
+            });
+          } else {
+            resultados.push({ 
+              tipo: 'EXEC', 
+              message: 'Comando executado com sucesso.', 
+              rowsAffected: result.rowsAffected || [0] 
+            });
+          }
+        } catch (cmdErr) {
+          let mensagemErro = cmdErr.message;
+          if (mensagemErro.includes('timeout') || mensagemErro.includes('Timeout')) {
+            mensagemErro = `Timeout: Comando demorou mais de 2 minutos para executar.`;
+          }
+          resultados.push({
+            tipo: 'ERRO',
+            error: mensagemErro,
+            comando: cmdLimpo.substring(0, 200),
+            detalhes: { nome: cmdErr.name, codigo: cmdErr.code, numero: cmdErr.number }
+          });
+        }
+      }
+
+      // Verificar se houve erros
+      const erros = resultados.filter(r => r.tipo === 'ERRO');
+      if (erros.length > 0) {
+        return res.status(500).json({ 
+          success: false, 
+          error: 'Erros ao aplicar correção.',
+          resultados: resultados,
+          erros: erros
+        });
+      }
+
+      res.json({ 
+        success: true, 
+        message: 'Correção aplicada com sucesso!',
+        resultados: resultados, 
+        totalComandos: comandos.length 
+      });
+    } catch (err) {
+      console.error('Erro ao aplicar correção SP_INTGRACAO_VALIDADE:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          success: false, 
+          error: 'Erro ao aplicar correção da stored procedure.',
+          detalhes: err.message 
+        });
+      }
     }
   }
 };

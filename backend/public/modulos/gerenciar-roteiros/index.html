@@ -79,6 +79,59 @@
       color: #666;
       font-size: 0.95em;
     }
+    
+    /* Overlay genérico de loading */
+    #calculandoOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 9999;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(2px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    #calculandoOverlay .calculando-content {
+      background: white;
+      padding: 30px 40px;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+      text-align: center;
+      max-width: 350px;
+      animation: slideUp 0.3s ease-out;
+    }
+    
+    #calculandoOverlay .calculando-spinner {
+      width: 50px;
+      height: 50px;
+      border: 5px solid #e0e0e0;
+      border-top-color: #1a2a6c;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+    
+    #calculandoOverlay h3 {
+      margin: 0 0 10px 0;
+      color: #333;
+      font-size: 1.2em;
+    }
+    
+    #calculandoOverlay p {
+      margin: 0;
+      color: #666;
+      font-size: 0.95em;
+    }
+    
+    #calculandoOverlay .calculando-detalhe {
+      margin: 10px 0 0 0;
+      color: #999;
+      font-size: 0.85em;
+    }
   </style>
 </head>
 <body>
@@ -262,18 +315,23 @@
 
           <!-- Resumo da Rota -->
           <div style="margin-top: 30px;">
-            <h3>🗺️ Resumo da Rota</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <h3 style="margin: 0;">🗺️ Resumo da Rota</h3>
+              <button type="button" id="btnGerarResumo" class="btn info" style="white-space: nowrap;">
+                <i class='bx bx-refresh'></i> Gerar Resumo
+              </button>
+            </div>
             <div style="margin-bottom: 10px;">
               <label for="roteiroResumoRota">Resumo da Rota (gerado automaticamente)</label>
               <textarea 
                 id="roteiroResumoRota" 
-                rows="8" 
+                rows="12" 
                 readonly 
                 style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 4px; font-family: Arial, sans-serif; font-size: 0.95em; line-height: 1.6; background-color: #f9f9f9; resize: vertical;"
-                placeholder="O resumo da rota será gerado automaticamente quando os pontos forem processados através do mapa..."></textarea>
+                placeholder="Clique em 'Gerar Resumo' para criar automaticamente o resumo detalhado da rota com base nos pontos cadastrados..."></textarea>
             </div>
             <p style="font-size: 0.85em; color: #666; margin-top: 5px; font-style: italic;">
-              <i class='bx bx-info-circle'></i> Este resumo é gerado automaticamente quando você visualiza a rota no mapa ou processa os pontos.
+              <i class='bx bx-info-circle'></i> O resumo será gerado automaticamente com informações sobre rodovias, cidades de referência e orientações de percurso.
             </p>
           </div>
 
@@ -295,6 +353,13 @@
         
         <!-- Soma das distâncias -->
         <div id="somaDistancias" style="margin-bottom: 15px; padding: 10px; background: #e8f5e9; border-left: 4px solid #4caf50; border-radius: 4px; font-weight: 500; color: #2e7d32;"></div>
+        
+        <!-- Botão Calcular Distâncias -->
+        <div style="margin-bottom: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+          <button type="button" id="btnCalcularDistanciaPontos" class="btn info" style="white-space: nowrap;">
+            <i class='bx bx-calculator'></i> Calcular Distâncias
+          </button>
+        </div>
         
         <!-- Grid de Pontos -->
         <div id="pontosGrid" class="grid-container">
@@ -482,13 +547,13 @@
     <div id="message" class="message"></div>
   </div>
 
-  <!-- Overlay de Loading para Cálculo de Distâncias -->
+  <!-- Overlay de Loading genérico para operações -->
   <div id="calculandoOverlay" class="calculando-overlay" style="display: none;">
     <div class="calculando-content">
       <div class="calculando-spinner"></div>
-      <h3>Calculando Distâncias</h3>
-      <p>Por favor, aguarde enquanto calculamos as distâncias do roteiro...</p>
-      <p class="calculando-detalhe">Isso pode levar alguns segundos.</p>
+      <h3 id="calculandoOverlayTitulo">Processando...</h3>
+      <p id="calculandoOverlayTexto">Por favor, aguarde...</p>
+      <p id="calculandoOverlayDetalhe" class="calculando-detalhe">Isso pode levar alguns segundos.</p>
     </div>
   </div>
 

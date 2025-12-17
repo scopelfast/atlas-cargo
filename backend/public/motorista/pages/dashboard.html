@@ -61,6 +61,28 @@
       margin-bottom: 8px;
     }
 
+    .reputacao-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255,255,255,0.2);
+      padding: 6px 12px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      margin-top: 8px;
+    }
+
+    .reputacao-score {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .reputacao-score.excelente { color: #28a745; }
+    .reputacao-score.bom { color: #ffc107; }
+    .reputacao-score.regular { color: #fd7e14; }
+    .reputacao-score.ruim { color: #dc3545; }
+
     .status-badge-header {
       display: inline-flex;
       align-items: center;
@@ -181,6 +203,10 @@
       <div class="header-info">
         <div class="header-nome" id="nomeMotorista">Carregando...</div>
         <div class="header-cpf" id="cpfMotorista">CPF: -</div>
+        <div id="reputacaoContainer" class="reputacao-badge" style="display: none;">
+          <span>⭐ Reputação:</span>
+          <span id="reputacaoScore" class="reputacao-score">-</span>
+        </div>
         <div class="status-badge-header">
           <div class="status-dot-header"></div>
           <span>Online</span>
@@ -271,6 +297,9 @@
     const primeiraLetra = (motorista.nome || '?').charAt(0).toUpperCase();
     document.getElementById('avatarMotorista').textContent = primeiraLetra;
 
+    // Carregar reputação
+    carregarReputacao();
+
     async function logout() {
       const resposta = await mostrarModal(
         'Sair do Aplicativo',
@@ -285,6 +314,54 @@
         setTimeout(() => {
           window.location.href = '../index.html';
         }, 500);
+      }
+    }
+
+    // =============================================
+    // Reputação
+    // =============================================
+    async function carregarReputacao() {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/reputation/motorista/${motorista.id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          
+          if (data.success && data.reputacao) {
+            const reputacao = data.reputacao;
+            const scoreEl = document.getElementById('reputacaoScore');
+            const container = document.getElementById('reputacaoContainer');
+            
+            scoreEl.textContent = `${reputacao.SCORE.toFixed(1)}/100`;
+            
+            // Classificar por cor
+            if (reputacao.SCORE >= 80) {
+              scoreEl.className = 'reputacao-score excelente';
+            } else if (reputacao.SCORE >= 60) {
+              scoreEl.className = 'reputacao-score bom';
+            } else if (reputacao.SCORE >= 40) {
+              scoreEl.className = 'reputacao-score regular';
+            } else {
+              scoreEl.className = 'reputacao-score ruim';
+            }
+            
+            container.style.display = 'inline-flex';
+            
+            // Adicionar tooltip com detalhes
+            container.title = `Entregas: ${reputacao.TOTAL_DELIVERIES || 0}\n` +
+                            `No prazo: ${reputacao.ON_TIME_DELIVERIES || 0}\n` +
+                            `Atrasadas: ${reputacao.LATE_DELIVERIES || 0}\n` +
+                            `Canceladas: ${reputacao.CANCELED_DELIVERIES || 0}`;
+          }
+        }
+      } catch (error) {
+        console.warn('Erro ao carregar reputação:', error);
+        // Não mostrar erro, apenas não exibir reputação
       }
     }
 

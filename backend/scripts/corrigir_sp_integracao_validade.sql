@@ -1,8 +1,14 @@
 -- ============================================
 -- Script para Corrigir SP_INTGRACAO_VALIDADE
 -- ============================================
--- Problema: A procedure tenta inserir dados com CDTIPOVALIDADE que não existem
--- Solução: Adicionar filtro para garantir que apenas CDTIPOVALIDADE válidos sejam processados
+-- Problema 1: A procedure tenta inserir dados com CDTIPOVALIDADE que não existem
+-- Problema 2: A procedure usa CDTIPOVALIDADE na condição MERGE, mas a chave primária
+--             é apenas (TPCADASTRO, CDCADASTRO, SEQUENCIA), causando erro de duplicata
+-- Solução: 
+--   - Adicionar filtro para garantir que apenas CDTIPOVALIDADE válidos sejam processados
+--   - Remover CDTIPOVALIDADE da condição MERGE (não faz parte da PK)
+--   - Usar apenas as colunas da chave primária no MERGE
+--   - Se houver múltiplos registros na origem com mesma PK, usar o mais recente (por DHMAINTENANCE)
 -- ============================================
 
 USE [DIVULGACARGA_PRD]
@@ -24,23 +30,44 @@ BEGIN
     SET NOCOUNT ON;
     
     -- MERGE apenas com registros que têm CDTIPOVALIDADE válido
+    -- Se houver múltiplos registros na origem com mesma chave primária, usar o mais recente
     MERGE DIVULGACARGA_PRD.dbo.CONTROLEVALIDADE AS dest
     USING (
         SELECT 
-            src.*
-        FROM INTEGRA_PRD.dbo.CONTROLEVALIDADE AS src
-        INNER JOIN DIVULGACARGA_PRD.dbo.TIPOVALIDADE AS tv
-            ON src.CDTIPOVALIDADE = tv.CDTIPOVALIDADE
-        -- Filtro adicional: garantir que o CDTIPOVALIDADE existe na tabela de destino
+            src.TPCADASTRO,
+            src.CDCADASTRO,
+            src.SEQUENCIA,
+            src.CDTIPOVALIDADE,
+            src.NRLIBERACAO,
+            src.DTLIBERACAO,
+            src.DTVALIDADE,
+            src.CDCERTIFICADORA,
+            src.DSLIBERACAO,
+            src.FGTIPOLANCTO,
+            src.DHMAINTENANCE,
+            src.SGUSER,
+            src.SERVERORIG
+        FROM (
+            SELECT 
+                src.*,
+                ROW_NUMBER() OVER (
+                    PARTITION BY src.TPCADASTRO, src.CDCADASTRO, src.SEQUENCIA 
+                    ORDER BY src.DHMAINTENANCE DESC, src.DTVALIDADE DESC
+                ) AS rn
+            FROM INTEGRA_PRD.dbo.CONTROLEVALIDADE AS src
+            INNER JOIN DIVULGACARGA_PRD.dbo.TIPOVALIDADE AS tv
+                ON src.CDTIPOVALIDADE = tv.CDTIPOVALIDADE
+        ) AS src
+        WHERE src.rn = 1  -- Apenas o registro mais recente para cada chave primária
     ) AS src
         ON dest.TPCADASTRO     = src.TPCADASTRO
        AND dest.CDCADASTRO    = src.CDCADASTRO
        AND dest.SEQUENCIA     = src.SEQUENCIA
-       AND dest.CDTIPOVALIDADE= src.CDTIPOVALIDADE
-    -- Chave composta: TPCADASTRO + CDCADASTRO + SEQUENCIA + CDTIPOVALIDADE
+    -- Chave primária: TPCADASTRO + CDCADASTRO + SEQUENCIA (SEM CDTIPOVALIDADE)
 
     WHEN MATCHED THEN
         UPDATE SET
+            dest.CDTIPOVALIDADE    = src.CDTIPOVALIDADE,  -- Pode mudar se houver atualização
             dest.NRLIBERACAO       = src.NRLIBERACAO,
             dest.DTLIBERACAO       = src.DTLIBERACAO,
             dest.DTVALIDADE        = src.DTVALIDADE,
@@ -105,6 +132,9 @@ PRINT ''
 PRINT '📋 O que foi alterado:'
 PRINT '  - Adicionado INNER JOIN com TIPOVALIDADE para garantir que apenas'
 PRINT '    registros com CDTIPOVALIDADE válido sejam processados'
+PRINT '  - CORRIGIDO: Removido CDTIPOVALIDADE da condição MERGE (não faz parte da PK)'
+PRINT '  - Adicionado ROW_NUMBER para lidar com múltiplos registros com mesma PK'
+PRINT '    (usa o registro mais recente por DHMAINTENANCE)'
 PRINT '  - Adicionado log de registros ignorados para debug'
 PRINT ''
 GO

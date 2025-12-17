@@ -58,23 +58,16 @@
 
   // Inicialização
   async function init() {
-    // Aguardar Chart.js estar disponível antes de inicializar
-    console.log('🚀 Iniciando módulo de relatório de convocações...');
-    
     // Aguardar um pouco para garantir que scripts externos carregaram
     await new Promise(resolve => setTimeout(resolve, 500));
     
     // Verificar se Chart.js está disponível
     if (typeof Chart === 'undefined') {
-      console.log('⏳ Chart.js não disponível, aguardando...');
       try {
         await aguardarChartJS();
-        console.log('✅ Chart.js carregado na inicialização');
       } catch (err) {
         console.warn('⚠️ Chart.js não carregou na inicialização, continuando sem gráficos:', err);
       }
-    } else {
-      console.log('✅ Chart.js já disponível na inicialização');
     }
     
     // Definir datas padrão (últimos 30 dias)
@@ -217,6 +210,12 @@
   function atualizarEstatisticas(estatisticas) {
     const container = document.getElementById('estatisticasCards');
     
+    // Verificar se o elemento existe antes de usar
+    if (!container) {
+      console.warn('Elemento estatisticasCards não encontrado no DOM');
+      return;
+    }
+    
     if (!estatisticas || !estatisticas.TOTAL) {
       container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📊</div><p>Nenhum dado encontrado</p></div>';
       return;
@@ -266,11 +265,8 @@
   async function aguardarChartJS() {
     // Se já está disponível, retornar imediatamente
     if (typeof Chart !== 'undefined') {
-      console.log('✅ Chart.js já está disponível');
       return true;
     }
-
-    console.log('⏳ Chart.js não encontrado, aguardando carregamento...');
 
     // Verificar se o script já foi adicionado (no head ou em qualquer lugar)
     const existingScript = document.head.querySelector('script[src*="chart.js"]') || 
@@ -279,63 +275,46 @@
                           document.querySelector('script[src*="Chart.js"]');
     
     if (existingScript) {
-      console.log('📦 Script do Chart.js encontrado no HTML:', existingScript.src);
-      
       // Verificar se o script já foi carregado (tem complete ou readyState)
       if (existingScript.complete || existingScript.readyState === 'complete') {
-        console.log('📦 Script já marcado como completo');
         // Aguardar um pouco para ver se Chart está disponível
         await new Promise(resolve => setTimeout(resolve, 500));
         if (typeof Chart !== 'undefined') {
-          console.log('✅ Chart.js disponível após verificar script completo');
           return true;
         }
       }
       
-      console.log('⏳ Aguardando script carregar...');
-      // Aguardar o Chart carregar (aumentar tempo de espera)
+      // Aguardar o Chart carregar
       let tentativas = 0;
       return new Promise((resolve, reject) => {
         const checkInterval = setInterval(() => {
           if (typeof Chart !== 'undefined') {
-            console.log('✅ Chart.js carregado após', tentativas * 100, 'ms');
             clearInterval(checkInterval);
             resolve(true);
-          } else if (tentativas++ > 150) { // Aumentado para 150 tentativas (15 segundos)
+          } else if (tentativas++ > 150) { // 15 segundos
             clearInterval(checkInterval);
             console.error('❌ Timeout: Chart.js não carregou após 15 segundos');
-            console.error('📋 Debug info:', {
-              scriptSrc: existingScript.src,
-              scriptComplete: existingScript.complete,
-              scriptReadyState: existingScript.readyState,
-              windowChart: typeof window.Chart,
-              globalChart: typeof Chart
-            });
             reject(new Error('Chart.js não carregou após aguardar'));
           }
         }, 100);
       });
     }
 
-    console.log('📥 Chart.js não encontrado no HTML, carregando dinamicamente...');
     // Carregar Chart.js dinamicamente (fallback)
     return new Promise((resolve, reject) => {
       const script = document.createElement('script');
       script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js';
       script.async = false; // Carregar de forma síncrona
       script.onload = () => {
-        console.log('📦 Script do Chart.js carregado dinamicamente, verificando disponibilidade...');
         // Aguardar um pouco mais para garantir que Chart está disponível
         setTimeout(() => {
           if (typeof Chart !== 'undefined') {
-            console.log('✅ Chart.js disponível após carregamento dinâmico');
             resolve(true);
           } else {
             // Tentar mais algumas vezes
             let tentativas = 0;
             const retryInterval = setInterval(() => {
               if (typeof Chart !== 'undefined') {
-                console.log('✅ Chart.js disponível após', tentativas * 100, 'ms');
                 clearInterval(retryInterval);
                 resolve(true);
               } else if (tentativas++ > 50) {
@@ -357,8 +336,6 @@
 
   // Atualizar gráficos
   async function atualizarGraficos(data) {
-    console.log('📊 Iniciando atualização de gráficos...', data);
-    
     // Verificar se os canvas existem antes de continuar
     const ctxStatus = document.getElementById('graficoStatus');
     const ctxPorData = document.getElementById('graficoPorData');
@@ -377,17 +354,12 @@
     
     try {
       // Aguardar Chart.js estar disponível (com timeout maior)
-      // Primeiro, verificar se já está disponível (pode ter sido carregado antes)
       if (typeof Chart === 'undefined') {
-        console.log('⏳ Chart.js não disponível, aguardando...');
         await Promise.race([
           aguardarChartJS(),
           new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout ao carregar Chart.js')), 15000))
         ]);
-      } else {
-        console.log('✅ Chart.js já disponível antes da verificação');
       }
-      console.log('✅ Chart.js carregado com sucesso');
     } catch (error) {
       console.error('❌ Erro ao carregar Chart.js:', error);
       // NÃO remover os canvas - apenas mostrar mensagem de erro sem destruir o HTML
@@ -425,8 +397,6 @@
       return;
     }
     
-    console.log('📊 Criando gráfico de status...', ctxStatusFinal);
-    
     // Remover mensagem de erro se existir
     const errorDiv = document.querySelector('.chart-error-message');
     if (errorDiv) {
@@ -438,7 +408,6 @@
     }
 
     const estatisticas = data.estatisticas || {};
-    console.log('📊 Estatísticas para gráfico:', estatisticas);
     
     const dadosStatus = [
       estatisticas.PENDENTE || 0,
@@ -447,7 +416,6 @@
       estatisticas.CONFIRMADA || 0,
       estatisticas.ACEITA_DESCARTADA || 0
     ];
-    console.log('📊 Dados do gráfico de status:', dadosStatus);
     
     try {
       chartStatus = new Chart(ctxStatusFinal, {
@@ -479,7 +447,6 @@
           }
         }
       });
-      console.log('✅ Gráfico de status criado');
     } catch (err) {
       console.error('❌ Erro ao criar gráfico de status:', err);
       // Não remover o canvas, apenas logar o erro
@@ -500,7 +467,6 @@
     }
 
     const dadosPorData = data.estatisticasPorData || [];
-    console.log('📊 Dados por data:', dadosPorData);
     const labels = dadosPorData.map(d => {
       if (!d.DATA) return '-';
       
@@ -531,8 +497,6 @@
     const dadosAceita = dadosPorData.map(d => d.ACEITA || 0).reverse();
     const dadosRecusada = dadosPorData.map(d => d.RECUSADA || 0).reverse();
     const dadosConfirmada = dadosPorData.map(d => d.CONFIRMADA || 0).reverse();
-
-    console.log('📊 Criando gráfico por data...', { labels, dadosPendente, dadosAceita, dadosRecusada, dadosConfirmada });
     
     try {
       chartPorData = new Chart(ctxPorDataFinal, {
@@ -589,8 +553,6 @@
           }
         }
       });
-      console.log('✅ Gráfico por data criado');
-      console.log('✅ Todos os gráficos atualizados com sucesso');
     } catch (err) {
       console.error('❌ Erro ao criar gráfico por data:', err);
       // Não remover o canvas, apenas logar o erro
@@ -729,6 +691,12 @@
   // Atualizar tabela
   function atualizarTabela(lista) {
     const container = document.getElementById('tabelaContainer');
+    
+    // Verificar se o elemento existe antes de usar
+    if (!container) {
+      console.warn('Elemento tabelaContainer não encontrado no DOM');
+      return;
+    }
     
     if (!lista || lista.length === 0) {
       container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div><p>Nenhuma convocação encontrada</p></div>';
@@ -1335,7 +1303,7 @@
           `);
 
         try {
-          const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${lonMotorista},${latMotorista};${origemLon},${origemLat}?overview=full&geometries=geojson`;
+          const osrmUrl = `https://router.project-osrm.org/route/v1/driving-hgv/${lonMotorista},${latMotorista};${origemLon},${origemLat}?overview=full&geometries=geojson`;
           const rotaResponse = await fetch(osrmUrl);
           const rotaData = await rotaResponse.json();
 
