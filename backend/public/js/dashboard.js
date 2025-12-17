@@ -104,23 +104,18 @@
   };
 
   const initDashboard = async () => {
-    // Proteção anti-loop
+    // Proteção anti-loop melhorada
     const loopCount = parseInt(sessionStorage.getItem('dashboardLoopCount') || '0');
-    if (loopCount > 3) {
-      console.error('❌ Loop detectado! Limpando...');
+    if (loopCount > 5) {
+      console.error('❌ Loop detectado! Limpando e parando...');
       sessionStorage.clear();
       localStorage.clear();
-      // Usar showMessage do padrão do sistema se disponível
-      if (typeof window.showMessage === 'function') {
-        showMessage('Erro detectado. Faça login novamente.', 'error');
-        setTimeout(() => {
-          window.location.href = '/';
-        }, 2000);
-      } else {
-        window.location.href = '/';
-      }
+      // Parar completamente - não redirecionar mais
+      document.body.innerHTML = '<div style="padding: 50px; text-align: center;"><h2>Erro de Loop Detectado</h2><p>Por favor, limpe o cache do navegador e faça login novamente.</p><button onclick="location.reload()" style="padding: 10px 20px; margin-top: 20px;">Recarregar Página</button></div>';
       return;
     }
+    
+    // Incrementar contador ANTES de qualquer verificação
     sessionStorage.setItem('dashboardLoopCount', (loopCount + 1).toString());
     
     const token = localStorage.getItem('token');
@@ -132,6 +127,8 @@
     } catch (e) {
       console.error('❌ Erro ao fazer parse do user:', e);
       sessionStorage.removeItem('dashboardLoopCount');
+      window.__DASHBOARD_INITIALIZING__ = false;
+      localStorage.clear();
       window.location.href = '/';
       return;
     }
@@ -139,6 +136,8 @@
     if (!token || !user) {
       console.warn('⚠️ Token ou user ausente, redirecionando para login');
       sessionStorage.removeItem('dashboardLoopCount');
+      window.__DASHBOARD_INITIALIZING__ = false;
+      localStorage.clear();
       window.location.href = '/';
       return;
     }
@@ -146,12 +145,15 @@
     // Verificar se já passou muito tempo desde o login
     const loginTimestamp = parseInt(localStorage.getItem('loginTimestamp') || '0');
     if (!loginTimestamp || (Date.now() - loginTimestamp) > (8 * 60 * 60 * 1000)) {
+      console.warn('⚠️ Sessão expirada (mais de 8 horas)');
+      window.__DASHBOARD_INITIALIZING__ = false;
       fazerLogout(true);
       return;
     }
     
-    // Se OK, resetar contador
-    setTimeout(() => sessionStorage.removeItem('dashboardLoopCount'), 1000);
+    // Se chegou até aqui, tudo está OK - resetar contador imediatamente
+    sessionStorage.removeItem('dashboardLoopCount');
+    window.__DASHBOARD_INITIALIZING__ = false;
 
     // Inicializar controle de atividade
     lastActivityTime = Date.now();
@@ -426,14 +428,30 @@
     `;
   };
 
-  initDashboard();
-  };
-
+  // Proteção contra múltiplas inicializações
+  let dashboardInicializado = false;
+  
   // Executar imediatamente se o DOM já estiver pronto, senão esperar
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!dashboardInicializado) {
+        dashboardInicializado = true;
+        initDashboard();
+      }
+    }, { once: true }); // Garantir que só executa uma vez
   } else {
     // DOM já está pronto, executar imediatamente
+    if (!dashboardInicializado) {
+      dashboardInicializado = true;
+      initDashboard();
+    }
+  }
+  };
+
+  // Executar init quando o script carregar
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  } else {
     init();
   }
 })();

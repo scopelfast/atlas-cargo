@@ -8,11 +8,24 @@
   <script>
     // CRÍTICO: Executar ANTES de qualquer outro código para forçar HTTP
     (function() {
-      // Se estiver em HTTPS, redirecionar imediatamente para HTTP
-      if (window.location.protocol === 'https:') {
+      // Proteção anti-loop para redirecionamento HTTPS -> HTTP
+      const redirectLoopCount = parseInt(sessionStorage.getItem('httpsRedirectLoopCount') || '0');
+      if (redirectLoopCount > 2) {
+        console.error('❌ Loop de redirecionamento HTTPS detectado! Parando redirecionamento.');
+        sessionStorage.removeItem('httpsRedirectLoopCount');
+        // Continuar mesmo em HTTPS para evitar loop infinito
+        // Não fazer mais redirecionamentos
+      } else if (window.location.protocol === 'https:') {
+        // Se estiver em HTTPS, redirecionar imediatamente para HTTP
+        sessionStorage.setItem('httpsRedirectLoopCount', (redirectLoopCount + 1).toString());
         const httpUrl = 'http:' + window.location.href.substring(window.location.protocol.length);
+        console.log('🔄 Redirecionando de HTTPS para HTTP:', httpUrl);
+        // Usar replace para evitar adicionar ao histórico
         window.location.replace(httpUrl);
-        return;
+        return; // Parar execução aqui
+      } else {
+        // Se chegou em HTTP, resetar contador
+        sessionStorage.removeItem('httpsRedirectLoopCount');
       }
       
       const protocol = 'http:'; // Forçar HTTP explicitamente
