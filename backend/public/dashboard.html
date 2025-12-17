@@ -6,29 +6,10 @@
   <title>sys - Divulga Cargas</title>
   <link rel="icon" type="image/png" href="/img/logo7.png" id="faviconLink">
   <script>
-    // CRÍTICO: Executar ANTES de qualquer outro código para forçar HTTP
+    // Configuração de base URL - suporta HTTP e HTTPS
     (function() {
-      // Proteção anti-loop para redirecionamento HTTPS -> HTTP
-      const redirectLoopCount = parseInt(sessionStorage.getItem('httpsRedirectLoopCount') || '0');
-      if (redirectLoopCount > 2) {
-        console.error('❌ Loop de redirecionamento HTTPS detectado! Parando redirecionamento.');
-        sessionStorage.removeItem('httpsRedirectLoopCount');
-        // Continuar mesmo em HTTPS para evitar loop infinito
-        // Não fazer mais redirecionamentos
-      } else if (window.location.protocol === 'https:') {
-        // Se estiver em HTTPS, redirecionar imediatamente para HTTP
-        sessionStorage.setItem('httpsRedirectLoopCount', (redirectLoopCount + 1).toString());
-        const httpUrl = 'http:' + window.location.href.substring(window.location.protocol.length);
-        console.log('🔄 Redirecionando de HTTPS para HTTP:', httpUrl);
-        // Usar replace para evitar adicionar ao histórico
-        window.location.replace(httpUrl);
-        return; // Parar execução aqui
-      } else {
-        // Se chegou em HTTP, resetar contador
-        sessionStorage.removeItem('httpsRedirectLoopCount');
-      }
-      
-      const protocol = 'http:'; // Forçar HTTP explicitamente
+      // Usar o protocolo atual (HTTP ou HTTPS)
+      const protocol = window.location.protocol;
       const host = window.location.host;
       const baseUrl = protocol + '//' + host;
       
@@ -122,17 +103,19 @@
           return window.location.origin;
         };
       }
+      
+      // Garantir que __BASE_URL__ use o protocolo correto
+      window.__BASE_URL__ = baseUrl;
     })();
 
-    // Carregar scripts com URLs absolutas forçando HTTP - SEQUENCIALMENTE
+      // Carregar scripts com URLs absolutas - SEQUENCIALMENTE
     (function() {
-      const baseUrl = window.__BASE_URL__ || ('http://' + window.location.host);
+      const baseUrl = window.__BASE_URL__ || window.location.origin;
       
       function loadScript(src, callback, retries = 2) {
         const script = document.createElement('script');
-        let url = src.startsWith('http') ? src.replace(/^https?:/, 'http:') : baseUrl + src;
-        // Forçar http:// explicitamente
-        url = url.replace(/^https:/, 'http:');
+        // Usar URL relativa ou absoluta baseada no baseUrl
+        let url = src.startsWith('http') ? src : baseUrl + src;
         script.src = url;
         
         let attempts = 0;
