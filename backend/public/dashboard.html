@@ -17,15 +17,13 @@
       function createLink(href) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        // Garantir que a URL seja HTTP
-        let url = href.startsWith('http') ? href.replace(/^https?:/, protocol) : baseUrl + href;
-        // Forçar http:// explicitamente
-        url = url.replace(/^https:/, 'http:');
+        // Usar URL relativa ou absoluta baseada no baseUrl (mantém protocolo atual)
+        let url = href.startsWith('http') ? href : baseUrl + href;
         link.href = url;
         document.head.appendChild(link);
       }
       
-      // Carregar CSS com URLs absolutas forçando HTTP
+      // Carregar CSS com URLs absolutas (usa protocolo atual)
       createLink('/css/boxicons.min.css?v=20250102');
       createLink('/css/modulos.css?v=20250102');
       createLink('/css/dashboard.css?v=20250102');
@@ -103,9 +101,6 @@
           return window.location.origin;
         };
       }
-      
-      // Garantir que __BASE_URL__ use o protocolo correto
-      window.__BASE_URL__ = baseUrl;
     })();
 
       // Carregar scripts com URLs absolutas - SEQUENCIALMENTE
