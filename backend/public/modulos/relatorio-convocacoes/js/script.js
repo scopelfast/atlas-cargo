@@ -212,7 +212,7 @@
     
     // Verificar se o elemento existe antes de usar
     if (!container) {
-      console.warn('Elemento estatisticasCards não encontrado no DOM');
+      // Silencioso - elemento será criado quando o módulo carregar completamente
       return;
     }
     
@@ -694,7 +694,7 @@
     
     // Verificar se o elemento existe antes de usar
     if (!container) {
-      console.warn('Elemento tabelaContainer não encontrado no DOM');
+      // Silencioso - elemento será criado quando o módulo carregar completamente
       return;
     }
     
