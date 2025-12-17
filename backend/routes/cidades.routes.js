@@ -9,6 +9,7 @@ const sql = require('mssql');
 const axios = require('axios');
 const router = express.Router();
 const { poolPromise } = require('../config/db');
+const { getForwardGeocodingUrl, getNominatimServer } = require('../config/nominatim');
 
 // Constante de Estados do Brasil
 const ESTADOS_BRASIL = [
@@ -307,15 +308,34 @@ router.get('/cidades/coordenadas', async (req, res) => {
     const { cidade, estado } = req.query;
     
     if (!cidade || !estado) {
-      return res.status(400).json({ error: 'Cidade e Estado são obrigatórios.' });
+      return res.status(400).json({ 
+        success: false,
+        error: 'Cidade e Estado são obrigatórios.' 
+      });
+    }
+
+    // Validar e converter UF para nome completo do estado
+    if (typeof estado !== 'string' || estado.trim().length === 0) {
+      return res.status(400).json({ 
+        success: false,
+        error: 'Estado inválido.' 
+      });
     }
 
     // Converter UF para nome completo do estado
     const nomeEstado = getNomeEstadoPorUF(estado);
     
+    if (!nomeEstado) {
+      return res.status(400).json({ 
+        success: false,
+        error: `Estado "${estado}" não reconhecido.` 
+      });
+    }
+    
+    // Usar servidor próprio de Nominatim (configurado em config/nominatim.js)
     // Estratégia 1: Buscar com "Cidade, Estado, Brasil"
     let query = `${cidade}, ${nomeEstado}, Brasil`;
-    let url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=10&countrycodes=br&addressdetails=1`;
+    let url = getForwardGeocodingUrl(query, { limit: 10, countrycodes: 'br' });
     
     let response;
     try {
@@ -327,9 +347,11 @@ router.get('/cidades/coordenadas', async (req, res) => {
       });
     } catch (err) {
       console.error('Erro na requisição ao Nominatim:', err.message);
+      console.error('URL tentada:', url);
       return res.status(500).json({ 
         success: false, 
-        error: 'Erro ao conectar com o serviço de geocodificação.' 
+        error: 'Erro ao conectar com o serviço de geocodificação.',
+        details: err.message
       });
     }
     
@@ -390,7 +412,7 @@ router.get('/cidades/coordenadas', async (req, res) => {
     // Estratégia 2: Se não encontrou, tentar apenas com a cidade
     if (!resultado) {
       query = `${cidade}, Brasil`;
-      url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=10&countrycodes=br&addressdetails=1`;
+      url = getForwardGeocodingUrl(query, { limit: 10, countrycodes: 'br' });
       
       try {
         response = await axios.get(url, {
@@ -452,9 +474,11 @@ router.get('/cidades/coordenadas', async (req, res) => {
   } catch (err) {
     console.error('Erro ao buscar coordenadas:', err.message);
     console.error('Stack:', err.stack);
+    console.error('Request params:', { cidade: req.query.cidade, estado: req.query.estado });
     res.status(500).json({ 
       success: false, 
-      error: 'Erro ao buscar coordenadas. Tente novamente.' 
+      error: 'Erro ao buscar coordenadas. Tente novamente.',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
 });

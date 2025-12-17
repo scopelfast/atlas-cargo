@@ -1380,34 +1380,43 @@ function getOverlayMostrado() {
   // Carregar cidades por estado
   async function loadCidadesPorEstado(estado, tipo) {
     if (!estado) return;
-    
+
     try {
+      console.log(`[CIDADES] Carregando cidades do estado ${estado} para ${tipo}`);
       const response = await fetch(`/api/cidades-por-estado/${estado}`);
       const cidades = await response.json();
-      
+
+      console.log(`[CIDADES] ${cidades.length} cidades carregadas para ${tipo} do estado ${estado}`);
+
       if (tipo === 'origem') {
         cidadesOrigem = cidades;
         const cidadeSelect = document.getElementById('viagemOrigemCidade');
-        cidadeSelect.innerHTML = '<option value="">Selecione</option>';
-        cidades.forEach(c => {
-          const opt = document.createElement('option');
-          opt.value = c.CDCIDADE;
-          opt.textContent = c.NMCIDADE;
-          cidadeSelect.appendChild(opt);
-        });
+        if (cidadeSelect) {
+          cidadeSelect.innerHTML = '<option value="">Selecione</option>';
+          cidades.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.CDCIDADE;
+            opt.textContent = c.NMCIDADE;
+            cidadeSelect.appendChild(opt);
+          });
+          console.log(`[CIDADES] Select de origem atualizado com ${cidades.length} opções`);
+        }
       } else {
         cidadesDestino = cidades;
         const cidadeSelect = document.getElementById('viagemDestinoCidade');
-        cidadeSelect.innerHTML = '<option value="">Selecione</option>';
-        cidades.forEach(c => {
-          const opt = document.createElement('option');
-          opt.value = c.CDCIDADE;
-          opt.textContent = c.NMCIDADE;
-          cidadeSelect.appendChild(opt);
-        });
+        if (cidadeSelect) {
+          cidadeSelect.innerHTML = '<option value="">Selecione</option>';
+          cidades.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.CDCIDADE;
+            opt.textContent = c.NMCIDADE;
+            cidadeSelect.appendChild(opt);
+          });
+          console.log(`[CIDADES] Select de destino atualizado com ${cidades.length} opções`);
+        }
       }
     } catch (err) {
-      console.error('Erro ao carregar cidades:', err);
+      console.error(`[CIDADES] Erro ao carregar cidades do estado ${estado} para ${tipo}:`, err);
       showMessage('Erro ao carregar cidades. Verifique a conexão.', 'error');
     }
   }
@@ -1634,11 +1643,22 @@ function getOverlayMostrado() {
   // Carregar viagem para edição
   async function loadViagemParaEdicao(id) {
     try {
+      console.log('[CARREGAR VIAGEM] Iniciando carregamento da viagem ID:', id);
+      
       // IMPORTANTE: Limpar formulário ANTES de carregar novos dados
       // Isso evita que dados de uma viagem apareçam em outra
       const viagemForm = document.getElementById('viagemForm');
       if (viagemForm) {
         viagemForm.reset();
+        // Limpar campos específicos que podem não ser limpos pelo reset
+        document.getElementById('viagemId').value = '';
+        document.getElementById('viagemOrigemCidade').value = '';
+        document.getElementById('viagemDestinoCidade').value = '';
+        document.getElementById('viagemOrigemEstado').value = '';
+        document.getElementById('viagemDestinoEstado').value = '';
+        document.getElementById('viagemRoteiro').value = '';
+        document.getElementById('viagemOrigemCodigo').value = '';
+        document.getElementById('viagemDestinoCodigo').value = '';
       }
       
       // Forçar mudança para aba de dados ANTES de qualquer coisa
@@ -1730,6 +1750,14 @@ function getOverlayMostrado() {
         }
         
         // Preencher origem e destino
+        console.log('[CARREGAR VIAGEM] Dados da viagem recebidos:', {
+          ORIGEM_ESTADO: viagem.ORIGEM_ESTADO,
+          ORIGEM_CODIGO: viagem.ORIGEM_CODIGO,
+          DESTINO_ESTADO: viagem.DESTINO_ESTADO,
+          DESTINO_CODIGO: viagem.DESTINO_CODIGO,
+          IDROTEIRO: viagem.IDROTEIRO
+        });
+        
         if (viagem.ORIGEM_ESTADO) {
           const estadoOrigem = viagem.ORIGEM_ESTADO.trim();
           await preencherSelect('viagemOrigemEstado', estadoOrigem);
@@ -1740,6 +1768,11 @@ function getOverlayMostrado() {
             await new Promise(resolve => setTimeout(resolve, 300));
             await preencherSelect('viagemOrigemCidade', String(viagem.ORIGEM_CODIGO));
             document.getElementById('viagemOrigemCodigo').value = String(viagem.ORIGEM_CODIGO);
+            console.log('[CARREGAR VIAGEM] Origem preenchida:', {
+              estado: estadoOrigem,
+              codigo: viagem.ORIGEM_CODIGO,
+              cidadeSelectValue: document.getElementById('viagemOrigemCidade')?.value
+            });
           }
         }
         
@@ -1753,6 +1786,11 @@ function getOverlayMostrado() {
             await new Promise(resolve => setTimeout(resolve, 300));
             await preencherSelect('viagemDestinoCidade', String(viagem.DESTINO_CODIGO));
             document.getElementById('viagemDestinoCodigo').value = String(viagem.DESTINO_CODIGO);
+            console.log('[CARREGAR VIAGEM] Destino preenchido:', {
+              estado: estadoDestino,
+              codigo: viagem.DESTINO_CODIGO,
+              cidadeSelectValue: document.getElementById('viagemDestinoCidade')?.value
+            });
           }
         }
         
@@ -2259,19 +2297,38 @@ function getOverlayMostrado() {
         // Isso garante que mostre apenas os dados do registro selecionado
         if (mapa) {
           limparMapa();
-          // Invalidar tamanho após limpar usando requestAnimationFrame
-          requestAnimationFrame(() => {
+          
+          // Invalidar tamanho múltiplas vezes para garantir renderização correta
+          // Aguardar um pouco para o container estar totalmente visível
+          setTimeout(() => {
             try {
               if (mapa) {
                 mapa.invalidateSize();
-                // Atualizar mapa após invalidar
-                atualizarMapa();
+                // Forçar recálculo do tamanho
+                if (mapa._onResize) {
+                  mapa._onResize();
+                }
               }
             } catch (e) {
               console.warn('Erro ao invalidar tamanho após limpar:', e);
-              atualizarMapa();
             }
-          });
+          }, 100);
+          
+          // Invalidar novamente após mais um delay
+          setTimeout(() => {
+            try {
+              if (mapa) {
+                mapa.invalidateSize();
+              }
+            } catch (e) {
+              console.warn('Erro ao invalidar tamanho (segunda tentativa):', e);
+            }
+          }, 300);
+          
+          // Atualizar mapa após garantir que o tamanho está correto
+          setTimeout(() => {
+            atualizarMapa();
+          }, 400);
         } else {
           await atualizarMapa();
         }
@@ -2543,35 +2600,56 @@ function getOverlayMostrado() {
   // Função para obter coordenadas de uma cidade usando API do backend
   async function obterCoordenadasCidade(nomeCidade, estado) {
     try {
+      if (!nomeCidade || !estado) {
+        console.warn('[Coordenadas] Cidade ou estado não fornecidos:', { nomeCidade, estado });
+        return null;
+      }
+      
       const params = new URLSearchParams({
-        cidade: nomeCidade,
-        estado: estado
+        cidade: nomeCidade.trim(),
+        estado: estado.trim()
       });
       
-      const response = await fetch(`/api/cidades/coordenadas?${params.toString()}`);
+      const url = `/api/cidades/coordenadas?${params.toString()}`;
+      console.log('[Coordenadas] Buscando coordenadas para:', nomeCidade, estado);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
-        console.error(`Erro ${response.status}:`, errorData);
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          errorData = { error: `Erro HTTP ${response.status}: ${response.statusText}` };
+        }
+        console.error(`[Coordenadas] Erro ${response.status} ao buscar coordenadas de ${nomeCidade}/${estado}:`, errorData);
         return null;
       }
       
       const data = await response.json();
       
       if (data.success && data.lat && data.lon) {
+        console.log(`[Coordenadas] ✅ Coordenadas encontradas para ${nomeCidade}/${estado}:`, data.lat, data.lon);
         return {
-          lat: data.lat,
-          lon: data.lon
+          lat: parseFloat(data.lat),
+          lon: parseFloat(data.lon)
         };
       }
       
       if (data.success === false) {
-        console.warn('API retornou success: false:', data.error);
+        console.warn(`[Coordenadas] ⚠️ API retornou success: false para ${nomeCidade}/${estado}:`, data.error);
+      } else {
+        console.warn(`[Coordenadas] ⚠️ Resposta inválida para ${nomeCidade}/${estado}:`, data);
       }
       
       return null;
     } catch (err) {
-      console.error('Erro ao obter coordenadas:', err);
+      console.error(`[Coordenadas] ❌ Erro ao obter coordenadas de ${nomeCidade}/${estado}:`, err);
       return null;
     }
   }
@@ -2915,16 +2993,30 @@ function getOverlayMostrado() {
         updateWhenZooming: true
       }).addTo(mapa);
       
-      // Invalidar tamanho usando requestAnimationFrame (mais eficiente)
-      requestAnimationFrame(() => {
+      // Invalidar tamanho múltiplas vezes para garantir renderização correta
+      // Aguardar um pouco para o container estar totalmente visível
+      setTimeout(() => {
         if (mapa) {
           try {
             mapa.invalidateSize();
+            // Forçar recálculo do tamanho
+            mapa._onResize();
           } catch (e) {
             console.warn('Erro ao invalidar tamanho do mapa:', e);
           }
         }
-      });
+      }, 100);
+      
+      // Invalidar novamente após mais um delay (garantir que está visível)
+      setTimeout(() => {
+        if (mapa) {
+          try {
+            mapa.invalidateSize();
+          } catch (e) {
+            console.warn('Erro ao invalidar tamanho do mapa (segunda tentativa):', e);
+          }
+        }
+      }, 300);
       
       mapaInicializando = false;
       return true;
@@ -3051,10 +3143,27 @@ function getOverlayMostrado() {
     const origemEstado = document.getElementById('viagemOrigemEstado')?.value;
     const destinoEstado = document.getElementById('viagemDestinoEstado')?.value;
     const roteiroId = document.getElementById('viagemRoteiro')?.value;
+    const viagemId = document.getElementById('viagemId')?.value;
+
+    // Log para debug - verificar quais valores estão sendo usados
+    console.log('[MAPA] Valores do formulário:', {
+      viagemId: viagemId,
+      origemCidadeId: origemCidadeId,
+      destinoCidadeId: destinoCidadeId,
+      origemEstado: origemEstado,
+      destinoEstado: destinoEstado,
+      roteiroId: roteiroId
+    });
 
     // Validar se há origem e destino
     // Se não houver dados válidos, apenas limpar e resetar o mapa
     if (!origemCidadeId || !destinoCidadeId || !origemEstado || !destinoEstado) {
+      console.warn('[MAPA] ⚠️ Dados incompletos para exibir rota. Campos faltando:', {
+        origemCidadeId: !origemCidadeId,
+        destinoCidadeId: !destinoCidadeId,
+        origemEstado: !origemEstado,
+        destinoEstado: !destinoEstado
+      });
       // Se o mapa está inicializado, apenas limpar
       if (mapa) {
         limparMapa();
@@ -3471,6 +3580,30 @@ function getOverlayMostrado() {
                 }
               }
               
+              // Invalidar tamanho múltiplas vezes para garantir renderização correta
+              setTimeout(() => {
+                if (mapa) {
+                  try {
+                    mapa.invalidateSize();
+                    if (mapa._onResize) {
+                      mapa._onResize();
+                    }
+                  } catch (e) {
+                    console.warn('Erro ao invalidar tamanho após ajustar bounds (roteiro):', e);
+                  }
+                }
+              }, 100);
+              
+              setTimeout(() => {
+                if (mapa) {
+                  try {
+                    mapa.invalidateSize();
+                  } catch (e) {
+                    // Ignorar erro
+                  }
+                }
+              }, 300);
+              
               // Marcadores criados
               
               // Preparar dados para exibição usando informações processadas
@@ -3478,10 +3611,24 @@ function getOverlayMostrado() {
               const origemCidadeObj = cidadesOrigem.find(c => c.CDCIDADE.toString() === origemCidadeId);
               const destinoCidadeObj = cidadesDestino.find(c => c.CDCIDADE.toString() === destinoCidadeId);
               
+              console.log('[MAPA] Buscando informações das cidades:', {
+                origemCidadeId: origemCidadeId,
+                destinoCidadeId: destinoCidadeId,
+                origemCidadeObj: origemCidadeObj ? `${origemCidadeObj.NMCIDADE}/${origemEstado}` : 'NÃO ENCONTRADA',
+                destinoCidadeObj: destinoCidadeObj ? `${destinoCidadeObj.NMCIDADE}/${destinoEstado}` : 'NÃO ENCONTRADA',
+                totalCidadesOrigem: cidadesOrigem.length,
+                totalCidadesDestino: cidadesDestino.length
+              });
+              
               // Extrair cidade real da origem (priorizar NMCIDADE, depois DSLOCAL)
               const cidadeOrigem = origemCidadeObj?.NMCIDADE || pontosComCoordenadas[0]?.DSLOCAL?.split(',')[0]?.trim() || pontosComCoordenadas[0]?.DSLOCAL || 'N/A';
               // Extrair cidade real do destino (priorizar NMCIDADE, depois DSLOCAL)
               const cidadeDestino = destinoCidadeObj?.NMCIDADE || pontosComCoordenadas[pontosComCoordenadas.length - 1]?.DSLOCAL?.split(',')[0]?.trim() || pontosComCoordenadas[pontosComCoordenadas.length - 1]?.DSLOCAL || 'N/A';
+              
+              console.log('[MAPA] Cidades extraídas para exibição:', {
+                cidadeOrigem: cidadeOrigem,
+                cidadeDestino: cidadeDestino
+              });
               
               const dadosRota = {
                 origem: {
@@ -3540,6 +3687,12 @@ function getOverlayMostrado() {
         return;
       }
 
+      // Log para debug - verificar quais cidades estão sendo buscadas
+      console.log('[MAPA] Buscando coordenadas para:', {
+        origem: `${origemCidade.NMCIDADE}, ${origemEstado}`,
+        destino: `${destinoCidade.NMCIDADE}, ${destinoEstado}`
+      });
+
       // Obter coordenadas
       const [coordsOrigem, coordsDestino] = await Promise.all([
         obterCoordenadasCidade(origemCidade.NMCIDADE, origemEstado),
@@ -3547,10 +3700,19 @@ function getOverlayMostrado() {
       ]);
 
       if (!coordsOrigem || !coordsDestino) {
+        console.error('[MAPA] ❌ Erro ao obter coordenadas:', {
+          origem: coordsOrigem ? 'OK' : 'FALHOU',
+          destino: coordsDestino ? 'OK' : 'FALHOU'
+        });
         hideMapaLoading();
         showMessage('Não foi possível obter as coordenadas para exibir o mapa.', 'error');
         return;
       }
+      
+      console.log('[MAPA] ✅ Coordenadas obtidas:', {
+        origem: coordsOrigem,
+        destino: coordsDestino
+      });
       
       // Atualizar mensagem do overlay
       showMapaLoading('Montando Rota', 'Criando marcadores e traçando rota...');
@@ -3830,6 +3992,30 @@ function getOverlayMostrado() {
         );
         mapa.fitBounds(newBounds);
       }
+      
+      // Invalidar tamanho do mapa múltiplas vezes para garantir renderização correta
+      setTimeout(() => {
+        if (mapa) {
+          try {
+            mapa.invalidateSize();
+            if (mapa._onResize) {
+              mapa._onResize();
+            }
+          } catch (e) {
+            console.warn('Erro ao invalidar tamanho após ajustar bounds:', e);
+          }
+        }
+      }, 100);
+      
+      setTimeout(() => {
+        if (mapa) {
+          try {
+            mapa.invalidateSize();
+          } catch (e) {
+            // Ignorar erro
+          }
+        }
+      }, 300);
       
       // Esconder overlay após um pequeno delay
       requestAnimationFrame(() => {

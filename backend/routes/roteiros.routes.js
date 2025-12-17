@@ -10,6 +10,7 @@ const sql = require('mssql');
 const router = express.Router();
 const { poolPromise } = require('../config/db');
 const axios = require('axios');
+const { getReverseGeocodingUrl } = require('../config/nominatim');
 
 // Mapeamento de nomes de estados para UF
 const ESTADOS_PARA_UF = {
@@ -972,7 +973,7 @@ router.post('/roteiros/:id/gerar-resumo', async (req, res) => {
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
           
-          const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?lat=${ponto.LATITUDE}&lon=${ponto.LONGITUDE}&format=json&addressdetails=1`;
+          const nominatimUrl = getReverseGeocodingUrl(ponto.LATITUDE, ponto.LONGITUDE);
           const nomResponse = await axios.get(nominatimUrl, {
             headers: { 
               'User-Agent': 'DivulgaCarga/1.0 (roteiro@divulgacarga.com.br)' 
@@ -1285,7 +1286,7 @@ router.post('/roteiros/:id/gerar-resumo', async (req, res) => {
                     await new Promise(resolve => setTimeout(resolve, 500)); // 500ms entre cada requisição
                   }
                   
-                  const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`;
+                  const nominatimUrl = getReverseGeocodingUrl(lat, lon);
                   const nomResponse = await axios.get(nominatimUrl, {
                     headers: { 
                       'User-Agent': 'DivulgaCarga/1.0 (roteiro@divulgacarga.com.br)' 
