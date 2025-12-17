@@ -1391,19 +1391,37 @@
     }
   });
 
+  // Função auxiliar para aguardar elementos do DOM
+  function aguardarElementos(ids, callback, maxTentativas = 10, intervalo = 200) {
+    let tentativas = 0;
+    const verificar = () => {
+      tentativas++;
+      const elementos = ids.map(id => document.getElementById(id));
+      const todosEncontrados = elementos.every(el => el !== null);
+      
+      if (todosEncontrados || tentativas >= maxTentativas) {
+        // Executar callback mesmo se não encontrou todos (para não bloquear)
+        callback();
+      } else {
+        setTimeout(verificar, intervalo);
+      }
+    };
+    verificar();
+  }
+
   // Aguardar DOM e scripts carregarem antes de inicializar
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-      // Aguardar um pouco mais para garantir que scripts externos carregaram
-      setTimeout(() => {
+      // Aguardar elementos críticos antes de inicializar
+      aguardarElementos(['estatisticasCards', 'tabelaContainer', 'graficoStatus', 'graficoPorData'], () => {
         init();
-      }, 1000);
+      });
     });
   } else {
-    // DOM já carregado, aguardar scripts externos
-    setTimeout(() => {
+    // DOM já carregado, aguardar elementos críticos
+    aguardarElementos(['estatisticasCards', 'tabelaContainer', 'graficoStatus', 'graficoPorData'], () => {
       init();
-    }, 1000);
+    });
   }
 })();
 
