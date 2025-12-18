@@ -4,6 +4,26 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DivulgaCargas</title>
+  <script>
+    // Forçar HTTP em desenvolvimento local (evitar HTTPS automático do navegador)
+    (function() {
+      const hostname = window.location.hostname;
+      const isLocal = hostname === 'localhost' || 
+                      hostname === '127.0.0.1' || 
+                      hostname.startsWith('192.168.');
+      
+      // Se estiver em local e usando HTTPS, redirecionar para HTTP
+      if (isLocal && window.location.protocol === 'https:') {
+        window.location.replace('http://' + window.location.host + window.location.pathname + window.location.search);
+        return;
+      }
+      
+      // Garantir que recursos sejam carregados com o protocolo correto
+      const protocol = window.location.protocol;
+      const baseUrl = protocol + '//' + window.location.host;
+      window.__BASE_URL__ = baseUrl;
+    })();
+  </script>
   <link href="/css/boxicons.min.css" rel="stylesheet" type="text/css" />
   <link rel="stylesheet" href="/css/style.css" type="text/css" />
   <style>
@@ -578,7 +598,23 @@
     </div>
   </div>
 
-  <script src="/js/log-helper.js"></script>
-  <script src="/js/login.js"></script>
+  <script>
+    // Garantir que scripts sejam carregados com protocolo correto
+    (function() {
+      const protocol = window.location.protocol;
+      const baseUrl = protocol + '//' + window.location.host;
+      
+      function loadScript(src) {
+        const script = document.createElement('script');
+        script.src = src.startsWith('http') ? src : baseUrl + src;
+        script.async = false;
+        document.body.appendChild(script);
+      }
+      
+      // Carregar scripts com protocolo correto
+      loadScript('/js/log-helper.js');
+      loadScript('/js/login.js');
+    })();
+  </script>
 </body>
 </html>
