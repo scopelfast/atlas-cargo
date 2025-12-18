@@ -32,10 +32,25 @@
           } else {
             url = 'http://' + host + (href.startsWith('/') ? href : '/' + href);
           }
+          // Debug: verificar se está realmente usando HTTP
+          console.log('[createLink] Local detectado, forçando HTTP:', url);
         } else {
           url = href.startsWith('http') ? href : baseUrl + (href.startsWith('/') ? href : '/' + href);
         }
         link.href = url;
+        // Interceptar mudanças de href (navegador pode tentar mudar para HTTPS)
+        Object.defineProperty(link, 'href', {
+          get: function() { return url; },
+          set: function(newUrl) {
+            if (isLocal && newUrl.startsWith('https://')) {
+              console.warn('[createLink] Navegador tentou mudar para HTTPS, forçando HTTP:', newUrl, '→', newUrl.replace(/^https:/, 'http:'));
+              url = newUrl.replace(/^https:/, 'http:');
+            } else {
+              url = newUrl;
+            }
+          },
+          configurable: true
+        });
         document.head.appendChild(link);
       }
       
@@ -146,10 +161,26 @@
           } else {
             url = 'http://' + window.location.host + (src.startsWith('/') ? src : '/' + src);
           }
+          // Debug: verificar se está realmente usando HTTP
+          console.log('[loadScript] Local detectado, forçando HTTP:', url);
         } else {
           url = src.startsWith('http') ? src : baseUrl + (src.startsWith('/') ? src : '/' + src);
         }
-        script.src = url;
+        // Interceptar mudanças de src (navegador pode tentar mudar para HTTPS)
+        let finalUrl = url;
+        Object.defineProperty(script, 'src', {
+          get: function() { return finalUrl; },
+          set: function(newUrl) {
+            if (isLocal && newUrl.startsWith('https://')) {
+              console.warn('[loadScript] Navegador tentou mudar para HTTPS, forçando HTTP:', newUrl, '→', newUrl.replace(/^https:/, 'http:'));
+              finalUrl = newUrl.replace(/^https:/, 'http:');
+            } else {
+              finalUrl = newUrl;
+            }
+          },
+          configurable: true
+        });
+        script.src = finalUrl;
         
         let attempts = 0;
         const maxAttempts = retries;
