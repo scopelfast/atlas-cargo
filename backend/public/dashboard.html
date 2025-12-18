@@ -14,10 +14,19 @@
                       hostname === '127.0.0.1' || 
                       hostname.startsWith('192.168.');
       
+      // Se estiver em local e usando HTTPS, redirecionar imediatamente
+      if (isLocal && window.location.protocol === 'https:') {
+        console.warn('[DASHBOARD] HTTPS detectado em local, redirecionando para HTTP...');
+        window.location.replace('http://' + window.location.host + window.location.pathname + window.location.search);
+        return; // Parar execução até redirecionar
+      }
+      
       // Forçar HTTP em desenvolvimento local
       const protocol = isLocal ? 'http:' : window.location.protocol;
       const host = window.location.host;
       const baseUrl = protocol + '//' + host;
+      
+      console.log('[DASHBOARD] Ambiente:', isLocal ? 'LOCAL (HTTP forçado)' : 'PRODUÇÃO', '| Protocol:', protocol, '| BaseURL:', baseUrl);
       
       // Função para criar elementos com URLs absolutas
       function createLink(href) {
@@ -32,25 +41,16 @@
           } else {
             url = 'http://' + host + (href.startsWith('/') ? href : '/' + href);
           }
-          // Debug: verificar se está realmente usando HTTP
-          console.log('[createLink] Local detectado, forçando HTTP:', url);
         } else {
           url = href.startsWith('http') ? href : baseUrl + (href.startsWith('/') ? href : '/' + href);
         }
+        // Definir href diretamente e verificar se foi alterado
         link.href = url;
-        // Interceptar mudanças de href (navegador pode tentar mudar para HTTPS)
-        Object.defineProperty(link, 'href', {
-          get: function() { return url; },
-          set: function(newUrl) {
-            if (isLocal && newUrl.startsWith('https://')) {
-              console.warn('[createLink] Navegador tentou mudar para HTTPS, forçando HTTP:', newUrl, '→', newUrl.replace(/^https:/, 'http:'));
-              url = newUrl.replace(/^https:/, 'http:');
-            } else {
-              url = newUrl;
-            }
-          },
-          configurable: true
-        });
+        // Verificar se o navegador mudou para HTTPS e corrigir
+        if (isLocal && link.href.startsWith('https://')) {
+          console.warn('[createLink] Navegador mudou para HTTPS, corrigindo:', link.href, '→', url);
+          link.href = url; // Forçar novamente
+        }
         document.head.appendChild(link);
       }
       
@@ -161,26 +161,16 @@
           } else {
             url = 'http://' + window.location.host + (src.startsWith('/') ? src : '/' + src);
           }
-          // Debug: verificar se está realmente usando HTTP
-          console.log('[loadScript] Local detectado, forçando HTTP:', url);
         } else {
           url = src.startsWith('http') ? src : baseUrl + (src.startsWith('/') ? src : '/' + src);
         }
-        // Interceptar mudanças de src (navegador pode tentar mudar para HTTPS)
-        let finalUrl = url;
-        Object.defineProperty(script, 'src', {
-          get: function() { return finalUrl; },
-          set: function(newUrl) {
-            if (isLocal && newUrl.startsWith('https://')) {
-              console.warn('[loadScript] Navegador tentou mudar para HTTPS, forçando HTTP:', newUrl, '→', newUrl.replace(/^https:/, 'http:'));
-              finalUrl = newUrl.replace(/^https:/, 'http:');
-            } else {
-              finalUrl = newUrl;
-            }
-          },
-          configurable: true
-        });
-        script.src = finalUrl;
+        // Definir src diretamente e verificar se foi alterado
+        script.src = url;
+        // Verificar se o navegador mudou para HTTPS e corrigir
+        if (isLocal && script.src.startsWith('https://')) {
+          console.warn('[loadScript] Navegador mudou para HTTPS, corrigindo:', script.src, '→', url);
+          script.src = url; // Forçar novamente
+        }
         
         let attempts = 0;
         const maxAttempts = retries;
