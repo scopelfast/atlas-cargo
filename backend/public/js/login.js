@@ -74,7 +74,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         hostname === '127.0.0.1' || 
                         hostname.startsWith('192.168.');
         const protocol = isLocal ? 'http:' : window.location.protocol;
-        window.location.href = protocol + '//' + window.location.host + '/dashboard.html';
+        // Remover qualquer query string vazia (?) e garantir URL limpa
+        const cleanUrl = protocol + '//' + window.location.host + '/dashboard.html';
+        console.log('[LOGIN] Redirecionando para:', cleanUrl);
+        window.location.href = cleanUrl;
       } else {
         showError(data.message || 'Credenciais inválidas.');
       }

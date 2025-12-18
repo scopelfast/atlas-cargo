@@ -14,25 +14,28 @@
       
       // Se estiver em local e usando HTTPS, redirecionar para HTTP
       if (isLocal && window.location.protocol === 'https:') {
-        window.location.replace('http://' + window.location.host + window.location.pathname + window.location.search);
+        const cleanUrl = 'http://' + window.location.host + window.location.pathname.replace(/\?$/, '');
+        console.warn('[INDEX] HTTPS detectado em local, redirecionando para HTTP:', cleanUrl);
+        window.location.replace(cleanUrl);
         return;
       }
       
-      // Garantir que recursos sejam carregados com o protocolo correto
-      const protocol = window.location.protocol;
-      const baseUrl = protocol + '//' + window.location.host;
+      // Forçar HTTP em desenvolvimento local
+      const protocol = isLocal ? 'http:' : window.location.protocol;
+      const host = window.location.host;
+      const baseUrl = protocol + '//' + host;
       window.__BASE_URL__ = baseUrl;
       
-      // Forçar carregamento de CSS com protocolo correto (HTTP em desenvolvimento)
+      // Função para carregar CSS com HTTP forçado em local
       function loadCSS(href) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
         link.type = 'text/css';
-        // Se for local, forçar HTTP; senão usar protocolo atual
         if (isLocal) {
-          link.href = 'http://' + window.location.host + href;
+          link.href = 'http://' + host + (href.startsWith('/') ? href : '/' + href);
+          console.log('[INDEX] Carregando CSS via HTTP:', link.href);
         } else {
-          link.href = href.startsWith('http') ? href : baseUrl + href;
+          link.href = href.startsWith('http') ? href : baseUrl + (href.startsWith('/') ? href : '/' + href);
         }
         document.head.appendChild(link);
       }
@@ -40,6 +43,22 @@
       // Carregar CSS com protocolo correto
       loadCSS('/css/boxicons.min.css');
       loadCSS('/css/style.css');
+      
+      // Forçar HTTP em imagens após DOM carregar
+      if (isLocal) {
+        document.addEventListener('DOMContentLoaded', function() {
+          const images = document.querySelectorAll('img[src]');
+          images.forEach(function(img) {
+            if (img.src.startsWith('https://')) {
+              img.src = img.src.replace(/^https:/, 'http:');
+              console.log('[INDEX] Imagem corrigida para HTTP:', img.src);
+            } else if (img.src.startsWith('/')) {
+              img.src = 'http://' + host + img.src;
+              console.log('[INDEX] Imagem forçada para HTTP:', img.src);
+            }
+          });
+        });
+      }
     })();
   </script>
   <style>
@@ -473,7 +492,6 @@
 </head>
 <body>
   <!-- Redirecionamento via script externo recomendado -->
-  <script src="/js/redirect.js" type="text/javascript"></script>
 
   <div class="login-container">
     <!-- Lado Esquerdo - Marketing/Informações -->
@@ -617,17 +635,35 @@
   <script>
     // Garantir que scripts sejam carregados com protocolo correto
     (function() {
-      const protocol = window.location.protocol;
+      const hostname = window.location.hostname;
+      const isLocal = hostname === 'localhost' || 
+                      hostname === '127.0.0.1' || 
+                      hostname.startsWith('192.168.');
+      const protocol = isLocal ? 'http:' : window.location.protocol;
       const baseUrl = protocol + '//' + window.location.host;
       
       function loadScript(src) {
         const script = document.createElement('script');
-        script.src = src.startsWith('http') ? src : baseUrl + src;
+        // Se for local, forçar HTTP; senão usar protocolo atual
+        let url;
+        if (isLocal) {
+          url = 'http://' + window.location.host + (src.startsWith('/') ? src : '/' + src);
+          console.log('[INDEX] Carregando script via HTTP:', url);
+        } else {
+          url = src.startsWith('http') ? src : baseUrl + (src.startsWith('/') ? src : '/' + src);
+        }
+        script.src = url;
+        // Verificar se navegador mudou para HTTPS e corrigir
+        if (isLocal && script.src.startsWith('https://')) {
+          console.warn('[INDEX] Navegador mudou script para HTTPS, corrigindo:', script.src, '→', url);
+          script.src = url;
+        }
         script.async = false;
         document.body.appendChild(script);
       }
       
       // Carregar scripts com protocolo correto
+      loadScript('/js/redirect.js');
       loadScript('/js/log-helper.js');
       loadScript('/js/login.js');
     })();
