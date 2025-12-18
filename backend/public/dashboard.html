@@ -8,8 +8,14 @@
   <script>
     // Configuração de base URL - suporta HTTP e HTTPS
     (function() {
-      // Usar o protocolo atual (HTTP ou HTTPS)
-      const protocol = window.location.protocol;
+      // Detectar se é ambiente local
+      const hostname = window.location.hostname;
+      const isLocal = hostname === 'localhost' || 
+                      hostname === '127.0.0.1' || 
+                      hostname.startsWith('192.168.');
+      
+      // Forçar HTTP em desenvolvimento local
+      const protocol = isLocal ? 'http:' : window.location.protocol;
       const host = window.location.host;
       const baseUrl = protocol + '//' + host;
       
@@ -17,8 +23,13 @@
       function createLink(href) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        // Usar URL relativa ou absoluta baseada no baseUrl (mantém protocolo atual)
-        let url = href.startsWith('http') ? href : baseUrl + href;
+        // Se for local, forçar HTTP; senão usar protocolo atual
+        let url;
+        if (isLocal) {
+          url = href.startsWith('http') ? href.replace(/^https?:/, 'http:') : 'http://' + host + href;
+        } else {
+          url = href.startsWith('http') ? href : baseUrl + href;
+        }
         link.href = url;
         document.head.appendChild(link);
       }
@@ -26,9 +37,7 @@
       // Carregar CSS com cache busting dinâmico
       // Em desenvolvimento: usar timestamp atual (sempre atualizado)
       // Em produção: usar versão fixa (atualizada a cada deploy)
-      const isDev = window.location.hostname === 'localhost' || 
-                    window.location.hostname === '127.0.0.1' || 
-                    window.location.hostname.startsWith('192.168.');
+      const isDev = isLocal;
       const cacheVersion = isDev ? Date.now() : '20250102';
       
       // Armazenar globalmente para uso em scripts
@@ -41,7 +50,7 @@
       // Corrigir favicon
       const faviconLink = document.getElementById('faviconLink');
       if (faviconLink) {
-        faviconLink.href = baseUrl + '/img/logo7.png';
+        faviconLink.href = (isLocal ? 'http://' : baseUrl) + '/img/logo7.png';
       }
       
       // Armazenar baseUrl globalmente
@@ -115,12 +124,21 @@
 
       // Carregar scripts com URLs absolutas - SEQUENCIALMENTE
     (function() {
+      const hostname = window.location.hostname;
+      const isLocal = hostname === 'localhost' || 
+                      hostname === '127.0.0.1' || 
+                      hostname.startsWith('192.168.');
       const baseUrl = window.__BASE_URL__ || window.location.origin;
       
       function loadScript(src, callback, retries = 2) {
         const script = document.createElement('script');
-        // Usar URL relativa ou absoluta baseada no baseUrl
-        let url = src.startsWith('http') ? src : baseUrl + src;
+        // Se for local, forçar HTTP; senão usar protocolo atual
+        let url;
+        if (isLocal) {
+          url = src.startsWith('http') ? src.replace(/^https?:/, 'http:') : 'http://' + window.location.host + src;
+        } else {
+          url = src.startsWith('http') ? src : baseUrl + src;
+        }
         script.src = url;
         
         let attempts = 0;
