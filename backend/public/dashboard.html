@@ -26,9 +26,14 @@
         // Se for local, forçar HTTP; senão usar protocolo atual
         let url;
         if (isLocal) {
-          url = href.startsWith('http') ? href.replace(/^https?:/, 'http:') : 'http://' + host + href;
+          // Sempre forçar HTTP em local, mesmo se href já tiver protocolo
+          if (href.startsWith('http://') || href.startsWith('https://')) {
+            url = href.replace(/^https?:/, 'http:');
+          } else {
+            url = 'http://' + host + (href.startsWith('/') ? href : '/' + href);
+          }
         } else {
-          url = href.startsWith('http') ? href : baseUrl + href;
+          url = href.startsWith('http') ? href : baseUrl + (href.startsWith('/') ? href : '/' + href);
         }
         link.href = url;
         document.head.appendChild(link);
@@ -50,7 +55,7 @@
       // Corrigir favicon
       const faviconLink = document.getElementById('faviconLink');
       if (faviconLink) {
-        faviconLink.href = (isLocal ? 'http://' : baseUrl) + '/img/logo7.png';
+        faviconLink.href = (isLocal ? 'http://' + host : baseUrl) + '/img/logo7.png';
       }
       
       // Armazenar baseUrl globalmente
@@ -135,9 +140,14 @@
         // Se for local, forçar HTTP; senão usar protocolo atual
         let url;
         if (isLocal) {
-          url = src.startsWith('http') ? src.replace(/^https?:/, 'http:') : 'http://' + window.location.host + src;
+          // Sempre forçar HTTP em local, mesmo se src já tiver protocolo
+          if (src.startsWith('http://') || src.startsWith('https://')) {
+            url = src.replace(/^https?:/, 'http:');
+          } else {
+            url = 'http://' + window.location.host + (src.startsWith('/') ? src : '/' + src);
+          }
         } else {
-          url = src.startsWith('http') ? src : baseUrl + src;
+          url = src.startsWith('http') ? src : baseUrl + (src.startsWith('/') ? src : '/' + src);
         }
         script.src = url;
         
