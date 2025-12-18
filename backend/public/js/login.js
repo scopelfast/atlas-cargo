@@ -1,12 +1,24 @@
 // backend/public/js/login.js
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('[LOGIN] Script login.js carregado');
   const form = document.getElementById('loginForm');
   const errorMsg = document.getElementById('errorMessage');
   const btn = document.querySelector('.btn');
   const togglePassword = document.getElementById('togglePassword');
   const passwordInput = document.getElementById('password');
 
-  if (!form) return;
+  console.log('[LOGIN] Elementos encontrados:', {
+    hasForm: !!form,
+    hasErrorMsg: !!errorMsg,
+    hasBtn: !!btn,
+    hasTogglePassword: !!togglePassword,
+    hasPasswordInput: !!passwordInput
+  });
+
+  if (!form) {
+    console.error('[LOGIN] Formulário não encontrado!');
+    return;
+  }
 
   // Toggle password visibility
   if (togglePassword && passwordInput) {
@@ -45,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (btnSpan) btnSpan.textContent = 'Entrando...';
 
     try {
+      console.log('[LOGIN] Enviando requisição para /api/auth/login...');
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
@@ -54,6 +67,12 @@ document.addEventListener('DOMContentLoaded', () => {
           email: username,
           password: password
         })
+      });
+
+      console.log('[LOGIN] Resposta recebida:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
       });
 
       const data = await response.json();
@@ -97,6 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showError(data.message || 'Credenciais inválidas.');
       }
     } catch (err) {
+      console.error('[LOGIN] Erro ao fazer login:', err);
       showError('Não foi possível conectar ao servidor.');
     } finally {
       btn.disabled = false;
