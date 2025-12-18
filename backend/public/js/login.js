@@ -1,6 +1,9 @@
 // backend/public/js/login.js
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('[LOGIN] Script login.js carregado');
+console.log('[LOGIN] Script login.js carregado');
+
+// Função para inicializar quando DOM estiver pronto
+function initLogin() {
+  console.log('[LOGIN] Inicializando login...');
   const form = document.getElementById('loginForm');
   const errorMsg = document.getElementById('errorMessage');
   const btn = document.querySelector('.btn');
@@ -16,7 +19,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   if (!form) {
-    console.error('[LOGIN] Formulário não encontrado!');
+    console.error('[LOGIN] Formulário não encontrado! Tentando novamente...');
+    // Tentar novamente após um delay se o formulário não foi encontrado
+    setTimeout(initLogin, 100);
     return;
   }
 
@@ -285,4 +290,12 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
-});
+}
+
+// Executar quando DOM estiver pronto (pode já estar pronto se script carregou depois)
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initLogin);
+} else {
+  // DOM já está pronto, executar imediatamente
+  initLogin();
+}
