@@ -293,17 +293,10 @@ app.use(express.static(path.join(__dirname, 'public'), {
     } else {
       // PRODUÇÃO: Cache inteligente com validação
       if (filePath.endsWith('.css') || filePath.endsWith('.js')) {
-        // CSS e JS: Sem cache quando não tem query string, com validação quando tem
-        // O cache-buster.js adiciona ?v=timestamp, então o navegador sempre busca nova versão
-        // Se não tiver query string, não fazer cache (arquivo pode ter mudado)
-        const hasQueryString = req.url.includes('?');
-        if (hasQueryString) {
-          // Com query string (cache busting): cache longo mas validado
-          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable'); // 1 ano (imutável com ?v=)
-        } else {
-          // Sem query string: sem cache (arquivo pode ter mudado)
-          res.setHeader('Cache-Control', 'no-cache, must-revalidate');
-        }
+        // CSS e JS: Cache curto com validação ETag
+        // O cache-buster.js adiciona ?v=timestamp no frontend
+        // Aqui configuramos cache curto mas com validação para garantir atualizações
+        res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate'); // 1 hora com validação
         // Sempre adicionar ETag para validação
         if (stat && stat.mtime) {
           const etag = `"${stat.mtime.getTime()}"`;
