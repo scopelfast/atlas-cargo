@@ -57,8 +57,11 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       const data = await response.json();
+      
+      console.log('[LOGIN] Resposta do servidor:', { ok: response.ok, success: data.success, hasToken: !!data.token });
 
       if (response.ok && data.success) {
+        // Salvar dados no localStorage ANTES de redirecionar
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
         // Salvar ID do log de acesso para registrar logout depois
@@ -67,6 +70,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         // Salvar timestamp do login para controle de timeout
         localStorage.setItem('loginTimestamp', Date.now().toString());
+        
+        console.log('[LOGIN] Dados salvos no localStorage:', {
+          hasToken: !!localStorage.getItem('token'),
+          hasUser: !!localStorage.getItem('user')
+        });
+        
+        // Aguardar um pouco para garantir que localStorage foi salvo
+        await new Promise(resolve => setTimeout(resolve, 50));
         
         // Forçar HTTP em desenvolvimento local
         const hostname = window.location.hostname;
@@ -82,6 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Usar replace para não adicionar ao histórico e evitar ?
         window.location.replace(cleanUrl);
       } else {
+        console.error('[LOGIN] Login falhou:', data.message || 'Credenciais inválidas.');
         showError(data.message || 'Credenciais inválidas.');
       }
     } catch (err) {
