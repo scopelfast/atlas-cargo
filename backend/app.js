@@ -138,22 +138,24 @@ if (isDevelopment) {
 
 app.use(helmet(helmetConfig));
 
-// Middleware para garantir que não haja upgrade para HTTPS em desenvolvimento
+// Middleware para redirecionar HTTPS para HTTP em desenvolvimento
 if (isDevelopment) {
   app.use((req, res, next) => {
     // Remover qualquer header que possa forçar HTTPS
     res.removeHeader('Strict-Transport-Security');
     res.removeHeader('Upgrade-Insecure-Requests');
     
-    // Adicionar header para desabilitar upgrade automático (não padrão, mas pode ajudar)
-    // Alguns navegadores respeitam isso
-    res.setHeader('X-Force-HTTP', 'true');
-    
-    // Garantir que o protocolo seja HTTP
+    // Se a requisição vier via HTTPS em desenvolvimento, redirecionar para HTTP
     if (req.secure || req.get('x-forwarded-proto') === 'https') {
-      // Se vier de um proxy HTTPS mas estamos em desenvolvimento, forçar HTTP
-      console.warn('⚠️ Requisição HTTPS detectada em desenvolvimento:', req.url);
+      const host = req.get('host');
+      const url = req.url;
+      const httpUrl = `http://${host}${url}`;
+      console.warn(`⚠️ [DEV] Redirecionando HTTPS → HTTP: ${req.protocol}://${host}${url} → ${httpUrl}`);
+      return res.redirect(301, httpUrl);
     }
+    
+    // Adicionar header para indicar que estamos forçando HTTP
+    res.setHeader('X-Force-HTTP', 'true');
     
     next();
   });
