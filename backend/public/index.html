@@ -22,10 +22,26 @@
       const protocol = window.location.protocol;
       const baseUrl = protocol + '//' + window.location.host;
       window.__BASE_URL__ = baseUrl;
+      
+      // Forçar carregamento de CSS com protocolo correto (HTTP em desenvolvimento)
+      function loadCSS(href) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.type = 'text/css';
+        // Se for local, forçar HTTP; senão usar protocolo atual
+        if (isLocal) {
+          link.href = 'http://' + window.location.host + href;
+        } else {
+          link.href = href.startsWith('http') ? href : baseUrl + href;
+        }
+        document.head.appendChild(link);
+      }
+      
+      // Carregar CSS com protocolo correto
+      loadCSS('/css/boxicons.min.css');
+      loadCSS('/css/style.css');
     })();
   </script>
-  <link href="/css/boxicons.min.css" rel="stylesheet" type="text/css" />
-  <link rel="stylesheet" href="/css/style.css" type="text/css" />
   <style>
     /* Estilos críticos inline - Fallback para produção */
     * {
