@@ -23,7 +23,14 @@
         if (window.location.pathname !== '/dashboard' && window.location.pathname !== '/dashboard.html') {
           sessionStorage.setItem('redirectLoopCount', (loopCount + 1).toString());
           console.log('🔄 Redirecionando para dashboard...');
-          window.location.href = '/dashboard.html';
+          
+          // Forçar HTTP em desenvolvimento local
+          const hostname = window.location.hostname;
+          const isLocal = hostname === 'localhost' || 
+                          hostname === '127.0.0.1' || 
+                          hostname.startsWith('192.168.');
+          const protocol = isLocal ? 'http:' : window.location.protocol;
+          window.location.href = protocol + '//' + window.location.host + '/dashboard.html';
         }
       } catch (e) {
         // User inválido, não redirecionar

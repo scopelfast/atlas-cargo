@@ -95,7 +95,13 @@
         showMessage('Sessão expirada por inatividade. Faça login novamente.', 'error');
         // Aguardar um pouco para o usuário ver a mensagem antes de redirecionar
         setTimeout(() => {
-          window.location.href = '/';
+          // Forçar HTTP em desenvolvimento local
+          const hostname = window.location.hostname;
+          const isLocal = hostname === 'localhost' || 
+                          hostname === '127.0.0.1' || 
+                          hostname.startsWith('192.168.');
+          const protocol = isLocal ? 'http:' : window.location.protocol;
+          window.location.href = protocol + '//' + window.location.host + '/';
         }, 2000);
         return;
       }

@@ -67,7 +67,14 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         // Salvar timestamp do login para controle de timeout
         localStorage.setItem('loginTimestamp', Date.now().toString());
-        window.location.href = 'dashboard.html';
+        
+        // Forçar HTTP em desenvolvimento local
+        const hostname = window.location.hostname;
+        const isLocal = hostname === 'localhost' || 
+                        hostname === '127.0.0.1' || 
+                        hostname.startsWith('192.168.');
+        const protocol = isLocal ? 'http:' : window.location.protocol;
+        window.location.href = protocol + '//' + window.location.host + '/dashboard.html';
       } else {
         showError(data.message || 'Credenciais inválidas.');
       }
