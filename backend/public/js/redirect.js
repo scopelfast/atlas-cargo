@@ -30,7 +30,9 @@
                           hostname === '127.0.0.1' || 
                           hostname.startsWith('192.168.');
           const protocol = isLocal ? 'http:' : window.location.protocol;
-          const cleanUrl = protocol + '//' + window.location.host + '/dashboard.html';
+          let cleanUrl = protocol + '//' + window.location.host + '/dashboard.html';
+          // Garantir que não tenha ? no final
+          cleanUrl = cleanUrl.replace(/\?+$/, '');
           // Usar replace para não adicionar ao histórico e evitar ?
           window.location.replace(cleanUrl);
         }

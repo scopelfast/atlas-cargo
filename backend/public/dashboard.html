@@ -8,20 +8,16 @@
   <script>
     // INTERCEPTOR GLOBAL: Remover ? de todas as URLs
     (function() {
-      // Interceptar mudanças de location para remover ? vazio
-      const originalReplace = window.location.replace;
-      const originalAssign = window.location.assign;
-      const originalHrefSetter = Object.getOwnPropertyDescriptor(window.location, 'href').set;
-      
       function cleanUrl(url) {
         if (typeof url === 'string') {
-          // Remover ? no final da URL
-          return url.replace(/\?+$/, '').replace(/\?&/, '&').replace(/\?$/, '');
+          // Remover ? no final da URL e múltiplos ? seguidos
+          return url.replace(/\?+$/, '').replace(/\?&/, '&');
         }
         return url;
       }
       
       // Interceptar location.replace
+      const originalReplace = window.location.replace;
       window.location.replace = function(url) {
         const cleaned = cleanUrl(url);
         if (cleaned !== url) {
@@ -31,6 +27,7 @@
       };
       
       // Interceptar location.assign
+      const originalAssign = window.location.assign;
       window.location.assign = function(url) {
         const cleaned = cleanUrl(url);
         if (cleaned !== url) {
@@ -39,20 +36,10 @@
         return originalAssign.call(window.location, cleaned);
       };
       
-      // Interceptar location.href setter
-      Object.defineProperty(window.location, 'href', {
-        set: function(url) {
-          const cleaned = cleanUrl(url);
-          if (cleaned !== url) {
-            console.warn('[URL CLEANER] Removendo ? de location.href:', url, '→', cleaned);
-          }
-          originalHrefSetter.call(window.location, cleaned);
-        },
-        get: function() {
-          return window.location.href;
-        },
-        configurable: true
-      });
+      // Função helper para limpar href antes de usar
+      window.__cleanLocationHref = function(url) {
+        return cleanUrl(url);
+      };
       
       // Limpar URL atual se tiver ? no final
       if (window.location.href.endsWith('?')) {
@@ -60,6 +47,27 @@
         console.warn('[URL CLEANER] Limpando URL atual:', window.location.href, '→', cleanUrl);
         originalReplace.call(window.location, cleanUrl);
       }
+      
+      // Monitorar mudanças na URL usando setInterval
+      let lastUrl = window.location.href;
+      setInterval(function() {
+        const currentUrl = window.location.href;
+        if (currentUrl !== lastUrl && currentUrl.endsWith('?')) {
+          const cleaned = currentUrl.replace(/\?+$/, '');
+          console.warn('[URL CLEANER] Detectado ? na URL, limpando:', currentUrl, '→', cleaned);
+          originalReplace.call(window.location, cleaned);
+        }
+        lastUrl = window.location.href;
+      }, 100);
+      
+      // Interceptar popstate (navegação do histórico)
+      window.addEventListener('popstate', function() {
+        if (window.location.href.endsWith('?')) {
+          const cleaned = window.location.href.replace(/\?+$/, '');
+          console.warn('[URL CLEANER] Limpando ? após popstate:', window.location.href, '→', cleaned);
+          originalReplace.call(window.location, cleaned);
+        }
+      });
     })();
     
     // Configuração de base URL - suporta HTTP e HTTPS

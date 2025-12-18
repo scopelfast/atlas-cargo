@@ -75,7 +75,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         hostname.startsWith('192.168.');
         const protocol = isLocal ? 'http:' : window.location.protocol;
         // Remover qualquer query string vazia (?) e garantir URL limpa
-        const cleanUrl = protocol + '//' + window.location.host + '/dashboard.html';
+        let cleanUrl = protocol + '//' + window.location.host + '/dashboard.html';
+        // Garantir que não tenha ? no final
+        cleanUrl = cleanUrl.replace(/\?+$/, '');
         console.log('[LOGIN] Redirecionando para:', cleanUrl);
         // Usar replace para não adicionar ao histórico e evitar ?
         window.location.replace(cleanUrl);

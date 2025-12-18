@@ -101,7 +101,9 @@
                           hostname === '127.0.0.1' || 
                           hostname.startsWith('192.168.');
           const protocol = isLocal ? 'http:' : window.location.protocol;
-          const cleanUrl = protocol + '//' + window.location.host + '/';
+          let cleanUrl = protocol + '//' + window.location.host + '/';
+          // Garantir que não tenha ? no final
+          cleanUrl = cleanUrl.replace(/\?+$/, '');
           // Usar replace para não adicionar ao histórico e evitar ?
           window.location.replace(cleanUrl);
         }, 2000);
@@ -114,7 +116,9 @@
                     hostname === '127.0.0.1' || 
                     hostname.startsWith('192.168.');
     const protocol = isLocal ? 'http:' : window.location.protocol;
-    const cleanUrl = protocol + '//' + window.location.host + '/';
+    let cleanUrl = protocol + '//' + window.location.host + '/';
+    // Garantir que não tenha ? no final
+    cleanUrl = cleanUrl.replace(/\?+$/, '');
     window.location.replace(cleanUrl);
   };
 
@@ -150,7 +154,9 @@
                     hostname === '127.0.0.1' || 
                     hostname.startsWith('192.168.');
     const protocol = isLocal ? 'http:' : window.location.protocol;
-    const cleanUrl = protocol + '//' + window.location.host + '/';
+    let cleanUrl = protocol + '//' + window.location.host + '/';
+    // Garantir que não tenha ? no final
+    cleanUrl = cleanUrl.replace(/\?+$/, '');
     window.location.replace(cleanUrl);
       return;
     }
@@ -166,7 +172,9 @@
                     hostname === '127.0.0.1' || 
                     hostname.startsWith('192.168.');
     const protocol = isLocal ? 'http:' : window.location.protocol;
-    const cleanUrl = protocol + '//' + window.location.host + '/';
+    let cleanUrl = protocol + '//' + window.location.host + '/';
+    // Garantir que não tenha ? no final
+    cleanUrl = cleanUrl.replace(/\?+$/, '');
     window.location.replace(cleanUrl);
       return;
     }
