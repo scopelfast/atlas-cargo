@@ -101,12 +101,21 @@
                           hostname === '127.0.0.1' || 
                           hostname.startsWith('192.168.');
           const protocol = isLocal ? 'http:' : window.location.protocol;
-          window.location.href = protocol + '//' + window.location.host + '/';
+          const cleanUrl = protocol + '//' + window.location.host + '/';
+          // Usar replace para não adicionar ao histórico e evitar ?
+          window.location.replace(cleanUrl);
         }, 2000);
         return;
       }
     }
-    window.location.href = '/';
+    // Remover ? e usar replace para não adicionar ao histórico
+    const hostname = window.location.hostname;
+    const isLocal = hostname === 'localhost' || 
+                    hostname === '127.0.0.1' || 
+                    hostname.startsWith('192.168.');
+    const protocol = isLocal ? 'http:' : window.location.protocol;
+    const cleanUrl = protocol + '//' + window.location.host + '/';
+    window.location.replace(cleanUrl);
   };
 
   const initDashboard = async () => {
@@ -135,7 +144,14 @@
       sessionStorage.removeItem('dashboardLoopCount');
       window.__DASHBOARD_INITIALIZING__ = false;
       localStorage.clear();
-      window.location.href = '/';
+      // Remover ? e usar replace para não adicionar ao histórico
+    const hostname = window.location.hostname;
+    const isLocal = hostname === 'localhost' || 
+                    hostname === '127.0.0.1' || 
+                    hostname.startsWith('192.168.');
+    const protocol = isLocal ? 'http:' : window.location.protocol;
+    const cleanUrl = protocol + '//' + window.location.host + '/';
+    window.location.replace(cleanUrl);
       return;
     }
 
@@ -144,7 +160,14 @@
       sessionStorage.removeItem('dashboardLoopCount');
       window.__DASHBOARD_INITIALIZING__ = false;
       localStorage.clear();
-      window.location.href = '/';
+      // Remover ? e usar replace para não adicionar ao histórico
+    const hostname = window.location.hostname;
+    const isLocal = hostname === 'localhost' || 
+                    hostname === '127.0.0.1' || 
+                    hostname.startsWith('192.168.');
+    const protocol = isLocal ? 'http:' : window.location.protocol;
+    const cleanUrl = protocol + '//' + window.location.host + '/';
+    window.location.replace(cleanUrl);
       return;
     }
 

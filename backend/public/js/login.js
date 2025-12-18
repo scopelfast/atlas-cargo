@@ -77,7 +77,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // Remover qualquer query string vazia (?) e garantir URL limpa
         const cleanUrl = protocol + '//' + window.location.host + '/dashboard.html';
         console.log('[LOGIN] Redirecionando para:', cleanUrl);
-        window.location.href = cleanUrl;
+        // Usar replace para não adicionar ao histórico e evitar ?
+        window.location.replace(cleanUrl);
       } else {
         showError(data.message || 'Credenciais inválidas.');
       }

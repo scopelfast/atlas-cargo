@@ -6,6 +6,62 @@
   <title>sys - Divulga Cargas</title>
   <link rel="icon" type="image/png" href="/img/logo7.png" id="faviconLink">
   <script>
+    // INTERCEPTOR GLOBAL: Remover ? de todas as URLs
+    (function() {
+      // Interceptar mudanças de location para remover ? vazio
+      const originalReplace = window.location.replace;
+      const originalAssign = window.location.assign;
+      const originalHrefSetter = Object.getOwnPropertyDescriptor(window.location, 'href').set;
+      
+      function cleanUrl(url) {
+        if (typeof url === 'string') {
+          // Remover ? no final da URL
+          return url.replace(/\?+$/, '').replace(/\?&/, '&').replace(/\?$/, '');
+        }
+        return url;
+      }
+      
+      // Interceptar location.replace
+      window.location.replace = function(url) {
+        const cleaned = cleanUrl(url);
+        if (cleaned !== url) {
+          console.warn('[URL CLEANER] Removendo ? de location.replace:', url, '→', cleaned);
+        }
+        return originalReplace.call(window.location, cleaned);
+      };
+      
+      // Interceptar location.assign
+      window.location.assign = function(url) {
+        const cleaned = cleanUrl(url);
+        if (cleaned !== url) {
+          console.warn('[URL CLEANER] Removendo ? de location.assign:', url, '→', cleaned);
+        }
+        return originalAssign.call(window.location, cleaned);
+      };
+      
+      // Interceptar location.href setter
+      Object.defineProperty(window.location, 'href', {
+        set: function(url) {
+          const cleaned = cleanUrl(url);
+          if (cleaned !== url) {
+            console.warn('[URL CLEANER] Removendo ? de location.href:', url, '→', cleaned);
+          }
+          originalHrefSetter.call(window.location, cleaned);
+        },
+        get: function() {
+          return window.location.href;
+        },
+        configurable: true
+      });
+      
+      // Limpar URL atual se tiver ? no final
+      if (window.location.href.endsWith('?')) {
+        const cleanUrl = window.location.href.replace(/\?+$/, '');
+        console.warn('[URL CLEANER] Limpando URL atual:', window.location.href, '→', cleanUrl);
+        originalReplace.call(window.location, cleanUrl);
+      }
+    })();
+    
     // Configuração de base URL - suporta HTTP e HTTPS
     (function() {
       // Detectar se é ambiente local
@@ -17,7 +73,8 @@
       // Se estiver em local e usando HTTPS, redirecionar imediatamente
       if (isLocal && window.location.protocol === 'https:') {
         console.warn('[DASHBOARD] HTTPS detectado em local, redirecionando para HTTP...');
-        window.location.replace('http://' + window.location.host + window.location.pathname + window.location.search);
+        const cleanUrl = 'http://' + window.location.host + window.location.pathname.replace(/\?+$/, '');
+        window.location.replace(cleanUrl);
         return; // Parar execução até redirecionar
       }
       

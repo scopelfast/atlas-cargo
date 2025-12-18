@@ -30,7 +30,9 @@
                           hostname === '127.0.0.1' || 
                           hostname.startsWith('192.168.');
           const protocol = isLocal ? 'http:' : window.location.protocol;
-          window.location.href = protocol + '//' + window.location.host + '/dashboard.html';
+          const cleanUrl = protocol + '//' + window.location.host + '/dashboard.html';
+          // Usar replace para não adicionar ao histórico e evitar ?
+          window.location.replace(cleanUrl);
         }
       } catch (e) {
         // User inválido, não redirecionar
