@@ -23,10 +23,20 @@
         document.head.appendChild(link);
       }
       
-      // Carregar CSS com URLs absolutas (usa protocolo atual)
-      createLink('/css/boxicons.min.css?v=20250102');
-      createLink('/css/modulos.css?v=20250102');
-      createLink('/css/dashboard.css?v=20250102');
+      // Carregar CSS com cache busting dinâmico
+      // Em desenvolvimento: usar timestamp atual (sempre atualizado)
+      // Em produção: usar versão fixa (atualizada a cada deploy)
+      const isDev = window.location.hostname === 'localhost' || 
+                    window.location.hostname === '127.0.0.1' || 
+                    window.location.hostname.startsWith('192.168.');
+      const cacheVersion = isDev ? Date.now() : '20250102';
+      
+      // Armazenar globalmente para uso em scripts
+      window.__CACHE_VERSION__ = cacheVersion;
+      
+      createLink(`/css/boxicons.min.css?v=${cacheVersion}`);
+      createLink(`/css/modulos.css?v=${cacheVersion}`);
+      createLink(`/css/dashboard.css?v=${cacheVersion}`);
       
       // Corrigir favicon
       const faviconLink = document.getElementById('faviconLink');
@@ -155,12 +165,18 @@
       }
       
       // Carregar scripts sequencialmente
+      // Usar cacheVersion dinâmico (timestamp em dev, versão fixa em produção)
+      const isDevScripts = window.location.hostname === 'localhost' || 
+                           window.location.hostname === '127.0.0.1' || 
+                           window.location.hostname.startsWith('192.168.');
+      const cacheVer = isDevScripts ? Date.now() : '20250102';
+      
       const scripts = [
-        '/js/ambiente-utils.js?v=20250102',
-        '/js/utils.js?v=20250102',
-        '/js/permissions.js?v=20250102',
-        '/js/log-helper.js?v=20250102',
-        '/js/dashboard.js?v=20250102'
+        `/js/ambiente-utils.js?v=${cacheVer}`,
+        `/js/utils.js?v=${cacheVer}`,
+        `/js/permissions.js?v=${cacheVer}`,
+        `/js/log-helper.js?v=${cacheVer}`,
+        `/js/dashboard.js?v=${cacheVer}`
       ];
       
       let index = 0;

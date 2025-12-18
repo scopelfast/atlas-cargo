@@ -280,37 +280,55 @@ app.use(express.static(path.join(__dirname, 'public'), {
     
     // Cache otimizado - evita problemas de versão antiga
     if (isDevelopment) {
-      // Desabilitar cache em desenvolvimento para facilitar debug
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      // DESENVOLVIMENTO: Desabilitar cache completamente para garantir sempre a última versão
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
+      // Adicionar ETag baseado no timestamp do arquivo para forçar validação
+      if (stat && stat.mtime) {
+        const etag = `"dev-${stat.mtime.getTime()}"`;
+        res.setHeader('ETag', etag);
+        res.setHeader('Last-Modified', stat.mtime.toUTCString());
+      }
     } else {
-      // PRODUÇÃO: Cache otimizado com cache busting via query string
+      // PRODUÇÃO: Cache inteligente com validação
       if (filePath.endsWith('.css') || filePath.endsWith('.js')) {
-        // CSS e JS: Cache curto + ETag para validação
+        // CSS e JS: Sem cache quando não tem query string, com validação quando tem
         // O cache-buster.js adiciona ?v=timestamp, então o navegador sempre busca nova versão
-        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-        // Adicionar ETag baseado no timestamp do arquivo para validação
-        // Isso permite validação eficiente sem cache agressivo
-        // O cache-buster.js adiciona ?v=timestamp, forçando busca de nova versão
+        // Se não tiver query string, não fazer cache (arquivo pode ter mudado)
+        const hasQueryString = req.url.includes('?');
+        if (hasQueryString) {
+          // Com query string (cache busting): cache longo mas validado
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable'); // 1 ano (imutável com ?v=)
+        } else {
+          // Sem query string: sem cache (arquivo pode ter mudado)
+          res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+        }
+        // Sempre adicionar ETag para validação
         if (stat && stat.mtime) {
           const etag = `"${stat.mtime.getTime()}"`;
           res.setHeader('ETag', etag);
+          res.setHeader('Last-Modified', stat.mtime.toUTCString());
         }
       } else if (filePath.endsWith('.html')) {
         // HTML: SEM cache (sempre atualizado)
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
+        // Adicionar ETag para validação
+        if (stat && stat.mtime) {
+          const etag = `"html-${stat.mtime.getTime()}"`;
+          res.setHeader('ETag', etag);
+          res.setHeader('Last-Modified', stat.mtime.toUTCString());
+        }
       } else if (filePath.endsWith('.png') || filePath.endsWith('.jpg') || 
                  filePath.endsWith('.jpeg') || filePath.endsWith('.gif') || 
                  filePath.endsWith('.ico') || filePath.endsWith('.svg')) {
         // Imagens: cache longo (raramente mudam)
         res.setHeader('Cache-Control', 'public, max-age=86400, immutable'); // 1 dia
       } else {
-        // Outros arquivos: cache de 1 hora
-        res.setHeader('Cache-Control', 'public, max-age=3600');
+        // Outros arquivos: cache curto com validação
+        res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate'); // 1 hora
       }
     }
   }

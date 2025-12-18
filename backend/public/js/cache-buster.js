@@ -8,15 +8,19 @@
 (function() {
   'use strict';
 
-  // Versão do sistema (pode ser alterada a cada deploy)
+  // Versão do sistema (atualizada automaticamente)
   // Formato: YYYYMMDDHHMM (ano, mês, dia, hora, minuto)
-  // Exemplo: 202512091200 = 09/12/2025 12:00
-  // IMPORTANTE: Atualizar este valor a cada deploy para forçar atualização do cache
-  // Use o script: node backend/scripts/atualizar-versao-cache.js
-  const APP_VERSION = '202512091200'; // Atualizar a cada deploy
+  // IMPORTANTE: Em desenvolvimento, usar timestamp atual para sempre forçar atualização
+  // Em produção, usar versão fixa que é atualizada a cada deploy
+  const isDevelopment = window.location.hostname === 'localhost' || 
+                        window.location.hostname === '127.0.0.1' || 
+                        window.location.hostname.startsWith('192.168.');
   
-  // Versão alternativa: usar timestamp atual (descomente se preferir)
-  // const APP_VERSION = Date.now().toString();
+  // Em desenvolvimento: usar timestamp atual (sempre diferente, força atualização)
+  // Em produção: usar versão fixa (atualizada manualmente a cada deploy)
+  const APP_VERSION = isDevelopment 
+    ? Date.now().toString() // Desenvolvimento: sempre novo timestamp
+    : '202512091200'; // Produção: versão fixa (atualizar a cada deploy)
   
   // Função para adicionar cache busting a um URL
   window.addCacheBuster = function(url) {

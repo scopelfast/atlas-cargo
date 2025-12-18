@@ -2530,6 +2530,9 @@ function getOverlayMostrado() {
         if (container) {
           container.style.display = 'block';
         }
+        
+        // Configurar botões de copiar e compartilhar
+        configurarBotoesResumo(roteiro.RESUMOROTA);
       } else {
         // Ocultar se não houver resumo
         if (container) {
@@ -2537,13 +2540,59 @@ function getOverlayMostrado() {
         }
       }
     } catch (err) {
-      console.warn('Erro ao carregar resumo da rota:', err);
-      const container = document.getElementById('resumoRotaContainer');
-      if (container) {
-        container.style.display = 'none';
-      }
+    console.warn('Erro ao carregar resumo da rota:', err);
+    const container = document.getElementById('resumoRotaContainer');
+    if (container) {
+      container.style.display = 'none';
     }
   }
+
+  // Função para configurar botão de copiar resumo
+  function configurarBotoesResumo(textoResumo) {
+    const btnCopiar = document.getElementById('btnCopiarResumo');
+    
+    if (btnCopiar) {
+      btnCopiar.onclick = async () => {
+        try {
+          // Copiar para área de transferência
+          await navigator.clipboard.writeText(textoResumo);
+          
+          // Feedback visual
+          const textoOriginal = btnCopiar.innerHTML;
+          btnCopiar.innerHTML = '✅ Copiado!';
+          btnCopiar.style.background = '#2ecc71';
+          btnCopiar.style.borderColor = '#2ecc71';
+          
+          // Mostrar mensagem de sucesso
+          showMessage('Resumo da rota copiado para a área de transferência!', 'success');
+          
+          // Restaurar botão após 2 segundos
+          setTimeout(() => {
+            btnCopiar.innerHTML = textoOriginal;
+            btnCopiar.style.background = '';
+            btnCopiar.style.borderColor = '';
+          }, 2000);
+        } catch (err) {
+          console.error('Erro ao copiar:', err);
+          // Fallback para navegadores antigos
+          const textArea = document.createElement('textarea');
+          textArea.value = textoResumo;
+          textArea.style.position = 'fixed';
+          textArea.style.left = '-999999px';
+          document.body.appendChild(textArea);
+          textArea.select();
+          try {
+            document.execCommand('copy');
+            showMessage('Resumo da rota copiado!', 'success');
+          } catch (e) {
+            showMessage('Erro ao copiar. Tente selecionar o texto manualmente.', 'error');
+          }
+          document.body.removeChild(textArea);
+        }
+      };
+    }
+  }
+}
 
   // Carregar todos os roteiros para o filtro
   async function loadRoteirosParaFiltro() {
@@ -11052,10 +11101,27 @@ function getOverlayMostrado() {
                         document.getElementById('viagemId')?.value || 
                         null;
         if (idViagem) {
-          // Primeiro sincronizar do INTEGRA_PRD, depois recarregar posições
-          await sincronizarRastreamentoIntegra(idViagem);
-          // Recarregar posições após sincronização
-          carregarPosicoesRastreamento(idViagem);
+          try {
+            // Mostrar overlay de loading
+            showRastreamentoLoading('Sincronizando Rastreamento', 'Sincronizando posições do INTEGRA_PRD...');
+            
+            // Primeiro sincronizar do INTEGRA_PRD, depois recarregar posições
+            await sincronizarRastreamentoIntegra(idViagem);
+            
+            // Atualizar mensagem do overlay
+            showRastreamentoLoading('Carregando Posições GPS', 'Buscando e processando posições GPS...');
+            
+            // Recarregar posições após sincronização
+            await carregarPosicoesRastreamento(idViagem);
+          } catch (err) {
+            console.error('Erro ao atualizar rastreamento:', err);
+            mostrarMensagemRastreamento('Erro ao atualizar posições. Tente novamente.', 'error');
+          } finally {
+            // Sempre esconder overlay
+            hideRastreamentoLoading();
+          }
+        } else {
+          mostrarMensagemRastreamento('Nenhuma viagem selecionada.', 'warning');
         }
       });
     }
@@ -12208,6 +12274,26 @@ function getOverlayMostrado() {
     }
   }
 
+  // Funções para overlay de loading
+  function showRastreamentoLoading(titulo = 'Carregando Posições GPS', texto = 'Aguarde enquanto buscamos as posições...') {
+    const overlay = document.getElementById('rastreamentoLoadingOverlay');
+    const tituloEl = document.getElementById('rastreamentoLoadingTitulo');
+    const textoEl = document.getElementById('rastreamentoLoadingTexto');
+    
+    if (overlay) {
+      if (tituloEl) tituloEl.textContent = titulo;
+      if (textoEl) textoEl.textContent = texto;
+      overlay.style.display = 'flex';
+    }
+  }
+
+  function hideRastreamentoLoading() {
+    const overlay = document.getElementById('rastreamentoLoadingOverlay');
+    if (overlay) {
+      overlay.style.display = 'none';
+    }
+  }
+
   // Carregar posições GPS da viagem
   async function carregarPosicoesRastreamento(idViagem) {
     if (!idViagem) {
@@ -12221,7 +12307,10 @@ function getOverlayMostrado() {
     const listaPosicoes = document.getElementById('listaPosicoes');
 
     try {
-      // Mostrar loading
+      // Mostrar overlay de loading
+      showRastreamentoLoading('Carregando Posições GPS', 'Buscando posições GPS da viagem...');
+      
+      // Mostrar loading na lista também
       if (listaPosicoes) {
         listaPosicoes.innerHTML = '<p style="text-align: center; color: #6c757d; padding: 20px;">Carregando posições...</p>';
       }
@@ -12243,6 +12332,14 @@ function getOverlayMostrado() {
         const viagemResponse = await fetch(`/api/viagens/${idViagem}`);
         if (viagemResponse.ok) {
           dadosViagem = await viagemResponse.json();
+          console.log(`🔍 [RASTREAMENTO] Dados da viagem recebidos:`, {
+            ORIGEM_CIDADE: dadosViagem.ORIGEM_CIDADE,
+            ORIGEM_ESTADO: dadosViagem.ORIGEM_ESTADO,
+            DESTINO_CIDADE: dadosViagem.DESTINO_CIDADE,
+            DESTINO_ESTADO: dadosViagem.DESTINO_ESTADO
+          });
+        } else {
+          console.warn(`⚠️ [RASTREAMENTO] Erro ao buscar dados da viagem: ${viagemResponse.status}`);
         }
       } catch (err) {
         console.warn('Erro ao buscar dados da viagem:', err);
@@ -12257,22 +12354,35 @@ function getOverlayMostrado() {
 
       const posicoesData = await response.json();
       
+      console.log(`📊 [RASTREAMENTO] Resposta da API recebida:`, {
+        tipo: Array.isArray(posicoesData) ? 'array' : 'objeto',
+        tamanho: Array.isArray(posicoesData) ? posicoesData.length : (posicoesData.posicoes?.length || 0)
+      });
+      
       // A resposta pode ser um array direto (compatibilidade) ou um objeto com posicoes e ultimaPosicaoGeral
       let posicoes, ultimaPosicaoGeral;
       if (Array.isArray(posicoesData)) {
         // Formato antigo (array direto) - compatibilidade
         posicoes = posicoesData;
         ultimaPosicaoGeral = null;
+        console.log(`📊 [RASTREAMENTO] Formato antigo (array): ${posicoes.length} posições`);
       } else {
         // Formato novo (objeto com posicoes e ultimaPosicaoGeral)
         posicoes = posicoesData.posicoes || [];
         ultimaPosicaoGeral = posicoesData.ultimaPosicaoGeral || null;
+        console.log(`📊 [RASTREAMENTO] Formato novo (objeto): ${posicoes.length} posições`);
       }
+      
       if (posicoes.length > 0) {
-        // Log removido
+        console.log(`✅ [RASTREAMENTO] ${posicoes.length} posições GPS carregadas para viagem ${idViagem}`);
+        console.log(`📍 [RASTREAMENTO] Primeira posição:`, posicoes[0]);
+        console.log(`📍 [RASTREAMENTO] Última posição:`, posicoes[posicoes.length - 1]);
+      } else {
+        console.warn(`⚠️ [RASTREAMENTO] Nenhuma posição encontrada na resposta da API para viagem ${idViagem}`);
       }
+      
       if (ultimaPosicaoGeral) {
-        // Log removido
+        console.log(`📅 [RASTREAMENTO] Última atualização geral:`, ultimaPosicaoGeral.DHREGISTRO);
       }
 
       // Esconder mensagem "sem viagem" e mostrar container
@@ -12347,8 +12457,11 @@ function getOverlayMostrado() {
         // Exibir no mapa (com origem e destino se disponível)
         await exibirMapaRastreamento(posicoes, dadosViagem);
 
-        // Exibir na lista
+        // Exibir na lista (sempre mostrar todas as posições na lista, não apenas as amostradas)
         exibirListaPosicoes(posicoes);
+        
+        // Esconder overlay após exibir tudo
+        hideRastreamentoLoading();
       } else {
         // Nenhuma posição encontrada, mas mostrar informações da viagem
         document.getElementById('rastreamentoTotalPosicoes').textContent = '0';
@@ -12405,6 +12518,9 @@ function getOverlayMostrado() {
             mapaRastreamento = null;
           }
         }
+        
+        // Esconder overlay
+        hideRastreamentoLoading();
       }
     } catch (err) {
       console.error('Erro ao carregar posições:', err);
@@ -12412,13 +12528,20 @@ function getOverlayMostrado() {
       if (listaPosicoes) {
         listaPosicoes.innerHTML = '<p style="text-align: center; color: #e74c3c; padding: 20px;">Erro ao carregar posições.</p>';
       }
+      // Esconder overlay em caso de erro
+      hideRastreamentoLoading();
     }
   }
 
   // Exibir posições no mapa
   async function exibirMapaRastreamento(posicoes, dadosViagem = null) {
+    console.log(`🗺️ [MAPA RASTREAMENTO] Exibindo mapa com ${posicoes?.length || 0} posições e dados da viagem:`, dadosViagem ? 'SIM' : 'NÃO');
+    
     // Se não há posições e não há dados da viagem, não exibir mapa
-    if ((!posicoes || posicoes.length === 0) && !dadosViagem) return;
+    if ((!posicoes || posicoes.length === 0) && !dadosViagem) {
+      console.warn(`⚠️ [MAPA RASTREAMENTO] Não há posições nem dados da viagem. Não exibindo mapa.`);
+      return;
+    }
 
     // Obter configuração do mapa
     const config = window.MAP_CONFIG || {
@@ -12481,12 +12604,56 @@ function getOverlayMostrado() {
       return dataA - dataB; // ASC: mais antiga primeiro
     });
 
+    console.log(`📍 [MAPA RASTREAMENTO] ${posicoesOrdenadas.length} posições ordenadas para desenhar no mapa`);
+
     // Preparar coordenadas das posições GPS (já ordenadas)
-    const coordenadas = posicoesOrdenadas.map(p => [parseFloat(p.LATITUDE), parseFloat(p.LONGITUDE)]);
+    let coordenadas = posicoesOrdenadas
+      .filter(p => p.LATITUDE && p.LONGITUDE && !isNaN(parseFloat(p.LATITUDE)) && !isNaN(parseFloat(p.LONGITUDE)))
+      .map(p => [parseFloat(p.LATITUDE), parseFloat(p.LONGITUDE)]);
     
-    // IMPORTANTE: Garantir que coordenadas está na ordem correta (primeiro → último)
-    if (coordenadas.length > 0) {
-      // Logs removidos para reduzir verbosidade
+    console.log(`📍 [MAPA RASTREAMENTO] ${coordenadas.length} coordenadas válidas preparadas para rota`);
+    
+    if (coordenadas.length === 0 && posicoesOrdenadas.length > 0) {
+      console.error(`❌ [MAPA RASTREAMENTO] ERRO: ${posicoesOrdenadas.length} posições mas nenhuma coordenada válida!`);
+      console.error(`❌ [MAPA RASTREAMENTO] Primeira posição:`, posicoesOrdenadas[0]);
+    }
+    
+    // LIMITAR PONTOS PARA MELHORAR PERFORMANCE
+    // Se houver muitos pontos, fazer amostragem inteligente mantendo início, fim e pontos estratégicos
+    const MAX_PONTOS_MAPA = 80; // Limite máximo de pontos para desenhar no mapa (reduzido para melhor performance)
+    const totalOriginal = coordenadas.length; // Guardar total original para log
+    if (coordenadas.length > MAX_PONTOS_MAPA) {
+      console.log(`⚠️ [MAPA RASTREAMENTO] Muitos pontos (${totalOriginal}). Aplicando amostragem inteligente para ${MAX_PONTOS_MAPA} pontos...`);
+      
+      const coordenadasAmostradas = [];
+      const total = coordenadas.length;
+      
+      // Sempre incluir primeiro ponto
+      coordenadasAmostradas.push(coordenadas[0]);
+      
+      // Calcular intervalo para amostragem uniforme
+      // Usar deciles (10 partes) para distribuição mais uniforme
+      const numPontosIntermediarios = MAX_PONTOS_MAPA - 2; // -2 porque já incluímos primeiro e último
+      const intervalo = Math.max(1, Math.floor((total - 2) / numPontosIntermediarios));
+      
+      // Incluir pontos intermediários em intervalos regulares
+      for (let i = intervalo; i < total - 1; i += intervalo) {
+        if (coordenadasAmostradas.length < MAX_PONTOS_MAPA - 1) {
+          coordenadasAmostradas.push(coordenadas[i]);
+        }
+      }
+      
+      // Sempre incluir último ponto
+      if (coordenadasAmostradas[coordenadasAmostradas.length - 1] !== coordenadas[total - 1]) {
+        coordenadasAmostradas.push(coordenadas[total - 1]);
+      }
+      
+      coordenadas = coordenadasAmostradas;
+      const reducaoPercentual = ((1 - coordenadas.length/totalOriginal) * 100).toFixed(1);
+      console.log(`✅ [MAPA RASTREAMENTO] Amostragem aplicada: ${coordenadas.length} pontos selecionados de ${totalOriginal} totais (redução de ${reducaoPercentual}%)`);
+      
+      // Atualizar overlay com informação de amostragem
+      showRastreamentoLoading('Processando Rota', `Amostragem aplicada: ${coordenadas.length} de ${totalOriginal} pontos. Calculando rota...`);
     }
 
     // Calcular rota real usando OSRM/ORS conectando TODOS os pontos GPS consecutivos
@@ -12494,6 +12661,9 @@ function getOverlayMostrado() {
       try {
         const config = window.MAP_CONFIG || {};
         console.log(`🛣️  Calculando rota usando servidor: ${config.osrmServer || 'padrão'}...`);
+        
+        // Atualizar overlay para mostrar progresso do cálculo de rota
+        showRastreamentoLoading('Calculando Rota', `Processando ${coordenadas.length} pontos GPS e calculando rota real...`);
         
         // Função auxiliar para construir URL de roteamento (suporta OSRM e ORS)
         // Usar a função global construirUrlRota (definida acima no escopo)
@@ -13032,6 +13202,9 @@ function getOverlayMostrado() {
             console.log(`✅ Rota OSRM calculada (verde - pontos já percorridos)! (${routeLatLngs.length} pontos conectando ${pontosParaRota.length} posições GPS)`);
             console.log(`📍 Primeiro ponto da rota verde: [${routeLatLngs[0][0]}, ${routeLatLngs[0][1]}]`);
             console.log(`📍 Último ponto da rota verde: [${routeLatLngs[routeLatLngs.length - 1][0]}, ${routeLatLngs[routeLatLngs.length - 1][1]}]`);
+            
+            // Atualizar overlay para mostrar que rota foi calculada
+            showRastreamentoLoading('Finalizando', 'Rota calculada! Ajustando visualização do mapa...');
           } else {
             // Se não conseguiu calcular rota, tentar calcular ponto a ponto como último recurso
             console.warn('⚠️  Rota em segmentos falhou, tentando calcular ponto a ponto...');
@@ -13327,10 +13500,21 @@ function getOverlayMostrado() {
 
     if (dadosViagem && dadosViagem.ORIGEM_CIDADE && dadosViagem.DESTINO_CIDADE) {
       try {
+        // Limpar espaços dos estados (pode vir "PR " em vez de "PR")
+        const origemEstado = (dadosViagem.ORIGEM_ESTADO || '').trim();
+        const destinoEstado = (dadosViagem.DESTINO_ESTADO || '').trim();
+        const origemCidade = (dadosViagem.ORIGEM_CIDADE || '').trim();
+        const destinoCidade = (dadosViagem.DESTINO_CIDADE || '').trim();
+        
+        console.log(`🗺️ [MAPA RASTREAMENTO] Valores limpos:`, {
+          origem: `${origemCidade}/${origemEstado}`,
+          destino: `${destinoCidade}/${destinoEstado}`
+        });
+        
         // Obter coordenadas de origem e destino
         const [coordsOrigemTemp, coordsDestinoTemp] = await Promise.all([
-          obterCoordenadasCidade(dadosViagem.ORIGEM_CIDADE, dadosViagem.ORIGEM_ESTADO),
-          obterCoordenadasCidade(dadosViagem.DESTINO_CIDADE, dadosViagem.DESTINO_ESTADO)
+          obterCoordenadasCidade(origemCidade, origemEstado),
+          obterCoordenadasCidade(destinoCidade, destinoEstado)
         ]);
 
         if (coordsOrigemTemp && coordsDestinoTemp) {
@@ -13358,6 +13542,7 @@ function getOverlayMostrado() {
               const osrmData = await osrmResponse.json();
               const routeCoords = parsearRespostaRota(osrmData);
               if (routeCoords && routeCoords.length > 0) {
+                console.log(`✅ [MAPA RASTREAMENTO] Rota planejada calculada com ${routeCoords.length} pontos`);
 
                 // Adicionar linha da rota planejada (origem -> destino)
                 linhaRotaPlanejada = L.polyline(routeCoords, {
@@ -13366,11 +13551,17 @@ function getOverlayMostrado() {
                   opacity: 0.6,
                   dashArray: '10, 10'
                 }).addTo(mapaRastreamento);
+                console.log(`✅ [MAPA RASTREAMENTO] Linha da rota planejada adicionada ao mapa`);
+              } else {
+                console.warn(`⚠️ [MAPA RASTREAMENTO] Rota OSRM retornou 0 pontos`);
               }
+            } else {
+              console.warn(`⚠️ [MAPA RASTREAMENTO] Erro ao calcular rota OSRM: ${osrmResponse.status}`);
             }
           } catch (osrmErr) {
-            console.warn('Erro ao calcular rota OSRM:', osrmErr);
+            console.warn('⚠️ [MAPA RASTREAMENTO] Erro ao calcular rota OSRM:', osrmErr);
             // Se OSRM falhar, desenhar linha reta como fallback
+            console.log(`🔄 [MAPA RASTREAMENTO] Desenhando linha reta como fallback`);
             linhaRotaPlanejada = L.polyline(
               [[coordsOrigem.lat, coordsOrigem.lon], [coordsDestino.lat, coordsDestino.lon]],
               {
@@ -13380,17 +13571,32 @@ function getOverlayMostrado() {
                 dashArray: '10, 10'
               }
             ).addTo(mapaRastreamento);
+            console.log(`✅ [MAPA RASTREAMENTO] Linha reta (fallback) adicionada ao mapa`);
           }
+        } else {
+          console.warn(`⚠️ [MAPA RASTREAMENTO] Coordenadas inválidas! Origem: ${coordsOrigemTemp ? 'OK' : 'FALHOU'}, Destino: ${coordsDestinoTemp ? 'OK' : 'FALHOU'}`);
+        }
+      } catch (err) {
+        console.error('❌ [MAPA RASTREAMENTO] Erro ao obter coordenadas:', err);
+      }
+    } else {
+      console.warn(`⚠️ [MAPA RASTREAMENTO] Dados da viagem incompletos:`, {
+        temDadosViagem: !!dadosViagem,
+        temOrigem: !!(dadosViagem && dadosViagem.ORIGEM_CIDADE),
+        temDestino: !!(dadosViagem && dadosViagem.DESTINO_CIDADE)
+      });
+    }
 
-          // Calcular e desenhar rota da última posição GPS até o destino (VERMELHA)
-          if (posicoesOrdenadas && posicoesOrdenadas.length > 0 && coordsDestino) {
-            const ultimaPosicao = posicoesOrdenadas[posicoesOrdenadas.length - 1];
-            const ultimaLat = parseFloat(ultimaPosicao.LATITUDE);
-            const ultimaLon = parseFloat(ultimaPosicao.LONGITUDE);
-            
-            console.log(`🔴 Calculando rota restante: última posição GPS → destino...`);
-            
-            try {
+    // Calcular e desenhar rota da última posição GPS até o destino (VERMELHA)
+    // Isso deve ser feito independentemente de ter dados completos da viagem, desde que tenha posições GPS e destino
+    if (posicoesOrdenadas && posicoesOrdenadas.length > 0 && coordsDestino) {
+      const ultimaPosicao = posicoesOrdenadas[posicoesOrdenadas.length - 1];
+      const ultimaLat = parseFloat(ultimaPosicao.LATITUDE);
+      const ultimaLon = parseFloat(ultimaPosicao.LONGITUDE);
+      
+      console.log(`🔴 Calculando rota restante: última posição GPS → destino...`);
+      
+      try {
               const coordsStrRestante = `${ultimaLon},${ultimaLat};${coordsDestino.lon},${coordsDestino.lat}`;
               const rotaUrlRestante = construirUrlRota(
                 config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
@@ -13399,188 +13605,186 @@ function getOverlayMostrado() {
                 'geojson'
               );
               
-              const osrmResponseRestante = await fetch(rotaUrlRestante, {
-                signal: AbortSignal.timeout(20000)
-              });
-              
-              if (osrmResponseRestante.ok) {
-                const osrmDataRestante = await osrmResponseRestante.json();
-                const routeCoordsRestante = parsearRespostaRota(osrmDataRestante);
-                
-                if (routeCoordsRestante && routeCoordsRestante.length > 0) {
-                  // Garantir que a linha vermelha comece EXATAMENTE na última posição GPS
-                  // O OSRM pode retornar uma rota que começa antes da última posição GPS (ex: na origem)
-                  // Precisamos encontrar o ponto mais próximo da última posição GPS e remover tudo antes dele
-                  let routeCoordsRestanteFinal = [...routeCoordsRestante];
-                  
-                  // Encontrar o índice do ponto mais próximo da última posição GPS
-                  let indiceInicio = 0;
-                  let menorDistancia = Infinity;
-                  
-                  for (let i = 0; i < routeCoordsRestanteFinal.length; i++) {
-                    const ponto = routeCoordsRestanteFinal[i];
-                    const distancia = Math.sqrt(
-                      Math.pow(ponto[0] - ultimaLat, 2) + 
-                      Math.pow(ponto[1] - ultimaLon, 2)
-                    );
-                    if (distancia < menorDistancia) {
-                      menorDistancia = distancia;
-                      indiceInicio = i;
-                    }
-                  }
-                  
-                  // Se encontrou um ponto próximo (dentro de ~100 metros), usar a partir dele
-                  // Caso contrário, usar toda a rota mas garantir que comece na última posição GPS
-                  if (menorDistancia < 0.001) { // ~111 metros
-                    // Remover todos os pontos antes do ponto mais próximo
-                    routeCoordsRestanteFinal = routeCoordsRestanteFinal.slice(indiceInicio);
-                    console.log(`🔴 Removendo ${indiceInicio} pontos anteriores à última posição GPS`);
-                  }
-                  
-                  // Garantir que o primeiro ponto seja EXATAMENTE a última posição GPS
-                  if (routeCoordsRestanteFinal.length > 0) {
-                    routeCoordsRestanteFinal[0] = [ultimaLat, ultimaLon];
-                    console.log(`🔴 Garantindo que a rota vermelha comece na última posição GPS exata: [${ultimaLat}, ${ultimaLon}]`);
-                  }
-                  
-                  // Adicionar linha da rota restante (última posição → destino) em VERMELHO
-                  linhaRotaRestante = L.polyline(routeCoordsRestanteFinal, {
-                    color: '#e74c3c', // Vermelho
-                    weight: 4,
-                    opacity: 0.8,
-                    dashArray: '5, 5' // Linha tracejada para diferenciar
-                  }).addTo(mapaRastreamento);
-                  
-                  linhaRotaRestante.bindPopup(`
-                    <div style="min-width: 200px;">
-                      <strong>🔴 Rota Restante</strong><br>
-                      <strong>Última Posição GPS → Destino</strong><br>
-                      <strong>Distância restante:</strong> Calculando...
-                    </div>
-                  `);
-                  
-                  console.log(`✅ Rota restante calculada! (${routeCoordsRestante.length} pontos)`);
-                } else {
-                  console.warn('⚠️  OSRM não retornou rota restante válida');
-                }
-              } else {
-                // Tentar servidor alternativo
-                console.warn('⚠️  Tentando servidor alternativo para rota restante...');
-                const rotaUrlRestanteAlt = construirUrlRota(
-                  config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv',
-                  coordsStrRestante,
-                  'full',
-                  'geojson'
-                );
-                
-                try {
-                  const osrmResponseRestanteAlt = await fetch(rotaUrlRestanteAlt, {
-                    signal: AbortSignal.timeout(20000)
-                  });
-                  
-                  if (osrmResponseRestanteAlt.ok) {
-                    const osrmDataRestanteAlt = await osrmResponseRestanteAlt.json();
-                    const routeCoordsRestanteAlt = parsearRespostaRota(osrmDataRestanteAlt);
-                    
-                    if (routeCoordsRestanteAlt && routeCoordsRestanteAlt.length > 0) {
-                      // Garantir que a linha vermelha comece EXATAMENTE na última posição GPS
-                      // O OSRM pode retornar uma rota que começa antes da última posição GPS (ex: na origem)
-                      // Precisamos encontrar o ponto mais próximo da última posição GPS e remover tudo antes dele
-                      let routeCoordsRestanteAltFinal = [...routeCoordsRestanteAlt];
-                      
-                      // Encontrar o índice do ponto mais próximo da última posição GPS
-                      let indiceInicioAlt = 0;
-                      let menorDistanciaAlt = Infinity;
-                      
-                      for (let i = 0; i < routeCoordsRestanteAltFinal.length; i++) {
-                        const ponto = routeCoordsRestanteAltFinal[i];
-                        const distancia = Math.sqrt(
-                          Math.pow(ponto[0] - ultimaLat, 2) + 
-                          Math.pow(ponto[1] - ultimaLon, 2)
-                        );
-                        if (distancia < menorDistanciaAlt) {
-                          menorDistanciaAlt = distancia;
-                          indiceInicioAlt = i;
-                        }
-                      }
-                      
-                      // Se encontrou um ponto próximo (dentro de ~100 metros), usar a partir dele
-                      // Caso contrário, usar toda a rota mas garantir que comece na última posição GPS
-                      if (menorDistanciaAlt < 0.001) { // ~111 metros
-                        // Remover todos os pontos antes do ponto mais próximo
-                        routeCoordsRestanteAltFinal = routeCoordsRestanteAltFinal.slice(indiceInicioAlt);
-                        console.log(`🔴 Removendo ${indiceInicioAlt} pontos anteriores à última posição GPS (alt)`);
-                      }
-                      
-                      // Garantir que o primeiro ponto seja EXATAMENTE a última posição GPS
-                      if (routeCoordsRestanteAltFinal.length > 0) {
-                        routeCoordsRestanteAltFinal[0] = [ultimaLat, ultimaLon];
-                        console.log(`🔴 Garantindo que a rota vermelha (alt) comece na última posição GPS exata: [${ultimaLat}, ${ultimaLon}]`);
-                      }
-                      
-                      linhaRotaRestante = L.polyline(routeCoordsRestanteAltFinal, {
-                        color: '#e74c3c',
-                        weight: 4,
-                        opacity: 0.8,
-                        dashArray: '5, 5'
-                      }).addTo(mapaRastreamento);
-                      
-                      linhaRotaRestante.bindPopup(`
-                        <div style="min-width: 200px;">
-                          <strong>🔴 Rota Restante</strong><br>
-                          <strong>Última Posição GPS → Destino</strong>
-                        </div>
-                      `);
-                      
-                      console.log(`✅ Rota restante calculada com servidor alternativo!`);
-                    }
-                  }
-                } catch (err) {
-                  console.warn('Erro ao calcular rota restante com servidor alternativo:', err);
-                }
+        const osrmResponseRestante = await fetch(rotaUrlRestante, {
+          signal: AbortSignal.timeout(20000)
+        });
+        
+        if (osrmResponseRestante.ok) {
+          const osrmDataRestante = await osrmResponseRestante.json();
+          const routeCoordsRestante = parsearRespostaRota(osrmDataRestante);
+          
+          if (routeCoordsRestante && routeCoordsRestante.length > 0) {
+            // Garantir que a linha vermelha comece EXATAMENTE na última posição GPS
+            // O OSRM pode retornar uma rota que começa antes da última posição GPS (ex: na origem)
+            // Precisamos encontrar o ponto mais próximo da última posição GPS e remover tudo antes dele
+            let routeCoordsRestanteFinal = [...routeCoordsRestante];
+            
+            // Encontrar o índice do ponto mais próximo da última posição GPS
+            let indiceInicio = 0;
+            let menorDistancia = Infinity;
+            
+            for (let i = 0; i < routeCoordsRestanteFinal.length; i++) {
+              const ponto = routeCoordsRestanteFinal[i];
+              const distancia = Math.sqrt(
+                Math.pow(ponto[0] - ultimaLat, 2) + 
+                Math.pow(ponto[1] - ultimaLon, 2)
+              );
+              if (distancia < menorDistancia) {
+                menorDistancia = distancia;
+                indiceInicio = i;
               }
-            } catch (osrmErr) {
-              console.warn('Erro ao calcular rota restante:', osrmErr);
             }
+            
+            // Se encontrou um ponto próximo (dentro de ~100 metros), usar a partir dele
+            // Caso contrário, usar toda a rota mas garantir que comece na última posição GPS
+            if (menorDistancia < 0.001) { // ~111 metros
+              // Remover todos os pontos antes do ponto mais próximo
+              routeCoordsRestanteFinal = routeCoordsRestanteFinal.slice(indiceInicio);
+              console.log(`🔴 Removendo ${indiceInicio} pontos anteriores à última posição GPS`);
+            }
+            
+            // Garantir que o primeiro ponto seja EXATAMENTE a última posição GPS
+            if (routeCoordsRestanteFinal.length > 0) {
+              routeCoordsRestanteFinal[0] = [ultimaLat, ultimaLon];
+              console.log(`🔴 Garantindo que a rota vermelha comece na última posição GPS exata: [${ultimaLat}, ${ultimaLon}]`);
+            }
+            
+            // Adicionar linha da rota restante (última posição → destino) em VERMELHO
+            linhaRotaRestante = L.polyline(routeCoordsRestanteFinal, {
+              color: '#e74c3c', // Vermelho
+              weight: 4,
+              opacity: 0.8,
+              dashArray: '5, 5' // Linha tracejada para diferenciar
+            }).addTo(mapaRastreamento);
+            
+            linhaRotaRestante.bindPopup(`
+              <div style="min-width: 200px;">
+                <strong>🔴 Rota Restante</strong><br>
+                <strong>Última Posição GPS → Destino</strong><br>
+                <strong>Distância restante:</strong> Calculando...
+              </div>
+            `);
+            
+            console.log(`✅ Rota restante calculada! (${routeCoordsRestante.length} pontos)`);
+          } else {
+            console.warn('⚠️  OSRM não retornou rota restante válida');
           }
-
-          // Adicionar marcador de origem
-          marcadorOrigemRastreamento = L.marker([coordsOrigem.lat, coordsOrigem.lon], {
-            icon: L.divIcon({
-              className: 'custom-marker origem-rastreamento',
-              html: '<div style="background: #2ecc71; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">🏁</div>',
-              iconSize: [30, 30],
-              iconAnchor: [15, 15]
-            })
-          }).addTo(mapaRastreamento)
-            .bindPopup(`
-              <div style="min-width: 200px;">
-                <strong>🏁 Origem</strong><br>
-                <strong>Cidade:</strong> ${dadosViagem.ORIGEM_CIDADE}, ${dadosViagem.ORIGEM_ESTADO}<br>
-                <strong>Coordenadas:</strong> ${coordsOrigem.lat.toFixed(6)}, ${coordsOrigem.lon.toFixed(6)}
-              </div>
-            `);
-
-          // Adicionar marcador de destino
-          marcadorDestinoRastreamento = L.marker([coordsDestino.lat, coordsDestino.lon], {
-            icon: L.divIcon({
-              className: 'custom-marker destino-rastreamento',
-              html: '<div style="background: #e74c3c; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">🏁</div>',
-              iconSize: [30, 30],
-              iconAnchor: [15, 15]
-            })
-          }).addTo(mapaRastreamento)
-            .bindPopup(`
-              <div style="min-width: 200px;">
-                <strong>🏁 Destino</strong><br>
-                <strong>Cidade:</strong> ${dadosViagem.DESTINO_CIDADE}, ${dadosViagem.DESTINO_ESTADO}<br>
-                <strong>Coordenadas:</strong> ${coordsDestino.lat.toFixed(6)}, ${coordsDestino.lon.toFixed(6)}
-              </div>
-            `);
+        } else {
+          // Tentar servidor alternativo
+          console.warn('⚠️  Tentando servidor alternativo para rota restante...');
+          const rotaUrlRestanteAlt = construirUrlRota(
+            config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv',
+            coordsStrRestante,
+            'full',
+            'geojson'
+          );
+          
+          try {
+            const osrmResponseRestanteAlt = await fetch(rotaUrlRestanteAlt, {
+              signal: AbortSignal.timeout(20000)
+            });
+            
+            if (osrmResponseRestanteAlt.ok) {
+              const osrmDataRestanteAlt = await osrmResponseRestanteAlt.json();
+              const routeCoordsRestanteAlt = parsearRespostaRota(osrmDataRestanteAlt);
+              
+              if (routeCoordsRestanteAlt && routeCoordsRestanteAlt.length > 0) {
+                // Garantir que a linha vermelha comece EXATAMENTE na última posição GPS
+                // O OSRM pode retornar uma rota que começa antes da última posição GPS (ex: na origem)
+                // Precisamos encontrar o ponto mais próximo da última posição GPS e remover tudo antes dele
+                let routeCoordsRestanteAltFinal = [...routeCoordsRestanteAlt];
+                
+                // Encontrar o índice do ponto mais próximo da última posição GPS
+                let indiceInicioAlt = 0;
+                let menorDistanciaAlt = Infinity;
+                
+                for (let i = 0; i < routeCoordsRestanteAltFinal.length; i++) {
+                  const ponto = routeCoordsRestanteAltFinal[i];
+                  const distancia = Math.sqrt(
+                    Math.pow(ponto[0] - ultimaLat, 2) + 
+                    Math.pow(ponto[1] - ultimaLon, 2)
+                  );
+                  if (distancia < menorDistanciaAlt) {
+                    menorDistanciaAlt = distancia;
+                    indiceInicioAlt = i;
+                  }
+                }
+                
+                // Se encontrou um ponto próximo (dentro de ~100 metros), usar a partir dele
+                // Caso contrário, usar toda a rota mas garantir que comece na última posição GPS
+                if (menorDistanciaAlt < 0.001) { // ~111 metros
+                  // Remover todos os pontos antes do ponto mais próximo
+                  routeCoordsRestanteAltFinal = routeCoordsRestanteAltFinal.slice(indiceInicioAlt);
+                  console.log(`🔴 Removendo ${indiceInicioAlt} pontos anteriores à última posição GPS (alt)`);
+                }
+                
+                // Garantir que o primeiro ponto seja EXATAMENTE a última posição GPS
+                if (routeCoordsRestanteAltFinal.length > 0) {
+                  routeCoordsRestanteAltFinal[0] = [ultimaLat, ultimaLon];
+                  console.log(`🔴 Garantindo que a rota vermelha (alt) comece na última posição GPS exata: [${ultimaLat}, ${ultimaLon}]`);
+                }
+                
+                linhaRotaRestante = L.polyline(routeCoordsRestanteAltFinal, {
+                  color: '#e74c3c',
+                  weight: 4,
+                  opacity: 0.8,
+                  dashArray: '5, 5'
+                }).addTo(mapaRastreamento);
+                
+                linhaRotaRestante.bindPopup(`
+                  <div style="min-width: 200px;">
+                    <strong>🔴 Rota Restante</strong><br>
+                    <strong>Última Posição GPS → Destino</strong>
+                  </div>
+                `);
+                
+                console.log(`✅ Rota restante calculada com servidor alternativo!`);
+              }
+            }
+          } catch (err) {
+            console.warn('Erro ao calcular rota restante com servidor alternativo:', err);
+          }
         }
-      } catch (err) {
-        console.warn('Erro ao buscar coordenadas de origem/destino:', err);
+      } catch (osrmErr) {
+        console.warn('Erro ao calcular rota restante:', osrmErr);
       }
+    }
+
+    // Adicionar marcadores de origem e destino (se coordenadas foram obtidas)
+    if (coordsOrigem && coordsDestino && dadosViagem) {
+      // Adicionar marcador de origem
+      marcadorOrigemRastreamento = L.marker([coordsOrigem.lat, coordsOrigem.lon], {
+        icon: L.divIcon({
+          className: 'custom-marker origem-rastreamento',
+          html: '<div style="background: #2ecc71; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">🏁</div>',
+          iconSize: [30, 30],
+          iconAnchor: [15, 15]
+        })
+      }).addTo(mapaRastreamento)
+        .bindPopup(`
+          <div style="min-width: 200px;">
+            <strong>🏁 Origem</strong><br>
+            <strong>Cidade:</strong> ${dadosViagem.ORIGEM_CIDADE}, ${dadosViagem.ORIGEM_ESTADO}<br>
+            <strong>Coordenadas:</strong> ${coordsOrigem.lat.toFixed(6)}, ${coordsOrigem.lon.toFixed(6)}
+          </div>
+        `);
+
+      // Adicionar marcador de destino
+      marcadorDestinoRastreamento = L.marker([coordsDestino.lat, coordsDestino.lon], {
+        icon: L.divIcon({
+          className: 'custom-marker destino-rastreamento',
+          html: '<div style="background: #e74c3c; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">🏁</div>',
+          iconSize: [30, 30],
+          iconAnchor: [15, 15]
+        })
+      }).addTo(mapaRastreamento)
+        .bindPopup(`
+          <div style="min-width: 200px;">
+            <strong>🏁 Destino</strong><br>
+            <strong>Cidade:</strong> ${dadosViagem.DESTINO_CIDADE}, ${dadosViagem.DESTINO_ESTADO}<br>
+            <strong>Coordenadas:</strong> ${coordsDestino.lat.toFixed(6)}, ${coordsDestino.lon.toFixed(6)}
+          </div>
+        `);
     }
 
     // Adicionar marcadores (usar posicoesOrdenadas para garantir ordem cronológica)
@@ -13626,7 +13830,19 @@ function getOverlayMostrado() {
     // Ajustar zoom para mostrar toda a rota (GPS + origem/destino)
     if (todasCoordenadas.length > 0) {
       mapaRastreamento.fitBounds(todasCoordenadas, { padding: [50, 50] });
+      
+      // Invalidar tamanho do mapa para garantir renderização correta
+      setTimeout(() => {
+        if (mapaRastreamento) {
+          mapaRastreamento.invalidateSize();
+        }
+      }, 100);
     }
+    
+    // Esconder overlay após finalizar mapa (com pequeno delay para garantir que tudo foi renderizado)
+    setTimeout(() => {
+      hideRastreamentoLoading();
+    }, 300);
   }
 
   // Exibir lista de posições

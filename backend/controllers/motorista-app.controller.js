@@ -1122,7 +1122,79 @@ const motoristaAppController = {
         return res.status(400).json({ error: 'ID da viagem é obrigatório.' });
       }
 
+      console.log(`🔍 [RASTREAMENTO] Buscando posições para viagem: ${idviagem} (tipo: ${typeof idviagem})`);
+
       const pool = await poolPromise;
+      
+      // DEBUG: Verificar se há registros na tabela antes de fazer a query principal
+      // Testar com diferentes tipos de dados para garantir compatibilidade
+      try {
+        // Teste 1: Com Decimal
+        const debugRequest = pool.request();
+        debugRequest.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
+        const debugResult = await debugRequest.query(`
+          SELECT COUNT(*) as total
+          FROM [dbo].[VIAGEMRASTREAMENTO]
+          WHERE IDVIAGEM = @idviagem
+        `);
+        const totalDebug = debugResult.recordset[0].total;
+        console.log(`🔍 [DEBUG] Total de registros na tabela VIAGEMRASTREAMENTO para IDVIAGEM = ${idviagem} (Decimal): ${totalDebug}`);
+        
+        // Teste 2: Com Int (caso o campo seja Int)
+        if (totalDebug === 0) {
+          try {
+            const debugRequest2 = pool.request();
+            debugRequest2.input('idviagem', sql.Int, parseInt(idviagem));
+            const debugResult2 = await debugRequest2.query(`
+              SELECT COUNT(*) as total
+              FROM [dbo].[VIAGEMRASTREAMENTO]
+              WHERE IDVIAGEM = @idviagem
+            `);
+            const totalDebug2 = debugResult2.recordset[0].total;
+            console.log(`🔍 [DEBUG] Total de registros na tabela VIAGEMRASTREAMENTO para IDVIAGEM = ${idviagem} (Int): ${totalDebug2}`);
+          } catch (err2) {
+            console.log(`🔍 [DEBUG] Teste com Int falhou: ${err2.message}`);
+          }
+        }
+        
+        // Teste 3: Direto com string (sem parâmetro)
+        if (totalDebug === 0) {
+          try {
+            const debugResult3 = await pool.request().query(`
+              SELECT COUNT(*) as total
+              FROM [dbo].[VIAGEMRASTREAMENTO]
+              WHERE IDVIAGEM = ${parseFloat(idviagem)}
+            `);
+            const totalDebug3 = debugResult3.recordset[0].total;
+            console.log(`🔍 [DEBUG] Total de registros na tabela VIAGEMRASTREAMENTO para IDVIAGEM = ${idviagem} (direto): ${totalDebug3}`);
+          } catch (err3) {
+            console.log(`🔍 [DEBUG] Teste direto falhou: ${err3.message}`);
+          }
+        }
+        
+        if (totalDebug > 0) {
+          // Buscar amostra de registros para verificar estrutura
+          const sampleRequest = pool.request();
+          sampleRequest.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
+          const sampleResult = await sampleRequest.query(`
+            SELECT TOP 3
+              IDVIAGEM,
+              SEQUENCIA,
+              LATITUDE,
+              LONGITUDE,
+              DHPOSICAO,
+              DHREGISTRO,
+              CDCADASTRO
+            FROM [dbo].[VIAGEMRASTREAMENTO]
+            WHERE IDVIAGEM = @idviagem
+            ORDER BY ISNULL(DHPOSICAO, DHREGISTRO) DESC
+          `);
+          console.log(`🔍 [DEBUG] Amostra de registros:`, JSON.stringify(sampleResult.recordset, null, 2));
+        }
+      } catch (debugErr) {
+        console.error('❌ [DEBUG] Erro ao verificar tabela:', debugErr.message);
+        console.error('❌ [DEBUG] Stack:', debugErr.stack);
+      }
 
       // Buscar motorista da viagem (mesmo que não tenha posições GPS)
       let motoristaViagem = null;
@@ -1224,32 +1296,14 @@ const motoristaAppController = {
         return res.status(404).json({ error: 'Tabela de rastreamento não encontrada.' });
       }
 
-      // Buscar data de início prevista da viagem para filtrar posições (2 horas antes)
+      // REMOVIDO: Filtro de data que estava excluindo posições válidas
+      // Mostrar TODAS as posições GPS da viagem, independente da data
       let dataLimite = null;
-      try {
-        const viagemResult = await pool
-          .request()
-          .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
-          .query(`
-            SELECT DTPREVINICIO
-            FROM [dbo].[VIAGEMMESTRE]
-            WHERE IDVIAGEM = @idviagem
-          `);
-        
-        if (viagemResult.recordset.length > 0 && viagemResult.recordset[0].DTPREVINICIO) {
-          const dataInicio = new Date(viagemResult.recordset[0].DTPREVINICIO);
-          // Filtrar posições até 2 horas ANTES da data de início prevista
-          // Exemplo: se início é 15/12/2025 05:00, mostrar apenas posições até 15/12/2025 03:00
-          dataLimite = new Date(dataInicio.getTime() - (2 * 60 * 60 * 1000));
-          // Logs removidos
-        } else {
-          console.log('⚠️  Data de início prevista não encontrada. Mostrando todas as posições.');
-        }
-      } catch (err) {
-        console.warn('⚠️  Erro ao buscar data de início prevista:', err.message);
-        console.warn('⚠️  Continuando sem filtro de data - mostrando todas as posições');
-        // Continuar sem filtro de data se não conseguir buscar
-      }
+      
+      // O filtro de data foi removido porque estava causando problemas:
+      // - Excluía posições válidas quando a viagem já havia começado
+      // - Não mostrava posições mais recentes que a data de início prevista
+      // - Causava confusão ao mostrar "0 posições" quando havia dados no banco
 
       // Buscar posições GPS da viagem - adaptar query conforme a tabela encontrada
       let result;
@@ -1269,6 +1323,8 @@ const motoristaAppController = {
         const cdMotorista = motoristaViagemQuery.recordset.length > 0 
           ? motoristaViagemQuery.recordset[0].CDMOTORISTA 
           : null;
+        
+        console.log(`🔍 [RASTREAMENTO] Motorista encontrado: ${cdMotorista ? cdMotorista : 'Nenhum'}`);
 
         const request = pool.request();
         request.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
@@ -1319,35 +1375,7 @@ const motoristaAppController = {
             ORDER BY ISNULL(vr.DHPOSICAO, vr.DHREGISTRO) ASC
           `);
           
-          console.log(`📊 Query VIAGEMRASTREAMENTO executada. Filtro: ${filtroData || 'NENHUM'}. Registros encontrados: ${result.recordset.length}`);
-          if (result.recordset.length === 0 && dataLimite) {
-            console.warn(`⚠️  Nenhuma posição encontrada com filtro. Verificando total sem filtro...`);
-            // Testar sem filtro para debug
-            const testRequest = pool.request();
-            testRequest.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
-            const testResult = await testRequest.query(`
-              SELECT COUNT(*) as total 
-              FROM [dbo].[VIAGEMRASTREAMENTO] 
-              WHERE IDVIAGEM = @idviagem
-            `);
-            const totalSemFiltro = testResult.recordset[0].total;
-            // Log removido
-            if (totalSemFiltro > 0) {
-              // Verificar algumas posições para ver as datas
-              const sampleRequest = pool.request();
-              sampleRequest.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
-              const sampleResult = await sampleRequest.query(`
-                SELECT TOP 5 
-                  ISNULL(vr.DHPOSICAO, vr.DHREGISTRO) AS DATA_POSICAO,
-                  vr.SEQUENCIA
-                FROM [dbo].[VIAGEMRASTREAMENTO] vr
-                WHERE vr.IDVIAGEM = @idviagem
-                ORDER BY ISNULL(vr.DHPOSICAO, vr.DHREGISTRO) DESC
-              `);
-              console.log(`📅 Últimas 5 posições (mais recentes):`, sampleResult.recordset);
-              console.log(`📅 Data limite do filtro: ${dataLimite.toISOString()}`);
-            }
-          }
+          console.log(`📊 Query VIAGEMRASTREAMENTO executada. Registros encontrados: ${result.recordset.length}`);
         } else {
           result = await request.query(`
             SELECT 
@@ -1398,23 +1426,17 @@ const motoristaAppController = {
               // Logs removidos
             }
           }
-          console.log(`📊 Total de registros encontrados: ${result.recordset.length}`);
+          console.log(`📊 Total de registros encontrados (sem motorista): ${result.recordset.length}`);
         }
-      } else {
-        // Tabela VIAGEM_RASTREAMENTO (estrutura nova)
-        try {
-          const request2 = pool.request();
-          request2.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
-          
-          // Adicionar filtro de data limite se disponível
-          if (dataLimite) {
-            request2.input('dataLimite', sql.DateTime, dataLimite);
-          }
-          
-          // Filtrar apenas posições até 2 horas antes da data de início prevista
-          const filtroData2 = dataLimite 
-            ? `AND vr.DHREGISTRO <= @dataLimite`
-            : '';
+        } else {
+          // Tabela VIAGEM_RASTREAMENTO (estrutura nova)
+          try {
+            const request2 = pool.request();
+            request2.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
+            
+            // REMOVIDO: Filtro de data que estava excluindo posições válidas
+            // Mostrar TODAS as posições GPS da viagem
+            const filtroData2 = '';
           
           result = await request2.query(`
               SELECT 
@@ -1527,12 +1549,33 @@ const motoristaAppController = {
       }
 
       // Sempre retornar array, mesmo se vazio
-      // Log removido
-      if (posicoes.length === 0 && dataLimite) {
-        console.warn(`⚠️  Nenhuma posição encontrada. Verifique se o filtro de data (até ${dataLimite.toISOString()}) não está muito restritivo.`);
+      if (posicoes.length === 0) {
+        console.warn(`⚠️  Nenhuma posição encontrada para a viagem ${idviagem}. Verifique se há registros na tabela VIAGEMRASTREAMENTO.`);
+        
+        // DEBUG: Verificar novamente se há registros na tabela
+        try {
+          const finalCheckRequest = pool.request();
+          finalCheckRequest.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
+          const finalCheckResult = await finalCheckRequest.query(`
+            SELECT COUNT(*) as total
+            FROM [dbo].[VIAGEMRASTREAMENTO]
+            WHERE IDVIAGEM = @idviagem
+          `);
+          const totalFinal = finalCheckResult.recordset[0].total;
+          console.log(`🔍 [DEBUG FINAL] Total de registros na tabela VIAGEMRASTREAMENTO para IDVIAGEM = ${idviagem}: ${totalFinal}`);
+          
+          if (totalFinal > 0) {
+            console.error(`❌ [ERRO] Há ${totalFinal} registros na tabela, mas a query retornou 0. Verifique a query SQL!`);
+          }
+        } catch (checkErr) {
+          console.error('❌ [DEBUG FINAL] Erro ao verificar:', checkErr.message);
+        }
+      } else {
+        console.log(`✅ ${posicoes.length} posições GPS encontradas para a viagem ${idviagem}`);
       }
       
       // Retornar objeto com posições filtradas e última posição geral
+      console.log(`✅ [API] Retornando ${posicoes.length} posições para viagem ${idviagem}`);
       res.json({
         posicoes: posicoes,
         ultimaPosicaoGeral: ultimaPosicaoGeral
@@ -1547,10 +1590,13 @@ const motoristaAppController = {
         stack: err.stack
       });
       
-      // Retornar array vazio em caso de erro, para não quebrar o frontend
+      // Retornar objeto vazio (não array) em caso de erro, para manter formato consistente
       // O frontend já trata array vazio mostrando mensagem apropriada
-      console.warn('⚠️ Retornando array vazio devido ao erro');
-      res.json([]);
+      console.warn('⚠️ Retornando objeto vazio devido ao erro');
+      res.json({
+        posicoes: [],
+        ultimaPosicaoGeral: null
+      });
     }
   },
 
