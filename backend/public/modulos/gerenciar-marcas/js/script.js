@@ -14,6 +14,11 @@
 
   // Funções para controlar overlay de carregamento do init.sql
   function showLoadingOverlayInitSQL(titulo = 'Processando Inicialização', texto = 'Executando scripts de inicialização...', detalhe = 'Isso pode levar alguns segundos.') {
+    // Usar função global se disponível, senão usar local
+    if (typeof window.showLoadingOverlayInitSQL === 'function') {
+      window.showLoadingOverlayInitSQL(titulo, texto, detalhe);
+      return;
+    }
     const overlay = document.getElementById('loadingOverlayInitSQL');
     const loadingTitle = document.getElementById('loadingTitleInitSQL');
     const loadingText = document.getElementById('loadingTextInitSQL');
@@ -28,6 +33,11 @@
   }
 
   function hideLoadingOverlayInitSQL() {
+    // Usar função global se disponível, senão usar local
+    if (typeof window.hideLoadingOverlayInitSQL === 'function') {
+      window.hideLoadingOverlayInitSQL();
+      return;
+    }
     const overlay = document.getElementById('loadingOverlayInitSQL');
     if (overlay) {
       overlay.style.display = 'none';
@@ -44,6 +54,7 @@
     
     // Se a função padrão estiver disponível, usar ela
     if (typeof window.executarInitSQLPadrao === 'function') {
+      console.log('[Marcas] Usando executarInitSQLPadrao do helper');
       await window.executarInitSQLPadrao(
         '/modulos/gerenciar-marcas/sql/init.sql',
         '/api/marcas/executar-init-sql',
@@ -52,6 +63,8 @@
       sqlExecutado = true;
       return;
     }
+    
+    console.log('[Marcas] Usando implementação local do init.sql');
     
     // Fallback: implementação local (compatibilidade)
     sqlExecutado = true;
@@ -167,8 +180,11 @@
     // IMPORTANTE: Executar SQL de inicialização (init.sql) se existir
     // e AGUARDAR completamente antes de prosseguir
     try {
+      console.log('[Marcas] Iniciando execução do init.sql...');
       await executarInitSQL();
+      console.log('[Marcas] Execução do init.sql concluída.');
     } catch (err) {
+      console.error('[Marcas] Erro ao executar init.sql:', err);
       // Erros silenciosos - não bloquear o módulo
     }
     
@@ -199,16 +215,28 @@
         return;
       }
 
+      // Aguardar um pouco para garantir que GridEditor está disponível (caso ainda esteja carregando)
+      let tentativas = 0;
+      while (typeof window.GridEditor === 'undefined' && tentativas < 10) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        tentativas++;
+      }
+
       if (typeof window.GridEditor === 'undefined') {
-        try { await loadScript('/js/grid-editor.js'); } catch (e) { }
+        console.error('[Marcas] GridEditor não está disponível após aguardar');
+        try { await loadScript('/js/grid-editor.js'); } catch (e) {
+          console.error('[Marcas] Erro ao carregar GridEditor:', e);
+        }
       }
 
       if (typeof window.GridEditor !== 'undefined') {
         if (!gridTab) inicializarGridTab();
-        try {
-          gridTab.render(lastMarcas || []);
-        } catch (e) {
-          console.error('[Grid] erro ao renderizar grid na aba:', e);
+        if (gridTab) {
+          try {
+            gridTab.render(lastMarcas || []);
+          } catch (e) {
+            console.error('[Grid] erro ao renderizar grid na aba:', e);
+          }
         }
       }
     }
@@ -355,11 +383,11 @@
     });
   }
 
-  // Carrega um script dinamicamente e aguarda o carregamento
+  // Carregar script dinamicamente (fallback caso não esteja no HTML)
   function loadScript(src) {
     return new Promise((resolve, reject) => {
       // Verificar se GridEditor já está disponível globalmente
-      if (typeof GridEditor !== 'undefined') {
+      if (typeof window.GridEditor !== 'undefined') {
         resolve();
         return;
       }
@@ -371,7 +399,7 @@
         script.onload = () => {
           // Aguardar um pouco para garantir que GridEditor está disponível
           setTimeout(() => {
-            if (typeof GridEditor !== 'undefined') {
+            if (typeof window.GridEditor !== 'undefined') {
               resolve();
             } else {
               reject(new Error('GridEditor não foi carregado'));
@@ -388,7 +416,7 @@
         // Se o script existe, aguardar ele carregar
         let tentativas = 0;
         const checkInterval = setInterval(() => {
-          if (typeof GridEditor !== 'undefined') {
+          if (typeof window.GridEditor !== 'undefined') {
             clearInterval(checkInterval);
             resolve();
           } else if (tentativas++ > 20) {
@@ -408,7 +436,13 @@
 
   // Inicializar GridEditor
   function inicializarGridTab() {
-    gridTab = new GridEditor({
+    // GridEditor já é carregado globalmente pelo HTML
+    if (typeof window.GridEditor === 'undefined') {
+      console.error('[Marcas] GridEditor não está disponível');
+      return;
+    }
+
+    gridTab = new window.GridEditor({
       container: '#marcasGrid',
       columns: [
         { field: 'CDMARCAEQUIPAMENTO', header: 'Código', editable: false, isId: true, width: '80px' },
@@ -664,6 +698,67 @@
       message.textContent = text;
       message.className = `message ${type} show`;
       setTimeout(() => message.className = 'message', 5000);
+    }
+  };
+
+  // Função de ajuda
+  window.mostrarAjudaMarcas = function() {
+    // Remover qualquer modal de ajuda existente primeiro
+    const modalExistente = document.getElementById('modalAjudaMarcas');
+    if (modalExistente) {
+      modalExistente.remove();
+    }
+    
+    // Criar modal de ajuda com padrão único
+    const modal = document.createElement('div');
+    modal.id = 'modalAjudaMarcas';
+    modal.className = 'modal-tratamento';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+      <div class="modal-content-tratamento">
+        <div class="modal-header-tratamento">
+          <h3><i class='bx bx-help-circle'></i> Ajuda - Gerenciar Marcas de Equipamento</h3>
+          <button onclick="window.fecharModalAjudaMarcas()" class="btn-close-modal" type="button">
+            <i class='bx bx-x'></i>
+          </button>
+        </div>
+        <div class="modal-body-tratamento">
+          <h4>📋 Sobre o Módulo</h4>
+          <p>O módulo <strong>Gerenciar Marcas de Equipamento</strong> permite gerenciar as marcas de equipamentos cadastradas no sistema.</p>
+          
+          <h4>🔍 Filtros</h4>
+          <p>Use os filtros para buscar marcas específicas por código, descrição ou situação (Ativo/Inativo).</p>
+          
+          <h4>📝 Funcionalidades</h4>
+          <ul>
+            <li><strong>Filtros:</strong> Buscar e filtrar marcas de equipamentos</li>
+            <li><strong>Grid:</strong> Visualizar marcas em formato de tabela com opções de edição e exclusão</li>
+            <li><strong>Dados:</strong> Criar e editar marcas de equipamentos</li>
+          </ul>
+          
+          <h4>✨ Dicas</h4>
+          <ul>
+            <li>Para criar uma nova marca, clique em "Novo Registro" na aba Grid ou Dados</li>
+            <li>Para editar uma marca existente, clique no botão de editar (✎) na coluna Ações do grid</li>
+            <li>Para desativar uma marca, edite-a e altere a situação para "Inativo"</li>
+            <li>Marcas inativas não aparecerão em seleções de novos cadastros</li>
+          </ul>
+        </div>
+        <div class="modal-footer-tratamento">
+          <button onclick="window.fecharModalAjudaMarcas()" class="btn btn-secondary">
+            <i class='bx bx-x'></i> Fechar
+          </button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+  };
+
+  window.fecharModalAjudaMarcas = function() {
+    const modal = document.getElementById('modalAjudaMarcas');
+    if (modal) {
+      modal.remove();
     }
   };
 })();

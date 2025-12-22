@@ -272,7 +272,7 @@
             <h1>📚 Documentação Completa do Sistema</h1>
             <p><strong>Sistema DivulgaCarga - Gestão Completa de Transportes</strong></p>
             <p>Documentação técnica completa com arquitetura, módulos, APIs, componentes e padrões de desenvolvimento</p>
-            <span class="version">Versão 1.3.0 | Última atualização: 24 de Novembro de 2025</span>
+            <span class="version">Versão 1.4.0 | Última atualização: 22 de Dezembro de 2025</span>
         </div>
 
         <!-- Índice -->
@@ -911,6 +911,73 @@ Frontend (Render)</code></pre>
                     <li>Suporte a múltiplos pontos intermediários</li>
                 </ul>
             </div>
+
+            <h3>5.10. Logs de Acesso</h3>
+            <div class="module-card">
+                <h4><span class="icon">📊</span> Logs de Acesso</h4>
+                <p><strong>Descrição:</strong> Sistema completo de monitoramento e análise de acessos ao sistema, incluindo estatísticas por operador, módulos mais acessados e detalhes de sessões.</p>
+                <p><strong>Tabelas:</strong></p>
+                <ul>
+                    <li><code>USUARIOLOGACESSO</code> - Logs de acesso/login (SGUSUARIO, DHLOGIN, DHLOGOUT, TEMPOSESSAO)</li>
+                    <li><code>USUARIOLOGACAO</code> - Logs de ações realizadas (SGUSUARIO, DHACAO, TIPOACAO, MODULO, DESCRICAO)</li>
+                </ul>
+                <p><strong>Funcionalidades Principais:</strong></p>
+                <ul>
+                    <li>✅ Filtros por data (início/fim) e operador</li>
+                    <li>✅ Combo box dinâmico de operadores (carregado do banco)</li>
+                    <li>✅ Cards de resumo com estatísticas gerais (Total de Acessos, Tempo Total Logado, Módulos Acessados, Ações Registradas)</li>
+                    <li>✅ Tabela de Estatísticas por Operador com ordenação client-side:
+                        <ul>
+                            <li>Operador (em UPPERCASE)</li>
+                            <li>Total de Acessos</li>
+                            <li>Tempo Logado (formatado em horas/minutos)</li>
+                            <li>Módulos únicos acessados</li>
+                            <li>Total de Ações</li>
+                            <li>Último Acesso (data/hora)</li>
+                            <li>Última Ação (data/hora)</li>
+                        </ul>
+                    </li>
+                    <li>✅ Tabela de Top Módulos Mais Acessados com ordenação client-side:
+                        <ul>
+                            <li>Módulo</li>
+                            <li>Total de Acessos</li>
+                            <li>Último Acesso</li>
+                        </ul>
+                    </li>
+                    <li>✅ Formatação correta de datas/horas (sem conversão de fuso horário)</li>
+                    <li>✅ Ordenação visual com indicadores (▲/▼) nas colunas</li>
+                </ul>
+                <p><strong>Rotas API:</strong></p>
+                <ul>
+                    <li><span class="endpoint method-get">GET /api/logs-acesso</span> - Listar logs de acesso com filtros (dataInicio, dataFim, operador)</li>
+                    <li><span class="endpoint method-get">GET /api/logs-acesso/acoes</span> - Listar logs de ações com filtros</li>
+                    <li><span class="endpoint method-get">GET /api/logs-acesso/operadores</span> - Listar todos os operadores únicos (em UPPERCASE)</li>
+                    <li><span class="endpoint method-post">POST /api/logs-acesso/executar-init-sql</span> - Executar init.sql do módulo</li>
+                </ul>
+                <p><strong>Características Técnicas:</strong></p>
+                <ul>
+                    <li>Formatação de data/hora customizada (processa strings SQL Server diretamente)</li>
+                    <li>Ordenação client-side com suporte a números, texto e datas</li>
+                    <li>Agregação de dados por operador e módulo</li>
+                    <li>Cálculo de tempo total logado (soma de TEMPOSESSAO em minutos)</li>
+                    <li>Identificação de módulos únicos por operador</li>
+                    <li>Tratamento de timezone (sem conversão, mantém horário do servidor)</li>
+                </ul>
+                <p><strong>Estrutura de Abas:</strong></p>
+                <ol>
+                    <li><strong>Filtros:</strong> Data Início, Data Fim, Operador (combo box)</li>
+                    <li><strong>Resumo:</strong> Cards de estatísticas e tabelas ordenáveis</li>
+                </ol>
+            </div>
+
+            <h3>5.11. Mapa de Viagem</h3>
+            <div class="module-card">
+                <h4><span class="icon">🗺️</span> Mapa de Viagem</h4>
+                <p><strong>Descrição:</strong> Módulo para visualização de viagens em mapa (em desenvolvimento).</p>
+                <p><strong>Status:</strong> Estrutura básica criada, funcionalidades em desenvolvimento.</p>
+                <p><strong>CDTIPOATIVIDADE:</strong> 30</p>
+                <p><strong>DSPROGRAMA:</strong> <code>gerenciar-mapa-viagem</code></p>
+            </div>
         </div>
 
         <!-- 6. APIs e Endpoints -->
@@ -1299,7 +1366,229 @@ const distancia = (data.routes[0].distance / 1000).toFixed(2); // km</code></pre
                 <strong>✅ Padrão:</strong> Todos os módulos do sistema utilizam o mesmo sistema de mensagens toast, garantindo consistência visual e experiência do usuário uniforme em todo o sistema.
             </div>
 
-            <h3>7.3. Sistema de Links do WhatsApp</h3>
+            <h3>7.3. Sistema de Modais Padronizados (Padrão TOP)</h3>
+            <p><strong>Versão:</strong> 2.0 - Padronização Completa (Janeiro 2025)</p>
+            <p>Todos os modais do sistema seguem o <strong>Padrão TOP</strong>, baseado nos modais dos módulos SOS e Alertas, garantindo consistência visual e experiência profissional em todo o sistema.</p>
+
+            <div class="success-box">
+                <strong>✅ Padrão Aplicado:</strong> Todos os modais do sistema utilizam o mesmo padrão visual profissional, garantindo uma experiência consistente e agradável para o usuário.
+            </div>
+
+            <h4>7.3.1. Estrutura do Modal Padrão</h4>
+            <div class="code-block">
+<pre><code>&lt;!-- Modal Padrão TOP --&gt;
+&lt;div id="modalExemplo" class="modal-tratamento" style="display: none;"&gt;
+  &lt;div class="modal-content-tratamento" style="max-width: 700px;"&gt;
+    &lt;!-- Cabeçalho --&gt;
+    &lt;div class="modal-header-tratamento"&gt;
+      &lt;h3&gt;Título do Modal&lt;/h3&gt;
+      &lt;button type="button" class="close-modal" onclick="fecharModal()"&gt;
+        &lt;i class='bx bx-x'&gt;&lt;/i&gt;
+      &lt;/button&gt;
+    &lt;/div&gt;
+    
+    &lt;!-- Corpo --&gt;
+    &lt;div&gt;
+      &lt;!-- Conteúdo do modal --&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/div&gt;</code></pre>
+            </div>
+
+            <h4>7.3.2. Características do Padrão TOP</h4>
+            <div class="grid-2">
+                <div class="module-card">
+                    <h4><span class="icon">🎨</span> Design Profissional</h4>
+                    <ul>
+                        <li>✅ Header simples sem gradiente (fundo branco)</li>
+                        <li>✅ Título em #2c3e50, 24px, sem emojis</li>
+                        <li>✅ Botão fechar com ícone Boxicons (X)</li>
+                        <li>✅ Borda inferior no header (#e9ecef)</li>
+                        <li>✅ Padding de 30px no conteúdo</li>
+                        <li>✅ Border-radius de 12px</li>
+                        <li>✅ Box-shadow suave e profissional</li>
+                    </ul>
+                </div>
+                <div class="module-card">
+                    <h4><span class="icon">📱</span> Totalmente Responsivo</h4>
+                    <ul>
+                        <li>✅ Breakpoint Tablet (≤768px)</li>
+                        <li>✅ Breakpoint Mobile (≤480px)</li>
+                        <li>✅ Grids adaptativos (3 colunas → 1 coluna)</li>
+                        <li>✅ Botões empilhados verticalmente</li>
+                        <li>✅ Header com botão fechar absoluto</li>
+                        <li>✅ Padding reduzido em telas pequenas</li>
+                        <li>✅ Cards de validade adaptativos</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h4>7.3.3. Classes CSS do Modal Padrão</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Classe</th>
+                        <th>Descrição</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>.modal-tratamento</code></td>
+                        <td>Container principal do modal (overlay com fundo escuro)</td>
+                    </tr>
+                    <tr>
+                        <td><code>.modal-content-tratamento</code></td>
+                        <td>Conteúdo do modal (fundo branco, padding 30px, border-radius 12px)</td>
+                    </tr>
+                    <tr>
+                        <td><code>.modal-header-tratamento</code></td>
+                        <td>Header do modal (título + botão fechar, borda inferior)</td>
+                    </tr>
+                    <tr>
+                        <td><code>.close-modal</code></td>
+                        <td>Botão de fechar (ícone X, hover suave)</td>
+                    </tr>
+                    <tr>
+                        <td><code>.validade-datas-grid</code></td>
+                        <td>Grid responsivo para campos de data (2 colunas → 1 coluna)</td>
+                    </tr>
+                    <tr>
+                        <td><code>.certificadora-busca-grid</code></td>
+                        <td>Grid responsivo para busca de certificadora (3 colunas → 1 coluna)</td>
+                    </tr>
+                    <tr>
+                        <td><code>.validade-card</code></td>
+                        <td>Card de validade responsivo (barra lateral → superior em mobile)</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h4>7.3.4. Modais Padronizados</h4>
+            <ul>
+                <li>✅ <strong>Editar Validade</strong> (Gerenciar Cadastro Geral)</li>
+                <li>✅ <strong>Editar Validade</strong> (Gerenciar Equipamentos)</li>
+                <li>✅ <strong>Validades do Motorista</strong> (Gerenciar Viagens)</li>
+                <li>✅ <strong>Validades do Veículo</strong> (Gerenciar Viagens)</li>
+                <li>✅ <strong>Dados Completos do Veículo</strong> (Gerenciar Viagens)</li>
+                <li>✅ <strong>Dados Completos do Motorista</strong> (Gerenciar Viagens)</li>
+                <li>✅ <strong>Tratar Alerta SOS</strong> (Módulo SOS)</li>
+                <li>✅ <strong>Tratar Alerta</strong> (Módulo Alertas)</li>
+            </ul>
+
+            <h4>7.3.5. Exemplo de Uso - Modal de Formulário</h4>
+            <div class="code-block">
+<pre><code>// HTML
+&lt;div id="modalValidade" class="modal-tratamento" style="display: none;"&gt;
+  &lt;div class="modal-content-tratamento" style="max-width: 700px;"&gt;
+    &lt;div class="modal-header-tratamento"&gt;
+      &lt;h3 id="modalTitulo"&gt;Nova Validade&lt;/h3&gt;
+      &lt;button type="button" class="close-modal" onclick="fecharModal()"&gt;
+        &lt;i class='bx bx-x'&gt;&lt;/i&gt;
+      &lt;/button&gt;
+    &lt;/div&gt;
+    &lt;form id="formValidade"&gt;
+      &lt;div style="margin-bottom: 20px;"&gt;
+        &lt;label style="display: block; margin-bottom: 8px; font-weight: 600; color: #2c3e50; font-size: 14px;"&gt;
+          &lt;i class='bx bx-file-blank' style="margin-right: 6px;"&gt;&lt;/i&gt; Tipo de Validade *
+        &lt;/label&gt;
+        &lt;select id="validadeTipo" required class="form-control"&gt;
+          &lt;option value=""&gt;Selecione...&lt;/option&gt;
+        &lt;/select&gt;
+      &lt;/div&gt;
+      &lt;div style="padding-top: 20px; border-top: 2px solid #e9ecef; display: flex; gap: 12px; justify-content: flex-end;"&gt;
+        &lt;button type="button" class="btn btn-secondary"&gt;
+          &lt;i class='bx bx-x'&gt;&lt;/i&gt; Cancelar
+        &lt;/button&gt;
+        &lt;button type="submit" class="btn btn-primary"&gt;
+          &lt;i class='bx bx-save'&gt;&lt;/i&gt; Salvar
+        &lt;/button&gt;
+      &lt;/div&gt;
+    &lt;/form&gt;
+  &lt;/div&gt;
+&lt;/div&gt;
+
+// JavaScript - Abrir modal
+document.getElementById('modalValidade').style.display = 'flex';
+
+// JavaScript - Fechar modal
+function fecharModal() {
+  document.getElementById('modalValidade').style.display = 'none';
+}</code></pre>
+            </div>
+
+            <h4>7.3.6. Cards de Validade Responsivos</h4>
+            <p>Os cards de validade utilizam um layout adaptativo que se ajusta automaticamente ao tamanho da tela:</p>
+            <ul>
+                <li><strong>Desktop:</strong> Barra lateral colorida à esquerda (5px de largura)</li>
+                <li><strong>Mobile:</strong> Barra lateral vira barra superior (5px de altura)</li>
+                <li><strong>Layout:</strong> Informações empilhadas verticalmente em telas pequenas</li>
+                <li><strong>Botões:</strong> Largura total em mobile</li>
+            </ul>
+
+            <div class="code-block">
+<pre><code>// Estrutura do card de validade
+&lt;div class="validade-card" style="display: flex; min-height: 120px;"&gt;
+  &lt;div style="width: 5px; background: ${corStatus};"&gt;&lt;/div&gt;
+  &lt;div style="flex: 1; padding: 16px 18px;"&gt;
+    &lt;div class="validade-card-header"&gt;
+      &lt;!-- Título e badges --&gt;
+    &lt;/div&gt;
+    &lt;div class="validade-card-footer"&gt;
+      &lt;!-- Datas e observações --&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+&lt;/div&gt;</code></pre>
+            </div>
+
+            <h4>7.3.7. Media Queries Responsivas</h4>
+            <div class="code-block">
+<pre><code>/* Tablet (≤768px) */
+@media (max-width: 768px) {
+  .modal-content-tratamento {
+    width: 95%;
+    padding: 20px;
+    margin: 10px;
+  }
+  
+  .modal-header-tratamento {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .close-modal {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+  }
+  
+  .validade-datas-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .certificadora-busca-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Mobile (≤480px) */
+@media (max-width: 480px) {
+  .modal-content-tratamento {
+    padding: 15px;
+    margin: 5px;
+  }
+  
+  .modal-header-tratamento h3 {
+    font-size: 18px;
+    padding-right: 40px;
+  }
+}</code></pre>
+            </div>
+
+            <div class="info-box">
+                <strong>💡 Dica:</strong> Sempre use a classe <code>.modal-tratamento</code> para novos modais. Isso garante que eles sigam automaticamente o padrão TOP e sejam responsivos.
+            </div>
+
+            <h3>7.4. Sistema de Links do WhatsApp</h3>
             <p><strong>Funcionalidade:</strong> Números de celular são automaticamente convertidos em links clicáveis que abrem o WhatsApp</p>
             <p><strong>Onde é usado:</strong></p>
             <ul>
@@ -1488,6 +1777,16 @@ const distancia = (data.routes[0].distance / 1000).toFixed(2); // km</code></pre
                         <td>Convocações enviadas aos motoristas</td>
                         <td>IDCONVOCACAO</td>
                     </tr>
+                    <tr>
+                        <td><code>USUARIOLOGACESSO</code></td>
+                        <td>Logs de acesso/login dos usuários</td>
+                        <td>SGUSUARIO, DHLOGIN (composta)</td>
+                    </tr>
+                    <tr>
+                        <td><code>USUARIOLOGACAO</code></td>
+                        <td>Logs de ações realizadas pelos usuários</td>
+                        <td>IDLOG (auto-incremento)</td>
+                    </tr>
                 </tbody>
             </table>
             <div class="info-box">
@@ -1521,8 +1820,49 @@ const distancia = (data.routes[0].distance / 1000).toFixed(2); // km</code></pre
             <h3>9.1. Arquivos CSS</h3>
             <ul>
                 <li><code>modulos.css</code> - Estilos compartilhados entre todos os módulos</li>
-                <li><code>dashboard.css</code> - Estilos específicos do dashboard</li>
+                <li><code>dashboard.css</code> - Estilos específicos do dashboard (inclui cards de estatísticas, links rápidos, alertas)</li>
                 <li><code>style.css</code> - Estilos da página de login</li>
+            </ul>
+
+            <h3>9.1.1. Dashboard - Tela Inicial Melhorada</h3>
+            <p><strong>Funcionalidades:</strong></p>
+            <ul>
+                <li>✅ <strong>Carregamento Automático:</strong> Tela inicial carrega automaticamente após login</li>
+                <li>✅ <strong>Cards de Estatísticas:</strong> 4 cards informativos com dados em tempo real:
+                    <ul>
+                        <li>Total de Viagens</li>
+                        <li>Viagens Pendentes (com alerta visual se > 0)</li>
+                        <li>Convocações Pendentes (com alerta visual se > 0)</li>
+                        <li>Dica do Dia</li>
+                    </ul>
+                </li>
+                <li>✅ <strong>Sistema de Alertas:</strong> Banner de alerta automático quando há pendências</li>
+                <li>✅ <strong>Links Rápidos:</strong> Botões de acesso rápido com validação de permissões:
+                    <ul>
+                        <li>Gerenciar Viagens</li>
+                        <li>Relatório de Convocações</li>
+                        <li>Gerenciar Equipamentos</li>
+                        <li>Logs de Acesso</li>
+                    </ul>
+                </li>
+                <li>✅ <strong>Validação de Permissões:</strong> Links rápidos só aparecem se o usuário tiver permissão</li>
+                <li>✅ <strong>Clique no Logo:</strong> Logo "DivulgaCarga" clicável para voltar à tela inicial</li>
+            </ul>
+            <p><strong>Componentes CSS:</strong></p>
+            <ul>
+                <li><code>.dashboard-stats-grid</code> - Grid responsivo para cards de estatísticas</li>
+                <li><code>.dashboard-stat-card</code> - Card individual com ícone, valor e label</li>
+                <li><code>.dashboard-alerts</code> - Container para alertas</li>
+                <li><code>.alert-card</code> - Card de alerta com ícone e mensagem</li>
+                <li><code>.dashboard-quick-links</code> - Seção de links rápidos</li>
+                <li><code>.quick-links-grid</code> - Grid responsivo para botões de acesso rápido</li>
+                <li><code>.quick-link-btn</code> - Botão de link rápido com hover effect</li>
+            </ul>
+            <p><strong>JavaScript:</strong></p>
+            <ul>
+                <li><code>showWelcomeScreen()</code> - Função que carrega a tela inicial com estatísticas</li>
+                <li>Integração com sistema de permissões (<code>window.Permissions.hasPermission()</code>)</li>
+                <li>Carregamento assíncrono de estatísticas via API</li>
             </ul>
 
             <h3>9.2. Variáveis CSS</h3>
@@ -1546,11 +1886,13 @@ const distancia = (data.routes[0].distance / 1000).toFixed(2); // km</code></pre
             <ul>
                 <li><strong>Sistema de Abas:</strong> <code>.tabs</code>, <code>.tab-btn</code>, <code>.tab-content</code></li>
                 <li><strong>Formulários:</strong> <code>.form-box</code>, <code>.input-group</code>, <code>.input-group.double</code>, <code>.input-group.triple</code>, <code>.input-group.four-row</code></li>
-                <li><strong>Botões:</strong> <code>.btn.save</code>, <code>.btn.delete</code>, <code>.btn.cancel</code>, <code>.btn.info</code></li>
+                <li><strong>Botões:</strong> <code>.btn.save</code>, <code>.btn.delete</code>, <code>.btn.cancel</code>, <code>.btn.info</code>, <code>.btn-primary</code>, <code>.btn-secondary</code></li>
                 <li><strong>Listas:</strong> <code>.list.grid-3-columns</code>, <code>.list-item</code></li>
                 <li><strong>Mensagens:</strong> <code>.message.success</code>, <code>.message.error</code></li>
                 <li><strong>Toast:</strong> <code>.toast-message</code>, <code>.toast-success</code>, <code>.toast-error</code></li>
-                <li><strong>Modal:</strong> <code>.modal</code>, <code>.modal-content</code></li>
+                <li><strong>Modal (Padrão TOP):</strong> <code>.modal-tratamento</code>, <code>.modal-content-tratamento</code>, <code>.modal-header-tratamento</code>, <code>.close-modal</code></li>
+                <li><strong>Modal (Legado):</strong> <code>.modal</code>, <code>.modal-content</code></li>
+                <li><strong>Grids Responsivos:</strong> <code>.validade-datas-grid</code>, <code>.certificadora-busca-grid</code>, <code>.validade-card</code></li>
             </ul>
 
             <div class="warning-box">
@@ -2053,7 +2395,7 @@ WABOXAPP_UID=seu_uid_aqui</code></pre>
         <div class="section" style="text-align: center; background: #f8f9fa;">
             <p style="margin: 0; color: #6c757d;">
                 <strong>Sistema DivulgaCarga</strong> | Documentação Técnica Completa<br>
-                Versão 1.3.0 | 24 de Novembro de 2025<br>
+                Versão 1.4.0 | 22 de Dezembro de 2025<br>
                 <small style="opacity: 0.7;">
                     Sistema de mensagens toast | Zero-padding CPF/CNPJ | Grid com ordenação | 
                     Roteiros com pontos georreferenciados | Cálculo de distâncias OSRM | 
@@ -2062,7 +2404,10 @@ WABOXAPP_UID=seu_uid_aqui</code></pre>
                     init.sql com execução automática | Prevenção de mudanças automáticas de aba |
                     Relatório de Convocações | Performance otimizada | 
                     Sistema de Geolocalização | Links WhatsApp | Ver no Mapa | 
-                    Scripts de Configuração Automática | Indicadores Visuais de Geolocalização
+                    Scripts de Configuração Automática | Indicadores Visuais de Geolocalização |
+                    Dashboard com Tela Inicial Melhorada | Cards de Estatísticas | 
+                    Links Rápidos com Validação de Permissões | Logs de Acesso | 
+                    Sistema de Monitoramento de Acessos | Ordenação Client-Side em Tabelas
                 </small>
             </p>
         </div>

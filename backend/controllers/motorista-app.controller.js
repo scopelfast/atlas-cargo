@@ -8,6 +8,59 @@ const sql = require('mssql');
 const { poolPromise } = require('../config/db');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
+const axios = require('axios');
+const { getReverseGeocodingUrl } = require('../config/nominatim');
+
+// Função auxiliar para fazer reverse geocoding
+async function obterEnderecoPorCoordenadas(latitude, longitude) {
+  try {
+    console.log(`📍 [GEOCODING] Buscando endereço para: ${latitude}, ${longitude}`);
+    const url = getReverseGeocodingUrl(latitude, longitude);
+    console.log(`📍 [GEOCODING] URL: ${url}`);
+    const response = await axios.get(url, {
+      timeout: 5000,
+      headers: {
+        'User-Agent': 'DivulgaCarga-App/1.0'
+      }
+    });
+
+    if (response.data && response.data.address) {
+      const addr = response.data.address;
+      
+      // Montar endereço formatado
+      const partes = [];
+      
+      if (addr.road || addr.street) {
+        partes.push(addr.road || addr.street);
+      }
+      if (addr.house_number) {
+        partes[0] = `${addr.house_number}, ${partes[0] || ''}`.trim();
+      }
+      if (addr.neighbourhood || addr.suburb) {
+        partes.push(addr.neighbourhood || addr.suburb);
+      }
+      if (addr.city || addr.town || addr.village) {
+        partes.push(addr.city || addr.town || addr.village);
+      }
+      if (addr.state) {
+        partes.push(addr.state);
+      }
+      
+      const endereco = partes.length > 0 
+        ? partes.join(', ')
+        : response.data.display_name || `${latitude}, ${longitude}`;
+      
+      console.log(`✅ [GEOCODING] Endereço encontrado: ${endereco}`);
+      return endereco;
+    }
+    
+    return `${latitude}, ${longitude}`;
+  } catch (err) {
+    console.warn('⚠️ Erro ao fazer reverse geocoding:', err.message);
+    // Em caso de erro, retornar coordenadas
+    return `${latitude}, ${longitude}`;
+  }
+}
 
 const motoristaAppController = {
   // ==========================================
@@ -17,21 +70,28 @@ const motoristaAppController = {
     try {
       const { cpf, senha } = req.body;
 
+      console.log('🔐 [LOGIN] Tentativa de login recebida');
+      console.log('📝 [LOGIN] CPF recebido:', cpf ? cpf.replace(/\d(?=\d{4})/g, "*") : 'NULL'); // Mascarar CPF no log
+
       if (!cpf || !senha) {
+        console.log('❌ [LOGIN] CPF ou senha não fornecidos');
         return res.status(400).json({ error: 'CPF e senha são obrigatórios.' });
       }
 
       // Limpar CPF
       let cpfLimpo = cpf.replace(/\D/g, '');
+      console.log('🧹 [LOGIN] CPF limpo:', cpfLimpo.length, 'dígitos');
 
       // Validar tamanho (aceita 10 ou 11 dígitos)
       if (cpfLimpo.length < 10 || cpfLimpo.length > 11) {
+        console.log('❌ [LOGIN] CPF inválido - tamanho:', cpfLimpo.length);
         return res.status(400).json({ error: 'CPF inválido. Deve ter 10 ou 11 dígitos.' });
       }
 
       // Se tiver 10 dígitos, adicionar zero à esquerda
       if (cpfLimpo.length === 10) {
         cpfLimpo = '0' + cpfLimpo;
+        console.log('🔧 [LOGIN] CPF normalizado (zero à esquerda):', cpfLimpo.length, 'dígitos');
       }
 
       const pool = await poolPromise;
@@ -39,6 +99,8 @@ const motoristaAppController = {
       // Buscar motorista em CADASTROGERAL + MOTORISTA_COMPLEMENTO
       // Tentar com e sem zero à esquerda (para compatibilidade)
       const cpfSemZero = cpfLimpo.startsWith('0') ? cpfLimpo.substring(1) : cpfLimpo;
+      
+      console.log('🔍 [LOGIN] Buscando motorista com CPF:', cpfLimpo, 'ou', cpfSemZero);
       
       const result = await pool
         .request()
@@ -65,37 +127,64 @@ const motoristaAppController = {
             AND cg.FGACTIVE = 'A'
         `);
 
+      console.log('📊 [LOGIN] Resultado da busca:', result.recordset.length, 'registro(s) encontrado(s)');
+
       if (result.recordset.length === 0) {
+        console.log('❌ [LOGIN] Motorista não encontrado ou não atende aos critérios');
+        console.log('   - CPF procurado:', cpfLimpo, 'ou', cpfSemZero);
+        console.log('   - Critérios: FGTIPOCADASTRO = M, FGACTIVE = A');
         return res.status(401).json({ error: 'Motorista não encontrado ou inativo.' });
       }
 
       const motorista = result.recordset[0];
+      
+      console.log('✅ [LOGIN] Motorista encontrado:', motorista.CDCADASTRO, '-', motorista.RZSOCIAL);
+      console.log('📋 [LOGIN] Status:', {
+        FGACTIVE: motorista.FGACTIVE,
+        FGTIPOCADASTRO: motorista.FGTIPOCADASTRO,
+        STATUSAPROVACAO: motorista.STATUSAPROVACAO,
+        TEM_SENHA: motorista.SENHA ? 'SIM' : 'NÃO'
+      });
 
       // Validar senha
       // Se não tiver senha definida, aceitar qualquer senha (modo desenvolvimento)
       // Se tiver senha definida, validar com bcrypt
       if (motorista.SENHA) {
+        console.log('🔐 [LOGIN] Validando senha com bcrypt...');
         // Senha está definida - validar com bcrypt
         const senhaValida = await bcrypt.compare(senha, motorista.SENHA);
         if (!senhaValida) {
+          console.log('❌ [LOGIN] Senha incorreta');
           return res.status(401).json({ error: 'Senha incorreta.' });
         }
+        console.log('✅ [LOGIN] Senha válida');
       } else {
         // Senha não definida - aceitar qualquer senha (modo desenvolvimento)
         // TODO: Remover este comportamento quando todos os motoristas tiverem senha
-        console.warn(`⚠️  Motorista ${motorista.CDCADASTRO} (${motorista.CGCCPF}) não tem senha definida. Aceitando qualquer senha.`);
+        console.warn(`⚠️  [LOGIN] Motorista ${motorista.CDCADASTRO} (${motorista.CGCCPF}) não tem senha definida. Aceitando qualquer senha.`);
       }
 
       // Verificar aprovação
       if (motorista.STATUSAPROVACAO === 'R') {
+        console.log('❌ [LOGIN] Cadastro rejeitado');
         return res.status(403).json({ error: 'Cadastro rejeitado. Entre em contato com a empresa.' });
       }
 
       if (motorista.STATUSAPROVACAO === 'P') {
+        console.log('⏳ [LOGIN] Cadastro pendente de aprovação');
         return res.status(403).json({ error: 'Cadastro pendente de aprovação.' });
+      }
+      
+      console.log('✅ [LOGIN] Aprovação OK');
+
+      // Verificar se JWT_SECRET está configurado
+      if (!process.env.JWT_SECRET) {
+        console.error('❌ [LOGIN] JWT_SECRET não configurado no .env');
+        return res.status(500).json({ error: 'Erro de configuração do servidor.' });
       }
 
       // Gerar token JWT
+      console.log('🎫 [LOGIN] Gerando token JWT...');
       const token = jwt.sign(
         {
           id: motorista.CDCADASTRO,
@@ -105,6 +194,9 @@ const motoristaAppController = {
         process.env.JWT_SECRET,
         { expiresIn: '7d' }
       );
+
+      console.log('✅ [LOGIN] Login realizado com sucesso!');
+      console.log('👤 [LOGIN] Motorista:', motorista.CDCADASTRO, '-', motorista.RZSOCIAL);
 
       res.json({
         success: true,
@@ -123,7 +215,8 @@ const motoristaAppController = {
         }
       });
     } catch (err) {
-      console.error('Erro no login do motorista:', err);
+      console.error('❌ [LOGIN] Erro no login do motorista:', err);
+      console.error('📋 [LOGIN] Stack:', err.stack);
       res.status(500).json({ error: 'Erro ao fazer login.' });
     }
   },
@@ -334,41 +427,6 @@ const motoristaAppController = {
   // ==========================================
   // GPS - Registrar posição
   // ==========================================
-  registrarGPS: async (req, res) => {
-    try {
-      const { idviagem, latitude, longitude, velocidade, precisao, bateria } = req.body;
-      const { idmotorista } = req.user || req.body; // Via token JWT ou body (dev)
-
-      if (!idviagem || !latitude || !longitude) {
-        return res.status(400).json({ error: 'Dados obrigatórios: idviagem, latitude, longitude' });
-      }
-
-      const pool = await poolPromise;
-      await pool
-        .request()
-        .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
-        .input('cdcadastro', sql.Decimal(15, 0), parseFloat(idmotorista))
-        .input('latitude', sql.Decimal(10, 8), parseFloat(latitude))
-        .input('longitude', sql.Decimal(11, 8), parseFloat(longitude))
-        .input('velocidade', sql.Decimal(5, 2), velocidade || null)
-        .input('precisao', sql.Int, precisao || null)
-        .input('bateria', sql.Int, bateria || null)
-        .query(`
-          INSERT INTO [dbo].[VIAGEM_RASTREAMENTO] (
-            IDVIAGEM, CDCADASTRO, LATITUDE, LONGITUDE, VELOCIDADE, PRECISAO, BATERIA, DHREGISTRO, TIPO, FONTE
-          )
-          VALUES (
-            @idviagem, @cdcadastro, @latitude, @longitude, @velocidade, @precisao, @bateria, GETDATE(), 'A', 'APP'
-          )
-        `);
-
-      res.json({ success: true, message: 'Posição registrada com sucesso!' });
-    } catch (err) {
-      console.error('Erro ao registrar GPS:', err);
-      res.status(500).json({ error: 'Erro ao registrar posição.' });
-    }
-  },
-
   // ==========================================
   // CARGAS DISPONÍVEIS - Listar viagens abertas
   // ==========================================
@@ -570,23 +628,52 @@ const motoristaAppController = {
 
       console.log(`🚛 [VIAGEM] Buscando detalhes da viagem ${idViagem}`);
 
+      if (!idViagem || isNaN(idViagem)) {
+        console.error('❌ [VIAGEM] ID inválido:', idViagem);
+        return res.status(400).json({ error: 'ID da viagem inválido' });
+      }
+
       const pool = await poolPromise;
 
       const result = await pool
         .request()
-        .input('idViagem', sql.Int, idViagem)
+        .input('idViagem', sql.Decimal(15, 0), parseFloat(idViagem))
         .query(`
           SELECT 
-            V.*,
+            V.IDVIAGEM,
+            V.FGSITVIAGEM,
+            V.CDSITUACAOVIAGEM,
+            V.CDTIPOVIAGEM,
+            V.CDCONTRATADOR,
+            V.CDCLASSEFROTA,
+            V.DTPREVINICIO,
+            V.DTPREVFINAL,
+            V.DISTANCIAKM,
+            V.VLFRETE,
+            V.PESO,
+            V.CUBAGEM,
+            V.OBSERV,
+            V.FGACTIVE,
             R.DSROTEIRO,
+            R.IDROTEIRO,
             S.DSSITUACAOVIAGEM,
             T.DSTIPOVIAGEM,
             F.DSCLASSEFROTA,
             P.RZSOCIAL AS CONTRATADOR,
             P.NRCELULAR AS TELEFONE_CONTRATADOR,
-            M.RZSOCIAL AS MOTORISTA
+            M.RZSOCIAL AS MOTORISTA,
+            CO_ORIGEM.NMCIDADE AS ORIGEM_CIDADE,
+            CO_ORIGEM.ESTADO AS ORIGEM_ESTADO,
+            ISNULL(CO_ORIGEM.LATITUDE, 0) AS ORIGEM_LATITUDE,
+            ISNULL(CO_ORIGEM.LONGITUDE, 0) AS ORIGEM_LONGITUDE,
+            CD_DESTINO.NMCIDADE AS DESTINO_CIDADE,
+            CD_DESTINO.ESTADO AS DESTINO_ESTADO,
+            ISNULL(CD_DESTINO.LATITUDE, 0) AS DESTINO_LATITUDE,
+            ISNULL(CD_DESTINO.LONGITUDE, 0) AS DESTINO_LONGITUDE
           FROM VIAGEMMESTRE V
           LEFT JOIN ROTEIRO R ON V.IDROTEIRO = R.IDROTEIRO
+          LEFT JOIN CIDADE CO_ORIGEM ON R.CDCIDADEORIGEM = CO_ORIGEM.CDCIDADE
+          LEFT JOIN CIDADE CD_DESTINO ON R.CDCIDADEDESTINO = CD_DESTINO.CDCIDADE
           LEFT JOIN SITUACAOVIAGEM S ON V.CDSITUACAOVIAGEM = S.CDSITUACAOVIAGEM
           LEFT JOIN TIPOVIAGEM T ON V.CDTIPOVIAGEM = T.CDTIPOVIAGEM
           LEFT JOIN CLASSEFROTA F ON V.CDCLASSEFROTA = F.CDCLASSEFROTA
@@ -597,15 +684,29 @@ const motoristaAppController = {
         `);
 
       if (result.recordset.length === 0) {
+        console.warn(`⚠️ [VIAGEM] Viagem ${idViagem} não encontrada`);
         return res.status(404).json({ error: 'Viagem não encontrada' });
       }
 
-      console.log(`✅ [VIAGEM] Detalhes encontrados`);
+      console.log(`✅ [VIAGEM] Detalhes encontrados para viagem ${idViagem}`);
 
-      res.json(result.recordset[0]);
+      const viagem = result.recordset[0];
+      
+      // Garantir que IDVIAGEM está presente
+      if (!viagem.IDVIAGEM) {
+        console.error('❌ [VIAGEM] IDVIAGEM não encontrado na resposta:', viagem);
+        return res.status(500).json({ error: 'Dados da viagem inválidos' });
+      }
+
+      res.json(viagem);
     } catch (error) {
-      console.error('❌ [VIAGEM] Erro:', error);
-      res.status(500).json({ error: 'Erro ao buscar detalhes da viagem' });
+      console.error('❌ [VIAGEM] Erro ao buscar detalhes:', error);
+      console.error('❌ [VIAGEM] Stack:', error.stack);
+      console.error('❌ [VIAGEM] ID recebido:', req.params.idViagem);
+      res.status(500).json({ 
+        error: 'Erro ao buscar detalhes da viagem',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   },
 
@@ -723,7 +824,8 @@ const motoristaAppController = {
   registrarMacro: async (req, res) => {
     try {
       console.log('📝 [MACRO] Recebendo ocorrência...');
-      console.log('📝 [MACRO] Body:', JSON.stringify(req.body, null, 2));
+      console.log('📝 [MACRO] Body completo:', JSON.stringify(req.body, null, 2));
+      console.log('📝 [MACRO] Headers:', JSON.stringify(req.headers, null, 2));
 
       const {
         idViagem,
@@ -739,11 +841,41 @@ const motoristaAppController = {
         fotoBase64,
         observacao
       } = req.body;
+      
+      console.log('📝 [MACRO] Campos extraídos:', {
+        idViagem,
+        cdMotorista,
+        cdTipoOcorrencia,
+        temGPS: !!(latitude && longitude),
+        temFoto: !!fotoBase64
+      });
 
-      // Validações
-      if (!idViagem || !cdMotorista || !cdTipoOcorrencia) {
+      // Validações detalhadas
+      const erros = [];
+      
+      if (!idViagem) {
+        erros.push('idViagem é obrigatório');
+      } else if (isNaN(parseFloat(idViagem))) {
+        erros.push('idViagem deve ser um número válido');
+      }
+      
+      if (!cdMotorista) {
+        erros.push('cdMotorista é obrigatório');
+      } else if (isNaN(parseFloat(cdMotorista))) {
+        erros.push('cdMotorista deve ser um número válido');
+      }
+      
+      if (!cdTipoOcorrencia) {
+        erros.push('cdTipoOcorrencia é obrigatório');
+      } else if (isNaN(parseInt(cdTipoOcorrencia))) {
+        erros.push('cdTipoOcorrencia deve ser um número válido');
+      }
+      
+      if (erros.length > 0) {
+        console.error('❌ [MACRO] Erros de validação:', erros);
         return res.status(400).json({ 
-          error: 'idViagem, cdMotorista e cdTipoOcorrencia são obrigatórios' 
+          error: 'Erro de validação',
+          details: erros
         });
       }
 
@@ -752,12 +884,12 @@ const motoristaAppController = {
       // Inserir ocorrência com GPS completo
       await pool
         .request()
-        .input('idViagem', sql.Int, idViagem)
-        .input('cdTipoOcorrencia', sql.SmallInt, cdTipoOcorrencia)
-        .input('cdMotorista', sql.Decimal(15, 0), cdMotorista)
-        .input('latitude', sql.Decimal(10, 7), latitude || null)
-        .input('longitude', sql.Decimal(10, 7), longitude || null)
-        .input('precisao', sql.Decimal(10, 2), precisao || null)
+        .input('idViagem', sql.Decimal(15, 0), parseFloat(idViagem))
+        .input('cdTipoOcorrencia', sql.SmallInt, parseInt(cdTipoOcorrencia))
+        .input('cdMotorista', sql.Decimal(15, 0), parseFloat(cdMotorista))
+        .input('latitude', sql.Decimal(10, 7), latitude ? parseFloat(latitude) : null)
+        .input('longitude', sql.Decimal(10, 7), longitude ? parseFloat(longitude) : null)
+        .input('precisao', sql.Decimal(10, 2), precisao ? parseFloat(precisao) : null)
         .input('observacao', sql.VarChar(500), observacao || null)
         .input('fotoBase64', sql.Text, fotoBase64 || null)
         .query(`
@@ -791,17 +923,57 @@ const motoristaAppController = {
       // Também registrar na tabela VIAGEMRASTREAMENTO (rastreamento completo)
       const temGPS = latitude && longitude;
       if (temGPS) {
+        // Usar data atual para DHPOSICAO (data da posição GPS)
+        const dataPosicao = new Date();
+        
+        // Calcular próxima sequência para a viagem
+        const seqResult = await pool
+          .request()
+          .input('idViagem', sql.Decimal(15, 0), parseFloat(idViagem))
+          .query(`
+            SELECT ISNULL(MAX(SEQUENCIA), 0) + 1 AS proximaSequencia
+            FROM VIAGEMRASTREAMENTO
+            WHERE IDVIAGEM = @idViagem
+          `);
+        
+        const proximaSequencia = seqResult.recordset[0]?.proximaSequencia || 1;
+        
+        // Buscar nome da ocorrência
+        const tipoResultTemp = await pool
+          .request()
+          .input('cdTipoOcorrencia', sql.SmallInt, cdTipoOcorrencia)
+          .query(`
+            SELECT DSTIPOOCORRENCIA 
+            FROM TIPOOCORRENCIA 
+            WHERE CDTIPOOCORRENCIA = @cdTipoOcorrencia
+          `);
+        
+        const nomeOcorrencia = tipoResultTemp.recordset[0]?.DSTIPOOCORRENCIA || 'Ocorrência';
+        
+        // Fazer reverse geocoding para obter endereço
+        console.log(`📍 [MACRO] Iniciando geocodificação reversa...`);
+        const endereco = await obterEnderecoPorCoordenadas(
+          parseFloat(latitude),
+          parseFloat(longitude)
+        );
+        
+        const dsPosicao = `Macro: ${nomeOcorrencia} - ${endereco}`;
+        console.log(`📍 [MACRO] DSPOSICAO: ${dsPosicao}`);
+        
         await pool
           .request()
-          .input('idViagem', sql.Decimal(15, 0), idViagem)
-          .input('cdCadastro', sql.Decimal(15, 0), cdMotorista)
-          .input('latitude', sql.Decimal(10, 8), latitude)
-          .input('longitude', sql.Decimal(11, 8), longitude)
-          .input('velocidade', sql.Decimal(5, 2), velocidade || null)
-          .input('precisao', sql.Int, precisao ? Math.round(precisao) : null)
-          .input('altitude', sql.Decimal(10, 2), altitude || null)
+          .input('idViagem', sql.Decimal(15, 0), parseFloat(idViagem))
+          .input('cdCadastro', sql.Decimal(15, 0), parseFloat(cdMotorista))
+          .input('latitude', sql.Decimal(10, 8), parseFloat(latitude))
+          .input('longitude', sql.Decimal(11, 8), parseFloat(longitude))
+          .input('velocidade', sql.Decimal(5, 2), velocidade ? parseFloat(velocidade) : null)
+          .input('precisao', sql.Int, precisao ? Math.round(parseFloat(precisao)) : null)
+          .input('altitude', sql.Decimal(10, 2), altitude ? parseFloat(altitude) : null)
           .input('status', sql.Char(1), status || 'P')
-          .input('direcao', sql.Decimal(5, 2), direcao || null)
+          .input('direcao', sql.Decimal(5, 2), direcao ? parseFloat(direcao) : null)
+          .input('dhPosicao', sql.DateTime, dataPosicao)
+          .input('sequencia', sql.Int, proximaSequencia)
+          .input('dsPosicao', sql.VarChar(200), dsPosicao)
           .query(`
             INSERT INTO VIAGEMRASTREAMENTO (
               IDVIAGEM,
@@ -813,10 +985,13 @@ const motoristaAppController = {
               ALTITUDE,
               FGSTATUS,
               DIRECAO,
+              DHPOSICAO,
               DHREGISTRO,
               TIPO,
               FONTE,
-              VERSAOAPP
+              VERSAOAPP,
+              SEQUENCIA,
+              DSPOSICAO
             ) VALUES (
               @idViagem,
               @cdCadastro,
@@ -827,10 +1002,13 @@ const motoristaAppController = {
               @altitude,
               @status,
               @direcao,
+              @dhPosicao,
               GETDATE(),
               'M',
               'APP',
-              '1.0.0'
+              '1.0.0',
+              @sequencia,
+              @dsPosicao
             )
           `);
         console.log(`   📍 GPS: ${latitude}, ${longitude}`);
@@ -869,8 +1047,19 @@ const motoristaAppController = {
         }
       });
     } catch (error) {
-      console.error('❌ [MACRO] Erro ao registrar:', error);
-      res.status(500).json({ error: 'Erro ao registrar ocorrência' });
+      console.error('❌ [MACRO] Erro ao registrar ocorrência:', error);
+      console.error('❌ [MACRO] Stack:', error.stack);
+      console.error('❌ [MACRO] Body recebido:', JSON.stringify(req.body, null, 2));
+      
+      // Retornar mensagem de erro mais detalhada em desenvolvimento
+      const mensagemErro = process.env.NODE_ENV === 'development' 
+        ? `Erro ao registrar ocorrência: ${error.message}`
+        : 'Erro ao registrar ocorrência';
+      
+      res.status(500).json({ 
+        error: mensagemErro,
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   },
 
@@ -932,7 +1121,8 @@ const motoristaAppController = {
   registrarGPS: async (req, res) => {
     try {
       console.log('📍 [GPS] Recebendo posição GPS...');
-      console.log('📍 [GPS] Body:', JSON.stringify(req.body, null, 2));
+      console.log('📍 [GPS] Body completo:', JSON.stringify(req.body, null, 2));
+      console.log('📍 [GPS] Headers:', JSON.stringify(req.headers, null, 2));
 
       const {
         cdMotorista,
@@ -947,14 +1137,44 @@ const motoristaAppController = {
         tipoEnvio,
         dtPosicao,
       } = req.body;
+      
+      console.log('📍 [GPS] Campos extraídos:', {
+        cdMotorista,
+        idViagem,
+        latitude,
+        longitude,
+        temGPS: !!(latitude && longitude),
+        velocidade,
+        status
+      });
 
-      // Validações
+      // Validações detalhadas
+      const erros = [];
+      
       if (!cdMotorista) {
-        return res.status(400).json({ error: 'cdMotorista é obrigatório' });
+        erros.push('cdMotorista é obrigatório');
+      } else if (isNaN(parseFloat(cdMotorista))) {
+        erros.push('cdMotorista deve ser um número válido');
       }
-
-      if (!latitude || !longitude) {
-        return res.status(400).json({ error: 'latitude e longitude são obrigatórios' });
+      
+      if (!latitude) {
+        erros.push('latitude é obrigatória');
+      } else if (isNaN(parseFloat(latitude))) {
+        erros.push('latitude deve ser um número válido');
+      }
+      
+      if (!longitude) {
+        erros.push('longitude é obrigatória');
+      } else if (isNaN(parseFloat(longitude))) {
+        erros.push('longitude deve ser um número válido');
+      }
+      
+      if (erros.length > 0) {
+        console.error('❌ [GPS] Erros de validação:', erros);
+        return res.status(400).json({ 
+          error: 'Erro de validação',
+          details: erros
+        });
       }
 
       const pool = await poolPromise;
@@ -964,28 +1184,54 @@ const motoristaAppController = {
         // Usar dtPosicao se fornecido, senão usar data/hora atual
         const dataPosicao = dtPosicao ? new Date(dtPosicao) : new Date();
         
+        // Calcular próxima sequência para a viagem ANTES de criar o request
+        const seqResult = await pool
+          .request()
+          .input('idViagem', sql.Decimal(15, 0), parseFloat(idViagem))
+          .query(`
+            SELECT ISNULL(MAX(SEQUENCIA), 0) + 1 AS proximaSequencia
+            FROM VIAGEMRASTREAMENTO
+            WHERE IDVIAGEM = @idViagem
+          `);
+        
+        const proximaSequencia = seqResult.recordset[0]?.proximaSequencia || 1;
+        
+        // Fazer reverse geocoding para obter endereço
+        console.log(`📍 [GPS] Iniciando geocodificação reversa...`);
+        const endereco = await obterEnderecoPorCoordenadas(
+          parseFloat(latitude),
+          parseFloat(longitude)
+        );
+        
+        const tipoTexto = tipoEnvio === 'A' ? 'GPS Automático' : 'GPS Manual';
+        const dsPosicao = `${tipoTexto} - ${endereco}`;
+        console.log(`📍 [GPS] DSPOSICAO: ${dsPosicao}`);
+        
+        // Agora criar o request e inserir
         await pool
           .request()
-          .input('idViagem', sql.Decimal(15, 0), idViagem)
-          .input('cdCadastro', sql.Decimal(15, 0), cdMotorista)
-          .input('latitude', sql.Decimal(10, 8), latitude)
-          .input('longitude', sql.Decimal(11, 8), longitude)
-          .input('velocidade', sql.Decimal(5, 2), velocidade || null)
-          .input('precisao', sql.Int, precisao ? Math.round(precisao) : null)
-          .input('altitude', sql.Decimal(10, 2), altitude || null)
+          .input('idViagem', sql.Decimal(15, 0), parseFloat(idViagem))
+          .input('cdCadastro', sql.Decimal(15, 0), parseFloat(cdMotorista))
+          .input('latitude', sql.Decimal(10, 8), parseFloat(latitude))
+          .input('longitude', sql.Decimal(11, 8), parseFloat(longitude))
+          .input('velocidade', sql.Decimal(5, 2), velocidade ? parseFloat(velocidade) : null)
+          .input('precisao', sql.Int, precisao ? Math.round(parseFloat(precisao)) : null)
+          .input('altitude', sql.Decimal(10, 2), altitude ? parseFloat(altitude) : null)
           .input('status', sql.Char(1), status || 'P')
-          .input('direcao', sql.Decimal(5, 2), direcao || null)
+          .input('direcao', sql.Decimal(5, 2), direcao ? parseFloat(direcao) : null)
           .input('tipo', sql.Char(1), tipoEnvio || 'M')
           .input('dhPosicao', sql.DateTime, dataPosicao)
+          .input('sequencia', sql.Int, proximaSequencia)
+          .input('dsPosicao', sql.VarChar(200), dsPosicao)
           .query(`
             INSERT INTO VIAGEMRASTREAMENTO (
               IDVIAGEM, CDCADASTRO, LATITUDE, LONGITUDE, VELOCIDADE,
               PRECISAO, ALTITUDE, FGSTATUS, DIRECAO, DHPOSICAO, DHREGISTRO,
-              TIPO, FONTE, VERSAOAPP
+              TIPO, FONTE, VERSAOAPP, SEQUENCIA, DSPOSICAO
             ) VALUES (
               @idViagem, @cdCadastro, @latitude, @longitude, @velocidade,
               @precisao, @altitude, @status, @direcao, @dhPosicao, GETDATE(),
-              @tipo, 'APP', '1.0.0'
+              @tipo, 'APP', '1.0.0', @sequencia, @dsPosicao
             )
           `);
         
@@ -1054,7 +1300,18 @@ const motoristaAppController = {
       });
     } catch (error) {
       console.error('❌ [GPS] Erro ao registrar posição:', error);
-      res.status(500).json({ error: 'Erro ao registrar posição GPS' });
+      console.error('❌ [GPS] Stack:', error.stack);
+      console.error('❌ [GPS] Body recebido:', JSON.stringify(req.body, null, 2));
+      
+      // Retornar mensagem de erro mais detalhada em desenvolvimento
+      const mensagemErro = process.env.NODE_ENV === 'development' 
+        ? `Erro ao registrar posição GPS: ${error.message}`
+        : 'Erro ao registrar posição GPS';
+      
+      res.status(500).json({ 
+        error: mensagemErro,
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
     }
   },
 
@@ -1658,6 +1915,286 @@ const motoristaAppController = {
     } catch (err) {
       console.error('Erro ao buscar motorista da viagem:', err);
       res.status(500).json({ error: 'Erro ao buscar motorista da viagem.' });
+    }
+  },
+
+  // ==========================================
+  // ALTERAR SENHA
+  // ==========================================
+  alterarSenha: async (req, res) => {
+    try {
+      const { idMotorista, senhaAtual, novaSenha } = req.body;
+
+      if (!idMotorista || !senhaAtual || !novaSenha) {
+        return res.status(400).json({ error: 'Dados incompletos para alterar senha' });
+      }
+
+      if (novaSenha.length < 6) {
+        return res.status(400).json({ error: 'A nova senha deve ter pelo menos 6 caracteres' });
+      }
+
+      const pool = await poolPromise;
+
+      // Buscar motorista e senha atual
+      const result = await pool
+        .request()
+        .input('id', sql.Decimal(15, 0), parseFloat(idMotorista))
+        .query(`
+          SELECT 
+            mc.SENHA,
+            cg.CDCADASTRO,
+            cg.FGTIPOCADASTRO,
+            cg.FGACTIVE
+          FROM [dbo].[CADASTROGERAL] cg
+          LEFT JOIN [dbo].[MOTORISTA_COMPLEMENTO] mc ON cg.CDCADASTRO = mc.CDCADASTRO
+          WHERE cg.CDCADASTRO = @id
+            AND cg.FGTIPOCADASTRO = 'M'
+            AND cg.FGACTIVE = 'A'
+        `);
+
+      if (result.recordset.length === 0) {
+        return res.status(404).json({ error: 'Motorista não encontrado' });
+      }
+
+      const motorista = result.recordset[0];
+
+      // Validar senha atual
+      if (motorista.SENHA) {
+        const senhaValida = await bcrypt.compare(senhaAtual, motorista.SENHA);
+        if (!senhaValida) {
+          return res.status(401).json({ error: 'Senha atual incorreta' });
+        }
+      } else {
+        // Se não tem senha, aceitar qualquer senha como atual (modo desenvolvimento)
+        console.warn(`⚠️ Motorista ${idMotorista} não tem senha definida. Aceitando qualquer senha como atual.`);
+      }
+
+      // Criptografar nova senha
+      const senhaHash = await bcrypt.hash(novaSenha, 10);
+
+      // Atualizar senha
+      const updateResult = await pool
+        .request()
+        .input('id', sql.Decimal(15, 0), parseFloat(idMotorista))
+        .input('senha', sql.NVarChar(255), senhaHash)
+        .query(`
+          IF EXISTS (SELECT 1 FROM [dbo].[MOTORISTA_COMPLEMENTO] WHERE CDCADASTRO = @id)
+            UPDATE [dbo].[MOTORISTA_COMPLEMENTO]
+            SET SENHA = @senha
+            WHERE CDCADASTRO = @id
+          ELSE
+            INSERT INTO [dbo].[MOTORISTA_COMPLEMENTO] (CDCADASTRO, SENHA)
+            VALUES (@id, @senha)
+        `);
+
+      res.json({
+        success: true,
+        message: 'Senha alterada com sucesso'
+      });
+    } catch (err) {
+      console.error('Erro ao alterar senha:', err);
+      res.status(500).json({ error: 'Erro ao alterar senha' });
+    }
+  },
+
+  // ==========================================
+  // NOTIFICAÇÕES - Notificações recentes do motorista
+  // ==========================================
+  notificacoesRecentes: async (req, res) => {
+    try {
+      const { cdMotorista } = req.params;
+      const { limit = 10 } = req.query;
+
+      console.log(`🔔 [NOTIFICAÇÕES] Buscando notificações recentes para motorista ${cdMotorista}`);
+
+      const pool = await poolPromise;
+      const notificacoes = [];
+
+      // 1. Mensagens não lidas do chat
+      try {
+        const mensagensResult = await pool
+          .request()
+          .input('cdMotorista', sql.Decimal(15, 0), cdMotorista)
+          .input('limit', sql.Int, parseInt(limit))
+          .query(`
+            SELECT TOP (@limit)
+              m.IDMESSAGE,
+              m.IDVIAGEM,
+              m.CONTENT as MENSAGEM,
+              m.SENDER_TYPE,
+              m.SENDER_ID,
+              m.CREATED_AT,
+              COALESCE(m.SENDER_NAME, cg.RZSOCIAL) AS REMETENTE,
+              v.IDVIAGEM,
+              r.DSROTEIRO
+            FROM [dbo].[MESSAGES] m
+            INNER JOIN [dbo].[CONVERSAS] c ON m.IDCONVERSA = c.IDCONVERSA
+            LEFT JOIN [dbo].[CADASTROGERAL] cg ON m.SENDER_ID = cg.CDCADASTRO
+            LEFT JOIN [dbo].[VIAGEMMESTRE] v ON c.IDVIAGEM = v.IDVIAGEM
+            LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
+            WHERE c.ID_MOTORISTA = @cdMotorista
+              AND m.SENDER_TYPE = 'OPERADOR'
+              AND (m.READ = 0 OR m.READ IS NULL)
+            ORDER BY m.CREATED_AT DESC
+          `);
+
+        mensagensResult.recordset.forEach(msg => {
+          notificacoes.push({
+            tipo: 'chat',
+            id: `msg_${msg.IDMESSAGE}`,
+            titulo: 'Nova mensagem no chat',
+            descricao: msg.MENSAGEM || 'Mensagem do operador',
+            remetente: msg.REMETENTE || 'Operador',
+            viagem: msg.IDVIAGEM,
+            roteiro: msg.DSROTEIRO,
+            data: msg.CREATED_AT,
+            acao: `chat.html?viagem=${msg.IDVIAGEM}`
+          });
+        });
+      } catch (err) {
+        console.warn('⚠️ Erro ao buscar mensagens:', err.message);
+      }
+
+      // 2. Convocações pendentes
+      try {
+        const convocacoesResult = await pool
+          .request()
+          .input('cdMotorista', sql.Decimal(15, 0), cdMotorista)
+          .input('limit', sql.Int, parseInt(limit))
+          .query(`
+            SELECT TOP (@limit)
+              c.IDCONVOCACAO,
+              c.IDVIAGEM,
+              c.TXTCONVOCACAO,
+              c.DHCONVOCACAO,
+              c.STATUS,
+              v.IDVIAGEM,
+              r.DSROTEIRO
+            FROM [dbo].[CONVOCACAO] c
+            LEFT JOIN [dbo].[VIAGEMMESTRE] v ON c.IDVIAGEM = v.IDVIAGEM
+            LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
+            WHERE c.CDCADASTRO_MOTORISTA = @cdMotorista
+              AND c.STATUS IN ('PENDENTE', 'ENVIADA')
+            ORDER BY c.DHCONVOCACAO DESC
+          `);
+
+        convocacoesResult.recordset.forEach(conv => {
+          notificacoes.push({
+            tipo: 'convocacao',
+            id: `conv_${conv.IDCONVOCACAO}`,
+            titulo: 'Nova convocação',
+            descricao: conv.TXTCONVOCACAO || 'Você foi convocado para uma viagem',
+            viagem: conv.IDVIAGEM,
+            roteiro: conv.DSROTEIRO,
+            status: conv.STATUS,
+            data: conv.DHCONVOCACAO,
+            acao: `convocacoes.html`
+          });
+        });
+      } catch (err) {
+        console.warn('⚠️ Erro ao buscar convocações:', err.message);
+      }
+
+      // 3. Alertas SOS não tratados
+      try {
+        const sosResult = await pool
+          .request()
+          .input('cdMotorista', sql.Decimal(15, 0), cdMotorista)
+          .input('limit', sql.Int, parseInt(limit))
+          .query(`
+            SELECT TOP (@limit)
+              s.IDSOS,
+              s.IDVIAGEM,
+              s.DESCRICAO,
+              s.STATUS,
+              s.CREATED_AT,
+              v.IDVIAGEM,
+              r.DSROTEIRO
+            FROM [dbo].[SOS_ALERTS] s
+            LEFT JOIN [dbo].[VIAGEMMESTRE] v ON s.IDVIAGEM = v.IDVIAGEM
+            LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
+            WHERE s.CDMOTORISTA = @cdMotorista
+              AND s.STATUS IN ('PENDENTE', 'ABERTO')
+            ORDER BY s.CREATED_AT DESC
+          `);
+
+        sosResult.recordset.forEach(sos => {
+          notificacoes.push({
+            tipo: 'sos',
+            id: `sos_${sos.IDSOS}`,
+            titulo: 'Alerta SOS',
+            descricao: sos.DESCRICAO || 'Alerta de emergência',
+            viagem: sos.IDVIAGEM,
+            roteiro: sos.DSROTEIRO,
+            status: sos.STATUS,
+            data: sos.CREATED_AT,
+            acao: `sos.html?viagem=${sos.IDVIAGEM}`
+          });
+        });
+      } catch (err) {
+        console.warn('⚠️ Erro ao buscar SOS:', err.message);
+      }
+
+      // 4. Alertas da viagem
+      try {
+        const alertasResult = await pool
+          .request()
+          .input('cdMotorista', sql.Decimal(15, 0), cdMotorista)
+          .input('limit', sql.Int, parseInt(limit))
+          .query(`
+            SELECT TOP (@limit)
+              a.IDALERT,
+              a.IDVIAGEM,
+              a.MESSAGE,
+              a.TYPE,
+              a.STATUS,
+              a.CREATED_AT,
+              v.IDVIAGEM,
+              r.DSROTEIRO
+            FROM [dbo].[ALERTS] a
+            INNER JOIN [dbo].[VIAGEMMOTORISTA] vm ON a.IDVIAGEM = vm.IDVIAGEM
+            LEFT JOIN [dbo].[VIAGEMMESTRE] v ON a.IDVIAGEM = v.IDVIAGEM
+            LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
+            WHERE vm.CDMOTORISTA = @cdMotorista
+              AND a.STATUS IN ('PENDENTE', 'ACTIVE')
+            ORDER BY a.CREATED_AT DESC
+          `);
+
+        alertasResult.recordset.forEach(alert => {
+          notificacoes.push({
+            tipo: 'alerta',
+            id: `alert_${alert.IDALERT}`,
+            titulo: `Alerta: ${alert.TYPE || 'Atenção'}`,
+            descricao: alert.MESSAGE || 'Novo alerta na sua viagem',
+            viagem: alert.IDVIAGEM,
+            roteiro: alert.DSROTEIRO,
+            status: alert.STATUS,
+            data: alert.CREATED_AT,
+            acao: `viagens.html`
+          });
+        });
+      } catch (err) {
+        console.warn('⚠️ Erro ao buscar alertas:', err.message);
+      }
+
+      // Ordenar por data (mais recente primeiro) e limitar
+      notificacoes.sort((a, b) => new Date(b.data) - new Date(a.data));
+      const notificacoesLimitadas = notificacoes.slice(0, parseInt(limit));
+
+      console.log(`✅ [NOTIFICAÇÕES] ${notificacoesLimitadas.length} notificação(ões) encontrada(s)`);
+
+      res.json({
+        success: true,
+        notificacoes: notificacoesLimitadas,
+        total: notificacoesLimitadas.length
+      });
+    } catch (error) {
+      console.error('❌ [NOTIFICAÇÕES] Erro:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Erro ao buscar notificações',
+        notificacoes: []
+      });
     }
   }
 };

@@ -92,7 +92,7 @@ async function fetchComCache(url, cacheKey, maxAge = null, forceOnline = false) 
           console.warn(`⚠️ Cache antigo! ${minutos} minutos (máx: ${Math.floor(maxAge / 60000)}min)`);
           
           if (!forceOnline) {
-            mostrarToast(`⚠️ Dados podem estar desatualizados (${minutos}min atrás)`, 'warning');
+            mostrarToast(`Dados podem estar desatualizados (${minutos}min atrás)`, 'warning');
           }
         }
         
@@ -154,17 +154,18 @@ async function postComFila(url, dados, tipoFila = 'acao') {
                     : 'filaAcoes';
     
     await window.OfflineDB.adicionarFila(filaStore, {
-      url,
+      url: url,
+      endpoint: url, // Para compatibilidade
       method: 'POST',
       data: dados,
       tipo: tipoFila,
-      timestamp: Date.now()
+      timestamp: new Date().toISOString()
     });
     
     console.log(`💾 Salvo na fila: ${filaStore}`);
     await window.OfflineDB.atualizarIndicador();
     
-    mostrarToast('💾 Salvo! Será enviado quando houver conexão', 'info');
+    mostrarToast('Salvo! Será enviado quando houver conexão', 'info');
     
     return {
       success: true,
@@ -203,7 +204,7 @@ async function limparTodosOsCaches() {
   }
   
   console.log('🧹 Todos os caches de dados limpos!');
-  mostrarToast('🧹 Cache limpo com sucesso!', 'success');
+  mostrarToast('Cache limpo com sucesso!', 'success');
   
   return true;
 }
@@ -267,7 +268,7 @@ window.addEventListener('online', async () => {
     window.OfflineDB.sincronizarTudo();
   }
   
-  mostrarToast('🟢 Online! Dados sendo atualizados...', 'success');
+  mostrarToast('Online! Dados sendo atualizados...', 'success');
   
   // Recarregar página após 2 segundos para pegar dados frescos
   setTimeout(() => {
@@ -280,7 +281,7 @@ window.addEventListener('online', async () => {
 window.addEventListener('offline', () => {
   console.log('🔴 Modo offline ativado');
   atualizarStatusBar();
-  mostrarToast('🔴 Modo offline - Usando dados salvos', 'warning');
+  mostrarToast('Modo offline - Usando dados salvos', 'warning');
 });
 
 // Atualizar status a cada 5 segundos

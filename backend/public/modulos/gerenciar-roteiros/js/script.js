@@ -218,7 +218,11 @@ function getOverlayMostrado() {
               'duplicate',
               'duplicado',
               'there is already',
-              'já há'
+              'já há',
+              'duplicate key',
+              'PRIMARY KEY constraint',
+              'violation of primary key',
+              'chave primária'
             ];
             return !errosEsperados.some(esperado => mensagem.includes(esperado));
           });
@@ -406,7 +410,7 @@ function getOverlayMostrado() {
   function loadScript(src) {
     return new Promise((resolve, reject) => {
       // Verificar se GridEditor já está disponível globalmente
-      if (typeof GridEditor !== 'undefined') {
+      if (typeof window.GridEditor !== 'undefined') {
         resolve();
         return;
       }
@@ -418,7 +422,7 @@ function getOverlayMostrado() {
         script.onload = () => {
           // Aguardar um pouco para garantir que GridEditor está disponível
           setTimeout(() => {
-            if (typeof GridEditor !== 'undefined') {
+            if (typeof window.GridEditor !== 'undefined') {
               resolve();
             } else {
               reject(new Error('GridEditor não foi carregado'));
@@ -435,7 +439,7 @@ function getOverlayMostrado() {
         // Se o script existe, aguardar ele carregar
         let tentativas = 0;
         const checkInterval = setInterval(() => {
-          if (typeof GridEditor !== 'undefined') {
+          if (typeof window.GridEditor !== 'undefined') {
             clearInterval(checkInterval);
             resolve();
           } else if (tentativas++ > 20) {
@@ -454,12 +458,12 @@ function getOverlayMostrado() {
 
   // Inicializar GridEditor
   function inicializarGridTab() {
-    if (typeof GridEditor === 'undefined') {
+    if (typeof window.GridEditor === 'undefined') {
       console.error('[Roteiros] GridEditor não está disponível');
       return;
     }
 
-    gridTab = new GridEditor({
+    gridTab = new window.GridEditor({
       container: '#roteirosGrid',
       columns: [
         { field: 'IDROTEIRO', header: 'Código', editable: false, isId: true, width: '100px' },
@@ -528,22 +532,26 @@ function getOverlayMostrado() {
     // Se for a aba de grid, inicializar o GridEditor
     if (tabId === 'grid') {
       try {
-        if (!gridTab) {
-          await loadScript('/js/grid-editor.js');
-          inicializarGridTab();
-        }
-        // Sempre renderizar, mesmo se não houver dados (grid vazio)
-        const roteirosParaRenderizar = lastRoteiros || [];
-        if (gridTab) {
-          gridTab.render(roteirosParaRenderizar);
-        } else if (roteirosParaRenderizar.length === 0) {
-          // Se não há dados e grid não está inicializado, aplicar filtros para buscar
-          // Mas não bloquear a mudança de aba
-          setTimeout(() => {
-            applyFilters('grid').catch(err => {
-              console.warn('[Roteiros] Erro ao aplicar filtros automaticamente:', err);
-            });
-          }, 100);
+        // GridEditor já está carregado no HTML, não precisa carregar novamente
+        if (typeof window.GridEditor !== 'undefined') {
+          if (!gridTab) {
+            inicializarGridTab();
+          }
+          // Sempre renderizar, mesmo se não houver dados (grid vazio)
+          const roteirosParaRenderizar = lastRoteiros || [];
+          if (gridTab) {
+            gridTab.render(roteirosParaRenderizar);
+          } else if (roteirosParaRenderizar.length === 0) {
+            // Se não há dados e grid não está inicializado, aplicar filtros para buscar
+            // Mas não bloquear a mudança de aba
+            setTimeout(() => {
+              applyFilters('grid').catch(err => {
+                console.warn('[Roteiros] Erro ao aplicar filtros automaticamente:', err);
+              });
+            }, 100);
+          }
+        } else {
+          console.warn('[Roteiros] GridEditor não está disponível. Recarregue a página.');
         }
       } catch (gridErr) {
         console.error('[Roteiros] Erro ao inicializar grid:', gridErr);
@@ -803,12 +811,34 @@ function getOverlayMostrado() {
       // Renderizar no Grid se estiver aberto
       if (gridTab) {
         gridTab.render(roteiros);
-      } else if (openTab === 'grid' && typeof GridEditor === 'undefined') {
-        // Se o GridEditor não está carregado, carregar e inicializar
-        await loadScript('/js/grid-editor.js');
-        inicializarGridTab();
-        if (gridTab) {
-          gridTab.render(roteiros);
+      } else if (openTab === 'grid') {
+        // Se o GridEditor não está disponível, tentar carregar
+        if (typeof window.GridEditor === 'undefined') {
+          console.warn('[Roteiros] GridEditor não está disponível. Tentando carregar...');
+          try {
+            await loadScript('/js/grid-editor.js');
+          } catch (e) {
+            console.error('[Roteiros] Erro ao carregar GridEditor:', e);
+          }
+        }
+        
+        // Aguardar GridEditor estar disponível (aumentar tempo de espera)
+        let tentativas = 0;
+        while (typeof window.GridEditor === 'undefined' && tentativas < 30) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          tentativas++;
+        }
+        
+        if (typeof window.GridEditor !== 'undefined') {
+          // GridEditor está disponível, inicializar se necessário
+          if (!gridTab) {
+            inicializarGridTab();
+          }
+          if (gridTab) {
+            gridTab.render(roteiros);
+          }
+        } else {
+          console.warn('[Roteiros] GridEditor não está disponível após aguardar.');
         }
       }
       
@@ -2081,8 +2111,28 @@ async function loadRoteiroParaEdicao(id) {
         tabMapa.style.display = 'block';
       }
       
-      // Limpar conteúdo anterior se houver
-      mapaDiv.innerHTML = '';
+      // IMPORTANTE: Verificar se o container já tem um mapa antes de criar novo
+      if (mapaDiv._leaflet_id) {
+        console.warn('⚠️ [ROTEIROS] Container já tem mapa. Limpando antes de criar novo...');
+        // Limpar qualquer mapa existente
+        try {
+          if (mapa) {
+            mapa.remove();
+          }
+        } catch (e) {
+          // Ignorar
+        }
+        // Limpar o ID do Leaflet
+        delete mapaDiv._leaflet_id;
+        // Limpar conteúdo do container
+        mapaDiv.innerHTML = '';
+        mapa = null;
+        // Aguardar um pouco para garantir que o Leaflet limpou tudo
+        await new Promise(resolve => setTimeout(resolve, 50));
+      } else {
+        // Limpar conteúdo anterior se houver
+        mapaDiv.innerHTML = '';
+      }
       
       // Criar mapa centrado no Brasil
       mapa = L.map('mapaRota', {
@@ -2091,12 +2141,29 @@ async function loadRoteiroParaEdicao(id) {
       }).setView([-14.2350, -51.9253], 4);
 
       // Adicionar camada de tiles do OpenStreetMap (com opções de performance)
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      // IMPORTANTE: Usar APENAS getTileServerUrl() do map-config.js
+      console.log('🗺️ [ROTEIROS] Inicializando mapa...');
+      console.log('🗺️ [ROTEIROS] MAP_CONFIG disponível:', !!window.MAP_CONFIG);
+      console.log('🗺️ [ROTEIROS] getTileServerUrl disponível:', typeof window.getTileServerUrl === 'function');
+      
+      let tileServer = window.getTileServerUrl ? window.getTileServerUrl() : (window.MAP_CONFIG?.tileServer || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+      console.log('🗺️ [ROTEIROS] Tile server selecionado:', tileServer);
+      
+      const tileOptions = {
         attribution: '© OpenStreetMap contributors',
         maxZoom: 19,
         updateWhenIdle: false, // Atualizar enquanto move
         updateWhenZooming: true // Atualizar durante zoom
-      }).addTo(mapa);
+      };
+      
+      // Se usar servidor OpenStreetMap com {s}, adicionar subdomínios
+      if (tileServer.includes('{s}')) {
+        tileOptions.subdomains = ['a', 'b', 'c'];
+        console.log('🗺️ [ROTEIROS] Adicionando subdomínios para OpenStreetMap');
+      }
+      
+      L.tileLayer(tileServer, tileOptions).addTo(mapa);
+      console.log('✅ [ROTEIROS] TileLayer adicionado ao mapa');
       
       // Invalidar tamanho imediatamente usando requestAnimationFrame
       requestAnimationFrame(() => {
@@ -2113,6 +2180,31 @@ async function loadRoteiroParaEdicao(id) {
       return true;
     } catch (err) {
       console.error('Erro ao inicializar mapa:', err);
+      
+      // Se o erro for "Map container is already initialized", limpar e tentar novamente
+      if (err.message && err.message.includes('already initialized')) {
+        console.warn('⚠️ [ROTEIROS] Mapa já estava inicializado. Limpando container...');
+        const mapaDiv = document.getElementById('mapaRota');
+        if (mapaDiv) {
+          // Limpar completamente o container
+          mapaDiv.innerHTML = '';
+          delete mapaDiv._leaflet_id;
+          // Limpar referência do mapa
+          if (mapa) {
+            try {
+              mapa.remove();
+            } catch (e) {
+              // Ignorar
+            }
+            mapa = null;
+          }
+          // Tentar novamente após limpar
+          await new Promise(resolve => setTimeout(resolve, 100));
+          mapaInicializando = false;
+          return await inicializarMapa(); // Tentar novamente
+        }
+      }
+      
       mapaInicializando = false;
       // Limpar referência se houver erro
       if (mapa) {
@@ -2390,7 +2482,7 @@ async function loadRoteiroParaEdicao(id) {
   // Carregar script dinamicamente
   function loadScript(src) {
     return new Promise((resolve, reject) => {
-      if (typeof GridEditor !== 'undefined') {
+      if (typeof window.GridEditor !== 'undefined') {
         resolve();
         return;
       }
@@ -2400,7 +2492,7 @@ async function loadRoteiroParaEdicao(id) {
         script.src = `${src}?t=${Date.now()}`;
         script.onload = () => {
           setTimeout(() => {
-            if (typeof GridEditor !== 'undefined') {
+            if (typeof window.GridEditor !== 'undefined') {
               resolve();
             } else {
               reject(new Error('GridEditor não foi carregado'));
@@ -2415,7 +2507,7 @@ async function loadRoteiroParaEdicao(id) {
       if (existingScript) {
         let tentativas = 0;
         const checkInterval = setInterval(() => {
-          if (typeof GridEditor !== 'undefined') {
+          if (typeof window.GridEditor !== 'undefined') {
             clearInterval(checkInterval);
             resolve();
           } else if (tentativas++ > 20) {
@@ -2486,15 +2578,15 @@ async function loadRoteiroParaEdicao(id) {
             }
             
             // Renderizar grid vazio
-            if (typeof GridEditor === 'undefined') {
-              await loadScript('/js/grid-editor.js');
-            }
-            
-            if (!gridPontos) {
-              inicializarGridPontos();
-            }
-            if (gridPontos) {
-              gridPontos.render([]);
+            if (typeof window.GridEditor !== 'undefined') {
+              if (!gridPontos) {
+                inicializarGridPontos();
+              }
+              if (gridPontos) {
+                gridPontos.render([]);
+              }
+            } else {
+              console.warn('[Roteiros] GridEditor não está disponível. Recarregue a página.');
             }
           }
           return;
@@ -2532,16 +2624,15 @@ async function loadRoteiroParaEdicao(id) {
         }
         
         // Renderizar grid
-        if (typeof GridEditor === 'undefined') {
-          // Carregar GridEditor se não estiver disponível
-          await loadScript('/js/grid-editor.js');
-        }
-        
-        if (!gridPontos) {
-          inicializarGridPontos();
-        }
-        if (gridPontos) {
-          gridPontos.render(pontosRoteiro);
+        if (typeof GridEditor !== 'undefined') {
+          if (!gridPontos) {
+            inicializarGridPontos();
+          }
+          if (gridPontos) {
+            gridPontos.render(pontosRoteiro);
+          }
+        } else {
+          console.warn('[Roteiros] GridEditor não está disponível. Recarregue a página.');
         }
         
         // Calcular e exibir soma das distâncias
@@ -2907,12 +2998,12 @@ async function loadRoteiroParaEdicao(id) {
   
   // Inicializar Grid de Pontos
   function inicializarGridPontos() {
-    if (typeof GridEditor === 'undefined') {
+    if (typeof window.GridEditor === 'undefined') {
       console.error('[Pontos] GridEditor não está disponível');
       return;
     }
-    
-    gridPontos = new GridEditor({
+
+    gridPontos = new window.GridEditor({
       container: '#pontosGrid',
       columns: [
         { field: 'SEQUENCIA', header: 'Seq', editable: false, isId: true, width: '60px' },
@@ -3173,7 +3264,8 @@ async function loadRoteiroParaEdicao(id) {
       }
       
       // Usar Nominatim para geocodificação com detalhes de endereço
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(posicao)}&limit=1&addressdetails=1`;
+      const nominatimServer = window.MAP_CONFIG?.nominatimServer || 'http://186.250.92.131:8082';
+      const url = `${nominatimServer}/search?format=json&q=${encodeURIComponent(posicao)}&limit=1&addressdetails=1`;
       const response = await fetch(url, {
         headers: {
           'User-Agent': 'DivulgaCarga/1.0'
@@ -3507,17 +3599,17 @@ async function loadRoteiroParaEdicao(id) {
             }
             
             // Renderizar grid com dados atualizados
-            if (typeof GridEditor === 'undefined') {
-              await loadScript('/js/grid-editor.js');
-            }
-            
-            if (!gridPontos) {
-              inicializarGridPontos();
-            }
-            if (gridPontos) {
-              // Ordenar pontos por ORDEM antes de renderizar
-              const pontosOrdenados = [...pontosRoteiro].sort((a, b) => (a.ORDEM || 0) - (b.ORDEM || 0));
-              gridPontos.render(pontosOrdenados);
+            if (typeof window.GridEditor !== 'undefined') {
+              if (!gridPontos) {
+                inicializarGridPontos();
+              }
+              if (gridPontos) {
+                // Ordenar pontos por ORDEM antes de renderizar
+                const pontosOrdenados = [...pontosRoteiro].sort((a, b) => (a.ORDEM || 0) - (b.ORDEM || 0));
+                gridPontos.render(pontosOrdenados);
+              }
+            } else {
+              console.warn('[Roteiros] GridEditor não está disponível. Recarregue a página.');
             }
             
             // Atualizar soma das distâncias
@@ -3641,10 +3733,21 @@ async function loadRoteiroParaEdicao(id) {
       console.warn('[Roteiros] Mapa não está disponível para limpeza');
       return;
     }
-    
+
+    // PRIMEIRO: Remover linha de rota se existir
+    if (linhaRota) {
+      try {
+        mapa.removeLayer(linhaRota);
+        linhaRota = null;
+        console.log('🗺️ [ROTEIROS] Linha de rota removida');
+      } catch (err) {
+        console.warn('⚠️ [ROTEIROS] Erro ao remover linha de rota:', err);
+      }
+    }
+
     // PRIMEIRO: Coletar todas as camadas que precisam ser removidas
     const layersToRemove = [];
-    
+
     // Coletar marcadores de pontos
     marcadoresPontos.forEach(m => {
       if (m) {
@@ -3740,7 +3843,19 @@ async function loadRoteiroParaEdicao(id) {
       showMapaLoading('Carregando Rota', 'Carregando pontos e montando rota...');
       // SEMPRE limpar o mapa completamente antes de criar novos marcadores
       // Isso garante que não haja "resquícios" de rotas anteriores
+      console.log('🗺️ [ROTEIROS] Limpando mapa antes de atualizar...');
       limparMapa();
+      
+      // Limpar também a linha de rota se existir (garantia extra)
+      if (linhaRota) {
+        try {
+          mapa.removeLayer(linhaRota);
+          console.log('🗺️ [ROTEIROS] Linha de rota removida (garantia extra)');
+        } catch (err) {
+          console.warn('⚠️ [ROTEIROS] Erro ao remover linha de rota (garantia extra):', err);
+        }
+        linhaRota = null;
+      }
       
       // Aguardar um pouco para garantir que a limpeza foi concluída
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -3905,6 +4020,15 @@ async function loadRoteiroParaEdicao(id) {
       // Atualizar mensagem do overlay
       showMapaLoading('Traçando Rota', 'Calculando rota real entre os pontos...');
       
+      // DEBUG: Verificar ordem dos pontos antes de calcular rota
+      console.log('🗺️ [ROTEIROS] Pontos ordenados para rota:', pontosComCoordenadas.map((p, idx) => ({
+        indice: idx,
+        ordem: p.ORDEM,
+        sequencia: p.SEQUENCIA,
+        local: p.DSLOCAL,
+        coordenadas: [p.LATITUDE, p.LONGITUDE]
+      })));
+      
       // Desenhar linha conectando todos os pontos
       let osrmData = null; // Variável para armazenar dados do OSRM
       
@@ -3916,6 +4040,7 @@ async function loadRoteiroParaEdicao(id) {
         // Tentar obter rota do OSRM (com timeout para não travar)
         try {
           const coordsStr = latlngs.map(c => `${c[1]},${c[0]}`).join(';');
+          console.log('🗺️ [ROTEIROS] Coordenadas enviadas ao OSRM:', coordsStr);
           // Para poucos pontos, remover steps=true para ser mais rápido
           const osrmUrl = usarSteps 
             ? `https://router.project-osrm.org/route/v1/driving-hgv/${coordsStr}?overview=full&geometries=geojson&steps=true`
@@ -3934,6 +4059,25 @@ async function loadRoteiroParaEdicao(id) {
             const geometry = osrmData.routes[0].geometry.coordinates;
             const routeLatLngs = geometry.map(c => [c[1], c[0]]);
             
+            console.log('✅ [ROTEIROS] Rota OSRM calculada com sucesso:', {
+              totalPontos: routeLatLngs.length,
+              primeiroPonto: routeLatLngs[0],
+              ultimoPonto: routeLatLngs[routeLatLngs.length - 1],
+              distancia: (osrmData.routes[0].distance / 1000).toFixed(2) + ' km'
+            });
+            
+            // IMPORTANTE: Limpar rota anterior ANTES de criar nova
+            if (linhaRota) {
+              try {
+                mapa.removeLayer(linhaRota);
+                console.log('🗺️ [ROTEIROS] Rota anterior removida antes de desenhar nova');
+              } catch (err) {
+                console.warn('⚠️ [ROTEIROS] Erro ao remover rota anterior:', err);
+              }
+              linhaRota = null;
+            }
+            
+            // Criar nova rota
             linhaRota = L.polyline(routeLatLngs, {
               color: '#3498db',
               weight: 4,
@@ -3942,6 +4086,7 @@ async function loadRoteiroParaEdicao(id) {
             
             const distanciaTotal = (osrmData.routes[0].distance / 1000).toFixed(2);
             linhaRota.bindPopup(`<strong>Distância total da rota:</strong> ${distanciaTotal} km`);
+            console.log('✅ [ROTEIROS] Nova rota desenhada no mapa');
           } else {
             // Fallback: linha reta se OSRM não retornar rota válida
             linhaRota = L.polyline(latlngs, {
@@ -4057,10 +4202,19 @@ async function loadRoteiroParaEdicao(id) {
       mapaSelecao = L.map('mapaSelecao').setView([-23.5505, -46.6333], 5);
       
       // Configurar tile layer
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      // IMPORTANTE: Forçar HTTP (não HTTPS) para evitar ERR_SSL_PROTOCOL_ERROR
+      let tileServer = window.getTileServerUrl ? window.getTileServerUrl() : (window.MAP_CONFIG?.tileServer || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+      const tileOptions = {
         attribution: '© OpenStreetMap contributors',
         maxZoom: 19
-      }).addTo(mapaSelecao);
+      };
+      
+      // Se usar servidor OpenStreetMap com {s}, adicionar subdomínios
+      if (tileServer.includes('{s}')) {
+        tileOptions.subdomains = ['a', 'b', 'c'];
+      }
+      
+      L.tileLayer(tileServer, tileOptions).addTo(mapaSelecao);
     }
     
     // Resto da função inicializarMapaSelecao continua aqui...
@@ -4127,10 +4281,19 @@ async function loadRoteiroParaEdicao(id) {
       }).setView([viewLat, viewLng], viewZoom);
 
       // Adicionar camada de tiles do OpenStreetMap
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      // IMPORTANTE: Forçar HTTP (não HTTPS) para evitar ERR_SSL_PROTOCOL_ERROR
+      let tileServer = window.getTileServerUrl ? window.getTileServerUrl() : (window.MAP_CONFIG?.tileServer || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+      const tileOptions = {
         attribution: '© OpenStreetMap contributors',
         maxZoom: 19
-      }).addTo(mapaSelecao);
+      };
+      
+      // Se usar servidor OpenStreetMap com {s}, adicionar subdomínios
+      if (tileServer.includes('{s}')) {
+        tileOptions.subdomains = ['a', 'b', 'c'];
+      }
+      
+      L.tileLayer(tileServer, tileOptions).addTo(mapaSelecao);
       
       // Aguardar o mapa carregar completamente
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -4225,10 +4388,19 @@ async function loadRoteiroParaEdicao(id) {
       }).setView([viewLat, viewLng], viewZoom);
 
       // Adicionar camada de tiles do OpenStreetMap
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      // IMPORTANTE: Forçar HTTP (não HTTPS) para evitar ERR_SSL_PROTOCOL_ERROR
+      let tileServer = window.getTileServerUrl ? window.getTileServerUrl() : (window.MAP_CONFIG?.tileServer || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+      const tileOptions = {
         attribution: '© OpenStreetMap contributors',
         maxZoom: 19
-      }).addTo(mapaSelecao);
+      };
+      
+      // Se usar servidor OpenStreetMap com {s}, adicionar subdomínios
+      if (tileServer.includes('{s}')) {
+        tileOptions.subdomains = ['a', 'b', 'c'];
+      }
+      
+      L.tileLayer(tileServer, tileOptions).addTo(mapaSelecao);
       
       // Aguardar o mapa carregar completamente
       await new Promise(resolve => setTimeout(resolve, 300));
@@ -4504,7 +4676,8 @@ async function loadRoteiroParaEdicao(id) {
     
     // Buscar endereço usando reverse geocoding (Nominatim)
     try {
-      const reverseUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`;
+      const nominatimServer = window.MAP_CONFIG?.nominatimServer || 'http://186.250.92.131:8082';
+      const reverseUrl = `${nominatimServer}/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`;
       const reverseResponse = await fetch(reverseUrl, {
         headers: {
           'User-Agent': 'DivulgaCarga/1.0'
@@ -4659,6 +4832,92 @@ async function loadRoteiroParaEdicao(id) {
   
   // Carregar países ao inicializar
   loadPaises();
-  
+
+  // Função para mostrar ajuda
+  // Função de ajuda
+  window.mostrarAjudaRoteiros = function() {
+    // Remover qualquer modal de ajuda existente primeiro
+    const modalExistente = document.getElementById('modalAjudaRoteiros');
+    if (modalExistente) {
+      modalExistente.remove();
+    }
+    
+    // Criar modal de ajuda com padrão único
+    const modal = document.createElement('div');
+    modal.id = 'modalAjudaRoteiros';
+    modal.className = 'modal-tratamento';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+      <div class="modal-content-tratamento">
+        <div class="modal-header-tratamento">
+          <h3><i class='bx bx-help-circle'></i> Ajuda - Gerenciar Roteiros</h3>
+          <button onclick="window.fecharModalAjudaRoteiros()" class="btn-close-modal" type="button">
+            <i class='bx bx-x'></i>
+          </button>
+        </div>
+        <div class="modal-body-tratamento">
+          <h4>📋 Sobre o Módulo</h4>
+          <p>O módulo <strong>Gerenciar Roteiros</strong> permite gerenciar os roteiros de viagem cadastrados no sistema, incluindo origem, destino, pontos intermediários e visualização no mapa.</p>
+          
+          <h4>🔍 Filtros</h4>
+          <p>Use os filtros para buscar roteiros específicos por código, descrição, origem ou destino.</p>
+          
+          <h4>📝 Funcionalidades</h4>
+          <ul>
+            <li><strong>Filtros:</strong> Buscar e filtrar roteiros</li>
+            <li><strong>Grid:</strong> Visualizar roteiros em formato de tabela com opções de edição e exclusão</li>
+            <li><strong>Dados:</strong> Criar e editar roteiros, definindo origem, destino e distância</li>
+            <li><strong>Pontos:</strong> Gerencie pontos intermediários do roteiro (origem, passagem, destino, parada)</li>
+            <li><strong>Mapa:</strong> Visualize o roteiro completo no mapa com todos os pontos</li>
+          </ul>
+          
+          <h4>🗺️ Pontos do Roteiro</h4>
+          <ul>
+            <li><strong>Origem (O):</strong> Ponto inicial do roteiro (Ordem 1)</li>
+            <li><strong>Destino (D):</strong> Ponto final do roteiro (Ordem 100)</li>
+            <li><strong>Passagem (P):</strong> Pontos intermediários (Ordem 2-99)</li>
+            <li><strong>Parada (R):</strong> Pontos de parada (Ordem 2-99)</li>
+          </ul>
+          
+          <h4>📏 Cálculo de Distância</h4>
+          <ul>
+            <li>O sistema calcula automaticamente a distância total do roteiro usando rotas reais (OSRM)</li>
+            <li>As distâncias entre pontos são calculadas e atualizadas automaticamente</li>
+            <li>É possível recalcular as distâncias manualmente na aba "Pontos"</li>
+          </ul>
+          
+          <h4>📍 Resumo da Rota</h4>
+          <ul>
+            <li>O campo "Resumo da Rota" é gerado automaticamente com base nos pontos cadastrados</li>
+            <li>O resumo mostra a sequência de cidades do roteiro de forma resumida</li>
+            <li>É possível gerar o resumo manualmente clicando no botão "Gerar Resumo"</li>
+          </ul>
+          
+          <h4>✨ Dicas</h4>
+          <ul>
+            <li>Para criar um novo roteiro, clique em "Novo Registro" na aba Grid ou Dados</li>
+            <li>Para editar um roteiro existente, clique no botão de editar (✎) na coluna Ações do grid</li>
+            <li>Após criar um roteiro, adicione os pontos na aba "Pontos"</li>
+            <li>Use a aba "Mapa" para visualizar o roteiro completo com todos os pontos</li>
+            <li>O resumo da rota é gerado automaticamente, mas pode ser recalculado manualmente</li>
+          </ul>
+        </div>
+        <div class="modal-footer-tratamento">
+          <button onclick="window.fecharModalAjudaRoteiros()" class="btn btn-secondary">
+            <i class='bx bx-x'></i> Fechar
+          </button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+  };
+
+  window.fecharModalAjudaRoteiros = function() {
+    const modal = document.getElementById('modalAjudaRoteiros');
+    if (modal) {
+      modal.remove();
+    }
+  };
   
 })();

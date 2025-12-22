@@ -18,6 +18,7 @@ const alertService = {
     const alertas = [];
 
     try {
+      console.log(`🔍 [Alertas] Verificando viagem ${idViagem}...`);
       // Buscar motorista da viagem (para incluir nos alertas)
       let cdmotorista = null;
       try {
@@ -43,6 +44,7 @@ const alertService = {
       if (paradaAlerta) {
         paradaAlerta.cdmotorista = cdmotorista;
         alertas.push(paradaAlerta);
+        console.log(`   ✅ Parada prolongada detectada`);
       }
 
       // 2. Verificar atraso no ETA (com cálculo dinâmico)
@@ -50,6 +52,7 @@ const alertService = {
       if (atrasoAlerta) {
         atrasoAlerta.cdmotorista = cdmotorista;
         alertas.push(atrasoAlerta);
+        console.log(`   ✅ Atraso detectado`);
       }
 
       // 2.1 Verificar ETA > prazo de entrega (alerta preventivo)
@@ -57,6 +60,7 @@ const alertService = {
       if (etaAlerta) {
         etaAlerta.cdmotorista = cdmotorista;
         alertas.push(etaAlerta);
+        console.log(`   ✅ ETA preventivo detectado`);
       }
 
       // 3. Verificar motorista offline (> 90 min)
@@ -64,6 +68,7 @@ const alertService = {
       if (offlineAlerta) {
         offlineAlerta.cdmotorista = cdmotorista;
         alertas.push(offlineAlerta);
+        console.log(`   ✅ Motorista offline detectado`);
       }
 
       // 4. Verificar desvio de rota (implementado com buffer de 500m)
@@ -71,11 +76,25 @@ const alertService = {
       if (desvioAlerta) {
         desvioAlerta.cdmotorista = cdmotorista;
         alertas.push(desvioAlerta);
+        console.log(`   ✅ Desvio de rota detectado`);
       }
 
       // Salvar alertas novos no banco
+      let alertasSalvos = 0;
       for (const alerta of alertas) {
-        await alertService.salvarAlerta(alerta, pool);
+        const salvo = await alertService.salvarAlerta(alerta, pool);
+        if (salvo) {
+          alertasSalvos++;
+          console.log(`   ✅ Alerta ${alerta.type.toUpperCase()} salvo com sucesso`);
+        } else {
+          console.log(`   ℹ️  Alerta ${alerta.type.toUpperCase()} não salvo (já existe ou erro)`);
+        }
+      }
+
+      if (alertas.length > 0) {
+        console.log(`📋 [Viagem ${idViagem}] ${alertasSalvos} de ${alertas.length} alerta(s) salvo(s) no banco`);
+      } else {
+        console.log(`   ℹ️  Nenhum alerta detectado para viagem ${idViagem}`);
       }
 
       return alertas;
@@ -755,25 +774,57 @@ const alertService = {
    */
   salvarAlerta: async (alerta, pool) => {
     try {
+      // Verificar se já existe alerta ativo do mesmo tipo
+      const existeResult = await pool.request()
+        .input('idviagem', sql.Decimal(15, 0), alerta.idviagem)
+        .input('type', sql.NVarChar(20), alerta.type)
+        .query(`
+          SELECT TOP 1 ID 
+          FROM [dbo].[ALERTS]
+          WHERE IDVIAGEM = @idviagem
+            AND TYPE = @type
+            AND (STATUS IS NULL OR STATUS = 'Pendente' OR STATUS = 'Em Análise')
+            AND RESOLVED = 0
+        `);
+
+      if (existeResult.recordset.length > 0) {
+        console.log(`ℹ️  Alerta ${alerta.type} já existe ativo para viagem ${alerta.idviagem}, não duplicando`);
+        return false; // Já existe, não duplicar
+      }
+
+      // Determinar prioridade baseado na severity
+      let prioridade = 'Normal';
+      if (alerta.severity === 'high') {
+        prioridade = 'Urgente';
+      } else if (alerta.severity === 'medium') {
+        prioridade = 'Alta';
+      }
+
       await pool.request()
         .input('idviagem', sql.Decimal(15, 0), alerta.idviagem)
         .input('cdmotorista', sql.Decimal(15, 0), alerta.cdmotorista || null)
-        .input('type', sql.NVarChar(20), alerta.type)
+        .input('type', sql.NVarChar(20), alerta.type.toUpperCase())
         .input('message', sql.NVarChar(255), alerta.message)
         .input('severity', sql.NVarChar(10), alerta.severity)
+        .input('prioridade', sql.NVarChar(20), prioridade)
         .input('details', sql.NVarChar(sql.MAX), alerta.details || null)
         .query(`
           INSERT INTO [dbo].[ALERTS] (
-            IDVIAGEM, CDMOTORISTA, TYPE, MESSAGE, SEVERITY, DETAILS
+            IDVIAGEM, CDMOTORISTA, TYPE, MESSAGE, SEVERITY, PRIORIDADE, DETAILS, STATUS
           )
           VALUES (
-            @idviagem, @cdmotorista, @type, @message, @severity, @details
+            @idviagem, @cdmotorista, @type, @message, @severity, @prioridade, @details, 'Pendente'
           )
         `);
 
       return true;
     } catch (err) {
-      console.error('Erro ao salvar alerta:', err);
+      console.error('❌ Erro ao salvar alerta:', err.message);
+      console.error('   Detalhes:', {
+        idviagem: alerta.idviagem,
+        type: alerta.type,
+        message: alerta.message
+      });
       return false;
     }
   },

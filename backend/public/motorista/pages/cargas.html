@@ -138,7 +138,7 @@
           if (window.OfflineDB) {
             const cargas = await window.OfflineDB.buscarCache('cargas');
             renderizar(cargas || []);
-            mostrarToast('⚠️ Erro ao buscar cargas. Mostrando dados salvos.', 'warning');
+            mostrarToast('Erro ao buscar cargas. Mostrando dados salvos.', 'warning');
           } else {
             renderizar([]);
           }
@@ -151,14 +151,14 @@
           if (window.OfflineDB) {
             const cargas = await window.OfflineDB.buscarCache('cargas');
             renderizar(cargas || []);
-            mostrarToast('📴 Sem conexão. Mostrando dados salvos.', 'warning');
+            mostrarToast('Sem conexão. Mostrando dados salvos.', 'warning');
           } else {
             renderizar([]);
-            mostrarToast('❌ Erro ao carregar cargas', 'error');
+            mostrarToast('Erro ao carregar cargas', 'error');
           }
         } catch (cacheErr) {
           renderizar([]);
-          mostrarToast('❌ Erro ao carregar cargas', 'error');
+          mostrarToast('Erro ao carregar cargas', 'error');
         }
       }
     }

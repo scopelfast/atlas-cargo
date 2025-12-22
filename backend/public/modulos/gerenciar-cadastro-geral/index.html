@@ -4,35 +4,738 @@
   <meta charset="UTF-8">
   <title>Gerenciar Cadastro Geral</title>
   <link rel="stylesheet" href="/css/modulos.css">
+  <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <style>
-    .grid-btn-whatsapp {
-      background-color: #25D366;
-      color: white;
+    /* ========== ESTILOS DO LAYOUT PADRONIZADO ========== */
+    .cadastro-geral-container {
+      padding: 20px;
+    }
+
+    .cadastro-geral-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    .cadastro-geral-header h2 {
+      margin: 0;
+      color: #2c3e50;
+      font-size: 28px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+
+    /* ========== BOTÕES - Padrão do Sistema ========== */
+    .btn {
+      padding: 12px 24px;
       border: none;
-      padding: 4px 8px;
-      border-radius: 4px;
-      cursor: pointer;
+      border-radius: 8px;
       font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-right: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: inherit;
       text-decoration: none;
-      display: inline-block;
-      transition: background-color 0.2s;
+      box-sizing: border-box;
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .btn-primary {
+      background: #3498db;
+      color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #2980b9;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
+    }
+
+    /* Botão verde para "Novo Registro" */
+    button.btn-primary[id*="NovoRegistro"],
+    button.btn-primary[id*="NovoEquipamento"] {
+      background: #3DCC7F;
+      color: white;
+    }
+
+    button.btn-primary[id*="NovoRegistro"]:hover:not(:disabled),
+    button.btn-primary[id*="NovoEquipamento"]:hover:not(:disabled) {
+      background: #2eb86b;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(61, 204, 127, 0.3);
+    }
+
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: #5a6268;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(108, 117, 125, 0.3);
+    }
+
+    .btn-info {
+      background: #17a2b8;
+      color: white;
+    }
+
+    .btn-info:hover:not(:disabled) {
+      background: #138496;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(23, 162, 184, 0.3);
+    }
+
+    .btn-sm {
+      padding: 8px 16px;
+      font-size: 14px;
+    }
+
+    .filtros-box {
+      background: white;
+      border-radius: 12px;
+      padding: 25px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 25px;
+    }
+
+    .filtros-box h3 {
+      margin: 0 0 20px 0;
+      color: #2c3e50;
+      font-size: 18px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .filtros-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+
+    .filtros-grid > div {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .filtros-grid label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #34495e;
+      font-size: 14px;
+    }
+
+    .filtros-grid .form-control {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      font-size: 16px;
+      transition: all 0.3s;
+      font-family: inherit;
+      box-sizing: border-box;
+      background-color: #fff;
+    }
+
+    .filtros-grid .form-control:focus {
+      outline: none;
+      border-color: #3498db;
+      box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+    }
+
+    .filtros-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 15px;
+    }
+
+    .filtros-actions .btn {
+      margin-right: 0;
+    }
+
+    /* ========== MODAL PADRÃO TOP (SOS/Alertas) ========== */
+    .modal-tratamento {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-content-tratamento {
+      background: white;
+      border-radius: 12px;
+      padding: 0;
+      max-width: 800px;
+      width: 90%;
+      max-height: 90vh;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-header-tratamento {
+      padding: 20px 25px;
+      border-bottom: 1px solid #e9ecef;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .modal-header-tratamento h3 {
+      margin: 0;
+      color: #2c3e50;
+      font-size: 24px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-close-modal {
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: #666;
+      cursor: pointer;
+      padding: 5px;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .btn-close-modal:hover {
+      background: #f0f0f0;
+      color: #333;
+    }
+
+    .modal-body-tratamento {
+      padding: 25px;
+      max-height: calc(90vh - 140px);
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .modal-body-tratamento h4 {
+      color: #2c3e50;
+      margin-top: 20px;
+      margin-bottom: 10px;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .modal-body-tratamento h4:first-child {
+      margin-top: 0;
+    }
+
+    .modal-body-tratamento p {
+      color: #495057;
+      line-height: 1.6;
+      margin-bottom: 15px;
+    }
+
+    .modal-body-tratamento ul {
+      margin: 10px 0 20px 0;
+      padding-left: 20px;
+      color: #495057;
+      line-height: 1.8;
+    }
+
+    .modal-body-tratamento li {
+      margin: 8px 0;
+    }
+
+    .modal-body-tratamento strong {
+      color: #2c3e50;
+      font-weight: 600;
+    }
+
+    .modal-footer-tratamento {
+      padding: 20px 25px;
+      border-top: 1px solid #e9ecef;
+      display: flex;
+      justify-content: flex-end;
+      flex-shrink: 0;
+    }
+
+    /* ========== ESTILOS DOS CAMPOS DO MODAL ========== */
+    .modal-content-tratamento .form-control {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      font-size: 16px;
+      transition: all 0.3s;
+      font-family: inherit;
+      box-sizing: border-box;
+      background-color: #fff;
+      color: #2c3e50;
+    }
+
+    .modal-content-tratamento .form-control:focus {
+      outline: none;
+      border-color: #3498db;
+      box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+    }
+
+    .modal-content-tratamento .form-control:hover {
+      border-color: #adb5bd;
+    }
+
+    .modal-content-tratamento select.form-control {
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      background-size: 12px;
+      padding-right: 40px;
+    }
+
+    .modal-content-tratamento input[type="date"].form-control {
+      cursor: pointer;
+      color: #2c3e50;
+    }
+
+    .modal-content-tratamento input[type="date"].form-control::-webkit-calendar-picker-indicator {
+      cursor: pointer;
+      opacity: 0.6;
+      padding: 0;
+      margin: 0;
+      margin-left: 8px;
+      width: 20px;
+      height: 20px;
+    }
+
+    .modal-content-tratamento input[type="date"].form-control::-webkit-calendar-picker-indicator:hover {
+      opacity: 1;
+    }
+
+    .modal-content-tratamento textarea.form-control {
+      min-height: 80px;
+      resize: vertical;
+      font-family: inherit;
+      line-height: 1.5;
+    }
+
+    .modal-content-tratamento label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #2c3e50;
+      font-size: 14px;
+    }
+
+    /* ========== ESTILOS ESPECÍFICOS DO MODAL DE VALIDADE ========== */
+    .modal-validade-field {
+      margin-bottom: 20px;
+    }
+
+    .modal-validade-field label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #2c3e50;
+      font-size: 14px;
+    }
+
+    .modal-validade-field label i {
+      color: #3498db;
+      font-size: 16px;
+    }
+
+    /* Certificadora Box */
+    .modal-validade-certificadora-box {
+      background: #f8f9fa;
+      padding: 20px;
+      border-radius: 8px;
+      border: 1px solid #e9ecef;
+      margin-bottom: 20px;
+    }
+
+    .certificadora-busca-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 15px;
+    }
+
+    .certificadora-busca-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .certificadora-busca-item .form-control {
+      margin-bottom: 8px;
+    }
+
+    .certificadora-busca-item .btn {
+      width: 100%;
+      padding: 10px 12px;
+      font-size: 13px;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    /* Resultado Certificadora */
+    #certResultado {
+      padding: 14px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: all 0.3s;
+    }
+
+    #certResultado i {
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    #certResultado:not(.certificadora-selecionada) {
+      background: #e9ecef;
+      border: 1px solid #dee2e6;
+      color: #6c757d;
+    }
+
+    #certResultado.certificadora-selecionada {
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      color: #155724;
+    }
+
+    #certResultado.certificadora-aviso {
+      background: #fff3cd;
+      border: 1px solid #ffc107;
+      color: #856404;
+    }
+
+    #certResultado.certificadora-erro {
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+    }
+
+    /* Grid de Datas */
+    .validade-datas-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .validade-datas-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    /* Subtítulo do Modal */
+    #modalValidadeSubtitulo {
+      margin: 0 0 25px 0;
+      color: #6c757d;
+      font-size: 14px;
+      font-weight: 500;
+      padding-bottom: 15px;
+      border-bottom: 1px solid #e9ecef;
+    }
+
+    /* ========== RESPONSIVIDADE DOS MODAIS ========== */
+    @media (max-width: 768px) {
+      .modal-content-tratamento {
+        width: 95%;
+        max-width: 100%;
+        padding: 20px;
+        margin: 10px;
+        max-height: 95vh;
+      }
+
+      .modal-header-tratamento {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+      }
+
+      .modal-header-tratamento h3 {
+        font-size: 20px;
+      }
+
+      .btn-close-modal {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+      }
+
+      /* Formulário de validade responsivo */
+      .validade-datas-grid {
+        grid-template-columns: 1fr !important;
+      }
+
+      .validade-datas-inner {
+        grid-template-columns: 1fr !important;
+      }
+
+      /* Certificadora - 3 colunas vira 1 coluna */
+      .certificadora-busca-grid {
+        grid-template-columns: 1fr !important;
+      }
+
+      /* Botões do modal */
+      #formValidade > div[style*="justify-content: flex-end"] {
+        flex-direction: column;
+      }
+
+      #formValidade > div[style*="justify-content: flex-end"] .btn {
+        width: 100%;
+        margin-right: 0;
+        margin-bottom: 10px;
+      }
+    }
+
+      @media (max-width: 480px) {
+        .modal-content-tratamento {
+          padding: 15px;
+          margin: 5px;
+        }
+
+        .modal-header-tratamento h3 {
+          font-size: 18px;
+          padding-right: 40px;
+        }
+      }
+
+      /* Cards de validade responsivos */
+      @media (max-width: 768px) {
+        .validade-card {
+          flex-direction: column;
+          min-height: auto !important;
+        }
+
+        .validade-card > div:first-child {
+          width: 100% !important;
+          height: 5px !important;
+        }
+
+        .validade-card-header {
+          flex-direction: column !important;
+        }
+
+        .validade-card-actions {
+          width: 100%;
+          justify-content: stretch;
+        }
+
+        .validade-card-actions button {
+          flex: 1;
+        }
+
+        .validade-card-footer {
+          flex-direction: column;
+          gap: 12px !important;
+        }
+
+        .validade-card-footer > div {
+          width: 100%;
+        }
+      }
+
+    /* ========== MODAL DE AJUDA ========== */
+    .modal-tratamento {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-tratamento.active {
+      display: flex;
+    }
+
+    .modal-content-tratamento {
+      background: white;
+      border-radius: 12px;
+      padding: 0;
+      max-width: 800px;
+      width: 90%;
+      max-height: 90vh;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-header-tratamento {
+      padding: 20px 25px;
+      border-bottom: 1px solid #e9ecef;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .modal-header-tratamento h3 {
+      margin: 0;
+      color: #2c3e50;
+      font-size: 24px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-close-modal {
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: #666;
+      cursor: pointer;
+      padding: 5px;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .btn-close-modal:hover {
+      background: #f0f0f0;
+      color: #333;
+    }
+
+    .modal-body-tratamento {
+      padding: 25px;
+      max-height: calc(90vh - 140px);
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .modal-body-tratamento h4 {
+      color: #2c3e50;
+      margin-top: 20px;
+      margin-bottom: 10px;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .modal-body-tratamento h4:first-child {
+      margin-top: 0;
+    }
+
+    .modal-body-tratamento p {
+      color: #495057;
+      line-height: 1.6;
+      margin-bottom: 15px;
+    }
+
+    .modal-body-tratamento ul {
+      margin: 10px 0 20px 0;
+      padding-left: 20px;
+      color: #495057;
+      line-height: 1.8;
+    }
+
+    .modal-body-tratamento li {
+      margin: 8px 0;
+    }
+
+    .modal-body-tratamento strong {
+      color: #2c3e50;
+      font-weight: 600;
+    }
+
+    .modal-footer-tratamento {
+      padding: 20px 25px;
+      border-top: 1px solid #e9ecef;
+      display: flex;
+      justify-content: flex-end;
+      flex-shrink: 0;
+    }
+
+    .btn.grid-btn-whatsapp,
+    a.grid-btn-whatsapp,
+    .grid-btn-whatsapp {
+      background-color: #25D366 !important;
+      color: white !important;
+      width: 32px !important;
+      height: 32px !important;
+      min-width: 32px !important;
+      min-height: 32px !important;
+      max-width: 32px !important;
+      max-height: 32px !important;
+      padding: 4px !important;
+      margin: 0 !important;
+      margin-right: 0 !important;
+      flex-shrink: 0 !important;
+      border-radius: 4px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      box-sizing: border-box !important;
     }
     .grid-btn-whatsapp:hover {
       background-color: #128C7E;
       color: white;
       text-decoration: none;
+      transform: scale(1.1);
     }
     /* Ajustar largura da coluna de ações para comportar apenas os 3 ícones */
     .grid-actions-header {
-      width: 120px !important;
-      min-width: 120px !important;
-      max-width: 120px !important;
+      width: 110px !important;
+      min-width: 110px !important;
+      max-width: 110px !important;
+      text-align: center !important;
     }
     .grid-actions {
-      width: 120px !important;
-      min-width: 120px !important;
-      max-width: 120px !important;
+      width: 110px !important;
+      min-width: 110px !important;
+      max-width: 110px !important;
       padding: 8px 4px !important;
+      justify-content: flex-start !important;
     }
   </style>
 </head>
@@ -47,8 +750,20 @@
     </div>
   </div>
 
-  <div class="modulo-container">
-    <h1>Gerenciar Cadastro Geral</h1>
+  <div class="cadastro-geral-container">
+    <!-- Header Padronizado -->
+    <div class="cadastro-geral-header">
+      <h2>
+        <i class='bx bx-user-circle' style="color: #3498db;"></i>
+        Gerenciar Cadastro Geral
+      </h2>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <button onclick="window.mostrarAjudaCadastroGeral()" class="btn btn-info" title="Como funciona? Regras e instruções">
+          <i class='bx bx-help-circle'></i> Ajuda
+        </button>
+      </div>
+    </div>
+
 
     <!-- Abas -->
     <div class="tabs">
@@ -61,37 +776,32 @@
 
     <!-- Filtros -->
     <div class="tab-content active" id="tab-filtros">
-      <div class="form-box">
-        <h2>Filtros de Busca</h2>
+      <div class="filtros-box">
+        <h3><i class='bx bx-filter'></i> Filtros</h3>
         <form id="filtroForm">
-          <!-- Linha 1: Código, CGCCPF, Razão Social, Transportador -->
-          <div class="input-group four-row">
+          <div class="filtros-grid">
             <div>
               <label for="filtroCodigo">Código</label>
-              <input type="number" id="filtroCodigo" min="1">
+              <input type="number" id="filtroCodigo" class="form-control" min="1">
             </div>
             <div>
               <label for="filtroCGCCPF">CPF/CNPJ</label>
-              <input type="text" id="filtroCGCCPF" maxlength="18">
+              <input type="text" id="filtroCGCCPF" class="form-control" maxlength="18">
             </div>
             <div>
               <label for="filtroRazaoSocial">Razão Social</label>
-              <input type="text" id="filtroRazaoSocial" maxlength="60">
+              <input type="text" id="filtroRazaoSocial" class="form-control" maxlength="60">
             </div>
             <div>
               <label for="filtroTransportador">Transportador</label>
-              <select id="filtroTransportador">
+              <select id="filtroTransportador" class="form-control">
                 <option value="">Todos</option>
                 <!-- Preenchido dinamicamente -->
               </select>
             </div>
-          </div>
-
-          <!-- Linha 2: Tipo Pessoa, Estado, Cidade, Celular -->
-          <div class="input-group four-row">
             <div>
               <label for="filtroTipoPessoa">Tipo Pessoa</label>
-              <select id="filtroTipoPessoa">
+              <select id="filtroTipoPessoa" class="form-control">
                 <option value="">Todos</option>
                 <option value="F">Física</option>
                 <option value="J">Jurídica</option>
@@ -99,30 +809,26 @@
             </div>
             <div>
               <label for="filtroEstado">UF - Estado</label>
-              <select id="filtroEstado">
+              <select id="filtroEstado" class="form-control">
                 <option value="">Todos</option>
                 <!-- Preenchido dinamicamente -->
               </select>
             </div>
             <div>
               <label for="filtroCidade">Cidade</label>
-              <input type="text" id="filtroCidade" maxlength="40" placeholder="Digite parte do nome...">
+              <input type="text" id="filtroCidade" class="form-control" maxlength="40" placeholder="Digite parte do nome...">
             </div>
             <div>
               <label for="filtroCelular">Celular</label>
-              <input type="text" id="filtroCelular" maxlength="15">
+              <input type="text" id="filtroCelular" class="form-control" maxlength="15">
             </div>
-          </div>
-
-          <!-- Linha 3: Email, Tipo Cadastro, Veículo Rastreado?, Situação -->
-          <div class="input-group four-row">
             <div>
               <label for="filtroEmail">Email</label>
-              <input type="text" id="filtroEmail" maxlength="200" placeholder="exemplo@email.com">
+              <input type="text" id="filtroEmail" class="form-control" maxlength="200" placeholder="exemplo@email.com">
             </div>
             <div>
               <label for="filtroTipoCadastro">Tipo Cadastro</label>
-              <select id="filtroTipoCadastro">
+              <select id="filtroTipoCadastro" class="form-control">
                 <option value="">Todos</option>
                 <option value="O">Operador do Sistema</option>
                 <option value="M">Motorista</option>
@@ -134,7 +840,7 @@
             </div>
             <div>
               <label for="filtroRastreado">Possui Veículo Rastreado</label>
-              <select id="filtroRastreado">
+              <select id="filtroRastreado" class="form-control">
                 <option value="">Todos</option>
                 <option value="S">Sim</option>
                 <option value="N">Não</option>
@@ -142,7 +848,7 @@
             </div>
             <div>
               <label for="filtroSituacao">Situação</label>
-              <select id="filtroSituacao">
+              <select id="filtroSituacao" class="form-control">
                 <option value="">Todas</option>
                 <option value="S">Ativo</option>
                 <option value="N">Inativo</option>
@@ -150,8 +856,14 @@
             </div>
           </div>
 
-          <button type="submit" class="btn save">Aplicar Filtro</button>
-          <button type="button" id="btnLimparFiltros" class="btn cancel">Limpar</button>
+          <div class="filtros-actions">
+            <button type="button" id="btnLimparFiltros" class="btn btn-secondary">
+              <i class='bx bx-x'></i> Limpar
+            </button>
+            <button type="submit" class="btn btn-primary">
+              <i class='bx bx-search'></i> Filtrar
+            </button>
+          </div>
         </form>
       </div>
     </div>
@@ -165,7 +877,9 @@
             <button id="btnVoltarGrid" class="btn cancel">← Voltar aos Filtros</button>
             <button id="btnExportarExcel" class="btn save" style="background-color: #27ae60;">📥 Exportar para Excel</button>
           </div>
-          <button id="btnNovoRegistroGrid" class="btn save">+ Novo Registro</button>
+          <button id="btnNovoRegistroGrid" class="btn btn-primary">
+            <i class='bx bx-plus'></i> Novo Registro
+          </button>
         </div>
         <div id="cadastrosGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
           <span id="cadastrosGridCountText">0 registro(s) encontrado(s)</span>
@@ -314,9 +1028,15 @@
           </div>
 
           <div class="form-actions">
-            <button type="submit" class="btn save">Salvar</button>
-            <button type="button" id="btnGerenciarClasses" class="btn info">Gerenciar Classes</button>
-            <button type="button" id="btnCancelar" class="btn cancel">Cancelar</button>
+            <button type="submit" class="btn btn-primary">
+              <i class='bx bx-save'></i> Salvar
+            </button>
+            <button type="button" id="btnCancelar" class="btn btn-secondary">
+              <i class='bx bx-x'></i> Cancelar
+            </button>
+            <button type="button" id="btnGerenciarClasses" class="btn btn-info">
+              <i class='bx bx-cog'></i> Gerenciar Classes
+            </button>
           </div>
         </form>
       </div>
@@ -383,141 +1103,119 @@
           <p class="empty">Selecione um cadastro na aba Dados para visualizar as validades.</p>
         </div>
 
-        <!-- Modal de Edição de Validade - Padrão Profissional -->
-        <div id="modalValidade" class="modal" style="display: none;">
-          <div class="modal-content" style="max-width: 700px; padding: 0; overflow: hidden; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+        <!-- Modal de Edição de Validade - Padrão TOP -->
+        <div id="modalValidade" class="modal-tratamento" style="display: none;">
+          <div class="modal-content-tratamento" style="max-width: 700px;">
             <!-- Cabeçalho -->
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px 25px; display: flex; justify-content: space-between; align-items: center;">
-              <div>
-                <h3 id="modalValidadeTitulo" style="margin: 0; font-size: 20px; font-weight: 600;">📋 Nova Validade</h3>
-                <p style="margin: 5px 0 0 0; font-size: 13px; opacity: 0.9;" id="modalValidadeSubtitulo">Cadastro de nova validade</p>
-              </div>
-              <button type="button" id="btnFecharModalValidade" 
-                      style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: 0.3s;"
-                      onmouseover="this.style.background='rgba(255,255,255,0.3)'"
-                      onmouseout="this.style.background='rgba(255,255,255,0.2)'">
-                ✖ Fechar
+            <div class="modal-header-tratamento">
+              <h3 id="modalValidadeTitulo"><i class='bx bx-file-blank'></i> Nova Validade</h3>
+              <button type="button" id="btnFecharModalValidade" class="btn-close-modal" onclick="document.getElementById('modalValidade').style.display='none'">
+                <i class='bx bx-x'></i>
               </button>
             </div>
             
             <!-- Corpo -->
-            <form id="formValidade" style="padding: 25px; background: #f8f9fa;">
-              <input type="hidden" id="validadeSequencia">
-              <input type="hidden" id="validadeTpCadastro">
+            <div class="modal-body-tratamento">
+              <form id="formValidade">
+                <input type="hidden" id="validadeSequencia">
+                <input type="hidden" id="validadeTpCadastro">
+                
+                <!-- Subtítulo -->
+                <p id="modalValidadeSubtitulo">Cadastro de nova validade</p>
               
-              <!-- Tipo de Validade -->
-              <div style="margin-bottom: 20px;">
-                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #2c3e50; font-size: 14px;">
-                  📄 Tipo de Validade *
-                </label>
-                <select id="validadeTipo" required 
-                        style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 8px; font-size: 14px; background: white; transition: 0.3s;"
-                        onfocus="this.style.borderColor='#667eea'; this.style.boxShadow='0 0 0 3px rgba(102,126,234,0.1)'"
-                        onblur="this.style.borderColor='#dee2e6'; this.style.boxShadow='none'">
-                  <option value="">Selecione o tipo...</option>
-                </select>
-              </div>
-
-              <!-- Buscar Certificadora -->
-              <div style="margin-bottom: 20px; background: white; padding: 15px; border-radius: 8px; border: 2px solid #dee2e6;">
-                <label style="display: block; margin-bottom: 12px; font-weight: 600; color: #2c3e50; font-size: 14px;">
-                  🏢 Certificadora
-                </label>
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 10px;">
-                  <div>
-                    <input type="text" id="certCpfCnpj" placeholder="CPF/CNPJ" style="width: 100%; padding: 10px; border: 1px solid #dee2e6; border-radius: 6px; font-size: 13px;">
-                    <button type="button" onclick="window.buscarCertPorCpf()" 
-                            style="width: 100%; margin-top: 6px; padding: 8px; background: #3498db; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;"
-                            onmouseover="this.style.background='#2980b9'" 
-                            onmouseout="this.style.background='#3498db'">
-                      🔍 Por CPF
-                    </button>
-                  </div>
-                  <div>
-                    <input type="text" id="certCodigo" placeholder="Código" style="width: 100%; padding: 10px; border: 1px solid #dee2e6; border-radius: 6px; font-size: 13px;">
-                    <button type="button" onclick="window.buscarCertPorCodigo()" 
-                            style="width: 100%; margin-top: 6px; padding: 8px; background: #3498db; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;"
-                            onmouseover="this.style.background='#2980b9'" 
-                            onmouseout="this.style.background='#3498db'">
-                      🔍 Por Código
-                    </button>
-                  </div>
-                  <div>
-                    <input type="text" id="certNome" placeholder="Nome" style="width: 100%; padding: 10px; border: 1px solid #dee2e6; border-radius: 6px; font-size: 13px;">
-                    <button type="button" onclick="window.buscarCertPorNome()" 
-                            style="width: 100%; margin-top: 6px; padding: 8px; background: #3498db; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600;"
-                            onmouseover="this.style.background='#2980b9'" 
-                            onmouseout="this.style.background='#3498db'">
-                      🔍 Por Nome
-                    </button>
-                  </div>
-                </div>
-                <input type="hidden" id="validadeCertificadora">
-                <div id="certResultado" style="padding: 10px; background: #e9ecef; border-radius: 6px; font-size: 13px; color: #6c757d; min-height: 40px; display: flex; align-items: center;">
-                  <span id="certTexto">Nenhuma certificadora selecionada</span>
-                </div>
-              </div>
-
-              <!-- Nº Liberação e Datas -->
-              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
-                <div>
-                  <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #2c3e50; font-size: 14px;">
-                    🔖 Nº Liberação *
+                <!-- Tipo de Validade -->
+                <div class="modal-validade-field">
+                  <label for="validadeTipo">
+                    <i class='bx bx-file-blank'></i>
+                    <span>Tipo de Validade *</span>
                   </label>
-                  <input type="text" id="validadeNrLiberacao" required maxlength="30" 
-                         style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 8px; font-size: 14px;"
-                         onfocus="this.style.borderColor='#667eea'"
-                         onblur="this.style.borderColor='#dee2e6'">
+                  <select id="validadeTipo" required class="form-control">
+                    <option value="">Selecione o tipo...</option>
+                  </select>
                 </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-                  <div>
-                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #2c3e50; font-size: 14px;">
-                      📅 Dt. Liberação *
-                    </label>
-                    <input type="date" id="validadeDtLiberacao" required 
-                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 8px; font-size: 14px;"
-                           onfocus="this.style.borderColor='#667eea'"
-                           onblur="this.style.borderColor='#dee2e6'">
+
+                <!-- Buscar Certificadora -->
+                <div class="modal-validade-certificadora-box">
+                  <label>
+                    <i class='bx bx-building'></i>
+                    <span>Certificadora</span>
+                  </label>
+                  <div class="certificadora-busca-grid">
+                    <div class="certificadora-busca-item">
+                      <input type="text" id="certCpfCnpj" placeholder="CPF/CNPJ" class="form-control">
+                      <button type="button" onclick="window.buscarCertPorCpf()" class="btn btn-primary">
+                        <i class='bx bx-search'></i> Por CPF/CNPJ
+                      </button>
+                    </div>
+                    <div class="certificadora-busca-item">
+                      <input type="text" id="certCodigo" placeholder="Código" class="form-control">
+                      <button type="button" onclick="window.buscarCertPorCodigo()" class="btn btn-primary">
+                        <i class='bx bx-search'></i> Por Código
+                      </button>
+                    </div>
+                    <div class="certificadora-busca-item">
+                      <input type="text" id="certNome" placeholder="Nome" class="form-control">
+                      <button type="button" onclick="window.buscarCertPorNome()" class="btn btn-primary">
+                        <i class='bx bx-search'></i> Por Nome
+                      </button>
+                    </div>
                   </div>
-                  <div>
-                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #2c3e50; font-size: 14px;">
-                      ⏰ Dt. Validade *
-                    </label>
-                    <input type="date" id="validadeDtValidade" required 
-                           style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 8px; font-size: 14px;"
-                           onfocus="this.style.borderColor='#667eea'"
-                           onblur="this.style.borderColor='#dee2e6'">
+                  <input type="hidden" id="validadeCertificadora">
+                  <div id="certResultado">
+                    <i class='bx bx-info-circle'></i>
+                    <span id="certTexto">Nenhuma certificadora selecionada</span>
                   </div>
                 </div>
-              </div>
 
-              <!-- Observações -->
-              <div style="margin-bottom: 20px;">
-                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #2c3e50; font-size: 14px;">
-                  📝 Observações
-                </label>
-                <textarea id="validadeDsLiberacao" rows="3" maxlength="256" 
-                          style="width: 100%; padding: 12px; border: 2px solid #dee2e6; border-radius: 8px; font-size: 14px; resize: vertical; font-family: inherit;"
-                          onfocus="this.style.borderColor='#667eea'"
-                          onblur="this.style.borderColor='#dee2e6'"></textarea>
-              </div>
+                <!-- Nº Liberação e Datas -->
+                <div class="validade-datas-grid">
+                  <div class="modal-validade-field">
+                    <label for="validadeNrLiberacao">
+                      <i class='bx bx-hash'></i>
+                      <span>Nº Liberação *</span>
+                    </label>
+                    <input type="text" id="validadeNrLiberacao" required maxlength="30" class="form-control" placeholder="Digite o número de liberação">
+                  </div>
+                  <div class="validade-datas-inner">
+                    <div class="modal-validade-field">
+                      <label for="validadeDtLiberacao">
+                        <i class='bx bx-calendar'></i>
+                        <span>Dt. Liberação *</span>
+                      </label>
+                      <input type="date" id="validadeDtLiberacao" required class="form-control">
+                    </div>
+                    <div class="modal-validade-field">
+                      <label for="validadeDtValidade">
+                        <i class='bx bx-time'></i>
+                        <span>Dt. Validade *</span>
+                      </label>
+                      <input type="date" id="validadeDtValidade" required class="form-control">
+                    </div>
+                  </div>
+                </div>
 
-              <!-- Botões -->
-              <div style="padding-top: 20px; border-top: 2px solid #dee2e6; display: flex; gap: 12px; justify-content: flex-end;">
-                <button type="button" id="btnCancelarValidade" class="btn cancel" 
-                        style="padding: 12px 24px; font-size: 14px; font-weight: 600; border-radius: 8px;">
-                  ✖ Cancelar
-                </button>
-                <button type="submit" class="btn save" 
-                        style="padding: 12px 32px; font-size: 14px; font-weight: 600; border-radius: 8px;">
-                  Salvar
-                </button>
-              </div>
-            </form>
+                <!-- Observações -->
+                <div class="modal-validade-field">
+                  <label for="validadeDsLiberacao">
+                    <i class='bx bx-note'></i>
+                    <span>Observações</span>
+                  </label>
+                  <textarea id="validadeDsLiberacao" rows="3" maxlength="256" class="form-control" placeholder="Digite observações sobre esta validade (opcional)"></textarea>
+                </div>
+              </form>
+            </div>
+            
+            <!-- Footer -->
+            <div class="modal-footer-tratamento">
+              <button type="button" id="btnCancelarValidade" class="btn btn-secondary">
+                <i class='bx bx-x'></i> Cancelar
+              </button>
+              <button type="submit" form="formValidade" class="btn btn-primary">
+                <i class='bx bx-save'></i> Salvar
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
 
     <!-- Modal -->
     <div id="confirmModal" class="modal">
@@ -535,19 +1233,23 @@
   </div>
 
   <!-- Overlay de carregamento para init.sql (mesmo estilo do Gerenciar Roteiros) -->
-  <div id="loadingOverlayInitSQL" class="calculando-overlay" style="display: none;">
+  <div id="loadingOverlayInitSQL" class="calculando-overlay" style="display: none !important;">
     <div class="calculando-content">
       <div class="calculando-spinner"></div>
       <h3 id="loadingTitleInitSQL">Processando Inicialização</h3>
       <p id="loadingTextInitSQL">Executando scripts de inicialização...</p>
       <p class="calculando-detalhe" id="loadingDetailInitSQL">Isso pode levar alguns segundos.</p>
+      <button onclick="window.hideLoadingOverlayInitSQL()" class="btn btn-secondary" style="margin-top: 20px;">
+        <i class='bx bx-x'></i> Cancelar e Continuar
+      </button>
     </div>
   </div>
 
   <!-- Cache Buster - deve ser o primeiro script -->
   <script src="/js/cache-buster.js?v=202512091200"></script>
+  <script src="/js/utils.js"></script>
   <script src="/js/log-helper.js"></script>
-  <script src="/js/grid-editor.js"></script>
+  <script src="/js/init-overlay-helper.js"></script>
   <script src="js/script.js" defer></script>
 </body>
 </html>

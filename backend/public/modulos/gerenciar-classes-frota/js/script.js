@@ -5,7 +5,6 @@
   const tabContents = document.querySelectorAll('.tab-content');
   const filtroForm = document.getElementById('filtroForm');
   const classeForm = document.getElementById('classeForm');
-  const list = document.getElementById('classesList');
   const message = document.getElementById('message');
   const modal = document.getElementById('confirmModal');
   let gridTab = null;
@@ -16,6 +15,11 @@
 
   // Funções para controlar overlay de carregamento do init.sql
   function showLoadingOverlayInitSQL(titulo = 'Processando Inicialização', texto = 'Executando scripts de inicialização...', detalhe = 'Isso pode levar alguns segundos.') {
+    // Usar função global se disponível, senão usar local
+    if (typeof window.showLoadingOverlayInitSQL === 'function') {
+      window.showLoadingOverlayInitSQL(titulo, texto, detalhe);
+      return;
+    }
     const overlay = document.getElementById('loadingOverlayInitSQL');
     const loadingTitle = document.getElementById('loadingTitleInitSQL');
     const loadingText = document.getElementById('loadingTextInitSQL');
@@ -30,6 +34,11 @@
   }
 
   function hideLoadingOverlayInitSQL() {
+    // Usar função global se disponível, senão usar local
+    if (typeof window.hideLoadingOverlayInitSQL === 'function') {
+      window.hideLoadingOverlayInitSQL();
+      return;
+    }
     const overlay = document.getElementById('loadingOverlayInitSQL');
     if (overlay) {
       overlay.style.display = 'none';
@@ -37,13 +46,34 @@
   }
 
   // Função para carregar e executar o arquivo init.sql
+  // Usa a função padrão do helper se disponível, senão usa implementação local
   async function executarInitSQL() {
-    if (sqlExecutado) return;
+    // Proteção: Se já foi executado, não executar novamente
+    if (sqlExecutado) {
+      return;
+    }
+    
+    // Se a função padrão estiver disponível, usar ela
+    if (typeof window.executarInitSQLPadrao === 'function') {
+      console.log('[Classes Frota] Usando executarInitSQLPadrao do helper');
+      await window.executarInitSQLPadrao(
+        '/modulos/gerenciar-classes-frota/sql/init.sql',
+        '/api/classes-frota/executar-init-sql',
+        'classes-frota'
+      );
+      sqlExecutado = true;
+      return;
+    }
+    
+    console.log('[Classes Frota] Usando implementação local do init.sql');
+    // Fallback: implementação local (compatibilidade)
     sqlExecutado = true;
     showLoadingOverlayInitSQL('Processando Inicialização', 'Carregando script de inicialização...', 'Aguarde enquanto preparamos o módulo.');
+    
     try {
       const response = await fetch('/modulos/gerenciar-classes-frota/sql/init.sql');
       showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL...', 'Isso pode levar alguns segundos.');
+      
       if (!response.ok) {
         if (response.status === 404) {
           hideLoadingOverlayInitSQL();
@@ -52,17 +82,25 @@
         hideLoadingOverlayInitSQL();
         return;
       }
+      
       const sqlContent = await response.text();
       let sqlSemComentarios = sqlContent.replace(/\/\*[\s\S]*?\*\//g, '');
-      const sqlLimpo = sqlSemComentarios.split('\n').filter(linha => {
-        const linhaTrim = linha.trim();
-        return linhaTrim.length > 0 && !linhaTrim.startsWith('--');
-      }).join('\n').trim();
+      const sqlLimpo = sqlSemComentarios
+        .split('\n')
+        .filter(linha => {
+          const linhaTrim = linha.trim();
+          return linhaTrim.length > 0 && !linhaTrim.startsWith('--');
+        })
+        .join('\n')
+        .trim();
+      
       if (!sqlLimpo || sqlLimpo.length === 0) {
         hideLoadingOverlayInitSQL();
         return;
       }
+      
       showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL no banco de dados...', 'Aguarde, isso pode levar alguns segundos.');
+      
       let execResponse;
       try {
         execResponse = await fetch('/api/classes-frota/executar-init-sql', {
@@ -72,22 +110,17 @@
           signal: AbortSignal.timeout(120000)
         });
       } catch (fetchError) {
-        if (fetchError.name === 'TimeoutError' || fetchError.name === 'AbortError') {
-          hideLoadingOverlayInitSQL();
-          return;
-        }
-        if (fetchError.message.includes('ERR_CONNECTION_RESET') || fetchError.message.includes('Failed to fetch')) {
-          hideLoadingOverlayInitSQL();
-          return;
-        }
         hideLoadingOverlayInitSQL();
         return;
       }
+      
       if (!execResponse.ok) {
         hideLoadingOverlayInitSQL();
         return;
       }
+      
       showLoadingOverlayInitSQL('Processando Inicialização', 'Processando resultados...', 'Quase terminando.');
+      
       let result;
       try {
         result = await execResponse.json();
@@ -95,10 +128,12 @@
         hideLoadingOverlayInitSQL();
         return;
       }
+      
       if (!result.success) {
         hideLoadingOverlayInitSQL();
         return;
       }
+      
       if (result.resultados && Array.isArray(result.resultados)) {
         const comandosComErro = result.resultados.filter(r => r.tipo === 'ERRO');
         if (comandosComErro.length > 0) {
@@ -107,6 +142,7 @@
             const errosEsperados = ['already exists', 'já existe', 'duplicate', 'duplicado', 'there is already', 'já há'];
             return !errosEsperados.some(esperado => mensagem.includes(esperado));
           });
+          
           if (errosReais.length > 0) {
             errosReais.forEach(erro => {
               const mensagem = erro.mensagem || erro.erro || erro.message || erro.error || 'Erro desconhecido';
@@ -119,8 +155,10 @@
           }
         }
       }
+      
       await new Promise(resolve => setTimeout(resolve, 500));
       hideLoadingOverlayInitSQL();
+      
     } catch (err) {
       hideLoadingOverlayInitSQL();
     }
@@ -132,8 +170,11 @@
     initExecutado = true;
     await new Promise(resolve => setTimeout(resolve, 200));
     try {
+      console.log('[Classes Frota] Iniciando execução do init.sql...');
       await executarInitSQL();
+      console.log('[Classes Frota] Execução do init.sql concluída.');
     } catch (err) {
+      console.error('[Classes Frota] Erro ao executar init.sql:', err);
     }
     await showTab('filtros');
   }
@@ -161,17 +202,33 @@
         return;
       }
 
+      // Carregar GridEditor se necessário
       if (typeof window.GridEditor === 'undefined') {
-        try { await loadScript('/js/grid-editor.js'); } catch (e) { }
+        try { 
+          await loadScript('/js/grid-editor.js'); 
+        } catch (e) {
+          console.error('[Classes Frota] Erro ao carregar GridEditor:', e);
+        }
+      }
+
+      // Aguardar um pouco para garantir que GridEditor está disponível
+      let tentativas = 0;
+      while (typeof window.GridEditor === 'undefined' && tentativas < 10) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        tentativas++;
       }
 
       if (typeof window.GridEditor !== 'undefined') {
         if (!gridTab) inicializarGridTab();
-        try {
-          gridTab.render(lastClasses || []);
-        } catch (e) {
-          console.error('[Grid] erro ao renderizar grid na aba:', e);
+        if (gridTab) {
+          try {
+            gridTab.render(lastClasses || []);
+          } catch (e) {
+            console.error('[Grid] erro ao renderizar grid na aba:', e);
+          }
         }
+      } else {
+        console.error('[Classes Frota] GridEditor não está disponível após aguardar');
       }
     }
   }
@@ -206,45 +263,40 @@
         try {
           gridTab.render(classes);
         } catch (e) {
+          console.error('[Classes Frota] Erro ao renderizar grid:', e);
         }
       }
 
-      // Auto-inicializar o gridTab quando houver dados (opção A)
+      // Auto-inicializar o gridTab quando houver dados
       try {
         if (Array.isArray(classes) && classes.length > 0) {
+          // Carregar GridEditor se necessário
           if (typeof window.GridEditor === 'undefined') {
-            try {
-              await loadScript('/js/grid-editor.js');
+            try { 
+              await loadScript('/js/grid-editor.js'); 
             } catch (loadErr) {
+              console.error('[Classes Frota] Erro ao carregar GridEditor:', loadErr);
             }
+          }
+
+          // Aguardar GridEditor estar disponível
+          let tentativas = 0;
+          while (typeof window.GridEditor === 'undefined' && tentativas < 10) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            tentativas++;
           }
 
           if (typeof window.GridEditor !== 'undefined') {
             if (!gridTab) inicializarGridTab();
-            try {
-              gridTab.render(classes);
-            } catch (e) {
-            }
-          } else {
-            // If the script element exists but GridEditor still undefined, try a cache-busted reload
-            const scriptEl = document.querySelector('script[src="/js/grid-editor.js"]');
-            if (scriptEl) {
+            if (gridTab) {
               try {
-                await new Promise((res, rej) => {
-                  const s = document.createElement('script');
-                  s.src = '/js/grid-editor.js?t=' + Date.now();
-                  s.async = true;
-                  s.onload = () => res();
-                  s.onerror = (err) => rej(err);
-                  document.head.appendChild(s);
-                });
-                if (typeof window.GridEditor !== 'undefined') {
-                  if (!gridTab) inicializarGridTab();
-                  try { gridTab.render(classes); } catch (e) { }
-                }
-              } catch (rbErr) {
+                gridTab.render(classes);
+              } catch (e) {
+                console.error('[Classes Frota] Erro ao renderizar grid:', e);
               }
             }
+          } else {
+            console.error('[Classes Frota] GridEditor não está disponível após aguardar');
           }
         }
       } catch (autoErr) {
@@ -253,13 +305,33 @@
 
       // Se o chamador pediu para abrir a aba grid, inicializar e renderizar lá
       if (openTab === 'grid') {
+        // Carregar GridEditor se necessário
         if (typeof window.GridEditor === 'undefined') {
-          try { await loadScript('/js/grid-editor.js'); } catch (e) { }
+          try { 
+            await loadScript('/js/grid-editor.js'); 
+          } catch (e) {
+            console.error('[Classes Frota] Erro ao carregar GridEditor:', e);
+          }
+        }
+
+        // Aguardar GridEditor estar disponível
+        let tentativas = 0;
+        while (typeof window.GridEditor === 'undefined' && tentativas < 10) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          tentativas++;
         }
 
         if (typeof window.GridEditor !== 'undefined') {
           if (!gridTab) inicializarGridTab();
-          try { gridTab.render(classes); } catch (err) { console.error('[Grid] erro ao renderizar grid:', err); }
+          if (gridTab) {
+            try { 
+              gridTab.render(classes); 
+            } catch (err) { 
+              console.error('[Grid] erro ao renderizar grid:', err); 
+            }
+          }
+        } else {
+          console.error('[Classes Frota] GridEditor não está disponível após aguardar');
         }
       }
 
@@ -270,62 +342,42 @@
     }
   }
 
-  // Renderizar lista
-  function renderList(classes) {
-    if (!classes || classes.length === 0) {
-      list.innerHTML = '<p class="empty">Nenhuma classe encontrada.</p>';
-      return;
-    }
-
-    list.innerHTML = classes.map(c => `
-      <div class="list-item ${c.FGACTIVE === 'N' ? 'inactive' : ''}" data-id="${c.CDCLASSEFROTA}">
-        <div>
-          <strong>${c.CDCLASSEFROTA} - ${c.DSCLASSEFROTA}</strong>
-          <small>
-            <strong>Eixos:</strong> ${c.NREIXOS}<br>
-            <strong>Capacidade:</strong> ${c.CAPACIDCARGA || 'Não informada'}<br>
-            <strong>Status:</strong> ${c.FGACTIVE === 'S' ? 'Ativo' : 'Inativo'}
-          </small>
-        </div>
-        <div class="actions">
-          <button class="btn edit" data-id="${c.CDCLASSEFROTA}">Editar</button>
-          <button class="btn delete" data-id="${c.CDCLASSEFROTA}">Excluir</button>
-        </div>
-      </div>
-    `).join('');
-
-    // CORREÇÃO CRÍTICA: usa currentTarget para evitar ID undefined
-    document.querySelectorAll('.btn.edit, .btn.delete').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        // Tentar obter o ID de várias formas
-        const id = e.currentTarget.dataset.id || 
-                   e.currentTarget.getAttribute('data-id') ||
-                   e.currentTarget.closest('[data-id]')?.dataset?.id ||
-                   e.currentTarget.closest('[data-id]')?.getAttribute('data-id');
-
-        // Validar ID
-        if (!id || id === 'null' || id === 'undefined' || id === '') {
-          console.error('[Classes] ID inválido:', id, 'Elemento:', e.currentTarget);
-          showMessage('Erro: ID não disponível.', 'error');
-          return;
-        }
-        
-        if (e.currentTarget.classList.contains('edit')) {
-          loadClasseParaEdicao(id);
-        } else {
-          confirmarExclusao(id);
-        }
-      });
-    });
-  }
-
-  // Carrega um script dinamicamente e aguarda o carregamento
+  // Carregar script dinamicamente (fallback caso não esteja no HTML)
   function loadScript(src) {
     return new Promise((resolve, reject) => {
       // Verificar se GridEditor já está disponível globalmente
-      if (typeof GridEditor !== 'undefined') {
+      if (typeof window.GridEditor !== 'undefined') {
         resolve();
         return;
+      }
+      
+      // Verificar se o script já está sendo carregado ou já existe
+      const existingScript = document.querySelector(`script[src*="${src}"]`);
+      if (existingScript) {
+        // Se o script existe, aguardar ele carregar
+        let tentativas = 0;
+        const checkInterval = setInterval(() => {
+          if (typeof window.GridEditor !== 'undefined') {
+            clearInterval(checkInterval);
+            resolve();
+          } else if (tentativas++ > 30) {
+            clearInterval(checkInterval);
+            // Se não carregou após 3 segundos, tentar recarregar
+            existingScript.remove();
+            // Continuar com o carregamento abaixo
+          } else {
+            return; // Continuar aguardando
+          }
+        }, 100);
+        
+        // Se já existe, aguardar um pouco mais antes de tentar recarregar
+        setTimeout(() => {
+          if (typeof window.GridEditor === 'undefined') {
+            clearInterval(checkInterval);
+            existingScript.remove();
+            // Continuar com carregamento novo
+          }
+        }, 2000);
       }
       
       // Função para carregar novo script
@@ -335,10 +387,17 @@
         script.onload = () => {
           // Aguardar um pouco para garantir que GridEditor está disponível
           setTimeout(() => {
-            if (typeof GridEditor !== 'undefined') {
+            if (typeof window.GridEditor !== 'undefined') {
               resolve();
             } else {
-              reject(new Error('GridEditor não foi carregado'));
+              // Tentar mais uma vez após 200ms
+              setTimeout(() => {
+                if (typeof window.GridEditor !== 'undefined') {
+                  resolve();
+                } else {
+                  reject(new Error('GridEditor não foi carregado'));
+                }
+              }, 200);
             }
           }, 100);
         };
@@ -346,33 +405,19 @@
         document.head.appendChild(script);
       };
       
-      // Verificar se o script já está sendo carregado ou já existe
-      const existingScript = document.querySelector(`script[src*="${src}"]`);
-      if (existingScript) {
-        // Se o script existe, aguardar ele carregar
-        let tentativas = 0;
-        const checkInterval = setInterval(() => {
-          if (typeof GridEditor !== 'undefined') {
-            clearInterval(checkInterval);
-            resolve();
-          } else if (tentativas++ > 20) {
-            clearInterval(checkInterval);
-            // Se não carregou após 2 segundos, remover e recarregar
-            existingScript.remove();
-            // Continuar com o carregamento abaixo
-            carregarNovoScript();
-          }
-        }, 100);
-        return;
-      }
-      
       carregarNovoScript();
     });
   }
 
   // Inicializar GridEditor
   function inicializarGridTab() {
-    gridTab = new GridEditor({
+    // GridEditor já é carregado globalmente pelo HTML
+    if (typeof window.GridEditor === 'undefined') {
+      console.error('[Classes Frota] GridEditor não está disponível');
+      return;
+    }
+
+    gridTab = new window.GridEditor({
       container: '#classesGrid',
       columns: [
         { field: 'CDCLASSEFROTA', header: 'Código', editable: false, isId: true, width: '80px' },
@@ -554,9 +599,6 @@
       return;
     }
 
-    const btnSalvar = document.getElementById('btnSalvar');
-    showLoading(btnSalvar, true);
-
     try {
       const classeData = {
         DSCLASSEFROTA: descricao,
@@ -591,8 +633,6 @@
     } catch (err) {
       console.error('Erro ao salvar:', err);
       showMessage('Erro de conexão com o servidor.', 'error');
-    } finally {
-      showLoading(btnSalvar, false);
     }
   });
 
@@ -645,6 +685,76 @@
       message.textContent = text;
       message.className = `message ${type} show`;
       setTimeout(() => message.className = 'message', 5000);
+    }
+  };
+
+  // Função de ajuda
+  window.mostrarAjudaClassesFrota = function() {
+    // Remover qualquer modal de ajuda existente primeiro
+    const modalExistente = document.getElementById('modalAjudaClassesFrota');
+    if (modalExistente) {
+      modalExistente.remove();
+    }
+    
+    // Criar modal de ajuda com padrão único
+    const modal = document.createElement('div');
+    modal.id = 'modalAjudaClassesFrota';
+    modal.className = 'modal-tratamento';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+      <div class="modal-content-tratamento">
+        <div class="modal-header-tratamento">
+          <h3><i class='bx bx-help-circle'></i> Ajuda - Gerenciar Classes de Frota</h3>
+          <button onclick="window.fecharModalAjudaClassesFrota()" class="btn-close-modal" type="button">
+            <i class='bx bx-x'></i>
+          </button>
+        </div>
+        <div class="modal-body-tratamento">
+          <h4>📋 Sobre o Módulo</h4>
+          <p>O módulo <strong>Gerenciar Classes de Frota</strong> permite gerenciar as classes de veículos da frota, definindo características como número de eixos e capacidade de carga.</p>
+          
+          <h4>🔍 Filtros</h4>
+          <p>Use os filtros para buscar classes específicas por código, descrição ou situação.</p>
+          
+          <h4>📝 Funcionalidades</h4>
+          <ul>
+            <li><strong>Filtros:</strong> Buscar e filtrar classes de frota</li>
+            <li><strong>Grid:</strong> Visualizar classes em formato de tabela com opções de edição e exclusão</li>
+            <li><strong>Dados:</strong> Criar e editar classes de frota</li>
+          </ul>
+          
+          <h4>📋 Campos do Formulário</h4>
+          <ul>
+            <li><strong>Descrição:</strong> Nome da classe de frota (obrigatório)</li>
+            <li><strong>Número de Eixos:</strong> Quantidade de eixos do veículo (obrigatório, de 2 a 9)</li>
+            <li><strong>Capacidade de Carga:</strong> Capacidade máxima de carga em toneladas (opcional)</li>
+            <li><strong>Situação:</strong> Ativo ou Inativo (obrigatório)</li>
+          </ul>
+          
+          <h4>✨ Dicas</h4>
+          <ul>
+            <li>Para criar uma nova classe, clique em "Novo Registro" na aba Grid ou Dados</li>
+            <li>Para editar uma classe existente, clique no botão de editar (✎) na coluna Ações do grid</li>
+            <li>Para desativar uma classe, edite-a e altere a situação para "Inativo" ou use o botão de exclusão</li>
+            <li>Classes inativas não aparecerão em seleções de novos cadastros</li>
+            <li>O número de eixos é importante para cálculos de frete e classificação de veículos</li>
+          </ul>
+        </div>
+        <div class="modal-footer-tratamento">
+          <button onclick="window.fecharModalAjudaClassesFrota()" class="btn btn-secondary">
+            <i class='bx bx-x'></i> Fechar
+          </button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+  };
+
+  window.fecharModalAjudaClassesFrota = function() {
+    const modal = document.getElementById('modalAjudaClassesFrota');
+    if (modal) {
+      modal.remove();
     }
   };
 })();

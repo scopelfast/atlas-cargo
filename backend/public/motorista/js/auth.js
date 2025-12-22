@@ -105,13 +105,18 @@ function isTokenExpired() {
       }
 
       try {
+        console.log('🔐 Tentando fazer login com CPF:', cpf.replace(/\d(?=\d{4})/g, "*")); // Mascarar CPF no log
+        
         const response = await fetch('/api/motorista/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cpf, senha })
         });
 
+        console.log('📡 Resposta do servidor:', response.status, response.statusText);
+
         const data = await response.json();
+        console.log('📦 Dados recebidos:', data);
 
         if (response.ok && data.success) {
           // Salvar token
@@ -125,11 +130,14 @@ function isTokenExpired() {
             window.location.href = 'pages/dashboard.html';
           }, 1000);
         } else {
-          showMessage(data.error || 'Erro ao fazer login', 'error');
+          // Mostrar mensagem de erro detalhada
+          const mensagemErro = data.error || data.message || 'Erro ao fazer login';
+          console.error('❌ Erro no login:', mensagemErro);
+          showMessage(mensagemErro, 'error');
         }
       } catch (err) {
-        console.error('Erro no login:', err);
-        showMessage('Erro de conexão. Tente novamente.', 'error');
+        console.error('❌ Erro de conexão:', err);
+        showMessage('Erro de conexão. Verifique se o servidor está rodando e tente novamente.', 'error');
       }
     });
   }

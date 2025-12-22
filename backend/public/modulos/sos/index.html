@@ -1,0 +1,909 @@
+<!-- Módulo: SOS -->
+<!-- Versão: 2.0 - Implementação Completa -->
+<!-- Data: 2025-01-18 -->
+
+<link rel="stylesheet" href="/css/modulos.css">
+<style>
+  /* Estilos específicos do módulo SOS */
+  .sos-container {
+    padding: 20px;
+  }
+
+  .sos-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #e0e0e0;
+  }
+
+  .sos-header h2 {
+    margin: 0;
+    color: #2c3e50;
+    font-size: 28px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .sos-stats {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+  }
+
+  .stat-card {
+    flex: 1;
+    background: white;
+    border-radius: 8px;
+    padding: 15px 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border-left: 4px solid;
+  }
+
+  .stat-card.ativos {
+    border-left-color: #e74c3c;
+  }
+
+  .stat-card.resolvidos {
+    border-left-color: #2ecc71;
+  }
+
+  .stat-card.total {
+    border-left-color: #3498db;
+  }
+
+  .stat-card .stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: #2c3e50;
+    margin: 5px 0;
+  }
+
+  .stat-card .stat-label {
+    font-size: 14px;
+    color: #6c757d;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  .filtros-box {
+    background: white;
+    border-radius: 12px;
+    padding: 25px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-bottom: 25px;
+  }
+
+  .filtros-box h3 {
+    margin: 0 0 20px 0;
+    color: #2c3e50;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .filtros-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 15px;
+  }
+
+  .filtros-grid > div {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .filtros-grid label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #34495e;
+    font-size: 14px;
+  }
+
+  .filtros-grid .form-control {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    font-size: 16px;
+    transition: all 0.3s;
+    font-family: inherit;
+    box-sizing: border-box;
+    background-color: #fff;
+  }
+
+  .filtros-grid .form-control:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+  }
+
+  .filtros-grid .input-date-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .filtros-grid input[type="date"] {
+    color: #34495e;
+    background-color: #fff;
+    cursor: pointer;
+    padding: 12px;
+    padding-right: 40px;
+    height: 44px;
+    line-height: 1.5;
+    display: block;
+    vertical-align: middle;
+  }
+
+  .filtros-grid input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.6;
+    padding: 0;
+    margin: 0;
+    margin-left: 8px;
+    width: 20px;
+    height: 20px;
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background-size: contain;
+  }
+
+  .filtros-grid input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+  }
+
+  .filtros-grid input[type="number"],
+  .filtros-grid select {
+    min-height: 44px;
+  }
+
+  .filtros-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+
+  .sos-list {
+    display: grid;
+    gap: 15px;
+  }
+
+  .sos-card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border-left: 4px solid #e74c3c;
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+  }
+
+  .sos-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+
+  .sos-card.nao-lido {
+    background: #fff5f5;
+  }
+
+  .sos-card.resolvido {
+    border-left-color: #2ecc71;
+    opacity: 0.8;
+  }
+
+  .sos-header-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+  }
+
+  .sos-status-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+
+  .sos-status-badge.active {
+    background: #fee;
+    color: #c0392b;
+  }
+
+  .sos-status-badge.in-progress {
+    background: #fff3cd;
+    color: #856404;
+  }
+
+  .sos-status-badge.resolved {
+    background: #d4edda;
+    color: #155724;
+  }
+
+  .sos-status-badge.cancelled {
+    background: #e2e3e5;
+    color: #383d41;
+  }
+
+  .sos-message {
+    font-size: 16px;
+    color: #2c3e50;
+    margin-bottom: 10px;
+    font-weight: 500;
+  }
+
+  .sos-details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #e9ecef;
+    font-size: 14px;
+    color: #6c757d;
+  }
+
+  .sos-detail-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .sos-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #e9ecef;
+  }
+
+  .sos-actions .btn {
+    margin-right: 8px;
+    margin-bottom: 0;
+  }
+
+  .sos-actions .btn-sm {
+    padding: 8px 16px;
+    font-size: 14px;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+
+  .empty-state i {
+    font-size: 64px;
+    color: #6c757d;
+    margin-bottom: 20px;
+  }
+
+  .empty-state h3 {
+    color: #495057;
+    margin-bottom: 10px;
+  }
+
+  .empty-state p {
+    color: #6c757d;
+    font-size: 16px;
+  }
+
+  /* Modal de Tratamento */
+  .modal-tratamento {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-tratamento.active {
+    display: flex;
+  }
+
+  .modal-content-tratamento {
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    max-width: 1200px;
+    width: 95%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+  }
+
+  .modal-tratamento-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    margin-top: 20px;
+  }
+
+  .modal-tratamento-form {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .modal-tratamento-mapa {
+    min-height: 500px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 2px solid #e9ecef;
+    background: #f8f9fa;
+  }
+
+  .modal-tratamento-mapa #mapaSOSTratamento {
+    width: 100% !important;
+    height: 500px !important;
+    min-height: 500px !important;
+    position: relative;
+    z-index: 1;
+  }
+
+  @media (max-width: 968px) {
+    .modal-tratamento-body {
+      grid-template-columns: 1fr;
+    }
+    
+    .modal-tratamento-mapa {
+      min-height: 400px;
+    }
+    
+    .modal-tratamento-mapa #mapaSOSTratamento {
+      min-height: 400px;
+    }
+  }
+
+  .modal-header-tratamento {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #e9ecef;
+  }
+
+  .modal-header-tratamento h3 {
+    margin: 0;
+    color: #2c3e50;
+    font-size: 24px;
+  }
+
+  .close-modal {
+    background: none;
+    border: none;
+    font-size: 28px;
+    color: #6c757d;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background 0.2s;
+  }
+
+  .close-modal:hover {
+    background: #f8f9fa;
+  }
+
+  .loading-overlay {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255,255,255,0.9);
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+  }
+
+  .loading-overlay.active {
+    display: flex;
+  }
+
+  .spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    margin-top: 25px;
+    padding-top: 25px;
+    border-top: 2px solid #e9ecef;
+  }
+
+  .pagination button {
+    padding: 8px 16px;
+    border: 1px solid #dee2e6;
+    background: white;
+    color: #495057;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+
+  .pagination button:hover:not(:disabled) {
+    background: #f8f9fa;
+    border-color: #adb5bd;
+  }
+
+  .pagination button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .pagination .page-info {
+    color: #6c757d;
+    font-size: 14px;
+  }
+
+  /* ========== BOTÕES - Padrão do Sistema ========== */
+  .btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin-right: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: inherit;
+    text-decoration: none;
+    box-sizing: border-box;
+  }
+
+  .btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  .btn-primary {
+    background: #3498db;
+    color: white;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: #2980b9;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
+  }
+
+  .btn-primary:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  .btn-secondary {
+    background: #95a5a6;
+    color: white;
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    background: #7f8c8d;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(149, 165, 166, 0.3);
+  }
+
+  .btn-secondary:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  .btn-info {
+    background: #17a2b8;
+    color: white;
+  }
+
+  .btn-info:hover:not(:disabled) {
+    background: #138496;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(23, 162, 184, 0.3);
+  }
+
+  .btn-info:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  .btn-danger {
+    background: #e74c3c;
+    color: white;
+  }
+
+  .btn-danger:hover:not(:disabled) {
+    background: #c0392b;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(231, 76, 60, 0.3);
+  }
+
+  .btn-danger:active:not(:disabled) {
+    transform: translateY(0);
+  }
+
+  .btn-sm {
+    padding: 8px 16px;
+    font-size: 14px;
+  }
+
+  /* ========== FORMULÁRIOS - Padrão do Sistema ========== */
+  .modal-content-tratamento .input-group {
+    margin-bottom: 20px;
+  }
+
+  .modal-content-tratamento label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #34495e;
+    font-size: 14px;
+  }
+
+  .modal-content-tratamento .form-control,
+  .modal-content-tratamento select,
+  .modal-content-tratamento textarea,
+  .modal-content-tratamento input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    font-size: 16px;
+    transition: all 0.3s;
+    font-family: inherit;
+    box-sizing: border-box;
+    background-color: #fff;
+    color: #2c3e50;
+  }
+
+  .modal-content-tratamento .form-control:hover,
+  .modal-content-tratamento select:hover,
+  .modal-content-tratamento textarea:hover,
+  .modal-content-tratamento input:hover {
+    border-color: #adb5bd;
+  }
+
+  .modal-content-tratamento .form-control:focus,
+  .modal-content-tratamento select:focus,
+  .modal-content-tratamento textarea:focus,
+  .modal-content-tratamento input:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+  }
+
+  .modal-content-tratamento textarea {
+    resize: vertical;
+    min-height: 80px;
+    font-family: inherit;
+    line-height: 1.5;
+  }
+
+  .modal-content-tratamento select {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 12px;
+    padding-right: 40px;
+  }
+
+  .modal-content-tratamento input[type="date"] {
+    cursor: pointer;
+    color: #2c3e50;
+  }
+
+  .modal-content-tratamento input[type="date"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.6;
+    padding: 0;
+    margin: 0;
+    margin-left: 8px;
+    width: 20px;
+    height: 20px;
+  }
+
+  .modal-content-tratamento input[type="date"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+  }
+
+  /* ========== AÇÕES DO MODAL ========== */
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid #e9ecef;
+  }
+
+  .modal-actions .btn {
+    margin-right: 0;
+    min-width: 120px;
+  }
+
+  /* ========== BOTÕES DE FILTRO ========== */
+  .filtros-actions .btn {
+    margin-right: 0;
+  }
+
+  /* ========== HISTÓRICO ========== */
+  .historico-list {
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 8px;
+  }
+
+  .historico-list::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .historico-list::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+  }
+
+  .historico-list::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+  }
+
+  .historico-list::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
+
+  .historico-item {
+    padding: 15px;
+    margin-bottom: 10px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 4px solid #3498db;
+    transition: all 0.2s;
+  }
+
+  .historico-item:hover {
+    background: #e9ecef;
+    transform: translateX(2px);
+  }
+
+  .historico-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .historico-header strong {
+    color: #2c3e50;
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .historico-data {
+    font-size: 12px;
+    color: #6c757d;
+  }
+
+  .historico-usuario {
+    font-size: 14px;
+    color: #6c757d;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .historico-status {
+    font-size: 14px;
+    color: #6c757d;
+    margin-bottom: 5px;
+  }
+
+  .historico-status strong {
+    color: #2c3e50;
+  }
+
+  .historico-obs {
+    font-size: 14px;
+    color: #495057;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #dee2e6;
+    line-height: 1.5;
+  }
+</style>
+
+<div class="sos-container">
+  <!-- Cabeçalho -->
+  <div class="sos-header">
+    <h2><i class='bx bx-error-circle'></i> Alertas SOS</h2>
+    <div style="display: flex; gap: 10px; align-items: center;">
+      <button class="btn btn-info" onclick="mostrarAjuda()" title="Como funciona? Regras e instruções">
+        <i class='bx bx-help-circle'></i> Ajuda
+      </button>
+      <button id="btnToggleSomSOS" class="btn" onclick="toggleSomNotificacaoSOS()" title="Ativar/Desativar som de notificação" style="background: #28a745; color: white;">
+        <i class='bx bx-volume-full'></i> Som
+      </button>
+      <button class="btn btn-primary" onclick="recarregarSOS()">
+        <i class='bx bx-refresh'></i> Atualizar
+      </button>
+    </div>
+  </div>
+
+  <!-- Estatísticas -->
+  <div class="sos-stats">
+    <div class="stat-card ativos">
+      <div class="stat-label">Ativos</div>
+      <div class="stat-value" id="statAtivos">0</div>
+    </div>
+    <div class="stat-card em-tratamento" style="border-left-color: #f39c12;">
+      <div class="stat-label">Em Tratamento</div>
+      <div class="stat-value" id="statEmTratamento">0</div>
+    </div>
+    <div class="stat-card resolvidos">
+      <div class="stat-label">Resolvidos</div>
+      <div class="stat-value" id="statResolvidos">0</div>
+    </div>
+    <div class="stat-card total">
+      <div class="stat-label">Total</div>
+      <div class="stat-value" id="statTotal">0</div>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="filtros-box">
+    <h3><i class='bx bx-filter'></i> Filtros</h3>
+    <div class="filtros-grid">
+      <div>
+        <label>Status</label>
+        <select id="filtroStatus" class="form-control">
+          <option value="">Todos</option>
+          <option value="active">Ativo</option>
+          <option value="in_progress">Em Tratamento</option>
+          <option value="resolved">Resolvido</option>
+          <option value="cancelled">Cancelado</option>
+        </select>
+      </div>
+      <div class="input-date-wrapper">
+        <label>Data Início</label>
+        <input type="date" id="filtroDataInicio" class="form-control">
+      </div>
+      <div class="input-date-wrapper">
+        <label>Data Fim</label>
+        <input type="date" id="filtroDataFim" class="form-control">
+      </div>
+      <div>
+        <label>ID Viagem</label>
+        <input type="number" id="filtroIdViagem" class="form-control" placeholder="Opcional">
+      </div>
+      <div>
+        <label>ID Motorista</label>
+        <input type="number" id="filtroIdMotorista" class="form-control" placeholder="Opcional">
+      </div>
+    </div>
+    <div class="filtros-actions">
+      <button class="btn btn-secondary" onclick="limparFiltros()">
+        <i class='bx bx-x'></i> Limpar
+      </button>
+      <button class="btn btn-primary" onclick="aplicarFiltros()">
+        <i class='bx bx-search'></i> Filtrar
+      </button>
+    </div>
+  </div>
+
+  <!-- Lista de SOS -->
+  <div id="sosList" class="sos-list">
+    <!-- Será preenchido dinamicamente -->
+  </div>
+
+  <!-- Paginação -->
+  <div class="pagination" id="paginationContainer" style="display: none;">
+    <button id="btnPrev" onclick="paginarAnterior()" disabled>
+      <i class='bx bx-chevron-left'></i> Anterior
+    </button>
+    <span class="page-info" id="pageInfo">Página 1 de 1</span>
+    <button id="btnNext" onclick="paginarProximo()">
+      Próxima <i class='bx bx-chevron-right'></i>
+    </button>
+  </div>
+</div>
+
+<!-- Modal de Tratamento -->
+<div id="modalTratamento" class="modal-tratamento">
+  <div class="modal-content-tratamento">
+    <div class="modal-header-tratamento">
+      <h3>Tratar Alerta SOS</h3>
+      <button class="close-modal" onclick="fecharModalTratamento()">
+        <i class='bx bx-x'></i>
+      </button>
+    </div>
+    <div id="modalTratamentoContent">
+      <!-- Conteúdo será preenchido dinamicamente -->
+    </div>
+  </div>
+</div>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="loading-overlay">
+  <div class="spinner"></div>
+  <p>Carregando alertas SOS...</p>
+</div>
+
+<!-- Modal de Ajuda -->
+<div id="modalAjuda" class="modal-tratamento">
+  <div class="modal-content-tratamento" style="max-width: 800px;">
+    <div class="modal-header-tratamento">
+      <h3><i class='bx bx-help-circle'></i> Como Funcionam os Alertas SOS</h3>
+      <button class="close-modal" onclick="fecharModalAjuda()">
+        <i class='bx bx-x'></i>
+      </button>
+    </div>
+    <div id="modalAjudaContent" style="max-height: 70vh; overflow-y: auto; padding-right: 10px;">
+      <!-- Conteúdo será preenchido dinamicamente -->
+    </div>
+  </div>
+</div>
+
+<!-- Modal de Localização -->
+<div id="modalLocalizacao" class="modal-tratamento">
+  <div class="modal-content-tratamento" style="max-width: 900px;">
+    <div class="modal-header-tratamento">
+      <h3><i class='bx bx-map'></i> Localização do SOS</h3>
+      <button class="close-modal" onclick="fecharModalLocalizacao()">
+        <i class='bx bx-x'></i>
+      </button>
+    </div>
+    <div id="modalLocalizacaoContent" style="padding: 20px 0;">
+      <div id="infoLocalizacao" style="margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #3498db;">
+        <p id="enderecoLocalizacao" style="margin: 0; color: #495057; font-size: 14px; line-height: 1.6;">
+          <i class='bx bx-loader-alt bx-spin'></i> Buscando endereço...
+        </p>
+        <p id="coordenadasLocalizacao" style="margin: 5px 0 0 0; color: #6c757d; font-size: 12px;"></p>
+      </div>
+      <div id="mapaLocalizacao" style="width: 100%; height: 500px; border-radius: 8px; overflow: hidden; border: 2px solid #e9ecef;"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/js/map-config.js"></script>
+<script src="/modulos/sos/js/script.js"></script>

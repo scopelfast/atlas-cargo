@@ -10,6 +10,8 @@
   }
 
   const motorista = getMotorista();
+  // Obter ID do motorista corretamente
+  const idMotorista = motorista?.CDCADASTRO || motorista?.id || motorista?.cdcadastro || null;
   let idViagem = null;
   let photoData = null;
   let signatureData = null;
@@ -26,8 +28,10 @@
     idViagem = params.get('viagem') || localStorage.getItem('viagemAtual');
 
     if (!idViagem) {
-      alert('⚠️ Nenhuma viagem selecionada. Redirecionando...');
+      mostrarToast('Nenhuma viagem selecionada. Redirecionando...', 'warning');
+      setTimeout(() => {
       window.location.href = 'viagens.html';
+      }, 2000);
       return;
     }
 
@@ -58,7 +62,19 @@
 
       if (response.ok) {
         const data = await response.json();
-        const viagem = data.viagem;
+        // A resposta pode vir como objeto direto ou dentro de 'viagem'
+        const viagem = data.viagem || data;
+
+        if (!viagem || !viagem.IDVIAGEM) {
+          console.error('❌ Dados da viagem inválidos:', data);
+          document.getElementById('viagemInfo').innerHTML = `
+            <div style="color: #e74c3c; padding: 20px; text-align: center;">
+              <strong>⚠️ Erro ao carregar dados da viagem</strong><br>
+              <small>ID: ${idViagem}</small>
+            </div>
+          `;
+          return;
+        }
 
         document.getElementById('viagemInfo').innerHTML = `
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
@@ -68,16 +84,25 @@
             </div>
             <div>
               <strong>Roteiro:</strong><br>
-              <span>${viagem.ROTEIRO || '-'}</span>
+              <span>${viagem.ROTEIRO || viagem.DSROTEIRO || '-'}</span>
             </div>
             <div>
               <strong>Origem:</strong><br>
-              <span>${viagem.ORIGEM || '-'}</span>
+              <span>${viagem.ORIGEM || viagem.ORIGEM_CIDADE || '-'}</span>
             </div>
             <div>
               <strong>Destino:</strong><br>
-              <span>${viagem.DESTINO || '-'}</span>
+              <span>${viagem.DESTINO || viagem.DESTINO_CIDADE || '-'}</span>
             </div>
+          </div>
+        `;
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Erro ao carregar viagem:', response.status, errorText);
+        document.getElementById('viagemInfo').innerHTML = `
+          <div style="color: #e74c3c; padding: 20px; text-align: center;">
+            <strong>⚠️ Erro ao carregar viagem</strong><br>
+            <small>Status: ${response.status}</small>
           </div>
         `;
       }
@@ -99,13 +124,13 @@
 
       // Validar tipo
       if (!file.type.startsWith('image/')) {
-        alert('⚠️ Por favor, selecione uma imagem');
+        mostrarToast('Por favor, selecione uma imagem', 'warning');
         return;
       }
 
       // Validar tamanho (máximo 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        alert('⚠️ Foto muito grande. Máximo 5MB.');
+        mostrarToast('Foto muito grande. Máximo 5MB.', 'warning');
         return;
       }
 
@@ -209,7 +234,7 @@
     // Validações
     const receiverName = document.getElementById('receiverName').value.trim();
     if (!receiverName) {
-      alert('⚠️ Por favor, informe o nome do recebedor');
+      mostrarToast('Por favor, informe o nome do recebedor', 'warning');
       return;
     }
 
@@ -224,7 +249,7 @@
     }
 
     if (!photoData && !signatureData) {
-      alert('⚠️ Por favor, capture pelo menos uma foto ou uma assinatura');
+      mostrarToast('Por favor, capture pelo menos uma foto ou uma assinatura', 'warning');
       return;
     }
 
@@ -257,7 +282,7 @@
     // Preparar dados
     const dados = {
       idviagem: idViagem,
-      idmotorista: motorista.id,
+      idmotorista: idMotorista,
       photoData: photoData,
       photoName: `entrega_${idViagem}_${Date.now()}.jpg`,
       signatureData: signatureData,
@@ -324,7 +349,7 @@
       }
     } catch (err) {
       console.error('Erro ao salvar comprovante:', err);
-      alert('❌ Erro ao salvar comprovante: ' + err.message);
+      mostrarToast('Erro ao salvar comprovante: ' + err.message, 'error');
       
       btnSalvar.disabled = false;
       btnSalvar.textContent = '✅ Salvar Comprovante de Entrega';

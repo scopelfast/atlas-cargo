@@ -84,6 +84,18 @@ io.on('connection', (socket) => {
     console.log(`📱 Cliente ${socket.id} saiu da viagem ${idviagem}`);
   });
 
+  // Entrar em sala da conversa (chat)
+  socket.on('join-conversa', (idConversa) => {
+    socket.join(`conversa-${idConversa}`);
+    console.log(`💬 Cliente ${socket.id} entrou na conversa ${idConversa}`);
+  });
+
+  // Sair da sala da conversa (chat)
+  socket.on('leave-conversa', (idConversa) => {
+    socket.leave(`conversa-${idConversa}`);
+    console.log(`💬 Cliente ${socket.id} saiu da conversa ${idConversa}`);
+  });
+
   socket.on('disconnect', () => {
     console.log('🔌 Cliente desconectado:', socket.id);
   });
@@ -167,20 +179,27 @@ function iniciarJobAlertas() {
     try {
       const pool = await poolPromise;
       
-      // Buscar viagens ativas (em andamento ou confirmadas)
+      // Buscar viagens ativas para verificação de alertas
+      // CRITÉRIOS:
+      // 1. FGACTIVE = 'A' (Ativa)
+      // 2. EXCLUIR: CDSITUACAOVIAGEM IN (14, 15, 16, 17) - não processar estas situações
+      // 3. DTPREVINICIO >= hoje - 15 dias (viagens recentes ou futuras)
       const result = await pool.request().query(`
         SELECT DISTINCT v.IDVIAGEM
         FROM [dbo].[VIAGEMMESTRE] v
         INNER JOIN [dbo].[SITUACAOVIAGEM] s ON v.CDSITUACAOVIAGEM = s.CDSITUACAOVIAGEM
-        WHERE (UPPER(s.DSSITUACAOVIAGEM) LIKE '%ANDAMENTO%' 
-            OR UPPER(s.DSSITUACAOVIAGEM) LIKE '%CONFIRMADA%'
-            OR v.FGSITVIAGEM = 'T')
-          AND v.FGACTIVE = 'A'
+        WHERE v.FGACTIVE = 'A'
+          AND v.CDSITUACAOVIAGEM NOT IN (14, 15, 16, 17)  -- Excluir estas situações
+          AND (
+            v.DTPREVINICIO IS NULL 
+            OR v.DTPREVINICIO >= DATEADD(DAY, -15, GETDATE())  -- Viagens dos últimos 15 dias ou futuras
+          )
       `);
 
       const viagens = result.recordset || [];
       
       if (viagens.length === 0) {
+        console.log('ℹ️  Nenhuma viagem ativa encontrada para verificação de alertas');
         return; // Nenhuma viagem ativa
       }
 
@@ -207,6 +226,8 @@ function iniciarJobAlertas() {
 
       if (totalAlertas > 0) {
         console.log(`⚠️  ${totalAlertas} alerta(s) encontrado(s) em ${viagens.length} viagem(ns)`);
+      } else {
+        console.log(`✅ Nenhum alerta novo encontrado em ${viagens.length} viagem(ns) ativa(s)`);
       }
     } catch (err) {
       console.error('Erro ao verificar alertas de viagens ativas:', err);

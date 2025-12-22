@@ -17,6 +17,7 @@ const listar = async (req, res) => {
         DSTIPOATIVIDADE,
         DSPROGRAMA,
         FGACTIVE,
+        ISNULL(FGGRUPO, 'OUTROS') AS FGGRUPO,
         DHMAINTENANCE,
         SGUSER,
         SERVERORIG
@@ -80,7 +81,7 @@ const buscarPorCodigo = async (req, res) => {
 // Criar tipo de atividade
 const criar = async (req, res) => {
   try {
-    const { CDTIPOATIVIDADE, DSTIPOATIVIDADE, DSPROGRAMA, FGACTIVE } = req.body;
+    const { CDTIPOATIVIDADE, DSTIPOATIVIDADE, DSPROGRAMA, FGACTIVE, FGGRUPO } = req.body;
 
     if (!CDTIPOATIVIDADE || !DSTIPOATIVIDADE) {
       return res.status(400).json({ error: 'Código e descrição são obrigatórios.' });
@@ -104,13 +105,14 @@ const criar = async (req, res) => {
       .input('descricao', sql.VarChar(40), DSTIPOATIVIDADE)
       .input('programa', sql.NVarChar(200), DSPROGRAMA || null)
       .input('situacao', sql.Char(1), FGACTIVE || 'S')
+      .input('grupo', sql.VarChar(50), FGGRUPO || null)
       .query(`
         INSERT INTO [dbo].[TIPOATIVIDADE] (
-          CDTIPOATIVIDADE, DSTIPOATIVIDADE, DSPROGRAMA, FGACTIVE, 
+          CDTIPOATIVIDADE, DSTIPOATIVIDADE, DSPROGRAMA, FGACTIVE, FGGRUPO,
           DHMAINTENANCE, SGUSER, SERVERORIG
         )
         VALUES (
-          @codigo, @descricao, @programa, @situacao,
+          @codigo, @descricao, @programa, @situacao, @grupo,
           GETDATE(), 'SYSTEM', 'AppDVcargas'
         )
       `);
@@ -126,7 +128,7 @@ const criar = async (req, res) => {
 const atualizar = async (req, res) => {
   try {
     const { codigo } = req.params;
-    const { CDTIPOATIVIDADE, DSTIPOATIVIDADE, DSPROGRAMA, FGACTIVE } = req.body;
+    const { CDTIPOATIVIDADE, DSTIPOATIVIDADE, DSPROGRAMA, FGACTIVE, FGGRUPO } = req.body;
 
     if (!DSTIPOATIVIDADE) {
       return res.status(400).json({ error: 'Descrição é obrigatória.' });
@@ -150,12 +152,14 @@ const atualizar = async (req, res) => {
       .input('descricao', sql.VarChar(40), DSTIPOATIVIDADE)
       .input('programa', sql.NVarChar(200), DSPROGRAMA || null)
       .input('situacao', sql.Char(1), FGACTIVE || 'S')
+      .input('grupo', sql.VarChar(50), FGGRUPO || null)
       .query(`
         UPDATE [dbo].[TIPOATIVIDADE]
         SET 
           DSTIPOATIVIDADE = @descricao,
           DSPROGRAMA = @programa,
           FGACTIVE = @situacao,
+          FGGRUPO = @grupo,
           DHMAINTENANCE = GETDATE(),
           SGUSER = 'SYSTEM',
           SERVERORIG = 'AppDVcargas'

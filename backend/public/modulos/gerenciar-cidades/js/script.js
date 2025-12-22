@@ -66,25 +66,18 @@
       if (tabId === 'grid') {
         try {
           if (typeof window.GridEditor === 'undefined') {
-            await loadScript('/js/grid-editor.js');
+            try { await loadScript('/js/grid-editor.js'); } catch (e) { console.warn('[Cidades] falha ao carregar GridEditor:', e); }
           }
 
           if (typeof window.GridEditor !== 'undefined') {
             if (!gridTab) inicializarGridTab();
-            // Sempre renderizar, mesmo se não houver dados (grid vazio)
-            const cidadesParaRenderizar = lastCidades || [];
-            if (gridTab) {
-              gridTab.render(cidadesParaRenderizar);
-            } else if (cidadesParaRenderizar.length === 0) {
-              // Se não há dados e grid não está inicializado, aplicar filtros para buscar
-              // Mas não bloquear a mudança de aba
-              setTimeout(() => {
-                applyFilters('grid').catch(err => {
-                  console.warn('[Cidades] Erro ao aplicar filtros automaticamente:', err);
-                });
-              }, 100);
+            try {
+              gridTab.render(lastCidades || []);
+            } catch (e) {
+              console.error('[Cidades] erro ao renderizar grid na aba:', e);
             }
           }
+          // NÃO aplicar filtros automaticamente - usuário deve aplicar manualmente
         } catch (gridErr) {
           console.warn('[Cidades] Erro ao processar grid:', gridErr);
           // Continuar mesmo se houver erro - não bloquear mudança de aba
@@ -112,7 +105,7 @@
   function loadScript(src) {
     return new Promise((resolve, reject) => {
       // Verificar se GridEditor já está disponível globalmente
-      if (typeof GridEditor !== 'undefined') {
+      if (typeof window.GridEditor !== 'undefined') {
         resolve();
         return;
       }
@@ -124,7 +117,7 @@
         script.onload = () => {
           // Aguardar um pouco para garantir que GridEditor está disponível
           setTimeout(() => {
-            if (typeof GridEditor !== 'undefined') {
+            if (typeof window.GridEditor !== 'undefined') {
               resolve();
             } else {
               reject(new Error('GridEditor não foi carregado'));
@@ -141,7 +134,7 @@
         // Se o script existe, aguardar ele carregar
         let tentativas = 0;
         const checkInterval = setInterval(() => {
-          if (typeof GridEditor !== 'undefined') {
+          if (typeof window.GridEditor !== 'undefined') {
             clearInterval(checkInterval);
             resolve();
           } else if (tentativas++ > 20) {
@@ -601,14 +594,12 @@
         }
       }
 
-      // Auto-inicializar o gridTab quando houver dados (opção A)
+      // Auto-inicializar o gridTab quando houver dados
       try {
         if (Array.isArray(cidades) && cidades.length > 0) {
           if (typeof window.GridEditor === 'undefined') {
-            try {
-              await loadScript('/js/grid-editor.js');
-            } catch (loadErr) {
-            }
+            // Aguardar um pouco para o dashboard.js carregar
+            await new Promise(resolve => setTimeout(resolve, 300));
           }
 
           if (typeof window.GridEditor !== 'undefined') {
@@ -617,41 +608,46 @@
               gridTab.render(cidades);
             } catch (e) {
             }
-          } else {
-            // If the script element exists but GridEditor still undefined, try a cache-busted reload
-            const scriptEl = document.querySelector('script[src="/js/grid-editor.js"]');
-            if (scriptEl) {
-              try {
-                await new Promise((res, rej) => {
-                  const s = document.createElement('script');
-                  s.src = '/js/grid-editor.js?t=' + Date.now();
-                  s.async = true;
-                  s.onload = () => res();
-                  s.onerror = (err) => rej(err);
-                  document.head.appendChild(s);
-                });
-                if (typeof window.GridEditor !== 'undefined') {
-                  if (!gridTab) inicializarGridTab();
-                  try { gridTab.render(cidades); } catch (e) { }
-                }
-              } catch (rbErr) {
-              }
-            }
           }
         }
       } catch (autoErr) {
-        console.error('[Grid] erro no fluxo de auto-init:', autoErr);
+        console.error('[Cidades] Erro no fluxo de auto-init:', autoErr);
       }
 
-      // Se o chamador pediu para abrir a aba grid, inicializar e renderizar lá
+      // Se openTab é 'grid', tentar auto-inicializar se necessário
       if (openTab === 'grid') {
         if (typeof window.GridEditor === 'undefined') {
-          try { await loadScript('/js/grid-editor.js'); } catch (e) { }
+          try {
+            await loadScript('/js/grid-editor.js');
+          } catch (loadErr) {
+            console.warn('[Cidades] erro ao carregar grid-editor para auto-init:', loadErr);
+          }
         }
 
         if (typeof window.GridEditor !== 'undefined') {
-          if (!gridTab) inicializarGridTab();
-          try { gridTab.render(cidades); } catch (err) { console.error('[Grid] erro ao renderizar grid:', err); }
+          if (!gridTab) {
+            inicializarGridTab();
+            try {
+              gridTab.render(cidades);
+            } catch (e) {
+              console.warn('[Cidades] erro ao auto-render gridTab:', e);
+            }
+          }
+        } else {
+          const scriptEl = document.querySelector('script[src="/js/grid-editor.js"]');
+          if (scriptEl) {
+            try {
+              const oldSrc = scriptEl.src;
+              scriptEl.src = oldSrc + (oldSrc.indexOf('?') > -1 ? '&' : '?') + 't=' + Date.now();
+              await new Promise(resolve => setTimeout(resolve, 500));
+              if (typeof window.GridEditor !== 'undefined' && !gridTab) {
+                inicializarGridTab();
+                try { gridTab.render(cidades); } catch (e) { console.warn('[Cidades] erro ao render após reload forçado', e); }
+              }
+            } catch (rbErr) {
+              console.warn('[Cidades] falha no reload forçado:', rbErr);
+            }
+          }
         }
       }
 
@@ -1011,14 +1007,20 @@
 
   // Inicializar GridEditor
   function inicializarGridTab() {
-    gridTab = new GridEditor({
+    // GridEditor já é carregado globalmente pelo dashboard.js
+    if (typeof window.GridEditor === 'undefined') {
+      console.error('[Cidades] GridEditor não está disponível');
+      return;
+    }
+    
+    gridTab = new window.GridEditor({
       container: '#cidadesGrid',
       columns: [
         { field: 'CDCIDADE', header: 'Código', editable: false, isId: true, width: '80px' },
         { field: 'ESTADO', header: 'UF', editable: false, width: '60px' },
-        { field: 'NMCIDADE', header: 'Cidade', editable: false, type: 'text', width: '300px' },
+        { field: 'NMCIDADE', header: 'Cidade', editable: false, type: 'text' },
         { field: 'CDAREADDD', header: 'DDD', editable: false, width: '60px' },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px',
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '110px',
           options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }

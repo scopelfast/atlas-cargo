@@ -1,158 +1,135 @@
-// Service Worker - APP Motorista (Versão com Workbox)
-// Versão: 2.0 - Cache inteligente + Background Sync
-// Baseado no sw.js existente, mas com Workbox para cache mais eficiente
+// Service Worker - APP Motorista
+// Versão: 2.1 - Service Worker básico (sem dependência de CDN)
+// Removido Workbox para evitar problemas com CSP
 
-// Importar Workbox via CDN (sem necessidade de build)
-importScripts('https://storage.googleapis.com/workbox-cdn/releases/7.0.0/workbox-sw.js');
+const CACHE_NAME = 'motorista-v3';
 
-const CACHE_NAME = 'motorista-v3-workbox';
+// Arquivos críticos para cache
+const urlsToCache = [
+  '/motorista/index.html',
+  '/motorista/pages/dashboard.html',
+  '/motorista/js/auth.js',
+  '/motorista/js/offline.js',
+  '/motorista/css/style.css'
+];
 
-// Verificar se Workbox carregou
-if (workbox) {
-  console.log('✅ Workbox carregado!');
-
-  // Configurar precache (arquivos críticos)
-  workbox.precaching.precacheAndRoute([
-    { url: '/motorista/index.html', revision: '3' },
-    { url: '/motorista/pages/dashboard.html', revision: '3' },
-    { url: '/motorista/js/auth.js', revision: '3' },
-    { url: '/motorista/js/offline.js', revision: '3' },
-    { url: '/motorista/css/style.css', revision: '3' }
-  ]);
-
-  // Estratégia para páginas HTML: Network First (atualiza quando online)
-  workbox.routing.registerRoute(
-    ({ request }) => request.destination === 'document',
-    new workbox.strategies.NetworkFirst({
-      cacheName: CACHE_NAME + '-pages',
-      plugins: [
-        {
-          cacheKeyWillBeUsed: async ({ request }) => {
-            // Incluir query string no cache key
-            return request.url;
-          },
-          cacheWillUpdate: async ({ response }) => {
-            // Só cachear respostas válidas
-            return response && response.status === 200 ? response : null;
-          }
-        }
-      ]
-    })
+// Instalação: cachear arquivos críticos
+self.addEventListener('install', (event) => {
+  console.log('🔄 Service Worker: Instalando...');
+  
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then((cache) => {
+        console.log('📦 Cacheando arquivos críticos...');
+        return cache.addAll(urlsToCache);
+      })
+      .then(() => {
+        console.log('✅ Service Worker instalado!');
+        return self.skipWaiting(); // Ativar imediatamente
+      })
+      .catch((error) => {
+        console.error('❌ Erro ao instalar Service Worker:', error);
+      })
   );
+});
 
-  // Estratégia para assets estáticos (JS, CSS): Cache First (rápido)
-  workbox.routing.registerRoute(
-    ({ request }) => 
-      request.destination === 'script' || 
-      request.destination === 'style' ||
-      request.destination === 'image',
-    new workbox.strategies.CacheFirst({
-      cacheName: CACHE_NAME + '-assets',
-      plugins: [
-        {
-          cacheWillUpdate: async ({ response }) => {
-            return response && response.status === 200 ? response : null;
-          },
-          cacheKeyWillBeUsed: async ({ request }) => {
-            // Incluir query string (para cache busting com ?v=timestamp)
-            return request.url;
-          }
-        }
-      ]
-    })
-  );
-
-  // Estratégia para APIs: Network Only (não cachear, mas suporta Background Sync)
-  workbox.routing.registerRoute(
-    ({ url }) => url.pathname.startsWith('/api/'),
-    new workbox.strategies.NetworkOnly({
-      plugins: [
-        // Background Sync para requisições que falharem
-        {
-          fetchDidFail: async ({ originalRequest, request }) => {
-            // Se a requisição falhou, registrar para Background Sync
-            // Isso será tratado pelo Background Sync Manager
-            console.log('📴 Requisição falhou, será sincronizada quando online:', request.url);
-          }
-        }
-      ]
-    })
-  );
-
-  // Configurar expiração de cache (30 dias para assets, 1 dia para páginas)
-  workbox.expiration.Plugin({
-    maxEntries: 100,
-    maxAgeSeconds: 30 * 24 * 60 * 60, // 30 dias
-  });
-
-  // Limpar caches antigos na ativação
-  self.addEventListener('activate', (event) => {
-    console.log('🔄 Service Worker Workbox: Ativando...');
-    
-    event.waitUntil(
-      caches.keys().then((cacheNames) => {
-        return Promise.all(
-          cacheNames.map((cacheName) => {
-            if (!cacheName.startsWith('motorista-v') || cacheName === CACHE_NAME) {
-              return;
-            }
+// Ativação: limpar caches antigos
+self.addEventListener('activate', (event) => {
+  console.log('🔄 Service Worker: Ativando...');
+  
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME && cacheName.startsWith('motorista-')) {
             console.log('🗑️ Removendo cache antigo:', cacheName);
             return caches.delete(cacheName);
-          })
-        );
-      }).then(() => {
-        console.log('✅ Service Worker Workbox ativado!');
-        return self.clients.claim();
+          }
+        })
+      );
+    }).then(() => {
+      console.log('✅ Service Worker ativado!');
+      return self.clients.claim(); // Controlar todas as páginas imediatamente
+    })
+  );
+});
+
+// Interceptar requisições: Network First com fallback para cache
+self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+  
+  // IMPORTANTE: Corrigir requisições de tiles que tentam usar HTTPS
+  // Se for uma requisição para o servidor de tiles via HTTPS, forçar HTTP
+  if (url.hostname === '186.250.92.131' && (url.protocol === 'https:' || event.request.url.includes('https://186.250.92.131'))) {
+    const httpUrl = event.request.url.replace(/^https:/, 'http:');
+    console.log('🔄 [SW] Convertendo HTTPS para HTTP:', event.request.url, '→', httpUrl);
+    event.respondWith(
+      fetch(httpUrl, {
+        mode: 'cors',
+        credentials: 'omit',
+        cache: 'no-cache'
+      }).catch((error) => {
+        console.error('❌ [SW] Erro ao buscar tile:', httpUrl, error);
+        // Se falhar, retornar erro
+        return new Response('', { status: 404 });
       })
     );
-  });
-
-} else {
-  console.error('❌ Workbox não carregou. Fallback para service worker básico.');
+    return;
+  }
   
-  // Fallback: código básico similar ao sw.js original
-  const urlsToCache = [
-    '/motorista/index.html',
-    '/motorista/pages/dashboard.html',
-    '/motorista/js/auth.js',
-    '/motorista/js/offline.js',
-    '/motorista/css/style.css'
-  ];
-
-  self.addEventListener('install', (event) => {
-    event.waitUntil(
-      caches.open(CACHE_NAME)
-        .then((cache) => cache.addAll(urlsToCache))
-        .then(() => self.skipWaiting())
-    );
-  });
-
-  self.addEventListener('activate', (event) => {
-    event.waitUntil(
-      caches.keys().then((cacheNames) => {
-        return Promise.all(
-          cacheNames.map((cacheName) => {
-            if (cacheName !== CACHE_NAME) {
-              return caches.delete(cacheName);
-            }
-          })
-        );
-      }).then(() => self.clients.claim())
-    );
-  });
-
-  self.addEventListener('fetch', (event) => {
-    if (event.request.url.includes('/api/')) {
-      // APIs: não cachear
-      return;
-    }
-    
+  // Não cachear requisições de API
+  if (url.pathname.startsWith('/api/')) {
+    // APIs: sempre tentar rede, sem cache
     event.respondWith(
       fetch(event.request)
-        .catch(() => caches.match(event.request))
+        .catch((error) => {
+          console.log('📴 API offline:', event.request.url);
+          // Retornar resposta vazia ou erro para APIs offline
+          return new Response(
+            JSON.stringify({ error: 'Offline', message: 'Sem conexão com o servidor' }),
+            {
+              status: 503,
+              statusText: 'Service Unavailable',
+              headers: { 'Content-Type': 'application/json' }
+            }
+          );
+        })
     );
-  });
-}
+    return;
+  }
+  
+  // Para outros recursos: Network First (tentar rede, usar cache se falhar)
+  event.respondWith(
+    fetch(event.request)
+      .then((response) => {
+        // Se a resposta é válida, clonar e cachear
+        if (response.status === 200) {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return response;
+      })
+      .catch(() => {
+        // Se a rede falhou, tentar cache
+        return caches.match(event.request)
+          .then((cachedResponse) => {
+            if (cachedResponse) {
+              return cachedResponse;
+            }
+            // Se não há cache, retornar página offline padrão
+            if (event.request.destination === 'document') {
+              return caches.match('/motorista/index.html');
+            }
+            return new Response('Recurso não disponível offline', {
+              status: 404,
+              statusText: 'Not Found'
+            });
+          });
+      })
+  );
+});
 
 // ==========================================
 // BACKGROUND SYNC
@@ -249,31 +226,102 @@ async function syncSOSQueue() {
 }
 
 // ==========================================
-// PUSH NOTIFICATIONS (Futuro)
+// PUSH NOTIFICATIONS
 // ==========================================
 
 self.addEventListener('push', (event) => {
   console.log('📬 Push notification recebida');
   
-  const options = {
-    body: event.data ? event.data.text() : 'Nova notificação',
+  let data = {
+    title: 'LogiTrack Pro',
+    body: 'Nova notificação',
     icon: '/img/logo7.png',
-    badge: '/img/logo7.png',
-    vibrate: [200, 100, 200],
     tag: 'notification',
-    requireInteraction: true
+    tipo: 'geral',
+    dados: {}
   };
-  
+
+  // Tentar parsear dados do push
+  if (event.data) {
+    try {
+      const parsed = JSON.parse(event.data.text());
+      data = { ...data, ...parsed };
+    } catch (e) {
+      // Se não for JSON, usar como texto
+      data.body = event.data.text();
+    }
+  }
+
+  const options = {
+    body: data.body,
+    icon: data.icon || '/img/logo7.png',
+    badge: '/img/logo7.png',
+    vibrate: data.tipo === 'sos' ? [200, 100, 200, 100, 200] : [200, 100, 200],
+    tag: data.tag || `notification-${Date.now()}`,
+    requireInteraction: data.tipo === 'sos',
+    data: data.dados || {},
+    actions: []
+  };
+
+  // Adicionar ações baseadas no tipo
+  if (data.tipo === 'chat' && data.dados?.idViagem) {
+    options.actions.push({
+      action: 'abrir-chat',
+      title: 'Abrir Chat'
+    });
+  }
+
+  if (data.tipo === 'sos') {
+    options.actions.push({
+      action: 'abrir-sos',
+      title: 'Ver SOS'
+    });
+  }
+
   event.waitUntil(
-    self.registration.showNotification('LogiTrack Pro', options)
+    self.registration.showNotification(data.title || 'LogiTrack Pro', options)
   );
 });
 
 self.addEventListener('notificationclick', (event) => {
-  event.notification.close();
+  console.log('🔔 Notificação clicada:', event.notification.tag);
   
+  event.notification.close();
+
+  const action = event.action;
+  const dados = event.notification.data || {};
+
+  let url = '/motorista/pages/dashboard.html';
+
+  // Determinar URL baseado na ação ou tipo
+  if (action === 'abrir-chat' || dados.acao === 'chat') {
+    url = `/motorista/pages/chat.html?viagem=${dados.idViagem || ''}`;
+  } else if (action === 'abrir-sos' || dados.acao === 'sos') {
+    url = '/motorista/pages/sos.html';
+  } else if (dados.acao === 'viagem') {
+    url = '/motorista/pages/viagens.html';
+  }
+
   event.waitUntil(
-    clients.openWindow('/motorista/pages/dashboard.html')
+    clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        // Verificar se já existe uma janela aberta
+        for (let i = 0; i < clientList.length; i++) {
+          const client = clientList[i];
+          if (client.url.includes('/motorista/') && 'focus' in client) {
+            return client.focus().then(() => {
+              // Navegar para a URL se necessário
+              if (!client.url.includes(url.split('?')[0])) {
+                return client.navigate(url);
+              }
+            });
+          }
+        }
+        // Se não há janela aberta, abrir nova
+        if (clients.openWindow) {
+          return clients.openWindow(url);
+        }
+      })
   );
 });
 

@@ -383,7 +383,7 @@
         }
       }
 
-      // 3. Sincronizar eventos
+      // 3. Sincronizar eventos (macros)
       const eventos = await buscarFila('filaEventos');
       console.log(`📝 Eventos na fila: ${eventos.length}`);
       
@@ -391,13 +391,39 @@
         try {
           console.log('📤 Enviando evento:', evento);
           
-          const response = await fetch('/api/motorista/evento', {
-            method: 'POST',
+          // Determinar endpoint e dados corretos
+          let endpoint = '/api/motorista/macro';
+          let dadosEnvio = evento;
+          
+          // Se o evento tem estrutura com url/data, extrair dados corretos
+          if (evento.url && evento.data) {
+            endpoint = evento.url;
+            dadosEnvio = evento.data;
+          } else if (evento.endpoint) {
+            endpoint = evento.endpoint;
+            dadosEnvio = evento.data || evento;
+          }
+          
+          // Garantir que endpoint começa com /api
+          if (!endpoint.startsWith('/api')) {
+            endpoint = '/api/motorista/macro';
+          }
+          
+          // Remover campos que não devem ser enviados (campos da fila)
+          const { id, url, endpoint: _, tipo, timestamp, ...dadosLimpos } = dadosEnvio;
+          
+          // Se ainda tiver estrutura aninhada, extrair dados
+          const dadosFinais = dadosLimpos.data || dadosLimpos;
+          
+          console.log('📦 Dados que serão enviados:', JSON.stringify(dadosFinais, null, 2));
+          
+          const response = await fetch(endpoint, {
+            method: evento.method || 'POST',
             headers: {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${localStorage.getItem('token')}`
             },
-            body: JSON.stringify(evento)
+            body: JSON.stringify(dadosFinais)
           });
 
           console.log('📨 Resposta evento:', response.status);
@@ -406,11 +432,24 @@
             await deletarDaFila('filaEventos', evento.id);
             console.log('✅ Evento sincronizado');
           } else {
-            const erro = await response.text();
-            console.error('❌ Erro evento:', response.status, erro);
+            const erroTexto = await response.text();
+            let erroJson;
+            try {
+              erroJson = JSON.parse(erroTexto);
+            } catch {
+              erroJson = { error: erroTexto };
+            }
+            console.error('❌ Erro evento:', response.status, erroJson);
+            
+            // Se for erro 400 (validação), remover da fila para não ficar tentando
+            if (response.status === 400) {
+              console.warn('⚠️ Erro de validação - removendo da fila');
+              await deletarDaFila('filaEventos', evento.id);
+            }
           }
         } catch (err) {
           console.error('❌ Erro ao sincronizar evento:', err);
+          console.error('❌ Stack:', err.stack);
         }
       }
 

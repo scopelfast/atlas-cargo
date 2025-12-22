@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Enviar Posição - Motorista</title>
   <link rel="stylesheet" href="../css/padrao-telas.css">
+  <link rel="stylesheet" href="../css/design-system.css">
   <style>
     .icon-container {
       width: 100px;
@@ -232,7 +233,7 @@
 
       if (idViagem) {
         viagemSelecionada = viagens.find(v => v.IDVIAGEM == idViagem);
-        mostrarToast(`✅ Viagem #${idViagem} selecionada`, 'success');
+        mostrarToast(`Viagem #${idViagem} selecionada`, 'success');
       } else {
         viagemSelecionada = null;
       }
@@ -273,16 +274,30 @@
         esconderLoading();
 
         if (response.ok) {
+          const data = await response.json();
           mostrarToast(
             `✅ Posição enviada!\n📍 ${posicao.statusTexto}\n🚗 ${posicao.velocidade || 0} km/h`,
             'success'
           );
           mostrarUltimaPosicao(posicao);
         } else {
-          throw new Error('Erro ao enviar');
+          // Tentar obter mensagem de erro do servidor
+          let mensagemErro = 'Erro ao enviar posição';
+          try {
+            const erroData = await response.json();
+            mensagemErro = erroData.error || mensagemErro;
+            if (erroData.details) {
+              console.error('❌ Detalhes do erro:', erroData.details);
+            }
+          } catch {
+            const erroTexto = await response.text();
+            console.error('❌ Erro do servidor:', erroTexto);
+          }
+          throw new Error(mensagemErro);
         }
       } catch (error) {
-        console.error('Erro:', error);
+        console.error('❌ Erro ao enviar posição:', error);
+        console.error('❌ Stack:', error.stack);
         esconderLoading();
         
         if (error.message.includes('localização') || error.message.includes('GPS')) {
@@ -292,7 +307,7 @@
             ['OK']
           );
         } else {
-          mostrarToast('❌ ' + (error.message || 'Erro ao enviar posição'), 'error');
+          mostrarToast(error.message || 'Erro ao enviar posição', 'error');
         }
       } finally {
         btn.disabled = false;

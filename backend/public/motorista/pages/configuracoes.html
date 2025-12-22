@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configurações - Motorista</title>
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <link rel="stylesheet" href="../css/design-system.css">
+  <style>
+    .config-section {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .config-section-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .config-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .config-item:last-child {
+      border-bottom: none;
+    }
+
+    .config-item-label {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .config-item-icon {
+      font-size: 20px;
+      width: 32px;
+      text-align: center;
+    }
+
+    .config-item-text {
+      flex: 1;
+    }
+
+    .config-item-title {
+      font-weight: 600;
+      color: #333;
+      font-size: 15px;
+      margin-bottom: 2px;
+    }
+
+    .config-item-desc {
+      font-size: 12px;
+      color: #999;
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 50px;
+      height: 28px;
+      background: #ccc;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .toggle-switch.active {
+      background: #667eea;
+    }
+
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: white;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.3s;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .toggle-switch.active::after {
+      transform: translateX(22px);
+    }
+
+    .btn-action {
+      padding: 8px 16px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .btn-action:hover {
+      background: #5568d3;
+    }
+
+    .btn-action.secondary {
+      background: #6c757d;
+    }
+
+    .btn-action.secondary:hover {
+      background: #5a6268;
+    }
+
+    .btn-action.danger {
+      background: #dc3545;
+    }
+
+    .btn-action.danger:hover {
+      background: #c82333;
+    }
+
+    .select-input {
+      padding: 8px 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      background: white;
+      min-width: 150px;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .input-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .input-field {
+      padding: 10px 12px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    .input-field:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .link-item {
+      color: #667eea;
+      text-decoration: none;
+      font-weight: 500;
+      font-size: 14px;
+    }
+
+    .link-item:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
+    <h1>Configurações</h1>
+  </div>
+
+  <div class="container">
+    <!-- Configurações Gerais -->
+    <div class="config-section">
+      <div class="config-section-title">⚙️ Configurações Gerais</div>
+      
+      <div class="config-item">
+        <div class="config-item-label">
+          <span class="config-item-icon">🔔</span>
+          <div class="config-item-text">
+            <div class="config-item-title">Notificações</div>
+            <div class="config-item-desc">Gerenciar configurações de notificações</div>
+          </div>
+        </div>
+        <a href="configuracoes-notificacoes.html" class="link-item">Abrir →</a>
+      </div>
+
+      <div class="config-item">
+        <div class="config-item-label">
+          <span class="config-item-icon">🎨</span>
+          <div class="config-item-text">
+            <div class="config-item-title">Tema</div>
+            <div class="config-item-desc">Escolher tema claro ou escuro</div>
+          </div>
+        </div>
+        <select class="select-input" id="selectTema" onchange="alterarTema()">
+          <option value="claro">Claro</option>
+          <option value="escuro">Escuro</option>
+          <option value="auto">Automático</option>
+        </select>
+      </div>
+
+      <div class="config-item">
+        <div class="config-item-label">
+          <span class="config-item-icon">🌐</span>
+          <div class="config-item-text">
+            <div class="config-item-title">Idioma</div>
+            <div class="config-item-desc">Selecionar idioma do aplicativo</div>
+          </div>
+        </div>
+        <select class="select-input" id="selectIdioma" onchange="alterarIdioma()">
+          <option value="pt-BR">Português (BR)</option>
+          <option value="es">Español</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Configurações de GPS -->
+    <div class="config-section">
+      <div class="config-section-title">📱 Configurações de GPS</div>
+      
+      <div class="config-item">
+        <div class="config-item-label">
+          <span class="config-item-icon">📍</span>
+          <div class="config-item-text">
+            <div class="config-item-title">GPS Automático</div>
+            <div class="config-item-desc">Ativar envio automático de posição</div>
+          </div>
+        </div>
+        <a href="gps.html" class="link-item">Configurar →</a>
+      </div>
+
+      <div class="config-item">
+        <div class="config-item-label">
+          <span class="config-item-icon">⏱️</span>
+          <div class="config-item-text">
+            <div class="config-item-title">Intervalo de Envio</div>
+            <div class="config-item-desc">Tempo entre envios de GPS</div>
+          </div>
+        </div>
+        <select class="select-input" id="selectIntervaloGPS" onchange="salvarIntervaloGPS()">
+          <option value="30">30 segundos</option>
+          <option value="60">1 minuto</option>
+          <option value="120">2 minutos</option>
+          <option value="300">5 minutos</option>
+          <option value="600">10 minutos</option>
+        </select>
+      </div>
+
+      <div class="config-item">
+        <div class="config-item-label">
+          <span class="config-item-icon">🔋</span>
+          <div class="config-item-text">
+            <div class="config-item-title">Modo GPS</div>
+            <div class="config-item-desc">Econômico ou preciso</div>
+          </div>
+        </div>
+        <select class="select-input" id="selectModoGPS" onchange="salvarModoGPS()">
+          <option value="economico">Econômico</option>
+          <option value="preciso">Preciso</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Segurança -->
+    <div class="config-section">
+      <div class="config-section-title">🔐 Segurança</div>
+      
+      <div class="config-item">
+        <div class="config-item-label">
+          <span class="config-item-icon">🔑</span>
+          <div class="config-item-text">
+            <div class="config-item-title">Alterar Senha</div>
+            <div class="config-item-desc">Modificar senha de acesso</div>
+          </div>
+        </div>
+        <button class="btn-action" onclick="abrirModalAlterarSenha()">Alterar</button>
+      </div>
+
+      <div class="config-item">
+        <div class="config-item-label">
+          <span class="config-item-icon">👆</span>
+          <div class="config-item-text">
+            <div class="config-item-title">Biometria</div>
+            <div class="config-item-desc">Login com impressão digital ou face</div>
+          </div>
+        </div>
+        <div class="toggle-switch" id="toggleBiometria" onclick="toggleBiometria()"></div>
+      </div>
+    </div>
+
+    <!-- Dados -->
+    <div class="config-section">
+      <div class="config-section-title">📊 Dados</div>
+      
+      <div class="config-item">
+        <div class="config-item-label">
+          <span class="config-item-icon">🗑️</span>
+          <div class="config-item-text">
+            <div class="config-item-title">Limpar Cache</div>
+            <div class="config-item-desc">Remover dados em cache do aplicativo</div>
+          </div>
+        </div>
+        <button class="btn-action secondary" onclick="limparCache()">Limpar</button>
+      </div>
+
+      <div class="config-item">
+        <div class="config-item-label">
+          <span class="config-item-icon">📥</span>
+          <div class="config-item-text">
+            <div class="config-item-title">Exportar Dados</div>
+            <div class="config-item-desc">Baixar seus dados do aplicativo</div>
+          </div>
+        </div>
+        <button class="btn-action secondary" onclick="exportarDados()">Exportar</button>
+      </div>
+
+      <div class="config-item">
+        <div class="config-item-label">
+          <span class="config-item-icon">🔄</span>
+          <div class="config-item-text">
+            <div class="config-item-title">Sincronizar Agora</div>
+            <div class="config-item-desc">Forçar sincronização com servidor</div>
+          </div>
+        </div>
+        <button class="btn-action secondary" onclick="sincronizarAgora()">Sincronizar</button>
+      </div>
+    </div>
+
+    <!-- Informações do App -->
+    <div class="config-section">
+      <div class="config-section-title">ℹ️ Informações</div>
+      
+      <div class="config-item">
+        <div class="config-item-label">
+          <span class="config-item-icon">📱</span>
+          <div class="config-item-text">
+            <div class="config-item-title">Versão do App</div>
+            <div class="config-item-desc">1.0.1</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="config-item">
+        <div class="config-item-label">
+          <span class="config-item-icon">📞</span>
+          <div class="config-item-text">
+            <div class="config-item-title">Suporte</div>
+            <div class="config-item-desc">Entre em contato com o suporte</div>
+          </div>
+        </div>
+        <button class="btn-action secondary" onclick="abrirSuporte()">Contatar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Alterar Senha -->
+  <div id="modalSenha" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;">
+    <div style="background: white; border-radius: 16px; padding: 24px; max-width: 400px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,0.2);">
+      <h2 style="margin: 0 0 20px 0; font-size: 20px; color: #333;">Alterar Senha</h2>
+      
+      <div class="input-group">
+        <label class="input-label">Senha Atual</label>
+        <input type="password" id="senhaAtual" class="input-field" placeholder="Digite sua senha atual">
+      </div>
+
+      <div class="input-group">
+        <label class="input-label">Nova Senha</label>
+        <input type="password" id="novaSenha" class="input-field" placeholder="Digite a nova senha">
+      </div>
+
+      <div class="input-group">
+        <label class="input-label">Confirmar Nova Senha</label>
+        <input type="password" id="confirmarSenha" class="input-field" placeholder="Confirme a nova senha">
+      </div>
+
+      <div style="display: flex; gap: 10px; margin-top: 20px;">
+        <button class="btn-action secondary" style="flex: 1;" onclick="fecharModalSenha()">Cancelar</button>
+        <button class="btn-action" style="flex: 1;" onclick="salvarNovaSenha()">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/notifications.js"></script>
+  <script src="../js/auth.js"></script>
+  
+  <script>
+    (function() {
+      if (!verificarAuth()) {
+        window.location.href = '../index.html';
+        return;
+      }
+
+      const motorista = getMotorista();
+
+      // Carregar configurações salvas
+      function carregarConfiguracoes() {
+      // Tema
+      const tema = localStorage.getItem('tema') || 'claro';
+      document.getElementById('selectTema').value = tema;
+      aplicarTema(tema);
+
+      // Idioma
+      const idioma = localStorage.getItem('idioma') || 'pt-BR';
+      document.getElementById('selectIdioma').value = idioma;
+
+      // Intervalo GPS
+      const intervaloGPS = localStorage.getItem('gps_intervalo') || '60';
+      document.getElementById('selectIntervaloGPS').value = intervaloGPS;
+
+      // Modo GPS
+      const modoGPS = localStorage.getItem('gps_modo') || 'preciso';
+      document.getElementById('selectModoGPS').value = modoGPS;
+
+      // Biometria
+      const biometria = localStorage.getItem('biometria_habilitada') === 'true';
+      document.getElementById('toggleBiometria').classList.toggle('active', biometria);
+    }
+
+    // Tema
+    function alterarTema() {
+      const tema = document.getElementById('selectTema').value;
+      localStorage.setItem('tema', tema);
+      aplicarTema(tema);
+      mostrarToast('Tema alterado com sucesso', 'success');
+    }
+
+      function aplicarTema(tema) {
+      if (tema === 'escuro') {
+        document.body.style.background = '#1a1a1a';
+        document.body.style.color = '#fff';
+      } else if (tema === 'auto') {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.body.style.background = prefersDark ? '#1a1a1a' : '#f5f5f5';
+        document.body.style.color = prefersDark ? '#fff' : '#333';
+      } else {
+        document.body.style.background = '#f5f5f5';
+        document.body.style.color = '#333';
+      }
+    }
+
+    // Idioma
+    function alterarIdioma() {
+      const idioma = document.getElementById('selectIdioma').value;
+      localStorage.setItem('idioma', idioma);
+      mostrarToast('Idioma alterado. Recarregue a página para aplicar.', 'info');
+    }
+
+      // GPS
+      function salvarIntervaloGPS() {
+      const intervalo = document.getElementById('selectIntervaloGPS').value;
+      localStorage.setItem('gps_intervalo', intervalo);
+      
+      // Atualizar se GPS automático estiver ativo
+      if (window.gpsAuto && window.gpsAuto.intervalo) {
+        window.gpsAuto.intervalo = parseInt(intervalo) * 1000;
+        mostrarToast('Intervalo de GPS atualizado', 'success');
+      } else {
+        mostrarToast('Intervalo salvo. Ative o GPS automático para aplicar.', 'info');
+      }
+    }
+
+    function salvarModoGPS() {
+      const modo = document.getElementById('selectModoGPS').value;
+      localStorage.setItem('gps_modo', modo);
+      
+      // Aplicar configuração de precisão
+      if (window.gpsAuto && window.gpsAuto.options) {
+        window.gpsAuto.options.enableHighAccuracy = modo === 'preciso';
+        mostrarToast('Modo GPS atualizado', 'success');
+      } else {
+        mostrarToast('Modo salvo. Ative o GPS automático para aplicar.', 'info');
+      }
+    }
+
+      // Biometria
+      function toggleBiometria() {
+      if (!('credentials' in navigator)) {
+        mostrarToast('Biometria não disponível neste dispositivo', 'error');
+        return;
+      }
+
+      const toggle = document.getElementById('toggleBiometria');
+      const habilitada = toggle.classList.contains('active');
+      
+      if (!habilitada) {
+        // Solicitar biometria
+        if (navigator.credentials && navigator.credentials.create) {
+          navigator.credentials.create({
+            publicKey: {
+              challenge: new Uint8Array(32),
+              rp: { name: 'LogiTrack Pro' },
+              user: {
+                id: new Uint8Array(16),
+                name: motorista.nome || 'Motorista',
+                displayName: motorista.nome || 'Motorista'
+              },
+              pubKeyCredParams: [{ alg: -7, type: 'public-key' }],
+              authenticatorSelection: {
+                authenticatorAttachment: 'platform',
+                userVerification: 'required'
+              }
+            }
+          }).then(() => {
+            toggle.classList.add('active');
+            localStorage.setItem('biometria_habilitada', 'true');
+            mostrarToast('Biometria habilitada', 'success');
+          }).catch(() => {
+            mostrarToast('Erro ao habilitar biometria', 'error');
+          });
+        } else {
+          mostrarToast('Biometria não suportada', 'error');
+        }
+      } else {
+        toggle.classList.remove('active');
+        localStorage.setItem('biometria_habilitada', 'false');
+        mostrarToast('Biometria desabilitada', 'info');
+      }
+    }
+
+      // Alterar Senha
+      function abrirModalAlterarSenha() {
+      document.getElementById('modalSenha').style.display = 'flex';
+    }
+
+    function fecharModalSenha() {
+      document.getElementById('modalSenha').style.display = 'none';
+      document.getElementById('senhaAtual').value = '';
+      document.getElementById('novaSenha').value = '';
+      document.getElementById('confirmarSenha').value = '';
+    }
+
+      async function salvarNovaSenha() {
+      const senhaAtual = document.getElementById('senhaAtual').value;
+      const novaSenha = document.getElementById('novaSenha').value;
+      const confirmarSenha = document.getElementById('confirmarSenha').value;
+
+      if (!senhaAtual || !novaSenha || !confirmarSenha) {
+        mostrarToast('Preencha todos os campos', 'error');
+        return;
+      }
+
+      if (novaSenha.length < 6) {
+        mostrarToast('A nova senha deve ter pelo menos 6 caracteres', 'error');
+        return;
+      }
+
+      if (novaSenha !== confirmarSenha) {
+        mostrarToast('As senhas não coincidem', 'error');
+        return;
+      }
+
+      try {
+        const token = localStorage.getItem('token');
+        const idMotorista = motorista?.CDCADASTRO || motorista?.id || motorista?.cdcadastro;
+
+        const response = await fetch(`/api/motorista/alterar-senha`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            idMotorista,
+            senhaAtual,
+            novaSenha
+          })
+        });
+
+        if (response.ok) {
+          mostrarToast('Senha alterada com sucesso', 'success');
+          fecharModalSenha();
+        } else {
+          const data = await response.json();
+          mostrarToast(data.error || 'Erro ao alterar senha', 'error');
+        }
+      } catch (error) {
+        console.error('Erro ao alterar senha:', error);
+        mostrarToast('Erro ao alterar senha. Tente novamente.', 'error');
+      }
+    }
+
+      // Limpar Cache
+      async function limparCache() {
+      const confirmar = await mostrarModal(
+        'Limpar Cache',
+        'Tem certeza que deseja limpar o cache? Isso pode melhorar a performance do app.',
+        ['Cancelar', 'Limpar']
+      );
+
+      if (confirmar === 'Limpar') {
+        try {
+          // Limpar localStorage (exceto dados importantes)
+          const token = localStorage.getItem('token');
+          const motorista = localStorage.getItem('motorista');
+          const tema = localStorage.getItem('tema');
+          const idioma = localStorage.getItem('idioma');
+          
+          localStorage.clear();
+          
+          // Restaurar dados importantes
+          if (token) localStorage.setItem('token', token);
+          if (motorista) localStorage.setItem('motorista', motorista);
+          if (tema) localStorage.setItem('tema', tema);
+          if (idioma) localStorage.setItem('idioma', idioma);
+
+          // Limpar IndexedDB
+          if (window.OfflineDB && window.OfflineDB.limparCache) {
+            await window.OfflineDB.limparCache();
+          }
+
+          // Limpar cache do Service Worker
+          if ('caches' in window) {
+            const cacheNames = await caches.keys();
+            await Promise.all(cacheNames.map(name => caches.delete(name)));
+          }
+
+          mostrarToast('Cache limpo com sucesso', 'success');
+        } catch (error) {
+          console.error('Erro ao limpar cache:', error);
+          mostrarToast('Erro ao limpar cache', 'error');
+        }
+      }
+    }
+
+      // Exportar Dados
+      async function exportarDados() {
+      try {
+        const loading = mostrarLoading('Exportando dados...');
+        
+        const dados = {
+          motorista: getMotorista(),
+          configuracoes: {
+            tema: localStorage.getItem('tema'),
+            idioma: localStorage.getItem('idioma'),
+            gps_intervalo: localStorage.getItem('gps_intervalo'),
+            gps_modo: localStorage.getItem('gps_modo')
+          },
+          timestamp: new Date().toISOString()
+        };
+
+        // Adicionar dados offline se disponível
+        if (window.OfflineDB && window.OfflineDB.exportarDados) {
+          dados.offline = await window.OfflineDB.exportarDados();
+        }
+
+        const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `dados-motorista-${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        mostrarToast('Dados exportados com sucesso', 'success');
+      } catch (error) {
+        console.error('Erro ao exportar dados:', error);
+        mostrarToast('Erro ao exportar dados', 'error');
+      }
+    }
+
+      // Sincronizar Agora
+      async function sincronizarAgora() {
+      try {
+        const loading = mostrarLoading('Sincronizando...');
+        
+        if (window.OfflineDB && window.OfflineDB.sincronizar) {
+          await window.OfflineDB.sincronizar();
+        }
+
+        // Forçar sincronização de GPS
+        if (window.gpsAuto && window.gpsAuto.sincronizar) {
+          await window.gpsAuto.sincronizar();
+        }
+
+        mostrarToast('Sincronização concluída', 'success');
+      } catch (error) {
+        console.error('Erro ao sincronizar:', error);
+        mostrarToast('Erro ao sincronizar. Verifique sua conexão.', 'error');
+      }
+    }
+
+      // Suporte
+      function abrirSuporte() {
+      const celular = motorista?.celular || motorista?.NRCELULAR || '';
+      if (celular) {
+        window.open(`https://wa.me/55${celular.replace(/\D/g, '')}`, '_blank');
+      } else {
+        mostrarToast('Número de suporte não disponível', 'info');
+      }
+    }
+
+      // Voltar
+      function voltar() {
+        window.location.href = 'dashboard.html';
+      }
+
+      // Expor funções no escopo global para onclick do HTML
+      window.alterarTema = alterarTema;
+      window.alterarIdioma = alterarIdioma;
+      window.salvarIntervaloGPS = salvarIntervaloGPS;
+      window.salvarModoGPS = salvarModoGPS;
+      window.toggleBiometria = toggleBiometria;
+      window.abrirModalAlterarSenha = abrirModalAlterarSenha;
+      window.fecharModalSenha = fecharModalSenha;
+      window.salvarNovaSenha = salvarNovaSenha;
+      window.limparCache = limparCache;
+      window.exportarDados = exportarDados;
+      window.sincronizarAgora = sincronizarAgora;
+      window.abrirSuporte = abrirSuporte;
+      window.voltar = voltar;
+
+      // Inicializar
+      carregarConfiguracoes();
+
+      // Detectar mudança de tema do sistema (se modo auto)
+      if (localStorage.getItem('tema') === 'auto') {
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+          aplicarTema('auto');
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

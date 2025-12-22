@@ -14,252 +14,26 @@
   let sqlExecutado = false;
   let initExecutado = false;
 
-  // Funções para controlar overlay de carregamento do init.sql
-  function showLoadingOverlayInitSQL(titulo = 'Processando Inicialização', texto = 'Executando scripts de inicialização...', detalhe = 'Isso pode levar alguns segundos.') {
-    const overlay = document.getElementById('loadingOverlayInitSQL');
-    const loadingTitle = document.getElementById('loadingTitleInitSQL');
-    const loadingText = document.getElementById('loadingTextInitSQL');
-    const loadingDetail = document.getElementById('loadingDetailInitSQL');
-    
-    if (overlay && loadingTitle && loadingText && loadingDetail) {
-      loadingTitle.textContent = titulo;
-      loadingText.textContent = texto;
-      loadingDetail.textContent = detalhe;
-      overlay.style.display = 'flex';
-    }
-  }
-
-  function hideLoadingOverlayInitSQL() {
-    const overlay = document.getElementById('loadingOverlayInitSQL');
-    if (overlay) {
-      overlay.style.display = 'none';
-    }
-  }
-
   // Função para carregar e executar o arquivo init.sql
   async function executarInitSQL() {
-    // Proteção: Se já foi executado, não executar novamente
-    if (sqlExecutado) {
+    if (sqlExecutado) return;
+    sqlExecutado = true;
+    
+    // Usar função padrão global se disponível
+    if (typeof window.executarInitSQLPadrao === 'function') {
+      await window.executarInitSQLPadrao('/modulos/gerenciar-equipamentos/sql/init.sql', '/api/equipamentos/executar-init-sql', 'equipamentos');
       return;
     }
     
-    // Marcar como executando IMEDIATAMENTE para evitar execuções simultâneas
-    sqlExecutado = true;
-    
-    // Mostrar overlay de carregamento
-    showLoadingOverlayInitSQL('Processando Inicialização', 'Carregando script de inicialização...', 'Aguarde enquanto preparamos o módulo.');
-    
-    try {
-      // Carregar o arquivo init.sql
-      const response = await fetch('/modulos/gerenciar-equipamentos/sql/init.sql');
-      
-      // Atualizar mensagem do overlay
-      showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL...', 'Isso pode levar alguns segundos.');
-      
-      if (!response.ok) {
-        // Se o arquivo não existir, não é erro - apenas não executa nada
-        if (response.status === 404) {
-          hideLoadingOverlayInitSQL();
-          return;
-        }
-        hideLoadingOverlayInitSQL();
-        throw new Error(`Erro ao carregar init.sql: ${response.status}`);
-      }
-      
-      const sqlContent = await response.text();
-      
-      // Remover comentários de bloco /* */ (incluindo multilinhas) usando regex
-      let sqlSemComentarios = sqlContent.replace(/\/\*[\s\S]*?\*\//g, '');
-      
-      // Remover apenas comentários, mas MANTER 'GO' pois o backend precisa dele para dividir comandos
-      const sqlLimpo = sqlSemComentarios
-        .split('\n')
-        .filter(linha => {
-          const linhaTrim = linha.trim();
-          // Manter linhas que não são apenas comentários vazios
-          // IMPORTANTE: Manter 'GO' pois o backend precisa dele para dividir comandos
-          return linhaTrim.length > 0 && 
-                 !linhaTrim.startsWith('--');
-        })
-        .join('\n')
-        .trim();
-      
-      // Se não há SQL para executar, retornar
-      if (!sqlLimpo || sqlLimpo.length === 0) {
-        hideLoadingOverlayInitSQL();
-        return;
-      }
-      
-      // Extrair lista de stored procedures que serão executadas para mostrar progresso
-      const procedures = [];
-      const linhas = sqlLimpo.split('\n');
-      linhas.forEach(linha => {
-        const linhaUpper = linha.toUpperCase().trim();
-        // Procurar por EXEC ou EXECUTE seguido de nome de procedure
-        const match = linhaUpper.match(/EXEC(?:UTE)?\s+(?:\[DBO\]\.)?\[?(\w+)\]?/);
-        if (match && match[1]) {
-          const procName = match[1];
-          // Remover prefixo SP_ se existir para melhor legibilidade
-          const nomeLimpo = procName.replace(/^SP_/, '');
-          if (!procedures.includes(nomeLimpo)) {
-            procedures.push(nomeLimpo);
-          }
-        }
-      });
-      
-      // Contar comandos GO para saber quantos comandos serão executados
-      const comandosGO = sqlLimpo.split(/\bGO\b/gi).filter(cmd => cmd.trim().length > 0);
-      const totalComandos = comandosGO.length;
-      
-      // Atualizar mensagem: mostrar quantas procedures serão executadas
-      if (procedures.length > 0) {
-        showLoadingOverlayInitSQL(
-          'Processando Inicialização', 
-          `Executando ${totalComandos} comando(s) SQL...`, 
-          `Procedures: ${procedures.slice(0, 5).join(', ')}${procedures.length > 5 ? ` (+${procedures.length - 5} mais)` : ''}`
-        );
-        
-        // Iniciar simulação de progresso (atualizar a cada 2 segundos)
-        let comandoAtual = 0;
-        const intervaloProgresso = setInterval(() => {
-          comandoAtual++;
-          if (comandoAtual <= totalComandos) {
-            const procedureAtual = procedures[comandoAtual - 1] || 'Comando SQL';
-            showLoadingOverlayInitSQL(
-              'Processando Inicialização', 
-              `Executando comando ${comandoAtual} de ${totalComandos}...`, 
-              `Em execução: ${procedureAtual}`
-            );
-          }
-        }, 2000); // Atualizar a cada 2 segundos
-        
-        // Armazenar intervalo para limpar depois
-        window.intervaloInitSQLEquipamentos = intervaloProgresso;
-      } else {
-        showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL no banco de dados...', 'Aguarde, isso pode levar alguns segundos.');
-      }
-      
-      // Executar o SQL via API e AGUARDAR completamente a resposta
-      let execResponse;
-      try {
-        execResponse = await fetch('/api/equipamentos/executar-init-sql', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sql: sqlLimpo }),
-          // Aumentar timeout para scripts grandes (MERGE pode demorar)
-          signal: AbortSignal.timeout(120000) // 120 segundos (2 minutos)
-        });
-      } catch (fetchError) {
-        if (fetchError.name === 'TimeoutError' || fetchError.name === 'AbortError') {
-          hideLoadingOverlayInitSQL();
-          return; // Não bloquear o módulo
-        }
-        if (fetchError.message.includes('ERR_CONNECTION_RESET') || fetchError.message.includes('Failed to fetch')) {
-          hideLoadingOverlayInitSQL();
-          return; // Não bloquear o módulo
-        }
-        hideLoadingOverlayInitSQL();
-        throw fetchError;
-      }
-      
-      // Verificar se a resposta foi bem-sucedida
-      if (!execResponse.ok) {
-        hideLoadingOverlayInitSQL();
-        return; // Não bloquear o módulo
-      }
-      
-      // Atualizar mensagem: processando resultados
-      showLoadingOverlayInitSQL('Processando Inicialização', 'Processando resultados...', 'Quase terminando.');
-      
-      // Aguardar completamente a resposta JSON
-      let result;
-      try {
-        result = await execResponse.json();
-      } catch (jsonError) {
-        hideLoadingOverlayInitSQL();
-        return; // Não bloquear o módulo
-      }
-      
-      // Verificar se todos os comandos foram executados com sucesso
-      if (!result.success) {
-        hideLoadingOverlayInitSQL();
-        return; // Não bloquear o módulo
-      }
-      
-      // Verificar se há resultados e se todos os comandos foram executados
-      if (result.resultados && Array.isArray(result.resultados)) {
-        const comandosComErro = result.resultados.filter(r => r.tipo === 'ERRO');
-        if (comandosComErro.length > 0) {
-          // Filtrar erros "esperados" (como tabela já existe, índice já existe, etc.)
-          const errosReais = comandosComErro.filter(erro => {
-            const mensagem = (erro.mensagem || erro.erro || '').toLowerCase();
-            // Erros esperados que não são problemas reais
-            const errosEsperados = [
-              'already exists',
-              'já existe',
-              'duplicate',
-              'duplicado',
-              'there is already',
-              'já há'
-            ];
-            return !errosEsperados.some(esperado => mensagem.includes(esperado));
-          });
-          
-          if (errosReais.length > 0) {
-            // Log apenas erros reais críticos
-            errosReais.forEach(erro => {
-              const mensagem = erro.mensagem || erro.erro || erro.message || erro.error || 'Erro desconhecido';
-              const mensagemStr = typeof mensagem === 'object' ? JSON.stringify(mensagem) : String(mensagem);
-              const mensagemLower = mensagemStr.toLowerCase();
-              
-              // Verificar se é erro interno do backend relacionado ao INTEGRA_PRD offline
-              const isErroInternoBackend = mensagemStr.includes('result is not defined') || 
-                                          mensagemStr.includes('Cannot read property') ||
-                                          mensagemStr.includes('undefined');
-              
-              if (isErroInternoBackend) {
-                // Extrair nome da procedure se possível
-                const comando = (erro && (erro.comando || erro.sql)) ? String(erro.comando || erro.sql) : 'Comando desconhecido';
-                const procedureMatch = comando.match(/EXEC\s+(?:\[dbo\]\.)?\[?(\w+)\]?/i) || 
-                                        comando.match(/EXECUTE\s+(?:\[dbo\]\.)?\[?(\w+)\]?/i) ||
-                                        comando.match(/\[?(\w+)\]?/i);
-                const procedureName = procedureMatch ? procedureMatch[1] : 'N/A';
-                console.warn(`[Init SQL] Aviso: Procedure ${procedureName} retornou erro interno (pode ser normal se o banco INTEGRA_PRD estiver offline)`);
-              } else {
-                if (typeof mensagem === 'object') {
-                  console.error('Erro no init.sql:', JSON.stringify(mensagem));
-                } else {
-                  console.error('Erro no init.sql:', mensagem);
-                }
-              }
-            });
-          }
-        }
-      }
-      
-      // Limpar intervalo de progresso se existir
-      if (window.intervaloInitSQLEquipamentos) {
-        clearInterval(window.intervaloInitSQLEquipamentos);
-        delete window.intervaloInitSQLEquipamentos;
-      }
-      
-      // Aguardar um pouco mais para garantir que todas as operações foram concluídas
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Esconder overlay após conclusão bem-sucedida
-      hideLoadingOverlayInitSQL();
-      
-    } catch (err) {
-      // Limpar intervalo de progresso se existir
-      if (window.intervaloInitSQLEquipamentos) {
-        clearInterval(window.intervaloInitSQLEquipamentos);
-        delete window.intervaloInitSQLEquipamentos;
-      }
-      
-      // Esconder overlay em caso de erro
-      hideLoadingOverlayInitSQL();
-      // Erros silenciosos - não bloquear o módulo
+    // Fallback: aguardar um pouco e tentar novamente (pode estar carregando)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    if (typeof window.executarInitSQLPadrao === 'function') {
+      await window.executarInitSQLPadrao('/modulos/gerenciar-equipamentos/sql/init.sql', '/api/equipamentos/executar-init-sql', 'equipamentos');
+      return;
     }
+    
+    // Se ainda não estiver disponível, log de aviso
+    console.warn('[Equipamentos] executarInitSQLPadrao não disponível. Verifique se init-overlay-helper.js está carregado.');
   }
 
   // Função de inicialização
@@ -275,17 +49,17 @@
     // Aguardar um pouco para garantir que o DOM está totalmente renderizado
     await new Promise(resolve => setTimeout(resolve, 200));
     
-    // IMPORTANTE: Executar SQL de inicialização (init.sql) se existir
-    // e AGUARDAR completamente antes de prosseguir
-    try {
-      await executarInitSQL();
-    } catch (err) {
-      // Erros silenciosos - não bloquear o módulo
-    }
-    
-    // Garantir que a aba de filtros está ativa e visível
+    // Garantir que a aba de filtros está ativa e visível PRIMEIRO
     await showTab('filtros');
+    
+    // IMPORTANTE: Executar SQL de inicialização (init.sql) em background
+    // NÃO bloquear a interface - executar de forma assíncrona
+    executarInitSQL().catch(err => {
+      console.error('[Equipamentos] Erro ao executar init.sql:', err.message || err);
+    });
   }
+
+  // Carregar estatísticas iniciais
 
   // Inicialização - tentar imediatamente e também no DOMContentLoaded
   if (document.readyState === 'loading') {
@@ -318,25 +92,30 @@
       // Se for a aba de grid, inicializar o GridEditor
       if (tabId === 'grid') {
         try {
-          if (!gridTab) {
-            if (typeof GridEditor === 'undefined') {
-              await loadScript('/js/grid-editor.js');
+          // Aguardar um pouco para garantir que GridEditor está disponível (caso ainda esteja carregando)
+          let tentativas = 0;
+          while (typeof window.GridEditor === 'undefined' && tentativas < 10) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            tentativas++;
+          }
+
+          if (typeof window.GridEditor === 'undefined') {
+            console.error('[Equipamentos] GridEditor não está disponível após aguardar');
+            try { await loadScript('/js/grid-editor.js'); } catch (e) {
+              console.error('[Equipamentos] Erro ao carregar GridEditor:', e);
             }
+          }
+
+          if (!gridTab && typeof window.GridEditor !== 'undefined') {
             inicializarGridTab();
           }
+          
           // Sempre renderizar, mesmo se não houver dados (grid vazio)
           const equipamentosParaRenderizar = lastEquipamentos || [];
           if (gridTab) {
             gridTab.render(equipamentosParaRenderizar);
-          } else if (equipamentosParaRenderizar.length === 0) {
-            // Se não há dados e grid não está inicializado, aplicar filtros para buscar
-            // Mas não bloquear a mudança de aba
-            setTimeout(() => {
-              applyFilters('grid').catch(err => {
-                console.warn('[Equipamentos] Erro ao aplicar filtros automaticamente:', err);
-              });
-            }, 100);
           }
+          // NÃO aplicar filtros automaticamente - usuário deve aplicar manualmente
         } catch (gridErr) {
           console.warn('[Equipamentos] Erro ao processar grid:', gridErr);
           // Continuar mesmo se houver erro - não bloquear mudança de aba
@@ -364,7 +143,8 @@
   function loadScript(src) {
     return new Promise((resolve, reject) => {
       // Verificar se GridEditor já está disponível globalmente
-      if (typeof GridEditor !== 'undefined') {
+      // GridEditor já é carregado globalmente pelo dashboard.js
+      if (typeof window.GridEditor !== 'undefined') {
         resolve();
         return;
       }
@@ -376,7 +156,7 @@
         script.onload = () => {
           // Aguardar um pouco para garantir que GridEditor está disponível
           setTimeout(() => {
-            if (typeof GridEditor !== 'undefined') {
+            if (typeof window.GridEditor !== 'undefined') {
               resolve();
             } else {
               reject(new Error('GridEditor não foi carregado'));
@@ -393,7 +173,7 @@
         // Se o script existe, aguardar ele carregar
         let tentativas = 0;
         const checkInterval = setInterval(() => {
-          if (typeof GridEditor !== 'undefined') {
+          if (typeof window.GridEditor !== 'undefined') {
             clearInterval(checkInterval);
             resolve();
           } else if (tentativas++ > 20) {
@@ -413,12 +193,13 @@
 
   // Inicializar GridEditor
   function inicializarGridTab() {
-    if (typeof GridEditor === 'undefined') {
+    // GridEditor já é carregado globalmente pelo dashboard.js
+    if (typeof window.GridEditor === 'undefined') {
       console.error('[Equipamentos] GridEditor não está disponível');
       return;
     }
 
-    gridTab = new GridEditor({
+    gridTab = new window.GridEditor({
       container: '#equipamentosGrid',
       columns: [
         { field: 'IDEQUIPAMENTO', header: 'ID', editable: false, isId: true, width: '120px' },
@@ -586,6 +367,8 @@
       // Armazenar dados em cache
       lastEquipamentos = equipamentos;
       
+      // Atualizar estatísticas com os equipamentos filtrados
+      
       // Renderizar lista tradicional
       // Atualizar contador
       const countEl = document.getElementById('equipamentosGridCountText');
@@ -594,24 +377,74 @@
         countEl.textContent = `${count} registro(s) encontrado(s)`;
       }
       
-      // Renderizar Grid se estiver disponível
-      if (openTab === 'grid' && typeof GridEditor !== 'undefined') {
-        if (!gridTab) {
-          await loadScript('/js/grid-editor.js');
-          inicializarGridTab();
-        }
-        if (gridTab) {
+      // Se já existe uma instância do Grid na aba, atualizá-la imediatamente
+      if (typeof window.GridEditor !== 'undefined' && gridTab) {
+        try {
           gridTab.render(equipamentos);
-        }
-      } else if (openTab === 'grid' && typeof GridEditor === 'undefined') {
-        // Se o GridEditor não está carregado, carregar e inicializar
-        await loadScript('/js/grid-editor.js');
-        inicializarGridTab();
-        if (gridTab) {
-          gridTab.render(equipamentos);
+        } catch (e) {
         }
       }
-      
+
+      // Auto-inicializar o gridTab quando houver dados
+      try {
+        if (Array.isArray(equipamentos) && equipamentos.length > 0) {
+          // Aguardar GridEditor estar disponível
+          let tentativas = 0;
+          while (typeof window.GridEditor === 'undefined' && tentativas < 10) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            tentativas++;
+          }
+
+          if (typeof window.GridEditor === 'undefined') {
+            console.error('[Equipamentos] GridEditor não está disponível após aguardar');
+            try { await loadScript('/js/grid-editor.js'); } catch (loadErr) {
+              console.error('[Equipamentos] Erro ao carregar GridEditor:', loadErr);
+            }
+          }
+
+          if (typeof window.GridEditor !== 'undefined') {
+            if (!gridTab) inicializarGridTab();
+            if (gridTab) {
+              try {
+                gridTab.render(equipamentos);
+              } catch (e) {
+                console.error('[Equipamentos] Erro ao renderizar grid:', e);
+              }
+            }
+          }
+        }
+      } catch (autoErr) {
+        console.error('[Equipamentos] Erro no fluxo de auto-init:', autoErr);
+      }
+
+      // Se o chamador pediu para abrir a aba grid, inicializar e renderizar lá
+      if (openTab === 'grid') {
+        // Aguardar GridEditor estar disponível
+        let tentativas = 0;
+        while (typeof window.GridEditor === 'undefined' && tentativas < 10) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          tentativas++;
+        }
+
+        if (typeof window.GridEditor === 'undefined') {
+          console.error('[Equipamentos] GridEditor não está disponível após aguardar');
+          try { await loadScript('/js/grid-editor.js'); } catch (e) {
+            console.error('[Equipamentos] Erro ao carregar GridEditor:', e);
+          }
+        }
+
+        if (typeof window.GridEditor !== 'undefined') {
+          if (!gridTab) inicializarGridTab();
+          if (gridTab) {
+            try { 
+              gridTab.render(equipamentos); 
+            } catch (err) { 
+              console.error('[Equipamentos] Erro ao renderizar grid:', err); 
+            }
+          }
+        }
+      }
+
       showTab(openTab);
     } catch (err) {
       console.error('Erro nos filtros:', err);
@@ -688,6 +521,8 @@
       
       const response = await fetch(`/api/equipamentos`);
       const equipamentos = await response.json();
+      
+      // Atualizar estatísticas
       // Normalizar ID para comparação (pode vir como string ou número)
       const idNormalizado = String(id).trim();
       const equip = equipamentos.find(e => {
@@ -1205,8 +1040,12 @@
               </div>
             </div>
             <div style="display: flex; gap: 6px; align-items: center;">
-              <button onclick="window.editarValidade('${val.SEQUENCIA}')" style="background: #3498db; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;">👁️ Ver Dados</button>
-              <button onclick="window.excluirValidade('${val.SEQUENCIA}')" style="background: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;">🗑️ Remover</button>
+              <button onclick="window.editarValidade('${val.SEQUENCIA}')" class="btn btn-primary btn-sm">
+                <i class='bx bx-show'></i> Ver Dados
+              </button>
+              <button onclick="window.excluirValidade('${val.SEQUENCIA}')" class="btn btn-secondary btn-sm" style="background: #e74c3c;">
+                <i class='bx bx-trash'></i> Remover
+              </button>
             </div>
           </div>
           <div style="display: flex; gap: 20px; padding-top: 10px; border-top: 1px solid #f0f0f0; font-size: 12px;">
@@ -1252,7 +1091,7 @@
     const placa = document.getElementById('equipRef')?.value || '';
     const descricao = document.getElementById('equipNome')?.value || '';
     const nomeEquip = placa ? `${placa}${descricao ? ' - ' + descricao : ''}` : (descricao || 'Equipamento');
-    document.getElementById('modalValidadeTitulo').textContent = '📋 Nova Validade';
+    document.getElementById('modalValidadeTitulo').innerHTML = '<i class=\'bx bx-file-blank\'></i> Nova Validade';
     document.getElementById('modalValidadeSubtitulo').textContent = `Cadastrando validade para: ${nomeEquip}`;
     document.getElementById('formValidade').reset();
     document.getElementById('validadeSequencia').value = '';
@@ -1260,9 +1099,10 @@
     document.getElementById('certCpfCnpj').value = '';
     document.getElementById('certCodigo').value = '';
     document.getElementById('certNome').value = '';
-    document.getElementById('certTexto').textContent = 'Nenhuma certificadora selecionada';
-    document.getElementById('certResultado').style.background = '#e9ecef';
-    document.getElementById('modalValidade').style.display = 'block';
+    const certResultado = document.getElementById('certResultado');
+    certResultado.className = '';
+    certResultado.innerHTML = '<i class=\'bx bx-info-circle\'></i><span id="certTexto">Nenhuma certificadora selecionada</span>';
+    document.getElementById('modalValidade').style.display = 'flex';
   }
   
   window.editarValidade = async function(sequencia) {
@@ -1278,7 +1118,7 @@
       if (val) {
         const placa = document.getElementById('equipRef')?.value || '';
         const nomeEquip = placa || document.getElementById('equipNome')?.value || 'Equipamento';
-        document.getElementById('modalValidadeTitulo').textContent = '✏️ Editar Validade';
+        document.getElementById('modalValidadeTitulo').innerHTML = '<i class=\'bx bx-edit\'></i> Editar Validade';
         document.getElementById('modalValidadeSubtitulo').textContent = `${val.DSTIPOVALIDADE} • ${nomeEquip}`;
         document.getElementById('validadeSequencia').value = val.SEQUENCIA;
         document.getElementById('validadeTipo').value = val.CDTIPOVALIDADE;
@@ -1286,16 +1126,22 @@
         document.getElementById('validadeDtLiberacao').value = new Date(val.DTLIBERACAO).toISOString().split('T')[0];
         document.getElementById('validadeDtValidade').value = new Date(val.DTVALIDADE).toISOString().split('T')[0];
         document.getElementById('validadeDsLiberacao').value = val.DSLIBERACAO || '';
+        
+        const certResultado = document.getElementById('certResultado');
         if (val.CDCERTIFICADORA && val.CERTIFICADORA_NOME) {
           document.getElementById('validadeCertificadora').value = val.CDCERTIFICADORA;
-          document.getElementById('certTexto').innerHTML = `<strong style="color: #27ae60;">✓ ${val.CERTIFICADORA_NOME}</strong> (Código: ${val.CDCERTIFICADORA})`;
-          document.getElementById('certResultado').style.background = '#d4edda';
+          certResultado.className = 'certificadora-selecionada';
+          certResultado.innerHTML = '<i class=\'bx bx-check-circle\'></i><span id="certTexto"><strong>✓ ' + val.CERTIFICADORA_NOME + '</strong> (Código: ' + val.CDCERTIFICADORA + ')</span>';
+        } else if (val.CDCERTIFICADORA) {
+          document.getElementById('validadeCertificadora').value = val.CDCERTIFICADORA;
+          certResultado.className = 'certificadora-aviso';
+          certResultado.innerHTML = '<i class=\'bx bx-error-circle\'></i><span id="certTexto"><strong>⚠ Certificadora código ' + val.CDCERTIFICADORA + '</strong></span>';
         } else {
           document.getElementById('validadeCertificadora').value = '';
-          document.getElementById('certTexto').textContent = 'Nenhuma certificadora selecionada';
-          document.getElementById('certResultado').style.background = '#e9ecef';
+          certResultado.className = '';
+          certResultado.innerHTML = '<i class=\'bx bx-info-circle\'></i><span id="certTexto">Nenhuma certificadora selecionada</span>';
         }
-        document.getElementById('modalValidade').style.display = 'block';
+        document.getElementById('modalValidade').style.display = 'flex';
       }
     } catch (err) {}
   };
@@ -1349,15 +1195,17 @@
       params.append('situacao', 'S');
       const response = await fetch(`/api/cadastros-gerais?${params.toString()}`);
       const cadastros = await response.json();
+      const certResultado = document.getElementById('certResultado');
       if (cadastros && cadastros.length > 0) {
         const cert = cadastros[0];
         document.getElementById('validadeCertificadora').value = cert.CDCADASTRO;
-        document.getElementById('certTexto').innerHTML = `<strong style="color: #27ae60;">✓ ${cert.RZSOCIAL}</strong> (Código: ${cert.CDCADASTRO})`;
-        document.getElementById('certResultado').style.background = '#d4edda';
+        certResultado.className = 'certificadora-selecionada';
+        certResultado.innerHTML = '<i class=\'bx bx-check-circle\'></i><span id="certTexto"><strong>✓ ' + cert.RZSOCIAL + '</strong> (Código: ' + cert.CDCADASTRO + ')</span>';
         showMessage('Certificadora encontrada!', 'success');
       } else {
-        document.getElementById('certTexto').innerHTML = '<span style="color: #e74c3c;">✗ Não encontrada</span>';
-        document.getElementById('certResultado').style.background = '#f8d7da';
+        certResultado.className = 'certificadora-erro';
+        certResultado.innerHTML = '<i class=\'bx bx-x-circle\'></i><span id="certTexto"><strong>✗ Nenhuma certificadora encontrada</strong></span>';
+        showMessage('Certificadora não encontrada', 'error');
       }
     } catch (err) {}
   }
@@ -1395,5 +1243,85 @@
       showMessage('Erro ao salvar', 'error');
     }
   }
+
+  // Função para mostrar ajuda
+  // Função de ajuda
+  window.mostrarAjudaEquipamentos = function() {
+    // Remover qualquer modal de ajuda existente primeiro
+    const modalExistente = document.getElementById('modalAjudaEquipamentos');
+    if (modalExistente) {
+      modalExistente.remove();
+    }
+    
+    // Criar modal de ajuda com padrão único
+    const modal = document.createElement('div');
+    modal.id = 'modalAjudaEquipamentos';
+    modal.className = 'modal-tratamento';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+      <div class="modal-content-tratamento">
+        <div class="modal-header-tratamento">
+          <h3><i class='bx bx-help-circle'></i> Ajuda - Gerenciar Equipamentos</h3>
+          <button onclick="window.fecharModalAjudaEquipamentos()" class="btn-close-modal" type="button">
+            <i class='bx bx-x'></i>
+          </button>
+        </div>
+        <div class="modal-body-tratamento">
+          <h4>📋 Sobre o Módulo</h4>
+          <p>O módulo <strong>Gerenciar Equipamentos</strong> permite gerenciar todos os equipamentos (veículos) cadastrados no sistema, incluindo informações técnicas, validades, certificações e tipos de atuação.</p>
+          
+          <h4>🔍 Filtros</h4>
+          <p>Use os filtros para buscar equipamentos específicos por ID, placa, tipo, classe de frota, carroceria, tipo de atuação, rastreamento e situação.</p>
+          
+          <h4>📝 Funcionalidades</h4>
+          <ul>
+            <li><strong>Filtros:</strong> Buscar e filtrar equipamentos por diversos critérios</li>
+            <li><strong>Grid:</strong> Visualizar todos os equipamentos em formato de tabela editável com ordenação e filtros</li>
+            <li><strong>Dados:</strong> Criar ou editar equipamentos, definindo tipo, marca, modelo, placa, classe de frota e outras informações</li>
+            <li><strong>Validades:</strong> Gerenciar validades e certificações dos equipamentos (documentos, licenças, etc.)</li>
+          </ul>
+          
+          <h4>🚛 Tipos de Atuação</h4>
+          <ul>
+            <li><strong>A - Agregado:</strong> Equipamento agregado à frota</li>
+            <li><strong>F - Frota Própria:</strong> Equipamento da própria empresa</li>
+            <li><strong>P - Parceiro (Terceiro Fiel):</strong> Equipamento de parceiro confiável</li>
+            <li><strong>T - Terceiro:</strong> Equipamento de terceiros</li>
+          </ul>
+          
+          <h4>📋 Validades</h4>
+          <ul>
+            <li>Gerencie documentos e certificações dos equipamentos</li>
+            <li>Cadastre validades com tipo, certificadora, datas de validade e observações</li>
+            <li>Visualize e edite validades cadastradas para cada equipamento</li>
+          </ul>
+          
+          <h4>✨ Dicas</h4>
+          <ul>
+            <li>Para criar um novo equipamento, clique em "Novo Registro" na aba Grid ou Dados</li>
+            <li>Para editar um equipamento existente, clique no botão de editar (✎) na coluna Ações do grid</li>
+            <li>Use múltiplos filtros para encontrar equipamentos específicos</li>
+            <li>Combine filtros para refinar sua busca</li>
+            <li>Exporte os resultados para Excel quando necessário</li>
+            <li>Gerencie as validades dos equipamentos na aba "Validades" para manter os documentos atualizados</li>
+          </ul>
+        </div>
+        <div class="modal-footer-tratamento">
+          <button onclick="window.fecharModalAjudaEquipamentos()" class="btn btn-secondary">
+            <i class='bx bx-x'></i> Fechar
+          </button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+  };
+
+  window.fecharModalAjudaEquipamentos = function() {
+    const modal = document.getElementById('modalAjudaEquipamentos');
+    if (modal) {
+      modal.remove();
+    }
+  };
   
 })();

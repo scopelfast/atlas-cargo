@@ -28,6 +28,8 @@ const usuarioRoutes = require('./routes/usuario.routes');
 const tipoAtividadeRoutes = require('./routes/tipoatividade.routes');
 const motoristaAppRoutes = require('./routes/motorista-app.routes');
 const usuariologacaoRoutes = require('./routes/usuariologacao.routes');
+const logsAcessoRoutes = require('./routes/logs-acesso.routes');
+const mapaViagemRoutes = require('./routes/mapa-viagem.routes');
 const alertRoutes = require('./routes/alert.routes');
 const messageRoutes = require('./routes/message.routes');
 const sosRoutes = require('./routes/sos.routes');
@@ -37,7 +39,7 @@ const app = express();
 
 // Inicializar Cache Service (após criar app)
 const { getCacheService } = require('./services/cache.service');
-const cacheService = getCacheService();
+let cacheService = getCacheService();
 app.set('cacheService', cacheService);
 
 // Configurar trust proxy para capturar IP real quando há proxy reverso (nginx, etc)
@@ -68,6 +70,7 @@ const helmetConfig = {
         "'self'",
         "https://fonts.gstatic.com",
         "https://cdn.jsdelivr.net", // Para fontes do boxicons
+        "https://unpkg.com", // Para fontes do boxicons
         "data:"
       ],
       scriptSrc: [
@@ -84,7 +87,14 @@ const helmetConfig = {
         "'self'",
         "data:",
         "https:",
+        "http:",
         "blob:",
+        "https://*.tile.openstreetmap.org",
+        "https://tile.openstreetmap.org",
+        "http://186.250.92.131:8081", // Servidor próprio de tiles (HTTP)
+        "http://186.250.92.131:8082", // Servidor próprio Nominatim (HTTP)
+        "https://186.250.92.131:8081", // Servidor próprio de tiles (HTTPS)
+        "https://186.250.92.131:8082", // Servidor próprio Nominatim (HTTPS)
         // Em desenvolvimento, permitir HTTP em IPs locais
         ...(isDevelopment ? [
           "http://localhost:*",
@@ -113,8 +123,17 @@ const helmetConfig = {
         "https://fonts.gstatic.com",
         "https://cdn.jsdelivr.net",
         "https://router.project-osrm.org", // Para cálculo de rotas no mapa
+        "https://routing.openstreetmap.de", // Servidor alternativo de roteamento
         "https://unpkg.com", // Para Leaflet source maps
-        "https://nominatim.openstreetmap.org" // Para geocodificação reversa
+        "https://nominatim.openstreetmap.org", // Para geocodificação reversa
+        "https://a.tile.openstreetmap.org", // Para tiles do OpenStreetMap
+        "https://b.tile.openstreetmap.org", // Para tiles do OpenStreetMap
+        "https://c.tile.openstreetmap.org", // Para tiles do OpenStreetMap
+        "https://tile.openstreetmap.org", // Para tiles do OpenStreetMap (fallback)
+        "http://186.250.92.131:8081", // Servidor próprio de tiles (HTTP)
+        "http://186.250.92.131:8082", // Servidor próprio Nominatim (HTTP)
+        "https://186.250.92.131:8081", // Servidor próprio de tiles (HTTPS)
+        "https://186.250.92.131:8082" // Servidor próprio Nominatim (HTTPS)
       ],
       formAction: [
         "'self'",
@@ -217,10 +236,15 @@ app.use('/api', usuarioRoutes);
 app.use('/api', tipoAtividadeRoutes);
 app.use('/api/motorista', motoristaAppRoutes);
 app.use('/api/log', usuariologacaoRoutes);
+app.use('/api/logs-acesso', logsAcessoRoutes);
+app.use('/api/mapa-viagem', mapaViagemRoutes);
 app.use('/api/alerts', alertRoutes);
+app.use('/api/alertas', alertRoutes); // Alias para módulo separado
 app.use('/api/messages', messageRoutes);
-app.use('/api', sosRoutes);
+app.use('/api/chat', messageRoutes); // Alias para módulo separado
+app.use('/api/sos', sosRoutes); // Rotas do módulo SOS
 app.use('/api/reputation', reputationRoutes);
+app.use('/api/ranking', reputationRoutes); // Alias para módulo separado
 
 // Rotas específicas de páginas HTML (ANTES do express.static)
 // Rota pública para motorista responder convocação

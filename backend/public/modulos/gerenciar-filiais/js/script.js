@@ -13,27 +13,82 @@
   let sqlExecutado = false;
   let initExecutado = false;
 
-  // Funções para controlar overlay de carregamento do init.sql
+  // Funções para controlar overlay de carregamento do init.sql (padrão Gerenciar Equipamentos)
   function showLoadingOverlayInitSQL(titulo = 'Processando Inicialização', texto = 'Executando scripts de inicialização...', detalhe = 'Isso pode levar alguns segundos.') {
+    // Se o overlay foi fechado, não reabrir
+    if (window.initSQLOverlayFechado) {
+      return;
+    }
+    
     const overlay = document.getElementById('loadingOverlayInitSQL');
+    if (!overlay) return;
+    
+    // Verificar se já está visível para evitar logs desnecessários
+    const isVisible = window.getComputedStyle(overlay).display !== 'none';
+    
     const loadingTitle = document.getElementById('loadingTitleInitSQL');
     const loadingText = document.getElementById('loadingTextInitSQL');
     const loadingDetail = document.getElementById('loadingDetailInitSQL');
     
-    if (overlay && loadingTitle && loadingText && loadingDetail) {
+    if (loadingTitle && loadingText && loadingDetail) {
       loadingTitle.textContent = titulo;
       loadingText.textContent = texto;
       loadingDetail.textContent = detalhe;
-      overlay.style.display = 'flex';
+      
+      // Só mostrar se ainda não estiver visível
+      if (!isVisible) {
+        overlay.style.setProperty('display', 'flex', 'important');
+        overlay.style.visibility = 'visible';
+        overlay.style.opacity = '1';
+        overlay.style.pointerEvents = 'auto';
+        overlay.style.zIndex = '10000';
+        overlay.removeAttribute('hidden');
+      }
     }
   }
 
   function hideLoadingOverlayInitSQL() {
-    const overlay = document.getElementById('loadingOverlayInitSQL');
+    // IMPORTANTE: Limpar intervalo de progresso PRIMEIRO para evitar que ele reabra o overlay
+    if (window.intervaloInitSQLFiliais) {
+      clearInterval(window.intervaloInitSQLFiliais);
+      delete window.intervaloInitSQLFiliais;
+    }
+    
+    // Marcar flag para evitar que showLoadingOverlayInitSQL reabra
+    window.initSQLOverlayFechado = true;
+    
+    // Tentar encontrar o overlay de várias formas
+    let overlay = document.getElementById('loadingOverlayInitSQL');
+    
+    if (!overlay) {
+      overlay = document.querySelector('.calculando-overlay#loadingOverlayInitSQL');
+    }
+    
     if (overlay) {
+      const wasVisible = window.getComputedStyle(overlay).display !== 'none';
+      
+      // Múltiplas tentativas de fechar
       overlay.style.display = 'none';
+      overlay.style.setProperty('display', 'none', 'important');
+      overlay.classList.remove('active');
+      overlay.setAttribute('style', 'display: none !important;');
+      overlay.style.visibility = 'hidden';
+      overlay.style.opacity = '0';
+      overlay.style.pointerEvents = 'none';
+      overlay.style.zIndex = '-1';
+      
+      // Verificar se realmente fechou
+      const computedDisplay = window.getComputedStyle(overlay).display;
+      
+      if (computedDisplay !== 'none') {
+        overlay.removeAttribute('class');
+        overlay.setAttribute('hidden', 'true');
+      }
     }
   }
+  
+  // Tornar função global para o botão de cancelar
+  window.hideLoadingOverlayInitSQL = hideLoadingOverlayInitSQL;
 
   // Função para carregar e executar o arquivo init.sql
   async function executarInitSQL() {
@@ -45,8 +100,20 @@
     // Marcar como executando IMEDIATAMENTE para evitar execuções simultâneas
     sqlExecutado = true;
     
-    // Mostrar overlay de carregamento
-    showLoadingOverlayInitSQL('Processando Inicialização', 'Carregando script de inicialização...', 'Aguarde enquanto preparamos o módulo.');
+    // Resetar flag de fechamento
+    window.initSQLOverlayFechado = false;
+    
+    // Timeout de segurança: fechar overlay após 90 segundos mesmo se não terminar
+    let timeoutSeguranca = setTimeout(() => {
+      window.initSQLOverlayFechado = true;
+      hideLoadingOverlayInitSQL();
+    }, 90000); // 90 segundos
+    
+    // Mostrar overlay de carregamento APENAS se ainda não estiver visível
+    const overlay = document.getElementById('loadingOverlayInitSQL');
+    if (overlay && window.getComputedStyle(overlay).display === 'none') {
+      showLoadingOverlayInitSQL('Processando Inicialização', 'Carregando script de inicialização...', 'Aguarde enquanto preparamos o módulo.');
+    }
     
     try {
       // Carregar o arquivo init.sql
@@ -58,9 +125,11 @@
       if (!response.ok) {
         // Se o arquivo não existir, não é erro - apenas não executa nada
         if (response.status === 404) {
+          clearTimeout(timeoutSeguranca);
           hideLoadingOverlayInitSQL();
           return;
         }
+        clearTimeout(timeoutSeguranca);
         hideLoadingOverlayInitSQL();
         return;
       }
@@ -85,6 +154,7 @@
       
       // Se não há SQL para executar, retornar
       if (!sqlLimpo || sqlLimpo.length === 0) {
+        clearTimeout(timeoutSeguranca);
         hideLoadingOverlayInitSQL();
         return;
       }
@@ -103,6 +173,7 @@
           signal: AbortSignal.timeout(120000) // 120 segundos (2 minutos)
         });
       } catch (fetchError) {
+        clearTimeout(timeoutSeguranca);
         if (fetchError.name === 'TimeoutError' || fetchError.name === 'AbortError') {
           hideLoadingOverlayInitSQL();
           return; // Não bloquear o módulo
@@ -117,6 +188,7 @@
       
       // Verificar se a resposta foi bem-sucedida
       if (!execResponse.ok) {
+        clearTimeout(timeoutSeguranca);
         hideLoadingOverlayInitSQL();
         return; // Não bloquear o módulo
       }
@@ -129,12 +201,14 @@
       try {
         result = await execResponse.json();
       } catch (jsonError) {
+        clearTimeout(timeoutSeguranca);
         hideLoadingOverlayInitSQL();
         return; // Não bloquear o módulo
       }
       
       // Verificar se todos os comandos foram executados com sucesso
       if (!result.success) {
+        clearTimeout(timeoutSeguranca);
         hideLoadingOverlayInitSQL();
         return; // Não bloquear o módulo
       }
@@ -163,14 +237,26 @@
             errosReais.forEach(erro => {
               const mensagem = erro.mensagem || erro.erro || erro.message || erro.error || 'Erro desconhecido';
               if (typeof mensagem === 'object') {
-                console.error('Erro no init.sql:', JSON.stringify(mensagem));
+                console.error('[Filiais] Erro no init.sql:', JSON.stringify(mensagem));
               } else {
-                console.error('Erro no init.sql:', mensagem);
+                console.error('[Filiais] Erro no init.sql:', mensagem);
               }
             });
           }
         }
       }
+      
+      // Limpar timeout de segurança
+      clearTimeout(timeoutSeguranca);
+      
+      // Limpar intervalo ANTES de fechar overlay
+      if (window.intervaloInitSQLFiliais) {
+        clearInterval(window.intervaloInitSQLFiliais);
+        delete window.intervaloInitSQLFiliais;
+      }
+      
+      // Marcar como fechado ANTES de chamar hideLoadingOverlayInitSQL
+      window.initSQLOverlayFechado = true;
       
       // Aguardar um pouco mais para garantir que todas as operações foram concluídas
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -179,6 +265,22 @@
       hideLoadingOverlayInitSQL();
       
     } catch (err) {
+      // Limpar timeout de segurança se existir
+      if (typeof timeoutSeguranca !== 'undefined') {
+        clearTimeout(timeoutSeguranca);
+      }
+      
+      // Limpar intervalo de progresso se existir
+      if (window.intervaloInitSQLFiliais) {
+        clearInterval(window.intervaloInitSQLFiliais);
+        delete window.intervaloInitSQLFiliais;
+      }
+      
+      // Marcar como fechado
+      window.initSQLOverlayFechado = true;
+      
+      // Esconder overlay em caso de erro
+      hideLoadingOverlayInitSQL();
       // Esconder overlay em caso de erro
       hideLoadingOverlayInitSQL();
       // Erros silenciosos - não bloquear o módulo
@@ -236,25 +338,15 @@
 
       if (tabId === 'grid') {
         try {
-          if (typeof window.GridEditor === 'undefined') {
-            await loadScript('/js/grid-editor.js');
-          }
-
+          // GridEditor já é carregado pelo dashboard.js
           if (typeof window.GridEditor !== 'undefined') {
             if (!gridTab) inicializarGridTab();
             // Sempre renderizar, mesmo se não houver dados (grid vazio)
             const filiaisParaRenderizar = lastFiliais || [];
             if (gridTab) {
               gridTab.render(filiaisParaRenderizar);
-            } else if (filiaisParaRenderizar.length === 0) {
-              // Se não há dados e grid não está inicializado, aplicar filtros para buscar
-              // Mas não bloquear a mudança de aba
-              setTimeout(() => {
-                applyFilters('grid').catch(err => {
-                  console.warn('[Filiais] Erro ao aplicar filtros automaticamente:', err);
-                });
-              }, 100);
             }
+            // Não aplicar filtros automaticamente - usuário deve aplicar manualmente
           }
         } catch (gridErr) {
           console.warn('[Filiais] Erro ao processar grid:', gridErr);
@@ -382,10 +474,7 @@
       }
 
       if (openTab === 'grid') {
-        if (typeof window.GridEditor === 'undefined') {
-          try { await loadScript('/js/grid-editor.js'); } catch (e) { }
-        }
-
+        // GridEditor já é carregado pelo dashboard.js
         if (typeof window.GridEditor !== 'undefined') {
           if (!gridTab) inicializarGridTab();
           try { gridTab.render(lastFiliais); } catch (err) { console.error('[Grid] erro ao renderizar grid:', err); }
@@ -487,6 +576,15 @@
   }
 
   function inicializarGridTab() {
+    // Se já existe, destruir antes de criar novo
+    if (gridTab && typeof gridTab.destroy === 'function') {
+      try {
+        gridTab.destroy();
+      } catch (e) {
+        // Ignorar erros ao destruir
+      }
+    }
+    
     // Criar campo virtual combinado para chave composta antes de inicializar o Grid
     if (lastFiliais) {
       lastFiliais = lastFiliais.map(f => ({
@@ -522,10 +620,17 @@
       ],
       apiEndpoint: '/api/filiais',
       onBeforeEdit: async (id) => {
+        // Só carregar se realmente foi um clique do usuário
+        if (!id || id === 'undefined' || id === 'null' || id === '') {
+          return false;
+        }
         // id vem como "CDEMPRESA_CDFILIAL"
         const [empresa, filial] = id.split('_');
+        if (!empresa || !filial) {
+          return false;
+        }
         await loadFilialParaEdicao(empresa, filial);
-        return false;
+        return false; // Impedir edição inline
       },
       onDelete: async (id) => {
         if (!id || id === 'undefined' || id === 'null' || id === '') {
@@ -547,12 +652,24 @@
 
   async function loadFilialParaEdicao(empresa, filial) {
     try {
+      // Validar IDs antes de prosseguir
+      if (!empresa || !filial || empresa === 'undefined' || filial === 'undefined' || 
+          empresa === 'null' || filial === 'null' || empresa === '' || filial === '') {
+        console.warn('[Filiais] IDs inválidos para edição:', empresa, filial);
+        return;
+      }
+      
       // IMPORTANTE: Limpar formulário ANTES de carregar novos dados
       if (filialForm) {
         filialForm.reset();
       }
       
       const response = await fetch(`/api/filiais/${empresa}/${filial}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const filialData = await response.json();
       
       if (filialData) {
@@ -570,8 +687,10 @@
         showTab('dados');
       }
     } catch (err) {
-      console.error('Erro ao carregar filial:', err);
-      showMessage('Erro ao carregar dados para edição.', 'error');
+      console.error('[Filiais] Erro ao carregar filial:', err);
+      if (typeof showMessage === 'function') {
+        showMessage('Erro ao carregar dados para edição.', 'error');
+      }
     }
   }
 

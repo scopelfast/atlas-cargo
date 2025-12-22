@@ -12,96 +12,26 @@
   let sqlExecutado = false;
   let initExecutado = false;
 
-  // Funções de overlay de loading
-  function showLoadingOverlayInitSQL(titulo = 'Processando Inicialização', texto = 'Executando scripts de inicialização...', detalhe = 'Isso pode levar alguns segundos.') {
-    const overlay = document.getElementById('loadingOverlayInitSQL');
-    const loadingTitle = document.getElementById('loadingTitleInitSQL');
-    const loadingText = document.getElementById('loadingTextInitSQL');
-    const loadingDetail = document.getElementById('loadingDetailInitSQL');
-    
-    if (overlay && loadingTitle && loadingText && loadingDetail) {
-      loadingTitle.textContent = titulo;
-      loadingText.textContent = texto;
-      loadingDetail.textContent = detalhe;
-      overlay.style.display = 'flex';
-    }
-  }
-
-  function hideLoadingOverlayInitSQL() {
-    const overlay = document.getElementById('loadingOverlayInitSQL');
-    if (overlay) {
-      overlay.style.display = 'none';
-    }
-  }
-
-  // Executar init.sql
+  // Função para carregar e executar o arquivo init.sql
   async function executarInitSQL() {
     if (sqlExecutado) return;
     sqlExecutado = true;
     
-    showLoadingOverlayInitSQL('Processando Inicialização', 'Carregando script de inicialização...', 'Aguarde enquanto preparamos o módulo.');
-    
-    try {
-      const response = await fetch('/modulos/gerenciar-tipos-validade/sql/init.sql');
-      
-      showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL...', 'Isso pode levar alguns segundos.');
-      
-      if (!response.ok) {
-        if (response.status === 404) {
-          hideLoadingOverlayInitSQL();
-          return;
-        }
-        hideLoadingOverlayInitSQL();
-        return;
-      }
-      
-      const sqlContent = await response.text();
-      let sqlSemComentarios = sqlContent.replace(/\/\*[\s\S]*?\*\//g, '');
-      const sqlLimpo = sqlSemComentarios.split('\n').filter(linha => {
-        const linhaTrim = linha.trim();
-        return linhaTrim.length > 0 && !linhaTrim.startsWith('--');
-      }).join('\n').trim();
-      
-      if (!sqlLimpo || sqlLimpo.length === 0) {
-        hideLoadingOverlayInitSQL();
-        return;
-      }
-      
-      showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL no banco de dados...', 'Aguarde, isso pode levar alguns segundos.');
-      
-      let execResponse;
-      try {
-        execResponse = await fetch('/api/tipos-validade/executar-init-sql', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sql: sqlLimpo }),
-          signal: AbortSignal.timeout(120000)
-        });
-      } catch (fetchError) {
-        hideLoadingOverlayInitSQL();
-        return;
-      }
-      
-      if (!execResponse.ok) {
-        hideLoadingOverlayInitSQL();
-        return;
-      }
-      
-      showLoadingOverlayInitSQL('Processando Inicialização', 'Processando resultados...', 'Quase terminando.');
-      
-      let result;
-      try {
-        result = await execResponse.json();
-      } catch (jsonError) {
-        hideLoadingOverlayInitSQL();
-        return;
-      }
-      
-      await new Promise(resolve => setTimeout(resolve, 500));
-      hideLoadingOverlayInitSQL();
-    } catch (err) {
-      hideLoadingOverlayInitSQL();
+    // Usar função padrão global se disponível
+    if (typeof window.executarInitSQLPadrao === 'function') {
+      await window.executarInitSQLPadrao('/modulos/gerenciar-tipos-validade/sql/init.sql', '/api/tipos-validade/executar-init-sql', 'tipos-validade');
+      return;
     }
+    
+    // Fallback: aguardar um pouco e tentar novamente (pode estar carregando)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    if (typeof window.executarInitSQLPadrao === 'function') {
+      await window.executarInitSQLPadrao('/modulos/gerenciar-tipos-validade/sql/init.sql', '/api/tipos-validade/executar-init-sql', 'tipos-validade');
+      return;
+    }
+    
+    // Se ainda não estiver disponível, log de aviso
+    console.warn('[Tipos Validade] executarInitSQLPadrao não disponível. Verifique se init-overlay-helper.js está carregado.');
   }
 
   // Inicialização
@@ -129,21 +59,19 @@
     document.getElementById(`tab-${tabId}`).classList.add('active');
 
     if (tabId === 'grid') {
-      if (!lastTipos) {
-        await applyFilters('grid');
-        return;
-      }
-
       if (typeof window.GridEditor === 'undefined') {
-        try { await loadScript('/js/grid-editor.js'); } catch (e) {}
+        try { await loadScript('/js/grid-editor.js'); } catch (e) { console.warn('[Tipos Validade] falha ao carregar GridEditor:', e); }
       }
 
       if (typeof window.GridEditor !== 'undefined') {
         if (!gridTab) inicializarGridTab();
         try {
           gridTab.render(lastTipos || []);
-        } catch (e) {}
+        } catch (e) {
+          console.error('[Tipos Validade] erro ao renderizar grid na aba:', e);
+        }
       }
+      // NÃO aplicar filtros automaticamente - usuário deve aplicar manualmente
     }
   }
 
@@ -168,19 +96,67 @@
         countEl.textContent = `${tipos.length || 0} registro(s) encontrado(s)`;
       }
 
-      if (gridTab) {
-        try { gridTab.render(tipos); } catch (e) {}
+      // Se já existe uma instância do Grid na aba, atualizá-la imediatamente
+      if (typeof window.GridEditor !== 'undefined' && gridTab) {
+        try {
+          gridTab.render(tipos);
+        } catch (e) {
+        }
       }
 
+      // Auto-inicializar o gridTab quando houver dados (opção A)
+      try {
+        if (Array.isArray(tipos) && tipos.length > 0) {
+          if (typeof window.GridEditor === 'undefined') {
+            // Aguardar um pouco para o dashboard.js carregar
+            await new Promise(resolve => setTimeout(resolve, 300));
+          }
+
+          if (typeof window.GridEditor !== 'undefined') {
+            if (!gridTab) inicializarGridTab();
+            try {
+              gridTab.render(tipos);
+            } catch (e) {
+            }
+          }
+        }
+      } catch (autoErr) {
+        console.error('[Tipos Validade] Erro no fluxo de auto-init:', autoErr);
+      }
+
+      // Se openTab é 'grid', tentar auto-inicializar se necessário
       if (openTab === 'grid') {
         if (typeof window.GridEditor === 'undefined') {
-          try { await loadScript('/js/grid-editor.js'); } catch (e) {}
+          try {
+            await loadScript('/js/grid-editor.js');
+          } catch (loadErr) {
+            console.warn('[Tipos Validade] erro ao carregar grid-editor para auto-init:', loadErr);
+          }
         }
 
         if (typeof window.GridEditor !== 'undefined') {
           if (!gridTab) {
             inicializarGridTab();
-            try { gridTab.render(tipos); } catch (e) {}
+            try {
+              gridTab.render(tipos);
+            } catch (e) {
+              console.warn('[Tipos Validade] erro ao auto-render gridTab:', e);
+            }
+          }
+        } else {
+          const scriptEl = document.querySelector('script[src="/js/grid-editor.js"]');
+          if (scriptEl) {
+            try {
+              const oldSrc = scriptEl.src;
+              scriptEl.src = oldSrc + (oldSrc.indexOf('?') > -1 ? '&' : '?') + 't=' + Date.now();
+              await new Promise(resolve => setTimeout(resolve, 500));
+              if (typeof window.GridEditor !== 'undefined' && !gridTab) {
+                inicializarGridTab();
+                try { gridTab.render(tipos); } catch (e) { console.warn('[Tipos Validade] erro ao render após reload forçado', e); }
+              }
+            } catch (rbErr) {
+              console.warn('[Tipos Validade] falha no reload forçado:', rbErr);
+            }
           }
         }
       }
@@ -192,33 +168,69 @@
     }
   }
 
-  // Carregar script
+  // Carregar script dinamicamente
   function loadScript(src) {
     return new Promise((resolve, reject) => {
-      if (typeof GridEditor !== 'undefined') {
+      // Verificar se GridEditor já está disponível globalmente
+      if (typeof window.GridEditor !== 'undefined') {
         resolve();
         return;
       }
       
-      const script = document.createElement('script');
-      script.src = `${src}?t=${Date.now()}`;
-      script.onload = () => {
-        setTimeout(() => {
-          if (typeof GridEditor !== 'undefined') resolve();
-          else reject(new Error('GridEditor não carregado'));
-        }, 100);
+      // Função para carregar novo script
+      const carregarNovoScript = () => {
+        const script = document.createElement('script');
+        script.src = `${src}?t=${Date.now()}`; // Cache busting
+        script.onload = () => {
+          // Aguardar um pouco para garantir que GridEditor está disponível
+          setTimeout(() => {
+            if (typeof window.GridEditor !== 'undefined') {
+              resolve();
+            } else {
+              reject(new Error('GridEditor não foi carregado'));
+            }
+          }, 100);
+        };
+        script.onerror = () => reject(new Error(`Erro ao carregar script: ${src}`));
+        document.head.appendChild(script);
       };
-      script.onerror = () => reject(new Error(`Erro ao carregar ${src}`));
-      document.head.appendChild(script);
+      
+      // Verificar se o script já está sendo carregado ou já existe
+      const existingScript = document.querySelector(`script[src*="${src}"]`);
+      if (existingScript) {
+        // Se o script existe, aguardar ele carregar
+        let tentativas = 0;
+        const checkInterval = setInterval(() => {
+          if (typeof window.GridEditor !== 'undefined') {
+            clearInterval(checkInterval);
+            resolve();
+          } else if (tentativas++ > 20) {
+            clearInterval(checkInterval);
+            // Se não carregou após 2 segundos, remover e recarregar
+            existingScript.remove();
+            // Continuar com o carregamento abaixo
+            carregarNovoScript();
+          }
+        }, 100);
+        return;
+      }
+      
+      carregarNovoScript();
     });
   }
 
   // Inicializar Grid
   function inicializarGridTab() {
+    // GridEditor já é carregado globalmente pelo dashboard.js
+    if (typeof window.GridEditor === 'undefined') {
+      console.error('[Tipos Validade] GridEditor não está disponível');
+      return;
+    }
+
     const container = document.getElementById('tiposGrid');
     if (!container) return;
 
-    gridTab = new GridEditor({
+    gridTab = new window.GridEditor({
       container: container,
       columns: [
         { field: 'CDTIPOVALIDADE', header: 'Código', editable: false, isId: true, width: '80px' },
@@ -406,4 +418,67 @@
       setTimeout(() => message.className = 'message', 5000);
     }
   };
+
+  // Função para mostrar ajuda (PADRÃO ÚNICO)
+  window.mostrarAjudaTiposValidade = function() {
+    // Remover qualquer modal de ajuda existente primeiro
+    const modalExistente = document.getElementById('modalAjudaTiposValidade');
+    if (modalExistente) {
+      modalExistente.remove();
+    }
+    
+    // Criar modal de ajuda com padrão único
+    const modal = document.createElement('div');
+    modal.id = 'modalAjudaTiposValidade';
+    modal.className = 'modal-tratamento';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+      <div class="modal-content-tratamento">
+        <div class="modal-header-tratamento">
+          <h3><i class='bx bx-help-circle'></i> Ajuda - Gerenciar Tipos de Validade</h3>
+          <button onclick="window.fecharModalAjudaTiposValidade()" class="btn-close-modal" type="button">
+            <i class='bx bx-x'></i>
+          </button>
+        </div>
+        <div class="modal-body-tratamento">
+          <h4>📋 Sobre o Módulo</h4>
+          <p>O módulo <strong>Gerenciar Tipos de Validade</strong> permite gerenciar os tipos de validade de documentos e certificações que podem ser aplicados aos diferentes cadastros do sistema.</p>
+          
+          <h4>🔍 Filtros</h4>
+          <p>Use os filtros para buscar tipos de validade por código, descrição ou tipo de cadastro.</p>
+          
+          <h4>📝 Funcionalidades</h4>
+          <ul>
+            <li><strong>Filtros:</strong> Buscar e filtrar tipos de validade</li>
+            <li><strong>Grid:</strong> Visualizar tipos de validade em formato de tabela</li>
+            <li><strong>Dados:</strong> Criar e editar tipos de validade</li>
+            <li><strong>Aplicabilidade:</strong> Definir para quais tipos de cadastro cada validade se aplica (Veículo, Motorista, Transportador, Cliente, Fornecedor)</li>
+            <li><strong>Certificadora:</strong> Definir se o tipo de validade exige certificadora</li>
+          </ul>
+        </div>
+        <div class="modal-footer-tratamento">
+          <button onclick="window.fecharModalAjudaTiposValidade()" class="btn btn-secondary">
+            <i class='bx bx-x'></i> Fechar
+          </button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+  };
+
+  window.fecharModalAjudaTiposValidade = function() {
+    const modal = document.getElementById('modalAjudaTiposValidade');
+    if (modal) {
+      modal.remove();
+    }
+  };
+
+  // Fechar modal de ajuda ao clicar fora
+  document.addEventListener('click', (e) => {
+    const modal = document.getElementById('modalAjudaTiposValidade');
+    if (modal && e.target === modal) {
+      window.fecharModalAjudaTiposValidade();
+    }
+  });
 })();

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GPS - Motorista</title>
   <link rel="stylesheet" href="../css/padrao-telas.css">
+  <link rel="stylesheet" href="../css/design-system.css">
   <style>
     .config-item {
       display: flex;
@@ -199,13 +200,20 @@
     }
 
     // Carregar configurações
-    const gpsAtivo = localStorage.getItem('gps_ativo') === 'true';
-    const intervalo = localStorage.getItem('gps_intervalo') || '5';
-    const termos = localStorage.getItem('gps_termos') === 'true';
+    function carregarConfiguracoes() {
+      const gpsAtivo = localStorage.getItem('gps_ativo') === 'true';
+      const intervalo = localStorage.getItem('gps_intervalo') || '5';
+      const termos = localStorage.getItem('gps_termos') === 'true';
 
-    document.getElementById('gpsAtivo').checked = gpsAtivo;
-    document.getElementById('intervalo').value = intervalo;
-    document.getElementById('aceitoTermos').checked = termos;
+      document.getElementById('gpsAtivo').checked = gpsAtivo;
+      document.getElementById('intervalo').value = intervalo;
+      document.getElementById('aceitoTermos').checked = termos;
+      
+      console.log('📋 Configurações carregadas:', { gpsAtivo, intervalo, termos });
+    }
+    
+    // Carregar ao inicializar
+    carregarConfiguracoes();
 
     function atualizarTermos() {
       const ativo = document.getElementById('gpsAtivo').checked;
@@ -217,10 +225,49 @@
 
     // Atualizar status GPS
     function atualizarStatusGPS() {
-      const stats = obterEstatisticasGPS();
       const statusDiv = document.getElementById('statusGPS');
+      
+      if (!statusDiv) {
+        console.warn('⚠️ Elemento statusGPS não encontrado');
+        return;
+      }
 
-      if (!stats.ativo) {
+      // Verificar se a função existe
+      if (typeof obterEstatisticasGPS !== 'function') {
+        console.warn('⚠️ obterEstatisticasGPS não está disponível ainda, tentando novamente...');
+        // Tentar novamente após um delay
+        setTimeout(() => {
+          if (typeof obterEstatisticasGPS === 'function') {
+            atualizarStatusGPS();
+          } else {
+            statusDiv.innerHTML = `
+              <div style="background: #fff3cd; padding: 16px; border-radius: 10px; border-left: 4px solid #ffc107; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+                <div style="font-size: 14px; font-weight: 600; color: #856404;">
+                  ⚠️ Carregando estatísticas...
+                </div>
+              </div>
+            `;
+          }
+        }, 500);
+        return;
+      }
+      
+      let stats;
+      try {
+        stats = obterEstatisticasGPS();
+      } catch (error) {
+        console.error('❌ Erro ao obter estatísticas GPS:', error);
+        statusDiv.innerHTML = `
+          <div style="background: #f8d7da; padding: 16px; border-radius: 10px; border-left: 4px solid #dc3545; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+            <div style="font-size: 14px; font-weight: 600; color: #721c24;">
+              ❌ Erro ao carregar estatísticas
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      if (!stats || !stats.ativo) {
         statusDiv.innerHTML = `
           <div style="background: #f5f5f5; padding: 16px; border-radius: 10px; border-left: 4px solid #999; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
             <div style="font-size: 14px; font-weight: 600; color: #666;">
@@ -235,16 +282,41 @@
       const ultimo = stats.ultimoEnvio;
       const proximo = stats.proximoEnvio;
 
-      let tempoProximo = '';
+      let tempoProximo = 'Aguarde...';
       if (proximo) {
-        const difMs = proximo - agora;
-        const difMin = Math.floor(difMs / 60000);
-        const difSeg = Math.floor((difMs % 60000) / 1000);
+        // Garantir que é um Date válido
+        const proximoDate = proximo instanceof Date ? proximo : new Date(proximo);
         
-        if (difMin > 0) {
-          tempoProximo = `${difMin}min ${difSeg}s`;
-        } else {
-          tempoProximo = `${difSeg}s`;
+        if (!isNaN(proximoDate.getTime())) {
+          const difMs = proximoDate.getTime() - agora.getTime();
+          
+          if (difMs > 0) {
+            const difMin = Math.floor(difMs / 60000);
+            const difSeg = Math.floor((difMs % 60000) / 1000);
+            
+            if (difMin > 0) {
+              tempoProximo = `${difMin}min ${difSeg}s`;
+            } else if (difSeg > 0) {
+              tempoProximo = `${difSeg}s`;
+            } else {
+              tempoProximo = 'Agora';
+            }
+          } else {
+            tempoProximo = 'Agora';
+          }
+        }
+      }
+
+      // Formatar último envio
+      let ultimoFormatado = '';
+      if (ultimo) {
+        const ultimoDate = ultimo instanceof Date ? ultimo : new Date(ultimo);
+        if (!isNaN(ultimoDate.getTime())) {
+          ultimoFormatado = ultimoDate.toLocaleTimeString('pt-BR', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+          });
         }
       }
 
@@ -254,7 +326,7 @@
             <div style="font-size: 24px; margin-right: 10px;">📡</div>
             <div style="flex: 1;">
               <div style="font-size: 14px; font-weight: 600;">GPS Automático Ativo</div>
-              <div style="font-size: 12px; opacity: 0.9;">Enviando a cada ${stats.intervalo} minutos</div>
+              <div style="font-size: 12px; opacity: 0.9;">Enviando a cada ${stats.intervalo || 5} minutos</div>
             </div>
           </div>
           
@@ -262,17 +334,17 @@
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 12px;">
               <div>
                 <div style="opacity: 0.8; margin-bottom: 4px;">📊 Total de Envios</div>
-                <div style="font-size: 20px; font-weight: 700;">${stats.contador}</div>
+                <div style="font-size: 20px; font-weight: 700;">${stats.contador || 0}</div>
               </div>
               <div>
                 <div style="opacity: 0.8; margin-bottom: 4px;">⏱️ Próximo em</div>
-                <div style="font-size: 20px; font-weight: 700;">${tempoProximo || 'Aguarde...'}</div>
+                <div style="font-size: 20px; font-weight: 700;">${tempoProximo}</div>
               </div>
             </div>
             
-            ${ultimo ? `
+            ${ultimoFormatado ? `
               <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 11px; opacity: 0.9;">
-                ✅ Último envio: ${ultimo.toLocaleTimeString('pt-BR')}
+                Último envio: ${ultimoFormatado}
               </div>
             ` : ''}
           </div>
@@ -282,7 +354,16 @@
 
     // Atualizar a cada segundo
     setInterval(atualizarStatusGPS, 1000);
-    atualizarStatusGPS();
+    
+    // Atualizar imediatamente ao carregar (com delay para garantir que scripts carregaram)
+    setTimeout(() => {
+      atualizarStatusGPS();
+    }, 1000);
+    
+    // Atualizar novamente após mais tempo para garantir sincronização
+    setTimeout(() => {
+      atualizarStatusGPS();
+    }, 2000);
 
     // Listener para eventos de GPS
     window.addEventListener('gpsEnviado', (e) => {
@@ -291,10 +372,17 @@
       
       // Piscar o indicador
       const statusDiv = document.getElementById('statusGPS');
-      statusDiv.style.transform = 'scale(1.02)';
-      setTimeout(() => {
-        statusDiv.style.transform = 'scale(1)';
-      }, 300);
+      if (statusDiv) {
+        statusDiv.style.transform = 'scale(1.02)';
+        setTimeout(() => {
+          statusDiv.style.transform = 'scale(1)';
+        }, 300);
+      }
+    });
+    
+    // Atualizar quando a página ganhar foco (voltar de outra aba)
+    window.addEventListener('focus', () => {
+      atualizarStatusGPS();
     });
 
     async function salvar() {
@@ -312,28 +400,78 @@
         return;
       }
 
-      localStorage.setItem('gps_ativo', ativo.toString());
-      localStorage.setItem('gps_intervalo', intervaloVal);
-      localStorage.setItem('gps_termos', termosAceitos.toString());
+      // Salvar configurações
+      try {
+        localStorage.setItem('gps_ativo', ativo.toString());
+        localStorage.setItem('gps_intervalo', intervaloVal);
+        localStorage.setItem('gps_termos', termosAceitos.toString());
+        
+        // Verificar se salvou corretamente
+        const verificarAtivo = localStorage.getItem('gps_ativo') === 'true';
+        const verificarIntervalo = localStorage.getItem('gps_intervalo');
+        
+        if (verificarAtivo !== ativo || verificarIntervalo !== intervaloVal) {
+          console.error('❌ Erro: Configurações não foram salvas corretamente!');
+          mostrarToast('Erro ao salvar configurações. Tente novamente.', 'error');
+          return;
+        }
+        
+        console.log('💾 Configurações GPS salvas:', {
+          ativo,
+          intervalo: intervaloVal,
+          termos: termosAceitos,
+          verificado: { ativo: verificarAtivo, intervalo: verificarIntervalo }
+        });
+      } catch (error) {
+        console.error('❌ Erro ao salvar no localStorage:', error);
+        mostrarToast('Erro ao salvar configurações: ' + error.message, 'error');
+        return;
+      }
+
+      // Se desativado, limpar estatísticas
+      if (!ativo) {
+        localStorage.removeItem('gps_contador');
+        localStorage.removeItem('gps_ultimo_envio');
+        localStorage.removeItem('gps_proximo_envio');
+        
+        // Atualizar variáveis globais se existirem
+        if (typeof window.gpsAuto !== 'undefined') {
+          if (window.gpsAuto.contadorEnvios !== undefined) window.gpsAuto.contadorEnvios = 0;
+          if (window.gpsAuto.ultimoEnvio !== undefined) window.gpsAuto.ultimoEnvio = null;
+          if (window.gpsAuto.proximoEnvio !== undefined) window.gpsAuto.proximoEnvio = null;
+        }
+      }
 
       mostrarToast(
         `GPS ${ativo ? 'ativado' : 'desativado'} com sucesso!\nIntervalo: ${intervaloVal} minutos`,
         'success'
       );
 
+      // Recarregar configurações na tela para confirmar
+      carregarConfiguracoes();
+      
       // Reiniciar GPS automático com as novas configurações
       if (typeof pararGPSAutomatico === 'function') {
         pararGPSAutomatico();
       }
       
       if (ativo && typeof iniciarGPSAutomatico === 'function') {
+        // Aguardar um pouco antes de reiniciar
         setTimeout(() => {
           iniciarGPSAutomatico();
-          atualizarStatusGPS();
+          
+          // Aguardar mais um pouco para as estatísticas serem atualizadas
+          setTimeout(() => {
+            atualizarStatusGPS();
+          }, 1500);
         }, 500);
+      } else {
+        // Se desativado, atualizar status imediatamente
+        atualizarStatusGPS();
       }
       
-      setTimeout(() => voltar(), 2000);
+      // Não redirecionar automaticamente, deixar usuário ver o resultado
+      // setTimeout(() => voltar(), 2000);
     }
   </script>
 </body>

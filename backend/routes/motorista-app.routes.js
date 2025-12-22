@@ -8,6 +8,7 @@ const router = express.Router();
 const motoristaAppController = require('../controllers/motorista-app.controller');
 const sincronizarRastreamentoController = require('../controllers/sincronizar-rastreamento-integra.controller');
 const deliveryProofRoutes = require('./delivery-proof.routes');
+const sosController = require('../controllers/sos.controller');
 
 // ==========================================
 // ROTAS PÚBLICAS (sem autenticação)
@@ -40,6 +41,9 @@ router.post('/aceitar-carga/:idviagem', motoristaAppController.aceitarCarga);
 router.get('/viagens-andamento/:cdMotorista', motoristaAppController.listarViagensAndamento);
 router.get('/viagem/:idViagem', motoristaAppController.detalhesViagem);
 
+// Notificações
+router.get('/notificacoes/:cdMotorista', motoristaAppController.notificacoesRecentes);
+
 // Macros/Ocorrências
 router.get('/macros', motoristaAppController.listarMacros);
 router.post('/validar-macro', motoristaAppController.validarSequenciaMacro);
@@ -59,6 +63,16 @@ router.post('/evento', motoristaAppController.registrarEvento);
 
 // Comprovantes de Entrega (POD)
 router.use('/delivery-proof', deliveryProofRoutes);
+
+// SOS (Emergência)
+// Rota para motorista criar alerta SOS (pode funcionar sem auth em caso de emergência offline)
+router.post('/sos', sosController.criar);
+
+// Rota para motorista ver histórico de SOS
+router.get('/sos/historico', sosController.historico);
+
+// Alterar Senha
+router.post('/alterar-senha', motoristaAppController.alterarSenha);
 
 module.exports = router;
 

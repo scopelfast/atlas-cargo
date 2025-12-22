@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Detalhes da Viagem - Motorista</title>
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <link rel="stylesheet" href="../css/design-system.css">
+  <!-- Leaflet (OpenStreetMap) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="../../js/map-config.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      border-bottom: 2px solid #e0e0e0;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    .tab {
+      padding: 12px 16px;
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      font-size: 14px;
+      font-weight: 600;
+      color: #666;
+      cursor: pointer;
+      transition: all 0.3s;
+      white-space: nowrap;
+    }
+    
+    .tab.active {
+      color: #667eea;
+      border-bottom-color: #667eea;
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    .map-container {
+      height: 300px;
+      background: #f0f0f0;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    
+    .stat-card {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 8px;
+    }
+    
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #333;
+    }
+    
+    .stat-unit {
+      font-size: 14px;
+      color: #999;
+      margin-left: 4px;
+    }
+    
+    .galeria-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+    
+    .foto-item {
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #f0f0f0;
+      cursor: pointer;
+    }
+    
+    .foto-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    
+    .foto-overlay {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
+      padding: 12px;
+      color: white;
+      font-size: 11px;
+    }
+    
+    .historico-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .historico-item {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      border-left: 4px solid #667eea;
+    }
+    
+    .historico-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    
+    .historico-tipo {
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+    }
+    
+    .historico-hora {
+      font-size: 12px;
+      color: #999;
+    }
+    
+    .historico-descricao {
+      font-size: 13px;
+      color: #666;
+      line-height: 1.4;
+    }
+    
+    .alertas-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .alerta-item {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      border-left: 4px solid #ffc107;
+    }
+    
+    .alerta-item.critico {
+      border-left-color: #dc3545;
+      background: #fff5f5;
+    }
+    
+    .alerta-item.medio {
+      border-left-color: #ffc107;
+      background: #fffbf0;
+    }
+    
+    .alerta-item.baixo {
+      border-left-color: #28a745;
+      background: #f0fff4;
+    }
+    
+    .alerta-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    
+    .alerta-tipo {
+      font-size: 14px;
+      font-weight: 600;
+      color: #333;
+    }
+    
+    .alerta-status {
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 8px;
+      background: #e9ecef;
+      color: #666;
+    }
+    
+    .alerta-descricao {
+      font-size: 13px;
+      color: #666;
+      line-height: 1.4;
+    }
+    
+    .sem-dados {
+      text-align: center;
+      padding: 40px 20px;
+      color: #999;
+    }
+    
+    .sem-dados-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+      opacity: 0.5;
+    }
+  </style>
+</head>
+<body>
+  <div id="statusIndicador" class="status-bar status-online">🟢 Online - Sincronizado</div>
+
+  <div class="navbar">
+    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
+    <h1 id="tituloViagem">🚛 Detalhes da Viagem</h1>
+  </div>
+
+  <div class="container">
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab active" onclick="mostrarTab('mapa')">📍 Mapa</button>
+      <button class="tab" onclick="mostrarTab('estatisticas')">📊 Estatísticas</button>
+      <button class="tab" onclick="mostrarTab('galeria')">📸 Galeria</button>
+      <button class="tab" onclick="mostrarTab('historico')">📝 Histórico</button>
+      <button class="tab" onclick="mostrarTab('alertas')">🚨 Alertas</button>
+    </div>
+
+    <!-- Tab: Mapa -->
+    <div id="tab-mapa" class="tab-content active">
+      <div class="map-container">
+        <div id="map"></div>
+      </div>
+      <div style="font-size: 12px; color: #666; text-align: center; margin-top: 8px;">
+        🗺️ Rota da viagem com posições GPS registradas
+      </div>
+    </div>
+
+    <!-- Tab: Estatísticas -->
+    <div id="tab-estatisticas" class="tab-content">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">📏 Distância Percorrida</div>
+          <div class="stat-value" id="distanciaPercorrida">-</div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-label">⏱️ Tempo Total</div>
+          <div class="stat-value" id="tempoTotal">-</div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-label">🚗 Velocidade Média</div>
+          <div class="stat-value" id="velocidadeMedia">-</div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-label">📍 Total de Posições</div>
+          <div class="stat-value" id="totalPosicoes">-</div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-label">📝 Total de Macros</div>
+          <div class="stat-value" id="totalMacros">-</div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-label">📸 Total de Fotos</div>
+          <div class="stat-value" id="totalFotos">-</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Galeria -->
+    <div id="tab-galeria" class="tab-content">
+      <div id="galeriaContainer">
+        <div class="loading">
+          <div class="spinner"></div>
+          <p>Carregando fotos...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Histórico -->
+    <div id="tab-historico" class="tab-content">
+      <div id="historicoContainer">
+        <div class="loading">
+          <div class="spinner"></div>
+          <p>Carregando histórico...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Alertas -->
+    <div id="tab-alertas" class="tab-content">
+      <div id="alertasContainer">
+        <div class="loading">
+          <div class="spinner"></div>
+          <p>Carregando alertas...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/notifications.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/offline.js"></script>
+  
+  <script>
+    if (!verificarAuth()) window.location.href = '../index.html';
+
+    const motorista = getMotorista();
+    const token = localStorage.getItem('token');
+    let idViagem = null;
+    let map = null;
+    let posicoesGPS = [];
+
+    // Obter ID da viagem da URL
+    const params = new URLSearchParams(window.location.search);
+    idViagem = params.get('viagem');
+
+    if (!idViagem) {
+      mostrarToast('Viagem não especificada. Redirecionando...', 'error');
+      setTimeout(() => {
+        window.location.href = 'viagens.html';
+      }, 2000);
+    }
+
+    window.voltar = function() {
+      window.location.href = 'viagens.html';
+    };
+
+    function mostrarTab(tabName) {
+      // Esconder todas as tabs
+      document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      document.querySelectorAll('.tab').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      
+      // Mostrar tab selecionada
+      document.getElementById(`tab-${tabName}`).classList.add('active');
+      event.target.classList.add('active');
+      
+      // Se for mapa, redimensionar
+      if (tabName === 'mapa' && map) {
+        setTimeout(() => {
+          map.invalidateSize();
+        }, 100);
+      }
+    }
+
+    // Inicializar
+    (async () => {
+      await carregarDadosViagem();
+      await inicializarMapa();
+      await carregarEstatisticas();
+      await carregarGaleria();
+      await carregarHistorico();
+      await carregarAlertas();
+    })();
+
+    // Carregar dados da viagem
+    async function carregarDadosViagem() {
+      try {
+        const response = await fetch(`/api/motorista/viagem/${idViagem}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const viagem = await response.json();
+          document.getElementById('tituloViagem').textContent = `🚛 Viagem #${viagem.IDVIAGEM}`;
+        }
+      } catch (err) {
+        console.error('Erro ao carregar dados da viagem:', err);
+      }
+    }
+
+    // Inicializar mapa
+    async function inicializarMapa() {
+      if (typeof L === 'undefined') {
+        console.warn('⚠️ Leaflet não carregado');
+        return;
+      }
+
+      map = L.map('map').setView([-14.2350, -51.9253], 10);
+
+      // Adicionar tiles do servidor próprio
+      // IMPORTANTE: Forçar HTTP (não HTTPS) para evitar ERR_SSL_PROTOCOL_ERROR
+      // IMPORTANTE: Usar APENAS getTileServerUrl() do map-config.js
+      console.log('🗺️ [DETALHES VIAGEM] Inicializando mapa...');
+      console.log('🗺️ [DETALHES VIAGEM] MAP_CONFIG disponível:', !!window.MAP_CONFIG);
+      console.log('🗺️ [DETALHES VIAGEM] getTileServerUrl disponível:', typeof window.getTileServerUrl === 'function');
+      
+      let tileServer = window.getTileServerUrl ? window.getTileServerUrl() : (window.MAP_CONFIG?.tileServer || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+      console.log('🗺️ [DETALHES VIAGEM] Tile server selecionado:', tileServer);
+      
+      const tileOptions = {
+        attribution: window.MAP_CONFIG?.attribution || '© OpenStreetMap contributors',
+        maxZoom: window.MAP_CONFIG?.maxZoom || 19
+      };
+      
+      // Se usar servidor OpenStreetMap com {s}, adicionar subdomínios
+      if (tileServer.includes('{s}')) {
+        tileOptions.subdomains = ['a', 'b', 'c'];
+        console.log('🗺️ [DETALHES VIAGEM] Adicionando subdomínios para OpenStreetMap');
+      }
+      
+      L.tileLayer(tileServer, tileOptions);
+      console.log('✅ [DETALHES VIAGEM] TileLayer adicionado ao mapa');
+      }).addTo(map);
+
+      await carregarPosicoesGPS();
+    }
+
+    // Carregar posições GPS
+    async function carregarPosicoesGPS() {
+      try {
+        const response = await fetch(`/api/motorista/posicoes/${idViagem}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          posicoesGPS = data.posicoes || [];
+
+          if (posicoesGPS.length > 0) {
+            renderizarMapa();
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao carregar posições GPS:', err);
+      }
+    }
+
+    // Renderizar mapa
+    function renderizarMapa() {
+      if (!map || posicoesGPS.length === 0) return;
+
+      const routeCoordinates = [];
+      const bounds = [];
+
+      posicoesGPS.forEach((pos, index) => {
+        const lat = parseFloat(pos.LATITUDE);
+        const lng = parseFloat(pos.LONGITUDE);
+        
+        if (isNaN(lat) || isNaN(lng)) return;
+
+        const position = [lat, lng];
+        routeCoordinates.push(position);
+        bounds.push(position);
+
+        const isUltima = index === 0;
+        const marker = L.marker(position, {
+          title: `Posição ${posicoesGPS.length - index}`
+        });
+
+        const popupContent = `
+          <div style="padding: 8px; min-width: 150px;">
+            <strong>Posição ${posicoesGPS.length - index}</strong><br>
+            <small>${new Date(pos.DHPOSICAO || pos.DHREGISTRO).toLocaleString('pt-BR')}</small><br>
+            ${pos.VELOCIDADE ? `<small>Velocidade: ${parseFloat(pos.VELOCIDADE).toFixed(1)} km/h</small>` : ''}
+          </div>
+        `;
+        marker.bindPopup(popupContent).addTo(map);
+
+        if (isUltima) {
+          L.circleMarker(position, {
+            radius: 10,
+            fillColor: '#e74c3c',
+            color: '#fff',
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 1
+          }).addTo(map);
+        }
+      });
+
+      if (routeCoordinates.length > 1) {
+        L.polyline(routeCoordinates, {
+          color: '#667eea',
+          weight: 4,
+          opacity: 0.8,
+          smoothFactor: 1
+        }).addTo(map);
+      }
+
+      if (bounds.length > 0) {
+        const boundsGroup = L.latLngBounds(bounds);
+        map.fitBounds(boundsGroup, { padding: [20, 20] });
+      }
+    }
+
+    // Carregar estatísticas
+    async function carregarEstatisticas() {
+      try {
+        // Distância e velocidade (já temos posicoesGPS)
+        if (posicoesGPS.length > 0) {
+          let distanciaTotal = 0;
+          for (let i = 1; i < posicoesGPS.length; i++) {
+            const prev = posicoesGPS[i];
+            const curr = posicoesGPS[i - 1];
+            
+            if (prev.LATITUDE && prev.LONGITUDE && curr.LATITUDE && curr.LONGITUDE) {
+              const dist = calcularDistancia(
+                parseFloat(prev.LATITUDE),
+                parseFloat(prev.LONGITUDE),
+                parseFloat(curr.LATITUDE),
+                parseFloat(curr.LONGITUDE)
+              );
+              distanciaTotal += dist;
+            }
+          }
+          
+          document.getElementById('distanciaPercorrida').innerHTML = 
+            `${distanciaTotal.toFixed(2)}<span class="stat-unit"> km</span>`;
+
+          const velocidades = posicoesGPS
+            .filter(p => p.VELOCIDADE)
+            .map(p => parseFloat(p.VELOCIDADE));
+          
+          if (velocidades.length > 0) {
+            const velocidadeMedia = velocidades.reduce((a, b) => a + b, 0) / velocidades.length;
+            document.getElementById('velocidadeMedia').innerHTML = 
+              `${velocidadeMedia.toFixed(1)}<span class="stat-unit"> km/h</span>`;
+          }
+
+          const primeira = posicoesGPS[posicoesGPS.length - 1];
+          const ultima = posicoesGPS[0];
+          const primeiraData = new Date(primeira.DHPOSICAO || primeira.DHREGISTRO);
+          const ultimaData = new Date(ultima.DHPOSICAO || ultima.DHREGISTRO);
+          const tempoTotalMs = ultimaData - primeiraData;
+          const horas = Math.floor(tempoTotalMs / 3600000);
+          const minutos = Math.floor((tempoTotalMs % 3600000) / 60000);
+          
+          document.getElementById('tempoTotal').innerHTML = 
+            horas > 0 ? `${horas}h ${minutos}min` : `${minutos}min`;
+        }
+
+        document.getElementById('totalPosicoes').textContent = posicoesGPS.length;
+
+        // Total de macros
+        try {
+          const macrosResponse = await fetch(`/api/motorista/historico-macros/${idViagem}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (macrosResponse.ok) {
+            const macros = await macrosResponse.json();
+            document.getElementById('totalMacros').textContent = macros.length || 0;
+          }
+        } catch (err) {
+          console.warn('Erro ao carregar macros:', err);
+        }
+
+        // Total de fotos
+        try {
+          const fotosResponse = await fetch(`/api/motorista/delivery-proof/viagem/${idViagem}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (fotosResponse.ok) {
+            const fotos = await fotosResponse.json();
+            document.getElementById('totalFotos').textContent = fotos.length || 0;
+          }
+        } catch (err) {
+          console.warn('Erro ao carregar fotos:', err);
+        }
+      } catch (err) {
+        console.error('Erro ao carregar estatísticas:', err);
+      }
+    }
+
+    // Calcular distância
+    function calcularDistancia(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
+
+    // Carregar galeria
+    async function carregarGaleria() {
+      try {
+        const response = await fetch(`/api/motorista/delivery-proof/viagem/${idViagem}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        const container = document.getElementById('galeriaContainer');
+
+        if (response.ok) {
+          const dados = await response.json();
+          
+          // O endpoint retorna { success: true, comprovantes: [...], total: ... }
+          const fotos = Array.isArray(dados) 
+            ? dados 
+            : (dados.comprovantes || dados.fotos || dados.data || []);
+          
+          if (!Array.isArray(fotos)) {
+            console.error('❌ Resposta não é um array:', dados);
+            container.innerHTML = `
+              <div class="sem-dados">
+                <div class="sem-dados-icon">⚠️</div>
+                <p>Erro ao carregar fotos</p>
+              </div>
+            `;
+            return;
+          }
+
+          if (fotos.length === 0) {
+            container.innerHTML = `
+              <div class="sem-dados">
+                <div class="sem-dados-icon">📸</div>
+                <p>Nenhuma foto registrada</p>
+              </div>
+            `;
+            return;
+          }
+
+          container.innerHTML = `
+            <div class="galeria-grid">
+              ${fotos.map(foto => {
+                const data = new Date(foto.RECORDED_AT || foto.CREATED_AT || foto.DHREGISTRO).toLocaleString('pt-BR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                });
+                return `
+                  <div class="foto-item" onclick="abrirFoto('${foto.ID || foto.IDPROOF}', '${idViagem}')">
+                    <img src="/api/motorista/delivery-proof/${foto.ID || foto.IDPROOF}/photo" 
+                         alt="Foto ${foto.ID || foto.IDPROOF}" 
+                         onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%23f0f0f0%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%22 y=%2250%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22%3E📸%3C/text%3E%3C/svg%3E'">
+                    <div class="foto-overlay">
+                      <div>${data}</div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `;
+        } else {
+          container.innerHTML = `
+            <div class="sem-dados">
+              <div class="sem-dados-icon">📸</div>
+              <p>Nenhuma foto registrada</p>
+            </div>
+          `;
+        }
+      } catch (err) {
+        console.error('Erro ao carregar galeria:', err);
+        document.getElementById('galeriaContainer').innerHTML = `
+          <div class="sem-dados">
+            <div class="sem-dados-icon">⚠️</div>
+            <p>Erro ao carregar fotos</p>
+          </div>
+        `;
+      }
+    }
+
+    function abrirFoto(idFoto, idViagem) {
+      window.open(`/api/motorista/delivery-proof/${idFoto}/photo`, '_blank');
+    }
+
+    // Carregar histórico
+    async function carregarHistorico() {
+      try {
+        const response = await fetch(`/api/motorista/historico-macros/${idViagem}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        const container = document.getElementById('historicoContainer');
+
+        if (response.ok) {
+          const eventos = await response.json();
+
+          if (eventos.length === 0) {
+            container.innerHTML = `
+              <div class="sem-dados">
+                <div class="sem-dados-icon">📝</div>
+                <p>Nenhum evento registrado</p>
+              </div>
+            `;
+            return;
+          }
+
+          container.innerHTML = `
+            <div class="historico-list">
+              ${eventos.map(evento => {
+                const hora = new Date(evento.DHREGISTRO || evento.CREATED_AT).toLocaleString('pt-BR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                });
+                return `
+                  <div class="historico-item">
+                    <div class="historico-header">
+                      <div class="historico-tipo">📝 ${evento.DSMACRO || evento.TIPO || 'Evento'}</div>
+                      <div class="historico-hora">${hora}</div>
+                    </div>
+                    <div class="historico-descricao">
+                      ${evento.DESCRICAO || evento.OBSERVACAO || 'Sem descrição'}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `;
+        } else {
+          container.innerHTML = `
+            <div class="sem-dados">
+              <div class="sem-dados-icon">📝</div>
+              <p>Nenhum evento registrado</p>
+            </div>
+          `;
+        }
+      } catch (err) {
+        console.error('Erro ao carregar histórico:', err);
+        document.getElementById('historicoContainer').innerHTML = `
+          <div class="sem-dados">
+            <div class="sem-dados-icon">⚠️</div>
+            <p>Erro ao carregar histórico</p>
+          </div>
+        `;
+      }
+    }
+
+    // Carregar alertas
+    async function carregarAlertas() {
+      try {
+        const response = await fetch(`/api/alertas/viagem/${idViagem}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        const container = document.getElementById('alertasContainer');
+
+        if (response.ok) {
+          const alertas = await response.json();
+          const alertasArray = Array.isArray(alertas) ? alertas : (alertas.data || []);
+
+          if (alertasArray.length === 0) {
+            container.innerHTML = `
+              <div class="sem-dados">
+                <div class="sem-dados-icon">🚨</div>
+                <p>Nenhum alerta registrado</p>
+                <p style="font-size: 12px; margin-top: 8px; color: #28a745;">Tudo certo! ✅</p>
+              </div>
+            `;
+            return;
+          }
+
+          container.innerHTML = `
+            <div class="alertas-list">
+              ${alertasArray.map(alerta => {
+                const hora = new Date(alerta.CREATED_AT || alerta.DHREGISTRO).toLocaleString('pt-BR', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                });
+                
+                const tipoClasse = alerta.TYPE === 'CRITICAL' || alerta.SEVERITY === 'HIGH' ? 'critico' :
+                                  alerta.TYPE === 'WARNING' || alerta.SEVERITY === 'MEDIUM' ? 'medio' : 'baixo';
+                
+                return `
+                  <div class="alerta-item ${tipoClasse}">
+                    <div class="alerta-header">
+                      <div class="alerta-tipo">🚨 ${alerta.TYPE || alerta.TIPO || 'Alerta'}</div>
+                      <div class="alerta-status">${alerta.STATUS || 'Ativo'}</div>
+                    </div>
+                    <div class="alerta-descricao">
+                      ${alerta.MESSAGE || alerta.MENSAGEM || 'Sem descrição'}
+                    </div>
+                    <div style="font-size: 11px; color: #999; margin-top: 8px;">${hora}</div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `;
+        } else {
+          container.innerHTML = `
+            <div class="sem-dados">
+              <div class="sem-dados-icon">🚨</div>
+              <p>Nenhum alerta registrado</p>
+            </div>
+          `;
+        }
+      } catch (err) {
+        console.error('Erro ao carregar alertas:', err);
+        document.getElementById('alertasContainer').innerHTML = `
+          <div class="sem-dados">
+            <div class="sem-dados-icon">⚠️</div>
+            <p>Erro ao carregar alertas</p>
+          </div>
+        `;
+      }
+    }
+  </script>
+</body>
+</html>

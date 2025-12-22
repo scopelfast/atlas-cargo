@@ -15,6 +15,9 @@
   let mensagens = [];
   let socket = null;
   const baseUrl = window.__BASE_URL__ || ('http://' + window.location.host);
+  
+  // Obter ID do motorista corretamente
+  const idMotorista = motorista?.CDCADASTRO || motorista?.id || motorista?.cdcadastro || null;
 
   // ==========================================
   // INICIALIZAÇÃO
@@ -29,9 +32,49 @@
         <div class="empty">
           <div class="empty-icon">⚠️</div>
           <strong>Nenhuma viagem selecionada</strong><br>
-          Selecione uma viagem para abrir o chat.
+          Você precisa selecionar uma viagem para usar o chat.<br><br>
+          <p style="font-size: 13px; color: #666; margin-top: 10px;">
+            Redirecionando para a tela de viagens em <span id="countdown">3</span> segundos...
+          </p>
+          <button onclick="window.location.href='viagens.html'" style="
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-top: 15px;
+          ">
+            📋 Ir para Viagens Agora
+          </button>
         </div>
       `;
+      
+      // Desabilitar input quando não há viagem
+      const input = document.getElementById('inputMensagem');
+      const btn = document.querySelector('.btn-enviar');
+      if (input) {
+        input.disabled = true;
+        input.placeholder = 'Selecione uma viagem primeiro';
+      }
+      if (btn) btn.disabled = true;
+      
+      // Countdown e redirecionamento automático
+      let countdown = 3;
+      const countdownEl = document.getElementById('countdown');
+      const interval = setInterval(() => {
+        countdown--;
+        if (countdownEl) {
+          countdownEl.textContent = countdown;
+        }
+        if (countdown <= 0) {
+          clearInterval(interval);
+          window.location.href = 'viagens.html';
+        }
+      }, 1000);
+      
       return;
     }
 
@@ -74,13 +117,22 @@
         console.log('📨 Nova mensagem recebida:', mensagem);
         
         // Verificar se não é mensagem própria
-        if (mensagem.SENDER_ID != motorista.id || mensagem.SENDER_TYPE !== 'driver') {
+        const senderId = mensagem.SENDER_ID || mensagem.senderId;
+        const senderType = mensagem.SENDER_TYPE || mensagem.senderType;
+        
+        if (senderId != idMotorista || senderType !== 'driver') {
           mensagens.push(mensagem);
           renderizar();
           scrollBottom();
           
+          // Notificação visual e sonora
+          notificarNovaMensagem(mensagem);
+          
           // Marcar como lida
           marcarComoLidas();
+          
+          // Atualizar contador no dashboard (se estiver em outra aba)
+          atualizarContadorNaoLidas();
         }
       });
 
@@ -144,15 +196,34 @@
     const input = document.getElementById('inputMensagem');
     const texto = input.value.trim();
     
-    if (!texto || !idViagem) return;
+    if (!texto) {
+      console.warn('⚠️ Mensagem vazia');
+      return;
+    }
+    
+    if (!idViagem) {
+      mostrarToast('Nenhuma viagem selecionada. Por favor, selecione uma viagem primeiro.', 'warning');
+      setTimeout(() => {
+        window.location.href = 'viagens.html';
+      }, 2000);
+      return;
+    }
+    
+    if (!idMotorista) {
+      mostrarToast('Erro: ID do motorista não encontrado. Faça login novamente.', 'error');
+      setTimeout(() => {
+        window.location.href = '../index.html';
+      }, 2000);
+      return;
+    }
 
     // Criar mensagem local
     const mensagemLocal = {
       ID: Date.now(),
       IDVIAGEM: idViagem,
       SENDER_TYPE: 'driver',
-      SENDER_ID: motorista.id,
-      SENDER_NAME: motorista.nome || 'Motorista',
+      SENDER_ID: idMotorista,
+      SENDER_NAME: motorista?.nome || motorista?.NOME || 'Motorista',
       CONTENT: texto,
       CREATED_AT: new Date().toISOString(),
       remetente: 'motorista',
@@ -178,8 +249,8 @@
             idviagem: idViagem,
             content: texto,
             senderType: 'driver',
-            senderId: motorista.id,
-            senderName: motorista.nome || 'Motorista'
+            senderId: idMotorista,
+            senderName: motorista?.nome || motorista?.NOME || 'Motorista'
           })
         });
 
@@ -230,6 +301,174 @@
   };
 
   // ==========================================
+  // ENVIAR LOCALIZAÇÃO
+  // ==========================================
+  window.enviarLocalizacao = async function() {
+    const btnLocalizacao = document.querySelector('.btn-localizacao');
+    
+    if (!idViagem) {
+      mostrarToast('Nenhuma viagem selecionada. Por favor, selecione uma viagem primeiro.', 'warning');
+      return;
+    }
+    
+    if (!idMotorista) {
+      mostrarToast('Erro: ID do motorista não encontrado. Faça login novamente.', 'error');
+      return;
+    }
+
+    // Desabilitar botão enquanto busca localização
+    if (btnLocalizacao) {
+      btnLocalizacao.disabled = true;
+      btnLocalizacao.textContent = '⏳';
+    }
+
+    try {
+      // Verificar se Geolocation API está disponível
+      if (!navigator.geolocation) {
+        throw new Error('Geolocalização não suportada pelo navegador');
+      }
+
+      // Buscar localização atual
+      const posicao = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(
+          resolve,
+          reject,
+          {
+            enableHighAccuracy: false, // Usar menos precisão para ser mais rápido
+            timeout: 30000, // Aumentar timeout para 30 segundos
+            maximumAge: 60000 // Aceitar posição com até 1 minuto de idade
+          }
+        );
+      });
+
+      const latitude = posicao.coords.latitude;
+      const longitude = posicao.coords.longitude;
+      const precisao = posicao.coords.accuracy ? Math.round(posicao.coords.accuracy) : null;
+      
+      // Criar mensagem com localização
+      const mensagemLocalizacao = `📍 Minha localização:\n` +
+        `Latitude: ${latitude.toFixed(8)}\n` +
+        `Longitude: ${longitude.toFixed(8)}\n` +
+        (precisao ? `Precisão: ${precisao}m\n` : '') +
+        `🗺️ Ver no mapa: https://www.google.com/maps?q=${latitude},${longitude}`;
+
+      // Criar mensagem local
+      const mensagemLocal = {
+        ID: Date.now(),
+        IDVIAGEM: idViagem,
+        SENDER_TYPE: 'driver',
+        SENDER_ID: idMotorista,
+        SENDER_NAME: motorista?.nome || motorista?.NOME || 'Motorista',
+        CONTENT: mensagemLocalizacao,
+        CREATED_AT: new Date().toISOString(),
+        remetente: 'motorista',
+        enviado: false
+      };
+
+      // Adicionar à lista
+      mensagens.push(mensagemLocal);
+      renderizar();
+      scrollBottom();
+
+      // Enviar para o servidor
+      try {
+        if (window.OfflineDB && window.OfflineDB.isOnline()) {
+          const response = await fetch(`${baseUrl}/api/messages`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              idviagem: idViagem,
+              content: mensagemLocalizacao,
+              senderType: 'driver',
+              senderId: idMotorista,
+              senderName: motorista?.nome || motorista?.NOME || 'Motorista',
+              latitude: latitude,
+              longitude: longitude,
+              precisao: precisao
+            })
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            // Atualizar mensagem local com dados do servidor
+            const index = mensagens.findIndex(m => m.ID === mensagemLocal.ID);
+            if (index !== -1) {
+              mensagens[index] = {
+                ...data.message,
+                remetente: 'motorista',
+                enviado: true,
+                timestamp: data.message.CREATED_AT
+              };
+            }
+            renderizar();
+            mostrarToast('Localização enviada com sucesso!', 'success');
+          } else {
+            // Salvar na fila offline
+            await window.OfflineDB.adicionarFila('filaMensagens', {
+              endpoint: '/api/messages',
+              method: 'POST',
+              data: {
+                idviagem: idViagem,
+                content: mensagemLocalizacao,
+                senderType: 'driver',
+                senderId: idMotorista,
+                senderName: motorista?.nome || motorista?.NOME || 'Motorista',
+                latitude: latitude,
+                longitude: longitude,
+                precisao: precisao
+              }
+            });
+            mostrarToast('Localização salva (será enviada quando online)', 'info');
+          }
+        } else {
+          // Offline - salvar na fila
+          await window.OfflineDB.adicionarFila('filaMensagens', {
+            endpoint: '/api/messages',
+            method: 'POST',
+            data: {
+              idviagem: idViagem,
+              content: mensagemLocalizacao,
+              senderType: 'driver',
+              senderId: idMotorista,
+              senderName: motorista?.nome || motorista?.NOME || 'Motorista',
+              latitude: latitude,
+              longitude: longitude,
+              precisao: precisao
+            }
+          });
+          mostrarToast('Localização salva (será enviada quando online)', 'info');
+        }
+      } catch (err) {
+        console.error('Erro ao enviar localização:', err);
+        mostrarToast('Erro ao enviar localização. Tente novamente.', 'error');
+      }
+
+    } catch (err) {
+      console.error('Erro ao obter localização:', err);
+      
+      let mensagemErro = 'Erro ao obter localização.';
+      if (err.code === 1) {
+        mensagemErro = 'Permissão de localização negada. Por favor, permita o acesso à localização nas configurações do navegador.';
+      } else if (err.code === 2) {
+        mensagemErro = 'Não foi possível determinar sua localização. Verifique se o GPS está ativo.';
+      } else if (err.code === 3) {
+        mensagemErro = 'Tempo esgotado ao buscar localização. Tente novamente.';
+      }
+      
+      mostrarToast(mensagemErro, 'error');
+    } finally {
+      // Reabilitar botão
+      if (btnLocalizacao) {
+        btnLocalizacao.disabled = false;
+        btnLocalizacao.textContent = '📍';
+      }
+    }
+  };
+
+  // ==========================================
   // MARCAR COMO LIDAS
   // ==========================================
   async function marcarComoLidas() {
@@ -244,7 +483,7 @@
         },
         body: JSON.stringify({
           idviagem: idViagem,
-          userId: motorista.id,
+          userId: idMotorista,
           userType: 'driver'
         })
       });
@@ -276,9 +515,42 @@
         minute: '2-digit'
       });
       const classe = m.remetente === 'motorista' || m.SENDER_TYPE === 'driver' ? 'motorista' : 'operador';
-      const remetente = (m.remetente === 'motorista' || m.SENDER_TYPE === 'driver') ? '👤 Você' : '👨‍💼 Operador';
+      
+      // Usar SENDER_NAME se disponível, senão usar padrão
+      let remetente;
+      if (m.remetente === 'motorista' || m.SENDER_TYPE === 'driver') {
+        remetente = '👤 Você';
+      } else {
+        // Usar nome do operador se disponível
+        const nomeOperador = m.SENDER_NAME || m.senderName;
+        if (nomeOperador && nomeOperador.trim() !== '' && nomeOperador.trim() !== 'Operador' && nomeOperador.trim() !== 'null') {
+          remetente = `👨‍💼 ${nomeOperador.trim()}`;
+        } else {
+          // Se não tiver nome, tentar buscar do backend
+          if (m.SENDER_ID) {
+            buscarNomeOperador(m.SENDER_ID).then(nome => {
+              if (nome && nome.trim() !== '' && nome.trim() !== 'Operador') {
+                // Atualizar a mensagem e re-renderizar
+                m.SENDER_NAME = nome.trim();
+                renderizar();
+              }
+            });
+          }
+          remetente = '👨‍💼 Operador';
+        }
+      }
+      
       const status = m.enviado !== false ? '✓✓' : '⏳';
-      const conteudo = m.CONTENT || m.content || m.mensagem || '';
+      let conteudo = m.CONTENT || m.content || m.mensagem || '';
+      
+      // Converter quebras de linha em <br>
+      conteudo = conteudo.replace(/\n/g, '<br>');
+      
+      // Converter URLs em links clicáveis
+      const conteudoFormatado = conteudo.replace(
+        /(https?:\/\/[^\s]+)/g,
+        '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: #667eea; text-decoration: underline;">$1</a>'
+      );
 
       return `
         <div class="mensagem ${classe}">
@@ -286,7 +558,7 @@
             <div style="font-size: 11px; font-weight: 600; color: #666; margin-bottom: 4px;">
               ${remetente}
             </div>
-            <div class="mensagem-texto">${conteudo}</div>
+            <div class="mensagem-texto">${conteudoFormatado}</div>
             <div class="mensagem-hora">${hora} ${status}</div>
           </div>
         </div>
@@ -316,12 +588,114 @@
   };
 
   // ==========================================
+  // BUSCAR NOME DO OPERADOR
+  // ==========================================
+  async function buscarNomeOperador(senderId) {
+    if (!senderId) return null;
+    
+    try {
+      const response = await fetch(`${baseUrl}/api/messages/operador/${senderId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        return (data.success && data.nome) ? data.nome : null;
+      }
+    } catch (err) {
+      console.warn('Erro ao buscar nome do operador:', err);
+    }
+    return null;
+  }
+
+  // ==========================================
+  // NOTIFICAÇÕES
+  // ==========================================
+  function notificarNovaMensagem(mensagem) {
+    const conteudo = mensagem.CONTENT || mensagem.content || '';
+    const preview = conteudo.length > 80 ? conteudo.substring(0, 80) + '...' : conteudo;
+    
+    // Usar serviço unificado de notificações
+    if (window.NotificacoesService) {
+      window.NotificacoesService.mostrar(
+        'Nova Mensagem',
+        preview,
+        window.NotificacoesService.TIPOS.CHAT,
+        {
+          acao: 'chat',
+          idViagem: idViagem
+        }
+      );
+    } else {
+      // Fallback para notificação básica
+      if (!document.hasFocus() && 'Notification' in window && Notification.permission === 'granted') {
+        new Notification('Nova Mensagem - Chat', {
+          body: preview,
+          icon: '/img/logo7.png',
+          tag: 'chat-mensagem',
+          requireInteraction: false,
+          badge: '/img/logo7.png'
+        });
+      }
+    }
+  }
+  
+  // Função removida - agora usa NotificacoesService
+  
+  // Permissões de notificação agora gerenciadas pelo NotificacoesService
+
+  // ==========================================
+  // CONTADOR DE NÃO LIDAS
+  // ==========================================
+  async function atualizarContadorNaoLidas() {
+    try {
+      // Tentar endpoint do módulo primeiro
+      let response = await fetch(`${baseUrl}/api/chat/nao-lidas?idUsuario=${idMotorista}&userType=MOTORISTA`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      // Se não funcionar, tentar endpoint alternativo
+      if (!response.ok) {
+        response = await fetch(`${baseUrl}/api/messages/nao-lidas?idUsuario=${idMotorista}&userType=MOTORISTA`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+      }
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Estrutura: { success: true, data: { total: X, porConversa: [...] } }
+        const total = (data.data && data.data.total) || data.total || 0;
+        
+        // Salvar no localStorage para o dashboard
+        localStorage.setItem('chat_nao_lidas', total.toString());
+        
+        // Disparar evento para atualizar dashboard
+        window.dispatchEvent(new CustomEvent('chatNaoLidasAtualizado', { detail: { total } }));
+        
+        return total;
+      }
+    } catch (err) {
+      console.warn('Erro ao buscar contador de não lidas:', err);
+    }
+    return 0;
+  }
+
+  // ==========================================
   // STATUS BAR
   // ==========================================
   async function atualizarStatusBar() {
     if (window.OfflineDB && window.OfflineDB.atualizarIndicador) {
       await window.OfflineDB.atualizarIndicador();
     }
+    
+    // Atualizar contador ao carregar
+    await atualizarContadorNaoLidas();
   }
 
   // Inicializar quando DOM estiver pronto

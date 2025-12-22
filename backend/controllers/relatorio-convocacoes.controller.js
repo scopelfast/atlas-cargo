@@ -291,15 +291,23 @@ const relatorioController = {
     try {
       const pool = await poolPromise;
       
+      // Query idêntica à usada no relatório (linha 135-149) + cálculo de viagens pendentes
       const query = `
         SELECT 
           COUNT(*) AS TOTAL,
-          SUM(CASE WHEN STATUS = 'PENDENTE' THEN 1 ELSE 0 END) AS PENDENTE,
-          SUM(CASE WHEN STATUS = 'ACEITA' THEN 1 ELSE 0 END) AS ACEITA,
-          SUM(CASE WHEN STATUS = 'RECUSADA' THEN 1 ELSE 0 END) AS RECUSADA,
-          SUM(CASE WHEN STATUS = 'CONFIRMADA' THEN 1 ELSE 0 END) AS CONFIRMADA,
-          SUM(CASE WHEN STATUS = 'ACEITA_DESCARTADA' THEN 1 ELSE 0 END) AS ACEITA_DESCARTADA
-        FROM [dbo].[CONVOCACAO]
+          COUNT(DISTINCT c.IDVIAGEM) AS TOTAL_VIAGENS,
+          SUM(CASE WHEN c.STATUS = 'PENDENTE' THEN 1 ELSE 0 END) AS PENDENTE,
+          SUM(CASE WHEN c.STATUS = 'ACEITA' THEN 1 ELSE 0 END) AS ACEITA,
+          SUM(CASE WHEN c.STATUS = 'RECUSADA' THEN 1 ELSE 0 END) AS RECUSADA,
+          SUM(CASE WHEN c.STATUS = 'CONFIRMADA' THEN 1 ELSE 0 END) AS CONFIRMADA,
+          SUM(CASE WHEN c.STATUS = 'ACEITA_DESCARTADA' THEN 1 ELSE 0 END) AS ACEITA_DESCARTADA,
+          SUM(CASE WHEN c.DHACESSO IS NOT NULL THEN 1 ELSE 0 END) AS COM_ACESSO,
+          SUM(CASE WHEN c.DHACESSO IS NULL THEN 1 ELSE 0 END) AS SEM_ACESSO,
+          SUM(CASE WHEN c.DHRESPOSTA IS NOT NULL THEN 1 ELSE 0 END) AS COM_RESPOSTA,
+          SUM(CASE WHEN c.DHRESPOSTA IS NULL THEN 1 ELSE 0 END) AS SEM_RESPOSTA,
+          -- Viagens pendentes = Total de viagens - Viagens com pelo menos uma convocação confirmada
+          COUNT(DISTINCT c.IDVIAGEM) - COUNT(DISTINCT CASE WHEN c.STATUS = 'CONFIRMADA' THEN c.IDVIAGEM END) AS VIAGENS_PENDENTES
+        FROM [dbo].[CONVOCACAO] c
       `;
 
       const result = await pool.request().query(query);

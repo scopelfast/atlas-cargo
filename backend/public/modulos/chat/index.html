@@ -1,0 +1,686 @@
+<!-- Módulo: Chat -->
+<!-- Versão: 2.0 - Implementação Completa -->
+<!-- Data: 2025-01-18 -->
+
+<link rel="stylesheet" href="/css/modulos.css">
+<style>
+  /* Estilos específicos do módulo Chat */
+  .chat-container {
+    padding: 20px;
+    height: calc(100vh - 120px);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #e0e0e0;
+  }
+
+  .chat-header h2 {
+    margin: 0;
+    color: #2c3e50;
+    font-size: 28px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .chat-main {
+    display: grid;
+    grid-template-columns: 350px 1fr;
+    gap: 20px;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* Lista de Conversas */
+  .conversas-panel {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .conversas-header {
+    padding: 20px;
+    border-bottom: 2px solid #e9ecef;
+    background: #f8f9fa;
+  }
+
+  .conversas-header h3 {
+    margin: 0 0 15px 0;
+    color: #2c3e50;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .conversas-search {
+    position: relative;
+  }
+
+  .conversas-search input {
+    width: 100%;
+    padding: 10px 40px 10px 15px;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    font-size: 14px;
+  }
+
+  .conversas-search i {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #6c757d;
+  }
+
+  .conversas-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+  }
+
+  .conversa-item {
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid transparent;
+  }
+
+  .conversa-item:hover {
+    background: #f8f9fa;
+    transform: translateX(2px);
+  }
+
+  .conversa-item.active {
+    background: #e3f2fd;
+    border-color: #3498db;
+  }
+
+  .conversa-item.nao-lida {
+    background: #fff5f5;
+    font-weight: 600;
+  }
+
+  .conversa-header-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+  }
+
+  .conversa-nome {
+    font-weight: 600;
+    color: #2c3e50;
+    font-size: 15px;
+  }
+
+  .conversa-hora {
+    font-size: 12px;
+    color: #6c757d;
+  }
+
+  .conversa-preview {
+    font-size: 14px;
+    color: #6c757d;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin-bottom: 5px;
+  }
+
+  .conversa-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    background: #e74c3c;
+    color: white;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    margin-left: 8px;
+  }
+
+  /* Área de Chat */
+  .chat-panel {
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .chat-panel-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    color: #6c757d;
+    text-align: center;
+    padding: 40px;
+  }
+
+  .chat-panel-empty i {
+    font-size: 64px;
+    margin-bottom: 20px;
+    opacity: 0.5;
+  }
+
+  .chat-info {
+    padding: 20px;
+    border-bottom: 2px solid #e9ecef;
+    background: #f8f9fa;
+  }
+
+  .chat-info h3 {
+    margin: 0 0 10px 0;
+    color: #2c3e50;
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .chat-info-details {
+    display: flex;
+    gap: 20px;
+    font-size: 14px;
+    color: #6c757d;
+  }
+
+  .chat-info-details span {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    background: #f0f2f5;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .message-item {
+    display: flex;
+    margin-bottom: 10px;
+  }
+
+  .message-item.operador {
+    justify-content: flex-end;
+  }
+
+  .message-item.motorista {
+    justify-content: flex-start;
+  }
+
+  .message-bubble {
+    max-width: 70%;
+    padding: 12px 16px;
+    border-radius: 18px;
+    position: relative;
+    word-wrap: break-word;
+  }
+
+  .message-item.operador .message-bubble {
+    background: #3498db;
+    color: white;
+    border-bottom-right-radius: 4px;
+  }
+
+  .message-item.motorista .message-bubble {
+    background: white;
+    color: #2c3e50;
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  }
+
+  .message-header {
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 4px;
+    opacity: 0.9;
+  }
+
+  .message-content {
+    line-height: 1.5;
+  }
+  
+  .message-content a {
+    color: #667eea !important;
+    text-decoration: underline !important;
+    cursor: pointer !important;
+    pointer-events: auto !important;
+    word-break: break-all;
+  }
+  
+  .message-content a:hover {
+    color: #5568d3 !important;
+    text-decoration: underline !important;
+  }
+  
+  .message-item.operador .message-content a {
+    color: rgba(255, 255, 255, 0.9) !important;
+    text-decoration: underline !important;
+  }
+  
+  .message-item.operador .message-content a:hover {
+    color: white !important;
+  }
+  
+  .message-content {
+    font-size: 15px;
+    line-height: 1.4;
+  }
+  
+  .message-content a {
+    color: #667eea !important;
+    text-decoration: underline !important;
+    cursor: pointer !important;
+    pointer-events: auto !important;
+    word-break: break-all;
+    display: inline;
+  }
+  
+  .message-content a:hover {
+    color: #5568d3 !important;
+    text-decoration: underline !important;
+  }
+  
+  .message-item.operador .message-content a {
+    color: rgba(255, 255, 255, 0.95) !important;
+    text-decoration: underline !important;
+  }
+  
+  .message-item.operador .message-content a:hover {
+    color: white !important;
+    text-decoration: underline !important;
+  }
+
+  .message-time {
+    font-size: 11px;
+    margin-top: 4px;
+    opacity: 0.7;
+    text-align: right;
+  }
+
+  .message-item.motorista .message-time {
+    text-align: left;
+  }
+
+  .chat-input-area {
+    padding: 20px;
+    border-top: 2px solid #e9ecef;
+    background: white;
+  }
+
+  .chat-input-wrapper {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+  }
+
+  .chat-input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 1px solid #dee2e6;
+    border-radius: 24px;
+    font-size: 15px;
+    resize: none;
+    max-height: 120px;
+    font-family: inherit;
+  }
+
+  .chat-input:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+  }
+
+  .btn-send {
+    padding: 12px 24px;
+    background: #3498db;
+    color: white;
+    border: none;
+    border-radius: 24px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-send:hover:not(:disabled) {
+    background: #2980b9;
+    transform: translateY(-1px);
+  }
+
+  .btn-send:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  /* Estatísticas */
+  .chat-stats {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+  }
+
+  .stat-card {
+    flex: 1;
+    background: white;
+    border-radius: 8px;
+    padding: 15px 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    border-left: 4px solid;
+  }
+
+  .stat-card.conversas {
+    border-left-color: #3498db;
+  }
+
+  .stat-card.nao-lidas {
+    border-left-color: #e74c3c;
+  }
+
+  .stat-card.total {
+    border-left-color: #2ecc71;
+  }
+
+  .stat-card .stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: #2c3e50;
+    margin: 5px 0;
+  }
+
+  .stat-card .stat-label {
+    font-size: 14px;
+    color: #6c757d;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  /* Loading */
+  .loading-overlay {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255,255,255,0.9);
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+  }
+
+  .loading-overlay.active {
+    display: flex;
+  }
+
+  .spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  /* Botões padrão */
+  .btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    margin-right: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: inherit;
+    text-decoration: none;
+    box-sizing: border-box;
+  }
+
+  .btn-primary {
+    background: #3498db;
+    color: white;
+  }
+
+  .btn-primary:hover:not(:disabled) {
+    background: #2980b9;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
+  }
+
+  .btn-info {
+    background: #17a2b8;
+    color: white;
+  }
+
+  .btn-info:hover:not(:disabled) {
+    background: #138496;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(23, 162, 184, 0.3);
+  }
+
+  /* Modal */
+  .modal-tratamento {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-tratamento.active {
+    display: flex;
+  }
+
+  .modal-content-tratamento {
+    background: white;
+    border-radius: 12px;
+    padding: 30px;
+    max-width: 800px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+  }
+
+  .modal-header-tratamento {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #e9ecef;
+  }
+
+  .modal-header-tratamento h3 {
+    margin: 0;
+    color: #2c3e50;
+    font-size: 24px;
+  }
+
+  .close-modal {
+    background: none;
+    border: none;
+    font-size: 28px;
+    color: #6c757d;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background 0.2s;
+  }
+
+  .close-modal:hover {
+    background: #f8f9fa;
+  }
+
+  /* Responsivo */
+  @media (max-width: 968px) {
+    .chat-main {
+      grid-template-columns: 1fr;
+    }
+    
+    .conversas-panel {
+      max-height: 300px;
+    }
+  }
+</style>
+
+<div class="chat-container">
+  <!-- Cabeçalho -->
+  <div class="chat-header">
+    <h2><i class='bx bx-message'></i> Chat</h2>
+    <div style="display: flex; gap: 10px; align-items: center;">
+      <button class="btn btn-info" onclick="mostrarAjuda()" title="Como funciona? Regras e instruções">
+        <i class='bx bx-help-circle'></i> Ajuda
+      </button>
+      <button id="btnToggleSomChat" class="btn" onclick="toggleSomNotificacaoChat()" title="Ativar/Desativar som de notificação" style="background: #28a745; color: white;">
+        <i class='bx bx-volume-full'></i> Som
+      </button>
+      <button class="btn btn-primary" onclick="recarregarChat()">
+        <i class='bx bx-refresh'></i> Atualizar
+      </button>
+    </div>
+  </div>
+
+  <!-- Estatísticas -->
+  <div class="chat-stats">
+    <div class="stat-card conversas">
+      <div class="stat-label">Conversas</div>
+      <div class="stat-value" id="statConversas">0</div>
+    </div>
+    <div class="stat-card nao-lidas">
+      <div class="stat-label">Não Lidas</div>
+      <div class="stat-value" id="statNaoLidas">0</div>
+    </div>
+    <div class="stat-card total">
+      <div class="stat-label">Total Mensagens</div>
+      <div class="stat-value" id="statTotal">0</div>
+    </div>
+  </div>
+
+  <!-- Área Principal -->
+  <div class="chat-main">
+    <!-- Lista de Conversas -->
+    <div class="conversas-panel">
+      <div class="conversas-header">
+        <h3><i class='bx bx-conversation'></i> Conversas</h3>
+        <div class="conversas-search">
+          <input type="text" id="buscaConversas" placeholder="Buscar conversas..." onkeyup="buscarConversas()">
+          <i class='bx bx-search'></i>
+        </div>
+      </div>
+      <div class="conversas-list" id="conversasList">
+        <!-- Será preenchido dinamicamente -->
+      </div>
+    </div>
+
+    <!-- Área de Chat -->
+    <div class="chat-panel" id="chatPanel">
+      <div class="chat-panel-empty" id="chatEmpty">
+        <div>
+          <i class='bx bx-message-rounded'></i>
+          <h3>Selecione uma conversa</h3>
+          <p>Escolha uma conversa da lista ao lado para começar a conversar</p>
+        </div>
+      </div>
+
+      <div id="chatActive" style="display: none; flex-direction: column; height: 100%;">
+        <!-- Informações da Conversa -->
+        <div class="chat-info">
+          <h3 id="chatInfoNome">-</h3>
+          <div class="chat-info-details" style="display: flex; flex-direction: column; gap: 8px;">
+            <div><i class='bx bx-map'></i> <strong id="chatInfoViagem">-</strong></div>
+            <div><i class='bx bx-user'></i> Motorista: <strong id="chatInfoMotorista">-</strong></div>
+          </div>
+        </div>
+
+        <!-- Mensagens -->
+        <div class="chat-messages" id="chatMessages">
+          <!-- Será preenchido dinamicamente -->
+        </div>
+
+        <!-- Input de Mensagem -->
+        <div class="chat-input-area">
+          <div class="chat-input-wrapper">
+            <textarea 
+              id="chatInput" 
+              class="chat-input" 
+              placeholder="Digite sua mensagem..."
+              rows="1"
+              onkeydown="handleChatInputKeydown(event)"
+            ></textarea>
+            <button class="btn-send" id="btnEnviar" onclick="enviarMensagem()">
+              <i class='bx bx-send'></i> Enviar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Loading Overlay -->
+<div id="loadingOverlay" class="loading-overlay">
+  <div class="spinner"></div>
+  <p>Carregando conversas...</p>
+</div>
+
+<!-- Modal de Ajuda -->
+<div id="modalAjuda" class="modal-tratamento" style="display: none;">
+  <div class="modal-content-tratamento" style="max-width: 800px;">
+    <div class="modal-header-tratamento">
+      <h3><i class='bx bx-help-circle'></i> Como Funciona o Chat</h3>
+      <button class="close-modal" onclick="fecharModalAjuda()">
+        <i class='bx bx-x'></i>
+      </button>
+    </div>
+    <div id="modalAjudaContent" style="max-height: 70vh; overflow-y: auto; padding-right: 10px;">
+      <!-- Conteúdo será preenchido dinamicamente -->
+    </div>
+  </div>
+</div>
+
+<script src="/modulos/chat/js/script.js"></script>

@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configurações de Notificações - Motorista</title>
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <link rel="stylesheet" href="../css/design-system.css">
+  <style>
+    .config-section {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .config-section-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .config-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .config-item:last-child {
+      border-bottom: none;
+    }
+
+    .config-item-label {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .config-item-icon {
+      font-size: 20px;
+    }
+
+    .config-item-text {
+      flex: 1;
+    }
+
+    .config-item-title {
+      font-weight: 600;
+      color: #333;
+      font-size: 15px;
+      margin-bottom: 2px;
+    }
+
+    .config-item-desc {
+      font-size: 12px;
+      color: #999;
+    }
+
+    .toggle-switch {
+      position: relative;
+      width: 50px;
+      height: 28px;
+      background: #ccc;
+      border-radius: 14px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .toggle-switch.active {
+      background: #667eea;
+    }
+
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: white;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.3s;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    .toggle-switch.active::after {
+      transform: translateX(22px);
+    }
+
+    .btn-testar {
+      margin-top: 16px;
+      padding: 10px 20px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    .btn-testar:hover {
+      background: #5568d3;
+    }
+
+    .status-permissao {
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-top: 8px;
+    }
+
+    .status-permissao.granted {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .status-permissao.denied {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    .status-permissao.default {
+      background: #fff3cd;
+      color: #856404;
+    }
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
+    <h1>Configurações de Notificações</h1>
+  </div>
+
+  <div class="container">
+    <!-- Permissões -->
+    <div class="config-section">
+      <div class="config-section-title">🔔 Permissões</div>
+      <div id="statusPermissao" class="status-permissao default">
+        Verificando permissões...
+      </div>
+      <button id="btnSolicitarPermissao" class="btn-testar" style="display: none;">
+        Solicitar Permissão de Notificações
+      </button>
+    </div>
+
+    <!-- Notificações Gerais -->
+    <div class="config-section">
+      <div class="config-section-title">⚙️ Notificações Gerais</div>
+      
+      <div class="config-item">
+        <div class="config-item-label">
+          <div class="config-item-text">
+            <div class="config-item-title">Notificações Push</div>
+            <div class="config-item-desc">Receber notificações quando o app está fechado</div>
+          </div>
+        </div>
+        <div class="toggle-switch" id="togglePush" onclick="toggleConfig('push')"></div>
+      </div>
+
+      <div class="config-item">
+        <div class="config-item-label">
+          <div class="config-item-text">
+            <div class="config-item-title">Notificações In-App</div>
+            <div class="config-item-desc">Mostrar notificações quando o app está aberto</div>
+          </div>
+        </div>
+        <div class="toggle-switch" id="toggleInApp" onclick="toggleConfig('inApp')"></div>
+      </div>
+
+      <div class="config-item">
+        <div class="config-item-label">
+          <div class="config-item-text">
+            <div class="config-item-title">Som de Notificação</div>
+            <div class="config-item-desc">Tocar som ao receber notificações</div>
+          </div>
+        </div>
+        <div class="toggle-switch" id="toggleSom" onclick="toggleConfig('som')"></div>
+      </div>
+
+      <div class="config-item">
+        <div class="config-item-label">
+          <div class="config-item-text">
+            <div class="config-item-title">Vibração</div>
+            <div class="config-item-desc">Vibrar ao receber notificações (se disponível)</div>
+          </div>
+        </div>
+        <div class="toggle-switch" id="toggleVibrar" onclick="toggleConfig('vibrar')"></div>
+      </div>
+    </div>
+
+    <!-- Tipos de Notificação -->
+    <div class="config-section">
+      <div class="config-section-title">📱 Tipos de Notificação</div>
+      
+      <div class="config-item">
+        <div class="config-item-label">
+          <span class="config-item-icon">💬</span>
+          <div class="config-item-text">
+            <div class="config-item-title">Mensagens do Chat</div>
+            <div class="config-item-desc">Notificações de novas mensagens do operador</div>
+          </div>
+        </div>
+        <div class="toggle-switch" id="toggleChat" onclick="toggleTipo('chat')"></div>
+      </div>
+
+      <div class="config-item">
+        <div class="config-item-label">
+          <span class="config-item-icon">🆘</span>
+          <div class="config-item-text">
+            <div class="config-item-title">SOS / Emergência</div>
+            <div class="config-item-desc">Alertas de emergência e SOS</div>
+          </div>
+        </div>
+        <div class="toggle-switch" id="toggleSos" onclick="toggleTipo('sos')"></div>
+      </div>
+
+      <div class="config-item">
+        <div class="config-item-label">
+          <span class="config-item-icon">⚠️</span>
+          <div class="config-item-text">
+            <div class="config-item-title">Alertas</div>
+            <div class="config-item-desc">Alertas gerais do sistema</div>
+          </div>
+        </div>
+        <div class="toggle-switch" id="toggleAlerta" onclick="toggleTipo('alerta')"></div>
+      </div>
+
+      <div class="config-item">
+        <div class="config-item-label">
+          <span class="config-item-icon">📋</span>
+          <div class="config-item-text">
+            <div class="config-item-title">Convocações</div>
+            <div class="config-item-desc">Notificações de novas convocações</div>
+          </div>
+        </div>
+        <div class="toggle-switch" id="toggleConvocacao" onclick="toggleTipo('convocacao')"></div>
+      </div>
+
+      <div class="config-item">
+        <div class="config-item-label">
+          <span class="config-item-icon">🚛</span>
+          <div class="config-item-text">
+            <div class="config-item-title">Viagens</div>
+            <div class="config-item-desc">Atualizações sobre viagens</div>
+          </div>
+        </div>
+        <div class="toggle-switch" id="toggleViagem" onclick="toggleTipo('viagem')"></div>
+      </div>
+
+      <div class="config-item">
+        <div class="config-item-label">
+          <span class="config-item-icon">📍</span>
+          <div class="config-item-text">
+            <div class="config-item-title">GPS</div>
+            <div class="config-item-desc">Notificações relacionadas ao GPS</div>
+          </div>
+        </div>
+        <div class="toggle-switch" id="toggleGps" onclick="toggleTipo('gps')"></div>
+      </div>
+    </div>
+
+    <!-- Testar -->
+    <div class="config-section">
+      <div class="config-section-title">🧪 Testar Notificações</div>
+      <button class="btn-testar" onclick="testarNotificacao('chat')">Testar Notificação de Chat</button>
+      <button class="btn-testar" onclick="testarNotificacao('sos')">Testar Notificação de SOS</button>
+      <button class="btn-testar" onclick="testarNotificacao('alerta')">Testar Notificação de Alerta</button>
+    </div>
+  </div>
+
+  <script src="../js/notifications.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/notifications-service.js"></script>
+  
+  <script>
+    (function() {
+      if (!verificarAuth()) {
+        window.location.href = '../index.html';
+        return;
+      }
+
+      let config = {};
+
+      // Carregar configurações
+      function carregarConfig() {
+      if (window.NotificacoesService) {
+        config = window.NotificacoesService.getConfig();
+        atualizarUI();
+      } else {
+        console.error('NotificacoesService não disponível');
+      }
+    }
+
+      // Atualizar UI
+      function atualizarUI() {
+      // Toggles gerais
+      document.getElementById('togglePush').classList.toggle('active', config.push);
+      document.getElementById('toggleInApp').classList.toggle('active', config.inApp);
+      document.getElementById('toggleSom').classList.toggle('active', config.som);
+      document.getElementById('toggleVibrar').classList.toggle('active', config.vibrar);
+
+      // Toggles de tipos
+      document.getElementById('toggleChat').classList.toggle('active', config.tipos.chat);
+      document.getElementById('toggleSos').classList.toggle('active', config.tipos.sos);
+      document.getElementById('toggleAlerta').classList.toggle('active', config.tipos.alerta);
+      document.getElementById('toggleConvocacao').classList.toggle('active', config.tipos.convocacao);
+      document.getElementById('toggleViagem').classList.toggle('active', config.tipos.viagem);
+      document.getElementById('toggleGps').classList.toggle('active', config.tipos.gps);
+
+      // Status de permissão
+      atualizarStatusPermissao();
+    }
+
+      // Atualizar status de permissão
+      async function atualizarStatusPermissao() {
+      const statusEl = document.getElementById('statusPermissao');
+      const btnEl = document.getElementById('btnSolicitarPermissao');
+
+      if (!('Notification' in window)) {
+        statusEl.textContent = 'Navegador não suporta notificações';
+        statusEl.className = 'status-permissao denied';
+        btnEl.style.display = 'none';
+        return;
+      }
+
+      const permission = Notification.permission;
+      
+      if (permission === 'granted') {
+        statusEl.textContent = '✅ Permissão concedida';
+        statusEl.className = 'status-permissao granted';
+        btnEl.style.display = 'none';
+      } else if (permission === 'denied') {
+        statusEl.textContent = '❌ Permissão negada. Ative nas configurações do navegador.';
+        statusEl.className = 'status-permissao denied';
+        btnEl.style.display = 'none';
+      } else {
+        statusEl.textContent = '⚠️ Permissão não solicitada';
+        statusEl.className = 'status-permissao default';
+        btnEl.style.display = 'block';
+      }
+    }
+
+    // Solicitar permissão
+    document.getElementById('btnSolicitarPermissao').addEventListener('click', async () => {
+      if (window.NotificacoesService) {
+        const granted = await window.NotificacoesService.solicitarPermissaoPush();
+        if (granted) {
+          mostrarToast('Permissão concedida!', 'success');
+        } else {
+          mostrarToast('Permissão negada', 'error');
+        }
+        atualizarStatusPermissao();
+      }
+    });
+
+      // Toggle configuração geral
+      function toggleConfig(chave) {
+      config[chave] = !config[chave];
+      window.NotificacoesService.saveConfig(config);
+      atualizarUI();
+      mostrarToast(`${chave === 'push' ? 'Push' : chave === 'inApp' ? 'In-App' : chave === 'som' ? 'Som' : 'Vibração'} ${config[chave] ? 'ativado' : 'desativado'}`, 'info');
+    }
+
+      // Toggle tipo
+      function toggleTipo(tipo) {
+      config.tipos[tipo] = !config.tipos[tipo];
+      window.NotificacoesService.saveConfig(config);
+      atualizarUI();
+      
+      const nomes = {
+        chat: 'Chat',
+        sos: 'SOS',
+        alerta: 'Alertas',
+        convocacao: 'Convocações',
+        viagem: 'Viagens',
+        gps: 'GPS'
+      };
+      
+      mostrarToast(`Notificações de ${nomes[tipo]} ${config.tipos[tipo] ? 'ativadas' : 'desativadas'}`, 'info');
+    }
+
+      // Testar notificação
+      function testarNotificacao(tipo) {
+      if (!window.NotificacoesService) {
+        mostrarToast('Serviço de notificações não disponível', 'error');
+        return;
+      }
+
+      const mensagens = {
+        chat: { titulo: 'Nova Mensagem', texto: 'Esta é uma mensagem de teste do chat' },
+        sos: { titulo: 'Alerta de SOS', texto: 'Este é um teste de notificação de emergência' },
+        alerta: { titulo: 'Alerta do Sistema', texto: 'Esta é uma notificação de alerta de teste' }
+      };
+
+      const msg = mensagens[tipo] || mensagens.alerta;
+      
+      window.NotificacoesService.mostrar(
+        msg.titulo,
+        msg.texto,
+        window.NotificacoesService.TIPOS[tipo.toUpperCase()] || window.NotificacoesService.TIPOS.GERAL,
+        { teste: true }
+      );
+
+      mostrarToast('Notificação de teste enviada!', 'success');
+    }
+
+      // Voltar
+      function voltar() {
+        window.location.href = 'dashboard.html';
+      }
+
+      // Expor funções no escopo global para onclick do HTML
+      window.toggleConfig = toggleConfig;
+      window.toggleTipo = toggleTipo;
+      window.testarNotificacao = testarNotificacao;
+      window.voltar = voltar;
+
+      // Inicializar
+      carregarConfig();
+    })();
+  </script>
+</body>
+</html>

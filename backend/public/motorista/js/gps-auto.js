@@ -25,7 +25,24 @@ function iniciarGPSAutomatico() {
   // Se não está ativo, sair
   if (!ativo || !motorista) {
     console.log('❌ GPS automático não iniciado');
+    // Limpar estatísticas se desativado
+    contadorEnvios = 0;
+    ultimoEnvio = null;
+    proximoEnvio = null;
     return;
+  }
+
+  // Carregar estatísticas do localStorage
+  contadorEnvios = parseInt(localStorage.getItem('gps_contador') || '0');
+  const ultimoEnvioStr = localStorage.getItem('gps_ultimo_envio');
+  ultimoEnvio = ultimoEnvioStr ? new Date(ultimoEnvioStr) : null;
+  const proximoEnvioStr = localStorage.getItem('gps_proximo_envio');
+  proximoEnvio = proximoEnvioStr ? new Date(proximoEnvioStr) : null;
+  
+  // Se não tem próximo envio mas tem último, calcular
+  if (!proximoEnvio && ultimoEnvio) {
+    proximoEnvio = new Date(ultimoEnvio.getTime() + (intervalo * 60 * 1000));
+    localStorage.setItem('gps_proximo_envio', proximoEnvio.toISOString());
   }
 
   // Enviar primeira posição imediatamente
@@ -39,6 +56,7 @@ function iniciarGPSAutomatico() {
   }, intervaloMs);
 
   console.log(`✅ GPS automático iniciado! Enviando a cada ${intervalo} min`);
+  console.log(`📊 Estatísticas: ${contadorEnvios} envios, próximo em ${proximoEnvio ? proximoEnvio.toLocaleTimeString() : 'calculando...'}`);
 }
 
 // Enviar posição automaticamente
@@ -263,12 +281,57 @@ function pararGPSAutomatico() {
 
 // Obter estatísticas
 function obterEstatisticasGPS() {
+  // Carregar valores do localStorage
+  const contadorSalvo = parseInt(localStorage.getItem('gps_contador') || '0');
+  const ultimoEnvioStr = localStorage.getItem('gps_ultimo_envio');
+  const proximoEnvioStr = localStorage.getItem('gps_proximo_envio');
+  
+  // Converter strings para Date
+  let ultimoEnvioSalvo = null;
+  if (ultimoEnvioStr) {
+    try {
+      ultimoEnvioSalvo = new Date(ultimoEnvioStr);
+      if (isNaN(ultimoEnvioSalvo.getTime())) {
+        ultimoEnvioSalvo = null;
+      }
+    } catch (e) {
+      ultimoEnvioSalvo = null;
+    }
+  }
+  
+  let proximoEnvioSalvo = null;
+  if (proximoEnvioStr) {
+    try {
+      proximoEnvioSalvo = new Date(proximoEnvioStr);
+      if (isNaN(proximoEnvioSalvo.getTime())) {
+        proximoEnvioSalvo = null;
+      }
+    } catch (e) {
+      proximoEnvioSalvo = null;
+    }
+  }
+  
+  // Usar variáveis globais se existirem e forem mais recentes, senão usar localStorage
+  const contadorFinal = contadorEnvios > 0 ? contadorEnvios : contadorSalvo;
+  const ultimoEnvioFinal = ultimoEnvio || ultimoEnvioSalvo;
+  const proximoEnvioFinal = proximoEnvio || proximoEnvioSalvo;
+  
+  // Se não tem próximo envio mas tem último, calcular
+  let proximoCalculado = proximoEnvioFinal;
+  if (!proximoCalculado && ultimoEnvioFinal) {
+    const intervalo = parseInt(localStorage.getItem('gps_intervalo') || '5');
+    const ultimoDate = ultimoEnvioFinal instanceof Date ? ultimoEnvioFinal : new Date(ultimoEnvioFinal);
+    if (!isNaN(ultimoDate.getTime())) {
+      proximoCalculado = new Date(ultimoDate.getTime() + (intervalo * 60 * 1000));
+    }
+  }
+  
   return {
     ativo: localStorage.getItem('gps_ativo') === 'true',
     intervalo: parseInt(localStorage.getItem('gps_intervalo') || '5'),
-    contador: parseInt(localStorage.getItem('gps_contador') || '0'),
-    ultimoEnvio: localStorage.getItem('gps_ultimo_envio') ? new Date(localStorage.getItem('gps_ultimo_envio')) : null,
-    proximoEnvio: localStorage.getItem('gps_proximo_envio') ? new Date(localStorage.getItem('gps_proximo_envio')) : null,
+    contador: contadorFinal,
+    ultimoEnvio: ultimoEnvioFinal,
+    proximoEnvio: proximoCalculado,
   };
 }
 

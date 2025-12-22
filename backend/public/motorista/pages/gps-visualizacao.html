@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Visualização GPS - Motorista</title>
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <link rel="stylesheet" href="../css/design-system.css">
+  <!-- Leaflet (OpenStreetMap) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="../../js/map-config.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    .gps-container {
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 120px);
+      gap: 16px;
+    }
+    
+    .map-container {
+      flex: 1;
+      min-height: 300px;
+      background: #f0f0f0;
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+    }
+    
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+    
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+    
+    .stat-card {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    
+    .stat-label {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 8px;
+    }
+    
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: #333;
+    }
+    
+    .stat-unit {
+      font-size: 14px;
+      color: #999;
+      margin-left: 4px;
+    }
+    
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+    
+    .tab {
+      padding: 12px 20px;
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      font-size: 14px;
+      font-weight: 600;
+      color: #666;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .tab.active {
+      color: #667eea;
+      border-bottom-color: #667eea;
+    }
+    
+    .tab-content {
+      display: none;
+    }
+    
+    .tab-content.active {
+      display: block;
+    }
+    
+    .historico-list {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+    
+    .historico-item {
+      padding: 12px;
+      border-bottom: 1px solid #f0f0f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .historico-item:last-child {
+      border-bottom: none;
+    }
+    
+    .historico-info {
+      flex: 1;
+    }
+    
+    .historico-coords {
+      font-size: 12px;
+      color: #999;
+      margin-top: 4px;
+    }
+    
+    .historico-hora {
+      font-size: 12px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <div id="statusIndicador" class="status-bar status-online">🟢 Online - Sincronizado</div>
+
+  <div class="navbar">
+    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
+    <h1>🗺️ Visualização GPS</h1>
+  </div>
+
+  <div class="container">
+    <div class="gps-container">
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab active" onclick="mostrarTab('mapa')">📍 Mapa</button>
+        <button class="tab" onclick="mostrarTab('historico')">📊 Histórico</button>
+        <button class="tab" onclick="mostrarTab('estatisticas')">📈 Estatísticas</button>
+      </div>
+
+      <!-- Tab: Mapa -->
+      <div id="tab-mapa" class="tab-content active">
+        <div class="map-container">
+          <div id="map"></div>
+        </div>
+        
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">📍 Última Posição</div>
+            <div class="stat-value" id="ultimaPosicao">-</div>
+          </div>
+          
+          <div class="stat-card">
+            <div class="stat-label">⏱️ Tempo Estimado</div>
+            <div class="stat-value" id="tempoEstimado">-</div>
+          </div>
+          
+          <div class="stat-card">
+            <div class="stat-label">📏 Distância Percorrida</div>
+            <div class="stat-value" id="distanciaPercorrida">-</div>
+          </div>
+          
+          <div class="stat-card">
+            <div class="stat-label">🚗 Velocidade Média</div>
+            <div class="stat-value" id="velocidadeMedia">-</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Histórico -->
+      <div id="tab-historico" class="tab-content">
+        <div class="historico-list" id="historicoList">
+          <div class="loading">
+            <div class="spinner"></div>
+            <p>Carregando histórico...</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab: Estatísticas -->
+      <div id="tab-estatisticas" class="tab-content">
+        <div class="stats-grid" style="grid-template-columns: 1fr;">
+          <div class="stat-card">
+            <div class="stat-label">📊 Total de Posições</div>
+            <div class="stat-value" id="totalPosicoes">-</div>
+          </div>
+          
+          <div class="stat-card">
+            <div class="stat-label">⏱️ Tempo Total</div>
+            <div class="stat-value" id="tempoTotal">-</div>
+          </div>
+          
+          <div class="stat-card">
+            <div class="stat-label">🚗 Velocidade Máxima</div>
+            <div class="stat-value" id="velocidadeMaxima">-</div>
+          </div>
+          
+          <div class="stat-card">
+            <div class="stat-label">📍 Primeira Posição</div>
+            <div class="stat-value" id="primeiraPosicao" style="font-size: 14px;">-</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/notifications.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/offline.js"></script>
+  
+  <script>
+    if (!verificarAuth()) window.location.href = '../index.html';
+
+    const motorista = getMotorista();
+    const token = localStorage.getItem('token');
+    let idViagem = null;
+    let map = null;
+    let markers = [];
+    let routePolyline = null;
+    let posicoesGPS = [];
+
+    // Obter ID da viagem da URL
+    const params = new URLSearchParams(window.location.search);
+    idViagem = params.get('viagem');
+
+    if (!idViagem) {
+      mostrarToast('Viagem não especificada. Redirecionando...', 'error');
+      setTimeout(() => {
+        window.location.href = 'viagens.html';
+      }, 2000);
+    }
+
+    window.voltar = function() {
+      window.location.href = 'viagens.html';
+    };
+
+    function mostrarTab(tabName) {
+      // Esconder todas as tabs
+      document.querySelectorAll('.tab-content').forEach(tab => {
+        tab.classList.remove('active');
+      });
+      document.querySelectorAll('.tab').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      
+      // Mostrar tab selecionada
+      document.getElementById(`tab-${tabName}`).classList.add('active');
+      event.target.classList.add('active');
+      
+      // Se for mapa, redimensionar
+      if (tabName === 'mapa' && map) {
+        setTimeout(() => {
+          map.invalidateSize();
+        }, 100);
+      }
+    }
+
+    // Inicializar mapa com Leaflet
+    function inicializarMapa() {
+      if (typeof L === 'undefined') {
+        console.warn('⚠️ Leaflet não carregado. Usando visualização alternativa.');
+        document.getElementById('map').innerHTML = `
+          <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666; flex-direction: column; padding: 20px;">
+            <div style="text-align: center;">
+              <div style="font-size: 48px; margin-bottom: 16px;">🗺️</div>
+              <div style="font-weight: 600; margin-bottom: 8px;">Carregando mapa...</div>
+            </div>
+          </div>
+        `;
+        // Tentar novamente após um delay
+        setTimeout(inicializarMapa, 1000);
+        return;
+      }
+
+      // Posição padrão (Brasil)
+      map = L.map('map').setView([-14.2350, -51.9253], 10);
+
+      // IMPORTANTE: Usar APENAS getTileServerUrl() do map-config.js
+      console.log('🗺️ [GPS] Inicializando mapa...');
+      console.log('🗺️ [GPS] MAP_CONFIG disponível:', !!window.MAP_CONFIG);
+      console.log('🗺️ [GPS] getTileServerUrl disponível:', typeof window.getTileServerUrl === 'function');
+      
+      let tileServer = window.getTileServerUrl ? window.getTileServerUrl() : (window.MAP_CONFIG?.tileServer || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+      console.log('🗺️ [GPS] Tile server selecionado:', tileServer);
+      
+      const tileOptions = {
+        attribution: window.MAP_CONFIG?.attribution || '© OpenStreetMap contributors',
+        maxZoom: window.MAP_CONFIG?.maxZoom || 19,
+        crossOrigin: true
+      };
+      
+      // Se usar servidor OpenStreetMap com {s}, adicionar subdomínios
+      if (tileServer.includes('{s}')) {
+        tileOptions.subdomains = ['a', 'b', 'c'];
+        console.log('🗺️ [GPS] Adicionando subdomínios para OpenStreetMap');
+      }
+      
+      const tileLayer = L.tileLayer(tileServer, tileOptions);
+      console.log('✅ [GPS] TileLayer adicionado ao mapa');
+      
+      tileLayer.addTo(map);
+      
+      // Log de erros de tiles
+      tileLayer.on('tileerror', (error, tile) => {
+        console.error('❌ [GPS] Erro ao carregar tile:', error, tile?.src);
+      });
+      
+      tileLayer.on('tileload', (event) => {
+        console.log('✅ [GPS] Tile carregado:', event.tile.src);
+      });
+
+      carregarPosicoes();
+    }
+
+    // Carregar posições GPS
+    async function carregarPosicoes() {
+      try {
+        const response = await fetch(`/api/motorista/posicoes/${idViagem}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error(`Erro ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        posicoesGPS = data.posicoes || [];
+
+        if (posicoesGPS.length === 0) {
+          document.getElementById('map').innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">
+              <div style="text-align: center;">
+                <div style="font-size: 48px; margin-bottom: 16px;">📍</div>
+                <div>Nenhuma posição GPS encontrada</div>
+                <div style="font-size: 12px; margin-top: 8px;">Aguardando envio de posições...</div>
+              </div>
+            </div>
+          `;
+          atualizarEstatisticas();
+          return;
+        }
+
+        // Renderizar no mapa
+        renderizarMapa();
+        
+        // Renderizar histórico
+        renderizarHistorico();
+        
+        // Atualizar estatísticas
+        atualizarEstatisticas();
+        
+      } catch (err) {
+        console.error('Erro ao carregar posições:', err);
+        mostrarToast('Erro ao carregar posições GPS', 'error');
+      }
+    }
+
+    // Renderizar mapa com Leaflet
+    function renderizarMapa() {
+      if (!map || posicoesGPS.length === 0) return;
+
+      // Limpar marcadores anteriores
+      markers.forEach(marker => map.removeLayer(marker));
+      markers = [];
+      
+      if (routePolyline) {
+        map.removeLayer(routePolyline);
+      }
+
+      // Criar array de coordenadas para a rota
+      const routeCoordinates = [];
+      const bounds = [];
+
+      posicoesGPS.forEach((pos, index) => {
+        const lat = parseFloat(pos.LATITUDE);
+        const lng = parseFloat(pos.LONGITUDE);
+        
+        if (isNaN(lat) || isNaN(lng)) return;
+
+        const position = [lat, lng];
+        routeCoordinates.push(position);
+        bounds.push(position);
+
+        // Criar marcador
+        const isUltima = index === 0; // Primeira é a mais recente
+        const marker = L.marker(position, {
+          title: `Posição ${posicoesGPS.length - index}`
+        });
+
+        // Popup com informações
+        const popupContent = `
+          <div style="padding: 8px; min-width: 150px;">
+            <strong>Posição ${posicoesGPS.length - index}</strong><br>
+            <small>${new Date(pos.DHPOSICAO || pos.DHREGISTRO).toLocaleString('pt-BR')}</small><br>
+            ${pos.VELOCIDADE ? `<small>Velocidade: ${parseFloat(pos.VELOCIDADE).toFixed(1)} km/h</small>` : ''}
+          </div>
+        `;
+        marker.bindPopup(popupContent);
+        marker.addTo(map);
+
+        // Estilo especial para última posição
+        if (isUltima) {
+          const circle = L.circleMarker(position, {
+            radius: 10,
+            fillColor: '#e74c3c',
+            color: '#fff',
+            weight: 2,
+            opacity: 1,
+            fillOpacity: 1
+          }).addTo(map);
+          markers.push(circle);
+        }
+
+        markers.push(marker);
+      });
+
+      // Desenhar rota
+      if (routeCoordinates.length > 1) {
+        routePolyline = L.polyline(routeCoordinates, {
+          color: '#667eea',
+          weight: 4,
+          opacity: 0.8,
+          smoothFactor: 1
+        }).addTo(map);
+      }
+
+      // Ajustar zoom para mostrar toda a rota
+      if (bounds.length > 0) {
+        const boundsGroup = L.latLngBounds(bounds);
+        map.fitBounds(boundsGroup, { padding: [20, 20] });
+        
+        // Se houver apenas uma posição, definir zoom manual
+        if (bounds.length === 1) {
+          map.setZoom(15);
+          map.setView(bounds[0]);
+        }
+      }
+
+      // Atualizar última posição
+      if (posicoesGPS.length > 0) {
+        const ultima = posicoesGPS[0];
+        const hora = new Date(ultima.DHPOSICAO || ultima.DHREGISTRO).toLocaleTimeString('pt-BR', {
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        document.getElementById('ultimaPosicao').textContent = hora;
+      }
+    }
+
+    // Renderizar histórico
+    function renderizarHistorico() {
+      const container = document.getElementById('historicoList');
+      
+      if (posicoesGPS.length === 0) {
+        container.innerHTML = `
+          <div style="text-align: center; padding: 40px; color: #999;">
+            <div style="font-size: 48px; margin-bottom: 16px;">📍</div>
+            <p>Nenhuma posição registrada</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = posicoesGPS.map((pos, index) => {
+        const lat = parseFloat(pos.LATITUDE).toFixed(6);
+        const lng = parseFloat(pos.LONGITUDE).toFixed(6);
+        const hora = new Date(pos.DHPOSICAO || pos.DHREGISTRO).toLocaleString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+        const velocidade = pos.VELOCIDADE ? `${parseFloat(pos.VELOCIDADE).toFixed(1)} km/h` : 'N/A';
+        const isUltima = index === 0;
+
+        return `
+          <div class="historico-item" ${isUltima ? 'style="background: #f0f7ff; border-left: 4px solid #667eea;"' : ''}>
+            <div class="historico-info">
+              <div style="font-weight: 600; color: #333;">
+                ${isUltima ? '📍 ' : ''}Posição ${posicoesGPS.length - index}
+              </div>
+              <div class="historico-coords">${lat}, ${lng}</div>
+              ${pos.VELOCIDADE ? `<div style="font-size: 12px; color: #667eea; margin-top: 4px;">🚗 ${velocidade}</div>` : ''}
+            </div>
+            <div class="historico-hora">${hora}</div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Calcular estatísticas
+    function atualizarEstatisticas() {
+      if (posicoesGPS.length === 0) {
+        document.getElementById('totalPosicoes').textContent = '0';
+        document.getElementById('distanciaPercorrida').textContent = '0 km';
+        document.getElementById('velocidadeMedia').textContent = '0 km/h';
+        document.getElementById('tempoEstimado').textContent = '-';
+        document.getElementById('tempoTotal').textContent = '-';
+        document.getElementById('velocidadeMaxima').textContent = '0 km/h';
+        document.getElementById('primeiraPosicao').textContent = '-';
+        return;
+      }
+
+      // Total de posições
+      document.getElementById('totalPosicoes').textContent = posicoesGPS.length;
+
+      // Primeira e última posição
+      const primeira = posicoesGPS[posicoesGPS.length - 1];
+      const ultima = posicoesGPS[0];
+      
+      const primeiraHora = new Date(primeira.DHPOSICAO || primeira.DHREGISTRO).toLocaleString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      document.getElementById('primeiraPosicao').textContent = primeiraHora;
+
+      // Calcular distância total
+      let distanciaTotal = 0;
+      for (let i = 1; i < posicoesGPS.length; i++) {
+        const prev = posicoesGPS[i];
+        const curr = posicoesGPS[i - 1];
+        
+        if (prev.LATITUDE && prev.LONGITUDE && curr.LATITUDE && curr.LONGITUDE) {
+          const dist = calcularDistancia(
+            parseFloat(prev.LATITUDE),
+            parseFloat(prev.LONGITUDE),
+            parseFloat(curr.LATITUDE),
+            parseFloat(curr.LONGITUDE)
+          );
+          distanciaTotal += dist;
+        }
+      }
+      
+      document.getElementById('distanciaPercorrida').innerHTML = 
+        `${distanciaTotal.toFixed(2)}<span class="stat-unit"> km</span>`;
+
+      // Calcular velocidade média
+      const velocidades = posicoesGPS
+        .filter(p => p.VELOCIDADE)
+        .map(p => parseFloat(p.VELOCIDADE));
+      
+      if (velocidades.length > 0) {
+        const velocidadeMedia = velocidades.reduce((a, b) => a + b, 0) / velocidades.length;
+        document.getElementById('velocidadeMedia').innerHTML = 
+          `${velocidadeMedia.toFixed(1)}<span class="stat-unit"> km/h</span>`;
+        
+        const velocidadeMax = Math.max(...velocidades);
+        document.getElementById('velocidadeMaxima').innerHTML = 
+          `${velocidadeMax.toFixed(1)}<span class="stat-unit"> km/h</span>`;
+      } else {
+        document.getElementById('velocidadeMedia').textContent = 'N/A';
+        document.getElementById('velocidadeMaxima').textContent = 'N/A';
+      }
+
+      // Calcular tempo total
+      const primeiraData = new Date(primeira.DHPOSICAO || primeira.DHREGISTRO);
+      const ultimaData = new Date(ultima.DHPOSICAO || ultima.DHREGISTRO);
+      const tempoTotalMs = ultimaData - primeiraData;
+      const horas = Math.floor(tempoTotalMs / 3600000);
+      const minutos = Math.floor((tempoTotalMs % 3600000) / 60000);
+      
+      document.getElementById('tempoTotal').innerHTML = 
+        horas > 0 ? `${horas}h ${minutos}min` : `${minutos}min`;
+
+      // Tempo estimado de chegada (precisa de destino da viagem)
+      calcularTempoEstimado();
+    }
+
+    // Calcular distância entre dois pontos (fórmula de Haversine)
+    function calcularDistancia(lat1, lon1, lat2, lon2) {
+      const R = 6371; // Raio da Terra em km
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = 
+        Math.sin(dLat/2) * Math.sin(dLat/2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
+
+    // Calcular tempo estimado de chegada
+    async function calcularTempoEstimado() {
+      try {
+        if (posicoesGPS.length === 0) {
+          document.getElementById('tempoEstimado').textContent = 'N/A';
+          return;
+        }
+
+        // Buscar dados da viagem para obter destino
+        const response = await fetch(`/api/motorista/viagem/${idViagem}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          let viagem = await response.json();
+          
+          // Verificar se é um objeto com dados ou o objeto direto
+          if (viagem.dados) {
+            viagem = viagem.dados;
+          }
+          
+          // Obter coordenadas do destino diretamente da viagem
+          let destinoLat = null;
+          let destinoLng = null;
+          
+          if (viagem.DESTINO_LATITUDE && viagem.DESTINO_LONGITUDE) {
+            destinoLat = parseFloat(viagem.DESTINO_LATITUDE);
+            destinoLng = parseFloat(viagem.DESTINO_LONGITUDE);
+          }
+          
+          // Se tiver destino, calcular
+          if (destinoLat && destinoLng && posicoesGPS.length > 0) {
+            const ultima = posicoesGPS[0];
+            const distanciaRestante = calcularDistancia(
+              parseFloat(ultima.LATITUDE),
+              parseFloat(ultima.LONGITUDE),
+              destinoLat,
+              destinoLng
+            );
+            
+            // Calcular velocidade média das últimas 5 posições
+            const ultimas5 = posicoesGPS.slice(0, 5).filter(p => p.VELOCIDADE);
+            if (ultimas5.length > 0) {
+              const velMedia = ultimas5.reduce((sum, p) => sum + parseFloat(p.VELOCIDADE), 0) / ultimas5.length;
+              
+              if (velMedia > 0 && distanciaRestante > 0) {
+                const tempoHoras = distanciaRestante / velMedia;
+                const horas = Math.floor(tempoHoras);
+                const minutos = Math.floor((tempoHoras - horas) * 60);
+                
+                document.getElementById('tempoEstimado').innerHTML = 
+                  horas > 0 ? `${horas}h ${minutos}min` : `${minutos}min`;
+              } else {
+                document.getElementById('tempoEstimado').textContent = 'Calculando...';
+              }
+            } else {
+              document.getElementById('tempoEstimado').textContent = 'N/A';
+            }
+          } else {
+            document.getElementById('tempoEstimado').textContent = 'N/A';
+          }
+        } else {
+          document.getElementById('tempoEstimado').textContent = 'N/A';
+        }
+      } catch (err) {
+        console.warn('Erro ao calcular tempo estimado:', err);
+        document.getElementById('tempoEstimado').textContent = 'N/A';
+      }
+    }
+
+    // Inicializar
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
+        inicializarMapa();
+      });
+    } else {
+      inicializarMapa();
+    }
+
+    // Atualizar a cada 30 segundos
+    setInterval(carregarPosicoes, 30000);
+  </script>
+</body>
+</html>

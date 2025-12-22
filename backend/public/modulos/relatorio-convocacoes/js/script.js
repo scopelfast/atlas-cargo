@@ -8,6 +8,7 @@
   let dadosAtuais = null;
   let listaOrdenada = [];
   let ordemAtual = { coluna: null, direcao: 'asc' };
+  let initExecutado = false;
 
   // Carregar motivos de recusa
   async function carregarMotivosRecusa() {
@@ -58,8 +59,11 @@
 
   // Inicialização
   async function init() {
+    if (initExecutado) return;
+    initExecutado = true;
+    
     // Aguardar um pouco para garantir que scripts externos carregaram
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 200));
     
     // Verificar se Chart.js está disponível
     if (typeof Chart === 'undefined') {
@@ -222,41 +226,41 @@
     }
 
     container.innerHTML = `
-      <div class="card" style="border: 2px solid #667eea; background: linear-gradient(135deg, #f8f9ff 0%, #e8ebff 100%);">
-        <div class="card-title">Total de Viagens</div>
-        <div class="card-value" style="color: #667eea; font-size: 2em; font-weight: 700;">${estatisticas.TOTAL_VIAGENS || 0}</div>
+      <div class="stat-card total-viagens">
+        <div class="stat-label">Total de Viagens</div>
+        <div class="stat-value">${estatisticas.TOTAL_VIAGENS || 0}</div>
       </div>
-      <div class="card">
-        <div class="card-title">Total</div>
-        <div class="card-value total">${estatisticas.TOTAL || 0}</div>
+      <div class="stat-card total">
+        <div class="stat-label">Total</div>
+        <div class="stat-value">${estatisticas.TOTAL || 0}</div>
       </div>
-      <div class="card">
-        <div class="card-title">Pendente</div>
-        <div class="card-value pendente">${estatisticas.PENDENTE || 0}</div>
+      <div class="stat-card pendente">
+        <div class="stat-label">Pendente</div>
+        <div class="stat-value">${estatisticas.PENDENTE || 0}</div>
       </div>
-      <div class="card">
-        <div class="card-title">Aceita</div>
-        <div class="card-value aceita">${estatisticas.ACEITA || 0}</div>
+      <div class="stat-card aceita">
+        <div class="stat-label">Aceita</div>
+        <div class="stat-value">${estatisticas.ACEITA || 0}</div>
       </div>
-      <div class="card">
-        <div class="card-title">Recusada</div>
-        <div class="card-value recusada">${estatisticas.RECUSADA || 0}</div>
+      <div class="stat-card recusada">
+        <div class="stat-label">Recusada</div>
+        <div class="stat-value">${estatisticas.RECUSADA || 0}</div>
       </div>
-      <div class="card">
-        <div class="card-title">Confirmada</div>
-        <div class="card-value confirmada">${estatisticas.CONFIRMADA || 0}</div>
+      <div class="stat-card confirmada">
+        <div class="stat-label">Confirmada</div>
+        <div class="stat-value">${estatisticas.CONFIRMADA || 0}</div>
       </div>
-      <div class="card">
-        <div class="card-title">Aceita Descartada</div>
-        <div class="card-value">${estatisticas.ACEITA_DESCARTADA || 0}</div>
+      <div class="stat-card aceita-descartada">
+        <div class="stat-label">Aceita Descartada</div>
+        <div class="stat-value">${estatisticas.ACEITA_DESCARTADA || 0}</div>
       </div>
-      <div class="card">
-        <div class="card-title">Com Acesso</div>
-        <div class="card-value">${estatisticas.COM_ACESSO || 0}</div>
+      <div class="stat-card com-acesso">
+        <div class="stat-label">Com Acesso</div>
+        <div class="stat-value">${estatisticas.COM_ACESSO || 0}</div>
       </div>
-      <div class="card">
-        <div class="card-title">Com Resposta</div>
-        <div class="card-value">${estatisticas.COM_RESPOSTA || 0}</div>
+      <div class="stat-card com-resposta">
+        <div class="stat-label">Com Resposta</div>
+        <div class="stat-value">${estatisticas.COM_RESPOSTA || 0}</div>
       </div>
     `;
   }
@@ -913,6 +917,32 @@
     return parseFloat(valor).toFixed(2).replace('.', ',');
   }
 
+  // Formatar celular
+  function formatarCelular(celular) {
+    if (!celular) return '-';
+    
+    // Limpar número: remover espaços, parênteses, hífens, pontos
+    let numeroLimpo = String(celular).replace(/\s+/g, '').replace(/[()\-\.]/g, '');
+    
+    if (numeroLimpo && numeroLimpo.length >= 10) {
+      // Remover código do país (55) se existir para formatação
+      let numeroParaFormatar = numeroLimpo;
+      if (numeroLimpo.startsWith('55') && numeroLimpo.length >= 12) {
+        numeroParaFormatar = numeroLimpo.substring(2); // Remove o 55
+      }
+      
+      if (numeroParaFormatar.length === 11) {
+        // Formato: (49) 99946-9449
+        return `(${numeroParaFormatar.substring(0, 2)}) ${numeroParaFormatar.substring(2, 7)}-${numeroParaFormatar.substring(7)}`;
+      } else if (numeroParaFormatar.length === 10) {
+        // Formato: (49) 9946-9449
+        return `(${numeroParaFormatar.substring(0, 2)}) ${numeroParaFormatar.substring(2, 6)}-${numeroParaFormatar.substring(6)}`;
+      }
+    }
+    
+    return celular; // Retornar original se inválido
+  }
+
   // Criar link do WhatsApp
   function criarLinkWhatsApp(celular) {
     if (!celular) return 'N/A';
@@ -1047,6 +1077,77 @@
     }, 100);
   };
 
+  // Função para mostrar ajuda
+  window.mostrarAjudaRelatorio = function() {
+    const modal = document.getElementById('modalAjudaRelatorio');
+    if (modal) {
+      modal.classList.add('active');
+    } else {
+      // Criar modal de ajuda se não existir
+      const modalHtml = `
+        <div id="modalAjudaRelatorio" class="modal-tratamento">
+          <div class="modal-content-tratamento" style="max-width: 800px;">
+            <div class="modal-header-tratamento">
+              <h3><i class='bx bx-help-circle'></i> Como Funciona - Relatório de Convocações</h3>
+              <button class="close-modal" onclick="fecharModalAjudaRelatorio()">
+                <i class='bx bx-x'></i>
+              </button>
+            </div>
+            <div style="max-height: 70vh; overflow-y: auto; padding-right: 10px;">
+              <h4 style="color: #2c3e50; margin-top: 20px;">📋 Funcionalidades</h4>
+              <ul style="line-height: 1.8; color: #495057;">
+                <li><strong>Filtros:</strong> Busque convocações por data, status, ID de viagem, ID de convocação, motorista, viagem confirmada, motivo de recusa ou contratador.</li>
+                <li><strong>Estatísticas:</strong> Visualize resumos de total de viagens, total de convocações, status das convocações, acessos e respostas.</li>
+                <li><strong>Gráficos:</strong> Analise a distribuição de convocações por status e por data através de gráficos interativos.</li>
+                <li><strong>Tabela:</strong> Visualize todas as convocações em formato de tabela ordenável com informações detalhadas.</li>
+                <li><strong>Exportação:</strong> Exporte os dados filtrados para CSV.</li>
+                <li><strong>Mapa:</strong> Visualize a localização do motorista e a rota até o carregamento.</li>
+              </ul>
+              
+              <h4 style="color: #2c3e50; margin-top: 20px;">📊 Estatísticas</h4>
+              <ul style="line-height: 1.8; color: #495057;">
+                <li><strong>Total de Viagens:</strong> Quantidade de viagens únicas no período filtrado.</li>
+                <li><strong>Total:</strong> Total de convocações encontradas com os filtros aplicados.</li>
+                <li><strong>Pendente:</strong> Convocações aguardando resposta do motorista.</li>
+                <li><strong>Aceita:</strong> Convocações aceitas pelo motorista.</li>
+                <li><strong>Recusada:</strong> Convocações recusadas pelo motorista.</li>
+                <li><strong>Confirmada:</strong> Convocações confirmadas para execução.</li>
+                <li><strong>Aceita Descartada:</strong> Convocações aceitas mas não selecionadas.</li>
+                <li><strong>Com Acesso:</strong> Convocações que foram acessadas pelo motorista.</li>
+                <li><strong>Com Resposta:</strong> Convocações que receberam resposta do motorista.</li>
+              </ul>
+
+              <h4 style="color: #2c3e50; margin-top: 20px;">🗺️ Mapa do Motorista</h4>
+              <ul style="line-height: 1.8; color: #495057;">
+                <li>Clique no ícone 🗺️ na coluna "Ações" para visualizar a localização do motorista.</li>
+                <li>O mapa mostra a posição atual do motorista e calcula a rota até o local de carregamento.</li>
+                <li>A distância e tempo estimado são calculados automaticamente.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.insertAdjacentHTML('beforeend', modalHtml);
+      document.getElementById('modalAjudaRelatorio').classList.add('active');
+    }
+  };
+
+  // Função para fechar modal de ajuda
+  window.fecharModalAjudaRelatorio = function() {
+    const modal = document.getElementById('modalAjudaRelatorio');
+    if (modal) {
+      modal.classList.remove('active');
+    }
+  };
+
+  // Fechar modal de ajuda ao clicar fora
+  document.addEventListener('click', (e) => {
+    const modal = document.getElementById('modalAjudaRelatorio');
+    if (modal && e.target === modal) {
+      fecharModalAjudaRelatorio();
+    }
+  });
+
   // Exportar relatório
   window.exportarRelatorio = function() {
     if (!dadosAtuais || !dadosAtuais.lista || dadosAtuais.lista.length === 0) {
@@ -1158,7 +1259,8 @@
       }
 
       document.getElementById('mapaInfoMotorista').textContent = convocacao.NOME_MOTORISTA || '-';
-      document.getElementById('mapaInfoCelular').textContent = (convocacao.CELULAR_MOTORISTA || convocacao.NRCELULAR || '-') ;
+      const celularFormatado = formatarCelular(convocacao.CELULAR_MOTORISTA || convocacao.NRCELULAR);
+      document.getElementById('mapaInfoCelular').textContent = celularFormatado;
       document.getElementById('mapaInfoViagem').textContent = idViagem || '-';
       document.getElementById('mapaInfoRoteiro').textContent = convocacao.DSROTEIRO || '-';
 
@@ -1192,7 +1294,12 @@
 
       document.getElementById('mapaInfoFrete').textContent = formatarValor(vlFrete);
       document.getElementById('mapaInfoPeso').textContent = formatarPeso(peso);
-      document.getElementById('mapaInfoDistancia').textContent = 'Calculando...';
+      const distanciaEl = document.getElementById('mapaInfoDistancia');
+      if (distanciaEl) {
+        distanciaEl.textContent = 'Calculando...';
+        distanciaEl.style.color = '#3498db';
+        distanciaEl.style.fontWeight = '600';
+      }
 
       const modal = document.getElementById('modalMapaMotorista');
       modal.style.display = 'block';
@@ -1206,11 +1313,25 @@
           const pontosResponse = await fetch(`/api/roteiros/${idRoteiro}/pontos`);
           if (pontosResponse.ok) {
             const pontos = await pontosResponse.json();
-            const pontoOrigem = pontos.find(p => p.ORDEM === 1 || p.TPLOCAL === 'O');
+            // Priorizar TPLOCAL = 'O' (Origem), depois ORDEM = 1 como fallback
+            let pontoOrigem = pontos.find(p => p.TPLOCAL === 'O' && p.LATITUDE && p.LONGITUDE);
+            if (!pontoOrigem) {
+              pontoOrigem = pontos.find(p => p.ORDEM === 1 && p.LATITUDE && p.LONGITUDE);
+            }
             if (pontoOrigem && pontoOrigem.LATITUDE && pontoOrigem.LONGITUDE) {
               origemLat = parseFloat(pontoOrigem.LATITUDE);
               origemLon = parseFloat(pontoOrigem.LONGITUDE);
-              origemNome = pontoOrigem.DSLOCAL || 'Origem';
+              origemNome = pontoOrigem.DSLOCAL || (pontoOrigem.DSPOSICAO || 'Origem');
+              console.log('[MAPA] Ponto de origem encontrado:', {
+                idRoteiro,
+                nome: origemNome,
+                lat: origemLat,
+                lon: origemLon,
+                ordem: pontoOrigem.ORDEM,
+                tipo: pontoOrigem.TPLOCAL
+              });
+            } else {
+              console.warn('[MAPA] Ponto de origem não encontrado no roteiro:', idRoteiro);
             }
           }
         } catch (err) {
@@ -1253,9 +1374,12 @@
       // Aguardar o mapa inicializar
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap contributors',
-        maxZoom: 19
+      // Adicionar camada de tiles do servidor próprio
+      // IMPORTANTE: Forçar HTTP (não HTTPS) para evitar ERR_SSL_PROTOCOL_ERROR
+      const tileServer = (window.getTileServerUrl ? window.getTileServerUrl() : (window.MAP_CONFIG?.tileServer || 'http://186.250.92.131:8081/styles/osm-bright/{z}/{x}/{y}.png')).replace(/^https:/, 'http:');
+      L.tileLayer(tileServer, {
+        attribution: window.MAP_CONFIG?.attribution || '© OpenStreetMap contributors',
+        maxZoom: window.MAP_CONFIG?.maxZoom || 19
       }).addTo(mapaMotorista);
 
       const iconeMotorista = L.divIcon({
@@ -1275,32 +1399,45 @@
       const marcadorMotorista = L.marker([latMotorista, lonMotorista], { icon: iconeMotorista })
         .addTo(mapaMotorista)
         .bindPopup(`
-          <div style="min-width: 200px;">
-            <h3 style="margin: 0 0 10px 0; color: #e74c3c;">🚛 Motorista</h3>
-            <p style="margin: 5px 0;"><strong>Nome:</strong> ${convocacao.NOME_MOTORISTA || '-'}</p>
-            <p style="margin: 5px 0;"><strong>Celular:</strong> ${(convocacao.CELULAR_MOTORISTA || convocacao.NRCELULAR || '-')}</p>
-            <p style="margin: 5px 0;"><strong>Status:</strong> ${convocacao.STATUS || '-'}</p>
-            <hr style="margin: 10px 0;">
-            <h4 style="margin: 10px 0 5px 0; color: #667eea;">📦 Carga</h4>
-            <p style="margin: 5px 0;"><strong>ID Viagem:</strong> ${idViagem || '-'}</p>
-            <p style="margin: 5px 0;"><strong>Roteiro:</strong> ${convocacao.DSROTEIRO || '-'}</p>
-            <p style="margin: 5px 0;"><strong>Frete:</strong> ${formatarValor(vlFrete)}</p>
-            <p style="margin: 5px 0;"><strong>Peso:</strong> ${formatarPeso(peso)}</p>
-            <p style="margin: 5px 0;"><strong>Classe:</strong> ${convocacao.DSCLASSEFROTA || '-'}</p>
+          <div style="min-width: 220px; max-width: 300px;">
+            <div style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; padding: 10px; border-radius: 6px 6px 0 0; margin: -10px -10px 10px -10px;">
+              <h3 style="margin: 0; font-size: 16px; font-weight: 600;">🚛 Motorista</h3>
+            </div>
+            <div style="padding: 5px 0;">
+              <p style="margin: 4px 0; font-size: 13px;"><strong>Nome:</strong> ${convocacao.NOME_MOTORISTA || '-'}</p>
+              <p style="margin: 4px 0; font-size: 13px;"><strong>Celular:</strong> ${(convocacao.CELULAR_MOTORISTA || convocacao.NRCELULAR || '-')}</p>
+              <p style="margin: 4px 0; font-size: 13px;"><strong>Status:</strong> <span style="padding: 2px 6px; border-radius: 3px; background: #fff3cd; color: #856404; font-size: 11px;">${convocacao.STATUS || '-'}</span></p>
+            </div>
+            <hr style="margin: 8px 0; border: none; border-top: 1px solid #e0e0e0;">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 8px; border-radius: 4px; margin: 5px 0;">
+              <h4 style="margin: 0; font-size: 14px; font-weight: 600;">📦 Carga</h4>
+            </div>
+            <div style="padding: 5px 0;">
+              <p style="margin: 4px 0; font-size: 13px;"><strong>ID Viagem:</strong> ${idViagem || '-'}</p>
+              <p style="margin: 4px 0; font-size: 13px;"><strong>Roteiro:</strong> ${convocacao.DSROTEIRO || '-'}</p>
+              <p style="margin: 4px 0; font-size: 13px;"><strong>Frete:</strong> <span style="color: #28a745; font-weight: 600;">${formatarValor(vlFrete)}</span></p>
+              <p style="margin: 4px 0; font-size: 13px;"><strong>Peso:</strong> ${formatarPeso(peso)}</p>
+              <p style="margin: 4px 0; font-size: 13px;"><strong>Classe:</strong> ${convocacao.DSCLASSEFROTA || '-'}</p>
+            </div>
           </div>
-        `);
+        `, { maxWidth: 320 });
 
       let marcadorOrigem = null;
       if (origemLat && origemLon) {
         marcadorOrigem = L.marker([origemLat, origemLon], { icon: iconeOrigem })
           .addTo(mapaMotorista)
           .bindPopup(`
-            <div style="min-width: 200px;">
-              <h3 style="margin: 0 0 10px 0; color: #2ecc71;">📍 Local de Carregamento</h3>
-              <p style="margin: 5px 0;"><strong>Local:</strong> ${origemNome}</p>
-              <p style="margin: 5px 0;"><strong>Roteiro:</strong> ${convocacao.DSROTEIRO || '-'}</p>
+            <div style="min-width: 220px; max-width: 300px;">
+              <div style="background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); color: white; padding: 10px; border-radius: 6px 6px 0 0; margin: -10px -10px 10px -10px;">
+                <h3 style="margin: 0; font-size: 16px; font-weight: 600;">📍 Local de Carregamento</h3>
+              </div>
+              <div style="padding: 5px 0;">
+                <p style="margin: 4px 0; font-size: 13px;"><strong>Local:</strong> ${origemNome}</p>
+                <p style="margin: 4px 0; font-size: 13px;"><strong>Roteiro:</strong> ${convocacao.DSROTEIRO || '-'}</p>
+                <p style="margin: 4px 0; font-size: 12px; color: #666;"><em>Ponto de origem do roteiro</em></p>
+              </div>
             </div>
-          `);
+          `, { maxWidth: 320 });
 
         try {
           const osrmUrl = `https://router.project-osrm.org/route/v1/driving-hgv/${lonMotorista},${latMotorista};${origemLon},${origemLat}?overview=full&geometries=geojson`;
@@ -1327,7 +1464,16 @@
             }).addTo(mapaMotorista);
 
             const grupo = L.featureGroup([marcadorMotorista, marcadorOrigem, mapaMotoristaLayer]);
-            mapaMotorista.fitBounds(grupo.getBounds().pad(0.1));
+            mapaMotorista.fitBounds(grupo.getBounds().pad(0.15));
+            
+            // Log para validação
+            console.log('[MAPA] Rota calculada:', {
+              motorista: { lat: latMotorista, lon: lonMotorista },
+              origem: { lat: origemLat, lon: origemLon, nome: origemNome },
+              distancia: `${distanciaKm} km`,
+              tempo: `${duracaoMin} min`,
+              roteiro: convocacao.DSROTEIRO
+            });
           } else {
             const distanciaHaversine = calcularDistanciaHaversine(latMotorista, lonMotorista, origemLat, origemLon);
             document.getElementById('mapaInfoDistancia').textContent = `${distanciaHaversine.toFixed(2)} km (linha reta)`;
@@ -1339,14 +1485,25 @@
           const distanciaHaversine = calcularDistanciaHaversine(latMotorista, lonMotorista, origemLat, origemLon);
           document.getElementById('mapaInfoDistancia').textContent = `${distanciaHaversine.toFixed(2)} km (linha reta)`;
           const grupo = L.featureGroup([marcadorMotorista, marcadorOrigem]);
-          mapaMotorista.fitBounds(grupo.getBounds().pad(0.1));
+          mapaMotorista.fitBounds(grupo.getBounds().pad(0.15));
+          
+          // Log para validação
+          console.log('[MAPA] Rota (linha reta):', {
+            motorista: { lat: latMotorista, lon: lonMotorista },
+            origem: { lat: origemLat, lon: origemLon, nome: origemNome },
+            distancia: `${distanciaHaversine.toFixed(2)} km (linha reta)`,
+            roteiro: convocacao.DSROTEIRO
+          });
         }
       } else {
         mapaMotorista.setView([latMotorista, lonMotorista], 12);
         document.getElementById('mapaInfoDistancia').textContent = 'Origem não encontrada no roteiro';
+        document.getElementById('mapaInfoDistancia').style.color = '#dc3545';
+        console.warn('[MAPA] Origem não encontrada no roteiro:', idRoteiro);
       }
 
-      marcadorMotorista.openPopup();
+      // Não abrir popup automaticamente para não sobrepor o mapa
+      // marcadorMotorista.openPopup();
 
     } catch (err) {
       console.error('Erro ao abrir mapa do motorista:', err);
@@ -1410,15 +1567,15 @@
   }
 
   // Aguardar DOM e scripts carregarem antes de inicializar
+  // Aguardar elementos críticos antes de inicializar
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-      // Aguardar elementos críticos antes de inicializar
       aguardarElementos(['estatisticasCards', 'tabelaContainer', 'graficoStatus', 'graficoPorData'], () => {
         init();
       });
     });
   } else {
-    // DOM já carregado, aguardar elementos críticos
+    // DOM já carregado
     aguardarElementos(['estatisticasCards', 'tabelaContainer', 'graficoStatus', 'graficoPorData'], () => {
       init();
     });

@@ -4,10 +4,419 @@
     <meta charset="UTF-8">
     <title>Gerenciar Tipos de Validade</title>
     <link rel="stylesheet" href="/css/modulos.css">
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <style>
+    /* ========== ESTILOS DO LAYOUT PADRONIZADO ========== */
+    .tipos-validade-container {
+      padding: 20px;
+    }
+
+    .tipos-validade-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    .tipos-validade-header h2 {
+      margin: 0;
+      color: #2c3e50;
+      font-size: 28px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .filtros-box {
+      background: white;
+      border-radius: 12px;
+      padding: 25px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 25px;
+    }
+
+    .filtros-box h3 {
+      margin: 0 0 20px 0;
+      color: #2c3e50;
+      font-size: 18px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .filtros-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+
+    .filtros-grid > div {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .filtros-grid label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #34495e;
+      font-size: 14px;
+    }
+
+    .filtros-grid .form-control {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      font-size: 16px;
+      transition: all 0.3s;
+      font-family: inherit;
+      box-sizing: border-box;
+      background-color: #fff;
+    }
+
+    .filtros-grid .form-control:focus {
+      outline: none;
+      border-color: #3498db;
+      box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+    }
+
+    .filtros-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 15px;
+    }
+
+    .filtros-actions .btn {
+      margin-right: 0;
+    }
+
+    /* ========== BOTÕES - Padrão do Sistema ========== */
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-right: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: inherit;
+      text-decoration: none;
+      box-sizing: border-box;
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .btn-primary {
+      background: #3498db;
+      color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #2980b9;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
+    }
+
+    /* Botão verde para "Novo Registro" */
+    button.btn-primary[id*="NovoRegistro"],
+    button.btn-primary[id*="NovoEquipamento"] {
+      background: #3DCC7F;
+      color: white;
+    }
+
+    button.btn-primary[id*="NovoRegistro"]:hover:not(:disabled),
+    button.btn-primary[id*="NovoEquipamento"]:hover:not(:disabled) {
+      background: #2eb86b;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(61, 204, 127, 0.3);
+    }
+
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: #5a6268;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(108, 117, 125, 0.3);
+    }
+
+    .btn-sm {
+      padding: 8px 16px;
+      font-size: 14px;
+    }
+
+    /* ========== MODAL - Padrão do Sistema ========== */
+    .modal-tratamento {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-content-tratamento {
+      background: white;
+      border-radius: 12px;
+      padding: 0;
+      max-width: 800px;
+      width: 90%;
+      max-height: 90vh;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .modal-header-tratamento {
+      padding: 20px 25px;
+      border-bottom: 1px solid #e9ecef;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .modal-header-tratamento h3 {
+      margin: 0;
+      color: #2c3e50;
+      font-size: 24px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-close-modal {
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: #666;
+      cursor: pointer;
+      padding: 5px;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .btn-close-modal:hover {
+      background: #f0f0f0;
+      color: #333;
+    }
+
+    .modal-body-tratamento {
+      padding: 25px;
+      max-height: calc(90vh - 140px);
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .modal-body-tratamento h4 {
+      color: #2c3e50;
+      margin-top: 20px;
+      margin-bottom: 10px;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .modal-body-tratamento h4:first-child {
+      margin-top: 0;
+    }
+
+    .modal-body-tratamento p {
+      color: #495057;
+      line-height: 1.6;
+      margin-bottom: 15px;
+    }
+
+    .modal-body-tratamento ul {
+      margin: 10px 0 20px 0;
+      padding-left: 20px;
+      color: #495057;
+      line-height: 1.8;
+    }
+
+    .modal-body-tratamento li {
+      margin: 8px 0;
+    }
+
+    .modal-body-tratamento strong {
+      color: #2c3e50;
+      font-weight: 600;
+    }
+
+    .modal-footer-tratamento {
+      padding: 20px 25px;
+      border-top: 1px solid #e9ecef;
+      display: flex;
+      justify-content: flex-end;
+      flex-shrink: 0;
+    }
+
+    .modal-header-tratamento {
+      padding: 20px 25px;
+      border-bottom: 1px solid #e9ecef;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .modal-header-tratamento h3 {
+      margin: 0;
+      color: #2c3e50;
+      font-size: 24px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-close-modal {
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: #666;
+      cursor: pointer;
+      padding: 5px;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .btn-close-modal:hover {
+      background: #f0f0f0;
+      color: #333;
+    }
+
+    .modal-body-tratamento {
+      padding: 25px;
+      max-height: calc(90vh - 140px);
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .modal-body-tratamento h4 {
+      color: #2c3e50;
+      margin-top: 20px;
+      margin-bottom: 10px;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .modal-body-tratamento h4:first-child {
+      margin-top: 0;
+    }
+
+    .modal-body-tratamento p {
+      color: #495057;
+      line-height: 1.6;
+      margin-bottom: 15px;
+    }
+
+    .modal-body-tratamento ul {
+      margin: 10px 0 20px 0;
+      padding-left: 20px;
+      color: #495057;
+      line-height: 1.8;
+    }
+
+    .modal-body-tratamento li {
+      margin: 8px 0;
+    }
+
+    .modal-body-tratamento strong {
+      color: #2c3e50;
+      font-weight: 600;
+    }
+
+    .modal-footer-tratamento {
+      padding: 20px 25px;
+      border-top: 1px solid #e9ecef;
+      display: flex;
+      justify-content: flex-end;
+      flex-shrink: 0;
+    }
+
+    .modal-content-tratamento .form-control {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      font-size: 16px;
+      transition: all 0.3s;
+      font-family: inherit;
+      box-sizing: border-box;
+      background-color: #fff;
+    }
+
+    .modal-content-tratamento .form-control:focus {
+      outline: none;
+      border-color: #3498db;
+      box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+    }
+
+    .modal-content-tratamento label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #34495e;
+      font-size: 14px;
+    }
+
+    /* Responsivo */
+    @media (max-width: 768px) {
+      .filtros-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .filtros-actions {
+        flex-direction: column;
+      }
+      
+      .filtros-actions .btn {
+        width: 100%;
+        margin-right: 0;
+      }
+    }
+  </style>
 </head>
 <body>
-    <div class="modulo-container">
-        <h1>Gerenciar Tipos de Validade</h1>
+    <div class="tipos-validade-container">
+        <div class="tipos-validade-header">
+            <h2><i class='bx bx-file-blank'></i> Gerenciar Tipos de Validade</h2>
+            <button type="button" onclick="window.mostrarAjudaTiposValidade()" class="btn btn-primary" style="margin-right: 0;">
+                <i class='bx bx-help-circle'></i> Ajuda
+            </button>
+        </div>
 
         <div class="tabs">
             <button class="tab-btn active" data-tab="filtros">Filtros</button>
@@ -16,21 +425,21 @@
         </div>
 
         <div class="tab-content active" id="tab-filtros">
-            <div class="form-box">
-                <h2>Filtros de Busca</h2>
+            <div class="filtros-box">
+                <h3><i class='bx bx-filter'></i> Filtros de Busca</h3>
                 <form id="filtroForm">
-                    <div class="input-group triple">
+                    <div class="filtros-grid">
                         <div>
                             <label for="filtroCodigo">Código</label>
-                            <input type="number" id="filtroCodigo" min="1">
+                            <input type="number" id="filtroCodigo" class="form-control" min="1">
                         </div>
                         <div>
                             <label for="filtroDescricao">Descrição</label>
-                            <input type="text" id="filtroDescricao" maxlength="40">
+                            <input type="text" id="filtroDescricao" class="form-control" maxlength="40">
                         </div>
                         <div>
                             <label for="filtroTipoCadastro">Tipo de Cadastro</label>
-                            <select id="filtroTipoCadastro">
+                            <select id="filtroTipoCadastro" class="form-control">
                                 <option value="">Todos</option>
                                 <option value="MOT">Motorista</option>
                                 <option value="CLI">Cliente</option>
@@ -39,18 +448,28 @@
                             </select>
                         </div>
                     </div>
-                    <button type="submit" class="btn save">Aplicar Filtro</button>
-                    <button type="button" id="btnLimparFiltros" class="btn cancel">Limpar</button>
+                    <div class="filtros-actions">
+                        <button type="button" id="btnLimparFiltros" class="btn btn-secondary">
+                            <i class='bx bx-x'></i> Limpar
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class='bx bx-search'></i> Filtrar
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>
 
         <div class="tab-content" id="tab-grid">
-            <div class="form-box">
-                <h2>Visualização em Grid</h2>
-                <div class="actions-top">
-                    <button id="btnVoltarFiltrosGrid" class="btn cancel">← Voltar aos Filtros</button>
-                    <button id="btnNovoRegistroGrid" class="btn save">+ Novo Registro</button>
+            <div class="filtros-box">
+                <h3>Tipos de Validade Cadastrados</h3>
+                <div class="filtros-actions" style="justify-content: space-between; margin-top: 0; margin-bottom: 15px;">
+                    <button id="btnVoltarFiltrosGrid" class="btn btn-secondary">
+                        <i class='bx bx-arrow-back'></i> Voltar aos Filtros
+                    </button>
+                    <button id="btnNovoRegistroGrid" class="btn btn-primary">
+                        <i class='bx bx-plus'></i> Novo Registro
+                    </button>
                 </div>
                 <div id="tiposGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
                     <span id="tiposGridCountText">0 registro(s) encontrado(s)</span>
@@ -62,26 +481,26 @@
         </div>
 
         <div class="tab-content" id="tab-dados">
-            <div class="form-box">
-                <h2 id="formTitle">Novo Tipo de Validade</h2>
+            <div class="filtros-box">
+                <h3 id="formTitle">Novo Tipo de Validade</h3>
                 <form id="tipoForm">
-                    <div class="input-group triple">
+                    <div class="filtros-grid">
                         <div>
                             <label for="tipoCodigo">Código</label>
-                            <input type="text" id="tipoCodigo" readonly>
+                            <input type="text" id="tipoCodigo" class="form-control" readonly>
                         </div>
                         <div>
                             <label for="tipoDescricao">Descrição *</label>
-                            <input type="text" id="tipoDescricao" required maxlength="40">
+                            <input type="text" id="tipoDescricao" class="form-control" required maxlength="40">
                         </div>
                         <div>
                             <label>Exige Certificadora? *</label>
-                            <div class="checkbox-group">
-                                <label>
-                                    <input type="radio" name="tipoExigeCertificadora" value="S" required> Sim
+                            <div class="checkbox-group" style="display: flex; gap: 15px; align-items: center; padding-top: 8px;">
+                                <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer;">
+                                    <input type="radio" name="tipoExigeCertificadora" value="S" required style="width: 18px; height: 18px; cursor: pointer;"> Sim
                                 </label>
-                                <label>
-                                    <input type="radio" name="tipoExigeCertificadora" value="N" checked> Não
+                                <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer;">
+                                    <input type="radio" name="tipoExigeCertificadora" value="N" checked style="width: 18px; height: 18px; cursor: pointer;"> Não
                                 </label>
                             </div>
                         </div>
@@ -113,21 +532,32 @@
                         </div>
                     </div>
 
-                    <div class="form-actions">
-                        <button type="submit" class="btn save">Salvar</button>
-                        <button type="button" id="btnCancelar" class="btn cancel">Cancelar</button>
+                    <div class="filtros-actions">
+                        <button type="submit" class="btn btn-primary">
+                            <i class='bx bx-save'></i> Salvar
+                        </button>
+                        <button type="button" id="btnCancelar" class="btn btn-secondary">
+                            <i class='bx bx-x'></i> Cancelar
+                        </button>
                     </div>
                 </form>
             </div>
         </div>
 
         <div id="confirmModal" class="modal">
-            <div class="modal-content">
-                <h3>Confirmar Ação</h3>
-                <p id="modalMessage"></p>
+            <div class="modal-content-tratamento">
+                <div class="modal-header">
+                    <h3>Confirmar Ação</h3>
+                    <button class="close" onclick="document.getElementById('confirmModal').style.display='none'">
+                        <i class='bx bx-x'></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p id="modalMessage"></p>
+                </div>
                 <div class="modal-actions">
-                    <button id="confirmYes" class="btn delete">Sim</button>
-                    <button id="confirmNo" class="btn cancel">Cancelar</button>
+                    <button id="confirmYes" class="btn btn-primary">Sim</button>
+                    <button id="confirmNo" class="btn btn-secondary">Cancelar</button>
                 </div>
             </div>
         </div>
@@ -147,8 +577,11 @@
 
     <!-- Cache Buster - deve ser o primeiro script -->
     <script src="/js/cache-buster.js?v=202512091200"></script>
+    <script src="/js/utils.js"></script>
     <script src="/js/log-helper.js"></script>
     <script src="/js/permissions.js"></script>
+    <script src="/js/init-overlay-helper.js"></script>
+    <!-- GridEditor é carregado globalmente pelo dashboard.js -->
     <script src="js/script.js"></script>
 </body>
 </html>

@@ -748,7 +748,7 @@ router.post('/equipamentos/executar-init-sql', async (req, res) => {
         // Aumentar timeout para comandos grandes (MERGE, UPDATE em massa, etc)
         const request = pool.request();
         // mssql usa requestTimeout (em milissegundos)
-        request.timeout = 120000; // 120 segundos (2 minutos) para comandos grandes
+        request.timeout = 60000; // 60 segundos (1 minuto) - reduzido para evitar travamentos
         const result = await request.query(cmdLimpo);
         
         // Se retornou dados (SELECT), incluir no resultado
@@ -779,7 +779,7 @@ router.post('/equipamentos/executar-init-sql', async (req, res) => {
         
         // Melhorar mensagem de timeout
         if (mensagemErro.includes('timeout') || mensagemErro.includes('Timeout')) {
-          mensagemErro = `Timeout: Comando demorou mais de 2 minutos para executar. Este comando pode ser muito grande ou o banco está sobrecarregado.`;
+          mensagemErro = `Timeout: Comando demorou mais de 1 minuto para executar. Este comando pode ser muito grande ou o banco está sobrecarregado.`;
         }
         
         resultados.push({

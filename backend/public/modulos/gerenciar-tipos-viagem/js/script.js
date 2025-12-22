@@ -21,116 +21,26 @@
   let sqlExecutado = false;
   let initExecutado = false;
 
-  // Funções para controlar overlay de carregamento do init.sql
-  function showLoadingOverlayInitSQL(titulo = 'Processando Inicialização', texto = 'Executando scripts de inicialização...', detalhe = 'Isso pode levar alguns segundos.') {
-    const overlay = document.getElementById('loadingOverlayInitSQL');
-    const loadingTitle = document.getElementById('loadingTitleInitSQL');
-    const loadingText = document.getElementById('loadingTextInitSQL');
-    const loadingDetail = document.getElementById('loadingDetailInitSQL');
-    
-    if (overlay && loadingTitle && loadingText && loadingDetail) {
-      loadingTitle.textContent = titulo;
-      loadingText.textContent = texto;
-      loadingDetail.textContent = detalhe;
-      overlay.style.display = 'flex';
-    }
-  }
-
-  function hideLoadingOverlayInitSQL() {
-    const overlay = document.getElementById('loadingOverlayInitSQL');
-    if (overlay) {
-      overlay.style.display = 'none';
-    }
-  }
-
   // Função para carregar e executar o arquivo init.sql
   async function executarInitSQL() {
     if (sqlExecutado) return;
     sqlExecutado = true;
-    showLoadingOverlayInitSQL('Processando Inicialização', 'Carregando script de inicialização...', 'Aguarde enquanto preparamos o módulo.');
-    try {
-      const response = await fetch('/modulos/gerenciar-tipos-viagem/sql/init.sql');
-      showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL...', 'Isso pode levar alguns segundos.');
-      if (!response.ok) {
-        if (response.status === 404) {
-          hideLoadingOverlayInitSQL();
-          return;
-        }
-        hideLoadingOverlayInitSQL();
-        return;
-      }
-      const sqlContent = await response.text();
-      let sqlSemComentarios = sqlContent.replace(/\/\*[\s\S]*?\*\//g, '');
-      const sqlLimpo = sqlSemComentarios.split('\n').filter(linha => {
-        const linhaTrim = linha.trim();
-        return linhaTrim.length > 0 && !linhaTrim.startsWith('--');
-      }).join('\n').trim();
-      if (!sqlLimpo || sqlLimpo.length === 0) {
-        hideLoadingOverlayInitSQL();
-        return;
-      }
-      showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL no banco de dados...', 'Aguarde, isso pode levar alguns segundos.');
-      let execResponse;
-      try {
-        execResponse = await fetch('/api/tipos-viagem/executar-init-sql', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sql: sqlLimpo }),
-          signal: AbortSignal.timeout(120000)
-        });
-      } catch (fetchError) {
-        if (fetchError.name === 'TimeoutError' || fetchError.name === 'AbortError') {
-          hideLoadingOverlayInitSQL();
-          return;
-        }
-        if (fetchError.message.includes('ERR_CONNECTION_RESET') || fetchError.message.includes('Failed to fetch')) {
-          hideLoadingOverlayInitSQL();
-          return;
-        }
-        hideLoadingOverlayInitSQL();
-        return;
-      }
-      if (!execResponse.ok) {
-        hideLoadingOverlayInitSQL();
-        return;
-      }
-      showLoadingOverlayInitSQL('Processando Inicialização', 'Processando resultados...', 'Quase terminando.');
-      let result;
-      try {
-        result = await execResponse.json();
-      } catch (jsonError) {
-        hideLoadingOverlayInitSQL();
-        return;
-      }
-      if (!result.success) {
-        hideLoadingOverlayInitSQL();
-        return;
-      }
-      if (result.resultados && Array.isArray(result.resultados)) {
-        const comandosComErro = result.resultados.filter(r => r.tipo === 'ERRO');
-        if (comandosComErro.length > 0) {
-          const errosReais = comandosComErro.filter(erro => {
-            const mensagem = (erro.mensagem || erro.erro || '').toLowerCase();
-            const errosEsperados = ['already exists', 'já existe', 'duplicate', 'duplicado', 'there is already', 'já há'];
-            return !errosEsperados.some(esperado => mensagem.includes(esperado));
-          });
-          if (errosReais.length > 0) {
-            errosReais.forEach(erro => {
-              const mensagem = erro.mensagem || erro.erro || erro.message || erro.error || 'Erro desconhecido';
-              if (typeof mensagem === 'object') {
-                console.error('Erro no init.sql:', JSON.stringify(mensagem));
-              } else {
-                console.error('Erro no init.sql:', mensagem);
-              }
-            });
-          }
-        }
-      }
-      await new Promise(resolve => setTimeout(resolve, 500));
-      hideLoadingOverlayInitSQL();
-    } catch (err) {
-      hideLoadingOverlayInitSQL();
+    
+    // Usar função padrão global se disponível
+    if (typeof window.executarInitSQLPadrao === 'function') {
+      await window.executarInitSQLPadrao('/modulos/gerenciar-tipos-viagem/sql/init.sql', '/api/tipos-viagem/executar-init-sql', 'tipos-viagem');
+      return;
     }
+    
+    // Fallback: aguardar um pouco e tentar novamente (pode estar carregando)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    if (typeof window.executarInitSQLPadrao === 'function') {
+      await window.executarInitSQLPadrao('/modulos/gerenciar-tipos-viagem/sql/init.sql', '/api/tipos-viagem/executar-init-sql', 'tipos-viagem');
+      return;
+    }
+    
+    // Se ainda não estiver disponível, log de aviso
+    console.warn('[Tipos] executarInitSQLPadrao não disponível. Verifique se init-overlay-helper.js está carregado.');
   }
 
   // Função de inicialização
@@ -316,7 +226,7 @@
   function loadScript(src) {
     return new Promise((resolve, reject) => {
       // Verificar se GridEditor já está disponível globalmente
-      if (typeof GridEditor !== 'undefined') {
+      if (typeof window.GridEditor !== 'undefined') {
         resolve();
         return;
       }
@@ -328,7 +238,7 @@
         script.onload = () => {
           // Aguardar um pouco para garantir que GridEditor está disponível
           setTimeout(() => {
-            if (typeof GridEditor !== 'undefined') {
+            if (typeof window.GridEditor !== 'undefined') {
               resolve();
             } else {
               reject(new Error('GridEditor não foi carregado'));
@@ -345,7 +255,7 @@
         // Se o script existe, aguardar ele carregar
         let tentativas = 0;
         const checkInterval = setInterval(() => {
-          if (typeof GridEditor !== 'undefined') {
+          if (typeof window.GridEditor !== 'undefined') {
             clearInterval(checkInterval);
             resolve();
           } else if (tentativas++ > 20) {
@@ -368,7 +278,12 @@
     const tiposGridContainer = document.getElementById('tiposGrid');
     if (!tiposGridContainer) return;
 
-    gridTab = new GridEditor({
+    if (typeof window.GridEditor === 'undefined') {
+      console.error('[Tipos] GridEditor não está disponível');
+      return;
+    }
+
+    gridTab = new window.GridEditor({
       container: tiposGridContainer,
       columns: [
         { field: 'CDTIPOVIAGEM', header: 'Código', editable: false, isId: true, width: '100px' },
@@ -622,6 +537,67 @@
       message.textContent = text;
       message.className = `message ${type} show`;
       setTimeout(() => message.className = 'message', 5000);
+    }
+  };
+
+  // Função de ajuda
+  window.mostrarAjudaTiposViagem = function() {
+    // Remover qualquer modal de ajuda existente primeiro
+    const modalExistente = document.getElementById('modalAjudaTiposViagem');
+    if (modalExistente) {
+      modalExistente.remove();
+    }
+    
+    // Criar modal de ajuda com padrão único
+    const modal = document.createElement('div');
+    modal.id = 'modalAjudaTiposViagem';
+    modal.className = 'modal-tratamento';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+      <div class="modal-content-tratamento">
+        <div class="modal-header-tratamento">
+          <h3><i class='bx bx-help-circle'></i> Ajuda - Gerenciar Tipos de Viagem</h3>
+          <button onclick="window.fecharModalAjudaTiposViagem()" class="btn-close-modal" type="button">
+            <i class='bx bx-x'></i>
+          </button>
+        </div>
+        <div class="modal-body-tratamento">
+          <h4>📋 Sobre o Módulo</h4>
+          <p>O módulo <strong>Gerenciar Tipos de Viagem</strong> permite gerenciar os tipos de viagem cadastrados no sistema, definindo categorias para diferentes modalidades de transporte.</p>
+          
+          <h4>🔍 Filtros</h4>
+          <p>Use os filtros para buscar tipos de viagem específicos por código, descrição ou situação (Ativo/Inativo).</p>
+          
+          <h4>📝 Funcionalidades</h4>
+          <ul>
+            <li><strong>Filtros:</strong> Buscar e filtrar tipos de viagem</li>
+            <li><strong>Grid:</strong> Visualizar tipos de viagem em formato de tabela com opções de edição e exclusão</li>
+            <li><strong>Dados:</strong> Criar e editar tipos de viagem</li>
+          </ul>
+          
+          <h4>✨ Dicas</h4>
+          <ul>
+            <li>Para criar um novo tipo de viagem, clique em "Novo Registro" na aba Grid ou Dados</li>
+            <li>Para editar um tipo de viagem existente, clique no botão de editar (✎) na coluna Ações do grid</li>
+            <li>Para desativar um tipo de viagem, edite-o e altere a situação para "Inativo" ou use o botão de exclusão</li>
+            <li>Tipos de viagem inativos não aparecerão em seleções de novos cadastros</li>
+          </ul>
+        </div>
+        <div class="modal-footer-tratamento">
+          <button onclick="window.fecharModalAjudaTiposViagem()" class="btn btn-secondary">
+            <i class='bx bx-x'></i> Fechar
+          </button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+  };
+
+  window.fecharModalAjudaTiposViagem = function() {
+    const modal = document.getElementById('modalAjudaTiposViagem');
+    if (modal) {
+      modal.remove();
     }
   };
 })();

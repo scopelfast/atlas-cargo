@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Macros - Motorista</title>
   <link rel="stylesheet" href="../css/padrao-telas.css">
+  <link rel="stylesheet" href="../css/design-system.css">
   <style>
     .viagem-selector {
       background: white;
@@ -141,6 +142,8 @@
     if (!verificarAuth()) window.location.href = '../index.html';
 
     const motorista = getMotorista();
+    // Obter ID do motorista corretamente
+    const idMotorista = motorista?.CDCADASTRO || motorista?.id || motorista?.cdcadastro || null;
     let macros = [];
     let historico = [];
     let viagens = [];
@@ -156,10 +159,10 @@
         await renderizarSeletorViagem();
         
         esconderLoading();
-        mostrarToast('✅ Viagens atualizadas!', 'success');
+        mostrarToast('Viagens atualizadas!', 'success');
       } catch (error) {
         esconderLoading();
-        mostrarToast('❌ Erro ao atualizar', 'error');
+        mostrarToast('Erro ao atualizar', 'error');
       }
     }
 
@@ -177,14 +180,14 @@
     // Carregar viagens do motorista
     async function carregarViagens(forcarOnline = false) {
       try {
-        console.log(`🚛 Carregando viagens do motorista #${motorista.id}...`);
+        console.log(`🚛 Carregando viagens do motorista #${idMotorista}...`);
         
         let resultado;
         
         if (forcarOnline) {
           // Forçar busca online (ignora cache)
           console.log('🔄 Forçando busca online (ignorando cache)...');
-          const response = await fetch(`/api/motorista/viagens-andamento/${motorista.id}`, {
+          const response = await fetch(`/api/motorista/viagens-andamento/${idMotorista}`, {
             headers: { 'Authorization': `Bearer ${getToken()}` }
           });
           
@@ -198,7 +201,7 @@
         } else {
           // Usar cache normal
           resultado = await fetchComCache(
-            `/api/motorista/viagens-andamento/${motorista.id}`,
+            `/api/motorista/viagens-andamento/${idMotorista}`,
             'viagens',
             300000
           );
@@ -299,7 +302,7 @@
       viagemSelecionada = viagens.find(v => v.IDVIAGEM == idViagem);
       
       if (viagemSelecionada) {
-        mostrarToast(`✅ Viagem #${viagemSelecionada.IDVIAGEM} selecionada`, 'success');
+        mostrarToast(`Viagem #${viagemSelecionada.IDVIAGEM} selecionada`, 'success');
         
         // AGUARDAR histórico carregar ANTES de renderizar
         await carregarHistorico(viagemSelecionada.IDVIAGEM);
@@ -361,10 +364,14 @@
         btn.disabled = !validacao.valido;
         btn.onclick = () => selecionarMacro(macro);
         
+        // Verificar se macro já foi registrada (está no histórico)
+        const jaRegistrada = historico.some(h => h.CDTIPOOCORRENCIA === macro.CDTIPOOCORRENCIA);
+        
         btn.innerHTML = `
           <div class="macro-icon">${macro.icon}</div>
           <span>${macro.DSTIPOOCORRENCIA}</span>
-          ${!validacao.valido ? '<div class="lock-badge">🔒</div>' : ''}
+          ${jaRegistrada ? '<div class="lock-badge" style="background: rgba(40, 167, 69, 0.8);">✅</div>' : ''}
+          ${!validacao.valido && !jaRegistrada ? '<div class="lock-badge">🔒</div>' : ''}
         `;
         
         grid.appendChild(btn);
@@ -485,33 +492,66 @@
       
       // Se a macro atual é SEQ 1 (Chegada)
       if (macro.SEQ === 1) {
-        // Só permite se última não for da mesma situação OU se for o fim (SEQ 3)
-        if (ultima.FGSITUACAO === macro.FGSITUACAO && ultima.SEQ !== 3) {
-          console.log('  → 🔒 Bloqueado (já tem chegada, precisa completar sequência)');
+        // Permite se:
+        // 1. Última macro não é da mesma situação (ex: última foi Descarga, agora quer Carga)
+        // 2. Última macro é SEQ 3 (Fim) da mesma situação (ciclo completo, pode começar novo)
+        // 3. Última macro não é SEQ 1 ou SEQ 2 da mesma situação (não está no meio de um ciclo)
+        if (ultima.FGSITUACAO !== macro.FGSITUACAO) {
+          console.log('  → ✅ Permitido (situação diferente)');
+          return {valido: true};
+        }
+        
+        if (ultima.SEQ === 3) {
+          console.log('  → ✅ Permitido (ciclo anterior completo, pode iniciar novo)');
+          return {valido: true};
+        }
+        
+        if (ultima.SEQ === 1 || ultima.SEQ === 2) {
+          console.log('  → 🔒 Bloqueado (já tem chegada/início, precisa completar sequência)');
           return {valido: false, mensagem: 'Complete a sequência antes de registrar nova chegada'};
         }
-        // Permite se for de situação diferente ou após fim
+        
         return {valido: true};
       }
 
       // Se a macro atual é SEQ 2 (Início)
       if (macro.SEQ === 2) {
-        // Só permite se a última for SEQ 1 da mesma situação
+        // Só permite se a última for SEQ 1 (Chegada) da mesma situação
         if (ultima.FGSITUACAO === macro.FGSITUACAO && ultima.SEQ === 1) {
           console.log('  → ✅ Permitido (após chegada)');
           return {valido: true};
         }
+        
+        // Se última é SEQ 3 (Fim) da mesma situação, não pode pular para Início
+        if (ultima.FGSITUACAO === macro.FGSITUACAO && ultima.SEQ === 3) {
+          console.log('  → 🔒 Bloqueado (ciclo completo, precisa registrar nova chegada primeiro)');
+          return {valido: false, mensagem: 'Registre a chegada primeiro para iniciar novo ciclo'};
+        }
+        
         console.log('  → 🔒 Bloqueado (precisa registrar chegada primeiro)');
         return {valido: false, mensagem: 'Registre a chegada primeiro'};
       }
 
       // Se a macro atual é SEQ 3 (Fim)
       if (macro.SEQ === 3) {
-        // Só permite se a última for SEQ 2 da mesma situação
+        // Só permite se a última for SEQ 2 (Início) da mesma situação
         if (ultima.FGSITUACAO === macro.FGSITUACAO && ultima.SEQ === 2) {
           console.log('  → ✅ Permitido (após início)');
           return {valido: true};
         }
+        
+        // Se última é SEQ 1 (Chegada) da mesma situação, não pode pular para Fim
+        if (ultima.FGSITUACAO === macro.FGSITUACAO && ultima.SEQ === 1) {
+          console.log('  → 🔒 Bloqueado (precisa registrar início primeiro)');
+          return {valido: false, mensagem: 'Registre o início primeiro'};
+        }
+        
+        // Se última já é SEQ 3 (Fim) da mesma situação, não pode repetir
+        if (ultima.FGSITUACAO === macro.FGSITUACAO && ultima.SEQ === 3) {
+          console.log('  → 🔒 Bloqueado (já foi registrado o fim, inicie novo ciclo)');
+          return {valido: false, mensagem: 'Ciclo já completo, registre nova chegada para iniciar novo ciclo'};
+        }
+        
         console.log('  → 🔒 Bloqueado (precisa registrar início primeiro)');
         return {valido: false, mensagem: 'Registre o início primeiro'};
       }
@@ -523,7 +563,7 @@
     // Selecionar macro
     async function selecionarMacro(macro) {
       if (!viagemSelecionada) {
-        mostrarToast('⚠️ Selecione uma viagem primeiro', 'warning');
+        mostrarToast('Selecione uma viagem primeiro', 'warning');
         return;
       }
 
@@ -581,7 +621,7 @@
 
         const payload = {
           idViagem: viagemSelecionada.IDVIAGEM,
-          cdMotorista: motorista.id,
+          cdMotorista: idMotorista,
           cdTipoOcorrencia: macro.CDTIPOOCORRENCIA,
           latitude: posicao?.latitude || null,
           longitude: posicao?.longitude || null,
@@ -623,7 +663,7 @@
       } catch (error) {
         console.error('Erro:', error);
         esconderLoading();
-        mostrarToast('❌ ' + (error.message || 'Erro ao registrar macro'), 'error');
+        mostrarToast(error.message || 'Erro ao registrar macro', 'error');
       }
     }
 

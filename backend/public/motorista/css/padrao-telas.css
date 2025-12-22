@@ -1,7 +1,9 @@
 /* ========================================
    CSS PADRÃO - TODAS AS TELAS DO APP
-   Versão: 1.0 - Layout Consistente
+   Versão: 2.0 - Layout Consistente com Design System
    ======================================== */
+   
+/* NOTA: design-system.css deve ser incluído ANTES deste arquivo nas páginas HTML */
 
 * {
   margin: 0;
@@ -10,10 +12,12 @@
 }
 
 html, body {
-  background: #f0f2f5;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--gray-100, #f0f2f5);
+  font-family: var(--font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
   width: 100%;
   overflow-x: hidden;
+  color: var(--gray-900, #212529);
+  line-height: 1.5;
 }
 
 /* ==================== STATUS BAR ==================== */
@@ -41,13 +45,17 @@ html, body {
 
 /* ==================== NAVBAR ==================== */
 .navbar {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--primary-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
   color: white;
   padding: 14px 16px;
   display: flex;
   align-items: center;
   gap: 12px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,0.1));
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky, 1020);
+  backdrop-filter: blur(10px);
 }
 
 .btn-voltar {
@@ -55,15 +63,22 @@ html, body {
   border: none;
   color: white;
   padding: 8px 14px;
-  border-radius: 8px;
+  border-radius: var(--radius-md, 12px);
   cursor: pointer;
-  font-weight: 600;
-  font-size: 14px;
-  transition: background 0.2s;
+  font-weight: var(--font-weight-semibold, 600);
+  font-size: var(--font-size-sm, 13px);
+  transition: all var(--transition-base, 250ms ease);
+  backdrop-filter: blur(10px);
+}
+
+.btn-voltar:hover {
+  background: rgba(255,255,255,0.35);
+  transform: translateX(-2px);
 }
 
 .btn-voltar:active {
-  background: rgba(255,255,255,0.35);
+  background: rgba(255,255,255,0.45);
+  transform: translateX(0);
 }
 
 .navbar h1 {
@@ -82,11 +97,18 @@ html, body {
 
 /* ==================== CARDS ==================== */
 .card {
-  background: white;
-  border-radius: 16px;
-  margin-bottom: 16px;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+  background: var(--white, #ffffff);
+  border-radius: var(--radius-lg, 16px);
+  margin-bottom: var(--spacing-md, 16px);
+  box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,0.1));
   overflow: hidden;
+  transition: all var(--transition-base, 250ms ease);
+  border: 1px solid var(--gray-200, #e9ecef);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.12));
+  transform: translateY(-2px);
 }
 
 .card-header {
@@ -114,19 +136,44 @@ html, body {
 .btn-primary {
   width: 100%;
   padding: 14px;
-  background: #667eea;
+  background: var(--primary-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
   color: white;
   border: none;
-  border-radius: 12px;
-  font-size: 16px;
-  font-weight: 700;
+  border-radius: var(--radius-md, 12px);
+  font-size: var(--font-size-base, 15px);
+  font-weight: var(--font-weight-bold, 700);
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-  transition: transform 0.2s;
+  box-shadow: var(--shadow-md, 0 4px 12px rgba(102, 126, 234, 0.3));
+  transition: all var(--transition-base, 250ms ease);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.btn-primary:active::before {
+  width: 300px;
+  height: 300px;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(102, 126, 234, 0.4));
 }
 
 .btn-primary:active {
-  transform: scale(0.96);
+  transform: translateY(0) scale(0.98);
 }
 
 .btn-success {
@@ -149,15 +196,23 @@ html, body {
 .info-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 14px;
+  gap: var(--spacing-sm, 8px);
+  margin-bottom: var(--spacing-md, 16px);
 }
 
 .info-item {
-  background: #f8f9fa;
-  padding: 12px;
-  border-radius: 10px;
+  background: var(--gray-50, #f8f9fa);
+  padding: var(--spacing-md, 12px);
+  border-radius: var(--radius-md, 12px);
   text-align: center;
+  transition: all var(--transition-base, 250ms ease);
+  border: 1px solid var(--gray-200, #e9ecef);
+}
+
+.info-item:hover {
+  background: var(--white, #ffffff);
+  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.08));
+  transform: translateY(-2px);
 }
 
 .info-icon {
@@ -187,13 +242,13 @@ html, body {
 }
 
 .spinner {
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #667eea;
+  border: 4px solid var(--gray-200, #e9ecef);
+  border-top: 4px solid var(--primary-500, #667eea);
   border-radius: 50%;
   width: 50px;
   height: 50px;
   animation: spin 1s linear infinite;
-  margin: 0 auto 16px;
+  margin: 0 auto var(--spacing-md, 16px);
 }
 
 @keyframes spin {
@@ -205,17 +260,21 @@ html, body {
 .empty {
   text-align: center;
   padding: 60px 20px;
-  color: #999;
+  color: var(--gray-500, #adb5bd);
+  animation: fadeIn var(--transition-base, 250ms ease);
 }
 
 .empty-icon {
   font-size: 64px;
-  margin-bottom: 16px;
+  margin-bottom: var(--spacing-md, 16px);
+  opacity: 0.6;
+  animation: pulse 2s ease-in-out infinite;
 }
 
 .empty-text {
-  font-size: 16px;
-  color: #666;
+  font-size: var(--font-size-base, 15px);
+  color: var(--gray-600, #6c757d);
+  font-weight: var(--font-weight-medium, 500);
 }
 
 /* ==================== UTILS ==================== */

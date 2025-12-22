@@ -4,9 +4,280 @@
   <meta charset="UTF-8">
   <title>Gerenciar Cidades</title>
   <link rel="stylesheet" href="/css/modulos.css">
+  <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+  <style>
+    /* ========== ESTILOS DO LAYOUT PADRONIZADO ========== */
+    .cidades-container {
+      padding: 20px;
+    }
+
+    .cidades-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    .cidades-header h2 {
+      margin: 0;
+      color: #2c3e50;
+      font-size: 28px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .filtros-box {
+      background: white;
+      border-radius: 12px;
+      padding: 25px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 25px;
+    }
+
+    .filtros-box h3 {
+      margin: 0 0 20px 0;
+      color: #2c3e50;
+      font-size: 18px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .filtros-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+
+    .filtros-grid > div {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .filtros-grid label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #34495e;
+      font-size: 14px;
+    }
+
+    .filtros-grid .form-control {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      font-size: 16px;
+      transition: all 0.3s;
+      font-family: inherit;
+      box-sizing: border-box;
+      background-color: #fff;
+    }
+
+    .filtros-grid .form-control:focus {
+      outline: none;
+      border-color: #3498db;
+      box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+    }
+
+    .filtros-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 15px;
+    }
+
+    .filtros-actions .btn {
+      margin-right: 0;
+    }
+
+    /* ========== BOTÕES - Padrão do Sistema ========== */
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-right: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: inherit;
+      text-decoration: none;
+      box-sizing: border-box;
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .btn-primary {
+      background: #3498db;
+      color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #2980b9;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
+    }
+
+    /* Botão verde para "Novo Registro" */
+    .btn-primary.btn-novo-registro,
+    button.btn-primary[id*="NovoRegistro"],
+    button.btn-primary[id*="NovoEquipamento"] {
+      background: #3DCC7F;
+      color: white;
+    }
+
+    .btn-primary.btn-novo-registro:hover:not(:disabled),
+    button.btn-primary[id*="NovoRegistro"]:hover:not(:disabled),
+    button.btn-primary[id*="NovoEquipamento"]:hover:not(:disabled) {
+      background: #2eb86b;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(61, 204, 127, 0.3);
+    }
+
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: #5a6268;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(108, 117, 125, 0.3);
+    }
+
+    .btn-info {
+      background: #17a2b8;
+      color: white;
+    }
+
+    .btn-info:hover:not(:disabled) {
+      background: #138496;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(23, 162, 184, 0.3);
+    }
+
+    .btn-sm {
+      padding: 8px 16px;
+      font-size: 14px;
+    }
+
+    /* ========== MODAL - Padrão do Sistema ========== */
+    .modal-content-tratamento {
+      background: white;
+      border-radius: 12px;
+      padding: 0;
+      max-width: 500px;
+      width: 90%;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+
+    .modal-content-tratamento .modal-header {
+      padding: 20px 25px;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modal-content-tratamento .modal-header h3 {
+      margin: 0;
+      color: #2c3e50;
+      font-size: 20px;
+      font-weight: 600;
+    }
+
+    .modal-content-tratamento .modal-header .close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: #666;
+      cursor: pointer;
+      padding: 0;
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .modal-content-tratamento .modal-header .close:hover {
+      background: #f0f0f0;
+      color: #333;
+    }
+
+    .modal-content-tratamento .modal-body {
+      padding: 25px;
+    }
+
+    .modal-content-tratamento .modal-actions {
+      padding: 20px 25px;
+      border-top: 1px solid #e0e0e0;
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .modal-content-tratamento .form-control {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      font-size: 16px;
+      transition: all 0.3s;
+      font-family: inherit;
+      box-sizing: border-box;
+      background-color: #fff;
+    }
+
+    .modal-content-tratamento .form-control:focus {
+      outline: none;
+      border-color: #3498db;
+      box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+    }
+
+    .modal-content-tratamento label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #34495e;
+      font-size: 14px;
+    }
+
+    /* Responsivo */
+    @media (max-width: 768px) {
+      .filtros-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .filtros-actions {
+        flex-direction: column;
+      }
+      
+      .filtros-actions .btn {
+        width: 100%;
+        margin-right: 0;
+      }
+    }
+  </style>
 </head>
 <body>
-  <!-- Overlay de carregamento (mesmo estilo do Gerenciar Roteiros) -->
+  <!-- Overlay de carregamento -->
   <div id="loadingOverlay" class="calculando-overlay" style="display: none;">
     <div class="calculando-content">
       <div class="calculando-spinner"></div>
@@ -16,8 +287,10 @@
     </div>
   </div>
   
-  <div class="modulo-container">
-    <h1>Gerenciar Cidades</h1>
+  <div class="cidades-container">
+    <div class="cidades-header">
+      <h2><i class='bx bx-map'></i> Gerenciar Cidades</h2>
+    </div>
 
     <!-- Abas -->
     <div class="tabs">
@@ -28,69 +301,70 @@
 
     <!-- Filtros -->
     <div class="tab-content active" id="tab-filtros">
-      <div class="form-box">
-        <h2>Filtros de Busca</h2>
+      <div class="filtros-box">
+        <h3><i class='bx bx-filter'></i> Filtros de Busca</h3>
         <form id="filtroForm">
-          <!-- Linha 1: País, Estado, Cidade, Área DDD -->
-          <div class="input-group triple">
+          <div class="filtros-grid">
             <div>
               <label for="filtroPais">País</label>
-              <select id="filtroPais">
+              <select id="filtroPais" class="form-control">
                 <option value="">Todos</option>
                 <!-- Preenchido dinamicamente -->
               </select>
             </div>
             <div>
               <label for="filtroEstado">Estado</label>
-              <select id="filtroEstado">
+              <select id="filtroEstado" class="form-control">
                 <option value="">Todos</option>
                 <!-- Preenchido dinamicamente -->
               </select>
             </div>
             <div>
               <label for="filtroCidade">Cidade</label>
-              <input type="text" id="filtroCidade" maxlength="40" placeholder="Digite parte do nome...">
+              <input type="text" id="filtroCidade" class="form-control" maxlength="40" placeholder="Digite parte do nome...">
             </div>
             <div>
               <label for="filtroAreaDDD">Área DDD</label>
-              <input type="number" id="filtroAreaDDD" min="0" placeholder="Ex: 11, 21...">
+              <input type="number" id="filtroAreaDDD" class="form-control" min="0" placeholder="Ex: 11, 21...">
             </div>
-          </div>
-
-          <!-- Linha 2: Mesorregião, Microrregião, Região Fiscal, Situação -->
-          <div class="input-group triple">
             <div>
               <label for="filtroMesoregiao">Mesorregião</label>
-              <select id="filtroMesoregiao">
+              <select id="filtroMesoregiao" class="form-control">
                 <option value="">Todas</option>
                 <!-- Preenchido dinamicamente baseado no Estado -->
               </select>
             </div>
             <div>
               <label for="filtroMicroregiao">Microrregião</label>
-              <select id="filtroMicroregiao">
+              <select id="filtroMicroregiao" class="form-control">
                 <option value="">Todas</option>
                 <!-- Preenchido dinamicamente baseado no Estado -->
               </select>
             </div>
             <div>
               <label for="filtroRegiaoFiscal">Região Fiscal</label>
-              <select id="filtroRegiaoFiscal">
+              <select id="filtroRegiaoFiscal" class="form-control">
                 <option value="">Todas</option>
                 <!-- Preenchido dinamicamente -->
               </select>
             </div>
             <div>
               <label for="filtroSituacao">Situação</label>
-              <select id="filtroSituacao">
+              <select id="filtroSituacao" class="form-control">
                 <option value="">Todas</option>
                 <option value="S">Ativo</option>
                 <option value="N">Inativo</option>
               </select>
             </div>
           </div>
-          <button type="submit" class="btn save">Aplicar Filtro</button>
-          <button type="button" id="btnLimparFiltros" class="btn cancel">Limpar</button>
+          <div class="filtros-actions">
+            <button type="button" id="btnLimparFiltros" class="btn btn-secondary">
+              <i class='bx bx-x'></i> Limpar
+            </button>
+            <button type="submit" class="btn btn-primary">
+              <i class='bx bx-search'></i> Filtrar
+            </button>
+          </div>
         </form>
       </div>
     </div>
@@ -98,11 +372,15 @@
 
     <!-- Grid -->
     <div class="tab-content" id="tab-grid">
-      <div class="form-box">
-        <h2>Cidades Cadastradas - Grid</h2>
-        <div class="actions-top">
-          <button id="btnVoltarGrid" class="btn cancel">← Voltar aos Filtros</button>
-          <button id="btnNovoRegistroGrid" class="btn save">+ Novo Registro</button>
+      <div class="filtros-box">
+        <h3>Cidades Cadastradas</h3>
+        <div class="filtros-actions" style="justify-content: space-between; margin-top: 0; margin-bottom: 15px;">
+          <button id="btnVoltarGrid" class="btn btn-secondary">
+            <i class='bx bx-arrow-back'></i> Voltar aos Filtros
+          </button>
+          <button id="btnNovoRegistroGrid" class="btn btn-primary">
+            <i class='bx bx-plus'></i> Novo Registro
+          </button>
         </div>
         <div id="cidadesGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
           <span id="cidadesGridCountText">0 registro(s) encontrado(s)</span>
@@ -113,87 +391,79 @@
 
     <!-- Dados -->
     <div class="tab-content" id="tab-dados">
-      <div class="form-box">
-        <h2 id="formTitle">Nova Cidade</h2>
+      <div class="filtros-box">
+        <h3 id="formTitle">Nova Cidade</h3>
         <form id="cidadeForm">
           <input type="hidden" id="cidadeId">
           
-          <!-- Linha 1: Código Município (IBGE), Código País (País), Estado, Cidade -->
-          <div class="input-group triple">
+          <div class="filtros-grid">
             <div>
               <label for="cidadeMunicipio">Código IBGE *</label>
-              <input type="number" id="cidadeMunicipio" required min="0">
+              <input type="number" id="cidadeMunicipio" class="form-control" required min="0">
             </div>
             <div>
               <label for="cidadePais">País</label>
-              <select id="cidadePais">
+              <select id="cidadePais" class="form-control">
                 <option value="">Selecione</option>
                 <!-- Preenchido dinamicamente -->
               </select>
             </div>
             <div>
               <label for="cidadeEstado">Estado *</label>
-              <select id="cidadeEstado" required>
+              <select id="cidadeEstado" class="form-control" required>
                 <option value="">Selecione</option>
                 <!-- Preenchido dinamicamente -->
               </select>
             </div>
             <div>
               <label for="cidadeNome">Cidade *</label>
-              <input type="text" id="cidadeNome" required maxlength="40">
+              <input type="text" id="cidadeNome" class="form-control" required maxlength="40">
             </div>
-          </div>
-
-          <!-- Linha 2: Área DDD, Mesorregião, Microrregião, Região Fiscal -->
-          <div class="input-group triple">
             <div>
               <label for="cidadeAreaDDD">Área DDD</label>
               <div style="display: flex; gap: 8px; align-items: flex-end;">
-                <input type="number" id="cidadeAreaDDD" min="0" style="flex: 1;">
-                <button type="button" id="btnBuscarDDD" class="btn" style="padding: 12px 20px; margin: 0; white-space: nowrap; background: #3498db; color: white; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.3s;" title="Buscar DDD pelo código IBGE" onmouseover="this.style.background='#2980b9'" onmouseout="this.style.background='#3498db'">
-                  🔍 Buscar
+                <input type="number" id="cidadeAreaDDD" class="form-control" min="0" style="flex: 1;">
+                <button type="button" id="btnBuscarDDD" class="btn btn-info btn-sm" title="Buscar DDD pelo código IBGE">
+                  <i class='bx bx-search'></i> Buscar
                 </button>
               </div>
             </div>
             <div>
               <label for="cidadeMesoregiao">Mesorregião</label>
-              <select id="cidadeMesoregiao">
+              <select id="cidadeMesoregiao" class="form-control">
                 <option value="">Selecione</option>
                 <!-- Preenchido dinamicamente -->
               </select>
             </div>
             <div>
               <label for="cidadeMicroregiao">Microrregião</label>
-              <select id="cidadeMicroregiao">
+              <select id="cidadeMicroregiao" class="form-control">
                 <option value="">Selecione</option>
                 <!-- Preenchido dinamicamente -->
               </select>
             </div>
             <div>
               <label for="cidadeRegiaoFiscal">Região Fiscal</label>
-              <select id="cidadeRegiaoFiscal">
+              <select id="cidadeRegiaoFiscal" class="form-control">
                 <option value="">Selecione</option>
                 <!-- Preenchido dinamicamente -->
               </select>
             </div>
-          </div>
-
-          <!-- Linha 3: Situação (com 3 colunas vazias) -->
-          <div class="input-group triple">
             <div>
               <label for="cidadeSituacao">Situação *</label>
-              <select id="cidadeSituacao" required>
+              <select id="cidadeSituacao" class="form-control" required>
                 <option value="S">Ativo</option>
                 <option value="N">Inativo</option>
               </select>
             </div>
-            <div></div>
-            <div></div>
-            <div></div>
           </div>
-          <div class="form-actions">
-            <button type="submit" class="btn save">Salvar</button>
-            <button type="button" id="btnCancelar" class="btn cancel">Cancelar</button>
+          <div class="filtros-actions">
+            <button type="submit" class="btn btn-primary">
+              <i class='bx bx-save'></i> Salvar
+            </button>
+            <button type="button" id="btnCancelar" class="btn btn-secondary">
+              <i class='bx bx-x'></i> Cancelar
+            </button>
           </div>
         </form>
       </div>
@@ -201,12 +471,19 @@
 
     <!-- Modal -->
     <div id="confirmModal" class="modal">
-      <div class="modal-content">
-        <h3>Confirmar Ação</h3>
-        <p id="modalMessage"></p>
+      <div class="modal-content-tratamento">
+        <div class="modal-header">
+          <h3>Confirmar Ação</h3>
+          <button class="close" onclick="document.getElementById('confirmModal').style.display='none'">
+            <i class='bx bx-x'></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p id="modalMessage"></p>
+        </div>
         <div class="modal-actions">
-          <button id="confirmYes" class="btn delete">Sim</button>
-          <button id="confirmNo" class="btn cancel">Cancelar</button>
+          <button id="confirmYes" class="btn btn-primary">Sim</button>
+          <button id="confirmNo" class="btn btn-secondary">Cancelar</button>
         </div>
       </div>
     </div>
@@ -216,8 +493,9 @@
 
   <!-- Cache Buster - deve ser o primeiro script -->
   <script src="/js/cache-buster.js?v=202512091200"></script>
+  <script src="/js/utils.js"></script>
   <script src="/js/log-helper.js"></script>
-  <script src="/js/grid-editor.js"></script>
+  <!-- GridEditor é carregado globalmente pelo dashboard.js -->
   <script src="js/script.js"></script>
 </body>
 </html>

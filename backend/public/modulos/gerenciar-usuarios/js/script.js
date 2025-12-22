@@ -141,6 +141,9 @@
     if (initExecutado) return;
     initExecutado = true;
     await new Promise(resolve => setTimeout(resolve, 200));
+    
+    // Carregar estatísticas iniciais
+    
     try {
       await executarInitSQL();
     } catch (err) {
@@ -157,30 +160,49 @@
 
   // Função para mudar abas
   async function showTab(tabId) {
-    tabs.forEach(btn => btn.classList.remove('active'));
-    tabContents.forEach(content => content.classList.remove('active'));
-    
-    const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
-    const tabContent = document.getElementById(`tab-${tabId}`);
-    
-    if (tabBtn) tabBtn.classList.add('active');
-    if (tabContent) tabContent.classList.add('active');
+    try {
+      // Primeiro, mudar a aba imediatamente
+      tabs.forEach(btn => btn.classList.remove('active'));
+      tabContents.forEach(content => content.classList.remove('active'));
+      
+      const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+      const tabContent = document.getElementById(`tab-${tabId}`);
+      
+      if (tabBtn) tabBtn.classList.add('active');
+      if (tabContent) tabContent.classList.add('active');
 
-    if (tabId === 'acessos') {
-      // Limpar dados anteriores ao abrir a aba
-      limparDadosAcessos();
-      await carregarUsuariosParaAcessos();
-      await carregarTodasAtividades();
-      await carregarEmpresasParaAcessos();
-    }
+      // Aguardar um frame para garantir que a mudança foi renderizada
+      await new Promise(resolve => requestAnimationFrame(resolve));
 
-    if (tabId === 'grid' && lastUsuarios) {
-      if (typeof window.GridEditor !== 'undefined') {
-        if (!gridTab) inicializarGridTab();
-        try {
-          gridTab.render(lastUsuarios);
-        } catch (e) {}
+      if (tabId === 'acessos') {
+        // Limpar dados anteriores ao abrir a aba
+        limparDadosAcessos();
+        await carregarUsuariosParaAcessos();
+        await carregarTodasAtividades();
+        await carregarEmpresasParaAcessos();
       }
+
+      // Se a aba Grid foi ativada, garantir que o GridEditor seja inicializado
+      if (tabId === 'grid') {
+        try {
+          if (typeof window.GridEditor === 'undefined') {
+            try { await loadScript('/js/grid-editor.js'); } catch (e) { console.warn('[Usuários] falha ao carregar GridEditor:', e); }
+          }
+
+          if (typeof window.GridEditor !== 'undefined') {
+            if (!gridTab) inicializarGridTab();
+            try {
+              gridTab.render(lastUsuarios || []);
+            } catch (e) {
+              console.error('[Usuários] erro ao renderizar grid na aba:', e);
+            }
+          }
+        } catch (gridErr) {
+          console.warn('[Usuários] Erro ao processar grid:', gridErr);
+        }
+      }
+    } catch (err) {
+      console.warn('[Usuários] Erro ao mudar aba:', err);
     }
   }
 
@@ -231,16 +253,19 @@
         countEl.textContent = `${count} registro(s) encontrado(s)`;
       }
 
+      // Atualizar cards de estatísticas
+
       if (typeof window.GridEditor !== 'undefined' && gridTab) {
         try {
           gridTab.render(usuarios);
         } catch (e) {}
       }
 
+      // GridEditor já é carregado globalmente pelo dashboard.js
       if (typeof window.GridEditor === 'undefined') {
-        try {
-          await loadScript('/js/grid-editor.js');
-        } catch (loadErr) {}
+        console.warn('⚠️ [Usuários] GridEditor não disponível. Aguardando carregamento global...');
+        // Aguardar um pouco para o dashboard.js carregar
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
 
       if (typeof window.GridEditor !== 'undefined') {
@@ -256,9 +281,80 @@
     }
   }
 
+  // Carregar estatísticas iniciais
+
+  // Função para mostrar ajuda (PADRÃO ÚNICO)
+  function mostrarAjudaUsuarios() {
+    // Remover qualquer modal de ajuda existente primeiro
+    const modalExistente = document.getElementById('modalAjudaUsuarios');
+    if (modalExistente) {
+      modalExistente.remove();
+    }
+    
+    // Criar modal de ajuda com padrão único
+    const modal = document.createElement('div');
+    modal.id = 'modalAjudaUsuarios';
+    modal.className = 'modal-tratamento';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+      <div class="modal-content-tratamento">
+        <div class="modal-header-tratamento">
+          <h3><i class='bx bx-help-circle'></i> Ajuda - Gerenciar Usuários</h3>
+          <button onclick="window.fecharModalAjudaUsuarios()" class="btn-close-modal" type="button">
+            <i class='bx bx-x'></i>
+          </button>
+        </div>
+        <div class="modal-body-tratamento">
+          <h4>📋 Sobre o Módulo</h4>
+          <p>O módulo <strong>Gerenciar Usuários</strong> permite gerenciar todos os usuários do sistema, incluindo suas permissões, empresas e filiais associadas.</p>
+          
+          <h4>🔍 Filtros</h4>
+          <p>Use os filtros para buscar usuários por login, nome, email, código de cadastro, situação ou empresa.</p>
+          
+          <h4>📝 Funcionalidades</h4>
+          <ul>
+            <li><strong>Filtros:</strong> Buscar e filtrar usuários</li>
+            <li><strong>Grid:</strong> Visualizar usuários em formato de tabela editável</li>
+            <li><strong>Dados:</strong> Criar e editar usuários, definindo login, nome, email, senha e situação</li>
+            <li><strong>Acessos:</strong> Gerencie permissões, empresas e filiais de cada usuário</li>
+          </ul>
+          
+          <h4>🔐 Segurança</h4>
+          <ul>
+            <li>As senhas são obrigatórias e devem seguir as políticas de segurança do sistema</li>
+            <li>Apenas usuários com permissão adequada podem criar, editar ou desativar usuários</li>
+          </ul>
+        </div>
+        <div class="modal-footer-tratamento">
+          <button onclick="window.fecharModalAjudaUsuarios()" class="btn btn-secondary">
+            <i class='bx bx-x'></i> Fechar
+          </button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+  }
+
+  // Função para fechar modal de ajuda
+  function fecharModalAjudaUsuarios() {
+    const modal = document.getElementById('modalAjudaUsuarios');
+    if (modal) {
+      modal.remove();
+    }
+  }
+
+  // Expor função globalmente
+  window.mostrarAjudaUsuarios = mostrarAjudaUsuarios;
+  window.fecharModalAjudaUsuarios = fecharModalAjudaUsuarios;
+
   // Inicializar grid
   function inicializarGridTab() {
-    gridTab = new GridEditor({
+    if (typeof window.GridEditor === 'undefined') {
+      console.error('[Usuários] GridEditor não está disponível');
+      return;
+    }
+    gridTab = new window.GridEditor({
       container: '#usuariosGrid',
       columns: [
         { field: 'SGUSUARIO', header: 'Login', editable: false, isId: true, width: '180px' },
@@ -290,23 +386,50 @@
   // Carregar script
   function loadScript(src) {
     return new Promise((resolve, reject) => {
-      if (typeof GridEditor !== 'undefined') {
+      // Verificar se GridEditor já está disponível globalmente
+      if (typeof window.GridEditor !== 'undefined') {
         resolve();
         return;
       }
-      const script = document.createElement('script');
-      script.src = `${src}?t=${Date.now()}`;
-      script.onload = () => {
-        setTimeout(() => {
-          if (typeof GridEditor !== 'undefined') {
+
+      // Função para carregar novo script
+      const carregarNovoScript = () => {
+        const script = document.createElement('script');
+        script.src = `${src}?t=${Date.now()}`; // Cache busting
+        script.onload = () => {
+          // Aguardar um pouco para garantir que GridEditor está disponível
+          setTimeout(() => {
+            if (typeof window.GridEditor !== 'undefined') {
+              resolve();
+            } else {
+              reject(new Error('GridEditor não foi carregado'));
+            }
+          }, 100);
+        };
+        script.onerror = () => reject(new Error(`Erro ao carregar script: ${src}`));
+        document.head.appendChild(script);
+      };
+
+      // Verificar se o script já está sendo carregado ou já existe
+      const existingScript = document.querySelector(`script[src*="${src}"]`);
+      if (existingScript) {
+        // Se o script existe, aguardar ele carregar
+        let tentativas = 0;
+        const checkInterval = setInterval(() => {
+          if (typeof window.GridEditor !== 'undefined') {
+            clearInterval(checkInterval);
             resolve();
-          } else {
-            reject(new Error('GridEditor não foi carregado'));
+          } else if (tentativas++ > 20) {
+            clearInterval(checkInterval);
+            // Se não carregou após 2 segundos, remover e recarregar
+            existingScript.remove();
+            carregarNovoScript();
           }
         }, 100);
-      };
-      script.onerror = () => reject(new Error(`Erro ao carregar script: ${src}`));
-      document.head.appendChild(script);
+        return;
+      }
+
+      carregarNovoScript();
     });
   }
 
@@ -1209,6 +1332,14 @@
   document.getElementById('btnSalvarAcessos')?.addEventListener('click', salvarAtividades);
   document.getElementById('btnCancelarAcessos')?.addEventListener('click', () => {
     limparDadosAcessos();
+  });
+
+  // Fechar modal de ajuda ao clicar fora
+  document.addEventListener('click', (e) => {
+    const modal = document.getElementById('modalAjudaUsuarios');
+    if (modal && e.target === modal) {
+      fecharModalAjudaUsuarios();
+    }
   });
 
 })();

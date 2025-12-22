@@ -17,15 +17,17 @@
  * grid.render(data);
  */
 
-// Aplicar mensagem padrão global para confirmação de exclusão.
-// Módulos e o próprio GridEditor podem sobrescrever definindo `window.APP_CONFIRM_DELETE_MESSAGE`.
-try {
-  if (typeof window !== 'undefined' && typeof window.APP_CONFIRM_DELETE_MESSAGE === 'undefined') {
-    window.APP_CONFIRM_DELETE_MESSAGE = 'Tem certeza que deseja desativar esta situação?';
-  }
-} catch (e) {}
+// Verificar se já foi carregado para evitar erro de declaração duplicada
+if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
+  // Aplicar mensagem padrão global para confirmação de exclusão.
+  // Módulos e o próprio GridEditor podem sobrescrever definindo `window.APP_CONFIRM_DELETE_MESSAGE`.
+  try {
+    if (typeof window !== 'undefined' && typeof window.APP_CONFIRM_DELETE_MESSAGE === 'undefined') {
+      window.APP_CONFIRM_DELETE_MESSAGE = 'Tem certeza que deseja desativar esta situação?';
+    }
+  } catch (e) {}
 
-class GridEditor {
+  class GridEditor {
   constructor(options = {}) {
     this.container = typeof options.container === 'string' 
   ? document.querySelector(options.container) 
@@ -155,7 +157,7 @@ class GridEditor {
         <thead>
           <tr>
             ${this.columns.map(col => this.renderHeader(col)).join('')}
-            ${this.showActions ? '<th class="grid-actions-header">Ações</th>' : ''}
+            ${this.showActions ? '<th class="grid-actions-header" style="width: 100px; min-width: 100px; max-width: 100px; text-align: center;">Ações</th>' : ''}
           </tr>
         </thead>
         <tbody>
@@ -788,12 +790,13 @@ class GridEditor {
   }
 }
 
-// Expor globalmente para garantir disponibilidade em todos os módulos e carregamentos dinâmicos
-try {
-  if (typeof window !== 'undefined') {
-    window.GridEditor = window.GridEditor || GridEditor;
-    window._gridEditorLoaded = true;
+  // Expor globalmente para garantir disponibilidade em todos os módulos e carregamentos dinâmicos
+  try {
+    if (typeof window !== 'undefined') {
+      window.GridEditor = GridEditor;
+      window._gridEditorLoaded = true;
+    }
+  } catch (e) {
+    try { console.error('[GridEditor] exposure error', e); } catch(err) {}
   }
-} catch (e) {
-  try { console.error('[GridEditor] exposure error', e); } catch(err) {}
 }

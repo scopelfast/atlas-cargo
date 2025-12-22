@@ -210,12 +210,12 @@ Scope: ${registration.scope}
           console.log('✅ Service Worker v2 registrado!');
           
           esconderLoading();
-          mostrarToast('✅ Service Worker atualizado! Recarregando...', 'success');
+          mostrarToast('Service Worker atualizado! Recarregando...', 'success');
           
           setTimeout(() => location.reload(), 2000);
         } else {
           esconderLoading();
-          mostrarToast('⚠️ Service Worker não encontrado. Registrando...', 'warning');
+          mostrarToast('Service Worker não encontrado. Registrando...', 'warning');
           
           await navigator.serviceWorker.register('/motorista/sw.js');
           
@@ -223,14 +223,14 @@ Scope: ${registration.scope}
         }
       } catch (error) {
         esconderLoading();
-        mostrarToast('❌ Erro: ' + error.message, 'error');
+        mostrarToast('Erro: ' + error.message, 'error');
       }
     }
     
     async function limparTudo() {
       const resposta = await mostrarModal(
         '🚨 Limpar TUDO',
-        'ATENÇÃO! Isso vai:\n\n• Desregistrar o Service Worker\n• Limpar TODOS os caches\n• Limpar dados offline\n• Fazer logout\n\nTem certeza?',
+        'Atenção!\n\nIsso vai:\n• Desregistrar o Service Worker\n• Limpar TODOS os caches\n• Limpar dados offline\n• Fazer logout\n\nTem certeza?',
         ['Cancelar', 'Sim, Limpar TUDO']
       );
       
@@ -266,7 +266,7 @@ Scope: ${registration.scope}
         console.log('🗑️ LocalStorage limpo');
         
         esconderLoading();
-        mostrarToast('✅ Tudo limpo! Redirecionando...', 'success');
+        mostrarToast('Tudo limpo! Redirecionando...', 'success');
         
         // Redirecionar para login
         setTimeout(() => {
@@ -275,7 +275,7 @@ Scope: ${registration.scope}
         
       } catch (error) {
         esconderLoading();
-        mostrarToast('❌ Erro: ' + error.message, 'error');
+        mostrarToast('Erro: ' + error.message, 'error');
       }
     }
     

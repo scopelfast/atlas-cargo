@@ -139,13 +139,18 @@
     
     if (typeof mostrarModal === 'function') {
       const resposta = await mostrarModal(
-        '🧹 Limpar Fila Offline',
+        'Limpar Fila Offline',
         'Deseja limpar TODA a fila de sincronização?\n\nIsso removerá todos os dados pendentes de envio.',
         ['Cancelar', 'Limpar Tudo']
       );
       confirmado = resposta === 'Limpar Tudo';
     } else {
-      confirmado = confirm('Limpar TODA a fila offline?');
+      const respostaConfirm = await mostrarModal(
+        'Limpar Fila Offline',
+        'Deseja limpar TODA a fila offline?',
+        ['Cancelar', 'Limpar Tudo']
+      );
+      confirmado = respostaConfirm === 'Limpar Tudo';
     }
     
     if (confirmado) {
@@ -154,7 +159,7 @@
       await window.OfflineDB.atualizarIndicador();
       
       if (typeof mostrarToast === 'function') {
-        mostrarToast('🧹 Filas offline limpas com sucesso!', 'success');
+        mostrarToast('Filas offline limpas com sucesso!', 'success');
       }
     }
   };

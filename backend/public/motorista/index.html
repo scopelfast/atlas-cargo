@@ -39,7 +39,12 @@
       manifest.href = baseUrl + '/motorista/manifest.json';
       head.appendChild(manifest);
       
-      // CSS
+      // CSS - Design System primeiro, depois style.css
+      const designSystem = document.createElement('link');
+      designSystem.rel = 'stylesheet';
+      designSystem.href = baseUrl + '/motorista/css/design-system.css';
+      head.appendChild(designSystem);
+      
       const css = document.createElement('link');
       css.rel = 'stylesheet';
       css.href = baseUrl + '/motorista/css/style.css';

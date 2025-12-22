@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#667eea">
   <title>Dashboard - Motorista</title>
   <link rel="stylesheet" href="../css/padrao-telas.css">
+  <link rel="stylesheet" href="../css/design-system.css">
   <style>
     /* Header personalizado do Dashboard */
     .header-motorista {
@@ -128,70 +129,422 @@
       display: grid;
       grid-template-columns: repeat(2, 1fr);
       gap: 15px;
+      width: 100%;
     }
 
     .menu-item {
       position: relative;
-      display: flex;
+      display: flex !important;
       flex-direction: column;
-      align-items: center;
-      justify-content: center;
       text-decoration: none;
-      border-radius: 16px;
-      padding: 25px 10px;
-      aspect-ratio: 1;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-      transition: transform 0.2s;
+      border-radius: var(--radius-md, 12px);
+      padding: var(--spacing-md, 16px);
+      box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.08));
+      transition: all var(--transition-base, 250ms ease);
+      border: 1px solid var(--gray-200, #e9ecef);
+      overflow: hidden;
+      min-height: auto;
+      width: 100%;
+      visibility: visible !important;
+      opacity: 1 !important;
+      background: var(--white, #ffffff);
+      gap: var(--spacing-sm, 8px);
+      cursor: pointer;
+    }
+
+    .menu-item::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--primary-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform var(--transition-base, 250ms ease);
+    }
+
+    .menu-item:hover::before {
+      transform: scaleX(1);
+    }
+
+    .menu-item:hover {
+      box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.12));
+      transform: translateY(-2px);
+      border-color: var(--primary-500, #667eea);
     }
 
     .menu-item:active {
-      transform: scale(0.95);
+      transform: scale(0.98);
+    }
+
+    .menu-item-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
 
     .menu-icon {
-      font-size: 48px;
-      margin-bottom: 10px;
+      font-size: 24px;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
       line-height: 1;
+      position: relative;
+      z-index: 1;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .menu-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: #333;
+      line-height: 1;
+      position: relative;
+      z-index: 1;
     }
 
     .menu-text {
-      color: white;
-      font-size: 14px;
-      font-weight: 600;
-      text-align: center;
+      color: #666;
+      font-size: 13px;
+      font-weight: 500;
       line-height: 1.2;
+      position: relative;
+      z-index: 1;
     }
+    
+    /* Ícones específicos para cada botão */
+    .btn-gps .menu-icon { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .btn-posicao .menu-icon { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
+    .btn-macros .menu-icon { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
+    .btn-chat .menu-icon { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
+    .btn-viagens .menu-icon { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
+    .btn-convocacoes .menu-icon { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
+    .btn-cargas .menu-icon { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); }
+    .btn-config .menu-icon { background: linear-gradient(135deg, #d299c2 0%, #fef9d7 100%); }
 
     .menu-badge {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      background: #dc3545;
-      color: white;
-      font-size: 12px;
-      font-weight: bold;
-      padding: 4px 8px;
-      border-radius: 12px;
-      min-width: 24px;
-      text-align: center;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      display: none; /* Badge agora será exibido como menu-value */
     }
 
-    /* Gradientes */
-    .btn-gps { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-    .btn-posicao { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-    .btn-macros { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-    .btn-chat { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
-    .btn-viagens { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
-    .btn-convocacoes { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
-    .btn-cargas { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); }
-    .btn-config { background: linear-gradient(135deg, #d299c2 0%, #fef9d7 100%); }
+    /* Remover gradientes de fundo - agora são apenas ícones coloridos */
+    .btn-gps,
+    .btn-posicao,
+    .btn-macros,
+    .btn-chat,
+    .btn-viagens,
+    .btn-convocacoes,
+    .btn-cargas,
+    .btn-config {
+      background: var(--white, #ffffff);
+      color: #333;
+    }
 
     .section-title {
       font-size: 22px;
       font-weight: bold;
       color: #333;
       margin-bottom: 20px;
+    }
+
+    /* Cards de Estatísticas */
+    .stats-cards {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .stat-card {
+      background: var(--white, #ffffff);
+      border-radius: var(--radius-md, 12px);
+      padding: var(--spacing-md, 16px);
+      box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.08));
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-sm, 8px);
+      cursor: pointer;
+      transition: all var(--transition-base, 250ms ease);
+      border: 1px solid var(--gray-200, #e9ecef);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--primary-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform var(--transition-base, 250ms ease);
+    }
+
+    .stat-card:hover::before {
+      transform: scaleX(1);
+    }
+
+    .stat-card:active {
+      transform: scale(0.98);
+    }
+
+    .stat-card:hover {
+      box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.12));
+      transform: translateY(-2px);
+      border-color: var(--primary-500, #667eea);
+    }
+
+    .stat-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .stat-card-icon {
+      font-size: 24px;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .stat-card-value {
+      font-size: 28px;
+      font-weight: 700;
+      color: #333;
+      line-height: 1;
+    }
+
+    .stat-card-label {
+      font-size: 13px;
+      color: #666;
+      font-weight: 500;
+    }
+
+    .stat-card-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-top: 4px;
+    }
+
+    .stat-card-badge.new {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .stat-card-badge.pending {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    /* Gráfico de Performance */
+    .performance-chart {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+
+    .performance-chart-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .performance-bar {
+      margin-bottom: 12px;
+    }
+
+    .performance-bar-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 4px;
+    }
+
+    .performance-bar-bg {
+      height: 24px;
+      background: #f0f0f0;
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .performance-bar-fill {
+      height: 100%;
+      background: var(--primary-gradient, linear-gradient(90deg, #667eea 0%, #764ba2 100%));
+      border-radius: var(--radius-full, 9999px);
+      transition: width var(--transition-slow, 350ms ease);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      padding-right: 8px;
+      color: white;
+      font-size: 11px;
+      font-weight: var(--font-weight-semibold, 600);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .performance-bar-fill::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.3),
+        transparent
+      );
+      animation: shimmer 2s infinite;
+    }
+
+    .performance-bar-fill.excelente {
+      background: linear-gradient(90deg, #28a745 0%, #20c997 100%);
+    }
+
+    .performance-bar-fill.bom {
+      background: linear-gradient(90deg, #ffc107 0%, #ff9800 100%);
+    }
+
+    .performance-bar-fill.regular {
+      background: linear-gradient(90deg, #fd7e14 0%, #e83e8c 100%);
+    }
+
+    .performance-bar-fill.ruim {
+      background: linear-gradient(90deg, #dc3545 0%, #c82333 100%);
+    }
+
+    /* Notificações Recentes */
+    .notificacoes-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .notificacao-card {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      border-left: 4px solid #667eea;
+      cursor: pointer;
+      transition: all 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .notificacao-card:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+      transform: translateY(-2px);
+    }
+
+    .notificacao-card.nao-lida {
+      background: #f0f7ff;
+      border-left-color: #667eea;
+    }
+
+    .notificacao-card.chat {
+      border-left-color: #43e97b;
+    }
+
+    .notificacao-card.sos {
+      border-left-color: #e74c3c;
+    }
+
+    .notificacao-card.convocacao {
+      border-left-color: #f093fb;
+    }
+
+    .notificacao-card.alerta {
+      border-left-color: #ffc107;
+    }
+
+    .notificacao-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .notificacao-icone {
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+
+    .notificacao-conteudo {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .notificacao-titulo {
+      font-size: 15px;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 4px;
+    }
+
+    .notificacao-descricao {
+      font-size: 13px;
+      color: #666;
+      line-height: 1.4;
+      margin-bottom: 8px;
+    }
+
+    .notificacao-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: #999;
+    }
+
+    .notificacao-hora {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .notificacao-badge {
+      background: #667eea;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .sem-notificacoes {
+      text-align: center;
+      padding: 40px 20px;
+      color: #999;
+    }
+
+    .sem-notificacoes-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+      opacity: 0.5;
     }
   </style>
 </head>
@@ -203,7 +556,7 @@
       <div class="header-info">
         <div class="header-nome" id="nomeMotorista">Carregando...</div>
         <div class="header-cpf" id="cpfMotorista">CPF: -</div>
-        <div id="reputacaoContainer" class="reputacao-badge" style="display: none;">
+        <div id="reputacaoContainer" class="reputacao-badge" style="display: none; cursor: pointer;" onclick="document.getElementById('cardsEstatisticas')?.scrollIntoView({ behavior: 'smooth' })">
           <span>⭐ Reputação:</span>
           <span id="reputacaoScore" class="reputacao-score">-</span>
         </div>
@@ -224,47 +577,87 @@
     <!-- Mini Status GPS -->
     <div id="miniStatusGPS" style="margin-bottom: 16px;"></div>
 
+    <!-- Cards de Estatísticas -->
+    <div id="cardsEstatisticas" class="stats-cards" style="margin-bottom: 20px;">
+      <!-- Será preenchido via JavaScript -->
+    </div>
+
+    <!-- Notificações Recentes -->
+    <div class="section-title" style="display: flex; justify-content: space-between; align-items: center;">
+      <span>🔔 Notificações Recentes</span>
+      <button onclick="carregarNotificacoes()" style="background: none; border: none; color: #667eea; font-size: 12px; cursor: pointer; padding: 4px 8px;">🔄 Atualizar</button>
+    </div>
+    <div id="notificacoesRecentes" style="margin-bottom: 20px;">
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>Carregando notificações...</p>
+      </div>
+    </div>
+
     <div class="section-title">Menu Principal</div>
     
     <div class="menu-grid">
       <a href="gps.html" class="menu-item btn-gps">
-        <div class="menu-icon">📍</div>
+        <div class="menu-item-header">
+          <div class="menu-icon">📍</div>
+          <div class="menu-value">-</div>
+        </div>
         <div class="menu-text">GPS</div>
       </a>
 
       <a href="enviar-posicao.html" class="menu-item btn-posicao">
-        <div class="menu-icon">📤</div>
+        <div class="menu-item-header">
+          <div class="menu-icon">📤</div>
+          <div class="menu-value">-</div>
+        </div>
         <div class="menu-text">Enviar Posição</div>
       </a>
 
       <a href="macros.html" class="menu-item btn-macros">
-        <div class="menu-icon">📝</div>
+        <div class="menu-item-header">
+          <div class="menu-icon">📝</div>
+          <div class="menu-value" id="macrosValue">13</div>
+        </div>
         <div class="menu-text">Macros</div>
-        <div class="menu-badge">13</div>
       </a>
 
-      <a href="chat.html" class="menu-item btn-chat">
-        <div class="menu-icon">💬</div>
+      <a href="#" class="menu-item btn-chat" onclick="abrirChat(); return false;" id="menuChat">
+        <div class="menu-item-header">
+          <div class="menu-icon">💬</div>
+          <div class="menu-value" id="chatValue">0</div>
+        </div>
         <div class="menu-text">Chat</div>
       </a>
 
       <a href="viagens.html" class="menu-item btn-viagens">
-        <div class="menu-icon">🚛</div>
+        <div class="menu-item-header">
+          <div class="menu-icon">🚛</div>
+          <div class="menu-value">-</div>
+        </div>
         <div class="menu-text">Viagens</div>
       </a>
 
       <a href="convocacoes.html" class="menu-item btn-convocacoes">
-        <div class="menu-icon">📋</div>
+        <div class="menu-item-header">
+          <div class="menu-icon">📋</div>
+          <div class="menu-value">-</div>
+        </div>
         <div class="menu-text">Convocações</div>
       </a>
 
       <a href="cargas.html" class="menu-item btn-cargas">
-        <div class="menu-icon">📦</div>
+        <div class="menu-item-header">
+          <div class="menu-icon">📦</div>
+          <div class="menu-value">-</div>
+        </div>
         <div class="menu-text">Cargas</div>
       </a>
 
-      <a href="#" class="menu-item btn-config" onclick="mostrarToast('Em breve', 'info'); return false;">
-        <div class="menu-icon">⚙️</div>
+      <a href="configuracoes.html" class="menu-item btn-config">
+        <div class="menu-item-header">
+          <div class="menu-icon">⚙️</div>
+          <div class="menu-value">-</div>
+        </div>
         <div class="menu-text">Configurações</div>
       </a>
     </div>
@@ -278,6 +671,7 @@
   <script src="../js/auth.js"></script>
   <script src="../js/offline.js"></script>
   <script src="../js/gps-auto.js"></script>
+  <script src="../js/notifications-service.js"></script>
   <script src="../js/console-mobile.js"></script>
   
   <script>
@@ -299,6 +693,15 @@
 
     // Carregar reputação
     carregarReputacao();
+
+    // Carregar estatísticas
+    carregarEstatisticas();
+
+    // Carregar gráfico de performance
+    carregarGraficoPerformance();
+
+    // Carregar notificações recentes
+    carregarNotificacoes();
 
     async function logout() {
       const resposta = await mostrarModal(
@@ -366,6 +769,178 @@
     }
 
     // =============================================
+    // Notificações Recentes
+    // =============================================
+    async function carregarNotificacoes() {
+      try {
+        const token = localStorage.getItem('token');
+        const container = document.getElementById('notificacoesRecentes');
+        
+        if (!container) return;
+
+        const response = await fetch(`/api/motorista/notificacoes/${motorista.id}?limit=5`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Erro ao carregar notificações');
+        }
+
+        const data = await response.json();
+        const notificacoes = data.notificacoes || [];
+
+        if (notificacoes.length === 0) {
+          container.innerHTML = `
+            <div class="sem-notificacoes">
+              <div class="sem-notificacoes-icon">🔔</div>
+              <p>Nenhuma notificação recente</p>
+              <p style="font-size: 11px; color: #999; margin-top: 8px;">Você está em dia! 🎉</p>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = `
+          <div class="notificacoes-container">
+            ${notificacoes.map(notif => {
+              const icones = {
+                chat: '💬',
+                sos: '🚨',
+                convocacao: '📋',
+                alerta: '⚠️'
+              };
+              
+              const cores = {
+                chat: 'chat',
+                sos: 'sos',
+                convocacao: 'convocacao',
+                alerta: 'alerta'
+              };
+
+              const hora = new Date(notif.data).toLocaleString('pt-BR', {
+                day: '2-digit',
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+              });
+
+              const tempoRelativo = calcularTempoRelativo(new Date(notif.data));
+
+              return `
+                <div class="notificacao-card ${cores[notif.tipo] || ''} nao-lida" 
+                     onclick="abrirNotificacao('${notif.acao}', '${notif.tipo}', '${notif.id}')">
+                  <div class="notificacao-header">
+                    <div class="notificacao-icone">${icones[notif.tipo] || '🔔'}</div>
+                    <div class="notificacao-conteudo">
+                      <div class="notificacao-titulo">${notif.titulo}</div>
+                      <div class="notificacao-descricao">${notif.descricao}</div>
+                      ${notif.roteiro ? `<div style="font-size: 11px; color: #667eea; margin-top: 4px;">🚛 ${notif.roteiro}</div>` : ''}
+                      <div class="notificacao-meta">
+                        <div class="notificacao-hora">
+                          <span>🕐</span>
+                          <span>${tempoRelativo}</span>
+                        </div>
+                        ${notif.viagem ? `<span class="notificacao-badge">Viagem #${notif.viagem}</span>` : ''}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+      } catch (error) {
+        console.error('Erro ao carregar notificações:', error);
+        const container = document.getElementById('notificacoesRecentes');
+        if (container) {
+          container.innerHTML = `
+            <div class="sem-notificacoes">
+              <div class="sem-notificacoes-icon">⚠️</div>
+              <p>Erro ao carregar notificações</p>
+            </div>
+          `;
+        }
+      }
+    }
+
+    function calcularTempoRelativo(data) {
+      const agora = new Date();
+      const diffMs = agora - data;
+      const diffMin = Math.floor(diffMs / 60000);
+      const diffHoras = Math.floor(diffMs / 3600000);
+      const diffDias = Math.floor(diffMs / 86400000);
+
+      if (diffMin < 1) return 'Agora';
+      if (diffMin < 60) return `${diffMin}min atrás`;
+      if (diffHoras < 24) return `${diffHoras}h atrás`;
+      if (diffDias < 7) return `${diffDias}d atrás`;
+      return data.toLocaleDateString('pt-BR');
+    }
+
+    function abrirNotificacao(acao, tipo, id) {
+      // Marcar como lida (opcional - pode implementar endpoint para isso)
+      // Por enquanto, apenas redireciona
+      if (acao && acao !== '#') {
+        window.location.href = acao;
+      }
+    }
+
+    // =============================================
+    // Chat
+    // =============================================
+    async function abrirChat() {
+      try {
+        // Buscar viagens em andamento
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/motorista/viagens-andamento/${motorista.id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const viagens = data.dados || data || [];
+
+          if (viagens.length === 0) {
+            // Não há viagens - redirecionar para tela de viagens
+            mostrarToast('Você precisa ter uma viagem em andamento para usar o chat', 'info');
+            setTimeout(() => {
+              window.location.href = 'viagens.html';
+            }, 1500);
+            return;
+          }
+
+          // Se houver apenas uma viagem, abrir chat direto
+          if (viagens.length === 1) {
+            window.location.href = `chat.html?viagem=${viagens[0].IDVIAGEM}`;
+            return;
+          }
+
+          // Se houver múltiplas viagens, redirecionar para tela de viagens
+          mostrarToast('Selecione uma viagem para abrir o chat', 'info');
+          setTimeout(() => {
+            window.location.href = 'viagens.html';
+          }, 1500);
+        } else {
+          // Erro ao buscar viagens - redirecionar para tela de viagens
+          mostrarToast('Erro ao carregar viagens. Redirecionando...', 'error');
+          setTimeout(() => {
+            window.location.href = 'viagens.html';
+          }, 1500);
+        }
+      } catch (error) {
+        console.error('Erro ao abrir chat:', error);
+        mostrarToast('Erro ao abrir chat. Redirecionando...', 'error');
+        setTimeout(() => {
+          window.location.href = 'viagens.html';
+        }, 1500);
+      }
+    }
+
+    // =============================================
     // Mini Status GPS
     // =============================================
     function atualizarMiniStatusGPS() {
@@ -422,6 +997,338 @@
         miniDiv.style.transform = 'scale(1)';
       }, 300);
     });
+
+    // =============================================
+    // Contador de Mensagens Não Lidas
+    // =============================================
+    async function atualizarContadorChat() {
+      try {
+        const token = localStorage.getItem('token');
+        const idMotorista = motorista?.CDCADASTRO || motorista?.id || motorista?.cdcadastro;
+        
+        if (!idMotorista) return;
+        
+        // Tentar endpoint do módulo primeiro
+        let response = await fetch(`/api/chat/nao-lidas?idUsuario=${idMotorista}&userType=MOTORISTA`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        // Se não funcionar, tentar endpoint alternativo
+        if (!response.ok) {
+          response = await fetch(`/api/messages/nao-lidas?idUsuario=${idMotorista}&userType=MOTORISTA`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+        }
+        
+        if (response.ok) {
+          const data = await response.json();
+          // Estrutura: { success: true, data: { total: X, porConversa: [...] } }
+          const total = (data.data && data.data.total) || data.total || 0;
+          const chatValue = document.getElementById('chatValue');
+          
+          if (chatValue) {
+            chatValue.textContent = total > 0 ? (total > 99 ? '99+' : total.toString()) : '0';
+          }
+          
+          // Salvar no localStorage
+          localStorage.setItem('chat_nao_lidas', total.toString());
+        }
+      } catch (error) {
+        console.warn('Erro ao atualizar contador de chat:', error);
+      }
+    }
+    
+    // Atualizar contador ao carregar
+    atualizarContadorChat();
+    
+    // Atualizar a cada 30 segundos
+    setInterval(atualizarContadorChat, 30000);
+    
+    // Atualizar quando receber evento de nova mensagem
+    window.addEventListener('chatNaoLidasAtualizado', (e) => {
+      const total = e.detail?.total || 0;
+      const chatValue = document.getElementById('chatValue');
+      
+      if (chatValue) {
+        chatValue.textContent = total > 0 ? (total > 99 ? '99+' : total.toString()) : '0';
+      }
+      
+      // Atualizar card de estatísticas
+      atualizarCardEstatistica('mensagens', total);
+    });
+
+    // =============================================
+    // Cards de Estatísticas
+    // =============================================
+    async function carregarEstatisticas() {
+      try {
+        const token = localStorage.getItem('token');
+        const idMotorista = motorista?.CDCADASTRO || motorista?.id || motorista?.cdcadastro;
+        
+        if (!idMotorista) return;
+
+        // Carregar todas as estatísticas em paralelo
+        const [viagens, convocacoes, cargas, mensagens] = await Promise.all([
+          buscarViagensAndamento(idMotorista, token),
+          buscarConvocacoesPendentes(idMotorista, token),
+          buscarCargasDisponiveis(token),
+          buscarMensagensNaoLidas(idMotorista, token)
+        ]);
+
+        const stats = {
+          viagens: viagens.length || 0,
+          convocacoes: convocacoes.length || 0,
+          cargas: cargas.length || 0,
+          mensagens: mensagens || 0
+        };
+        
+        renderizarCardsEstatisticas(stats);
+        
+        // Atualizar valores nos botões do menu
+        atualizarValoresMenu(stats);
+      } catch (error) {
+        console.error('Erro ao carregar estatísticas:', error);
+      }
+    }
+
+    async function buscarViagensAndamento(idMotorista, token) {
+      try {
+        const response = await fetch(`/api/motorista/viagens-andamento/${idMotorista}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          return data.dados || data || [];
+        }
+      } catch (error) {
+        console.warn('Erro ao buscar viagens:', error);
+      }
+      return [];
+    }
+
+    async function buscarConvocacoesPendentes(idMotorista, token) {
+      try {
+        const response = await fetch(`/api/motorista/convocacoes/${idMotorista}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const convocacoes = data.dados || data || [];
+          // Filtrar apenas pendentes
+          return convocacoes.filter(c => c.STATUS === 'PENDENTE' || c.STATUS === 'ACEITA');
+        }
+      } catch (error) {
+        console.warn('Erro ao buscar convocações:', error);
+      }
+      return [];
+    }
+
+    async function buscarCargasDisponiveis(token) {
+      try {
+        const response = await fetch(`/api/motorista/cargas-disponiveis`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          return data.dados || data || [];
+        }
+      } catch (error) {
+        console.warn('Erro ao buscar cargas:', error);
+      }
+      return [];
+    }
+
+    async function buscarMensagensNaoLidas(idMotorista, token) {
+      try {
+        let response = await fetch(`/api/chat/nao-lidas?idUsuario=${idMotorista}&userType=MOTORISTA`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) {
+          response = await fetch(`/api/messages/nao-lidas?idUsuario=${idMotorista}&userType=MOTORISTA`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+        }
+        if (response.ok) {
+          const data = await response.json();
+          return (data.data && data.data.total) || data.total || 0;
+        }
+      } catch (error) {
+        console.warn('Erro ao buscar mensagens:', error);
+      }
+      return 0;
+    }
+
+    function renderizarCardsEstatisticas(stats) {
+      const container = document.getElementById('cardsEstatisticas');
+      if (!container) return;
+
+      container.innerHTML = `
+        <div class="stat-card" onclick="window.location.href='viagens.html'">
+          <div class="stat-card-header">
+            <div class="stat-card-icon">🚛</div>
+            <div class="stat-card-value">${stats.viagens}</div>
+          </div>
+          <div class="stat-card-label">Viagens em Andamento</div>
+        </div>
+
+        <div class="stat-card" onclick="abrirChat()">
+          <div class="stat-card-header">
+            <div class="stat-card-icon">💬</div>
+            <div class="stat-card-value">${stats.mensagens}</div>
+          </div>
+          <div class="stat-card-label">Mensagens Não Lidas</div>
+          ${stats.mensagens > 0 ? '<span class="stat-card-badge new">Novas</span>' : ''}
+        </div>
+
+        <div class="stat-card" onclick="window.location.href='convocacoes.html'">
+          <div class="stat-card-header">
+            <div class="stat-card-icon">📋</div>
+            <div class="stat-card-value">${stats.convocacoes}</div>
+          </div>
+          <div class="stat-card-label">Convocações Pendentes</div>
+          ${stats.convocacoes > 0 ? '<span class="stat-card-badge pending">Pendentes</span>' : ''}
+        </div>
+
+        <div class="stat-card" onclick="window.location.href='cargas.html'">
+          <div class="stat-card-header">
+            <div class="stat-card-icon">📦</div>
+            <div class="stat-card-value">${stats.cargas}</div>
+          </div>
+          <div class="stat-card-label">Cargas Disponíveis</div>
+        </div>
+      `;
+    }
+
+    function atualizarCardEstatistica(tipo, valor) {
+      const container = document.getElementById('cardsEstatisticas');
+      if (!container) return;
+
+      const cards = container.querySelectorAll('.stat-card');
+      cards.forEach((card, index) => {
+        const valueEl = card.querySelector('.stat-card-value');
+        if (tipo === 'mensagens' && index === 1 && valueEl) {
+          valueEl.textContent = valor;
+          const badge = card.querySelector('.stat-card-badge');
+          if (valor > 0) {
+            if (!badge) {
+              const newBadge = document.createElement('span');
+              newBadge.className = 'stat-card-badge new';
+              newBadge.textContent = 'Novas';
+              card.appendChild(newBadge);
+            }
+          } else if (badge) {
+            badge.remove();
+          }
+        }
+      });
+      
+      // Atualizar também no menu
+      if (tipo === 'mensagens') {
+        const chatValue = document.getElementById('chatValue');
+        if (chatValue) {
+          chatValue.textContent = valor > 0 ? (valor > 99 ? '99+' : valor.toString()) : '0';
+        }
+      }
+    }
+
+    function atualizarValoresMenu(stats) {
+      // Atualizar chat
+      const chatValue = document.getElementById('chatValue');
+      if (chatValue) {
+        chatValue.textContent = stats.mensagens > 0 ? (stats.mensagens > 99 ? '99+' : stats.mensagens.toString()) : '0';
+      }
+      
+      // Outros valores podem ser atualizados aqui conforme necessário
+      // Por enquanto, apenas chat tem valor dinâmico
+    }
+
+    // Atualizar estatísticas a cada 60 segundos
+    setInterval(carregarEstatisticas, 60000);
+
+    // =============================================
+    // Gráfico de Performance
+    // =============================================
+    async function carregarGraficoPerformance() {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/reputation/motorista/${motorista.id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.reputacao) {
+            renderizarGraficoPerformance(data.reputacao);
+          }
+        }
+      } catch (error) {
+        console.warn('Erro ao carregar performance:', error);
+      }
+    }
+
+    function renderizarGraficoPerformance(reputacao) {
+      const total = reputacao.TOTAL_DELIVERIES || 0;
+      if (total === 0) return; // Não mostrar gráfico se não há entregas
+
+      const noPrazo = reputacao.ON_TIME_DELIVERIES || 0;
+      const atrasadas = reputacao.LATE_DELIVERIES || 0;
+      const canceladas = reputacao.CANCELED_DELIVERIES || 0;
+
+      const percNoPrazo = total > 0 ? (noPrazo / total) * 100 : 0;
+      const percAtrasadas = total > 0 ? (atrasadas / total) * 100 : 0;
+      const percCanceladas = total > 0 ? (canceladas / total) * 100 : 0;
+
+      const container = document.getElementById('cardsEstatisticas');
+      if (!container) return;
+
+      const graficoHTML = `
+        <div class="performance-chart" style="grid-column: 1 / -1;">
+          <div class="performance-chart-title">
+            📈 Performance de Entregas
+          </div>
+          <div class="performance-bar">
+            <div class="performance-bar-label">
+              <span>✅ No Prazo</span>
+              <span>${noPrazo} de ${total} (${percNoPrazo.toFixed(1)}%)</span>
+            </div>
+            <div class="performance-bar-bg">
+              <div class="performance-bar-fill excelente" style="width: ${percNoPrazo}%">
+                ${percNoPrazo > 5 ? percNoPrazo.toFixed(0) + '%' : ''}
+              </div>
+            </div>
+          </div>
+          <div class="performance-bar">
+            <div class="performance-bar-label">
+              <span>⚠️ Atrasadas</span>
+              <span>${atrasadas} de ${total} (${percAtrasadas.toFixed(1)}%)</span>
+            </div>
+            <div class="performance-bar-bg">
+              <div class="performance-bar-fill ${percAtrasadas > 20 ? 'ruim' : percAtrasadas > 10 ? 'regular' : 'bom'}" style="width: ${percAtrasadas}%">
+                ${percAtrasadas > 5 ? percAtrasadas.toFixed(0) + '%' : ''}
+              </div>
+            </div>
+          </div>
+          <div class="performance-bar">
+            <div class="performance-bar-label">
+              <span>❌ Canceladas</span>
+              <span>${canceladas} de ${total} (${percCanceladas.toFixed(1)}%)</span>
+            </div>
+            <div class="performance-bar-bg">
+              <div class="performance-bar-fill ${percCanceladas > 10 ? 'ruim' : percCanceladas > 5 ? 'regular' : 'bom'}" style="width: ${percCanceladas}%">
+                ${percCanceladas > 5 ? percCanceladas.toFixed(0) + '%' : ''}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Inserir gráfico após os cards
+      container.insertAdjacentHTML('afterend', graficoHTML);
+    }
   </script>
   
   <style>

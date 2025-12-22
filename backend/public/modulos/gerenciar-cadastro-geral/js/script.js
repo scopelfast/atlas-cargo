@@ -21,207 +21,26 @@
   let sqlExecutado = false;
   let initExecutado = false;
 
-  // Funções para controlar overlay de carregamento do init.sql
-  function showLoadingOverlayInitSQL(titulo = 'Processando Inicialização', texto = 'Executando scripts de inicialização...', detalhe = 'Isso pode levar alguns segundos.') {
-    const overlay = document.getElementById('loadingOverlayInitSQL');
-    const loadingTitle = document.getElementById('loadingTitleInitSQL');
-    const loadingText = document.getElementById('loadingTextInitSQL');
-    const loadingDetail = document.getElementById('loadingDetailInitSQL');
-    
-    if (overlay && loadingTitle && loadingText && loadingDetail) {
-      loadingTitle.textContent = titulo;
-      loadingText.textContent = texto;
-      loadingDetail.textContent = detalhe;
-      overlay.style.display = 'flex';
-    }
-  }
-
-  function hideLoadingOverlayInitSQL() {
-    const overlay = document.getElementById('loadingOverlayInitSQL');
-    if (overlay) {
-      overlay.style.display = 'none';
-    }
-  }
-
   // Função para carregar e executar o arquivo init.sql
   async function executarInitSQL() {
-    // Proteção: Se já foi executado, não executar novamente
-    if (sqlExecutado) {
+    if (sqlExecutado) return;
+    sqlExecutado = true;
+    
+    // Usar função padrão global se disponível
+    if (typeof window.executarInitSQLPadrao === 'function') {
+      await window.executarInitSQLPadrao('/modulos/gerenciar-cadastro-geral/sql/init.sql', '/api/cadastros-gerais/executar-init-sql', 'cadastro-geral');
       return;
     }
     
-    // Marcar como executando IMEDIATAMENTE para evitar execuções simultâneas
-    sqlExecutado = true;
-    
-    // Mostrar overlay de carregamento
-    showLoadingOverlayInitSQL('Processando Inicialização', 'Carregando script de inicialização...', 'Aguarde enquanto preparamos o módulo.');
-    
-    try {
-      // Carregar o arquivo init.sql
-      const response = await fetch('/modulos/gerenciar-cadastro-geral/sql/init.sql');
-      
-      // Atualizar mensagem do overlay
-      showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL...', 'Isso pode levar alguns segundos.');
-      
-      if (!response.ok) {
-        // Se o arquivo não existir, não é erro - apenas não executa nada
-        if (response.status === 404) {
-          hideLoadingOverlayInitSQL();
-          return;
-        }
-        hideLoadingOverlayInitSQL();
-        throw new Error(`Erro ao carregar init.sql: ${response.status}`);
-      }
-      
-      const sqlContent = await response.text();
-      
-      // Remover comentários de bloco /* */ (incluindo multilinhas) usando regex
-      let sqlSemComentarios = sqlContent.replace(/\/\*[\s\S]*?\*\//g, '');
-      
-      // Remover apenas comentários, mas MANTER 'GO' pois o backend precisa dele para dividir comandos
-      const sqlLimpo = sqlSemComentarios
-        .split('\n')
-        .filter(linha => {
-          const linhaTrim = linha.trim();
-          // Manter linhas que não são apenas comentários vazios
-          // IMPORTANTE: Manter 'GO' pois o backend precisa dele para dividir comandos
-          return linhaTrim.length > 0 && 
-                 !linhaTrim.startsWith('--');
-        })
-        .join('\n')
-        .trim();
-      
-      // Se não há SQL para executar, retornar
-      if (!sqlLimpo || sqlLimpo.length === 0) {
-        hideLoadingOverlayInitSQL();
-        return;
-      }
-      
-      // Atualizar mensagem: processando comandos
-      showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL no banco de dados...', 'Aguarde, isso pode levar alguns segundos.');
-      
-      // Executar o SQL via API e AGUARDAR completamente a resposta
-      let execResponse;
-      try {
-        execResponse = await fetch('/api/cadastros-gerais/executar-init-sql', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sql: sqlLimpo }),
-          // Aumentar timeout para scripts grandes (MERGE pode demorar)
-          signal: AbortSignal.timeout(120000) // 120 segundos (2 minutos)
-        });
-      } catch (fetchError) {
-        if (fetchError.name === 'TimeoutError' || fetchError.name === 'AbortError') {
-          hideLoadingOverlayInitSQL();
-          return; // Não bloquear o módulo
-        }
-        if (fetchError.message.includes('ERR_CONNECTION_RESET') || fetchError.message.includes('Failed to fetch')) {
-          hideLoadingOverlayInitSQL();
-          return; // Não bloquear o módulo
-        }
-        hideLoadingOverlayInitSQL();
-        throw fetchError;
-      }
-      
-      // Verificar se a resposta foi bem-sucedida
-      if (!execResponse.ok) {
-        hideLoadingOverlayInitSQL();
-        return; // Não bloquear o módulo
-      }
-      
-      // Atualizar mensagem: processando resultados
-      showLoadingOverlayInitSQL('Processando Inicialização', 'Processando resultados...', 'Quase terminando.');
-      
-      // Aguardar completamente a resposta JSON
-      let result;
-      try {
-        result = await execResponse.json();
-      } catch (jsonError) {
-        hideLoadingOverlayInitSQL();
-        return; // Não bloquear o módulo
-      }
-      
-      // Verificar se todos os comandos foram executados com sucesso
-      if (!result.success) {
-        hideLoadingOverlayInitSQL();
-        return; // Não bloquear o módulo
-      }
-      
-      // Verificar se há resultados e se todos os comandos foram executados
-      if (result.resultados && Array.isArray(result.resultados)) {
-        const comandosComErro = result.resultados.filter(r => r.tipo === 'ERRO');
-        if (comandosComErro.length > 0) {
-          // Filtrar erros "esperados" (como tabela já existe, índice já existe, etc.)
-          const errosReais = comandosComErro.filter(erro => {
-            const mensagem = (erro.mensagem || erro.erro || '').toLowerCase();
-            // Erros esperados que não são problemas reais
-            const errosEsperados = [
-              'already exists',
-              'já existe',
-              'duplicate',
-              'duplicado',
-              'there is already',
-              'já há',
-              'cannot be opened',
-              'não pode ser aberto',
-              'is offline',
-              'está offline',
-              'database.*offline',
-              'banco.*offline'
-            ];
-            return !errosEsperados.some(esperado => {
-              // Suportar tanto string simples quanto regex
-              if (esperado.includes('*')) {
-                const regex = new RegExp(esperado.replace(/\*/g, '.*'), 'i');
-                return regex.test(mensagem);
-              }
-              return mensagem.includes(esperado);
-            });
-          });
-          
-          if (errosReais.length > 0) {
-            // Log apenas erros reais críticos
-            errosReais.forEach(erro => {
-              const mensagem = erro.mensagem || erro.erro || erro.message || erro.error || 'Erro desconhecido';
-              const mensagemStr = typeof mensagem === 'object' ? JSON.stringify(mensagem) : String(mensagem);
-              const mensagemLower = mensagemStr.toLowerCase();
-              
-              // Verificar se é erro interno do backend relacionado ao INTEGRA_PRD offline
-              const isErroInternoBackend = mensagemStr.includes('result is not defined') || 
-                                          mensagemStr.includes('Cannot read property') ||
-                                          mensagemStr.includes('undefined');
-              
-              if (isErroInternoBackend) {
-                // Extrair nome da procedure se possível
-                const comando = (erro && (erro.comando || erro.sql)) ? String(erro.comando || erro.sql) : 'Comando desconhecido';
-                const procedureMatch = comando.match(/EXEC\s+(?:\[dbo\]\.)?\[?(\w+)\]?/i) || 
-                                        comando.match(/EXECUTE\s+(?:\[dbo\]\.)?\[?(\w+)\]?/i) ||
-                                        comando.match(/\[?(\w+)\]?/i);
-                const procedureName = procedureMatch ? procedureMatch[1] : 'N/A';
-                console.warn(`[Init SQL] Aviso: Procedure ${procedureName} retornou erro interno (pode ser normal se o banco INTEGRA_PRD estiver offline)`);
-              } else {
-                if (typeof mensagem === 'object') {
-                  console.error('Erro no init.sql:', JSON.stringify(mensagem));
-                } else {
-                  console.error('Erro no init.sql:', mensagem);
-                }
-              }
-            });
-          }
-        }
-      }
-      
-      // Aguardar um pouco mais para garantir que todas as operações foram concluídas
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Esconder overlay após conclusão bem-sucedida
-      hideLoadingOverlayInitSQL();
-      
-    } catch (err) {
-      // Esconder overlay em caso de erro
-      hideLoadingOverlayInitSQL();
-      // Erros silenciosos - não bloquear o módulo
+    // Fallback: aguardar um pouco e tentar novamente (pode estar carregando)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    if (typeof window.executarInitSQLPadrao === 'function') {
+      await window.executarInitSQLPadrao('/modulos/gerenciar-cadastro-geral/sql/init.sql', '/api/cadastros-gerais/executar-init-sql', 'cadastro-geral');
+      return;
     }
+    
+    // Se ainda não estiver disponível, log de aviso
+    console.warn('[Cadastro Geral] executarInitSQLPadrao não disponível. Verifique se init-overlay-helper.js está carregado.');
   }
 
   // Funções para controlar overlay de carregamento (mesmo estilo do Gerenciar Roteiros)
@@ -296,6 +115,7 @@
     }
   }
 
+
   // Função de inicialização
   async function init() {
     // Se já foi executado, não executar novamente
@@ -309,17 +129,13 @@
     // Aguardar um pouco para garantir que o DOM está totalmente renderizado
     await new Promise(resolve => setTimeout(resolve, 200));
     
-    // IMPORTANTE: Executar SQL de inicialização (init.sql) se existir
-    // e AGUARDAR completamente antes de prosseguir
-    try {
-      await executarInitSQL();
-    } catch (err) {
-      // Erros silenciosos - não bloquear o módulo
-    }
-    
-    // Garantir que a aba de filtros está ativa e visível
-    // O showTab vai verificar se precisa carregar os estados e carregar automaticamente
+    // Mostrar aba de filtros primeiro
     await showTab('filtros');
+    
+    // Executar init.sql em background (não bloqueia)
+    executarInitSQL().catch(err => {
+      console.error('[Cadastro Geral] Erro ao executar init.sql:', err.message || err);
+    });
   }
 
   // Inicialização - tentar imediatamente e também no DOMContentLoaded
@@ -358,32 +174,30 @@
     // Se for a aba de grid, inicializar o GridEditor
     if (tabId === 'grid') {
       try {
-        if (!gridTab) {
-          await loadScript('/js/grid-editor.js');
-          inicializarGridTab();
+        if (typeof window.GridEditor === 'undefined') {
+          try { await loadScript('/js/grid-editor.js'); } catch (e) { console.warn('[Cadastros] falha ao carregar GridEditor:', e); }
         }
-        // Sempre renderizar, mesmo se não houver dados (grid vazio)
-        const cadastrosParaRenderizar = lastCadastros || [];
-        const cadastrosComCidade = cadastrosParaRenderizar.map(c => {
-          if (c.CIDADE) return c; // Já tem o campo
-          const estado = c.CIDADE_ESTADO || '';
-          const cidade = c.CIDADE_NOME || '';
-          const cidadeFormatada = `${estado} - ${cidade}`.trim();
-          return {
-            ...c,
-            CIDADE: cidadeFormatada === '-' ? 'Não informado' : cidadeFormatada
-          };
-        });
-        if (gridTab) {
-          gridTab.render(cadastrosComCidade);
-        } else if (cadastrosParaRenderizar.length === 0) {
-          // Se não há dados e grid não está inicializado, aplicar filtros para buscar
-          // Mas não bloquear a mudança de aba
-          setTimeout(() => {
-            applyFilters('grid').catch(err => {
-              console.warn('[Cadastros] Erro ao aplicar filtros automaticamente:', err);
+
+        if (typeof window.GridEditor !== 'undefined') {
+          if (!gridTab) inicializarGridTab();
+          if (gridTab && lastCadastros && lastCadastros.length > 0) {
+            const cadastrosComCidade = lastCadastros.map(c => {
+              if (c.CIDADE) return c; // Já tem o campo
+              const estado = c.CIDADE_ESTADO || '';
+              const cidade = c.CIDADE_NOME || '';
+              const cidadeFormatada = `${estado} - ${cidade}`.trim();
+              return {
+                ...c,
+                CIDADE: cidadeFormatada === '-' ? 'Não informado' : cidadeFormatada
+              };
             });
-          }, 100);
+            try {
+              gridTab.render(cadastrosComCidade);
+            } catch (e) {
+              console.error('[Cadastros] erro ao renderizar grid na aba:', e);
+            }
+          }
+          // NÃO aplicar filtros automaticamente - usuário deve aplicar manualmente
         }
       } catch (gridErr) {
         console.warn('[Cadastros] Erro ao processar grid:', gridErr);
@@ -455,7 +269,7 @@
   function loadScript(src) {
     return new Promise((resolve, reject) => {
       // Verificar se GridEditor já está disponível globalmente
-      if (typeof GridEditor !== 'undefined') {
+      if (typeof window.GridEditor !== 'undefined') {
         resolve();
         return;
       }
@@ -467,7 +281,7 @@
         script.onload = () => {
           // Aguardar um pouco para garantir que GridEditor está disponível
           setTimeout(() => {
-            if (typeof GridEditor !== 'undefined') {
+            if (typeof window.GridEditor !== 'undefined') {
               resolve();
             } else {
               reject(new Error('GridEditor não foi carregado'));
@@ -484,7 +298,7 @@
         // Se o script existe, aguardar ele carregar
         let tentativas = 0;
         const checkInterval = setInterval(() => {
-          if (typeof GridEditor !== 'undefined') {
+          if (typeof window.GridEditor !== 'undefined') {
             clearInterval(checkInterval);
             resolve();
           } else if (tentativas++ > 20) {
@@ -504,12 +318,13 @@
 
   // Inicializar GridEditor
   function inicializarGridTab() {
-    if (typeof GridEditor === 'undefined') {
+    // GridEditor já é carregado globalmente pelo dashboard.js
+    if (typeof window.GridEditor === 'undefined') {
       console.error('[Cadastros] GridEditor não está disponível');
       return;
     }
 
-    gridTab = new GridEditor({
+    gridTab = new window.GridEditor({
       container: '#cadastrosGrid',
       columns: [
         { field: 'CDCADASTRO', header: 'Código', editable: false, isId: true, width: '90px' },
@@ -971,29 +786,60 @@
         countEl.textContent = `${count} registro(s) encontrado(s)`;
       }
       
-      // Renderizar grid se já estiver inicializado
+      // Se já existe uma instância do Grid na aba, atualizá-la imediatamente
+      if (typeof window.GridEditor !== 'undefined' && gridTab) {
+        try {
+          gridTab.render(cadastrosComCidade);
+        } catch (e) {
+        }
+      }
+
+      // Se Grid já existe, atualizar
       if (gridTab) {
         try {
           gridTab.render(cadastrosComCidade);
-        } catch (gridErr) {
-          console.warn('[Cadastros] Erro ao renderizar grid:', gridErr);
-          // Continuar mesmo se houver erro no grid
-        }
-      } else if (openTab === 'grid' && typeof GridEditor === 'undefined') {
-        // Se o GridEditor não está carregado, carregar e inicializar
-        try {
-          await loadScript('/js/grid-editor.js');
-          inicializarGridTab();
-          if (gridTab) {
-            gridTab.render(cadastrosComCidade);
-          }
-        } catch (gridErr) {
-          console.warn('[Cadastros] Erro ao inicializar grid:', gridErr);
-          // Continuar mesmo se houver erro no grid
+        } catch (e) {
+          console.warn('[Cadastros] erro ao atualizar gridTab:', e);
         }
       }
-      
-      // Mudar para a aba solicitada (sempre, mesmo sem dados)
+
+      // Se openTab é 'grid', tentar auto-inicializar se necessário
+      if (openTab === 'grid') {
+        if (typeof window.GridEditor === 'undefined') {
+          try {
+            await loadScript('/js/grid-editor.js');
+          } catch (loadErr) {
+            console.warn('[Cadastros] erro ao carregar grid-editor para auto-init:', loadErr);
+          }
+        }
+
+        if (typeof window.GridEditor !== 'undefined') {
+          if (!gridTab) {
+            inicializarGridTab();
+            try {
+              gridTab.render(cadastrosComCidade);
+            } catch (e) {
+              console.warn('[Cadastros] erro ao auto-render gridTab:', e);
+            }
+          }
+        } else {
+          const scriptEl = document.querySelector('script[src="/js/grid-editor.js"]');
+          if (scriptEl) {
+            try {
+              const oldSrc = scriptEl.src;
+              scriptEl.src = oldSrc + (oldSrc.indexOf('?') > -1 ? '&' : '?') + 't=' + Date.now();
+              await new Promise(resolve => setTimeout(resolve, 500));
+              if (typeof window.GridEditor !== 'undefined' && !gridTab) {
+                inicializarGridTab();
+                try { gridTab.render(cadastrosComCidade); } catch (e) { console.warn('[Cadastros] erro ao render após reload forçado', e); }
+              }
+            } catch (rbErr) {
+              console.warn('[Cadastros] falha no reload forçado:', rbErr);
+            }
+          }
+        }
+      }
+
       showTab(openTab);
     } catch (err) {
       console.error('Erro ao aplicar filtros:', err);
@@ -2150,42 +1996,50 @@
       }
       
       html += `
-        <div style="background: #fff; border: 1px solid #dee2e6; border-left: 4px solid ${corStatus}; border-radius: 6px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); margin-bottom: 8px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <div style="flex: 1;">
-              <strong style="font-size: 15px; color: #2c3e50; display: block; margin-bottom: 6px;">${val.DSTIPOVALIDADE}</strong>
-              <div style="font-size: 12px; color: #6c757d;">
-                <span style="background: ${corStatus}; color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-right: 8px;">
-                  ${textoStatus}
-                </span>
-                <span style="color: #95a5a6; font-weight: 600; font-size: 10px; margin-right: 8px;">${val.TPCADASTRO}</span>
-                <span>Nº <strong>${val.NRLIBERACAO}</strong></span>
-                ${val.CERTIFICADORA_NOME ? ` • Certif: <strong>${val.CERTIFICADORA_NOME}</strong>` : ''}
+        <div class="validade-card" style="background: #fff; border: 1px solid #e9ecef; border-left: 5px solid ${corStatus}; border-radius: 8px; padding: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 12px; overflow: hidden; display: flex; min-height: 120px;">
+          <div style="width: 5px; background: ${corStatus}; flex-shrink: 0;"></div>
+          <div style="flex: 1; padding: 16px 18px; display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+              <div class="validade-card-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+                <div style="flex: 1; min-width: 200px;">
+                  <strong style="font-size: 16px; color: #2c3e50; display: block; margin-bottom: 8px; font-weight: 700;">${val.DSTIPOVALIDADE}</strong>
+                  <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px;">
+                    <span style="background: ${corStatus}; color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; white-space: nowrap;">
+                      ${textoStatus}
+                    </span>
+                    <span style="color: #6c757d; font-size: 12px; font-weight: 500;">Nº <strong style="color: #2c3e50;">${val.NRLIBERACAO}</strong></span>
+                    ${val.CERTIFICADORA_NOME ? `<span style="color: #6c757d; font-size: 12px;">• Certif: <strong style="color: #495057;">${val.CERTIFICADORA_NOME}</strong></span>` : ''}
+                  </div>
+                </div>
+                <div class="validade-card-actions" style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
+                  <button onclick="window.editarValidade('${val.SEQUENCIA}')" class="btn btn-primary btn-sm">
+                    <i class='bx bx-show'></i> Ver Dados
+                  </button>
+                  <button onclick="window.excluirValidade('${val.SEQUENCIA}')" class="btn btn-secondary btn-sm" style="background: #e74c3c;">
+                    <i class='bx bx-trash'></i> Remover
+                  </button>
+                </div>
               </div>
             </div>
-            <div style="display: flex; gap: 6px; align-items: center;">
-              <button onclick="window.editarValidade('${val.SEQUENCIA}')" 
-                      style="background: #3498db; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;"
-                      onmouseover="this.style.background='#2980b9'" 
-                      onmouseout="this.style.background='#3498db'">
-                👁️ Ver Dados
-              </button>
-              <button onclick="window.excluirValidade('${val.SEQUENCIA}')" 
-                      style="background: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600;"
-                      onmouseover="this.style.background='#c0392b'" 
-                      onmouseout="this.style.background='#e74c3c'">
-                🗑️ Remover
-              </button>
+            <div class="validade-card-footer" style="display: flex; gap: 24px; padding-top: 12px; border-top: 1px solid #f0f0f0; font-size: 13px; flex-wrap: wrap;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <i class='bx bx-calendar' style="color: #6c757d; font-size: 14px;"></i>
+                <span style="color: #6c757d; font-weight: 500;">Liberação:</span>
+                <strong style="color: #2c3e50; margin-left: 4px;">${dtLib}</strong>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <i class='bx bx-time' style="color: ${corStatus}; font-size: 14px;"></i>
+                <span style="color: #6c757d; font-weight: 500;">Validade:</span>
+                <strong style="color: ${corStatus}; margin-left: 4px;">${dtVal}</strong>
+              </div>
+              ${val.DSLIBERACAO ? `
+              <div style="display: flex; align-items: center; gap: 6px; flex: 1; min-width: 200px;">
+                <i class='bx bx-note' style="color: #6c757d; font-size: 14px;"></i>
+                <span style="color: #6c757d; font-weight: 500;">Obs:</span>
+                <strong style="color: #495057; margin-left: 4px;">${val.DSLIBERACAO}</strong>
+              </div>
+              ` : ''}
             </div>
-          </div>
-          <div style="display: flex; gap: 20px; padding-top: 10px; border-top: 1px solid #f0f0f0; font-size: 12px;">
-            <div>
-              <span style="color: #95a5a6;">📅 Liberação:</span> <strong style="color: #2c3e50;">${dtLib}</strong>
-            </div>
-            <div>
-              <span style="color: #95a5a6;">⏰ Validade:</span> <strong style="color: ${corStatus};">${dtVal}</strong>
-            </div>
-            ${val.DSLIBERACAO ? `<div style="flex: 1;"><span style="color: #95a5a6;">📝 Obs:</span> <strong style="color: #6c757d;">${val.DSLIBERACAO}</strong></div>` : ''}
           </div>
         </div>
       `;
@@ -2260,7 +2114,7 @@
   
   function abrirModalNovaValidade() {
     const nomeCadastro = document.getElementById('cadastroRazaoSocial')?.value || 'Cadastro';
-    document.getElementById('modalValidadeTitulo').textContent = '📋 Nova Validade';
+    document.getElementById('modalValidadeTitulo').innerHTML = '<i class=\'bx bx-file-blank\'></i> Nova Validade';
     document.getElementById('modalValidadeSubtitulo').textContent = `Cadastrando validade para: ${nomeCadastro}`;
     
     // Limpar formulário
@@ -2272,10 +2126,11 @@
     document.getElementById('certCpfCnpj').value = '';
     document.getElementById('certCodigo').value = '';
     document.getElementById('certNome').value = '';
-    document.getElementById('certTexto').textContent = 'Nenhuma certificadora selecionada';
-    document.getElementById('certResultado').style.background = '#e9ecef';
+    const certResultado = document.getElementById('certResultado');
+    certResultado.className = '';
+    certResultado.innerHTML = '<i class=\'bx bx-info-circle\'></i><span id="certTexto">Nenhuma certificadora selecionada</span>';
     
-    document.getElementById('modalValidade').style.display = 'block';
+    document.getElementById('modalValidade').style.display = 'flex';
   }
   
   window.editarValidade = async function(sequencia) {
@@ -2297,7 +2152,7 @@
       
       if (val) {
         const nomeCadastro = document.getElementById('cadastroRazaoSocial')?.value || 'Cadastro';
-        document.getElementById('modalValidadeTitulo').textContent = '✏️ Editar Validade';
+        document.getElementById('modalValidadeTitulo').innerHTML = '<i class=\'bx bx-edit\'></i> Editar Validade';
         document.getElementById('modalValidadeSubtitulo').textContent = `${val.DSTIPOVALIDADE} • ${nomeCadastro}`;
         document.getElementById('validadeSequencia').value = val.SEQUENCIA;
         
@@ -2309,22 +2164,24 @@
         document.getElementById('validadeDsLiberacao').value = val.DSLIBERACAO || '';
         
         // Preencher certificadora (campo hidden + mostrar nome)
+        const certResultado = document.getElementById('certResultado');
+        
         if (val.CDCERTIFICADORA && val.CERTIFICADORA_NOME) {
           document.getElementById('validadeCertificadora').value = val.CDCERTIFICADORA;
-          document.getElementById('certTexto').innerHTML = `<strong style="color: #27ae60;">✓ ${val.CERTIFICADORA_NOME}</strong> (Código: ${val.CDCERTIFICADORA})`;
-          document.getElementById('certResultado').style.background = '#d4edda';
+          certResultado.className = 'certificadora-selecionada';
+          certResultado.innerHTML = '<i class=\'bx bx-check-circle\'></i><span id="certTexto"><strong>✓ ' + val.CERTIFICADORA_NOME + '</strong> (Código: ' + val.CDCERTIFICADORA + ')</span>';
         } else if (val.CDCERTIFICADORA) {
           // Tem código mas não tem nome (buscar)
           document.getElementById('validadeCertificadora').value = val.CDCERTIFICADORA;
-          document.getElementById('certTexto').innerHTML = `<strong style="color: #f39c12;">⚠ Certificadora código ${val.CDCERTIFICADORA}</strong>`;
-          document.getElementById('certResultado').style.background = '#fff3cd';
+          certResultado.className = 'certificadora-aviso';
+          certResultado.innerHTML = '<i class=\'bx bx-error-circle\'></i><span id="certTexto"><strong>⚠ Certificadora código ' + val.CDCERTIFICADORA + '</strong></span>';
         } else {
           document.getElementById('validadeCertificadora').value = '';
-          document.getElementById('certTexto').textContent = 'Nenhuma certificadora selecionada';
-          document.getElementById('certResultado').style.background = '#e9ecef';
+          certResultado.className = '';
+          certResultado.innerHTML = '<i class=\'bx bx-info-circle\'></i><span id="certTexto">Nenhuma certificadora selecionada</span>';
         }
         
-        document.getElementById('modalValidade').style.display = 'block';
+        document.getElementById('modalValidade').style.display = 'flex';
       }
     } catch (err) {
       console.error('Erro ao editar:', err);
@@ -2400,15 +2257,17 @@
       const response = await fetch(`/api/cadastros-gerais?${params.toString()}`);
       const cadastros = await response.json();
       
+      const certResultado = document.getElementById('certResultado');
+      
       if (cadastros && cadastros.length > 0) {
         const cert = cadastros[0];
         document.getElementById('validadeCertificadora').value = cert.CDCADASTRO;
-        document.getElementById('certTexto').innerHTML = `<strong style="color: #27ae60;">✓ ${cert.RZSOCIAL}</strong> (Código: ${cert.CDCADASTRO})`;
-        document.getElementById('certResultado').style.background = '#d4edda';
+        certResultado.className = 'certificadora-selecionada';
+        certResultado.innerHTML = '<i class=\'bx bx-check-circle\'></i><span id="certTexto"><strong>✓ ' + cert.RZSOCIAL + '</strong> (Código: ' + cert.CDCADASTRO + ')</span>';
         showMessage('Certificadora encontrada!', 'success');
       } else {
-        document.getElementById('certTexto').innerHTML = '<span style="color: #e74c3c;">✗ Nenhuma certificadora encontrada</span>';
-        document.getElementById('certResultado').style.background = '#f8d7da';
+        certResultado.className = 'certificadora-erro';
+        certResultado.innerHTML = '<i class=\'bx bx-x-circle\'></i><span id="certTexto"><strong>✗ Nenhuma certificadora encontrada</strong></span>';
         showMessage('Certificadora não encontrada', 'error');
       }
     } catch (err) {
@@ -2461,4 +2320,67 @@
       showMessage('Erro ao salvar validade', 'error');
     }
   }
+
+  // Função para mostrar ajuda (PADRÃO ÚNICO)
+  window.mostrarAjudaCadastroGeral = function() {
+    // Remover qualquer modal de ajuda existente primeiro
+    const modalExistente = document.getElementById('modalAjudaCadastroGeral');
+    if (modalExistente) {
+      modalExistente.remove();
+    }
+    
+    // Criar modal de ajuda com padrão único
+    const modal = document.createElement('div');
+    modal.id = 'modalAjudaCadastroGeral';
+    modal.className = 'modal-tratamento';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+      <div class="modal-content-tratamento">
+        <div class="modal-header-tratamento">
+          <h3><i class='bx bx-help-circle'></i> Ajuda - Gerenciar Cadastro Geral</h3>
+          <button onclick="window.fecharModalAjudaCadastroGeral()" class="btn-close-modal" type="button">
+            <i class='bx bx-x'></i>
+          </button>
+        </div>
+        <div class="modal-body-tratamento">
+          <h4>📋 Sobre o Módulo</h4>
+          <p>O módulo <strong>Gerenciar Cadastro Geral</strong> permite gerenciar todos os cadastros do sistema, incluindo operadores, motoristas, agentes, grupos, transportadores e unidades de negócio.</p>
+          
+          <h4>🔍 Filtros</h4>
+          <p>Use os filtros para buscar cadastros específicos por código, CPF/CNPJ, razão social, tipo, situação, etc.</p>
+          
+          <h4>📝 Funcionalidades</h4>
+          <ul>
+            <li><strong>Filtros:</strong> Buscar e filtrar cadastros</li>
+            <li><strong>Grid:</strong> Visualizar cadastros em formato de tabela</li>
+            <li><strong>Dados:</strong> Criar e editar cadastros</li>
+            <li><strong>Classes Frota:</strong> Gerenciar classes de frota permitidas</li>
+            <li><strong>Validades:</strong> Gerenciar validades de documentos e certificações</li>
+          </ul>
+        </div>
+        <div class="modal-footer-tratamento">
+          <button onclick="window.fecharModalAjudaCadastroGeral()" class="btn btn-secondary">
+            <i class='bx bx-x'></i> Fechar
+          </button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+  };
+
+  window.fecharModalAjudaCadastroGeral = function() {
+    const modal = document.getElementById('modalAjudaCadastroGeral');
+    if (modal) {
+      modal.remove();
+    }
+  };
+
+  // Fechar modal de ajuda ao clicar fora
+  document.addEventListener('click', (e) => {
+    const modal = document.getElementById('modalAjudaCadastroGeral');
+    if (modal && e.target === modal) {
+      window.fecharModalAjudaCadastroGeral();
+    }
+  });
 })();

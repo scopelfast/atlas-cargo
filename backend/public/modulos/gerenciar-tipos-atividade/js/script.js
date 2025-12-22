@@ -16,116 +16,26 @@
   let sqlExecutado = false;
   let initExecutado = false;
 
-  // Funções para controlar overlay de carregamento do init.sql
-  function showLoadingOverlayInitSQL(titulo = 'Processando Inicialização', texto = 'Executando scripts de inicialização...', detalhe = 'Isso pode levar alguns segundos.') {
-    const overlay = document.getElementById('loadingOverlayInitSQL');
-    const loadingTitle = document.getElementById('loadingTitleInitSQL');
-    const loadingText = document.getElementById('loadingTextInitSQL');
-    const loadingDetail = document.getElementById('loadingDetailInitSQL');
-    
-    if (overlay && loadingTitle && loadingText && loadingDetail) {
-      loadingTitle.textContent = titulo;
-      loadingText.textContent = texto;
-      loadingDetail.textContent = detalhe;
-      overlay.style.display = 'flex';
-    }
-  }
-
-  function hideLoadingOverlayInitSQL() {
-    const overlay = document.getElementById('loadingOverlayInitSQL');
-    if (overlay) {
-      overlay.style.display = 'none';
-    }
-  }
-
   // Função para carregar e executar o arquivo init.sql
   async function executarInitSQL() {
     if (sqlExecutado) return;
     sqlExecutado = true;
-    showLoadingOverlayInitSQL('Processando Inicialização', 'Carregando script de inicialização...', 'Aguarde enquanto preparamos o módulo.');
-    try {
-      const response = await fetch('/modulos/gerenciar-tipos-atividade/sql/init.sql');
-      showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL...', 'Isso pode levar alguns segundos.');
-      if (!response.ok) {
-        if (response.status === 404) {
-          hideLoadingOverlayInitSQL();
-          return;
-        }
-        hideLoadingOverlayInitSQL();
-        return;
-      }
-      const sqlContent = await response.text();
-      let sqlSemComentarios = sqlContent.replace(/\/\*[\s\S]*?\*\//g, '');
-      const sqlLimpo = sqlSemComentarios.split('\n').filter(linha => {
-        const linhaTrim = linha.trim();
-        return linhaTrim.length > 0 && !linhaTrim.startsWith('--');
-      }).join('\n').trim();
-      if (!sqlLimpo || sqlLimpo.length === 0) {
-        hideLoadingOverlayInitSQL();
-        return;
-      }
-      showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL no banco de dados...', 'Aguarde, isso pode levar alguns segundos.');
-      let execResponse;
-      try {
-        execResponse = await fetch('/api/tipos-atividade/executar-init-sql', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sql: sqlLimpo }),
-          signal: AbortSignal.timeout(120000)
-        });
-      } catch (fetchError) {
-        if (fetchError.name === 'TimeoutError' || fetchError.name === 'AbortError') {
-          hideLoadingOverlayInitSQL();
-          return;
-        }
-        if (fetchError.message.includes('ERR_CONNECTION_RESET') || fetchError.message.includes('Failed to fetch')) {
-          hideLoadingOverlayInitSQL();
-          return;
-        }
-        hideLoadingOverlayInitSQL();
-        return;
-      }
-      if (!execResponse.ok) {
-        hideLoadingOverlayInitSQL();
-        return;
-      }
-      showLoadingOverlayInitSQL('Processando Inicialização', 'Processando resultados...', 'Quase terminando.');
-      let result;
-      try {
-        result = await execResponse.json();
-      } catch (jsonError) {
-        hideLoadingOverlayInitSQL();
-        return;
-      }
-      if (!result.success) {
-        hideLoadingOverlayInitSQL();
-        return;
-      }
-      if (result.resultados && Array.isArray(result.resultados)) {
-        const comandosComErro = result.resultados.filter(r => r.tipo === 'ERRO');
-        if (comandosComErro.length > 0) {
-          const errosReais = comandosComErro.filter(erro => {
-            const mensagem = (erro.mensagem || erro.erro || '').toLowerCase();
-            const errosEsperados = ['already exists', 'já existe', 'duplicate', 'duplicado', 'there is already', 'já há'];
-            return !errosEsperados.some(esperado => mensagem.includes(esperado));
-          });
-          if (errosReais.length > 0) {
-            errosReais.forEach(erro => {
-              const mensagem = erro.mensagem || erro.erro || erro.message || erro.error || 'Erro desconhecido';
-              if (typeof mensagem === 'object') {
-                console.error('Erro no init.sql:', JSON.stringify(mensagem));
-              } else {
-                console.error('Erro no init.sql:', mensagem);
-              }
-            });
-          }
-        }
-      }
-      await new Promise(resolve => setTimeout(resolve, 500));
-      hideLoadingOverlayInitSQL();
-    } catch (err) {
-      hideLoadingOverlayInitSQL();
+    
+    // Usar função padrão global se disponível
+    if (typeof window.executarInitSQLPadrao === 'function') {
+      await window.executarInitSQLPadrao('/modulos/gerenciar-tipos-atividade/sql/init.sql', '/api/tipos-atividade/executar-init-sql', 'tipos-atividade');
+      return;
     }
+    
+    // Fallback: aguardar um pouco e tentar novamente (pode estar carregando)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    if (typeof window.executarInitSQLPadrao === 'function') {
+      await window.executarInitSQLPadrao('/modulos/gerenciar-tipos-atividade/sql/init.sql', '/api/tipos-atividade/executar-init-sql', 'tipos-atividade');
+      return;
+    }
+    
+    // Se ainda não estiver disponível, log de aviso
+    console.warn('[Tipos Atividade] executarInitSQLPadrao não disponível. Verifique se init-overlay-helper.js está carregado.');
   }
 
   // Função de inicialização
@@ -281,7 +191,12 @@
 
   // Inicializar grid
   function inicializarGridTab() {
-    gridTab = new GridEditor({
+    if (typeof window.GridEditor === 'undefined') {
+      console.error('[Tipos Atividade] GridEditor não está disponível');
+      return;
+    }
+
+    gridTab = new window.GridEditor({
       container: '#tiposAtividadeGrid',
       columns: [
         { field: 'CDTIPOATIVIDADE', header: 'Código', editable: false, isId: true, width: '80px' },
@@ -327,6 +242,7 @@
       document.getElementById('tipoAtividadeCodigo').readOnly = true;
       document.getElementById('tipoAtividadeDescricao').value = tipo.DSTIPOATIVIDADE || '';
       document.getElementById('tipoAtividadePrograma').value = tipo.DSPROGRAMA || '';
+      document.getElementById('tipoAtividadeGrupo').value = tipo.FGGRUPO || '';
       document.getElementById('tipoAtividadeSituacao').value = tipo.FGACTIVE || 'S';
 
       document.getElementById('formTitle').textContent = 'Editar Tipo de Atividade';
@@ -343,6 +259,7 @@
     const codigo = document.getElementById('tipoAtividadeCodigo').value;
     const descricao = document.getElementById('tipoAtividadeDescricao').value.trim();
     const programa = document.getElementById('tipoAtividadePrograma').value.trim();
+    const grupo = document.getElementById('tipoAtividadeGrupo').value.trim();
     const situacao = document.getElementById('tipoAtividadeSituacao').value;
 
     if (!codigo || !descricao) {
@@ -361,6 +278,7 @@
           CDTIPOATIVIDADE: parseInt(codigo),
           DSTIPOATIVIDADE: descricao,
           DSPROGRAMA: programa || null,
+          FGGRUPO: grupo || null,
           FGACTIVE: situacao
         })
       });
@@ -388,6 +306,7 @@
     document.getElementById('tipoAtividadeCodigo').readOnly = false;
     document.getElementById('tipoAtividadeDescricao').value = '';
     document.getElementById('tipoAtividadePrograma').value = '';
+    document.getElementById('tipoAtividadeGrupo').value = '';
     document.getElementById('tipoAtividadeSituacao').value = 'S';
     document.getElementById('formTitle').textContent = 'Novo Tipo de Atividade';
   }
@@ -481,5 +400,66 @@
     modal.style.display = 'none';
   });
 
+  // Função de ajuda
+  window.mostrarAjudaTiposAtividade = function() {
+    // Remover qualquer modal de ajuda existente primeiro
+    const modalExistente = document.getElementById('modalAjudaTiposAtividade');
+    if (modalExistente) {
+      modalExistente.remove();
+    }
+    
+    // Criar modal de ajuda com padrão único
+    const modal = document.createElement('div');
+    modal.id = 'modalAjudaTiposAtividade';
+    modal.className = 'modal-tratamento';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+      <div class="modal-content-tratamento">
+        <div class="modal-header-tratamento">
+          <h3><i class='bx bx-help-circle'></i> Ajuda - Gerenciar Tipos de Atividade</h3>
+          <button onclick="window.fecharModalAjudaTiposAtividade()" class="btn-close-modal" type="button">
+            <i class='bx bx-x'></i>
+          </button>
+        </div>
+        <div class="modal-body-tratamento">
+          <h4>📋 Sobre o Módulo</h4>
+          <p>O módulo <strong>Gerenciar Tipos de Atividade</strong> permite gerenciar os tipos de atividade cadastrados no sistema, definindo categorias para diferentes atividades que podem ser realizadas.</p>
+          
+          <h4>🔍 Filtros</h4>
+          <p>Use os filtros para buscar tipos de atividade específicos por código, descrição ou situação (Ativo/Inativo).</p>
+          
+          <h4>📝 Funcionalidades</h4>
+          <ul>
+            <li><strong>Filtros:</strong> Buscar e filtrar tipos de atividade</li>
+            <li><strong>Grid:</strong> Visualizar tipos de atividade em formato de tabela com opções de edição e exclusão</li>
+            <li><strong>Dados:</strong> Criar e editar tipos de atividade</li>
+          </ul>
+          
+          <h4>✨ Dicas</h4>
+          <ul>
+            <li>Para criar um novo tipo de atividade, clique em "Novo Registro" na aba Grid ou Dados</li>
+            <li>Para editar um tipo de atividade existente, clique no botão de editar (✎) na coluna Ações do grid</li>
+            <li>Para desativar um tipo de atividade, edite-o e altere a situação para "Inativo" ou use o botão de exclusão</li>
+            <li>O campo "Programa" permite especificar o caminho ou nome do programa a ser chamado quando este tipo de atividade for selecionado</li>
+            <li>Tipos de atividade inativos não aparecerão em seleções de novos cadastros</li>
+          </ul>
+        </div>
+        <div class="modal-footer-tratamento">
+          <button onclick="window.fecharModalAjudaTiposAtividade()" class="btn btn-secondary">
+            <i class='bx bx-x'></i> Fechar
+          </button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+  };
+
+  window.fecharModalAjudaTiposAtividade = function() {
+    const modal = document.getElementById('modalAjudaTiposAtividade');
+    if (modal) {
+      modal.remove();
+    }
+  };
 })();
 

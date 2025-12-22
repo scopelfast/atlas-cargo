@@ -416,7 +416,7 @@
         filtrarPeriodo(periodoAtual);
         
         if (!window.OfflineDB.isOnline()) {
-          mostrarToast('📴 Offline - Mostrando dados salvos', 'warning');
+          mostrarToast('Offline - Mostrando dados salvos', 'warning');
         }
       } catch (err) {
         console.error('Erro:', err);
@@ -635,10 +635,10 @@
           });
 
           if (response.ok) {
-            mostrarToast('✅ Convocação aceita com sucesso!', 'success');
+            mostrarToast('Convocação aceita com sucesso!', 'success');
             carregarConvocacoes();
           } else {
-            mostrarToast('❌ Erro ao aceitar convocação', 'error');
+            mostrarToast('Erro ao aceitar convocação', 'error');
           }
         } else {
           await window.OfflineDB.adicionarFila('filaAcoes', {
@@ -648,7 +648,7 @@
             data: { latitude, longitude }
           });
 
-          mostrarToast('💾 Salvo! Será enviado quando houver conexão', 'warning');
+          mostrarToast('Salvo! Será enviado quando houver conexão', 'warning');
           
           const convocacoes = await window.OfflineDB.buscarCache('convocacoes');
           const conv = convocacoes.find(c => c.IDCONVOCACAO === idConvocacao);
@@ -661,7 +661,7 @@
 
         await window.OfflineDB.atualizarIndicador();
       } catch (err) {
-        mostrarToast('❌ Erro ao aceitar convocação', 'error');
+        mostrarToast('Erro ao aceitar convocação', 'error');
       }
     }
 
@@ -696,12 +696,12 @@
             data: {}
           });
 
-          mostrarToast('💾 Salvo! Será enviado quando houver conexão', 'warning');
+          mostrarToast('Salvo! Será enviado quando houver conexão', 'warning');
         }
 
         await window.OfflineDB.atualizarIndicador();
       } catch (err) {
-        mostrarToast('❌ Erro ao recusar convocação', 'error');
+        mostrarToast('Erro ao recusar convocação', 'error');
       }
     }
 

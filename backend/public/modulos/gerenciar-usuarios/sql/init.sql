@@ -2,6 +2,8 @@
 -- Arquivo de Inicialização - Gerenciar Usuários
 -- (Apenas INSERÇÃO de novos usuários)
 -- ============================================
+USE DIVULGACARGA_PRD
+
 MERGE INTO [dbo].[USUARIO] AS TARGET
 USING (
     SELECT DISTINCT
@@ -43,4 +45,10 @@ WHEN NOT MATCHED BY TARGET THEN
         SOURCE.SGUSER,
         SOURCE.SERVERORIG
     );
+
+UPDATE USUARIO
+   SET FGACTIVE = 'N'
+ WHERE FGACTIVE <> 'S';
+
+
 GO

@@ -276,11 +276,11 @@
         console.log('🧪 Testando GPS...');
         
         if (!navigator.geolocation) {
-          mostrarToast('❌ Este dispositivo não suporta GPS');
+          mostrarToast('Este dispositivo não suporta GPS', 'error');
           return;
         }
 
-        mostrarToast('✅ GPS disponível!\n\nAgora vou pedir permissão.\nQuando o Chrome perguntar, clique em PERMITIR!');
+        mostrarToast('GPS disponível!\n\nAgora vou pedir permissão.\nQuando o Chrome perguntar, clique em PERMITIR!', 'success');
 
         const pos = await new Promise((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(
@@ -290,18 +290,21 @@
           );
         });
 
-        alert(`✅ GPS FUNCIONANDO!\n\nLocalização capturada:\n\nLatitude: ${pos.coords.latitude.toFixed(6)}\nLongitude: ${pos.coords.longitude.toFixed(6)}\n\nPrecisão: ${Math.round(pos.coords.accuracy)} metros`);
+        mostrarToast(
+          `GPS funcionando!\n\nLocalização capturada:\nLatitude: ${pos.coords.latitude.toFixed(6)}\nLongitude: ${pos.coords.longitude.toFixed(6)}\nPrecisão: ${Math.round(pos.coords.accuracy)} metros`,
+          'success'
+        );
 
         console.log('✅ GPS OK:', pos.coords);
       } catch (err) {
         console.error('❌ Erro GPS:', err);
         
         if (err.code === 1) {
-          mostrarToast('❌ PERMISSÃO NEGADA!\n\nVocê clicou em "Bloquear".\n\nPara corrigir:\n1. Recarregue a página\n2. Clique novamente neste botão\n3. Quando perguntar, clique em PERMITIR');
+          mostrarToast('Permissão GPS negada!\n\nVocê clicou em "Bloquear".\n\nPara corrigir:\n1. Recarregue a página\n2. Clique novamente neste botão\n3. Quando perguntar, clique em PERMITIR', 'error');
         } else if (err.code === 2) {
-          mostrarToast('❌ GPS INDISPONÍVEL!\n\nVerifique:\n- GPS do celular está ativado?\n- Está em local aberto? (não funciona bem dentro de prédios)');
+          mostrarToast('GPS indisponível!\n\nVerifique:\n- GPS do celular está ativado?\n- Está em local aberto? (não funciona bem dentro de prédios)', 'error');
         } else if (err.code === 3) {
-          mostrarToast('⏱️ TIMEOUT!\n\nO GPS demorou muito.\n\nTente:\n- Sair de dentro de prédios\n- Aguardar 1 minuto\n- Tentar novamente');
+          mostrarToast('Timeout!\n\nO GPS demorou muito.\n\nTente:\n- Sair de dentro de prédios\n- Aguardar 1 minuto\n- Tentar novamente', 'warning');
         }
       }
     }
@@ -309,7 +312,7 @@
     // SOLICITAR PERMISSÃO GPS
     async function solicitarPermissaoGPS() {
       if (!navigator.geolocation) {
-        mostrarToast('❌ GPS não disponível neste dispositivo');
+        mostrarToast('GPS não disponível neste dispositivo', 'error');
         return false;
       }
 
@@ -423,22 +426,28 @@
         let mensagemErro = 'Erro ao capturar localização';
         
         if (err.code === 1) {
-          mensagemErro = '❌ Permissão GPS negada!\n\nClique no cadeado (⚠️) ao lado da URL e permita "Localização"';
+          mensagemErro = 'Permissão GPS negada!\n\nClique no cadeado ao lado da URL e permita "Localização"';
           
           // Oferecer ajuda
-          if (confirm(mensagemErro + '\n\nDeseja ver instruções detalhadas?')) {
-            window.open('ajuda-gps.html', '_blank');
-          }
+          mostrarModal(
+            'Permissão GPS Negada',
+            mensagemErro + '\n\nDeseja ver instruções detalhadas?',
+            ['Cancelar', 'Ver Instruções']
+          ).then(resposta => {
+            if (resposta === 'Ver Instruções') {
+              window.open('ajuda-gps.html', '_blank');
+            }
+          });
           return;
         } else if (err.code === 2) {
-          mensagemErro = '❌ GPS indisponível!\n\nVerifique se o GPS do celular está ativado.';
+          mensagemErro = 'GPS indisponível!\n\nVerifique se o GPS do celular está ativado.';
         } else if (err.code === 3) {
-          mensagemErro = '⏱️ Timeout ao capturar GPS!\n\nTentando novamente...';
+          mensagemErro = 'Timeout ao capturar GPS!\n\nTentando novamente...';
         } else if (err.message) {
-          mensagemErro = `❌ ${err.message}`;
+          mensagemErro = err.message;
         }
         
-        alert(mensagemErro);
+        mostrarToast(mensagemErro, 'error');
         
         // Se estava rastreando, pausar
         if (rastreando) {
@@ -592,12 +601,21 @@
       `).join('');
     }
 
-    function voltar() {
+    async function voltar() {
       if (rastreando) {
-        if (confirm('Rastreamento ativo! Deseja realmente sair?')) {
+        const resposta = await mostrarModal(
+          'Rastreamento Ativo',
+          'Rastreamento está ativo!\n\nDeseja realmente sair?',
+          ['Cancelar', 'Sair']
+        );
+        
+        if (resposta === 'Sair') {
           pausarRastreamento();
           window.location.href = 'dashboard.html';
         }
+        return;
+      }
+      window.location.href = 'dashboard.html';
       } else {
         window.location.href = 'dashboard.html';
       }
@@ -663,7 +681,7 @@
           if (response.ok) {
             console.log('✅ GPS simulado enviado!');
             atualizarUltimoHistorico(true);
-            mostrarToast('✅ Posição simulada enviada!\n\n' + 
+            mostrarToast('Posição simulada enviada!\n\n' + 
                   `Lat: ${dados.latitude.toFixed(6)}\n` +
                   `Lng: ${dados.longitude.toFixed(6)}`);
             document.getElementById('gpsDetalhe').textContent = 
@@ -675,11 +693,11 @@
         } else {
           await window.OfflineDB.adicionarFila('filaGPS', dados);
           atualizarUltimoHistorico(false);
-          mostrarToast('📴 Offline - GPS simulado salvo na fila');
+          mostrarToast('Offline - GPS simulado salvo na fila', 'warning');
         }
       } catch (err) {
         console.error('Erro ao enviar GPS simulado:', err);
-        mostrarToast('❌ Erro ao enviar');
+        mostrarToast('Erro ao enviar', 'error');
       }
     }
     

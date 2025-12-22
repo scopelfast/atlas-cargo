@@ -60,8 +60,14 @@ function cancelarSOS() {
     pressTimer = null;
   }
   
-  btn.classList.remove('press-and-hold');
-  progressBar.style.width = '0%';
+  if (btn) {
+    btn.classList.remove('press-and-hold');
+  }
+  
+  if (progressBar) {
+    progressBar.style.width = '0%';
+  }
+  
   pressStartTime = null;
 }
 
@@ -74,18 +80,53 @@ async function obterLocalizacao() {
   }
 
   try {
-    const position = await new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(resolve, reject, {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-      });
-    });
-
-    currentLatitude = position.coords.latitude;
-    currentLongitude = position.coords.longitude;
+    // Primeiro tentar com watchPosition para obter posição mais rapidamente
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        currentLatitude = position.coords.latitude;
+        currentLongitude = position.coords.longitude;
+        
+        localizacaoEl.textContent = `${currentLatitude.toFixed(6)}, ${currentLongitude.toFixed(6)}`;
+        localizacaoEl.style.color = '#2ecc71';
+        
+        // Parar de observar após obter primeira posição
+        navigator.geolocation.clearWatch(watchId);
+      },
+      (error) => {
+        console.warn('Erro no watchPosition, tentando getCurrentPosition...', error);
+        navigator.geolocation.clearWatch(watchId);
+        
+        // Fallback para getCurrentPosition
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            currentLatitude = position.coords.latitude;
+            currentLongitude = position.coords.longitude;
+            localizacaoEl.textContent = `${currentLatitude.toFixed(6)}, ${currentLongitude.toFixed(6)}`;
+            localizacaoEl.style.color = '#2ecc71';
+          },
+          (err) => {
+            console.error('Erro ao obter localização:', err);
+            localizacaoEl.textContent = 'Erro ao obter GPS. Verifique as permissões.';
+            localizacaoEl.style.color = '#e74c3c';
+          },
+          {
+            enableHighAccuracy: false,
+            timeout: 20000,
+            maximumAge: 120000 // Aceitar posição com até 2 minutos de idade
+          }
+        );
+      },
+      {
+        enableHighAccuracy: false,
+        timeout: 20000,
+        maximumAge: 120000
+      }
+    );
     
-    localizacaoEl.textContent = `${currentLatitude.toFixed(6)}, ${currentLongitude.toFixed(6)}`;
+    // Timeout de segurança: parar watch após 30 segundos
+    setTimeout(() => {
+      navigator.geolocation.clearWatch(watchId);
+    }, 30000);
   } catch (error) {
     console.error('Erro ao obter localização:', error);
     localizacaoEl.textContent = 'Erro ao obter GPS';
@@ -115,8 +156,18 @@ async function enviarSOS() {
 
   const message = inputMensagem.value.trim();
 
+  // Obter ID do motorista corretamente
+  const idMotorista = motorista?.CDCADASTRO || motorista?.id || motorista?.cdcadastro || null;
+  
+  if (!idMotorista) {
+    mostrarMensagem('Erro: ID do motorista não encontrado. Faça login novamente.', 'error');
+    btn.disabled = false;
+    btn.textContent = '🆘 Pressione e Segure para SOS';
+    return;
+  }
+
   const dadosSOS = {
-    idmotorista: motorista.id,
+    idmotorista: idMotorista,
     idviagem: idViagemAtual || null,
     latitude: currentLatitude,
     longitude: currentLongitude,
@@ -142,6 +193,16 @@ async function enviarSOS() {
       if (response.ok) {
         const data = await response.json();
         mostrarMensagem('✅ Alerta SOS enviado com sucesso! A equipe foi notificada.', 'success');
+        
+        // Notificar via serviço unificado
+        if (window.NotificacoesService) {
+          window.NotificacoesService.mostrarInApp(
+            'SOS Enviado',
+            'Seu alerta de emergência foi enviado. A equipe foi notificada.',
+            window.NotificacoesService.TIPOS.SOS,
+            { acao: 'sos' }
+          );
+        }
         
         // Limpar mensagem
         inputMensagem.value = '';

@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Mapa de Viagem</title>
+  <link rel="stylesheet" href="/css/modulos.css">
+  <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+  <style>
+    .mapa-viagem-container {
+      padding: 20px;
+    }
+
+    .mapa-viagem-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    .mapa-viagem-header h2 {
+      margin: 0;
+      color: #2c3e50;
+      font-size: 28px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .filtros-box {
+      background: white;
+      border-radius: 12px;
+      padding: 25px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 25px;
+    }
+
+    .filtros-box h3 {
+      margin: 0 0 20px 0;
+      color: #2c3e50;
+      font-size: 18px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .filtros-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 15px;
+    }
+
+    .filtros-actions .btn {
+      margin-right: 0;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-right: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: inherit;
+      text-decoration: none;
+      box-sizing: border-box;
+    }
+
+    .btn-primary {
+      background: #3498db;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #2980b9;
+    }
+
+    .btn-secondary {
+      background: #6c757d;
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: #5a6268;
+    }
+
+    .btn-info {
+      background: #17a2b8;
+      color: white;
+    }
+
+    .btn-info:hover {
+      background: #138496;
+    }
+
+    /* ========== MAPA ========== */
+    .mapa-container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      margin-bottom: 0;
+    }
+
+    .mapa-container h3 {
+      margin: 0 0 20px 0;
+      color: #2c3e50;
+      font-size: 18px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .mapa-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-bottom: 15px;
+    }
+
+    /* ========== ABAS ========== */
+    .tabs {
+      display: flex;
+      gap: 5px;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #e0e0e0;
+    }
+
+    .tab-btn {
+      padding: 12px 24px;
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      color: #6c757d;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      font-family: inherit;
+    }
+
+    .tab-btn:hover {
+      color: #3498db;
+      background: #f8f9fa;
+    }
+
+    .tab-btn.active {
+      color: #3498db;
+      border-bottom-color: #3498db;
+      background: #f8f9fa;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    #tab-mapa {
+      height: calc(100vh - 200px);
+      min-height: 600px;
+    }
+
+    #tab-mapa .mapa-container {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #mapaVeiculos {
+      width: 100%;
+      flex: 1;
+      min-height: 0;
+      border-radius: 8px;
+      border: 1px solid #dee2e6;
+    }
+
+    #mapaInfo {
+      margin-top: 15px;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      font-size: 14px;
+      color: #6c757d;
+    }
+
+    /* ========== MODAL DE AJUDA ========== */
+    .modal-tratamento {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-content-tratamento {
+      background: white;
+      border-radius: 12px;
+      width: 90%;
+      max-width: 800px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+    }
+
+    .modal-header-tratamento {
+      padding: 20px 25px;
+      border-bottom: 1px solid #e9ecef;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+
+    .modal-header-tratamento h3 {
+      margin: 0;
+      color: #2c3e50;
+      font-size: 24px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-close-modal {
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: #666;
+      cursor: pointer;
+      padding: 5px;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+
+    .btn-close-modal:hover {
+      background: #f0f0f0;
+      color: #333;
+    }
+
+    .modal-body-tratamento {
+      padding: 25px;
+      max-height: calc(90vh - 140px);
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .modal-body-tratamento h4 {
+      color: #2c3e50;
+      margin-top: 20px;
+      margin-bottom: 10px;
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .modal-body-tratamento h4:first-child {
+      margin-top: 0;
+    }
+
+    .modal-body-tratamento p {
+      color: #495057;
+      line-height: 1.6;
+      margin-bottom: 15px;
+    }
+
+    .modal-body-tratamento ul {
+      margin: 10px 0 20px 0;
+      padding-left: 20px;
+      color: #495057;
+      line-height: 1.8;
+    }
+
+    .modal-body-tratamento li {
+      margin: 8px 0;
+    }
+
+    .modal-footer-tratamento {
+      padding: 20px 25px;
+      border-top: 1px solid #e9ecef;
+      display: flex;
+      justify-content: flex-end;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="mapa-viagem-container">
+    <!-- Header Padronizado -->
+    <div class="mapa-viagem-header">
+      <h2>
+        <i class='bx bx-map' style="color: #3498db;"></i>
+        Mapa de Viagem
+      </h2>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <button class="btn btn-info" onclick="window.mostrarAjudaMapaViagem()" title="Como funciona? Regras e instruções">
+          <i class='bx bx-help-circle'></i> Ajuda
+        </button>
+      </div>
+    </div>
+
+    <!-- Abas -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="filtros">
+        <i class='bx bx-filter'></i> Filtros
+      </button>
+      <button class="tab-btn" data-tab="mapa">
+        <i class='bx bx-map'></i> Mapa
+      </button>
+    </div>
+
+    <!-- Aba Filtros -->
+    <div class="tab-content active" id="tab-filtros">
+      <div class="filtros-box">
+        <h3><i class='bx bx-filter'></i> Filtros</h3>
+        <form id="filtroForm">
+        <!-- Linha 1: ID Viagem, Tipo Viagem, Situação Viagem, Classe Frota, Contratador -->
+        <div class="input-group five-row">
+          <div>
+            <label for="filtroIdViagem">ID Viagem</label>
+            <input type="number" id="filtroIdViagem" min="1" placeholder="Digite o ID...">
+          </div>
+          <div>
+            <label for="filtroTipoViagem">Tipo Viagem</label>
+            <select id="filtroTipoViagem">
+              <option value="">Todos</option>
+            </select>
+          </div>
+          <div>
+            <label for="filtroSituacaoViagem">Situação Viagem</label>
+            <select id="filtroSituacaoViagem">
+              <option value="">Todas</option>
+              <option value="A">Aprovada</option>
+              <option value="C">Cancelada</option>
+              <option value="D">Preparação</option>
+              <option value="E">Final de rota</option>
+              <option value="F">Viagem finalizada</option>
+              <option value="M">Emissão documentos</option>
+              <option value="P">Programada</option>
+              <option value="T">Em trânsito</option>
+            </select>
+          </div>
+          <div>
+            <label for="filtroClasseFrota">Classe Frota</label>
+            <select id="filtroClasseFrota">
+              <option value="">Todas</option>
+            </select>
+          </div>
+          <div>
+            <label for="filtroContratador">Contratador</label>
+            <select id="filtroContratador">
+              <option value="">Todos</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Linha 2: Origem e Destino -->
+        <div class="input-group four-row">
+          <div>
+            <label for="filtroOrigemEstado">Origem - UF - Estado</label>
+            <select id="filtroOrigemEstado">
+              <option value="">Todos</option>
+            </select>
+          </div>
+          <div>
+            <label for="filtroOrigemCidade">Origem - Cidade</label>
+            <input type="text" id="filtroOrigemCidade" maxlength="40" placeholder="Digite parte do nome...">
+          </div>
+          <div>
+            <label for="filtroDestinoEstado">Destino - UF - Estado</label>
+            <select id="filtroDestinoEstado">
+              <option value="">Todos</option>
+            </select>
+          </div>
+          <div>
+            <label for="filtroDestinoCidade">Destino - Cidade</label>
+            <input type="text" id="filtroDestinoCidade" maxlength="40" placeholder="Digite parte do nome...">
+          </div>
+        </div>
+
+        <!-- Linha 3: Roteiro, Descrição Roteiro, Data Início, Data Fim e Exige Veículo Rastreado? -->
+        <div class="input-group five-row">
+          <div>
+            <label for="filtroRoteiro">Roteiro</label>
+            <select id="filtroRoteiro">
+              <option value="">Todos</option>
+            </select>
+          </div>
+          <div>
+            <label for="filtroRoteiroDescricao">Descrição Roteiro</label>
+            <input type="text" id="filtroRoteiroDescricao" readonly>
+          </div>
+          <div>
+            <label for="filtroDataInicio">Data Início</label>
+            <input type="date" id="filtroDataInicio">
+          </div>
+          <div>
+            <label for="filtroDataFim">Data Fim</label>
+            <input type="date" id="filtroDataFim">
+          </div>
+          <div>
+            <label for="filtroRastreado">Exige Veículo Rastreado</label>
+            <select id="filtroRastreado">
+              <option value="">Todos</option>
+              <option value="S">Sim</option>
+              <option value="N">Não</option>
+            </select>
+          </div>
+          <div>
+            <label for="filtroMotoristaConfirmado">Motorista Confirmado</label>
+            <select id="filtroMotoristaConfirmado">
+              <option value="">Todos</option>
+              <option value="S">Sim</option>
+              <option value="N">Não</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="filtros-actions">
+          <button type="button" id="btnLimparFiltros" class="btn btn-secondary">
+            <i class='bx bx-x'></i> Limpar
+          </button>
+          <button type="submit" class="btn btn-primary">
+            <i class='bx bx-search'></i> Filtrar
+          </button>
+        </div>
+      </form>
+      </div>
+    </div>
+
+    <!-- Aba Mapa -->
+    <div class="tab-content" id="tab-mapa">
+      <div class="mapa-container" style="padding: 15px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-shrink: 0;">
+          <h3><i class='bx bx-map'></i> Mapa de Veículos</h3>
+          <div class="mapa-actions">
+            <button type="button" id="btnAtualizarMapa" class="btn btn-primary">
+              <i class='bx bx-refresh'></i> Atualizar
+            </button>
+            <button type="button" id="btnCentralizarMapa" class="btn btn-info">
+              <i class='bx bx-crosshair'></i> Centralizar
+            </button>
+          </div>
+        </div>
+        <div id="mapaVeiculos"></div>
+        <div id="mapaInfo" style="flex-shrink: 0; margin-top: 15px;">
+          <i class='bx bx-info-circle'></i> 
+          <span id="mapaInfoText">Aplique os filtros para carregar as posições dos veículos no mapa.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de Ajuda -->
+  <div id="modalAjudaMapaViagem" class="modal-tratamento" style="display: none;">
+    <div class="modal-content-tratamento">
+      <div class="modal-header-tratamento">
+        <h3><i class='bx bx-help-circle'></i> Ajuda - Mapa de Viagem</h3>
+        <button type="button" class="btn-close-modal" onclick="document.getElementById('modalAjudaMapaViagem').style.display='none'">
+          <i class='bx bx-x'></i>
+        </button>
+      </div>
+      <div class="modal-body-tratamento">
+        <h4>📋 Sobre o Módulo</h4>
+        <p>O módulo <strong>Mapa de Viagem</strong> permite visualizar a última posição de cada placa em um mapa interativo em tempo real.</p>
+
+        <h4>🗺️ Funcionalidades</h4>
+        <ul>
+          <li>Visualização da última posição de cada placa no mapa</li>
+          <li>Filtros idênticos ao módulo "Gerenciar Viagens"</li>
+          <li>Informações detalhadas ao clicar em cada marcador</li>
+          <li>Atualização em tempo real das posições</li>
+          <li>Centralização automática do mapa para mostrar todos os veículos</li>
+        </ul>
+
+        <h4>🔍 Como Usar</h4>
+        <ul>
+          <li>Use os filtros acima para selecionar as viagens que deseja visualizar</li>
+          <li>Clique em <strong>Filtrar</strong> para carregar as posições no mapa</li>
+          <li>Clique nos marcadores azuis para ver informações detalhadas de cada veículo</li>
+          <li>Use o botão <strong>Centralizar</strong> para ajustar o zoom automaticamente</li>
+          <li>Use o botão <strong>Atualizar</strong> para recarregar as posições</li>
+        </ul>
+
+        <h4>💡 Dicas</h4>
+        <ul>
+          <li>Os marcadores azuis representam a última posição de cada placa</li>
+          <li>Cada marcador mostra: Viagem, Placa, Motorista, Roteiro e Data/Hora da Posição</li>
+          <li>Use os filtros para focar em viagens específicas</li>
+          <li>O mapa se ajusta automaticamente para mostrar todos os veículos filtrados</li>
+        </ul>
+      </div>
+      <div class="modal-footer-tratamento">
+        <button type="button" onclick="document.getElementById('modalAjudaMapaViagem').style.display='none'" class="btn btn-secondary">
+          <i class='bx bx-x'></i> Fechar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Overlay de carregamento para init.sql -->
+  <div id="loadingOverlayInitSQL" class="calculando-overlay" style="display: none;">
+    <div class="calculando-content">
+      <div class="calculando-spinner"></div>
+      <h3 id="loadingTitleInitSQL">Processando Inicialização</h3>
+      <p id="loadingTextInitSQL">Executando scripts de inicialização...</p>
+      <p class="calculando-detalhe" id="loadingDetailInitSQL">Isso pode levar alguns segundos.</p>
+      <button onclick="window.hideLoadingOverlayInitSQL()" class="btn btn-secondary" style="margin-top: 20px;">
+        <i class='bx bx-x'></i> Cancelar e Continuar
+      </button>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="/js/cache-buster.js?v=202512091200"></script>
+  <script src="/js/utils.js"></script>
+  <script src="/js/map-config.js"></script>
+  <script src="/js/map-helper.js"></script>
+  <script src="/js/log-helper.js"></script>
+  <script src="/js/init-overlay-helper.js"></script>
+  <script src="js/script.js"></script>
+</body>
+</html>

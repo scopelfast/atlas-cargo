@@ -13,176 +13,26 @@
   let sqlExecutado = false;
   let initExecutado = false;
 
-  // Funções para controlar overlay de carregamento do init.sql
-  function showLoadingOverlayInitSQL(titulo = 'Processando Inicialização', texto = 'Executando scripts de inicialização...', detalhe = 'Isso pode levar alguns segundos.') {
-    const overlay = document.getElementById('loadingOverlayInitSQL');
-    const loadingTitle = document.getElementById('loadingTitleInitSQL');
-    const loadingText = document.getElementById('loadingTextInitSQL');
-    const loadingDetail = document.getElementById('loadingDetailInitSQL');
-    
-    if (overlay && loadingTitle && loadingText && loadingDetail) {
-      loadingTitle.textContent = titulo;
-      loadingText.textContent = texto;
-      loadingDetail.textContent = detalhe;
-      overlay.style.display = 'flex';
-    }
-  }
-
-  function hideLoadingOverlayInitSQL() {
-    const overlay = document.getElementById('loadingOverlayInitSQL');
-    if (overlay) {
-      overlay.style.display = 'none';
-    }
-  }
-
   // Função para carregar e executar o arquivo init.sql
   async function executarInitSQL() {
-    // Proteção: Se já foi executado, não executar novamente
-    if (sqlExecutado) {
+    if (sqlExecutado) return;
+    sqlExecutado = true;
+    
+    // Usar função padrão global se disponível
+    if (typeof window.executarInitSQLPadrao === 'function') {
+      await window.executarInitSQLPadrao('/modulos/gerenciar-tipos-equipamento/sql/init.sql', '/api/tipos-equipamento/executar-init-sql', 'tipos-equipamento');
       return;
     }
     
-    // Marcar como executando IMEDIATAMENTE para evitar execuções simultâneas
-    sqlExecutado = true;
-    
-    // Mostrar overlay de carregamento
-    showLoadingOverlayInitSQL('Processando Inicialização', 'Carregando script de inicialização...', 'Aguarde enquanto preparamos o módulo.');
-    
-    try {
-      // Carregar o arquivo init.sql
-      const response = await fetch('/modulos/gerenciar-tipos-equipamento/sql/init.sql');
-      
-      // Atualizar mensagem do overlay
-      showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL...', 'Isso pode levar alguns segundos.');
-      
-      if (!response.ok) {
-        // Se o arquivo não existir, não é erro - apenas não executa nada
-        if (response.status === 404) {
-          hideLoadingOverlayInitSQL();
-          return;
-        }
-        hideLoadingOverlayInitSQL();
-        return;
-      }
-      
-      const sqlContent = await response.text();
-      
-      // Remover comentários de bloco /* */ (incluindo multilinhas) usando regex
-      let sqlSemComentarios = sqlContent.replace(/\/\*[\s\S]*?\*\//g, '');
-      
-      // Remover apenas comentários, mas MANTER 'GO' pois o backend precisa dele para dividir comandos
-      const sqlLimpo = sqlSemComentarios
-        .split('\n')
-        .filter(linha => {
-          const linhaTrim = linha.trim();
-          // Manter linhas que não são apenas comentários vazios
-          // IMPORTANTE: Manter 'GO' pois o backend precisa dele para dividir comandos
-          return linhaTrim.length > 0 && 
-                 !linhaTrim.startsWith('--');
-        })
-        .join('\n')
-        .trim();
-      
-      // Se não há SQL para executar, retornar
-      if (!sqlLimpo || sqlLimpo.length === 0) {
-        hideLoadingOverlayInitSQL();
-        return;
-      }
-      
-      // Atualizar mensagem: processando comandos
-      showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL no banco de dados...', 'Aguarde, isso pode levar alguns segundos.');
-      
-      // Executar o SQL via API e AGUARDAR completamente a resposta
-      let execResponse;
-      try {
-        execResponse = await fetch('/api/tipos-equipamento/executar-init-sql', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sql: sqlLimpo }),
-          // Aumentar timeout para scripts grandes (MERGE pode demorar)
-          signal: AbortSignal.timeout(120000) // 120 segundos (2 minutos)
-        });
-      } catch (fetchError) {
-        if (fetchError.name === 'TimeoutError' || fetchError.name === 'AbortError') {
-          hideLoadingOverlayInitSQL();
-          return; // Não bloquear o módulo
-        }
-        if (fetchError.message.includes('ERR_CONNECTION_RESET') || fetchError.message.includes('Failed to fetch')) {
-          hideLoadingOverlayInitSQL();
-          return; // Não bloquear o módulo
-        }
-        hideLoadingOverlayInitSQL();
-        return;
-      }
-      
-      // Verificar se a resposta foi bem-sucedida
-      if (!execResponse.ok) {
-        hideLoadingOverlayInitSQL();
-        return; // Não bloquear o módulo
-      }
-      
-      // Atualizar mensagem: processando resultados
-      showLoadingOverlayInitSQL('Processando Inicialização', 'Processando resultados...', 'Quase terminando.');
-      
-      // Aguardar completamente a resposta JSON
-      let result;
-      try {
-        result = await execResponse.json();
-      } catch (jsonError) {
-        hideLoadingOverlayInitSQL();
-        return; // Não bloquear o módulo
-      }
-      
-      // Verificar se todos os comandos foram executados com sucesso
-      if (!result.success) {
-        hideLoadingOverlayInitSQL();
-        return; // Não bloquear o módulo
-      }
-      
-      // Verificar se há resultados e se todos os comandos foram executados
-      if (result.resultados && Array.isArray(result.resultados)) {
-        const comandosComErro = result.resultados.filter(r => r.tipo === 'ERRO');
-        if (comandosComErro.length > 0) {
-          // Filtrar erros "esperados" (como tabela já existe, índice já existe, etc.)
-          const errosReais = comandosComErro.filter(erro => {
-            const mensagem = (erro.mensagem || erro.erro || '').toLowerCase();
-            // Erros esperados que não são problemas reais
-            const errosEsperados = [
-              'already exists',
-              'já existe',
-              'duplicate',
-              'duplicado',
-              'there is already',
-              'já há'
-            ];
-            return !errosEsperados.some(esperado => mensagem.includes(esperado));
-          });
-          
-          if (errosReais.length > 0) {
-            // Log apenas erros reais críticos
-            errosReais.forEach(erro => {
-              const mensagem = erro.mensagem || erro.erro || erro.message || erro.error || 'Erro desconhecido';
-              if (typeof mensagem === 'object') {
-                console.error('Erro no init.sql:', JSON.stringify(mensagem));
-              } else {
-                console.error('Erro no init.sql:', mensagem);
-              }
-            });
-          }
-        }
-      }
-      
-      // Aguardar um pouco mais para garantir que todas as operações foram concluídas
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // Esconder overlay após conclusão bem-sucedida
-      hideLoadingOverlayInitSQL();
-      
-    } catch (err) {
-      // Esconder overlay em caso de erro
-      hideLoadingOverlayInitSQL();
-      // Erros silenciosos - não bloquear o módulo
+    // Fallback: aguardar um pouco e tentar novamente (pode estar carregando)
+    await new Promise(resolve => setTimeout(resolve, 500));
+    if (typeof window.executarInitSQLPadrao === 'function') {
+      await window.executarInitSQLPadrao('/modulos/gerenciar-tipos-equipamento/sql/init.sql', '/api/tipos-equipamento/executar-init-sql', 'tipos-equipamento');
+      return;
     }
+    
+    // Se ainda não estiver disponível, log de aviso
+    console.warn('[Tipos Equipamento] executarInitSQLPadrao não disponível. Verifique se init-overlay-helper.js está carregado.');
   }
   
   // Função de inicialização
@@ -233,17 +83,33 @@
         return;
       }
 
+      // Carregar GridEditor se necessário
       if (typeof window.GridEditor === 'undefined') {
-        try { await loadScript('/js/grid-editor.js'); } catch (e) { }
+        try { 
+          await loadScript('/js/grid-editor.js'); 
+        } catch (e) {
+          console.error('[Tipos Equipamento] Erro ao carregar GridEditor:', e);
+        }
+      }
+
+      // Aguardar um pouco para garantir que GridEditor está disponível
+      let tentativas = 0;
+      while (typeof window.GridEditor === 'undefined' && tentativas < 10) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        tentativas++;
       }
 
       if (typeof window.GridEditor !== 'undefined') {
         if (!gridTab) inicializarGridTab();
-        try {
-          gridTab.render(lastTipos || []);
-        } catch (e) {
-          console.error('[Grid] erro ao renderizar grid na aba:', e);
+        if (gridTab) {
+          try {
+            gridTab.render(lastTipos || []);
+          } catch (e) {
+            console.error('[Grid] erro ao renderizar grid na aba:', e);
+          }
         }
+      } else {
+        console.error('[Tipos Equipamento] GridEditor não está disponível após aguardar');
       }
     }
   }
@@ -281,42 +147,36 @@
         }
       }
 
-      // Auto-inicializar o gridTab quando houver dados (opção A)
+      // Auto-inicializar o gridTab quando houver dados
       try {
         if (Array.isArray(tipos) && tipos.length > 0) {
+          // Carregar GridEditor se necessário
           if (typeof window.GridEditor === 'undefined') {
-            try {
-              await loadScript('/js/grid-editor.js');
+            try { 
+              await loadScript('/js/grid-editor.js'); 
             } catch (loadErr) {
+              console.error('[Tipos Equipamento] Erro ao carregar GridEditor:', loadErr);
             }
+          }
+
+          // Aguardar GridEditor estar disponível
+          let tentativas = 0;
+          while (typeof window.GridEditor === 'undefined' && tentativas < 10) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            tentativas++;
           }
 
           if (typeof window.GridEditor !== 'undefined') {
             if (!gridTab) inicializarGridTab();
-            try {
-              gridTab.render(tipos);
-            } catch (e) {
-            }
-          } else {
-            // If the script element exists but GridEditor still undefined, try a cache-busted reload
-            const scriptEl = document.querySelector('script[src="/js/grid-editor.js"]');
-            if (scriptEl) {
+            if (gridTab) {
               try {
-                await new Promise((res, rej) => {
-                  const s = document.createElement('script');
-                  s.src = '/js/grid-editor.js?t=' + Date.now();
-                  s.async = true;
-                  s.onload = () => res();
-                  s.onerror = (err) => rej(err);
-                  document.head.appendChild(s);
-                });
-                if (typeof window.GridEditor !== 'undefined') {
-                  if (!gridTab) inicializarGridTab();
-                  try { gridTab.render(tipos); } catch (e) { }
-                }
-              } catch (rbErr) {
+                gridTab.render(tipos);
+              } catch (e) {
+                console.error('[Tipos Equipamento] Erro ao renderizar grid:', e);
               }
             }
+          } else {
+            console.error('[Tipos Equipamento] GridEditor não está disponível após aguardar');
           }
         }
       } catch (autoErr) {
@@ -325,13 +185,33 @@
 
       // Se o chamador pediu para abrir a aba grid, inicializar e renderizar lá
       if (openTab === 'grid') {
+        // Carregar GridEditor se necessário
         if (typeof window.GridEditor === 'undefined') {
-          try { await loadScript('/js/grid-editor.js'); } catch (e) { }
+          try { 
+            await loadScript('/js/grid-editor.js'); 
+          } catch (e) {
+            console.error('[Tipos Equipamento] Erro ao carregar GridEditor:', e);
+          }
+        }
+
+        // Aguardar GridEditor estar disponível
+        let tentativas = 0;
+        while (typeof window.GridEditor === 'undefined' && tentativas < 10) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+          tentativas++;
         }
 
         if (typeof window.GridEditor !== 'undefined') {
           if (!gridTab) inicializarGridTab();
-          try { gridTab.render(tipos); } catch (err) { console.error('[Grid] erro ao renderizar grid:', err); }
+          if (gridTab) {
+            try { 
+              gridTab.render(tipos); 
+            } catch (err) { 
+              console.error('[Grid] erro ao renderizar grid:', err); 
+            }
+          }
+        } else {
+          console.error('[Tipos Equipamento] GridEditor não está disponível após aguardar');
         }
       }
 
@@ -391,13 +271,42 @@
     });
   }
 
-  // Carrega um script dinamicamente e aguarda o carregamento
+  // Carregar script dinamicamente (fallback caso não esteja no HTML)
   function loadScript(src) {
     return new Promise((resolve, reject) => {
       // Verificar se GridEditor já está disponível globalmente
-      if (typeof GridEditor !== 'undefined') {
+      if (typeof window.GridEditor !== 'undefined') {
         resolve();
         return;
+      }
+      
+      // Verificar se o script já está sendo carregado ou já existe
+      const existingScript = document.querySelector(`script[src*="${src}"]`);
+      if (existingScript) {
+        // Se o script existe, aguardar ele carregar
+        let tentativas = 0;
+        const checkInterval = setInterval(() => {
+          if (typeof window.GridEditor !== 'undefined') {
+            clearInterval(checkInterval);
+            resolve();
+          } else if (tentativas++ > 30) {
+            clearInterval(checkInterval);
+            // Se não carregou após 3 segundos, tentar recarregar
+            existingScript.remove();
+            // Continuar com o carregamento abaixo
+          } else {
+            return; // Continuar aguardando
+          }
+        }, 100);
+        
+        // Se já existe, aguardar um pouco mais antes de tentar recarregar
+        setTimeout(() => {
+          if (typeof window.GridEditor === 'undefined') {
+            clearInterval(checkInterval);
+            existingScript.remove();
+            // Continuar com carregamento novo
+          }
+        }, 2000);
       }
       
       // Função para carregar novo script
@@ -407,10 +316,17 @@
         script.onload = () => {
           // Aguardar um pouco para garantir que GridEditor está disponível
           setTimeout(() => {
-            if (typeof GridEditor !== 'undefined') {
+            if (typeof window.GridEditor !== 'undefined') {
               resolve();
             } else {
-              reject(new Error('GridEditor não foi carregado'));
+              // Tentar mais uma vez após 200ms
+              setTimeout(() => {
+                if (typeof window.GridEditor !== 'undefined') {
+                  resolve();
+                } else {
+                  reject(new Error('GridEditor não foi carregado'));
+                }
+              }, 200);
             }
           }, 100);
         };
@@ -418,33 +334,19 @@
         document.head.appendChild(script);
       };
       
-      // Verificar se o script já está sendo carregado ou já existe
-      const existingScript = document.querySelector(`script[src*="${src}"]`);
-      if (existingScript) {
-        // Se o script existe, aguardar ele carregar
-        let tentativas = 0;
-        const checkInterval = setInterval(() => {
-          if (typeof GridEditor !== 'undefined') {
-            clearInterval(checkInterval);
-            resolve();
-          } else if (tentativas++ > 20) {
-            clearInterval(checkInterval);
-            // Se não carregou após 2 segundos, remover e recarregar
-            existingScript.remove();
-            // Continuar com o carregamento abaixo
-            carregarNovoScript();
-          }
-        }, 100);
-        return;
-      }
-      
       carregarNovoScript();
     });
   }
 
   // Inicializar GridEditor
   function inicializarGridTab() {
-    gridTab = new GridEditor({
+    // GridEditor já é carregado globalmente pelo HTML
+    if (typeof window.GridEditor === 'undefined') {
+      console.error('[Tipos Equipamento] GridEditor não está disponível');
+      return;
+    }
+
+    gridTab = new window.GridEditor({
       container: '#tiposGrid',
       columns: [
         { field: 'CDTIPOEQUIPAMENTO', header: 'Código', editable: false, isId: true, width: '80px' },
@@ -708,6 +610,76 @@
       message.textContent = text;
       message.className = `message ${type} show`;
       setTimeout(() => message.className = 'message', 5000);
+    }
+  };
+
+  // Função de ajuda
+  window.mostrarAjudaTiposEquipamento = function() {
+    // Remover qualquer modal de ajuda existente primeiro
+    const modalExistente = document.getElementById('modalAjudaTiposEquipamento');
+    if (modalExistente) {
+      modalExistente.remove();
+    }
+    
+    // Criar modal de ajuda com padrão único
+    const modal = document.createElement('div');
+    modal.id = 'modalAjudaTiposEquipamento';
+    modal.className = 'modal-tratamento';
+    modal.style.display = 'flex';
+    modal.innerHTML = `
+      <div class="modal-content-tratamento">
+        <div class="modal-header-tratamento">
+          <h3><i class='bx bx-help-circle'></i> Ajuda - Gerenciar Tipos de Equipamento</h3>
+          <button onclick="window.fecharModalAjudaTiposEquipamento()" class="btn-close-modal" type="button">
+            <i class='bx bx-x'></i>
+          </button>
+        </div>
+        <div class="modal-body-tratamento">
+          <h4>📋 Sobre o Módulo</h4>
+          <p>O módulo <strong>Gerenciar Tipos de Equipamento</strong> permite gerenciar os tipos de equipamentos cadastrados no sistema, definindo descrição, máscara de identificação e tipo de veículo.</p>
+          
+          <h4>🔍 Filtros</h4>
+          <p>Use os filtros para buscar tipos específicos por código, descrição ou situação (Ativo/Inativo).</p>
+          
+          <h4>📝 Funcionalidades</h4>
+          <ul>
+            <li><strong>Filtros:</strong> Buscar e filtrar tipos de equipamentos</li>
+            <li><strong>Grid:</strong> Visualizar tipos em formato de tabela com opções de edição e exclusão</li>
+            <li><strong>Dados:</strong> Criar e editar tipos de equipamentos</li>
+          </ul>
+          
+          <h4>📋 Campos do Formulário</h4>
+          <ul>
+            <li><strong>Descrição:</strong> Nome do tipo de equipamento (obrigatório)</li>
+            <li><strong>Máscara de Identificação:</strong> Padrão de identificação do equipamento (opcional)</li>
+            <li><strong>Tipo de Veículo:</strong> Classificação do veículo conforme ANTT (obrigatório)</li>
+            <li><strong>Situação:</strong> Ativo ou Inativo (obrigatório)</li>
+          </ul>
+          
+          <h4>✨ Dicas</h4>
+          <ul>
+            <li>Para criar um novo tipo, clique em "Novo Registro" na aba Grid ou Dados</li>
+            <li>Para editar um tipo existente, clique no botão de editar (✎) na coluna Ações do grid</li>
+            <li>Para desativar um tipo, edite-o e altere a situação para "Inativo" ou use o botão de exclusão</li>
+            <li>Tipos inativos não aparecerão em seleções de novos cadastros</li>
+            <li>A máscara de identificação ajuda a padronizar a identificação dos equipamentos</li>
+          </ul>
+        </div>
+        <div class="modal-footer-tratamento">
+          <button onclick="window.fecharModalAjudaTiposEquipamento()" class="btn btn-secondary">
+            <i class='bx bx-x'></i> Fechar
+          </button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+  };
+
+  window.fecharModalAjudaTiposEquipamento = function() {
+    const modal = document.getElementById('modalAjudaTiposEquipamento');
+    if (modal) {
+      modal.remove();
     }
   };
 })();

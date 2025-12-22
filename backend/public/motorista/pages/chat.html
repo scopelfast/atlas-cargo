@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Chat - Motorista</title>
   <link rel="stylesheet" href="../css/padrao-telas.css">
+  <link rel="stylesheet" href="../css/design-system.css">
   <style>
     .chat-container { 
       flex: 1; 
@@ -63,11 +64,11 @@
       background: white;
     }
     
-    .btn-enviar {
+    .btn-enviar,
+    .btn-localizacao {
       width: 48px;
       height: 48px;
       border: none;
-      background: #667eea;
       color: white;
       border-radius: 50%;
       font-size: 20px;
@@ -75,6 +76,25 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      flex-shrink: 0;
+    }
+    
+    .btn-enviar {
+      background: #667eea;
+    }
+    
+    .btn-localizacao {
+      background: #28a745;
+    }
+    
+    .btn-localizacao:active {
+      transform: scale(0.95);
+    }
+    
+    .btn-localizacao:disabled {
+      background: #6c757d;
+      cursor: not-allowed;
+      opacity: 0.6;
     }
     
     .empty { 
@@ -125,6 +145,7 @@
   </div>
 
   <div class="input-area">
+    <button class="btn-localizacao" onclick="enviarLocalizacao()" title="Enviar minha localização">📍</button>
     <input type="text" class="input-msg" id="inputMensagem" placeholder="Digite sua mensagem..." onkeypress="if(event.key==='Enter') enviarMensagem()">
     <button class="btn-enviar" onclick="enviarMensagem()">📤</button>
   </div>
@@ -132,7 +153,8 @@
   <script src="../js/notifications.js"></script>
   <script src="../js/auth.js"></script>
   <script src="../js/offline.js"></script>
-  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <script src="../js/notifications-service.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
   <script src="js/chat.js"></script>
 </body>
 </html>
