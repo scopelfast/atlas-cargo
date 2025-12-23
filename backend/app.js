@@ -50,6 +50,73 @@ app.set('trust proxy', true);
 // Em desenvolvimento, desabilitar headers que requerem HTTPS ou localhost
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
+// ============================================
+// CONSTANTES DE URL - Configuração Centralizada
+// ============================================
+// Todas as URLs são definidas aqui. Ao alterar estas constantes,
+// todas as rotas serão atualizadas automaticamente.
+const URL_CONFIG = {
+  // Servidores de teste (Beta)
+  BETA: {
+    HTTP: 'beta.integrabrasil.com:8080',
+    HTTPS: 'beta.integrabrasil.com:8443'
+  },
+  // Servidores de produção (App)
+  APP: {
+    HTTP: 'app.integrabrasil.com:8080',
+    HTTPS: 'app.integrabrasil.com:8443'
+  },
+  // Rotas específicas (sempre terminam com /)
+  ROUTES: {
+    CARgas: 'cargas/',
+    NOMINATIM: 'nominatim/',
+    ORS: 'ors/'
+  }
+};
+
+// Função helper para construir URLs completas
+const buildUrls = (baseUrl) => ({
+  base: `${baseUrl}/${URL_CONFIG.ROUTES.CARgas}`,
+  nominatim: `http://${baseUrl}/${URL_CONFIG.ROUTES.NOMINATIM}`,
+  ors: `http://${baseUrl}/${URL_CONFIG.ROUTES.ORS}`
+});
+
+// URLs completas para cada ambiente
+const URLS = {
+  BETA_HTTP: buildUrls(URL_CONFIG.BETA.HTTP),
+  BETA_HTTPS: buildUrls(URL_CONFIG.BETA.HTTPS),
+  APP_HTTP: buildUrls(URL_CONFIG.APP.HTTP),
+  APP_HTTPS: buildUrls(URL_CONFIG.APP.HTTPS)
+};
+
+// Função para gerar todas as variações de URL para CSP (com protocolos)
+const getAllCSPUrls = () => {
+  const urls = [];
+  
+  // Beta HTTP e HTTPS
+  urls.push(`http://${URL_CONFIG.BETA.HTTP}`, `https://${URL_CONFIG.BETA.HTTPS}`);
+  urls.push(`ws://${URL_CONFIG.BETA.HTTP}`, `wss://${URL_CONFIG.BETA.HTTPS}`);
+  
+  // App HTTP e HTTPS
+  urls.push(`http://${URL_CONFIG.APP.HTTP}`, `https://${URL_CONFIG.APP.HTTPS}`);
+  urls.push(`ws://${URL_CONFIG.APP.HTTP}`, `wss://${URL_CONFIG.APP.HTTPS}`);
+  
+  // URLs com wildcard de porta para maior flexibilidade
+  urls.push(`http://${URL_CONFIG.BETA.HTTP.split(':')[0]}:*`);
+  urls.push(`https://${URL_CONFIG.BETA.HTTPS.split(':')[0]}:*`);
+  urls.push(`ws://${URL_CONFIG.BETA.HTTP.split(':')[0]}:*`);
+  urls.push(`wss://${URL_CONFIG.BETA.HTTPS.split(':')[0]}:*`);
+  
+  urls.push(`http://${URL_CONFIG.APP.HTTP.split(':')[0]}:*`);
+  urls.push(`https://${URL_CONFIG.APP.HTTPS.split(':')[0]}:*`);
+  urls.push(`ws://${URL_CONFIG.APP.HTTP.split(':')[0]}:*`);
+  urls.push(`wss://${URL_CONFIG.APP.HTTPS.split(':')[0]}:*`);
+  
+  return urls;
+};
+
+const CSP_URLS = getAllCSPUrls();
+
 // Configuração do Helmet - CSP mais permissivo em desenvolvimento
 const helmetConfig = {
   contentSecurityPolicy: {
@@ -117,16 +184,7 @@ const helmetConfig = {
         "ws://10.0.0.0/8", // WebSocket para faixa 10.x.x.x
         "http://172.16.0.0/12", // Permitir faixa 172.16.x.x - 172.31.x.x
         "ws://172.16.0.0/12", // WebSocket para faixa 172.16.x.x - 172.31.x.x
-        "http://cargas.integrabrasil.com:*", // Servidor de produção
-        "ws://cargas.integrabrasil.com:*", // WebSocket para servidor de produção
-        "http://app.integrabrasil.com:*", // Servidor app (HTTP - todas as portas, incluindo 8080 para ORS/Nominatim)
-        "https://app.integrabrasil.com:*", // Servidor app (HTTPS - todas as portas)
-        "http://beta.integrabrasil.com:*", // Servidor beta (HTTP - todas as portas)
-        "https://beta.integrabrasil.com:*", // Servidor beta (HTTPS - todas as portas)
-        "ws://app.integrabrasil.com:*", // WebSocket app (HTTP - todas as portas)
-        "wss://app.integrabrasil.com:*", // WebSocket app (HTTPS - todas as portas)
-        "ws://beta.integrabrasil.com:*", // WebSocket beta (HTTP - todas as portas)
-        "wss://beta.integrabrasil.com:*", // WebSocket beta (HTTPS - todas as portas)
+        ...CSP_URLS, // URLs de Beta e App (HTTP/HTTPS/WS/WSS) geradas dinamicamente
         "https://fonts.googleapis.com",
         "https://fonts.gstatic.com",
         "https://cdn.jsdelivr.net",
@@ -151,13 +209,10 @@ const helmetConfig = {
         "http://192.168.0.0/16", // Permitir toda a faixa 192.168.x.x
         "http://10.0.0.0/8", // Permitir faixa 10.x.x.x
         "http://172.16.0.0/12", // Permitir faixa 172.16.x.x - 172.31.x.x
-        "http://cargas.integrabrasil.com:*", // Servidor de produção
-        "http://app.integrabrasil.com:8080", // Servidor ORS e Nominatim (HTTP)
-        "http://app.integrabrasil.com:8443", // Servidor app (HTTP na porta 8443)
-        "https://app.integrabrasil.com:8443", // Servidor app (HTTPS na porta 8443)
-        "http://beta.integrabrasil.com:8080", // Servidor beta (HTTP na porta 8080)
-        "http://beta.integrabrasil.com:8443", // Servidor beta (HTTP na porta 8443)
-        "https://beta.integrabrasil.com:8443" // Servidor beta (HTTPS na porta 8443)
+        `http://${URL_CONFIG.BETA.HTTP}`, // Servidor beta (HTTP)
+        `https://${URL_CONFIG.BETA.HTTPS}`, // Servidor beta (HTTPS)
+        `http://${URL_CONFIG.APP.HTTP}`, // Servidor app (HTTP)
+        `https://${URL_CONFIG.APP.HTTPS}` // Servidor app (HTTPS)
       ],
       frameSrc: ["'self'"],
       objectSrc: ["'none'"]
@@ -437,8 +492,6 @@ app.get(['/motorista/manifest.json', '/cargas/motorista/manifest.json'], (req, r
     // Detectar caminho base da requisição
     const pathBase = req.path.includes('/cargas') ? '/cargas' : '';
     
-    console.log('📦 [MANIFEST] Requisição para:', req.path, '| pathBase:', pathBase);
-    
     // Corrigir start_url
     if (manifest.start_url) {
       manifest.start_url = pathBase + manifest.start_url;
@@ -452,12 +505,6 @@ app.get(['/motorista/manifest.json', '/cargas/motorista/manifest.json'], (req, r
       }));
     }
     
-    console.log('📦 [MANIFEST] Manifest corrigido:', JSON.stringify(manifest, null, 2));
-    
-    // Desabilitar cache para o manifest
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
     res.setHeader('Content-Type', 'application/manifest+json');
     res.json(manifest);
   } catch (err) {
