@@ -68,15 +68,17 @@
       };
 
       // Registrar no backend (assíncrono, não bloquear)
-      // Função helper para corrigir URLs
-      const corrigirUrl = (url) => {
-        if (!url) return url;
-        if (url.startsWith('http://') || url.startsWith('https://')) return url;
-        const baseUrl = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
-        return baseUrl + (url.startsWith('/') ? url : '/' + url);
-      };
+      // Usar corrigirUrl global se disponível, senão usar função local
+      const corrigirUrlLog = (typeof window.corrigirUrl === 'function') 
+        ? window.corrigirUrl 
+        : (url) => {
+            if (!url) return url;
+            if (url.startsWith('http://') || url.startsWith('https://')) return url;
+            const baseUrl = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
+            return baseUrl + (url.startsWith('/') ? url : '/' + url);
+          };
       
-      fetch(corrigirUrl('/api/log/registrar'), {
+      fetch(corrigirUrlLog('/api/log/registrar'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

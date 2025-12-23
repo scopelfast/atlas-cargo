@@ -45,8 +45,13 @@
     window.showLoadingOverlayInitSQL('Processando Inicialização', 'Carregando script de inicialização...', 'Aguarde enquanto preparamos o módulo.');
     
     try {
+      // Corrigir caminho se necessário
+      const caminhoCorrigido = (typeof window.corrigirUrl === 'function') 
+        ? window.corrigirUrl(caminhoInitSQL) 
+        : caminhoInitSQL;
+      
       // Carregar o arquivo init.sql
-      const response = await fetch(caminhoInitSQL);
+      const response = await fetch(caminhoCorrigido);
       
       // Atualizar mensagem do overlay
       window.showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL...', 'Isso pode levar alguns segundos.');

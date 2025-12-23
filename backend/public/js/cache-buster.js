@@ -33,12 +33,23 @@
 
   // Função para processar todos os scripts e links CSS na página
   window.processCacheBusting = function() {
+    // Função helper para corrigir URL antes de adicionar cache buster
+    const corrigirSeNecessario = (url) => {
+      if (!url || url.startsWith('http')) return url;
+      // Se corrigirUrl estiver disponível, usar; senão retornar URL original
+      if (typeof window.corrigirUrl === 'function') {
+        return window.corrigirUrl(url);
+      }
+      return url;
+    };
+    
     // Processar scripts
     document.querySelectorAll('script[src]').forEach(script => {
       const src = script.getAttribute('src');
       // Ignorar scripts externos (CDN) e que já têm cache buster
       if (src && !src.startsWith('http') && !src.includes('?v=') && !src.includes('&v=')) {
-        script.src = window.addCacheBuster(src);
+        const urlCorrigida = corrigirSeNecessario(src);
+        script.src = window.addCacheBuster(urlCorrigida);
       }
     });
 
@@ -47,7 +58,8 @@
       const href = link.getAttribute('href');
       // Ignorar links externos (CDN) e que já têm cache buster
       if (href && !href.startsWith('http') && !href.includes('?v=') && !href.includes('&v=')) {
-        link.href = window.addCacheBuster(href);
+        const urlCorrigida = corrigirSeNecessario(href);
+        link.href = window.addCacheBuster(urlCorrigida);
       }
     });
   };
