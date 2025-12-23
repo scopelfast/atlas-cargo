@@ -311,69 +311,95 @@ app.get('/', (req, res) => {
 // IMPORTANTE: Colocado DEPOIS das rotas específicas para não interferir
 // Configurar headers corretos para arquivos estáticos
 const fs = require('fs');
-app.use(express.static(path.join(__dirname, 'public'), {
-  setHeaders: (res, filePath, stat) => {
-    // Garantir que arquivos CSS tenham o Content-Type correto (crítico para produção)
-    if (filePath.endsWith('.css')) {
-      res.setHeader('Content-Type', 'text/css; charset=utf-8');
+
+// Função para configurar headers corretos dos arquivos estáticos
+const staticHeaders = (res, filePath, stat) => {
+  // Garantir que arquivos CSS tenham o Content-Type correto (crítico para produção)
+  if (filePath.endsWith('.css')) {
+    res.setHeader('Content-Type', 'text/css; charset=utf-8');
+  }
+  // Garantir que arquivos JS tenham o Content-Type correto
+  if (filePath.endsWith('.js')) {
+    res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  }
+  // Garantir que arquivos HTML tenham o Content-Type correto
+  if (filePath.endsWith('.html')) {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  }
+  
+  // Cache otimizado - evita problemas de versão antiga
+  if (isDevelopment) {
+    // DESENVOLVIMENTO: Desabilitar cache completamente para garantir sempre a última versão
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    // Adicionar ETag baseado no timestamp do arquivo para forçar validação
+    if (stat && stat.mtime) {
+      const etag = `"dev-${stat.mtime.getTime()}"`;
+      res.setHeader('ETag', etag);
+      res.setHeader('Last-Modified', stat.mtime.toUTCString());
     }
-    // Garantir que arquivos JS tenham o Content-Type correto
-    if (filePath.endsWith('.js')) {
-      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
-    }
-    // Garantir que arquivos HTML tenham o Content-Type correto
-    if (filePath.endsWith('.html')) {
-      res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    }
-    
-    // Cache otimizado - evita problemas de versão antiga
-    if (isDevelopment) {
-      // DESENVOLVIMENTO: Desabilitar cache completamente para garantir sempre a última versão
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
-      // Adicionar ETag baseado no timestamp do arquivo para forçar validação
+  } else {
+    // PRODUÇÃO: Cache inteligente com validação
+    if (filePath.endsWith('.css') || filePath.endsWith('.js')) {
+      // CSS e JS: Cache curto com validação ETag
+      // O cache-buster.js adiciona ?v=timestamp no frontend
+      // Aqui configuramos cache curto mas com validação para garantir atualizações
+      res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate'); // 1 hora com validação
+      // Sempre adicionar ETag para validação
       if (stat && stat.mtime) {
-        const etag = `"dev-${stat.mtime.getTime()}"`;
+        const etag = `"${stat.mtime.getTime()}"`;
         res.setHeader('ETag', etag);
         res.setHeader('Last-Modified', stat.mtime.toUTCString());
       }
-    } else {
-      // PRODUÇÃO: Cache inteligente com validação
-      if (filePath.endsWith('.css') || filePath.endsWith('.js')) {
-        // CSS e JS: Cache curto com validação ETag
-        // O cache-buster.js adiciona ?v=timestamp no frontend
-        // Aqui configuramos cache curto mas com validação para garantir atualizações
-        res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate'); // 1 hora com validação
-        // Sempre adicionar ETag para validação
-        if (stat && stat.mtime) {
-          const etag = `"${stat.mtime.getTime()}"`;
-          res.setHeader('ETag', etag);
-          res.setHeader('Last-Modified', stat.mtime.toUTCString());
-        }
-      } else if (filePath.endsWith('.html')) {
-        // HTML: SEM cache (sempre atualizado)
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-        // Adicionar ETag para validação
-        if (stat && stat.mtime) {
-          const etag = `"html-${stat.mtime.getTime()}"`;
-          res.setHeader('ETag', etag);
-          res.setHeader('Last-Modified', stat.mtime.toUTCString());
-        }
-      } else if (filePath.endsWith('.png') || filePath.endsWith('.jpg') || 
-                 filePath.endsWith('.jpeg') || filePath.endsWith('.gif') || 
-                 filePath.endsWith('.ico') || filePath.endsWith('.svg')) {
-        // Imagens: cache longo (raramente mudam)
-        res.setHeader('Cache-Control', 'public, max-age=86400, immutable'); // 1 dia
-      } else {
-        // Outros arquivos: cache curto com validação
-        res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate'); // 1 hora
+    } else if (filePath.endsWith('.html')) {
+      // HTML: SEM cache (sempre atualizado)
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      // Adicionar ETag para validação
+      if (stat && stat.mtime) {
+        const etag = `"html-${stat.mtime.getTime()}"`;
+        res.setHeader('ETag', etag);
+        res.setHeader('Last-Modified', stat.mtime.toUTCString());
       }
+    } else if (filePath.endsWith('.png') || filePath.endsWith('.jpg') || 
+               filePath.endsWith('.jpeg') || filePath.endsWith('.gif') || 
+               filePath.endsWith('.ico') || filePath.endsWith('.svg')) {
+      // Imagens: cache longo (raramente mudam)
+      res.setHeader('Cache-Control', 'public, max-age=86400, immutable'); // 1 dia
+    } else {
+      // Outros arquivos: cache curto com validação
+      res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate'); // 1 hora
     }
   }
+};
+
+// Servir arquivos estáticos na raiz
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: staticHeaders
 }));
+
+// Servir arquivos estáticos no caminho /cargas/ (para quando acessado via subdiretório)
+// Isso permite que /cargas/css/style.css funcione corretamente
+app.use('/cargas', express.static(path.join(__dirname, 'public'), {
+  setHeaders: staticHeaders
+}));
+
+// Adicionar rota específica para /cargas/ (serve index.html)
+app.get('/cargas', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/cargas/', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // Rota de teste para verificar se arquivos estáticos estão sendo servidos
 app.get('/test-css', (req, res) => {
