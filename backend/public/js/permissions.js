@@ -10,6 +10,15 @@
   let userPermissions = null;
   let userLogin = null;
 
+  // Função helper para corrigir URLs relativas para incluir o caminho base
+  function corrigirUrl(url) {
+    if (!url) return url;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    
+    const baseUrl = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
+    return baseUrl + (url.startsWith('/') ? url : '/' + url);
+  }
+
   // Carregar permissões do usuário
   async function loadUserPermissions() {
     if (userPermissions !== null) {
@@ -24,7 +33,8 @@
 
       userLogin = login;
 
-      const response = await fetch('/api/menu/user-menu', {
+      const apiUrl = corrigirUrl('/api/menu/user-menu');
+      const response = await fetch(apiUrl, {
         headers: { 'user-login': login }
       });
 

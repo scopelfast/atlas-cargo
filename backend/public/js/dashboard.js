@@ -1,6 +1,14 @@
 // backend/public/js/dashboard.js
 // Função de inicialização que funciona mesmo com scripts carregados dinamicamente
 (function() {
+  // Função helper global para corrigir URLs relativas para incluir o caminho base
+  const corrigirUrl = (url) => {
+    if (!url) return url;
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    const baseUrl = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
+    return baseUrl + (url.startsWith('/') ? url : '/' + url);
+  };
+  
   // Verificar se o DOM já está pronto
   const init = () => {
     // Variáveis globais para controle de timeout
@@ -61,7 +69,8 @@
 
     if (idLogAcesso || user.login) {
       try {
-        await fetch('/api/auth/logout', {
+        const apiUrl = corrigirUrl('/api/auth/logout');
+        await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -357,7 +366,8 @@
       const idUsuario = user.cdcadastro || user.id;
       if (!idUsuario) return;
 
-      const response = await fetch(`/api/chat/nao-lidas?idUsuario=${idUsuario}&userType=OPERADOR`, {
+      const apiUrl = corrigirUrl(`/api/chat/nao-lidas?idUsuario=${idUsuario}&userType=OPERADOR`);
+      const response = await fetch(apiUrl, {
         headers: getAuthHeaders()
       });
       
@@ -408,7 +418,8 @@
    */
   const atualizarContadorAlertas = async (ultimoContador = {}) => {
     try {
-      const response = await fetch('/api/alertas/contador', {
+      const apiUrl = corrigirUrl('/api/alertas/contador');
+      const response = await fetch(apiUrl, {
         headers: getAuthHeaders()
       });
       
@@ -459,7 +470,8 @@
    */
   const atualizarContadorSOS = async (ultimoContador = {}) => {
     try {
-      const response = await fetch('/api/sos/contador', {
+      const apiUrl = corrigirUrl('/api/sos/contador');
+      const response = await fetch(apiUrl, {
         headers: getAuthHeaders()
       });
       
@@ -598,8 +610,7 @@
   const loadUserMenu = async (userLogin) => {
     try {
       const token = localStorage.getItem('token');
-      const baseUrl = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
-      const url = baseUrl + '/api/menu/user-menu';
+      const url = corrigirUrl('/api/menu/user-menu');
       
       const response = await fetch(url, {
         headers: { 
@@ -1060,7 +1071,8 @@
     try {
       // Buscar estatísticas de convocações (usa a mesma query do relatório)
       // Este endpoint retorna TOTAL_VIAGENS (COUNT DISTINCT) que é o correto
-      const responseConv = await fetch('/api/relatorio-convocacoes/estatisticas');
+      const apiUrl = corrigirUrl('/api/relatorio-convocacoes/estatisticas');
+      const responseConv = await fetch(apiUrl);
       if (responseConv.ok) {
         const dataConv = await responseConv.json();
         // Usar dados do relatório (mesma query do Relatório de Convocações)
