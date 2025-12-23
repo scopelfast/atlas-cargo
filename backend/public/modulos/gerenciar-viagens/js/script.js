@@ -3650,16 +3650,16 @@ function getOverlayMostrado() {
                     
                     // Verificar e corrigir URL antes de fazer fetch
                     let urlFinal = osrmUrl;
-                    const servidoresProprios = ['186.250.92.131', 'app.integrabrasil.com', 'beta.integrabrasil.com'];
-                    const isServidorProprio = servidoresProprios.some(s => osrmUrl.includes(s));
+                    // Reutilizar servidoresProprios já declarado acima
+                    const isServidorProprioUrl = servidoresProprios.some(s => osrmUrl.includes(s));
                     
-                    if (isServidorProprio && osrmUrl.startsWith('https:')) {
+                    if (isServidorProprioUrl && osrmUrl.startsWith('https:')) {
                       urlFinal = osrmUrl.replace(/^https:/, 'http:');
                       console.warn('⚠️ [OSRM] URL corrigida de HTTPS para HTTP:', osrmUrl.substring(0, 80), '→', urlFinal.substring(0, 80));
                     }
                     
                     // Verificar novamente após correção
-                    if (isServidorProprio && urlFinal.startsWith('https:')) {
+                    if (isServidorProprioUrl && urlFinal.startsWith('https:')) {
                       console.error('❌ [OSRM] ERRO CRÍTICO: URL ainda está em HTTPS após correção!', urlFinal);
                       urlFinal = 'http:' + urlFinal.substring(6); // Forçar HTTP
                     }
