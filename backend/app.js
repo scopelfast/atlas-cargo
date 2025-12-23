@@ -504,7 +504,7 @@ app.get(['/motorista/manifest.json', '/cargas/motorista/manifest.json'], (req, r
     const requestPath = req.originalUrl || req.path || req.url;
     // Detectar se está em /cargas/motorista/manifest.json
     let pathBase = '';
-    if (requestPath && requestPath.includes('/cargas/motorista/manifest.json')) {
+    if (requestPath && (requestPath.includes('/cargas/motorista/manifest.json') || requestPath.includes('/cargas/'))) {
       pathBase = '/cargas';
     }
     
