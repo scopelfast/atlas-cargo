@@ -12054,17 +12054,17 @@ function getOverlayMostrado() {
     marcadoresRastreamento = [];
 
     // IMPORTANTE: Verificar se o container já tem um mapa antes de criar novo
-    const mapaRastreamentoDiv = document.getElementById('mapaRastreamento');
-    if (mapaRastreamentoDiv) {
+    // Usar o mapaDiv que já foi verificado acima
+    if (mapaDiv) {
       // Verificar se há um mapa Leaflet existente no container
-      if (mapaRastreamentoDiv._leaflet_id || (typeof L !== 'undefined' && L.DomUtil.get(mapaRastreamentoDiv))) {
+      if (mapaDiv._leaflet_id || (typeof L !== 'undefined' && L.DomUtil.get(mapaDiv))) {
         console.warn('⚠️ [RASTREAMENTO] Container já tem mapa. Limpando antes de criar novo...');
         try {
           // Tentar obter o mapa existente do Leaflet
           if (typeof L !== 'undefined') {
-            const mapaExistente = L.DomUtil.get(mapaRastreamentoDiv);
+            const mapaExistente = L.DomUtil.get(mapaDiv);
             if (mapaExistente && mapaExistente._leaflet_id) {
-              const mapaInstance = L.Map.prototype.getContainer ? L.Map.prototype.getContainer.call({ _container: mapaRastreamentoDiv }) : null;
+              const mapaInstance = L.Map.prototype.getContainer ? L.Map.prototype.getContainer.call({ _container: mapaDiv }) : null;
               if (mapaInstance && typeof mapaInstance.remove === 'function') {
                 mapaInstance.remove();
               }
@@ -12084,35 +12084,44 @@ function getOverlayMostrado() {
         }
         
         // Limpar completamente o container
-        mapaRastreamentoDiv.innerHTML = '';
-        if (mapaRastreamentoDiv._leaflet_id) {
-          delete mapaRastreamentoDiv._leaflet_id;
+        mapaDiv.innerHTML = '';
+        if (mapaDiv._leaflet_id) {
+          delete mapaDiv._leaflet_id;
         }
         
         // Aguardar um pouco para garantir que a limpeza foi concluída
         await new Promise(resolve => setTimeout(resolve, 100));
       }
+      
+      // Verificar novamente se o elemento ainda existe
+      const mapaDivCheck = document.getElementById('mapaRastreamento');
+      if (!mapaDivCheck) {
+        console.error('❌ [RASTREAMENTO] Elemento mapaRastreamento não encontrado no DOM após limpeza!');
+        mapaRastreamentoInicializando = false;
+        return;
+      }
+      
+      // Garantir que a aba ainda está visível
+      if (tabRastreamento && (tabRastreamento.style.display === 'none' || window.getComputedStyle(tabRastreamento).display === 'none')) {
+        tabRastreamento.style.display = 'block';
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
     }
 
     // Criar mapa - com proteção adicional contra reutilização
     try {
-      // Verificar se o elemento existe e está visível
-      const mapaDivCheck = document.getElementById('mapaRastreamento');
-      if (!mapaDivCheck) {
+      // Verificar se o elemento existe e está visível (usar mapaDiv já verificado)
+      if (!mapaDiv) {
         console.error('❌ [RASTREAMENTO] Elemento mapaRastreamento não encontrado no DOM!');
         throw new Error('Map container not found');
       }
       
-      // Verificar se a aba está visível
-      const tabRastreamento = document.getElementById('tab-rastreamento');
-      if (!tabRastreamento || tabRastreamento.style.display === 'none') {
-        console.warn('⚠️ [RASTREAMENTO] Aba de rastreamento não está visível. Aguardando...');
-        // Aguardar um pouco e verificar novamente
-        await new Promise(resolve => setTimeout(resolve, 300));
-        const tabCheck = document.getElementById('tab-rastreamento');
-        if (!tabCheck || tabCheck.style.display === 'none') {
-          console.error('❌ [RASTREAMENTO] Aba de rastreamento ainda não está visível após espera!');
-          throw new Error('Rastreamento tab not visible');
+      // Verificar se a aba está visível (já verificado acima, mas garantir novamente)
+      if (!tabRastreamento || tabRastreamento.style.display === 'none' || window.getComputedStyle(tabRastreamento).display === 'none') {
+        console.warn('⚠️ [RASTREAMENTO] Aba de rastreamento não está visível. Mostrando...');
+        if (tabRastreamento) {
+          tabRastreamento.style.display = 'block';
+          await new Promise(resolve => setTimeout(resolve, 300));
         }
       }
       
