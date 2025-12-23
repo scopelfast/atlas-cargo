@@ -70,52 +70,105 @@
       });
     })();
     
-    // Configuração de base URL - suporta HTTP e HTTPS
+    // Configuração transparente de protocolo - respeita HTTP ou HTTPS usado
     (function() {
-      // Detectar se é ambiente local
+      // Detectar se é ambiente local ou IntegraBrasil
       const hostname = window.location.hostname;
       const isLocal = hostname === 'localhost' || 
                       hostname === '127.0.0.1' || 
                       hostname.startsWith('192.168.');
+      const isIntegraBrasil = hostname === 'app.integrabrasil.com' || 
+                              hostname === 'beta.integrabrasil.com' || 
+                              hostname.includes('integrabrasil.com');
       
-      // Se estiver em local e usando HTTPS, redirecionar imediatamente
-      if (isLocal && window.location.protocol === 'https:') {
+      // IMPORTANTE: Usar o protocolo atual da página (transparente)
+      // Se acessar via HTTP, usar HTTP; se via HTTPS, usar HTTPS
+      const protocoloAtual = window.location.protocol;
+      
+      // Se estiver em local e HTTPS, redirecionar para HTTP
+      if (isLocal && protocoloAtual === 'https:') {
         console.warn('[DASHBOARD] HTTPS detectado em local, redirecionando para HTTP...');
         const cleanUrl = 'http://' + window.location.host + window.location.pathname.replace(/\?+$/, '');
         window.location.replace(cleanUrl);
         return; // Parar execução até redirecionar
       }
       
-      // Forçar HTTP em desenvolvimento local
-      const protocol = isLocal ? 'http:' : window.location.protocol;
+      // Usar o protocolo atual (HTTP ou HTTPS) - transparente
+      const protocol = isLocal ? 'http:' : protocoloAtual;
       const host = window.location.host;
       const baseUrl = protocol + '//' + host;
       
-      console.log('[DASHBOARD] Ambiente:', isLocal ? 'LOCAL (HTTP forçado)' : 'PRODUÇÃO', '| Protocol:', protocol, '| BaseURL:', baseUrl);
+      console.log('[DASHBOARD] Ambiente:', (isLocal || isIntegraBrasil) ? 'LOCAL/INTEGRABRASIL' : 'PRODUÇÃO', '| Protocol:', protocoloAtual, '| BaseURL:', baseUrl);
+      
+      // Função para garantir que URLs usem o mesmo protocolo da página
+      function garantirProtocoloConsistente(url) {
+        if (!url) return url;
+        
+        // Se for local, sempre HTTP
+        if (isLocal && url.startsWith('https://')) {
+          return url.replace(/^https:/, 'http:');
+        }
+        
+        // Para IntegraBrasil e outros: usar o mesmo protocolo da página
+        // Se a página está em HTTPS e a URL está em HTTP, corrigir para HTTPS
+        if (protocoloAtual === 'https:' && url.startsWith('http://')) {
+          return url.replace(/^http:/, 'https:');
+        }
+        
+        // Se a página está em HTTP e a URL está em HTTPS, corrigir para HTTP
+        if (protocoloAtual === 'http:' && url.startsWith('https://')) {
+          return url.replace(/^https:/, 'http:');
+        }
+        
+        return url;
+      }
       
       // Função para criar elementos com URLs absolutas
       function createLink(href) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        // Se for local, forçar HTTP; senão usar protocolo atual
         let url;
-        if (isLocal) {
-          // Sempre forçar HTTP em local, mesmo se href já tiver protocolo
-          if (href.startsWith('http://') || href.startsWith('https://')) {
-            url = href.replace(/^https?:/, 'http:');
-          } else {
-            url = 'http://' + host + (href.startsWith('/') ? href : '/' + href);
-          }
+        
+        if (href.startsWith('http')) {
+          url = href; // URL absoluta
         } else {
-          url = href.startsWith('http') ? href : baseUrl + (href.startsWith('/') ? href : '/' + href);
+          url = baseUrl + (href.startsWith('/') ? href : '/' + href);
         }
-        // Definir href diretamente e verificar se foi alterado
-        link.href = url;
-        // Verificar se o navegador mudou para HTTPS e corrigir
-        if (isLocal && link.href.startsWith('https://')) {
-          console.warn('[createLink] Navegador mudou para HTTPS, corrigindo:', link.href, '→', url);
-          link.href = url; // Forçar novamente
-        }
+        
+        // Garantir protocolo consistente
+        url = garantirProtocoloConsistente(url);
+        
+        // Usar setAttribute para forçar o valor
+        link.setAttribute('href', url);
+        
+        // Adicionar tratamento de erro
+        link.onerror = function() {
+          console.error('❌ [DASHBOARD] Erro ao carregar CSS:', link.href);
+          // Se falhou, tentar corrigir protocolo novamente
+          if (link.href) {
+            const urlCorrigida = garantirProtocoloConsistente(link.href);
+            if (urlCorrigida !== link.href) {
+              console.log('🔄 [DASHBOARD] Tentando carregar CSS com protocolo corrigido:', urlCorrigida);
+              link.setAttribute('href', urlCorrigida);
+              return;
+            }
+          }
+          // Tentar carregar novamente após um delay
+          setTimeout(() => {
+            console.log('🔄 [DASHBOARD] Tentando carregar novamente:', link.href);
+            const newLink = document.createElement('link');
+            newLink.rel = 'stylesheet';
+            let retryUrl = link.href || url;
+            retryUrl = garantirProtocoloConsistente(retryUrl);
+            newLink.setAttribute('href', retryUrl + (retryUrl.includes('?') ? '&' : '?') + 'retry=' + Date.now());
+            document.head.appendChild(newLink);
+          }, 1000);
+        };
+        
+        link.onload = function() {
+          console.log('✅ [DASHBOARD] CSS carregado:', url);
+        };
+        
         document.head.appendChild(link);
       }
       

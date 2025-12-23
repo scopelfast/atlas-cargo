@@ -7,23 +7,35 @@
   <meta name="description" content="App DivulgaCarga para Motoristas">
   <title>DivulgaCarga - Motorista</title>
   <script>
-    // CRÍTICO: Executar ANTES de qualquer outro código para forçar HTTP
+    // CRÍTICO: Executar ANTES de qualquer outro código para detectar ambiente
     (function() {
-      // Se estiver em HTTPS, redirecionar imediatamente para HTTP
-      if (window.location.protocol === 'https:') {
+      const hostname = window.location.hostname;
+      const isLocal = hostname === 'localhost' || 
+                      hostname === '127.0.0.1' || 
+                      hostname.startsWith('192.168.');
+      const isIntegraBrasil = hostname === 'app.integrabrasil.com' || 
+                              hostname === 'beta.integrabrasil.com' || 
+                              hostname.includes('integrabrasil.com');
+      
+      // IMPORTANTE: Usar o protocolo atual da página (transparente)
+      // Se acessar via HTTP, usar HTTP; se via HTTPS, usar HTTPS
+      const protocoloAtual = window.location.protocol;
+      
+      // Se estiver em local e HTTPS, redirecionar para HTTP
+      if (isLocal && protocoloAtual === 'https:') {
         const httpUrl = 'http:' + window.location.href.substring(window.location.protocol.length);
         window.location.replace(httpUrl);
         return;
       }
       
-      // Obter host atual
+      // Usar o protocolo atual (HTTP ou HTTPS) - transparente
       const host = window.location.host;
-      const baseUrl = 'http://' + host; // Forçar HTTP explicitamente
+      const baseUrl = (isLocal ? 'http:' : protocoloAtual) + '//' + host;
       
       // Criar e injetar recursos ANTES do navegador tentar fazer upgrade
       const head = document.head || document.getElementsByTagName('head')[0];
       
-      console.log('✅ Usando baseUrl HTTP:', baseUrl);
+      console.log('✅ [MOTORISTA] Usando baseUrl:', baseUrl, '| Protocol:', protocoloAtual);
       
       // Favicon
       const favicon = document.createElement('link');
@@ -57,10 +69,14 @@
   </script>
 </head>
 <body>
-  <!-- Script crítico: executar ANTES de qualquer coisa para forçar HTTP -->
+  <!-- Script crítico: redirecionar apenas se for localhost em HTTPS -->
   <script>
-    // Redirecionar imediatamente se estiver em HTTPS
-    if (window.location.protocol === 'https:') {
+    // Redirecionar apenas se for localhost em HTTPS (desenvolvimento)
+    const hostname = window.location.hostname;
+    const isLocal = hostname === 'localhost' || 
+                    hostname === '127.0.0.1' || 
+                    hostname.startsWith('192.168.');
+    if (isLocal && window.location.protocol === 'https:') {
       window.location.replace('http:' + window.location.href.substring(window.location.protocol.length));
     }
   </script>

@@ -119,8 +119,14 @@ const helmetConfig = {
         "ws://172.16.0.0/12", // WebSocket para faixa 172.16.x.x - 172.31.x.x
         "http://cargas.integrabrasil.com:*", // Servidor de produção
         "ws://cargas.integrabrasil.com:*", // WebSocket para servidor de produção
-        "http://app.integrabrasil.com:8080", // Servidor ORS e Nominatim (HTTP)
-        "https://app.integrabrasil.com:8080", // Servidor ORS e Nominatim (HTTPS)
+        "http://app.integrabrasil.com:*", // Servidor app (HTTP - todas as portas, incluindo 8080 para ORS/Nominatim)
+        "https://app.integrabrasil.com:*", // Servidor app (HTTPS - todas as portas)
+        "http://beta.integrabrasil.com:*", // Servidor beta (HTTP - todas as portas)
+        "https://beta.integrabrasil.com:*", // Servidor beta (HTTPS - todas as portas)
+        "ws://app.integrabrasil.com:*", // WebSocket app (HTTP - todas as portas)
+        "wss://app.integrabrasil.com:*", // WebSocket app (HTTPS - todas as portas)
+        "ws://beta.integrabrasil.com:*", // WebSocket beta (HTTP - todas as portas)
+        "wss://beta.integrabrasil.com:*", // WebSocket beta (HTTPS - todas as portas)
         "https://fonts.googleapis.com",
         "https://fonts.gstatic.com",
         "https://cdn.jsdelivr.net",
@@ -145,7 +151,13 @@ const helmetConfig = {
         "http://192.168.0.0/16", // Permitir toda a faixa 192.168.x.x
         "http://10.0.0.0/8", // Permitir faixa 10.x.x.x
         "http://172.16.0.0/12", // Permitir faixa 172.16.x.x - 172.31.x.x
-        "http://cargas.integrabrasil.com:*" // Servidor de produção
+        "http://cargas.integrabrasil.com:*", // Servidor de produção
+        "http://app.integrabrasil.com:8080", // Servidor ORS e Nominatim (HTTP)
+        "http://app.integrabrasil.com:8443", // Servidor app (HTTP na porta 8443)
+        "https://app.integrabrasil.com:8443", // Servidor app (HTTPS na porta 8443)
+        "http://beta.integrabrasil.com:8080", // Servidor beta (HTTP na porta 8080)
+        "http://beta.integrabrasil.com:8443", // Servidor beta (HTTP na porta 8443)
+        "https://beta.integrabrasil.com:8443" // Servidor beta (HTTPS na porta 8443)
       ],
       frameSrc: ["'self'"],
       objectSrc: ["'none'"]

@@ -1717,7 +1717,47 @@ function fecharModal() {
                 <li><span class="endpoint method-post">POST /api/public/convocacao/:id/atualizar-localizacao</span> - Atualiza localização manualmente</li>
             </ul>
 
-            <h3>7.6. Utils.js - Outras Funções</h3>
+            <h3>7.6. Suporte Transparente de Protocolo (HTTP/HTTPS)</h3>
+            <p><strong>Funcionalidade:</strong> Sistema transparente que respeita o protocolo usado pelo usuário (HTTP ou HTTPS), garantindo que todos os recursos sejam carregados com o mesmo protocolo da página.</p>
+            
+            <h4>7.6.1. Comportamento</h4>
+            <ul>
+                <li>✅ <strong>Transparente:</strong> Se acessar via HTTP, todos os recursos usam HTTP</li>
+                <li>✅ <strong>Transparente:</strong> Se acessar via HTTPS, todos os recursos usam HTTPS</li>
+                <li>✅ <strong>Localhost:</strong> Sempre força HTTP (desenvolvimento)</li>
+                <li>✅ <strong>Correção Automática:</strong> MutationObserver corrige URLs dinamicamente</li>
+                <li>✅ <strong>Monitoramento Contínuo:</strong> setInterval garante consistência</li>
+            </ul>
+
+            <h4>7.6.2. URLs Suportadas</h4>
+            <p>O sistema funciona corretamente em todos os cenários:</p>
+            <ul>
+                <li><code>https://beta.integrabrasil.com:8443/cargas/</code> - Beta (HTTPS)</li>
+                <li><code>https://app.integrabrasil.com:8443/cargas/</code> - Produção (HTTPS)</li>
+                <li><code>http://beta.integrabrasil.com:8080/cargas/</code> - Beta (HTTP)</li>
+                <li><code>http://app.integrabrasil.com:8080/cargas/</code> - Produção (HTTP)</li>
+            </ul>
+
+            <h4>7.6.3. Implementação</h4>
+            <p><strong>Arquivos:</strong></p>
+            <ul>
+                <li><code>/public/index.html</code> - Login principal</li>
+                <li><code>/public/dashboard.html</code> - Dashboard</li>
+                <li><code>/public/motorista/index.html</code> - App do motorista</li>
+            </ul>
+            <p><strong>Função Principal:</strong></p>
+            <ul>
+                <li><code>garantirProtocoloConsistente(url)</code> - Garante que URLs usem o mesmo protocolo da página</li>
+            </ul>
+            <p><strong>Características:</strong></p>
+            <ul>
+                <li>Detecção automática do protocolo atual (<code>window.location.protocol</code>)</li>
+                <li>Correção automática de URLs de CSS, JavaScript e imagens</li>
+                <li>Retry automático com protocolo correto em caso de erro</li>
+                <li>Logs detalhados para debug</li>
+            </ul>
+
+            <h3>7.7. Utils.js - Outras Funções</h3>
             <p><strong>Arquivo:</strong> <code>/public/js/utils.js</code></p>
             <p>Outras funções utilitárias compartilhadas:</p>
             <ul>
@@ -2480,7 +2520,8 @@ WABOXAPP_UID=seu_uid_aqui</code></pre>
                     Sistema de Monitoramento de Acessos | Ordenação Client-Side em Tabelas |
                     APP Motorista Completo | GPS Automático | Chat em Tempo Real | 
                     Botão SOS | Comprovante de Entrega (POD) | Modo Offline | 
-                    Navegação Integrada | Mapa com Rota | Notificações Push
+                    Navegação Integrada | Mapa com Rota | Notificações Push |
+                    Suporte Transparente HTTP/HTTPS | Protocolo Automático
                 </small>
             </p>
         </div>
