@@ -24,7 +24,11 @@ function iniciarGPSAutomatico() {
 
   // Se não está ativo, sair
   if (!ativo || !motorista) {
-    console.log('❌ GPS automático não iniciado');
+    if (!ativo) {
+      console.log('ℹ️ GPS automático não iniciado: GPS está desativado. Ative em Configurações > GPS.');
+    } else if (!motorista) {
+      console.log('❌ GPS automático não iniciado: Motorista não autenticado.');
+    }
     // Limpar estatísticas se desativado
     contadorEnvios = 0;
     ultimoEnvio = null;

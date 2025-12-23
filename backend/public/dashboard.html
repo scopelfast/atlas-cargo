@@ -72,13 +72,32 @@
     
     // Configuração de base URL - suporta HTTP e HTTPS
     (function() {
-      // Detectar se é ambiente local
+      // Detectar se é ambiente local ou IntegraBrasil
       const hostname = window.location.hostname;
       const isLocal = hostname === 'localhost' || 
                       hostname === '127.0.0.1' || 
                       hostname.startsWith('192.168.');
+      const isIntegraBrasil = hostname === 'app.integrabrasil.com' || 
+                              hostname === 'beta.integrabrasil.com' || 
+                              hostname.includes('integrabrasil.com');
       
-      // Se estiver em local e usando HTTPS, redirecionar imediatamente
+      // Portas que devem usar HTTP (8080)
+      const portasHTTP = ['8080'];
+      // Portas que devem usar HTTPS (8443)
+      const portasHTTPS = ['8443'];
+      const portaAtual = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+      
+      // Determinar protocolo baseado na porta
+      let protocoloEsperado = window.location.protocol;
+      if (portasHTTP.includes(portaAtual)) {
+        protocoloEsperado = 'http:';
+      } else if (portasHTTPS.includes(portaAtual)) {
+        protocoloEsperado = 'https:';
+      } else if (isLocal) {
+        protocoloEsperado = 'http:';
+      }
+      
+      // Se estiver em local e HTTPS, redirecionar para HTTP
       if (isLocal && window.location.protocol === 'https:') {
         console.warn('[DASHBOARD] HTTPS detectado em local, redirecionando para HTTP...');
         const cleanUrl = 'http://' + window.location.host + window.location.pathname.replace(/\?+$/, '');
@@ -86,21 +105,21 @@
         return; // Parar execução até redirecionar
       }
       
-      // Forçar HTTP em desenvolvimento local
-      const protocol = isLocal ? 'http:' : window.location.protocol;
+      // Para IntegraBrasil, usar protocolo correto baseado na porta
+      const protocol = isLocal ? 'http:' : protocoloEsperado;
       const host = window.location.host;
       const baseUrl = protocol + '//' + host;
       
-      console.log('[DASHBOARD] Ambiente:', isLocal ? 'LOCAL (HTTP forçado)' : 'PRODUÇÃO', '| Protocol:', protocol, '| BaseURL:', baseUrl);
+      console.log('[DASHBOARD] Ambiente:', (isLocal || isIntegraBrasil) ? 'LOCAL/INTEGRABRASIL (HTTP forçado)' : 'PRODUÇÃO', '| Protocol:', protocol, '| BaseURL:', baseUrl);
       
       // Função para criar elementos com URLs absolutas
       function createLink(href) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        // Se for local, forçar HTTP; senão usar protocolo atual
+        // Se for local ou IntegraBrasil, forçar HTTP; senão usar protocolo atual
         let url;
-        if (isLocal) {
-          // Sempre forçar HTTP em local, mesmo se href já tiver protocolo
+        if (isLocal || isIntegraBrasil) {
+          // Sempre forçar HTTP em local ou IntegraBrasil, mesmo se href já tiver protocolo
           if (href.startsWith('http://') || href.startsWith('https://')) {
             url = href.replace(/^https?:/, 'http:');
           } else {
@@ -112,10 +131,28 @@
         // Definir href diretamente e verificar se foi alterado
         link.href = url;
         // Verificar se o navegador mudou para HTTPS e corrigir
-        if (isLocal && link.href.startsWith('https://')) {
+        if ((isLocal || isIntegraBrasil) && link.href.startsWith('https://')) {
           console.warn('[createLink] Navegador mudou para HTTPS, corrigindo:', link.href, '→', url);
           link.href = url; // Forçar novamente
         }
+        
+        // Adicionar tratamento de erro
+        link.onerror = function() {
+          console.error('❌ [DASHBOARD] Erro ao carregar CSS:', url);
+          // Tentar carregar novamente após um delay
+          setTimeout(() => {
+            console.log('🔄 [DASHBOARD] Tentando carregar novamente:', url);
+            const newLink = document.createElement('link');
+            newLink.rel = 'stylesheet';
+            newLink.href = url + '?retry=' + Date.now();
+            document.head.appendChild(newLink);
+          }, 1000);
+        };
+        
+        link.onload = function() {
+          console.log('✅ [DASHBOARD] CSS carregado:', url);
+        };
+        
         document.head.appendChild(link);
       }
       

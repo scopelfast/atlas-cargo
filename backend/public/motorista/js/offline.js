@@ -525,7 +525,7 @@
           delete dadosEnvio.timestamp;
           delete dadosEnvio.enviado;
           
-          const baseUrl = window.__BASE_URL__ || ('http://' + window.location.host);
+          const baseUrl = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
           const { response, sucesso, tentativas } = await tentarEnviarComRetry(
             baseUrl + '/api/motorista/sos',
             {
@@ -777,7 +777,7 @@
           delete dadosEnvio.timestamp;
           delete dadosEnvio.enviado;
           
-          const baseUrl = window.__BASE_URL__ || ('http://' + window.location.host);
+          const baseUrl = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
           const { response, sucesso, tentativas } = await tentarEnviarComRetry(
             baseUrl + endpoint,
             {
@@ -845,7 +845,7 @@
           delete dadosEnvio.endpoint;
           delete dadosEnvio.method;
           
-          const baseUrl = window.__BASE_URL__ || ('http://' + window.location.host);
+          const baseUrl = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
           const { response, sucesso, tentativas } = await tentarEnviarComRetry(
             baseUrl + endpoint,
             {

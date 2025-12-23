@@ -209,48 +209,85 @@
         
         if (!gpsAtivoEl || !intervaloEl || !termosEl) {
           console.warn('⚠️ Elementos do formulário não encontrados, tentando novamente...');
-          setTimeout(carregarConfiguracoes, 100);
+          setTimeout(carregarConfiguracoes, 200);
           return;
         }
 
-        // Carregar do localStorage
-        const gpsAtivo = localStorage.getItem('gps_ativo') === 'true';
-        const intervalo = localStorage.getItem('gps_intervalo') || '15'; // Valor padrão 15 conforme tela
-        const termos = localStorage.getItem('gps_termos') === 'true';
+        // Carregar do localStorage com valores padrão
+        let gpsAtivo = localStorage.getItem('gps_ativo');
+        let intervalo = localStorage.getItem('gps_intervalo');
+        let termos = localStorage.getItem('gps_termos');
+        
+        // Se não existir no localStorage, usar valores padrão e salvar
+        if (gpsAtivo === null) {
+          gpsAtivo = 'false';
+          localStorage.setItem('gps_ativo', 'false');
+          console.log('📝 Valor padrão para gps_ativo: false');
+        }
+        
+        if (intervalo === null || intervalo === '') {
+          intervalo = '15';
+          localStorage.setItem('gps_intervalo', '15');
+          console.log('📝 Valor padrão para gps_intervalo: 15');
+        }
+        
+        if (termos === null) {
+          termos = 'false';
+          localStorage.setItem('gps_termos', 'false');
+          console.log('📝 Valor padrão para gps_termos: false');
+        }
 
-        // Aplicar valores
-        gpsAtivoEl.checked = gpsAtivo;
+        // Converter para boolean
+        const gpsAtivoBool = gpsAtivo === 'true';
+        const termosBool = termos === 'true';
+
+        // Aplicar valores aos elementos
+        gpsAtivoEl.checked = gpsAtivoBool;
         intervaloEl.value = intervalo;
-        termosEl.checked = termos;
+        termosEl.checked = termosBool;
         
         // Atualizar visibilidade dos termos
         atualizarTermos();
         
-        console.log('✅ Configurações GPS carregadas:', { 
-          gpsAtivo, 
+        console.log('✅ Configurações GPS carregadas e aplicadas:', { 
+          gpsAtivo: gpsAtivoBool, 
           intervalo, 
-          termos,
+          termos: termosBool,
           localStorage: {
             gps_ativo: localStorage.getItem('gps_ativo'),
             gps_intervalo: localStorage.getItem('gps_intervalo'),
             gps_termos: localStorage.getItem('gps_termos')
+          },
+          elementos: {
+            gpsAtivoEl_checked: gpsAtivoEl.checked,
+            intervaloEl_value: intervaloEl.value,
+            termosEl_checked: termosEl.checked
           }
         });
       } catch (error) {
         console.error('❌ Erro ao carregar configurações:', error);
+        console.error('Stack:', error.stack);
       }
     }
     
-    // Carregar quando o DOM estiver pronto
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', carregarConfiguracoes);
-    } else {
-      // DOM já está pronto
-      setTimeout(carregarConfiguracoes, 100);
+    // Carregar quando o DOM estiver pronto (múltiplas estratégias)
+    function iniciarCarregamento() {
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+          setTimeout(carregarConfiguracoes, 100);
+        });
+      } else {
+        // DOM já está pronto
+        setTimeout(carregarConfiguracoes, 100);
+      }
+      
+      // Também carregar após delays progressivos para garantir
+      setTimeout(carregarConfiguracoes, 300);
+      setTimeout(carregarConfiguracoes, 600);
+      setTimeout(carregarConfiguracoes, 1000);
     }
     
-    // Também carregar após um pequeno delay para garantir que tudo está renderizado
-    setTimeout(carregarConfiguracoes, 500);
+    iniciarCarregamento();
 
     function atualizarTermos() {
       const ativo = document.getElementById('gpsAtivo').checked;
@@ -419,17 +456,41 @@
     
     // Atualizar quando a página ganhar foco (voltar de outra aba)
     window.addEventListener('focus', () => {
-      carregarConfiguracoes(); // Recarregar configurações também
-      atualizarStatusGPS();
+      console.log('🔄 Página ganhou foco, recarregando configurações...');
+      setTimeout(() => {
+        carregarConfiguracoes(); // Recarregar configurações também
+        atualizarStatusGPS();
+      }, 100);
     });
     
     // Recarregar configurações quando a página for exibida (visibilidade)
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) {
-        carregarConfiguracoes();
-        atualizarStatusGPS();
+        console.log('🔄 Página ficou visível, recarregando configurações...');
+        setTimeout(() => {
+          carregarConfiguracoes();
+          atualizarStatusGPS();
+        }, 100);
       }
     });
+    
+    // Recarregar periodicamente (a cada 5 segundos) para garantir sincronização
+    setInterval(() => {
+      const gpsAtivoEl = document.getElementById('gpsAtivo');
+      const intervaloEl = document.getElementById('intervalo');
+      const termosEl = document.getElementById('aceitoTermos');
+      
+      if (gpsAtivoEl && intervaloEl && termosEl) {
+        const localStorageAtivo = localStorage.getItem('gps_ativo') === 'true';
+        const localStorageIntervalo = localStorage.getItem('gps_intervalo') || '15';
+        
+        // Verificar se há divergência entre localStorage e elementos
+        if (gpsAtivoEl.checked !== localStorageAtivo || intervaloEl.value !== localStorageIntervalo) {
+          console.warn('⚠️ Divergência detectada entre localStorage e elementos. Recarregando...');
+          carregarConfiguracoes();
+        }
+      }
+    }, 5000);
 
     async function salvar() {
       const ativo = document.getElementById('gpsAtivo').checked;

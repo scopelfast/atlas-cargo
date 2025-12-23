@@ -7,18 +7,50 @@
   <meta name="description" content="App DivulgaCarga para Motoristas">
   <title>DivulgaCarga - Motorista</title>
   <script>
-    // CRÍTICO: Executar ANTES de qualquer outro código para forçar HTTP
+    // CRÍTICO: Executar ANTES de qualquer outro código para detectar ambiente
     (function() {
-      // Se estiver em HTTPS, redirecionar imediatamente para HTTP
-      if (window.location.protocol === 'https:') {
+      const hostname = window.location.hostname;
+      const isLocal = hostname === 'localhost' || 
+                      hostname === '127.0.0.1' || 
+                      hostname.startsWith('192.168.');
+      const isIntegraBrasil = hostname === 'app.integrabrasil.com' || 
+                              hostname === 'beta.integrabrasil.com' || 
+                              hostname.includes('integrabrasil.com');
+      
+      // Portas que devem usar HTTP (8080)
+      const portasHTTP = ['8080'];
+      // Portas que devem usar HTTPS (8443)
+      const portasHTTPS = ['8443'];
+      const portaAtual = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+      
+      // Determinar protocolo baseado na porta
+      let protocoloEsperado = window.location.protocol;
+      if (portasHTTP.includes(portaAtual)) {
+        protocoloEsperado = 'http:';
+      } else if (portasHTTPS.includes(portaAtual)) {
+        protocoloEsperado = 'https:';
+      } else if (isLocal) {
+        protocoloEsperado = 'http:';
+      }
+      
+      // Se estiver em local e HTTPS, redirecionar para HTTP
+      if (isLocal && window.location.protocol === 'https:') {
         const httpUrl = 'http:' + window.location.href.substring(window.location.protocol.length);
         window.location.replace(httpUrl);
         return;
       }
       
-      // Obter host atual
+      // Para IntegraBrasil, corrigir protocolo se necessário
+      if (isIntegraBrasil && window.location.protocol !== protocoloEsperado) {
+        const cleanUrl = protocoloEsperado + '//' + window.location.host + window.location.pathname.replace(/\?+$/, '');
+        console.warn('[MOTORISTA] Protocolo incorreto, corrigindo:', window.location.href, '→', cleanUrl);
+        window.location.replace(cleanUrl);
+        return;
+      }
+      
+      // Obter host atual e usar protocolo correto
       const host = window.location.host;
-      const baseUrl = 'http://' + host; // Forçar HTTP explicitamente
+      const baseUrl = (isLocal ? 'http:' : protocoloEsperado) + '//' + host;
       
       // Criar e injetar recursos ANTES do navegador tentar fazer upgrade
       const head = document.head || document.getElementsByTagName('head')[0];

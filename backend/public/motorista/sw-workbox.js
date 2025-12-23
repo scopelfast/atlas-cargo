@@ -58,6 +58,29 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   
+  // IMPORTANTE: Este Service Worker é APENAS para o APP Motorista
+  // Não interceptar requisições que não são do APP Motorista
+  // Apenas interceptar páginas do APP Motorista (/motorista/*)
+  const isMotoristaPage = url.pathname.startsWith('/motorista/');
+  
+  // Se não for do APP Motorista, deixar passar sem interceptar
+  if (!isMotoristaPage) {
+    return; // Não interceptar - deixar o navegador fazer a requisição normalmente
+  }
+  
+  // Para recursos compartilhados (/img/, /css/, /js/), só interceptar se vierem de uma página do motorista
+  const isSharedResource = url.pathname.startsWith('/img/') || 
+                          url.pathname.startsWith('/css/') || 
+                          url.pathname.startsWith('/js/');
+  
+  if (isSharedResource) {
+    // Verificar se a requisição veio de uma página do motorista através do referer
+    const referer = event.request.referrer || '';
+    if (!referer.includes('/motorista/')) {
+      return; // Não interceptar recursos compartilhados se não vierem do APP Motorista
+    }
+  }
+  
   // IMPORTANTE: Corrigir requisições de tiles que tentam usar HTTPS
   // Se for uma requisição para o servidor de tiles via HTTPS, forçar HTTP
   if ((url.hostname === '186.250.92.131' || url.hostname === 'app.integrabrasil.com') && (url.protocol === 'https:' || event.request.url.includes('https://' + url.hostname))) {

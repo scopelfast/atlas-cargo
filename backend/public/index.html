@@ -75,8 +75,38 @@
       const isLocal = hostname === 'localhost' || 
                       hostname === '127.0.0.1' || 
                       hostname.startsWith('192.168.');
+      const isIntegraBrasil = hostname === 'app.integrabrasil.com' || 
+                              hostname === 'beta.integrabrasil.com' || 
+                              hostname.includes('integrabrasil.com');
       
-      // Se estiver em local e usando HTTPS, redirecionar para HTTP
+      // Portas que devem usar HTTP (8080)
+      const portasHTTP = ['8080'];
+      // Portas que devem usar HTTPS (8443)
+      const portasHTTPS = ['8443'];
+      const portaAtual = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+      
+      // Determinar protocolo baseado na porta
+      let protocoloEsperado = window.location.protocol;
+      if (portasHTTP.includes(portaAtual)) {
+        protocoloEsperado = 'http:';
+      } else if (portasHTTPS.includes(portaAtual)) {
+        protocoloEsperado = 'https:';
+      } else if (isLocal) {
+        protocoloEsperado = 'http:';
+      }
+      
+      // Função para corrigir protocolo se necessário
+      function corrigirProtocolo() {
+        if (window.location.protocol !== protocoloEsperado) {
+          const cleanUrl = protocoloEsperado + '//' + window.location.host + window.location.pathname.replace(/\?+$/, '');
+          console.warn('[INDEX] Protocolo incorreto detectado, corrigindo:', window.location.href, '→', cleanUrl);
+          window.location.replace(cleanUrl);
+          return true;
+        }
+        return false;
+      }
+      
+      // Verificar imediatamente apenas se for local (sempre HTTP)
       if (isLocal && window.location.protocol === 'https:') {
         const cleanUrl = 'http://' + window.location.host + window.location.pathname.replace(/\?+$/, '');
         console.warn('[INDEX] HTTPS detectado em local, redirecionando para HTTP:', cleanUrl);
@@ -84,23 +114,59 @@
         return;
       }
       
-      // Forçar HTTP em desenvolvimento local
-      const protocol = isLocal ? 'http:' : window.location.protocol;
+      // Para IntegraBrasil, usar o protocolo correto baseado na porta
+      const protocol = isLocal ? 'http:' : protocoloEsperado;
       const host = window.location.host;
       const baseUrl = protocol + '//' + host;
       window.__BASE_URL__ = baseUrl;
       
-      // Função para carregar CSS com HTTP forçado em local
+      // Função para carregar CSS com HTTP forçado em local ou IntegraBrasil
       function loadCSS(href) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
         link.type = 'text/css';
-        if (isLocal) {
+        if (isLocal || isIntegraBrasil) {
           link.href = 'http://' + host + (href.startsWith('/') ? href : '/' + href);
           console.log('[INDEX] Carregando CSS via HTTP:', link.href);
         } else {
           link.href = href.startsWith('http') ? href : baseUrl + (href.startsWith('/') ? href : '/' + href);
         }
+        
+        // Forçar HTTP se o navegador mudou para HTTPS
+        if ((isLocal || isIntegraBrasil) && link.href.startsWith('https://')) {
+          link.href = link.href.replace(/^https:/, 'http:');
+          console.warn('[INDEX] CSS foi mudado para HTTPS, corrigindo para HTTP:', link.href);
+        }
+        
+        // Adicionar tratamento de erro
+        link.onerror = function() {
+          console.error('❌ [INDEX] Erro ao carregar CSS:', link.href);
+          // Se falhou com HTTPS, tentar HTTP
+          if (link.href.startsWith('https://') && (isLocal || isIntegraBrasil)) {
+            const httpUrl = link.href.replace(/^https:/, 'http:');
+            console.log('🔄 [INDEX] Tentando carregar CSS via HTTP:', httpUrl);
+            link.href = httpUrl;
+            return;
+          }
+          // Tentar carregar novamente após um delay
+          setTimeout(() => {
+            console.log('🔄 [INDEX] Tentando carregar CSS novamente:', link.href);
+            const newLink = document.createElement('link');
+            newLink.rel = 'stylesheet';
+            newLink.type = 'text/css';
+            let retryUrl = link.href;
+            if ((isLocal || isIntegraBrasil) && retryUrl.startsWith('https://')) {
+              retryUrl = retryUrl.replace(/^https:/, 'http:');
+            }
+            newLink.href = retryUrl + (retryUrl.includes('?') ? '&' : '?') + 'retry=' + Date.now();
+            document.head.appendChild(newLink);
+          }, 1000);
+        };
+        
+        link.onload = function() {
+          console.log('✅ [INDEX] CSS carregado:', link.href);
+        };
+        
         document.head.appendChild(link);
       }
       
@@ -703,14 +769,17 @@
       const isLocal = hostname === 'localhost' || 
                       hostname === '127.0.0.1' || 
                       hostname.startsWith('192.168.');
-      const protocol = isLocal ? 'http:' : window.location.protocol;
+      const isIntegraBrasil = hostname === 'app.integrabrasil.com' || 
+                              hostname === 'beta.integrabrasil.com' || 
+                              hostname.includes('integrabrasil.com');
+      const protocol = (isLocal || isIntegraBrasil) ? 'http:' : window.location.protocol;
       const baseUrl = protocol + '//' + window.location.host;
       
       function loadScript(src) {
         const script = document.createElement('script');
-        // Se for local, forçar HTTP; senão usar protocolo atual
+        // Se for local ou IntegraBrasil, forçar HTTP; senão usar protocolo atual
         let url;
-        if (isLocal) {
+        if (isLocal || isIntegraBrasil) {
           url = 'http://' + window.location.host + (src.startsWith('/') ? src : '/' + src);
           console.log('[INDEX] Carregando script via HTTP:', url);
         } else {
@@ -718,11 +787,42 @@
         }
         script.src = url;
         // Verificar se navegador mudou para HTTPS e corrigir
-        if (isLocal && script.src.startsWith('https://')) {
-          console.warn('[INDEX] Navegador mudou script para HTTPS, corrigindo:', script.src, '→', url);
-          script.src = url;
+        if ((isLocal || isIntegraBrasil) && script.src.startsWith('https://')) {
+          const httpUrl = script.src.replace(/^https:/, 'http:');
+          console.warn('[INDEX] Navegador mudou script para HTTPS, corrigindo:', script.src, '→', httpUrl);
+          script.src = httpUrl;
+          url = httpUrl; // Atualizar url também
         }
         script.async = false;
+        
+        // Adicionar tratamento de erro
+        script.onerror = function() {
+          console.error('❌ [INDEX] Erro ao carregar script:', script.src);
+          // Se falhou com HTTPS, tentar HTTP
+          if (script.src.startsWith('https://') && (isLocal || isIntegraBrasil)) {
+            const httpUrl = script.src.replace(/^https:/, 'http:');
+            console.log('🔄 [INDEX] Tentando carregar script via HTTP:', httpUrl);
+            script.src = httpUrl;
+            return;
+          }
+          // Tentar carregar novamente após um delay
+          setTimeout(() => {
+            console.log('🔄 [INDEX] Tentando carregar script novamente:', script.src);
+            const retryScript = document.createElement('script');
+            let retryUrl = script.src;
+            if ((isLocal || isIntegraBrasil) && retryUrl.startsWith('https://')) {
+              retryUrl = retryUrl.replace(/^https:/, 'http:');
+            }
+            retryScript.src = retryUrl + (retryUrl.includes('?') ? '&' : '?') + 'retry=' + Date.now();
+            retryScript.async = false;
+            document.body.appendChild(retryScript);
+          }, 1000);
+        };
+        
+        script.onload = function() {
+          console.log('✅ [INDEX] Script carregado:', url);
+        };
+        
         document.body.appendChild(script);
       }
       

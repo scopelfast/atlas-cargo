@@ -3604,9 +3604,21 @@ function getOverlayMostrado() {
                 function normalizarOSRMUrl(servidor) {
                   if (!servidor) return 'https://router.project-osrm.org/route/v1/driving-hgv';
                   // Se for servidor próprio, garantir que use HTTP (não HTTPS)
-                  if (servidor.includes('186.250.92.131') || servidor.includes('app.integrabrasil.com')) {
-                    const normalized = servidor.replace(/^https:/, 'http:');
-                    console.log('🔄 [OSRM] Normalizando URL:', servidor, '→', normalized);
+                  const servidoresProprios = ['186.250.92.131', 'app.integrabrasil.com', 'beta.integrabrasil.com'];
+                  const isServidorProprio = servidoresProprios.some(s => servidor.includes(s));
+                  
+                  if (isServidorProprio) {
+                    let normalized = servidor.replace(/^https:/, 'http:');
+                    normalized = normalized.replace(/https:\/\//, 'http://');
+                    
+                    // Verificar se ainda está em HTTPS
+                    if (normalized.startsWith('https:')) {
+                      normalized = 'http:' + normalized.substring(6);
+                    }
+                    
+                    if (normalized !== servidor) {
+                      console.log('🔄 [OSRM] Normalizando URL:', servidor, '→', normalized);
+                    }
                     return normalized;
                   }
                   return servidor;
@@ -3620,21 +3632,44 @@ function getOverlayMostrado() {
                   async function obterRotaSegmento(segmento, servidor, tentativa = 1) {
                     const coordsStr = segmento.map(c => `${c[1]},${c[0]}`).join(';');
                     
-                    // IMPORTANTE: Usar construirUrlRota que já normaliza corretamente
-                    const osrmUrl = construirUrlRota(servidor, coordsStr, 'full', 'geojson');
+                    // IMPORTANTE: Normalizar servidor ANTES de construir URL
+                    let servidorNormalizado = servidor;
+                    const servidoresProprios = ['186.250.92.131', 'app.integrabrasil.com', 'beta.integrabrasil.com'];
+                    const isServidorProprio = servidoresProprios.some(s => servidor && servidor.includes(s));
                     
-                    // Verificar se URL está correto antes de fazer fetch
-                    if ((osrmUrl.includes('186.250.92.131') || osrmUrl.includes('app.integrabrasil.com')) && osrmUrl.startsWith('https:')) {
-                      console.error('❌ [OSRM] ERRO CRÍTICO: URL ainda está em HTTPS!', osrmUrl);
-                      throw new Error('URL não foi normalizado corretamente');
+                    if (isServidorProprio) {
+                      servidorNormalizado = servidor.replace(/^https:/, 'http:');
+                      servidorNormalizado = servidorNormalizado.replace(/https:\/\//, 'http://');
+                      if (servidorNormalizado !== servidor) {
+                        console.log('🔄 [OSRM] Normalizando URL:', servidor, '→', servidorNormalizado);
+                      }
+                    }
+                    
+                    // IMPORTANTE: Usar construirUrlRota que já normaliza corretamente
+                    const osrmUrl = construirUrlRota(servidorNormalizado, coordsStr, 'full', 'geojson');
+                    
+                    // Verificar e corrigir URL antes de fazer fetch
+                    let urlFinal = osrmUrl;
+                    const servidoresProprios = ['186.250.92.131', 'app.integrabrasil.com', 'beta.integrabrasil.com'];
+                    const isServidorProprio = servidoresProprios.some(s => osrmUrl.includes(s));
+                    
+                    if (isServidorProprio && osrmUrl.startsWith('https:')) {
+                      urlFinal = osrmUrl.replace(/^https:/, 'http:');
+                      console.warn('⚠️ [OSRM] URL corrigida de HTTPS para HTTP:', osrmUrl.substring(0, 80), '→', urlFinal.substring(0, 80));
+                    }
+                    
+                    // Verificar novamente após correção
+                    if (isServidorProprio && urlFinal.startsWith('https:')) {
+                      console.error('❌ [OSRM] ERRO CRÍTICO: URL ainda está em HTTPS após correção!', urlFinal);
+                      urlFinal = 'http:' + urlFinal.substring(6); // Forçar HTTP
                     }
                     
                     try {
                       const controller = new AbortController();
                       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos
                       
-                      console.log('🌐 [OSRM] Fazendo fetch para:', osrmUrl.substring(0, 100) + '...');
-                      const response = await fetchForcandoHTTP(osrmUrl, { signal: controller.signal });
+                      console.log('🌐 [OSRM] Fazendo fetch para:', urlFinal.substring(0, 100) + '...');
+                      const response = await fetchForcandoHTTP(urlFinal, { signal: controller.signal });
                       clearTimeout(timeoutId);
                       
                       if (response.ok) {
@@ -11316,10 +11351,21 @@ function getOverlayMostrado() {
   function construirUrlRota(servidor, coordsStr, overview = 'simplified', geometries = 'geojson') {
     // IMPORTANTE: Normalizar URL - garantir HTTP para servidor próprio
     let servidorNormalizado = servidor;
-    if (servidor && (servidor.includes('186.250.92.131') || servidor.includes('app.integrabrasil.com'))) {
+    const servidoresProprios = ['186.250.92.131', 'app.integrabrasil.com', 'beta.integrabrasil.com'];
+    const isServidorProprio = servidor && servidoresProprios.some(s => servidor.includes(s));
+    
+    if (isServidorProprio) {
       servidorNormalizado = servidor.replace(/^https:/, 'http:');
+      servidorNormalizado = servidorNormalizado.replace(/https:\/\//, 'http://');
+      
       if (servidorNormalizado !== servidor) {
         console.log('🔄 [ROTA] Normalizando URL do servidor próprio:', servidor, '→', servidorNormalizado);
+      }
+      
+      // Verificar se ainda está em HTTPS após normalização
+      if (servidorNormalizado.startsWith('https:')) {
+        console.error('❌ [ROTA] ERRO: Servidor ainda está em HTTPS após normalização!', servidorNormalizado);
+        servidorNormalizado = 'http:' + servidorNormalizado.substring(6); // Remove 'https:' e adiciona 'http:'
       }
     }
     
@@ -11334,8 +11380,10 @@ function getOverlayMostrado() {
     }
     
     // Log final para debug
-    if ((urlFinal.includes('186.250.92.131') || urlFinal.includes('app.integrabrasil.com')) && urlFinal.startsWith('https:')) {
+    if (isServidorProprio && urlFinal.startsWith('https:')) {
       console.error('❌ [ROTA] ERRO: URL ainda está em HTTPS!', urlFinal);
+      // Tentar corrigir uma última vez
+      urlFinal = urlFinal.replace(/^https:/, 'http:');
     }
     
     return urlFinal;
@@ -11345,20 +11393,133 @@ function getOverlayMostrado() {
   async function fetchForcandoHTTP(url, options = {}) {
     // Se for servidor próprio, garantir que seja HTTP
     let fetchUrl = url;
-    if (url.includes('186.250.92.131') || url.includes('app.integrabrasil.com')) {
+    const servidoresProprios = ['186.250.92.131', 'app.integrabrasil.com', 'beta.integrabrasil.com'];
+    const isServidorProprio = servidoresProprios.some(servidor => url.includes(servidor));
+    
+    if (isServidorProprio) {
+      // Forçar HTTP de múltiplas formas
       fetchUrl = url.replace(/^https:/, 'http:');
+      fetchUrl = fetchUrl.replace(/https:\/\//, 'http://');
+      
       if (fetchUrl !== url) {
-        console.warn('⚠️ [FETCH] Navegador converteu HTTP→HTTPS! Forçando HTTP:', fetchUrl);
+        console.warn('⚠️ [FETCH] URL convertida de HTTPS para HTTP:', url.substring(0, 80), '→', fetchUrl.substring(0, 80));
+      }
+      
+      // Verificar se ainda está em HTTPS após normalização
+      if (fetchUrl.startsWith('https:')) {
+        console.error('❌ [FETCH] ERRO: URL ainda está em HTTPS após normalização!', fetchUrl.substring(0, 80));
+        // Tentar uma última vez com replace mais agressivo
+        fetchUrl = 'http:' + fetchUrl.substring(6); // Remove 'https:' e adiciona 'http:'
       }
     }
     
-    // Criar Request explícito para evitar conversão automática
+    // Criar URL object para garantir protocolo correto
+    try {
+      const urlObj = new URL(fetchUrl);
+      if (isServidorProprio && urlObj.protocol === 'https:') {
+        urlObj.protocol = 'http:';
+        fetchUrl = urlObj.toString();
+        console.warn('⚠️ [FETCH] Protocolo corrigido via URL object:', fetchUrl.substring(0, 80));
+      }
+    } catch (e) {
+      // Se falhar ao criar URL object, continuar com fetchUrl original
+      console.warn('⚠️ [FETCH] Erro ao criar URL object:', e);
+    }
+    
+    // IMPORTANTE: Para servidores próprios, usar XMLHttpRequest como fallback
+    // porque alguns navegadores convertem fetch() automaticamente para HTTPS
+    if (isServidorProprio) {
+      try {
+        // Tentar primeiro com fetch
+        const request = new Request(fetchUrl, {
+          method: options.method || 'GET',
+          mode: 'cors',
+          cache: options.cache || 'no-cache',
+          credentials: options.credentials || 'omit',
+          signal: options.signal,
+          headers: options.headers || {}
+        });
+        
+        // Verificar se o request ainda está em HTTPS
+        if (request.url && request.url.startsWith('https://')) {
+          console.warn('⚠️ [FETCH] Navegador converteu para HTTPS, usando XMLHttpRequest como fallback');
+          throw new Error('HTTPS_DETECTED'); // Forçar uso de XMLHttpRequest
+        }
+        
+        const response = await fetch(request);
+        return response;
+      } catch (err) {
+        // Se falhar ou detectar HTTPS, usar XMLHttpRequest
+        if (err.message === 'HTTPS_DETECTED' || err.name === 'TypeError' || err.message.includes('SSL') || err.message.includes('HTTPS')) {
+          console.log('🔄 [FETCH] Usando XMLHttpRequest para forçar HTTP:', fetchUrl.substring(0, 80));
+          return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open(options.method || 'GET', fetchUrl, true);
+            xhr.responseType = 'json';
+            
+            // Adicionar headers se necessário
+            if (options.headers) {
+              Object.keys(options.headers).forEach(key => {
+                xhr.setRequestHeader(key, options.headers[key]);
+              });
+            }
+            
+            // Timeout
+            if (options.signal) {
+              options.signal.addEventListener('abort', () => {
+                xhr.abort();
+                reject(new Error('Aborted'));
+              });
+            }
+            
+            xhr.onload = function() {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                // Criar um objeto Response-like
+                const response = {
+                  ok: true,
+                  status: xhr.status,
+                  statusText: xhr.statusText,
+                  json: async () => {
+                    try {
+                      return typeof xhr.response === 'string' ? JSON.parse(xhr.response) : xhr.response;
+                    } catch (e) {
+                      return JSON.parse(xhr.responseText);
+                    }
+                  },
+                  text: async () => xhr.responseText,
+                  headers: new Headers(),
+                  url: fetchUrl
+                };
+                resolve(response);
+              } else {
+                reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
+              }
+            };
+            
+            xhr.onerror = function() {
+              reject(new Error('Network error'));
+            };
+            
+            xhr.ontimeout = function() {
+              reject(new Error('Timeout'));
+            };
+            
+            xhr.send(options.body || null);
+          });
+        } else {
+          throw err;
+        }
+      }
+    }
+    
+    // Para servidores não-próprios, usar fetch normal
     const request = new Request(fetchUrl, {
       method: options.method || 'GET',
       mode: 'cors',
       cache: options.cache || 'no-cache',
       credentials: options.credentials || 'omit',
-      signal: options.signal
+      signal: options.signal,
+      headers: options.headers || {}
     });
     
     return fetch(request);
@@ -11794,7 +11955,27 @@ function getOverlayMostrado() {
     await carregarLeaflet();
 
     const mapaDiv = document.getElementById('mapaRastreamento');
-    if (!mapaDiv) return;
+    if (!mapaDiv) {
+      console.error('❌ [RASTREAMENTO] Elemento mapaRastreamento não encontrado! Verificando se a aba está visível...');
+      // Verificar se a aba está visível
+      const tabRastreamento = document.getElementById('tab-rastreamento');
+      if (tabRastreamento) {
+        console.log('ℹ️ [RASTREAMENTO] Aba encontrada. Display:', tabRastreamento.style.display);
+        // Tentar mostrar a aba se estiver oculta
+        if (tabRastreamento.style.display === 'none') {
+          tabRastreamento.style.display = 'block';
+          await new Promise(resolve => setTimeout(resolve, 200));
+          const mapaDivRetry = document.getElementById('mapaRastreamento');
+          if (!mapaDivRetry) {
+            console.error('❌ [RASTREAMENTO] Elemento ainda não encontrado após mostrar aba!');
+            return;
+          }
+        }
+      } else {
+        console.error('❌ [RASTREAMENTO] Aba tab-rastreamento não encontrada no DOM!');
+        return;
+      }
+    }
 
     // Limpar mapa anterior - com proteção robusta
     if (mapaRastreamento) {
@@ -11920,13 +12101,38 @@ function getOverlayMostrado() {
 
     // Criar mapa - com proteção adicional contra reutilização
     try {
-      // Verificar novamente se o container está limpo antes de criar
+      // Verificar se o elemento existe e está visível
       const mapaDivCheck = document.getElementById('mapaRastreamento');
-      if (mapaDivCheck && mapaDivCheck._leaflet_id) {
+      if (!mapaDivCheck) {
+        console.error('❌ [RASTREAMENTO] Elemento mapaRastreamento não encontrado no DOM!');
+        throw new Error('Map container not found');
+      }
+      
+      // Verificar se a aba está visível
+      const tabRastreamento = document.getElementById('tab-rastreamento');
+      if (!tabRastreamento || tabRastreamento.style.display === 'none') {
+        console.warn('⚠️ [RASTREAMENTO] Aba de rastreamento não está visível. Aguardando...');
+        // Aguardar um pouco e verificar novamente
+        await new Promise(resolve => setTimeout(resolve, 300));
+        const tabCheck = document.getElementById('tab-rastreamento');
+        if (!tabCheck || tabCheck.style.display === 'none') {
+          console.error('❌ [RASTREAMENTO] Aba de rastreamento ainda não está visível após espera!');
+          throw new Error('Rastreamento tab not visible');
+        }
+      }
+      
+      // Verificar novamente se o container está limpo antes de criar
+      if (mapaDivCheck._leaflet_id) {
         console.warn('⚠️ [RASTREAMENTO] Container ainda tem _leaflet_id. Forçando limpeza...');
         mapaDivCheck.innerHTML = '';
         delete mapaDivCheck._leaflet_id;
         await new Promise(resolve => setTimeout(resolve, 150));
+      }
+      
+      // Garantir que o elemento tem dimensões antes de criar o mapa
+      if (mapaDivCheck.offsetWidth === 0 || mapaDivCheck.offsetHeight === 0) {
+        console.warn('⚠️ [RASTREAMENTO] Container não tem dimensões. Aguardando renderização...');
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
       
       mapaRastreamento = L.map('mapaRastreamento', {

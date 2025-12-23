@@ -842,7 +842,11 @@
                           <span>🕐</span>
                           <span>${tempoRelativo}</span>
                         </div>
-                        ${notif.viagem ? `<span class="notificacao-badge">Viagem #${notif.viagem}</span>` : ''}
+                        ${notif.viagem ? (() => {
+                          // Remover duplicatas se houver (ex: "83301,83301" -> "83301")
+                          const viagemId = String(notif.viagem).split(',')[0].trim();
+                          return `<span class="notificacao-badge">Viagem #${viagemId}</span>`;
+                        })() : ''}
                       </div>
                     </div>
                   </div>
@@ -944,13 +948,84 @@
     // Mini Status GPS
     // =============================================
     function atualizarMiniStatusGPS() {
-      if (typeof obterEstatisticasGPS !== 'function') return;
+      const miniDiv = document.getElementById('miniStatusGPS');
+      if (!miniDiv) return;
+
+      // Verificar se as configurações estão setadas
+      const gpsAtivo = localStorage.getItem('gps_ativo');
+      const gpsIntervalo = localStorage.getItem('gps_intervalo');
+      
+      // Se não há configurações setadas (null ou vazio)
+      if (gpsAtivo === null || gpsIntervalo === null || gpsIntervalo === '') {
+        miniDiv.innerHTML = `
+          <div style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%); padding: 14px 16px; border-radius: 10px; box-shadow: 0 2px 8px rgba(255,152,0,0.3); color: white; display: flex; align-items: center; justify-content: space-between; animation: pulse-warning 2s infinite;">
+            <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+              <div style="font-size: 20px;">⚠️</div>
+              <div style="flex: 1;">
+                <div style="font-size: 14px; font-weight: 600; margin-bottom: 2px;">GPS não configurado</div>
+                <div style="font-size: 11px; opacity: 0.9;">Configure o GPS automático para começar</div>
+              </div>
+            </div>
+            <button onclick="window.location.href='gps.html'" style="background: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.4); color: white; padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap; margin-left: 12px;">
+              ⚙️ Configurar
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      // Se está desativado, mostrar indicador
+      if (gpsAtivo !== 'true') {
+        miniDiv.innerHTML = `
+          <div style="background: #f5f5f5; padding: 14px 16px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 4px solid #999; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+              <div style="font-size: 20px;">⏸️</div>
+              <div style="flex: 1;">
+                <div style="font-size: 14px; font-weight: 600; color: #666; margin-bottom: 2px;">GPS Automático Desativado</div>
+                <div style="font-size: 11px; color: #999;">Ative nas configurações para começar</div>
+              </div>
+            </div>
+            <button onclick="window.location.href='gps.html'" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap; margin-left: 12px; box-shadow: 0 2px 4px rgba(102,126,234,0.3);">
+              ⚙️ Ativar
+            </button>
+          </div>
+        `;
+        return;
+      }
+
+      // Se está ativo, mostrar status normal
+      if (typeof obterEstatisticasGPS !== 'function') {
+        miniDiv.innerHTML = `
+          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 12px 16px; border-radius: 10px; box-shadow: 0 2px 8px rgba(102,126,234,0.2); color: white; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+              <div class="gps-pulse"></div>
+              <div style="font-size: 13px; font-weight: 600;">GPS Automático Ativo</div>
+              <div style="font-size: 12px; opacity: 0.9;">
+                Carregando...
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
       
       const stats = obterEstatisticasGPS();
-      const miniDiv = document.getElementById('miniStatusGPS');
-
-      if (!stats.ativo || !stats.ultimoEnvio) {
-        miniDiv.innerHTML = '';
+      
+      if (!stats || !stats.ativo) {
+        miniDiv.innerHTML = `
+          <div style="background: #f5f5f5; padding: 14px 16px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 4px solid #999; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
+              <div style="font-size: 20px;">⏸️</div>
+              <div style="flex: 1;">
+                <div style="font-size: 14px; font-weight: 600; color: #666; margin-bottom: 2px;">GPS Automático Desativado</div>
+                <div style="font-size: 11px; color: #999;">Ative nas configurações para começar</div>
+              </div>
+            </div>
+            <button onclick="window.location.href='gps.html'" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap; margin-left: 12px; box-shadow: 0 2px 4px rgba(102,126,234,0.3);">
+              ⚙️ Ativar
+            </button>
+          </div>
+        `;
         return;
       }
 
@@ -959,26 +1034,35 @@
       let tempoProximo = '';
       
       if (proximo) {
-        const difMs = proximo - agora;
-        const difMin = Math.floor(difMs / 60000);
-        const difSeg = Math.floor((difMs % 60000) / 1000);
+        const proximoDate = proximo instanceof Date ? proximo : new Date(proximo);
         
-        if (difMin > 0) {
-          tempoProximo = `${difMin}:${String(difSeg).padStart(2, '0')}`;
-        } else {
-          tempoProximo = `${difSeg}s`;
+        if (!isNaN(proximoDate.getTime())) {
+          const difMs = proximoDate.getTime() - agora.getTime();
+          
+          if (difMs > 0) {
+            const difMin = Math.floor(difMs / 60000);
+            const difSeg = Math.floor((difMs % 60000) / 1000);
+            
+            if (difMin > 0) {
+              tempoProximo = `${difMin}:${String(difSeg).padStart(2, '0')}`;
+            } else {
+              tempoProximo = `${difSeg}s`;
+            }
+          } else {
+            tempoProximo = 'Agora';
+          }
         }
       }
 
       miniDiv.innerHTML = `
-        <div style="background: white; padding: 12px 16px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); display: flex; align-items: center; justify-content: space-between;">
-          <div style="display: flex; align-items: center; gap: 8px;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 12px 16px; border-radius: 10px; box-shadow: 0 2px 8px rgba(102,126,234,0.2); color: white; display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
             <div class="gps-pulse"></div>
-            <div style="font-size: 13px; font-weight: 600; color: #333;">GPS Automático Ativo</div>
-          </div>
-          <div style="font-size: 12px; color: #666;">
-            <span style="font-weight: 600;">${stats.contador}</span> envios · 
-            Próximo em <span style="font-weight: 600;">${tempoProximo}</span>
+            <div style="font-size: 13px; font-weight: 600; color: white;">GPS Automático Ativo</div>
+            <div style="font-size: 12px; opacity: 0.9; color: white;">
+              <span style="font-weight: 600;">${stats.contador || 0}</span> envios · 
+              Próximo em <span style="font-weight: 600;">${tempoProximo || 'Aguarde...'}</span>
+            </div>
           </div>
         </div>
       `;
@@ -1359,6 +1443,25 @@
     @keyframes pulse {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.5; }
+    }
+    
+    @keyframes pulse-warning {
+      0%, 100% { 
+        box-shadow: 0 2px 8px rgba(255,152,0,0.3);
+      }
+      50% { 
+        box-shadow: 0 2px 12px rgba(255,152,0,0.5);
+      }
+    }
+    
+    /* Estilo para botões de ação rápida */
+    #miniStatusGPS button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2) !important;
+    }
+    
+    #miniStatusGPS button:active {
+      transform: scale(0.95);
     }
   </style>
 </body>
