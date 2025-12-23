@@ -68,25 +68,36 @@ const URL_CONFIG = {
   },
   // Rotas específicas (sempre terminam com /)
   ROUTES: {
-    CARgas: 'cargas/',
+    CARGAS: 'cargas/',
     NOMINATIM: 'nominatim/',
     ORS: 'ors/'
   }
 };
 
-// Função helper para construir URLs completas
-const buildUrls = (baseUrl) => ({
-  base: `${baseUrl}/${URL_CONFIG.ROUTES.CARgas}`,
-  nominatim: `http://${baseUrl}/${URL_CONFIG.ROUTES.NOMINATIM}`,
-  ors: `http://${baseUrl}/${URL_CONFIG.ROUTES.ORS}`
-});
-
-// URLs completas para cada ambiente
+// URLs completas para cada ambiente (exemplo de uso - não usado no CSP mas disponível)
+// Nota: Estas URLs são construídas mas não são usadas no CSP diretamente,
+// pois o CSP precisa de variações com protocolos (http/https/ws/wss)
 const URLS = {
-  BETA_HTTP: buildUrls(URL_CONFIG.BETA.HTTP),
-  BETA_HTTPS: buildUrls(URL_CONFIG.BETA.HTTPS),
-  APP_HTTP: buildUrls(URL_CONFIG.APP.HTTP),
-  APP_HTTPS: buildUrls(URL_CONFIG.APP.HTTPS)
+  BETA_HTTP: {
+    base: `http://${URL_CONFIG.BETA.HTTP}/${URL_CONFIG.ROUTES.CARGAS}`,
+    nominatim: `http://${URL_CONFIG.BETA.HTTP}/${URL_CONFIG.ROUTES.NOMINATIM}`,
+    ors: `http://${URL_CONFIG.BETA.HTTP}/${URL_CONFIG.ROUTES.ORS}`
+  },
+  BETA_HTTPS: {
+    base: `https://${URL_CONFIG.BETA.HTTPS}/${URL_CONFIG.ROUTES.CARGAS}`,
+    nominatim: `http://${URL_CONFIG.BETA.HTTPS}/${URL_CONFIG.ROUTES.NOMINATIM}`,
+    ors: `http://${URL_CONFIG.BETA.HTTPS}/${URL_CONFIG.ROUTES.ORS}`
+  },
+  APP_HTTP: {
+    base: `http://${URL_CONFIG.APP.HTTP}/${URL_CONFIG.ROUTES.CARGAS}`,
+    nominatim: `http://${URL_CONFIG.APP.HTTP}/${URL_CONFIG.ROUTES.NOMINATIM}`,
+    ors: `http://${URL_CONFIG.APP.HTTP}/${URL_CONFIG.ROUTES.ORS}`
+  },
+  APP_HTTPS: {
+    base: `https://${URL_CONFIG.APP.HTTPS}/${URL_CONFIG.ROUTES.CARGAS}`,
+    nominatim: `http://${URL_CONFIG.APP.HTTPS}/${URL_CONFIG.ROUTES.NOMINATIM}`,
+    ors: `http://${URL_CONFIG.APP.HTTPS}/${URL_CONFIG.ROUTES.ORS}`
+  }
 };
 
 // Função para gerar todas as variações de URL para CSP (com protocolos)
