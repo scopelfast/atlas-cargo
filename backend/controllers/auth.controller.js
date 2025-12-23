@@ -8,6 +8,13 @@ require('dotenv').config();
 const login = async (req, res) => {
   const { email, password } = req.body;
 
+  console.log('[AUTH] Tentativa de login recebida:', {
+    email: email ? email.substring(0, 10) + '...' : 'undefined',
+    hasPassword: !!password,
+    path: req.path,
+    originalUrl: req.originalUrl
+  });
+
   if (!email || !password) {
     return res.status(400).json({
       success: false,
@@ -20,12 +27,17 @@ const login = async (req, res) => {
 
     // Decide se é e-mail ou login (SGUSUARIO)
     if (email.includes('@')) {
+      console.log('[AUTH] Buscando usuário por email:', email);
       user = await findByEmail(email);
     } else {
+      console.log('[AUTH] Buscando usuário por login:', email);
       user = await findByLogin(email);
     }
 
+    console.log('[AUTH] Usuário encontrado:', user ? { login: user.SGUSUARIO, ativo: user.FGACTIVE } : 'NÃO ENCONTRADO');
+
     if (!user) {
+      console.log('[AUTH] Usuário não encontrado para:', email);
       return res.status(401).json({
         success: false,
         message: 'Credenciais inválidas.'
@@ -53,11 +65,14 @@ const login = async (req, res) => {
     }
 
     if (!senhaValida) {
+      console.log('[AUTH] Senha inválida para usuário:', user.SGUSUARIO);
       return res.status(401).json({
         success: false,
         message: 'Credenciais inválidas.'
       });
     }
+
+    console.log('[AUTH] Login bem-sucedido para usuário:', user.SGUSUARIO);
 
     const token = jwt.sign(
       {
