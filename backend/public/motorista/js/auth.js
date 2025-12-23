@@ -35,7 +35,9 @@ function getMotorista() {
 function doLogout() {
   localStorage.removeItem('token');
   localStorage.removeItem('motorista');
-  window.location.href = '/motorista/index.html';
+  const baseUrl = window.__BASE_URL__ || window.location.origin;
+  const pathBase = baseUrl.includes('/cargas') ? '/cargas' : '';
+  window.location.href = pathBase + '/motorista/index.html';
 }
 
 /**
@@ -107,7 +109,14 @@ function isTokenExpired() {
       try {
         console.log('🔐 Tentando fazer login com CPF:', cpf.replace(/\d(?=\d{4})/g, "*")); // Mascarar CPF no log
         
-        const response = await fetch('/api/motorista/login', {
+        // Obter baseUrl para corrigir URL da API
+        const baseUrl = window.__BASE_URL__ || window.location.origin;
+        const pathBase = baseUrl.includes('/cargas') ? '/cargas' : '';
+        const apiUrl = baseUrl + '/api/motorista/login';
+        
+        console.log('🔗 Chamando API:', apiUrl);
+        
+        const response = await fetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cpf, senha })
@@ -125,9 +134,11 @@ function isTokenExpired() {
           
           showMessage('Login realizado com sucesso!', 'success');
           
-          // Redirecionar para dashboard
+          // Redirecionar para dashboard usando caminho correto
+          const baseUrl = window.__BASE_URL__ || window.location.origin;
+          const pathBase = baseUrl.includes('/cargas') ? '/cargas' : '';
           setTimeout(() => {
-            window.location.href = 'pages/dashboard.html';
+            window.location.href = pathBase + '/motorista/pages/dashboard.html';
           }, 1000);
         } else {
           // Mostrar mensagem de erro detalhada
