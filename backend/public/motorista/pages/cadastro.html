@@ -14,7 +14,7 @@
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
       min-height: 100vh;
       padding: 20px;
     }
@@ -221,11 +221,13 @@
       <div class="form-group">
         <label for="cpf">CPF *</label>
         <input 
-          type="text" 
+          type="tel" 
           id="cpf" 
           placeholder="000.000.000-00"
           required
           maxlength="14"
+          inputmode="numeric"
+          pattern="[0-9]*"
           disabled
         >
       </div>
