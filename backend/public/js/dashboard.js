@@ -973,7 +973,7 @@
 
         // Carrega o script do módulo, se existir
         const script = document.createElement('script');
-        script.src = `/modulos/${programa}/js/script.js`;
+        script.src = corrigirUrl(`/modulos/${programa}/js/script.js`);
         script.onerror = () => {
           // Script não encontrado - silencioso
         };
