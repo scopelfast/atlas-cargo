@@ -71,6 +71,7 @@
       const manifest = document.createElement('link');
       manifest.rel = 'manifest';
       manifest.href = baseUrl + '/motorista/manifest.json';
+      console.log('📦 Carregando manifest:', manifest.href);
       head.appendChild(manifest);
       
       // CSS - Design System primeiro, depois style.css
@@ -212,13 +213,42 @@
       // Aguardar um pouco antes de registrar para garantir que recursos sejam carregados primeiro
       setTimeout(() => {
         // Usar baseUrl para construir o caminho correto do Service Worker
-        const baseUrl = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
-        const swPath = '/motorista/sw-workbox.js';
+        let baseUrl = window.__BASE_URL__;
+        if (!baseUrl) {
+          const protocoloAtual = window.location.protocol;
+          const host = window.location.host;
+          let pathBase = window.location.pathname;
+          
+          // Remover /motorista/index.html ou /motorista/ do final
+          if (pathBase.includes('/motorista')) {
+            pathBase = pathBase.substring(0, pathBase.indexOf('/motorista'));
+          }
+          
+          if (pathBase && !pathBase.endsWith('/') && pathBase !== '/') {
+            pathBase = pathBase + '/';
+          }
+          if (!pathBase || pathBase === '') {
+            pathBase = '/';
+          }
+          
+          baseUrl = protocoloAtual + '//' + host + (pathBase === '/' ? '' : pathBase.replace(/\/$/, ''));
+        }
+        
+        // Construir caminho do SW - baseUrl já inclui o caminho base (ex: https://beta.integrabrasil.com:8443/cargas)
+        const swPath = baseUrl + '/motorista/sw-workbox.js';
+        // O scope também precisa incluir o caminho base
+        const pathname = window.location.pathname;
+        let scopePath = '/motorista/';
+        if (pathname.includes('/cargas')) {
+          scopePath = '/cargas/motorista/';
+        }
+        
+        console.log('📦 Registrando Service Worker:', swPath, 'com scope:', scopePath);
         
         // Usar sw-workbox.js (versão melhorada com cache inteligente)
         // Para voltar ao sistema anterior, altere para '/motorista/sw.js'
         navigator.serviceWorker.register(swPath, {
-          scope: '/motorista/'
+          scope: scopePath
         })
         .then((registration) => {
           console.log('✅ Service Worker registrado');
