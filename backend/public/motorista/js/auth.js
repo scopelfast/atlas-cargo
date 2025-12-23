@@ -125,10 +125,28 @@ function isTokenExpired() {
         console.log('🔐 Tentando fazer login com CPF:', cpf.replace(/\d(?=\d{4})/g, "*")); // Mascarar CPF no log
         
         // Obter baseUrl para corrigir URL da API
-        const baseUrl = window.__BASE_URL__ || window.location.origin;
-        const pathBase = baseUrl.includes('/cargas') ? '/cargas' : '';
-        const apiUrl = baseUrl + '/api/motorista/login';
+        let baseUrl = window.__BASE_URL__;
+        if (!baseUrl) {
+          const protocoloAtual = window.location.protocol;
+          const host = window.location.host;
+          let pathBase = window.location.pathname;
+          
+          // Remover /motorista/index.html ou /motorista/ do final
+          if (pathBase.includes('/motorista')) {
+            const indexMotorista = pathBase.indexOf('/motorista');
+            pathBase = pathBase.substring(0, indexMotorista);
+          }
+          
+          if (!pathBase || pathBase === '') pathBase = '/';
+          if (pathBase !== '/' && !pathBase.endsWith('/')) pathBase = pathBase + '/';
+          
+          baseUrl = protocoloAtual + '//' + host + (pathBase === '/' ? '' : pathBase.replace(/\/$/, ''));
+        }
         
+        // Usar window.corrigirUrl se disponível, caso contrário construir manualmente
+        const apiUrl = window.corrigirUrl ? window.corrigirUrl('/api/motorista/login') : (baseUrl + '/api/motorista/login');
+        
+        console.log('🔗 Base URL:', baseUrl);
         console.log('🔗 Chamando API:', apiUrl);
         
         const response = await fetch(apiUrl, {
@@ -150,10 +168,27 @@ function isTokenExpired() {
           showMessage('Login realizado com sucesso!', 'success');
           
           // Redirecionar para dashboard usando caminho correto
-          const baseUrl = window.__BASE_URL__ || window.location.origin;
-          const pathBase = baseUrl.includes('/cargas') ? '/cargas' : '';
+          let redirectBaseUrl = window.__BASE_URL__;
+          if (!redirectBaseUrl) {
+            const protocoloAtual = window.location.protocol;
+            const host = window.location.host;
+            let pathBase = window.location.pathname;
+            
+            if (pathBase.includes('/motorista')) {
+              const indexMotorista = pathBase.indexOf('/motorista');
+              pathBase = pathBase.substring(0, indexMotorista);
+            }
+            
+            if (!pathBase || pathBase === '') pathBase = '/';
+            if (pathBase !== '/' && !pathBase.endsWith('/')) pathBase = pathBase + '/';
+            
+            redirectBaseUrl = protocoloAtual + '//' + host + (pathBase === '/' ? '' : pathBase.replace(/\/$/, ''));
+          }
+          
+          const dashboardUrl = window.corrigirUrl ? window.corrigirUrl('/motorista/pages/dashboard.html') : (redirectBaseUrl + '/motorista/pages/dashboard.html');
+          
           setTimeout(() => {
-            window.location.href = pathBase + '/motorista/pages/dashboard.html';
+            window.location.href = dashboardUrl;
           }, 1000);
         } else {
           // Mostrar mensagem de erro detalhada
