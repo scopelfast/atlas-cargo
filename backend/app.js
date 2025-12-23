@@ -226,39 +226,53 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Rotas de API (ANTES do express.static para garantir prioridade)
-app.use('/api/auth', authRoutes);
-app.use('/api/menu', menuRoutes);
-app.use('/api', marcasRoutes); 
-app.use('/api', grupoRoutes);
-app.use('/api', classeFrotaRoutes);
-app.use('/api', tipoViagemRoutes);
-app.use('/api', situacaoViagemRoutes);
-app.use('/api', tipoEquipamentoRoutes);
-app.use('/api', modeloEquipamentoRoutes);
-app.use('/api', equipamentoRoutes);
-app.use('/api', cidadesRoutes);
-app.use('/api', roteirosRoutes);
-app.use('/api', estadosRoutes);
-app.use('/api', cadastroGeralRoutes);
-app.use('/api', viagemRoutes);
-app.use('/api', tipoValidadeRoutes);
-app.use('/api', controleValidadeRoutes);
-app.use('/api', empresaRoutes);
-app.use('/api', filialRoutes);
-app.use('/api/relatorio-convocacoes', relatorioConvocacoesRoutes);
-app.use('/api', usuarioRoutes);
-app.use('/api', tipoAtividadeRoutes);
-app.use('/api/motorista', motoristaAppRoutes);
-app.use('/api/log', usuariologacaoRoutes);
-app.use('/api/logs-acesso', logsAcessoRoutes);
-app.use('/api/mapa-viagem', mapaViagemRoutes);
-app.use('/api/alerts', alertRoutes);
-app.use('/api/alertas', alertRoutes); // Alias para módulo separado
-app.use('/api/messages', messageRoutes);
-app.use('/api/chat', messageRoutes); // Alias para módulo separado
-app.use('/api/sos', sosRoutes); // Rotas do módulo SOS
-app.use('/api/reputation', reputationRoutes);
-app.use('/api/ranking', reputationRoutes); // Alias para módulo separado
+// Definir todas as rotas de API primeiro
+const apiRoutes = [
+  { path: '/api/auth', route: authRoutes },
+  { path: '/api/menu', route: menuRoutes },
+  { path: '/api', route: marcasRoutes },
+  { path: '/api', route: grupoRoutes },
+  { path: '/api', route: classeFrotaRoutes },
+  { path: '/api', route: tipoViagemRoutes },
+  { path: '/api', route: situacaoViagemRoutes },
+  { path: '/api', route: tipoEquipamentoRoutes },
+  { path: '/api', route: modeloEquipamentoRoutes },
+  { path: '/api', route: equipamentoRoutes },
+  { path: '/api', route: cidadesRoutes },
+  { path: '/api', route: roteirosRoutes },
+  { path: '/api', route: estadosRoutes },
+  { path: '/api', route: cadastroGeralRoutes },
+  { path: '/api', route: viagemRoutes },
+  { path: '/api', route: tipoValidadeRoutes },
+  { path: '/api', route: controleValidadeRoutes },
+  { path: '/api', route: empresaRoutes },
+  { path: '/api', route: filialRoutes },
+  { path: '/api/relatorio-convocacoes', route: relatorioConvocacoesRoutes },
+  { path: '/api', route: usuarioRoutes },
+  { path: '/api', route: tipoAtividadeRoutes },
+  { path: '/api/motorista', route: motoristaAppRoutes },
+  { path: '/api/log', route: usuariologacaoRoutes },
+  { path: '/api/logs-acesso', route: logsAcessoRoutes },
+  { path: '/api/mapa-viagem', route: mapaViagemRoutes },
+  { path: '/api/alerts', route: alertRoutes },
+  { path: '/api/alertas', route: alertRoutes }, // Alias para módulo separado
+  { path: '/api/messages', route: messageRoutes },
+  { path: '/api/chat', route: messageRoutes }, // Alias para módulo separado
+  { path: '/api/sos', route: sosRoutes }, // Rotas do módulo SOS
+  { path: '/api/reputation', route: reputationRoutes },
+  { path: '/api/ranking', route: reputationRoutes } // Alias para módulo separado
+];
+
+// Registrar rotas na raiz /api/...
+apiRoutes.forEach(({ path, route }) => {
+  app.use(path, route);
+});
+
+// Registrar as mesmas rotas no caminho /cargas/api/... (para quando acessado via subdiretório)
+apiRoutes.forEach(({ path, route }) => {
+  const cargasPath = path.replace('/api', '/cargas/api');
+  app.use(cargasPath, route);
+});
 
 // Rotas específicas de páginas HTML (ANTES do express.static)
 // Rota pública para motorista responder convocação
