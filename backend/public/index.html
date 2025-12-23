@@ -120,33 +120,79 @@
       const baseUrl = protocol + '//' + host;
       window.__BASE_URL__ = baseUrl;
       
+      // Função para forçar HTTP em URLs (usada por MutationObserver)
+      function forcarHTTP(url) {
+        if ((isLocal || isIntegraBrasil) && url && url.startsWith('https://')) {
+          return url.replace(/^https:/, 'http:');
+        }
+        return url;
+      }
+      
+      // MutationObserver para interceptar e corrigir URLs HTTPS automaticamente
+      const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+          mutation.addedNodes.forEach(function(node) {
+            if (node.nodeType === 1) { // Element node
+              // Corrigir links CSS
+              if (node.tagName === 'LINK' && node.rel === 'stylesheet') {
+                if (node.href && node.href.startsWith('https://') && (isLocal || isIntegraBrasil)) {
+                  const httpUrl = forcarHTTP(node.href);
+                  node.setAttribute('href', httpUrl);
+                  console.warn('[INDEX] [Observer] CSS corrigido para HTTP:', httpUrl);
+                }
+              }
+              // Corrigir scripts
+              if (node.tagName === 'SCRIPT' && node.src) {
+                if (node.src.startsWith('https://') && (isLocal || isIntegraBrasil)) {
+                  const httpUrl = forcarHTTP(node.src);
+                  node.setAttribute('src', httpUrl);
+                  console.warn('[INDEX] [Observer] Script corrigido para HTTP:', httpUrl);
+                }
+              }
+              // Corrigir imagens
+              if (node.tagName === 'IMG' && node.src) {
+                if (node.src.startsWith('https://') && (isLocal || isIntegraBrasil)) {
+                  const httpUrl = forcarHTTP(node.src);
+                  node.setAttribute('src', httpUrl);
+                  console.warn('[INDEX] [Observer] Imagem corrigida para HTTP:', httpUrl);
+                }
+              }
+            }
+          });
+        });
+      });
+      
+      // Iniciar observação do DOM
+      observer.observe(document.head, { childList: true, subtree: true });
+      observer.observe(document.body, { childList: true, subtree: true });
+      
       // Função para carregar CSS com HTTP forçado em local ou IntegraBrasil
       function loadCSS(href) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
         link.type = 'text/css';
+        let cssUrl;
         if (isLocal || isIntegraBrasil) {
-          link.href = 'http://' + host + (href.startsWith('/') ? href : '/' + href);
-          console.log('[INDEX] Carregando CSS via HTTP:', link.href);
+          cssUrl = 'http://' + host + (href.startsWith('/') ? href : '/' + href);
+          console.log('[INDEX] Carregando CSS via HTTP:', cssUrl);
         } else {
-          link.href = href.startsWith('http') ? href : baseUrl + (href.startsWith('/') ? href : '/' + href);
+          cssUrl = href.startsWith('http') ? href : baseUrl + (href.startsWith('/') ? href : '/' + href);
         }
         
-        // Forçar HTTP se o navegador mudou para HTTPS
-        if ((isLocal || isIntegraBrasil) && link.href.startsWith('https://')) {
-          link.href = link.href.replace(/^https:/, 'http:');
-          console.warn('[INDEX] CSS foi mudado para HTTPS, corrigindo para HTTP:', link.href);
-        }
+        // Usar setAttribute para forçar o valor HTTP
+        link.setAttribute('href', cssUrl);
         
         // Adicionar tratamento de erro
         link.onerror = function() {
           console.error('❌ [INDEX] Erro ao carregar CSS:', link.href);
-          // Se falhou com HTTPS, tentar HTTP
-          if (link.href.startsWith('https://') && (isLocal || isIntegraBrasil)) {
-            const httpUrl = link.href.replace(/^https:/, 'http:');
-            console.log('🔄 [INDEX] Tentando carregar CSS via HTTP:', httpUrl);
-            link.href = httpUrl;
-            return;
+          // Se falhou, tentar HTTP novamente
+          if ((isLocal || isIntegraBrasil) && link.href) {
+            const httpUrl = forcarHTTP(link.href);
+            if (httpUrl !== link.href) {
+              console.log('🔄 [INDEX] Tentando carregar CSS via HTTP:', httpUrl);
+              link.setAttribute('href', httpUrl);
+              return;
+            }
           }
           // Tentar carregar novamente após um delay
           setTimeout(() => {
@@ -154,11 +200,9 @@
             const newLink = document.createElement('link');
             newLink.rel = 'stylesheet';
             newLink.type = 'text/css';
-            let retryUrl = link.href;
-            if ((isLocal || isIntegraBrasil) && retryUrl.startsWith('https://')) {
-              retryUrl = retryUrl.replace(/^https:/, 'http:');
-            }
-            newLink.href = retryUrl + (retryUrl.includes('?') ? '&' : '?') + 'retry=' + Date.now();
+            let retryUrl = link.href || cssUrl;
+            retryUrl = forcarHTTP(retryUrl);
+            newLink.setAttribute('href', retryUrl + (retryUrl.includes('?') ? '&' : '?') + 'retry=' + Date.now());
             document.head.appendChild(newLink);
           }, 1000);
         };
@@ -174,17 +218,48 @@
       loadCSS('/css/boxicons.min.css');
       loadCSS('/css/style.css');
       
+      // Monitorar continuamente e corrigir URLs HTTPS
+      setInterval(function() {
+        if (isLocal || isIntegraBrasil) {
+          // Corrigir todos os links CSS
+          document.querySelectorAll('link[rel="stylesheet"]').forEach(function(link) {
+            if (link.href && link.href.startsWith('https://')) {
+              const httpUrl = forcarHTTP(link.href);
+              link.setAttribute('href', httpUrl);
+            }
+          });
+          
+          // Corrigir todos os scripts
+          document.querySelectorAll('script[src]').forEach(function(script) {
+            if (script.src && script.src.startsWith('https://')) {
+              const httpUrl = forcarHTTP(script.src);
+              script.setAttribute('src', httpUrl);
+            }
+          });
+          
+          // Corrigir todas as imagens
+          document.querySelectorAll('img[src]').forEach(function(img) {
+            if (img.src && img.src.startsWith('https://')) {
+              const httpUrl = forcarHTTP(img.src);
+              img.setAttribute('src', httpUrl);
+            }
+          });
+        }
+      }, 500); // Verificar a cada 500ms
+      
       // Forçar HTTP em imagens após DOM carregar
-      if (isLocal) {
+      if (isLocal || isIntegraBrasil) {
         document.addEventListener('DOMContentLoaded', function() {
           const images = document.querySelectorAll('img[src]');
           images.forEach(function(img) {
-            if (img.src.startsWith('https://')) {
-              img.src = img.src.replace(/^https:/, 'http:');
-              console.log('[INDEX] Imagem corrigida para HTTP:', img.src);
-            } else if (img.src.startsWith('/')) {
-              img.src = 'http://' + host + img.src;
-              console.log('[INDEX] Imagem forçada para HTTP:', img.src);
+            if (img.src && img.src.startsWith('https://')) {
+              const httpUrl = forcarHTTP(img.src);
+              img.setAttribute('src', httpUrl);
+              console.log('[INDEX] Imagem corrigida para HTTP:', httpUrl);
+            } else if (img.src && img.src.startsWith('/')) {
+              const httpUrl = 'http://' + host + img.src;
+              img.setAttribute('src', httpUrl);
+              console.log('[INDEX] Imagem forçada para HTTP:', httpUrl);
             }
           });
         });
@@ -785,35 +860,30 @@
         } else {
           url = src.startsWith('http') ? src : baseUrl + (src.startsWith('/') ? src : '/' + src);
         }
-        script.src = url;
-        // Verificar se navegador mudou para HTTPS e corrigir
-        if ((isLocal || isIntegraBrasil) && script.src.startsWith('https://')) {
-          const httpUrl = script.src.replace(/^https:/, 'http:');
-          console.warn('[INDEX] Navegador mudou script para HTTPS, corrigindo:', script.src, '→', httpUrl);
-          script.src = httpUrl;
-          url = httpUrl; // Atualizar url também
-        }
+        
+        // Usar setAttribute para forçar o valor HTTP
+        script.setAttribute('src', url);
         script.async = false;
         
         // Adicionar tratamento de erro
         script.onerror = function() {
           console.error('❌ [INDEX] Erro ao carregar script:', script.src);
-          // Se falhou com HTTPS, tentar HTTP
-          if (script.src.startsWith('https://') && (isLocal || isIntegraBrasil)) {
-            const httpUrl = script.src.replace(/^https:/, 'http:');
-            console.log('🔄 [INDEX] Tentando carregar script via HTTP:', httpUrl);
-            script.src = httpUrl;
-            return;
+          // Se falhou, tentar HTTP novamente
+          if ((isLocal || isIntegraBrasil) && script.src) {
+            const httpUrl = forcarHTTP(script.src);
+            if (httpUrl !== script.src) {
+              console.log('🔄 [INDEX] Tentando carregar script via HTTP:', httpUrl);
+              script.setAttribute('src', httpUrl);
+              return;
+            }
           }
           // Tentar carregar novamente após um delay
           setTimeout(() => {
             console.log('🔄 [INDEX] Tentando carregar script novamente:', script.src);
             const retryScript = document.createElement('script');
-            let retryUrl = script.src;
-            if ((isLocal || isIntegraBrasil) && retryUrl.startsWith('https://')) {
-              retryUrl = retryUrl.replace(/^https:/, 'http:');
-            }
-            retryScript.src = retryUrl + (retryUrl.includes('?') ? '&' : '?') + 'retry=' + Date.now();
+            let retryUrl = script.src || url;
+            retryUrl = forcarHTTP(retryUrl);
+            retryScript.setAttribute('src', retryUrl + (retryUrl.includes('?') ? '&' : '?') + 'retry=' + Date.now());
             retryScript.async = false;
             document.body.appendChild(retryScript);
           }, 1000);
