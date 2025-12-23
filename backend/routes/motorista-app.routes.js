@@ -20,6 +20,9 @@ router.post('/login', motoristaAppController.login);
 // Cadastro (placeholder)
 router.post('/cadastro', motoristaAppController.cadastro);
 
+// Recuperar Senha
+router.post('/recuperar-senha', motoristaAppController.recuperarSenha);
+
 // ==========================================
 // ROTAS PROTEGIDAS (com autenticação JWT)
 // TODO: Adicionar middleware de autenticação

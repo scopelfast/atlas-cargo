@@ -1997,6 +1997,96 @@ const motoristaAppController = {
   },
 
   // ==========================================
+  // RECUPERAR SENHA
+  // ==========================================
+  recuperarSenha: async (req, res) => {
+    try {
+      const { identificacao } = req.body; // CPF ou celular
+
+      if (!identificacao) {
+        return res.status(400).json({ error: 'CPF ou celular é obrigatório.' });
+      }
+
+      // Limpar identificação (remover caracteres não numéricos)
+      const identificacaoLimpa = identificacao.replace(/\D/g, '');
+
+      if (identificacaoLimpa.length < 10) {
+        return res.status(400).json({ error: 'CPF ou celular inválido.' });
+      }
+
+      const pool = await poolPromise;
+
+      // Buscar motorista por CPF ou celular
+      let query = '';
+      let request = pool.request();
+
+      if (identificacaoLimpa.length === 11) {
+        // Provavelmente é CPF
+        const cpfLimpo = identificacaoLimpa.length === 10 ? '0' + identificacaoLimpa : identificacaoLimpa;
+        const cpfSemZero = cpfLimpo.startsWith('0') ? cpfLimpo.substring(1) : cpfLimpo;
+        
+        query = `
+          SELECT 
+            cg.CDCADASTRO,
+            cg.CGCCPF,
+            cg.RZSOCIAL,
+            cg.NRCELULAR,
+            cg.ENDEMAIL,
+            cg.FGACTIVE
+          FROM [dbo].[CADASTROGERAL] cg
+          WHERE (cg.CGCCPF = @cpf1 OR cg.CGCCPF = @cpf2)
+            AND cg.FGTIPOCADASTRO = 'M'
+            AND cg.FGACTIVE = 'A'
+        `;
+        request.input('cpf1', sql.VarChar(14), cpfLimpo);
+        request.input('cpf2', sql.VarChar(14), cpfSemZero);
+      } else {
+        // Provavelmente é celular
+        query = `
+          SELECT 
+            cg.CDCADASTRO,
+            cg.CGCCPF,
+            cg.RZSOCIAL,
+            cg.NRCELULAR,
+            cg.ENDEMAIL,
+            cg.FGACTIVE
+          FROM [dbo].[CADASTROGERAL] cg
+          WHERE cg.NRCELULAR LIKE @celular
+            AND cg.FGTIPOCADASTRO = 'M'
+            AND cg.FGACTIVE = 'A'
+        `;
+        request.input('celular', sql.VarChar(20), '%' + identificacaoLimpa + '%');
+      }
+
+      const result = await request.query(query);
+
+      if (result.recordset.length === 0) {
+        // Por segurança, sempre retornar sucesso mesmo que não encontre
+        return res.json({
+          success: true,
+          message: 'Se o CPF ou celular estiver cadastrado, você receberá um código de recuperação por SMS ou email.'
+        });
+      }
+
+      const motorista = result.recordset[0];
+
+      // TODO: Implementar envio de código por SMS/Email
+      // Por enquanto, retornar sucesso genérico
+      console.log(`📧 [RECUPERAR SENHA] Motorista encontrado: ${motorista.CDCADASTRO} - ${motorista.RZSOCIAL}`);
+      console.log(`📧 [RECUPERAR SENHA] Celular: ${motorista.NRCELULAR || 'N/A'}`);
+      console.log(`📧 [RECUPERAR SENHA] Email: ${motorista.ENDEMAIL || 'N/A'}`);
+
+      res.json({
+        success: true,
+        message: 'Se o CPF ou celular estiver cadastrado, você receberá um código de recuperação por SMS ou email.'
+      });
+    } catch (err) {
+      console.error('❌ [RECUPERAR SENHA] Erro:', err);
+      res.status(500).json({ error: 'Erro ao processar solicitação de recuperação de senha.' });
+    }
+  },
+
+  // ==========================================
   // ALTERAR SENHA
   // ==========================================
   alterarSenha: async (req, res) => {
