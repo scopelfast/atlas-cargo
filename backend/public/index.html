@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DivulgaCargas</title>
+  <link rel="icon" type="image/png" href="/img/logo7.png" id="faviconLink">
   <script>
     // INTERCEPTOR GLOBAL: Remover ? de todas as URLs
     (function() {
@@ -161,9 +162,34 @@
         });
       });
       
-      // Iniciar observação do DOM
-      observer.observe(document.head, { childList: true, subtree: true });
-      observer.observe(document.body, { childList: true, subtree: true });
+      // Iniciar observação do DOM quando estiver pronto
+      function iniciarObserver() {
+        if (document.head) {
+          try {
+            observer.observe(document.head, { childList: true, subtree: true });
+          } catch (e) {
+            console.warn('[INDEX] Erro ao observar document.head:', e);
+          }
+        }
+        if (document.body) {
+          try {
+            observer.observe(document.body, { childList: true, subtree: true });
+          } catch (e) {
+            console.warn('[INDEX] Erro ao observar document.body:', e);
+          }
+        } else {
+          // Se body ainda não existe, aguardar DOMContentLoaded
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', iniciarObserver);
+          } else {
+            // DOM já carregado, tentar novamente após um pequeno delay
+            setTimeout(iniciarObserver, 100);
+          }
+        }
+      }
+      
+      // Tentar iniciar imediatamente
+      iniciarObserver();
       
       // Função para carregar CSS com protocolo correto
       function loadCSS(href) {
@@ -711,7 +737,7 @@
     <div class="login-left">
       <div class="login-branding">
         <div class="logo-box">
-          <img src="/img/logo7.png" alt="Logo Divulga Cargas" />
+          <img id="logoImg" src="/img/logo7.png" alt="Logo Divulga Cargas" />
         </div>
         <h1 class="brand-title">Divulga<span>Carga</span></h1>
         <p class="brand-subtitle">Sistema de Gestão de Transporte e Logística</p>
@@ -855,8 +881,30 @@
       const isIntegraBrasil = hostname === 'app.integrabrasil.com' || 
                               hostname === 'beta.integrabrasil.com' || 
                               hostname.includes('integrabrasil.com');
-      const protocol = (isLocal || isIntegraBrasil) ? 'http:' : window.location.protocol;
+      const protocoloAtual = window.location.protocol;
+      const protocol = isLocal ? 'http:' : protocoloAtual;
       const baseUrl = protocol + '//' + window.location.host;
+      
+      // Função para garantir protocolo consistente (mesma lógica da primeira IIFE)
+      function garantirProtocoloConsistente(url) {
+        if (!url) return url;
+        
+        // Se for local, sempre HTTP
+        if (isLocal && url.startsWith('https://')) {
+          return url.replace(/^https:/, 'http:');
+        }
+        
+        // Para IntegraBrasil e outros: usar o mesmo protocolo da página
+        if (protocoloAtual === 'https:' && url.startsWith('http://')) {
+          return url.replace(/^http:/, 'https:');
+        }
+        
+        if (protocoloAtual === 'http:' && url.startsWith('https://')) {
+          return url.replace(/^https:/, 'http:');
+        }
+        
+        return url;
+      }
       
       function loadScript(src) {
         const script = document.createElement('script');
@@ -912,6 +960,47 @@
       loadScript('/js/redirect.js');
       loadScript('/js/log-helper.js');
       loadScript('/js/login.js');
+      
+      // Corrigir imagem logo7.png e favicon quando DOM estiver pronto
+      function corrigirRecursos() {
+        // Corrigir logo
+        const logoImg = document.getElementById('logoImg');
+        if (logoImg && logoImg.src) {
+          const urlCorrigida = garantirProtocoloConsistente(logoImg.src);
+          if (urlCorrigida !== logoImg.src) {
+            logoImg.setAttribute('src', urlCorrigida);
+            console.log('[INDEX] Logo corrigido:', logoImg.src, '→', urlCorrigida);
+          } else if (logoImg.src.includes('/img/logo7.png') && !logoImg.src.startsWith('http')) {
+            const urlCompleta = baseUrl + '/img/logo7.png';
+            logoImg.setAttribute('src', urlCompleta);
+            console.log('[INDEX] Logo com URL completa:', urlCompleta);
+          }
+        }
+        
+        // Corrigir favicon
+        const faviconLink = document.getElementById('faviconLink');
+        if (faviconLink && faviconLink.href) {
+          const urlCorrigida = garantirProtocoloConsistente(faviconLink.href);
+          if (urlCorrigida !== faviconLink.href) {
+            faviconLink.setAttribute('href', urlCorrigida);
+            console.log('[INDEX] Favicon corrigido:', faviconLink.href, '→', urlCorrigida);
+          } else if (faviconLink.href.includes('/img/logo7.png') && !faviconLink.href.startsWith('http')) {
+            const urlCompleta = baseUrl + '/img/logo7.png';
+            faviconLink.setAttribute('href', urlCompleta);
+            console.log('[INDEX] Favicon com URL completa:', urlCompleta);
+          }
+        }
+      }
+      
+      // Corrigir recursos quando DOM estiver pronto
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', corrigirRecursos);
+      } else {
+        corrigirRecursos();
+      }
+      
+      // Também corrigir após um pequeno delay
+      setTimeout(corrigirRecursos, 500);
     })();
   </script>
 </body>
