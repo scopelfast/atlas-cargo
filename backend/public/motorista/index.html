@@ -123,14 +123,18 @@
       
       // Interceptar todas as chamadas fetch para corrigir URLs automaticamente
       const originalFetch = window.fetch;
-      window.fetch = async function(input, init) {
-        let url = input;
+      window.fetch = function(input, init) {
+        // Se input é uma string (URL), corrigir se necessário
         if (typeof input === 'string' && !input.startsWith('http://') && !input.startsWith('https://')) {
-          url = window.corrigirUrl(input);
-        } else if (input instanceof Request && !input.url.startsWith('http://') && !input.url.startsWith('https://')) {
-          url = window.corrigirUrl(input.url);
+          input = window.corrigirUrl(input);
         }
-        return originalFetch(url, init);
+        // Se input é um Request object, criar novo com URL corrigida
+        else if (input && typeof input === 'object' && input.url && !input.url.startsWith('http://') && !input.url.startsWith('https://')) {
+          const correctedUrl = window.corrigirUrl(input.url);
+          input = new Request(correctedUrl, input);
+        }
+        
+        return originalFetch.call(this, input, init);
       };
     })();
   </script>
