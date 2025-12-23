@@ -499,21 +499,33 @@ app.get(['/motorista/manifest.json', '/cargas/motorista/manifest.json'], (req, r
     const manifestContent = fs.readFileSync(manifestPath, 'utf8');
     const manifest = JSON.parse(manifestContent);
     
-    // Detectar caminho base da requisição
-    const pathBase = req.path.includes('/cargas') ? '/cargas' : '';
+    // Detectar caminho base da requisição usando originalUrl ou path
+    // originalUrl inclui o caminho completo, path pode não incluir
+    const requestPath = req.originalUrl || req.path || req.url;
+    const pathBase = requestPath.includes('/cargas') ? '/cargas' : '';
+    
+    console.log('📦 [MANIFEST] Request path:', requestPath);
+    console.log('📦 [MANIFEST] Detected pathBase:', pathBase);
     
     // Corrigir start_url
     if (manifest.start_url) {
-      manifest.start_url = pathBase + manifest.start_url;
+      // Se start_url já começa com /, adicionar pathBase antes
+      manifest.start_url = pathBase + (manifest.start_url.startsWith('/') ? manifest.start_url : '/' + manifest.start_url);
     }
     
     // Corrigir ícones
     if (manifest.icons && Array.isArray(manifest.icons)) {
-      manifest.icons = manifest.icons.map(icon => ({
-        ...icon,
-        src: pathBase + icon.src
-      }));
+      manifest.icons = manifest.icons.map(icon => {
+        // Se src começa com /, adicionar pathBase antes
+        const iconSrc = icon.src.startsWith('/') ? pathBase + icon.src : pathBase + '/' + icon.src;
+        return {
+          ...icon,
+          src: iconSrc
+        };
+      });
     }
+    
+    console.log('📦 [MANIFEST] Icons corrigidos:', manifest.icons);
     
     res.setHeader('Content-Type', 'application/manifest+json');
     res.json(manifest);
