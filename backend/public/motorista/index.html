@@ -88,6 +88,50 @@
       
       // Armazenar baseUrl globalmente para uso posterior
       window.__BASE_URL__ = baseUrl;
+      
+      // Função global para corrigir URLs - disponível para todos os scripts
+      window.corrigirUrl = function(url) {
+        if (!url) return url;
+        if (url.startsWith('http://') || url.startsWith('https://')) return url;
+        
+        // Obter baseUrl - sempre verificar __BASE_URL__ primeiro
+        let baseUrl = window.__BASE_URL__;
+        
+        // Se não estiver definido, calcular a partir do pathname
+        if (!baseUrl) {
+          const pathname = window.location.pathname;
+          let pathBase = '/';
+          
+          // Detectar caminho base removendo /motorista/index.html
+          if (pathname.includes('/motorista')) {
+            const indexMotorista = pathname.indexOf('/motorista');
+            pathBase = pathname.substring(0, indexMotorista);
+          }
+          
+          if (!pathBase || pathBase === '') pathBase = '/';
+          if (pathBase !== '/' && !pathBase.endsWith('/')) pathBase = pathBase + '/';
+          
+          baseUrl = window.location.protocol + '//' + window.location.host + (pathBase === '/' ? '' : pathBase.replace(/\/$/, ''));
+        }
+        
+        // Garantir que baseUrl não termine com / antes de concatenar
+        const cleanBaseUrl = baseUrl.replace(/\/$/, '');
+        const cleanUrl = url.startsWith('/') ? url : '/' + url;
+        
+        return cleanBaseUrl + cleanUrl;
+      };
+      
+      // Interceptar todas as chamadas fetch para corrigir URLs automaticamente
+      const originalFetch = window.fetch;
+      window.fetch = async function(input, init) {
+        let url = input;
+        if (typeof input === 'string' && !input.startsWith('http://') && !input.startsWith('https://')) {
+          url = window.corrigirUrl(input);
+        } else if (input instanceof Request && !input.url.startsWith('http://') && !input.url.startsWith('https://')) {
+          url = window.corrigirUrl(input.url);
+        }
+        return originalFetch(url, init);
+      };
     })();
   </script>
 </head>

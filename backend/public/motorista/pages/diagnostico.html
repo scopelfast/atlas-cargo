@@ -199,14 +199,32 @@ Scope: ${registration.scope}
       const loading = mostrarLoading('Atualizando Service Worker...');
       
       try {
-        const registration = await navigator.serviceWorker.getRegistration('/motorista/');
+        // Usar baseUrl para garantir o caminho correto do Service Worker
+        const baseUrl = window.__BASE_URL__ || window.location.origin;
+        const pathname = window.location.pathname;
+        let pathBase = '/';
+        
+        // Detectar caminho base (ex: /cargas/)
+        if (pathname.includes('/cargas')) {
+          pathBase = '/cargas/';
+        } else if (pathname.includes('/motorista')) {
+          const indexMotorista = pathname.indexOf('/motorista');
+          pathBase = pathname.substring(0, indexMotorista);
+          if (!pathBase || pathBase === '') pathBase = '/';
+          if (pathBase !== '/' && !pathBase.endsWith('/')) pathBase = pathBase + '/';
+        }
+        
+        const swPath = baseUrl + (pathBase === '/' ? '' : pathBase.replace(/\/$/, '')) + '/motorista/sw.js';
+        const scopePath = (pathBase === '/' ? '' : pathBase.replace(/\/$/, '')) + '/motorista/';
+        
+        const registration = await navigator.serviceWorker.getRegistration(scopePath);
         
         if (registration) {
           await registration.unregister();
           console.log('🗑️ Service Worker antigo removido');
           
           // Re-registrar
-          await navigator.serviceWorker.register('/motorista/sw.js');
+          await navigator.serviceWorker.register(swPath, { scope: scopePath });
           console.log('✅ Service Worker v2 registrado!');
           
           esconderLoading();
@@ -217,7 +235,7 @@ Scope: ${registration.scope}
           esconderLoading();
           mostrarToast('Service Worker não encontrado. Registrando...', 'warning');
           
-          await navigator.serviceWorker.register('/motorista/sw.js');
+          await navigator.serviceWorker.register(swPath, { scope: scopePath });
           
           setTimeout(() => location.reload(), 2000);
         }

@@ -83,7 +83,27 @@
     }
 
     try {
-      const registration = await navigator.serviceWorker.register('/motorista/sw-workbox.js');
+      // Usar baseUrl para garantir o caminho correto do Service Worker
+      const baseUrl = window.__BASE_URL__ || window.location.origin;
+      const pathname = window.location.pathname;
+      let pathBase = '/';
+      
+      // Detectar caminho base (ex: /cargas/)
+      if (pathname.includes('/cargas')) {
+        pathBase = '/cargas/';
+      } else if (pathname.includes('/motorista')) {
+        const indexMotorista = pathname.indexOf('/motorista');
+        pathBase = pathname.substring(0, indexMotorista);
+        if (!pathBase || pathBase === '') pathBase = '/';
+        if (pathBase !== '/' && !pathBase.endsWith('/')) pathBase = pathBase + '/';
+      }
+      
+      const swPath = baseUrl + (pathBase === '/' ? '' : pathBase.replace(/\/$/, '')) + '/motorista/sw-workbox.js';
+      const scopePath = (pathBase === '/' ? '' : pathBase.replace(/\/$/, '')) + '/motorista/';
+      
+      const registration = await navigator.serviceWorker.register(swPath, {
+        scope: scopePath
+      });
       console.log('✅ Service Worker registrado:', registration.scope);
       return registration;
     } catch (error) {
