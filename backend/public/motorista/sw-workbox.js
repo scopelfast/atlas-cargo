@@ -60,7 +60,7 @@ self.addEventListener('fetch', (event) => {
   
   // IMPORTANTE: Corrigir requisições de tiles que tentam usar HTTPS
   // Se for uma requisição para o servidor de tiles via HTTPS, forçar HTTP
-  if (url.hostname === '186.250.92.131' && (url.protocol === 'https:' || event.request.url.includes('https://186.250.92.131'))) {
+  if ((url.hostname === '186.250.92.131' || url.hostname === 'app.integrabrasil.com') && (url.protocol === 'https:' || event.request.url.includes('https://' + url.hostname))) {
     const httpUrl = event.request.url.replace(/^https:/, 'http:');
     console.log('🔄 [SW] Convertendo HTTPS para HTTP:', event.request.url, '→', httpUrl);
     event.respondWith(
@@ -156,8 +156,28 @@ self.addEventListener('sync', (event) => {
   }
 });
 
+// Flag para evitar múltiplas execuções simultâneas
+let syncInProgress = false;
+let lastSyncTime = 0;
+const SYNC_COOLDOWN = 5000; // 5 segundos entre sincronizações
+
 // Função para sincronizar dados offline
 async function syncOfflineData() {
+  const now = Date.now();
+  
+  // Evitar múltiplas execuções simultâneas ou muito próximas
+  if (syncInProgress) {
+    console.log('⏸️ Sincronização já em andamento. Pulando...');
+    return;
+  }
+  
+  if (now - lastSyncTime < SYNC_COOLDOWN) {
+    console.log(`⏸️ Sincronização muito recente (${Math.floor((now - lastSyncTime) / 1000)}s atrás). Aguardando cooldown...`);
+    return;
+  }
+  
+  syncInProgress = true;
+  lastSyncTime = now;
   console.log('🔄 Iniciando sincronização de dados offline...');
   
   try {
@@ -166,11 +186,16 @@ async function syncOfflineData() {
     clients.forEach(client => {
       client.postMessage({
         type: 'SYNC_OFFLINE_DATA',
-        timestamp: Date.now()
+        timestamp: now
       });
     });
+    
+    // Aguardar um pouco antes de permitir nova sincronização
+    await new Promise(resolve => setTimeout(resolve, 2000));
   } catch (error) {
     console.error('❌ Erro ao sincronizar dados offline:', error);
+  } finally {
+    syncInProgress = false;
   }
 }
 

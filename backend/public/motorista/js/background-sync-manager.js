@@ -83,16 +83,50 @@
   // ESCUTAR MENSAGENS DO SERVICE WORKER
   // ==========================================
 
+  // Flag para evitar múltiplas sincronizações simultâneas
+  let sincronizando = false;
+  let ultimaSync = 0;
+  const SYNC_COOLDOWN = 10000; // 10 segundos entre sincronizações
+
   // Escutar mensagens do service worker para acionar sincronização
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.addEventListener('message', async (event) => {
-      const { type } = event.data;
+      const { type, timestamp } = event.data;
+      const agora = Date.now();
+
+      // Evitar processar mensagens muito antigas ou duplicadas
+      if (timestamp && (agora - timestamp) > 30000) {
+        console.log('⏸️ Mensagem de sync muito antiga. Ignorando...');
+        return;
+      }
 
       switch (type) {
         case 'SYNC_OFFLINE_DATA':
+          // Evitar múltiplas execuções simultâneas
+          if (sincronizando) {
+            console.log('⏸️ Sincronização já em andamento. Pulando...');
+            return;
+          }
+          
+          if (agora - ultimaSync < SYNC_COOLDOWN) {
+            console.log(`⏸️ Sincronização muito recente (${Math.floor((agora - ultimaSync) / 1000)}s atrás). Aguardando...`);
+            return;
+          }
+          
+          sincronizando = true;
+          ultimaSync = agora;
           console.log('🔄 Sincronizando todos os dados offline...');
-          if (typeof window.sincronizarTudo === 'function') {
-            await window.sincronizarTudo();
+          
+          try {
+            if (typeof window.sincronizarTudo === 'function') {
+              await window.sincronizarTudo();
+            } else if (typeof window.OfflineDB?.sincronizarTudo === 'function') {
+              await window.OfflineDB.sincronizarTudo();
+            }
+          } catch (error) {
+            console.error('❌ Erro na sincronização:', error);
+          } finally {
+            sincronizando = false;
           }
           break;
 

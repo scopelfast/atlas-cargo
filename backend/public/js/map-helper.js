@@ -15,19 +15,20 @@
     // Servidor de tiles (mapa visual)
     tileServer: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     
-    // Servidor de roteamento (cálculo de rotas)
-    // TEMPORÁRIO: Usando servidor público até configurar HTTPS no servidor próprio
-    osrmServer: 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv',
-    osrmServerAlt: 'https://router.project-osrm.org/route/v1/driving-hgv',
-    // Servidor próprio (desabilitado temporariamente):
-    // osrmServer: 'http://186.250.92.131:8081/ors/v2/directions/driving-hgv',
+    // Servidor de roteamento (ORS - OpenRouteService)
+    // Servidor próprio IntegraBrasil:
+    osrmServer: 'http://app.integrabrasil.com:8080/ors/ors/v2/directions/driving-hgv',
+    
+    // Servidores públicos (fallback):
+    osrmServerAlt: 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv',
+    // osrmServerAlt: 'https://router.project-osrm.org/route/v1/driving-hgv',
     
     // Servidor de geocoding (endereços ↔ coordenadas)
-    // TEMPORÁRIO: Usando servidor público até configurar HTTPS no servidor próprio
-    nominatimServer: 'https://nominatim.openstreetmap.org',
+    // Servidor próprio IntegraBrasil:
+    nominatimServer: 'http://app.integrabrasil.com:8080/nominatim',
+    
+    // Servidor público (fallback):
     nominatimServerAlt: 'https://nominatim.openstreetmap.org',
-    // Servidor próprio (desabilitado temporariamente):
-    // nominatimServer: 'http://186.250.92.131:8082',
     
     // Configurações gerais
     timeout: 15000,
@@ -107,7 +108,7 @@
       let url = this.config.tileServer;
       
       // Se for servidor próprio, garantir HTTP
-      if (url.includes('186.250.92.131')) {
+      if (url.includes('186.250.92.131') || url.includes('app.integrabrasil.com')) {
         url = url.replace(/^https:/, 'http:');
       }
       
@@ -164,7 +165,7 @@
       let server = useAlt ? this.config.osrmServerAlt : this.config.osrmServer;
       
       // Se for servidor próprio, garantir HTTP
-      if (server.includes('186.250.92.131')) {
+      if (server.includes('186.250.92.131') || server.includes('app.integrabrasil.com')) {
         server = server.replace(/^https:/, 'http:');
       }
       

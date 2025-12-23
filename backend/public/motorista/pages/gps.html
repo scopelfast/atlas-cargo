@@ -160,7 +160,7 @@
             <div class="config-title">⏱️ Intervalo de Envio</div>
             <div class="config-desc">Em minutos (mínimo 1)</div>
           </div>
-          <input type="number" class="input-field" id="intervalo" value="5" min="1" max="999">
+          <input type="number" class="input-field" id="intervalo" value="15" min="1" max="999">
         </div>
 
         <!-- Termos -->
@@ -201,19 +201,56 @@
 
     // Carregar configurações
     function carregarConfiguracoes() {
-      const gpsAtivo = localStorage.getItem('gps_ativo') === 'true';
-      const intervalo = localStorage.getItem('gps_intervalo') || '5';
-      const termos = localStorage.getItem('gps_termos') === 'true';
+      try {
+        // Garantir que os elementos existem
+        const gpsAtivoEl = document.getElementById('gpsAtivo');
+        const intervaloEl = document.getElementById('intervalo');
+        const termosEl = document.getElementById('aceitoTermos');
+        
+        if (!gpsAtivoEl || !intervaloEl || !termosEl) {
+          console.warn('⚠️ Elementos do formulário não encontrados, tentando novamente...');
+          setTimeout(carregarConfiguracoes, 100);
+          return;
+        }
 
-      document.getElementById('gpsAtivo').checked = gpsAtivo;
-      document.getElementById('intervalo').value = intervalo;
-      document.getElementById('aceitoTermos').checked = termos;
-      
-      console.log('📋 Configurações carregadas:', { gpsAtivo, intervalo, termos });
+        // Carregar do localStorage
+        const gpsAtivo = localStorage.getItem('gps_ativo') === 'true';
+        const intervalo = localStorage.getItem('gps_intervalo') || '15'; // Valor padrão 15 conforme tela
+        const termos = localStorage.getItem('gps_termos') === 'true';
+
+        // Aplicar valores
+        gpsAtivoEl.checked = gpsAtivo;
+        intervaloEl.value = intervalo;
+        termosEl.checked = termos;
+        
+        // Atualizar visibilidade dos termos
+        atualizarTermos();
+        
+        console.log('✅ Configurações GPS carregadas:', { 
+          gpsAtivo, 
+          intervalo, 
+          termos,
+          localStorage: {
+            gps_ativo: localStorage.getItem('gps_ativo'),
+            gps_intervalo: localStorage.getItem('gps_intervalo'),
+            gps_termos: localStorage.getItem('gps_termos')
+          }
+        });
+      } catch (error) {
+        console.error('❌ Erro ao carregar configurações:', error);
+      }
     }
     
-    // Carregar ao inicializar
-    carregarConfiguracoes();
+    // Carregar quando o DOM estiver pronto
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', carregarConfiguracoes);
+    } else {
+      // DOM já está pronto
+      setTimeout(carregarConfiguracoes, 100);
+    }
+    
+    // Também carregar após um pequeno delay para garantir que tudo está renderizado
+    setTimeout(carregarConfiguracoes, 500);
 
     function atualizarTermos() {
       const ativo = document.getElementById('gpsAtivo').checked;
@@ -382,7 +419,16 @@
     
     // Atualizar quando a página ganhar foco (voltar de outra aba)
     window.addEventListener('focus', () => {
+      carregarConfiguracoes(); // Recarregar configurações também
       atualizarStatusGPS();
+    });
+    
+    // Recarregar configurações quando a página for exibida (visibilidade)
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        carregarConfiguracoes();
+        atualizarStatusGPS();
+      }
     });
 
     async function salvar() {
@@ -402,25 +448,63 @@
 
       // Salvar configurações
       try {
-        localStorage.setItem('gps_ativo', ativo.toString());
-        localStorage.setItem('gps_intervalo', intervaloVal);
-        localStorage.setItem('gps_termos', termosAceitos.toString());
+        // Salvar no localStorage
+        localStorage.setItem('gps_ativo', ativo ? 'true' : 'false');
+        localStorage.setItem('gps_intervalo', intervaloVal.toString());
+        localStorage.setItem('gps_termos', termosAceitos ? 'true' : 'false');
         
-        // Verificar se salvou corretamente
-        const verificarAtivo = localStorage.getItem('gps_ativo') === 'true';
-        const verificarIntervalo = localStorage.getItem('gps_intervalo');
+        // Aguardar um pouco para garantir que foi salvo
+        await new Promise(resolve => setTimeout(resolve, 50));
         
-        if (verificarAtivo !== ativo || verificarIntervalo !== intervaloVal) {
-          console.error('❌ Erro: Configurações não foram salvas corretamente!');
+        // Verificar se salvou corretamente (múltiplas verificações)
+        let tentativas = 0;
+        let salvouCorretamente = false;
+        
+        while (tentativas < 3 && !salvouCorretamente) {
+          const verificarAtivo = localStorage.getItem('gps_ativo') === 'true';
+          const verificarIntervalo = localStorage.getItem('gps_intervalo');
+          const verificarTermos = localStorage.getItem('gps_termos') === 'true';
+          
+          salvouCorretamente = (
+            verificarAtivo === ativo && 
+            verificarIntervalo === intervaloVal.toString() &&
+            verificarTermos === termosAceitos
+          );
+          
+          if (!salvouCorretamente) {
+            tentativas++;
+            console.warn(`⚠️ Tentativa ${tentativas}: Configurações não conferem, tentando salvar novamente...`);
+            
+            // Tentar salvar novamente
+            localStorage.setItem('gps_ativo', ativo ? 'true' : 'false');
+            localStorage.setItem('gps_intervalo', intervaloVal.toString());
+            localStorage.setItem('gps_termos', termosAceitos ? 'true' : 'false');
+            
+            await new Promise(resolve => setTimeout(resolve, 50));
+          }
+        }
+        
+        if (!salvouCorretamente) {
+          console.error('❌ Erro: Configurações não foram salvas corretamente após 3 tentativas!');
+          console.error('Valores esperados:', { ativo, intervalo: intervaloVal, termos: termosAceitos });
+          console.error('Valores no localStorage:', {
+            gps_ativo: localStorage.getItem('gps_ativo'),
+            gps_intervalo: localStorage.getItem('gps_intervalo'),
+            gps_termos: localStorage.getItem('gps_termos')
+          });
           mostrarToast('Erro ao salvar configurações. Tente novamente.', 'error');
           return;
         }
         
-        console.log('💾 Configurações GPS salvas:', {
+        console.log('✅ Configurações GPS salvas com sucesso:', {
           ativo,
           intervalo: intervaloVal,
           termos: termosAceitos,
-          verificado: { ativo: verificarAtivo, intervalo: verificarIntervalo }
+          localStorage: {
+            gps_ativo: localStorage.getItem('gps_ativo'),
+            gps_intervalo: localStorage.getItem('gps_intervalo'),
+            gps_termos: localStorage.getItem('gps_termos')
+          }
         });
       } catch (error) {
         console.error('❌ Erro ao salvar no localStorage:', error);
@@ -447,8 +531,11 @@
         'success'
       );
 
-      // Recarregar configurações na tela para confirmar
-      carregarConfiguracoes();
+      // Recarregar configurações na tela para confirmar (com delay para garantir)
+      setTimeout(() => {
+        carregarConfiguracoes();
+        console.log('🔄 Configurações recarregadas após salvar');
+      }, 200);
       
       // Reiniciar GPS automático com as novas configurações
       if (typeof pararGPSAutomatico === 'function') {

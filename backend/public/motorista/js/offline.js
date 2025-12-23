@@ -9,7 +9,7 @@
   // ==========================================
   async function initDB() {
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open('MotoristaDB', 7); // Versão 7 - adicionada store 'filaSOS' (prioridade)
+      const request = indexedDB.open('MotoristaDB', 8); // Versão 8 - adicionada store 'syncMetadata' (sincronização incremental)
 
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
@@ -19,6 +19,12 @@
 
       request.onupgradeneeded = (event) => {
         const db = event.target.result;
+
+        // Store para metadados de sincronização (timestamps)
+        if (!db.objectStoreNames.contains('syncMetadata')) {
+          const syncMetadata = db.createObjectStore('syncMetadata', { keyPath: 'key' });
+          syncMetadata.createIndex('timestamp', 'timestamp', { unique: false });
+        }
 
         // Store para convocações (cache)
         if (!db.objectStoreNames.contains('convocacoes')) {
@@ -154,10 +160,150 @@
   }
 
   // ==========================================
-  // ADICIONAR À FILA
+  // CONFIGURAÇÕES DE FILA
+  // ==========================================
+  const FILA_CONFIG = {
+    filaGPS: { maxSize: 1000, maxAge: 7 * 24 * 60 * 60 * 1000 }, // 7 dias
+    filaEventos: { maxSize: 500, maxAge: 7 * 24 * 60 * 60 * 1000 }, // 7 dias
+    filaAcoes: { maxSize: 200, maxAge: 3 * 24 * 60 * 60 * 1000 }, // 3 dias
+    filaMensagens: { maxSize: 500, maxAge: 7 * 24 * 60 * 60 * 1000 }, // 7 dias
+    filaComprovantes: { maxSize: 200, maxAge: 7 * 24 * 60 * 60 * 1000 }, // 7 dias
+    filaSOS: { maxSize: 100, maxAge: 30 * 24 * 60 * 60 * 1000 } // 30 dias (emergência)
+  };
+
+  // ==========================================
+  // VALIDAR DADOS ANTES DE ADICIONAR À FILA
+  // ==========================================
+  function validarDadosFila(store, data) {
+    if (!data || typeof data !== 'object') {
+      throw new Error('Dados inválidos: deve ser um objeto');
+    }
+
+    // Validações específicas por tipo de fila
+    if (store === 'filaGPS') {
+      if (!data.LATITUDE || !data.LONGITUDE || !data.IDVIAGEM) {
+        throw new Error('GPS inválido: faltam campos obrigatórios (LATITUDE, LONGITUDE, IDVIAGEM)');
+      }
+    } else if (store === 'filaEventos') {
+      if (!data.IDVIAGEM) {
+        throw new Error('Evento inválido: falta IDVIAGEM');
+      }
+    } else if (store === 'filaMensagens') {
+      if (!data.idviagem || !data.mensagem) {
+        throw new Error('Mensagem inválida: faltam campos obrigatórios');
+      }
+    } else if (store === 'filaComprovantes') {
+      if (!data.idviagem) {
+        throw new Error('Comprovante inválido: falta idviagem');
+      }
+    } else if (store === 'filaSOS') {
+      if (!data.idviagem) {
+        throw new Error('SOS inválido: falta idviagem');
+      }
+    }
+
+    return true;
+  }
+
+  // ==========================================
+  // LIMPAR DADOS ANTIGOS DA FILA
+  // ==========================================
+  async function limparDadosAntigos(store) {
+    if (!db) await initDB();
+    
+    const config = FILA_CONFIG[store];
+    if (!config) return;
+
+    const maxAge = config.maxAge;
+    const agora = Date.now();
+
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([store], 'readwrite');
+      const objectStore = transaction.objectStore(store);
+      const request = objectStore.openCursor();
+      let removidos = 0;
+
+      request.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (cursor) {
+          const item = cursor.value;
+          const timestamp = item.timestamp ? new Date(item.timestamp).getTime() : 0;
+          
+          // Se item muito antigo e já foi enviado, remover
+          if (timestamp > 0 && (agora - timestamp) > maxAge && item.enviado) {
+            cursor.delete();
+            removidos++;
+          }
+          
+          cursor.continue();
+        } else {
+          if (removidos > 0) {
+            console.log(`🧹 Limpeza automática: ${removidos} itens antigos removidos de ${store}`);
+          }
+          resolve(removidos);
+        }
+      };
+
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  // ==========================================
+  // VERIFICAR E LIMITAR TAMANHO DA FILA
+  // ==========================================
+  async function verificarLimiteFila(store) {
+    if (!db) await initDB();
+    
+    const config = FILA_CONFIG[store];
+    if (!config) return;
+
+    const maxSize = config.maxSize;
+    const fila = await buscarFila(store);
+
+    if (fila.length > maxSize) {
+      // Remover itens mais antigos (exceto SOS que tem prioridade)
+      const itensParaRemover = fila
+        .filter(item => item.enviado || store === 'filaSOS' ? false : true) // Não remover SOS não enviados
+        .sort((a, b) => {
+          const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+          const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+          return timeA - timeB;
+        })
+        .slice(0, fila.length - maxSize);
+
+      for (const item of itensParaRemover) {
+        await deletarDaFila(store, item.id);
+      }
+
+      console.warn(`⚠️ Fila ${store} excedeu limite (${fila.length} > ${maxSize}). ${itensParaRemover.length} itens antigos removidos.`);
+    }
+  }
+
+  // ==========================================
+  // ADICIONAR À FILA (COM VALIDAÇÃO E LIMITES)
   // ==========================================
   async function adicionarFila(store, data) {
     if (!db) await initDB();
+    
+    // Validar dados
+    try {
+      validarDadosFila(store, data);
+    } catch (error) {
+      console.error(`❌ Erro de validação ao adicionar à fila ${store}:`, error.message);
+      throw error;
+    }
+
+    // Verificar limite antes de adicionar
+    await verificarLimiteFila(store);
+
+    // Limpar dados antigos periodicamente (apenas a cada 10 itens adicionados)
+    const limpezaKey = `lastCleanup_${store}`;
+    const lastCleanup = localStorage.getItem(limpezaKey);
+    const agora = Date.now();
+    if (!lastCleanup || (agora - parseInt(lastCleanup)) > 60000) { // A cada 1 minuto
+      await limparDadosAntigos(store);
+      localStorage.setItem(limpezaKey, agora.toString());
+    }
     
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([store], 'readwrite');
@@ -165,6 +311,7 @@
 
       data.timestamp = new Date().toISOString();
       data.enviado = false;
+      data.tentativas = 0; // Contador de tentativas de envio
 
       const request = objectStore.add(data);
 
@@ -273,7 +420,88 @@
   }
 
   // ==========================================
-  // SINCRONIZAR TUDO
+  // OBTER TIMESTAMP DA ÚLTIMA SINCRONIZAÇÃO
+  // ==========================================
+  async function obterUltimaSync(store) {
+    if (!db) await initDB();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['syncMetadata'], 'readonly');
+      const objectStore = transaction.objectStore('syncMetadata');
+      const request = objectStore.get(store);
+      
+      request.onsuccess = () => {
+        const metadata = request.result;
+        resolve(metadata ? metadata.timestamp : null);
+      };
+      
+      request.onerror = () => resolve(null); // Se der erro, retornar null (sincronizar tudo)
+    });
+  }
+
+  // ==========================================
+  // SALVAR TIMESTAMP DA SINCRONIZAÇÃO
+  // ==========================================
+  async function salvarUltimaSync(store, timestamp) {
+    if (!db) await initDB();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(['syncMetadata'], 'readwrite');
+      const objectStore = transaction.objectStore('syncMetadata');
+      const request = objectStore.put({
+        key: store,
+        timestamp: timestamp || new Date().toISOString()
+      });
+      
+      request.onsuccess = () => resolve(true);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  // ==========================================
+  // RETRY COM BACKOFF EXPONENCIAL
+  // ==========================================
+  async function tentarEnviarComRetry(url, options, maxTentativas = 3) {
+    let tentativa = 0;
+    
+    while (tentativa < maxTentativas) {
+      try {
+        const response = await fetch(url, options);
+        
+        // Se sucesso ou erro permanente (4xx exceto 429), retornar
+        if (response.ok || (response.status >= 400 && response.status < 500 && response.status !== 429)) {
+          return { response, sucesso: response.ok, tentativas: tentativa + 1 };
+        }
+        
+        // Se erro temporário (5xx ou 429), tentar novamente
+        if (response.status >= 500 || response.status === 429) {
+          tentativa++;
+          if (tentativa < maxTentativas) {
+            const delay = Math.min(1000 * Math.pow(2, tentativa), 30000); // Max 30s
+            console.log(`⏳ Erro temporário (${response.status}). Tentando novamente em ${delay/1000}s... (${tentativa}/${maxTentativas})`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+        }
+        
+        return { response, sucesso: false, tentativas: tentativa + 1 };
+      } catch (err) {
+        tentativa++;
+        if (tentativa < maxTentativas) {
+          const delay = Math.min(1000 * Math.pow(2, tentativa), 30000);
+          console.log(`⏳ Erro de rede. Tentando novamente em ${delay/1000}s... (${tentativa}/${maxTentativas})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        } else {
+          throw err;
+        }
+      }
+    }
+    
+    throw new Error('Máximo de tentativas atingido');
+  }
+
+  // ==========================================
+  // SINCRONIZAR TUDO (INCREMENTAL COM RETRY)
   // ==========================================
   async function sincronizarTudo() {
     if (!isOnline()) {
@@ -281,7 +509,7 @@
       return;
     }
 
-    console.log('🔄 Iniciando sincronização...');
+    console.log('🔄 Iniciando sincronização incremental...');
 
     try {
       // PRIORIDADE MÁXIMA: Sincronizar alertas SOS primeiro (emergência)
@@ -298,23 +526,36 @@
           delete dadosEnvio.enviado;
           
           const baseUrl = window.__BASE_URL__ || ('http://' + window.location.host);
-          const response = await fetch(baseUrl + '/api/motorista/sos', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
+          const { response, sucesso, tentativas } = await tentarEnviarComRetry(
+            baseUrl + '/api/motorista/sos',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+              },
+              body: JSON.stringify(dadosEnvio)
             },
-            body: JSON.stringify(dadosEnvio)
-          });
+            5 // SOS tem mais tentativas (emergência)
+          );
 
-          console.log('📨 Resposta SOS:', response.status);
+          console.log('📨 Resposta SOS:', response.status, `(${tentativas} tentativas)`);
 
-          if (response.ok) {
+          if (sucesso) {
             await deletarDaFila('filaSOS', alerta.id);
             console.log('✅ Alerta SOS sincronizado');
           } else {
+            // Atualizar contador de tentativas
+            alerta.tentativas = (alerta.tentativas || 0) + tentativas;
+            await atualizarTentativasFila('filaSOS', alerta.id, alerta.tentativas);
+            
             const erro = await response.text();
             console.error('❌ Erro SOS:', response.status, erro);
+            
+            // Se muitas tentativas falharam, pode ser erro permanente
+            if (alerta.tentativas >= 10) {
+              console.warn('⚠️ SOS com muitas tentativas falhadas. Pode ser erro permanente.');
+            }
           }
         } catch (err) {
           console.error('❌ Erro ao sincronizar SOS:', err);
@@ -352,29 +593,50 @@
         }
       }
 
-      // 2. Sincronizar GPS
+      // 2. Sincronizar GPS (incremental - apenas novos desde última sync)
+      const ultimaSyncGPS = await obterUltimaSync('filaGPS');
       const gps = await buscarFila('filaGPS');
-      console.log(`📍 GPS na fila: ${gps.length}`);
       
-      for (const pos of gps) {
+      // Filtrar apenas GPS novos (se houver timestamp da última sync)
+      let gpsParaSincronizar = gps;
+      if (ultimaSyncGPS) {
+        gpsParaSincronizar = gps.filter(pos => {
+          const posTimestamp = pos.timestamp || pos.dataEnvio || new Date().toISOString();
+          return new Date(posTimestamp) > new Date(ultimaSyncGPS);
+        });
+        console.log(`📍 GPS na fila: ${gps.length} (${gpsParaSincronizar.length} novos desde última sync)`);
+      } else {
+        console.log(`📍 GPS na fila: ${gps.length} (primeira sincronização)`);
+      }
+      
+      let gpsSincronizados = 0;
+      for (const pos of gpsParaSincronizar) {
         try {
-          console.log('📤 Enviando GPS:', pos);
+          console.log('📤 Enviando GPS:', pos.id);
           
-          const response = await fetch('/api/motorista/gps', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: JSON.stringify(pos)
-          });
+          const { response, sucesso, tentativas } = await tentarEnviarComRetry(
+            '/api/motorista/gps',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+              },
+              body: JSON.stringify(pos)
+            }
+          );
 
-          console.log('📨 Resposta GPS:', response.status);
+          console.log('📨 Resposta GPS:', response.status, `(${tentativas} tentativas)`);
 
-          if (response.ok) {
+          if (sucesso) {
             await deletarDaFila('filaGPS', pos.id);
+            gpsSincronizados++;
             console.log('✅ GPS sincronizado');
           } else {
+            // Atualizar contador de tentativas
+            pos.tentativas = (pos.tentativas || 0) + tentativas;
+            await atualizarTentativasFila('filaGPS', pos.id, pos.tentativas);
+            
             const erro = await response.text();
             console.error('❌ Erro GPS:', response.status, erro);
           }
@@ -382,12 +644,30 @@
           console.error('❌ Erro ao sincronizar GPS:', err);
         }
       }
-
-      // 3. Sincronizar eventos (macros)
-      const eventos = await buscarFila('filaEventos');
-      console.log(`📝 Eventos na fila: ${eventos.length}`);
       
-      for (const evento of eventos) {
+      // Salvar timestamp da sincronização se houve sucessos
+      if (gpsSincronizados > 0) {
+        await salvarUltimaSync('filaGPS', new Date().toISOString());
+      }
+
+      // 3. Sincronizar eventos (macros) - incremental
+      const ultimaSyncEventos = await obterUltimaSync('filaEventos');
+      const eventos = await buscarFila('filaEventos');
+      
+      // Filtrar apenas eventos novos
+      let eventosParaSincronizar = eventos;
+      if (ultimaSyncEventos) {
+        eventosParaSincronizar = eventos.filter(evento => {
+          const eventTimestamp = evento.timestamp || new Date().toISOString();
+          return new Date(eventTimestamp) > new Date(ultimaSyncEventos);
+        });
+        console.log(`📝 Eventos na fila: ${eventos.length} (${eventosParaSincronizar.length} novos desde última sync)`);
+      } else {
+        console.log(`📝 Eventos na fila: ${eventos.length} (primeira sincronização)`);
+      }
+      
+      let eventosSincronizados = 0;
+      for (const evento of eventosParaSincronizar) {
         try {
           console.log('📤 Enviando evento:', evento);
           
@@ -417,21 +697,28 @@
           
           console.log('📦 Dados que serão enviados:', JSON.stringify(dadosFinais, null, 2));
           
-          const response = await fetch(endpoint, {
-            method: evento.method || 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: JSON.stringify(dadosFinais)
-          });
+          const { response, sucesso, tentativas } = await tentarEnviarComRetry(
+            endpoint,
+            {
+              method: evento.method || 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+              },
+              body: JSON.stringify(dadosFinais)
+            }
+          );
 
-          console.log('📨 Resposta evento:', response.status);
+          console.log('📨 Resposta evento:', response.status, `(${tentativas} tentativas)`);
 
-          if (response.ok) {
+          if (sucesso) {
             await deletarDaFila('filaEventos', evento.id);
+            eventosSincronizados++;
             console.log('✅ Evento sincronizado');
           } else {
+            // Atualizar contador de tentativas
+            evento.tentativas = (evento.tentativas || 0) + tentativas;
+            await atualizarTentativasFila('filaEventos', evento.id, evento.tentativas);
             const erroTexto = await response.text();
             let erroJson;
             try {
@@ -452,12 +739,30 @@
           console.error('❌ Stack:', err.stack);
         }
       }
-
-      // 4. Sincronizar mensagens de chat
-      const mensagensChat = await buscarFila('filaMensagens');
-      console.log(`💬 Mensagens na fila: ${mensagensChat.length}`);
       
-      for (const mensagem of mensagensChat) {
+      // Salvar timestamp da sincronização se houve sucessos
+      if (eventosSincronizados > 0) {
+        await salvarUltimaSync('filaEventos', new Date().toISOString());
+      }
+
+      // 4. Sincronizar mensagens de chat (incremental)
+      const ultimaSyncMensagens = await obterUltimaSync('filaMensagens');
+      const mensagensChat = await buscarFila('filaMensagens');
+      
+      // Filtrar apenas mensagens novas
+      let mensagensParaSincronizar = mensagensChat;
+      if (ultimaSyncMensagens) {
+        mensagensParaSincronizar = mensagensChat.filter(msg => {
+          const msgTimestamp = msg.timestamp || new Date().toISOString();
+          return new Date(msgTimestamp) > new Date(ultimaSyncMensagens);
+        });
+        console.log(`💬 Mensagens na fila: ${mensagensChat.length} (${mensagensParaSincronizar.length} novas desde última sync)`);
+      } else {
+        console.log(`💬 Mensagens na fila: ${mensagensChat.length} (primeira sincronização)`);
+      }
+      
+      let mensagensSincronizadas = 0;
+      for (const mensagem of mensagensParaSincronizar) {
         try {
           console.log('📤 Enviando mensagem:', mensagem.idviagem);
           
@@ -473,21 +778,29 @@
           delete dadosEnvio.enviado;
           
           const baseUrl = window.__BASE_URL__ || ('http://' + window.location.host);
-          const response = await fetch(baseUrl + endpoint, {
-            method: method,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: JSON.stringify(dadosEnvio)
-          });
+          const { response, sucesso, tentativas } = await tentarEnviarComRetry(
+            baseUrl + endpoint,
+            {
+              method: method,
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+              },
+              body: JSON.stringify(dadosEnvio)
+            }
+          );
 
-          console.log('📨 Resposta mensagem:', response.status);
+          console.log('📨 Resposta mensagem:', response.status, `(${tentativas} tentativas)`);
 
-          if (response.ok) {
+          if (sucesso) {
             await deletarDaFila('filaMensagens', mensagem.id);
+            mensagensSincronizadas++;
             console.log('✅ Mensagem sincronizada');
           } else {
+            // Atualizar contador de tentativas
+            mensagem.tentativas = (mensagem.tentativas || 0) + tentativas;
+            await atualizarTentativasFila('filaMensagens', mensagem.id, mensagem.tentativas);
+            
             const erro = await response.text();
             console.error('❌ Erro mensagem:', response.status, erro);
           }
@@ -495,12 +808,30 @@
           console.error('❌ Erro ao sincronizar mensagem:', err);
         }
       }
-
-      // 5. Sincronizar comprovantes de entrega
-      const comprovantes = await buscarFila('filaComprovantes');
-      console.log(`📦 Comprovantes na fila: ${comprovantes.length}`);
       
-      for (const comprovante of comprovantes) {
+      // Salvar timestamp da sincronização se houve sucessos
+      if (mensagensSincronizadas > 0) {
+        await salvarUltimaSync('filaMensagens', new Date().toISOString());
+      }
+
+      // 5. Sincronizar comprovantes de entrega (incremental)
+      const ultimaSyncComprovantes = await obterUltimaSync('filaComprovantes');
+      const comprovantes = await buscarFila('filaComprovantes');
+      
+      // Filtrar apenas comprovantes novos
+      let comprovantesParaSincronizar = comprovantes;
+      if (ultimaSyncComprovantes) {
+        comprovantesParaSincronizar = comprovantes.filter(comp => {
+          const compTimestamp = comp.timestamp || new Date().toISOString();
+          return new Date(compTimestamp) > new Date(ultimaSyncComprovantes);
+        });
+        console.log(`📦 Comprovantes na fila: ${comprovantes.length} (${comprovantesParaSincronizar.length} novos desde última sync)`);
+      } else {
+        console.log(`📦 Comprovantes na fila: ${comprovantes.length} (primeira sincronização)`);
+      }
+      
+      let comprovantesSincronizados = 0;
+      for (const comprovante of comprovantesParaSincronizar) {
         try {
           console.log('📤 Enviando comprovante:', comprovante.idviagem);
           
@@ -515,21 +846,29 @@
           delete dadosEnvio.method;
           
           const baseUrl = window.__BASE_URL__ || ('http://' + window.location.host);
-          const response = await fetch(baseUrl + endpoint, {
-            method: method,
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
-            },
-            body: JSON.stringify(dadosEnvio)
-          });
+          const { response, sucesso, tentativas } = await tentarEnviarComRetry(
+            baseUrl + endpoint,
+            {
+              method: method,
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+              },
+              body: JSON.stringify(dadosEnvio)
+            }
+          );
 
-          console.log('📨 Resposta comprovante:', response.status);
+          console.log('📨 Resposta comprovante:', response.status, `(${tentativas} tentativas)`);
 
-          if (response.ok) {
+          if (sucesso) {
             await deletarDaFila('filaComprovantes', comprovante.id);
+            comprovantesSincronizados++;
             console.log('✅ Comprovante sincronizado');
           } else {
+            // Atualizar contador de tentativas
+            comprovante.tentativas = (comprovante.tentativas || 0) + tentativas;
+            await atualizarTentativasFila('filaComprovantes', comprovante.id, comprovante.tentativas);
+            
             const erro = await response.text();
             console.error('❌ Erro comprovante:', response.status, erro);
           }
@@ -537,9 +876,14 @@
           console.error('❌ Erro ao sincronizar comprovante:', err);
         }
       }
+      
+      // Salvar timestamp da sincronização se houve sucessos
+      if (comprovantesSincronizados > 0) {
+        await salvarUltimaSync('filaComprovantes', new Date().toISOString());
+      }
 
       await atualizarIndicador();
-      console.log('✅ Sincronização completa!');
+      console.log('✅ Sincronização incremental completa!');
     } catch (err) {
       console.error('Erro na sincronização:', err);
     }
@@ -593,7 +937,10 @@
     isOnline,
     atualizarIndicador,
     sincronizarTudo,
-    limparTodasFilas
+    limparTodasFilas,
+    limparDadosAntigos,
+    verificarLimiteFila,
+    validarDadosFila
   };
 
   // Inicializar automaticamente

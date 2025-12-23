@@ -553,7 +553,23 @@ function getOverlayMostrado() {
                   }
                 } else {
                   // Erro real que precisa ser logado
-                  console.error(`Erro no init.sql [Procedure: ${procedureName}]:`, mensagemFinal);
+                  // Erros esperados (não críticos) - apenas logar, não quebrar o módulo
+                  const errosEsperados = [
+                    'Arithmetic overflow',
+                    'Violation of PRIMARY KEY',
+                    'Duplicate key',
+                    'UNIQUE KEY constraint'
+                  ];
+                  
+                  const isErroEsperado = errosEsperados.some(erro => mensagemFinal.includes(erro));
+                  
+                  if (isErroEsperado) {
+                    // Erros esperados são apenas warnings, não erros críticos
+                    console.warn(`⚠️ [init.sql] Erro esperado na procedure ${procedureName}:`, mensagemFinal);
+                  } else {
+                    // Apenas logar como erro se não for esperado
+                    console.error(`Erro no init.sql [Procedure: ${procedureName}]:`, mensagemFinal);
+                  }
                 }
               } catch (err) {
                 // Se houver erro ao processar o erro, logar de forma simples
@@ -3057,21 +3073,44 @@ function getOverlayMostrado() {
       }
       
       // Limpar conteúdo anterior se houver (apenas se não houver mapa ativo)
-      if (mapaDiv.children.length > 0) {
+      if (mapaDiv.children.length > 0 || mapaDiv._leaflet_id) {
         // Verificar se há elementos do Leaflet antes de limpar
         const hasLeafletElements = Array.from(mapaDiv.children).some(child => 
           child.classList.contains('leaflet-container') || 
           child.classList.contains('leaflet-pane')
         );
         
-        if (hasLeafletElements) {
+        if (hasLeafletElements || mapaDiv._leaflet_id) {
           // Se há elementos do Leaflet, aguardar mais um pouco antes de limpar
           await new Promise(resolve => setTimeout(resolve, 100));
         }
         
+        // Limpar completamente
         mapaDiv.innerHTML = '';
+        if (mapaDiv._leaflet_id) {
+          delete mapaDiv._leaflet_id;
+        }
+        
+        // Limpar qualquer referência do Leaflet
+        if (typeof L !== 'undefined' && L.DomUtil) {
+          try {
+            L.DomUtil.empty(mapaDiv);
+          } catch (e) {
+            // Ignorar
+          }
+        }
+        
         // Aguardar um frame para garantir que o DOM foi limpo
         await new Promise(resolve => requestAnimationFrame(resolve));
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+      
+      // Verificar novamente se está limpo antes de criar
+      if (mapaDiv._leaflet_id) {
+        console.warn('⚠️ [VIAGENS] Container ainda tem _leaflet_id após limpeza. Forçando remoção...');
+        mapaDiv.innerHTML = '';
+        delete mapaDiv._leaflet_id;
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
       
       // Criar mapa centrado no Brasil
@@ -3565,7 +3604,7 @@ function getOverlayMostrado() {
                 function normalizarOSRMUrl(servidor) {
                   if (!servidor) return 'https://router.project-osrm.org/route/v1/driving-hgv';
                   // Se for servidor próprio, garantir que use HTTP (não HTTPS)
-                  if (servidor.includes('186.250.92.131')) {
+                  if (servidor.includes('186.250.92.131') || servidor.includes('app.integrabrasil.com')) {
                     const normalized = servidor.replace(/^https:/, 'http:');
                     console.log('🔄 [OSRM] Normalizando URL:', servidor, '→', normalized);
                     return normalized;
@@ -3585,7 +3624,7 @@ function getOverlayMostrado() {
                     const osrmUrl = construirUrlRota(servidor, coordsStr, 'full', 'geojson');
                     
                     // Verificar se URL está correto antes de fazer fetch
-                    if (osrmUrl.includes('186.250.92.131') && osrmUrl.startsWith('https:')) {
+                    if ((osrmUrl.includes('186.250.92.131') || osrmUrl.includes('app.integrabrasil.com')) && osrmUrl.startsWith('https:')) {
                       console.error('❌ [OSRM] ERRO CRÍTICO: URL ainda está em HTTPS!', osrmUrl);
                       throw new Error('URL não foi normalizado corretamente');
                     }
@@ -4298,7 +4337,7 @@ function getOverlayMostrado() {
   async function obterCidadePorCoordenada(lat, lon) {
     try {
       // Usar Nominatim para reverse geocoding
-      const nominatimServer = window.MAP_CONFIG?.nominatimServer || 'http://186.250.92.131:8082';
+      const nominatimServer = window.MAP_CONFIG?.nominatimServer || 'http://app.integrabrasil.com:8080/nominatim';
       const url = `${nominatimServer}/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`;
       const response = await fetch(url, {
         headers: {
@@ -11265,6 +11304,7 @@ function getOverlayMostrado() {
   // ==========================================
   
   let mapaRastreamento = null;
+  let mapaRastreamentoInicializando = false; // Flag para evitar múltiplas inicializações simultâneas
   let marcadoresRastreamento = [];
   let linhaRastreamento = null;
   let marcadorOrigemRastreamento = null;
@@ -11276,7 +11316,7 @@ function getOverlayMostrado() {
   function construirUrlRota(servidor, coordsStr, overview = 'simplified', geometries = 'geojson') {
     // IMPORTANTE: Normalizar URL - garantir HTTP para servidor próprio
     let servidorNormalizado = servidor;
-    if (servidor && servidor.includes('186.250.92.131')) {
+    if (servidor && (servidor.includes('186.250.92.131') || servidor.includes('app.integrabrasil.com'))) {
       servidorNormalizado = servidor.replace(/^https:/, 'http:');
       if (servidorNormalizado !== servidor) {
         console.log('🔄 [ROTA] Normalizando URL do servidor próprio:', servidor, '→', servidorNormalizado);
@@ -11294,7 +11334,7 @@ function getOverlayMostrado() {
     }
     
     // Log final para debug
-    if (urlFinal.includes('186.250.92.131') && urlFinal.startsWith('https:')) {
+    if ((urlFinal.includes('186.250.92.131') || urlFinal.includes('app.integrabrasil.com')) && urlFinal.startsWith('https:')) {
       console.error('❌ [ROTA] ERRO: URL ainda está em HTTPS!', urlFinal);
     }
     
@@ -11305,7 +11345,7 @@ function getOverlayMostrado() {
   async function fetchForcandoHTTP(url, options = {}) {
     // Se for servidor próprio, garantir que seja HTTP
     let fetchUrl = url;
-    if (url.includes('186.250.92.131')) {
+    if (url.includes('186.250.92.131') || url.includes('app.integrabrasil.com')) {
       fetchUrl = url.replace(/^https:/, 'http:');
       if (fetchUrl !== url) {
         console.warn('⚠️ [FETCH] Navegador converteu HTTP→HTTPS! Forçando HTTP:', fetchUrl);
@@ -11709,13 +11749,31 @@ function getOverlayMostrado() {
 
   // Exibir posições no mapa
   async function exibirMapaRastreamento(posicoes, dadosViagem = null) {
-    console.log(`🗺️ [MAPA RASTREAMENTO] Exibindo mapa com ${posicoes?.length || 0} posições e dados da viagem:`, dadosViagem ? 'SIM' : 'NÃO');
-    
-    // Se não há posições e não há dados da viagem, não exibir mapa
-    if ((!posicoes || posicoes.length === 0) && !dadosViagem) {
-      console.warn(`⚠️ [MAPA RASTREAMENTO] Não há posições nem dados da viagem. Não exibindo mapa.`);
-      return;
+    // Evitar múltiplas inicializações simultâneas
+    if (mapaRastreamentoInicializando) {
+      console.warn('⚠️ [RASTREAMENTO] Mapa já está sendo inicializado. Aguardando...');
+      // Aguardar até que a inicialização anterior termine
+      let tentativas = 0;
+      while (mapaRastreamentoInicializando && tentativas < 50) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        tentativas++;
+      }
+      if (mapaRastreamentoInicializando) {
+        console.error('❌ [RASTREAMENTO] Timeout aguardando inicialização anterior. Cancelando.');
+        return;
+      }
     }
+    
+    mapaRastreamentoInicializando = true;
+    
+    try {
+      console.log(`🗺️ [MAPA RASTREAMENTO] Exibindo mapa com ${posicoes?.length || 0} posições e dados da viagem:`, dadosViagem ? 'SIM' : 'NÃO');
+      
+      // Se não há posições e não há dados da viagem, não exibir mapa
+      if ((!posicoes || posicoes.length === 0) && !dadosViagem) {
+        console.warn(`⚠️ [MAPA RASTREAMENTO] Não há posições nem dados da viagem. Não exibindo mapa.`);
+        return;
+      }
 
     // Obter configuração do mapa
     // Usar APENAS MAP_CONFIG global de /js/map-config.js
@@ -11723,7 +11781,7 @@ function getOverlayMostrado() {
     const config = window.MAP_CONFIG || {
       tileServer: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
       osrmServer: 'https://router.project-osrm.org/route/v1/driving-hgv',
-      nominatimServer: window.MAP_CONFIG?.nominatimServer || 'http://186.250.92.131:8082',
+      nominatimServer: window.MAP_CONFIG?.nominatimServer || 'http://app.integrabrasil.com:8080/nominatim',
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19
     };
@@ -11738,67 +11796,181 @@ function getOverlayMostrado() {
     const mapaDiv = document.getElementById('mapaRastreamento');
     if (!mapaDiv) return;
 
-    // Limpar mapa anterior
+    // Limpar mapa anterior - com proteção robusta
     if (mapaRastreamento) {
-      // Remover layers antes de remover o mapa
-      if (linhaRastreamento) {
-        mapaRastreamento.removeLayer(linhaRastreamento);
-        linhaRastreamento = null;
+      try {
+        // Remover layers antes de remover o mapa
+        if (linhaRastreamento) {
+          try {
+            mapaRastreamento.removeLayer(linhaRastreamento);
+          } catch (e) {
+            // Ignorar erro se layer já foi removido
+          }
+          linhaRastreamento = null;
+        }
+        if (marcadorOrigemRastreamento) {
+          try {
+            mapaRastreamento.removeLayer(marcadorOrigemRastreamento);
+          } catch (e) {
+            // Ignorar
+          }
+          marcadorOrigemRastreamento = null;
+        }
+        if (marcadorDestinoRastreamento) {
+          try {
+            mapaRastreamento.removeLayer(marcadorDestinoRastreamento);
+          } catch (e) {
+            // Ignorar
+          }
+          marcadorDestinoRastreamento = null;
+        }
+        if (linhaRotaPlanejada) {
+          try {
+            mapaRastreamento.removeLayer(linhaRotaPlanejada);
+          } catch (e) {
+            // Ignorar
+          }
+          linhaRotaPlanejada = null;
+        }
+        if (linhaRotaRestante) {
+          try {
+            mapaRastreamento.removeLayer(linhaRotaRestante);
+          } catch (e) {
+            // Ignorar
+          }
+          linhaRotaRestante = null;
+        }
+        marcadoresRastreamento.forEach(m => {
+          try {
+            mapaRastreamento.removeLayer(m);
+          } catch (e) {
+            // Ignorar
+          }
+        });
+        
+        // Remover o mapa
+        try {
+          mapaRastreamento.remove();
+        } catch (e) {
+          // Se der erro ao remover, forçar limpeza do container
+          console.warn('⚠️ [RASTREAMENTO] Erro ao remover mapa. Forçando limpeza do container...');
+          const mapaDiv = document.getElementById('mapaRastreamento');
+          if (mapaDiv) {
+            mapaDiv.innerHTML = '';
+            if (mapaDiv._leaflet_id) {
+              delete mapaDiv._leaflet_id;
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ [RASTREAMENTO] Erro ao limpar mapa anterior:', e);
+        // Forçar limpeza do container em caso de erro
+        const mapaDiv = document.getElementById('mapaRastreamento');
+        if (mapaDiv) {
+          mapaDiv.innerHTML = '';
+          if (mapaDiv._leaflet_id) {
+            delete mapaDiv._leaflet_id;
+          }
+        }
       }
-      if (marcadorOrigemRastreamento) {
-        mapaRastreamento.removeLayer(marcadorOrigemRastreamento);
-        marcadorOrigemRastreamento = null;
-      }
-      if (marcadorDestinoRastreamento) {
-        mapaRastreamento.removeLayer(marcadorDestinoRastreamento);
-        marcadorDestinoRastreamento = null;
-      }
-      if (linhaRotaPlanejada) {
-        mapaRastreamento.removeLayer(linhaRotaPlanejada);
-        linhaRotaPlanejada = null;
-      }
-      if (linhaRotaRestante) {
-        mapaRastreamento.removeLayer(linhaRotaRestante);
-        linhaRotaRestante = null;
-      }
-      marcadoresRastreamento.forEach(m => mapaRastreamento.removeLayer(m));
-      mapaRastreamento.remove();
       mapaRastreamento = null;
     }
     marcadoresRastreamento = [];
 
     // IMPORTANTE: Verificar se o container já tem um mapa antes de criar novo
     const mapaRastreamentoDiv = document.getElementById('mapaRastreamento');
-    if (mapaRastreamentoDiv && mapaRastreamentoDiv._leaflet_id) {
-      console.warn('⚠️ [RASTREAMENTO] Container já tem mapa. Limpando antes de criar novo...');
-      try {
-        if (mapaRastreamento) {
-          mapaRastreamento.remove();
+    if (mapaRastreamentoDiv) {
+      // Verificar se há um mapa Leaflet existente no container
+      if (mapaRastreamentoDiv._leaflet_id || (typeof L !== 'undefined' && L.DomUtil.get(mapaRastreamentoDiv))) {
+        console.warn('⚠️ [RASTREAMENTO] Container já tem mapa. Limpando antes de criar novo...');
+        try {
+          // Tentar obter o mapa existente do Leaflet
+          if (typeof L !== 'undefined') {
+            const mapaExistente = L.DomUtil.get(mapaRastreamentoDiv);
+            if (mapaExistente && mapaExistente._leaflet_id) {
+              const mapaInstance = L.Map.prototype.getContainer ? L.Map.prototype.getContainer.call({ _container: mapaRastreamentoDiv }) : null;
+              if (mapaInstance && typeof mapaInstance.remove === 'function') {
+                mapaInstance.remove();
+              }
+            }
+          }
+          
+          // Remover mapa global se existir
+          if (mapaRastreamento && typeof mapaRastreamento.remove === 'function') {
+            try {
+              mapaRastreamento.remove();
+            } catch (e) {
+              console.warn('⚠️ [RASTREAMENTO] Erro ao remover mapa global:', e);
+            }
+          }
+        } catch (e) {
+          console.warn('⚠️ [RASTREAMENTO] Erro ao limpar mapa existente:', e);
         }
-      } catch (e) {
-        // Ignorar erro se já foi removido
+        
+        // Limpar completamente o container
+        mapaRastreamentoDiv.innerHTML = '';
+        if (mapaRastreamentoDiv._leaflet_id) {
+          delete mapaRastreamentoDiv._leaflet_id;
+        }
+        
+        // Aguardar um pouco para garantir que a limpeza foi concluída
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
-      mapaRastreamentoDiv.innerHTML = '';
-      delete mapaRastreamentoDiv._leaflet_id;
-      await new Promise(resolve => setTimeout(resolve, 50));
     }
 
-    // Criar mapa
+    // Criar mapa - com proteção adicional contra reutilização
     try {
+      // Verificar novamente se o container está limpo antes de criar
+      const mapaDivCheck = document.getElementById('mapaRastreamento');
+      if (mapaDivCheck && mapaDivCheck._leaflet_id) {
+        console.warn('⚠️ [RASTREAMENTO] Container ainda tem _leaflet_id. Forçando limpeza...');
+        mapaDivCheck.innerHTML = '';
+        delete mapaDivCheck._leaflet_id;
+        await new Promise(resolve => setTimeout(resolve, 150));
+      }
+      
       mapaRastreamento = L.map('mapaRastreamento', {
         zoomControl: true
       });
     } catch (err) {
-      if (err.message && err.message.includes('already initialized')) {
+      if (err.message && (err.message.includes('already initialized') || err.message.includes('being reused'))) {
         console.warn('⚠️ [RASTREAMENTO] Erro ao inicializar mapa. Limpando e tentando novamente...');
         const mapaDiv = document.getElementById('mapaRastreamento');
         if (mapaDiv) {
+          // Limpar completamente
           mapaDiv.innerHTML = '';
-          delete mapaDiv._leaflet_id;
-          await new Promise(resolve => setTimeout(resolve, 100));
-          mapaRastreamento = L.map('mapaRastreamento', {
-            zoomControl: true
-          });
+          if (mapaDiv._leaflet_id) {
+            delete mapaDiv._leaflet_id;
+          }
+          
+          // Limpar referências do Leaflet
+          if (typeof L !== 'undefined' && L.DomUtil) {
+            try {
+              L.DomUtil.empty(mapaDiv);
+            } catch (e) {
+              // Ignorar
+            }
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, 150));
+          
+          // Verificar novamente se está limpo
+          if (mapaDiv._leaflet_id) {
+            console.warn('⚠️ [RASTREAMENTO] Container ainda não está limpo. Tentando novamente...');
+            mapaDiv.innerHTML = '';
+            delete mapaDiv._leaflet_id;
+            await new Promise(resolve => setTimeout(resolve, 100));
+          }
+          
+          // Tentar criar o mapa novamente
+          try {
+            mapaRastreamento = L.map('mapaRastreamento', {
+              zoomControl: true
+            });
+          } catch (retryErr) {
+            console.error('❌ [RASTREAMENTO] Erro ao criar mapa após limpeza:', retryErr);
+            throw retryErr;
+          }
         }
       } else {
         throw err;
@@ -11943,7 +12115,7 @@ function getOverlayMostrado() {
               const rotaUrl = construirUrlRota(servidor, coordsStr, 'simplified', 'geojson');
               
               // Verificar se URL está correto antes de fazer fetch
-              if (rotaUrl.includes('186.250.92.131') && rotaUrl.startsWith('https:')) {
+              if ((rotaUrl.includes('186.250.92.131') || rotaUrl.includes('app.integrabrasil.com')) && rotaUrl.startsWith('https:')) {
                 console.error('❌ [RASTREAMENTO] ERRO CRÍTICO: URL ainda está em HTTPS!', rotaUrl);
                 continue; // Pular este servidor e tentar próximo
               }
@@ -13075,6 +13247,14 @@ function getOverlayMostrado() {
     setTimeout(() => {
       hideRastreamentoLoading();
     }, 300);
+    } catch (err) {
+      console.error('❌ [RASTREAMENTO] Erro ao exibir mapa:', err);
+      // Esconder overlay em caso de erro
+      hideRastreamentoLoading();
+    } finally {
+      // Sempre resetar a flag, mesmo em caso de erro
+      mapaRastreamentoInicializando = false;
+    }
   }
 
   // Exibir lista de posições

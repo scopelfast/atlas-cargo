@@ -3264,7 +3264,7 @@ async function loadRoteiroParaEdicao(id) {
       }
       
       // Usar Nominatim para geocodificação com detalhes de endereço
-      const nominatimServer = window.MAP_CONFIG?.nominatimServer || 'http://186.250.92.131:8082';
+      const nominatimServer = window.MAP_CONFIG?.nominatimServer || 'http://app.integrabrasil.com:8080/nominatim';
       const url = `${nominatimServer}/search?format=json&q=${encodeURIComponent(posicao)}&limit=1&addressdetails=1`;
       const response = await fetch(url, {
         headers: {
@@ -4676,7 +4676,7 @@ async function loadRoteiroParaEdicao(id) {
     
     // Buscar endereço usando reverse geocoding (Nominatim)
     try {
-      const nominatimServer = window.MAP_CONFIG?.nominatimServer || 'http://186.250.92.131:8082';
+      const nominatimServer = window.MAP_CONFIG?.nominatimServer || 'http://app.integrabrasil.com:8080/nominatim';
       const reverseUrl = `${nominatimServer}/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`;
       const reverseResponse = await fetch(reverseUrl, {
         headers: {

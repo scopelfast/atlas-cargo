@@ -1100,14 +1100,30 @@
         const response = await fetch(`/api/motorista/viagens-andamento/${idMotorista}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        if (response.ok) {
-          const data = await response.json();
-          return data.dados || data || [];
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`❌ [VIAGENS] Erro ${response.status} ao buscar viagens:`, errorText);
+          
+          // Se for erro 500, tentar obter detalhes do JSON se disponível
+          try {
+            const errorJson = JSON.parse(errorText);
+            console.error('❌ [VIAGENS] Detalhes do erro:', errorJson);
+          } catch (e) {
+            // Não é JSON, usar texto direto
+          }
+          
+          return [];
         }
+        
+        const data = await response.json();
+        const viagens = data.dados || data || [];
+        console.log(`✅ [VIAGENS] ${viagens.length} viagem(ns) em andamento encontrada(s)`);
+        return viagens;
       } catch (error) {
-        console.warn('Erro ao buscar viagens:', error);
+        console.error('❌ [VIAGENS] Erro ao buscar viagens:', error);
+        return [];
       }
-      return [];
     }
 
     async function buscarConvocacoesPendentes(idMotorista, token) {

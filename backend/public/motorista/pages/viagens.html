@@ -6,6 +6,10 @@
   <title>Viagens - Motorista</title>
   <link rel="stylesheet" href="../css/padrao-telas.css">
   <link rel="stylesheet" href="../css/design-system.css">
+  <!-- Leaflet para mapas -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="../../js/map-config.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
     .viagem-card {
       background: white;
@@ -103,6 +107,53 @@
       transform: scale(0.98);
       box-shadow: 0 2px 8px rgba(231, 76, 60, 0.3);
     }
+
+    .viagem-mapa-container {
+      height: 200px;
+      background: #f0f0f0;
+      border-radius: 12px;
+      overflow: hidden;
+      margin: 12px 0;
+      position: relative;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .viagem-mapa-container:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .viagem-mapa-container .mapa-mini {
+      width: 100%;
+      height: 100%;
+    }
+
+    .viagem-mapa-toggle {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: white;
+      border: none;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #667eea;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      z-index: 1000;
+      transition: all 0.3s;
+    }
+
+    .viagem-mapa-toggle:hover {
+      background: #667eea;
+      color: white;
+    }
+
+    .viagem-mapa-toggle.expandido {
+      background: #e74c3c;
+      color: white;
+    }
   </style>
 </head>
 <body>
@@ -181,6 +232,33 @@
               <div class="data-item">
                 📅 <strong>Descarga:</strong> ${formatarData(v.DTDESCARGA || v.DTPREVFINAL)}
               </div>
+              
+              ${(v.ORIGEM_LATITUDE && v.ORIGEM_LATITUDE != 0) || (v.DESTINO_LATITUDE && v.DESTINO_LATITUDE != 0) ? `
+              <div style="display: flex; gap: 8px; margin-top: 12px; margin-bottom: 8px;">
+                ${(v.ORIGEM_LATITUDE && v.ORIGEM_LATITUDE != 0) ? `
+                <button class="btn-primary" onclick="abrirNavegacao('origem', ${v.ORIGEM_LATITUDE}, ${v.ORIGEM_LONGITUDE}, '${v.ORIGEM_CIDADE || ''}', ${v.IDVIAGEM})" style="flex: 1; padding: 10px; font-size: 13px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                  🗺️ Navegar para Origem
+                </button>
+                ` : ''}
+                ${(v.DESTINO_LATITUDE && v.DESTINO_LATITUDE != 0) ? `
+                <button class="btn-primary" onclick="abrirNavegacao('destino', ${v.DESTINO_LATITUDE}, ${v.DESTINO_LONGITUDE}, '${v.DESTINO_CIDADE || ''}', ${v.IDVIAGEM})" style="flex: 1; padding: 10px; font-size: 13px; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+                  🗺️ Navegar para Destino
+                </button>
+                ` : ''}
+              </div>
+              ` : ''}
+              
+              ${(v.ORIGEM_LATITUDE && v.ORIGEM_LATITUDE != 0) || (v.DESTINO_LATITUDE && v.DESTINO_LATITUDE != 0) ? `
+              <div class="viagem-mapa-container" id="mapaContainer${v.IDVIAGEM}" style="display: none;">
+                <button class="viagem-mapa-toggle" onclick="toggleMapaViagem(${v.IDVIAGEM})" id="toggleMapa${v.IDVIAGEM}">
+                  🗺️ Mostrar Mapa
+                </button>
+                <div class="mapa-mini" id="mapa${v.IDVIAGEM}"></div>
+              </div>
+              <button class="btn-primary" onclick="toggleMapaViagem(${v.IDVIAGEM})" style="width: 100%; padding: 10px; font-size: 13px; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); margin-top: 8px; margin-bottom: 8px;">
+                🗺️ Ver Mapa da Rota
+              </button>
+              ` : ''}
               
               <button class="btn-primary btn-macros" onclick="irParaMacros(${v.IDVIAGEM})">
                 📝 Registrar Macros
@@ -300,6 +378,254 @@
 
     window.verDetalhes = function(idViagem) {
       window.location.href = `detalhes-viagem.html?viagem=${idViagem}`;
+    };
+
+    // Mapas das viagens (cache para evitar recriar)
+    const mapasViagens = {};
+
+    // Toggle mapa da viagem
+    window.toggleMapaViagem = async function(idViagem) {
+      const container = document.getElementById(`mapaContainer${idViagem}`);
+      const toggleBtn = document.getElementById(`toggleMapa${idViagem}`);
+      
+      if (!container) return;
+
+      const estaVisivel = container.style.display !== 'none';
+      
+      if (estaVisivel) {
+        // Esconder mapa
+        container.style.display = 'none';
+        if (toggleBtn) {
+          toggleBtn.textContent = '🗺️ Mostrar Mapa';
+          toggleBtn.classList.remove('expandido');
+        }
+      } else {
+        // Mostrar mapa
+        container.style.display = 'block';
+        if (toggleBtn) {
+          toggleBtn.textContent = '✕ Fechar';
+          toggleBtn.classList.add('expandido');
+        }
+        
+        // Inicializar mapa se ainda não foi criado
+        if (!mapasViagens[idViagem]) {
+          await inicializarMapaViagem(idViagem);
+        } else {
+          // Se já existe, apenas ajustar tamanho
+          setTimeout(() => {
+            if (mapasViagens[idViagem]) {
+              mapasViagens[idViagem].invalidateSize();
+            }
+          }, 100);
+        }
+      }
+    };
+
+    // Inicializar mapa da viagem
+    async function inicializarMapaViagem(idViagem) {
+      if (typeof L === 'undefined') {
+        console.warn('⚠️ Leaflet não carregado');
+        return;
+      }
+
+      const mapaDiv = document.getElementById(`mapa${idViagem}`);
+      if (!mapaDiv) return;
+
+      try {
+        // Buscar dados da viagem
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/motorista/viagens-andamento/${motorista.id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) return;
+
+        const viagens = await response.json();
+        const viagem = viagens.find(v => v.IDVIAGEM == idViagem);
+        
+        if (!viagem) return;
+
+        // Buscar posições GPS da viagem
+        const responseGPS = await fetch(`/api/motorista/posicoes/${idViagem}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        let posicoesGPS = [];
+        if (responseGPS.ok) {
+          const dataGPS = await responseGPS.json();
+          posicoesGPS = dataGPS.posicoes || [];
+        }
+
+        // Criar mapa
+        const map = L.map(`mapa${idViagem}`).setView([-14.2350, -51.9253], 10);
+
+        // Adicionar tiles
+        let tileServer = window.getTileServerUrl ? window.getTileServerUrl() : (window.MAP_CONFIG?.tileServer || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+        const tileOptions = {
+          attribution: window.MAP_CONFIG?.attribution || '© OpenStreetMap contributors',
+          maxZoom: window.MAP_CONFIG?.maxZoom || 19
+        };
+        
+        if (tileServer.includes('{s}')) {
+          tileOptions.subdomains = ['a', 'b', 'c'];
+        }
+        
+        L.tileLayer(tileServer, tileOptions).addTo(map);
+
+        const bounds = [];
+        const routeCoordinates = [];
+
+        // Adicionar marcador de origem
+        if (viagem.ORIGEM_LATITUDE && viagem.ORIGEM_LATITUDE != 0) {
+          const origemPos = [parseFloat(viagem.ORIGEM_LATITUDE), parseFloat(viagem.ORIGEM_LONGITUDE)];
+          bounds.push(origemPos);
+          
+          const origemIcon = L.divIcon({
+            className: 'origem-marker',
+            html: `<div style="background: #10b981; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>`,
+            iconSize: [24, 24],
+            iconAnchor: [12, 24]
+          });
+          
+          L.marker(origemPos, { icon: origemIcon })
+            .bindPopup(`<strong>📍 Origem</strong><br>${viagem.ORIGEM_CIDADE || ''}`)
+            .addTo(map);
+        }
+
+        // Adicionar posições GPS (rota percorrida)
+        if (posicoesGPS.length > 0) {
+          posicoesGPS.forEach(pos => {
+            const lat = parseFloat(pos.LATITUDE);
+            const lng = parseFloat(pos.LONGITUDE);
+            
+            if (!isNaN(lat) && !isNaN(lng)) {
+              const position = [lat, lng];
+              routeCoordinates.push(position);
+              bounds.push(position);
+            }
+          });
+
+          // Desenhar rota percorrida
+          if (routeCoordinates.length > 1) {
+            L.polyline(routeCoordinates, {
+              color: '#667eea',
+              weight: 4,
+              opacity: 0.7
+            }).addTo(map);
+          }
+        }
+
+        // Adicionar marcador de destino
+        if (viagem.DESTINO_LATITUDE && viagem.DESTINO_LATITUDE != 0) {
+          const destinoPos = [parseFloat(viagem.DESTINO_LATITUDE), parseFloat(viagem.DESTINO_LONGITUDE)];
+          bounds.push(destinoPos);
+          
+          const destinoIcon = L.divIcon({
+            className: 'destino-marker',
+            html: `<div style="background: #3b82f6; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>`,
+            iconSize: [24, 24],
+            iconAnchor: [12, 24]
+          });
+          
+          L.marker(destinoPos, { icon: destinoIcon })
+            .bindPopup(`<strong>🔵 Destino</strong><br>${viagem.DESTINO_CIDADE || ''}`)
+            .addTo(map);
+        }
+
+        // Ajustar zoom para mostrar toda a rota
+        if (bounds.length > 0) {
+          map.fitBounds(bounds, { padding: [20, 20] });
+        }
+
+        // Salvar mapa no cache
+        mapasViagens[idViagem] = map;
+
+      } catch (err) {
+        console.error(`Erro ao inicializar mapa da viagem ${idViagem}:`, err);
+      }
+    }
+
+    // Navegação integrada melhorada (Google Maps / Waze / Apple Maps)
+    window.abrirNavegacao = async function(tipo, latitude, longitude, cidade, idViagem) {
+      if (!latitude || latitude == 0 || !longitude || longitude == 0) {
+        mostrarToast('Coordenadas não disponíveis para esta localização', 'warning');
+        return;
+      }
+
+      const destino = `${latitude},${longitude}`;
+      const nomeDestino = cidade ? encodeURIComponent(cidade) : encodeURIComponent(`${tipo === 'origem' ? 'Origem' : 'Destino'} - Viagem #${idViagem}`);
+      
+      // Detectar sistema operacional para mostrar opções relevantes
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const isAndroid = /Android/.test(navigator.userAgent);
+      
+      // Opções de navegação baseadas no dispositivo
+      let opcoes = [];
+      if (isIOS) {
+        opcoes = ['Apple Maps', 'Google Maps', 'Waze', 'Cancelar'];
+      } else if (isAndroid) {
+        opcoes = ['Google Maps', 'Waze', 'Cancelar'];
+      } else {
+        opcoes = ['Google Maps', 'Waze', 'Cancelar'];
+      }
+      
+      // Mostrar opções de navegação
+      const escolha = await mostrarModal(
+        'Escolher Aplicativo de Navegação',
+        `Abrir navegação para ${tipo === 'origem' ? 'Origem' : 'Destino'} da viagem #${idViagem}?`,
+        opcoes
+      );
+      
+      if (escolha === 'Google Maps') {
+        // Google Maps: usar direções (funciona em app e web)
+        const url = `https://www.google.com/maps/dir/?api=1&destination=${destino}&destination_place_id=${nomeDestino}`;
+        // Tentar abrir app primeiro (Android/iOS)
+        const urlApp = isAndroid 
+          ? `google.navigation:q=${destino}`
+          : isIOS
+          ? `comgooglemaps://?daddr=${destino}&directionsmode=driving`
+          : url;
+        
+        if (isAndroid || isIOS) {
+          const link = document.createElement('a');
+          link.href = urlApp;
+          link.target = '_blank';
+          link.click();
+          
+          // Fallback para web após 500ms
+          setTimeout(() => {
+            window.open(url, '_blank');
+          }, 500);
+        } else {
+          window.open(url, '_blank');
+        }
+      } else if (escolha === 'Waze') {
+        // Waze: formato waze://?ll=latitude,longitude&navigate=yes
+        const urlWaze = `waze://?ll=${destino}&navigate=yes`;
+        const urlWeb = `https://www.waze.com/ul?ll=${destino}&navigate=yes`;
+        
+        // Tentar abrir app Waze
+        const link = document.createElement('a');
+        link.href = urlWaze;
+        link.target = '_blank';
+        link.click();
+        
+        // Fallback para web após 500ms
+        setTimeout(() => {
+          window.open(urlWeb, '_blank');
+        }, 500);
+      } else if (escolha === 'Apple Maps' && isIOS) {
+        // Apple Maps: apenas iOS
+        const url = `maps://?daddr=${destino}&dirflg=d`;
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.click();
+      }
     };
   </script>
 </body>

@@ -1606,7 +1606,77 @@ function fecharModal() {
             </ul>
             <p><strong>Função:</strong> <code>criarLinkWhatsApp(celular)</code> - Disponível em ambos os módulos</p>
 
-            <h3>7.4. Sistema de Geolocalização de Motoristas</h3>
+            <h3>7.4. APP Motorista - Aplicativo Completo</h3>
+            <p><strong>Funcionalidade:</strong> Aplicativo web completo para motoristas gerenciarem viagens, convocações, GPS, chat e muito mais</p>
+            
+            <h4>7.4.1. Funcionalidades Principais</h4>
+            <ul>
+                <li>✅ <strong>Dashboard Personalizado:</strong> Visão geral com estatísticas (viagens, mensagens, convocações, cargas)</li>
+                <li>✅ <strong>Gerenciamento de Viagens:</strong> Lista de viagens em andamento com detalhes completos</li>
+                <li>✅ <strong>Sistema de Convocações:</strong> Aceitar/recusar convocações diretamente no app</li>
+                <li>✅ <strong>GPS Automático:</strong> Envio automático de localização em intervalos configuráveis</li>
+                <li>✅ <strong>Chat em Tempo Real:</strong> Comunicação instantânea com a central de operações</li>
+                <li>✅ <strong>Botão SOS:</strong> Alerta de emergência com envio automático de localização</li>
+                <li>✅ <strong>Comprovante de Entrega (POD):</strong> Envio de fotos de documentos de entrega</li>
+                <li>✅ <strong>Registro de Macros/Ocorrências:</strong> Registrar eventos durante a viagem</li>
+                <li>✅ <strong>Navegação Integrada:</strong> Abrir Google Maps, Waze ou Apple Maps diretamente do app</li>
+                <li>✅ <strong>Mapa com Rota:</strong> Visualização de rotas planejadas e posições GPS</li>
+                <li>✅ <strong>Modo Offline:</strong> Funciona offline e sincroniza quando houver conexão</li>
+                <li>✅ <strong>Notificações Push:</strong> Alertas em tempo real sobre convocações e mensagens</li>
+            </ul>
+
+            <h4>7.4.2. Estrutura do APP</h4>
+            <p><strong>Páginas Principais:</strong></p>
+            <ul>
+                <li><code>/motorista/index.html</code> - Tela de login</li>
+                <li><code>/motorista/pages/dashboard.html</code> - Dashboard principal</li>
+                <li><code>/motorista/pages/viagens.html</code> - Lista de viagens</li>
+                <li><code>/motorista/pages/detalhes-viagem.html</code> - Detalhes da viagem</li>
+                <li><code>/motorista/pages/convocacoes.html</code> - Convocações</li>
+                <li><code>/motorista/pages/gps.html</code> - Configurações GPS</li>
+                <li><code>/motorista/pages/enviar-posicao.html</code> - Enviar posição manual</li>
+                <li><code>/motorista/pages/chat.html</code> - Chat</li>
+                <li><code>/motorista/pages/sos.html</code> - Botão SOS</li>
+                <li><code>/motorista/pages/macros.html</code> - Macros/Ocorrências</li>
+                <li><code>/motorista/pages/comprovar-entrega.html</code> - Comprovante de entrega</li>
+                <li><code>/motorista/pages/configuracoes.html</code> - Configurações gerais</li>
+            </ul>
+
+            <h4>7.4.3. Tecnologias Utilizadas</h4>
+            <ul>
+                <li><strong>Frontend:</strong> HTML5, CSS3, JavaScript (ES6+)</li>
+                <li><strong>Mapas:</strong> Leaflet.js para visualização de mapas</li>
+                <li><strong>Roteamento:</strong> OSRM (Open Source Routing Machine) para cálculo de rotas</li>
+                <li><strong>Armazenamento Offline:</strong> IndexedDB para dados offline</li>
+                <li><strong>Service Worker:</strong> Workbox para cache e sincronização em background</li>
+                <li><strong>Autenticação:</strong> JWT (JSON Web Token)</li>
+                <li><strong>Comunicação:</strong> WebSocket para chat em tempo real</li>
+            </ul>
+
+            <h4>7.4.4. API Endpoints Utilizados</h4>
+            <ul>
+                <li><code>POST /api/motorista/login</code> - Login do motorista</li>
+                <li><code>GET /api/motorista/viagens-andamento/:cdMotorista</code> - Listar viagens em andamento</li>
+                <li><code>GET /api/motorista/viagem/:idViagem</code> - Detalhes da viagem</li>
+                <li><code>GET /api/motorista/convocacoes/:idmotorista</code> - Listar convocações</li>
+                <li><code>POST /api/motorista/aceitar-convocacao/:id</code> - Aceitar convocação</li>
+                <li><code>POST /api/motorista/recusar-convocacao/:id</code> - Recusar convocação</li>
+                <li><code>POST /api/motorista/gps</code> - Enviar posição GPS</li>
+                <li><code>GET /api/motorista/posicoes/:idviagem</code> - Buscar posições da viagem</li>
+                <li><code>POST /api/motorista/sos</code> - Enviar alerta SOS</li>
+                <li><code>POST /api/motorista/macro</code> - Registrar macro/ocorrência</li>
+                <li><code>POST /api/motorista/delivery-proof</code> - Enviar comprovante de entrega</li>
+            </ul>
+
+            <h4>7.4.5. Documentação Adicional</h4>
+            <p>Consulte os seguintes arquivos para mais detalhes:</p>
+            <ul>
+                <li><code>MANUAL_APP_MOTORISTA.md</code> - Manual completo do usuário</li>
+                <li><code>SCRIPT_VIDEO_INSTITUCIONAL_APP_MOTORISTA.md</code> - Script para vídeo explicativo</li>
+                <li><code>PLANO_MELHORIAS_APP_MOTORISTA.md</code> - Plano de melhorias e roadmap</li>
+            </ul>
+
+            <h3>7.5. Sistema de Geolocalização de Motoristas</h3>
             <p><strong>Funcionalidade:</strong> Captura automática da localização (latitude/longitude) quando motorista acessa ou responde convocação</p>
             <p><strong>Campos no Banco:</strong></p>
             <ul>
@@ -2407,7 +2477,10 @@ WABOXAPP_UID=seu_uid_aqui</code></pre>
                     Scripts de Configuração Automática | Indicadores Visuais de Geolocalização |
                     Dashboard com Tela Inicial Melhorada | Cards de Estatísticas | 
                     Links Rápidos com Validação de Permissões | Logs de Acesso | 
-                    Sistema de Monitoramento de Acessos | Ordenação Client-Side em Tabelas
+                    Sistema de Monitoramento de Acessos | Ordenação Client-Side em Tabelas |
+                    APP Motorista Completo | GPS Automático | Chat em Tempo Real | 
+                    Botão SOS | Comprovante de Entrega (POD) | Modo Offline | 
+                    Navegação Integrada | Mapa com Rota | Notificações Push
                 </small>
             </p>
         </div>

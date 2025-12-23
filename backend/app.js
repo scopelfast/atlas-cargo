@@ -119,6 +119,8 @@ const helmetConfig = {
         "ws://172.16.0.0/12", // WebSocket para faixa 172.16.x.x - 172.31.x.x
         "http://cargas.integrabrasil.com:*", // Servidor de produção
         "ws://cargas.integrabrasil.com:*", // WebSocket para servidor de produção
+        "http://app.integrabrasil.com:8080", // Servidor ORS e Nominatim (HTTP)
+        "https://app.integrabrasil.com:8080", // Servidor ORS e Nominatim (HTTPS)
         "https://fonts.googleapis.com",
         "https://fonts.gstatic.com",
         "https://cdn.jsdelivr.net",

@@ -253,9 +253,13 @@
       <div class="map-container">
         <div id="map"></div>
       </div>
-      <div style="font-size: 12px; color: #666; text-align: center; margin-top: 8px;">
-        🗺️ Rota da viagem com posições GPS registradas
+      <div style="font-size: 12px; color: #666; text-align: center; margin-top: 8px; display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;">
+        <span>📍 Origem</span>
+        <span>🏁 Destino</span>
+        <span>🔴 Posição Atual</span>
+        <span>🔵 Rota Percorrida</span>
       </div>
+      <div id="botoesNavegacao" style="display: flex; gap: 8px; margin-top: 12px; justify-content: center;"></div>
     </div>
 
     <!-- Tab: Estatísticas -->
@@ -383,6 +387,8 @@
       await carregarAlertas();
     })();
 
+    let dadosViagem = null;
+
     // Carregar dados da viagem
     async function carregarDadosViagem() {
       try {
@@ -393,8 +399,11 @@
         });
 
         if (response.ok) {
-          const viagem = await response.json();
-          document.getElementById('tituloViagem').textContent = `🚛 Viagem #${viagem.IDVIAGEM}`;
+          dadosViagem = await response.json();
+          document.getElementById('tituloViagem').textContent = `🚛 Viagem #${dadosViagem.IDVIAGEM}`;
+          
+          // Adicionar botões de navegação se houver coordenadas
+          atualizarBotoesNavegacao();
         }
       } catch (err) {
         console.error('Erro ao carregar dados da viagem:', err);
@@ -431,10 +440,11 @@
         console.log('🗺️ [DETALHES VIAGEM] Adicionando subdomínios para OpenStreetMap');
       }
       
-      L.tileLayer(tileServer, tileOptions);
+      L.tileLayer(tileServer, tileOptions).addTo(map);
       console.log('✅ [DETALHES VIAGEM] TileLayer adicionado ao mapa');
-      }).addTo(map);
 
+      // Aguardar dados da viagem antes de renderizar mapa
+      await carregarDadosViagem();
       await carregarPosicoesGPS();
     }
 
@@ -462,47 +472,117 @@
 
     // Renderizar mapa
     function renderizarMapa() {
-      if (!map || posicoesGPS.length === 0) return;
+      if (!map) return;
 
       const routeCoordinates = [];
       const bounds = [];
 
-      posicoesGPS.forEach((pos, index) => {
-        const lat = parseFloat(pos.LATITUDE);
-        const lng = parseFloat(pos.LONGITUDE);
+      // Adicionar marcador de origem (se disponível)
+      if (dadosViagem && dadosViagem.ORIGEM_LATITUDE && dadosViagem.ORIGEM_LATITUDE != 0) {
+        const origemPos = [parseFloat(dadosViagem.ORIGEM_LATITUDE), parseFloat(dadosViagem.ORIGEM_LONGITUDE)];
+        bounds.push(origemPos);
         
-        if (isNaN(lat) || isNaN(lng)) return;
-
-        const position = [lat, lng];
-        routeCoordinates.push(position);
-        bounds.push(position);
-
-        const isUltima = index === 0;
-        const marker = L.marker(position, {
-          title: `Posição ${posicoesGPS.length - index}`
+        const origemIcon = L.divIcon({
+          className: 'origem-marker',
+          html: `<div style="
+            background: #10b981;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+          ">📍</div>`,
+          iconSize: [32, 32],
+          iconAnchor: [16, 32]
         });
+        
+        L.marker(origemPos, { icon: origemIcon })
+          .bindPopup(`
+            <div style="padding: 8px; min-width: 150px;">
+              <strong>📍 Origem</strong><br>
+              <small>${dadosViagem.ORIGEM_CIDADE || ''}, ${dadosViagem.ORIGEM_ESTADO || ''}</small>
+            </div>
+          `)
+          .addTo(map);
+      }
 
-        const popupContent = `
-          <div style="padding: 8px; min-width: 150px;">
-            <strong>Posição ${posicoesGPS.length - index}</strong><br>
-            <small>${new Date(pos.DHPOSICAO || pos.DHREGISTRO).toLocaleString('pt-BR')}</small><br>
-            ${pos.VELOCIDADE ? `<small>Velocidade: ${parseFloat(pos.VELOCIDADE).toFixed(1)} km/h</small>` : ''}
-          </div>
-        `;
-        marker.bindPopup(popupContent).addTo(map);
+      // Adicionar posições GPS (rota percorrida)
+      if (posicoesGPS.length > 0) {
+        posicoesGPS.forEach((pos, index) => {
+          const lat = parseFloat(pos.LATITUDE);
+          const lng = parseFloat(pos.LONGITUDE);
+          
+          if (isNaN(lat) || isNaN(lng)) return;
 
-        if (isUltima) {
-          L.circleMarker(position, {
-            radius: 10,
-            fillColor: '#e74c3c',
-            color: '#fff',
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 1
-          }).addTo(map);
-        }
-      });
+          const position = [lat, lng];
+          routeCoordinates.push(position);
+          bounds.push(position);
 
+          const isUltima = index === 0;
+          const marker = L.marker(position, {
+            title: `Posição ${posicoesGPS.length - index}`
+          });
+
+          const popupContent = `
+            <div style="padding: 8px; min-width: 150px;">
+              <strong>Posição ${posicoesGPS.length - index}</strong><br>
+              <small>${new Date(pos.DHPOSICAO || pos.DHREGISTRO).toLocaleString('pt-BR')}</small><br>
+              ${pos.VELOCIDADE ? `<small>Velocidade: ${parseFloat(pos.VELOCIDADE).toFixed(1)} km/h</small>` : ''}
+            </div>
+          `;
+          marker.bindPopup(popupContent).addTo(map);
+
+          if (isUltima) {
+            L.circleMarker(position, {
+              radius: 10,
+              fillColor: '#e74c3c',
+              color: '#fff',
+              weight: 2,
+              opacity: 1,
+              fillOpacity: 1
+            }).addTo(map);
+          }
+        });
+      }
+
+      // Adicionar marcador de destino (se disponível)
+      if (dadosViagem && dadosViagem.DESTINO_LATITUDE && dadosViagem.DESTINO_LATITUDE != 0) {
+        const destinoPos = [parseFloat(dadosViagem.DESTINO_LATITUDE), parseFloat(dadosViagem.DESTINO_LONGITUDE)];
+        bounds.push(destinoPos);
+        
+        const destinoIcon = L.divIcon({
+          className: 'destino-marker',
+          html: `<div style="
+            background: #3b82f6;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+          ">🏁</div>`,
+          iconSize: [32, 32],
+          iconAnchor: [16, 32]
+        });
+        
+        L.marker(destinoPos, { icon: destinoIcon })
+          .bindPopup(`
+            <div style="padding: 8px; min-width: 150px;">
+              <strong>🏁 Destino</strong><br>
+              <small>${dadosViagem.DESTINO_CIDADE || ''}, ${dadosViagem.DESTINO_ESTADO || ''}</small>
+            </div>
+          `)
+          .addTo(map);
+      }
+
+      // Desenhar rota percorrida (polyline)
       if (routeCoordinates.length > 1) {
         L.polyline(routeCoordinates, {
           color: '#667eea',
@@ -512,9 +592,10 @@
         }).addTo(map);
       }
 
+      // Ajustar zoom para mostrar tudo
       if (bounds.length > 0) {
         const boundsGroup = L.latLngBounds(bounds);
-        map.fitBounds(boundsGroup, { padding: [20, 20] });
+        map.fitBounds(boundsGroup, { padding: [30, 30] });
       }
     }
 
@@ -595,6 +676,116 @@
         console.error('Erro ao carregar estatísticas:', err);
       }
     }
+
+    // Atualizar botões de navegação
+    function atualizarBotoesNavegacao() {
+      const container = document.getElementById('botoesNavegacao');
+      if (!container || !dadosViagem) return;
+
+      const temOrigem = dadosViagem.ORIGEM_LATITUDE && dadosViagem.ORIGEM_LATITUDE != 0;
+      const temDestino = dadosViagem.DESTINO_LATITUDE && dadosViagem.DESTINO_LATITUDE != 0;
+
+      if (!temOrigem && !temDestino) {
+        container.innerHTML = '';
+        return;
+      }
+
+      let html = '';
+      if (temOrigem) {
+        html += `
+          <button class="btn-primary" onclick="abrirNavegacao('origem', ${dadosViagem.ORIGEM_LATITUDE}, ${dadosViagem.ORIGEM_LONGITUDE}, '${(dadosViagem.ORIGEM_CIDADE || '').replace(/'/g, "\\'")}', ${dadosViagem.IDVIAGEM})" style="padding: 8px 16px; font-size: 13px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+            🗺️ Navegar para Origem
+          </button>
+        `;
+      }
+      if (temDestino) {
+        html += `
+          <button class="btn-primary" onclick="abrirNavegacao('destino', ${dadosViagem.DESTINO_LATITUDE}, ${dadosViagem.DESTINO_LONGITUDE}, '${(dadosViagem.DESTINO_CIDADE || '').replace(/'/g, "\\'")}', ${dadosViagem.IDVIAGEM})" style="padding: 8px 16px; font-size: 13px; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+            🗺️ Navegar para Destino
+          </button>
+        `;
+      }
+      container.innerHTML = html;
+    }
+
+    // Navegação integrada melhorada (Google Maps / Waze / Apple Maps)
+    window.abrirNavegacao = async function(tipo, latitude, longitude, cidade, idViagem) {
+      if (!latitude || latitude == 0 || !longitude || longitude == 0) {
+        mostrarToast('Coordenadas não disponíveis para esta localização', 'warning');
+        return;
+      }
+
+      const destino = `${latitude},${longitude}`;
+      const nomeDestino = cidade ? encodeURIComponent(cidade) : encodeURIComponent(`${tipo === 'origem' ? 'Origem' : 'Destino'} - Viagem #${idViagem}`);
+      
+      // Detectar sistema operacional para mostrar opções relevantes
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+      const isAndroid = /Android/.test(navigator.userAgent);
+      
+      // Opções de navegação baseadas no dispositivo
+      let opcoes = [];
+      if (isIOS) {
+        opcoes = ['Apple Maps', 'Google Maps', 'Waze', 'Cancelar'];
+      } else if (isAndroid) {
+        opcoes = ['Google Maps', 'Waze', 'Cancelar'];
+      } else {
+        opcoes = ['Google Maps', 'Waze', 'Cancelar'];
+      }
+      
+      // Mostrar opções de navegação
+      const escolha = await mostrarModal(
+        'Escolher Aplicativo de Navegação',
+        `Abrir navegação para ${tipo === 'origem' ? 'Origem' : 'Destino'} da viagem #${idViagem}?`,
+        opcoes
+      );
+      
+      if (escolha === 'Google Maps') {
+        // Google Maps: usar direções (funciona em app e web)
+        const url = `https://www.google.com/maps/dir/?api=1&destination=${destino}&destination_place_id=${nomeDestino}`;
+        // Tentar abrir app primeiro (Android/iOS)
+        const urlApp = isAndroid 
+          ? `google.navigation:q=${destino}`
+          : isIOS
+          ? `comgooglemaps://?daddr=${destino}&directionsmode=driving`
+          : url;
+        
+        if (isAndroid || isIOS) {
+          const link = document.createElement('a');
+          link.href = urlApp;
+          link.target = '_blank';
+          link.click();
+          
+          // Fallback para web após 500ms
+          setTimeout(() => {
+            window.open(url, '_blank');
+          }, 500);
+        } else {
+          window.open(url, '_blank');
+        }
+      } else if (escolha === 'Waze') {
+        // Waze: formato waze://?ll=latitude,longitude&navigate=yes
+        const urlWaze = `waze://?ll=${destino}&navigate=yes`;
+        const urlWeb = `https://www.waze.com/ul?ll=${destino}&navigate=yes`;
+        
+        // Tentar abrir app Waze
+        const link = document.createElement('a');
+        link.href = urlWaze;
+        link.target = '_blank';
+        link.click();
+        
+        // Fallback para web após 500ms
+        setTimeout(() => {
+          window.open(urlWeb, '_blank');
+        }, 500);
+      } else if (escolha === 'Apple Maps' && isIOS) {
+        // Apple Maps: apenas iOS
+        const url = `maps://?daddr=${destino}&dirflg=d`;
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.click();
+      }
+    };
 
     // Calcular distância
     function calcularDistancia(lat1, lon1, lat2, lon2) {

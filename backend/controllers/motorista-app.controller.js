@@ -578,44 +578,90 @@ const motoristaAppController = {
 
       console.log(`🚛 [VIAGENS] Buscando viagens do motorista ${cdMotorista}`);
 
+      // Validar e converter cdMotorista
+      if (!cdMotorista) {
+        console.error('❌ [VIAGENS] ID do motorista não fornecido');
+        return res.status(400).json({ error: 'ID do motorista é obrigatório' });
+      }
+
+      const cdMotoristaNum = parseFloat(cdMotorista);
+      if (isNaN(cdMotoristaNum) || cdMotoristaNum <= 0) {
+        console.error('❌ [VIAGENS] ID do motorista inválido:', cdMotorista);
+        return res.status(400).json({ error: 'ID do motorista inválido' });
+      }
+
+      console.log(`🔍 [VIAGENS] ID convertido: ${cdMotoristaNum} (tipo: ${typeof cdMotoristaNum})`);
+
       const pool = await poolPromise;
+      
+      if (!pool) {
+        console.error('❌ [VIAGENS] Pool de conexão não disponível');
+        return res.status(500).json({ error: 'Erro de conexão com o banco de dados' });
+      }
 
-      const result = await pool
-        .request()
-        .input('cdMotorista', sql.Decimal(15, 0), cdMotorista)
-        .query(`
-          SELECT 
-            V.IDVIAGEM,
-            R.DSROTEIRO AS ROTEIRO,
-            V.DTPREVINICIO AS DTCARREGAMENTO,
-            V.DTPREVFINAL AS DTDESCARGA,
-            S.DSSITUACAOVIAGEM AS SITUACAO,
-            T.DSTIPOVIAGEM AS TIPO,
-            F.DSCLASSEFROTA AS CLASSE,
-            P.RZSOCIAL AS CONTRATADOR,
-            P.NRCELULAR AS CELULAR_CONTRATADOR,
-            V.VLFRETE AS FRETE,
-            V.PESO,
-            V.CUBAGEM
-          FROM VIAGEMMESTRE V
-          INNER JOIN VIAGEMMOTORISTA M ON V.IDVIAGEM = M.IDVIAGEM
-          INNER JOIN CADASTROGERAL C ON M.CDMOTORISTA = C.CDCADASTRO
-          LEFT JOIN SITUACAOVIAGEM S ON V.CDSITUACAOVIAGEM = S.CDSITUACAOVIAGEM
-          LEFT JOIN TIPOVIAGEM T ON V.CDTIPOVIAGEM = T.CDTIPOVIAGEM
-          LEFT JOIN CLASSEFROTA F ON V.CDCLASSEFROTA = F.CDCLASSEFROTA
-          LEFT JOIN ROTEIRO R ON V.IDROTEIRO = R.IDROTEIRO
-          LEFT JOIN CADASTROGERAL P ON V.CDCONTRATADOR = P.CDCADASTRO
-          WHERE V.FGSITVIAGEM NOT IN ('C', 'F', 'E')
-            AND M.CDMOTORISTA = @cdMotorista
-          ORDER BY V.DTPREVINICIO
-        `);
+      const request = pool.request();
+      request.input('cdMotorista', sql.Decimal(15, 0), cdMotoristaNum);
 
-      console.log(`✅ [VIAGENS] ${result.recordset.length} viagem(ns) encontrada(s)`);
+      const result = await request.query(`
+        SELECT 
+          V.IDVIAGEM,
+          R.DSROTEIRO AS ROTEIRO,
+          V.DTPREVINICIO AS DTCARREGAMENTO,
+          V.DTPREVFINAL AS DTDESCARGA,
+          S.DSSITUACAOVIAGEM AS SITUACAO,
+          T.DSTIPOVIAGEM AS TIPO,
+          F.DSCLASSEFROTA AS CLASSE,
+          P.RZSOCIAL AS CONTRATADOR,
+          P.NRCELULAR AS CELULAR_CONTRATADOR,
+          V.VLFRETE AS FRETE,
+          V.PESO,
+          V.CUBAGEM,
+          CO_ORIGEM.NMCIDADE AS ORIGEM_CIDADE,
+          CO_ORIGEM.ESTADO AS ORIGEM_ESTADO,
+          ISNULL(CO_ORIGEM.LATITUDE, 0) AS ORIGEM_LATITUDE,
+          ISNULL(CO_ORIGEM.LONGITUDE, 0) AS ORIGEM_LONGITUDE,
+          CD_DESTINO.NMCIDADE AS DESTINO_CIDADE,
+          CD_DESTINO.ESTADO AS DESTINO_ESTADO,
+          ISNULL(CD_DESTINO.LATITUDE, 0) AS DESTINO_LATITUDE,
+          ISNULL(CD_DESTINO.LONGITUDE, 0) AS DESTINO_LONGITUDE
+        FROM VIAGEMMESTRE V
+        INNER JOIN VIAGEMMOTORISTA M ON V.IDVIAGEM = M.IDVIAGEM
+        INNER JOIN CADASTROGERAL C ON M.CDMOTORISTA = C.CDCADASTRO
+        LEFT JOIN SITUACAOVIAGEM S ON V.CDSITUACAOVIAGEM = S.CDSITUACAOVIAGEM
+        LEFT JOIN TIPOVIAGEM T ON V.CDTIPOVIAGEM = T.CDTIPOVIAGEM
+        LEFT JOIN CLASSEFROTA F ON V.CDCLASSEFROTA = F.CDCLASSEFROTA
+        LEFT JOIN ROTEIRO R ON V.IDROTEIRO = R.IDROTEIRO
+        LEFT JOIN CADASTROGERAL P ON V.CDCONTRATADOR = P.CDCADASTRO
+        LEFT JOIN CIDADE CO_ORIGEM ON R.CDCIDADEORIGEM = CO_ORIGEM.CDCIDADE
+        LEFT JOIN CIDADE CD_DESTINO ON R.CDCIDADEDESTINO = CD_DESTINO.CDCIDADE
+        WHERE V.FGSITVIAGEM NOT IN ('C', 'F', 'E')
+          AND M.CDMOTORISTA = @cdMotorista
+        ORDER BY V.DTPREVINICIO
+      `);
+
+      console.log(`✅ [VIAGENS] ${result.recordset.length} viagem(ns) encontrada(s) para motorista ${cdMotoristaNum}`);
 
       res.json(result.recordset);
     } catch (error) {
-      console.error('❌ [VIAGENS] Erro:', error);
-      res.status(500).json({ error: 'Erro ao buscar viagens' });
+      console.error('❌ [VIAGENS] Erro ao buscar viagens:', error);
+      console.error('❌ [VIAGENS] Mensagem:', error.message);
+      console.error('❌ [VIAGENS] Stack:', error.stack);
+      console.error('❌ [VIAGENS] Parâmetros recebidos:', req.params);
+      console.error('❌ [VIAGENS] Tipo do erro:', error.constructor.name);
+      
+      // Verificar se é erro de SQL
+      if (error.originalError) {
+        console.error('❌ [VIAGENS] Erro SQL original:', error.originalError.message);
+      }
+
+      res.status(500).json({ 
+        error: 'Erro ao buscar viagens',
+        message: error.message,
+        details: process.env.NODE_ENV === 'development' ? {
+          stack: error.stack,
+          originalError: error.originalError?.message
+        } : undefined
+      });
     }
   },
 

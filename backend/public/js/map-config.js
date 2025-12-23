@@ -29,18 +29,15 @@ window.MAP_CONFIG = {
   // Mas lembre-se: servidor próprio só funciona com HTTP, não HTTPS!
   
   // ====================================
-  // SERVIDOR DE ROTEAMENTO (OSRM)
+  // SERVIDOR DE ROTEAMENTO (ORS - OpenRouteService)
   // ====================================
   // IMPORTANTE: Para mudar o servidor de roteamento, edite a linha abaixo:
   
-  // TEMPORÁRIO: Usando servidor público até configurar HTTPS no servidor próprio
-  osrmServer: 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv',
-  // SERVIDOR PÚBLICO (temporário)
+  // Servidor próprio IntegraBrasil:
+  osrmServer: 'http://app.integrabrasil.com:8080/ors/ors/v2/directions/driving-hgv',
   
-  // Servidor próprio (desabilitado temporariamente - aguardando HTTPS):
-  // osrmServer: 'http://186.250.92.131:8081/ors/v2/directions/driving-hgv',
-  
-  // Outros servidores públicos:
+  // Servidores públicos (fallback):
+  // osrmServer: 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv',
   // osrmServer: 'https://router.project-osrm.org/route/v1/driving-hgv',
   
   // ====================================
@@ -48,12 +45,11 @@ window.MAP_CONFIG = {
   // ====================================
   // IMPORTANTE: Para mudar o servidor de geocoding, edite a linha abaixo:
   
-  // TEMPORÁRIO: Usando servidor público até configurar HTTPS no servidor próprio
-  nominatimServer: 'https://nominatim.openstreetmap.org',
-  // SERVIDOR PÚBLICO (temporário)
+  // Servidor próprio IntegraBrasil:
+  nominatimServer: 'http://app.integrabrasil.com:8080/nominatim',
   
-  // Servidor próprio (desabilitado temporariamente - aguardando HTTPS):
-  // nominatimServer: 'http://186.250.92.131:8082',
+  // Servidor público (fallback):
+  // nominatimServer: 'https://nominatim.openstreetmap.org',
   
   // ====================================
   // CONFIGURAÇÕES GERAIS
@@ -98,12 +94,21 @@ window.MAP_CONFIG = {
 // FUNÇÕES AUXILIARES
 // ====================================
 
-// Obter URL completa do OSRM com pontos
+// Obter URL completa do ORS/OSRM com pontos
 window.getOSRMUrl = function(coordinates, options = {}) {
   const config = window.MAP_CONFIG;
   const { overview = 'full', geometries = 'geojson' } = options;
   const coordsStr = coordinates.map(c => `${c.lon},${c.lat}`).join(';');
-  return `${config.osrmServer}/${coordsStr}?overview=${overview}&geometries=${geometries}`;
+  
+  // Se for ORS (OpenRouteService), usar formato /directions/driving-hgv
+  // Se for OSRM, usar formato /route/v1/driving-hgv
+  if (config.osrmServer && config.osrmServer.includes('/ors/v2')) {
+    // Formato ORS: http://app.integrabrasil.com:8080/ors/ors/v2/directions/driving-hgv
+    return `${config.osrmServer}/${coordsStr}?overview=${overview}&geometries=${geometries}`;
+  } else {
+    // Formato OSRM padrão
+    return `${config.osrmServer}/${coordsStr}?overview=${overview}&geometries=${geometries}`;
+  }
 };
 
 // Obter configuração do tile layer
@@ -126,7 +131,7 @@ window.getTileServerUrl = function() {
   
   // Se for servidor próprio (HTTP), garantir que use HTTP
   // Se for servidor público (HTTPS), manter HTTPS
-  if (tileServer.includes('186.250.92.131')) {
+  if (tileServer.includes('186.250.92.131') || tileServer.includes('app.integrabrasil.com')) {
     tileServer = tileServer.replace(/^https:/, 'http:');
   }
   
