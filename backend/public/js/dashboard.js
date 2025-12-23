@@ -920,6 +920,21 @@
         const html = await response.text();
         contentArea.innerHTML = html;
 
+        // IMPORTANTE: Corrigir links CSS antes de processar scripts
+        // (links CSS são inseridos diretamente no DOM quando innerHTML é usado)
+        const linksInHTML = contentArea.querySelectorAll('link[rel="stylesheet"][href]');
+        linksInHTML.forEach(link => {
+          const href = link.getAttribute('href');
+          if (href && href.startsWith('/') && !href.startsWith('http')) {
+            const hrefCorrigido = corrigirUrl(href);
+            link.setAttribute('href', hrefCorrigido);
+            // Mover para o head se ainda não estiver lá
+            if (link.parentNode !== document.head) {
+              document.head.appendChild(link);
+            }
+          }
+        });
+
         // IMPORTANTE: Executar scripts que estão dentro do HTML inserido
         // (innerHTML não executa scripts automaticamente)
         // Isso é CRÍTICO para map-config.js funcionar!

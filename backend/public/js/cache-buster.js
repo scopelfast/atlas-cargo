@@ -76,11 +76,24 @@
   const originalAppendChild = Node.prototype.appendChild;
   Node.prototype.appendChild = function(child) {
     const result = originalAppendChild.call(this, child);
-    if (child.tagName === 'SCRIPT' && child.src && !child.src.startsWith('http') && !child.src.includes('?v=')) {
-      child.src = window.addCacheBuster(child.src);
+    
+    // Função helper para corrigir URL antes de adicionar cache buster
+    const corrigirSeNecessario = (url) => {
+      if (!url || url.startsWith('http')) return url;
+      // Se corrigirUrl estiver disponível, usar; senão retornar URL original
+      if (typeof window.corrigirUrl === 'function') {
+        return window.corrigirUrl(url);
+      }
+      return url;
+    };
+    
+    if (child.tagName === 'SCRIPT' && child.src && !child.src.startsWith('http') && !child.src.includes('?v=') && !child.src.includes('&v=') && !child.src.includes('?t=')) {
+      const urlCorrigida = corrigirSeNecessario(child.src);
+      child.src = window.addCacheBuster(urlCorrigida);
     }
-    if (child.tagName === 'LINK' && child.rel === 'stylesheet' && child.href && !child.href.startsWith('http') && !child.href.includes('?v=')) {
-      child.href = window.addCacheBuster(child.href);
+    if (child.tagName === 'LINK' && child.rel === 'stylesheet' && child.href && !child.href.startsWith('http') && !child.href.includes('?v=') && !child.href.includes('&v=')) {
+      const urlCorrigida = corrigirSeNecessario(child.href);
+      child.href = window.addCacheBuster(urlCorrigida);
     }
     return result;
   };

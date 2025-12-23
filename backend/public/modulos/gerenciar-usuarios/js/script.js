@@ -186,7 +186,10 @@
       if (tabId === 'grid') {
         try {
           if (typeof window.GridEditor === 'undefined') {
-            try { await loadScript('/js/grid-editor.js'); } catch (e) { console.warn('[Usuários] falha ao carregar GridEditor:', e); }
+            try { 
+              const gridEditorPath = (typeof window.corrigirUrl === 'function') ? window.corrigirUrl('/js/grid-editor.js') : '/js/grid-editor.js';
+              await loadScript(gridEditorPath);
+            } catch (e) { console.warn('[Usuários] falha ao carregar GridEditor:', e); }
           }
 
           if (typeof window.GridEditor !== 'undefined') {
@@ -401,7 +404,9 @@
       // Função para carregar novo script
       const carregarNovoScript = () => {
         const script = document.createElement('script');
-        script.src = `${src}?t=${Date.now()}`; // Cache busting
+        // Usar corrigirUrl se disponível para garantir o caminho base correto
+        const srcCorrigido = (typeof window.corrigirUrl === 'function') ? window.corrigirUrl(src) : src;
+        script.src = `${srcCorrigido}?t=${Date.now()}`; // Cache busting
         script.onload = () => {
           // Aguardar um pouco para garantir que GridEditor está disponível
           setTimeout(() => {
