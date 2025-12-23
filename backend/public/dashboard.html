@@ -236,6 +236,22 @@
         
         return cleanBaseUrl + cleanUrl;
       };
+      
+      // Interceptar fetch() globalmente para corrigir URLs automaticamente
+      const originalFetch = window.fetch;
+      window.fetch = function(input, init) {
+        // Se input é uma string (URL), corrigir
+        if (typeof input === 'string' && !input.startsWith('http://') && !input.startsWith('https://') && input.startsWith('/')) {
+          input = window.corrigirUrl(input);
+        }
+        // Se input é um Request object, criar novo com URL corrigida
+        else if (input && typeof input === 'object' && input.url && !input.url.startsWith('http://') && !input.url.startsWith('https://') && input.url.startsWith('/')) {
+          const correctedUrl = window.corrigirUrl(input.url);
+          input = new Request(correctedUrl, input);
+        }
+        
+        return originalFetch.call(this, input, init);
+      };
     })();
   </script>
 </head>
