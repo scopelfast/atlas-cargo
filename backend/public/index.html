@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>DivulgaCargas</title>
-  <link rel="icon" type="image/png" href="/img/logo7.png" id="faviconLink">
+  <link rel="icon" type="image/png" href="" id="faviconLink">
   <script>
     // INTERCEPTOR GLOBAL: Remover ? de todas as URLs
     (function() {
@@ -802,7 +802,7 @@
     <div class="login-left">
       <div class="login-branding">
         <div class="logo-box">
-          <img id="logoImg" src="/img/logo7.png" alt="Logo Divulga Cargas" />
+          <img id="logoImg" src="" alt="Logo Divulga Cargas" />
         </div>
         <h1 class="brand-title">Divulga<span>Carga</span></h1>
         <p class="brand-subtitle">Sistema de Gestão de Transporte e Logística</p>
@@ -1072,46 +1072,42 @@
           return;
         }
         
-        // Corrigir logo
+        // Corrigir logo - sempre definir, mesmo se src estiver vazio (removido do HTML)
         const logoImg = document.getElementById('logoImg');
         if (logoImg) {
-          const srcAttr = logoImg.getAttribute('src');
-          if (srcAttr) {
-            let urlCompleta;
-            if (srcAttr.startsWith('http')) {
-              urlCompleta = srcAttr;
-            } else if (srcAttr.startsWith('/')) {
-              // Caminho absoluto: /img/logo7.png → baseUrl + /img/logo7.png
-              urlCompleta = baseUrl + srcAttr;
-            } else {
-              // Caminho relativo: img/logo7.png → baseUrl + /img/logo7.png
-              urlCompleta = baseUrl + '/' + srcAttr;
-            }
-            const urlCorrigida = garantirProtocoloConsistente(urlCompleta);
-            logoImg.setAttribute('src', urlCorrigida);
-            console.log('[INDEX] Logo corrigido:', srcAttr, '→', urlCorrigida);
+          const srcAttr = logoImg.getAttribute('src') || '/img/logo7.png';
+          let urlCompleta;
+          if (srcAttr.startsWith('http')) {
+            urlCompleta = srcAttr;
+          } else if (srcAttr.startsWith('/')) {
+            // Caminho absoluto: /img/logo7.png → baseUrl + /img/logo7.png
+            urlCompleta = baseUrl + srcAttr;
+          } else {
+            // Caminho relativo: img/logo7.png → baseUrl + /img/logo7.png
+            urlCompleta = baseUrl + '/' + srcAttr;
           }
+          const urlCorrigida = garantirProtocoloConsistente(urlCompleta);
+          logoImg.setAttribute('src', urlCorrigida);
+          console.log('[INDEX] Logo corrigido:', srcAttr, '→', urlCorrigida);
         }
         
-        // Corrigir favicon
+        // Corrigir favicon - sempre definir, mesmo se href estiver vazio (removido do HTML)
         const faviconLink = document.getElementById('faviconLink');
         if (faviconLink) {
-          const hrefAttr = faviconLink.getAttribute('href');
-          if (hrefAttr) {
-            let urlCompleta;
-            if (hrefAttr.startsWith('http')) {
-              urlCompleta = hrefAttr;
-            } else if (hrefAttr.startsWith('/')) {
-              // Caminho absoluto: /img/logo7.png → baseUrl + /img/logo7.png
-              urlCompleta = baseUrl + hrefAttr;
-            } else {
-              // Caminho relativo: img/logo7.png → baseUrl + /img/logo7.png
-              urlCompleta = baseUrl + '/' + hrefAttr;
-            }
-            const urlCorrigida = garantirProtocoloConsistente(urlCompleta);
-            faviconLink.setAttribute('href', urlCorrigida);
-            console.log('[INDEX] Favicon corrigido:', hrefAttr, '→', urlCorrigida);
+          const hrefAttr = faviconLink.getAttribute('href') || '/img/logo7.png';
+          let urlCompleta;
+          if (hrefAttr.startsWith('http')) {
+            urlCompleta = hrefAttr;
+          } else if (hrefAttr.startsWith('/')) {
+            // Caminho absoluto: /img/logo7.png → baseUrl + /img/logo7.png
+            urlCompleta = baseUrl + hrefAttr;
+          } else {
+            // Caminho relativo: img/logo7.png → baseUrl + /img/logo7.png
+            urlCompleta = baseUrl + '/' + hrefAttr;
           }
+          const urlCorrigida = garantirProtocoloConsistente(urlCompleta);
+          faviconLink.setAttribute('href', urlCorrigida);
+          console.log('[INDEX] Favicon corrigido:', hrefAttr, '→', urlCorrigida);
         }
       }
       
