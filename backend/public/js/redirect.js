@@ -32,12 +32,8 @@
             sessionStorage.setItem('redirectLoopCount', (loopCount + 1).toString());
             console.log('🔄 [REDIRECT] Redirecionando para dashboard...');
             
-            // Forçar HTTP em desenvolvimento local
-            const hostname = window.location.hostname;
-            const isLocal = hostname === 'localhost' || 
-                            hostname === '127.0.0.1' || 
-                            hostname.startsWith('192.168.');
-            const protocol = isLocal ? 'http:' : window.location.protocol;
+            // Usar protocolo atual da página
+            const protocol = window.location.protocol;
             let cleanUrl = protocol + '//' + window.location.host + '/dashboard.html';
             // Garantir que não tenha ? no final
             cleanUrl = cleanUrl.replace(/\?+$/, '');

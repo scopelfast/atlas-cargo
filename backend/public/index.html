@@ -80,37 +80,23 @@
                               hostname === 'beta.integrabrasil.com' || 
                               hostname.includes('integrabrasil.com');
       
-      // CRÍTICO: Servidor QA (beta) não tem HTTPS configurado, forçar HTTP
-      const isQAServer = hostname === 'beta.integrabrasil.com';
-      
-      // CRÍTICO: Usar o protocolo REAL da página (não assumir baseado em porta)
+      // CRÍTICO: Usar o protocolo REAL da página SEM REDIRECIONAMENTO
       // Se a página está em HTTP, usar HTTP; se está em HTTPS, usar HTTPS
+      // NÃO fazer nenhuma conversão, redirecionamento ou "correção"
       const protocoloAtual = window.location.protocol;
       
-      // Apenas em localhost forçar HTTP (desenvolvimento)
-      if (isLocal && protocoloAtual === 'https:') {
-        const cleanUrl = 'http://' + window.location.host + window.location.pathname.replace(/\?+$/, '');
-        console.warn('[INDEX] HTTPS detectado em local, redirecionando para HTTP:', cleanUrl);
-        window.location.replace(cleanUrl);
-        return;
-      }
-      
-      // IMPORTANTE: Servidor QA não tem HTTPS, forçar HTTP mesmo se a página estiver em HTTPS
-      // Isso é necessário porque o servidor não serve arquivos estáticos via HTTPS
-      let protocol = isLocal ? 'http:' : protocoloAtual;
-      if (isQAServer && protocoloAtual === 'https:') {
-        console.warn('[INDEX] Servidor QA detectado em HTTPS, forçando HTTP para recursos');
-        protocol = 'http:';
-        // Redirecionar para HTTP se necessário
-        const httpUrl = 'http://' + window.location.host + window.location.pathname.replace(/\?+$/, '');
-        if (window.location.href !== httpUrl) {
-          console.warn('[INDEX] Redirecionando servidor QA para HTTP:', httpUrl);
-          window.location.replace(httpUrl);
-          return;
-        }
-      }
+      // Usar exatamente o protocolo atual da página, sem nenhuma modificação
+      let protocol = protocoloAtual;
       
       const host = window.location.host;
+      
+      console.log('[INDEX] Construindo baseUrl:', {
+        protocoloAtual,
+        protocol,
+        host,
+        isLocal,
+        pathname: window.location.pathname
+      });
       
       // CRÍTICO: Detectar o caminho base (subdiretório) da aplicação
       // Se a página está em /cargas/, o baseUrl deve incluir /cargas/
@@ -150,29 +136,17 @@
       });
       
       // Função para garantir que URLs usem o mesmo protocolo da página
+      // SIMPLES: se a URL tem protocolo diferente do atual, corrigir para o protocolo atual
       function garantirProtocoloConsistente(url) {
         if (!url) return url;
         
-        // Se for local, sempre HTTP
-        if (isLocal && url.startsWith('https://')) {
+        // Se já tem protocolo completo e é diferente do protocolo atual, corrigir
+        if (url.startsWith('https://') && protocoloAtual === 'http:') {
           return url.replace(/^https:/, 'http:');
         }
         
-        // CRÍTICO: Servidor QA sempre HTTP (não tem HTTPS configurado)
-        if (isQAServer && url.startsWith('https://')) {
-          return url.replace(/^https:/, 'http:');
-        }
-        
-        // Para IntegraBrasil e outros: usar o mesmo protocolo da página
-        // Se a página está em HTTPS e a URL está em HTTP, corrigir para HTTPS
-        // MAS: não fazer isso para servidor QA
-        if (!isQAServer && protocoloAtual === 'https:' && url.startsWith('http://')) {
+        if (url.startsWith('http://') && protocoloAtual === 'https:') {
           return url.replace(/^http:/, 'https:');
-        }
-        
-        // Se a página está em HTTP e a URL está em HTTPS, corrigir para HTTP
-        if (protocoloAtual === 'http:' && url.startsWith('https://')) {
-          return url.replace(/^https:/, 'http:');
         }
         
         return url;
@@ -264,15 +238,21 @@
           // Caminho absoluto: /css/style.css → baseUrl + /css/style.css
           // Se baseUrl já inclui /cargas, fica: https://beta...8443/cargas/css/style.css
           cssUrl = baseUrl + href;
+          console.log('[INDEX] [loadCSS] baseUrl:', baseUrl, 'href:', href, '→ cssUrl:', cssUrl);
         } else {
           // Caminho relativo: css/style.css → baseUrl + /css/style.css
           cssUrl = baseUrl + '/' + href;
+          console.log('[INDEX] [loadCSS] baseUrl:', baseUrl, 'href:', href, '→ cssUrl:', cssUrl);
         }
         
         // Garantir protocolo consistente
+        const cssUrlOriginal = cssUrl;
         cssUrl = garantirProtocoloConsistente(cssUrl);
+        if (cssUrl !== cssUrlOriginal) {
+          console.log('[INDEX] [loadCSS] URL corrigida:', cssUrlOriginal, '→', cssUrl);
+        }
         
-        console.log('[INDEX] Carregando CSS:', cssUrl);
+        console.log('[INDEX] Carregando CSS:', cssUrl, '(protocoloAtual:', protocoloAtual + ')');
         
         // Usar setAttribute para forçar o valor
         link.setAttribute('href', cssUrl);
@@ -946,15 +926,10 @@
       const isIntegraBrasil = hostname === 'app.integrabrasil.com' || 
                               hostname === 'beta.integrabrasil.com' || 
                               hostname.includes('integrabrasil.com');
-      // CRÍTICO: Servidor QA (beta) não tem HTTPS configurado, forçar HTTP
-      const isQAServer = hostname === 'beta.integrabrasil.com';
       const protocoloAtual = window.location.protocol;
       
-      // IMPORTANTE: Servidor QA não tem HTTPS, forçar HTTP mesmo se a página estiver em HTTPS
-      let protocol = isLocal ? 'http:' : protocoloAtual;
-      if (isQAServer && protocoloAtual === 'https:') {
-        protocol = 'http:';
-      }
+      // Usar exatamente o protocolo atual da página, SEM modificações
+      let protocol = protocoloAtual;
       
       // CRÍTICO: Detectar o caminho base (subdiretório) da aplicação
       let pathBase = window.location.pathname;
@@ -971,28 +946,18 @@
       
       const baseUrl = protocol + '//' + window.location.host + (pathBase === '/' ? '' : pathBase.replace(/\/$/, ''));
       
-      // Função para garantir protocolo consistente (mesma lógica da primeira IIFE)
+      // Função para garantir protocolo consistente
+      // SIMPLES: se a URL tem protocolo diferente do atual, corrigir para o protocolo atual
       function garantirProtocoloConsistente(url) {
         if (!url) return url;
         
-        // Se for local, sempre HTTP
-        if (isLocal && url.startsWith('https://')) {
+        // Se já tem protocolo completo e é diferente do protocolo atual, corrigir
+        if (url.startsWith('https://') && protocoloAtual === 'http:') {
           return url.replace(/^https:/, 'http:');
         }
         
-        // CRÍTICO: Servidor QA sempre HTTP (não tem HTTPS configurado)
-        if (isQAServer && url.startsWith('https://')) {
-          return url.replace(/^https:/, 'http:');
-        }
-        
-        // Para IntegraBrasil e outros: usar o mesmo protocolo da página
-        // MAS: não fazer isso para servidor QA
-        if (!isQAServer && protocoloAtual === 'https:' && url.startsWith('http://')) {
+        if (url.startsWith('http://') && protocoloAtual === 'https:') {
           return url.replace(/^http:/, 'https:');
-        }
-        
-        if (protocoloAtual === 'http:' && url.startsWith('https://')) {
-          return url.replace(/^https:/, 'http:');
         }
         
         return url;

@@ -97,10 +97,7 @@
         setTimeout(() => {
           // Forçar HTTP em desenvolvimento local
           const hostname = window.location.hostname;
-          const isLocal = hostname === 'localhost' || 
-                          hostname === '127.0.0.1' || 
-                          hostname.startsWith('192.168.');
-          const protocol = isLocal ? 'http:' : window.location.protocol;
+          const protocol = window.location.protocol;
           let cleanUrl = protocol + '//' + window.location.host + '/';
           // Garantir que não tenha ? no final
           cleanUrl = cleanUrl.replace(/\?+$/, '');
@@ -111,11 +108,8 @@
       }
     }
     // Remover ? e usar replace para não adicionar ao histórico
-    const hostname = window.location.hostname;
-    const isLocal = hostname === 'localhost' || 
-                    hostname === '127.0.0.1' || 
-                    hostname.startsWith('192.168.');
-    const protocol = isLocal ? 'http:' : window.location.protocol;
+    // Usar protocolo atual da página
+    const protocol = window.location.protocol;
     let cleanUrl = protocol + '//' + window.location.host + '/';
     // Garantir que não tenha ? no final
     cleanUrl = cleanUrl.replace(/\?+$/, '');
@@ -149,11 +143,8 @@
       window.__DASHBOARD_INITIALIZING__ = false;
       localStorage.clear();
       // Remover ? e usar replace para não adicionar ao histórico
-    const hostname = window.location.hostname;
-    const isLocal = hostname === 'localhost' || 
-                    hostname === '127.0.0.1' || 
-                    hostname.startsWith('192.168.');
-    const protocol = isLocal ? 'http:' : window.location.protocol;
+    // Usar protocolo atual da página
+    const protocol = window.location.protocol;
     let cleanUrl = protocol + '//' + window.location.host + '/';
     // Garantir que não tenha ? no final
     cleanUrl = cleanUrl.replace(/\?+$/, '');
@@ -167,11 +158,8 @@
       window.__DASHBOARD_INITIALIZING__ = false;
       localStorage.clear();
       // Remover ? e usar replace para não adicionar ao histórico
-    const hostname = window.location.hostname;
-    const isLocal = hostname === 'localhost' || 
-                    hostname === '127.0.0.1' || 
-                    hostname.startsWith('192.168.');
-    const protocol = isLocal ? 'http:' : window.location.protocol;
+    // Usar protocolo atual da página
+    const protocol = window.location.protocol;
     let cleanUrl = protocol + '//' + window.location.host + '/';
     // Garantir que não tenha ? no final
     cleanUrl = cleanUrl.replace(/\?+$/, '');
@@ -610,7 +598,7 @@
   const loadUserMenu = async (userLogin) => {
     try {
       const token = localStorage.getItem('token');
-      const baseUrl = window.__BASE_URL__ || ('http://' + window.location.host);
+      const baseUrl = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
       const url = baseUrl + '/api/menu/user-menu';
       
       const response = await fetch(url, {

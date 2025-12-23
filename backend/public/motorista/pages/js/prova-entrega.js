@@ -51,7 +51,7 @@
   async function carregarViagem() {
     try {
       const token = localStorage.getItem('token');
-      const baseUrl = window.__BASE_URL__ || ('http://' + window.location.host);
+      const baseUrl = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
       
       const response = await fetch(`${baseUrl}/api/motorista/viagem/${idViagem}`, {
         headers: {
@@ -307,7 +307,7 @@
       // Tentar salvar online
       if (window.OfflineDB && window.OfflineDB.isOnline()) {
         const token = localStorage.getItem('token');
-        const baseUrl = window.__BASE_URL__ || ('http://' + window.location.host);
+        const baseUrl = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
         
         const response = await fetch(`${baseUrl}/api/motorista/delivery-proof`, {
           method: 'POST',

@@ -204,7 +204,7 @@ async function sincronizarTudo() {
         const endpoint = item.endpoint || storeInfo.endpoint;
         if (!endpoint) continue;
 
-        const baseUrl = window.__BASE_URL__ || ('http://' + window.location.host);
+        const baseUrl = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
         const url = baseUrl + endpoint;
         
         const response = await fetch(url, {

@@ -17,25 +17,47 @@
                               hostname === 'beta.integrabrasil.com' || 
                               hostname.includes('integrabrasil.com');
       
-      // IMPORTANTE: Usar o protocolo atual da página (transparente)
-      // Se acessar via HTTP, usar HTTP; se via HTTPS, usar HTTPS
+      // CRÍTICO: Usar o protocolo REAL da página SEM REDIRECIONAMENTO
+      // Se a página está em HTTP, usar HTTP; se está em HTTPS, usar HTTPS
       const protocoloAtual = window.location.protocol;
       
-      // Se estiver em local e HTTPS, redirecionar para HTTP
-      if (isLocal && protocoloAtual === 'https:') {
-        const httpUrl = 'http:' + window.location.href.substring(window.location.protocol.length);
-        window.location.replace(httpUrl);
-        return;
+      // Usar exatamente o protocolo atual, SEM modificações
+      const host = window.location.host;
+      
+      // CRÍTICO: Detectar o caminho base (subdiretório) da aplicação
+      // Se a página está em /cargas/motorista/, o pathBase deve ser /cargas/
+      // Se está em /motorista/, o pathBase deve ser /
+      let pathBase = window.location.pathname;
+      
+      // Remover /motorista/index.html ou /motorista/ do final
+      if (pathBase.includes('/motorista')) {
+        const indexMotorista = pathBase.indexOf('/motorista');
+        pathBase = pathBase.substring(0, indexMotorista);
       }
       
-      // Usar o protocolo atual (HTTP ou HTTPS) - transparente
-      const host = window.location.host;
-      const baseUrl = (isLocal ? 'http:' : protocoloAtual) + '//' + host;
+      // Garantir que pathBase seja / se estiver vazio
+      if (!pathBase || pathBase === '') {
+        pathBase = '/';
+      }
+      
+      // Garantir que pathBase termine com / (exceto se for /)
+      if (pathBase !== '/' && !pathBase.endsWith('/')) {
+        pathBase = pathBase + '/';
+      }
+      
+      // Construir baseUrl incluindo o caminho base
+      const baseUrl = protocoloAtual + '//' + host + (pathBase === '/' ? '' : pathBase.replace(/\/$/, ''));
       
       // Criar e injetar recursos ANTES do navegador tentar fazer upgrade
       const head = document.head || document.getElementsByTagName('head')[0];
       
-      console.log('✅ [MOTORISTA] Usando baseUrl:', baseUrl, '| Protocol:', protocoloAtual);
+      console.log('✅ [MOTORISTA] Ambiente detectado:', {
+        protocolo: protocoloAtual,
+        host: host,
+        pathname: window.location.pathname,
+        pathBase: pathBase,
+        baseUrl: baseUrl
+      });
       
       // Favicon
       const favicon = document.createElement('link');
@@ -69,17 +91,7 @@
   </script>
 </head>
 <body>
-  <!-- Script crítico: redirecionar apenas se for localhost em HTTPS -->
-  <script>
-    // Redirecionar apenas se for localhost em HTTPS (desenvolvimento)
-    const hostname = window.location.hostname;
-    const isLocal = hostname === 'localhost' || 
-                    hostname === '127.0.0.1' || 
-                    hostname.startsWith('192.168.');
-    if (isLocal && window.location.protocol === 'https:') {
-      window.location.replace('http:' + window.location.href.substring(window.location.protocol.length));
-    }
-  </script>
+  <!-- Script crítico: SEM redirecionamento - manter protocolo atual -->
   <div class="login-container">
     <div class="logo-section">
       <img id="logoImg" alt="Logo DivulgaCarga" class="logo" src="">
@@ -133,28 +145,44 @@
   </div>
 
   <script>
-    // Carregar scripts e imagem com URLs absolutas forçando HTTP
+    // Carregar scripts com URLs absolutas usando o protocolo atual
     (function() {
-      // Usar baseUrl global ou criar novo
-      const baseUrl = window.__BASE_URL__ || ('http://' + window.location.host);
+      // Usar baseUrl global definido no head, ou calcular se não existir
+      let baseUrl = window.__BASE_URL__;
+      if (!baseUrl) {
+        const protocoloAtual = window.location.protocol;
+        const host = window.location.host;
+        let pathBase = window.location.pathname;
+        
+        // Remover /motorista/index.html ou /motorista/ do final
+        if (pathBase.includes('/motorista')) {
+          pathBase = pathBase.substring(0, pathBase.indexOf('/motorista'));
+        }
+        
+        if (pathBase && !pathBase.endsWith('/') && pathBase !== '/') {
+          pathBase = pathBase + '/';
+        }
+        if (!pathBase || pathBase === '') {
+          pathBase = '/';
+        }
+        
+        baseUrl = protocoloAtual + '//' + host + (pathBase === '/' ? '' : pathBase.replace(/\/$/, ''));
+      }
       
       // Carregar logo imediatamente
       const logoImg = document.getElementById('logoImg');
       if (logoImg) {
         logoImg.src = baseUrl + '/img/logo7.png';
+        console.log('📦 Logo carregado:', logoImg.src);
       }
       
-      // Carregar script auth.js
+      // Carregar script usando o protocolo atual (sem conversões)
       function loadScript(src) {
         const script = document.createElement('script');
-        let url = baseUrl + '/motorista/' + src;
-        // Forçar http:// explicitamente
-        url = url.replace(/^https:/, 'http:');
+        const url = baseUrl + '/motorista/' + src;
         script.src = url;
         script.onerror = function() {
           console.error('❌ Erro ao carregar script:', this.src);
-          // Tentar novamente forçando HTTP
-          this.src = this.src.replace(/^https:/, 'http:');
         };
         console.log('📜 Carregando script:', url);
         document.body.appendChild(script);
@@ -181,11 +209,17 @@
     
     // Registrar Service Worker (após limpar os antigos)
     if ('serviceWorker' in navigator) {
-      // Aguardar um pouco antes de registrar para garantir que recursos HTTP sejam carregados primeiro
+      // Aguardar um pouco antes de registrar para garantir que recursos sejam carregados primeiro
       setTimeout(() => {
+        // Usar baseUrl para construir o caminho correto do Service Worker
+        const baseUrl = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
+        const swPath = '/motorista/sw-workbox.js';
+        
         // Usar sw-workbox.js (versão melhorada com cache inteligente)
         // Para voltar ao sistema anterior, altere para '/motorista/sw.js'
-        navigator.serviceWorker.register('/motorista/sw-workbox.js')
+        navigator.serviceWorker.register(swPath, {
+          scope: '/motorista/'
+        })
         .then((registration) => {
           console.log('✅ Service Worker registrado');
           

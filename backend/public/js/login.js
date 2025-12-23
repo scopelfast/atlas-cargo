@@ -1,6 +1,59 @@
 // backend/public/js/login.js
 console.log('[LOGIN] Script login.js carregado');
 
+// Função para obter o caminho base da aplicação
+function obterCaminhoBase() {
+  // Se já estiver definido no index.html, usar
+  if (window.__BASE_URL__) {
+    return window.__BASE_URL__;
+  }
+  
+  // Caso contrário, calcular a partir do pathname atual
+  const protocol = window.location.protocol;
+  const host = window.location.host;
+  let pathBase = window.location.pathname;
+  
+  // Se termina com .html, remover o arquivo
+  if (pathBase.endsWith('.html')) {
+    const lastSlash = pathBase.lastIndexOf('/');
+    if (lastSlash > 0) {
+      pathBase = pathBase.substring(0, lastSlash + 1);
+    } else {
+      pathBase = '/';
+    }
+  } else if (!pathBase.endsWith('/')) {
+    pathBase = pathBase + '/';
+  }
+  
+  return protocol + '//' + host + (pathBase === '/' ? '' : pathBase.replace(/\/$/, ''));
+}
+
+// Função para corrigir URLs relativas para incluir o caminho base
+function corrigirUrl(url) {
+  if (!url) return url;
+  
+  // Se já é uma URL completa (http:// ou https://), retornar como está
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  
+  // Obter o caminho base
+  const baseUrl = obterCaminhoBase();
+  
+  // Se começa com /, adicionar o caminho base
+  if (url.startsWith('/')) {
+    // Se baseUrl termina com /cargas, a URL /api/auth/login fica https://app.integrabrasil.com:8443/cargas/api/auth/login
+    const fullUrl = baseUrl + url;
+    console.log('[LOGIN] corrigirUrl:', url, '→', fullUrl, '(baseUrl:', baseUrl + ')');
+    return fullUrl;
+  }
+  
+  // Caso contrário, adicionar caminho base + /
+  const fullUrl = baseUrl + '/' + url;
+  console.log('[LOGIN] corrigirUrl:', url, '→', fullUrl, '(baseUrl:', baseUrl + ')');
+  return fullUrl;
+}
+
 // Função para inicializar quando DOM estiver pronto
 function initLogin() {
   console.log('[LOGIN] Inicializando login...');
@@ -62,8 +115,12 @@ function initLogin() {
     if (btnSpan) btnSpan.textContent = 'Entrando...';
 
     try {
-      console.log('[LOGIN] Enviando requisição para /api/auth/login...');
-      const response = await fetch('/api/auth/login', {
+      const baseUrl = obterCaminhoBase();
+      const apiUrl = corrigirUrl('/api/auth/login');
+      console.log('[LOGIN] Base URL:', baseUrl);
+      console.log('[LOGIN] API URL corrigida:', apiUrl);
+      console.log('[LOGIN] Enviando requisição POST para:', apiUrl);
+      const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -103,14 +160,10 @@ function initLogin() {
         // Aguardar um pouco para garantir que localStorage foi salvo
         await new Promise(resolve => setTimeout(resolve, 50));
         
-        // Forçar HTTP em desenvolvimento local
-        const hostname = window.location.hostname;
-        const isLocal = hostname === 'localhost' || 
-                        hostname === '127.0.0.1' || 
-                        hostname.startsWith('192.168.');
-        const protocol = isLocal ? 'http:' : window.location.protocol;
+        // Usar o protocolo atual (HTTP ou HTTPS conforme acessado)
         // Remover qualquer query string vazia (?) e garantir URL limpa
-        let cleanUrl = protocol + '//' + window.location.host + '/dashboard.html';
+        const baseUrl = obterCaminhoBase();
+        let cleanUrl = baseUrl + '/dashboard.html';
         // Garantir que não tenha ? no final
         cleanUrl = cleanUrl.replace(/\?+$/, '');
         console.log('[LOGIN] Redirecionando para:', cleanUrl);
@@ -241,7 +294,8 @@ function initLogin() {
       if (btnSpan) btnSpan.textContent = 'Alterando...';
 
       try {
-        const response = await fetch('/api/auth/alterar-senha', {
+        const apiUrl = corrigirUrl('/api/auth/alterar-senha');
+        const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'

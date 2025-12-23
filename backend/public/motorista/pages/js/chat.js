@@ -14,7 +14,7 @@
   let idViagem = null;
   let mensagens = [];
   let socket = null;
-  const baseUrl = window.__BASE_URL__ || ('http://' + window.location.host);
+  const baseUrl = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
   
   // Obter ID do motorista corretamente
   const idMotorista = motorista?.CDCADASTRO || motorista?.id || motorista?.cdcadastro || null;
