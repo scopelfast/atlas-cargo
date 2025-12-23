@@ -11426,90 +11426,74 @@ function getOverlayMostrado() {
       console.warn('⚠️ [FETCH] Erro ao criar URL object:', e);
     }
     
-    // IMPORTANTE: Para servidores próprios, usar XMLHttpRequest como fallback
-    // porque alguns navegadores convertem fetch() automaticamente para HTTPS
+    // CRÍTICO: Para servidores próprios, usar XMLHttpRequest DIRETAMENTE
+    // porque navegadores modernos convertem fetch() automaticamente para HTTPS
+    // XMLHttpRequest não tem esse problema e respeita o protocolo especificado
     if (isServidorProprio) {
-      try {
-        // Tentar primeiro com fetch
-        const request = new Request(fetchUrl, {
-          method: options.method || 'GET',
-          mode: 'cors',
-          cache: options.cache || 'no-cache',
-          credentials: options.credentials || 'omit',
-          signal: options.signal,
-          headers: options.headers || {}
-        });
-        
-        // Verificar se o request ainda está em HTTPS
-        if (request.url && request.url.startsWith('https://')) {
-          console.warn('⚠️ [FETCH] Navegador converteu para HTTPS, usando XMLHttpRequest como fallback');
-          throw new Error('HTTPS_DETECTED'); // Forçar uso de XMLHttpRequest
-        }
-        
-        const response = await fetch(request);
-        return response;
-      } catch (err) {
-        // Se falhar ou detectar HTTPS, usar XMLHttpRequest
-        if (err.message === 'HTTPS_DETECTED' || err.name === 'TypeError' || err.message.includes('SSL') || err.message.includes('HTTPS')) {
-          console.log('🔄 [FETCH] Usando XMLHttpRequest para forçar HTTP:', fetchUrl.substring(0, 80));
-          return new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open(options.method || 'GET', fetchUrl, true);
-            xhr.responseType = 'json';
-            
-            // Adicionar headers se necessário
-            if (options.headers) {
-              Object.keys(options.headers).forEach(key => {
-                xhr.setRequestHeader(key, options.headers[key]);
-              });
-            }
-            
-            // Timeout
-            if (options.signal) {
-              options.signal.addEventListener('abort', () => {
-                xhr.abort();
-                reject(new Error('Aborted'));
-              });
-            }
-            
-            xhr.onload = function() {
-              if (xhr.status >= 200 && xhr.status < 300) {
-                // Criar um objeto Response-like
-                const response = {
-                  ok: true,
-                  status: xhr.status,
-                  statusText: xhr.statusText,
-                  json: async () => {
-                    try {
-                      return typeof xhr.response === 'string' ? JSON.parse(xhr.response) : xhr.response;
-                    } catch (e) {
-                      return JSON.parse(xhr.responseText);
-                    }
-                  },
-                  text: async () => xhr.responseText,
-                  headers: new Headers(),
-                  url: fetchUrl
-                };
-                resolve(response);
-              } else {
-                reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
-              }
-            };
-            
-            xhr.onerror = function() {
-              reject(new Error('Network error'));
-            };
-            
-            xhr.ontimeout = function() {
-              reject(new Error('Timeout'));
-            };
-            
-            xhr.send(options.body || null);
-          });
-        } else {
-          throw err;
-        }
+      // Garantir que a URL está em HTTP (não HTTPS)
+      const httpUrl = fetchUrl.replace(/^https:/, 'http:');
+      if (httpUrl !== fetchUrl) {
+        console.log('🔄 [FETCH] Corrigindo URL de HTTPS para HTTP:', httpUrl.substring(0, 80));
       }
+      
+      console.log('🔄 [FETCH] Usando XMLHttpRequest diretamente para servidor próprio:', httpUrl.substring(0, 80));
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open(options.method || 'GET', httpUrl, true);
+        xhr.responseType = 'json';
+        
+        // Adicionar headers se necessário
+        if (options.headers) {
+          Object.keys(options.headers).forEach(key => {
+            xhr.setRequestHeader(key, options.headers[key]);
+          });
+        }
+        
+        // Timeout
+        if (options.signal) {
+          options.signal.addEventListener('abort', () => {
+            xhr.abort();
+            reject(new Error('Aborted'));
+          });
+        }
+        
+        // Timeout padrão de 30 segundos
+        xhr.timeout = 30000;
+        
+        xhr.onload = function() {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            // Criar um objeto Response-like
+            const response = {
+              ok: true,
+              status: xhr.status,
+              statusText: xhr.statusText,
+              json: async () => {
+                try {
+                  return typeof xhr.response === 'string' ? JSON.parse(xhr.response) : xhr.response;
+                } catch (e) {
+                  return JSON.parse(xhr.responseText);
+                }
+              },
+              text: async () => xhr.responseText,
+              headers: new Headers(),
+              url: httpUrl
+            };
+            resolve(response);
+          } else {
+            reject(new Error(`HTTP ${xhr.status}: ${xhr.statusText}`));
+          }
+        };
+        
+        xhr.onerror = function() {
+          reject(new Error('Network error'));
+        };
+        
+        xhr.ontimeout = function() {
+          reject(new Error('Timeout'));
+        };
+        
+        xhr.send(options.body || null);
+      });
     }
     
     // Para servidores não-próprios, usar fetch normal
@@ -11954,25 +11938,36 @@ function getOverlayMostrado() {
     // Carregar Leaflet se necessário
     await carregarLeaflet();
 
-    const mapaDiv = document.getElementById('mapaRastreamento');
+    // CRÍTICO: Garantir que a aba está visível antes de buscar o elemento
+    const tabRastreamento = document.getElementById('tab-rastreamento');
+    if (!tabRastreamento) {
+      console.error('❌ [RASTREAMENTO] Aba tab-rastreamento não encontrada no DOM!');
+      mapaRastreamentoInicializando = false;
+      return;
+    }
+    
+    // Verificar se a aba está visível (display não é 'none' e não está oculta)
+    const isTabVisible = tabRastreamento.style.display !== 'none' && 
+                         tabRastreamento.offsetParent !== null &&
+                         window.getComputedStyle(tabRastreamento).display !== 'none';
+    
+    if (!isTabVisible) {
+      console.warn('⚠️ [RASTREAMENTO] Aba não está visível. Tentando mostrar...');
+      tabRastreamento.style.display = 'block';
+      // Aguardar o DOM atualizar
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+    
+    // Agora buscar o elemento
+    let mapaDiv = document.getElementById('mapaRastreamento');
     if (!mapaDiv) {
-      console.error('❌ [RASTREAMENTO] Elemento mapaRastreamento não encontrado! Verificando se a aba está visível...');
-      // Verificar se a aba está visível
-      const tabRastreamento = document.getElementById('tab-rastreamento');
-      if (tabRastreamento) {
-        console.log('ℹ️ [RASTREAMENTO] Aba encontrada. Display:', tabRastreamento.style.display);
-        // Tentar mostrar a aba se estiver oculta
-        if (tabRastreamento.style.display === 'none') {
-          tabRastreamento.style.display = 'block';
-          await new Promise(resolve => setTimeout(resolve, 200));
-          const mapaDivRetry = document.getElementById('mapaRastreamento');
-          if (!mapaDivRetry) {
-            console.error('❌ [RASTREAMENTO] Elemento ainda não encontrado após mostrar aba!');
-            return;
-          }
-        }
-      } else {
-        console.error('❌ [RASTREAMENTO] Aba tab-rastreamento não encontrada no DOM!');
+      console.error('❌ [RASTREAMENTO] Elemento mapaRastreamento não encontrado após mostrar aba!');
+      // Tentar mais uma vez após um delay maior
+      await new Promise(resolve => setTimeout(resolve, 500));
+      mapaDiv = document.getElementById('mapaRastreamento');
+      if (!mapaDiv) {
+        console.error('❌ [RASTREAMENTO] Elemento mapaRastreamento ainda não encontrado após múltiplas tentativas!');
+        mapaRastreamentoInicializando = false;
         return;
       }
     }
