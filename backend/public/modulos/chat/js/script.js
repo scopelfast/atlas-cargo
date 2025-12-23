@@ -634,7 +634,7 @@
     
     // Tentar carregar do servidor local
     const script = document.createElement('script');
-    script.src = '/socket.io/socket.io.js';
+    script.src = (window.corrigirUrl ? window.corrigirUrl('/socket.io/socket.io.js') : '/socket.io/socket.io.js');
     script.onload = () => {
       console.log('✅ Socket.io carregado do servidor local');
       setTimeout(conectarWebSocket, 100);

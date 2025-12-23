@@ -1351,7 +1351,7 @@
       }
 
       const script = document.createElement('script');
-      script.src = '/socket.io/socket.io.js';
+      script.src = (window.corrigirUrl ? window.corrigirUrl('/socket.io/socket.io.js') : '/socket.io/socket.io.js');
       script.onload = () => {
         setTimeout(() => {
           if (typeof io !== 'undefined') {

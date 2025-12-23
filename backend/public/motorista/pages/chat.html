@@ -150,11 +150,24 @@
     <button class="btn-enviar" onclick="enviarMensagem()">📤</button>
   </div>
 
+  <!-- URL Helper - DEVE ser o primeiro script para garantir interceptor de fetch -->
+  <script src="../js/url-helper.js"></script>
   <script src="../js/notifications.js"></script>
   <script src="../js/auth.js"></script>
   <script src="../js/offline.js"></script>
   <script src="../js/notifications-service.js"></script>
-  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    // Carregar socket.io com caminho base correto
+    if (window.corrigirUrl) {
+      const socketScript = document.createElement('script');
+      socketScript.src = window.corrigirUrl('/socket.io/socket.io.js');
+      document.head.appendChild(socketScript);
+    } else {
+      const socketScript = document.createElement('script');
+      socketScript.src = '/socket.io/socket.io.js';
+      document.head.appendChild(socketScript);
+    }
+  </script>
   <script src="js/chat.js"></script>
 </body>
 </html>

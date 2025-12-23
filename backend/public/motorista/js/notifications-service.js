@@ -84,22 +84,36 @@
 
     try {
       // Usar baseUrl para garantir o caminho correto do Service Worker
-      const baseUrl = window.__BASE_URL__ || window.location.origin;
-      const pathname = window.location.pathname;
-      let pathBase = '/';
+      let baseUrl = window.__BASE_URL__;
       
-      // Detectar caminho base (ex: /cargas/)
-      if (pathname.includes('/cargas')) {
-        pathBase = '/cargas/';
-      } else if (pathname.includes('/motorista')) {
-        const indexMotorista = pathname.indexOf('/motorista');
-        pathBase = pathname.substring(0, indexMotorista);
-        if (!pathBase || pathBase === '') pathBase = '/';
-        if (pathBase !== '/' && !pathBase.endsWith('/')) pathBase = pathBase + '/';
+      // Se não tiver __BASE_URL__, calcular a partir do pathname
+      if (!baseUrl) {
+        const pathname = window.location.pathname;
+        let pathBase = '/';
+        
+        // Detectar caminho base (ex: /cargas/)
+        if (pathname.includes('/motorista')) {
+          const indexMotorista = pathname.indexOf('/motorista');
+          pathBase = pathname.substring(0, indexMotorista);
+          if (!pathBase || pathBase === '') pathBase = '/';
+          if (pathBase !== '/' && !pathBase.endsWith('/')) pathBase = pathBase + '/';
+        }
+        
+        baseUrl = window.location.origin + (pathBase === '/' ? '' : pathBase.replace(/\/$/, ''));
       }
       
-      const swPath = baseUrl + (pathBase === '/' ? '' : pathBase.replace(/\/$/, '')) + '/motorista/sw-workbox.js';
-      const scopePath = (pathBase === '/' ? '' : pathBase.replace(/\/$/, '')) + '/motorista/';
+      // Garantir que baseUrl não termine com /
+      const cleanBaseUrl = baseUrl.replace(/\/$/, '');
+      const swPath = cleanBaseUrl + '/motorista/sw-workbox.js';
+      
+      // Calcular scopePath corretamente
+      const pathname = window.location.pathname;
+      let scopePath = '/motorista/';
+      
+      // Se temos /cargas no pathname, incluir no scope
+      if (pathname.includes('/cargas')) {
+        scopePath = '/cargas/motorista/';
+      }
       
       const registration = await navigator.serviceWorker.register(swPath, {
         scope: scopePath

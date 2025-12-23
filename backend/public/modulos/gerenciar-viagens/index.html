@@ -1859,7 +1859,15 @@
   <script src="/js/log-helper.js"></script>
   <!-- GridEditor -->
   <script src="/js/grid-editor.js"></script>
-  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    // Carregar socket.io com caminho base correto
+    (function() {
+      const socketUrl = (window.corrigirUrl ? window.corrigirUrl('/socket.io/socket.io.js') : '/socket.io/socket.io.js');
+      const script = document.createElement('script');
+      script.src = socketUrl;
+      document.head.appendChild(script);
+    })();
+  </script>
   <script src="js/websocket-torre.js"></script>
   <script src="js/script.js?v=202501131600"></script>
 
