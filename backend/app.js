@@ -527,7 +527,13 @@ app.get(['/motorista/manifest.json', '/cargas/motorista/manifest.json'], (req, r
     if (manifest.icons && Array.isArray(manifest.icons)) {
       manifest.icons = manifest.icons.map(icon => {
         // Se src começa com /, adicionar pathBase antes
-        const iconSrc = icon.src.startsWith('/') ? pathBase + icon.src : pathBase + '/' + icon.src;
+        let iconSrc = icon.src;
+        if (iconSrc.startsWith('/')) {
+          iconSrc = pathBase + iconSrc;
+        } else {
+          iconSrc = pathBase + '/' + iconSrc;
+        }
+        console.log('📦 [MANIFEST] Corrigindo ícone:', icon.src, '→', iconSrc);
         return {
           ...icon,
           src: iconSrc
@@ -535,7 +541,7 @@ app.get(['/motorista/manifest.json', '/cargas/motorista/manifest.json'], (req, r
       });
     }
     
-    console.log('📦 [MANIFEST] Icons corrigidos:', manifest.icons);
+    console.log('📦 [MANIFEST] Icons corrigidos:', JSON.stringify(manifest.icons, null, 2));
     
     res.setHeader('Content-Type', 'application/manifest+json');
     res.json(manifest);
