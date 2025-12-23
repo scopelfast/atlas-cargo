@@ -1,11 +1,20 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" style="background-color: #f8f9fa !important; background: #f8f9fa !important;">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#667eea">
   <meta name="description" content="App DivulgaCarga para Motoristas">
   <title>DivulgaCarga - Motorista</title>
+  <style>
+    /* Estilo inline crítico para garantir fundo claro no mobile */
+    html, body {
+      background-color: #f8f9fa !important;
+      background: #f8f9fa !important;
+      margin: 0;
+      padding: 0;
+    }
+  </style>
   <script>
     // CRÍTICO: Executar ANTES de qualquer outro código para detectar ambiente
     (function() {
@@ -150,7 +159,7 @@
     })();
   </script>
 </head>
-<body>
+<body style="background-color: #f8f9fa !important; background: #f8f9fa !important; margin: 0; padding: 0;">
   <!-- Script crítico: SEM redirecionamento - manter protocolo atual -->
   <div class="login-container">
     <div class="logo-section">
@@ -163,7 +172,7 @@
       <h2>Bem-vindo!</h2>
       <p class="description">Entre com seus dados para acessar o sistema</p>
 
-      <form id="loginForm">
+      <form id="loginForm" novalidate>
         <div class="input-group">
           <label for="cpf">CPF</label>
           <input 
@@ -172,7 +181,6 @@
             placeholder="000.000.000-00" 
             maxlength="14"
             inputmode="numeric"
-            pattern="[0-9]*"
             required
           >
         </div>
