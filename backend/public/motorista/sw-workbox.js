@@ -1,16 +1,71 @@
 // Service Worker - APP Motorista
-// Versão: 2.1 - Service Worker básico (sem dependência de CDN)
+// Versão: 2.2 - Suporta caminho base dinâmico (/cargas/)
 // Removido Workbox para evitar problemas com CSP
 
 const CACHE_NAME = 'motorista-v3';
 
-// Arquivos críticos para cache
+// Função para detectar caminho base dinamicamente
+function getBasePath() {
+  try {
+    // Tentar usar o scope do registration se disponível
+    if (self.registration && self.registration.scope) {
+      const scopeUrl = new URL(self.registration.scope);
+      let pathBase = scopeUrl.pathname;
+      
+      // Remover /motorista/ do final se existir
+      if (pathBase.endsWith('/motorista/')) {
+        pathBase = pathBase.substring(0, pathBase.length - '/motorista/'.length);
+      } else if (pathBase.endsWith('/motorista')) {
+        pathBase = pathBase.substring(0, pathBase.length - '/motorista'.length);
+      }
+      
+      // Garantir que pathBase termine sem barra (exceto se for root)
+      if (pathBase !== '/' && pathBase.endsWith('/')) {
+        pathBase = pathBase.replace(/\/$/, '');
+      }
+      
+      return pathBase || '/';
+    }
+    
+    // Fallback: usar a URL do próprio Service Worker
+    if (self.location && self.location.href) {
+      const swUrl = new URL(self.location.href);
+      let pathBase = swUrl.pathname;
+      
+      // Remover nome do arquivo e /motorista/
+      pathBase = pathBase.replace(/\/sw-workbox\.js$/, '');
+      if (pathBase.endsWith('/motorista')) {
+        pathBase = pathBase.substring(0, pathBase.length - '/motorista'.length);
+      }
+      
+      if (pathBase !== '/' && pathBase.endsWith('/')) {
+        pathBase = pathBase.replace(/\/$/, '');
+      }
+      
+      return pathBase || '/';
+    }
+  } catch (e) {
+    console.warn('⚠️ [SW] Erro ao detectar caminho base:', e);
+  }
+  
+  // Fallback padrão: assumir root
+  return '/';
+}
+
+// Detectar caminho base uma vez
+const BASE_PATH = getBasePath();
+const MOTORISTA_PATH = (BASE_PATH === '/' ? '' : BASE_PATH) + '/motorista';
+
+console.log('📦 [SW] Base path detectado:', BASE_PATH);
+console.log('📦 [SW] Motorista path:', MOTORISTA_PATH);
+
+// Arquivos críticos para cache (ajustados com caminho base)
 const urlsToCache = [
-  '/motorista/index.html',
-  '/motorista/pages/dashboard.html',
-  '/motorista/js/auth.js',
-  '/motorista/js/offline.js',
-  '/motorista/css/style.css'
+  `${MOTORISTA_PATH}/index.html`,
+  `${MOTORISTA_PATH}/pages/dashboard.html`,
+  `${MOTORISTA_PATH}/js/auth.js`,
+  `${MOTORISTA_PATH}/js/offline.js`,
+  `${MOTORISTA_PATH}/css/style.css`
 ];
 
 // Instalação: cachear arquivos críticos
@@ -60,8 +115,9 @@ self.addEventListener('fetch', (event) => {
   
   // IMPORTANTE: Este Service Worker é APENAS para o APP Motorista
   // Não interceptar requisições que não são do APP Motorista
-  // Apenas interceptar páginas do APP Motorista (/motorista/*)
-  const isMotoristaPage = url.pathname.startsWith('/motorista/');
+  // Apenas interceptar páginas do APP Motorista (ajustado com caminho base)
+  const motoristaPathPattern = MOTORISTA_PATH + '/';
+  const isMotoristaPage = url.pathname.startsWith(motoristaPathPattern);
   
   // Se não for do APP Motorista, deixar passar sem interceptar
   if (!isMotoristaPage) {
@@ -71,7 +127,10 @@ self.addEventListener('fetch', (event) => {
   // Para recursos compartilhados (/img/, /css/, /js/), só interceptar se vierem de uma página do motorista
   const isSharedResource = url.pathname.startsWith('/img/') || 
                           url.pathname.startsWith('/css/') || 
-                          url.pathname.startsWith('/js/');
+                          url.pathname.startsWith('/js/') ||
+                          (BASE_PATH !== '/' && (url.pathname.startsWith(BASE_PATH + '/img/') || 
+                                                  url.pathname.startsWith(BASE_PATH + '/css/') || 
+                                                  url.pathname.startsWith(BASE_PATH + '/js/')));
   
   if (isSharedResource) {
     // Verificar se a requisição veio de uma página do motorista através do referer
@@ -143,7 +202,7 @@ self.addEventListener('fetch', (event) => {
             }
             // Se não há cache, retornar página offline padrão
             if (event.request.destination === 'document') {
-              return caches.match('/motorista/index.html');
+              return caches.match(`${MOTORISTA_PATH}/index.html`);
             }
             return new Response('Recurso não disponível offline', {
               status: 404,
@@ -283,7 +342,7 @@ self.addEventListener('push', (event) => {
   let data = {
     title: 'LogiTrack Pro',
     body: 'Nova notificação',
-    icon: '/img/logo7.png',
+    icon: (BASE_PATH === '/' ? '' : BASE_PATH) + '/img/logo7.png',
     tag: 'notification',
     tipo: 'geral',
     dados: {}
@@ -300,10 +359,11 @@ self.addEventListener('push', (event) => {
     }
   }
 
+  const iconPath = (BASE_PATH === '/' ? '' : BASE_PATH) + '/img/logo7.png';
   const options = {
     body: data.body,
-    icon: data.icon || '/img/logo7.png',
-    badge: '/img/logo7.png',
+    icon: data.icon || iconPath,
+    badge: iconPath,
     vibrate: data.tipo === 'sos' ? [200, 100, 200, 100, 200] : [200, 100, 200],
     tag: data.tag || `notification-${Date.now()}`,
     requireInteraction: data.tipo === 'sos',
@@ -339,15 +399,15 @@ self.addEventListener('notificationclick', (event) => {
   const action = event.action;
   const dados = event.notification.data || {};
 
-  let url = '/motorista/pages/dashboard.html';
+  let url = `${MOTORISTA_PATH}/pages/dashboard.html`;
 
   // Determinar URL baseado na ação ou tipo
   if (action === 'abrir-chat' || dados.acao === 'chat') {
-    url = `/motorista/pages/chat.html?viagem=${dados.idViagem || ''}`;
+    url = `${MOTORISTA_PATH}/pages/chat.html?viagem=${dados.idViagem || ''}`;
   } else if (action === 'abrir-sos' || dados.acao === 'sos') {
-    url = '/motorista/pages/sos.html';
+    url = `${MOTORISTA_PATH}/pages/sos.html`;
   } else if (dados.acao === 'viagem') {
-    url = '/motorista/pages/viagens.html';
+    url = `${MOTORISTA_PATH}/pages/viagens.html`;
   }
 
   event.waitUntil(
