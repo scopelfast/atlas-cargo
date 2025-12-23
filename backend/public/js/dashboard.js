@@ -28,13 +28,18 @@
       }
       
       baseUrl = window.location.protocol + '//' + window.location.host + (pathBase === '/' ? '' : pathBase.replace(/\/$/, ''));
+      console.log('🔧 [DASHBOARD] corrigirUrl: __BASE_URL__ não definido, calculado:', baseUrl, 'de pathname:', pathname);
+    } else {
+      console.log('🔧 [DASHBOARD] corrigirUrl: usando __BASE_URL__:', baseUrl);
     }
     
     // Garantir que baseUrl não termine com / antes de concatenar
     const cleanBaseUrl = baseUrl.replace(/\/$/, '');
     const cleanUrl = url.startsWith('/') ? url : '/' + url;
+    const finalUrl = cleanBaseUrl + cleanUrl;
     
-    return cleanBaseUrl + cleanUrl;
+    console.log('🔧 [DASHBOARD] corrigirUrl:', url, '→', finalUrl);
+    return finalUrl;
   };
   
   // Verificar se o DOM já está pronto
