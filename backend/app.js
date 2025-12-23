@@ -126,6 +126,24 @@ const getAllCSPUrls = () => {
   return urls;
 };
 
+// Função para gerar URLs de Nominatim usando as constantes
+// NOTA: Nominatim e ORS estão disponíveis APENAS no servidor de produção (APP), não no beta
+const getNominatimUrls = () => {
+  const urls = [];
+  // Nominatim: url/nominatim/ (sempre HTTP na porta 8080, apenas produção)
+  urls.push(`http://${URL_CONFIG.APP.HTTP}/${URL_CONFIG.ROUTES.NOMINATIM}`);
+  return urls;
+};
+
+// Função para gerar URLs de ORS usando as constantes
+// NOTA: Nominatim e ORS estão disponíveis APENAS no servidor de produção (APP), não no beta
+const getORSUrls = () => {
+  const urls = [];
+  // ORS: url/ors/ (sempre HTTP na porta 8080, apenas produção)
+  urls.push(`http://${URL_CONFIG.APP.HTTP}/${URL_CONFIG.ROUTES.ORS}`);
+  return urls;
+};
+
 const CSP_URLS = getAllCSPUrls();
 
 // Configuração do Helmet - CSP mais permissivo em desenvolvimento
@@ -169,61 +187,42 @@ const helmetConfig = {
         "blob:",
         "https://*.tile.openstreetmap.org",
         "https://tile.openstreetmap.org",
-        "http://186.250.92.131:8081", // Servidor próprio de tiles (HTTP)
-        "http://186.250.92.131:8082", // Servidor próprio Nominatim (HTTP)
-        "https://186.250.92.131:8081", // Servidor próprio de tiles (HTTPS)
-        "https://186.250.92.131:8082", // Servidor próprio Nominatim (HTTPS)
-        // Em desenvolvimento, permitir HTTP em IPs locais
+        // Em desenvolvimento, permitir HTTP em localhost
         ...(isDevelopment ? [
           "http://localhost:*",
-          "http://127.0.0.1:*",
-          "http://192.168.0.0/16",
-          "http://10.0.0.0/8",
-          "http://172.16.0.0/12"
+          "http://127.0.0.1:*"
         ] : [])
       ],
       connectSrc: [
         "'self'",
+        // URLs locais (apenas para desenvolvimento local)
         "http://localhost:*",
         "ws://localhost:*",
         "http://127.0.0.1:*",
-        "http://192.168.1.173:*", // IP específico da rede local
-        "ws://192.168.1.173:*", // WebSocket para IP local
-        "http://192.168.0.0/16", // Permitir toda a faixa 192.168.x.x
-        "ws://192.168.0.0/16", // WebSocket para toda a faixa 192.168.x.x
-        "http://10.0.0.0/8", // Permitir faixa 10.x.x.x
-        "ws://10.0.0.0/8", // WebSocket para faixa 10.x.x.x
-        "http://172.16.0.0/12", // Permitir faixa 172.16.x.x - 172.31.x.x
-        "ws://172.16.0.0/12", // WebSocket para faixa 172.16.x.x - 172.31.x.x
-        ...CSP_URLS, // URLs de Beta e App (HTTP/HTTPS/WS/WSS) geradas dinamicamente
+        // URLs geradas dinamicamente a partir de URL_CONFIG (Beta e App)
+        ...CSP_URLS, // URLs base de Beta e App (HTTP/HTTPS/WS/WSS) geradas dinamicamente
+        ...getNominatimUrls(), // URLs de Nominatim (app.integrabrasil.com:8080/nominatim/) - apenas produção
+        ...getORSUrls(), // URLs de ORS (app.integrabrasil.com:8080/ors/) - apenas produção
+        // Serviços externos/CDN
         "https://fonts.googleapis.com",
         "https://fonts.gstatic.com",
         "https://cdn.jsdelivr.net",
+        "https://unpkg.com", // Para Leaflet source maps
+        // Servidores públicos de mapas/roteamento (fallback)
         "https://router.project-osrm.org", // Para cálculo de rotas no mapa
         "https://routing.openstreetmap.de", // Servidor alternativo de roteamento
-        "https://unpkg.com", // Para Leaflet source maps
-        "https://nominatim.openstreetmap.org", // Para geocodificação reversa
+        "https://nominatim.openstreetmap.org", // Para geocodificação reversa (servidor público fallback)
         "https://a.tile.openstreetmap.org", // Para tiles do OpenStreetMap
         "https://b.tile.openstreetmap.org", // Para tiles do OpenStreetMap
         "https://c.tile.openstreetmap.org", // Para tiles do OpenStreetMap
-        "https://tile.openstreetmap.org", // Para tiles do OpenStreetMap (fallback)
-        "http://186.250.92.131:8081", // Servidor próprio de tiles (HTTP)
-        "http://186.250.92.131:8082", // Servidor próprio Nominatim (HTTP)
-        "https://186.250.92.131:8081", // Servidor próprio de tiles (HTTPS)
-        "https://186.250.92.131:8082" // Servidor próprio Nominatim (HTTPS)
+        "https://tile.openstreetmap.org" // Para tiles do OpenStreetMap (fallback)
       ],
       formAction: [
         "'self'",
-        "http://localhost:*",
-        "http://127.0.0.1:*",
-        "http://192.168.1.173:*", // IP específico da rede local
-        "http://192.168.0.0/16", // Permitir toda a faixa 192.168.x.x
-        "http://10.0.0.0/8", // Permitir faixa 10.x.x.x
-        "http://172.16.0.0/12", // Permitir faixa 172.16.x.x - 172.31.x.x
-        `http://${URL_CONFIG.BETA.HTTP}`, // Servidor beta (HTTP)
-        `https://${URL_CONFIG.BETA.HTTPS}`, // Servidor beta (HTTPS)
-        `http://${URL_CONFIG.APP.HTTP}`, // Servidor app (HTTP)
-        `https://${URL_CONFIG.APP.HTTPS}` // Servidor app (HTTPS)
+        `http://${URL_CONFIG.BETA.HTTP}`, // Servidor beta (HTTP) - gerado dinamicamente
+        `https://${URL_CONFIG.BETA.HTTPS}`, // Servidor beta (HTTPS) - gerado dinamicamente
+        `http://${URL_CONFIG.APP.HTTP}`, // Servidor app (HTTP) - gerado dinamicamente
+        `https://${URL_CONFIG.APP.HTTPS}` // Servidor app (HTTPS) - gerado dinamicamente
       ],
       frameSrc: ["'self'"],
       objectSrc: ["'none'"]
