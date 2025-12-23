@@ -10,10 +10,10 @@ echo "==> Pulling latest changes from Git..."
 git pull origin main   # ou branch que você usa
 
 echo "==> Rebuilding and restarting containers..."
-sudo docker compose up -d --build --force-recreate
+docker compose up -d --build --force-recreate
 
 echo "==> Clean up unused images..."
-sudo docker image prune -f
+docker image prune -f
 
 echo "✅ Update complete."
 
