@@ -85,11 +85,24 @@ function getOverlayMostrado() {
     const overlayTexto = document.getElementById('calculandoOverlayTexto');
     const overlayDetalhe = document.getElementById('calculandoOverlayDetalhe');
     
-    if (overlay && overlayTitulo && overlayTexto && overlayDetalhe) {
-      overlayTitulo.textContent = titulo;
-      overlayTexto.textContent = texto;
-      overlayDetalhe.textContent = detalhe;
+    if (overlay) {
+      // Atualizar textos se os elementos existirem
+      if (overlayTitulo) overlayTitulo.textContent = titulo;
+      if (overlayTexto) overlayTexto.textContent = texto;
+      if (overlayDetalhe) overlayDetalhe.textContent = detalhe;
+      
+      // Garantir que o overlay está visível com z-index alto
       overlay.style.display = 'flex';
+      overlay.style.zIndex = '99999';
+      overlay.style.position = 'fixed';
+      overlay.style.top = '0';
+      overlay.style.left = '0';
+      overlay.style.right = '0';
+      overlay.style.bottom = '0';
+      
+      console.log('✅ Overlay de carregamento exibido:', titulo);
+    } else {
+      console.warn('⚠️ Overlay calculandoOverlay não encontrado no DOM!');
     }
   }
 
@@ -1886,12 +1899,23 @@ async function loadRoteiroParaEdicao(id) {
       
       console.log('✅ Validações passadas, iniciando requisição...');
       
-      // Mostrar loading e overlay
+      // Desabilitar botão primeiro para evitar múltiplos cliques
+      if (btnGerarResumo) {
+        btnGerarResumo.disabled = true;
+        btnGerarResumo.style.opacity = '0.6';
+        btnGerarResumo.style.cursor = 'not-allowed';
+      }
+      
+      // Mostrar overlay IMEDIATAMENTE (antes de qualquer outra operação)
       showCalculandoOverlay('Gerando Resumo da Rota', 'Processando informações da rota e gerando resumo detalhado...', 'Isso pode levar alguns segundos.');
+      
+      // Garantir que o overlay foi exibido
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Mostrar loading no botão (se disponível)
       if (btnGerarResumo && typeof window.showLoading !== 'undefined') {
         window.showLoading(btnGerarResumo, true);
       }
-      if (btnGerarResumo) btnGerarResumo.disabled = true;
       
       if (campoResumo) {
         campoResumo.value = 'Gerando resumo da rota...\n\nAguarde, isso pode levar alguns segundos...';
@@ -1949,7 +1973,11 @@ async function loadRoteiroParaEdicao(id) {
       if (btnGerarResumo && typeof window.showLoading !== 'undefined') {
         window.showLoading(btnGerarResumo, false);
       }
-      if (btnGerarResumo) btnGerarResumo.disabled = false;
+      if (btnGerarResumo) {
+        btnGerarResumo.disabled = false;
+        btnGerarResumo.style.opacity = '1';
+        btnGerarResumo.style.cursor = 'pointer';
+      }
     }
   }
   

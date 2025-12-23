@@ -255,24 +255,30 @@
 
       // Atualizar cards de estatísticas
 
-      if (typeof window.GridEditor !== 'undefined' && gridTab) {
-        try {
-          gridTab.render(usuarios);
-        } catch (e) {}
-      }
-
       // GridEditor já é carregado globalmente pelo dashboard.js
+      // Aguardar GridEditor estar disponível antes de renderizar (sem mostrar warning - é esperado)
       if (typeof window.GridEditor === 'undefined') {
-        console.warn('⚠️ [Usuários] GridEditor não disponível. Aguardando carregamento global...');
-        // Aguardar um pouco para o dashboard.js carregar
-        await new Promise(resolve => setTimeout(resolve, 500));
+        // Aguardar GridEditor ser carregado (máximo 2 segundos = 10 tentativas de 200ms)
+        let tentativas = 0;
+        while (typeof window.GridEditor === 'undefined' && tentativas < 10) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+          tentativas++;
+        }
       }
 
+      // Renderizar grid se GridEditor estiver disponível
       if (typeof window.GridEditor !== 'undefined') {
-        if (!gridTab) inicializarGridTab();
         try {
-          gridTab.render(usuarios);
-        } catch (e) {}
+          if (!gridTab) {
+            inicializarGridTab();
+          }
+          if (gridTab) {
+            gridTab.render(usuarios);
+          }
+        } catch (e) {
+          // Erro silencioso - não bloquear o módulo
+          console.warn('⚠️ [Usuários] Erro ao renderizar grid:', e);
+        }
       }
 
       showTab(openTab);
@@ -859,7 +865,8 @@
   // Carregar usuários para aba de acessos
   async function carregarUsuariosParaAcessos() {
     try {
-      const response = await fetch('/api/usuarios');
+      // Filtrar apenas usuários ativos (FGACTIVE = 'S')
+      const response = await fetch('/api/usuarios?situacao=S');
       const usuarios = await response.json();
       const select = document.getElementById('usuarioAcessoSelect');
       if (select) {
@@ -983,7 +990,7 @@
     await carregarFiliaisUsuario(login);
   }
 
-  // Carregar atividades do usuário (agrupadas por FGGRUPO)
+  // Carregar atividades do usuário (agrupadas por FGGRUPO - versão simplificada e prática)
   async function carregarAtividadesUsuario(login) {
     try {
       const response = await fetch(`/api/usuarios/${login}/atividades`);
@@ -995,7 +1002,8 @@
       // Agrupar atividades por FGGRUPO
       const atividadesPorGrupo = {};
       atividadesDisponiveis.forEach(atividade => {
-        const grupo = atividade.FGGRUPO || 'OUTROS';
+        // Garantir que o grupo existe (pode ser null, undefined ou string vazia)
+        const grupo = (atividade.FGGRUPO && atividade.FGGRUPO.trim()) ? atividade.FGGRUPO.trim() : 'OUTROS';
         if (!atividadesPorGrupo[grupo]) {
           atividadesPorGrupo[grupo] = [];
         }
@@ -1003,7 +1011,13 @@
       });
 
       // Ordenar grupos (CADASTROS, EQUIPAMENTOS, VIAGENS, etc.)
-      const ordemGrupos = ['CADASTROS', 'EQUIPAMENTOS', 'VIAGENS & LOGÍSTICA', 'GESTÃO & ADMINISTRAÇÃO', 'OUTROS'];
+      const ordemGrupos = [
+        'CADASTROS',
+        'EQUIPAMENTOS',
+        'VIAGENS & LOGÍSTICA',
+        'GESTÃO & ADMINISTRAÇÃO',
+        'OUTROS'
+      ];
       const gruposOrdenados = Object.keys(atividadesPorGrupo).sort((a, b) => {
         const indexA = ordemGrupos.indexOf(a);
         const indexB = ordemGrupos.indexOf(b);
@@ -1026,27 +1040,27 @@
           if (temAcesso) selecionadas++;
         });
 
-        const grupoDiv = document.createElement('div');
-        grupoDiv.className = 'grupo-atividades';
-        grupoDiv.id = grupoId;
-        grupoDiv.innerHTML = `
-          <div class="grupo-atividades-header" onclick="toggleGrupo('${grupoId}')">
-            <h4>
-              <span class="grupo-arrow">▼</span>
-              ${grupo}
-              <span class="grupo-badge">${atividadesDoGrupo.length} atividade(s)</span>
-            </h4>
-            <div class="grupo-actions">
-              <span class="grupo-resumo">${selecionadas}/${atividadesDoGrupo.length} selecionadas</span>
-              <button class="grupo-toggle-btn" onclick="event.stopPropagation(); selecionarTodosGrupo('${grupoId}', true);" title="Selecionar todos">
-                ✓ Todos
-              </button>
-              <button class="grupo-toggle-btn" onclick="event.stopPropagation(); selecionarTodosGrupo('${grupoId}', false);" title="Desselecionar todos">
-                ✕ Nenhum
-              </button>
+        // Criar seção do grupo (layout melhorado)
+        const grupoSection = document.createElement('div');
+        grupoSection.className = 'grupo-atividades-section';
+        
+        // Calcular percentual de seleção para cor do contador
+        const percentual = atividadesDoGrupo.length > 0 ? (selecionadas / atividadesDoGrupo.length) * 100 : 0;
+        const contadorClass = percentual === 100 ? 'grupo-contador completo' : percentual > 0 ? 'grupo-contador parcial' : 'grupo-contador';
+        const todosSelecionados = selecionadas === atividadesDoGrupo.length;
+        
+        grupoSection.innerHTML = `
+          <div class="grupo-atividades-titulo">
+            <h4>${grupo}</h4>
+            <div class="grupo-atividades-controles">
+              <span class="${contadorClass}">${selecionadas}/${atividadesDoGrupo.length}</span>
+              <div class="grupo-checkbox-toggle" onclick="toggleTodosGrupo('${grupoId}')" title="${todosSelecionados ? 'Desselecionar todos' : 'Selecionar todos'}">
+                <input type="checkbox" id="toggle_${grupoId}" ${todosSelecionados ? 'checked' : ''} onchange="toggleTodosGrupo('${grupoId}')">
+                <label for="toggle_${grupoId}">Todos</label>
+              </div>
             </div>
           </div>
-          <div class="grupo-atividades-body">
+          <div class="grupo-atividades-lista" id="${grupoId}">
             ${atividadesDoGrupo.map(atividade => {
               const temAcesso = atividadesUsuario.some(au => au.CDTIPOATIVIDADE === atividade.CDTIPOATIVIDADE && au.TEM_ACESSO === 1);
               return `
@@ -1055,15 +1069,16 @@
                          value="${atividade.CDTIPOATIVIDADE}" ${temAcesso ? 'checked' : ''}
                          onchange="atualizarResumoGrupo('${grupoId}')">
                   <label for="atividade_${atividade.CDTIPOATIVIDADE}">
-                    ${atividade.DSTIPOATIVIDADE}
-                    ${atividade.DSPROGRAMA ? `<small style="color: #6c757d; display: block; margin-top: 2px;">${atividade.DSPROGRAMA}</small>` : ''}
+                    <strong>${atividade.DSTIPOATIVIDADE}</strong>
+                    ${atividade.DSPROGRAMA ? `<span class="programa-nome">${atividade.DSPROGRAMA}</span>` : ''}
                   </label>
+                  ${temAcesso ? '<div class="check-indicator">✓</div>' : '<div class="check-indicator">✓</div>'}
                 </div>
               `;
             }).join('')}
           </div>
         `;
-        container.appendChild(grupoDiv);
+        container.appendChild(grupoSection);
       });
 
       // Se não há grupos, mostrar mensagem
@@ -1075,21 +1090,20 @@
     }
   }
 
-  // Funções globais para interação com grupos
-  window.toggleGrupo = function(grupoId) {
-    const grupo = document.getElementById(grupoId);
-    if (grupo) {
-      grupo.classList.toggle('collapsed');
-    }
-  };
-
-  window.selecionarTodosGrupo = function(grupoId, selecionar) {
+  // Funções globais para interação com grupos (versão simplificada)
+  window.toggleTodosGrupo = function(grupoId) {
     const grupo = document.getElementById(grupoId);
     if (!grupo) return;
     
-    const checkboxes = grupo.querySelectorAll('input[type="checkbox"]');
+    const toggleCheckbox = document.getElementById(`toggle_${grupoId}`);
+    if (!toggleCheckbox) return;
+    
+    const selecionar = toggleCheckbox.checked;
+    const checkboxes = grupo.querySelectorAll('input[type="checkbox"]:not(#toggle_' + grupoId + ')');
     checkboxes.forEach(cb => {
       cb.checked = selecionar;
+      // Disparar evento change para atualizar indicadores
+      cb.dispatchEvent(new Event('change'));
     });
     atualizarResumoGrupo(grupoId);
   };
@@ -1098,13 +1112,43 @@
     const grupo = document.getElementById(grupoId);
     if (!grupo) return;
     
-    const checkboxes = grupo.querySelectorAll('input[type="checkbox"]');
+    // Excluir o toggle checkbox da contagem
+    const checkboxes = grupo.querySelectorAll('input[type="checkbox"]:not(#toggle_' + grupoId + ')');
     const total = checkboxes.length;
     const selecionadas = Array.from(checkboxes).filter(cb => cb.checked).length;
     
-    const resumo = grupo.querySelector('.grupo-resumo');
-    if (resumo) {
-      resumo.textContent = `${selecionadas}/${total} selecionadas`;
+    // Atualizar indicadores visuais de cada checkbox
+    checkboxes.forEach(cb => {
+      const checkboxItem = cb.closest('.checkbox-item');
+      const indicator = checkboxItem?.querySelector('.check-indicator');
+      if (indicator) {
+        indicator.style.display = cb.checked ? 'flex' : 'none';
+      }
+    });
+    
+    // Atualizar toggle checkbox do grupo
+    const toggleCheckbox = document.getElementById(`toggle_${grupoId}`);
+    if (toggleCheckbox) {
+      toggleCheckbox.checked = selecionadas === total && total > 0;
+      toggleCheckbox.indeterminate = selecionadas > 0 && selecionadas < total;
+    }
+    
+    // Atualizar contador no título do grupo
+    const grupoSection = grupo.closest('.grupo-atividades-section');
+    if (grupoSection) {
+      const contador = grupoSection.querySelector('.grupo-contador');
+      if (contador) {
+        contador.textContent = `${selecionadas}/${total}`;
+        
+        // Atualizar classe do contador baseado no percentual
+        contador.classList.remove('completo', 'parcial');
+        const percentual = total > 0 ? (selecionadas / total) * 100 : 0;
+        if (percentual === 100) {
+          contador.classList.add('completo');
+        } else if (percentual > 0) {
+          contador.classList.add('parcial');
+        }
+      }
     }
   };
 

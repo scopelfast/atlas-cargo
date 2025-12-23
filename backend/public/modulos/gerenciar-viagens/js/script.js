@@ -11439,7 +11439,16 @@ function getOverlayMostrado() {
       console.log('🔄 [FETCH] Usando XMLHttpRequest diretamente para servidor próprio:', httpUrl.substring(0, 80));
       return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open(options.method || 'GET', httpUrl, true);
+        
+        // CRÍTICO: Garantir que a URL está SEMPRE em HTTP antes de abrir
+        // Remover qualquer tentativa de HTTPS (mesmo que já tenha sido corrigido antes)
+        let urlFinal = httpUrl;
+        if (urlFinal.startsWith('https://')) {
+          urlFinal = urlFinal.replace(/^https:/, 'http:');
+          console.warn('🔄 [FETCH] URL ainda estava em HTTPS, corrigindo para HTTP:', urlFinal.substring(0, 80));
+        }
+        
+        xhr.open(options.method || 'GET', urlFinal, true);
         xhr.responseType = 'json';
         
         // Adicionar headers se necessário
@@ -11476,7 +11485,7 @@ function getOverlayMostrado() {
               },
               text: async () => xhr.responseText,
               headers: new Headers(),
-              url: httpUrl
+              url: urlFinal
             };
             resolve(response);
           } else {
@@ -12093,9 +12102,8 @@ function getOverlayMostrado() {
         await new Promise(resolve => setTimeout(resolve, 100));
       }
       
-      // Verificar novamente se o elemento ainda existe
-      const mapaDivCheck = document.getElementById('mapaRastreamento');
-      if (!mapaDivCheck) {
+      // Verificar novamente se o elemento ainda existe (usar mapaDiv já verificado)
+      if (!mapaDiv) {
         console.error('❌ [RASTREAMENTO] Elemento mapaRastreamento não encontrado no DOM após limpeza!');
         mapaRastreamentoInicializando = false;
         return;
@@ -12126,15 +12134,15 @@ function getOverlayMostrado() {
       }
       
       // Verificar novamente se o container está limpo antes de criar
-      if (mapaDivCheck._leaflet_id) {
+      if (mapaDiv._leaflet_id) {
         console.warn('⚠️ [RASTREAMENTO] Container ainda tem _leaflet_id. Forçando limpeza...');
-        mapaDivCheck.innerHTML = '';
-        delete mapaDivCheck._leaflet_id;
+        mapaDiv.innerHTML = '';
+        delete mapaDiv._leaflet_id;
         await new Promise(resolve => setTimeout(resolve, 150));
       }
       
       // Garantir que o elemento tem dimensões antes de criar o mapa
-      if (mapaDivCheck.offsetWidth === 0 || mapaDivCheck.offsetHeight === 0) {
+      if (mapaDiv.offsetWidth === 0 || mapaDiv.offsetHeight === 0) {
         console.warn('⚠️ [RASTREAMENTO] Container não tem dimensões. Aguardando renderização...');
         await new Promise(resolve => setTimeout(resolve, 300));
       }

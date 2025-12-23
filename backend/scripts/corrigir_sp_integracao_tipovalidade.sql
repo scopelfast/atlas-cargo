@@ -34,7 +34,25 @@ BEGIN
     
     BEGIN TRY
         MERGE DIVULGACARGA_PRD.dbo.TIPOVALIDADE AS dest
-        USING INTEGRA_PRD.dbo.TIPOVALIDADE AS src
+        USING (
+            SELECT 
+                CDTIPOVALIDADE,
+                -- Truncar DSTIPOVALIDADE para 40 caracteres (tamanho da coluna)
+                LEFT(LTRIM(RTRIM(ISNULL(DSTIPOVALIDADE, ''))), 40) AS DSTIPOVALIDADE,
+                -- Garantir que campos char(1) tenham apenas 1 caractere
+                LEFT(LTRIM(RTRIM(ISNULL(FGVEICULO, ''))), 1) AS FGVEICULO,
+                LEFT(LTRIM(RTRIM(ISNULL(FGMOTORISTA, ''))), 1) AS FGMOTORISTA,
+                LEFT(LTRIM(RTRIM(ISNULL(FGTRANSPORTADOR, ''))), 1) AS FGTRANSPORTADOR,
+                LEFT(LTRIM(RTRIM(ISNULL(FGCLIENTE, ''))), 1) AS FGCLIENTE,
+                LEFT(LTRIM(RTRIM(ISNULL(FGFORNECEDOR, ''))), 1) AS FGFORNECEDOR,
+                LEFT(LTRIM(RTRIM(ISNULL(FGEXIGECERTIFICADORA, ''))), 1) AS FGEXIGECERTIFICADORA,
+                DHMAINTENANCE,
+                -- Truncar SGUSER para 50 caracteres
+                LEFT(LTRIM(RTRIM(ISNULL(SGUSER, ''))), 50) AS SGUSER,
+                -- Truncar SERVERORIG para 50 caracteres
+                LEFT(LTRIM(RTRIM(ISNULL(SERVERORIG, ''))), 50) AS SERVERORIG
+            FROM INTEGRA_PRD.dbo.TIPOVALIDADE
+        ) AS src
             ON dest.CDTIPOVALIDADE = src.CDTIPOVALIDADE
         WHEN MATCHED THEN
             UPDATE SET
@@ -84,10 +102,11 @@ BEGIN
         DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
         DECLARE @ErrorState INT = ERROR_STATE();
         
+        -- Usar CONVERT com tamanho explícito para evitar overflow
         PRINT '❌ Erro na SP_INTGRACAO_TIPOVALIDADE:';
-        PRINT '   Número: ' + CAST(@ErrorNumber AS VARCHAR(10));
-        PRINT '   Severidade: ' + CAST(@ErrorSeverity AS VARCHAR(10));
-        PRINT '   Estado: ' + CAST(@ErrorState AS VARCHAR(10));
+        PRINT '   Número: ' + CONVERT(VARCHAR(10), @ErrorNumber);
+        PRINT '   Severidade: ' + CONVERT(VARCHAR(10), @ErrorSeverity);
+        PRINT '   Estado: ' + CONVERT(VARCHAR(10), @ErrorState);
         PRINT '   Mensagem: ' + @ErrorMessage;
         
         -- Re-lançar o erro para que seja capturado pelo Node.js

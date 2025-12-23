@@ -398,84 +398,362 @@
       gap: 10px;
       margin-top: 15px;
     }
-    /* Estilos para grupos de atividades */
-    .grupo-atividades {
-      background: white;
-      border: 1px solid #dee2e6;
-      border-radius: 8px;
-      margin-bottom: 15px;
-      overflow: hidden;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    /* Container principal - Grid horizontal para distribuir grupos */
+    #atividadesContainer {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+      width: 100%;
     }
-    .grupo-atividades-header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 15px 20px;
-      cursor: pointer;
+    
+    /* Estilos para grupos de atividades - LAYOUT MELHORADO */
+    .grupo-atividades-section {
+      background: white;
+      border: 2px solid #e9ecef;
+      border-radius: 12px;
+      padding: 0;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      transition: all 0.3s ease;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 400px;
+    }
+    .grupo-atividades-section:hover {
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      border-color: #667eea;
+    }
+    .grupo-atividades-titulo {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      transition: all 0.3s;
-      user-select: none;
-    }
-    .grupo-atividades-header:hover {
-      background: linear-gradient(135deg, #5568d3 0%, #653a91 100%);
-    }
-    .grupo-atividades-header h4 {
-      margin: 0;
-      font-size: 16px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .grupo-atividades-header .grupo-badge {
-      background: rgba(255,255,255,0.2);
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 500;
-    }
-    .grupo-atividades-header .grupo-actions {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
-    .grupo-toggle-btn {
-      background: rgba(255,255,255,0.2);
-      border: none;
+      padding: 14px 16px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       color: white;
-      padding: 5px 10px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 12px;
-      transition: all 0.2s;
+      margin: 0;
     }
-    .grupo-toggle-btn:hover {
-      background: rgba(255,255,255,0.3);
-    }
-    .grupo-arrow {
-      transition: transform 0.3s;
-      font-size: 18px;
-    }
-    .grupo-atividades.collapsed .grupo-arrow {
-      transform: rotate(-90deg);
-    }
-    .grupo-atividades-body {
-      padding: 15px 20px;
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    .grupo-atividades-titulo h4 {
+      margin: 0;
+      color: white;
+      font-size: 16px;
+      font-weight: 700;
+      text-transform: none;
+      letter-spacing: 0.3px;
+      display: flex;
+      align-items: center;
       gap: 10px;
-      max-height: 500px;
+    }
+    .grupo-atividades-titulo h4::before {
+      content: '📁';
+      font-size: 24px;
+    }
+    .grupo-atividades-controles {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .grupo-contador {
+      background: rgba(255, 255, 255, 0.25);
+      backdrop-filter: blur(10px);
+      color: white;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: 700;
+      min-width: 70px;
+      text-align: center;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    .grupo-contador.completo {
+      background: rgba(40, 167, 69, 0.3);
+      border-color: rgba(40, 167, 69, 0.5);
+    }
+    .grupo-contador.parcial {
+      background: rgba(255, 193, 7, 0.3);
+      border-color: rgba(255, 193, 7, 0.5);
+    }
+    .grupo-checkbox-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+      padding: 6px 10px;
+      border-radius: 6px;
+      transition: all 0.2s ease;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .grupo-checkbox-toggle:hover {
+      background: rgba(255, 255, 255, 0.2);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+    .grupo-checkbox-toggle input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: white;
+      margin: 0;
+      flex-shrink: 0;
+    }
+    .grupo-checkbox-toggle input[type="checkbox"]:indeterminate {
+      background-color: rgba(255, 255, 255, 0.5);
+    }
+    .grupo-checkbox-toggle label {
+      color: white;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      margin: 0;
+      white-space: nowrap;
+    }
+    .grupo-atividades-lista {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 16px;
+      background: #f8f9fa;
+      flex: 1;
       overflow-y: auto;
+      max-height: calc(100vh - 400px);
     }
-    .grupo-atividades.collapsed .grupo-atividades-body {
+    .checkbox-item {
+      background: white;
+      border: 2px solid #e9ecef;
+      border-radius: 8px;
+      padding: 10px 12px;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .checkbox-item input[type="checkbox"] {
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    .checkbox-item::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 4px;
+      height: 100%;
+      background: #667eea;
+      transform: scaleY(0);
+      transition: transform 0.3s ease;
+    }
+    .checkbox-item:hover {
+      border-color: #667eea;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+      transform: translateY(-2px);
+    }
+    .checkbox-item:hover::before {
+      transform: scaleY(1);
+    }
+    .checkbox-item input[type="checkbox"]:checked + label {
+      color: #667eea;
+    }
+    .checkbox-item input[type="checkbox"]:checked + label strong {
+      color: #667eea;
+    }
+    .checkbox-item input[type="checkbox"]:checked ~ .check-indicator {
+      display: flex;
+    }
+    .check-indicator {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #28a745;
+      font-weight: bold;
+      font-size: 16px;
+      background: #d4edda;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
       display: none;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid #28a745;
     }
-    .grupo-resumo {
-      font-size: 12px;
-      color: rgba(255,255,255,0.9);
-      margin-left: 10px;
+    .checkbox-item label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      cursor: pointer;
+      margin: 0;
+      flex: 1;
+      transition: color 0.2s;
+      position: relative;
+    }
+    .checkbox-item label strong {
+      color: #2c3e50;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+    .checkbox-item input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+      margin-right: 8px;
+      accent-color: #667eea;
+    }
+    .programa-nome {
+      color: #6c757d;
+      font-size: 11px;
+      font-weight: 500;
+      font-style: normal;
+      background: #f1f3f5;
+      padding: 3px 6px;
+      border-radius: 4px;
+      display: inline-block;
+      margin-top: 3px;
+    }
+    
+    /* ========== RESPONSIVIDADE ========== */
+    
+    /* Tablet (≤1024px) */
+    @media (max-width: 1024px) {
+      #atividadesContainer {
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+      }
+      
+      .grupo-atividades-titulo {
+        padding: 12px 14px;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      
+      .grupo-atividades-titulo h4 {
+        font-size: 15px;
+      }
+      
+      .grupo-atividades-controles {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      
+      .grupo-contador {
+        font-size: 13px;
+        padding: 5px 12px;
+        min-width: 60px;
+      }
+      
+      .grupo-checkbox-toggle {
+        padding: 5px 8px;
+      }
+      
+      .grupo-checkbox-toggle label {
+        font-size: 12px;
+      }
+    }
+    
+    /* Mobile (≤768px) */
+    @media (max-width: 768px) {
+      #atividadesContainer {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+      
+      .grupo-atividades-section {
+        min-height: auto;
+      }
+      
+      .grupo-atividades-titulo {
+        padding: 12px;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+      }
+      
+      .grupo-atividades-titulo h4 {
+        font-size: 14px;
+        width: 100%;
+      }
+      
+      .grupo-atividades-titulo h4::before {
+        font-size: 20px;
+      }
+      
+      .grupo-atividades-controles {
+        width: 100%;
+        justify-content: space-between;
+        flex-wrap: nowrap;
+      }
+      
+      .grupo-contador {
+        font-size: 12px;
+        padding: 4px 10px;
+        min-width: 55px;
+      }
+      
+      .grupo-checkbox-toggle {
+        padding: 4px 8px;
+      }
+      
+      .grupo-checkbox-toggle label {
+        font-size: 11px;
+      }
+      
+      .grupo-atividades-lista {
+        padding: 12px;
+        gap: 8px;
+        max-height: none;
+      }
+      
+      .checkbox-item {
+        padding: 10px;
+      }
+      
+      .checkbox-item label strong {
+        font-size: 12px;
+      }
+      
+      .programa-nome {
+        font-size: 10px;
+        padding: 2px 5px;
+      }
+    }
+    
+    /* Mobile pequeno (≤480px) */
+    @media (max-width: 480px) {
+      .grupo-atividades-titulo h4 {
+        font-size: 13px;
+      }
+      
+      .grupo-contador {
+        font-size: 11px;
+        padding: 3px 8px;
+        min-width: 50px;
+      }
+      
+      .grupo-checkbox-toggle {
+        padding: 3px 6px;
+      }
+      
+      .grupo-checkbox-toggle input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+      }
+      
+      .grupo-checkbox-toggle label {
+        font-size: 10px;
+      }
+      
+      .checkbox-item {
+        padding: 8px;
+      }
+      
+      .checkbox-item label strong {
+        font-size: 11px;
+      }
     }
     .list-item:hover {
       background-color: #f8f9fa !important;
@@ -772,7 +1050,7 @@
           <div class="acesso-section">
             <h3>Atividades (Permissões)</h3>
             <p style="color: #6c757d; margin-bottom: 10px;">Selecione as atividades que o usuário pode realizar no sistema:</p>
-            <div id="atividadesContainer" class="checkbox-grid">
+            <div id="atividadesContainer">
               <p class="empty">Carregando atividades...</p>
             </div>
           </div>

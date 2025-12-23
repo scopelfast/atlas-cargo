@@ -691,10 +691,11 @@ const listarTodasAtividades = async (req, res) => {
           CDTIPOATIVIDADE,
           DSTIPOATIVIDADE,
           DSPROGRAMA,
-          FGACTIVE
+          FGACTIVE,
+          ISNULL(FGGRUPO, 'OUTROS') AS FGGRUPO
         FROM [dbo].[TIPOATIVIDADE]
         WHERE FGACTIVE = 'S'
-        ORDER BY DSTIPOATIVIDADE
+        ORDER BY ISNULL(FGGRUPO, 'OUTROS'), DSTIPOATIVIDADE
       `);
 
     res.json(result.recordset);
