@@ -80,8 +80,8 @@
                               hostname === 'beta.integrabrasil.com' || 
                               hostname.includes('integrabrasil.com');
       
-      // IMPORTANTE: Usar o protocolo atual da página (transparente)
-      // Se acessar via HTTP, usar HTTP; se via HTTPS, usar HTTPS
+      // CRÍTICO: Usar o protocolo REAL da página (não assumir baseado em porta)
+      // Se a página está em HTTP, usar HTTP; se está em HTTPS, usar HTTPS
       const protocoloAtual = window.location.protocol;
       
       // Apenas em localhost forçar HTTP (desenvolvimento)
@@ -92,7 +92,8 @@
         return;
       }
       
-      // Usar o protocolo atual (HTTP ou HTTPS) - transparente
+      // IMPORTANTE: Usar o protocolo REAL da página (não assumir nada)
+      // Se está em HTTP, usar HTTP; se está em HTTPS, usar HTTPS
       const protocol = isLocal ? 'http:' : protocoloAtual;
       const host = window.location.host;
       const baseUrl = protocol + '//' + host;
@@ -102,7 +103,8 @@
         hostname,
         porta: window.location.port || (protocoloAtual === 'https:' ? '443' : '80'),
         protocolo: protocoloAtual,
-        baseUrl
+        baseUrl,
+        observacao: 'Usando protocolo REAL da página (não assumindo baseado em porta)'
       });
       
       // Função para garantir que URLs usem o mesmo protocolo da página
