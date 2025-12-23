@@ -230,7 +230,9 @@
       // Função para carregar novo script (declarada como função nomeada para evitar problemas de hoisting)
       function carregarNovoScript() {
         const script = document.createElement('script');
-        script.src = `${src}?t=${Date.now()}`; // Cache busting
+        // Usar corrigirUrl se disponível para garantir o caminho base correto
+        const srcCorrigido = (typeof window.corrigirUrl === 'function') ? window.corrigirUrl(src) : src;
+        script.src = `${srcCorrigido}?t=${Date.now()}`; // Cache busting
         script.onload = () => {
           // Aguardar um pouco para garantir que GridEditor está disponível
           setTimeout(() => {

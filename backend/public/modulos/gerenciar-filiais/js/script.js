@@ -541,7 +541,9 @@
       
       const carregarNovoScript = () => {
         const script = document.createElement('script');
-        script.src = `${src}?t=${Date.now()}`;
+        // Usar corrigirUrl se disponível para garantir o caminho base correto
+        const srcCorrigido = (typeof window.corrigirUrl === 'function') ? window.corrigirUrl(src) : src;
+        script.src = `${srcCorrigido}?t=${Date.now()}`;
         script.onload = () => {
           setTimeout(() => {
             if (typeof GridEditor !== 'undefined') {

@@ -87,13 +87,41 @@
       return url;
     };
     
-    if (child.tagName === 'SCRIPT' && child.src && !child.src.startsWith('http') && !child.src.includes('?v=') && !child.src.includes('&v=') && !child.src.includes('?t=')) {
-      const urlCorrigida = corrigirSeNecessario(child.src);
-      child.src = window.addCacheBuster(urlCorrigida);
+    // Para scripts: sempre corrigir URL primeiro, mesmo se já tiver cache busting
+    if (child.tagName === 'SCRIPT' && child.src && !child.src.startsWith('http')) {
+      // Separar URL base dos query params
+      const urlParts = child.src.split('?');
+      const urlBase = urlParts[0];
+      const queryParams = urlParts.length > 1 ? '?' + urlParts.slice(1).join('?') : '';
+      
+      // Corrigir URL base
+      const urlCorrigida = corrigirSeNecessario(urlBase);
+      
+      // Se não tem cache buster ainda, adicionar (mas preservar ?t= se existir)
+      if (!queryParams.includes('?v=') && !queryParams.includes('&v=') && !queryParams.includes('?t=') && !queryParams.includes('&t=')) {
+        child.src = window.addCacheBuster(urlCorrigida) + queryParams;
+      } else {
+        // Já tem cache busting, apenas corrigir a URL base
+        child.src = urlCorrigida + queryParams;
+      }
     }
-    if (child.tagName === 'LINK' && child.rel === 'stylesheet' && child.href && !child.href.startsWith('http') && !child.href.includes('?v=') && !child.href.includes('&v=')) {
-      const urlCorrigida = corrigirSeNecessario(child.href);
-      child.href = window.addCacheBuster(urlCorrigida);
+    // Para links CSS: sempre corrigir URL primeiro, mesmo se já tiver parâmetros
+    if (child.tagName === 'LINK' && child.rel === 'stylesheet' && child.href && !child.href.startsWith('http')) {
+      // Separar URL base dos query params
+      const urlParts = child.href.split('?');
+      const urlBase = urlParts[0];
+      const queryParams = urlParts.length > 1 ? '?' + urlParts.slice(1).join('?') : '';
+      
+      // Corrigir URL base
+      const urlCorrigida = corrigirSeNecessario(urlBase);
+      
+      // Se não tem cache buster ainda, adicionar
+      if (!queryParams.includes('?v=') && !queryParams.includes('&v=')) {
+        child.href = window.addCacheBuster(urlCorrigida) + queryParams;
+      } else {
+        // Já tem cache busting, apenas corrigir a URL base
+        child.href = urlCorrigida + queryParams;
+      }
     }
     return result;
   };
