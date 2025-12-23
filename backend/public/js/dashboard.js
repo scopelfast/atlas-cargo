@@ -228,7 +228,7 @@
 
     // Vincula link de documentação CSS
     document.getElementById('docLink')?.addEventListener('click', () => {
-      window.open('/css/documentacao-modulos.html', '_blank');
+      window.open(corrigirUrl('/css/documentacao-modulos.html'), '_blank');
     });
 
     // Vincula clique no logo para voltar ao início
@@ -851,7 +851,8 @@
           console.log('📍 [DASHBOARD] Carregando map-config.js antes do módulo...');
           await new Promise((resolve, reject) => {
             // Verificar se já está carregando
-            if (document.querySelector('script[src="/js/map-config.js"]')) {
+            const mapConfigUrl = corrigirUrl('/js/map-config.js');
+            if (document.querySelector(`script[src="${mapConfigUrl}"]`)) {
               // Aguardar até estar disponível
               const checkInterval = setInterval(() => {
                 if (window.MAP_CONFIG && window.getTileServerUrl) {
@@ -869,7 +870,7 @@
             } else {
               // Carregar map-config.js
               const script = document.createElement('script');
-              script.src = '/js/map-config.js';
+              script.src = corrigirUrl('/js/map-config.js');
               script.onload = () => {
                 console.log('✅ [DASHBOARD] map-config.js carregado');
                 resolve();
@@ -886,7 +887,7 @@
         }
       }
 
-      const response = await fetch(`/modulos/${programa}/index.html`);
+      const response = await fetch(corrigirUrl(`/modulos/${programa}/index.html`));
       if (response.ok) {
         const html = await response.text();
         contentArea.innerHTML = html;
@@ -905,6 +906,11 @@
             // Caminho relativo - converter para absoluto baseado no módulo
             scriptSrc = `/modulos/${programa}/${scriptSrc}`;
             console.log('📍 [DASHBOARD] Convertendo caminho relativo:', oldScript.getAttribute('src'), '→', scriptSrc);
+          }
+          
+          // Garantir que o caminho use o baseUrl correto
+          if (scriptSrc && scriptSrc.startsWith('/')) {
+            scriptSrc = corrigirUrl(scriptSrc);
           }
           
           const newScript = document.createElement('script');
@@ -954,14 +960,14 @@
         // Carregar script de permissões primeiro (se ainda não estiver carregado)
         if (!window.Permissions) {
           const permissionsScript = document.createElement('script');
-          permissionsScript.src = '/js/permissions.js';
+          permissionsScript.src = corrigirUrl('/js/permissions.js');
           contentArea.appendChild(permissionsScript);
         }
 
         // Carregar log-helper se ainda não estiver carregado
         if (!window.logAberturaTela) {
           const logHelperScript = document.createElement('script');
-          logHelperScript.src = '/js/log-helper.js';
+          logHelperScript.src = corrigirUrl('/js/log-helper.js');
           contentArea.appendChild(logHelperScript);
         }
 
