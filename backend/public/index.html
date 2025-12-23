@@ -120,41 +120,66 @@
       const baseUrl = protocol + '//' + host;
       window.__BASE_URL__ = baseUrl;
       
-      // Função para forçar HTTP em URLs (usada por MutationObserver)
-      function forcarHTTP(url) {
-        if ((isLocal || isIntegraBrasil) && url && url.startsWith('https://')) {
+      // Função para corrigir protocolo em URLs (usada por MutationObserver)
+      function corrigirProtocoloURL(url) {
+        if (!url) return url;
+        
+        // Se for local, sempre HTTP
+        if (isLocal && url.startsWith('https://')) {
           return url.replace(/^https:/, 'http:');
         }
+        
+        // Se for IntegraBrasil, usar o protocolo correto baseado na porta atual
+        if (isIntegraBrasil) {
+          // Se estamos em porta HTTPS (8443) e a URL está em HTTP, corrigir para HTTPS
+          if (portasHTTPS.includes(portaAtual) && url.startsWith('http://')) {
+            return url.replace(/^http:/, 'https:');
+          }
+          
+          // Se estamos em porta HTTP (8080) e a URL está em HTTPS, corrigir para HTTP
+          if (portasHTTP.includes(portaAtual) && url.startsWith('https://')) {
+            return url.replace(/^https:/, 'http:');
+          }
+          
+          // Se não está em nenhuma porta conhecida, usar o protocolo esperado
+          if (protocoloEsperado === 'https:' && url.startsWith('http://')) {
+            return url.replace(/^http:/, 'https:');
+          }
+          if (protocoloEsperado === 'http:' && url.startsWith('https://')) {
+            return url.replace(/^https:/, 'http:');
+          }
+        }
+        
         return url;
       }
       
-      // MutationObserver para interceptar e corrigir URLs HTTPS automaticamente
+      // MutationObserver para interceptar e corrigir URLs automaticamente
       const observer = new MutationObserver(function(mutations) {
         mutations.forEach(function(mutation) {
           mutation.addedNodes.forEach(function(node) {
             if (node.nodeType === 1) { // Element node
               // Corrigir links CSS
-              if (node.tagName === 'LINK' && node.rel === 'stylesheet') {
-                if (node.href && node.href.startsWith('https://') && (isLocal || isIntegraBrasil)) {
-                  const httpUrl = forcarHTTP(node.href);
-                  node.setAttribute('href', httpUrl);
-                  console.warn('[INDEX] [Observer] CSS corrigido para HTTP:', httpUrl);
+              if (node.tagName === 'LINK' && node.rel === 'stylesheet' && node.href) {
+                const urlCorrigida = corrigirProtocoloURL(node.href);
+                if (urlCorrigida !== node.href) {
+                  node.setAttribute('href', urlCorrigida);
+                  console.warn('[INDEX] [Observer] CSS corrigido:', node.href, '→', urlCorrigida);
                 }
               }
               // Corrigir scripts
               if (node.tagName === 'SCRIPT' && node.src) {
-                if (node.src.startsWith('https://') && (isLocal || isIntegraBrasil)) {
-                  const httpUrl = forcarHTTP(node.src);
-                  node.setAttribute('src', httpUrl);
-                  console.warn('[INDEX] [Observer] Script corrigido para HTTP:', httpUrl);
+                const urlCorrigida = corrigirProtocoloURL(node.src);
+                if (urlCorrigida !== node.src) {
+                  node.setAttribute('src', urlCorrigida);
+                  console.warn('[INDEX] [Observer] Script corrigido:', node.src, '→', urlCorrigida);
                 }
               }
               // Corrigir imagens
               if (node.tagName === 'IMG' && node.src) {
-                if (node.src.startsWith('https://') && (isLocal || isIntegraBrasil)) {
-                  const httpUrl = forcarHTTP(node.src);
-                  node.setAttribute('src', httpUrl);
-                  console.warn('[INDEX] [Observer] Imagem corrigida para HTTP:', httpUrl);
+                const urlCorrigida = corrigirProtocoloURL(node.src);
+                if (urlCorrigida !== node.src) {
+                  node.setAttribute('src', urlCorrigida);
+                  console.warn('[INDEX] [Observer] Imagem corrigida:', node.src, '→', urlCorrigida);
                 }
               }
             }
@@ -166,31 +191,36 @@
       observer.observe(document.head, { childList: true, subtree: true });
       observer.observe(document.body, { childList: true, subtree: true });
       
-      // Função para carregar CSS com HTTP forçado em local ou IntegraBrasil
+      // Função para carregar CSS com protocolo correto
       function loadCSS(href) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
         link.type = 'text/css';
         let cssUrl;
-        if (isLocal || isIntegraBrasil) {
-          cssUrl = 'http://' + host + (href.startsWith('/') ? href : '/' + href);
-          console.log('[INDEX] Carregando CSS via HTTP:', cssUrl);
+        
+        if (href.startsWith('http')) {
+          cssUrl = href; // URL absoluta, usar como está
         } else {
-          cssUrl = href.startsWith('http') ? href : baseUrl + (href.startsWith('/') ? href : '/' + href);
+          cssUrl = baseUrl + (href.startsWith('/') ? href : '/' + href);
         }
         
-        // Usar setAttribute para forçar o valor HTTP
+        // Corrigir protocolo se necessário
+        cssUrl = corrigirProtocoloURL(cssUrl);
+        
+        console.log('[INDEX] Carregando CSS:', cssUrl);
+        
+        // Usar setAttribute para forçar o valor
         link.setAttribute('href', cssUrl);
         
         // Adicionar tratamento de erro
         link.onerror = function() {
           console.error('❌ [INDEX] Erro ao carregar CSS:', link.href);
-          // Se falhou, tentar HTTP novamente
-          if ((isLocal || isIntegraBrasil) && link.href) {
-            const httpUrl = forcarHTTP(link.href);
-            if (httpUrl !== link.href) {
-              console.log('🔄 [INDEX] Tentando carregar CSS via HTTP:', httpUrl);
-              link.setAttribute('href', httpUrl);
+          // Se falhou, tentar corrigir protocolo novamente
+          if (link.href) {
+            const urlCorrigida = corrigirProtocoloURL(link.href);
+            if (urlCorrigida !== link.href) {
+              console.log('🔄 [INDEX] Tentando carregar CSS com protocolo corrigido:', urlCorrigida);
+              link.setAttribute('href', urlCorrigida);
               return;
             }
           }
@@ -201,7 +231,7 @@
             newLink.rel = 'stylesheet';
             newLink.type = 'text/css';
             let retryUrl = link.href || cssUrl;
-            retryUrl = forcarHTTP(retryUrl);
+            retryUrl = corrigirProtocoloURL(retryUrl);
             newLink.setAttribute('href', retryUrl + (retryUrl.includes('?') ? '&' : '?') + 'retry=' + Date.now());
             document.head.appendChild(newLink);
           }, 1000);
@@ -218,52 +248,56 @@
       loadCSS('/css/boxicons.min.css');
       loadCSS('/css/style.css');
       
-      // Monitorar continuamente e corrigir URLs HTTPS
+      // Monitorar continuamente e corrigir URLs
       setInterval(function() {
-        if (isLocal || isIntegraBrasil) {
-          // Corrigir todos os links CSS
-          document.querySelectorAll('link[rel="stylesheet"]').forEach(function(link) {
-            if (link.href && link.href.startsWith('https://')) {
-              const httpUrl = forcarHTTP(link.href);
-              link.setAttribute('href', httpUrl);
+        // Corrigir todos os links CSS
+        document.querySelectorAll('link[rel="stylesheet"]').forEach(function(link) {
+          if (link.href) {
+            const urlCorrigida = corrigirProtocoloURL(link.href);
+            if (urlCorrigida !== link.href) {
+              link.setAttribute('href', urlCorrigida);
             }
-          });
-          
-          // Corrigir todos os scripts
-          document.querySelectorAll('script[src]').forEach(function(script) {
-            if (script.src && script.src.startsWith('https://')) {
-              const httpUrl = forcarHTTP(script.src);
-              script.setAttribute('src', httpUrl);
+          }
+        });
+        
+        // Corrigir todos os scripts
+        document.querySelectorAll('script[src]').forEach(function(script) {
+          if (script.src) {
+            const urlCorrigida = corrigirProtocolo(script.src);
+            if (urlCorrigida !== script.src) {
+              script.setAttribute('src', urlCorrigida);
             }
-          });
-          
-          // Corrigir todas as imagens
-          document.querySelectorAll('img[src]').forEach(function(img) {
-            if (img.src && img.src.startsWith('https://')) {
-              const httpUrl = forcarHTTP(img.src);
-              img.setAttribute('src', httpUrl);
+          }
+        });
+        
+        // Corrigir todas as imagens
+        document.querySelectorAll('img[src]').forEach(function(img) {
+          if (img.src) {
+            const urlCorrigida = corrigirProtocolo(img.src);
+            if (urlCorrigida !== img.src) {
+              img.setAttribute('src', urlCorrigida);
             }
-          });
-        }
+          }
+        });
       }, 500); // Verificar a cada 500ms
       
-      // Forçar HTTP em imagens após DOM carregar
-      if (isLocal || isIntegraBrasil) {
-        document.addEventListener('DOMContentLoaded', function() {
-          const images = document.querySelectorAll('img[src]');
-          images.forEach(function(img) {
-            if (img.src && img.src.startsWith('https://')) {
-              const httpUrl = forcarHTTP(img.src);
-              img.setAttribute('src', httpUrl);
-              console.log('[INDEX] Imagem corrigida para HTTP:', httpUrl);
-            } else if (img.src && img.src.startsWith('/')) {
-              const httpUrl = 'http://' + host + img.src;
-              img.setAttribute('src', httpUrl);
-              console.log('[INDEX] Imagem forçada para HTTP:', httpUrl);
+      // Corrigir protocolo em imagens após DOM carregar
+      document.addEventListener('DOMContentLoaded', function() {
+        const images = document.querySelectorAll('img[src]');
+        images.forEach(function(img) {
+          if (img.src) {
+            const urlCorrigida = corrigirProtocolo(img.src);
+            if (urlCorrigida !== img.src) {
+              img.setAttribute('src', urlCorrigida);
+              console.log('[INDEX] Imagem corrigida:', img.src, '→', urlCorrigida);
+            } else if (img.src.startsWith('/')) {
+              const urlCompleta = baseUrl + img.src;
+              img.setAttribute('src', urlCompleta);
+              console.log('[INDEX] Imagem com URL completa:', urlCompleta);
             }
-          });
+          }
         });
-      }
+      });
     })();
   </script>
   <style>
@@ -852,28 +886,32 @@
       
       function loadScript(src) {
         const script = document.createElement('script');
-        // Se for local ou IntegraBrasil, forçar HTTP; senão usar protocolo atual
         let url;
-        if (isLocal || isIntegraBrasil) {
-          url = 'http://' + window.location.host + (src.startsWith('/') ? src : '/' + src);
-          console.log('[INDEX] Carregando script via HTTP:', url);
+        
+        if (src.startsWith('http')) {
+          url = src; // URL absoluta, usar como está
         } else {
-          url = src.startsWith('http') ? src : baseUrl + (src.startsWith('/') ? src : '/' + src);
+          url = baseUrl + (src.startsWith('/') ? src : '/' + src);
         }
         
-        // Usar setAttribute para forçar o valor HTTP
+        // Corrigir protocolo se necessário
+        url = corrigirProtocoloURL(url);
+        
+        console.log('[INDEX] Carregando script:', url);
+        
+        // Usar setAttribute para forçar o valor
         script.setAttribute('src', url);
         script.async = false;
         
         // Adicionar tratamento de erro
         script.onerror = function() {
           console.error('❌ [INDEX] Erro ao carregar script:', script.src);
-          // Se falhou, tentar HTTP novamente
-          if ((isLocal || isIntegraBrasil) && script.src) {
-            const httpUrl = forcarHTTP(script.src);
-            if (httpUrl !== script.src) {
-              console.log('🔄 [INDEX] Tentando carregar script via HTTP:', httpUrl);
-              script.setAttribute('src', httpUrl);
+          // Se falhou, tentar corrigir protocolo novamente
+          if (script.src) {
+            const urlCorrigida = corrigirProtocolo(script.src);
+            if (urlCorrigida !== script.src) {
+              console.log('🔄 [INDEX] Tentando carregar script com protocolo corrigido:', urlCorrigida);
+              script.setAttribute('src', urlCorrigida);
               return;
             }
           }
@@ -882,7 +920,7 @@
             console.log('🔄 [INDEX] Tentando carregar script novamente:', script.src);
             const retryScript = document.createElement('script');
             let retryUrl = script.src || url;
-            retryUrl = forcarHTTP(retryUrl);
+            retryUrl = corrigirProtocoloURL(retryUrl);
             retryScript.setAttribute('src', retryUrl + (retryUrl.includes('?') ? '&' : '?') + 'retry=' + Date.now());
             retryScript.async = false;
             document.body.appendChild(retryScript);
