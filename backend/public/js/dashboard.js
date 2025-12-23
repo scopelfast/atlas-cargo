@@ -5,8 +5,36 @@
   const corrigirUrl = (url) => {
     if (!url) return url;
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    const baseUrl = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
-    return baseUrl + (url.startsWith('/') ? url : '/' + url);
+    
+    // Obter baseUrl - sempre verificar __BASE_URL__ primeiro
+    let baseUrl = window.__BASE_URL__;
+    
+    // Se não estiver definido, calcular a partir do pathname
+    if (!baseUrl) {
+      const pathname = window.location.pathname;
+      let pathBase = '/';
+      
+      // Detectar se está em /cargas/ ou /motorista/
+      if (pathname.includes('/cargas')) {
+        pathBase = '/cargas/';
+      } else if (pathname.includes('/motorista')) {
+        pathBase = '/motorista/';
+      } else if (pathname !== '/') {
+        // Pegar o primeiro segmento do path
+        const segments = pathname.split('/').filter(s => s);
+        if (segments.length > 0) {
+          pathBase = '/' + segments[0] + '/';
+        }
+      }
+      
+      baseUrl = window.location.protocol + '//' + window.location.host + (pathBase === '/' ? '' : pathBase.replace(/\/$/, ''));
+    }
+    
+    // Garantir que baseUrl não termine com / antes de concatenar
+    const cleanBaseUrl = baseUrl.replace(/\/$/, '');
+    const cleanUrl = url.startsWith('/') ? url : '/' + url;
+    
+    return cleanBaseUrl + cleanUrl;
   };
   
   // Verificar se o DOM já está pronto
