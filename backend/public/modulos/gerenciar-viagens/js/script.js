@@ -3709,24 +3709,43 @@ function getOverlayMostrado() {
                     const segmento = [latlngs[i], latlngs[i + 1]];
                     let segmentRoute = null;
                     
-                    // Tentar primeiro com servidor principal
-                    try {
-                      const osrmServerOriginal = config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv';
-                      const osrmServerPrincipal = normalizarOSRMUrl(osrmServerOriginal);
-                      console.log(`🔄 [OSRM] Segmento ${i + 1}: usando servidor`, osrmServerPrincipal);
-                      segmentRoute = await obterRotaSegmento(segmento, osrmServerPrincipal);
-                      console.log(`[MAPA] Segmento ${i + 1}/${latlngs.length - 1} calculado com sucesso`);
-                    } catch (err) {
-                      // Se falhar, tentar com servidor alternativo (só se não for bloqueado por CSP)
-                      console.warn(`[MAPA] Segmento ${i + 1} falhou no servidor principal, tentando alternativo...`);
+                    // Verificar se estamos em ambiente de desenvolvimento (localhost)
+                    // Em desenvolvimento, usar diretamente o servidor público para evitar erros de HSTS
+                    const isLocalhost = window.location.hostname === 'localhost' || 
+                                       window.location.hostname === '127.0.0.1' ||
+                                       window.location.hostname.startsWith('192.168.');
+                    
+                    // Tentar primeiro com servidor principal (apenas se não for localhost)
+                    if (!isLocalhost) {
                       try {
-                        // Usar servidor público que está permitido no CSP
+                        const osrmServerOriginal = config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv';
+                        const osrmServerPrincipal = normalizarOSRMUrl(osrmServerOriginal);
+                        console.log(`🔄 [OSRM] Segmento ${i + 1}: usando servidor`, osrmServerPrincipal);
+                        segmentRoute = await obterRotaSegmento(segmento, osrmServerPrincipal);
+                        console.log(`[MAPA] Segmento ${i + 1}/${latlngs.length - 1} calculado com sucesso`);
+                      } catch (err) {
+                        // Se falhar, tentar com servidor alternativo
+                        console.warn(`[MAPA] Segmento ${i + 1} falhou no servidor principal, tentando alternativo...`);
+                        try {
+                          // Usar servidor público que está permitido no CSP
+                          const osrmServerAlt = 'https://router.project-osrm.org/route/v1/driving-hgv';
+                          segmentRoute = await obterRotaSegmento(segmento, osrmServerAlt);
+                          console.log(`[MAPA] Segmento ${i + 1}/${latlngs.length - 1} calculado com servidor alternativo`);
+                        } catch (err2) {
+                          console.warn(`[MAPA] Segmento ${i + 1} falhou em ambos servidores, usando linha reta`);
+                          // Se ambos falharem, usar linha reta para esse segmento
+                          segmentRoute = segmento;
+                        }
+                      }
+                    } else {
+                      // Em localhost, usar diretamente o servidor público
+                      try {
                         const osrmServerAlt = 'https://router.project-osrm.org/route/v1/driving-hgv';
+                        console.log(`🔄 [OSRM] Segmento ${i + 1}: usando servidor público (localhost)`, osrmServerAlt);
                         segmentRoute = await obterRotaSegmento(segmento, osrmServerAlt);
-                        console.log(`[MAPA] Segmento ${i + 1}/${latlngs.length - 1} calculado com servidor alternativo`);
-                      } catch (err2) {
-                        console.warn(`[MAPA] Segmento ${i + 1} falhou em ambos servidores, usando linha reta`);
-                        // Se ambos falharem, usar linha reta para esse segmento
+                        console.log(`[MAPA] Segmento ${i + 1}/${latlngs.length - 1} calculado com sucesso`);
+                      } catch (err) {
+                        console.warn(`[MAPA] Segmento ${i + 1} falhou, usando linha reta`);
                         segmentRoute = segmento;
                       }
                     }
