@@ -1860,11 +1860,10 @@
   <!-- GridEditor -->
   <script src="/js/grid-editor.js"></script>
   <script>
-    // Carregar socket.io com caminho base correto
+    // Socket.io é sempre servido na raiz (/socket.io/), não no caminho base
     (function() {
-      const socketUrl = (window.corrigirUrl ? window.corrigirUrl('/socket.io/socket.io.js') : '/socket.io/socket.io.js');
       const script = document.createElement('script');
-      script.src = socketUrl;
+      script.src = '/socket.io/socket.io.js';
       document.head.appendChild(script);
     })();
   </script>

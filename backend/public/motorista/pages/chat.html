@@ -157,16 +157,10 @@
   <script src="../js/offline.js"></script>
   <script src="../js/notifications-service.js"></script>
   <script>
-    // Carregar socket.io com caminho base correto
-    if (window.corrigirUrl) {
-      const socketScript = document.createElement('script');
-      socketScript.src = window.corrigirUrl('/socket.io/socket.io.js');
-      document.head.appendChild(socketScript);
-    } else {
-      const socketScript = document.createElement('script');
-      socketScript.src = '/socket.io/socket.io.js';
-      document.head.appendChild(socketScript);
-    }
+    // Socket.io é sempre servido na raiz (/socket.io/), não no caminho base
+    const socketScript = document.createElement('script');
+    socketScript.src = '/socket.io/socket.io.js';
+    document.head.appendChild(socketScript);
   </script>
   <script src="js/chat.js"></script>
 </body>

@@ -84,6 +84,7 @@
 
     try {
       // Usar baseUrl para garantir o caminho correto do Service Worker
+      // __BASE_URL__ já inclui o caminho base (ex: https://beta.integrabrasil.com:8443/cargas)
       let baseUrl = window.__BASE_URL__;
       
       // Se não tiver __BASE_URL__, calcular a partir do pathname
@@ -102,8 +103,14 @@
         baseUrl = window.location.origin + (pathBase === '/' ? '' : pathBase.replace(/\/$/, ''));
       }
       
-      // Garantir que baseUrl não termine com /
-      const cleanBaseUrl = baseUrl.replace(/\/$/, '');
+      // Garantir que baseUrl não termine com / e construir caminho do SW
+      // NÃO usar corrigirUrl aqui pois __BASE_URL__ já inclui o caminho base
+      let cleanBaseUrl = baseUrl.replace(/\/$/, '');
+      
+      // Remover duplicação de /cargas/cargas se existir
+      cleanBaseUrl = cleanBaseUrl.replace(/\/cargas\/cargas/g, '/cargas');
+      
+      // Construir caminho do SW
       const swPath = cleanBaseUrl + '/motorista/sw-workbox.js';
       
       // Calcular scopePath corretamente
@@ -114,6 +121,10 @@
       if (pathname.includes('/cargas')) {
         scopePath = '/cargas/motorista/';
       }
+      
+      console.log('📦 [SW] baseUrl:', baseUrl);
+      console.log('📦 [SW] swPath:', swPath);
+      console.log('📦 [SW] scopePath:', scopePath);
       
       const registration = await navigator.serviceWorker.register(swPath, {
         scope: scopePath

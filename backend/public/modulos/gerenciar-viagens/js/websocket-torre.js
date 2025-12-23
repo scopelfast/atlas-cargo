@@ -55,9 +55,9 @@
         return;
       }
 
-      // Carregar Socket.io do servidor
+      // Socket.io é sempre servido na raiz (/socket.io/), não no caminho base
       const script = document.createElement('script');
-      script.src = (window.corrigirUrl ? window.corrigirUrl('/socket.io/socket.io.js') : '/socket.io/socket.io.js');
+      script.src = '/socket.io/socket.io.js';
       script.onload = () => {
         setTimeout(() => {
           if (typeof io !== 'undefined') {
