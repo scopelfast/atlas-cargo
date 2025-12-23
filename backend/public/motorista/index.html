@@ -271,30 +271,28 @@
     if ('serviceWorker' in navigator) {
       // Aguardar um pouco antes de registrar para garantir que recursos sejam carregados primeiro
       setTimeout(() => {
-        // Usar baseUrl para construir o caminho correto do Service Worker
-        let baseUrl = window.__BASE_URL__;
-        if (!baseUrl) {
-          const protocoloAtual = window.location.protocol;
-          const host = window.location.host;
-          let pathBase = window.location.pathname;
-          
-          // Remover /motorista/index.html ou /motorista/ do final
-          if (pathBase.includes('/motorista')) {
-            pathBase = pathBase.substring(0, pathBase.indexOf('/motorista'));
-          }
-          
-          if (pathBase && !pathBase.endsWith('/') && pathBase !== '/') {
-            pathBase = pathBase + '/';
-          }
-          if (!pathBase || pathBase === '') {
-            pathBase = '/';
-          }
-          
-          baseUrl = protocoloAtual + '//' + host + (pathBase === '/' ? '' : pathBase.replace(/\/$/, ''));
+        // Construir caminho do Service Worker corretamente
+        // Sempre usar origin + pathname para evitar duplicação
+        const origin = window.location.origin;
+        const pathname = window.location.pathname;
+        
+        // Detectar caminho base a partir do pathname atual
+        let pathBase = '/';
+        if (pathname.includes('/motorista')) {
+          const indexMotorista = pathname.indexOf('/motorista');
+          pathBase = pathname.substring(0, indexMotorista);
+          if (!pathBase || pathBase === '') pathBase = '/';
         }
         
-        // Construir caminho do SW - baseUrl já inclui o caminho base (ex: https://beta.integrabrasil.com:8443/cargas)
-        const swPath = baseUrl + '/motorista/sw-workbox.js';
+        // Remover barra final se houver
+        if (pathBase !== '/' && pathBase.endsWith('/')) {
+          pathBase = pathBase.replace(/\/$/, '');
+        }
+        
+        // Construir caminho completo do SW
+        const swPath = origin + (pathBase === '/' ? '' : pathBase) + '/motorista/sw-workbox.js';
+        
+        const baseUrl = origin + (pathBase === '/' ? '' : pathBase);
         // O scope também precisa incluir o caminho base
         const pathname = window.location.pathname;
         let scopePath = '/motorista/';
@@ -302,8 +300,9 @@
           scopePath = '/cargas/motorista/';
         }
         
-        console.log('📦 [MOTORISTA] baseUrl:', baseUrl);
+        console.log('📦 [MOTORISTA] origin:', origin);
         console.log('📦 [MOTORISTA] pathname:', pathname);
+        console.log('📦 [MOTORISTA] pathBase:', pathBase);
         console.log('📦 [MOTORISTA] Registrando Service Worker:', swPath, 'com scope:', scopePath);
         
         // Usar sw-workbox.js (versão melhorada com cache inteligente)
