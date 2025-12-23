@@ -293,6 +293,32 @@
       throw error;
     }
 
+    // VERIFICAÇÃO DE DUPLICATAS: Para eventos (macros), verificar se já existe um idêntico na fila
+    if (store === 'filaEventos') {
+      const dadosEvento = data.data || data;
+      if (dadosEvento.idViagem && dadosEvento.cdTipoOcorrencia && dadosEvento.cdMotorista) {
+        const filaAtual = await buscarFila(store);
+        const agora = Date.now();
+        const duplicata = filaAtual.find(item => {
+          const itemData = item.data || item;
+          const itemTimestamp = item.timestamp ? new Date(item.timestamp).getTime() : 0;
+          const tempoDecorrido = agora - itemTimestamp;
+          
+          // Verificar se é a mesma macro nos últimos 5 segundos
+          return itemData.idViagem === dadosEvento.idViagem &&
+                 itemData.cdTipoOcorrencia === dadosEvento.cdTipoOcorrencia &&
+                 itemData.cdMotorista === dadosEvento.cdMotorista &&
+                 tempoDecorrido < 5000 && // 5 segundos
+                 !item.enviado; // Ainda não foi enviado
+        });
+        
+        if (duplicata) {
+          console.warn('⚠️ [FILA] Duplicata detectada na fila! Não adicionando evento repetido.');
+          throw new Error('Esta macro já está na fila de sincronização. Aguarde alguns segundos.');
+        }
+      }
+    }
+
     // Verificar limite antes de adicionar
     await verificarLimiteFila(store);
 
@@ -728,10 +754,12 @@
             }
             console.error('❌ Erro evento:', response.status, erroJson);
             
-            // Se for erro 400 (validação), remover da fila para não ficar tentando
-            if (response.status === 400) {
-              console.warn('⚠️ Erro de validação - removendo da fila');
+            // Se for erro 400 (validação) ou 409 (duplicata), remover da fila para não ficar tentando
+            if (response.status === 400 || response.status === 409) {
+              const motivo = response.status === 409 ? 'duplicata detectada' : 'erro de validação';
+              console.warn(`⚠️ ${motivo} - removendo da fila`);
               await deletarDaFila('filaEventos', evento.id);
+              eventosSincronizados++; // Contar como "processado" mesmo sendo duplicata
             }
           }
         } catch (err) {

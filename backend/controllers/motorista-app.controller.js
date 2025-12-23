@@ -927,6 +927,35 @@ const motoristaAppController = {
 
       const pool = await poolPromise;
 
+      // VALIDAÇÃO DE DUPLICATAS: Verificar se já existe uma ocorrência idêntica nos últimos 5 segundos
+      const duplicataCheck = await pool
+        .request()
+        .input('idViagem', sql.Decimal(15, 0), parseFloat(idViagem))
+        .input('cdTipoOcorrencia', sql.SmallInt, parseInt(cdTipoOcorrencia))
+        .input('cdMotorista', sql.Decimal(15, 0), parseFloat(cdMotorista))
+        .query(`
+          SELECT TOP 1 IDVIAGEM_OCORRENCIA, DTOCORRENCIA
+          FROM VIAGEMOCORRENCIA
+          WHERE IDVIAGEM = @idViagem
+            AND CDTIPOOCORRENCIA = @cdTipoOcorrencia
+            AND CDMOTORISTA = @cdMotorista
+            AND DTOCORRENCIA >= DATEADD(SECOND, -5, GETDATE())
+          ORDER BY DTOCORRENCIA DESC
+        `);
+
+      if (duplicataCheck.recordset.length > 0) {
+        const duplicata = duplicataCheck.recordset[0];
+        const tempoDecorrido = Math.floor((new Date() - new Date(duplicata.DTOCORRENCIA)) / 1000);
+        console.warn(`⚠️ [MACRO] Duplicata detectada! Ocorrência idêntica registrada há ${tempoDecorrido} segundos. ID: ${duplicata.IDVIAGEM_OCORRENCIA}`);
+        
+        return res.status(409).json({ 
+          error: 'Duplicata detectada',
+          message: `Esta ocorrência já foi registrada há ${tempoDecorrido} segundo(s). Aguarde alguns segundos antes de tentar novamente.`,
+          duplicataId: duplicata.IDVIAGEM_OCORRENCIA,
+          tempoDecorrido: tempoDecorrido
+        });
+      }
+
       // Inserir ocorrência com GPS completo
       await pool
         .request()
@@ -1134,6 +1163,9 @@ const motoristaAppController = {
             VO.DSOBSERVACAO,
             VO.LATITUDE,
             VO.LONGITUDE,
+            VO.NRPRECISAO,
+            VO.DSCAMINHOFOTO,
+            VO.DSFOTOBASE64,
             CASE WHEN VO.DSCAMINHOFOTO IS NOT NULL OR VO.DSFOTOBASE64 IS NOT NULL 
               THEN 'S' ELSE 'N' 
             END AS TEM_FOTO,

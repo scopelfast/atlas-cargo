@@ -80,6 +80,9 @@
                               hostname === 'beta.integrabrasil.com' || 
                               hostname.includes('integrabrasil.com');
       
+      // CRÍTICO: Servidor QA (beta) não tem HTTPS configurado, forçar HTTP
+      const isQAServer = hostname === 'beta.integrabrasil.com';
+      
       // CRÍTICO: Usar o protocolo REAL da página (não assumir baseado em porta)
       // Se a página está em HTTP, usar HTTP; se está em HTTPS, usar HTTPS
       const protocoloAtual = window.location.protocol;
@@ -92,19 +95,58 @@
         return;
       }
       
-      // IMPORTANTE: Usar o protocolo REAL da página (não assumir nada)
-      // Se está em HTTP, usar HTTP; se está em HTTPS, usar HTTPS
-      const protocol = isLocal ? 'http:' : protocoloAtual;
+      // IMPORTANTE: Servidor QA não tem HTTPS, forçar HTTP mesmo se a página estiver em HTTPS
+      // Isso é necessário porque o servidor não serve arquivos estáticos via HTTPS
+      let protocol = isLocal ? 'http:' : protocoloAtual;
+      if (isQAServer && protocoloAtual === 'https:') {
+        console.warn('[INDEX] Servidor QA detectado em HTTPS, forçando HTTP para recursos');
+        protocol = 'http:';
+        // Redirecionar para HTTP se necessário
+        const httpUrl = 'http://' + window.location.host + window.location.pathname.replace(/\?+$/, '');
+        if (window.location.href !== httpUrl) {
+          console.warn('[INDEX] Redirecionando servidor QA para HTTP:', httpUrl);
+          window.location.replace(httpUrl);
+          return;
+        }
+      }
+      
       const host = window.location.host;
-      const baseUrl = protocol + '//' + host;
+      
+      // CRÍTICO: Detectar o caminho base (subdiretório) da aplicação
+      // Se a página está em /cargas/, o baseUrl deve incluir /cargas/
+      // Exemplo: https://beta.integrabrasil.com:8443/cargas/ → baseUrl = https://beta.integrabrasil.com:8443/cargas
+      let pathBase = window.location.pathname;
+      
+      // Remover nome do arquivo (index.html, dashboard.html, etc.) e manter apenas o diretório
+      // /cargas/ → /cargas
+      // /cargas/index.html → /cargas
+      // / → /
+      if (pathBase.endsWith('.html')) {
+        // Se termina com .html, remover o arquivo e manter o diretório
+        const lastSlash = pathBase.lastIndexOf('/');
+        if (lastSlash > 0) {
+          pathBase = pathBase.substring(0, lastSlash + 1); // Incluir a barra final
+        } else {
+          pathBase = '/';
+        }
+      } else if (!pathBase.endsWith('/')) {
+        // Se não termina com /, adicionar
+        pathBase = pathBase + '/';
+      }
+      
+      // Se pathBase for apenas '/', não adicionar ao baseUrl
+      // Se for '/cargas/', incluir no baseUrl
+      const baseUrl = protocol + '//' + host + (pathBase === '/' ? '' : pathBase.replace(/\/$/, ''));
       window.__BASE_URL__ = baseUrl;
       
       console.log('[INDEX] Ambiente detectado:', {
         hostname,
         porta: window.location.port || (protocoloAtual === 'https:' ? '443' : '80'),
         protocolo: protocoloAtual,
+        pathname: window.location.pathname,
+        pathBase: pathBase,
         baseUrl,
-        observacao: 'Usando protocolo REAL da página (não assumindo baseado em porta)'
+        observacao: 'Usando protocolo REAL da página e incluindo caminho base (subdiretório)'
       });
       
       // Função para garantir que URLs usem o mesmo protocolo da página
@@ -116,9 +158,15 @@
           return url.replace(/^https:/, 'http:');
         }
         
+        // CRÍTICO: Servidor QA sempre HTTP (não tem HTTPS configurado)
+        if (isQAServer && url.startsWith('https://')) {
+          return url.replace(/^https:/, 'http:');
+        }
+        
         // Para IntegraBrasil e outros: usar o mesmo protocolo da página
         // Se a página está em HTTPS e a URL está em HTTP, corrigir para HTTPS
-        if (protocoloAtual === 'https:' && url.startsWith('http://')) {
+        // MAS: não fazer isso para servidor QA
+        if (!isQAServer && protocoloAtual === 'https:' && url.startsWith('http://')) {
           return url.replace(/^http:/, 'https:');
         }
         
@@ -212,8 +260,13 @@
         
         if (href.startsWith('http')) {
           cssUrl = href; // URL absoluta, usar como está
+        } else if (href.startsWith('/')) {
+          // Caminho absoluto: /css/style.css → baseUrl + /css/style.css
+          // Se baseUrl já inclui /cargas, fica: https://beta...8443/cargas/css/style.css
+          cssUrl = baseUrl + href;
         } else {
-          cssUrl = baseUrl + (href.startsWith('/') ? href : '/' + href);
+          // Caminho relativo: css/style.css → baseUrl + /css/style.css
+          cssUrl = baseUrl + '/' + href;
         }
         
         // Garantir protocolo consistente
@@ -893,9 +946,30 @@
       const isIntegraBrasil = hostname === 'app.integrabrasil.com' || 
                               hostname === 'beta.integrabrasil.com' || 
                               hostname.includes('integrabrasil.com');
+      // CRÍTICO: Servidor QA (beta) não tem HTTPS configurado, forçar HTTP
+      const isQAServer = hostname === 'beta.integrabrasil.com';
       const protocoloAtual = window.location.protocol;
-      const protocol = isLocal ? 'http:' : protocoloAtual;
-      const baseUrl = protocol + '//' + window.location.host;
+      
+      // IMPORTANTE: Servidor QA não tem HTTPS, forçar HTTP mesmo se a página estiver em HTTPS
+      let protocol = isLocal ? 'http:' : protocoloAtual;
+      if (isQAServer && protocoloAtual === 'https:') {
+        protocol = 'http:';
+      }
+      
+      // CRÍTICO: Detectar o caminho base (subdiretório) da aplicação
+      let pathBase = window.location.pathname;
+      if (pathBase.endsWith('.html')) {
+        const lastSlash = pathBase.lastIndexOf('/');
+        if (lastSlash > 0) {
+          pathBase = pathBase.substring(0, lastSlash + 1);
+        } else {
+          pathBase = '/';
+        }
+      } else if (!pathBase.endsWith('/')) {
+        pathBase = pathBase + '/';
+      }
+      
+      const baseUrl = protocol + '//' + window.location.host + (pathBase === '/' ? '' : pathBase.replace(/\/$/, ''));
       
       // Função para garantir protocolo consistente (mesma lógica da primeira IIFE)
       function garantirProtocoloConsistente(url) {
@@ -906,8 +980,14 @@
           return url.replace(/^https:/, 'http:');
         }
         
+        // CRÍTICO: Servidor QA sempre HTTP (não tem HTTPS configurado)
+        if (isQAServer && url.startsWith('https://')) {
+          return url.replace(/^https:/, 'http:');
+        }
+        
         // Para IntegraBrasil e outros: usar o mesmo protocolo da página
-        if (protocoloAtual === 'https:' && url.startsWith('http://')) {
+        // MAS: não fazer isso para servidor QA
+        if (!isQAServer && protocoloAtual === 'https:' && url.startsWith('http://')) {
           return url.replace(/^http:/, 'https:');
         }
         
@@ -921,11 +1001,15 @@
       function loadScript(src) {
         const script = document.createElement('script');
         let url;
-        
+
         if (src.startsWith('http')) {
           url = src; // URL absoluta, usar como está
+        } else if (src.startsWith('/')) {
+          // Caminho absoluto: /js/login.js → baseUrl + /js/login.js
+          url = baseUrl + src;
         } else {
-          url = baseUrl + (src.startsWith('/') ? src : '/' + src);
+          // Caminho relativo: js/login.js → baseUrl + /js/login.js
+          url = baseUrl + '/' + src;
         }
         
         // Garantir protocolo consistente (verificar se função existe)
@@ -993,7 +1077,16 @@
         if (logoImg) {
           const srcAttr = logoImg.getAttribute('src');
           if (srcAttr) {
-            const urlCompleta = srcAttr.startsWith('http') ? srcAttr : baseUrl + (srcAttr.startsWith('/') ? srcAttr : '/' + srcAttr);
+            let urlCompleta;
+            if (srcAttr.startsWith('http')) {
+              urlCompleta = srcAttr;
+            } else if (srcAttr.startsWith('/')) {
+              // Caminho absoluto: /img/logo7.png → baseUrl + /img/logo7.png
+              urlCompleta = baseUrl + srcAttr;
+            } else {
+              // Caminho relativo: img/logo7.png → baseUrl + /img/logo7.png
+              urlCompleta = baseUrl + '/' + srcAttr;
+            }
             const urlCorrigida = garantirProtocoloConsistente(urlCompleta);
             logoImg.setAttribute('src', urlCorrigida);
             console.log('[INDEX] Logo corrigido:', srcAttr, '→', urlCorrigida);
@@ -1005,7 +1098,16 @@
         if (faviconLink) {
           const hrefAttr = faviconLink.getAttribute('href');
           if (hrefAttr) {
-            const urlCompleta = hrefAttr.startsWith('http') ? hrefAttr : baseUrl + (hrefAttr.startsWith('/') ? hrefAttr : '/' + hrefAttr);
+            let urlCompleta;
+            if (hrefAttr.startsWith('http')) {
+              urlCompleta = hrefAttr;
+            } else if (hrefAttr.startsWith('/')) {
+              // Caminho absoluto: /img/logo7.png → baseUrl + /img/logo7.png
+              urlCompleta = baseUrl + hrefAttr;
+            } else {
+              // Caminho relativo: img/logo7.png → baseUrl + /img/logo7.png
+              urlCompleta = baseUrl + '/' + hrefAttr;
+            }
             const urlCorrigida = garantirProtocoloConsistente(urlCompleta);
             faviconLink.setAttribute('href', urlCorrigida);
             console.log('[INDEX] Favicon corrigido:', hrefAttr, '→', urlCorrigida);

@@ -81,6 +81,9 @@
                               hostname === 'beta.integrabrasil.com' || 
                               hostname.includes('integrabrasil.com');
       
+      // CRÍTICO: Servidor QA (beta) não tem HTTPS configurado, forçar HTTP
+      const isQAServer = hostname === 'beta.integrabrasil.com';
+      
       // IMPORTANTE: Usar o protocolo atual da página (transparente)
       // Se acessar via HTTP, usar HTTP; se via HTTPS, usar HTTPS
       const protocoloAtual = window.location.protocol;
@@ -93,12 +96,39 @@
         return; // Parar execução até redirecionar
       }
       
-      // Usar o protocolo atual (HTTP ou HTTPS) - transparente
-      const protocol = isLocal ? 'http:' : protocoloAtual;
-      const host = window.location.host;
-      const baseUrl = protocol + '//' + host;
+      // IMPORTANTE: Servidor QA não tem HTTPS, forçar HTTP mesmo se a página estiver em HTTPS
+      let protocol = isLocal ? 'http:' : protocoloAtual;
+      if (isQAServer && protocoloAtual === 'https:') {
+        console.warn('[DASHBOARD] Servidor QA detectado em HTTPS, forçando HTTP para recursos');
+        protocol = 'http:';
+        // Redirecionar para HTTP se necessário
+        const httpUrl = 'http://' + window.location.host + window.location.pathname.replace(/\?+$/, '');
+        if (window.location.href !== httpUrl) {
+          console.warn('[DASHBOARD] Redirecionando servidor QA para HTTP:', httpUrl);
+          window.location.replace(httpUrl);
+          return;
+        }
+      }
       
-      console.log('[DASHBOARD] Ambiente:', (isLocal || isIntegraBrasil) ? 'LOCAL/INTEGRABRASIL' : 'PRODUÇÃO', '| Protocol:', protocoloAtual, '| BaseURL:', baseUrl);
+      const host = window.location.host;
+      
+      // CRÍTICO: Detectar o caminho base (subdiretório) da aplicação
+      // Se a página está em /cargas/, o baseUrl deve incluir /cargas/
+      let pathBase = window.location.pathname;
+      if (pathBase.endsWith('.html')) {
+        const lastSlash = pathBase.lastIndexOf('/');
+        if (lastSlash > 0) {
+          pathBase = pathBase.substring(0, lastSlash + 1);
+        } else {
+          pathBase = '/';
+        }
+      } else if (!pathBase.endsWith('/')) {
+        pathBase = pathBase + '/';
+      }
+      
+      const baseUrl = protocol + '//' + host + (pathBase === '/' ? '' : pathBase.replace(/\/$/, ''));
+      
+      console.log('[DASHBOARD] Ambiente:', (isLocal || isIntegraBrasil) ? 'LOCAL/INTEGRABRASIL' : 'PRODUÇÃO', '| Protocol:', protocoloAtual, '| PathBase:', pathBase, '| BaseURL:', baseUrl);
       
       // Função para garantir que URLs usem o mesmo protocolo da página
       function garantirProtocoloConsistente(url) {
@@ -109,9 +139,15 @@
           return url.replace(/^https:/, 'http:');
         }
         
+        // CRÍTICO: Servidor QA sempre HTTP (não tem HTTPS configurado)
+        if (isQAServer && url.startsWith('https://')) {
+          return url.replace(/^https:/, 'http:');
+        }
+        
         // Para IntegraBrasil e outros: usar o mesmo protocolo da página
         // Se a página está em HTTPS e a URL está em HTTP, corrigir para HTTPS
-        if (protocoloAtual === 'https:' && url.startsWith('http://')) {
+        // MAS: não fazer isso para servidor QA
+        if (!isQAServer && protocoloAtual === 'https:' && url.startsWith('http://')) {
           return url.replace(/^http:/, 'https:');
         }
         
@@ -131,8 +167,12 @@
         
         if (href.startsWith('http')) {
           url = href; // URL absoluta
+        } else if (href.startsWith('/')) {
+          // Caminho absoluto: /css/style.css → baseUrl + /css/style.css
+          url = baseUrl + href;
         } else {
-          url = baseUrl + (href.startsWith('/') ? href : '/' + href);
+          // Caminho relativo: css/style.css → baseUrl + /css/style.css
+          url = baseUrl + '/' + href;
         }
         
         // Garantir protocolo consistente
@@ -188,7 +228,7 @@
       // Corrigir favicon
       const faviconLink = document.getElementById('faviconLink');
       if (faviconLink) {
-        faviconLink.href = (isLocal ? 'http://' + host : baseUrl) + '/img/logo7.png';
+        faviconLink.href = baseUrl + '/img/logo7.png';
       }
       
       // Armazenar baseUrl globalmente
@@ -280,7 +320,15 @@
             url = 'http://' + window.location.host + (src.startsWith('/') ? src : '/' + src);
           }
         } else {
-          url = src.startsWith('http') ? src : baseUrl + (src.startsWith('/') ? src : '/' + src);
+          if (src.startsWith('http')) {
+            url = src;
+          } else if (src.startsWith('/')) {
+            // Caminho absoluto: /js/dashboard.js → baseUrl + /js/dashboard.js
+            url = baseUrl + src;
+          } else {
+            // Caminho relativo: js/dashboard.js → baseUrl + /js/dashboard.js
+            url = baseUrl + '/' + src;
+          }
         }
         // Definir src diretamente e verificar se foi alterado
         script.src = url;

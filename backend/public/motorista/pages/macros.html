@@ -602,8 +602,32 @@
       input.click();
     }
 
+    // Flag para evitar múltiplos registros simultâneos
+    let registrandoMacro = false;
+    let ultimaMacroRegistrada = null;
+    const TEMPO_MINIMO_ENTRE_MACROS = 2000; // 2 segundos entre macros
+
     // Registrar macro
     async function registrarMacro(macro, fotoBase64) {
+      // Proteção contra múltiplos cliques
+      if (registrandoMacro) {
+        console.warn('⚠️ Já existe um registro em andamento. Aguarde...');
+        mostrarToast('Aguarde... Registro em andamento', 'warning');
+        return;
+      }
+
+      // Verificar se a mesma macro foi registrada recentemente
+      const agora = Date.now();
+      if (ultimaMacroRegistrada && 
+          ultimaMacroRegistrada.cdTipoOcorrencia === macro.CDTIPOOCORRENCIA &&
+          ultimaMacroRegistrada.idViagem === viagemSelecionada.IDVIAGEM &&
+          (agora - ultimaMacroRegistrada.timestamp) < TEMPO_MINIMO_ENTRE_MACROS) {
+        console.warn('⚠️ Macro duplicada detectada. Aguarde antes de registrar novamente.');
+        mostrarToast('Aguarde alguns segundos antes de registrar a mesma macro novamente', 'warning');
+        return;
+      }
+
+      registrandoMacro = true;
       const loading = mostrarLoading('Capturando GPS...');
 
       try {
@@ -634,6 +658,14 @@
         };
 
         const resultado = await postComFila('/api/motorista/macro', payload, 'macro');
+        
+        // Registrar timestamp da última macro
+        ultimaMacroRegistrada = {
+          cdTipoOcorrencia: macro.CDTIPOOCORRENCIA,
+          idViagem: viagemSelecionada.IDVIAGEM,
+          timestamp: agora
+        };
+
         esconderLoading();
 
         if (resultado.online) {
@@ -664,6 +696,11 @@
         console.error('Erro:', error);
         esconderLoading();
         mostrarToast(error.message || 'Erro ao registrar macro', 'error');
+      } finally {
+        // Liberar flag após um pequeno delay para evitar cliques muito rápidos
+        setTimeout(() => {
+          registrandoMacro = false;
+        }, 1000);
       }
     }
 

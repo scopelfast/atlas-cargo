@@ -810,6 +810,13 @@ function getOverlayMostrado() {
           }
         }, 100);
       }
+
+      // Se for a aba Macros, inicializar
+      if (tabId === 'macros') {
+        setTimeout(() => {
+          carregarMacrosViagem();
+        }, 100);
+      }
     } catch (err) {
       // Erro silencioso ao mudar aba - forçar mudança mesmo em caso de erro
       try {
@@ -1862,6 +1869,13 @@ function getOverlayMostrado() {
         if (tabMapa && tabMapa.classList.contains('active')) {
           await new Promise(resolve => setTimeout(resolve, 300));
           await atualizarMapa();
+        }
+        
+        // Atualizar macros se a aba macros estiver ativa
+        const tabMacros = document.querySelector('.tab-btn[data-tab="macros"]');
+        if (tabMacros && tabMacros.classList.contains('active')) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+          carregarMacrosViagem();
         }
         
         // PROTEÇÃO FINAL: Garantir que a aba de dados permanece ativa
@@ -11379,6 +11393,12 @@ function getOverlayMostrado() {
       urlFinal = `${servidorNormalizado}/${coordsStr}?overview=${overview}&geometries=${geometries}`;
     }
     
+    // CRÍTICO: Garantir que URL final está em HTTP para servidores próprios
+    if (isServidorProprio && urlFinal.startsWith('https://')) {
+      urlFinal = 'http://' + urlFinal.substring(8);
+      console.warn('⚠️ [ROTA] URL final ainda estava em HTTPS, corrigindo:', urlFinal.substring(0, 80));
+    }
+    
     // Log final para debug
     if (isServidorProprio && urlFinal.startsWith('https:')) {
       console.error('❌ [ROTA] ERRO: URL ainda está em HTTPS!', urlFinal);
@@ -11396,65 +11416,78 @@ function getOverlayMostrado() {
     const servidoresProprios = ['186.250.92.131', 'app.integrabrasil.com', 'beta.integrabrasil.com'];
     const isServidorProprio = servidoresProprios.some(servidor => url.includes(servidor));
     
-    if (isServidorProprio) {
-      // Forçar HTTP de múltiplas formas
-      fetchUrl = url.replace(/^https:/, 'http:');
-      fetchUrl = fetchUrl.replace(/https:\/\//, 'http://');
-      
-      if (fetchUrl !== url) {
-        console.warn('⚠️ [FETCH] URL convertida de HTTPS para HTTP:', url.substring(0, 80), '→', fetchUrl.substring(0, 80));
-      }
-      
-      // Verificar se ainda está em HTTPS após normalização
-      if (fetchUrl.startsWith('https:')) {
-        console.error('❌ [FETCH] ERRO: URL ainda está em HTTPS após normalização!', fetchUrl.substring(0, 80));
-        // Tentar uma última vez com replace mais agressivo
-        fetchUrl = 'http:' + fetchUrl.substring(6); // Remove 'https:' e adiciona 'http:'
-      }
-    }
-    
-    // Criar URL object para garantir protocolo correto
-    try {
-      const urlObj = new URL(fetchUrl);
-      if (isServidorProprio && urlObj.protocol === 'https:') {
-        urlObj.protocol = 'http:';
-        fetchUrl = urlObj.toString();
-        console.warn('⚠️ [FETCH] Protocolo corrigido via URL object:', fetchUrl.substring(0, 80));
-      }
-    } catch (e) {
-      // Se falhar ao criar URL object, continuar com fetchUrl original
-      console.warn('⚠️ [FETCH] Erro ao criar URL object:', e);
-    }
-    
-    // CRÍTICO: Para servidores próprios, usar XMLHttpRequest DIRETAMENTE
+    // CRÍTICO: Para servidores próprios, SEMPRE usar XMLHttpRequest
     // porque navegadores modernos convertem fetch() automaticamente para HTTPS
     // XMLHttpRequest não tem esse problema e respeita o protocolo especificado
     if (isServidorProprio) {
-      // Garantir que a URL está em HTTP (não HTTPS)
-      const httpUrl = fetchUrl.replace(/^https:/, 'http:');
-      if (httpUrl !== fetchUrl) {
-        console.log('🔄 [FETCH] Corrigindo URL de HTTPS para HTTP:', httpUrl.substring(0, 80));
+      // Forçar HTTP de múltiplas formas ANTES de qualquer coisa
+      let httpUrl = url;
+      
+      // Método 1: Replace simples
+      httpUrl = httpUrl.replace(/^https:/, 'http:');
+      httpUrl = httpUrl.replace(/https:\/\//, 'http://');
+      
+      // Método 2: Se ainda estiver em HTTPS, usar substring
+      if (httpUrl.startsWith('https://')) {
+        httpUrl = 'http://' + httpUrl.substring(8); // Remove 'https://' e adiciona 'http://'
+      }
+      
+      // Método 3: Usar URL object para garantir
+      try {
+        const urlObj = new URL(httpUrl);
+        if (urlObj.protocol === 'https:') {
+          urlObj.protocol = 'http:';
+          httpUrl = urlObj.toString();
+        }
+      } catch (e) {
+        // Se falhar, usar httpUrl já corrigido
+      }
+      
+      // Garantir que está em HTTP (última verificação)
+      if (httpUrl.startsWith('https://')) {
+        httpUrl = 'http://' + httpUrl.substring(8);
+      }
+      
+      if (httpUrl !== url) {
+        console.warn('⚠️ [FETCH] URL convertida de HTTPS para HTTP:', url.substring(0, 80), '→', httpUrl.substring(0, 80));
       }
       
       console.log('🔄 [FETCH] Usando XMLHttpRequest diretamente para servidor próprio:', httpUrl.substring(0, 80));
+      
       return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         
         // CRÍTICO: Garantir que a URL está SEMPRE em HTTP antes de abrir
-        // Remover qualquer tentativa de HTTPS (mesmo que já tenha sido corrigido antes)
+        // NUNCA passar HTTPS para xhr.open()
         let urlFinal = httpUrl;
         if (urlFinal.startsWith('https://')) {
-          urlFinal = urlFinal.replace(/^https:/, 'http:');
-          console.warn('🔄 [FETCH] URL ainda estava em HTTPS, corrigindo para HTTP:', urlFinal.substring(0, 80));
+          urlFinal = 'http://' + urlFinal.substring(8);
+          console.error('❌ [FETCH] ERRO CRÍTICO: URL ainda estava em HTTPS antes de xhr.open()! Corrigindo...');
         }
         
-        xhr.open(options.method || 'GET', urlFinal, true);
+        // Verificar novamente antes de abrir
+        if (urlFinal.includes('https://')) {
+          urlFinal = urlFinal.replace(/https:\/\//g, 'http://');
+        }
+        
+        try {
+          xhr.open(options.method || 'GET', urlFinal, true);
+        } catch (e) {
+          console.error('❌ [FETCH] Erro ao abrir XMLHttpRequest:', e, 'URL:', urlFinal.substring(0, 80));
+          reject(new Error('Erro ao abrir requisição: ' + e.message));
+          return;
+        }
+        
         xhr.responseType = 'json';
         
         // Adicionar headers se necessário
         if (options.headers) {
           Object.keys(options.headers).forEach(key => {
-            xhr.setRequestHeader(key, options.headers[key]);
+            try {
+              xhr.setRequestHeader(key, options.headers[key]);
+            } catch (e) {
+              console.warn('⚠️ [FETCH] Erro ao adicionar header:', key, e);
+            }
           });
         }
         
@@ -11494,6 +11527,7 @@ function getOverlayMostrado() {
         };
         
         xhr.onerror = function() {
+          console.error('❌ [FETCH] XMLHttpRequest erro. URL tentada:', urlFinal.substring(0, 80));
           reject(new Error('Network error'));
         };
         
@@ -11501,12 +11535,23 @@ function getOverlayMostrado() {
           reject(new Error('Timeout'));
         };
         
-        xhr.send(options.body || null);
+        try {
+          xhr.send(options.body || null);
+        } catch (e) {
+          console.error('❌ [FETCH] Erro ao enviar XMLHttpRequest:', e);
+          reject(new Error('Erro ao enviar requisição: ' + e.message));
+        }
       });
     }
     
     // Para servidores não-próprios, usar fetch normal
-    const request = new Request(fetchUrl, {
+    // Mas garantir que não está em HTTPS se não deveria estar
+    let finalUrl = fetchUrl;
+    if (finalUrl.startsWith('https://') && !finalUrl.includes('router.project-osrm.org') && !finalUrl.includes('routing.openstreetmap.de')) {
+      finalUrl = finalUrl.replace(/^https:/, 'http:');
+    }
+    
+    const request = new Request(finalUrl, {
       method: options.method || 'GET',
       mode: 'cors',
       cache: options.cache || 'no-cache',
@@ -12555,7 +12600,12 @@ function getOverlayMostrado() {
                     const controller = new AbortController();
                     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s para saltos grandes
                     
-                    const saltoResponse = await fetch(saltoUrl, { signal: controller.signal });
+                    // Usar fetchForcandoHTTP para servidores próprios
+                    const servidoresProprios = ['186.250.92.131', 'app.integrabrasil.com', 'beta.integrabrasil.com'];
+                    const isServidorProprio = servidoresProprios.some(s => saltoUrl.includes(s));
+                    const saltoResponse = isServidorProprio 
+                      ? await fetchForcandoHTTP(saltoUrl, { signal: controller.signal })
+                      : await fetch(saltoUrl, { signal: controller.signal });
                     clearTimeout(timeoutId);
                     
                     if (saltoResponse.ok) {
@@ -13919,5 +13969,308 @@ function getOverlayMostrado() {
       modal.remove();
     }
   };
+
+  // ==========================================
+  // ABA MACROS - Carregar e exibir macros da viagem
+  // ==========================================
+  async function carregarMacrosViagem() {
+    const container = document.getElementById('macrosLista');
+    const idViagemEl = document.getElementById('macrosIdViagem');
+    const totalMacrosEl = document.getElementById('totalMacrosViagem');
+    
+    if (!container) return;
+
+    // Buscar ID da viagem
+    const idViagem = document.getElementById('filtroIdViagem')?.value || 
+                     document.getElementById('viagemId')?.value || 
+                     null;
+
+    if (!idViagem || idViagem.trim() === '') {
+      container.innerHTML = `
+        <div style="color: #856404; text-align: center; padding: 40px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px;">
+          <div style="font-size: 48px; margin-bottom: 15px;">⚠️</div>
+          <h3 style="color: #856404; margin-bottom: 10px;">Nenhuma viagem selecionada</h3>
+          <p style="color: #856404; margin: 0;">
+            Selecione uma viagem na aba <strong>Dados</strong> ou <strong>Grid</strong> para visualizar as macros.
+          </p>
+        </div>
+      `;
+      if (idViagemEl) idViagemEl.textContent = '-';
+      if (totalMacrosEl) totalMacrosEl.textContent = '0';
+      return;
+    }
+
+    // Atualizar ID da viagem
+    if (idViagemEl) idViagemEl.textContent = idViagem;
+
+    // Mostrar loading
+    container.innerHTML = `
+      <div style="text-align: center; padding: 40px; color: #6c757d;">
+        <div style="font-size: 48px; margin-bottom: 15px;">⏳</div>
+        <p>Carregando macros da viagem...</p>
+      </div>
+    `;
+
+    try {
+      const response = await fetch(`/api/motorista/historico-macros/${idViagem}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const macros = await response.json();
+
+      // Atualizar total
+      if (totalMacrosEl) totalMacrosEl.textContent = macros.length || 0;
+
+      if (!macros || macros.length === 0) {
+        container.innerHTML = `
+          <div style="color: #6c757d; text-align: center; padding: 40px;">
+            <div style="font-size: 48px; margin-bottom: 15px;">📝</div>
+            <p>Nenhuma macro registrada para esta viagem.</p>
+          </div>
+        `;
+        return;
+      }
+
+      // Formatar e exibir macros
+      const html = `
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+              <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057;">Código</th>
+              <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057;">Descrição</th>
+              <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057;">Data/Hora</th>
+              <th style="padding: 12px; text-align: center; font-weight: 600; color: #495057;">Foto</th>
+              <th style="padding: 12px; text-align: center; font-weight: 600; color: #495057;">Localização</th>
+              <th style="padding: 12px; text-align: center; font-weight: 600; color: #495057;">ID Sequencial</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${macros.map(macro => {
+              const dataHora = macro.DTOCORRENCIA ? new Date(macro.DTOCORRENCIA).toLocaleString('pt-BR') : '-';
+              const temFoto = macro.TEM_FOTO === 'S' || macro.DSFOTOBASE64 || macro.DSCAMINHOFOTO;
+              const temGPS = macro.LATITUDE && macro.LONGITUDE;
+              const idSequencial = macro.IDVIAGEM_OCORRENCIA || '-';
+              
+              return `
+                <tr style="border-bottom: 1px solid #dee2e6; transition: background 0.2s;">
+                  <td style="padding: 12px; color: #495057;">${macro.CDTIPOOCORRENCIA || '-'}</td>
+                  <td style="padding: 12px; color: #495057; font-weight: 500;">${macro.DSTIPOOCORRENCIA || '-'}</td>
+                  <td style="padding: 12px; color: #495057;">${dataHora}</td>
+                  <td style="padding: 12px; text-align: center;">
+                    ${temFoto ? `
+                      <button class="btn btn-info btn-sm btn-ver-foto-macro" 
+                              style="padding: 6px 12px; font-size: 12px; cursor: pointer;"
+                              data-id="${idSequencial}"
+                              data-foto-base64="${(macro.DSFOTOBASE64 || '').substring(0, 100)}"
+                              data-caminho-foto="${macro.DSCAMINHOFOTO || ''}">
+                        <i class='bx bx-image'></i> Ver Foto
+                      </button>
+                    ` : '<span style="color: #6c757d;">-</span>'}
+                  </td>
+                  <td style="padding: 12px; text-align: center;">
+                    ${temGPS ? `
+                      <button onclick="mostrarMapaMacro(${macro.LATITUDE}, ${macro.LONGITUDE}, ${JSON.stringify(macro.DSTIPOOCORRENCIA || 'Macro')})" 
+                              class="btn btn-primary btn-sm" 
+                              style="padding: 6px 12px; font-size: 12px; cursor: pointer;">
+                        <i class='bx bx-map'></i> Ver no Mapa
+                      </button>
+                    ` : '<span style="color: #6c757d;">-</span>'}
+                  </td>
+                  <td style="padding: 12px; text-align: center; color: #495057; font-weight: 500;">${idSequencial}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      `;
+
+      container.innerHTML = html;
+
+      // Adicionar event listeners para botões de foto
+      container.querySelectorAll('.btn-ver-foto-macro').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idSequencial = btn.getAttribute('data-id');
+          const caminhoFoto = btn.getAttribute('data-caminho-foto');
+          
+          // Buscar macro completa para obter foto base64
+          const macro = macros.find(m => m.IDVIAGEM_OCORRENCIA == idSequencial);
+          const fotoBase64 = macro ? (macro.DSFOTOBASE64 || null) : null;
+          
+          mostrarFotoMacro(idSequencial, fotoBase64, caminhoFoto);
+        });
+      });
+
+    } catch (error) {
+      console.error('Erro ao carregar macros:', error);
+      container.innerHTML = `
+        <div style="color: #dc3545; text-align: center; padding: 40px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 8px;">
+          <div style="font-size: 48px; margin-bottom: 15px;">❌</div>
+          <h3 style="color: #721c24; margin-bottom: 10px;">Erro ao carregar macros</h3>
+          <p style="color: #721c24; margin: 0;">${error.message || 'Erro desconhecido'}</p>
+        </div>
+      `;
+      if (totalMacrosEl) totalMacrosEl.textContent = '0';
+    }
+  }
+
+  // Função para mostrar foto da macro
+  window.mostrarFotoMacro = function(idSequencial, fotoBase64, caminhoFoto) {
+    // Remover modal anterior se existir
+    const modalAnterior = document.getElementById('modalFotoMacro');
+    if (modalAnterior) {
+      modalAnterior.remove();
+    }
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-tratamento';
+    modal.style.display = 'flex';
+    modal.id = 'modalFotoMacro';
+    
+    let imagemSrc = '';
+    if (fotoBase64 && fotoBase64.trim() !== '' && fotoBase64 !== 'null') {
+      // Se já começa com data:image, usar direto, senão adicionar prefixo
+      if (fotoBase64.startsWith('data:image')) {
+        imagemSrc = fotoBase64;
+      } else {
+        imagemSrc = `data:image/jpeg;base64,${fotoBase64}`;
+      }
+    } else if (caminhoFoto && caminhoFoto.trim() !== '' && caminhoFoto !== 'null') {
+      imagemSrc = caminhoFoto;
+    } else {
+      alert('Foto não disponível para esta macro.');
+      return;
+    }
+
+    modal.innerHTML = `
+      <div class="modal-content-tratamento" style="max-width: 800px;">
+        <div class="modal-header-tratamento">
+          <h3><i class='bx bx-image'></i> Foto da Macro - ID: ${idSequencial}</h3>
+          <button type="button" class="btn-close-modal" onclick="document.getElementById('modalFotoMacro').remove()">
+            <i class='bx bx-x'></i>
+          </button>
+        </div>
+        <div class="modal-body-tratamento" style="text-align: center; padding: 20px;">
+          <img src="${imagemSrc}" alt="Foto da Macro" style="max-width: 100%; max-height: 70vh; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" onerror="this.onerror=null; this.src=''; alert('Erro ao carregar imagem.');">
+        </div>
+        <div class="modal-footer-tratamento">
+          <button type="button" onclick="document.getElementById('modalFotoMacro').remove()" class="btn btn-secondary">
+            <i class='bx bx-x'></i> Fechar
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+  };
+
+  // Função para mostrar mapa com localização da macro
+  window.mostrarMapaMacro = function(latitude, longitude, descricao) {
+    // Remover modal anterior se existir
+    const modalAnterior = document.getElementById('modalMapaMacro');
+    if (modalAnterior) {
+      // Remover mapa Leaflet se existir
+      const mapaDivAnterior = document.getElementById('mapaMacro');
+      if (mapaDivAnterior && mapaDivAnterior._leaflet_id && typeof L !== 'undefined') {
+        try {
+          const mapaAnterior = L.DomUtil.get(mapaDivAnterior);
+          if (mapaAnterior) {
+            mapaAnterior.remove();
+          }
+        } catch (e) {
+          console.warn('Erro ao remover mapa anterior:', e);
+        }
+      }
+      modalAnterior.remove();
+    }
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-tratamento';
+    modal.style.display = 'flex';
+    modal.id = 'modalMapaMacro';
+    
+    const descricaoEscapada = (descricao || 'Macro').replace(/'/g, "\\'");
+    
+    modal.innerHTML = `
+      <div class="modal-content-tratamento" style="max-width: 900px; max-height: 90vh;">
+        <div class="modal-header-tratamento">
+          <h3><i class='bx bx-map'></i> Localização da Macro: ${descricaoEscapada}</h3>
+          <button type="button" class="btn-close-modal" onclick="document.getElementById('modalMapaMacro').remove()">
+            <i class='bx bx-x'></i>
+          </button>
+        </div>
+        <div class="modal-body-tratamento" style="padding: 20px;">
+          <div id="mapaMacro" style="width: 100%; height: 500px; border-radius: 8px; border: 1px solid #dee2e6;"></div>
+          <div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 6px;">
+            <strong>Coordenadas:</strong> ${latitude}, ${longitude}
+          </div>
+        </div>
+        <div class="modal-footer-tratamento">
+          <button type="button" onclick="document.getElementById('modalMapaMacro').remove()" class="btn btn-secondary">
+            <i class='bx bx-x'></i> Fechar
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Inicializar mapa após o modal ser adicionado ao DOM
+    setTimeout(() => {
+      const mapaDiv = document.getElementById('mapaMacro');
+      if (mapaDiv && typeof L !== 'undefined') {
+        // Limpar mapa anterior se existir
+        if (mapaDiv._leaflet_id) {
+          mapaDiv.innerHTML = '';
+          delete mapaDiv._leaflet_id;
+        }
+
+        // Aguardar um pouco para garantir que o elemento está visível
+        setTimeout(() => {
+          try {
+            // Criar mapa
+            const mapa = L.map('mapaMacro').setView([parseFloat(latitude), parseFloat(longitude)], 15);
+
+            // Adicionar tile layer
+            if (typeof window.MapConfig !== 'undefined' && window.MapConfig.getTileServerUrl) {
+              const tileUrl = window.MapConfig.getTileServerUrl();
+              L.tileLayer(tileUrl, {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap contributors'
+              }).addTo(mapa);
+            } else {
+              L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '© OpenStreetMap contributors'
+              }).addTo(mapa);
+            }
+
+            // Adicionar marcador
+            L.marker([parseFloat(latitude), parseFloat(longitude)])
+              .addTo(mapa)
+              .bindPopup(`<strong>${descricaoEscapada}</strong><br>Coordenadas: ${latitude}, ${longitude}`)
+              .openPopup();
+          } catch (err) {
+            console.error('Erro ao inicializar mapa:', err);
+            alert('Erro ao carregar mapa. Verifique se o Leaflet está carregado.');
+          }
+        }, 200);
+      } else {
+        console.error('Leaflet não está disponível ou elemento do mapa não encontrado');
+        alert('Erro: Leaflet não está disponível. Recarregue a página.');
+      }
+    }, 100);
+  };
+
+  // Event listener para botão de atualizar macros
+  document.addEventListener('DOMContentLoaded', () => {
+    const btnAtualizarMacros = document.getElementById('btnAtualizarMacros');
+    if (btnAtualizarMacros) {
+      btnAtualizarMacros.addEventListener('click', () => {
+        carregarMacrosViagem();
+      });
+    }
+  });
 
 })();

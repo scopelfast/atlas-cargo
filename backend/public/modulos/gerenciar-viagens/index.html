@@ -786,6 +786,7 @@
       <button class="tab-btn" data-tab="motorista">Motorista</button>
       <button class="tab-btn" data-tab="rastreamento">Rastreamento</button>
       <button class="tab-btn" data-tab="integracao-meta">Integração Meta</button>
+      <button class="tab-btn" data-tab="macros">Macros</button>
     </div>
 
     <!-- Filtros -->
@@ -1989,6 +1990,37 @@
             <div style="color: #6c757d; text-align: center; padding: 40px;">
               Nenhum log disponível. Os logs aparecerão aqui quando houver envios para o webhook Meta.
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Aba Macros -->
+    <div class="tab-content" id="tab-macros">
+      <div class="form-box">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <h2 style="margin: 0;"><i class='bx bx-list-check'></i> Macros da Viagem</h2>
+          <div style="display: flex; gap: 10px;">
+            <button id="btnAtualizarMacros" type="button" class="btn btn-primary btn-sm">
+              <i class='bx bx-refresh'></i> Atualizar
+            </button>
+          </div>
+        </div>
+        
+        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+          <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+            <div>
+              <strong>ID Viagem:</strong> <span id="macrosIdViagem">-</span>
+            </div>
+            <div>
+              <strong>Total de Macros:</strong> <span id="totalMacrosViagem">0</span>
+            </div>
+          </div>
+        </div>
+
+        <div id="macrosLista" style="background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; max-height: 600px; overflow-y: auto;">
+          <div style="color: #6c757d; text-align: center; padding: 40px;">
+            Selecione uma viagem na aba <strong>Dados</strong> ou <strong>Grid</strong> para visualizar as macros.
           </div>
         </div>
       </div>

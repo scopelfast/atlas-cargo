@@ -145,6 +145,18 @@ async function postComFila(url, dados, tipoFila = 'acao') {
     };
     
   } catch (error) {
+    // Se for erro de duplicata na fila, não tentar salvar novamente
+    if (error.message && error.message.includes('duplicata') || error.message.includes('já está na fila')) {
+      console.warn(`⚠️ Duplicata detectada na fila:`, error.message);
+      mostrarToast('Esta macro já está aguardando sincronização. Aguarde alguns segundos.', 'warning');
+      return {
+        success: false,
+        online: false,
+        fila: false,
+        duplicata: true
+      };
+    }
+    
     console.warn(`⚠️ Erro ao enviar, salvando na fila:`, error.message);
     
     // Mapear tipo de fila
@@ -153,25 +165,31 @@ async function postComFila(url, dados, tipoFila = 'acao') {
                     : tipoFila === 'chat' ? 'filaMensagens'
                     : 'filaAcoes';
     
-    await window.OfflineDB.adicionarFila(filaStore, {
-      url: url,
-      endpoint: url, // Para compatibilidade
-      method: 'POST',
-      data: dados,
-      tipo: tipoFila,
-      timestamp: new Date().toISOString()
-    });
-    
-    console.log(`💾 Salvo na fila: ${filaStore}`);
-    await window.OfflineDB.atualizarIndicador();
-    
-    mostrarToast('Salvo! Será enviado quando houver conexão', 'info');
-    
-    return {
-      success: true,
-      online: false,
-      fila: true
-    };
+    try {
+      await window.OfflineDB.adicionarFila(filaStore, {
+        url: url,
+        endpoint: url, // Para compatibilidade
+        method: 'POST',
+        data: dados,
+        tipo: tipoFila,
+        timestamp: new Date().toISOString()
+      });
+      
+      console.log(`💾 Salvo na fila: ${filaStore}`);
+      await window.OfflineDB.atualizarIndicador();
+      
+      mostrarToast('Salvo! Será enviado quando houver conexão', 'info');
+      
+      return {
+        success: true,
+        online: false,
+        fila: true
+      };
+    } catch (filaError) {
+      // Se falhar ao adicionar na fila (ex: duplicata), retornar erro
+      console.error(`❌ Erro ao adicionar na fila:`, filaError.message);
+      throw filaError;
+    }
   }
 }
 
