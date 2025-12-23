@@ -983,7 +983,7 @@
     await carregarFiliaisUsuario(login);
   }
 
-  // Carregar atividades do usuário
+  // Carregar atividades do usuário (agrupadas por FGGRUPO)
   async function carregarAtividadesUsuario(login) {
     try {
       const response = await fetch(`/api/usuarios/${login}/atividades`);
@@ -992,25 +992,121 @@
       
       if (!container) return;
 
-      container.innerHTML = '';
+      // Agrupar atividades por FGGRUPO
+      const atividadesPorGrupo = {};
       atividadesDisponiveis.forEach(atividade => {
-        const temAcesso = atividadesUsuario.some(au => au.CDTIPOATIVIDADE === atividade.CDTIPOATIVIDADE && au.TEM_ACESSO === 1);
-        const div = document.createElement('div');
-        div.className = 'checkbox-item';
-        div.innerHTML = `
-          <input type="checkbox" id="atividade_${atividade.CDTIPOATIVIDADE}" 
-                 value="${atividade.CDTIPOATIVIDADE}" ${temAcesso ? 'checked' : ''}>
-          <label for="atividade_${atividade.CDTIPOATIVIDADE}">
-            ${atividade.DSTIPOATIVIDADE}
-            ${atividade.DSPROGRAMA ? `<small style="color: #6c757d;"> (${atividade.DSPROGRAMA})</small>` : ''}
-          </label>
-        `;
-        container.appendChild(div);
+        const grupo = atividade.FGGRUPO || 'OUTROS';
+        if (!atividadesPorGrupo[grupo]) {
+          atividadesPorGrupo[grupo] = [];
+        }
+        atividadesPorGrupo[grupo].push(atividade);
       });
+
+      // Ordenar grupos (CADASTROS, EQUIPAMENTOS, VIAGENS, etc.)
+      const ordemGrupos = ['CADASTROS', 'EQUIPAMENTOS', 'VIAGENS & LOGÍSTICA', 'GESTÃO & ADMINISTRAÇÃO', 'OUTROS'];
+      const gruposOrdenados = Object.keys(atividadesPorGrupo).sort((a, b) => {
+        const indexA = ordemGrupos.indexOf(a);
+        const indexB = ordemGrupos.indexOf(b);
+        if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+        if (indexA === -1) return 1;
+        if (indexB === -1) return -1;
+        return indexA - indexB;
+      });
+
+      container.innerHTML = '';
+
+      gruposOrdenados.forEach(grupo => {
+        const atividadesDoGrupo = atividadesPorGrupo[grupo];
+        const grupoId = `grupo_${grupo.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        
+        // Contar quantas estão selecionadas
+        let selecionadas = 0;
+        atividadesDoGrupo.forEach(atividade => {
+          const temAcesso = atividadesUsuario.some(au => au.CDTIPOATIVIDADE === atividade.CDTIPOATIVIDADE && au.TEM_ACESSO === 1);
+          if (temAcesso) selecionadas++;
+        });
+
+        const grupoDiv = document.createElement('div');
+        grupoDiv.className = 'grupo-atividades';
+        grupoDiv.id = grupoId;
+        grupoDiv.innerHTML = `
+          <div class="grupo-atividades-header" onclick="toggleGrupo('${grupoId}')">
+            <h4>
+              <span class="grupo-arrow">▼</span>
+              ${grupo}
+              <span class="grupo-badge">${atividadesDoGrupo.length} atividade(s)</span>
+            </h4>
+            <div class="grupo-actions">
+              <span class="grupo-resumo">${selecionadas}/${atividadesDoGrupo.length} selecionadas</span>
+              <button class="grupo-toggle-btn" onclick="event.stopPropagation(); selecionarTodosGrupo('${grupoId}', true);" title="Selecionar todos">
+                ✓ Todos
+              </button>
+              <button class="grupo-toggle-btn" onclick="event.stopPropagation(); selecionarTodosGrupo('${grupoId}', false);" title="Desselecionar todos">
+                ✕ Nenhum
+              </button>
+            </div>
+          </div>
+          <div class="grupo-atividades-body">
+            ${atividadesDoGrupo.map(atividade => {
+              const temAcesso = atividadesUsuario.some(au => au.CDTIPOATIVIDADE === atividade.CDTIPOATIVIDADE && au.TEM_ACESSO === 1);
+              return `
+                <div class="checkbox-item">
+                  <input type="checkbox" id="atividade_${atividade.CDTIPOATIVIDADE}" 
+                         value="${atividade.CDTIPOATIVIDADE}" ${temAcesso ? 'checked' : ''}
+                         onchange="atualizarResumoGrupo('${grupoId}')">
+                  <label for="atividade_${atividade.CDTIPOATIVIDADE}">
+                    ${atividade.DSTIPOATIVIDADE}
+                    ${atividade.DSPROGRAMA ? `<small style="color: #6c757d; display: block; margin-top: 2px;">${atividade.DSPROGRAMA}</small>` : ''}
+                  </label>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+        container.appendChild(grupoDiv);
+      });
+
+      // Se não há grupos, mostrar mensagem
+      if (gruposOrdenados.length === 0) {
+        container.innerHTML = '<p class="empty">Nenhuma atividade disponível.</p>';
+      }
     } catch (err) {
       showMessage('Erro ao carregar atividades do usuário.', 'error');
     }
   }
+
+  // Funções globais para interação com grupos
+  window.toggleGrupo = function(grupoId) {
+    const grupo = document.getElementById(grupoId);
+    if (grupo) {
+      grupo.classList.toggle('collapsed');
+    }
+  };
+
+  window.selecionarTodosGrupo = function(grupoId, selecionar) {
+    const grupo = document.getElementById(grupoId);
+    if (!grupo) return;
+    
+    const checkboxes = grupo.querySelectorAll('input[type="checkbox"]');
+    checkboxes.forEach(cb => {
+      cb.checked = selecionar;
+    });
+    atualizarResumoGrupo(grupoId);
+  };
+
+  window.atualizarResumoGrupo = function(grupoId) {
+    const grupo = document.getElementById(grupoId);
+    if (!grupo) return;
+    
+    const checkboxes = grupo.querySelectorAll('input[type="checkbox"]');
+    const total = checkboxes.length;
+    const selecionadas = Array.from(checkboxes).filter(cb => cb.checked).length;
+    
+    const resumo = grupo.querySelector('.grupo-resumo');
+    if (resumo) {
+      resumo.textContent = `${selecionadas}/${total} selecionadas`;
+    }
+  };
 
   // Carregar empresas do usuário
   async function carregarEmpresasUsuario(login) {
