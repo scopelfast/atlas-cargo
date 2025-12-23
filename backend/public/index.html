@@ -164,16 +164,21 @@
       
       // Iniciar observação do DOM quando estiver pronto
       function iniciarObserver() {
-        if (document.head) {
+        // Verificar se document.head é um Node válido
+        if (document.head && document.head.nodeType === 1) {
           try {
             observer.observe(document.head, { childList: true, subtree: true });
+            console.log('[INDEX] Observer iniciado para document.head');
           } catch (e) {
             console.warn('[INDEX] Erro ao observar document.head:', e);
           }
         }
-        if (document.body) {
+        
+        // Verificar se document.body é um Node válido
+        if (document.body && document.body.nodeType === 1) {
           try {
             observer.observe(document.body, { childList: true, subtree: true });
+            console.log('[INDEX] Observer iniciado para document.body');
           } catch (e) {
             console.warn('[INDEX] Erro ao observar document.body:', e);
           }
@@ -188,8 +193,13 @@
         }
       }
       
-      // Tentar iniciar imediatamente
-      iniciarObserver();
+      // Tentar iniciar apenas quando DOM estiver pronto
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', iniciarObserver);
+      } else {
+        // DOM já carregado, iniciar após um pequeno delay para garantir
+        setTimeout(iniciarObserver, 50);
+      }
       
       // Função para carregar CSS com protocolo correto
       function loadCSS(href) {
@@ -916,8 +926,12 @@
           url = baseUrl + (src.startsWith('/') ? src : '/' + src);
         }
         
-        // Garantir protocolo consistente
-        url = garantirProtocoloConsistente(url);
+        // Garantir protocolo consistente (verificar se função existe)
+        if (typeof garantirProtocoloConsistente === 'function') {
+          url = garantirProtocoloConsistente(url);
+        } else {
+          console.warn('[INDEX] garantirProtocoloConsistente não está definida, usando URL original');
+        }
         
         console.log('[INDEX] Carregando script:', url);
         
@@ -929,7 +943,7 @@
         script.onerror = function() {
           console.error('❌ [INDEX] Erro ao carregar script:', script.src);
           // Se falhou, tentar corrigir protocolo novamente
-          if (script.src) {
+          if (script.src && typeof garantirProtocoloConsistente === 'function') {
             const urlCorrigida = garantirProtocoloConsistente(script.src);
             if (urlCorrigida !== script.src) {
               console.log('🔄 [INDEX] Tentando carregar script com protocolo corrigido:', urlCorrigida);
@@ -942,7 +956,9 @@
             console.log('🔄 [INDEX] Tentando carregar script novamente:', script.src);
             const retryScript = document.createElement('script');
             let retryUrl = script.src || url;
-            retryUrl = garantirProtocoloConsistente(retryUrl);
+            if (typeof garantirProtocoloConsistente === 'function') {
+              retryUrl = garantirProtocoloConsistente(retryUrl);
+            }
             retryScript.setAttribute('src', retryUrl + (retryUrl.includes('?') ? '&' : '?') + 'retry=' + Date.now());
             retryScript.async = false;
             document.body.appendChild(retryScript);
@@ -963,31 +979,34 @@
       
       // Corrigir imagem logo7.png e favicon quando DOM estiver pronto
       function corrigirRecursos() {
+        // Verificar se função está disponível
+        if (typeof garantirProtocoloConsistente !== 'function') {
+          console.warn('[INDEX] garantirProtocoloConsistente não está disponível, aguardando...');
+          setTimeout(corrigirRecursos, 100);
+          return;
+        }
+        
         // Corrigir logo
         const logoImg = document.getElementById('logoImg');
-        if (logoImg && logoImg.src) {
-          const urlCorrigida = garantirProtocoloConsistente(logoImg.src);
-          if (urlCorrigida !== logoImg.src) {
+        if (logoImg) {
+          const srcAttr = logoImg.getAttribute('src');
+          if (srcAttr) {
+            const urlCompleta = srcAttr.startsWith('http') ? srcAttr : baseUrl + (srcAttr.startsWith('/') ? srcAttr : '/' + srcAttr);
+            const urlCorrigida = garantirProtocoloConsistente(urlCompleta);
             logoImg.setAttribute('src', urlCorrigida);
-            console.log('[INDEX] Logo corrigido:', logoImg.src, '→', urlCorrigida);
-          } else if (logoImg.src.includes('/img/logo7.png') && !logoImg.src.startsWith('http')) {
-            const urlCompleta = baseUrl + '/img/logo7.png';
-            logoImg.setAttribute('src', urlCompleta);
-            console.log('[INDEX] Logo com URL completa:', urlCompleta);
+            console.log('[INDEX] Logo corrigido:', srcAttr, '→', urlCorrigida);
           }
         }
         
         // Corrigir favicon
         const faviconLink = document.getElementById('faviconLink');
-        if (faviconLink && faviconLink.href) {
-          const urlCorrigida = garantirProtocoloConsistente(faviconLink.href);
-          if (urlCorrigida !== faviconLink.href) {
+        if (faviconLink) {
+          const hrefAttr = faviconLink.getAttribute('href');
+          if (hrefAttr) {
+            const urlCompleta = hrefAttr.startsWith('http') ? hrefAttr : baseUrl + (hrefAttr.startsWith('/') ? hrefAttr : '/' + hrefAttr);
+            const urlCorrigida = garantirProtocoloConsistente(urlCompleta);
             faviconLink.setAttribute('href', urlCorrigida);
-            console.log('[INDEX] Favicon corrigido:', faviconLink.href, '→', urlCorrigida);
-          } else if (faviconLink.href.includes('/img/logo7.png') && !faviconLink.href.startsWith('http')) {
-            const urlCompleta = baseUrl + '/img/logo7.png';
-            faviconLink.setAttribute('href', urlCompleta);
-            console.log('[INDEX] Favicon com URL completa:', urlCompleta);
+            console.log('[INDEX] Favicon corrigido:', hrefAttr, '→', urlCorrigida);
           }
         }
       }
