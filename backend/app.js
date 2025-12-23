@@ -502,14 +502,20 @@ app.get(['/motorista/manifest.json', '/cargas/motorista/manifest.json'], (req, r
     // Detectar caminho base da requisição usando originalUrl ou path
     // originalUrl inclui o caminho completo, path pode não incluir
     const requestPath = req.originalUrl || req.path || req.url;
-    // Detectar se está em /cargas/motorista/manifest.json ou /motorista/manifest.json
+    // Detectar se está em /cargas/motorista/manifest.json
     let pathBase = '';
-    if (requestPath && (requestPath.startsWith('/cargas/motorista/manifest.json') || requestPath.includes('/cargas/'))) {
+    if (requestPath && requestPath.includes('/cargas/motorista/manifest.json')) {
       pathBase = '/cargas';
     }
     
     console.log('📦 [MANIFEST] Request path:', requestPath);
     console.log('📦 [MANIFEST] Detected pathBase:', pathBase || '(raiz)');
+    console.log('📦 [MANIFEST] Full request object:', {
+      originalUrl: req.originalUrl,
+      path: req.path,
+      url: req.url,
+      baseUrl: req.baseUrl
+    });
     
     // Corrigir start_url
     if (manifest.start_url) {
