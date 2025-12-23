@@ -30,10 +30,12 @@ async function fetchComCache(url, cacheKey, maxAge = null, forceOnline = false) 
   }
   
   try {
-    console.log(`🌐 Buscando online: ${url}`);
+    // Corrigir URL para incluir caminho base (/cargas/)
+    const urlCorrigida = window.corrigirUrl ? window.corrigirUrl(url) : url;
+    console.log(`🌐 Buscando online: ${urlCorrigida}`);
     
     // Tentar buscar da API
-    const response = await fetch(url, {
+    const response = await fetch(urlCorrigida, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -120,9 +122,11 @@ async function postComFila(url, dados, tipoFila = 'acao') {
   const token = getToken();
   
   try {
-    console.log(`🌐 Enviando online: ${url}`);
+    // Corrigir URL para incluir caminho base (/cargas/)
+    const urlCorrigida = window.corrigirUrl ? window.corrigirUrl(url) : url;
+    console.log(`🌐 Enviando online: ${urlCorrigida}`);
     
-    const response = await fetch(url, {
+    const response = await fetch(urlCorrigida, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,

@@ -917,21 +917,39 @@
 
       const response = await fetch(corrigirUrl(`/modulos/${programa}/index.html`));
       if (response.ok) {
-        const html = await response.text();
+        let html = await response.text();
+        
+        // CRÍTICO: Processar HTML como string ANTES de inserir no DOM
+        // Isso evita que o browser tente carregar recursos com URLs incorretas
+        
+        // Processar links CSS - capturar href e substituir
+        html = html.replace(/<link([^>]*\bhref=["'])(\/[^"']+)(["'][^>]*)>/gi, (match, before, href, after) => {
+          // Verificar se é stylesheet (pode estar em qualquer ordem)
+          if (match.includes('stylesheet') && href && href.startsWith('/') && !href.startsWith('http://') && !href.startsWith('https://')) {
+            const hrefCorrigido = corrigirUrl(href);
+            return `<link${before}${hrefCorrigido}${after}>`;
+          }
+          return match;
+        });
+        
+        // Processar scripts com src absoluto (começando com /)
+        html = html.replace(/<script([^>]*\bsrc=["'])(\/[^"']+)(["'][^>]*)>/gi, (match, before, src, after) => {
+          if (src && src.startsWith('/') && !src.startsWith('http://') && !src.startsWith('https://')) {
+            const srcCorrigido = corrigirUrl(src);
+            return `<script${before}${srcCorrigido}${after}>`;
+          }
+          return match;
+        });
+        
+        // Inserir HTML processado no DOM
         contentArea.innerHTML = html;
 
-        // IMPORTANTE: Corrigir links CSS antes de processar scripts
-        // (links CSS são inseridos diretamente no DOM quando innerHTML é usado)
+        // IMPORTANTE: Mover links CSS para o head para garantir que sejam aplicados corretamente
         const linksInHTML = contentArea.querySelectorAll('link[rel="stylesheet"][href]');
         linksInHTML.forEach(link => {
-          const href = link.getAttribute('href');
-          if (href && href.startsWith('/') && !href.startsWith('http')) {
-            const hrefCorrigido = corrigirUrl(href);
-            link.setAttribute('href', hrefCorrigido);
-            // Mover para o head se ainda não estiver lá
-            if (link.parentNode !== document.head) {
-              document.head.appendChild(link);
-            }
+          // Mover para o head se ainda não estiver lá
+          if (link.parentNode !== document.head) {
+            document.head.appendChild(link);
           }
         });
 

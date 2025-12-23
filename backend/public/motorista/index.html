@@ -124,17 +124,28 @@
       // Interceptar todas as chamadas fetch para corrigir URLs automaticamente
       const originalFetch = window.fetch;
       window.fetch = function(input, init) {
+        let urlToFetch = input;
+        
         // Se input é uma string (URL), corrigir se necessário
-        if (typeof input === 'string' && !input.startsWith('http://') && !input.startsWith('https://')) {
-          input = window.corrigirUrl(input);
+        if (typeof input === 'string') {
+          // Corrigir apenas URLs relativas (que começam com / ou não começam com http/https)
+          if (!input.startsWith('http://') && !input.startsWith('https://')) {
+            urlToFetch = window.corrigirUrl(input);
+            console.log(`🔧 [FETCH INTERCEPTOR] Corrigindo URL: ${input} → ${urlToFetch}`);
+          }
         }
         // Se input é um Request object, criar novo com URL corrigida
-        else if (input && typeof input === 'object' && input.url && !input.url.startsWith('http://') && !input.url.startsWith('https://')) {
-          const correctedUrl = window.corrigirUrl(input.url);
-          input = new Request(correctedUrl, input);
+        else if (input && typeof input === 'object' && input.url) {
+          if (!input.url.startsWith('http://') && !input.url.startsWith('https://')) {
+            const correctedUrl = window.corrigirUrl(input.url);
+            console.log(`🔧 [FETCH INTERCEPTOR] Corrigindo Request URL: ${input.url} → ${correctedUrl}`);
+            urlToFetch = new Request(correctedUrl, input);
+          } else {
+            urlToFetch = input;
+          }
         }
         
-        return originalFetch.call(this, input, init);
+        return originalFetch.call(this, urlToFetch, init);
       };
     })();
   </script>
