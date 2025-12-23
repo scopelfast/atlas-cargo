@@ -296,7 +296,7 @@
         
         const baseUrl = origin + (pathBase === '/' ? '' : pathBase);
         // O scope também precisa incluir o caminho base
-        const pathname = window.location.pathname;
+        // pathname já foi declarado acima, então usamos a variável existente
         let scopePath = '/motorista/';
         if (pathname.includes('/cargas')) {
           scopePath = '/cargas/motorista/';
