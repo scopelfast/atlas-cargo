@@ -437,6 +437,8 @@ app.get(['/motorista/manifest.json', '/cargas/motorista/manifest.json'], (req, r
     // Detectar caminho base da requisição
     const pathBase = req.path.includes('/cargas') ? '/cargas' : '';
     
+    console.log('📦 [MANIFEST] Requisição para:', req.path, '| pathBase:', pathBase);
+    
     // Corrigir start_url
     if (manifest.start_url) {
       manifest.start_url = pathBase + manifest.start_url;
@@ -450,6 +452,12 @@ app.get(['/motorista/manifest.json', '/cargas/motorista/manifest.json'], (req, r
       }));
     }
     
+    console.log('📦 [MANIFEST] Manifest corrigido:', JSON.stringify(manifest, null, 2));
+    
+    // Desabilitar cache para o manifest
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.setHeader('Content-Type', 'application/manifest+json');
     res.json(manifest);
   } catch (err) {
