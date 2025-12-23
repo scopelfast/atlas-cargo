@@ -425,6 +425,39 @@ app.get('/test-css', (req, res) => {
   });
 });
 
+// Rota para servir manifest.json do motorista com caminhos corrigidos
+app.get(['/motorista/manifest.json', '/cargas/motorista/manifest.json'], (req, res) => {
+  const fs = require('fs');
+  const manifestPath = path.join(__dirname, 'public', 'motorista', 'manifest.json');
+  
+  try {
+    const manifestContent = fs.readFileSync(manifestPath, 'utf8');
+    const manifest = JSON.parse(manifestContent);
+    
+    // Detectar caminho base da requisição
+    const pathBase = req.path.includes('/cargas') ? '/cargas' : '';
+    
+    // Corrigir start_url
+    if (manifest.start_url) {
+      manifest.start_url = pathBase + manifest.start_url;
+    }
+    
+    // Corrigir ícones
+    if (manifest.icons && Array.isArray(manifest.icons)) {
+      manifest.icons = manifest.icons.map(icon => ({
+        ...icon,
+        src: pathBase + icon.src
+      }));
+    }
+    
+    res.setHeader('Content-Type', 'application/manifest+json');
+    res.json(manifest);
+  } catch (err) {
+    console.error('Erro ao ler manifest.json:', err);
+    res.status(404).send('Manifest não encontrado');
+  }
+});
+
 // Qualquer outra rota não encontrada → redireciona para frontend (SPA-friendly)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
