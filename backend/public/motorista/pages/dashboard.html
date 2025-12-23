@@ -677,6 +677,42 @@
   <script>
     if (!verificarAuth()) window.location.href = '../index.html';
 
+    // Função global para corrigir URLs - disponível para todos os scripts
+    // Usa window.__BASE_URL__ que é definido no index.html do motorista
+    if (typeof window.corrigirUrl === 'undefined') {
+      window.corrigirUrl = function(url) {
+        if (!url) return url;
+        if (url.startsWith('http://') || url.startsWith('https://')) return url;
+        
+        // Obter baseUrl - sempre verificar __BASE_URL__ primeiro
+        let baseUrl = window.__BASE_URL__;
+        
+        // Se não estiver definido, calcular a partir do pathname
+        if (!baseUrl) {
+          const pathname = window.location.pathname;
+          let pathBase = '/';
+          
+          // Detectar caminho base removendo /motorista/pages/dashboard.html
+          if (pathname.includes('/motorista')) {
+            const indexMotorista = pathname.indexOf('/motorista');
+            pathBase = pathname.substring(0, indexMotorista);
+          }
+          
+          if (!pathBase || pathBase === '') pathBase = '/';
+          if (pathBase !== '/' && !pathBase.endsWith('/')) pathBase = pathBase + '/';
+          
+          baseUrl = window.location.protocol + '//' + window.location.host + (pathBase === '/' ? '' : pathBase.replace(/\/$/, ''));
+        }
+        
+        // Se a URL começa com /, adicionar baseUrl; senão, adicionar baseUrl + /
+        if (url.startsWith('/')) {
+          return baseUrl + url;
+        } else {
+          return baseUrl + '/' + url;
+        }
+      };
+    }
+
     const motorista = getMotorista();
     console.log('Dados do motorista:', motorista);
     
@@ -726,7 +762,9 @@
     async function carregarReputacao() {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch(`/api/reputation/motorista/${motorista.id}`, {
+        // Usar corrigirUrl se disponível para garantir o caminho base correto
+        const apiUrl = (typeof window.corrigirUrl === 'function') ? window.corrigirUrl(`/api/reputation/motorista/${motorista.id}`) : `/api/reputation/motorista/${motorista.id}`;
+        const response = await fetch(apiUrl, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -778,7 +816,9 @@
         
         if (!container) return;
 
-        const response = await fetch(`/api/motorista/notificacoes/${motorista.id}?limit=5`, {
+        // Usar corrigirUrl se disponível para garantir o caminho base correto
+        const apiUrl = (typeof window.corrigirUrl === 'function') ? window.corrigirUrl(`/api/motorista/notificacoes/${motorista.id}?limit=5`) : `/api/motorista/notificacoes/${motorista.id}?limit=5`;
+        const response = await fetch(apiUrl, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -898,7 +938,9 @@
       try {
         // Buscar viagens em andamento
         const token = localStorage.getItem('token');
-        const response = await fetch(`/api/motorista/viagens-andamento/${motorista.id}`, {
+        // Usar corrigirUrl se disponível para garantir o caminho base correto
+        const apiUrl = (typeof window.corrigirUrl === 'function') ? window.corrigirUrl(`/api/motorista/viagens-andamento/${motorista.id}`) : `/api/motorista/viagens-andamento/${motorista.id}`;
+        const response = await fetch(apiUrl, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -1092,8 +1134,11 @@
         
         if (!idMotorista) return;
         
+        // Usar corrigirUrl se disponível para garantir o caminho base correto
+        const corrigirSeDisponivel = (url) => (typeof window.corrigirUrl === 'function') ? window.corrigirUrl(url) : url;
+        
         // Tentar endpoint do módulo primeiro
-        let response = await fetch(`/api/chat/nao-lidas?idUsuario=${idMotorista}&userType=MOTORISTA`, {
+        let response = await fetch(corrigirSeDisponivel(`/api/chat/nao-lidas?idUsuario=${idMotorista}&userType=MOTORISTA`), {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -1101,7 +1146,7 @@
         
         // Se não funcionar, tentar endpoint alternativo
         if (!response.ok) {
-          response = await fetch(`/api/messages/nao-lidas?idUsuario=${idMotorista}&userType=MOTORISTA`, {
+          response = await fetch(corrigirSeDisponivel(`/api/messages/nao-lidas?idUsuario=${idMotorista}&userType=MOTORISTA`), {
             headers: {
               'Authorization': `Bearer ${token}`
             }
@@ -1181,7 +1226,9 @@
 
     async function buscarViagensAndamento(idMotorista, token) {
       try {
-        const response = await fetch(`/api/motorista/viagens-andamento/${idMotorista}`, {
+        // Usar corrigirUrl se disponível para garantir o caminho base correto
+        const apiUrl = (typeof window.corrigirUrl === 'function') ? window.corrigirUrl(`/api/motorista/viagens-andamento/${idMotorista}`) : `/api/motorista/viagens-andamento/${idMotorista}`;
+        const response = await fetch(apiUrl, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         
@@ -1212,7 +1259,9 @@
 
     async function buscarConvocacoesPendentes(idMotorista, token) {
       try {
-        const response = await fetch(`/api/motorista/convocacoes/${idMotorista}`, {
+        // Usar corrigirUrl se disponível para garantir o caminho base correto
+        const apiUrl = (typeof window.corrigirUrl === 'function') ? window.corrigirUrl(`/api/motorista/convocacoes/${idMotorista}`) : `/api/motorista/convocacoes/${idMotorista}`;
+        const response = await fetch(apiUrl, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (response.ok) {
@@ -1229,7 +1278,9 @@
 
     async function buscarCargasDisponiveis(token) {
       try {
-        const response = await fetch(`/api/motorista/cargas-disponiveis`, {
+        // Usar corrigirUrl se disponível para garantir o caminho base correto
+        const apiUrl = (typeof window.corrigirUrl === 'function') ? window.corrigirUrl(`/api/motorista/cargas-disponiveis`) : `/api/motorista/cargas-disponiveis`;
+        const response = await fetch(apiUrl, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (response.ok) {
@@ -1244,11 +1295,14 @@
 
     async function buscarMensagensNaoLidas(idMotorista, token) {
       try {
-        let response = await fetch(`/api/chat/nao-lidas?idUsuario=${idMotorista}&userType=MOTORISTA`, {
+        // Usar corrigirUrl se disponível para garantir o caminho base correto
+        const corrigirSeDisponivel = (url) => (typeof window.corrigirUrl === 'function') ? window.corrigirUrl(url) : url;
+        
+        let response = await fetch(corrigirSeDisponivel(`/api/chat/nao-lidas?idUsuario=${idMotorista}&userType=MOTORISTA`), {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!response.ok) {
-          response = await fetch(`/api/messages/nao-lidas?idUsuario=${idMotorista}&userType=MOTORISTA`, {
+          response = await fetch(corrigirSeDisponivel(`/api/messages/nao-lidas?idUsuario=${idMotorista}&userType=MOTORISTA`), {
             headers: { 'Authorization': `Bearer ${token}` }
           });
         }
@@ -1355,7 +1409,9 @@
     async function carregarGraficoPerformance() {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch(`/api/reputation/motorista/${motorista.id}`, {
+        // Usar corrigirUrl se disponível para garantir o caminho base correto
+        const apiUrl = (typeof window.corrigirUrl === 'function') ? window.corrigirUrl(`/api/reputation/motorista/${motorista.id}`) : `/api/reputation/motorista/${motorista.id}`;
+        const response = await fetch(apiUrl, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
 
