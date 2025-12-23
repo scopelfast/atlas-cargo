@@ -132,10 +132,10 @@
         showMessage('Sessão expirada por inatividade. Faça login novamente.', 'error');
         // Aguardar um pouco para o usuário ver a mensagem antes de redirecionar
         setTimeout(() => {
-          // Forçar HTTP em desenvolvimento local
-          const hostname = window.location.hostname;
-          const protocol = window.location.protocol;
-          let cleanUrl = protocol + '//' + window.location.host + '/';
+          // Usar caminho base correto (/cargas/)
+          const baseUrl = window.__BASE_URL__ || window.location.origin;
+          const pathBase = baseUrl.includes('/cargas') ? '/cargas' : '';
+          let cleanUrl = window.location.origin + pathBase + '/';
           // Garantir que não tenha ? no final
           cleanUrl = cleanUrl.replace(/\?+$/, '');
           // Usar replace para não adicionar ao histórico e evitar ?
@@ -145,9 +145,10 @@
       }
     }
     // Remover ? e usar replace para não adicionar ao histórico
-    // Usar protocolo atual da página
-    const protocol = window.location.protocol;
-    let cleanUrl = protocol + '//' + window.location.host + '/';
+    // Usar caminho base correto (/cargas/)
+    const baseUrl = window.__BASE_URL__ || window.location.origin;
+    const pathBase = baseUrl.includes('/cargas') ? '/cargas' : '';
+    let cleanUrl = window.location.origin + pathBase + '/';
     // Garantir que não tenha ? no final
     cleanUrl = cleanUrl.replace(/\?+$/, '');
     window.location.replace(cleanUrl);

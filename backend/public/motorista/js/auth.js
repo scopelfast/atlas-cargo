@@ -35,8 +35,23 @@ function getMotorista() {
 function doLogout() {
   localStorage.removeItem('token');
   localStorage.removeItem('motorista');
-  const baseUrl = window.__BASE_URL__ || window.location.origin;
-  const pathBase = baseUrl.includes('/cargas') ? '/cargas' : '';
+  
+  // Usar caminho base correto (/cargas/)
+  let pathBase = '';
+  if (window.__BASE_URL__) {
+    // Se __BASE_URL__ inclui /cargas, extrair o pathBase
+    const baseUrl = window.__BASE_URL__;
+    if (baseUrl.includes('/cargas')) {
+      pathBase = '/cargas';
+    }
+  } else {
+    // Fallback: verificar pathname atual
+    const pathname = window.location.pathname;
+    if (pathname.includes('/cargas')) {
+      pathBase = '/cargas';
+    }
+  }
+  
   window.location.href = pathBase + '/motorista/index.html';
 }
 

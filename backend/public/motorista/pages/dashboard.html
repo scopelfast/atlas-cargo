@@ -753,7 +753,10 @@
         localStorage.removeItem('token');
         localStorage.removeItem('motorista');
         setTimeout(() => {
-          window.location.href = '../index.html';
+          // Usar caminho base correto (/cargas/)
+          const baseUrl = window.__BASE_URL__ || window.location.origin;
+          const pathBase = baseUrl.includes('/cargas') ? '/cargas' : '';
+          window.location.href = pathBase + '/motorista/index.html';
         }, 500);
       }
     }
