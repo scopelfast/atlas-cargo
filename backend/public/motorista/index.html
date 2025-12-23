@@ -17,45 +17,25 @@
                               hostname === 'beta.integrabrasil.com' || 
                               hostname.includes('integrabrasil.com');
       
-      // Portas que devem usar HTTP (8080)
-      const portasHTTP = ['8080'];
-      // Portas que devem usar HTTPS (8443)
-      const portasHTTPS = ['8443'];
-      const portaAtual = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
-      
-      // Determinar protocolo baseado na porta
-      let protocoloEsperado = window.location.protocol;
-      if (portasHTTP.includes(portaAtual)) {
-        protocoloEsperado = 'http:';
-      } else if (portasHTTPS.includes(portaAtual)) {
-        protocoloEsperado = 'https:';
-      } else if (isLocal) {
-        protocoloEsperado = 'http:';
-      }
+      // IMPORTANTE: Usar o protocolo atual da página (transparente)
+      // Se acessar via HTTP, usar HTTP; se via HTTPS, usar HTTPS
+      const protocoloAtual = window.location.protocol;
       
       // Se estiver em local e HTTPS, redirecionar para HTTP
-      if (isLocal && window.location.protocol === 'https:') {
+      if (isLocal && protocoloAtual === 'https:') {
         const httpUrl = 'http:' + window.location.href.substring(window.location.protocol.length);
         window.location.replace(httpUrl);
         return;
       }
       
-      // Para IntegraBrasil, corrigir protocolo se necessário
-      if (isIntegraBrasil && window.location.protocol !== protocoloEsperado) {
-        const cleanUrl = protocoloEsperado + '//' + window.location.host + window.location.pathname.replace(/\?+$/, '');
-        console.warn('[MOTORISTA] Protocolo incorreto, corrigindo:', window.location.href, '→', cleanUrl);
-        window.location.replace(cleanUrl);
-        return;
-      }
-      
-      // Obter host atual e usar protocolo correto
+      // Usar o protocolo atual (HTTP ou HTTPS) - transparente
       const host = window.location.host;
-      const baseUrl = (isLocal ? 'http:' : protocoloEsperado) + '//' + host;
+      const baseUrl = (isLocal ? 'http:' : protocoloAtual) + '//' + host;
       
       // Criar e injetar recursos ANTES do navegador tentar fazer upgrade
       const head = document.head || document.getElementsByTagName('head')[0];
       
-      console.log('✅ Usando baseUrl HTTP:', baseUrl);
+      console.log('✅ [MOTORISTA] Usando baseUrl:', baseUrl, '| Protocol:', protocoloAtual);
       
       // Favicon
       const favicon = document.createElement('link');
@@ -89,10 +69,14 @@
   </script>
 </head>
 <body>
-  <!-- Script crítico: executar ANTES de qualquer coisa para forçar HTTP -->
+  <!-- Script crítico: redirecionar apenas se for localhost em HTTPS -->
   <script>
-    // Redirecionar imediatamente se estiver em HTTPS
-    if (window.location.protocol === 'https:') {
+    // Redirecionar apenas se for localhost em HTTPS (desenvolvimento)
+    const hostname = window.location.hostname;
+    const isLocal = hostname === 'localhost' || 
+                    hostname === '127.0.0.1' || 
+                    hostname.startsWith('192.168.');
+    if (isLocal && window.location.protocol === 'https:') {
       window.location.replace('http:' + window.location.href.substring(window.location.protocol.length));
     }
   </script>
