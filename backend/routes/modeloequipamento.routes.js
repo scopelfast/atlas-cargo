@@ -1,8 +1,8 @@
 // backend/routes/modeloequipamento.routes.js
 const express = require('express');
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const router = express.Router();
-const { poolPromise } = require('../config/db');
+const { poolPromise, getFirstNumericValue } = require('../config/db');
 
 // Listar modelos de equipamento com filtros
 router.get('/modelos-equipamento', async (req, res) => {
@@ -10,56 +10,57 @@ router.get('/modelos-equipamento', async (req, res) => {
     const { codigo, descricao, tipo, marca, situacao } = req.query;
     let query = `
       SELECT 
-        m.CDMODELOEQUIPAMENTO,
-        m.DSMODELOEQUIPAMENTO,
-        m.CDTIPOEQUIPAMENTO,
-        t.DSTIPOEQUIPAMENTO AS TIPO_NOME,
-        m.CDMARCAEQUIPAMENTO,
-        ma.DSMARCAEQUIPAMENTO AS MARCA_NOME,
-        m.FGACTIVE
+        [m].[CDMODELOEQUIPAMENTO],
+        [m].[DSMODELOEQUIPAMENTO],
+        [m].[CDTIPOEQUIPAMENTO],
+        [t].[DSTIPOEQUIPAMENTO] AS TIPO_NOME,
+        [m].[CDMARCAEQUIPAMENTO],
+        [ma].[DSMARCAEQUIPAMENTO] AS MARCA_NOME,
+        [m].[FGACTIVE]
       FROM [dbo].[MODELOEQUIPAMENTO] m
-      LEFT JOIN [dbo].[TIPOEQUIPAMENTO] t ON m.CDTIPOEQUIPAMENTO = t.CDTIPOEQUIPAMENTO
-      LEFT JOIN [dbo].[MARCAEQUIPAMENTO] ma ON m.CDMARCAEQUIPAMENTO = ma.CDMARCAEQUIPAMENTO
+      LEFT JOIN [dbo].[TIPOEQUIPAMENTO] t ON [m].[CDTIPOEQUIPAMENTO] = [t].[CDTIPOEQUIPAMENTO]
+      LEFT JOIN [dbo].[MARCAEQUIPAMENTO] ma ON [m].[CDMARCAEQUIPAMENTO] = [ma].[CDMARCAEQUIPAMENTO]
       WHERE 1=1
     `;
 
     const params = [];
     if (codigo) {
-      query += ` AND m.CDMODELOEQUIPAMENTO = @CODIGO`;
+      query += ` AND [m].[CDMODELOEQUIPAMENTO] = @CODIGO`;
       params.push({ name: 'CODIGO', value: parseInt(codigo) });
     }
     if (descricao) {
-      query += ` AND m.DSMODELOEQUIPAMENTO LIKE @DESCRICAO`;
+      query += ` AND [m].[DSMODELOEQUIPAMENTO] LIKE @DESCRICAO`;
       params.push({ name: 'DESCRICAO', value: `%${descricao}%` });
     }
     if (tipo) {
-      query += ` AND m.CDTIPOEQUIPAMENTO = @TIPO`;
+      query += ` AND [m].[CDTIPOEQUIPAMENTO] = @TIPO`;
       params.push({ name: 'TIPO', value: parseInt(tipo) });
     }
     if (marca) {
-      query += ` AND m.CDMARCAEQUIPAMENTO = @MARCA`;
+      query += ` AND [m].[CDMARCAEQUIPAMENTO] = @MARCA`;
       params.push({ name: 'MARCA', value: parseInt(marca) });
     }
     if (situacao) {
-      query += ` AND m.FGACTIVE = @SITUACAO`;
+      query += ` AND [m].[FGACTIVE] = @SITUACAO`;
       params.push({ name: 'SITUACAO', value: situacao === 'S' ? 'A' : 'I' });
     }
 
-    query += ` ORDER BY m.DSMODELOEQUIPAMENTO`;
+    query += ` ORDER BY [m].[DSMODELOEQUIPAMENTO]`;
 
     const pool = await poolPromise;
     const request = pool.request();
     params.forEach(p => request.input(p.name, p.value));
     
     const result = await request.query(query);
+    const get = (row, key) => row[key] != null ? row[key] : row[key.toLowerCase()];
     const modelos = result.recordset.map(m => ({
-      CDMODELOEQUIPAMENTO: m.CDMODELOEQUIPAMENTO,
-      DSMODELOEQUIPAMENTO: m.DSMODELOEQUIPAMENTO,
-      CDTIPOEQUIPAMENTO: m.CDTIPOEQUIPAMENTO,
-      TIPO_NOME: m.TIPO_NOME || 'Não informado',
-      CDMARCAEQUIPAMENTO: m.CDMARCAEQUIPAMENTO,
-      MARCA_NOME: m.MARCA_NOME || 'Não informada',
-      FGACTIVE: m.FGACTIVE === 'A' ? 'S' : 'N'
+      CDMODELOEQUIPAMENTO: get(m, 'CDMODELOEQUIPAMENTO'),
+      DSMODELOEQUIPAMENTO: get(m, 'DSMODELOEQUIPAMENTO'),
+      CDTIPOEQUIPAMENTO: get(m, 'CDTIPOEQUIPAMENTO'),
+      TIPO_NOME: get(m, 'TIPO_NOME') || 'Não informado',
+      CDMARCAEQUIPAMENTO: get(m, 'CDMARCAEQUIPAMENTO'),
+      MARCA_NOME: get(m, 'MARCA_NOME') || 'Não informada',
+      FGACTIVE: get(m, 'FGACTIVE') === 'A' ? 'S' : 'N'
     }));
     
     res.json(modelos);
@@ -84,13 +85,13 @@ router.get('/modelos-equipamento/:id', async (req, res) => {
       .input('CDMODELOEQUIPAMENTO', idNum)
       .query(`
         SELECT 
-          CDMODELOEQUIPAMENTO,
-          DSMODELOEQUIPAMENTO,
-          CDTIPOEQUIPAMENTO,
-          CDMARCAEQUIPAMENTO,
-          FGACTIVE
+          [CDMODELOEQUIPAMENTO],
+          [DSMODELOEQUIPAMENTO],
+          [CDTIPOEQUIPAMENTO],
+          [CDMARCAEQUIPAMENTO],
+          [FGACTIVE]
         FROM [dbo].[MODELOEQUIPAMENTO]
-        WHERE CDMODELOEQUIPAMENTO = @CDMODELOEQUIPAMENTO
+        WHERE [CDMODELOEQUIPAMENTO] = @CDMODELOEQUIPAMENTO
       `);
 
     if (result.recordset.length === 0) {
@@ -123,25 +124,22 @@ router.post('/modelos-equipamento', async (req, res) => {
     }
 
     const pool = await poolPromise;
-    const maxResult = await pool
-      .request()
-      .query('SELECT ISNULL(MAX(CDMODELOEQUIPAMENTO), 0) AS maxId FROM [dbo].[MODELOEQUIPAMENTO]');
-    const novoId = maxResult.recordset[0].maxId + 1;
+    const descricao = DSMODELOEQUIPAMENTO.trim();
+    const existente = await pool.query(
+      `SELECT 1 FROM "MODELOEQUIPAMENTO" WHERE UPPER(TRIM("DSMODELOEQUIPAMENTO")) = UPPER(TRIM($1)) LIMIT 1`,
+      [descricao]
+    );
+    if (existente.rows && existente.rows.length > 0) {
+      return res.status(409).json({ error: 'Já existe um modelo de equipamento com esta descrição. Não é permitido cadastrar duplicados.' });
+    }
 
-    await pool
-      .request()
-      .input('CDMODELOEQUIPAMENTO', sql.SmallInt, novoId)
-      .input('DSMODELOEQUIPAMENTO', DSMODELOEQUIPAMENTO.trim())
-      .input('CDTIPOEQUIPAMENTO', sql.SmallInt, CDTIPOEQUIPAMENTO)
-      .input('CDMARCAEQUIPAMENTO', sql.SmallInt, CDMARCAEQUIPAMENTO)
-      .query(`
-        INSERT INTO [dbo].[MODELOEQUIPAMENTO] (
-          CDMODELOEQUIPAMENTO, DSMODELOEQUIPAMENTO, CDTIPOEQUIPAMENTO, CDMARCAEQUIPAMENTO,
-          FGACTIVE, DHMAINTENANCE, SGUSER, SERVERORIG
-        )
-        VALUES (@CDMODELOEQUIPAMENTO, @DSMODELOEQUIPAMENTO, @CDTIPOEQUIPAMENTO, @CDMARCAEQUIPAMENTO, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas')
-      `);
-
+    const getProximoId = async () => getFirstNumericValue((await pool.request().query('SELECT COALESCE(MAX([CDMODELOEQUIPAMENTO]), 0) + 1 AS [maxId] FROM [dbo].[MODELOEQUIPAMENTO]')).recordset, 1);
+    let novoId = await getProximoId();
+    const doInsert = async (id) => {
+      await pool.request().input('CDMODELOEQUIPAMENTO', sql.SmallInt, id).input('DSMODELOEQUIPAMENTO', DSMODELOEQUIPAMENTO.trim()).input('CDTIPOEQUIPAMENTO', sql.SmallInt, CDTIPOEQUIPAMENTO).input('CDMARCAEQUIPAMENTO', sql.SmallInt, CDMARCAEQUIPAMENTO)
+        .query(`INSERT INTO [dbo].[MODELOEQUIPAMENTO] ([CDMODELOEQUIPAMENTO], [DSMODELOEQUIPAMENTO], [CDTIPOEQUIPAMENTO], [CDMARCAEQUIPAMENTO], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]) VALUES (@CDMODELOEQUIPAMENTO, @DSMODELOEQUIPAMENTO, @CDTIPOEQUIPAMENTO, @CDMARCAEQUIPAMENTO, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas')`);
+    };
+    try { await doInsert(novoId); } catch (e) { if (String(e.code) === '23505') { novoId = await getProximoId(); await doInsert(novoId); } else throw e; }
     res.status(201).json({ success: true, message: 'Modelo de equipamento cadastrado com sucesso!' });
   } catch (err) {
     console.error('Erro ao inserir modelo:', err);
@@ -160,8 +158,18 @@ router.put('/modelos-equipamento/:id', async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const idNumerico = parseInt(id, 10);
+    if (isNaN(idNumerico) || idNumerico <= 0) {
+      return res.status(400).json({ error: 'ID inválido.' });
+    }
+    const existente = await pool.query(
+      `SELECT 1 FROM "MODELOEQUIPAMENTO" WHERE UPPER(TRIM("DSMODELOEQUIPAMENTO")) = UPPER(TRIM($1)) AND "CDMODELOEQUIPAMENTO" != $2 LIMIT 1`,
+      [DSMODELOEQUIPAMENTO.trim(), idNumerico]
+    );
+    if (existente.rows && existente.rows.length > 0) {
+      return res.status(409).json({ error: 'Já existe outro modelo de equipamento com esta descrição. Não é permitido duplicar.' });
+    }
     const fgactiveDB = FGACTIVE === 'S' ? 'A' : 'I';
-    const idNumerico = parseInt(id);
 
     await pool
       .request()
@@ -171,16 +179,16 @@ router.put('/modelos-equipamento/:id', async (req, res) => {
       .input('CDMARCAEQUIPAMENTO', sql.SmallInt, CDMARCAEQUIPAMENTO)
       .input('FGACTIVE', fgactiveDB)
       .query(`
-        UPDATE [dbo].[MODELOEQUIPAMENTO] 
+        UPDATE [dbo].[MODELOEQUIPAMENTO]
         SET 
-          DSMODELOEQUIPAMENTO = @DSMODELOEQUIPAMENTO,
-          CDTIPOEQUIPAMENTO = @CDTIPOEQUIPAMENTO,
-          CDMARCAEQUIPAMENTO = @CDMARCAEQUIPAMENTO,
-          FGACTIVE = @FGACTIVE,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE CDMODELOEQUIPAMENTO = @CDMODELOEQUIPAMENTO
+          [DSMODELOEQUIPAMENTO] = @DSMODELOEQUIPAMENTO,
+          [CDTIPOEQUIPAMENTO] = @CDTIPOEQUIPAMENTO,
+          [CDMARCAEQUIPAMENTO] = @CDMARCAEQUIPAMENTO,
+          [FGACTIVE] = @FGACTIVE,
+          [DHMAINTENANCE] = GETDATE(),
+          [SGUSER] = 'SYSTEM',
+          [SERVERORIG] = 'AppDVcargas'
+        WHERE [CDMODELOEQUIPAMENTO] = @CDMODELOEQUIPAMENTO
       `);
 
     res.json({ success: true, message: 'Modelo atualizado com sucesso!' });
@@ -208,7 +216,7 @@ router.delete('/modelos-equipamento/:id', async (req, res) => {
     const checkResult = await pool
       .request()
       .input('CDMODELOEQUIPAMENTO', sql.SmallInt, idNumerico)
-      .query(`SELECT FGACTIVE FROM [dbo].[MODELOEQUIPAMENTO] WHERE CDMODELOEQUIPAMENTO = @CDMODELOEQUIPAMENTO`);
+      .query(`SELECT [FGACTIVE] FROM [dbo].[MODELOEQUIPAMENTO] WHERE [CDMODELOEQUIPAMENTO] = @CDMODELOEQUIPAMENTO`);
 
     if (checkResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Modelo não encontrado.' });
@@ -235,13 +243,13 @@ router.delete('/modelos-equipamento/:id', async (req, res) => {
       .input('CDMODELOEQUIPAMENTO', sql.SmallInt, idNumerico)
       .input('FGACTIVE', sql.Char(1), novaSituacao)
       .query(`
-        UPDATE [dbo].[MODELOEQUIPAMENTO] 
+        UPDATE [dbo].[MODELOEQUIPAMENTO]
         SET 
-          FGACTIVE = @FGACTIVE,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE CDMODELOEQUIPAMENTO = @CDMODELOEQUIPAMENTO
+          [FGACTIVE] = @FGACTIVE,
+          [DHMAINTENANCE] = GETDATE(),
+          [SGUSER] = 'SYSTEM',
+          [SERVERORIG] = 'AppDVcargas'
+        WHERE [CDMODELOEQUIPAMENTO] = @CDMODELOEQUIPAMENTO
       `);
 
     if (result.rowsAffected[0] === 0) {
@@ -255,14 +263,14 @@ router.delete('/modelos-equipamento/:id', async (req, res) => {
   }
 });
 
-// Listar combos
+// Listar combos (query nativa PostgreSQL com identificadores entre aspas)
 const createComboRoute = (tableName, idField, nameField) => {
   return async (req, res) => {
     try {
       const pool = await poolPromise;
-      const query = `SELECT ${idField}, ${nameField} FROM [dbo].[${tableName}] ORDER BY ${nameField}`;
-      const result = await pool.request().query(query);
-      res.json(result.recordset);
+      const pgQuery = `SELECT "${idField}", "${nameField}" FROM "${tableName}" ORDER BY "${nameField}"`;
+      const result = await pool.query(pgQuery, []);
+      res.json(result.rows || []);
     } catch (err) {
       console.error(`Erro ao carregar ${tableName}:`, err);
       res.status(500).json({ error: `Erro ao carregar ${tableName}.` });

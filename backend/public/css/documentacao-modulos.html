@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Documentação Completa - Sistema DivulgaCarga</title>
+    <title>Documentação Completa - Atlas Cargo</title>
     <link rel="stylesheet" href="modulos.css">
     <style>
         body {
@@ -270,9 +270,9 @@
     <div class="doc-container">
         <div class="doc-header">
             <h1>📚 Documentação Completa do Sistema</h1>
-            <p><strong>Sistema DivulgaCarga - Gestão Completa de Transportes</strong></p>
+            <p><strong>Atlas Cargo - Gestão Completa de Transportes</strong></p>
             <p>Documentação técnica completa com arquitetura, módulos, APIs, componentes e padrões de desenvolvimento</p>
-            <span class="version">Versão 1.4.0 | Última atualização: 22 de Dezembro de 2025</span>
+            <span class="version">Versão 1.4.0 | Última atualização: 22 de Dezembro de 2026</span>
         </div>
 
         <!-- Índice -->
@@ -301,7 +301,7 @@
         <!-- 1. Sobre o Sistema -->
         <div class="section" id="sobre">
             <h2>1. Sobre o Sistema</h2>
-            <p>O <strong>Sistema DivulgaCarga</strong> é uma aplicação web completa para gestão de transportes, desenvolvida para gerenciar cadastros, equipamentos, viagens, empresas, filiais e demais aspectos operacionais do negócio de transporte de cargas.</p>
+            <p>O <strong>Atlas Cargo</strong> é uma aplicação web completa para gestão de transportes, desenvolvida para gerenciar cadastros, equipamentos, viagens, empresas, filiais e demais aspectos operacionais do negócio de transporte de cargas.</p>
             
             <h3>Funcionalidades Principais</h3>
             <ul class="feature-list">
@@ -408,7 +408,7 @@ Frontend (Render)</code></pre>
             <h3>3.3. Banco de Dados</h3>
             <div class="tech-stack">
                 <span class="tech-item">Microsoft SQL Server</span>
-                <span class="tech-item">DIVULGACARGA_PRD</span>
+                <span class="tech-item">ATLAS_CARGO_PRD</span>
                 <span class="tech-item">INTEGRA_PRD (Migração)</span>
             </div>
 
@@ -606,7 +606,7 @@ Frontend (Render)</code></pre>
                 <p><strong>Documentação:</strong> <a href="/DOCUMENTACAO_INIT_SQL.md" target="_blank" style="color: #1a2a6c; text-decoration: underline;">Documentação Completa do init.sql</a></p>
                 
                 <h4>5.4.0.2. Melhorias Recentes</h4>
-                <p><strong>2025-11-23:</strong></p>
+                <p><strong>2026-11-23:</strong></p>
                 <ul>
                     <li>✅ Proteção contra execução múltipla do init.sql</li>
                     <li>✅ Prevenção de mudanças automáticas de aba</li>
@@ -616,7 +616,7 @@ Frontend (Render)</code></pre>
                     <li>✅ Prevenção de duplicação de convocações (reutiliza PENDENTE existente)</li>
                     <li>✅ Execução completa do SQL antes de mudar abas</li>
                 </ul>
-                <p><strong>2025-11-24:</strong></p>
+                <p><strong>2026-11-24:</strong></p>
                 <ul>
                     <li>✅ <strong>Sistema de Geolocalização:</strong> Captura automática de latitude/longitude quando motorista acessa link de convocação</li>
                     <li>✅ <strong>Indicadores Visuais:</strong> Bolinha verde (com localização) / vermelha (sem localização) em todas as telas</li>
@@ -1367,7 +1367,7 @@ const distancia = (data.routes[0].distance / 1000).toFixed(2); // km</code></pre
             </div>
 
             <h3>7.3. Sistema de Modais Padronizados (Padrão TOP)</h3>
-            <p><strong>Versão:</strong> 2.0 - Padronização Completa (Janeiro 2025)</p>
+            <p><strong>Versão:</strong> 2.0 - Padronização Completa (Janeiro 2026)</p>
             <p>Todos os modais do sistema seguem o <strong>Padrão TOP</strong>, baseado nos modais dos módulos SOS e Alertas, garantindo consistência visual e experiência profissional em todo o sistema.</p>
 
             <div class="success-box">
@@ -1778,7 +1778,7 @@ function fecharModal() {
             <h2>8. Banco de Dados</h2>
             
             <h3>8.1. Configuração</h3>
-            <p><strong>Banco Principal:</strong> <code>DIVULGACARGA_PRD</code></p>
+            <p><strong>Banco Principal:</strong> <code>ATLAS_CARGO_PRD</code></p>
             <p><strong>Banco de Migração:</strong> <code>INTEGRA_PRD</code></p>
             <p><strong>Configuração:</strong> Arquivo <code>.env</code> com variáveis de ambiente</p>
 
@@ -1956,7 +1956,7 @@ function fecharModal() {
                     </ul>
                 </li>
                 <li>✅ <strong>Validação de Permissões:</strong> Links rápidos só aparecem se o usuário tiver permissão</li>
-                <li>✅ <strong>Clique no Logo:</strong> Logo "DivulgaCarga" clicável para voltar à tela inicial</li>
+                <li>✅ <strong>Clique no Logo:</strong> Logo Atlas Cargo clicável para voltar à tela inicial</li>
             </ul>
             <p><strong>Componentes CSS:</strong></p>
             <ul>
@@ -2160,7 +2160,7 @@ function carregarDados() {
             <div class="code-block">
 <pre><code>PORT=3000
 DB_SERVER=seu-servidor
-DB_DATABASE=DIVULGACARGA_PRD
+DB_DATABASE=ATLAS_CARGO_PRD
 DB_USER=seu-usuario
 DB_PASSWORD=sua-senha
 DB_PORT=1433
@@ -2468,8 +2468,8 @@ WABOXAPP_UID=seu_uid_aqui</code></pre>
             </div>
 
             <h3>12.9. Migração de Dados</h3>
-            <p><strong>Script Principal:</strong> <code>migrate_integra_to_divulgacarga_completo.sql</code></p>
-            <p><strong>Descrição:</strong> Script consolidado para migração de dados de <code>INTEGRA_PRD</code> para <code>DIVULGACARGA_PRD</code></p>
+            <p><strong>Script Principal:</strong> <code>migrate_integra_completo.sql</code></p>
+            <p><strong>Descrição:</strong> Script consolidado para migração de dados de <code>INTEGRA_PRD</code> para <code>ATLAS_CARGO_PRD</code></p>
             <p><strong>Tabelas Migradas (18 seções):</strong></p>
             <ol>
                 <li>TIPOEQUIPAMENTO</li>
@@ -2504,8 +2504,8 @@ WABOXAPP_UID=seu_uid_aqui</code></pre>
         <!-- Rodapé -->
         <div class="section" style="text-align: center; background: #f8f9fa;">
             <p style="margin: 0; color: #6c757d;">
-                <strong>Sistema DivulgaCarga</strong> | Documentação Técnica Completa<br>
-                Versão 1.4.0 | 22 de Dezembro de 2025<br>
+                <strong>Atlas Cargo</strong> | Documentação Técnica Completa<br>
+                Versão 1.4.0 | 22 de Dezembro de 2026<br>
                 <small style="opacity: 0.7;">
                     Sistema de mensagens toast | Zero-padding CPF/CNPJ | Grid com ordenação | 
                     Roteiros com pontos georreferenciados | Cálculo de distâncias OSRM | 

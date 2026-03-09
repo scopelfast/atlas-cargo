@@ -13,7 +13,7 @@
 #### **1.1. Executar Script SQL:**
 - [ ] Abrir SQL Server Management Studio (SSMS)
 - [ ] Abrir arquivo: `backend/scripts/criar_tabelas_app_motorista.sql`
-- [ ] Conferir que está no banco: `DIVULGACARGA_PRD`
+- [ ] Conferir que está no banco: `ATLAS_CARGO_PRD`
 - [ ] Executar script (F5)
 - [ ] Verificar mensagens de sucesso ✅
 
@@ -221,12 +221,12 @@ backend/public/motorista/
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DivulgaCarga - Motorista</title>
+  <title>Atlas Cargo - Motorista</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <div class="container">
-    <h1>🚚 DivulgaCarga</h1>
+    <h1>🚚 Atlas Cargo</h1>
     <h2>App do Motorista</h2>
     
     <form id="loginForm">

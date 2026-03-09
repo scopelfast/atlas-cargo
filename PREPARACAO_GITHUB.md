@@ -1,6 +1,6 @@
-# 🚀 Preparação para GitHub - DivulgaCarga
+# 🚀 Preparação para GitHub - Atlas Cargo
 
-**Data:** 2025-11-28  
+**Data:** 2026-11-28  
 **Versão:** 1.2.0  
 **Status:** ✅ Pronto para commit
 
@@ -104,7 +104,7 @@ SysScopel/
 │   ├── scripts/                  ✅
 │   ├── utils/                    ✅
 │   └── *.md                      ✅ (documentação)
-└── migrate_integra_to_divulgacarga_completo.sql  ✅
+└── migrate_integra_completo.sql  ✅
 ```
 
 ### ❌ Arquivos que NÃO devem ir para o GitHub
@@ -247,7 +247,7 @@ Toda a documentação está no diretório `backend/`:
 
 ---
 
-**Mantido por:** Equipe DivulgaCarga  
-**Data de Preparação:** 2025-11-28  
+**Mantido por:** Equipe Atlas Cargo  
+**Data de Preparação:** 2026-11-28  
 **Versão:** 1.2.0
 

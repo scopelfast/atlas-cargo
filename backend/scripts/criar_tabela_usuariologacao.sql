@@ -4,7 +4,7 @@
 -- Tabela para registrar todas as ações dos usuários no sistema
 -- ============================================
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 -- Verificar se a tabela já existe

@@ -1,7 +1,7 @@
 # 📋 Padrão de Mensagens - APP do Motorista
 
 **Versão:** 1.0  
-**Data:** 2025-01-18
+**Data:** 2026-01-18
 
 ---
 
@@ -91,4 +91,4 @@ if (confirm('Deseja continuar?')) { ... }
 
 ---
 
-**Última atualização:** 2025-01-18
+**Última atualização:** 2026-01-18

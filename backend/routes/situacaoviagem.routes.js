@@ -1,8 +1,8 @@
 // backend/routes/situacaoviagem.routes.js
 const express = require('express');
 const router = express.Router();
-const sql = require('mssql');
-const { poolPromise } = require('../config/db');
+const sql = require('../config/mssql-compat');
+const { poolPromise, getFirstNumericValue } = require('../config/db');
 
 // Listar situações de viagem
 router.get('/situacoes-viagem', async (req, res) => {
@@ -12,11 +12,11 @@ router.get('/situacoes-viagem', async (req, res) => {
       .request()
       .query(`
         SELECT 
-          CDSITUACAOVIAGEM,
-          DSSITUACAOVIAGEM,
-          FGACTIVE
+          [CDSITUACAOVIAGEM],
+          [DSSITUACAOVIAGEM],
+          [FGACTIVE]
         FROM [dbo].[SITUACAOVIAGEM]
-        ORDER BY DSSITUACAOVIAGEM
+        ORDER BY [DSSITUACAOVIAGEM]
       `);
     const situacoes = result.recordset.map(s => ({
       CDSITUACAOVIAGEM: s.CDSITUACAOVIAGEM,
@@ -45,11 +45,11 @@ router.get('/situacoes-viagem/:id', async (req, res) => {
       .input('CDSITUACAOVIAGEM', idNum)
       .query(`
         SELECT 
-          CDSITUACAOVIAGEM,
-          DSSITUACAOVIAGEM,
-          FGACTIVE
+          [CDSITUACAOVIAGEM],
+          [DSSITUACAOVIAGEM],
+          [FGACTIVE]
         FROM [dbo].[SITUACAOVIAGEM]
-        WHERE CDSITUACAOVIAGEM = @CDSITUACAOVIAGEM
+        WHERE [CDSITUACAOVIAGEM] = @CDSITUACAOVIAGEM
       `);
 
     if (result.recordset.length === 0) {
@@ -77,20 +77,23 @@ router.post('/situacoes-viagem', async (req, res) => {
     }
 
     const pool = await poolPromise;
-    const maxResult = await pool
-      .request()
-      .query('SELECT ISNULL(MAX(CDSITUACAOVIAGEM), 0) AS maxId FROM [dbo].[SITUACAOVIAGEM]');
-    const novoId = maxResult.recordset[0].maxId + 1;
+    const descricao = DSSITUACAOVIAGEM.trim();
+    const existente = await pool.query(
+      `SELECT 1 FROM "SITUACAOVIAGEM" WHERE UPPER(TRIM("DSSITUACAOVIAGEM")) = UPPER(TRIM($1)) LIMIT 1`,
+      [descricao]
+    );
+    if (existente.rows && existente.rows.length > 0) {
+      return res.status(409).json({ error: 'Já existe uma situação com esta descrição. Não é permitido cadastrar duplicados.' });
+    }
 
-    await pool
-      .request()
-      .input('CDSITUACAOVIAGEM', novoId)
-      .input('DSSITUACAOVIAGEM', DSSITUACAOVIAGEM.trim())
-      .query(`
-        INSERT INTO [dbo].[SITUACAOVIAGEM] (CDSITUACAOVIAGEM, DSSITUACAOVIAGEM, FGACTIVE, DHMAINTENANCE, SGUSER, SERVERORIG)
-        VALUES (@CDSITUACAOVIAGEM, @DSSITUACAOVIAGEM, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas')
-      `);
-
+    const getProximoId = async () => getFirstNumericValue((await pool.request().query('SELECT COALESCE(MAX([CDSITUACAOVIAGEM]), 0) + 1 AS [maxId] FROM [dbo].[SITUACAOVIAGEM]')).recordset, 1);
+    let novoId = await getProximoId();
+    try {
+      await pool.request().input('CDSITUACAOVIAGEM', novoId).input('DSSITUACAOVIAGEM', DSSITUACAOVIAGEM.trim())
+        .query(`INSERT INTO [dbo].[SITUACAOVIAGEM] ([CDSITUACAOVIAGEM], [DSSITUACAOVIAGEM], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]) VALUES (@CDSITUACAOVIAGEM, @DSSITUACAOVIAGEM, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas')`);
+    } catch (e) {
+      if (String(e.code) === '23505') { novoId = await getProximoId(); await pool.request().input('CDSITUACAOVIAGEM', novoId).input('DSSITUACAOVIAGEM', DSSITUACAOVIAGEM.trim()).query(`INSERT INTO [dbo].[SITUACAOVIAGEM] ([CDSITUACAOVIAGEM], [DSSITUACAOVIAGEM], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]) VALUES (@CDSITUACAOVIAGEM, @DSSITUACAOVIAGEM, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas')`); } else throw e;
+    }
     res.status(201).json({ success: true, message: 'Situação de viagem cadastrada com sucesso!' });
   } catch (err) {
     console.error('Erro ao inserir situação:', err);
@@ -109,6 +112,17 @@ router.put('/situacoes-viagem/:id', async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const idNum = parseInt(id, 10);
+    if (isNaN(idNum) || idNum <= 0) {
+      return res.status(400).json({ error: 'ID inválido.' });
+    }
+    const existente = await pool.query(
+      `SELECT 1 FROM "SITUACAOVIAGEM" WHERE UPPER(TRIM("DSSITUACAOVIAGEM")) = UPPER(TRIM($1)) AND "CDSITUACAOVIAGEM" != $2 LIMIT 1`,
+      [DSSITUACAOVIAGEM.trim(), idNum]
+    );
+    if (existente.rows && existente.rows.length > 0) {
+      return res.status(409).json({ error: 'Já existe outra situação com esta descrição. Não é permitido duplicar.' });
+    }
     const fgactiveDB = FGACTIVE === 'S' ? 'A' : 'I';
 
     await pool
@@ -119,12 +133,12 @@ router.put('/situacoes-viagem/:id', async (req, res) => {
       .query(`
         UPDATE [dbo].[SITUACAOVIAGEM] 
         SET 
-          DSSITUACAOVIAGEM = @DSSITUACAOVIAGEM,
-          FGACTIVE = @FGACTIVE,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE CDSITUACAOVIAGEM = @CDSITUACAOVIAGEM
+          [DSSITUACAOVIAGEM] = @DSSITUACAOVIAGEM,
+          [FGACTIVE] = @FGACTIVE,
+          [DHMAINTENANCE] = GETDATE(),
+          [SGUSER] = 'SYSTEM',
+          [SERVERORIG] = 'AppDVcargas'
+        WHERE [CDSITUACAOVIAGEM] = @CDSITUACAOVIAGEM
       `);
 
     res.json({ success: true, message: 'Situação atualizada com sucesso!' });
@@ -152,7 +166,7 @@ router.delete('/situacoes-viagem/:id', async (req, res) => {
     const checkResult = await pool
       .request()
       .input('CDSITUACAOVIAGEM', idNum)
-      .query(`SELECT FGACTIVE FROM [dbo].[SITUACAOVIAGEM] WHERE CDSITUACAOVIAGEM = @CDSITUACAOVIAGEM`);
+      .query(`SELECT [FGACTIVE] FROM [dbo].[SITUACAOVIAGEM] WHERE [CDSITUACAOVIAGEM] = @CDSITUACAOVIAGEM`);
 
     if (checkResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Situação não encontrada.' });
@@ -181,11 +195,11 @@ router.delete('/situacoes-viagem/:id', async (req, res) => {
       .query(`
         UPDATE [dbo].[SITUACAOVIAGEM] 
         SET 
-          FGACTIVE = @FGACTIVE,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE CDSITUACAOVIAGEM = @CDSITUACAOVIAGEM
+          [FGACTIVE] = @FGACTIVE,
+          [DHMAINTENANCE] = GETDATE(),
+          [SGUSER] = 'SYSTEM',
+          [SERVERORIG] = 'AppDVcargas'
+        WHERE [CDSITUACAOVIAGEM] = @CDSITUACAOVIAGEM
       `);
 
     if (result.rowsAffected[0] === 0) {

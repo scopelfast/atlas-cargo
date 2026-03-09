@@ -1,6 +1,7 @@
 // Controller para Controle de Validades
-const sql = require('mssql');
-const { poolPromise } = require('../config/db');
+const sql = require('../config/mssql-compat');
+const { poolPromise, getFirstNumericValue } = require('../config/db');
+const { getSgUser } = require('../utils/audit');
 
 const controleValidadeController = {
   // Listar validades de um cadastro (TODOS os tipos)
@@ -9,40 +10,69 @@ const controleValidadeController = {
       const { tpCadastro, cdCadastro } = req.params;
       
       const pool = await poolPromise;
+      // Query em PostgreSQL nativo (aliases em minúsculo para evitar erro "faltando entrada para tabela CV")
       const result = await pool
         .request()
+        .input('TPCADASTRO', sql.VarChar, tpCadastro)
         .input('CDCADASTRO', sql.Decimal(15, 0), parseFloat(cdCadastro))
         .query(`
           SELECT 
-            CV.TPCADASTRO,
-            CV.CDCADASTRO,
-            CV.SEQUENCIA,
-            CV.CDTIPOVALIDADE,
-            TV.DSTIPOVALIDADE,
-            CV.NRLIBERACAO,
-            CV.DTLIBERACAO,
-            CV.DTVALIDADE,
-            CV.CDCERTIFICADORA,
-            CERT.RZSOCIAL AS CERTIFICADORA_NOME,
-            CV.DSLIBERACAO,
-            CV.FGTIPOLANCTO,
-            DATEDIFF(DAY, GETDATE(), CV.DTVALIDADE) AS DIAS_RESTANTES,
+            cv."TPCADASTRO",
+            cv."CDCADASTRO",
+            cv."SEQUENCIA",
+            cv."CDTIPOVALIDADE",
+            tv."DSTIPOVALIDADE",
+            cv."NRLIBERACAO",
+            cv."DTLIBERACAO",
+            cv."DTVALIDADE",
+            cv."CDCERTIFICADORA",
+            cert."RZSOCIAL" AS "CERTIFICADORA_NOME",
+            cv."DSLIBERACAO",
+            cv."FGTIPOLANCTO",
+            cv."FGATIVO",
+            cv."SGUSER" AS "SGUSER_LIBERACAO",
+            cv."SGUSER_REMOVIDO",
+            cv."DHREMOVIDO",
+            ((cv."DTVALIDADE")::date - CURRENT_DATE) AS "DIAS_RESTANTES",
             CASE 
-              WHEN CV.DTVALIDADE < GETDATE() THEN 'VENCIDA'
-              WHEN DATEDIFF(DAY, GETDATE(), CV.DTVALIDADE) <= 30 THEN 'VENCENDO'
+              WHEN cv."DTVALIDADE" < CURRENT_TIMESTAMP THEN 'VENCIDA'
+              WHEN ((cv."DTVALIDADE")::date - CURRENT_DATE) <= 30 THEN 'VENCENDO'
               ELSE 'OK'
-            END AS STATUS_VALIDADE
-          FROM CONTROLEVALIDADE CV
-          INNER JOIN TIPOVALIDADE TV ON CV.CDTIPOVALIDADE = TV.CDTIPOVALIDADE
-          LEFT JOIN CADASTROGERAL CERT ON CV.CDCERTIFICADORA = CERT.CDCADASTRO
-          WHERE CV.CDCADASTRO = @CDCADASTRO
-          ORDER BY CV.DTVALIDADE DESC, CV.TPCADASTRO, CV.SEQUENCIA DESC
+            END AS "STATUS_VALIDADE"
+          FROM "CONTROLEVALIDADE" cv
+          INNER JOIN "TIPOVALIDADE" tv ON cv."CDTIPOVALIDADE" = tv."CDTIPOVALIDADE"
+          LEFT JOIN "CADASTROGERAL" cert ON cv."CDCERTIFICADORA" = cert."CDCADASTRO"
+          WHERE cv."TPCADASTRO" = @TPCADASTRO AND cv."CDCADASTRO" = @CDCADASTRO
+          ORDER BY cv."FGATIVO" DESC NULLS FIRST, cv."DTVALIDADE" DESC, cv."TPCADASTRO", cv."SEQUENCIA" DESC
         `);
       
-      res.json(result.recordset);
+      const rows = result.recordset || [];
+      // Deduplicar: mesmo tipo, número, datas e certificadora = mesma validade (evita duplicados no modal "Validades do Motorista")
+      const list = Array.isArray(rows) ? rows : [];
+      const seen = new Map();
+      for (const row of list) {
+        const dtLib = row.DTLIBERACAO && (typeof row.DTLIBERACAO.toISOString === 'function') ? row.DTLIBERACAO.toISOString() : String(row.DTLIBERACAO);
+        const dtVal = row.DTVALIDADE && (typeof row.DTVALIDADE.toISOString === 'function') ? row.DTVALIDADE.toISOString() : String(row.DTVALIDADE);
+        const key = `${row.CDTIPOVALIDADE}|${row.NRLIBERACAO}|${dtLib}|${dtVal}|${row.CDCERTIFICADORA ?? ''}`;
+        const existing = seen.get(key);
+        if (!existing) {
+          seen.set(key, row);
+          continue;
+        }
+        const rowAtivo = row.FGATIVO === 'S' || row.FGATIVO === true;
+        const existingAtivo = existing.FGATIVO === 'S' || existing.FGATIVO === true;
+        if (rowAtivo && !existingAtivo) {
+          seen.set(key, row);
+        } else if (!rowAtivo && existingAtivo) {
+          // manter existing
+        } else if (Number(row.SEQUENCIA) > Number(existing.SEQUENCIA)) {
+          seen.set(key, row);
+        }
+      }
+      res.json(Array.from(seen.values()));
     } catch (err) {
       console.error('[ERRO] Listar validades:', err);
-      res.status(500).json({ error: 'Erro ao listar validades' });
+      res.status(500).json({ error: 'Erro ao listar validades', detail: err.message });
     }
   },
 
@@ -50,8 +80,10 @@ const controleValidadeController = {
   criar: async (req, res) => {
     try {
       const { tpCadastro, cdCadastro } = req.params;
-      const { CDTIPOVALIDADE, NRLIBERACAO, DTLIBERACAO, DTVALIDADE, CDCERTIFICADORA, DSLIBERACAO } = req.body;
-      
+      const { CDTIPOVALIDADE, NRLIBERACAO, DTLIBERACAO, DTVALIDADE, CDCERTIFICADORA, DSLIBERACAO, SGUSER: bodySGUSER } = req.body;
+      const sgUserLiberacao = bodySGUSER || getSgUser(req);
+      if (!sgUserLiberacao) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+
       if (!CDTIPOVALIDADE || !NRLIBERACAO || !DTLIBERACAO || !DTVALIDADE) {
         return res.status(400).json({ error: 'Campos obrigatórios não preenchidos' });
       }
@@ -64,14 +96,14 @@ const controleValidadeController = {
         .input('TPCADASTRO', sql.VarChar, tpCadastro)
         .input('CDCADASTRO', sql.Decimal(15, 0), parseFloat(cdCadastro))
         .query(`
-          SELECT ISNULL(MAX(SEQUENCIA), 0) + 1 AS NOVASEQUENCIA 
-          FROM CONTROLEVALIDADE 
-          WHERE TPCADASTRO = @TPCADASTRO AND CDCADASTRO = @CDCADASTRO
+          SELECT COALESCE(MAX([SEQUENCIA]), 0) + 1 AS [NOVASEQUENCIA]
+          FROM [dbo].[CONTROLEVALIDADE]
+          WHERE [TPCADASTRO] = @TPCADASTRO AND [CDCADASTRO] = @CDCADASTRO
         `);
       
-      const novaSeq = seqResult.recordset[0].NOVASEQUENCIA;
+      const novaSeq = getFirstNumericValue(seqResult.recordset, 1);
       
-      // Inserir
+      // Inserir (FGATIVO S = ativa; SGUSER = quem liberou — histórico para seguro)
       await pool
         .request()
         .input('TPCADASTRO', sql.VarChar, tpCadastro)
@@ -84,15 +116,16 @@ const controleValidadeController = {
         .input('CDCERTIFICADORA', sql.Decimal(15, 0), CDCERTIFICADORA ? parseFloat(CDCERTIFICADORA) : null)
         .input('DSLIBERACAO', sql.VarChar(256), DSLIBERACAO || null)
         .input('FGTIPOLANCTO', sql.Char(1), 'M')
+        .input('SGUSER', sql.VarChar(50), sgUserLiberacao)
         .query(`
-          INSERT INTO CONTROLEVALIDADE (
-            TPCADASTRO, CDCADASTRO, SEQUENCIA, CDTIPOVALIDADE, NRLIBERACAO,
-            DTLIBERACAO, DTVALIDADE, CDCERTIFICADORA, DSLIBERACAO, FGTIPOLANCTO,
-            DHMAINTENANCE, SGUSER, SERVERORIG
+          INSERT INTO "CONTROLEVALIDADE" (
+            "TPCADASTRO", "CDCADASTRO", "SEQUENCIA", "CDTIPOVALIDADE", "NRLIBERACAO",
+            "DTLIBERACAO", "DTVALIDADE", "CDCERTIFICADORA", "DSLIBERACAO", "FGTIPOLANCTO",
+            "FGATIVO", "DHMAINTENANCE", "SGUSER"
           ) VALUES (
             @TPCADASTRO, @CDCADASTRO, @SEQUENCIA, @CDTIPOVALIDADE, @NRLIBERACAO,
             @DTLIBERACAO, @DTVALIDADE, @CDCERTIFICADORA, @DSLIBERACAO, @FGTIPOLANCTO,
-            GETDATE(), 'SYSTEM', 'AppDVcargas'
+            'S', CURRENT_TIMESTAMP, @SGUSER
           )
         `);
       
@@ -108,9 +141,12 @@ const controleValidadeController = {
     try {
       const { tpCadastro, cdCadastro, sequencia } = req.params;
       const { CDTIPOVALIDADE, NRLIBERACAO, DTLIBERACAO, DTVALIDADE, CDCERTIFICADORA, DSLIBERACAO } = req.body;
-      
+
+      const sgUser = getSgUser(req);
+      if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+
       const pool = await poolPromise;
-      
+
       await pool
         .request()
         .input('TPCADASTRO', sql.VarChar, tpCadastro)
@@ -122,19 +158,20 @@ const controleValidadeController = {
         .input('DTVALIDADE', sql.DateTime, new Date(DTVALIDADE))
         .input('CDCERTIFICADORA', sql.Decimal(15, 0), CDCERTIFICADORA ? parseFloat(CDCERTIFICADORA) : null)
         .input('DSLIBERACAO', sql.VarChar(256), DSLIBERACAO || null)
+        .input('sgUser', sql.VarChar(50), sgUser)
         .query(`
-          UPDATE CONTROLEVALIDADE SET
-            CDTIPOVALIDADE = @CDTIPOVALIDADE,
-            NRLIBERACAO = @NRLIBERACAO,
-            DTLIBERACAO = @DTLIBERACAO,
-            DTVALIDADE = @DTVALIDADE,
-            CDCERTIFICADORA = @CDCERTIFICADORA,
-            DSLIBERACAO = @DSLIBERACAO,
-            DHMAINTENANCE = GETDATE(),
-            SGUSER = 'SYSTEM'
-          WHERE TPCADASTRO = @TPCADASTRO
-            AND CDCADASTRO = @CDCADASTRO
-            AND SEQUENCIA = @SEQUENCIA
+          UPDATE [dbo].[CONTROLEVALIDADE] SET
+            [CDTIPOVALIDADE] = @CDTIPOVALIDADE,
+            [NRLIBERACAO] = @NRLIBERACAO,
+            [DTLIBERACAO] = @DTLIBERACAO,
+            [DTVALIDADE] = @DTVALIDADE,
+            [CDCERTIFICADORA] = @CDCERTIFICADORA,
+            [DSLIBERACAO] = @DSLIBERACAO,
+            [DHMAINTENANCE] = GETDATE(),
+            [SGUSER] = @sgUser
+          WHERE [TPCADASTRO] = @TPCADASTRO
+            AND [CDCADASTRO] = @CDCADASTRO
+            AND [SEQUENCIA] = @SEQUENCIA
         `);
       
       res.json({ success: true, message: 'Validade atualizada com sucesso!' });
@@ -144,29 +181,35 @@ const controleValidadeController = {
     }
   },
 
-  // Excluir validade
+  // Desativar validade (soft delete — não excluir; histórico para seguro)
   excluir: async (req, res) => {
     try {
       const { tpCadastro, cdCadastro, sequencia } = req.params;
-      
+      const usuario = (req.body && req.body.usuario) || getSgUser(req);
+      if (!usuario) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+
       const pool = await poolPromise;
-      
+
       await pool
         .request()
         .input('TPCADASTRO', sql.VarChar, tpCadastro)
         .input('CDCADASTRO', sql.Decimal(15, 0), parseFloat(cdCadastro))
         .input('SEQUENCIA', sql.SmallInt, parseInt(sequencia))
+        .input('SGUSER_REMOVIDO', sql.VarChar(50), usuario)
         .query(`
-          DELETE FROM CONTROLEVALIDADE
-          WHERE TPCADASTRO = @TPCADASTRO
-            AND CDCADASTRO = @CDCADASTRO
-            AND SEQUENCIA = @SEQUENCIA
+          UPDATE "CONTROLEVALIDADE" SET
+            "FGATIVO" = 'N',
+            "SGUSER_REMOVIDO" = @SGUSER_REMOVIDO,
+            "DHREMOVIDO" = CURRENT_TIMESTAMP
+          WHERE "TPCADASTRO" = @TPCADASTRO
+            AND "CDCADASTRO" = @CDCADASTRO
+            AND "SEQUENCIA" = @SEQUENCIA
         `);
-      
-      res.json({ success: true, message: 'Validade excluída com sucesso!' });
+
+      res.json({ success: true, message: 'Validade desativada. Registro mantido para histórico.' });
     } catch (err) {
-      console.error('[ERRO] Excluir validade:', err);
-      res.status(500).json({ error: 'Erro ao excluir validade' });
+      console.error('[ERRO] Desativar validade:', err);
+      res.status(500).json({ error: 'Erro ao desativar validade' });
     }
   },
 
@@ -176,15 +219,15 @@ const controleValidadeController = {
       const { tpCadastro } = req.params;
       
       const pool = await poolPromise;
-      let query = 'SELECT CDTIPOVALIDADE, DSTIPOVALIDADE, FGEXIGECERTIFICADORA FROM TIPOVALIDADE WHERE 1=1';
+      let query = 'SELECT [CDTIPOVALIDADE], [DSTIPOVALIDADE], [FGEXIGECERTIFICADORA] FROM [dbo].[TIPOVALIDADE] WHERE 1=1';
       
       // Filtrar por tipo de cadastro
-      if (tpCadastro === 'MOT') query += ` AND FGMOTORISTA = 'S'`;
-      else if (tpCadastro === 'EQP') query += ` AND FGVEICULO = 'S'`;
-      else if (tpCadastro === 'CLI') query += ` AND FGCLIENTE = 'S'`;
-      else if (tpCadastro === 'TRA') query += ` AND FGTRANSPORTADOR = 'S'`;
+      if (tpCadastro === 'MOT') query += ` AND [FGMOTORISTA] = 'S'`;
+      else if (tpCadastro === 'EQP') query += ` AND [FGVEICULO] = 'S'`;
+      else if (tpCadastro === 'CLI') query += ` AND [FGCLIENTE] = 'S'`;
+      else if (tpCadastro === 'TRA') query += ` AND [FGTRANSPORTADOR] = 'S'`;
       
-      query += ' ORDER BY DSTIPOVALIDADE';
+      query += ' ORDER BY [DSTIPOVALIDADE]';
       
       const result = await pool.request().query(query);
       res.json(result.recordset);
@@ -199,11 +242,11 @@ const controleValidadeController = {
     try {
       const pool = await poolPromise;
       const result = await pool.request().query(`
-        SELECT CDCADASTRO, RZSOCIAL, FGTIPOCADASTRO
-        FROM CADASTROGERAL
-        WHERE FGTIPOCADASTRO IN ('C', 'F', 'U', 'T', 'E')
-          AND FGACTIVE = 'A'
-        ORDER BY RZSOCIAL
+        SELECT "CDCADASTRO", "RZSOCIAL", "FGTIPOCADASTRO"
+        FROM "CADASTROGERAL"
+        WHERE ("FGCERTIFICADORA" = 'S' OR ("FGCERTIFICADORA" IS NULL AND "FGTIPOCADASTRO" IN ('C', 'F', 'U', 'T', 'E')))
+          AND "FGACTIVE" = 'A'
+        ORDER BY "RZSOCIAL"
       `);
       
       console.log('[CERTIFICADORAS] Encontradas:', result.recordset.length);

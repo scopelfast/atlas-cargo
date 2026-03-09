@@ -1,10 +1,10 @@
 -- Script para adicionar campos de geolocalização à tabela CONVOCACAO
--- Database: DIVULGACARGA_PRD
--- Data: 2025-11-23
+-- Database: ATLAS_CARGO_PRD
+-- Data: 2026-11-23
 -- Descrição: Adiciona campos LATITUDE e LONGITUDE para rastrear a localização do motorista
 --            quando ele acessa, aceita ou rejeita uma convocação
 
-USE [DIVULGACARGA_PRD];
+USE [ATLAS_CARGO_PRD];
 GO
 
 -- Adicionar coluna LATITUDE (localização do motorista ao acessar/responder)

@@ -1,14 +1,95 @@
 // backend/public/motorista/pages/js/chat.js
 // Chat Motorista ↔ Operador com WebSocket
 // Versão: 2.0
-// Data: 2025-01-16
+// Data: 2026-01-16
 
 (function() {
-  if (!verificarAuth()) {
-    window.location.href = '../index.html';
-    return;
+  console.log('[CHAT] script chat.js carregado');
+  try {
+    var ok = document.getElementById('chat-html-ok');
+    if (ok) ok.textContent = '✓ chat.js carregado. Iniciando...';
+  } catch (e) {}
+
+  function escapeHtml(text) {
+    if (text == null || typeof text !== 'string') return '';
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
   }
 
+  function logStep(step) {
+    console.log('[CHAT]', step);
+    var el = document.getElementById('chat-debug');
+    if (el) el.textContent = step;
+  }
+
+  function getChatContainer() {
+    return document.getElementById('chatContainer') || document.querySelector('.chat-container');
+  }
+
+  function showChatError(message, detail) {
+    var container = getChatContainer();
+    var html = '<div class="empty">' +
+      '<div class="empty-icon">⚠️</div>' +
+      '<strong>Erro ao carregar o chat</strong><br>' +
+      (message || '') + (detail ? '<br><small>' + detail + '</small>' : '') + '<br><br>' +
+      '<button onclick="location.reload()" style="padding:12px 24px;background:#0ea5e9;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;">Recarregar página</button>' +
+      '</div>';
+    if (container) {
+      container.innerHTML = html;
+    } else {
+      var fallback = document.createElement('div');
+      fallback.id = 'chatContainer';
+      fallback.className = 'chat-container';
+      fallback.style.cssText = 'padding:20px;max-width:600px;margin:0 auto;';
+      fallback.innerHTML = html;
+      document.body.insertBefore(fallback, document.body.firstChild);
+    }
+    var statusEl = document.getElementById('chatStatus');
+    if (statusEl) {
+      statusEl.textContent = 'Erro';
+      statusEl.className = 'status-indicator status-offline';
+    }
+  }
+
+  function boot() {
+    logStep('boot() iniciado');
+    try {
+      if (typeof verificarAuth !== 'function') {
+        logStep('ERRO: verificarAuth não existe');
+        showChatError('Script de autenticação não carregou.', 'Recarregue a página (F5) ou faça login novamente.');
+        return;
+      }
+      var authOk = verificarAuth();
+      logStep('verificarAuth() = ' + authOk);
+      if (!authOk) {
+        logStep('sem auth - mostrando mensagem e redirecionando');
+        var container = getChatContainer();
+        if (container) {
+          container.innerHTML = '<div class="empty"><div class="empty-icon">🔐</div><strong>Você precisa fazer login</strong><br>Redirecionando para a tela de login em 2 segundos...</div>';
+        }
+        setTimeout(function() { window.location.href = '../index.html'; }, 2000);
+        return;
+      }
+      if (typeof getMotorista !== 'function') {
+        logStep('ERRO: getMotorista não existe');
+        showChatError('Dados do motorista não disponíveis.', 'Faça login novamente.');
+        return;
+      }
+      var motorista = getMotorista();
+      if (!motorista) {
+        logStep('ERRO: motorista null (localStorage)');
+        showChatError('Sessão incompleta.', 'Faça login novamente.');
+        return;
+      }
+      logStep('auth ok');
+    } catch (e) {
+      console.error('[CHAT] boot erro:', e);
+      showChatError(e.message || 'Erro ao iniciar o chat.', 'Recarregue a página.');
+      return;
+    }
+
+    try {
   const motorista = getMotorista();
   const token = localStorage.getItem('token');
   let idViagem = null;
@@ -23,12 +104,14 @@
   // INICIALIZAÇÃO
   // ==========================================
   async function init() {
-    // Buscar ID da viagem da URL ou localStorage
     const params = new URLSearchParams(window.location.search);
     idViagem = params.get('viagem') || localStorage.getItem('viagemAtual');
+    logStep('init() viagem=' + idViagem + ' baseUrl=' + baseUrl);
 
     if (!idViagem) {
-      document.getElementById('chatContainer').innerHTML = `
+      var container = getChatContainer();
+      if (container) {
+        container.innerHTML = `
         <div class="empty">
           <div class="empty-icon">⚠️</div>
           <strong>Nenhuma viagem selecionada</strong><br>
@@ -38,7 +121,7 @@
           </p>
           <button onclick="window.location.href='viagens.html'" style="
             padding: 12px 24px;
-            background: #667eea;
+            background: #0ea5e9;
             color: white;
             border: none;
             border-radius: 8px;
@@ -51,10 +134,13 @@
           </button>
         </div>
       `;
+      } else {
+        showChatError('Nenhuma viagem selecionada.', 'Abra o chat a partir de uma viagem.');
+      }
       
       // Desabilitar input quando não há viagem
-      const input = document.getElementById('inputMensagem');
-      const btn = document.querySelector('.btn-enviar');
+      var input = document.getElementById('inputMensagem');
+      var btn = document.querySelector('.btn-enviar');
       if (input) {
         input.disabled = true;
         input.placeholder = 'Selecione uma viagem primeiro';
@@ -62,8 +148,8 @@
       if (btn) btn.disabled = true;
       
       // Countdown e redirecionamento automático
-      let countdown = 3;
-      const countdownEl = document.getElementById('countdown');
+      var countdown = 3;
+      var countdownEl = document.getElementById('countdown');
       const interval = setInterval(() => {
         countdown--;
         if (countdownEl) {
@@ -78,21 +164,28 @@
       return;
     }
 
-    // Conectar Socket.io
+    logStep('conectando WebSocket');
     conectarWebSocket();
 
-    // Carregar mensagens
+    logStep('carregando mensagens...');
     await carregarMensagens();
 
-    // Atualizar status bar
+    logStep('atualizando status');
     await atualizarStatusBar();
+    logStep('init ok');
   }
 
   // ==========================================
   // WEBSOCKET
   // ==========================================
   function conectarWebSocket() {
+    if (typeof io === 'undefined') {
+      console.warn('Socket.io não carregou; chat em modo apenas HTTP.');
+      atualizarStatusConexao(false);
+      return;
+    }
     try {
+      atualizarStatusConexao('conectando');
       socket = io(baseUrl, {
         transports: ['websocket', 'polling'],
         reconnection: true,
@@ -146,11 +239,19 @@
     }
   }
 
-  function atualizarStatusConexao(online) {
+  function atualizarStatusConexao(estado) {
     const statusEl = document.getElementById('chatStatus');
-    if (statusEl) {
-      statusEl.textContent = online ? 'Online' : 'Offline';
-      statusEl.className = `status-indicator ${online ? 'status-online' : 'status-offline'}`;
+    if (!statusEl) return;
+    // estado: true = Online, false = Offline, 'conectando' = Conectando...
+    if (estado === true) {
+      statusEl.textContent = 'Online';
+      statusEl.className = 'status-indicator status-online';
+    } else if (estado === false) {
+      statusEl.textContent = 'Offline';
+      statusEl.className = 'status-indicator status-offline';
+    } else {
+      statusEl.textContent = 'Conectando...';
+      statusEl.className = 'status-indicator status-connecting';
     }
   }
 
@@ -158,35 +259,67 @@
   // CARREGAR MENSAGENS
   // ==========================================
   async function carregarMensagens() {
+    var url = baseUrl + '/api/messages/viagem/' + idViagem;
+    logStep('fetch ' + url);
     try {
-      const response = await fetch(`${baseUrl}/api/messages/viagem/${idViagem}`, {
+      const response = await fetch(url, {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': 'Bearer ' + token,
           'Content-Type': 'application/json'
         }
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        mensagens = data.messages || [];
-        
+      const data = await response.json().catch(function(e) {
+        console.warn('[CHAT] response.json falhou', e);
+        return {};
+      });
+      logStep('API status=' + response.status + ' msgs=' + ((data && (data.messages || data.data && data.data.messages)) ? (data.messages || data.data.messages).length : 0));
+      if (response.ok && data) {
+        mensagens = data.messages || (data.data && data.data.messages) || [];
         // Converter para formato compatível
         mensagens = mensagens.map(m => ({
           ...m,
-          remetente: m.SENDER_TYPE === 'driver' ? 'motorista' : 'operador',
+          remetente: (m.SENDER_TYPE === 'driver' || m.SENDER_TYPE === 'MOTORISTA') ? 'motorista' : 'operador',
           enviado: true,
           timestamp: m.CREATED_AT
         }));
-
         renderizar();
         scrollBottom();
-        
-        // Marcar como lidas
         marcarComoLidas();
+        logStep('Chat pronto. ' + mensagens.length + ' mensagem(ns)');
+      } else {
+        mensagens = [];
+        renderizar();
+        logStep('API status ' + response.status);
+        if (response.status === 401) {
+          mostrarEstadoErroOuVazio('Sessão expirada. Faça login novamente.');
+          setTimeout(function() { window.location.href = '../index.html'; }, 2500);
+        } else if (!response.ok) {
+          console.warn('Chat: API retornou erro', response.status, data);
+          mostrarEstadoErroOuVazio('Não foi possível carregar as mensagens (status ' + response.status + '). Você já pode enviar uma mensagem.');
+        } else {
+          logStep('Chat pronto. 0 mensagens');
+        }
       }
     } catch (err) {
       console.error('Erro ao carregar mensagens:', err);
+      logStep('ERRO fetch: ' + (err.message || err));
+      mensagens = [];
+      renderizar();
+      mostrarEstadoErroOuVazio('Erro de conexão. Verifique sua internet e tente novamente.');
     }
+  }
+
+  function mostrarEstadoErroOuVazio(mensagem) {
+    var container = getChatContainer();
+    if (!container || mensagens.length > 0) return;
+    container.innerHTML = `
+      <div class="empty">
+        <div class="empty-icon">💬</div>
+        <strong>${mensagem}</strong><br>
+        Envie uma mensagem para começar a conversa.
+      </div>
+    `;
   }
 
   // ==========================================
@@ -496,8 +629,11 @@
   // RENDERIZAR
   // ==========================================
   function renderizar() {
-    const container = document.getElementById('chatContainer');
-    
+    var container = getChatContainer();
+    if (!container) {
+      console.warn('[CHAT] renderizar: container não encontrado');
+      return;
+    }
     if (mensagens.length === 0) {
       container.innerHTML = `
         <div class="empty">
@@ -542,21 +678,20 @@
       
       const status = m.enviado !== false ? '✓✓' : '⏳';
       let conteudo = m.CONTENT || m.content || m.mensagem || '';
-      
+      conteudo = escapeHtml(conteudo);
       // Converter quebras de linha em <br>
       conteudo = conteudo.replace(/\n/g, '<br>');
-      
-      // Converter URLs em links clicáveis
+      // Converter apenas http(s) URLs em links (URL já escapada)
       const conteudoFormatado = conteudo.replace(
-        /(https?:\/\/[^\s]+)/g,
-        '<a href="$1" target="_blank" rel="noopener noreferrer" style="color: #667eea; text-decoration: underline;">$1</a>'
+        /(https?:\/\/[^\s<]+)/g,
+        function(url) { return '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer" style="color: #0ea5e9; text-decoration: underline;">' + escapeHtml(url) + '</a>'; }
       );
 
       return `
         <div class="mensagem ${classe}">
           <div class="mensagem-bubble">
             <div style="font-size: 11px; font-weight: 600; color: #666; margin-bottom: 4px;">
-              ${remetente}
+              ${escapeHtml(remetente)}
             </div>
             <div class="mensagem-texto">${conteudoFormatado}</div>
             <div class="mensagem-hora">${hora} ${status}</div>
@@ -633,10 +768,10 @@
       if (!document.hasFocus() && 'Notification' in window && Notification.permission === 'granted') {
         new Notification('Nova Mensagem - Chat', {
           body: preview,
-          icon: '/img/logo7.png',
+          icon: '/img/logoAtlasTransparente.png',
           tag: 'chat-mensagem',
           requireInteraction: false,
-          badge: '/img/logo7.png'
+          badge: '/img/logoAtlasTransparente.png'
         });
       }
     }
@@ -698,10 +833,45 @@
     await atualizarContadorNaoLidas();
   }
 
-  // Inicializar quando DOM estiver pronto
+  // Inicializar quando DOM estiver pronto (garantir que #chatContainer exista)
+  function runInit() {
+    function doInit() {
+      logStep('doInit()');
+      init().catch(function (err) {
+        console.error('Erro ao inicializar chat:', err);
+        var container = getChatContainer();
+        var msg = (err && err.message) ? err.message : 'Tente recarregar a página.';
+        if (container) {
+          container.innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div><strong>Erro ao carregar o chat</strong><br>' +
+            msg + '<br><br>' +
+            '<button onclick="location.reload()" style="padding:10px 20px;background:#0ea5e9;color:white;border:none;border-radius:8px;cursor:pointer;">Recarregar</button></div>';
+        } else {
+          showChatError(msg, '');
+        }
+        var statusEl = document.getElementById('chatStatus');
+        if (statusEl) {
+          statusEl.textContent = 'Erro';
+          statusEl.className = 'status-indicator status-offline';
+        }
+      });
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', doInit);
+    } else {
+      setTimeout(doInit, 0);
+    }
+  }
+  runInit();
+
+    } catch (err) {
+      console.error('Chat init error:', err);
+      showChatError(err.message || 'Erro ao carregar o chat.', 'Recarregue a página (F5).');
+    }
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('DOMContentLoaded', boot);
   } else {
-    init();
+    boot();
   }
 })();

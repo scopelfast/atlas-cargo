@@ -1,0 +1,12 @@
+---
+description: Acesso Rápido do dashboard - planejamento futuro
+globs: backend/public/js/dashboard.js
+---
+
+# Acesso Rápido (dashboard)
+
+Ao alterar a seção **Acesso Rápido** da tela inicial do dashboard:
+
+- Consulte o planejamento em `docs/acesso-rapido-futuro.md`.
+- Hoje a lista é fixa (4 programas); no futuro pode haver: personalização por usuário, "mais acessados" e limite configurável de cards.
+- Código relevante: `showWelcomeScreen()`, `availableQuickLinks`, `.dashboard-quick-links` em dashboard.js e dashboard.css.

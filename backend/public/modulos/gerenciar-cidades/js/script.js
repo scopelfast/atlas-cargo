@@ -1,10 +1,11 @@
 // backend/public/modulos/gerenciar-cidades/js/script.js
 // Gerenciar Cidades - Frontend
 // Versão: 1.1 - Correção de edição
-// Autor: Sistema DivulgaCarga
-// Data: 2025-04-05
+// Atlas Cargo
+// Data: 2026-04-05
 
 (function() {
+  const t = function(k) { return typeof window.tWeb === 'function' ? window.tWeb(k) : k; };
   // Elementos
   const tabs = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
@@ -196,8 +197,12 @@
   async function loadRegioesFiscais() {
     try {
       const response = await fetch('/api/regioes-fiscais');
-      const regioes = await response.json();
-      
+      const data = await response.json();
+      const regioes = Array.isArray(data) ? data : (data && data.regioes) || [];
+      if (!response.ok) {
+        console.error('Erro ao carregar regiões fiscais:', data.error || data);
+        return;
+      }
       // Popular combo do formulário
       const selectForm = document.getElementById('cidadeRegiaoFiscal');
       if (selectForm) {
@@ -229,8 +234,9 @@
       fetch('/api/regioes-fiscais')
         .then(res => res.json())
         .then(data => {
+          const list = Array.isArray(data) ? data : [];
           select.innerHTML = '<option value="">Todas</option>';
-          data.forEach(r => {
+          list.forEach(r => {
             const opt = document.createElement('option');
             opt.value = r.CDREGIAOFISCAL;
             opt.textContent = `${r.CDREGIAOFISCAL} - ${r.DSREGIAOFISCAL}`;
@@ -253,8 +259,12 @@
   async function loadPaises() {
     try {
       const response = await fetch('/api/paises');
-      const paises = await response.json();
-      
+      const data = await response.json();
+      const paises = Array.isArray(data) ? data : (data && data.paises) || [];
+      if (!response.ok) {
+        console.error('Erro ao carregar países:', data.error || data);
+        return;
+      }
       // Popular combo do formulário
       const selectForm = document.getElementById('cidadePais');
       if (selectForm) {
@@ -286,8 +296,9 @@
       fetch('/api/paises')
         .then(res => res.json())
         .then(data => {
+          const list = Array.isArray(data) ? data : [];
           select.innerHTML = '<option value="">Todos</option>';
-          data.forEach(p => {
+          list.forEach(p => {
             const opt = document.createElement('option');
             opt.value = p.CDPAIS;
             opt.textContent = `${p.CDPAIS} - ${p.DSPAIS}`;
@@ -585,7 +596,8 @@
       const countEl = document.getElementById('cidadesGridCountText');
       if (countEl) {
         const count = cidades.length || 0;
-        countEl.textContent = `${count} registro(s) encontrado(s)`;
+        var msg = t('web.modulos.cidades.registrosEncontrados');
+        countEl.textContent = (msg && msg.indexOf('{n}') !== -1) ? msg.replace('{n}', count) : (count + ' registro(s) encontrado(s)');
       }
       
       // Se já existe uma instância do Grid na aba, atualizá-la imediatamente
@@ -726,7 +738,7 @@
         document.getElementById('cidadeId').value = cidade.CDCIDADE;
         document.getElementById('cidadeNome').value = cidade.NMCIDADE;
         document.getElementById('cidadeSituacao').value = cidade.FGACTIVE;
-        document.getElementById('formTitle').textContent = 'Editar Cidade';
+        document.getElementById('formTitle').textContent = t('web.modulos.cidades.editarCidade');
 
         // Campos básicos
         document.getElementById('cidadeMunicipio').value = cidade.CDMUNICIPIO || '';
@@ -827,13 +839,13 @@
       // Definir mensagem e ação baseado no status atual
       let confirmMsg, action, btnText;
       if (estaAtivo) {
-        confirmMsg = 'Tem certeza que deseja <strong>desativar</strong> esta cidade?<br><br><small style="color: #666;">A cidade ficará inativa e não aparecerá nas listagens padrão.</small>';
+        confirmMsg = t('web.modulos.cidades.msgDesativar');
         action = 'deactivate';
-        btnText = 'Desativar';
+        btnText = t('web.modulos.cidades.desativar');
       } else {
-        confirmMsg = 'Tem certeza que deseja <strong>reativar</strong> esta cidade?<br><br><small style="color: #666;">A cidade voltará a aparecer nas listagens e estará disponível para uso.</small>';
+        confirmMsg = t('web.modulos.cidades.msgReativar');
         action = 'activate';
-        btnText = 'Reativar';
+        btnText = t('web.modulos.cidades.reativar');
       }
       
       modalMessage.innerHTML = confirmMsg;
@@ -896,31 +908,42 @@
     }
   }
 
-  // Salvar formulário
+  // Salvar formulário (bloqueio no início para evitar cadastro duplicado)
+  let cidadeFormSubmitting = false;
   cidadeForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const id = document.getElementById('cidadeId')?.value; // ID da cidade para edição
+    e.stopImmediatePropagation();
+    if (cidadeFormSubmitting) return;
+    cidadeFormSubmitting = true;
+    const btnSubmit = cidadeForm?.querySelector('button[type="submit"]');
+    const labelOriginal = btnSubmit?.innerHTML ?? '';
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = '<i class=\'bx bx-loader-alt bx-spin\'></i> Salvando...';
+    }
+
+    const id = document.getElementById('cidadeId')?.value;
     const estado = document.getElementById('cidadeEstado')?.value;
     const nome = document.getElementById('cidadeNome')?.value.trim();
     const situacao = document.getElementById('cidadeSituacao')?.value;
-    
-    // Novos campos
     const pais = document.getElementById('cidadePais')?.value;
     const municipio = document.getElementById('cidadeMunicipio')?.value;
     const areaDDD = document.getElementById('cidadeAreaDDD')?.value;
     const microregiao = document.getElementById('cidadeMicroregiao')?.value;
     const mesoregiao = document.getElementById('cidadeMesoregiao')?.value;
     const regiaoFiscal = document.getElementById('cidadeRegiaoFiscal')?.value;
-    
+
     if (!estado || !nome || !situacao || !municipio) {
       showMessage('Preencha todos os campos obrigatórios.', 'error');
+      cidadeFormSubmitting = false;
+      if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = labelOriginal; }
       return;
     }
-
-    // Buscar CDUF do estado selecionado
     const cduf = await buscarCDUF(estado);
     if (!cduf) {
       showMessage('Erro ao buscar código do estado. Tente novamente.', 'error');
+      cidadeFormSubmitting = false;
+      if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = labelOriginal; }
       return;
     }
 
@@ -966,6 +989,11 @@
     } catch (err) {
       console.error('Erro ao salvar:', err);
       showMessage('Erro de conexão com o servidor.', 'error');
+    } finally {
+      setTimeout(() => {
+        cidadeFormSubmitting = false;
+        if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = labelOriginal; }
+      }, 600);
     }
   });
 
@@ -1021,8 +1049,8 @@
         { field: 'CDCIDADE', header: 'Código', editable: false, isId: true, width: '80px' },
         { field: 'ESTADO', header: 'UF', editable: false, width: '60px' },
         { field: 'NMCIDADE', header: 'Cidade', editable: false, type: 'text' },
-        { field: 'CDAREADDD', header: 'DDD', editable: false, width: '60px' },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '110px',
+        { field: 'CDAREADDD', header: 'DDD', editable: false },
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px', align: 'right',
           options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }
@@ -1073,7 +1101,7 @@
     } else {
       document.getElementById('cidadePais').value = '';
     }
-    document.getElementById('formTitle').textContent = 'Nova Cidade';
+    document.getElementById('formTitle').textContent = t('web.modulos.cidades.novaCidade');
     showTab('dados');
   });
   // Função para buscar e preencher DDD
@@ -1177,7 +1205,7 @@
     } else {
       document.getElementById('cidadePais').value = '';
     }
-    document.getElementById('formTitle').textContent = 'Nova Cidade';
+    document.getElementById('formTitle').textContent = t('web.modulos.cidades.novaCidade');
     showTab('dados');
   });
   document.getElementById('btnCancelar')?.addEventListener('click', () => showTab('grid'));

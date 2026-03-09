@@ -300,7 +300,7 @@ if (!document.getElementById('notifications-styles')) {
     }
     
     .modal-btn-primary {
-      background: #667eea;
+      background: #0ea5e9;
       color: white;
     }
     

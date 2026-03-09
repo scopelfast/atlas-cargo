@@ -1,5 +1,6 @@
-﻿// backend/public/modulos/gerenciar-classes-frota/js/script.js
+// backend/public/modulos/gerenciar-classes-frota/js/script.js
 (function() {
+  const t = function(k) { return typeof window.tWeb === 'function' ? window.tWeb(k) : k; };
   // Elementos
   const tabs = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
@@ -255,7 +256,7 @@
       const countEl = document.getElementById('classesGridCountText');
       if (countEl) {
         const count = classes.length || 0;
-        countEl.textContent = `${count} registro(s) encontrado(s)`;
+        countEl.textContent = (t('web.modulos.cidades.registrosEncontrados') || '{n} registro(s) encontrado(s)').replace('{n}', String(count));
       }
       
       // Se já existe uma instância do Grid na aba, atualizá-la imediatamente
@@ -338,7 +339,7 @@
       showTab(openTab);
     } catch (err) {
       console.error('Erro ao aplicar filtros:', err);
-      showMessage('Erro ao carregar classes.', 'error');
+      showMessage(t('web.modulos.classesFrota.erroCarregarClasses'), 'error');
     }
   }
 
@@ -423,10 +424,10 @@
       container: '#classesGrid',
       columns: [
         { field: 'CDCLASSEFROTA', header: 'Código', editable: false, isId: true, width: '80px' },
-        { field: 'DSCLASSEFROTA', header: 'Descrição', editable: true, type: 'text', width: '300px', maxlength: 40 },
-        { field: 'NREIXOS', header: 'Eixos', editable: true, type: 'number', width: '100px' },
-        { field: 'CAPACIDCARGA', header: 'Capacidade', editable: true, type: 'number', width: '150px' },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px',
+        { field: 'DSCLASSEFROTA', header: 'Descrição', editable: true, type: 'text', maxlength: 40 },
+        { field: 'NREIXOS', header: 'Eixos', editable: true, type: 'number' },
+        { field: 'CAPACIDCARGA', header: 'Capacidade', editable: true, type: 'number' },
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px', align: 'right',
           options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }
@@ -445,7 +446,7 @@
         await confirmarExclusao(id);
       },
       onAfterEdit: (id) => {
-        showMessage('Alteração salva com sucesso!', 'success');
+        showMessage(t('web.modulos.classesFrota.sucessoSalvar'), 'success');
         // atualizar cache local mantendo sincronia
         if (lastClasses) {
           const idx = lastClasses.findIndex(r => String(r.CDCLASSEFROTA) === String(id));
@@ -473,19 +474,19 @@
         document.getElementById('classeSituacao').value = classe.FGACTIVE;
         document.getElementById('classeEixos').value = classe.NREIXOS;
         document.getElementById('classeCapacidade').value = classe.CAPACIDCARGA || '';
-        document.getElementById('formTitle').textContent = 'Editar Classe de Frota';
+        document.getElementById('formTitle').textContent = t('web.modulos.classesFrota.editarClasse');
         showTab('dados');
       }
     } catch (err) {
       console.error('Erro ao carregar classe:', err);
-      showMessage('Erro ao carregar dados para edição.', 'error');
+      showMessage(t('web.modulos.classesFrota.erroCarregarDados'), 'error');
     }
   }
 
   // Confirmar exclusão
   async function confirmarExclusao(id) {
     if (!id || id === 'undefined' || id === 'null' || id === '' || String(id).trim() === '') {
-      showMessage('Erro: ID não disponível.', 'error');
+      showMessage(t('web.modulos.classesFrota.erroIdIndisponivel'), 'error');
       return;
     }
     
@@ -513,13 +514,13 @@
       // Definir mensagem e ação baseado no status atual
       let confirmMsg, action, btnText;
       if (estaAtivo) {
-        confirmMsg = 'Tem certeza que deseja <strong>desativar</strong> esta classe de frota?<br><br><small style="color: #666;">A classe ficará inativa e não aparecerá nas listagens padrão.</small>';
+        confirmMsg = t('web.modulos.classesFrota.msgDesativar');
         action = 'deactivate';
-        btnText = 'Desativar';
+        btnText = t('web.modulos.classesFrota.desativar');
       } else {
-        confirmMsg = 'Tem certeza que deseja <strong>reativar</strong> esta classe de frota?<br><br><small style="color: #666;">A classe voltará a aparecer nas listagens e estará disponível para uso.</small>';
+        confirmMsg = t('web.modulos.classesFrota.msgReativar');
         action = 'activate';
-        btnText = 'Reativar';
+        btnText = t('web.modulos.classesFrota.reativar');
       }
       
       if (modalMessage) modalMessage.innerHTML = confirmMsg;
@@ -542,7 +543,7 @@
           const acao = modalEl.dataset.action || action;
           
           if (!deleteId || deleteId === 'undefined' || deleteId === 'null' || deleteId === '') {
-            showMessage('Erro: ID não disponível.', 'error');
+            showMessage(t('web.modulos.classesFrota.erroIdIndisponivel'), 'error');
             modalEl.style.display = 'none';
             return;
           }
@@ -554,15 +555,15 @@
           
           const data = await response.json();
           if (response.ok) {
-            showMessage(data.message || (acao === 'activate' ? 'Classe de frota reativada com sucesso!' : 'Classe de frota desativada com sucesso!'), 'success');
+            showMessage(data.message || (acao === 'activate' ? t('web.modulos.classesFrota.sucessoReativar') : t('web.modulos.classesFrota.sucessoDesativar')), 'success');
             showTab('grid');
             applyFilters('grid');
           } else {
-            showMessage(data.error || 'Erro ao alterar status da classe.', 'error');
+            showMessage(data.error || t('web.modulos.classesFrota.erroAlterarStatus'), 'error');
           }
         } catch (err) {
           console.error('[Classes] Erro ao alterar status:', err);
-          showMessage('Erro de conexão.', 'error');
+          showMessage(t('web.modulos.classesFrota.erroConexao'), 'error');
         } finally {
           modalEl.style.display = 'none';
           delete modalEl.dataset.deleteId;
@@ -579,25 +580,40 @@
       modalEl.style.display = 'block';
     } catch (err) {
       console.error('[Classes] Erro ao buscar status da classe:', err);
-      showMessage('Erro ao verificar status da classe.', 'error');
+      showMessage(t('web.modulos.classesFrota.erroVerificarStatus'), 'error');
     }
   }
 
-  // Salvar formulário
+  // Salvar formulário (bloqueio no início para evitar cadastro duplicado)
+  let classeFormSubmitting = false;
   classeForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    e.stopImmediatePropagation();
+    if (classeFormSubmitting) return;
+    classeFormSubmitting = true;
+    const btnSubmit = classeForm?.querySelector('button[type="submit"]');
+    const labelOriginal = btnSubmit?.innerHTML ?? '';
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = '<i class=\'bx bx-loader-alt bx-spin\'></i> Salvando...';
+    }
+
     const id = document.getElementById('classeCodigo')?.value;
     const descricao = document.getElementById('classeDescricao')?.value.trim();
     const situacao = document.getElementById('classeSituacao')?.value;
     const eixos = document.getElementById('classeEixos')?.value;
     const capacidade = document.getElementById('classeCapacidade')?.value;
-    
+
     if (!descricao || !situacao || !eixos) {
-      showMessage('Preencha todos os campos obrigatórios.', 'error');
+      showMessage(t('web.modulos.classesFrota.preenchaCampos'), 'error');
+      classeFormSubmitting = false;
+      if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = labelOriginal; }
       return;
     }
     if (eixos < 2 || eixos > 9) {
-      showMessage('Número de eixos deve ser entre 2 e 9.', 'error');
+      showMessage(t('web.modulos.classesFrota.eixosEntre2e9'), 'error');
+      classeFormSubmitting = false;
+      if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = labelOriginal; }
       return;
     }
 
@@ -626,15 +642,23 @@
 
       const data = await response.json();
       if (response.ok) {
-        showMessage(data.message || 'Salvo com sucesso!', 'success');
+        showMessage(data.message || t('web.modulos.classesFrota.sucessoSalvar'), 'success');
         showTab('grid');
         applyFilters('grid');
       } else {
-        showMessage(data.error || 'Erro ao salvar.', 'error');
+        showMessage(data.error || t('web.modulos.classesFrota.erroSalvar'), 'error');
       }
     } catch (err) {
       console.error('Erro ao salvar:', err);
-      showMessage('Erro de conexão com o servidor.', 'error');
+      showMessage(t('web.modulos.classesFrota.erroConexao'), 'error');
+    } finally {
+      setTimeout(() => {
+        classeFormSubmitting = false;
+        if (btnSubmit) {
+          btnSubmit.disabled = false;
+          btnSubmit.innerHTML = labelOriginal;
+        }
+      }, 600);
     }
   });
 
@@ -661,7 +685,7 @@
   document.getElementById('btnVoltarFiltros')?.addEventListener('click', () => showTab('filtros'));
   document.getElementById('btnNovoRegistro')?.addEventListener('click', () => {
     classeForm?.reset();
-    document.getElementById('formTitle').textContent = 'Nova Classe de Frota';
+    document.getElementById('formTitle').textContent = t('web.modulos.classesFrota.novaClasse');
     showTab('dados');
   });
 
@@ -672,7 +696,7 @@
 
   document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
     classeForm?.reset();
-    document.getElementById('formTitle').textContent = 'Nova Classe de Frota';
+    document.getElementById('formTitle').textContent = t('web.modulos.classesFrota.novaClasse');
     showTab('dados');
   });
   

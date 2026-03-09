@@ -1,7 +1,7 @@
 // backend/public/modulos/chat/js/script.js
 // Módulo de Chat - Frontend Completo
 // Versão: 2.0
-// Data: 2025-01-18
+// Data: 2026-01-18
 //
 // Este módulo gerencia comunicação em tempo real entre operadores e motoristas.
 // Inclui integração com WebSocket para atualizações em tempo real.
@@ -9,6 +9,7 @@
 
 (function() {
   'use strict';
+  const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
 
   // Estado do módulo
   let conversas = [];
@@ -17,6 +18,18 @@
   let socket = null;
   let estaConectado = false;
   let idUsuario = null;
+  let mediaRecorderAudio = null;
+  let chunksAudio = [];
+
+  let contextoChat = { locale: 'pt-BR', timezone: 'America/Sao_Paulo' };
+  async function loadContextoChat() {
+    try {
+      const r = await fetch('/api/contexto');
+      const d = await r.json();
+      if (d && d.locale) contextoChat.locale = d.locale;
+      if (d && d.timezone) contextoChat.timezone = d.timezone;
+    } catch (e) {}
+  }
 
   // Elementos DOM
   const conversasListEl = document.getElementById('conversasList');
@@ -30,20 +43,132 @@
   /**
    * Inicializar módulo
    */
-  function inicializar() {
+  async function inicializar() {
     console.log('💬 Módulo Chat inicializando...');
-    
-    // Obter ID do usuário
+    await loadContextoChat();
     idUsuario = getUserId();
-    
     if (!idUsuario) {
-      mostrarMensagem('Erro: Usuário não autenticado. Faça login novamente.', 'error');
+      mostrarMensagem(t('web.modulos.chat.erroConexao'), 'error');
       return;
     }
-    
-    // Carregar conversas
     carregarConversas();
-    
+
+    // Delegar clique em "Transcrever" / "Re-transcrever" áudio
+    if (chatMessagesEl) {
+      chatMessagesEl.addEventListener('click', async function(e) {
+        const btn = e.target.closest('.btn-transcrever-audio, .btn-retranscrever-audio');
+        if (!btn) return;
+        e.preventDefault();
+        const wrap = btn.closest('.message-transcrever-actions, .message-retranscrever-actions');
+        const id = wrap && wrap.getAttribute('data-id-mensagem');
+        const select = wrap && wrap.querySelector('select');
+        const idioma = select ? select.value : 'pt';
+        if (!id || !idioma) return;
+        btn.disabled = true;
+        try {
+          const r = await fetch('/api/chat/transcrever-audio', { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ idMensagem: parseInt(id, 10), idioma }) });
+          const data = await r.json();
+          if (data.success && data.message) {
+            const idx = mensagens.findIndex(m => (m.ID || m.id) == id);
+            if (idx !== -1) { mensagens[idx] = { ...mensagens[idx], CONTENT: data.message.CONTENT }; }
+            renderizarMensagens();
+          } else {
+            mostrarMensagem(data.error || 'Erro ao transcrever', 'error');
+          }
+        } catch (err) {
+          mostrarMensagem(err.message || 'Erro ao transcrever', 'error');
+        }
+        btn.disabled = false;
+      });
+    }
+
+    // Botão enviar áudio (operador)
+    const btnEnviarAudio = document.getElementById('btnEnviarAudio');
+    if (btnEnviarAudio) {
+      btnEnviarAudio.addEventListener('click', function() {
+        if (!conversaAtual || (conversaAtual.ID_VIAGEM == null && conversaAtual.ID == null)) {
+          mostrarMensagem(t('web.modulos.chat.selecioneConversa') || 'Selecione uma conversa.', 'warning');
+          return;
+        }
+        const idViagem = conversaAtual.ID_VIAGEM;
+        if (idViagem == null) {
+          mostrarMensagem(t('web.modulos.chat.escolhaConversa') || 'Conversa sem viagem.', 'warning');
+          return;
+        }
+        if (btnEnviarAudio.classList.contains('recording')) {
+          if (mediaRecorderAudio && mediaRecorderAudio.state === 'recording') {
+            mediaRecorderAudio.stop();
+          }
+          return;
+        }
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+          const options = { mimeType: (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4') };
+          mediaRecorderAudio = new MediaRecorder(stream);
+          chunksAudio = [];
+          mediaRecorderAudio.ondataavailable = function(e) { if (e.data.size > 0) chunksAudio.push(e.data); };
+          mediaRecorderAudio.onstop = function() {
+            stream.getTracks().forEach(function(t) { t.stop(); });
+            btnEnviarAudio.classList.remove('recording');
+            btnEnviarAudio.querySelector('i').className = 'bx bx-microphone';
+            if (chunksAudio.length === 0) {
+              mostrarMensagem(t('web.modulos.chat.audioGravacaoVazia') || 'Gravação vazia. Tente novamente.', 'warning');
+              btnEnviarAudio.disabled = false;
+              return;
+            }
+            const blob = new Blob(chunksAudio, { type: mediaRecorderAudio.mimeType || 'audio/webm' });
+            const ext = (mediaRecorderAudio.mimeType || '').indexOf('webm') !== -1 ? '.webm' : '.m4a';
+            const form = new FormData();
+            form.append('file', blob, 'audio' + ext);
+            form.append('idviagem', idViagem);
+            form.append('senderType', 'OPERADOR');
+            form.append('senderId', idUsuario);
+            form.append('senderName', getOperadorNome() || 'Operador');
+            const selIdioma = document.getElementById('chatSelectIdiomaTranscricao');
+            if (selIdioma && selIdioma.value) form.append('idioma', selIdioma.value);
+            btnEnviarAudio.disabled = true;
+            const token = localStorage.getItem('token');
+            fetch('/api/chat/upload-audio', {
+              method: 'POST',
+              headers: { 'Authorization': 'Bearer ' + token },
+              body: form
+            }).then(function(r) { return r.json(); }).then(function(data) {
+              if (data.success && data.message) {
+                if (conversaAtual.ID == null && data.message.ID_CONVERSA != null) {
+                  conversaAtual.ID = data.message.ID_CONVERSA;
+                  conversas.unshift({
+                    ID: conversaAtual.ID,
+                    ID_VIAGEM: conversaAtual.ID_VIAGEM,
+                    motorista_nome: conversaAtual.motorista_nome,
+                    viagem_codigo: conversaAtual.viagem_codigo,
+                    ULTIMA_MENSAGEM: data.message.CONTENT,
+                    DH_ULTIMA_MENSAGEM: data.message.CREATED_AT,
+                    MENSAGENS_NAO_LIDAS: 0
+                  });
+                  renderizarConversas();
+                }
+                adicionarMensagem(data.message);
+                scrollChatBottom();
+              } else {
+                mostrarMensagem(data.error || 'Erro ao enviar áudio.', 'error');
+              }
+            }).catch(function() {
+              mostrarMensagem(t('web.modulos.chat.erroCarregar') || 'Erro ao enviar áudio.', 'error');
+            }).finally(function() {
+              btnEnviarAudio.disabled = false;
+            });
+          };
+          mediaRecorderAudio.start();
+          btnEnviarAudio.classList.add('recording');
+          btnEnviarAudio.querySelector('i').className = 'bx bx-stop';
+        }).catch(function(err) {
+          const txt = (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')
+            ? (t('web.modulos.chat.microfonePermissaoNegada') || 'Permissão de microfone negada.')
+            : (err.message || 'Erro ao acessar microfone.');
+          mostrarMensagem(txt, 'error');
+        });
+      });
+    }
+
     // Inicializar WebSocket
     inicializarWebSocket();
     
@@ -72,14 +197,30 @@
   }
 
   /**
-   * Obter ID do usuário logado
+   * Obter ID do usuário logado (compatível com objeto user do login e variações).
+   * Se o usuário não tiver CDCADASTRO (ex.: admin sem cadastro vinculado), usa um id numérico
+   * estável derivado do login para permitir uso do Chat.
    */
   function getUserId() {
     try {
       const userStr = localStorage.getItem('user');
       if (userStr) {
         const user = JSON.parse(userStr);
-        return user.cdcadastro || user.id || null;
+        const id = user.id ?? user.cdcadastro ?? user.CDCADASTRO ?? user.userId;
+        if (id != null && id !== '') {
+          const num = typeof id === 'number' ? id : parseFloat(id);
+          if (Number.isFinite(num)) return num;
+        }
+        // Fallback: usuário sem cadastro vinculado (ex.: admin) — id estável a partir do login
+        const login = user.login ?? user.LOGIN ?? user.SGUSUARIO ?? user.sgUsuario ?? '';
+        if (login && typeof login === 'string') {
+          let hash = 0;
+          for (let i = 0; i < login.length; i++) {
+            hash = ((hash << 5) - hash) + login.charCodeAt(i);
+            hash = hash & 0x7FFFFFFF;
+          }
+          return hash || 1;
+        }
       }
     } catch (err) {
       console.warn('Erro ao obter ID do usuário:', err);
@@ -113,7 +254,7 @@
       }
     } catch (err) {
       console.error('Erro ao carregar conversas:', err);
-      mostrarMensagem('Erro ao carregar conversas: ' + err.message, 'error');
+      mostrarMensagem(t('web.modulos.chat.erroCarregar') + ' ' + err.message, 'error');
       conversasListEl.innerHTML = '<div style="padding: 20px; text-align: center; color: #6c757d;">Erro ao carregar conversas</div>';
     } finally {
       mostrarLoading(false);
@@ -128,18 +269,40 @@
     
     if (conversas.length === 0) {
       conversasListEl.innerHTML = `
-        <div style="padding: 40px; text-align: center; color: #6c757d;">
+        <div style="padding: 20px; text-align: center; color: #6c757d;">
           <i class='bx bx-message' style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;"></i>
           <p>Nenhuma conversa encontrada</p>
+          <div style="margin-top: 20px; padding: 15px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+            <p style="margin: 0 0 12px 0; font-size: 13px; font-weight: 600; color: #0d2137;">Iniciar conversa por viagem</p>
+            <p style="margin: 0 0 10px 0; font-size: 12px;">Informe o código da viagem para enviar a primeira mensagem ao motorista.</p>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="number" id="inputIdViagemNovaConversa" placeholder="Ex: 1" min="1" style="width: 80px; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px;">
+              <button type="button" class="btn btn-primary" onclick="abrirNovaConversaPorViagem()" style="padding: 8px 16px;">
+                <i class='bx bx-plus'></i> Abrir chat
+              </button>
+            </div>
+          </div>
         </div>
       `;
       return;
     }
     
-    conversasListEl.innerHTML = conversas.map(conversa => {
-      const isActive = conversaAtual && conversaAtual.ID === conversa.ID;
+    const novaConversaRow = `
+      <div style="padding: 12px 15px; border-bottom: 1px solid #e2e8f0; background: #f8fafc;">
+        <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 600; color: #0d2137;">Nova conversa por viagem</p>
+        <div style="display: flex; gap: 6px;">
+          <input type="number" id="inputIdViagemNovaConversa" placeholder="Cód. viagem" min="1" style="flex: 1; padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 13px;">
+          <button type="button" class="btn btn-primary" onclick="abrirNovaConversaPorViagem()" style="padding: 6px 12px; font-size: 13px;"><i class='bx bx-plus'></i></button>
+        </div>
+      </div>
+    `;
+    conversasListEl.innerHTML = novaConversaRow + conversas.map(conversa => {
+      const isActive = conversaAtual && (conversaAtual.ID === conversa.ID || (conversaAtual.ID == null && conversaAtual.ID_VIAGEM === conversa.ID_VIAGEM));
       const hasUnread = conversa.MENSAGENS_NAO_LIDAS > 0;
-      const ultimaMensagem = conversa.ULTIMA_MENSAGEM || 'Sem mensagens';
+      let ultimaMensagem = conversa.ULTIMA_MENSAGEM || 'Sem mensagens';
+      if (ultimaMensagem.trim().startsWith('{') && ultimaMensagem.indexOf('"url"') !== -1) {
+        ultimaMensagem = '🎙️ ' + (t('web.modulos.chat.audio') || 'Áudio');
+      }
       const hora = formatarHora(conversa.DH_ULTIMA_MENSAGEM || conversa.DH_CRIACAO);
       const nome = conversa.motorista_nome || `Viagem ${conversa.viagem_codigo || conversa.ID_VIAGEM || 'N/A'}`;
       
@@ -245,9 +408,59 @@
       
     } catch (err) {
       console.error('Erro ao selecionar conversa:', err);
-      mostrarMensagem('Erro ao abrir conversa: ' + err.message, 'error');
+      mostrarMensagem(t('web.modulos.chat.erroCarregar') + ' ' + err.message, 'error');
     }
   };
+
+  /**
+   * Abrir nova conversa por código da viagem (operador inicia o chat)
+   */
+  window.abrirNovaConversaPorViagem = async function() {
+    const inputEl = document.getElementById('inputIdViagemNovaConversa');
+    const raw = inputEl ? inputEl.value.trim() : '';
+    const idViagem = raw ? parseInt(raw, 10) : null;
+    if (!idViagem || idViagem < 1) {
+      mostrarMensagem('Informe o código da viagem (número maior que 0).', 'warning');
+      return;
+    }
+    const conversaVirtual = {
+      ID: null,
+      ID_VIAGEM: idViagem,
+      motorista_nome: 'Viagem ' + idViagem,
+      viagem_codigo: String(idViagem)
+    };
+    conversaAtual = conversaVirtual;
+    renderizarConversas();
+    mostrarChatAtivo();
+    document.getElementById('chatInfoNome').textContent = conversaVirtual.motorista_nome;
+    document.getElementById('chatInfoViagem').textContent = 'Viagem: ' + idViagem;
+    document.getElementById('chatInfoMotorista').textContent = 'Envie a primeira mensagem para iniciar o chat.';
+    if (socket && socket.connected && idViagem) {
+      socket.emit('join-viagem', idViagem);
+    }
+    await carregarMensagensPorViagem(idViagem);
+  };
+
+  /**
+   * Carregar mensagens por viagem (usado quando ainda não existe conversa)
+   */
+  async function carregarMensagensPorViagem(idViagem) {
+    try {
+      const response = await fetch(`/api/messages/viagem/${idViagem}?limit=100`, {
+        headers: getAuthHeaders()
+      });
+      if (!response.ok) {
+        throw new Error(`Erro ${response.status}: ${response.statusText}`);
+      }
+      const data = await response.json();
+      mensagens = data.messages || [];
+      renderizarMensagens();
+    } catch (err) {
+      console.warn('Erro ao carregar mensagens por viagem:', err);
+      mensagens = [];
+      renderizarMensagens();
+    }
+  }
 
   /**
    * Carregar mensagens de uma conversa
@@ -273,7 +486,7 @@
       }
     } catch (err) {
       console.error('Erro ao carregar mensagens:', err);
-      mostrarMensagem('Erro ao carregar mensagens: ' + err.message, 'error');
+      mostrarMensagem(t('web.modulos.chat.erroCarregar') + ' ' + err.message, 'error');
     }
   }
 
@@ -310,9 +523,9 @@
       return;
     }
     
+    const baseUrl = window.location.origin;
     chatMessagesEl.innerHTML = mensagens.map(msg => {
       const isOperador = msg.SENDER_TYPE === 'OPERADOR';
-      // Usar SENDER_NAME se disponível, senão usar padrão
       let nome;
       if (isOperador) {
         const nomeOperador = msg.SENDER_NAME || msg.senderName;
@@ -327,59 +540,85 @@
           : 'Motorista';
       }
       const hora = formatarHora(msg.CREATED_AT);
-      
-      // Processar conteúdo: converter quebras de linha e URLs em links
-      let conteudo = msg.CONTENT || '';
-      
-      // Converter quebras de linha em <br> primeiro
-      conteudo = conteudo.replace(/\n/g, '<br>');
-      
-      // Dividir o conteúdo em partes (texto e URLs)
-      const partes = [];
-      let ultimoIndice = 0;
-      const urlRegex = /(https?:\/\/[^\s<>"']+)/gi;
-      let match;
-      
-      while ((match = urlRegex.exec(conteudo)) !== null) {
-        // Adicionar texto antes da URL
-        if (match.index > ultimoIndice) {
-          const textoAntes = conteudo.substring(ultimoIndice, match.index);
-          if (textoAntes) {
-            partes.push({ tipo: 'texto', conteudo: escapeHtml(textoAntes) });
-          }
+      const tipo = msg.TIPO || msg.tipo || 'TEXTO';
+
+      let conteudo = '';
+      let blocoLocalizacao = '';
+      let blocoAudio = '';
+
+      if (tipo === 'AUDIO') {
+        let contentObj = {};
+        try {
+          contentObj = typeof msg.CONTENT === 'string' ? JSON.parse(msg.CONTENT) : (msg.CONTENT || {});
+        } catch (e) {}
+        const audioUrl = contentObj.url ? (baseUrl + (contentObj.url.indexOf('/') === 0 ? contentObj.url : '/' + contentObj.url)) : '';
+        if (audioUrl) {
+          blocoAudio = `<div class="message-audio" style="margin-top:8px;"><audio controls preload="metadata" src="${escapeHtml(audioUrl)}"></audio></div>`;
         }
-        
-        // Adicionar URL como link
-        const url = match[0];
-        const urlEscaped = escapeHtml(url);
-        partes.push({
-          tipo: 'link',
-          conteudo: `<a href="${urlEscaped}" target="_blank" rel="noopener noreferrer" style="color: #667eea; text-decoration: underline; word-break: break-all; cursor: pointer;">${urlEscaped}</a>`
-        });
-        
-        ultimoIndice = match.index + url.length;
-      }
-      
-      // Adicionar texto restante
-      if (ultimoIndice < conteudo.length) {
-        const textoRestante = conteudo.substring(ultimoIndice);
-        if (textoRestante) {
-          partes.push({ tipo: 'texto', conteudo: escapeHtml(textoRestante) });
+        if (contentObj.transcricao) {
+          const labelTransc = t('web.modulos.chat.transcricao') || 'Transcrição';
+          blocoAudio += `<div class="message-transcricao" style="margin-top:10px;padding:12px 14px;background:linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%);border-left:4px solid #0ea5e9;border-radius:10px;font-size:14px;color:#0c4a6e;box-shadow:0 1px 3px rgba(14,165,233,0.15);"><span style="display:inline-block;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:0.04em;color:#0369a1;margin-bottom:6px;">📝 ${escapeHtml(labelTransc)}</span><div style="margin-top:4px;line-height:1.5;">${escapeHtml(contentObj.transcricao)}</div></div>`;
+          const labelRetrans = t('web.modulos.chat.retranscrever') || 'Re-transcrever em outro idioma';
+          blocoAudio += `<div class="message-retranscrever-actions" style="margin-top:6px;" data-id-mensagem="${escapeHtml(String(msg.ID || msg.id))}">
+            <select class="retranscrever-idioma-select" style="padding:4px 8px;border-radius:6px;margin-right:6px;">
+              <option value="pt">Português</option><option value="es">Español</option><option value="en">English</option>
+            </select>
+            <button type="button" class="btn-retranscrever-audio" style="padding:4px 10px;border-radius:6px;background:#64748b;color:#fff;border:none;cursor:pointer;font-size:12px;">${escapeHtml(labelRetrans)}</button>
+          </div>`;
+        } else {
+          const labelTranscrever = t('web.modulos.chat.transcrever') || 'Transcrever';
+          blocoAudio += `<div class="message-transcrever-actions" style="margin-top:8px;" data-id-mensagem="${escapeHtml(String(msg.ID || msg.id))}">
+            <select class="transcrever-idioma-select" style="padding:4px 8px;border-radius:6px;margin-right:6px;">
+              <option value="pt">Português</option><option value="es">Español</option><option value="en">English</option>
+            </select>
+            <button type="button" class="btn-transcrever-audio" style="padding:4px 10px;border-radius:6px;background:#0ea5e9;color:#fff;border:none;cursor:pointer;font-size:12px;">${escapeHtml(labelTranscrever)}</button>
+          </div>`;
         }
-      }
-      
-      // Se não encontrou URLs, escapar todo o conteúdo
-      if (partes.length === 0) {
-        conteudo = escapeHtml(conteudo);
+        conteudo = t('web.modulos.chat.audio') || 'Áudio';
       } else {
-        conteudo = partes.map(p => p.conteudo).join('');
+        let conteudoRaw = msg.CONTENT || '';
+        const linkMapa = conteudoRaw.match(/https?:\/\/(www\.)?google\.com\/maps\?q=([-\d.]+),([-\d.]+)/i)?.[0] ||
+          conteudoRaw.match(/https?:\/\/maps\.google\.com\/\?q=([-\d.]+),([-\d.]+)/i)?.[0] ||
+          (conteudoRaw.match(/https?:\/\/[^\s<>"']+maps[^\s]*/gi) || []).find(u => /[-\d.]+\s*,\s*[-\d.]/.test(u));
+        let conteudoStr = conteudoRaw.replace(/\n/g, '<br>');
+        const partes = [];
+        let ultimoIndice = 0;
+        const urlRegex = /(https?:\/\/[^\s<>"']+)/gi;
+        let match;
+        while ((match = urlRegex.exec(conteudoStr)) !== null) {
+          if (match.index > ultimoIndice) {
+            const textoAntes = conteudoStr.substring(ultimoIndice, match.index);
+            if (textoAntes) partes.push({ tipo: 'texto', conteudo: escapeHtml(textoAntes) });
+          }
+          const url = match[0];
+          const urlEscaped = escapeHtml(url);
+          const isMapLink = /google\.com\/maps|maps\.google|openstreetmap\.org\/.*#.*map=/i.test(url);
+          partes.push({
+            tipo: 'link',
+            conteudo: isMapLink
+              ? `<a href="${urlEscaped}" target="_blank" rel="noopener noreferrer" style="color: #0ea5e9; font-weight: 600; word-break: break-all;">🗺️ Ver no mapa</a>`
+              : `<a href="${urlEscaped}" target="_blank" rel="noopener noreferrer" style="color: #667eea; text-decoration: underline; word-break: break-all; cursor: pointer;">${urlEscaped}</a>`
+          });
+          ultimoIndice = match.index + url.length;
+        }
+        if (ultimoIndice < conteudoStr.length) {
+          const textoRestante = conteudoStr.substring(ultimoIndice);
+          if (textoRestante) partes.push({ tipo: 'texto', conteudo: escapeHtml(textoRestante) });
+        }
+        conteudo = partes.length === 0 ? escapeHtml(conteudoStr) : partes.map(p => p.conteudo).join('');
+        if (linkMapa) {
+          blocoLocalizacao = `<div class="message-location" style="margin-top:10px;padding:10px;background:rgba(14,165,233,0.08);border-radius:10px;border:1px solid rgba(14,165,233,0.25);">
+             <a href="${escapeHtml(linkMapa)}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:6px;padding:8px 14px;background:#0ea5e9;color:white;border-radius:10px;text-decoration:none;font-weight:600;font-size:13px;">📍 Ver localização no mapa</a>
+           </div>`;
+        }
       }
-      
+
       return `
         <div class="message-item ${isOperador ? 'operador' : 'motorista'}">
           <div class="message-bubble">
             <div class="message-header">${escapeHtml(nome)}</div>
             <div class="message-content">${conteudo}</div>
+            ${blocoAudio}${blocoLocalizacao}
             <div class="message-time">${hora}</div>
           </div>
         </div>
@@ -470,57 +709,71 @@
    * Enviar mensagem
    */
   window.enviarMensagem = async function() {
-    if (!conversaAtual) {
-      mostrarMensagem('Selecione uma conversa primeiro', 'warning');
+    if (!conversaAtual || (conversaAtual.ID_VIAGEM == null && conversaAtual.ID == null)) {
+      mostrarMensagem('Selecione uma conversa ou inicie uma por viagem.', 'warning');
       return;
     }
-    
+    const idViagem = conversaAtual.ID_VIAGEM;
+    if (idViagem == null) {
+      mostrarMensagem('Conversa sem viagem associada.', 'warning');
+      return;
+    }
+
     const texto = chatInputEl.value.trim();
     if (!texto) {
       return;
     }
-    
+
     try {
       const btnEnviar = document.getElementById('btnEnviar');
       btnEnviar.disabled = true;
-      
-      // Obter nome real do operador
+
       const nomeOperador = getOperadorNome();
-      
+      const body = {
+        idviagem: idViagem,
+        content: texto,
+        senderType: 'OPERADOR',
+        senderId: idUsuario,
+        senderName: nomeOperador,
+        tipo: 'TEXTO'
+      };
+      if (conversaAtual.ID != null) {
+        body.idConversa = conversaAtual.ID;
+      }
+
       const response = await fetch('/api/chat/mensagens', {
         method: 'POST',
         headers: getAuthHeaders(),
-        body: JSON.stringify({
-          idviagem: conversaAtual.ID_VIAGEM,
-          idConversa: conversaAtual.ID,
-          content: texto,
-          senderType: 'OPERADOR',
-          senderId: idUsuario,
-          senderName: nomeOperador,
-          tipo: 'TEXTO'
-        })
+        body: JSON.stringify(body)
       });
-      
+
       const data = await response.json();
-      
+
       if (data.success && data.message) {
         chatInputEl.value = '';
         ajustarAlturaInput();
-        
-        // Se WebSocket estiver conectado, não adicionar aqui
-        // O WebSocket vai adicionar automaticamente via evento 'nova-mensagem'
-        // Isso evita duplicação
+
+        if (conversaAtual.ID == null && data.message.ID_CONVERSA != null) {
+          conversaAtual.ID = data.message.ID_CONVERSA;
+          conversas.unshift({
+            ID: conversaAtual.ID,
+            ID_VIAGEM: conversaAtual.ID_VIAGEM,
+            motorista_nome: conversaAtual.motorista_nome,
+            viagem_codigo: conversaAtual.viagem_codigo,
+            ULTIMA_MENSAGEM: texto,
+            DH_ULTIMA_MENSAGEM: data.message.CREATED_AT,
+            MENSAGENS_NAO_LIDAS: 0
+          });
+          renderizarConversas();
+        }
+
         if (!socket || !socket.connected) {
-          // Se WebSocket não estiver conectado, adicionar manualmente
           adicionarMensagem(data.message);
         } else {
-          // Apenas atualizar lista de conversas se WebSocket estiver conectado
-          // A mensagem será adicionada pelo WebSocket
           const conversa = conversas.find(c => c.ID === conversaAtual.ID);
           if (conversa) {
             conversa.ULTIMA_MENSAGEM = texto;
             conversa.DH_ULTIMA_MENSAGEM = data.message.CREATED_AT;
-            // Reordenar (mais recente primeiro)
             conversas.sort((a, b) => {
               const dateA = new Date(a.DH_ULTIMA_MENSAGEM || a.DH_CRIACAO);
               const dateB = new Date(b.DH_ULTIMA_MENSAGEM || b.DH_CRIACAO);
@@ -534,7 +787,7 @@
       }
     } catch (err) {
       console.error('Erro ao enviar mensagem:', err);
-      mostrarMensagem('Erro ao enviar mensagem: ' + err.message, 'error');
+      mostrarMensagem(t('web.modulos.chat.erroCarregar') + ' ' + err.message, 'error');
     } finally {
       const btnEnviar = document.getElementById('btnEnviar');
       if (btnEnviar) btnEnviar.disabled = false;
@@ -548,7 +801,7 @@
     try {
       if (!conversaAtual || !conversaAtual.ID_VIAGEM) return;
       
-      await fetch('/api/chat/marcar-lidas', {
+      const response = await fetch('/api/chat/marcar-lidas', {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -558,13 +811,18 @@
         })
       });
       
-      // Atualizar contador local
+      if (!response.ok) {
+        console.warn('marcarComoLidas: servidor retornou', response.status);
+        return;
+      }
+      
+      // Atualizar contador local e estatísticas só após o servidor confirmar
       if (conversaAtual) {
         conversaAtual.MENSAGENS_NAO_LIDAS = 0;
         renderizarConversas();
-        atualizarEstatisticas();
-        atualizarContadorMenu();
       }
+      await atualizarEstatisticas();
+      await atualizarContadorMenu();
     } catch (err) {
       console.warn('Erro ao marcar como lidas:', err);
     }
@@ -928,22 +1186,27 @@
     }
   }
 
-  /**
-   * Formatar data
-   */
   function formatarData(data) {
     if (!data) return '-';
     const d = new Date(data);
-    return d.toLocaleDateString('pt-BR');
+    if (Number.isNaN(d.getTime())) return '-';
+    const loc = contextoChat.locale || 'pt-BR';
+    const tz = contextoChat.timezone || 'America/Sao_Paulo';
+    try {
+      return new Intl.DateTimeFormat(loc, { timeZone: tz, dateStyle: 'short' }).format(d);
+    } catch (e) {
+      return d.toLocaleDateString(loc);
+    }
   }
 
-  /**
-   * Formatar hora
-   */
   function formatarHora(data) {
     if (!data) return '-';
     const d = new Date(data);
-    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    if (Number.isNaN(d.getTime())) return '-';
+    if (typeof window.formatarDataHoraComFuso === 'function') {
+      return window.formatarDataHoraComFuso(d, contextoChat.locale, contextoChat.timezone, { timeStyle: 'short' });
+    }
+    return d.toLocaleTimeString(contextoChat.locale || 'pt-BR', { timeZone: contextoChat.timezone || 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
   }
 
   /**
@@ -967,11 +1230,11 @@
     if (btn) {
       if (novoEstado) {
         btn.style.background = '#28a745';
-        btn.innerHTML = '<i class=\'bx bx-volume-full\'></i> Som';
+        btn.innerHTML = '<i class=\'bx bx-volume-full\'></i> ' + t('web.modulos.chat.som');
         btn.title = 'Som ativado (clique para desativar)';
       } else {
         btn.style.background = '#dc3545';
-        btn.innerHTML = '<i class=\'bx bx-volume-mute\'></i> Som';
+        btn.innerHTML = '<i class=\'bx bx-volume-mute\'></i> ' + t('web.modulos.chat.som');
         btn.title = 'Som desativado (clique para ativar)';
       }
     }
@@ -991,11 +1254,11 @@
     if (btn) {
       if (somHabilitado) {
         btn.style.background = '#28a745';
-        btn.innerHTML = '<i class=\'bx bx-volume-full\'></i> Som';
+        btn.innerHTML = '<i class=\'bx bx-volume-full\'></i> ' + t('web.modulos.chat.som');
         btn.title = 'Som ativado (clique para desativar)';
       } else {
         btn.style.background = '#dc3545';
-        btn.innerHTML = '<i class=\'bx bx-volume-mute\'></i> Som';
+        btn.innerHTML = '<i class=\'bx bx-volume-mute\'></i> ' + t('web.modulos.chat.som');
         btn.title = 'Som desativado (clique para ativar)';
       }
     }

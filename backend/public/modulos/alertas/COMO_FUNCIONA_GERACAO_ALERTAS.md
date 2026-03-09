@@ -79,7 +79,7 @@ O sistema busca viagens com status:
 ```json
 {
   "minutosAtraso": 125,
-  "prazoEntrega": "2025-01-18T14:00:00",
+  "prazoEntrega": "2026-01-18T14:00:00",
   "etaMinutos": 180,
   "usandoETADinamico": true
 }
@@ -112,7 +112,7 @@ O sistema busca viagens com status:
 ```json
 {
   "minutosOffline": 95,
-  "ultimaPosicao": "2025-01-18T13:45:00"
+  "ultimaPosicao": "2026-01-18T13:45:00"
 }
 ```
 

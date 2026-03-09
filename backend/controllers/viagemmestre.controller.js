@@ -1,12 +1,13 @@
 // backend/controllers/viagemmestre.controller.js
 // Controller para Gerenciamento de Viagens
 // Versão: 1.0
-// Autor: Sistema DivulgaCarga
-// Data: 2025-04-05
+// Atlas Cargo
+// Data: 2026-04-05
 
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const axios = require('axios');
-const { poolPromise } = require('../config/db');
+const { poolPromise, getFirstNumericValue, createTransaction } = require('../config/db');
+const { getSgUser } = require('../utils/audit');
 
 // Constantes
 const SITUACAO_VIAGEM = {
@@ -33,126 +34,128 @@ const viagemController = {
 
       let query = `
         SELECT 
-          v.IDVIAGEM,
-          v.FGSITVIAGEM,
-          v.CDSITUACAOVIAGEM,
-          s.DSSITUACAOVIAGEM,
-          v.CDTIPOVIAGEM,
-          t.DSTIPOVIAGEM,
-          v.SGUSERINCLUSAO,
-          v.DHINCLUSAO,
-          v.CDCONTRATADOR,
-          upper(cg.RZSOCIAL) AS CONTRATADOR_NOME,
-          v.FGACTIVE,
-          v.CDCLASSEFROTA,
-          cf.DSCLASSEFROTA,
-          v.DTPREVINICIO,
-          v.DTPREVFINAL,
-          v.IDROTEIRO,
-          r.DSROTEIRO,
-          v.DISTANCIAKM,
-          v.VLFRETE,
-          v.PESO,
-          v.CUBAGEM,
-          v.OBSERV,
-          co.ESTADO AS ORIGEM_ESTADO,
-          co.NMCIDADE AS ORIGEM_CIDADE,
-          co.CDCIDADE AS ORIGEM_CODIGO,
-          cd.ESTADO AS DESTINO_ESTADO,
-          cd.NMCIDADE AS DESTINO_CIDADE,
-          cd.CDCIDADE AS DESTINO_CODIGO,
-          (SELECT COUNT(*) FROM [dbo].[CONVOCACAO] WHERE IDVIAGEM = v.IDVIAGEM) AS QTD_ACIONADOS,
-          (SELECT COUNT(*) FROM [dbo].[CONVOCACAO] WHERE IDVIAGEM = v.IDVIAGEM AND STATUS IN ('ACEITA', 'ACEITA_DESCARTADA')) AS QTD_ACEITE,
-          (SELECT COUNT(*) FROM [dbo].[CONVOCACAO] WHERE IDVIAGEM = v.IDVIAGEM AND STATUS = 'RECUSADA') AS QTD_RECUSA,
+          [v].[IDVIAGEM],
+          [v].[FGSITVIAGEM],
+          [v].[CDSITUACAOVIAGEM],
+          [s].[DSSITUACAOVIAGEM],
+          [v].[CDTIPOVIAGEM],
+          [t].[DSTIPOVIAGEM],
+          [v].[SGUSERINCLUSAO],
+          [v].[DHINCLUSAO],
+          [v].[CDCONTRATADOR],
+          upper(isnull(nullif(ltrim(rtrim([cg].[RZSOCIAL])), ''), ltrim(rtrim([cg].[NMFANTASIA])))) AS CONTRATADOR_NOME,
+          [v].[FGACTIVE],
+          [v].[CDCLASSEFROTA],
+          [cf].[DSCLASSEFROTA],
+          [v].[DTPREVINICIO],
+          [v].[DTPREVFINAL],
+          [v].[IDROTEIRO],
+          [r].[DSROTEIRO],
+          [v].[DISTANCIAKM],
+          [v].[VLFRETE],
+          COALESCE([v].[MOEDA], 'BRL') AS [MOEDA],
+          [v].[PESO],
+          [v].[CUBAGEM],
+          [v].[OBSERV],
+          [co].[ESTADO] AS ORIGEM_ESTADO,
+          [co].[NMCIDADE] AS ORIGEM_CIDADE,
+          [co].[CDCIDADE] AS ORIGEM_CODIGO,
+          [cd].[ESTADO] AS DESTINO_ESTADO,
+          [cd].[NMCIDADE] AS DESTINO_CIDADE,
+          [cd].[CDCIDADE] AS DESTINO_CODIGO,
+          (SELECT COUNT(*) FROM [dbo].[CONVOCACAO] WHERE [IDVIAGEM] = [v].[IDVIAGEM]) AS QTD_ACIONADOS,
+          (SELECT COUNT(*) FROM [dbo].[CONVOCACAO] WHERE [IDVIAGEM] = [v].[IDVIAGEM] AND [STATUS] IN ('ACEITA', 'ACEITA_DESCARTADA')) AS QTD_ACEITE,
+          (SELECT COUNT(*) FROM [dbo].[CONVOCACAO] WHERE [IDVIAGEM] = [v].[IDVIAGEM] AND [STATUS] = 'RECUSADA') AS QTD_RECUSA,
           CASE 
-            WHEN EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] WHERE IDVIAGEM = v.IDVIAGEM AND STATUS = 'CONFIRMADA') THEN 'S'
+            WHEN EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] WHERE [IDVIAGEM] = [v].[IDVIAGEM] AND [STATUS] = 'CONFIRMADA') THEN 'S'
             ELSE 'N'
-          END AS TEM_CONFIRMADO
+          END AS TEM_CONFIRMADO,
+          (SELECT COUNT(*) FROM [dbo].[DELIVERY_PROOFS] WHERE [IDVIAGEM] = [v].[IDVIAGEM]) AS QTD_COMPROVANTES
         FROM [dbo].[VIAGEMMESTRE] v
-        LEFT JOIN [dbo].[SITUACAOVIAGEM] s ON v.CDSITUACAOVIAGEM = s.CDSITUACAOVIAGEM
-        LEFT JOIN [dbo].[TIPOVIAGEM] t ON v.CDTIPOVIAGEM = t.CDTIPOVIAGEM
-        LEFT JOIN [dbo].[CADASTROGERAL] cg ON v.CDCONTRATADOR = cg.CDCADASTRO
-        LEFT JOIN [dbo].[CLASSEFROTA] cf ON v.CDCLASSEFROTA = cf.CDCLASSEFROTA
-        LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
-        LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
-        LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
+        LEFT JOIN [dbo].[SITUACAOVIAGEM] s ON [v].[CDSITUACAOVIAGEM] = [s].[CDSITUACAOVIAGEM]
+        LEFT JOIN [dbo].[TIPOVIAGEM] t ON [v].[CDTIPOVIAGEM] = [t].[CDTIPOVIAGEM]
+        LEFT JOIN [dbo].[CADASTROGERAL] cg ON [v].[CDCONTRATADOR] = [cg].[CDCADASTRO]
+        LEFT JOIN [dbo].[CLASSEFROTA] cf ON [v].[CDCLASSEFROTA] = [cf].[CDCLASSEFROTA]
+        LEFT JOIN [dbo].[ROTEIRO] r ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
+        LEFT JOIN [dbo].[CIDADE] co ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
+        LEFT JOIN [dbo].[CIDADE] cd ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
         WHERE 1=1
       `;
 
       const params = [];
       if (idViagem) {
-        query += ` AND v.IDVIAGEM = @IDVIAGEM`;
+        query += ` AND [v].[IDVIAGEM] = @IDVIAGEM`;
         params.push({ name: 'IDVIAGEM', value: parseFloat(idViagem) });
       }
       if (situacaoViagem) {
-        query += ` AND v.FGSITVIAGEM = @SITUACAOVIAGEM`;
+        query += ` AND [v].[FGSITVIAGEM] = @SITUACAOVIAGEM`;
         params.push({ name: 'SITUACAOVIAGEM', value: situacaoViagem });
       }
       if (tipoViagem) {
-        query += ` AND v.CDTIPOVIAGEM = @TIPOVIAGEM`;
+        query += ` AND [v].[CDTIPOVIAGEM] = @TIPOVIAGEM`;
         params.push({ name: 'TIPOVIAGEM', value: parseInt(tipoViagem) });
       }
       if (classeFrota) {
-        query += ` AND v.CDCLASSEFROTA = @CLASSEFROTA`;
+        query += ` AND [v].[CDCLASSEFROTA] = @CLASSEFROTA`;
         params.push({ name: 'CLASSEFROTA', value: parseInt(classeFrota) });
       }
       if (contratador) {
-        query += ` AND v.CDCONTRATADOR = @CONTRATADOR`;
+        query += ` AND [v].[CDCONTRATADOR] = @CONTRATADOR`;
         params.push({ name: 'CONTRATADOR', value: parseFloat(contratador) });
       }
       if (origemEstado) {
-        query += ` AND co.ESTADO = @ORIGEM_ESTADO`;
+        query += ` AND [co].[ESTADO] = @ORIGEM_ESTADO`;
         params.push({ name: 'ORIGEM_ESTADO', value: origemEstado });
       }
       if (origemCidade) {
-        query += ` AND co.NMCIDADE LIKE @ORIGEM_CIDADE`;
+        query += ` AND [co].[NMCIDADE] LIKE @ORIGEM_CIDADE`;
         params.push({ name: 'ORIGEM_CIDADE', value: `%${origemCidade}%` });
       }
       if (destinoEstado) {
-        query += ` AND cd.ESTADO = @DESTINO_ESTADO`;
+        query += ` AND [cd].[ESTADO] = @DESTINO_ESTADO`;
         params.push({ name: 'DESTINO_ESTADO', value: destinoEstado });
       }
       if (destinoCidade) {
-        query += ` AND cd.NMCIDADE LIKE @DESTINO_CIDADE`;
+        query += ` AND [cd].[NMCIDADE] LIKE @DESTINO_CIDADE`;
         params.push({ name: 'DESTINO_CIDADE', value: `%${destinoCidade}%` });
       }
       if (roteiro) {
-        query += ` AND v.IDROTEIRO = @ROTEIRO`;
+        query += ` AND [v].[IDROTEIRO] = @ROTEIRO`;
         params.push({ name: 'ROTEIRO', value: parseFloat(roteiro) });
       }
       if (dataInicio) {
-        query += ` AND v.DTPREVINICIO >= @DATAINICIO`;
+        query += ` AND [v].[DTPREVINICIO] >= @DATAINICIO`;
         params.push({ name: 'DATAINICIO', value: new Date(dataInicio) });
       }
       if (dataFim) {
-        query += ` AND v.DTPREVFINAL <= @DATAFIM`;
+        query += ` AND [v].[DTPREVFINAL] <= @DATAFIM`;
         params.push({ name: 'DATAFIM', value: new Date(dataFim) });
       }
       if (frete) {
-        query += ` AND v.VLFRETE = @FRETE`;
+        query += ` AND [v].[VLFRETE] = @FRETE`;
         params.push({ name: 'FRETE', value: parseFloat(frete) });
       }
       if (peso) {
-        query += ` AND v.PESO = @PESO`;
+        query += ` AND [v].[PESO] = @PESO`;
         params.push({ name: 'PESO', value: parseFloat(peso) });
       }
       if (cubagem) {
-        query += ` AND v.CUBAGEM = @CUBAGEM`;
+        query += ` AND [v].[CUBAGEM] = @CUBAGEM`;
         params.push({ name: 'CUBAGEM', value: parseFloat(cubagem) });
       }
       if (rastreado) {
-        query += ` AND v.FGRASTREADO = @RASTREADO`;
+        query += ` AND [v].[FGRASTREADO] = @RASTREADO`;
         params.push({ name: 'RASTREADO', value: rastreado });
       }
       if (motoristaConfirmado) {
         if (motoristaConfirmado === 'S') {
-          query += ` AND EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] WHERE IDVIAGEM = v.IDVIAGEM AND STATUS = 'CONFIRMADA')`;
+          query += ` AND EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] WHERE [IDVIAGEM] = [v].[IDVIAGEM] AND [STATUS] = 'CONFIRMADA')`;
         } else if (motoristaConfirmado === 'N') {
-          query += ` AND NOT EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] WHERE IDVIAGEM = v.IDVIAGEM AND STATUS = 'CONFIRMADA')`;
+          query += ` AND NOT EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] WHERE [IDVIAGEM] = [v].[IDVIAGEM] AND [STATUS] = 'CONFIRMADA')`;
         }
       }
 
-      query += ` ORDER BY v.IDVIAGEM DESC`;
+      query += ` ORDER BY [v].[IDVIAGEM] DESC`;
 
       const pool = await poolPromise;
       const request = pool.request();
@@ -200,7 +203,9 @@ const viagemController = {
         QTD_ACIONADOS: v.QTD_ACIONADOS || 0,
         QTD_ACEITE: v.QTD_ACEITE || 0,
         QTD_RECUSA: v.QTD_RECUSA || 0,
-        TEM_CONFIRMADO: v.TEM_CONFIRMADO || 'N'
+        TEM_CONFIRMADO: v.TEM_CONFIRMADO || 'N',
+        QTD_COMPROVANTES: (v.QTD_COMPROVANTES ?? v.qtd_comprovantes ?? 0),
+        TEM_COMPROVANTE: ((v.QTD_COMPROVANTES ?? v.qtd_comprovantes ?? 0) > 0) ? 'S' : 'N'
       }));
 
       res.json(viagens);
@@ -216,7 +221,7 @@ const viagemController = {
       const {
         FGSITVIAGEM, CDSITUACAOVIAGEM, CDTIPOVIAGEM, CDCONTRATADOR,
         CDCLASSEFROTA, DTPREVINICIO, DTPREVFINAL, IDROTEIRO, DISTANCIAKM,
-        VLFRETE, PESO, CUBAGEM, OBSERV, FGRASTREADO
+        VLFRETE, PESO, CUBAGEM, OBSERV, FGRASTREADO, MOEDA
       } = req.body;
 
       // Validações obrigatórias
@@ -226,11 +231,15 @@ const viagemController = {
 
       const pool = await poolPromise;
 
+      // Usuário que grava o registro: sempre o logado (req.user do JWT ou header user-login)
+      const sgUser = getSgUser(req);
+      if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+
       // Gerar novo ID
       const maxResult = await pool
         .request()
-        .query('SELECT ISNULL(MAX(IDVIAGEM), 0) AS maxId FROM [dbo].[VIAGEMMESTRE]');
-      const novoId = maxResult.recordset[0].maxId + 1;
+        .query('SELECT COALESCE(MAX([IDVIAGEM]), 0) + 1 AS [maxId] FROM [dbo].[VIAGEMMESTRE]');
+      const novoId = getFirstNumericValue(maxResult.recordset, 1);
 
       // Inserir viagem
       const request = pool.request();
@@ -249,21 +258,22 @@ const viagemController = {
       request.input('CUBAGEM', CUBAGEM ? sql.Decimal(15, 4) : sql.VarChar, CUBAGEM || null);
       request.input('OBSERV', OBSERV?.trim() || null);
       request.input('FGRASTREADO', FGRASTREADO || 'N');
-      request.input('SGUSERINCLUSAO', 'SYSTEM');
+      request.input('MOEDA', (MOEDA && String(MOEDA).trim().substring(0, 3)) || 'BRL');
+      request.input('SGUSERINCLUSAO', sgUser);
       request.input('DHINCLUSAO', new Date());
 
       await request.query(`
         INSERT INTO [dbo].[VIAGEMMESTRE] (
-          IDVIAGEM, FGSITVIAGEM, CDSITUACAOVIAGEM, CDTIPOVIAGEM, CDCONTRATADOR,
-          CDCLASSEFROTA, DTPREVINICIO, DTPREVFINAL, IDROTEIRO, DISTANCIAKM,
-          VLFRETE, PESO, CUBAGEM, OBSERV, FGRASTREADO, SGUSERINCLUSAO, DHINCLUSAO,
-          FGACTIVE, DHMAINTENANCE, SGUSER, SERVERORIG
+          [IDVIAGEM], [FGSITVIAGEM], [CDSITUACAOVIAGEM], [CDTIPOVIAGEM], [CDCONTRATADOR],
+          [CDCLASSEFROTA], [DTPREVINICIO], [DTPREVFINAL], [IDROTEIRO], [DISTANCIAKM],
+          [VLFRETE], [PESO], [CUBAGEM], [OBSERV], [FGRASTREADO], [MOEDA], [SGUSERINCLUSAO], [DHINCLUSAO],
+          [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]
         )
         VALUES (
           @IDVIAGEM, @FGSITVIAGEM, @CDSITUACAOVIAGEM, @CDTIPOVIAGEM, @CDCONTRATADOR,
           @CDCLASSEFROTA, @DTPREVINICIO, @DTPREVFINAL, @IDROTEIRO, @DISTANCIAKM,
-          @VLFRETE, @PESO, @CUBAGEM, @OBSERV, @FGRASTREADO, @SGUSERINCLUSAO, @DHINCLUSAO,
-          'A', GETDATE(), 'SYSTEM', 'AppDVcargas'
+          @VLFRETE, @PESO, @CUBAGEM, @OBSERV, @FGRASTREADO, @MOEDA, @SGUSERINCLUSAO, @DHINCLUSAO,
+          'A', GETDATE(), @SGUSERINCLUSAO, 'AppDVcargas'
         )
       `);
 
@@ -285,12 +295,15 @@ const viagemController = {
       const {
         FGSITVIAGEM, CDSITUACAOVIAGEM, CDTIPOVIAGEM, CDCONTRATADOR,
         CDCLASSEFROTA, DTPREVINICIO, DTPREVFINAL, IDROTEIRO, DISTANCIAKM,
-        VLFRETE, PESO, CUBAGEM, OBSERV, FGACTIVE, FGRASTREADO
+        VLFRETE, PESO, CUBAGEM, OBSERV, FGACTIVE, FGRASTREADO, MOEDA
       } = req.body;
 
       if (!FGSITVIAGEM || !CDSITUACAOVIAGEM || !CDTIPOVIAGEM || !FGACTIVE) {
         return res.status(400).json({ error: 'Campos obrigatórios não preenchidos.' });
       }
+
+      const sgUserUpd = getSgUser(req);
+      if (!sgUserUpd) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
 
       const pool = await poolPromise;
       const idNumerico = parseFloat(id);
@@ -312,29 +325,32 @@ const viagemController = {
       request.input('OBSERV', OBSERV?.trim() || null);
       request.input('FGACTIVE', FGACTIVE === 'S' ? 'A' : 'I');
       request.input('FGRASTREADO', FGRASTREADO || 'N');
+      request.input('MOEDA', (MOEDA != null && MOEDA !== '') ? String(MOEDA).trim().substring(0, 3) : null);
+      request.input('sgUser', sql.VarChar(50), sgUserUpd);
 
       await request.query(`
         UPDATE [dbo].[VIAGEMMESTRE]
         SET 
-          FGSITVIAGEM = @FGSITVIAGEM,
-          CDSITUACAOVIAGEM = @CDSITUACAOVIAGEM,
-          CDTIPOVIAGEM = @CDTIPOVIAGEM,
-          CDCONTRATADOR = @CDCONTRATADOR,
-          CDCLASSEFROTA = @CDCLASSEFROTA,
-          DTPREVINICIO = @DTPREVINICIO,
-          DTPREVFINAL = @DTPREVFINAL,
-          IDROTEIRO = @IDROTEIRO,
-          DISTANCIAKM = @DISTANCIAKM,
-          VLFRETE = @VLFRETE,
-          PESO = @PESO,
-          CUBAGEM = @CUBAGEM,
-          OBSERV = @OBSERV,
-          FGACTIVE = @FGACTIVE,
-          FGRASTREADO = @FGRASTREADO,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE IDVIAGEM = @IDVIAGEM
+          [FGSITVIAGEM] = @FGSITVIAGEM,
+          [CDSITUACAOVIAGEM] = @CDSITUACAOVIAGEM,
+          [CDTIPOVIAGEM] = @CDTIPOVIAGEM,
+          [CDCONTRATADOR] = @CDCONTRATADOR,
+          [CDCLASSEFROTA] = @CDCLASSEFROTA,
+          [DTPREVINICIO] = @DTPREVINICIO,
+          [DTPREVFINAL] = @DTPREVFINAL,
+          [IDROTEIRO] = @IDROTEIRO,
+          [DISTANCIAKM] = @DISTANCIAKM,
+          [VLFRETE] = @VLFRETE,
+          [PESO] = @PESO,
+          [CUBAGEM] = @CUBAGEM,
+          [OBSERV] = @OBSERV,
+          [FGACTIVE] = @FGACTIVE,
+          [FGRASTREADO] = @FGRASTREADO,
+          [MOEDA] = COALESCE(@MOEDA, [MOEDA], 'BRL'),
+          [DHMAINTENANCE] = GETDATE(),
+          [SGUSER] = @sgUser,
+          [SERVERORIG] = 'AppDVcargas'
+        WHERE [IDVIAGEM] = @IDVIAGEM
       `);
 
       // Emitir evento WebSocket para atualização de viagem
@@ -347,40 +363,41 @@ const viagemController = {
             .input('IDVIAGEM', sql.Decimal(15, 0), idNumerico)
             .query(`
               SELECT 
-                v.IDVIAGEM,
-                v.FGSITVIAGEM,
-                v.CDSITUACAOVIAGEM,
-                s.DSSITUACAOVIAGEM,
-                v.CDTIPOVIAGEM,
-                t.DSTIPOVIAGEM,
-                v.FGACTIVE,
-                v.CDCLASSEFROTA,
-                cf.DSCLASSEFROTA,
-                v.DTPREVINICIO,
-                v.DTPREVFINAL,
-                v.IDROTEIRO,
-                r.DSROTEIRO,
-                v.DISTANCIAKM,
-                v.VLFRETE,
-                v.PESO,
-                v.CUBAGEM,
-                v.OBSERV,
-                co.ESTADO AS ORIGEM_ESTADO,
-                co.NMCIDADE AS ORIGEM_CIDADE,
-                cd.ESTADO AS DESTINO_ESTADO,
-                cd.NMCIDADE AS DESTINO_CIDADE,
+                [v].[IDVIAGEM],
+                [v].[FGSITVIAGEM],
+                [v].[CDSITUACAOVIAGEM],
+                [s].[DSSITUACAOVIAGEM],
+                [v].[CDTIPOVIAGEM],
+                [t].[DSTIPOVIAGEM],
+                [v].[FGACTIVE],
+                [v].[CDCLASSEFROTA],
+                [cf].[DSCLASSEFROTA],
+                [v].[DTPREVINICIO],
+                [v].[DTPREVFINAL],
+                [v].[IDROTEIRO],
+                [r].[DSROTEIRO],
+            [v].[DISTANCIAKM],
+            [v].[VLFRETE],
+            COALESCE([v].[MOEDA], 'BRL') AS [MOEDA],
+            [v].[PESO],
+            [v].[CUBAGEM],
+            [v].[OBSERV],
+                [co].[ESTADO] AS ORIGEM_ESTADO,
+                [co].[NMCIDADE] AS ORIGEM_CIDADE,
+                [cd].[ESTADO] AS DESTINO_ESTADO,
+                [cd].[NMCIDADE] AS DESTINO_CIDADE,
                 CASE 
-                  WHEN EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] WHERE IDVIAGEM = v.IDVIAGEM AND STATUS = 'CONFIRMADA') THEN 'S'
+                  WHEN EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] WHERE [IDVIAGEM] = [v].[IDVIAGEM] AND [STATUS] = 'CONFIRMADA') THEN 'S'
                   ELSE 'N'
                 END AS TEM_CONFIRMADO
               FROM [dbo].[VIAGEMMESTRE] v
-              LEFT JOIN [dbo].[SITUACAOVIAGEM] s ON v.CDSITUACAOVIAGEM = s.CDSITUACAOVIAGEM
-              LEFT JOIN [dbo].[TIPOVIAGEM] t ON v.CDTIPOVIAGEM = t.CDTIPOVIAGEM
-              LEFT JOIN [dbo].[CLASSEFROTA] cf ON v.CDCLASSEFROTA = cf.CDCLASSEFROTA
-              LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
-              LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
-              LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
-              WHERE v.IDVIAGEM = @IDVIAGEM
+              LEFT JOIN [dbo].[SITUACAOVIAGEM] s ON [v].[CDSITUACAOVIAGEM] = [s].[CDSITUACAOVIAGEM]
+              LEFT JOIN [dbo].[TIPOVIAGEM] t ON [v].[CDTIPOVIAGEM] = [t].[CDTIPOVIAGEM]
+              LEFT JOIN [dbo].[CLASSEFROTA] cf ON [v].[CDCLASSEFROTA] = [cf].[CDCLASSEFROTA]
+              LEFT JOIN [dbo].[ROTEIRO] r ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
+              LEFT JOIN [dbo].[CIDADE] co ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
+              LEFT JOIN [dbo].[CIDADE] cd ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
+              WHERE [v].[IDVIAGEM] = @IDVIAGEM
             `);
 
           if (viagemAtualizada.recordset && viagemAtualizada.recordset[0]) {
@@ -410,42 +427,43 @@ const viagemController = {
         .input('IDVIAGEM', sql.Decimal(15, 0), parseFloat(id))
         .query(`
           SELECT 
-            v.IDVIAGEM,
-            v.FGSITVIAGEM,
-            v.CDSITUACAOVIAGEM,
-            v.CDTIPOVIAGEM,
-            v.SGUSERINCLUSAO,
-            v.DHINCLUSAO,
-            v.CDCONTRATADOR,
-            v.FGACTIVE,
-            v.CDCLASSEFROTA,
-            v.DTPREVINICIO,
-            v.DTPREVFINAL,
-            v.IDROTEIRO,
-            v.DISTANCIAKM,
-            v.VLFRETE,
-            v.PESO,
-            v.CUBAGEM,
-            v.OBSERV,
-            v.FGRASTREADO,
-            r.CDCIDADEORIGEM,
-            r.CDCIDADEDESTINO,
-            r.DSROTEIRO,
-            co.ESTADO AS ORIGEM_ESTADO,
-            co.NMCIDADE AS ORIGEM_CIDADE,
-            cd.ESTADO AS DESTINO_ESTADO,
-            cd.NMCIDADE AS DESTINO_CIDADE,
-            cf.DSCLASSEFROTA,
-            tv.DSTIPOVIAGEM,
-            upper(cg.RZSOCIAL) AS CONTRATADOR_NOME
-          FROM [dbo].[VIAGEMMESTRE] v
-          LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
-          LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
-          LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
-          LEFT JOIN [dbo].[CLASSEFROTA] cf ON v.CDCLASSEFROTA = cf.CDCLASSEFROTA
-          LEFT JOIN [dbo].[TIPOVIAGEM] tv ON v.CDTIPOVIAGEM = tv.CDTIPOVIAGEM
-          LEFT JOIN [dbo].[CADASTROGERAL] cg ON v.CDCONTRATADOR = cg.CDCADASTRO
-          WHERE v.IDVIAGEM = @IDVIAGEM
+            [v].[IDVIAGEM],
+            [v].[FGSITVIAGEM],
+            [v].[CDSITUACAOVIAGEM],
+            [v].[CDTIPOVIAGEM],
+            [v].[SGUSERINCLUSAO],
+            [v].[DHINCLUSAO],
+            [v].[CDCONTRATADOR],
+            [v].[FGACTIVE],
+            [v].[CDCLASSEFROTA],
+            [v].[DTPREVINICIO],
+            [v].[DTPREVFINAL],
+            [v].[IDROTEIRO],
+            [v].[DISTANCIAKM],
+            [v].[VLFRETE],
+            COALESCE([v].[MOEDA], 'BRL') AS [MOEDA],
+            [v].[PESO],
+            [v].[CUBAGEM],
+            [v].[OBSERV],
+            [v].[FGRASTREADO],
+            [r].[CDCIDADEORIGEM],
+            [r].[CDCIDADEDESTINO],
+            [r].[DSROTEIRO],
+            [co].[ESTADO] AS ORIGEM_ESTADO,
+            [co].[NMCIDADE] AS ORIGEM_CIDADE,
+            [cd].[ESTADO] AS DESTINO_ESTADO,
+            [cd].[NMCIDADE] AS DESTINO_CIDADE,
+            [cf].[DSCLASSEFROTA],
+            [tv].[DSTIPOVIAGEM],
+            upper(COALESCE(NULLIF(TRIM([cg].[RZSOCIAL]), ''), TRIM([cg].[NMFANTASIA]))) AS CONTRATADOR_NOME
+          FROM [dbo].[VIAGEMMESTRE] [v]
+          LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
+          LEFT JOIN [dbo].[CIDADE] [co] ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
+          LEFT JOIN [dbo].[CIDADE] [cd] ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
+          LEFT JOIN [dbo].[CLASSEFROTA] [cf] ON [v].[CDCLASSEFROTA] = [cf].[CDCLASSEFROTA]
+          LEFT JOIN [dbo].[TIPOVIAGEM] [tv] ON [v].[CDTIPOVIAGEM] = [tv].[CDTIPOVIAGEM]
+          LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [v].[CDCONTRATADOR] = [cg].[CDCADASTRO]
+          WHERE [v].[IDVIAGEM] = @IDVIAGEM
         `);
 
       if (result.recordset.length === 0) {
@@ -453,35 +471,45 @@ const viagemController = {
       }
 
       const v = result.recordset[0];
+      // PostgreSQL retorna colunas em minúsculas; aceitar ambos os formatos
+      const get = (obj, ...keys) => {
+        for (const k of keys) {
+          if (obj[k] !== undefined && obj[k] !== null) return obj[k];
+          const lower = k.toLowerCase();
+          if (obj[lower] !== undefined && obj[lower] !== null) return obj[lower];
+        }
+        return undefined;
+      };
       res.json({
-        IDVIAGEM: v.IDVIAGEM,
-        FGSITVIAGEM: v.FGSITVIAGEM,
-        CDSITUACAOVIAGEM: v.CDSITUACAOVIAGEM,
-        CDTIPOVIAGEM: v.CDTIPOVIAGEM,
-        DSTIPOVIAGEM: v.DSTIPOVIAGEM,
-        SGUSERINCLUSAO: v.SGUSERINCLUSAO,
-        DHINCLUSAO: v.DHINCLUSAO,
-        CDCONTRATADOR: v.CDCONTRATADOR,
-        CONTRATADOR_NOME: v.CONTRATADOR_NOME,
-        FGACTIVE: v.FGACTIVE === 'A' ? 'S' : 'N',
-        CDCLASSEFROTA: v.CDCLASSEFROTA,
-        DSCLASSEFROTA: v.DSCLASSEFROTA,
-        DTPREVINICIO: v.DTPREVINICIO,
-        DTPREVFINAL: v.DTPREVFINAL,
-        IDROTEIRO: v.IDROTEIRO,
-        DSROTEIRO: v.DSROTEIRO,
-        DISTANCIAKM: v.DISTANCIAKM,
-        VLFRETE: v.VLFRETE,
-        PESO: v.PESO,
-        CUBAGEM: v.CUBAGEM,
-        OBSERV: v.OBSERV,
-        FGRASTREADO: v.FGRASTREADO || 'N',
-        ORIGEM_ESTADO: v.ORIGEM_ESTADO,
-        ORIGEM_CIDADE: v.ORIGEM_CIDADE,
-        ORIGEM_CODIGO: v.CDCIDADEORIGEM,
-        DESTINO_ESTADO: v.DESTINO_ESTADO,
-        DESTINO_CIDADE: v.DESTINO_CIDADE,
-        DESTINO_CODIGO: v.CDCIDADEDESTINO
+        IDVIAGEM: v.IDVIAGEM ?? v.idviagem,
+        FGSITVIAGEM: v.FGSITVIAGEM ?? v.fgsitviagem,
+        CDSITUACAOVIAGEM: v.CDSITUACAOVIAGEM ?? v.cdsituacaoviagem,
+        CDTIPOVIAGEM: v.CDTIPOVIAGEM ?? v.cdtipoviagem,
+        DSTIPOVIAGEM: v.DSTIPOVIAGEM ?? v.dstipoviagem,
+        SGUSERINCLUSAO: v.SGUSERINCLUSAO ?? v.sguserinclusao,
+        DHINCLUSAO: v.DHINCLUSAO ?? v.dhinclusao,
+        CDCONTRATADOR: v.CDCONTRATADOR ?? v.cdcontratador,
+        CONTRATADOR_NOME: v.CONTRATADOR_NOME ?? v.contratador_nome,
+        FGACTIVE: (v.FGACTIVE ?? v.fgactive) === 'A' ? 'S' : 'N',
+        CDCLASSEFROTA: v.CDCLASSEFROTA ?? v.cdclassefrota,
+        DSCLASSEFROTA: v.DSCLASSEFROTA ?? v.dsclassefrota,
+        DTPREVINICIO: v.DTPREVINICIO ?? v.dtprevinicio,
+        DTPREVFINAL: v.DTPREVFINAL ?? v.dtprevfinal,
+        IDROTEIRO: v.IDROTEIRO ?? v.idroteiro,
+        DSROTEIRO: v.DSROTEIRO ?? v.dsroteiro,
+        DISTANCIAKM: v.DISTANCIAKM ?? v.distanciakm,
+        VLFRETE: v.VLFRETE ?? v.vlfrete,
+        MOEDA: (v.MOEDA ?? v.moeda) || 'BRL',
+        PESO: v.PESO ?? v.peso,
+        CUBAGEM: v.CUBAGEM ?? v.cubagem,
+        OBSERV: v.OBSERV ?? v.observ,
+        FGRASTREADO: (v.FGRASTREADO ?? v.fgrastreado) || 'N',
+        ORIGEM_ESTADO: get(v, 'ORIGEM_ESTADO'),
+        ORIGEM_CIDADE: get(v, 'ORIGEM_CIDADE'),
+        ORIGEM_CODIGO: v.CDCIDADEORIGEM ?? v.cdcidadeorigem,
+        DESTINO_ESTADO: get(v, 'DESTINO_ESTADO'),
+        DESTINO_CIDADE: get(v, 'DESTINO_CIDADE'),
+        DESTINO_CODIGO: v.CDCIDADEDESTINO ?? v.cdcidadedestino
       });
     } catch (err) {
       console.error('Erro ao buscar viagem:', err);
@@ -511,7 +539,7 @@ const viagemController = {
       checkRequest.input('IDVIAGEM', sql.Decimal(15, 0), idNumerico);
 
       const checkResult = await checkRequest.query(`
-        SELECT FGACTIVE FROM [dbo].[VIAGEMMESTRE] WHERE IDVIAGEM = @IDVIAGEM
+        SELECT [FGACTIVE] FROM [dbo].[VIAGEMMESTRE] WHERE [IDVIAGEM] = @IDVIAGEM
       `);
 
       if (checkResult.recordset.length === 0) {
@@ -535,15 +563,18 @@ const viagemController = {
       }
 
       const request = pool.request();
+      const sgUserStatus = getSgUser(req);
+      if (!sgUserStatus) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
       request.input('IDVIAGEM', sql.Decimal(15, 0), idNumerico);
       request.input('FGACTIVE', sql.Char(1), novaSituacao);
+      request.input('sgUser', sql.VarChar(50), sgUserStatus);
 
       const result = await request.query(`
         UPDATE [dbo].[VIAGEMMESTRE]
         SET 
           FGACTIVE = @FGACTIVE,
           DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
+          SGUSER = @sgUser,
           SERVERORIG = 'AppDVcargas'
         WHERE IDVIAGEM = @IDVIAGEM
       `);
@@ -565,9 +596,12 @@ const viagemController = {
       const pool = await poolPromise;
       const result = await pool
         .request()
-        .query('SELECT CDTIPOVIAGEM, DSTIPOVIAGEM FROM [dbo].[TIPOVIAGEM] WHERE FGACTIVE = \'A\' ORDER BY DSTIPOVIAGEM');
+        .query('SELECT [CDTIPOVIAGEM], [DSTIPOVIAGEM] FROM [dbo].[TIPOVIAGEM] WHERE [FGACTIVE] = \'A\' ORDER BY [DSTIPOVIAGEM]');
       res.json(result.recordset);
     } catch (err) {
+      if (err.code === '42P01') {
+        return res.json([]);
+      }
       console.error('Erro ao carregar tipos de viagem:', err);
       res.status(500).json({ error: 'Erro ao carregar tipos de viagem.' });
     }
@@ -578,9 +612,12 @@ const viagemController = {
       const pool = await poolPromise;
       const result = await pool
         .request()
-        .query('SELECT CDSITUACAOVIAGEM, DSSITUACAOVIAGEM FROM [dbo].[SITUACAOVIAGEM] WHERE FGACTIVE = \'A\' ORDER BY DSSITUACAOVIAGEM');
+        .query('SELECT [CDSITUACAOVIAGEM], [DSSITUACAOVIAGEM] FROM [dbo].[SITUACAOVIAGEM] WHERE [FGACTIVE] = \'A\' ORDER BY [DSSITUACAOVIAGEM]');
       res.json(result.recordset);
     } catch (err) {
+      if (err.code === '42P01') {
+        return res.json([]);
+      }
       console.error('Erro ao carregar situações de viagem:', err);
       res.status(500).json({ error: 'Erro ao carregar situações de viagem.' });
     }
@@ -591,9 +628,12 @@ const viagemController = {
       const pool = await poolPromise;
       const result = await pool
         .request()
-        .query('SELECT CDCLASSEFROTA, DSCLASSEFROTA FROM [dbo].[CLASSEFROTA] WHERE FGACTIVE = \'A\' ORDER BY DSCLASSEFROTA');
+        .query('SELECT [CDCLASSEFROTA], [DSCLASSEFROTA] FROM [dbo].[CLASSEFROTA] WHERE [FGACTIVE] = \'A\' ORDER BY [DSCLASSEFROTA]');
       res.json(result.recordset);
     } catch (err) {
+      if (err.code === '42P01') {
+        return res.json([]);
+      }
       console.error('Erro ao carregar classes de frota:', err);
       res.status(500).json({ error: 'Erro ao carregar classes de frota.' });
     }
@@ -602,39 +642,65 @@ const viagemController = {
   listarContratadores: async (req, res) => {
     try {
       const pool = await poolPromise;
-      
-      // Verificar se é para o relatório de convocações (retornar apenas contratadores com convocações)
       const { apenasComConvocacoes } = req.query;
-      
-      if (apenasComConvocacoes === 'true') {
-        // Query para retornar apenas contratadores que têm convocações
-        const result = await pool
-          .request()
-          .query(`
+
+      const normalizarLinha = (row) => ({
+        CDCADASTRO: row.CDCADASTRO ?? row.cdcadastro,
+        RZSOCIAL: (row.RZSOCIAL ?? row.rzsocial ?? '').toString()
+      });
+
+      const runQueryPrincipal = async () => {
+        if (apenasComConvocacoes === 'true') {
+          const result = await pool.request().query(`
             SELECT DISTINCT 
-              cg.CDCADASTRO, 
-              upper(cg.RZSOCIAL) as RZSOCIAL  
-            FROM [dbo].[CADASTROGERAL] cg
-            INNER JOIN [dbo].[VIAGEMMESTRE] v ON cg.CDCADASTRO = v.CDCONTRATADOR
-            INNER JOIN [dbo].[CONVOCACAO] c ON v.IDVIAGEM = c.IDVIAGEM
-            WHERE cg.FGTIPOCADASTRO = 'O' 
-              AND cg.FGACTIVE = 'A'
-            ORDER BY upper(cg.RZSOCIAL)
+              cg."CDCADASTRO", 
+              upper(cg."RZSOCIAL") AS "RZSOCIAL"  
+            FROM "CADASTROGERAL" cg
+            INNER JOIN "VIAGEMMESTRE" v ON cg."CDCADASTRO" = v."CDCONTRATADOR"
+            INNER JOIN "CONVOCACAO" c ON v."IDVIAGEM" = c."IDVIAGEM"
+            WHERE (cg."FGPROGRAMADOR" = 'S' OR (cg."FGPROGRAMADOR" IS NULL AND cg."FGTIPOCADASTRO" = 'O'))
+              AND cg."FGACTIVE" = 'A'
+            ORDER BY upper(cg."RZSOCIAL")
           `);
-        res.json(result.recordset);
-      } else {
-        // Query original: retornar todos os contratadores ativos
-        const result = await pool
-          .request()
-          .query(`
-            SELECT CDCADASTRO, upper(RZSOCIAL) as RZSOCIAL 
-            FROM [dbo].[CADASTROGERAL] 
-            WHERE FGTIPOCADASTRO = 'O' AND FGACTIVE = 'A' 
-            ORDER BY RZSOCIAL
-          `);
-        res.json(result.recordset);
+          return (result.recordset || []).map(normalizarLinha);
+        }
+        const result = await pool.request().query(`
+          SELECT "CDCADASTRO", upper("RZSOCIAL") AS "RZSOCIAL" 
+          FROM "CADASTROGERAL" 
+          WHERE ("FGPROGRAMADOR" = 'S' OR ("FGPROGRAMADOR" IS NULL AND "FGTIPOCADASTRO" = 'O'))
+            AND "FGACTIVE" = 'A' 
+          ORDER BY "RZSOCIAL"
+        `);
+        return (result.recordset || []).map(normalizarLinha);
+      };
+
+      const runQueryLegado = async () => {
+        const result = await pool.request().query(`
+          SELECT "CDCADASTRO", upper("RZSOCIAL") AS "RZSOCIAL" 
+          FROM "CADASTROGERAL" 
+          WHERE "FGTIPOCADASTRO" = 'O' AND "FGACTIVE" = 'A' 
+          ORDER BY "RZSOCIAL"
+        `);
+        return (result.recordset || []).map(normalizarLinha);
+      };
+
+      let rows;
+      try {
+        rows = await runQueryPrincipal();
+      } catch (err) {
+        const msg = (err.message || '').toLowerCase();
+        if (msg.includes('fgprogramador') || msg.includes('column') && msg.includes('does not exist')) {
+          rows = await runQueryLegado();
+        } else {
+          throw err;
+        }
       }
+
+      res.json(rows);
     } catch (err) {
+      if (err.code === '42P01') {
+        return res.json([]);
+      }
       console.error('Erro ao carregar contratadores:', err);
       res.status(500).json({ error: 'Erro ao carregar contratadores.' });
     }
@@ -645,7 +711,7 @@ const viagemController = {
       const pool = await poolPromise;
       const result = await pool
         .request()
-        .query('SELECT CDMOTIVO, DSMOTIVO FROM [dbo].[MOTIVORECUSA] WHERE FGACTIVE = \'A\' ORDER BY DSMOTIVO');
+        .query('SELECT [CDMOTIVO], [DSMOTIVO] FROM [dbo].[MOTIVORECUSA] WHERE [FGACTIVE] = \'A\' ORDER BY [DSMOTIVO]');
       res.json(result.recordset);
     } catch (err) {
       console.error('Erro ao carregar motivos de recusa:', err);
@@ -658,7 +724,7 @@ const viagemController = {
       const pool = await poolPromise;
       const result = await pool
         .request()
-        .query('SELECT CDMOTIVO, DSMOTIVO FROM [dbo].[MOTIVOREABERTURA] WHERE FGACTIVE = \'A\' ORDER BY DSMOTIVO');
+        .query('SELECT [CDMOTIVO], [DSMOTIVO] FROM [dbo].[MOTIVOREABERTURA] WHERE [FGACTIVE] = \'A\' ORDER BY [DSMOTIVO]');
       res.json(result.recordset);
     } catch (err) {
       console.error('Erro ao carregar motivos de reabertura:', err);
@@ -670,32 +736,32 @@ const viagemController = {
     try {
       const { origem, destino, roteiro } = req.query;
       let query = `
-        SELECT r.IDROTEIRO, r.DSROTEIRO, r.DISTANCIAKM,
-               r.CDCIDADEORIGEM AS ORIGEM_CODIGO,
-               co.ESTADO AS ORIGEM_ESTADO, co.NMCIDADE AS ORIGEM_CIDADE,
-               r.CDCIDADEDESTINO AS DESTINO_CODIGO,
-               cd.ESTADO AS DESTINO_ESTADO, cd.NMCIDADE AS DESTINO_CIDADE
+        SELECT [r].[IDROTEIRO], [r].[DSROTEIRO], [r].[DISTANCIAKM],
+               [r].[CDCIDADEORIGEM] AS ORIGEM_CODIGO,
+               [co].[ESTADO] AS ORIGEM_ESTADO, [co].[NMCIDADE] AS ORIGEM_CIDADE,
+               [r].[CDCIDADEDESTINO] AS DESTINO_CODIGO,
+               [cd].[ESTADO] AS DESTINO_ESTADO, [cd].[NMCIDADE] AS DESTINO_CIDADE
         FROM [dbo].[ROTEIRO] r
-        LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
-        LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
+        LEFT JOIN [dbo].[CIDADE] co ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
+        LEFT JOIN [dbo].[CIDADE] cd ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
         WHERE 1=1
       `;
 
       const params = [];
       if (origem) {
-        query += ` AND r.CDCIDADEORIGEM = @ORIGEM`;
+        query += ` AND [r].[CDCIDADEORIGEM] = @ORIGEM`;
         params.push({ name: 'ORIGEM', value: parseInt(origem) });
       }
       if (destino) {
-        query += ` AND r.CDCIDADEDESTINO = @DESTINO`;
+        query += ` AND [r].[CDCIDADEDESTINO] = @DESTINO`;
         params.push({ name: 'DESTINO', value: parseInt(destino) });
       }
       if (roteiro) {
-        query += ` AND r.IDROTEIRO = @ROTEIRO`;
+        query += ` AND [r].[IDROTEIRO] = @ROTEIRO`;
         params.push({ name: 'ROTEIRO', value: parseInt(roteiro) });
       }
 
-      query += ` ORDER BY r.IDROTEIRO`;
+      query += ` ORDER BY [r].[IDROTEIRO]`;
 
       const pool = await poolPromise;
       const request = pool.request();
@@ -712,6 +778,9 @@ const viagemController = {
       const result = await request.query(query);
       res.json(result.recordset);
     } catch (err) {
+      if (err.code === '42P01') {
+        return res.json([]);
+      }
       console.error('Erro ao carregar roteiros:', err);
       res.status(500).json({ error: 'Erro ao carregar roteiros.' });
     }
@@ -757,9 +826,12 @@ const viagemController = {
       const result = await pool
         .request()
         .input('ESTADO', estado)
-        .query('SELECT CDCIDADE, NMCIDADE FROM [dbo].[CIDADE] WHERE ESTADO = @ESTADO AND FGACTIVE = \'A\' ORDER BY NMCIDADE');
+        .query('SELECT [CDCIDADE], [NMCIDADE] FROM [dbo].[CIDADE] WHERE [ESTADO] = @ESTADO AND [FGACTIVE] = \'A\' ORDER BY [NMCIDADE]');
       res.json(result.recordset);
     } catch (err) {
+      if (err.code === '42P01') {
+        return res.json([]);
+      }
       console.error('Erro ao carregar cidades por estado:', err);
       res.status(500).json({ error: 'Erro ao carregar cidades.' });
     }
@@ -771,49 +843,67 @@ const viagemController = {
       const pool = await poolPromise;
       const query = `
         SELECT 
-          v.IDVIAGEM,
-          v.FGSITVIAGEM,
-          v.CDSITUACAOVIAGEM,
-          s.DSSITUACAOVIAGEM,
-          v.CDTIPOVIAGEM,
-          t.DSTIPOVIAGEM,
-          v.CDCONTRATADOR,
-          upper(cg.RZSOCIAL) AS CONTRATADOR_NOME,
-          v.CDCLASSEFROTA,
-          cf.DSCLASSEFROTA,
-          v.FGRASTREADO,
-          v.DTPREVINICIO,
-          v.DTPREVFINAL,
-          v.VLFRETE,
-          co.ESTADO AS ORIGEM_ESTADO,
-          co.NMCIDADE AS ORIGEM_CIDADE,
-          co.CDCIDADE AS ORIGEM_CODIGO,
-          co.CDMICROREGIAO AS ORIGEM_MICROREGIAO,
-          cd.ESTADO AS DESTINO_ESTADO,
-          cd.NMCIDADE AS DESTINO_CIDADE,
-          cd.CDCIDADE AS DESTINO_CODIGO,
-          cd.CDMICROREGIAO AS DESTINO_MICROREGIAO
-        FROM [dbo].[VIAGEMMESTRE] v
-        LEFT JOIN [dbo].[SITUACAOVIAGEM] s ON v.CDSITUACAOVIAGEM = s.CDSITUACAOVIAGEM
-        LEFT JOIN [dbo].[TIPOVIAGEM] t ON v.CDTIPOVIAGEM = t.CDTIPOVIAGEM
-        LEFT JOIN [dbo].[CADASTROGERAL] cg ON v.CDCONTRATADOR = cg.CDCADASTRO
-        LEFT JOIN [dbo].[CLASSEFROTA] cf ON v.CDCLASSEFROTA = cf.CDCLASSEFROTA
-        LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
-        LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
-        LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
-        WHERE v.FGACTIVE = 'A'
-          AND v.FGSITVIAGEM IN ('P', 'D') -- Programada ou Preparação
+          [v].[IDVIAGEM],
+          [v].[FGSITVIAGEM],
+          [v].[CDSITUACAOVIAGEM],
+          [s].[DSSITUACAOVIAGEM],
+          [v].[CDTIPOVIAGEM],
+          [t].[DSTIPOVIAGEM],
+          [v].[CDCONTRATADOR],
+          upper([cg].[RZSOCIAL]) AS CONTRATADOR_NOME,
+          [v].[CDCLASSEFROTA],
+          [cf].[DSCLASSEFROTA],
+          [v].[FGRASTREADO],
+          [v].[DTPREVINICIO],
+          [v].[DTPREVFINAL],
+          [v].[VLFRETE],
+          [co].[ESTADO] AS ORIGEM_ESTADO,
+          [co].[NMCIDADE] AS ORIGEM_CIDADE,
+          [co].[CDCIDADE] AS ORIGEM_CODIGO,
+          [co].[CDMICROREGIAO] AS ORIGEM_MICROREGIAO,
+          [cd].[ESTADO] AS DESTINO_ESTADO,
+          [cd].[NMCIDADE] AS DESTINO_CIDADE,
+          [cd].[CDCIDADE] AS DESTINO_CODIGO,
+          [cd].[CDMICROREGIAO] AS DESTINO_MICROREGIAO
+        FROM [dbo].[VIAGEMMESTRE] [v]
+        LEFT JOIN [dbo].[SITUACAOVIAGEM] [s] ON [v].[CDSITUACAOVIAGEM] = [s].[CDSITUACAOVIAGEM]
+        LEFT JOIN [dbo].[TIPOVIAGEM] [t] ON [v].[CDTIPOVIAGEM] = [t].[CDTIPOVIAGEM]
+        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [v].[CDCONTRATADOR] = [cg].[CDCADASTRO]
+        LEFT JOIN [dbo].[CLASSEFROTA] [cf] ON [v].[CDCLASSEFROTA] = [cf].[CDCLASSEFROTA]
+        LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
+        LEFT JOIN [dbo].[CIDADE] [co] ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
+        LEFT JOIN [dbo].[CIDADE] [cd] ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
+        WHERE [v].[FGACTIVE] = 'A'
+          AND [v].[FGSITVIAGEM] IN ('P', 'D')
           AND NOT EXISTS (
             SELECT 1 
-            FROM [dbo].[CONVOCACAO] c 
-            WHERE c.IDVIAGEM = v.IDVIAGEM 
-              AND c.STATUS IN ('ACEITA', 'CONFIRMADA')
+            FROM [dbo].[CONVOCACAO] [c] 
+            WHERE [c].[IDVIAGEM] = [v].[IDVIAGEM] 
+              AND [c].[STATUS] IN ('ACEITA', 'CONFIRMADA')
           )
-        ORDER BY v.DTPREVINICIO DESC
+        ORDER BY [v].[DTPREVINICIO] DESC
       `;
 
       const result = await pool.request().query(query);
-      res.json(result.recordset);
+      // Normalizar chaves para o frontend (PostgreSQL pode retornar minúsculas)
+      const get = (row, ...keys) => {
+        for (const k of keys) {
+          if (row[k] !== undefined && row[k] !== null) return row[k];
+          const lower = k.toLowerCase();
+          if (row[lower] !== undefined && row[lower] !== null) return row[lower];
+        }
+        return undefined;
+      };
+      const rows = (result.recordset || []).map(row => ({
+        ...row,
+        IDVIAGEM: row.IDVIAGEM ?? row.idviagem,
+        ORIGEM_ESTADO: get(row, 'ORIGEM_ESTADO'),
+        ORIGEM_CIDADE: get(row, 'ORIGEM_CIDADE'),
+        DESTINO_ESTADO: get(row, 'DESTINO_ESTADO'),
+        DESTINO_CIDADE: get(row, 'DESTINO_CIDADE'),
+        DSCLASSEFROTA: row.DSCLASSEFROTA ?? row.dsclassefrota
+      }));
+      res.json(rows);
     } catch (err) {
       console.error('Erro ao listar viagens pendentes:', err);
       res.status(500).json({ error: 'Erro ao carregar viagens pendentes.' });
@@ -837,15 +927,15 @@ const viagemController = {
         .input('IDVIAGEM', sql.Decimal(15, 0), idViagem)
         .query(`
           SELECT 
-            v.CDCLASSEFROTA,
-            v.FGRASTREADO,
-            v.IDROTEIRO,
-            v.CDCONTRATADOR,
-            r.CDCIDADEORIGEM,
-            r.CDCIDADEDESTINO
+            [v].[CDCLASSEFROTA],
+            [v].[FGRASTREADO],
+            [v].[IDROTEIRO],
+            [v].[CDCONTRATADOR],
+            [r].[CDCIDADEORIGEM],
+            [r].[CDCIDADEDESTINO]
           FROM [dbo].[VIAGEMMESTRE] v
-          LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
-          WHERE v.IDVIAGEM = @IDVIAGEM
+          LEFT JOIN [dbo].[ROTEIRO] r ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
+          WHERE [v].[IDVIAGEM] = @IDVIAGEM
         `);
 
       if (viagemResult.recordset.length === 0) {
@@ -862,13 +952,13 @@ const viagemController = {
         .input('DESTINO', CDCIDADEDESTINO || null)
         .query(`
           SELECT 
-            CDCIDADE,
-            CDMICROREGIAO,
-            CDUF,
-            NMCIDADE,
-            ESTADO
+            [CDCIDADE],
+            [CDMICROREGIAO],
+            [CDUF],
+            [NMCIDADE],
+            [ESTADO]
           FROM [dbo].[CIDADE]
-          WHERE CDCIDADE IN (@ORIGEM, @DESTINO)
+          WHERE [CDCIDADE] IN (@ORIGEM, @DESTINO)
         `);
 
       const microregioes = cidadesResult.recordset.map(c => ({
@@ -881,61 +971,68 @@ const viagemController = {
 
       let query = `
         SELECT DISTINCT
-          cg.CDCADASTRO AS CDCADASTRO_MOTORISTA,
-          cg.RZSOCIAL AS NOME_MOTORISTA,
-          cg.NRCELULAR AS CELULAR,
-          cg.ENDEMAIL AS EMAIL,
-          cg.CDTRANSPORTADOR,
-          t.RZSOCIAL AS TRANSPORTADOR_NOME,
-          t.NRCELULAR AS TRANSPORTADOR_CELULAR,
-          c.CDCIDADE,
-          c.NMCIDADE AS CIDADE_NOME,
-          c.ESTADO AS CIDADE_ESTADO,
-          c.CDMICROREGIAO,
-          cfcg.CDCLASSEFROTA,
-          cf.DSCLASSEFROTA AS CLASSE_FROTA_NOME,
+          [cg].[CDCADASTRO] AS CDCADASTRO_MOTORISTA,
+          [cg].[RZSOCIAL] AS NOME_MOTORISTA,
+          [cg].[NRCELULAR] AS CELULAR,
+          [cg].[ENDEMAIL] AS EMAIL,
+          [cg].[CDTRANSPORTADOR],
+          [t].[RZSOCIAL] AS TRANSPORTADOR_NOME,
+          [t].[NRCELULAR] AS TRANSPORTADOR_CELULAR,
+          [c].[CDCIDADE],
+          [c].[NMCIDADE] AS CIDADE_NOME,
+          [c].[ESTADO] AS CIDADE_ESTADO,
+          [c].[CDMICROREGIAO],
+          [mr].[DSMICROREGIAO] AS MICROREGIAO_NOME,
+          [cfcg].[CDCLASSEFROTA],
+          [cf].[DSCLASSEFROTA] AS CLASSE_FROTA_NOME,
           CASE 
             WHEN EXISTS (
               SELECT 1 
               FROM [dbo].[CONVOCACAO] conv 
-              WHERE conv.CDCADASTRO_MOTORISTA = cg.CDCADASTRO 
-                AND conv.IDVIAGEM = @IDVIAGEM
+              WHERE [conv].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO] 
+                AND [conv].[IDVIAGEM] = @IDVIAGEM
             ) THEN 1 
             ELSE 0 
           END AS FOI_ACIONADO,
           (
             SELECT COUNT(*) 
-            FROM VIAGEMMESTRE v 
-            INNER JOIN VIAGEMMOTORISTA m ON v.IDVIAGEM = m.IDVIAGEM 
-            WHERE m.CDMOTORISTA = cg.CDCADASTRO
+            FROM [dbo].[VIAGEMMESTRE] v 
+            INNER JOIN [dbo].[VIAGEMMOTORISTA] m ON [v].[IDVIAGEM] = [m].[IDVIAGEM] 
+            WHERE [m].[CDMOTORISTA] = [cg].[CDCADASTRO]
           ) AS QTVIAGENS,
           (
             SELECT COUNT(*) 
-            FROM VIAGEMMESTRE v2 
-            INNER JOIN VIAGEMMOTORISTA m2 ON v2.IDVIAGEM = m2.IDVIAGEM 
-            WHERE m2.CDMOTORISTA = cg.CDCADASTRO
-              AND (@IDROTEIRO IS NULL OR v2.IDROTEIRO = @IDROTEIRO)
+            FROM [dbo].[VIAGEMMESTRE] v2 
+            INNER JOIN [dbo].[VIAGEMMOTORISTA] m2 ON [v2].[IDVIAGEM] = [m2].[IDVIAGEM] 
+            WHERE [m2].[CDMOTORISTA] = [cg].[CDCADASTRO]
+              AND (@IDROTEIRO = 0 OR [v2].[IDROTEIRO] = @IDROTEIRO)
           ) AS QTVIAGENS_NESTA_ROTA
-        FROM [dbo].[CADASTROGERAL] cg
-        INNER JOIN [dbo].[CIDADE] c ON cg.CDCIDADE = c.CDCIDADE
-        INNER JOIN [dbo].[CLASSEFROTA_CG] cfcg ON cg.CDCADASTRO = cfcg.CDCADASTRO
-        LEFT JOIN [dbo].[CLASSEFROTA] cf ON cfcg.CDCLASSEFROTA = cf.CDCLASSEFROTA
-        LEFT JOIN [dbo].[CADASTROGERAL] t ON cg.CDTRANSPORTADOR = t.CDCADASTRO
-        LEFT JOIN [dbo].[EMPRESA] e ON t.CGCCPF = e.CGCMATRIZ
-        WHERE cg.FGTIPOCADASTRO = 'M'
-          AND cg.FGACTIVE = 'A'
-          AND cfcg.FGACTIVE = 'S'
-          AND cfcg.CDCLASSEFROTA = @CDCLASSEFROTA
-          AND e.NMREDUZIDO IS NULL
+        FROM [dbo].[CADASTROGERAL] [cg]
+        INNER JOIN [dbo].[CIDADE] [c] ON [cg].[CDCIDADE] = [c].[CDCIDADE]
+        LEFT JOIN [dbo].[MICROREGIAO] [mr] ON [c].[CDUF] = [mr].[CDUF] AND [c].[CDMICROREGIAO] = [mr].[CDMICROREGIAO]
+        INNER JOIN [dbo].[CLASSEFROTA_CG] [cfcg] ON [cg].[CDCADASTRO] = [cfcg].[CDCADASTRO]
+        LEFT JOIN [dbo].[CLASSEFROTA] [cf] ON [cfcg].[CDCLASSEFROTA] = [cf].[CDCLASSEFROTA]
+        LEFT JOIN [dbo].[CADASTROGERAL] [t] ON [cg].[CDTRANSPORTADOR] = [t].[CDCADASTRO]
+        LEFT JOIN [dbo].[EMPRESA] [e] ON CAST([t].[CGCCPF] AS TEXT) = CAST([e].[CGCMATRIZ] AS TEXT)
+        WHERE (
+          [cg].[FGTIPOCADASTRO] IN ('M','A','G','T')
+          OR [cg].[FGMOTORISTA] = 'S'
+          OR ([cg].[FGMOTORISTA] IS NULL AND [cg].[FGTIPOCADASTRO] = 'M')
+          OR COALESCE([cg].[FGAGENTE], 'N') = 'S'
+          OR COALESCE([cg].[FGGRUPO], 'N') = 'S'
+          OR COALESCE([cg].[FGTRANSPORTADOR], 'N') = 'S'
+        )
+          AND [cg].[FGACTIVE] = 'A'
+          AND [cfcg].[FGACTIVE] = 'S'
+          AND [cfcg].[CDCLASSEFROTA] = @CDCLASSEFROTA
       `;
 
       const request = pool.request();
       // Adicionar IDVIAGEM para o JOIN com CONVOCACAO
       request.input('IDVIAGEM', sql.Decimal(15, 0), parseFloat(idViagem));
       
-      // Adicionar IDROTEIRO para buscar motoristas experientes nesta rota
-      // Sempre adicionar (mesmo que seja null) para evitar erro na subquery
-      request.input('IDROTEIRO', sql.Int, IDROTEIRO ? parseInt(IDROTEIRO) : null);
+      // Adicionar IDROTEIRO para buscar motoristas experientes nesta rota (0 = não filtrar por rota)
+      request.input('IDROTEIRO', sql.Int, IDROTEIRO ? parseInt(IDROTEIRO) : 0);
 
       // A classe de frota na tabela CLASSEFROTA_CG parece ser SmallInt, não Decimal
       if (CDCLASSEFROTA) {
@@ -948,67 +1045,15 @@ const viagemController = {
       // Aplicar filtros comuns
       // Filtro de rastreado
       if (FGRASTREADO === 'S') {
-        query += ` AND ISNULL(cg.FGRASTREADO, 'N') = 'S'`;
+        query += ` AND COALESCE([cg].[FGRASTREADO], 'N') = 'S'`;
       }
 
-      // Filtro de localização (micro-região + UF ou cidade) OU motorista que já fez esta rota
-      let temFiltroLocalizacao = false;
-      let filtrosLocalizacao = [];
-
-      if (microregioes.length > 0) {
-        // Buscar por micro-região E UF (CDUF + CDMICROREGIAO)
-        const condicoesMicro = microregioes.map((micro, i) => {
-          const paramNameMicro = `MICRO${i}`;
-          const paramNameUF = `CDUF${i}`;
-          request.input(paramNameMicro, sql.SmallInt, micro.microregiao);
-          request.input(paramNameUF, sql.SmallInt, micro.cduf);
-          return `(c.CDUF = @${paramNameUF} AND c.CDMICROREGIAO = @${paramNameMicro})`;
-        });
-        filtrosLocalizacao.push(`(${condicoesMicro.join(' OR ')})`);
-        temFiltroLocalizacao = true;
-      }
-
-      // Se não há micro-região, buscar por cidade de origem ou destino
-      if (!temFiltroLocalizacao) {
-        if (CDCIDADEORIGEM && CDCIDADEDESTINO) {
-          request.input('CIDADE_ORIGEM', sql.Decimal(15, 0), CDCIDADEORIGEM);
-          request.input('CIDADE_DESTINO', sql.Decimal(15, 0), CDCIDADEDESTINO);
-          filtrosLocalizacao.push(`(c.CDCIDADE = @CIDADE_ORIGEM OR c.CDCIDADE = @CIDADE_DESTINO)`);
-          temFiltroLocalizacao = true;
-        } else if (CDCIDADEORIGEM) {
-          request.input('CIDADE_ORIGEM', sql.Decimal(15, 0), CDCIDADEORIGEM);
-          filtrosLocalizacao.push(`c.CDCIDADE = @CIDADE_ORIGEM`);
-          temFiltroLocalizacao = true;
-        } else if (CDCIDADEDESTINO) {
-          request.input('CIDADE_DESTINO', sql.Decimal(15, 0), CDCIDADEDESTINO);
-          filtrosLocalizacao.push(`c.CDCIDADE = @CIDADE_DESTINO`);
-          temFiltroLocalizacao = true;
-        }
-      }
-
-      // NOVA REGRA: Incluir motoristas que já fizeram ESTA ROTA (mesmo fora da região)
-      if (IDROTEIRO) {
-        filtrosLocalizacao.push(`
-          EXISTS (
-            SELECT 1 
-            FROM VIAGEMMESTRE v3
-            INNER JOIN VIAGEMMOTORISTA m3 ON v3.IDVIAGEM = m3.IDVIAGEM
-            WHERE m3.CDMOTORISTA = cg.CDCADASTRO
-              AND v3.IDROTEIRO = @IDROTEIRO
-          )
-        `);
-      }
-
-      // Aplicar filtro de localização (OR entre todos)
-      if (filtrosLocalizacao.length > 0) {
-        query += ` AND (${filtrosLocalizacao.join(' OR ')})`;
-      } else {
-        // Se não há nenhum filtro, não retornar resultados
-        query += ` AND 1=0`;
-      }
+      // Regra de negócio: compatíveis são listados apenas por TIPO + CLASSE FROTA + RASTREADO.
+      // Localização (cidade/micro-região) NÃO é critério obrigatório para aparecer na lista.
+      // Assim, todos que têm a classe da viagem e atendem rastreado (se exigido) são listados.
 
       // Ordenar por: Experiência na rota DESC → Experiência geral DESC → Nome
-      query += ` ORDER BY QTVIAGENS_NESTA_ROTA DESC, QTVIAGENS DESC, cg.RZSOCIAL`;
+      query += ` ORDER BY QTVIAGENS_NESTA_ROTA DESC, QTVIAGENS DESC, [cg].[RZSOCIAL]`;
 
       // Verificações de diagnóstico
       // Verificar motoristas na micro-região (apenas se houver micro-regiões)
@@ -1023,11 +1068,11 @@ const viagemController = {
           if (valoresMicro.length > 0) {
             const diagMotoristasMicro = await pool.request().query(`
               SELECT COUNT(*) AS TOTAL
-              FROM [dbo].[CADASTROGERAL] cg
-              INNER JOIN [dbo].[CIDADE] c ON cg.CDCIDADE = c.CDCIDADE
-              WHERE cg.FGTIPOCADASTRO = 'M'
-                AND cg.FGACTIVE = 'A'
-                AND c.CDMICROREGIAO IN (${valoresMicro.join(', ')})
+              FROM [dbo].[CADASTROGERAL] [cg]
+              INNER JOIN [dbo].[CIDADE] [c] ON [cg].[CDCIDADE] = [c].[CDCIDADE]
+              WHERE ( [cg].[FGTIPOCADASTRO] IN ('M','A','G','T') OR ( [cg].[FGMOTORISTA] = 'S' OR ([cg].[FGMOTORISTA] IS NULL AND [cg].[FGTIPOCADASTRO] = 'M') ) OR COALESCE([cg].[FGAGENTE], 'N') = 'S' OR COALESCE([cg].[FGGRUPO], 'N') = 'S' OR COALESCE([cg].[FGTRANSPORTADOR], 'N') = 'S' )
+                AND [cg].[FGACTIVE] = 'A'
+                AND [c].[CDMICROREGIAO] IN (${valoresMicro.join(', ')})
             `);
           }
         } catch (diagErr) {
@@ -1039,25 +1084,42 @@ const viagemController = {
       // Logs de debug removidos
 
       const result = await request.query(query);
+      const raw = result.recordset || [];
 
-      res.json(result.recordset);
+      // Normalizar chaves: PostgreSQL devolve em minúsculas; frontend espera MAIÚSCULAS_COM_UNDERSCORE
+      const recordset = raw.map(row => {
+        const get = (key) => (row[key] != null ? row[key] : row[key.toLowerCase()]);
+        return {
+          CDCADASTRO_MOTORISTA: get('CDCADASTRO_MOTORISTA'),
+          NOME_MOTORISTA: get('NOME_MOTORISTA'),
+          CELULAR: get('CELULAR'),
+          EMAIL: get('EMAIL'),
+          CDTRANSPORTADOR: get('CDTRANSPORTADOR'),
+          TRANSPORTADOR_NOME: get('TRANSPORTADOR_NOME'),
+          TRANSPORTADOR_CELULAR: get('TRANSPORTADOR_CELULAR'),
+          CDCIDADE: get('CDCIDADE'),
+          CIDADE_NOME: get('CIDADE_NOME'),
+          CIDADE_ESTADO: get('CIDADE_ESTADO'),
+          CDMICROREGIAO: get('CDMICROREGIAO'),
+          MICROREGIAO_NOME: get('MICROREGIAO_NOME'),
+          CDCLASSEFROTA: get('CDCLASSEFROTA'),
+          CLASSE_FROTA_NOME: get('CLASSE_FROTA_NOME'),
+          FOI_ACIONADO: get('FOI_ACIONADO'),
+          QTVIAGENS: get('QTVIAGENS'),
+          QTVIAGENS_NESTA_ROTA: get('QTVIAGENS_NESTA_ROTA'),
+        };
+      });
+
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[Compatíveis] Viagem ${idViagem}: ${recordset.length} registro(s) retornado(s).`);
+      }
+
+      res.json(recordset);
     } catch (err) {
       console.error('Erro ao buscar motoristas compatíveis:', err);
       console.error('Stack trace:', err.stack);
-      // Log detalhado do erro para debug
-      if (err.message) {
-        console.error('Mensagem do erro:', err.message);
-      }
-      if (err.originalError) {
-        console.error('Erro original:', err.originalError);
-        if (err.originalError.message) {
-          console.error('Mensagem do erro original:', err.originalError.message);
-        }
-      }
-      // Log da query que causou erro (apenas em desenvolvimento)
-      if (process.env.NODE_ENV === 'development' && query) {
-        console.error('Query que causou erro:', query);
-      }
+      if (err.message) console.error('Mensagem do erro:', err.message);
+      if (err.originalError && err.originalError.message) console.error('Erro original:', err.originalError.message);
       res.status(500).json({ 
         error: 'Erro ao buscar motoristas compatíveis.',
         details: process.env.NODE_ENV === 'development' ? err.message : undefined
@@ -1087,10 +1149,10 @@ const viagemController = {
         .request()
         .input('SGUSUARIO', sql.VarChar(50), userLogin)
         .query(`
-          SELECT SGUSUARIO
+          SELECT [SGUSUARIO]
           FROM [dbo].[USUARIO]
-          WHERE SGUSUARIO = @SGUSUARIO
-            AND (FGACTIVE = 'A' OR FGACTIVE = 'S')
+          WHERE [SGUSUARIO] = @SGUSUARIO
+            AND ([FGACTIVE] = 'A' OR [FGACTIVE] = 'S')
         `);
 
       if (usuarioResult.recordset.length === 0) {
@@ -1102,8 +1164,8 @@ const viagemController = {
       // Buscar próximo ID de convocação
       const maxResult = await pool
         .request()
-        .query('SELECT ISNULL(MAX(IDCONVOCACAO), 0) AS maxId FROM [dbo].[CONVOCACAO]');
-      let proximoId = maxResult.recordset[0].maxId + 1;
+        .query('SELECT COALESCE(MAX([IDCONVOCACAO]), 0) + 1 AS [maxId] FROM [dbo].[CONVOCACAO]');
+      let proximoId = getFirstNumericValue(maxResult.recordset, 1);
 
       // Inserir convocações (verificando duplicatas)
       const convocacoes = [];
@@ -1122,15 +1184,15 @@ const viagemController = {
           .input('CDCADASTRO_MOTORISTA', sql.Decimal(15, 0), CDCADASTRO_MOTORISTA)
           .query(`
             SELECT TOP 1 
-              IDCONVOCACAO,
-              NRCELULAR,
-              TXTCONVOCACAO,
-              LINKCONVOCACAO,
-              STATUS
+              [IDCONVOCACAO],
+              [NRCELULAR],
+              [TXTCONVOCACAO],
+              [LINKCONVOCACAO],
+              [STATUS]
             FROM [dbo].[CONVOCACAO]
-            WHERE IDVIAGEM = @IDVIAGEM
-              AND CDCADASTRO_MOTORISTA = @CDCADASTRO_MOTORISTA
-            ORDER BY DHCONVOCACAO DESC
+            WHERE [IDVIAGEM] = @IDVIAGEM
+              AND [CDCADASTRO_MOTORISTA] = @CDCADASTRO_MOTORISTA
+            ORDER BY [DHCONVOCACAO] DESC
           `);
 
         if (verificarDuplicata.recordset.length > 0) {
@@ -1149,7 +1211,7 @@ const viagemController = {
           continue; // Pular criação de nova convocação
         }
 
-        // Não existe - criar nova convocação
+        // Não existe - criar nova convocação (colunas entre colchetes para PostgreSQL)
         const request = pool.request()
           .input('IDCONVOCACAO', sql.Int, proximoId)
           .input('IDVIAGEM', sql.Decimal(15, 0), idViagem)
@@ -1157,24 +1219,24 @@ const viagemController = {
           .input('STATUS', sql.VarChar(20), 'PENDENTE')
           .input('SGUSUARIO_OPERADOR', sql.VarChar(50), usuarioOperador);
 
-        // Adicionar campos opcionais se fornecidos
-        let camposInsert = 'IDCONVOCACAO, IDVIAGEM, CDCADASTRO_MOTORISTA, STATUS, DHCONVOCACAO, SGUSUARIO_OPERADOR, DHMAINTENANCE, SGUSER, SERVERORIG';
+        // Adicionar campos opcionais se fornecidos (colunas entre colchetes para db.js → "COL" no PG)
+        let camposInsert = '[IDCONVOCACAO], [IDVIAGEM], [CDCADASTRO_MOTORISTA], [STATUS], [DHCONVOCACAO], [SGUSUARIO_OPERADOR], [DHMAINTENANCE], [SGUSER], [SERVERORIG]';
         let valoresInsert = '@IDCONVOCACAO, @IDVIAGEM, @CDCADASTRO_MOTORISTA, @STATUS, GETDATE(), @SGUSUARIO_OPERADOR, GETDATE(), \'SYSTEM\', \'AppDVcargas\'';
 
         if (NRCELULAR !== undefined && NRCELULAR !== null) {
-          camposInsert += ', NRCELULAR';
+          camposInsert += ', [NRCELULAR]';
           valoresInsert += ', @NRCELULAR';
           request.input('NRCELULAR', sql.VarChar(20), NRCELULAR);
         }
 
         if (TXTCONVOCACAO !== undefined && TXTCONVOCACAO !== null) {
-          camposInsert += ', TXTCONVOCACAO';
+          camposInsert += ', [TXTCONVOCACAO]';
           valoresInsert += ', @TXTCONVOCACAO';
           request.input('TXTCONVOCACAO', sql.NVarChar(sql.MAX), TXTCONVOCACAO);
         }
 
         if (LINKCONVOCACAO !== undefined && LINKCONVOCACAO !== null) {
-          camposInsert += ', LINKCONVOCACAO';
+          camposInsert += ', [LINKCONVOCACAO]';
           valoresInsert += ', @LINKCONVOCACAO';
           request.input('LINKCONVOCACAO', sql.VarChar(500), LINKCONVOCACAO);
         }
@@ -1238,81 +1300,105 @@ const viagemController = {
       const pool = await poolPromise;
       let query = `
         SELECT 
-          c.IDCONVOCACAO,
-          c.IDVIAGEM,
-          c.CDCADASTRO_MOTORISTA,
-          c.STATUS,
-          c.DHCONVOCACAO,
-          c.DHACESSO,
-          c.DHRESPOSTA,
-          c.SGUSUARIO_OPERADOR,
-          c.LATITUDE,
-          c.LONGITUDE,
-          c.CDMOTIVORECUSA,
-          mr.DSMOTIVO AS MOTIVO_RECUSA,
-          c.CDMOTIVOREABERTURA,
-          mra.DSMOTIVO AS MOTIVO_REABERTURA,
-          v.IDROTEIRO,
-          v.CDCLASSEFROTA,
-          v.DTPREVINICIO,
-          v.DTPREVFINAL,
-          v.FGRASTREADO,
-          v.VLFRETE,
-          v.PESO,
-          v.CUBAGEM,
-          upper(cg.RZSOCIAL) AS NOME_MOTORISTA,
-          cg.NRCELULAR AS CELULAR_MOTORISTA,
-          cf.DSCLASSEFROTA,
-          r.CDCIDADEORIGEM,
-          r.CDCIDADEDESTINO,
-          r.DSROTEIRO,
-          co.NMCIDADE AS ORIGEM_CIDADE,
-          co.ESTADO AS ORIGEM_ESTADO,
-          cd.NMCIDADE AS DESTINO_CIDADE,
-          cd.ESTADO AS DESTINO_ESTADO,
+          [c].[IDCONVOCACAO],
+          [c].[IDVIAGEM],
+          [c].[CDCADASTRO_MOTORISTA],
+          [c].[STATUS],
+          [c].[DHCONVOCACAO],
+          [c].[DHACESSO],
+          [c].[DHRESPOSTA],
+          [c].[SGUSUARIO_OPERADOR],
+          [c].[LATITUDE],
+          [c].[LONGITUDE],
+          [c].[CDMOTIVORECUSA],
+          [mr].[DSMOTIVO] AS MOTIVO_RECUSA,
+          [c].[CDMOTIVOREABERTURA],
+          [mra].[DSMOTIVO] AS MOTIVO_REABERTURA,
+          [v].[IDROTEIRO],
+          [v].[CDCLASSEFROTA],
+          [v].[DTPREVINICIO],
+          [v].[DTPREVFINAL],
+          [v].[FGRASTREADO],
+          [v].[VLFRETE],
+          [v].[PESO],
+          [v].[CUBAGEM],
+          upper([cg].[RZSOCIAL]) AS NOME_MOTORISTA,
+          [cg].[NRCELULAR] AS CELULAR_MOTORISTA,
+          [cf].[DSCLASSEFROTA],
+          [r].[CDCIDADEORIGEM],
+          [r].[CDCIDADEDESTINO],
+          [r].[DSROTEIRO],
+          [co].[NMCIDADE] AS ORIGEM_CIDADE,
+          [co].[ESTADO] AS ORIGEM_ESTADO,
+          [cd].[NMCIDADE] AS DESTINO_CIDADE,
+          [cd].[ESTADO] AS DESTINO_ESTADO,
           CASE 
             WHEN EXISTS (
               SELECT 1 
-              FROM [dbo].[CONVOCACAO] c2 
-              WHERE c2.IDVIAGEM = c.IDVIAGEM 
-                AND c2.STATUS = 'CONFIRMADA'
-                AND c2.IDCONVOCACAO != c.IDCONVOCACAO
+              FROM [dbo].[CONVOCACAO] [c2] 
+              WHERE [c2].[IDVIAGEM] = [c].[IDVIAGEM] 
+                AND [c2].[STATUS] = 'CONFIRMADA'
+                AND [c2].[IDCONVOCACAO] != [c].[IDCONVOCACAO]
             ) THEN 1 
             ELSE 0 
           END AS VIAGEM_JA_CONFIRMADA
-        FROM [dbo].[CONVOCACAO] c
-        INNER JOIN [dbo].[VIAGEMMESTRE] v ON c.IDVIAGEM = v.IDVIAGEM
-        INNER JOIN [dbo].[CADASTROGERAL] cg ON c.CDCADASTRO_MOTORISTA = cg.CDCADASTRO
-        LEFT JOIN [dbo].[CLASSEFROTA] cf ON v.CDCLASSEFROTA = cf.CDCLASSEFROTA
-        LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
-          LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
-          LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
-          LEFT JOIN [dbo].[MOTIVORECUSA] mr ON c.CDMOTIVORECUSA = mr.CDMOTIVO
-          LEFT JOIN [dbo].[MOTIVOREABERTURA] mra ON c.CDMOTIVOREABERTURA = mra.CDMOTIVO
+        FROM [dbo].[CONVOCACAO] [c]
+        INNER JOIN [dbo].[VIAGEMMESTRE] [v] ON [c].[IDVIAGEM] = [v].[IDVIAGEM]
+        INNER JOIN [dbo].[CADASTROGERAL] [cg] ON [c].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO]
+        LEFT JOIN [dbo].[CLASSEFROTA] [cf] ON [v].[CDCLASSEFROTA] = [cf].[CDCLASSEFROTA]
+        LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
+          LEFT JOIN [dbo].[CIDADE] [co] ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
+          LEFT JOIN [dbo].[CIDADE] [cd] ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
+          LEFT JOIN [dbo].[MOTIVORECUSA] [mr] ON [c].[CDMOTIVORECUSA] = [mr].[CDMOTIVO]
+          LEFT JOIN [dbo].[MOTIVOREABERTURA] [mra] ON [c].[CDMOTIVOREABERTURA] = [mra].[CDMOTIVO]
           WHERE 1=1
       `;
 
       const request = pool.request();
 
       if (idViagem) {
-        query += ` AND c.IDVIAGEM = @IDVIAGEM`;
+        query += ` AND [c].[IDVIAGEM] = @IDVIAGEM`;
         request.input('IDVIAGEM', sql.Decimal(15, 0), parseFloat(idViagem));
       }
 
       if (status) {
-        query += ` AND c.STATUS = @STATUS`;
+        query += ` AND [c].[STATUS] = @STATUS`;
         request.input('STATUS', sql.VarChar(20), status);
       }
 
       if (cdcadastroMotorista) {
-        query += ` AND c.CDCADASTRO_MOTORISTA = @CDCADASTRO_MOTORISTA`;
+        query += ` AND [c].[CDCADASTRO_MOTORISTA] = @CDCADASTRO_MOTORISTA`;
         request.input('CDCADASTRO_MOTORISTA', sql.Decimal(15, 0), parseFloat(cdcadastroMotorista));
       }
 
-      query += ` ORDER BY c.DHCONVOCACAO DESC`;
+      query += ` ORDER BY [c].[DHCONVOCACAO] DESC`;
 
       const result = await request.query(query);
-      res.json(result.recordset);
+      // Normalizar chaves para maiúsculas (PostgreSQL retorna minúsculas em aliases sem aspas)
+      const recordset = (result.recordset || []).map((row) => {
+        const r = { ...row };
+        const map = {
+          nome_motorista: 'NOME_MOTORISTA',
+          celular_motorista: 'CELULAR_MOTORISTA',
+          dsmotivo_recusa: 'MOTIVO_RECUSA',
+          dsmotivo_reabertura: 'MOTIVO_REABERTURA',
+          dsclassefrota: 'DSCLASSEFROTA',
+          dsroteiro: 'DSROTEIRO',
+          origem_cidade: 'ORIGEM_CIDADE',
+          origem_estado: 'ORIGEM_ESTADO',
+          destino_cidade: 'DESTINO_CIDADE',
+          destino_estado: 'DESTINO_ESTADO',
+          viagem_ja_confirmada: 'VIAGEM_JA_CONFIRMADA',
+          idviagem: 'IDVIAGEM',
+          idroteiro: 'IDROTEIRO',
+          cdcadastro_motorista: 'CDCADASTRO_MOTORISTA',
+        };
+        Object.keys(map).forEach((k) => {
+          if (r[k] !== undefined && r[map[k]] === undefined) r[map[k]] = r[k];
+        });
+        return r;
+      });
+      res.json(recordset);
     } catch (err) {
       console.error('Erro ao listar convocações:', err);
       res.status(500).json({ error: 'Erro ao listar convocações.' });
@@ -1329,36 +1415,36 @@ const viagemController = {
         .input('IDCONVOCACAO', sql.Int, parseInt(id))
         .query(`
           SELECT 
-            c.IDCONVOCACAO,
-            c.IDVIAGEM,
-            c.CDCADASTRO_MOTORISTA,
-            c.STATUS,
-            c.DHCONVOCACAO,
-            c.DHRESPOSTA,
-            c.SGUSUARIO_OPERADOR,
-            c.DHENVIOMETA,
-            v.CDCLASSEFROTA,
-            v.DTPREVINICIO,
-            v.DTPREVFINAL,
-            v.FGRASTREADO,
-            v.OBSERV,
-            upper(cg.RZSOCIAL) AS NOME_MOTORISTA,
-            cg.NRCELULAR AS CELULAR_MOTORISTA,
-            cf.DSCLASSEFROTA,
-            r.CDCIDADEORIGEM,
-            r.CDCIDADEDESTINO,
-            co.NMCIDADE AS ORIGEM_CIDADE,
-            co.ESTADO AS ORIGEM_ESTADO,
-            cd.NMCIDADE AS DESTINO_CIDADE,
-            cd.ESTADO AS DESTINO_ESTADO
-          FROM [dbo].[CONVOCACAO] c
-          INNER JOIN [dbo].[VIAGEMMESTRE] v ON c.IDVIAGEM = v.IDVIAGEM
-          INNER JOIN [dbo].[CADASTROGERAL] cg ON c.CDCADASTRO_MOTORISTA = cg.CDCADASTRO
-          LEFT JOIN [dbo].[CLASSEFROTA] cf ON v.CDCLASSEFROTA = cf.CDCLASSEFROTA
-          LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
-          LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
-          LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
-          WHERE c.IDCONVOCACAO = @IDCONVOCACAO
+            [c].[IDCONVOCACAO],
+            [c].[IDVIAGEM],
+            [c].[CDCADASTRO_MOTORISTA],
+            [c].[STATUS],
+            [c].[DHCONVOCACAO],
+            [c].[DHRESPOSTA],
+            [c].[SGUSUARIO_OPERADOR],
+            [c].[DHENVIOMETA],
+            [v].[CDCLASSEFROTA],
+            [v].[DTPREVINICIO],
+            [v].[DTPREVFINAL],
+            [v].[FGRASTREADO],
+            [v].[OBSERV],
+            upper([cg].[RZSOCIAL]) AS NOME_MOTORISTA,
+            [cg].[NRCELULAR] AS CELULAR_MOTORISTA,
+            [cf].[DSCLASSEFROTA],
+            [r].[CDCIDADEORIGEM],
+            [r].[CDCIDADEDESTINO],
+            [co].[NMCIDADE] AS ORIGEM_CIDADE,
+            [co].[ESTADO] AS ORIGEM_ESTADO,
+            [cd].[NMCIDADE] AS DESTINO_CIDADE,
+            [cd].[ESTADO] AS DESTINO_ESTADO
+          FROM [dbo].[CONVOCACAO] [c]
+          INNER JOIN [dbo].[VIAGEMMESTRE] [v] ON [c].[IDVIAGEM] = [v].[IDVIAGEM]
+          INNER JOIN [dbo].[CADASTROGERAL] [cg] ON [c].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO]
+          LEFT JOIN [dbo].[CLASSEFROTA] [cf] ON [v].[CDCLASSEFROTA] = [cf].[CDCLASSEFROTA]
+          LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
+          LEFT JOIN [dbo].[CIDADE] [co] ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
+          LEFT JOIN [dbo].[CIDADE] [cd] ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
+          WHERE [c].[IDCONVOCACAO] = @IDCONVOCACAO
         `);
 
       if (result.recordset.length === 0) {
@@ -1389,17 +1475,17 @@ const viagemController = {
       let updates = [];
 
       if (NRCELULAR !== undefined && NRCELULAR !== null && NRCELULAR !== '') {
-        updates.push('NRCELULAR = @NRCELULAR');
+        updates.push('[NRCELULAR] = @NRCELULAR');
         request.input('NRCELULAR', sql.VarChar(20), NRCELULAR);
       }
 
       if (TXTCONVOCACAO !== undefined && TXTCONVOCACAO !== null && TXTCONVOCACAO !== '') {
-        updates.push('TXTCONVOCACAO = @TXTCONVOCACAO');
+        updates.push('[TXTCONVOCACAO] = @TXTCONVOCACAO');
         request.input('TXTCONVOCACAO', sql.NVarChar(sql.MAX), TXTCONVOCACAO);
       }
 
       if (LINKCONVOCACAO !== undefined && LINKCONVOCACAO !== null && LINKCONVOCACAO !== '') {
-        updates.push('LINKCONVOCACAO = @LINKCONVOCACAO');
+        updates.push('[LINKCONVOCACAO] = @LINKCONVOCACAO');
         request.input('LINKCONVOCACAO', sql.VarChar(500), LINKCONVOCACAO);
       }
 
@@ -1407,12 +1493,12 @@ const viagemController = {
         return res.status(400).json({ error: 'Nenhum campo para atualizar foi informado.' });
       }
 
-      updates.push('DHMAINTENANCE = GETDATE()');
+      updates.push('[DHMAINTENANCE] = GETDATE()');
 
       const query = `
         UPDATE [dbo].[CONVOCACAO]
         SET ${updates.join(', ')}
-        WHERE IDCONVOCACAO = @IDCONVOCACAO
+        WHERE [IDCONVOCACAO] = @IDCONVOCACAO
       `;
 
       const result = await request.query(query);
@@ -1446,9 +1532,9 @@ const viagemController = {
         .input('IDCONVOCACAO', sql.Int, parseInt(id))
         .query(`
           UPDATE [dbo].[CONVOCACAO]
-          SET DHENVIOMETA = GETDATE(),
-              DHMAINTENANCE = GETDATE()
-          WHERE IDCONVOCACAO = @IDCONVOCACAO
+          SET [DHENVIOMETA] = GETDATE(),
+              [DHMAINTENANCE] = GETDATE()
+          WHERE [IDCONVOCACAO] = @IDCONVOCACAO
         `);
 
       res.json({
@@ -1474,18 +1560,22 @@ const viagemController = {
         return res.status(400).json({ error: 'Status é obrigatório.' });
       }
 
+      const sgUserConv = getSgUser(req);
+      if (!sgUserConv) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+
       const pool = await poolPromise;
       await pool
         .request()
         .input('IDCONVOCACAO', sql.Int, parseInt(id))
         .input('STATUS', sql.VarChar(20), status)
+        .input('sgUser', sql.VarChar(50), sgUserConv)
         .query(`
           UPDATE [dbo].[CONVOCACAO]
-          SET STATUS = @STATUS,
-              DHRESPOSTA = CASE WHEN @STATUS IN ('ACEITA', 'RECUSADA') THEN GETDATE() ELSE DHRESPOSTA END,
-              DHMAINTENANCE = GETDATE(),
-              SGUSER = 'SYSTEM'
-          WHERE IDCONVOCACAO = @IDCONVOCACAO
+          SET [STATUS] = @STATUS,
+              [DHRESPOSTA] = CASE WHEN @STATUS IN ('ACEITA', 'RECUSADA') THEN GETDATE() ELSE [DHRESPOSTA] END,
+              [DHMAINTENANCE] = GETDATE(),
+              [SGUSER] = @sgUser
+          WHERE [IDCONVOCACAO] = @IDCONVOCACAO
         `);
 
       res.json({ success: true, message: 'Status da convocação atualizado com sucesso!' });
@@ -1500,7 +1590,9 @@ const viagemController = {
     let transaction = null;
     try {
       const { id } = req.params;
-      const userLogin = req.headers['user-login'];
+      const userLogin = req.headers['user-login'] || (req.user && (req.user.login || req.user.SGUSUARIO));
+      const sgUserConfirm = getSgUser(req);
+      if (!sgUserConfirm) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
 
       console.log(`[CONFIRMAR] Iniciando confirmação da convocação ${id} pelo usuário ${userLogin}`);
 
@@ -1515,10 +1607,10 @@ const viagemController = {
         .request()
         .input('SGUSUARIO', sql.VarChar(50), userLogin)
         .query(`
-          SELECT SGUSUARIO
+          SELECT [SGUSUARIO]
           FROM [dbo].[USUARIO]
-          WHERE SGUSUARIO = @SGUSUARIO
-            AND (FGACTIVE = 'A' OR FGACTIVE = 'S')
+          WHERE [SGUSUARIO] = @SGUSUARIO
+            AND ([FGACTIVE] = 'A' OR [FGACTIVE] = 'S')
         `);
 
       if (usuarioResult.recordset.length === 0) {
@@ -1530,9 +1622,9 @@ const viagemController = {
         .request()
         .input('IDCONVOCACAO', sql.Int, parseInt(id))
         .query(`
-          SELECT IDCONVOCACAO, IDVIAGEM, STATUS
+          SELECT [IDCONVOCACAO], [IDVIAGEM], [STATUS]
           FROM [dbo].[CONVOCACAO]
-          WHERE IDCONVOCACAO = @IDCONVOCACAO
+          WHERE [IDCONVOCACAO] = @IDCONVOCACAO
         `);
 
       if (convocacaoResult.recordset.length === 0) {
@@ -1554,11 +1646,11 @@ const viagemController = {
         .input('IDVIAGEM', sql.Decimal(15, 0), convocacao.IDVIAGEM)
         .input('IDCONVOCACAO', sql.Int, parseInt(id))
         .query(`
-          SELECT IDCONVOCACAO
+          SELECT [IDCONVOCACAO]
           FROM [dbo].[CONVOCACAO]
-          WHERE IDVIAGEM = @IDVIAGEM
-            AND STATUS = 'CONFIRMADA'
-            AND IDCONVOCACAO != @IDCONVOCACAO
+          WHERE [IDVIAGEM] = @IDVIAGEM
+            AND [STATUS] = 'CONFIRMADA'
+            AND [IDCONVOCACAO] != @IDCONVOCACAO
         `);
 
       if (confirmadaResult.recordset.length > 0) {
@@ -1568,24 +1660,25 @@ const viagemController = {
       }
 
       // Iniciar transação para garantir atomicidade (após todas as validações)
-      transaction = new sql.Transaction(pool);
+      transaction = await createTransaction(pool);
       await transaction.begin();
       console.log(`[CONFIRMAR] Transação iniciada para convocação ${id}`);
 
       try {
         // 1. Confirmar a convocação selecionada
-        const request1 = new sql.Request(transaction);
+        const request1 = transaction.request();
         await request1
           .input('IDCONVOCACAO_CONFIRM', sql.Int, parseInt(id))
           .input('SGUSUARIO_OPERADOR_CONFIRM', sql.VarChar(50), userLogin)
+          .input('sgUser', sql.VarChar(50), sgUserConfirm)
           .query(`
             UPDATE [dbo].[CONVOCACAO]
-            SET STATUS = 'CONFIRMADA',
-                DHRESPOSTA = GETDATE(),
-                SGUSUARIO_OPERADOR = @SGUSUARIO_OPERADOR_CONFIRM,
-                DHMAINTENANCE = GETDATE(),
-                SGUSER = 'SYSTEM'
-            WHERE IDCONVOCACAO = @IDCONVOCACAO_CONFIRM
+            SET [STATUS] = 'CONFIRMADA',
+                [DHRESPOSTA] = GETDATE(),
+                [SGUSUARIO_OPERADOR] = @SGUSUARIO_OPERADOR_CONFIRM,
+                [DHMAINTENANCE] = GETDATE(),
+                [SGUSER] = @sgUser
+            WHERE [IDCONVOCACAO] = @IDCONVOCACAO_CONFIRM
           `);
 
         // 2. NÃO recusar convocações PENDENTES automaticamente
@@ -1593,20 +1686,21 @@ const viagemController = {
         // Isso preserva o histórico correto: só marca como RECUSADA se o motorista realmente recusou
 
         // 3. Marcar outras convocações ACEITAS como DESCARTADAS (mantém histórico de aceite)
-        const request3 = new sql.Request(transaction);
+        const request3 = transaction.request();
         await request3
           .input('IDVIAGEM_DESCARTAR', sql.Decimal(15, 0), convocacao.IDVIAGEM)
           .input('IDCONVOCACAO_EXCLUIR_DESC', sql.Int, parseInt(id))
           .input('SGUSUARIO_OPERADOR_DESC', sql.VarChar(50), userLogin)
+          .input('sgUser', sql.VarChar(50), sgUserConfirm)
           .query(`
             UPDATE [dbo].[CONVOCACAO]
-            SET STATUS = 'ACEITA_DESCARTADA',
-                SGUSUARIO_OPERADOR = @SGUSUARIO_OPERADOR_DESC,
-                DHMAINTENANCE = GETDATE(),
-                SGUSER = 'SYSTEM'
-            WHERE IDVIAGEM = @IDVIAGEM_DESCARTAR
-              AND IDCONVOCACAO != @IDCONVOCACAO_EXCLUIR_DESC
-              AND STATUS = 'ACEITA'
+            SET [STATUS] = 'ACEITA_DESCARTADA',
+                [SGUSUARIO_OPERADOR] = @SGUSUARIO_OPERADOR_DESC,
+                [DHMAINTENANCE] = GETDATE(),
+                [SGUSER] = @sgUser
+            WHERE [IDVIAGEM] = @IDVIAGEM_DESCARTAR
+              AND [IDCONVOCACAO] != @IDCONVOCACAO_EXCLUIR_DESC
+              AND [STATUS] = 'ACEITA'
           `);
 
         await transaction.commit();
@@ -1622,39 +1716,39 @@ const viagemController = {
               .input('IDVIAGEM', sql.Decimal(15, 0), convocacao.IDVIAGEM)
               .query(`
                 SELECT 
-                  v.IDVIAGEM,
-                  v.FGSITVIAGEM,
-                  v.CDSITUACAOVIAGEM,
-                  s.DSSITUACAOVIAGEM,
-                  v.CDTIPOVIAGEM,
-                  t.DSTIPOVIAGEM,
-                  v.FGACTIVE,
-                  v.CDCLASSEFROTA,
-                  cf.DSCLASSEFROTA,
-                  v.DTPREVINICIO,
-                  v.DTPREVFINAL,
-                  v.IDROTEIRO,
-                  r.DSROTEIRO,
-                  v.DISTANCIAKM,
-                  v.VLFRETE,
-                  co.ESTADO AS ORIGEM_ESTADO,
-                  co.NMCIDADE AS ORIGEM_CIDADE,
-                  cd.ESTADO AS DESTINO_ESTADO,
-                  cd.NMCIDADE AS DESTINO_CIDADE,
-                  cg.CDCADASTRO AS CDMOTORISTA,
-                  upper(cg.RZSOCIAL) AS MOTORISTA_NOME,
-                  cg.NRCELULAR AS MOTORISTA_CELULAR,
+                  v.[IDVIAGEM],
+                  v.[FGSITVIAGEM],
+                  v.[CDSITUACAOVIAGEM],
+                  s.[DSSITUACAOVIAGEM],
+                  v.[CDTIPOVIAGEM],
+                  t.[DSTIPOVIAGEM],
+                  v.[FGACTIVE],
+                  v.[CDCLASSEFROTA],
+                  cf.[DSCLASSEFROTA],
+                  v.[DTPREVINICIO],
+                  v.[DTPREVFINAL],
+                  v.[IDROTEIRO],
+                  r.[DSROTEIRO],
+                  v.[DISTANCIAKM],
+                  v.[VLFRETE],
+                  co.[ESTADO] AS ORIGEM_ESTADO,
+                  co.[NMCIDADE] AS ORIGEM_CIDADE,
+                  cd.[ESTADO] AS DESTINO_ESTADO,
+                  cd.[NMCIDADE] AS DESTINO_CIDADE,
+                  cg.[CDCADASTRO] AS CDMOTORISTA,
+                  upper(cg.[RZSOCIAL]) AS MOTORISTA_NOME,
+                  cg.[NRCELULAR] AS MOTORISTA_CELULAR,
                   'S' AS TEM_CONFIRMADO
                 FROM [dbo].[VIAGEMMESTRE] v
-                LEFT JOIN [dbo].[SITUACAOVIAGEM] s ON v.CDSITUACAOVIAGEM = s.CDSITUACAOVIAGEM
-                LEFT JOIN [dbo].[TIPOVIAGEM] t ON v.CDTIPOVIAGEM = t.CDTIPOVIAGEM
-                LEFT JOIN [dbo].[CLASSEFROTA] cf ON v.CDCLASSEFROTA = cf.CDCLASSEFROTA
-                LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
-                LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
-                LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
-                LEFT JOIN [dbo].[CONVOCACAO] c ON c.IDVIAGEM = v.IDVIAGEM AND c.STATUS = 'CONFIRMADA'
-                LEFT JOIN [dbo].[CADASTROGERAL] cg ON c.CDCADASTRO_MOTORISTA = cg.CDCADASTRO
-                WHERE v.IDVIAGEM = @IDVIAGEM
+                LEFT JOIN [dbo].[SITUACAOVIAGEM] s ON v.[CDSITUACAOVIAGEM] = s.[CDSITUACAOVIAGEM]
+                LEFT JOIN [dbo].[TIPOVIAGEM] t ON v.[CDTIPOVIAGEM] = t.[CDTIPOVIAGEM]
+                LEFT JOIN [dbo].[CLASSEFROTA] cf ON v.[CDCLASSEFROTA] = cf.[CDCLASSEFROTA]
+                LEFT JOIN [dbo].[ROTEIRO] r ON v.[IDROTEIRO] = r.[IDROTEIRO]
+                LEFT JOIN [dbo].[CIDADE] co ON r.[CDCIDADEORIGEM] = co.[CDCIDADE]
+                LEFT JOIN [dbo].[CIDADE] cd ON r.[CDCIDADEDESTINO] = cd.[CDCIDADE]
+                LEFT JOIN [dbo].[CONVOCACAO] c ON c.[IDVIAGEM] = v.[IDVIAGEM] AND c.[STATUS] = 'CONFIRMADA'
+                LEFT JOIN [dbo].[CADASTROGERAL] cg ON c.[CDCADASTRO_MOTORISTA] = cg.[CDCADASTRO]
+                WHERE v.[IDVIAGEM] = @IDVIAGEM
               `);
 
             if (viagemAtualizada.recordset && viagemAtualizada.recordset[0]) {
@@ -1674,27 +1768,27 @@ const viagemController = {
           .input('IDCONVOCACAO_MOT', sql.Int, parseInt(id))
           .query(`
             SELECT 
-              upper(cg.RZSOCIAL) AS NOME_MOTORISTA,
-              cg.NRCELULAR,
-              v.IDVIAGEM,
-              v.DTPREVINICIO,
-              v.DTPREVFINAL,
-              v.CDCONTRATADOR,
-              co.NMCIDADE AS ORIGEM_CIDADE,
-              co.ESTADO AS ORIGEM_ESTADO,
-              cd.NMCIDADE AS DESTINO_CIDADE,
-              cd.ESTADO AS DESTINO_ESTADO,
-              r.DSROTEIRO,
-              upper(contratador.RZSOCIAL) AS CONTRATADOR_NOME,
-              contratador.NRCELULAR AS CONTRATADOR_CELULAR
+              upper(cg.[RZSOCIAL]) AS NOME_MOTORISTA,
+              cg.[NRCELULAR],
+              v.[IDVIAGEM],
+              v.[DTPREVINICIO],
+              v.[DTPREVFINAL],
+              v.[CDCONTRATADOR],
+              co.[NMCIDADE] AS ORIGEM_CIDADE,
+              co.[ESTADO] AS ORIGEM_ESTADO,
+              cd.[NMCIDADE] AS DESTINO_CIDADE,
+              cd.[ESTADO] AS DESTINO_ESTADO,
+              r.[DSROTEIRO],
+              upper(contratador.[RZSOCIAL]) AS CONTRATADOR_NOME,
+              contratador.[NRCELULAR] AS CONTRATADOR_CELULAR
             FROM [dbo].[CONVOCACAO] c
-            INNER JOIN [dbo].[CADASTROGERAL] cg ON c.CDCADASTRO_MOTORISTA = cg.CDCADASTRO
-            INNER JOIN [dbo].[VIAGEMMESTRE] v ON c.IDVIAGEM = v.IDVIAGEM
-            LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
-            LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
-            LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
-            LEFT JOIN [dbo].[CADASTROGERAL] contratador ON v.CDCONTRATADOR = contratador.CDCADASTRO
-            WHERE c.IDCONVOCACAO = @IDCONVOCACAO_MOT
+            INNER JOIN [dbo].[CADASTROGERAL] cg ON c.[CDCADASTRO_MOTORISTA] = cg.[CDCADASTRO]
+            INNER JOIN [dbo].[VIAGEMMESTRE] v ON c.[IDVIAGEM] = v.[IDVIAGEM]
+            LEFT JOIN [dbo].[ROTEIRO] r ON v.[IDROTEIRO] = r.[IDROTEIRO]
+            LEFT JOIN [dbo].[CIDADE] co ON r.[CDCIDADEORIGEM] = co.[CDCIDADE]
+            LEFT JOIN [dbo].[CIDADE] cd ON r.[CDCIDADEDESTINO] = cd.[CDCIDADE]
+            LEFT JOIN [dbo].[CADASTROGERAL] contratador ON v.[CDCONTRATADOR] = contratador.[CDCADASTRO]
+            WHERE c.[IDCONVOCACAO] = @IDCONVOCACAO_MOT
           `);
 
         // Contar quantas foram afetadas para mensagem
@@ -1705,9 +1799,9 @@ const viagemController = {
           .query(`
             SELECT COUNT(*) AS TOTAL
             FROM [dbo].[CONVOCACAO]
-            WHERE IDVIAGEM = @IDVIAGEM_COUNT
-              AND IDCONVOCACAO != @IDCONVOCACAO_COUNT
-              AND STATUS = 'ACEITA_DESCARTADA'
+            WHERE [IDVIAGEM] = @IDVIAGEM_COUNT
+              AND [IDCONVOCACAO] != @IDCONVOCACAO_COUNT
+              AND [STATUS] = 'ACEITA_DESCARTADA'
           `);
 
         let mensagem = `Convocação ${id} confirmada com sucesso!`;
@@ -1733,7 +1827,7 @@ const viagemController = {
               if (!dataHora) return 'Não informado';
 
               try {
-                // SQL Server retorna no formato: 2025-11-21T10:39:24.123Z ou 2025-11-21 10:39:24.123
+                // SQL Server retorna no formato: 2026-11-21T10:39:24.123Z ou 2026-11-21 10:39:24.123
                 let dataStr = String(dataHora).replace('Z', '').replace('T', ' ');
                 const match = dataStr.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):?(\d{2})?/);
 
@@ -1837,7 +1931,8 @@ const viagemController = {
           } : null
         });
       } catch (err) {
-        console.error(`[CONFIRMAR] Erro na transação para convocação ${id}:`, err);
+        const idConv = req.params && req.params.id;
+        console.error(`[CONFIRMAR] Erro na transação para convocação ${idConv}:`, err);
         if (transaction) {
           await transaction.rollback().catch(rollbackErr => {
             console.error(`[CONFIRMAR] Erro ao fazer rollback:`, rollbackErr);
@@ -1846,12 +1941,13 @@ const viagemController = {
         throw err;
       }
     } catch (err) {
+      const idConv = req.params && req.params.id;
       if (transaction) {
         await transaction.rollback().catch(() => {
           // Ignorar erro se já foi feito rollback
         });
       }
-      console.error(`[CONFIRMAR] Erro ao confirmar convocação ${id}:`, err);
+      console.error(`[CONFIRMAR] Erro ao confirmar convocação ${idConv}:`, err);
       console.error(`[CONFIRMAR] Stack trace:`, err.stack);
       res.status(500).json({
         error: 'Erro ao confirmar convocação.',
@@ -1877,54 +1973,54 @@ const viagemController = {
         .input('IDCONVOCACAO', sql.Int, parseInt(id))
         .query(`
           SELECT 
-            c.IDCONVOCACAO,
-            c.IDVIAGEM,
-            c.STATUS,
-            c.DHCONVOCACAO,
-            c.DHACESSO,
-            v.CDCLASSEFROTA,
-            v.DTPREVINICIO,
-            v.DTPREVFINAL,
-            v.FGRASTREADO,
-            v.OBSERV,
-            v.VLFRETE,
-            v.PESO,
-            v.CUBAGEM,
-            upper(cg.RZSOCIAL) AS NOME_MOTORISTA,
-            cg.NRCELULAR,
-            cf.DSCLASSEFROTA,
-            r.CDCIDADEORIGEM,
-            r.CDCIDADEDESTINO,
-            co.NMCIDADE AS ORIGEM_CIDADE,
-            co.ESTADO AS ORIGEM_ESTADO,
-            cd.NMCIDADE AS DESTINO_CIDADE,
-            cd.ESTADO AS DESTINO_ESTADO,
-            tv.DSTIPOVIAGEM,
-            v.CDCONTRATADOR,
-            upper(contratador.RZSOCIAL) AS CONTRATADOR_NOME,
-            contratador.NRCELULAR AS CONTRATADOR_CELULAR,
-            r.DSROTEIRO,
+            c.[IDCONVOCACAO],
+            c.[IDVIAGEM],
+            c.[STATUS],
+            c.[DHCONVOCACAO],
+            c.[DHACESSO],
+            v.[CDCLASSEFROTA],
+            v.[DTPREVINICIO],
+            v.[DTPREVFINAL],
+            v.[FGRASTREADO],
+            v.[OBSERV],
+            v.[VLFRETE],
+            v.[PESO],
+            v.[CUBAGEM],
+            upper(cg.[RZSOCIAL]) AS NOME_MOTORISTA,
+            cg.[NRCELULAR],
+            cf.[DSCLASSEFROTA],
+            r.[CDCIDADEORIGEM],
+            r.[CDCIDADEDESTINO],
+            co.[NMCIDADE] AS ORIGEM_CIDADE,
+            co.[ESTADO] AS ORIGEM_ESTADO,
+            cd.[NMCIDADE] AS DESTINO_CIDADE,
+            cd.[ESTADO] AS DESTINO_ESTADO,
+            tv.[DSTIPOVIAGEM],
+            v.[CDCONTRATADOR],
+            upper(contratador.[RZSOCIAL]) AS CONTRATADOR_NOME,
+            contratador.[NRCELULAR] AS CONTRATADOR_CELULAR,
+            r.[DSROTEIRO],
             CASE 
               WHEN EXISTS (
                 SELECT 1 
                 FROM [dbo].[CONVOCACAO] c2 
-                WHERE c2.IDVIAGEM = c.IDVIAGEM 
-                  AND c2.STATUS = 'CONFIRMADA'
-                  AND c2.IDCONVOCACAO != c.IDCONVOCACAO
+                WHERE c2.[IDVIAGEM] = c.[IDVIAGEM] 
+                  AND c2.[STATUS] = 'CONFIRMADA'
+                  AND c2.[IDCONVOCACAO] != c.[IDCONVOCACAO]
               ) THEN 1 
               ELSE 0 
             END AS VIAGEM_JA_CONFIRMADA
           FROM [dbo].[CONVOCACAO] c
-          INNER JOIN [dbo].[VIAGEMMESTRE] v ON c.IDVIAGEM = v.IDVIAGEM
-          INNER JOIN [dbo].[CADASTROGERAL] cg ON c.CDCADASTRO_MOTORISTA = cg.CDCADASTRO
-          LEFT JOIN [dbo].[CLASSEFROTA] cf ON v.CDCLASSEFROTA = cf.CDCLASSEFROTA
-          LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
-          LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
-          LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
-          LEFT JOIN [dbo].[TIPOVIAGEM] tv ON v.CDTIPOVIAGEM = tv.CDTIPOVIAGEM
-          LEFT JOIN [dbo].[CADASTROGERAL] contratador ON v.CDCONTRATADOR = contratador.CDCADASTRO 
-            AND contratador.FGACTIVE = 'A'
-          WHERE c.IDCONVOCACAO = @IDCONVOCACAO
+          INNER JOIN [dbo].[VIAGEMMESTRE] v ON c.[IDVIAGEM] = v.[IDVIAGEM]
+          INNER JOIN [dbo].[CADASTROGERAL] cg ON c.[CDCADASTRO_MOTORISTA] = cg.[CDCADASTRO]
+          LEFT JOIN [dbo].[CLASSEFROTA] cf ON v.[CDCLASSEFROTA] = cf.[CDCLASSEFROTA]
+          LEFT JOIN [dbo].[ROTEIRO] r ON v.[IDROTEIRO] = r.[IDROTEIRO]
+          LEFT JOIN [dbo].[CIDADE] co ON r.[CDCIDADEORIGEM] = co.[CDCIDADE]
+          LEFT JOIN [dbo].[CIDADE] cd ON r.[CDCIDADEDESTINO] = cd.[CDCIDADE]
+          LEFT JOIN [dbo].[TIPOVIAGEM] tv ON v.[CDTIPOVIAGEM] = tv.[CDTIPOVIAGEM]
+          LEFT JOIN [dbo].[CADASTROGERAL] contratador ON v.[CDCONTRATADOR] = contratador.[CDCADASTRO] 
+            AND contratador.[FGACTIVE] = 'A'
+          WHERE c.[IDCONVOCACAO] = @IDCONVOCACAO
         `);
 
       if (result.recordset.length === 0) {
@@ -1944,9 +2040,9 @@ const viagemController = {
             .request()
             .input('CDCONTRATADOR', sql.Decimal(15, 0), parseFloat(convocacao.CDCONTRATADOR))
             .query(`
-              SELECT upper(RZSOCIAL) as RZSOCIAL, NRCELULAR, FGACTIVE 
-              FROM [dbo].[CADASTROGERAL] 
-              WHERE CDCADASTRO = @CDCONTRATADOR AND FGACTIVE = 'A'
+              SELECT upper([RZSOCIAL]) AS [RZSOCIAL], [NRCELULAR], [FGACTIVE]
+              FROM [dbo].[CADASTROGERAL]
+              WHERE [CDCADASTRO] = @CDCONTRATADOR AND [FGACTIVE] = 'A'
             `);
 
           // Se não encontrou ativo, buscar qualquer um (para debug)
@@ -1955,9 +2051,9 @@ const viagemController = {
               .request()
               .input('CDCONTRATADOR', sql.Decimal(15, 0), parseFloat(convocacao.CDCONTRATADOR))
               .query(`
-                SELECT upper(RZSOCIAL) as RZSOCIAL, NRCELULAR, FGACTIVE 
-                FROM [dbo].[CADASTROGERAL] 
-                WHERE CDCADASTRO = @CDCONTRATADOR
+                SELECT upper([RZSOCIAL]) AS [RZSOCIAL], [NRCELULAR], [FGACTIVE]
+                FROM [dbo].[CADASTROGERAL]
+                WHERE [CDCADASTRO] = @CDCONTRATADOR
               `);
 
             if (contratadorResult.recordset.length > 0) {
@@ -2007,9 +2103,9 @@ const viagemController = {
       // Construir query dinamicamente para incluir geolocalização se fornecida
       let query = `
         UPDATE [dbo].[CONVOCACAO]
-        SET DHACESSO = CASE WHEN DHACESSO IS NULL THEN GETDATE() ELSE DHACESSO END,
-            DHMAINTENANCE = GETDATE(),
-            SGUSER = 'MOTORISTA'
+        SET [DHACESSO] = CASE WHEN [DHACESSO] IS NULL THEN CURRENT_TIMESTAMP ELSE [DHACESSO] END,
+            [DHMAINTENANCE] = CURRENT_TIMESTAMP,
+            [SGUSER] = 'MOTORISTA'
       `;
 
       const request = pool.request()
@@ -2017,12 +2113,12 @@ const viagemController = {
 
       // Adicionar campos de geolocalização se fornecidos
       if (latitude !== undefined && latitude !== null && longitude !== undefined && longitude !== null) {
-        query += `, LATITUDE = @LATITUDE, LONGITUDE = @LONGITUDE`;
+        query += `, [LATITUDE] = @LATITUDE, [LONGITUDE] = @LONGITUDE`;
         request.input('LATITUDE', sql.Float, parseFloat(latitude));
         request.input('LONGITUDE', sql.Float, parseFloat(longitude));
       }
 
-      query += ` WHERE IDCONVOCACAO = @IDCONVOCACAO`;
+      query += ` WHERE [IDCONVOCACAO] = @IDCONVOCACAO`;
 
       const result = await request.query(query);
 
@@ -2061,11 +2157,11 @@ const viagemController = {
 
       const query = `
         UPDATE [dbo].[CONVOCACAO]
-        SET LATITUDE = @LATITUDE,
-            LONGITUDE = @LONGITUDE,
-            DHMAINTENANCE = GETDATE(),
-            SGUSER = 'MOTORISTA'
-        WHERE IDCONVOCACAO = @IDCONVOCACAO
+        SET [LATITUDE] = @LATITUDE,
+            [LONGITUDE] = @LONGITUDE,
+            [DHMAINTENANCE] = GETDATE(),
+            [SGUSER] = 'MOTORISTA'
+        WHERE [IDCONVOCACAO] = @IDCONVOCACAO
       `;
 
       const result = await pool.request()
@@ -2107,6 +2203,8 @@ const viagemController = {
       const { id } = req.params;
       const { motivoReabertura } = req.body;
       const userLogin = req.headers['user-login'];
+      const sgUserReativar = getSgUser(req);
+      if (!sgUserReativar) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
 
       console.log(`[REATIVAR] Iniciando reativação da convocação ${id} pelo usuário ${userLogin}`);
 
@@ -2125,10 +2223,10 @@ const viagemController = {
         .request()
         .input('SGUSUARIO', sql.VarChar(50), userLogin)
         .query(`
-          SELECT SGUSUARIO
+          SELECT [SGUSUARIO]
           FROM [dbo].[USUARIO]
-          WHERE SGUSUARIO = @SGUSUARIO
-            AND (FGACTIVE = 'A' OR FGACTIVE = 'S')
+          WHERE [SGUSUARIO] = @SGUSUARIO
+            AND ([FGACTIVE] = 'A' OR [FGACTIVE] = 'S')
         `);
 
       if (usuarioResult.recordset.length === 0) {
@@ -2140,9 +2238,9 @@ const viagemController = {
         .request()
         .input('IDCONVOCACAO', sql.Int, parseInt(id))
         .query(`
-          SELECT IDCONVOCACAO, IDVIAGEM, STATUS
+          SELECT [IDCONVOCACAO], [IDVIAGEM], [STATUS]
           FROM [dbo].[CONVOCACAO]
-          WHERE IDCONVOCACAO = @IDCONVOCACAO
+          WHERE [IDCONVOCACAO] = @IDCONVOCACAO
         `);
 
       if (convocacaoResult.recordset.length === 0) {
@@ -2174,7 +2272,7 @@ const viagemController = {
       }
 
       // Iniciar transação
-      transaction = new sql.Transaction(pool);
+      transaction = await createTransaction(pool);
       await transaction.begin();
       console.log(`[REATIVAR] Transação iniciada para convocação ${id}`);
 
@@ -2184,16 +2282,16 @@ const viagemController = {
           .request()
           .input('IDCONVOCACAO_MOT', sql.Int, parseInt(id))
           .query(`
-            SELECT CDCADASTRO_MOTORISTA
+            SELECT [CDCADASTRO_MOTORISTA]
             FROM [dbo].[CONVOCACAO]
-            WHERE IDCONVOCACAO = @IDCONVOCACAO_MOT
+            WHERE [IDCONVOCACAO] = @IDCONVOCACAO_MOT
           `);
 
         const motorista = motoristaResult.recordset[0];
 
         // 2. Registrar histórico de reabertura (apenas para CONFIRMADA)
         if (convocacao.STATUS === 'CONFIRMADA' && motorista) {
-          const requestHist = new sql.Request(transaction);
+          const requestHist = transaction.request();
           await requestHist
             .input('IDCONVOCACAO_HIST', sql.Int, parseInt(id))
             .input('IDVIAGEM_HIST', sql.Decimal(15, 0), convocacao.IDVIAGEM)
@@ -2203,9 +2301,9 @@ const viagemController = {
             .input('SGUSUARIO_OPERADOR_HIST', sql.VarChar(50), userLogin)
             .query(`
               INSERT INTO [dbo].[HISTORICOREABERTURA] (
-                IDCONVOCACAO, IDVIAGEM, CDCADASTRO_MOTORISTA, STATUS_ANTERIOR,
-                CDMOTIVOREABERTURA, DHRABERTURA, SGUSUARIO_OPERADOR,
-                FGACTIVE, DHINCLUSAO, SGUSERINCLUSAO, SERVERORIG
+                [IDCONVOCACAO], [IDVIAGEM], [CDCADASTRO_MOTORISTA], [STATUS_ANTERIOR],
+                [CDMOTIVOREABERTURA], [DHRABERTURA], [SGUSUARIO_OPERADOR],
+                [FGACTIVE], [DHINCLUSAO], [SGUSERINCLUSAO], [SERVERORIG]
               )
               VALUES (
                 @IDCONVOCACAO_HIST, @IDVIAGEM_HIST, @CDCADASTRO_MOTORISTA_HIST, @STATUS_ANTERIOR_HIST,
@@ -2216,54 +2314,56 @@ const viagemController = {
         }
 
         // 3. Reativar a convocação CONFIRMADA (mudar status para ACEITA)
-        const request1 = new sql.Request(transaction);
+        const request1 = transaction.request();
         await request1
           .input('IDCONVOCACAO_REATIVAR', sql.Int, parseInt(id))
           .input('CDMOTIVOREABERTURA', sql.Int, parseInt(motivoReabertura))
           .input('SGUSUARIO_OPERADOR', sql.VarChar(50), userLogin)
+          .input('sgUser', sql.VarChar(50), sgUserReativar)
           .query(`
             UPDATE [dbo].[CONVOCACAO]
-            SET STATUS = 'ACEITA',
-                CDMOTIVOREABERTURA = @CDMOTIVOREABERTURA,
-                SGUSUARIO_OPERADOR = @SGUSUARIO_OPERADOR,
-                DHMAINTENANCE = GETDATE(),
-                SGUSER = 'SYSTEM'
-            WHERE IDCONVOCACAO = @IDCONVOCACAO_REATIVAR
+            SET [STATUS] = 'ACEITA',
+                [CDMOTIVOREABERTURA] = @CDMOTIVOREABERTURA,
+                [SGUSUARIO_OPERADOR] = @SGUSUARIO_OPERADOR,
+                [DHMAINTENANCE] = GETDATE(),
+                [SGUSER] = @sgUser
+            WHERE [IDCONVOCACAO] = @IDCONVOCACAO_REATIVAR
           `);
 
         // 4. Contar quantas convocações ACEITA_DESCARTADA serão reativadas
-        const countRequest = new sql.Request(transaction);
+        const countRequest = transaction.request();
         const countResult = await countRequest
           .input('IDVIAGEM_COUNT', sql.Decimal(15, 0), convocacao.IDVIAGEM)
           .input('IDCONVOCACAO_COUNT', sql.Int, parseInt(id))
           .query(`
             SELECT COUNT(*) AS TOTAL
             FROM [dbo].[CONVOCACAO]
-            WHERE IDVIAGEM = @IDVIAGEM_COUNT
-              AND IDCONVOCACAO != @IDCONVOCACAO_COUNT
-              AND STATUS = 'ACEITA_DESCARTADA'
+            WHERE [IDVIAGEM] = @IDVIAGEM_COUNT
+              AND [IDCONVOCACAO] != @IDCONVOCACAO_COUNT
+              AND [STATUS] = 'ACEITA_DESCARTADA'
           `);
 
         const totalReativadas = countResult.recordset[0]?.TOTAL || 0;
 
         // 5. Reativar automaticamente as outras convocações ACEITA_DESCARTADA da mesma viagem
         if (totalReativadas > 0) {
-          const request2 = new sql.Request(transaction);
+          const request2 = transaction.request();
           await request2
             .input('IDVIAGEM_REATIVAR', sql.Decimal(15, 0), convocacao.IDVIAGEM)
             .input('IDCONVOCACAO_EXCLUIR', sql.Int, parseInt(id))
             .input('CDMOTIVOREABERTURA_AUTO', sql.Int, parseInt(motivoReabertura))
             .input('SGUSUARIO_OPERADOR_AUTO', sql.VarChar(50), userLogin)
+            .input('sgUser', sql.VarChar(50), sgUserReativar)
             .query(`
               UPDATE [dbo].[CONVOCACAO]
-              SET STATUS = 'ACEITA',
-                  CDMOTIVOREABERTURA = @CDMOTIVOREABERTURA_AUTO,
-                  SGUSUARIO_OPERADOR = @SGUSUARIO_OPERADOR_AUTO,
-                  DHMAINTENANCE = GETDATE(),
-                  SGUSER = 'SYSTEM'
-              WHERE IDVIAGEM = @IDVIAGEM_REATIVAR
-                AND IDCONVOCACAO != @IDCONVOCACAO_EXCLUIR
-                AND STATUS = 'ACEITA_DESCARTADA'
+              SET [STATUS] = 'ACEITA',
+                  [CDMOTIVOREABERTURA] = @CDMOTIVOREABERTURA_AUTO,
+                  [SGUSUARIO_OPERADOR] = @SGUSUARIO_OPERADOR_AUTO,
+                  [DHMAINTENANCE] = GETDATE(),
+                  [SGUSER] = @sgUser
+              WHERE [IDVIAGEM] = @IDVIAGEM_REATIVAR
+                AND [IDCONVOCACAO] != @IDCONVOCACAO_EXCLUIR
+                AND [STATUS] = 'ACEITA_DESCARTADA'
             `);
         }
 
@@ -2310,32 +2410,75 @@ const viagemController = {
     try {
       const { id } = req.params;
       const pool = await poolPromise;
+      const reqParam = pool.request().input('IDCONVOCACAO', sql.Int, parseInt(id));
 
-      const result = await pool
-        .request()
-        .input('IDCONVOCACAO', sql.Int, parseInt(id))
-        .query(`
-          SELECT 
-            h.IDHISTORICO,
-            h.IDCONVOCACAO,
-            h.IDVIAGEM,
-            h.CDCADASTRO_MOTORISTA,
-            upper(cg.RZSOCIAL) AS NOME_MOTORISTA,
-            h.STATUS_ANTERIOR,
-            h.CDMOTIVOREABERTURA,
-            mr.DSMOTIVO AS MOTIVO_REABERTURA,
-            h.DHRABERTURA,
-            h.SGUSUARIO_OPERADOR,
-            h.OBSERVACAO
-          FROM [dbo].[HISTORICOREABERTURA] h
-          LEFT JOIN [dbo].[CADASTROGERAL] cg ON h.CDCADASTRO_MOTORISTA = cg.CDCADASTRO
-          LEFT JOIN [dbo].[MOTIVOREABERTURA] mr ON h.CDMOTIVOREABERTURA = mr.CDMOTIVO
-          WHERE h.IDCONVOCACAO = @IDCONVOCACAO
-            AND h.FGACTIVE = 'A'
-          ORDER BY h.DHRABERTURA DESC
-        `);
+      const queryUpper = `
+        SELECT 
+          [h].[IDHISTORICO],
+          [h].[IDCONVOCACAO],
+          [h].[IDVIAGEM],
+          [h].[CDCADASTRO_MOTORISTA],
+          upper([cg].[RZSOCIAL]) AS [NOME_MOTORISTA],
+          [h].[STATUS_ANTERIOR],
+          [h].[CDMOTIVOREABERTURA],
+          [mr].[DSMOTIVO] AS [MOTIVO_REABERTURA],
+          [h].[DHRABERTURA],
+          [h].[SGUSUARIO_OPERADOR],
+          [h].[OBSERVACAO]
+        FROM [dbo].[HISTORICOREABERTURA] [h]
+        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [h].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO]
+        LEFT JOIN [dbo].[MOTIVOREABERTURA] [mr] ON [h].[CDMOTIVOREABERTURA] = [mr].[CDMOTIVO]
+        WHERE [h].[IDCONVOCACAO] = @IDCONVOCACAO
+          AND [h].[FGACTIVE] = 'A'
+        ORDER BY [h].[DHRABERTURA] DESC
+      `;
+      const queryLower = `
+        SELECT 
+          [h].[idhistorico],
+          [h].[idconvocacao],
+          [h].[idviagem],
+          [h].[cdcadastro_motorista],
+          upper([cg].[rzsocial]) AS [NOME_MOTORISTA],
+          [h].[status_anterior],
+          [h].[cdmotivoreabertura],
+          [mr].[dsmotivo] AS [MOTIVO_REABERTURA],
+          [h].[dhrabertura],
+          [h].[sgusuario_operador],
+          [h].[observacao]
+        FROM [dbo].[HISTORICOREABERTURA] [h]
+        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [h].[cdcadastro_motorista] = [cg].[cdcadastro]
+        LEFT JOIN [dbo].[MOTIVOREABERTURA] [mr] ON [h].[cdmotivoreabertura] = [mr].[cdmotivo]
+        WHERE [h].[idconvocacao] = @IDCONVOCACAO
+          AND [h].[fgactive] = 'A'
+        ORDER BY [h].[dhrabertura] DESC
+      `;
 
-      res.json(result.recordset);
+      let result;
+      try {
+        result = await reqParam.query(queryUpper);
+      } catch (errUpper) {
+        if (errUpper.code === '42703' && /coluna.*não existe|column.*does not exist/i.test(String(errUpper.message))) {
+          result = await pool.request().input('IDCONVOCACAO', sql.Int, parseInt(id)).query(queryLower);
+        } else {
+          throw errUpper;
+        }
+      }
+
+      const toUpper = {
+        idhistorico: 'IDHISTORICO', idconvocacao: 'IDCONVOCACAO', idviagem: 'IDVIAGEM',
+        cdcadastro_motorista: 'CDCADASTRO_MOTORISTA', status_anterior: 'STATUS_ANTERIOR',
+        cdmotivoreabertura: 'CDMOTIVOREABERTURA', dhrabertura: 'DHRABERTURA',
+        sgusuario_operador: 'SGUSUARIO_OPERADOR', observacao: 'OBSERVACAO',
+        nome_motorista: 'NOME_MOTORISTA', motivo_reabertura: 'MOTIVO_REABERTURA'
+      };
+      const recordset = (result.recordset || []).map((row) => {
+        const r = { ...row };
+        Object.keys(toUpper).forEach((k) => {
+          if (r[k] !== undefined && r[toUpper[k]] === undefined) r[toUpper[k]] = r[k];
+        });
+        return r;
+      });
+      res.json(recordset);
     } catch (err) {
       console.error('Erro ao buscar histórico de reabertura:', err);
       res.status(500).json({ error: 'Erro ao buscar histórico de reabertura.' });
@@ -2388,7 +2531,7 @@ const viagemController = {
         request.input('LONGITUDE', sql.Float, parseFloat(longitude));
       }
 
-      query += ` WHERE IDCONVOCACAO = @IDCONVOCACAO AND STATUS = 'PENDENTE'`;
+      query += ` WHERE [IDCONVOCACAO] = @IDCONVOCACAO AND [STATUS] = 'PENDENTE'`;
 
       await request.query(query);
 
@@ -2638,7 +2781,7 @@ const viagemController = {
   // MÉTODOS PARA GERENCIAR VEÍCULO DA VIAGEM
   // ============================================================================
 
-  // Buscar equipamento por placa ou código
+  // Buscar equipamento por placa ou código (notação [coluna] para PostgreSQL preservar maiúsculas)
   buscarEquipamento: async (req, res) => {
     try {
       const { placa, codigo } = req.query;
@@ -2650,118 +2793,45 @@ const viagemController = {
       const pool = await poolPromise;
       let query = `
         SELECT 
-          e.IDEQUIPAMENTO,
-          e.REFEQUIPAMENTO,
-          e.DSEQUIPAMENTO,
-          e.CDGRUPOEQUIPAMENTO,
-          g.DSGRUPOEQUIPAMENTO AS GRUPO_NOME,
-          e.CDTIPOEQUIPAMENTO,
-          t.DSTIPOEQUIPAMENTO AS TIPO_NOME,
-          e.CDMARCAEQUIPAMENTO,
-          m.DSMARCAEQUIPAMENTO AS MARCA_NOME,
-          e.CDMODELOEQUIPAMENTO,
-          mod.DSMODELOEQUIPAMENTO AS MODELO_NOME,
-          e.CDCLASSEFROTA,
-          c.DSCLASSEFROTA AS CLASSE_NOME,
-          e.FGACTIVE,
-          e.FGTIPOATUACAO,
-          e.FGTIPOCARROCERIA,
-          e.NREIXOS,
-          e.CAPACIDCARGA,
-          e.ANOFABRICA,
-          e.ALTURA,
-          e.LARGURA,
-          e.COMPRIMENTO,
-          e.MTCUBICO,
-          e.FGRASTREADO
+          e.[IDEQUIPAMENTO],
+          e.[REFEQUIPAMENTO],
+          e.[DSEQUIPAMENTO],
+          NULL AS [CDGRUPOEQUIPAMENTO],
+          NULL AS [GRUPO_NOME],
+          e.[CDTIPOEQUIPAMENTO],
+          t.[DSTIPOEQUIPAMENTO] AS [TIPO_NOME],
+          e.[CDMARCAEQUIPAMENTO],
+          m.[DSMARCAEQUIPAMENTO] AS [MARCA_NOME],
+          e.[CDMODELOEQUIPAMENTO],
+          mod.[DSMODELOEQUIPAMENTO] AS [MODELO_NOME],
+          e.[CDCLASSEFROTA],
+          c.[DSCLASSEFROTA] AS [CLASSE_NOME],
+          e.[FGACTIVE],
+          e.[FGTIPOATUACAO],
+          e.[FGTIPOCARROCERIA],
+          e.[NREIXOS],
+          e.[CAPACIDCARGA],
+          e.[ANOFABRICA],
+          e.[ALTURA],
+          e.[LARGURA],
+          e.[COMPRIMENTO],
+          e.[MTCUBICO],
+          e.[FGRASTREADO]
         FROM [dbo].[EQUIPAMENTO] e
-        LEFT JOIN [dbo].[GRUPOEQUIPAMENTO] g ON e.CDGRUPOEQUIPAMENTO = g.CDGRUPOEQUIPAMENTO
-        LEFT JOIN [dbo].[TIPOEQUIPAMENTO] t ON e.CDTIPOEQUIPAMENTO = t.CDTIPOEQUIPAMENTO
-        LEFT JOIN [dbo].[MARCAEQUIPAMENTO] m ON e.CDMARCAEQUIPAMENTO = m.CDMARCAEQUIPAMENTO
-        LEFT JOIN [dbo].[MODELOEQUIPAMENTO] mod ON e.CDMODELOEQUIPAMENTO = mod.CDMODELOEQUIPAMENTO
-        LEFT JOIN [dbo].[CLASSEFROTA] c ON e.CDCLASSEFROTA = c.CDCLASSEFROTA
+        LEFT JOIN [dbo].[TIPOEQUIPAMENTO] t ON e.[CDTIPOEQUIPAMENTO] = t.[CDTIPOEQUIPAMENTO]
+        LEFT JOIN [dbo].[MARCAEQUIPAMENTO] m ON e.[CDMARCAEQUIPAMENTO] = m.[CDMARCAEQUIPAMENTO]
+        LEFT JOIN [dbo].[MODELOEQUIPAMENTO] mod ON e.[CDMODELOEQUIPAMENTO] = mod.[CDMODELOEQUIPAMENTO]
+        LEFT JOIN [dbo].[CLASSEFROTA] c ON e.[CDCLASSEFROTA] = c.[CDCLASSEFROTA]
         WHERE 1=1
       `;
 
       const request = pool.request();
       if (placa) {
-        query += ` AND UPPER(e.REFEQUIPAMENTO) = UPPER(@PLACA)`;
+        query += ` AND UPPER(e.[REFEQUIPAMENTO]) = UPPER(@PLACA)`;
         request.input('PLACA', sql.VarChar(20), placa.toUpperCase().trim());
       }
       if (codigo) {
-        query += ` AND e.IDEQUIPAMENTO = @CODIGO`;
-        request.input('CODIGO', sql.Decimal(15, 0), parseFloat(codigo));
-      }
-
-      const result = await request.query(query);
-
-      if (result.recordset.length === 0) {
-        return res.status(404).json({ error: 'Equipamento não encontrado.' });
-      }
-
-      res.json(result.recordset[0]);
-    } catch (err) {
-      console.error('Erro ao buscar equipamento:', err);
-      res.status(500).json({ error: 'Erro ao buscar equipamento.' });
-    }
-  },
-
-  // ============================================================================
-  // MÉTODOS PARA GERENCIAR VEÍCULO DA VIAGEM
-  // ============================================================================
-
-  // Buscar equipamento por placa ou código
-  buscarEquipamento: async (req, res) => {
-    try {
-      const { placa, codigo } = req.query;
-
-      if (!placa && !codigo) {
-        return res.status(400).json({ error: 'Informe a placa ou o código do equipamento.' });
-      }
-
-      const pool = await poolPromise;
-      let query = `
-        SELECT 
-          e.IDEQUIPAMENTO,
-          e.REFEQUIPAMENTO,
-          e.DSEQUIPAMENTO,
-          e.CDGRUPOEQUIPAMENTO,
-          g.DSGRUPOEQUIPAMENTO AS GRUPO_NOME,
-          e.CDTIPOEQUIPAMENTO,
-          t.DSTIPOEQUIPAMENTO AS TIPO_NOME,
-          e.CDMARCAEQUIPAMENTO,
-          m.DSMARCAEQUIPAMENTO AS MARCA_NOME,
-          e.CDMODELOEQUIPAMENTO,
-          mod.DSMODELOEQUIPAMENTO AS MODELO_NOME,
-          e.CDCLASSEFROTA,
-          c.DSCLASSEFROTA AS CLASSE_NOME,
-          e.FGACTIVE,
-          e.FGTIPOATUACAO,
-          e.FGTIPOCARROCERIA,
-          e.NREIXOS,
-          e.CAPACIDCARGA,
-          e.ANOFABRICA,
-          e.ALTURA,
-          e.LARGURA,
-          e.COMPRIMENTO,
-          e.MTCUBICO,
-          e.FGRASTREADO
-        FROM [dbo].[EQUIPAMENTO] e
-        LEFT JOIN [dbo].[GRUPOEQUIPAMENTO] g ON e.CDGRUPOEQUIPAMENTO = g.CDGRUPOEQUIPAMENTO
-        LEFT JOIN [dbo].[TIPOEQUIPAMENTO] t ON e.CDTIPOEQUIPAMENTO = t.CDTIPOEQUIPAMENTO
-        LEFT JOIN [dbo].[MARCAEQUIPAMENTO] m ON e.CDMARCAEQUIPAMENTO = m.CDMARCAEQUIPAMENTO
-        LEFT JOIN [dbo].[MODELOEQUIPAMENTO] mod ON e.CDMODELOEQUIPAMENTO = mod.CDMODELOEQUIPAMENTO
-        LEFT JOIN [dbo].[CLASSEFROTA] c ON e.CDCLASSEFROTA = c.CDCLASSEFROTA
-        WHERE 1=1
-      `;
-
-      const request = pool.request();
-      if (placa) {
-        query += ` AND UPPER(e.REFEQUIPAMENTO) = UPPER(@PLACA)`;
-        request.input('PLACA', sql.VarChar(20), placa.toUpperCase().trim());
-      }
-      if (codigo) {
-        query += ` AND e.IDEQUIPAMENTO = @CODIGO`;
+        query += ` AND e.[IDEQUIPAMENTO] = @CODIGO`;
         request.input('CODIGO', sql.Decimal(15, 0), parseFloat(codigo));
       }
 
@@ -2788,41 +2858,40 @@ const viagemController = {
         .input('IDVIAGEM', sql.Decimal(15, 0), parseFloat(id))
         .query(`
           SELECT 
-            vv.IDVIAGEM,
-            vv.IDEQUIPAMENTO,
-            vv.REFEQUIPAMENTO,
-            vv.TPEQUIPAMENTO,
-            e.DSEQUIPAMENTO,
-            e.FGACTIVE,
-            e.CDGRUPOEQUIPAMENTO,
-            g.DSGRUPOEQUIPAMENTO AS GRUPO_NOME,
-            e.CDTIPOEQUIPAMENTO,
-            t.DSTIPOEQUIPAMENTO AS TIPO_NOME,
-            e.CDMARCAEQUIPAMENTO,
-            m.DSMARCAEQUIPAMENTO AS MARCA_NOME,
-            e.CDMODELOEQUIPAMENTO,
-            mod.DSMODELOEQUIPAMENTO AS MODELO_NOME,
-            e.CDCLASSEFROTA,
-            c.DSCLASSEFROTA AS CLASSE_NOME,
-            e.FGTIPOATUACAO,
-            e.FGTIPOCARROCERIA,
-            e.NREIXOS,
-            e.CAPACIDCARGA,
-            e.ANOFABRICA,
-            e.ALTURA,
-            e.LARGURA,
-            e.COMPRIMENTO,
-            e.MTCUBICO,
-            e.FGRASTREADO
-          FROM [dbo].[VIAGEMVEICULO] vv
-          INNER JOIN [dbo].[EQUIPAMENTO] e ON vv.IDEQUIPAMENTO = e.IDEQUIPAMENTO
-          LEFT JOIN [dbo].[GRUPOEQUIPAMENTO] g ON e.CDGRUPOEQUIPAMENTO = g.CDGRUPOEQUIPAMENTO
-          LEFT JOIN [dbo].[TIPOEQUIPAMENTO] t ON e.CDTIPOEQUIPAMENTO = t.CDTIPOEQUIPAMENTO
-          LEFT JOIN [dbo].[MARCAEQUIPAMENTO] m ON e.CDMARCAEQUIPAMENTO = m.CDMARCAEQUIPAMENTO
-          LEFT JOIN [dbo].[MODELOEQUIPAMENTO] mod ON e.CDMODELOEQUIPAMENTO = mod.CDMODELOEQUIPAMENTO
-          LEFT JOIN [dbo].[CLASSEFROTA] c ON e.CDCLASSEFROTA = c.CDCLASSEFROTA
-          WHERE vv.IDVIAGEM = @IDVIAGEM
-          ORDER BY vv.IDEQUIPAMENTO
+            [vv].[IDVIAGEM],
+            [vv].[IDEQUIPAMENTO],
+            [vv].[REFEQUIPAMENTO],
+            [vv].[TPEQUIPAMENTO],
+            [e].[DSEQUIPAMENTO],
+            [e].[FGACTIVE],
+            NULL AS [CDGRUPOEQUIPAMENTO],
+            NULL AS [GRUPO_NOME],
+            [e].[CDTIPOEQUIPAMENTO],
+            [t].[DSTIPOEQUIPAMENTO] AS [TIPO_NOME],
+            [e].[CDMARCAEQUIPAMENTO],
+            [m].[DSMARCAEQUIPAMENTO] AS [MARCA_NOME],
+            [e].[CDMODELOEQUIPAMENTO],
+            [mod].[DSMODELOEQUIPAMENTO] AS [MODELO_NOME],
+            [e].[CDCLASSEFROTA],
+            [c].[DSCLASSEFROTA] AS [CLASSE_NOME],
+            [e].[FGTIPOATUACAO],
+            [e].[FGTIPOCARROCERIA],
+            [e].[NREIXOS],
+            [e].[CAPACIDCARGA],
+            [e].[ANOFABRICA],
+            [e].[ALTURA],
+            [e].[LARGURA],
+            [e].[COMPRIMENTO],
+            [e].[MTCUBICO],
+            [e].[FGRASTREADO]
+          FROM [dbo].[VIAGEMVEICULO] [vv]
+          INNER JOIN [dbo].[EQUIPAMENTO] [e] ON [vv].[IDEQUIPAMENTO] = [e].[IDEQUIPAMENTO]
+          LEFT JOIN [dbo].[TIPOEQUIPAMENTO] [t] ON [e].[CDTIPOEQUIPAMENTO] = [t].[CDTIPOEQUIPAMENTO]
+          LEFT JOIN [dbo].[MARCAEQUIPAMENTO] [m] ON [e].[CDMARCAEQUIPAMENTO] = [m].[CDMARCAEQUIPAMENTO]
+          LEFT JOIN [dbo].[MODELOEQUIPAMENTO] [mod] ON [e].[CDMODELOEQUIPAMENTO] = [mod].[CDMODELOEQUIPAMENTO]
+          LEFT JOIN [dbo].[CLASSEFROTA] [c] ON [e].[CDCLASSEFROTA] = [c].[CDCLASSEFROTA]
+          WHERE [vv].[IDVIAGEM] = @IDVIAGEM
+          ORDER BY [vv].[IDEQUIPAMENTO]
         `);
 
       res.json(result.recordset);
@@ -2843,46 +2912,49 @@ const viagemController = {
       }
 
       const pool = await poolPromise;
-      const transaction = new sql.Transaction(pool);
-
+      const transaction = await createTransaction(pool);
       await transaction.begin();
 
+      const sgUser = getSgUser(req);
+      if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
       try {
         // Verificar se já existe esta combinação específica (IDVIAGEM + IDEQUIPAMENTO)
-        const checkRequest = new sql.Request(transaction);
+        const checkRequest = transaction.request();
         const checkResult = await checkRequest
           .input('IDVIAGEM', sql.Decimal(15, 0), parseFloat(id))
           .input('IDEQUIPAMENTO', sql.Decimal(15, 0), parseFloat(idequipamento))
-          .query('SELECT COUNT(*) AS COUNT FROM [dbo].[VIAGEMVEICULO] WHERE IDVIAGEM = @IDVIAGEM AND IDEQUIPAMENTO = @IDEQUIPAMENTO');
+          .query('SELECT COUNT(*) AS [COUNT] FROM [dbo].[VIAGEMVEICULO] WHERE [IDVIAGEM] = @IDVIAGEM AND [IDEQUIPAMENTO] = @IDEQUIPAMENTO');
 
-        if (checkResult.recordset[0].COUNT > 0) {
+        if (getFirstNumericValue(checkResult.recordset, 0) > 0) {
           // Atualizar combinação específica
-          const updateRequest = new sql.Request(transaction);
+          const updateRequest = transaction.request();
           await updateRequest
             .input('IDVIAGEM', sql.Decimal(15, 0), parseFloat(id))
             .input('IDEQUIPAMENTO', sql.Decimal(15, 0), parseFloat(idequipamento))
             .input('REFEQUIPAMENTO', sql.VarChar(20), refequipamento.toUpperCase().trim())
             .input('TPEQUIPAMENTO', sql.Char(2), tpequipamento.toUpperCase().trim())
+            .input('sgUser', sql.VarChar(50), sgUser)
             .query(`
               UPDATE [dbo].[VIAGEMVEICULO]
-              SET REFEQUIPAMENTO = @REFEQUIPAMENTO,
-                  TPEQUIPAMENTO = @TPEQUIPAMENTO,
-                  DHMAINTENANCE = GETDATE(),
-                  SGUSER = 'SYSTEM',
-                  SERVERORIG = 'AppDVcargas'
-              WHERE IDVIAGEM = @IDVIAGEM AND IDEQUIPAMENTO = @IDEQUIPAMENTO
+              SET [REFEQUIPAMENTO] = @REFEQUIPAMENTO,
+                  [TPEQUIPAMENTO] = @TPEQUIPAMENTO,
+                  [DHMAINTENANCE] = GETDATE(),
+                  [SGUSER] = @sgUser,
+                  [SERVERORIG] = 'AppDVcargas'
+              WHERE [IDVIAGEM] = @IDVIAGEM AND [IDEQUIPAMENTO] = @IDEQUIPAMENTO
             `);
         } else {
           // Inserir nova combinação
-          const insertRequest = new sql.Request(transaction);
+          const insertRequest = transaction.request();
           await insertRequest
             .input('IDVIAGEM', sql.Decimal(15, 0), parseFloat(id))
             .input('IDEQUIPAMENTO', sql.Decimal(15, 0), parseFloat(idequipamento))
             .input('REFEQUIPAMENTO', sql.VarChar(20), refequipamento.toUpperCase().trim())
             .input('TPEQUIPAMENTO', sql.Char(2), tpequipamento.toUpperCase().trim())
+            .input('sgUser', sql.VarChar(50), sgUser)
             .query(`
-              INSERT INTO [dbo].[VIAGEMVEICULO] (IDVIAGEM, IDEQUIPAMENTO, REFEQUIPAMENTO, TPEQUIPAMENTO, DHMAINTENANCE, SGUSER, SERVERORIG)
-              VALUES (@IDVIAGEM, @IDEQUIPAMENTO, @REFEQUIPAMENTO, @TPEQUIPAMENTO, GETDATE(), 'SYSTEM', 'AppDVcargas')
+              INSERT INTO [dbo].[VIAGEMVEICULO] ([IDVIAGEM], [IDEQUIPAMENTO], [REFEQUIPAMENTO], [TPEQUIPAMENTO], [DHMAINTENANCE], [SGUSER], [SERVERORIG])
+              VALUES (@IDVIAGEM, @IDEQUIPAMENTO, @REFEQUIPAMENTO, @TPEQUIPAMENTO, GETDATE(), @sgUser, 'AppDVcargas')
             `);
         }
 
@@ -2914,46 +2986,46 @@ const viagemController = {
       const pool = await poolPromise;
       let query = `
         SELECT 
-          cg.CDCADASTRO AS CDCADASTROGERAL,
-          cg.CGCCPF,
-          upper(cg.RZSOCIAL) as RZSOCIAL,
-          cg.NMFANTASIA,
-          cg.FGFISICAJURIDICA,
-          cg.FGTIPOCADASTRO,
-          cg.FGRASTREADO,
-          cg.FGACTIVE,
-          cg.CDTRANSPORTADOR,
-          upper(t.RZSOCIAL) AS TRANSPORTADOR_NOME,
-          cg.CEP,
-          cg.CDCIDADE,
-          c.ESTADO AS CIDADE_ESTADO,
-          c.NMCIDADE AS CIDADE_NOME,
-          cg.ENDERECO,
-          cg.NRENDERECO,
-          cg.COMPLEND,
-          cg.BAIRRO,
-          cg.NRCELULAR,
-          cg.ENDEMAIL,
-          cg.LATITUDE,
-          cg.LONGITUDE
+          cg.[CDCADASTRO] AS [CDCADASTROGERAL],
+          cg.[CGCCPF] AS [CGCCPF],
+          upper(cg.[RZSOCIAL]) AS [RZSOCIAL],
+          cg.[NMFANTASIA] AS [NMFANTASIA],
+          cg.[FGFISICAJURIDICA] AS [FGFISICAJURIDICA],
+          cg.[FGTIPOCADASTRO] AS [FGTIPOCADASTRO],
+          cg.[FGRASTREADO] AS [FGRASTREADO],
+          cg.[FGACTIVE] AS [FGACTIVE],
+          cg.[CDTRANSPORTADOR] AS [CDTRANSPORTADOR],
+          upper(t.[RZSOCIAL]) AS [TRANSPORTADOR_NOME],
+          cg.[CEP] AS [CEP],
+          c.[ESTADO] AS [CIDADE_ESTADO],
+          c.[NMCIDADE] AS [CIDADE_NOME],
+          cg.[CDCIDADE] AS [CDCIDADE],
+          cg.[ENDERECO] AS [ENDERECO],
+          cg.[NRENDERECO] AS [NRENDERECO],
+          cg.[COMPLEND] AS [COMPLEND],
+          cg.[BAIRRO] AS [BAIRRO],
+          cg.[NRCELULAR] AS [NRCELULAR],
+          cg.[ENDEMAIL] AS [ENDEMAIL],
+          cg.[LATITUDE] AS [LATITUDE],
+          cg.[LONGITUDE] AS [LONGITUDE]
         FROM [dbo].[CADASTROGERAL] cg
-        LEFT JOIN [dbo].[CIDADE] c ON cg.CDCIDADE = c.CDCIDADE
-        LEFT JOIN [dbo].[CADASTROGERAL] t ON cg.CDTRANSPORTADOR = t.CDCADASTRO
+        LEFT JOIN [dbo].[CIDADE] c ON cg.[CDCIDADE] = c.[CDCIDADE]
+        LEFT JOIN [dbo].[CADASTROGERAL] t ON cg.[CDTRANSPORTADOR] = t.[CDCADASTRO]
         WHERE 1=1
       `;
 
       const request = pool.request();
       if (cpf) {
         const cpfLimpo = cpf.replace(/[^\d]+/g, '');
-        query += ` AND cg.CGCCPF = @CPF`;
+        query += ` AND cg.[CGCCPF] = @CPF`;
         request.input('CPF', sql.VarChar(14), cpfLimpo);
       }
       if (nome) {
-        query += ` AND (cg.RZSOCIAL LIKE @NOME OR cg.NMFANTASIA LIKE @NOME)`;
+        query += ` AND (cg.[RZSOCIAL] LIKE @NOME OR cg.[NMFANTASIA] LIKE @NOME)`;
         request.input('NOME', sql.VarChar(100), `%${nome}%`);
       }
       if (codigo) {
-        query += ` AND cg.CDCADASTRO = @CODIGO`;
+        query += ` AND cg.[CDCADASTRO] = @CODIGO`;
         request.input('CODIGO', sql.Decimal(15, 0), parseFloat(codigo));
       }
 
@@ -2980,36 +3052,34 @@ const viagemController = {
         .input('IDVIAGEM', sql.Decimal(15, 0), parseFloat(id))
         .query(`
           SELECT 
-            vm.IDVIAGEM,
-            vm.CDMOTORISTA,
-            cg.CDCADASTRO AS CDCADASTROGERAL,
-            cg.CGCCPF,
-            cg.RZSOCIAL,
-            cg.NMFANTASIA,
-            cg.FGFISICAJURIDICA,
-            cg.FGTIPOCADASTRO,
-            cg.FGRASTREADO,
-            cg.FGACTIVE,
-            cg.CDTRANSPORTADOR,
-            upper(t.RZSOCIAL) AS TRANSPORTADOR_NOME,
-            cg.CEP,
-            cg.CDCIDADE,
-            c.ESTADO AS CIDADE_ESTADO,
-            c.NMCIDADE AS CIDADE_NOME,
-            cg.ENDERECO,
-            cg.NRENDERECO,
-            cg.COMPLEND,
-            cg.BAIRRO,
-            cg.NRCELULAR,
-            cg.ENDEMAIL,
-            cg.LATITUDE,
-            cg.LONGITUDE
-          FROM [dbo].[VIAGEMMOTORISTA] vm
-          INNER JOIN [dbo].[CADASTROGERAL] cg ON vm.CDMOTORISTA = cg.CDCADASTRO
-          LEFT JOIN [dbo].[CIDADE] c ON cg.CDCIDADE = c.CDCIDADE
-          LEFT JOIN [dbo].[CADASTROGERAL] t ON cg.CDTRANSPORTADOR = t.CDCADASTRO
-          WHERE vm.IDVIAGEM = @IDVIAGEM
-          ORDER BY vm.CDMOTORISTA
+            [vm].[IDVIAGEM],
+            [vm].[CDMOTORISTA],
+            [cg].[CDCADASTRO] AS CDCADASTROGERAL,
+            [cg].[CGCCPF],
+            [cg].[RZSOCIAL],
+            [cg].[NMFANTASIA],
+            [cg].[FGFISICAJURIDICA],
+            [cg].[FGTIPOCADASTRO],
+            [cg].[FGRASTREADO],
+            [cg].[FGACTIVE],
+            [cg].[CDTRANSPORTADOR],
+            upper([t].[RZSOCIAL]) AS TRANSPORTADOR_NOME,
+            [cg].[CEP],
+            NULL AS CIDADE_ESTADO,
+            NULL AS CIDADE_NOME,
+            [cg].[ENDERECO],
+            [cg].[NRENDERECO],
+            [cg].[COMPLEND],
+            [cg].[BAIRRO],
+            [cg].[NRCELULAR],
+            [cg].[ENDEMAIL],
+            [cg].[LATITUDE],
+            [cg].[LONGITUDE]
+          FROM [dbo].[VIAGEMMOTORISTA] [vm]
+          INNER JOIN [dbo].[CADASTROGERAL] [cg] ON [vm].[CDMOTORISTA] = [cg].[CDCADASTRO]
+          LEFT JOIN [dbo].[CADASTROGERAL] [t] ON [cg].[CDTRANSPORTADOR] = [t].[CDCADASTRO]
+          WHERE [vm].[IDVIAGEM] = @IDVIAGEM
+          ORDER BY [vm].[CDMOTORISTA]
         `);
 
       // Retornar lista (pode estar vazia - isso é normal)
@@ -3043,42 +3113,26 @@ const viagemController = {
       }
 
       const pool = await poolPromise;
-      const transaction = new sql.Transaction(pool);
-
+      const transaction = await createTransaction(pool);
       await transaction.begin();
 
+      const sgUser = getSgUser(req);
+      if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
       try {
-        // Verificar se já existe esta combinação específica (IDVIAGEM + CDMOTORISTA)
-        const checkRequest = new sql.Request(transaction);
-        const checkResult = await checkRequest
+        // Upsert: inserir ou atualizar (evita erro de chave duplicada e condição de corrida)
+        const upsertRequest = transaction.request();
+        await upsertRequest
           .input('IDVIAGEM', sql.Decimal(15, 0), idNum)
           .input('CDMOTORISTA', sql.Decimal(15, 0), cdmotoristaNum)
-          .query('SELECT COUNT(*) AS COUNT FROM [dbo].[VIAGEMMOTORISTA] WHERE IDVIAGEM = @IDVIAGEM AND CDMOTORISTA = @CDMOTORISTA');
-
-        if (checkResult.recordset[0].COUNT > 0) {
-          // Combinação já existe - apenas atualizar timestamp
-          const updateRequest = new sql.Request(transaction);
-          await updateRequest
-            .input('IDVIAGEM', sql.Decimal(15, 0), idNum)
-            .input('CDMOTORISTA', sql.Decimal(15, 0), cdmotoristaNum)
-            .query(`
-              UPDATE [dbo].[VIAGEMMOTORISTA]
-              SET DHMAINTENANCE = GETDATE(),
-                  SGUSER = 'SYSTEM',
-                  SERVERORIG = 'AppDVcargas'
-              WHERE IDVIAGEM = @IDVIAGEM AND CDMOTORISTA = @CDMOTORISTA
-            `);
-        } else {
-          // Inserir nova combinação
-          const insertRequest = new sql.Request(transaction);
-          await insertRequest
-            .input('IDVIAGEM', sql.Decimal(15, 0), idNum)
-            .input('CDMOTORISTA', sql.Decimal(15, 0), cdmotoristaNum)
-            .query(`
-              INSERT INTO [dbo].[VIAGEMMOTORISTA] (IDVIAGEM, CDMOTORISTA, DHMAINTENANCE, SGUSER, SERVERORIG)
-              VALUES (@IDVIAGEM, @CDMOTORISTA, GETDATE(), 'SYSTEM', 'AppDVcargas')
-            `);
-        }
+          .input('sgUser', sql.VarChar(50), sgUser)
+          .query(`
+            INSERT INTO [dbo].[VIAGEMMOTORISTA] ([IDVIAGEM], [CDMOTORISTA], [DHMAINTENANCE], [SGUSER], [SERVERORIG])
+            VALUES (@IDVIAGEM, @CDMOTORISTA, GETDATE(), @sgUser, 'AppDVcargas')
+            ON CONFLICT ([IDVIAGEM], [CDMOTORISTA]) DO UPDATE SET
+              [DHMAINTENANCE] = GETDATE(),
+              [SGUSER] = @sgUser,
+              [SERVERORIG] = 'AppDVcargas'
+          `);
 
         await transaction.commit();
         res.json({ success: true, message: 'Motorista salvo com sucesso!' });
@@ -3120,18 +3174,18 @@ const viagemController = {
       }
 
       const pool = await poolPromise;
-      const transaction = new sql.Transaction(pool);
+      const transaction = await createTransaction(pool);
 
       await transaction.begin();
 
       try {
-        const deleteRequest = new sql.Request(transaction);
+        const deleteRequest = transaction.request();
         const result = await deleteRequest
           .input('IDVIAGEM', sql.Decimal(15, 0), idNum)
           .input('IDEQUIPAMENTO', sql.Decimal(15, 0), idequipamentoNum)
           .query(`
             DELETE FROM [dbo].[VIAGEMVEICULO]
-            WHERE IDVIAGEM = @IDVIAGEM AND IDEQUIPAMENTO = @IDEQUIPAMENTO
+            WHERE [IDVIAGEM] = @IDVIAGEM AND [IDEQUIPAMENTO] = @IDEQUIPAMENTO
           `);
 
         if (result.rowsAffected[0] === 0) {
@@ -3172,18 +3226,18 @@ const viagemController = {
       }
 
       const pool = await poolPromise;
-      const transaction = new sql.Transaction(pool);
+      const transaction = await createTransaction(pool);
 
       await transaction.begin();
 
       try {
-        const deleteRequest = new sql.Request(transaction);
+        const deleteRequest = transaction.request();
         const result = await deleteRequest
           .input('IDVIAGEM', sql.Decimal(15, 0), idNum)
           .input('CDMOTORISTA', sql.Decimal(15, 0), cdmotoristaNum)
           .query(`
             DELETE FROM [dbo].[VIAGEMMOTORISTA]
-            WHERE IDVIAGEM = @IDVIAGEM AND CDMOTORISTA = @CDMOTORISTA
+            WHERE [IDVIAGEM] = @IDVIAGEM AND [CDMOTORISTA] = @CDMOTORISTA
           `);
 
         if (result.rowsAffected[0] === 0) {
@@ -3267,6 +3321,9 @@ const viagemController = {
         }
       }
 
+      const sgUserLog = getSgUser(req);
+      if (!sgUserLog) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+
       const pool = await poolPromise;
       const request = pool.request()
         .input('IDCONVOCACAO', sql.Int, parseInt(IDCONVOCACAO))
@@ -3275,13 +3332,14 @@ const viagemController = {
         .input('MENSAGEM', sql.NVarChar(sql.MAX), mensagem || null)
         .input('DETALHES', sql.NVarChar(sql.MAX), detalhesJson)
         .input('STATUS_HTTP', sql.Int, status_http || null)
-        .input('TEMPO_RESPOSTA', sql.Int, tempo_resposta || null);
+        .input('TEMPO_RESPOSTA', sql.Int, tempo_resposta || null)
+        .input('sgUser', sql.VarChar(50), sgUserLog);
 
       await request.query(`
         INSERT INTO [dbo].[LOGSWEBHOOKMETA] 
           (IDCONVOCACAO, TIPO, TITULO, MENSAGEM, DETALHES, STATUS_HTTP, TEMPO_RESPOSTA, DHLOG, DHMAINTENANCE, SGUSER, SERVERORIG)
         VALUES 
-          (@IDCONVOCACAO, @TIPO, @TITULO, @MENSAGEM, @DETALHES, @STATUS_HTTP, @TEMPO_RESPOSTA, GETDATE(), GETDATE(), 'SYSTEM', 'AppDVcargas')
+          (@IDCONVOCACAO, @TIPO, @TITULO, @MENSAGEM, @DETALHES, @STATUS_HTTP, @TEMPO_RESPOSTA, GETDATE(), GETDATE(), @sgUser, 'AppDVcargas')
       `);
 
       res.json({ success: true, message: 'Log salvo com sucesso!' });
@@ -3298,39 +3356,39 @@ const viagemController = {
 
       const pool = await poolPromise;
       let query = `
-        SELECT TOP (@LIMITE)
-          l.IDLOG,
-          l.IDCONVOCACAO,
-          l.TIPO,
-          l.TITULO,
-          l.MENSAGEM,
-          l.DETALHES,
-          l.STATUS_HTTP,
-          l.TEMPO_RESPOSTA,
-          l.DHLOG
-        FROM [dbo].[LOGSWEBHOOKMETA] l
+        SELECT 
+          [l].[IDLOG],
+          [l].[IDCONVOCACAO],
+          [l].[TIPO],
+          [l].[TITULO],
+          [l].[MENSAGEM],
+          [l].[DETALHES],
+          [l].[STATUS_HTTP],
+          [l].[TEMPO_RESPOSTA],
+          [l].[DHLOG]
+        FROM [dbo].[LOGSWEBHOOKMETA] [l]
         WHERE 1=1
       `;
 
-      const request = pool.request()
-        .input('LIMITE', sql.Int, parseInt(limite));
+      const request = pool.request();
 
       if (idConvocacao) {
-        query += ` AND l.IDCONVOCACAO = @IDCONVOCACAO`;
+        query += ` AND [l].[IDCONVOCACAO] = @IDCONVOCACAO`;
         request.input('IDCONVOCACAO', sql.Int, parseInt(idConvocacao));
       }
 
       // Filtrar por ID da viagem através das convocações
       if (idViagem) {
-        query += ` AND l.IDCONVOCACAO IN (
-          SELECT IDCONVOCACAO 
+        query += ` AND [l].[IDCONVOCACAO] IN (
+          SELECT [IDCONVOCACAO] 
           FROM [dbo].[CONVOCACAO] 
-          WHERE IDVIAGEM = @IDVIAGEM
+          WHERE [IDVIAGEM] = @IDVIAGEM
         )`;
         request.input('IDVIAGEM', sql.Decimal(15, 0), parseFloat(idViagem));
       }
 
-      query += ` ORDER BY l.DHLOG DESC`;
+      query += ` ORDER BY [l].[DHLOG] DESC LIMIT @LIMITE`;
+      request.input('LIMITE', sql.Int, parseInt(limite));
 
       const result = await request.query(query);
 
@@ -3397,7 +3455,7 @@ const viagemController = {
 
       // Verificar se a convocação existe e obter STATUS atual
       const checkResult = await request.query(`
-        SELECT IDCONVOCACAO, STATUS FROM [dbo].[CONVOCACAO] WHERE IDCONVOCACAO = @IDCONVOCACAO
+        SELECT [IDCONVOCACAO], [STATUS] FROM [dbo].[CONVOCACAO] WHERE [IDCONVOCACAO] = @IDCONVOCACAO
       `);
 
       if (checkResult.recordset.length === 0) {
@@ -3433,59 +3491,64 @@ const viagemController = {
       const updateRequest = pool.request()
         .input('IDCONVOCACAO', sql.Int, parseInt(IDCONVOCACAO));
 
-      // Sempre atualizar DHRESPOSTA quando houver retorno
-      updateFields.push('DHRESPOSTA = GETDATE()');
+      // Sempre atualizar DHRESPOSTA quando houver retorno (colunas entre colchetes para PostgreSQL)
+      updateFields.push('[DHRESPOSTA] = GETDATE()');
 
       // Atualizar STATUS se determinado
       if (novoStatus) {
-        updateFields.push('STATUS = @STATUS');
+        updateFields.push('[STATUS] = @STATUS');
         updateRequest.input('STATUS', sql.VarChar(20), novoStatus);
       }
 
       if (LATITUDE !== undefined && LATITUDE !== null && LATITUDE !== '') {
-        updateFields.push('LATITUDE = @LATITUDE');
+        updateFields.push('[LATITUDE] = @LATITUDE');
         updateRequest.input('LATITUDE', sql.Decimal(18, 15), parseFloat(LATITUDE));
       }
 
       if (LONGITUDE !== undefined && LONGITUDE !== null && LONGITUDE !== '') {
-        updateFields.push('LONGITUDE = @LONGITUDE');
+        updateFields.push('[LONGITUDE] = @LONGITUDE');
         updateRequest.input('LONGITUDE', sql.Decimal(18, 15), parseFloat(LONGITUDE));
       }
 
       if (CDMOTIVORECUSA !== undefined && CDMOTIVORECUSA !== null && CDMOTIVORECUSA !== '') {
-        updateFields.push('CDMOTIVORECUSA = @CDMOTIVORECUSA');
+        updateFields.push('[CDMOTIVORECUSA] = @CDMOTIVORECUSA');
         updateRequest.input('CDMOTIVORECUSA', sql.Int, parseInt(CDMOTIVORECUSA));
       }
 
       // Adicionar campos de manutenção
-      updateFields.push('DHMAINTENANCE = GETDATE()');
-      updateFields.push('SGUSER = \'DESKRIO\'');
+      updateFields.push('[DHMAINTENANCE] = GETDATE()');
+      updateFields.push('[SGUSER] = \'DESKRIO\'');
 
       const updateQuery = `
         UPDATE [dbo].[CONVOCACAO]
         SET ${updateFields.join(', ')}
-        WHERE IDCONVOCACAO = @IDCONVOCACAO
+        WHERE [IDCONVOCACAO] = @IDCONVOCACAO
       `;
 
       const result = await updateRequest.query(updateQuery);
 
-      // Salvar log do callback
+      // Salvar log do callback (webhook não tem usuário logado; usa primeiro usuário do banco para FK)
       try {
-        const logRequest = pool.request()
-          .input('IDCONVOCACAO', sql.Int, parseInt(IDCONVOCACAO))
-          .input('TIPO', sql.VarChar(20), 'callback')
-          .input('TITULO', sql.NVarChar(200), `Callback - Convocação ${IDCONVOCACAO}`)
-          .input('MENSAGEM', sql.NVarChar(sql.MAX), `Callback recebido: ${novoStatus || 'sem alteração de status'}${CDMOTIVORECUSA ? ` | Motivo Recusa: ${CDMOTIVORECUSA}` : ''}${LATITUDE && LONGITUDE ? ' | Com localização' : ''}`)
-          .input('DETALHES', sql.NVarChar(sql.MAX), JSON.stringify(dadosRecebidos))
-          .input('STATUS_HTTP', sql.Int, 200)
-          .input('TEMPO_RESPOSTA', sql.Int, Date.now() - inicioProcessamento);
+        const firstUserResult = await pool.request().query('SELECT [SGUSUARIO] FROM [dbo].[USUARIO] ORDER BY [SGUSUARIO] LIMIT 1');
+        const logSgUser = (firstUserResult.recordset && firstUserResult.recordset[0] && (firstUserResult.recordset[0].SGUSUARIO || firstUserResult.recordset[0].sgusuario)) || null;
+        if (logSgUser) {
+          const logRequest = pool.request()
+            .input('IDCONVOCACAO', sql.Int, parseInt(IDCONVOCACAO))
+            .input('TIPO', sql.VarChar(20), 'callback')
+            .input('TITULO', sql.NVarChar(200), `Callback - Convocação ${IDCONVOCACAO}`)
+            .input('MENSAGEM', sql.NVarChar(sql.MAX), `Callback recebido: ${novoStatus || 'sem alteração de status'}${CDMOTIVORECUSA ? ` | Motivo Recusa: ${CDMOTIVORECUSA}` : ''}${LATITUDE && LONGITUDE ? ' | Com localização' : ''}`)
+            .input('DETALHES', sql.NVarChar(sql.MAX), JSON.stringify(dadosRecebidos))
+            .input('STATUS_HTTP', sql.Int, 200)
+            .input('TEMPO_RESPOSTA', sql.Int, Date.now() - inicioProcessamento)
+            .input('sgUser', sql.VarChar(50), logSgUser);
 
-        await logRequest.query(`
-          INSERT INTO [dbo].[LOGSWEBHOOKMETA] 
-            (IDCONVOCACAO, TIPO, TITULO, MENSAGEM, DETALHES, STATUS_HTTP, TEMPO_RESPOSTA, DHLOG, DHMAINTENANCE, SGUSER, SERVERORIG)
-          VALUES 
-            (@IDCONVOCACAO, @TIPO, @TITULO, @MENSAGEM, @DETALHES, @STATUS_HTTP, @TEMPO_RESPOSTA, GETDATE(), GETDATE(), 'SYSTEM', 'AppDVcargas')
-        `);
+          await logRequest.query(`
+            INSERT INTO [dbo].[LOGSWEBHOOKMETA] 
+              (IDCONVOCACAO, TIPO, TITULO, MENSAGEM, DETALHES, STATUS_HTTP, TEMPO_RESPOSTA, DHLOG, DHMAINTENANCE, SGUSER, SERVERORIG)
+            VALUES 
+              (@IDCONVOCACAO, @TIPO, @TITULO, @MENSAGEM, @DETALHES, @STATUS_HTTP, @TEMPO_RESPOSTA, GETDATE(), GETDATE(), @sgUser, 'AppDVcargas')
+          `);
+        }
       } catch (logErr) {
         console.error('[WEBHOOK RETORNO] Erro ao salvar log do callback:', logErr.message);
         // Não falhar a requisição se o log não for salvo
@@ -3524,35 +3587,35 @@ const viagemController = {
       // Query principal para buscar as viagens do roteiro
       const viagensQuery = `
         SELECT 
-          VM.IDVIAGEM,
-          TV.DSTIPOVIAGEM,
-          SV.DSSITUACAOVIAGEM,
-          CF.DSCLASSEFROTA,
-          CF.CDCLASSEFROTA,
-          UPPER(CT.RZSOCIAL) AS CONTRATADOR,
-          CT.NRCELULAR AS CELCONTRATADOR,
-          VM.DTPREVINICIO,
-          VM.VLFRETE,
-          VM.PESO,
-          VM.FGRASTREADO,
-          (SELECT TOP 1 UPPER(M.RZSOCIAL)
-           FROM VIAGEMMOTORISTA (NOLOCK) V
-           INNER JOIN CADASTROGERAL (NOLOCK) M ON V.CDMOTORISTA = M.CDCADASTRO
-           WHERE V.IDVIAGEM = VM.IDVIAGEM) AS MOTORISTA,
-          (SELECT TOP 1 M.NRCELULAR
-           FROM VIAGEMMOTORISTA (NOLOCK) V
-           INNER JOIN CADASTROGERAL (NOLOCK) M ON V.CDMOTORISTA = M.CDCADASTRO
-           WHERE V.IDVIAGEM = VM.IDVIAGEM) AS CELMOTORISTA,
-          (SELECT TOP 1 V.CDMOTORISTA
-           FROM VIAGEMMOTORISTA (NOLOCK) V
-           WHERE V.IDVIAGEM = VM.IDVIAGEM) AS CDMOTORISTA
-        FROM VIAGEMMESTRE (NOLOCK) VM
-        LEFT JOIN SITUACAOVIAGEM (NOLOCK) SV ON VM.CDSITUACAOVIAGEM = SV.CDSITUACAOVIAGEM
-        LEFT JOIN TIPOVIAGEM (NOLOCK) TV ON VM.CDTIPOVIAGEM = TV.CDTIPOVIAGEM
-        LEFT JOIN CLASSEFROTA (NOLOCK) CF ON VM.CDCLASSEFROTA = CF.CDCLASSEFROTA
-        LEFT JOIN CADASTROGERAL (NOLOCK) CT ON VM.CDCONTRATADOR = CT.CDCADASTRO
-        WHERE VM.IDROTEIRO = @IDROTEIRO
-        ORDER BY VM.DTPREVINICIO DESC, VM.IDVIAGEM
+          [VM].[IDVIAGEM],
+          [TV].[DSTIPOVIAGEM],
+          [SV].[DSSITUACAOVIAGEM],
+          [CF].[DSCLASSEFROTA],
+          [CF].[CDCLASSEFROTA],
+          UPPER([CT].[RZSOCIAL]) AS CONTRATADOR,
+          [CT].[NRCELULAR] AS CELCONTRATADOR,
+          [VM].[DTPREVINICIO],
+          [VM].[VLFRETE],
+          [VM].[PESO],
+          [VM].[FGRASTREADO],
+          (SELECT UPPER([M].[RZSOCIAL])
+           FROM [dbo].[VIAGEMMOTORISTA] [V]
+           INNER JOIN [dbo].[CADASTROGERAL] [M] ON [V].[CDMOTORISTA] = [M].[CDCADASTRO]
+           WHERE [V].[IDVIAGEM] = [VM].[IDVIAGEM] LIMIT 1) AS MOTORISTA,
+          (SELECT [M].[NRCELULAR]
+           FROM [dbo].[VIAGEMMOTORISTA] [V]
+           INNER JOIN [dbo].[CADASTROGERAL] [M] ON [V].[CDMOTORISTA] = [M].[CDCADASTRO]
+           WHERE [V].[IDVIAGEM] = [VM].[IDVIAGEM] LIMIT 1) AS CELMOTORISTA,
+          (SELECT [V].[CDMOTORISTA]
+           FROM [dbo].[VIAGEMMOTORISTA] [V]
+           WHERE [V].[IDVIAGEM] = [VM].[IDVIAGEM] LIMIT 1) AS CDMOTORISTA
+        FROM [dbo].[VIAGEMMESTRE] [VM]
+        LEFT JOIN [dbo].[SITUACAOVIAGEM] [SV] ON [VM].[CDSITUACAOVIAGEM] = [SV].[CDSITUACAOVIAGEM]
+        LEFT JOIN [dbo].[TIPOVIAGEM] [TV] ON [VM].[CDTIPOVIAGEM] = [TV].[CDTIPOVIAGEM]
+        LEFT JOIN [dbo].[CLASSEFROTA] [CF] ON [VM].[CDCLASSEFROTA] = [CF].[CDCLASSEFROTA]
+        LEFT JOIN [dbo].[CADASTROGERAL] [CT] ON [VM].[CDCONTRATADOR] = [CT].[CDCADASTRO]
+        WHERE [VM].[IDROTEIRO] = @IDROTEIRO
+        ORDER BY [VM].[DTPREVINICIO] DESC, [VM].[IDVIAGEM]
       `;
 
       const request = pool.request();
@@ -3562,50 +3625,68 @@ const viagemController = {
       // Query para resumo por classe de frota
       const resumoQuery = `
         SELECT 
-          CF.CDCLASSEFROTA,
-          CF.DSCLASSEFROTA,
+          [CF].[CDCLASSEFROTA],
+          [CF].[DSCLASSEFROTA],
           COUNT(*) AS QUANTIDADE,
-          MIN(CASE WHEN VM.VLFRETE >= 1 THEN VM.VLFRETE ELSE NULL END) AS VALOR_MINIMO,
-          MAX(CASE WHEN VM.VLFRETE >= 1 THEN VM.VLFRETE ELSE NULL END) AS VALOR_MAXIMO,
-          AVG(CASE WHEN VM.VLFRETE >= 1 THEN VM.VLFRETE ELSE NULL END) AS VALOR_MEDIO,
-          SUM(VM.PESO) AS PESO_TOTAL
-        FROM VIAGEMMESTRE (NOLOCK) VM
-        LEFT JOIN CLASSEFROTA (NOLOCK) CF ON VM.CDCLASSEFROTA = CF.CDCLASSEFROTA
-        WHERE VM.IDROTEIRO = @IDROTEIRO
-        GROUP BY CF.CDCLASSEFROTA, CF.DSCLASSEFROTA
-        ORDER BY CF.DSCLASSEFROTA
+          MIN(CASE WHEN [VM].[VLFRETE] >= 1 THEN [VM].[VLFRETE] ELSE NULL END) AS VALOR_MINIMO,
+          MAX(CASE WHEN [VM].[VLFRETE] >= 1 THEN [VM].[VLFRETE] ELSE NULL END) AS VALOR_MAXIMO,
+          AVG(CASE WHEN [VM].[VLFRETE] >= 1 THEN [VM].[VLFRETE] ELSE NULL END) AS VALOR_MEDIO,
+          SUM([VM].[PESO]) AS PESO_TOTAL
+        FROM [dbo].[VIAGEMMESTRE] [VM]
+        LEFT JOIN [dbo].[CLASSEFROTA] [CF] ON [VM].[CDCLASSEFROTA] = [CF].[CDCLASSEFROTA]
+        WHERE [VM].[IDROTEIRO] = @IDROTEIRO
+        GROUP BY [CF].[CDCLASSEFROTA], [CF].[DSCLASSEFROTA]
+        ORDER BY [CF].[DSCLASSEFROTA]
       `;
 
       const resumoRequest = pool.request();
       resumoRequest.input('IDROTEIRO', sql.Int, parseInt(idRoteiro));
       const resumoResult = await resumoRequest.query(resumoQuery);
 
-      // Formatar resumo
-      const resumo = resumoResult.recordset.map(item => ({
-        classefrota: item.DSCLASSEFROTA || 'Não Informada',
-        quantidade: item.QUANTIDADE,
-        valorMinimo: item.VALOR_MINIMO ? parseFloat(item.VALOR_MINIMO).toFixed(2) : '0.00',
-        valorMaximo: item.VALOR_MAXIMO ? parseFloat(item.VALOR_MAXIMO).toFixed(2) : '0.00',
-        valorMedio: item.VALOR_MEDIO ? parseFloat(item.VALOR_MEDIO).toFixed(2) : '0.00',
-        pesoTotal: item.PESO_TOTAL ? parseFloat(item.PESO_TOTAL).toFixed(2) : '0.00'
-      }));
+      // Formatar resumo (compatível com SQL Server maiúsculas e PostgreSQL minúsculas)
+      const get = (row, ...keys) => {
+        for (const k of keys) {
+          if (row[k] !== undefined && row[k] !== null) return row[k];
+          const lower = k.toLowerCase();
+          if (row[lower] !== undefined && row[lower] !== null) return row[lower];
+        }
+        return undefined;
+      };
+      const resumo = resumoResult.recordset.map(item => {
+        const qtd = get(item, 'QUANTIDADE') ?? 0;
+        const vMin = get(item, 'VALOR_MINIMO');
+        const vMax = get(item, 'VALOR_MAXIMO');
+        const vMed = get(item, 'VALOR_MEDIO');
+        const pTotal = get(item, 'PESO_TOTAL');
+        return {
+          classefrota: get(item, 'DSCLASSEFROTA') || 'Não Informada',
+          quantidade: Number(qtd),
+          valorMinimo: vMin != null ? parseFloat(vMin).toFixed(2) : '0.00',
+          valorMaximo: vMax != null ? parseFloat(vMax).toFixed(2) : '0.00',
+          valorMedio: vMed != null ? parseFloat(vMed).toFixed(2) : '0.00',
+          pesoTotal: pTotal != null ? parseFloat(pTotal).toFixed(2) : '0.00'
+        };
+      });
 
-      // Formatar viagens
-      const viagens = result.recordset.map(viagem => ({
-        idViagem: viagem.IDVIAGEM,
-        tipoViagem: viagem.DSTIPOVIAGEM,
-        situacaoViagem: viagem.DSSITUACAOVIAGEM,
-        classeFrota: viagem.DSCLASSEFROTA,
-        contratador: viagem.CONTRATADOR,
-        celContratador: viagem.CELCONTRATADOR,
-        dtPrevInicio: viagem.DTPREVINICIO,
-        vlFrete: viagem.VLFRETE ? parseFloat(viagem.VLFRETE).toFixed(2) : '0.00',
-        peso: viagem.PESO ? parseFloat(viagem.PESO).toFixed(2) : '0.00',
-        rastreado: viagem.FGRASTREADO === 'S' ? 'Sim' : 'Não',
-        motorista: viagem.MOTORISTA || 'Não Informado',
-        celMotorista: viagem.CELMOTORISTA,
-        cdMotorista: viagem.CDMOTORISTA
-      }));
+      // Formatar viagens (compatível com SQL Server maiúsculas e PostgreSQL minúsculas)
+      const viagens = result.recordset.map(viagem => {
+        const v = (key, def) => (viagem[key] ?? viagem[key?.toLowerCase?.()] ?? def);
+        return {
+          idViagem: v('IDVIAGEM', null),
+          tipoViagem: v('DSTIPOVIAGEM', null),
+          situacaoViagem: v('DSSITUACAOVIAGEM', null),
+          classeFrota: v('DSCLASSEFROTA', null),
+          contratador: v('CONTRATADOR', null),
+          celContratador: v('CELCONTRATADOR', null),
+          dtPrevInicio: v('DTPREVINICIO', null),
+          vlFrete: v('VLFRETE', 0) != null ? parseFloat(v('VLFRETE', 0)).toFixed(2) : '0.00',
+          peso: v('PESO', 0) != null ? parseFloat(v('PESO', 0)).toFixed(2) : '0.00',
+          rastreado: (v('FGRASTREADO', '') === 'S' || v('FGRASTREADO', '') === 's') ? 'Sim' : 'Não',
+          motorista: v('MOTORISTA', null) || 'Não Informado',
+          celMotorista: v('CELMOTORISTA', null),
+          cdMotorista: v('CDMOTORISTA', null)
+        };
+      });
 
       res.json({
         success: true,

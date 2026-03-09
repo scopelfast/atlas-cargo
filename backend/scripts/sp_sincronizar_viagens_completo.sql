@@ -5,7 +5,7 @@
 -- para melhorar a performance e evitar timeouts
 -- ============================================
 
-USE [DIVULGACARGA_PRD];
+USE [ATLAS_CARGO_PRD];
 GO
 
 -- Remover procedure se já existir

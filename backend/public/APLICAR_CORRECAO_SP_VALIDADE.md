@@ -40,7 +40,7 @@ fetch('/api/cadastros-gerais/aplicar-correcao-sp-validade', {
 Execute o script SQL diretamente no banco de dados:
 
 1. Abra o SQL Server Management Studio
-2. Conecte-se ao banco `DIVULGACARGA_PRD`
+2. Conecte-se ao banco `ATLAS_CARGO_PRD`
 3. Abra e execute o arquivo: `backend/scripts/corrigir_sp_integracao_validade.sql`
 
 ## O que a correção faz:

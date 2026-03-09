@@ -1,5 +1,6 @@
 // backend/public/modulos/gerenciar-tipos-equipamento/js/script.js
 (function() {
+  const t = function(k) { return typeof window.tWeb === 'function' ? window.tWeb(k) : k; };
   // Elementos
   const tabs = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
@@ -12,6 +13,7 @@
   let lastTipos = null; // cache dos últimos resultados do filtro
   let sqlExecutado = false;
   let initExecutado = false;
+  let tipoFormSubmitting = false; // evita duplo envio (dois registros no banco)
 
   // Função para carregar e executar o arquivo init.sql
   async function executarInitSQL() {
@@ -136,7 +138,7 @@
       const countEl = document.getElementById('tiposGridCountText');
       if (countEl) {
         const count = tipos.length || 0;
-        countEl.textContent = `${count} registro(s) encontrado(s)`;
+        countEl.textContent = (t('web.modulos.cidades.registrosEncontrados') || '{n} registro(s) encontrado(s)').replace('{n}', String(count));
       }
       
       // Se já existe uma instância do Grid na aba, atualizá-la imediatamente
@@ -218,14 +220,14 @@
       showTab(openTab);
     } catch (err) {
       console.error('Erro ao aplicar filtros:', err);
-      showMessage('Erro ao carregar tipos.', 'error');
+      showMessage(t('web.modulos.tiposEquipamento.erroCarregarTipos'), 'error');
     }
   }
 
   // Renderizar lista
   function renderList(tipos) {
     if (!tipos || tipos.length === 0) {
-      list.innerHTML = '<p class="empty">Nenhum tipo encontrado.</p>';
+      list.innerHTML = '<p class="empty">' + t('web.modulos.tiposEquipamento.nenhumEncontrado') + '</p>';
       return;
     }
 
@@ -258,7 +260,7 @@
         // Validar ID
         if (!id || id === 'null' || id === 'undefined' || id === '') {
           console.error('[Tipos] ID inválido:', id, 'Elemento:', e.currentTarget);
-          showMessage('Erro: ID não disponível.', 'error');
+          showMessage(t('web.modulos.tiposEquipamento.erroIdIndisponivel'), 'error');
           return;
         }
         
@@ -352,10 +354,10 @@
       container: '#tiposGrid',
       columns: [
         { field: 'CDTIPOEQUIPAMENTO', header: 'Código', editable: false, isId: true, width: '80px' },
-        { field: 'DSTIPOEQUIPAMENTO', header: 'Descrição', editable: true, type: 'text', width: '300px', maxlength: 40 },
-        { field: 'MASCARAIDENTIF', header: 'Máscara', editable: true, type: 'text', width: '150px', maxlength: 50 },
-        { field: 'FGTIPOVEICULO_DESC', header: 'Tipo Veículo', editable: false, width: '180px' },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px',
+        { field: 'DSTIPOEQUIPAMENTO', header: 'Descrição', editable: true, type: 'text', maxlength: 40 },
+        { field: 'MASCARAIDENTIF', header: 'Máscara', editable: true, type: 'text', maxlength: 50 },
+        { field: 'FGTIPOVEICULO_DESC', header: 'Tipo Veículo', editable: false },
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px', align: 'right',
           options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }
@@ -374,7 +376,7 @@
         await confirmarExclusao(id);
       },
       onAfterEdit: (id) => {
-        showMessage('Alteração salva com sucesso!', 'success');
+        showMessage(t('web.modulos.tiposEquipamento.sucessoSalvar'), 'success');
         // atualizar cache local mantendo sincronia
         if (lastTipos) {
           const idx = lastTipos.findIndex(r => String(r.CDTIPOEQUIPAMENTO) === String(id));
@@ -402,19 +404,19 @@
         document.getElementById('tipoSituacao').value = tipo.FGACTIVE;
         document.getElementById('tipoMascara').value = tipo.MASCARAIDENTIF === 'Não informada' ? '' : tipo.MASCARAIDENTIF;
         document.getElementById('tipoVeiculo').value = tipo.FGTIPOVEICULO === 'Não informado' ? '' : tipo.FGTIPOVEICULO;
-        document.getElementById('formTitle').textContent = 'Editar Tipo de Equipamento';
+        document.getElementById('formTitle').textContent = t('web.modulos.tiposEquipamento.editarTipo');
         showTab('dados');
       }
     } catch (err) {
       console.error('Erro ao carregar tipo:', err);
-      showMessage('Erro ao carregar dados para edição.', 'error');
+      showMessage(t('web.modulos.tiposEquipamento.erroCarregarDados'), 'error');
     }
   }
 
   // Confirmar exclusão
   async function confirmarExclusao(id) {
     if (!id || id === 'undefined' || id === 'null' || id === '' || String(id).trim() === '') {
-      showMessage('Erro: ID não disponível.', 'error');
+      showMessage(t('web.modulos.tiposEquipamento.erroIdIndisponivel'), 'error');
       return;
     }
     
@@ -442,13 +444,13 @@
       // Definir mensagem e ação baseado no status atual
       let confirmMsg, action, btnText;
       if (estaAtivo) {
-        confirmMsg = 'Tem certeza que deseja <strong>desativar</strong> este tipo de equipamento?<br><br><small style="color: #666;">O tipo ficará inativo e não aparecerá nas listagens padrão.</small>';
+        confirmMsg = t('web.modulos.tiposEquipamento.msgDesativar');
         action = 'deactivate';
-        btnText = 'Desativar';
+        btnText = t('web.modulos.tiposEquipamento.desativar');
       } else {
-        confirmMsg = 'Tem certeza que deseja <strong>reativar</strong> este tipo de equipamento?<br><br><small style="color: #666;">O tipo voltará a aparecer nas listagens e estará disponível para uso.</small>';
+        confirmMsg = t('web.modulos.tiposEquipamento.msgReativar');
         action = 'activate';
-        btnText = 'Reativar';
+        btnText = t('web.modulos.tiposEquipamento.reativar');
       }
       
       if (modalMessage) modalMessage.innerHTML = confirmMsg;
@@ -456,22 +458,14 @@
       modalEl.dataset.deleteId = idStr;
       modalEl.dataset.action = action;
       
-      const newConfirmYes = confirmYes.cloneNode(true);
-      const newConfirmNo = confirmNo.cloneNode(true);
-      
-      // Atualizar texto do botão de confirmação
-      newConfirmYes.textContent = btnText;
-      
-      confirmYes.parentNode.replaceChild(newConfirmYes, confirmYes);
-      confirmNo.parentNode.replaceChild(newConfirmNo, confirmNo);
-      
-      newConfirmYes.onclick = async () => {
+      confirmYes.textContent = btnText;
+      confirmYes.onclick = async () => {
         try {
           const deleteId = modalEl.dataset.deleteId || idStr;
           const acao = modalEl.dataset.action || action;
           
           if (!deleteId || deleteId === 'undefined' || deleteId === 'null' || deleteId === '') {
-            showMessage('Erro: ID não disponível.', 'error');
+            showMessage(t('web.modulos.tiposEquipamento.erroIdIndisponivel'), 'error');
             modalEl.style.display = 'none';
             return;
           }
@@ -483,15 +477,15 @@
           
           const data = await response.json();
           if (response.ok) {
-            showMessage(data.message || (acao === 'activate' ? 'Tipo de equipamento reativado com sucesso!' : 'Tipo de equipamento desativado com sucesso!'), 'success');
+            showMessage(data.message || (acao === 'activate' ? t('web.modulos.tiposEquipamento.sucessoReativar') : t('web.modulos.tiposEquipamento.sucessoDesativar')), 'success');
             showTab('grid');
             applyFilters('grid');
           } else {
-            showMessage(data.error || 'Erro ao alterar status do tipo.', 'error');
+            showMessage(data.error || t('web.modulos.tiposEquipamento.erroAlterarStatus'), 'error');
           }
         } catch (err) {
           console.error('[Tipos] Erro ao alterar status:', err);
-          showMessage('Erro de conexão.', 'error');
+          showMessage(t('web.modulos.tiposEquipamento.erroConexao'), 'error');
         } finally {
           modalEl.style.display = 'none';
           delete modalEl.dataset.deleteId;
@@ -499,7 +493,7 @@
         }
       };
     
-      newConfirmNo.onclick = () => {
+      confirmNo.onclick = () => {
         modalEl.style.display = 'none';
         delete modalEl.dataset.deleteId;
         delete modalEl.dataset.action;
@@ -508,13 +502,19 @@
       modalEl.style.display = 'block';
     } catch (err) {
       console.error('[Tipos] Erro ao buscar status do tipo:', err);
-      showMessage('Erro ao verificar status do tipo.', 'error');
+      showMessage(t('web.modulos.tiposEquipamento.erroVerificarStatus'), 'error');
     }
   }
 
-  // Salvar formulário
+  // Salvar formulário (bloqueio de duplo envio no início para evitar cadastro duplicado)
   tipoForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    e.stopImmediatePropagation();
+    if (tipoFormSubmitting) return;
+    tipoFormSubmitting = true;
+    const submitBtn = tipoForm?.querySelector('button[type="submit"]');
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.dataset.originalText = submitBtn.innerHTML; submitBtn.innerHTML = '<i class=\'bx bx-loader-alt bx-spin\'></i> Salvando...'; }
+
     const id = document.getElementById('tipoCodigo')?.value;
     const descricao = document.getElementById('tipoDescricao')?.value.trim();
     const situacao = document.getElementById('tipoSituacao')?.value;
@@ -522,7 +522,9 @@
     const veiculo = document.getElementById('tipoVeiculo')?.value;
     
     if (!descricao || !situacao) {
-      showMessage('Preencha todos os campos obrigatórios.', 'error');
+      showMessage(t('web.modulos.tiposEquipamento.preenchaCampos'), 'error');
+      tipoFormSubmitting = false;
+      if (submitBtn) { submitBtn.disabled = false; if (submitBtn.dataset.originalText) submitBtn.innerHTML = submitBtn.dataset.originalText; }
       return;
     }
 
@@ -551,15 +553,20 @@
 
       const data = await response.json();
       if (response.ok) {
-        showMessage(data.message || 'Salvo com sucesso!', 'success');
+        showMessage(data.message || t('web.modulos.tiposEquipamento.sucessoSalvar'), 'success');
         showTab('grid');
         applyFilters('grid');
       } else {
-        showMessage(data.error || 'Erro ao salvar.', 'error');
+        showMessage(data.error || t('web.modulos.tiposEquipamento.erroSalvar'), 'error');
       }
     } catch (err) {
       console.error('Erro ao salvar:', err);
-      showMessage('Erro de conexão com o servidor.', 'error');
+      showMessage(t('web.modulos.tiposEquipamento.erroConexao'), 'error');
+    } finally {
+      setTimeout(() => {
+        tipoFormSubmitting = false;
+        if (submitBtn) { submitBtn.disabled = false; if (submitBtn.dataset.originalText) submitBtn.innerHTML = submitBtn.dataset.originalText; }
+      }, 600);
     }
   });
 
@@ -586,7 +593,7 @@
   document.getElementById('btnVoltarFiltros')?.addEventListener('click', () => showTab('filtros'));
   document.getElementById('btnNovoRegistro')?.addEventListener('click', () => {
     tipoForm?.reset();
-    document.getElementById('formTitle').textContent = 'Novo Tipo de Equipamento';
+    document.getElementById('formTitle').textContent = t('web.modulos.tiposEquipamento.novoTipo');
     showTab('dados');
   });
 
@@ -597,7 +604,7 @@
 
   document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
     tipoForm?.reset();
-    document.getElementById('formTitle').textContent = 'Novo Tipo de Equipamento';
+    document.getElementById('formTitle').textContent = t('web.modulos.tiposEquipamento.novoTipo');
     showTab('dados');
   });
   

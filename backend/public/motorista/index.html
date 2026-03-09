@@ -1,19 +1,132 @@
 <!DOCTYPE html>
-<html lang="pt-BR" style="background-color: #f8f9fa !important; background: #f8f9fa !important;">
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#667eea">
-  <meta name="description" content="App DivulgaCarga para Motoristas">
-  <title>DivulgaCarga - Motorista</title>
+  <meta name="theme-color" content="#0d2137">
+  <meta name="description" content="App Atlas Cargo para Motoristas">
+  <title>Atlas Cargo - Motorista</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
-    /* Estilo inline crítico para garantir fundo claro no mobile */
+    /* Crítico: estilo mínimo para não ficar “pelado” no celular (mesmo se CSS externo falhar) */
     html, body {
-      background-color: #f8f9fa !important;
-      background: #f8f9fa !important;
       margin: 0;
       padding: 0;
+      min-height: 100%;
+      -webkit-text-size-adjust: 100%;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(160deg, #f0f9ff 0%, #e0f2fe 40%, #f8fafc 100%);
+      color: #0f172a;
     }
+    body {
+      padding: 16px;
+      padding-left: max(16px, env(safe-area-inset-left));
+      padding-right: max(16px, env(safe-area-inset-right));
+      padding-bottom: max(16px, env(safe-area-inset-bottom));
+      padding-top: max(16px, env(safe-area-inset-top));
+      box-sizing: border-box;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+    }
+    .login-container {
+      width: 100%;
+      max-width: 420px;
+      margin-top: 0;
+      background: #fff;
+      border-radius: 24px;
+      box-shadow: 0 8px 32px rgba(13, 33, 55, 0.12), 0 2px 8px rgba(0,0,0,0.04);
+      overflow: hidden;
+      border: 1px solid rgba(0,0,0,0.04);
+    }
+    .logo-section {
+      background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%);
+      color: #fff;
+      text-align: center;
+      padding: 24px 24px;
+      position: relative;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .logo-wrap { margin-bottom: 8px; }
+    .logo {
+      max-width: 100%;
+      height: auto;
+      min-height: 48px;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto;
+    }
+    .app-badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      color: rgba(255,255,255,0.9);
+      background: rgba(255,255,255,0.15);
+      padding: 6px 14px;
+      border-radius: 999px;
+    }
+    .form-section { padding: 28px 24px 24px; }
+    .welcome-title { font-size: 1.5rem; font-weight: 700; color: #0d2137; margin: 0 0 6px 0; }
+    .welcome-desc { font-size: 0.9375rem; color: #64748b; margin: 0 0 24px 0; }
+    .login-form .input-group { margin-bottom: 20px; }
+    .login-form label { display: block; font-size: 0.875rem; font-weight: 600; color: #334155; margin-bottom: 8px; }
+    .input-password-wrap { position: relative; display: flex; align-items: stretch; }
+    .input-password-wrap input { flex: 1; padding-right: 48px; }
+    .input-password-wrap .btn-toggle-senha {
+      position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; padding: 8px; cursor: pointer; color: #64748b;
+    }
+    .login-form input[type="tel"],
+    .login-form input[type="password"] {
+      width: 100%;
+      padding: 14px 16px;
+      font-size: 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      box-sizing: border-box;
+    }
+    .login-form input:focus {
+      outline: none;
+      border-color: #0ea5e9;
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+    }
+    .btn-primary {
+      width: 100%;
+      padding: 16px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #fff;
+      background: linear-gradient(165deg, #0d2137 0%, #1a365d 100%);
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      margin-top: 8px;
+      min-height: 52px;
+    }
+    .btn-primary:active { opacity: 0.9; }
+    .idioma-selector { align-items: center; }
+    .idioma-label { font-size: 0.875rem; color: #64748b; font-weight: 500; }
+    .btn-idioma {
+      padding: 8px 16px; border-radius: 999px; border: 1px solid #cbd5e1;
+      background: #fff; color: #475569; font-size: 0.875rem; font-weight: 500;
+      cursor: pointer; transition: background 0.2s, color 0.2s, border-color 0.2s;
+    }
+    .btn-idioma:hover { background: #f1f5f9; border-color: #94a3b8; }
+    .btn-idioma.active { background: #0d2137; color: #fff; border-color: #0d2137; }
+    .links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      justify-content: center;
+      margin-top: 20px;
+    }
+    .links a { color: #0ea5e9; font-size: 0.9375rem; text-decoration: none; font-weight: 500; }
+    .links a:hover { text-decoration: underline; }
+    .footer { text-align: center; padding: 20px 16px; color: #64748b; font-size: 0.8125rem; }
+    .footer .version { margin-top: 4px; opacity: 0.8; }
   </style>
   <script>
     // CRÍTICO: Executar ANTES de qualquer outro código para detectar ambiente
@@ -22,9 +135,9 @@
       const isLocal = hostname === 'localhost' || 
                       hostname === '127.0.0.1' || 
                       hostname.startsWith('192.168.');
-      const isIntegraBrasil = hostname === 'app.integrabrasil.com' || 
-                              hostname === 'beta.integrabrasil.com' || 
-                              hostname.includes('integrabrasil.com');
+      const isAtlasCargo = hostname.includes('atlas') || 
+                           hostname.includes('atlas-cargo') || 
+                           hostname.includes('atlascargo');
       
       // CRÍTICO: Usar o protocolo REAL da página SEM REDIRECIONAMENTO
       // Se a página está em HTTP, usar HTTP; se está em HTTPS, usar HTTPS
@@ -36,10 +149,13 @@
       // CRÍTICO: Detectar o caminho base (subdiretório) da aplicação
       // Se a página está em /cargas/motorista/, o pathBase deve ser /cargas/
       // Se está em /motorista/, o pathBase deve ser /
+      // Se está em /m ou /m/, tratar como raiz para assets carregarem (CSS, img)
       let pathBase = window.location.pathname;
-      
+      if (pathBase === '/m' || pathBase === '/m/') {
+        pathBase = '/';
+      }
       // Remover /motorista/index.html ou /motorista/ do final
-      if (pathBase.includes('/motorista')) {
+      else if (pathBase.includes('/motorista')) {
         const indexMotorista = pathBase.indexOf('/motorista');
         pathBase = pathBase.substring(0, indexMotorista);
       }
@@ -68,11 +184,11 @@
         baseUrl: baseUrl
       });
       
-      // Favicon
+      // Favicon (ícone moderno; API de identidade pode sobrescrever depois)
       const favicon = document.createElement('link');
       favicon.rel = 'icon';
-      favicon.type = 'image/png';
-      favicon.href = baseUrl + '/img/logo7.png';
+      favicon.type = 'image/svg+xml';
+      favicon.href = baseUrl + '/img/icon-atlas-motorista.svg';
       console.log('📦 Carregando favicon:', favicon.href);
       head.appendChild(favicon);
       
@@ -159,61 +275,77 @@
     })();
   </script>
 </head>
-<body style="background-color: #f8f9fa !important; background: #f8f9fa !important; margin: 0; padding: 0;">
-  <!-- Script crítico: SEM redirecionamento - manter protocolo atual -->
+<body class="motorista-login-page">
   <div class="login-container">
-    <div class="logo-section">
-      <img id="logoImg" alt="Logo DivulgaCarga" class="logo" src="">
-      <h1>DivulgaCarga</h1>
-      <p class="subtitle">Motorista</p>
-    </div>
+    <header class="logo-section">
+      <div class="logo-wrap">
+        <img id="logoImg" alt="Atlas Cargo" class="logo" src="/img/logoAtlasTransparente.png">
+      </div>
+      <span class="app-badge">Motorista</span>
+    </header>
 
-    <div class="form-section">
-      <h2>Bem-vindo!</h2>
-      <p class="description">Entre com seus dados para acessar o sistema</p>
+    <main class="form-section">
+      <div class="idioma-selector" style="display:flex; justify-content:center; gap:10px; margin-bottom:20px;">
+        <span class="idioma-label" data-i18n="login.idioma">Idioma:</span>
+        <button type="button" class="btn-idioma" data-locale="pt-BR" aria-pressed="true" title="Português" data-i18n="login.portugues">Português</button>
+        <button type="button" class="btn-idioma" data-locale="es-PY" aria-pressed="false" title="Español" data-i18n="login.espanhol">Español</button>
+      </div>
+      <h2 class="welcome-title" data-i18n="login.titulo">Bem-vindo!</h2>
+      <p class="welcome-desc" data-i18n="login.descricao">Entre com seus dados para acessar o sistema</p>
 
-      <form id="loginForm" novalidate>
+      <form id="loginForm" novalidate class="login-form">
         <div class="input-group">
-          <label for="cpf">CPF</label>
-          <input 
-            type="tel" 
-            id="cpf" 
-            placeholder="000.000.000-00" 
-            maxlength="14"
-            inputmode="numeric"
-            required
-          >
+          <label for="cpf" data-i18n="login.cpf">CPF</label>
+          <input type="tel" id="cpf" data-i18n-placeholder="login.cpfPlaceholder" placeholder="000.000.000-00" maxlength="14" inputmode="numeric" required>
         </div>
-
         <div class="input-group">
-          <label for="senha">Senha</label>
-          <input 
-            type="password" 
-            id="senha" 
-            placeholder="Digite sua senha" 
-            required
-          >
+          <label for="senha" data-i18n="login.senha">Senha</label>
+          <div class="input-password-wrap">
+            <input type="password" id="senha" data-i18n-placeholder="login.senhaPlaceholder" placeholder="Digite sua senha" required autocomplete="current-password">
+            <button type="button" class="btn-toggle-senha" id="btnToggleSenha" data-i18n-title="login.mostrarSenha" title="Mostrar senha" aria-label="Mostrar senha">
+              <svg class="icon-eye" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg class="icon-eye-off" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="display:none;"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+          </div>
         </div>
-
         <button type="submit" class="btn-primary">
-          <span>Entrar</span>
+          <span data-i18n="login.entrar">Entrar</span>
         </button>
       </form>
 
       <div id="message" class="message"></div>
 
       <div class="links">
-        <a href="pages/cadastro.html">Cadastrar-se</a>
-        <a href="pages/recuperar-senha.html">Esqueci minha senha</a>
+        <a href="pages/cadastro.html" data-i18n="login.cadastrar">Cadastrar-se</a>
+        <a href="pages/recuperar-senha.html" data-i18n="login.esqueciSenha">Esqueci minha senha</a>
       </div>
-    </div>
+    </main>
 
-    <div class="footer">
-      <p>© 2025 DivulgaCarga - Sistema para Motoristas</p>
-      <p class="version">Versão 1.0.0</p>
-    </div>
+    <footer class="footer">
+      <p data-i18n="footer.copyright">© 2026 Atlas Cargo - Sistema para Motoristas</p>
+      <p class="version" data-i18n="footer.versao">Versão 1.0.0</p>
+    </footer>
   </div>
 
+  <script>
+    // Seletor de idioma: cliques sem inline onclick (compatível com PWA/WebView/CSP)
+    (function() {
+      function escolherIdioma(loc) {
+        try { localStorage.setItem('preferredLocale', loc || ''); } catch (e) {}
+        window.location.reload();
+      }
+      function attachIdiomaButtons() {
+        document.querySelectorAll('.btn-idioma').forEach(function(btn) {
+          btn.addEventListener('click', function() { escolherIdioma(btn.getAttribute('data-locale')); });
+        });
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', attachIdiomaButtons);
+      } else {
+        attachIdiomaButtons();
+      }
+    })();
+  </script>
   <script>
     // Carregar scripts com URLs absolutas usando o protocolo atual
     (function() {
@@ -239,12 +371,22 @@
         baseUrl = protocoloAtual + '//' + host + (pathBase === '/' ? '' : pathBase.replace(/\/$/, ''));
       }
       
-      // Carregar logo imediatamente
-      const logoImg = document.getElementById('logoImg');
-      if (logoImg) {
-        logoImg.src = baseUrl + '/img/logo7.png';
-        console.log('📦 Logo carregado:', logoImg.src);
+      // Carregar identidade visual (logos) e aplicar
+      function aplicarIdentidade(r, q) {
+        var rr = (r || 'logoAtlasTransparente.png').replace(/[^a-zA-Z0-9._-]/g, '');
+        var qq = (q || 'logoAtlasTransparenteQuadrada.png').replace(/[^a-zA-Z0-9._-]/g, '');
+        var linkIcon = document.querySelector('link[rel="icon"]');
+        if (linkIcon) {
+          linkIcon.href = baseUrl + '/img/' + qq;
+          linkIcon.type = qq.toLowerCase().endsWith('.svg') ? 'image/svg+xml' : 'image/png';
+        }
+        var logoImg = document.getElementById('logoImg');
+        if (logoImg) logoImg.src = baseUrl + '/img/' + rr;
       }
+      fetch(baseUrl + '/api/configuracoes/identidade')
+        .then(function(res) { return res.ok ? res.json() : Promise.reject(); })
+        .then(function(data) { aplicarIdentidade(data.logoRetangular, data.logoQuadrada); })
+        .catch(function() { aplicarIdentidade('logoAtlasTransparente.png', 'icon-atlas-motorista.svg'); });
       
       // Carregar script usando o protocolo atual (sem conversões)
       function loadScript(src) {
@@ -258,10 +400,42 @@
         document.body.appendChild(script);
       }
       
+      // i18n (Fase 0 multimoeda/multilíngua) antes do auth
+      loadScript('js/i18n.js');
       // Carregar Background Sync Manager (melhoria opcional)
       loadScript('js/background-sync-manager.js');
       
       loadScript('js/auth.js');
+
+      // Aplicar traduções quando i18n estiver pronto (Fase 0)
+      if (window.i18nReady) {
+        window.i18nReady.then(function() {
+          if (typeof window.t !== 'function') return;
+          var currentLocale = (window.getI18nLocale && window.getI18nLocale()) || 'pt-BR';
+          document.documentElement.lang = currentLocale === 'es-PY' ? 'es' : 'pt-BR';
+          document.querySelectorAll('[data-i18n]').forEach(function(el) {
+            var k = el.getAttribute('data-i18n');
+            if (k) el.textContent = window.t(k);
+          });
+          document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) {
+            var k = el.getAttribute('data-i18n-placeholder');
+            if (k) el.placeholder = window.t(k);
+          });
+          document.querySelectorAll('[data-i18n-title]').forEach(function(el) {
+            var k = el.getAttribute('data-i18n-title');
+            if (k) { el.title = window.t(k); el.setAttribute('aria-label', window.t(k)); }
+          });
+          // Seletor de idioma: estado ativo e clique (onclick inline já salva e recarrega; aqui só atualiza estado ativo)
+          document.querySelectorAll('.btn-idioma').forEach(function(btn) {
+            var loc = btn.getAttribute('data-locale');
+            btn.setAttribute('aria-pressed', loc === currentLocale ? 'true' : 'false');
+            btn.classList.toggle('active', loc === currentLocale);
+            btn.onclick = function() {
+              if (window.setPreferredLocale) window.setPreferredLocale(loc);
+            };
+          });
+        });
+      }
     })();
   </script>
   

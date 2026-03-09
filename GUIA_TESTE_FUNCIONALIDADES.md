@@ -1,6 +1,6 @@
 # 🧪 Guia de Testes - Funcionalidades Implementadas
 
-**Data:** 2025-01-16  
+**Data:** 2026-01-16  
 **Status:** ✅ Todas as funcionalidades abaixo estão PRONTAS para teste  
 
 ---
@@ -194,5 +194,5 @@ Ao testar, anote:
 ---
 
 **Versão:** 1.0  
-**Data:** 2025-01-16  
+**Data:** 2026-01-16  
 **Status:** ✅ Pronto para Testes

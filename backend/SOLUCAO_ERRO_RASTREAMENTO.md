@@ -22,7 +22,7 @@ Execute o script SQL para verificar:
 Ou execute diretamente:
 
 ```sql
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 -- Verificar se existe
@@ -42,7 +42,7 @@ Execute o script de criação:
 Ou execute apenas a parte da tabela VIAGEM_RASTREAMENTO:
 
 ```sql
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'VIAGEM_RASTREAMENTO')

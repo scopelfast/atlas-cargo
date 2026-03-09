@@ -1,7 +1,7 @@
-# 🚚 DivulgaCarga - Sistema de Gestão de Transportes
+# 🚚 Atlas Cargo - Sistema de Gestão de Transportes
 
-**Versão:** 1.4.0  
-**Data:** 2025-12-15  
+**Versão:** 2.0  
+**Data:** 2026  
 **Status:** ✅ Produção
 
 ---
@@ -23,7 +23,7 @@
 
 ## 🎯 Visão Geral
 
-O **DivulgaCarga** é um sistema completo de gestão de transportes desenvolvido para otimizar o processo de contratação de motoristas, gerenciamento de viagens e controle de operações logísticas.
+O **Atlas Cargo** é um sistema comercial de gestão de transportes desenvolvido para otimizar o processo de contratação de motoristas, gerenciamento de viagens e controle de operações logísticas.
 
 ### Principais Funcionalidades
 
@@ -51,7 +51,7 @@ O **DivulgaCarga** é um sistema completo de gestão de transportes desenvolvido
 ### Tecnologias Utilizadas
 
 - **Backend**: Node.js + Express.js
-- **Banco de Dados**: Microsoft SQL Server
+- **Banco de Dados**: PostgreSQL
 - **Frontend**: HTML5, CSS3, JavaScript (Vanilla)
 - **Autenticação**: JWT (JSON Web Tokens)
 - **Bibliotecas**: Chart.js, Leaflet (mapas), GridEditor
@@ -82,19 +82,19 @@ O **DivulgaCarga** é um sistema completo de gestão de transportes desenvolvido
 
 3. **Configure o arquivo `.env`**
    ```env
-   # Banco Principal - DIVULGACARGA_PRD
+   # Banco Principal - ATLAS_CARGO_PRD
    DB_SERVER=186.250.92.131
    DB_PORT=35987
-   DB_DATABASE=DIVULGACARGA_PRD
+   DB_DATABASE=ATLAS_CARGO_PRD
    DB_USER=sa
-   DB_PASSWORD=SistMSQLServer2025&*
+   DB_PASSWORD=SistMSQLServer2026&*
    
    # Banco de Migração - INTEGRA_PRD (mesmo servidor)
    INTEGRA_DB_SERVER=186.250.92.131
    INTEGRA_DB_PORT=35987
    INTEGRA_DB_DATABASE=INTEGRA_PRD
    INTEGRA_DB_USER=sa
-   INTEGRA_DB_PASSWORD=SistMSQLServer2025&*
+   INTEGRA_DB_PASSWORD=SistMSQLServer2026&*
    
    # Outras configurações
    JWT_SECRET=sua-chave-secreta-jwt
@@ -133,7 +133,7 @@ SysScopel/
 │   ├── server.js            # Arquivo principal do servidor
 │   └── app.js               # Configuração do Express
 │
-└── migrate_integra_to_divulgacarga_completo.sql  # Script de migração
+└── migrate_integra_completo.sql  # Script de migração
 ```
 
 ---
@@ -258,7 +258,7 @@ Arquivo: `backend/.env`
 ```env
 # Banco de Dados
 DB_SERVER=localhost
-DB_DATABASE=DivulgaCarga
+DB_DATABASE=atlas_cargo_prd
 DB_USER=sa
 DB_PASSWORD=sua-senha
 DB_PORT=1433
@@ -406,7 +406,7 @@ Para suporte técnico ou dúvidas:
 
 ## 📝 Changelog
 
-### Versão 1.3.0 (2025-12-01)
+### Versão 1.3.0 (2026-12-01)
 
 #### ✅ Funcionalidades
 - **Integração Meta (DeskRio)**: Sistema completo de integração com webhook Meta
@@ -443,7 +443,7 @@ Para suporte técnico ou dúvidas:
 - Correção do filtro "Viagem Confirmada" no relatório de convocações
 - Correção de sintaxe JavaScript na aba Integração Meta
 
-### Versão 1.2.0 (2025-11-28)
+### Versão 1.2.0 (2026-11-28)
 
 #### ✅ Funcionalidades
 - **Motivo de Recusa**: Sistema completo para registrar motivo quando motorista recusa convocação
@@ -498,7 +498,7 @@ Para suporte técnico ou dúvidas:
 - Correção de formatação de mensagens de reativação
 - Correção de lógica de filtro de motoristas para reenvio
 
-### Versão 1.1.0 (2025-11-24)
+### Versão 1.1.0 (2026-11-24)
 
 #### ✅ Funcionalidades
 - **Múltiplos veículos por viagem**: Sistema permite cadastrar vários veículos para uma mesma viagem
@@ -532,7 +532,7 @@ Para suporte técnico ou dúvidas:
 - Remoção de logs desnecessários do console
 - Correção de alinhamento em modais
 
-### Versão 1.0.0 (2025-11-23)
+### Versão 1.0.0 (2026-11-23)
 
 #### ✅ Funcionalidades
 - Sistema completo de convocações
@@ -564,9 +564,9 @@ Este projeto é proprietário e confidencial.
 
 ## 👥 Equipe
 
-**Desenvolvido por:** Equipe DivulgaCarga  
+**Desenvolvido por:** Atlas Cargo  
 **Mantido por:** Equipe de Desenvolvimento  
-**Última atualização:** 2025-11-23
+**Última atualização:** 2026-11-23
 
 ---
 
@@ -583,6 +583,6 @@ Este projeto é proprietário e confidencial.
 ---
 
 **Versão do Documento:** 1.3.0  
-**Última Revisão:** 2025-12-01  
+**Última Revisão:** 2026-12-01  
 **Documentação Completa:** ✅ Todas as funcionalidades documentadas
 

@@ -11,7 +11,7 @@
 --   - Se houver múltiplos registros na origem com mesma PK, usar o mais recente (por DHMAINTENANCE)
 -- ============================================
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 -- Verificar se a procedure existe antes de alterar
@@ -31,7 +31,7 @@ BEGIN
     
     -- MERGE apenas com registros que têm CDTIPOVALIDADE válido
     -- Se houver múltiplos registros na origem com mesma chave primária, usar o mais recente
-    MERGE DIVULGACARGA_PRD.dbo.CONTROLEVALIDADE AS dest
+    MERGE ATLAS_CARGO_PRD.dbo.CONTROLEVALIDADE AS dest
     USING (
         SELECT 
             src.TPCADASTRO,
@@ -55,7 +55,7 @@ BEGIN
                     ORDER BY src.DHMAINTENANCE DESC, src.DTVALIDADE DESC
                 ) AS rn
             FROM INTEGRA_PRD.dbo.CONTROLEVALIDADE AS src
-            INNER JOIN DIVULGACARGA_PRD.dbo.TIPOVALIDADE AS tv
+            INNER JOIN ATLAS_CARGO_PRD.dbo.TIPOVALIDADE AS tv
                 ON src.CDTIPOVALIDADE = tv.CDTIPOVALIDADE
         ) AS src
         WHERE src.rn = 1  -- Apenas o registro mais recente para cada chave primária
@@ -116,7 +116,7 @@ BEGIN
     FROM INTEGRA_PRD.dbo.CONTROLEVALIDADE AS src
     WHERE NOT EXISTS (
         SELECT 1 
-        FROM DIVULGACARGA_PRD.dbo.TIPOVALIDADE AS tv
+        FROM ATLAS_CARGO_PRD.dbo.TIPOVALIDADE AS tv
         WHERE tv.CDTIPOVALIDADE = src.CDTIPOVALIDADE
     );
     

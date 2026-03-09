@@ -2,7 +2,7 @@
 -- Este campo armazenará o resumo da rota (rodovias, estados, cidades) 
 -- para evitar processamento toda vez que o mapa é aberto
 
-USE [DivulgaCarga]
+USE [Atlas Cargo]
 GO
 
 -- Verificar se o campo já existe

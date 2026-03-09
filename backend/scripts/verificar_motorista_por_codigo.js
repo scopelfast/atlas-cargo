@@ -9,7 +9,7 @@
  *   node backend/scripts/verificar_motorista_por_codigo.js 2100610066
  */
 
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const { poolPromise } = require('../config/db');
 
 async function verificarMotorista(codigoOuCpf) {

@@ -11,28 +11,28 @@ Quando fizer uma atualização importante, edite **APENAS** estes 2 arquivos:
 #### 1. `backend/public/index.html`
 ```html
 <!-- Linha 8 -->
-<link rel="stylesheet" href="/css/style.css?v=20250102-1600" type="text/css" />
+<link rel="stylesheet" href="/css/style.css?v=20260102-1600" type="text/css" />
 
 <!-- Linha 440 -->
-<script src="/js/login.js?v=20250102-1600"></script>
+<script src="/js/login.js?v=20260102-1600"></script>
 ```
 
 #### 2. `backend/public/dashboard.html`
 ```html
 <!-- Linhas 8-9 -->
-<link rel="stylesheet" href="/css/modulos.css?v=20250102-1600">
-<link rel="stylesheet" href="/css/dashboard.css?v=20250102-1600">
+<link rel="stylesheet" href="/css/modulos.css?v=20260102-1600">
+<link rel="stylesheet" href="/css/dashboard.css?v=20260102-1600">
 
 <!-- Linhas 53-56 -->
-<script src="/js/ambiente-utils.js?v=20250102-1600"></script>
-<script src="/js/utils.js?v=20250102-1600"></script>
-<script src="/js/permissions.js?v=20250102-1600"></script>
-<script src="/js/dashboard.js?v=20250102-1600"></script>
+<script src="/js/ambiente-utils.js?v=20260102-1600"></script>
+<script src="/js/utils.js?v=20260102-1600"></script>
+<script src="/js/permissions.js?v=20260102-1600"></script>
+<script src="/js/dashboard.js?v=20260102-1600"></script>
 ```
 
 **É SÓ ISSO!** 
 
-Mude o `?v=20250102-1600` para a data/hora atual sempre que publicar.
+Mude o `?v=20260102-1600` para a data/hora atual sempre que publicar.
 
 ---
 

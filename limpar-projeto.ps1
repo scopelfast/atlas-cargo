@@ -43,12 +43,12 @@ if (Test-Path "backend\backend") {
     }
 }
 
-# 2. backend_20251201_1344.zip
-if (Test-Path "backend_20251201_1344.zip") {
-    $tamanho = [math]::Round((Get-Item "backend_20251201_1344.zip").Length / 1MB, 2)
+# 2. backend_20261201_1344.zip
+if (Test-Path "backend_20261201_1344.zip") {
+    $tamanho = [math]::Round((Get-Item "backend_20261201_1344.zip").Length / 1MB, 2)
     $espacoTotal += $tamanho
     $itensParaDeletar += @{
-        Path = "backend_20251201_1344.zip"
+        Path = "backend_20261201_1344.zip"
         Descricao = "Backup ZIP antigo"
         Tamanho = "${tamanho} MB"
         Tipo = "CRÍTICO"

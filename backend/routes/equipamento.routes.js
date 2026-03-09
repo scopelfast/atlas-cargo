@@ -1,35 +1,32 @@
 // backend/routes/equipamento.routes.js
 const express = require('express');
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const XLSX = require('xlsx');
 const router = express.Router();
-const { poolPromise } = require('../config/db');
+const { poolPromise, getFirstNumericValue } = require('../config/db');
 
-// Função helper para criar rotas de combo
+// Função helper para criar rotas de combo (query nativa PostgreSQL com identificadores entre aspas)
 const createComboRoute = (tableName, idField, nameField) => {
   return async (req, res) => {
     try {
       const pool = await poolPromise;
       
-      // Construir query com filtro de ativos se a tabela tiver campo FGACTIVE
-      let query = `SELECT ${idField}, ${nameField} FROM [dbo].[${tableName}]`;
+      let pgQuery = `SELECT "${idField}", "${nameField}" FROM "${tableName}"`;
       
-      // Filtrar apenas registros ativos se a tabela tiver campo FGACTIVE
-      // TIPOEQUIPAMENTO, GRUPOEQUIPAMENTO, MARCAEQUIPAMENTO, CLASSEFROTA geralmente têm FGACTIVE
       if (tableName === 'TIPOEQUIPAMENTO' || tableName === 'GRUPOEQUIPAMENTO' || 
           tableName === 'MARCAEQUIPAMENTO' || tableName === 'CLASSEFROTA') {
-        query += ` WHERE FGACTIVE = 'A' OR FGACTIVE = 'S'`;
+        pgQuery += ` WHERE "FGACTIVE" = 'A' OR "FGACTIVE" = 'S'`;
       }
       
-      query += ` ORDER BY ${nameField}`;
+      pgQuery += ` ORDER BY "${nameField}"`;
       
-      const result = await pool.request().query(query);
+      const result = await pool.query(pgQuery, []);
       
-      if (!result || !result.recordset) {
+      if (!result || !result.rows) {
         return res.status(500).json({ error: `Erro: resultado inválido ao carregar ${tableName}.` });
       }
       
-      res.json(result.recordset);
+      res.json(result.rows);
     } catch (err) {
       console.error(`Erro ao carregar ${tableName}:`, err);
       console.error(`Detalhes:`, err.message);
@@ -65,87 +62,87 @@ router.get('/equipamentos', async (req, res) => {
 
     let query = `
       SELECT 
-        e.IDEQUIPAMENTO,
-        e.REFEQUIPAMENTO,
-        e.DSEQUIPAMENTO,
-        e.CDGRUPOEQUIPAMENTO,
-        g.DSGRUPOEQUIPAMENTO AS GRUPO_NOME,
-        e.CDTIPOEQUIPAMENTO,
-        t.DSTIPOEQUIPAMENTO AS TIPO_NOME,
-        e.CDMARCAEQUIPAMENTO,
-        m.DSMARCAEQUIPAMENTO AS MARCA_NOME,
-        e.CDMODELOEQUIPAMENTO,
-        mod.DSMODELOEQUIPAMENTO AS MODELO_NOME,
-        e.CDCLASSEFROTA,
-        c.DSCLASSEFROTA AS CLASSE_NOME,
-        e.FGACTIVE,
-        e.FGTIPOATUACAO,
-        e.FGTIPOCARROCERIA,
-        e.NREIXOS,
-        e.CAPACIDCARGA,
-        e.ANOFABRICA,
-        e.ALTURA,
-        e.LARGURA,
-        e.COMPRIMENTO,
-        e.MTCUBICO,
-        e.FGRASTREADO
+        [e].[IDEQUIPAMENTO],
+        [e].[REFEQUIPAMENTO],
+        [e].[DSEQUIPAMENTO],
+        [e].[CDGRUPOEQUIPAMENTO],
+        [g].[DSGRUPOEQUIPAMENTO] AS GRUPO_NOME,
+        [e].[CDTIPOEQUIPAMENTO],
+        [t].[DSTIPOEQUIPAMENTO] AS TIPO_NOME,
+        [e].[CDMARCAEQUIPAMENTO],
+        [m].[DSMARCAEQUIPAMENTO] AS MARCA_NOME,
+        [e].[CDMODELOEQUIPAMENTO],
+        [mod].[DSMODELOEQUIPAMENTO] AS MODELO_NOME,
+        [e].[CDCLASSEFROTA],
+        [c].[DSCLASSEFROTA] AS CLASSE_NOME,
+        [e].[FGACTIVE],
+        [e].[FGTIPOATUACAO],
+        [e].[FGTIPOCARROCERIA],
+        [e].[NREIXOS],
+        [e].[CAPACIDCARGA],
+        [e].[ANOFABRICA],
+        [e].[ALTURA],
+        [e].[LARGURA],
+        [e].[COMPRIMENTO],
+        [e].[MTCUBICO],
+        [e].[FGRASTREADO]
       FROM [dbo].[EQUIPAMENTO] e
-      LEFT JOIN [dbo].[GRUPOEQUIPAMENTO] g ON e.CDGRUPOEQUIPAMENTO = g.CDGRUPOEQUIPAMENTO
-      LEFT JOIN [dbo].[TIPOEQUIPAMENTO] t ON e.CDTIPOEQUIPAMENTO = t.CDTIPOEQUIPAMENTO
-      LEFT JOIN [dbo].[MARCAEQUIPAMENTO] m ON e.CDMARCAEQUIPAMENTO = m.CDMARCAEQUIPAMENTO
-      LEFT JOIN [dbo].[MODELOEQUIPAMENTO] mod ON e.CDMODELOEQUIPAMENTO = mod.CDMODELOEQUIPAMENTO
-      LEFT JOIN [dbo].[CLASSEFROTA] c ON e.CDCLASSEFROTA = c.CDCLASSEFROTA
+      LEFT JOIN [dbo].[GRUPOEQUIPAMENTO] g ON [e].[CDGRUPOEQUIPAMENTO] = [g].[CDGRUPOEQUIPAMENTO]
+      LEFT JOIN [dbo].[TIPOEQUIPAMENTO] t ON [e].[CDTIPOEQUIPAMENTO] = [t].[CDTIPOEQUIPAMENTO]
+      LEFT JOIN [dbo].[MARCAEQUIPAMENTO] m ON [e].[CDMARCAEQUIPAMENTO] = [m].[CDMARCAEQUIPAMENTO]
+      LEFT JOIN [dbo].[MODELOEQUIPAMENTO] mod ON [e].[CDMODELOEQUIPAMENTO] = [mod].[CDMODELOEQUIPAMENTO]
+      LEFT JOIN [dbo].[CLASSEFROTA] c ON [e].[CDCLASSEFROTA] = [c].[CDCLASSEFROTA]
       WHERE 1=1
     `;
 
     const params = [];
 
     if (idequipamento) {
-      query += ` AND e.IDEQUIPAMENTO = @IDEQUIPAMENTO`;
+      query += ` AND [e].[IDEQUIPAMENTO] = @IDEQUIPAMENTO`;
       params.push({ name: 'IDEQUIPAMENTO', value: parseFloat(idequipamento) });
     }
     if (refequipamento) {
-      query += ` AND e.REFEQUIPAMENTO LIKE @REFEQUIPAMENTO`;
+      query += ` AND [e].[REFEQUIPAMENTO] LIKE @REFEQUIPAMENTO`;
       params.push({ name: 'REFEQUIPAMENTO', value: `%${refequipamento}%` });
     }
     if (cdgrupo) {
-      query += ` AND e.CDGRUPOEQUIPAMENTO = @CDGRUPO`;
+      query += ` AND [e].[CDGRUPOEQUIPAMENTO] = @CDGRUPO`;
       params.push({ name: 'CDGRUPO', value: cdgrupo });
     }
     if (cdtipo) {
-      query += ` AND e.CDTIPOEQUIPAMENTO = @CDTIPO`;
+      query += ` AND [e].[CDTIPOEQUIPAMENTO] = @CDTIPO`;
       params.push({ name: 'CDTIPO', value: cdtipo });
     }
     if (cdmarca) {
-      query += ` AND e.CDMARCAEQUIPAMENTO = @CDMARCA`;
+      query += ` AND [e].[CDMARCAEQUIPAMENTO] = @CDMARCA`;
       params.push({ name: 'CDMARCA', value: cdmarca });
     }
     if (cdmodelo) {
-      query += ` AND e.CDMODELOEQUIPAMENTO = @CDMODELO`;
+      query += ` AND [e].[CDMODELOEQUIPAMENTO] = @CDMODELO`;
       params.push({ name: 'CDMODELO', value: cdmodelo });
     }
     if (cdclasse) {
-      query += ` AND e.CDCLASSEFROTA = @CDCLASSE`;
+      query += ` AND [e].[CDCLASSEFROTA] = @CDCLASSE`;
       params.push({ name: 'CDCLASSE', value: cdclasse });
     }
     if (fgactive) {
-      query += ` AND e.FGACTIVE = @FGACTIVE`;
+      query += ` AND [e].[FGACTIVE] = @FGACTIVE`;
       params.push({ name: 'FGACTIVE', value: fgactive });
     }
     if (fgtipoatuacao) {
-      query += ` AND e.FGTIPOATUACAO = @FGTIPOATUACAO`;
+      query += ` AND [e].[FGTIPOATUACAO] = @FGTIPOATUACAO`;
       params.push({ name: 'FGTIPOATUACAO', value: fgtipoatuacao });
     }
     if (fgtipocarroceria) {
-      query += ` AND e.FGTIPOCARROCERIA = @FGTIPOCARROCERIA`;
+      query += ` AND [e].[FGTIPOCARROCERIA] = @FGTIPOCARROCERIA`;
       params.push({ name: 'FGTIPOCARROCERIA', value: fgtipocarroceria });
     }
     if (fgrastreado) {
-      query += ` AND e.FGRASTREADO = @FGRASTREADO`;
+      query += ` AND [e].[FGRASTREADO] = @FGRASTREADO`;
       params.push({ name: 'FGRASTREADO', value: fgrastreado });
     }
 
-    query += ` ORDER BY e.REFEQUIPAMENTO`;
+    query += ` ORDER BY [e].[REFEQUIPAMENTO]`;
 
     const pool = await poolPromise;
     const request = pool.request();
@@ -155,31 +152,32 @@ router.get('/equipamentos', async (req, res) => {
     });
 
     const result = await request.query(query);
+    const get = (row, key) => row[key] != null ? row[key] : row[key.toLowerCase()];
     const equipamentos = result.recordset.map(e => ({
-      IDEQUIPAMENTO: e.IDEQUIPAMENTO,
-      REFEQUIPAMENTO: e.REFEQUIPAMENTO,
-      DSEQUIPAMENTO: e.DSEQUIPAMENTO,
-      CDGRUPOEQUIPAMENTO: e.CDGRUPOEQUIPAMENTO,
-      GRUPO_NOME: e.GRUPO_NOME || 'Não informado',
-      CDTIPOEQUIPAMENTO: e.CDTIPOEQUIPAMENTO,
-      TIPO_NOME: e.TIPO_NOME || 'Não informado',
-      CDMARCAEQUIPAMENTO: e.CDMARCAEQUIPAMENTO,
-      MARCA_NOME: e.MARCA_NOME || 'Não informada',
-      CDMODELOEQUIPAMENTO: e.CDMODELOEQUIPAMENTO,
-      MODELO_NOME: e.MODELO_NOME || 'Não informado',
-      CDCLASSEFROTA: e.CDCLASSEFROTA,
-      CLASSE_NOME: e.CLASSE_NOME || 'Não informada',
-      FGACTIVE: e.FGACTIVE === 'A' ? 'S' : 'N',
-      FGTIPOATUACAO: e.FGTIPOATUACAO,
-      FGTIPOCARROCERIA: e.FGTIPOCARROCERIA,
-      NREIXOS: e.NREIXOS,
-      CAPACIDCARGA: e.CAPACIDCARGA,
-      ANOFABRICA: e.ANOFABRICA,
-      ALTURA: e.ALTURA,
-      LARGURA: e.LARGURA,
-      COMPRIMENTO: e.COMPRIMENTO,
-      MTCUBICO: e.MTCUBICO,
-      FGRASTREADO: e.FGRASTREADO || 'N'
+      IDEQUIPAMENTO: get(e, 'IDEQUIPAMENTO'),
+      REFEQUIPAMENTO: get(e, 'REFEQUIPAMENTO'),
+      DSEQUIPAMENTO: get(e, 'DSEQUIPAMENTO'),
+      CDGRUPOEQUIPAMENTO: get(e, 'CDGRUPOEQUIPAMENTO'),
+      GRUPO_NOME: get(e, 'GRUPO_NOME') || 'Não informado',
+      CDTIPOEQUIPAMENTO: get(e, 'CDTIPOEQUIPAMENTO'),
+      TIPO_NOME: get(e, 'TIPO_NOME') || 'Não informado',
+      CDMARCAEQUIPAMENTO: get(e, 'CDMARCAEQUIPAMENTO'),
+      MARCA_NOME: get(e, 'MARCA_NOME') || 'Não informada',
+      CDMODELOEQUIPAMENTO: get(e, 'CDMODELOEQUIPAMENTO'),
+      MODELO_NOME: get(e, 'MODELO_NOME') || 'Não informado',
+      CDCLASSEFROTA: get(e, 'CDCLASSEFROTA'),
+      CLASSE_NOME: get(e, 'CLASSE_NOME') || 'Não informada',
+      FGACTIVE: (get(e, 'FGACTIVE') === 'A' ? 'S' : 'N'),
+      FGTIPOATUACAO: get(e, 'FGTIPOATUACAO'),
+      FGTIPOCARROCERIA: get(e, 'FGTIPOCARROCERIA'),
+      NREIXOS: get(e, 'NREIXOS'),
+      CAPACIDCARGA: get(e, 'CAPACIDCARGA'),
+      ANOFABRICA: get(e, 'ANOFABRICA'),
+      ALTURA: get(e, 'ALTURA'),
+      LARGURA: get(e, 'LARGURA'),
+      COMPRIMENTO: get(e, 'COMPRIMENTO'),
+      MTCUBICO: get(e, 'MTCUBICO'),
+      FGRASTREADO: get(e, 'FGRASTREADO') || 'N'
     }));
 
     res.json(equipamentos);
@@ -210,35 +208,35 @@ router.get('/equipamentos/exportar-excel', async (req, res) => {
       fgrastreado
     } = req.query;
 
-    // Query SQL completa com todas as tabelas auxiliares
+    // Query SQL completa com todas as tabelas auxiliares (identificadores entre colchetes para PostgreSQL)
     let query = `
       SELECT 
-        e.IDEQUIPAMENTO AS 'ID do Equipamento',
-        e.REFEQUIPAMENTO AS 'Placa/Referência',
-        e.DSEQUIPAMENTO AS 'Descrição',
-        e.CDGRUPOEQUIPAMENTO AS 'Código Grupo',
-        g.DSGRUPOEQUIPAMENTO AS 'Grupo de Equipamento',
-        e.CDTIPOEQUIPAMENTO AS 'Código Tipo',
-        t.DSTIPOEQUIPAMENTO AS 'Tipo de Equipamento',
-        e.CDMARCAEQUIPAMENTO AS 'Código Marca',
-        m.DSMARCAEQUIPAMENTO AS 'Marca',
-        e.CDMODELOEQUIPAMENTO AS 'Código Modelo',
-        mod.DSMODELOEQUIPAMENTO AS 'Modelo',
-        e.CDCLASSEFROTA AS 'Código Classe',
-        c.DSCLASSEFROTA AS 'Classe de Frota',
-        CASE e.FGACTIVE
+        [e].[IDEQUIPAMENTO] AS 'ID do Equipamento',
+        [e].[REFEQUIPAMENTO] AS 'Placa/Referência',
+        [e].[DSEQUIPAMENTO] AS 'Descrição',
+        [e].[CDGRUPOEQUIPAMENTO] AS 'Código Grupo',
+        [g].[DSGRUPOEQUIPAMENTO] AS 'Grupo de Equipamento',
+        [e].[CDTIPOEQUIPAMENTO] AS 'Código Tipo',
+        [t].[DSTIPOEQUIPAMENTO] AS 'Tipo de Equipamento',
+        [e].[CDMARCAEQUIPAMENTO] AS 'Código Marca',
+        [m].[DSMARCAEQUIPAMENTO] AS 'Marca',
+        [e].[CDMODELOEQUIPAMENTO] AS 'Código Modelo',
+        [mod].[DSMODELOEQUIPAMENTO] AS 'Modelo',
+        [e].[CDCLASSEFROTA] AS 'Código Classe',
+        [c].[DSCLASSEFROTA] AS 'Classe de Frota',
+        CASE [e].[FGACTIVE]
           WHEN 'A' THEN 'Ativo'
           WHEN 'I' THEN 'Inativo'
           ELSE 'Não informado'
         END AS 'Situação',
-        CASE e.FGTIPOATUACAO
+        CASE [e].[FGTIPOATUACAO]
           WHEN 'A' THEN 'A - Agregado'
           WHEN 'F' THEN 'F - Frota Própria'
           WHEN 'P' THEN 'P - Parceiro (Terceiro Fiel)'
           WHEN 'T' THEN 'T - Terceiro'
           ELSE 'Não informado'
         END AS 'Tipo de Atuação',
-        CASE e.FGTIPOCARROCERIA
+        CASE [e].[FGTIPOCARROCERIA]
           WHEN '01' THEN '01 - Não aplicável'
           WHEN '02' THEN '02 - Aberta'
           WHEN '03' THEN '03 - Fechada / Baú'
@@ -247,75 +245,75 @@ router.get('/equipamentos/exportar-excel', async (req, res) => {
           WHEN '06' THEN '06 - Sider'
           ELSE 'Não informado'
         END AS 'Tipo de Carroceria',
-        e.NREIXOS AS 'Número de Eixos',
-        e.CAPACIDCARGA AS 'Capacidade de Carga (ton)',
-        e.ANOFABRICA AS 'Ano de Fabricação',
-        e.ALTURA AS 'Altura (m)',
-        e.LARGURA AS 'Largura (m)',
-        e.COMPRIMENTO AS 'Comprimento (m)',
-        e.MTCUBICO AS 'M³ Cúbico',
-        CASE e.FGRASTREADO
+        [e].[NREIXOS] AS 'Número de Eixos',
+        [e].[CAPACIDCARGA] AS 'Capacidade de Carga (ton)',
+        [e].[ANOFABRICA] AS 'Ano de Fabricação',
+        [e].[ALTURA] AS 'Altura (m)',
+        [e].[LARGURA] AS 'Largura (m)',
+        [e].[COMPRIMENTO] AS 'Comprimento (m)',
+        [e].[MTCUBICO] AS 'M³ Cúbico',
+        CASE [e].[FGRASTREADO]
           WHEN 'S' THEN 'Sim'
           WHEN 'N' THEN 'Não'
           ELSE 'Não informado'
         END AS 'Veículo Rastreado'
       FROM [dbo].[EQUIPAMENTO] e
-      LEFT JOIN [dbo].[GRUPOEQUIPAMENTO] g ON e.CDGRUPOEQUIPAMENTO = g.CDGRUPOEQUIPAMENTO
-      LEFT JOIN [dbo].[TIPOEQUIPAMENTO] t ON e.CDTIPOEQUIPAMENTO = t.CDTIPOEQUIPAMENTO
-      LEFT JOIN [dbo].[MARCAEQUIPAMENTO] m ON e.CDMARCAEQUIPAMENTO = m.CDMARCAEQUIPAMENTO
-      LEFT JOIN [dbo].[MODELOEQUIPAMENTO] mod ON e.CDMODELOEQUIPAMENTO = mod.CDMODELOEQUIPAMENTO
-      LEFT JOIN [dbo].[CLASSEFROTA] c ON e.CDCLASSEFROTA = c.CDCLASSEFROTA
+      LEFT JOIN [dbo].[GRUPOEQUIPAMENTO] g ON [e].[CDGRUPOEQUIPAMENTO] = [g].[CDGRUPOEQUIPAMENTO]
+      LEFT JOIN [dbo].[TIPOEQUIPAMENTO] t ON [e].[CDTIPOEQUIPAMENTO] = [t].[CDTIPOEQUIPAMENTO]
+      LEFT JOIN [dbo].[MARCAEQUIPAMENTO] m ON [e].[CDMARCAEQUIPAMENTO] = [m].[CDMARCAEQUIPAMENTO]
+      LEFT JOIN [dbo].[MODELOEQUIPAMENTO] mod ON [e].[CDMODELOEQUIPAMENTO] = [mod].[CDMODELOEQUIPAMENTO]
+      LEFT JOIN [dbo].[CLASSEFROTA] c ON [e].[CDCLASSEFROTA] = [c].[CDCLASSEFROTA]
       WHERE 1=1
     `;
 
     const params = [];
 
     if (idequipamento) {
-      query += ` AND e.IDEQUIPAMENTO = @IDEQUIPAMENTO`;
+      query += ` AND [e].[IDEQUIPAMENTO] = @IDEQUIPAMENTO`;
       params.push({ name: 'IDEQUIPAMENTO', value: parseFloat(idequipamento) });
     }
     if (refequipamento) {
-      query += ` AND e.REFEQUIPAMENTO LIKE @REFEQUIPAMENTO`;
+      query += ` AND [e].[REFEQUIPAMENTO] LIKE @REFEQUIPAMENTO`;
       params.push({ name: 'REFEQUIPAMENTO', value: `%${refequipamento}%` });
     }
     if (cdgrupo) {
-      query += ` AND e.CDGRUPOEQUIPAMENTO = @CDGRUPO`;
+      query += ` AND [e].[CDGRUPOEQUIPAMENTO] = @CDGRUPO`;
       params.push({ name: 'CDGRUPO', value: cdgrupo });
     }
     if (cdtipo) {
-      query += ` AND e.CDTIPOEQUIPAMENTO = @CDTIPO`;
+      query += ` AND [e].[CDTIPOEQUIPAMENTO] = @CDTIPO`;
       params.push({ name: 'CDTIPO', value: cdtipo });
     }
     if (cdmarca) {
-      query += ` AND e.CDMARCAEQUIPAMENTO = @CDMARCA`;
+      query += ` AND [e].[CDMARCAEQUIPAMENTO] = @CDMARCA`;
       params.push({ name: 'CDMARCA', value: cdmarca });
     }
     if (cdmodelo) {
-      query += ` AND e.CDMODELOEQUIPAMENTO = @CDMODELO`;
+      query += ` AND [e].[CDMODELOEQUIPAMENTO] = @CDMODELO`;
       params.push({ name: 'CDMODELO', value: cdmodelo });
     }
     if (cdclasse) {
-      query += ` AND e.CDCLASSEFROTA = @CDCLASSE`;
+      query += ` AND [e].[CDCLASSEFROTA] = @CDCLASSE`;
       params.push({ name: 'CDCLASSE', value: cdclasse });
     }
     if (fgactive) {
-      query += ` AND e.FGACTIVE = @FGACTIVE`;
+      query += ` AND [e].[FGACTIVE] = @FGACTIVE`;
       params.push({ name: 'FGACTIVE', value: fgactive });
     }
     if (fgtipoatuacao) {
-      query += ` AND e.FGTIPOATUACAO = @FGTIPOATUACAO`;
+      query += ` AND [e].[FGTIPOATUACAO] = @FGTIPOATUACAO`;
       params.push({ name: 'FGTIPOATUACAO', value: fgtipoatuacao });
     }
     if (fgtipocarroceria) {
-      query += ` AND e.FGTIPOCARROCERIA = @FGTIPOCARROCERIA`;
+      query += ` AND [e].[FGTIPOCARROCERIA] = @FGTIPOCARROCERIA`;
       params.push({ name: 'FGTIPOCARROCERIA', value: fgtipocarroceria });
     }
     if (fgrastreado) {
-      query += ` AND e.FGRASTREADO = @FGRASTREADO`;
+      query += ` AND [e].[FGRASTREADO] = @FGRASTREADO`;
       params.push({ name: 'FGRASTREADO', value: fgrastreado });
     }
 
-    query += ` ORDER BY e.REFEQUIPAMENTO`;
+    query += ` ORDER BY [e].[REFEQUIPAMENTO]`;
 
     const pool = await poolPromise;
     const request = pool.request();
@@ -399,54 +397,55 @@ router.get('/equipamentos/:id', async (req, res) => {
       .input('IDEQUIPAMENTO', sql.Decimal(15, 0), idNum)
       .query(`
         SELECT 
-          IDEQUIPAMENTO,
-          REFEQUIPAMENTO,
-          DSEQUIPAMENTO,
-          CDGRUPOEQUIPAMENTO,
-          CDTIPOEQUIPAMENTO,
-          CDMARCAEQUIPAMENTO,
-          CDMODELOEQUIPAMENTO,
-          CDCLASSEFROTA,
-          FGACTIVE,
-          FGTIPOATUACAO,
-          FGTIPOCARROCERIA,
-          NREIXOS,
-          CAPACIDCARGA,
-          ANOFABRICA,
-          ALTURA,
-          LARGURA,
-          COMPRIMENTO,
-          MTCUBICO,
-          FGRASTREADO
+          [IDEQUIPAMENTO],
+          [REFEQUIPAMENTO],
+          [DSEQUIPAMENTO],
+          [CDGRUPOEQUIPAMENTO],
+          [CDTIPOEQUIPAMENTO],
+          [CDMARCAEQUIPAMENTO],
+          [CDMODELOEQUIPAMENTO],
+          [CDCLASSEFROTA],
+          [FGACTIVE],
+          [FGTIPOATUACAO],
+          [FGTIPOCARROCERIA],
+          [NREIXOS],
+          [CAPACIDCARGA],
+          [ANOFABRICA],
+          [ALTURA],
+          [LARGURA],
+          [COMPRIMENTO],
+          [MTCUBICO],
+          [FGRASTREADO]
         FROM [dbo].[EQUIPAMENTO]
-        WHERE IDEQUIPAMENTO = @IDEQUIPAMENTO
+        WHERE [IDEQUIPAMENTO] = @IDEQUIPAMENTO
       `);
 
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Equipamento não encontrado.' });
     }
 
-    const equipamento = result.recordset[0];
+    const e = result.recordset[0];
+    const get = (row, key) => row[key] != null ? row[key] : row[key.toLowerCase()];
     res.json({
-      IDEQUIPAMENTO: equipamento.IDEQUIPAMENTO,
-      REFEQUIPAMENTO: equipamento.REFEQUIPAMENTO,
-      DSEQUIPAMENTO: equipamento.DSEQUIPAMENTO,
-      CDGRUPOEQUIPAMENTO: equipamento.CDGRUPOEQUIPAMENTO,
-      CDTIPOEQUIPAMENTO: equipamento.CDTIPOEQUIPAMENTO,
-      CDMARCAEQUIPAMENTO: equipamento.CDMARCAEQUIPAMENTO,
-      CDMODELOEQUIPAMENTO: equipamento.CDMODELOEQUIPAMENTO,
-      CDCLASSEFROTA: equipamento.CDCLASSEFROTA,
-      FGACTIVE: equipamento.FGACTIVE === 'A' ? 'S' : 'N',
-      FGTIPOATUACAO: equipamento.FGTIPOATUACAO,
-      FGTIPOCARROCERIA: equipamento.FGTIPOCARROCERIA,
-      NREIXOS: equipamento.NREIXOS,
-      CAPACIDCARGA: equipamento.CAPACIDCARGA,
-      ANOFABRICA: equipamento.ANOFABRICA,
-      ALTURA: equipamento.ALTURA,
-      LARGURA: equipamento.LARGURA,
-      COMPRIMENTO: equipamento.COMPRIMENTO,
-      MTCUBICO: equipamento.MTCUBICO,
-      FGRASTREADO: equipamento.FGRASTREADO
+      IDEQUIPAMENTO: get(e, 'IDEQUIPAMENTO'),
+      REFEQUIPAMENTO: get(e, 'REFEQUIPAMENTO'),
+      DSEQUIPAMENTO: get(e, 'DSEQUIPAMENTO'),
+      CDGRUPOEQUIPAMENTO: get(e, 'CDGRUPOEQUIPAMENTO'),
+      CDTIPOEQUIPAMENTO: get(e, 'CDTIPOEQUIPAMENTO'),
+      CDMARCAEQUIPAMENTO: get(e, 'CDMARCAEQUIPAMENTO'),
+      CDMODELOEQUIPAMENTO: get(e, 'CDMODELOEQUIPAMENTO'),
+      CDCLASSEFROTA: get(e, 'CDCLASSEFROTA'),
+      FGACTIVE: get(e, 'FGACTIVE') === 'A' ? 'S' : 'N',
+      FGTIPOATUACAO: get(e, 'FGTIPOATUACAO'),
+      FGTIPOCARROCERIA: get(e, 'FGTIPOCARROCERIA'),
+      NREIXOS: get(e, 'NREIXOS'),
+      CAPACIDCARGA: get(e, 'CAPACIDCARGA'),
+      ANOFABRICA: get(e, 'ANOFABRICA'),
+      ALTURA: get(e, 'ALTURA'),
+      LARGURA: get(e, 'LARGURA'),
+      COMPRIMENTO: get(e, 'COMPRIMENTO'),
+      MTCUBICO: get(e, 'MTCUBICO'),
+      FGRASTREADO: get(e, 'FGRASTREADO')
     });
   } catch (err) {
     console.error('Erro ao buscar equipamento:', err);
@@ -469,10 +468,10 @@ router.get('/modelos-por-tipo/:tipoId', async (req, res) => {
       .request()
       .input('CDTIPOEQUIPAMENTO', tipoId)
       .query(`
-        SELECT CDMODELOEQUIPAMENTO, DSMODELOEQUIPAMENTO
+        SELECT [CDMODELOEQUIPAMENTO], [DSMODELOEQUIPAMENTO]
         FROM [dbo].[MODELOEQUIPAMENTO]
-        WHERE CDTIPOEQUIPAMENTO = @CDTIPOEQUIPAMENTO
-        ORDER BY DSMODELOEQUIPAMENTO
+        WHERE [CDTIPOEQUIPAMENTO] = @CDTIPOEQUIPAMENTO
+        ORDER BY [DSMODELOEQUIPAMENTO]
       `);
     res.json(result.recordset);
   } catch (err) {
@@ -490,10 +489,10 @@ router.get('/modelos-por-marca/:marcaId', async (req, res) => {
       .request()
       .input('CDMARCAEQUIPAMENTO', marcaId)
       .query(`
-        SELECT CDMODELOEQUIPAMENTO, DSMODELOEQUIPAMENTO
+        SELECT [CDMODELOEQUIPAMENTO], [DSMODELOEQUIPAMENTO]
         FROM [dbo].[MODELOEQUIPAMENTO]
-        WHERE CDMARCAEQUIPAMENTO = @CDMARCAEQUIPAMENTO
-        ORDER BY DSMODELOEQUIPAMENTO
+        WHERE [CDMARCAEQUIPAMENTO] = @CDMARCAEQUIPAMENTO
+        ORDER BY [DSMODELOEQUIPAMENTO]
       `);
     res.json(result.recordset);
   } catch (err) {
@@ -515,17 +514,20 @@ router.post('/equipamentos', async (req, res) => {
       return res.status(400).json({ error: 'Referência é obrigatória.' });
     }
 
+    // DSEQUIPAMENTO é NOT NULL no banco: usar descrição, senão referência, senão string vazia
+    const descricaoEquip = (DSEQUIPAMENTO && String(DSEQUIPAMENTO).trim()) || REFEQUIPAMENTO.trim() || '';
+
     const pool = await poolPromise;
     const maxResult = await pool
       .request()
-      .query('SELECT ISNULL(MAX(IDEQUIPAMENTO), 0) AS maxId FROM [dbo].[EQUIPAMENTO]');
-    const novoId = maxResult.recordset[0].maxId + 1;
+      .query('SELECT COALESCE(MAX([IDEQUIPAMENTO]), 0) + 1 AS [maxId] FROM [dbo].[EQUIPAMENTO]');
+    const novoId = getFirstNumericValue(maxResult.recordset, 1);
 
     await pool
       .request()
       .input('IDEQUIPAMENTO', sql.Decimal(15, 0), novoId)
       .input('REFEQUIPAMENTO', REFEQUIPAMENTO.trim())
-      .input('DSEQUIPAMENTO', DSEQUIPAMENTO?.trim() || null)
+      .input('DSEQUIPAMENTO', descricaoEquip)
       .input('CDGRUPOEQUIPAMENTO', CDGRUPOEQUIPAMENTO || null)
       .input('CDTIPOEQUIPAMENTO', CDTIPOEQUIPAMENTO)
       .input('CDMARCAEQUIPAMENTO', CDMARCAEQUIPAMENTO)
@@ -543,10 +545,10 @@ router.post('/equipamentos', async (req, res) => {
       .input('FGRASTREADO', FGRASTREADO || 'N')
       .query(`
         INSERT INTO [dbo].[EQUIPAMENTO] (
-          IDEQUIPAMENTO, REFEQUIPAMENTO, DSEQUIPAMENTO, CDGRUPOEQUIPAMENTO,
-          CDTIPOEQUIPAMENTO, CDMARCAEQUIPAMENTO, CDMODELOEQUIPAMENTO, CDCLASSEFROTA,
-          FGTIPOATUACAO, FGTIPOCARROCERIA, NREIXOS, CAPACIDCARGA, ANOFABRICA,
-          ALTURA, LARGURA, COMPRIMENTO, MTCUBICO, FGRASTREADO, FGACTIVE, DHMAINTENANCE, SGUSER, SERVERORIG
+          [IDEQUIPAMENTO], [REFEQUIPAMENTO], [DSEQUIPAMENTO], [CDGRUPOEQUIPAMENTO],
+          [CDTIPOEQUIPAMENTO], [CDMARCAEQUIPAMENTO], [CDMODELOEQUIPAMENTO], [CDCLASSEFROTA],
+          [FGTIPOATUACAO], [FGTIPOCARROCERIA], [NREIXOS], [CAPACIDCARGA], [ANOFABRICA],
+          [ALTURA], [LARGURA], [COMPRIMENTO], [MTCUBICO], [FGRASTREADO], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]
         )
         VALUES (
           @IDEQUIPAMENTO, @REFEQUIPAMENTO, @DSEQUIPAMENTO, @CDGRUPOEQUIPAMENTO,
@@ -577,6 +579,9 @@ router.put('/equipamentos/:id', async (req, res) => {
       return res.status(400).json({ error: 'Dados inválidos.' });
     }
 
+    // DSEQUIPAMENTO é NOT NULL no banco: usar descrição, senão referência, senão string vazia
+    const descricaoEquip = (DSEQUIPAMENTO && String(DSEQUIPAMENTO).trim()) || REFEQUIPAMENTO.trim() || '';
+
     const pool = await poolPromise;
     const fgactiveDB = FGACTIVE === 'S' ? 'A' : 'I';
     const idNumerico = parseFloat(id);
@@ -589,7 +594,7 @@ router.put('/equipamentos/:id', async (req, res) => {
       .request()
       .input('IDEQUIPAMENTO', sql.Decimal(15, 0), idNumerico)
       .input('REFEQUIPAMENTO', REFEQUIPAMENTO.trim())
-      .input('DSEQUIPAMENTO', DSEQUIPAMENTO?.trim() || null)
+      .input('DSEQUIPAMENTO', descricaoEquip)
       .input('CDGRUPOEQUIPAMENTO', CDGRUPOEQUIPAMENTO || null)
       .input('CDTIPOEQUIPAMENTO', CDTIPOEQUIPAMENTO)
       .input('CDMARCAEQUIPAMENTO', CDMARCAEQUIPAMENTO)
@@ -609,28 +614,28 @@ router.put('/equipamentos/:id', async (req, res) => {
       .query(`
         UPDATE [dbo].[EQUIPAMENTO]
         SET 
-          REFEQUIPAMENTO = @REFEQUIPAMENTO,
-          DSEQUIPAMENTO = @DSEQUIPAMENTO,
-          CDGRUPOEQUIPAMENTO = @CDGRUPOEQUIPAMENTO,
-          CDTIPOEQUIPAMENTO = @CDTIPOEQUIPAMENTO,
-          CDMARCAEQUIPAMENTO = @CDMARCAEQUIPAMENTO,
-          CDMODELOEQUIPAMENTO = @CDMODELOEQUIPAMENTO,
-          CDCLASSEFROTA = @CDCLASSEFROTA,
-          FGTIPOATUACAO = @FGTIPOATUACAO,
-          FGTIPOCARROCERIA = @FGTIPOCARROCERIA,
-          NREIXOS = @NREIXOS,
-          CAPACIDCARGA = @CAPACIDCARGA,
-          ANOFABRICA = @ANOFABRICA,
-          ALTURA = @ALTURA,
-          LARGURA = @LARGURA,
-          COMPRIMENTO = @COMPRIMENTO,
-          MTCUBICO = @MTCUBICO,
-          FGACTIVE = @FGACTIVE,
-          FGRASTREADO = @FGRASTREADO,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE IDEQUIPAMENTO = @IDEQUIPAMENTO
+          [REFEQUIPAMENTO] = @REFEQUIPAMENTO,
+          [DSEQUIPAMENTO] = @DSEQUIPAMENTO,
+          [CDGRUPOEQUIPAMENTO] = @CDGRUPOEQUIPAMENTO,
+          [CDTIPOEQUIPAMENTO] = @CDTIPOEQUIPAMENTO,
+          [CDMARCAEQUIPAMENTO] = @CDMARCAEQUIPAMENTO,
+          [CDMODELOEQUIPAMENTO] = @CDMODELOEQUIPAMENTO,
+          [CDCLASSEFROTA] = @CDCLASSEFROTA,
+          [FGTIPOATUACAO] = @FGTIPOATUACAO,
+          [FGTIPOCARROCERIA] = @FGTIPOCARROCERIA,
+          [NREIXOS] = @NREIXOS,
+          [CAPACIDCARGA] = @CAPACIDCARGA,
+          [ANOFABRICA] = @ANOFABRICA,
+          [ALTURA] = @ALTURA,
+          [LARGURA] = @LARGURA,
+          [COMPRIMENTO] = @COMPRIMENTO,
+          [MTCUBICO] = @MTCUBICO,
+          [FGACTIVE] = @FGACTIVE,
+          [FGRASTREADO] = @FGRASTREADO,
+          [DHMAINTENANCE] = GETDATE(),
+          [SGUSER] = 'SYSTEM',
+          [SERVERORIG] = 'AppDVcargas'
+        WHERE [IDEQUIPAMENTO] = @IDEQUIPAMENTO
       `);
 
     res.json({ success: true, message: 'Equipamento atualizado com sucesso!' });
@@ -657,7 +662,7 @@ router.delete('/equipamentos/:id', async (req, res) => {
     const checkResult = await pool
       .request()
       .input('IDEQUIPAMENTO', sql.Decimal(15, 0), idNumerico)
-      .query(`SELECT FGACTIVE FROM [dbo].[EQUIPAMENTO] WHERE IDEQUIPAMENTO = @IDEQUIPAMENTO`);
+      .query(`SELECT [FGACTIVE] FROM [dbo].[EQUIPAMENTO] WHERE [IDEQUIPAMENTO] = @IDEQUIPAMENTO`);
 
     if (checkResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Equipamento não encontrado.' });
@@ -686,11 +691,11 @@ router.delete('/equipamentos/:id', async (req, res) => {
       .query(`
         UPDATE [dbo].[EQUIPAMENTO]
         SET 
-          FGACTIVE = @FGACTIVE,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE IDEQUIPAMENTO = @IDEQUIPAMENTO
+          [FGACTIVE] = @FGACTIVE,
+          [DHMAINTENANCE] = GETDATE(),
+          [SGUSER] = 'SYSTEM',
+          [SERVERORIG] = 'AppDVcargas'
+        WHERE [IDEQUIPAMENTO] = @IDEQUIPAMENTO
       `);
 
     if (result.rowsAffected[0] === 0) {

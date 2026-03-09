@@ -20,7 +20,7 @@
   // Em produção: usar versão fixa (atualizada manualmente a cada deploy)
   const APP_VERSION = isDevelopment 
     ? Date.now().toString() // Desenvolvimento: sempre novo timestamp
-    : '202512091200'; // Produção: versão fixa (atualizar a cada deploy)
+    : '202612091200'; // Produção: versão fixa (atualizar a cada deploy)
   
   // Função para adicionar cache busting a um URL
   window.addCacheBuster = function(url) {

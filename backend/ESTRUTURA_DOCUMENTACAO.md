@@ -1,7 +1,7 @@
-# 📚 Estrutura de Documentação do Sistema DivulgaCarga
+# 📚 Estrutura de Documentação do Sistema Atlas Cargo
 
 **Versão:** 1.0.0  
-**Data:** 2025-11-21
+**Data:** 2026-11-21
 
 ---
 
@@ -264,20 +264,20 @@ O arquivo `README.md` principal deve conter:
 
 ## 📝 Changelog da Documentação
 
-### Versão 1.1.0 (2025-11-23)
+### Versão 1.1.0 (2026-11-23)
 - ✅ Adicionada documentação do init.sql
 - ✅ Atualizada documentação do sistema de convocações
 - ✅ Criado README principal do projeto
 - ✅ Atualizada estrutura de documentação
 
-### Versão 1.0.0 (2025-11-21)
+### Versão 1.0.0 (2026-11-21)
 - ✅ Estrutura inicial criada
 - ✅ Documentação do sistema de convocações completa
 - ✅ Guias específicos criados
 
 ---
 
-**Mantido por:** Equipe DivulgaCarga  
-**Última atualização:** 2025-11-23  
+**Mantido por:** Equipe Atlas Cargo  
+**Última atualização:** 2026-11-23  
 **Versão:** 1.1.0
 

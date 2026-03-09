@@ -1,7 +1,7 @@
 # 🏢 Implementação: WebSocket para Torre de Controle
 
 **Versão:** 1.0  
-**Data:** 2025-01-16  
+**Data:** 2026-01-16  
 **Status:** ✅ Implementado
 
 ---
@@ -143,9 +143,9 @@ Atualização de posição GPS
   posicao: {
     latitude: -30.123,
     longitude: -51.456,
-    timestamp: '2025-01-16T10:30:00Z'
+    timestamp: '2026-01-16T10:30:00Z'
   },
-  timestamp: '2025-01-16T10:30:00Z'
+  timestamp: '2026-01-16T10:30:00Z'
 }
 ```
 
@@ -155,7 +155,7 @@ Atualização de dados da viagem
 {
   idviagem: 123,
   viagem: { /* dados da viagem */ },
-  timestamp: '2025-01-16T10:30:00Z'
+  timestamp: '2026-01-16T10:30:00Z'
 }
 ```
 
@@ -164,7 +164,7 @@ Novo alerta criado
 ```javascript
 {
   alerta: { /* dados do alerta */ },
-  timestamp: '2025-01-16T10:30:00Z'
+  timestamp: '2026-01-16T10:30:00Z'
 }
 ```
 
@@ -174,7 +174,7 @@ Alerta foi resolvido
 {
   idAlerta: 456,
   idviagem: 123,
-  timestamp: '2025-01-16T10:30:00Z'
+  timestamp: '2026-01-16T10:30:00Z'
 }
 ```
 
@@ -184,7 +184,7 @@ Alerta SOS (prioridade máxima)
 {
   sos: { /* dados do SOS */ },
   prioridade: 'CRITICA',
-  timestamp: '2025-01-16T10:30:00Z'
+  timestamp: '2026-01-16T10:30:00Z'
 }
 ```
 
@@ -193,7 +193,7 @@ Nova mensagem no chat
 ```javascript
 {
   mensagem: { /* dados da mensagem */ },
-  timestamp: '2025-01-16T10:30:00Z'
+  timestamp: '2026-01-16T10:30:00Z'
 }
 ```
 
@@ -203,7 +203,7 @@ Atualização de reputação
 {
   cdmotorista: 789,
   reputacao: { /* dados da reputação */ },
-  timestamp: '2025-01-16T10:30:00Z'
+  timestamp: '2026-01-16T10:30:00Z'
 }
 ```
 
@@ -213,7 +213,7 @@ Atualização da lista de viagens
 {
   viagens: [ /* array de viagens */ ],
   count: 50,
-  timestamp: '2025-01-16T10:30:00Z'
+  timestamp: '2026-01-16T10:30:00Z'
 }
 ```
 
@@ -417,5 +417,5 @@ Remover `setInterval` que fazem polling e substituir por eventos WebSocket.
 ---
 
 **Versão:** 1.0  
-**Última Atualização:** 2025-01-16  
+**Última Atualização:** 2026-01-16  
 **Autor:** Sistema LogiTrack Pro

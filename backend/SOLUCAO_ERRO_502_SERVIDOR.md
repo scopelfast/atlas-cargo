@@ -173,7 +173,7 @@ netstat -ano | findstr :8080
 #### Se usar PM2:
 ```bash
 cd /caminho/do/projeto/backend
-pm2 start server.js --name divulgacarga
+pm2 start server.js --name atlas_cargo
 pm2 save
 ```
 

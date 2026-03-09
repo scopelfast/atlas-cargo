@@ -1,6 +1,6 @@
 # 📚 Resumo da Atualização de Documentação
 
-**Data:** 2025-11-24  
+**Data:** 2026-11-24  
 **Versão:** 1.1.0  
 **Status:** ✅ Completo
 
@@ -194,7 +194,7 @@ Toda a documentação do projeto foi revisada e atualizada com as novas funciona
 
 ---
 
-**Mantido por:** Equipe DivulgaCarga  
-**Data:** 2025-11-24  
+**Mantido por:** Atlas Cargo  
+**Data:** 2026-11-24  
 **Versão:** 1.1.0
 

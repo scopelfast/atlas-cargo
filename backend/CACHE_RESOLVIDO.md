@@ -80,18 +80,18 @@ Se precisar que TODOS vejam a atualização **IMEDIATAMENTE**, adicione `?v=vers
 
 #### `index.html`:
 ```html
-<link rel="stylesheet" href="/css/style.css?v=20250102" />
-<script src="/js/login.js?v=20250102"></script>
+<link rel="stylesheet" href="/css/style.css?v=20260102" />
+<script src="/js/login.js?v=20260102"></script>
 ```
 
 #### `dashboard.html`:
 ```html
-<link rel="stylesheet" href="/css/modulos.css?v=20250102">
-<link rel="stylesheet" href="/css/dashboard.css?v=20250102">
-<script src="/js/dashboard.js?v=20250102"></script>
+<link rel="stylesheet" href="/css/modulos.css?v=20260102">
+<link rel="stylesheet" href="/css/dashboard.css?v=20260102">
+<script src="/js/dashboard.js?v=20260102"></script>
 ```
 
-**Mude o `?v=20250102` para a data atual sempre que publicar.**
+**Mude o `?v=20260102` para a data atual sempre que publicar.**
 
 ---
 
@@ -140,7 +140,7 @@ pm2 restart all
 
 ---
 
-**Desenvolvido por:** Sistema DivulgaCarga
-**Data:** 02/01/2025
+**Desenvolvido por:** Atlas Cargo
+**Data:** 02/01/2026
 **Status:** ✅ RESOLVIDO
 

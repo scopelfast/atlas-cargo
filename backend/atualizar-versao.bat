@@ -8,7 +8,7 @@ cd /d %~dp0
 
 echo.
 echo ========================================
-echo   Sistema de Atualização - DivulgaCarga
+echo   Sistema de Atualização - Atlas Cargo
 echo ========================================
 echo.
 

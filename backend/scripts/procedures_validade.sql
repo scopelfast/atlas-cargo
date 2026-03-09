@@ -2,7 +2,7 @@
 -- Procedures para TIPOVALIDADE e CONTROLEVALIDADE
 -- =============================================
 
-USE DIVULGACARGA_PRD;
+USE ATLAS_CARGO_PRD;
 GO
 
 -- =============================================

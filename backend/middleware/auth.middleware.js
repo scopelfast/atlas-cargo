@@ -11,9 +11,11 @@ const getUsuarioLogado = (req, res, next) => {
       
       try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const id = decoded.id ?? decoded.cdcadastro;
         req.user = {
           login: decoded.login,
-          id: decoded.id,
+          id,
+          cdcadastro: id,
           nome: decoded.nome,
           email: decoded.email
         };
@@ -27,9 +29,11 @@ const getUsuarioLogado = (req, res, next) => {
       if (token) {
         try {
           const decoded = jwt.verify(token, process.env.JWT_SECRET);
+          const id = decoded.id ?? decoded.cdcadastro;
           req.user = {
             login: decoded.login,
-            id: decoded.id,
+            id,
+            cdcadastro: id,
             nome: decoded.nome,
             email: decoded.email
           };
@@ -69,9 +73,11 @@ const requireAuth = (req, res, next) => {
     
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const id = decoded.id ?? decoded.cdcadastro;
       req.user = {
         login: decoded.login,
-        id: decoded.id,
+        id,
+        cdcadastro: id,
         nome: decoded.nome,
         email: decoded.email
       };

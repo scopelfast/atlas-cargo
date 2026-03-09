@@ -1,7 +1,7 @@
 // backend/routes/relatorio-convocacoes.routes.js
 // Rotas para Relatório de Convocações
 // Versão: 1.0
-// Autor: Sistema DivulgaCarga
+// Atlas Cargo
 
 const express = require('express');
 const router = express.Router();

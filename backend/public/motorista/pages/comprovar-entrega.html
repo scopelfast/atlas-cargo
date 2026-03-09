@@ -4,8 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Comprovar Entrega - Motorista</title>
-  <link rel="stylesheet" href="../css/padrao-telas.css">
   <link rel="stylesheet" href="../css/design-system.css">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <script src="../js/i18n.js"></script>
   <style>
     .form-section {
       background: white;
@@ -53,7 +55,7 @@
     .btn-capture {
       width: 100%;
       padding: 14px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%);
       color: white;
       border: none;
       border-radius: 12px;
@@ -127,7 +129,7 @@
     .btn-submit {
       width: 100%;
       padding: 16px;
-      background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
       color: white;
       border: none;
       border-radius: 12px;
@@ -164,71 +166,72 @@
     }
   </style>
 </head>
-<body>
-  <div id="statusIndicador" class="status-bar status-online">🟢 Online - Sincronizado</div>
-
+<body class="motorista-page">
   <div class="navbar">
-    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
-    <h1>📦 Comprovar Entrega</h1>
+    <button class="btn-voltar" onclick="voltar()">← <span data-i18n="comprovarEntrega.voltar">Voltar</span></button>
+    <h1><i class="bx bx-package"></i> <span data-i18n="comprovarEntrega.titulo">Comprovar Entrega</span></h1>
+    <div id="statusIndicador" class="status-badge-navbar status-online" data-i18n="dashboard.onlineSincronizado">Online - Sincronizado</div>
   </div>
 
   <div class="container">
     <!-- Informações da Viagem -->
     <div class="form-section">
-      <h3>🚛 Viagem</h3>
+      <h3 data-i18n="comprovarEntrega.viagem">🚛 Viagem</h3>
       <div id="viagemInfo">
-        <p style="color: #666;">Carregando informações da viagem...</p>
+        <p style="color: #666;" data-i18n="comprovarEntrega.carregandoViagem">Carregando informações da viagem...</p>
       </div>
     </div>
 
     <!-- Foto -->
     <div class="form-section">
-      <h3>📸 Foto da Entrega</h3>
+      <h3 data-i18n="comprovarEntrega.fotoEntrega">📸 Foto da Entrega</h3>
       <div class="photo-preview" id="photoPreview">
         <div style="text-align: center; color: #999;">
           <div style="font-size: 48px; margin-bottom: 10px;">📷</div>
-          <p>Nenhuma foto capturada</p>
+          <p data-i18n="comprovarEntrega.nenhumaFotoCapturada">Nenhuma foto capturada</p>
         </div>
       </div>
       <input type="file" id="photoInput" accept="image/*" capture="environment" style="display: none;">
-      <button type="button" class="btn-capture" onclick="capturarFoto()">
+      <button type="button" class="btn-capture" onclick="capturarFoto()" data-i18n="comprovarEntrega.capturarFoto">
         📷 Capturar Foto
       </button>
     </div>
 
     <!-- Assinatura -->
     <div class="form-section">
-      <h3>✍️ Assinatura do Recebedor</h3>
+      <h3 data-i18n="comprovarEntrega.assinaturaRecebedor">✍️ Assinatura do Recebedor</h3>
       <div class="signature-container">
         <canvas id="signatureCanvas" class="signature-canvas"></canvas>
-        <button type="button" class="btn-clear-signature" onclick="limparAssinatura()">
+        <button type="button" class="btn-clear-signature" onclick="limparAssinatura()" data-i18n="comprovarEntrega.limpar">
           🗑️ Limpar
         </button>
       </div>
-      <p style="font-size: 12px; color: #666; margin-top: 8px;">
+      <p style="font-size: 12px; color: #666; margin-top: 8px;" data-i18n="comprovarEntrega.desenheAssinatura">
         Desenhe a assinatura do recebedor no espaço acima
       </p>
     </div>
 
     <!-- Dados do Recebedor -->
     <div class="form-section">
-      <h3>👤 Dados do Recebedor</h3>
+      <h3 data-i18n="comprovarEntrega.dadosRecebedor">👤 Dados do Recebedor</h3>
       
       <div class="input-group">
-        <label for="receiverName">Nome do Recebedor *</label>
+        <label for="receiverName" data-i18n="comprovarEntrega.nomeRecebedor">Nome do Recebedor *</label>
         <input 
           type="text" 
           id="receiverName" 
+          data-i18n-placeholder="comprovarEntrega.nomePlaceholder"
           placeholder="Digite o nome completo"
           required
         >
       </div>
 
       <div class="input-group">
-        <label for="receiverDocument">CPF/RG (Opcional)</label>
+        <label for="receiverDocument" data-i18n="comprovarEntrega.cpfRgOpcional">CPF/RG (Opcional)</label>
         <input 
           type="text" 
           id="receiverDocument" 
+          data-i18n-placeholder="comprovarEntrega.cpfPlaceholder"
           placeholder="000.000.000-00"
         >
       </div>
@@ -236,11 +239,12 @@
 
     <!-- Observações -->
     <div class="form-section">
-      <h3>📝 Observações</h3>
+      <h3 data-i18n="comprovarEntrega.observacoes">📝 Observações</h3>
       <div class="input-group">
-        <label for="observations">Observações sobre a entrega (Opcional)</label>
+        <label for="observations" data-i18n="comprovarEntrega.observacoesLabel">Observações sobre a entrega (Opcional)</label>
         <textarea 
           id="observations" 
+          data-i18n-placeholder="comprovarEntrega.observacoesPlaceholder"
           placeholder="Ex: Entregue no portão, recebedor assinou comprovante, etc."
         ></textarea>
       </div>
@@ -250,14 +254,29 @@
     <div id="submitStatus" style="display: none;" class="status-indicator"></div>
 
     <!-- Botão Salvar -->
-    <button type="button" class="btn-submit" id="btnSalvar" onclick="salvarComprovante()">
+    <button type="button" class="btn-submit" id="btnSalvar" onclick="salvarComprovante()" data-i18n="comprovarEntrega.salvarComprovante">
       ✅ Salvar Comprovante de Entrega
     </button>
   </div>
 
+  <script src="../js/url-helper.js"></script>
   <script src="../js/notifications.js"></script>
   <script src="../js/auth.js"></script>
   <script src="../js/offline.js"></script>
+  <script>
+    function applyI18n() {
+      if (typeof window.t !== 'function') return;
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n');
+        if (k) el.textContent = window.t(k);
+      });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n-placeholder');
+        if (k) el.placeholder = window.t(k);
+      });
+    }
+    if (window.i18nReady) window.i18nReady.then(applyI18n);
+  </script>
   <script src="js/prova-entrega.js"></script>
 </body>
 </html>

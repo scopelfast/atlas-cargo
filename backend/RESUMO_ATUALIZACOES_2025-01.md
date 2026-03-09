@@ -1,4 +1,4 @@
-# 📋 Resumo de Atualizações - Janeiro 2025
+# 📋 Resumo de Atualizações - Janeiro 2026
 
 ## 🎯 Versão 1.4.0
 
@@ -40,7 +40,7 @@
 - Sistema tolerante a falhas
 
 **Bancos Configurados:**
-- **DIVULGACARGA_PRD**: Banco principal do sistema
+- **ATLAS_CARGO_PRD**: Banco principal do sistema
 - **INTEGRA_PRD**: Banco de migração (opcional)
 
 **Documentação:**
@@ -112,7 +112,7 @@
 
 #### Configurar Linked Server (INTEGRA_PRD)
 1. Abra SQL Server Management Studio
-2. Conecte-se ao DIVULGACARGA_PRD
+2. Conecte-se ao ATLAS_CARGO_PRD
 3. Execute: `backend/scripts/configurar_linked_server_integra.sql`
 
 ### ⚠️ Notas Importantes

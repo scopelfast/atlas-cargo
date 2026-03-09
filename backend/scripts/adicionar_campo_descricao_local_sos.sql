@@ -1,8 +1,8 @@
 -- Script para adicionar campo de descrição/detalhes do local na tabela SOS_ALERTS
--- Data: 2025-01-18
--- IMPORTANTE: Execute este script no banco de dados DIVULGACARGA_PRD
+-- Data: 2026-01-18
+-- IMPORTANTE: Execute este script no banco de dados ATLAS_CARGO_PRD
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 -- Adicionar campo LOCATION_DESCRIPTION (se não existir)

@@ -21,7 +21,7 @@ Execute o script SQL para verificar:
 Ou execute diretamente:
 
 ```sql
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 -- Buscar por código

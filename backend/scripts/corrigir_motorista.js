@@ -8,7 +8,7 @@
  *   node backend/scripts/corrigir_motorista.js 02100610066
  */
 
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const { poolPromise } = require('../config/db');
 
 async function verificarECorrigirMotorista(cpf) {

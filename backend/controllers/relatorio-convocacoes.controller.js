@@ -1,9 +1,9 @@
 // backend/controllers/relatorio-convocacoes.controller.js
 // Controller para Relatório de Convocações
 // Versão: 1.0
-// Autor: Sistema DivulgaCarga
+// Atlas Cargo
 
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const { poolPromise } = require('../config/db');
 
 const relatorioController = {
@@ -38,167 +38,162 @@ const relatorioController = {
       
       // Validar e construir condições WHERE apenas se tiverem valor válido
       if (isValidValue(dataInicio)) {
-        whereConditions.push('c.DHCONVOCACAO >= @dataInicio');
+        whereConditions.push('[conv].[DHCONVOCACAO] >= @dataInicio');
       }
       
       if (isValidValue(dataFim)) {
-        whereConditions.push('c.DHCONVOCACAO <= @dataFim');
+        whereConditions.push('[conv].[DHCONVOCACAO] <= @dataFim');
       }
       
       if (isValidValue(status)) {
-        whereConditions.push('c.STATUS = @status');
+        whereConditions.push('[conv].[STATUS] = @status');
       }
       
       if (isValidValue(idViagem) && !isNaN(idViagem.trim())) {
-        whereConditions.push('c.IDVIAGEM = @idViagem');
+        whereConditions.push('[conv].[IDVIAGEM] = @idViagem');
       }
       
       if (isValidValue(idConvocacao) && !isNaN(idConvocacao.trim())) {
-        whereConditions.push('c.IDCONVOCACAO = @idConvocacao');
+        whereConditions.push('[conv].[IDCONVOCACAO] = @idConvocacao');
       }
       
       if (isValidValue(motorista)) {
         if (!isNaN(motorista.trim())) {
-          // Se for número, buscar por ID
-          whereConditions.push('c.CDCADASTRO_MOTORISTA = @motoristaId');
+          whereConditions.push('[conv].[CDCADASTRO_MOTORISTA] = @motoristaId');
         } else {
-          // Se for texto, buscar por nome (RZSOCIAL)
-          whereConditions.push('cg.RZSOCIAL LIKE @motorista');
+          whereConditions.push('[cg].[RZSOCIAL] LIKE @motorista');
         }
       }
       
       if (viagemConfirmada && (viagemConfirmada === 'true' || viagemConfirmada === '1')) {
-        whereConditions.push('EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] c2 WHERE c2.IDVIAGEM = c.IDVIAGEM AND c2.STATUS = \'CONFIRMADA\')');
+        whereConditions.push('EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] [conv2] WHERE [conv2].[IDVIAGEM] = [conv].[IDVIAGEM] AND [conv2].[STATUS] = \'CONFIRMADA\')');
       } else if (viagemConfirmada && (viagemConfirmada === 'false' || viagemConfirmada === '0')) {
-        whereConditions.push('NOT EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] c2 WHERE c2.IDVIAGEM = c.IDVIAGEM AND c2.STATUS = \'CONFIRMADA\')');
+        whereConditions.push('NOT EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] [conv2] WHERE [conv2].[IDVIAGEM] = [conv].[IDVIAGEM] AND [conv2].[STATUS] = \'CONFIRMADA\')');
       }
       
       if (isValidValue(motivoRecusa) && !isNaN(motivoRecusa.trim())) {
-        whereConditions.push('c.CDMOTIVORECUSA = @motivoRecusa');
+        whereConditions.push('[conv].[CDMOTIVORECUSA] = @motivoRecusa');
       }
       
       if (isValidValue(contratador) && !isNaN(contratador.trim())) {
-        whereConditions.push('v.CDCONTRATADOR = @contratador');
+        whereConditions.push('[v].[CDCONTRATADOR] = @contratador');
       }
 
       const whereClause = whereConditions.length > 0 
         ? 'WHERE ' + whereConditions.join(' AND ')
         : '';
 
-      // Query principal - Lista de convocações
+      // Query principal - Lista de convocações (alias conv para evitar problema com [c] no PostgreSQL)
       const queryLista = `
         SELECT 
-          c.IDCONVOCACAO,
-          c.IDVIAGEM,
-          c.CDCADASTRO_MOTORISTA,
-          upper(cg.RZSOCIAL) AS NOME_MOTORISTA,
-          c.NRCELULAR,
-          c.STATUS,
-          c.CDMOTIVORECUSA,
-          mr.DSMOTIVO AS MOTIVO_RECUSA,
-          c.DHCONVOCACAO,
-          c.DHRESPOSTA,
-          c.DHACESSO,
-          c.LATITUDE,
-          c.LONGITUDE,
-          v.IDROTEIRO,
-          v.DTPREVINICIO,
-          v.DTPREVFINAL,
-          r.DSROTEIRO,
-          co.ESTADO AS ORIGEM_ESTADO,
-          co.NMCIDADE AS ORIGEM_CIDADE,
-          cd.ESTADO AS DESTINO_ESTADO,
-          cd.NMCIDADE AS DESTINO_CIDADE,
-          cf.DSCLASSEFROTA,
-          tv.DSTIPOVIAGEM,
-          upper(cg_contratador.RZSOCIAL) AS CONTRATADOR,
-          v.VLFRETE,
+          [conv].[IDCONVOCACAO],
+          [conv].[IDVIAGEM],
+          [conv].[CDCADASTRO_MOTORISTA],
+          UPPER([cg].[RZSOCIAL]) AS [NOME_MOTORISTA],
+          [conv].[NRCELULAR],
+          [conv].[STATUS],
+          [conv].[CDMOTIVORECUSA],
+          [mr].[DSMOTIVO] AS [MOTIVO_RECUSA],
+          [conv].[DHCONVOCACAO],
+          [conv].[DHRESPOSTA],
+          [conv].[DHACESSO],
+          [conv].[LATITUDE],
+          [conv].[LONGITUDE],
+          [v].[IDROTEIRO],
+          [v].[DTPREVINICIO],
+          [v].[DTPREVFINAL],
+          [r].[DSROTEIRO],
+          [co].[ESTADO] AS [ORIGEM_ESTADO],
+          [co].[NMCIDADE] AS [ORIGEM_CIDADE],
+          [cd].[ESTADO] AS [DESTINO_ESTADO],
+          [cd].[NMCIDADE] AS [DESTINO_CIDADE],
+          [cf].[DSCLASSEFROTA],
+          [tv].[DSTIPOVIAGEM],
+          UPPER([cg_contratador].[RZSOCIAL]) AS [CONTRATADOR],
+          [v].[VLFRETE],
+          COALESCE([v].[MOEDA], 'BRL') AS [MOEDA],
           CASE 
-            WHEN EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] c2 WHERE c2.IDVIAGEM = c.IDVIAGEM AND c2.STATUS = 'CONFIRMADA') 
-            THEN 'S' ELSE 'N' 
-          END AS VIAGEM_CONFIRMADA
-        FROM [dbo].[CONVOCACAO] c
-        LEFT JOIN [dbo].[CADASTROGERAL] cg ON c.CDCADASTRO_MOTORISTA = cg.CDCADASTRO
-        LEFT JOIN [dbo].[VIAGEMMESTRE] v ON c.IDVIAGEM = v.IDVIAGEM
-        LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
-        LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
-        LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
-        LEFT JOIN [dbo].[CLASSEFROTA] cf ON v.CDCLASSEFROTA = cf.CDCLASSEFROTA
-        LEFT JOIN [dbo].[TIPOVIAGEM] tv ON v.CDTIPOVIAGEM = tv.CDTIPOVIAGEM
-        LEFT JOIN [dbo].[CADASTROGERAL] cg_contratador ON v.CDCONTRATADOR = cg_contratador.CDCADASTRO
-        LEFT JOIN [dbo].[MOTIVORECUSA] mr ON c.CDMOTIVORECUSA = mr.CDMOTIVO
+            WHEN EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] [conv2] WHERE [conv2].[IDVIAGEM] = [conv].[IDVIAGEM] AND [conv2].[STATUS] = 'CONFIRMADA')
+            THEN 'S' ELSE 'N'
+          END AS [VIAGEM_CONFIRMADA]
+        FROM [dbo].[CONVOCACAO] [conv]
+        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [conv].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO]
+        LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [conv].[IDVIAGEM] = [v].[IDVIAGEM]
+        LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
+        LEFT JOIN [dbo].[CIDADE] [co] ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
+        LEFT JOIN [dbo].[CIDADE] [cd] ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
+        LEFT JOIN [dbo].[CLASSEFROTA] [cf] ON [v].[CDCLASSEFROTA] = [cf].[CDCLASSEFROTA]
+        LEFT JOIN [dbo].[TIPOVIAGEM] [tv] ON [v].[CDTIPOVIAGEM] = [tv].[CDTIPOVIAGEM]
+        LEFT JOIN [dbo].[CADASTROGERAL] [cg_contratador] ON [v].[CDCONTRATADOR] = [cg_contratador].[CDCADASTRO]
+        LEFT JOIN [dbo].[MOTIVORECUSA] [mr] ON [conv].[CDMOTIVORECUSA] = [mr].[CDMOTIVO]
         ${whereClause}
-        ORDER BY c.DHCONVOCACAO DESC
+        ORDER BY [conv].[DHCONVOCACAO] DESC
       `;
 
-      // Query de estatísticas (precisa do JOIN para filtro de motorista ou contratador)
       let queryEstatisticas = `
         SELECT 
-          COUNT(*) AS TOTAL,
-          COUNT(DISTINCT c.IDVIAGEM) AS TOTAL_VIAGENS,
-          SUM(CASE WHEN c.STATUS = 'PENDENTE' THEN 1 ELSE 0 END) AS PENDENTE,
-          SUM(CASE WHEN c.STATUS = 'ACEITA' THEN 1 ELSE 0 END) AS ACEITA,
-          SUM(CASE WHEN c.STATUS = 'RECUSADA' THEN 1 ELSE 0 END) AS RECUSADA,
-          SUM(CASE WHEN c.STATUS = 'CONFIRMADA' THEN 1 ELSE 0 END) AS CONFIRMADA,
-          SUM(CASE WHEN c.STATUS = 'ACEITA_DESCARTADA' THEN 1 ELSE 0 END) AS ACEITA_DESCARTADA,
-          SUM(CASE WHEN c.DHACESSO IS NOT NULL THEN 1 ELSE 0 END) AS COM_ACESSO,
-          SUM(CASE WHEN c.DHACESSO IS NULL THEN 1 ELSE 0 END) AS SEM_ACESSO,
-          SUM(CASE WHEN c.DHRESPOSTA IS NOT NULL THEN 1 ELSE 0 END) AS COM_RESPOSTA,
-          SUM(CASE WHEN c.DHRESPOSTA IS NULL THEN 1 ELSE 0 END) AS SEM_RESPOSTA
-        FROM [dbo].[CONVOCACAO] c
+          COUNT(*) AS [TOTAL],
+          COUNT(DISTINCT [conv].[IDVIAGEM]) AS [TOTAL_VIAGENS],
+          SUM(CASE WHEN [conv].[STATUS] = 'PENDENTE' THEN 1 ELSE 0 END) AS [PENDENTE],
+          SUM(CASE WHEN [conv].[STATUS] = 'ACEITA' THEN 1 ELSE 0 END) AS [ACEITA],
+          SUM(CASE WHEN [conv].[STATUS] = 'RECUSADA' THEN 1 ELSE 0 END) AS [RECUSADA],
+          SUM(CASE WHEN [conv].[STATUS] = 'CONFIRMADA' THEN 1 ELSE 0 END) AS [CONFIRMADA],
+          SUM(CASE WHEN [conv].[STATUS] = 'ACEITA_DESCARTADA' THEN 1 ELSE 0 END) AS [ACEITA_DESCARTADA],
+          SUM(CASE WHEN [conv].[DHACESSO] IS NOT NULL THEN 1 ELSE 0 END) AS [COM_ACESSO],
+          SUM(CASE WHEN [conv].[DHACESSO] IS NULL THEN 1 ELSE 0 END) AS [SEM_ACESSO],
+          SUM(CASE WHEN [conv].[DHRESPOSTA] IS NOT NULL THEN 1 ELSE 0 END) AS [COM_RESPOSTA],
+          SUM(CASE WHEN [conv].[DHRESPOSTA] IS NULL THEN 1 ELSE 0 END) AS [SEM_RESPOSTA]
+        FROM [dbo].[CONVOCACAO] [conv]
       `;
       
-      // Se houver filtro de motorista (texto) ou contratador, precisa do JOIN
       if ((motorista && isNaN(motorista)) || (contratador && isValidValue(contratador))) {
         let joins = [];
         if (motorista && isNaN(motorista)) {
-          joins.push('LEFT JOIN [dbo].[CADASTROGERAL] cg ON c.CDCADASTRO_MOTORISTA = cg.CDCADASTRO');
+          joins.push('LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [conv].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO]');
         }
         if (contratador && isValidValue(contratador)) {
-          joins.push('LEFT JOIN [dbo].[VIAGEMMESTRE] v ON c.IDVIAGEM = v.IDVIAGEM');
+          joins.push('LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [conv].[IDVIAGEM] = [v].[IDVIAGEM]');
         }
         if (joins.length > 0) {
           queryEstatisticas = queryEstatisticas.replace(
-            'FROM [dbo].[CONVOCACAO] c',
-            `FROM [dbo].[CONVOCACAO] c ${joins.join(' ')}`
+            'FROM [dbo].[CONVOCACAO] [conv]',
+            `FROM [dbo].[CONVOCACAO] [conv] ${joins.join(' ')}`
           );
         }
       }
       
       queryEstatisticas += whereClause;
 
-      // Query de estatísticas por data (precisa do JOIN para filtro de motorista ou contratador)
       let queryEstatisticasPorData = `
         SELECT 
-          CAST(c.DHCONVOCACAO AS DATE) AS DATA,
-          COUNT(*) AS TOTAL,
-          SUM(CASE WHEN c.STATUS = 'PENDENTE' THEN 1 ELSE 0 END) AS PENDENTE,
-          SUM(CASE WHEN c.STATUS = 'ACEITA' THEN 1 ELSE 0 END) AS ACEITA,
-          SUM(CASE WHEN c.STATUS = 'RECUSADA' THEN 1 ELSE 0 END) AS RECUSADA,
-          SUM(CASE WHEN c.STATUS = 'CONFIRMADA' THEN 1 ELSE 0 END) AS CONFIRMADA
-        FROM [dbo].[CONVOCACAO] c
+          CAST([conv].[DHCONVOCACAO] AS DATE) AS [DATA],
+          COUNT(*) AS [TOTAL],
+          SUM(CASE WHEN [conv].[STATUS] = 'PENDENTE' THEN 1 ELSE 0 END) AS [PENDENTE],
+          SUM(CASE WHEN [conv].[STATUS] = 'ACEITA' THEN 1 ELSE 0 END) AS [ACEITA],
+          SUM(CASE WHEN [conv].[STATUS] = 'RECUSADA' THEN 1 ELSE 0 END) AS [RECUSADA],
+          SUM(CASE WHEN [conv].[STATUS] = 'CONFIRMADA' THEN 1 ELSE 0 END) AS [CONFIRMADA]
+        FROM [dbo].[CONVOCACAO] [conv]
       `;
       
-      // Se houver filtro de motorista (texto) ou contratador, precisa do JOIN
       if ((motorista && isNaN(motorista)) || (contratador && isValidValue(contratador))) {
         let joins = [];
         if (motorista && isNaN(motorista)) {
-          joins.push('LEFT JOIN [dbo].[CADASTROGERAL] cg ON c.CDCADASTRO_MOTORISTA = cg.CDCADASTRO');
+          joins.push('LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [conv].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO]');
         }
         if (contratador && isValidValue(contratador)) {
-          joins.push('LEFT JOIN [dbo].[VIAGEMMESTRE] v ON c.IDVIAGEM = v.IDVIAGEM');
+          joins.push('LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [conv].[IDVIAGEM] = [v].[IDVIAGEM]');
         }
         if (joins.length > 0) {
           queryEstatisticasPorData = queryEstatisticasPorData.replace(
-            'FROM [dbo].[CONVOCACAO] c',
-            `FROM [dbo].[CONVOCACAO] c ${joins.join(' ')}`
+            'FROM [dbo].[CONVOCACAO] [conv]',
+            `FROM [dbo].[CONVOCACAO] [conv] ${joins.join(' ')}`
           );
         }
       }
       
       queryEstatisticasPorData += `${whereClause}
-        GROUP BY CAST(c.DHCONVOCACAO AS DATE)
-        ORDER BY DATA DESC`;
+        GROUP BY CAST([conv].[DHCONVOCACAO] AS DATE)
+        ORDER BY [DATA] DESC`;
 
       // Criar requests separados para cada query
       const requestLista = pool.request();
@@ -286,32 +281,27 @@ const relatorioController = {
     }
   },
 
-  // Buscar estatísticas resumidas
+  // Buscar estatísticas resumidas (PostgreSQL - alias entre aspas para preservar caso)
   buscarEstatisticas: async (req, res) => {
     try {
       const pool = await poolPromise;
-      
-      // Query idêntica à usada no relatório (linha 135-149) + cálculo de viagens pendentes
-      const query = `
+      const result = await pool.query(`
         SELECT 
-          COUNT(*) AS TOTAL,
-          COUNT(DISTINCT c.IDVIAGEM) AS TOTAL_VIAGENS,
-          SUM(CASE WHEN c.STATUS = 'PENDENTE' THEN 1 ELSE 0 END) AS PENDENTE,
-          SUM(CASE WHEN c.STATUS = 'ACEITA' THEN 1 ELSE 0 END) AS ACEITA,
-          SUM(CASE WHEN c.STATUS = 'RECUSADA' THEN 1 ELSE 0 END) AS RECUSADA,
-          SUM(CASE WHEN c.STATUS = 'CONFIRMADA' THEN 1 ELSE 0 END) AS CONFIRMADA,
-          SUM(CASE WHEN c.STATUS = 'ACEITA_DESCARTADA' THEN 1 ELSE 0 END) AS ACEITA_DESCARTADA,
-          SUM(CASE WHEN c.DHACESSO IS NOT NULL THEN 1 ELSE 0 END) AS COM_ACESSO,
-          SUM(CASE WHEN c.DHACESSO IS NULL THEN 1 ELSE 0 END) AS SEM_ACESSO,
-          SUM(CASE WHEN c.DHRESPOSTA IS NOT NULL THEN 1 ELSE 0 END) AS COM_RESPOSTA,
-          SUM(CASE WHEN c.DHRESPOSTA IS NULL THEN 1 ELSE 0 END) AS SEM_RESPOSTA,
-          -- Viagens pendentes = Total de viagens - Viagens com pelo menos uma convocação confirmada
-          COUNT(DISTINCT c.IDVIAGEM) - COUNT(DISTINCT CASE WHEN c.STATUS = 'CONFIRMADA' THEN c.IDVIAGEM END) AS VIAGENS_PENDENTES
-        FROM [dbo].[CONVOCACAO] c
-      `;
-
-      const result = await pool.request().query(query);
-      res.json(result.recordset[0] || {});
+          COUNT(*)::int AS "TOTAL",
+          COUNT(DISTINCT "conv"."IDVIAGEM")::int AS "TOTAL_VIAGENS",
+          COALESCE(SUM(CASE WHEN "conv"."STATUS" = 'PENDENTE' THEN 1 ELSE 0 END), 0)::int AS "PENDENTE",
+          COALESCE(SUM(CASE WHEN "conv"."STATUS" = 'ACEITA' THEN 1 ELSE 0 END), 0)::int AS "ACEITA",
+          COALESCE(SUM(CASE WHEN "conv"."STATUS" = 'RECUSADA' THEN 1 ELSE 0 END), 0)::int AS "RECUSADA",
+          COALESCE(SUM(CASE WHEN "conv"."STATUS" = 'CONFIRMADA' THEN 1 ELSE 0 END), 0)::int AS "CONFIRMADA",
+          COALESCE(SUM(CASE WHEN "conv"."STATUS" = 'ACEITA_DESCARTADA' THEN 1 ELSE 0 END), 0)::int AS "ACEITA_DESCARTADA",
+          COALESCE(SUM(CASE WHEN "conv"."DHACESSO" IS NOT NULL THEN 1 ELSE 0 END), 0)::int AS "COM_ACESSO",
+          COALESCE(SUM(CASE WHEN "conv"."DHACESSO" IS NULL THEN 1 ELSE 0 END), 0)::int AS "SEM_ACESSO",
+          COALESCE(SUM(CASE WHEN "conv"."DHRESPOSTA" IS NOT NULL THEN 1 ELSE 0 END), 0)::int AS "COM_RESPOSTA",
+          COALESCE(SUM(CASE WHEN "conv"."DHRESPOSTA" IS NULL THEN 1 ELSE 0 END), 0)::int AS "SEM_RESPOSTA",
+          (COUNT(DISTINCT "conv"."IDVIAGEM") - COUNT(DISTINCT CASE WHEN "conv"."STATUS" = 'CONFIRMADA' THEN "conv"."IDVIAGEM" END))::int AS "VIAGENS_PENDENTES"
+        FROM "CONVOCACAO" "conv"
+      `);
+      res.json(result.rows[0] || {});
     } catch (err) {
       console.error('Erro ao buscar estatísticas:', err);
       res.status(500).json({ error: 'Erro interno ao buscar estatísticas.' });

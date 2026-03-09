@@ -1,14 +1,14 @@
-# 📋 Resumo Completo do Projeto - DivulgaCarga
+# 📋 Resumo Completo do Projeto - Atlas Cargo
 
 **Versão:** 1.3.0  
-**Data:** 2025-12-01  
+**Data:** 2026-12-01  
 **Status:** ✅ Produção
 
 ---
 
 ## 🎯 Visão Geral
 
-O **DivulgaCarga** é um sistema completo de gestão de transportes desenvolvido para otimizar o processo de contratação de motoristas, gerenciamento de viagens e controle de operações logísticas. O sistema possui integração completa com webhook Meta (DeskRio) para envio automático de convocações.
+O **Atlas Cargo** é um sistema completo de gestão de transportes desenvolvido para otimizar o processo de contratação de motoristas, gerenciamento de viagens e controle de operações logísticas. O sistema possui integração completa com webhook Meta (DeskRio) para envio automático de convocações.
 
 ---
 
@@ -325,25 +325,25 @@ SysScopel/
 
 ## 📈 Versões e Changelog
 
-### Versão 1.3.0 (2025-12-01) - ATUAL
+### Versão 1.3.0 (2026-12-01) - ATUAL
 - ✅ Integração Meta (DeskRio) completa
 - ✅ Aba Integração Meta com logs em tempo real
 - ✅ Sistema de logs persistidos
 - ✅ Callback do Meta para receber retornos
 - ✅ Padronização de layout entre módulos
 
-### Versão 1.2.0 (2025-11-28)
+### Versão 1.2.0 (2026-11-28)
 - ✅ Sistema de motivo de recusa
 - ✅ Reativação de convocações
 - ✅ Histórico de reabertura
 - ✅ Indicador de motorista acionado
 
-### Versão 1.1.0 (2025-11-24)
+### Versão 1.1.0 (2026-11-24)
 - ✅ Múltiplos veículos e motoristas por viagem
 - ✅ Modais de dados completos
 - ✅ Correções de cache/refresh
 
-### Versão 1.0.0 (2025-11-23)
+### Versão 1.0.0 (2026-11-23)
 - ✅ Sistema completo de convocações
 - ✅ Integração WhatsApp
 - ✅ Relatório de convocações
@@ -385,13 +385,13 @@ Este projeto é proprietário e confidencial.
 
 ## 👥 Equipe
 
-**Desenvolvido por:** Equipe DivulgaCarga  
+**Desenvolvido por:** Equipe Atlas Cargo  
 **Mantido por:** Equipe de Desenvolvimento  
-**Última atualização:** 2025-12-01
+**Última atualização:** 2026-12-01
 
 ---
 
 **Versão do Documento:** 1.3.0  
-**Última Revisão:** 2025-12-01  
+**Última Revisão:** 2026-12-01  
 **Status:** ✅ Completo e Atualizado
 

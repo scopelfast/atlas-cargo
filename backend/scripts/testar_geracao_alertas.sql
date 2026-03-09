@@ -2,15 +2,15 @@
 -- Script para testar geração de alertas
 -- Módulo: Alertas
 -- ============================================
--- Data: 2025-01-18
--- IMPORTANTE: Execute este script no banco de dados DIVULGACARGA_PRD
+-- Data: 2026-01-18
+-- IMPORTANTE: Execute este script no banco de dados ATLAS_CARGO_PRD
 --
 -- Este script ajuda a preparar dados para testar a geração automática de alertas.
 -- Ele cria cenários de teste para cada tipo de alerta.
 --
 -- ⚠️ ATENÇÃO: Este script cria/modifica dados de teste. Use apenas em ambiente de desenvolvimento/teste.
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 PRINT '========================================';

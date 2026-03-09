@@ -1,9 +1,9 @@
 -- ============================================
 -- STORED PROCEDURE: SP_INTGRACAO_RASTREAMENTO_MAPA
--- Descrição: Integra a última posição de cada viagem do INTEGRA_PRD para DIVULGACARGA_PRD
+-- Descrição: Integra a última posição de cada viagem do INTEGRA_PRD para ATLAS_CARGO_PRD
 -- ============================================
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[SP_INTGRACAO_RASTREAMENTO_MAPA]') AND type in (N'P', N'PC'))

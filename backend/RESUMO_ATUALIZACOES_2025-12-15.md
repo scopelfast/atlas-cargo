@@ -1,4 +1,4 @@
-# 📋 Resumo de Atualizações - 15/12/2025
+# 📋 Resumo de Atualizações - 15/12/2026
 
 ## 🎯 Versão: 1.4.0
 
@@ -11,8 +11,8 @@
 **Contexto:** Ambos os bancos de dados foram migrados para o mesmo servidor SQL Server.
 
 **Mudanças:**
-- **DIVULGACARGA_PRD** e **INTEGRA_PRD** agora estão no mesmo servidor: `186.250.92.131,35987`
-- Credenciais unificadas: `sa` / `SistMSQLServer2025&*`
+- **ATLAS_CARGO_PRD** e **INTEGRA_PRD** agora estão no mesmo servidor: `186.250.92.131,35987`
+- Credenciais unificadas: `sa` / `SistMSQLServer2026&*`
 - Configurações atualizadas em:
   - `backend/config/db.js`
   - `backend/.env` (exemplo)
@@ -130,19 +130,19 @@
 Certifique-se de que o arquivo `backend/.env` está configurado com:
 
 ```env
-# Banco Principal - DIVULGACARGA_PRD
+# Banco Principal - ATLAS_CARGO_PRD
 DB_SERVER=186.250.92.131
 DB_PORT=35987
-DB_DATABASE=DIVULGACARGA_PRD
+DB_DATABASE=ATLAS_CARGO_PRD
 DB_USER=sa
-DB_PASSWORD=SistMSQLServer2025&*
+DB_PASSWORD=SistMSQLServer2026&*
 
 # Banco de Migração - INTEGRA_PRD
 INTEGRA_DB_SERVER=186.250.92.131
 INTEGRA_DB_PORT=35987
 INTEGRA_DB_DATABASE=INTEGRA_PRD
 INTEGRA_DB_USER=sa
-INTEGRA_DB_PASSWORD=SistMSQLServer2025&*
+INTEGRA_DB_PASSWORD=SistMSQLServer2026&*
 ```
 
 ### 2. Linked Server
@@ -153,7 +153,7 @@ Execute o script para configurar o linked server:
 
 **Como executar:**
 1. Conecte-se ao servidor: `186.250.92.131,35987`
-2. Execute o script no banco `DIVULGACARGA_PRD`
+2. Execute o script no banco `ATLAS_CARGO_PRD`
 
 ### 3. Stored Procedure
 
@@ -163,7 +163,7 @@ Execute o script para criar/atualizar a stored procedure:
 
 **Como executar:**
 1. Conecte-se ao servidor: `186.250.92.131,35987`
-2. Execute o script no banco `DIVULGACARGA_PRD`
+2. Execute o script no banco `ATLAS_CARGO_PRD`
 
 ---
 
@@ -173,7 +173,7 @@ Após aplicar as atualizações, verifique:
 
 1. **Conexões de Banco:**
    ```
-   ✅ Conexão com DIVULGACARGA_PRD estabelecida
+   ✅ Conexão com ATLAS_CARGO_PRD estabelecida
    ✅ Conexão com INTEGRA_PRD estabelecida
    ```
 
@@ -213,6 +213,6 @@ Após aplicar as atualizações, verifique:
 
 ---
 
-**Data da Atualização:** 15/12/2025  
+**Data da Atualização:** 15/12/2026  
 **Versão:** 1.4.0  
 **Status:** ✅ Completo e Testado

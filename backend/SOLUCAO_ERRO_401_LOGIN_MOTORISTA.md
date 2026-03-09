@@ -183,4 +183,4 @@ Se após seguir todos os passos o problema persistir:
 
 ---
 
-**Última atualização:** 2025-01-18
+**Última atualização:** 2026-01-18

@@ -2,12 +2,17 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Mapa de Viagem</title>
+  <title data-i18n="web.modulos.mapaViagem.titulo">Mapa de Viagem</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/modulos.css">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <style>
+    /* ========== Mapa de Viagem - Identidade Atlas Cargo ========== */
     .mapa-viagem-container {
       padding: 20px;
+      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
     }
 
     .mapa-viagem-header {
@@ -16,12 +21,12 @@
       align-items: center;
       margin-bottom: 25px;
       padding-bottom: 15px;
-      border-bottom: 2px solid #e0e0e0;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
     }
 
     .mapa-viagem-header h2 {
       margin: 0;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 28px;
       font-weight: 700;
       display: flex;
@@ -33,13 +38,14 @@
       background: white;
       border-radius: 12px;
       padding: 25px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
       margin-bottom: 25px;
+      border: 1px solid var(--border, #e2e8f0);
     }
 
     .filtros-box h3 {
       margin: 0 0 20px 0;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 18px;
       font-weight: 600;
       display: flex;
@@ -76,7 +82,7 @@
     }
 
     .btn-primary {
-      background: #3498db;
+      background: var(--ac-accent, #0ea5e9);
       color: white;
     }
 
@@ -112,7 +118,7 @@
 
     .mapa-container h3 {
       margin: 0 0 20px 0;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 18px;
       font-weight: 600;
       display: flex;
@@ -132,7 +138,7 @@
       display: flex;
       gap: 5px;
       margin-bottom: 20px;
-      border-bottom: 2px solid #e0e0e0;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
     }
 
     .tab-btn {
@@ -149,13 +155,13 @@
     }
 
     .tab-btn:hover {
-      color: #3498db;
+      color: var(--ac-accent, #0ea5e9);
       background: #f8f9fa;
     }
 
     .tab-btn.active {
-      color: #3498db;
-      border-bottom-color: #3498db;
+      color: var(--ac-accent, #0ea5e9);
+      border-bottom-color: var(--ac-accent, #0ea5e9);
       background: #f8f9fa;
     }
 
@@ -231,7 +237,7 @@
 
     .modal-header-tratamento h3 {
       margin: 0;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 24px;
       font-weight: 600;
       display: flex;
@@ -268,7 +274,7 @@
     }
 
     .modal-body-tratamento h4 {
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       margin-top: 20px;
       margin-bottom: 10px;
       font-size: 18px;
@@ -310,12 +316,12 @@
     <!-- Header Padronizado -->
     <div class="mapa-viagem-header">
       <h2>
-        <i class='bx bx-map' style="color: #3498db;"></i>
-        Mapa de Viagem
+        <i class='bx bx-map' style="color: var(--ac-accent, #0ea5e9);"></i>
+        <span data-i18n="web.modulos.mapaViagem.titulo">Mapa de Viagem</span>
       </h2>
       <div style="display: flex; gap: 10px; align-items: center;">
         <button class="btn btn-info" onclick="window.mostrarAjudaMapaViagem()" title="Como funciona? Regras e instruções">
-          <i class='bx bx-help-circle'></i> Ajuda
+          <i class='bx bx-help-circle'></i> <span data-i18n="web.modulos.mapaViagem.ajuda">Ajuda</span>
         </button>
       </div>
     </div>
@@ -323,52 +329,52 @@
     <!-- Abas -->
     <div class="tabs">
       <button class="tab-btn active" data-tab="filtros">
-        <i class='bx bx-filter'></i> Filtros
+        <i class='bx bx-filter'></i> <span data-i18n="web.modulos.mapaViagem.tabFiltros">Filtros</span>
       </button>
       <button class="tab-btn" data-tab="mapa">
-        <i class='bx bx-map'></i> Mapa
+        <i class='bx bx-map'></i> <span data-i18n="web.modulos.mapaViagem.tabMapa">Mapa</span>
       </button>
     </div>
 
     <!-- Aba Filtros -->
     <div class="tab-content active" id="tab-filtros">
       <div class="filtros-box">
-        <h3><i class='bx bx-filter'></i> Filtros</h3>
-        <form id="filtroForm">
+        <h3><i class='bx bx-filter'></i> <span data-i18n="web.modulos.mapaViagem.filtros">Filtros</span></h3>
+        <form id="filtroForm" onsubmit="return false;">
         <!-- Linha 1: ID Viagem, Tipo Viagem, Situação Viagem, Classe Frota, Contratador -->
         <div class="input-group five-row">
           <div>
-            <label for="filtroIdViagem">ID Viagem</label>
+            <label for="filtroIdViagem" data-i18n="web.modulos.mapaViagem.idViagem">ID Viagem</label>
             <input type="number" id="filtroIdViagem" min="1" placeholder="Digite o ID...">
           </div>
           <div>
-            <label for="filtroTipoViagem">Tipo Viagem</label>
+            <label for="filtroTipoViagem" data-i18n="web.modulos.mapaViagem.tipoViagem">Tipo Viagem</label>
             <select id="filtroTipoViagem">
               <option value="">Todos</option>
             </select>
           </div>
           <div>
-            <label for="filtroSituacaoViagem">Situação Viagem</label>
+            <label for="filtroSituacaoViagem" data-i18n="web.modulos.mapaViagem.situacaoViagem">Situação Viagem</label>
             <select id="filtroSituacaoViagem">
               <option value="">Todas</option>
               <option value="A">Aprovada</option>
               <option value="C">Cancelada</option>
               <option value="D">Preparação</option>
               <option value="E">Final de rota</option>
-              <option value="F">Viagem finalizada</option>
+              <option value="F" data-i18n="web.modulos.mapaViagem.viagemFinalizada">Viagem finalizada</option>
               <option value="M">Emissão documentos</option>
               <option value="P">Programada</option>
               <option value="T">Em trânsito</option>
             </select>
           </div>
           <div>
-            <label for="filtroClasseFrota">Classe Frota</label>
+            <label for="filtroClasseFrota" data-i18n="web.modulos.mapaViagem.classeFrota">Classe Frota</label>
             <select id="filtroClasseFrota">
               <option value="">Todas</option>
             </select>
           </div>
           <div>
-            <label for="filtroContratador">Contratador</label>
+            <label for="filtroContratador" data-i18n="web.modulos.mapaViagem.contratador">Contratador</label>
             <select id="filtroContratador">
               <option value="">Todos</option>
             </select>
@@ -378,23 +384,23 @@
         <!-- Linha 2: Origem e Destino -->
         <div class="input-group four-row">
           <div>
-            <label for="filtroOrigemEstado">Origem - UF - Estado</label>
+            <label for="filtroOrigemEstado" data-i18n="web.modulos.mapaViagem.origemEstado">Origem - UF - Estado</label>
             <select id="filtroOrigemEstado">
               <option value="">Todos</option>
             </select>
           </div>
           <div>
-            <label for="filtroOrigemCidade">Origem - Cidade</label>
+            <label for="filtroOrigemCidade" data-i18n="web.modulos.mapaViagem.origemCidade">Origem - Cidade</label>
             <input type="text" id="filtroOrigemCidade" maxlength="40" placeholder="Digite parte do nome...">
           </div>
           <div>
-            <label for="filtroDestinoEstado">Destino - UF - Estado</label>
+            <label for="filtroDestinoEstado" data-i18n="web.modulos.mapaViagem.destinoEstado">Destino - UF - Estado</label>
             <select id="filtroDestinoEstado">
               <option value="">Todos</option>
             </select>
           </div>
           <div>
-            <label for="filtroDestinoCidade">Destino - Cidade</label>
+            <label for="filtroDestinoCidade" data-i18n="web.modulos.mapaViagem.destinoCidade">Destino - Cidade</label>
             <input type="text" id="filtroDestinoCidade" maxlength="40" placeholder="Digite parte do nome...">
           </div>
         </div>
@@ -402,25 +408,25 @@
         <!-- Linha 3: Roteiro, Descrição Roteiro, Data Início, Data Fim e Exige Veículo Rastreado? -->
         <div class="input-group five-row">
           <div>
-            <label for="filtroRoteiro">Roteiro</label>
+            <label for="filtroRoteiro" data-i18n="web.modulos.mapaViagem.roteiro">Roteiro</label>
             <select id="filtroRoteiro">
               <option value="">Todos</option>
             </select>
           </div>
           <div>
-            <label for="filtroRoteiroDescricao">Descrição Roteiro</label>
+            <label for="filtroRoteiroDescricao" data-i18n="web.modulos.mapaViagem.descricaoRoteiro">Descrição Roteiro</label>
             <input type="text" id="filtroRoteiroDescricao" readonly>
           </div>
           <div>
-            <label for="filtroDataInicio">Data Início</label>
+            <label for="filtroDataInicio" data-i18n="web.modulos.mapaViagem.dataInicio">Data Início</label>
             <input type="date" id="filtroDataInicio">
           </div>
           <div>
-            <label for="filtroDataFim">Data Fim</label>
+            <label for="filtroDataFim" data-i18n="web.modulos.mapaViagem.dataFim">Data Fim</label>
             <input type="date" id="filtroDataFim">
           </div>
           <div>
-            <label for="filtroRastreado">Exige Veículo Rastreado</label>
+            <label for="filtroRastreado" data-i18n="web.modulos.mapaViagem.exigeRastreado">Exige Veículo Rastreado</label>
             <select id="filtroRastreado">
               <option value="">Todos</option>
               <option value="S">Sim</option>
@@ -428,7 +434,7 @@
             </select>
           </div>
           <div>
-            <label for="filtroMotoristaConfirmado">Motorista Confirmado</label>
+            <label for="filtroMotoristaConfirmado" data-i18n="web.modulos.mapaViagem.motoristaConfirmado">Motorista Confirmado</label>
             <select id="filtroMotoristaConfirmado">
               <option value="">Todos</option>
               <option value="S">Sim</option>
@@ -439,10 +445,10 @@
 
         <div class="filtros-actions">
           <button type="button" id="btnLimparFiltros" class="btn btn-secondary">
-            <i class='bx bx-x'></i> Limpar
+            <i class='bx bx-x'></i> <span data-i18n="web.modulos.mapaViagem.limpar">Limpar</span>
           </button>
           <button type="submit" class="btn btn-primary">
-            <i class='bx bx-search'></i> Filtrar
+            <i class='bx bx-search'></i> <span data-i18n="web.modulos.mapaViagem.filtrar">Filtrar</span>
           </button>
         </div>
       </form>
@@ -453,20 +459,20 @@
     <div class="tab-content" id="tab-mapa">
       <div class="mapa-container" style="padding: 15px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-shrink: 0;">
-          <h3><i class='bx bx-map'></i> Mapa de Veículos</h3>
+          <h3><i class='bx bx-map'></i> <span data-i18n="web.modulos.mapaViagem.mapaVeiculos">Mapa de Veículos</span></h3>
           <div class="mapa-actions">
             <button type="button" id="btnAtualizarMapa" class="btn btn-primary">
-              <i class='bx bx-refresh'></i> Atualizar
+              <i class='bx bx-refresh'></i> <span data-i18n="web.modulos.mapaViagem.atualizarMapa">Atualizar Mapa</span>
             </button>
             <button type="button" id="btnCentralizarMapa" class="btn btn-info">
-              <i class='bx bx-crosshair'></i> Centralizar
+              <i class='bx bx-crosshair'></i> <span data-i18n="web.modulos.mapaViagem.centralizarMapa">Centralizar</span>
             </button>
           </div>
         </div>
         <div id="mapaVeiculos"></div>
         <div id="mapaInfo" style="flex-shrink: 0; margin-top: 15px;">
           <i class='bx bx-info-circle'></i> 
-          <span id="mapaInfoText">Aplique os filtros para carregar as posições dos veículos no mapa.</span>
+          <span id="mapaInfoText" data-i18n="web.modulos.mapaViagem.mapaInfoApliqueFiltros">Aplique os filtros para carregar as posições dos veículos no mapa.</span>
         </div>
       </div>
     </div>
@@ -476,7 +482,7 @@
   <div id="modalAjudaMapaViagem" class="modal-tratamento" style="display: none;">
     <div class="modal-content-tratamento">
       <div class="modal-header-tratamento">
-        <h3><i class='bx bx-help-circle'></i> Ajuda - Mapa de Viagem</h3>
+        <h3><i class='bx bx-help-circle'></i> <span data-i18n="web.modulos.mapaViagem.ajudaTitulo">Ajuda - Mapa de Viagem</span></h3>
         <button type="button" class="btn-close-modal" onclick="document.getElementById('modalAjudaMapaViagem').style.display='none'">
           <i class='bx bx-x'></i>
         </button>
@@ -533,7 +539,7 @@
   </div>
 
   <!-- Scripts -->
-  <script src="/js/cache-buster.js?v=202512091200"></script>
+  <script src="/js/cache-buster.js?v=202612091200"></script>
   <script src="/js/utils.js"></script>
   <script src="/js/map-config.js"></script>
   <script src="/js/map-helper.js"></script>

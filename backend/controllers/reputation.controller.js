@@ -1,8 +1,8 @@
 // backend/controllers/reputation.controller.js
 // Controller para Reputação de Motoristas e Ranking
 // Versão: 2.0 - Módulo separado
-// Data: 2025-01-16
-// Última atualização: 2025-01-18
+// Data: 2026-01-16
+// Última atualização: 2026-01-18
 //
 // Este controller gerencia todas as operações relacionadas a reputação e ranking
 // de motoristas. Inclui funcionalidades para listar rankings, top 10, gráficos,
@@ -16,7 +16,7 @@
 // - GET    /api/ranking/motorista/:id - Detalhes de um motorista
 // - POST   /api/ranking/calcular - Calcular rankings
 
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const { poolPromise } = require('../config/db');
 const reputationService = require('../services/reputation-service');
 
@@ -229,7 +229,7 @@ const reputationController = {
    *   - data: Array de motoristas com ranking
    *   - total: Total de registros encontrados
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   listar: async (req, res) => {
@@ -341,7 +341,7 @@ const reputationController = {
    *     - evolucaoMensal: Array com evolução mensal
    *     - distribuicaoPontuacao: Array com distribuição por faixas
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   graficos: async (req, res) => {
@@ -447,24 +447,24 @@ const reputationController = {
       let query = `
         SELECT 
           rd.*,
-          cg.RZSOCIAL as NOME_MOTORISTA,
-          cg.NRCELULAR as CELULAR,
-          ROW_NUMBER() OVER (ORDER BY rd.PONTUACAO_GERAL DESC, rd.ENTREGAS_TOTAL DESC) as POSICAO
+          cg.[RZSOCIAL] as NOME_MOTORISTA,
+          cg.[NRCELULAR] as CELULAR,
+          ROW_NUMBER() OVER (ORDER BY rd.[PONTUACAO_GERAL] DESC, rd.[ENTREGAS_TOTAL] DESC) as POSICAO
         FROM [dbo].[RANKING_DATA] rd
-        LEFT JOIN [dbo].[CADASTROGERAL] cg ON rd.ID_MOTORISTA = cg.CDCADASTRO
-        WHERE rd.ID_MOTORISTA = @idMotorista
+        LEFT JOIN [dbo].[CADASTROGERAL] cg ON rd.[ID_MOTORISTA] = cg.[CDCADASTRO]
+        WHERE rd.[ID_MOTORISTA] = @idMotorista
       `;
 
       if (periodoInicio) {
         request.input('periodoInicio', sql.Date, periodoInicio);
-        query += ` AND rd.PERIODO_INICIO >= @periodoInicio`;
+        query += ` AND rd.[PERIODO_INICIO] >= @periodoInicio`;
       }
       if (periodoFim) {
         request.input('periodoFim', sql.Date, periodoFim);
-        query += ` AND rd.PERIODO_FIM <= @periodoFim`;
+        query += ` AND rd.[PERIODO_FIM] <= @periodoFim`;
       }
 
-      query += ` ORDER BY rd.PERIODO_INICIO DESC`;
+      query += ` ORDER BY rd.[PERIODO_INICIO] DESC`;
 
       const result = await request.query(query);
 

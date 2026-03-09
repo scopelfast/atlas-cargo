@@ -4,10 +4,10 @@
 -- Este script recria a stored procedure SP_INTGRACAO_TIPOVALIDADE
 -- para garantir que não há problemas de sintaxe ou variáveis não definidas
 -- 
--- Versão testada e funcionando: 15/12/2025
+-- Versão testada e funcionando: 15/12/2026
 -- ============================================
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 SET ANSI_NULLS ON
@@ -17,7 +17,7 @@ SET QUOTED_IDENTIFIER ON
 GO
 
 -- Criar ou alterar a procedure
--- Versão testada e funcionando (15/12/2025)
+-- Versão testada e funcionando (15/12/2026)
 -- Remove a procedure se existir e cria novamente
 IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[SP_INTGRACAO_TIPOVALIDADE]') AND type in (N'P', N'PC'))
 BEGIN
@@ -33,7 +33,7 @@ BEGIN
     SET NOCOUNT ON;
     
     BEGIN TRY
-        MERGE DIVULGACARGA_PRD.dbo.TIPOVALIDADE AS dest
+        MERGE ATLAS_CARGO_PRD.dbo.TIPOVALIDADE AS dest
         USING (
             SELECT 
                 CDTIPOVALIDADE,

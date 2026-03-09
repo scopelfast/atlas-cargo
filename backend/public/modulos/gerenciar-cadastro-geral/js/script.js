@@ -1,8 +1,11 @@
 // backend/public/modulos/gerenciar-cadastro-geral/js/script.js
 // Gerenciar Cadastro Geral - Frontend
 // Versão: 1.1 - Com Classes de Frota
-// Autor: Sistema DivulgaCarga
-// Data: 2025-04-05
+// Atlas Cargo
+// Data: 2026-04-05
+// i18n: helper t() e chaves web.modulos.cadastroGeral
+
+const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
 
 (function() {
   // Elementos
@@ -20,6 +23,37 @@
   let lastCadastros = null;
   let sqlExecutado = false;
   let initExecutado = false;
+  let contextoCadastro = { pais: 'BR', tipoDocFisica: 'CPF', tipoDocJuridica: 'CNPJ' };
+
+  async function loadContextoCadastro() {
+    try {
+      const r = await fetch('/api/contexto');
+      const d = await r.json();
+      contextoCadastro = d;
+      updateLabelDocumento();
+    } catch (e) {
+      console.warn('[Cadastro Geral] Erro ao carregar contexto:', e);
+    }
+  }
+  function updateLabelDocumento() {
+    const lb = document.getElementById('labelCadastroCGCCPF');
+    if (lb) lb.textContent = (contextoCadastro.tipoDocFisica || 'CPF') + ' / ' + (contextoCadastro.tipoDocJuridica || 'CNPJ') + ' *';
+  }
+
+  /**
+   * Headers de autenticação para APIs que exigem usuário (SGUSER / user-login).
+   * Evita 401 ao salvar cadastro, classes de frota, excluir, etc.
+   */
+  function getAuthHeaders(extra = {}) {
+    const headers = { ...extra };
+    const token = localStorage.getItem('token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      if (user && (user.login || user.SGUSUARIO)) headers['user-login'] = user.login || user.SGUSUARIO;
+    } catch (e) {}
+    return headers;
+  }
 
   // Função para carregar e executar o arquivo init.sql
   async function executarInitSQL() {
@@ -257,8 +291,9 @@
       }
     }
     
-    // Se for a aba de dados, aplicar máscara no CPF/CNPJ
+    // Se for a aba de dados, carregar contexto (label doc por país) e aplicar máscara
     if (tabId === 'dados') {
+      loadContextoCadastro();
       setTimeout(() => {
         aplicarMascaraCPFCNPJ();
       }, 100);
@@ -330,40 +365,34 @@
       container: '#cadastrosGrid',
       columns: [
         { field: 'CDCADASTRO', header: 'Código', editable: false, isId: true, width: '90px' },
-        { field: 'RZSOCIAL', header: 'Razão Social', editable: true, type: 'text', width: '280px', maxlength: 60 },
-        { field: 'FGTIPOCADASTRO_NOME', header: 'Tipo Cadastro', editable: false, width: '160px' },
-        { 
-          field: 'CIDADE', 
-          header: 'Cidade', 
-          editable: false, 
-          width: '220px',
+        { field: 'RZSOCIAL', header: 'Razão Social', editable: true, type: 'text', maxlength: 60 },
+        { field: 'FGTIPOCADASTRO_NOME', header: 'Tipo Cadastro', editable: false },
+        {
+          field: 'CIDADE',
+          header: 'Cidade',
+          editable: false,
           format: (val) => val || 'Não informado'
         },
-        { 
-          field: 'NRCELULAR', 
-          header: 'Celular', 
-          editable: true, 
-          type: 'text', 
-          width: '140px', 
+        {
+          field: 'NRCELULAR',
+          header: 'Celular',
+          editable: true,
+          type: 'text',
           maxlength: 15,
           format: (val) => {
             if (!val) return '-';
-            // Limpar o número (remover caracteres não numéricos)
             const numeroLimpo = String(val).replace(/\D/g, '');
             if (!numeroLimpo || numeroLimpo.length < 10) return val;
-            
-            // Formatar para exibição (se tiver 11 dígitos, formatar como (XX) XXXXX-XXXX)
             let numeroFormatado = numeroLimpo;
             if (numeroLimpo.length === 11) {
               numeroFormatado = `(${numeroLimpo.substring(0, 2)}) ${numeroLimpo.substring(2, 7)}-${numeroLimpo.substring(7)}`;
             } else if (numeroLimpo.length === 10) {
               numeroFormatado = `(${numeroLimpo.substring(0, 2)}) ${numeroLimpo.substring(2, 6)}-${numeroLimpo.substring(6)}`;
             }
-            
             return numeroFormatado;
           }
         },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '110px',
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px', align: 'right',
           options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }
@@ -566,23 +595,27 @@
   // Carregar cidades por estado
   async function loadCidadesPorEstado(estado, tipo = 'dados') {
     if (!estado) return;
-    
     try {
-      const response = await fetch(`/api/cidades?estado=${estado}`);
-      const cidadesData = await response.json();
-      
+      const response = await fetch(`/api/cidades?estado=${encodeURIComponent(estado)}`);
+      const data = await response.json();
+      const cidadesData = Array.isArray(data) ? data : [];
+      if (!response.ok) {
+        console.error('Erro ao carregar cidades:', data?.error || response.status);
+        if (tipo === 'dados') showMessage('Erro ao carregar cidades.', 'error');
+        return;
+      }
       if (tipo === 'dados') {
         cidades = cidadesData;
         const cidadeSelect = document.getElementById('cadastroCidade');
-        cidadeSelect.innerHTML = '<option value="">Selecione</option>';
-        cidadesData.forEach(c => {
-          const opt = document.createElement('option');
-          opt.value = c.CDCIDADE;
-          opt.textContent = c.NMCIDADE;
-          cidadeSelect.appendChild(opt);
-        });
-      } else {
-        // Para filtros, mantém o input de texto
+        if (cidadeSelect) {
+          cidadeSelect.innerHTML = '<option value="">Selecione</option>';
+          cidadesData.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.CDCIDADE;
+            opt.textContent = c.NMCIDADE || '';
+            cidadeSelect.appendChild(opt);
+          });
+        }
       }
     } catch (err) {
       console.error('Erro ao carregar cidades:', err);
@@ -613,27 +646,24 @@
     }
   }
 
-  // Aplicar máscara de CPF/CNPJ no campo
+  // Aplicar máscara de documento conforme país (BR = CPF/CNPJ formatado; outros = só dígitos, max 14)
   function aplicarMascaraCPFCNPJ() {
     const campo = document.getElementById('cadastroCGCCPF');
-    if (campo && !campo.hasAttribute('data-mask-applied')) {
-      campo.setAttribute('data-mask-applied', 'true');
-      
-      campo.addEventListener('input', function(e) {
+    if (!campo || campo.hasAttribute('data-mask-applied')) return;
+    campo.setAttribute('data-mask-applied', 'true');
+    const isBR = () => (contextoCadastro && contextoCadastro.pais === 'BR');
+    campo.addEventListener('input', function(e) {
+      let value = e.target.value.replace(/\D/g, '');
+      if (value.length > 14) value = value.substring(0, 14);
+      e.target.value = isBR() ? formatarCPFCNPJ(value) : value;
+    });
+    campo.addEventListener('paste', function(e) {
+      setTimeout(() => {
         let value = e.target.value.replace(/\D/g, '');
         if (value.length > 14) value = value.substring(0, 14);
-        e.target.value = formatarCPFCNPJ(value);
-      });
-      
-      // Aplicar máscara também em paste
-      campo.addEventListener('paste', function(e) {
-        setTimeout(() => {
-          let value = e.target.value.replace(/\D/g, '');
-          if (value.length > 14) value = value.substring(0, 14);
-          e.target.value = formatarCPFCNPJ(value);
-        }, 10);
-      });
-    }
+        e.target.value = isBR() ? formatarCPFCNPJ(value) : value;
+      }, 10);
+    });
   }
 
   // Formatar celular
@@ -785,7 +815,7 @@
       const countEl = document.getElementById('cadastrosGridCountText');
       if (countEl) {
         const count = cadastrosComCidade.length || 0;
-        countEl.textContent = `${count} registro(s) encontrado(s)`;
+        countEl.textContent = count + ' ' + (t('web.modulos.cadastroGeral.registrosEncontrados').replace(/^0\s*/, ''));
       }
       
       // Se já existe uma instância do Grid na aba, atualizá-la imediatamente
@@ -900,22 +930,34 @@
       
       const response = await fetch(`/api/cadastros-gerais/${id}`);
       const cadastro = await response.json();
-      
+
+      if (!response.ok || cadastro?.error || !cadastro?.CDCADASTRO) {
+        const msg = cadastro?.error || 'Cadastro não encontrado.';
+        if (typeof window.showToast === 'function') window.showToast(msg, 'error');
+        else console.error('loadCadastroParaEdicao:', msg);
+        return;
+      }
+
       if (cadastro) {
-        // Preencher campos básicos primeiro
         document.getElementById('cadastroId').value = cadastro.CDCADASTRO;
         document.getElementById('cadastroCodigo').value = cadastro.CDCADASTRO;
-        document.getElementById('cadastroCGCCPF').value = formatarCPFCNPJ(cadastro.CGCCPF.toString());
+        document.getElementById('cadastroCGCCPF').value = formatarCPFCNPJ(String(cadastro.CGCCPF ?? ''));
         document.getElementById('cadastroRazaoSocial').value = cadastro.RZSOCIAL;
         document.getElementById('cadastroTipoPessoa').value = cadastro.FGFISICAJURIDICA;
-        document.getElementById('cadastroTipoCadastro').value = cadastro.FGTIPOCADASTRO;
+        // Aplicável para: preencher checkboxes
+        const aplicavelIds = { O: 'chkO', P: 'chkP', M: 'chkM', T: 'chkT', A: 'chkA', G: 'chkG', C: 'chkC', U: 'chkU' };
+        const aplicavelCols = { O: 'FGOPERADOR', P: 'FGPROGRAMADOR', M: 'FGMOTORISTA', T: 'FGTRANSPORTADOR', A: 'FGAGENTE', G: 'FGGRUPO', C: 'FGCERTIFICADORA', U: 'FGUNIDADENEGOCIO' };
+        Object.keys(aplicavelIds).forEach(cod => {
+          const el = document.getElementById(aplicavelIds[cod]);
+          if (el) el.checked = cadastro[aplicavelCols[cod]] === true || cadastro[aplicavelCols[cod]] === 'S';
+        });
         
-        // Mostrar/esconder campo Transportador baseado no tipo (ANTES de preencher o valor)
-        const tipoCadastro = cadastro.FGTIPOCADASTRO;
+        // Mostrar/esconder campo Transportador baseado em Motorista marcado
+        const ehMotorista = cadastro.FGMOTORISTA === true || cadastro.FGMOTORISTA === 'S';
         const divTransportador = document.getElementById('divTransportador');
         const selectTransportador = document.getElementById('cadastroTransportador');
         
-        if (tipoCadastro === 'M') {
+        if (ehMotorista) {
           // Mostrar campo Transportador
           if (divTransportador) {
             divTransportador.style.display = 'block';
@@ -939,6 +981,32 @@
           }
         }
         
+        // Senha do app motorista: mostrar só quando for motorista
+        const divSenhaMotorista = document.getElementById('divSenhaMotorista');
+        const novaSenhaMotorista = document.getElementById('novaSenhaMotorista');
+        const msgSenhaMotorista = document.getElementById('msgSenhaMotorista');
+        if (divSenhaMotorista) {
+          divSenhaMotorista.style.display = ehMotorista ? 'block' : 'none';
+        }
+        if (novaSenhaMotorista) novaSenhaMotorista.value = '';
+        if (msgSenhaMotorista) {
+          msgSenhaMotorista.textContent = '';
+          msgSenhaMotorista.style.display = 'none';
+          msgSenhaMotorista.className = 'message';
+        }
+        const statusAprovacaoEl = document.getElementById('statusAprovacaoMotorista');
+        const msgStatusAprovacaoEl = document.getElementById('msgStatusAprovacao');
+        if (statusAprovacaoEl) {
+          const status = cadastro.STATUSAPROVACAO === 'A' || cadastro.STATUSAPROVACAO === 'R' || cadastro.STATUSAPROVACAO === 'P'
+            ? cadastro.STATUSAPROVACAO : 'P';
+          statusAprovacaoEl.value = status;
+        }
+        if (msgStatusAprovacaoEl) {
+          msgStatusAprovacaoEl.textContent = '';
+          msgStatusAprovacaoEl.style.display = 'none';
+          msgStatusAprovacaoEl.className = 'message';
+        }
+        
         // Preencher FGRASTREADO - campo simples S/N
         const rastreadoSelect = document.getElementById('cadastroRastreado');
         if (rastreadoSelect && cadastro.FGRASTREADO) {
@@ -947,7 +1015,7 @@
           rastreadoSelect.value = '';
         }
         document.getElementById('cadastroSituacao').value = cadastro.FGACTIVE;
-        document.getElementById('cadastroCEP').value = cadastro.CEP ? cadastro.CEP.toString() : '';
+        document.getElementById('cadastroCEP').value = cadastro.CEP != null ? String(cadastro.CEP) : '';
         document.getElementById('cadastroEndereco').value = cadastro.ENDERECO;
         document.getElementById('cadastroNumero').value = cadastro.NRENDERECO;
         document.getElementById('cadastroComplemento').value = cadastro.COMPLEND;
@@ -955,16 +1023,16 @@
         document.getElementById('cadastroLatitude').value = cadastro.LATITUDE || '';
         document.getElementById('cadastroLongitude').value = cadastro.LONGITUDE || '';
         document.getElementById('cadastroEmail').value = cadastro.ENDEMAIL;
-        document.getElementById('cadastroCelular').value = formatarCelular(cadastro.NRCELULAR.toString());
+        document.getElementById('cadastroCelular').value = formatarCelular(String(cadastro.NRCELULAR ?? ''));
         
         // Mudar para a aba de dados ANTES de carregar estados (para garantir que os elementos estejam visíveis)
-        document.getElementById('formTitle').textContent = 'Editar Cadastro Geral';
+        document.getElementById('formTitle').textContent = t('web.modulos.cadastroGeral.editarCadastro');
         showTab('dados');
         
         // Preencher Código Cidade diretamente (campo readonly)
         const codigoCidadeEl = document.getElementById('cadastroCodigoCidade');
-        if (codigoCidadeEl && cadastro.CDCIDADE) {
-          codigoCidadeEl.value = cadastro.CDCIDADE.toString();
+        if (codigoCidadeEl && cadastro.CDCIDADE != null) {
+          codigoCidadeEl.value = String(cadastro.CDCIDADE);
         }
         
         // Garantir que os estados estejam carregados ANTES de preencher
@@ -1064,7 +1132,7 @@
       }
     } catch (err) {
       console.error('Erro ao carregar cadastro:', err);
-      showMessage('Erro ao carregar dados para edição.', 'error');
+      showMessage(t('web.modulos.cadastroGeral.erroCarregarDados'), 'error');
     }
   }
 
@@ -1074,7 +1142,7 @@
     let idValido = id;
     if (idValido == null || idValido === 'undefined' || idValido === 'null' || idValido === '' || idValido === 'NaN') {
       console.error('[Cadastros] ID inválido na função confirmarExclusao:', id);
-      showMessage('Erro: ID não disponível.', 'error');
+      showMessage(t('web.modulos.cadastroGeral.erroIdIndisponivel'), 'error');
       return;
     }
     
@@ -1134,14 +1202,15 @@
         const acao = modalEl.dataset.action || action;
         
         if (!idParaExcluir || idParaExcluir === 'undefined' || idParaExcluir === 'null' || idParaExcluir === '') {
-          showMessage('Erro: ID não disponível.', 'error');
+          showMessage(t('web.modulos.cadastroGeral.erroIdIndisponivel'), 'error');
           modalEl.style.display = 'none';
           return;
         }
         
         try {
           const response = await fetch(`/api/cadastros-gerais/${idParaExcluir}?action=${acao}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getAuthHeaders()
           });
           const data = await response.json();
           
@@ -1155,7 +1224,7 @@
           }
         } catch (err) {
           console.error('[Cadastros] Erro ao alterar status:', err);
-          showMessage('Erro de conexão.', 'error');
+          showMessage(t('web.modulos.cadastroGeral.erroConexao'), 'error');
         } finally {
           modalEl.style.display = 'none';
           delete modalEl.dataset.deleteId;
@@ -1183,23 +1252,28 @@
     const email = document.getElementById('cadastroEmail').value;
     const celular = document.getElementById('cadastroCelular').value.replace(/\D/g, '');
     
-    // Completar com zeros à esquerda antes de validar
-    if (cgccpf && cgccpf.length > 0) {
-      if (tipoPessoa === 'F') {
-        cgccpf = cgccpf.padStart(11, '0'); // CPF: 11 dígitos
-      } else if (tipoPessoa === 'J') {
-        cgccpf = cgccpf.padStart(14, '0'); // CNPJ: 14 dígitos
-      }
+    // Completar com zeros à esquerda só no Brasil
+    const pais = (contextoCadastro && contextoCadastro.pais) || 'BR';
+    if (cgccpf && cgccpf.length > 0 && pais === 'BR') {
+      if (tipoPessoa === 'F') cgccpf = cgccpf.padStart(11, '0');
+      else if (tipoPessoa === 'J') cgccpf = cgccpf.padStart(14, '0');
     }
     
-    // Validar CPF/CNPJ
-    if (tipoPessoa === 'F' && (cgccpf.length !== 11 || !validarCPF(cgccpf))) {
-      showMessage('CPF inválido.', 'error', null, 'cadastroCGCCPF');
-      return false;
-    }
-    if (tipoPessoa === 'J' && (cgccpf.length !== 14 || !validarCNPJ(cgccpf))) {
-      showMessage('CNPJ inválido.', 'error', null, 'cadastroCGCCPF');
-      return false;
+    if (pais === 'BR') {
+      if (tipoPessoa === 'F' && (cgccpf.length !== 11 || !validarCPF(cgccpf))) {
+        showMessage(t('web.modulos.cadastroGeral.cpfInvalido') || 'CPF inválido.', 'error', null, 'cadastroCGCCPF');
+        return false;
+      }
+      if (tipoPessoa === 'J' && (cgccpf.length !== 14 || !validarCNPJ(cgccpf))) {
+        showMessage(t('web.modulos.cadastroGeral.cnpjInvalido') || 'CNPJ inválido.', 'error', null, 'cadastroCGCCPF');
+        return false;
+      }
+    } else {
+      const len = (cgccpf || '').replace(/\D/g, '').length;
+      if (len < 3 || len > 14) {
+        showMessage(t('web.modulos.cadastroGeral.documentoInvalido') || 'Documento inválido.', 'error', null, 'cadastroCGCCPF');
+        return false;
+      }
     }
     
     // Validar email
@@ -1278,33 +1352,33 @@
     return true;
   }
   
-  // Salvar formulário
+  let cadastroFormSubmitting = false;
   cadastroForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    
+    e.stopImmediatePropagation();
+    if (cadastroFormSubmitting) return;
+    cadastroFormSubmitting = true;
+
     const btnSalvar = cadastroForm.querySelector('button[type="submit"]');
     if (btnSalvar && typeof window.showLoading !== 'undefined') {
       window.showLoading(btnSalvar, true);
     }
-    
+
     if (!validarFormulario()) {
+      cadastroFormSubmitting = false;
       if (btnSalvar && typeof window.showLoading !== 'undefined') {
         window.showLoading(btnSalvar, false);
       }
       return;
     }
     
-    // ✅ REMOVER FORMATAÇÃO DOS CAMPOS ANTES DE ENVIAR
+    // Remover formatação e completar zeros à esquerda só no Brasil
     let cgccpfRaw = document.getElementById('cadastroCGCCPF').value.replace(/\D/g, '');
     const tipoPessoa = document.getElementById('cadastroTipoPessoa').value;
-    
-    // Completar com zeros à esquerda baseado no tipo de pessoa
-    if (cgccpfRaw && cgccpfRaw.length > 0) {
-      if (tipoPessoa === 'F') {
-        cgccpfRaw = cgccpfRaw.padStart(11, '0'); // CPF: 11 dígitos
-      } else if (tipoPessoa === 'J') {
-        cgccpfRaw = cgccpfRaw.padStart(14, '0'); // CNPJ: 14 dígitos
-      }
+    const paisSubmit = (contextoCadastro && contextoCadastro.pais) || 'BR';
+    if (cgccpfRaw && paisSubmit === 'BR') {
+      if (tipoPessoa === 'F') cgccpfRaw = cgccpfRaw.padStart(11, '0');
+      else if (tipoPessoa === 'J') cgccpfRaw = cgccpfRaw.padStart(14, '0');
     }
     
     const celularRaw = document.getElementById('cadastroCelular').value.replace(/\D/g, '');
@@ -1321,12 +1395,26 @@
     const longitude = document.getElementById('cadastroLongitude').value;
     const email = document.getElementById('cadastroEmail').value.trim();
     const situacao = document.getElementById('cadastroSituacao').value;
-    const tipoCadastro = document.getElementById('cadastroTipoCadastro').value;
+    const aplicavelChecks = { O: 'chkO', P: 'chkP', M: 'chkM', T: 'chkT', A: 'chkA', G: 'chkG', C: 'chkC', U: 'chkU' };
+    const aplicavelCols = { O: 'FGOPERADOR', P: 'FGPROGRAMADOR', M: 'FGMOTORISTA', T: 'FGTRANSPORTADOR', A: 'FGAGENTE', G: 'FGGRUPO', C: 'FGCERTIFICADORA', U: 'FGUNIDADENEGOCIO' };
+    const flags = {};
+    let algumMarcado = false;
+    Object.keys(aplicavelChecks).forEach(cod => {
+      const el = document.getElementById(aplicavelChecks[cod]);
+      const checked = el ? el.checked : false;
+      flags[aplicavelCols[cod]] = checked;
+      if (checked) algumMarcado = true;
+    });
+    if (!algumMarcado) {
+      showMessage('Marque pelo menos uma opção em "Tipo de Cadastro".', 'error');
+      return;
+    }
     const transportador = document.getElementById('cadastroTransportador')?.value;
+    const ehMotorista = flags.FGMOTORISTA === true;
     
     try {
       const cadastroData = {
-        CGCCPF: cgccpfRaw, // ✅ CPF como string, preserva zeros
+        CGCCPF: cgccpfRaw,
         RZSOCIAL: razaoSocial,
         FGFISICAJURIDICA: tipoPessoa,
         CEP: cepRaw || null,
@@ -1335,15 +1423,13 @@
         NRENDERECO: parseInt(numero),
         COMPLEND: complemento || null,
         BAIRRO: bairro,
-        NRCELULAR: celularRaw, // ✅ também como string
+        NRCELULAR: celularRaw,
         ENDEMAIL: email || null,
         LATITUDE: latitude || null,
         LONGITUDE: longitude || null,
-        FGTIPOCADASTRO: tipoCadastro,
+        ...flags,
         FGRASTREADO: document.getElementById('cadastroRastreado')?.value || null,
-        // CDTRANSPORTADOR: só enviar se for motorista E tiver valor selecionado
-        // Se não tiver valor, não enviar (undefined) para preservar o valor atual no banco
-        ...(tipoCadastro === 'M' && transportador ? { CDTRANSPORTADOR: parseFloat(transportador) } : tipoCadastro !== 'M' ? { CDTRANSPORTADOR: null } : {})
+        ...(ehMotorista && transportador ? { CDTRANSPORTADOR: parseFloat(transportador) } : !ehMotorista ? { CDTRANSPORTADOR: null } : {})
       };
 
       let response;
@@ -1351,13 +1437,13 @@
         cadastroData.FGACTIVE = situacao;
         response = await fetch(`/api/cadastros-gerais/${id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(cadastroData)
         });
       } else {
         response = await fetch('/api/cadastros-gerais', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(cadastroData)
         });
       }
@@ -1368,22 +1454,28 @@
         showTab('grid');
         applyFilters('grid');
       } else {
-        showMessage(data.error || 'Erro ao salvar.', 'error');
+        showMessage(data.errorKey ? t(data.errorKey) : (data.error || t('web.modulos.cadastroGeral.erroSalvar')), 'error');
       }
     } catch (err) {
       console.error('Erro ao salvar:', err);
-      showMessage('Erro de conexão com o servidor.', 'error');
+      showMessage(t('web.modulos.cadastroGeral.erroConexao'), 'error');
     } finally {
-      if (btnSalvar && typeof window.showLoading !== 'undefined') {
-        window.showLoading(btnSalvar, false);
-      }
+      setTimeout(() => {
+        cadastroFormSubmitting = false;
+        const btn = cadastroForm.querySelector('button[type="submit"]');
+        if (btn && typeof window.showLoading !== 'undefined') {
+          window.showLoading(btn, false);
+        }
+      }, 600);
     }
   });
 
   // Carregar classes de frota para o cadastro
   async function loadClassesFrotaParaCadastro(cadastroId) {
     try {
-      const response = await fetch(`/api/cadastro-classes/${cadastroId}`);
+      const response = await fetch(`/api/cadastro-classes/${cadastroId}`, {
+        headers: getAuthHeaders()
+      });
       const classes = await response.json();
 
       const classesList = document.getElementById('classesFrotaList');
@@ -1484,7 +1576,7 @@
 
       const response = await fetch(`/api/cadastro-classes/${cadastroId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ classes: classesAtualizadas })
       });
 
@@ -1528,7 +1620,19 @@
     document.getElementById('cadastroId').value = '';
     document.getElementById('cadastroCodigo').value = '';
     document.getElementById('cadastroCodigoCidade').value = '';
-    document.getElementById('formTitle').textContent = 'Novo Cadastro Geral';
+    ['chkO','chkP','chkM','chkT','chkA','chkG','chkC','chkU'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.checked = false;
+    });
+    const divTransportador = document.getElementById('divTransportador');
+    if (divTransportador) divTransportador.style.display = 'none';
+    const divSenhaMotorista = document.getElementById('divSenhaMotorista');
+    if (divSenhaMotorista) divSenhaMotorista.style.display = 'none';
+    const msgSenha = document.getElementById('msgSenhaMotorista');
+    if (msgSenha) { msgSenha.textContent = ''; msgSenha.style.display = 'none'; }
+    const msgStatusAprovacao = document.getElementById('msgStatusAprovacao');
+    if (msgStatusAprovacao) { msgStatusAprovacao.textContent = ''; msgStatusAprovacao.style.display = 'none'; }
+    document.getElementById('formTitle').textContent = t('web.modulos.cadastroGeral.novoCadastro');
     showTab('dados');
   });
   document.getElementById('btnCancelar')?.addEventListener('click', () => showTab('grid'));
@@ -1580,8 +1684,95 @@
     document.getElementById('cadastroId').value = '';
     document.getElementById('cadastroCodigo').value = '';
     document.getElementById('cadastroCodigoCidade').value = '';
-    document.getElementById('formTitle').textContent = 'Novo Cadastro Geral';
+    ['chkO','chkP','chkM','chkT','chkA','chkG','chkC','chkU'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.checked = false;
+    });
+    const divTransportador = document.getElementById('divTransportador');
+    if (divTransportador) divTransportador.style.display = 'none';
+    const divSenhaMotorista = document.getElementById('divSenhaMotorista');
+    if (divSenhaMotorista) divSenhaMotorista.style.display = 'none';
+    const msgSenha = document.getElementById('msgSenhaMotorista');
+    if (msgSenha) { msgSenha.textContent = ''; msgSenha.style.display = 'none'; }
+    const msgStatusAprovacao = document.getElementById('msgStatusAprovacao');
+    if (msgStatusAprovacao) { msgStatusAprovacao.textContent = ''; msgStatusAprovacao.style.display = 'none'; }
+    document.getElementById('formTitle').textContent = t('web.modulos.cadastroGeral.novoCadastro');
     showTab('dados');
+  });
+
+  // Aplicar status de aprovação do motorista (admin) — delegação no form para garantir que funcione após carregamento dinâmico
+  (cadastroForm || document.body).addEventListener('click', async (e) => {
+    if (e.target.id !== 'btnAplicarStatusAprovacao') return;
+    e.preventDefault();
+    const cdCadastro = document.getElementById('cadastroId')?.value?.trim();
+    const selectStatus = document.getElementById('statusAprovacaoMotorista');
+    const status = selectStatus?.value || 'P';
+    const msgEl = document.getElementById('msgStatusAprovacao');
+    function showMsg(text, type) {
+      if (!msgEl) return;
+      msgEl.textContent = text;
+      msgEl.className = 'message ' + (type === 'error' ? 'error' : type === 'success' ? 'success' : 'info');
+      msgEl.style.display = 'block';
+    }
+    if (!cdCadastro) {
+      showMsg('Selecione um cadastro para edição antes de aplicar o status.', 'error');
+      return;
+    }
+    try {
+      const response = await fetch('/api/motorista/aprovar-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cdCadastro: Number(cdCadastro), status })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.success) {
+        showMsg(data.message || 'Status de aprovação atualizado.', 'success');
+      } else {
+        showMsg(data.error || 'Erro ao atualizar status.', 'error');
+      }
+    } catch (err) {
+      console.error('Aprovar motorista:', err);
+      showMsg('Erro de conexão ao atualizar status.', 'error');
+    }
+  });
+
+  // Definir senha do app motorista (admin)
+  document.getElementById('btnDefinirSenhaMotorista')?.addEventListener('click', async () => {
+    const cdCadastro = document.getElementById('cadastroId')?.value?.trim();
+    const inputSenha = document.getElementById('novaSenhaMotorista');
+    const novaSenha = inputSenha?.value?.trim() || '';
+    const msgEl = document.getElementById('msgSenhaMotorista');
+    function showMsg(text, type) {
+      if (!msgEl) return;
+      msgEl.textContent = text;
+      msgEl.className = 'message ' + (type === 'error' ? 'error' : type === 'success' ? 'success' : 'info');
+      msgEl.style.display = 'block';
+    }
+    if (!cdCadastro) {
+      showMsg('Selecione um cadastro para edição antes de definir a senha.', 'error');
+      return;
+    }
+    if (novaSenha.length < 6) {
+      showMsg('A senha deve ter no mínimo 6 caracteres.', 'error');
+      return;
+    }
+    try {
+      const response = await fetch('/api/motorista/definir-senha-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cdCadastro: Number(cdCadastro), novaSenha })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.success) {
+        showMsg('Senha definida com sucesso. O motorista já pode usar no app.', 'success');
+        if (inputSenha) inputSenha.value = '';
+      } else {
+        showMsg(data.error || 'Erro ao definir senha.', 'error');
+      }
+    } catch (err) {
+      console.error('Definir senha motorista:', err);
+      showMsg('Erro de conexão ao definir senha.', 'error');
+    }
   });
 
   // Exportar para Excel
@@ -1734,31 +1925,20 @@
     document.getElementById('cadastroCodigoCidade').value = cidadeId || '';
   });
 
-  // Event listener para mostrar/esconder campo Transportador baseado no tipo de cadastro
-  document.getElementById('cadastroTipoCadastro')?.addEventListener('change', function() {
-    const tipoCadastro = this.value;
-    const divTransportador = document.getElementById('divTransportador');
-    const selectTransportador = document.getElementById('cadastroTransportador');
-    
-    if (tipoCadastro === 'M') {
-      // Mostrar campo Transportador
-      if (divTransportador) {
-        divTransportador.style.display = 'block';
+  // Event listener para mostrar/esconder campo Transportador quando [M] Motorista for marcado
+  ['chkM', 'chkO', 'chkP', 'chkT', 'chkA', 'chkG', 'chkC', 'chkU'].forEach(id => {
+    document.getElementById(id)?.addEventListener('change', function() {
+      const chkM = document.getElementById('chkM');
+      const divTransportador = document.getElementById('divTransportador');
+      const selectTransportador = document.getElementById('cadastroTransportador');
+      if (chkM?.checked) {
+        if (divTransportador) divTransportador.style.display = 'block';
+        if (selectTransportador && selectTransportador.options.length <= 1) loadTransportadores();
+      } else {
+        if (divTransportador) divTransportador.style.display = 'none';
+        if (selectTransportador) selectTransportador.value = '';
       }
-      // Carregar transportadores se ainda não foram carregados
-      if (selectTransportador && selectTransportador.options.length <= 1) {
-        loadTransportadores();
-      }
-    } else {
-      // Esconder campo Transportador
-      if (divTransportador) {
-        divTransportador.style.display = 'none';
-      }
-      // Limpar seleção
-      if (selectTransportador) {
-        selectTransportador.value = '';
-      }
-    }
+    });
   });
 
   // Carregar transportadores (tipo T)
@@ -1775,25 +1955,36 @@
       }
       
       const transportadores = await response.json();
-      
+      if (!Array.isArray(transportadores)) {
+        console.warn('Resposta de transportadores não é array:', transportadores);
+        return;
+      }
+
+      const getCd = (t) => (t.CDCADASTRO != null ? t.CDCADASTRO : t.cdcadastro);
+      const getRz = (t) => (t.RZSOCIAL != null ? t.RZSOCIAL : t.rzsocial) || '-';
+
       // Popular combo do formulário
       if (selectTransportador) {
         selectTransportador.innerHTML = '<option value="">Selecione</option>';
         transportadores.forEach(t => {
+          const cd = getCd(t);
+          if (cd == null || cd === '') return;
           const opt = document.createElement('option');
-          opt.value = t.CDCADASTRO;
-          opt.textContent = `${t.CDCADASTRO} - ${t.RZSOCIAL}`;
+          opt.value = cd;
+          opt.textContent = `${cd} - ${getRz(t)}`;
           selectTransportador.appendChild(opt);
         });
       }
-      
+
       // Popular combo do filtro
       if (selectFiltroTransportador) {
         selectFiltroTransportador.innerHTML = '<option value="">Todos</option>';
         transportadores.forEach(t => {
+          const cd = getCd(t);
+          if (cd == null || cd === '') return;
           const opt = document.createElement('option');
-          opt.value = t.CDCADASTRO;
-          opt.textContent = `${t.CDCADASTRO} - ${t.RZSOCIAL}`;
+          opt.value = cd;
+          opt.textContent = `${cd} - ${getRz(t)}`;
           selectFiltroTransportador.appendChild(opt);
         });
       }
@@ -1914,24 +2105,14 @@
   }
   
   function obterTipoCadastro() {
-    const tipoCadSelect = document.getElementById('cadastroTipoCadastro');
-    if (!tipoCadSelect) return 'MOT';
-    
-    const tipoCadastro1Char = tipoCadSelect.value || 'M';
-    
-    // Mapear código de 1 caractere para 3 caracteres
-    const mapeamento = {
-      'M': 'MOT',  // Motorista
-      'T': 'TRA',  // Transportador
-      'C': 'CLI',  // Cliente
-      'F': 'CLI',  // Fornecedor (usa CLI)
-      'O': 'CLI',  // Operador (usa CLI)
-      'A': 'CLI',  // Agente (usa CLI)
-      'G': 'CLI',  // Grupo (usa CLI)
-      'U': 'CLI'   // Unidade (usa CLI)
-    };
-    
-    return mapeamento[tipoCadastro1Char] || 'MOT';
+    const ordem = ['M', 'T', 'C', 'O', 'P', 'A', 'G', 'U'];
+    const chkIds = { M: 'chkM', T: 'chkT', C: 'chkC', O: 'chkO', P: 'chkP', A: 'chkA', G: 'chkG', U: 'chkU' };
+    const mapeamento = { 'M': 'MOT', 'T': 'TRA', 'C': 'CLI', 'O': 'CLI', 'P': 'CLI', 'A': 'CLI', 'G': 'CLI', 'U': 'CLI' };
+    for (const cod of ordem) {
+      const el = document.getElementById(chkIds[cod]);
+      if (el && el.checked) return mapeamento[cod] || 'MOT';
+    }
+    return 'MOT';
   }
   
   async function carregarValidadesCadastro(tpCadastro, cdCadastro) {
@@ -1946,7 +2127,13 @@
       
       // Buscar validades
       const response = await fetch(`/api/validades/${tpCadastro}/${cdCadastro}`);
-      const validades = await response.json();
+      const data = await response.json();
+      const validades = response.ok && Array.isArray(data) ? data : [];
+      
+      if (!response.ok) {
+        console.warn('API validades retornou', response.status, data?.error || data);
+        showMessage(data?.error || 'Erro ao carregar validades', 'error');
+      }
       
       cadastroAtualValidades = { tpCadastro, cdCadastro };
       
@@ -1974,22 +2161,38 @@
     const grid = document.getElementById('validadesGrid');
     if (!grid) return;
     
-    if (!validades || validades.length === 0) {
+    if (!validades || !Array.isArray(validades) || validades.length === 0) {
       grid.innerHTML = '<p class="empty">Nenhuma validade cadastrada para este cadastro.</p>';
       return;
     }
     
     let html = '<div style="display: grid; gap: 12px;">';
     
+    const loc = (contextoCadastro && contextoCadastro.locale) || 'pt-BR';
+    const tz = (contextoCadastro && contextoCadastro.timezone) || 'America/Sao_Paulo';
+    const fmtData = (d) => {
+      if (!d) return '';
+      const date = new Date(d);
+      if (Number.isNaN(date.getTime())) return '';
+      try {
+        return new Intl.DateTimeFormat(loc, { timeZone: tz, dateStyle: 'short' }).format(date);
+      } catch (e) { return date.toLocaleDateString(loc); }
+    };
     validades.forEach(val => {
-      const dtLib = new Date(val.DTLIBERACAO).toLocaleDateString('pt-BR');
-      const dtVal = new Date(val.DTVALIDADE).toLocaleDateString('pt-BR');
+      const dtLib = fmtData(val.DTLIBERACAO);
+      const dtVal = fmtData(val.DTVALIDADE);
       const dias = val.DIAS_RESTANTES;
+      const removida = val.FGATIVO === 'N' || val.FGATIVO === 'n';
+      const dtRemovida = val.DHREMOVIDO ? fmtData(val.DHREMOVIDO) : '';
+      const userRemovido = val.SGUSER_REMOVIDO || '—';
       
       let corStatus = '#27ae60';
       let textoStatus = `✓ Válida (${dias} dias)`;
       
-      if (val.STATUS_VALIDADE === 'VENCIDA') {
+      if (removida) {
+        corStatus = '#95a5a6';
+        textoStatus = 'Removida (histórico)';
+      } else if (val.STATUS_VALIDADE === 'VENCIDA') {
         corStatus = '#e74c3c';
         textoStatus = `✗ VENCIDA (${Math.abs(dias)} dias atrás)`;
       } else if (val.STATUS_VALIDADE === 'VENCENDO') {
@@ -1997,8 +2200,11 @@
         textoStatus = `⚠ Vencendo (${dias} dias)`;
       }
       
+      const cardBg = removida ? '#f8f9fa' : '#fff';
+      const cardBorder = removida ? '#dee2e6' : '#e9ecef';
+      
       html += `
-        <div class="validade-card" style="background: #fff; border: 1px solid #e9ecef; border-left: 5px solid ${corStatus}; border-radius: 8px; padding: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 12px; overflow: hidden; display: flex; min-height: 120px;">
+        <div class="validade-card" style="background: ${cardBg}; border: 1px solid ${cardBorder}; border-left: 5px solid ${corStatus}; border-radius: 8px; padding: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 12px; overflow: hidden; display: flex; min-height: 120px; ${removida ? 'opacity: 0.92;' : ''}">
           <div style="width: 5px; background: ${corStatus}; flex-shrink: 0;"></div>
           <div style="flex: 1; padding: 16px 18px; display: flex; flex-direction: column; justify-content: space-between;">
             <div>
@@ -2014,12 +2220,14 @@
                   </div>
                 </div>
                 <div class="validade-card-actions" style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
-                  <button onclick="window.editarValidade('${val.SEQUENCIA}')" class="btn btn-primary btn-sm">
+                  <button onclick="window.verDadosValidade('${val.SEQUENCIA}')" class="btn btn-primary btn-sm">
                     <i class='bx bx-show'></i> Ver Dados
                   </button>
+                  ${!removida ? `
                   <button onclick="window.excluirValidade('${val.SEQUENCIA}')" class="btn btn-secondary btn-sm" style="background: #e74c3c;">
                     <i class='bx bx-trash'></i> Remover
                   </button>
+                  ` : ''}
                 </div>
               </div>
             </div>
@@ -2029,11 +2237,23 @@
                 <span style="color: #6c757d; font-weight: 500;">Liberação:</span>
                 <strong style="color: #2c3e50; margin-left: 4px;">${dtLib}</strong>
               </div>
+              ${val.SGUSER_LIBERACAO ? `
+              <div style="display: flex; align-items: center; gap: 6px; color: #6c757d;">
+                <i class='bx bx-user-check' style="font-size: 14px;"></i>
+                <span style="font-weight: 500;">Liberado por <strong>${val.SGUSER_LIBERACAO}</strong></span>
+              </div>
+              ` : ''}
               <div style="display: flex; align-items: center; gap: 6px;">
                 <i class='bx bx-time' style="color: ${corStatus}; font-size: 14px;"></i>
                 <span style="color: #6c757d; font-weight: 500;">Validade:</span>
                 <strong style="color: ${corStatus}; margin-left: 4px;">${dtVal}</strong>
               </div>
+              ${removida && (dtRemovida || userRemovido !== '—') ? `
+              <div style="display: flex; align-items: center; gap: 6px; color: #6c757d;">
+                <i class='bx bx-user-x' style="font-size: 14px;"></i>
+                <span style="font-weight: 500;">Removida em ${dtRemovida || '—'} por <strong>${userRemovido}</strong></span>
+              </div>
+              ` : ''}
               ${val.DSLIBERACAO ? `
               <div style="display: flex; align-items: center; gap: 6px; flex: 1; min-width: 200px;">
                 <i class='bx bx-note' style="color: #6c757d; font-size: 14px;"></i>
@@ -2132,11 +2352,14 @@
     certResultado.className = '';
     certResultado.innerHTML = '<i class=\'bx bx-info-circle\'></i><span id="certTexto">Nenhuma certificadora selecionada</span>';
     
+    setModalValidadeSomenteLeitura(false);
     document.getElementById('modalValidade').style.display = 'flex';
   }
   
-  window.editarValidade = async function(sequencia) {
+  window.editarValidade = async function(sequencia, somenteLeitura) {
     if (!cadastroAtualValidades) return;
+    
+    const isVerDados = !!somenteLeitura;
     
     try {
       const { tpCadastro, cdCadastro } = cadastroAtualValidades;
@@ -2154,7 +2377,13 @@
       
       if (val) {
         const nomeCadastro = document.getElementById('cadastroRazaoSocial')?.value || 'Cadastro';
-        document.getElementById('modalValidadeTitulo').innerHTML = '<i class=\'bx bx-edit\'></i> Editar Validade';
+        if (isVerDados) {
+          document.getElementById('modalValidadeTitulo').innerHTML = '<i class=\'bx bx-show\'></i> Ver Dados - Validade';
+          setModalValidadeSomenteLeitura(true);
+        } else {
+          document.getElementById('modalValidadeTitulo').innerHTML = '<i class=\'bx bx-edit\'></i> Editar Validade';
+          setModalValidadeSomenteLeitura(false);
+        }
         document.getElementById('modalValidadeSubtitulo').textContent = `${val.DSTIPOVALIDADE} • ${nomeCadastro}`;
         document.getElementById('validadeSequencia').value = val.SEQUENCIA;
         
@@ -2191,11 +2420,39 @@
     }
   };
   
+  /** Alterna o modal de validade entre modo edição e somente leitura (Ver Dados). */
+  function setModalValidadeSomenteLeitura(readOnly) {
+    const ids = ['validadeTipo', 'validadeNrLiberacao', 'validadeDtLiberacao', 'validadeDtValidade', 'validadeDsLiberacao', 'certCpfCnpj', 'certCodigo', 'certNome'];
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.disabled = readOnly;
+        el.readOnly = readOnly;
+      }
+    });
+    const btnSalvar = document.getElementById('btnSalvarValidade');
+    if (btnSalvar) btnSalvar.style.display = readOnly ? 'none' : '';
+    const certContainer = document.getElementById('certificadoraBuscaContainer');
+    if (certContainer) {
+      const grid = certContainer.querySelector('.certificadora-busca-grid');
+      if (grid) grid.style.display = readOnly ? 'none' : '';
+    }
+    const btnCancelar = document.getElementById('btnCancelarValidade');
+    if (btnCancelar) {
+      btnCancelar.innerHTML = readOnly ? '<i class=\'bx bx-x\'></i> Fechar' : '<i class=\'bx bx-x\'></i> Cancelar';
+    }
+  }
+  
+  /** Abre o modal em modo "Ver Dados" (somente leitura). */
+  window.verDadosValidade = function(sequencia) {
+    window.editarValidade(sequencia, true);
+  };
+  
   window.excluirValidade = function(sequencia) {
     const modalEl = document.getElementById('confirmModal');
     const modalMsg = document.getElementById('modalMessage');
     
-    modalMsg.textContent = 'Deseja realmente excluir esta validade?';
+    modalMsg.textContent = 'Desativar esta validade? Ela permanecerá no histórico com data e usuário da remoção (dados para seguro).';
     modalEl.style.display = 'block';
     
     const btnYes = document.getElementById('confirmYes');
@@ -2205,17 +2462,23 @@
     newYes.onclick = async () => {
       try {
         const { tpCadastro, cdCadastro } = cadastroAtualValidades;
-        const response = await fetch(`/api/validades/${tpCadastro}/${cdCadastro}/${sequencia}`, { method: 'DELETE' });
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const usuario = user.login || 'SYSTEM';
+        const response = await fetch(`/api/validades/${tpCadastro}/${cdCadastro}/${sequencia}`, {
+          method: 'DELETE',
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ usuario })
+        });
         const data = await response.json();
         
         if (response.ok) {
-          showMessage('Validade excluída!', 'success');
+          showMessage('Validade desativada. Registro mantido para histórico.', 'success');
           await carregarValidadesCadastro(tpCadastro, cdCadastro);
         } else {
-          showMessage(data.error || 'Erro ao excluir', 'error');
+          showMessage(data.error || 'Erro ao desativar', 'error');
         }
       } catch (err) {
-        showMessage('Erro ao excluir', 'error');
+        showMessage('Erro ao desativar', 'error');
       } finally {
         modalEl.style.display = 'none';
       }
@@ -2255,17 +2518,20 @@
       const params = new URLSearchParams();
       params.append(tipo, valor);
       params.append('situacao', 'S'); // Apenas ativos
-      
+      params.append('tipoCadastro', 'C'); // Somente certificadoras (FGTIPOCADASTRO = C)
+
       const response = await fetch(`/api/cadastros-gerais?${params.toString()}`);
       const cadastros = await response.json();
-      
+
       const certResultado = document.getElementById('certResultado');
-      
+
       if (cadastros && cadastros.length > 0) {
         const cert = cadastros[0];
-        document.getElementById('validadeCertificadora').value = cert.CDCADASTRO;
+        const cod = cert.CDCADASTRO ?? cert.cdcadastro;
+        const nome = cert.RZSOCIAL ?? cert.rzsocial;
+        document.getElementById('validadeCertificadora').value = cod;
         certResultado.className = 'certificadora-selecionada';
-        certResultado.innerHTML = '<i class=\'bx bx-check-circle\'></i><span id="certTexto"><strong>✓ ' + cert.RZSOCIAL + '</strong> (Código: ' + cert.CDCADASTRO + ')</span>';
+        certResultado.innerHTML = '<i class=\'bx bx-check-circle\'></i><span id="certTexto"><strong>✓ ' + (nome || '') + '</strong> (Código: ' + cod + ')</span>';
         showMessage('Certificadora encontrada!', 'success');
       } else {
         certResultado.className = 'certificadora-erro';
@@ -2281,6 +2547,7 @@
   async function salvarValidade(e) {
     e.preventDefault();
     
+    if (document.getElementById('btnSalvarValidade')?.style.display === 'none') return;
     if (!cadastroAtualValidades) return;
     
     try {
@@ -2295,6 +2562,10 @@
         CDCERTIFICADORA: document.getElementById('validadeCertificadora').value || null,
         DSLIBERACAO: document.getElementById('validadeDsLiberacao').value
       };
+      if (!sequencia) {
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        if (user.login) dados.SGUSER = user.login;
+      }
       
       const url = sequencia 
         ? `/api/validades/${tpCadastro}/${cdCadastro}/${sequencia}`

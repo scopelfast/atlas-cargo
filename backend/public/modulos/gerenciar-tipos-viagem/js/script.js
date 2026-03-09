@@ -1,5 +1,6 @@
 // backend/public/modulos/gerenciar-tipos-viagem/js/script.js
 (function() {
+  const t = function(k) { return typeof window.tWeb === 'function' ? window.tWeb(k) : k; };
   const tabs = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
   const filtroForm = document.getElementById('filtroForm');
@@ -114,7 +115,7 @@
       const countEl = document.getElementById('tiposGridCountText');
       if (countEl) {
         const count = tipos.length || 0;
-        countEl.textContent = `${count} registro(s) encontrado(s)`;
+        countEl.textContent = (t('web.modulos.cidades.registrosEncontrados') || '{n} registro(s) encontrado(s)').replace('{n}', String(count));
       }
 
       // Se Grid já existe, atualizar
@@ -172,7 +173,7 @@
       showTab(openTab);
     } catch (err) {
       console.error('Erro ao aplicar filtros:', err);
-      showMessage('Erro ao carregar tipos.', 'error');
+      showMessage(t('web.modulos.tiposViagem.erroCarregarTipos'), 'error');
     }
   }
 
@@ -209,7 +210,7 @@
         // Validar ID
         if (!id || id === 'null' || id === 'undefined' || id === '') {
           console.error('[Tipos] ID inválido:', id, 'Elemento:', e.currentTarget);
-          showMessage('Erro: ID não disponível.', 'error');
+          showMessage(t('web.modulos.tiposViagem.erroIdIndisponivel'), 'error');
           return;
         }
         
@@ -300,7 +301,8 @@
             { value: 'N', label: 'Inativo' }
           ], 
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo',
-          width: '120px' 
+          width: '120px',
+          align: 'right'
         }
       ],
       apiEndpoint: '/api/tipos-viagem',
@@ -340,18 +342,18 @@
         document.getElementById('tipoCodigo').value = tipo.CDTIPOVIAGEM;
         document.getElementById('tipoDescricao').value = tipo.DSTIPOVIAGEM;
         document.getElementById('tipoSituacao').value = tipo.FGACTIVE;
-        document.getElementById('formTitle').textContent = 'Editar Tipo de Viagem';
+        document.getElementById('formTitle').textContent = t('web.modulos.tiposViagem.editarTipo');
         showTab('dados');
       }
     } catch (err) {
       console.error('Erro ao carregar tipo:', err);
-      showMessage('Erro ao carregar dados para edição.', 'error');
+      showMessage(t('web.modulos.tiposViagem.erroCarregarDados'), 'error');
     }
   }
 
   async function confirmarExclusao(id) {
     if (!id || id === 'undefined' || id === 'null' || id === '' || String(id).trim() === '') {
-      showMessage('Erro: ID não disponível.', 'error');
+      showMessage(t('web.modulos.tiposViagem.erroIdIndisponivel'), 'error');
       return;
     }
     
@@ -379,13 +381,13 @@
       // Definir mensagem e ação baseado no status atual
       let confirmMsg, action, btnText;
       if (estaAtivo) {
-        confirmMsg = 'Tem certeza que deseja <strong>desativar</strong> este tipo de viagem?<br><br><small style="color: #666;">O tipo ficará inativo e não aparecerá nas listagens padrão.</small>';
+        confirmMsg = t('web.modulos.tiposViagem.msgDesativar');
         action = 'deactivate';
-        btnText = 'Desativar';
+        btnText = t('web.modulos.tiposViagem.desativar');
       } else {
-        confirmMsg = 'Tem certeza que deseja <strong>reativar</strong> este tipo de viagem?<br><br><small style="color: #666;">O tipo voltará a aparecer nas listagens e estará disponível para uso.</small>';
+        confirmMsg = t('web.modulos.tiposViagem.msgReativar');
         action = 'activate';
-        btnText = 'Reativar';
+        btnText = t('web.modulos.tiposViagem.reativar');
       }
       
       if (modalMessage) modalMessage.innerHTML = confirmMsg;
@@ -408,7 +410,7 @@
           const acao = modalEl.dataset.action || action;
           
           if (!deleteId || deleteId === 'undefined' || deleteId === 'null' || deleteId === '') {
-            showMessage('Erro: ID não disponível.', 'error');
+            showMessage(t('web.modulos.tiposViagem.erroIdIndisponivel'), 'error');
             modalEl.style.display = 'none';
             return;
           }
@@ -420,15 +422,15 @@
           
           const data = await response.json();
           if (response.ok) {
-            showMessage(data.message || (acao === 'activate' ? 'Tipo de viagem reativado com sucesso!' : 'Tipo de viagem desativado com sucesso!'), 'success');
+            showMessage(data.message || (acao === 'activate' ? t('web.modulos.tiposViagem.sucessoReativar') : t('web.modulos.tiposViagem.sucessoDesativar')), 'success');
             showTab('grid');
             applyFilters('grid');
           } else {
-            showMessage(data.error || 'Erro ao alterar status do tipo.', 'error');
+            showMessage(data.error || t('web.modulos.tiposViagem.erroAlterarStatus'), 'error');
           }
         } catch (err) {
           console.error('[Tipos] Erro ao alterar status:', err);
-          showMessage('Erro de conexão.', 'error');
+          showMessage(t('web.modulos.tiposViagem.erroConexao'), 'error');
         } finally {
           modalEl.style.display = 'none';
           delete modalEl.dataset.deleteId;
@@ -445,18 +447,31 @@
       modalEl.style.display = 'block';
     } catch (err) {
       console.error('[Tipos] Erro ao buscar status do tipo:', err);
-      showMessage('Erro ao verificar status do tipo.', 'error');
+      showMessage(t('web.modulos.tiposViagem.erroVerificarStatus'), 'error');
     }
   }
 
+  let tipoViagemFormSubmitting = false;
   tipoForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    e.stopImmediatePropagation();
+    if (tipoViagemFormSubmitting) return;
+    tipoViagemFormSubmitting = true;
+    const btnSubmit = tipoForm?.querySelector('button[type="submit"]');
+    const labelOriginal = btnSubmit?.innerHTML ?? '';
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = '<i class=\'bx bx-loader-alt bx-spin\'></i> Salvando...';
+    }
+
     const id = document.getElementById('tipoCodigo')?.value;
     const descricao = document.getElementById('tipoDescricao')?.value.trim();
     const situacao = document.getElementById('tipoSituacao')?.value;
-    
+
     if (!descricao || !situacao) {
-      showMessage('Preencha todos os campos obrigatórios.', 'error');
+      showMessage(t('web.modulos.tiposViagem.preenchaCampos'), 'error');
+      tipoViagemFormSubmitting = false;
+      if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = labelOriginal; }
       return;
     }
 
@@ -481,15 +496,24 @@
 
       const data = await response.json();
       if (response.ok) {
-        showMessage(data.message, 'success');
+        showMessage(data.message || t('web.modulos.tiposViagem.sucessoSalvar'), 'success');
         showTab('grid');
         applyFilters('grid');
       } else {
-        showMessage(data.error, 'error');
+        showMessage(data.error || t('web.modulos.tiposViagem.erroSalvar'), 'error');
       }
     } catch (err) {
       console.error('Erro ao salvar:', err);
-      showMessage('Erro de conexão.', 'error');
+      showMessage(t('web.modulos.tiposViagem.erroConexao'), 'error');
+    } finally {
+      // Cooldown para evitar duplo envio (Enter + clique ou duplo clique)
+      setTimeout(() => {
+        tipoViagemFormSubmitting = false;
+        if (btnSubmit) {
+          btnSubmit.disabled = false;
+          btnSubmit.innerHTML = labelOriginal;
+        }
+      }, 600);
     }
   });
 
@@ -518,13 +542,13 @@
   
   document.getElementById('btnNovoRegistro')?.addEventListener('click', () => {
     tipoForm?.reset();
-    document.getElementById('formTitle').textContent = 'Novo Tipo de Viagem';
+    document.getElementById('formTitle').textContent = t('web.modulos.tiposViagem.novoTipo');
     showTab('dados');
   });
   
   document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
     tipoForm?.reset();
-    document.getElementById('formTitle').textContent = 'Novo Tipo de Viagem';
+    document.getElementById('formTitle').textContent = t('web.modulos.tiposViagem.novoTipo');
     showTab('dados');
   });
   

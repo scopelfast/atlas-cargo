@@ -2,7 +2,7 @@
 
 ## ✅ TABELAS UTILIZADAS
 
-Data: 03/12/2025  
+Data: 03/12/2026  
 Versão: 1.0.0
 
 ---

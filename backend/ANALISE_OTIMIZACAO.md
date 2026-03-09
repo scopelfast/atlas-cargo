@@ -1,6 +1,6 @@
 # 🔍 Análise de Otimização do Projeto
 
-**Data:** 2025-11-21  
+**Data:** 2026-11-21  
 **Versão:** 1.0.0
 
 ---
@@ -219,6 +219,6 @@ backend/
 
 ---
 
-**Mantido por:** Equipe DivulgaCarga  
-**Última atualização:** 2025-11-21
+**Mantido por:** Atlas Cargo  
+**Última atualização:** 2026-11-21
 

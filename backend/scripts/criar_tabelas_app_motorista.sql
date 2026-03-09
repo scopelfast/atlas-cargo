@@ -2,15 +2,15 @@
 =============================================================================
 Script: Criar Tabelas para APP do Motorista
 Descrição: Tabelas complementares integradas com sistema existente
-Data: 02/01/2025
-Autor: Sistema DivulgaCarga
+Data: 02/01/2026
+Autor: Atlas Cargo
 
 IMPORTANTE: Este script NÃO altera tabelas existentes!
             Apenas ADICIONA novas tabelas complementares.
 =============================================================================
 */
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 -- ========================================

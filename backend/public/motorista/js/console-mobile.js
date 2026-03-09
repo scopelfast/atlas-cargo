@@ -19,7 +19,7 @@
     display: none;
     padding: 10px;
     line-height: 1.4;
-    border-top: 3px solid #667eea;
+    border-top: 3px solid #0ea5e9;
   `;
 
   // Botão toggle
@@ -33,7 +33,7 @@
     width: 50px;
     height: 50px;
     border-radius: 50%;
-    background: #667eea;
+    background: #0ea5e9;
     color: white;
     border: none;
     font-size: 24px;
@@ -108,7 +108,7 @@
   btnLimpar.style.cssText = `
     flex: 1;
     padding: 8px;
-    background: #667eea;
+    background: #0ea5e9;
     color: white;
     border: none;
     font-weight: 700;

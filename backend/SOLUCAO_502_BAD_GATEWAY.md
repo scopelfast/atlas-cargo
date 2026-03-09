@@ -153,7 +153,7 @@ cat .env
 # Iniciar o servidor
 npm start
 # ou
-pm2 start server.js --name divulga-carga
+pm2 start server.js --name atlas-cargo
 # ou (Windows)
 node server.js
 ```

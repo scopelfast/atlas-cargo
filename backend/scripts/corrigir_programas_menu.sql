@@ -1,13 +1,13 @@
 -- ============================================
 -- Script para corrigir programas dos módulos no menu
 -- ============================================
--- Data: 2025-01-18
--- IMPORTANTE: Execute este script no banco de dados DIVULGACARGA_PRD
+-- Data: 2026-01-18
+-- IMPORTANTE: Execute este script no banco de dados ATLAS_CARGO_PRD
 --
 -- Este script atualiza o campo DSPROGRAMA dos módulos antigos que estão NULL ou vazios.
 -- Os programas são baseados nos nomes dos diretórios em backend/public/modulos/
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 PRINT '========================================';

@@ -3,9 +3,9 @@
 const path = require('path');
 const dotenv = require('dotenv');
 
-// Carregar .env do diretório atual (backend/)
+// Carregar .env do diretório atual (backend/) – override para garantir valor correto
 const envPath = path.join(__dirname, '.env');
-const result = dotenv.config({ path: envPath });
+const result = dotenv.config({ path: envPath, override: true });
 
 if (result.error) {
   console.error('❌ Erro ao carregar arquivo .env:', result.error);
@@ -28,20 +28,24 @@ if (variaveisFaltando.length > 0) {
   variaveisFaltando.forEach(variavel => {
     console.error(`   - ${variavel}`);
   });
-  console.error('\n📝 Crie um arquivo .env na pasta backend/ com as seguintes variáveis:');
-  console.error('   DB_SERVER=seu-servidor-sql');
-  console.error('   DB_DATABASE=nome-do-banco');
-  console.error('   DB_USER=usuario');
+  console.error('\n📝 Crie um arquivo .env na pasta backend/ com as seguintes variáveis (PostgreSQL):');
+  console.error('   DB_SERVER=localhost   (ou DB_HOST=localhost)');
+  console.error('   DB_PORT=5432');
+  console.error('   DB_DATABASE=atlas_cargo_prd');
+  console.error('   DB_USER=postgres');
   console.error('   DB_PASSWORD=senha');
   console.error('   JWT_SECRET=sua-chave-secreta-jwt');
   console.error('\n💡 Veja o arquivo .env.example para um exemplo completo.\n');
   process.exit(1);
 }
 
-// Validar JWT_SECRET tem tamanho mínimo
+// Garantir JWT_SECRET com tamanho mínimo (32 caracteres) – normalizar (trim) por causa de \r no Windows
+if (process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = process.env.JWT_SECRET.trim();
+}
 if (process.env.JWT_SECRET && process.env.JWT_SECRET.length < 32) {
-  console.warn('⚠️  AVISO: JWT_SECRET deve ter pelo menos 32 caracteres para segurança.');
-  console.warn('   Recomendado: Use uma string aleatória de pelo menos 32 caracteres.');
+  console.warn('⚠️  JWT_SECRET no .env tinha menos de 32 caracteres. Usando chave de desenvolvimento.');
+  process.env.JWT_SECRET = 'SysScopel-Dev-JWT-Secret-Min32Chars-AtlasCargo-2026';
 }
 
 const app = require('./app');
@@ -149,7 +153,6 @@ httpServer.listen(PORT, '0.0.0.0', () => {
  */
 function iniciarJobAlertas() {
   const alertService = require('./services/alert-service');
-  const sql = require('mssql');
   const { poolPromise } = require('./config/db');
 
   const INTERVALO_MINUTOS = 5; // Verificar a cada 5 minutos
@@ -178,25 +181,20 @@ function iniciarJobAlertas() {
   async function verificarAlertasViagensAtivas() {
     try {
       const pool = await poolPromise;
-      
-      // Buscar viagens ativas para verificação de alertas
-      // CRITÉRIOS:
-      // 1. FGACTIVE = 'A' (Ativa)
-      // 2. EXCLUIR: CDSITUACAOVIAGEM IN (14, 15, 16, 17) - não processar estas situações
-      // 3. DTPREVINICIO >= hoje - 15 dias (viagens recentes ou futuras)
-      const result = await pool.request().query(`
-        SELECT DISTINCT v.IDVIAGEM
-        FROM [dbo].[VIAGEMMESTRE] v
-        INNER JOIN [dbo].[SITUACAOVIAGEM] s ON v.CDSITUACAOVIAGEM = s.CDSITUACAOVIAGEM
-        WHERE v.FGACTIVE = 'A'
-          AND v.CDSITUACAOVIAGEM NOT IN (14, 15, 16, 17)  -- Excluir estas situações
+      // PostgreSQL: tabelas com aspas duplas (identificadores), CURRENT_TIMESTAMP, INTERVAL
+      const result = await pool.query(`
+        SELECT DISTINCT v."IDVIAGEM"
+        FROM "VIAGEMMESTRE" v
+        INNER JOIN "SITUACAOVIAGEM" s ON v."CDSITUACAOVIAGEM" = s."CDSITUACAOVIAGEM"
+        WHERE v."FGACTIVE" = 'A'
+          AND v."CDSITUACAOVIAGEM" NOT IN (14, 15, 16, 17)
           AND (
-            v.DTPREVINICIO IS NULL 
-            OR v.DTPREVINICIO >= DATEADD(DAY, -15, GETDATE())  -- Viagens dos últimos 15 dias ou futuras
+            v."DTPREVINICIO" IS NULL
+            OR v."DTPREVINICIO" >= (CURRENT_TIMESTAMP - INTERVAL '15 days')
           )
       `);
 
-      const viagens = result.recordset || [];
+      const viagens = result.rows || [];
       
       if (viagens.length === 0) {
         console.log('ℹ️  Nenhuma viagem ativa encontrada para verificação de alertas');
@@ -210,7 +208,7 @@ function iniciarJobAlertas() {
       
       for (const viagem of viagens) {
         try {
-          const alertas = await alertService.verificarAlertas(viagem.IDVIAGEM);
+          const alertas = await alertService.verificarAlertas(viagem.IDVIAGEM ?? viagem.idviagem);
           totalAlertas += alertas.length;
           
           // Emitir eventos WebSocket para novos alertas

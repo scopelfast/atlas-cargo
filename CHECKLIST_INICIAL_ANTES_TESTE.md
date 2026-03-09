@@ -1,6 +1,6 @@
 # ✅ Checklist: Antes de Começar a Testar
 
-**Data:** 2025-01-16  
+**Data:** 2026-01-16  
 
 ---
 
@@ -43,7 +43,7 @@ npm run dev
 O servidor deve mostrar:
 ```
 ✅ Servidor rodando na porta 3000
-✅ Conexão com DIVULGACARGA_PRD estabelecida
+✅ Conexão com ATLAS_CARGO_PRD estabelecida
 ✅ Conexão com INTEGRA_PRD estabelecida
 🔄 Job de alertas iniciado (verificação a cada 5 minutos)
 ```

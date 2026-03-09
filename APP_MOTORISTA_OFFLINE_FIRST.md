@@ -118,7 +118,7 @@ MOTORISTA VOLTA ONLINE:
   longitude: -49.2733,
   velocidade: 80,
   precisao: 10,
-  timestamp: "2025-01-02 10:30:00",
+  timestamp: "2026-01-02 10:30:00",
   enviado: false
 }
 ```
@@ -132,7 +132,7 @@ MOTORISTA VOLTA ONLINE:
   descricao: "Parada para refeição",
   latitude: -25.4284,
   longitude: -49.2733,
-  timestamp: "2025-01-02 12:00:00",
+  timestamp: "2026-01-02 12:00:00",
   foto: "base64_da_foto_aqui",
   enviado: false
 }
@@ -146,7 +146,7 @@ MOTORISTA VOLTA ONLINE:
   tipo: "entrega",
   descricao: "Comprovante de entrega",
   foto: "base64_da_foto_aqui",
-  timestamp: "2025-01-02 18:00:00",
+  timestamp: "2026-01-02 18:00:00",
   enviado: false
 }
 ```
@@ -157,7 +157,7 @@ MOTORISTA VOLTA ONLINE:
   id: 1,
   idviagem: 12345,
   mensagem: "Carga entregue com sucesso!",
-  timestamp: "2025-01-02 18:05:00",
+  timestamp: "2026-01-02 18:05:00",
   enviado: false
 }
 ```
@@ -171,7 +171,7 @@ MOTORISTA VOLTA ONLINE:
   carga: "Eletrônicos",
   valor: 5000.00,
   // ... todos os dados da viagem
-  dataCache: "2025-01-02 08:00:00"
+  dataCache: "2026-01-02 08:00:00"
 }
 ```
 

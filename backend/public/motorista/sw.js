@@ -34,7 +34,7 @@ const urlsToCache = [
   
   // Assets
   '/motorista/manifest.json',
-  '/img/logo7.png'
+  '/img/logoAtlasTransparente.png'
 ];
 
 // Install

@@ -1,13 +1,24 @@
 // backend/public/modulos/alertas/js/script.js
 // Módulo de Alertas - Frontend Completo
 // Versão: 2.0
-// Data: 2025-01-18
+// Data: 2026-01-18
 //
 // Este módulo gerencia a visualização, filtragem e tratamento de alertas do sistema.
 // Inclui integração com WebSocket para atualizações em tempo real.
 
 (function() {
   'use strict';
+  const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
+
+  let contextoAlertas = { locale: 'pt-BR', timezone: 'America/Sao_Paulo' };
+  async function loadContextoAlertas() {
+    try {
+      const r = await fetch('/api/contexto');
+      const d = await r.json();
+      if (d && d.locale) contextoAlertas.locale = d.locale;
+      if (d && d.timezone) contextoAlertas.timezone = d.timezone;
+    } catch (e) {}
+  }
 
   // Estado do módulo
   let alertas = [];
@@ -67,10 +78,9 @@
   /**
    * Inicializar módulo
    */
-  function inicializar() {
+  async function inicializar() {
     console.log('📋 Módulo Alertas inicializando...');
-    
-    // Carregar alertas
+    await loadContextoAlertas();
     carregarAlertas();
     
     // Inicializar WebSocket
@@ -140,11 +150,11 @@
       }
     } catch (err) {
       console.error('Erro ao carregar alertas:', err);
-      mostrarMensagem('Erro ao carregar alertas: ' + err.message, 'error');
+      mostrarMensagem(t('web.modulos.alertas.erroCarregar') + ' ' + err.message, 'error');
       alertasList.innerHTML = `
         <div class="empty-state">
           <i class='bx bx-error-circle'></i>
-          <h3>Erro ao carregar alertas</h3>
+          <h3>${t('web.modulos.alertas.erroCarregar')}</h3>
           <p>${err.message}</p>
         </div>
       `;
@@ -249,7 +259,7 @@
           tipo: !!filtroTipoEl,
           prioridade: !!filtroPrioridadeEl
         });
-        mostrarMensagem('Erro: Elementos de filtro não encontrados', 'error');
+        mostrarMensagem(t('web.modulos.alertas.erroCarregar'), 'error');
         return;
       }
       
@@ -277,7 +287,7 @@
       carregarAlertas();
     } catch (err) {
       console.error('❌ Erro ao aplicar filtros:', err);
-      mostrarMensagem('Erro ao aplicar filtros: ' + err.message, 'error');
+      mostrarMensagem(t('web.modulos.alertas.erroCarregar') + ' ' + err.message, 'error');
     }
   };
 
@@ -311,7 +321,7 @@
       carregarAlertas();
     } catch (err) {
       console.error('❌ Erro ao limpar filtros:', err);
-      mostrarMensagem('Erro ao limpar filtros: ' + err.message, 'error');
+      mostrarMensagem(t('web.modulos.alertas.erroCarregar') + ' ' + err.message, 'error');
     }
   };
 
@@ -323,7 +333,7 @@
       const idUsuario = getUserId();
 
       if (!idUsuario) {
-        mostrarMensagem('Erro: ID do usuário não encontrado. Faça login novamente.', 'error');
+        mostrarMensagem(t('web.modulos.alertas.erroConexao'), 'error');
         return;
       }
 
@@ -346,7 +356,7 @@
       }
     } catch (err) {
       console.error('Erro ao marcar como lido:', err);
-      mostrarMensagem('Erro ao marcar como lido: ' + err.message, 'error');
+      mostrarMensagem(t('web.modulos.alertas.erroCarregar') + ' ' + err.message, 'error');
     }
   };
 
@@ -396,7 +406,7 @@
       modalTratamento.classList.add('active');
     } catch (err) {
       console.error('Erro ao abrir tratamento:', err);
-      mostrarMensagem('Erro ao carregar alerta: ' + err.message, 'error');
+      mostrarMensagem(t('web.modulos.alertas.erroCarregar') + ' ' + err.message, 'error');
     }
   };
 
@@ -424,7 +434,7 @@
       const idUsuario = getUserId();
 
       if (!idUsuario) {
-        mostrarMensagem('Erro: ID do usuário não encontrado. Faça login novamente.', 'error');
+        mostrarMensagem(t('web.modulos.alertas.erroConexao'), 'error');
         return;
       }
 
@@ -450,7 +460,7 @@
       }
     } catch (err) {
       console.error('Erro ao salvar tratamento:', err);
-      mostrarMensagem('Erro ao tratar alerta: ' + err.message, 'error');
+      mostrarMensagem(t('web.modulos.alertas.erroCarregar') + ' ' + err.message, 'error');
     }
   };
 
@@ -822,31 +832,34 @@
     }
   }
 
-  /**
-   * Formatar data
-   */
   function formatarData(dataString) {
     if (!dataString) return 'N/A';
     const data = new Date(dataString);
-    return data.toLocaleDateString('pt-BR');
+    if (Number.isNaN(data.getTime())) return 'N/A';
+    const loc = contextoAlertas.locale || 'pt-BR';
+    const tz = contextoAlertas.timezone || 'America/Sao_Paulo';
+    try {
+      return new Intl.DateTimeFormat(loc, { timeZone: tz, dateStyle: 'short' }).format(data);
+    } catch (e) { return data.toLocaleDateString(loc); }
   }
 
-  /**
-   * Formatar hora
-   */
   function formatarHora(dataString) {
     if (!dataString) return 'N/A';
     const data = new Date(dataString);
-    return data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    if (Number.isNaN(data.getTime())) return 'N/A';
+    const loc = contextoAlertas.locale || 'pt-BR';
+    const tz = contextoAlertas.timezone || 'America/Sao_Paulo';
+    return data.toLocaleTimeString(loc, { timeZone: tz, hour: '2-digit', minute: '2-digit' });
   }
 
-  /**
-   * Formatar data e hora
-   */
   function formatarDataHora(dataString) {
     if (!dataString) return 'N/A';
     const data = new Date(dataString);
-    return data.toLocaleString('pt-BR');
+    if (Number.isNaN(data.getTime())) return 'N/A';
+    if (typeof window.formatarDataHoraComFuso === 'function') {
+      return window.formatarDataHoraComFuso(data, contextoAlertas.locale, contextoAlertas.timezone, { dateStyle: 'short', timeStyle: 'short' });
+    }
+    return data.toLocaleString(contextoAlertas.locale || 'pt-BR', { timeZone: contextoAlertas.timezone || 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });
   }
 
   /**
@@ -1022,11 +1035,11 @@
     if (btn) {
       if (novoEstado) {
         btn.style.background = '#28a745';
-        btn.innerHTML = '<i class=\'bx bx-volume-full\'></i> Som';
+        btn.innerHTML = '<i class=\'bx bx-volume-full\'></i> ' + t('web.modulos.alertas.som');
         btn.title = 'Som ativado (clique para desativar)';
       } else {
         btn.style.background = '#dc3545';
-        btn.innerHTML = '<i class=\'bx bx-volume-mute\'></i> Som';
+        btn.innerHTML = '<i class=\'bx bx-volume-mute\'></i> ' + t('web.modulos.alertas.som');
         btn.title = 'Som desativado (clique para ativar)';
       }
     }
@@ -1046,11 +1059,11 @@
     if (btn) {
       if (somHabilitado) {
         btn.style.background = '#28a745';
-        btn.innerHTML = '<i class=\'bx bx-volume-full\'></i> Som';
+        btn.innerHTML = '<i class=\'bx bx-volume-full\'></i> ' + t('web.modulos.alertas.som');
         btn.title = 'Som ativado (clique para desativar)';
       } else {
         btn.style.background = '#dc3545';
-        btn.innerHTML = '<i class=\'bx bx-volume-mute\'></i> Som';
+        btn.innerHTML = '<i class=\'bx bx-volume-mute\'></i> ' + t('web.modulos.alertas.som');
         btn.title = 'Som desativado (clique para ativar)';
       }
     }

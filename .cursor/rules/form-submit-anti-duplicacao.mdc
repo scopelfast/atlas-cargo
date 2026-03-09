@@ -1,0 +1,74 @@
+---
+description: Evitar duplo envio em formulários (submit) nos módulos - padrão obrigatório
+globs: backend/public/modulos/**/js/script.js
+alwaysApply: false
+---
+
+# Anti-duplicação em formulários de salvar (POST/PUT)
+
+Todo handler de `submit` que envia dados para a API (criar/atualizar registro) **deve** seguir este padrão para evitar registro duplicado por duplo clique ou Enter + clique.
+
+## Padrão obrigatório
+
+1. **Flag de guarda** no início do handler: `if (nomeFormSubmitting) return;` e em seguida `nomeFormSubmitting = true`.
+2. **`e.stopImmediatePropagation()`** logo após `e.preventDefault()` para evitar que outro listener processe o mesmo evento.
+3. **Desabilitar o botão e mostrar loading** imediatamente (antes de qualquer `await`).
+4. **Cooldown no `finally`**: usar `setTimeout(..., 600)` para reabilitar o botão e resetar a flag; nunca reabilitar de forma síncrona no `finally`.
+5. **Early returns**: em validação (campos vazios, etc.), antes de cada `return` resetar a flag e reabilitar o botão.
+
+## Template
+
+```javascript
+let nomeFormSubmitting = false;
+form?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  e.stopImmediatePropagation();
+  if (nomeFormSubmitting) return;
+  nomeFormSubmitting = true;
+  const btnSubmit = form?.querySelector('button[type="submit"]');
+  const labelOriginal = btnSubmit?.innerHTML ?? '';
+  if (btnSubmit) {
+    btnSubmit.disabled = true;
+    btnSubmit.innerHTML = '<i class=\'bx bx-loader-alt bx-spin\'></i> Salvando...';
+  }
+
+  // validação...
+  if (!campo) {
+    showMessage('Preencha os campos.', 'error');
+    nomeFormSubmitting = false;
+    if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = labelOriginal; }
+    return;
+  }
+
+  try {
+    // fetch POST/PUT...
+  } catch (err) {
+    // ...
+  } finally {
+    setTimeout(() => {
+      nomeFormSubmitting = false;
+      if (btnSubmit) {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = labelOriginal;
+      }
+    }, 600);
+  }
+});
+```
+
+## Quando aplicar
+
+- Em **qualquer** novo `addEventListener('submit', ...)` que chame `fetch` para POST ou PUT (salvar/criar/atualizar).
+- Ao corrigir ou refatorar handlers de formulário existentes nos módulos.
+
+## Nome da flag
+
+Use um nome único por formulário, por exemplo: `tipoViagemFormSubmitting`, `filialFormSubmitting`, `equipamentoFormSubmitting`, etc.
+
+---
+
+## Formulários de filtro (evitar navegação no primeiro clique)
+
+Em módulos com **formulário de filtro** (`id="filtroForm"`), o botão "Aplicar" costuma ser `type="submit"`. Se o script que anexa o listener com `e.preventDefault()` rodar depois do primeiro clique (ex.: módulo em iframe, script no final da página), o navegador faz o submit nativo e a página pode voltar à tela principal; no segundo clique o listener já está ativo e o filtro funciona.
+
+**Solução:** No HTML, em **todo** `<form id="filtroForm">`, incluir **`onsubmit="return false;"`** para que o formulário nunca faça submit nativo, mesmo antes do script carregar. O listener em JS continua com `e.preventDefault()` e chama a função de aplicar filtros (ex.: `applyFilters('grid')`).

@@ -2,9 +2,9 @@
 -- Script para adicionar novos módulos ao menu
 -- Alertas | Chat | SOS | Ranking
 -- ============================================
--- Data: 2025-01-18
--- Autor: Sistema DivulgaCarga
--- IMPORTANTE: Execute este script no banco de dados DIVULGACARGA_PRD
+-- Data: 2026-01-18
+-- Autor: Atlas Cargo
+-- IMPORTANTE: Execute este script no banco de dados ATLAS_CARGO_PRD
 --
 -- Este script adiciona os 4 novos módulos ao menu do sistema:
 -- 1. Alertas (CDTIPOATIVIDADE = 40) - /modulos/alertas/index.html
@@ -17,7 +17,7 @@
 --
 -- IMPORTANTE: Este script é seguro e pode ser executado múltiplas vezes (idempotente)
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 PRINT '========================================';

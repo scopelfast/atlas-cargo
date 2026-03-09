@@ -4,16 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Eventos e Fotos - Motorista</title>
+  <link rel="stylesheet" href="../css/design-system.css">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <script src="../js/i18n.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #f0f2f5; font-family: -apple-system, sans-serif; }
-    
-    .navbar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
-    .btn-voltar { background: rgba(255,255,255,0.25); border: none; color: white; padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: 600; }
-    .navbar h1 { font-size: 18px; font-weight: 600; flex: 1; }
-    
-    .status-bar { padding: 10px 16px; text-align: center; font-size: 13px; font-weight: 600; }
-    .status-online { background: #d4edda; color: #155724; }
+    /* navbar e btn-voltar vêm do padrao-telas.css */
     
     .container { padding: 16px; }
     
@@ -23,7 +20,7 @@
     .evento-tipos { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; }
     .evento-btn { padding: 16px; border: 2px solid #e0e0e0; background: white; border-radius: 12px; cursor: pointer; text-align: center; transition: all 0.2s; }
     .evento-btn:active { transform: scale(0.95); }
-    .evento-btn.ativo { border-color: #667eea; background: #f0f4ff; }
+    .evento-btn.ativo { border-color: #0ea5e9; background: #e0f2fe; }
     .evento-icon { font-size: 32px; margin-bottom: 8px; }
     .evento-nome { font-size: 13px; font-weight: 600; color: #333; }
     
@@ -32,7 +29,7 @@
     .input-field { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 15px; }
     
     .foto-container { margin: 16px 0; }
-    .btn-foto { width: 100%; padding: 16px; background: #667eea; color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .btn-foto { width: 100%; padding: 16px; background: #0ea5e9; color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
     
     .foto-preview { margin-top: 12px; max-width: 100%; border-radius: 12px; display: none; }
     
@@ -41,7 +38,7 @@
     
     .historico-item { background: white; border-radius: 12px; padding: 14px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
     .historico-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
-    .historico-tipo { font-weight: 700; color: #667eea; }
+    .historico-tipo { font-weight: 700; color: #0ea5e9; }
     .historico-hora { font-size: 12px; color: #999; }
     .historico-desc { font-size: 14px; color: #333; margin: 8px 0; }
     .historico-foto { max-width: 100%; border-radius: 8px; margin-top: 8px; cursor: pointer; }
@@ -49,71 +46,70 @@
     .empty { text-align: center; padding: 40px 20px; color: #999; }
   </style>
 </head>
-<body>
-  <div id="statusIndicador" class="status-bar status-online">🟢 Online</div>
-
+<body class="motorista-page">
   <div class="navbar">
-    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
-    <h1>📸 Eventos e Fotos</h1>
+    <button class="btn-voltar" onclick="voltar()">← <span data-i18n="eventos.voltar">Voltar</span></button>
+    <h1><i class="bx bx-camera"></i> <span data-i18n="eventos.titulo">Eventos e Fotos</span></h1>
+    <div id="statusIndicador" class="status-badge-navbar status-online" data-i18n="dashboard.onlineSincronizado">Online - Sincronizado</div>
   </div>
 
   <div class="container">
     <!-- REGISTRAR NOVO EVENTO -->
     <div class="card">
-      <div class="card-title">➕ Registrar Evento</div>
+      <div class="card-title" data-i18n="eventos.registrarEvento">➕ Registrar Evento</div>
       
       <div class="evento-tipos" id="tiposEvento">
         <div class="evento-btn" onclick="selecionarTipo('P')">
           <div class="evento-icon">⏸️</div>
-          <div class="evento-nome">Parada</div>
+          <div class="evento-nome" data-i18n="eventos.parada">Parada</div>
         </div>
         <div class="evento-btn" onclick="selecionarTipo('A')">
           <div class="evento-icon">⛽</div>
-          <div class="evento-nome">Abastecimento</div>
+          <div class="evento-nome" data-i18n="eventos.abastecimento">Abastecimento</div>
         </div>
         <div class="evento-btn" onclick="selecionarTipo('R')">
           <div class="evento-icon">🍽️</div>
-          <div class="evento-nome">Refeição</div>
+          <div class="evento-nome" data-i18n="eventos.refeicao">Refeição</div>
         </div>
         <div class="evento-btn" onclick="selecionarTipo('M')">
           <div class="evento-icon">🔧</div>
-          <div class="evento-nome">Mecânico</div>
+          <div class="evento-nome" data-i18n="eventos.mecanico">Mecânico</div>
         </div>
         <div class="evento-btn" onclick="selecionarTipo('I')">
           <div class="evento-icon">⚠️</div>
-          <div class="evento-nome">Imprevisto</div>
+          <div class="evento-nome" data-i18n="eventos.imprevisto">Imprevisto</div>
         </div>
         <div class="evento-btn" onclick="selecionarTipo('C')">
           <div class="evento-icon">📦</div>
-          <div class="evento-nome">Coleta</div>
+          <div class="evento-nome" data-i18n="eventos.coleta">Coleta</div>
         </div>
         <div class="evento-btn" onclick="selecionarTipo('E')">
           <div class="evento-icon">✅</div>
-          <div class="evento-nome">Entrega</div>
+          <div class="evento-nome" data-i18n="eventos.entrega">Entrega</div>
         </div>
       </div>
 
       <div class="input-group">
-        <label class="input-label">Descrição (opcional)</label>
-        <textarea id="descricaoEvento" class="input-field" rows="3" placeholder="Descreva o que aconteceu..."></textarea>
+        <label class="input-label" data-i18n="eventos.descricaoOpcional">Descrição (opcional)</label>
+        <textarea id="descricaoEvento" class="input-field" rows="3" data-i18n-placeholder="eventos.descricaoPlaceholder" placeholder="Descreva o que aconteceu..."></textarea>
       </div>
 
       <div class="foto-container">
         <input type="file" id="inputFoto" accept="image/*" capture="environment" style="display: none;" onchange="previewFoto()">
-        <button class="btn-foto" onclick="document.getElementById('inputFoto').click()">
+        <button class="btn-foto" onclick="document.getElementById('inputFoto').click()" data-i18n="eventos.tirarFoto">
           📷 Tirar Foto
         </button>
         <img id="fotoPreview" class="foto-preview">
       </div>
 
-      <button class="btn-salvar" onclick="salvarEvento()">💾 Salvar Evento</button>
+      <button class="btn-salvar" onclick="salvarEvento()" data-i18n="eventos.salvarEvento">💾 Salvar Evento</button>
     </div>
 
     <!-- HISTÓRICO DE EVENTOS -->
     <div class="card">
-      <div class="card-title">📋 Histórico de Eventos</div>
+      <div class="card-title" data-i18n="eventos.historicoEventos">📋 Histórico de Eventos</div>
       <div id="historicoEventos">
-        <div class="empty">Nenhum evento registrado</div>
+        <div class="empty" data-i18n="eventos.nenhumEvento">Nenhum evento registrado</div>
       </div>
     </div>
   </div>
@@ -126,6 +122,21 @@
     const motorista = JSON.parse(localStorage.getItem('motorista') || '{}');
     const token = localStorage.getItem('token');
     if (!token) window.location.href = '../index.html';
+
+    function applyI18n() {
+      if (typeof window.t !== 'function') return;
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n');
+        if (k) el.textContent = window.t(k);
+      });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n-placeholder');
+        if (k) el.placeholder = window.t(k);
+      });
+    }
+    if (window.i18nReady) window.i18nReady.then(applyI18n);
+
+    function t(k) { return typeof window.t === 'function' ? window.t(k) : k; }
 
     let tipoSelecionado = null;
     let fotoAtual = null;
@@ -154,7 +165,7 @@
 
     async function salvarEvento() {
       if (!tipoSelecionado) {
-        window.Notificacoes.aviso('Selecione o tipo de evento primeiro!');
+        window.Notificacoes.aviso(t('eventos.selecioneTipo'));
         return;
       }
 
@@ -181,31 +192,31 @@
           });
 
           if (response.ok) {
-            window.Notificacoes.sucesso('Evento registrado com sucesso!');
+            window.Notificacoes.sucesso(t('eventos.eventoRegistrado'));
             adicionarHistorico(evento, true);
             limparFormulario();
           } else {
             await window.OfflineDB.adicionarFila('filaEventos', evento);
-            window.Notificacoes.aviso('Erro ao enviar - Salvo na fila offline');
+            window.Notificacoes.aviso(t('eventos.erroEnviarFila'));
             adicionarHistorico(evento, false);
             limparFormulario();
           }
         } else {
           await window.OfflineDB.adicionarFila('filaEventos', evento);
-          window.Notificacoes.info('Offline - Evento salvo, será enviado quando conectar');
+          window.Notificacoes.info(t('eventos.offlineSalvo'));
           adicionarHistorico(evento, false);
           limparFormulario();
         }
       } catch (err) {
         console.error('Erro:', err);
-        window.Notificacoes.erro('Erro ao salvar evento');
+        window.Notificacoes.erro(t('eventos.erroSalvar'));
       }
     }
 
     function adicionarHistorico(evento, enviado) {
       const tipoNomes = {
-        'P': 'Parada', 'A': 'Abastecimento', 'R': 'Refeição',
-        'M': 'Mecânico', 'I': 'Imprevisto', 'C': 'Coleta', 'E': 'Entrega'
+        'P': t('eventos.parada'), 'A': t('eventos.abastecimento'), 'R': t('eventos.refeicao'),
+        'M': t('eventos.mecanico'), 'I': t('eventos.imprevisto'), 'C': t('eventos.coleta'), 'E': t('eventos.entrega')
       };
 
       historico.unshift({
@@ -224,7 +235,7 @@
       const container = document.getElementById('historicoEventos');
       
       if (historico.length === 0) {
-        container.innerHTML = '<div class="empty">Nenhum evento registrado</div>';
+        container.innerHTML = '<div class="empty">' + t('eventos.nenhumEvento') + '</div>';
         return;
       }
 

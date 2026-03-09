@@ -193,6 +193,38 @@ class WebSocketTorreService {
   }
 
   /**
+   * Emitir SOS marcado como lido
+   * @param {number} idSos - ID do alerta SOS
+   */
+  emitirSOSLido(idSos) {
+    if (!this.io) return;
+
+    const data = {
+      idSos,
+      timestamp: new Date().toISOString()
+    };
+
+    this.io.to('torre:all-viagens').emit('torre:sos-lido', data);
+  }
+
+  /**
+   * Emitir SOS tratado (status alterado)
+   * @param {number} idSos - ID do alerta SOS
+   * @param {string} status - Novo status
+   */
+  emitirSOSTratado(idSos, status) {
+    if (!this.io) return;
+
+    const data = {
+      idSos,
+      status,
+      timestamp: new Date().toISOString()
+    };
+
+    this.io.to('torre:all-viagens').emit('torre:sos-tratado', data);
+  }
+
+  /**
    * Emitir atualização de reputação de motorista
    * @param {number} cdmotorista - ID do motorista
    * @param {object} reputacao - Dados da reputação

@@ -27,14 +27,14 @@ Sistema automático para evitar problemas de cache quando você faz deploy de at
 
 2. **Ou atualizar manualmente:**
    - Abra `backend/public/js/cache-buster.js`
-   - Altere a linha: `const APP_VERSION = '202512091200';`
+   - Altere a linha: `const APP_VERSION = '202612091200';`
    - Use o formato: `YYYYMMDDHHMM` (ano, mês, dia, hora, minuto)
-   - Exemplo: `202512091200` = 09/12/2025 12:00
+   - Exemplo: `202612091200` = 09/12/2026 12:00
 
 3. **Fazer commit e deploy:**
    ```bash
    git add .
-   git commit -m "Atualização: cache buster v202512091200"
+   git commit -m "Atualização: cache buster v202612091200"
    git push
    ```
 
@@ -63,7 +63,7 @@ Sistema automático para evitar problemas de cache quando você faz deploy de at
 
 Após o deploy, verifique no navegador (F12 > Network):
 - Os arquivos JS/CSS devem ter `?v=YYYYMMDDHHMM` na URL
-- Exemplo: `/modulos/gerenciar-viagens/js/script.js?v=202512091200`
+- Exemplo: `/modulos/gerenciar-viagens/js/script.js?v=202612091200`
 
 ## 💡 Dica
 

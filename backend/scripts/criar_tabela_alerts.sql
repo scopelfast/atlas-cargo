@@ -1,6 +1,6 @@
 -- Script para criar tabela de Alertas Inteligentes
 -- Sistema de detecção automática de problemas em viagens
--- Data: 2025-01-16
+-- Data: 2026-01-16
 
 -- Tabela principal de alertas
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[ALERTS]') AND type in (N'U'))

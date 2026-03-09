@@ -2,7 +2,7 @@
 
 **Módulo:** Gerenciar Viagens  
 **Versão:** 1.1.0  
-**Data:** 2025-11-24  
+**Data:** 2026-11-24  
 **Status:** ✅ Produção
 
 ---
@@ -32,7 +32,7 @@
 
 ## 🎯 Visão Geral
 
-O módulo **Gerenciar Viagens** é o coração do sistema DivulgaCarga, permitindo:
+O módulo **Gerenciar Viagens** é o coração do sistema Atlas Cargo, permitindo:
 
 - ✅ Criar, editar e gerenciar viagens
 - ✅ Buscar motoristas compatíveis
@@ -975,7 +975,7 @@ Veja: [DOCUMENTACAO_INIT_SQL.md](DOCUMENTACAO_INIT_SQL.md)
 
 ### Melhorias Recentes
 
-#### 2025-11-24
+#### 2026-11-24
 - ✅ **Suporte a múltiplos veículos por viagem**: Sistema permite cadastrar vários veículos
 - ✅ **Suporte a múltiplos motoristas por viagem**: Sistema permite cadastrar vários motoristas
 - ✅ **Modais estilizados**: Design profissional para visualização de dados completos
@@ -995,7 +995,7 @@ Veja: [DOCUMENTACAO_INIT_SQL.md](DOCUMENTACAO_INIT_SQL.md)
   - Prevenção de dados persistentes
 - ✅ **Labels atualizados**: Nomes mais claros e objetivos
 
-#### 2025-11-23
+#### 2026-11-23
 - ✅ Proteção contra execução múltipla do init.sql
 - ✅ Prevenção de mudanças automáticas de aba
 - ✅ Campo "ID Viagem" preenchido automaticamente ao editar
@@ -1014,7 +1014,7 @@ Veja: [DOCUMENTACAO_INIT_SQL.md](DOCUMENTACAO_INIT_SQL.md)
 
 ---
 
-**Documentação mantida por:** Equipe DivulgaCarga  
-**Última atualização:** 2025-11-24  
+**Documentação mantida por:** Equipe Atlas Cargo  
+**Última atualização:** 2026-11-24  
 **Versão do documento:** 1.1.0
 

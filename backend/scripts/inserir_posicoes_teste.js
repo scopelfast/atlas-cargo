@@ -8,7 +8,7 @@
  *   node backend/scripts/inserir_posicoes_teste.js 82911 9436
  */
 
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const { poolPromise } = require('../config/db');
 
 async function inserirPosicoesTeste(idViagem, cdMotorista = null) {

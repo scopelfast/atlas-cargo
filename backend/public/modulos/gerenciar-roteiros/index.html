@@ -3,6 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <title>Gerenciar Roteiros</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/modulos.css">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <!-- Leaflet CSS -->
@@ -10,9 +13,10 @@
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
         crossorigin=""/>
   <style>
-    /* ========== ESTILOS DO LAYOUT PADRONIZADO ========== */
+    /* ========== Gerenciar Roteiros - Identidade Atlas Cargo ========== */
     .roteiros-container {
       padding: 20px;
+      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
     }
 
     .roteiros-header {
@@ -21,12 +25,12 @@
       align-items: center;
       margin-bottom: 25px;
       padding-bottom: 15px;
-      border-bottom: 2px solid #e0e0e0;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
     }
 
     .roteiros-header h2 {
       margin: 0;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 28px;
       font-weight: 700;
       display: flex;
@@ -82,7 +86,7 @@
     #mapaLoadingOverlay .calculando-spinner {
       width: 50px;
       height: 50px;
-      border: 5px solid #e0e0e0;
+      border: 5px solid var(--light-gray, #e2e8f0);
       border-top-color: #1a2a6c;
       border-radius: 50%;
       animation: spin 1s linear infinite;
@@ -133,7 +137,7 @@
     #calculandoOverlay .calculando-spinner {
       width: 50px;
       height: 50px;
-      border: 5px solid #e0e0e0;
+      border: 5px solid var(--light-gray, #e2e8f0);
       border-top-color: #1a2a6c;
       border-radius: 50%;
       animation: spin 1s linear infinite;
@@ -183,7 +187,7 @@
     }
 
     .btn-primary {
-      background: #3498db;
+      background: var(--ac-accent, #0ea5e9);
       color: white;
     }
 
@@ -255,7 +259,7 @@
 
     .modal-header-tratamento h3 {
       margin: 0;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 24px;
       font-weight: 600;
       display: flex;
@@ -292,7 +296,7 @@
     }
 
     .modal-body-tratamento h4 {
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       margin-top: 20px;
       margin-bottom: 10px;
       font-size: 18px;
@@ -321,7 +325,7 @@
     }
 
     .modal-body-tratamento strong {
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-weight: 600;
     }
 
@@ -347,7 +351,7 @@
       font-family: inherit;
       box-sizing: border-box;
       background-color: #fff;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
     }
 
     .modal-content-tratamento .form-control:hover,
@@ -362,7 +366,7 @@
     .modal-content-tratamento textarea:focus,
     .modal-content-tratamento input:focus {
       outline: none;
-      border-color: #3498db;
+      border-color: var(--ac-accent, #0ea5e9);
       box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
     }
 
@@ -385,7 +389,7 @@
 
     .modal-content-tratamento input[type="date"] {
       cursor: pointer;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
     }
 
     .modal-content-tratamento input[type="date"]::-webkit-calendar-picker-indicator {
@@ -406,7 +410,7 @@
       display: block;
       margin-bottom: 8px;
       font-weight: 600;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 14px;
     }
 
@@ -420,7 +424,7 @@
 
     .filtros-box h3 {
       margin: 0 0 20px 0;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 18px;
       font-weight: 600;
       display: flex;
@@ -444,52 +448,52 @@
   <div class="roteiros-container">
     <!-- Cabeçalho -->
     <div class="roteiros-header">
-      <h2><i class='bx bx-map'></i> Gerenciar Roteiros</h2>
+      <h2><i class='bx bx-map'></i> <span data-i18n="web.modulos.roteiros.titulo">Gerenciar Roteiros</span></h2>
       <div style="display: flex; gap: 10px; align-items: center;">
         <button class="btn btn-info" onclick="mostrarAjudaRoteiros()" title="Como funciona? Regras e instruções">
-          <i class='bx bx-help-circle'></i> Ajuda
+          <i class='bx bx-help-circle'></i> <span data-i18n="web.modulos.roteiros.ajuda">Ajuda</span>
         </button>
       </div>
     </div>
 
     <!-- Abas -->
     <div class="tabs">
-      <button class="tab-btn active" data-tab="filtros">Filtros</button>
-      <button class="tab-btn" data-tab="grid">Grid</button>
-      <button class="tab-btn" data-tab="dados">Dados</button>
-      <button class="tab-btn" data-tab="pontos">Pontos</button>
-      <button class="tab-btn" data-tab="mapa">Mapa</button>
+      <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.roteiros.tabFiltros">Filtros</button>
+      <button class="tab-btn" data-tab="grid" data-i18n="web.modulos.roteiros.tabGrid">Grid</button>
+      <button class="tab-btn" data-tab="dados" data-i18n="web.modulos.roteiros.tabDados">Dados</button>
+      <button class="tab-btn" data-tab="pontos" data-i18n="web.modulos.roteiros.tabPontos">Pontos</button>
+      <button class="tab-btn" data-tab="mapa" data-i18n="web.modulos.roteiros.tabMapa">Mapa</button>
     </div>
 
     <!-- Filtros -->
     <div class="tab-content active" id="tab-filtros">
       <div class="filtros-box">
-        <h3><i class='bx bx-filter'></i> Filtros</h3>
-        <form id="filtroForm">
+        <h3><i class='bx bx-filter'></i> <span data-i18n="web.modulos.roteiros.filtros">Filtros</span></h3>
+        <form id="filtroForm" onsubmit="return false;">
           <!-- Linha 1: Código / Descrição -->
           <div class="input-group double">
             <div>
-              <label for="filtroCodigo">Código do Roteiro</label>
+              <label for="filtroCodigo" data-i18n="web.modulos.roteiros.codigoRoteiro">Código do Roteiro</label>
               <input type="number" id="filtroCodigo" min="1">
             </div>
             <div>
-              <label for="filtroDescricao">Descrição do Roteiro</label>
+              <label for="filtroDescricao" data-i18n="web.modulos.roteiros.descricaoRoteiro">Descrição do Roteiro</label>
               <input type="text" id="filtroDescricao" maxlength="60">
             </div>
           </div>
 
           <!-- Linha 2: Origem -->
-          <h3>Origem</h3>
+          <h3 data-i18n="web.modulos.roteiros.origem">Origem</h3>
           <div class="input-group triple">
             <div>
-              <label for="filtroOrigemEstado">UF - Estado</label>
+              <label for="filtroOrigemEstado" data-i18n="web.modulos.roteiros.ufEstado">UF - Estado</label>
               <select id="filtroOrigemEstado">
-                <option value="">Todos</option>
+                <option value="" data-i18n="web.modulos.roteiros.todos">Todos</option>
                 <!-- Preenchido dinamicamente -->
               </select>
             </div>
             <div>
-              <label for="filtroOrigemCidade">Cidade</label>
+              <label for="filtroOrigemCidade" data-i18n="web.modulos.roteiros.cidade">Cidade</label>
               <input type="text" id="filtroOrigemCidade" maxlength="40" placeholder="Digite parte do nome...">
             </div>
             <div>
@@ -499,17 +503,17 @@
           </div>
 
           <!-- Linha 3: Destino -->
-          <h3>Destino</h3>
+          <h3 data-i18n="web.modulos.roteiros.destino">Destino</h3>
           <div class="input-group triple">
             <div>
-              <label for="filtroDestinoEstado">UF - Estado</label>
+              <label for="filtroDestinoEstado" data-i18n="web.modulos.roteiros.ufEstado">UF - Estado</label>
               <select id="filtroDestinoEstado">
-                <option value="">Todos</option>
+                <option value="" data-i18n="web.modulos.roteiros.todos">Todos</option>
                 <!-- Preenchido dinamicamente -->
               </select>
             </div>
             <div>
-              <label for="filtroDestinoCidade">Cidade</label>
+              <label for="filtroDestinoCidade" data-i18n="web.modulos.roteiros.cidade">Cidade</label>
               <input type="text" id="filtroDestinoCidade" maxlength="40" placeholder="Digite parte do nome...">
             </div>
             <div>
@@ -520,10 +524,10 @@
 
           <div class="filtros-actions">
             <button type="button" id="btnLimparFiltros" class="btn btn-secondary">
-              <i class='bx bx-x'></i> Limpar
+              <i class='bx bx-x'></i> <span data-i18n="web.modulos.roteiros.limpar">Limpar</span>
             </button>
             <button type="submit" class="btn btn-primary">
-              <i class='bx bx-search'></i> Filtrar
+              <i class='bx bx-search'></i> <span data-i18n="web.modulos.roteiros.filtrar">Filtrar</span>
             </button>
           </div>
         </form>
@@ -535,13 +539,13 @@
       <div class="form-box">
         <h2>Roteiros Cadastrados</h2>
         <div class="actions-top">
-          <button id="btnVoltarFiltros" class="btn cancel">← Voltar aos Filtros</button>
+          <button id="btnVoltarFiltros" class="btn cancel">← <span data-i18n="web.modulos.roteiros.voltarFiltros">Voltar aos Filtros</span></button>
           <button id="btnNovoRegistro" class="btn btn-primary">
-            <i class='bx bx-plus'></i> Novo Registro
+            <i class='bx bx-plus'></i> <span data-i18n="web.modulos.roteiros.novoRegistro">Novo Registro</span>
           </button>
         </div>
         <div id="roteirosList" class="list grid-3-columns">
-          <p class="empty">Aplicar filtros para carregar a lista.</p>
+          <p class="empty" data-i18n="web.modulos.roteiros.aplicarFiltrosGrid">Aplicar filtros para carregar a lista.</p>
         </div>
       </div>
     </div>
@@ -549,15 +553,15 @@
     <!-- Grid -->
     <div class="tab-content" id="tab-grid">
       <div class="form-box">
-        <h2>Roteiros - Visualização em Grid</h2>
+        <h2 data-i18n="web.modulos.roteiros.gridTitulo">Roteiros - Visualização em Grid</h2>
         <div class="actions-top">
-          <button id="btnVoltarGrid" class="btn cancel">← Voltar aos Filtros</button>
+          <button id="btnVoltarGrid" class="btn cancel">← <span data-i18n="web.modulos.roteiros.voltarFiltros">Voltar aos Filtros</span></button>
           <button id="btnNovoRegistroGrid" class="btn btn-primary">
-            <i class='bx bx-plus'></i> Novo Registro
+            <i class='bx bx-plus'></i> <span data-i18n="web.modulos.roteiros.novoRegistro">Novo Registro</span>
           </button>
         </div>
         <div id="roteirosGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
-          <span id="roteirosGridCountText">0 registro(s) encontrado(s)</span>
+          <span id="roteirosGridCountText" data-i18n="web.modulos.roteiros.registrosEncontrados">0 registro(s) encontrado(s)</span>
         </div>
         <div id="roteirosGrid" class="grid-container"></div>
       </div>
@@ -566,18 +570,18 @@
     <!-- Dados -->
     <div class="tab-content" id="tab-dados">
       <div class="form-box">
-        <h2 id="formTitle">Novo Roteiro</h2>
+        <h2 id="formTitle" data-i18n="web.modulos.roteiros.novoRoteiro">Novo Roteiro</h2>
         <form id="roteiroForm">
           <input type="hidden" id="roteiroId"> <!-- 👈 Campo oculto adicionado -->
           
           <!-- Linha 1: Código / Descrição / Distância -->
           <div class="input-group triple">
             <div>
-              <label for="roteiroCodigo">Código do Roteiro</label>
+              <label for="roteiroCodigo" data-i18n="web.modulos.roteiros.codigoRoteiro">Código do Roteiro</label>
               <input type="text" id="roteiroCodigo" readonly>
             </div>
             <div>
-              <label for="roteiroDescricao">Descrição do Roteiro *</label>
+              <label for="roteiroDescricao" data-i18n="web.modulos.roteiros.descricaoRoteiro">Descrição do Roteiro *</label>
               <input type="text" id="roteiroDescricao" required maxlength="60">
             </div>
             <div>
@@ -595,14 +599,14 @@
           <h3>Origem</h3>
           <div class="input-group triple">
             <div>
-              <label for="origemEstado">UF - Estado *</label>
+              <label for="origemEstado" data-i18n="web.modulos.roteiros.ufEstado">UF - Estado *</label>
               <select id="origemEstado" required>
                 <option value="">Selecione</option>
                 <!-- Preenchido dinamicamente -->
               </select>
             </div>
             <div>
-              <label for="origemCidade">Cidade *</label>
+              <label for="origemCidade" data-i18n="web.modulos.roteiros.cidade">Cidade *</label>
               <select id="origemCidade" required>
                 <option value="">Selecione um estado primeiro</option>
                 <!-- Preenchido dinamicamente -->
@@ -618,14 +622,14 @@
           <h3>Destino</h3>
           <div class="input-group triple">
             <div>
-              <label for="destinoEstado">UF - Estado *</label>
+              <label for="destinoEstado" data-i18n="web.modulos.roteiros.ufEstado">UF - Estado *</label>
               <select id="destinoEstado" required>
                 <option value="">Selecione</option>
                 <!-- Preenchido dinamicamente -->
               </select>
             </div>
             <div>
-              <label for="destinoCidade">Cidade *</label>
+              <label for="destinoCidade" data-i18n="web.modulos.roteiros.cidade">Cidade *</label>
               <select id="destinoCidade" required>
                 <option value="">Selecione um estado primeiro</option>
                 <!-- Preenchido dinamicamente -->
@@ -661,10 +665,10 @@
 
           <div class="form-actions">
             <button type="submit" class="btn btn-primary">
-              <i class='bx bx-save'></i> Salvar
+              <i class='bx bx-save'></i> <span data-i18n="web.modulos.roteiros.salvar">Salvar</span>
             </button>
             <button type="button" id="btnCancelar" class="btn btn-secondary">
-              <i class='bx bx-x'></i> Cancelar
+              <i class='bx bx-x'></i> <span data-i18n="web.modulos.roteiros.cancelar">Cancelar</span>
             </button>
           </div>
         </form>
@@ -674,8 +678,8 @@
     <!-- Pontos -->
     <div class="tab-content" id="tab-pontos">
       <div class="form-box">
-        <h2 id="pontosTitle">Pontos do Roteiro</h2>
-        <p style="margin-bottom: 20px; color: #666; font-style: italic;">
+        <h2 id="pontosTitle" data-i18n="web.modulos.roteiros.pontosDoRoteiro">Pontos do Roteiro</h2>
+        <p style="margin-bottom: 20px; color: #666; font-style: italic;" data-i18n="web.modulos.roteiros.selecioneRoteiroPontos">
           <i class='bx bx-info-circle'></i> Selecione um roteiro na aba "Dados" para gerenciar seus pontos.
         </p>
         
@@ -827,7 +831,7 @@
             <span style="font-size: 0.9em; font-weight: 500;">Destino</span>
           </div>
           <div style="display: flex; align-items: center; gap: 8px;">
-            <div style="width: 20px; height: 20px; background: #3498db; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px;">📍</div>
+            <div style="width: 20px; height: 20px; background: var(--ac-accent, #0ea5e9); border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px;">📍</div>
             <span style="font-size: 0.9em; font-weight: 500;">Passagem</span>
           </div>
           <div style="display: flex; align-items: center; gap: 8px;">
@@ -835,7 +839,7 @@
             <span style="font-size: 0.9em; font-weight: 500;">Parada</span>
           </div>
           <div style="display: flex; align-items: center; gap: 8px;">
-            <div style="width: 40px; height: 4px; background: #3498db; border-radius: 2px;"></div>
+            <div style="width: 40px; height: 4px; background: var(--ac-accent, #0ea5e9); border-radius: 2px;"></div>
             <span style="font-size: 0.9em; font-weight: 500;">Rota</span>
           </div>
         </div>
@@ -845,11 +849,11 @@
     <!-- Modal -->
     <div id="confirmModal" class="modal">
       <div class="modal-content">
-        <h3>Confirmar Ação</h3>
+        <h3 data-i18n="web.modulos.roteiros.confirmarAcao">Confirmar Ação</h3>
         <p id="modalMessage"></p>
         <div class="modal-actions">
-          <button id="confirmYes" class="btn delete">Sim</button>
-          <button id="confirmNo" class="btn cancel">Cancelar</button>
+          <button id="confirmYes" class="btn delete" data-i18n="web.modulos.roteiros.sim">Sim</button>
+          <button id="confirmNo" class="btn cancel" data-i18n="web.modulos.roteiros.cancelar">Cancelar</button>
         </div>
       </div>
     </div>
@@ -895,14 +899,14 @@
   <div id="loadingOverlayInitSQL" class="calculando-overlay" style="display: none;">
     <div class="calculando-content">
       <div class="calculando-spinner"></div>
-      <h3 id="loadingTitleInitSQL">Processando Inicialização</h3>
-      <p id="loadingTextInitSQL">Executando scripts de inicialização...</p>
-      <p class="calculando-detalhe" id="loadingDetailInitSQL">Isso pode levar alguns segundos.</p>
+      <h3 id="loadingTitleInitSQL" data-i18n="web.modulos.roteiros.processandoInicializacao">Processando Inicialização</h3>
+      <p id="loadingTextInitSQL" data-i18n="web.modulos.roteiros.executandoScripts">Executando scripts de inicialização...</p>
+      <p class="calculando-detalhe" id="loadingDetailInitSQL" data-i18n="web.modulos.roteiros.aguardeSegundos">Isso pode levar alguns segundos.</p>
     </div>
   </div>
 
   <!-- Cache Buster - deve ser o primeiro script -->
-  <script src="/js/cache-buster.js?v=202512091200"></script>
+  <script src="/js/cache-buster.js?v=202612091200"></script>
   <script src="/js/utils.js"></script>
   <!-- GridEditor: carregar diretamente (já tem proteção contra duplicação) -->
   <script src="/js/grid-editor.js"></script>
@@ -911,6 +915,6 @@
   <!-- Compatibilidade com código antigo -->
   <script src="/js/map-config.js"></script>
   <script src="/js/log-helper.js"></script>
-  <script src="js/script.js?v=202501131800"></script>
+  <script src="js/script.js?v=202601131800"></script>
 </body>
 </html>

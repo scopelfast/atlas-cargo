@@ -2,13 +2,17 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Gerenciar Tipos de Atividade</title>
+  <title data-i18n="web.modulos.tiposAtividade.titulo">Gerenciar Tipos de Atividade</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/modulos.css">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <style>
-    /* ========== ESTILOS DO LAYOUT PADRONIZADO ========== */
+    /* ========== Gerenciar Tipos de Atividade - Identidade Atlas Cargo ========== */
     .tipos-atividade-container {
       padding: 20px;
+      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
     }
 
     .tipos-atividade-header {
@@ -17,12 +21,12 @@
       align-items: center;
       margin-bottom: 25px;
       padding-bottom: 15px;
-      border-bottom: 2px solid #e0e0e0;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
     }
 
     .tipos-atividade-header h2 {
       margin: 0;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 28px;
       font-weight: 700;
       display: flex;
@@ -30,7 +34,7 @@
       gap: 10px;
     }
 
-    /* ========== BOTÕES - Padrão do Sistema ========== */
+    /* ========== BOTÕES - Atlas Cargo ========== */
     .btn {
       padding: 12px 24px;
       border: none;
@@ -55,75 +59,76 @@
     }
 
     .btn-primary {
-      background: #3498db;
+      background: var(--ac-accent, #0ea5e9);
       color: white;
     }
 
     .btn-primary:hover:not(:disabled) {
-      background: #2980b9;
+      background: var(--ac-accent-hover, #0284c7);
       transform: translateY(-1px);
-      box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35);
     }
 
-    /* Botão verde para "Novo Registro" */
+    /* Botão destaque para "Novo Registro" */
     button.btn-primary[id*="NovoRegistro"],
     button.btn-primary[id*="NovoTipo"] {
-      background: #3DCC7F;
+      background: var(--success, #059669);
       color: white;
     }
 
     button.btn-primary[id*="NovoRegistro"]:hover:not(:disabled),
     button.btn-primary[id*="NovoTipo"]:hover:not(:disabled) {
-      background: #2eb86b;
+      background: #047857;
       transform: translateY(-1px);
-      box-shadow: 0 4px 8px rgba(61, 204, 127, 0.3);
+      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
     }
 
     .btn-secondary {
-      background: #6c757d;
+      background: var(--gray, #64748b);
       color: white;
     }
 
     .btn-secondary:hover:not(:disabled) {
-      background: #5a6268;
+      background: #475569;
       transform: translateY(-1px);
-      box-shadow: 0 4px 8px rgba(108, 117, 125, 0.3);
+      box-shadow: 0 4px 8px rgba(100, 116, 139, 0.3);
     }
 
     .btn-info {
-      background: #17a2b8;
+      background: var(--ac-accent, #0ea5e9);
       color: white;
     }
 
     .btn-info:hover:not(:disabled) {
-      background: #138496;
+      background: var(--ac-accent-hover, #0284c7);
       transform: translateY(-1px);
-      box-shadow: 0 4px 8px rgba(23, 162, 184, 0.3);
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35);
     }
 
     .btn-cancel {
-      background: #95a5a6;
+      background: var(--gray, #64748b);
       color: white;
     }
 
     .btn-cancel:hover:not(:disabled) {
-      background: #7f8c8d;
+      background: #475569;
       transform: translateY(-1px);
-      box-shadow: 0 4px 8px rgba(149, 165, 166, 0.3);
+      box-shadow: 0 4px 8px rgba(100, 116, 139, 0.3);
     }
 
-    /* ========== FILTROS PADRONIZADOS ========== */
+    /* ========== FILTROS - Atlas Cargo ========== */
     .filtros-box {
       background: white;
       border-radius: 12px;
       padding: 25px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
       margin-bottom: 25px;
+      border: 1px solid var(--border, #e2e8f0);
     }
 
     .filtros-box h3 {
       margin: 0 0 20px 0;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 18px;
       font-weight: 600;
       display: flex;
@@ -147,31 +152,31 @@
       display: block;
       margin-bottom: 8px;
       font-weight: 600;
-      color: #34495e;
+      color: var(--dark, #1e293b);
       font-size: 14px;
     }
 
     .filtros-grid .form-control {
       width: 100%;
       padding: 12px;
-      border: 1px solid #dee2e6;
+      border: 1px solid var(--border, #e2e8f0);
       border-radius: 8px;
       font-size: 16px;
       transition: all 0.3s;
       font-family: inherit;
       box-sizing: border-box;
       background-color: #fff;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
     }
 
     .filtros-grid .form-control:focus {
       outline: none;
-      border-color: #3498db;
-      box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+      border-color: var(--ac-accent, #0ea5e9);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
     }
 
     .filtros-grid .form-control:hover {
-      border-color: #adb5bd;
+      border-color: var(--gray, #64748b);
     }
 
     .filtros-actions {
@@ -206,14 +211,15 @@
       max-width: 800px;
       width: 90%;
       max-height: 90vh;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      box-shadow: 0 10px 40px rgba(13, 33, 55, 0.12);
       display: flex;
       flex-direction: column;
+      border: 1px solid var(--border, #e2e8f0);
     }
 
     .modal-header-tratamento {
       padding: 20px 25px;
-      border-bottom: 1px solid #e9ecef;
+      border-bottom: 1px solid var(--border, #e2e8f0);
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -222,7 +228,7 @@
 
     .modal-header-tratamento h3 {
       margin: 0;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 24px;
       font-weight: 600;
       display: flex;
@@ -234,7 +240,7 @@
       background: none;
       border: none;
       font-size: 24px;
-      color: #666;
+      color: var(--gray, #64748b);
       cursor: pointer;
       padding: 5px;
       width: 32px;
@@ -242,13 +248,13 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      border-radius: 4px;
+      border-radius: 6px;
       transition: all 0.2s;
     }
 
     .btn-close-modal:hover {
-      background: #f0f0f0;
-      color: #333;
+      background: var(--light-gray, #e2e8f0);
+      color: var(--ac-primary, #0d2137);
     }
 
     .modal-body-tratamento {
@@ -259,7 +265,7 @@
     }
 
     .modal-body-tratamento h4 {
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       margin-top: 20px;
       margin-bottom: 10px;
       font-size: 18px;
@@ -271,7 +277,7 @@
     }
 
     .modal-body-tratamento p {
-      color: #495057;
+      color: var(--dark, #1e293b);
       line-height: 1.6;
       margin-bottom: 15px;
     }
@@ -279,7 +285,7 @@
     .modal-body-tratamento ul {
       margin: 10px 0 20px 0;
       padding-left: 20px;
-      color: #495057;
+      color: var(--dark, #1e293b);
       line-height: 1.8;
     }
 
@@ -288,13 +294,13 @@
     }
 
     .modal-body-tratamento strong {
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-weight: 600;
     }
 
     .modal-footer-tratamento {
       padding: 20px 25px;
-      border-top: 1px solid #e9ecef;
+      border-top: 1px solid var(--border, #e2e8f0);
       display: flex;
       justify-content: flex-end;
       flex-shrink: 0;
@@ -306,52 +312,52 @@
     <!-- Header Padronizado -->
     <div class="tipos-atividade-header">
       <h2>
-        <i class='bx bx-task' style="color: #3498db;"></i>
-        Gerenciar Tipos de Atividade
+        <i class='bx bx-task'></i>
+        <span data-i18n="web.modulos.tiposAtividade.titulo">Gerenciar Tipos de Atividade</span>
       </h2>
       <div style="display: flex; gap: 10px; align-items: center;">
         <button class="btn btn-info" onclick="window.mostrarAjudaTiposAtividade()" title="Como funciona? Regras e instruções">
-          <i class='bx bx-help-circle'></i> Ajuda
+          <i class='bx bx-help-circle'></i> <span data-i18n="web.modulos.tiposAtividade.ajuda">Ajuda</span>
         </button>
       </div>
     </div>
 
     <!-- Abas -->
     <div class="tabs">
-      <button class="tab-btn active" data-tab="filtros">Filtros</button>
-      <button class="tab-btn" data-tab="grid" data-permission-tab="3">Grid</button>
-      <button class="tab-btn" data-tab="dados" data-permission-tab="3">Dados</button>
+      <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.tiposAtividade.tabFiltros">Filtros</button>
+      <button class="tab-btn" data-tab="grid" data-i18n="web.modulos.tiposAtividade.tabGrid">Grid</button>
+      <button class="tab-btn" data-tab="dados" data-i18n="web.modulos.tiposAtividade.tabDados">Dados</button>
     </div>
 
     <!-- Filtros -->
     <div class="tab-content active" id="tab-filtros">
       <div class="filtros-box">
-        <h3><i class='bx bx-filter'></i> Filtros</h3>
-        <form id="filtroForm">
+        <h3><i class='bx bx-filter'></i> <span data-i18n="web.modulos.tiposAtividade.tabFiltros">Filtros</span></h3>
+        <form id="filtroForm" onsubmit="return false;">
           <div class="filtros-grid">
             <div>
-              <label for="filtroCodigo">Código</label>
+              <label for="filtroCodigo" data-i18n="web.modulos.tiposAtividade.codigo">Código</label>
               <input type="number" id="filtroCodigo" min="1" class="form-control">
             </div>
             <div>
-              <label for="filtroDescricao">Descrição</label>
+              <label for="filtroDescricao" data-i18n="web.modulos.tiposAtividade.descricao">Descrição</label>
               <input type="text" id="filtroDescricao" maxlength="40" class="form-control">
             </div>
             <div>
-              <label for="filtroSituacao">Situação</label>
+              <label for="filtroSituacao" data-i18n="web.modulos.tiposAtividade.situacao">Situação</label>
               <select id="filtroSituacao" class="form-control">
                 <option value="">Todas</option>
-                <option value="S">Ativo</option>
-                <option value="N">Inativo</option>
+                <option value="S" data-i18n="web.modulos.tiposAtividade.ativo">Ativo</option>
+                <option value="N" data-i18n="web.modulos.tiposAtividade.inativo">Inativo</option>
               </select>
             </div>
           </div>
           <div class="filtros-actions">
-            <button type="button" id="btnLimparFiltros" class="btn btn-secondary" data-permission="3">
-              <i class='bx bx-x'></i> Limpar
+            <button type="button" id="btnLimparFiltros" class="btn btn-secondary">
+              <i class='bx bx-x'></i> <span data-i18n="web.modulos.tiposAtividade.limpar">Limpar</span>
             </button>
-            <button type="submit" class="btn btn-primary" data-permission="3">
-              <i class='bx bx-search'></i> Filtrar
+            <button type="submit" id="btnAplicarFiltros" class="btn btn-primary">
+              <i class='bx bx-search'></i> <span data-i18n="web.modulos.tiposAtividade.filtrar">Filtrar</span>
             </button>
           </div>
         </form>
@@ -361,17 +367,17 @@
     <!-- Grid -->
     <div class="tab-content" id="tab-grid">
       <div class="form-box">
-        <h2>Tipos de Atividade - Visualização em Grid</h2>
+        <h2 data-i18n="web.modulos.tiposAtividade.gridTitulo">Tipos de Atividade - Visualização em Grid</h2>
         <div class="actions-top">
           <button type="button" id="btnVoltarGrid" class="btn btn-cancel">
-            <i class='bx bx-arrow-back'></i> Voltar aos Filtros
+            <i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.tiposAtividade.voltarFiltros">Voltar aos Filtros</span>
           </button>
-          <button type="button" id="btnNovoRegistroGrid" class="btn btn-primary" data-permission="3">
-            <i class='bx bx-plus'></i> Novo Registro
+          <button type="button" id="btnNovoRegistroGrid" class="btn btn-primary">
+            <i class='bx bx-plus'></i> <span data-i18n="web.modulos.tiposAtividade.novoRegistro">Novo Registro</span>
           </button>
         </div>
-        <div id="tiposAtividadeGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
-          <span id="tiposAtividadeGridCountText">0 registro(s) encontrado(s)</span>
+        <div id="tiposAtividadeGridCount" style="padding: 10px 0; color: var(--gray); font-size: 14px; font-weight: 500;">
+          <span id="tiposAtividadeGridCountText" data-i18n="web.modulos.tiposAtividade.registrosEncontrados">0 registro(s) encontrado(s)</span>
         </div>
         <div id="tiposAtividadeGrid" class="grid-container">
           <p class="empty">Aplicar filtros para carregar o grid.</p>
@@ -382,24 +388,24 @@
     <!-- Dados -->
     <div class="tab-content" id="tab-dados">
       <div class="form-box">
-        <h2 id="formTitle">Novo Tipo de Atividade</h2>
+        <h2 id="formTitle" data-i18n="web.modulos.tiposAtividade.novoTipo">Novo Tipo de Atividade</h2>
         <form id="tipoAtividadeForm">
           <input type="hidden" id="tipoAtividadeCodigoOriginal">
           
           <div class="input-group triple">
             <div>
-              <label for="tipoAtividadeCodigo">Código (CDTIPOATIVIDADE) *</label>
+              <label for="tipoAtividadeCodigo" data-i18n="web.modulos.tiposAtividade.codigo">Código (CDTIPOATIVIDADE) *</label>
               <input type="number" id="tipoAtividadeCodigo" required min="1" max="32767" class="form-control">
             </div>
             <div>
-              <label for="tipoAtividadeDescricao">Descrição (DSTIPOATIVIDADE) *</label>
+              <label for="tipoAtividadeDescricao" data-i18n="web.modulos.tiposAtividade.descricao">Descrição (DSTIPOATIVIDADE) *</label>
               <input type="text" id="tipoAtividadeDescricao" required maxlength="40" class="form-control">
             </div>
             <div>
-              <label for="tipoAtividadeSituacao">Situação *</label>
+              <label for="tipoAtividadeSituacao" data-i18n="web.modulos.tiposAtividade.situacao">Situação *</label>
               <select id="tipoAtividadeSituacao" required class="form-control">
-                <option value="S">Ativo</option>
-                <option value="N">Inativo</option>
+                <option value="S" data-i18n="web.modulos.tiposAtividade.ativo">Ativo</option>
+                <option value="N" data-i18n="web.modulos.tiposAtividade.inativo">Inativo</option>
               </select>
             </div>
           </div>
@@ -415,11 +421,11 @@
           </div>
 
           <div class="form-actions">
-            <button type="submit" class="btn btn-primary" data-permission="3">
-                <i class='bx bx-save'></i> Salvar
+            <button type="submit" class="btn btn-primary">
+                <i class='bx bx-save'></i> <span data-i18n="web.modulos.tiposAtividade.salvar">Salvar</span>
             </button>
             <button type="button" id="btnCancelar" class="btn btn-secondary">
-                <i class='bx bx-x'></i> Cancelar
+                <i class='bx bx-x'></i> <span data-i18n="web.modulos.tiposAtividade.cancelar">Cancelar</span>
             </button>
           </div>
         </form>
@@ -429,11 +435,11 @@
     <!-- Modal de Confirmação -->
     <div id="confirmModal" class="modal">
       <div class="modal-content">
-        <h3>Confirmar Ação</h3>
+        <h3 data-i18n="web.modulos.tiposAtividade.confirmarAcao">Confirmar Ação</h3>
         <p id="modalMessage"></p>
         <div class="modal-actions">
-          <button id="confirmYes" class="btn delete">Sim</button>
-          <button id="confirmNo" class="btn cancel">Cancelar</button>
+          <button id="confirmYes" class="btn delete" data-i18n="web.modulos.tiposAtividade.sim">Sim</button>
+          <button id="confirmNo" class="btn cancel" data-i18n="web.modulos.tiposAtividade.cancelar">Cancelar</button>
         </div>
       </div>
     </div>
@@ -452,7 +458,7 @@
   </div>
 
   <!-- Scripts -->
-  <script src="/js/cache-buster.js?v=202512091200"></script>
+  <script src="/js/cache-buster.js?v=202612091200"></script>
   <script src="/js/utils.js"></script>
   <script src="/js/log-helper.js"></script>
   <!-- GridEditor: carregar apenas se ainda não estiver disponível -->

@@ -4,7 +4,7 @@
 
 O sistema utiliza dois bancos de dados:
 
-### 1. **DIVULGACARGA_PRD** (Banco Principal)
+### 1. **ATLAS_CARGO_PRD** (Banco Principal)
 - **Uso:** Banco principal do sistema
 - **Configuração:** Via variáveis de ambiente padrão
 
@@ -18,17 +18,17 @@ O sistema utiliza dois bancos de dados:
 
 ## 🔧 Variáveis de Ambiente
 
-### Banco Principal (DIVULGACARGA_PRD)
+### Banco Principal (ATLAS_CARGO_PRD)
 
 Adicione no arquivo `backend/.env`:
 
 ```env
-# Banco Principal - DIVULGACARGA_PRD
+# Banco Principal - ATLAS_CARGO_PRD
 DB_SERVER=186.250.92.131
 DB_PORT=35987
-DB_DATABASE=DIVULGACARGA_PRD
+DB_DATABASE=ATLAS_CARGO_PRD
 DB_USER=sa
-DB_PASSWORD=SistMSQLServer2025&*
+DB_PASSWORD=SistMSQLServer2026&*
 ```
 
 ### Banco de Migração (INTEGRA_PRD)
@@ -37,12 +37,12 @@ Adicione no arquivo `backend/.env`:
 
 ```env
 # Banco de Migração - INTEGRA_PRD
-# NOTA: Mesmo servidor do DIVULGACARGA_PRD
+# NOTA: Mesmo servidor do ATLAS_CARGO_PRD
 INTEGRA_DB_SERVER=186.250.92.131
 INTEGRA_DB_PORT=35987
 INTEGRA_DB_DATABASE=INTEGRA_PRD
 INTEGRA_DB_USER=sa
-INTEGRA_DB_PASSWORD=SistMSQLServer2025&*
+INTEGRA_DB_PASSWORD=SistMSQLServer2026&*
 ```
 
 **⚠️ IMPORTANTE:** 
@@ -56,23 +56,23 @@ INTEGRA_DB_PASSWORD=SistMSQLServer2025&*
 
 ```env
 # ============================================================================
-# BANCO PRINCIPAL - DIVULGACARGA_PRD
+# BANCO PRINCIPAL - ATLAS_CARGO_PRD
 # ============================================================================
 DB_SERVER=186.250.92.131
 DB_PORT=35987
-DB_DATABASE=DIVULGACARGA_PRD
+DB_DATABASE=ATLAS_CARGO_PRD
 DB_USER=sa
-DB_PASSWORD=SistMSQLServer2025&*
+DB_PASSWORD=SistMSQLServer2026&*
 
 # ============================================================================
 # BANCO DE MIGRAÇÃO - INTEGRA_PRD
-# NOTA: Mesmo servidor do DIVULGACARGA_PRD
+# NOTA: Mesmo servidor do ATLAS_CARGO_PRD
 # ============================================================================
 INTEGRA_DB_SERVER=186.250.92.131
 INTEGRA_DB_PORT=35987
 INTEGRA_DB_DATABASE=INTEGRA_PRD
 INTEGRA_DB_USER=sa
-INTEGRA_DB_PASSWORD=SistMSQLServer2025&*
+INTEGRA_DB_PASSWORD=SistMSQLServer2026&*
 
 # ============================================================================
 # OUTRAS CONFIGURAÇÕES
@@ -87,7 +87,7 @@ NODE_ENV=development
 
 ## 🔌 Como Usar no Código
 
-### Banco Principal (DIVULGACARGA_PRD)
+### Banco Principal (ATLAS_CARGO_PRD)
 
 ```javascript
 const { poolPromise } = require('../config/db');
@@ -127,7 +127,7 @@ if (poolIntegra) {
 Após configurar, reinicie o servidor e verifique os logs:
 
 ```
-✅ Conexão com DIVULGACARGA_PRD estabelecida
+✅ Conexão com ATLAS_CARGO_PRD estabelecida
 ✅ Conexão com INTEGRA_PRD estabelecida
 ```
 

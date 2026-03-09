@@ -1,7 +1,7 @@
 # 📋 Guia de Testes - Módulo Alertas
 
 **Versão:** 1.0  
-**Data:** 2025-01-18  
+**Data:** 2026-01-18  
 **Módulo:** Alertas do Sistema
 
 ---
@@ -63,7 +63,7 @@ Os alertas são gerados **automaticamente** pelo sistema através de um processo
 
 Antes de testar, certifique-se de que:
 
-- ✅ Banco de dados `DIVULGACARGA_PRD` está acessível
+- ✅ Banco de dados `ATLAS_CARGO_PRD` está acessível
 - ✅ Tabela `ALERTS` existe e está configurada
 - ✅ Tabela `ALERT_HISTORY` existe
 - ✅ Servidor Node.js está rodando
@@ -79,7 +79,7 @@ Antes de testar, certifique-se de que:
 Execute no SQL Server Management Studio:
 
 ```sql
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 -- Verificar se tabela ALERTS existe
@@ -286,7 +286,7 @@ Crie o arquivo `criar_alertas_teste.sql` (veja seção abaixo).
 ### Script 2: Limpar Alertas de Teste
 
 ```sql
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 -- Limpar alertas de teste (cuidado: remove todos os alertas!)
@@ -388,5 +388,5 @@ Em caso de problemas não resolvidos:
 
 ---
 
-**Documento criado em:** 2025-01-18  
-**Última atualização:** 2025-01-18
+**Documento criado em:** 2026-01-18  
+**Última atualização:** 2026-01-18

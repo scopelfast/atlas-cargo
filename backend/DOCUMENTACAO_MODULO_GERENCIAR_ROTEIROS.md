@@ -165,15 +165,15 @@ O resumo é gerado automaticamente quando:
 
 ## 📅 Histórico de Versões
 
-- **v1.0** (2025-04-05): Versão inicial
-- **v1.2** (2025-01-13): Adicionado campo RESUMOROTA e geração automática
-- **v1.3** (2025-01-13): Otimizações de performance e correção de bugs
+- **v1.0** (2026-04-05): Versão inicial
+- **v1.2** (2026-01-13): Adicionado campo RESUMOROTA e geração automática
+- **v1.3** (2026-01-13): Otimizações de performance e correção de bugs
 
 ## 👤 Autor
 
-Sistema DivulgaCarga
+Atlas Cargo
 
 ## 📄 Licença
 
-Proprietário - DivulgaCarga
+Proprietário - Atlas Cargo
 

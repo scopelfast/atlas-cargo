@@ -1,14 +1,14 @@
 /******************************************************************************************
- * Script de Migração de Dados - INTEGRA_PRD para DIVULGACARGA_PRD
+ * Script de Migração de Dados - INTEGRA_PRD para ATLAS_CARGO_PRD
  * 
- * Descrição: Migra dados das tabelas principais do sistema INTEGRA_PRD para DIVULGACARGA_PRD
- * Data: Janeiro 2025
- * Autor: Sistema DivulgaCarga
+ * Descrição: Migra dados das tabelas principais do sistema INTEGRA_PRD para ATLAS_CARGO_PRD
+ * Data: Janeiro 2026
+ * Autor: Atlas Cargo
  * 
  * IMPORTANTE: Execute este script em ordem, pois há dependências entre as tabelas
  ******************************************************************************************/
 
-USE [DIVULGACARGA_PRD];
+USE [ATLAS_CARGO_PRD];
 GO
 
 SET NOCOUNT ON;
@@ -524,7 +524,7 @@ USING (
         RP.CDPAISPASSAGEM,
         RP.ESTADOPASSAGEM
     FROM [INTEGRA_PRD].[dbo].[ROTEIROPONTOS] RP
-    INNER JOIN [DIVULGACARGA_PRD].[dbo].[ROTEIRO] R ON RP.IDROTEIRO = R.IDROTEIRO
+    INNER JOIN [ATLAS_CARGO_PRD].[dbo].[ROTEIRO] R ON RP.IDROTEIRO = R.IDROTEIRO
     WHERE RP.IDROTEIRO IS NOT NULL
       AND RP.SEQUENCIA IS NOT NULL
       AND RP.DSLOCAL IS NOT NULL
@@ -1416,7 +1416,7 @@ USING (
         'AppDVcargas' AS SERVERORIG
     FROM [INTEGRA_PRD].[dbo].[VIAGEMMOTORISTA] MV
     INNER JOIN [INTEGRA_PRD].[dbo].[VIAGEMMESTRE] VM ON MV.IDVIAGEM = VM.IDVIAGEM
-    INNER JOIN [DIVULGACARGA_PRD].[dbo].[CADASTROGERAL] CG ON CG.CDCADASTRO = MV.CDMOTORISTA
+    INNER JOIN [ATLAS_CARGO_PRD].[dbo].[CADASTROGERAL] CG ON CG.CDCADASTRO = MV.CDMOTORISTA
     WHERE MV.CDMOTORISTA IS NOT NULL
       AND VM.CDCLASSEFROTA IS NOT NULL
       AND CG.CDCADASTRO IS NOT NULL

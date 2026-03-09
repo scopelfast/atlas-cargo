@@ -13,7 +13,7 @@ Este conjunto de stored procedures foi criado para otimizar a sincronização de
 
 ### Passo 1: Executar os Scripts de Criação
 
-Execute os seguintes arquivos no **SQL Server Management Studio (SSMS)** ou em qualquer cliente SQL conectado ao banco `DIVULGACARGA_PRD`:
+Execute os seguintes arquivos no **SQL Server Management Studio (SSMS)** ou em qualquer cliente SQL conectado ao banco `ATLAS_CARGO_PRD`:
 
 1. `backend/scripts/sp_sincronizar_viagens_completo.sql` - **OBRIGATÓRIO**
 2. `backend/scripts/sp_integracao_transportador.sql` - **RECOMENDADO** (melhora performance de transportadores)
@@ -73,7 +73,7 @@ Se precisar atualizar as procedures:
 
 ### Erro: "Invalid object name"
 
-**Solução:** Verifique se está conectado ao banco correto (`DIVULGACARGA_PRD`).
+**Solução:** Verifique se está conectado ao banco correto (`ATLAS_CARGO_PRD`).
 
 ### A procedure ainda está lenta
 

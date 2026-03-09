@@ -1,8 +1,8 @@
 // backend/routes/viagemmestre.routes.js
 // Gerenciamento de Viagens - API
 // Versão: 1.0
-// Autor: Sistema DivulgaCarga
-// Data: 2025-04-05
+// Atlas Cargo
+// Data: 2026-04-05
 
 const express = require('express');
 const router = express.Router();
@@ -31,6 +31,10 @@ router.delete('/viagens/:id', viagemController.excluir);
 
 // Rota para Histórico de Viagens por Roteiro (DEVE vir ANTES de /viagens/:id)
 router.get('/viagens/historico-roteiro', viagemController.buscarHistoricoRoteiro);
+
+// Rotas de busca (DEVEM vir ANTES de /viagens/:id para não serem capturadas como :id)
+router.get('/viagens/equipamentos/buscar', viagemController.buscarEquipamento);
+router.get('/viagens/cadastros-gerais/buscar', viagemController.buscarCadastroGeral);
 
 router.get('/viagens/:id', viagemController.buscarPorId);
 
@@ -90,12 +94,10 @@ router.post('/viagens/executar-init-sql', viagemController.executarInitSQL);
 router.get('/viagens/:id/veiculo', viagemController.buscarVeiculoViagem);
 router.post('/viagens/:id/veiculo', viagemController.salvarVeiculoViagem);
 router.delete('/viagens/:id/veiculo/:idequipamento', viagemController.removerVeiculoViagem);
-router.get('/viagens/equipamentos/buscar', viagemController.buscarEquipamento);
 
 // Rotas para Motorista da Viagem
 router.get('/viagens/:id/motorista', viagemController.buscarMotoristaViagem);
 router.post('/viagens/:id/motorista', viagemController.salvarMotoristaViagem);
 router.delete('/viagens/:id/motorista/:cdmotorista', viagemController.removerMotoristaViagem);
-router.get('/viagens/cadastros-gerais/buscar', viagemController.buscarCadastroGeral);
 
 module.exports = router;

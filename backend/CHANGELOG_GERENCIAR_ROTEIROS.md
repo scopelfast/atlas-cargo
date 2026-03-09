@@ -1,6 +1,6 @@
 # Changelog - Módulo Gerenciar Roteiros
 
-## [1.3] - 2025-01-13
+## [1.3] - 2026-01-13
 
 ### Adicionado
 - Campo `RESUMOROTA` na tabela ROTEIRO para armazenar resumo completo da rota
@@ -36,12 +36,12 @@
 - Atualizado `init.sql` para incluir criação do campo RESUMOROTA
 - Atualizadas versões nos arquivos principais
 
-## [1.2] - 2025-04-05
+## [1.2] - 2026-04-05
 
 ### Corrigido
 - Correção do overlay de carregamento
 
-## [1.0] - 2025-04-05
+## [1.0] - 2026-04-05
 
 ### Adicionado
 - Versão inicial do módulo

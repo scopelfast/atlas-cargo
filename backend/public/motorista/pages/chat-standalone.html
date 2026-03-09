@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat - Motorista</title>
+  <link rel="stylesheet" href="/motorista/css/design-system.css">
+  <link rel="stylesheet" href="/motorista/css/style.css">
+  <link rel="stylesheet" href="/motorista/css/padrao-telas.css">
+  <script src="/motorista/js/i18n.js"></script>
+  <style>
+    body.motorista-page { padding-bottom: 80px; }
+    .chat-card {
+      background: var(--white, #fff);
+      border-radius: var(--radius-lg, 16px);
+      box-shadow: var(--shadow-md, 0 4px 12px rgba(0,0,0,0.1));
+      overflow: hidden;
+      margin-bottom: 16px;
+      min-height: 280px;
+    }
+    .chat-messages {
+      padding: 16px;
+      max-height: 55vh;
+      overflow-y: auto;
+    }
+    .chat-msg {
+      margin-bottom: 12px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      max-width: 88%;
+      word-wrap: break-word;
+    }
+    .chat-msg.motorista {
+      margin-left: auto;
+      background: linear-gradient(135deg, #dcf8c6 0%, #d4f1c4 100%);
+      border-bottom-right-radius: 4px;
+    }
+    .chat-msg.operador {
+      background: var(--gray-100, #f1f5f9);
+      border: 1px solid var(--gray-200, #e2e8f0);
+      border-bottom-left-radius: 4px;
+    }
+    .chat-msg-nome { font-size: 12px; font-weight: 600; color: var(--gray-600); margin-bottom: 4px; }
+    .chat-msg-content { font-size: 15px; line-height: 1.4; }
+    .chat-msg-content a { color: #0ea5e9; text-decoration: underline; word-break: break-all; }
+    .chat-msg-hora { font-size: 11px; color: var(--gray-500); margin-top: 6px; }
+    .chat-msg-localizacao {
+      margin-top: 8px;
+      padding: 10px;
+      background: rgba(14, 165, 233, 0.1);
+      border-radius: 10px;
+      border: 1px solid rgba(14, 165, 233, 0.3);
+    }
+    .chat-msg-localizacao a {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      background: #0ea5e9;
+      color: white;
+      border-radius: 10px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .chat-empty {
+      text-align: center;
+      color: var(--gray-500);
+      padding: 32px 16px;
+    }
+    .chat-input-area {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 10px;
+      background: var(--white);
+      border-top: 1px solid var(--gray-200);
+      box-shadow: 0 -4px 12px rgba(0,0,0,0.06);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+      align-items: center;
+      max-width: 600px;
+      margin: 0 auto;
+      z-index: 100;
+    }
+    .chat-input-row-1 {
+      width: 100%;
+      display: flex;
+      gap: 8px;
+    }
+    .chat-input-row-2 {
+      width: 100%;
+      display: flex;
+      gap: 8px;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .chat-input-area input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 1px solid var(--gray-200);
+      border-radius: 24px;
+      font-size: 15px;
+      font-family: inherit;
+    }
+    .chat-input-area input:focus {
+      outline: none;
+      border-color: var(--ac-accent, #0ea5e9);
+      box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
+    }
+    .btn-enviar-msg {
+      width: 48px;
+      height: 48px;
+      border: none;
+      background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+      color: white;
+      border-radius: 50%;
+      font-size: 20px;
+      cursor: pointer;
+      flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.4);
+    }
+    .btn-enviar-msg:active { transform: scale(0.96); }
+    .btn-enviar-loc {
+      width: 48px;
+      height: 48px;
+      border: none;
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
+      color: white;
+      border-radius: 12px;
+      font-size: 22px;
+      cursor: pointer;
+      flex-shrink: 0;
+      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn-enviar-loc:active { transform: scale(0.96); }
+    .btn-enviar-loc:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-enviar-audio {
+      width: 48px;
+      height: 48px;
+      border: none;
+      background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+      color: white;
+      border-radius: 12px;
+      font-size: 22px;
+      cursor: pointer;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn-enviar-audio:active { transform: scale(0.96); }
+    .btn-enviar-audio.recording { background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); animation: pulse-rec 1s ease infinite; }
+    @keyframes pulse-rec { 50% { opacity: 0.85; } }
+    .chat-msg-audio { margin-top: 8px; }
+    .chat-msg-audio audio { max-width: 100%; height: 40px; border-radius: 8px; }
+    .chat-transcricao {
+      margin-top: 10px; padding: 12px 14px;
+      background: linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%);
+      border-left: 4px solid #0ea5e9;
+      border-radius: 10px; font-size: 14px;
+      color: #0c4a6e;
+      box-shadow: 0 1px 3px rgba(14, 165, 233, 0.15);
+    }
+    .chat-transcricao-label {
+      display: inline-block;
+      font-weight: 700; font-size: 12px;
+      text-transform: uppercase; letter-spacing: 0.04em;
+      color: #0369a1; margin-bottom: 6px;
+    }
+    .chat-transcricao .chat-transcricao-text { margin-top: 4px; line-height: 1.5; }
+    .chat-idioma-audio {
+      padding: 6px 10px; border-radius: 8px; border: 1px solid var(--gray-200); font-size: 13px;
+      min-width: 110px; max-width: 140px; background: var(--white); flex-shrink: 0;
+    }
+    .chat-transcrever-actions, .chat-retranscrever-actions {
+      margin-top: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    }
+    .chat-transcrever-actions select, .chat-retranscrever-actions select {
+      padding: 4px 8px; border-radius: 8px; border: 1px solid var(--gray-200); font-size: 12px; background: var(--white); color: #1e293b;
+    }
+    .btn-transcrever-audio, .btn-retranscrever-audio {
+      padding: 6px 12px; border-radius: 8px; border: none; cursor: pointer; font-size: 12px; font-weight: 600;
+    }
+    .btn-transcrever-audio { background: #0ea5e9; color: white; }
+    .btn-retranscrever-audio { background: #64748b; color: white; }
+  </style>
+</head>
+<body class="motorista-page">
+  <script src="/motorista/js/url-helper.js"></script>
+  <div class="navbar">
+    <button class="btn-voltar" onclick="voltar()"><i class="bx bx-chevron-left"></i> <span data-i18n="chat.voltar">Voltar</span></button>
+    <h1><i class="bx bx-message-dots"></i> <span data-i18n="chat.titulo">Chat</span></h1>
+    <div id="statusIndicador" class="status-badge-navbar status-online" data-i18n="dashboard.onlineSincronizado">Online - Sincronizado</div>
+  </div>
+
+  <div class="container">
+    <div class="chat-card">
+      <div class="chat-messages" id="chatMessages">
+        <div class="chat-empty" id="status" data-i18n="chat.carregandoChat">Carregando...</div>
+        <div id="messages"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chat-input-area">
+    <div class="chat-input-row-1">
+      <input type="text" id="inputMsg" data-i18n-placeholder="chat.placeholder" placeholder="Digite sua mensagem..." autocomplete="off" />
+    </div>
+    <div class="chat-input-row-2">
+      <select id="selectIdiomaTranscricao" class="chat-idioma-audio" data-i18n-title="chat.idiomaTranscricao" title="Idioma da transcrição (opcional)">
+        <option value="" selected data-i18n="chat.naoTranscrever">Não transcrever</option>
+        <option value="pt">Português</option>
+        <option value="es">Español</option>
+        <option value="en">English</option>
+      </select>
+      <div style="display: flex; gap: 8px;">
+        <button type="button" class="btn-enviar-loc" id="btnLoc" data-i18n-title="chat.enviarLocalizacao" title="Enviar minha localização">
+          <i class="bx bx-current-location" style="font-size: 1.4rem;"></i>
+        </button>
+        <button type="button" class="btn-enviar-audio" id="btnAudio" data-i18n-title="chat.enviarAudio" title="Gravar áudio">
+          <i class="bx bx-microphone" style="font-size: 1.4rem;"></i>
+        </button>
+        <button type="button" class="btn-enviar-msg" id="btnSend" title="Enviar">
+          <i class="bx bx-send" style="font-size: 1.25rem;"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function applyI18n() {
+      if (typeof window.t !== 'function') return;
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n');
+        if (k) el.textContent = window.t(k);
+      });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n-placeholder');
+        if (k) el.placeholder = window.t(k);
+      });
+      document.querySelectorAll('[data-i18n-title]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n-title');
+        if (k) el.title = window.t(k);
+      });
+    }
+    if (window.i18nReady) window.i18nReady.then(applyI18n);
+  </script>
+  <script>
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      var idViagem = params.get('viagem') || params.get('idviagem') || '';
+      var token = localStorage.getItem('token');
+      var motorista = null;
+      try { motorista = JSON.parse(localStorage.getItem('motorista') || 'null'); } catch(e) {}
+      var idMotorista = motorista && (motorista.CDCADASTRO || motorista.id || motorista.cdcadastro);
+      var baseUrl = window.location.origin;
+
+      function hideStatus() {
+        var st = document.getElementById('status');
+        if (st) st.style.display = 'none';
+      }
+
+      function showStatus(txt) {
+        var st = document.getElementById('status');
+        if (st) { st.style.display = 'block'; st.textContent = txt; }
+      }
+
+      function escapeHtml(s) {
+        var div = document.createElement('div');
+        div.textContent = s;
+        return div.innerHTML;
+      }
+
+      function extrairLinkMapa(texto) {
+        var m = texto.match(/https?:\/\/(www\.)?google\.com\/maps\?q=([-\d.]+),([-\d.]+)/i) ||
+                 texto.match(/https?:\/\/maps\.google\.com\/\?q=([-\d.]+),([-\d.]+)/i) ||
+                 texto.match(/https?:\/\/[^\s]+maps[^\s]*([-\d.]+)[,\s]+([-\d.]+)/i);
+        return m ? m[0] : null;
+      }
+
+      function render(msgs) {
+        var el = document.getElementById('messages');
+        var st = document.getElementById('status');
+        if (!msgs || msgs.length === 0) {
+          st.style.display = 'block';
+          st.textContent = (typeof window.t === 'function' ? (window.t('chat.nenhumaMensagem') + '. ' + window.t('chat.enviarParaComecar').replace('!', '.')) : 'Nenhuma mensagem ainda. Envie a primeira.');
+          el.innerHTML = '';
+          return;
+        }
+        hideStatus();
+        el.innerHTML = msgs.map(function(m) {
+          var isMotorista = (m.SENDER_TYPE === 'driver' || m.SENDER_TYPE === 'MOTORISTA');
+          var nome = m.SENDER_NAME || (isMotorista ? 'Você' : 'Operador');
+          var tipo = m.TIPO || m.tipo || 'TEXTO';
+          var data = m.CREATED_AT || m.created_at || '';
+          var conteudo = '';
+          var blocoLocalizacao = '';
+          var blocoAudio = '';
+          if (tipo === 'AUDIO') {
+            var contentObj = {};
+            try {
+              contentObj = typeof m.CONTENT === 'string' ? JSON.parse(m.CONTENT) : (m.CONTENT || {});
+            } catch (e) {}
+            var audioUrl = contentObj.url ? (baseUrl + (contentObj.url.indexOf('/') === 0 ? contentObj.url : '/' + contentObj.url)) : '';
+            if (audioUrl) {
+              blocoAudio = '<div class="chat-msg-audio"><audio controls preload="metadata" src="' + escapeHtml(audioUrl) + '"></audio></div>';
+            }
+            if (contentObj.transcricao) {
+              var labelTransc = (typeof window.t === 'function' ? (window.t('chat.transcricao') || 'Transcrição') : 'Transcrição');
+              if (labelTransc === 'chat.transcricao') labelTransc = 'Transcrição';
+              blocoAudio += '<div class="chat-transcricao"><span class="chat-transcricao-label">📝 ' + escapeHtml(labelTransc) + '</span><div class="chat-transcricao-text">' + escapeHtml(contentObj.transcricao) + '</div></div>';
+              var labelRetrans = (typeof window.t === 'function' ? (window.t('chat.retranscrever') || 'Re-transcrever em outro idioma') : 'Re-transcrever em outro idioma');
+              if (labelRetrans === 'chat.retranscrever') labelRetrans = 'Re-transcrever em outro idioma';
+              blocoAudio += '<div class="chat-retranscrever-actions" data-id-mensagem="' + escapeHtml(String(m.ID || m.id)) + '">' +
+                '<select class="retranscrever-idioma-select"><option value="pt">Português</option><option value="es">Español</option><option value="en">English</option></select>' +
+                '<button type="button" class="btn-retranscrever-audio">' + escapeHtml(labelRetrans) + '</button></div>';
+            } else {
+              var labelTranscrever = (typeof window.t === 'function' ? (window.t('chat.transcrever') || 'Transcrever') : 'Transcrever');
+              if (labelTranscrever === 'chat.transcrever') labelTranscrever = 'Transcrever';
+              blocoAudio += '<div class="chat-transcrever-actions" data-id-mensagem="' + escapeHtml(String(m.ID || m.id)) + '">' +
+                '<select class="transcrever-idioma-select"><option value="pt">Português</option><option value="es">Español</option><option value="en">English</option></select>' +
+                '<button type="button" class="btn-transcrever-audio">' + escapeHtml(labelTranscrever) + '</button></div>';
+            }
+            conteudo = (typeof window.t === 'function' ? window.t('chat.audio') : 'Áudio');
+          } else {
+            var texto = (m.CONTENT || m.content || '').trim();
+            var linkMapa = extrairLinkMapa(texto);
+            var resto = texto;
+            if (linkMapa) {
+              resto = texto.replace(linkMapa, '').replace(/\n?\s*Ver no mapa\s*:?\s*/gi, '').replace(/\n?\s*🗺️\s*/g, '').trim();
+            }
+            if (linkMapa) {
+              blocoLocalizacao = '<div class="chat-msg-localizacao">' +
+                '<a href="' + escapeHtml(linkMapa) + '" target="_blank" rel="noopener">🗺️ Ver no mapa</a></div>';
+            }
+            conteudo = escapeHtml(resto).replace(/\n/g, '<br>');
+            if (linkMapa && !resto) conteudo = '📍 Localização enviada';
+          }
+          return '<div class="chat-msg ' + (isMotorista ? 'motorista' : 'operador') + '">' +
+            '<div class="chat-msg-nome">' + escapeHtml(nome) + '</div>' +
+            '<div class="chat-msg-content">' + conteudo + '</div>' +
+            blocoAudio + blocoLocalizacao +
+            '<div class="chat-msg-hora">' + escapeHtml(data) + '</div></div>';
+        }).join('');
+        // Rolagem no container que tem overflow (chatMessages), não no div interno
+        var chatContainer = document.getElementById('chatMessages');
+        if (chatContainer) {
+          requestAnimationFrame(function() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+          });
+        }
+      }
+
+      function load() {
+        fetch(baseUrl + '/api/messages/viagem/' + idViagem, {
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
+        })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            var list = (data && data.messages) ? data.messages : [];
+            render(list);
+            // Garantir rolar até o fim após carregar (e após layout)
+            var chatContainer = document.getElementById('chatMessages');
+            if (chatContainer) {
+              setTimeout(function() {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+              }, 50);
+            }
+          })
+          .catch(function(err) {
+            showStatus('Erro ao carregar: ' + (err.message || 'tente novamente.'));
+          });
+      }
+
+      function enviarTexto(texto) {
+        if (!texto || !idMotorista) return Promise.reject(new Error('Dados inválidos'));
+        return fetch(baseUrl + '/api/messages', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            idviagem: idViagem,
+            content: texto,
+            senderType: 'driver',
+            senderId: idMotorista,
+            senderName: motorista.NOME || motorista.nome || 'Motorista'
+          })
+        }).then(function(r) { return r.json(); });
+      }
+
+      document.getElementById('btnSend').onclick = function() {
+        var input = document.getElementById('inputMsg');
+        var texto = (input.value || '').trim();
+        if (!texto || !idMotorista) return;
+        input.value = '';
+        enviarTexto(texto).then(function() { load(); }).catch(function() { load(); });
+      };
+      document.getElementById('inputMsg').onkeypress = function(e) {
+        if (e.key === 'Enter') document.getElementById('btnSend').click();
+      };
+
+      var chatContainer = document.getElementById('chatMessages');
+      if (chatContainer) {
+        chatContainer.addEventListener('click', function(e) {
+          var btn = e.target && (e.target.closest && e.target.closest('.btn-transcrever-audio, .btn-retranscrever-audio'));
+          if (!btn) return;
+          var wrap = btn.closest('.chat-transcrever-actions, .chat-retranscrever-actions');
+          var idMsg = wrap && wrap.getAttribute('data-id-mensagem');
+          var sel = wrap && wrap.querySelector('select');
+          var idioma = sel ? sel.value : 'pt';
+          if (!idMsg || !idioma) return;
+          btn.disabled = true;
+          fetch(baseUrl + '/api/messages/transcrever-audio', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ idMensagem: parseInt(idMsg, 10), idioma: idioma })
+          }).then(function(r) { return r.json(); }).then(function(data) {
+            if (data.success) load(); else showStatus(data.error || 'Erro ao transcrever.');
+          }).catch(function() { showStatus('Erro ao transcrever.'); }).finally(function() { btn.disabled = false; });
+        });
+      }
+
+      document.getElementById('btnLoc').onclick = function() {
+        var btn = document.getElementById('btnLoc');
+        if (!idMotorista) return;
+        if (!navigator.geolocation) {
+          showStatus('Geolocalização não suportada.');
+          return;
+        }
+        btn.disabled = true;
+        btn.textContent = '⏳';
+        navigator.geolocation.getCurrentPosition(
+          function(pos) {
+            var lat = pos.coords.latitude;
+            var lng = pos.coords.longitude;
+            var prec = pos.coords.accuracy ? Math.round(pos.coords.accuracy) : null;
+            var msg = '📍 Minha localização:\n' +
+              'Lat: ' + lat.toFixed(6) + ', Long: ' + lng.toFixed(6) +
+              (prec ? '\nPrecisão: ' + prec + 'm' : '') +
+              '\n🗺️ Ver no mapa: https://www.google.com/maps?q=' + lat + ',' + lng;
+            enviarTexto(msg).then(function() { load(); }).catch(function() { load(); })
+              .finally(function() { btn.disabled = false; btn.textContent = '📍'; });
+          },
+          function(err) {
+            var txt = 'Erro ao obter localização.';
+            if (err.code === 1) txt = 'Permissão de localização negada.';
+            else if (err.code === 2) txt = 'Não foi possível determinar a localização.';
+            else if (err.code === 3) txt = 'Tempo esgotado. Tente novamente.';
+            showStatus(txt);
+            btn.disabled = false;
+            btn.textContent = '📍';
+          },
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+        );
+      };
+
+      (function() {
+        var btnAudio = document.getElementById('btnAudio');
+        var mediaRecorder = null;
+        var chunks = [];
+        var streamAudio = null;
+        btnAudio.onclick = function() {
+          if (!idMotorista) return;
+          if (mediaRecorder && mediaRecorder.state === 'recording') {
+            mediaRecorder.stop();
+            btnAudio.classList.remove('recording');
+            btnAudio.querySelector('i').className = 'bx bx-microphone';
+            return;
+          }
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            showStatus(typeof window.t === 'function' ? window.t('chat.microfoneNaoSuportado') : 'Gravação de áudio não suportada neste navegador.');
+            return;
+          }
+          navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+            streamAudio = stream;
+            var options = { mimeType: (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4') };
+            mediaRecorder = new MediaRecorder(stream);
+            chunks = [];
+            mediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) chunks.push(e.data); };
+            mediaRecorder.onstop = function() {
+              stream.getTracks().forEach(function(t) { t.stop(); });
+              if (chunks.length === 0) { showStatus(typeof window.t === 'function' ? window.t('chat.audioGravacaoVazia') : 'Gravação vazia.'); return; }
+              var blob = new Blob(chunks, { type: mediaRecorder.mimeType || 'audio/webm' });
+              var ext = (mediaRecorder.mimeType || '').indexOf('webm') !== -1 ? '.webm' : '.m4a';
+              var form = new FormData();
+              form.append('file', blob, 'audio' + ext);
+              form.append('idviagem', idViagem);
+              form.append('senderType', 'driver');
+              form.append('senderId', idMotorista);
+              form.append('senderName', motorista.NOME || motorista.nome || 'Motorista');
+              var selIdioma = document.getElementById('selectIdiomaTranscricao');
+              if (selIdioma && selIdioma.value) form.append('idioma', selIdioma.value);
+              btnAudio.disabled = true;
+              fetch(baseUrl + '/api/messages/upload-audio', {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + token },
+                body: form
+              }).then(function(r) { return r.json(); }).then(function(data) {
+                if (data.success) load(); else showStatus(data.error || 'Erro ao enviar áudio.');
+              }).catch(function() { showStatus('Erro ao enviar áudio.'); }).finally(function() { btnAudio.disabled = false; });
+            };
+            mediaRecorder.start();
+            btnAudio.classList.add('recording');
+            btnAudio.querySelector('i').className = 'bx bx-stop';
+          }).catch(function(err) {
+            var txt = (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError')
+              ? (typeof window.t === 'function' ? window.t('chat.microfonePermissaoNegada') : 'Permissão de microfone negada.')
+              : (err.message || 'Erro ao acessar microfone.');
+            showStatus(txt);
+          });
+        };
+      })();
+
+      window.voltar = function() {
+        // Chat standalone é servido em /chat-motorista-standalone (raiz); voltar sempre para o app motorista
+        window.location.href = '/motorista/pages/dashboard.html';
+      };
+
+      if (!token || !motorista) {
+        showStatus('Faça login primeiro. <a href="/motorista/index.html">Ir para login</a>');
+        document.querySelector('.chat-input-area').style.display = 'none';
+        return;
+      }
+      if (!idViagem) {
+        showStatus('Informe a viagem: use ?viagem=1 na URL.');
+        return;
+      }
+      load();
+    })();
+  </script>
+</body>
+</html>

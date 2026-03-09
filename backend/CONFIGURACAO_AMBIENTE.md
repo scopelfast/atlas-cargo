@@ -1,7 +1,7 @@
-# ⚙️ Configuração de Ambiente - DivulgaCarga
+# ⚙️ Configuração de Ambiente - Atlas Cargo
 
 **Versão:** 1.2.0  
-**Última atualização:** 2025-11-28
+**Última atualização:** 2026-11-28
 
 ---
 
@@ -13,7 +13,7 @@ Crie um arquivo `.env` no diretório `backend/` com as seguintes variáveis:
 
 ```env
 DB_SERVER=localhost
-DB_DATABASE=DivulgaCarga
+DB_DATABASE=atlas_cargo_prd
 DB_USER=sa
 DB_PASSWORD=sua-senha-aqui
 DB_PORT=1433
@@ -91,7 +91,7 @@ Valores: `development` | `production`
 ```env
 # Banco de Dados SQL Server
 DB_SERVER=localhost
-DB_DATABASE=DivulgaCarga
+DB_DATABASE=atlas_cargo_prd
 DB_USER=sa
 DB_PASSWORD=sua-senha-aqui
 DB_PORT=1433
@@ -148,6 +148,6 @@ Se alguma estiver faltando, o servidor não iniciará e mostrará um erro.
 
 ---
 
-**Mantido por:** Equipe DivulgaCarga  
+**Mantido por:** Equipe Atlas Cargo  
 **Versão:** 1.2.0
 

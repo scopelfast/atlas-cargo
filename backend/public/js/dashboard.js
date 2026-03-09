@@ -155,6 +155,11 @@
   };
 
   const initDashboard = async () => {
+    // Aplicar traduções do painel web (header, menu, etc.) quando o locale estiver pronto
+    if (window.i18nWebReady && typeof window.applyI18nWeb === 'function') {
+      await window.i18nWebReady;
+      window.applyI18nWeb();
+    }
     // Proteção anti-loop melhorada
     const loopCount = parseInt(sessionStorage.getItem('dashboardLoopCount') || '0');
     if (loopCount > 5) {
@@ -255,13 +260,28 @@
       fazerLogout(false); // false = logout manual
     });
 
+    // Seletor de idioma no dashboard (Plano multimoeda)
+    (function() {
+      var preferred = (typeof localStorage !== 'undefined' && localStorage.getItem('preferredLocale')) || 'pt-BR';
+      if (preferred.toLowerCase() === 'es-py') preferred = 'es-PY';
+      else if (preferred.toLowerCase() !== 'pt-br') preferred = 'pt-BR';
+      document.querySelectorAll('.btn-idioma-dash').forEach(function(btn) {
+        var loc = btn.getAttribute('data-locale');
+        if (loc === preferred) btn.classList.add('active');
+        btn.addEventListener('click', function() {
+          try { localStorage.setItem('preferredLocale', loc); } catch (e) {}
+          window.location.reload();
+        });
+      });
+    })();
+
     // Vincula link de documentação CSS
     document.getElementById('docLink')?.addEventListener('click', () => {
       window.open(corrigirUrl('/css/documentacao-modulos.html'), '_blank');
     });
 
     // Vincula clique no logo para voltar ao início
-    document.getElementById('logoDivulgaCarga')?.addEventListener('click', () => {
+    document.getElementById('logoAtlasCargo')?.addEventListener('click', () => {
       if (typeof window.showWelcomeScreen === 'function') {
         window.showWelcomeScreen();
       } else {
@@ -273,6 +293,19 @@
         }, 100);
       }
     });
+
+    // Aplicar identidade visual configurada (logos)
+    fetch(corrigirUrl('/api/configuracoes/identidade'))
+      .then(r => r.json())
+      .then(data => {
+        const logoRetangular = (data.logoRetangular || 'logoAtlasTransparente.png').replace(/[^a-zA-Z0-9._-]/g, '');
+        const logoQuadrada = (data.logoQuadrada || 'logoAtlasTransparenteQuadrada.png').replace(/[^a-zA-Z0-9._-]/g, '');
+        const favicon = document.getElementById('faviconLink');
+        if (favicon) favicon.href = corrigirUrl('/img/' + logoQuadrada);
+        const logoImg = document.querySelector('#logoAtlasCargo img.logo-img');
+        if (logoImg) logoImg.src = corrigirUrl('/img/' + logoRetangular);
+      })
+      .catch(() => {});
 
     // Inicializar toggle do menu
     initMenuToggle();
@@ -386,14 +419,37 @@
   /**
    * Atualizar contador de Chat
    */
-  const atualizarContadorChat = async (ultimoContador = {}) => {
+  /**
+   * ID do usuário para contador de chat (badge). Se não tiver cdcadastro/id, usa hash do login
+   * para que o badge funcione também para admin/usuários sem cadastro vinculado.
+   */
+  const getIdUsuarioParaBadgeChat = () => {
     try {
       const userStr = localStorage.getItem('user');
-      if (!userStr) return;
-      
+      if (!userStr) return null;
       const user = JSON.parse(userStr);
-      const idUsuario = user.cdcadastro || user.id;
-      if (!idUsuario) return;
+      const id = user.cdcadastro ?? user.id ?? user.CDCADASTRO;
+      if (id != null && id !== '') {
+        const num = typeof id === 'number' ? id : parseFloat(id);
+        if (Number.isFinite(num)) return num;
+      }
+      const login = (user.login ?? user.LOGIN ?? user.SGUSUARIO ?? '').toString();
+      if (!login) return null;
+      let hash = 0;
+      for (let i = 0; i < login.length; i++) {
+        hash = ((hash << 5) - hash) + login.charCodeAt(i);
+        hash = hash & 0x7FFFFFFF;
+      }
+      return hash || 1;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const atualizarContadorChat = async (ultimoContador = {}) => {
+    try {
+      const idUsuario = getIdUsuarioParaBadgeChat();
+      if (idUsuario == null) return;
 
       const apiUrl = corrigirUrl(`/api/chat/nao-lidas?idUsuario=${idUsuario}&userType=OPERADOR`);
       const response = await fetch(apiUrl, {
@@ -405,8 +461,17 @@
         if (data.success && data.data) {
           const total = data.data.total || 0;
           
-          // Atualizar badge no menu
-          const menuItem = document.querySelector('[data-programa="chat"]');
+          // Atualizar badge no menu: data-programa="chat" ou item cujo texto contém "Chat"
+          let menuItem = document.querySelector('[data-programa="chat"]');
+          if (!menuItem) {
+            const items = document.querySelectorAll('.menu-item');
+            for (const el of items) {
+              if (el.textContent && el.textContent.includes('Chat')) {
+                menuItem = el;
+                break;
+              }
+            }
+          }
           if (menuItem) {
             let badge = menuItem.querySelector('.menu-badge');
             if (total > 0) {
@@ -658,25 +723,29 @@
       }
 
       if (response.ok && data.menu && data.menu.length > 0) {
-        // Mapeamento de ícones por grupo (baseado no FGGRUPO do banco)
+        const _tMenu = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
+        // Mapeamento de ícones por grupo (alinhado ao backend: Cadastros, Equipamentos, Logística, Gestão, System)
         const iconesPorGrupo = {
           'CADASTROS': 'bx-file-blank',
           'EQUIPAMENTOS': 'bx-package',
+          'LOGÍSTICA': 'bx-trip',
+          'GESTÃO': 'bx-cog',
+          'SYSTEM': 'bx-user-circle',
           'VIAGENS & LOGÍSTICA': 'bx-trip',
           'GESTÃO & ADMINISTRAÇÃO': 'bx-cog',
           'OUTROS': 'bx-grid-alt'
         };
-        
-        // Agrupar itens por grupo (FGGRUPO do banco de dados)
+
+        // Ordem de exibição dos grupos no menu
+        const ordemGrupos = ['CADASTROS', 'EQUIPAMENTOS', 'LOGÍSTICA', 'GESTÃO', 'SYSTEM', 'OUTROS'];
+
+        // Agrupar itens por grupo (normalizado pelo backend)
         const gruposMap = {};
-        
         data.menu.forEach(item => {
           const iconName = getIcon(item.id);
           const iconClass = iconName.startsWith('bxs-') ? `bxs ${iconName}` : `bx bx-${iconName}`;
           const programa = item.programa || 'default';
           const grupo = (item.grupo || 'OUTROS').toUpperCase().trim();
-          
-          // Criar grupo se não existir
           if (!gruposMap[grupo]) {
             gruposMap[grupo] = {
               nome: grupo,
@@ -684,18 +753,14 @@
               items: []
             };
           }
-          
           gruposMap[grupo].items.push({ ...item, iconClass, programa });
         });
-        
-        // Renderizar grupos (ordenados alfabeticamente)
+
         const gruposOrdenados = Object.entries(gruposMap)
-          .filter(([key, grupo]) => grupo.items.length > 0) // Só mostrar grupos com itens
+          .filter(([key, grupo]) => grupo.items.length > 0)
           .sort(([keyA, grupoA], [keyB, grupoB]) => {
-            // Ordenar por ordem específica (se necessário) ou alfabeticamente
-            const ordem = ['CADASTROS', 'EQUIPAMENTOS', 'VIAGENS & LOGÍSTICA', 'GESTÃO & ADMINISTRAÇÃO', 'OUTROS'];
-            const indexA = ordem.indexOf(keyA);
-            const indexB = ordem.indexOf(keyB);
+            const indexA = ordemGrupos.indexOf(keyA);
+            const indexB = ordemGrupos.indexOf(keyB);
             if (indexA !== -1 && indexB !== -1) return indexA - indexB;
             if (indexA !== -1) return -1;
             if (indexB !== -1) return 1;
@@ -707,20 +772,24 @@
             const grupoId = `grupo-${key.replace(/\s+/g, '-').toLowerCase()}`;
             const isExpanded = localStorage.getItem(`menu-grupo-${key}`) !== 'false'; // Por padrão expandido
             
+            const grupoLabel = _tMenu('web.menu.grupo.' + key) || grupo.nome;
             return `
               <div class="menu-category">
                 <div class="menu-category-header" data-grupo="${key}">
                   <i class='bx ${grupo.icon}'></i>
-                  <span>${grupo.nome}</span>
+                  <span>${grupoLabel}</span>
                   <i class='bx ${isExpanded ? 'bx-chevron-down' : 'bx-chevron-right'} menu-category-toggle'></i>
                 </div>
                 <div class="menu-category-items" data-grupo-items="${key}" style="display: ${isExpanded ? 'block' : 'none'};">
-                  ${grupo.items.map(item => `
+                  ${grupo.items.map(item => {
+                    const itemLabel = _tMenu('web.menu.item.' + (item.programa || '')) || item.nome;
+                    return `
                     <div class="menu-item" data-id="${item.id}" data-programa="${item.programa}">
                       <i class='${item.iconClass}'></i>
-                      <span>${item.nome}</span>
+                      <span>${itemLabel}</span>
                     </div>
-                  `).join('')}
+                  `;
+                  }).join('')}
                 </div>
               </div>
             `;
@@ -783,13 +852,15 @@
           });
         });
       } else {
-        menuContainer.innerHTML = '<div class="menu-item"><span>Sem permissões</span></div>';
+        const semPerm = (typeof window.tWeb === 'function' ? window.tWeb('web.menu.semPermissoes') : 'Sem permissões');
+        menuContainer.innerHTML = '<div class="menu-item"><span>' + semPerm + '</span></div>';
       }
     } catch (err) {
       console.error('❌ Erro ao carregar menu:', err);
       const menuContainer = document.getElementById('menuContainer');
       if (menuContainer) {
-        menuContainer.innerHTML = '<div class="menu-item"><span>❌ Erro de conexão</span></div>';
+        const errMsg = (typeof window.tWeb === 'function' ? window.tWeb('web.menu.erroConexao') : 'Erro de conexão');
+        menuContainer.innerHTML = '<div class="menu-item"><span>❌ ' + errMsg + '</span></div>';
       }
     }
   };
@@ -941,26 +1012,50 @@
           }
           return match;
         });
-        
-        // Inserir HTML processado no DOM
-        contentArea.innerHTML = html;
 
-        // IMPORTANTE: Mover links CSS para o head para garantir que sejam aplicados corretamente
+        // Extrair apenas o conteúdo do <body> para evitar documento aninhado (html/body dentro de div)
+        // que deixa a área do módulo em branco
+        const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/im);
+        const headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/im);
+        let htmlToInject = bodyMatch ? bodyMatch[1].trim() : html;
+
+        // Aplicar link e style do head no document.head antes de injetar o body
+        if (headMatch) {
+          const tempHead = document.createElement('div');
+          tempHead.innerHTML = headMatch[0];
+          tempHead.querySelectorAll('link[rel="stylesheet"], style').forEach(el => {
+            const href = el.getAttribute('href');
+            if (el.tagName === 'LINK' && href && !href.startsWith('http')) {
+              const link = document.createElement('link');
+              link.rel = 'stylesheet';
+              link.href = corrigirUrl(href.startsWith('/') ? href : `/modulos/${programa}/${href}`);
+              document.head.appendChild(link);
+            } else if (el.tagName === 'STYLE') {
+              const style = document.createElement('style');
+              style.textContent = el.textContent;
+              document.head.appendChild(style);
+            }
+          });
+        }
+
+        // Inserir apenas o conteúdo do body no DOM
+        contentArea.innerHTML = htmlToInject;
+
+        // Mover links CSS que eventualmente tenham ficado no contentArea para o head
         const linksInHTML = contentArea.querySelectorAll('link[rel="stylesheet"][href]');
         linksInHTML.forEach(link => {
-          // Mover para o head se ainda não estiver lá
           if (link.parentNode !== document.head) {
             document.head.appendChild(link);
           }
         });
 
-        // IMPORTANTE: Executar scripts que estão dentro do HTML inserido
-        // (innerHTML não executa scripts automaticamente)
-        // Isso é CRÍTICO para map-config.js funcionar!
+        // Executar scripts que estão dentro do HTML inserido
         const scriptsInHTML = contentArea.querySelectorAll('script[src]');
         const scriptPromises = [];
-        
-        scriptsInHTML.forEach(oldScript => {
+        // Rastrear qual script está carregando (para diagnóstico de erros de parse)
+        window.__dashboardLastLoadingScript = null;
+
+        for (const oldScript of scriptsInHTML) {
           let scriptSrc = oldScript.getAttribute('src');
           
           // Converter caminhos relativos para absolutos baseados no módulo
@@ -976,35 +1071,63 @@
           }
           
           const newScript = document.createElement('script');
-          Array.from(oldScript.attributes).forEach(attr => {
-            if (attr.name === 'src') {
-              newScript.setAttribute('src', scriptSrc);
-            } else {
-              newScript.setAttribute(attr.name, attr.value);
+          const isViagensScript = scriptSrc && scriptSrc.includes('gerenciar-viagens/js/script.js');
+          // Workaround: carregar script grande de gerenciar-viagens via fetch+blob para evitar
+          // "Unexpected end of input" por truncamento (cache/compressão).
+          if (isViagensScript && scriptSrc) {
+            try {
+              window.__dashboardLastLoadingScript = scriptSrc;
+              const urlWithBust = scriptSrc + (scriptSrc.indexOf('?') >= 0 ? '&' : '?') + '_t=' + Date.now();
+              const response = await fetch(urlWithBust);
+              if (!response.ok) throw new Error('HTTP ' + response.status);
+              const text = await response.text();
+              if (text.length < 1000) {
+                console.warn('⚠️ [DASHBOARD] script.js gerenciar-viagens parece truncado (' + text.length + ' chars). Usando src direto.');
+                newScript.src = scriptSrc;
+              } else {
+                const blob = new Blob([text], { type: 'application/javascript' });
+                newScript.src = URL.createObjectURL(blob);
+              }
+            } catch (e) {
+              console.warn('⚠️ [DASHBOARD] Fallback src direto para gerenciar-viagens:', e.message);
+              newScript.src = scriptSrc;
             }
-          });
-          newScript.textContent = oldScript.textContent;
+            window.__dashboardLastLoadingScript = null;
+          } else {
+            Array.from(oldScript.attributes).forEach(attr => {
+              if (attr.name === 'src') {
+                newScript.setAttribute('src', scriptSrc);
+              } else {
+                newScript.setAttribute(attr.name, attr.value);
+              }
+            });
+          }
+          if (!scriptSrc && !newScript.src) newScript.textContent = oldScript.textContent || '';
           
-          // Criar promise para aguardar carregamento
           const scriptPromise = new Promise((resolve) => {
+            const scriptUrl = scriptSrc || newScript.src || '(inline)';
+            if (!isViagensScript) window.__dashboardLastLoadingScript = scriptUrl;
             newScript.onload = () => {
-              console.log('✅ [DASHBOARD] Script do HTML carregado:', newScript.src);
+              if (newScript.src) window.__dashboardLastLoadedScript = newScript.src;
+              window.__dashboardLastLoadingScript = null;
+              if (newScript.src && newScript.src.startsWith('blob:')) URL.revokeObjectURL(newScript.src);
+              console.log('✅ [DASHBOARD] Script do HTML carregado:', newScript.src || scriptUrl);
               resolve();
             };
             newScript.onerror = () => {
-              // Silenciosamente ignorar erros de scripts opcionais
-              console.warn('⚠️ [DASHBOARD] Erro ao carregar script do HTML:', newScript.src);
-              resolve(); // Continuar mesmo se falhar
+              window.__dashboardLastLoadingScript = null;
+              console.warn('⚠️ [DASHBOARD] Erro ao carregar script do HTML:', newScript.src || scriptUrl);
+              resolve();
             };
-            // Se não tiver src, executar imediatamente
             if (!newScript.src) {
+              window.__dashboardLastLoadingScript = null;
               resolve();
             }
           });
           
           scriptPromises.push(scriptPromise);
           oldScript.parentNode.replaceChild(newScript, oldScript);
-        });
+        }
         
         // Aguardar todos os scripts do HTML carregarem (especialmente map-config.js)
         await Promise.all(scriptPromises);
@@ -1019,45 +1142,50 @@
           window.logAberturaTela(programa, `Abertura do módulo: ${programa}`);
         }
 
-        // Carregar script de permissões primeiro (se ainda não estiver carregado)
+        // Carregar scripts compartilhados no head (evita parse error quando anexados na contentArea)
         if (!window.Permissions) {
           const permissionsScript = document.createElement('script');
           permissionsScript.src = corrigirUrl('/js/permissions.js');
-          contentArea.appendChild(permissionsScript);
+          permissionsScript.onerror = () => console.warn('⚠️ [DASHBOARD] permissions.js não carregou');
+          document.head.appendChild(permissionsScript);
         }
-
-        // Carregar log-helper se ainda não estiver carregado
         if (!window.logAberturaTela) {
           const logHelperScript = document.createElement('script');
           logHelperScript.src = corrigirUrl('/js/log-helper.js');
-          contentArea.appendChild(logHelperScript);
+          logHelperScript.onerror = () => console.warn('⚠️ [DASHBOARD] log-helper.js não carregou');
+          document.head.appendChild(logHelperScript);
         }
 
-        // Carrega o script do módulo, se existir
-        const script = document.createElement('script');
-        script.src = corrigirUrl(`/modulos/${programa}/js/script.js`);
-        script.onerror = () => {
-          // Script não encontrado - silencioso
-        };
-        script.onload = () => {
-          // Verificar se MAP_CONFIG está disponível apenas para módulos que precisam de mapa
-          const modulosComMapa = ['gerenciar-viagens', 'gerenciar-roteiros', 'relatorio-convocacoes'];
-          if (modulosComMapa.includes(programa)) {
-            if (!window.MAP_CONFIG) {
+        // Carrega o script do módulo só se ainda não foi carregado pelo HTML do módulo
+        // (evita carregar 2x e "Unexpected end of input" ao reexecutar/sobrescrever)
+        const moduleScriptUrl = corrigirUrl(`/modulos/${programa}/js/script.js`);
+        const alreadyLoadedModuleScript = contentArea.querySelector(`script[src*="${programa}/js/script.js"]`);
+        if (!alreadyLoadedModuleScript) {
+          const script = document.createElement('script');
+          script.src = moduleScriptUrl;
+          script.onerror = () => { /* silencioso */ };
+          script.onload = () => {
+            const modulosComMapa = ['gerenciar-viagens', 'gerenciar-roteiros', 'relatorio-convocacoes'];
+            if (modulosComMapa.includes(programa) && !window.MAP_CONFIG) {
               console.warn('⚠️ [DASHBOARD] MAP_CONFIG não disponível após carregar módulo', programa);
-            } else {
+            } else if (modulosComMapa.includes(programa)) {
               console.log('✅ [DASHBOARD] MAP_CONFIG disponível após carregar módulo', programa);
             }
-          }
-          
-          // Aplicar restrições de permissão após o módulo carregar
+            setTimeout(() => {
+              if (window.Permissions && window.Permissions.applyPermissionRestrictions) {
+                window.Permissions.applyPermissionRestrictions();
+              }
+            }, 500);
+          };
+          contentArea.appendChild(script);
+        } else {
+          // Script já veio no HTML do módulo; só aplicar restrições
           setTimeout(() => {
-            if (window.Permissions) {
+            if (window.Permissions && window.Permissions.applyPermissionRestrictions) {
               window.Permissions.applyPermissionRestrictions();
             }
           }, 500);
-        };
-        contentArea.appendChild(script);
+        }
 
         // Se houver parâmetros, aplicar após carregar
         if (Object.keys(params).length > 0) {
@@ -1126,6 +1254,9 @@
   const showWelcomeScreen = async () => {
     const contentArea = document.getElementById('contentArea');
     if (!contentArea) return;
+
+    const _t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
+    if (window.i18nWebReady) await window.i18nWebReady;
     
     // Carregar estatísticas
     let stats = {
@@ -1157,12 +1288,12 @@
     // Carregar permissões do usuário para validar links rápidos
     let quickLinks = [];
     
-    // Definir links rápidos com suas respectivas permissões
+    // Definir links rápidos com suas respectivas permissões e chaves i18n
     const availableQuickLinks = [
-      { programa: 'gerenciar-viagens', nome: 'Gerenciar Viagens', icon: 'bx-trip' },
-      { programa: 'relatorio-convocacoes', nome: 'Relatório de Convocações', icon: 'bx-bar-chart-alt-2' },
-      { programa: 'gerenciar-equipamentos', nome: 'Gerenciar Equipamentos', icon: 'bx-package' },
-      { programa: 'gerenciar-logs-acesso', nome: 'Logs de Acesso', icon: 'bx-history' }
+      { programa: 'gerenciar-viagens', nome: _t('web.dashboard.gerenciarViagens'), icon: 'bx-trip' },
+      { programa: 'relatorio-convocacoes', nome: _t('web.dashboard.relatorioConvocacoes'), icon: 'bx-bar-chart-alt-2' },
+      { programa: 'gerenciar-equipamentos', nome: _t('web.dashboard.gerenciarEquipamentos'), icon: 'bx-package' },
+      { programa: 'gerenciar-logs-acesso', nome: _t('web.dashboard.logsAcesso'), icon: 'bx-history' }
     ];
     
     // Verificar permissões se o sistema estiver disponível
@@ -1175,20 +1306,22 @@
           }
         } catch (e) {
           console.warn(`Erro ao verificar permissão para ${link.programa}:`, e);
-          // Em caso de erro, incluir o link (fail-open)
           quickLinks.push(link);
         }
       }
-    } else {
-      // Se o sistema de permissões não estiver disponível, mostrar todos
+    }
+    // Sempre mostrar Acesso Rápido: se nenhum link passou na permissão, usar todos
+    if (quickLinks.length === 0) {
       quickLinks = availableQuickLinks;
     }
     
+    var localeNum = (typeof window.tWeb === 'function' ? (document.documentElement.lang === 'es' ? 'es-PY' : 'pt-BR') : 'pt-BR');
+    var localeForNumber = localeNum === 'es-PY' ? 'es-PY' : 'pt-BR';
     contentArea.innerHTML = `
       <!-- Área de Boas-vindas -->
       <div class="welcome-section">
-        <h3>Bem-vindo ao sistema!</h3>
-        <p>Selecione uma opção no menu lateral para começar.</p>
+        <h3>${_t('web.dashboard.bemVindo')}</h3>
+        <p>${_t('web.dashboard.selecioneOpcao')}</p>
       </div>
 
       <!-- Cards de Estatísticas -->
@@ -1198,9 +1331,9 @@
             <i class='bx bx-trip'></i>
           </div>
           <div class="stat-card-content">
-            <h4>Total de Viagens</h4>
-            <p class="stat-value">${stats.totalViagens.toLocaleString('pt-BR')}</p>
-            <span class="stat-label">Viagens cadastradas</span>
+            <h4>${_t('web.dashboard.totalViagens')}</h4>
+            <p class="stat-value">${stats.totalViagens.toLocaleString(localeForNumber)}</p>
+            <span class="stat-label">${_t('web.dashboard.viagensCadastradas')}</span>
           </div>
         </div>
 
@@ -1209,9 +1342,9 @@
             <i class='bx bx-time-five'></i>
           </div>
           <div class="stat-card-content">
-            <h4>Viagens Pendentes</h4>
-            <p class="stat-value">${stats.viagensPendentes.toLocaleString('pt-BR')}</p>
-            <span class="stat-label">Aguardando ação</span>
+            <h4>${_t('web.dashboard.viagensPendentes')}</h4>
+            <p class="stat-value">${stats.viagensPendentes.toLocaleString(localeForNumber)}</p>
+            <span class="stat-label">${_t('web.dashboard.aguardandoAcao')}</span>
           </div>
         </div>
 
@@ -1220,9 +1353,9 @@
             <i class='bx bx-bell'></i>
           </div>
           <div class="stat-card-content">
-            <h4>Convocações Pendentes</h4>
-            <p class="stat-value">${stats.convocacoesPendentes.toLocaleString('pt-BR')}</p>
-            <span class="stat-label">Aguardando resposta</span>
+            <h4>${_t('web.dashboard.convocacoesPendentes')}</h4>
+            <p class="stat-value">${stats.convocacoesPendentes.toLocaleString(localeForNumber)}</p>
+            <span class="stat-label">${_t('web.dashboard.aguardandoResposta')}</span>
           </div>
         </div>
 
@@ -1231,9 +1364,9 @@
             <i class='bx bx-info-circle'></i>
           </div>
           <div class="stat-card-content">
-            <h4>Dica do Dia</h4>
-            <p class="stat-tip">Use os filtros para encontrar informações rapidamente</p>
-            <span class="stat-label">Dica útil</span>
+            <h4>${_t('web.dashboard.dicaDia')}</h4>
+            <p class="stat-tip">${_t('web.dashboard.dicaFiltros')}</p>
+            <span class="stat-label">${_t('web.dashboard.dicaUtil')}</span>
           </div>
         </div>
       </div>
@@ -1244,9 +1377,9 @@
         <div class="alert-card ${stats.convocacoesPendentes > 0 ? 'alert-warning' : ''}">
           <i class='bx bx-error-circle'></i>
           <div>
-            <strong>Atenção!</strong>
-            ${stats.convocacoesPendentes > 0 ? `<p>Você tem ${stats.convocacoesPendentes} convocação(ões) pendente(s) aguardando resposta.</p>` : ''}
-            ${stats.viagensPendentes > 0 ? `<p>Você tem ${stats.viagensPendentes} viagem(ns) pendente(s) que precisam de atenção.</p>` : ''}
+            <strong>${_t('web.dashboard.atencao')}</strong>
+            ${stats.convocacoesPendentes > 0 ? `<p>${_t('web.dashboard.convocacoesPendentesMsg').replace('{n}', stats.convocacoesPendentes)}</p>` : ''}
+            ${stats.viagensPendentes > 0 ? `<p>${_t('web.dashboard.viagensPendentesMsg').replace('{n}', stats.viagensPendentes)}</p>` : ''}
           </div>
         </div>
       </div>
@@ -1255,7 +1388,7 @@
       <!-- Links Rápidos -->
       ${quickLinks.length > 0 ? `
       <div class="dashboard-quick-links">
-        <h4><i class='bx bx-link'></i> Acesso Rápido</h4>
+        <h4><i class='bx bx-link'></i> ${_t('web.dashboard.acessoRapido')}</h4>
         <div class="quick-links-grid">
           ${quickLinks.map(link => `
             <button class="quick-link-btn" onclick="window.loadModuleContent('${link.programa}')">
@@ -1267,6 +1400,7 @@
       </div>
       ` : ''}
     `;
+    if (typeof window.applyI18nWeb === 'function') window.applyI18nWeb(contentArea);
   };
   
   // Tornar showWelcomeScreen acessível globalmente

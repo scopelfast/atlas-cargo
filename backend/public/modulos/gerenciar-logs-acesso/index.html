@@ -3,12 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <title>Logs de Acesso</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/modulos.css">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <style>
-    /* ========== ESTILOS DO LAYOUT PADRONIZADO ========== */
+    /* ========== Logs de Acesso - Identidade Atlas Cargo ========== */
     .logs-acesso-container {
       padding: 20px;
+      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
     }
 
     .logs-acesso-header {
@@ -17,12 +21,12 @@
       align-items: center;
       margin-bottom: 25px;
       padding-bottom: 15px;
-      border-bottom: 2px solid #e0e0e0;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
     }
 
     .logs-acesso-header h2 {
       margin: 0;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 28px;
       font-weight: 700;
       display: flex;
@@ -30,7 +34,7 @@
       gap: 10px;
     }
 
-    /* ========== BOTÕES - Padrão do Sistema ========== */
+    /* ========== BOTÕES - Atlas Cargo ========== */
     .btn {
       padding: 12px 24px;
       border: none;
@@ -55,36 +59,36 @@
     }
 
     .btn-primary {
-      background: #3498db;
+      background: var(--ac-accent, #0ea5e9);
       color: white;
     }
 
     .btn-primary:hover:not(:disabled) {
-      background: #2980b9;
+      background: var(--ac-accent-hover, #0284c7);
       transform: translateY(-1px);
-      box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35);
     }
 
     .btn-secondary {
-      background: #6c757d;
+      background: var(--gray, #64748b);
       color: white;
     }
 
     .btn-secondary:hover:not(:disabled) {
-      background: #5a6268;
+      background: #475569;
       transform: translateY(-1px);
-      box-shadow: 0 4px 8px rgba(108, 117, 125, 0.3);
+      box-shadow: 0 4px 8px rgba(100, 116, 139, 0.3);
     }
 
     .btn-info {
-      background: #17a2b8;
+      background: var(--ac-accent, #0ea5e9);
       color: white;
     }
 
     .btn-info:hover:not(:disabled) {
-      background: #138496;
+      background: var(--ac-accent-hover, #0284c7);
       transform: translateY(-1px);
-      box-shadow: 0 4px 8px rgba(23, 162, 184, 0.3);
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35);
     }
 
     .btn-cancel {
@@ -98,18 +102,19 @@
       box-shadow: 0 4px 8px rgba(149, 165, 166, 0.3);
     }
 
-    /* ========== FILTROS PADRONIZADOS ========== */
+    /* ========== FILTROS ========== */
     .filtros-box {
       background: white;
       border-radius: 12px;
       padding: 25px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
       margin-bottom: 25px;
+      border: 1px solid var(--border, #e2e8f0);
     }
 
     .filtros-box h3 {
       margin: 0 0 20px 0;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 18px;
       font-weight: 600;
       display: flex;
@@ -133,14 +138,14 @@
       display: block;
       margin-bottom: 8px;
       font-weight: 600;
-      color: #34495e;
+      color: var(--dark, #1e293b);
       font-size: 14px;
     }
 
     .filtros-grid .form-control {
       width: 100%;
       padding: 12px;
-      border: 1px solid #dee2e6;
+      border: 1px solid var(--border, #e2e8f0);
       border-radius: 8px;
       font-size: 16px;
       transition: all 0.3s;
@@ -151,8 +156,8 @@
 
     .filtros-grid .form-control:focus {
       outline: none;
-      border-color: #3498db;
-      box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+      border-color: var(--ac-accent, #0ea5e9);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
     }
 
     .filtros-actions {
@@ -178,20 +183,21 @@
       background: white;
       border-radius: 12px;
       padding: 25px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-      border-left: 4px solid #3498db;
+      box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
+      border: 1px solid var(--border, #e2e8f0);
+      border-left: 4px solid var(--ac-accent, #0ea5e9);
       transition: transform 0.3s, box-shadow 0.3s;
     }
 
     .resumo-card:hover {
       transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
     }
 
-    .resumo-card.primary { border-left-color: #3498db; }
-    .resumo-card.success { border-left-color: #27ae60; }
-    .resumo-card.warning { border-left-color: #f39c12; }
-    .resumo-card.info { border-left-color: #17a2b8; }
+    .resumo-card.primary { border-left-color: var(--ac-accent, #0ea5e9); }
+    .resumo-card.success { border-left-color: var(--success, #059669); }
+    .resumo-card.warning { border-left-color: var(--warning, #d97706); }
+    .resumo-card.info { border-left-color: var(--ac-accent, #0ea5e9); }
 
     .resumo-card-header {
       display: flex;
@@ -211,14 +217,14 @@
       color: white;
     }
 
-    .resumo-card.primary .resumo-card-icon { background: #3498db; }
-    .resumo-card.success .resumo-card-icon { background: #27ae60; }
-    .resumo-card.warning .resumo-card-icon { background: #f39c12; }
-    .resumo-card.info .resumo-card-icon { background: #17a2b8; }
+    .resumo-card.primary .resumo-card-icon { background: var(--ac-accent, #0ea5e9); }
+    .resumo-card.success .resumo-card-icon { background: var(--success, #059669); }
+    .resumo-card.warning .resumo-card-icon { background: var(--warning, #d97706); }
+    .resumo-card.info .resumo-card-icon { background: var(--ac-accent, #0ea5e9); }
 
     .resumo-card-title {
       font-size: 14px;
-      color: #6c757d;
+      color: var(--gray, #64748b);
       font-weight: 600;
       margin: 0;
     }
@@ -226,7 +232,7 @@
     .resumo-card-value {
       font-size: 32px;
       font-weight: 700;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       margin: 5px 0;
     }
 
@@ -243,12 +249,13 @@
       background: white;
       border-radius: 12px;
       overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
       margin-bottom: 30px;
+      border: 1px solid var(--border, #e2e8f0);
     }
 
     .estatisticas-table thead {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, var(--ac-primary, #0d2137) 0%, var(--ac-primary-light, #1a365d) 100%);
       color: white;
     }
 
@@ -292,19 +299,19 @@
 
     .estatisticas-table td {
       padding: 12px 15px;
-      border-bottom: 1px solid #e9ecef;
+      border-bottom: 1px solid var(--border, #e2e8f0);
       font-size: 14px;
     }
 
     .estatisticas-table tbody tr:hover {
-      background: #f8f9fa;
+      background: #f8fafc;
     }
 
     .estatisticas-table tbody tr:last-child td {
       border-bottom: none;
     }
 
-    /* ========== MODAL DE AJUDA ========== */
+    /* ========== MODAL - Atlas Cargo ========== */
     .modal-tratamento {
       display: none;
       position: fixed;
@@ -326,12 +333,13 @@
       max-height: 90vh;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+      box-shadow: 0 10px 40px rgba(13, 33, 55, 0.12);
+      border: 1px solid var(--border, #e2e8f0);
     }
 
     .modal-header-tratamento {
       padding: 20px 25px;
-      border-bottom: 1px solid #e9ecef;
+      border-bottom: 1px solid var(--border, #e2e8f0);
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -340,7 +348,7 @@
 
     .modal-header-tratamento h3 {
       margin: 0;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 24px;
       font-weight: 600;
       display: flex;
@@ -352,7 +360,7 @@
       background: none;
       border: none;
       font-size: 24px;
-      color: #666;
+      color: var(--gray, #64748b);
       cursor: pointer;
       padding: 5px;
       width: 32px;
@@ -365,8 +373,8 @@
     }
 
     .btn-close-modal:hover {
-      background: #f0f0f0;
-      color: #333;
+      background: var(--light-gray, #f1f5f9);
+      color: var(--ac-primary, #0d2137);
     }
 
     .modal-body-tratamento {
@@ -377,7 +385,7 @@
     }
 
     .modal-body-tratamento h4 {
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       margin-top: 20px;
       margin-bottom: 10px;
       font-size: 18px;
@@ -389,7 +397,7 @@
     }
 
     .modal-body-tratamento p {
-      color: #495057;
+      color: var(--gray, #64748b);
       line-height: 1.6;
       margin-bottom: 15px;
     }
@@ -397,7 +405,7 @@
     .modal-body-tratamento ul {
       margin: 10px 0 20px 0;
       padding-left: 20px;
-      color: #495057;
+      color: var(--gray, #64748b);
       line-height: 1.8;
     }
 
@@ -406,37 +414,39 @@
     }
 
     .modal-body-tratamento strong {
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-weight: 600;
     }
 
     .modal-footer-tratamento {
       padding: 20px 25px;
-      border-top: 1px solid #e9ecef;
+      border-top: 1px solid var(--border, #e2e8f0);
       display: flex;
       justify-content: flex-end;
       flex-shrink: 0;
     }
 
-    /* ========== GRID CONTAINER ========== */
+    /* ========== GRID / FORM BOX ========== */
     .grid-container {
       background: white;
       border-radius: 12px;
       padding: 20px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
+      border: 1px solid var(--border, #e2e8f0);
     }
 
     .form-box {
       background: white;
       border-radius: 12px;
       padding: 25px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
       margin-bottom: 25px;
+      border: 1px solid var(--border, #e2e8f0);
     }
 
     .form-box h2 {
       margin: 0 0 20px 0;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 22px;
       font-weight: 600;
     }
@@ -453,7 +463,7 @@
       display: flex;
       gap: 10px;
       margin-bottom: 20px;
-      border-bottom: 2px solid #e0e0e0;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
     }
 
     .tab-btn {
@@ -461,7 +471,7 @@
       background: none;
       border: none;
       border-bottom: 3px solid transparent;
-      color: #6c757d;
+      color: var(--gray, #64748b);
       font-size: 16px;
       font-weight: 600;
       cursor: pointer;
@@ -470,13 +480,13 @@
     }
 
     .tab-btn:hover {
-      color: #3498db;
-      background: #f8f9fa;
+      color: var(--ac-accent, #0ea5e9);
+      background: var(--light-gray, #f8fafc);
     }
 
     .tab-btn.active {
-      color: #3498db;
-      border-bottom-color: #3498db;
+      color: var(--ac-accent, #0ea5e9);
+      border-bottom-color: var(--ac-accent, #0ea5e9);
     }
 
     .tab-content {
@@ -491,7 +501,7 @@
     .empty {
       text-align: center;
       padding: 40px;
-      color: #95a5a6;
+      color: var(--gray, #64748b);
       font-size: 16px;
     }
 
@@ -516,34 +526,34 @@
     <!-- Header Padronizado -->
     <div class="logs-acesso-header">
       <h2>
-        <i class='bx bx-history' style="color: #3498db;"></i>
-        Logs de Acesso
+        <i class='bx bx-history' style="color: var(--ac-accent, #0ea5e9);"></i>
+        <span data-i18n="web.modulos.logsAcesso.titulo">Logs de Acesso</span>
       </h2>
       <div style="display: flex; gap: 10px; align-items: center;">
         <button class="btn btn-info" onclick="window.mostrarAjudaLogsAcesso()" title="Como funciona? Regras e instruções">
-          <i class='bx bx-help-circle'></i> Ajuda
+          <i class='bx bx-help-circle'></i> <span data-i18n="web.modulos.logsAcesso.ajuda">Ajuda</span>
         </button>
       </div>
     </div>
 
     <!-- Abas -->
     <div class="tabs">
-      <button class="tab-btn active" data-tab="filtros">Filtros</button>
-      <button class="tab-btn" data-tab="resumo">Resumo</button>
+      <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.logsAcesso.tabFiltros">Filtros</button>
+      <button class="tab-btn" data-tab="resumo" data-i18n="web.modulos.logsAcesso.tabResumo">Resumo</button>
     </div>
 
     <!-- Filtros -->
     <div class="tab-content active" id="tab-filtros">
       <div class="filtros-box">
-        <h3><i class='bx bx-filter'></i> Filtros de Busca</h3>
-        <form id="filtroForm">
+        <h3><i class='bx bx-filter'></i> <span data-i18n="web.modulos.logsAcesso.filtrosBusca">Filtros de Busca</span></h3>
+        <form id="filtroForm" onsubmit="return false;">
           <div class="filtros-grid">
             <div>
-              <label for="filtroDataInicio">Data Início</label>
+              <label for="filtroDataInicio" data-i18n="web.modulos.logsAcesso.dataInicio">Data Início</label>
               <input type="date" id="filtroDataInicio" class="form-control">
             </div>
             <div>
-              <label for="filtroDataFim">Data Fim</label>
+              <label for="filtroDataFim" data-i18n="web.modulos.logsAcesso.dataFim">Data Fim</label>
               <input type="date" id="filtroDataFim" class="form-control">
             </div>
             <div>
@@ -555,10 +565,10 @@
           </div>
           <div class="filtros-actions">
             <button type="button" id="btnLimparFiltros" class="btn btn-secondary">
-              <i class='bx bx-x'></i> Limpar
+              <i class='bx bx-x'></i> <span data-i18n="web.modulos.logsAcesso.limpar">Limpar</span>
             </button>
             <button type="submit" class="btn btn-primary">
-              <i class='bx bx-search'></i> Filtrar
+              <i class='bx bx-search'></i> <span data-i18n="web.modulos.logsAcesso.filtrar">Filtrar</span>
             </button>
           </div>
         </form>
@@ -568,10 +578,10 @@
     <!-- Resumo -->
     <div class="tab-content" id="tab-resumo">
       <div class="form-box">
-        <h2>Resumo de Acessos</h2>
+        <h2 data-i18n="web.modulos.logsAcesso.resumoAcessos">Resumo de Acessos</h2>
         <div class="actions-top">
           <button type="button" id="btnVoltarResumo" class="btn btn-cancel">
-            <i class='bx bx-arrow-back'></i> Voltar aos Filtros
+            <i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.logsAcesso.voltarFiltros">Voltar aos Filtros</span>
           </button>
         </div>
 
@@ -631,7 +641,7 @@
         </div>
 
         <!-- Estatísticas por Operador -->
-        <h3 style="margin: 30px 0 15px 0; color: #2c3e50; font-size: 18px;">
+        <h3 style="margin: 30px 0 15px 0; color: var(--ac-primary, #0d2137); font-size: 18px;">
           <i class='bx bx-bar-chart-alt-2'></i> Estatísticas por Operador
         </h3>
         <table class="estatisticas-table" id="tabelaEstatisticas">
@@ -656,7 +666,7 @@
         </table>
 
         <!-- Top Módulos Acessados -->
-        <h3 style="margin: 30px 0 15px 0; color: #2c3e50; font-size: 18px;">
+        <h3 style="margin: 30px 0 15px 0; color: var(--ac-primary, #0d2137); font-size: 18px;">
           <i class='bx bx-trending-up'></i> Top Módulos Mais Acessados
         </h3>
         <table class="estatisticas-table" id="tabelaTopModulos">
@@ -727,17 +737,17 @@
   <!-- Modal de Confirmação -->
   <div id="confirmModal" class="modal" style="display: none;">
     <div class="modal-content">
-      <h3>Confirmar Ação</h3>
+      <h3 data-i18n="web.modulos.logsAcesso.confirmarAcao">Confirmar Ação</h3>
       <p id="modalMessage"></p>
       <div class="modal-actions">
-        <button id="confirmYes" class="btn delete">Sim</button>
-        <button id="confirmNo" class="btn cancel">Cancelar</button>
+        <button id="confirmYes" class="btn delete" data-i18n="web.modulos.logsAcesso.sim">Sim</button>
+        <button id="confirmNo" class="btn cancel" data-i18n="web.modulos.logsAcesso.cancelar">Cancelar</button>
       </div>
     </div>
   </div>
 
   <!-- Scripts -->
-  <script src="/js/cache-buster.js?v=202512091200"></script>
+  <script src="/js/cache-buster.js?v=202612091200"></script>
   <script src="/js/utils.js"></script>
   <script src="/js/log-helper.js"></script>
   <script src="/js/init-overlay-helper.js"></script>

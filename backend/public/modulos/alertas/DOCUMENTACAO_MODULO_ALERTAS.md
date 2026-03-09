@@ -1,7 +1,7 @@
 # 📚 Documentação Técnica - Módulo Alertas
 
 **Versão:** 2.0  
-**Data:** 2025-01-18  
+**Data:** 2026-01-18  
 **Módulo:** Alertas do Sistema
 
 ---
@@ -133,7 +133,7 @@ GET /api/alertas?status=Pendente&tipo=ATRASO&prioridade=Urgente&limit=20&offset=
       "PRIORIDADE": "Urgente",
       "STATUS": "Pendente",
       "DETAILS": "{...}",
-      "CREATED_AT": "2025-01-18T15:00:00",
+      "CREATED_AT": "2026-01-18T15:00:00",
       "motorista_nome": "João Silva"
     }
   ],
@@ -353,6 +353,6 @@ AND a.STATUS != 'Pendente';
 
 ---
 
-**Documento criado em:** 2025-01-18  
-**Última atualização:** 2025-01-18  
-**Autor:** Sistema DivulgaCarga
+**Documento criado em:** 2026-01-18  
+**Última atualização:** 2026-01-18  
+**Autor:** Atlas Cargo

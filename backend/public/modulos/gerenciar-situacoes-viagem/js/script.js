@@ -1,5 +1,6 @@
 // backend/public/modulos/gerenciar-situacoes-viagem/js/script.js
 (function() {
+  const t = function(k) { return typeof window.tWeb === 'function' ? window.tWeb(k) : k; };
   const tabs = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
   const filtroForm = document.getElementById('filtroForm');
@@ -108,7 +109,7 @@
       const countEl = document.getElementById('situacoesGridCountText');
       if (countEl) {
         const count = situacoes.length || 0;
-        countEl.textContent = `${count} registro(s) encontrado(s)`;
+        countEl.textContent = (t('web.modulos.cidades.registrosEncontrados') || '{n} registro(s) encontrado(s)').replace('{n}', String(count));
       }
       // Se já existe uma instância do Grid na aba, atualizá-la imediatamente
       if (typeof window.GridEditor !== 'undefined' && gridTab) {
@@ -175,7 +176,7 @@
       showTab(openTab);
     } catch (err) {
       console.error('Erro ao aplicar filtros:', err);
-      showMessage('Erro ao carregar situações.', 'error');
+      showMessage(t('web.modulos.situacoesViagem.erroCarregarSituacoes'), 'error');
     }
   }
   function inicializarGridTab() {
@@ -188,8 +189,8 @@
       container: '#situacoesGrid',
       columns: [
         { field: 'CDSITUACAOVIAGEM', header: 'Código', editable: false, isId: true, width: '80px' },
-        { field: 'DSSITUACAOVIAGEM', header: 'Descrição', editable: true, type: 'text', width: '360px', maxlength: 40 },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px',
+        { field: 'DSSITUACAOVIAGEM', header: 'Descrição', editable: true, type: 'text', maxlength: 40 },
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px', align: 'right',
           options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }
@@ -306,7 +307,7 @@
         // Validar ID
         if (!id || id === 'null' || id === 'undefined' || id === '') {
           console.error('ID inválido:', id, 'Elemento:', e.currentTarget);
-          showMessage('Erro: ID não disponível.', 'error');
+          showMessage(t('web.modulos.situacoesViagem.erroIdIndisponivel'), 'error');
           return;
         }
         
@@ -334,18 +335,18 @@
         document.getElementById('situacaoCodigo').value = situacao.CDSITUACAOVIAGEM;
         document.getElementById('situacaoDescricao').value = situacao.DSSITUACAOVIAGEM;
         document.getElementById('situacaoSituacao').value = situacao.FGACTIVE;
-        document.getElementById('formTitle').textContent = 'Editar Situação de Viagem';
+        document.getElementById('formTitle').textContent = t('web.modulos.situacoesViagem.editarSituacao');
         showTab('dados');
       }
     } catch (err) {
       console.error('Erro ao carregar situação:', err);
-      showMessage('Erro ao carregar dados para edição.', 'error');
+      showMessage(t('web.modulos.situacoesViagem.erroCarregarDados'), 'error');
     }
   }
 
   async function confirmarExclusao(id) {
     if (!id || id === 'undefined' || id === 'null' || id === '' || String(id).trim() === '') {
-      showMessage('Erro: ID não disponível.', 'error');
+      showMessage(t('web.modulos.situacoesViagem.erroIdIndisponivel'), 'error');
       return;
     }
     
@@ -373,13 +374,13 @@
       // Definir mensagem e ação baseado no status atual
       let confirmMsg, action, btnText;
       if (estaAtivo) {
-        confirmMsg = 'Tem certeza que deseja <strong>desativar</strong> esta situação de viagem?<br><br><small style="color: #666;">A situação ficará inativa e não aparecerá nas listagens padrão.</small>';
+        confirmMsg = t('web.modulos.situacoesViagem.msgDesativar');
         action = 'deactivate';
-        btnText = 'Desativar';
+        btnText = t('web.modulos.situacoesViagem.desativar');
       } else {
-        confirmMsg = 'Tem certeza que deseja <strong>reativar</strong> esta situação de viagem?<br><br><small style="color: #666;">A situação voltará a aparecer nas listagens e estará disponível para uso.</small>';
+        confirmMsg = t('web.modulos.situacoesViagem.msgReativar');
         action = 'activate';
-        btnText = 'Reativar';
+        btnText = t('web.modulos.situacoesViagem.reativar');
       }
       
       if (modalMessage) modalMessage.innerHTML = confirmMsg;
@@ -402,7 +403,7 @@
           const acao = modalEl.dataset.action || action;
           
           if (!deleteId || deleteId === 'undefined' || deleteId === 'null' || deleteId === '') {
-            showMessage('Erro: ID não disponível.', 'error');
+            showMessage(t('web.modulos.situacoesViagem.erroIdIndisponivel'), 'error');
             modalEl.style.display = 'none';
             return;
           }
@@ -414,15 +415,15 @@
           
           const data = await response.json();
           if (response.ok) {
-            showMessage(data.message || (acao === 'activate' ? 'Situação de viagem reativada com sucesso!' : 'Situação de viagem desativada com sucesso!'), 'success');
+            showMessage(data.message || (acao === 'activate' ? t('web.modulos.situacoesViagem.sucessoReativar') : t('web.modulos.situacoesViagem.sucessoDesativar')), 'success');
             showTab('grid');
             applyFilters('grid');
           } else {
-            showMessage(data.error || 'Erro ao alterar status da situação.', 'error');
+            showMessage(data.error || t('web.modulos.situacoesViagem.erroAlterarStatus'), 'error');
           }
         } catch (err) {
           console.error('[Situacoes] Erro ao alterar status:', err);
-          showMessage('Erro de conexão.', 'error');
+          showMessage(t('web.modulos.situacoesViagem.erroConexao'), 'error');
         } finally {
           modalEl.style.display = 'none';
           delete modalEl.dataset.deleteId;
@@ -439,18 +440,31 @@
       modalEl.style.display = 'block';
     } catch (err) {
       console.error('[Situacoes] Erro ao buscar status da situação:', err);
-      showMessage('Erro ao verificar status da situação.', 'error');
+      showMessage(t('web.modulos.situacoesViagem.erroVerificarStatus'), 'error');
     }
   }
 
+  let situacaoFormSubmitting = false;
   situacaoForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    e.stopImmediatePropagation();
+    if (situacaoFormSubmitting) return;
+    situacaoFormSubmitting = true;
+    const btnSubmit = situacaoForm?.querySelector('button[type="submit"]');
+    const labelOriginal = btnSubmit?.innerHTML ?? '';
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = '<i class=\'bx bx-loader-alt bx-spin\'></i> Salvando...';
+    }
+
     const id = document.getElementById('situacaoCodigo')?.value;
     const descricao = document.getElementById('situacaoDescricao')?.value.trim();
     const situacao = document.getElementById('situacaoSituacao')?.value;
-    
+
     if (!descricao || !situacao) {
-      showMessage('Preencha todos os campos obrigatórios.', 'error');
+      showMessage(t('web.modulos.situacoesViagem.preenchaCampos'), 'error');
+      situacaoFormSubmitting = false;
+      if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = labelOriginal; }
       return;
     }
 
@@ -475,15 +489,24 @@
 
       const data = await response.json();
       if (response.ok) {
-        showMessage(data.message, 'success');
+        showMessage(data.message || t('web.modulos.situacoesViagem.sucessoSalvar'), 'success');
         showTab('grid');
         applyFilters('grid');
       } else {
-        showMessage(data.error, 'error');
+        showMessage(data.error || t('web.modulos.situacoesViagem.erroSalvar'), 'error');
       }
     } catch (err) {
       console.error('Erro ao salvar:', err);
-      showMessage('Erro de conexão.', 'error');
+      showMessage(t('web.modulos.situacoesViagem.erroConexao'), 'error');
+    } finally {
+      // Cooldown para evitar duplo envio (Enter + clique ou duplo clique)
+      setTimeout(() => {
+        situacaoFormSubmitting = false;
+        if (btnSubmit) {
+          btnSubmit.disabled = false;
+          btnSubmit.innerHTML = labelOriginal;
+        }
+      }, 600);
     }
   });
 
@@ -509,7 +532,7 @@
   document.getElementById('btnVoltarFiltros')?.addEventListener('click', () => showTab('filtros'));
   document.getElementById('btnNovoRegistro')?.addEventListener('click', () => {
     situacaoForm?.reset();
-    document.getElementById('formTitle').textContent = 'Nova Situação de Viagem';
+    document.getElementById('formTitle').textContent = t('web.modulos.situacoesViagem.novaSituacao');
     showTab('dados');
   });
 
@@ -520,7 +543,7 @@
 
   document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
     situacaoForm?.reset();
-    document.getElementById('formTitle').textContent = 'Nova Situação de Viagem';
+    document.getElementById('formTitle').textContent = t('web.modulos.situacoesViagem.novaSituacao');
     showTab('dados');
   });
   document.getElementById('btnCancelar')?.addEventListener('click', () => showTab('grid'));

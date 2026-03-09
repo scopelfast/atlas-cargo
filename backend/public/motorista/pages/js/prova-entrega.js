@@ -1,7 +1,7 @@
 // backend/public/motorista/pages/js/prova-entrega.js
 // Comprovação de Entrega (POD - Proof of Delivery)
 // Versão: 1.0
-// Data: 2025-01-16
+// Data: 2026-01-16
 
 (function() {
   if (!verificarAuth()) {
@@ -28,7 +28,7 @@
     idViagem = params.get('viagem') || localStorage.getItem('viagemAtual');
 
     if (!idViagem) {
-      mostrarToast('Nenhuma viagem selecionada. Redirecionando...', 'warning');
+      mostrarToast(typeof window.t === 'function' ? window.t('comprovarEntrega.nenhumaViagemSelecionada') : 'Nenhuma viagem selecionada. Redirecionando...', 'warning');
       setTimeout(() => {
       window.location.href = 'viagens.html';
       }, 2000);
@@ -67,9 +67,10 @@
 
         if (!viagem || !viagem.IDVIAGEM) {
           console.error('❌ Dados da viagem inválidos:', data);
+          var errDados = typeof window.t === 'function' ? window.t('comprovarEntrega.erroCarregarDados') : 'Erro ao carregar dados da viagem';
           document.getElementById('viagemInfo').innerHTML = `
             <div style="color: #e74c3c; padding: 20px; text-align: center;">
-              <strong>⚠️ Erro ao carregar dados da viagem</strong><br>
+              <strong>⚠️ ` + errDados + `</strong><br>
               <small>ID: ${idViagem}</small>
             </div>
           `;
@@ -80,7 +81,7 @@
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
             <div>
               <strong>ID Viagem:</strong><br>
-              <span style="color: #667eea; font-size: 18px; font-weight: 700;">#${viagem.IDVIAGEM}</span>
+              <span style="color: #0ea5e9; font-size: 18px; font-weight: 700;">#${viagem.IDVIAGEM}</span>
             </div>
             <div>
               <strong>Roteiro:</strong><br>
@@ -99,9 +100,10 @@
       } else {
         const errorText = await response.text();
         console.error('❌ Erro ao carregar viagem:', response.status, errorText);
+        var errViagem = typeof window.t === 'function' ? window.t('comprovarEntrega.erroCarregarViagem') : 'Erro ao carregar viagem';
         document.getElementById('viagemInfo').innerHTML = `
           <div style="color: #e74c3c; padding: 20px; text-align: center;">
-            <strong>⚠️ Erro ao carregar viagem</strong><br>
+            <strong>⚠️ ` + errViagem + `</strong><br>
             <small>Status: ${response.status}</small>
           </div>
         `;
@@ -124,13 +126,13 @@
 
       // Validar tipo
       if (!file.type.startsWith('image/')) {
-        mostrarToast('Por favor, selecione uma imagem', 'warning');
+        mostrarToast(typeof window.t === 'function' ? window.t('comprovarEntrega.porFavorImagem') : 'Por favor, selecione uma imagem', 'warning');
         return;
       }
 
       // Validar tamanho (máximo 5MB)
       if (file.size > 5 * 1024 * 1024) {
-        mostrarToast('Foto muito grande. Máximo 5MB.', 'warning');
+        mostrarToast(typeof window.t === 'function' ? window.t('comprovarEntrega.fotoMuitoGrande') : 'Foto muito grande. Máximo 5MB.', 'warning');
         return;
       }
 
@@ -234,7 +236,7 @@
     // Validações
     const receiverName = document.getElementById('receiverName').value.trim();
     if (!receiverName) {
-      mostrarToast('Por favor, informe o nome do recebedor', 'warning');
+      mostrarToast(typeof window.t === 'function' ? window.t('comprovarEntrega.informeNomeRecebedor') : 'Por favor, informe o nome do recebedor', 'warning');
       return;
     }
 
@@ -249,7 +251,7 @@
     }
 
     if (!photoData && !signatureData) {
-      mostrarToast('Por favor, capture pelo menos uma foto ou uma assinatura', 'warning');
+      mostrarToast(typeof window.t === 'function' ? window.t('comprovarEntrega.captureFotoOuAssinatura') : 'Por favor, capture pelo menos uma foto ou uma assinatura', 'warning');
       return;
     }
 
@@ -296,12 +298,12 @@
     // Desabilitar botão
     const btnSalvar = document.getElementById('btnSalvar');
     btnSalvar.disabled = true;
-    btnSalvar.textContent = '⏳ Salvando...';
+    btnSalvar.textContent = '⏳ ' + (typeof window.t === 'function' ? window.t('comprovarEntrega.salvando') : 'Salvando...');
 
     const statusDiv = document.getElementById('submitStatus');
     statusDiv.style.display = 'block';
     statusDiv.className = 'status-indicator pending';
-    statusDiv.textContent = '⏳ Salvando comprovante...';
+    statusDiv.textContent = '⏳ ' + (typeof window.t === 'function' ? window.t('comprovarEntrega.salvandoComprovante') : 'Salvando comprovante...');
 
     try {
       // Tentar salvar online
@@ -321,45 +323,73 @@
         if (response.ok) {
           // Sucesso online
           statusDiv.className = 'status-indicator success';
-          statusDiv.textContent = '✅ Comprovante salvo com sucesso!';
+          statusDiv.textContent = '✅ ' + (typeof window.t === 'function' ? window.t('comprovarEntrega.comprovanteSalvoSucesso') : 'Comprovante salvo com sucesso!');
           
           setTimeout(() => {
             voltar();
           }, 1500);
           return;
         }
+
+        // Resposta do servidor mas com erro (500, 400, etc.) – não é “offline”
+        if (window.OfflineDB) {
+          await window.OfflineDB.adicionarFila('filaComprovantes', {
+            ...dados,
+            endpoint: '/api/motorista/delivery-proof',
+            method: 'POST'
+          });
+          statusDiv.className = 'status-indicator pending';
+          statusDiv.textContent = '⚠️ ' + (typeof window.t === 'function' ? window.t('comprovarEntrega.erroServidorFila') : 'Erro no servidor. Comprovante salvo na fila e será enviado em breve.');
+          setTimeout(() => voltar(), 3000);
+          return;
+        }
       }
 
-      // Se chegou aqui, está offline ou falhou - adicionar à fila
+      // Sem conexão (fetch falhou, ex.: rede fora) – mostrar mensagem de offline
       if (window.OfflineDB) {
         await window.OfflineDB.adicionarFila('filaComprovantes', {
           ...dados,
           endpoint: '/api/motorista/delivery-proof',
           method: 'POST'
         });
-
         statusDiv.className = 'status-indicator pending';
-        statusDiv.textContent = '📴 Offline - Será enviado quando online';
-        
-        setTimeout(() => {
-          voltar();
-        }, 2000);
+        statusDiv.textContent = '📴 ' + (typeof window.t === 'function' ? window.t('comprovarEntrega.offlineSeraEnviado') : 'Offline - Será enviado quando online');
+        setTimeout(() => voltar(), 2000);
       } else {
         throw new Error('Sistema offline não disponível');
       }
     } catch (err) {
       console.error('Erro ao salvar comprovante:', err);
-      mostrarToast('Erro ao salvar comprovante: ' + err.message, 'error');
-      
+      // Falha de rede (sem resposta) – salvar na fila e mostrar offline
+      if (window.OfflineDB) {
+        try {
+          await window.OfflineDB.adicionarFila('filaComprovantes', {
+            ...dados,
+            endpoint: '/api/motorista/delivery-proof',
+            method: 'POST'
+          });
+          statusDiv.className = 'status-indicator pending';
+          statusDiv.textContent = '📴 ' + (typeof window.t === 'function' ? window.t('comprovarEntrega.semConexaoSeraEnviado') : 'Sem conexão - Será enviado quando online');
+          setTimeout(() => voltar(), 2000);
+          return;
+        } catch (e) {
+          console.error('Erro ao salvar na fila:', e);
+        }
+      }
+      var errMsg = (typeof window.t === 'function' ? window.t('comprovarEntrega.erroSalvarComprovante') : 'Erro ao salvar comprovante') + ': ' + err.message;
+      mostrarToast(errMsg, 'error');
       btnSalvar.disabled = false;
-      btnSalvar.textContent = '✅ Salvar Comprovante de Entrega';
+      btnSalvar.textContent = '✅ ' + (typeof window.t === 'function' ? window.t('comprovarEntrega.salvarComprovante') : 'Salvar Comprovante de Entrega');
       statusDiv.style.display = 'none';
     }
   }
 
   // ==========================================
-  // NAVEGAÇÃO
+  // NAVEGAÇÃO E EXPOSIÇÃO PARA ONCLICK NO HTML
   // ==========================================
+  window.capturarFoto = capturarFoto;
+  window.salvarComprovante = salvarComprovante;
+  window.limparAssinatura = limparAssinatura;
   window.voltar = function() {
     window.location.href = 'viagens.html';
   };
@@ -373,10 +403,17 @@
     }
   }
 
-  // Inicializar quando DOM estiver pronto
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
+  // Inicializar quando DOM e i18n estiverem prontos
+  function runInit() {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', init);
+    } else {
+      init();
+    }
+  }
+  if (window.i18nReady) {
+    window.i18nReady.then(runInit);
   } else {
-    init();
+    runInit();
   }
 })();

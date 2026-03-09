@@ -18,36 +18,28 @@ const { poolPromise } = require('../config/db');
 async function registrarAcao(dados) {
   try {
     const pool = await poolPromise;
-    
     const detalhesJson = dados.detalhes ? JSON.stringify(dados.detalhes) : null;
-    
-    const result = await pool
-      .request()
-      .input('sgUsuario', dados.sgUsuario)
-      .input('tipoAcao', dados.tipoAcao)
-      .input('modulo', dados.modulo || null)
-      .input('descricao', dados.descricao || null)
-      .input('detalhes', detalhesJson)
-      .input('idRegistro', dados.idRegistro || null)
-      .input('tabela', dados.tabela || null)
-      .input('ip', dados.ip || null)
-      .input('userAgent', dados.userAgent || null)
-      .query(`
-        INSERT INTO USUARIOLOGACAO (
-          SGUSUARIO, [DHAÇÃO], TIPOACAO, MODULO, DESCRICAO, DETALHES, 
-          IDREGISTRO, TABELA, IP, USERAGENT, DHMAINTENANCE
-        )
-        OUTPUT INSERTED.ID
-        VALUES (
-          @sgUsuario, GETDATE(), @tipoAcao, @modulo, @descricao, @detalhes,
-          @idRegistro, @tabela, @ip, @userAgent, GETDATE()
-        )
-      `);
-    
-    return result.recordset[0]?.ID;
+    const result = await pool.query(
+      `INSERT INTO "USUARIOLOGACAO" (
+        "SGUSUARIO", "DHAÇÃO", "TIPOACAO", "MODULO", "DESCRICAO", "DETALHES",
+        "IDREGISTRO", "TABELA", "IP", "USERAGENT", "DHMAINTENANCE"
+      ) VALUES ($1, CURRENT_TIMESTAMP, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
+      RETURNING "ID"`,
+      [
+        dados.sgUsuario,
+        dados.tipoAcao || null,
+        dados.modulo || null,
+        dados.descricao || null,
+        detalhesJson,
+        dados.idRegistro || null,
+        dados.tabela || null,
+        dados.ip || null,
+        dados.userAgent || null
+      ]
+    );
+    return result.rows[0]?.ID ?? null;
   } catch (err) {
     console.error('Erro em usuariologacao.model.registrarAcao:', err);
-    // Não lançar erro para não quebrar o fluxo principal
     return null;
   }
 }
@@ -66,44 +58,42 @@ async function registrarAcao(dados) {
 async function buscarLogs(sgUsuario, filtros = {}) {
   try {
     const pool = await poolPromise;
-    let query = `
-      SELECT TOP ${filtros.limit || 1000}
-        ID, SGUSUARIO, [DHAÇÃO], TIPOACAO, MODULO, DESCRICAO, 
-        DETALHES, IDREGISTRO, TABELA, IP, USERAGENT
-      FROM USUARIOLOGACAO
-      WHERE SGUSUARIO = @sgUsuario
-    `;
-    
-    const request = pool.request().input('sgUsuario', sgUsuario);
-    
+    const limit = Math.min(Number(filtros.limit) || 1000, 5000);
+    const params = [sgUsuario];
+    let paramIdx = 2;
+    let where = ' WHERE "SGUSUARIO" = $1';
     if (filtros.tipoAcao) {
-      query += ' AND TIPOACAO = @tipoAcao';
-      request.input('tipoAcao', filtros.tipoAcao);
+      where += ` AND "TIPOACAO" = $${paramIdx}`;
+      params.push(filtros.tipoAcao);
+      paramIdx++;
     }
-    
     if (filtros.modulo) {
-      query += ' AND MODULO = @modulo';
-      request.input('modulo', filtros.modulo);
+      where += ` AND "MODULO" = $${paramIdx}`;
+      params.push(filtros.modulo);
+      paramIdx++;
     }
-    
     if (filtros.dataInicio) {
-      query += ' AND [DHAÇÃO] >= @dataInicio';
-      request.input('dataInicio', filtros.dataInicio);
+      where += ` AND "DHAÇÃO" >= $${paramIdx}`;
+      params.push(filtros.dataInicio);
+      paramIdx++;
     }
-    
     if (filtros.dataFim) {
-      query += ' AND [DHAÇÃO] <= @dataFim';
-      request.input('dataFim', filtros.dataFim);
+      where += ` AND "DHAÇÃO" <= $${paramIdx}`;
+      params.push(filtros.dataFim);
+      paramIdx++;
     }
-    
-    query += ' ORDER BY [DHAÇÃO] DESC';
-    
-    const result = await request.query(query);
-    
-    // Parsear JSON dos detalhes
-    return result.recordset.map(log => ({
+    params.push(limit);
+    const result = await pool.query(
+      `SELECT "ID", "SGUSUARIO", "DHAÇÃO", "TIPOACAO", "MODULO", "DESCRICAO",
+        "DETALHES", "IDREGISTRO", "TABELA", "IP", "USERAGENT"
+       FROM "USUARIOLOGACAO" ${where}
+       ORDER BY "DHAÇÃO" DESC
+       LIMIT $${params.length}`,
+      params
+    );
+    return (result.rows || []).map(log => ({
       ...log,
-      detalhes: log.DETALHES ? JSON.parse(log.DETALHES) : null
+      detalhes: log.DETALHES || log.detalhes ? JSON.parse(log.DETALHES || log.detalhes) : null
     }));
   } catch (err) {
     console.error('Erro em usuariologacao.model.buscarLogs:', err);

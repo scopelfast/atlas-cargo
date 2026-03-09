@@ -18,131 +18,128 @@ const mapaViagemController = {
       // Query otimizada: pegar apenas a última posição de cada VIAGEM
       // Usando ROW_NUMBER para pegar apenas o registro mais recente por viagem
       let query = `
-        WITH UltimaPosicao AS (
+        WITH [UltimaPosicao] AS (
           SELECT 
-            RV.IDVIAGEM AS VIAGEM,
-            RV.LATITUDE,
-            RV.LONGITUDE,
-            RV.DSPOSICAO,
-            RV.DHPOSICAO,
-            NM.RZSOCIAL AS NMMOTORISTA,
-            E.REFEQUIPAMENTO AS PLACA,
-            R.DSROTEIRO,
-            co.ESTADO AS ORIGEM_ESTADO,
-            co.NMCIDADE AS ORIGEM_CIDADE,
-            co.CDUF AS ORIGEM_CDUF,
-            cd.ESTADO AS DESTINO_ESTADO,
-            cd.NMCIDADE AS DESTINO_CIDADE,
-            cd.CDUF AS DESTINO_CDUF,
+            [RV].[IDVIAGEM] AS [VIAGEM],
+            [RV].[LATITUDE],
+            [RV].[LONGITUDE],
+            [RV].[DSPOSICAO],
+            [RV].[DHPOSICAO],
+            [NM].[RZSOCIAL] AS [NMMOTORISTA],
+            [E].[REFEQUIPAMENTO] AS [PLACA],
+            [R].[DSROTEIRO],
+            [co].[ESTADO] AS [ORIGEM_ESTADO],
+            [co].[NMCIDADE] AS [ORIGEM_CIDADE],
+            [co].[CDUF] AS [ORIGEM_CDUF],
+            [cd].[ESTADO] AS [DESTINO_ESTADO],
+            [cd].[NMCIDADE] AS [DESTINO_CIDADE],
+            [cd].[CDUF] AS [DESTINO_CDUF],
             ROW_NUMBER() OVER (
-              PARTITION BY RV.IDVIAGEM 
-              ORDER BY RV.SEQUENCIA DESC, RV.DHPOSICAO DESC
-            ) AS RN
-          FROM VIAGEMRASTREAMENTO RV
-          INNER JOIN VIAGEMMESTRE VM ON RV.IDVIAGEM = VM.IDVIAGEM
-          LEFT JOIN ROTEIRO R ON VM.IDROTEIRO = R.IDROTEIRO
-          LEFT JOIN CIDADE co ON R.CDCIDADEORIGEM = co.CDCIDADE
-          LEFT JOIN CIDADE cd ON R.CDCIDADEDESTINO = cd.CDCIDADE
-          LEFT JOIN VIAGEMMOTORISTA M ON RV.IDVIAGEM = M.IDVIAGEM
-          LEFT JOIN CADASTROGERAL NM ON M.CDMOTORISTA = NM.CDCADASTRO
-          LEFT JOIN VIAGEMVEICULO V ON RV.IDVIAGEM = V.IDVIAGEM
-          LEFT JOIN EQUIPAMENTO E ON V.IDEQUIPAMENTO = E.IDEQUIPAMENTO
-          WHERE VM.CDSITUACAOVIAGEM > 1 
-            AND VM.CDSITUACAOVIAGEM < 14
-            AND RV.LATITUDE IS NOT NULL 
-            AND RV.LONGITUDE IS NOT NULL
+              PARTITION BY [RV].[IDVIAGEM]
+              ORDER BY [RV].[SEQUENCIA] DESC, [RV].[DHPOSICAO] DESC
+            ) AS [RN]
+          FROM [dbo].[VIAGEMRASTREAMENTO] [RV]
+          INNER JOIN [dbo].[VIAGEMMESTRE] [VM] ON [RV].[IDVIAGEM] = [VM].[IDVIAGEM]
+          LEFT JOIN [dbo].[ROTEIRO] [R] ON [VM].[IDROTEIRO] = [R].[IDROTEIRO]
+          LEFT JOIN [dbo].[CIDADE] [co] ON [R].[CDCIDADEORIGEM] = [co].[CDCIDADE]
+          LEFT JOIN [dbo].[CIDADE] [cd] ON [R].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
+          LEFT JOIN [dbo].[VIAGEMMOTORISTA] [M] ON [RV].[IDVIAGEM] = [M].[IDVIAGEM]
+          LEFT JOIN [dbo].[CADASTROGERAL] [NM] ON [M].[CDMOTORISTA] = [NM].[CDCADASTRO]
+          LEFT JOIN [dbo].[VIAGEMVEICULO] [V] ON [RV].[IDVIAGEM] = [V].[IDVIAGEM]
+          LEFT JOIN [dbo].[EQUIPAMENTO] [E] ON [V].[IDEQUIPAMENTO] = [E].[IDEQUIPAMENTO]
+          WHERE [VM].[CDSITUACAOVIAGEM] > 1
+            AND [VM].[CDSITUACAOVIAGEM] < 14
+            AND [RV].[LATITUDE] IS NOT NULL
+            AND [RV].[LONGITUDE] IS NOT NULL
       `;
 
       const request = pool.request();
 
       // Aplicar filtros
       if (idViagem) {
-        query += ` AND VM.IDVIAGEM = @IDVIAGEM`;
+        query += ` AND [VM].[IDVIAGEM] = @IDVIAGEM`;
         request.input('IDVIAGEM', parseInt(idViagem));
       }
       if (situacaoViagem) {
-        query += ` AND VM.FGSITVIAGEM = @SITUACAOVIAGEM`;
+        query += ` AND [VM].[FGSITVIAGEM] = @SITUACAOVIAGEM`;
         request.input('SITUACAOVIAGEM', situacaoViagem);
       }
       if (tipoViagem) {
-        query += ` AND VM.CDTIPOVIAGEM = @TIPOVIAGEM`;
+        query += ` AND [VM].[CDTIPOVIAGEM] = @TIPOVIAGEM`;
         request.input('TIPOVIAGEM', parseInt(tipoViagem));
       }
       if (classeFrota) {
-        query += ` AND VM.CDCLASSEFROTA = @CLASSEFROTA`;
+        query += ` AND [VM].[CDCLASSEFROTA] = @CLASSEFROTA`;
         request.input('CLASSEFROTA', parseInt(classeFrota));
       }
       if (contratador) {
-        query += ` AND VM.CDCONTRATADOR = @CONTRATADOR`;
+        query += ` AND [VM].[CDCONTRATADOR] = @CONTRATADOR`;
         request.input('CONTRATADOR', parseInt(contratador));
       }
       if (roteiro) {
-        query += ` AND VM.IDROTEIRO = @ROTEIRO`;
+        query += ` AND [VM].[IDROTEIRO] = @ROTEIRO`;
         request.input('ROTEIRO', parseInt(roteiro));
       }
       if (dataInicio) {
-        query += ` AND VM.DTPREVINICIO >= @DATAINICIO`;
+        query += ` AND [VM].[DTPREVINICIO] >= @DATAINICIO`;
         request.input('DATAINICIO', dataInicio);
       }
       if (dataFim) {
-        query += ` AND VM.DTPREVFINAL <= @DATAFIM`;
+        query += ` AND [VM].[DTPREVFINAL] <= @DATAFIM`;
         request.input('DATAFIM', dataFim);
       }
       if (rastreado) {
-        // Filtrar apenas veículos rastreados (FGRASTREADO = 'S')
         if (rastreado === 'S') {
-          query += ` AND E.FGRASTREADO = 'S'`;
+          query += ` AND [E].[FGRASTREADO] = 'S'`;
         } else if (rastreado === 'N') {
-          query += ` AND (E.FGRASTREADO IS NULL OR E.FGRASTREADO = 'N')`;
+          query += ` AND ([E].[FGRASTREADO] IS NULL OR [E].[FGRASTREADO] = 'N')`;
         }
       }
       if (motoristaConfirmado === 'S') {
         query += ` AND EXISTS (
-          SELECT 1 FROM CONVOCACAO C 
-          WHERE C.IDVIAGEM = VM.IDVIAGEM 
-          AND C.STATUS = 'CONFIRMADA'
+          SELECT 1 FROM [dbo].[CONVOCACAO] [C]
+          WHERE [C].[IDVIAGEM] = [VM].[IDVIAGEM]
+          AND [C].[STATUS] = 'CONFIRMADA'
         )`;
       } else if (motoristaConfirmado === 'N') {
         query += ` AND NOT EXISTS (
-          SELECT 1 FROM CONVOCACAO C 
-          WHERE C.IDVIAGEM = VM.IDVIAGEM 
-          AND C.STATUS = 'CONFIRMADA'
+          SELECT 1 FROM [dbo].[CONVOCACAO] [C]
+          WHERE [C].[IDVIAGEM] = [VM].[IDVIAGEM]
+          AND [C].[STATUS] = 'CONFIRMADA'
         )`;
       }
 
-      // Filtros de origem/destino (via roteiro - usando JOIN já feito)
       if (origemEstado) {
-        query += ` AND co.CDUF = @ORIGEMESTADO`;
+        query += ` AND [co].[CDUF] = @ORIGEMESTADO`;
         request.input('ORIGEMESTADO', parseInt(origemEstado));
       }
       if (origemCidade) {
-        query += ` AND co.NMCIDADE LIKE @ORIGEMCIDADE`;
+        query += ` AND [co].[NMCIDADE] LIKE @ORIGEMCIDADE`;
         request.input('ORIGEMCIDADE', `%${origemCidade}%`);
       }
       if (destinoEstado) {
-        query += ` AND cd.CDUF = @DESTINOESTADO`;
+        query += ` AND [cd].[CDUF] = @DESTINOESTADO`;
         request.input('DESTINOESTADO', parseInt(destinoEstado));
       }
       if (destinoCidade) {
-        query += ` AND cd.NMCIDADE LIKE @DESTINOCIDADE`;
+        query += ` AND [cd].[NMCIDADE] LIKE @DESTINOCIDADE`;
         request.input('DESTINOCIDADE', `%${destinoCidade}%`);
       }
 
-      // Finalizar query: pegar apenas RN = 1 (última posição de cada placa)
       query += `
         )
         SELECT 
-          VIAGEM,
-          LATITUDE,
-          LONGITUDE,
-          DSPOSICAO,
-          DHPOSICAO,
-          NMMOTORISTA,
-          PLACA,
-          DSROTEIRO
-        FROM UltimaPosicao
-        WHERE RN = 1
-        ORDER BY PLACA, DHPOSICAO DESC
+          [VIAGEM],
+          [LATITUDE],
+          [LONGITUDE],
+          [DSPOSICAO],
+          [DHPOSICAO],
+          [NMMOTORISTA],
+          [PLACA],
+          [DSROTEIRO]
+        FROM [UltimaPosicao]
+        WHERE [RN] = 1
+        ORDER BY [PLACA], [DHPOSICAO] DESC
       `;
 
       const result = await request.query(query);

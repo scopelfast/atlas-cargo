@@ -55,7 +55,7 @@ backend/database/
 ├── migrations/        ← Scripts de alteração (adicionar, corrigir)
 │   ├── 2024-12-01_adicionar_campo_acesso.sql
 │   ├── 2024-12-15_corrigir_dhacesso.sql
-│   └── 2025-01-02_adicionar_motivoreabertura.sql
+│   └── 2026-01-02_adicionar_motivoreabertura.sql
 ├── procedures/        ← Stored Procedures reutilizáveis
 │   ├── sp_integracao_transportador.sql
 │   └── sp_sincronizar_viagens_completo.sql
@@ -86,7 +86,7 @@ backend/database/migrations/
 │   ├── 01_adicionar_campo_acesso.sql
 │   ├── 15_corrigir_dhacesso.sql
 │   └── 20_criar_tabela_logs.sql
-├── 2025-01/
+├── 2026-01/
 │   ├── 02_adicionar_motivoreabertura.sql
 │   └── 05_corrigir_migracao.sql
 └── procedures/
@@ -172,7 +172,7 @@ SysScopel/
 ### Migrations:
 ```
 YYYY-MM-DD_descricao_curta.sql
-2025-01-02_adicionar_campo_lat_long.sql
+2026-01-02_adicionar_campo_lat_long.sql
 ```
 
 ### Procedures:

@@ -3,8 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>sys - Divulga Cargas</title>
-  <link rel="icon" type="image/png" href="/img/logo7.png" id="faviconLink">
+  <title>Atlas Cargo</title>
+  <link rel="icon" type="image/png" href="/img/logoAtlasTransparente.png" id="faviconLink">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script>
     // INTERCEPTOR GLOBAL: Remover ? de todas as URLs
     (function() {
@@ -72,14 +75,14 @@
     
     // Configuração transparente de protocolo - respeita HTTP ou HTTPS usado
     (function() {
-      // Detectar se é ambiente local ou IntegraBrasil
+      // Detectar se é ambiente local ou Atlas Cargo (mesmo produto)
       const hostname = window.location.hostname;
       const isLocal = hostname === 'localhost' || 
                       hostname === '127.0.0.1' || 
                       hostname.startsWith('192.168.');
-      const isIntegraBrasil = hostname === 'app.integrabrasil.com' || 
-                              hostname === 'beta.integrabrasil.com' || 
-                              hostname.includes('integrabrasil.com');
+      const isAtlasCargo = hostname.includes('atlas') || 
+                           hostname.includes('atlas-cargo') || 
+                           hostname.includes('atlascargo');
       
       // IMPORTANTE: Usar o protocolo atual da página SEM REDIRECIONAMENTO
       // Se acessar via HTTP, usar HTTP; se via HTTPS, usar HTTPS
@@ -106,7 +109,7 @@
       
       const baseUrl = protocol + '//' + host + (pathBase === '/' ? '' : pathBase.replace(/\/$/, ''));
       
-      console.log('[DASHBOARD] Ambiente:', (isLocal || isIntegraBrasil) ? 'LOCAL/INTEGRABRASIL' : 'PRODUÇÃO', '| Protocol:', protocoloAtual, '| PathBase:', pathBase, '| BaseURL:', baseUrl);
+      console.log('[DASHBOARD] Ambiente: ATLAS CARGO | Protocol:', protocoloAtual, '| PathBase:', pathBase, '| BaseURL:', baseUrl);
       
       // Função para garantir que URLs usem o mesmo protocolo da página
       // Função para garantir protocolo consistente
@@ -183,7 +186,7 @@
       // Em desenvolvimento: usar timestamp atual (sempre atualizado)
       // Em produção: usar versão fixa (atualizada a cada deploy)
       const isDev = isLocal;
-      const cacheVersion = isDev ? Date.now() : '20250102';
+      const cacheVersion = isDev ? Date.now() : '20260102';
       
       // Armazenar globalmente para uso em scripts
       window.__CACHE_VERSION__ = cacheVersion;
@@ -195,7 +198,7 @@
       // Corrigir favicon
       const faviconLink = document.getElementById('faviconLink');
       if (faviconLink) {
-        faviconLink.href = baseUrl + '/img/logo7.png';
+        faviconLink.href = baseUrl + '/img/logoAtlasTransparente.png';
       }
       
       // Armazenar baseUrl globalmente
@@ -257,12 +260,12 @@
 </head>
 <body>
   <div class="sidebar">
-    <div class="logo" id="logoDivulgaCarga" style="cursor: pointer;" title="Voltar ao início">
-      <h1>Divulga<span>Carga</span></h1>
+    <div class="logo" id="logoAtlasCargo" style="cursor: pointer;" title="Voltar ao início - Atlas Cargo">
+      <img src="/img/logoAtlasTransparente.png" alt="Atlas Cargo" class="logo-img">
     </div>
     <div class="menu" id="menuContainer">
       <div class="menu-item">
-        <span>Carregando menu...</span>
+        <span data-i18n="web.menu.carregandoMenu">Carregando menu...</span>
       </div>
     </div>
   </div>
@@ -279,10 +282,15 @@
         </div>
       </div>
       <div style="display: flex; gap: 10px; align-items: center;">
-        <button class="logout-btn" id="docLink" style="background: #3498db; padding: 10px 20px;">
-          <i class='bx bx-book' style="margin-right: 5px;"></i>Documentação CSS
+        <div class="idioma-selector-dash" style="display: flex; align-items: center; gap: 6px;">
+          <span style="font-size: 0.8rem; color: var(--gray, #64748b);" data-i18n="web.dashboard.idioma">Idioma:</span>
+          <button type="button" class="logout-btn btn-idioma-dash" data-locale="pt-BR" title="Português" style="padding: 6px 10px; font-size: 0.85rem;">PT</button>
+          <button type="button" class="logout-btn btn-idioma-dash" data-locale="es-PY" title="Español" style="padding: 6px 10px; font-size: 0.85rem;">ES</button>
+        </div>
+        <button class="logout-btn" id="docLink">
+          <i class='bx bx-book'></i> <span data-i18n="web.dashboard.documentacaoCss">Documentação CSS</span>
         </button>
-        <button class="logout-btn" id="logoutBtn">Sair</button>
+        <button class="logout-btn" id="logoutBtn"><span data-i18n="web.dashboard.sair">Sair</span></button>
       </div>
     </div>
 
@@ -290,8 +298,8 @@
       <div id="contentArea">
         <!-- Área de Boas-vindas -->
         <div class="welcome-section">
-          <h3>Bem-vindo ao sistema!</h3>
-          <p>Selecione uma opção no menu lateral para começar.</p>
+          <h3 data-i18n="web.dashboard.bemVindo">Bem-vindo ao sistema!</h3>
+          <p data-i18n="web.dashboard.selecioneOpcao">Selecione uma opção no menu lateral para começar.</p>
         </div>
 
         <!-- Área de Conteúdo Customizável - Edite este bloco conforme necessário -->
@@ -403,13 +411,14 @@
       const isDevScripts = window.location.hostname === 'localhost' || 
                            window.location.hostname === '127.0.0.1' || 
                            window.location.hostname.startsWith('192.168.');
-      const cacheVer = isDevScripts ? Date.now() : '20250102';
+      const cacheVer = isDevScripts ? Date.now() : '20260102';
       
       const scripts = [
         `/js/ambiente-utils.js?v=${cacheVer}`,
         `/js/utils.js?v=${cacheVer}`,
         `/js/permissions.js?v=${cacheVer}`,
         `/js/log-helper.js?v=${cacheVer}`,
+        `/js/i18n-web.js?v=${cacheVer}`,
         `/js/dashboard.js?v=${cacheVer}`
       ];
       
@@ -434,9 +443,16 @@
       loadNext();
     })();
     
-    // Tratamento global de erros
+    // Tratamento global de erros (diagnóstico: script que pode ter causado parse error)
     window.addEventListener('error', function(e) {
-      console.error('❌ Erro global capturado:', e.error, e.message, e.filename, e.lineno);
+      const msg = e.message || (e.error && e.error.message) || '';
+      const isParseError = /unexpected end of input|unexpected token/i.test(msg);
+      let extra = '';
+      if (isParseError && (window.__dashboardLastLoadingScript || window.__dashboardLastLoadedScript)) {
+        extra = ' | Script em carga: ' + (window.__dashboardLastLoadingScript || '?') +
+                ' | Último carregado: ' + (window.__dashboardLastLoadedScript || '?');
+      }
+      console.error('❌ Erro global capturado:', msg, '| filename:', e.filename, '| linha:', e.lineno, '| col:', e.colno || '-', extra);
     });
     
     window.addEventListener('unhandledrejection', function(e) {

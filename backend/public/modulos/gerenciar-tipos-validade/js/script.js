@@ -1,5 +1,6 @@
 // backend/public/modulos/gerenciar-tipos-validade/js/script.js
 (function() {
+  const t = function(k) { return typeof window.tWeb === 'function' ? window.tWeb(k) : k; };
   const tabs = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
   const filtroForm = document.getElementById('filtroForm');
@@ -11,6 +12,17 @@
   
   let sqlExecutado = false;
   let initExecutado = false;
+
+  function getAuthHeaders(extra = {}) {
+    const headers = { ...extra };
+    const token = localStorage.getItem('token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      if (user && (user.login || user.SGUSUARIO)) headers['user-login'] = user.login || user.SGUSUARIO;
+    } catch (e) {}
+    return headers;
+  }
 
   // Função para carregar e executar o arquivo init.sql
   async function executarInitSQL() {
@@ -93,7 +105,7 @@
 
       const countEl = document.getElementById('tiposGridCountText');
       if (countEl) {
-        countEl.textContent = `${tipos.length || 0} registro(s) encontrado(s)`;
+        countEl.textContent = (t('web.modulos.cidades.registrosEncontrados') || '{n} registro(s) encontrado(s)').replace('{n}', String(tipos.length || 0));
       }
 
       // Se já existe uma instância do Grid na aba, atualizá-la imediatamente
@@ -164,7 +176,7 @@
       showTab(openTab);
     } catch (err) {
       console.error('Erro ao aplicar filtros:', err);
-      showMessage('Erro ao carregar tipos.', 'error');
+      showMessage(t('web.modulos.tiposValidade.erroCarregarTipos'), 'error');
     }
   }
 
@@ -236,19 +248,17 @@
       container: container,
       columns: [
         { field: 'CDTIPOVALIDADE', header: 'Código', editable: false, isId: true, width: '80px' },
-        { field: 'DSTIPOVALIDADE', header: 'Descrição', editable: true, type: 'text', maxlength: 40, width: '200px' },
-        { field: 'FGVEICULO', header: 'Veículo', editable: true, type: 'select', options: [{value:'S',label:'Sim'},{value:'N',label:'Não'}], format: (v) => v==='S'?'✓':'✗', width: '80px' },
-        { field: 'FGMOTORISTA', header: 'Motorista', editable: true, type: 'select', options: [{value:'S',label:'Sim'},{value:'N',label:'Não'}], format: (v) => v==='S'?'✓':'✗', width: '90px' },
-        { field: 'FGTRANSPORTADOR', header: 'Transportador', editable: true, type: 'select', options: [{value:'S',label:'Sim'},{value:'N',label:'Não'}], format: (v) => v==='S'?'✓':'✗', width: '120px' },
-        { field: 'FGCLIENTE', header: 'Cliente', editable: true, type: 'select', options: [{value:'S',label:'Sim'},{value:'N',label:'Não'}], format: (v) => v==='S'?'✓':'✗', width: '80px' },
-        { field: 'FGFORNECEDOR', header: 'Fornecedor', editable: true, type: 'select', options: [{value:'S',label:'Sim'},{value:'N',label:'Não'}], format: (v) => v==='S'?'✓':'✗', width: '100px' },
-        { field: 'FGEXIGECERTIFICADORA', header: 'Exige Certif.', editable: true, type: 'select', options: [{value:'S',label:'Sim'},{value:'N',label:'Não'}], format: (v) => v==='S'?'✓':'✗', width: '110px' }
+        { field: 'DSTIPOVALIDADE', header: 'Descrição', editable: true, type: 'text', maxlength: 40 },
+        { field: 'FGVEICULO', header: 'Veículo', editable: true, type: 'select', options: [{value:'S',label:'Sim'},{value:'N',label:'Não'}], format: (v) => v==='S'?'✓':'✗' },
+        { field: 'FGMOTORISTA', header: 'Motorista', editable: true, type: 'select', options: [{value:'S',label:'Sim'},{value:'N',label:'Não'}], format: (v) => v==='S'?'✓':'✗' },
+        { field: 'FGTRANSPORTADOR', header: 'Transportador', editable: true, type: 'select', options: [{value:'S',label:'Sim'},{value:'N',label:'Não'}], format: (v) => v==='S'?'✓':'✗' },
+        { field: 'FGEXIGECERTIFICADORA', header: 'Exige Certif.', editable: true, type: 'select', options: [{value:'S',label:'Sim'},{value:'N',label:'Não'}], format: (v) => v==='S'?'✓':'✗', width: '110px', align: 'right' }
       ],
       apiEndpoint: '/api/tipos-validade',
       onEdit: async (id, data) => {
         await fetch(`/api/tipos-validade/${id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(data)
         });
       },
@@ -276,15 +286,13 @@
         document.getElementById('tipoVeiculo').checked = tipo.FGVEICULO === 'S';
         document.getElementById('tipoMotorista').checked = tipo.FGMOTORISTA === 'S';
         document.getElementById('tipoTransportador').checked = tipo.FGTRANSPORTADOR === 'S';
-        document.getElementById('tipoCliente').checked = tipo.FGCLIENTE === 'S';
-        document.getElementById('tipoFornecedor').checked = tipo.FGFORNECEDOR === 'S';
         document.querySelector(`input[name="tipoExigeCertificadora"][value="${tipo.FGEXIGECERTIFICADORA}"]`).checked = true;
-        document.getElementById('formTitle').textContent = 'Editar Tipo de Validade';
+        document.getElementById('formTitle').textContent = t('web.modulos.tiposValidade.editarTipo');
         showTab('dados');
       }
     } catch (err) {
       console.error('Erro ao carregar tipo:', err);
-      showMessage('Erro ao carregar dados.', 'error');
+      showMessage(t('web.modulos.tiposValidade.erroCarregarDados'), 'error');
     }
   }
 
@@ -298,7 +306,7 @@
 
     if (!modalEl) return;
 
-    modalMessage.innerHTML = 'Tem certeza que deseja excluir este tipo de validade?';
+    modalMessage.innerHTML = t('web.modulos.tiposValidade.confirmarExcluir');
     modalEl.dataset.deleteId = String(id);
     
     const newYes = confirmYes.cloneNode(true);
@@ -309,17 +317,17 @@
     
     newYes.onclick = async () => {
       try {
-        const response = await fetch(`/api/tipos-validade/${id}`, { method: 'DELETE' });
+        const response = await fetch(`/api/tipos-validade/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
         const data = await response.json();
         
         if (response.ok) {
-          showMessage('Tipo excluído com sucesso!', 'success');
+          showMessage(t('web.modulos.tiposValidade.sucessoExcluir'), 'success');
           applyFilters('grid');
         } else {
-          showMessage(data.error || 'Erro ao excluir', 'error');
+          showMessage(data.error || t('web.modulos.tiposValidade.erroExcluir'), 'error');
         }
       } catch (err) {
-        showMessage('Erro de conexão.', 'error');
+        showMessage(t('web.modulos.tiposValidade.erroConexao'), 'error');
       } finally {
         modalEl.style.display = 'none';
       }
@@ -332,14 +340,27 @@
     modalEl.style.display = 'block';
   }
 
-  // Submit formulário
+  // Submit formulário (bloqueio no início para evitar cadastro duplicado)
+  let tipoValidadeFormSubmitting = false;
   tipoForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    e.stopImmediatePropagation();
+    if (tipoValidadeFormSubmitting) return;
+    tipoValidadeFormSubmitting = true;
+    const btnSubmit = tipoForm?.querySelector('button[type="submit"]');
+    const labelOriginal = btnSubmit?.innerHTML ?? '';
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = '<i class=\'bx bx-loader-alt bx-spin\'></i> Salvando...';
+    }
+
     const id = document.getElementById('tipoCodigo')?.value;
     const descricao = document.getElementById('tipoDescricao')?.value.trim();
-    
+
     if (!descricao) {
-      showMessage('Preencha a descrição.', 'error');
+      showMessage(t('web.modulos.tiposValidade.preenchaDescricao'), 'error');
+      tipoValidadeFormSubmitting = false;
+      if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = labelOriginal; }
       return;
     }
 
@@ -349,8 +370,8 @@
         FGVEICULO: document.getElementById('tipoVeiculo').checked ? 'S' : 'N',
         FGMOTORISTA: document.getElementById('tipoMotorista').checked ? 'S' : 'N',
         FGTRANSPORTADOR: document.getElementById('tipoTransportador').checked ? 'S' : 'N',
-        FGCLIENTE: document.getElementById('tipoCliente').checked ? 'S' : 'N',
-        FGFORNECEDOR: document.getElementById('tipoFornecedor').checked ? 'S' : 'N',
+        FGCLIENTE: 'N',
+        FGFORNECEDOR: 'N',
         FGEXIGECERTIFICADORA: document.querySelector('input[name="tipoExigeCertificadora"]:checked').value
       };
       
@@ -358,28 +379,36 @@
       if (id) {
         response = await fetch(`/api/tipos-validade/${id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(dados)
         });
       } else {
         response = await fetch('/api/tipos-validade', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(dados)
         });
       }
 
       const data = await response.json();
       if (response.ok) {
-        showMessage(data.message || 'Salvo com sucesso!', 'success');
+        showMessage(data.message || t('web.modulos.tiposValidade.sucessoSalvar'), 'success');
         showTab('grid');
         applyFilters('grid');
       } else {
-        showMessage(data.error || 'Erro ao salvar', 'error');
+        showMessage(data.error || t('web.modulos.tiposValidade.erroSalvar'), 'error');
       }
     } catch (err) {
       console.error('Erro ao salvar:', err);
-      showMessage('Erro de conexão.', 'error');
+      showMessage(t('web.modulos.tiposValidade.erroConexao'), 'error');
+    } finally {
+      setTimeout(() => {
+        tipoValidadeFormSubmitting = false;
+        if (btnSubmit) {
+          btnSubmit.disabled = false;
+          btnSubmit.innerHTML = labelOriginal;
+        }
+      }, 600);
     }
   });
 
@@ -403,7 +432,7 @@
   
   document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
     tipoForm?.reset();
-    document.getElementById('formTitle').textContent = 'Novo Tipo de Validade';
+    document.getElementById('formTitle').textContent = t('web.modulos.tiposValidade.novoTipo');
     document.getElementById('tipoCodigo').value = '';
     showTab('dados');
   });
@@ -454,7 +483,7 @@
             <li><strong>Filtros:</strong> Buscar e filtrar tipos de validade</li>
             <li><strong>Grid:</strong> Visualizar tipos de validade em formato de tabela</li>
             <li><strong>Dados:</strong> Criar e editar tipos de validade</li>
-            <li><strong>Aplicabilidade:</strong> Definir para quais tipos de cadastro cada validade se aplica (Veículo, Motorista, Transportador, Cliente, Fornecedor)</li>
+            <li><strong>Aplicabilidade:</strong> Definir para quais tipos de cadastro cada validade se aplica (Veículo, Motorista, Transportador)</li>
             <li><strong>Certificadora:</strong> Definir se o tipo de validade exige certificadora</li>
           </ul>
         </div>

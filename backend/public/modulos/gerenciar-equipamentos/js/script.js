@@ -1,5 +1,6 @@
 // backend/public/modulos/gerenciar-equipamentos/js/script.js
 (function() {
+  const t = function(k) { return typeof window.tWeb === 'function' ? window.tWeb(k) : k; };
   const tabs = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
   const filtroForm = document.getElementById('filtroForm');
@@ -13,6 +14,31 @@
   let lastEquipamentos = null;
   let sqlExecutado = false;
   let initExecutado = false;
+  let contextEquipamentos = { pais: 'BR' };
+
+  async function loadContextoEquipamentos() {
+    try {
+      const r = await fetch('/api/contexto');
+      const d = await r.json();
+      contextEquipamentos = d;
+      updateLabelPlaca();
+    } catch (e) {
+      console.warn('[Equipamentos] Erro ao carregar contexto:', e);
+    }
+  }
+  function updateLabelPlaca() {
+    const pais = (contextEquipamentos && contextEquipamentos.pais) || 'BR';
+    const labelTexto = pais === 'BR' ? 'Placa' : (pais === 'PY' || pais === 'AR' || pais === 'UY' ? 'Matrícula' : 'Referência');
+    const labelFiltro = document.getElementById('labelFiltroRef');
+    const labelForm = document.getElementById('labelEquipRef');
+    const placeholder = pais === 'BR' ? 'Digite a placa...' : (pais === 'PY' || pais === 'AR' || pais === 'UY' ? 'Digite la matrícula...' : 'Referência');
+    if (labelFiltro) labelFiltro.textContent = labelTexto;
+    if (labelForm) labelForm.textContent = labelTexto + ' *';
+    const inputRef = document.getElementById('equipRef');
+    if (inputRef) inputRef.placeholder = placeholder;
+    const filtroRef = document.getElementById('filtroRef');
+    if (filtroRef) filtroRef.placeholder = placeholder;
+  }
 
   // Função para carregar e executar o arquivo init.sql
   async function executarInitSQL() {
@@ -45,6 +71,9 @@
     
     // Marcar como executando IMEDIATAMENTE para evitar execuções simultâneas
     initExecutado = true;
+    
+    // Contexto (país) para label Placa/Matrícula (Fase 4 multimoeda)
+    loadContextoEquipamentos();
     
     // Aguardar um pouco para garantir que o DOM está totalmente renderizado
     await new Promise(resolve => setTimeout(resolve, 200));
@@ -230,7 +259,7 @@
         await confirmarExclusao(id);
       },
       onAfterEdit: (id) => {
-        showMessage('Alteração salva com sucesso!', 'success');
+        showMessage(t('web.modulos.equipamentos.sucessoSalvar'), 'success');
         // atualizar cache local mantendo sincronia
         if (lastEquipamentos) {
           const idx = lastEquipamentos.findIndex(r => String(r.IDEQUIPAMENTO) === String(id));
@@ -280,7 +309,7 @@
       combosCarregados = true;
     } catch (err) {
       console.error('Erro ao carregar combos:', err);
-      showMessage('Erro ao carregar opções. Verifique a conexão.', 'error');
+      showMessage(t('web.modulos.equipamentos.erroCarregarOpcoes'), 'error');
     }
   }
 
@@ -376,7 +405,7 @@
       const countEl = document.getElementById('equipamentosGridCountText');
       if (countEl) {
         const count = equipamentos.length || 0;
-        countEl.textContent = `${count} registro(s) encontrado(s)`;
+        countEl.textContent = (t('web.modulos.cidades.registrosEncontrados') || '{n} registro(s) encontrado(s)').replace('{n}', String(count));
       }
       
       // Se já existe uma instância do Grid na aba, atualizá-la imediatamente
@@ -450,7 +479,7 @@
       showTab(openTab);
     } catch (err) {
       console.error('Erro nos filtros:', err);
-      showMessage('Erro ao carregar equipamentos.', 'error');
+      showMessage(t('web.modulos.equipamentos.erroCarregarEquipamentos'), 'error');
     } finally {
       if (btnAplicar && typeof window.showLoading !== 'undefined') {
         window.showLoading(btnAplicar, false);
@@ -506,7 +535,7 @@
           }
         } else {
           console.error('ID inválido:', id);
-          showMessage('Erro: ID não disponível.', 'error');
+          showMessage(t('web.modulos.equipamentos.erroIdIndisponivel'), 'error');
         }
       });
     });
@@ -560,7 +589,7 @@
         }
         
         const title = document.getElementById('formTitle');
-        if (title) title.textContent = 'Editar Equipamento';
+        if (title) title.textContent = t('web.modulos.equipamentos.editarEquipamento');
         showTab('dados');
         
         // Carregar modelos com base na MARCA (não no tipo)
@@ -584,18 +613,18 @@
         }
       } else {
         console.error('❌ Equipamento não encontrado com ID:', id);
-        showMessage('Equipamento não encontrado para edição.', 'error');
+        showMessage(t('web.modulos.equipamentos.equipamentoNaoEncontrado'), 'error');
       }
     } catch (err) {
       console.error('Erro ao carregar equipamento:', err);
-      showMessage('Erro ao carregar dados para edição.', 'error');
+      showMessage(t('web.modulos.equipamentos.erroCarregarDados'), 'error');
     }
   }
 
   async function confirmarExclusao(id) {
     let idValido = id;
     if (idValido == null || idValido === 'undefined' || idValido === 'null' || idValido === '' || idValido === 'NaN') {
-      showMessage('Erro: ID não disponível.', 'error');
+      showMessage(t('web.modulos.equipamentos.erroIdIndisponivel'), 'error');
       return;
     }
     
@@ -623,13 +652,13 @@
       // Definir mensagem e ação baseado no status atual
       let confirmMsg, action, btnText;
       if (estaAtivo) {
-        confirmMsg = 'Tem certeza que deseja <strong>desativar</strong> este equipamento?<br><br><small style="color: #666;">O equipamento ficará inativo e não aparecerá nas listagens padrão.</small>';
+        confirmMsg = t('web.modulos.equipamentos.msgDesativar');
         action = 'deactivate';
-        btnText = 'Desativar';
+        btnText = t('web.modulos.equipamentos.desativar');
       } else {
-        confirmMsg = 'Tem certeza que deseja <strong>reativar</strong> este equipamento?<br><br><small style="color: #666;">O equipamento voltará a aparecer nas listagens e estará disponível para uso.</small>';
+        confirmMsg = t('web.modulos.equipamentos.msgReativar');
         action = 'activate';
-        btnText = 'Reativar';
+        btnText = t('web.modulos.equipamentos.reativar');
       }
       
       modalMessage.innerHTML = confirmMsg;
@@ -651,7 +680,7 @@
         const acao = modalEl.dataset.action || action;
         
         if (!idParaExcluir || idParaExcluir === 'undefined' || idParaExcluir === 'null' || idParaExcluir === '') {
-          showMessage('Erro: ID não disponível.', 'error');
+          showMessage(t('web.modulos.equipamentos.erroIdIndisponivel'), 'error');
           modalEl.style.display = 'none';
           return;
         }
@@ -664,15 +693,15 @@
           const data = await response.json();
           
           if (response.ok) {
-            showMessage(data.message || (acao === 'activate' ? 'Equipamento reativado com sucesso!' : 'Equipamento desativado com sucesso!'), 'success');
+            showMessage(data.message || (acao === 'activate' ? t('web.modulos.equipamentos.sucessoReativar') : t('web.modulos.equipamentos.sucessoDesativar')), 'success');
             showTab('grid');
             applyFilters('grid');
           } else {
-            showMessage(data.error || 'Erro ao alterar status do equipamento.', 'error');
+            showMessage(data.error || t('web.modulos.equipamentos.erroAlterarStatus'), 'error');
           }
         } catch (err) {
           console.error('[Equipamentos] Erro ao alterar status:', err);
-          showMessage('Erro de conexão.', 'error');
+          showMessage(t('web.modulos.equipamentos.erroConexao'), 'error');
         } finally {
           modalEl.style.display = 'none';
           delete modalEl.dataset.deleteId;
@@ -689,7 +718,7 @@
       modalEl.style.display = 'block';
     } catch (err) {
       console.error('[Equipamentos] Erro ao buscar status do equipamento:', err);
-      showMessage('Erro ao verificar status do equipamento.', 'error');
+      showMessage(t('web.modulos.equipamentos.erroVerificarStatus'), 'error');
     }
   }
 
@@ -734,7 +763,7 @@
       if (tabId === 'validades') {
         const equipId = document.getElementById('equipamentoId')?.value || document.getElementById('equipamentoCodigo')?.value;
         if (!equipId) {
-          showMessage('Selecione um equipamento primeiro', 'error');
+          showMessage(t('web.modulos.equipamentos.selecioneEquipamento'), 'error');
           return;
         }
         await showTab('validades');
@@ -750,15 +779,17 @@
     applyFilters('grid');
   });
 
-  // Salvar formulário
+  let equipamentoFormSubmitting = false;
   equipamentoForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    
+    e.stopImmediatePropagation();
+    if (equipamentoFormSubmitting) return;
+    equipamentoFormSubmitting = true;
     const btnSalvar = equipamentoForm.querySelector('button[type="submit"]');
     if (btnSalvar && typeof window.showLoading !== 'undefined') {
       window.showLoading(btnSalvar, true);
     }
-    
+
     const ref = safeGet('equipRef', true);
     const tipo = safeGet('equipTipo', true);
     const marca = safeGet('equipMarca', true);
@@ -770,8 +801,9 @@
     
     if (!ref || !tipo || !marca || !tipoAtuacao || !carroceria || !ativo || !rastreado) {
       if (!document.querySelector('.message.show')) {
-        showMessage('Preencha todos os campos obrigatórios.', 'error');
+        showMessage(t('web.modulos.equipamentos.preenchaCampos'), 'error');
       }
+      equipamentoFormSubmitting = false;
       if (btnSalvar && typeof window.showLoading !== 'undefined') {
         window.showLoading(btnSalvar, false);
       }
@@ -818,21 +850,23 @@
 
       const data = await response.json();
       if (response.ok) {
-        showMessage(data.message || 'Salvo com sucesso!', 'success');
+        showMessage(data.message || t('web.modulos.equipamentos.sucessoSalvar'), 'success');
         showTab('grid');
         applyFilters('grid');
       } else {
-        showMessage(data.error || 'Erro ao salvar.', 'error');
+        showMessage(data.error || t('web.modulos.equipamentos.erroSalvar'), 'error');
       }
     } catch (err) {
       console.error('Erro ao salvar:', err);
-      showMessage('Erro de conexão com o servidor.', 'error');
+      showMessage(t('web.modulos.equipamentos.erroConexao'), 'error');
     } finally {
-      // Sempre reabilitar o botão após o submit (sucesso ou erro)
-      const btnSalvar = equipamentoForm.querySelector('button[type="submit"]');
-      if (btnSalvar && typeof window.showLoading !== 'undefined') {
-        window.showLoading(btnSalvar, false);
-      }
+      setTimeout(() => {
+        equipamentoFormSubmitting = false;
+        const btnSalvar = equipamentoForm.querySelector('button[type="submit"]');
+        if (btnSalvar && typeof window.showLoading !== 'undefined') {
+          window.showLoading(btnSalvar, false);
+        }
+      }, 600);
     }
   });
 
@@ -848,7 +882,7 @@
   document.getElementById('btnNovoEquipamento')?.addEventListener('click', () => {
     if (equipamentoForm) equipamentoForm.reset();
     const title = document.getElementById('formTitle');
-    if (title) title.textContent = 'Novo Equipamento';
+    if (title) title.textContent = t('web.modulos.equipamentos.novoEquipamento');
     showTab('dados');
   });
   document.getElementById('btnCancelarDados')?.addEventListener('click', () => showTab('grid'));
@@ -858,7 +892,7 @@
   document.getElementById('btnNovoEquipamentoGrid')?.addEventListener('click', () => {
     if (equipamentoForm) equipamentoForm.reset();
     const title = document.getElementById('formTitle');
-    if (title) title.textContent = 'Novo Equipamento';
+    if (title) title.textContent = t('web.modulos.equipamentos.novoEquipamento');
     showTab('dados');
   });
 
@@ -1013,9 +1047,19 @@
     
     let html = '<div style="display: grid; gap: 12px;">';
     
+    const loc = (contextEquipamentos && contextEquipamentos.locale) || 'pt-BR';
+    const tz = (contextEquipamentos && contextEquipamentos.timezone) || 'America/Sao_Paulo';
+    const fmtData = (d) => {
+      if (!d) return '-';
+      const date = new Date(d);
+      if (Number.isNaN(date.getTime())) return '-';
+      try {
+        return new Intl.DateTimeFormat(loc, { timeZone: tz, dateStyle: 'short' }).format(date);
+      } catch (e) { return date.toLocaleDateString(loc); }
+    };
     validades.forEach(val => {
-      const dtLib = new Date(val.DTLIBERACAO).toLocaleDateString('pt-BR');
-      const dtVal = new Date(val.DTVALIDADE).toLocaleDateString('pt-BR');
+      const dtLib = fmtData(val.DTLIBERACAO);
+      const dtVal = fmtData(val.DTVALIDADE);
       const dias = val.DIAS_RESTANTES;
       
       let corStatus = '#27ae60';
@@ -1195,6 +1239,7 @@
       const params = new URLSearchParams();
       params.append(tipo, valor);
       params.append('situacao', 'S');
+      params.append('tipoCadastro', 'C'); // Somente certificadoras (FGTIPOCADASTRO = C) – mesma validação do cadastro geral
       const response = await fetch(`/api/cadastros-gerais?${params.toString()}`);
       const cadastros = await response.json();
       const certResultado = document.getElementById('certResultado');

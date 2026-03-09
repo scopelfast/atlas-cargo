@@ -4,6 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Diagnóstico - PWA</title>
+  <link rel="stylesheet" href="../css/design-system.css">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <script src="../js/i18n.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     
@@ -68,7 +72,7 @@
     }
     
     .btn-primary {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%);
       color: white;
     }
     
@@ -86,42 +90,53 @@
     }
   </style>
 </head>
-<body>
-  <h1>🔧 Diagnóstico PWA</h1>
+<body class="motorista-page">
+  <h1 data-i18n="diagnostico.titulo">🔧 Diagnóstico PWA</h1>
   
   <div class="card">
-    <div class="card-title">📦 Service Worker</div>
-    <div id="swStatus" class="status status-warning">⏳ Verificando...</div>
+    <div class="card-title" data-i18n="diagnostico.serviceWorker">📦 Service Worker</div>
+    <div id="swStatus" class="status status-warning" data-i18n="diagnostico.verificando">⏳ Verificando...</div>
     <div id="swDetails"></div>
   </div>
   
   <div class="card">
-    <div class="card-title">🌐 Status de Conexão</div>
-    <div id="netStatus" class="status status-warning">⏳ Verificando...</div>
+    <div class="card-title" data-i18n="diagnostico.statusConexao">🌐 Status de Conexão</div>
+    <div id="netStatus" class="status status-warning" data-i18n="diagnostico.verificando">⏳ Verificando...</div>
   </div>
   
   <div class="card">
-    <div class="card-title">💾 Cache Storage</div>
-    <div id="cacheStatus" class="status status-warning">⏳ Verificando...</div>
+    <div class="card-title" data-i18n="diagnostico.cacheStorage">💾 Cache Storage</div>
+    <div id="cacheStatus" class="status status-warning" data-i18n="diagnostico.verificando">⏳ Verificando...</div>
     <div id="cacheList"></div>
   </div>
   
   <div class="card">
-    <div class="card-title">🗄️ IndexedDB</div>
-    <div id="idbStatus" class="status status-warning">⏳ Verificando...</div>
+    <div class="card-title" data-i18n="diagnostico.indexedDB">🗄️ IndexedDB</div>
+    <div id="idbStatus" class="status status-warning" data-i18n="diagnostico.verificando">⏳ Verificando...</div>
   </div>
   
   <div class="card">
-    <div class="card-title">⚙️ Ações</div>
-    <button class="btn btn-primary" onclick="forcarAtualizacaoSW()">🔄 Atualizar Service Worker</button>
-    <button class="btn btn-danger" onclick="limparTudo()">🧹 Limpar TUDO e Reinstalar</button>
-    <button class="btn btn-primary" onclick="location.href='dashboard.html'">← Voltar Dashboard</button>
+    <div class="card-title" data-i18n="diagnostico.acoes">⚙️ Ações</div>
+    <button class="btn btn-primary" onclick="forcarAtualizacaoSW()" data-i18n="diagnostico.atualizarSW">🔄 Atualizar Service Worker</button>
+    <button class="btn btn-danger" onclick="limparTudo()" data-i18n="diagnostico.limparTudo">🧹 Limpar TUDO e Reinstalar</button>
+    <button class="btn btn-primary" onclick="location.href='dashboard.html'" data-i18n="diagnostico.voltarDashboard">← Voltar Dashboard</button>
   </div>
   
+  <script src="../js/url-helper.js"></script>
   <script src="../js/notifications.js"></script>
   <script src="../js/auth.js"></script>
   
   <script>
+    function applyI18n() {
+      if (typeof window.t !== 'function') return;
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n');
+        if (k) el.textContent = window.t(k);
+      });
+    }
+    if (window.i18nReady) window.i18nReady.then(applyI18n);
+    function t(k) { return typeof window.t === 'function' ? window.t(k) : k; }
+
     async function diagnosticar() {
       // Service Worker
       if ('serviceWorker' in navigator) {
@@ -133,7 +148,7 @@
             
             if (sw) {
               document.getElementById('swStatus').className = 'status status-ok';
-              document.getElementById('swStatus').textContent = `✅ Service Worker Ativo (${sw.state})`;
+              document.getElementById('swStatus').textContent = '✅ ' + t('diagnostico.swAtivo') + ' (' + sw.state + ')';
               
               const cacheNames = await caches.keys();
               const motoristaCache = cacheNames.find(name => name.startsWith('motorista-'));
@@ -146,11 +161,11 @@ Scope: ${registration.scope}
               `;
             } else {
               document.getElementById('swStatus').className = 'status status-warning';
-              document.getElementById('swStatus').textContent = '⚠️ Service Worker Registrado mas Inativo';
+              document.getElementById('swStatus').textContent = '⚠️ ' + t('diagnostico.swRegistradoInativo');
             }
           } else {
             document.getElementById('swStatus').className = 'status status-error';
-            document.getElementById('swStatus').textContent = '❌ Service Worker NÃO Registrado';
+            document.getElementById('swStatus').textContent = '❌ ' + t('diagnostico.swNaoRegistrado');
           }
         } catch (error) {
           document.getElementById('swStatus').className = 'status status-error';
@@ -158,19 +173,19 @@ Scope: ${registration.scope}
         }
       } else {
         document.getElementById('swStatus').className = 'status status-error';
-        document.getElementById('swStatus').textContent = '❌ Service Worker não suportado';
+        document.getElementById('swStatus').textContent = '❌ ' + t('diagnostico.swNaoSuportado');
       }
       
       // Conexão
       const online = navigator.onLine;
       document.getElementById('netStatus').className = online ? 'status status-ok' : 'status status-error';
-      document.getElementById('netStatus').textContent = online ? '✅ Online' : '🔴 Offline';
+      document.getElementById('netStatus').textContent = online ? '✅ ' + t('diagnostico.online') : '🔴 ' + t('diagnostico.offline');
       
       // Cache Storage
       try {
         const cacheNames = await caches.keys();
         document.getElementById('cacheStatus').className = 'status status-ok';
-        document.getElementById('cacheStatus').textContent = `✅ ${cacheNames.length} cache(s) encontrado(s)`;
+        document.getElementById('cacheStatus').textContent = '✅ ' + cacheNames.length + ' ' + t('diagnostico.cacheEncontrados');
         
         document.getElementById('cacheList').innerHTML = '<pre>' + cacheNames.join('\n') + '</pre>';
         
@@ -191,12 +206,12 @@ Scope: ${registration.scope}
         document.getElementById('idbStatus').textContent = '✅ IndexedDB Disponível';
       } else {
         document.getElementById('idbStatus').className = 'status status-error';
-        document.getElementById('idbStatus').textContent = '❌ IndexedDB não suportado';
+        document.getElementById('idbStatus').textContent = '❌ ' + t('diagnostico.idbNaoSuportado');
       }
     }
     
     async function forcarAtualizacaoSW() {
-      const loading = mostrarLoading('Atualizando Service Worker...');
+      const loading = mostrarLoading(t('diagnostico.atualizandoSW'));
       
       try {
         // Usar baseUrl para garantir o caminho correto do Service Worker
@@ -228,12 +243,12 @@ Scope: ${registration.scope}
           console.log('✅ Service Worker v2 registrado!');
           
           esconderLoading();
-          mostrarToast('Service Worker atualizado! Recarregando...', 'success');
+          mostrarToast(t('diagnostico.swAtualizado'), 'success');
           
           setTimeout(() => location.reload(), 2000);
         } else {
           esconderLoading();
-          mostrarToast('Service Worker não encontrado. Registrando...', 'warning');
+          mostrarToast(t('diagnostico.swNaoEncontrado'), 'warning');
           
           await navigator.serviceWorker.register(swPath, { scope: scopePath });
           
@@ -247,16 +262,16 @@ Scope: ${registration.scope}
     
     async function limparTudo() {
       const resposta = await mostrarModal(
-        '🚨 Limpar TUDO',
-        'Atenção!\n\nIsso vai:\n• Desregistrar o Service Worker\n• Limpar TODOS os caches\n• Limpar dados offline\n• Fazer logout\n\nTem certeza?',
-        ['Cancelar', 'Sim, Limpar TUDO']
+        '🚨 ' + t('diagnostico.limparTudoTitulo'),
+        t('diagnostico.limparTudoMsg'),
+        [t('diagnostico.cancelar'), t('diagnostico.simLimpar')]
       );
       
-      if (resposta !== 'Sim, Limpar TUDO') {
+      if (resposta !== t('diagnostico.simLimpar')) {
         return;
       }
       
-      const loading = mostrarLoading('Limpando tudo...');
+      const loading = mostrarLoading(t('diagnostico.limpando'));
       
       try {
         // Desregistrar Service Worker
@@ -284,7 +299,7 @@ Scope: ${registration.scope}
         console.log('🗑️ LocalStorage limpo');
         
         esconderLoading();
-        mostrarToast('Tudo limpo! Redirecionando...', 'success');
+        mostrarToast(t('diagnostico.tudoLimpo'), 'success');
         
         // Redirecionar para login
         setTimeout(() => {

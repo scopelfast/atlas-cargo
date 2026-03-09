@@ -16,10 +16,10 @@ Abra o arquivo: `backend/public/js/version.js`
 
 ```javascript
 // Antes:
-window.APP_VERSION = '20250102-1500'; // Versão antiga
+window.APP_VERSION = '20260102-1500'; // Versão antiga
 
 // Depois:
-window.APP_VERSION = '20250102-1600'; // Nova versão
+window.APP_VERSION = '20260102-1600'; // Nova versão
 ```
 
 ### Passo 2: Formato da Versão
@@ -27,9 +27,9 @@ window.APP_VERSION = '20250102-1600'; // Nova versão
 Use o formato: `YYYYMMDD-HHMM` (Data + Hora)
 
 Exemplos:
-- `20250102-1500` = 02 de Janeiro de 2025 às 15:00
-- `20250102-1630` = 02 de Janeiro de 2025 às 16:30
-- `20250115-0900` = 15 de Janeiro de 2025 às 09:00
+- `20260102-1500` = 02 de Janeiro de 2026 às 15:00
+- `20260102-1630` = 02 de Janeiro de 2026 às 16:30
+- `20260115-0900` = 15 de Janeiro de 2026 às 09:00
 
 **Ou use um número sequencial simples:**
 - `v1.0.0`
@@ -50,7 +50,7 @@ Exemplos:
 // backend/public/js/version.js
 
 // Atualizar este número/data sempre que fizer uma nova publicação
-window.APP_VERSION = '20250102-1600'; // ← ATUALIZAR AQUI!
+window.APP_VERSION = '20260102-1600'; // ← ATUALIZAR AQUI!
 
 // Resto do código não precisa mexer...
 ```
@@ -59,7 +59,7 @@ window.APP_VERSION = '20250102-1600'; // ← ATUALIZAR AQUI!
 
 1. Abra o navegador
 2. Pressione `F12` para abrir o Console
-3. Procure a mensagem: `[Sistema] Versão: 20250102-1600`
+3. Procure a mensagem: `[Sistema] Versão: 20260102-1600`
 4. Se aparecer a nova versão, está funcionando! ✅
 
 ## 📝 Dica Extra
@@ -67,7 +67,7 @@ window.APP_VERSION = '20250102-1600'; // ← ATUALIZAR AQUI!
 Adicione a versão no commit do Git:
 
 ```bash
-git commit -m "Atualização v20250102-1600 - Corrigido cache"
+git commit -m "Atualização v20260102-1600 - Corrigido cache"
 git push
 ```
 

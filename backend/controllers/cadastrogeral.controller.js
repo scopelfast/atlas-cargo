@@ -1,90 +1,49 @@
 // backend/controllers/cadastrogeral.controller.js
 // Controller para Cadastro Geral
 // Versão: 1.1 - Com Classes de Frota
-// Autor: Sistema DivulgaCarga
-// Data: 2025-04-05
+// Atlas Cargo
+// Data: 2026-04-05
 
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const axios = require('axios');
 const XLSX = require('xlsx');
 const fs = require('fs');
 const path = require('path');
 const { poolPromise } = require('../config/db');
 
-// Constantes
+// Constantes (legado: um tipo por cadastro; mantido para compatibilidade de exibição)
 const TIPO_CADASTRO = {
   'O': 'Operador do Sistema',
-  'M': 'Motorista', 
-  'A': 'Agente',
+  'P': 'Programador / Contratador',
+  'M': 'Motorista',
+  'T': 'Transportador',
+  'A': 'Agente / Parceiro',
   'G': 'Grupo de Divulgação',
-  'T': 'Transportador'
+  'C': 'Certificadora',
+  'U': 'Unidade de Negócio'
 };
+
+// Aplicável para: ordem e mapeamento coluna -> código
+const APPLICABLE_OPCOES = [
+  { cod: 'O', col: 'FGOPERADOR', label: 'Operador do Sistema' },
+  { cod: 'P', col: 'FGPROGRAMADOR', label: 'Programador / Contratador' },
+  { cod: 'M', col: 'FGMOTORISTA', label: 'Motorista' },
+  { cod: 'T', col: 'FGTRANSPORTADOR', label: 'Transportador' },
+  { cod: 'A', col: 'FGAGENTE', label: 'Agente / Parceiro' },
+  { cod: 'G', col: 'FGGRUPO', label: 'Grupo de Divulgação' },
+  { cod: 'C', col: 'FGCERTIFICADORA', label: 'Certificadora' },
+  { cod: 'U', col: 'FGUNIDADENEGOCIO', label: 'Unidade de Negócio' }
+];
+const APPLICABLE_COL_MAP = Object.fromEntries(APPLICABLE_OPCOES.map(a => [a.cod, a.col]));
+
+const { getSgUser } = require('../utils/audit');
+const { getContexto } = require('../services/contexto.service');
+const { validarDocumento, normalizarDocumento } = require('../services/documento.service');
 
 const FISICA_JURIDICA = {
   'F': 'Física',
   'J': 'Jurídica'
 };
-
-// Validar CPF
-function validarCPF(cpf) {
-  cpf = cpf.replace(/[^\d]+/g, '');
-  if (cpf.length !== 11) return false;
-  if (/^(\d)\1+$/.test(cpf)) return false;
-  
-  let soma = 0;
-  for (let i = 0; i < 9; i++) {
-    soma += parseInt(cpf.charAt(i)) * (10 - i);
-  }
-  let resto = 11 - (soma % 11);
-  if (resto === 10 || resto === 11) resto = 0;
-  if (resto !== parseInt(cpf.charAt(9))) return false;
-  
-  soma = 0;
-  for (let i = 0; i < 10; i++) {
-    soma += parseInt(cpf.charAt(i)) * (11 - i);
-  }
-  resto = 11 - (soma % 11);
-  if (resto === 10 || resto === 11) resto = 0;
-  if (resto !== parseInt(cpf.charAt(10))) return false;
-  
-  return true;
-}
-
-// Validar CNPJ
-function validarCNPJ(cnpj) {
-  cnpj = cnpj.replace(/[^\d]+/g, '');
-  if (cnpj.length !== 14) return false;
-  if (/^(\d)\1+$/.test(cnpj)) return false;
-  
-  let tamanho = cnpj.length - 2;
-  let numeros = cnpj.substring(0, tamanho);
-  let digitos = cnpj.substring(tamanho);
-  let soma = 0;
-  let pos = tamanho - 7;
-  
-  for (let i = tamanho; i >= 1; i--) {
-    soma += parseInt(numeros.charAt(tamanho - i)) * pos--;
-    if (pos < 2) pos = 9;
-  }
-  
-  let resultado = soma % 11 < 2 ? 0 : 11 - soma % 11;
-  if (resultado !== parseInt(digitos.charAt(0))) return false;
-  
-  tamanho = tamanho + 1;
-  numeros = cnpj.substring(0, tamanho);
-  soma = 0;
-  pos = tamanho - 7;
-  
-  for (let i = tamanho; i >= 1; i--) {
-    soma += parseInt(numeros.charAt(tamanho - i)) * pos--;
-    if (pos < 2) pos = 9;
-  }
-  
-  resultado = soma % 11 < 2 ? 0 : 11 - soma % 11;
-  if (resultado !== parseInt(digitos.charAt(1))) return false;
-  
-  return true;
-}
 
 // Buscar CEP via ViaCEP
 async function buscarCEP(cep) {
@@ -107,129 +66,128 @@ const cadastroController = {
         cidadeEstado, cidadeNome, celular, email, situacao, tipoCadastro, rastreado, transportador
       } = req.query;
       
+      const pool = await poolPromise;
+      const values = [];
+      let paramIndex = 0;
+      const pushVal = (v) => { values.push(v); return `$${++paramIndex}`; };
+
       let query = `
         SELECT 
-          cg.CDCADASTRO,
-          cg.CGCCPF,
-          cg.RZSOCIAL,
-          cg.NMFANTASIA,
-          cg.FGFISICAJURIDICA,
-          cg.CEP,
-          cg.CDCIDADE,
-          c.ESTADO AS CIDADE_ESTADO,
-          c.NMCIDADE AS CIDADE_NOME,
-          cg.ENDERECO,
-          cg.NRENDERECO,
-          cg.COMPLEND,
-          cg.BAIRRO,
-          cg.NRCELULAR,
-          cg.ENDEMAIL,
-          cg.LATITUDE,
-          cg.LONGITUDE,
-          cg.FGACTIVE,
-          cg.FGTIPOCADASTRO,
-          cg.CDTRANSPORTADOR,
-          t.RZSOCIAL AS TRANSPORTADOR_NOME
-        FROM [dbo].[CADASTROGERAL] cg
-        LEFT JOIN [dbo].[CIDADE] c ON cg.CDCIDADE = c.CDCIDADE
-        LEFT JOIN [dbo].[CADASTROGERAL] t ON cg.CDTRANSPORTADOR = t.CDCADASTRO
+          cg."CDCADASTRO",
+          cg."CGCCPF",
+          cg."RZSOCIAL",
+          cg."NMFANTASIA",
+          cg."FGFISICAJURIDICA",
+          cg."CEP",
+          cg."CDCIDADE",
+          c."ESTADO" AS "CIDADE_ESTADO",
+          c."NMCIDADE" AS "CIDADE_NOME",
+          cg."ENDERECO",
+          cg."NRENDERECO",
+          cg."COMPLEND",
+          cg."BAIRRO",
+          cg."NRCELULAR",
+          cg."ENDEMAIL",
+          cg."LATITUDE",
+          cg."LONGITUDE",
+          cg."FGACTIVE",
+          cg."FGTIPOCADASTRO",
+          cg."FGOPERADOR", cg."FGPROGRAMADOR", cg."FGMOTORISTA", cg."FGTRANSPORTADOR",
+          cg."FGAGENTE", cg."FGGRUPO", cg."FGCERTIFICADORA", cg."FGUNIDADENEGOCIO",
+          cg."CDTRANSPORTADOR",
+          t."RZSOCIAL" AS "TRANSPORTADOR_NOME"
+        FROM "CADASTROGERAL" cg
+        LEFT JOIN "CIDADE" c ON cg."CDCIDADE" = c."CDCIDADE"
+        LEFT JOIN "CADASTROGERAL" t ON cg."CDTRANSPORTADOR" = t."CDCADASTRO"
         WHERE 1=1
       `;
 
-      const params = [];
       if (codigo) {
-        query += ` AND cg.CDCADASTRO = @CODIGO`;
-        params.push({ name: 'CODIGO', value: parseFloat(codigo) });
+        query += ` AND cg."CDCADASTRO" = ${pushVal(parseFloat(codigo))}`;
       }
       if (cgccpf) {
-        // Usar string para preservar zeros à esquerda
         const cgccpfStr = String(cgccpf).replace(/[^\d]+/g, '');
-        query += ` AND cg.CGCCPF = @CGCCPF`;
-        params.push({ name: 'CGCCPF', type: sql.VarChar(14), value: cgccpfStr });
+        query += ` AND cg."CGCCPF" = ${pushVal(cgccpfStr)}`;
       }
       if (razaoSocial) {
-        query += ` AND cg.RZSOCIAL LIKE @RAZAOSOCIAL`;
-        params.push({ name: 'RAZAOSOCIAL', value: `%${razaoSocial}%` });
+        query += ` AND cg."RZSOCIAL" ILIKE ${pushVal(`%${razaoSocial}%`)}`;
       }
       if (nomeFantasia) {
-        query += ` AND cg.NMFANTASIA LIKE @NMFANTASIA`;
-        params.push({ name: 'NMFANTASIA', value: `%${nomeFantasia}%` });
+        query += ` AND cg."NMFANTASIA" ILIKE ${pushVal(`%${nomeFantasia}%`)}`;
       }
       if (tipoPessoa) {
-        query += ` AND cg.FGFISICAJURIDICA = @TIPOPESSOA`;
-        params.push({ name: 'TIPOPESSOA', value: tipoPessoa });
+        query += ` AND cg."FGFISICAJURIDICA" = ${pushVal(tipoPessoa)}`;
       }
       if (cidadeEstado) {
-        query += ` AND c.ESTADO = @CIDADE_ESTADO`;
-        params.push({ name: 'CIDADE_ESTADO', value: cidadeEstado });
+        query += ` AND c."ESTADO" = ${pushVal(cidadeEstado)}`;
       }
       if (cidadeNome) {
-        query += ` AND c.NMCIDADE LIKE @CIDADE_NOME`;
-        params.push({ name: 'CIDADE_NOME', value: `%${cidadeNome}%` });
+        query += ` AND c."NMCIDADE" LIKE ${pushVal(`%${cidadeNome}%`)}`;
       }
       if (celular) {
-        query += ` AND cg.NRCELULAR = @CELULAR`;
-        params.push({ name: 'CELULAR', value: parseFloat(celular) });
+        query += ` AND cg."NRCELULAR" = ${pushVal(parseFloat(celular))}`;
       }
       if (email) {
-        query += ` AND cg.ENDEMAIL LIKE @EMAIL`;
-        params.push({ name: 'EMAIL', value: `%${email}%` });
+        query += ` AND cg."ENDEMAIL" LIKE ${pushVal(`%${email}%`)}`;
       }
       if (situacao) {
-        query += ` AND cg.FGACTIVE = @SITUACAO`;
-        params.push({ name: 'SITUACAO', value: situacao === 'S' ? 'A' : 'I' });
+        query += ` AND cg."FGACTIVE" = ${pushVal(situacao === 'S' ? 'A' : 'I')}`;
       }
       if (tipoCadastro) {
-        query += ` AND cg.FGTIPOCADASTRO = @TIPOCADASTRO`;
-        params.push({ name: 'TIPOCADASTRO', value: tipoCadastro.trim().toUpperCase() });
+        const col = APPLICABLE_COL_MAP[tipoCadastro.trim().toUpperCase()];
+        if (col) query += ` AND cg."${col}" = ${pushVal('S')}`;
+        else query += ` AND cg."FGTIPOCADASTRO" = ${pushVal(tipoCadastro.trim().toUpperCase())}`;
       }
       if (rastreado) {
-        query += ` AND cg.FGRASTREADO = @RASTREADO`;
-        params.push({ name: 'RASTREADO', value: rastreado });
+        query += ` AND cg."FGRASTREADO" = ${pushVal(rastreado)}`;
       }
       if (transportador) {
-        query += ` AND cg.CDTRANSPORTADOR = @TRANSPORTADOR`;
-        params.push({ name: 'TRANSPORTADOR', value: parseFloat(transportador) });
+        query += ` AND cg."CDTRANSPORTADOR" = ${pushVal(parseFloat(transportador))}`;
       }
 
-      query += ` ORDER BY cg.RZSOCIAL`;
+      query += ` ORDER BY cg."RZSOCIAL"`;
 
-      const pool = await poolPromise;
-      const request = pool.request();
-      params.forEach(p => {
-        if (p.type) {
-          request.input(p.name, p.type, p.value);
-        } else {
-          request.input(p.name, p.value);
-        }
+      const result = await pool.query(query, values);
+      const cadastros = (result.rows || []).map(cg => {
+        const aplicavel = APPLICABLE_OPCOES.filter(a => (cg[a.col] || '') === 'S').map(a => a.cod);
+        const tipoCadastroNome = aplicavel.length
+          ? aplicavel.map(c => TIPO_CADASTRO[c]).join(', ')
+          : (TIPO_CADASTRO[cg.FGTIPOCADASTRO] || 'Não informado');
+        return {
+          CDCADASTRO: cg.CDCADASTRO,
+          CGCCPF: cg.CGCCPF,
+          RZSOCIAL: cg.RZSOCIAL,
+          NMFANTASIA: cg.NMFANTASIA || 'Não informado',
+          FGFISICAJURIDICA: cg.FGFISICAJURIDICA,
+          FGFISICAJURIDICA_NOME: FISICA_JURIDICA[cg.FGFISICAJURIDICA] || 'Não informado',
+          CEP: cg.CEP,
+          CDCIDADE: cg.CDCIDADE,
+          CIDADE_ESTADO: cg.CIDADE_ESTADO || 'Não informado',
+          CIDADE_NOME: cg.CIDADE_NOME || 'Não informado',
+          ENDERECO: cg.ENDERECO,
+          NRENDERECO: cg.NRENDERECO,
+          COMPLEND: cg.COMPLEND || 'Não informado',
+          BAIRRO: cg.BAIRRO,
+          NRCELULAR: cg.NRCELULAR,
+          ENDEMAIL: cg.ENDEMAIL || 'Não informado',
+          LATITUDE: cg.LATITUDE,
+          LONGITUDE: cg.LONGITUDE,
+          FGACTIVE: cg.FGACTIVE === 'A' ? 'S' : 'N',
+          FGTIPOCADASTRO: cg.FGTIPOCADASTRO,
+          FGTIPOCADASTRO_NOME: tipoCadastroNome,
+          FGOPERADOR: (cg.FGOPERADOR || 'N') === 'S',
+          FGPROGRAMADOR: (cg.FGPROGRAMADOR || 'N') === 'S',
+          FGMOTORISTA: (cg.FGMOTORISTA || 'N') === 'S',
+          FGTRANSPORTADOR: (cg.FGTRANSPORTADOR || 'N') === 'S',
+          FGAGENTE: (cg.FGAGENTE || 'N') === 'S',
+          FGGRUPO: (cg.FGGRUPO || 'N') === 'S',
+          FGCERTIFICADORA: (cg.FGCERTIFICADORA || 'N') === 'S',
+          FGUNIDADENEGOCIO: (cg.FGUNIDADENEGOCIO || 'N') === 'S',
+          APLICAVEL_CODIGOS: aplicavel,
+          CDTRANSPORTADOR: cg.CDTRANSPORTADOR || null,
+          TRANSPORTADOR_NOME: cg.TRANSPORTADOR_NOME || null
+        };
       });
-      
-      const result = await request.query(query);
-      const cadastros = result.recordset.map(cg => ({
-        CDCADASTRO: cg.CDCADASTRO,
-        CGCCPF: cg.CGCCPF,
-        RZSOCIAL: cg.RZSOCIAL,
-        NMFANTASIA: cg.NMFANTASIA || 'Não informado',
-        FGFISICAJURIDICA: cg.FGFISICAJURIDICA,
-        FGFISICAJURIDICA_NOME: FISICA_JURIDICA[cg.FGFISICAJURIDICA] || 'Não informado',
-        CEP: cg.CEP,
-        CDCIDADE: cg.CDCIDADE,
-        CIDADE_ESTADO: cg.CIDADE_ESTADO || 'Não informado',
-        CIDADE_NOME: cg.CIDADE_NOME || 'Não informado',
-        ENDERECO: cg.ENDERECO,
-        NRENDERECO: cg.NRENDERECO,
-        COMPLEND: cg.COMPLEND || 'Não informado',
-        BAIRRO: cg.BAIRRO,
-        NRCELULAR: cg.NRCELULAR,
-        ENDEMAIL: cg.ENDEMAIL || 'Não informado',
-        LATITUDE: cg.LATITUDE,
-        LONGITUDE: cg.LONGITUDE,
-        FGACTIVE: cg.FGACTIVE === 'A' ? 'S' : 'N',
-        FGTIPOCADASTRO: cg.FGTIPOCADASTRO,
-        FGTIPOCADASTRO_NOME: TIPO_CADASTRO[cg.FGTIPOCADASTRO] || 'Não informado',
-        CDTRANSPORTADOR: cg.CDTRANSPORTADOR || null,
-        TRANSPORTADOR_NOME: cg.TRANSPORTADOR_NOME || null
-      }));
       
       res.json(cadastros);
     } catch (err) {
@@ -244,99 +202,86 @@ const cadastroController = {
       const {
         CGCCPF, RZSOCIAL, NMFANTASIA, FGFISICAJURIDICA, CEP, CDCIDADE,
         ENDERECO, NRENDERECO, COMPLEND, BAIRRO, NRCELULAR, ENDEMAIL,
-        LATITUDE, LONGITUDE, FGTIPOCADASTRO, FGRASTREADO, CDTRANSPORTADOR
+        LATITUDE, LONGITUDE, FGTIPOCADASTRO, FGRASTREADO, CDTRANSPORTADOR,
+        FGOPERADOR, FGPROGRAMADOR, FGMOTORISTA, FGTRANSPORTADOR: FGTRANSP,
+        FGAGENTE, FGGRUPO, FGCERTIFICADORA, FGUNIDADENEGOCIO
       } = req.body;
 
+      const flags = {
+        FGOPERADOR: FGOPERADOR === true || FGOPERADOR === 'S',
+        FGPROGRAMADOR: FGPROGRAMADOR === true || FGPROGRAMADOR === 'S',
+        FGMOTORISTA: FGMOTORISTA === true || FGMOTORISTA === 'S',
+        FGTRANSPORTADOR: FGTRANSP === true || FGTRANSP === 'S',
+        FGAGENTE: FGAGENTE === true || FGAGENTE === 'S',
+        FGGRUPO: FGGRUPO === true || FGGRUPO === 'S',
+        FGCERTIFICADORA: FGCERTIFICADORA === true || FGCERTIFICADORA === 'S',
+        FGUNIDADENEGOCIO: FGUNIDADENEGOCIO === true || FGUNIDADENEGOCIO === 'S'
+      };
+      const algumAplicavel = Object.values(flags).some(v => v === true);
+      if (!algumAplicavel && !FGTIPOCADASTRO) {
+        return res.status(400).json({ error: 'Marque pelo menos uma opção em Aplicável para.' });
+      }
+      const tipoLegado = FGTIPOCADASTRO || (APPLICABLE_OPCOES.find(a => flags[a.col])?.cod ?? 'O');
+
       // Validações
-      if (!CGCCPF || !RZSOCIAL || !FGFISICAJURIDICA || !FGTIPOCADASTRO || !NRCELULAR) {
-        return res.status(400).json({ error: 'Campos obrigatórios não preenchidos.' });
+      if (!CGCCPF || !RZSOCIAL || !FGFISICAJURIDICA || !NRCELULAR) {
+        return res.status(400).json({ error: 'Campos obrigatórios não preenchidos.', errorKey: 'web.modulos.cadastroGeral.camposObrigatorios' });
       }
 
-      // Validar CPF/CNPJ
-      let cgccpfStr = CGCCPF.toString().replace(/[^\d]+/g, ''); // remove pontuação
-
-      if (FGFISICAJURIDICA === 'F') {
-        cgccpfStr = cgccpfStr.padStart(11, '0'); // garante 11 dígitos
-        if (!validarCPF(cgccpfStr)) {
-          return res.status(400).json({ error: 'CPF inválido.' });
-        }
+      const ctx = await getContexto();
+      const tipoDoc = FGFISICAJURIDICA === 'F' ? 'F' : 'J';
+      let cgccpfStr = normalizarDocumento(ctx.pais, CGCCPF.toString());
+      if (ctx.pais === 'BR') {
+        if (FGFISICAJURIDICA === 'F') cgccpfStr = cgccpfStr.padStart(11, '0');
+        else if (FGFISICAJURIDICA === 'J') cgccpfStr = cgccpfStr.padStart(14, '0');
       }
 
-      if (FGFISICAJURIDICA === 'J') {
-        cgccpfStr = cgccpfStr.padStart(14, '0'); // garante 14 dígitos
-        if (!validarCNPJ(cgccpfStr)) {
-          return res.status(400).json({ error: 'CNPJ inválido.' });
-        }
+      const validacao = validarDocumento(ctx.pais, tipoDoc, cgccpfStr);
+      if (!validacao.valido) {
+        return res.status(400).json({ error: validacao.mensagem || 'Documento inválido.', errorKey: 'web.modulos.cadastroGeral.documentoInvalido' });
       }
 
-      // Verificar duplicidade (usar o valor com padStart)
+      // Verificar duplicidade e gerar novo ID (PostgreSQL)
       const pool = await poolPromise;
-      const checkDuplicate = await pool
-        .request()
-        .input('CGCCPF', sql.VarChar(14), cgccpfStr)
-        .query('SELECT CDCADASTRO FROM [dbo].[CADASTROGERAL] WHERE CGCCPF = @CGCCPF');
-      
-      if (checkDuplicate.recordset.length > 0) {
-        return res.status(400).json({ error: 'Já existe um cadastro com este CPF/CNPJ.' });
+      const checkDup = await pool.query(
+        'SELECT "CDCADASTRO" FROM "CADASTROGERAL" WHERE "CGCCPF" = $1',
+        [cgccpfStr]
+      );
+      if ((checkDup.rows || []).length > 0) {
+        return res.status(400).json({ error: 'Já existe um cadastro com este documento.', errorKey: 'web.modulos.cadastroGeral.documentoDuplicado' });
       }
 
-      // Gerar novo ID
-      const maxResult = await pool
-        .request()
-        .query('SELECT ISNULL(MAX(CDCADASTRO), 0) AS maxId FROM [dbo].[CADASTROGERAL]');
-      const novoId = maxResult.recordset[0].maxId + 1;
+      const maxRes = await pool.query(
+        'SELECT COALESCE(MAX("CDCADASTRO"), 0)::numeric AS "maxId" FROM "CADASTROGERAL"'
+      );
+      const novoId = Number((maxRes.rows || [])[0]?.maxId ?? 0) + 1;
 
-      // Inserir cadastro
-      await pool
-        .request()
-        .input('CDCADASTRO', sql.Decimal(15, 0), novoId)
-        .input('CGCCPF', sql.VarChar(14), cgccpfStr) // Usar o valor com padStart
-        .input('RZSOCIAL', RZSOCIAL.trim())
-        .input('NMFANTASIA', NMFANTASIA?.trim() || null)
-        .input('FGFISICAJURIDICA', FGFISICAJURIDICA)
-        .input('CEP', sql.Decimal(10, 0), CEP || null)
-        .input('CDCIDADE', sql.Int, CDCIDADE || null)
-        .input('LATITUDE', sql.Float, LATITUDE || null)
-        .input('LONGITUDE', sql.Float, LONGITUDE || null)
-        .input('ENDERECO', ENDERECO.trim())
-        .input('NRENDERECO', sql.Int, NRENDERECO)
-        .input('COMPLEND', COMPLEND?.trim() || null)
-        .input('BAIRRO', BAIRRO.trim())
-        .input('NRCELULAR', sql.Decimal(15, 0), NRCELULAR)
-        .input('ENDEMAIL', ENDEMAIL?.trim() || null)
-        .input('FGTIPOCADASTRO', FGTIPOCADASTRO)
-        .input('FGRASTREADO', FGRASTREADO || 'N')
-        .input('CDTRANSPORTADOR', sql.Decimal(15, 0), (FGTIPOCADASTRO === 'M' && CDTRANSPORTADOR) ? CDTRANSPORTADOR : null)
-        .query(`
-          INSERT INTO [dbo].[CADASTROGERAL] (
-            CDCADASTRO, CGCCPF, RZSOCIAL, NMFANTASIA, FGFISICAJURIDICA, CEP, CDCIDADE,
-            ENDERECO, NRENDERECO, COMPLEND, BAIRRO, NRCELULAR, ENDEMAIL, LATITUDE, LONGITUDE,
-            FGACTIVE, FGTIPOCADASTRO, FGRASTREADO, CDTRANSPORTADOR, DHMAINTENANCE, SGUSER, SERVERORIG
-          )
-          VALUES (
-            @CDCADASTRO, @CGCCPF, @RZSOCIAL, @NMFANTASIA, @FGFISICAJURIDICA, @CEP, @CDCIDADE,
-            @ENDERECO, @NRENDERECO, @COMPLEND, @BAIRRO, @NRCELULAR, @ENDEMAIL, @LATITUDE, @LONGITUDE,
-            'A', @FGTIPOCADASTRO, @FGRASTREADO, @CDTRANSPORTADOR, GETDATE(), 'SYSTEM', 'AppDVcargas'
-          )
-        `);
+      const sgUser = getSgUser(req);
+      if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+      const toS = (v) => (v ? 'S' : 'N');
+      await pool.query(
+        `INSERT INTO "CADASTROGERAL" (
+          "CDCADASTRO", "CGCCPF", "RZSOCIAL", "NMFANTASIA", "FGFISICAJURIDICA", "CEP", "CDCIDADE",
+          "ENDERECO", "NRENDERECO", "COMPLEND", "BAIRRO", "NRCELULAR", "ENDEMAIL", "LATITUDE", "LONGITUDE",
+          "FGACTIVE", "FGTIPOCADASTRO", "FGOPERADOR", "FGPROGRAMADOR", "FGMOTORISTA", "FGTRANSPORTADOR",
+          "FGAGENTE", "FGGRUPO", "FGCERTIFICADORA", "FGUNIDADENEGOCIO",
+          "FGRASTREADO", "CDTRANSPORTADOR", "DHMAINTENANCE", "SGUSER", "SERVERORIG"
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'A', $16,
+          $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, CURRENT_TIMESTAMP, $27, 'AppDVcargas')`,
+        [
+          novoId, cgccpfStr, RZSOCIAL.trim(), NMFANTASIA?.trim() || null, FGFISICAJURIDICA,
+          CEP || null, CDCIDADE || null, ENDERECO.trim(), NRENDERECO, COMPLEND?.trim() || null,
+          BAIRRO.trim(), NRCELULAR, ENDEMAIL?.trim() || null, LATITUDE || null, LONGITUDE || null,
+          tipoLegado,
+          toS(flags.FGOPERADOR), toS(flags.FGPROGRAMADOR), toS(flags.FGMOTORISTA), toS(flags.FGTRANSPORTADOR),
+          toS(flags.FGAGENTE), toS(flags.FGGRUPO), toS(flags.FGCERTIFICADORA), toS(flags.FGUNIDADENEGOCIO),
+          FGRASTREADO || 'N', (flags.FGMOTORISTA && CDTRANSPORTADOR) ? CDTRANSPORTADOR : null,
+          sgUser
+        ]
+      );
 
-      // Inserir relacionamento com todas as classes de frota
-      const classesResult = await pool
-        .request()
-        .query('SELECT CDCLASSEFROTA FROM [dbo].[CLASSEFROTA] WHERE FGACTIVE = \'A\'');
-      
-      for (const classe of classesResult.recordset) {
-        await pool
-          .request()
-          .input('CDCADASTRO', sql.Decimal(15, 0), novoId)
-          .input('CDCLASSEFROTA', sql.SmallInt, classe.CDCLASSEFROTA)
-          .query(`
-            INSERT INTO [dbo].[CLASSEFROTA_CG] (
-              CDCADASTRO, CDCLASSEFROTA, FGACTIVE, DHMAINTENANCE, SGUSER, SERVERORIG
-            )
-            VALUES (@CDCADASTRO, @CDCLASSEFROTA, 'S', GETDATE(), 'SYSTEM', 'AppDVcargas')
-          `);
-      }
+      // Não inserir classes de frota ao criar: novo cadastro começa com nenhuma classe selecionada.
+      // O usuário escolhe na aba "Classes Frota" após salvar.
 
       res.status(201).json({ 
         success: true, 
@@ -356,107 +301,80 @@ const cadastroController = {
       const {
         CGCCPF, RZSOCIAL, NMFANTASIA, FGFISICAJURIDICA, CEP, CDCIDADE,
         ENDERECO, NRENDERECO, COMPLEND, BAIRRO, NRCELULAR, ENDEMAIL,
-        LATITUDE, LONGITUDE, FGACTIVE, FGTIPOCADASTRO, FGRASTREADO, CDTRANSPORTADOR
+        LATITUDE, LONGITUDE, FGACTIVE, FGTIPOCADASTRO, FGRASTREADO, CDTRANSPORTADOR,
+        FGOPERADOR, FGPROGRAMADOR, FGMOTORISTA, FGTRANSPORTADOR: FGTRANSP,
+        FGAGENTE, FGGRUPO, FGCERTIFICADORA, FGUNIDADENEGOCIO
       } = req.body;
 
-      if (!CGCCPF || !RZSOCIAL || !FGFISICAJURIDICA || !FGTIPOCADASTRO || !NRCELULAR) {
-        return res.status(400).json({ error: 'Campos obrigatórios não preenchidos.' });
+      const flags = {
+        FGOPERADOR: FGOPERADOR === true || FGOPERADOR === 'S',
+        FGPROGRAMADOR: FGPROGRAMADOR === true || FGPROGRAMADOR === 'S',
+        FGMOTORISTA: FGMOTORISTA === true || FGMOTORISTA === 'S',
+        FGTRANSPORTADOR: FGTRANSP === true || FGTRANSP === 'S',
+        FGAGENTE: FGAGENTE === true || FGAGENTE === 'S',
+        FGGRUPO: FGGRUPO === true || FGGRUPO === 'S',
+        FGCERTIFICADORA: FGCERTIFICADORA === true || FGCERTIFICADORA === 'S',
+        FGUNIDADENEGOCIO: FGUNIDADENEGOCIO === true || FGUNIDADENEGOCIO === 'S'
+      };
+      const algumAplicavel = Object.values(flags).some(v => v === true);
+      if (!algumAplicavel && !FGTIPOCADASTRO) {
+        return res.status(400).json({ error: 'Marque pelo menos uma opção em Aplicável para.' });
+      }
+      const tipoLegado = FGTIPOCADASTRO || (APPLICABLE_OPCOES.find(a => flags[a.col])?.cod ?? 'O');
+
+      if (!CGCCPF || !RZSOCIAL || !FGFISICAJURIDICA || !NRCELULAR) {
+        return res.status(400).json({ error: 'Campos obrigatórios não preenchidos.', errorKey: 'web.modulos.cadastroGeral.camposObrigatorios' });
       }
 
-      // Validar CPF/CNPJ
-      let cgccpfStr = CGCCPF.toString().replace(/[^\d]+/g, '');
-
-      if (FGFISICAJURIDICA === 'F') {
-        cgccpfStr = cgccpfStr.padStart(11, '0');
-        if (!validarCPF(cgccpfStr)) {
-          return res.status(400).json({ error: 'CPF inválido.' });
-        }
+      const ctx = await getContexto();
+      const tipoDoc = FGFISICAJURIDICA === 'F' ? 'F' : 'J';
+      let cgccpfStr = normalizarDocumento(ctx.pais, CGCCPF.toString());
+      if (ctx.pais === 'BR') {
+        if (FGFISICAJURIDICA === 'F') cgccpfStr = cgccpfStr.padStart(11, '0');
+        else if (FGFISICAJURIDICA === 'J') cgccpfStr = cgccpfStr.padStart(14, '0');
       }
 
-      if (FGFISICAJURIDICA === 'J') {
-        cgccpfStr = cgccpfStr.padStart(14, '0');
-        if (!validarCNPJ(cgccpfStr)) {
-          return res.status(400).json({ error: 'CNPJ inválido.' });
-        }
+      const validacao = validarDocumento(ctx.pais, tipoDoc, cgccpfStr);
+      if (!validacao.valido) {
+        return res.status(400).json({ error: validacao.mensagem || 'Documento inválido.', errorKey: 'web.modulos.cadastroGeral.documentoInvalido' });
       }
 
+      const sgUserUpd = getSgUser(req);
+      if (!sgUserUpd) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
       const pool = await poolPromise;
       const idNumerico = parseFloat(id);
 
-      // Buscar valor atual do CDTRANSPORTADOR para preservar se não vier no body
-      const cadastroAtual = await pool
-        .request()
-        .input('CDCADASTRO', sql.Decimal(15, 0), idNumerico)
-        .query(`
-          SELECT CDTRANSPORTADOR
-          FROM [dbo].[CADASTROGERAL]
-          WHERE CDCADASTRO = @CDCADASTRO
-        `);
+      const cadastroAtual = await pool.query(
+        'SELECT "CDTRANSPORTADOR" FROM "CADASTROGERAL" WHERE "CDCADASTRO" = $1',
+        [idNumerico]
+      );
+      const rowsAtual = cadastroAtual.rows || [];
+      const toS = (v) => (v ? 'S' : 'N');
+      const valorTransportador = !flags.FGMOTORISTA ? null
+        : (CDTRANSPORTADOR !== undefined ? (CDTRANSPORTADOR || null) : (rowsAtual[0]?.CDTRANSPORTADOR ?? null));
 
-      const request = pool.request();
-      request.input('CDCADASTRO', sql.Decimal(15, 0), idNumerico);
-      request.input('CGCCPF', sql.VarChar(14), cgccpfStr);
-      request.input('RZSOCIAL', RZSOCIAL.trim());
-      request.input('NMFANTASIA', NMFANTASIA?.trim() || null);
-      request.input('FGFISICAJURIDICA', FGFISICAJURIDICA);
-      request.input('CEP', sql.Decimal(10, 0), CEP || null);
-      request.input('CDCIDADE', sql.Int, CDCIDADE || null);
-      request.input('LATITUDE', sql.Float, LATITUDE || null);
-      request.input('LONGITUDE', sql.Float, LONGITUDE || null);
-      request.input('ENDERECO', ENDERECO.trim());
-      request.input('NRENDERECO', sql.Int, NRENDERECO);
-      request.input('COMPLEND', COMPLEND?.trim() || null);
-      request.input('BAIRRO', BAIRRO.trim());
-      request.input('NRCELULAR', sql.Decimal(15, 0), NRCELULAR);
-      request.input('ENDEMAIL', ENDEMAIL?.trim() || null);
-      request.input('FGACTIVE', FGACTIVE === 'S' ? 'A' : 'I');
-      request.input('FGTIPOCADASTRO', FGTIPOCADASTRO);
-      request.input('FGRASTREADO', FGRASTREADO || 'N');
-      
-      // Tratar CDTRANSPORTADOR: preservar valor atual se não vier no body
-      if (FGTIPOCADASTRO !== 'M') {
-        // Se não é motorista, sempre null
-        request.input('CDTRANSPORTADOR', sql.Decimal(15, 0), null);
-      } else {
-        // Se é motorista
-        if (CDTRANSPORTADOR !== undefined) {
-          // Se veio no body (pode ser null para limpar ou um valor)
-          request.input('CDTRANSPORTADOR', sql.Decimal(15, 0), CDTRANSPORTADOR || null);
-        } else {
-          // Se NÃO veio no body, preservar o valor atual do banco
-          const valorAtual = cadastroAtual.recordset.length > 0 
-            ? cadastroAtual.recordset[0].CDTRANSPORTADOR 
-            : null;
-          request.input('CDTRANSPORTADOR', sql.Decimal(15, 0), valorAtual);
-        }
-      }
-
-      await request.query(`
-        UPDATE [dbo].[CADASTROGERAL]
-        SET 
-          CGCCPF = @CGCCPF,
-          RZSOCIAL = @RZSOCIAL,
-          NMFANTASIA = @NMFANTASIA,
-          FGFISICAJURIDICA = @FGFISICAJURIDICA,
-          CEP = @CEP,
-          CDCIDADE = @CDCIDADE,
-          ENDERECO = @ENDERECO,
-          NRENDERECO = @NRENDERECO,
-          COMPLEND = @COMPLEND,
-          BAIRRO = @BAIRRO,
-          NRCELULAR = @NRCELULAR,
-          ENDEMAIL = @ENDEMAIL,
-          LATITUDE = @LATITUDE,
-          LONGITUDE = @LONGITUDE,
-          FGACTIVE = @FGACTIVE,
-          FGTIPOCADASTRO = @FGTIPOCADASTRO,
-          FGRASTREADO = @FGRASTREADO,
-          CDTRANSPORTADOR = @CDTRANSPORTADOR,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE CDCADASTRO = @CDCADASTRO
-      `);
+      await pool.query(
+        `UPDATE "CADASTROGERAL" SET
+          "CGCCPF" = $1, "RZSOCIAL" = $2, "NMFANTASIA" = $3, "FGFISICAJURIDICA" = $4,
+          "CEP" = $5, "CDCIDADE" = $6, "ENDERECO" = $7, "NRENDERECO" = $8,
+          "COMPLEND" = $9, "BAIRRO" = $10, "NRCELULAR" = $11, "ENDEMAIL" = $12,
+          "LATITUDE" = $13, "LONGITUDE" = $14, "FGACTIVE" = $15, "FGTIPOCADASTRO" = $16,
+          "FGOPERADOR" = $17, "FGPROGRAMADOR" = $18, "FGMOTORISTA" = $19, "FGTRANSPORTADOR" = $20,
+          "FGAGENTE" = $21, "FGGRUPO" = $22, "FGCERTIFICADORA" = $23, "FGUNIDADENEGOCIO" = $24,
+          "FGRASTREADO" = $25, "CDTRANSPORTADOR" = $26,
+          "DHMAINTENANCE" = CURRENT_TIMESTAMP, "SGUSER" = $27, "SERVERORIG" = 'AppDVcargas'
+        WHERE "CDCADASTRO" = $28`,
+        [
+          cgccpfStr, RZSOCIAL.trim(), NMFANTASIA?.trim() || null, FGFISICAJURIDICA,
+          CEP || null, CDCIDADE || null, ENDERECO.trim(), NRENDERECO,
+          COMPLEND?.trim() || null, BAIRRO.trim(), NRCELULAR, ENDEMAIL?.trim() || null,
+          LATITUDE || null, LONGITUDE || null, FGACTIVE === 'S' ? 'A' : 'I',
+          tipoLegado,
+          toS(flags.FGOPERADOR), toS(flags.FGPROGRAMADOR), toS(flags.FGMOTORISTA), toS(flags.FGTRANSPORTADOR),
+          toS(flags.FGAGENTE), toS(flags.FGGRUPO), toS(flags.FGCERTIFICADORA), toS(flags.FGUNIDADENEGOCIO),
+          FGRASTREADO || 'N', valorTransportador, sgUserUpd, idNumerico
+        ]
+      );
 
       res.json({ success: true, message: 'Cadastro atualizado com sucesso!' });
     } catch (err) {
@@ -465,47 +383,33 @@ const cadastroController = {
     }
   },
 
-  // Buscar cadastro por ID
+  // Buscar cadastro por ID (PostgreSQL)
   buscarPorId: async (req, res) => {
     try {
       const { id } = req.params;
       const pool = await poolPromise;
-      const result = await pool
-        .request()
-        .input('CDCADASTRO', sql.Decimal(15, 0), parseFloat(id))
-        .query(`
-          SELECT 
-            cg.CDCADASTRO,
-            cg.CGCCPF,
-            cg.RZSOCIAL,
-            cg.NMFANTASIA,
-            cg.FGFISICAJURIDICA,
-            cg.CEP,
-            cg.CDCIDADE,
-            c.ESTADO AS CIDADE_ESTADO,
-            c.NMCIDADE AS CIDADE_NOME,
-            cg.ENDERECO,
-            cg.NRENDERECO,
-            cg.COMPLEND,
-            cg.BAIRRO,
-            cg.NRCELULAR,
-            cg.ENDEMAIL,
-            cg.LATITUDE,
-            cg.LONGITUDE,
-            cg.FGACTIVE,
-            cg.FGTIPOCADASTRO,
-            cg.FGRASTREADO,
-            cg.CDTRANSPORTADOR
-          FROM [dbo].[CADASTROGERAL] cg
-          LEFT JOIN [dbo].[CIDADE] c ON cg.CDCIDADE = c.CDCIDADE
-          WHERE cg.CDCADASTRO = @CDCADASTRO
-        `);
-      
-      if (result.recordset.length === 0) {
+      const result = await pool.query(
+        `SELECT 
+          cg."CDCADASTRO", cg."CGCCPF", cg."RZSOCIAL", cg."NMFANTASIA",
+          cg."FGFISICAJURIDICA", cg."CEP", cg."CDCIDADE",
+          c."ESTADO" AS "CIDADE_ESTADO", c."NMCIDADE" AS "CIDADE_NOME",
+          cg."ENDERECO", cg."NRENDERECO", cg."COMPLEND", cg."BAIRRO",
+          cg."NRCELULAR", cg."ENDEMAIL", cg."LATITUDE", cg."LONGITUDE",
+          cg."FGACTIVE", cg."FGTIPOCADASTRO", cg."FGRASTREADO", cg."CDTRANSPORTADOR",
+          cg."FGOPERADOR", cg."FGPROGRAMADOR", cg."FGMOTORISTA", cg."FGTRANSPORTADOR",
+          cg."FGAGENTE", cg."FGGRUPO", cg."FGCERTIFICADORA", cg."FGUNIDADENEGOCIO",
+          mc."STATUSAPROVACAO"
+        FROM "CADASTROGERAL" cg
+        LEFT JOIN "CIDADE" c ON cg."CDCIDADE" = c."CDCIDADE"
+        LEFT JOIN "MOTORISTA_COMPLEMENTO" mc ON cg."CDCADASTRO" = mc."CDCADASTRO"
+        WHERE cg."CDCADASTRO" = $1`,
+        [parseFloat(id)]
+      );
+      const rows = result.rows || [];
+      if (rows.length === 0) {
         return res.status(404).json({ error: 'Cadastro não encontrado.' });
       }
-      
-      const cg = result.recordset[0];
+      const cg = rows[0];
       res.json({
         CDCADASTRO: cg.CDCADASTRO,
         CGCCPF: cg.CGCCPF,
@@ -527,7 +431,16 @@ const cadastroController = {
         FGACTIVE: cg.FGACTIVE === 'A' ? 'S' : 'N',
         FGTIPOCADASTRO: cg.FGTIPOCADASTRO,
         FGRASTREADO: cg.FGRASTREADO || 'N',
-        CDTRANSPORTADOR: cg.CDTRANSPORTADOR || null
+        CDTRANSPORTADOR: cg.CDTRANSPORTADOR || null,
+        FGOPERADOR: (cg.FGOPERADOR || 'N') === 'S',
+        FGPROGRAMADOR: (cg.FGPROGRAMADOR || 'N') === 'S',
+        FGMOTORISTA: (cg.FGMOTORISTA || 'N') === 'S',
+        FGTRANSPORTADOR: (cg.FGTRANSPORTADOR || 'N') === 'S',
+        FGAGENTE: (cg.FGAGENTE || 'N') === 'S',
+        FGGRUPO: (cg.FGGRUPO || 'N') === 'S',
+        FGCERTIFICADORA: (cg.FGCERTIFICADORA || 'N') === 'S',
+        FGUNIDADENEGOCIO: (cg.FGUNIDADENEGOCIO || 'N') === 'S',
+        STATUSAPROVACAO: cg.STATUSAPROVACAO || 'P'
       });
     } catch (err) {
       console.error('Erro ao buscar cadastro:', err);
@@ -552,22 +465,17 @@ const cadastroController = {
         return res.status(400).json({ error: 'ID inválido.' });
       }
 
-      // Primeiro, buscar o status atual do cadastro
-      const checkRequest = pool.request();
-      checkRequest.input('CDCADASTRO', sql.Decimal(15, 0), idNumerico);
-      
-      const checkResult = await checkRequest.query(`
-        SELECT FGACTIVE FROM [dbo].[CADASTROGERAL] WHERE CDCADASTRO = @CDCADASTRO
-      `);
-
-      if (checkResult.recordset.length === 0) {
+      const checkResult = await pool.query(
+        'SELECT "FGACTIVE" FROM "CADASTROGERAL" WHERE "CDCADASTRO" = $1',
+        [idNumerico]
+      );
+      const checkRows = checkResult.rows || [];
+      if (checkRows.length === 0) {
         return res.status(404).json({ error: 'Cadastro não encontrado.' });
       }
 
-      const statusAtual = checkResult.recordset[0].FGACTIVE;
+      const statusAtual = checkRows[0].FGACTIVE;
       const estaAtivo = statusAtual === 'A';
-      
-      // Determinar ação: se action não foi informado, fazer toggle automático
       let novaSituacao, mensagem;
       if (action === 'activate') {
         novaSituacao = 'A';
@@ -576,26 +484,18 @@ const cadastroController = {
         novaSituacao = 'I';
         mensagem = 'Cadastro desativado com sucesso!';
       } else {
-        // Toggle automático: se está ativo, desativa; se está inativo, reativa
         novaSituacao = estaAtivo ? 'I' : 'A';
         mensagem = estaAtivo ? 'Cadastro desativado com sucesso!' : 'Cadastro reativado com sucesso!';
       }
 
-      const request = pool.request();
-      request.input('CDCADASTRO', sql.Decimal(15, 0), idNumerico);
-      request.input('FGACTIVE', sql.Char(1), novaSituacao);
-      
-      const result = await request.query(`
-        UPDATE [dbo].[CADASTROGERAL]
-        SET 
-          FGACTIVE = @FGACTIVE,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE CDCADASTRO = @CDCADASTRO
-      `);
+      const sgUserStatus = getSgUser(req);
+      if (!sgUserStatus) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+      const result = await pool.query(
+        `UPDATE "CADASTROGERAL" SET "FGACTIVE" = $1, "DHMAINTENANCE" = CURRENT_TIMESTAMP, "SGUSER" = $2, "SERVERORIG" = 'AppDVcargas' WHERE "CDCADASTRO" = $3`,
+        [novaSituacao, sgUserStatus, idNumerico]
+      );
 
-      if (result.rowsAffected[0] === 0) {
+      if ((result.rowCount ?? 0) === 0) {
         return res.status(404).json({ error: 'Cadastro não encontrado.' });
       }
 
@@ -620,21 +520,15 @@ const cadastroController = {
         return res.status(404).json({ error: 'CEP não encontrado.' });
       }
 
-      // Buscar cidade no banco
       const pool = await poolPromise;
-      const cidadeResult = await pool
-        .request()
-        .input('ESTADO', dadosCEP.uf)
-        .input('NMCIDADE', dadosCEP.localidade)
-        .query(`
-          SELECT CDCIDADE, ESTADO, NMCIDADE 
-          FROM [dbo].[CIDADE] 
-          WHERE ESTADO = @ESTADO AND NMCIDADE = @NMCIDADE AND FGACTIVE = 'A'
-        `);
-
+      const cidadeResult = await pool.query(
+        `SELECT "CDCIDADE", "ESTADO", "NMCIDADE" FROM "CIDADE" WHERE "ESTADO" = $1 AND "NMCIDADE" = $2 AND "FGACTIVE" = 'A' LIMIT 1`,
+        [dadosCEP.uf, dadosCEP.localidade]
+      );
+      const cidadeRows = cidadeResult.rows || [];
       res.json({
         ...dadosCEP,
-        cidade: cidadeResult.recordset[0] || null
+        cidade: cidadeRows[0] || null
       });
     } catch (err) {
       console.error('Erro ao buscar CEP:', err);
@@ -642,9 +536,9 @@ const cadastroController = {
     }
   },
 
-  // Listar combos
+  // Listar combos (opções para filtro "Aplicável para" - ordem: O, P, M, T, A, G, C, U)
   listarTiposCadastro: (req, res) => {
-    const tipos = Object.entries(TIPO_CADASTRO).map(([value, label]) => ({ value, label }));
+    const tipos = APPLICABLE_OPCOES.map(a => ({ value: a.cod, label: `[${a.cod}] ${a.label}` }));
     res.json(tipos);
   },
 
@@ -653,40 +547,33 @@ const cadastroController = {
     res.json(tipos);
   },
 
-  // Listar classes de frota para um cadastro específico
+  // Listar classes de frota para um cadastro específico (PostgreSQL)
   listarClassesParaCadastro: async (req, res) => {
     try {
       const { id } = req.params;
       const pool = await poolPromise;
-      
-      // Primeiro, obtém todas as classes de frota ativas
-      const todasClasses = await pool
-        .request()
-        .query('SELECT CDCLASSEFROTA, DSCLASSEFROTA FROM [dbo].[CLASSEFROTA] WHERE FGACTIVE = \'A\' ORDER BY DSCLASSEFROTA');
-      
-      // Depois, obtém as classes já associadas a este cadastro
-      const classesAssociadas = await pool
-        .request()
-        .input('CDCADASTRO', sql.Decimal(15, 0), parseFloat(id))
-        .query(`
-          SELECT CDCLASSEFROTA, FGACTIVE 
-          FROM [dbo].[CLASSEFROTA_CG] 
-          WHERE CDCADASTRO = @CDCADASTRO
-        `);
-      
-      // Cria um mapa das classes associadas
+      const todasClasses = await pool.query(
+        `SELECT "CDCLASSEFROTA", "DSCLASSEFROTA" FROM "CLASSEFROTA" WHERE "FGACTIVE" = 'A' ORDER BY "DSCLASSEFROTA"`
+      );
+      const classesAssociadas = await pool.query(
+        `SELECT "CDCLASSEFROTA", "FGACTIVE" FROM "CLASSEFROTA_CG" WHERE "CDCADASTRO" = $1`,
+        [parseFloat(id)]
+      );
       const mapaAssociadas = {};
-      classesAssociadas.recordset.forEach(classe => {
-        mapaAssociadas[classe.CDCLASSEFROTA] = classe.FGACTIVE;
+      (classesAssociadas.rows || []).forEach(row => {
+        const idClasse = row.CDCLASSEFROTA ?? row.cdclassefrota;
+        const fg = row.FGACTIVE ?? row.fgactive;
+        if (idClasse !== undefined && idClasse !== null) mapaAssociadas[idClasse] = fg;
       });
-      
-      // Combina todas as classes com o status atual
-      const resultado = todasClasses.recordset.map(classe => ({
-        CDCLASSEFROTA: classe.CDCLASSEFROTA,
-        DSCLASSEFROTA: classe.DSCLASSEFROTA,
-        FGACTIVE: mapaAssociadas[classe.CDCLASSEFROTA] || 'N'
-      }));
-      
+      const resultado = (todasClasses.rows || []).map(row => {
+        const idClasse = row.CDCLASSEFROTA ?? row.cdclassefrota;
+        const nome = row.DSCLASSEFROTA ?? row.dsclassefrota;
+        return {
+          CDCLASSEFROTA: idClasse,
+          DSCLASSEFROTA: nome,
+          FGACTIVE: (idClasse !== undefined && mapaAssociadas[idClasse] === 'S') ? 'S' : 'N'
+        };
+      });
       res.json(resultado);
     } catch (err) {
       console.error('Erro ao listar classes para cadastro:', err);
@@ -694,103 +581,69 @@ const cadastroController = {
     }
   },
 
-  // Atualizar classes de frota para um cadastro
+  // Atualizar classes de frota para um cadastro (PostgreSQL)
   atualizarClassesParaCadastro: async (req, res) => {
     try {
       const { id } = req.params;
       const { classes } = req.body;
-      
       if (!classes || !Array.isArray(classes)) {
         return res.status(400).json({ error: 'Dados inválidos.' });
       }
-      
       const pool = await poolPromise;
-      const transaction = await pool.transaction();
-      
-      try {
-        await transaction.begin();
-        
-        // Primeiro, obtém as classes já associadas
-        const classesExistentes = await transaction
-          .request()
-          .input('CDCADASTRO', sql.Decimal(15, 0), parseFloat(id))
-          .query(`
-            SELECT CDCLASSEFROTA 
-            FROM [dbo].[CLASSEFROTA_CG] 
-            WHERE CDCADASTRO = @CDCADASTRO
-          `);
-        
-        const existentesSet = new Set(
-          classesExistentes.recordset.map(c => c.CDCLASSEFROTA)
-        );
-        
-        // Processa cada classe recebida
-        for (const classe of classes) {
-          const { CDCLASSEFROTA, FGACTIVE } = classe;
-          
-          if (existentesSet.has(CDCLASSEFROTA)) {
-            // Atualiza classe existente
-            await transaction
-              .request()
-              .input('CDCADASTRO', sql.Decimal(15, 0), parseFloat(id))
-              .input('CDCLASSEFROTA', sql.SmallInt, CDCLASSEFROTA)
-              .input('FGACTIVE', FGACTIVE)
-              .query(`
-                UPDATE [dbo].[CLASSEFROTA_CG] 
-                SET FGACTIVE = @FGACTIVE, DHMAINTENANCE = GETDATE(), SGUSER = 'SYSTEM', SERVERORIG = 'AppDVcargas'
-                WHERE CDCADASTRO = @CDCADASTRO AND CDCLASSEFROTA = @CDCLASSEFROTA
-              `);
-          } else {
-            // Insere nova classe
-            await transaction
-              .request()
-              .input('CDCADASTRO', sql.Decimal(15, 0), parseFloat(id))
-              .input('CDCLASSEFROTA', sql.SmallInt, CDCLASSEFROTA)
-              .input('FGACTIVE', FGACTIVE)
-              .query(`
-                INSERT INTO [dbo].[CLASSEFROTA_CG] (CDCADASTRO, CDCLASSEFROTA, FGACTIVE, DHMAINTENANCE, SGUSER, SERVERORIG)
-                VALUES (@CDCADASTRO, @CDCLASSEFROTA, @FGACTIVE, GETDATE(), 'SYSTEM', 'AppDVcargas')
-              `);
-          }
+      const sgUser = getSgUser(req);
+      if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+      const idNum = parseFloat(id);
+      const existentes = await pool.query(
+        'SELECT "CDCLASSEFROTA" FROM "CLASSEFROTA_CG" WHERE "CDCADASTRO" = $1',
+        [idNum]
+      );
+      const existentesSet = new Set((existentes.rows || []).map(c => c.CDCLASSEFROTA));
+      for (const classe of classes) {
+        const { CDCLASSEFROTA, FGACTIVE } = classe;
+        if (existentesSet.has(CDCLASSEFROTA)) {
+          await pool.query(
+            `UPDATE "CLASSEFROTA_CG" SET "FGACTIVE" = $1, "DHMAINTENANCE" = CURRENT_TIMESTAMP, "SGUSER" = $2, "SERVERORIG" = 'AppDVcargas' WHERE "CDCADASTRO" = $3 AND "CDCLASSEFROTA" = $4`,
+            [FGACTIVE, sgUser, idNum, CDCLASSEFROTA]
+          );
+        } else {
+          await pool.query(
+            `INSERT INTO "CLASSEFROTA_CG" ("CDCADASTRO", "CDCLASSEFROTA", "FGACTIVE", "DHMAINTENANCE", "SGUSER", "SERVERORIG") VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4, 'AppDVcargas')`,
+            [idNum, CDCLASSEFROTA, FGACTIVE, sgUser]
+          );
         }
-        
-        await transaction.commit();
-        res.json({ success: true, message: 'Classes de frota atualizadas com sucesso!' });
-        
-      } catch (err) {
-        await transaction.rollback();
-        throw err;
       }
+      res.json({ success: true, message: 'Classes de frota atualizadas com sucesso!' });
     } catch (err) {
       console.error('Erro ao atualizar classes para cadastro:', err);
       res.status(500).json({ error: 'Erro ao atualizar classes de frota.' });
     }
   },
 
-  // Buscar transportadores (tipo T) para combo
+  // Buscar transportadores (tipo T ou flag FGTRANSPORTADOR = S) para combo (PostgreSQL)
   listarTransportadores: async (req, res) => {
     try {
       const pool = await poolPromise;
-      const result = await pool
-        .request()
-        .query(`
-          SELECT 
-            CDCADASTRO,
-            RZSOCIAL
-          FROM [dbo].[CADASTROGERAL]
-          WHERE FGTIPOCADASTRO = 'T'
-            AND FGACTIVE = 'A'
-          ORDER BY RZSOCIAL
-        `);
-      
-      res.json(result.recordset);
+      const result = await pool.query(`
+        SELECT "CDCADASTRO", "RZSOCIAL"
+        FROM "CADASTROGERAL"
+        WHERE ("FGTIPOCADASTRO" = 'T' OR COALESCE("FGTRANSPORTADOR", 'N') = 'S')
+          AND "FGACTIVE" = 'A'
+        ORDER BY "RZSOCIAL"
+      `);
+      const rows = result.rows || [];
+      // Normalizar chaves para o frontend (PostgreSQL pode devolver minúsculas)
+      const list = rows.map(r => ({
+        CDCADASTRO: r.CDCADASTRO != null ? r.CDCADASTRO : r.cdcadastro,
+        RZSOCIAL: (r.RZSOCIAL != null ? r.RZSOCIAL : r.rzsocial) || '-'
+      }));
+      res.json(list);
     } catch (err) {
       console.error('Erro ao listar transportadores:', err);
       res.status(500).json({ error: 'Erro ao carregar transportadores.' });
     }
   },
 
-  // Exportar cadastros para Excel com todos os dados e tabelas auxiliares
+  // Exportar cadastros para Excel (PostgreSQL)
   exportarExcel: async (req, res) => {
     try {
       const {
@@ -798,147 +651,49 @@ const cadastroController = {
         cidadeEstado, cidadeNome, celular, email, situacao, tipoCadastro, rastreado, transportador
       } = req.query;
 
-      // Query SQL completa com todas as tabelas auxiliares
+      const pool = await poolPromise;
+      const values = [];
+      let paramIndex = 0;
+      const pushVal = (v) => { values.push(v); return `$${++paramIndex}`; };
+
       let query = `
         SELECT 
-          -- Dados principais do cadastro
-          cg.CDCADASTRO AS 'Código',
-          cg.CGCCPF AS 'CPF/CNPJ',
-          cg.RZSOCIAL AS 'Razão Social',
-          cg.NMFANTASIA AS 'Nome Fantasia',
-          CASE cg.FGFISICAJURIDICA 
-            WHEN 'F' THEN 'Física'
-            WHEN 'J' THEN 'Jurídica'
-            ELSE 'Não informado'
-          END AS 'Tipo Pessoa',
-          CASE cg.FGTIPOCADASTRO
-            WHEN 'O' THEN 'Operador do Sistema'
-            WHEN 'M' THEN 'Motorista'
-            WHEN 'A' THEN 'Agente'
-            WHEN 'G' THEN 'Grupo de Divulgação'
-            WHEN 'T' THEN 'Transportador'
-            WHEN 'U' THEN 'Unidade de Negócio'
-            ELSE 'Não informado'
-          END AS 'Tipo Cadastro',
-          CASE cg.FGRASTREADO
-            WHEN 'S' THEN 'Sim'
-            WHEN 'N' THEN 'Não'
-            ELSE 'Não informado'
-          END AS 'Possui Veículo Rastreado',
-          CASE cg.FGACTIVE
-            WHEN 'A' THEN 'Ativo'
-            WHEN 'I' THEN 'Inativo'
-            ELSE 'Não informado'
-          END AS 'Situação',
-          
-          -- Dados de endereço
-          cg.CEP AS 'CEP',
-          cg.ENDERECO AS 'Endereço',
-          cg.NRENDERECO AS 'Número',
-          cg.COMPLEND AS 'Complemento',
-          cg.BAIRRO AS 'Bairro',
-          
-          -- Dados da cidade (tabela auxiliar CIDADE)
-          c.ESTADO AS 'Estado',
-          c.NMCIDADE AS 'Cidade',
-          c.CDCIDADE AS 'Código Cidade',
-          
-          -- Dados de contato
-          cg.NRCELULAR AS 'Celular',
-          cg.ENDEMAIL AS 'Email',
-          
-          -- Dados de localização
-          cg.LATITUDE AS 'Latitude',
-          cg.LONGITUDE AS 'Longitude',
-          
-          -- Dados do transportador (tabela auxiliar CADASTROGERAL - Transportador)
-          cg.CDTRANSPORTADOR AS 'Código Transportador',
-          t.RZSOCIAL AS 'Nome Transportador',
-          t.CGCCPF AS 'CPF/CNPJ Transportador',
-          t.NRCELULAR AS 'Celular Transportador',
-          t.ENDEMAIL AS 'Email Transportador',
-          
-          -- Dados de manutenção
-          cg.DHMAINTENANCE AS 'Data Manutenção',
-          cg.SGUSER AS 'Usuário',
-          cg.SERVERORIG AS 'Servidor Origem'
-        FROM [dbo].[CADASTROGERAL] cg
-        LEFT JOIN [dbo].[CIDADE] c ON cg.CDCIDADE = c.CDCIDADE
-        LEFT JOIN [dbo].[CADASTROGERAL] t ON cg.CDTRANSPORTADOR = t.CDCADASTRO
+          cg."CDCADASTRO" AS "Codigo",
+          cg."CGCCPF" AS "CPF_CNPJ",
+          cg."RZSOCIAL" AS "Razao_Social",
+          cg."NMFANTASIA" AS "Nome_Fantasia",
+          CASE cg."FGFISICAJURIDICA" WHEN 'F' THEN 'Física' WHEN 'J' THEN 'Jurídica' ELSE 'Não informado' END AS "Tipo_Pessoa",
+          CASE cg."FGTIPOCADASTRO" WHEN 'O' THEN 'Operador' WHEN 'M' THEN 'Motorista' WHEN 'A' THEN 'Agente' WHEN 'G' THEN 'Grupo' WHEN 'T' THEN 'Transportador' ELSE 'Não informado' END AS "Tipo_Cadastro",
+          CASE cg."FGRASTREADO" WHEN 'S' THEN 'Sim' WHEN 'N' THEN 'Não' ELSE 'Não informado' END AS "Rastreado",
+          CASE cg."FGACTIVE" WHEN 'A' THEN 'Ativo' WHEN 'I' THEN 'Inativo' ELSE 'Não informado' END AS "Situacao",
+          cg."CEP" AS "CEP", cg."ENDERECO" AS "Endereco", cg."NRENDERECO" AS "Numero", cg."COMPLEND" AS "Complemento", cg."BAIRRO" AS "Bairro",
+          c."ESTADO" AS "Estado", c."NMCIDADE" AS "Cidade", c."CDCIDADE" AS "Codigo_Cidade",
+          cg."NRCELULAR" AS "Celular", cg."ENDEMAIL" AS "Email",
+          cg."LATITUDE" AS "Latitude", cg."LONGITUDE" AS "Longitude",
+          cg."CDTRANSPORTADOR" AS "Codigo_Transportador", t."RZSOCIAL" AS "Nome_Transportador", t."CGCCPF" AS "CPF_CNPJ_Transportador", t."NRCELULAR" AS "Celular_Transportador", t."ENDEMAIL" AS "Email_Transportador",
+          cg."DHMAINTENANCE" AS "Data_Manutencao", cg."SGUSER" AS "Usuario", cg."SERVERORIG" AS "Servidor_Origem"
+        FROM "CADASTROGERAL" cg
+        LEFT JOIN "CIDADE" c ON cg."CDCIDADE" = c."CDCIDADE"
+        LEFT JOIN "CADASTROGERAL" t ON cg."CDTRANSPORTADOR" = t."CDCADASTRO"
         WHERE 1=1
       `;
+      if (codigo) query += ` AND cg."CDCADASTRO" = ${pushVal(parseFloat(codigo))}`;
+      if (cgccpf) query += ` AND cg."CGCCPF" = ${pushVal(String(cgccpf).replace(/[^\d]+/g, ''))}`;
+      if (razaoSocial) query += ` AND cg."RZSOCIAL" LIKE ${pushVal(`%${razaoSocial}%`)}`;
+      if (nomeFantasia) query += ` AND cg."NMFANTASIA" LIKE ${pushVal(`%${nomeFantasia}%`)}`;
+      if (tipoPessoa) query += ` AND cg."FGFISICAJURIDICA" = ${pushVal(tipoPessoa)}`;
+      if (cidadeEstado) query += ` AND c."ESTADO" = ${pushVal(cidadeEstado)}`;
+      if (cidadeNome) query += ` AND c."NMCIDADE" LIKE ${pushVal(`%${cidadeNome}%`)}`;
+      if (celular) query += ` AND cg."NRCELULAR" = ${pushVal(parseFloat(celular))}`;
+      if (email) query += ` AND cg."ENDEMAIL" LIKE ${pushVal(`%${email}%`)}`;
+      if (situacao) query += ` AND cg."FGACTIVE" = ${pushVal(situacao === 'S' ? 'A' : 'I')}`;
+      if (tipoCadastro) query += ` AND cg."FGTIPOCADASTRO" = ${pushVal(tipoCadastro.trim().toUpperCase())}`;
+      if (rastreado) query += ` AND cg."FGRASTREADO" = ${pushVal(rastreado)}`;
+      if (transportador) query += ` AND cg."CDTRANSPORTADOR" = ${pushVal(parseFloat(transportador))}`;
+      query += ` ORDER BY cg."RZSOCIAL"`;
 
-      const params = [];
-      if (codigo) {
-        query += ` AND cg.CDCADASTRO = @CODIGO`;
-        params.push({ name: 'CODIGO', value: parseFloat(codigo) });
-      }
-      if (cgccpf) {
-        const cgccpfStr = String(cgccpf).replace(/[^\d]+/g, '');
-        query += ` AND cg.CGCCPF = @CGCCPF`;
-        params.push({ name: 'CGCCPF', type: sql.VarChar(14), value: cgccpfStr });
-      }
-      if (razaoSocial) {
-        query += ` AND cg.RZSOCIAL LIKE @RAZAOSOCIAL`;
-        params.push({ name: 'RAZAOSOCIAL', value: `%${razaoSocial}%` });
-      }
-      if (nomeFantasia) {
-        query += ` AND cg.NMFANTASIA LIKE @NMFANTASIA`;
-        params.push({ name: 'NMFANTASIA', value: `%${nomeFantasia}%` });
-      }
-      if (tipoPessoa) {
-        query += ` AND cg.FGFISICAJURIDICA = @TIPOPESSOA`;
-        params.push({ name: 'TIPOPESSOA', value: tipoPessoa });
-      }
-      if (cidadeEstado) {
-        query += ` AND c.ESTADO = @CIDADE_ESTADO`;
-        params.push({ name: 'CIDADE_ESTADO', value: cidadeEstado });
-      }
-      if (cidadeNome) {
-        query += ` AND c.NMCIDADE LIKE @CIDADE_NOME`;
-        params.push({ name: 'CIDADE_NOME', value: `%${cidadeNome}%` });
-      }
-      if (celular) {
-        query += ` AND cg.NRCELULAR = @CELULAR`;
-        params.push({ name: 'CELULAR', value: parseFloat(celular) });
-      }
-      if (email) {
-        query += ` AND cg.ENDEMAIL LIKE @EMAIL`;
-        params.push({ name: 'EMAIL', value: `%${email}%` });
-      }
-      if (situacao) {
-        query += ` AND cg.FGACTIVE = @SITUACAO`;
-        params.push({ name: 'SITUACAO', value: situacao === 'S' ? 'A' : 'I' });
-      }
-      if (tipoCadastro) {
-        query += ` AND cg.FGTIPOCADASTRO = @TIPOCADASTRO`;
-        params.push({ name: 'TIPOCADASTRO', value: tipoCadastro.trim().toUpperCase() });
-      }
-      if (rastreado) {
-        query += ` AND cg.FGRASTREADO = @RASTREADO`;
-        params.push({ name: 'RASTREADO', value: rastreado });
-      }
-      if (transportador) {
-        query += ` AND cg.CDTRANSPORTADOR = @TRANSPORTADOR`;
-        params.push({ name: 'TRANSPORTADOR', value: parseFloat(transportador) });
-      }
-
-      query += ` ORDER BY cg.RZSOCIAL`;
-
-      const pool = await poolPromise;
-      const request = pool.request();
-      params.forEach(p => {
-        if (p.type) {
-          request.input(p.name, p.type, p.value);
-        } else {
-          request.input(p.name, p.value);
-        }
-      });
-      
-      const result = await request.query(query);
-      
-      // Converter para array de objetos simples
-      const dados = result.recordset.map(row => {
+      const result = await pool.query(query, values);
+      const dados = (result.rows || []).map(row => {
         const obj = {};
         for (const key in row) {
           obj[key] = row[key] !== null && row[key] !== undefined ? row[key] : '';

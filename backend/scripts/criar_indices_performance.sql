@@ -1,9 +1,9 @@
 -- Script para criar índices de performance no banco de dados
 -- Versão: 1.0
--- Data: 2025-01-16
+-- Data: 2026-01-16
 -- Descrição: Índices para otimizar consultas frequentes
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 -- ==========================================

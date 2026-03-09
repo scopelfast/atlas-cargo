@@ -1,9 +1,8 @@
 // backend/services/reputation-service.js
 // Service para calcular reputação de motoristas
 // Versão: 1.0
-// Data: 2025-01-16
+// Data: 2026-01-16
 
-const sql = require('mssql');
 const { poolPromise } = require('../config/db');
 
 const reputationService = {
@@ -14,30 +13,27 @@ const reputationService = {
   calcularReputacao: async (cdmotorista) => {
     try {
       const pool = await poolPromise;
-      const request = pool.request();
-      request.input('cdmotorista', sql.Decimal(15, 0), cdmotorista);
 
-      // Buscar todas as viagens concluídas do motorista
-      // NOTA: DTPREVFINAL é a data prevista de finalização/descarga
-      // Considerar viagens com DTPREVFINAL preenchido como concluídas
-      const viagensQuery = await request.query(`
-        SELECT 
-          vm.IDVIAGEM,
-          vm.DTPREVINICIO,
-          vm.DTPREVFINAL,
-          vm.CDSITUACAOVIAGEM,
-          ISNULL(sv.DSSITUACAOVIAGEM, 'Não informado') AS DSSITUACAOVIAGEM,
-          c.CDCADASTRO_MOTORISTA,
-          vm.DTPREVFINAL AS DTDESCARGA -- Alias para compatibilidade com código abaixo
-        FROM VIAGEMMESTRE vm
-        INNER JOIN CONVOCACAO c ON vm.IDVIAGEM = c.IDVIAGEM
-        LEFT JOIN SITUACAOVIAGEM sv ON vm.CDSITUACAOVIAGEM = sv.CDSITUACAOVIAGEM
-        WHERE c.CDCADASTRO_MOTORISTA = @cdmotorista
-          AND vm.DTPREVFINAL IS NOT NULL -- Com data de descarga (entregue)
-        ORDER BY vm.DTPREVFINAL DESC
-      `);
+      // Buscar todas as viagens concluídas do motorista - PostgreSQL
+      const viagensResult = await pool.query(
+        `SELECT 
+          vm."IDVIAGEM",
+          vm."DTPREVINICIO",
+          vm."DTPREVFINAL",
+          vm."CDSITUACAOVIAGEM",
+          COALESCE(sv."DSSITUACAOVIAGEM", 'Não informado') AS "DSSITUACAOVIAGEM",
+          c."CDCADASTRO_MOTORISTA",
+          vm."DTPREVFINAL" AS "DTDESCARGA"
+        FROM "VIAGEMMESTRE" vm
+        INNER JOIN "CONVOCACAO" c ON vm."IDVIAGEM" = c."IDVIAGEM"
+        LEFT JOIN "SITUACAOVIAGEM" sv ON vm."CDSITUACAOVIAGEM" = sv."CDSITUACAOVIAGEM"
+        WHERE c."CDCADASTRO_MOTORISTA" = $1
+          AND vm."DTPREVFINAL" IS NOT NULL
+        ORDER BY vm."DTPREVFINAL" DESC`,
+        [cdmotorista]
+      );
 
-      const viagens = viagensQuery.recordset;
+      const viagens = viagensResult.rows || [];
       
       if (viagens.length === 0) {
         // Se não há viagens, manter score 0 ou criar registro inicial
@@ -133,34 +129,29 @@ const reputationService = {
   recalcularTodasReputacoes: async () => {
     try {
       const pool = await poolPromise;
-      const request = pool.request();
 
-      // Verificar se a tabela existe
-      const checkTableResult = await request.query(`
-        SELECT COUNT(*) AS TableCount
-        FROM sys.objects
-        WHERE object_id = OBJECT_ID(N'[dbo].[DRIVER_REPUTATION]') 
-          AND type in (N'U')
+      // Verificar se a tabela existe - PostgreSQL
+      const checkTableResult = await pool.query(`
+        SELECT COUNT(*) AS "TableCount"
+        FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'DRIVER_REPUTATION'
       `);
-      
-      const tableExists = checkTableResult.recordset[0] && checkTableResult.recordset[0].TableCount > 0;
+      const tableExists = checkTableResult.rows[0] && parseInt(checkTableResult.rows[0].TableCount ?? checkTableResult.rows[0].TableCount, 10) > 0;
 
       if (!tableExists) {
         throw new Error('Tabela DRIVER_REPUTATION não existe. Execute o script: criar_tabela_driver_reputation.sql');
       }
 
-      // Buscar todos os motoristas que têm viagens finalizadas
-      // NOTA: DTPREVFINAL é a data prevista de finalização/descarga
-      // Usar apenas DTPREVFINAL para identificar viagens concluídas
-      const motoristasQuery = await request.query(`
-        SELECT DISTINCT c.CDCADASTRO_MOTORISTA
-        FROM CONVOCACAO c
-        INNER JOIN VIAGEMMESTRE vm ON c.IDVIAGEM = vm.IDVIAGEM
-        WHERE vm.DTPREVFINAL IS NOT NULL
-          AND c.CDCADASTRO_MOTORISTA IS NOT NULL
+      // Buscar todos os motoristas que têm viagens finalizadas - PostgreSQL
+      const motoristasResult = await pool.query(`
+        SELECT DISTINCT c."CDCADASTRO_MOTORISTA"
+        FROM "CONVOCACAO" c
+        INNER JOIN "VIAGEMMESTRE" vm ON c."IDVIAGEM" = vm."IDVIAGEM"
+        WHERE vm."DTPREVFINAL" IS NOT NULL
+          AND c."CDCADASTRO_MOTORISTA" IS NOT NULL
       `);
 
-      const motoristas = motoristasQuery.recordset;
+      const motoristas = motoristasResult.rows || [];
       console.log(`📊 Recalculando reputação de ${motoristas.length} motorista(s)...`);
 
       if (motoristas.length === 0) {
@@ -178,15 +169,14 @@ const reputationService = {
 
       for (const motorista of motoristas) {
         try {
-          await reputationService.calcularReputacao(motorista.CDCADASTRO_MOTORISTA);
+          const cdm = motorista.CDCADASTRO_MOTORISTA ?? motorista.cdcadastro_motorista;
+          await reputationService.calcularReputacao(cdm);
           sucesso++;
         } catch (err) {
-          console.error(`Erro ao recalcular motorista ${motorista.CDCADASTRO_MOTORISTA}:`, err.message);
+          const cdm = motorista.CDCADASTRO_MOTORISTA ?? motorista.cdcadastro_motorista;
+          console.error(`Erro ao recalcular motorista ${cdm}:`, err.message);
           erro++;
-          errosDetalhes.push({
-            motorista: motorista.CDCADASTRO_MOTORISTA,
-            erro: err.message
-          });
+          errosDetalhes.push({ motorista: cdm, erro: err.message });
         }
       }
 
@@ -210,78 +200,45 @@ const reputationService = {
 };
 
 /**
- * Criar registro inicial de reputação
+ * Criar registro inicial de reputação - PostgreSQL
  */
 async function criarRegistroReputacao(cdmotorista, score, total, onTime, late, canceled, avgDelay, lastDelivery) {
   const pool = await poolPromise;
-  const request = pool.request();
-  
-  request.input('cdmotorista', sql.Decimal(15, 0), cdmotorista);
-  request.input('score', sql.Float, score);
-  request.input('total', sql.Int, total);
-  request.input('onTime', sql.Int, onTime);
-  request.input('late', sql.Int, late);
-  request.input('canceled', sql.Int, canceled);
-  request.input('avgDelay', sql.Float, avgDelay || 0);
-  request.input('lastDelivery', sql.DateTime2, lastDelivery || null);
-
-  await request.query(`
-    IF NOT EXISTS (SELECT 1 FROM DRIVER_REPUTATION WHERE CDMOTORISTA = @cdmotorista)
-    BEGIN
-      INSERT INTO DRIVER_REPUTATION (
-        CDMOTORISTA, SCORE, TOTAL_DELIVERIES, ON_TIME_DELIVERIES,
-        LATE_DELIVERIES, CANCELED_DELIVERIES, AVERAGE_DELAY_MINUTES,
-        LAST_DELIVERY_DATE, LAST_UPDATED
-      )
-      VALUES (
-        @cdmotorista, @score, @total, @onTime, @late, @canceled,
-        @avgDelay, @lastDelivery, SYSUTCDATETIME()
-      )
-    END
-  `);
+  await pool.query(
+    `INSERT INTO "DRIVER_REPUTATION" (
+       "CDMOTORISTA", "SCORE", "TOTAL_DELIVERIES", "ON_TIME_DELIVERIES",
+       "LATE_DELIVERIES", "CANCELED_DELIVERIES", "AVERAGE_DELAY_MINUTES",
+       "LAST_DELIVERY_DATE", "LAST_UPDATED"
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
+     ON CONFLICT ("CDMOTORISTA") DO NOTHING`,
+    [cdmotorista, score, total, onTime, late, canceled, avgDelay || 0, lastDelivery || null]
+  );
 }
 
 /**
- * Atualizar registro de reputação
+ * Atualizar registro de reputação - PostgreSQL (UPSERT)
  */
 async function atualizarReputacao(cdmotorista, score, total, onTime, late, canceled, avgDelay, lastDelivery) {
   const pool = await poolPromise;
-  const request = pool.request();
-  
-  request.input('cdmotorista', sql.Decimal(15, 0), cdmotorista);
-  request.input('score', sql.Float, score);
-  request.input('total', sql.Int, total);
-  request.input('onTime', sql.Int, onTime);
-  request.input('late', sql.Int, late);
-  request.input('canceled', sql.Int, canceled);
-  request.input('avgDelay', sql.Float, avgDelay || 0);
-  request.input('lastDelivery', sql.DateTime2, lastDelivery || null);
-
-  await request.query(`
-    MERGE DRIVER_REPUTATION AS target
-    USING (SELECT @cdmotorista AS CDMOTORISTA) AS source
-    ON target.CDMOTORISTA = source.CDMOTORISTA
-    WHEN MATCHED THEN
-      UPDATE SET
-        SCORE = @score,
-        TOTAL_DELIVERIES = @total,
-        ON_TIME_DELIVERIES = @onTime,
-        LATE_DELIVERIES = @late,
-        CANCELED_DELIVERIES = @canceled,
-        AVERAGE_DELAY_MINUTES = @avgDelay,
-        LAST_DELIVERY_DATE = @lastDelivery,
-        LAST_UPDATED = SYSUTCDATETIME()
-    WHEN NOT MATCHED THEN
-      INSERT (
-        CDMOTORISTA, SCORE, TOTAL_DELIVERIES, ON_TIME_DELIVERIES,
-        LATE_DELIVERIES, CANCELED_DELIVERIES, AVERAGE_DELAY_MINUTES,
-        LAST_DELIVERY_DATE, LAST_UPDATED
-      )
-      VALUES (
-        @cdmotorista, @score, @total, @onTime, @late, @canceled,
-        @avgDelay, @lastDelivery, SYSUTCDATETIME()
-      );
-  `);
+  await pool.query(
+    `INSERT INTO "DRIVER_REPUTATION" (
+       "CDMOTORISTA", "SCORE", "TOTAL_DELIVERIES", "ON_TIME_DELIVERIES",
+       "LATE_DELIVERIES", "CANCELED_DELIVERIES", "AVERAGE_DELAY_MINUTES",
+       "LAST_DELIVERY_DATE", "LAST_UPDATED"
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
+     ON CONFLICT ("CDMOTORISTA") DO UPDATE SET
+       "SCORE" = EXCLUDED."SCORE",
+       "TOTAL_DELIVERIES" = EXCLUDED."TOTAL_DELIVERIES",
+       "ON_TIME_DELIVERIES" = EXCLUDED."ON_TIME_DELIVERIES",
+       "LATE_DELIVERIES" = EXCLUDED."LATE_DELIVERIES",
+       "CANCELED_DELIVERIES" = EXCLUDED."CANCELED_DELIVERIES",
+       "AVERAGE_DELAY_MINUTES" = EXCLUDED."AVERAGE_DELAY_MINUTES",
+       "LAST_DELIVERY_DATE" = EXCLUDED."LAST_DELIVERY_DATE",
+       "LAST_UPDATED" = CURRENT_TIMESTAMP`,
+    [cdmotorista, score, total, onTime, late, canceled, avgDelay || 0, lastDelivery || null]
+  );
 }
 
 /**

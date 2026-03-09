@@ -1,6 +1,6 @@
 // Cache Service - Cache em memória para consultas frequentes
 // Versão: 1.0
-// Data: 2025-01-16
+// Data: 2026-01-16
 
 /**
  * Serviço de cache simples em memória para reduzir carga no banco de dados

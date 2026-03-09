@@ -1,6 +1,6 @@
 # 🔧 Correções Aplicadas nos Scripts SQL
 
-**Data:** 2025-01-15  
+**Data:** 2026-01-15  
 **Problema:** Scripts tentavam usar colunas antes de criá-las
 
 ---
@@ -15,7 +15,7 @@
 - ✅ UPDATE de DH_TRATAMENTO movido para bloco separado
 - ✅ UPDATE de PRIORIDADE movido para bloco separado
 - ✅ Removido ELSE duplicado
-- ✅ Banco de dados atualizado para `DIVULGACARGA_PRD`
+- ✅ Banco de dados atualizado para `ATLAS_CARGO_PRD`
 
 **Estrutura corrigida:**
 ```sql
@@ -36,19 +36,19 @@ GO
 
 **Problemas corrigidos:**
 - ✅ UPDATE de TIPO já estava correto (após GO)
-- ✅ Banco de dados atualizado para `DIVULGACARGA_PRD`
+- ✅ Banco de dados atualizado para `ATLAS_CARGO_PRD`
 
 ### 3. Script: `ajustar_tabela_sos_alerts_para_modulo.sql`
 
 **Problemas corrigidos:**
 - ✅ UPDATE de TEMPO_RESPOSTA movido para bloco separado
 - ✅ Removido ELSE duplicado
-- ✅ Banco de dados atualizado para `DIVULGACARGA_PRD`
+- ✅ Banco de dados atualizado para `ATLAS_CARGO_PRD`
 
 ### 4. Script: `criar_tabela_ranking_data.sql`
 
 **Problemas corrigidos:**
-- ✅ Banco de dados atualizado para `DIVULGACARGA_PRD`
+- ✅ Banco de dados atualizado para `ATLAS_CARGO_PRD`
 
 ---
 
@@ -59,7 +59,7 @@ GO
 Execute cada script separadamente no SQL Server Management Studio:
 
 ```sql
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 -- 1. Execute: ajustar_tabela_alerts_para_modulo.sql
@@ -71,7 +71,7 @@ GO
 ### Opção 2: Executar Script Master
 
 ```sql
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 -- Execute: EXECUTAR_TODOS_AJUSTES_MODULOS.sql

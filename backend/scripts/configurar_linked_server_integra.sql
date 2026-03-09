@@ -4,11 +4,11 @@
 -- Descrição: Configura o linked server para acessar o banco INTEGRA_PRD
 --            com as novas credenciais e endereço
 -- 
--- IMPORTANTE: Execute este script no banco DIVULGACARGA_PRD
--- NOTA: Ambos os bancos (DIVULGACARGA_PRD e INTEGRA_PRD) estão no mesmo servidor
+-- IMPORTANTE: Execute este script no banco ATLAS_CARGO_PRD
+-- NOTA: Ambos os bancos (ATLAS_CARGO_PRD e INTEGRA_PRD) estão no mesmo servidor
 -- ============================================
 
-USE [DIVULGACARGA_PRD];
+USE [ATLAS_CARGO_PRD];
 GO
 
 -- Verificar se o linked server já existe
@@ -95,7 +95,7 @@ BEGIN
         @useself = 'false',
         @locallogin = NULL,  -- Aplica para todos os logins locais
         @rmtuser = 'sa',
-        @rmtpassword = 'SistMSQLServer2025&*';
+        @rmtpassword = 'SistMSQLServer2026&*';
     PRINT '✅ Autenticação configurada';
 END
 ELSE

@@ -1,7 +1,7 @@
 -- ============================================
 -- Stored Procedure: sp_integracao_transportador
 -- ============================================
--- Descrição: Sincroniza dados de transportadores (Tipo T) do INTEGRA_PRD para DIVULGACARGA_PRD
+-- Descrição: Sincroniza dados de transportadores (Tipo T) do INTEGRA_PRD para ATLAS_CARGO_PRD
 -- 
 -- Lógica:
 -- 1. Identifica transportadores ativos (com viagens nos últimos 7 dias)
@@ -9,11 +9,11 @@
 -- 3. Sincroniza dados do CADASTROGERAL com tipo 'T' (Transportador)
 -- 4. Atualiza flag FGRASTREADO baseado em equipamentos rastreados
 --
--- Autor: Sistema DivulgaCarga
--- Data: 2025-11-25
+-- Autor: Atlas Cargo
+-- Data: 2026-11-25
 -- ============================================
 
-USE [DIVULGACARGA_PRD];
+USE [ATLAS_CARGO_PRD];
 GO
 
 -- Remover procedure se já existir
@@ -94,7 +94,7 @@ BEGIN
           AND C.RZSOCIAL IS NOT NULL;
         
         -- ============================================
-        -- Passo 2: MERGE na tabela do banco DIVULGACARGA_PRD
+        -- Passo 2: MERGE na tabela do banco ATLAS_CARGO_PRD
         -- ============================================
         
         MERGE INTO [dbo].[CADASTROGERAL] AS TARGET

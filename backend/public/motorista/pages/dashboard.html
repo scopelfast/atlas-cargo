@@ -3,23 +3,82 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#667eea">
+  <meta name="theme-color" content="#0d2137">
   <title>Dashboard - Motorista</title>
-  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../css/design-system.css">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <script src="../js/i18n.js"></script>
   <style>
-    /* Header personalizado do Dashboard */
-    .header-motorista {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 50px 20px 20px;
-      border-bottom-left-radius: 30px;
-      border-bottom-right-radius: 30px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    /* Dashboard alinhado ao padrão da tela de login (index.html) */
+    body.motorista-dashboard-page {
+      min-height: 100vh;
+      background: linear-gradient(160deg, #f0f9ff 0%, #e0f2fe 30%, #f1f5f9 70%, #f8fafc 100%) !important;
+      padding-bottom: 24px;
+    }
+
+    /* Container principal: uma coluna, largura máxima, centralizado */
+    body.motorista-dashboard-page .container {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 20px 16px 24px;
+    }
+
+    .dashboard-block {
       margin-bottom: 20px;
     }
 
+    #miniStatusGPS {
+      overflow: hidden;
+      border-radius: 12px;
+    }
+
+    /* Header: mesmo padrão 480px centralizado (estilo card) */
+    .header-motorista {
+      background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%);
+      color: white;
+      padding: 24px 20px 20px;
+      box-shadow: 0 8px 24px rgba(6, 20, 40, 0.25);
+      margin-bottom: 20px;
+      position: relative;
+      overflow: hidden;
+      border-radius: var(--radius-card, 20px);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .header-motorista::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(14, 165, 233, 0.15) 0%, transparent 55%);
+      pointer-events: none;
+    }
+
+    .header-badge-app {
+      position: relative;
+      z-index: 1;
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgba(255, 255, 255, 0.9);
+      background: rgba(255, 255, 255, 0.12);
+      padding: 4px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      margin-bottom: 12px;
+    }
+
     .header-content {
+      position: relative;
+      z-index: 1;
       display: flex;
       align-items: center;
       gap: 15px;
@@ -48,18 +107,43 @@
     }
 
     .header-nome {
-      font-size: 20px;
+      font-size: 18px;
       font-weight: bold;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
     .header-cpf {
-      font-size: 14px;
+      font-size: 13px;
       opacity: 0.9;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
+    }
+
+    /* Reputação e status na mesma linha, sem sobrepor */
+    .header-info .reputacao-badge {
+      margin-top: 4px;
+    }
+
+    .header-info .status-badge-header {
+      margin-top: 4px;
+    }
+
+    .logout-btn {
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.25);
+      color: white;
+      font-size: 20px;
+      cursor: pointer;
+      border-radius: 8px;
+      flex-shrink: 0;
+      line-height: 1;
+    }
+
+    .logout-btn:hover {
+      background: rgba(255,255,255,0.3);
     }
 
     .reputacao-badge {
@@ -71,7 +155,6 @@
       border-radius: 12px;
       font-size: 13px;
       font-weight: 600;
-      margin-top: 8px;
     }
 
     .reputacao-score {
@@ -102,21 +185,12 @@
       margin-right: 6px;
     }
 
-    .logout-btn {
-      padding: 10px;
-      background: rgba(255,255,255,0.2);
-      border: none;
-      color: white;
-      font-size: 24px;
-      cursor: pointer;
-      border-radius: 8px;
-      flex-shrink: 0;
-    }
-
     .versao-container {
       text-align: center;
       padding-top: 10px;
       border-top: 1px solid rgba(255,255,255,0.2);
+      position: relative;
+      z-index: 1;
     }
 
     .versao-text {
@@ -137,11 +211,11 @@
       display: flex !important;
       flex-direction: column;
       text-decoration: none;
-      border-radius: var(--radius-md, 12px);
-      padding: var(--spacing-md, 16px);
-      box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.08));
-      transition: all var(--transition-base, 250ms ease);
-      border: 1px solid var(--gray-200, #e9ecef);
+      border-radius: var(--radius-card, 20px);
+      padding: 18px 16px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+      transition: all 0.25s ease;
+      border: 1px solid rgba(0,0,0,0.04);
       overflow: hidden;
       min-height: auto;
       width: 100%;
@@ -159,7 +233,7 @@
       left: 0;
       right: 0;
       height: 3px;
-      background: var(--primary-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+      background: var(--primary-gradient);
       transform: scaleX(0);
       transform-origin: left;
       transition: transform var(--transition-base, 250ms ease);
@@ -170,9 +244,9 @@
     }
 
     .menu-item:hover {
-      box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.12));
-      transform: translateY(-2px);
-      border-color: var(--primary-500, #667eea);
+      box-shadow: 0 12px 28px rgba(0,0,0,0.1);
+      transform: translateY(-3px);
+      border-color: rgba(14, 165, 233, 0.3);
     }
 
     .menu-item:active {
@@ -187,16 +261,21 @@
 
     .menu-icon {
       font-size: 24px;
-      width: 40px;
-      height: 40px;
+      width: 44px;
+      height: 44px;
       display: flex;
       align-items: center;
       justify-content: center;
-      border-radius: 10px;
+      border-radius: 14px;
       line-height: 1;
       position: relative;
       z-index: 1;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%);
+      box-shadow: 0 4px 12px rgba(6, 20, 40, 0.25);
+    }
+    .menu-icon i {
+      color: #fff;
+      font-size: 22px;
     }
 
     .menu-value {
@@ -218,7 +297,7 @@
     }
     
     /* Ícones específicos para cada botão */
-    .btn-gps .menu-icon { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .btn-gps .menu-icon { background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); }
     .btn-posicao .menu-icon { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
     .btn-macros .menu-icon { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
     .btn-chat .menu-icon { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
@@ -245,10 +324,21 @@
     }
 
     .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--ac-primary, #0d2137);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-title i {
+      font-size: 20px;
+      color: var(--ac-accent, #0ea5e9);
+    }
+    .logout-btn i {
       font-size: 22px;
-      font-weight: bold;
-      color: #333;
-      margin-bottom: 20px;
+      display: block;
     }
 
     /* Cards de Estatísticas */
@@ -260,15 +350,15 @@
 
     .stat-card {
       background: var(--white, #ffffff);
-      border-radius: var(--radius-md, 12px);
-      padding: var(--spacing-md, 16px);
-      box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.08));
+      border-radius: var(--radius-card, 20px);
+      padding: 18px 16px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
       display: flex;
       flex-direction: column;
       gap: var(--spacing-sm, 8px);
       cursor: pointer;
-      transition: all var(--transition-base, 250ms ease);
-      border: 1px solid var(--gray-200, #e9ecef);
+      transition: all 0.25s ease;
+      border: 1px solid rgba(0,0,0,0.04);
       position: relative;
       overflow: hidden;
     }
@@ -280,7 +370,7 @@
       left: 0;
       right: 0;
       height: 3px;
-      background: var(--primary-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
+      background: var(--primary-gradient);
       transform: scaleX(0);
       transform-origin: left;
       transition: transform var(--transition-base, 250ms ease);
@@ -297,7 +387,7 @@
     .stat-card:hover {
       box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.12));
       transform: translateY(-2px);
-      border-color: var(--primary-500, #667eea);
+      border-color: var(--ac-accent, #0ea5e9);
     }
 
     .stat-card-header {
@@ -314,7 +404,8 @@
       align-items: center;
       justify-content: center;
       border-radius: 10px;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%);
+      color: #fff;
     }
 
     .stat-card-value {
@@ -390,7 +481,7 @@
 
     .performance-bar-fill {
       height: 100%;
-      background: var(--primary-gradient, linear-gradient(90deg, #667eea 0%, #764ba2 100%));
+      background: var(--primary-gradient, linear-gradient(90deg, #061428 0%, #0d2137 50%, #1a365d 100%));
       border-radius: var(--radius-full, 9999px);
       transition: width var(--transition-slow, 350ms ease);
       display: flex;
@@ -448,7 +539,7 @@
       border-radius: 12px;
       padding: 16px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      border-left: 4px solid #667eea;
+      border-left: 4px solid #0ea5e9;
       cursor: pointer;
       transition: all 0.3s;
       position: relative;
@@ -462,7 +553,7 @@
 
     .notificacao-card.nao-lida {
       background: #f0f7ff;
-      border-left-color: #667eea;
+      border-left-color: #0ea5e9;
     }
 
     .notificacao-card.chat {
@@ -527,7 +618,7 @@
     }
 
     .notificacao-badge {
-      background: #667eea;
+      background: #0ea5e9;
       color: white;
       padding: 2px 8px;
       border-radius: 10px;
@@ -548,34 +639,34 @@
     }
   </style>
 </head>
-<body>
+<body class="motorista-dashboard-page">
   <!-- HEADER -->
   <div class="header-motorista">
+    <div class="header-badge-app">Motorista</div>
     <div class="header-content">
       <div class="avatar" id="avatarMotorista">?</div>
       <div class="header-info">
         <div class="header-nome" id="nomeMotorista">Carregando...</div>
         <div class="header-cpf" id="cpfMotorista">CPF: -</div>
         <div id="reputacaoContainer" class="reputacao-badge" style="display: none; cursor: pointer;" onclick="document.getElementById('cardsEstatisticas')?.scrollIntoView({ behavior: 'smooth' })">
-          <span>⭐ Reputação:</span>
+          <span data-i18n="dashboard.reputacao">⭐ Reputação:</span>
           <span id="reputacaoScore" class="reputacao-score">-</span>
         </div>
         <div class="status-badge-header">
           <div class="status-dot-header"></div>
-          <span>Online</span>
+          <span data-i18n="dashboard.onlineSincronizado">Online - Sincronizado</span>
         </div>
       </div>
-      <button class="logout-btn" onclick="logout()" title="Sair">🚪</button>
+      <button class="logout-btn" onclick="logout()" title="" data-i18n-title="common.sair"><i class="bx bx-log-out"></i></button>
     </div>
     <div class="versao-container">
       <span class="versao-text">Versão 1.0.0</span>
     </div>
   </div>
 
-  <!-- MENU -->
+  <!-- CONTEÚDO PRINCIPAL (uma coluna, ordem clara) -->
   <div class="container">
-    <!-- Mini Status GPS -->
-    <div id="miniStatusGPS" style="margin-bottom: 16px;"></div>
+    <div id="miniStatusGPS" class="dashboard-block"></div>
 
     <!-- Cards de Estatísticas -->
     <div id="cardsEstatisticas" class="stats-cards" style="margin-bottom: 20px;">
@@ -584,87 +675,87 @@
 
     <!-- Notificações Recentes -->
     <div class="section-title" style="display: flex; justify-content: space-between; align-items: center;">
-      <span>🔔 Notificações Recentes</span>
-      <button onclick="carregarNotificacoes()" style="background: none; border: none; color: #667eea; font-size: 12px; cursor: pointer; padding: 4px 8px;">🔄 Atualizar</button>
+      <span><i class="bx bx-bell"></i> <span data-i18n="dashboard.notificacoesRecentes">Notificações Recentes</span></span>
+      <button onclick="carregarNotificacoes()" class="btn-refresh" style="background: none; border: none; color: #0ea5e9; font-size: 12px; cursor: pointer; padding: 6px 10px; display: inline-flex; align-items: center; gap: 4px;"><i class="bx bx-refresh"></i> <span data-i18n="dashboard.atualizar">Atualizar</span></button>
     </div>
     <div id="notificacoesRecentes" style="margin-bottom: 20px;">
       <div class="loading">
         <div class="spinner"></div>
-        <p>Carregando notificações...</p>
+        <p data-i18n="dashboard.carregandoNotificacoes">Carregando notificações...</p>
       </div>
     </div>
 
-    <div class="section-title">Menu Principal</div>
+    <div class="section-title"><i class="bx bx-grid-alt"></i> <span data-i18n="dashboard.menuPrincipal">Menu Principal</span></div>
     
     <div class="menu-grid">
       <a href="gps.html" class="menu-item btn-gps">
         <div class="menu-item-header">
-          <div class="menu-icon">📍</div>
-          <div class="menu-value">-</div>
+          <div class="menu-icon"><i class="bx bx-map"></i></div>
+          <div class="menu-value" id="gpsValue">0</div>
         </div>
-        <div class="menu-text">GPS</div>
+        <div class="menu-text" data-i18n="dashboard.gps">GPS</div>
       </a>
 
       <a href="enviar-posicao.html" class="menu-item btn-posicao">
         <div class="menu-item-header">
-          <div class="menu-icon">📤</div>
-          <div class="menu-value">-</div>
+          <div class="menu-icon"><i class="bx bx-send"></i></div>
+          <div class="menu-value" id="posicaoValue">0</div>
         </div>
-        <div class="menu-text">Enviar Posição</div>
+        <div class="menu-text" data-i18n="dashboard.enviarPosicao">Enviar Posição</div>
       </a>
 
       <a href="macros.html" class="menu-item btn-macros">
         <div class="menu-item-header">
-          <div class="menu-icon">📝</div>
-          <div class="menu-value" id="macrosValue">13</div>
+          <div class="menu-icon"><i class="bx bx-edit-alt"></i></div>
+          <div class="menu-value" id="macrosValue">0</div>
         </div>
-        <div class="menu-text">Macros</div>
+        <div class="menu-text" data-i18n="dashboard.macros">Macros</div>
       </a>
 
       <a href="#" class="menu-item btn-chat" onclick="abrirChat(); return false;" id="menuChat">
         <div class="menu-item-header">
-          <div class="menu-icon">💬</div>
+          <div class="menu-icon"><i class="bx bx-message-dots"></i></div>
           <div class="menu-value" id="chatValue">0</div>
         </div>
-        <div class="menu-text">Chat</div>
+        <div class="menu-text" data-i18n="dashboard.chat">Chat</div>
       </a>
 
       <a href="viagens.html" class="menu-item btn-viagens">
         <div class="menu-item-header">
-          <div class="menu-icon">🚛</div>
-          <div class="menu-value">-</div>
+          <div class="menu-icon"><i class="bx bx-trip"></i></div>
+          <div class="menu-value" id="viagensValue">0</div>
         </div>
-        <div class="menu-text">Viagens</div>
+        <div class="menu-text" data-i18n="dashboard.viagens">Viagens</div>
       </a>
 
       <a href="convocacoes.html" class="menu-item btn-convocacoes">
         <div class="menu-item-header">
-          <div class="menu-icon">📋</div>
-          <div class="menu-value">-</div>
+          <div class="menu-icon"><i class="bx bx-clipboard"></i></div>
+          <div class="menu-value" id="convocacoesValue">0</div>
         </div>
-        <div class="menu-text">Convocações</div>
+        <div class="menu-text" data-i18n="dashboard.convocacoes">Convocações</div>
       </a>
 
       <a href="cargas.html" class="menu-item btn-cargas">
         <div class="menu-item-header">
-          <div class="menu-icon">📦</div>
-          <div class="menu-value">-</div>
+          <div class="menu-icon"><i class="bx bx-package"></i></div>
+          <div class="menu-value" id="cargasValue">0</div>
         </div>
-        <div class="menu-text">Cargas</div>
+        <div class="menu-text" data-i18n="dashboard.cargas">Cargas</div>
       </a>
 
       <a href="configuracoes.html" class="menu-item btn-config">
         <div class="menu-item-header">
-          <div class="menu-icon">⚙️</div>
-          <div class="menu-value">-</div>
+          <div class="menu-icon"><i class="bx bx-cog"></i></div>
+          <div class="menu-value">0</div>
         </div>
-        <div class="menu-text">Configurações</div>
+        <div class="menu-text" data-i18n="dashboard.configuracoes">Configurações</div>
       </a>
     </div>
   </div>
 
-  <div style="text-align: center; padding: 20px; color: #999; font-size: 11px;">
-    © 2025 DivulgaCarga - Todos os direitos reservados
+  <div style="text-align: center; padding: 20px; color: #999; font-size: 11px;" data-i18n="dashboard.todosDireitos">
+    © 2026 Atlas Cargo - Todos os direitos reservados
   </div>
 
   <!-- URL Helper - DEVE ser o primeiro script para garantir interceptor de fetch -->
@@ -678,6 +769,50 @@
   
   <script>
     if (!verificarAuth()) window.location.href = '../index.html';
+
+    // Aplicar i18n quando locale estiver pronto (Fase 3)
+    var lastDashboardStats = null;
+    function applyI18n() {
+      if (typeof window.t !== 'function') return;
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n');
+        if (k) el.textContent = window.t(k);
+      });
+      document.querySelectorAll('[data-i18n-title]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n-title');
+        if (k) el.title = window.t(k);
+      });
+      // Re-renderizar cards de estatísticas para aplicar traduções nos rótulos
+      if (lastDashboardStats && typeof renderizarCardsEstatisticas === 'function') {
+        renderizarCardsEstatisticas(lastDashboardStats);
+      }
+      // Nome do motorista não usa data-i18n para não ser sobrescrito; reaplicar após i18n
+      var m = getMotorista();
+      var nomeEl = document.getElementById('nomeMotorista');
+      if (nomeEl) nomeEl.textContent = (m && m.nome) ? m.nome : (typeof window.t === 'function' ? window.t('common.carregando') : 'Carregando...');
+    }
+    if (window.i18nReady) window.i18nReady.then(applyI18n);
+
+    // Contexto (locale/timezone) para formatação de datas - Fase 4 multimoeda
+    var contextoDashboard = { locale: 'pt-BR', timezone: 'America/Sao_Paulo' };
+    async function loadContextoDashboard() {
+      try {
+        var apiUrl = (typeof window.corrigirUrl === 'function') ? window.corrigirUrl('/api/contexto') : '/api/contexto';
+        var r = await fetch(apiUrl);
+        var d = await r.json();
+        if (d && d.locale) contextoDashboard.locale = d.locale;
+        if (d && d.timezone) contextoDashboard.timezone = d.timezone;
+      } catch (e) { console.warn('Dashboard: contexto não carregado, usando pt-BR:', e); }
+    }
+    function formatarDataHoraDashboard(val) {
+      if (!val) return '';
+      var opts = { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' };
+      return new Date(val).toLocaleString(contextoDashboard.locale, { ...opts, timeZone: contextoDashboard.timezone });
+    }
+    function formatarDataDashboard(val) {
+      if (!val) return '';
+      return new Date(val).toLocaleDateString(contextoDashboard.locale, { timeZone: contextoDashboard.timezone });
+    }
 
     // Função global para corrigir URLs - disponível para todos os scripts
     // Usa window.__BASE_URL__ que é definido no index.html do motorista
@@ -742,14 +877,15 @@
     carregarNotificacoes();
 
     async function logout() {
-      const resposta = await mostrarModal(
-        'Sair do Aplicativo',
-        'Deseja realmente sair do aplicativo?',
-        ['Cancelar', 'Sair']
-      );
+      const titulo = (typeof window.t === 'function' ? window.t('common.sairTitulo') : 'Sair do Aplicativo');
+      const msg = (typeof window.t === 'function' ? window.t('common.sairConfirmar') : 'Deseja realmente sair do aplicativo?');
+      const btnCancel = (typeof window.t === 'function' ? window.t('common.cancelar') : 'Cancelar');
+      const btnSair = (typeof window.t === 'function' ? window.t('common.sair') : 'Sair');
+      const resposta = await mostrarModal(titulo, msg, [btnCancel, btnSair]);
       
-      if (resposta === 'Sair') {
-        const loading = mostrarLoading('Saindo...');
+      if (resposta === btnSair) {
+        const saindo = (typeof window.t === 'function' ? window.t('dashboard.saindo') : 'Saindo...');
+        const loading = mostrarLoading(saindo);
         localStorage.removeItem('token');
         localStorage.removeItem('motorista');
         setTimeout(() => {
@@ -847,6 +983,21 @@
           return;
         }
 
+        function limparDescricaoNotificacao(desc) {
+          if (!desc) return '';
+          var t = String(desc)
+            .replace(/\*+/g, '')
+            .replace(/\n{3,}/g, '\n\n')
+            .replace(/^\s+|\s+$/g, '');
+          return t.substring(0, 320);
+        }
+        function escaparHtml(s) {
+          if (!s) return '';
+          var div = document.createElement('div');
+          div.textContent = s;
+          return div.innerHTML;
+        }
+
         container.innerHTML = `
           <div class="notificacoes-container">
             ${notificacoes.map(notif => {
@@ -872,25 +1023,25 @@
               });
 
               const tempoRelativo = calcularTempoRelativo(new Date(notif.data));
+              const descricaoLimpa = escaparHtml(limparDescricaoNotificacao(notif.descricao));
 
               return `
                 <div class="notificacao-card ${cores[notif.tipo] || ''} nao-lida" 
-                     onclick="abrirNotificacao('${notif.acao}', '${notif.tipo}', '${notif.id}')">
+                     onclick="abrirNotificacao('${(notif.acao || '').replace(/'/g, "\\'")}', '${(notif.tipo || '').replace(/'/g, "\\'")}', '${(notif.id || '').replace(/'/g, "\\'")}')">
                   <div class="notificacao-header">
                     <div class="notificacao-icone">${icones[notif.tipo] || '🔔'}</div>
                     <div class="notificacao-conteudo">
-                      <div class="notificacao-titulo">${notif.titulo}</div>
-                      <div class="notificacao-descricao">${notif.descricao}</div>
-                      ${notif.roteiro ? `<div style="font-size: 11px; color: #667eea; margin-top: 4px;">🚛 ${notif.roteiro}</div>` : ''}
+                      <div class="notificacao-titulo">${escaparHtml(notif.titulo || '')}</div>
+                      <div class="notificacao-descricao">${descricaoLimpa.replace(/\n/g, '<br>')}</div>
+                      ${notif.roteiro ? `<div style="font-size: 11px; color: #0ea5e9; margin-top: 4px;">🚛 ${escaparHtml(String(notif.roteiro))}</div>` : ''}
                       <div class="notificacao-meta">
                         <div class="notificacao-hora">
                           <span>🕐</span>
-                          <span>${tempoRelativo}</span>
+                          <span>${escaparHtml(tempoRelativo)}</span>
                         </div>
                         ${notif.viagem ? (() => {
-                          // Remover duplicatas se houver (ex: "83301,83301" -> "83301")
                           const viagemId = String(notif.viagem).split(',')[0].trim();
-                          return `<span class="notificacao-badge">Viagem #${viagemId}</span>`;
+                          return `<span class="notificacao-badge">Viagem #${escaparHtml(viagemId)}</span>`;
                         })() : ''}
                       </div>
                     </div>
@@ -966,7 +1117,7 @@
 
           // Se houver apenas uma viagem, abrir chat direto
           if (viagens.length === 1) {
-            window.location.href = `chat.html?viagem=${viagens[0].IDVIAGEM}`;
+            window.location.href = `/chat-motorista-standalone?viagem=${viagens[0].IDVIAGEM}`;
             return;
           }
 
@@ -1032,7 +1183,7 @@
                 <div style="font-size: 11px; color: #999;">Ative nas configurações para começar</div>
               </div>
             </div>
-            <button onclick="window.location.href='gps.html'" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap; margin-left: 12px; box-shadow: 0 2px 4px rgba(102,126,234,0.3);">
+            <button onclick="window.location.href='gps.html'" style="background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); border: none; color: white; padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap; margin-left: 12px; box-shadow: 0 2px 4px rgba(102,126,234,0.3);">
               ⚙️ Ativar
             </button>
           </div>
@@ -1043,7 +1194,7 @@
       // Se está ativo, mostrar status normal
       if (typeof obterEstatisticasGPS !== 'function') {
         miniDiv.innerHTML = `
-          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 12px 16px; border-radius: 10px; box-shadow: 0 2px 8px rgba(102,126,234,0.2); color: white; display: flex; align-items: center; justify-content: space-between;">
+          <div style="background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); padding: 12px 16px; border-radius: 10px; box-shadow: 0 2px 8px rgba(102,126,234,0.2); color: white; display: flex; align-items: center; justify-content: space-between;">
             <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
               <div class="gps-pulse"></div>
               <div style="font-size: 13px; font-weight: 600;">GPS Automático Ativo</div>
@@ -1068,7 +1219,7 @@
                 <div style="font-size: 11px; color: #999;">Ative nas configurações para começar</div>
               </div>
             </div>
-            <button onclick="window.location.href='gps.html'" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap; margin-left: 12px; box-shadow: 0 2px 4px rgba(102,126,234,0.3);">
+            <button onclick="window.location.href='gps.html'" style="background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); border: none; color: white; padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap; margin-left: 12px; box-shadow: 0 2px 4px rgba(102,126,234,0.3);">
               ⚙️ Ativar
             </button>
           </div>
@@ -1102,7 +1253,7 @@
       }
 
       miniDiv.innerHTML = `
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 12px 16px; border-radius: 10px; box-shadow: 0 2px 8px rgba(102,126,234,0.2); color: white; display: flex; align-items: center; justify-content: space-between;">
+        <div style="background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); padding: 12px 16px; border-radius: 10px; box-shadow: 0 2px 8px rgba(102,126,234,0.2); color: white; display: flex; align-items: center; justify-content: space-between;">
           <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
             <div class="gps-pulse"></div>
             <div style="font-size: 13px; font-weight: 600; color: white;">GPS Automático Ativo</div>
@@ -1219,7 +1370,7 @@
           cargas: cargas.length || 0,
           mensagens: mensagens || 0
         };
-        
+        lastDashboardStats = stats;
         renderizarCardsEstatisticas(stats);
         
         // Atualizar valores nos botões do menu
@@ -1325,39 +1476,40 @@
       const container = document.getElementById('cardsEstatisticas');
       if (!container) return;
 
+      const _t = (typeof window.t === 'function' ? window.t : function(k) { return k; });
       container.innerHTML = `
         <div class="stat-card" onclick="window.location.href='viagens.html'">
           <div class="stat-card-header">
-            <div class="stat-card-icon">🚛</div>
+            <div class="stat-card-icon" aria-hidden="true"><i class="bx bx-trip" style="font-size: 1.5rem; color: #fff;"></i></div>
             <div class="stat-card-value">${stats.viagens}</div>
           </div>
-          <div class="stat-card-label">Viagens em Andamento</div>
+          <div class="stat-card-label">${_t('dashboard.viagensEmAndamento')}</div>
         </div>
 
         <div class="stat-card" onclick="abrirChat()">
           <div class="stat-card-header">
-            <div class="stat-card-icon">💬</div>
+            <div class="stat-card-icon"><i class="bx bx-message-dots" style="font-size: 1.5rem;"></i></div>
             <div class="stat-card-value">${stats.mensagens}</div>
           </div>
-          <div class="stat-card-label">Mensagens Não Lidas</div>
-          ${stats.mensagens > 0 ? '<span class="stat-card-badge new">Novas</span>' : ''}
+          <div class="stat-card-label">${_t('dashboard.mensagensNaoLidas')}</div>
+          ${stats.mensagens > 0 ? '<span class="stat-card-badge new">' + _t('dashboard.novas') + '</span>' : ''}
         </div>
 
         <div class="stat-card" onclick="window.location.href='convocacoes.html'">
           <div class="stat-card-header">
-            <div class="stat-card-icon">📋</div>
+            <div class="stat-card-icon"><i class="bx bx-clipboard" style="font-size: 1.5rem;"></i></div>
             <div class="stat-card-value">${stats.convocacoes}</div>
           </div>
-          <div class="stat-card-label">Convocações Pendentes</div>
-          ${stats.convocacoes > 0 ? '<span class="stat-card-badge pending">Pendentes</span>' : ''}
+          <div class="stat-card-label">${_t('dashboard.convocacoesPendentes')}</div>
+          ${stats.convocacoes > 0 ? '<span class="stat-card-badge pending">' + _t('dashboard.pendentes') + '</span>' : ''}
         </div>
 
         <div class="stat-card" onclick="window.location.href='cargas.html'">
           <div class="stat-card-header">
-            <div class="stat-card-icon">📦</div>
+            <div class="stat-card-icon"><i class="bx bx-package" style="font-size: 1.5rem;"></i></div>
             <div class="stat-card-value">${stats.cargas}</div>
           </div>
-          <div class="stat-card-label">Cargas Disponíveis</div>
+          <div class="stat-card-label">${_t('dashboard.cargasDisponiveis')}</div>
         </div>
       `;
     }
@@ -1376,7 +1528,7 @@
             if (!badge) {
               const newBadge = document.createElement('span');
               newBadge.className = 'stat-card-badge new';
-              newBadge.textContent = 'Novas';
+              newBadge.textContent = (typeof window.t === 'function' ? window.t('dashboard.novas') : 'Novas');
               card.appendChild(newBadge);
             }
           } else if (badge) {
@@ -1395,14 +1547,18 @@
     }
 
     function atualizarValoresMenu(stats) {
-      // Atualizar chat
+      const format = (n) => (n > 0 ? (n > 99 ? '99+' : String(n)) : '0');
       const chatValue = document.getElementById('chatValue');
-      if (chatValue) {
-        chatValue.textContent = stats.mensagens > 0 ? (stats.mensagens > 99 ? '99+' : stats.mensagens.toString()) : '0';
-      }
-      
-      // Outros valores podem ser atualizados aqui conforme necessário
-      // Por enquanto, apenas chat tem valor dinâmico
+      if (chatValue) chatValue.textContent = format(stats.mensagens);
+      const viagensValue = document.getElementById('viagensValue');
+      if (viagensValue) viagensValue.textContent = format(stats.viagens);
+      const convocacoesValue = document.getElementById('convocacoesValue');
+      if (convocacoesValue) convocacoesValue.textContent = format(stats.convocacoes);
+      const cargasValue = document.getElementById('cargasValue');
+      if (cargasValue) cargasValue.textContent = format(stats.cargas);
+      // Enviar Posição: mesmo número de viagens em andamento (posições são por viagem)
+      const posicaoValue = document.getElementById('posicaoValue');
+      if (posicaoValue) posicaoValue.textContent = format(stats.viagens);
     }
 
     // Atualizar estatísticas a cada 60 segundos

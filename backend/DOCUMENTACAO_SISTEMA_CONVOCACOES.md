@@ -2,7 +2,7 @@
 
 **Módulo:** Gerenciar Viagens - Sistema de Convocações  
 **Versão:** 1.0.0  
-**Data:** 2025-11-21  
+**Data:** 2026-11-21  
 **Status:** ✅ Produção
 
 ---
@@ -32,7 +32,7 @@
 
 ## 🎯 Visão Geral
 
-O **Sistema de Convocações** é o coração da ferramenta DivulgaCarga, responsável por:
+O **Sistema de Convocações** é o coração da ferramenta Atlas Cargo, responsável por:
 
 - Identificar motoristas compatíveis com viagens pendentes
 - Enviar convites personalizados via WhatsApp
@@ -837,7 +837,7 @@ Para dúvidas ou problemas:
 
 ---
 
-## 🔄 Atualizações Recentes (2025-11-23)
+## 🔄 Atualizações Recentes (2026-11-23)
 
 ### Melhorias Implementadas
 
@@ -866,7 +866,7 @@ Para dúvidas ou problemas:
 
 ---
 
-**Documentação mantida por:** Equipe DivulgaCarga  
-**Última atualização:** 2025-11-23  
+**Documentação mantida por:** Equipe Atlas Cargo  
+**Última atualização:** 2026-11-23  
 **Versão do documento:** 1.1.0
 

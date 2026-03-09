@@ -1,6 +1,6 @@
 # 📋 Pendências - APP do Motorista
 
-**Data:** 2025-01-18  
+**Data:** 2026-01-18  
 **Status:** Análise de pendências
 
 ---
@@ -25,6 +25,14 @@
 ---
 
 ## ⏳ O QUE AINDA ESTÁ PENDENTE
+
+### ⚙️ Configurações do Sistema (Configurações do Sistema)
+
+- [ ] **Integração com banco externo (Configurações do Sistema)**  
+  Quando o sistema tiver integração com banco de dados externo (ex.: leitura de outro sistema), isso deve ser configurável em **Configurações do Sistema**: ativar/desativar integração, cadastro de conexão, etc.  
+  **Contexto:** INTEGRA_PRD foi descontinuado; o projeto **Atlas Cargo** utiliza apenas **PostgreSQL**. As posições de rastreamento ficam no banco principal. Nenhuma tela deve chamar ou exibir sincronização com INTEGRA_PRD. Qualquer integração futura com banco externo deve ser controlada pelas Configurações do Sistema.  
+  **Impacto:** Médio – evita hardcode e facilita manutenção.  
+  **Complexidade:** Média.
 
 ### 🟢 Prioridade BAIXA (Desejável)
 
@@ -219,5 +227,5 @@
 
 ---
 
-**Última atualização:** 2025-01-18  
+**Última atualização:** 2026-01-18  
 **Próxima revisão:** Após implementação das melhorias de segurança

@@ -1,5 +1,6 @@
 // backend/public/modulos/gerenciar-grupos/js/script.js
 (function() {
+  const t = function(k) { return typeof window.tWeb === 'function' ? window.tWeb(k) : k; };
   const tabs = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
   const filtroForm = document.getElementById('filtroForm');
@@ -252,7 +253,7 @@
       const countEl = document.getElementById('gruposGridCountText');
       if (countEl) {
         const count = grupos.length || 0;
-        countEl.textContent = `${count} registro(s) encontrado(s)`;
+        countEl.textContent = (t('web.modulos.cidades.registrosEncontrados') || '{n} registro(s) encontrado(s)').replace('{n}', String(count));
       }
       
       // Se já existe uma instância do Grid na aba, atualizá-la imediatamente
@@ -335,7 +336,7 @@
       showTab(openTab);
     } catch (err) {
       console.error('Erro ao aplicar filtros:', err);
-      showMessage('Erro ao carregar grupos de equipamento.', 'error');
+      showMessage(t('web.modulos.grupos.erroCarregarGrupos'), 'error');
     }
   }
 
@@ -420,8 +421,8 @@
       container: '#gruposGrid',
       columns: [
         { field: 'CDGRUPOEQUIPAMENTO', header: 'Código', editable: false, isId: true, width: '80px' },
-        { field: 'DSGRUPOEQUIPAMENTO', header: 'Descrição', editable: true, type: 'text', width: '360px', maxlength: 40 },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px',
+        { field: 'DSGRUPOEQUIPAMENTO', header: 'Descrição', editable: true, type: 'text', maxlength: 40 },
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px', align: 'right',
           options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }
@@ -440,7 +441,7 @@
         await confirmarExclusao(id);
       },
       onAfterEdit: (id) => {
-        showMessage('Alteração salva com sucesso!', 'success');
+        showMessage(t('web.modulos.grupos.sucessoSalvar'), 'success');
         // atualizar cache local mantendo sincronia
         if (lastGrupos) {
           const idx = lastGrupos.findIndex(r => String(r.CDGRUPOEQUIPAMENTO) === String(id));
@@ -465,18 +466,18 @@
         document.getElementById('grupoCodigo').value = grupo.CDGRUPOEQUIPAMENTO;
         document.getElementById('grupoDescricao').value = grupo.DSGRUPOEQUIPAMENTO;
         document.getElementById('grupoSituacao').value = grupo.FGACTIVE;
-        document.getElementById('formTitle').textContent = 'Editar Grupo de Equipamento';
+        document.getElementById('formTitle').textContent = t('web.modulos.grupos.editarGrupo');
         showTab('dados');
       }
     } catch (err) {
       console.error('Erro ao carregar grupo de equipamento:', err);
-      showMessage('Erro ao carregar dados para edição.', 'error');
+      showMessage(t('web.modulos.grupos.erroCarregarDados'), 'error');
     }
   }
 
   async function confirmarExclusao(id) {
     if (!id || id === 'undefined' || id === 'null' || id === '' || String(id).trim() === '') {
-      showMessage('Erro: ID não disponível.', 'error');
+      showMessage(t('web.modulos.grupos.erroIdIndisponivel'), 'error');
       return;
     }
     
@@ -504,13 +505,13 @@
       // Definir mensagem e ação baseado no status atual
       let confirmMsg, action, btnText;
       if (estaAtivo) {
-        confirmMsg = 'Tem certeza que deseja <strong>desativar</strong> este grupo de equipamento?<br><br><small style="color: #666;">O grupo ficará inativo e não aparecerá nas listagens padrão.</small>';
+        confirmMsg = t('web.modulos.grupos.msgDesativar');
         action = 'deactivate';
-        btnText = 'Desativar';
+        btnText = t('web.modulos.grupos.desativar');
       } else {
-        confirmMsg = 'Tem certeza que deseja <strong>reativar</strong> este grupo de equipamento?<br><br><small style="color: #666;">O grupo voltará a aparecer nas listagens e estará disponível para uso.</small>';
+        confirmMsg = t('web.modulos.grupos.msgReativar');
         action = 'activate';
-        btnText = 'Reativar';
+        btnText = t('web.modulos.grupos.reativar');
       }
       
       if (modalMessage) modalMessage.innerHTML = confirmMsg;
@@ -533,7 +534,7 @@
           const acao = modalEl.dataset.action || action;
           
           if (!deleteId || deleteId === 'undefined' || deleteId === 'null' || deleteId === '') {
-            showMessage('Erro: ID não disponível.', 'error');
+            showMessage(t('web.modulos.grupos.erroIdIndisponivel'), 'error');
             modalEl.style.display = 'none';
             return;
           }
@@ -545,15 +546,15 @@
           
           const data = await response.json();
           if (response.ok) {
-            showMessage(data.message || (acao === 'activate' ? 'Grupo de equipamento reativado com sucesso!' : 'Grupo de equipamento desativado com sucesso!'), 'success');
+            showMessage(data.message || (acao === 'activate' ? t('web.modulos.grupos.sucessoReativar') : t('web.modulos.grupos.sucessoDesativar')), 'success');
             showTab('grid');
             applyFilters('grid');
           } else {
-            showMessage(data.error || 'Erro ao alterar status do grupo.', 'error');
+            showMessage(data.error || t('web.modulos.grupos.erroAlterarStatus'), 'error');
           }
         } catch (err) {
           console.error('[Grupos] Erro ao alterar status:', err);
-          showMessage('Erro de conexão.', 'error');
+          showMessage(t('web.modulos.grupos.erroConexao'), 'error');
         } finally {
           modalEl.style.display = 'none';
           delete modalEl.dataset.deleteId;
@@ -570,18 +571,31 @@
       modalEl.style.display = 'block';
     } catch (err) {
       console.error('[Grupos] Erro ao buscar status do grupo:', err);
-      showMessage('Erro ao verificar status do grupo.', 'error');
+      showMessage(t('web.modulos.grupos.erroVerificarStatus'), 'error');
     }
   }
 
+  let grupoFormSubmitting = false;
   grupoForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    e.stopImmediatePropagation();
+    if (grupoFormSubmitting) return;
+    grupoFormSubmitting = true;
+    const btnSubmit = grupoForm?.querySelector('button[type="submit"]');
+    const labelOriginal = btnSubmit?.innerHTML ?? '';
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = '<i class=\'bx bx-loader-alt bx-spin\'></i> Salvando...';
+    }
+
     const id = document.getElementById('grupoCodigo')?.value;
     const descricao = document.getElementById('grupoDescricao')?.value.trim();
     const situacao = document.getElementById('grupoSituacao')?.value;
-    
+
     if (!descricao || !situacao) {
-      showMessage('Preencha todos os campos obrigatórios.', 'error');
+      showMessage(t('web.modulos.grupos.preenchaCampos'), 'error');
+      grupoFormSubmitting = false;
+      if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = labelOriginal; }
       return;
     }
 
@@ -606,15 +620,23 @@
 
       const data = await response.json();
       if (response.ok) {
-        showMessage(data.message, 'success');
+        showMessage(data.message || t('web.modulos.grupos.sucessoSalvar'), 'success');
         showTab('grid');
         applyFilters('grid');
       } else {
-        showMessage(data.error, 'error');
+        showMessage(data.error || t('web.modulos.grupos.erroSalvar'), 'error');
       }
     } catch (err) {
       console.error('Erro ao salvar:', err);
-      showMessage('Erro de conexão.', 'error');
+      showMessage(t('web.modulos.grupos.erroConexao'), 'error');
+    } finally {
+      setTimeout(() => {
+        grupoFormSubmitting = false;
+        if (btnSubmit) {
+          btnSubmit.disabled = false;
+          btnSubmit.innerHTML = labelOriginal;
+        }
+      }, 600);
     }
   });
 
@@ -641,7 +663,7 @@
   document.getElementById('btnVoltarFiltros')?.addEventListener('click', () => showTab('filtros'));
   document.getElementById('btnNovoRegistro')?.addEventListener('click', () => {
     grupoForm?.reset();
-    document.getElementById('formTitle').textContent = 'Novo Grupo de Equipamento';
+    document.getElementById('formTitle').textContent = t('web.modulos.grupos.novoGrupo');
     showTab('dados');
   });
 
@@ -652,7 +674,7 @@
 
   document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
     grupoForm?.reset();
-    document.getElementById('formTitle').textContent = 'Novo Grupo de Equipamento';
+    document.getElementById('formTitle').textContent = t('web.modulos.grupos.novoGrupo');
     showTab('dados');
   });
   

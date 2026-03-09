@@ -1,7 +1,7 @@
 -- =============================================
 -- Tabela: MOTORISTARASTREAMENTO
 -- Descrição: Posições GPS do motorista SEM viagem associada
--- Data: 2025-12-03
+-- Data: 2026-12-03
 -- =============================================
 
 -- Criar tabela MOTORISTARASTREAMENTO

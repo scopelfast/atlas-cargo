@@ -1,6 +1,6 @@
 -- Script para criar tabela de Comprovantes de Entrega (POD - Proof of Delivery)
 -- Sistema de comprovação com foto, assinatura e geolocalização
--- Data: 2025-01-16
+-- Data: 2026-01-16
 
 -- Tabela principal de comprovantes de entrega
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[DELIVERY_PROOFS]') AND type in (N'U'))

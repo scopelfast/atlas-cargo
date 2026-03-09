@@ -1,7 +1,7 @@
 -- Script para verificar se motorista existe e está configurado corretamente
 -- Execute este script no SQL Server para diagnosticar
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 -- ========================================

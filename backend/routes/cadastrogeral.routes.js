@@ -1,8 +1,8 @@
 // backend/routes/cadastrogeral.routes.js
 // Cadastro Geral - API
 // Versão: 1.1 - Otimizada com Classes de Frota
-// Autor: Sistema DivulgaCarga
-// Data: 2025-04-05
+// Atlas Cargo
+// Data: 2026-04-05
 
 const express = require('express');
 const router = express.Router();
@@ -55,7 +55,12 @@ router.post('/cadastros-gerais/executar-init-sql', async (req, res) => {
     for (const comando of comandos) {
       const cmdLimpo = comando.trim();
       if (!cmdLimpo) continue;
-      
+      // Ignorar comentários e EXEC (stored procedures não existem no PostgreSQL)
+      if (cmdLimpo.startsWith('--') || /^\s*EXEC(UTE)?\s+/i.test(cmdLimpo)) {
+        resultados.push({ tipo: 'SKIP', message: 'Comando ignorado (PostgreSQL).' });
+        continue;
+      }
+
       try {
         // Aumentar timeout para comandos grandes (MERGE, UPDATE em massa, etc)
         const request = pool.request();

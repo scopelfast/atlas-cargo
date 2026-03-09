@@ -1,4 +1,4 @@
-# 📋 Changelog - 04 de Dezembro de 2025
+# 📋 Changelog - 04 de Dezembro de 2026
 
 ## 🎉 Implementações e Melhorias
 
@@ -189,6 +189,6 @@
 ---
 
 **Versão:** 1.4.0  
-**Data:** 04/12/2025  
+**Data:** 04/12/2026  
 **Desenvolvedor:** Claude Sonnet 4.5 + Cleverson Scopel
 

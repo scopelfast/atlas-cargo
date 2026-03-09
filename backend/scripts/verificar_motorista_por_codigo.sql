@@ -2,11 +2,11 @@
 =============================================================================
 Script: Verificar Motorista por Código ou CPF
 Descrição: Busca motorista pelo código (CDCADASTRO) ou CPF
-Data: 2025-01-27
+Data: 2026-01-27
 =============================================================================
 */
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 -- ========================================

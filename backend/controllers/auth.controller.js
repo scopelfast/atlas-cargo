@@ -74,12 +74,31 @@ const login = async (req, res) => {
 
     console.log('[AUTH] Login bem-sucedido para usuário:', user.SGUSUARIO);
 
+    // Garantir id numérico (PostgreSQL pode retornar CDCADASTRO em maiúsculas ou minúsculas)
+    let userId = user.CDCADASTRO ?? user.cdcadastro ?? user.id;
+    let userIdNum = userId != null ? parseFloat(userId) : NaN;
+    if (Number.isNaN(userIdNum)) {
+      // CDCADASTRO null no banco (ex.: admin sem vínculo em CADASTROGERAL): usar id derivado do login para o token
+      const loginStr = String(user.SGUSUARIO ?? user.sgusuario ?? '');
+      let hash = 0;
+      for (let i = 0; i < loginStr.length; i++) {
+        hash = ((hash << 5) - hash) + loginStr.charCodeAt(i);
+        hash = hash & 0x7FFFFFFF;
+      }
+      userIdNum = hash % 100000000; // número positivo único por login
+      console.warn('[AUTH] CDCADASTRO null para usuário', loginStr, '- usando id derivado do login:', userIdNum);
+    }
+    const loginName = user.SGUSUARIO ?? user.sgusuario;
+    const nomeUser = user.NMUSUARIO ?? user.nmusuario;
+    const emailUser = user.ENDEMAIL ?? user.endemail;
+
     const token = jwt.sign(
       {
-        id: user.CDCADASTRO,
-        login: user.SGUSUARIO,
-        nome: user.NMUSUARIO,
-        email: user.ENDEMAIL
+        id: userIdNum,
+        cdcadastro: userIdNum,
+        login: loginName,
+        nome: nomeUser,
+        email: emailUser
       },
       process.env.JWT_SECRET,
       { expiresIn: '8h' }
@@ -99,10 +118,11 @@ const login = async (req, res) => {
       token,
       idLogAcesso, // Retornar ID do log para o frontend
       user: {
-        id: user.CDCADASTRO,
-        login: user.SGUSUARIO,
-        nome: user.NMUSUARIO,
-        email: user.ENDEMAIL
+        id: userIdNum,
+        cdcadastro: userIdNum,
+        login: loginName,
+        nome: nomeUser,
+        email: emailUser
       }
     });
 
@@ -170,19 +190,13 @@ const alterarSenha = async (req, res) => {
     const saltRounds = 10;
     const senhaNovaHash = await bcrypt.hash(senhaNova, saltRounds);
 
-    // Atualizar senha no banco
+    // Atualizar senha no banco (PostgreSQL)
     const { poolPromise } = require('../config/db');
     const pool = await poolPromise;
-    
-    await pool.request()
-      .input('login', usuario)
-      .input('senha', senhaNovaHash)
-      .query(`
-        UPDATE USUARIO 
-        SET SENHA = @senha,
-            DHMAINTENANCE = GETDATE()
-        WHERE SGUSUARIO = @login
-      `);
+    await pool.query(
+      `UPDATE "USUARIO" SET "SENHA" = $1, "DHMAINTENANCE" = CURRENT_TIMESTAMP WHERE "SGUSUARIO" = $2`,
+      [senhaNovaHash, usuario]
+    );
 
     return res.json({
       success: true,

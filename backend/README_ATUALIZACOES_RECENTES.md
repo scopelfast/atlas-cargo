@@ -1,6 +1,6 @@
 # 📘 SysScopel - Atualizações Recentes
 
-## 🚀 Versão 1.4.0 - 04/12/2025
+## 🚀 Versão 1.4.0 - 04/12/2026
 
 ### **Novidades desta versão:**
 
@@ -108,7 +108,7 @@ nominatimServer: 'http://186.250.92.131:8082',
 
 ## 📚 Documentação Atualizada
 
-- ✅ `CHANGELOG_2025-12-04.md` - Todas as mudanças detalhadas
+- ✅ `CHANGELOG_2026-12-04.md` - Todas as mudanças detalhadas
 - ✅ `CONFIGURACAO_MAPAS.md` - Como configurar mapas
 - ✅ `LIMPEZA_RECOMENDADA.md` - Arquivos para limpar
 
@@ -149,7 +149,7 @@ backend/
 │   ├── criar_tabelas_validade.sql    (NOVO)
 │   ├── migrar_dados_validade.sql     (NOVO)
 │   └── procedures_validade.sql       (NOVO)
-├── CHANGELOG_2025-12-04.md           (NOVO)
+├── CHANGELOG_2026-12-04.md           (NOVO)
 ├── CONFIGURACAO_MAPAS.md             (NOVO)
 └── LIMPEZA_RECOMENDADA.md            (NOVO)
 ```

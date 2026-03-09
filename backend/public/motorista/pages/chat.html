@@ -3,9 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
   <title>Chat - Motorista</title>
-  <link rel="stylesheet" href="../css/padrao-telas.css">
-  <link rel="stylesheet" href="../css/design-system.css">
+  <link rel="stylesheet" href="/motorista/css/design-system.css?v=1">
+  <link rel="stylesheet" href="/motorista/css/style.css?v=1">
+  <link rel="stylesheet" href="/motorista/css/padrao-telas.css?v=1">
+  <script src="/motorista/js/i18n.js"></script>
   <style>
     .chat-container { 
       flex: 1; 
@@ -80,7 +84,7 @@
     }
     
     .btn-enviar {
-      background: #667eea;
+      background: #0ea5e9;
     }
     
     .btn-localizacao {
@@ -127,41 +131,88 @@
       background: #f8d7da;
       color: #721c24;
     }
-  </style>
+
+    .status-connecting {
+      background: #fff3cd;
+      color: #856404;
+    }
+    /* Forçar conteúdo visível (sobrescreve style.css que usa flex no body) */
+    body.motorista-page { display: block !important; }
+    body.motorista-page > * { display: block !important; visibility: visible !important; max-width: 100% !important; opacity: 1 !important; }
+    body.motorista-page .input-area { display: flex !important; }
+    #chat-html-ok { min-height: 44px !important; }
 </head>
-<body>
-  <div id="statusIndicador" class="status-bar status-online">🟢 Online - Sincronizado</div>
-
+<body class="motorista-page" style="background:#f0f9ff !important;min-height:100vh;margin:0;padding:0;font-family:system-ui,sans-serif;display:block !important;overflow:visible !important;">
+  <div id="chat-html-ok" style="display:block !important;visibility:visible !important;padding:12px 16px;background:#059669;color:#fff;font-size:14px;font-weight:600;border-bottom:2px solid #047857;" data-i18n="chat.paginaCarregada">✓ Chat — Página carregada</div>
   <div class="navbar">
-    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
-    <h1>Chat com Operador <span id="chatStatus" class="status-indicator status-offline">Offline</span></h1>
+    <button class="btn-voltar" onclick="typeof voltar==='function'?voltar():window.history.back()">← <span data-i18n="chat.voltar">Voltar</span></button>
+    <h1><i class="bx bx-message-dots"></i> <span data-i18n="chat.titulo">Chat</span></h1>
+    <div id="statusIndicador" class="status-badge-navbar status-online" data-i18n="dashboard.onlineSincronizado">Online - Sincronizado</div>
   </div>
+  <div style="max-width:480px;margin:0 auto;padding:6px 16px;font-size:12px;">
+    <span id="chatStatus" class="status-indicator status-connecting" style="opacity:0.9;" data-i18n="chat.conectando">Conectando...</span>
+  </div>
+  <div id="chat-debug" style="font-size:12px;color:#333;padding:8px 16px;background:#e0f2fe;border-bottom:1px solid #bae6fd;max-width:480px;margin:0 auto;" data-i18n="chat.carregandoChat">Carregando chat...</div>
 
-  <div class="chat-container" id="chatContainer">
-    <div class="empty">
-      <div class="empty-icon">💬</div>
-      <strong>Carregando mensagens...</strong>
+  <div class="chat-container" id="chatContainer" style="min-height:220px;background:#fff;margin:12px auto 80px;max-width:480px;padding:16px;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+    <div class="empty" style="text-align:center;color:#64748b;">
+      <div class="empty-icon" style="font-size:40px;margin-bottom:8px;">💬</div>
+      <strong data-i18n="chat.carregandoMensagens">Carregando mensagens...</strong>
     </div>
   </div>
+  <script>
+    (function() {
+      console.log('[CHAT] HTML carregou. Aguardando scripts...');
+      try {
+        var ok = document.getElementById('chat-html-ok');
+        if (ok) ok.textContent = '✓ Página do Chat carregada. Carregando...';
+        setTimeout(function() {
+          var d = document.getElementById('chat-debug');
+          if (d && d.textContent.indexOf('carregando') !== -1 && d.textContent.indexOf('ainda') === -1) {
+            d.textContent = 'Chat ainda carregando? Abra o Console (F12) ou recarregue a página.';
+            d.style.background = '#fef3c7';
+          }
+        }, 4000);
+      } catch (e) { console.error('[CHAT] inline script erro:', e); }
+    })();
+  </script>
 
-  <div class="input-area">
-    <button class="btn-localizacao" onclick="enviarLocalizacao()" title="Enviar minha localização">📍</button>
-    <input type="text" class="input-msg" id="inputMensagem" placeholder="Digite sua mensagem..." onkeypress="if(event.key==='Enter') enviarMensagem()">
-    <button class="btn-enviar" onclick="enviarMensagem()">📤</button>
+  <div class="input-area" style="position:fixed;bottom:0;left:0;right:0;background:#f1f5f9;padding:12px 16px;display:flex;gap:10px;border-top:1px solid #e2e8f0;max-width:480px;margin:0 auto;box-sizing:border-box;">
+    <button class="btn-localizacao" onclick="typeof enviarLocalizacao==='function'&&enviarLocalizacao()" title="" data-i18n-title="chat.enviarLocalizacao" style="width:48px;height:48px;border:none;background:#28a745;color:#fff;border-radius:50%;font-size:20px;cursor:pointer;">📍</button>
+    <input type="text" class="input-msg" id="inputMensagem" data-i18n-placeholder="chat.placeholder" placeholder="Digite sua mensagem..." onkeypress="if(event.key==='Enter'&&typeof enviarMensagem==='function')enviarMensagem()" style="flex:1;padding:12px;border:1px solid #e2e8f0;border-radius:24px;font-size:15px;">
+    <button class="btn-enviar" onclick="typeof enviarMensagem==='function'&&enviarMensagem()" style="width:48px;height:48px;border:none;background:#0ea5e9;color:#fff;border-radius:50%;font-size:20px;cursor:pointer;">📤</button>
   </div>
+  <script>
+    function applyI18n() {
+      if (typeof window.t !== 'function') return;
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n');
+        if (k) el.textContent = window.t(k);
+      });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n-placeholder');
+        if (k) el.placeholder = window.t(k);
+      });
+      document.querySelectorAll('[data-i18n-title]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n-title');
+        if (k) el.title = window.t(k);
+      });
+    }
+    if (window.i18nReady) window.i18nReady.then(applyI18n);
+  </script>
 
   <!-- URL Helper - DEVE ser o primeiro script para garantir interceptor de fetch -->
-  <script src="../js/url-helper.js"></script>
-  <script src="../js/notifications.js"></script>
-  <script src="../js/auth.js"></script>
-  <script src="../js/offline.js"></script>
-  <script src="../js/notifications-service.js"></script>
-  <script>
-    // Socket.io é sempre servido na raiz (/socket.io/), não no caminho base
-    const socketScript = document.createElement('script');
-    socketScript.src = '/socket.io/socket.io.js';
-    document.head.appendChild(socketScript);
-  </script>
-  <script src="js/chat.js"></script>
+  <script src="/motorista/js/url-helper.js?v=1" defer></script>
+  <script src="/motorista/js/notifications.js?v=1" defer></script>
+  <script src="/motorista/js/auth.js?v=1" defer></script>
+  <script src="/motorista/js/offline.js?v=1" defer></script>
+  <script src="/motorista/js/notifications-service.js?v=1" defer></script>
+  <script src="/socket.io/socket.io.js" defer></script>
+  <script src="/motorista/pages/js/chat.js?v=3" defer></script>
+  <noscript>
+    <div style="padding:20px;text-align:center;color:#991b1b;background:#fee2e2;" data-i18n="chat.javascriptNecessario">
+      JavaScript é necessário para o chat. Ative-o e recarregue a página.
+    </div>
+  </noscript>
 </body>
 </html>

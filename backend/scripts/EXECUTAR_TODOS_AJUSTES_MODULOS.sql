@@ -1,8 +1,8 @@
 -- Script Master: Executar todos os ajustes para módulos separados
--- Data: 2025-01-15
+-- Data: 2026-01-15
 -- IMPORTANTE: Execute este script para aplicar todas as alterações
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 PRINT '========================================';

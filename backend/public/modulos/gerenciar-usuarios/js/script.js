@@ -1,7 +1,10 @@
 // backend/public/modulos/gerenciar-usuarios/js/script.js
 // Gerenciar Usuários - Frontend
 // Versão: 1.0
-// Autor: Sistema DivulgaCarga
+// Atlas Cargo
+// i18n: helper t() e chaves web.modulos.usuarios
+
+const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
 
 (function() {
   // Elementos
@@ -23,6 +26,21 @@
   let atividadesDisponiveis = [];
   let empresasSelecionadas = [];
   let filiaisSelecionadas = [];
+
+  // Headers de autenticação para as chamadas à API
+  function getAuthHeaders(extra = {}) {
+    const headers = { ...extra };
+    const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const userStr = typeof localStorage !== 'undefined' ? localStorage.getItem('user') : null;
+    if (userStr) {
+      try {
+        const u = JSON.parse(userStr);
+        if (u && u.login) headers['user-login'] = u.login;
+      } catch (e) {}
+    }
+    return headers;
+  }
 
   // Funções para controlar overlay de carregamento do init.sql
   function showLoadingOverlayInitSQL(titulo = 'Processando Inicialização', texto = 'Executando scripts de inicialização...', detalhe = 'Isso pode levar alguns segundos.') {
@@ -77,7 +95,7 @@
       try {
         execResponse = await fetch('/api/usuarios/executar-init-sql', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({ sql: sqlLimpo }),
           signal: AbortSignal.timeout(120000)
         });
@@ -136,20 +154,88 @@
     }
   }
 
+  // Anexar listeners após o DOM do módulo estar pronto (evita bug quando injetado pelo dashboard)
+  function attachEventListeners() {
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tabId = btn.dataset.tab;
+        if (tabId) showTab(tabId);
+      });
+    });
+
+    const formFiltro = document.getElementById('filtroForm');
+    const formUsuario = document.getElementById('usuarioForm');
+    if (formFiltro) {
+      formFiltro.removeEventListener('submit', onFiltroSubmit);
+      formFiltro.addEventListener('submit', onFiltroSubmit);
+    }
+    if (formUsuario) {
+      formUsuario.removeEventListener('submit', salvarUsuario);
+      formUsuario.addEventListener('submit', salvarUsuario);
+    }
+    document.getElementById('btnLimparFiltros')?.addEventListener('click', () => {
+      formFiltro?.reset();
+      lastUsuarios = null;
+      const countEl = document.getElementById('usuariosGridCountText');
+      if (countEl) countEl.textContent = t('web.modulos.usuarios.registrosEncontrados');
+      const gridEl = document.getElementById('usuariosGrid');
+      if (gridEl) gridEl.innerHTML = '<p class="empty">Aplicar filtros para carregar o grid.</p>';
+    });
+    document.getElementById('btnVoltarGrid')?.addEventListener('click', () => showTab('filtros'));
+    document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
+      limparFormulario();
+      showTab('dados');
+    });
+    document.getElementById('btnCancelar')?.addEventListener('click', () => {
+      limparFormulario();
+      showTab('filtros');
+    });
+    document.getElementById('btnBuscarCadastro')?.addEventListener('click', abrirModalBuscaCadastro);
+    document.getElementById('btnLimparCadastro')?.addEventListener('click', limparCadastroSelecionado);
+    document.getElementById('btnFecharBuscaCadastro')?.addEventListener('click', () => {
+      const modal = document.getElementById('buscaCadastroModal');
+      if (modal) modal.style.display = 'none';
+    });
+    document.getElementById('buscaCadastroInput')?.addEventListener('input', buscarCadastros);
+    document.getElementById('buscaCadastroInput')?.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        buscarCadastros();
+      }
+    });
+    document.getElementById('buscaCadastroModal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'buscaCadastroModal') {
+        const modal = document.getElementById('buscaCadastroModal');
+        if (modal) modal.style.display = 'none';
+      }
+    });
+    document.getElementById('toggleSenha')?.addEventListener('click', toggleSenha);
+    const senhaEl = document.getElementById('usuarioSenha');
+    if (senhaEl) senhaEl.addEventListener('input', verificarForcaSenha);
+  }
+
+  function onFiltroSubmit(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    applyFilters('grid');
+  }
+
   // Função de inicialização
   async function init() {
     if (initExecutado) return;
     initExecutado = true;
     await new Promise(resolve => setTimeout(resolve, 200));
-    
-    // Carregar estatísticas iniciais
-    
+
     try {
       await executarInitSQL();
     } catch (err) {
     }
     await loadEmpresasParaFiltro();
     await showTab('filtros');
+
+    // Anexar listeners após o DOM estar pronto (corrige filtro/editar quando módulo é injetado)
+    attachEventListeners();
   }
 
   if (document.readyState === 'loading') {
@@ -158,13 +244,12 @@
     init();
   }
 
-  // Função para mudar abas
+  // Função para mudar abas (usa DOM atual para funcionar quando módulo é injetado)
   async function showTab(tabId) {
     try {
-      // Primeiro, mudar a aba imediatamente
-      tabs.forEach(btn => btn.classList.remove('active'));
-      tabContents.forEach(content => content.classList.remove('active'));
-      
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
       const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
       const tabContent = document.getElementById(`tab-${tabId}`);
       
@@ -212,7 +297,7 @@
   // Carregar empresas para filtro
   async function loadEmpresasParaFiltro() {
     try {
-      const response = await fetch('/api/empresas');
+      const response = await fetch('/api/empresas', { headers: getAuthHeaders() });
       const empresas = await response.json();
       const select = document.getElementById('filtroEmpresa');
       if (select) {
@@ -246,22 +331,25 @@
     if (empresa) params.append('empresa', empresa);
 
     try {
-      const response = await fetch(`/api/usuarios?${params.toString()}`);
-      const usuarios = await response.json();
+      const response = await fetch(`/api/usuarios?${params.toString()}`, { headers: getAuthHeaders() });
+      const body = await response.json();
 
-      lastUsuarios = usuarios;
-      const countEl = document.getElementById('usuariosGridCountText');
-      if (countEl) {
-        const count = usuarios.length || 0;
-        countEl.textContent = `${count} registro(s) encontrado(s)`;
+      if (!response.ok) {
+        const msg = (body && body.error) ? body.error : 'Erro ao carregar usuários.';
+        showMessage(msg, 'error');
+        lastUsuarios = [];
+      } else {
+        lastUsuarios = Array.isArray(body) ? body : [];
       }
 
-      // Atualizar cards de estatísticas
+      const usuarios = lastUsuarios;
+      const countEl = document.getElementById('usuariosGridCountText');
+      if (countEl) {
+        countEl.textContent = usuarios.length + ' ' + (t('web.modulos.usuarios.registrosEncontrados').replace(/^0\s*/, ''));
+      }
 
       // GridEditor já é carregado globalmente pelo dashboard.js
-      // Aguardar GridEditor estar disponível antes de renderizar (sem mostrar warning - é esperado)
       if (typeof window.GridEditor === 'undefined') {
-        // Aguardar GridEditor ser carregado (máximo 2 segundos = 10 tentativas de 200ms)
         let tentativas = 0;
         while (typeof window.GridEditor === 'undefined' && tentativas < 10) {
           await new Promise(resolve => setTimeout(resolve, 200));
@@ -269,7 +357,6 @@
         }
       }
 
-      // Renderizar grid se GridEditor estiver disponível
       if (typeof window.GridEditor !== 'undefined') {
         try {
           if (!gridTab) {
@@ -279,14 +366,20 @@
             gridTab.render(usuarios);
           }
         } catch (e) {
-          // Erro silencioso - não bloquear o módulo
           console.warn('⚠️ [Usuários] Erro ao renderizar grid:', e);
         }
       }
 
       showTab(openTab);
     } catch (err) {
-      showMessage('Erro ao carregar usuários.', 'error');
+      showMessage(t('web.modulos.usuarios.erroCarregarDados'), 'error');
+      lastUsuarios = [];
+      const countEl = document.getElementById('usuariosGridCountText');
+      if (countEl) countEl.textContent = t('web.modulos.usuarios.registrosEncontrados');
+      if (typeof window.GridEditor !== 'undefined' && gridTab) {
+        try { gridTab.render([]); } catch (e) {}
+      }
+      showTab(openTab);
     }
   }
 
@@ -366,11 +459,11 @@
     gridTab = new window.GridEditor({
       container: '#usuariosGrid',
       columns: [
-        { field: 'SGUSUARIO', header: 'Login', editable: false, isId: true, width: '180px' },
-        { field: 'NMUSUARIO', header: 'Nome', editable: false, width: '280px' },
-        { field: 'ENDEMAIL', header: 'E-mail', editable: false, width: '280px' },
-        { field: 'CADASTRO_NOME', header: 'Cadastro', editable: false, width: '280px' },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px',
+        { field: 'SGUSUARIO', header: 'Login', editable: false, isId: true, width: '120px' },
+        { field: 'NMUSUARIO', header: 'Nome', editable: false },
+        { field: 'ENDEMAIL', header: 'E-mail', editable: false },
+        { field: 'CADASTRO_NOME', header: 'Cadastro', editable: false },
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px', align: 'right',
           options: [{ value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' }],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }
@@ -452,7 +545,7 @@
         usuarioForm.reset();
       }
       
-      const response = await fetch(`/api/usuarios/${login}`);
+      const response = await fetch(`/api/usuarios/${login}`, { headers: getAuthHeaders() });
       const usuario = await response.json();
 
       // Armazenar o login do usuário sendo editado
@@ -468,7 +561,7 @@
       // Buscar nome do cadastro se existir código
       if (usuario.CDCADASTRO) {
         try {
-          const cadastroResponse = await fetch(`/api/cadastros-gerais/${usuario.CDCADASTRO}`);
+          const cadastroResponse = await fetch(`/api/cadastros-gerais/${usuario.CDCADASTRO}`, { headers: getAuthHeaders() });
           if (cadastroResponse.ok) {
             const cadastro = await cadastroResponse.json();
             document.getElementById('usuarioCadastroBusca').value = `${usuario.CDCADASTRO} - ${cadastro.RZSOCIAL || 'Sem nome'}`;
@@ -489,10 +582,10 @@
       document.getElementById('usuarioSenha').required = false;
       document.getElementById('usuarioSenha').placeholder = 'Deixe em branco para manter a senha atual';
 
-      document.getElementById('formTitle').textContent = 'Editar Usuário';
+      document.getElementById('formTitle').textContent = t('web.modulos.usuarios.editarUsuario');
       showTab('dados');
     } catch (err) {
-      showMessage('Erro ao carregar usuário.', 'error');
+      showMessage(t('web.modulos.usuarios.erroCarregarDados'), 'error');
     }
   }
 
@@ -550,7 +643,7 @@
           params.append('razaoSocial', termo);
         }
 
-        const response = await fetch(`/api/cadastros-gerais?${params.toString()}`);
+        const response = await fetch(`/api/cadastros-gerais?${params.toString()}`, { headers: getAuthHeaders() });
         const cadastros = await response.json();
 
         if (!resultadosDiv) return;
@@ -628,9 +721,18 @@
     }
   }
 
-  // Salvar usuário
+  let usuarioFormSubmitting = false;
   async function salvarUsuario(e) {
     e.preventDefault();
+    e.stopImmediatePropagation();
+    if (usuarioFormSubmitting) return;
+    usuarioFormSubmitting = true;
+    const btnSubmit = usuarioForm?.querySelector('button[type="submit"]');
+    const labelOriginal = btnSubmit?.innerHTML ?? '';
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = '<i class=\'bx bx-loader-alt bx-spin\'></i> Salvando...';
+    }
     const loginOriginal = document.getElementById('usuarioLoginOriginal').value;
     const login = document.getElementById('usuarioLogin').value;
     const nome = document.getElementById('usuarioNome').value;
@@ -640,17 +742,23 @@
     const situacao = document.getElementById('usuarioSituacao').value;
 
     if (!login || !nome || !email) {
-      showMessage('Preencha todos os campos obrigatórios.', 'error');
+      showMessage(t('web.modulos.usuarios.preenchaCampos'), 'error');
+      usuarioFormSubmitting = false;
+      if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = labelOriginal; }
       return;
     }
 
     if (email && !validarEmail(email)) {
       showMessage('Email inválido.', 'error', null, 'usuarioEmail');
+      usuarioFormSubmitting = false;
+      if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = labelOriginal; }
       return;
     }
 
     if (!loginOriginal && !senha) {
       showMessage('Senha é obrigatória para novos usuários.', 'error');
+      usuarioFormSubmitting = false;
+      if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = labelOriginal; }
       return;
     }
 
@@ -676,7 +784,7 @@
 
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(body)
       });
 
@@ -688,10 +796,15 @@
         await applyFilters('grid');
         showTab('grid');
       } else {
-        showMessage(result.error || 'Erro ao salvar usuário.', 'error');
+        showMessage(result.error || t('web.modulos.usuarios.erroSalvar'), 'error');
       }
     } catch (err) {
       showMessage('Erro ao salvar usuário.', 'error');
+    } finally {
+      setTimeout(() => {
+        usuarioFormSubmitting = false;
+        if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = labelOriginal; }
+      }, 600);
     }
   }
 
@@ -708,7 +821,7 @@
     document.getElementById('usuarioSenha').placeholder = 'Digite a senha';
     limparCadastroSelecionado();
     document.getElementById('usuarioSituacao').value = 'S';
-    document.getElementById('formTitle').textContent = 'Novo Usuário';
+    document.getElementById('formTitle').textContent = t('web.modulos.usuarios.novoUsuario');
   }
 
   // Confirmar exclusão
@@ -729,7 +842,8 @@
         try {
           const action = estaAtivo ? 'deactivate' : 'activate';
           const response = await fetch(`/api/usuarios/${login}?action=${action}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getAuthHeaders()
           });
           const result = await response.json();
           
@@ -871,7 +985,7 @@
   async function carregarUsuariosParaAcessos() {
     try {
       // Filtrar apenas usuários ativos (FGACTIVE = 'S')
-      const response = await fetch('/api/usuarios?situacao=S');
+      const response = await fetch('/api/usuarios?situacao=S', { headers: getAuthHeaders() });
       const usuarios = await response.json();
       const select = document.getElementById('usuarioAcessoSelect');
       if (select) {
@@ -899,14 +1013,14 @@
         }
       }
     } catch (err) {
-      showMessage('Erro ao carregar usuários.', 'error');
+      showMessage(t('web.modulos.usuarios.erroCarregarDados'), 'error');
     }
   }
 
   // Carregar todas as atividades
   async function carregarTodasAtividades() {
     try {
-      const response = await fetch('/api/atividades');
+      const response = await fetch('/api/atividades', { headers: getAuthHeaders() });
       atividadesDisponiveis = await response.json();
     } catch (err) {
       showMessage('Erro ao carregar atividades.', 'error');
@@ -916,7 +1030,7 @@
   // Carregar empresas para acessos
   async function carregarEmpresasParaAcessos() {
     try {
-      const response = await fetch('/api/empresas');
+      const response = await fetch('/api/empresas', { headers: getAuthHeaders() });
       empresasDisponiveis = await response.json();
       
       // Popular select de empresas (para adicionar empresas)
@@ -998,7 +1112,7 @@
   // Carregar atividades do usuário (agrupadas por FGGRUPO - versão simplificada e prática)
   async function carregarAtividadesUsuario(login) {
     try {
-      const response = await fetch(`/api/usuarios/${login}/atividades`);
+      const response = await fetch(`/api/usuarios/${login}/atividades`, { headers: getAuthHeaders() });
       const atividadesUsuario = await response.json();
       const container = document.getElementById('atividadesContainer');
       
@@ -1160,12 +1274,28 @@
   // Carregar empresas do usuário
   async function carregarEmpresasUsuario(login) {
     try {
-      const response = await fetch(`/api/usuarios/${login}/empresas`);
+      const response = await fetch(`/api/usuarios/${login}/empresas`, { headers: getAuthHeaders() });
       empresasSelecionadas = await response.json();
       renderizarEmpresasSelecionadas();
+      atualizarSelectEmpresasExcluindoAtribuidas();
     } catch (err) {
       showMessage('Erro ao carregar empresas do usuário.', 'error');
     }
+  }
+
+  // Atualiza o select de empresas para desabilitar ou marcar as já atribuídas (evita tentativa de duplicar)
+  function atualizarSelectEmpresasExcluindoAtribuidas() {
+    const select = document.getElementById('empresaSelect');
+    if (!select || !Array.isArray(empresasDisponiveis) || empresasDisponiveis.length === 0) return;
+    const idsAtribuidos = new Set(empresasSelecionadas.map(e => String(e.CDEMPRESA)));
+    select.innerHTML = '<option value="">-- Selecione uma empresa --</option>';
+    empresasDisponiveis.forEach(e => {
+      const option = document.createElement('option');
+      option.value = e.CDEMPRESA;
+      option.textContent = idsAtribuidos.has(String(e.CDEMPRESA)) ? `${e.CDEMPRESA} - ${e.RZSOCIAL} (já atribuída)` : `${e.CDEMPRESA} - ${e.RZSOCIAL}`;
+      if (idsAtribuidos.has(String(e.CDEMPRESA))) option.disabled = true;
+      select.appendChild(option);
+    });
   }
 
   // Renderizar empresas selecionadas
@@ -1193,36 +1323,53 @@
     });
   }
 
+  let adicionarEmpresaSubmitting = false;
+
   // Adicionar empresa
   async function adicionarEmpresa() {
-    const empresaId = document.getElementById('empresaSelect').value;
+    if (adicionarEmpresaSubmitting) return;
+    const empresaId = (document.getElementById('empresaSelect')?.value || '').trim();
     if (!empresaId || !usuarioSelecionadoAcessos) {
       showMessage('Selecione uma empresa.', 'error');
       return;
     }
 
-    if (empresasSelecionadas.some(e => e.CDEMPRESA === parseInt(empresaId))) {
+    // Comparação à prova de tipo (API pode retornar number ou string)
+    if (empresasSelecionadas.some(e => String(e.CDEMPRESA) === String(empresaId))) {
       showMessage('Empresa já adicionada.', 'error');
       return;
     }
 
+    const btn = document.getElementById('btnAdicionarEmpresa');
+    if (btn) { btn.disabled = true; }
+    adicionarEmpresaSubmitting = true;
+
     try {
       const response = await fetch(`/api/usuarios/${usuarioSelecionadoAcessos}/empresas`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ empresa: empresaId })
       });
 
       const result = await response.json();
       if (response.ok) {
-        showMessage(result.message, 'success');
+        showMessage(result.message || 'Empresa adicionada com sucesso!', 'success');
         await carregarEmpresasUsuario(usuarioSelecionadoAcessos);
+        await carregarFiliaisUsuario(usuarioSelecionadoAcessos);
         document.getElementById('empresaSelect').value = '';
+      } else if (response.status === 400 && result.error && result.error.includes('já possui acesso')) {
+        // Sincronizar lista com o servidor e informar sem erro
+        await carregarEmpresasUsuario(usuarioSelecionadoAcessos);
+        await carregarFiliaisUsuario(usuarioSelecionadoAcessos);
+        showMessage('Esta empresa já está na lista.', 'success');
       } else {
         showMessage(result.error || 'Erro ao adicionar empresa.', 'error');
       }
     } catch (err) {
       showMessage('Erro ao adicionar empresa.', 'error');
+    } finally {
+      adicionarEmpresaSubmitting = false;
+      setTimeout(() => { if (btn) btn.disabled = false; }, 400);
     }
   }
 
@@ -1232,7 +1379,8 @@
 
     try {
       const response = await fetch(`/api/usuarios/${usuarioSelecionadoAcessos}/empresas/${empresaId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: getAuthHeaders()
       });
 
       const result = await response.json();
@@ -1251,7 +1399,7 @@
   // Carregar filiais do usuário
   async function carregarFiliaisUsuario(login) {
     try {
-      const response = await fetch(`/api/usuarios/${login}/filiais`);
+      const response = await fetch(`/api/usuarios/${login}/filiais`, { headers: getAuthHeaders() });
       filiaisSelecionadas = await response.json();
       renderizarFiliaisSelecionadas();
     } catch (err) {
@@ -1285,73 +1433,94 @@
     });
   }
 
-  // Carregar filiais por empresa
+  // Carregar filiais por empresa (desabilita no select as já atribuídas ao usuário)
   async function carregarFiliaisPorEmpresa() {
-    const empresaId = document.getElementById('empresaFilialSelect').value;
+    const empresaId = document.getElementById('empresaFilialSelect')?.value;
     const filialSelect = document.getElementById('filialSelect');
     const btnAdicionar = document.getElementById('btnAdicionarFilial');
 
-    if (!empresaId) {
-      filialSelect.innerHTML = '<option value="">-- Selecione uma empresa primeiro --</option>';
-      filialSelect.disabled = true;
-      btnAdicionar.disabled = true;
+    if (!empresaId || !filialSelect) {
+      if (filialSelect) {
+        filialSelect.innerHTML = '<option value="">-- Selecione uma empresa primeiro --</option>';
+        filialSelect.disabled = true;
+      }
+      if (btnAdicionar) btnAdicionar.disabled = true;
       return;
     }
 
     try {
-      const response = await fetch(`/api/filiais?empresa=${empresaId}`);
+      const response = await fetch(`/api/filiais?empresa=${empresaId}`, { headers: getAuthHeaders() });
       const filiais = await response.json();
-      
+      const idsFiliaisAtribuidas = new Set(
+        filiaisSelecionadas
+          .filter(f => String(f.CDEMPRESA) === String(empresaId))
+          .map(f => String(f.CDFILIAL))
+      );
+
       filialSelect.innerHTML = '<option value="">-- Selecione uma filial --</option>';
       filiais.forEach(f => {
         const option = document.createElement('option');
         option.value = f.CDFILIAL;
-        option.textContent = `${f.CDFILIAL} - ${f.NMFANTASIA} (${f.SGFILIAL})`;
+        const jaAtribuida = idsFiliaisAtribuidas.has(String(f.CDFILIAL));
+        option.textContent = jaAtribuida ? `${f.CDFILIAL} - ${f.NMFANTASIA} (${f.SGFILIAL}) (já atribuída)` : `${f.CDFILIAL} - ${f.NMFANTASIA} (${f.SGFILIAL})`;
+        if (jaAtribuida) option.disabled = true;
         filialSelect.appendChild(option);
       });
-      
+
       filialSelect.disabled = false;
-      btnAdicionar.disabled = false;
+      if (btnAdicionar) btnAdicionar.disabled = false;
     } catch (err) {
       showMessage('Erro ao carregar filiais.', 'error');
     }
   }
 
+  let adicionarFilialSubmitting = false;
+
   // Adicionar filial
   async function adicionarFilial() {
-    const empresaId = document.getElementById('empresaFilialSelect').value;
-    const filialId = document.getElementById('filialSelect').value;
+    if (adicionarFilialSubmitting) return;
+    const empresaId = (document.getElementById('empresaFilialSelect')?.value || '').trim();
+    const filialId = (document.getElementById('filialSelect')?.value || '').trim();
     
     if (!empresaId || !filialId || !usuarioSelecionadoAcessos) {
       showMessage('Selecione empresa e filial.', 'error');
       return;
     }
 
-    if (filiaisSelecionadas.some(f => f.CDEMPRESA === parseInt(empresaId) && f.CDFILIAL === parseInt(filialId))) {
+    // Comparação à prova de tipo (API pode retornar number ou string)
+    if (filiaisSelecionadas.some(f => String(f.CDEMPRESA) === String(empresaId) && String(f.CDFILIAL) === String(filialId))) {
       showMessage('Filial já adicionada.', 'error');
       return;
     }
 
+    const btn = document.getElementById('btnAdicionarFilial');
+    if (btn) { btn.disabled = true; }
+    adicionarFilialSubmitting = true;
+
     try {
       const response = await fetch(`/api/usuarios/${usuarioSelecionadoAcessos}/filiais`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ empresa: empresaId, filial: filialId })
       });
 
       const result = await response.json();
       if (response.ok) {
-        showMessage(result.message, 'success');
+        showMessage(result.message || 'Filial adicionada com sucesso!', 'success');
         await carregarFiliaisUsuario(usuarioSelecionadoAcessos);
-        // Manter a empresa selecionada, apenas limpar a filial
         document.getElementById('filialSelect').value = '';
-        // Recarregar as filiais da empresa selecionada para permitir adicionar outra filial
         await carregarFiliaisPorEmpresa();
+      } else if (response.status === 400 && result.error && result.error.includes('já possui acesso')) {
+        await carregarFiliaisUsuario(usuarioSelecionadoAcessos);
+        showMessage('Esta filial já está na lista.', 'success');
       } else {
         showMessage(result.error || 'Erro ao adicionar filial.', 'error');
       }
     } catch (err) {
       showMessage('Erro ao adicionar filial.', 'error');
+    } finally {
+      adicionarFilialSubmitting = false;
+      setTimeout(() => { if (btn) btn.disabled = false; }, 400);
     }
   }
 
@@ -1361,7 +1530,8 @@
 
     try {
       const response = await fetch(`/api/usuarios/${usuarioSelecionadoAcessos}/filiais/${empresaId}/${filialId}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: getAuthHeaders()
       });
 
       const result = await response.json();
@@ -1376,99 +1546,53 @@
     }
   }
 
+  let salvarAtividadesSubmitting = false;
+
   // Salvar atividades
   async function salvarAtividades() {
+    if (salvarAtividadesSubmitting) return;
     if (!usuarioSelecionadoAcessos) {
       showMessage('Selecione um usuário primeiro.', 'error');
       return;
     }
 
     const checkboxes = document.querySelectorAll('#atividadesContainer input[type="checkbox"]:checked');
-    const atividades = Array.from(checkboxes)
-      .map(cb => parseInt(cb.value))
-      .filter(id => !isNaN(id) && id > 0);
+    const atividades = [...new Set(
+      Array.from(checkboxes)
+        .map(cb => parseInt(cb.value, 10))
+        .filter(id => !isNaN(id) && id > 0)
+    )];
+
+    const btn = document.getElementById('btnSalvarAcessos');
+    if (btn) btn.disabled = true;
+    salvarAtividadesSubmitting = true;
 
     try {
       const response = await fetch(`/api/usuarios/${usuarioSelecionadoAcessos}/atividades`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ atividades })
       });
 
       const result = await response.json();
       if (response.ok) {
         showMessage(result.message || 'Atividades salvas com sucesso!', 'success');
-        // Limpar dados de acessos e voltar para a aba Dados
         limparDadosAcessos();
         showTab('dados');
       } else {
         showMessage(result.error || 'Erro ao salvar atividades.', 'error');
-        console.error('Erro ao salvar atividades:', result);
+        if (result.detalhes) console.error('Erro ao salvar atividades:', result.detalhes);
       }
     } catch (err) {
       console.error('Erro ao salvar atividades:', err);
       showMessage('Erro ao salvar atividades.', 'error');
+    } finally {
+      salvarAtividadesSubmitting = false;
+      setTimeout(() => { if (btn) btn.disabled = false; }, 400);
     }
   }
 
-  // Event Listeners
-  tabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      const tabId = tab.dataset.tab;
-      showTab(tabId);
-    });
-  });
-
-  filtroForm?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    applyFilters('grid');
-  });
-
-  document.getElementById('btnLimparFiltros')?.addEventListener('click', () => {
-    filtroForm.reset();
-    lastUsuarios = null;
-    document.getElementById('usuariosGridCountText').textContent = '0 registro(s) encontrado(s)';
-    document.getElementById('usuariosGrid').innerHTML = '<p class="empty">Aplicar filtros para carregar o grid.</p>';
-  });
-
-  document.getElementById('btnVoltarGrid')?.addEventListener('click', () => {
-    showTab('filtros');
-  });
-
-  document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
-    limparFormulario();
-    showTab('dados');
-  });
-
-  document.getElementById('btnCancelar')?.addEventListener('click', () => {
-    limparFormulario();
-    showTab('filtros');
-  });
-
-  usuarioForm?.addEventListener('submit', salvarUsuario);
-
-  document.getElementById('btnBuscarCadastro')?.addEventListener('click', abrirModalBuscaCadastro);
-  document.getElementById('btnLimparCadastro')?.addEventListener('click', limparCadastroSelecionado);
-  document.getElementById('btnFecharBuscaCadastro')?.addEventListener('click', () => {
-    document.getElementById('buscaCadastroModal').style.display = 'none';
-  });
-  document.getElementById('buscaCadastroInput')?.addEventListener('input', buscarCadastros);
-  document.getElementById('buscaCadastroInput')?.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      buscarCadastros();
-    }
-  });
-  
-  // Fechar modal ao clicar fora
-  document.getElementById('buscaCadastroModal')?.addEventListener('click', (e) => {
-    if (e.target.id === 'buscaCadastroModal') {
-      document.getElementById('buscaCadastroModal').style.display = 'none';
-    }
-  });
-
-  document.getElementById('toggleSenha')?.addEventListener('click', toggleSenha);
-  document.getElementById('usuarioSenha')?.addEventListener('input', verificarForcaSenha);
+  // Event Listeners (replicados em attachEventListeners ao final de init para funcionar quando módulo é injetado)
 
   document.getElementById('usuarioAcessoSelect')?.addEventListener('change', selecionarUsuarioAcessos);
   document.getElementById('btnAdicionarEmpresa')?.addEventListener('click', adicionarEmpresa);

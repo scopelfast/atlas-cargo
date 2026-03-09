@@ -1,8 +1,8 @@
 // backend/routes/classesfrota.routes.js
 const express = require('express');
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const router = express.Router();
-const { poolPromise } = require('../config/db');
+const { poolPromise, getFirstNumericValue } = require('../config/db');
 
 // Listar classes de frota com filtros
 router.get('/classes-frota', async (req, res) => {
@@ -10,30 +10,30 @@ router.get('/classes-frota', async (req, res) => {
     const { codigo, descricao, situacao } = req.query;
     let query = `
       SELECT 
-        CDCLASSEFROTA,
-        DSCLASSEFROTA,
-        NREIXOS,
-        CAPACIDCARGA,
-        FGACTIVE
+        [CDCLASSEFROTA],
+        [DSCLASSEFROTA],
+        [NREIXOS],
+        [CAPACIDCARGA],
+        [FGACTIVE]
       FROM [dbo].[CLASSEFROTA]
       WHERE 1=1
     `;
 
     const params = [];
     if (codigo) {
-      query += ` AND CDCLASSEFROTA = @CODIGO`;
+      query += ` AND [CDCLASSEFROTA] = @CODIGO`;
       params.push({ name: 'CODIGO', value: parseInt(codigo) });
     }
     if (descricao) {
-      query += ` AND DSCLASSEFROTA LIKE @DESCRICAO`;
+      query += ` AND [DSCLASSEFROTA] LIKE @DESCRICAO`;
       params.push({ name: 'DESCRICAO', value: `%${descricao}%` });
     }
     if (situacao) {
-      query += ` AND FGACTIVE = @SITUACAO`;
+      query += ` AND [FGACTIVE] = @SITUACAO`;
       params.push({ name: 'SITUACAO', value: situacao === 'S' ? 'A' : 'I' });
     }
 
-    query += ` ORDER BY DSCLASSEFROTA`;
+    query += ` ORDER BY [DSCLASSEFROTA]`;
 
     const pool = await poolPromise;
     const request = pool.request();
@@ -70,13 +70,13 @@ router.get('/classes-frota/:id', async (req, res) => {
       .input('CDCLASSEFROTA', idNum)
       .query(`
         SELECT 
-          CDCLASSEFROTA,
-          DSCLASSEFROTA,
-          NREIXOS,
-          CAPACIDCARGA,
-          FGACTIVE
+          [CDCLASSEFROTA],
+          [DSCLASSEFROTA],
+          [NREIXOS],
+          [CAPACIDCARGA],
+          [FGACTIVE]
         FROM [dbo].[CLASSEFROTA]
-        WHERE CDCLASSEFROTA = @CDCLASSEFROTA
+        WHERE [CDCLASSEFROTA] = @CDCLASSEFROTA
       `);
 
     if (result.recordset.length === 0) {
@@ -109,25 +109,22 @@ router.post('/classes-frota', async (req, res) => {
     }
 
     const pool = await poolPromise;
-    const maxResult = await pool
-      .request()
-      .query('SELECT ISNULL(MAX(CDCLASSEFROTA), 0) AS maxId FROM [dbo].[CLASSEFROTA]');
-    const novoId = maxResult.recordset[0].maxId + 1;
+    const descricao = DSCLASSEFROTA.trim();
+    const existente = await pool.query(
+      `SELECT 1 FROM "CLASSEFROTA" WHERE UPPER(TRIM("DSCLASSEFROTA")) = UPPER(TRIM($1)) LIMIT 1`,
+      [descricao]
+    );
+    if (existente.rows && existente.rows.length > 0) {
+      return res.status(409).json({ error: 'Já existe uma classe de frota com esta descrição. Não é permitido cadastrar duplicados.' });
+    }
 
-    await pool
-      .request()
-      .input('CDCLASSEFROTA', sql.SmallInt, novoId)
-      .input('DSCLASSEFROTA', DSCLASSEFROTA.trim())
-      .input('NREIXOS', sql.SmallInt, NREIXOS)
-      .input('CAPACIDCARGA', CAPACIDCARGA ? parseFloat(CAPACIDCARGA) : null)
-      .query(`
-        INSERT INTO [dbo].[CLASSEFROTA] (
-          CDCLASSEFROTA, DSCLASSEFROTA, NREIXOS, CAPACIDCARGA, 
-          FGACTIVE, DHMAINTENANCE, SGUSER, SERVERORIG
-        )
-        VALUES (@CDCLASSEFROTA, @DSCLASSEFROTA, @NREIXOS, @CAPACIDCARGA, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas')
-      `);
-
+    const getProximoId = async () => getFirstNumericValue((await pool.request().query('SELECT COALESCE(MAX([CDCLASSEFROTA]), 0) + 1 AS [maxId] FROM [dbo].[CLASSEFROTA]')).recordset, 1);
+    let novoId = await getProximoId();
+    const doInsert = async (id) => {
+      await pool.request().input('CDCLASSEFROTA', sql.SmallInt, id).input('DSCLASSEFROTA', DSCLASSEFROTA.trim()).input('NREIXOS', sql.SmallInt, NREIXOS).input('CAPACIDCARGA', CAPACIDCARGA ? parseFloat(CAPACIDCARGA) : null)
+        .query(`INSERT INTO [dbo].[CLASSEFROTA] ([CDCLASSEFROTA], [DSCLASSEFROTA], [NREIXOS], [CAPACIDCARGA], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]) VALUES (@CDCLASSEFROTA, @DSCLASSEFROTA, @NREIXOS, @CAPACIDCARGA, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas')`);
+    };
+    try { await doInsert(novoId); } catch (e) { if (String(e.code) === '23505') { novoId = await getProximoId(); await doInsert(novoId); } else throw e; }
     res.status(201).json({ success: true, message: 'Classe de frota cadastrada com sucesso!' });
   } catch (err) {
     console.error('Erro ao inserir classe:', err);
@@ -146,8 +143,18 @@ router.put('/classes-frota/:id', async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const idNumerico = parseInt(id, 10);
+    if (isNaN(idNumerico) || idNumerico <= 0) {
+      return res.status(400).json({ error: 'ID inválido.' });
+    }
+    const existente = await pool.query(
+      `SELECT 1 FROM "CLASSEFROTA" WHERE UPPER(TRIM("DSCLASSEFROTA")) = UPPER(TRIM($1)) AND "CDCLASSEFROTA" != $2 LIMIT 1`,
+      [DSCLASSEFROTA.trim(), idNumerico]
+    );
+    if (existente.rows && existente.rows.length > 0) {
+      return res.status(409).json({ error: 'Já existe outra classe de frota com esta descrição. Não é permitido duplicar.' });
+    }
     const fgactiveDB = FGACTIVE === 'S' ? 'A' : 'I';
-    const idNumerico = parseInt(id);
 
     await pool
       .request()
@@ -157,16 +164,16 @@ router.put('/classes-frota/:id', async (req, res) => {
       .input('CAPACIDCARGA', CAPACIDCARGA ? parseFloat(CAPACIDCARGA) : null)
       .input('FGACTIVE', fgactiveDB)
       .query(`
-        UPDATE [dbo].[CLASSEFROTA] 
+        UPDATE [dbo].[CLASSEFROTA]
         SET 
-          DSCLASSEFROTA = @DSCLASSEFROTA,
-          NREIXOS = @NREIXOS,
-          CAPACIDCARGA = @CAPACIDCARGA,
-          FGACTIVE = @FGACTIVE,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE CDCLASSEFROTA = @CDCLASSEFROTA
+          [DSCLASSEFROTA] = @DSCLASSEFROTA,
+          [NREIXOS] = @NREIXOS,
+          [CAPACIDCARGA] = @CAPACIDCARGA,
+          [FGACTIVE] = @FGACTIVE,
+          [DHMAINTENANCE] = GETDATE(),
+          [SGUSER] = 'SYSTEM',
+          [SERVERORIG] = 'AppDVcargas'
+        WHERE [CDCLASSEFROTA] = @CDCLASSEFROTA
       `);
 
     res.json({ success: true, message: 'Classe atualizada com sucesso!' });
@@ -194,7 +201,7 @@ router.delete('/classes-frota/:id', async (req, res) => {
     const checkResult = await pool
       .request()
       .input('CDCLASSEFROTA', sql.SmallInt, idNumerico)
-      .query(`SELECT FGACTIVE FROM [dbo].[CLASSEFROTA] WHERE CDCLASSEFROTA = @CDCLASSEFROTA`);
+      .query(`SELECT [FGACTIVE] FROM [dbo].[CLASSEFROTA] WHERE [CDCLASSEFROTA] = @CDCLASSEFROTA`);
 
     if (checkResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Classe não encontrada.' });
@@ -221,13 +228,13 @@ router.delete('/classes-frota/:id', async (req, res) => {
       .input('CDCLASSEFROTA', sql.SmallInt, idNumerico)
       .input('FGACTIVE', sql.Char(1), novaSituacao)
       .query(`
-        UPDATE [dbo].[CLASSEFROTA] 
+        UPDATE [dbo].[CLASSEFROTA]
         SET 
-          FGACTIVE = @FGACTIVE,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE CDCLASSEFROTA = @CDCLASSEFROTA
+          [FGACTIVE] = @FGACTIVE,
+          [DHMAINTENANCE] = GETDATE(),
+          [SGUSER] = 'SYSTEM',
+          [SERVERORIG] = 'AppDVcargas'
+        WHERE [CDCLASSEFROTA] = @CDCLASSEFROTA
       `);
 
     if (result.rowsAffected[0] === 0) {

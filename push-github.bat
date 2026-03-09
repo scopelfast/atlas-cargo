@@ -12,7 +12,7 @@ if "%1"=="" (
 
 echo.
 echo ========================================
-echo   Push para GitHub - Sistema DivulgaCarga
+echo   Push para GitHub - Atlas Cargo
 echo ========================================
 echo.
 

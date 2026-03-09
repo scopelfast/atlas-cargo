@@ -1,6 +1,6 @@
 # 📋 Documentação: Tabela VIAGEMRASTREAMENTO
 
-**Banco:** `DIVULGACARGA_PRD`  
+**Banco:** `ATLAS_CARGO_PRD`  
 **Tabela:** `VIAGEMRASTREAMENTO`  
 **Descrição:** Armazena todas as posições GPS registradas durante uma viagem específica.
 
@@ -109,7 +109,7 @@
 - **Formato:** `YYYY-MM-DD HH:MM:SS.mmm`
 - **Uso:** Obrigatório. Usado para ordenar as posições cronologicamente.
 - **Default:** `GETDATE()` (data/hora atual do servidor)
-- **Exemplo:** `2025-12-15 14:30:25.420`
+- **Exemplo:** `2026-12-15 14:30:25.420`
 
 ---
 
@@ -155,7 +155,7 @@
 #### `DHMAINTENANCE` (datetime, NULL)
 - **Função:** Data e hora da última manutenção/alteração do registro.
 - **Uso:** Opcional. Usado para auditoria e controle de alterações.
-- **Exemplo:** `2025-12-15 10:00:00.000`
+- **Exemplo:** `2026-12-15 10:00:00.000`
 
 #### `SGUSER` (varchar(50), NULL)
 - **Função:** Sigla/Login do usuário que criou ou modificou o registro.
@@ -253,6 +253,6 @@ INSERT INTO VIAGEMRASTREAMENTO (
 
 ---
 
-**Última atualização:** 2025-12-15  
+**Última atualização:** 2026-12-15  
 **Versão:** 1.0
 

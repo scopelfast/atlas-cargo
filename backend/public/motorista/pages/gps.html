@@ -4,8 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GPS - Motorista</title>
-  <link rel="stylesheet" href="../css/padrao-telas.css">
   <link rel="stylesheet" href="../css/design-system.css">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <script src="../js/i18n.js"></script>
   <style>
     .config-item {
       display: flex;
@@ -128,12 +130,11 @@
     }
   </style>
 </head>
-<body>
-  <div id="statusIndicador" class="status-bar status-online">🟢 Online - Sincronizado</div>
-
+<body class="motorista-page">
   <div class="navbar">
-    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
-    <h1>⚙️ Configurações GPS</h1>
+    <button class="btn-voltar" onclick="voltar()">← <span data-i18n="gps.voltar">Voltar</span></button>
+    <h1><i class="bx bx-cog"></i> <span data-i18n="gps.titulo">GPS</span></h1>
+    <div id="statusIndicador" class="status-badge-navbar status-online" data-i18n="dashboard.onlineSincronizado">Online - Sincronizado</div>
   </div>
 
   <div class="container">
@@ -145,8 +146,8 @@
         <!-- Toggle -->
         <div class="config-item">
           <div class="config-label">
-            <div class="config-title">📍 Posicionamento Automático</div>
-            <div class="config-desc">Enviar localização automaticamente</div>
+            <div class="config-title" data-i18n="gps.posicionamentoAutomatico">📍 Posicionamento Automático</div>
+            <div class="config-desc" data-i18n="gps.enviarLocalizacaoAutomaticamente">Enviar localização automaticamente</div>
           </div>
           <label class="switch">
             <input type="checkbox" id="gpsAtivo">
@@ -157,8 +158,8 @@
         <!-- Intervalo -->
         <div class="config-item">
           <div class="config-label">
-            <div class="config-title">⏱️ Intervalo de Envio</div>
-            <div class="config-desc">Em minutos (mínimo 1)</div>
+            <div class="config-title" data-i18n="gps.intervaloEnvio">⏱️ Intervalo de Envio</div>
+            <div class="config-desc" data-i18n="gps.emMinutos">Em minutos (mínimo 1)</div>
           </div>
           <input type="number" class="input-field" id="intervalo" value="15" min="1" max="999">
         </div>
@@ -166,25 +167,25 @@
         <!-- Termos -->
         <div class="checkbox-container" id="termosContainer" style="display: none;">
           <input type="checkbox" class="checkbox" id="aceitoTermos">
-          <label for="aceitoTermos" style="flex: 1; font-size: 14px; color: #333; cursor: pointer;">
+          <label for="aceitoTermos" style="flex: 1; font-size: 14px; color: #333; cursor: pointer;" data-i18n="gps.concordoTermos">
             Concordo com os termos de utilização do APP
           </label>
         </div>
 
         <!-- Info -->
         <div class="info-box">
-          <div class="info-box-title">ℹ️ Informações:</div>
+          <div class="info-box-title" data-i18n="gps.informacoes">ℹ️ Informações:</div>
           <div class="info-box-text">
-            • O GPS funcionará em segundo plano<br>
-            • Consumo moderado de bateria<br>
-            • Funciona offline (sincroniza depois)<br>
-            • Você pode pausar a qualquer momento
+            <span data-i18n="gps.info1">• O GPS funcionará em segundo plano</span><br>
+            <span data-i18n="gps.info2">• Consumo moderado de bateria</span><br>
+            <span data-i18n="gps.info3">• Funciona offline (sincroniza depois)</span><br>
+            <span data-i18n="gps.info4">• Você pode pausar a qualquer momento</span>
           </div>
         </div>
       </div>
     </div>
 
-    <button class="btn-primary btn-success" onclick="salvar()">💾 Salvar Configurações</button>
+    <button class="btn-primary btn-success" onclick="salvar()" data-i18n="gps.salvarConfiguracoes">💾 Salvar Configurações</button>
   </div>
 
   <!-- URL Helper - DEVE ser o primeiro script para garantir interceptor de fetch -->
@@ -197,7 +198,21 @@
   <script>
     if (!verificarAuth()) window.location.href = '../index.html';
 
+    function applyI18n() {
+      if (typeof window.t !== 'function') return;
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n');
+        if (k) el.textContent = window.t(k);
+      });
+    }
+    if (window.i18nReady) window.i18nReady.then(applyI18n);
+
     function voltar() {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('from') === 'config') {
+        window.location.href = 'configuracoes.html';
+        return;
+      }
       window.location.href = 'dashboard.html';
     }
 
@@ -228,9 +243,9 @@
         }
         
         if (intervalo === null || intervalo === '') {
-          intervalo = '15';
-          localStorage.setItem('gps_intervalo', '15');
-          console.log('📝 Valor padrão para gps_intervalo: 15');
+          intervalo = '900';
+          localStorage.setItem('gps_intervalo', '900');
+          console.log('📝 Valor padrão para gps_intervalo: 900 (15 min)');
         }
         
         if (termos === null) {
@@ -243,9 +258,11 @@
         const gpsAtivoBool = gpsAtivo === 'true';
         const termosBool = termos === 'true';
 
-        // Aplicar valores aos elementos
+        // Aplicar valores aos elementos (localStorage em segundos; input exibe minutos)
         gpsAtivoEl.checked = gpsAtivoBool;
-        intervaloEl.value = intervalo;
+        const intervaloNum = parseInt(intervalo, 10);
+        const intervaloEmMinutos = intervaloNum >= 60 ? Math.round(intervaloNum / 60) : (intervaloNum || 15);
+        intervaloEl.value = Math.max(1, intervaloEmMinutos);
         termosEl.checked = termosBool;
         
         // Atualizar visibilidade dos termos
@@ -316,10 +333,11 @@
           if (typeof obterEstatisticasGPS === 'function') {
             atualizarStatusGPS();
           } else {
+            var carregando = typeof window.t === 'function' ? window.t('gps.carregandoEstatisticas') : 'Carregando estatísticas...';
             statusDiv.innerHTML = `
               <div style="background: #fff3cd; padding: 16px; border-radius: 10px; border-left: 4px solid #ffc107; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
                 <div style="font-size: 14px; font-weight: 600; color: #856404;">
-                  ⚠️ Carregando estatísticas...
+                  ⚠️ ` + carregando + `
                 </div>
               </div>
             `;
@@ -333,10 +351,11 @@
         stats = obterEstatisticasGPS();
       } catch (error) {
         console.error('❌ Erro ao obter estatísticas GPS:', error);
+        var errStats = typeof window.t === 'function' ? window.t('gps.erroCarregarEstatisticas') : 'Erro ao carregar estatísticas';
         statusDiv.innerHTML = `
           <div style="background: #f8d7da; padding: 16px; border-radius: 10px; border-left: 4px solid #dc3545; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
             <div style="font-size: 14px; font-weight: 600; color: #721c24;">
-              ❌ Erro ao carregar estatísticas
+              ❌ ` + errStats + `
             </div>
           </div>
         `;
@@ -344,10 +363,11 @@
       }
 
       if (!stats || !stats.ativo) {
+        var gpsDesativado = typeof window.t === 'function' ? window.t('gps.gpsDesativado') : 'GPS Automático Desativado';
         statusDiv.innerHTML = `
           <div style="background: #f5f5f5; padding: 16px; border-radius: 10px; border-left: 4px solid #999; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
             <div style="font-size: 14px; font-weight: 600; color: #666;">
-              ⏸️ GPS Automático Desativado
+              ⏸️ ` + gpsDesativado + `
             </div>
           </div>
         `;
@@ -358,7 +378,8 @@
       const ultimo = stats.ultimoEnvio;
       const proximo = stats.proximoEnvio;
 
-      let tempoProximo = 'Aguarde...';
+      var t = typeof window.t === 'function' ? window.t : function(k) { return k; };
+      let tempoProximo = t('gps.aguarde');
       if (proximo) {
         // Garantir que é um Date válido
         const proximoDate = proximo instanceof Date ? proximo : new Date(proximo);
@@ -371,14 +392,14 @@
             const difSeg = Math.floor((difMs % 60000) / 1000);
             
             if (difMin > 0) {
-              tempoProximo = `${difMin}min ${difSeg}s`;
+              tempoProximo = difMin + 'min ' + difSeg + 's';
             } else if (difSeg > 0) {
-              tempoProximo = `${difSeg}s`;
+              tempoProximo = difSeg + 's';
             } else {
-              tempoProximo = 'Agora';
+              tempoProximo = t('gps.agora');
             }
           } else {
-            tempoProximo = 'Agora';
+            tempoProximo = t('gps.agora');
           }
         }
       }
@@ -396,31 +417,36 @@
         }
       }
 
+      var lblAtivo = typeof window.t === 'function' ? window.t('gps.gpsAutomaticoAtivo') : 'GPS Automático Ativo';
+      var lblCada = (typeof window.t === 'function' ? window.t('gps.enviandoCadaXMinutos') : 'Enviando a cada {{n}} minutos').replace('{{n}}', stats.intervalo || 5);
+      var lblTotal = typeof window.t === 'function' ? window.t('gps.totalEnvios') : 'Total de Envios';
+      var lblProximo = typeof window.t === 'function' ? window.t('gps.proximoEm') : 'Próximo em';
+      var lblUltimo = typeof window.t === 'function' ? window.t('gps.ultimoEnvio') : 'Último envio:';
       statusDiv.innerHTML = `
-        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 16px; border-radius: 10px; box-shadow: 0 4px 12px rgba(102,126,234,0.3); color: white;">
+        <div style="background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); padding: 16px; border-radius: 10px; box-shadow: 0 4px 12px rgba(13,33,55,0.3); color: white;">
           <div style="display: flex; align-items: center; margin-bottom: 12px;">
             <div style="font-size: 24px; margin-right: 10px;">📡</div>
             <div style="flex: 1;">
-              <div style="font-size: 14px; font-weight: 600;">GPS Automático Ativo</div>
-              <div style="font-size: 12px; opacity: 0.9;">Enviando a cada ${stats.intervalo || 5} minutos</div>
+              <div style="font-size: 14px; font-weight: 600;">` + lblAtivo + `</div>
+              <div style="font-size: 12px; opacity: 0.9;">` + lblCada + `</div>
             </div>
           </div>
           
           <div style="background: rgba(255,255,255,0.15); padding: 12px; border-radius: 8px; margin-top: 12px;">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 12px;">
               <div>
-                <div style="opacity: 0.8; margin-bottom: 4px;">📊 Total de Envios</div>
+                <div style="opacity: 0.8; margin-bottom: 4px;">📊 ` + lblTotal + `</div>
                 <div style="font-size: 20px; font-weight: 700;">${stats.contador || 0}</div>
               </div>
               <div>
-                <div style="opacity: 0.8; margin-bottom: 4px;">⏱️ Próximo em</div>
+                <div style="opacity: 0.8; margin-bottom: 4px;">⏱️ ` + lblProximo + `</div>
                 <div style="font-size: 20px; font-weight: 700;">${tempoProximo}</div>
               </div>
             </div>
             
             ${ultimoFormatado ? `
               <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 11px; opacity: 0.9;">
-                Último envio: ${ultimoFormatado}
+                ` + lblUltimo + ` ${ultimoFormatado}
               </div>
             ` : ''}
           </div>
@@ -484,7 +510,7 @@
       
       if (gpsAtivoEl && intervaloEl && termosEl) {
         const localStorageAtivo = localStorage.getItem('gps_ativo') === 'true';
-        const localStorageIntervalo = localStorage.getItem('gps_intervalo') || '15';
+        const localStorageIntervalo = localStorage.getItem('gps_intervalo') || '900';
         
         // Verificar se há divergência entre localStorage e elementos
         if (gpsAtivoEl.checked !== localStorageAtivo || intervaloEl.value !== localStorageIntervalo) {
@@ -498,22 +524,24 @@
       const ativo = document.getElementById('gpsAtivo').checked;
       const intervaloVal = document.getElementById('intervalo').value;
       const termosAceitos = document.getElementById('aceitoTermos').checked;
+      const intervaloMin = Math.max(1, parseInt(intervaloVal, 10) || 15);
+      const intervaloEmSegundos = (intervaloMin * 60).toString();
 
-      if (!intervaloVal || parseInt(intervaloVal) < 1) {
-        mostrarToast('Intervalo deve ser no mínimo 1 minuto', 'error');
+      if (!intervaloVal || parseInt(intervaloVal, 10) < 1) {
+        mostrarToast(typeof window.t === 'function' ? window.t('gps.intervaloMinimo') : 'Intervalo deve ser no mínimo 1 minuto', 'error');
         return;
       }
 
       if (ativo && !termosAceitos) {
-        mostrarToast('Você precisa aceitar os termos de utilização', 'warning');
+        mostrarToast(typeof window.t === 'function' ? window.t('gps.aceitarTermos') : 'Você precisa aceitar os termos de utilização', 'warning');
         return;
       }
 
-      // Salvar configurações
+      // Salvar configurações (intervalo em segundos para compatibilidade com Configurações e gps-auto)
       try {
         // Salvar no localStorage
         localStorage.setItem('gps_ativo', ativo ? 'true' : 'false');
-        localStorage.setItem('gps_intervalo', intervaloVal.toString());
+        localStorage.setItem('gps_intervalo', intervaloEmSegundos);
         localStorage.setItem('gps_termos', termosAceitos ? 'true' : 'false');
         
         // Aguardar um pouco para garantir que foi salvo
@@ -530,7 +558,7 @@
           
           salvouCorretamente = (
             verificarAtivo === ativo && 
-            verificarIntervalo === intervaloVal.toString() &&
+            verificarIntervalo === intervaloEmSegundos &&
             verificarTermos === termosAceitos
           );
           
@@ -540,7 +568,7 @@
             
             // Tentar salvar novamente
             localStorage.setItem('gps_ativo', ativo ? 'true' : 'false');
-            localStorage.setItem('gps_intervalo', intervaloVal.toString());
+            localStorage.setItem('gps_intervalo', intervaloEmSegundos);
             localStorage.setItem('gps_termos', termosAceitos ? 'true' : 'false');
             
             await new Promise(resolve => setTimeout(resolve, 50));
@@ -549,19 +577,20 @@
         
         if (!salvouCorretamente) {
           console.error('❌ Erro: Configurações não foram salvas corretamente após 3 tentativas!');
-          console.error('Valores esperados:', { ativo, intervalo: intervaloVal, termos: termosAceitos });
+          console.error('Valores esperados:', { ativo, intervaloSeg: intervaloEmSegundos, termos: termosAceitos });
           console.error('Valores no localStorage:', {
             gps_ativo: localStorage.getItem('gps_ativo'),
             gps_intervalo: localStorage.getItem('gps_intervalo'),
             gps_termos: localStorage.getItem('gps_termos')
           });
-          mostrarToast('Erro ao salvar configurações. Tente novamente.', 'error');
+          mostrarToast(typeof window.t === 'function' ? window.t('gps.erroSalvarConfig') : 'Erro ao salvar configurações. Tente novamente.', 'error');
           return;
         }
         
         console.log('✅ Configurações GPS salvas com sucesso:', {
           ativo,
-          intervalo: intervaloVal,
+          intervaloMin,
+          intervaloSeg: intervaloEmSegundos,
           termos: termosAceitos,
           localStorage: {
             gps_ativo: localStorage.getItem('gps_ativo'),
@@ -571,7 +600,7 @@
         });
       } catch (error) {
         console.error('❌ Erro ao salvar no localStorage:', error);
-        mostrarToast('Erro ao salvar configurações: ' + error.message, 'error');
+        mostrarToast((typeof window.t === 'function' ? window.t('gps.erroSalvarConfig') : 'Erro ao salvar configurações') + ': ' + error.message, 'error');
         return;
       }
 
@@ -589,10 +618,10 @@
         }
       }
 
-      mostrarToast(
-        `GPS ${ativo ? 'ativado' : 'desativado'} com sucesso!\nIntervalo: ${intervaloVal} minutos`,
-        'success'
-      );
+      var msgSucesso = ativo 
+        ? (typeof window.t === 'function' ? window.t('gps.gpsAtivadoSucesso') : 'GPS ativado com sucesso!')
+        : (typeof window.t === 'function' ? window.t('gps.gpsDesativadoSucesso') : 'GPS desativado com sucesso!');
+      mostrarToast(msgSucesso + '\nIntervalo: ' + intervaloMin + ' min', 'success');
 
       // Recarregar configurações na tela para confirmar (com delay para garantir)
       setTimeout(() => {

@@ -1,9 +1,9 @@
 -- =============================================
 -- Script: Criar Tabelas de Validade
--- Database: DIVULGACARGA_PRD
+-- Database: ATLAS_CARGO_PRD
 -- =============================================
 
-USE DIVULGACARGA_PRD;
+USE ATLAS_CARGO_PRD;
 GO
 
 -- =============================================

@@ -1,7 +1,7 @@
 // backend/routes/reputation.routes.js
 // Rotas para Reputação de Motoristas e Ranking
 // Versão: 2.0 - Módulo separado
-// Data: 2025-01-16
+// Data: 2026-01-16
 
 const express = require('express');
 const router = express.Router();

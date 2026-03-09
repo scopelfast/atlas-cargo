@@ -1,6 +1,6 @@
 # 📋 Scripts SQL - Ajustes para Módulos Separados
 
-**Data:** 2025-01-15  
+**Data:** 2026-01-15  
 **Status:** ✅ Pronto para execução
 
 ---
@@ -86,7 +86,7 @@
 
 ```sql
 -- No SQL Server Management Studio (SSMS)
-USE [divulgacarga]
+USE [atlas_cargo]
 GO
 
 -- Execute o script master
@@ -98,7 +98,7 @@ GO
 ### Opção 2: Executar Scripts Individualmente
 
 ```sql
-USE [divulgacarga]
+USE [atlas_cargo]
 GO
 
 -- 1. Ajustar ALERTS
@@ -117,10 +117,10 @@ GO
 ### Opção 3: Via Linha de Comando (sqlcmd)
 
 ```bash
-sqlcmd -S servidor -d divulgacarga -i backend/scripts/ajustar_tabela_alerts_para_modulo.sql
-sqlcmd -S servidor -d divulgacarga -i backend/scripts/ajustar_tabela_messages_para_modulo.sql
-sqlcmd -S servidor -d divulgacarga -i backend/scripts/ajustar_tabela_sos_alerts_para_modulo.sql
-sqlcmd -S servidor -d divulgacarga -i backend/scripts/criar_tabela_ranking_data.sql
+sqlcmd -S servidor -d atlas_cargo -i backend/scripts/ajustar_tabela_alerts_para_modulo.sql
+sqlcmd -S servidor -d atlas_cargo -i backend/scripts/ajustar_tabela_messages_para_modulo.sql
+sqlcmd -S servidor -d atlas_cargo -i backend/scripts/ajustar_tabela_sos_alerts_para_modulo.sql
+sqlcmd -S servidor -d atlas_cargo -i backend/scripts/criar_tabela_ranking_data.sql
 ```
 
 ---
@@ -273,5 +273,5 @@ Após executar os scripts:
 
 ---
 
-**Criado em:** 2025-01-15  
+**Criado em:** 2026-01-15  
 **Versão:** 1.0

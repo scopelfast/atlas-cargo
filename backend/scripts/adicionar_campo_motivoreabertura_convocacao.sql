@@ -1,7 +1,7 @@
 -- Script para adicionar o campo CDMOTIVOREABERTURA na tabela CONVOCACAO
 -- Versão: 1.0
--- Autor: Sistema DivulgaCarga
--- Data: 2025-11-28
+-- Autor: Atlas Cargo
+-- Data: 2026-11-28
 
 -- Verificar se a coluna CDMOTIVOREABERTURA já existe na tabela CONVOCACAO
 IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[CONVOCACAO]') AND name = 'CDMOTIVOREABERTURA')

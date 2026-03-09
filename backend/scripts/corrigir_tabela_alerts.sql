@@ -1,6 +1,6 @@
 -- Script para corrigir tipo de dados da coluna CDMOTORISTA na tabela ALERTS
 -- Corrige incompatibilidade com CADASTROGERAL.CDCADASTRO
--- Data: 2025-01-16
+-- Data: 2026-01-16
 
 -- Verificar se tabela existe mas com tipo errado
 IF EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[ALERTS]') AND type in (N'U'))

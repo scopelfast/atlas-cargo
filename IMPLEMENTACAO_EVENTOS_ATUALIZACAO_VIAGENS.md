@@ -1,7 +1,7 @@
 # 🔄 Implementação: Eventos de Atualização de Viagens via WebSocket
 
 **Versão:** 1.0  
-**Data:** 2025-01-16  
+**Data:** 2026-01-16  
 **Status:** ✅ Implementado
 
 ---
@@ -49,8 +49,8 @@ Isso permite atualizações em tempo real na Torre de Controle, sem necessidade 
     FGACTIVE: 'A',
     CDCLASSEFROTA: 5,
     DSCLASSEFROTA: 'Caminhão',
-    DTPREVINICIO: '2025-01-16T10:00:00Z',
-    DTPREVFINAL: '2025-01-16T18:00:00Z',
+    DTPREVINICIO: '2026-01-16T10:00:00Z',
+    DTPREVFINAL: '2026-01-16T18:00:00Z',
     IDROTEIRO: 456,
     DSROTEIRO: 'SP → RJ',
     DISTANCIAKM: 450.5,
@@ -64,7 +64,7 @@ Isso permite atualizações em tempo real na Torre de Controle, sem necessidade 
     DESTINO_CIDADE: 'Rio de Janeiro',
     TEM_CONFIRMADO: 'S'
   },
-  timestamp: '2025-01-16T15:30:00.000Z'
+  timestamp: '2026-01-16T15:30:00.000Z'
 }
 ```
 
@@ -92,7 +92,7 @@ Isso permite atualizações em tempo real na Torre de Controle, sem necessidade 
     MOTORISTA_CELULAR: '11987654321',
     TEM_CONFIRMADO: 'S'
   },
-  timestamp: '2025-01-16T15:30:00.000Z'
+  timestamp: '2026-01-16T15:30:00.000Z'
 }
 ```
 
@@ -287,5 +287,5 @@ window.atualizarDadosViagem = async function(idviagem, viagem) {
 ---
 
 **Versão:** 1.0  
-**Última Atualização:** 2025-01-16  
+**Última Atualização:** 2026-01-16  
 **Autor:** Sistema LogiTrack Pro

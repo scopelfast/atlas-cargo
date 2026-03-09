@@ -1,0 +1,17 @@
+-- =============================================
+-- NOTA: Tabela de rastreamento já existente
+-- =============================================
+-- No PostgreSQL você já possui as tabelas:
+--   public."VIAGEMRASTREAMENTO"
+--   public."VIAGEMRASTREAMENTO_INVALIDOS"
+--
+-- O código do backend foi ajustado para usar [dbo].[VIAGEMRASTREAMENTO],
+-- que no PostgreSQL vira "VIAGEMRASTREAMENTO" (tabela existente).
+--
+-- Se por engano foi criada a tabela em minúsculas (viagemrastreamento),
+-- você pode removê-la com:
+--
+--   DROP TABLE IF EXISTS viagemrastreamento;
+--
+-- Não é necessário criar nenhuma tabela nova para rastreamento.
+-- =============================================

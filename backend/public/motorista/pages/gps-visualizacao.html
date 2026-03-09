@@ -4,8 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Visualização GPS - Motorista</title>
-  <link rel="stylesheet" href="../css/padrao-telas.css">
   <link rel="stylesheet" href="../css/design-system.css">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <script src="../js/i18n.js"></script>
   <!-- Leaflet (OpenStreetMap) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="../../js/map-config.js"></script>
@@ -20,16 +22,19 @@
     
     .map-container {
       flex: 1;
-      min-height: 300px;
+      min-height: 320px;
+      height: 50vh;
       background: #f0f0f0;
       border-radius: 12px;
       overflow: hidden;
       position: relative;
+      display: flex;
     }
     
     #map {
       width: 100%;
       height: 100%;
+      min-height: 280px;
     }
     
     .stats-grid {
@@ -83,8 +88,8 @@
     }
     
     .tab.active {
-      color: #667eea;
-      border-bottom-color: #667eea;
+      color: #0ea5e9;
+      border-bottom-color: #0ea5e9;
     }
     
     .tab-content {
@@ -128,47 +133,50 @@
     }
   </style>
 </head>
-<body>
-  <div id="statusIndicador" class="status-bar status-online">🟢 Online - Sincronizado</div>
-
+<body class="motorista-page">
   <div class="navbar">
-    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
-    <h1>🗺️ Visualização GPS</h1>
+    <button class="btn-voltar" onclick="voltar()">← <span data-i18n="gpsVisualizacao.voltar">Voltar</span></button>
+    <h1><i class="bx bx-map"></i> <span data-i18n="gpsVisualizacao.titulo">Visualização GPS</span></h1>
+    <div id="statusIndicador" class="status-badge-navbar status-online" data-i18n="dashboard.onlineSincronizado">Online - Sincronizado</div>
   </div>
 
   <div class="container">
     <div class="gps-container">
       <!-- Tabs -->
       <div class="tabs">
-        <button class="tab active" onclick="mostrarTab('mapa')">📍 Mapa</button>
-        <button class="tab" onclick="mostrarTab('historico')">📊 Histórico</button>
-        <button class="tab" onclick="mostrarTab('estatisticas')">📈 Estatísticas</button>
+        <button class="tab active" onclick="mostrarTab('mapa')" data-i18n="gpsVisualizacao.mapa">📍 Mapa</button>
+        <button class="tab" onclick="mostrarTab('historico')" data-i18n="gpsVisualizacao.historico">📊 Histórico</button>
+        <button class="tab" onclick="mostrarTab('estatisticas')" data-i18n="gpsVisualizacao.estatisticas">📈 Estatísticas</button>
       </div>
 
       <!-- Tab: Mapa -->
       <div id="tab-mapa" class="tab-content active">
         <div class="map-container">
           <div id="map"></div>
+          <div id="mapEmptyMessage" class="map-empty-message" style="display: flex; position: absolute; inset: 0; background: #f0f0f0; align-items: center; justify-content: center; border-radius: 12px; flex-direction: column; padding: 20px; text-align: center; color: #666;">
+            <div style="font-size: 48px; margin-bottom: 16px;">📍</div>
+            <div data-i18n="gpsVisualizacao.carregandoPosicoes">Carregando posições...</div>
+          </div>
         </div>
         
         <div class="stats-grid">
           <div class="stat-card">
-            <div class="stat-label">📍 Última Posição</div>
+            <div class="stat-label" data-i18n="gpsVisualizacao.ultimaPosicao">📍 Última Posição</div>
             <div class="stat-value" id="ultimaPosicao">-</div>
           </div>
           
           <div class="stat-card">
-            <div class="stat-label">⏱️ Tempo Estimado</div>
+            <div class="stat-label" data-i18n="gpsVisualizacao.tempoEstimado">⏱️ Tempo Estimado</div>
             <div class="stat-value" id="tempoEstimado">-</div>
           </div>
           
           <div class="stat-card">
-            <div class="stat-label">📏 Distância Percorrida</div>
+            <div class="stat-label" data-i18n="gpsVisualizacao.distanciaPercorrida">📏 Distância Percorrida</div>
             <div class="stat-value" id="distanciaPercorrida">-</div>
           </div>
           
           <div class="stat-card">
-            <div class="stat-label">🚗 Velocidade Média</div>
+            <div class="stat-label" data-i18n="gpsVisualizacao.velocidadeMedia">🚗 Velocidade Média</div>
             <div class="stat-value" id="velocidadeMedia">-</div>
           </div>
         </div>
@@ -179,7 +187,7 @@
         <div class="historico-list" id="historicoList">
           <div class="loading">
             <div class="spinner"></div>
-            <p>Carregando histórico...</p>
+            <p data-i18n="gpsVisualizacao.carregandoHistorico">Carregando histórico...</p>
           </div>
         </div>
       </div>
@@ -188,22 +196,22 @@
       <div id="tab-estatisticas" class="tab-content">
         <div class="stats-grid" style="grid-template-columns: 1fr;">
           <div class="stat-card">
-            <div class="stat-label">📊 Total de Posições</div>
+            <div class="stat-label" data-i18n="gpsVisualizacao.totalPosicoes">📊 Total de Posições</div>
             <div class="stat-value" id="totalPosicoes">-</div>
           </div>
           
           <div class="stat-card">
-            <div class="stat-label">⏱️ Tempo Total</div>
+            <div class="stat-label" data-i18n="gpsVisualizacao.tempoTotal">⏱️ Tempo Total</div>
             <div class="stat-value" id="tempoTotal">-</div>
           </div>
           
           <div class="stat-card">
-            <div class="stat-label">🚗 Velocidade Máxima</div>
+            <div class="stat-label" data-i18n="gpsVisualizacao.velocidadeMaxima">🚗 Velocidade Máxima</div>
             <div class="stat-value" id="velocidadeMaxima">-</div>
           </div>
           
           <div class="stat-card">
-            <div class="stat-label">📍 Primeira Posição</div>
+            <div class="stat-label" data-i18n="gpsVisualizacao.primeiraPosicao">📍 Primeira Posição</div>
             <div class="stat-value" id="primeiraPosicao" style="font-size: 14px;">-</div>
           </div>
         </div>
@@ -220,6 +228,16 @@
   <script>
     if (!verificarAuth()) window.location.href = '../index.html';
 
+    function applyI18n() {
+      if (typeof window.t !== 'function') return;
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n');
+        if (k) el.textContent = window.t(k);
+      });
+    }
+    if (window.i18nReady) window.i18nReady.then(applyI18n);
+    function t(k) { return typeof window.t === 'function' ? window.t(k) : k; }
+
     const motorista = getMotorista();
     const token = localStorage.getItem('token');
     let idViagem = null;
@@ -233,7 +251,7 @@
     idViagem = params.get('viagem');
 
     if (!idViagem) {
-      mostrarToast('Viagem não especificada. Redirecionando...', 'error');
+      mostrarToast(t('gpsVisualizacao.viagemNaoEspecificada'), 'error');
       setTimeout(() => {
         window.location.href = 'viagens.html';
       }, 2000);
@@ -256,11 +274,15 @@
       document.getElementById(`tab-${tabName}`).classList.add('active');
       event.target.classList.add('active');
       
-      // Se for mapa, redimensionar
+      // Se for mapa, redimensionar (garante que o mapa apareça ao trocar de aba)
       if (tabName === 'mapa' && map) {
         setTimeout(() => {
           map.invalidateSize();
-        }, 100);
+          if (posicoesGPS.length > 0) {
+            const b = L.latLngBounds(posicoesGPS.map(p => [parseFloat(p.LATITUDE), parseFloat(p.LONGITUDE)]));
+            map.fitBounds(b, { padding: [20, 20] });
+          }
+        }, 150);
       }
     }
 
@@ -309,6 +331,11 @@
       
       tileLayer.addTo(map);
       
+      // Forçar cálculo do tamanho (container pode estar em flex/tab)
+      setTimeout(function() {
+        if (map) map.invalidateSize();
+      }, 100);
+      
       // Log de erros de tiles
       tileLayer.on('tileerror', (error, tile) => {
         console.error('❌ [GPS] Erro ao carregar tile:', error, tile?.src);
@@ -322,34 +349,40 @@
     }
 
     // Carregar posições GPS
+    const baseUrl = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
     async function carregarPosicoes() {
       try {
-        const response = await fetch(`/api/motorista/posicoes/${idViagem}`, {
+        const response = await fetch(`${baseUrl}/api/motorista/posicoes/${idViagem}`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         });
 
-        if (!response.ok) {
-          throw new Error(`Erro ${response.status}: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        posicoesGPS = data.posicoes || [];
+        const data = await response.json().catch(() => ({}));
+        let raw = (response.ok && data && data.posicoes) ? data.posicoes : [];
+        // Normalizar chaves para maiúsculas (backend pode retornar minúsculas no PostgreSQL)
+        posicoesGPS = raw.map(p => ({
+          ...p,
+          LATITUDE: p.LATITUDE ?? p.latitude,
+          LONGITUDE: p.LONGITUDE ?? p.longitude,
+          VELOCIDADE: p.VELOCIDADE ?? p.velocidade,
+          DHREGISTRO: p.DHREGISTRO ?? p.dhiregistro,
+          DHPOSICAO: p.DHPOSICAO ?? p.dhposicao
+        }));
 
         if (posicoesGPS.length === 0) {
-          document.getElementById('map').innerHTML = `
-            <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;">
-              <div style="text-align: center;">
-                <div style="font-size: 48px; margin-bottom: 16px;">📍</div>
-                <div>Nenhuma posição GPS encontrada</div>
-                <div style="font-size: 12px; margin-top: 8px;">Aguardando envio de posições...</div>
-              </div>
-            </div>
-          `;
+          const emptyEl = document.getElementById('mapEmptyMessage');
+          if (emptyEl) {
+            emptyEl.style.display = 'flex';
+            emptyEl.innerHTML = '<div style="font-size: 48px; margin-bottom: 16px;">📍</div><div>Nenhuma posição GPS encontrada</div><div style="font-size: 12px; margin-top: 8px;">Aguardando envio de posições...</div>';
+          }
+          renderizarHistorico();
           atualizarEstatisticas();
           return;
         }
+
+        const emptyEl2 = document.getElementById('mapEmptyMessage');
+        if (emptyEl2) emptyEl2.style.display = 'none';
 
         // Renderizar no mapa
         renderizarMapa();
@@ -362,7 +395,17 @@
         
       } catch (err) {
         console.error('Erro ao carregar posições:', err);
-        mostrarToast('Erro ao carregar posições GPS', 'error');
+        posicoesGPS = [];
+        const emptyEl = document.getElementById('mapEmptyMessage');
+        if (emptyEl) {
+          emptyEl.style.display = 'flex';
+          emptyEl.innerHTML = '<div style="font-size: 48px; margin-bottom: 16px;">📍</div><div>Nenhuma posição GPS encontrada</div><div style="font-size: 12px; margin-top: 8px;">Verifique a conexão ou aguarde o envio de posições.</div>';
+        }
+        renderizarHistorico();
+        atualizarEstatisticas();
+        if (typeof mostrarToast === 'function') {
+          mostrarToast('Erro ao carregar posições GPS. Verifique a conexão.', 'error');
+        }
       }
     }
 
@@ -428,7 +471,7 @@
       // Desenhar rota
       if (routeCoordinates.length > 1) {
         routePolyline = L.polyline(routeCoordinates, {
-          color: '#667eea',
+          color: '#0ea5e9',
           weight: 4,
           opacity: 0.8,
           smoothFactor: 1
@@ -446,6 +489,11 @@
           map.setView(bounds[0]);
         }
       }
+
+      // Forçar Leaflet a recalcular tamanho do mapa (evita mapa em branco)
+      setTimeout(function() {
+        if (map) map.invalidateSize();
+      }, 150);
 
       // Atualizar última posição
       if (posicoesGPS.length > 0) {
@@ -485,13 +533,13 @@
         const isUltima = index === 0;
 
         return `
-          <div class="historico-item" ${isUltima ? 'style="background: #f0f7ff; border-left: 4px solid #667eea;"' : ''}>
+          <div class="historico-item" ${isUltima ? 'style="background: #e0f2fe; border-left: 4px solid #0ea5e9;"' : ''}>
             <div class="historico-info">
               <div style="font-weight: 600; color: #333;">
                 ${isUltima ? '📍 ' : ''}Posição ${posicoesGPS.length - index}
               </div>
               <div class="historico-coords">${lat}, ${lng}</div>
-              ${pos.VELOCIDADE ? `<div style="font-size: 12px; color: #667eea; margin-top: 4px;">🚗 ${velocidade}</div>` : ''}
+              ${pos.VELOCIDADE ? `<div style="font-size: 12px; color: #0ea5e9; margin-top: 4px;">🚗 ${velocidade}</div>` : ''}
             </div>
             <div class="historico-hora">${hora}</div>
           </div>

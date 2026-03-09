@@ -1,4 +1,4 @@
-# 📱 Manual do Motorista - APP DivulgaCarga
+# 📱 Manual do Motorista - Atlas Cargo
 
 ## 📋 Índice
 1. [Introdução](#introdução)
@@ -16,7 +16,7 @@
 
 ## 🎯 Introdução
 
-Bem-vindo ao **APP DivulgaCarga**! Este aplicativo foi desenvolvido para facilitar sua comunicação com a central de operações e gerenciar suas viagens de forma prática e eficiente.
+Bem-vindo ao **Atlas Cargo**! Este aplicativo foi desenvolvido para facilitar sua comunicação com a central de operações e gerenciar suas viagens de forma prática e eficiente.
 
 ### ✨ Principais Funcionalidades
 - 📍 **Rastreamento GPS Automático**
@@ -397,7 +397,7 @@ O botão SOS é para **situações de emergência**.
 
 - Entre em contato com a **Central de Operações**
 - Use o chat do aplicativo para solicitar suporte
-- Envie um e-mail para suporte@divulgacarga.com.br
+- Envie um e-mail para suporte@atlascargo.com.br
 
 ---
 
@@ -406,7 +406,7 @@ O botão SOS é para **situações de emergência**.
 ### Central de Operações
 - **Telefone**: (XX) XXXX-XXXX
 - **WhatsApp**: (XX) XXXXX-XXXX
-- **E-mail**: suporte@divulgacarga.com.br
+- **E-mail**: suporte@atlascargo.com.br
 - **Horário**: Segunda a Sexta, 8h às 18h
 
 ### Chat no Aplicativo
@@ -418,7 +418,7 @@ O botão SOS é para **situações de emergência**.
 ## 📱 Versão do Aplicativo
 
 **Versão Atual**: 1.0.0  
-**Última Atualização**: Dezembro 2025
+**Última Atualização**: Dezembro 2026
 
 ---
 
@@ -435,7 +435,7 @@ Antes de iniciar suas viagens, verifique:
 
 ---
 
-**Desenvolvido com ❤️ pela equipe DivulgaCarga**
+**Desenvolvido com ❤️ pela Atlas Cargo**
 
 *Este manual está sujeito a atualizações. Consulte sempre a versão mais recente.*
 

@@ -4,8 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SOS - Emergência</title>
-  <link rel="stylesheet" href="../css/padrao-telas.css">
   <link rel="stylesheet" href="../css/design-system.css">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <script src="../js/i18n.js"></script>
   <style>
     .sos-container {
       max-width: 500px;
@@ -21,6 +23,12 @@
       text-align: center;
       margin-bottom: 30px;
       box-shadow: 0 8px 24px rgba(231, 76, 60, 0.4);
+    }
+
+    .sos-warning h1,
+    .sos-warning p,
+    .sos-warning strong {
+      color: #fff;
     }
 
     .sos-warning h1 {
@@ -90,7 +98,7 @@
       padding: 20px;
       border-radius: 12px;
       margin-bottom: 20px;
-      border-left: 4px solid #667eea;
+      border-left: 4px solid #0ea5e9;
     }
 
     .info-box h3 {
@@ -130,19 +138,18 @@
     }
   </style>
 </head>
-<body>
-  <div id="statusIndicador" class="status-bar status-online">🟢 Online</div>
-
+<body class="motorista-page">
   <div class="navbar">
-    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
-    <h1>SOS</h1>
+    <button class="btn-voltar" onclick="voltar()">← <span data-i18n="common.voltar">Voltar</span></button>
+    <h1><i class="bx bx-error-circle"></i></h1>
+    <div id="statusIndicador" class="status-badge-navbar status-online" data-i18n="dashboard.onlineSincronizado">Online - Sincronizado</div>
   </div>
 
   <div class="container">
     <div class="sos-container">
       <div class="sos-warning">
-        <p><strong>EMERGÊNCIA</strong></p>
-        <p>Mantenha pressionado por 3 segundos</p>
+        <p><strong data-i18n="sos.titulo">SOS</strong></p>
+        <p data-i18n="sos.descricao">Envie um alerta de emergência para a central</p>
       </div>
 
       <div id="statusMessage" class="status-message"></div>
@@ -156,7 +163,7 @@
         onmouseup="cancelarSOS()"
         onmouseleave="cancelarSOS()"
       >
-        ENVIAR ALERTA DE EMERGÊNCIA
+        <span data-i18n="sos.enviar">Enviar alerta SOS</span>
         <div id="progressBar" class="sos-progress" style="width: 0%;"></div>
       </button>
 
@@ -180,6 +187,14 @@
     </div>
   </div>
 
+  <script>
+    function applyI18n() {
+      if (typeof window.t !== 'function') return;
+      document.querySelectorAll('[data-i18n]').forEach(function(el) { var k = el.getAttribute('data-i18n'); if (k) el.textContent = window.t(k); });
+      document.querySelectorAll('[data-i18n-title]').forEach(function(el) { var k = el.getAttribute('data-i18n-title'); if (k) el.title = window.t(k); });
+    }
+    if (window.i18nReady) window.i18nReady.then(applyI18n);
+  </script>
   <!-- URL Helper - DEVE ser o primeiro script para garantir interceptor de fetch -->
   <script src="../js/url-helper.js"></script>
   <script src="../js/notifications.js"></script>

@@ -1,7 +1,7 @@
 # 📋 Guia de Testes - Módulo Chat
 
 ## 🎯 Objetivo
-Este guia fornece instruções passo a passo para testar o módulo Chat do sistema DivulgaCarga.
+Este guia fornece instruções passo a passo para testar o módulo Chat do sistema Atlas Cargo.
 
 ---
 
@@ -386,5 +386,5 @@ Se encontrar problemas:
 
 ---
 
-**Última atualização:** 2025-01-18
+**Última atualização:** 2026-01-18
 **Versão do módulo:** 2.0

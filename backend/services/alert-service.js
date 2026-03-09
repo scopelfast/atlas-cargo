@@ -1,11 +1,11 @@
 // backend/services/alert-service.js
 // Service para detectar e gerar alertas automáticos em viagens
 // Versão: 2.0 - Com ETA dinâmico e detecção de desvios
-// Data: 2025-01-16
+// Data: 2026-01-16
 
-const sql = require('mssql');
 const axios = require('axios');
 const { poolPromise } = require('../config/db');
+const sql = require('../config/mssql-compat');
 
 const alertService = {
   /**
@@ -19,24 +19,20 @@ const alertService = {
 
     try {
       console.log(`🔍 [Alertas] Verificando viagem ${idViagem}...`);
-      // Buscar motorista da viagem (para incluir nos alertas)
+      // Buscar motorista da viagem (para incluir nos alertas) - PostgreSQL
       let cdmotorista = null;
       try {
-        // Buscar de CONVOCACAO (mais confiável, já que é a relação atual)
-        const motoristaResult = await pool.request()
-          .input('idviagem', sql.Decimal(15, 0), idViagem)
-          .query(`
-            SELECT TOP 1 CDCADASTRO_MOTORISTA 
-            FROM [dbo].[CONVOCACAO]
-            WHERE IDVIAGEM = @idviagem
-              AND STATUS IN ('ACEITA', 'CONFIRMADA')
-            ORDER BY DHRESPOSTA DESC
-          `);
-        if (motoristaResult.recordset.length > 0) {
-          cdmotorista = motoristaResult.recordset[0].CDCADASTRO_MOTORISTA;
+        const motoristaResult = await pool.query(
+          `SELECT "CDCADASTRO_MOTORISTA" FROM "CONVOCACAO"
+           WHERE "IDVIAGEM" = $1 AND "STATUS" IN ('ACEITA', 'CONFIRMADA')
+           ORDER BY "DHRESPOSTA" DESC LIMIT 1`,
+          [idViagem]
+        );
+        if (motoristaResult.rows && motoristaResult.rows.length > 0) {
+          cdmotorista = motoristaResult.rows[0].CDCADASTRO_MOTORISTA ?? motoristaResult.rows[0].cdcadastro_motorista;
         }
       } catch (err) {
-        console.warn('Erro ao buscar motorista da viagem:', err.message);
+        if (err.code !== '42P01') console.warn('Erro ao buscar motorista da viagem:', err.message);
       }
 
       // 1. Verificar paradas não planejadas (> 30 min)
@@ -112,25 +108,21 @@ const alertService = {
       const result = await pool.request()
         .input('idviagem', sql.Decimal(15, 0), idViagem)
         .query(`
-          DECLARE @paradaMinutos INT = 30; -- Configurável via ALERT_CONFIG
-          
-          -- Buscar últimas posições (últimas 3)
-          WITH UltimasPosicoes AS (
-            SELECT TOP 3
-              LATITUDE, LONGITUDE, VELOCIDADE, DHREGISTRO
-            FROM [dbo].[VIAGEMRASTREAMENTO]
-            WHERE IDVIAGEM = @idviagem
-              AND DHREGISTRO >= DATEADD(MINUTE, -60, GETDATE())
-            ORDER BY DHREGISTRO DESC
-          )
           SELECT 
-            COUNT(*) as total,
-            AVG(VELOCIDADE) as velocidadeMedia,
-            MIN(DHREGISTRO) as primeiraParada,
-            MAX(DHREGISTRO) as ultimaParada,
-            DATEDIFF(MINUTE, MIN(DHREGISTRO), MAX(DHREGISTRO)) as minutosParado
-          FROM UltimasPosicoes
-          WHERE VELOCIDADE < 5 -- Considera parado se velocidade < 5 km/h
+            COUNT(*)::int as total,
+            AVG(sub.[VELOCIDADE])::float as "velocidadeMedia",
+            MIN(sub.[DHREGISTRO]) as "primeiraParada",
+            MAX(sub.[DHREGISTRO]) as "ultimaParada",
+            EXTRACT(EPOCH FROM (MAX(sub.[DHREGISTRO]) - MIN(sub.[DHREGISTRO])))/60::float as "minutosParado"
+          FROM (
+            SELECT [LATITUDE], [LONGITUDE], [VELOCIDADE], [DHREGISTRO]
+            FROM [dbo].[VIAGEMRASTREAMENTO]
+            WHERE [IDVIAGEM] = @idviagem
+              AND [DHREGISTRO] >= (CURRENT_TIMESTAMP - INTERVAL '60 minutes')
+            ORDER BY [DHREGISTRO] DESC
+            LIMIT 3
+          ) [sub]
+          WHERE sub.[VELOCIDADE] < 5
         `);
 
       if (result.recordset.length > 0) {
@@ -143,10 +135,11 @@ const alertService = {
             .input('idviagem', sql.Decimal(15, 0), idViagem)
             .input('type', sql.NVarChar(20), 'parada')
             .query(`
-              SELECT TOP 1 ID FROM [dbo].[ALERTS]
-              WHERE IDVIAGEM = @idviagem
-                AND TYPE = @type
-                AND RESOLVED = 0
+              SELECT [ID] FROM [dbo].[ALERTS]
+              WHERE [IDVIAGEM] = @idviagem
+                AND [TYPE] = @type
+                AND [RESOLVED] = false
+            LIMIT 1
             `);
 
           if (existeAlerta.recordset.length === 0) {
@@ -166,6 +159,10 @@ const alertService = {
 
       return null;
     } catch (err) {
+      if (err.code === '42P01') {
+        console.warn('⚠️ [Alertas] verificarParadaProlongada: relação não existe (ignorando):', err.message);
+        return null;
+      }
       console.error('Erro ao verificar parada prolongada:', err);
       return null;
     }
@@ -186,7 +183,7 @@ const alertService = {
       
       const response = await axios.get(osrmUrl, {
         headers: {
-          'User-Agent': 'DivulgaCarga/1.0 (contact: sistema@divulgacarga.com.br)'
+          'User-Agent': 'AtlasCargo/2.0'
         },
         timeout: 10000 // 10 segundos
       });
@@ -216,22 +213,22 @@ const alertService = {
         .input('idviagem', sql.Decimal(15, 0), idViagem)
         .query(`
           SELECT 
-            v.IDVIAGEM,
-            v.DTPREVFINAL AS DHENTREGA,
-            v.CDSITUACAOVIAGEM,
-            v.IDROTEIRO,
-            r.CDCIDADEORIGEM,
-            r.CDCIDADEDESTINO
-          FROM [dbo].[VIAGEMMESTRE] v
-          LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
-          WHERE v.IDVIAGEM = @idviagem
-            AND v.CDSITUACAOVIAGEM IN (
-              SELECT CDSITUACAOVIAGEM 
+            [v].[IDVIAGEM],
+            [v].[DTPREVFINAL] AS DHENTREGA,
+            [v].[CDSITUACAOVIAGEM],
+            [v].[IDROTEIRO],
+            [r].[CDCIDADEORIGEM],
+            [r].[CDCIDADEDESTINO]
+          FROM [dbo].[VIAGEMMESTRE] [v]
+          LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
+          WHERE [v].[IDVIAGEM] = @idviagem
+            AND [v].[CDSITUACAOVIAGEM] IN (
+              SELECT [CDSITUACAOVIAGEM] 
               FROM [dbo].[SITUACAOVIAGEM] 
-              WHERE UPPER(DSSITUACAOVIAGEM) LIKE '%ANDAMENTO%' 
-                 OR UPPER(DSSITUACAOVIAGEM) LIKE '%CONFIRMADA%'
+              WHERE UPPER([DSSITUACAOVIAGEM]) LIKE '%ANDAMENTO%' 
+                 OR UPPER([DSSITUACAOVIAGEM]) LIKE '%CONFIRMADA%'
             )
-            AND v.DTPREVFINAL IS NOT NULL
+            AND [v].[DTPREVFINAL] IS NOT NULL
         `);
 
       if (result.recordset.length > 0) {
@@ -241,11 +238,11 @@ const alertService = {
         const ultimaPosResult = await pool.request()
           .input('idviagem', sql.Decimal(15, 0), idViagem)
           .query(`
-            SELECT TOP 1 
-              LATITUDE, LONGITUDE, DHREGISTRO, VELOCIDADE
-            FROM [dbo].[VIAGEMRASTREAMENTO] 
-            WHERE IDVIAGEM = @idviagem 
-            ORDER BY DHREGISTRO DESC
+            SELECT [LATITUDE], [LONGITUDE], [DHREGISTRO], [VELOCIDADE]
+            FROM [dbo].[VIAGEMRASTREAMENTO]
+            WHERE [IDVIAGEM] = @idviagem 
+            ORDER BY [DHREGISTRO] DESC
+            LIMIT 1
           `);
         
         const ultimaPos = ultimaPosResult.recordset.length > 0 ? ultimaPosResult.recordset[0] : null;
@@ -256,18 +253,18 @@ const alertService = {
           const pontosResult = await pool.request()
             .input('idroteiro', sql.Decimal(15, 0), viagem.IDROTEIRO)
             .query(`
-              SELECT LATITUDE, LONGITUDE, TPLOCAL
+              SELECT [LATITUDE], [LONGITUDE], [TPLOCAL]
               FROM [dbo].[ROTEIROPONTOS]
-              WHERE IDROTEIRO = @idroteiro
-                AND LATITUDE IS NOT NULL
-                AND LONGITUDE IS NOT NULL
+              WHERE [IDROTEIRO] = @idroteiro
+                AND [LATITUDE] IS NOT NULL
+                AND [LONGITUDE] IS NOT NULL
               ORDER BY 
-                CASE TPLOCAL
+                CASE [TPLOCAL]
                   WHEN 'O' THEN 1
                   WHEN 'D' THEN 2
                   ELSE 3
                 END,
-                ORDEM, SEQUENCIA
+                [ORDEM], [SEQUENCIA]
             `);
           
           if (pontosResult.recordset.length > 0) {
@@ -335,10 +332,11 @@ const alertService = {
                 .input('idviagem', sql.Decimal(15, 0), idViagem)
                 .input('type', sql.NVarChar(20), 'atraso')
                 .query(`
-                  SELECT TOP 1 ID FROM [dbo].[ALERTS]
-                  WHERE IDVIAGEM = @idviagem
-                    AND TYPE = @type
-                    AND RESOLVED = 0
+                  SELECT [ID] FROM [dbo].[ALERTS]
+                  WHERE [IDVIAGEM] = @idviagem
+                    AND [TYPE] = @type
+                    AND [RESOLVED] = false
+                LIMIT 1
                 `);
 
               if (existeAlerta.recordset.length === 0) {
@@ -362,6 +360,7 @@ const alertService = {
 
       return null;
     } catch (err) {
+      if (err.code === '42P01') return null;
       console.error('Erro ao verificar atraso:', err);
       return null;
     }
@@ -376,20 +375,20 @@ const alertService = {
         .input('idviagem', sql.Decimal(15, 0), idViagem)
         .query(`
           SELECT 
-            v.IDVIAGEM,
-            v.DTPREVFINAL AS DHENTREGA,
-            v.IDROTEIRO,
-            r.CDCIDADEDESTINO
-          FROM [dbo].[VIAGEMMESTRE] v
-          LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
-          WHERE v.IDVIAGEM = @idviagem
-            AND v.CDSITUACAOVIAGEM IN (
-              SELECT CDSITUACAOVIAGEM 
+            [v].[IDVIAGEM],
+            [v].[DTPREVFINAL] AS DHENTREGA,
+            [v].[IDROTEIRO],
+            [r].[CDCIDADEDESTINO]
+          FROM [dbo].[VIAGEMMESTRE] [v]
+          LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
+          WHERE [v].[IDVIAGEM] = @idviagem
+            AND [v].[CDSITUACAOVIAGEM] IN (
+              SELECT [CDSITUACAOVIAGEM] 
               FROM [dbo].[SITUACAOVIAGEM] 
-              WHERE UPPER(DSSITUACAOVIAGEM) LIKE '%ANDAMENTO%' 
-                 OR UPPER(DSSITUACAOVIAGEM) LIKE '%CONFIRMADA%'
+              WHERE UPPER([DSSITUACAOVIAGEM]) LIKE '%ANDAMENTO%' 
+                 OR UPPER([DSSITUACAOVIAGEM]) LIKE '%CONFIRMADA%'
             )
-            AND v.DTPREVFINAL IS NOT NULL
+            AND [v].[DTPREVFINAL] IS NOT NULL
         `);
 
       if (result.recordset.length > 0) {
@@ -399,11 +398,11 @@ const alertService = {
         const ultimaPosResult = await pool.request()
           .input('idviagem', sql.Decimal(15, 0), idViagem)
           .query(`
-            SELECT TOP 1 
-              LATITUDE, LONGITUDE, DHREGISTRO, VELOCIDADE
-            FROM [dbo].[VIAGEMRASTREAMENTO] 
-            WHERE IDVIAGEM = @idviagem 
-            ORDER BY DHREGISTRO DESC
+            SELECT [LATITUDE], [LONGITUDE], [DHREGISTRO], [VELOCIDADE]
+            FROM [dbo].[VIAGEMRASTREAMENTO]
+            WHERE [IDVIAGEM] = @idviagem 
+            ORDER BY [DHREGISTRO] DESC
+            LIMIT 1
           `);
         
         const ultimaPos = ultimaPosResult.recordset.length > 0 ? ultimaPosResult.recordset[0] : null;
@@ -415,13 +414,14 @@ const alertService = {
           let pontosResult = await pool.request()
             .input('idroteiro', sql.Decimal(15, 0), viagem.IDROTEIRO)
             .query(`
-              SELECT TOP 1 LATITUDE, LONGITUDE, TPLOCAL
+              SELECT [LATITUDE], [LONGITUDE], [TPLOCAL]
               FROM [dbo].[ROTEIROPONTOS]
-              WHERE IDROTEIRO = @idroteiro
-                AND TPLOCAL = 'D'
-                AND LATITUDE IS NOT NULL
-                AND LONGITUDE IS NOT NULL
-              ORDER BY ORDEM DESC, SEQUENCIA DESC
+              WHERE [IDROTEIRO] = @idroteiro
+                AND [TPLOCAL] = 'D'
+                AND [LATITUDE] IS NOT NULL
+                AND [LONGITUDE] IS NOT NULL
+              ORDER BY [ORDEM] DESC, [SEQUENCIA] DESC
+            LIMIT 1
             `);
           
           // Se não encontrou destino marcado, pegar o último ponto por ORDEM
@@ -429,12 +429,13 @@ const alertService = {
             pontosResult = await pool.request()
               .input('idroteiro', sql.Decimal(15, 0), viagem.IDROTEIRO)
               .query(`
-                SELECT TOP 1 LATITUDE, LONGITUDE, TPLOCAL
+                SELECT [LATITUDE], [LONGITUDE], [TPLOCAL]
                 FROM [dbo].[ROTEIROPONTOS]
-                WHERE IDROTEIRO = @idroteiro
-                  AND LATITUDE IS NOT NULL
-                  AND LONGITUDE IS NOT NULL
-                ORDER BY ORDEM DESC, SEQUENCIA DESC
+                WHERE [IDROTEIRO] = @idroteiro
+                  AND [LATITUDE] IS NOT NULL
+                  AND [LONGITUDE] IS NOT NULL
+                ORDER BY [ORDEM] DESC, [SEQUENCIA] DESC
+              LIMIT 1
               `);
           }
           
@@ -473,16 +474,17 @@ const alertService = {
                   .input('idviagem', sql.Decimal(15, 0), idViagem)
                   .input('type', sql.NVarChar(20), 'eta_prazo')
                   .query(`
-                    SELECT TOP 1 ID FROM [dbo].[ALERTS]
-                    WHERE IDVIAGEM = @idviagem
-                      AND TYPE = @type
-                      AND RESOLVED = 0
+SELECT [ID] FROM [dbo].[ALERTS]
+                    WHERE [IDVIAGEM] = @idviagem
+                      AND [TYPE] = @type
+                      AND [RESOLVED] = false
+                  LIMIT 1
                   `);
 
-                if (existeAlerta.recordset.length === 0) {
-                  return {
-                    idviagem: idViagem,
-                    type: 'eta_prazo',
+                  if (existeAlerta.recordset.length === 0) {
+                    return {
+                      idviagem: idViagem,
+                      type: 'eta_prazo',
                     message: `ETA estimado: ${minutosAlemPrazo} minutos após o prazo de entrega`,
                     severity: minutosAlemPrazo > 60 ? 'high' : 'medium',
                     details: JSON.stringify({
@@ -501,6 +503,7 @@ const alertService = {
 
       return null;
     } catch (err) {
+      if (err.code === '42P01') return null;
       console.error('Erro ao verificar ETA vs prazo:', err);
       return null;
     }
@@ -529,12 +532,13 @@ const alertService = {
       const result = await pool.request()
         .input('idviagem', sql.Decimal(15, 0), idViagem)
         .query(`
-          SELECT TOP 1
-            DHREGISTRO,
-            DATEDIFF(MINUTE, DHREGISTRO, GETDATE()) as minutosOffline
-            FROM [dbo].[VIAGEMRASTREAMENTO]
-          WHERE IDVIAGEM = @idviagem
-          ORDER BY DHREGISTRO DESC
+          SELECT 
+            [DHREGISTRO],
+            EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - [DHREGISTRO]))/60::float as "minutosOffline"
+          FROM [dbo].[VIAGEMRASTREAMENTO]
+          WHERE [IDVIAGEM] = @idviagem
+          ORDER BY [DHREGISTRO] DESC
+          LIMIT 1
         `);
 
       if (result.recordset.length > 0) {
@@ -545,15 +549,15 @@ const alertService = {
           const viagemAtiva = await pool.request()
             .input('idviagem', sql.Decimal(15, 0), idViagem)
             .query(`
-              SELECT CDSITUACAOVIAGEM 
-              FROM [dbo].[VIAGEMMESTRE] v
-              WHERE IDVIAGEM = @idviagem
+              SELECT [v].[CDSITUACAOVIAGEM] 
+              FROM [dbo].[VIAGEMMESTRE] [v]
+              WHERE [v].[IDVIAGEM] = @idviagem
                 AND EXISTS (
                   SELECT 1 
-                  FROM [dbo].[SITUACAOVIAGEM] s
-                  WHERE s.CDSITUACAOVIAGEM = v.CDSITUACAOVIAGEM
-                    AND (UPPER(s.DSSITUACAOVIAGEM) LIKE '%ANDAMENTO%' 
-                      OR UPPER(s.DSSITUACAOVIAGEM) LIKE '%CONFIRMADA%')
+                  FROM [dbo].[SITUACAOVIAGEM] [s]
+                  WHERE [s].[CDSITUACAOVIAGEM] = [v].[CDSITUACAOVIAGEM]
+                    AND (UPPER([s].[DSSITUACAOVIAGEM]) LIKE '%ANDAMENTO%' 
+                      OR UPPER([s].[DSSITUACAOVIAGEM]) LIKE '%CONFIRMADA%')
                 )
             `);
 
@@ -563,10 +567,11 @@ const alertService = {
               .input('idviagem', sql.Decimal(15, 0), idViagem)
               .input('type', sql.NVarChar(20), 'offline')
               .query(`
-                SELECT TOP 1 ID FROM [dbo].[ALERTS]
-                WHERE IDVIAGEM = @idviagem
-                  AND TYPE = @type
-                  AND RESOLVED = 0
+                SELECT [ID] FROM [dbo].[ALERTS]
+                WHERE [IDVIAGEM] = @idviagem
+                  AND [TYPE] = @type
+                  AND [RESOLVED] = false
+              LIMIT 1
               `);
 
             if (existeAlerta.recordset.length === 0) {
@@ -603,18 +608,18 @@ const alertService = {
         .input('idviagem', sql.Decimal(15, 0), idViagem)
         .query(`
           SELECT 
-            v.IDVIAGEM,
-            v.IDROTEIRO,
-            r.CDCIDADEORIGEM,
-            r.CDCIDADEDESTINO
-          FROM [dbo].[VIAGEMMESTRE] v
-          LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
-          WHERE v.IDVIAGEM = @idviagem
-            AND v.CDSITUACAOVIAGEM IN (
-              SELECT CDSITUACAOVIAGEM 
+            [v].[IDVIAGEM],
+            [v].[IDROTEIRO],
+            [r].[CDCIDADEORIGEM],
+            [r].[CDCIDADEDESTINO]
+          FROM [dbo].[VIAGEMMESTRE] [v]
+          LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
+          WHERE [v].[IDVIAGEM] = @idviagem
+            AND [v].[CDSITUACAOVIAGEM] IN (
+              SELECT [CDSITUACAOVIAGEM] 
               FROM [dbo].[SITUACAOVIAGEM] 
-              WHERE UPPER(DSSITUACAOVIAGEM) LIKE '%ANDAMENTO%' 
-                 OR UPPER(DSSITUACAOVIAGEM) LIKE '%CONFIRMADA%'
+              WHERE UPPER([DSSITUACAOVIAGEM]) LIKE '%ANDAMENTO%' 
+                 OR UPPER([DSSITUACAOVIAGEM]) LIKE '%CONFIRMADA%'
             )
         `);
 
@@ -625,11 +630,11 @@ const alertService = {
         const ultimaPosResult = await pool.request()
           .input('idviagem', sql.Decimal(15, 0), idViagem)
           .query(`
-            SELECT TOP 1 
-              LATITUDE, LONGITUDE, DHREGISTRO
-            FROM [dbo].[VIAGEMRASTREAMENTO] 
-            WHERE IDVIAGEM = @idviagem 
-            ORDER BY DHREGISTRO DESC
+            SELECT [LATITUDE], [LONGITUDE], [DHREGISTRO]
+            FROM [dbo].[VIAGEMRASTREAMENTO]
+            WHERE [IDVIAGEM] = @idviagem 
+            ORDER BY [DHREGISTRO] DESC
+            LIMIT 1
           `);
         
         const ultimaPos = ultimaPosResult.recordset.length > 0 ? ultimaPosResult.recordset[0] : null;
@@ -647,12 +652,12 @@ const alertService = {
           const pontosResult = await pool.request()
             .input('idroteiro', sql.Decimal(15, 0), viagem.IDROTEIRO)
             .query(`
-              SELECT LATITUDE, LONGITUDE, SEQUENCIA, TPLOCAL
+              SELECT [LATITUDE], [LONGITUDE], [SEQUENCIA], [TPLOCAL]
               FROM [dbo].[ROTEIROPONTOS]
-              WHERE IDROTEIRO = @idroteiro
-                AND LATITUDE IS NOT NULL
-                AND LONGITUDE IS NOT NULL
-              ORDER BY ORDEM, SEQUENCIA
+              WHERE [IDROTEIRO] = @idroteiro
+                AND [LATITUDE] IS NOT NULL
+                AND [LONGITUDE] IS NOT NULL
+              ORDER BY [ORDEM], [SEQUENCIA]
             `);
           pontosRota = pontosResult.recordset;
           
@@ -705,10 +710,11 @@ const alertService = {
             .input('idviagem', sql.Decimal(15, 0), idViagem)
             .input('type', sql.NVarChar(20), 'desvio')
             .query(`
-              SELECT TOP 1 ID FROM [dbo].[ALERTS]
-              WHERE IDVIAGEM = @idviagem
-                AND TYPE = @type
-                AND RESOLVED = 0
+              SELECT [ID] FROM [dbo].[ALERTS]
+              WHERE [IDVIAGEM] = @idviagem
+                AND [TYPE] = @type
+                AND [RESOLVED] = false
+            LIMIT 1
             `);
 
           if (existeAlerta.recordset.length === 0) {
@@ -731,6 +737,7 @@ const alertService = {
 
       return null;
     } catch (err) {
+      if (err.code === '42P01') return null;
       console.error('Erro ao verificar desvio de rota:', err);
       return null;
     }
@@ -779,12 +786,13 @@ const alertService = {
         .input('idviagem', sql.Decimal(15, 0), alerta.idviagem)
         .input('type', sql.NVarChar(20), alerta.type)
         .query(`
-          SELECT TOP 1 ID 
+SELECT [ID]
           FROM [dbo].[ALERTS]
-          WHERE IDVIAGEM = @idviagem
-            AND TYPE = @type
-            AND (STATUS IS NULL OR STATUS = 'Pendente' OR STATUS = 'Em Análise')
-            AND RESOLVED = 0
+          WHERE [IDVIAGEM] = @idviagem
+            AND [TYPE] = @type
+            AND ([STATUS] IS NULL OR [STATUS] = 'Pendente' OR [STATUS] = 'Em Análise')
+          LIMIT 1
+            AND [RESOLVED] = false
         `);
 
       if (existeResult.recordset.length > 0) {
@@ -839,24 +847,24 @@ const alertService = {
         .input('idviagem', sql.Decimal(15, 0), idViagem)
         .query(`
           SELECT 
-            ID,
-            IDVIAGEM,
-            TYPE,
-            MESSAGE,
-            SEVERITY,
-            DETAILS,
-            CREATED_AT,
-            RESOLVED
+            [ID],
+            [IDVIAGEM],
+            [TYPE],
+            [MESSAGE],
+            [SEVERITY],
+            [DETAILS],
+            [CREATED_AT],
+            [RESOLVED]
           FROM [dbo].[ALERTS]
-          WHERE IDVIAGEM = @idviagem
-            AND RESOLVED = 0
+          WHERE [IDVIAGEM] = @idviagem
+            AND [RESOLVED] = false
           ORDER BY 
-            CASE SEVERITY
+            CASE [SEVERITY]
               WHEN 'high' THEN 1
               WHEN 'medium' THEN 2
               WHEN 'low' THEN 3
             END,
-            CREATED_AT DESC
+            [CREATED_AT] DESC
         `);
 
       return result.recordset;
@@ -875,20 +883,19 @@ const alertService = {
       const result = await pool.request()
         .input('id', sql.Int, idAlerta)
         .query(`
-          SELECT TOP 1
-            ID,
-            IDVIAGEM,
-            CDMOTORISTA,
-            TYPE,
-            MESSAGE,
-            SEVERITY,
-            DETAILS,
-            CREATED_AT,
-            RESOLVED,
-            RESOLVED_AT,
-            RESOLVED_BY
+          SELECT [ID],
+            [IDVIAGEM],
+            [CDMOTORISTA],
+            [TYPE],
+            [MESSAGE],
+            [SEVERITY],
+            [DETAILS],
+            [CREATED_AT],
+            [RESOLVED],
+            [RESOLVED_AT],
+            [RESOLVED_BY]
           FROM [dbo].[ALERTS]
-          WHERE ID = @id
+          WHERE [ID] = @id
         `);
 
       return result.recordset.length > 0 ? result.recordset[0] : null;
@@ -910,10 +917,10 @@ const alertService = {
         .query(`
           UPDATE [dbo].[ALERTS]
           SET 
-            RESOLVED = 1,
-            RESOLVED_AT = GETDATE(),
-            RESOLVED_BY = @idusuario
-          WHERE ID = @id
+            [RESOLVED] = true,
+            [RESOLVED_AT] = CURRENT_TIMESTAMP,
+            [RESOLVED_BY] = @idusuario
+          WHERE [ID] = @id
         `);
 
       return true;

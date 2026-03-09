@@ -1,6 +1,9 @@
 // backend/public/modulos/relatorio-convocacoes/js/script.js
 // Relatório de Convocações - Frontend
 // Versão: 1.0
+// i18n: helper t() e chaves web.modulos.relatorioConvocacoes
+
+const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
 
 (function() {
   let chartStatus = null;
@@ -9,6 +12,26 @@
   let listaOrdenada = [];
   let ordemAtual = { coluna: null, direcao: 'asc' };
   let initExecutado = false;
+
+  let contextoRelatorio = { locale: 'pt-BR', timezone: 'America/Sao_Paulo' };
+  async function loadContextoRelatorio() {
+    try {
+      const r = await fetch('/api/contexto');
+      const d = await r.json();
+      if (d && d.locale) contextoRelatorio.locale = d.locale;
+      if (d && d.timezone) contextoRelatorio.timezone = d.timezone;
+    } catch (e) {}
+  }
+
+  function fmtDataHora(data) {
+    if (data === null || data === undefined) return '-';
+    const d = data instanceof Date ? data : new Date(data);
+    if (Number.isNaN(d.getTime())) return '-';
+    if (typeof window.formatarDataHoraComFuso === 'function') {
+      return window.formatarDataHoraComFuso(d, contextoRelatorio.locale, contextoRelatorio.timezone, { dateStyle: 'short', timeStyle: 'short' });
+    }
+    return d.toLocaleString(contextoRelatorio.locale || 'pt-BR', { timeZone: contextoRelatorio.timezone || 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });
+  }
 
   // Carregar motivos de recusa
   async function carregarMotivosRecusa() {
@@ -62,7 +85,7 @@
     if (initExecutado) return;
     initExecutado = true;
     
-    // Aguardar um pouco para garantir que scripts externos carregaram
+    await loadContextoRelatorio();
     await new Promise(resolve => setTimeout(resolve, 200));
     
     // Verificar se Chart.js está disponível
@@ -703,7 +726,7 @@
     }
     
     if (!lista || lista.length === 0) {
-      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📋</div><p>Nenhuma convocação encontrada</p></div>';
+      container.innerHTML = '<div class="empty-state"><div class="empty-state-icon"><i class="bx bx-list-ul" style="font-size: 48px; color: #64748b;"></i></div><p>Nenhuma convocação encontrada</p></div>';
       return;
     }
 
@@ -741,8 +764,8 @@
             ${criarHeader('Convocação', 'DHCONVOCACAO', '70px')}
             ${criarHeader('Acesso', 'DHACESSO', '70px')}
             ${criarHeader('Resposta', 'DHRESPOSTA', '70px')}
-            <th style="padding: 12px; text-align: left; width: 30px;" title="Indica se a viagem já possui uma convocação confirmada (independente desta convocação)"><span style="font-size: 14px;">ℹ️</span></th>
-            <th style="padding: 12px; text-align: left; width: 50px;">Ações</th>
+            <th style="padding: 12px; text-align: left; width: 30px;" title="Indica se a viagem já possui uma convocação confirmada (independente desta convocação)"><i class="bx bx-info-circle" style="font-size: 1.1rem; color: #17a2b8;"></i></th>
+            <th class="col-acoes" style="padding: 12px; text-align: left;">Ações</th>
           </tr>
         </thead>
         <tbody>
@@ -793,20 +816,20 @@
               </td>
               <td style="padding: 12px;">
                 ${item.NOME_MOTORISTA || 'N/A'}<br>
-                <small style="color: #666; font-size: 11px;">${item.NRCELULAR && item.NRCELULAR !== 'N/A' ? '📱 ' : ''}${criarLinkWhatsApp(item.NRCELULAR)}</small>
+                <small style="color: #666; font-size: 11px;">${criarLinkWhatsApp(item.NRCELULAR)}</small>
               </td>
               <td style="padding: 12px; font-size: 12px;">${formatarData(item.DHCONVOCACAO)}</td>
               <td style="padding: 12px; font-size: 12px;">
                 ${item.DHACESSO 
                   ? `<div style="display: flex; align-items: center; gap: 6px;">
-                       <span style="color: #28a745; font-size: 16px;">✅</span>
+                       <i class="bx bx-check-circle" style="color: #28a745; font-size: 1.25rem;"></i>
                        <div>
                          <div style="color: #28a745; font-weight: 600; font-size: 12px;">Acessou</div>
                          <small style="color: #666; font-size: 10px;">${formatarData(item.DHACESSO)}</small>
                        </div>
                      </div>` 
                   : `<div style="display: flex; align-items: center; gap: 6px;">
-                       <span style="color: #dc3545; font-size: 16px;">❌</span>
+                       <i class="bx bx-x-circle" style="color: #dc3545; font-size: 1.25rem;"></i>
                        <div>
                          <div style="color: #dc3545; font-weight: 600; font-size: 12px;">Não acessou</div>
                          <small style="color: #999; font-size: 10px;">Aguardando</small>
@@ -815,17 +838,10 @@
               </td>
               <td style="padding: 12px; font-size: 12px;">${formatarData(item.DHRESPOSTA)}</td>
               <td style="padding: 12px; text-align: center;" title="${item.VIAGEM_CONFIRMADA === 'S' ? 'Esta viagem já possui uma convocação confirmada' : 'Esta viagem ainda não possui convocação confirmada'}">
-                ${item.VIAGEM_CONFIRMADA === 'S' ? '✅' : '❌'}
+                ${item.VIAGEM_CONFIRMADA === 'S' ? '<i class="bx bx-check-circle" style="font-size: 1.25rem; color: #28a745;"></i>' : '<i class="bx bx-x-circle" style="font-size: 1.25rem; color: #dc3545;"></i>'}
               </td>
-              <td style="padding: 12px;">
-                ${(item.IDROTEIRO && item.LATITUDE && item.LONGITUDE && !isNaN(item.LATITUDE) && !isNaN(item.LONGITUDE)) 
-                  ? `<button onclick="abrirMapaMotorista(${item.IDCONVOCACAO}, ${item.LATITUDE}, ${item.LONGITUDE}, ${item.IDROTEIRO}, ${item.IDVIAGEM})" 
-                      class="btn" 
-                      style="padding: 8px 10px; font-size: 1.2em; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-width: 36px;"
-                      title="Ver localização do motorista e rota até o carregamento">
-                        🗺️
-                    </button>`
-                  : ''}
+              <td class="col-acoes" style="padding: 12px;">
+                ${criarBotoesAcoes(item)}
               </td>
             </tr>
           `;
@@ -854,67 +870,19 @@
     }
   };
 
-  // Formatar data (sem conversão de fuso horário)
   function formatarData(data) {
     if (!data) return '-';
-    
-    // SQL Server retorna datas no formato ISO: 2025-11-21T10:39:24.123Z
-    // Quando o JavaScript cria new Date(), ele interpreta como UTC e converte para o fuso local
-    // Precisamos tratar a string diretamente para evitar conversão de fuso
-    
-    if (typeof data === 'string') {
-      // Remover o Z se existir e tratar como data local
-      let dataStr = data.replace('Z', '');
-      
-      // Se tem T, substituir por espaço
-      if (dataStr.includes('T')) {
-        dataStr = dataStr.replace('T', ' ');
-      }
-      
-      // Extrair partes da data: 2025-11-21 10:39:24.123
-      const match = dataStr.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
-      if (match) {
-        const [, year, month, day, hour, minute] = match;
-        // Formatar manualmente para pt-BR (sem conversão de fuso)
-        const diaStr = String(day).padStart(2, '0');
-        const mesStr = String(month).padStart(2, '0');
-        const anoStr = year;
-        const horaStr = String(hour).padStart(2, '0');
-        const minutoStr = String(minute).padStart(2, '0');
-        
-        return `${diaStr}/${mesStr}/${anoStr} ${horaStr}:${minutoStr}`;
-      }
-    }
-    
-    // Fallback: extrair componentes UTC e tratar como local (sem conversão de fuso)
-    try {
-      const date = new Date(data);
-      if (isNaN(date.getTime())) return '-';
-      
-      // Extrair componentes UTC e tratar como local (sem conversão de fuso)
-      const ano = date.getUTCFullYear();
-      const mes = date.getUTCMonth();
-      const dia = date.getUTCDate();
-      const hora = date.getUTCHours();
-      const minuto = date.getUTCMinutes();
-      
-      // Formatar manualmente para pt-BR
-      const diaStr = String(dia).padStart(2, '0');
-      const mesStr = String(mes + 1).padStart(2, '0');
-      const anoStr = ano;
-      const horaStr = String(hora).padStart(2, '0');
-      const minutoStr = String(minuto).padStart(2, '0');
-      
-      return `${diaStr}/${mesStr}/${anoStr} ${horaStr}:${minutoStr}`;
-    } catch (error) {
-      return '-';
-    }
+    return fmtDataHora(data);
   }
 
-  // Formatar valor
-  function formatarValor(valor) {
-    if (!valor) return '0,00';
-    return parseFloat(valor).toFixed(2).replace('.', ',');
+  function formatarValor(valor, codigoMoeda) {
+    if (valor === null || valor === undefined) valor = 0;
+    const m = (codigoMoeda && String(codigoMoeda).trim()) || 'BRL';
+    const loc = contextoRelatorio.locale || 'pt-BR';
+    try {
+      if (typeof window.formatarMoeda === 'function') return window.formatarMoeda(parseFloat(valor) || 0, m, loc);
+    } catch (e) {}
+    return new Intl.NumberFormat(loc, { style: 'currency', currency: m }).format(parseFloat(valor) || 0);
   }
 
   // Formatar celular
@@ -941,6 +909,31 @@
     }
     
     return celular; // Retornar original se inválido
+  }
+
+  // Criar botões da coluna Ações (Link, WhatsApp, Mapa) – ícones Boxicons padronizados
+  function criarBotoesAcoes(item) {
+    const baseUrl = window.__BASE_URL__ || window.location.origin;
+    const linkConvocacao = baseUrl.replace(/\/$/, '') + '/convocacao/' + (item.IDCONVOCACAO || item.idconvocacao);
+    const btnStyle = 'padding: 6px 8px; font-size: 1rem; color: white; border: none; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-width: 32px; margin-right: 2px; transition: opacity 0.2s;';
+    const temMapa = item.IDROTEIRO && item.LATITUDE != null && item.LONGITUDE != null && !isNaN(item.LATITUDE) && !isNaN(item.LONGITUDE);
+    const temCelular = item.NRCELULAR && item.NRCELULAR !== 'N/A' && String(item.NRCELULAR).replace(/\D/g, '').length >= 10;
+
+    let html = '';
+    // Link da convocação (abrir/copiar link público)
+    html += `<a href="${linkConvocacao}" target="_blank" rel="noopener noreferrer" class="btn" style="${btnStyle} background: #2196F3;" title="Abrir link da convocação"><i class="bx bx-link-alt"></i></a>`;
+    // WhatsApp
+    if (temCelular) {
+      let num = String(item.NRCELULAR).replace(/\D/g, '');
+      if (!num.startsWith('55')) num = '55' + (num.startsWith('0') ? num.substring(1) : num);
+      const urlWa = 'https://wa.me/' + num;
+      html += `<a href="${urlWa}" target="_blank" rel="noopener noreferrer" class="btn" style="${btnStyle} background: #25D366;" title="Abrir WhatsApp"><i class="bx bxl-whatsapp"></i></a>`;
+    }
+    // Ver no mapa
+    if (temMapa) {
+      html += `<button onclick="abrirMapaMotorista(${item.IDCONVOCACAO}, ${item.LATITUDE}, ${item.LONGITUDE}, ${item.IDROTEIRO}, ${item.IDVIAGEM})" class="btn" style="${btnStyle} background: #28a745;" title="Ver localização do motorista e rota até o carregamento"><i class="bx bx-map-alt"></i></button>`;
+    }
+    return html || '<span style="color: #999; font-size: 12px;">-</span>';
   }
 
   // Criar link do WhatsApp
@@ -992,9 +985,9 @@
     return `<a href="${urlWhatsApp}" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                style="color: #25D366; text-decoration: none; font-weight: 500; font-size: 11px;"
+                style="color: #25D366; text-decoration: none; font-weight: 500; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;"
                 title="Abrir WhatsApp">
-                ${celularFormatado}
+                <i class="bx bxl-whatsapp" style="font-size: 1em;"></i> ${celularFormatado}
               </a>`;
   }
 
@@ -1119,7 +1112,7 @@
 
               <h4 style="color: #2c3e50; margin-top: 20px;">🗺️ Mapa do Motorista</h4>
               <ul style="line-height: 1.8; color: #495057;">
-                <li>Clique no ícone 🗺️ na coluna "Ações" para visualizar a localização do motorista.</li>
+                <li>Clique no ícone <i class="bx bx-map-alt" style="font-size: 1em;"></i> na coluna "Ações" para visualizar a localização do motorista.</li>
                 <li>O mapa mostra a posição atual do motorista e calcula a rota até o local de carregamento.</li>
                 <li>A distância e tempo estimado são calculados automaticamente.</li>
               </ul>
@@ -1264,11 +1257,6 @@
       document.getElementById('mapaInfoViagem').textContent = idViagem || '-';
       document.getElementById('mapaInfoRoteiro').textContent = convocacao.DSROTEIRO || '-';
 
-      const formatarValor = (valor) => {
-        if (!valor) return 'R$ 0,00';
-        return `R$ ${parseFloat(valor).toFixed(2).replace('.', ',')}`;
-      };
-
       const formatarPeso = (peso) => {
         if (!peso) return '-';
         return `${parseFloat(peso).toFixed(3).replace('.', ',')} ton`;
@@ -1277,6 +1265,7 @@
       let vlFrete = convocacao.VLFRETE;
       let peso = convocacao.PESO;
       let cubagem = convocacao.CUBAGEM;
+      let moeda = convocacao.MOEDA || 'BRL';
 
       if (!vlFrete && idViagem) {
         try {
@@ -1286,13 +1275,14 @@
             vlFrete = viagem.VLFRETE || vlFrete;
             peso = viagem.PESO || peso;
             cubagem = viagem.CUBAGEM || cubagem;
+            if (viagem.MOEDA) moeda = viagem.MOEDA;
           }
         } catch (err) {
           console.error('Erro ao buscar dados da viagem:', err);
         }
       }
 
-      document.getElementById('mapaInfoFrete').textContent = formatarValor(vlFrete);
+      document.getElementById('mapaInfoFrete').textContent = formatarValor(vlFrete, moeda);
       document.getElementById('mapaInfoPeso').textContent = formatarPeso(peso);
       const distanciaEl = document.getElementById('mapaInfoDistancia');
       if (distanciaEl) {
@@ -1415,7 +1405,7 @@
             <div style="padding: 5px 0;">
               <p style="margin: 4px 0; font-size: 13px;"><strong>ID Viagem:</strong> ${idViagem || '-'}</p>
               <p style="margin: 4px 0; font-size: 13px;"><strong>Roteiro:</strong> ${convocacao.DSROTEIRO || '-'}</p>
-              <p style="margin: 4px 0; font-size: 13px;"><strong>Frete:</strong> <span style="color: #28a745; font-weight: 600;">${formatarValor(vlFrete)}</span></p>
+              <p style="margin: 4px 0; font-size: 13px;"><strong>Frete:</strong> <span style="color: #28a745; font-weight: 600;">${formatarValor(vlFrete, moeda)}</span></p>
               <p style="margin: 4px 0; font-size: 13px;"><strong>Peso:</strong> ${formatarPeso(peso)}</p>
               <p style="margin: 4px 0; font-size: 13px;"><strong>Classe:</strong> ${convocacao.DSCLASSEFROTA || '-'}</p>
             </div>

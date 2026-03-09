@@ -1,6 +1,6 @@
 // APP Motorista - Sistema Offline com Dexie.js
 // Versão: 2.0 - Dexie.js para maior robustez
-// Data: 2025-01-16
+// Data: 2026-01-16
 // NOTA: Esta é uma versão melhorada. O sistema antigo continua funcionando.
 
 import Dexie from 'https://cdn.jsdelivr.net/npm/dexie@3.2.4/dist/dexie.mjs';
@@ -160,19 +160,20 @@ async function atualizarIndicador() {
   const total = filaGPS.length + filaEventos.length + filaAcoes.length + 
                 filaMensagens.length + filaComprovantes.length;
 
+  const baseClass = indicador.className.includes('status-badge-navbar') ? 'status-badge-navbar ' : 'status-bar ';
   if (isOnline()) {
     if (total === 0) {
-      indicador.className = 'status-bar status-online';
-      indicador.textContent = '🟢 Online - Sincronizado';
+      indicador.className = baseClass + 'status-online';
+      indicador.textContent = 'Online - Sincronizado';
     } else {
-      indicador.className = 'status-bar status-syncing';
-      indicador.textContent = `🟡 Sincronizando... ${total} item(ns)`;
+      indicador.className = baseClass + 'status-syncing';
+      indicador.textContent = `Sincronizando... ${total} item(ns)`;
     }
   } else {
-    indicador.className = 'status-bar status-offline';
+    indicador.className = baseClass + 'status-offline';
     indicador.textContent = total > 0 
-      ? `🔴 Offline - ${total} item(ns) na fila`
-      : '🔴 Offline';
+      ? `Offline - ${total} item(ns) na fila`
+      : 'Offline';
   }
 }
 

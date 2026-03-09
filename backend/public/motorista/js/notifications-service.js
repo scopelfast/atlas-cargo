@@ -1,7 +1,7 @@
 // backend/public/motorista/js/notifications-service.js
 // Serviço Unificado de Notificações
 // Versão: 1.0
-// Data: 2025-01-18
+// Data: 2026-01-18
 
 (function() {
   'use strict';
@@ -104,11 +104,8 @@
       // Construir caminho completo do SW
       const swPath = origin + (pathBase === '/' ? '' : pathBase) + '/motorista/sw-workbox.js';
       
-      // Calcular scopePath corretamente
-      const pathname = window.location.pathname;
+      // scopePath baseado no pathname já obtido acima
       let scopePath = '/motorista/';
-      
-      // Se temos /cargas no pathname, incluir no scope
       if (pathname.includes('/cargas')) {
         scopePath = '/cargas/motorista/';
       }
@@ -220,7 +217,7 @@
       notification.style.cursor = 'pointer';
       notification.addEventListener('click', () => {
         if (dados.acao === 'chat') {
-          window.location.href = `/motorista/pages/chat.html?viagem=${dados.idViagem || ''}`;
+          window.location.href = `/chat-motorista-standalone?viagem=${dados.idViagem || ''}`;
         } else if (dados.acao === 'sos') {
           window.location.href = `/motorista/pages/sos.html`;
         } else if (dados.acao === 'viagem') {
@@ -274,8 +271,8 @@
 
     const options = {
       body: mensagem,
-      icon: '/img/logo7.png',
-      badge: '/img/logo7.png',
+      icon: '/img/logoAtlasTransparente.png',
+      badge: '/img/logoAtlasTransparente.png',
       tag: `notification-${tipo}-${Date.now()}`,
       requireInteraction: tipo === NOTIFICATION_TYPES.SOS,
       data: dados,
@@ -330,9 +327,9 @@
       [NOTIFICATION_TYPES.CONVOCACAO]: '#3498db',
       [NOTIFICATION_TYPES.VIAGEM]: '#9b59b6',
       [NOTIFICATION_TYPES.GPS]: '#1abc9c',
-      [NOTIFICATION_TYPES.GERAL]: '#667eea'
+      [NOTIFICATION_TYPES.GERAL]: '#0ea5e9'
     };
-    return colors[tipo] || '#667eea';
+    return colors[tipo] || '#0ea5e9';
   }
 
   function getVibrationPattern(tipo) {

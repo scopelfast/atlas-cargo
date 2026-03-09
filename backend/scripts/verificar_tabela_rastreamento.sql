@@ -2,11 +2,11 @@
 =============================================================================
 Script: Verificar Tabela VIAGEM_RASTREAMENTO
 Descrição: Verifica se a tabela existe e mostra sua estrutura
-Data: 2025-01-27
+Data: 2026-01-27
 =============================================================================
 */
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 -- Verificar se a tabela existe

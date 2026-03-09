@@ -1,6 +1,6 @@
 -- Script para criar tabela de Reputação de Motoristas
 -- Sistema de pontuação baseado em pontualidade e desempenho
--- Data: 2025-01-16
+-- Data: 2026-01-16
 
 -- Tabela principal de reputação
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[DRIVER_REPUTATION]') AND type in (N'U'))

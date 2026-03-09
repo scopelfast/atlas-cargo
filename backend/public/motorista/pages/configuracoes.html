@@ -4,8 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Configurações - Motorista</title>
-  <link rel="stylesheet" href="../css/padrao-telas.css">
   <link rel="stylesheet" href="../css/design-system.css">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <script src="../js/i18n.js"></script>
   <style>
     .config-section {
       background: white;
@@ -77,7 +79,7 @@
     }
 
     .toggle-switch.active {
-      background: #667eea;
+      background: #0ea5e9;
     }
 
     .toggle-switch::after {
@@ -99,7 +101,7 @@
 
     .btn-action {
       padding: 8px 16px;
-      background: #667eea;
+      background: #0ea5e9;
       color: white;
       border: none;
       border-radius: 8px;
@@ -160,12 +162,12 @@
 
     .input-field:focus {
       outline: none;
-      border-color: #667eea;
+      border-color: #0ea5e9;
       box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
     }
 
     .link-item {
-      color: #667eea;
+      color: #0ea5e9;
       text-decoration: none;
       font-weight: 500;
       font-size: 14px;
@@ -174,36 +176,98 @@
     .link-item:hover {
       text-decoration: underline;
     }
+
+    /* ========== TEMA ESCURO (classe em body) ========== */
+    body.tema-escuro {
+      background: #1a1a1a !important;
+      color: #e5e5e5 !important;
+    }
+    body.tema-escuro .navbar {
+      background: linear-gradient(165deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+      color: #f1f5f9;
+    }
+    body.tema-escuro .container {
+      background: transparent;
+      color: inherit;
+    }
+    body.tema-escuro .config-section {
+      background: #262626;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    body.tema-escuro .config-section-title {
+      color: #f0f0f0;
+    }
+    body.tema-escuro .config-item {
+      border-bottom-color: #404040;
+    }
+    body.tema-escuro .config-item-title {
+      color: #e5e5e5;
+    }
+    body.tema-escuro .config-item-desc {
+      color: #a3a3a3;
+    }
+    body.tema-escuro .select-input,
+    body.tema-escuro .input-field {
+      background: #3d3d3d;
+      border-color: #525252;
+      color: #f5f5f5;
+    }
+    body.tema-escuro .input-label {
+      color: #d4d4d4;
+    }
+    body.tema-escuro .link-item {
+      color: #7dd3fc;
+    }
+    body.tema-escuro .btn-action.secondary {
+      background: #525252;
+      color: #e5e5e5;
+    }
+    body.tema-escuro .btn-action.secondary:hover {
+      background: #737373;
+    }
+    body.tema-escuro #modalSenha > div {
+      background: #262626 !important;
+      color: #e5e5e5;
+    }
+    body.tema-escuro #modalSenha h2 {
+      color: #f0f0f0 !important;
+    }
+    body.tema-escuro #modalSenha .input-field {
+      background: #3d3d3d;
+      border-color: #525252;
+      color: #f5f5f5;
+    }
   </style>
 </head>
-<body>
+<body class="motorista-page">
   <div class="navbar">
-    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
-    <h1>Configurações</h1>
+    <button class="btn-voltar" onclick="voltar()">← <span data-i18n="common.voltar">Voltar</span></button>
+    <h1><i class="bx bx-cog"></i></h1>
+    <div id="statusIndicador" class="status-badge-navbar status-online" data-i18n="dashboard.onlineSincronizado">Online - Sincronizado</div>
   </div>
 
   <div class="container">
     <!-- Configurações Gerais -->
     <div class="config-section">
-      <div class="config-section-title">⚙️ Configurações Gerais</div>
+      <div class="config-section-title" data-i18n="configuracoes.gerais">⚙️ Configurações Gerais</div>
       
       <div class="config-item">
         <div class="config-item-label">
           <span class="config-item-icon">🔔</span>
           <div class="config-item-text">
-            <div class="config-item-title">Notificações</div>
+            <div class="config-item-title" data-i18n="configuracoes.notificacoes">Notificações</div>
             <div class="config-item-desc">Gerenciar configurações de notificações</div>
           </div>
         </div>
-        <a href="configuracoes-notificacoes.html" class="link-item">Abrir →</a>
+        <a href="configuracoes-notificacoes.html?from=config" class="link-item">Abrir →</a>
       </div>
 
       <div class="config-item">
         <div class="config-item-label">
           <span class="config-item-icon">🎨</span>
           <div class="config-item-text">
-            <div class="config-item-title">Tema</div>
-            <div class="config-item-desc">Escolher tema claro ou escuro</div>
+            <div class="config-item-title" data-i18n="configuracoes.tema">Tema</div>
+            <div class="config-item-desc" data-i18n="configuracoes.temaDesc">Escolher tema claro ou escuro</div>
           </div>
         </div>
         <select class="select-input" id="selectTema" onchange="alterarTema()">
@@ -217,7 +281,7 @@
         <div class="config-item-label">
           <span class="config-item-icon">🌐</span>
           <div class="config-item-text">
-            <div class="config-item-title">Idioma</div>
+            <div class="config-item-title" data-i18n="configuracoes.idioma">Idioma</div>
             <div class="config-item-desc">Selecionar idioma do aplicativo</div>
           </div>
         </div>
@@ -226,22 +290,26 @@
           <option value="es">Español</option>
           <option value="en">English</option>
         </select>
+        <div id="idiomaDica" class="config-item-desc" style="margin-top: 8px; display: none;">
+          Para ver em outro idioma, use a opção <strong>Traduzir</strong> do seu navegador (menu ⋮ ou toque longo) ou
+          <a href="#" id="linkTraduzirPagina" class="link-item">traduzir esta página agora</a>.
+        </div>
       </div>
     </div>
 
     <!-- Configurações de GPS -->
     <div class="config-section">
-      <div class="config-section-title">📱 Configurações de GPS</div>
+      <div class="config-section-title" data-i18n="configuracoes.gps">📱 Configurações de GPS</div>
       
       <div class="config-item">
         <div class="config-item-label">
           <span class="config-item-icon">📍</span>
           <div class="config-item-text">
-            <div class="config-item-title">GPS Automático</div>
-            <div class="config-item-desc">Ativar envio automático de posição</div>
+            <div class="config-item-title" data-i18n="configuracoes.gpsAutomatico">GPS Automático</div>
+            <div class="config-item-desc" data-i18n="configuracoes.gpsAutomaticoDesc">Ativar envio automático de posição</div>
           </div>
         </div>
-        <a href="gps.html" class="link-item">Configurar →</a>
+        <a href="gps.html?from=config" class="link-item">Configurar →</a>
       </div>
 
       <div class="config-item">
@@ -258,6 +326,8 @@
           <option value="120">2 minutos</option>
           <option value="300">5 minutos</option>
           <option value="600">10 minutos</option>
+          <option value="900">15 minutos</option>
+          <option value="1800">30 minutos</option>
         </select>
       </div>
 
@@ -375,17 +445,17 @@
       
       <div class="input-group">
         <label class="input-label">Senha Atual</label>
-        <input type="password" id="senhaAtual" class="input-field" placeholder="Digite sua senha atual">
+        <input type="password" id="senhaAtual" class="input-field" placeholder="Digite sua senha atual" autocomplete="current-password">
       </div>
 
       <div class="input-group">
         <label class="input-label">Nova Senha</label>
-        <input type="password" id="novaSenha" class="input-field" placeholder="Digite a nova senha">
+        <input type="password" id="novaSenha" class="input-field" placeholder="Digite a nova senha" autocomplete="new-password">
       </div>
 
       <div class="input-group">
         <label class="input-label">Confirmar Nova Senha</label>
-        <input type="password" id="confirmarSenha" class="input-field" placeholder="Confirme a nova senha">
+        <input type="password" id="confirmarSenha" class="input-field" placeholder="Confirme a nova senha" autocomplete="new-password">
       </div>
 
       <div style="display: flex; gap: 10px; margin-top: 20px;">
@@ -402,12 +472,31 @@
   
   <script>
     (function() {
+      function applyI18n() {
+        if (typeof window.t !== 'function') return;
+        document.querySelectorAll('[data-i18n]').forEach(function(el) {
+          var k = el.getAttribute('data-i18n');
+          if (k) el.textContent = window.t(k);
+        });
+        document.querySelectorAll('[data-i18n-title]').forEach(function(el) {
+          var k = el.getAttribute('data-i18n-title');
+          if (k) el.title = window.t(k);
+        });
+      }
+      if (window.i18nReady) window.i18nReady.then(applyI18n);
+
       if (!verificarAuth()) {
         window.location.href = '../index.html';
         return;
       }
 
       const motorista = getMotorista();
+
+      // Telefone do suporte: vindo da API (variável TELEFONE_SUPORTE no .env do servidor). Evita alterar código.
+      let TELEFONE_SUPORTE = '';
+      fetch('/api/motorista/config').then(r => r.json()).then(data => {
+        TELEFONE_SUPORTE = (data.telefoneSuporte || '').trim();
+      }).catch(() => {});
 
       // Carregar configurações salvas
       function carregarConfiguracoes() {
@@ -419,9 +508,18 @@
       // Idioma
       const idioma = localStorage.getItem('idioma') || 'pt-BR';
       document.getElementById('selectIdioma').value = idioma;
+      document.documentElement.lang = idioma;
+      const dicaIdioma = document.getElementById('idiomaDica');
+      const linkTraduzirPagina = document.getElementById('linkTraduzirPagina');
+      if (idioma !== 'pt-BR' && dicaIdioma && linkTraduzirPagina) {
+        dicaIdioma.style.display = 'block';
+        const tl = idioma === 'es' ? 'es' : 'en';
+        linkTraduzirPagina.href = 'https://translate.google.com/translate?hl=' + tl + '&sl=pt&tl=' + tl + '&u=' + encodeURIComponent(window.location.href);
+        linkTraduzirPagina.target = '_blank';
+      }
 
-      // Intervalo GPS
-      const intervaloGPS = localStorage.getItem('gps_intervalo') || '60';
+      // Intervalo GPS (em segundos). Padrão 15 minutos = 900s quando não informado.
+      const intervaloGPS = localStorage.getItem('gps_intervalo') || '900';
       document.getElementById('selectIntervaloGPS').value = intervaloGPS;
 
       // Modo GPS
@@ -442,24 +540,29 @@
     }
 
       function aplicarTema(tema) {
-      if (tema === 'escuro') {
-        document.body.style.background = '#1a1a1a';
-        document.body.style.color = '#fff';
-      } else if (tema === 'auto') {
-        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-        document.body.style.background = prefersDark ? '#1a1a1a' : '#f5f5f5';
-        document.body.style.color = prefersDark ? '#fff' : '#333';
-      } else {
-        document.body.style.background = '#f5f5f5';
-        document.body.style.color = '#333';
-      }
+      const escuro = tema === 'escuro' || (tema === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      document.body.classList.toggle('tema-escuro', escuro);
     }
 
-    // Idioma
+    // Idioma: preferência salva; use a tradução do navegador para ver em espanhol/inglês
     function alterarIdioma() {
       const idioma = document.getElementById('selectIdioma').value;
       localStorage.setItem('idioma', idioma);
-      mostrarToast('Idioma alterado. Recarregue a página para aplicar.', 'info');
+      document.documentElement.lang = idioma;
+      const dica = document.getElementById('idiomaDica');
+      const linkTraduzir = document.getElementById('linkTraduzirPagina');
+      if (idioma === 'pt-BR') {
+        if (dica) dica.style.display = 'none';
+        mostrarToast('Idioma: Português', 'info');
+      } else {
+        if (dica) dica.style.display = 'block';
+        const tl = idioma === 'es' ? 'es' : 'en';
+        if (linkTraduzir) {
+          linkTraduzir.href = 'https://translate.google.com/translate?hl=' + tl + '&sl=pt&tl=' + tl + '&u=' + encodeURIComponent(window.location.href);
+          linkTraduzir.target = '_blank';
+        }
+        mostrarToast('Preferência salva. Use "Traduzir" do navegador ou o link abaixo para ver em ' + (tl === 'es' ? 'espanhol' : 'inglês') + '.', 'info');
+      }
     }
 
       // GPS
@@ -588,11 +691,13 @@
           fecharModalSenha();
         } else {
           const data = await response.json();
-          mostrarToast(data.error || 'Erro ao alterar senha', 'error');
+          const msg = (data.errorKey && typeof window.t === 'function') ? window.t(data.errorKey) : (data.error || 'Erro ao alterar senha');
+          mostrarToast(msg, 'error');
         }
       } catch (error) {
         console.error('Erro ao alterar senha:', error);
-        mostrarToast('Erro ao alterar senha. Tente novamente.', 'error');
+        const msg = (typeof window.t === 'function') ? (window.t('alterarSenhaErrors.erroAlterar') || 'Erro ao alterar senha. Tente novamente.') : 'Erro ao alterar senha. Tente novamente.';
+        mostrarToast(msg, 'error');
       }
     }
 
@@ -660,34 +765,34 @@
       // Exportar Dados
       async function exportarDados() {
       try {
-        const loading = mostrarLoading('Exportando dados...');
-        
-        const dados = {
-          motorista: getMotorista(),
-          configuracoes: {
-            tema: localStorage.getItem('tema'),
-            idioma: localStorage.getItem('idioma'),
-            gps_intervalo: localStorage.getItem('gps_intervalo'),
-            gps_modo: localStorage.getItem('gps_modo')
-          },
-          timestamp: new Date().toISOString()
-        };
-
-        // Adicionar dados offline se disponível
-        if (window.OfflineDB && window.OfflineDB.exportarDados) {
-          dados.offline = await window.OfflineDB.exportarDados();
+        mostrarLoading('Exportando dados...');
+        try {
+          const dados = {
+            motorista: getMotorista(),
+            configuracoes: {
+              tema: localStorage.getItem('tema'),
+              idioma: localStorage.getItem('idioma'),
+              gps_intervalo: localStorage.getItem('gps_intervalo'),
+              gps_modo: localStorage.getItem('gps_modo')
+            },
+            timestamp: new Date().toISOString()
+          };
+          if (window.OfflineDB && window.OfflineDB.exportarDados) {
+            dados.offline = await window.OfflineDB.exportarDados();
+          }
+          const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `dados-motorista-${new Date().toISOString().split('T')[0]}.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+          mostrarToast('Dados exportados com sucesso', 'success');
+        } finally {
+          if (typeof esconderLoading === 'function') esconderLoading();
         }
-
-        const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `dados-motorista-${new Date().toISOString().split('T')[0]}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-
-        mostrarToast('Dados exportados com sucesso', 'success');
       } catch (error) {
+        if (typeof esconderLoading === 'function') esconderLoading();
         console.error('Erro ao exportar dados:', error);
         mostrarToast('Erro ao exportar dados', 'error');
       }
@@ -696,35 +801,37 @@
       // Sincronizar Agora
       async function sincronizarAgora() {
       try {
-        const loading = mostrarLoading('Sincronizando...');
-        
-        if (window.OfflineDB && window.OfflineDB.sincronizar) {
-          await window.OfflineDB.sincronizar();
+        mostrarLoading('Sincronizando...');
+        try {
+          if (window.OfflineDB && window.OfflineDB.sincronizar) {
+            await window.OfflineDB.sincronizar();
+          }
+          if (window.gpsAuto && window.gpsAuto.sincronizar) {
+            await window.gpsAuto.sincronizar();
+          }
+          if (typeof esconderLoading === 'function') esconderLoading();
+          mostrarToast('Sincronização concluída', 'success');
+        } finally {
+          if (typeof esconderLoading === 'function') esconderLoading();
         }
-
-        // Forçar sincronização de GPS
-        if (window.gpsAuto && window.gpsAuto.sincronizar) {
-          await window.gpsAuto.sincronizar();
-        }
-
-        mostrarToast('Sincronização concluída', 'success');
       } catch (error) {
+        if (typeof esconderLoading === 'function') esconderLoading();
         console.error('Erro ao sincronizar:', error);
         mostrarToast('Erro ao sincronizar. Verifique sua conexão.', 'error');
       }
     }
 
-      // Suporte
+      // Suporte: usa TELEFONE_SUPORTE se definido, senão celular do motorista
       function abrirSuporte() {
-      const celular = motorista?.celular || motorista?.NRCELULAR || '';
-      if (celular) {
-        window.open(`https://wa.me/55${celular.replace(/\D/g, '')}`, '_blank');
+      const numero = (TELEFONE_SUPORTE && TELEFONE_SUPORTE.replace(/\D/g, '')) || (motorista?.celular || motorista?.NRCELULAR || '').replace(/\D/g, '');
+      if (numero) {
+        window.open(`https://wa.me/55${numero}`, '_blank');
       } else {
-        mostrarToast('Número de suporte não disponível', 'info');
+        mostrarToast('Configure TELEFONE_SUPORTE em configuracoes.html ou cadastre o celular do motorista.', 'info');
       }
     }
 
-      // Voltar
+      // Voltar: sempre para o dashboard
       function voltar() {
         window.location.href = 'dashboard.html';
       }

@@ -3,16 +3,39 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Responder Convocação - DivulgaCarga</title>
+  <title>Responder Convocação - Atlas Cargo</title>
+  <link rel="icon" type="image/png" href="/img/logoAtlasTransparenteQuadrada.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
+    /* ========== Responder Convocação - Identidade Atlas Cargo ========== */
+    :root {
+      --ac-primary: #0d2137;
+      --ac-primary-light: #1a365d;
+      --ac-primary-dark: #061428;
+      --ac-accent: #0ea5e9;
+      --ac-accent-hover: #0284c7;
+      --ac-text: #1e293b;
+      --ac-text-secondary: #64748b;
+      --ac-bg-page: #f1f5f9;
+      --ac-bg-card: #f8fafc;
+      --ac-border: #e2e8f0;
+      --ac-success: #059669;
+      --ac-success-hover: #047857;
+      --ac-error: #dc2626;
+      --ac-error-hover: #b91c1c;
+      --ac-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+      --ac-shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+    }
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
     }
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+      background: linear-gradient(165deg, var(--ac-primary-dark) 0%, var(--ac-primary) 45%, var(--ac-primary-light) 100%);
       min-height: 100vh;
       display: flex;
       align-items: center;
@@ -22,7 +45,7 @@
     .container {
       background: white;
       border-radius: 16px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      box-shadow: var(--ac-shadow-lg);
       max-width: 800px;
       width: 100%;
       padding: 40px;
@@ -32,12 +55,12 @@
       margin-bottom: 30px;
     }
     .header h1 {
-      color: #333;
+      color: var(--ac-text);
       font-size: 28px;
       margin-bottom: 10px;
     }
     .header p {
-      color: #666;
+      color: var(--ac-text-secondary);
       font-size: 16px;
     }
     .status-badge {
@@ -49,28 +72,29 @@
       margin-bottom: 20px;
     }
     .status-pendente {
-      background: #fff3cd;
-      color: #856404;
+      background: #fef3c7;
+      color: #92400e;
     }
     .status-aceita {
-      background: #d4edda;
-      color: #155724;
+      background: #d1fae5;
+      color: #065f46;
     }
     .status-recusada {
-      background: #f8d7da;
-      color: #721c24;
+      background: #fee2e2;
+      color: #991b1b;
     }
     .info-section {
-      background: #f8f9fa;
+      background: var(--ac-bg-card);
       border-radius: 12px;
       padding: 25px;
       margin-bottom: 25px;
+      border: 1px solid var(--ac-border);
     }
     .info-section h2 {
-      color: #333;
+      color: var(--ac-text);
       font-size: 20px;
       margin-bottom: 20px;
-      border-bottom: 2px solid #667eea;
+      border-bottom: 2px solid var(--ac-accent);
       padding-bottom: 10px;
     }
     .info-grid {
@@ -84,14 +108,14 @@
     }
     .info-label {
       font-size: 12px;
-      color: #666;
+      color: var(--ac-text-secondary);
       text-transform: uppercase;
       font-weight: 600;
       margin-bottom: 5px;
     }
     .info-value {
       font-size: 16px;
-      color: #333;
+      color: var(--ac-text);
       font-weight: 500;
     }
     .actions {
@@ -110,22 +134,22 @@
       transition: all 0.3s;
     }
     .btn-aceitar {
-      background: #28a745;
+      background: var(--ac-success);
       color: white;
     }
     .btn-aceitar:hover {
-      background: #218838;
+      background: var(--ac-success-hover);
       transform: translateY(-2px);
-      box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+      box-shadow: 0 5px 15px rgba(5, 150, 105, 0.35);
     }
     .btn-recusar {
-      background: #dc3545;
+      background: var(--ac-error);
       color: white;
     }
     .btn-recusar:hover {
-      background: #c82333;
+      background: var(--ac-error-hover);
       transform: translateY(-2px);
-      box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
+      box-shadow: 0 5px 15px rgba(220, 38, 38, 0.3);
     }
     .btn:disabled {
       opacity: 0.5;
@@ -134,18 +158,18 @@
     .loading {
       text-align: center;
       padding: 40px;
-      color: #666;
+      color: var(--ac-text-secondary);
     }
     .error {
-      background: #f8d7da;
-      color: #721c24;
+      background: #fee2e2;
+      color: #991b1b;
       padding: 15px;
       border-radius: 8px;
       margin-bottom: 20px;
     }
     .success {
-      background: #d4edda;
-      color: #155724;
+      background: #d1fae5;
+      color: #065f46;
       padding: 15px;
       border-radius: 8px;
       margin-bottom: 20px;
@@ -175,7 +199,7 @@
       border-radius: 16px;
       width: 90%;
       max-width: 450px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+      box-shadow: var(--ac-shadow-lg);
       animation: slideDown 0.3s ease;
       overflow: hidden;
     }
@@ -190,7 +214,7 @@
       }
     }
     .modal-confirm-header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(165deg, var(--ac-primary-dark) 0%, var(--ac-primary) 50%, var(--ac-primary-light) 100%);
       color: white;
       padding: 25px;
       text-align: center;
@@ -209,26 +233,27 @@
       margin-bottom: 20px;
     }
     .modal-confirm-body .icon.aceitar {
-      color: #28a745;
+      color: var(--ac-success);
     }
     .modal-confirm-body .icon.recusar {
-      color: #dc3545;
+      color: var(--ac-error);
     }
     .modal-confirm-body p {
-      color: #333;
+      color: var(--ac-text);
       font-size: 16px;
       line-height: 1.6;
       margin: 0;
     }
     .modal-confirm-body .detalhes {
-      background: #f8f9fa;
+      background: var(--ac-bg-card);
       border-radius: 8px;
       padding: 15px;
       margin-top: 20px;
       text-align: left;
+      border: 1px solid var(--ac-border);
     }
     .modal-confirm-body .detalhes strong {
-      color: #667eea;
+      color: var(--ac-accent);
       display: block;
       margin-bottom: 5px;
     }
@@ -236,8 +261,8 @@
       display: flex;
       gap: 10px;
       padding: 20px 30px;
-      background: #f8f9fa;
-      border-top: 1px solid #e0e0e0;
+      background: var(--ac-bg-card);
+      border-top: 1px solid var(--ac-border);
     }
     .modal-confirm-btn {
       flex: 1;
@@ -250,37 +275,38 @@
       transition: all 0.3s;
     }
     .modal-confirm-btn-confirmar {
-      background: linear-gradient(135deg, #28a745, #218838);
+      background: var(--ac-success);
       color: white;
     }
     .modal-confirm-btn-confirmar:hover {
+      background: var(--ac-success-hover);
       transform: translateY(-2px);
-      box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+      box-shadow: 0 5px 15px rgba(5, 150, 105, 0.35);
     }
     .modal-confirm-btn-cancelar {
-      background: #6c757d;
+      background: #64748b;
       color: white;
     }
     .modal-confirm-btn-cancelar:hover {
-      background: #5a6268;
+      background: #475569;
       transform: translateY(-2px);
     }
     /* Estilo para select de motivo de recusa */
     #selectMotivoRecusa:hover {
-      border-color: #764ba2;
-      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+      border-color: var(--ac-accent);
+      box-shadow: 0 2px 8px rgba(14, 165, 233, 0.2);
     }
     #selectMotivoRecusa:focus {
       outline: none;
-      border-color: #667eea;
-      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+      border-color: var(--ac-accent);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
     }
     #selectMotivoRecusa option {
       padding: 10px;
     }
     /* Mensagem de geolocalização */
     .geolocalizacao-info {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(165deg, var(--ac-primary-dark) 0%, var(--ac-primary) 50%, var(--ac-primary-light) 100%);
       color: white;
       padding: 20px;
       border-radius: 12px;
@@ -288,7 +314,7 @@
       display: flex;
       align-items: center;
       gap: 15px;
-      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+      box-shadow: var(--ac-shadow-lg);
       animation: slideDown 0.5s ease;
     }
     .geolocalizacao-info .icon {
@@ -369,14 +395,14 @@
       margin-bottom: 20px;
     }
     .modal-geolocalizacao-body p {
-      color: #333;
+      color: var(--ac-text);
       font-size: 16px;
       line-height: 1.8;
       margin: 0 0 20px 0;
     }
     .modal-geolocalizacao-body .instrucoes {
-      background: #f8f9fa;
-      border-left: 4px solid #e74c3c;
+      background: var(--ac-bg-card);
+      border-left: 4px solid var(--ac-error);
       padding: 15px;
       margin: 20px 0;
       text-align: left;
@@ -384,7 +410,7 @@
     }
     .modal-geolocalizacao-body .instrucoes h4 {
       margin: 0 0 10px 0;
-      color: #e74c3c;
+      color: var(--ac-error);
       font-size: 16px;
     }
     .modal-geolocalizacao-body .instrucoes ol {
@@ -400,8 +426,8 @@
       display: flex;
       gap: 10px;
       padding: 20px 30px;
-      background: #f8f9fa;
-      border-top: 1px solid #e0e0e0;
+      background: var(--ac-bg-card);
+      border-top: 1px solid var(--ac-border);
     }
     .modal-geolocalizacao-btn {
       flex: 1;
@@ -469,13 +495,13 @@
           <span id="modalConfirmDetalhesText"></span>
         </div>
         <div id="modalConfirmMotivoRecusa" style="display: none; margin-top: 25px; text-align: left;">
-          <label for="selectMotivoRecusa" style="display: block; margin-bottom: 12px; font-weight: 600; color: #333; font-size: 15px;">
-            📋 Por favor, informe o motivo da recusa: <span style="color: #dc3545;">*</span>
+          <label for="selectMotivoRecusa" style="display: block; margin-bottom: 12px; font-weight: 600; color: #1e293b; font-size: 15px;">
+            📋 Por favor, informe o motivo da recusa: <span style="color: #dc2626;">*</span>
           </label>
-          <select id="selectMotivoRecusa" style="width: 100%; padding: 14px; border: 2px solid #667eea; border-radius: 8px; font-size: 16px; background: white; color: #333; cursor: pointer; transition: all 0.3s;">
+          <select id="selectMotivoRecusa" style="width: 100%; padding: 14px; border: 2px solid #0ea5e9; border-radius: 8px; font-size: 16px; background: white; color: #1e293b; cursor: pointer; transition: all 0.3s;">
             <option value="">Selecione o motivo...</option>
           </select>
-          <p id="erroMotivoRecusa" style="color: #dc3545; font-size: 14px; margin-top: 8px; display: none; font-weight: 500;">
+          <p id="erroMotivoRecusa" style="color: #dc2626; font-size: 14px; margin-top: 8px; display: none; font-weight: 500;">
             ⚠️ Por favor, selecione um motivo antes de confirmar.
           </p>
         </div>
@@ -512,10 +538,10 @@
       
       <!-- Botão para enviar localização manualmente -->
       <div id="botaoEnviarLocalizacao" style="display: none; margin-bottom: 20px; text-align: center;">
-        <button id="btnEnviarLocalizacao" class="btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; font-size: 16px; font-weight: 600; border-radius: 8px; border: none; cursor: pointer; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); transition: all 0.3s;">
+        <button id="btnEnviarLocalizacao" class="btn btn-atlas-accent" style="background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); color: white; padding: 12px 30px; font-size: 16px; font-weight: 600; border-radius: 8px; border: none; cursor: pointer; box-shadow: 0 4px 15px rgba(13, 33, 55, 0.35); transition: all 0.3s;">
           📍 Enviar Minha Localização
         </button>
-        <p style="margin-top: 10px; color: #666; font-size: 14px;">Clique para compartilhar sua localização atual</p>
+        <p style="margin-top: 10px; color: #64748b; font-size: 14px;">Clique para compartilhar sua localização atual</p>
       </div>
       
       <div class="info-section">
@@ -588,7 +614,7 @@
       
       <div id="detalhesSection" class="info-section" style="display: none;">
         <h2>📝 Detalhes da Viagem</h2>
-        <p id="detalhes" style="color: #333; line-height: 1.6;"></p>
+        <p id="detalhes" style="color: #1e293b; line-height: 1.6;"></p>
       </div>
       
       <!-- Mensagem de Status (quando não está pendente) -->
@@ -638,6 +664,16 @@
     let convocacaoData = null;
     let localizacaoAtual = null; // Armazenar localização capturada
     const STORAGE_KEY_PERMISSAO_NEGADA = `geolocalizacao_negada_${idConvocacao}`;
+
+    let contextoConvocacao = { locale: 'pt-BR', timezone: 'America/Sao_Paulo' };
+    async function loadContextoConvocacao() {
+      try {
+        const r = await fetch('/api/contexto');
+        const d = await r.json();
+        if (d && d.locale) contextoConvocacao.locale = d.locale;
+        if (d && d.timezone) contextoConvocacao.timezone = d.timezone;
+      } catch (e) {}
+    }
 
     // Verificar se a permissão foi negada anteriormente
     function verificarPermissaoNegada() {
@@ -794,6 +830,7 @@
 
     async function carregarConvocacao() {
       try {
+        await loadContextoConvocacao();
         // Verificar se a permissão foi negada anteriormente
         const permissaoNegada = verificarPermissaoNegada();
         
@@ -926,62 +963,35 @@
       document.getElementById('origem').textContent = `${data.ORIGEM_CIDADE || '-'}/${data.ORIGEM_ESTADO || '-'}`;
       document.getElementById('destino').textContent = `${data.DESTINO_CIDADE || '-'}/${data.DESTINO_ESTADO || '-'}`;
       
-      // Horários
+      // Horários (locale e timezone do contexto)
+      const loc = contextoConvocacao.locale || 'pt-BR';
+      const tz = contextoConvocacao.timezone || 'America/Sao_Paulo';
       const formatarData = (data) => {
         if (!data) return '-';
-        
-        // SQL Server retorna datas no formato ISO: 2025-11-21T10:39:24.123Z
-        // Quando o JavaScript cria new Date(), ele interpreta como UTC e converte para o fuso local
-        // Precisamos tratar a string diretamente para evitar conversão de fuso
-        
-        if (typeof data === 'string') {
-          // Remover o Z se existir e tratar como data local
-          let dataStr = data.replace('Z', '');
-          
-          // Se tem T, substituir por espaço
-          if (dataStr.includes('T')) {
-            dataStr = dataStr.replace('T', ' ');
-          }
-          
-          // Extrair partes da data: 2025-11-21 10:39:24.123
-          const match = dataStr.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
-          if (match) {
-            const [, year, month, day, hour, minute, second] = match;
-            // Criar data no fuso local (sem conversão UTC)
-            const d = new Date(
-              parseInt(year),
-              parseInt(month) - 1,
-              parseInt(day),
-              parseInt(hour),
-              parseInt(minute),
-              parseInt(second || 0)
-            );
-            
-            return d.toLocaleString('pt-BR', {
-              day: '2-digit',
-              month: '2-digit',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            });
-          }
-        }
-        
-        // Fallback: usar new Date() normalmente
-        const d = new Date(data);
-        return d.toLocaleString('pt-BR', {
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit'
-        });
+        try {
+          const d = new Date(data);
+          if (isNaN(d.getTime())) return '-';
+          if (typeof window.formatarDataHoraComFuso === 'function')
+            return window.formatarDataHoraComFuso(d, loc, tz, { dateStyle: 'short', timeStyle: 'short' });
+          return new Intl.DateTimeFormat(loc, { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(d);
+        } catch (e) { return '-'; }
       };
       document.getElementById('carregamento').textContent = formatarData(data.DTPREVINICIO);
       document.getElementById('descarga').textContent = formatarData(data.DTPREVFINAL);
       
-      // Valores
-      document.getElementById('frete').textContent = data.VLFRETE ? `R$ ${parseFloat(data.VLFRETE).toFixed(2).replace('.', ',')}` : '-';
+      // Valores (moeda da viagem + locale do contexto)
+      const moeda = (data.MOEDA && data.MOEDA.trim()) || 'BRL';
+      const fmtFrete = (v) => {
+        if (v == null || v === '') return '-';
+        try {
+          if (typeof window.formatarMoeda === 'function')
+            return window.formatarMoeda(parseFloat(v), moeda, loc);
+          if (typeof Intl !== 'undefined' && Intl.NumberFormat)
+            return new Intl.NumberFormat(loc, { style: 'currency', currency: moeda }).format(parseFloat(v));
+        } catch (e) {}
+        return new Intl.NumberFormat(loc, { style: 'currency', currency: moeda }).format(parseFloat(v) || 0);
+      };
+      document.getElementById('frete').textContent = data.VLFRETE ? fmtFrete(data.VLFRETE) : '-';
       document.getElementById('peso').textContent = data.PESO ? `${parseFloat(data.PESO).toFixed(3).replace('.', ',')} ton` : '-';
       document.getElementById('cubagem').textContent = data.CUBAGEM ? `${parseFloat(data.CUBAGEM).toFixed(3).replace('.', ',')} m³` : '-';
       
@@ -1129,7 +1139,7 @@
         // PENDENTE mas viagem já foi confirmada para outro motorista (nunca acessou)
         statusMessageDiv.style.display = 'block';
         statusMessageDiv.innerHTML = `
-          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
+          <div style="background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(13, 33, 55, 0.35);">
             <div style="font-size: 48px; margin-bottom: 15px;">📋</div>
             <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 700;">Carga Já Fechada</h3>
             <p style="margin: 0; font-size: 15px; line-height: 1.6; opacity: 0.95;">
@@ -1587,7 +1597,7 @@
         setTimeout(() => {
           btn.disabled = false;
           btn.textContent = '📍 Enviar Minha Localização';
-          btn.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+          btn.style.background = 'linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%)';
         }, 3000);
         
       } catch (err) {

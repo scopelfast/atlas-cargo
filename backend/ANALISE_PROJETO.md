@@ -1,12 +1,12 @@
 # Análise Completa do Projeto SysScopel
 
-**Data da Análise:** 2025-01-20  
+**Data da Análise:** 2026-01-20  
 **Versão do Projeto:** 1.0.0  
 **Status:** ✅ Produção
 
 ## 📋 Resumo Executivo
 
-O projeto **SysScopel** (Sistema DivulgaCarga) é uma aplicação web completa para gestão de transportes, desenvolvida em Node.js/Express com frontend em JavaScript vanilla. O sistema gerencia cadastros, equipamentos, viagens, empresas, filiais, roteiros com pontos georreferenciados e outros módulos relacionados ao transporte de cargas.
+O projeto **SysScopel** (Atlas Cargo) é uma aplicação web completa para gestão de transportes, desenvolvida em Node.js/Express com frontend em JavaScript vanilla. O sistema gerencia cadastros, equipamentos, viagens, empresas, filiais, roteiros com pontos georreferenciados e outros módulos relacionados ao transporte de cargas.
 
 ---
 
@@ -283,7 +283,7 @@ showMessage('Cadastro atualizado com sucesso!', 'success');
 
 **Recomendação:**
 - Mover para pasta `scripts/` ou `migrations/`
-- Ou manter apenas o script principal `migrate_integra_to_divulgacarga_completo.sql`
+- Ou manter apenas o script principal `migrate_integra_completo.sql`
 
 ---
 
@@ -479,5 +479,5 @@ O projeto está **bem estruturado** e **funcional**, com melhorias significativa
 ---
 
 **Gerado por:** Análise Automática do Projeto  
-**Última Atualização:** 2025-01-20  
+**Última Atualização:** 2026-01-20  
 **Versão do Documento:** 3.0

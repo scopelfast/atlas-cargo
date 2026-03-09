@@ -263,9 +263,9 @@ backend/public/app-motorista/
 #### **3.1. manifest.json**
 ```json
 {
-  "name": "DivulgaCarga Motorista",
+  "name": "Atlas Cargo Motorista",
   "short_name": "Motorista",
-  "description": "App para motoristas - DivulgaCarga",
+  "description": "App para motoristas - Atlas Cargo",
   "start_url": "/app-motorista/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -331,7 +331,7 @@ self.addEventListener('fetch', (event) => {
   <div class="login-container">
     <div class="logo">
       <img src="/img/logo7.png" alt="Logo">
-      <h1>DivulgaCarga</h1>
+      <h1>Atlas Cargo</h1>
       <p>Motorista</p>
     </div>
     

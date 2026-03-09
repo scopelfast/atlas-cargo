@@ -2,14 +2,14 @@
 =============================================================================
 Script: Adicionar Campo SENHA na Tabela MOTORISTA_COMPLEMENTO
 Descrição: Adiciona campo para armazenar senha hasheada dos motoristas
-Data: 2025-01-27
-Autor: Sistema DivulgaCarga
+Data: 2026-01-27
+Autor: Atlas Cargo
 
 IMPORTANTE: Este script adiciona o campo SENHA na tabela MOTORISTA_COMPLEMENTO
 =============================================================================
 */
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 -- Verificar se a coluna já existe

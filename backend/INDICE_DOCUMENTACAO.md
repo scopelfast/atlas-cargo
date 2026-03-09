@@ -1,8 +1,8 @@
 # 📚 Índice Centralizado de Documentação
 
-**Sistema:** DivulgaCarga  
+**Sistema:** Atlas Cargo  
 **Versão:** 1.2.0  
-**Última atualização:** 2025-11-28
+**Última atualização:** 2026-11-28
 
 ---
 
@@ -202,7 +202,7 @@
 
 ## 🔄 Atualizações Recentes
 
-### 2025-11-28
+### 2026-11-28
 - ✅ Atualizado README principal com versão 1.2.0
 - ✅ Atualizado CHANGELOG com novas funcionalidades
   - Sistema de motivo de recusa
@@ -213,7 +213,7 @@
 - ✅ Criado .gitignore completo
 - ✅ Documentação de scripts SQL atualizada
 
-### 2025-11-24
+### 2026-11-24
 - ✅ Atualizado README principal com novas funcionalidades
 - ✅ Atualizado CHANGELOG com versão 1.1.0
 - ✅ Atualizada documentação do módulo Gerenciar Viagens
@@ -223,7 +223,7 @@
   - Fluxos de trabalho atualizados
 - ✅ Atualizado índice de documentação
 
-### 2025-11-23
+### 2026-11-23
 - ✅ Criado README principal completo
 - ✅ Criado CHANGELOG
 - ✅ Criada documentação do init.sql
@@ -231,7 +231,7 @@
 - ✅ Criado índice centralizado
 - ✅ Atualizada estrutura de documentação
 
-### 2025-11-21
+### 2026-11-21
 - ✅ Documentação inicial do sistema de convocações
 - ✅ Guias específicos criados
 - ✅ Estrutura de documentação definida
@@ -268,7 +268,7 @@
 
 ---
 
-**Mantido por:** Equipe DivulgaCarga  
-**Última atualização:** 2025-11-28  
+**Mantido por:** Equipe Atlas Cargo  
+**Última atualização:** 2026-11-28  
 **Versão:** 1.2.0
 

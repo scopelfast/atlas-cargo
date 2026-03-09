@@ -1,9 +1,10 @@
 // backend/public/modulos/gerenciar-tipos-atividade/js/script.js
 // Gerenciar Tipos de Atividade - Frontend
 // Versão: 1.0
-// Autor: Sistema DivulgaCarga
+// Atlas Cargo
 
 (function() {
+  const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
   const tabs = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
   const filtroForm = document.getElementById('filtroForm');
@@ -15,6 +16,17 @@
   let lastTiposAtividade = null;
   let sqlExecutado = false;
   let initExecutado = false;
+
+  function getAuthHeaders(extra = {}) {
+    const headers = { ...extra };
+    const token = localStorage.getItem('token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      if (user && (user.login || user.SGUSUARIO)) headers['user-login'] = user.login || user.SGUSUARIO;
+    } catch (e) {}
+    return headers;
+  }
 
   // Função para carregar e executar o arquivo init.sql
   async function executarInitSQL() {
@@ -154,29 +166,29 @@
       if (situacao) params.append('situacao', situacao);
 
       const response = await fetch(`/api/tipos-atividade?${params.toString()}`);
-      const tiposAtividade = await response.json();
+      const body = await response.json();
 
-      lastTiposAtividade = tiposAtividade;
+      if (!response.ok) {
+        const msg = (body && body.error) ? body.error : 'Erro ao carregar tipos de atividade.';
+        showMessage(msg, 'error');
+        lastTiposAtividade = [];
+      } else {
+        lastTiposAtividade = Array.isArray(body) ? body : [];
+      }
+
+      const tiposAtividade = lastTiposAtividade;
       const countEl = document.getElementById('tiposAtividadeGridCountText');
       if (countEl) {
-        countEl.textContent = `${tiposAtividade.length} registro(s) encontrado(s)`;
+        const msg = t('web.modulos.tiposAtividade.registrosEncontrados');
+        countEl.textContent = tiposAtividade.length + ' ' + (msg.replace(/^0\s*/, ''));
       }
 
-      // Se já existe uma instância do Grid na aba, atualizá-la imediatamente
-      if (typeof window.GridEditor !== 'undefined' && gridTab) {
-        try {
-          gridTab.render(tiposAtividade);
-        } catch (e) {}
-      }
-
-      // Carregar GridEditor se necessário
       if (typeof window.GridEditor === 'undefined') {
         try {
           await loadScript('/js/grid-editor.js');
         } catch (loadErr) {}
       }
 
-      // Inicializar e renderizar grid
       if (typeof window.GridEditor !== 'undefined') {
         if (!gridTab) inicializarGridTab();
         try {
@@ -187,7 +199,14 @@
       showTab(openTab);
     } catch (err) {
       console.error('Erro ao aplicar filtros:', err);
-      showMessage('Erro ao aplicar filtros.', 'error');
+      showMessage(t('web.modulos.tiposAtividade.erroAplicarFiltros'), 'error');
+      lastTiposAtividade = [];
+      const countEl = document.getElementById('tiposAtividadeGridCountText');
+      if (countEl) countEl.textContent = t('web.modulos.tiposAtividade.registrosEncontrados');
+      if (typeof window.GridEditor !== 'undefined' && gridTab) {
+        try { gridTab.render([]); } catch (e) {}
+      }
+      showTab(openTab);
     }
   }
 
@@ -202,11 +221,11 @@
       container: '#tiposAtividadeGrid',
       columns: [
         { field: 'CDTIPOATIVIDADE', header: 'Código', editable: false, isId: true, width: '80px' },
-        { field: 'DSTIPOATIVIDADE', header: 'Descrição', editable: false, width: '300px' },
-        { field: 'DSPROGRAMA', header: 'Programa', editable: false, width: '280px',
+        { field: 'DSTIPOATIVIDADE', header: 'Descrição', editable: false },
+        { field: 'DSPROGRAMA', header: 'Programa', editable: false,
           format: (val) => val || '-'
         },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '100px',
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px', align: 'right',
           options: [{ value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' }],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }
@@ -223,7 +242,7 @@
         await confirmarExclusao(id);
       },
       onAfterEdit: (id) => {
-        showMessage('Alteração salva com sucesso!', 'success');
+        showMessage(t('web.modulos.tiposAtividade.sucessoSalvar'), 'success');
       }
     });
   }
@@ -247,16 +266,25 @@
       document.getElementById('tipoAtividadeGrupo').value = tipo.FGGRUPO || '';
       document.getElementById('tipoAtividadeSituacao').value = tipo.FGACTIVE || 'S';
 
-      document.getElementById('formTitle').textContent = 'Editar Tipo de Atividade';
+      document.getElementById('formTitle').textContent = t('web.modulos.tiposAtividade.editarTipo');
       showTab('dados');
     } catch (err) {
-      showMessage('Erro ao carregar tipo de atividade.', 'error');
+      showMessage(t('web.modulos.tiposAtividade.erroCarregarDados'), 'error');
     }
   }
 
-  // Salvar tipo de atividade
+  let tipoAtividadeFormSubmitting = false;
   async function salvarTipoAtividade(e) {
     e.preventDefault();
+    e.stopImmediatePropagation();
+    if (tipoAtividadeFormSubmitting) return;
+    tipoAtividadeFormSubmitting = true;
+    const btnSubmit = tipoAtividadeForm?.querySelector('button[type="submit"]');
+    const labelOriginal = btnSubmit?.innerHTML ?? '';
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = '<i class=\'bx bx-loader-alt bx-spin\'></i> Salvando...';
+    }
     const codigoOriginal = document.getElementById('tipoAtividadeCodigoOriginal').value;
     const codigo = document.getElementById('tipoAtividadeCodigo').value;
     const descricao = document.getElementById('tipoAtividadeDescricao').value.trim();
@@ -265,7 +293,9 @@
     const situacao = document.getElementById('tipoAtividadeSituacao').value;
 
     if (!codigo || !descricao) {
-      showMessage('Preencha todos os campos obrigatórios.', 'error');
+      showMessage(t('web.modulos.tiposAtividade.preenchaCampos'), 'error');
+      tipoAtividadeFormSubmitting = false;
+      if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = labelOriginal; }
       return;
     }
 
@@ -275,7 +305,7 @@
 
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
           CDTIPOATIVIDADE: parseInt(codigo),
           DSTIPOATIVIDADE: descricao,
@@ -287,17 +317,22 @@
 
       const result = await response.json();
       if (response.ok) {
-        showMessage(result.message || 'Tipo de atividade salvo com sucesso!', 'success');
+        showMessage(result.message || t('web.modulos.tiposAtividade.sucessoSalvar'), 'success');
         limparFormulario();
         showTab('filtros');
         if (lastTiposAtividade) {
           await applyFilters('grid');
         }
       } else {
-        showMessage(result.error || 'Erro ao salvar tipo de atividade.', 'error');
+        showMessage(result.error || t('web.modulos.tiposAtividade.erroSalvar'), 'error');
       }
     } catch (err) {
-      showMessage('Erro ao salvar tipo de atividade.', 'error');
+      showMessage(t('web.modulos.tiposAtividade.erroSalvar'), 'error');
+    } finally {
+      setTimeout(() => {
+        tipoAtividadeFormSubmitting = false;
+        if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = labelOriginal; }
+      }, 600);
     }
   }
 
@@ -310,7 +345,7 @@
     document.getElementById('tipoAtividadePrograma').value = '';
     document.getElementById('tipoAtividadeGrupo').value = '';
     document.getElementById('tipoAtividadeSituacao').value = 'S';
-    document.getElementById('formTitle').textContent = 'Novo Tipo de Atividade';
+    document.getElementById('formTitle').textContent = t('web.modulos.tiposAtividade.novoTipo');
   }
 
   // Confirmar exclusão
@@ -331,17 +366,18 @@
         
         try {
           const response = await fetch(`/api/tipos-atividade/${codigo}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getAuthHeaders()
           });
           const result = await response.json();
           if (response.ok) {
-            showMessage(result.message || 'Tipo de atividade excluído com sucesso!', 'success');
+            showMessage(result.message || t('web.modulos.tiposAtividade.sucessoSalvar'), 'success');
             await applyFilters('grid');
           } else {
-            showMessage(result.error || 'Erro ao excluir tipo de atividade.', 'error');
+            showMessage(result.error || t('web.modulos.tiposAtividade.erroSalvar'), 'error');
           }
         } catch (err) {
-          showMessage('Erro ao excluir tipo de atividade.', 'error');
+          showMessage(t('web.modulos.tiposAtividade.erroSalvar'), 'error');
         }
         resolve();
       };
@@ -378,7 +414,7 @@
   document.getElementById('btnLimparFiltros')?.addEventListener('click', () => {
     filtroForm.reset();
     lastTiposAtividade = null;
-    document.getElementById('tiposAtividadeGridCountText').textContent = '0 registro(s) encontrado(s)';
+    document.getElementById('tiposAtividadeGridCountText').textContent = t('web.modulos.tiposAtividade.registrosEncontrados');
     document.getElementById('tiposAtividadeGrid').innerHTML = '<p class="empty">Aplicar filtros para carregar o grid.</p>';
   });
 

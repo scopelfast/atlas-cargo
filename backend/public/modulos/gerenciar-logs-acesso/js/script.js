@@ -1,7 +1,10 @@
 // backend/public/modulos/gerenciar-logs-acesso/js/script.js
 // Logs de Acesso - Frontend
 // Versão: 1.0
-// Autor: Sistema DivulgaCarga
+// Atlas Cargo
+// i18n: helper t() e chaves web.modulos.logsAcesso
+
+const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
 
 (function() {
   const tabs = document.querySelectorAll('.tab-btn');
@@ -14,6 +17,15 @@
   let lastLogsAcoes = null;
   let sqlExecutado = false;
   let initExecutado = false;
+  let contextoLogs = { locale: 'pt-BR', timezone: 'America/Sao_Paulo' };
+  async function loadContextoLogs() {
+    try {
+      const r = await fetch('/api/contexto');
+      const d = await r.json();
+      if (d && d.locale) contextoLogs.locale = d.locale;
+      if (d && d.timezone) contextoLogs.timezone = d.timezone;
+    } catch (e) {}
+  }
   
   // Controle de ordenação
   let ordenacaoEstatisticas = { campo: 'acessos', direcao: 'desc' };
@@ -37,7 +49,7 @@
       // Remover milissegundos se existirem
       dataStr = dataStr.replace(/\.\d{3}/, '');
       
-      // Extrair partes da data: 2025-12-22 11:24:15
+      // Extrair partes da data: 2026-12-22 11:24:15
       const match = dataStr.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
       if (match) {
         const [, year, month, day, hour, minute, second] = match;
@@ -70,8 +82,12 @@
         return `${day}/${month}/${year}, ${hour}:${minute}:${second}`;
       }
       
-      // Último fallback: usar toLocaleString
-      return d.toLocaleString('pt-BR');
+      const loc = contextoLogs.locale || 'pt-BR';
+      const tz = contextoLogs.timezone || 'America/Sao_Paulo';
+      if (typeof window.formatarDataHoraComFuso === 'function') {
+        return window.formatarDataHoraComFuso(d, loc, tz, { dateStyle: 'short', timeStyle: 'medium' });
+      }
+      return d.toLocaleString(loc, { timeZone: tz });
     } catch (e) {
       return '-';
     }
@@ -124,6 +140,7 @@
   async function init() {
     if (initExecutado) return;
     initExecutado = true;
+    await loadContextoLogs();
     await new Promise(resolve => setTimeout(resolve, 200));
     try {
       await executarInitSQL();
@@ -218,11 +235,11 @@
     // Total de ações
     const totalAcoes = acoes.length;
 
-    // Atualizar cards
-    document.getElementById('totalAcessos').textContent = totalAcessos.toLocaleString('pt-BR');
+    const locNum = contextoLogs.locale || 'pt-BR';
+    document.getElementById('totalAcessos').textContent = totalAcessos.toLocaleString(locNum);
     document.getElementById('tempoTotalLogado').textContent = tempoFormatado;
-    document.getElementById('totalModulos').textContent = totalModulos.toLocaleString('pt-BR');
-    document.getElementById('totalAcoes').textContent = totalAcoes.toLocaleString('pt-BR');
+    document.getElementById('totalModulos').textContent = totalModulos.toLocaleString(locNum);
+    document.getElementById('totalAcoes').textContent = totalAcoes.toLocaleString(locNum);
 
     // Estatísticas por operador
     atualizarEstatisticasPorOperador(acessos, acoes);
@@ -400,12 +417,13 @@
       const tempoFormatado = horas > 0 ? `${horas}h ${minutos}min` : `${minutos}min`;
 
       const tr = document.createElement('tr');
+      const locN = contextoLogs.locale || 'pt-BR';
       tr.innerHTML = `
         <td><strong>${op.usuario}</strong></td>
-        <td>${op.acessos.toLocaleString('pt-BR')}</td>
+        <td>${op.acessos.toLocaleString(locN)}</td>
         <td>${tempoFormatado}</td>
-        <td>${op.modulos.toLocaleString('pt-BR')}</td>
-        <td>${op.acoes.toLocaleString('pt-BR')}</td>
+        <td>${op.modulos.toLocaleString(locN)}</td>
+        <td>${op.acoes.toLocaleString(locN)}</td>
         <td>${op.ultimoAcesso ? formatarDataHora(op.ultimoAcesso) : '-'}</td>
         <td>${op.ultimaAcao ? formatarDataHora(op.ultimaAcao) : '-'}</td>
       `;
@@ -459,11 +477,12 @@
       return;
     }
 
+    const locN = contextoLogs.locale || 'pt-BR';
     modulos.forEach(mod => {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td><strong>${mod.modulo}</strong></td>
-        <td>${mod.acessos.toLocaleString('pt-BR')}</td>
+        <td>${mod.acessos.toLocaleString(locN)}</td>
         <td>${mod.ultimoAcesso ? formatarDataHora(mod.ultimoAcesso) : '-'}</td>
       `;
       tbody.appendChild(tr);

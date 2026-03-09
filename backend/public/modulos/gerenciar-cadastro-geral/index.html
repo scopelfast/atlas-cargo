@@ -3,12 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <title>Gerenciar Cadastro Geral</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/modulos.css">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <style>
-    /* ========== ESTILOS DO LAYOUT PADRONIZADO ========== */
+    /* ========== Gerenciar Cadastro Geral - Identidade Atlas Cargo ========== */
     .cadastro-geral-container {
       padding: 20px;
+      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
     }
 
     .cadastro-geral-header {
@@ -17,12 +21,12 @@
       align-items: center;
       margin-bottom: 25px;
       padding-bottom: 15px;
-      border-bottom: 2px solid #e0e0e0;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
     }
 
     .cadastro-geral-header h2 {
       margin: 0;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 28px;
       font-weight: 700;
       display: flex;
@@ -31,7 +35,7 @@
     }
 
 
-    /* ========== BOTÕES - Padrão do Sistema ========== */
+    /* ========== BOTÕES - Atlas Cargo ========== */
     .btn {
       padding: 12px 24px;
       border: none;
@@ -56,50 +60,50 @@
     }
 
     .btn-primary {
-      background: #3498db;
+      background: var(--ac-accent, #0ea5e9);
       color: white;
     }
 
     .btn-primary:hover:not(:disabled) {
-      background: #2980b9;
+      background: var(--ac-accent-hover, #0284c7);
       transform: translateY(-1px);
-      box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35);
     }
 
-    /* Botão verde para "Novo Registro" */
+    /* Botão destaque para "Novo Registro" */
     button.btn-primary[id*="NovoRegistro"],
     button.btn-primary[id*="NovoEquipamento"] {
-      background: #3DCC7F;
+      background: var(--success, #059669);
       color: white;
     }
 
     button.btn-primary[id*="NovoRegistro"]:hover:not(:disabled),
     button.btn-primary[id*="NovoEquipamento"]:hover:not(:disabled) {
-      background: #2eb86b;
+      background: #047857;
       transform: translateY(-1px);
-      box-shadow: 0 4px 8px rgba(61, 204, 127, 0.3);
+      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
     }
 
     .btn-secondary {
-      background: #6c757d;
+      background: var(--gray, #64748b);
       color: white;
     }
 
     .btn-secondary:hover:not(:disabled) {
-      background: #5a6268;
+      background: #475569;
       transform: translateY(-1px);
-      box-shadow: 0 4px 8px rgba(108, 117, 125, 0.3);
+      box-shadow: 0 4px 8px rgba(100, 116, 139, 0.3);
     }
 
     .btn-info {
-      background: #17a2b8;
+      background: var(--ac-accent, #0ea5e9);
       color: white;
     }
 
     .btn-info:hover:not(:disabled) {
-      background: #138496;
+      background: var(--ac-accent-hover, #0284c7);
       transform: translateY(-1px);
-      box-shadow: 0 4px 8px rgba(23, 162, 184, 0.3);
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35);
     }
 
     .btn-sm {
@@ -107,17 +111,70 @@
       font-size: 14px;
     }
 
+    .block-label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--gray, #64748b); font-size: 14px; }
+    .aplicavel-para-section {
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border, #e2e8f0);
+      width: 100%;
+    }
+    .aplicavel-para-section .block-label { margin-bottom: 12px; }
+    .aplicavel-para-section .hint { display: block; margin-top: 8px; color: var(--gray, #64748b); font-size: 13px; }
+    /* Separador e seção Senha do app motorista */
+    .form-section-divider {
+      margin: 28px 0 24px 0;
+      border: none;
+      border-top: 2px solid var(--ac-accent, #0ea5e9);
+      opacity: 0.7;
+    }
+    .senha-motorista-section {
+      margin-top: 0;
+      padding: 20px 20px 24px 20px;
+      background: linear-gradient(135deg, rgba(14, 165, 233, 0.06) 0%, rgba(14, 165, 233, 0.02) 100%);
+      border: 1px solid rgba(14, 165, 233, 0.2);
+      border-left: 4px solid var(--ac-accent, #0ea5e9);
+      border-radius: 10px;
+    }
+    .senha-motorista-section .block-label { color: var(--ac-primary, #0d2137); font-size: 15px; }
+    .senha-motorista-section .input-group { margin-top: 12px; }
+    .aplicavel-para-checks {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px 24px;
+      padding: 12px 0;
+    }
+    @media (max-width: 900px) {
+      .aplicavel-para-checks { grid-template-columns: repeat(2, 1fr); }
+    }
+    .aplicavel-para-checks .check-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 500;
+      font-size: 14px;
+      cursor: pointer;
+      min-width: 0;
+    }
+    .aplicavel-para-checks .check-item input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      min-width: 18px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
     .filtros-box {
       background: white;
       border-radius: 12px;
       padding: 25px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
       margin-bottom: 25px;
+      border: 1px solid var(--border, #e2e8f0);
     }
 
     .filtros-box h3 {
       margin: 0 0 20px 0;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 18px;
       font-weight: 600;
       display: flex;
@@ -141,14 +198,14 @@
       display: block;
       margin-bottom: 8px;
       font-weight: 600;
-      color: #34495e;
+      color: var(--dark, #1e293b);
       font-size: 14px;
     }
 
     .filtros-grid .form-control {
       width: 100%;
       padding: 12px;
-      border: 1px solid #dee2e6;
+      border: 1px solid var(--border, #e2e8f0);
       border-radius: 8px;
       font-size: 16px;
       transition: all 0.3s;
@@ -159,8 +216,8 @@
 
     .filtros-grid .form-control:focus {
       outline: none;
-      border-color: #3498db;
-      box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+      border-color: var(--ac-accent, #0ea5e9);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
     }
 
     .filtros-actions {
@@ -174,7 +231,7 @@
       margin-right: 0;
     }
 
-    /* ========== MODAL PADRÃO TOP (SOS/Alertas) ========== */
+    /* ========== MODAIS - Atlas Cargo ========== */
     .modal-tratamento {
       display: none;
       position: fixed;
@@ -195,14 +252,15 @@
       max-width: 800px;
       width: 90%;
       max-height: 90vh;
-      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+      box-shadow: 0 4px 20px rgba(13, 33, 55, 0.12);
       display: flex;
       flex-direction: column;
+      border: 1px solid var(--border, #e2e8f0);
     }
 
     .modal-header-tratamento {
       padding: 20px 25px;
-      border-bottom: 1px solid #e9ecef;
+      border-bottom: 1px solid var(--border, #e2e8f0);
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -211,7 +269,7 @@
 
     .modal-header-tratamento h3 {
       margin: 0;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 24px;
       font-weight: 600;
       display: flex;
@@ -223,7 +281,7 @@
       background: none;
       border: none;
       font-size: 24px;
-      color: #666;
+      color: var(--gray, #64748b);
       cursor: pointer;
       padding: 5px;
       width: 32px;
@@ -231,13 +289,13 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      border-radius: 4px;
+      border-radius: 6px;
       transition: all 0.2s;
     }
 
     .btn-close-modal:hover {
-      background: #f0f0f0;
-      color: #333;
+      background: var(--light-gray, #e2e8f0);
+      color: var(--ac-primary, #0d2137);
     }
 
     .modal-body-tratamento {
@@ -248,7 +306,7 @@
     }
 
     .modal-body-tratamento h4 {
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       margin-top: 20px;
       margin-bottom: 10px;
       font-size: 18px;
@@ -260,7 +318,7 @@
     }
 
     .modal-body-tratamento p {
-      color: #495057;
+      color: var(--gray, #64748b);
       line-height: 1.6;
       margin-bottom: 15px;
     }
@@ -268,7 +326,7 @@
     .modal-body-tratamento ul {
       margin: 10px 0 20px 0;
       padding-left: 20px;
-      color: #495057;
+      color: var(--gray, #64748b);
       line-height: 1.8;
     }
 
@@ -277,40 +335,40 @@
     }
 
     .modal-body-tratamento strong {
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-weight: 600;
     }
 
     .modal-footer-tratamento {
       padding: 20px 25px;
-      border-top: 1px solid #e9ecef;
+      border-top: 1px solid var(--border, #e2e8f0);
       display: flex;
       justify-content: flex-end;
       flex-shrink: 0;
     }
 
-    /* ========== ESTILOS DOS CAMPOS DO MODAL ========== */
+    /* ========== CAMPOS DO FORMULÁRIO (Modal) - Atlas Cargo ========== */
     .modal-content-tratamento .form-control {
       width: 100%;
       padding: 12px;
-      border: 1px solid #dee2e6;
+      border: 1px solid var(--border, #e2e8f0);
       border-radius: 8px;
       font-size: 16px;
       transition: all 0.3s;
       font-family: inherit;
       box-sizing: border-box;
       background-color: #fff;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
     }
 
     .modal-content-tratamento .form-control:focus {
       outline: none;
-      border-color: #3498db;
-      box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+      border-color: var(--ac-accent, #0ea5e9);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
     }
 
     .modal-content-tratamento .form-control:hover {
-      border-color: #adb5bd;
+      border-color: var(--gray, #64748b);
     }
 
     .modal-content-tratamento select.form-control {
@@ -325,7 +383,7 @@
 
     .modal-content-tratamento input[type="date"].form-control {
       cursor: pointer;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
     }
 
     .modal-content-tratamento input[type="date"].form-control::-webkit-calendar-picker-indicator {
@@ -353,7 +411,7 @@
       display: block;
       margin-bottom: 8px;
       font-weight: 600;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 14px;
     }
 
@@ -368,12 +426,12 @@
       gap: 6px;
       margin-bottom: 8px;
       font-weight: 600;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 14px;
     }
 
     .modal-validade-field label i {
-      color: #3498db;
+      color: var(--ac-accent, #0ea5e9);
       font-size: 16px;
     }
 
@@ -382,7 +440,7 @@
       background: #f8f9fa;
       padding: 20px;
       border-radius: 8px;
-      border: 1px solid #e9ecef;
+      border: 1px solid var(--border, #e2e8f0);
       margin-bottom: 20px;
     }
 
@@ -431,8 +489,8 @@
     }
 
     #certResultado:not(.certificadora-selecionada) {
-      background: #e9ecef;
-      border: 1px solid #dee2e6;
+      background: var(--light-gray, #e2e8f0);
+      border: 1px solid var(--border, #e2e8f0);
       color: #6c757d;
     }
 
@@ -475,7 +533,7 @@
       font-size: 14px;
       font-weight: 500;
       padding-bottom: 15px;
-      border-bottom: 1px solid #e9ecef;
+      border-bottom: 1px solid var(--border, #e2e8f0);
     }
 
     /* ========== RESPONSIVIDADE DOS MODAIS ========== */
@@ -609,7 +667,7 @@
 
     .modal-header-tratamento {
       padding: 20px 25px;
-      border-bottom: 1px solid #e9ecef;
+      border-bottom: 1px solid var(--border, #e2e8f0);
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -618,7 +676,7 @@
 
     .modal-header-tratamento h3 {
       margin: 0;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 24px;
       font-weight: 600;
       display: flex;
@@ -655,7 +713,7 @@
     }
 
     .modal-body-tratamento h4 {
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       margin-top: 20px;
       margin-bottom: 10px;
       font-size: 18px;
@@ -667,7 +725,7 @@
     }
 
     .modal-body-tratamento p {
-      color: #495057;
+      color: var(--gray, #64748b);
       line-height: 1.6;
       margin-bottom: 15px;
     }
@@ -675,7 +733,7 @@
     .modal-body-tratamento ul {
       margin: 10px 0 20px 0;
       padding-left: 20px;
-      color: #495057;
+      color: var(--gray, #64748b);
       line-height: 1.8;
     }
 
@@ -684,13 +742,13 @@
     }
 
     .modal-body-tratamento strong {
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-weight: 600;
     }
 
     .modal-footer-tratamento {
       padding: 20px 25px;
-      border-top: 1px solid #e9ecef;
+      border-top: 1px solid var(--border, #e2e8f0);
       display: flex;
       justify-content: flex-end;
       flex-shrink: 0;
@@ -754,12 +812,12 @@
     <!-- Header Padronizado -->
     <div class="cadastro-geral-header">
       <h2>
-        <i class='bx bx-user-circle' style="color: #3498db;"></i>
-        Gerenciar Cadastro Geral
+        <i class='bx bx-user-circle' style="color: var(--ac-accent, #0ea5e9);"></i>
+        <span data-i18n="web.modulos.cadastroGeral.titulo">Gerenciar Cadastro Geral</span>
       </h2>
       <div style="display: flex; gap: 10px; align-items: center;">
         <button onclick="window.mostrarAjudaCadastroGeral()" class="btn btn-info" title="Como funciona? Regras e instruções">
-          <i class='bx bx-help-circle'></i> Ajuda
+          <i class='bx bx-help-circle'></i> <span data-i18n="web.modulos.cadastroGeral.ajuda">Ajuda</span>
         </button>
       </div>
     </div>
@@ -767,9 +825,9 @@
 
     <!-- Abas -->
     <div class="tabs">
-      <button class="tab-btn active" data-tab="filtros">Filtros</button>
-      <button class="tab-btn" data-tab="grid">Grid</button>
-      <button class="tab-btn" data-tab="dados">Dados</button>
+      <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.cadastroGeral.tabFiltros">Filtros</button>
+      <button class="tab-btn" data-tab="grid" data-i18n="web.modulos.cadastroGeral.tabGrid">Grid</button>
+      <button class="tab-btn" data-tab="dados" data-i18n="web.modulos.cadastroGeral.tabDados">Dados</button>
       <button class="tab-btn" data-tab="classes">Classes Frota</button>
       <button class="tab-btn" data-tab="validades">Validades</button>
     </div>
@@ -777,11 +835,11 @@
     <!-- Filtros -->
     <div class="tab-content active" id="tab-filtros">
       <div class="filtros-box">
-        <h3><i class='bx bx-filter'></i> Filtros</h3>
-        <form id="filtroForm">
+        <h3><i class='bx bx-filter'></i> <span data-i18n="web.modulos.cadastroGeral.tabFiltros">Filtros</span></h3>
+        <form id="filtroForm" onsubmit="return false;">
           <div class="filtros-grid">
             <div>
-              <label for="filtroCodigo">Código</label>
+              <label for="filtroCodigo" data-i18n="web.modulos.cadastroGeral.codigo">Código</label>
               <input type="number" id="filtroCodigo" class="form-control" min="1">
             </div>
             <div>
@@ -827,14 +885,16 @@
               <input type="text" id="filtroEmail" class="form-control" maxlength="200" placeholder="exemplo@email.com">
             </div>
             <div>
-              <label for="filtroTipoCadastro">Tipo Cadastro</label>
+              <label for="filtroTipoCadastro">Tipo de Cadastro</label>
               <select id="filtroTipoCadastro" class="form-control">
                 <option value="">Todos</option>
                 <option value="O">Operador do Sistema</option>
+                <option value="P">Programador / Contratador</option>
                 <option value="M">Motorista</option>
-                <option value="A">Agente</option>
-                <option value="G">Grupo de Divulgação</option>
                 <option value="T">Transportador</option>
+                <option value="A">Agente / Parceiro</option>
+                <option value="G">Grupo de Divulgação</option>
+                <option value="C">Certificadora</option>
                 <option value="U">Unidade de Negócio</option>
               </select>
             </div>
@@ -858,10 +918,10 @@
 
           <div class="filtros-actions">
             <button type="button" id="btnLimparFiltros" class="btn btn-secondary">
-              <i class='bx bx-x'></i> Limpar
+              <i class='bx bx-x'></i> <span data-i18n="web.modulos.cadastroGeral.limpar">Limpar</span>
             </button>
             <button type="submit" class="btn btn-primary">
-              <i class='bx bx-search'></i> Filtrar
+              <i class='bx bx-search'></i> <span data-i18n="web.modulos.cadastroGeral.filtrar">Filtrar</span>
             </button>
           </div>
         </form>
@@ -871,18 +931,18 @@
     <!-- Grid -->
     <div class="tab-content" id="tab-grid">
       <div class="form-box">
-        <h2>Cadastros Gerais - Visualização em Grid</h2>
+        <h2 data-i18n="web.modulos.cadastroGeral.gridTitulo">Cadastros Gerais - Visualização em Grid</h2>
         <div class="actions-top">
           <div style="display: flex; gap: 10px;">
-            <button id="btnVoltarGrid" class="btn cancel">← Voltar aos Filtros</button>
+            <button id="btnVoltarGrid" class="btn cancel">← <span data-i18n="web.modulos.cadastroGeral.voltarFiltros">Voltar aos Filtros</span></button>
             <button id="btnExportarExcel" class="btn save" style="background-color: #27ae60;">📥 Exportar para Excel</button>
           </div>
           <button id="btnNovoRegistroGrid" class="btn btn-primary">
-            <i class='bx bx-plus'></i> Novo Registro
+            <i class='bx bx-plus'></i> <span data-i18n="web.modulos.cadastroGeral.novoRegistro">Novo Registro</span>
           </button>
         </div>
         <div id="cadastrosGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
-          <span id="cadastrosGridCountText">0 registro(s) encontrado(s)</span>
+          <span id="cadastrosGridCountText" data-i18n="web.modulos.cadastroGeral.registrosEncontrados">0 registro(s) encontrado(s)</span>
         </div>
         <div id="cadastrosGrid" class="grid-container"></div>
       </div>
@@ -891,7 +951,7 @@
     <!-- Dados -->
     <div class="tab-content" id="tab-dados">
       <div class="form-box">
-        <h2 id="formTitle">Novo Cadastro Geral</h2>
+        <h2 id="formTitle" data-i18n="web.modulos.cadastroGeral.novoCadastro">Novo Cadastro Geral</h2>
         <form id="cadastroForm">
           <input type="hidden" id="cadastroId">
           
@@ -902,8 +962,8 @@
               <input type="text" id="cadastroCodigo" readonly>
             </div>
             <div>
-              <label for="cadastroCGCCPF">CPF/CNPJ *</label>
-              <input type="text" id="cadastroCGCCPF" required maxlength="18">
+              <label for="cadastroCGCCPF" id="labelCadastroCGCCPF">CPF/CNPJ *</label>
+              <input type="text" id="cadastroCGCCPF" required maxlength="18" data-i18n-placeholder="web.modulos.cadastroGeral.documentoPlaceholder">
             </div>
             <div>
               <label for="cadastroRazaoSocial">Razão Social *</label>
@@ -918,7 +978,7 @@
             </div>
           </div>
 
-          <!-- Linha 2: Tipo Pessoa, Tipo Cadastro, Veículo Rastreado?, Situação -->
+          <!-- Linha 2: Tipo Pessoa, Veículo Rastreado?, Situação -->
           <div class="input-group four-row">
             <div>
               <label for="cadastroTipoPessoa">Tipo Pessoa *</label>
@@ -926,18 +986,6 @@
                 <option value="">Selecione</option>
                 <option value="F">Física</option>
                 <option value="J">Jurídica</option>
-              </select>
-            </div>
-            <div>
-              <label for="cadastroTipoCadastro">Tipo Cadastro *</label>
-              <select id="cadastroTipoCadastro" required>
-                <option value="">Selecione</option>
-                <option value="O">Operador do Sistema</option>
-                <option value="M">Motorista</option>
-                <option value="A">Agente</option>
-                <option value="G">Grupo de Divulgação</option>
-                <option value="T">Transportador</option>
-                <option value="U">Unidade de Negócio</option>
               </select>
             </div>
             <div>
@@ -1027,12 +1075,63 @@
             </div>
           </div>
 
+          <!-- Tipo de Cadastro: linha própria antes dos botões -->
+          <div class="aplicavel-para-section">
+            <label class="block-label">Tipo de Cadastro</label>
+            <div id="cadastroAplicavelPara" class="aplicavel-para-checks">
+              <label class="check-item"><input type="checkbox" id="chkO" value="O"> Operador do Sistema</label>
+              <label class="check-item"><input type="checkbox" id="chkP" value="P"> Programador / Contratador</label>
+              <label class="check-item"><input type="checkbox" id="chkM" value="M"> Motorista</label>
+              <label class="check-item"><input type="checkbox" id="chkT" value="T"> Transportador</label>
+              <label class="check-item"><input type="checkbox" id="chkA" value="A"> Agente / Parceiro</label>
+              <label class="check-item"><input type="checkbox" id="chkG" value="G"> Grupo de Divulgação</label>
+              <label class="check-item"><input type="checkbox" id="chkC" value="C"> Certificadora</label>
+              <label class="check-item"><input type="checkbox" id="chkU" value="U"> Unidade de Negócio</label>
+            </div>
+            <small class="hint">Marque pelo menos uma opção</small>
+          </div>
+
+          <hr class="form-section-divider">
+
+          <!-- Senha do app motorista (visível só ao editar cadastro que é motorista) -->
+          <div id="divSenhaMotorista" class="senha-motorista-section" style="display: none;">
+            <label class="block-label">Status de Aprovação (login no app)</label>
+            <p class="hint" style="margin-bottom: 8px;">O motorista só consegue entrar no app quando estiver <strong>Aprovado</strong>.</p>
+            <div class="input-group" style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 20px;">
+              <div style="min-width: 200px;">
+                <label for="statusAprovacaoMotorista">Status</label>
+                <select id="statusAprovacaoMotorista">
+                  <option value="P">Pendente</option>
+                  <option value="A">Aprovado</option>
+                  <option value="R">Rejeitado</option>
+                </select>
+              </div>
+              <button type="button" id="btnAplicarStatusAprovacao" class="btn btn-primary">
+                <i class='bx bx-check'></i> Aplicar
+              </button>
+            </div>
+            <div id="msgStatusAprovacao" class="message" style="margin-bottom: 16px; display: none;"></div>
+
+            <label class="block-label">Senha do app motorista</label>
+            <p class="hint" style="margin-bottom: 10px;">Define a senha usada no login do app (CPF + esta senha). Mínimo 6 caracteres.</p>
+            <div class="input-group" style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
+              <div style="flex: 1; min-width: 180px;">
+                <label for="novaSenhaMotorista">Nova senha</label>
+                <input type="password" id="novaSenhaMotorista" placeholder="Mín. 6 caracteres" autocomplete="new-password" maxlength="50" minlength="6" style="width: 100%;">
+              </div>
+              <button type="button" id="btnDefinirSenhaMotorista" class="btn btn-primary">
+                <i class='bx bx-lock-alt'></i> Definir senha
+              </button>
+            </div>
+            <div id="msgSenhaMotorista" class="message" style="margin-top: 10px; display: none;"></div>
+          </div>
+
           <div class="form-actions">
             <button type="submit" class="btn btn-primary">
-              <i class='bx bx-save'></i> Salvar
+              <i class='bx bx-save'></i> <span data-i18n="web.modulos.cadastroGeral.salvar">Salvar</span>
             </button>
             <button type="button" id="btnCancelar" class="btn btn-secondary">
-              <i class='bx bx-x'></i> Cancelar
+              <i class='bx bx-x'></i> <span data-i18n="web.modulos.cadastroGeral.cancelar">Cancelar</span>
             </button>
             <button type="button" id="btnGerenciarClasses" class="btn btn-info">
               <i class='bx bx-cog'></i> Gerenciar Classes
@@ -1085,7 +1184,7 @@
         <div id="validadesCadastroInfo" style="display: none; margin: 15px 0; padding: 15px; background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); border-radius: 8px; border: 1px solid #667eea30;">
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
-              <strong style="font-size: 16px; color: #2c3e50;" id="validadesNomeCadastro">-</strong>
+              <strong style="font-size: 16px; color: var(--ac-primary, #0d2137);" id="validadesNomeCadastro">-</strong>
               <div style="font-size: 13px; color: #6c757d; margin-top: 4px;">
                 <span id="validadesTipoCadastro">-</span> • Código: <span id="validadesCodigoCadastro">-</span>
               </div>
@@ -1134,8 +1233,8 @@
                   </select>
                 </div>
 
-                <!-- Buscar Certificadora -->
-                <div class="modal-validade-certificadora-box">
+                <!-- Buscar Certificadora (oculto em modo somente leitura) -->
+                <div class="modal-validade-certificadora-box" id="certificadoraBuscaContainer">
                   <label>
                     <i class='bx bx-building'></i>
                     <span>Certificadora</span>
@@ -1210,7 +1309,7 @@
               <button type="button" id="btnCancelarValidade" class="btn btn-secondary">
                 <i class='bx bx-x'></i> Cancelar
               </button>
-              <button type="submit" form="formValidade" class="btn btn-primary">
+              <button type="submit" form="formValidade" id="btnSalvarValidade" class="btn btn-primary">
                 <i class='bx bx-save'></i> Salvar
               </button>
             </div>
@@ -1220,11 +1319,11 @@
     <!-- Modal -->
     <div id="confirmModal" class="modal">
       <div class="modal-content">
-        <h3>Confirmar Ação</h3>
+        <h3 data-i18n="web.modulos.cadastroGeral.confirmarAcao">Confirmar Ação</h3>
         <p id="modalMessage"></p>
         <div class="modal-actions">
-          <button id="confirmYes" class="btn delete">Sim</button>
-          <button id="confirmNo" class="btn cancel">Cancelar</button>
+          <button id="confirmYes" class="btn delete" data-i18n="web.modulos.cadastroGeral.sim">Sim</button>
+          <button id="confirmNo" class="btn cancel" data-i18n="web.modulos.cadastroGeral.cancelar">Cancelar</button>
         </div>
       </div>
     </div>
@@ -1246,7 +1345,7 @@
   </div>
 
   <!-- Cache Buster - deve ser o primeiro script -->
-  <script src="/js/cache-buster.js?v=202512091200"></script>
+  <script src="/js/cache-buster.js?v=202612091200"></script>
   <script src="/js/utils.js"></script>
   <script src="/js/log-helper.js"></script>
   <script src="/js/init-overlay-helper.js"></script>

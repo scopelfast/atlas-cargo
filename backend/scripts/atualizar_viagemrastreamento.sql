@@ -1,7 +1,7 @@
 -- =============================================
 -- Script: ATUALIZAR VIAGEMRASTREAMENTO
 -- Descrição: Adiciona campos novos para APP Motorista
--- Data: 2025-12-03
+-- Data: 2026-12-03
 -- =============================================
 
 -- Adicionar ALTITUDE (se não existir)

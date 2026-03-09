@@ -15,13 +15,16 @@ PORT=3000
 
 DB_SERVER=200.98.128.159
 DB_PORT=35987
-DB_DATABASE=DIVULGACARGA_PRD
+DB_DATABASE=ATLAS_CARGO_PRD
 DB_USER=sa
 DB_PASSWORD=!ntegr@SQL2014
 
-JWT_SECRET=ChaveSecreta_Segura_DivulgaCarga_2025!
+JWT_SECRET=ChaveSecreta_Segura_AtlasCargo_2026!
 
 PUBLIC_URL=http://cargas.integrabrasil.com:8083
+
+# Opcional: transcrição de áudio no chat (Whisper). Se não definir, áudio é enviado sem transcrição.
+# OPENAI_API_KEY=sk-...
 ```
 
 ## 🗑️ Remover do .env

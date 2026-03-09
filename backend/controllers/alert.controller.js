@@ -1,8 +1,8 @@
 // backend/controllers/alert.controller.js
 // Controller para gerenciar alertas inteligentes
 // Versão: 2.0 - Módulo separado
-// Data: 2025-01-16
-// Última atualização: 2025-01-18
+// Data: 2026-01-16
+// Última atualização: 2026-01-18
 //
 // Este controller gerencia todas as operações relacionadas a alertas do sistema.
 // Inclui funcionalidades para listar, filtrar, tratar, marcar como lido, cancelar
@@ -35,12 +35,53 @@ const alertController = {
         return res.status(400).json({ error: 'ID da viagem é obrigatório' });
       }
 
-      const alertas = await alertService.buscarAlertasAtivos(parseInt(idviagem));
-      
+      const idViagemNum = parseInt(idviagem, 10);
+      const alertas = await alertService.buscarAlertasAtivos(idViagemNum);
+
+      // Incluir alertas SOS da viagem (mesma fonte das "Notificações Recentes" do dashboard)
+      let sosAlertas = [];
+      try {
+        const { poolPromise } = require('../config/db');
+        const pool = await poolPromise;
+        const sosResult = await pool.query(
+          `SELECT sa."ID", sa."CDVIAGEM", sa."CREATED_AT", sa."STATUS", sa."LOCATION",
+                  cg."RZSOCIAL" AS nome_motorista
+           FROM public."SOS_ALERTS" sa
+           LEFT JOIN public."CADASTROGERAL" cg ON sa."CDMOTORISTA" = cg."CDCADASTRO"
+           WHERE sa."CDVIAGEM" = $1
+           ORDER BY sa."CREATED_AT" DESC`,
+          [idViagemNum]
+        );
+        const rows = sosResult.rows || [];
+        sosAlertas = rows.map(r => ({
+          ID: r.ID ?? r.id,
+          IDVIAGEM: r.CDVIAGEM ?? r.cdviagem ?? idViagemNum,
+          TYPE: 'SOS',
+          TIPO: 'SOS',
+          SEVERITY: 'high',
+          MESSAGE: 'Alerta de emergência',
+          MENSAGEM: 'Alerta de emergência',
+          STATUS: r.STATUS ?? r.status ?? 'ATIVO',
+          CREATED_AT: r.CREATED_AT ?? r.created_at,
+          DHREGISTRO: r.CREATED_AT ?? r.created_at,
+          origem: 'SOS_ALERTS'
+        }));
+      } catch (errSos) {
+        if (errSos.code !== '42P01') {
+          console.warn('Erro ao buscar SOS para viagem:', errSos.message);
+        }
+      }
+
+      const todos = [...sosAlertas, ...alertas].sort((a, b) => {
+        const da = new Date(a.CREATED_AT || a.DHREGISTRO || 0);
+        const db = new Date(b.CREATED_AT || b.DHREGISTRO || 0);
+        return db - da;
+      });
+
       res.json({
         success: true,
-        alertas: alertas,
-        total: alertas.length
+        alertas: todos,
+        total: todos.length
       });
     } catch (err) {
       console.error('Erro ao buscar alertas:', err);
@@ -118,33 +159,34 @@ const alertController = {
    */
   buscarAtivos: async (req, res) => {
     try {
-      const sql = require('mssql');
+      const sql = require('../config/mssql-compat');
       const { poolPromise } = require('../config/db');
       
       const pool = await poolPromise;
       const result = await pool.request().query(`
-        SELECT TOP 50
-          a.ID,
-          a.IDVIAGEM,
-          a.CDMOTORISTA,
-          a.TYPE,
-          a.MESSAGE,
-          a.SEVERITY,
-          a.DETAILS,
-          a.CREATED_AT,
-          v.IDVIAGEM as viagem_codigo,
-          cg.RZSOCIAL as motorista_nome
-        FROM [dbo].[ALERTS] a
-        LEFT JOIN [dbo].[VIAGEMMESTRE] v ON a.IDVIAGEM = v.IDVIAGEM
-        LEFT JOIN [dbo].[CADASTROGERAL] cg ON a.CDMOTORISTA = cg.CDCADASTRO
-        WHERE a.RESOLVED = 0
+        SELECT 
+          [alrt].[ID],
+          [alrt].[IDVIAGEM],
+          [alrt].[CDMOTORISTA],
+          [alrt].[TYPE],
+          [alrt].[MESSAGE],
+          [alrt].[SEVERITY],
+          [alrt].[DETAILS],
+          [alrt].[CREATED_AT],
+          [v].[IDVIAGEM] AS [viagem_codigo],
+          [cg].[RZSOCIAL] AS [motorista_nome]
+        FROM [dbo].[ALERTS] [alrt]
+        LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [alrt].[IDVIAGEM] = [v].[IDVIAGEM]
+        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [alrt].[CDMOTORISTA] = [cg].[CDCADASTRO]
+        WHERE [alrt].[RESOLVED] = false
         ORDER BY 
-          CASE a.SEVERITY
+          CASE [alrt].[SEVERITY]
             WHEN 'high' THEN 1
             WHEN 'medium' THEN 2
             WHEN 'low' THEN 3
           END,
-          a.CREATED_AT DESC
+          [alrt].[CREATED_AT] DESC
+        LIMIT 50
       `);
 
       res.json({
@@ -194,12 +236,12 @@ const alertController = {
    * // Buscar alertas pendentes de alta prioridade
    * GET /api/alertas?status=Pendente&prioridade=Alta
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   listar: async (req, res) => {
     try {
-      const sql = require('mssql');
+      const sql = require('../config/mssql-compat');
       const { poolPromise } = require('../config/db');
       const { status, tipo, prioridade, dataInicio, dataFim, idViagem, idMotorista, limit = 50, offset = 0 } = req.query;
       
@@ -208,73 +250,72 @@ const alertController = {
       
       let query = `
         SELECT 
-          a.ID,
-          a.IDVIAGEM,
-          a.CDMOTORISTA,
-          a.TYPE,
-          a.MESSAGE,
-          a.SEVERITY,
-          a.PRIORIDADE,
-          a.STATUS,
-          a.DETAILS,
-          a.CREATED_AT,
-          a.ID_USUARIO_LEU,
-          a.DH_LEITURA,
-          a.ID_USUARIO_TRATOU,
-          a.DH_TRATAMENTO,
-          a.OBSERVACOES,
-          v.IDVIAGEM as viagem_codigo,
-          cg.RZSOCIAL as motorista_nome,
-          u1.RZSOCIAL as usuario_leu_nome,
-          u2.RZSOCIAL as usuario_tratou_nome
-        FROM [dbo].[ALERTS] a
-        LEFT JOIN [dbo].[VIAGEMMESTRE] v ON a.IDVIAGEM = v.IDVIAGEM
-        LEFT JOIN [dbo].[CADASTROGERAL] cg ON a.CDMOTORISTA = cg.CDCADASTRO
-        LEFT JOIN [dbo].[CADASTROGERAL] u1 ON a.ID_USUARIO_LEU = u1.CDCADASTRO
-        LEFT JOIN [dbo].[CADASTROGERAL] u2 ON a.ID_USUARIO_TRATOU = u2.CDCADASTRO
+          [alrt].[ID],
+          [alrt].[IDVIAGEM],
+          [alrt].[CDMOTORISTA],
+          [alrt].[TYPE],
+          [alrt].[MESSAGE],
+          [alrt].[SEVERITY],
+          [alrt].[PRIORIDADE],
+          [alrt].[STATUS],
+          [alrt].[DETAILS],
+          [alrt].[CREATED_AT],
+          [alrt].[ID_USUARIO_LEU],
+          [alrt].[DH_LEITURA],
+          [alrt].[ID_USUARIO_TRATOU],
+          [alrt].[DH_TRATAMENTO],
+          [alrt].[OBSERVACOES],
+          [v].[IDVIAGEM] AS [viagem_codigo],
+          [cg].[RZSOCIAL] AS [motorista_nome],
+          [u1].[RZSOCIAL] AS [usuario_leu_nome],
+          [u2].[RZSOCIAL] AS [usuario_tratou_nome]
+        FROM [dbo].[ALERTS] [alrt]
+        LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [alrt].[IDVIAGEM] = [v].[IDVIAGEM]
+        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [alrt].[CDMOTORISTA] = [cg].[CDCADASTRO]
+        LEFT JOIN [dbo].[CADASTROGERAL] [u1] ON [alrt].[ID_USUARIO_LEU] = [u1].[CDCADASTRO]
+        LEFT JOIN [dbo].[CADASTROGERAL] [u2] ON [alrt].[ID_USUARIO_TRATOU] = [u2].[CDCADASTRO]
         WHERE 1=1
       `;
 
       if (status) {
         request.input('status', sql.NVarChar(50), status);
-        query += ` AND a.STATUS = @status`;
+        query += ` AND [alrt].[STATUS] = @status`;
       }
       if (tipo) {
         request.input('tipo', sql.NVarChar(50), tipo);
-        query += ` AND a.TYPE = @tipo`;
+        query += ` AND [alrt].[TYPE] = @tipo`;
       }
       if (prioridade) {
         request.input('prioridade', sql.NVarChar(20), prioridade);
-        query += ` AND a.PRIORIDADE = @prioridade`;
+        query += ` AND [alrt].[PRIORIDADE] = @prioridade`;
       }
       if (dataInicio) {
         request.input('dataInicio', sql.DateTime2, dataInicio);
-        query += ` AND CAST(a.CREATED_AT AS DATE) >= CAST(@dataInicio AS DATE)`;
+        query += ` AND CAST([alrt].[CREATED_AT] AS DATE) >= CAST(@dataInicio AS DATE)`;
       }
       if (dataFim) {
         request.input('dataFim', sql.DateTime2, dataFim);
-        query += ` AND CAST(a.CREATED_AT AS DATE) <= CAST(@dataFim AS DATE)`;
+        query += ` AND CAST([alrt].[CREATED_AT] AS DATE) <= CAST(@dataFim AS DATE)`;
       }
       if (idViagem) {
         request.input('idViagem', sql.Decimal(15, 0), parseFloat(idViagem));
-        query += ` AND a.IDVIAGEM = @idViagem`;
+        query += ` AND [alrt].[IDVIAGEM] = @idViagem`;
       }
       if (idMotorista) {
         request.input('idMotorista', sql.Decimal(15, 0), parseFloat(idMotorista));
-        query += ` AND a.CDMOTORISTA = @idMotorista`;
+        query += ` AND [alrt].[CDMOTORISTA] = @idMotorista`;
       }
 
       query += ` ORDER BY 
-        CASE a.PRIORIDADE
+        CASE [alrt].[PRIORIDADE]
           WHEN 'Urgente' THEN 1
           WHEN 'Alta' THEN 2
           WHEN 'Normal' THEN 3
           WHEN 'Baixa' THEN 4
           ELSE 5
         END,
-        a.CREATED_AT DESC
-        OFFSET @offset ROWS
-        FETCH NEXT @limit ROWS ONLY
+        [alrt].[CREATED_AT] DESC
+        LIMIT @limit OFFSET @offset
       `;
 
       request.input('offset', sql.Int, parseInt(offset));
@@ -282,47 +323,49 @@ const alertController = {
 
       const result = await request.query(query);
 
-      // Contar total
-      let countQuery = `SELECT COUNT(*) as total FROM [dbo].[ALERTS] a WHERE 1=1`;
+      // Contar total (alias alrt para compatibilidade PostgreSQL)
+      let countQuery = `SELECT COUNT(*) AS [total] FROM [dbo].[ALERTS] [alrt] WHERE 1=1`;
       const countRequest = pool.request();
       if (status) {
         countRequest.input('status', sql.NVarChar(50), status);
-        countQuery += ` AND a.STATUS = @status`;
+        countQuery += ` AND [alrt].[STATUS] = @status`;
       }
       if (tipo) {
         countRequest.input('tipo', sql.NVarChar(50), tipo);
-        countQuery += ` AND a.TYPE = @tipo`;
+        countQuery += ` AND [alrt].[TYPE] = @tipo`;
       }
       if (prioridade) {
         countRequest.input('prioridade', sql.NVarChar(20), prioridade);
-        countQuery += ` AND a.PRIORIDADE = @prioridade`;
+        countQuery += ` AND [alrt].[PRIORIDADE] = @prioridade`;
       }
       if (dataInicio) {
         countRequest.input('dataInicio', sql.DateTime2, dataInicio);
-        countQuery += ` AND CAST(a.CREATED_AT AS DATE) >= CAST(@dataInicio AS DATE)`;
+        countQuery += ` AND CAST([alrt].[CREATED_AT] AS DATE) >= CAST(@dataInicio AS DATE)`;
       }
       if (dataFim) {
         countRequest.input('dataFim', sql.DateTime2, dataFim);
-        countQuery += ` AND CAST(a.CREATED_AT AS DATE) <= CAST(@dataFim AS DATE)`;
+        countQuery += ` AND CAST([alrt].[CREATED_AT] AS DATE) <= CAST(@dataFim AS DATE)`;
       }
       if (idViagem) {
         countRequest.input('idViagem', sql.Decimal(15, 0), parseFloat(idViagem));
-        countQuery += ` AND a.IDVIAGEM = @idViagem`;
+        countQuery += ` AND [alrt].[IDVIAGEM] = @idViagem`;
       }
       if (idMotorista) {
         countRequest.input('idMotorista', sql.Decimal(15, 0), parseFloat(idMotorista));
-        countQuery += ` AND a.CDMOTORISTA = @idMotorista`;
+        countQuery += ` AND [alrt].[CDMOTORISTA] = @idMotorista`;
       }
 
       const countResult = await countRequest.query(countQuery);
-      const total = countResult.recordset[0].total;
+      const row0 = countResult.recordset[0];
+      const total = row0?.total ?? row0?.TOTAL ?? 0;
 
       // Contar pendentes
       const pendentesResult = await pool.request().query(`
-        SELECT COUNT(*) as total FROM [dbo].[ALERTS] 
-        WHERE STATUS = 'Pendente' OR STATUS IS NULL
+        SELECT COUNT(*) AS [total] FROM [dbo].[ALERTS]
+        WHERE [STATUS] = 'Pendente' OR [STATUS] IS NULL
       `);
-      const pendentes = pendentesResult.recordset[0].total;
+      const pendRow = pendentesResult.recordset[0];
+      const pendentes = pendRow?.total ?? pendRow?.TOTAL ?? 0;
 
       res.json({
         success: true,
@@ -351,7 +394,7 @@ const alertController = {
    * @example
    * GET /api/alertas/pendentes
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   listarPendentes: async (req, res) => {
@@ -386,12 +429,12 @@ const alertController = {
    * @example
    * GET /api/alertas/123
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   buscarPorId: async (req, res) => {
     try {
-      const sql = require('mssql');
+      const sql = require('../config/mssql-compat');
       const { poolPromise } = require('../config/db');
       const { id } = req.params;
       
@@ -400,17 +443,31 @@ const alertController = {
         .input('id', sql.Int, parseInt(id))
         .query(`
           SELECT 
-            a.*,
-            v.IDVIAGEM as viagem_codigo,
-            cg.RZSOCIAL as motorista_nome,
-            u1.RZSOCIAL as usuario_leu_nome,
-            u2.RZSOCIAL as usuario_tratou_nome
-          FROM [dbo].[ALERTS] a
-          LEFT JOIN [dbo].[VIAGEMMESTRE] v ON a.IDVIAGEM = v.IDVIAGEM
-          LEFT JOIN [dbo].[CADASTROGERAL] cg ON a.CDMOTORISTA = cg.CDCADASTRO
-          LEFT JOIN [dbo].[CADASTROGERAL] u1 ON a.ID_USUARIO_LEU = u1.CDCADASTRO
-          LEFT JOIN [dbo].[CADASTROGERAL] u2 ON a.ID_USUARIO_TRATOU = u2.CDCADASTRO
-          WHERE a.ID = @id
+            [alrt].[ID],
+            [alrt].[IDVIAGEM],
+            [alrt].[CDMOTORISTA],
+            [alrt].[TYPE],
+            [alrt].[MESSAGE],
+            [alrt].[SEVERITY],
+            [alrt].[PRIORIDADE],
+            [alrt].[STATUS],
+            [alrt].[DETAILS],
+            [alrt].[CREATED_AT],
+            [alrt].[ID_USUARIO_LEU],
+            [alrt].[DH_LEITURA],
+            [alrt].[ID_USUARIO_TRATOU],
+            [alrt].[DH_TRATAMENTO],
+            [alrt].[OBSERVACOES],
+            [v].[IDVIAGEM] AS [viagem_codigo],
+            [cg].[RZSOCIAL] AS [motorista_nome],
+            [u1].[RZSOCIAL] AS [usuario_leu_nome],
+            [u2].[RZSOCIAL] AS [usuario_tratou_nome]
+          FROM [dbo].[ALERTS] [alrt]
+          LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [alrt].[IDVIAGEM] = [v].[IDVIAGEM]
+          LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [alrt].[CDMOTORISTA] = [cg].[CDCADASTRO]
+          LEFT JOIN [dbo].[CADASTROGERAL] [u1] ON [alrt].[ID_USUARIO_LEU] = [u1].[CDCADASTRO]
+          LEFT JOIN [dbo].[CADASTROGERAL] [u2] ON [alrt].[ID_USUARIO_TRATOU] = [u2].[CDCADASTRO]
+          WHERE [alrt].[ID] = @id
         `);
 
       if (result.recordset.length === 0) {
@@ -448,12 +505,12 @@ const alertController = {
    * @example
    * GET /api/alertas/123/historico
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   buscarHistorico: async (req, res) => {
     try {
-      const sql = require('mssql');
+      const sql = require('../config/mssql-compat');
       const { poolPromise } = require('../config/db');
       const { id } = req.params;
       
@@ -462,12 +519,19 @@ const alertController = {
         .input('id', sql.Int, parseInt(id))
         .query(`
           SELECT 
-            h.*,
-            u.RZSOCIAL as usuario_nome
-          FROM [dbo].[ALERT_HISTORY] h
-          LEFT JOIN [dbo].[CADASTROGERAL] u ON h.ID_USUARIO = u.CDCADASTRO
-          WHERE h.ID_ALERT = @id
-          ORDER BY h.DH_ACAO DESC
+            [h].[ID],
+            [h].[ID_ALERT],
+            [h].[ID_USUARIO],
+            [h].[ACAO],
+            [h].[STATUS_ANTERIOR],
+            [h].[STATUS_NOVO],
+            [h].[OBSERVACOES],
+            [h].[DH_ACAO],
+            [u].[RZSOCIAL] AS [usuario_nome]
+          FROM [dbo].[ALERT_HISTORY] [h]
+          LEFT JOIN [dbo].[CADASTROGERAL] [u] ON [h].[ID_USUARIO] = [u].[CDCADASTRO]
+          WHERE [h].[ID_ALERT] = @id
+          ORDER BY [h].[DH_ACAO] DESC
         `);
 
       res.json({
@@ -507,12 +571,12 @@ const alertController = {
    * POST /api/alertas/123/ler
    * // Body: { "idUsuario": 456 }
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   marcarComoLido: async (req, res) => {
     try {
-      const sql = require('mssql');
+      const sql = require('../config/mssql-compat');
       const { poolPromise } = require('../config/db');
       const { id } = req.params;
       const idUsuario = req.user?.cdcadastro || req.user?.id || req.body.idUsuario;
@@ -604,12 +668,12 @@ const alertController = {
    * //   "idUsuario": 456
    * // }
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   tratar: async (req, res) => {
     try {
-      const sql = require('mssql');
+      const sql = require('../config/mssql-compat');
       const { poolPromise } = require('../config/db');
       const { id } = req.params;
       const { status, observacoes } = req.body;
@@ -719,12 +783,12 @@ const alertController = {
    * //   "observacoes": "Aumentar prioridade devido ao atraso"
    * // }
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   atualizar: async (req, res) => {
     try {
-      const sql = require('mssql');
+      const sql = require('../config/mssql-compat');
       const { poolPromise } = require('../config/db');
       const { id } = req.params;
       const { status, prioridade, observacoes } = req.body;
@@ -810,12 +874,12 @@ const alertController = {
    * //   "idUsuario": 456
    * // }
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   cancelar: async (req, res) => {
     try {
-      const sql = require('mssql');
+      const sql = require('../config/mssql-compat');
       const { poolPromise } = require('../config/db');
       const { id } = req.params;
       const { observacoes } = req.body;
@@ -912,28 +976,26 @@ const alertController = {
    * //   }
    * // }
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   contador: async (req, res) => {
     try {
-      const sql = require('mssql');
       const { poolPromise } = require('../config/db');
-      
       const pool = await poolPromise;
-      const result = await pool.request().query(`
+      const result = await pool.query(`
         SELECT 
-          COUNT(*) as total,
-          SUM(CASE WHEN STATUS = 'Pendente' OR STATUS IS NULL THEN 1 ELSE 0 END) as pendentes,
-          SUM(CASE WHEN STATUS = 'Em Análise' THEN 1 ELSE 0 END) as emAnalise,
-          SUM(CASE WHEN STATUS = 'Tratado' THEN 1 ELSE 0 END) as tratados,
-          SUM(CASE WHEN STATUS = 'Cancelado' THEN 1 ELSE 0 END) as cancelados,
-          SUM(CASE WHEN (STATUS = 'Pendente' OR STATUS IS NULL) AND PRIORIDADE = 'Urgente' THEN 1 ELSE 0 END) as urgentes,
-          SUM(CASE WHEN (STATUS = 'Pendente' OR STATUS IS NULL) AND PRIORIDADE = 'Alta' THEN 1 ELSE 0 END) as altas
-        FROM [dbo].[ALERTS]
+          COUNT(*)::int AS total,
+          COALESCE(SUM(CASE WHEN "STATUS" = 'Pendente' OR "STATUS" IS NULL THEN 1 ELSE 0 END), 0)::int AS pendentes,
+          COALESCE(SUM(CASE WHEN "STATUS" = 'Em Análise' THEN 1 ELSE 0 END), 0)::int AS "emAnalise",
+          COALESCE(SUM(CASE WHEN "STATUS" = 'Tratado' THEN 1 ELSE 0 END), 0)::int AS tratados,
+          COALESCE(SUM(CASE WHEN "STATUS" = 'Cancelado' THEN 1 ELSE 0 END), 0)::int AS cancelados,
+          COALESCE(SUM(CASE WHEN ("STATUS" = 'Pendente' OR "STATUS" IS NULL) AND "PRIORIDADE" = 'Urgente' THEN 1 ELSE 0 END), 0)::int AS urgentes,
+          COALESCE(SUM(CASE WHEN ("STATUS" = 'Pendente' OR "STATUS" IS NULL) AND "PRIORIDADE" = 'Alta' THEN 1 ELSE 0 END), 0)::int AS altas
+        FROM "ALERTS"
       `);
 
-      const stats = result.recordset[0] || {};
+      const stats = result.rows[0] || {};
       
       // Garantir que todos os valores sejam números
       const data = {

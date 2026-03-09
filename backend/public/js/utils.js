@@ -1,7 +1,19 @@
 // backend/public/js/utils.js
 // Utilitários compartilhados para todos os módulos
 // Versão: 1.0
-// Autor: Sistema DivulgaCarga
+// Atlas Cargo
+
+/**
+ * Escapa HTML para evitar XSS ao inserir texto em innerHTML
+ * @param {string} text - Texto que pode conter < > " ' &
+ * @returns {string}
+ */
+function escapeHtml(text) {
+  if (text == null || typeof text !== 'string') return '';
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
 
 /**
  * Exibe uma mensagem de feedback para o usuário
@@ -27,7 +39,7 @@ function showMessage(text, type = 'success', messageElement = null, fieldId = nu
     toast.innerHTML = `
       <div class="toast-content">
         <i class="bx bx-error-circle"></i>
-        <span>${text}</span>
+        <span>${escapeHtml(text)}</span>
         <button class="toast-close" onclick="this.parentElement.parentElement.remove()">
           <i class="bx bx-x"></i>
         </button>
@@ -67,7 +79,7 @@ function showMessage(text, type = 'success', messageElement = null, fieldId = nu
     toast.innerHTML = `
       <div class="toast-content">
         <i class="bx bx-check-circle"></i>
-        <span>${text}</span>
+        <span>${escapeHtml(text)}</span>
         <button class="toast-close" onclick="this.parentElement.parentElement.remove()">
           <i class="bx bx-x"></i>
         </button>
@@ -200,22 +212,38 @@ function validateRequiredFields(fields) {
 }
 
 /**
+ * Formata valor monetário (Fase 2 multimoeda). Usa locale pt-BR; moeda configurável.
+ * @param {number} valor - Valor numérico
+ * @param {string} codigoMoeda - Código ISO 4217 (ex: BRL, PYG). Default BRL.
+ * @param {string} locale - Locale para formatação (ex: pt-BR, es-PY). Default pt-BR.
+ * @returns {string}
+ */
+function formatarMoeda(valor, codigoMoeda = 'BRL', locale = 'pt-BR') {
+  if (valor === null || valor === undefined) return '';
+  const num = Number(valor);
+  if (Number.isNaN(num)) return '';
+  const moeda = (codigoMoeda && String(codigoMoeda).trim()) || 'BRL';
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency: moeda
+  }).format(num);
+}
+
+/**
  * Formata um valor para exibição (remove espaços, formata números, etc)
  * @param {any} value - Valor a formatar
  * @param {string} type - Tipo: 'text', 'number', 'currency', 'date'
+ * @param {string} currency - Opcional. Para type 'currency', código da moeda (BRL, PYG...). Default BRL.
  * @returns {string} Valor formatado
  */
-function formatValue(value, type = 'text') {
+function formatValue(value, type = 'text', currency = 'BRL') {
   if (value === null || value === undefined) return '';
 
   switch (type) {
     case 'number':
       return String(value).replace(/\D/g, '');
     case 'currency':
-      return new Intl.NumberFormat('pt-BR', {
-        style: 'currency',
-        currency: 'BRL'
-      }).format(value);
+      return formatarMoeda(value, currency || 'BRL', 'pt-BR');
     case 'date':
       if (value instanceof Date) {
         return value.toLocaleDateString('pt-BR');
@@ -224,6 +252,27 @@ function formatValue(value, type = 'text') {
     default:
       return String(value).trim();
   }
+}
+
+/**
+ * Formata data/hora com locale e fuso (Plano multimoeda Fase 4).
+ * @param {string|Date|number} data - Data (ISO, Date ou timestamp)
+ * @param {string} locale - pt-BR, es-PY. Default pt-BR
+ * @param {string} timezoneId - IANA (America/Sao_Paulo, America/Asuncion). Default America/Sao_Paulo
+ * @param {object} opts - dateStyle, timeStyle. Default short/short
+ */
+function formatarDataHoraComFuso(data, locale, timezoneId, opts) {
+  if (data === null || data === undefined) return '';
+  var d = data instanceof Date ? data : new Date(data);
+  if (Number.isNaN(d.getTime())) return '';
+  var loc = locale || 'pt-BR';
+  var tz = timezoneId || 'America/Sao_Paulo';
+  var o = opts || {};
+  return new Intl.DateTimeFormat(loc, {
+    timeZone: tz,
+    dateStyle: o.dateStyle || 'short',
+    timeStyle: o.timeStyle || 'short'
+  }).format(d);
 }
 
 /**
@@ -268,6 +317,8 @@ if (typeof window !== 'undefined') {
   window.validateRequired = validateRequired;
   window.validateRequiredFields = validateRequiredFields;
   window.formatValue = formatValue;
+  window.formatarMoeda = formatarMoeda;
+  window.formatarDataHoraComFuso = formatarDataHoraComFuso;
   window.debounce = debounce;
   window.scrollToElement = scrollToElement;
 }

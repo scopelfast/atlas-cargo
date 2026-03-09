@@ -1,6 +1,6 @@
 # 🔧 Correções Aplicadas - Sistema de Alertas
 
-**Data:** 2025-01-16  
+**Data:** 2026-01-16  
 **Problema:** Erros SQL ao verificar alertas  
 
 ---
@@ -124,10 +124,10 @@ FROM [dbo].[CONVOCACAO]
 
 Todos os erros foram corrigidos. O sistema de alertas agora deve funcionar corretamente.
 
-**Última correção:** 2025-01-16 - Nome da coluna de motorista na CONVOCACAO
+**Última correção:** 2026-01-16 - Nome da coluna de motorista na CONVOCACAO
 
 ---
 
 **Versão:** 1.1  
-**Data:** 2025-01-16  
+**Data:** 2026-01-16  
 **Status:** ✅ Corrigido

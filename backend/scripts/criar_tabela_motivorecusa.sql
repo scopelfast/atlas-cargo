@@ -1,6 +1,6 @@
 -- Script para criar tabela MOTIVORECUSA
--- Autor: Sistema DivulgaCarga
--- Data: 2025-11-29
+-- Autor: Atlas Cargo
+-- Data: 2026-11-29
 
 -- Criar tabela MOTIVORECUSA se não existir
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[MOTIVORECUSA]') AND type in (N'U'))

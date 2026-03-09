@@ -2,7 +2,7 @@
 // Versão: 2.2 - Suporta caminho base dinâmico (/cargas/)
 // Removido Workbox para evitar problemas com CSP
 
-const CACHE_NAME = 'motorista-v3';
+const CACHE_NAME = 'motorista-v5';
 
 // Função para detectar caminho base dinamicamente
 function getBasePath() {
@@ -122,6 +122,14 @@ self.addEventListener('fetch', (event) => {
   // Se não for do APP Motorista, deixar passar sem interceptar
   if (!isMotoristaPage) {
     return; // Não interceptar - deixar o navegador fazer a requisição normalmente
+  }
+
+  // Chat: sempre buscar no servidor, nunca usar cache (evita tela em branco)
+  if (url.pathname.endsWith('/chat.html') || url.pathname.endsWith('/pages/chat.html') || url.pathname.endsWith('/motorista/chat')) {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-store', redirect: 'follow' })
+    );
+    return;
   }
   
   // Para recursos compartilhados (/img/, /css/, /js/), só interceptar se vierem de uma página do motorista
@@ -342,7 +350,7 @@ self.addEventListener('push', (event) => {
   let data = {
     title: 'LogiTrack Pro',
     body: 'Nova notificação',
-    icon: (BASE_PATH === '/' ? '' : BASE_PATH) + '/img/logo7.png',
+    icon: (BASE_PATH === '/' ? '' : BASE_PATH) + '/img/logoAtlasTransparente.png',
     tag: 'notification',
     tipo: 'geral',
     dados: {}
@@ -359,7 +367,7 @@ self.addEventListener('push', (event) => {
     }
   }
 
-  const iconPath = (BASE_PATH === '/' ? '' : BASE_PATH) + '/img/logo7.png';
+  const iconPath = (BASE_PATH === '/' ? '' : BASE_PATH) + '/img/logoAtlasTransparente.png';
   const options = {
     body: data.body,
     icon: data.icon || iconPath,

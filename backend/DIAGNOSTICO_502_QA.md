@@ -28,15 +28,15 @@ ssh grafico@192.168.1.220
 docker ps
 
 # Verificar logs do container
-docker logs divulga_carga
+docker logs atlas_cargo
 
 # Verificar status
-docker ps -a | grep divulga_carga
+docker ps -a | grep atlas_cargo
 ```
 
 **Se o container não estiver rodando:**
 ```bash
-cd /home/grafico/Documentos/divulgacarga/backend
+cd /home/grafico/Documentos/atlas_cargo/backend
 docker-compose up -d
 ```
 
@@ -129,14 +129,14 @@ sudo lsof -i :8083
 
 ```bash
 # Parar containers
-cd /home/grafico/Documentos/divulgacarga/backend
+cd /home/grafico/Documentos/atlas_cargo/backend
 docker-compose down
 
 # Iniciar containers
 docker-compose up -d
 
 # Verificar logs
-docker logs -f divulga_carga
+docker logs -f atlas_cargo
 
 # Reiniciar proxy
 sudo systemctl restart nginx  # ou apache2
@@ -151,11 +151,11 @@ Execute no servidor QA:
 ```bash
 #!/bin/bash
 echo "=== Status dos Containers ==="
-docker ps -a | grep divulga_carga
+docker ps -a | grep atlas_cargo
 
 echo ""
 echo "=== Logs do Container (últimas 20 linhas) ==="
-docker logs --tail 20 divulga_carga
+docker logs --tail 20 atlas_cargo
 
 echo ""
 echo "=== Portas em uso ==="
@@ -190,13 +190,13 @@ sudo tail -10 /var/log/nginx/error.log
 
 ```bash
 ssh grafico@192.168.1.220
-cd /home/grafico/Documentos/divulgacarga/backend
+cd /home/grafico/Documentos/atlas_cargo/backend
 docker-compose up -d
-docker logs -f divulga_carga
+docker logs -f atlas_cargo
 ```
 
 ---
 
-**Data:** 2025-01-23  
+**Data:** 2026-01-23  
 **Ambiente:** QA (beta.integrabrasil.com:8443)
 

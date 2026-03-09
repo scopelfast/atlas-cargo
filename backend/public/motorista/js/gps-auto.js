@@ -10,11 +10,11 @@ let proximoEnvio = null;
 // Inicializar GPS automático
 function iniciarGPSAutomatico() {
   const ativo = localStorage.getItem('gps_ativo') === 'true';
-  const intervalo = parseInt(localStorage.getItem('gps_intervalo') || '5');
+  const intervalo = parseInt(localStorage.getItem('gps_intervalo') || '900', 10);
   const motorista = getMotorista();
 
   console.log(`📍 GPS Automático: ${ativo ? 'ATIVO' : 'INATIVO'}`);
-  console.log(`⏱️ Intervalo: ${intervalo} minutos`);
+  console.log(`⏱️ Intervalo: ${intervalo}s (${Math.round(intervalo / 60)} min)`);
 
   // Parar se já estiver rodando
   if (gpsIntervalId) {
@@ -42,24 +42,36 @@ function iniciarGPSAutomatico() {
   ultimoEnvio = ultimoEnvioStr ? new Date(ultimoEnvioStr) : null;
   const proximoEnvioStr = localStorage.getItem('gps_proximo_envio');
   proximoEnvio = proximoEnvioStr ? new Date(proximoEnvioStr) : null;
-  
-  // Se não tem próximo envio mas tem último, calcular
+
+  // Corrigir "próximo envio" se foi salvo com o bug antigo (intervalo tratado como minutos em vez de segundos)
+  const intervaloMs = intervalo * 1000;
+  const intervaloMaxRazoavel = intervaloMs * 2.5; // no máximo 2,5x o intervalo correto
+  if (proximoEnvio && ultimoEnvio && !isNaN(proximoEnvio.getTime()) && !isNaN(ultimoEnvio.getTime())) {
+    const diffMs = proximoEnvio.getTime() - ultimoEnvio.getTime();
+    if (diffMs > intervaloMaxRazoavel) {
+      proximoEnvio = new Date(ultimoEnvio.getTime() + intervaloMs);
+      localStorage.setItem('gps_proximo_envio', proximoEnvio.toISOString());
+      console.log('⏱️ Próximo envio corrigido (estava em ~900 min, agora em ' + Math.round(intervalo / 60) + ' min)');
+    }
+  }
+
+  // Se não tem próximo envio mas tem último, calcular (intervalo está em segundos)
   if (!proximoEnvio && ultimoEnvio) {
-    proximoEnvio = new Date(ultimoEnvio.getTime() + (intervalo * 60 * 1000));
+    proximoEnvio = new Date(ultimoEnvio.getTime() + intervaloMs);
     localStorage.setItem('gps_proximo_envio', proximoEnvio.toISOString());
   }
 
   // Enviar primeira posição imediatamente
   enviarPosicaoAutomatica();
 
-  // Configurar intervalo (minutos → milissegundos)
-  const intervaloMs = intervalo * 60 * 1000;
+  // Configurar intervalo (localStorage está em segundos → milissegundos)
+  const intervaloMsFinal = intervalo * 1000;
   
   gpsIntervalId = setInterval(() => {
     enviarPosicaoAutomatica();
-  }, intervaloMs);
+  }, intervaloMsFinal);
 
-  console.log(`✅ GPS automático iniciado! Enviando a cada ${intervalo} min`);
+  console.log(`✅ GPS automático iniciado! Enviando a cada ${Math.round(intervalo / 60)} min`);
   console.log(`📊 Estatísticas: ${contadorEnvios} envios, próximo em ${proximoEnvio ? proximoEnvio.toLocaleTimeString() : 'calculando...'}`);
 }
 
@@ -137,9 +149,9 @@ async function enviarPosicaoAutomatica() {
             contadorEnvios++;
             ultimoEnvio = new Date();
             
-            // Calcular próximo envio
-            const intervalo = parseInt(localStorage.getItem('gps_intervalo') || '5');
-            proximoEnvio = new Date(Date.now() + (intervalo * 60 * 1000));
+            // Calcular próximo envio (intervalo em segundos)
+            const intervalo = parseInt(localStorage.getItem('gps_intervalo') || '900', 10);
+            proximoEnvio = new Date(Date.now() + (intervalo * 1000));
 
             // Salvar estatísticas
             localStorage.setItem('gps_contador', contadorEnvios.toString());
@@ -211,8 +223,8 @@ async function enviarPosicaoAutomatica() {
                     if (response.ok) {
                       contadorEnvios++;
                       ultimoEnvio = new Date();
-                      const intervalo = parseInt(localStorage.getItem('gps_intervalo') || '5');
-                      proximoEnvio = new Date(Date.now() + (intervalo * 60 * 1000));
+                      const intervalo = parseInt(localStorage.getItem('gps_intervalo') || '900', 10);
+                      proximoEnvio = new Date(Date.now() + (intervalo * 1000));
                       
                       localStorage.setItem('gps_contador', contadorEnvios.toString());
                       localStorage.setItem('gps_ultimo_envio', ultimoEnvio.toISOString());
@@ -320,19 +332,32 @@ function obterEstatisticasGPS() {
   const ultimoEnvioFinal = ultimoEnvio || ultimoEnvioSalvo;
   const proximoEnvioFinal = proximoEnvio || proximoEnvioSalvo;
   
+  // Intervalo está em segundos no localStorage (ex.: 900 = 15 min)
+  const intervaloSeg = parseInt(localStorage.getItem('gps_intervalo') || '900', 10);
+  const intervaloEmMinutos = Math.max(1, Math.round(intervaloSeg / 60));
+
   // Se não tem próximo envio mas tem último, calcular
   let proximoCalculado = proximoEnvioFinal;
   if (!proximoCalculado && ultimoEnvioFinal) {
-    const intervalo = parseInt(localStorage.getItem('gps_intervalo') || '5');
     const ultimoDate = ultimoEnvioFinal instanceof Date ? ultimoEnvioFinal : new Date(ultimoEnvioFinal);
     if (!isNaN(ultimoDate.getTime())) {
-      proximoCalculado = new Date(ultimoDate.getTime() + (intervalo * 60 * 1000));
+      proximoCalculado = new Date(ultimoDate.getTime() + (intervaloSeg * 1000));
+    }
+  } else if (proximoCalculado && ultimoEnvioFinal) {
+    // Corrigir se o valor salvo veio do bug (próximo envio a ~900 min em vez de 15 min)
+    const ultimoDate = ultimoEnvioFinal instanceof Date ? ultimoEnvioFinal : new Date(ultimoEnvioFinal);
+    const proximoDate = proximoCalculado instanceof Date ? proximoCalculado : new Date(proximoCalculado);
+    if (!isNaN(ultimoDate.getTime()) && !isNaN(proximoDate.getTime())) {
+      const diffMs = proximoDate.getTime() - ultimoDate.getTime();
+      if (diffMs > intervaloSeg * 1000 * 2.5) {
+        proximoCalculado = new Date(ultimoDate.getTime() + (intervaloSeg * 1000));
+      }
     }
   }
   
   return {
     ativo: localStorage.getItem('gps_ativo') === 'true',
-    intervalo: parseInt(localStorage.getItem('gps_intervalo') || '5'),
+    intervalo: intervaloEmMinutos,
     contador: contadorFinal,
     ultimoEnvio: ultimoEnvioFinal,
     proximoEnvio: proximoCalculado,

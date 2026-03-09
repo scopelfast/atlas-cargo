@@ -5,7 +5,7 @@
 -- e se consegue acessar o banco INTEGRA_PRD
 -- ============================================
 
-USE [DIVULGACARGA_PRD];
+USE [ATLAS_CARGO_PRD];
 GO
 
 PRINT '========================================';

@@ -4,8 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Detalhes da Viagem - Motorista</title>
-  <link rel="stylesheet" href="../css/padrao-telas.css">
   <link rel="stylesheet" href="../css/design-system.css">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <script src="../js/i18n.js"></script>
   <!-- Leaflet (OpenStreetMap) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="../../js/map-config.js"></script>
@@ -34,16 +36,28 @@
     }
     
     .tab.active {
-      color: #667eea;
-      border-bottom-color: #667eea;
+      color: #0ea5e9;
+      border-bottom-color: #0ea5e9;
+    }
+    
+    .tab-panels {
+      min-height: min(420px, 55vh);
+      position: relative;
     }
     
     .tab-content {
       display: none;
+      min-height: min(400px, 50vh);
+      animation: tabFade 0.2s ease;
     }
     
     .tab-content.active {
       display: block;
+    }
+    
+    @keyframes tabFade {
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
     
     .map-container {
@@ -134,7 +148,7 @@
       border-radius: 12px;
       padding: 16px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      border-left: 4px solid #667eea;
+      border-left: 4px solid #0ea5e9;
     }
     
     .historico-header {
@@ -230,34 +244,34 @@
     }
   </style>
 </head>
-<body>
-  <div id="statusIndicador" class="status-bar status-online">🟢 Online - Sincronizado</div>
-
+<body class="motorista-page">
   <div class="navbar">
-    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
-    <h1 id="tituloViagem">🚛 Detalhes da Viagem</h1>
+    <button class="btn-voltar" onclick="voltar()">← <span data-i18n="common.voltar">Voltar</span></button>
+    <h1 id="tituloViagem"><i class="bx bx-trip"></i></h1>
+    <div id="statusIndicador" class="status-badge-navbar status-online" data-i18n="dashboard.onlineSincronizado">Online - Sincronizado</div>
   </div>
 
   <div class="container">
     <!-- Tabs -->
     <div class="tabs">
-      <button class="tab active" onclick="mostrarTab('mapa')">📍 Mapa</button>
-      <button class="tab" onclick="mostrarTab('estatisticas')">📊 Estatísticas</button>
-      <button class="tab" onclick="mostrarTab('galeria')">📸 Galeria</button>
-      <button class="tab" onclick="mostrarTab('historico')">📝 Histórico</button>
-      <button class="tab" onclick="mostrarTab('alertas')">🚨 Alertas</button>
+      <button class="tab active" onclick="mostrarTab('mapa')" data-i18n="detalhesViagem.mapa">📍 Mapa</button>
+      <button class="tab" onclick="mostrarTab('estatisticas')" data-i18n="detalhesViagem.estatisticas">📊 Estatísticas</button>
+      <button class="tab" onclick="mostrarTab('galeria')" data-i18n="detalhesViagem.galeria">📸 Galeria</button>
+      <button class="tab" onclick="mostrarTab('historico')" data-i18n="detalhesViagem.historico">📝 Histórico</button>
+      <button class="tab" onclick="mostrarTab('alertas')" data-i18n="detalhesViagem.alertas">🚨 Alertas</button>
     </div>
 
+    <div class="tab-panels">
     <!-- Tab: Mapa -->
     <div id="tab-mapa" class="tab-content active">
       <div class="map-container">
         <div id="map"></div>
       </div>
       <div style="font-size: 12px; color: #666; text-align: center; margin-top: 8px; display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;">
-        <span>📍 Origem</span>
-        <span>🏁 Destino</span>
-        <span>🔴 Posição Atual</span>
-        <span>🔵 Rota Percorrida</span>
+        <span data-i18n="detalhesViagem.origem">📍 Origem</span>
+        <span data-i18n="detalhesViagem.destino">🏁 Destino</span>
+        <span data-i18n="detalhesViagem.posicaoAtual">🔴 Posição Atual</span>
+        <span data-i18n="detalhesViagem.rotaPercorrida">🔵 Rota Percorrida</span>
       </div>
       <div id="botoesNavegacao" style="display: flex; gap: 8px; margin-top: 12px; justify-content: center;"></div>
     </div>
@@ -266,32 +280,32 @@
     <div id="tab-estatisticas" class="tab-content">
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-label">📏 Distância Percorrida</div>
+          <div class="stat-label" data-i18n="detalhesViagem.distanciaPercorrida">📏 Distância Percorrida</div>
           <div class="stat-value" id="distanciaPercorrida">-</div>
         </div>
         
         <div class="stat-card">
-          <div class="stat-label">⏱️ Tempo Total</div>
+          <div class="stat-label" data-i18n="detalhesViagem.tempoTotal">⏱️ Tempo Total</div>
           <div class="stat-value" id="tempoTotal">-</div>
         </div>
         
         <div class="stat-card">
-          <div class="stat-label">🚗 Velocidade Média</div>
+          <div class="stat-label" data-i18n="detalhesViagem.velocidadeMedia">🚗 Velocidade Média</div>
           <div class="stat-value" id="velocidadeMedia">-</div>
         </div>
         
         <div class="stat-card">
-          <div class="stat-label">📍 Total de Posições</div>
+          <div class="stat-label" data-i18n="detalhesViagem.totalPosicoes">📍 Total de Posições</div>
           <div class="stat-value" id="totalPosicoes">-</div>
         </div>
         
         <div class="stat-card">
-          <div class="stat-label">📝 Total de Macros</div>
+          <div class="stat-label" data-i18n="detalhesViagem.totalMacros">📝 Total de Macros</div>
           <div class="stat-value" id="totalMacros">-</div>
         </div>
         
         <div class="stat-card">
-          <div class="stat-label">📸 Total de Fotos</div>
+          <div class="stat-label" data-i18n="detalhesViagem.totalFotos">📸 Total de Fotos</div>
           <div class="stat-value" id="totalFotos">-</div>
         </div>
       </div>
@@ -302,7 +316,7 @@
       <div id="galeriaContainer">
         <div class="loading">
           <div class="spinner"></div>
-          <p>Carregando fotos...</p>
+          <p data-i18n="detalhesViagem.carregandoFotos">Carregando fotos...</p>
         </div>
       </div>
     </div>
@@ -312,7 +326,7 @@
       <div id="historicoContainer">
         <div class="loading">
           <div class="spinner"></div>
-          <p>Carregando histórico...</p>
+          <p data-i18n="detalhesViagem.carregandoHistorico">Carregando histórico...</p>
         </div>
       </div>
     </div>
@@ -322,9 +336,10 @@
       <div id="alertasContainer">
         <div class="loading">
           <div class="spinner"></div>
-          <p>Carregando alertas...</p>
+          <p data-i18n="detalhesViagem.carregandoAlertas">Carregando alertas...</p>
         </div>
       </div>
+    </div>
     </div>
   </div>
 
@@ -337,6 +352,15 @@
   <script>
     if (!verificarAuth()) window.location.href = '../index.html';
 
+    function applyI18n() {
+      if (typeof window.t !== 'function') return;
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n');
+        if (k) el.textContent = window.t(k);
+      });
+    }
+    if (window.i18nReady) window.i18nReady.then(applyI18n);
+
     const motorista = getMotorista();
     const token = localStorage.getItem('token');
     let idViagem = null;
@@ -348,7 +372,7 @@
     idViagem = params.get('viagem');
 
     if (!idViagem) {
-      mostrarToast('Viagem não especificada. Redirecionando...', 'error');
+      mostrarToast(typeof window.t === 'function' ? window.t('detalhesViagem.viagemNaoEspecificada') : 'Viagem não especificada. Redirecionando...', 'error');
       setTimeout(() => {
         window.location.href = 'viagens.html';
       }, 2000);
@@ -369,7 +393,8 @@
       
       // Mostrar tab selecionada
       document.getElementById(`tab-${tabName}`).classList.add('active');
-      event.target.classList.add('active');
+      var btn = event && (event.currentTarget || event.target);
+      if (btn) btn.classList.add('active');
       
       // Se for mapa, redimensionar
       if (tabName === 'mapa' && map) {
@@ -402,7 +427,8 @@
 
         if (response.ok) {
           dadosViagem = await response.json();
-          document.getElementById('tituloViagem').textContent = `🚛 Viagem #${dadosViagem.IDVIAGEM}`;
+          var titulo = typeof window.t === 'function' ? window.t('detalhesViagem.titulo') : 'Detalhes da Viagem';
+          document.getElementById('tituloViagem').textContent = '🚛 ' + titulo + ' #' + dadosViagem.IDVIAGEM;
           
           // Adicionar botões de navegação se houver coordenadas
           atualizarBotoesNavegacao();
@@ -502,10 +528,11 @@
           iconAnchor: [16, 32]
         });
         
+        var lblOrigem = typeof window.t === 'function' ? window.t('detalhesViagem.origem') : 'Origem';
         L.marker(origemPos, { icon: origemIcon })
           .bindPopup(`
             <div style="padding: 8px; min-width: 150px;">
-              <strong>📍 Origem</strong><br>
+              <strong>📍 ` + lblOrigem + `</strong><br>
               <small>${dadosViagem.ORIGEM_CIDADE || ''}, ${dadosViagem.ORIGEM_ESTADO || ''}</small>
             </div>
           `)
@@ -529,11 +556,13 @@
             title: `Posição ${posicoesGPS.length - index}`
           });
 
+          var lblPos = (typeof window.t === 'function' ? window.t('detalhesViagem.posicao') : 'Posição') + ' ' + (posicoesGPS.length - index);
+          var lblVel = typeof window.t === 'function' ? window.t('detalhesViagem.velocidade') : 'Velocidade';
           const popupContent = `
             <div style="padding: 8px; min-width: 150px;">
-              <strong>Posição ${posicoesGPS.length - index}</strong><br>
+              <strong>` + lblPos + `</strong><br>
               <small>${new Date(pos.DHPOSICAO || pos.DHREGISTRO).toLocaleString('pt-BR')}</small><br>
-              ${pos.VELOCIDADE ? `<small>Velocidade: ${parseFloat(pos.VELOCIDADE).toFixed(1)} km/h</small>` : ''}
+              ${pos.VELOCIDADE ? `<small>` + lblVel + `: ${parseFloat(pos.VELOCIDADE).toFixed(1)} km/h</small>` : ''}
             </div>
           `;
           marker.bindPopup(popupContent).addTo(map);
@@ -574,10 +603,11 @@
           iconAnchor: [16, 32]
         });
         
+        var lblDestino = typeof window.t === 'function' ? window.t('detalhesViagem.destino') : 'Destino';
         L.marker(destinoPos, { icon: destinoIcon })
           .bindPopup(`
             <div style="padding: 8px; min-width: 150px;">
-              <strong>🏁 Destino</strong><br>
+              <strong>🏁 ` + lblDestino + `</strong><br>
               <small>${dadosViagem.DESTINO_CIDADE || ''}, ${dadosViagem.DESTINO_ESTADO || ''}</small>
             </div>
           `)
@@ -587,7 +617,7 @@
       // Desenhar rota percorrida (polyline)
       if (routeCoordinates.length > 1) {
         L.polyline(routeCoordinates, {
-          color: '#667eea',
+          color: '#0ea5e9',
           weight: 4,
           opacity: 0.8,
           smoothFactor: 1
@@ -693,17 +723,19 @@
       }
 
       let html = '';
+      var navOrigem = typeof window.t === 'function' ? window.t('detalhesViagem.navegarOrigem') : 'Navegar para Origem';
+      var navDestino = typeof window.t === 'function' ? window.t('detalhesViagem.navegarDestino') : 'Navegar para Destino';
       if (temOrigem) {
         html += `
           <button class="btn-primary" onclick="abrirNavegacao('origem', ${dadosViagem.ORIGEM_LATITUDE}, ${dadosViagem.ORIGEM_LONGITUDE}, '${(dadosViagem.ORIGEM_CIDADE || '').replace(/'/g, "\\'")}', ${dadosViagem.IDVIAGEM})" style="padding: 8px 16px; font-size: 13px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-            🗺️ Navegar para Origem
+            🗺️ ` + navOrigem + `
           </button>
         `;
       }
       if (temDestino) {
         html += `
           <button class="btn-primary" onclick="abrirNavegacao('destino', ${dadosViagem.DESTINO_LATITUDE}, ${dadosViagem.DESTINO_LONGITUDE}, '${(dadosViagem.DESTINO_CIDADE || '').replace(/'/g, "\\'")}', ${dadosViagem.IDVIAGEM})" style="padding: 8px 16px; font-size: 13px; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
-            🗺️ Navegar para Destino
+            🗺️ ` + navDestino + `
           </button>
         `;
       }
@@ -713,7 +745,7 @@
     // Navegação integrada melhorada (Google Maps / Waze / Apple Maps)
     window.abrirNavegacao = async function(tipo, latitude, longitude, cidade, idViagem) {
       if (!latitude || latitude == 0 || !longitude || longitude == 0) {
-        mostrarToast('Coordenadas não disponíveis para esta localização', 'warning');
+        mostrarToast(typeof window.t === 'function' ? window.t('detalhesViagem.coordenadasNaoDisponiveis') : 'Coordenadas não disponíveis para esta localização', 'warning');
         return;
       }
 
@@ -735,11 +767,9 @@
       }
       
       // Mostrar opções de navegação
-      const escolha = await mostrarModal(
-        'Escolher Aplicativo de Navegação',
-        `Abrir navegação para ${tipo === 'origem' ? 'Origem' : 'Destino'} da viagem #${idViagem}?`,
-        opcoes
-      );
+      var tituloModal = typeof window.t === 'function' ? window.t('detalhesViagem.escolherAppNavegacao') : 'Escolher Aplicativo de Navegação';
+      var msgModal = (typeof window.t === 'function' ? (tipo === 'origem' ? window.t('detalhesViagem.abrirNavegacaoOrigem') : window.t('detalhesViagem.abrirNavegacaoDestino')) : (tipo === 'origem' ? 'Abrir navegação para Origem da viagem?' : 'Abrir navegação para Destino da viagem?'));
+      const escolha = await mostrarModal(tituloModal, msgModal, opcoes);
       
       if (escolha === 'Google Maps') {
         // Google Maps: usar direções (funciona em app e web)
@@ -821,20 +851,22 @@
           
           if (!Array.isArray(fotos)) {
             console.error('❌ Resposta não é um array:', dados);
+            var errFotos = typeof window.t === 'function' ? window.t('detalhesViagem.erroCarregarFotos') : 'Erro ao carregar fotos';
             container.innerHTML = `
               <div class="sem-dados">
                 <div class="sem-dados-icon">⚠️</div>
-                <p>Erro ao carregar fotos</p>
+                <p>` + errFotos + `</p>
               </div>
             `;
             return;
           }
 
           if (fotos.length === 0) {
+            var nenhumaFoto = typeof window.t === 'function' ? window.t('detalhesViagem.nenhumaFotoRegistrada') : 'Nenhuma foto registrada';
             container.innerHTML = `
               <div class="sem-dados">
                 <div class="sem-dados-icon">📸</div>
-                <p>Nenhuma foto registrada</p>
+                <p>` + nenhumaFoto + `</p>
               </div>
             `;
             return;
@@ -863,19 +895,21 @@
             </div>
           `;
         } else {
-          container.innerHTML = `
+            var nenhumaFoto2 = typeof window.t === 'function' ? window.t('detalhesViagem.nenhumaFotoRegistrada') : 'Nenhuma foto registrada';
+            container.innerHTML = `
             <div class="sem-dados">
               <div class="sem-dados-icon">📸</div>
-              <p>Nenhuma foto registrada</p>
+              <p>` + nenhumaFoto2 + `</p>
             </div>
           `;
         }
       } catch (err) {
         console.error('Erro ao carregar galeria:', err);
+        var errFotos2 = typeof window.t === 'function' ? window.t('detalhesViagem.erroCarregarFotos') : 'Erro ao carregar fotos';
         document.getElementById('galeriaContainer').innerHTML = `
           <div class="sem-dados">
             <div class="sem-dados-icon">⚠️</div>
-            <p>Erro ao carregar fotos</p>
+            <p>` + errFotos2 + `</p>
           </div>
         `;
       }
@@ -898,10 +932,11 @@
           const eventos = await response.json();
 
           if (eventos.length === 0) {
+            var nenhumEvento = typeof window.t === 'function' ? window.t('detalhesViagem.nenhumEventoRegistrado') : 'Nenhum evento registrado';
             container.innerHTML = `
               <div class="sem-dados">
                 <div class="sem-dados-icon">📝</div>
-                <p>Nenhum evento registrado</p>
+                <p>` + nenhumEvento + `</p>
               </div>
             `;
             return;
@@ -931,19 +966,21 @@
             </div>
           `;
         } else {
-          container.innerHTML = `
+            var nenhumEvento2 = typeof window.t === 'function' ? window.t('detalhesViagem.nenhumEventoRegistrado') : 'Nenhum evento registrado';
+            container.innerHTML = `
             <div class="sem-dados">
               <div class="sem-dados-icon">📝</div>
-              <p>Nenhum evento registrado</p>
+              <p>` + nenhumEvento2 + `</p>
             </div>
           `;
         }
       } catch (err) {
         console.error('Erro ao carregar histórico:', err);
+        var errHist = typeof window.t === 'function' ? window.t('detalhesViagem.erroCarregarHistorico') : 'Erro ao carregar histórico';
         document.getElementById('historicoContainer').innerHTML = `
           <div class="sem-dados">
             <div class="sem-dados-icon">⚠️</div>
-            <p>Erro ao carregar histórico</p>
+            <p>` + errHist + `</p>
           </div>
         `;
       }
@@ -959,15 +996,17 @@
         const container = document.getElementById('alertasContainer');
 
         if (response.ok) {
-          const alertas = await response.json();
-          const alertasArray = Array.isArray(alertas) ? alertas : (alertas.data || []);
+          const data = await response.json();
+          const alertasArray = Array.isArray(data) ? data : (data.alertas || data.data || []);
 
           if (alertasArray.length === 0) {
+            var nenhumAlerta = typeof window.t === 'function' ? window.t('detalhesViagem.nenhumAlertaRegistrado') : 'Nenhum alerta registrado';
+            var tudoCerto = typeof window.t === 'function' ? window.t('detalhesViagem.tudoCerto') : 'Tudo certo!';
             container.innerHTML = `
               <div class="sem-dados">
                 <div class="sem-dados-icon">🚨</div>
-                <p>Nenhum alerta registrado</p>
-                <p style="font-size: 12px; margin-top: 8px; color: #28a745;">Tudo certo! ✅</p>
+                <p>` + nenhumAlerta + `</p>
+                <p style="font-size: 12px; margin-top: 8px; color: #28a745;">` + tudoCerto + ` ✅</p>
               </div>
             `;
             return;
@@ -990,7 +1029,7 @@
                   <div class="alerta-item ${tipoClasse}">
                     <div class="alerta-header">
                       <div class="alerta-tipo">🚨 ${alerta.TYPE || alerta.TIPO || 'Alerta'}</div>
-                      <div class="alerta-status">${alerta.STATUS || 'Ativo'}</div>
+                      <div class="alerta-status">${alerta.STATUS || (typeof window.t === 'function' ? window.t('detalhesViagem.ativo') : 'Ativo')}</div>
                     </div>
                     <div class="alerta-descricao">
                       ${alerta.MESSAGE || alerta.MENSAGEM || 'Sem descrição'}
@@ -1002,19 +1041,21 @@
             </div>
           `;
         } else {
-          container.innerHTML = `
+            var nenhumAlerta2 = typeof window.t === 'function' ? window.t('detalhesViagem.nenhumAlertaRegistrado') : 'Nenhum alerta registrado';
+            container.innerHTML = `
             <div class="sem-dados">
               <div class="sem-dados-icon">🚨</div>
-              <p>Nenhum alerta registrado</p>
+              <p>` + nenhumAlerta2 + `</p>
             </div>
           `;
         }
       } catch (err) {
         console.error('Erro ao carregar alertas:', err);
+        var errAlertas = typeof window.t === 'function' ? window.t('detalhesViagem.erroCarregarAlertas') : 'Erro ao carregar alertas';
         document.getElementById('alertasContainer').innerHTML = `
           <div class="sem-dados">
             <div class="sem-dados-icon">⚠️</div>
-            <p>Erro ao carregar alertas</p>
+            <p>` + errAlertas + `</p>
           </div>
         `;
       }

@@ -1,8 +1,8 @@
 // backend/controllers/sos.controller.js
 // Controller para Alertas SOS (Emergência)
 // Versão: 2.0 - Módulo separado
-// Data: 2025-01-16
-// Última atualização: 2025-01-18
+// Data: 2026-01-16
+// Última atualização: 2026-01-18
 //
 // Este controller gerencia todas as operações relacionadas a alertas SOS (emergências).
 // Inclui funcionalidades para listar, filtrar, tratar, marcar como lido e consultar
@@ -19,8 +19,34 @@
 // - PUT    /api/sos/:id - Atualizar SOS
 // - GET    /api/sos/contador - Contador de pendentes
 
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const { poolPromise } = require('../config/db');
+
+/** Resolve ID do usuário: req.user.id/cdcadastro, body.idUsuario, ou busca no banco por login (token antigo sem id). */
+async function resolverIdUsuario(req) {
+  let id = req.user?.id ?? req.user?.cdcadastro ?? req.body?.idUsuario;
+  if (id != null && id !== '') {
+    const num = parseFloat(id);
+    if (!Number.isNaN(num)) return num;
+  }
+  const login = req.user?.login;
+  if (!login) return null;
+  try {
+    const pool = await poolPromise;
+    const r = await pool.query(
+      `SELECT "CDCADASTRO" FROM public."USUARIO" WHERE LOWER(TRIM("SGUSUARIO")) = LOWER(TRIM($1)) LIMIT 1`,
+      [String(login)]
+    );
+    const row = r.rows && r.rows[0];
+    if (row) {
+      const cd = row.CDCADASTRO ?? row.cdcadastro;
+      if (cd != null) return parseFloat(cd);
+    }
+  } catch (e) {
+    console.warn('⚠️ [SOS] Erro ao buscar usuário por login:', e.message);
+  }
+  return null;
+}
 
 const sosController = {
   /**
@@ -54,130 +80,115 @@ const sosController = {
 
       const pool = await poolPromise;
 
-      // Criar ponto geográfico
-      const locationPoint = `POINT(${longitude} ${latitude})`;
+      const lat = parseFloat(latitude);
+      const lon = parseFloat(longitude);
+      const cdMot = parseFloat(motoristaId);
+      const cdVig = idviagem != null ? parseFloat(idviagem) : null;
+      const msg = (message || '').substring(0, 500);
 
-      // Inserir alerta SOS
-      const request = pool.request();
-      request.input('cdmotorista', sql.Decimal(15, 0), motoristaId);
-      request.input('cdviagem', sql.Decimal(15, 0), idviagem || null);
-      request.input('latitude', sql.Float, latitude);
-      request.input('longitude', sql.Float, longitude);
-      request.input('message', sql.NVarChar(500), message || null);
-      request.input('priority', sql.NVarChar(10), 'critical'); // SOS sempre é crítico
-
-      const result = await request.query(`
-        INSERT INTO SOS_ALERTS (
-          CDMOTORISTA,
-          CDVIAGEM,
-          LATITUDE,
-          LONGITUDE,
-          LOCATION,
-          MESSAGE,
-          PRIORITY,
-          STATUS,
-          CREATED_AT,
-          SYNCED
-        )
-        VALUES (
-          @cdmotorista,
-          @cdviagem,
-          @latitude,
-          @longitude,
-          geography::STPointFromText('${locationPoint}', 4326),
-          @message,
-          @priority,
-          'active',
-          SYSUTCDATETIME(),
-          1
-        );
-        SELECT SCOPE_IDENTITY() AS ID;
-      `);
-
-      const idAlerta = result.recordset[0].ID;
-
-      // Buscar dados completos do alerta criado
-      const alertaRequest = pool.request();
-      alertaRequest.input('id', sql.Int, idAlerta);
-
-      // Verificar se o campo LOCATION_DESCRIPTION existe
-      let locationDescriptionField = '';
+      // INSERT nativo PostgreSQL (evita erro de sintaxe da conversão db.js)
+      let idAlerta;
       try {
-        const checkField = await pool.request().query(`
-          SELECT COUNT(*) as existe
-          FROM sys.columns 
-          WHERE object_id = OBJECT_ID(N'[dbo].[SOS_ALERTS]') 
-          AND name = 'LOCATION_DESCRIPTION'
-        `);
-        if (checkField.recordset[0].existe > 0) {
-          locationDescriptionField = 'sa.LOCATION_DESCRIPTION,';
-        }
+        const res = await pool.query(
+          `INSERT INTO public."SOS_ALERTS" (
+            "CDMOTORISTA", "CDVIAGEM", "LATITUDE", "LONGITUDE", "LOCATION",
+            "MESSAGE", "PRIORITY", "STATUS", "CREATED_AT", "SYNCED"
+          ) VALUES ($1, $2, $3, $4, ST_SetSRID(ST_MakePoint($4, $3), 4326)::geography, $5, $6, 'active', CURRENT_TIMESTAMP, true)
+          RETURNING "ID"`,
+          [cdMot, cdVig, lat, lon, msg, 'critical']
+        );
+        idAlerta = res.rows[0]?.ID ?? res.rows[0]?.id;
       } catch (err) {
-        console.warn('⚠️ Erro ao verificar campo LOCATION_DESCRIPTION:', err.message);
+        if (err.code === '42P01' || err.code === '42601') {
+          try {
+            const res = await pool.query(
+              `INSERT INTO public.sos_alerts (
+                cdmotorista, cdviagem, latitude, longitude, location,
+                message, priority, status, created_at, synced
+              ) VALUES ($1, $2, $3, $4, ST_SetSRID(ST_MakePoint($4, $3), 4326)::geography, $5, $6, 'active', CURRENT_TIMESTAMP, true)
+              RETURNING "ID"`,
+              [cdMot, cdVig, lat, lon, msg, 'critical']
+            );
+            idAlerta = res.rows[0]?.ID ?? res.rows[0]?.id;
+          } catch (err2) {
+            if (err2.code === '42P01') {
+              return res.status(503).json({
+                error: 'Módulo SOS não disponível',
+                details: 'Tabela de alertas SOS não existe. Execute: backend/scripts/criar_sos_alerts_postgres.sql',
+                code: 'TABLE_NOT_FOUND'
+              });
+            }
+            throw err2;
+          }
+        } else {
+          throw err;
+        }
       }
 
-      const alerta = await alertaRequest.query(`
-        SELECT 
-          sa.ID,
-          sa.CDMOTORISTA,
-          sa.CDVIAGEM,
-          sa.LATITUDE,
-          sa.LONGITUDE,
-          ${locationDescriptionField}
-          sa.STATUS,
-          sa.PRIORITY,
-          sa.MESSAGE,
-          sa.CREATED_AT,
-          cg.RZSOCIAL AS NOME_MOTORISTA,
-          vm.IDVIAGEM,
-          ISNULL(co.NMCIDADE + '/' + co.ESTADO, 'Não informado') AS ORIGEM,
-          ISNULL(cd.NMCIDADE + '/' + cd.ESTADO, 'Não informado') AS DESTINO
-        FROM SOS_ALERTS sa
-        LEFT JOIN CADASTROGERAL cg ON sa.CDMOTORISTA = cg.CDCADASTRO
-        LEFT JOIN VIAGEMMESTRE vm ON sa.CDVIAGEM = vm.IDVIAGEM
-        LEFT JOIN ROTEIRO r ON vm.IDROTEIRO = r.IDROTEIRO
-        LEFT JOIN CIDADE co ON r.CDCIDADEORIGEM = co.CDCIDADE
-        LEFT JOIN CIDADE cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
-        WHERE sa.ID = @id
-      `);
-      
-      // Adicionar LOCATION_DESCRIPTION se o campo existir
-      if (alerta.recordset.length > 0) {
-        try {
-          const checkField = await pool.request().query(`
-            SELECT COUNT(*) as existe
-            FROM sys.columns 
-            WHERE object_id = OBJECT_ID(N'[dbo].[SOS_ALERTS]') 
-            AND name = 'LOCATION_DESCRIPTION'
-          `);
-          if (checkField.recordset[0].existe > 0) {
-            const descResult = await pool.request()
-              .input('id', sql.Int, parseInt(idAlerta))
-              .query(`SELECT LOCATION_DESCRIPTION FROM [dbo].[SOS_ALERTS] WHERE ID = @id`);
-            if (descResult.recordset.length > 0) {
-              alerta.recordset[0].LOCATION_DESCRIPTION = descResult.recordset[0].LOCATION_DESCRIPTION;
-            }
-          }
-        } catch (err) {
-          console.warn('⚠️ Erro ao buscar LOCATION_DESCRIPTION:', err.message);
+      // Buscar dados completos do alerta criado (PostgreSQL nativo)
+      let row = null;
+      try {
+        const sel = await pool.query(
+          `SELECT sa."ID", sa."CDMOTORISTA", sa."CDVIAGEM", sa."LATITUDE", sa."LONGITUDE",
+            sa."STATUS", sa."PRIORITY", sa."MESSAGE", sa."CREATED_AT",
+            cg."RZSOCIAL" AS "NOME_MOTORISTA", vm."IDVIAGEM",
+            COALESCE(co."NMCIDADE" || '/' || co."ESTADO", 'Não informado') AS "ORIGEM",
+            COALESCE(cd."NMCIDADE" || '/' || cd."ESTADO", 'Não informado') AS "DESTINO"
+           FROM public."SOS_ALERTS" sa
+           LEFT JOIN public."CADASTROGERAL" cg ON sa."CDMOTORISTA" = cg."CDCADASTRO"
+           LEFT JOIN public."VIAGEMMESTRE" vm ON sa."CDVIAGEM" = vm."IDVIAGEM"
+           LEFT JOIN public."ROTEIRO" r ON vm."IDROTEIRO" = r."IDROTEIRO"
+           LEFT JOIN public."CIDADE" co ON r."CDCIDADEORIGEM" = co."CDCIDADE"
+           LEFT JOIN public."CIDADE" cd ON r."CDCIDADEDESTINO" = cd."CDCIDADE"
+           WHERE sa."ID" = $1`,
+          [idAlerta]
+        );
+        row = sel.rows[0] || null;
+      } catch (err) {
+        if (err.code === '42P01' || err.code === '42703') {
+          row = {
+            ID: idAlerta,
+            CDMOTORISTA: cdMot,
+            CDVIAGEM: cdVig,
+            LATITUDE: lat,
+            LONGITUDE: lon,
+            STATUS: 'active',
+            PRIORITY: 'critical',
+            MESSAGE: msg,
+            CREATED_AT: new Date(),
+            NOME_MOTORISTA: null,
+            IDVIAGEM: cdVig,
+            ORIGEM: 'Não informado',
+            DESTINO: 'Não informado'
+          };
+        } else {
+          throw err;
         }
+      }
+      if (!row) {
+        row = {
+          ID: idAlerta,
+          CDMOTORISTA: cdMot,
+          CDVIAGEM: cdVig,
+          LATITUDE: lat,
+          LONGITUDE: lon,
+          STATUS: 'active',
+          PRIORITY: 'critical',
+          MESSAGE: msg,
+          CREATED_AT: new Date(),
+          NOME_MOTORISTA: null,
+          IDVIAGEM: cdVig,
+          ORIGEM: 'Não informado',
+          DESTINO: 'Não informado'
+        };
       }
 
       // Emitir evento WebSocket para Torre de Controle
       try {
         const websocketTorre = req.app ? req.app.get('websocketTorre') : null;
-        if (websocketTorre && alerta.recordset[0]) {
-          websocketTorre.emitirSOS(alerta.recordset[0]);
-        }
-        
-        // Também emitir via Socket.io direto (compatibilidade com sistema existente)
+        if (websocketTorre && row) websocketTorre.emitirSOS(row);
         const io = req.app ? req.app.get('io') : null;
-        if (io) {
-          io.emit('sos-alerta', {
-            type: 'novo',
-            alerta: alerta.recordset[0]
-          });
-        }
+        if (io) io.emit('sos-alerta', { type: 'novo', alerta: row });
       } catch (err) {
         console.warn('⚠️ Erro ao emitir evento WebSocket SOS:', err.message);
       }
@@ -185,7 +196,7 @@ const sosController = {
       res.json({
         success: true,
         message: 'Alerta SOS criado com sucesso',
-        alerta: alerta.recordset[0]
+        alerta: row
       });
 
     } catch (error) {
@@ -208,53 +219,52 @@ const sosController = {
 
       const result = await request.query(`
         SELECT 
-          sa.ID,
-          sa.CDMOTORISTA,
-          sa.CDVIAGEM,
-          sa.LATITUDE,
-          sa.LONGITUDE,
-          sa.STATUS,
-          sa.PRIORITY,
-          sa.MESSAGE,
-          sa.CREATED_AT,
-          cg.RZSOCIAL AS NOME_MOTORISTA,
-          cg.NRCELULAR AS CELULAR_MOTORISTA,
-          vm.IDVIAGEM,
-          ISNULL(co.NMCIDADE + '/' + co.ESTADO, 'Não informado') AS ORIGEM,
-          ISNULL(cd.NMCIDADE + '/' + cd.ESTADO, 'Não informado') AS DESTINO
-        FROM SOS_ALERTS sa
-        LEFT JOIN CADASTROGERAL cg ON sa.CDMOTORISTA = cg.CDCADASTRO
-        LEFT JOIN VIAGEMMESTRE vm ON sa.CDVIAGEM = vm.IDVIAGEM
-        LEFT JOIN ROTEIRO r ON vm.IDROTEIRO = r.IDROTEIRO
-        LEFT JOIN CIDADE co ON r.CDCIDADEORIGEM = co.CDCIDADE
-        LEFT JOIN CIDADE cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
-        WHERE sa.STATUS = 'active'
-        ORDER BY sa.CREATED_AT DESC
+          [sa].[ID],
+          [sa].[CDMOTORISTA],
+          [sa].[CDVIAGEM],
+          [sa].[LATITUDE],
+          [sa].[LONGITUDE],
+          [sa].[STATUS],
+          [sa].[PRIORITY],
+          [sa].[MESSAGE],
+          [sa].[CREATED_AT],
+          [cg].[RZSOCIAL] AS [NOME_MOTORISTA],
+          [cg].[NRCELULAR] AS [CELULAR_MOTORISTA],
+          [vm].[IDVIAGEM],
+          COALESCE([co].[NMCIDADE] || '/' || [co].[ESTADO], 'Não informado') AS [ORIGEM],
+          COALESCE([cd].[NMCIDADE] || '/' || [cd].[ESTADO], 'Não informado') AS [DESTINO]
+        FROM [dbo].[SOS_ALERTS] [sa]
+        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [sa].[CDMOTORISTA] = [cg].[CDCADASTRO]
+        LEFT JOIN [dbo].[VIAGEMMESTRE] [vm] ON [sa].[CDVIAGEM] = [vm].[IDVIAGEM]
+        LEFT JOIN [dbo].[ROTEIRO] [r] ON [vm].[IDROTEIRO] = [r].[IDROTEIRO]
+        LEFT JOIN [dbo].[CIDADE] [co] ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
+        LEFT JOIN [dbo].[CIDADE] [cd] ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
+        WHERE [sa].[STATUS] = 'active'
+        ORDER BY [sa].[CREATED_AT] DESC
       `);
       
-      // Adicionar LOCATION_DESCRIPTION se o campo existir
-      if (result.recordset.length > 0) {
+      // Adicionar LOCATION_DESCRIPTION se o campo existir (PostgreSQL - não usar sys.columns)
+      if (result.recordset && result.recordset.length > 0) {
         try {
-          const checkField = await pool.request().query(`
-            SELECT COUNT(*) as existe
-            FROM sys.columns 
-            WHERE object_id = OBJECT_ID(N'[dbo].[SOS_ALERTS]') 
-            AND name = 'LOCATION_DESCRIPTION'
+          const checkField = await pool.query(`
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'SOS_ALERTS' AND column_name = 'LOCATION_DESCRIPTION'
+            LIMIT 1
           `);
-          if (checkField.recordset[0].existe > 0) {
-            const ids = result.recordset.map(r => r.ID).join(',');
-            if (ids) {
-              const descResult = await pool.request().query(`
-                SELECT ID, LOCATION_DESCRIPTION 
-                FROM [dbo].[SOS_ALERTS] 
-                WHERE ID IN (${ids})
-              `);
+          if (checkField.rows && checkField.rows.length > 0) {
+            const ids = result.recordset.map(r => r.ID ?? r.id);
+            if (ids.length > 0) {
+              const descResult = await pool.query(
+                `SELECT "ID", "LOCATION_DESCRIPTION" FROM public."SOS_ALERTS" WHERE "ID" = ANY($1::int[])`,
+                [ids]
+              );
               const descMap = {};
-              descResult.recordset.forEach(row => {
-                descMap[row.ID] = row.LOCATION_DESCRIPTION;
+              (descResult.rows || []).forEach(row => {
+                const id = row.ID ?? row.id;
+                descMap[id] = row.LOCATION_DESCRIPTION ?? row.location_description;
               });
               result.recordset.forEach(sos => {
-                sos.LOCATION_DESCRIPTION = descMap[sos.ID] || null;
+                sos.LOCATION_DESCRIPTION = descMap[sos.ID ?? sos.id] ?? null;
               });
             }
           }
@@ -300,7 +310,7 @@ const sosController = {
           RESOLVED_AT = SYSUTCDATETIME(),
           RESOLVED_BY = @resolvedBy,
           RESOLUTION_NOTES = @notes
-        WHERE ID = @id AND STATUS = 'active'
+        WHERE [ID] = @id AND [STATUS] = 'active'
       `);
 
       // Emitir evento WebSocket
@@ -310,7 +320,7 @@ const sosController = {
           // Buscar ID da viagem se houver
           const viagemResult = await pool.request()
             .input('id', sql.Int, id)
-            .query(`SELECT TOP 1 CDVIAGEM FROM SOS_ALERTS WHERE ID = @id`);
+            .query(`SELECT [CDVIAGEM] FROM [dbo].[SOS_ALERTS] WHERE [ID] = @id LIMIT 1`);
           const idviagem = viagemResult.recordset.length > 0 
             ? viagemResult.recordset[0].CDVIAGEM 
             : null;
@@ -361,26 +371,26 @@ const sosController = {
 
       const result = await request.query(`
         SELECT 
-          sa.ID,
-          sa.CDMOTORISTA,
-          sa.CDVIAGEM,
-          sa.LATITUDE,
-          sa.LONGITUDE,
-          sa.STATUS,
-          sa.PRIORITY,
-          sa.MESSAGE,
-          sa.CREATED_AT,
-          sa.RESOLVED_AT,
-          vm.IDVIAGEM,
-          ISNULL(co.NMCIDADE + '/' + co.ESTADO, 'Não informado') AS ORIGEM,
-          ISNULL(cd.NMCIDADE + '/' + cd.ESTADO, 'Não informado') AS DESTINO
-        FROM SOS_ALERTS sa
-        LEFT JOIN VIAGEMMESTRE vm ON sa.CDVIAGEM = vm.IDVIAGEM
-        LEFT JOIN ROTEIRO r ON vm.IDROTEIRO = r.IDROTEIRO
-        LEFT JOIN CIDADE co ON r.CDCIDADEORIGEM = co.CDCIDADE
-        LEFT JOIN CIDADE cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
-        WHERE sa.CDMOTORISTA = @cdmotorista
-        ORDER BY sa.CREATED_AT DESC
+          [sa].[ID],
+          [sa].[CDMOTORISTA],
+          [sa].[CDVIAGEM],
+          [sa].[LATITUDE],
+          [sa].[LONGITUDE],
+          [sa].[STATUS],
+          [sa].[PRIORITY],
+          [sa].[MESSAGE],
+          [sa].[CREATED_AT],
+          [sa].[RESOLVED_AT],
+          [vm].[IDVIAGEM],
+          COALESCE([co].[NMCIDADE] || '/' || [co].[ESTADO], 'Não informado') AS [ORIGEM],
+          COALESCE([cd].[NMCIDADE] || '/' || [cd].[ESTADO], 'Não informado') AS [DESTINO]
+        FROM [dbo].[SOS_ALERTS] [sa]
+        LEFT JOIN [dbo].[VIAGEMMESTRE] [vm] ON [sa].[CDVIAGEM] = [vm].[IDVIAGEM]
+        LEFT JOIN [dbo].[ROTEIRO] [r] ON [vm].[IDROTEIRO] = [r].[IDROTEIRO]
+        LEFT JOIN [dbo].[CIDADE] [co] ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
+        LEFT JOIN [dbo].[CIDADE] [cd] ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
+        WHERE [sa].[CDMOTORISTA] = @cdmotorista
+        ORDER BY [sa].[CREATED_AT] DESC
       `);
 
       res.json({
@@ -422,7 +432,7 @@ const sosController = {
    *   - total: Total de registros encontrados
    *   - pendentes: Total de SOS pendentes (para badge)
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   listar: async (req, res) => {
@@ -434,62 +444,61 @@ const sosController = {
 
       let query = `
         SELECT 
-          sa.ID,
-          sa.CDMOTORISTA,
-          sa.CDVIAGEM,
-          sa.LATITUDE,
-          sa.LONGITUDE,
-          sa.STATUS,
-          sa.PRIORITY,
-          sa.MESSAGE,
-          sa.CREATED_AT,
-          sa.RESOLVED_AT,
-          sa.RESOLVED_BY,
-          sa.ID_USUARIO_LEU,
-          sa.DH_LEITURA,
-          sa.TEMPO_RESPOSTA,
-          cg.RZSOCIAL AS NOME_MOTORISTA,
-          cg.NRCELULAR AS CELULAR_MOTORISTA,
-          vm.IDVIAGEM,
-          ISNULL(co.NMCIDADE + '/' + co.ESTADO, 'Não informado') AS ORIGEM,
-          ISNULL(cd.NMCIDADE + '/' + cd.ESTADO, 'Não informado') AS DESTINO,
-          u1.RZSOCIAL as usuario_leu_nome,
-          u2.RZSOCIAL as usuario_resolveu_nome
-        FROM [dbo].[SOS_ALERTS] sa
-        LEFT JOIN [dbo].[CADASTROGERAL] cg ON sa.CDMOTORISTA = cg.CDCADASTRO
-        LEFT JOIN [dbo].[VIAGEMMESTRE] vm ON sa.CDVIAGEM = vm.IDVIAGEM
-        LEFT JOIN [dbo].[ROTEIRO] r ON vm.IDROTEIRO = r.IDROTEIRO
-        LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
-        LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
-        LEFT JOIN [dbo].[CADASTROGERAL] u1 ON sa.ID_USUARIO_LEU = u1.CDCADASTRO
-        LEFT JOIN [dbo].[CADASTROGERAL] u2 ON sa.RESOLVED_BY = u2.CDCADASTRO
+          [sa].[ID],
+          [sa].[CDMOTORISTA],
+          [sa].[CDVIAGEM],
+          [sa].[LATITUDE],
+          [sa].[LONGITUDE],
+          [sa].[STATUS],
+          [sa].[PRIORITY],
+          [sa].[MESSAGE],
+          [sa].[CREATED_AT],
+          [sa].[RESOLVED_AT],
+          [sa].[RESOLVED_BY],
+          [sa].[ID_USUARIO_LEU],
+          [sa].[DH_LEITURA],
+          [sa].[TEMPO_RESPOSTA],
+          [cg].[RZSOCIAL] AS [NOME_MOTORISTA],
+          [cg].[NRCELULAR] AS [CELULAR_MOTORISTA],
+          [vm].[IDVIAGEM],
+          COALESCE([co].[NMCIDADE] || '/' || [co].[ESTADO], 'Não informado') AS [ORIGEM],
+          COALESCE([cd].[NMCIDADE] || '/' || [cd].[ESTADO], 'Não informado') AS [DESTINO],
+          [u1].[RZSOCIAL] AS [usuario_leu_nome],
+          [u2].[RZSOCIAL] AS [usuario_resolveu_nome]
+        FROM [dbo].[SOS_ALERTS] [sa]
+        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [sa].[CDMOTORISTA] = [cg].[CDCADASTRO]
+        LEFT JOIN [dbo].[VIAGEMMESTRE] [vm] ON [sa].[CDVIAGEM] = [vm].[IDVIAGEM]
+        LEFT JOIN [dbo].[ROTEIRO] [r] ON [vm].[IDROTEIRO] = [r].[IDROTEIRO]
+        LEFT JOIN [dbo].[CIDADE] [co] ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
+        LEFT JOIN [dbo].[CIDADE] [cd] ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
+        LEFT JOIN [dbo].[CADASTROGERAL] [u1] ON [sa].[ID_USUARIO_LEU] = [u1].[CDCADASTRO]
+        LEFT JOIN [dbo].[CADASTROGERAL] [u2] ON [sa].[RESOLVED_BY] = [u2].[CDCADASTRO]
         WHERE 1=1
       `;
 
       if (status) {
         request.input('status', sql.NVarChar(50), status);
-        query += ` AND sa.STATUS = @status`;
+        query += ` AND [sa].[STATUS] = @status`;
       }
       if (dataInicio) {
         request.input('dataInicio', sql.DateTime2, dataInicio);
-        query += ` AND CAST(sa.CREATED_AT AS DATE) >= CAST(@dataInicio AS DATE)`;
+        query += ` AND CAST([sa].[CREATED_AT] AS DATE) >= CAST(@dataInicio AS DATE)`;
       }
       if (dataFim) {
         request.input('dataFim', sql.DateTime2, dataFim);
-        query += ` AND CAST(sa.CREATED_AT AS DATE) <= CAST(@dataFim AS DATE)`;
+        query += ` AND CAST([sa].[CREATED_AT] AS DATE) <= CAST(@dataFim AS DATE)`;
       }
       if (idViagem) {
         request.input('idViagem', sql.Decimal(15, 0), parseFloat(idViagem));
-        query += ` AND sa.CDVIAGEM = @idViagem`;
+        query += ` AND [sa].[CDVIAGEM] = @idViagem`;
       }
       if (idMotorista) {
         request.input('idMotorista', sql.Decimal(15, 0), parseFloat(idMotorista));
-        query += ` AND sa.CDMOTORISTA = @idMotorista`;
+        query += ` AND [sa].[CDMOTORISTA] = @idMotorista`;
       }
 
-      query += ` ORDER BY sa.CREATED_AT DESC
-        OFFSET @offset ROWS
-        FETCH NEXT @limit ROWS ONLY
+      query += ` ORDER BY [sa].[CREATED_AT] DESC
+        LIMIT @limit OFFSET @offset
       `;
 
       request.input('offset', sql.Int, parseInt(offset));
@@ -498,38 +507,40 @@ const sosController = {
       const result = await request.query(query);
 
       // Contar total
-      let countQuery = `SELECT COUNT(*) as total FROM [dbo].[SOS_ALERTS] sa WHERE 1=1`;
+      let countQuery = `SELECT COUNT(*) AS [total] FROM [dbo].[SOS_ALERTS] [sa] WHERE 1=1`;
       const countRequest = pool.request();
       if (status) {
         countRequest.input('status', sql.NVarChar(50), status);
-        countQuery += ` AND sa.STATUS = @status`;
+        countQuery += ` AND [sa].[STATUS] = @status`;
       }
       if (dataInicio) {
         countRequest.input('dataInicio', sql.DateTime2, dataInicio);
-        countQuery += ` AND CAST(sa.CREATED_AT AS DATE) >= CAST(@dataInicio AS DATE)`;
+        countQuery += ` AND CAST([sa].[CREATED_AT] AS DATE) >= CAST(@dataInicio AS DATE)`;
       }
       if (dataFim) {
         countRequest.input('dataFim', sql.DateTime2, dataFim);
-        countQuery += ` AND CAST(sa.CREATED_AT AS DATE) <= CAST(@dataFim AS DATE)`;
+        countQuery += ` AND CAST([sa].[CREATED_AT] AS DATE) <= CAST(@dataFim AS DATE)`;
       }
       if (idViagem) {
         countRequest.input('idViagem', sql.Decimal(15, 0), parseFloat(idViagem));
-        countQuery += ` AND sa.CDVIAGEM = @idViagem`;
+        countQuery += ` AND [sa].[CDVIAGEM] = @idViagem`;
       }
       if (idMotorista) {
         countRequest.input('idMotorista', sql.Decimal(15, 0), parseFloat(idMotorista));
-        countQuery += ` AND sa.CDMOTORISTA = @idMotorista`;
+        countQuery += ` AND [sa].[CDMOTORISTA] = @idMotorista`;
       }
 
       const countResult = await countRequest.query(countQuery);
-      const total = countResult.recordset[0].total;
+      const row0 = countResult.recordset[0];
+      const total = row0?.total ?? row0?.TOTAL ?? 0;
 
       // Contar pendentes
       const pendentesResult = await pool.request().query(`
-        SELECT COUNT(*) as total FROM [dbo].[SOS_ALERTS] 
-        WHERE STATUS = 'active'
+        SELECT COUNT(*) AS [total] FROM [dbo].[SOS_ALERTS]
+        WHERE [STATUS] = 'active'
       `);
-      const pendentes = pendentesResult.recordset[0].total;
+      const pendRow = pendentesResult.recordset[0];
+      const pendentes = pendRow?.total ?? pendRow?.TOTAL ?? 0;
 
       res.json({
         success: true,
@@ -538,6 +549,10 @@ const sosController = {
         pendentes: pendentes
       });
     } catch (err) {
+      if (err.code === '42P01' || err.code === '42703') {
+        console.warn('⚠️ [SOS] listar: tabela/coluna não existe (', err.code, '), retornando vazio');
+        return res.json({ success: true, data: [], total: 0, pendentes: 0 });
+      }
       console.error('Erro ao listar SOS:', err);
       res.status(500).json({ error: 'Erro ao listar SOS' });
     }
@@ -570,54 +585,55 @@ const sosController = {
         .input('id', sql.Int, parseInt(id))
         .query(`
           SELECT 
-            sa.ID,
-            sa.CDMOTORISTA,
-            sa.CDVIAGEM,
-            sa.LATITUDE,
-            sa.LONGITUDE,
-            sa.STATUS,
-            sa.PRIORITY,
-            sa.MESSAGE,
-            sa.CREATED_AT,
-            sa.RESOLVED_AT,
-            sa.RESOLVED_BY,
-            sa.RESOLUTION_NOTES,
-            sa.ID_USUARIO_LEU,
-            sa.DH_LEITURA,
-            sa.TEMPO_RESPOSTA,
-            cg.RZSOCIAL AS NOME_MOTORISTA,
-            cg.NRCELULAR AS CELULAR_MOTORISTA,
-            vm.IDVIAGEM,
-            ISNULL(co.NMCIDADE + '/' + co.ESTADO, 'Não informado') AS ORIGEM,
-            ISNULL(cd.NMCIDADE + '/' + cd.ESTADO, 'Não informado') AS DESTINO,
-            u1.RZSOCIAL as usuario_leu_nome,
-            u2.RZSOCIAL as usuario_resolveu_nome
-          FROM [dbo].[SOS_ALERTS] sa
-          LEFT JOIN [dbo].[CADASTROGERAL] cg ON sa.CDMOTORISTA = cg.CDCADASTRO
-          LEFT JOIN [dbo].[VIAGEMMESTRE] vm ON sa.CDVIAGEM = vm.IDVIAGEM
-          LEFT JOIN [dbo].[ROTEIRO] r ON vm.IDROTEIRO = r.IDROTEIRO
-          LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
-          LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
-          LEFT JOIN [dbo].[CADASTROGERAL] u1 ON sa.ID_USUARIO_LEU = u1.CDCADASTRO
-          LEFT JOIN [dbo].[CADASTROGERAL] u2 ON sa.RESOLVED_BY = u2.CDCADASTRO
-          WHERE sa.ID = @id
+            [sa].[ID],
+            [sa].[CDMOTORISTA],
+            [sa].[CDVIAGEM],
+            [sa].[LATITUDE],
+            [sa].[LONGITUDE],
+            [sa].[STATUS],
+            [sa].[PRIORITY],
+            [sa].[MESSAGE],
+            [sa].[CREATED_AT],
+            [sa].[RESOLVED_AT],
+            [sa].[RESOLVED_BY],
+            [sa].[RESOLUTION_NOTES],
+            [sa].[ID_USUARIO_LEU],
+            [sa].[DH_LEITURA],
+            [sa].[TEMPO_RESPOSTA],
+            [cg].[RZSOCIAL] AS [NOME_MOTORISTA],
+            [cg].[NRCELULAR] AS [CELULAR_MOTORISTA],
+            [vm].[IDVIAGEM],
+            COALESCE([co].[NMCIDADE] || '/' || [co].[ESTADO], 'Não informado') AS [ORIGEM],
+            COALESCE([cd].[NMCIDADE] || '/' || [cd].[ESTADO], 'Não informado') AS [DESTINO],
+            [u1].[RZSOCIAL] AS [usuario_leu_nome],
+            [u2].[RZSOCIAL] AS [usuario_resolveu_nome]
+          FROM [dbo].[SOS_ALERTS] [sa]
+          LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [sa].[CDMOTORISTA] = [cg].[CDCADASTRO]
+          LEFT JOIN [dbo].[VIAGEMMESTRE] [vm] ON [sa].[CDVIAGEM] = [vm].[IDVIAGEM]
+          LEFT JOIN [dbo].[ROTEIRO] [r] ON [vm].[IDROTEIRO] = [r].[IDROTEIRO]
+          LEFT JOIN [dbo].[CIDADE] [co] ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
+          LEFT JOIN [dbo].[CIDADE] [cd] ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
+          LEFT JOIN [dbo].[CADASTROGERAL] [u1] ON [sa].[ID_USUARIO_LEU] = [u1].[CDCADASTRO]
+          LEFT JOIN [dbo].[CADASTROGERAL] [u2] ON [sa].[RESOLVED_BY] = [u2].[CDCADASTRO]
+          WHERE [sa].[ID] = @id
         `);
       
-      // Adicionar LOCATION_DESCRIPTION se o campo existir
-      if (result.recordset.length > 0) {
+      // Adicionar LOCATION_DESCRIPTION se o campo existir (PostgreSQL - não usar sys.columns)
+      if (result.recordset && result.recordset.length > 0) {
         try {
-          const checkField = await pool.request().query(`
-            SELECT COUNT(*) as existe
-            FROM sys.columns 
-            WHERE object_id = OBJECT_ID(N'[dbo].[SOS_ALERTS]') 
-            AND name = 'LOCATION_DESCRIPTION'
+          const checkField = await pool.query(`
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'SOS_ALERTS' AND column_name = 'LOCATION_DESCRIPTION'
+            LIMIT 1
           `);
-          if (checkField.recordset[0].existe > 0) {
-            const descResult = await pool.request()
-              .input('id', sql.Int, parseInt(id))
-              .query(`SELECT LOCATION_DESCRIPTION FROM [dbo].[SOS_ALERTS] WHERE ID = @id`);
-            if (descResult.recordset.length > 0) {
-              result.recordset[0].LOCATION_DESCRIPTION = descResult.recordset[0].LOCATION_DESCRIPTION;
+          if (checkField.rows && checkField.rows.length > 0) {
+            const descResult = await pool.query(
+              `SELECT "LOCATION_DESCRIPTION" FROM public."SOS_ALERTS" WHERE "ID" = $1`,
+              [parseInt(id, 10)]
+            );
+            if (descResult.rows && descResult.rows.length > 0) {
+              const row = descResult.rows[0];
+              result.recordset[0].LOCATION_DESCRIPTION = row.LOCATION_DESCRIPTION ?? row.location_description ?? null;
             }
           }
         } catch (err) {
@@ -646,24 +662,28 @@ const sosController = {
   buscarHistorico: async (req, res) => {
     try {
       const { id } = req.params;
-      
+      const idNum = parseInt(id, 10);
       const pool = await poolPromise;
-      const result = await pool.request()
-        .input('id', sql.Int, parseInt(id))
-        .query(`
-          SELECT 
-            h.*,
-            u.RZSOCIAL as usuario_nome
-          FROM [dbo].[SOS_HISTORY] h
-          LEFT JOIN [dbo].[CADASTROGERAL] u ON h.ID_USUARIO = u.CDCADASTRO
-          WHERE h.ID_SOS = @id
-          ORDER BY h.DH_ACAO DESC
-        `);
 
-      res.json({
-        success: true,
-        data: result.recordset
-      });
+      try {
+        const result = await pool.query(
+          `SELECT h."ID", h."ID_SOS", h."ID_USUARIO", h."ACAO", h."DH_ACAO",
+                  h."STATUS_ANTERIOR", h."STATUS_NOVO", h."OBSERVACOES",
+                  u."RZSOCIAL" AS usuario_nome
+           FROM public."SOS_HISTORY" h
+           LEFT JOIN public."CADASTROGERAL" u ON h."ID_USUARIO" = u."CDCADASTRO"
+           WHERE h."ID_SOS" = $1
+           ORDER BY h."DH_ACAO" DESC`,
+          [idNum]
+        );
+        const rows = result.rows || [];
+        return res.json({ success: true, data: rows });
+      } catch (errHist) {
+        if (errHist.code === '42P01' || /SOS_HISTORY|não existe|does not exist/i.test(String(errHist.message))) {
+          return res.json({ success: true, data: [] });
+        }
+        throw errHist;
+      }
     } catch (err) {
       console.error('Erro ao buscar histórico:', err);
       res.status(500).json({ error: 'Erro ao buscar histórico' });
@@ -690,61 +710,59 @@ const sosController = {
    * 
    * @throws {400} Se ID do usuário não for fornecido
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   marcarComoLido: async (req, res) => {
     try {
       const { id } = req.params;
-      const idUsuario = req.user?.cdcadastro || req.body.idUsuario;
-      
+      let idUsuario = req.user?.id ?? req.user?.cdcadastro ?? req.body?.idUsuario;
+      if (idUsuario == null || idUsuario === '') idUsuario = await resolverIdUsuario(req);
+
       if (!idUsuario) {
         return res.status(400).json({ error: 'ID do usuário é obrigatório' });
       }
 
       const pool = await poolPromise;
-      const transaction = new sql.Transaction(pool);
-      
-      await transaction.begin();
-      
+      const client = await pool.connect();
+      const idNum = parseInt(id, 10);
+      const idUsuarioNum = parseFloat(idUsuario);
+
       try {
-        // Atualizar SOS
-        await transaction.request()
-          .input('id', sql.Int, parseInt(id))
-          .input('idUsuario', sql.Decimal(15, 0), parseFloat(idUsuario))
-          .query(`
-            UPDATE [dbo].[SOS_ALERTS]
-            SET ID_USUARIO_LEU = @idUsuario,
-                DH_LEITURA = SYSUTCDATETIME()
-            WHERE ID = @id
-          `);
-
-        // Registrar no histórico
-        await transaction.request()
-          .input('idSos', sql.Int, parseInt(id))
-          .input('idUsuario', sql.Decimal(15, 0), parseFloat(idUsuario))
-          .query(`
-            INSERT INTO [dbo].[SOS_HISTORY] (ID_SOS, ID_USUARIO, ACAO, DH_ACAO)
-            VALUES (@idSos, @idUsuario, 'LEU', SYSUTCDATETIME())
-          `);
-
-        await transaction.commit();
-
-        // Emitir evento WebSocket
+        await client.query('BEGIN');
+        await client.query(
+          `UPDATE public."SOS_ALERTS"
+           SET "ID_USUARIO_LEU" = $1, "DH_LEITURA" = NOW()
+           WHERE "ID" = $2`,
+          [idUsuarioNum, idNum]
+        );
         try {
-          const websocketTorre = req.app?.get('websocketTorre');
-          if (websocketTorre) {
-            websocketTorre.emitirSOSLido(parseInt(id));
-          }
-        } catch (err) {
-          console.warn('⚠️ Erro ao emitir evento WebSocket:', err.message);
+          await client.query(
+            `INSERT INTO public."SOS_HISTORY" ("ID_SOS", "ID_USUARIO", "ACAO", "DH_ACAO")
+             VALUES ($1, $2, 'LEU', NOW())`,
+            [idNum, idUsuarioNum]
+          );
+        } catch (errHist) {
+          if (errHist.code !== '42P01') console.warn('⚠️ SOS_HISTORY insert:', errHist.message);
         }
-
-        res.json({ success: true, message: 'SOS marcado como lido' });
+        await client.query('COMMIT');
       } catch (err) {
-        await transaction.rollback();
+        await client.query('ROLLBACK');
         throw err;
+      } finally {
+        client.release();
       }
+
+      try {
+        const websocketTorre = req.app?.get('websocketTorre');
+        if (websocketTorre && typeof websocketTorre.emitirSOSLido === 'function') {
+          websocketTorre.emitirSOSLido(idNum);
+        }
+      } catch (err) {
+        console.warn('⚠️ Erro ao emitir evento WebSocket:', err.message);
+      }
+
+      res.json({ success: true, message: 'SOS marcado como lido' });
     } catch (err) {
       console.error('Erro ao marcar SOS como lido:', err);
       res.status(500).json({ error: 'Erro ao marcar SOS como lido' });
@@ -777,15 +795,16 @@ const sosController = {
    * 
    * @throws {400} Se status ou ID do usuário não forem fornecidos
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   tratar: async (req, res) => {
     try {
       const { id } = req.params;
       const { status, observacoes, locationDescription } = req.body;
-      const idUsuario = req.user?.cdcadastro || req.body.idUsuario;
-      
+      let idUsuario = req.user?.id ?? req.user?.cdcadastro ?? req.body?.idUsuario;
+      if (idUsuario == null || idUsuario === '') idUsuario = await resolverIdUsuario(req);
+
       if (!status) {
         return res.status(400).json({ error: 'Status é obrigatório' });
       }
@@ -794,105 +813,92 @@ const sosController = {
       }
 
       const pool = await poolPromise;
-      const transaction = new sql.Transaction(pool);
-      
-      await transaction.begin();
-      
+      const client = await pool.connect();
+      const idNum = parseInt(id, 10);
+      const idUsuarioNum = parseFloat(idUsuario);
+      const statusStr = (status || '').substring(0, 50);
+
       try {
-        // Buscar status anterior
-        const sosAnterior = await transaction.request()
-          .input('id', sql.Int, parseInt(id))
-          .query(`SELECT STATUS, CREATED_AT FROM [dbo].[SOS_ALERTS] WHERE ID = @id`);
+        await client.query('BEGIN');
 
-        const statusAnterior = sosAnterior.recordset[0]?.STATUS || null;
-        const createdAt = sosAnterior.recordset[0]?.CREATED_AT;
+        const sel = await client.query(
+          `SELECT "STATUS", "CREATED_AT" FROM public."SOS_ALERTS" WHERE "ID" = $1`,
+          [idNum]
+        );
+        const row = sel.rows && sel.rows[0];
+        const statusAnterior = row ? (row.STATUS ?? row.status) : null;
+        const createdAt = row ? (row.CREATED_AT ?? row.created_at) : null;
 
-        // Atualizar SOS
-        let updateQuery = `
-          UPDATE [dbo].[SOS_ALERTS]
-          SET STATUS = @status
-        `;
+        let updateSql = `UPDATE public."SOS_ALERTS" SET "STATUS" = $1`;
+        const params = [statusStr];
+        let idx = 2;
 
-        // Se mudando para "resolved", definir RESOLVED_BY e RESOLVED_AT
         if (status === 'resolved' || status === 'Resolvido') {
-          updateQuery += `, RESOLVED_BY = @idUsuario, RESOLVED_AT = SYSUTCDATETIME()`;
-          
-          // Calcular tempo de resposta
+          updateSql += `, "RESOLVED_BY" = $${idx}, "RESOLVED_AT" = NOW()`;
+          idx++;
+          params.push(idUsuarioNum);
           if (createdAt) {
-            updateQuery += `, TEMPO_RESPOSTA = DATEDIFF(MINUTE, CAST('${createdAt.toISOString()}' AS DATETIME2), SYSUTCDATETIME())`;
+            updateSql += `, "TEMPO_RESPOSTA" = EXTRACT(EPOCH FROM (NOW() - $${idx}::timestamptz)) / 60`;
+            params.push(createdAt);
+            idx++;
           }
         } else if (status === 'cancelled' || status === 'Cancelado') {
-          // Se cancelado, também definir RESOLVED_BY
-          updateQuery += `, RESOLVED_BY = @idUsuario`;
-        }
-        // Para "in_progress" e outros status, não altera RESOLVED_BY nem RESOLVED_AT
-
-        if (observacoes) {
-          updateQuery += `, RESOLUTION_NOTES = @observacoes`;
+          updateSql += `, "RESOLVED_BY" = $${idx}`;
+          params.push(idUsuarioNum);
+          idx++;
         }
 
-        // Verificar se o campo LOCATION_DESCRIPTION existe antes de atualizar
+        if (observacoes != null && observacoes !== '') {
+          updateSql += `, "RESOLUTION_NOTES" = $${idx}`;
+          params.push(String(observacoes).substring(0, 4000));
+          idx++;
+        }
+
+        updateSql += ` WHERE "ID" = $${idx}`;
+        params.push(idNum);
+        await client.query(updateSql, params);
+
+        try {
+          await client.query(
+            `INSERT INTO public."SOS_HISTORY"
+             ("ID_SOS", "ID_USUARIO", "ACAO", "STATUS_ANTERIOR", "STATUS_NOVO", "OBSERVACOES", "DH_ACAO")
+             VALUES ($1, $2, 'TRATOU', $3, $4, $5, NOW())`,
+            [idNum, idUsuarioNum, statusAnterior, statusStr, observacoes || null]
+          );
+        } catch (errHist) {
+          if (errHist.code !== '42P01') console.warn('⚠️ SOS_HISTORY insert:', errHist.message);
+        }
+
+        await client.query('COMMIT');
+
+        // Atualizar LOCATION_DESCRIPTION fora da transação (coluna pode não existir)
         if (locationDescription !== undefined) {
           try {
-            const checkField = await transaction.request().query(`
-              SELECT COUNT(*) as existe
-              FROM sys.columns 
-              WHERE object_id = OBJECT_ID(N'[dbo].[SOS_ALERTS]') 
-              AND name = 'LOCATION_DESCRIPTION'
-            `);
-            if (checkField.recordset[0].existe > 0) {
-              updateQuery += `, LOCATION_DESCRIPTION = @locationDescription`;
-              updateRequest.input('locationDescription', sql.NVarChar(500), locationDescription || null);
-            } else {
-              console.warn('⚠️ Campo LOCATION_DESCRIPTION não existe na tabela. Execute o script: adicionar_campo_descricao_local_sos.sql');
-            }
-          } catch (err) {
-            console.warn('⚠️ Erro ao verificar campo LOCATION_DESCRIPTION:', err.message);
+            await client.query(
+              `UPDATE public."SOS_ALERTS" SET "LOCATION_DESCRIPTION" = $1 WHERE "ID" = $2`,
+              [locationDescription == null ? null : String(locationDescription).substring(0, 500), idNum]
+            );
+          } catch (errCol) {
+            if (errCol.code === '42703') console.warn('⚠️ Coluna LOCATION_DESCRIPTION não existe em SOS_ALERTS');
           }
         }
-
-        updateQuery += ` WHERE ID = @id`;
-
-        const updateRequest = transaction.request();
-        updateRequest.input('id', sql.Int, parseInt(id));
-        updateRequest.input('status', sql.NVarChar(50), status);
-        updateRequest.input('idUsuario', sql.Decimal(15, 0), parseFloat(idUsuario));
-        if (observacoes) {
-          updateRequest.input('observacoes', sql.NVarChar(sql.MAX), observacoes);
-        }
-
-        await updateRequest.query(updateQuery);
-
-        // Registrar no histórico
-        await transaction.request()
-          .input('idSos', sql.Int, parseInt(id))
-          .input('idUsuario', sql.Decimal(15, 0), parseFloat(idUsuario))
-          .input('statusAnterior', sql.NVarChar(50), statusAnterior)
-          .input('statusNovo', sql.NVarChar(50), status)
-          .input('observacoes', sql.NVarChar(sql.MAX), observacoes || null)
-          .query(`
-            INSERT INTO [dbo].[SOS_HISTORY] 
-              (ID_SOS, ID_USUARIO, ACAO, STATUS_ANTERIOR, STATUS_NOVO, OBSERVACOES, DH_ACAO)
-            VALUES (@idSos, @idUsuario, 'TRATOU', @statusAnterior, @statusNovo, @observacoes, SYSUTCDATETIME())
-          `);
-
-        await transaction.commit();
-
-        // Emitir evento WebSocket
-        try {
-          const websocketTorre = req.app?.get('websocketTorre');
-          if (websocketTorre) {
-            websocketTorre.emitirSOSTratado(parseInt(id), status);
-          }
-        } catch (err) {
-          console.warn('⚠️ Erro ao emitir evento WebSocket:', err.message);
-        }
-
-        res.json({ success: true, message: 'SOS tratado com sucesso' });
       } catch (err) {
-        await transaction.rollback();
+        await client.query('ROLLBACK');
         throw err;
+      } finally {
+        client.release();
       }
+
+      try {
+        const websocketTorre = req.app?.get('websocketTorre');
+        if (websocketTorre && typeof websocketTorre.emitirSOSTratado === 'function') {
+          websocketTorre.emitirSOSTratado(idNum, statusStr);
+        }
+      } catch (err) {
+        console.warn('⚠️ Erro ao emitir evento WebSocket:', err.message);
+      }
+
+      res.json({ success: true, message: 'SOS tratado com sucesso' });
     } catch (err) {
       console.error('Erro ao tratar SOS:', err);
       res.status(500).json({ error: 'Erro ao tratar SOS' });
@@ -910,58 +916,53 @@ const sosController = {
       const idUsuario = req.user?.cdcadastro || req.body.idUsuario;
       
       const pool = await poolPromise;
-      const request = pool.request();
-      request.input('id', sql.Int, parseInt(id));
+      const idNum = parseInt(id, 10);
+      const parts = [];
+      const params = [];
+      let idx = 1;
 
-      let updates = [];
       if (status) {
-        request.input('status', sql.NVarChar(50), status);
-        updates.push('STATUS = @status');
+        parts.push(`"STATUS" = $${idx}`);
+        params.push(String(status).substring(0, 50));
+        idx++;
       }
       if (observacoes !== undefined) {
-        request.input('observacoes', sql.NVarChar(sql.MAX), observacoes);
-        updates.push('RESOLUTION_NOTES = @observacoes');
-      }
-      // Verificar se o campo LOCATION_DESCRIPTION existe antes de atualizar
-      if (locationDescription !== undefined) {
-        try {
-          const checkField = await pool.request().query(`
-            SELECT COUNT(*) as existe
-            FROM sys.columns 
-            WHERE object_id = OBJECT_ID(N'[dbo].[SOS_ALERTS]') 
-            AND name = 'LOCATION_DESCRIPTION'
-          `);
-          if (checkField.recordset[0].existe > 0) {
-            request.input('locationDescription', sql.NVarChar(500), locationDescription || null);
-            updates.push('LOCATION_DESCRIPTION = @locationDescription');
-          } else {
-            console.warn('⚠️ Campo LOCATION_DESCRIPTION não existe na tabela. Execute o script: adicionar_campo_descricao_local_sos.sql');
-          }
-        } catch (err) {
-          console.warn('⚠️ Erro ao verificar campo LOCATION_DESCRIPTION:', err.message);
-        }
+        parts.push(`"RESOLUTION_NOTES" = $${idx}`);
+        params.push(observacoes == null ? null : String(observacoes).substring(0, 4000));
+        idx++;
       }
 
-      if (updates.length === 0) {
+      if (parts.length === 0 && locationDescription === undefined) {
         return res.status(400).json({ error: 'Nenhum campo para atualizar' });
       }
 
-      const query = `UPDATE [dbo].[SOS_ALERTS] SET ${updates.join(', ')} WHERE ID = @id`;
-      await request.query(query);
+      if (parts.length > 0) {
+        params.push(idNum);
+        await pool.query(
+          `UPDATE public."SOS_ALERTS" SET ${parts.join(', ')} WHERE "ID" = $${idx}`,
+          params
+        );
+      }
+      if (locationDescription !== undefined) {
+        try {
+          await pool.query(
+            `UPDATE public."SOS_ALERTS" SET "LOCATION_DESCRIPTION" = $1 WHERE "ID" = $2`,
+            [locationDescription == null ? null : String(locationDescription).substring(0, 500), idNum]
+          );
+        } catch (errCol) {
+          if (errCol.code === '42703') console.warn('⚠️ Coluna LOCATION_DESCRIPTION não existe');
+        }
+      }
 
-      // Registrar no histórico se houver mudança de status
       if (status && idUsuario) {
         try {
-          await pool.request()
-            .input('idSos', sql.Int, parseInt(id))
-            .input('idUsuario', sql.Decimal(15, 0), parseFloat(idUsuario))
-            .input('statusNovo', sql.NVarChar(50), status)
-            .query(`
-              INSERT INTO [dbo].[SOS_HISTORY] (ID_SOS, ID_USUARIO, ACAO, STATUS_NOVO, DH_ACAO)
-              VALUES (@idSos, @idUsuario, 'ATUALIZOU', @statusNovo, SYSUTCDATETIME())
-            `);
+          await pool.query(
+            `INSERT INTO public."SOS_HISTORY" ("ID_SOS", "ID_USUARIO", "ACAO", "STATUS_NOVO", "DH_ACAO")
+             VALUES ($1, $2, 'ATUALIZOU', $3, NOW())`,
+            [idNum, parseFloat(idUsuario), String(status).substring(0, 50)]
+          );
         } catch (err) {
-          console.warn('⚠️ Erro ao registrar histórico:', err.message);
+          if (err.code !== '42P01') console.warn('⚠️ Erro ao registrar histórico:', err.message);
         }
       }
 
@@ -990,7 +991,7 @@ const sosController = {
    *     - display_name: Endereço completo formatado
    *     - address: Objeto com componentes do endereço
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   geocodificar: async (req, res) => {
@@ -1026,7 +1027,7 @@ const sosController = {
       const response = await axios.get(url, {
         timeout: 10000,
         headers: {
-          'User-Agent': 'DivulgaCarga/1.0'
+          'User-Agent': 'AtlasCargo/2.0'
         }
       });
 
@@ -1077,24 +1078,45 @@ const sosController = {
    *     - total: Total de SOS pendentes
    *     - criticos: Total de SOS críticos pendentes
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   contador: async (req, res) => {
+    const zeros = { total: 0, ativos: 0, emTratamento: 0, resolvidos: 0, cancelados: 0 };
     try {
       const pool = await poolPromise;
-      const result = await pool.request().query(`
-        SELECT 
-          COUNT(*) as total,
-          SUM(CASE WHEN STATUS = 'active' THEN 1 ELSE 0 END) as ativos,
-          SUM(CASE WHEN STATUS = 'resolved' THEN 1 ELSE 0 END) as resolvidos,
-          SUM(CASE WHEN STATUS = 'cancelled' THEN 1 ELSE 0 END) as cancelados
-        FROM [dbo].[SOS_ALERTS]
-      `);
+      let result;
+      // Tentar tabela maiúscula (colunas "STATUS") e depois minúscula (coluna status)
+      try {
+        result = await pool.query(`
+          SELECT 
+            COUNT(*)::int AS total,
+            COALESCE(SUM(CASE WHEN "STATUS" = 'active' THEN 1 ELSE 0 END), 0)::int AS ativos,
+            COALESCE(SUM(CASE WHEN "STATUS" = 'resolved' THEN 1 ELSE 0 END), 0)::int AS resolvidos,
+            COALESCE(SUM(CASE WHEN "STATUS" = 'cancelled' THEN 1 ELSE 0 END), 0)::int AS cancelados
+          FROM public."SOS_ALERTS"
+        `);
+      } catch (qerr1) {
+        if (qerr1.code !== '42P01' && qerr1.code !== '42703') throw qerr1;
+        try {
+          result = await pool.query(`
+            SELECT 
+              COUNT(*)::int AS total,
+              COALESCE(SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END), 0)::int AS ativos,
+              COALESCE(SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END), 0)::int AS resolvidos,
+              COALESCE(SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END), 0)::int AS cancelados
+            FROM public.sos_alerts
+          `);
+        } catch (qerr2) {
+          if (qerr2.code === '42P01' || qerr2.code === '42703') {
+            console.warn('⚠️ [SOS] contador: tabela SOS não encontrada, retornando zeros');
+            return res.json({ success: true, data: zeros });
+          }
+          throw qerr2;
+        }
+      }
 
-      const stats = result.recordset[0] || {};
-      
-      // Garantir que todos os valores sejam números
+      const stats = result.rows[0] || {};
       const data = {
         total: parseInt(stats.total) || 0,
         ativos: parseInt(stats.ativos) || 0,

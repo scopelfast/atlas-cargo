@@ -1,4 +1,4 @@
-# 📋 Changelog - DivulgaCarga
+# 📋 Changelog - Atlas Cargo
 
 Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 
@@ -7,7 +7,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
-## [1.4.0] - 2025-12-15
+## [1.4.0] - 2026-12-15
 
 ### ✅ Adicionado
 
@@ -26,7 +26,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 #### Configuração de Bancos de Dados
 - **Suporte a múltiplos bancos**: Sistema configurado para trabalhar com dois bancos de dados
-  - DIVULGACARGA_PRD (banco principal)
+  - ATLAS_CARGO_PRD (banco principal)
   - INTEGRA_PRD (banco de migração)
 - **Configuração separada**: Cada banco tem seu próprio pool de conexões
 - **Documentação completa**: Arquivo `CONFIGURACAO_BANCOS.md` com instruções detalhadas
@@ -80,15 +80,15 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Atualizado `CONFIGURAR_LINKED_SERVER.md` com troubleshooting completo
 
 ### 🔄 Migração de Infraestrutura
-- **Migração de bancos de dados**: Ambos os bancos (DIVULGACARGA_PRD e INTEGRA_PRD) migrados para mesmo servidor
+- **Migração de bancos de dados**: Ambos os bancos (ATLAS_CARGO_PRD e INTEGRA_PRD) migrados para mesmo servidor
   - Servidor: `186.250.92.131,35987`
-  - Credenciais unificadas: `sa` / `SistMSQLServer2025&*`
+  - Credenciais unificadas: `sa` / `SistMSQLServer2026&*`
   - Configurações atualizadas em `backend/config/db.js`
   - Documentação atualizada em todos os arquivos relevantes
 
 ---
 
-## [1.3.0] - 2025-12-01
+## [1.3.0] - 2026-12-01
 
 ### ✅ Adicionado
 
@@ -216,7 +216,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
-## [1.2.0] - 2025-11-28
+## [1.2.0] - 2026-11-28
 
 ### ✅ Adicionado
 
@@ -354,7 +354,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
-## [1.1.0] - 2025-11-24
+## [1.1.0] - 2026-11-24
 
 ### ✅ Adicionado
 
@@ -447,7 +447,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
-## [1.0.0] - 2025-11-23
+## [1.0.0] - 2026-11-23
 
 ### ✅ Adicionado
 
@@ -546,7 +546,7 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
-## [0.9.0] - 2025-11-21
+## [0.9.0] - 2026-11-21
 
 ### ✅ Adicionado
 - Versão inicial do sistema
@@ -569,6 +569,6 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
 ---
 
-**Mantido por:** Equipe DivulgaCarga  
-**Última atualização:** 2025-12-15
+**Mantido por:** Equipe Atlas Cargo  
+**Última atualização:** 2026-12-15
 

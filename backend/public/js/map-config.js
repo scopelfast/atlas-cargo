@@ -5,7 +5,7 @@
 // ⚠️ Use window.MapHelper para novas funcionalidades
 // ⚠️ Este arquivo mantido apenas para compatibilidade
 // Versão: 1.0 (Legacy)
-// Data: 2025-12-04
+// Data: 2026-12-04
 
 window.MAP_CONFIG = {
   // ====================================
@@ -29,27 +29,15 @@ window.MAP_CONFIG = {
   // Mas lembre-se: servidor próprio só funciona com HTTP, não HTTPS!
   
   // ====================================
-  // SERVIDOR DE ROTEAMENTO (ORS - OpenRouteService)
+  // SERVIDOR DE ROTEAMENTO (OSRM - padrão oficial)
   // ====================================
-  // IMPORTANTE: Para mudar o servidor de roteamento, edite a linha abaixo:
-  
-  // Servidor próprio IntegraBrasil:
-  osrmServer: 'http://app.integrabrasil.com:8080/ors/ors/v2/directions/driving-hgv',
-  
-  // Servidores públicos (fallback):
-  // osrmServer: 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv',
-  // osrmServer: 'https://router.project-osrm.org/route/v1/driving-hgv',
+  // Altere na tela Configurações do Sistema ou aqui como fallback.
+  osrmServer: 'https://router.project-osrm.org/route/v1/driving-hgv',
   
   // ====================================
-  // SERVIDOR DE GEOCODING (Nominatim)
+  // SERVIDOR DE GEOCODING (Nominatim - padrão oficial)
   // ====================================
-  // IMPORTANTE: Para mudar o servidor de geocoding, edite a linha abaixo:
-  
-  // Servidor próprio IntegraBrasil:
-  nominatimServer: 'http://app.integrabrasil.com:8080/nominatim',
-  
-  // Servidor público (fallback):
-  // nominatimServer: 'https://nominatim.openstreetmap.org',
+  nominatimServer: 'https://nominatim.openstreetmap.org',
   
   // ====================================
   // CONFIGURAÇÕES GERAIS
@@ -153,6 +141,24 @@ window.getNominatimSearchUrl = function(query, options = {}) {
 };
 
 // Log de configuração (debug) - mais detalhado
+// Carregar configurações do servidor (Nominatim e Router) e mesclar em MAP_CONFIG
+(function loadConfigFromServer() {
+  fetch('/api/configuracoes/mapa')
+    .then(function(r) { return r.ok ? r.json() : null; })
+    .then(function(data) {
+      if (data && window.MAP_CONFIG) {
+        if (data.nominatimServer && data.nominatimServer.trim()) {
+          window.MAP_CONFIG.nominatimServer = data.nominatimServer.trim();
+        }
+        if (data.osrmServer && data.osrmServer.trim()) {
+          window.MAP_CONFIG.osrmServer = data.osrmServer.trim();
+        }
+        console.log('📍 [MAP CONFIG] Configurações carregadas do servidor (Nominatim + Router).');
+      }
+    })
+    .catch(function() {});
+})();
+
 console.log('📍 [MAP CONFIG] ========================================');
 console.log('📍 [MAP CONFIG] Arquivo map-config.js carregado!');
 console.log('📍 [MAP CONFIG] Configurações de mapa:', {

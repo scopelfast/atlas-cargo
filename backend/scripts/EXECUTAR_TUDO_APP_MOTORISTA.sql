@@ -1,7 +1,7 @@
 -- =============================================
 -- SCRIPT COMPLETO - APP MOTORISTA
 -- Descrição: Cria todas as tabelas necessárias para o APP
--- Data: 2025-12-03
+-- Data: 2026-12-03
 -- Versão: 1.0.0
 -- =============================================
 --

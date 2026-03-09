@@ -1,13 +1,16 @@
 // backend/public/modulos/gerenciar-roteiros/js/script.js
 // Gerenciar Roteiros - Frontend
 // Versão: 1.3 - Campo RESUMOROTA e otimizações
-// Autor: Sistema DivulgaCarga
-// Data: 2025-01-13
+// Atlas Cargo
+// Data: 2026-01-13
 // Última atualização: 
 //   - Adicionado campo RESUMOROTA com geração automática
 //   - Implementada função gerarResumoRota() usando OSRM e Nominatim
 //   - Otimizações de performance (processamento sequencial, retry logic)
 //   - Correções de bugs (sintaxe, filtros, rate limiting)
+//   - i18n: helper t() e chaves web.modulos.roteiros
+
+const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
 
 // Flag global para controlar se o overlay está visível
 // Declarada no escopo global usando window para evitar erro de redeclaração
@@ -482,15 +485,15 @@ function getOverlayMostrado() {
       container: '#roteirosGrid',
       columns: [
         { field: 'IDROTEIRO', header: 'Código', editable: false, isId: true, width: '100px' },
-        { field: 'DSROTEIRO', header: 'Descrição', editable: true, type: 'text', width: '280px' },
-        { field: 'ORIGEM_ESTADO', header: 'Origem UF', editable: false, width: '100px' },
-        { field: 'ORIGEM_CIDADE', header: 'Origem', editable: false, width: '180px' },
-        { field: 'DESTINO_ESTADO', header: 'Destino UF', editable: false, width: '100px' },
-        { field: 'DESTINO_CIDADE', header: 'Destino', editable: false, width: '180px' },
-        { field: 'DISTANCIAKM', header: 'Distância (km)', editable: true, type: 'number', width: '140px',
+        { field: 'DSROTEIRO', header: 'Descrição', editable: true, type: 'text' },
+        { field: 'ORIGEM_ESTADO', header: 'Origem UF', editable: false },
+        { field: 'ORIGEM_CIDADE', header: 'Origem', editable: false },
+        { field: 'DESTINO_ESTADO', header: 'Destino UF', editable: false },
+        { field: 'DESTINO_CIDADE', header: 'Destino', editable: false },
+        { field: 'DISTANCIAKM', header: 'Distância (km)', editable: true, type: 'number',
           format: (val) => val ? parseFloat(val).toFixed(2) : '-'
         },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px',
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px', align: 'right',
           options: [
             { value: 'S', label: 'Ativo' },
             { value: 'N', label: 'Inativo' }
@@ -609,11 +612,11 @@ function getOverlayMostrado() {
         // Se não encontrou, mostrar mensagem apropriada
         const pontosGrid = document.getElementById('pontosGrid');
         if (pontosGrid) {
-          pontosGrid.innerHTML = '<p class="empty">Selecione um roteiro na aba "Dados" para gerenciar seus pontos.</p>';
+          pontosGrid.innerHTML = '<p class="empty">' + t('web.modulos.roteiros.selecioneRoteiroPontos') + '</p>';
         }
         const pontosTitle = document.getElementById('pontosTitle');
         if (pontosTitle) {
-          pontosTitle.textContent = 'Pontos do Roteiro';
+          pontosTitle.textContent = t('web.modulos.roteiros.pontosDoRoteiro');
         }
         const btnNovoPonto = document.getElementById('btnNovoPonto');
         const btnVoltarPontos = document.getElementById('btnVoltarPontos');
@@ -762,8 +765,8 @@ function getOverlayMostrado() {
     if (overlay) {
       const titleEl = overlay.querySelector('h3');
       const textEl = overlay.querySelector('p');
-      if (titleEl) titleEl.textContent = 'Aplicando Filtros';
-      if (textEl) textEl.textContent = 'Buscando roteiros...';
+      if (titleEl) titleEl.textContent = t('web.modulos.roteiros.aplicandoFiltros');
+      if (textEl) textEl.textContent = t('web.modulos.roteiros.buscandoRoteiros');
       overlay.style.display = 'flex';
     }
   }
@@ -820,7 +823,7 @@ function getOverlayMostrado() {
       const countEl = document.getElementById('roteirosGridCountText');
       if (countEl) {
         const count = roteiros.length || 0;
-        countEl.textContent = `${count} registro(s) encontrado(s)`;
+        countEl.textContent = count + ' ' + (t('web.modulos.roteiros.registrosEncontrados').replace(/^0\s*/, ''));
       }
       
       // Renderizar no Grid se estiver aberto
@@ -877,26 +880,35 @@ function getOverlayMostrado() {
   // Renderizar lista
   function renderList(roteiros) {
     if (!roteiros || roteiros.length === 0) {
-      list.innerHTML = '<p class="empty">Nenhum roteiro encontrado.</p>';
+      list.innerHTML = '<p class="empty">' + t('web.modulos.roteiros.nenhumRoteiroEncontrado') + '</p>';
       return;
     }
 
-    list.innerHTML = roteiros.map(r => `
-      <div class="list-item" data-id="${r.IDROTEIRO}">
+    list.innerHTML = roteiros.map(r => {
+      const id = r.IDROTEIRO ?? r.idroteiro;
+      const desc = r.DSROTEIRO ?? r.dsroteiro ?? '';
+      const oEst = r.ORIGEM_ESTADO ?? r.origem_estado ?? '';
+      const oCid = r.ORIGEM_CIDADE ?? r.origem_cidade ?? '';
+      const dEst = r.DESTINO_ESTADO ?? r.destino_estado ?? '';
+      const dCid = r.DESTINO_CIDADE ?? r.destino_cidade ?? '';
+      const dist = r.DISTANCIAKM ?? r.distanciakm;
+      return `
+      <div class="list-item" data-id="${id}">
         <div>
-          <strong>${r.IDROTEIRO} - ${r.DSROTEIRO}</strong>
+          <strong>${id} - ${desc}</strong>
           <small>
-            <strong>Origem:</strong> ${r.ORIGEM_ESTADO} - ${r.ORIGEM_CIDADE}<br>
-            <strong>Destino:</strong> ${r.DESTINO_ESTADO} - ${r.DESTINO_CIDADE}<br>
-            <strong>Distância:</strong> ${r.DISTANCIAKM || 'Não informada'} km
+            <strong>Origem:</strong> ${oEst} - ${oCid}<br>
+            <strong>Destino:</strong> ${dEst} - ${dCid}<br>
+            <strong>Distância:</strong> ${dist != null ? dist + ' km' : 'Não informada'}
           </small>
         </div>
         <div class="actions">
-          <button class="btn edit" data-id="${r.IDROTEIRO}">Editar</button>
-          <button class="btn delete" data-id="${r.IDROTEIRO}">Excluir</button>
+          <button class="btn edit" data-id="${id}">Editar</button>
+          <button class="btn delete" data-id="${id}">Excluir</button>
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
 
     // Eventos de edição e exclusão - apenas para botões da lista (não do modal)
     document.querySelectorAll('.list-item .btn.edit, .list-item .btn.delete').forEach(btn => {
@@ -978,59 +990,62 @@ async function loadRoteiroParaEdicao(id) {
     }
     
     const roteiro = await response.json();
+    // Normalizar chaves (API pode retornar minúsculas pelo PostgreSQL)
+    const idRoteiro = roteiro.IDROTEIRO ?? roteiro.idroteiro;
+    const dsRoteiro = roteiro.DSROTEIRO ?? roteiro.dsroteiro;
+    const distanciaKm = roteiro.DISTANCIAKM ?? roteiro.distanciakm;
+    const origemEstadoVal = (roteiro.ORIGEM_ESTADO ?? roteiro.origem_estado) ?? '';
+    const destinoEstadoVal = (roteiro.DESTINO_ESTADO ?? roteiro.destino_estado) ?? '';
+    const origemCidadeCod = roteiro.CDCIDADEORIGEM ?? roteiro.cdcidadeorigem;
+    const destinoCidadeCod = roteiro.CDCIDADEDESTINO ?? roteiro.cdcidadedestino;
+    const resumoRota = roteiro.RESUMOROTA ?? roteiro.resumorota;
 
     if (roteiro) {
       // Preenche campos básicos
-      document.getElementById('roteiroId').value = roteiro.IDROTEIRO;
-      document.getElementById('roteiroCodigo').value = roteiro.IDROTEIRO || '';
-      document.getElementById('roteiroDescricao').value = roteiro.DSROTEIRO;
-      document.getElementById('roteiroDistancia').value = roteiro.DISTANCIAKM || '';
-      document.getElementById('formTitle').textContent = 'Editar Roteiro';
+      document.getElementById('roteiroId').value = idRoteiro ?? '';
+      document.getElementById('roteiroCodigo').value = idRoteiro ?? '';
+      document.getElementById('roteiroDescricao').value = dsRoteiro ?? '';
+      document.getElementById('roteiroDistancia').value = distanciaKm ?? '';
+      document.getElementById('formTitle').textContent = t('web.modulos.roteiros.editarRoteiro');
       
-      // Preencher resumo da rota se existir
       const campoResumo = document.getElementById('roteiroResumoRota');
-      if (campoResumo && roteiro.RESUMOROTA) {
-        campoResumo.value = roteiro.RESUMOROTA;
-      } else if (campoResumo) {
-        campoResumo.value = '';
+      if (campoResumo) {
+        campoResumo.value = resumoRota ?? '';
       }
       
-      // Habilitar botão gerar resumo quando há roteiro selecionado
       const btnGerarResumo = document.getElementById('btnGerarResumo');
       if (btnGerarResumo) {
         btnGerarResumo.disabled = false;
         btnGerarResumo.style.opacity = '1';
         btnGerarResumo.style.pointerEvents = 'auto';
         btnGerarResumo.style.cursor = 'pointer';
-        console.log('✅ Botão Gerar Resumo habilitado para roteiro:', roteiroId);
+        console.log('✅ Botão Gerar Resumo habilitado para roteiro:', idRoteiro);
       }
 
-      // Garante que os estados estão carregados
       if (!estadosCarregados) {
         await loadEstados();
       }
 
-      // Aplica os estados
-      const origemEstado = roteiro.ORIGEM_ESTADO?.trim().toUpperCase();
-      const destinoEstado = roteiro.DESTINO_ESTADO?.trim().toUpperCase();
+      const origemEstado = String(origemEstadoVal).trim().toUpperCase();
+      const destinoEstado = String(destinoEstadoVal).trim().toUpperCase();
       document.getElementById('origemEstado').value = origemEstado;
       document.getElementById('destinoEstado').value = destinoEstado;
 
-      // Carrega cidades e aguarda antes de aplicar
       await loadCidadesPorEstado(origemEstado, 'origem');
       await loadCidadesPorEstado(destinoEstado, 'destino');
 
-      // Aplica cidades e códigos
-      document.getElementById('origemCidade').value = roteiro.CDCIDADEORIGEM.toString();
-      document.getElementById('destinoCidade').value = roteiro.CDCIDADEDESTINO.toString();
-      document.getElementById('origemCodigo').value = roteiro.CDCIDADEORIGEM;
-      document.getElementById('destinoCodigo').value = roteiro.CDCIDADEDESTINO;
+      if (origemCidadeCod != null) {
+        document.getElementById('origemCidade').value = String(origemCidadeCod);
+        document.getElementById('origemCodigo').value = origemCidadeCod;
+      }
+      if (destinoCidadeCod != null) {
+        document.getElementById('destinoCidade').value = String(destinoCidadeCod);
+        document.getElementById('destinoCodigo').value = destinoCidadeCod;
+      }
       
-      // Armazenar ID do roteiro para gerenciar pontos
-      roteiroAtualId = roteiro.IDROTEIRO;
+      roteiroAtualId = idRoteiro;
       
-      // Carregar pontos do roteiro (sem calcular distâncias automaticamente)
-      await carregarPontos(roteiro.IDROTEIRO, true);
+      await carregarPontos(idRoteiro, true);
 
       // NÃO recalcular automaticamente - só calcular quando o usuário clicar em "Calcular"
       // await recalcularTodasDistancias(roteiro.IDROTEIRO); // REMOVIDO - cálculo só manual
@@ -1057,7 +1072,7 @@ async function loadRoteiroParaEdicao(id) {
     }
   } catch (err) {
     console.error('Erro ao carregar roteiro:', err);
-    showMessage('Erro ao carregar dados para edição.', 'error');
+    showMessage(t('web.modulos.roteiros.erroCarregarDados'), 'error');
   }
 }
 
@@ -1066,7 +1081,7 @@ async function loadRoteiroParaEdicao(id) {
     // Validação robusta do ID
     let idValido = id;
     if (idValido == null || idValido === 'undefined' || idValido === 'null' || idValido === '' || idValido === 'NaN') {
-      showMessage('Erro: ID não disponível.', 'error');
+      showMessage(t('web.modulos.roteiros.erroIdIndisponivel'), 'error');
       return;
     }
     
@@ -1126,7 +1141,7 @@ async function loadRoteiroParaEdicao(id) {
         const acao = modalEl.dataset.action || action;
         
         if (!idParaExcluir || idParaExcluir === 'undefined' || idParaExcluir === 'null' || idParaExcluir === '') {
-          showMessage('Erro: ID não disponível.', 'error');
+          showMessage(t('web.modulos.roteiros.erroIdIndisponivel'), 'error');
           modalEl.style.display = 'none';
           return;
         }
@@ -1147,7 +1162,7 @@ async function loadRoteiroParaEdicao(id) {
           }
         } catch (err) {
           console.error('[Roteiros] Erro ao alterar status:', err);
-          showMessage('Erro de conexão.', 'error');
+          showMessage(t('web.modulos.roteiros.erroConexao'), 'error');
         } finally {
           modalEl.style.display = 'none';
           delete modalEl.dataset.deleteId;
@@ -1278,9 +1293,18 @@ async function loadRoteiroParaEdicao(id) {
     }
   }
 
-  // Salvar formulário
+  let roteiroFormSubmitting = false;
   roteiroForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    e.stopImmediatePropagation();
+    if (roteiroFormSubmitting) return;
+    roteiroFormSubmitting = true;
+    const btnSubmit = roteiroForm?.querySelector('button[type="submit"]');
+    const labelOriginal = btnSubmit?.innerHTML ?? '';
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = '<i class=\'bx bx-loader-alt bx-spin\'></i> ' + t('web.modulos.roteiros.salvando');
+    }
     const id = document.getElementById('roteiroId')?.value; // 👈 Usa o campo oculto
     const descricao = document.getElementById('roteiroDescricao')?.value.trim();
     const origemCidade = document.getElementById('origemCidade')?.value;
@@ -1288,7 +1312,9 @@ async function loadRoteiroParaEdicao(id) {
     const distancia = document.getElementById('roteiroDistancia')?.value;
     
     if (!descricao || !origemCidade || !destinoCidade) {
-      showMessage('Preencha todos os campos obrigatórios.', 'error');
+      showMessage(t('web.modulos.roteiros.preenchaCampos'), 'error');
+      roteiroFormSubmitting = false;
+      if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = labelOriginal; }
       return;
     }
 
@@ -1324,38 +1350,17 @@ async function loadRoteiroParaEdicao(id) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(roteiroData)
         });
-        
-        // Extrair ID do roteiro criado
-        if (response.ok) {
-          // Buscar o último roteiro criado com essa descrição e cidades
-          const roteirosResponse = await fetch(`/api/roteiros?descricao=${encodeURIComponent(descricao)}`);
-          if (roteirosResponse.ok) {
-            const roteiros = await roteirosResponse.json();
-            // Filtrar pelo roteiro que corresponde exatamente (mesma origem e destino)
-            const roteiroCorreto = roteiros.find(r => 
-              r.CDCIDADEORIGEM === parseInt(origemCidade) && 
-              r.CDCIDADEDESTINO === parseInt(destinoCidade)
-            );
-            if (roteiroCorreto) {
-              idRoteiroSalvo = roteiroCorreto.IDROTEIRO;
-            } else if (roteiros.length > 0) {
-              // Fallback: pegar o mais recente (maior ID)
-              const roteiroMaisRecente = roteiros.sort((a, b) => b.IDROTEIRO - a.IDROTEIRO)[0];
-              idRoteiroSalvo = roteiroMaisRecente.IDROTEIRO;
-            }
-          }
-        }
       }
 
       const data = await response.json();
       if (response.ok) {
-        // Se for novo roteiro, verificar se há pontos cadastrados
+        // Se for novo roteiro, obter ID da resposta da API ou por busca
         if (novoRoteiro) {
-          // Aguardar um pouco para garantir que o roteiro foi criado no banco
-          await new Promise(resolve => setTimeout(resolve, 300));
-          
-          // Buscar o ID do roteiro recém-criado
+          if (data && (data.IDROTEIRO != null || data.idRoteiro != null)) {
+            idRoteiroSalvo = data.IDROTEIRO ?? data.idRoteiro;
+          }
           if (!idRoteiroSalvo) {
+            await new Promise(resolve => setTimeout(resolve, 300));
             const roteirosResponse = await fetch(`/api/roteiros?descricao=${encodeURIComponent(descricao)}`);
             if (roteirosResponse.ok) {
               const roteiros = await roteirosResponse.json();
@@ -1440,7 +1445,15 @@ async function loadRoteiroParaEdicao(id) {
       }
     } catch (err) {
       console.error('Erro ao salvar:', err);
-      showMessage('Erro de conexão com o servidor.', 'error');
+      showMessage(t('web.modulos.roteiros.erroConexao'), 'error');
+    } finally {
+      setTimeout(() => {
+        roteiroFormSubmitting = false;
+        if (btnSubmit) {
+          btnSubmit.disabled = false;
+          btnSubmit.innerHTML = labelOriginal;
+        }
+      }, 600);
     }
   });
 
@@ -1473,7 +1486,7 @@ async function loadRoteiroParaEdicao(id) {
     roteiroForm?.reset();
     document.getElementById('roteiroId').value = ''; // 👈 Limpa o ID
     document.getElementById('roteiroCodigo').value = ''; // Limpa o código visível
-    document.getElementById('formTitle').textContent = 'Novo Roteiro';
+    document.getElementById('formTitle').textContent = t('web.modulos.roteiros.novoRoteiro');
     roteiroAtualId = null; // Limpa o ID do roteiro atual
     
     // Desabilitar botão gerar resumo quando não há roteiro
@@ -1495,7 +1508,7 @@ async function loadRoteiroParaEdicao(id) {
     roteiroForm?.reset();
     document.getElementById('roteiroId').value = '';
     document.getElementById('roteiroCodigo').value = '';
-    document.getElementById('formTitle').textContent = 'Novo Roteiro';
+    document.getElementById('formTitle').textContent = t('web.modulos.roteiros.novoRoteiro');
     roteiroAtualId = null;
     
     // Desabilitar botão gerar resumo quando não há roteiro
@@ -2143,26 +2156,34 @@ async function loadRoteiroParaEdicao(id) {
       
       // IMPORTANTE: Verificar se o container já tem um mapa antes de criar novo
       if (mapaDiv._leaflet_id) {
-        console.warn('⚠️ [ROTEIROS] Container já tem mapa. Limpando antes de criar novo...');
-        // Limpar qualquer mapa existente
+        // Pode acontecer quando o script roda em mais de um contexto (ex.: cache/recarregamento)
         try {
           if (mapa) {
+            // Só usar remove() quando temos a referência; não tocar no DOM depois
             mapa.remove();
+            mapa = null;
+          } else {
+            // Mapa de outra instância (ex.: script carregado 2x): substituir o container
+            // para não deixar referências órfãs que causam "offsetWidth of null" ao arrastar
+            const parent = mapaDiv.parentNode;
+            const newDiv = document.createElement('div');
+            newDiv.id = 'mapaRota';
+            newDiv.style.height = mapaDiv.style.height || '600px';
+            newDiv.style.width = mapaDiv.style.width || '100%';
+            newDiv.style.border = mapaDiv.style.border || '2px solid #ddd';
+            newDiv.style.borderRadius = mapaDiv.style.borderRadius || '8px';
+            newDiv.style.background = mapaDiv.style.background || '#f5f5f5';
+            if (parent) parent.replaceChild(newDiv, mapaDiv);
           }
         } catch (e) {
-          // Ignorar
+          console.warn('⚠️ [ROTEIROS] Erro ao limpar mapa anterior:', e);
         }
-        // Limpar o ID do Leaflet
-        delete mapaDiv._leaflet_id;
-        // Limpar conteúdo do container
-        mapaDiv.innerHTML = '';
         mapa = null;
-        // Aguardar um pouco para garantir que o Leaflet limpou tudo
-        await new Promise(resolve => setTimeout(resolve, 50));
-      } else {
-        // Limpar conteúdo anterior se houver
-        mapaDiv.innerHTML = '';
+        // Aguardar para o Leaflet liberar event handlers antes de criar novo mapa
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
+      // Não fazer mapaDiv.innerHTML = '' aqui: após remove() o Leaflet já limpou;
+      // mexer no DOM aqui causa "Cannot read properties of null (reading 'offsetWidth')" no Draggable
       
       // Criar mapa centrado no Brasil
       mapa = L.map('mapaRota', {
@@ -2194,8 +2215,22 @@ async function loadRoteiroParaEdicao(id) {
       
       L.tileLayer(tileServer, tileOptions).addTo(mapa);
       console.log('✅ [ROTEIROS] TileLayer adicionado ao mapa');
+
+      // Garantir que interações estejam habilitadas (arrastar/zoom) mesmo após recriações do mapa
+      try {
+        mapa.dragging?.enable();
+        mapa.scrollWheelZoom?.enable();
+        mapa.doubleClickZoom?.enable();
+        mapa.boxZoom?.enable();
+        mapa.keyboard?.enable();
+        mapa.touchZoom?.enable();
+        mapa.tap?.enable?.();
+        mapaDiv.style.cursor = 'grab';
+      } catch (e) {
+        // ignorar
+      }
       
-      // Invalidar tamanho imediatamente usando requestAnimationFrame
+      // Invalidar tamanho imediatamente e após o layout (evita offsetWidth/arraste quebrado quando aba estava oculta)
       requestAnimationFrame(() => {
         if (mapa) {
           try {
@@ -2204,6 +2239,14 @@ async function loadRoteiroParaEdicao(id) {
             console.warn('Erro ao invalidar tamanho do mapa:', e);
           }
         }
+        // Segunda invalidação após o navegador aplicar layout da aba visível
+        setTimeout(() => {
+          if (mapa && mapa.getContainer && mapa.getContainer()) {
+            try {
+              mapa.invalidateSize();
+            } catch (e2) {}
+          }
+        }, 150);
       });
       
       mapaInicializando = false;
@@ -2563,7 +2606,7 @@ async function loadRoteiroParaEdicao(id) {
       document.getElementById('pontosTitle').textContent = 'Pontos do Roteiro';
       const pontosGrid = document.getElementById('pontosGrid');
       if (pontosGrid) {
-        pontosGrid.innerHTML = '<p class="empty">Selecione um roteiro na aba "Dados" para gerenciar seus pontos.</p>';
+        pontosGrid.innerHTML = '<p class="empty">' + t('web.modulos.roteiros.selecioneRoteiroPontos') + '</p>';
       }
       
       // Ocultar botões
@@ -2692,10 +2735,40 @@ async function loadRoteiroParaEdicao(id) {
       }
       
       pontosRoteiro = await pontosResponse.json();
+
+      // Helpers: normalizar/validar coordenadas (evita OSRM 400 por dados inválidos/outliers)
+      const parseCoord = (v) => {
+        if (v === null || v === undefined || v === '') return null;
+        const n = parseFloat(String(v).trim().replace(',', '.'));
+        return Number.isFinite(n) ? n : null;
+      };
+      const isValidLatLon = (lat, lon) =>
+        lat !== null && lon !== null &&
+        lat >= -90 && lat <= 90 &&
+        lon >= -180 && lon <= 180;
+      const getCoord = (p) => {
+        const lat = parseCoord(p.LATITUDE);
+        const lon = parseCoord(p.LONGITUDE);
+        return isValidLatLon(lat, lon) ? { lat, lon } : null;
+      };
+      const coordSpanTooLarge = (pts) => {
+        if (!pts || pts.length < 2) return false;
+        let minLat = 999, maxLat = -999, minLon = 999, maxLon = -999;
+        pts.forEach(p => {
+          const c = getCoord(p);
+          if (!c) return;
+          minLat = Math.min(minLat, c.lat);
+          maxLat = Math.max(maxLat, c.lat);
+          minLon = Math.min(minLon, c.lon);
+          maxLon = Math.max(maxLon, c.lon);
+        });
+        // Se o span é muito grande, provavelmente existe um ponto fora do país/região
+        return (maxLat - minLat) > 12 || (maxLon - minLon) > 12; // ~ > 1300km (aprox)
+      };
       
       // Filtrar pontos com coordenadas e ordenar por ORDEM
       const pontosComCoordenadas = pontosRoteiro
-        .filter(p => p.LATITUDE && p.LONGITUDE)
+        .filter(p => getCoord(p))
         .sort((a, b) => (a.ORDEM || 0) - (b.ORDEM || 0));
       
       if (pontosComCoordenadas.length < 2) {
@@ -2708,15 +2781,25 @@ async function loadRoteiroParaEdicao(id) {
       // OTIMIZAÇÃO: Para poucos pontos (≤5), fazer uma única requisição OSRM
       const totalPontos = pontosComCoordenadas.length;
       let usarOtimizacao = totalPontos <= 5;
+      // Se existe um ponto muito fora da região, não use a chamada única (pode causar 400 no OSRM público)
+      if (usarOtimizacao && coordSpanTooLarge(pontosComCoordenadas)) {
+        usarOtimizacao = false;
+      }
       
       if (usarOtimizacao) {
         // OTIMIZAÇÃO: Uma única requisição OSRM para calcular tudo
         try {
           const coordsStr = pontosComCoordenadas
-            .map(p => `${p.LONGITUDE},${p.LATITUDE}`)
+            .map(p => {
+              const c = getCoord(p);
+              return c ? `${c.lon},${c.lat}` : null;
+            })
+            .filter(Boolean)
             .join(';');
           
-          const osrmUrl = `https://router.project-osrm.org/route/v1/driving-hgv/${coordsStr}?overview=full&geometries=geojson`;
+          const osrmUrl = (window.getOSRMUrl
+            ? window.getOSRMUrl(pontosComCoordenadas.map(p => getCoord(p)).filter(Boolean))
+            : `https://router.project-osrm.org/route/v1/driving-hgv/${coordsStr}?overview=full&geometries=geojson`);
           const response = await fetch(osrmUrl);
           const data = await response.json();
           
@@ -2949,8 +3032,37 @@ async function loadRoteiroParaEdicao(id) {
     }
     
     // OTIMIZAÇÃO: Para poucos pontos, usar valores já calculados (KMENTREPONTOS) se disponíveis
+    // Helpers: normalizar/validar coordenadas
+    const parseCoord = (v) => {
+      if (v === null || v === undefined || v === '') return null;
+      const n = parseFloat(String(v).trim().replace(',', '.'));
+      return Number.isFinite(n) ? n : null;
+    };
+    const isValidLatLon = (lat, lon) =>
+      lat !== null && lon !== null &&
+      lat >= -90 && lat <= 90 &&
+      lon >= -180 && lon <= 180;
+    const getCoord = (p) => {
+      const lat = parseCoord(p.LATITUDE);
+      const lon = parseCoord(p.LONGITUDE);
+      return isValidLatLon(lat, lon) ? { lat, lon } : null;
+    };
+    const coordSpanTooLarge = (pts) => {
+      if (!pts || pts.length < 2) return false;
+      let minLat = 999, maxLat = -999, minLon = 999, maxLon = -999;
+      pts.forEach(p => {
+        const c = getCoord(p);
+        if (!c) return;
+        minLat = Math.min(minLat, c.lat);
+        maxLat = Math.max(maxLat, c.lat);
+        minLon = Math.min(minLon, c.lon);
+        maxLon = Math.max(maxLon, c.lon);
+      });
+      return (maxLat - minLat) > 12 || (maxLon - minLon) > 12;
+    };
+
     const pontosComCoordenadas = pontosRoteiro
-      .filter(p => p.LATITUDE && p.LONGITUDE)
+      .filter(p => getCoord(p))
       .sort((a, b) => (a.ORDEM || 0) - (b.ORDEM || 0));
     
     if (pontosComCoordenadas.length <= 3) {
@@ -2967,7 +3079,7 @@ async function loadRoteiroParaEdicao(id) {
     
     // Ordenar pontos por ORDEM
     const pontosOrdenados = [...pontosRoteiro]
-      .filter(p => p.LATITUDE && p.LONGITUDE)
+      .filter(p => getCoord(p))
       .sort((a, b) => (a.ORDEM || 0) - (b.ORDEM || 0));
     
     if (pontosOrdenados.length < 2) {
@@ -2977,11 +3089,14 @@ async function loadRoteiroParaEdicao(id) {
     
     // Tentar calcular usando OSRM (rota real) - mesma lógica do botão Calcular
     try {
-      const coordsStr = pontosOrdenados
-        .map(p => `${p.LONGITUDE},${p.LATITUDE}`)
-        .join(';');
-      
-      const osrmUrl = `https://router.project-osrm.org/route/v1/driving-hgv/${coordsStr}?overview=full&geometries=geojson`;
+      // Se existe um outlier (ponto muito fora), não chamar OSRM público (evita 400)
+      if (coordSpanTooLarge(pontosOrdenados)) {
+        throw new Error('Pontos com coordenadas muito distantes entre si');
+      }
+
+      const coords = pontosOrdenados.map(p => getCoord(p)).filter(Boolean);
+      const coordsStr = coords.map(c => `${c.lon},${c.lat}`).join(';');
+      const osrmUrl = (window.getOSRMUrl ? window.getOSRMUrl(coords) : `https://router.project-osrm.org/route/v1/driving-hgv/${coordsStr}?overview=full&geometries=geojson`);
       const response = await fetch(osrmUrl);
       const data = await response.json();
       
@@ -3038,7 +3153,7 @@ async function loadRoteiroParaEdicao(id) {
       columns: [
         { field: 'SEQUENCIA', header: 'Seq', editable: false, isId: true, width: '60px' },
         { field: 'ORDEM', header: 'Ordem', editable: true, type: 'number', width: '80px' },
-        { field: 'TPLOCAL', header: 'Tipo', editable: true, type: 'select', width: '120px',
+        { field: 'TPLOCAL', header: 'Tipo', editable: true, type: 'select',
           options: [
             { value: 'O', label: 'Origem' },
             { value: 'D', label: 'Destino' },
@@ -3046,25 +3161,24 @@ async function loadRoteiroParaEdicao(id) {
             { value: 'R', label: 'Parada' }
           ],
           format: (val) => {
-            // Normalizar valor - tratar null/undefined e espaços
             if (val === null || val === undefined) return 'Não definido';
             const tipoNormalizado = String(val).trim().toUpperCase();
             const tipos = { 'O': 'Origem', 'D': 'Destino', 'P': 'Passagem', 'R': 'Parada' };
             return tipos[tipoNormalizado] || tipoNormalizado || 'Não definido';
           }
         },
-        { field: 'DSLOCAL', header: 'Local', editable: true, type: 'text', width: '200px' },
-        { field: 'DSPOSICAO', header: 'Posição', editable: true, type: 'text', width: '250px' },
-        { field: 'LATITUDE', header: 'Latitude', editable: true, type: 'number', width: '120px',
+        { field: 'DSLOCAL', header: 'Local', editable: true, type: 'text' },
+        { field: 'DSPOSICAO', header: 'Posição', editable: true, type: 'text' },
+        { field: 'LATITUDE', header: 'Latitude', editable: true, type: 'number',
           format: (val) => val ? parseFloat(val).toFixed(6) : ''
         },
-        { field: 'LONGITUDE', header: 'Longitude', editable: true, type: 'number', width: '120px',
+        { field: 'LONGITUDE', header: 'Longitude', editable: true, type: 'number',
           format: (val) => val ? parseFloat(val).toFixed(6) : ''
         },
-        { field: 'KMENTREPONTOS', header: 'Dist. (km)', editable: true, type: 'number', width: '100px',
+        { field: 'KMENTREPONTOS', header: 'Dist. (km)', editable: true, type: 'number',
           format: (val) => val ? parseFloat(val).toFixed(4) : ''
         },
-        { field: 'ESTADOPASSAGEM', header: 'UF', editable: true, type: 'text', width: '60px' }
+        { field: 'ESTADOPASSAGEM', header: 'UF', editable: true, type: 'text', width: '60px', align: 'right' }
       ],
       apiEndpoint: `/api/roteiros/${roteiroAtualId}/pontos`,
       onBeforeEdit: async (id) => {
@@ -3293,17 +3407,25 @@ async function loadRoteiroParaEdicao(id) {
         window.showLoading(btnBuscar, true);
       }
       
-      // Usar Nominatim para geocodificação com detalhes de endereço
-      const nominatimServer = window.MAP_CONFIG?.nominatimServer || 'http://app.integrabrasil.com:8080/nominatim';
-      const url = `${nominatimServer}/search?format=json&q=${encodeURIComponent(posicao)}&limit=1&addressdetails=1`;
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'DivulgaCarga/1.0'
+      // Usar Nominatim para geocodificação (tentar servidor configurado; em caso de falha, API pública)
+      const servers = [
+        (window.MAP_CONFIG?.nominatimServer || 'http://app.integrabrasil.com:8080/nominatim').replace(/\/$/, ''),
+        'https://nominatim.openstreetmap.org'
+      ];
+      const opts = { headers: { 'User-Agent': 'AtlasCargo/2.0' } };
+      let data = null;
+      for (const base of servers) {
+        try {
+          const url = `${base}/search?format=json&q=${encodeURIComponent(posicao)}&limit=1&addressdetails=1`;
+          const res = await fetch(url, opts);
+          if (!res.ok) continue;
+          data = await res.json();
+          if (data && Array.isArray(data) && data.length > 0) break;
+        } catch (err) {
+          if (base === servers[servers.length - 1]) throw err;
         }
-      });
-      
-      const data = await response.json();
-      
+      }
+
       if (data && data.length > 0) {
         const resultado = data[0];
         const address = resultado.address || {};
@@ -3412,6 +3534,10 @@ async function loadRoteiroParaEdicao(id) {
   // Salvar ponto (criar ou atualizar)
   async function salvarPonto(e) {
     e.preventDefault();
+    // Evitar submit duplicado (duplo clique / listeners duplicados)
+    if (window.__roteiros_salvarPontoSubmitting) return;
+    window.__roteiros_salvarPontoSubmitting = true;
+    if (e && typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
     
     const idRoteiro = document.getElementById('pontoIdRoteiro')?.value;
     const sequencia = document.getElementById('pontoSequencia')?.value;
@@ -3439,7 +3565,7 @@ async function loadRoteiroParaEdicao(id) {
     const pais = document.getElementById('pontoPais')?.value;
     
     if (!idRoteiro || !ordem || !local || !posicao || !tipoLocal) {
-      showMessage('Preencha todos os campos obrigatórios.', 'error');
+      showMessage(t('web.modulos.roteiros.preenchaCampos'), 'error');
       return;
     }
     
@@ -3448,6 +3574,7 @@ async function loadRoteiroParaEdicao(id) {
       if (btnSalvar && typeof window.showLoading !== 'undefined') {
         window.showLoading(btnSalvar, true);
       }
+      if (btnSalvar) btnSalvar.disabled = true;
       
       // Calcular distância do ponto anterior automaticamente se houver coordenadas
       // MAS só calcular se o usuário não informou uma distância manualmente
@@ -3530,6 +3657,11 @@ async function loadRoteiroParaEdicao(id) {
       if (btnSalvar && typeof window.showLoading !== 'undefined') {
         window.showLoading(btnSalvar, false);
       }
+      if (btnSalvar) btnSalvar.disabled = false;
+      // Cooldown curto para absorver clicks duplos
+      setTimeout(() => {
+        window.__roteiros_salvarPontoSubmitting = false;
+      }, 600);
     }
   }
   
@@ -3685,6 +3817,11 @@ async function loadRoteiroParaEdicao(id) {
   
   // Novo ponto
   function novoPonto() {
+    // Se já temos pontos carregados, usar o ID do primeiro ponto como roteiro atual
+    if (!roteiroAtualId && pontosRoteiro.length > 0) {
+      const primeiro = pontosRoteiro[0];
+      roteiroAtualId = primeiro.IDROTEIRO ?? primeiro.idroteiro ?? null;
+    }
     if (!roteiroAtualId) {
       showMessage('Selecione um roteiro primeiro na aba "Dados".', 'error');
       return;
@@ -3740,6 +3877,7 @@ async function loadRoteiroParaEdicao(id) {
       if (titleEl) titleEl.textContent = titulo;
       if (textEl) textEl.textContent = texto;
       overlay.style.display = 'flex';
+      overlay.style.pointerEvents = 'auto'; // bloquear interação com o mapa enquanto carrega
       window.overlayMostrado = true;
     }
   }
@@ -3753,6 +3891,7 @@ async function loadRoteiroParaEdicao(id) {
     const overlay = document.getElementById('mapaLoadingOverlay');
     if (overlay) {
       overlay.style.display = 'none';
+      overlay.style.pointerEvents = 'none'; // não bloquear o mapa quando estiver oculto
       window.overlayMostrado = false;
     }
   }
@@ -4209,10 +4348,10 @@ async function loadRoteiroParaEdicao(id) {
       return null;
     }
     
-    const modalMapaSelecao = document.getElementById('modalMapaSelecao');
+    const modalMapaSelecao = document.getElementById('modalSelecionarMapa');
     if (!modalMapaSelecao) {
-      console.error('[Mapa Seleção] Modal não encontrado');
-      return;
+      console.error('[Mapa Seleção] Modal não encontrado (id: modalSelecionarMapa)');
+      return null;
     }
 
     const mapaDiv = document.getElementById('mapaSelecao');
@@ -4229,25 +4368,39 @@ async function loadRoteiroParaEdicao(id) {
     
     // Inicializar mapa se ainda não foi inicializado
     if (!mapaSelecao) {
-      mapaSelecao = L.map('mapaSelecao').setView([-23.5505, -46.6333], 5);
+      const viewCenter = coordenadasIniciais
+        ? [coordenadasIniciais.lat, coordenadasIniciais.lng]
+        : [-23.5505, -46.6333];
+      const viewZoom = coordenadasIniciais ? 15 : 5;
+      mapaSelecao = L.map('mapaSelecao').setView(viewCenter, viewZoom);
       
       // Configurar tile layer
-      // IMPORTANTE: Forçar HTTP (não HTTPS) para evitar ERR_SSL_PROTOCOL_ERROR
       let tileServer = window.getTileServerUrl ? window.getTileServerUrl() : (window.MAP_CONFIG?.tileServer || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
       const tileOptions = {
         attribution: '© OpenStreetMap contributors',
         maxZoom: 19
       };
       
-      // Se usar servidor OpenStreetMap com {s}, adicionar subdomínios
       if (tileServer.includes('{s}')) {
         tileOptions.subdomains = ['a', 'b', 'c'];
       }
       
       L.tileLayer(tileServer, tileOptions).addTo(mapaSelecao);
+
+      // Duplo clique para selecionar posição
+      mapaSelecao.on('dblclick', async (e) => {
+        const { lat, lng } = e.latlng;
+        await criarMarcadorSelecao(lat, lng);
+      });
+
+      // Se já há coordenadas (ex.: lat/lng preenchidos no formulário), centralizar e colocar marcador
+      if (coordenadasIniciais) {
+        mapaSelecao.setView([coordenadasIniciais.lat, coordenadasIniciais.lng], 15);
+        const posicaoAtual = document.getElementById('pontoPosicao')?.value || '';
+        await criarMarcadorSelecao(coordenadasIniciais.lat, coordenadasIniciais.lng, posicaoAtual);
+      }
     }
     
-    // Resto da função inicializarMapaSelecao continua aqui...
     return mapaSelecao;
   }
   
@@ -4710,7 +4863,7 @@ async function loadRoteiroParaEdicao(id) {
       const reverseUrl = `${nominatimServer}/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`;
       const reverseResponse = await fetch(reverseUrl, {
         headers: {
-          'User-Agent': 'DivulgaCarga/1.0'
+          'User-Agent': 'AtlasCargo/2.0'
         }
       });
       
@@ -4820,14 +4973,28 @@ async function loadRoteiroParaEdicao(id) {
     }
   }
 
-  // Event listeners para pontos
-  document.getElementById('pontoForm')?.addEventListener('submit', salvarPonto);
-  document.getElementById('btnNovoPonto')?.addEventListener('click', novoPonto);
-  document.getElementById('btnCancelarPonto')?.addEventListener('click', limparFormularioPonto);
-  document.getElementById('btnVoltarPontos')?.addEventListener('click', () => showTab('dados'));
-  document.getElementById('btnBuscarCoordenadas')?.addEventListener('click', buscarCoordenadas);
-  document.getElementById('btnSelecionarNoMapa')?.addEventListener('click', abrirModalSelecaoMapa);
-  document.getElementById('btnConfirmarPosicao')?.addEventListener('click', confirmarPosicaoSelecionada);
+  // Event listeners para pontos (com proteção contra registro duplicado ao recarregar o módulo)
+  (function bindPontosListeners() {
+    const pontoForm = document.getElementById('pontoForm');
+    if (pontoForm && !pontoForm.dataset.bound) {
+      pontoForm.addEventListener('submit', salvarPonto);
+      pontoForm.dataset.bound = '1';
+    }
+
+    const bindClickOnce = (id, handler) => {
+      const el = document.getElementById(id);
+      if (!el || el.dataset.bound) return;
+      el.addEventListener('click', handler);
+      el.dataset.bound = '1';
+    };
+
+    bindClickOnce('btnNovoPonto', novoPonto);
+    bindClickOnce('btnCancelarPonto', limparFormularioPonto);
+    bindClickOnce('btnVoltarPontos', () => showTab('dados'));
+    bindClickOnce('btnBuscarCoordenadas', buscarCoordenadas);
+    bindClickOnce('btnSelecionarNoMapa', abrirModalSelecaoMapa);
+    bindClickOnce('btnConfirmarPosicao', confirmarPosicaoSelecionada);
+  })();
   
   // Fechar modal ao clicar no X ou Cancelar
   document.getElementById('btnFecharModalMapa')?.addEventListener('click', fecharModalSelecaoMapa);

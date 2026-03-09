@@ -4,8 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Configurações de Notificações - Motorista</title>
-  <link rel="stylesheet" href="../css/padrao-telas.css">
   <link rel="stylesheet" href="../css/design-system.css">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <script src="../js/i18n.js"></script>
   <style>
     .config-section {
       background: white;
@@ -75,7 +77,7 @@
     }
 
     .toggle-switch.active {
-      background: #667eea;
+      background: #0ea5e9;
     }
 
     .toggle-switch::after {
@@ -98,7 +100,7 @@
     .btn-testar {
       margin-top: 16px;
       padding: 10px 20px;
-      background: #667eea;
+      background: #0ea5e9;
       color: white;
       border: none;
       border-radius: 8px;
@@ -134,35 +136,132 @@
       background: #fff3cd;
       color: #856404;
     }
+
+    .permissao-linha {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #f0f0f0;
+      gap: 12px;
+    }
+
+    .permissao-linha:last-of-type {
+      border-bottom: none;
+    }
+
+    .permissao-linha .texto {
+      font-size: 14px;
+      color: #333;
+    }
+
+    .permissao-linha .badge {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+      flex-shrink: 0;
+    }
+
+    .badge-ok {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .badge-negado {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    .badge-pendente {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .ajuda-config {
+      margin-top: 12px;
+      padding: 12px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #555;
+      line-height: 1.5;
+    }
+
+    .ajuda-config strong {
+      display: block;
+      margin-bottom: 6px;
+      color: #333;
+    }
+
+    .btn-link {
+      background: none;
+      border: none;
+      color: #0ea5e9;
+      text-decoration: underline;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 0;
+      margin-top: 8px;
+    }
+
+    .btn-link:hover {
+      color: #0284c7;
+    }
   </style>
 </head>
-<body>
+<body class="motorista-page">
   <div class="navbar">
-    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
-    <h1>Configurações de Notificações</h1>
+    <button class="btn-voltar" onclick="voltar()">← <span data-i18n="configNotificacoes.voltar">Voltar</span></button>
+    <h1><i class="bx bx-bell"></i> <span data-i18n="configNotificacoes.titulo">Configurações de Notificações</span></h1>
+    <div id="statusIndicador" class="status-badge-navbar status-online" data-i18n="dashboard.onlineSincronizado">Online - Sincronizado</div>
   </div>
 
   <div class="container">
     <!-- Permissões -->
     <div class="config-section">
-      <div class="config-section-title">🔔 Permissões</div>
-      <div id="statusPermissao" class="status-permissao default">
+      <div class="config-section-title" data-i18n="configNotificacoes.permissoes">🔔 Permissões</div>
+      <p style="font-size: 13px; color: #666; margin-bottom: 12px;" data-i18n="configNotificacoes.permissoesDesc">
+        O app usa duas permissões diferentes no navegador: notificações (alertas) e localização (GPS). Você pode ter uma ativa e outra não.
+      </p>
+
+      <div class="permissao-linha">
+        <span class="texto" data-i18n="configNotificacoes.localizacao">📍 Localização (GPS)</span>
+        <span id="badgeLocalizacao" class="badge badge-pendente" data-i18n="configNotificacoes.verificando">Verificando...</span>
+      </div>
+      <div class="permissao-linha">
+        <span class="texto" data-i18n="configNotificacoes.notificacoes">🔔 Notificações (alertas com app fechado)</span>
+        <span id="badgeNotificacoes" class="badge badge-pendente" data-i18n="configNotificacoes.verificando">Verificando...</span>
+      </div>
+
+      <div id="statusPermissao" class="status-permissao default" style="margin-top: 12px;" data-i18n="configNotificacoes.verificandoPermissoes">
         Verificando permissões...
       </div>
-      <button id="btnSolicitarPermissao" class="btn-testar" style="display: none;">
-        Solicitar Permissão de Notificações
+
+      <button id="btnSolicitarPermissao" class="btn-testar" style="display: none; margin-top: 12px;" data-i18n="configNotificacoes.solicitarPermissao">
+        Solicitar permissão de notificações
       </button>
+      <button id="btnNegadoAjuda" class="btn-testar" style="display: none; margin-top: 8px; background: #6c757d;" data-i18n="configNotificacoes.comoAtivar">
+        Como ativar no navegador
+      </button>
+
+      <div id="ajudaConfiguracoes" class="ajuda-config" style="display: none;">
+        <strong>Como permitir notificações no Chrome ou Edge:</strong>
+        1. Clique no ícone de <strong>cadeado</strong> ou <strong>i</strong> na barra de endereço (à esquerda da URL).<br>
+        2. Procure <strong>Notificações</strong> e altere para <strong>Permitir</strong>.<br>
+        3. Recarregue esta página (F5).
+      </div>
     </div>
 
     <!-- Notificações Gerais -->
     <div class="config-section">
-      <div class="config-section-title">⚙️ Notificações Gerais</div>
+      <div class="config-section-title" data-i18n="configNotificacoes.notifGerais">⚙️ Notificações Gerais</div>
       
       <div class="config-item">
         <div class="config-item-label">
           <div class="config-item-text">
-            <div class="config-item-title">Notificações Push</div>
-            <div class="config-item-desc">Receber notificações quando o app está fechado</div>
+            <div class="config-item-title" data-i18n="configNotificacoes.notifPush">Notificações Push</div>
+            <div class="config-item-desc" data-i18n="configNotificacoes.notifPushDesc">Receber notificações quando o app está fechado</div>
           </div>
         </div>
         <div class="toggle-switch" id="togglePush" onclick="toggleConfig('push')"></div>
@@ -279,12 +378,22 @@
     </div>
   </div>
 
+  <script src="../js/url-helper.js"></script>
   <script src="../js/notifications.js"></script>
   <script src="../js/auth.js"></script>
   <script src="../js/notifications-service.js"></script>
   
   <script>
     (function() {
+      function applyI18n() {
+        if (typeof window.t !== 'function') return;
+        document.querySelectorAll('[data-i18n]').forEach(function(el) {
+          var k = el.getAttribute('data-i18n');
+          if (k) el.textContent = window.t(k);
+        });
+      }
+      if (window.i18nReady) window.i18nReady.then(applyI18n);
+
       if (!verificarAuth()) {
         window.location.href = '../index.html';
         return;
@@ -322,46 +431,113 @@
       atualizarStatusPermissao();
     }
 
-      // Atualizar status de permissão
+      // Atualizar status de permissão (notificações + localização)
       async function atualizarStatusPermissao() {
-      const statusEl = document.getElementById('statusPermissao');
-      const btnEl = document.getElementById('btnSolicitarPermissao');
+        const statusEl = document.getElementById('statusPermissao');
+        const btnSolicitar = document.getElementById('btnSolicitarPermissao');
+        const btnNegadoAjuda = document.getElementById('btnNegadoAjuda');
+        const ajudaEl = document.getElementById('ajudaConfiguracoes');
+        const badgeLoc = document.getElementById('badgeLocalizacao');
+        const badgeNotif = document.getElementById('badgeNotificacoes');
 
-      if (!('Notification' in window)) {
-        statusEl.textContent = 'Navegador não suporta notificações';
-        statusEl.className = 'status-permissao denied';
-        btnEl.style.display = 'none';
-        return;
+        // --- Localização (GPS) ---
+        if (!navigator.geolocation) {
+          if (badgeLoc) { badgeLoc.textContent = 'Não suportado'; badgeLoc.className = 'badge badge-negado'; }
+        } else {
+          try {
+            if (navigator.permissions && navigator.permissions.query) {
+              const perm = await navigator.permissions.query({ name: 'geolocation' });
+              if (badgeLoc) {
+                if (perm.state === 'granted') {
+                  badgeLoc.textContent = 'Permitido';
+                  badgeLoc.className = 'badge badge-ok';
+                } else if (perm.state === 'denied') {
+                  badgeLoc.textContent = 'Negado';
+                  badgeLoc.className = 'badge badge-negado';
+                } else {
+                  badgeLoc.textContent = 'Solicitado ao usar';
+                  badgeLoc.className = 'badge badge-pendente';
+                }
+              }
+            } else {
+              if (badgeLoc) {
+                badgeLoc.textContent = 'Solicitado ao usar GPS';
+                badgeLoc.className = 'badge badge-ok';
+              }
+            }
+          } catch (e) {
+            if (badgeLoc) {
+              badgeLoc.textContent = 'Solicitado ao usar GPS';
+              badgeLoc.className = 'badge badge-ok';
+            }
+          }
+        }
+
+        // --- Notificações ---
+        if (!('Notification' in window)) {
+          if (badgeNotif) { badgeNotif.textContent = 'Não suportado'; badgeNotif.className = 'badge badge-negado'; }
+          statusEl.textContent = 'Seu navegador não suporta notificações push.';
+          statusEl.className = 'status-permissao denied';
+          btnSolicitar.style.display = 'none';
+          btnNegadoAjuda.style.display = 'none';
+          return;
+        }
+
+        const permission = Notification.permission;
+        if (badgeNotif) {
+          if (permission === 'granted') {
+            badgeNotif.textContent = 'Permitido';
+            badgeNotif.className = 'badge badge-ok';
+          } else if (permission === 'denied') {
+            badgeNotif.textContent = 'Negado';
+            badgeNotif.className = 'badge badge-negado';
+          } else {
+            badgeNotif.textContent = 'Não solicitado';
+            badgeNotif.className = 'badge badge-pendente';
+          }
+        }
+
+        if (permission === 'granted') {
+          statusEl.textContent = 'Todas as permissões necessárias estão ativas. Você receberá alertas mesmo com o app fechado.';
+          statusEl.className = 'status-permissao granted';
+          btnSolicitar.style.display = 'none';
+          btnNegadoAjuda.style.display = 'none';
+          ajudaEl.style.display = 'none';
+        } else if (permission === 'denied') {
+          statusEl.textContent = 'Notificações estão bloqueadas. Para receber alertas (chat, convocações, SOS) com o app fechado, ative nas configurações do site.';
+          statusEl.className = 'status-permissao denied';
+          btnSolicitar.style.display = 'none';
+          btnNegadoAjuda.style.display = 'block';
+          ajudaEl.style.display = 'none';
+        } else {
+          statusEl.textContent = 'Clique no botão abaixo para permitir notificações (alertas com o app fechado). A localização é pedida separadamente ao usar Enviar Posição ou GPS.';
+          statusEl.className = 'status-permissao default';
+          btnSolicitar.style.display = 'block';
+          btnNegadoAjuda.style.display = 'none';
+          ajudaEl.style.display = 'none';
+        }
       }
 
-      const permission = Notification.permission;
-      
-      if (permission === 'granted') {
-        statusEl.textContent = '✅ Permissão concedida';
-        statusEl.className = 'status-permissao granted';
-        btnEl.style.display = 'none';
-      } else if (permission === 'denied') {
-        statusEl.textContent = '❌ Permissão negada. Ative nas configurações do navegador.';
-        statusEl.className = 'status-permissao denied';
-        btnEl.style.display = 'none';
-      } else {
-        statusEl.textContent = '⚠️ Permissão não solicitada';
-        statusEl.className = 'status-permissao default';
-        btnEl.style.display = 'block';
+      function toggleAjudaConfig() {
+        const el = document.getElementById('ajudaConfiguracoes');
+        if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
       }
-    }
 
-    // Solicitar permissão
+    // Solicitar permissão de notificações
     document.getElementById('btnSolicitarPermissao').addEventListener('click', async () => {
       if (window.NotificacoesService) {
         const granted = await window.NotificacoesService.solicitarPermissaoPush();
         if (granted) {
-          mostrarToast('Permissão concedida!', 'success');
+          mostrarToast('Permissão de notificações concedida!', 'success');
         } else {
-          mostrarToast('Permissão negada', 'error');
+          mostrarToast('Permissão negada. Use o botão "Como ativar no navegador" abaixo.', 'warning');
         }
         atualizarStatusPermissao();
       }
+    });
+
+    document.getElementById('btnNegadoAjuda').addEventListener('click', function() {
+      toggleAjudaConfig();
     });
 
       // Toggle configuração geral
@@ -415,9 +591,9 @@
       mostrarToast('Notificação de teste enviada!', 'success');
     }
 
-      // Voltar
+      // Voltar: sempre para configurações (esta tela é subpágina de configurações)
       function voltar() {
-        window.location.href = 'dashboard.html';
+        window.location.href = 'configuracoes.html';
       }
 
       // Expor funções no escopo global para onclick do HTML

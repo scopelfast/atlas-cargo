@@ -54,4 +54,4 @@ Edite: `map-helper.js` (linhas 13-25)
 
 ---
 
-**Última atualização:** 2025-01-13
+**Última atualização:** 2026-01-13

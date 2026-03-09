@@ -3,7 +3,7 @@
 // ====================================
 // Uma única classe que gerencia TUDO relacionado a mapas
 // Versão: 2.0 - Simplificada
-// Data: 2025-01-13
+// Data: 2026-01-13
 
 (function() {
   'use strict';

@@ -4,55 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Rastreamento GPS - Motorista</title>
+  <link rel="stylesheet" href="../css/design-system.css">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <script src="../js/i18n.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    /* navbar e btn-voltar vêm do padrao-telas.css */
     
-    html, body { 
-      background: #f0f2f5; 
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      width: 100%;
-      height: 100%;
-      overflow-x: hidden;
-    }
-    
-    /* NAVBAR */
-    .navbar {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 14px 16px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.15);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    
-    .btn-voltar { 
-      background: rgba(255,255,255,0.25); 
-      border: none; 
-      color: white; 
-      padding: 8px 14px; 
-      border-radius: 8px; 
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 14px;
-    }
-    
-    .navbar h1 { 
-      font-size: 18px; 
-      font-weight: 600;
-      flex: 1;
-    }
-    
-    /* STATUS */
-    .status-bar {
-      padding: 12px 16px;
-      text-align: center;
-      font-size: 13px;
-      font-weight: 600;
-    }
-    
-    .status-online { background: #d4edda; color: #155724; }
-    .status-offline { background: #f8d7da; color: #721c24; }
     .status-rastreando { background: #cce5ff; color: #004085; }
     
     .container { padding: 16px; }
@@ -87,7 +46,7 @@
     
     /* STATUS GPS */
     .gps-status {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%);
       color: white;
       padding: 20px;
       border-radius: 16px;
@@ -133,7 +92,7 @@
     
     .btn:active { transform: scale(0.96); }
     
-    .btn-primary { background: #667eea; color: white; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3); }
+    .btn-primary { background: #0ea5e9; color: white; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3); }
     .btn-success { background: #28a745; color: white; box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3); }
     .btn-danger { background: #dc3545; color: white; box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3); }
     .btn-warning { background: #ffc107; color: #000; box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3); }
@@ -185,33 +144,28 @@
     }
   </style>
 </head>
-<body>
-  <!-- STATUS NO TOPO -->
-  <div id="statusIndicador" class="status-bar status-offline">
-    🔴 Carregando...
-  </div>
-
-  <!-- NAVBAR -->
+<body class="motorista-page">
   <div class="navbar">
-    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
-    <h1>📍 Rastreamento GPS</h1>
+    <button class="btn-voltar" onclick="voltar()">← <span data-i18n="rastreamento.voltar">Voltar</span></button>
+    <h1><i class="bx bx-map"></i> <span data-i18n="rastreamento.titulo">Rastreamento GPS</span></h1>
+    <div id="statusIndicador" class="status-badge-navbar status-offline" data-i18n="rastreamento.carregando">Carregando...</div>
   </div>
 
   <!-- CONTEÚDO -->
   <div class="container">
     <!-- INFO DA VIAGEM -->
     <div class="card">
-      <div class="card-title">🚚 Informações da Viagem</div>
+      <div class="card-title" data-i18n="rastreamento.informacoesViagem">🚚 Informações da Viagem</div>
       <div class="info-row">
-        <span class="info-label">Viagem:</span>
+        <span class="info-label" data-i18n="rastreamento.viagem">Viagem:</span>
         <span class="info-value" id="infoViagem">-</span>
       </div>
       <div class="info-row">
-        <span class="info-label">Destino:</span>
+        <span class="info-label" data-i18n="rastreamento.destino">Destino:</span>
         <span class="info-value" id="infoDestino">-</span>
       </div>
       <div class="info-row">
-        <span class="info-label">Distância:</span>
+        <span class="info-label" data-i18n="rastreamento.distancia">Distância:</span>
         <span class="info-value" id="infoDistancia">-</span>
       </div>
     </div>
@@ -219,43 +173,44 @@
     <!-- STATUS GPS -->
     <div class="gps-status" id="gpsStatus">
       <div class="gps-icon" id="gpsIcon">📍</div>
-      <div class="gps-texto" id="gpsTexto">Rastreamento Parado</div>
-      <div class="gps-detalhe" id="gpsDetalhe">Clique em "Iniciar" para começar</div>
+      <div class="gps-texto" id="gpsTexto" data-i18n="rastreamento.rastreamentoParado">Rastreamento Parado</div>
+      <div class="gps-detalhe" id="gpsDetalhe" data-i18n="rastreamento.cliqueIniciar">Clique em "Iniciar" para começar</div>
       <div class="gps-timer" id="gpsTimer" style="display: none;">05:00</div>
     </div>
 
     <!-- BOTÕES DE CONTROLE -->
-    <button class="btn btn-success" id="btnIniciar" onclick="iniciarRastreamento()">
+    <button class="btn btn-success" id="btnIniciar" onclick="iniciarRastreamento()" data-i18n="rastreamento.iniciarRastreamento">
       ▶ Iniciar Rastreamento
     </button>
-    <button class="btn btn-warning" id="btnPausar" onclick="pausarRastreamento()" style="display: none;">
+    <button class="btn btn-warning" id="btnPausar" onclick="pausarRastreamento()" style="display: none;" data-i18n="rastreamento.pausarRastreamento">
       ⏸ Pausar Rastreamento
     </button>
-    <button class="btn btn-primary" id="btnEnviarAgora" onclick="enviarPosicaoAgora()">
+    <button class="btn btn-primary" id="btnEnviarAgora" onclick="enviarPosicaoAgora()" data-i18n="rastreamento.enviarPosicaoAgora">
       📍 Enviar Posição Agora
     </button>
     
-    <button class="btn btn-warning" onclick="testarGPS()" style="background: #ffc107; color: #000;">
+    <button class="btn btn-warning" onclick="testarGPS()" style="background: #ffc107; color: #000;" data-i18n="rastreamento.testarPermissaoGPS">
       🧪 Testar Permissão GPS
     </button>
     
-    <button class="btn" onclick="simularGPS()" style="background: #6c757d; color: white;">
+    <button class="btn" onclick="simularGPS()" style="background: #6c757d; color: white;" data-i18n="rastreamento.simularGPS">
       🎮 Simular GPS (Desenvolvimento)
     </button>
 
     <!-- HISTÓRICO -->
     <div class="card">
-      <div class="card-title">📋 Histórico (Últimas 10 Posições)</div>
+      <div class="card-title" data-i18n="rastreamento.historicoUltimas10">📋 Histórico (Últimas 10 Posições)</div>
       <div class="historico" id="historicoLista">
-        <p style="text-align: center; color: #999; padding: 20px;">
+        <p style="text-align: center; color: #999; padding: 20px;" data-i18n="rastreamento.nenhumaPosicaoEnviada">
           Nenhuma posição enviada ainda
         </p>
       </div>
     </div>
   </div>
 
-  <!-- URL Helper - DEVE ser o primeiro script para garantir interceptor de fetch -->
+  <!-- URL Helper - DEVE ser o primeiro script -->
   <script src="../js/url-helper.js"></script>
+  <script src="../js/notifications.js"></script>
   <script src="../js/offline.js"></script>
   <script>
     const motorista = JSON.parse(localStorage.getItem('motorista') || '{}');
@@ -264,6 +219,17 @@
     if (!token) {
       window.location.href = '../index.html';
     }
+
+    function applyI18n() {
+      if (typeof window.t !== 'function') return;
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n');
+        if (k) el.textContent = window.t(k);
+      });
+    }
+    if (window.i18nReady) window.i18nReady.then(applyI18n);
+
+    function t(k) { return typeof window.t === 'function' ? window.t(k) : k; }
 
     let intervaloGPS = null;
     let watchId = null;
@@ -278,11 +244,11 @@
         console.log('🧪 Testando GPS...');
         
         if (!navigator.geolocation) {
-          mostrarToast('Este dispositivo não suporta GPS', 'error');
+          mostrarToast(t('rastreamento.dispositivoNaoSuportaGPS'), 'error');
           return;
         }
 
-        mostrarToast('GPS disponível!\n\nAgora vou pedir permissão.\nQuando o Chrome perguntar, clique em PERMITIR!', 'success');
+        mostrarToast(t('rastreamento.gpsDisponivel'), 'success');
 
         const pos = await new Promise((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(
@@ -302,11 +268,11 @@
         console.error('❌ Erro GPS:', err);
         
         if (err.code === 1) {
-          mostrarToast('Permissão GPS negada!\n\nVocê clicou em "Bloquear".\n\nPara corrigir:\n1. Recarregue a página\n2. Clique novamente neste botão\n3. Quando perguntar, clique em PERMITIR', 'error');
+          mostrarToast(t('rastreamento.permissaoNegada'), 'error');
         } else if (err.code === 2) {
-          mostrarToast('GPS indisponível!\n\nVerifique:\n- GPS do celular está ativado?\n- Está em local aberto? (não funciona bem dentro de prédios)', 'error');
+          mostrarToast(t('rastreamento.gpsIndisponivel'), 'error');
         } else if (err.code === 3) {
-          mostrarToast('Timeout!\n\nO GPS demorou muito.\n\nTente:\n- Sair de dentro de prédios\n- Aguardar 1 minuto\n- Tentar novamente', 'warning');
+          mostrarToast(t('rastreamento.timeout'), 'warning');
         }
       }
     }
@@ -314,7 +280,7 @@
     // SOLICITAR PERMISSÃO GPS
     async function solicitarPermissaoGPS() {
       if (!navigator.geolocation) {
-        mostrarToast('GPS não disponível neste dispositivo', 'error');
+        mostrarToast(t('rastreamento.gpsNaoDisponivel'), 'error');
         return false;
       }
 
@@ -398,7 +364,7 @@
               console.log('✅ GPS enviado com sucesso!');
               atualizarUltimoHistorico(true);
               document.getElementById('gpsDetalhe').textContent = 
-                `✅ Última posição: ${new Date().toLocaleTimeString('pt-BR')}`;
+                (t('rastreamento.ultimaPosicao') || 'Última posição:') + ' ' + new Date().toLocaleTimeString('pt-BR');
             } else {
               console.error('❌ Erro do servidor:', resultado);
               // Erro ao enviar - adicionar à fila
@@ -416,8 +382,7 @@
           // Offline - adicionar à fila
           console.log('📴 Offline - adicionando à fila');
           await window.OfflineDB.adicionarFila('filaGPS', dados);
-          document.getElementById('gpsDetalhe').textContent = 
-            `📴 Offline - Posição será enviada quando conectar`;
+          document.getElementById('gpsDetalhe').textContent = t('rastreamento.offlinePosicaoEnviada');
           atualizarUltimoHistorico(false);
         }
 
@@ -425,16 +390,16 @@
       } catch (err) {
         console.error('❌ ERRO GPS:', err);
         
-        let mensagemErro = 'Erro ao capturar localização';
+        let mensagemErro = t('rastreamento.erroCapturarLocalizacao');
         
         if (err.code === 1) {
-          mensagemErro = 'Permissão GPS negada!\n\nClique no cadeado ao lado da URL e permita "Localização"';
+          mensagemErro = t('rastreamento.permissaoNegada');
           
           // Oferecer ajuda
           mostrarModal(
-            'Permissão GPS Negada',
+            t('rastreamento.permissaoNegadaTitulo'),
             mensagemErro + '\n\nDeseja ver instruções detalhadas?',
-            ['Cancelar', 'Ver Instruções']
+            [t('rastreamento.cancelar'), 'Ver Instruções']
           ).then(resposta => {
             if (resposta === 'Ver Instruções') {
               window.open('ajuda-gps.html', '_blank');
@@ -442,9 +407,9 @@
           });
           return;
         } else if (err.code === 2) {
-          mensagemErro = 'GPS indisponível!\n\nVerifique se o GPS do celular está ativado.';
+          mensagemErro = t('rastreamento.gpsIndisponivel');
         } else if (err.code === 3) {
-          mensagemErro = 'Timeout ao capturar GPS!\n\nTentando novamente...';
+          mensagemErro = t('rastreamento.timeout');
         } else if (err.message) {
           mensagemErro = err.message;
         }
@@ -471,8 +436,8 @@
       document.getElementById('btnIniciar').style.display = 'none';
       document.getElementById('btnPausar').style.display = 'block';
       document.getElementById('gpsIcon').textContent = '🟢';
-      document.getElementById('gpsTexto').textContent = 'Rastreando...';
-      document.getElementById('gpsDetalhe').textContent = 'GPS ativo - Enviando a cada 5 minutos';
+      document.getElementById('gpsTexto').textContent = t('rastreamento.rastreando');
+      document.getElementById('gpsDetalhe').textContent = t('rastreamento.gpsAtivoEnviando');
       document.getElementById('gpsTimer').style.display = 'block';
 
       // Enviar primeira posição imediatamente
@@ -511,21 +476,21 @@
       document.getElementById('btnIniciar').style.display = 'block';
       document.getElementById('btnPausar').style.display = 'none';
       document.getElementById('gpsIcon').textContent = '⏸';
-      document.getElementById('gpsTexto').textContent = 'Rastreamento Pausado';
-      document.getElementById('gpsDetalhe').textContent = 'Clique em "Iniciar" para continuar';
+      document.getElementById('gpsTexto').textContent = t('rastreamento.rastreamentoPausado');
+      document.getElementById('gpsDetalhe').textContent = t('rastreamento.cliqueIniciarContinuar');
       document.getElementById('gpsTimer').style.display = 'none';
     }
 
     // ENVIAR POSIÇÃO MANUAL
     async function enviarPosicaoAgora() {
       document.getElementById('btnEnviarAgora').disabled = true;
-      document.getElementById('btnEnviarAgora').textContent = '📡 Enviando...';
+      document.getElementById('btnEnviarAgora').textContent = '📡 ' + t('rastreamento.enviando');
 
       await capturarPosicao();
       
       setTimeout(() => {
         document.getElementById('btnEnviarAgora').disabled = false;
-        document.getElementById('btnEnviarAgora').textContent = '📍 Enviar Posição Agora';
+        document.getElementById('btnEnviarAgora').textContent = '📍 ' + t('rastreamento.enviarPosicaoAgora');
       }, 2000);
     }
 
@@ -586,10 +551,12 @@
       const lista = document.getElementById('historicoLista');
       
       if (historico.length === 0) {
-        lista.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">Nenhuma posição enviada ainda</p>';
+        lista.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">' + (typeof window.t === 'function' ? window.t('rastreamento.nenhumaPosicaoEnviada') : 'Nenhuma posição enviada ainda') + '</p>';
         return;
       }
 
+      var lblEnviado = typeof window.t === 'function' ? window.t('rastreamento.enviado') : 'Enviado';
+      var lblAguardando = typeof window.t === 'function' ? window.t('rastreamento.aguardando') : 'Aguardando';
       lista.innerHTML = historico.map(h => `
         <div class="historico-item">
           <div>
@@ -597,7 +564,7 @@
             ${h.lat ? `<div style="font-size: 11px; color: #999; margin-top: 2px;">${h.lat}, ${h.lng}</div>` : ''}
           </div>
           <span class="historico-status ${h.enviado ? 'enviado' : 'aguardando'}">
-            ${h.enviado ? '✅ Enviado' : '⏳ Aguardando'}
+            ${h.enviado ? '✅ ' + lblEnviado : '⏳ ' + lblAguardando}
           </span>
         </div>
       `).join('');
@@ -606,21 +573,18 @@
     async function voltar() {
       if (rastreando) {
         const resposta = await mostrarModal(
-          'Rastreamento Ativo',
-          'Rastreamento está ativo!\n\nDeseja realmente sair?',
-          ['Cancelar', 'Sair']
+          t('rastreamento.rastreamentoAtivo'),
+          t('rastreamento.desejaSair'),
+          [t('rastreamento.cancelar'), t('rastreamento.sair')]
         );
         
-        if (resposta === 'Sair') {
+        if (resposta === t('rastreamento.sair')) {
           pausarRastreamento();
           window.location.href = 'dashboard.html';
         }
         return;
       }
       window.location.href = 'dashboard.html';
-      } else {
-        window.location.href = 'dashboard.html';
-      }
     }
 
     // CARREGAR INFO DA VIAGEM
@@ -683,11 +647,10 @@
           if (response.ok) {
             console.log('✅ GPS simulado enviado!');
             atualizarUltimoHistorico(true);
-            mostrarToast('Posição simulada enviada!\n\n' + 
-                  `Lat: ${dados.latitude.toFixed(6)}\n` +
-                  `Lng: ${dados.longitude.toFixed(6)}`);
+            mostrarToast(t('rastreamento.posicaoSimuladaEnviada') + '\n\n' + 
+                  'Lat: ' + dados.latitude.toFixed(6) + '\nLng: ' + dados.longitude.toFixed(6));
             document.getElementById('gpsDetalhe').textContent = 
-              `✅ Última posição (simulada): ${new Date().toLocaleTimeString('pt-BR')}`;
+              '✅ ' + (t('rastreamento.ultimaPosicao') || 'Última posição') + ' (simulada): ' + new Date().toLocaleTimeString('pt-BR');
           } else {
             await window.OfflineDB.adicionarFila('filaGPS', dados);
             atualizarUltimoHistorico(false);
@@ -695,11 +658,11 @@
         } else {
           await window.OfflineDB.adicionarFila('filaGPS', dados);
           atualizarUltimoHistorico(false);
-          mostrarToast('Offline - GPS simulado salvo na fila', 'warning');
+          mostrarToast(t('rastreamento.offlineGpsFila'), 'warning');
         }
       } catch (err) {
         console.error('Erro ao enviar GPS simulado:', err);
-        mostrarToast('Erro ao enviar', 'error');
+        mostrarToast(t('rastreamento.erroEnviar'), 'error');
       }
     }
     

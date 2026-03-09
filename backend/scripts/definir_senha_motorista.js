@@ -9,7 +9,7 @@
  */
 
 const bcrypt = require('bcrypt');
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const { poolPromise } = require('../config/db');
 
 async function definirSenhaMotorista(cpf, senha) {

@@ -1,12 +1,13 @@
 <!-- Módulo: SOS -->
-<!-- Versão: 2.0 - Implementação Completa -->
-<!-- Data: 2025-01-18 -->
+<!-- Versão: 2.0 - Identidade Atlas Cargo -->
+<!-- Data: 2026-01-18 -->
 
 <link rel="stylesheet" href="/css/modulos.css">
 <style>
-  /* Estilos específicos do módulo SOS */
+  /* ========== SOS - Identidade Atlas Cargo ========== */
   .sos-container {
     padding: 20px;
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
   }
 
   .sos-header {
@@ -15,12 +16,12 @@
     align-items: center;
     margin-bottom: 25px;
     padding-bottom: 15px;
-    border-bottom: 2px solid #e0e0e0;
+    border-bottom: 2px solid var(--light-gray, #e2e8f0);
   }
 
   .sos-header h2 {
     margin: 0;
-    color: #2c3e50;
+    color: var(--ac-primary, #0d2137);
     font-size: 28px;
     font-weight: 700;
     display: flex;
@@ -39,32 +40,33 @@
     background: white;
     border-radius: 8px;
     padding: 15px 20px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
+    border: 1px solid var(--border, #e2e8f0);
     border-left: 4px solid;
   }
 
   .stat-card.ativos {
-    border-left-color: #e74c3c;
+    border-left-color: var(--danger, #dc2626);
   }
 
   .stat-card.resolvidos {
-    border-left-color: #2ecc71;
+    border-left-color: var(--success, #059669);
   }
 
   .stat-card.total {
-    border-left-color: #3498db;
+    border-left-color: var(--ac-accent, #0ea5e9);
   }
 
   .stat-card .stat-value {
     font-size: 32px;
     font-weight: 700;
-    color: #2c3e50;
+    color: var(--ac-primary, #0d2137);
     margin: 5px 0;
   }
 
   .stat-card .stat-label {
     font-size: 14px;
-    color: #6c757d;
+    color: var(--gray, #64748b);
     text-transform: uppercase;
     font-weight: 600;
   }
@@ -73,13 +75,14 @@
     background: white;
     border-radius: 12px;
     padding: 25px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
     margin-bottom: 25px;
+    border: 1px solid var(--border, #e2e8f0);
   }
 
   .filtros-box h3 {
     margin: 0 0 20px 0;
-    color: #2c3e50;
+    color: var(--ac-primary, #0d2137);
     font-size: 18px;
     font-weight: 600;
   }
@@ -118,7 +121,7 @@
 
   .filtros-grid .form-control:focus {
     outline: none;
-    border-color: #3498db;
+    border-color: var(--ac-accent, #0ea5e9);
     box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
   }
 
@@ -238,7 +241,7 @@
 
   .sos-message {
     font-size: 16px;
-    color: #2c3e50;
+    color: var(--ac-primary, #0d2137);
     margin-bottom: 10px;
     font-weight: 500;
   }
@@ -251,7 +254,7 @@
     padding-top: 15px;
     border-top: 1px solid #e9ecef;
     font-size: 14px;
-    color: #6c757d;
+    color: var(--gray, #64748b);
   }
 
   .sos-detail-item {
@@ -288,7 +291,7 @@
 
   .empty-state i {
     font-size: 64px;
-    color: #6c757d;
+    color: var(--gray, #64748b);
     margin-bottom: 20px;
   }
 
@@ -298,7 +301,7 @@
   }
 
   .empty-state p {
-    color: #6c757d;
+    color: var(--gray, #64748b);
     font-size: 16px;
   }
 
@@ -384,7 +387,7 @@
 
   .modal-header-tratamento h3 {
     margin: 0;
-    color: #2c3e50;
+    color: var(--ac-primary, #0d2137);
     font-size: 24px;
   }
 
@@ -392,7 +395,7 @@
     background: none;
     border: none;
     font-size: 28px;
-    color: #6c757d;
+    color: var(--gray, #64748b);
     cursor: pointer;
     padding: 0;
     width: 32px;
@@ -428,7 +431,7 @@
 
   .spinner {
     border: 4px solid #f3f3f3;
-    border-top: 4px solid #3498db;
+    border-top: 4px solid var(--ac-accent, #0ea5e9);
     border-radius: 50%;
     width: 50px;
     height: 50px;
@@ -473,7 +476,7 @@
   }
 
   .pagination .page-info {
-    color: #6c757d;
+    color: var(--gray, #64748b);
     font-size: 14px;
   }
 
@@ -502,7 +505,7 @@
   }
 
   .btn-primary {
-    background: #3498db;
+    background: var(--ac-accent, #0ea5e9);
     color: white;
   }
 
@@ -592,7 +595,7 @@
     font-family: inherit;
     box-sizing: border-box;
     background-color: #fff;
-    color: #2c3e50;
+    color: var(--ac-primary, #0d2137);
   }
 
   .modal-content-tratamento .form-control:hover,
@@ -607,7 +610,7 @@
   .modal-content-tratamento textarea:focus,
   .modal-content-tratamento input:focus {
     outline: none;
-    border-color: #3498db;
+    border-color: var(--ac-accent, #0ea5e9);
     box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
   }
 
@@ -630,7 +633,7 @@
 
   .modal-content-tratamento input[type="date"] {
     cursor: pointer;
-    color: #2c3e50;
+    color: var(--ac-primary, #0d2137);
   }
 
   .modal-content-tratamento input[type="date"]::-webkit-calendar-picker-indicator {
@@ -697,7 +700,7 @@
     margin-bottom: 10px;
     background: #f8f9fa;
     border-radius: 8px;
-    border-left: 4px solid #3498db;
+    border-left: 4px solid var(--ac-accent, #0ea5e9);
     transition: all 0.2s;
   }
 
@@ -714,19 +717,19 @@
   }
 
   .historico-header strong {
-    color: #2c3e50;
+    color: var(--ac-primary, #0d2137);
     font-size: 15px;
     font-weight: 600;
   }
 
   .historico-data {
     font-size: 12px;
-    color: #6c757d;
+    color: var(--gray, #64748b);
   }
 
   .historico-usuario {
     font-size: 14px;
-    color: #6c757d;
+    color: var(--gray, #64748b);
     margin-bottom: 5px;
     display: flex;
     align-items: center;
@@ -735,12 +738,12 @@
 
   .historico-status {
     font-size: 14px;
-    color: #6c757d;
+    color: var(--gray, #64748b);
     margin-bottom: 5px;
   }
 
   .historico-status strong {
-    color: #2c3e50;
+    color: var(--ac-primary, #0d2137);
   }
 
   .historico-obs {
@@ -756,16 +759,16 @@
 <div class="sos-container">
   <!-- Cabeçalho -->
   <div class="sos-header">
-    <h2><i class='bx bx-error-circle'></i> Alertas SOS</h2>
+    <h2><i class='bx bx-error-circle'></i> <span data-i18n="web.modulos.sos.titulo">Alertas SOS</span></h2>
     <div style="display: flex; gap: 10px; align-items: center;">
       <button class="btn btn-info" onclick="mostrarAjuda()" title="Como funciona? Regras e instruções">
-        <i class='bx bx-help-circle'></i> Ajuda
+        <i class='bx bx-help-circle'></i> <span data-i18n="web.modulos.sos.ajuda">Ajuda</span>
       </button>
       <button id="btnToggleSomSOS" class="btn" onclick="toggleSomNotificacaoSOS()" title="Ativar/Desativar som de notificação" style="background: #28a745; color: white;">
-        <i class='bx bx-volume-full'></i> Som
+        <i class='bx bx-volume-full'></i> <span data-i18n="web.modulos.sos.som">Som</span>
       </button>
       <button class="btn btn-primary" onclick="recarregarSOS()">
-        <i class='bx bx-refresh'></i> Atualizar
+        <i class='bx bx-refresh'></i> <span data-i18n="web.modulos.sos.atualizar">Atualizar</span>
       </button>
     </div>
   </div>
@@ -773,29 +776,29 @@
   <!-- Estatísticas -->
   <div class="sos-stats">
     <div class="stat-card ativos">
-      <div class="stat-label">Ativos</div>
+      <div class="stat-label" data-i18n="web.modulos.sos.ativos">Ativos</div>
       <div class="stat-value" id="statAtivos">0</div>
     </div>
     <div class="stat-card em-tratamento" style="border-left-color: #f39c12;">
-      <div class="stat-label">Em Tratamento</div>
+      <div class="stat-label" data-i18n="web.modulos.sos.emTratamento">Em Tratamento</div>
       <div class="stat-value" id="statEmTratamento">0</div>
     </div>
     <div class="stat-card resolvidos">
-      <div class="stat-label">Resolvidos</div>
+      <div class="stat-label" data-i18n="web.modulos.sos.resolvidos">Resolvidos</div>
       <div class="stat-value" id="statResolvidos">0</div>
     </div>
     <div class="stat-card total">
-      <div class="stat-label">Total</div>
+      <div class="stat-label" data-i18n="web.modulos.sos.total">Total</div>
       <div class="stat-value" id="statTotal">0</div>
     </div>
   </div>
 
   <!-- Filtros -->
   <div class="filtros-box">
-    <h3><i class='bx bx-filter'></i> Filtros</h3>
+    <h3><i class='bx bx-filter'></i> <span data-i18n="web.modulos.sos.filtros">Filtros</span></h3>
     <div class="filtros-grid">
       <div>
-        <label>Status</label>
+        <label data-i18n="web.modulos.sos.status">Status</label>
         <select id="filtroStatus" class="form-control">
           <option value="">Todos</option>
           <option value="active">Ativo</option>
@@ -805,28 +808,28 @@
         </select>
       </div>
       <div class="input-date-wrapper">
-        <label>Data Início</label>
+        <label data-i18n="web.modulos.sos.dataInicio">Data Início</label>
         <input type="date" id="filtroDataInicio" class="form-control">
       </div>
       <div class="input-date-wrapper">
-        <label>Data Fim</label>
+        <label data-i18n="web.modulos.sos.dataFim">Data Fim</label>
         <input type="date" id="filtroDataFim" class="form-control">
       </div>
       <div>
-        <label>ID Viagem</label>
+        <label data-i18n="web.modulos.sos.idViagem">ID Viagem</label>
         <input type="number" id="filtroIdViagem" class="form-control" placeholder="Opcional">
       </div>
       <div>
-        <label>ID Motorista</label>
+        <label data-i18n="web.modulos.sos.idMotorista">ID Motorista</label>
         <input type="number" id="filtroIdMotorista" class="form-control" placeholder="Opcional">
       </div>
     </div>
     <div class="filtros-actions">
       <button class="btn btn-secondary" onclick="limparFiltros()">
-        <i class='bx bx-x'></i> Limpar
+        <i class='bx bx-x'></i> <span data-i18n="web.modulos.sos.limpar">Limpar</span>
       </button>
       <button class="btn btn-primary" onclick="aplicarFiltros()">
-        <i class='bx bx-search'></i> Filtrar
+        <i class='bx bx-search'></i> <span data-i18n="web.modulos.sos.filtrar">Filtrar</span>
       </button>
     </div>
   </div>
@@ -839,11 +842,11 @@
   <!-- Paginação -->
   <div class="pagination" id="paginationContainer" style="display: none;">
     <button id="btnPrev" onclick="paginarAnterior()" disabled>
-      <i class='bx bx-chevron-left'></i> Anterior
+      <i class='bx bx-chevron-left'></i> <span data-i18n="web.modulos.sos.anterior">Anterior</span>
     </button>
     <span class="page-info" id="pageInfo">Página 1 de 1</span>
     <button id="btnNext" onclick="paginarProximo()">
-      Próxima <i class='bx bx-chevron-right'></i>
+      <span data-i18n="web.modulos.sos.proximo">Próxima</span> <i class='bx bx-chevron-right'></i>
     </button>
   </div>
 </div>
@@ -852,7 +855,7 @@
 <div id="modalTratamento" class="modal-tratamento">
   <div class="modal-content-tratamento">
     <div class="modal-header-tratamento">
-      <h3>Tratar Alerta SOS</h3>
+      <h3 data-i18n="web.modulos.sos.tratarAlertaSOS">Tratar Alerta SOS</h3>
       <button class="close-modal" onclick="fecharModalTratamento()">
         <i class='bx bx-x'></i>
       </button>
@@ -866,14 +869,14 @@
 <!-- Loading Overlay -->
 <div id="loadingOverlay" class="loading-overlay">
   <div class="spinner"></div>
-  <p>Carregando alertas SOS...</p>
+  <p data-i18n="web.modulos.sos.carregandoSOS">Carregando alertas SOS...</p>
 </div>
 
 <!-- Modal de Ajuda -->
 <div id="modalAjuda" class="modal-tratamento">
   <div class="modal-content-tratamento" style="max-width: 800px;">
     <div class="modal-header-tratamento">
-      <h3><i class='bx bx-help-circle'></i> Como Funcionam os Alertas SOS</h3>
+      <h3><i class='bx bx-help-circle'></i> <span data-i18n="web.modulos.sos.comoFuncionam">Como Funcionam os Alertas SOS</span></h3>
       <button class="close-modal" onclick="fecharModalAjuda()">
         <i class='bx bx-x'></i>
       </button>
@@ -888,17 +891,17 @@
 <div id="modalLocalizacao" class="modal-tratamento">
   <div class="modal-content-tratamento" style="max-width: 900px;">
     <div class="modal-header-tratamento">
-      <h3><i class='bx bx-map'></i> Localização do SOS</h3>
+      <h3><i class='bx bx-map'></i> <span data-i18n="web.modulos.sos.localizacaoSOS">Localização do SOS</span></h3>
       <button class="close-modal" onclick="fecharModalLocalizacao()">
         <i class='bx bx-x'></i>
       </button>
     </div>
     <div id="modalLocalizacaoContent" style="padding: 20px 0;">
-      <div id="infoLocalizacao" style="margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #3498db;">
+      <div id="infoLocalizacao" style="margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid var(--ac-accent, #0ea5e9);">
         <p id="enderecoLocalizacao" style="margin: 0; color: #495057; font-size: 14px; line-height: 1.6;">
           <i class='bx bx-loader-alt bx-spin'></i> Buscando endereço...
         </p>
-        <p id="coordenadasLocalizacao" style="margin: 5px 0 0 0; color: #6c757d; font-size: 12px;"></p>
+        <p id="coordenadasLocalizacao" style="margin: 5px 0 0 0; color: var(--gray, #64748b); font-size: 12px;"></p>
       </div>
       <div id="mapaLocalizacao" style="width: 100%; height: 500px; border-radius: 8px; overflow: hidden; border: 2px solid #e9ecef;"></div>
     </div>

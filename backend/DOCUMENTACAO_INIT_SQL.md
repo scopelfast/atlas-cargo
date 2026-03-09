@@ -3,7 +3,7 @@
 **Módulo:** Gerenciar Viagens  
 **Arquivo:** `backend/public/modulos/gerenciar-viagens/sql/init.sql`  
 **Versão:** 1.0.0  
-**Data:** 2025-11-23  
+**Data:** 2026-11-23  
 **Status:** ✅ Ativo
 
 ---
@@ -64,7 +64,7 @@ O arquivo pode conter:
 
 ```sql
 -- Comentário: Este script sincroniza dados
--- Data: 2025-11-23
+-- Data: 2026-11-23
 
 -- Atualizar viagens
 UPDATE [dbo].[VIAGEMMESTRE]
@@ -293,7 +293,7 @@ WHERE DHCONVOCACAO < DATEADD(DAY, -30, GETDATE())
 ```sql
 -- ============================================
 -- Script de Inicialização - Gerenciar Viagens
--- Data: 2025-11-23
+-- Data: 2026-11-23
 -- Descrição: Sincroniza dados e atualiza viagens
 -- ============================================
 
@@ -334,7 +334,7 @@ WHERE FGACTIVE = 'S';
 
 ---
 
-**Documentação mantida por:** Equipe DivulgaCarga  
-**Última atualização:** 2025-11-23  
+**Documentação mantida por:** Atlas Cargo  
+**Última atualização:** 2026-11-23  
 **Versão do documento:** 1.0.0
 

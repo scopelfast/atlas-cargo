@@ -1,8 +1,8 @@
 // backend/controllers/message.controller.js
 // Controller para Chat Motorista ↔ Operador
 // Versão: 2.0 - Módulo separado
-// Data: 2025-01-16
-// Última atualização: 2025-01-18
+// Data: 2026-01-16
+// Última atualização: 2026-01-18
 //
 // Este controller gerencia todas as operações relacionadas ao sistema de chat.
 // Inclui funcionalidades para conversas, mensagens, busca e contadores de não lidas.
@@ -17,8 +17,15 @@
 // - GET    /api/chat/buscar - Buscar conversas/mensagens
 // - GET    /api/chat/nao-lidas - Contador de não lidas
 
-const sql = require('mssql');
+const path = require('path');
+const fs = require('fs');
+const sql = require('../config/mssql-compat');
 const { poolPromise } = require('../config/db');
+const { transcreverAudio } = require('../services/transcricao.service');
+
+/** Pasta de upload de áudio (relativa ao backend, dentro de public para ser servida estaticamente) */
+const UPLOAD_AUDIO_DIR = path.join(__dirname, '..', 'public', 'uploads', 'audio');
+const AUDIO_PREVIEW_TEXT = '🎙️ Áudio';
 
 const messageController = {
   /**
@@ -61,7 +68,7 @@ const messageController = {
    * //   "tipo": "TEXTO"
    * // }
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   enviar: async (req, res) => {
@@ -77,107 +84,100 @@ const messageController = {
       }
 
       const pool = await poolPromise;
-      const transaction = new sql.Transaction(pool);
-      
-      await transaction.begin();
-      
+      const client = await pool.connect();
+
       try {
-        // Buscar ou criar conversa
+        await client.query('BEGIN');
+
         let idConversa = null;
         if (req.body.idConversa) {
-          idConversa = parseInt(req.body.idConversa);
+          idConversa = parseInt(req.body.idConversa, 10);
         } else {
-          // Buscar conversa existente ou criar nova
-          const conversaResult = await transaction.request()
-            .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
-            .query(`
-              SELECT TOP 1 ID FROM [dbo].[CONVERSAS]
-              WHERE ID_VIAGEM = @idviagem
-            `);
-          
-          if (conversaResult.recordset.length > 0) {
-            idConversa = conversaResult.recordset[0].ID;
+          const idViagemNum = parseFloat(idviagem);
+          const findConv = await client.query(
+            `SELECT "ID" FROM public."CONVERSAS" WHERE "ID_VIAGEM" = $1 LIMIT 1`,
+            [idViagemNum]
+          );
+          if (findConv.rows && findConv.rows.length > 0) {
+            idConversa = findConv.rows[0].ID ?? findConv.rows[0].id;
           } else {
-            // Criar nova conversa
-            const novaConversa = await transaction.request()
-              .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
-              .input('idCriador', sql.Decimal(15, 0), parseFloat(senderId))
-              .query(`
-                INSERT INTO [dbo].[CONVERSAS] (
-                  TIPO, ID_VIAGEM, ID_CRIADOR, MENSAGENS_NAO_LIDAS, DH_CRIACAO
-                )
-                VALUES (
-                  'VIAGEM', @idviagem, @idCriador, 0, SYSUTCDATETIME()
-                );
-                SELECT SCOPE_IDENTITY() AS ID;
-              `);
-            idConversa = novaConversa.recordset[0].ID;
+            const insertConv = await client.query(
+              `INSERT INTO public."CONVERSAS" ("TIPO", "ID_VIAGEM", "ID_CRIADOR", "MENSAGENS_NAO_LIDAS", "DH_CRIACAO")
+               VALUES ('VIAGEM', $1, $2, 0, NOW())
+               RETURNING "ID"`,
+              [idViagemNum, parseFloat(senderId)]
+            );
+            const row = insertConv.rows && insertConv.rows[0];
+            idConversa = row ? (row.ID ?? row.id) : null;
           }
         }
 
-        // Inserir mensagem
-        const result = await transaction.request()
-          .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
-          .input('idConversa', sql.Int, idConversa)
-          .input('senderType', sql.NVarChar(10), senderType)
-          .input('senderId', sql.Decimal(15, 0), parseFloat(senderId))
-          .input('senderName', sql.NVarChar(255), senderName || null)
-          .input('content', sql.NVarChar(sql.MAX), content.trim())
-          .input('tipo', sql.NVarChar(20), req.body.tipo || 'TEXTO')
-          .query(`
-            INSERT INTO [dbo].[MESSAGES] (
-              IDVIAGEM, ID_CONVERSA, SENDER_TYPE, SENDER_ID, SENDER_NAME, CONTENT, TIPO,
-              READ_BY_SENDER, READ_BY_RECEIVER, SYNCED
-            )
-            VALUES (
-              @idviagem, @idConversa, @senderType, @senderId, @senderName, @content, @tipo,
-              1, -- Remetente já leu (ele mesmo enviou)
-              0, -- Destinatário ainda não leu
-              1  -- Já sincronizado (está no servidor)
-            );
-            
-            SELECT SCOPE_IDENTITY() AS ID;
-          `);
+        if (idConversa == null) {
+          await client.query('ROLLBACK');
+          client.release();
+          return res.status(500).json({ error: 'Não foi possível obter ou criar a conversa.' });
+        }
 
-        const messageId = result.recordset[0].ID;
+        const idViagemNum = parseFloat(idviagem);
+        const tipoMsg = (req.body.tipo || 'TEXTO').substring(0, 20);
+        const insertMsg = await client.query(
+          `INSERT INTO public."MESSAGES" (
+            "IDVIAGEM", "ID_CONVERSA", "SENDER_TYPE", "SENDER_ID", "SENDER_NAME", "CONTENT", "TIPO",
+            "READ_BY_SENDER", "READ_BY_RECEIVER", "SYNCED", "CREATED_AT"
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, true, false, true, NOW())
+          RETURNING "ID", "IDVIAGEM", "ID_CONVERSA", "SENDER_TYPE", "SENDER_ID", "SENDER_NAME",
+            "CONTENT", "TIPO", "READ_BY_SENDER", "READ_BY_RECEIVER", "DH_LEITURA", "CREATED_AT", "SYNCED"`,
+          [
+            idViagemNum,
+            idConversa,
+            (senderType || '').substring(0, 10),
+            parseFloat(senderId),
+            (senderName || null),
+            content.trim(),
+            tipoMsg
+          ]
+        );
 
-        // Atualizar conversa (última mensagem e contador)
-        await transaction.request()
-          .input('idConversa', sql.Int, idConversa)
-          .input('ultimaMensagem', sql.NVarChar(sql.MAX), content.trim())
-          .query(`
-            UPDATE [dbo].[CONVERSAS]
-            SET ULTIMA_MENSAGEM = @ultimaMensagem,
-                DH_ULTIMA_MENSAGEM = SYSUTCDATETIME(),
-                MENSAGENS_NAO_LIDAS = MENSAGENS_NAO_LIDAS + 1
-            WHERE ID = @idConversa
-          `);
+        const messageRow = insertMsg.rows && insertMsg.rows[0];
+        if (!messageRow) {
+          await client.query('ROLLBACK');
+          client.release();
+          return res.status(500).json({ error: 'Erro ao inserir mensagem.' });
+        }
 
-        await transaction.commit();
+        await client.query(
+          `UPDATE public."CONVERSAS"
+           SET "ULTIMA_MENSAGEM" = $1, "DH_ULTIMA_MENSAGEM" = NOW(),
+               "MENSAGENS_NAO_LIDAS" = COALESCE("MENSAGENS_NAO_LIDAS", 0) + 1
+           WHERE "ID" = $2`,
+          [content.trim().substring(0, 4000), idConversa]
+        );
 
-        // Buscar mensagem completa (após commit)
-        const messageResult = await pool.request()
-          .input('id', sql.Int, messageId)
-          .query(`
-            SELECT 
-              ID, IDVIAGEM, ID_CONVERSA, SENDER_TYPE, SENDER_ID, SENDER_NAME,
-              CONTENT, TIPO, READ_BY_SENDER, READ_BY_RECEIVER,
-              DH_LEITURA, CREATED_AT, SYNCED
-            FROM [dbo].[MESSAGES]
-            WHERE ID = @id
-          `);
+        await client.query('COMMIT');
+        client.release();
 
-        const message = messageResult.recordset[0];
+        const message = {
+          ID: messageRow.ID ?? messageRow.id,
+          IDVIAGEM: messageRow.IDVIAGEM ?? messageRow.idviagem,
+          ID_CONVERSA: messageRow.ID_CONVERSA ?? messageRow.id_conversa,
+          SENDER_TYPE: messageRow.SENDER_TYPE ?? messageRow.sender_type,
+          SENDER_ID: messageRow.SENDER_ID ?? messageRow.sender_id,
+          SENDER_NAME: messageRow.SENDER_NAME ?? messageRow.sender_name,
+          CONTENT: messageRow.CONTENT ?? messageRow.content,
+          TIPO: messageRow.TIPO ?? messageRow.tipo,
+          READ_BY_SENDER: messageRow.READ_BY_SENDER ?? messageRow.read_by_sender,
+          READ_BY_RECEIVER: messageRow.READ_BY_RECEIVER ?? messageRow.read_by_receiver,
+          DH_LEITURA: messageRow.DH_LEITURA ?? messageRow.dh_leitura,
+          CREATED_AT: messageRow.CREATED_AT ?? messageRow.created_at,
+          SYNCED: messageRow.SYNCED ?? messageRow.synced
+        };
 
-        // Emitir via WebSocket (se disponível)
         const app = require('../app');
         const io = app.get('io');
         if (io) {
           io.to(`viagem-${idviagem}`).emit('nova-mensagem', message);
           io.to(`conversa-${idConversa}`).emit('nova-mensagem', message);
         }
-
-        // Emitir também para Torre de Controle
         try {
           const websocketTorre = app.get('websocketTorre');
           if (websocketTorre) {
@@ -193,7 +193,10 @@ const messageController = {
           messageText: 'Mensagem enviada com sucesso!'
         });
       } catch (err) {
-        await transaction.rollback();
+        try {
+          await client.query('ROLLBACK');
+        } catch (_) {}
+        client.release();
         throw err;
       }
     } catch (err) {
@@ -203,61 +206,370 @@ const messageController = {
   },
 
   /**
+   * Upload de áudio e registro como mensagem tipo AUDIO
+   * POST /api/messages/upload-audio
+   * multipart/form-data: file, idviagem, senderType, senderId, senderName, [idConversa]
+   */
+  uploadAudio: async (req, res) => {
+    try {
+      if (!req.file || !req.file.path) {
+        return res.status(400).json({ error: 'Arquivo de áudio é obrigatório.' });
+      }
+      const idviagem = req.body.idviagem;
+      const senderType = req.body.senderType || 'driver';
+      const senderId = req.body.senderId;
+      const senderName = req.body.senderName || null;
+      if (!idviagem || !senderId) {
+        return res.status(400).json({ error: 'idviagem e senderId são obrigatórios.' });
+      }
+
+      const relativePath = path.relative(path.join(__dirname, '..', 'public'), req.file.path);
+      const urlPath = '/' + relativePath.replace(/\\/g, '/');
+      const contentObj = { url: urlPath };
+
+      const idioma = req.body.idioma && String(req.body.idioma).trim();
+      if (idioma) {
+        console.log('[upload-audio] Idioma da transcrição:', idioma);
+        try {
+          const transcricao = await transcreverAudio(req.file.path, idioma);
+          if (transcricao) {
+            contentObj.transcricao = transcricao;
+            console.log('[upload-audio] Transcrição incluída no conteúdo.');
+          } else {
+            console.log('[upload-audio] Áudio salvo sem transcrição (API sem retorno).');
+          }
+        } catch (errTransc) {
+          console.warn('[upload-audio] Transcrição de áudio ignorada:', errTransc.message || errTransc);
+        }
+      } else {
+        console.log('[upload-audio] Áudio salvo sem transcrição (opção "Não transcrever").');
+      }
+
+      const contentStr = JSON.stringify(contentObj);
+
+      const pool = await poolPromise;
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        let idConversa = null;
+        if (req.body.idConversa) {
+          idConversa = parseInt(req.body.idConversa, 10);
+        } else {
+          const idViagemNum = parseFloat(idviagem);
+          const findConv = await client.query(
+            `SELECT "ID" FROM public."CONVERSAS" WHERE "ID_VIAGEM" = $1 LIMIT 1`,
+            [idViagemNum]
+          );
+          if (findConv.rows && findConv.rows.length > 0) {
+            idConversa = findConv.rows[0].ID ?? findConv.rows[0].id;
+          } else {
+            const insertConv = await client.query(
+              `INSERT INTO public."CONVERSAS" ("TIPO", "ID_VIAGEM", "ID_CRIADOR", "MENSAGENS_NAO_LIDAS", "DH_CRIACAO")
+               VALUES ('VIAGEM', $1, $2, 0, NOW())
+               RETURNING "ID"`,
+              [idViagemNum, parseFloat(senderId)]
+            );
+            const row = insertConv.rows && insertConv.rows[0];
+            idConversa = row ? (row.ID ?? row.id) : null;
+          }
+        }
+        if (idConversa == null) {
+          await client.query('ROLLBACK');
+          client.release();
+          return res.status(500).json({ error: 'Não foi possível obter ou criar a conversa.' });
+        }
+
+        const idViagemNum = parseFloat(idviagem);
+        const insertMsg = await client.query(
+          `INSERT INTO public."MESSAGES" (
+            "IDVIAGEM", "ID_CONVERSA", "SENDER_TYPE", "SENDER_ID", "SENDER_NAME", "CONTENT", "TIPO",
+            "READ_BY_SENDER", "READ_BY_RECEIVER", "SYNCED", "CREATED_AT"
+          ) VALUES ($1, $2, $3, $4, $5, $6, 'AUDIO', true, false, true, NOW())
+          RETURNING "ID", "IDVIAGEM", "ID_CONVERSA", "SENDER_TYPE", "SENDER_ID", "SENDER_NAME",
+            "CONTENT", "TIPO", "READ_BY_SENDER", "READ_BY_RECEIVER", "DH_LEITURA", "CREATED_AT", "SYNCED"`,
+          [
+            idViagemNum,
+            idConversa,
+            (senderType || 'driver').substring(0, 10),
+            parseFloat(senderId),
+            senderName,
+            contentStr
+          ]
+        );
+        const messageRow = insertMsg.rows && insertMsg.rows[0];
+        if (!messageRow) {
+          await client.query('ROLLBACK');
+          client.release();
+          return res.status(500).json({ error: 'Erro ao inserir mensagem de áudio.' });
+        }
+        await client.query(
+          `UPDATE public."CONVERSAS"
+           SET "ULTIMA_MENSAGEM" = $1, "DH_ULTIMA_MENSAGEM" = NOW(),
+               "MENSAGENS_NAO_LIDAS" = COALESCE("MENSAGENS_NAO_LIDAS", 0) + 1
+           WHERE "ID" = $2`,
+          [AUDIO_PREVIEW_TEXT, idConversa]
+        );
+        await client.query('COMMIT');
+        client.release();
+
+        const message = {
+          ID: messageRow.ID ?? messageRow.id,
+          IDVIAGEM: messageRow.IDVIAGEM ?? messageRow.idviagem,
+          ID_CONVERSA: messageRow.ID_CONVERSA ?? messageRow.id_conversa,
+          SENDER_TYPE: messageRow.SENDER_TYPE ?? messageRow.sender_type,
+          SENDER_ID: messageRow.SENDER_ID ?? messageRow.sender_id,
+          SENDER_NAME: messageRow.SENDER_NAME ?? messageRow.sender_name,
+          CONTENT: messageRow.CONTENT ?? messageRow.content,
+          TIPO: messageRow.TIPO ?? messageRow.tipo,
+          READ_BY_SENDER: messageRow.READ_BY_SENDER ?? messageRow.read_by_sender,
+          READ_BY_RECEIVER: messageRow.READ_BY_RECEIVER ?? messageRow.read_by_receiver,
+          DH_LEITURA: messageRow.DH_LEITURA ?? messageRow.dh_leitura,
+          CREATED_AT: messageRow.CREATED_AT ?? messageRow.created_at,
+          SYNCED: messageRow.SYNCED ?? messageRow.synced
+        };
+        const app = require('../app');
+        const io = app.get('io');
+        if (io) {
+          io.to(`viagem-${idviagem}`).emit('nova-mensagem', message);
+          io.to(`conversa-${idConversa}`).emit('nova-mensagem', message);
+        }
+        try {
+          const websocketTorre = app.get('websocketTorre');
+          if (websocketTorre) websocketTorre.emitirNovaMensagem(message);
+        } catch (e) {
+          console.warn('⚠️ Erro ao emitir WebSocket mensagem:', e.message);
+        }
+        return res.json({ success: true, message, messageText: 'Áudio enviado com sucesso!' });
+      } catch (err) {
+        try { await client.query('ROLLBACK'); } catch (_) {}
+        client.release();
+        throw err;
+      }
+    } catch (err) {
+      console.error('Erro ao fazer upload de áudio:', err);
+      res.status(500).json({ error: 'Erro ao enviar áudio.' });
+    }
+  },
+
+  /**
+   * Transcrever áudio de uma mensagem existente (sob demanda).
+   * POST /api/messages/transcrever-audio
+   * Body: { idMensagem: number, idioma: string }
+   */
+  transcreverAudioOnDemand: async (req, res) => {
+    try {
+      const { idMensagem, idioma } = req.body || {};
+      const id = idMensagem != null ? parseInt(idMensagem, 10) : NaN;
+      const lang = idioma && String(idioma).trim();
+      if (!id || isNaN(id) || !lang) {
+        return res.status(400).json({ error: 'idMensagem e idioma são obrigatórios.' });
+      }
+      const pool = await poolPromise;
+      const sel = await pool.query(
+        `SELECT "ID", "CONTENT", "TIPO" FROM public."MESSAGES" WHERE "ID" = $1`,
+        [id]
+      );
+      const row = sel.rows && sel.rows[0];
+      if (!row) {
+        return res.status(404).json({ error: 'Mensagem não encontrada.' });
+      }
+      if ((row.TIPO || row.tipo) !== 'AUDIO') {
+        return res.status(400).json({ error: 'A mensagem não é de áudio.' });
+      }
+      let contentObj = {};
+      try {
+        contentObj = typeof row.CONTENT === 'string' ? JSON.parse(row.CONTENT) : (row.CONTENT || {});
+      } catch (_) {
+        return res.status(400).json({ error: 'Conteúdo da mensagem inválido.' });
+      }
+      const url = contentObj.url;
+      if (!url || typeof url !== 'string') {
+        return res.status(400).json({ error: 'URL do áudio não encontrada na mensagem.' });
+      }
+      const filePath = path.join(__dirname, '..', 'public', url.replace(/^\//, ''));
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: 'Arquivo de áudio não encontrado no servidor.' });
+      }
+      const transcricao = await transcreverAudio(filePath, lang);
+      if (!transcricao) {
+        return res.status(502).json({ error: 'Transcrição não retornou texto.' });
+      }
+      contentObj.transcricao = transcricao;
+      const newContentStr = JSON.stringify(contentObj);
+      await pool.query(
+        `UPDATE public."MESSAGES" SET "CONTENT" = $1 WHERE "ID" = $2`,
+        [newContentStr, id]
+      );
+      const updated = await pool.query(
+        `SELECT "ID", "IDVIAGEM", "ID_CONVERSA", "SENDER_TYPE", "SENDER_ID", "SENDER_NAME",
+                "CONTENT", "TIPO", "READ_BY_SENDER", "READ_BY_RECEIVER", "CREATED_AT", "SYNCED"
+         FROM public."MESSAGES" WHERE "ID" = $1`,
+        [id]
+      );
+      const msgRow = updated.rows && updated.rows[0];
+      const message = msgRow ? {
+        ID: msgRow.ID ?? msgRow.id,
+        IDVIAGEM: msgRow.IDVIAGEM ?? msgRow.idviagem,
+        ID_CONVERSA: msgRow.ID_CONVERSA ?? msgRow.id_conversa,
+        SENDER_TYPE: msgRow.SENDER_TYPE ?? msgRow.sender_type,
+        SENDER_ID: msgRow.SENDER_ID ?? msgRow.sender_id,
+        SENDER_NAME: msgRow.SENDER_NAME ?? msgRow.sender_name,
+        CONTENT: msgRow.CONTENT ?? msgRow.content,
+        TIPO: msgRow.TIPO ?? msgRow.tipo,
+        READ_BY_SENDER: msgRow.READ_BY_SENDER ?? msgRow.read_by_sender,
+        READ_BY_RECEIVER: msgRow.READ_BY_RECEIVER ?? msgRow.read_by_receiver,
+        CREATED_AT: msgRow.CREATED_AT ?? msgRow.created_at,
+        SYNCED: msgRow.SYNCED ?? msgRow.synced
+      } : null;
+      try {
+        const app = require('../app');
+        const websocketTorre = app.get('websocketTorre');
+        if (websocketTorre && message) websocketTorre.emitirNovaMensagem(message);
+      } catch (e) {
+        console.warn('⚠️ Erro ao emitir WebSocket após transcrição:', e.message);
+      }
+      return res.json({ success: true, message, transcricao });
+    } catch (err) {
+      console.error('Erro ao transcrever áudio sob demanda:', err);
+      res.status(500).json({ error: err.message || 'Erro ao transcrever áudio.' });
+    }
+  },
+
+  /**
    * Buscar mensagens de uma viagem
    * GET /api/messages/viagem/:idviagem
+   * Usa SQL nativo PostgreSQL (public."MESSAGES" + public."CONVERSAS") para evitar erros de conversão.
    */
   buscarPorViagem: async (req, res) => {
     try {
       const { idviagem } = req.params;
-      const { limit = 100, offset = 0 } = req.query;
+      const limit = Math.min(parseInt(req.query.limit, 10) || 100, 500);
+      const offset = Math.max(0, parseInt(req.query.offset, 10) || 0);
+      const idVig = parseFloat(idviagem);
+
+      console.log('💬 [CHAT] buscarPorViagem chamado:', { idviagem, limit, offset });
 
       if (!idviagem) {
+        console.warn('💬 [CHAT] idviagem ausente, retornando 400');
         return res.status(400).json({ error: 'ID da viagem é obrigatório' });
       }
 
       const pool = await poolPromise;
-      const result = await pool.request()
+
+      // Tentativa 1: SQL nativo PostgreSQL (MESSAGES via CONVERSAS – esquema Atlas Cargo)
+      try {
+        const rowsResult = await pool.query(
+          `SELECT m."ID", c."ID_VIAGEM" AS "IDVIAGEM", m."SENDER_TYPE", m."SENDER_ID",
+            COALESCE(m."SENDER_NAME",
+              CASE WHEN m."SENDER_TYPE" = 'OPERADOR' THEN cg."RZSOCIAL"
+                   WHEN m."SENDER_TYPE" IN ('driver', 'MOTORISTA') THEN cg2."RZSOCIAL"
+                   ELSE NULL END
+            ) AS "SENDER_NAME",
+            m."CONTENT", m."TIPO", m."READ_BY_SENDER", m."READ_BY_RECEIVER", m."CREATED_AT", m."SYNCED"
+           FROM public."MESSAGES" m
+           INNER JOIN public."CONVERSAS" c ON m."ID_CONVERSA" = c."ID"
+           LEFT JOIN public."CADASTROGERAL" cg ON m."SENDER_TYPE" = 'OPERADOR' AND m."SENDER_ID" = cg."CDCADASTRO"
+           LEFT JOIN public."CADASTROGERAL" cg2 ON m."SENDER_TYPE" IN ('driver', 'MOTORISTA') AND m."SENDER_ID" = cg2."CDCADASTRO"
+           WHERE c."ID_VIAGEM" = $1
+           ORDER BY m."CREATED_AT" DESC
+           OFFSET $2 LIMIT $3`,
+          [idVig, offset, limit]
+        );
+        const countResult = await pool.query(
+          `SELECT COUNT(*) AS total FROM public."MESSAGES" m
+           INNER JOIN public."CONVERSAS" c ON m."ID_CONVERSA" = c."ID"
+           WHERE c."ID_VIAGEM" = $1`,
+          [idVig]
+        );
+        const rows = rowsResult.rows || [];
+        const total = parseInt(countResult.rows?.[0]?.total ?? countResult.rows?.[0]?.TOTAL ?? rows.length, 10);
+        const messages = rows.map(r => ({ ...r, IDVIAGEM: r.IDVIAGEM ?? idVig }));
+        console.log('💬 [CHAT] OK (PG nativo via CONVERSAS):', messages.length, 'mensagens, total:', total);
+        return res.json({ success: true, messages: messages.reverse(), total });
+      } catch (err1) {
+        const code = err1.code || '';
+        const msg = String(err1.message || '');
+        console.warn('💬 [CHAT] PG nativo (CONVERSAS) falhou:', code, msg);
+        if (code !== '42P01' && code !== '42703' && !/não existe|does not exist/i.test(msg)) {
+          throw err1;
+        }
+      }
+
+      // Tentativa 1b: MESSAGES com coluna IDVIAGEM direta (quando não há CONVERSAS ou JOIN vazio)
+      try {
+        const rowsResult = await pool.query(
+          `SELECT m."ID", m."IDVIAGEM", m."SENDER_TYPE", m."SENDER_ID",
+            COALESCE(m."SENDER_NAME",
+              CASE WHEN m."SENDER_TYPE" = 'OPERADOR' THEN cg."RZSOCIAL"
+                   WHEN m."SENDER_TYPE" IN ('driver', 'MOTORISTA') THEN cg2."RZSOCIAL"
+                   ELSE NULL END
+            ) AS "SENDER_NAME",
+            m."CONTENT", m."TIPO", m."READ_BY_SENDER", m."READ_BY_RECEIVER", m."CREATED_AT", m."SYNCED"
+           FROM public."MESSAGES" m
+           LEFT JOIN public."CADASTROGERAL" cg ON m."SENDER_TYPE" = 'OPERADOR' AND m."SENDER_ID" = cg."CDCADASTRO"
+           LEFT JOIN public."CADASTROGERAL" cg2 ON m."SENDER_TYPE" IN ('driver', 'MOTORISTA') AND m."SENDER_ID" = cg2."CDCADASTRO"
+           WHERE m."IDVIAGEM" = $1
+           ORDER BY m."CREATED_AT" DESC
+           OFFSET $2 LIMIT $3`,
+          [idVig, offset, limit]
+        );
+        const countResult = await pool.query(
+          `SELECT COUNT(*) AS total FROM public."MESSAGES" WHERE "IDVIAGEM" = $1`,
+          [idVig]
+        );
+        const rows = rowsResult.rows || [];
+        const total = parseInt(countResult.rows?.[0]?.total ?? countResult.rows?.[0]?.TOTAL ?? rows.length, 10);
+        const messages = rows.map(r => ({ ...r, IDVIAGEM: r.IDVIAGEM ?? idVig }));
+        console.log('💬 [CHAT] OK (PG nativo por IDVIAGEM):', messages.length, 'mensagens, total:', total);
+        return res.json({ success: true, messages: messages.reverse(), total });
+      } catch (err1b) {
+        const code = err1b.code || '';
+        const msg = String(err1b.message || '');
+        console.warn('💬 [CHAT] PG nativo (IDVIAGEM) falhou:', code, msg);
+        if (code !== '42P01' && code !== '42703' && !/não existe|does not exist/i.test(msg)) {
+          throw err1b;
+        }
+      }
+
+      // Tentativa 2: via pool.request() (conversão db.js) – fallback
+      const reqBase = () => pool.request()
         .input('idviagem', sql.Decimal(15, 0), idviagem)
-        .input('limit', sql.Int, parseInt(limit))
-        .input('offset', sql.Int, parseInt(offset))
-        .query(`
-          SELECT 
-            m.ID, m.IDVIAGEM, m.SENDER_TYPE, m.SENDER_ID, 
-            COALESCE(m.SENDER_NAME, 
-              CASE 
-                WHEN m.SENDER_TYPE = 'OPERADOR' THEN cg.RZSOCIAL
-                WHEN m.SENDER_TYPE = 'driver' THEN cg2.RZSOCIAL
-                ELSE NULL
-              END
-            ) AS SENDER_NAME,
-            m.CONTENT, m.READ_BY_SENDER, m.READ_BY_RECEIVER,
-            m.CREATED_AT, m.SYNCED
+        .input('limit', sql.Int, limit)
+        .input('offset', sql.Int, offset);
+      try {
+        const result = await reqBase().query(`
+          SELECT m.[ID], c.[ID_VIAGEM] AS IDVIAGEM, m.[SENDER_TYPE], m.[SENDER_ID],
+            COALESCE(m.[SENDER_NAME],
+              CASE WHEN m.[SENDER_TYPE] = 'OPERADOR' THEN cg.[RZSOCIAL]
+                   WHEN m.[SENDER_TYPE] IN ('driver', 'MOTORISTA') THEN cg2.[RZSOCIAL]
+                   ELSE NULL END) AS SENDER_NAME,
+            m.[CONTENT], m.[READ_BY_SENDER], m.[READ_BY_RECEIVER], m.[CREATED_AT], m.[SYNCED]
           FROM [dbo].[MESSAGES] m
-          LEFT JOIN [dbo].[CADASTROGERAL] cg ON m.SENDER_TYPE = 'OPERADOR' AND m.SENDER_ID = cg.CDCADASTRO
-          LEFT JOIN [dbo].[CADASTROGERAL] cg2 ON m.SENDER_TYPE = 'driver' AND m.SENDER_ID = cg2.CDCADASTRO
-          WHERE m.IDVIAGEM = @idviagem
-          ORDER BY m.CREATED_AT DESC
-          OFFSET @offset ROWS
-          FETCH NEXT @limit ROWS ONLY
+          INNER JOIN [dbo].[CONVERSAS] c ON m.[ID_CONVERSA] = c.[ID]
+          LEFT JOIN [dbo].[CADASTROGERAL] cg ON m.[SENDER_TYPE] = 'OPERADOR' AND m.[SENDER_ID] = cg.[CDCADASTRO]
+          LEFT JOIN [dbo].[CADASTROGERAL] cg2 ON m.[SENDER_TYPE] IN ('driver', 'MOTORISTA') AND m.[SENDER_ID] = cg2.[CDCADASTRO]
+          WHERE c.[ID_VIAGEM] = @idviagem
+          ORDER BY m.[CREATED_AT] DESC
+          OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
         `);
-
-      // Contar total de mensagens
-      const countResult = await pool.request()
-        .input('idviagem', sql.Decimal(15, 0), idviagem)
-        .query(`
-          SELECT COUNT(*) AS total
-          FROM [dbo].[MESSAGES]
-          WHERE IDVIAGEM = @idviagem
+        const countResult = await pool.request().input('idviagem', sql.Decimal(15, 0), idviagem).query(`
+          SELECT COUNT(*) AS total FROM [dbo].[MESSAGES] m
+          INNER JOIN [dbo].[CONVERSAS] c ON m.[ID_CONVERSA] = c.[ID]
+          WHERE c.[ID_VIAGEM] = @idviagem
         `);
+        const total = countResult.recordset?.[0]?.total ?? countResult.recordset?.[0]?.TOTAL ?? (result.recordset || []).length;
+        const messages = (result.recordset || []).map(row => ({ ...row, IDVIAGEM: row.IDVIAGEM ?? idviagem }));
+        console.log('💬 [CHAT] OK (fallback):', messages.length, 'mensagens');
+        return res.json({ success: true, messages: messages.reverse(), total });
+      } catch (err2) {
+        console.warn('💬 [CHAT] Fallback falhou:', err2.message);
+      }
 
-      res.json({
-        success: true,
-        messages: result.recordset.reverse(), // Mais antigas primeiro
-        total: countResult.recordset[0].total
-      });
+      console.log('💬 [CHAT] Retornando lista vazia');
+      return res.json({ success: true, messages: [], total: 0 });
     } catch (err) {
-      console.error('Erro ao buscar mensagens:', err);
-      res.status(500).json({ error: 'Erro ao buscar mensagens.' });
+      console.error('💬 [CHAT] Erro ao buscar mensagens:', err.code, err.message);
+      res.status(500).json({ success: false, error: 'Erro ao buscar mensagens.', messages: [] });
     }
   },
 
@@ -274,38 +586,33 @@ const messageController = {
       }
 
       const pool = await poolPromise;
-      
-      // Marcar como lidas todas as mensagens que não são do próprio usuário
-      await pool.request()
-        .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
-        .input('senderId', sql.Decimal(15, 0), parseFloat(userId))
-        .input('senderType', sql.NVarChar(10), userType)
-        .query(`
-          UPDATE [dbo].[MESSAGES]
-          SET READ_BY_RECEIVER = 1,
-              DH_LEITURA = SYSUTCDATETIME()
-          WHERE IDVIAGEM = @idviagem
-            AND (SENDER_ID != @senderId OR SENDER_TYPE != @senderType)
-            AND READ_BY_RECEIVER = 0
-        `);
+      const idViagemNum = parseFloat(idviagem);
+      const senderIdNum = parseFloat(userId);
+      const senderTypeStr = (userType || '').substring(0, 20);
 
-      // Atualizar contador de não lidas na conversa
-      await pool.request()
-        .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
-        .input('senderId', sql.Decimal(15, 0), parseFloat(userId))
-        .input('senderType', sql.NVarChar(10), userType)
-        .query(`
-          UPDATE c
-          SET c.MENSAGENS_NAO_LIDAS = (
-            SELECT COUNT(*)
-            FROM [dbo].[MESSAGES] m
-            WHERE m.ID_CONVERSA = c.ID
-              AND (m.SENDER_ID != @senderId OR m.SENDER_TYPE != @senderType)
-              AND m.READ_BY_RECEIVER = 0
-          )
-          FROM [dbo].[CONVERSAS] c
-          WHERE c.ID_VIAGEM = @idviagem
-        `);
+      // Marcar como lidas todas as mensagens que não são do próprio usuário (PostgreSQL nativo)
+      await pool.query(
+        `UPDATE public."MESSAGES"
+         SET "READ_BY_RECEIVER" = true, "DH_LEITURA" = NOW()
+         WHERE "IDVIAGEM" = $1
+           AND ("SENDER_ID" IS DISTINCT FROM $2 OR "SENDER_TYPE" IS DISTINCT FROM $3)
+           AND (COALESCE("READ_BY_RECEIVER", false) IS NOT TRUE)`,
+        [idViagemNum, senderIdNum, senderTypeStr]
+      );
+
+      // Atualizar contador de não lidas na conversa (PostgreSQL: UPDATE com subquery)
+      await pool.query(
+        `UPDATE public."CONVERSAS" c
+         SET "MENSAGENS_NAO_LIDAS" = (
+           SELECT COUNT(*)::int
+           FROM public."MESSAGES" m
+           WHERE m."ID_CONVERSA" = c."ID"
+             AND (m."SENDER_ID" IS DISTINCT FROM $2 OR m."SENDER_TYPE" IS DISTINCT FROM $3)
+             AND (COALESCE(m."READ_BY_RECEIVER", false) IS NOT TRUE)
+         )
+         WHERE c."ID_VIAGEM" = $1`,
+        [idViagemNum, senderIdNum, senderTypeStr]
+      );
 
       res.json({ success: true, message: 'Mensagens marcadas como lidas' });
     } catch (err) {
@@ -343,118 +650,73 @@ const messageController = {
    * @example
    * GET /api/chat/conversas?tipo=VIAGEM&limit=20
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   listarConversas: async (req, res) => {
     try {
-      const sql = require('mssql');
       const { poolPromise } = require('../config/db');
       const { tipo, idMotorista, idViagem, limit = 50, offset = 0 } = req.query;
-      
       const pool = await poolPromise;
-      const request = pool.request();
+      const lim = Math.min(parseInt(limit, 10) || 50, 200);
+      const off = Math.max(0, parseInt(offset, 10) || 0);
 
-      let query = `
-        SELECT 
-          c.ID,
-          c.TIPO,
-          c.ID_MOTORISTA,
-          c.ID_VIAGEM,
-          c.ID_CRIADOR,
-          c.ULTIMA_MENSAGEM,
-          c.DH_ULTIMA_MENSAGEM,
-          c.MENSAGENS_NAO_LIDAS,
-          c.DH_CRIACAO,
-          COALESCE(
-            NULLIF(UPPER(cg_vm.RZSOCIAL), ''),
-            NULLIF(cg.RZSOCIAL, ''),
-            NULLIF(cg_conv.RZSOCIAL, ''),
-            NULLIF(cg_conv_any.RZSOCIAL, '')
-          ) as motorista_nome,
-          mv.CDMOTORISTA as motorista_id,
-          UPPER(cg_vm.RZSOCIAL) as motorista_nome_upper,
-          cg_vm.CGCCPF as motorista_cpf,
-          v.IDVIAGEM as viagem_codigo,
-          r.IDROTEIRO as viagem_rota_id,
-          r.DSROTEIRO as viagem_rota_descricao,
-          ISNULL(co.NMCIDADE, '') + CASE WHEN co.NMCIDADE IS NOT NULL AND co.ESTADO IS NOT NULL THEN '/' + co.ESTADO ELSE '' END as viagem_origem,
-          ISNULL(cd.NMCIDADE, '') + CASE WHEN cd.NMCIDADE IS NOT NULL AND cd.ESTADO IS NOT NULL THEN '/' + cd.ESTADO ELSE '' END as viagem_destino,
-          v.DTPREVINICIO as viagem_dt_carregamento,
-          v.DTPREVFINAL as viagem_dt_descarga,
-          ISNULL(sv.DSSITUACAOVIAGEM, '') as viagem_situacao,
-          v.CDSITUACAOVIAGEM as viagem_situacao_codigo,
-          u.RZSOCIAL as criador_nome
-        FROM [dbo].[CONVERSAS] c
-        LEFT JOIN [dbo].[CADASTROGERAL] cg ON c.ID_MOTORISTA = cg.CDCADASTRO
-        LEFT JOIN [dbo].[VIAGEMMESTRE] v ON c.ID_VIAGEM = v.IDVIAGEM
-        LEFT JOIN [dbo].[VIAGEMMOTORISTA] mv ON v.IDVIAGEM = mv.IDVIAGEM
-        LEFT JOIN [dbo].[CADASTROGERAL] cg_vm ON mv.CDMOTORISTA = cg_vm.CDCADASTRO
-        LEFT JOIN [dbo].[ROTEIRO] r ON v.IDROTEIRO = r.IDROTEIRO
-        LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
-        LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
-        LEFT JOIN [dbo].[SITUACAOVIAGEM] sv ON v.CDSITUACAOVIAGEM = sv.CDSITUACAOVIAGEM
-        OUTER APPLY (
-          SELECT TOP 1 
-            CDCADASTRO_MOTORISTA
-          FROM [dbo].[CONVOCACAO]
-          WHERE IDVIAGEM = v.IDVIAGEM
-            AND STATUS IN ('CONFIRMADA', 'ACEITA')
-          ORDER BY DHCONVOCACAO DESC
-        ) conv_top
-        LEFT JOIN [dbo].[CADASTROGERAL] cg_conv ON conv_top.CDCADASTRO_MOTORISTA = cg_conv.CDCADASTRO
-        OUTER APPLY (
-          SELECT TOP 1 
-            CDCADASTRO_MOTORISTA
-          FROM [dbo].[CONVOCACAO]
-          WHERE IDVIAGEM = v.IDVIAGEM
-          ORDER BY DHCONVOCACAO DESC
-        ) conv_any
-        LEFT JOIN [dbo].[CADASTROGERAL] cg_conv_any ON conv_any.CDCADASTRO_MOTORISTA = cg_conv_any.CDCADASTRO
-        LEFT JOIN [dbo].[CADASTROGERAL] u ON c.ID_CRIADOR = u.CDCADASTRO
-        WHERE 1=1
-      `;
+      // Tentativa 1: query nativa PostgreSQL (evita conversão que gera c.id_motorista)
+      const params = [];
+      let paramIdx = 0;
+      let where = ' WHERE 1=1 ';
+      if (tipo) { paramIdx++; params.push(tipo); where += ` AND c."TIPO" = $${paramIdx}`; }
+      if (idMotorista) { paramIdx++; params.push(parseFloat(idMotorista)); where += ` AND c."ID_MOTORISTA" = $${paramIdx}`; }
+      if (idViagem) { paramIdx++; params.push(parseFloat(idViagem)); where += ` AND c."ID_VIAGEM" = $${paramIdx}`; }
+      paramIdx++; params.push(off);
+      paramIdx++; params.push(lim);
 
-      if (tipo) {
-        request.input('tipo', sql.NVarChar(20), tipo);
-        query += ` AND c.TIPO = @tipo`;
-      }
-      if (idMotorista) {
-        request.input('idMotorista', sql.Decimal(15, 0), parseFloat(idMotorista));
-        query += ` AND c.ID_MOTORISTA = @idMotorista`;
-      }
-      if (idViagem) {
-        request.input('idViagem', sql.Decimal(15, 0), parseFloat(idViagem));
-        query += ` AND c.ID_VIAGEM = @idViagem`;
+      try {
+        const sqlNative = `
+          SELECT c."ID", c."TIPO", c."ID_MOTORISTA", c."ID_VIAGEM", c."ID_CRIADOR",
+                 c."ULTIMA_MENSAGEM", c."DH_ULTIMA_MENSAGEM", c."MENSAGENS_NAO_LIDAS", c."DH_CRIACAO",
+                 COALESCE(cg."RZSOCIAL",
+                   (SELECT cg2."RZSOCIAL" FROM public."VIAGEMMOTORISTA" vm_m2
+                    INNER JOIN public."CADASTROGERAL" cg2 ON vm_m2."CDMOTORISTA" = cg2."CDCADASTRO"
+                    WHERE vm_m2."IDVIAGEM" = c."ID_VIAGEM" LIMIT 1)
+                 ) AS motorista_nome,
+                 vm."IDVIAGEM" AS viagem_codigo,
+                 COALESCE(co."NMCIDADE", '') || CASE WHEN co."ESTADO" IS NOT NULL THEN '/' || co."ESTADO" ELSE '' END AS viagem_origem,
+                 COALESCE(cd."NMCIDADE", '') || CASE WHEN cd."ESTADO" IS NOT NULL THEN '/' || cd."ESTADO" ELSE '' END AS viagem_destino,
+                 u."RZSOCIAL" AS criador_nome
+          FROM public."CONVERSAS" c
+          LEFT JOIN public."CADASTROGERAL" cg ON c."ID_MOTORISTA" = cg."CDCADASTRO"
+          LEFT JOIN public."VIAGEMMESTRE" vm ON c."ID_VIAGEM" = vm."IDVIAGEM"
+          LEFT JOIN public."ROTEIRO" r ON vm."IDROTEIRO" = r."IDROTEIRO"
+          LEFT JOIN public."CIDADE" co ON r."CDCIDADEORIGEM" = co."CDCIDADE"
+          LEFT JOIN public."CIDADE" cd ON r."CDCIDADEDESTINO" = cd."CDCIDADE"
+          LEFT JOIN public."CADASTROGERAL" u ON c."ID_CRIADOR" = u."CDCADASTRO"
+          ${where}
+          ORDER BY c."DH_ULTIMA_MENSAGEM" DESC NULLS LAST
+          OFFSET $${paramIdx - 1} LIMIT $${paramIdx}
+        `;
+        const result = await pool.query(sqlNative, params);
+        const rows = result.rows || [];
+        return res.json({ success: true, data: rows });
+      } catch (errNative) {
+        const code = errNative.code || '';
+        const msg = String(errNative.message || '');
+        console.warn('💬 [CHAT] listarConversas PG nativo falhou:', code, msg);
+        if (code !== '42P01' && code !== '42703' && !/não existe|does not exist/i.test(msg)) {
+          throw errNative;
+        }
       }
 
-      query += ` ORDER BY c.DH_ULTIMA_MENSAGEM DESC
-        OFFSET @offset ROWS
-        FETCH NEXT @limit ROWS ONLY
-      `;
-
-      request.input('offset', sql.Int, parseInt(offset));
-      request.input('limit', sql.Int, parseInt(limit));
-
-      const result = await request.query(query);
-
-      // Debug: Log para verificar dados retornados
-      if (result.recordset.length > 0) {
-        console.log('🔍 [CHAT] Debug - Primeira conversa:', {
-          id: result.recordset[0].ID,
-          idViagem: result.recordset[0].ID_VIAGEM,
-          motorista_nome: result.recordset[0].motorista_nome,
-          motorista_id: result.recordset[0].motorista_id,
-          motorista_cpf: result.recordset[0].motorista_cpf
-        });
-      }
-
-      res.json({
-        success: true,
-        data: result.recordset
-      });
+      // PG: se chegou aqui, esquema pode diferir; retorna lista vazia (evita pool.request que é MSSQL)
+      return res.json({ success: true, data: [] });
     } catch (err) {
-      console.error('Erro ao listar conversas:', err);
+      const code = err.code || '';
+      const msg = String(err.message || '');
+      console.error('Erro ao listar conversas:', code, msg);
+      if (code === '42703' || code === '42P01' || /coluna.*não existe|does not exist|relação.*não existe/i.test(msg)) {
+        console.warn('💬 [CHAT] listarConversas: esquema pode diferir (PG). Retornando lista vazia.');
+        return res.json({ success: true, data: [] });
+      }
       res.status(500).json({ error: 'Erro ao listar conversas' });
     }
   },
@@ -485,7 +747,7 @@ const messageController = {
    * @example
    * GET /api/chat/conversas/1?limit=50
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   buscarMensagensConversa: async (req, res) => {
@@ -498,53 +760,43 @@ const messageController = {
       }
 
       const pool = await poolPromise;
-      const result = await pool.request()
-        .input('idConversa', sql.Int, parseInt(id))
-        .input('limit', sql.Int, parseInt(limit))
-        .input('offset', sql.Int, parseInt(offset))
-        .query(`
-          SELECT 
-            m.ID,
-            m.IDVIAGEM,
-            m.ID_CONVERSA,
-            m.SENDER_TYPE,
-            m.SENDER_ID,
-            COALESCE(m.SENDER_NAME, 
-              CASE 
-                WHEN m.SENDER_TYPE = 'OPERADOR' THEN cg.RZSOCIAL
-                WHEN m.SENDER_TYPE = 'driver' THEN cg2.RZSOCIAL
+      const idConv = parseInt(id, 10);
+      const lim = Math.min(parseInt(limit, 10) || 100, 200);
+      const off = Math.max(0, parseInt(offset, 10) || 0);
+
+      const result = await pool.query(
+        `SELECT 
+            m."ID", m."IDVIAGEM", m."ID_CONVERSA", m."SENDER_TYPE", m."SENDER_ID",
+            COALESCE(m."SENDER_NAME",
+              CASE
+                WHEN m."SENDER_TYPE" = 'OPERADOR' THEN cg."RZSOCIAL"
+                WHEN m."SENDER_TYPE" IN ('driver', 'MOTORISTA') THEN cg2."RZSOCIAL"
                 ELSE NULL
               END
-            ) AS SENDER_NAME,
-            m.CONTENT,
-            m.TIPO,
-            m.READ_BY_SENDER,
-            m.READ_BY_RECEIVER,
-            m.DH_LEITURA,
-            m.CREATED_AT,
-            m.SYNCED
-          FROM [dbo].[MESSAGES] m
-          LEFT JOIN [dbo].[CADASTROGERAL] cg ON m.SENDER_TYPE = 'OPERADOR' AND m.SENDER_ID = cg.CDCADASTRO
-          LEFT JOIN [dbo].[CADASTROGERAL] cg2 ON m.SENDER_TYPE = 'driver' AND m.SENDER_ID = cg2.CDCADASTRO
-          WHERE m.ID_CONVERSA = @idConversa
-          ORDER BY m.CREATED_AT DESC
-          OFFSET @offset ROWS
-          FETCH NEXT @limit ROWS ONLY
-        `);
+            ) AS "SENDER_NAME",
+            m."CONTENT", m."TIPO", m."READ_BY_SENDER", m."READ_BY_RECEIVER",
+            m."DH_LEITURA", m."CREATED_AT", m."SYNCED"
+          FROM public."MESSAGES" m
+          LEFT JOIN public."CADASTROGERAL" cg ON m."SENDER_TYPE" = 'OPERADOR' AND m."SENDER_ID" = cg."CDCADASTRO"
+          LEFT JOIN public."CADASTROGERAL" cg2 ON m."SENDER_TYPE" IN ('driver', 'MOTORISTA') AND m."SENDER_ID" = cg2."CDCADASTRO"
+          WHERE m."ID_CONVERSA" = $1
+          ORDER BY m."CREATED_AT" ASC
+          OFFSET $2 LIMIT $3`,
+        [idConv, off, lim]
+      );
 
-      // Contar total
-      const countResult = await pool.request()
-        .input('idConversa', sql.Int, parseInt(id))
-        .query(`
-          SELECT COUNT(*) AS total
-          FROM [dbo].[MESSAGES]
-          WHERE ID_CONVERSA = @idConversa
-        `);
+      const countResult = await pool.query(
+        `SELECT COUNT(*) AS total FROM public."MESSAGES" WHERE "ID_CONVERSA" = $1`,
+        [idConv]
+      );
+
+      const rows = result.rows || [];
+      const total = (countResult.rows && countResult.rows[0]) ? parseInt(countResult.rows[0].total, 10) : rows.length;
 
       res.json({
         success: true,
-        messages: result.recordset.reverse(), // Mais antigas primeiro
-        total: countResult.recordset[0].total
+        messages: rows,
+        total: total
       });
     } catch (err) {
       console.error('Erro ao buscar mensagens da conversa:', err);
@@ -583,7 +835,7 @@ const messageController = {
    * //   "idCriador": 456
    * // }
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   criarConversa: async (req, res) => {
@@ -694,7 +946,7 @@ const messageController = {
    * @example
    * GET /api/chat/buscar?q=problema
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   buscar: async (req, res) => {
@@ -795,7 +1047,7 @@ const messageController = {
    * //   }
    * // }
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   contadorNaoLidas: async (req, res) => {
@@ -807,37 +1059,41 @@ const messageController = {
       }
 
       const pool = await poolPromise;
-      
-      // Contar mensagens não lidas onde o usuário é o destinatário
-      const result = await pool.request()
-        .input('userId', sql.Decimal(15, 0), parseFloat(idUsuario))
-        .input('userType', sql.NVarChar(10), userType)
-        .query(`
-          SELECT COUNT(*) as total
-          FROM [dbo].[MESSAGES]
-          WHERE (SENDER_ID != @userId OR SENDER_TYPE != @userType)
-            AND READ_BY_RECEIVER = 0
-        `);
+      const userIdNum = parseFloat(idUsuario);
+      const userTypeStr = (userType || '').substring(0, 20);
 
-      // Contar por conversa
-      const porConversaResult = await pool.request()
-        .input('userId', sql.Decimal(15, 0), parseFloat(idUsuario))
-        .input('userType', sql.NVarChar(10), userType)
-        .query(`
-          SELECT 
-            ID_CONVERSA,
-            COUNT(*) as nao_lidas
-          FROM [dbo].[MESSAGES]
-          WHERE (SENDER_ID != @userId OR SENDER_TYPE != @userType)
-            AND READ_BY_RECEIVER = 0
-          GROUP BY ID_CONVERSA
-        `);
+      // Contar mensagens não lidas onde o usuário é o destinatário (PostgreSQL nativo)
+      const result = await pool.query(
+        `SELECT COUNT(*)::int AS total
+         FROM public."MESSAGES"
+         WHERE ("SENDER_ID" IS DISTINCT FROM $1 OR "SENDER_TYPE" IS DISTINCT FROM $2)
+           AND (COALESCE("READ_BY_RECEIVER", false) IS NOT TRUE)`,
+        [userIdNum, userTypeStr]
+      );
+
+      const porConversaResult = await pool.query(
+        `SELECT "ID_CONVERSA", COUNT(*)::int AS nao_lidas
+         FROM public."MESSAGES"
+         WHERE ("SENDER_ID" IS DISTINCT FROM $1 OR "SENDER_TYPE" IS DISTINCT FROM $2)
+           AND (COALESCE("READ_BY_RECEIVER", false) IS NOT TRUE)
+         GROUP BY "ID_CONVERSA"`,
+        [userIdNum, userTypeStr]
+      );
+
+      const row = result.rows && result.rows[0];
+      const total = row && (row.total !== undefined && row.total !== null)
+        ? (typeof row.total === 'number' ? row.total : parseInt(row.total, 10) || 0)
+        : 0;
+      const porConversa = (porConversaResult.rows || []).map(r => ({
+        ID_CONVERSA: r.ID_CONVERSA ?? r.id_conversa,
+        nao_lidas: r.nao_lidas ?? r.nao_lidas
+      }));
 
       res.json({
         success: true,
         data: {
-          total: result.recordset[0].total,
-          porConversa: porConversaResult.recordset
+          total: Number.isFinite(total) ? total : 0,
+          porConversa
         }
       });
     } catch (err) {
@@ -875,7 +1131,7 @@ const messageController = {
    * //   "mensagensNaoLidas": 3
    * // }
    * 
-   * @author Sistema DivulgaCarga
+   * @author Atlas Cargo
    * @since 2.0
    */
   atualizarConversa: async (req, res) => {

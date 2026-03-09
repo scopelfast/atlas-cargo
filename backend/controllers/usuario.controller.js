@@ -1,7 +1,8 @@
 // backend/controllers/usuario.controller.js
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const bcrypt = require('bcrypt');
 const { poolPromise } = require('../config/db');
+const { getSgUser } = require('../utils/audit');
 
 // Listar usuários com filtros
 const listar = async (req, res) => {
@@ -10,20 +11,20 @@ const listar = async (req, res) => {
 
     let query = `
       SELECT 
-        U.SGUSUARIO,
-        U.NMUSUARIO,
-        U.ENDEMAIL,
-        U.CDCADASTRO,
-        U.SENHA,
-        U.FGACTIVE,
-        U.DHMAINTENANCE,
-        U.SGUSER,
-        U.SERVERORIG,
-        CG.RZSOCIAL AS CADASTRO_NOME,
-        CG.NMFANTASIA AS CADASTRO_FANTASIA,
-        CG.CGCCPF AS CADASTRO_CGCCPF
-      FROM [dbo].[USUARIO] U
-      LEFT JOIN [dbo].[CADASTROGERAL] CG ON U.CDCADASTRO = CG.CDCADASTRO
+        [USUARIO].[SGUSUARIO],
+        [USUARIO].[NMUSUARIO],
+        [USUARIO].[ENDEMAIL],
+        [USUARIO].[CDCADASTRO],
+        [USUARIO].[SENHA],
+        [USUARIO].[FGACTIVE],
+        [USUARIO].[DHMAINTENANCE],
+        [USUARIO].[SGUSER],
+        [USUARIO].[SERVERORIG],
+        [CADASTROGERAL].[RZSOCIAL] AS [CADASTRO_NOME],
+        [CADASTROGERAL].[NMFANTASIA] AS [CADASTRO_FANTASIA],
+        [CADASTROGERAL].[CGCCPF] AS [CADASTRO_CGCCPF]
+      FROM [dbo].[USUARIO] [USUARIO]
+      LEFT JOIN [dbo].[CADASTROGERAL] [CADASTROGERAL] ON [USUARIO].[CDCADASTRO] = [CADASTROGERAL].[CDCADASTRO]
       WHERE 1=1
     `;
 
@@ -31,41 +32,41 @@ const listar = async (req, res) => {
     const request = pool.request();
 
     if (login) {
-      query += ` AND U.SGUSUARIO LIKE @login`;
+      query += ` AND [USUARIO].[SGUSUARIO] LIKE @login`;
       request.input('login', sql.VarChar(50), `%${login}%`);
     }
 
     if (nome) {
-      query += ` AND U.NMUSUARIO LIKE @nome`;
+      query += ` AND [USUARIO].[NMUSUARIO] LIKE @nome`;
       request.input('nome', sql.VarChar(40), `%${nome}%`);
     }
 
     if (email) {
-      query += ` AND U.ENDEMAIL LIKE @email`;
+      query += ` AND [USUARIO].[ENDEMAIL] LIKE @email`;
       request.input('email', sql.VarChar(200), `%${email}%`);
     }
 
     if (cadastro) {
-      query += ` AND U.CDCADASTRO = @cadastro`;
+      query += ` AND [USUARIO].[CDCADASTRO] = @cadastro`;
       request.input('cadastro', sql.Decimal(15, 0), parseInt(cadastro));
     }
 
     if (situacao) {
-      query += ` AND U.FGACTIVE = @situacao`;
+      query += ` AND [USUARIO].[FGACTIVE] = @situacao`;
       request.input('situacao', sql.Char(1), situacao);
     }
 
     if (empresa) {
       query += ` AND EXISTS (
-        SELECT 1 FROM [dbo].[USUARIOEMPRESA] UE 
-        WHERE UE.SGUSUARIO = U.SGUSUARIO 
-        AND UE.CDEMPRESA = @empresa
-        AND UE.FGACTIVE = 'S'
+        SELECT 1 FROM [dbo].[USUARIOEMPRESA] [UE]
+        WHERE [UE].[SGUSUARIO] = [USUARIO].[SGUSUARIO]
+        AND [UE].[CDEMPRESA] = @empresa
+        AND [UE].[FGACTIVE] = 'S'
       )`;
       request.input('empresa', sql.SmallInt, parseInt(empresa));
     }
 
-    query += ` ORDER BY U.NMUSUARIO`;
+    query += ` ORDER BY [USUARIO].[NMUSUARIO]`;
 
     const result = await request.query(query);
 
@@ -101,17 +102,17 @@ const buscarPorLogin = async (req, res) => {
       .input('login', sql.VarChar(50), login)
       .query(`
         SELECT 
-          U.SGUSUARIO,
-          U.NMUSUARIO,
-          U.ENDEMAIL,
-          U.CDCADASTRO,
-          U.FGACTIVE,
-          U.DHMAINTENANCE,
-          CG.RZSOCIAL AS CADASTRO_NOME,
-          CG.NMFANTASIA AS CADASTRO_FANTASIA
-        FROM [dbo].[USUARIO] U
-        LEFT JOIN [dbo].[CADASTROGERAL] CG ON U.CDCADASTRO = CG.CDCADASTRO
-        WHERE U.SGUSUARIO = @login
+          [USUARIO].[SGUSUARIO],
+          [USUARIO].[NMUSUARIO],
+          [USUARIO].[ENDEMAIL],
+          [USUARIO].[CDCADASTRO],
+          [USUARIO].[FGACTIVE],
+          [USUARIO].[DHMAINTENANCE],
+          [CADASTROGERAL].[RZSOCIAL] AS [CADASTRO_NOME],
+          [CADASTROGERAL].[NMFANTASIA] AS [CADASTRO_FANTASIA]
+        FROM [dbo].[USUARIO] [USUARIO]
+        LEFT JOIN [dbo].[CADASTROGERAL] [CADASTROGERAL] ON [USUARIO].[CDCADASTRO] = [CADASTROGERAL].[CDCADASTRO]
+        WHERE [USUARIO].[SGUSUARIO] = @login
       `);
 
     if (result.recordset.length === 0) {
@@ -160,7 +161,7 @@ const criar = async (req, res) => {
     const checkLogin = await pool
       .request()
       .input('login', sql.VarChar(50), SGUSUARIO)
-      .query('SELECT SGUSUARIO FROM [dbo].[USUARIO] WHERE SGUSUARIO = @login');
+      .query('SELECT [SGUSUARIO] FROM [dbo].[USUARIO] WHERE [SGUSUARIO] = @login');
 
     if (checkLogin.recordset.length > 0) {
       return res.status(400).json({ error: 'Login já existe. Escolha outro.' });
@@ -170,7 +171,7 @@ const criar = async (req, res) => {
     const checkEmail = await pool
       .request()
       .input('email', sql.VarChar(200), ENDEMAIL)
-      .query('SELECT SGUSUARIO FROM [dbo].[USUARIO] WHERE ENDEMAIL = @email');
+      .query('SELECT [SGUSUARIO] FROM [dbo].[USUARIO] WHERE [ENDEMAIL] = @email');
 
     if (checkEmail.recordset.length > 0) {
       return res.status(400).json({ error: 'E-mail já cadastrado para outro usuário.' });
@@ -181,12 +182,15 @@ const criar = async (req, res) => {
       const checkCadastro = await pool
         .request()
         .input('cadastro', sql.Decimal(15, 0), parseInt(CDCADASTRO))
-        .query('SELECT CDCADASTRO FROM [dbo].[CADASTROGERAL] WHERE CDCADASTRO = @cadastro');
+        .query('SELECT [CDCADASTRO] FROM [dbo].[CADASTROGERAL] WHERE [CDCADASTRO] = @cadastro');
 
       if (checkCadastro.recordset.length === 0) {
         return res.status(400).json({ error: 'Cadastro geral não encontrado.' });
       }
     }
+
+    const sgUser = getSgUser(req);
+    if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
 
     // Inserir usuário (manter senha como está - não forçar hash para compatibilidade)
     await pool
@@ -197,14 +201,15 @@ const criar = async (req, res) => {
       .input('SENHA', sql.VarChar(100), SENHA)
       .input('CDCADASTRO', sql.Decimal(15, 0), CDCADASTRO || null)
       .input('FGACTIVE', sql.Char(1), FGACTIVE || 'S')
+      .input('sgUser', sql.VarChar(50), sgUser)
       .query(`
         INSERT INTO [dbo].[USUARIO] (
-          SGUSUARIO, NMUSUARIO, ENDEMAIL, SENHA, CDCADASTRO, 
-          FGACTIVE, DHMAINTENANCE, SGUSER, SERVERORIG
+          [SGUSUARIO], [NMUSUARIO], [ENDEMAIL], [SENHA], [CDCADASTRO],
+          [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]
         )
         VALUES (
           @SGUSUARIO, @NMUSUARIO, @ENDEMAIL, @SENHA, @CDCADASTRO,
-          @FGACTIVE, GETDATE(), 'SYSTEM', 'AppDVcargas'
+          @FGACTIVE, CURRENT_TIMESTAMP, @sgUser, 'AppDVcargas'
         )
       `);
 
@@ -231,13 +236,16 @@ const atualizar = async (req, res) => {
       return res.status(400).json({ error: 'E-mail inválido.' });
     }
 
+    const sgUser = getSgUser(req);
+    if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+
     const pool = await poolPromise;
 
     // Verificar se usuário existe
     const checkUser = await pool
       .request()
       .input('login', sql.VarChar(50), login)
-      .query('SELECT SGUSUARIO FROM [dbo].[USUARIO] WHERE SGUSUARIO = @login');
+      .query('SELECT [SGUSUARIO] FROM [dbo].[USUARIO] WHERE [SGUSUARIO] = @login');
 
     if (checkUser.recordset.length === 0) {
       return res.status(404).json({ error: 'Usuário não encontrado.' });
@@ -248,7 +256,7 @@ const atualizar = async (req, res) => {
       .request()
       .input('email', sql.VarChar(200), ENDEMAIL)
       .input('login', sql.VarChar(50), login)
-      .query('SELECT SGUSUARIO FROM [dbo].[USUARIO] WHERE ENDEMAIL = @email AND SGUSUARIO <> @login');
+      .query('SELECT [SGUSUARIO] FROM [dbo].[USUARIO] WHERE [ENDEMAIL] = @email AND [SGUSUARIO] <> @login');
 
     if (checkEmail.recordset.length > 0) {
       return res.status(400).json({ error: 'E-mail já cadastrado para outro usuário.' });
@@ -259,7 +267,7 @@ const atualizar = async (req, res) => {
       const checkCadastro = await pool
         .request()
         .input('cadastro', sql.Decimal(15, 0), parseInt(CDCADASTRO))
-        .query('SELECT CDCADASTRO FROM [dbo].[CADASTROGERAL] WHERE CDCADASTRO = @cadastro');
+        .query('SELECT [CDCADASTRO] FROM [dbo].[CADASTROGERAL] WHERE [CDCADASTRO] = @cadastro');
 
       if (checkCadastro.recordset.length === 0) {
         return res.status(400).json({ error: 'Cadastro geral não encontrado.' });
@@ -269,14 +277,14 @@ const atualizar = async (req, res) => {
     // Montar query de atualização
     let updateQuery = `
       UPDATE [dbo].[USUARIO]
-      SET 
-        NMUSUARIO = @NMUSUARIO,
-        ENDEMAIL = @ENDEMAIL,
-        CDCADASTRO = @CDCADASTRO,
-        FGACTIVE = @FGACTIVE,
-        DHMAINTENANCE = GETDATE(),
-        SGUSER = 'SYSTEM',
-        SERVERORIG = 'AppDVcargas'
+      SET
+        [NMUSUARIO] = @NMUSUARIO,
+        [ENDEMAIL] = @ENDEMAIL,
+        [CDCADASTRO] = @CDCADASTRO,
+        [FGACTIVE] = @FGACTIVE,
+        [DHMAINTENANCE] = CURRENT_TIMESTAMP,
+        [SGUSER] = @sgUser,
+        [SERVERORIG] = 'AppDVcargas'
     `;
 
     const request = pool.request()
@@ -284,15 +292,16 @@ const atualizar = async (req, res) => {
       .input('NMUSUARIO', sql.VarChar(40), NMUSUARIO)
       .input('ENDEMAIL', sql.VarChar(200), ENDEMAIL)
       .input('CDCADASTRO', sql.Decimal(15, 0), CDCADASTRO || null)
-      .input('FGACTIVE', sql.Char(1), FGACTIVE || 'S');
+      .input('FGACTIVE', sql.Char(1), FGACTIVE || 'S')
+      .input('sgUser', sql.VarChar(50), sgUser);
 
     // Se senha foi fornecida, atualizar (manter formato original - não forçar hash)
     if (SENHA) {
-      updateQuery += `, SENHA = @SENHA`;
+      updateQuery += `, [SENHA] = @SENHA`;
       request.input('SENHA', sql.VarChar(100), SENHA);
     }
 
-    updateQuery += ` WHERE SGUSUARIO = @login`;
+    updateQuery += ` WHERE [SGUSUARIO] = @login`;
 
     await request.query(updateQuery);
 
@@ -309,13 +318,16 @@ const alterarStatus = async (req, res) => {
     const { login } = req.params;
     const { action } = req.query;
 
+    const sgUser = getSgUser(req);
+    if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+
     const pool = await poolPromise;
 
     // Verificar status atual
     const checkResult = await pool
       .request()
       .input('login', sql.VarChar(50), login)
-      .query('SELECT FGACTIVE FROM [dbo].[USUARIO] WHERE SGUSUARIO = @login');
+      .query('SELECT [FGACTIVE] FROM [dbo].[USUARIO] WHERE [SGUSUARIO] = @login');
 
     if (checkResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Usuário não encontrado.' });
@@ -340,14 +352,15 @@ const alterarStatus = async (req, res) => {
       .request()
       .input('login', sql.VarChar(50), login)
       .input('FGACTIVE', sql.Char(1), novaSituacao)
+      .input('sgUser', sql.VarChar(50), sgUser)
       .query(`
         UPDATE [dbo].[USUARIO]
-        SET 
-          FGACTIVE = @FGACTIVE,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE SGUSUARIO = @login
+        SET
+          [FGACTIVE] = @FGACTIVE,
+          [DHMAINTENANCE] = CURRENT_TIMESTAMP,
+          [SGUSER] = @sgUser,
+          [SERVERORIG] = 'AppDVcargas'
+        WHERE [SGUSUARIO] = @login
       `);
 
     res.json({ success: true, message: mensagem, newStatus: novaSituacao });
@@ -367,17 +380,17 @@ const listarAtividades = async (req, res) => {
       .request()
       .input('login', sql.VarChar(50), login)
       .query(`
-        SELECT 
-          TA.CDTIPOATIVIDADE,
-          TA.DSTIPOATIVIDADE,
-          TA.DSPROGRAMA,
-          CASE WHEN UA.SGUSUARIO IS NOT NULL THEN 1 ELSE 0 END AS TEM_ACESSO
-        FROM [dbo].[TIPOATIVIDADE] TA
-        LEFT JOIN [dbo].[USUARIOATIVIDADE] UA 
-          ON TA.CDTIPOATIVIDADE = UA.CDTIPOATIVIDADE 
-          AND UA.SGUSUARIO = @login
-        WHERE TA.FGACTIVE = 'S'
-        ORDER BY TA.DSTIPOATIVIDADE
+        SELECT
+          [TA].[CDTIPOATIVIDADE],
+          [TA].[DSTIPOATIVIDADE],
+          [TA].[DSPROGRAMA],
+          CASE WHEN [UA].[SGUSUARIO] IS NOT NULL THEN 1 ELSE 0 END AS [TEM_ACESSO]
+        FROM [dbo].[TIPOATIVIDADE] [TA]
+        LEFT JOIN [dbo].[USUARIOATIVIDADE] [UA]
+          ON [TA].[CDTIPOATIVIDADE] = [UA].[CDTIPOATIVIDADE]
+          AND [UA].[SGUSUARIO] = @login
+        WHERE [TA].[FGACTIVE] = 'S'
+        ORDER BY [TA].[DSTIPOATIVIDADE]
       `);
 
     res.json(result.recordset);
@@ -407,54 +420,55 @@ const salvarAtividades = async (req, res) => {
     const checkUser = await pool
       .request()
       .input('login', sql.VarChar(50), login)
-      .query('SELECT SGUSUARIO FROM [dbo].[USUARIO] WHERE SGUSUARIO = @login');
+      .query('SELECT [SGUSUARIO] FROM [dbo].[USUARIO] WHERE [SGUSUARIO] = @login');
 
     if (checkUser.recordset.length === 0) {
       return res.status(404).json({ error: 'Usuário não encontrado.' });
     }
 
-    // Iniciar transação
-    const transaction = new sql.Transaction(pool);
-    await transaction.begin();
+    // Remover todas as atividades atuais
+    await pool
+      .request()
+      .input('login', sql.VarChar(50), login)
+      .query('DELETE FROM [dbo].[USUARIOATIVIDADE] WHERE [SGUSUARIO] = @login');
 
-    try {
-      // Remover todas as atividades atuais
-      const deleteRequest = new sql.Request(transaction);
-      await deleteRequest
+    // Inserir novas atividades (filtrar e deduplicar para evitar violação de chave única)
+    const atividadesValidas = [...new Set(
+      atividades
+        .map(id => parseInt(id, 10))
+        .filter(id => !isNaN(id) && id > 0)
+    )];
+
+    const sgUser = getSgUser(req);
+    if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+    for (const atividadeId of atividadesValidas) {
+      await pool
+        .request()
         .input('login', sql.VarChar(50), login)
-        .query('DELETE FROM [dbo].[USUARIOATIVIDADE] WHERE SGUSUARIO = @login');
-
-      // Inserir novas atividades (filtrar valores válidos)
-      const atividadesValidas = atividades
-        .map(id => parseInt(id))
-        .filter(id => !isNaN(id) && id > 0);
-
-      for (const atividadeId of atividadesValidas) {
-        // Criar um novo request para cada inserção para evitar conflito de parâmetros
-        const insertRequest = new sql.Request(transaction);
-        await insertRequest
-          .input('login', sql.VarChar(50), login)
-          .input('atividade', sql.SmallInt, atividadeId)
-          .query(`
-            INSERT INTO [dbo].[USUARIOATIVIDADE] (
-              SGUSUARIO, CDTIPOATIVIDADE, DHMAINTENANCE, SGUSER, SERVERORIG
-            )
-            VALUES (
-              @login, @atividade, GETDATE(), 'SYSTEM', 'AppDVcargas'
-            )
-          `);
-      }
-
-      await transaction.commit();
-      res.json({ success: true, message: 'Atividades salvas com sucesso!' });
-    } catch (err) {
-      await transaction.rollback();
-      console.error('Erro na transação ao salvar atividades:', err);
-      throw err;
+        .input('atividade', sql.SmallInt, atividadeId)
+        .input('sgUser', sql.VarChar(50), sgUser)
+        .query(`
+          INSERT INTO [dbo].[USUARIOATIVIDADE] (
+            [SGUSUARIO], [CDTIPOATIVIDADE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]
+          )
+          VALUES (
+            @login, @atividade, CURRENT_TIMESTAMP, @sgUser, 'AppDVcargas'
+          )
+          ON CONFLICT ON CONSTRAINT "USUARIOATIVIDADE_pkey" DO NOTHING
+        `);
     }
+
+    res.json({ success: true, message: 'Atividades salvas com sucesso!' });
   } catch (err) {
     console.error('Erro ao salvar atividades:', err);
-    res.status(500).json({ 
+    const isDuplicateKey = err.code === '23505' || (err.message && err.message.includes('duplicar valor da chave'));
+    if (isDuplicateKey) {
+      return res.status(400).json({
+        error: 'Atividade duplicada na lista. Remova duplicatas e tente novamente.',
+        detalhes: process.env.NODE_ENV === 'development' ? err.message : undefined
+      });
+    }
+    res.status(500).json({
       error: 'Erro ao salvar atividades.',
       detalhes: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
@@ -471,15 +485,15 @@ const listarEmpresas = async (req, res) => {
       .request()
       .input('login', sql.VarChar(50), login)
       .query(`
-        SELECT 
-          UE.CDEMPRESA,
-          E.RZSOCIAL,
-          E.NMREDUZIDO,
-          UE.FGACTIVE
-        FROM [dbo].[USUARIOEMPRESA] UE
-        INNER JOIN [dbo].[EMPRESA] E ON UE.CDEMPRESA = E.CDEMPRESA
-        WHERE UE.SGUSUARIO = @login
-        ORDER BY E.RZSOCIAL
+        SELECT
+          [UE].[CDEMPRESA],
+          [E].[RZSOCIAL],
+          [E].[NMREDUZIDO],
+          [UE].[FGACTIVE]
+        FROM [dbo].[USUARIOEMPRESA] [UE]
+        INNER JOIN [dbo].[EMPRESA] [E] ON [UE].[CDEMPRESA] = [E].[CDEMPRESA]
+        WHERE [UE].[SGUSUARIO] = @login
+        ORDER BY [E].[RZSOCIAL]
       `);
 
     res.json(result.recordset);
@@ -506,30 +520,41 @@ const adicionarEmpresa = async (req, res) => {
       .request()
       .input('login', sql.VarChar(50), login)
       .input('empresa', sql.SmallInt, parseInt(empresa))
-      .query('SELECT SGUSUARIO FROM [dbo].[USUARIOEMPRESA] WHERE SGUSUARIO = @login AND CDEMPRESA = @empresa');
+      .query('SELECT [SGUSUARIO] FROM [dbo].[USUARIOEMPRESA] WHERE [SGUSUARIO] = @login AND [CDEMPRESA] = @empresa');
 
     if (check.recordset.length > 0) {
       return res.status(400).json({ error: 'Usuário já possui acesso a esta empresa.' });
     }
+
+    const sgUser = getSgUser(req);
+    if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
 
     // Inserir
     await pool
       .request()
       .input('login', sql.VarChar(50), login)
       .input('empresa', sql.SmallInt, parseInt(empresa))
+      .input('sgUser', sql.VarChar(50), sgUser)
       .query(`
         INSERT INTO [dbo].[USUARIOEMPRESA] (
-          SGUSUARIO, CDEMPRESA, FGACTIVE, DHMAINTENANCE, SGUSER, SERVERORIG
+          [SGUSUARIO], [CDEMPRESA], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]
         )
         VALUES (
-          @login, @empresa, 'S', GETDATE(), 'SYSTEM', 'AppDVcargas'
+          @login, @empresa, 'S', CURRENT_TIMESTAMP, @sgUser, 'AppDVcargas'
         )
       `);
 
     res.json({ success: true, message: 'Empresa adicionada com sucesso!' });
   } catch (err) {
     console.error('Erro ao adicionar empresa:', err);
-    res.status(500).json({ error: 'Erro ao adicionar empresa.' });
+    const isDuplicateKey = err.code === '23505' || (err.message && err.message.includes('duplicar valor da chave'));
+    if (isDuplicateKey) {
+      return res.status(400).json({ error: 'Usuário já possui acesso a esta empresa.' });
+    }
+    res.status(500).json({
+      error: 'Erro ao adicionar empresa.',
+      detalhes: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 };
 
@@ -540,31 +565,20 @@ const removerEmpresa = async (req, res) => {
 
     const pool = await poolPromise;
 
-    // Remover empresa e todas as filiais relacionadas
-    const transaction = new sql.Transaction(pool);
-    await transaction.begin();
+    // Remover filiais primeiro, depois a empresa
+    await pool
+      .request()
+      .input('login', sql.VarChar(50), login)
+      .input('empresa', sql.SmallInt, parseInt(empresa))
+      .query('DELETE FROM [dbo].[USUARIOFILIAL] WHERE [SGUSUARIO] = @login AND [CDEMPRESA] = @empresa');
 
-    try {
-      const request = new sql.Request(transaction);
+    await pool
+      .request()
+      .input('login', sql.VarChar(50), login)
+      .input('empresa', sql.SmallInt, parseInt(empresa))
+      .query('DELETE FROM [dbo].[USUARIOEMPRESA] WHERE [SGUSUARIO] = @login AND [CDEMPRESA] = @empresa');
 
-      // Remover filiais primeiro
-      await request
-        .input('login', sql.VarChar(50), login)
-        .input('empresa', sql.SmallInt, parseInt(empresa))
-        .query('DELETE FROM [dbo].[USUARIOFILIAL] WHERE SGUSUARIO = @login AND CDEMPRESA = @empresa');
-
-      // Remover empresa
-      await request
-        .input('login', sql.VarChar(50), login)
-        .input('empresa', sql.SmallInt, parseInt(empresa))
-        .query('DELETE FROM [dbo].[USUARIOEMPRESA] WHERE SGUSUARIO = @login AND CDEMPRESA = @empresa');
-
-      await transaction.commit();
-      res.json({ success: true, message: 'Empresa removida com sucesso!' });
-    } catch (err) {
-      await transaction.rollback();
-      throw err;
-    }
+    res.json({ success: true, message: 'Empresa removida com sucesso!' });
   } catch (err) {
     console.error('Erro ao remover empresa:', err);
     res.status(500).json({ error: 'Erro ao remover empresa.' });
@@ -581,18 +595,18 @@ const listarFiliais = async (req, res) => {
       .request()
       .input('login', sql.VarChar(50), login)
       .query(`
-        SELECT 
-          UF.CDEMPRESA,
-          UF.CDFILIAL,
-          F.NMFANTASIA,
-          F.SGFILIAL,
-          E.RZSOCIAL AS EMPRESA_NOME,
-          UF.FGACTIVE
-        FROM [dbo].[USUARIOFILIAL] UF
-        INNER JOIN [dbo].[FILIAL] F ON UF.CDEMPRESA = F.CDEMPRESA AND UF.CDFILIAL = F.CDFILIAL
-        INNER JOIN [dbo].[EMPRESA] E ON UF.CDEMPRESA = E.CDEMPRESA
-        WHERE UF.SGUSUARIO = @login
-        ORDER BY E.RZSOCIAL, F.NMFANTASIA
+        SELECT
+          [UF].[CDEMPRESA],
+          [UF].[CDFILIAL],
+          [F].[NMFANTASIA],
+          [F].[SGFILIAL],
+          [E].[RZSOCIAL] AS [EMPRESA_NOME],
+          [UF].[FGACTIVE]
+        FROM [dbo].[USUARIOFILIAL] [UF]
+        INNER JOIN [dbo].[FILIAL] [F] ON [UF].[CDEMPRESA] = [F].[CDEMPRESA] AND [UF].[CDFILIAL] = [F].[CDFILIAL]
+        INNER JOIN [dbo].[EMPRESA] [E] ON [UF].[CDEMPRESA] = [E].[CDEMPRESA]
+        WHERE [UF].[SGUSUARIO] = @login
+        ORDER BY [E].[RZSOCIAL], [F].[NMFANTASIA]
       `);
 
     res.json(result.recordset);
@@ -619,7 +633,7 @@ const adicionarFilial = async (req, res) => {
       .request()
       .input('login', sql.VarChar(50), login)
       .input('empresa', sql.SmallInt, parseInt(empresa))
-      .query('SELECT SGUSUARIO FROM [dbo].[USUARIOEMPRESA] WHERE SGUSUARIO = @login AND CDEMPRESA = @empresa');
+      .query('SELECT [SGUSUARIO] FROM [dbo].[USUARIOEMPRESA] WHERE [SGUSUARIO] = @login AND [CDEMPRESA] = @empresa');
 
     if (checkEmpresa.recordset.length === 0) {
       return res.status(400).json({ error: 'Usuário não possui acesso a esta empresa. Adicione a empresa primeiro.' });
@@ -631,11 +645,14 @@ const adicionarFilial = async (req, res) => {
       .input('login', sql.VarChar(50), login)
       .input('empresa', sql.SmallInt, parseInt(empresa))
       .input('filial', sql.SmallInt, parseInt(filial))
-      .query('SELECT SGUSUARIO FROM [dbo].[USUARIOFILIAL] WHERE SGUSUARIO = @login AND CDEMPRESA = @empresa AND CDFILIAL = @filial');
+      .query('SELECT [SGUSUARIO] FROM [dbo].[USUARIOFILIAL] WHERE [SGUSUARIO] = @login AND [CDEMPRESA] = @empresa AND [CDFILIAL] = @filial');
 
     if (check.recordset.length > 0) {
       return res.status(400).json({ error: 'Usuário já possui acesso a esta filial.' });
     }
+
+    const sgUser = getSgUser(req);
+    if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
 
     // Inserir
     await pool
@@ -643,19 +660,27 @@ const adicionarFilial = async (req, res) => {
       .input('login', sql.VarChar(50), login)
       .input('empresa', sql.SmallInt, parseInt(empresa))
       .input('filial', sql.SmallInt, parseInt(filial))
+      .input('sgUser', sql.VarChar(50), sgUser)
       .query(`
         INSERT INTO [dbo].[USUARIOFILIAL] (
-          SGUSUARIO, CDEMPRESA, CDFILIAL, FGACTIVE, DHMAINTENANCE, SGUSER, SERVERORIG
+          [SGUSUARIO], [CDEMPRESA], [CDFILIAL], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]
         )
         VALUES (
-          @login, @empresa, @filial, 'S', GETDATE(), 'SYSTEM', 'AppDVcargas'
+          @login, @empresa, @filial, 'S', CURRENT_TIMESTAMP, @sgUser, 'AppDVcargas'
         )
       `);
 
     res.json({ success: true, message: 'Filial adicionada com sucesso!' });
   } catch (err) {
     console.error('Erro ao adicionar filial:', err);
-    res.status(500).json({ error: 'Erro ao adicionar filial.' });
+    const isDuplicateKey = err.code === '23505' || (err.message && err.message.includes('duplicar valor da chave'));
+    if (isDuplicateKey) {
+      return res.status(400).json({ error: 'Usuário já possui acesso a esta filial.' });
+    }
+    res.status(500).json({
+      error: 'Erro ao adicionar filial.',
+      detalhes: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 };
 
@@ -671,7 +696,7 @@ const removerFilial = async (req, res) => {
       .input('login', sql.VarChar(50), login)
       .input('empresa', sql.SmallInt, parseInt(empresa))
       .input('filial', sql.SmallInt, parseInt(filial))
-      .query('DELETE FROM [dbo].[USUARIOFILIAL] WHERE SGUSUARIO = @login AND CDEMPRESA = @empresa AND CDFILIAL = @filial');
+      .query('DELETE FROM [dbo].[USUARIOFILIAL] WHERE [SGUSUARIO] = @login AND [CDEMPRESA] = @empresa AND [CDFILIAL] = @filial');
 
     res.json({ success: true, message: 'Filial removida com sucesso!' });
   } catch (err) {
@@ -687,15 +712,15 @@ const listarTodasAtividades = async (req, res) => {
     const result = await pool
       .request()
       .query(`
-        SELECT 
-          CDTIPOATIVIDADE,
-          DSTIPOATIVIDADE,
-          DSPROGRAMA,
-          FGACTIVE,
-          ISNULL(FGGRUPO, 'OUTROS') AS FGGRUPO
+        SELECT
+          [CDTIPOATIVIDADE],
+          [DSTIPOATIVIDADE],
+          [DSPROGRAMA],
+          [FGACTIVE],
+          COALESCE([FGGRUPO], 'OUTROS') AS [FGGRUPO]
         FROM [dbo].[TIPOATIVIDADE]
-        WHERE FGACTIVE = 'S'
-        ORDER BY ISNULL(FGGRUPO, 'OUTROS'), DSTIPOATIVIDADE
+        WHERE [FGACTIVE] = 'S'
+        ORDER BY COALESCE([FGGRUPO], 'OUTROS'), [DSTIPOATIVIDADE]
       `);
 
     res.json(result.recordset);

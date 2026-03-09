@@ -2,12 +2,12 @@
 =============================================================================
 Script: Verificar e Criar/Ativar Motorista
 Descrição: Verifica se motorista existe e cria/ativa se necessário
-Data: 2025-01-27
-Autor: Sistema DivulgaCarga
+Data: 2026-01-27
+Autor: Atlas Cargo
 =============================================================================
 */
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 -- ========================================

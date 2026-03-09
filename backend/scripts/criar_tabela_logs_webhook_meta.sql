@@ -1,5 +1,5 @@
 -- Script para criar tabela de logs do webhook Meta
--- Data: 2025-12-01
+-- Data: 2026-12-01
 -- Descrição: Armazena logs de envios para o webhook de integração Meta
 
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[LOGSWEBHOOKMETA]') AND type in (N'U'))

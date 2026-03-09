@@ -1,6 +1,6 @@
 # 🚀 Implementação do Servidor Próprio de Nominatim
 
-**Data:** 2025-01-16  
+**Data:** 2026-01-16  
 **Status:** ✅ **IMPLEMENTADO**
 
 ---
@@ -184,5 +184,5 @@ Se precisar voltar ao servidor público temporariamente:
 
 ---
 
-**Última atualização:** 2025-01-16  
+**Última atualização:** 2026-01-16  
 **Versão:** 1.0

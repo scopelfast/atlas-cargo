@@ -8,7 +8,7 @@
  *   node backend/scripts/criar_motorista.js 02100610066 "João Silva" 41999999999 joao@email.com 1
  */
 
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const { poolPromise } = require('../config/db');
 
 async function criarMotorista(cpf, nome, celular, email = null, cidadeId = null) {

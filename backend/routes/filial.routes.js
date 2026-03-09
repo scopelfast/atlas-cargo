@@ -1,8 +1,8 @@
 // backend/routes/filial.routes.js
 const express = require('express');
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const router = express.Router();
-const { poolPromise } = require('../config/db');
+const { poolPromise, getFirstNumericValue } = require('../config/db');
 
 // Função para validar CNPJ
 function validarCNPJ(cnpj) {
@@ -47,17 +47,17 @@ router.get('/filiais', async (req, res) => {
 
     let query = `
       SELECT 
-        CDEMPRESA,
-        CDFILIAL,
-        NMFANTASIA,
-        SGFILIAL,
-        CGC,
-        CDCADASTRO,
-        FGPARCEIRO,
-        FGACTIVE,
-        DHMAINTENANCE,
-        SGUSER,
-        SERVERORIG
+        [CDEMPRESA],
+        [CDFILIAL],
+        [NMFANTASIA],
+        [SGFILIAL],
+        [CGC],
+        [CDCADASTRO],
+        [FGPARCEIRO],
+        [FGACTIVE],
+        [DHMAINTENANCE],
+        [SGUSER],
+        [SERVERORIG]
       FROM [dbo].[FILIAL]
       WHERE 1=1
     `;
@@ -65,41 +65,41 @@ router.get('/filiais', async (req, res) => {
     const params = [];
 
     if (cdempresa) {
-      query += ` AND CDEMPRESA = @CDEMPRESA`;
+      query += ` AND [CDEMPRESA] = @CDEMPRESA`;
       params.push({ name: 'CDEMPRESA', value: parseInt(cdempresa) });
     }
     if (cdfilial) {
-      query += ` AND CDFILIAL = @CDFILIAL`;
+      query += ` AND [CDFILIAL] = @CDFILIAL`;
       params.push({ name: 'CDFILIAL', value: parseInt(cdfilial) });
     }
     if (nomefantasia) {
-      query += ` AND NMFANTASIA LIKE @NOMEFANTASIA`;
+      query += ` AND [NMFANTASIA] LIKE @NOMEFANTASIA`;
       params.push({ name: 'NOMEFANTASIA', value: `%${nomefantasia}%` });
     }
     if (siglafilial) {
-      query += ` AND SGFILIAL LIKE @SIGLAFILIAL`;
+      query += ` AND [SGFILIAL] LIKE @SIGLAFILIAL`;
       params.push({ name: 'SIGLAFILIAL', value: `%${siglafilial}%` });
     }
     if (cgc) {
-      query += ` AND CGC = @CGC`;
+      query += ` AND [CGC] = @CGC`;
       // CGC deve ser tratado como DECIMAL(15,0) mantendo zeros à esquerda
       const cgcValue = typeof cgc === 'string' ? cgc.replace(/[^\d]+/g, '') : cgc.toString();
       params.push({ name: 'CGC', value: cgcValue, type: sql.Decimal(15, 0) });
     }
     if (cdcadastro) {
-      query += ` AND CDCADASTRO = @CDCADASTRO`;
+      query += ` AND [CDCADASTRO] = @CDCADASTRO`;
       params.push({ name: 'CDCADASTRO', value: cdcadastro });
     }
     if (fgparceiro) {
-      query += ` AND FGPARCEIRO = @FGPARCEIRO`;
+      query += ` AND [FGPARCEIRO] = @FGPARCEIRO`;
       params.push({ name: 'FGPARCEIRO', value: fgparceiro });
     }
     if (situacao) {
-      query += ` AND FGACTIVE = @SITUACAO`;
+      query += ` AND [FGACTIVE] = @SITUACAO`;
       params.push({ name: 'SITUACAO', value: situacao === 'S' ? 'A' : 'I' });
     }
 
-    query += ` ORDER BY CDEMPRESA, CDFILIAL`;
+    query += ` ORDER BY [CDEMPRESA], [CDFILIAL]`;
 
     const pool = await poolPromise;
     const request = pool.request();
@@ -151,19 +151,19 @@ router.get('/filiais/:cdempresa/:cdfilial', async (req, res) => {
       .input('CDFILIAL', sql.SmallInt, cdfilialNum)
       .query(`
         SELECT 
-          CDEMPRESA,
-          CDFILIAL,
-          NMFANTASIA,
-          SGFILIAL,
-          CGC,
-          CDCADASTRO,
-          FGPARCEIRO,
-          FGACTIVE,
-          DHMAINTENANCE,
-          SGUSER,
-          SERVERORIG
+          [CDEMPRESA],
+          [CDFILIAL],
+          [NMFANTASIA],
+          [SGFILIAL],
+          [CGC],
+          [CDCADASTRO],
+          [FGPARCEIRO],
+          [FGACTIVE],
+          [DHMAINTENANCE],
+          [SGUSER],
+          [SERVERORIG]
         FROM [dbo].[FILIAL]
-        WHERE CDEMPRESA = @CDEMPRESA AND CDFILIAL = @CDFILIAL
+        WHERE [CDEMPRESA] = @CDEMPRESA AND [CDFILIAL] = @CDFILIAL
       `);
 
     if (result.recordset.length === 0) {
@@ -211,7 +211,7 @@ router.post('/filiais', async (req, res) => {
     const checkEmpresa = await pool
       .request()
       .input('CDEMPRESA', sql.SmallInt, CDEMPRESA)
-      .query('SELECT CDEMPRESA FROM [dbo].[EMPRESA] WHERE CDEMPRESA = @CDEMPRESA');
+      .query('SELECT [CDEMPRESA] FROM [dbo].[EMPRESA] WHERE [CDEMPRESA] = @CDEMPRESA');
 
     if (checkEmpresa.recordset.length === 0) {
       return res.status(400).json({ error: 'Empresa não encontrada.' });
@@ -221,7 +221,7 @@ router.post('/filiais', async (req, res) => {
     const checkDuplicate = await pool
       .request()
       .input('CGC', sql.Decimal(15, 0), CGC)
-      .query('SELECT CDEMPRESA, CDFILIAL FROM [dbo].[FILIAL] WHERE CGC = @CGC');
+      .query('SELECT [CDEMPRESA], [CDFILIAL] FROM [dbo].[FILIAL] WHERE [CGC] = @CGC');
 
     if (checkDuplicate.recordset.length > 0) {
       return res.status(400).json({ error: 'Já existe uma filial com este CNPJ.' });
@@ -231,8 +231,8 @@ router.post('/filiais', async (req, res) => {
     const maxResult = await pool
       .request()
       .input('CDEMPRESA', sql.SmallInt, CDEMPRESA)
-      .query('SELECT ISNULL(MAX(CDFILIAL), 0) AS maxId FROM [dbo].[FILIAL] WHERE CDEMPRESA = @CDEMPRESA');
-    const novoCDFILIAL = maxResult.recordset[0].maxId + 1;
+      .query('SELECT COALESCE(MAX([CDFILIAL]), 0) + 1 AS [maxId] FROM [dbo].[FILIAL] WHERE [CDEMPRESA] = @CDEMPRESA');
+    const novoCDFILIAL = getFirstNumericValue(maxResult.recordset, 1);
 
     const fgparceiroDB = (FGPARCEIRO === 'S' || FGPARCEIRO === 'A') ? 'S' : 'N';
     const fgactiveDB = (FGACTIVE === 'S' || FGACTIVE === 'A') ? 'A' : 'I';
@@ -249,8 +249,8 @@ router.post('/filiais', async (req, res) => {
       .input('FGACTIVE', fgactiveDB)
       .query(`
         INSERT INTO [dbo].[FILIAL] (
-          CDEMPRESA, CDFILIAL, NMFANTASIA, SGFILIAL, CGC, CDCADASTRO,
-          FGPARCEIRO, FGACTIVE, DHMAINTENANCE, SGUSER, SERVERORIG
+          [CDEMPRESA], [CDFILIAL], [NMFANTASIA], [SGFILIAL], [CGC], [CDCADASTRO],
+          [FGPARCEIRO], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]
         )
         VALUES (
           @CDEMPRESA, @CDFILIAL, @NMFANTASIA, @SGFILIAL, @CGC, @CDCADASTRO,
@@ -301,7 +301,7 @@ router.put('/filiais/:cdempresa/:cdfilial', async (req, res) => {
       .input('CGC', sql.Decimal(15, 0), CGC)
       .input('CDEMPRESA', sql.SmallInt, cdempresaNum)
       .input('CDFILIAL', sql.SmallInt, cdfilialNum)
-      .query('SELECT CDEMPRESA, CDFILIAL FROM [dbo].[FILIAL] WHERE CGC = @CGC AND (CDEMPRESA != @CDEMPRESA OR CDFILIAL != @CDFILIAL)');
+      .query('SELECT [CDEMPRESA], [CDFILIAL] FROM [dbo].[FILIAL] WHERE [CGC] = @CGC AND ([CDEMPRESA] != @CDEMPRESA OR [CDFILIAL] != @CDFILIAL)');
 
     if (checkDuplicate.recordset.length > 0) {
       return res.status(400).json({ error: 'Já existe outra filial com este CNPJ.' });
@@ -323,16 +323,16 @@ router.put('/filiais/:cdempresa/:cdfilial', async (req, res) => {
       .query(`
         UPDATE [dbo].[FILIAL]
         SET 
-          NMFANTASIA = @NMFANTASIA,
-          SGFILIAL = @SGFILIAL,
-          CGC = @CGC,
-          CDCADASTRO = @CDCADASTRO,
-          FGPARCEIRO = @FGPARCEIRO,
-          FGACTIVE = @FGACTIVE,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE CDEMPRESA = @CDEMPRESA AND CDFILIAL = @CDFILIAL
+          [NMFANTASIA] = @NMFANTASIA,
+          [SGFILIAL] = @SGFILIAL,
+          [CGC] = @CGC,
+          [CDCADASTRO] = @CDCADASTRO,
+          [FGPARCEIRO] = @FGPARCEIRO,
+          [FGACTIVE] = @FGACTIVE,
+          [DHMAINTENANCE] = GETDATE(),
+          [SGUSER] = 'SYSTEM',
+          [SERVERORIG] = 'AppDVcargas'
+        WHERE [CDEMPRESA] = @CDEMPRESA AND [CDFILIAL] = @CDFILIAL
       `);
 
     if (result.rowsAffected[0] === 0) {
@@ -365,7 +365,7 @@ router.delete('/filiais/:cdempresa/:cdfilial', async (req, res) => {
       .request()
       .input('CDEMPRESA', sql.SmallInt, cdempresaNum)
       .input('CDFILIAL', sql.SmallInt, cdfilialNum)
-      .query(`SELECT FGACTIVE FROM [dbo].[FILIAL] WHERE CDEMPRESA = @CDEMPRESA AND CDFILIAL = @CDFILIAL`);
+      .query(`SELECT [FGACTIVE] FROM [dbo].[FILIAL] WHERE [CDEMPRESA] = @CDEMPRESA AND [CDFILIAL] = @CDFILIAL`);
 
     if (checkResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Filial não encontrada.' });
@@ -395,11 +395,11 @@ router.delete('/filiais/:cdempresa/:cdfilial', async (req, res) => {
       .query(`
         UPDATE [dbo].[FILIAL]
         SET 
-          FGACTIVE = @FGACTIVE,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE CDEMPRESA = @CDEMPRESA AND CDFILIAL = @CDFILIAL
+          [FGACTIVE] = @FGACTIVE,
+          [DHMAINTENANCE] = GETDATE(),
+          [SGUSER] = 'SYSTEM',
+          [SERVERORIG] = 'AppDVcargas'
+        WHERE [CDEMPRESA] = @CDEMPRESA AND [CDFILIAL] = @CDFILIAL
       `);
 
     if (result.rowsAffected[0] === 0) {
@@ -429,13 +429,13 @@ router.get('/filiais-por-empresa/:cdempresa', async (req, res) => {
       .input('CDEMPRESA', sql.SmallInt, cdempresaNum)
       .query(`
         SELECT 
-          CDEMPRESA,
-          CDFILIAL,
-          NMFANTASIA,
-          SGFILIAL
+          [CDEMPRESA],
+          [CDFILIAL],
+          [NMFANTASIA],
+          [SGFILIAL]
         FROM [dbo].[FILIAL]
-        WHERE CDEMPRESA = @CDEMPRESA AND FGACTIVE = 'A'
-        ORDER BY CDFILIAL
+        WHERE [CDEMPRESA] = @CDEMPRESA AND [FGACTIVE] = 'A'
+        ORDER BY [CDFILIAL]
       `);
 
     res.json(result.recordset);

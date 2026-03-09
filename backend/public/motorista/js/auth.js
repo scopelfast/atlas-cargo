@@ -6,12 +6,14 @@
 // ==========================================
 
 /**
- * Verificar se o usuário está autenticado
+ * Verificar se o usuário está autenticado (token presente e não expirado)
  */
 function verificarAuth() {
   const token = localStorage.getItem('token');
   const motorista = localStorage.getItem('motorista');
-  return !!(token && motorista);
+  if (!token || !motorista) return false;
+  if (typeof isTokenExpired === 'function' && isTokenExpired()) return false;
+  return true;
 }
 
 /**
@@ -56,11 +58,19 @@ function doLogout() {
 }
 
 /**
- * Verificar se token está expirado (opcional)
+ * Verificar se token JWT está expirado (payload.exp em segundos)
  */
 function isTokenExpired() {
-  // TODO: Implementar verificação de expiração do JWT
-  return false;
+  const token = localStorage.getItem('token');
+  if (!token) return true;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    if (!payload.exp) return false;
+    const nowSec = Math.floor(Date.now() / 1000);
+    return payload.exp < nowSec;
+  } catch (e) {
+    return true;
+  }
 }
 
 // ==========================================
@@ -73,20 +83,35 @@ function isTokenExpired() {
   const senhaInput = document.getElementById('senha');
   const messageDiv = document.getElementById('message');
 
-  // Máscara de CPF
+  // Botão mostrar/ocultar senha
+  const btnToggleSenha = document.getElementById('btnToggleSenha');
+  if (btnToggleSenha && senhaInput) {
+    const iconEye = btnToggleSenha.querySelector('.icon-eye');
+    const iconEyeOff = btnToggleSenha.querySelector('.icon-eye-off');
+    btnToggleSenha.addEventListener('click', function() {
+      const isPassword = senhaInput.type === 'password';
+      senhaInput.type = isPassword ? 'text' : 'password';
+      if (iconEye && iconEyeOff) {
+        iconEye.style.display = isPassword ? 'none' : 'block';
+        iconEyeOff.style.display = isPassword ? 'block' : 'none';
+      }
+      btnToggleSenha.setAttribute('title', isPassword ? 'Ocultar senha' : 'Mostrar senha');
+      btnToggleSenha.setAttribute('aria-label', isPassword ? 'Ocultar senha' : 'Mostrar senha');
+    });
+  }
+
+  // Máscara de documento: BR = CPF (11 dígitos); outros países = só dígitos (até 14)
   if (cpfInput) {
     cpfInput.addEventListener('input', (e) => {
-      let value = e.target.value.replace(/\D/g, '');
-      if (value.length > 11) value = value.slice(0, 11);
-      
-      if (value.length > 9) {
-        value = value.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
-      } else if (value.length > 6) {
-        value = value.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
-      } else if (value.length > 3) {
-        value = value.replace(/(\d{3})(\d{1,3})/, '$1.$2');
+      var pais = window.__CONTEXTO_PAIS__ || 'BR';
+      var value = e.target.value.replace(/\D/g, '');
+      var maxLen = (pais === 'BR') ? 11 : 14;
+      if (value.length > maxLen) value = value.slice(0, maxLen);
+      if (pais === 'BR' && value.length <= 11) {
+        if (value.length > 9) value = value.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+        else if (value.length > 6) value = value.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
+        else if (value.length > 3) value = value.replace(/(\d{3})(\d{1,3})/, '$1.$2');
       }
-      
       e.target.value = value;
     });
   }
@@ -110,19 +135,21 @@ function isTokenExpired() {
       
       const cpf = cpfInput.value.replace(/\D/g, '');
       const senha = senhaInput.value;
-
-      if (!cpf || cpf.length !== 11) {
-        showMessage('CPF inválido!', 'error');
+      var pais = window.__CONTEXTO_PAIS__ || 'BR';
+      var docOk = cpf && cpf.length >= 5 && cpf.length <= 14;
+      if (pais === 'BR') docOk = cpf && (cpf.length === 10 || cpf.length === 11);
+      if (!docOk) {
+        showMessage(window.t ? window.t('login.documentoInvalido') : 'Documento inválido!', 'error');
         return;
       }
 
       if (!senha) {
-        showMessage('Digite sua senha!', 'error');
+        showMessage(window.t ? window.t('login.senhaObrigatoria') : 'Digite sua senha!', 'error');
         return;
       }
 
       try {
-        console.log('🔐 Tentando fazer login com CPF:', cpf.replace(/\d(?=\d{4})/g, "*")); // Mascarar CPF no log
+        console.log('🔐 Tentando fazer login com documento:', cpf.replace(/\d(?=\d{4})/g, '*'));
         
         // Obter baseUrl para corrigir URL da API
         let baseUrl = window.__BASE_URL__;
@@ -192,7 +219,9 @@ function isTokenExpired() {
           }, 1000);
         } else {
           // Mostrar mensagem de erro detalhada
-          const mensagemErro = data.error || data.message || 'Erro ao fazer login';
+          const mensagemErro = (data.errorKey && typeof window.t === 'function')
+            ? window.t(data.errorKey)
+            : (data.error || data.message || 'Erro ao fazer login');
           console.error('❌ Erro no login:', mensagemErro);
           showMessage(mensagemErro, 'error');
         }

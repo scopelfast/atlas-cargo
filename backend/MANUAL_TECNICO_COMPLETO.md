@@ -1,8 +1,8 @@
-# 📘 Manual Técnico Completo - DivulgaCarga
+# 📘 Manual Técnico Completo - Atlas Cargo
 
-**Sistema:** DivulgaCarga  
+**Sistema:** Atlas Cargo  
 **Versão:** 1.1.0  
-**Data:** 2025-11-24  
+**Data:** 2026-11-24  
 **Status:** ✅ Produção
 
 ---
@@ -27,7 +27,7 @@
 
 ### Visão Geral
 
-O DivulgaCarga é uma aplicação web full-stack com arquitetura cliente-servidor:
+O Atlas Cargo é uma aplicação web full-stack com arquitetura cliente-servidor:
 
 ```
 ┌─────────────────┐
@@ -112,7 +112,7 @@ SysScopel/
 │   └── package.json                 # Dependências
 ├── README.md                        # Documentação principal
 ├── CHANGELOG.md                     # Histórico de mudanças
-└── migrate_integra_to_divulgacarga_completo.sql
+└── migrate_integra_to_atlas_cargo_completo.sql
 ```
 
 ---
@@ -161,7 +161,7 @@ Arquivo: `backend/.env`
 ```env
 # Banco de Dados
 DB_SERVER=localhost
-DB_DATABASE=DivulgaCarga
+DB_DATABASE=Atlas Cargo
 DB_USER=sa
 DB_PASSWORD=sua-senha
 DB_PORT=1433
@@ -529,11 +529,11 @@ Cada módulo possui:
 ```env
 NODE_ENV=production
 DB_SERVER=servidor-producao
-DB_DATABASE=DivulgaCarga
+DB_DATABASE=Atlas Cargo
 DB_USER=usuario-producao
 DB_PASSWORD=senha-forte
 JWT_SECRET=chave-secreta-forte-minimo-32-caracteres
-PUBLIC_URL=https://divulgacarga.com.br
+PUBLIC_URL=https://atlas_cargo.com.br
 PORT=3000
 ```
 
@@ -543,7 +543,7 @@ Recomendado usar PM2 ou similar:
 
 ```bash
 npm install -g pm2
-pm2 start backend/server.js --name divulgacarga
+pm2 start backend/server.js --name atlas_cargo
 pm2 save
 pm2 startup
 ```
@@ -607,7 +607,7 @@ JWT_SECRET=chave-secreta-com-pelo-menos-32-caracteres-123456
 
 ---
 
-**Mantido por:** Equipe DivulgaCarga  
-**Última atualização:** 2025-11-24  
+**Mantido por:** Equipe Atlas Cargo  
+**Última atualização:** 2026-11-24  
 **Versão:** 1.1.0
 

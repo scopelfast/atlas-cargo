@@ -1,7 +1,7 @@
 -- Script para criar tabela MOTIVOREABERTURA
 -- Versão: 1.0
--- Autor: Sistema DivulgaCarga
--- Data: 2025-11-28
+-- Autor: Atlas Cargo
+-- Data: 2026-11-28
 
 -- Criar tabela MOTIVOREABERTURA se não existir
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[MOTIVOREABERTURA]') AND type in (N'U'))

@@ -1,7 +1,7 @@
 {
   "name": "sysscopel-backend",
   "version": "1.4.0",
-  "description": "Backend para sistema DivulgaCarga",
+  "description": "Backend Atlas Cargo - Gestão de Transportes e Logística",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -21,7 +21,9 @@
     "express": "^4.21.1",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
-    "mssql": "^10.0.1",
+    "multer": "^2.1.1",
+    "openai": "^6.27.0",
+    "pg": "^8.13.1",
     "socket.io": "^4.8.1",
     "xlsx": "^0.18.5"
   },

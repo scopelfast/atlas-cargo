@@ -45,13 +45,13 @@ Imagens         1 dia           Mantém performance 🖼️
 Se precisar que todos vejam AGORA, adicione ?v= manualmente:
 
 📄 index.html (linha 8):
-   <link href="/css/style.css?v=20250102" />
+   <link href="/css/style.css?v=20260102" />
 
 📄 dashboard.html (linhas 8-9):
-   <link href="/css/modulos.css?v=20250102">
-   <link href="/css/dashboard.css?v=20250102">
+   <link href="/css/modulos.css?v=20260102">
+   <link href="/css/dashboard.css?v=20260102">
 
-💡 Mude o ?v=20250102 para a data atual sempre que publicar.
+💡 Mude o ?v=20260102 para a data atual sempre que publicar.
 
 ================================================================================
   ✅ RESULTADO

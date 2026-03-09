@@ -4,64 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Minhas Convocações - Motorista</title>
+  <link rel="stylesheet" href="../css/design-system.css">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <script src="../js/i18n.js"></script>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    
-    html, body { 
-      background: #f0f2f5; 
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      width: 100%;
-      height: 100%;
-      overflow-x: hidden;
-    }
-    
-    /* NAVBAR */
-    .navbar {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 14px 16px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.15);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    
-    .btn-voltar { 
-      background: rgba(255,255,255,0.25); 
-      border: none; 
-      color: white; 
-      padding: 8px 14px; 
-      border-radius: 8px; 
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 14px;
-      flex-shrink: 0;
-    }
-    
-    .navbar h1 { 
-      font-size: 18px; 
-      font-weight: 600;
-      flex: 1;
-    }
-    
-    /* STATUS */
-    .status-bar {
-      padding: 10px 16px;
-      text-align: center;
-      font-size: 13px;
-      font-weight: 600;
-    }
-    
-    .status-online { background: #d4edda; color: #155724; }
-    .status-offline { background: #f8d7da; color: #721c24; }
-    .status-syncing { background: #fff3cd; color: #856404; }
-    
+    /* Estilos específicos da página Convocações (padrão vem de padrao-telas.css) */
     /* FILTROS */
     .filtros {
       background: white;
       padding: 14px 16px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.05);
       margin-bottom: 16px;
+      border-radius: 16px;
+      border: 1px solid var(--gray-200, #e9ecef);
     }
     
     .filtros-titulo {
@@ -90,22 +46,16 @@
     }
     
     .filtro-btn.active {
-      background: #667eea;
+      background: #0ea5e9;
       color: white;
-      border-color: #667eea;
+      border-color: #0ea5e9;
     }
     
     .filtro-btn:active {
       transform: scale(0.95);
     }
     
-    /* CONTAINER */
-    .container { 
-      padding: 16px;
-      max-width: 100%;
-    }
-    
-    /* CARD */
+    /* CARD (expandível) */
     .card {
       background: white;
       border-radius: 16px;
@@ -121,7 +71,7 @@
     }
     
     .card-header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%);
       color: white;
       padding: 14px 16px;
       display: flex;
@@ -190,7 +140,7 @@
     
     .resumo-icone {
       font-size: 24px;
-      color: #667eea;
+      color: #0ea5e9;
     }
     
     /* ROTA */
@@ -321,7 +271,7 @@
     
     .spinner {
       border: 4px solid #f3f3f3;
-      border-top: 4px solid #667eea;
+      border-top: 4px solid #0ea5e9;
       border-radius: 50%;
       width: 50px;
       height: 50px;
@@ -335,37 +285,30 @@
     }
   </style>
 </head>
-<body>
-  <!-- STATUS BAR NO TOPO -->
-  <div id="statusIndicador" class="status-bar status-offline">
-    🔴 Carregando...
-  </div>
-
-  <!-- NAVBAR -->
+<body class="motorista-page">
   <div class="navbar">
-    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
-    <h1>📦 Minhas Convocações</h1>
+    <button class="btn-voltar" onclick="voltar()">← <span data-i18n="common.voltar">Voltar</span></button>
+    <h1><i class="bx bx-clipboard"></i></h1>
+    <div id="statusIndicador" class="status-badge-navbar status-online" data-i18n="dashboard.onlineSincronizado">Online - Sincronizado</div>
   </div>
 
-  <!-- FILTROS -->
-  <div class="filtros">
-    <div class="filtros-titulo">📅 Período:</div>
-    <div class="filtros-buttons">
-      <button class="filtro-btn" data-dias="7" onclick="filtrarPeriodo(7, this)">7 dias</button>
-      <button class="filtro-btn" data-dias="15" onclick="filtrarPeriodo(15, this)">15 dias</button>
-      <button class="filtro-btn active" data-dias="30" onclick="filtrarPeriodo(30, this)">30 dias</button>
-      <button class="filtro-btn" data-dias="60" onclick="filtrarPeriodo(60, this)">60 dias</button>
-      <button class="filtro-btn" data-dias="90" onclick="filtrarPeriodo(90, this)">90 dias</button>
-      <button class="filtro-btn" data-dias="0" onclick="filtrarPeriodo(0, this)">Todos</button>
-    </div>
-  </div>
-
-  <!-- CONTEÚDO -->
   <div class="container">
+    <div class="filtros">
+      <div class="filtros-titulo" data-i18n="convocacoes.periodo">📅 Período:</div>
+      <div class="filtros-buttons">
+        <button class="filtro-btn" data-dias="7" onclick="filtrarPeriodo(7, this)">7 dias</button>
+        <button class="filtro-btn" data-dias="15" onclick="filtrarPeriodo(15, this)">15 dias</button>
+        <button class="filtro-btn active" data-dias="30" onclick="filtrarPeriodo(30, this)">30 dias</button>
+        <button class="filtro-btn" data-dias="60" onclick="filtrarPeriodo(60, this)">60 dias</button>
+        <button class="filtro-btn" data-dias="90" onclick="filtrarPeriodo(90, this)">90 dias</button>
+        <button class="filtro-btn" data-dias="0" onclick="filtrarPeriodo(0, this)">Todos</button>
+      </div>
+    </div>
+
     <div id="convocacoesList">
       <div class="loading">
         <div class="spinner"></div>
-        <p>Carregando convocações...</p>
+        <p data-i18n="convocacoes.carregando">Carregando convocações...</p>
       </div>
     </div>
   </div>
@@ -373,7 +316,21 @@
   <!-- URL Helper - DEVE ser o primeiro script para garantir interceptor de fetch -->
   <script src="../js/url-helper.js"></script>
   <script src="../js/offline.js"></script>
+  <script src="../js/notifications.js"></script>
   <script>
+    function applyI18n() {
+      if (typeof window.t !== 'function') return;
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n');
+        if (k) el.textContent = window.t(k);
+      });
+      document.querySelectorAll('[data-i18n-title]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n-title');
+        if (k) el.title = window.t(k);
+      });
+    }
+    if (window.i18nReady) window.i18nReady.then(applyI18n);
+
     const motorista = JSON.parse(localStorage.getItem('motorista') || '{}');
     const token = localStorage.getItem('token');
     
@@ -381,11 +338,23 @@
       window.location.href = '../index.html';
     }
 
-    function formatarMoeda(valor) {
+    function formatarMoeda(valor, moeda) {
       return new Intl.NumberFormat('pt-BR', { 
         style: 'currency', 
-        currency: 'BRL' 
+        currency: (moeda && moeda.trim()) || 'BRL' 
       }).format(valor || 0);
+    }
+
+    /** Distância em km: vírgula como decimal, 2 casas (ex.: 371,97 km). */
+    function formatarDistancia(valor) {
+      const n = parseFloat(String(valor || 0).replace(',', '.')) || 0;
+      return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+    }
+
+    /** Peso em kg: vírgula como decimal, até 2 casas (ex.: 12.345,00 kg). */
+    function formatarPeso(valor) {
+      const n = parseFloat(String(valor || 0).replace(',', '.')) || 0;
+      return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n);
     }
 
     function formatarData(data) {
@@ -409,6 +378,7 @@
             convocacoesGlobal = convocacoes;
             await window.OfflineDB.salvarCache('convocacoes', convocacoes);
             filtrarPeriodo(periodoAtual);
+            registrarAcessoConvocacoesNoServidor(convocacoes);
             return;
           }
         }
@@ -435,6 +405,42 @@
 
     let convocacoesGlobal = [];
     let periodoAtual = 30;
+
+    /** Registra no servidor que o motorista acessou as convocações (para aparecer "Acessou" na web). */
+    function registrarAcessoConvocacoesNoServidor(convocacoes) {
+      if (!convocacoes || convocacoes.length === 0 || !window.OfflineDB.isOnline()) return;
+      var idConvocacoesSemAcesso = [];
+      for (var i = 0; i < convocacoes.length; i++) {
+        var c = convocacoes[i];
+        var id = c.IDCONVOCACAO != null ? c.IDCONVOCACAO : c.idconvocacao;
+        var jaAcessou = (c.DHACESSO != null) || (c.dhacesso != null);
+        if (id && !jaAcessou) idConvocacoesSemAcesso.push(id);
+      }
+      if (idConvocacoesSemAcesso.length === 0) return;
+      navigator.geolocation.getCurrentPosition(
+        function(pos) {
+          var lat = pos.coords.latitude;
+          var lng = pos.coords.longitude;
+          idConvocacoesSemAcesso.forEach(function(id) {
+            fetch('/api/public/convocacao/' + id + '/acesso', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ latitude: lat, longitude: lng })
+            }).catch(function() {});
+          });
+        },
+        function() {
+          idConvocacoesSemAcesso.forEach(function(id) {
+            fetch('/api/public/convocacao/' + id + '/acesso', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({})
+            }).catch(function() {});
+          });
+        },
+        { timeout: 3000 }
+      );
+    }
 
     function filtrarPeriodo(dias, elemento) {
       periodoAtual = dias;
@@ -496,7 +502,7 @@
       const lista = document.getElementById('convocacoesList');
       
       if (!convocacoes || convocacoes.length === 0) {
-        lista.innerHTML = '<div class="empty">📭 Nenhuma convocação no período</div>';
+        lista.innerHTML = '<div class="empty">📭 ' + (typeof window.t === 'function' ? window.t('convocacoes.semConvocacoes') : 'Nenhuma convocação no período') + '</div>';
         return;
       }
 
@@ -509,13 +515,17 @@
           'RECUSADA': 'Recusada'
         }[c.STATUS] || c.STATUS;
 
-        const origem = c.ORIGEM_CIDADE && c.ORIGEM_ESTADO 
-          ? `${c.ORIGEM_CIDADE} - ${c.ORIGEM_ESTADO}` 
-          : (c.DSROTEIRO ? c.DSROTEIRO.split(' → ')[0] : 'Não informado');
-        
-        const destino = c.DESTINO_CIDADE && c.DESTINO_ESTADO 
-          ? `${c.DESTINO_CIDADE} - ${c.DESTINO_ESTADO}` 
-          : (c.DSROTEIRO ? c.DSROTEIRO.split(' → ')[1] || 'Não informado' : 'Não informado');
+        const origemCidade = c.ORIGEM_CIDADE != null ? c.ORIGEM_CIDADE : c.origem_cidade;
+        const origemEstado = c.ORIGEM_ESTADO != null ? c.ORIGEM_ESTADO : c.origem_estado;
+        const destinoCidade = c.DESTINO_CIDADE != null ? c.DESTINO_CIDADE : c.destino_cidade;
+        const destinoEstado = c.DESTINO_ESTADO != null ? c.DESTINO_ESTADO : c.destino_estado;
+        const dsRoteiro = String((c.DSROTEIRO != null ? c.DSROTEIRO : c.dsroteiro) || '').trim();
+        const origem = origemCidade && origemEstado
+          ? (origemCidade + ' - ' + origemEstado)
+          : (dsRoteiro ? (dsRoteiro.split(/\s*->\s*|\s*→\s*/)[0] || dsRoteiro).trim() : 'Não informado');
+        const destino = destinoCidade && destinoEstado
+          ? (destinoCidade + ' - ' + destinoEstado)
+          : (dsRoteiro ? ((dsRoteiro.split(/\s*->\s*|\s*→\s*/)[1] || '').trim() || 'Não informado') : 'Não informado');
 
         const podeAceitar = c.STATUS === 'PENDENTE';
 
@@ -530,7 +540,7 @@
               <div class="resumo-info">
                 <div class="resumo-rota">📍 ${origem} → 🎯 ${destino}</div>
                 <div class="resumo-detalhes">
-                  ${(c.DISTANCIAKM || 0).toLocaleString('pt-BR')} km • ${formatarMoeda(c.VLFRETE)} • ${formatarData(c.DTPREVINICIO)}
+                  ${formatarDistancia(c.DISTANCIAKM)} km • ${formatarMoeda(c.VLFRETE, c.MOEDA)} • ${formatarData(c.DTPREVINICIO)}
                 </div>
               </div>
               <div class="resumo-icone">▼</div>
@@ -559,19 +569,19 @@
                 <div class="info-item">
                   <div class="info-icon">📏</div>
                   <div class="info-label">Distância</div>
-                  <div class="info-value">${(c.DISTANCIAKM || 0).toLocaleString('pt-BR')} km</div>
+                  <div class="info-value">${formatarDistancia(c.DISTANCIAKM)} km</div>
                 </div>
 
                 <div class="info-item">
                   <div class="info-icon">💰</div>
                   <div class="info-label">Frete</div>
-                  <div class="info-value">${formatarMoeda(c.VLFRETE)}</div>
+                  <div class="info-value">${formatarMoeda(c.VLFRETE, c.MOEDA)}</div>
                 </div>
 
                 <div class="info-item">
                   <div class="info-icon">📦</div>
                   <div class="info-label">Peso</div>
-                  <div class="info-value">${(c.PESO || 0).toLocaleString('pt-BR', {maximumFractionDigits: 0})} kg</div>
+                  <div class="info-value">${formatarPeso(c.PESO)} kg</div>
                 </div>
 
                 <div class="info-item">

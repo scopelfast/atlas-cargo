@@ -1,6 +1,6 @@
 -- Script para adicionar campo CDMOTIVORECUSA na tabela CONVOCACAO
--- Autor: Sistema DivulgaCarga
--- Data: 2025-11-29
+-- Autor: Atlas Cargo
+-- Data: 2026-11-29
 
 -- Verificar se a coluna já existe antes de adicionar
 IF NOT EXISTS (

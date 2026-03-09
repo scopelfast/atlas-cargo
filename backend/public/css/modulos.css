@@ -1,23 +1,33 @@
-/* ========== RESET & VARIÁVEIS ========== */
+/* ========== RESET & VARIÁVEIS - Atlas Cargo Identidade ========== */
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 :root {
-    --primary: #1a2a6c;
-    --success: #2ecc71;
-    --danger: #e74c3c;
-    --warning: #f39c12;
-    --info: #3498db;
-    --light: #f8f9fa;
-    --dark: #343a40;
-    --gray: #6c757d;
-    --light-gray: #e9ecef;
-    --border: #dee2e6;
-    --shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+    /* Identidade Atlas Cargo (alinhado a login e dashboard) */
+    --ac-primary: #0d2137;
+    --ac-primary-light: #1a365d;
+    --ac-accent: #0ea5e9;
+    --ac-accent-hover: #0284c7;
+
+    --primary: var(--ac-primary);
+    --success: #059669;
+    --danger: #dc2626;
+    --warning: #d97706;
+    --info: var(--ac-accent);
+    --light: #f8fafc;
+    --dark: #1e293b;
+    --gray: #64748b;
+    --light-gray: #e2e8f0;
+    --border: #e2e8f0;
+    --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+}
+
+body,
+.modulo-container {
+    font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
 }
 
 
@@ -112,8 +122,8 @@
 .input-group select:focus,
 .input-group textarea:focus {
     outline: none;
-    border-color: var(--info);
-    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+    border-color: var(--ac-accent);
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
 }
 
 /* Formatação específica para campos de data */
@@ -908,11 +918,17 @@
     font-family: monospace;
 }
 
+/* Coluna alinhada à direita e justa (Status / Ações) */
+.grid-col-right {
+    text-align: right !important;
+    white-space: nowrap !important;
+}
+
 .grid-actions-header {
     width: 100px !important;
     min-width: 100px !important;
     max-width: 100px !important;
-    text-align: center !important;
+    text-align: right !important;
     padding: 12px 8px !important;
 }
 
@@ -921,10 +937,10 @@
     min-width: 100px !important;
     max-width: 100px !important;
     padding: 8px 8px !important;
-    text-align: left !important;
+    text-align: right !important;
     white-space: nowrap !important;
     display: flex !important;
-    justify-content: flex-start !important;
+    justify-content: flex-end !important;
     align-items: center !important;
     gap: 6px !important;
 }
@@ -1050,7 +1066,7 @@
         width: 90px !important;
         min-width: 90px !important;
         max-width: 90px !important;
-        text-align: center !important;
+        text-align: right !important;
         padding: 10px 6px !important;
     }
 
@@ -1059,7 +1075,7 @@
         min-width: 90px !important;
         max-width: 90px !important;
         gap: 3px;
-        justify-content: flex-start;
+        justify-content: flex-end;
         padding: 8px 6px;
     }
     

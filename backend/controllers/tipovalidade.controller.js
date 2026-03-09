@@ -2,8 +2,9 @@
 // Controller para Gerenciar Tipos de Validade
 // Versão: 1.0
 
-const sql = require('mssql');
-const { poolPromise } = require('../config/db');
+const sql = require('../config/mssql-compat');
+const { poolPromise, getFirstNumericValue } = require('../config/db');
+const { getSgUser } = require('../utils/audit');
 
 // Listar tipos de validade com filtros
 const listar = async (req, res) => {
@@ -12,17 +13,17 @@ const listar = async (req, res) => {
 
     let query = `
       SELECT 
-        CDTIPOVALIDADE,
-        DSTIPOVALIDADE,
-        FGVEICULO,
-        FGMOTORISTA,
-        FGTRANSPORTADOR,
-        FGCLIENTE,
-        FGFORNECEDOR,
-        FGEXIGECERTIFICADORA,
-        DHMAINTENANCE,
-        SGUSER,
-        SERVERORIG
+        [CDTIPOVALIDADE],
+        [DSTIPOVALIDADE],
+        [FGVEICULO],
+        [FGMOTORISTA],
+        [FGTRANSPORTADOR],
+        [FGCLIENTE],
+        [FGFORNECEDOR],
+        [FGEXIGECERTIFICADORA],
+        [DHMAINTENANCE],
+        [SGUSER],
+        [SERVERORIG]
       FROM [dbo].[TIPOVALIDADE]
       WHERE 1=1
     `;
@@ -31,23 +32,23 @@ const listar = async (req, res) => {
     const request = pool.request();
 
     if (codigo) {
-      query += ` AND CDTIPOVALIDADE = @codigo`;
+      query += ` AND [CDTIPOVALIDADE] = @codigo`;
       request.input('codigo', sql.SmallInt, parseInt(codigo));
     }
 
     if (descricao) {
-      query += ` AND DSTIPOVALIDADE LIKE @descricao`;
+      query += ` AND [DSTIPOVALIDADE] LIKE @descricao`;
       request.input('descricao', sql.VarChar(40), `%${descricao}%`);
     }
 
     if (tipoCadastro) {
-      if (tipoCadastro === 'MOT') query += ` AND FGMOTORISTA = 'S'`;
-      if (tipoCadastro === 'CLI') query += ` AND FGCLIENTE = 'S'`;
-      if (tipoCadastro === 'EQP') query += ` AND FGVEICULO = 'S'`;
-      if (tipoCadastro === 'TRA') query += ` AND FGTRANSPORTADOR = 'S'`;
+      if (tipoCadastro === 'MOT') query += ` AND [FGMOTORISTA] = 'S'`;
+      if (tipoCadastro === 'CLI') query += ` AND [FGCLIENTE] = 'S'`;
+      if (tipoCadastro === 'EQP') query += ` AND [FGVEICULO] = 'S'`;
+      if (tipoCadastro === 'TRA') query += ` AND [FGTRANSPORTADOR] = 'S'`;
     }
 
-    query += ` ORDER BY CDTIPOVALIDADE`;
+    query += ` ORDER BY [CDTIPOVALIDADE]`;
 
     const result = await request.query(query);
     res.json(result.recordset);
@@ -69,7 +70,7 @@ const buscarPorId = async (req, res) => {
     const result = await pool
       .request()
       .input('codigo', sql.SmallInt, parseInt(id))
-      .query('SELECT * FROM [dbo].[TIPOVALIDADE] WHERE CDTIPOVALIDADE = @codigo');
+      .query('SELECT * FROM [dbo].[TIPOVALIDADE] WHERE [CDTIPOVALIDADE] = @codigo');
 
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Tipo de validade não encontrado.' });
@@ -92,36 +93,61 @@ const criar = async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const descricao = String(DSTIPOVALIDADE).trim();
+    const existente = await pool.query(
+      `SELECT 1 FROM "TIPOVALIDADE" WHERE UPPER(TRIM("DSTIPOVALIDADE")) = UPPER(TRIM($1)) LIMIT 1`,
+      [descricao]
+    );
+    if (existente.rows && existente.rows.length > 0) {
+      return res.status(409).json({ error: 'Já existe um tipo de validade com esta descrição. Não é permitido cadastrar duplicados.' });
+    }
 
-    // Gerar próximo código
-    const maxCodigo = await pool
-      .request()
-      .query('SELECT ISNULL(MAX(CDTIPOVALIDADE), 0) + 1 AS NOVOCODIGO FROM [dbo].[TIPOVALIDADE]');
-    
-    const novoCodigo = maxCodigo.recordset[0].NOVOCODIGO;
+    const sgUser = getSgUser(req);
+    if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+    const doInsert = async (novoCodigo) => {
+      await pool
+        .request()
+        .input('codigo', sql.SmallInt, novoCodigo)
+        .input('descricao', sql.VarChar(40), DSTIPOVALIDADE)
+        .input('veiculo', sql.Char(1), FGVEICULO || 'N')
+        .input('motorista', sql.Char(1), FGMOTORISTA || 'N')
+        .input('transportador', sql.Char(1), FGTRANSPORTADOR || 'N')
+        .input('cliente', sql.Char(1), FGCLIENTE || 'N')
+        .input('fornecedor', sql.Char(1), FGFORNECEDOR || 'N')
+        .input('certificadora', sql.Char(1), FGEXIGECERTIFICADORA || 'N')
+        .input('sgUser', sql.VarChar(50), sgUser)
+        .query(`
+          INSERT INTO [dbo].[TIPOVALIDADE] (
+            [CDTIPOVALIDADE], [DSTIPOVALIDADE], [FGVEICULO], [FGMOTORISTA], [FGTRANSPORTADOR],
+            [FGCLIENTE], [FGFORNECEDOR], [FGEXIGECERTIFICADORA],
+            [DHMAINTENANCE], [SGUSER], [SERVERORIG]
+          )
+          VALUES (
+            @codigo, @descricao, @veiculo, @motorista, @transportador,
+            @cliente, @fornecedor, @certificadora,
+            GETDATE(), @sgUser, 'AppDVcargas'
+          )
+        `);
+    };
 
-    await pool
-      .request()
-      .input('codigo', sql.SmallInt, novoCodigo)
-      .input('descricao', sql.VarChar(40), DSTIPOVALIDADE)
-      .input('veiculo', sql.Char(1), FGVEICULO || 'N')
-      .input('motorista', sql.Char(1), FGMOTORISTA || 'N')
-      .input('transportador', sql.Char(1), FGTRANSPORTADOR || 'N')
-      .input('cliente', sql.Char(1), FGCLIENTE || 'N')
-      .input('fornecedor', sql.Char(1), FGFORNECEDOR || 'N')
-      .input('certificadora', sql.Char(1), FGEXIGECERTIFICADORA || 'N')
-      .query(`
-        INSERT INTO [dbo].[TIPOVALIDADE] (
-          CDTIPOVALIDADE, DSTIPOVALIDADE, FGVEICULO, FGMOTORISTA, FGTRANSPORTADOR,
-          FGCLIENTE, FGFORNECEDOR, FGEXIGECERTIFICADORA,
-          DHMAINTENANCE, SGUSER, SERVERORIG
-        )
-        VALUES (
-          @codigo, @descricao, @veiculo, @motorista, @transportador,
-          @cliente, @fornecedor, @certificadora,
-          GETDATE(), 'SYSTEM', 'AppDVcargas'
-        )
-      `);
+    const getProximoCodigo = async () => getFirstNumericValue(
+      (await pool.request().query('SELECT COALESCE(MAX([CDTIPOVALIDADE]), 0) + 1 AS [NOVOCODIGO] FROM [dbo].[TIPOVALIDADE]')).recordset,
+      1
+    );
+
+    let novoCodigo = await getProximoCodigo();
+
+    try {
+      await doInsert(novoCodigo);
+    } catch (insertErr) {
+      const isDuplicate = String(insertErr.code) === '23505';
+      if (isDuplicate) {
+        novoCodigo = await getProximoCodigo();
+        await doInsert(novoCodigo);
+      } else {
+        throw insertErr;
+      }
+    }
 
     res.status(201).json({ success: true, message: 'Tipo de validade cadastrado com sucesso!', codigo: novoCodigo });
   } catch (err) {
@@ -141,20 +167,36 @@ const atualizar = async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const idNum = parseInt(id, 10);
+    if (isNaN(idNum) || idNum <= 0) {
+      return res.status(400).json({ error: 'ID inválido.' });
+    }
 
     // Verificar se existe
     const checkExist = await pool
       .request()
-      .input('codigo', sql.SmallInt, parseInt(id))
-      .query('SELECT CDTIPOVALIDADE FROM [dbo].[TIPOVALIDADE] WHERE CDTIPOVALIDADE = @codigo');
+      .input('codigo', sql.SmallInt, idNum)
+      .query('SELECT [CDTIPOVALIDADE] FROM [dbo].[TIPOVALIDADE] WHERE [CDTIPOVALIDADE] = @codigo');
 
     if (checkExist.recordset.length === 0) {
       return res.status(404).json({ error: 'Tipo de validade não encontrado.' });
     }
 
+    const sgUserUpd = getSgUser(req);
+    if (!sgUserUpd) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+
+    const descricao = String(DSTIPOVALIDADE).trim();
+    const existente = await pool.query(
+      `SELECT 1 FROM "TIPOVALIDADE" WHERE UPPER(TRIM("DSTIPOVALIDADE")) = UPPER(TRIM($1)) AND "CDTIPOVALIDADE" != $2 LIMIT 1`,
+      [descricao, idNum]
+    );
+    if (existente.rows && existente.rows.length > 0) {
+      return res.status(409).json({ error: 'Já existe outro tipo de validade com esta descrição. Não é permitido duplicar.' });
+    }
+
     await pool
       .request()
-      .input('codigo', sql.SmallInt, parseInt(id))
+      .input('codigo', sql.SmallInt, idNum)
       .input('descricao', sql.VarChar(40), DSTIPOVALIDADE)
       .input('veiculo', sql.Char(1), FGVEICULO || 'N')
       .input('motorista', sql.Char(1), FGMOTORISTA || 'N')
@@ -162,20 +204,21 @@ const atualizar = async (req, res) => {
       .input('cliente', sql.Char(1), FGCLIENTE || 'N')
       .input('fornecedor', sql.Char(1), FGFORNECEDOR || 'N')
       .input('certificadora', sql.Char(1), FGEXIGECERTIFICADORA || 'N')
+      .input('sgUser', sql.VarChar(50), sgUserUpd)
       .query(`
         UPDATE [dbo].[TIPOVALIDADE]
         SET 
-          DSTIPOVALIDADE = @descricao,
-          FGVEICULO = @veiculo,
-          FGMOTORISTA = @motorista,
-          FGTRANSPORTADOR = @transportador,
-          FGCLIENTE = @cliente,
-          FGFORNECEDOR = @fornecedor,
-          FGEXIGECERTIFICADORA = @certificadora,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE CDTIPOVALIDADE = @codigo
+          [DSTIPOVALIDADE] = @descricao,
+          [FGVEICULO] = @veiculo,
+          [FGMOTORISTA] = @motorista,
+          [FGTRANSPORTADOR] = @transportador,
+          [FGCLIENTE] = @cliente,
+          [FGFORNECEDOR] = @fornecedor,
+          [FGEXIGECERTIFICADORA] = @certificadora,
+          [DHMAINTENANCE] = GETDATE(),
+          [SGUSER] = @sgUser,
+          [SERVERORIG] = 'AppDVcargas'
+        WHERE [CDTIPOVALIDADE] = @codigo
       `);
 
     res.json({ success: true, message: 'Tipo de validade atualizado com sucesso!' });
@@ -195,7 +238,7 @@ const excluir = async (req, res) => {
     const checkValidades = await pool
       .request()
       .input('codigo', sql.SmallInt, parseInt(id))
-      .query('SELECT COUNT(*) AS QTD FROM [dbo].[CONTROLEVALIDADE] WHERE CDTIPOVALIDADE = @codigo');
+      .query('SELECT COUNT(*) AS QTD FROM [dbo].[CONTROLEVALIDADE] WHERE [CDTIPOVALIDADE] = @codigo');
 
     if (checkValidades.recordset[0].QTD > 0) {
       return res.status(400).json({ 
@@ -207,7 +250,7 @@ const excluir = async (req, res) => {
     const checkExist = await pool
       .request()
       .input('codigo', sql.SmallInt, parseInt(id))
-      .query('SELECT CDTIPOVALIDADE FROM [dbo].[TIPOVALIDADE] WHERE CDTIPOVALIDADE = @codigo');
+      .query('SELECT [CDTIPOVALIDADE] FROM [dbo].[TIPOVALIDADE] WHERE [CDTIPOVALIDADE] = @codigo');
 
     if (checkExist.recordset.length === 0) {
       return res.status(404).json({ error: 'Tipo de validade não encontrado.' });
@@ -217,7 +260,7 @@ const excluir = async (req, res) => {
     await pool
       .request()
       .input('codigo', sql.SmallInt, parseInt(id))
-      .query('DELETE FROM [dbo].[TIPOVALIDADE] WHERE CDTIPOVALIDADE = @codigo');
+      .query('DELETE FROM [dbo].[TIPOVALIDADE] WHERE [CDTIPOVALIDADE] = @codigo');
 
     res.json({ success: true, message: 'Tipo de validade excluído com sucesso!' });
   } catch (err) {

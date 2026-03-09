@@ -4,8 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Viagens - Motorista</title>
-  <link rel="stylesheet" href="../css/padrao-telas.css">
   <link rel="stylesheet" href="../css/design-system.css">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <script src="../js/i18n.js"></script>
   <!-- Leaflet para mapas -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="../../js/map-config.js"></script>
@@ -20,7 +22,7 @@
     }
     
     .viagem-header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%);
       color: white;
       padding: 16px;
       display: flex;
@@ -65,6 +67,15 @@
       gap: 6px;
     }
     
+    .viagem-card .btn-primary,
+    .viagem-card .btn-whatsapp,
+    .viagem-card .btn-sos,
+    .viagem-card .viagem-mapa-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
     .btn-macros {
       margin-top: 14px;
     }
@@ -138,7 +149,7 @@
       padding: 6px 12px;
       font-size: 12px;
       font-weight: 600;
-      color: #667eea;
+      color: #0ea5e9;
       cursor: pointer;
       box-shadow: 0 2px 8px rgba(0,0,0,0.2);
       z-index: 1000;
@@ -146,7 +157,7 @@
     }
 
     .viagem-mapa-toggle:hover {
-      background: #667eea;
+      background: #0ea5e9;
       color: white;
     }
 
@@ -156,12 +167,11 @@
     }
   </style>
 </head>
-<body>
-  <div id="statusIndicador" class="status-bar status-online">🟢 Online - Sincronizado</div>
-
+<body class="motorista-page">
   <div class="navbar">
-    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
-    <h1>🚛 Minhas Viagens</h1>
+    <button class="btn-voltar" onclick="voltar()"><i class="bx bx-chevron-left"></i> Voltar</button>
+    <h1><i class="bx bx-trip"></i></h1>
+    <div id="statusIndicador" class="status-badge-navbar status-online">Online - Sincronizado</div>
   </div>
 
   <div class="container">
@@ -182,6 +192,15 @@
   
   <script>
     if (!verificarAuth()) window.location.href = '../index.html';
+
+    function applyI18n() {
+      if (typeof window.t !== 'function') return;
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n');
+        if (k) el.textContent = window.t(k);
+      });
+    }
+    if (window.i18nReady) window.i18nReady.then(applyI18n);
 
     const motorista = getMotorista();
 
@@ -208,8 +227,8 @@
         if (viagens.length === 0) {
           lista.innerHTML = `
             <div class="empty">
-              <div class="empty-icon">🚛</div>
-              <div class="empty-text">Nenhuma viagem em andamento</div>
+              <div class="empty-icon"><i class="bx bx-truck" style="font-size: 64px; color: #64748b;"></i></div>
+              <div class="empty-text" data-i18n="viagens.semViagens">Nenhuma viagem em andamento</div>
             </div>
           `;
           return;
@@ -225,26 +244,26 @@
             </div>
             <div class="viagem-body">
               <div class="viagem-roteiro">
-                🚚 ${v.ROTEIRO || 'Rota não definida'}
+                <i class="bx bx-trip" style="font-size: 1.1em;"></i> ${v.ROTEIRO || v.roteiro || v.DSROTEIRO || v.dsroteiro || 'Rota não definida'}
               </div>
               
               <div class="data-item">
-                📅 <strong>Carregamento:</strong> ${formatarData(v.DTCARREGAMENTO || v.DTPREVINICIO)}
+                <i class="bx bx-calendar" style="font-size: 1em;"></i> <strong>Carregamento:</strong> ${formatarData(v.DTCARREGAMENTO || v.dtcarregamento || v.DTPREVINICIO || v.dtprevincio)}
               </div>
               <div class="data-item">
-                📅 <strong>Descarga:</strong> ${formatarData(v.DTDESCARGA || v.DTPREVFINAL)}
+                <i class="bx bx-calendar" style="font-size: 1em;"></i> <strong>Descarga:</strong> ${formatarData(v.DTDESCARGA || v.dtdescarga || v.DTPREVFINAL || v.dtprevfinal)}
               </div>
               
               ${(v.ORIGEM_LATITUDE && v.ORIGEM_LATITUDE != 0) || (v.DESTINO_LATITUDE && v.DESTINO_LATITUDE != 0) ? `
               <div style="display: flex; gap: 8px; margin-top: 12px; margin-bottom: 8px;">
                 ${(v.ORIGEM_LATITUDE && v.ORIGEM_LATITUDE != 0) ? `
                 <button class="btn-primary" onclick="abrirNavegacao('origem', ${v.ORIGEM_LATITUDE}, ${v.ORIGEM_LONGITUDE}, '${v.ORIGEM_CIDADE || ''}', ${v.IDVIAGEM})" style="flex: 1; padding: 10px; font-size: 13px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
-                  🗺️ Navegar para Origem
+                  <i class="bx bx-navigation"></i> Navegar para Origem
                 </button>
                 ` : ''}
                 ${(v.DESTINO_LATITUDE && v.DESTINO_LATITUDE != 0) ? `
                 <button class="btn-primary" onclick="abrirNavegacao('destino', ${v.DESTINO_LATITUDE}, ${v.DESTINO_LONGITUDE}, '${v.DESTINO_CIDADE || ''}', ${v.IDVIAGEM})" style="flex: 1; padding: 10px; font-size: 13px; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
-                  🗺️ Navegar para Destino
+                  <i class="bx bx-navigation"></i> Navegar para Destino
                 </button>
                 ` : ''}
               </div>
@@ -253,32 +272,32 @@
               ${(v.ORIGEM_LATITUDE && v.ORIGEM_LATITUDE != 0) || (v.DESTINO_LATITUDE && v.DESTINO_LATITUDE != 0) ? `
               <div class="viagem-mapa-container" id="mapaContainer${v.IDVIAGEM}" style="display: none;">
                 <button class="viagem-mapa-toggle" onclick="toggleMapaViagem(${v.IDVIAGEM})" id="toggleMapa${v.IDVIAGEM}">
-                  🗺️ Mostrar Mapa
+                  <i class="bx bx-map-alt"></i> Mostrar Mapa
                 </button>
                 <div class="mapa-mini" id="mapa${v.IDVIAGEM}"></div>
               </div>
               <button class="btn-primary" onclick="toggleMapaViagem(${v.IDVIAGEM})" style="width: 100%; padding: 10px; font-size: 13px; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); margin-top: 8px; margin-bottom: 8px;">
-                🗺️ Ver Mapa da Rota
+                <i class="bx bx-map"></i> Ver Mapa da Rota
               </button>
               ` : ''}
               
               <button class="btn-primary btn-macros" onclick="irParaMacros(${v.IDVIAGEM})">
-                📝 Registrar Macros
+                <i class="bx bx-edit-alt"></i> Registrar Macros
               </button>
               <button class="btn-primary" onclick="visualizarGPS(${v.IDVIAGEM})" style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); margin-top: 8px;">
-                🗺️ Visualizar GPS
+                <i class="bx bx-map-pin"></i> Visualizar GPS
               </button>
               <button class="btn-primary" onclick="comprovarEntrega(${v.IDVIAGEM})" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); margin-top: 8px;">
-                📦 Comprovar Entrega
+                <i class="bx bx-package"></i> Comprovar Entrega
               </button>
-              <button class="btn-primary" onclick="abrirChat(${v.IDVIAGEM})" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin-top: 8px;">
-                💬 Chat com Operador
+              <button class="btn-primary" onclick="abrirChat(${v.IDVIAGEM})" style="background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); margin-top: 8px;">
+                <i class="bx bx-message-dots"></i> Chat com Operador
               </button>
               <button class="btn-whatsapp" onclick="abrirWhatsAppContratador('${v.CONTRATADOR || 'Contratador'}', '${v.CELULAR_CONTRATADOR || ''}', ${v.IDVIAGEM})">
-                💬 WhatsApp do Contratador
+                <i class="bx bx-logo-whatsapp"></i> WhatsApp do Contratador
               </button>
               <button class="btn-sos" onclick="abrirSOS(${v.IDVIAGEM})" style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); margin-top: 10px; box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4);">
-                SOS - Emergência
+                <i class="bx bx-error-circle"></i> SOS - Emergência
               </button>
             </div>
           </div>
@@ -286,14 +305,14 @@
 
         // Indicar se veio do cache
         if (resultado.cache) {
-          mostrarToast(`📦 Dados do cache (${resultado.idade} min atrás)`, 'info');
+          mostrarToast(`Dados do cache (${resultado.idade} min atrás)`, 'info');
         }
 
       } catch (error) {
         console.error('Erro ao carregar viagens:', error);
         document.getElementById('viagensList').innerHTML = `
           <div style="color: #dc3545; text-align: center; padding: 40px 20px;">
-            <div style="font-size: 48px; margin-bottom: 16px;">❌</div>
+            <div style="font-size: 48px; margin-bottom: 16px;"><i class="bx bx-error-circle" style="color: #dc3545;"></i></div>
             <div style="font-size: 16px; font-weight: 600; margin-bottom: 8px;">
               Erro ao carregar viagens
             </div>
@@ -301,7 +320,7 @@
               ${error.message}
             </div>
             <button class="btn-primary" onclick="location.reload()">
-              🔄 Tentar Novamente
+              <i class="bx bx-refresh"></i> Tentar Novamente
             </button>
           </div>
         `;
@@ -336,7 +355,7 @@
         return;
       }
       localStorage.setItem('viagemAtual', idViagem);
-      window.location.href = `chat.html?viagem=${idViagem}`;
+      window.location.href = `/chat-motorista-standalone?viagem=${idViagem}`;
     };
 
     window.abrirSOS = async function(idViagem) {
@@ -398,14 +417,14 @@
         // Esconder mapa
         container.style.display = 'none';
         if (toggleBtn) {
-          toggleBtn.textContent = '🗺️ Mostrar Mapa';
+          toggleBtn.innerHTML = '<i class="bx bx-map-alt"></i> Mostrar Mapa';
           toggleBtn.classList.remove('expandido');
         }
       } else {
         // Mostrar mapa
         container.style.display = 'block';
         if (toggleBtn) {
-          toggleBtn.textContent = '✕ Fechar';
+          toggleBtn.innerHTML = '<i class="bx bx-x"></i> Fechar';
           toggleBtn.classList.add('expandido');
         }
         
@@ -514,7 +533,7 @@
           // Desenhar rota percorrida
           if (routeCoordinates.length > 1) {
             L.polyline(routeCoordinates, {
-              color: '#667eea',
+              color: '#0ea5e9',
               weight: 4,
               opacity: 0.7
             }).addTo(map);

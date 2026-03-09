@@ -1,4 +1,7 @@
 // backend/public/modulos/gerenciar-empresas/js/script.js
+// i18n: helper t() e chaves web.modulos.empresas
+const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
+
 (function() {
   const tabs = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
@@ -331,19 +334,24 @@
 
       if (tabId === 'grid') {
         try {
-          // GridEditor já é carregado pelo dashboard.js
+          // Garantir GridEditor disponível (carregar se necessário)
+          if (typeof window.GridEditor === 'undefined') {
+            try { await loadScript('/js/grid-editor.js'); } catch (e) { }
+            let t = 0;
+            while (typeof window.GridEditor === 'undefined' && t < 25) {
+              await new Promise(r => setTimeout(r, 100));
+              t++;
+            }
+          }
           if (typeof window.GridEditor !== 'undefined') {
             if (!gridTab) inicializarGridTab();
-            // Sempre renderizar, mesmo se não houver dados (grid vazio)
             const empresasParaRenderizar = lastEmpresas || [];
             if (gridTab) {
               gridTab.render(empresasParaRenderizar);
             }
-            // Não aplicar filtros automaticamente - usuário deve aplicar manualmente
           }
         } catch (gridErr) {
           console.warn('[Empresas] Erro ao processar grid:', gridErr);
-          // Continuar mesmo se houver erro - não bloquear mudança de aba
         }
       }
     } catch (err) {
@@ -403,34 +411,29 @@
       const countEl = document.getElementById('empresasGridCountText');
       if (countEl) {
         const count = empresas.length || 0;
-        countEl.textContent = `${count} registro(s) encontrado(s)`;
+        countEl.textContent = count + ' ' + (t('web.modulos.empresas.registrosEncontrados').replace(/^0\s*/, ''));
       }
-      
-      if (typeof window.GridEditor !== 'undefined' && gridTab) {
+
+      // Garantir que GridEditor está disponível (carregar dinamicamente se necessário)
+      if (typeof window.GridEditor === 'undefined') {
+        try {
+          await loadScript('/js/grid-editor.js');
+        } catch (loadErr) {
+          console.warn('[Empresas] GridEditor não carregado:', loadErr);
+        }
+      }
+      let tentativas = 0;
+      while (typeof window.GridEditor === 'undefined' && tentativas < 25) {
+        await new Promise(r => setTimeout(r, 100));
+        tentativas++;
+      }
+
+      if (typeof window.GridEditor !== 'undefined') {
+        if (!gridTab) inicializarGridTab();
         try {
           gridTab.render(empresas);
-        } catch (e) { }
-      }
-
-      try {
-        if (Array.isArray(empresas) && empresas.length > 0) {
-          // GridEditor já é carregado pelo dashboard.js
-          if (typeof window.GridEditor !== 'undefined') {
-            if (!gridTab) inicializarGridTab();
-            try {
-              gridTab.render(empresas);
-            } catch (e) { }
-          }
-        }
-      } catch (autoErr) {
-        console.error('[Grid] erro no fluxo de auto-init:', autoErr);
-      }
-
-      if (openTab === 'grid') {
-        // GridEditor já é carregado pelo dashboard.js
-        if (typeof window.GridEditor !== 'undefined') {
-          if (!gridTab) inicializarGridTab();
-          try { gridTab.render(empresas); } catch (err) { console.error('[Grid] erro ao renderizar grid:', err); }
+        } catch (e) {
+          console.warn('[Empresas] Erro ao renderizar grid:', e);
         }
       }
 
@@ -477,7 +480,7 @@
 
         if (!id || id === 'null' || id === 'undefined' || id === '') {
           console.error('[Empresas] ID inválido:', id);
-          showMessage('Erro: ID não disponível.', 'error');
+          showMessage(t('web.modulos.empresas.erroIdIndisponivel'), 'error');
           return;
         }
         
@@ -549,17 +552,16 @@
       container: '#empresasGrid',
       columns: [
         { field: 'CDEMPRESA', header: 'Código', editable: false, isId: true, width: '100px' },
-        { field: 'RZSOCIAL', header: 'Razão Social', editable: true, type: 'text', width: '350px', maxlength: 40 },
-        { field: 'NMREDUZIDO', header: 'Nome Reduzido', editable: true, type: 'text', width: '220px', maxlength: 20 },
-        { 
-          field: 'CGCMATRIZ', 
-          header: 'CNPJ Matriz', 
-          editable: true, 
-          type: 'text', 
-          width: '180px',
+        { field: 'RZSOCIAL', header: 'Razão Social', editable: true, type: 'text', maxlength: 40 },
+        { field: 'NMREDUZIDO', header: 'Nome Reduzido', editable: true, type: 'text', maxlength: 20 },
+        {
+          field: 'CGCMATRIZ',
+          header: 'CNPJ Matriz',
+          editable: true,
+          type: 'text',
           format: (val) => formatarCNPJ(val)
         },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px',
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px', align: 'right',
           options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }
@@ -617,20 +619,20 @@
         document.getElementById('empresaNomeReduzido').value = empresa.NMREDUZIDO;
         document.getElementById('empresaCgcMatriz').value = formatarCNPJ(empresa.CGCMATRIZ);
         document.getElementById('empresaSituacao').value = empresa.FGACTIVE;
-        document.getElementById('formTitle').textContent = 'Editar Empresa';
+        document.getElementById('formTitle').textContent = t('web.modulos.empresas.editarEmpresa');
         showTab('dados');
       }
     } catch (err) {
       console.error('[Empresas] Erro ao carregar empresa:', err);
       if (typeof showMessage === 'function') {
-        showMessage('Erro ao carregar dados para edição.', 'error');
+        showMessage(t('web.modulos.empresas.erroCarregarDados'), 'error');
       }
     }
   }
 
   async function confirmarExclusao(id) {
     if (!id || id === 'undefined' || id === 'null' || id === '' || String(id).trim() === '') {
-      showMessage('Erro: ID não disponível.', 'error');
+      showMessage(t('web.modulos.empresas.erroIdIndisponivel'), 'error');
       return;
     }
     
@@ -687,7 +689,7 @@
           const acao = modalEl.dataset.action || action;
           
           if (!deleteId || deleteId === 'undefined' || deleteId === 'null' || deleteId === '') {
-            showMessage('Erro: ID não disponível.', 'error');
+            showMessage(t('web.modulos.empresas.erroIdIndisponivel'), 'error');
             modalEl.style.display = 'none';
             return;
           }
@@ -707,7 +709,7 @@
           }
         } catch (err) {
           console.error('[Empresas] Erro ao alterar status:', err);
-          showMessage('Erro de conexão.', 'error');
+          showMessage(t('web.modulos.empresas.erroConexao'), 'error');
         } finally {
           modalEl.style.display = 'none';
           delete modalEl.dataset.deleteId;
@@ -841,28 +843,39 @@
   if (empresaCgcMatriz) aplicarMascaraCNPJ(empresaCgcMatriz);
   if (filtroCgc) aplicarMascaraCNPJ(filtroCgc);
 
+  let empresaFormSubmitting = false;
   empresaForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    e.stopImmediatePropagation();
+    if (empresaFormSubmitting) return;
+    empresaFormSubmitting = true;
+    const btnSubmit = empresaForm?.querySelector('button[type="submit"]');
+    const labelOriginal = btnSubmit?.innerHTML ?? '';
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = '<i class=\'bx bx-loader-alt bx-spin\'></i> Salvando...';
+    }
+
     const id = document.getElementById('empresaId')?.value;
     const razaosocial = document.getElementById('empresaRazaoSocial')?.value.trim();
     const nomereduzido = document.getElementById('empresaNomeReduzido')?.value.trim();
     let cgcmatriz = document.getElementById('empresaCgcMatriz')?.value.replace(/[^\d]+/g, '');
     const situacao = document.getElementById('empresaSituacao')?.value;
-    
+
     if (!razaosocial || !nomereduzido || !cgcmatriz || !situacao) {
-      showMessage('Preencha todos os campos obrigatórios.', 'error');
+      showMessage(t('web.modulos.empresas.preenchaCampos'), 'error');
+      empresaFormSubmitting = false;
+      if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = labelOriginal; }
       return;
     }
-
-    // Completar CNPJ com zeros à esquerda
     cgcmatriz = cgcmatriz.padStart(14, '0');
-
-    // Validar CNPJ
     if (!validarCNPJ(cgcmatriz)) {
       showMessage('CNPJ Matriz inválido.', 'error');
+      empresaFormSubmitting = false;
+      if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = labelOriginal; }
       return;
     }
-    
+
     try {
       const empresaData = {
         RZSOCIAL: razaosocial,
@@ -896,12 +909,17 @@
       }
     } catch (err) {
       console.error('Erro ao salvar:', err);
-      showMessage('Erro de conexão.', 'error');
+      showMessage(t('web.modulos.empresas.erroConexao'), 'error');
     } finally {
-      const btnSalvar = empresaForm.querySelector('button[type="submit"]');
-      if (btnSalvar && typeof window.showLoading !== 'undefined') {
-        window.showLoading(btnSalvar, false);
-      }
+      setTimeout(() => {
+        empresaFormSubmitting = false;
+        const btnSalvar = empresaForm?.querySelector('button[type="submit"]');
+        if (btnSalvar) {
+          btnSalvar.disabled = false;
+          if (labelOriginal) btnSalvar.innerHTML = labelOriginal;
+          else if (typeof window.showLoading !== 'undefined') window.showLoading(btnSalvar, false);
+        }
+      }, 600);
     }
   });
 
@@ -930,7 +948,7 @@
     empresaForm?.reset();
     document.getElementById('empresaId').value = '';
     document.getElementById('empresaCodigo').value = '';
-    document.getElementById('formTitle').textContent = 'Nova Empresa';
+    document.getElementById('formTitle').textContent = t('web.modulos.empresas.novaEmpresa');
     showTab('dados');
   });
 
@@ -940,7 +958,7 @@
     empresaForm?.reset();
     document.getElementById('empresaId').value = '';
     document.getElementById('empresaCodigo').value = '';
-    document.getElementById('formTitle').textContent = 'Nova Empresa';
+    document.getElementById('formTitle').textContent = t('web.modulos.empresas.novaEmpresa');
     showTab('dados');
   });
   

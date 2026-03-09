@@ -1,215 +1,334 @@
-/* APP Motorista - Estilo Principal */
-/* Versão: 2.0 - Mobile First com Design System */
+/* ============================================================
+   APP Motorista - Estilo Principal
+   Versão: 4.0 - Layout moderno, identidade Atlas Cargo
+   ============================================================ */
 
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: var(--font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  font-family: var(--font-family, 'Plus Jakarta Sans', system-ui, sans-serif);
 }
 
 html, body {
   margin: 0;
   padding: 0;
   width: 100%;
-  height: 100%;
-  background-color: #f8f9fa !important;
-  background: #f8f9fa !important;
-  background-image: none !important;
+  min-height: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-body {
-  background: #f8f9fa !important;
+/* ========== PÁGINAS DE LOGIN / FORMULÁRIO (conteúdo no topo) ========== */
+.motorista-login-page,
+body.motorista-login-page {
   min-height: 100vh;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 20px;
-  animation: fadeIn 0.5s ease;
+  padding: 16px;
+  padding-top: max(16px, env(safe-area-inset-top));
+  background: linear-gradient(160deg, #f0f9ff 0%, #e0f2fe 30%, #f1f5f9 70%, #f8fafc 100%) !important;
+  background-color: #f0f9ff !important;
+}
+
+/* Todas as telas do app: conteúdo no topo (igual à tela de login), sem centralizar */
+body.motorista-page,
+body.motorista-dashboard-page {
+  display: block !important;
+  padding-top: max(16px, env(safe-area-inset-top)) !important;
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
 }
 
 .login-container {
-  background: var(--white, #ffffff);
-  border-radius: var(--radius-xl, 24px);
-  box-shadow: var(--shadow-xl, 0 12px 48px rgba(0, 0, 0, 0.15));
-  max-width: 400px;
+  background: #ffffff;
+  border-radius: 24px;
+  box-shadow: 
+    0 4px 6px -1px rgba(13, 33, 55, 0.06),
+    0 10px 40px -10px rgba(13, 33, 55, 0.15),
+    0 0 0 1px rgba(13, 33, 55, 0.04);
+  max-width: 420px;
   width: 100%;
   overflow: hidden;
-  animation: slideInUp 0.5s ease;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  animation: loginCardIn 0.5s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+@keyframes loginCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ---------- Header / Logo (destaque, compacto) ---------- */
 .logo-section {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: linear-gradient(165deg, #061428 0%, #0d2137 45%, #1a365d 100%);
+  color: #fff;
   text-align: center;
-  padding: 40px 20px 30px;
-  /* Mantido gradiente no header do card para contraste visual */
-}
-
-.logo {
-  width: 80px;
-  height: 80px;
-  margin-bottom: 15px;
-  border-radius: var(--radius-full, 50%);
-  border: 3px solid white;
-  box-shadow: var(--shadow-md, 0 4px 12px rgba(0, 0, 0, 0.2));
-  transition: transform var(--transition-base, 250ms ease);
-  animation: scaleIn 0.6s ease;
-}
-
-.logo:hover {
-  transform: scale(1.05) rotate(5deg);
-}
-
-.logo-section h1 {
-  font-size: 28px;
-  font-weight: 700;
-  margin-bottom: 5px;
-}
-
-.subtitle {
-  font-size: 16px;
-  opacity: 0.9;
-  font-weight: 300;
-}
-
-.form-section {
-  padding: 30px 25px;
-}
-
-.form-section h2 {
-  font-size: 24px;
-  color: #333;
-  margin-bottom: 8px;
-}
-
-.description {
-  color: #666;
-  font-size: 14px;
-  margin-bottom: 25px;
-}
-
-.input-group {
-  margin-bottom: 20px;
-}
-
-.input-group label {
-  display: block;
-  color: #555;
-  font-size: 14px;
-  font-weight: 500;
-  margin-bottom: 8px;
-}
-
-.input-group input {
-  width: 100%;
-  padding: 12px 15px;
-  border: 2px solid var(--gray-300, #dee2e6);
-  border-radius: var(--radius-md, 12px);
-  font-size: var(--font-size-base, 15px);
-  transition: all var(--transition-base, 250ms ease);
-  background: var(--white, #ffffff);
-  font-family: var(--font-family, inherit);
-}
-
-.input-group input:focus {
-  outline: none;
-  border-color: var(--primary-500, #667eea);
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-  transform: translateY(-1px);
-}
-
-.input-group input:hover {
-  border-color: var(--gray-400, #ced4da);
-}
-
-.btn-primary {
-  width: 100%;
-  padding: 14px;
-  background: var(--primary-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%));
-  color: white;
-  border: none;
-  border-radius: var(--radius-md, 12px);
-  font-size: var(--font-size-base, 15px);
-  font-weight: var(--font-weight-semibold, 600);
-  cursor: pointer;
-  transition: all var(--transition-base, 250ms ease);
-  margin-top: 10px;
-  box-shadow: var(--shadow-md, 0 4px 12px rgba(102, 126, 234, 0.3));
+  padding: 14px 24px 16px;
   position: relative;
   overflow: hidden;
 }
 
-.btn-primary::before {
+.logo-section::before {
   content: '';
   position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0;
-  height: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.3);
-  transform: translate(-50%, -50%);
-  transition: width 0.6s, height 0.6s;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(14, 165, 233, 0.15) 0%, transparent 55%);
+  pointer-events: none;
 }
 
-.btn-primary:active::before {
-  width: 300px;
-  height: 300px;
+.logo-wrap {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 8px;
+  width: 100%;
+}
+
+.logo {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+  transition: transform 0.25s ease;
+}
+
+.logo:hover {
+  transform: scale(1.02);
+}
+
+.app-badge {
+  display: inline-block;
+  position: relative;
+  z-index: 1;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.12);
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* ---------- Formulário ---------- */
+.form-section {
+  padding: 28px 28px 24px;
+}
+
+.welcome-title {
+  font-size: 1.375rem;
+  font-weight: 700;
+  color: var(--ac-primary, #0d2137);
+  margin-bottom: 4px;
+  letter-spacing: -0.02em;
+}
+
+.welcome-desc {
+  color: var(--gray-600, #64748b);
+  font-size: 0.9375rem;
+  margin-bottom: 22px;
+  font-weight: 500;
+}
+
+.login-form .input-group {
+  margin-bottom: 18px;
+}
+
+.login-form .input-group label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--gray-700, #334155);
+  margin-bottom: 6px;
+}
+
+.login-form .input-group input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 2px solid var(--gray-200, #e2e8f0);
+  border-radius: 12px;
+  font-size: 1rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  background: #fff;
+  color: var(--gray-900, #0f172a);
+  font-family: inherit;
+}
+
+.login-form .input-group input::placeholder {
+  color: var(--gray-400, #94a3b8);
+}
+
+.login-form .input-group input:hover {
+  border-color: var(--gray-300, #cbd5e1);
+}
+
+.login-form .input-group input:focus {
+  outline: none;
+  border-color: var(--ac-accent, #0ea5e9);
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.15);
+}
+
+.input-password-wrap {
+  position: relative;
+}
+
+.input-password-wrap input {
+  padding-right: 48px;
+}
+
+.btn-toggle-senha {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--gray-500, #64748b);
+  cursor: pointer;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.btn-toggle-senha:hover {
+  color: var(--ac-accent, #0ea5e9);
+  background: rgba(14, 165, 233, 0.08);
+}
+
+.btn-toggle-senha:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.3);
+}
+
+.btn-toggle-senha svg {
+  display: block;
+}
+
+.btn-primary {
+  width: 100%;
+  padding: 14px 20px;
+  margin-top: 6px;
+  background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 4px 14px rgba(13, 33, 55, 0.3);
+  font-family: inherit;
 }
 
 .btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg, 0 8px 24px rgba(102, 126, 234, 0.4));
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(13, 33, 55, 0.35);
 }
 
 .btn-primary:active {
-  transform: translateY(0) scale(0.98);
+  transform: translateY(0);
 }
 
 .message {
-  padding: 12px;
-  border-radius: 8px;
-  margin-top: 15px;
-  font-size: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  margin-top: 16px;
+  font-size: 0.875rem;
+  font-weight: 500;
   display: none;
 }
 
 .message.show { display: block; }
-.message.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-.message.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+.message.success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+.message.error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
 
 .links {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-top: 20px;
-  padding-top: 20px;
-  border-top: 1px solid #e0e0e0;
+  padding-top: 18px;
+  border-top: 1px solid var(--gray-200, #e2e8f0);
 }
 
 .links a {
-  color: #667eea;
+  color: var(--ac-accent, #0ea5e9);
   text-decoration: none;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: color 0.2s ease;
 }
 
 .links a:hover {
-  color: #764ba2;
-  text-decoration: underline;
+  color: var(--ac-accent-hover, #0284c7);
 }
 
+/* ---------- Footer ---------- */
 .footer {
-  background: #f8f9fa;
+  background: var(--gray-50, #f8fafc);
   text-align: center;
-  padding: 15px;
-  color: #666;
-  font-size: 12px;
+  padding: 12px 20px;
+  color: var(--gray-600, #64748b);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.footer p {
+  margin: 0;
 }
 
 .version {
-  color: #999;
-  font-size: 11px;
-  margin-top: 5px;
+  color: var(--gray-500, #94a3b8);
+  font-size: 0.6875rem;
+  margin-top: 4px;
+}
+
+/* ---------- Responsivo ---------- */
+@media (max-width: 480px) {
+  .motorista-login-page,
+  body {
+    padding: 12px;
+  }
+
+  .logo-section {
+    padding: 12px 20px 14px;
+  }
+
+  .logo {
+    border-radius: 10px;
+  }
+
+  .form-section {
+    padding: 24px 20px 20px;
+  }
+
+  .welcome-title {
+    font-size: 1.25rem;
+  }
+
+  .links {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
 }

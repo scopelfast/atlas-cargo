@@ -1,6 +1,6 @@
-# 💡 Sugestões de Melhorias - Sistema DivulgaCarga
+# 💡 Sugestões de Melhorias - Atlas Cargo
 
-**Data:** 21 de Novembro de 2025  
+**Data:** 21 de Novembro de 2026  
 **Versão:** 1.1.0
 
 ---
@@ -413,5 +413,5 @@ input.addEventListener('input', buscaDebounced);
 
 ---
 
-**Última atualização:** 21 de Novembro de 2025
+**Última atualização:** 21 de Novembro de 2026
 

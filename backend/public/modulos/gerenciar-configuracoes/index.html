@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title data-i18n="web.modulos.configuracoes.titulo">Configurações do Sistema</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/modulos.css">
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+  <style>
+    /* ========== Configurações do Sistema - Cards organizados (Atlas Cargo) ========== */
+    .configuracoes-container {
+      padding: 24px;
+      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .configuracoes-header {
+      margin-bottom: 28px;
+      padding-bottom: 16px;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
+    }
+
+    .configuracoes-header h2 {
+      margin: 0;
+      color: var(--ac-primary, #0d2137);
+      font-size: 26px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .configuracoes-header h2 i {
+      color: var(--ac-accent, #0ea5e9);
+    }
+
+    /* Grid de cards: 1 coluna em mobile, 2 em telas maiores */
+    .config-cards {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
+    }
+
+    @media (min-width: 900px) {
+      .config-cards {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .config-card.card-full {
+        grid-column: 1 / -1;
+      }
+    }
+
+    .config-card {
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid var(--border, #e2e8f0);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .config-card-header {
+      padding: 18px 22px;
+      background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
+      border-bottom: 1px solid var(--border, #e2e8f0);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .config-card-header i {
+      font-size: 22px;
+      color: var(--ac-accent, #0ea5e9);
+    }
+
+    .config-card-header h3 {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--ac-primary, #0d2137);
+    }
+
+    .config-card-body {
+      padding: 22px;
+      flex: 1;
+    }
+
+    .config-card-body .card-desc {
+      margin: 0 0 20px 0;
+      font-size: 13px;
+      color: var(--gray, #64748b);
+      line-height: 1.5;
+    }
+
+    .config-card .form-group {
+      margin-bottom: 18px;
+    }
+
+    .config-card .form-group:last-of-type {
+      margin-bottom: 0;
+    }
+
+    .config-card .form-group label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 600;
+      color: var(--dark, #1e293b);
+      font-size: 13px;
+    }
+
+    .config-card .form-group input,
+    .config-card .form-group select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      font-size: 15px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      font-family: inherit;
+      box-sizing: border-box;
+      background: #fff;
+    }
+
+    .config-card .form-group input:focus,
+    .config-card .form-group select:focus {
+      outline: none;
+      border-color: var(--ac-accent, #0ea5e9);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+    }
+
+    .config-card .form-group .hint {
+      font-size: 12px;
+      color: var(--gray, #64748b);
+      margin-top: 4px;
+    }
+
+    /* Contexto: campos em grid 2 colunas no card */
+    .config-card .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px 20px;
+    }
+
+    @media (max-width: 600px) {
+      .config-card .form-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .config-card-footer {
+      padding: 16px 22px;
+      background: #f8fafc;
+      border-top: 1px solid var(--border, #e2e8f0);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .config-card-footer .btn {
+      margin-right: 0;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: inherit;
+      text-decoration: none;
+      box-sizing: border-box;
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+
+    .btn-primary {
+      background: var(--ac-accent, #0ea5e9);
+      color: white;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--ac-accent-hover, #0284c7);
+      box-shadow: 0 2px 8px rgba(14, 165, 233, 0.35);
+    }
+
+    .btn-secondary {
+      background: #e2e8f0;
+      color: var(--dark, #1e293b);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: #cbd5e1;
+    }
+
+    .config-card .message {
+      margin-top: 12px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      display: none;
+    }
+
+    .config-card .message.show {
+      display: block !important;
+    }
+
+    .config-card .message.success {
+      background: #d1fae5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+    }
+
+    .config-card .message.error {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fecaca;
+    }
+
+    .logo-preview {
+      max-width: 100px;
+      max-height: 52px;
+      object-fit: contain;
+      margin-top: 8px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      padding: 6px;
+      background: #f8fafc;
+    }
+  </style>
+</head>
+<body>
+  <div class="configuracoes-container">
+    <header class="configuracoes-header">
+      <h2><i class="bx bx-cog"></i> <span data-i18n="web.modulos.configuracoes.titulo">Configurações do Sistema</span></h2>
+    </header>
+
+    <div class="config-cards">
+      <!-- Card 1: Contexto / Multipaís (largura total) -->
+      <article class="config-card card-full" id="boxContexto">
+        <div class="config-card-header">
+          <i class="bx bx-globe"></i>
+          <h3 data-i18n="web.modulos.configuracoes.contextoMultipaís">Contexto / Multipaís</h3>
+        </div>
+        <div class="config-card-body">
+          <p class="card-desc" data-i18n="web.modulos.configuracoes.contextoDesc">País, moeda, idioma, fuso horário e tipo de documento padrão da instalação. Afeta login motorista, cadastros e formatação de valores/datas.</p>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="contextoPais" data-i18n="web.modulos.configuracoes.paisPadrao">País padrão</label>
+              <select id="contextoPais" class="form-control" aria-label="País padrão">
+                <option value="BR">Brasil</option>
+                <option value="PY">Paraguai</option>
+                <option value="AR">Argentina</option>
+                <option value="UY">Uruguai</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="contextoMoeda" data-i18n="web.modulos.configuracoes.moedaPadrao">Moeda padrão</label>
+              <select id="contextoMoeda" class="form-control">
+                <option value="BRL">BRL (Real)</option>
+                <option value="PYG">PYG (Guarani)</option>
+                <option value="ARS">ARS (Peso argentino)</option>
+                <option value="UYU">UYU (Peso uruguaio)</option>
+                <option value="USD">USD (Dólar)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="contextoIdioma" data-i18n="web.modulos.configuracoes.idiomaPadrao">Idioma padrão</label>
+              <select id="contextoIdioma" class="form-control">
+                <option value="pt-BR">Português (Brasil)</option>
+                <option value="es-PY">Español (Paraguay)</option>
+                <option value="es-AR">Español (Argentina)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="contextoTimezone" data-i18n="web.modulos.configuracoes.fusoPadrao">Fuso horário</label>
+              <select id="contextoTimezone" class="form-control" aria-label="Fuso horário IANA">
+                <optgroup label="Brasil">
+                  <option value="America/Noronha">Fernando de Noronha (UTC−2)</option>
+                  <option value="America/Fortaleza">Fortaleza / Nordeste (UTC−3)</option>
+                  <option value="America/Recife">Recife (UTC−3)</option>
+                  <option value="America/Manaus">Manaus / Amazonas (UTC−4)</option>
+                  <option value="America/Cuiaba">Cuiabá / Mato Grosso (UTC−4)</option>
+                  <option value="America/Campo_Grande">Campo Grande / MS (UTC−4)</option>
+                  <option value="America/Sao_Paulo">São Paulo / Brasília (UTC−3)</option>
+                </optgroup>
+                <optgroup label="Argentina">
+                  <option value="America/Argentina/Buenos_Aires">Buenos Aires (UTC−3)</option>
+                  <option value="America/Argentina/Cordoba">Córdoba (UTC−3)</option>
+                  <option value="America/Argentina/Mendoza">Mendoza (UTC−3)</option>
+                </optgroup>
+                <optgroup label="Paraguai">
+                  <option value="America/Asuncion">Asunción (UTC−4/−3)</option>
+                </optgroup>
+                <optgroup label="Uruguai">
+                  <option value="America/Montevideo">Montevideo (UTC−3)</option>
+                </optgroup>
+                <optgroup label="Outros (Mercosul / América do Sul)">
+                  <option value="America/La_Paz">La Paz / Bolívia (UTC−4)</option>
+                  <option value="America/Santiago">Santiago / Chile (UTC−4/−3)</option>
+                  <option value="America/Lima">Lima / Peru (UTC−5)</option>
+                  <option value="America/Bogota">Bogotá / Colômbia (UTC−5)</option>
+                  <option value="America/Guayaquil">Guayaquil / Equador (UTC−5)</option>
+                </optgroup>
+              </select>
+              <div class="hint">Fusos pré-cadastrados (IANA). Valor salvo: America/Sao_Paulo, America/Asuncion, etc.</div>
+            </div>
+            <div class="form-group">
+              <label for="contextoTipoDocFisica" data-i18n="web.modulos.configuracoes.tipoDocFisica">Tipo doc. pessoa física</label>
+              <input type="text" id="contextoTipoDocFisica" class="form-control" placeholder="CPF" maxlength="20">
+            </div>
+            <div class="form-group">
+              <label for="contextoTipoDocJuridica" data-i18n="web.modulos.configuracoes.tipoDocJuridica">Tipo doc. pessoa jurídica</label>
+              <input type="text" id="contextoTipoDocJuridica" class="form-control" placeholder="CNPJ" maxlength="20">
+            </div>
+          </div>
+        </div>
+        <div class="config-card-footer">
+          <div id="configContextoMessage" class="message" role="alert"></div>
+          <div style="display: flex; gap: 10px; margin-left: auto;">
+            <button type="button" id="btnCarregarContexto" class="btn btn-secondary"><i class="bx bx-refresh"></i> <span data-i18n="web.modulos.configuracoes.recarregar">Recarregar</span></button>
+            <button type="button" id="btnSalvarContexto" class="btn btn-primary"><i class="bx bx-save"></i> <span id="btnSalvarContextoText" data-i18n="web.modulos.configuracoes.salvarContexto">Salvar contexto</span></button>
+          </div>
+        </div>
+      </article>
+
+      <!-- Card 2: Identidade visual -->
+      <article class="config-card">
+        <div class="config-card-header">
+          <i class="bx bx-palette"></i>
+          <h3 data-i18n="web.modulos.configuracoes.identidadeVisual">Identidade visual (logos)</h3>
+        </div>
+        <div class="config-card-body">
+          <p class="card-desc" data-i18n="web.modulos.configuracoes.identidadeDesc">Defina os arquivos de logo exibidos no sistema. Os arquivos devem estar na pasta /img/ do servidor. Ambas as logos são transparentes (PNG).</p>
+          <div class="form-group">
+            <label for="logoRetangular" data-i18n="web.modulos.configuracoes.logoRetangular">Logo retangular (login, sidebar)</label>
+            <input type="text" id="logoRetangular" placeholder="logoAtlasTransparente.png" autocomplete="off">
+            <div class="hint">Nome do arquivo em /img/</div>
+            <img id="previewRetangular" class="logo-preview" alt="Preview" style="display: none;">
+          </div>
+          <div class="form-group">
+            <label for="logoQuadrada" data-i18n="web.modulos.configuracoes.logoQuadrada">Logo quadrada (favicon, PWA)</label>
+            <input type="text" id="logoQuadrada" placeholder="logoAtlasTransparenteQuadrada.png" autocomplete="off">
+            <div class="hint">Nome do arquivo em /img/</div>
+            <img id="previewQuadrada" class="logo-preview" alt="Preview" style="display: none;">
+          </div>
+        </div>
+        <div class="config-card-footer">
+          <div id="configIdentidadeMessage" class="message" role="alert"></div>
+          <div style="display: flex; gap: 10px; margin-left: auto;">
+            <button type="button" id="btnCarregarIdentidade" class="btn btn-secondary"><i class="bx bx-refresh"></i> <span data-i18n="web.modulos.configuracoes.recarregar">Recarregar</span></button>
+            <button type="button" id="btnSalvarIdentidade" class="btn btn-primary"><i class="bx bx-save"></i> <span id="btnSalvarIdentidadeText" data-i18n="web.modulos.configuracoes.salvarIdentidade">Salvar identidade</span></button>
+          </div>
+        </div>
+      </article>
+
+      <!-- Card 3: Mapa e Roteamento -->
+      <article class="config-card">
+        <div class="config-card-header">
+          <i class="bx bx-map"></i>
+          <h3 data-i18n="web.modulos.configuracoes.mapaRoteamento">Mapa e Roteamento</h3>
+        </div>
+        <div class="config-card-body">
+          <p class="card-desc" data-i18n="web.modulos.configuracoes.mapaDesc">Defina os endereços dos servidores de geocodificação (Nominatim) e de roteamento (ORS/OSRM). Deixe em branco para usar o valor padrão do sistema.</p>
+          <div class="form-group">
+            <label for="nominatimServer" data-i18n="web.modulos.configuracoes.nominatimServer">Servidor Nominatim (geocodificação)</label>
+            <input type="url" id="nominatimServer" placeholder="Ex: https://nominatim.example.com" autocomplete="off">
+            <div class="hint">Buscar coordenadas a partir de endereços</div>
+          </div>
+          <div class="form-group">
+            <label for="osrmServer" data-i18n="web.modulos.configuracoes.osrmServer">Servidor de Roteamento (ORS/OSRM)</label>
+            <input type="url" id="osrmServer" placeholder="Ex: https://router.example.com" autocomplete="off">
+            <div class="hint">Calcular rotas no mapa</div>
+          </div>
+        </div>
+        <div class="config-card-footer">
+          <div id="configMapaMessage" class="message" role="alert"></div>
+          <div style="display: flex; gap: 10px; margin-left: auto;">
+            <button type="button" id="btnCarregar" class="btn btn-secondary"><i class="bx bx-refresh"></i> <span data-i18n="web.modulos.configuracoes.recarregar">Recarregar</span></button>
+            <button type="button" id="btnSalvar" class="btn btn-primary"><i class="bx bx-save"></i> <span id="btnSalvarText" data-i18n="web.modulos.configuracoes.salvar">Salvar</span></button>
+          </div>
+        </div>
+      </article>
+    </div>
+  </div>
+  <script src="/js/utils.js"></script>
+  <script src="js/script.js"></script>
+</body>
+</html>

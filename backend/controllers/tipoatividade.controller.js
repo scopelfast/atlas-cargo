@@ -1,10 +1,11 @@
 // backend/controllers/tipoatividade.controller.js
 // Controller para Gerenciar Tipos de Atividade
 // Versão: 1.0
-// Autor: Sistema DivulgaCarga
+// Atlas Cargo
 
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const { poolPromise } = require('../config/db');
+const { getSgUser } = require('../utils/audit');
 
 // Listar tipos de atividade com filtros
 const listar = async (req, res) => {
@@ -13,14 +14,14 @@ const listar = async (req, res) => {
 
     let query = `
       SELECT 
-        CDTIPOATIVIDADE,
-        DSTIPOATIVIDADE,
-        DSPROGRAMA,
-        FGACTIVE,
-        ISNULL(FGGRUPO, 'OUTROS') AS FGGRUPO,
-        DHMAINTENANCE,
-        SGUSER,
-        SERVERORIG
+        [CDTIPOATIVIDADE],
+        [DSTIPOATIVIDADE],
+        [DSPROGRAMA],
+        [FGACTIVE],
+        ISNULL([FGGRUPO], 'OUTROS') AS FGGRUPO,
+        [DHMAINTENANCE],
+        [SGUSER],
+        [SERVERORIG]
       FROM [dbo].[TIPOATIVIDADE]
       WHERE 1=1
     `;
@@ -29,21 +30,21 @@ const listar = async (req, res) => {
     const request = pool.request();
 
     if (codigo) {
-      query += ` AND CDTIPOATIVIDADE = @codigo`;
+      query += ` AND [CDTIPOATIVIDADE] = @codigo`;
       request.input('codigo', sql.SmallInt, parseInt(codigo));
     }
 
     if (descricao) {
-      query += ` AND DSTIPOATIVIDADE LIKE @descricao`;
+      query += ` AND [DSTIPOATIVIDADE] LIKE @descricao`;
       request.input('descricao', sql.VarChar(40), `%${descricao}%`);
     }
 
     if (situacao) {
-      query += ` AND FGACTIVE = @situacao`;
+      query += ` AND [FGACTIVE] = @situacao`;
       request.input('situacao', sql.Char(1), situacao);
     }
 
-    query += ` ORDER BY CDTIPOATIVIDADE`;
+    query += ` ORDER BY [CDTIPOATIVIDADE]`;
 
     const result = await request.query(query);
     res.json(result.recordset);
@@ -65,7 +66,7 @@ const buscarPorCodigo = async (req, res) => {
     const result = await pool
       .request()
       .input('codigo', sql.SmallInt, parseInt(codigo))
-      .query('SELECT * FROM [dbo].[TIPOATIVIDADE] WHERE CDTIPOATIVIDADE = @codigo');
+      .query('SELECT * FROM [dbo].[TIPOATIVIDADE] WHERE [CDTIPOATIVIDADE] = @codigo');
 
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Tipo de atividade não encontrado.' });
@@ -87,13 +88,16 @@ const criar = async (req, res) => {
       return res.status(400).json({ error: 'Código e descrição são obrigatórios.' });
     }
 
+    const sgUser = getSgUser(req);
+    if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+
     const pool = await poolPromise;
 
     // Verificar se código já existe
     const checkCodigo = await pool
       .request()
       .input('codigo', sql.SmallInt, parseInt(CDTIPOATIVIDADE))
-      .query('SELECT CDTIPOATIVIDADE FROM [dbo].[TIPOATIVIDADE] WHERE CDTIPOATIVIDADE = @codigo');
+      .query('SELECT [CDTIPOATIVIDADE] FROM [dbo].[TIPOATIVIDADE] WHERE [CDTIPOATIVIDADE] = @codigo');
 
     if (checkCodigo.recordset.length > 0) {
       return res.status(400).json({ error: 'Código já existe.' });
@@ -106,14 +110,15 @@ const criar = async (req, res) => {
       .input('programa', sql.NVarChar(200), DSPROGRAMA || null)
       .input('situacao', sql.Char(1), FGACTIVE || 'S')
       .input('grupo', sql.VarChar(50), FGGRUPO || null)
+      .input('sgUser', sql.VarChar(50), sgUser)
       .query(`
         INSERT INTO [dbo].[TIPOATIVIDADE] (
-          CDTIPOATIVIDADE, DSTIPOATIVIDADE, DSPROGRAMA, FGACTIVE, FGGRUPO,
-          DHMAINTENANCE, SGUSER, SERVERORIG
+          [CDTIPOATIVIDADE], [DSTIPOATIVIDADE], [DSPROGRAMA], [FGACTIVE], [FGGRUPO],
+          [DHMAINTENANCE], [SGUSER], [SERVERORIG]
         )
         VALUES (
           @codigo, @descricao, @programa, @situacao, @grupo,
-          GETDATE(), 'SYSTEM', 'AppDVcargas'
+          GETDATE(), @sgUser, 'AppDVcargas'
         )
       `);
 
@@ -134,13 +139,16 @@ const atualizar = async (req, res) => {
       return res.status(400).json({ error: 'Descrição é obrigatória.' });
     }
 
+    const sgUserUpd = getSgUser(req);
+    if (!sgUserUpd) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+
     const pool = await poolPromise;
 
     // Verificar se existe
     const checkExist = await pool
       .request()
       .input('codigo', sql.SmallInt, parseInt(codigo))
-      .query('SELECT CDTIPOATIVIDADE FROM [dbo].[TIPOATIVIDADE] WHERE CDTIPOATIVIDADE = @codigo');
+      .query('SELECT [CDTIPOATIVIDADE] FROM [dbo].[TIPOATIVIDADE] WHERE [CDTIPOATIVIDADE] = @codigo');
 
     if (checkExist.recordset.length === 0) {
       return res.status(404).json({ error: 'Tipo de atividade não encontrado.' });
@@ -153,17 +161,18 @@ const atualizar = async (req, res) => {
       .input('programa', sql.NVarChar(200), DSPROGRAMA || null)
       .input('situacao', sql.Char(1), FGACTIVE || 'S')
       .input('grupo', sql.VarChar(50), FGGRUPO || null)
+      .input('sgUser', sql.VarChar(50), sgUserUpd)
       .query(`
         UPDATE [dbo].[TIPOATIVIDADE]
         SET 
-          DSTIPOATIVIDADE = @descricao,
-          DSPROGRAMA = @programa,
-          FGACTIVE = @situacao,
-          FGGRUPO = @grupo,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE CDTIPOATIVIDADE = @codigo
+          [DSTIPOATIVIDADE] = @descricao,
+          [DSPROGRAMA] = @programa,
+          [FGACTIVE] = @situacao,
+          [FGGRUPO] = @grupo,
+          [DHMAINTENANCE] = GETDATE(),
+          [SGUSER] = @sgUser,
+          [SERVERORIG] = 'AppDVcargas'
+        WHERE [CDTIPOATIVIDADE] = @codigo
       `);
 
     res.json({ success: true, message: 'Tipo de atividade atualizado com sucesso!' });
@@ -177,13 +186,17 @@ const atualizar = async (req, res) => {
 const alterarStatus = async (req, res) => {
   try {
     const { codigo } = req.params;
+
+    const sgUserStatus = getSgUser(req);
+    if (!sgUserStatus) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+
     const pool = await poolPromise;
 
     // Verificar se existe
     const checkExist = await pool
       .request()
       .input('codigo', sql.SmallInt, parseInt(codigo))
-      .query('SELECT FGACTIVE FROM [dbo].[TIPOATIVIDADE] WHERE CDTIPOATIVIDADE = @codigo');
+      .query('SELECT [FGACTIVE] FROM [dbo].[TIPOATIVIDADE] WHERE [CDTIPOATIVIDADE] = @codigo');
 
     if (checkExist.recordset.length === 0) {
       return res.status(404).json({ error: 'Tipo de atividade não encontrado.' });
@@ -197,14 +210,15 @@ const alterarStatus = async (req, res) => {
       .request()
       .input('codigo', sql.SmallInt, parseInt(codigo))
       .input('situacao', sql.Char(1), novaSituacao)
+      .input('sgUser', sql.VarChar(50), sgUserStatus)
       .query(`
         UPDATE [dbo].[TIPOATIVIDADE]
         SET 
-          FGACTIVE = @situacao,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE CDTIPOATIVIDADE = @codigo
+          [FGACTIVE] = @situacao,
+          [DHMAINTENANCE] = GETDATE(),
+          [SGUSER] = @sgUser,
+          [SERVERORIG] = 'AppDVcargas'
+        WHERE [CDTIPOATIVIDADE] = @codigo
       `);
 
     res.json({ success: true, message: mensagem, newStatus: novaSituacao });

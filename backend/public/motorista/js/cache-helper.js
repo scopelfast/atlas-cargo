@@ -262,16 +262,17 @@ async function atualizarStatusBar() {
       }
     }
     
+    const baseClass = statusBar.className.includes('status-badge-navbar') ? 'status-badge-navbar ' : 'status-bar ';
     if (total === 0) {
-      statusBar.className = 'status-bar status-online';
-      statusBar.innerHTML = '🟢 Online - Sincronizado';
+      statusBar.className = baseClass + 'status-online';
+      statusBar.textContent = 'Online - Sincronizado';
     } else {
-      statusBar.className = 'status-bar status-syncing';
-      statusBar.innerHTML = `🟡 Sincronizando... ${total} item(ns) pendente(s)`;
+      statusBar.className = baseClass + 'status-syncing';
+      statusBar.textContent = `Sincronizando... ${total} item(ns) pendente(s)`;
     }
   } else {
-    statusBar.className = 'status-bar status-offline';
-    statusBar.innerHTML = '🔴 Offline - Usando dados salvos';
+    statusBar.className = (statusBar.className.includes('status-badge-navbar') ? 'status-badge-navbar ' : 'status-bar ') + 'status-offline';
+    statusBar.textContent = 'Offline - Usando dados salvos';
   }
 }
 

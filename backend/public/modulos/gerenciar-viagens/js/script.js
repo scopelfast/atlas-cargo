@@ -1,9 +1,12 @@
 // backend/public/modulos/gerenciar-viagens/js/script.js
 // Gerenciar Viagens - Frontend
 // Versão: 1.2
-// Autor: Sistema DivulgaCarga
-// Data: 2025-04-05
-// Última atualização: 2025-01-XX (Correção definitiva overlayMostrado)
+// Atlas Cargo
+// Data: 2026-04-05
+// Última atualização: 2026-01-XX (Correção definitiva overlayMostrado)
+// i18n: helper t() e chaves web.modulos.viagens
+
+const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
 
 // Flag global para controlar se o overlay está visível
 // Declarada no escopo global usando window para evitar erro de redeclaração
@@ -21,6 +24,11 @@ function getOverlayMostrado() {
 }
 
 (function() {
+  // Debug: ative no console com window.__DEBUG_VIAGENS__ = true para ver logs deste módulo
+  if (typeof window.__DEBUG_VIAGENS__ === 'undefined') window.__DEBUG_VIAGENS__ = false;
+  const _log = (...a) => { if (window.__DEBUG_VIAGENS__) console.log(...a); };
+  const _info = (...a) => { if (window.__DEBUG_VIAGENS__) console.info(...a); };
+
   // Elementos
   const tabs = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
@@ -53,7 +61,7 @@ function getOverlayMostrado() {
   if (!window.MAP_CONFIG) {
     console.warn('⚠️ [VIAGENS] MAP_CONFIG não encontrado! Certifique-se de que /js/map-config.js está carregado ANTES deste script.');
   } else {
-    console.log('✅ [VIAGENS] MAP_CONFIG carregado:', {
+    _log('✅ [VIAGENS] MAP_CONFIG carregado:', {
       tileServer: window.MAP_CONFIG.tileServer?.substring(0, 50) + '...',
       osrmServer: window.MAP_CONFIG.osrmServer,
       nominatimServer: window.MAP_CONFIG.nominatimServer
@@ -62,6 +70,50 @@ function getOverlayMostrado() {
   
   // Usar referência ao MAP_CONFIG global (vem de map-config.js)
   const MAP_CONFIG = window.MAP_CONFIG || {};
+
+  // Contexto (locale/timezone) para formatação de datas (Fase 4)
+  let contextoViagens = { locale: 'pt-BR', timezone: 'America/Sao_Paulo' };
+  async function loadContextoViagens() {
+    try {
+      const r = await fetch('/api/contexto');
+      const d = await r.json();
+      if (d && d.locale) contextoViagens.locale = d.locale;
+      if (d && d.timezone) contextoViagens.timezone = d.timezone;
+    } catch (e) {}
+  }
+  function fmtDataHora(data) {
+    if (data === null || data === undefined) return '-';
+    const d = data instanceof Date ? data : new Date(data);
+    if (Number.isNaN(d.getTime())) return '-';
+    if (typeof window.formatarDataHoraComFuso === 'function') {
+      return window.formatarDataHoraComFuso(d, contextoViagens.locale, contextoViagens.timezone, { dateStyle: 'short', timeStyle: 'short' });
+    }
+    return d.toLocaleString(contextoViagens.locale || 'pt-BR', { timeZone: contextoViagens.timezone || 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });
+  }
+
+  function fmtData(data) {
+    if (data === null || data === undefined) return '-';
+    const d = data instanceof Date ? data : new Date(data);
+    if (Number.isNaN(d.getTime())) return '-';
+    try {
+      return new Intl.DateTimeFormat(contextoViagens.locale || 'pt-BR', {
+        timeZone: contextoViagens.timezone || 'America/Sao_Paulo',
+        dateStyle: 'short'
+      }).format(d);
+    } catch (e) {
+      return d.toLocaleDateString(contextoViagens.locale || 'pt-BR');
+    }
+  }
+
+  // Formatação de moeda (Fase 2): usa contexto (locale) para formato numérico
+  function fmtMoeda(valor, codigoMoeda) {
+    const m = (codigoMoeda && String(codigoMoeda).trim()) || 'BRL';
+    const loc = contextoViagens.locale || 'pt-BR';
+    try {
+      if (typeof window.formatarMoeda === 'function') return window.formatarMoeda(valor, m, loc);
+    } catch (e) {}
+    return new Intl.NumberFormat(loc, { style: 'currency', currency: m }).format(valor != null && valor !== '' ? parseFloat(valor) : 0);
+  }
 
   // Função para carregar o Leaflet dinamicamente
   async function carregarLeaflet() {
@@ -148,6 +200,9 @@ function getOverlayMostrado() {
     // Marcar como executando IMEDIATAMENTE para evitar execuções simultâneas
     // Isso previne condições de corrida onde múltiplas chamadas acontecem antes da primeira terminar
     initExecutado = true;
+    
+    // Contexto (locale/timezone) para formatação de datas (Fase 4)
+    loadContextoViagens();
     
     // Aguardar um pouco para garantir que o DOM está totalmente renderizado
     await new Promise(resolve => setTimeout(resolve, 200));
@@ -266,7 +321,7 @@ function getOverlayMostrado() {
     // Proteção: Se já foi executado nesta execução do script, não executar novamente
     // (mas permite executar novamente se o módulo for recarregado)
     if (sqlExecutado) {
-      console.log('ℹ️ init.sql já foi executado nesta inicialização. Pulando execução.');
+      _log('ℹ️ init.sql já foi executado nesta inicialização. Pulando execução.');
       return;
     }
     
@@ -762,7 +817,7 @@ function getOverlayMostrado() {
             if (container) {
               container.innerHTML = `
                 <div style="color: #856404; text-align: center; padding: 40px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px;">
-                  <div style="font-size: 48px; margin-bottom: 15px;">⚠️</div>
+                  <div style="font-size: 48px; margin-bottom: 15px;"><i class="bx bx-error-circle" style="color: #856404;"></i></div>
                   <h3 style="color: #856404; margin-bottom: 10px;">Nenhuma viagem selecionada</h3>
                   <p style="color: #856404; margin: 0;">
                     Selecione uma viagem na aba <strong>Dados</strong> ou <strong>Grid</strong> para visualizar os logs de integração Meta.
@@ -1072,14 +1127,14 @@ function getOverlayMostrado() {
         },
         { 
           field: 'QTD_ACIONADOS', 
-          header: '📢', 
+          header: '<i class="bx bx-megaphone" style="font-size:1.1rem;" title="Ação"></i>', 
           editable: false, 
           width: '60px',
           format: (val) => val || 0
         },
         { 
           field: 'QTD_ACEITE', 
-          header: '✅', 
+          header: '<i class="bx bx-check-circle" style="font-size:1.1rem; color:#28a745;" title="Aceite"></i>', 
           editable: false, 
           width: '60px',
           format: (val) => {
@@ -1089,7 +1144,7 @@ function getOverlayMostrado() {
         },
         { 
           field: 'QTD_RECUSA', 
-          header: '❌', 
+          header: '<i class="bx bx-x-circle" style="font-size:1.1rem; color:#dc3545;" title="Recusa"></i>', 
           editable: false, 
           width: '60px',
           format: (val) => {
@@ -1099,13 +1154,26 @@ function getOverlayMostrado() {
         },
         { 
           field: 'TEM_CONFIRMADO', 
-          header: '✓', 
+          header: '<i class="bx bx-check" style="font-size:1.1rem; color:#28a745;" title="Confirmado"></i>', 
           editable: false, 
           width: '60px',
           format: (val) => {
             return val === 'S' 
-              ? '<span style="color: #28a745; font-weight: 700;">✓ SIM</span>' 
+              ? '<span style="color: #28a745; font-weight: 700;"><i class="bx bx-check" style="font-size:1em; vertical-align: middle;"></i> SIM</span>' 
               : '<span style="color: #999;">NÃO</span>';
+          }
+        },
+        { 
+          field: 'QTD_COMPROVANTES', 
+          header: '<i class="bx bx-camera" style="font-size:1.1rem;"></i> POD', 
+          editable: false, 
+          width: '70px',
+          title: 'Comprovante(s) de entrega (POD)',
+          format: (val) => {
+            const qtd = Number(val) || 0;
+            return qtd > 0 
+              ? `<span style="color: #0d6efd; font-weight: 600;" title="Comprovante(s) de entrega">${qtd}</span>` 
+              : '<span style="color: #999;">0</span>';
           }
         }
       ],
@@ -1131,6 +1199,20 @@ function getOverlayMostrado() {
         }
       }
     });
+    // Clique na coluna POD para abrir modal de comprovantes
+    const gridEl = document.getElementById('viagensGrid');
+    if (gridEl) {
+      gridEl.addEventListener('click', (e) => {
+        const cell = e.target.closest('td[data-field="QTD_COMPROVANTES"]');
+        if (!cell) return;
+        const row = cell.closest('tr[data-grid-id]');
+        if (!row) return;
+        const idviagem = row.getAttribute('data-grid-id');
+        const cellVal = (cell.querySelector('.cell-value') || cell).textContent.trim();
+        if (cellVal === '0' || !cellVal) return;
+        abrirModalComprovantes(idviagem);
+      });
+    }
   }
 
   // Carregar combos principais
@@ -1178,16 +1260,28 @@ function getOverlayMostrado() {
       const tiposResponse = await fetch('/api/tipos-viagem-combo');
       const situacoesResponse = await fetch('/api/situacoes-viagem-combo');
       const classesResponse = await fetch('/api/classes-frota-combo');
-      const contratadoresResponse = await fetch('/api/contratadores-combo');
+      let contratadoresResponse = await fetch('/api/contratadores-combo');
+      let contratadores = contratadoresResponse.ok ? await contratadoresResponse.json() : [];
+      if (!Array.isArray(contratadores) || contratadores.length === 0) {
+        // Fallback: buscar programadores/contratadores via Cadastro Geral (tipo P = Programador)
+        try {
+          const cadastrosRes = await fetch('/api/cadastros-gerais?tipoCadastro=P');
+          if (cadastrosRes.ok) {
+            const lista = await cadastrosRes.json();
+            contratadores = Array.isArray(lista) ? lista.map(c => ({ CDCADASTRO: c.CDCADASTRO, RZSOCIAL: (c.RZSOCIAL || '').toString() })) : [];
+          }
+        } catch (e) {
+          console.warn('[Viagens] Fallback contratadores via cadastros-gerais falhou:', e);
+        }
+      }
       
-      if (!tiposResponse.ok || !situacoesResponse.ok || !classesResponse.ok || !contratadoresResponse.ok) {
+      if (!tiposResponse.ok || !situacoesResponse.ok || !classesResponse.ok) {
         throw new Error('Erro ao buscar dados da API');
       }
       
       const tipos = await tiposResponse.json();
       const situacoes = await situacoesResponse.json();
       const classes = await classesResponse.json();
-      const contratadores = await contratadoresResponse.json();
 
       const fillSelect = (id, items, valueField, labelField, defaultText = 'Selecione') => {
         let el = document.getElementById(id);
@@ -1362,11 +1456,11 @@ function getOverlayMostrado() {
     if (!estado) return;
 
     try {
-      console.log(`[CIDADES] Carregando cidades do estado ${estado} para ${tipo}`);
+      _log(`[CIDADES] Carregando cidades do estado ${estado} para ${tipo}`);
       const response = await fetch(`/api/cidades-por-estado/${estado}`);
       const cidades = await response.json();
 
-      console.log(`[CIDADES] ${cidades.length} cidades carregadas para ${tipo} do estado ${estado}`);
+      _log(`[CIDADES] ${cidades.length} cidades carregadas para ${tipo} do estado ${estado}`);
 
       if (tipo === 'origem') {
         cidadesOrigem = cidades;
@@ -1379,7 +1473,7 @@ function getOverlayMostrado() {
             opt.textContent = c.NMCIDADE;
             cidadeSelect.appendChild(opt);
           });
-          console.log(`[CIDADES] Select de origem atualizado com ${cidades.length} opções`);
+          _log(`[CIDADES] Select de origem atualizado com ${cidades.length} opções`);
         }
       } else {
         cidadesDestino = cidades;
@@ -1392,7 +1486,7 @@ function getOverlayMostrado() {
             opt.textContent = c.NMCIDADE;
             cidadeSelect.appendChild(opt);
           });
-          console.log(`[CIDADES] Select de destino atualizado com ${cidades.length} opções`);
+          _log(`[CIDADES] Select de destino atualizado com ${cidades.length} opções`);
         }
       }
     } catch (err) {
@@ -1410,10 +1504,10 @@ function getOverlayMostrado() {
       if (destino) params.append('destino', destino);
       if (params.toString()) url += `?${params.toString()}`;
 
-      console.log('[ROTEIROS] Buscando roteiros:', { origem, destino, url });
+      _log('[ROTEIROS] Buscando roteiros:', { origem, destino, url });
       const response = await fetch(url);
       const roteiros = await response.json();
-      console.log('[ROTEIROS] Roteiros recebidos:', roteiros.length, 'roteiros');
+      _log('[ROTEIROS] Roteiros recebidos:', roteiros.length, 'roteiros');
       roteirosCache = roteiros;
 
       const roteiroSelect = document.getElementById('viagemRoteiro');
@@ -1430,7 +1524,7 @@ function getOverlayMostrado() {
             const roteiroResponse = await fetch(`/api/roteiros/${roteiroIdEsperado}`);
             if (roteiroResponse.ok) {
               const roteiroEspecifico = await roteiroResponse.json();
-              console.log('[ROTEIROS] ✅ Roteiro específico encontrado:', roteiroEspecifico);
+              _log('[ROTEIROS] ✅ Roteiro específico encontrado:', roteiroEspecifico);
               roteiros.push(roteiroEspecifico);
               roteirosCache.push(roteiroEspecifico);
             }
@@ -1450,7 +1544,7 @@ function getOverlayMostrado() {
         roteiroSelect.appendChild(opt);
       });
       
-      console.log('[ROTEIROS] Select preenchido com', roteiros.length, 'opções');
+      _log('[ROTEIROS] Select preenchido com', roteiros.length, 'opções');
     } catch (err) {
       console.error('Erro ao carregar roteiros:', err);
       showMessage('Erro ao carregar roteiros. Verifique a conexão.', 'error');
@@ -1470,7 +1564,7 @@ function getOverlayMostrado() {
       window.showSkeleton(gridContainer, 6, 'grid');
     }
     
-    const btnAplicar = filtroForm?.querySelector('button[type="submit"]');
+    const btnAplicar = document.getElementById('btnAplicarFiltro');
     if (btnAplicar && typeof window.showLoading !== 'undefined') {
       window.showLoading(btnAplicar, true);
     }
@@ -1529,7 +1623,7 @@ function getOverlayMostrado() {
       const countEl = document.getElementById('viagensGridCountText');
       if (countEl) {
         const count = viagens.length || 0;
-        countEl.textContent = `${count} registro(s) encontrado(s)`;
+        countEl.textContent = count + ' ' + (t('web.modulos.viagens.registrosEncontrados').replace(/^0\s*/, ''));
       }
       
       // Renderizar grid se já estiver inicializado
@@ -1648,7 +1742,7 @@ function getOverlayMostrado() {
   // Carregar viagem para edição
   async function loadViagemParaEdicao(id) {
     try {
-      console.log('[CARREGAR VIAGEM] Iniciando carregamento da viagem ID:', id);
+      _log('[CARREGAR VIAGEM] Iniciando carregamento da viagem ID:', id);
       
       // IMPORTANTE: Limpar formulário ANTES de carregar novos dados
       // Isso evita que dados de uma viagem apareçam em outra
@@ -1707,6 +1801,12 @@ function getOverlayMostrado() {
         // Formatar Frete com 2 casas decimais
         const freteValue = viagem.VLFRETE ? parseFloat(viagem.VLFRETE).toFixed(2) : '';
         document.getElementById('viagemFrete').value = freteValue;
+        const moedaViagem = (viagem.MOEDA && String(viagem.MOEDA).trim()) || 'BRL';
+        const selMoeda = document.getElementById('viagemMoeda');
+        if (selMoeda) {
+          selMoeda.value = moedaViagem;
+          if (!selMoeda.querySelector('option[value="' + moedaViagem + '"]')) selMoeda.value = 'BRL';
+        }
         // Formatar Peso com 3 casas decimais
         const pesoValue = viagem.PESO ? parseFloat(viagem.PESO).toFixed(3) : '';
         document.getElementById('viagemPeso').value = pesoValue;
@@ -1755,7 +1855,7 @@ function getOverlayMostrado() {
         }
         
         // Preencher origem e destino
-        console.log('[CARREGAR VIAGEM] Dados da viagem recebidos:', {
+        _log('[CARREGAR VIAGEM] Dados da viagem recebidos:', {
           ORIGEM_ESTADO: viagem.ORIGEM_ESTADO,
           ORIGEM_CODIGO: viagem.ORIGEM_CODIGO,
           DESTINO_ESTADO: viagem.DESTINO_ESTADO,
@@ -1773,7 +1873,7 @@ function getOverlayMostrado() {
             await new Promise(resolve => setTimeout(resolve, 300));
             await preencherSelect('viagemOrigemCidade', String(viagem.ORIGEM_CODIGO));
             document.getElementById('viagemOrigemCodigo').value = String(viagem.ORIGEM_CODIGO);
-            console.log('[CARREGAR VIAGEM] Origem preenchida:', {
+            _log('[CARREGAR VIAGEM] Origem preenchida:', {
               estado: estadoOrigem,
               codigo: viagem.ORIGEM_CODIGO,
               cidadeSelectValue: document.getElementById('viagemOrigemCidade')?.value
@@ -1791,7 +1891,7 @@ function getOverlayMostrado() {
             await new Promise(resolve => setTimeout(resolve, 300));
             await preencherSelect('viagemDestinoCidade', String(viagem.DESTINO_CODIGO));
             document.getElementById('viagemDestinoCodigo').value = String(viagem.DESTINO_CODIGO);
-            console.log('[CARREGAR VIAGEM] Destino preenchido:', {
+            _log('[CARREGAR VIAGEM] Destino preenchido:', {
               estado: estadoDestino,
               codigo: viagem.DESTINO_CODIGO,
               cidadeSelectValue: document.getElementById('viagemDestinoCidade')?.value
@@ -1801,12 +1901,12 @@ function getOverlayMostrado() {
         
         // Carregar roteiros e preencher
         if (viagem.ORIGEM_CODIGO && viagem.DESTINO_CODIGO) {
-          console.log('[CARREGAR VIAGEM] Carregando roteiros para origem:', viagem.ORIGEM_CODIGO, 'destino:', viagem.DESTINO_CODIGO, 'roteiro esperado:', viagem.IDROTEIRO);
+          _log('[CARREGAR VIAGEM] Carregando roteiros para origem:', viagem.ORIGEM_CODIGO, 'destino:', viagem.DESTINO_CODIGO, 'roteiro esperado:', viagem.IDROTEIRO);
           await loadRoteirosPorRota(String(viagem.ORIGEM_CODIGO), String(viagem.DESTINO_CODIGO), viagem.IDROTEIRO ? String(viagem.IDROTEIRO) : null);
           await new Promise(resolve => setTimeout(resolve, 300)); // Aumentar tempo de espera
           
           if (viagem.IDROTEIRO) {
-            console.log('[CARREGAR VIAGEM] Tentando preencher roteiro ID:', viagem.IDROTEIRO);
+            _log('[CARREGAR VIAGEM] Tentando preencher roteiro ID:', viagem.IDROTEIRO);
             const roteiroSelect = document.getElementById('viagemRoteiro');
             
             // Verificar se o select tem opções
@@ -1818,17 +1918,17 @@ function getOverlayMostrado() {
               
               if (opcaoExiste) {
                 roteiroSelect.value = roteiroIdStr;
-                console.log('[CARREGAR VIAGEM] ✅ Roteiro preenchido com sucesso:', roteiroIdStr);
+                _log('[CARREGAR VIAGEM] ✅ Roteiro preenchido com sucesso:', roteiroIdStr);
                 // Carregar resumo da rota
                 await carregarResumoRota(roteiroIdStr);
               } else {
                 console.warn('[CARREGAR VIAGEM] ⚠️ Roteiro ID não encontrado no select:', roteiroIdStr);
-                console.log('[CARREGAR VIAGEM] Opções disponíveis:', Array.from(roteiroSelect.options).map(opt => opt.value));
+                _log('[CARREGAR VIAGEM] Opções disponíveis:', Array.from(roteiroSelect.options).map(opt => opt.value));
                 // Tentar novamente após mais um tempo
                 await new Promise(resolve => setTimeout(resolve, 200));
                 await preencherSelect('viagemRoteiro', roteiroIdStr, 15); // Mais tentativas
                 if (roteiroSelect.value === roteiroIdStr) {
-                  console.log('[CARREGAR VIAGEM] ✅ Roteiro preenchido após retry');
+                  _log('[CARREGAR VIAGEM] ✅ Roteiro preenchido após retry');
                   await carregarResumoRota(roteiroIdStr);
                 } else {
                   console.error('[CARREGAR VIAGEM] ❌ Falha ao preencher roteiro após retry');
@@ -1840,18 +1940,18 @@ function getOverlayMostrado() {
               await new Promise(resolve => setTimeout(resolve, 500));
               await preencherSelect('viagemRoteiro', String(viagem.IDROTEIRO), 20); // Ainda mais tentativas
               if (document.getElementById('viagemRoteiro')?.value === String(viagem.IDROTEIRO)) {
-                console.log('[CARREGAR VIAGEM] ✅ Roteiro preenchido após espera adicional');
+                _log('[CARREGAR VIAGEM] ✅ Roteiro preenchido após espera adicional');
                 await carregarResumoRota(String(viagem.IDROTEIRO));
               }
             }
           } else {
-            console.log('[CARREGAR VIAGEM] Viagem não tem IDROTEIRO definido');
+            _log('[CARREGAR VIAGEM] Viagem não tem IDROTEIRO definido');
           }
         } else {
           console.warn('[CARREGAR VIAGEM] ⚠️ Não foi possível carregar roteiros: origem ou destino faltando');
         }
         
-        document.getElementById('formTitle').textContent = 'Editar Viagem';
+        document.getElementById('formTitle').textContent = t('web.modulos.viagens.editarViagem');
         
         // IMPORTANTE: Preencher o campo "ID Viagem" no filtro para evitar que a aba volte para "Filtros"
         // Isso garante que quando o usuário estiver editando uma viagem, a aba permaneça em "Dados"
@@ -1895,7 +1995,7 @@ function getOverlayMostrado() {
       }
     } catch (err) {
       console.error('Erro ao carregar viagem:', err);
-      showMessage('Erro ao carregar dados para edição.', 'error');
+      showMessage(t('web.modulos.viagens.erroCarregarDados'), 'error');
     }
   }
 
@@ -1908,7 +2008,7 @@ function getOverlayMostrado() {
       return data.slice(0, 16);
     }
     
-    // Parsear string no formato SQL Server: "2025-11-21 08:00:00" ou "2025-11-21T08:00:00"
+    // Parsear string no formato SQL Server: "2026-11-21 08:00:00" ou "2026-11-21T08:00:00"
     let str = String(data).trim();
     
     // Remover milissegundos se existirem
@@ -1937,11 +2037,140 @@ function getOverlayMostrado() {
     return `${ano}-${mes}-${dia}T${horasLocal}:${minutosLocal}`;
   }
 
+  // Modal de comprovantes de entrega (POD)
+  function fecharModalComprovantes() {
+    const modal = document.getElementById('modalComprovantes');
+    if (modal) {
+      modal.querySelectorAll('.pod-map-container').forEach(el => {
+        if (el._podMap && typeof el._podMap.remove === 'function') {
+          el._podMap.remove();
+          el._podMap = null;
+        }
+      });
+      modal.style.display = 'none';
+    }
+  }
+  window.fecharModalComprovantes = fecharModalComprovantes;
+
+  async function abrirModalComprovantes(idviagem) {
+    const modal = document.getElementById('modalComprovantes');
+    const tituloId = document.getElementById('modalComprovantesIdViagem');
+    const carregando = document.getElementById('modalComprovantesCarregando');
+    const lista = document.getElementById('modalComprovantesLista');
+    if (!modal || !tituloId || !carregando || !lista) return;
+    tituloId.textContent = idviagem;
+    carregando.style.display = 'block';
+    carregando.textContent = 'Carregando comprovantes...';
+    lista.style.display = 'none';
+    lista.innerHTML = '';
+    modal.style.display = 'flex';
+    modal.style.alignItems = 'center';
+    modal.style.justifyContent = 'center';
+
+    try {
+      const res = await fetch(`/api/motorista/delivery-proof/viagem/${encodeURIComponent(idviagem)}`);
+      if (!res.ok) throw new Error('Erro ao carregar comprovantes');
+      const data = await res.json();
+      const comprovantes = data.comprovantes || [];
+      carregando.style.display = 'none';
+      if (comprovantes.length === 0) {
+        carregando.style.display = 'block';
+        carregando.textContent = 'Nenhum comprovante registrado para esta viagem.';
+        return;
+      }
+      lista.style.display = 'grid';
+      const baseUrl = window.location.origin + (window.BASE_PATH || '');
+      const comprovantesComMapa = [];
+      comprovantes.forEach((c, idx) => {
+        const id = c.ID ?? c.id;
+        const recordedAt = c.RECORDED_AT ?? c.recorded_at;
+        const receiverName = (c.RECEIVER_NAME ?? c.receiver_name ?? '-') || '-';
+        const receiverDoc = (c.RECEIVER_DOCUMENT ?? c.receiver_document ?? '') || '';
+        const obs = (c.OBSERVATIONS ?? c.observations ?? '') || '';
+        const signatureData = c.SIGNATURE_DATA ?? c.signature_data ?? '';
+        const photoName = (c.PHOTO_NAME ?? c.photo_name ?? '') || '';
+        const synced = c.SYNCED ?? c.synced;
+        const lat = c.LATITUDE ?? c.latitude;
+        const lng = c.LONGITUDE ?? c.longitude;
+        const hasLatLng = lat != null && lng != null && Number(lat) !== 0 && Number(lng) !== 0;
+        const dataStr = recordedAt ? fmtDataHora(recordedAt) : '-';
+        const photoUrl = id ? `${baseUrl}/api/motorista/delivery-proof/${id}/photo` : '';
+        const mapId = `pod-map-${id ?? idx}-${Date.now()}`;
+        const linkMapa = hasLatLng ? `https://www.google.com/maps?q=${Number(lat)},${Number(lng)}` : '';
+        const linkOsm = hasLatLng ? `https://www.openstreetmap.org/?mlat=${Number(lat)}&mlon=${Number(lng)}&zoom=17` : '';
+        const coordsStr = hasLatLng ? `${Number(lat).toFixed(6)}, ${Number(lng).toFixed(6)}` : '';
+        const syncedLabel = synced === true || synced === 1 || synced === '1' || String(synced).toLowerCase() === 'true' ? 'Sincronizado' : 'Pendente';
+        const syncedClass = synced === true || synced === 1 || synced === '1' ? 'sim' : 'nao';
+        let assinaturaHtml = '';
+        if (signatureData && (signatureData.startsWith('data:') || signatureData.startsWith('http'))) {
+          assinaturaHtml = `<div class="pod-card-section"><h4>Assinatura do recebedor</h4><img class="pod-assinatura" src="${signatureData.replace(/"/g, '&quot;')}" alt="Assinatura" /></div>`;
+        }
+        const card = document.createElement('div');
+        card.className = 'pod-card';
+        card.dataset.podId = String(id ?? idx);
+        card.dataset.lat = hasLatLng ? String(lat) : '';
+        card.dataset.lng = hasLatLng ? String(lng) : '';
+        card.dataset.mapId = mapId;
+        card.innerHTML = `
+          <div class="pod-card-header">Comprovante ${idx + 1} — ${dataStr}</div>
+          <div class="pod-card-body">
+            <div class="pod-card-section">
+              <h4>Recebedor</h4>
+              <div class="pod-value">${receiverName}</div>
+              ${receiverDoc ? `<div style="font-size:13px;color:#6c757d;margin-top:4px;">CPF/RG: ${receiverDoc}</div>` : ''}
+            </div>
+            ${obs ? `<div class="pod-card-section"><h4>Observações</h4><div class="pod-value">${obs}</div></div>` : ''}
+            ${photoName ? `<div class="pod-card-section"><h4>Arquivo da foto</h4><div class="pod-value" style="font-size:12px;">${photoName}</div></div>` : ''}
+            <div class="pod-card-section">
+              <h4>Foto do comprovante</h4>
+              ${photoUrl ? `<img class="pod-foto" src="${photoUrl}" alt="Comprovante" loading="lazy" />` : '<div style="padding:40px;text-align:center;color:#999;background:#f1f3f5;border-radius:8px;">Sem foto</div>'}
+            </div>
+            ${assinaturaHtml}
+            <div class="pod-card-section">
+              <h4>Local do registro</h4>
+              ${hasLatLng ? `<div id="${mapId}" class="pod-map-container"></div><div class="pod-coords">${coordsStr}</div><a href="${linkMapa}" target="_blank" rel="noopener" class="pod-map-link">&#128506; Abrir no Google Maps</a><br/><a href="${linkOsm}" target="_blank" rel="noopener" class="pod-map-link">&#128506; Ver no OpenStreetMap</a>` : '<div class="pod-value" style="color:#999;">Local não registrado</div>'}
+            </div>
+            <div class="pod-card-section">
+              <span class="pod-synced ${syncedClass}">${syncedLabel}</span>
+            </div>
+          </div>
+        `;
+        lista.appendChild(card);
+        if (hasLatLng && mapId) comprovantesComMapa.push({ mapId, lat: Number(lat), lng: Number(lng) });
+      });
+      // Inicializar mapas Leaflet nos cards (local onde o motorista registrou)
+      if (comprovantesComMapa.length > 0 && typeof carregarLeaflet === 'function') {
+        (async () => {
+          try {
+            await carregarLeaflet();
+            if (typeof window.L !== 'undefined' && window.L.map) {
+              const tileUrl = (window.MAP_CONFIG && window.MAP_CONFIG.tileServer) ? window.MAP_CONFIG.tileServer : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+              comprovantesComMapa.forEach(({ mapId, lat, lng }) => {
+                const el = document.getElementById(mapId);
+                if (!el || el._podMap) return;
+                try {
+                  const map = window.L.map(mapId).setView([lat, lng], 16);
+                  window.L.tileLayer(tileUrl, { attribution: '&copy; OpenStreetMap' }).addTo(map);
+                  window.L.marker([lat, lng]).addTo(map).bindPopup('Local do comprovante');
+                  el._podMap = map;
+                } catch (e) { console.warn('POD mapa', mapId, e); }
+              });
+            }
+          } catch (e) { console.warn('Leaflet para POD:', e); }
+        })();
+      }
+    } catch (err) {
+      carregando.style.display = 'block';
+      carregando.textContent = 'Erro ao carregar comprovantes: ' + (err.message || 'Erro desconhecido');
+      if (typeof showMessage === 'function') showMessage('Erro ao carregar comprovantes.', 'error');
+    }
+  }
+
   // Confirmar exclusão
   async function confirmarExclusao(id) {
     let idValido = id;
     if (idValido == null || idValido === 'undefined' || idValido === 'null' || idValido === '' || idValido === 'NaN') {
-      showMessage('Erro: ID não disponível.', 'error');
+      showMessage(t('web.modulos.viagens.erroIdIndisponivel'), 'error');
       return;
     }
     
@@ -1997,7 +2226,7 @@ function getOverlayMostrado() {
         const acao = modalEl.dataset.action || action;
         
         if (!idParaExcluir || idParaExcluir === 'undefined' || idParaExcluir === 'null' || idParaExcluir === '') {
-          showMessage('Erro: ID não disponível.', 'error');
+          showMessage(t('web.modulos.viagens.erroIdIndisponivel'), 'error');
           modalEl.style.display = 'none';
           return;
         }
@@ -2018,7 +2247,7 @@ function getOverlayMostrado() {
           }
         } catch (err) {
           console.error('[Viagens] Erro ao alterar status:', err);
-          showMessage('Erro de conexão.', 'error');
+          showMessage(t('web.modulos.viagens.erroConexao'), 'error');
         } finally {
           modalEl.style.display = 'none';
           delete modalEl.dataset.deleteId;
@@ -2151,27 +2380,34 @@ function getOverlayMostrado() {
     return erros;
   }
 
+  let viagemFormSubmitting = false;
   viagemForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    
+    e.stopImmediatePropagation();
+    if (viagemFormSubmitting) return;
+    viagemFormSubmitting = true;
+
+    const btnSalvar = viagemForm.querySelector('button[type="submit"]');
+    if (btnSalvar && typeof window.showLoading !== 'undefined') {
+      window.showLoading(btnSalvar, true);
+    }
+
     // Validar formulário antes de enviar
     const erros = validarFormularioViagem();
     if (erros.length > 0) {
       showMessage('❌ Erros encontrados:\n\n' + erros.join('\n'), 'error');
-      // Scroll para o primeiro campo com erro
       const primeiroErro = document.querySelector('input[style*="border-color: rgb(220, 53, 69)"], select[style*="border-color: rgb(220, 53, 69)"]');
       if (primeiroErro) {
         primeiroErro.scrollIntoView({ behavior: 'smooth', block: 'center' });
         primeiroErro.focus();
       }
+      viagemFormSubmitting = false;
+      if (btnSalvar && typeof window.showLoading !== 'undefined') {
+        window.showLoading(btnSalvar, false);
+      }
       return;
     }
-    
-    const btnSalvar = viagemForm.querySelector('button[type="submit"]');
-    if (btnSalvar && typeof window.showLoading !== 'undefined') {
-      window.showLoading(btnSalvar, true);
-    }
-    
+
     const situacaoViagem = document.getElementById('viagemSituacaoViagem')?.value;
     const situacao = document.getElementById('viagemSituacao')?.value;
     const tipoViagem = document.getElementById('viagemTipoViagem')?.value;
@@ -2200,6 +2436,7 @@ function getOverlayMostrado() {
         campo.scrollIntoView({ behavior: 'smooth', block: 'center' });
         campo.focus();
       }
+      viagemFormSubmitting = false;
       if (btnSalvar && typeof window.showLoading !== 'undefined') {
         window.showLoading(btnSalvar, false);
       }
@@ -2218,11 +2455,16 @@ function getOverlayMostrado() {
         IDROTEIRO: document.getElementById('viagemRoteiro')?.value || null,
         DISTANCIAKM: document.getElementById('viagemDistancia')?.value || null,
         VLFRETE: document.getElementById('viagemFrete')?.value ? parseFloat(document.getElementById('viagemFrete').value) : null,
+        MOEDA: document.getElementById('viagemMoeda')?.value || 'BRL',
         PESO: document.getElementById('viagemPeso')?.value ? parseFloat(document.getElementById('viagemPeso').value) : null,
         CUBAGEM: document.getElementById('viagemCubagem')?.value ? parseFloat(document.getElementById('viagemCubagem').value) : null,
         OBSERV: document.getElementById('viagemObserv')?.value.trim() || null,
         FGRASTREADO: rastreado
       };
+
+      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
 
       let response;
       const id = document.getElementById('viagemId')?.value;
@@ -2230,13 +2472,13 @@ function getOverlayMostrado() {
         viagemData.FGACTIVE = document.getElementById('viagemSituacaoAtiva')?.value;
         response = await fetch(`/api/viagens/${id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(viagemData)
         });
       } else {
         response = await fetch('/api/viagens', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(viagemData)
         });
       }
@@ -2281,22 +2523,29 @@ function getOverlayMostrado() {
       console.error('Erro ao salvar:', err);
       showMessage('Erro de conexão com o servidor.', 'error');
     } finally {
-      if (btnSalvar && typeof window.showLoading !== 'undefined') {
-        window.showLoading(btnSalvar, false);
-      }
+      setTimeout(() => {
+        viagemFormSubmitting = false;
+        const btn = viagemForm.querySelector('button[type="submit"]');
+        if (btn && typeof window.showLoading !== 'undefined') {
+          window.showLoading(btn, false);
+        }
+      }, 600);
     }
   });
 
-  // Eventos
-  filtroForm?.addEventListener('submit', async (e) => {
+  // Eventos: evitar submit do form (que recarrega e volta ao dashboard)
+  filtroForm?.addEventListener('submit', (e) => {
     e.preventDefault();
     e.stopPropagation();
+    return false;
+  });
+
+  document.getElementById('btnAplicarFiltro')?.addEventListener('click', async () => {
     try {
       await applyFilters('grid');
     } catch (err) {
       console.error('Erro ao aplicar filtros:', err);
     }
-    return false;
   });
 
   document.getElementById('btnLimparFiltros')?.addEventListener('click', () => {
@@ -2389,25 +2638,39 @@ function getOverlayMostrado() {
     });
   });
 
-  document.getElementById('btnVoltarFiltros')?.addEventListener('click', async () => await showTab('filtros'));
-  document.getElementById('btnNovoRegistro')?.addEventListener('click', () => {
+  document.getElementById('btnVoltarFiltros')?.addEventListener('click', async (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    await showTab('filtros');
+  });
+  document.getElementById('btnNovoRegistro')?.addEventListener('click', (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
     viagemForm?.reset();
     document.getElementById('viagemId').value = '';
-    document.getElementById('viagemUsuario').value = 'SYSTEM';
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    document.getElementById('viagemUsuario').value = user.login || 'SYSTEM';
     document.getElementById('viagemDataInclusao').value = new Date().toISOString().slice(0, 16);
-    document.getElementById('formTitle').textContent = 'Nova Viagem';
+    document.getElementById('formTitle').textContent = t('web.modulos.viagens.novaViagem');
     showTab('dados');
   });
   document.getElementById('btnCancelar')?.addEventListener('click', () => showTab('grid'));
-  
+
   // Event listeners para botões do Grid
-  document.getElementById('btnVoltarGrid')?.addEventListener('click', async () => await showTab('filtros'));
-  document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
+  document.getElementById('btnVoltarGrid')?.addEventListener('click', async (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
+    await showTab('filtros');
+  });
+  document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', (e) => {
+    e?.preventDefault?.();
+    e?.stopPropagation?.();
     viagemForm?.reset();
     document.getElementById('viagemId').value = '';
-    document.getElementById('viagemUsuario').value = 'SYSTEM';
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    document.getElementById('viagemUsuario').value = user.login || 'SYSTEM';
     document.getElementById('viagemDataInclusao').value = new Date().toISOString().slice(0, 16);
-    document.getElementById('formTitle').textContent = 'Nova Viagem';
+    document.getElementById('formTitle').textContent = t('web.modulos.viagens.novaViagem');
     showTab('dados');
   });
 
@@ -2713,7 +2976,7 @@ function getOverlayMostrado() {
       });
       
       const url = `/api/cidades/coordenadas?${params.toString()}`;
-      console.log('[Coordenadas] Buscando coordenadas para:', nomeCidade, estado);
+      _log('[Coordenadas] Buscando coordenadas para:', nomeCidade, estado);
       
       const response = await fetch(url, {
         method: 'GET',
@@ -2736,7 +2999,7 @@ function getOverlayMostrado() {
       const data = await response.json();
       
       if (data.success && data.lat && data.lon) {
-        console.log(`[Coordenadas] ✅ Coordenadas encontradas para ${nomeCidade}/${estado}:`, data.lat, data.lon);
+        _log(`[Coordenadas] ✅ Coordenadas encontradas para ${nomeCidade}/${estado}:`, data.lat, data.lon);
         return {
           lat: parseFloat(data.lat),
           lon: parseFloat(data.lon)
@@ -3137,9 +3400,9 @@ function getOverlayMostrado() {
 
       // Adicionar camada de tiles do OpenStreetMap
       // IMPORTANTE: Usar APENAS getTileServerUrl() do map-config.js
-      console.log('🗺️ [VIAGENS] Inicializando mapa...');
-      console.log('🗺️ [VIAGENS] MAP_CONFIG disponível:', !!window.MAP_CONFIG);
-      console.log('🗺️ [VIAGENS] getTileServerUrl disponível:', typeof window.getTileServerUrl === 'function');
+      _log('🗺️ [VIAGENS] Inicializando mapa...');
+      _log('🗺️ [VIAGENS] MAP_CONFIG disponível:', !!window.MAP_CONFIG);
+      _log('🗺️ [VIAGENS] getTileServerUrl disponível:', typeof window.getTileServerUrl === 'function');
       
       const tileConfig = window.getTileLayerConfig ? window.getTileLayerConfig() : {
         url: window.getTileServerUrl ? window.getTileServerUrl() : (window.MAP_CONFIG?.tileServer || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
@@ -3147,7 +3410,7 @@ function getOverlayMostrado() {
         maxZoom: 19
       };
       
-      console.log('🗺️ [VIAGENS] Tile server selecionado:', tileConfig.url);
+      _log('🗺️ [VIAGENS] Tile server selecionado:', tileConfig.url);
       
       const tileOptions = {
         attribution: tileConfig.attribution,
@@ -3159,11 +3422,11 @@ function getOverlayMostrado() {
       // Se usar servidor OpenStreetMap com {s}, adicionar subdomínios
       if (tileConfig.url.includes('{s}')) {
         tileOptions.subdomains = ['a', 'b', 'c'];
-        console.log('🗺️ [VIAGENS] Adicionando subdomínios para OpenStreetMap');
+        _log('🗺️ [VIAGENS] Adicionando subdomínios para OpenStreetMap');
       }
       
       L.tileLayer(tileConfig.url, tileOptions).addTo(mapa);
-      console.log('✅ [VIAGENS] TileLayer adicionado ao mapa');
+      _log('✅ [VIAGENS] TileLayer adicionado ao mapa');
       
       // Invalidar tamanho múltiplas vezes para garantir renderização correta
       // Aguardar um pouco para o container estar totalmente visível
@@ -3241,11 +3504,11 @@ function getOverlayMostrado() {
   function limparMapa() {
     if (!mapa || typeof L === 'undefined') return;
     
-    console.log('🗺️ [LIMPAR MAPA] Iniciando limpeza completa do mapa...');
+    _log('🗺️ [LIMPAR MAPA] Iniciando limpeza completa do mapa...');
     
     // Remover todos os marcadores dos pontos do roteiro
     if (marcadoresPontosRoteiro && marcadoresPontosRoteiro.length > 0) {
-      console.log(`🗺️ [LIMPAR MAPA] Removendo ${marcadoresPontosRoteiro.length} marcadores dos pontos do roteiro...`);
+      _log(`🗺️ [LIMPAR MAPA] Removendo ${marcadoresPontosRoteiro.length} marcadores dos pontos do roteiro...`);
       marcadoresPontosRoteiro.forEach((marcador, index) => {
         try {
           if (marcador && mapa.hasLayer(marcador)) {
@@ -3309,7 +3572,7 @@ function getOverlayMostrado() {
       });
       
       if (layersToRemove.length > 0) {
-        console.log(`🗺️ [LIMPAR MAPA] Removidas ${layersToRemove.length} camadas adicionais`);
+        _log(`🗺️ [LIMPAR MAPA] Removidas ${layersToRemove.length} camadas adicionais`);
       }
     } catch (e) {
       console.warn('🗺️ [LIMPAR MAPA] Erro ao limpar camadas:', e);
@@ -3322,7 +3585,7 @@ function getOverlayMostrado() {
       // Ignorar erro se o mapa não estiver inicializado
     }
     
-    console.log('✅ [LIMPAR MAPA] Limpeza completa finalizada');
+    _log('✅ [LIMPAR MAPA] Limpeza completa finalizada');
   }
 
   // Funções para controlar overlay de carregamento do mapa
@@ -3381,7 +3644,7 @@ function getOverlayMostrado() {
     const viagemId = document.getElementById('viagemId')?.value;
 
     // Log para debug - verificar quais valores estão sendo usados
-    console.log('[MAPA] Valores do formulário:', {
+    _log('[MAPA] Valores do formulário:', {
       viagemId: viagemId,
       origemCidadeId: origemCidadeId,
       destinoCidadeId: destinoCidadeId,
@@ -3478,7 +3741,7 @@ function getOverlayMostrado() {
               
                 // IMPORTANTE: Limpar marcadores anteriores antes de criar novos
                 if (marcadoresPontosRoteiro && marcadoresPontosRoteiro.length > 0) {
-                  console.log('🗺️ [ROTEIROS] Limpando marcadores anteriores dos pontos do roteiro...');
+                  _log('🗺️ [ROTEIROS] Limpando marcadores anteriores dos pontos do roteiro...');
                   marcadoresPontosRoteiro.forEach(m => {
                     try {
                       if (m && mapa.hasLayer(m)) {
@@ -3533,7 +3796,7 @@ function getOverlayMostrado() {
                 
                 // Debug: mostrar ajuste de tipo
                 if (tipoOriginal !== tipoLocal) {
-                  console.log(`Ponto ${index + 1}: Tipo ajustado de "${tipoOriginal}" para "${tipoLocal}"`);
+                  _log(`Ponto ${index + 1}: Tipo ajustado de "${tipoOriginal}" para "${tipoLocal}"`);
                 }
                 
                 const cor = cores[tipoLocal] || '#95a5a6';
@@ -3633,7 +3896,7 @@ function getOverlayMostrado() {
                     }
                     
                     if (normalized !== servidor) {
-                      console.log('🔄 [OSRM] Normalizando URL:', servidor, '→', normalized);
+                      _log('🔄 [OSRM] Normalizando URL:', servidor, '→', normalized);
                     }
                     return normalized;
                   }
@@ -3642,7 +3905,7 @@ function getOverlayMostrado() {
                 
                 // Se houver muitos pontos (mais de 5), calcular rota em segmentos para evitar timeout
                 if (latlngs.length > 5) {
-                  console.log('[MAPA] Muitos pontos detectados (' + latlngs.length + '), calculando rota em segmentos...');
+                  _log('[MAPA] Muitos pontos detectados (' + latlngs.length + '), calculando rota em segmentos...');
                   
                   // Função auxiliar para tentar obter rota de um segmento com retry
                   async function obterRotaSegmento(segmento, servidor, tentativa = 1) {
@@ -3657,7 +3920,7 @@ function getOverlayMostrado() {
                       servidorNormalizado = servidor.replace(/^https:/, 'http:');
                       servidorNormalizado = servidorNormalizado.replace(/https:\/\//, 'http://');
                       if (servidorNormalizado !== servidor) {
-                        console.log('🔄 [OSRM] Normalizando URL:', servidor, '→', servidorNormalizado);
+                        _log('🔄 [OSRM] Normalizando URL:', servidor, '→', servidorNormalizado);
                       }
                     }
                     
@@ -3684,7 +3947,7 @@ function getOverlayMostrado() {
                       const controller = new AbortController();
                       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos
                       
-                      console.log('🌐 [OSRM] Fazendo fetch para:', urlFinal.substring(0, 100) + '...');
+                      _log('🌐 [OSRM] Fazendo fetch para:', urlFinal.substring(0, 100) + '...');
                       const response = await fetchForcandoHTTP(urlFinal, { signal: controller.signal });
                       clearTimeout(timeoutId);
                       
@@ -3722,9 +3985,9 @@ function getOverlayMostrado() {
                       try {
                         const osrmServerOriginal = config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv';
                         const osrmServerPrincipal = normalizarOSRMUrl(osrmServerOriginal);
-                        console.log(`🔄 [OSRM] Segmento ${i + 1}: usando servidor`, osrmServerPrincipal);
+                        _log(`🔄 [OSRM] Segmento ${i + 1}: usando servidor`, osrmServerPrincipal);
                         segmentRoute = await obterRotaSegmento(segmento, osrmServerPrincipal);
-                        console.log(`[MAPA] Segmento ${i + 1}/${latlngs.length - 1} calculado com sucesso`);
+                        _log(`[MAPA] Segmento ${i + 1}/${latlngs.length - 1} calculado com sucesso`);
                       } catch (err) {
                         // Se falhar, tentar com servidor alternativo
                         console.warn(`[MAPA] Segmento ${i + 1} falhou no servidor principal, tentando alternativo...`);
@@ -3732,7 +3995,7 @@ function getOverlayMostrado() {
                           // Usar servidor público que está permitido no CSP
                           const osrmServerAlt = 'https://router.project-osrm.org/route/v1/driving-hgv';
                           segmentRoute = await obterRotaSegmento(segmento, osrmServerAlt);
-                          console.log(`[MAPA] Segmento ${i + 1}/${latlngs.length - 1} calculado com servidor alternativo`);
+                          _log(`[MAPA] Segmento ${i + 1}/${latlngs.length - 1} calculado com servidor alternativo`);
                         } catch (err2) {
                           console.warn(`[MAPA] Segmento ${i + 1} falhou em ambos servidores, usando linha reta`);
                           // Se ambos falharem, usar linha reta para esse segmento
@@ -3743,9 +4006,9 @@ function getOverlayMostrado() {
                       // Em localhost, usar diretamente o servidor público
                       try {
                         const osrmServerAlt = 'https://router.project-osrm.org/route/v1/driving-hgv';
-                        console.log(`🔄 [OSRM] Segmento ${i + 1}: usando servidor público (localhost)`, osrmServerAlt);
+                        _log(`🔄 [OSRM] Segmento ${i + 1}: usando servidor público (localhost)`, osrmServerAlt);
                         segmentRoute = await obterRotaSegmento(segmento, osrmServerAlt);
-                        console.log(`[MAPA] Segmento ${i + 1}/${latlngs.length - 1} calculado com sucesso`);
+                        _log(`[MAPA] Segmento ${i + 1}/${latlngs.length - 1} calculado com sucesso`);
                       } catch (err) {
                         console.warn(`[MAPA] Segmento ${i + 1} falhou, usando linha reta`);
                         segmentRoute = segmento;
@@ -3801,7 +4064,7 @@ function getOverlayMostrado() {
                   const controller = new AbortController();
                   const timeoutId = setTimeout(() => controller.abort(), config.routeTimeout || 30000);
                   
-                      console.log('🌐 [OSRM] Fazendo fetch para:', osrmUrl.substring(0, 100) + '...');
+                      _log('🌐 [OSRM] Fazendo fetch para:', osrmUrl.substring(0, 100) + '...');
                       const response = await fetchForcandoHTTP(osrmUrl, { signal: controller.signal });
                       clearTimeout(timeoutId);
                       
@@ -3954,7 +4217,7 @@ function getOverlayMostrado() {
               const origemCidadeObj = cidadesOrigem.find(c => c.CDCIDADE.toString() === origemCidadeId);
               const destinoCidadeObj = cidadesDestino.find(c => c.CDCIDADE.toString() === destinoCidadeId);
               
-              console.log('[MAPA] Buscando informações das cidades:', {
+              _log('[MAPA] Buscando informações das cidades:', {
                 origemCidadeId: origemCidadeId,
                 destinoCidadeId: destinoCidadeId,
                 origemCidadeObj: origemCidadeObj ? `${origemCidadeObj.NMCIDADE}/${origemEstado}` : 'NÃO ENCONTRADA',
@@ -3968,7 +4231,7 @@ function getOverlayMostrado() {
               // Extrair cidade real do destino (priorizar NMCIDADE, depois DSLOCAL)
               const cidadeDestino = destinoCidadeObj?.NMCIDADE || pontosComCoordenadas[pontosComCoordenadas.length - 1]?.DSLOCAL?.split(',')[0]?.trim() || pontosComCoordenadas[pontosComCoordenadas.length - 1]?.DSLOCAL || 'N/A';
               
-              console.log('[MAPA] Cidades extraídas para exibição:', {
+              _log('[MAPA] Cidades extraídas para exibição:', {
                 cidadeOrigem: cidadeOrigem,
                 cidadeDestino: cidadeDestino
               });
@@ -4031,7 +4294,7 @@ function getOverlayMostrado() {
       }
 
       // Log para debug - verificar quais cidades estão sendo buscadas
-      console.log('[MAPA] Buscando coordenadas para:', {
+      _log('[MAPA] Buscando coordenadas para:', {
         origem: `${origemCidade.NMCIDADE}, ${origemEstado}`,
         destino: `${destinoCidade.NMCIDADE}, ${destinoEstado}`
       });
@@ -4052,7 +4315,7 @@ function getOverlayMostrado() {
         return;
       }
       
-      console.log('[MAPA] ✅ Coordenadas obtidas:', {
+      _log('[MAPA] ✅ Coordenadas obtidas:', {
         origem: coordsOrigem,
         destino: coordsDestino
       });
@@ -4100,7 +4363,7 @@ function getOverlayMostrado() {
           'geojson'
         );
         
-        console.log('[MAPA] Tentando obter rota do OSRM (origem/destino):', osrmUrl.substring(0, 150) + '...');
+        _log('[MAPA] Tentando obter rota do OSRM (origem/destino):', osrmUrl.substring(0, 150) + '...');
         
         // Verificar se URL está correto antes de fazer fetch
         if (osrmUrl.includes('186.250.92.131') && osrmUrl.startsWith('https:')) {
@@ -4151,7 +4414,7 @@ function getOverlayMostrado() {
           rotaDataFinal = rotaData;
           linhaRota.bindPopup(`<strong>Distância da Rota:</strong> ${distanciaRota} km`);
           
-          console.log('[MAPA] ✅ Rota OSRM desenhada com sucesso (origem/destino)!');
+          _log('[MAPA] ✅ Rota OSRM desenhada com sucesso (origem/destino)!');
         } else {
           console.warn('[MAPA] ⚠️ OSRM retornou código:', rotaData.code, 'Mensagem:', rotaData.message);
           // Remover linha anterior se existir
@@ -4411,7 +4674,7 @@ function getOverlayMostrado() {
       const url = `${nominatimServer}/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`;
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'DivulgaCarga/1.0 (contact: sistema@divulgacarga.com.br)'
+          'User-Agent': 'AtlasCargo/2.0'
         }
       });
       
@@ -5039,7 +5302,12 @@ function getOverlayMostrado() {
       viagensPendentes.forEach(v => {
         const option = document.createElement('option');
         option.value = v.IDVIAGEM;
-        option.textContent = `ID ${v.IDVIAGEM} - ${v.ORIGEM_CIDADE}/${v.ORIGEM_ESTADO} → ${v.DESTINO_CIDADE}/${v.DESTINO_ESTADO} - ${v.DSCLASSEFROTA || 'Sem classe'}`;
+        const origCidade = (v.ORIGEM_CIDADE != null ? v.ORIGEM_CIDADE : v.origem_cidade) || 'N/A';
+        const origEstado = (v.ORIGEM_ESTADO != null ? v.ORIGEM_ESTADO : v.origem_estado) || 'N/A';
+        const destCidade = (v.DESTINO_CIDADE != null ? v.DESTINO_CIDADE : v.destino_cidade) || 'N/A';
+        const destEstado = (v.DESTINO_ESTADO != null ? v.DESTINO_ESTADO : v.destino_estado) || 'N/A';
+        const classe = (v.DSCLASSEFROTA != null ? v.DSCLASSEFROTA : v.dsclassefrota) || 'Sem classe';
+        option.textContent = `ID ${v.IDVIAGEM} - ${origCidade}/${origEstado} → ${destCidade}/${destEstado} - ${classe}`;
         select.appendChild(option);
       });
       
@@ -5086,7 +5354,11 @@ function getOverlayMostrado() {
               const viagem = await response.json();
               const option = document.createElement('option');
               option.value = idViagemStr;
-              option.textContent = `ID ${idViagemStr} - ${viagem.ORIGEM_CIDADE || 'N/A'}/${viagem.ORIGEM_ESTADO || 'N/A'} → ${viagem.DESTINO_CIDADE || 'N/A'}/${viagem.DESTINO_ESTADO || 'N/A'} - ${viagem.DSCLASSEFROTA || 'Sem classe'}`;
+              const oC = (viagem.ORIGEM_CIDADE != null ? viagem.ORIGEM_CIDADE : viagem.origem_cidade) || 'N/A';
+              const oE = (viagem.ORIGEM_ESTADO != null ? viagem.ORIGEM_ESTADO : viagem.origem_estado) || 'N/A';
+              const dC = (viagem.DESTINO_CIDADE != null ? viagem.DESTINO_CIDADE : viagem.destino_cidade) || 'N/A';
+              const dE = (viagem.DESTINO_ESTADO != null ? viagem.DESTINO_ESTADO : viagem.destino_estado) || 'N/A';
+              option.textContent = `ID ${idViagemStr} - ${oC}/${oE} → ${dC}/${dE} - ${viagem.DSCLASSEFROTA || viagem.dsclassefrota || 'Sem classe'}`;
               option.selected = true;
               // Inserir após a primeira opção (depois do "Selecione...")
               if (select.options.length > 0) {
@@ -5410,42 +5682,42 @@ function getOverlayMostrado() {
                 ? '<span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #28a745; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2); flex-shrink: 0;" title="Motorista acionado (já foi convocado)"></span>'
                 : '<span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #dc3545; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2); flex-shrink: 0;" title="Motorista não acionado (ainda não foi convocado)"></span>'}
               <div>
-                <strong>${motorista.NOME_MOTORISTA || 'N/A'}</strong><br>
-                <small style="color: #666;">Código: ${motorista.CDCADASTRO_MOTORISTA}${celularExibicao ? '  |  ' : ''}</small>
+                <strong>${(motorista.NOME_MOTORISTA != null ? motorista.NOME_MOTORISTA : motorista.nome_motorista) || '-'}</strong><br>
+                <small style="color: #666;">Código: ${(motorista.CDCADASTRO_MOTORISTA != null ? motorista.CDCADASTRO_MOTORISTA : motorista.cdcadastro_motorista) ?? '-'}${celularExibicao ? '  |  ' : ''}</small>
                 ${celularExibicao ? `
                   <small style="color: #666;">
-                    ${temWhatsAppMotorista ? `<a href="${linkWhatsAppMotorista}" target="_blank" style="color: #25D366; text-decoration: none;" title="Abrir WhatsApp">📱 ${celularExibicao}</a>` : celularExibicao}
+                    ${temWhatsAppMotorista ? `<a href="${linkWhatsAppMotorista}" target="_blank" style="color: #25D366; text-decoration: none;" title="Abrir WhatsApp"><i class="bx bx-logo-whatsapp" style="font-size: 1em; vertical-align: middle;"></i> ${celularExibicao}</a>` : celularExibicao}
                   </small>
                 ` : ''}
               </div>
             </div>
           </td>
           <td style="padding: 12px;">
-            ${motorista.CIDADE_NOME || 'N/A'}, ${motorista.CIDADE_ESTADO || 'N/A'}<br>
-            <small style="color: #666;">Micro-região: ${motorista.CDMICROREGIAO || 'N/A'}</small>
+            ${(motorista.CIDADE_NOME != null ? motorista.CIDADE_NOME : motorista.cidade_nome) || '-'}, ${(motorista.CIDADE_ESTADO != null ? motorista.CIDADE_ESTADO : motorista.cidade_estado) || '-'}<br>
+            <small style="color: #666;">Micro-região: ${(motorista.MICROREGIAO_NOME != null ? motorista.MICROREGIAO_NOME : motorista.microrregiao_nome) || (motorista.CDMICROREGIAO != null ? motorista.CDMICROREGIAO : motorista.cdmicroregiao) || 'Não informada'}</small>
           </td>
           <td style="padding: 12px;">
-            ${motorista.TRANSPORTADOR_NOME || 'N/A'}<br>
+            ${(motorista.TRANSPORTADOR_NOME != null ? motorista.TRANSPORTADOR_NOME : motorista.transportador_nome) || '-'}<br>
             <small style="color: #666;">
               ${motorista.CDTRANSPORTADOR ? 'Código: ' + motorista.CDTRANSPORTADOR : ''}
               ${celularTransportadorExibicao ? `
                 ${motorista.CDTRANSPORTADOR ? ' | ' : ''}
-                ${temWhatsAppTransportador ? `<a href="${linkWhatsAppTransportador}" target="_blank" style="color: #25D366; text-decoration: none;" title="Abrir WhatsApp do transportador">📱 ${celularTransportadorExibicao}</a>` : `📱 ${celularTransportadorExibicao}`}
+                ${temWhatsAppTransportador ? `<a href="${linkWhatsAppTransportador}" target="_blank" style="color: #25D366; text-decoration: none;" title="Abrir WhatsApp do transportador"><i class="bx bx-logo-whatsapp" style="font-size: 1em; vertical-align: middle;"></i> ${celularTransportadorExibicao}</a>` : `<i class="bx bx-logo-whatsapp" style="font-size: 1em; vertical-align: middle;"></i> ${celularTransportadorExibicao}`}
               ` : ''}
             </small>
           </td>
           <td style="padding: 12px;">
-            ${motorista.CLASSE_FROTA_NOME || 'N/A'}
+            ${(motorista.CLASSE_FROTA_NOME != null ? motorista.CLASSE_FROTA_NOME : motorista.classe_frota_nome) || '-'}
           </td>
           <td style="padding: 12px; text-align: center;">
             <span style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 14px;">
-              ${motorista.QTVIAGENS || 0}
+              ${(motorista.QTVIAGENS != null ? motorista.QTVIAGENS : motorista.qtviagens) ?? 0}
             </span>
           </td>
           <td style="padding: 12px; text-align: center;">
-            ${motorista.QTVIAGENS_NESTA_ROTA > 0 
+            ${((motorista.QTVIAGENS_NESTA_ROTA != null ? motorista.QTVIAGENS_NESTA_ROTA : motorista.qtviagens_nesta_rota) || 0) > 0 
               ? `<span style="display: inline-block; background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); color: white; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 14px; box-shadow: 0 2px 8px rgba(255,215,0,0.4);" title="Motorista experiente nesta rota!">
-                  ⭐ ${motorista.QTVIAGENS_NESTA_ROTA}
+                  ⭐ ${(motorista.QTVIAGENS_NESTA_ROTA != null ? motorista.QTVIAGENS_NESTA_ROTA : motorista.qtviagens_nesta_rota)}
                 </span>` 
               : `<span style="color: #999; font-size: 18px;" title="Nunca fez esta rota">-</span>`
             }
@@ -5525,96 +5797,46 @@ function getOverlayMostrado() {
         return;
       }
 
-    // Formatar datas
+    // Formatar datas (usa contexto locale/timezone)
     const formatarDataHora = (dataHora) => {
       if (!dataHora) return 'Não informado';
-      
-      // SQL Server retorna datas no formato ISO: 2025-11-21T10:39:24.123Z
-      // Quando o JavaScript cria new Date(), ele interpreta como UTC e converte para o fuso local
-      // Precisamos tratar a string diretamente para evitar conversão de fuso
-      
-      if (typeof dataHora === 'string') {
-        // Remover o Z se existir e tratar como data local
-        let dataStr = dataHora.replace('Z', '');
-        
-        // Se tem T, substituir por espaço
-        if (dataStr.includes('T')) {
-          dataStr = dataStr.replace('T', ' ');
-        }
-        
-        // Extrair partes da data: 2025-11-21 10:39:24.123
-        const match = dataStr.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
-        if (match) {
-          const [, year, month, day, hour, minute, second] = match;
-          // Formatar manualmente para pt-BR (sem conversão de fuso)
-          const diaStr = String(day).padStart(2, '0');
-          const mesStr = String(month).padStart(2, '0');
-          const anoStr = year;
-          const horaStr = String(hour).padStart(2, '0');
-          const minutoStr = String(minute).padStart(2, '0');
-          
-          return `${diaStr}/${mesStr}/${anoStr} ${horaStr}:${minutoStr}`;
-        }
-      }
-      
-      // Fallback: extrair componentes UTC e tratar como local (sem conversão de fuso)
-      try {
-        const date = new Date(dataHora);
-        if (isNaN(date.getTime())) return 'Data inválida';
-        
-        // Extrair componentes UTC e tratar como local (sem conversão de fuso)
-        const ano = date.getUTCFullYear();
-        const mes = date.getUTCMonth();
-        const dia = date.getUTCDate();
-        const hora = date.getUTCHours();
-        const minuto = date.getUTCMinutes();
-        
-        // Formatar manualmente para pt-BR
-        const diaStr = String(dia).padStart(2, '0');
-        const mesStr = String(mes + 1).padStart(2, '0');
-        const anoStr = ano;
-        const horaStr = String(hora).padStart(2, '0');
-        const minutoStr = String(minuto).padStart(2, '0');
-        
-        return `${diaStr}/${mesStr}/${anoStr} ${horaStr}:${minutoStr}`;
-      } catch (err) {
-        return 'Data inválida';
-      }
+      const s = fmtDataHora(dataHora);
+      return s === '-' ? 'Data inválida' : s;
     };
 
-      // Montar o anúncio com formatação atrativa e concisa
-      let anuncio = `🚚 *CARGA DISPONÍVEL*\n\n`;
+      // Montar o anúncio com formatação atrativa (sem emojis para evitar ? no WhatsApp)
+      let anuncio = `*CARGA DISPONÍVEL*\n\n`;
       
-      anuncio += `🆔 *ID:* ${viagemAtual.IDVIAGEM || 'N/A'}\n`;
-      anuncio += `📦 *Tipo:* ${viagemAtual.DSTIPOVIAGEM || viagemAtual.CDTIPOVIAGEM || 'Não informado'}\n`;
-      anuncio += `🚛 *Classe:* ${viagemAtual.DSCLASSEFROTA || viagemAtual.CDCLASSEFROTA || 'Não informado'}\n`;
-      anuncio += `🗺️ *Rota:* ${viagemAtual.DSROTEIRO ? `${viagemAtual.IDROTEIRO || ''} - ${viagemAtual.DSROTEIRO}` : (viagemAtual.IDROTEIRO ? `${viagemAtual.IDROTEIRO} - ` : '') + `${viagemAtual.ORIGEM_CIDADE || 'N/A'}/${viagemAtual.ORIGEM_ESTADO || 'N/A'} → ${viagemAtual.DESTINO_CIDADE || 'N/A'}/${viagemAtual.DESTINO_ESTADO || 'N/A'}`}\n\n`;
+      anuncio += `*ID:* ${viagemAtual.IDVIAGEM || 'N/A'}\n`;
+      anuncio += `*Tipo:* ${viagemAtual.DSTIPOVIAGEM || viagemAtual.CDTIPOVIAGEM || 'Não informado'}\n`;
+      anuncio += `*Classe:* ${viagemAtual.DSCLASSEFROTA || viagemAtual.CDCLASSEFROTA || 'Não informado'}\n`;
+      anuncio += `*Rota:* ${viagemAtual.DSROTEIRO ? `${viagemAtual.IDROTEIRO || ''} - ${viagemAtual.DSROTEIRO}` : (viagemAtual.IDROTEIRO ? `${viagemAtual.IDROTEIRO} - ` : '') + `${viagemAtual.ORIGEM_CIDADE || 'N/A'}/${viagemAtual.ORIGEM_ESTADO || 'N/A'} -> ${viagemAtual.DESTINO_CIDADE || 'N/A'}/${viagemAtual.DESTINO_ESTADO || 'N/A'}`}\n\n`;
       
-      anuncio += `⏰ *HORÁRIOS*\n`;
-      anuncio += `📅 *Carregamento:* ${formatarDataHora(viagemAtual.DTPREVINICIO)}\n`;
-      anuncio += `📅 *Descarga:* ${formatarDataHora(viagemAtual.DTPREVFINAL)}\n\n`;
+      anuncio += `*HORÁRIOS*\n`;
+      anuncio += `*Carregamento:* ${formatarDataHora(viagemAtual.DTPREVINICIO)}\n`;
+      anuncio += `*Descarga:* ${formatarDataHora(viagemAtual.DTPREVFINAL)}\n\n`;
       
       // Só mostrar requisitos se exigir rastreado
       if (viagemAtual.FGRASTREADO === 'S') {
-        anuncio += `✅ *REQUISITOS*\n`;
-        anuncio += `✅ *Exige Veículo Rastreado:* SIM\n\n`;
+        anuncio += `*REQUISITOS*\n`;
+        anuncio += `*Exige Veículo Rastreado:* SIM\n\n`;
       }
       
-      anuncio += `👤 *CONTRATADOR*\n`;
+      anuncio += `*CONTRATADOR*\n`;
       anuncio += `${viagemAtual.CONTRATADOR_NOME || viagemAtual.CDCONTRATADOR || 'Não informado'}\n\n`;
       
-      anuncio += `💰 *VALORES*\n`;
-      anuncio += `💵 *Frete:* R$ ${viagemAtual.VLFRETE ? parseFloat(viagemAtual.VLFRETE).toFixed(2).replace('.', ',') : '0,00'}\n`;
-      anuncio += `📊 *Peso:* ${viagemAtual.PESO ? parseFloat(viagemAtual.PESO).toFixed(3).replace('.', ',') : '0,000'} ton\n`;
-      anuncio += `📦 *Cubagem:* ${viagemAtual.CUBAGEM ? parseFloat(viagemAtual.CUBAGEM).toFixed(3).replace('.', ',') : '0,000'} m³\ \n`;
+      anuncio += `*VALORES*\n`;
+      anuncio += `*Frete:* R$ ${viagemAtual.VLFRETE ? parseFloat(viagemAtual.VLFRETE).toFixed(2).replace('.', ',') : '0,00'}\n`;
+      anuncio += `*Peso:* ${viagemAtual.PESO ? parseFloat(viagemAtual.PESO).toFixed(3).replace('.', ',') : '0,000'} ton\n`;
+      anuncio += `*Cubagem:* ${viagemAtual.CUBAGEM ? parseFloat(viagemAtual.CUBAGEM).toFixed(3).replace('.', ',') : '0,000'} m³\n`;
       
       if (viagemAtual.OBSERV) {
-        anuncio += `\n📝 *DETALHES DA VIAGEM*\n`;
+        anuncio += `\n*DETALHES DA VIAGEM*\n`;
         anuncio += `${viagemAtual.OBSERV}\n`;
       }
       
       // Adicionar nota sobre o link (será substituído pelo link real ao enviar)
-      anuncio += `\n\n🔗 *Acesse para responder:*\n`;
+      anuncio += `\n\n*Acesse para responder:*\n`;
       anuncio += `(Link único será adicionado automaticamente para cada motorista)`;
       
       anuncio = anuncio.trim();
@@ -5720,7 +5942,7 @@ function getOverlayMostrado() {
       let textoBase = preview.textContent;
       
       // Remover a nota sobre link do preview (se existir)
-      textoBase = textoBase.replace(/\n\n🔗 \*Acesse para responder:\*\n\(Link único será adicionado automaticamente para cada motorista\)/g, '').trim();
+      textoBase = textoBase.replace(/\n\n\*Acesse para responder:\*\n\(Link único será adicionado automaticamente para cada motorista\)/g, '').trim();
       
       // Preparar lista de motoristas para criar convocações
       // O backend já verifica duplicatas automaticamente
@@ -5840,10 +6062,10 @@ function getOverlayMostrado() {
         let textoComLink;
         if (isLocalIP) {
           // Para IPs locais, formatar o link de forma destacada para facilitar cópia
-          textoComLink = `${mensagemPersonalizada}\n\n🔗 *Acesse o link para mais detalhes:*\n\n${linkConvocacao}\n\n💡 *Importante:*\n• Links locais não são clicáveis no WhatsApp\n• Copie o link acima (toque e segure)\n• Cole no navegador do celular\n• Certifique-se de estar na mesma rede Wi-Fi`;
+          textoComLink = `${mensagemPersonalizada}\n\n*Acesse o link para mais detalhes:*\n\n${linkConvocacao}\n\n*Importante:*\n- Links locais não são clicáveis no WhatsApp\n- Copie o link acima (toque e segure)\n- Cole no navegador do celular\n- Certifique-se de estar na mesma rede Wi-Fi`;
         } else {
           // Para domínios públicos, link clicável
-          textoComLink = `${mensagemPersonalizada}\n\n🔗 *Acesse o link para mais detalhes:*\n\n${linkConvocacao}`;
+          textoComLink = `${mensagemPersonalizada}\n\n*Acesse o link para mais detalhes:*\n\n${linkConvocacao}`;
         }
         
         // Sempre atualizar convocação no banco com texto e link atualizados
@@ -5948,10 +6170,10 @@ function getOverlayMostrado() {
       <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #25D366; padding-bottom: 15px;">
           <h3 style="margin: 0; color: #25D366; display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 28px;">📱</span>
+            <i class="bx bx-logo-whatsapp" style="font-size: 28px;"></i>
             <span>Links do WhatsApp (${linksWhatsApp.length})</span>
           </h3>
-          <button type="button" id="btnFecharLinksWhatsApp" class="btn cancel" style="padding: 5px 15px;">✕</button>
+          <button type="button" id="btnFecharLinksWhatsApp" class="btn cancel" style="padding: 5px 15px;"><i class="bx bx-x" style="font-size: 1.25rem;"></i></button>
         </div>
         
         <div style="margin-bottom: 15px; padding: 15px; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); border: 2px solid #25D366; border-radius: 8px; position: relative;">
@@ -5963,10 +6185,10 @@ function getOverlayMostrado() {
             ?
           </button>
           <p style="margin: 0; color: #2e7d32; font-weight: 600; padding-right: 40px;">
-            ✅ Convocações criadas com sucesso! Escolha como deseja enviar:
+            <i class="bx bx-check-circle" style="vertical-align: middle;"></i> Convocações criadas com sucesso! Escolha como deseja enviar:
           </p>
           <p style="margin: 8px 0 0 0; color: #388e3c; font-size: 13px; padding-right: 40px;">
-            💡 <strong>Dica:</strong> Clique no <strong>?</strong> acima para ver o guia rápido
+            <i class="bx bx-bulb" style="vertical-align: middle;"></i> <strong>Dica:</strong> Clique no <strong>?</strong> acima para ver o guia rápido
           </p>
         </div>
         
@@ -5980,14 +6202,14 @@ function getOverlayMostrado() {
              onmouseout="this.style.background='#f5f5f5'; this.style.borderColor='#ddd';">
           <div style="flex: 1;">
             <div style="font-weight: 600; color: #2c3e50; margin-bottom: 5px;">${item.motorista}</div>
-            <div style="font-size: 13px; color: #666;">📱 ${item.celular}</div>
+            <div style="font-size: 13px; color: #666;"><i class="bx bx-logo-whatsapp" style="font-size: 1em; vertical-align: middle;"></i> ${item.celular}</div>
             <div style="font-size: 12px; color: #999; margin-top: 3px;">ID Convocação: ${item.idConvocacao}</div>
           </div>
           <a href="${item.link}" target="_blank" 
              style="padding: 10px 20px; background: #25D366; color: white; text-decoration: none; border-radius: 8px; font-weight: 600; white-space: nowrap; transition: all 0.3s;"
              onmouseover="this.style.background='#128C7E'; this.style.transform='scale(1.05)';"
              onmouseout="this.style.background='#25D366'; this.style.transform='scale(1)';">
-            📱 Abrir WhatsApp
+            <i class="bx bx-logo-whatsapp"></i> Abrir WhatsApp
           </a>
         </div>
       `;
@@ -6000,7 +6222,7 @@ function getOverlayMostrado() {
     if (semCelular > 0 || semConvocacao > 0) {
       html += `
         <div style="margin-top: 15px; padding: 10px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; font-size: 13px; color: #856404;">
-          <strong>⚠️ Atenção:</strong>
+          <strong><i class="bx bx-error-circle" style="vertical-align: middle;"></i> Atenção:</strong>
           ${semCelular > 0 ? `
             <div style="margin-top: 5px;">
               <strong>${semCelular} motorista(s) sem celular válido:</strong>
@@ -6062,20 +6284,20 @@ function getOverlayMostrado() {
       <div style="max-width: 800px; max-height: 90vh; overflow-y: auto; padding: 30px; background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; border-bottom: 3px solid #25D366; padding-bottom: 15px;">
           <h2 style="margin: 0; color: #25D366; display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 32px;">🚀</span>
+            <i class="bx bx-rocket" style="font-size: 32px;"></i>
             <span>Guia Rápido - Envio de Convocações</span>
           </h2>
           <button type="button" id="btnFecharGuia" 
                   style="background: #dc3545; color: white; border: none; border-radius: 50%; width: 35px; height: 35px; cursor: pointer; font-weight: 700; font-size: 18px; display: flex; align-items: center; justify-content: center;"
                   onmouseover="this.style.background='#c82333';"
                   onmouseout="this.style.background='#dc3545';">
-            ✕
+            <i class="bx bx-x" style="font-size: 1.25rem;"></i>
           </button>
         </div>
         
         <div style="margin-bottom: 25px;">
           <h3 style="color: #2c3e50; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 24px;">👤</span>
+            <i class="bx bx-user" style="font-size: 24px;"></i>
             <span>Envio Manual</span>
           </h3>
           <div style="padding: 20px; background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border-left: 4px solid #2196F3; border-radius: 8px; margin-bottom: 15px;">
@@ -6090,28 +6312,28 @@ function getOverlayMostrado() {
             <p style="margin: 0 0 10px 0; font-weight: 600;">Como fazer:</p>
             <ol style="margin: 0; padding-left: 20px; color: #495057;">
               <li>Crie as convocações normalmente</li>
-              <li>No modal de links, clique em <strong>"👤 Enviar Manualmente"</strong></li>
+              <li>No modal de links, clique em <strong>"<i class="bx bx-user" style="font-size:1em;"></i> Enviar Manualmente"</strong></li>
               <li>WhatsApp abre com mensagem pré-formatada</li>
               <li>Revise e clique em "Enviar"</li>
             </ol>
           </div>
           <div style="margin-top: 15px; padding: 12px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 8px;">
             <p style="margin: 0; color: #856404; font-size: 13px;">
-              <strong>✏️ Vantagens:</strong> Pode personalizar • Revisa cada mensagem • Zero custo • Controle total
+              <strong><i class="bx bx-edit-alt" style="vertical-align: middle;"></i> Vantagens:</strong> Pode personalizar • Revisa cada mensagem • Zero custo • Controle total
             </p>
           </div>
         </div>
         
         <div style="margin-bottom: 25px; padding: 20px; background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%); border-radius: 12px; border: 2px solid #9c27b0;">
           <h3 style="color: #7b1fa2; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 24px;">✅</span>
+            <i class="bx bx-check-circle" style="font-size: 24px;"></i>
             <span>Confirmar Convocação</span>
           </h3>
           <div style="padding: 15px; background: white; border-radius: 8px; margin-bottom: 15px;">
             <p style="margin: 0 0 10px 0; font-weight: 600;">Passo a passo:</p>
             <ol style="margin: 0; padding-left: 20px; color: #495057;">
               <li><strong>Motorista aceita:</strong> Status muda para "ACEITA"</li>
-              <li><strong>Você confirma:</strong> Aba "Convocações" → Botão "✅ Confirmar"</li>
+              <li><strong>Você confirma:</strong> Aba "Convocações" → Botão "<i class=\"bx bx-check-circle\"></i> Confirmar"</li>
               <li><strong>Escolha o método:</strong> Automático ou Manual</li>
               <li><strong>Pronto!</strong> Mensagem de confirmação enviada</li>
             </ol>
@@ -6120,7 +6342,7 @@ function getOverlayMostrado() {
         
         <div style="margin-top: 25px; padding: 15px; background: #e8f5e9; border-radius: 8px; border-left: 4px solid #4caf50;">
           <p style="margin: 0; color: #2e7d32; font-weight: 600; display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 20px;">💡</span>
+            <i class="bx bx-bulb" style="font-size: 20px;"></i>
             <span>Dica:</span>
           </p>
           <p style="margin: 8px 0 0 0; color: #388e3c; font-size: 14px;">
@@ -6179,12 +6401,13 @@ function getOverlayMostrado() {
       // Atualizar título e mensagem
       const modalTitle = modal.querySelector('h3');
       if (modalTitle) {
-        // Se o título contém emoji, manter HTML, senão apenas texto
-        if (title.includes('📱') || title.includes('📊')) {
+        // Se o título contém HTML (ícones Boxicons) ou WhatsApp, usar innerHTML
+        const isHtmlTitle = /<i class="bx /i.test(title) || title.includes('bx-logo-whatsapp') || title.includes('bx-stats') || title.includes('WhatsApp');
+        if (isHtmlTitle) {
           modalTitle.innerHTML = title;
-          modalTitle.style.color = '#25D366';
-          modalTitle.style.fontSize = '22px';
-          modalTitle.style.fontWeight = '600';
+          modalTitle.style.color = title.includes('WhatsApp') ? '#25D366' : '';
+          modalTitle.style.fontSize = title.includes('WhatsApp') ? '22px' : '';
+          modalTitle.style.fontWeight = title.includes('WhatsApp') ? '600' : '';
         } else {
           modalTitle.textContent = title;
           modalTitle.style.color = '';
@@ -6195,7 +6418,7 @@ function getOverlayMostrado() {
       modalMessage.innerHTML = message;
 
       // Ajustar estilo dos botões se for modal de WhatsApp
-      if (title.includes('WhatsApp') || title.includes('📱')) {
+      if (title.includes('WhatsApp') || title.includes('bx-logo-whatsapp')) {
         const btnYes = modal.querySelector('#confirmYes');
         if (btnYes) {
           btnYes.style.background = '#25D366';
@@ -6326,30 +6549,30 @@ function getOverlayMostrado() {
         }
       };
       
-      // Gerar texto base formatado
-      let textoBase = `🚚 *CARGA DISPONÍVEL*\n\n`;
-      textoBase += `🆔 *ID:* ${viagemAtual.IDVIAGEM || 'N/A'}\n`;
-      textoBase += `📦 *Tipo:* ${viagemAtual.DSTIPOVIAGEM || viagemAtual.CDTIPOVIAGEM || 'Não informado'}\n`;
-      textoBase += `🚛 *Classe:* ${viagemAtual.DSCLASSEFROTA || viagemAtual.CDCLASSEFROTA || 'Não informado'}\n`;
-      textoBase += `🗺️ *Rota:* ${viagemAtual.DSROTEIRO ? `${viagemAtual.IDROTEIRO || ''} - ${viagemAtual.DSROTEIRO}` : (viagemAtual.IDROTEIRO ? `${viagemAtual.IDROTEIRO} - ` : '') + `${viagemAtual.ORIGEM_CIDADE || 'N/A'}/${viagemAtual.ORIGEM_ESTADO || 'N/A'} → ${viagemAtual.DESTINO_CIDADE || 'N/A'}/${viagemAtual.DESTINO_ESTADO || 'N/A'}`}\n\n`;
-      textoBase += `⏰ *HORÁRIOS*\n`;
-      textoBase += `📅 *Carregamento:* ${formatarDataHora(viagemAtual.DTPREVINICIO)}\n`;
-      textoBase += `📅 *Descarga:* ${formatarDataHora(viagemAtual.DTPREVFINAL)}\n\n`;
+      // Gerar texto base formatado (sem emojis para evitar ? no WhatsApp)
+      let textoBase = `*CARGA DISPONÍVEL*\n\n`;
+      textoBase += `*ID:* ${viagemAtual.IDVIAGEM || 'N/A'}\n`;
+      textoBase += `*Tipo:* ${viagemAtual.DSTIPOVIAGEM || viagemAtual.CDTIPOVIAGEM || 'Não informado'}\n`;
+      textoBase += `*Classe:* ${viagemAtual.DSCLASSEFROTA || viagemAtual.CDCLASSEFROTA || 'Não informado'}\n`;
+      textoBase += `*Rota:* ${viagemAtual.DSROTEIRO ? `${viagemAtual.IDROTEIRO || ''} - ${viagemAtual.DSROTEIRO}` : (viagemAtual.IDROTEIRO ? `${viagemAtual.IDROTEIRO} - ` : '') + `${viagemAtual.ORIGEM_CIDADE || 'N/A'}/${viagemAtual.ORIGEM_ESTADO || 'N/A'} -> ${viagemAtual.DESTINO_CIDADE || 'N/A'}/${viagemAtual.DESTINO_ESTADO || 'N/A'}`}\n\n`;
+      textoBase += `*HORÁRIOS*\n`;
+      textoBase += `*Carregamento:* ${formatarDataHora(viagemAtual.DTPREVINICIO)}\n`;
+      textoBase += `*Descarga:* ${formatarDataHora(viagemAtual.DTPREVFINAL)}\n\n`;
       
       if (viagemAtual.FGRASTREADO === 'S') {
-        textoBase += `✅ *REQUISITOS*\n`;
-        textoBase += `✅ *Exige Veículo Rastreado:* SIM\n\n`;
+        textoBase += `*REQUISITOS*\n`;
+        textoBase += `*Exige Veículo Rastreado:* SIM\n\n`;
       }
       
-      textoBase += `👤 *CONTRATADOR*\n`;
+      textoBase += `*CONTRATADOR*\n`;
       textoBase += `${viagemAtual.CONTRATADOR_NOME || viagemAtual.CDCONTRATADOR || 'Não informado'}\n\n`;
-      textoBase += `💰 *VALORES*\n`;
-      textoBase += `💵 *Frete:* R$ ${viagemAtual.VLFRETE ? parseFloat(viagemAtual.VLFRETE).toFixed(2).replace('.', ',') : '0,00'}\n`;
-      textoBase += `📊 *Peso:* ${viagemAtual.PESO ? parseFloat(viagemAtual.PESO).toFixed(3).replace('.', ',') : '0,000'} ton\n`;
-      textoBase += `📦 *Cubagem:* ${viagemAtual.CUBAGEM ? parseFloat(viagemAtual.CUBAGEM).toFixed(3).replace('.', ',') : '0,000'} m³\ \n`;
+      textoBase += `*VALORES*\n`;
+      textoBase += `*Frete:* R$ ${viagemAtual.VLFRETE ? parseFloat(viagemAtual.VLFRETE).toFixed(2).replace('.', ',') : '0,00'}\n`;
+      textoBase += `*Peso:* ${viagemAtual.PESO ? parseFloat(viagemAtual.PESO).toFixed(3).replace('.', ',') : '0,000'} ton\n`;
+      textoBase += `*Cubagem:* ${viagemAtual.CUBAGEM ? parseFloat(viagemAtual.CUBAGEM).toFixed(3).replace('.', ',') : '0,000'} m³\n`;
       
       if (viagemAtual.OBSERV) {
-        textoBase += `\n📝 *DETALHES DA VIAGEM*\n`;
+        textoBase += `\n*DETALHES DA VIAGEM*\n`;
         textoBase += `${viagemAtual.OBSERV}\n`;
       }
       
@@ -6436,10 +6659,10 @@ function getOverlayMostrado() {
         let textoComLink;
         if (isLocalIP) {
           // Para IPs locais, formatar o link de forma destacada para facilitar cópia
-          textoComLink = `${mensagemPersonalizada}\n\n🔗 *Acesse o link para mais detalhes:*\n\n${linkConvocacao}\n\n💡 *Importante:*\n• Links locais não são clicáveis no WhatsApp\n• Copie o link acima (toque e segure)\n• Cole no navegador do celular\n• Certifique-se de estar na mesma rede Wi-Fi`;
+          textoComLink = `${mensagemPersonalizada}\n\n*Acesse o link para mais detalhes:*\n\n${linkConvocacao}\n\n*Importante:*\n- Links locais não são clicáveis no WhatsApp\n- Copie o link acima (toque e segure)\n- Cole no navegador do celular\n- Certifique-se de estar na mesma rede Wi-Fi`;
         } else {
           // Para domínios públicos, link clicável
-          textoComLink = `${mensagemPersonalizada}\n\n🔗 *Acesse o link para mais detalhes:*\n\n${linkConvocacao}`;
+          textoComLink = `${mensagemPersonalizada}\n\n*Acesse o link para mais detalhes:*\n\n${linkConvocacao}`;
         }
         
         // Formatar rota (exatamente como no textoBase linha 3999)
@@ -6494,7 +6717,7 @@ function getOverlayMostrado() {
           continue;
         }
         
-        console.log(`[DISPARAR] Atualizando convocação ${idConvocacao} com dados:`, {
+        _log(`[DISPARAR] Atualizando convocação ${idConvocacao} com dados:`, {
           NRCELULAR: dadosAtualizacao.NRCELULAR || 'não informado',
           TXTCONVOCACAO: dadosAtualizacao.TXTCONVOCACAO ? `${dadosAtualizacao.TXTCONVOCACAO.substring(0, 50)}...` : 'vazio',
           LINKCONVOCACAO: dadosAtualizacao.LINKCONVOCACAO || 'vazio'
@@ -6515,7 +6738,7 @@ function getOverlayMostrado() {
               atualizacoesErro++;
               return { success: false, id: idConvocacao, error: responseData };
             }
-            console.log(`[DISPARAR] Convocação ${idConvocacao} atualizada com sucesso. Linhas afetadas:`, responseData.rowsAffected);
+            _log(`[DISPARAR] Convocação ${idConvocacao} atualizada com sucesso. Linhas afetadas:`, responseData.rowsAffected);
             atualizacoesSucesso++;
             return { success: true, id: idConvocacao, response: responseData };
           }).catch(err => {
@@ -6533,7 +6756,7 @@ function getOverlayMostrado() {
       const sucessos = resultados.filter(r => r.status === 'fulfilled' && r.value && r.value.success).length;
       const erros = resultados.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && r.value && !r.value.success)).length;
       
-      console.log(`[DISPARAR] Resultado das atualizações: ${sucessos} sucesso(s), ${erros} erro(s) de ${atualizacoesPromises.length} total`);
+      _log(`[DISPARAR] Resultado das atualizações: ${sucessos} sucesso(s), ${erros} erro(s) de ${atualizacoesPromises.length} total`);
       
       // Preparar dados para envio ao webhook (reutilizar dados já gerados)
       // Primeiro, buscar convocações do banco para verificar DHENVIOMETA
@@ -6578,15 +6801,15 @@ function getOverlayMostrado() {
             const timestampEnvio = new Date().toISOString();
             
             // Log detalhado de envio (F12)
-            console.log('========================================');
-            console.log(`[WEBHOOK ENVIO] 📤 [${i + 1}/${convocacoesParaEnviar.length}] ENVIANDO CONVOCAÇÃO`);
-            console.log(`[WEBHOOK ENVIO] Timestamp: ${timestampEnvio}`);
-            console.log(`[WEBHOOK ENVIO] ID Convocação: ${dadosParaWebhook.IDCONVOCACAO}`);
-            console.log(`[WEBHOOK ENVIO] URL: https://ia.riochat.com.br/webhook/aviso-rota-integra`);
-            console.log(`[WEBHOOK ENVIO] Método: POST`);
-            console.log(`[WEBHOOK ENVIO] Headers:`, { 'Content-Type': 'application/json' });
-            console.log(`[WEBHOOK ENVIO] Body completo:`, JSON.stringify(dadosParaWebhook, null, 2));
-            console.log('========================================');
+            _log('========================================');
+            _log(`[WEBHOOK ENVIO] 📤 [${i + 1}/${convocacoesParaEnviar.length}] ENVIANDO CONVOCAÇÃO`);
+            _log(`[WEBHOOK ENVIO] Timestamp: ${timestampEnvio}`);
+            _log(`[WEBHOOK ENVIO] ID Convocação: ${dadosParaWebhook.IDCONVOCACAO}`);
+            _log(`[WEBHOOK ENVIO] URL: https://ia.riochat.com.br/webhook/aviso-rota-integra`);
+            _log(`[WEBHOOK ENVIO] Método: POST`);
+            _log(`[WEBHOOK ENVIO] Headers:`, { 'Content-Type': 'application/json' });
+            _log(`[WEBHOOK ENVIO] Body completo:`, JSON.stringify(dadosParaWebhook, null, 2));
+            _log('========================================');
             
             // Adicionar log de envio na aba e salvar no banco (gera log no terminal também)
             if (typeof window.adicionarLogMeta === 'function') {
@@ -6631,18 +6854,18 @@ function getOverlayMostrado() {
             }
             
             // Log detalhado de resposta (F12)
-            console.log(`[WEBHOOK RESPOSTA] 📥 [${i + 1}/${convocacoesParaEnviar.length}] RESPOSTA RECEBIDA`);
-            console.log(`[WEBHOOK RESPOSTA] Timestamp: ${timestampResposta}`);
-            console.log(`[WEBHOOK RESPOSTA] ID Convocação: ${dadosParaWebhook.IDCONVOCACAO}`);
-            console.log(`[WEBHOOK RESPOSTA] Status: ${webhookResponse.status} ${webhookResponse.statusText}`);
-            console.log(`[WEBHOOK RESPOSTA] Tempo de resposta: ${tempoResposta}ms`);
-            console.log(`[WEBHOOK RESPOSTA] Headers:`, JSON.stringify(responseHeaders, null, 2));
+            _log(`[WEBHOOK RESPOSTA] 📥 [${i + 1}/${convocacoesParaEnviar.length}] RESPOSTA RECEBIDA`);
+            _log(`[WEBHOOK RESPOSTA] Timestamp: ${timestampResposta}`);
+            _log(`[WEBHOOK RESPOSTA] ID Convocação: ${dadosParaWebhook.IDCONVOCACAO}`);
+            _log(`[WEBHOOK RESPOSTA] Status: ${webhookResponse.status} ${webhookResponse.statusText}`);
+            _log(`[WEBHOOK RESPOSTA] Tempo de resposta: ${tempoResposta}ms`);
+            _log(`[WEBHOOK RESPOSTA] Headers:`, JSON.stringify(responseHeaders, null, 2));
             if (contentType && contentType.includes('application/json')) {
-              console.log(`[WEBHOOK RESPOSTA] Body (JSON):`, JSON.stringify(responseBody, null, 2));
+              _log(`[WEBHOOK RESPOSTA] Body (JSON):`, JSON.stringify(responseBody, null, 2));
             } else {
-              console.log(`[WEBHOOK RESPOSTA] Body (Texto):`, responseBody);
+              _log(`[WEBHOOK RESPOSTA] Body (Texto):`, responseBody);
             }
-            console.log('');
+            _log('');
             
             // Adicionar log de resposta na aba e salvar no banco (gera log no terminal também)
             if (typeof window.adicionarLogMeta === 'function') {
@@ -6852,7 +7075,7 @@ function getOverlayMostrado() {
       // Não há viagem selecionada - mostrar mensagem
       container.innerHTML = `
         <div style="color: #856404; text-align: center; padding: 40px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px;">
-          <div style="font-size: 48px; margin-bottom: 15px;">⚠️</div>
+          <div style="font-size: 48px; margin-bottom: 15px;"><i class="bx bx-error-circle" style="color: #856404;"></i></div>
           <h3 style="color: #856404; margin-bottom: 10px;">Nenhuma viagem selecionada</h3>
           <p style="color: #856404; margin: 0;">
             Selecione uma viagem na aba <strong>Dados</strong> ou <strong>Grid</strong> para visualizar os logs de integração Meta.
@@ -6895,24 +7118,19 @@ function getOverlayMostrado() {
     const gerarHtmlLog = (log) => {
       let dataHora = 'Data inválida';
       try {
-        if (log.timestamp) {
-          const date = new Date(log.timestamp);
-          if (!isNaN(date.getTime())) {
-            dataHora = date.toLocaleString('pt-BR');
-          }
-        }
+        if (log.timestamp) dataHora = fmtDataHora(log.timestamp);
       } catch (e) {
         // Ignorar erro ao formatar data
       }
       
-      const tipoIcon = log.tipo === 'envio' ? '📤' : log.tipo === 'resposta' ? '📥' : log.tipo === 'callback' || log.tipo === 'retorno' ? '🔄' : log.tipo === 'sucesso' ? '✅' : log.tipo === 'erro' ? '❌' : 'ℹ️';
+      const tipoIcon = log.tipo === 'envio' ? '<i class="bx bx-send" style="font-size:16px;"></i>' : log.tipo === 'resposta' ? '<i class="bx bx-down-arrow-circle" style="font-size:16px;"></i>' : log.tipo === 'callback' || log.tipo === 'retorno' ? '<i class="bx bx-refresh" style="font-size:16px;"></i>' : log.tipo === 'sucesso' ? '<i class="bx bx-check-circle" style="font-size:16px;"></i>' : log.tipo === 'erro' ? '<i class="bx bx-x-circle" style="font-size:16px;"></i>' : '<i class="bx bx-info-circle" style="font-size:16px;"></i>';
       const tipoCor = log.tipo === 'envio' ? '#007bff' : log.tipo === 'resposta' ? '#17a2b8' : log.tipo === 'callback' || log.tipo === 'retorno' ? '#ff9800' : log.tipo === 'sucesso' ? '#28a745' : log.tipo === 'erro' ? '#dc3545' : '#6c757d';
       
       return `
         <div style="border-left: 4px solid ${tipoCor}; padding: 12px; margin-bottom: 10px; background: #f8f9fa; border-radius: 4px; display: block; visibility: visible; min-height: 60px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 16px; display: inline-block;">${tipoIcon}</span>
+              <span style="display: inline-block; vertical-align: middle;">${tipoIcon}</span>
               <strong style="color: ${tipoCor}; display: inline-block; font-size: 12px;">${log.titulo || log.tipo}</strong>
             </div>
             <span style="color: #6c757d; font-size: 10px; display: inline-block;">${dataHora}</span>
@@ -6946,7 +7164,7 @@ function getOverlayMostrado() {
       <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; width: 100%;">
         <div style="display: flex; flex-direction: column;">
           <div style="background: #007bff; color: white; padding: 10px; text-align: center; font-weight: bold; border-radius: 4px 4px 0 0; margin-bottom: 10px;">
-            📤 Envios (${logsEnvios.length})
+            <i class="bx bx-send" style="font-size:1rem; vertical-align: middle;"></i> Envios (${logsEnvios.length})
           </div>
           <div style="flex: 1; overflow-y: auto; max-height: 500px;">
             ${htmlColuna1}
@@ -6954,7 +7172,7 @@ function getOverlayMostrado() {
         </div>
         <div style="display: flex; flex-direction: column;">
           <div style="background: #17a2b8; color: white; padding: 10px; text-align: center; font-weight: bold; border-radius: 4px 4px 0 0; margin-bottom: 10px;">
-            📥 Retornos (${logsRespostas.length})
+            <i class="bx bx-down-arrow-circle" style="font-size:1rem; vertical-align: middle;"></i> Retornos (${logsRespostas.length})
           </div>
           <div style="flex: 1; overflow-y: auto; max-height: 500px;">
             ${htmlColuna2}
@@ -6962,7 +7180,7 @@ function getOverlayMostrado() {
         </div>
         <div style="display: flex; flex-direction: column;">
           <div style="background: #ff9800; color: white; padding: 10px; text-align: center; font-weight: bold; border-radius: 4px 4px 0 0; margin-bottom: 10px;">
-            🔄 Callbacks (${logsCallbacks.length})
+            <i class="bx bx-refresh" style="font-size:1rem; vertical-align: middle;"></i> Callbacks (${logsCallbacks.length})
           </div>
           <div style="flex: 1; overflow-y: auto; max-height: 500px;">
             ${htmlColuna3}
@@ -6995,7 +7213,7 @@ function getOverlayMostrado() {
       try {
         const date = new Date(logsIntegracaoMeta[0].timestamp);
         if (!isNaN(date.getTime())) {
-          ultimaAtualizacao = date.toLocaleString('pt-BR');
+          ultimaAtualizacao = fmtDataHora(date);
         }
       } catch (e) {
         // Ignorar erro ao formatar data
@@ -7065,7 +7283,7 @@ function getOverlayMostrado() {
         if (container) {
           container.innerHTML = `
             <div style="color: #856404; text-align: center; padding: 40px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px;">
-              <div style="font-size: 48px; margin-bottom: 15px;">⚠️</div>
+              <div style="font-size: 48px; margin-bottom: 15px;"><i class="bx bx-error-circle" style="color: #856404;"></i></div>
               <h3 style="color: #856404; margin-bottom: 10px;">Nenhuma viagem selecionada</h3>
               <p style="color: #856404; margin: 0;">
                 Selecione uma viagem na aba <strong>Dados</strong> ou <strong>Grid</strong> para visualizar os logs de integração Meta.
@@ -7335,7 +7553,7 @@ function getOverlayMostrado() {
         <!-- Introdução -->
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 25px; border-radius: 12px; margin-bottom: 30px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);">
           <h3 style="margin: 0 0 15px 0; font-size: 24px; display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 32px;">📖</span>
+            <i class="bx bx-book-open" style="font-size: 32px;"></i>
             <span>Guia Completo: Envio de Convocações</span>
           </h3>
           <p style="margin: 0; font-size: 16px; line-height: 1.6; opacity: 0.95;">
@@ -7355,7 +7573,7 @@ function getOverlayMostrado() {
           </div>
           
           <div style="background: #f0f9f4; border-left: 4px solid #25D366; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
-            <p style="margin: 0; color: #2e7d32; font-weight: 600;">✅ <strong>Vantagens:</strong></p>
+            <p style="margin: 0; color: #2e7d32; font-weight: 600;"><i class="bx bx-check-circle" style="vertical-align: middle;"></i> <strong>Vantagens:</strong></p>
             <ul style="margin: 10px 0 0 20px; color: #333; line-height: 1.8;">
               <li>Você <strong>revisa cada mensagem</strong> antes de enviar</li>
               <li>Pode personalizar a mensagem antes de enviar</li>
@@ -7366,14 +7584,14 @@ function getOverlayMostrado() {
           </div>
           
           <div style="background: #e3f2fd; border-left: 4px solid #2196F3; padding: 15px; margin-bottom: 20px; border-radius: 4px;">
-            <p style="margin: 0 0 10px 0; color: #1565C0; font-weight: 600;">📋 <strong>Envio Manual:</strong></p>
+            <p style="margin: 0 0 10px 0; color: #1565C0; font-weight: 600;"><i class="bx bx-list-ul" style="vertical-align: middle;"></i> <strong>Envio Manual:</strong></p>
             <p style="margin: 0; color: #666; line-height: 1.6;">
-              Para envio manual, clique no botão <strong>"📱 Abrir WhatsApp"</strong> de cada motorista na lista para abrir e enviar cada mensagem individualmente.
+              Para envio manual, clique no botão <strong>"<i class="bx bx-logo-whatsapp" style="font-size: 1em;"></i> Abrir WhatsApp"</strong> de cada motorista na lista para abrir e enviar cada mensagem individualmente.
             </p>
           </div>
           
           <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; border-radius: 4px;">
-            <p style="margin: 0 0 10px 0; color: #856404; font-weight: 600;">💡 <strong>Dica:</strong></p>
+            <p style="margin: 0 0 10px 0; color: #856404; font-weight: 600;"><i class="bx bx-bulb" style="vertical-align: middle;"></i> <strong>Dica:</strong></p>
             <p style="margin: 0; color: #333; line-height: 1.6;">
               O método manual oferece <strong>controle total</strong> sobre cada mensagem, permitindo revisar e personalizar antes de enviar.
             </p>
@@ -7383,10 +7601,10 @@ function getOverlayMostrado() {
 
         <!-- Conclusão -->
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 25px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);">
-          <h3 style="margin: 0 0 15px 0; font-size: 22px;">✨ Pronto para começar!</h3>
+          <h3 style="margin: 0 0 15px 0; font-size: 22px;"><i class="bx bx-check-double" style="vertical-align: middle;"></i> Pronto para começar!</h3>
           <p style="margin: 0; font-size: 16px; line-height: 1.6; opacity: 0.95;">
             Agora você conhece como enviar convocações via WhatsApp Web. 
-            Comece a enviar convocações de forma eficiente! 🚀
+            Comece a enviar convocações de forma eficiente! <i class="bx bx-rocket" style="vertical-align: middle;"></i>
           </p>
         </div>
       </div>
@@ -7497,34 +7715,34 @@ function getOverlayMostrado() {
         // Gerar texto base do anúncio (mesmo formato do prepararAnuncioCarga)
         let textoBase = '';
         if (viagemData) {
-          textoBase = `🚚 *CARGA DISPONÍVEL*\n\n`;
-          textoBase += `🆔 *ID:* ${viagemData.IDVIAGEM || 'N/A'}\n`;
-          textoBase += `📦 *Tipo:* ${viagemData.DSTIPOVIAGEM || viagemData.CDTIPOVIAGEM || 'Não informado'}\n`;
-          textoBase += `🚛 *Classe:* ${viagemData.DSCLASSEFROTA || viagemData.CDCLASSEFROTA || 'Não informado'}\n`;
-          textoBase += `🗺️ *Rota:* ${viagemData.DSROTEIRO ? `${viagemData.IDROTEIRO || ''} - ${viagemData.DSROTEIRO}` : (viagemData.IDROTEIRO ? `${viagemData.IDROTEIRO} - ` : '') + `${viagemData.ORIGEM_CIDADE || 'N/A'}/${viagemData.ORIGEM_ESTADO || 'N/A'} → ${viagemData.DESTINO_CIDADE || 'N/A'}/${viagemData.DESTINO_ESTADO || 'N/A'}`}\n\n`;
-          textoBase += `⏰ *HORÁRIOS*\n`;
-          textoBase += `📅 *Carregamento:* ${formatarDataHora(viagemData.DTPREVINICIO)}\n`;
-          textoBase += `📅 *Descarga:* ${formatarDataHora(viagemData.DTPREVFINAL)}\n\n`;
+          textoBase = `*CARGA DISPONÍVEL*\n\n`;
+          textoBase += `*ID:* ${viagemData.IDVIAGEM || 'N/A'}\n`;
+          textoBase += `*Tipo:* ${viagemData.DSTIPOVIAGEM || viagemData.CDTIPOVIAGEM || 'Não informado'}\n`;
+          textoBase += `*Classe:* ${viagemData.DSCLASSEFROTA || viagemData.CDCLASSEFROTA || 'Não informado'}\n`;
+          textoBase += `*Rota:* ${viagemData.DSROTEIRO ? `${viagemData.IDROTEIRO || ''} - ${viagemData.DSROTEIRO}` : (viagemData.IDROTEIRO ? `${viagemData.IDROTEIRO} - ` : '') + `${viagemData.ORIGEM_CIDADE || 'N/A'}/${viagemData.ORIGEM_ESTADO || 'N/A'} -> ${viagemData.DESTINO_CIDADE || 'N/A'}/${viagemData.DESTINO_ESTADO || 'N/A'}`}\n\n`;
+          textoBase += `*HORÁRIOS*\n`;
+          textoBase += `*Carregamento:* ${formatarDataHora(viagemData.DTPREVINICIO)}\n`;
+          textoBase += `*Descarga:* ${formatarDataHora(viagemData.DTPREVFINAL)}\n\n`;
           if (viagemData.FGRASTREADO === 'S') {
-            textoBase += `✅ *REQUISITOS*\n`;
-            textoBase += `✅ *Exige Veículo Rastreado:* SIM\n\n`;
+            textoBase += `*REQUISITOS*\n`;
+            textoBase += `*Exige Veículo Rastreado:* SIM\n\n`;
           }
-          textoBase += `👤 *CONTRATADOR*\n`;
+          textoBase += `*CONTRATADOR*\n`;
           textoBase += `${viagemData.CONTRATADOR_NOME || viagemData.CDCONTRATADOR || 'Não informado'}\n\n`;
-          textoBase += `💰 *VALORES*\n`;
-          textoBase += `💵 *Frete:* R$ ${viagemData.VLFRETE ? parseFloat(viagemData.VLFRETE).toFixed(2).replace('.', ',') : '0,00'}\n`;
-          textoBase += `📊 *Peso:* ${viagemData.PESO ? parseFloat(viagemData.PESO).toFixed(3).replace('.', ',') : '0,000'} ton\n`;
-          textoBase += `📦 *Cubagem:* ${viagemData.CUBAGEM ? parseFloat(viagemData.CUBAGEM).toFixed(3).replace('.', ',') : '0,000'} m³\ \n`;
+          textoBase += `*VALORES*\n`;
+          textoBase += `*Frete:* R$ ${viagemData.VLFRETE ? parseFloat(viagemData.VLFRETE).toFixed(2).replace('.', ',') : '0,00'}\n`;
+          textoBase += `*Peso:* ${viagemData.PESO ? parseFloat(viagemData.PESO).toFixed(3).replace('.', ',') : '0,000'} ton\n`;
+          textoBase += `*Cubagem:* ${viagemData.CUBAGEM ? parseFloat(viagemData.CUBAGEM).toFixed(3).replace('.', ',') : '0,000'} m³\n`;
           if (viagemData.OBSERV) {
-            textoBase += `\n📝 *DETALHES DA VIAGEM*\n`;
+            textoBase += `\n*DETALHES DA VIAGEM*\n`;
             textoBase += `${viagemData.OBSERV}\n`;
           }
         } else {
           // Fallback se não conseguir buscar dados da viagem
-          textoBase = `🚚 *CARGA DISPONÍVEL*\n\n`;
-          textoBase += `🆔 *ID:* ${conv.IDVIAGEM || 'N/A'}\n`;
-          textoBase += `🚛 *Classe:* ${conv.DSCLASSEFROTA || 'N/A'}\n`;
-          textoBase += `🗺️ *Rota:* ${conv.ORIGEM_CIDADE || 'N/A'}/${conv.ORIGEM_ESTADO || 'N/A'} → ${conv.DESTINO_CIDADE || 'N/A'}/${conv.DESTINO_ESTADO || 'N/A'}\n\n`;
+          textoBase = `*CARGA DISPONÍVEL*\n\n`;
+          textoBase += `*ID:* ${conv.IDVIAGEM || 'N/A'}\n`;
+          textoBase += `*Classe:* ${conv.DSCLASSEFROTA || 'N/A'}\n`;
+          textoBase += `*Rota:* ${conv.ORIGEM_CIDADE || 'N/A'}/${conv.ORIGEM_ESTADO || 'N/A'} -> ${conv.DESTINO_CIDADE || 'N/A'}/${conv.DESTINO_ESTADO || 'N/A'}\n\n`;
         }
 
         // Personalizar mensagem para cada motorista
@@ -7535,10 +7753,10 @@ function getOverlayMostrado() {
         let textoComLink;
         
         if (isLocalIP) {
-          textoComLink = `${mensagemPersonalizada}\n\n🔗 *Acesse o link para mais detalhes:*\n\n${linkConvocacao}\n\n💡 *Importante:*\n• Links locais não são clicáveis no WhatsApp\n• Copie o link acima (toque e segure)\n• Cole no navegador do celular\n• Certifique-se de estar na mesma rede Wi-Fi`;
+          textoComLink = `${mensagemPersonalizada}\n\n*Acesse o link para mais detalhes:*\n\n${linkConvocacao}\n\n*Importante:*\n- Links locais não são clicáveis no WhatsApp\n- Copie o link acima (toque e segure)\n- Cole no navegador do celular\n- Certifique-se de estar na mesma rede Wi-Fi`;
         } else {
           // Para domínios públicos, link clicável
-          textoComLink = `${mensagemPersonalizada}\n\n🔗 *Acesse o link para mais detalhes:*\n\n${linkConvocacao}`;
+          textoComLink = `${mensagemPersonalizada}\n\n*Acesse o link para mais detalhes:*\n\n${linkConvocacao}`;
         }
 
         const linkWhatsApp = `https://wa.me/${numeroLimpo}?text=${encodeURIComponent(textoComLink)}`;
@@ -7677,7 +7895,7 @@ function getOverlayMostrado() {
     const countEl = document.getElementById('convocacoesGridCountText');
     if (countEl) {
       const count = convocacoes.length || 0;
-      countEl.textContent = `${count} registro(s) encontrado(s)`;
+      countEl.textContent = count + ' ' + (t('web.modulos.viagens.registrosEncontrados').replace(/^0\s*/, ''));
     }
     
     // Mostrar/ocultar botão "Ver Links WhatsApp"
@@ -7711,23 +7929,23 @@ function getOverlayMostrado() {
       <div id="legendaGrid" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 15px; align-items: center;">
         <div style="font-weight: 600; color: #495057; margin-right: 10px;">Legenda:</div>
         <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 18px;">🔗</span>
+          <i class="bx bx-link-alt" style="font-size: 1.25rem; color: #2196F3;"></i>
           <span><strong>Link da convocação</strong></span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 18px;">🗺️</span>
+          <i class="bx bx-map-alt" style="font-size: 1.25rem; color: #28a745;"></i>
           <span><strong>Ver Motorista no Mapa</strong></span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 18px; color: #28a745;">✅</span>
+          <i class="bx bx-check-circle" style="font-size: 1.25rem; color: #28a745;"></i>
           <span><strong>Confirmar Convocação</strong></span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 18px; color: #ff9800;">🔄</span>
+          <i class="bx bx-refresh" style="font-size: 1.25rem; color: #ff9800;"></i>
           <span><strong>Reativar Convocação</strong></span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
-          <span style="font-size: 18px; color: #dc3545;">⚠️</span>
+          <i class="bx bx-history" style="font-size: 1.25rem; color: #6c757d;"></i>
           <span><strong>Histórico de Reabertura</strong></span>
         </div>
       </div>
@@ -7853,84 +8071,22 @@ function getOverlayMostrado() {
 
     const formatarData = (data) => {
       if (!data) return '-';
-      
-      // SQL Server retorna datas no formato ISO: 2025-11-21T10:39:24.123Z
-      // Quando o JavaScript cria new Date(), ele interpreta como UTC e converte para o fuso local
-      // Precisamos tratar a string diretamente para evitar conversão de fuso
-      
-      if (typeof data === 'string') {
-        // Remover o Z se existir e tratar como data local
-        let dataStr = data.replace('Z', '');
-        
-        // Se tem T, substituir por espaço
-        if (dataStr.includes('T')) {
-          dataStr = dataStr.replace('T', ' ');
-        }
-        
-        // Extrair partes da data: 2025-11-21 10:39:24.123
-        const match = dataStr.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
-        if (match) {
-          const [, year, month, day, hour, minute, second] = match;
-          // Criar data no fuso local (sem conversão UTC)
-          const d = new Date(
-            parseInt(year),
-            parseInt(month) - 1,
-            parseInt(day),
-            parseInt(hour),
-            parseInt(minute),
-            parseInt(second || 0)
-          );
-          
-          // Formatar manualmente para pt-BR (sem conversão de fuso)
-          const diaStr = String(day).padStart(2, '0');
-          const mesStr = String(month).padStart(2, '0');
-          const anoStr = year;
-          const horaStr = String(hour).padStart(2, '0');
-          const minutoStr = String(minute).padStart(2, '0');
-          
-          return `${diaStr}/${mesStr}/${anoStr} ${horaStr}:${minutoStr}`;
-        }
-      }
-      
-      // Fallback: extrair componentes UTC e tratar como local (sem conversão de fuso)
-      try {
-        const date = new Date(data);
-        if (isNaN(date.getTime())) return '-';
-        
-        // Extrair componentes UTC e tratar como local (sem conversão de fuso)
-        const ano = date.getUTCFullYear();
-        const mes = date.getUTCMonth();
-        const dia = date.getUTCDate();
-        const hora = date.getUTCHours();
-        const minuto = date.getUTCMinutes();
-        const segundo = date.getUTCSeconds();
-        
-        // Formatar manualmente para pt-BR
-        const diaStr = String(dia).padStart(2, '0');
-        const mesStr = String(mes + 1).padStart(2, '0');
-        const anoStr = ano;
-        const horaStr = String(hora).padStart(2, '0');
-        const minutoStr = String(minuto).padStart(2, '0');
-        const segundoStr = String(segundo).padStart(2, '0');
-        
-        return `${diaStr}/${mesStr}/${anoStr}, ${horaStr}:${minutoStr}:${segundoStr}`;
-      } catch (err) {
-        return '-';
-      }
+      return fmtDataHora(data);
     };
 
     // Buscar histórico de reabertura para todas as convocações (em paralelo)
     const historicosPromises = convocacoes.map(async (conv) => {
+      const idC = conv.IDCONVOCACAO ?? conv.idconvocacao;
       try {
-        const response = await fetch(`/api/convocacoes/${conv.IDCONVOCACAO}/historico-reabertura`);
+        const response = await fetch(`/api/convocacoes/${idC}/historico-reabertura`);
         if (response.ok) {
           const historico = await response.json();
-          return { idConvocacao: conv.IDCONVOCACAO, historico: historico.length > 0 ? historico : null };
+          return { idConvocacao: idC, historico: historico.length > 0 ? historico : null };
         }
-        return { idConvocacao: conv.IDCONVOCACAO, historico: null };
+        return { idConvocacao: idC, historico: null };
       } catch (err) {
-        console.error(`Erro ao buscar histórico para convocação ${conv.IDCONVOCACAO}:`, err);
-        return { idConvocacao: conv.IDCONVOCACAO, historico: null };
+        console.error(`Erro ao buscar histórico para convocação ${idC}:`, err);
+        return { idConvocacao: idC, historico: null };
       }
     });
     
@@ -7941,90 +8097,100 @@ function getOverlayMostrado() {
     });
     
     convocacoes.forEach((conv, index) => {
-      // Verificar se tem histórico de reabertura (qualquer motivo)
-      const historico = historicosMap[conv.IDCONVOCACAO];
+      // Suporte a chaves em minúsculas (PostgreSQL)
+      const idConv = conv.IDCONVOCACAO ?? conv.idconvocacao;
+      const historico = historicosMap[idConv];
       const temHistoricoReabertura = historico && historico.length > 0;
       // Pegar o motivo mais recente (primeiro do array, pois está ordenado DESC)
-      const motivoReabertura = temHistoricoReabertura && historico[0] ? historico[0].MOTIVO_REABERTURA : null;
+      const motivoReabertura = temHistoricoReabertura && historico[0] ? (historico[0].MOTIVO_REABERTURA ?? historico[0].motivo_reabertura) : null;
+      
+      // Suporte a chaves em minúsculas (PostgreSQL) para exibição
+      const nomeMotorista = conv.NOME_MOTORISTA ?? conv.nome_motorista;
+      const origemCidade = conv.ORIGEM_CIDADE ?? conv.origem_cidade;
+      const origemEstado = conv.ORIGEM_ESTADO ?? conv.origem_estado;
+      const destinoCidade = conv.DESTINO_CIDADE ?? conv.destino_cidade;
+      const destinoEstado = conv.DESTINO_ESTADO ?? conv.destino_estado;
+      const dsClasseFrota = conv.DSCLASSEFROTA ?? conv.dsclassefrota;
+      const dsRoteiro = conv.DSROTEIRO ?? conv.dsroteiro;
+      const idViagem = conv.IDVIAGEM ?? conv.idviagem;
+      const idRoteiro = conv.IDROTEIRO ?? conv.idroteiro;
+      const lat = conv.LATITUDE ?? conv.latitude;
+      const lng = conv.LONGITUDE ?? conv.longitude;
       
       let statusClass = '';
-      let statusDisplay = conv.STATUS || 'PENDENTE';
+      let statusDisplay = (conv.STATUS ?? conv.status) || 'PENDENTE';
       
-      if (conv.STATUS === 'PENDENTE') {
+      const statusConv = conv.STATUS ?? conv.status;
+      if (statusConv === 'PENDENTE') {
         statusClass = 'background: #fff3cd; color: #856404;';
-      } else if (conv.STATUS === 'ACEITA') {
+      } else if (statusConv === 'ACEITA') {
         statusClass = 'background: #d4edda; color: #155724;';
-      } else if (conv.STATUS === 'ACEITA_DESCARTADA') {
+      } else if (statusConv === 'ACEITA_DESCARTADA') {
         statusClass = 'background: #ffeaa7; color: #856404;';
         statusDisplay = 'ACEITA (Não Selecionada)';
-      } else if (conv.STATUS === 'RECUSADA') {
+      } else if (statusConv === 'RECUSADA') {
         statusClass = 'background: #f8d7da; color: #721c24;';
-        // Adicionar motivo da recusa ao status se existir
-        if (conv.MOTIVO_RECUSA) {
-          statusDisplay = `RECUSADA - ${conv.MOTIVO_RECUSA}`;
-        } else if (conv.CDMOTIVORECUSA) {
-          statusDisplay = `RECUSADA (Motivo: ${conv.CDMOTIVORECUSA})`;
+        const motivoRecusa = conv.MOTIVO_RECUSA ?? conv.motivo_recusa;
+        if (motivoRecusa) {
+          statusDisplay = `RECUSADA - ${motivoRecusa}`;
+        } else if (conv.CDMOTIVORECUSA ?? conv.cdmotivorecusa) {
+          statusDisplay = `RECUSADA (Motivo: ${conv.CDMOTIVORECUSA ?? conv.cdmotivorecusa})`;
         }
-      } else if (conv.STATUS === 'CONFIRMADA') {
+      } else if (statusConv === 'CONFIRMADA') {
         statusClass = 'background: #cce5ff; color: #004085;';
       }
       
       // Usar o link salvo na tabela, se existir. Caso contrário, gerar novo link
-      const linkConvocacao = conv.LINKCONVOCACAO && conv.LINKCONVOCACAO.trim() !== '' 
-        ? conv.LINKCONVOCACAO 
-        : `${urlBase}/convocacao/${conv.IDCONVOCACAO}`;
+      const linkConvocacao = (conv.LINKCONVOCACAO ?? conv.linkconvocacao) && String(conv.LINKCONVOCACAO ?? conv.linkconvocacao).trim() !== ''
+        ? (conv.LINKCONVOCACAO ?? conv.linkconvocacao)
+        : `${urlBase}/convocacao/${idConv}`;
       
       // Verificar se tem localização para mostrar botão "Ver no Mapa"
-      const temLocalizacao = conv.LATITUDE !== null && conv.LATITUDE !== undefined && 
-                            conv.LONGITUDE !== null && conv.LONGITUDE !== undefined &&
-                            !isNaN(conv.LATITUDE) && !isNaN(conv.LONGITUDE);
+      const temLocalizacao = lat !== null && lat !== undefined && lng !== null && lng !== undefined &&
+                            !isNaN(lat) && !isNaN(lng);
       
-      // Botão de ações (apenas ícones, sem texto)
+      // Botão de ações (ícones Boxicons – padrão moderno)
+      const btnIconStyle = 'padding: 8px 10px; font-size: 1.2rem; color: white; text-decoration: none; border-radius: 6px; margin-right: 6px; display: inline-flex; align-items: center; justify-content: center; min-width: 36px; border: none; cursor: pointer;';
       let botoesAcoes = `
-        <a href="${linkConvocacao}" target="_blank" class="btn" style="padding: 8px 10px; font-size: 1.2em; background: #2196F3; color: white; text-decoration: none; border-radius: 4px; margin-right: 5px; display: inline-flex; align-items: center; justify-content: center; min-width: 36px;" title="Ver Link">
-          🔗
+        <a href="${linkConvocacao}" target="_blank" class="btn" style="${btnIconStyle} background: #2196F3;" title="Ver Link">
+          <i class="bx bx-link-alt"></i>
         </a>
       `;
       
-      // Botão "Ver no Mapa" apenas se tiver localização
-      if (temLocalizacao && conv.IDROTEIRO) {
+      if (temLocalizacao && idRoteiro) {
         botoesAcoes += `
-          <button onclick="abrirMapaMotorista(${conv.IDCONVOCACAO}, ${conv.LATITUDE}, ${conv.LONGITUDE}, ${conv.IDROTEIRO}, ${conv.IDVIAGEM})" 
-                  class="btn" 
-                  style="padding: 8px 10px; font-size: 1.2em; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 5px; display: inline-flex; align-items: center; justify-content: center; min-width: 36px;"
-                  title="Ver no Mapa">
-            🗺️
+          <button onclick="abrirMapaMotorista(${idConv}, ${lat}, ${lng}, ${idRoteiro}, ${idViagem})" class="btn" style="${btnIconStyle} background: #28a745;" title="Ver no Mapa">
+            <i class="bx bx-map-alt"></i>
           </button>
         `;
       }
       
-      // Botão "Confirmar" apenas para convocações ACEITA
-      if (conv.STATUS === 'ACEITA') {
+      if (statusConv === 'ACEITA') {
         botoesAcoes += `
-          <button onclick="confirmarConvocacao(${conv.IDCONVOCACAO})" class="btn" style="padding: 8px 10px; font-size: 1.2em; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-width: 36px;" title="Confirmar">
-            ✅
+          <button onclick="confirmarConvocacao(${idConv})" class="btn" style="${btnIconStyle} background: #28a745;" title="Confirmar">
+            <i class="bx bx-check"></i>
           </button>
         `;
       }
       
-      // Botão "Reativar" apenas para convocações CONFIRMADA
-      // As ACEITA_DESCARTADA serão atualizadas automaticamente quando a CONFIRMADA for reativada
-      if (conv.STATUS === 'CONFIRMADA') {
+      if (statusConv === 'CONFIRMADA') {
         botoesAcoes += `
-          <button onclick="reativarConvocacao(${conv.IDCONVOCACAO})" class="btn" style="padding: 8px 10px; font-size: 1.2em; background: #ff9800; color: white; border: none; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-width: 36px; margin-left: 5px;" title="Reativar Convocação">
-            🔄
+          <button onclick="reativarConvocacao(${idConv})" class="btn" style="${btnIconStyle} background: #ff9800; margin-left: 4px;" title="Reativar Convocação">
+            <i class="bx bx-refresh"></i>
           </button>
         `;
       }
 
       // Destacar visualmente se for PENDENTE mas viagem já foi confirmada
-      const isPendenteMasConfirmada = conv.STATUS === 'PENDENTE' && conv.VIAGEM_JA_CONFIRMADA === 1;
+      const viagemJaConfirmada = conv.VIAGEM_JA_CONFIRMADA ?? conv.viagem_ja_confirmada;
+      const isPendenteMasConfirmada = statusConv === 'PENDENTE' && (viagemJaConfirmada === 1 || viagemJaConfirmada === true);
       const rowStyle = isPendenteMasConfirmada 
         ? 'border-left: 4px solid #667eea; background: #f0f4ff !important;' 
         : (index % 2 === 0 ? 'background: #fafafa;' : '');
       
       // Formatar celular do motorista para WhatsApp e exibição
-      const celularFormatado = conv.CELULAR_MOTORISTA ? String(conv.CELULAR_MOTORISTA).replace(/\D/g, '') : '';
+      const celularMotorista = conv.CELULAR_MOTORISTA ?? conv.celular_motorista;
+      const celularFormatado = celularMotorista ? String(celularMotorista).replace(/\D/g, '') : '';
       const temWhatsAppMotorista = celularFormatado.length >= 10;
       const linkWhatsAppMotorista = temWhatsAppMotorista ? `https://wa.me/55${celularFormatado}` : '#';
       
@@ -8040,45 +8206,47 @@ function getOverlayMostrado() {
         }
       }
       
+      const cdCadastroMotorista = conv.CDCADASTRO_MOTORISTA ?? conv.cdcadastro_motorista;
+
       html += `
         <tr style="border-bottom: 1px solid #eee; ${rowStyle}">
-          <td style="padding: 12px;">${conv.IDCONVOCACAO}</td>
+          <td style="padding: 12px;">${idConv}</td>
           <td style="padding: 12px;">
-            <strong>${conv.IDVIAGEM}</strong><br>
-            <small style="color: #666;">${conv.DSCLASSEFROTA || '-'}</small>
+            <strong>${idViagem}</strong><br>
+            <small style="color: #666;">${dsClasseFrota || '-'}</small>
           </td>
           <td style="padding: 12px;">
-            ${conv.ORIGEM_CIDADE || '-'}/${conv.ORIGEM_ESTADO || '-'}<br>
-            <small style="color: #666;">→ ${conv.DESTINO_CIDADE || '-'}/${conv.DESTINO_ESTADO || '-'}</small>
+            ${origemCidade || '-'}/${origemEstado || '-'}<br>
+            <small style="color: #666;">→ ${destinoCidade || '-'}/${destinoEstado || '-'}</small>
           </td>
           <td style="padding: 12px;">
-            ${criarIndicadorGeolocalizacao(conv.LATITUDE, conv.LONGITUDE)}
+            ${criarIndicadorGeolocalizacao(lat, lng)}
             <span style="padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; ${statusClass}">
               ${statusDisplay}
             </span>
-            ${isPendenteMasConfirmada ? '<br><small style="color: #667eea; font-weight: 600; margin-top: 4px; display: block;">⚠️ Viagem já confirmada</small>' : ''}
-            ${temHistoricoReabertura && motivoReabertura ? `<br><small style="color: #dc3545; font-weight: 600; margin-top: 4px; display: block;">⚠️ Histórico de Reabertura: ${motivoReabertura}</small>` : ''}
+            ${isPendenteMasConfirmada ? '<br><small style="color: #667eea; font-weight: 600; margin-top: 4px; display: block;"><i class="bx bx-info-circle" style="font-size: 1em; vertical-align: middle;"></i> Viagem já confirmada</small>' : ''}
+            ${temHistoricoReabertura && motivoReabertura ? `<br><small style="color: #6c757d; font-weight: 600; margin-top: 4px; display: block;"><i class="bx bx-history" style="font-size: 1em; vertical-align: middle;"></i> Histórico de Reabertura: ${motivoReabertura}</small>` : ''}
           </td>
           <td style="padding: 12px;">
-            ${conv.NOME_MOTORISTA || '-'}<br>
+            ${nomeMotorista || '-'}<br>
             <small style="color: #666;">
-              ${conv.CDCADASTRO_MOTORISTA ? `Código: ${conv.CDCADASTRO_MOTORISTA}` : ''}
-              ${conv.CDCADASTRO_MOTORISTA && celularExibicao ? ' | ' : ''}
-              ${celularExibicao ? (temWhatsAppMotorista ? `<a href="${linkWhatsAppMotorista}" target="_blank" style="color: #25D366; text-decoration: none;" title="Abrir WhatsApp do motorista">📱 ${celularExibicao}</a>` : `📱 ${celularExibicao}`) : ''}
+              ${cdCadastroMotorista ? `Código: ${cdCadastroMotorista}` : ''}
+              ${cdCadastroMotorista && celularExibicao ? ' | ' : ''}
+              ${celularExibicao ? (temWhatsAppMotorista ? `<a href="${linkWhatsAppMotorista}" target="_blank" style="color: #25D366; text-decoration: none;" title="Abrir WhatsApp do motorista"><i class="bx bx-logo-whatsapp" style="font-size: 1em; vertical-align: middle;"></i> ${celularExibicao}</a>` : `<i class="bx bx-logo-whatsapp" style="font-size: 1em; vertical-align: middle;"></i> ${celularExibicao}`) : ''}
             </small>
           </td>
-          <td style="padding: 12px; font-size: 12px;">${formatarData(conv.DHCONVOCACAO)}</td>
+          <td style="padding: 12px; font-size: 12px;">${formatarData(conv.DHCONVOCACAO ?? conv.dhconvocacao)}</td>
           <td style="padding: 12px; font-size: 12px;">
-            ${conv.DHACESSO 
+            ${(conv.DHACESSO ?? conv.dhacesso) 
               ? `<div style="display: flex; align-items: center; gap: 6px;">
-                   <span style="color: #28a745; font-size: 16px;">✅</span>
+                   <i class="bx bx-check-circle" style="color: #28a745; font-size: 1.25rem;"></i>
                    <div>
                      <div style="color: #28a745; font-weight: 600; font-size: 12px;">Acessou</div>
                      <small style="color: #666; font-size: 10px;">${formatarData(conv.DHACESSO)}</small>
                    </div>
                  </div>` 
               : `<div style="display: flex; align-items: center; gap: 6px;">
-                   <span style="color: #dc3545; font-size: 16px;">❌</span>
+                   <i class="bx bx-x-circle" style="color: #dc3545; font-size: 1.25rem;"></i>
                    <div>
                      <div style="color: #dc3545; font-weight: 600; font-size: 12px;">Não acessou</div>
                      <small style="color: #999; font-size: 10px;">Aguardando</small>
@@ -8144,13 +8312,13 @@ function getOverlayMostrado() {
     if (outrasAceitas > 0) {
       mensagemAtencao = `
         <p style="color: #856404; font-weight: 600; margin-top: 15px;">
-          ⚠️ ATENÇÃO:
+          <i class="bx bx-error-circle" style="font-size: 1.1em; vertical-align: middle;"></i> ATENÇÃO:
         </p>
         <p style="color: #856404; margin-top: 10px;">
           <strong>${outrasAceitas}</strong> convocação(ões) ACEITA(S) será(ão) marcada(s) como "ACEITA (Não Selecionada)" - mantendo o histórico de que o motorista aceitou.
         </p>
         <p style="color: #666; margin-top: 10px; font-size: 13px; font-style: italic;">
-          ℹ️ Convocações PENDENTE permanecerão como PENDENTE para preservar o histórico correto. Apenas convocações realmente RECUSADAS pelo motorista ficam como RECUSADA.
+          <i class="bx bx-info-circle" style="font-size: 1em; vertical-align: middle;"></i> Convocações PENDENTE permanecerão como PENDENTE. Apenas convocações realmente RECUSADAS pelo motorista ficam como RECUSADA.
         </p>
       `;
     }
@@ -8175,7 +8343,7 @@ function getOverlayMostrado() {
     }
     
     const confirmado = await showConfirmModal(
-      '✅ Confirmar Convocação',
+      '<i class="bx bx-check-circle"></i> Confirmar Convocação',
       mensagemCompleta
     );
 
@@ -8333,7 +8501,7 @@ function getOverlayMostrado() {
       if (!validades || validades.length === 0) {
         conteudo.innerHTML = `
           <div style="text-align: center; padding: 40px; color: #6c757d;">
-            <p style="font-size: 16px; margin-bottom: 10px;">📋 Nenhuma validade cadastrada para este motorista.</p>
+            <p style="font-size: 16px; margin-bottom: 10px;"><i class="bx bx-list-ul" style="vertical-align: middle;"></i> Nenhuma validade cadastrada para este motorista.</p>
             <p style="font-size: 13px; color: #95a5a6;">Este motorista não possui validades cadastradas no sistema.</p>
           </div>
         `;
@@ -8343,19 +8511,19 @@ function getOverlayMostrado() {
       let html = '<div style="display: grid; gap: 12px;">';
       
       validades.forEach(val => {
-        const dtLib = new Date(val.DTLIBERACAO).toLocaleDateString('pt-BR');
-        const dtVal = new Date(val.DTVALIDADE).toLocaleDateString('pt-BR');
+        const dtLib = fmtData(val.DTLIBERACAO);
+        const dtVal = fmtData(val.DTVALIDADE);
         const dias = val.DIAS_RESTANTES;
         
         let corStatus = '#27ae60';
-        let textoStatus = `✓ Válida (${dias} dias)`;
+        let textoStatus = `<i class="bx bx-check" style="font-size:1em; vertical-align: middle;"></i> Válida (${dias} dias)`;
         
         if (val.STATUS_VALIDADE === 'VENCIDA') {
           corStatus = '#e74c3c';
-          textoStatus = `✗ VENCIDA (${Math.abs(dias)} dias atrás)`;
+          textoStatus = `<i class="bx bx-x-circle" style="font-size:1em; vertical-align: middle;"></i> VENCIDA (${Math.abs(dias)} dias atrás)`;
         } else if (val.STATUS_VALIDADE === 'VENCENDO') {
           corStatus = '#f39c12';
-          textoStatus = `⚠ Vencendo (${dias} dias)`;
+          textoStatus = `<i class="bx bx-error-circle" style="font-size:1em; vertical-align: middle;"></i> Vencendo (${dias} dias)`;
         }
         
         html += `
@@ -8405,7 +8573,7 @@ function getOverlayMostrado() {
       console.error('Erro ao carregar validades:', err);
       conteudo.innerHTML = `
         <div style="text-align: center; padding: 40px; color: #e74c3c;">
-          <p style="font-size: 16px; margin-bottom: 10px;">❌ Erro ao carregar validades</p>
+          <p style="font-size: 16px; margin-bottom: 10px;"><i class="bx bx-x-circle" style="vertical-align: middle;"></i> Erro ao carregar validades</p>
           <p style="font-size: 13px; color: #95a5a6;">${err.message || 'Não foi possível carregar as validades do motorista.'}</p>
         </div>
       `;
@@ -8482,7 +8650,7 @@ function getOverlayMostrado() {
       if (!validades || validades.length === 0) {
         conteudo.innerHTML = `
           <div style="text-align: center; padding: 40px; color: #6c757d;">
-            <p style="font-size: 16px; margin-bottom: 10px;">📋 Nenhuma validade cadastrada para este veículo.</p>
+            <p style="font-size: 16px; margin-bottom: 10px;"><i class="bx bx-list-ul" style="vertical-align: middle;"></i> Nenhuma validade cadastrada para este veículo.</p>
             <p style="font-size: 13px; color: #95a5a6;">Este veículo não possui validades cadastradas no sistema.</p>
           </div>
         `;
@@ -8492,19 +8660,19 @@ function getOverlayMostrado() {
       let html = '<div style="display: grid; gap: 12px;">';
       
       validades.forEach(val => {
-        const dtLib = new Date(val.DTLIBERACAO).toLocaleDateString('pt-BR');
-        const dtVal = new Date(val.DTVALIDADE).toLocaleDateString('pt-BR');
+        const dtLib = fmtData(val.DTLIBERACAO);
+        const dtVal = fmtData(val.DTVALIDADE);
         const dias = val.DIAS_RESTANTES;
         
         let corStatus = '#27ae60';
-        let textoStatus = `✓ Válida (${dias} dias)`;
+        let textoStatus = `<i class="bx bx-check" style="font-size:1em; vertical-align: middle;"></i> Válida (${dias} dias)`;
         
         if (val.STATUS_VALIDADE === 'VENCIDA') {
           corStatus = '#e74c3c';
-          textoStatus = `✗ VENCIDA (${Math.abs(dias)} dias atrás)`;
+          textoStatus = `<i class="bx bx-x-circle" style="font-size:1em; vertical-align: middle;"></i> VENCIDA (${Math.abs(dias)} dias atrás)`;
         } else if (val.STATUS_VALIDADE === 'VENCENDO') {
           corStatus = '#f39c12';
-          textoStatus = `⚠ Vencendo (${dias} dias)`;
+          textoStatus = `<i class="bx bx-error-circle" style="font-size:1em; vertical-align: middle;"></i> Vencendo (${dias} dias)`;
         }
         
         html += `
@@ -8554,7 +8722,7 @@ function getOverlayMostrado() {
       console.error('Erro ao carregar validades:', err);
       conteudo.innerHTML = `
         <div style="text-align: center; padding: 40px; color: #e74c3c;">
-          <p style="font-size: 16px; margin-bottom: 10px;">❌ Erro ao carregar validades</p>
+          <p style="font-size: 16px; margin-bottom: 10px;"><i class="bx bx-x-circle" style="vertical-align: middle;"></i> Erro ao carregar validades</p>
           <p style="font-size: 13px; color: #95a5a6;">${err.message || 'Não foi possível carregar as validades do veículo.'}</p>
         </div>
       `;
@@ -8627,7 +8795,7 @@ function getOverlayMostrado() {
           <p><strong>Status Atual:</strong> CONFIRMADA</p>
           <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 8px;">
             <p style="margin: 0 0 10px 0; font-weight: 600; color: #856404;">
-              ⚠️ ATENÇÃO:
+              <i class="bx bx-error-circle" style="font-size: 1.1em; vertical-align: middle;"></i> ATENÇÃO:
             </p>
             <p style="margin: 0; color: #856404; font-size: 14px;">
               Esta convocação será reativada e o status voltará para <strong>ACEITA</strong>.<br>
@@ -8636,7 +8804,7 @@ function getOverlayMostrado() {
           </div>
           <div style="margin-top: 20px;">
             <label for="selectMotivoReabertura" style="display: block; margin-bottom: 10px; font-weight: 600; color: #333;">
-              📋 Selecione o motivo da reabertura: *
+              <i class="bx bx-list-ul" style="font-size: 1em; vertical-align: middle;"></i> Selecione o motivo da reabertura: *
             </label>
             <select id="selectMotivoReabertura" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; background: white; appearance: none; -webkit-appearance: none; -moz-appearance: none; background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23667eea%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-6.5%200-12.1%203.2-15.2%208.1-3.1%204.9-3.1%2010.8%200%2015.8l128%20128c3.2%203.2%207.1%204.7%2011.1%204.7s7.9-1.6%2011.1-4.7l128-128c3.1-5%203.1-10.9%200-15.8z%22%2F%3E%3C%2Fsvg%3E'); background-repeat: no-repeat; background-position: right 12px center; background-size: 12px; cursor: pointer; transition: border-color 0.3s, box-shadow 0.3s;">
               ${opcoesMotivos}
@@ -8649,7 +8817,7 @@ function getOverlayMostrado() {
       `;
 
       const confirmado = await showConfirmModal(
-        '🔄 Reativar Convocação',
+        '<i class="bx bx-refresh"></i> Reativar Convocação',
         mensagemModal
       );
 
@@ -8810,30 +8978,30 @@ function getOverlayMostrado() {
           }
         };
         
-        // Gerar texto base formatado (mesma estrutura do prepararAnuncioCarga)
-        let textoBase = `🚚 *CARGA DISPONÍVEL*\n\n`;
-        textoBase += `🆔 *ID:* ${viagemAtual.IDVIAGEM || 'N/A'}\n`;
-        textoBase += `📦 *Tipo:* ${viagemAtual.DSTIPOVIAGEM || viagemAtual.CDTIPOVIAGEM || 'Não informado'}\n`;
-        textoBase += `🚛 *Classe:* ${viagemAtual.DSCLASSEFROTA || viagemAtual.CDCLASSEFROTA || 'Não informado'}\n`;
-        textoBase += `🗺️ *Rota:* ${viagemAtual.DSROTEIRO ? `${viagemAtual.IDROTEIRO || ''} - ${viagemAtual.DSROTEIRO}` : (viagemAtual.IDROTEIRO ? `${viagemAtual.IDROTEIRO} - ` : '') + `${viagemAtual.ORIGEM_CIDADE || 'N/A'}/${viagemAtual.ORIGEM_ESTADO || 'N/A'} → ${viagemAtual.DESTINO_CIDADE || 'N/A'}/${viagemAtual.DESTINO_ESTADO || 'N/A'}`}\n\n`;
-        textoBase += `⏰ *HORÁRIOS*\n`;
-        textoBase += `📅 *Carregamento:* ${formatarDataHora(viagemAtual.DTPREVINICIO)}\n`;
-        textoBase += `📅 *Descarga:* ${formatarDataHora(viagemAtual.DTPREVFINAL)}\n\n`;
+        // Gerar texto base formatado (mesma estrutura do prepararAnuncioCarga, sem emojis)
+        let textoBase = `*CARGA DISPONÍVEL*\n\n`;
+        textoBase += `*ID:* ${viagemAtual.IDVIAGEM || 'N/A'}\n`;
+        textoBase += `*Tipo:* ${viagemAtual.DSTIPOVIAGEM || viagemAtual.CDTIPOVIAGEM || 'Não informado'}\n`;
+        textoBase += `*Classe:* ${viagemAtual.DSCLASSEFROTA || viagemAtual.CDCLASSEFROTA || 'Não informado'}\n`;
+        textoBase += `*Rota:* ${viagemAtual.DSROTEIRO ? `${viagemAtual.IDROTEIRO || ''} - ${viagemAtual.DSROTEIRO}` : (viagemAtual.IDROTEIRO ? `${viagemAtual.IDROTEIRO} - ` : '') + `${viagemAtual.ORIGEM_CIDADE || 'N/A'}/${viagemAtual.ORIGEM_ESTADO || 'N/A'} -> ${viagemAtual.DESTINO_CIDADE || 'N/A'}/${viagemAtual.DESTINO_ESTADO || 'N/A'}`}\n\n`;
+        textoBase += `*HORÁRIOS*\n`;
+        textoBase += `*Carregamento:* ${formatarDataHora(viagemAtual.DTPREVINICIO)}\n`;
+        textoBase += `*Descarga:* ${formatarDataHora(viagemAtual.DTPREVFINAL)}\n\n`;
         
         if (viagemAtual.FGRASTREADO === 'S') {
-          textoBase += `✅ *REQUISITOS*\n`;
-          textoBase += `✅ *Exige Veículo Rastreado:* SIM\n\n`;
+          textoBase += `*REQUISITOS*\n`;
+          textoBase += `*Exige Veículo Rastreado:* SIM\n\n`;
         }
         
-        textoBase += `👤 *CONTRATADOR*\n`;
+        textoBase += `*CONTRATADOR*\n`;
         textoBase += `${viagemAtual.CONTRATADOR_NOME || viagemAtual.CDCONTRATADOR || 'Não informado'}\n\n`;
-        textoBase += `💰 *VALORES*\n`;
-        textoBase += `💵 *Frete:* R$ ${viagemAtual.VLFRETE ? parseFloat(viagemAtual.VLFRETE).toFixed(2).replace('.', ',') : '0,00'}\n`;
-        textoBase += `📊 *Peso:* ${viagemAtual.PESO ? parseFloat(viagemAtual.PESO).toFixed(3).replace('.', ',') : '0,000'} ton\n`;
-        textoBase += `📦 *Cubagem:* ${viagemAtual.CUBAGEM ? parseFloat(viagemAtual.CUBAGEM).toFixed(3).replace('.', ',') : '0,000'} m³\ \n`;
+        textoBase += `*VALORES*\n`;
+        textoBase += `*Frete:* R$ ${viagemAtual.VLFRETE ? parseFloat(viagemAtual.VLFRETE).toFixed(2).replace('.', ',') : '0,00'}\n`;
+        textoBase += `*Peso:* ${viagemAtual.PESO ? parseFloat(viagemAtual.PESO).toFixed(3).replace('.', ',') : '0,000'} ton\n`;
+        textoBase += `*Cubagem:* ${viagemAtual.CUBAGEM ? parseFloat(viagemAtual.CUBAGEM).toFixed(3).replace('.', ',') : '0,000'} m³\n`;
         
         if (viagemAtual.OBSERV) {
-          textoBase += `\n📝 *DETALHES DA VIAGEM*\n`;
+          textoBase += `\n*DETALHES DA VIAGEM*\n`;
           textoBase += `${viagemAtual.OBSERV}\n`;
         }
         
@@ -8881,15 +9049,15 @@ function getOverlayMostrado() {
           
           let textoComLink;
           if (isLocalIP) {
-            textoComLink = `${mensagemPersonalizada}\n\n🔗 *Acesse o link para mais detalhes:*\n\n${linkConvocacao}\n\n💡 *Importante:*\n• Links locais não são clicáveis no WhatsApp\n• Copie o link acima (toque e segure)\n• Cole no navegador do celular\n• Certifique-se de estar na mesma rede Wi-Fi`;
+            textoComLink = `${mensagemPersonalizada}\n\n*Acesse o link para mais detalhes:*\n\n${linkConvocacao}\n\n*Importante:*\n- Links locais não são clicáveis no WhatsApp\n- Copie o link acima (toque e segure)\n- Cole no navegador do celular\n- Certifique-se de estar na mesma rede Wi-Fi`;
           } else {
             // Verificar se é ngrok (tem página de aviso)
             const isNgrok = urlBase.includes('ngrok-free.dev') || urlBase.includes('ngrok.io');
             
             if (isNgrok) {
-              textoComLink = `${mensagemPersonalizada}\n\n🔗 *Acesse o link para mais detalhes:*\n\n${linkConvocacao}\n\n👆 *Toque no link acima para responder*\n\n💡 *Aviso:* Na primeira vez, você verá uma página de segurança. Clique em "Visit Site" para continuar.`;
+              textoComLink = `${mensagemPersonalizada}\n\n*Acesse o link para mais detalhes:*\n\n${linkConvocacao}\n\n*Toque no link acima para responder*\n\n*Aviso:* Na primeira vez, você verá uma página de segurança. Clique em "Visit Site" para continuar.`;
             } else {
-              textoComLink = `${mensagemPersonalizada}\n\n🔗 *Acesse o link para mais detalhes:*\n\n${linkConvocacao}`;
+              textoComLink = `${mensagemPersonalizada}\n\n*Acesse o link para mais detalhes:*\n\n${linkConvocacao}`;
             }
           }
           
@@ -9094,20 +9262,20 @@ function getOverlayMostrado() {
             <span>Visão Geral</span>
           </h2>
           <p style="margin: 0; font-size: 16px; line-height: 1.8; opacity: 0.95;">
-            O <strong>Sistema de Convocações</strong> é o coração da ferramenta DivulgaCarga, responsável por identificar motoristas compatíveis, enviar convites via WhatsApp, gerenciar respostas e confirmar atribuição de viagens.
+            O <strong>Sistema de Convocações</strong> é o coração da ferramenta Atlas Cargo, responsável por identificar motoristas compatíveis, enviar convites via WhatsApp, gerenciar respostas e confirmar atribuição de viagens.
           </p>
         </section>
 
         <!-- Fluxo Completo -->
         <section style="margin-bottom: 40px; padding: 25px; background: #f8f9fa; border-radius: 12px; border-left: 5px solid #28a745;">
           <h2 style="margin: 0 0 20px 0; font-size: 24px; color: #28a745; display: flex; align-items: center; gap: 10px;">
-            <span>🔄</span>
+            <i class="bx bx-refresh" style="font-size: 1.25rem;"></i>
             <span>Fluxo Completo do Processo</span>
           </h2>
           
           <div style="display: grid; gap: 20px;">
             <div style="padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-              <h3 style="margin: 0 0 10px 0; color: #667eea; font-size: 18px;">1️⃣ Identificação de Viagens Pendentes</h3>
+              <h3 style="margin: 0 0 10px 0; color: #667eea; font-size: 18px;"><i class="bx bx-list-check" style="vertical-align: middle;"></i> Identificação de Viagens Pendentes</h3>
               <p style="margin: 0 0 10px 0;"><strong>Onde:</strong> Aba "Compatíveis" → Botão "Carregar Viagens Pendentes"</p>
               <p style="margin: 0 0 10px 0;"><strong>O que acontece:</strong></p>
               <ul style="margin: 0; padding-left: 20px;">
@@ -9118,19 +9286,20 @@ function getOverlayMostrado() {
             </div>
 
             <div style="padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-              <h3 style="margin: 0 0 10px 0; color: #667eea; font-size: 18px;">2️⃣ Busca de Motoristas Compatíveis</h3>
+              <h3 style="margin: 0 0 10px 0; color: #667eea; font-size: 18px;"><i class="bx bx-search-alt" style="vertical-align: middle;"></i> Busca de Motoristas Compatíveis</h3>
               <p style="margin: 0 0 10px 0;"><strong>Onde:</strong> Aba "Compatíveis" → Selecionar viagem → Botão "Buscar Motoristas Compatíveis"</p>
-              <p style="margin: 0 0 10px 0;"><strong>Critérios de Compatibilidade (TODOS devem ser verdadeiros):</strong></p>
+              <p style="margin: 0 0 8px 0;"><strong>Quem pode ser listado:</strong> Motorista, Agente/Parceiro, Grupo de Divulgação e Transportador (respeitando as regras abaixo).</p>
+              <p style="margin: 0 0 10px 0;"><strong>Regras para aparecer na lista (TODAS obrigatórias):</strong></p>
               <ul style="margin: 0; padding-left: 20px;">
-                <li><strong>Classe de Frota:</strong> Motorista deve ter a mesma classe de frota da viagem (ativa)</li>
-                <li><strong>Veículo Rastreado:</strong> Se a viagem exige rastreador, o motorista DEVE ter rastreador</li>
-                <li><strong>Localização:</strong> Motorista da mesma micro-região da origem OU destino</li>
+                <li><strong>Classe de Frota:</strong> O cadastro deve ter a mesma classe de frota da viagem (marcada no Cadastro Geral, ativa).</li>
+                <li><strong>Veículo Rastreado:</strong> Se a viagem <strong>exige</strong> veículo rastreado, o cadastro deve ter "Possui Veículo Rastreado" = Sim. Se a viagem não exige, não há impedimento.</li>
+                <li><strong>Localização:</strong> Não é obrigatória. A lista mostra todos que atendem tipo + classe + rastreado, de qualquer cidade.</li>
               </ul>
             </div>
 
             <div style="padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-              <h3 style="margin: 0 0 10px 0; color: #667eea; font-size: 18px;">3️⃣ Preparação do Anúncio</h3>
-              <p style="margin: 0 0 10px 0;"><strong>Onde:</strong> Aba "Compatíveis" → Selecionar motoristas → Botão "📢 Preparar Anúncio"</p>
+              <h3 style="margin: 0 0 10px 0; color: #667eea; font-size: 18px;"><i class="bx bx-megaphone" style="vertical-align: middle;"></i> Preparação do Anúncio</h3>
+              <p style="margin: 0 0 10px 0;"><strong>Onde:</strong> Aba "Compatíveis" → Selecionar motoristas → Botão "<i class="bx bx-megaphone" style="font-size:1em;"></i> Preparar Anúncio"</p>
               <p style="margin: 0 0 10px 0;"><strong>O que acontece:</strong></p>
               <ul style="margin: 0; padding-left: 20px;">
                 <li>Sistema monta texto formatado do anúncio com todos os detalhes da viagem</li>
@@ -9140,10 +9309,10 @@ function getOverlayMostrado() {
             </div>
 
             <div style="padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-              <h3 style="margin: 0 0 10px 0; color: #667eea; font-size: 18px;">4️⃣ Disparo de Convocações</h3>
+              <h3 style="margin: 0 0 10px 0; color: #667eea; font-size: 18px;"><i class="bx bx-send" style="vertical-align: middle;"></i> Disparo de Convocações</h3>
               <p style="margin: 0 0 10px 0;"><strong>Dois caminhos disponíveis:</strong></p>
               <div style="margin: 10px 0; padding: 15px; background: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107;">
-                <p style="margin: 0 0 8px 0;"><strong>📱 "Enviar via WhatsApp" (Recomendado):</strong></p>
+                <p style="margin: 0 0 8px 0;"><strong><i class="bx bx-logo-whatsapp" style="vertical-align: middle;"></i> "Enviar via WhatsApp" (Recomendado):</strong></p>
                 <ul style="margin: 0; padding-left: 20px;">
                   <li>Cria convocações no banco de dados</li>
                   <li>Gera links únicos para cada motorista</li>
@@ -9152,7 +9321,7 @@ function getOverlayMostrado() {
                 </ul>
               </div>
               <div style="margin: 10px 0; padding: 15px; background: #d1ecf1; border-radius: 8px; border-left: 4px solid #0c5460;">
-                <p style="margin: 0 0 8px 0;"><strong>⚡ "Disparar Convocações" (Apenas registro):</strong></p>
+                <p style="margin: 0 0 8px 0;"><strong><i class="bx bx-send" style="vertical-align: middle;"></i> "Disparar Convocações" (Apenas registro):</strong></p>
                 <ul style="margin: 0; padding-left: 20px;">
                   <li>Cria convocações no banco de dados</li>
                   <li>NÃO envia WhatsApp automaticamente</li>
@@ -9162,7 +9331,7 @@ function getOverlayMostrado() {
             </div>
 
             <div style="padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-              <h3 style="margin: 0 0 10px 0; color: #667eea; font-size: 18px;">5️⃣ Acompanhamento de Respostas</h3>
+              <h3 style="margin: 0 0 10px 0; color: #667eea; font-size: 18px;"><i class="bx bx-show" style="vertical-align: middle;"></i> Acompanhamento de Respostas</h3>
               <p style="margin: 0 0 10px 0;"><strong>Onde:</strong> Aba "Convocações"</p>
               <p style="margin: 0 0 10px 0;"><strong>O que você pode fazer:</strong></p>
               <ul style="margin: 0; padding-left: 20px;">
@@ -9174,7 +9343,7 @@ function getOverlayMostrado() {
             </div>
 
             <div style="padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-              <h3 style="margin: 0 0 10px 0; color: #667eea; font-size: 18px;">6️⃣ Confirmação do Motorista</h3>
+              <h3 style="margin: 0 0 10px 0; color: #667eea; font-size: 18px;"><i class="bx bx-user-check" style="vertical-align: middle;"></i> Confirmação do Motorista</h3>
               <p style="margin: 0 0 10px 0;"><strong>Onde:</strong> Aba "Convocações" → Botão "Confirmar" (apenas para status ACEITA)</p>
               <p style="margin: 0 0 10px 0;"><strong>O que acontece:</strong></p>
               <ul style="margin: 0; padding-left: 20px;">
@@ -9190,25 +9359,25 @@ function getOverlayMostrado() {
         <!-- Status das Convocações -->
         <section style="margin-bottom: 40px; padding: 25px; background: #f8f9fa; border-radius: 12px; border-left: 5px solid #17a2b8;">
           <h2 style="margin: 0 0 20px 0; font-size: 24px; color: #17a2b8; display: flex; align-items: center; gap: 10px;">
-            <span>📊</span>
+            <i class="bx bx-stats" style="font-size: 1.25rem;"></i>
             <span>Status das Convocações</span>
           </h2>
           
           <div style="display: grid; gap: 15px;">
             <div style="padding: 15px; background: white; border-radius: 8px; border-left: 4px solid #ffc107;">
-              <strong style="color: #856404;">⏳ PENDENTE:</strong> Convocação criada, aguardando motorista acessar o link e responder.
+              <strong style="color: #856404;"><i class="bx bx-time-five" style="vertical-align: middle;"></i> PENDENTE:</strong> Convocação criada, aguardando motorista acessar o link e responder.
             </div>
             <div style="padding: 15px; background: white; border-radius: 8px; border-left: 4px solid #28a745;">
-              <strong style="color: #155724;">✅ ACEITA:</strong> Motorista acessou o link e aceitou a convocação.
+              <strong style="color: #155724;"><i class="bx bx-check-circle" style="vertical-align: middle;"></i> ACEITA:</strong> Motorista acessou o link e aceitou a convocação.
             </div>
             <div style="padding: 15px; background: white; border-radius: 8px; border-left: 4px solid #dc3545;">
-              <strong style="color: #721c24;">❌ RECUSADA:</strong> Motorista acessou o link e recusou a convocação.
+              <strong style="color: #721c24;"><i class="bx bx-x-circle" style="vertical-align: middle;"></i> RECUSADA:</strong> Motorista acessou o link e recusou a convocação.
             </div>
             <div style="padding: 15px; background: white; border-radius: 8px; border-left: 4px solid #007bff;">
-              <strong style="color: #004085;">✓ CONFIRMADA:</strong> Operador confirmou o motorista para a viagem (status final).
+              <strong style="color: #004085;"><i class="bx bx-check" style="vertical-align: middle;"></i> CONFIRMADA:</strong> Operador confirmou o motorista para a viagem (status final).
             </div>
             <div style="padding: 15px; background: white; border-radius: 8px; border-left: 4px solid #6c757d;">
-              <strong style="color: #383d41;">💔 ACEITA_DESCARTADA:</strong> Motorista aceitou, mas outro foi selecionado (histórico preservado).
+              <strong style="color: #383d41;"><i class="bx bx-user-x" style="vertical-align: middle;"></i> ACEITA_DESCARTADA:</strong> Motorista aceitou, mas outro foi selecionado (histórico preservado).
             </div>
           </div>
         </section>
@@ -9216,7 +9385,7 @@ function getOverlayMostrado() {
         <!-- Regras de Negócio -->
         <section style="margin-bottom: 40px; padding: 25px; background: #f8f9fa; border-radius: 12px; border-left: 5px solid #dc3545;">
           <h2 style="margin: 0 0 20px 0; font-size: 24px; color: #dc3545; display: flex; align-items: center; gap: 10px;">
-            <span>📋</span>
+            <i class="bx bx-list-ul" style="font-size: 1.25rem;"></i>
             <span>Regras de Negócio Importantes</span>
           </h2>
           
@@ -9235,7 +9404,7 @@ function getOverlayMostrado() {
             </div>
             <div style="padding: 15px; background: white; border-radius: 8px;">
               <strong>4. Compatibilidade obrigatória</strong>
-              <p style="margin: 5px 0 0 0; color: #666;">Motorista deve atender TODOS os critérios: classe de frota, rastreador (se exigido) e localização.</p>
+              <p style="margin: 5px 0 0 0; color: #666;">Podem ser listados: Motorista, Agente/Parceiro, Grupo de Divulgação e Transportador. Todos devem atender: mesma classe de frota da viagem; se a viagem exige rastreado, o cadastro deve ter "Possui Veículo Rastreado" = Sim; e localização (micro-região/cidade da rota ou já ter feito esta rota).</p>
             </div>
             <div style="padding: 15px; background: white; border-radius: 8px;">
               <strong>5. Link único por motorista</strong>
@@ -9255,14 +9424,14 @@ function getOverlayMostrado() {
         <!-- Dicas -->
         <section style="margin-bottom: 40px; padding: 25px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(245, 87, 108, 0.3);">
           <h2 style="margin: 0 0 20px 0; font-size: 24px; display: flex; align-items: center; gap: 10px;">
-            <span>💡</span>
+            <i class="bx bx-bulb" style="font-size: 1.25rem;"></i>
             <span>Dicas de Uso</span>
           </h2>
           <ul style="margin: 0; padding-left: 20px; line-height: 2;">
             <li>Use "Preparar Anúncio" para visualizar e personalizar a mensagem antes de enviar</li>
             <li>O contador de registros no Grid mostra quantas viagens foram encontradas</li>
             <li>Filtre por "Motorista Confirmado" para ver viagens com ou sem motorista atribuído</li>
-            <li>A coluna "Data Acesso" mostra quando o motorista acessou o link (✅ se acessou, ❌ se não)</li>
+            <li>A coluna "Data Acesso" mostra quando o motorista acessou o link (<i class="bx bx-check-circle" style="font-size:1em;"></i> se acessou, <i class="bx bx-x-circle" style="font-size:1em;"></i> se não)</li>
             <li>Links locais (IP) não são clicáveis no WhatsApp - o motorista precisa copiar e colar</li>
             <li>Configure PUBLIC_URL no .env para usar links públicos clicáveis</li>
           </ul>
@@ -9271,7 +9440,7 @@ function getOverlayMostrado() {
         <!-- Suporte -->
         <section style="padding: 25px; background: #e7f3ff; border-radius: 12px; border: 2px solid #2196F3;">
           <h2 style="margin: 0 0 15px 0; font-size: 24px; color: #2196F3; display: flex; align-items: center; gap: 10px;">
-            <span>📞</span>
+            <i class="bx bx-phone-call" style="font-size: 1.25rem;"></i>
             <span>Precisa de Ajuda?</span>
           </h2>
           <p style="margin: 0; color: #666; line-height: 1.8;">
@@ -9302,12 +9471,6 @@ function getOverlayMostrado() {
       document.getElementById('mapaInfoViagem').textContent = idViagem || '-';
       document.getElementById('mapaInfoRoteiro').textContent = convocacao.DSROTEIRO || '-';
       
-      // Formatar valores
-      const formatarValor = (valor) => {
-        if (!valor) return 'R$ 0,00';
-        return `R$ ${parseFloat(valor).toFixed(2).replace('.', ',')}`;
-      };
-      
       const formatarPeso = (peso) => {
         if (!peso) return '-';
         return `${parseFloat(peso).toFixed(3).replace('.', ',')} ton`;
@@ -9317,6 +9480,7 @@ function getOverlayMostrado() {
       let vlFrete = convocacao.VLFRETE;
       let peso = convocacao.PESO;
       let cubagem = convocacao.CUBAGEM;
+      let moedaFrete = convocacao.MOEDA || 'BRL';
       
       // Se não tiver na convocação, buscar da viagem
       if (!vlFrete && idViagem) {
@@ -9327,13 +9491,14 @@ function getOverlayMostrado() {
             vlFrete = viagem.VLFRETE || vlFrete;
             peso = viagem.PESO || peso;
             cubagem = viagem.CUBAGEM || cubagem;
+            if (viagem.MOEDA) moedaFrete = viagem.MOEDA;
           }
         } catch (err) {
           console.error('Erro ao buscar dados da viagem:', err);
         }
       }
       
-      document.getElementById('mapaInfoFrete').textContent = formatarValor(vlFrete);
+      document.getElementById('mapaInfoFrete').textContent = fmtMoeda(vlFrete, moedaFrete);
       document.getElementById('mapaInfoPeso').textContent = formatarPeso(peso);
       document.getElementById('mapaInfoDistancia').textContent = 'Calculando...';
 
@@ -9680,7 +9845,8 @@ function getOverlayMostrado() {
       }
 
       const equipamento = await response.json();
-      if (!equipamento || !equipamento.IDEQUIPAMENTO) {
+      const idEq = equipamento && (equipamento.IDEQUIPAMENTO ?? equipamento.idequipamento);
+      if (!equipamento || !idEq) {
         showMessage('Equipamento não encontrado ou dados inválidos.', 'error');
         return;
       }
@@ -9726,7 +9892,8 @@ function getOverlayMostrado() {
       }
 
       const equipamento = await response.json();
-      if (!equipamento || !equipamento.IDEQUIPAMENTO) {
+      const idEq = equipamento && (equipamento.IDEQUIPAMENTO ?? equipamento.idequipamento);
+      if (!equipamento || !idEq) {
         showMessage('Equipamento não encontrado ou dados inválidos.', 'error');
         return;
       }
@@ -9770,51 +9937,57 @@ function getOverlayMostrado() {
     return num.toFixed(casasDecimais).replace('.', ',');
   }
 
-  // Preencher dados do equipamento
+  // Helper: obter valor de objeto sem depender de maiúsculas/minúsculas (ex.: resposta PostgreSQL)
+  function getVal(obj, key) {
+    if (!obj || typeof obj !== 'object') return '';
+    const v = obj[key];
+    if (v !== undefined && v !== null) return v;
+    const lowerKey = key.toLowerCase();
+    const found = Object.keys(obj).find(k => k.toLowerCase() === lowerKey);
+    return found !== undefined ? obj[found] : '';
+  }
+
+  // Preencher dados do equipamento (aceita chaves em maiúsculas ou minúsculas)
   function preencherDadosEquipamento(equipamento) {
+    const g = (key) => getVal(equipamento, key);
     // Campos de busca
-    document.getElementById('veiculoIdEquipamento').value = equipamento.IDEQUIPAMENTO || '';
-    document.getElementById('veiculoRefEquipamento').value = equipamento.REFEQUIPAMENTO || '';
+    document.getElementById('veiculoIdEquipamento').value = g('IDEQUIPAMENTO') || '';
+    document.getElementById('veiculoRefEquipamento').value = g('REFEQUIPAMENTO') || '';
     
     // Dados completos - Linha 1
-    document.getElementById('veiculoIdEquipamentoDisplay').value = equipamento.IDEQUIPAMENTO || '';
-    document.getElementById('veiculoRefEquipamentoDisplay').value = equipamento.REFEQUIPAMENTO || '';
-    document.getElementById('veiculoDescricao').value = equipamento.DSEQUIPAMENTO || '';
-    const situacao = equipamento.FGACTIVE === 'A' || equipamento.FGACTIVE === 'S' ? 'Ativo' : 'Inativo';
-    document.getElementById('veiculoSituacao').value = situacao;
+    document.getElementById('veiculoIdEquipamentoDisplay').value = g('IDEQUIPAMENTO') || '';
+    document.getElementById('veiculoRefEquipamentoDisplay').value = g('REFEQUIPAMENTO') || '';
+    document.getElementById('veiculoDescricao').value = g('DSEQUIPAMENTO') || '';
+    const fgActive = g('FGACTIVE');
+    document.getElementById('veiculoSituacao').value = (fgActive === 'A' || fgActive === 'S') ? 'Ativo' : 'Inativo';
     
     // Linha 2
-    document.getElementById('veiculoClasseFrota').value = equipamento.CLASSE_NOME || 'Não informado';
-    document.getElementById('veiculoTipo').value = equipamento.TIPO_NOME || 'Não informado';
-    const tipoCarroceria = TIPO_CARROCERIA[equipamento.FGTIPOCARROCERIA] || equipamento.FGTIPOCARROCERIA || 'Não informado';
-    document.getElementById('veiculoTipoCarroceria').value = tipoCarroceria;
-    const tipoAtuacao = TIPO_ATUACAO[equipamento.FGTIPOATUACAO] || equipamento.FGTIPOATUACAO || 'Não informado';
-    document.getElementById('veiculoTipoAtuacao').value = tipoAtuacao;
+    document.getElementById('veiculoClasseFrota').value = g('CLASSE_NOME') || 'Não informado';
+    document.getElementById('veiculoTipo').value = g('TIPO_NOME') || 'Não informado';
+    document.getElementById('veiculoTipoCarroceria').value = TIPO_CARROCERIA[g('FGTIPOCARROCERIA')] || g('FGTIPOCARROCERIA') || 'Não informado';
+    document.getElementById('veiculoTipoAtuacao').value = TIPO_ATUACAO[g('FGTIPOATUACAO')] || g('FGTIPOATUACAO') || 'Não informado';
     
     // Linha 3
-    document.getElementById('veiculoGrupo').value = equipamento.GRUPO_NOME || 'Não informado';
-    document.getElementById('veiculoMarca').value = equipamento.MARCA_NOME || 'Não informado';
-    document.getElementById('veiculoModelo').value = equipamento.MODELO_NOME || 'Não informado';
-    document.getElementById('veiculoAnoFabricacao').value = equipamento.ANOFABRICA || 'Não informado';
+    document.getElementById('veiculoGrupo').value = g('GRUPO_NOME') || 'Não informado';
+    document.getElementById('veiculoMarca').value = g('MARCA_NOME') || 'Não informado';
+    document.getElementById('veiculoModelo').value = g('MODELO_NOME') || 'Não informado';
+    document.getElementById('veiculoAnoFabricacao').value = g('ANOFABRICA') || 'Não informado';
     
     // Linha 4
-    document.getElementById('veiculoCapacidade').value = equipamento.CAPACIDCARGA ? formatarDecimal(equipamento.CAPACIDCARGA, 2) : 'Não informado';
-    document.getElementById('veiculoAltura').value = equipamento.ALTURA ? formatarDecimal(equipamento.ALTURA, 2) : 'Não informado';
-    document.getElementById('veiculoLargura').value = equipamento.LARGURA ? formatarDecimal(equipamento.LARGURA, 2) : 'Não informado';
-    document.getElementById('veiculoComprimento').value = equipamento.COMPRIMENTO ? formatarDecimal(equipamento.COMPRIMENTO, 2) : 'Não informado';
+    document.getElementById('veiculoCapacidade').value = g('CAPACIDCARGA') ? formatarDecimal(g('CAPACIDCARGA'), 2) : 'Não informado';
+    document.getElementById('veiculoAltura').value = g('ALTURA') ? formatarDecimal(g('ALTURA'), 2) : 'Não informado';
+    document.getElementById('veiculoLargura').value = g('LARGURA') ? formatarDecimal(g('LARGURA'), 2) : 'Não informado';
+    document.getElementById('veiculoComprimento').value = g('COMPRIMENTO') ? formatarDecimal(g('COMPRIMENTO'), 2) : 'Não informado';
     
     // Linha 5
-    document.getElementById('veiculoCubico').value = equipamento.MTCUBICO ? formatarDecimal(equipamento.MTCUBICO, 2) : 'Não informado';
-    document.getElementById('veiculoEixos').value = equipamento.NREIXOS || 'Não informado';
-    const rastreado = equipamento.FGRASTREADO === 'S' ? 'Sim' : equipamento.FGRASTREADO === 'N' ? 'Não' : 'Não informado';
-    document.getElementById('veiculoRastreado').value = rastreado;
+    document.getElementById('veiculoCubico').value = g('MTCUBICO') ? formatarDecimal(g('MTCUBICO'), 2) : 'Não informado';
+    document.getElementById('veiculoEixos').value = g('NREIXOS') || 'Não informado';
+    document.getElementById('veiculoRastreado').value = g('FGRASTREADO') === 'S' ? 'Sim' : g('FGRASTREADO') === 'N' ? 'Não' : 'Não informado';
     
-    // Preencher tipo de equipamento se disponível
-    if (equipamento.CDTIPOEQUIPAMENTO) {
-      document.getElementById('veiculoTpEquipamento').value = equipamento.CDTIPOEQUIPAMENTO;
-    } else if (!document.getElementById('veiculoTpEquipamento').value && equipamento.TPEQUIPAMENTO) {
-      // Fallback: usar TPEQUIPAMENTO se CDTIPOEQUIPAMENTO não estiver disponível
-      document.getElementById('veiculoTpEquipamento').value = equipamento.TPEQUIPAMENTO;
+    if (g('CDTIPOEQUIPAMENTO')) {
+      document.getElementById('veiculoTpEquipamento').value = g('CDTIPOEQUIPAMENTO');
+    } else if (!document.getElementById('veiculoTpEquipamento').value && g('TPEQUIPAMENTO')) {
+      document.getElementById('veiculoTpEquipamento').value = g('TPEQUIPAMENTO');
     }
 
     document.getElementById('veiculoDadosCompletos').style.display = 'block';
@@ -9845,9 +10018,13 @@ function getOverlayMostrado() {
     const tpequipamentoFormatado = String(tpequipamento).padStart(2, '0').substring(0, 2).toUpperCase();
 
     try {
+      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const response = await fetch(`/api/viagens/${idViagem}/veiculo`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           idequipamento: parseFloat(idequipamento),
           refequipamento: refequipamento.toUpperCase(),
@@ -9866,7 +10043,11 @@ function getOverlayMostrado() {
           await carregarVeiculoViagem(idViagem);
         }
       } else {
-        showMessage(result.error || 'Erro ao salvar veículo.', 'error');
+        if (response.status === 401) {
+          showMessage('Sessão expirada ou não autorizado. Faça login novamente.', 'error');
+        } else {
+          showMessage(result.error || 'Erro ao salvar veículo.', 'error');
+        }
       }
     } catch (err) {
       console.error('Erro ao salvar veículo:', err);
@@ -10431,6 +10612,16 @@ function getOverlayMostrado() {
     'U': 'Unidade de Negócio'
   };
 
+  // Helper: obter valor do cadastro sem depender de maiúsculas/minúsculas (PostgreSQL pode retornar minúsculas)
+  function getCadastroVal(cadastro, key) {
+    if (!cadastro || typeof cadastro !== 'object') return '';
+    const v = cadastro[key];
+    if (v !== undefined && v !== null) return v;
+    const lowerKey = key.toLowerCase();
+    const found = Object.keys(cadastro).find(k => k.toLowerCase() === lowerKey);
+    return found !== undefined ? cadastro[found] : '';
+  }
+
   // Preencher dados do motorista
   function preencherDadosMotorista(cadastro) {
     if (!cadastro) {
@@ -10439,8 +10630,8 @@ function getOverlayMostrado() {
       return;
     }
 
-    // Usar CDCADASTROGERAL ou CDCADASTRO (compatibilidade)
-    const codigo = cadastro.CDCADASTROGERAL || cadastro.CDCADASTRO || '';
+    // Usar CDCADASTROGERAL ou CDCADASTRO (compatibilidade + case-insensitive)
+    const codigo = String(getCadastroVal(cadastro, 'CDCADASTROGERAL') || getCadastroVal(cadastro, 'CDCADASTRO') || '').trim();
     
     // Campos de busca
     const codigoEl = document.getElementById('motoristaCodigo');
@@ -10448,81 +10639,90 @@ function getOverlayMostrado() {
     const nomeEl = document.getElementById('motoristaNome');
     
     if (codigoEl) codigoEl.value = codigo;
-    if (cpfEl) cpfEl.value = formatarCPFCNPJ(cadastro.CGCCPF || '');
-    if (nomeEl) nomeEl.value = cadastro.RZSOCIAL || cadastro.NMFANTASIA || '';
+    if (cpfEl) cpfEl.value = formatarCPFCNPJ(getCadastroVal(cadastro, 'CGCCPF') || '');
+    if (nomeEl) nomeEl.value = getCadastroVal(cadastro, 'RZSOCIAL') || getCadastroVal(cadastro, 'NMFANTASIA') || '';
 
     // Dados completos - proteger todos os acessos
     const codigoDisplayEl = document.getElementById('motoristaCodigoDisplay');
     if (codigoDisplayEl) codigoDisplayEl.value = codigo;
     
     const cpfCnpjEl = document.getElementById('motoristaCpfCnpj');
-    if (cpfCnpjEl) cpfCnpjEl.value = formatarCPFCNPJ(cadastro.CGCCPF || '');
+    if (cpfCnpjEl) cpfCnpjEl.value = formatarCPFCNPJ(getCadastroVal(cadastro, 'CGCCPF') || '');
     
     const razaoSocialEl = document.getElementById('motoristaRazaoSocial');
-    if (razaoSocialEl) razaoSocialEl.value = cadastro.RZSOCIAL || cadastro.NMFANTASIA || '';
+    if (razaoSocialEl) razaoSocialEl.value = getCadastroVal(cadastro, 'RZSOCIAL') || getCadastroVal(cadastro, 'NMFANTASIA') || '';
     
     // Transportador: Código - Nome
-    const transportadorTexto = cadastro.CDTRANSPORTADOR 
-      ? `${cadastro.CDTRANSPORTADOR} - ${cadastro.TRANSPORTADOR_NOME || 'Não informado'}`
+    const cdTransportador = getCadastroVal(cadastro, 'CDTRANSPORTADOR');
+    const transportadorNome = getCadastroVal(cadastro, 'TRANSPORTADOR_NOME');
+    const transportadorTexto = cdTransportador
+      ? `${cdTransportador} - ${transportadorNome || 'Não informado'}`
       : 'Não informado';
     const transportadorEl = document.getElementById('motoristaTransportador');
     if (transportadorEl) transportadorEl.value = transportadorTexto;
     
     // Tipo Pessoa
-    const tipoPessoa = TIPO_PESSOA[cadastro.FGFISICAJURIDICA] || cadastro.FGFISICAJURIDICA || 'Não informado';
+    const fgFisicaJuridica = getCadastroVal(cadastro, 'FGFISICAJURIDICA');
+    const tipoPessoa = TIPO_PESSOA[fgFisicaJuridica] || fgFisicaJuridica || 'Não informado';
     const tipoPessoaEl = document.getElementById('motoristaTipoPessoa');
     if (tipoPessoaEl) tipoPessoaEl.value = tipoPessoa;
     
     // Tipo Cadastro
-    const tipoCadastro = TIPO_CADASTRO[cadastro.FGTIPOCADASTRO] || cadastro.FGTIPOCADASTRO || 'Não informado';
+    const fgTipoCadastro = getCadastroVal(cadastro, 'FGTIPOCADASTRO');
+    const tipoCadastro = TIPO_CADASTRO[fgTipoCadastro] || fgTipoCadastro || 'Não informado';
     const tipoCadastroEl = document.getElementById('motoristaTipoCadastro');
     if (tipoCadastroEl) tipoCadastroEl.value = tipoCadastro;
     
     // Possui Veículo Rastreado
-    const rastreado = cadastro.FGRASTREADO === 'S' ? 'Sim' : cadastro.FGRASTREADO === 'N' ? 'Não' : 'Não informado';
+    const fgRastreado = getCadastroVal(cadastro, 'FGRASTREADO');
+    const rastreado = fgRastreado === 'S' ? 'Sim' : fgRastreado === 'N' ? 'Não' : 'Não informado';
     const rastreadoEl = document.getElementById('motoristaRastreado');
     if (rastreadoEl) rastreadoEl.value = rastreado;
     
     // Situação
-    const situacao = cadastro.FGACTIVE === 'A' || cadastro.FGACTIVE === 'S' ? 'Ativo' : 'Inativo';
+    const fgActive = getCadastroVal(cadastro, 'FGACTIVE');
+    const situacao = fgActive === 'A' || fgActive === 'S' ? 'Ativo' : 'Inativo';
     const situacaoEl = document.getElementById('motoristaSituacao');
     if (situacaoEl) situacaoEl.value = situacao;
     
     // CEP
     const cepEl = document.getElementById('motoristaCEP');
-    if (cepEl) cepEl.value = formatarCEP(cadastro.CEP || '');
+    if (cepEl) cepEl.value = formatarCEP(getCadastroVal(cadastro, 'CEP') || '');
     
     // Endereço
     const enderecoEl = document.getElementById('motoristaEndereco');
-    if (enderecoEl) enderecoEl.value = cadastro.ENDERECO || '';
+    if (enderecoEl) enderecoEl.value = getCadastroVal(cadastro, 'ENDERECO') || '';
     const numeroEl = document.getElementById('motoristaNumero');
-    if (numeroEl) numeroEl.value = cadastro.NRENDERECO || '';
+    if (numeroEl) numeroEl.value = getCadastroVal(cadastro, 'NRENDERECO') || '';
     const bairroEl = document.getElementById('motoristaBairro');
-    if (bairroEl) bairroEl.value = cadastro.BAIRRO || '';
+    if (bairroEl) bairroEl.value = getCadastroVal(cadastro, 'BAIRRO') || '';
     const complementoEl = document.getElementById('motoristaComplemento');
-    if (complementoEl) complementoEl.value = cadastro.COMPLEND || '';
+    if (complementoEl) complementoEl.value = getCadastroVal(cadastro, 'COMPLEND') || '';
     
-    // Cidade
-    const estado = cadastro.CIDADE_ESTADO || '';
-    const cidade = cadastro.CIDADE_NOME || '';
+    // Cidade / UF / Código Cidade
+    const estado = getCadastroVal(cadastro, 'CIDADE_ESTADO') || '';
+    const cidade = getCadastroVal(cadastro, 'CIDADE_NOME') || '';
+    const codigoCidade = getCadastroVal(cadastro, 'CDCIDADE') || '';
     const ufEl = document.getElementById('motoristaUf');
     if (ufEl) ufEl.value = estado || 'Não informado';
     const cidadeEl = document.getElementById('motoristaCidade');
     if (cidadeEl) cidadeEl.value = cidade || 'Não informado';
     const codigoCidadeEl = document.getElementById('motoristaCodigoCidade');
-    if (codigoCidadeEl) codigoCidadeEl.value = cadastro.CDCIDADE || '';
+    if (codigoCidadeEl) codigoCidadeEl.value = codigoCidade;
     
     // Latitude e Longitude
+    const latVal = getCadastroVal(cadastro, 'LATITUDE');
+    const lonVal = getCadastroVal(cadastro, 'LONGITUDE');
     const latEl = document.getElementById('motoristaLatitude');
-    if (latEl) latEl.value = cadastro.LATITUDE ? cadastro.LATITUDE.toFixed(6).replace('.', ',') : '';
+    if (latEl) latEl.value = (latVal !== '' && latVal != null) ? Number(latVal).toFixed(6).replace('.', ',') : '';
     const lonEl = document.getElementById('motoristaLongitude');
-    if (lonEl) lonEl.value = cadastro.LONGITUDE ? cadastro.LONGITUDE.toFixed(6).replace('.', ',') : '';
+    if (lonEl) lonEl.value = (lonVal !== '' && lonVal != null) ? Number(lonVal).toFixed(6).replace('.', ',') : '';
     
     // Email e Celular
     const emailEl = document.getElementById('motoristaEmail');
-    if (emailEl) emailEl.value = cadastro.ENDEMAIL || '';
+    if (emailEl) emailEl.value = getCadastroVal(cadastro, 'ENDEMAIL') || '';
     const celularEl = document.getElementById('motoristaCelular');
-    if (celularEl) celularEl.value = formatarCelular(cadastro.NRCELULAR || '');
+    if (celularEl) celularEl.value = formatarCelular(getCadastroVal(cadastro, 'NRCELULAR') || '');
 
     // Exibir dados completos
     const dadosCompletosEl = document.getElementById('motoristaDadosCompletos');
@@ -10545,7 +10745,9 @@ function getOverlayMostrado() {
   async function salvarMotorista(e) {
     e.preventDefault();
     const idViagem = document.getElementById('motoristaIdViagem')?.value;
-    const cdmotorista = document.getElementById('motoristaCodigo')?.value;
+    // Código pode estar no campo de busca ou no campo de exibição (após buscar por CPF/nome)
+    let cdmotorista = document.getElementById('motoristaCodigo')?.value?.trim();
+    if (!cdmotorista) cdmotorista = document.getElementById('motoristaCodigoDisplay')?.value?.trim();
 
     if (!idViagem) {
       showMessage('Selecione uma viagem primeiro.', 'error');
@@ -10553,7 +10755,7 @@ function getOverlayMostrado() {
     }
 
     if (!cdmotorista) {
-      showMessage('Informe o código do motorista.', 'error');
+      showMessage('Informe o código do motorista. Busque o motorista por CPF, nome ou código antes de salvar.', 'error');
       return;
     }
 
@@ -10572,9 +10774,13 @@ function getOverlayMostrado() {
     }
 
     try {
+      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
       const response = await fetch(`/api/viagens/${idViagemNum}/motorista`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           cdmotorista: cdmotoristaNum
         })
@@ -10591,8 +10797,12 @@ function getOverlayMostrado() {
           await carregarMotoristaViagem(idViagemNum);
         }
       } else {
-        console.error('Erro ao salvar motorista:', result);
-        showMessage(result.error || 'Erro ao salvar motorista.', 'error');
+        if (response.status === 401) {
+          showMessage('Sessão expirada ou não autorizado. Faça login novamente.', 'error');
+        } else {
+          console.error('Erro ao salvar motorista:', result);
+          showMessage(result.error || 'Erro ao salvar motorista.', 'error');
+        }
       }
     } catch (err) {
       console.error('Erro ao salvar motorista:', err);
@@ -11237,30 +11447,36 @@ function getOverlayMostrado() {
     
     let html = '';
     resumo.forEach(item => {
+      const qtd = item.quantidade ?? 0;
+      const vMin = item.valorMinimo ?? '0.00';
+      const vMax = item.valorMaximo ?? '0.00';
+      const vMed = item.valorMedio ?? '0.00';
+      const pTotal = item.pesoTotal ?? '0.00';
+      const classe = item.classefrota ?? 'Não Informada';
       html += `
         <div style="background: white; padding: 15px 20px; border-radius: 8px; border: 1px solid #e9ecef; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <strong style="color: #2c3e50; font-size: 16px;">${item.classefrota}</strong>
+            <strong style="color: #2c3e50; font-size: 16px;">${classe}</strong>
             <span style="background: #667eea; color: white; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600;">
-              ${item.quantidade} viagem(ns)
+              ${qtd} viagem(ns)
             </span>
           </div>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 12px;">
             <div>
               <div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">Valor Mínimo</div>
-              <div style="font-size: 15px; font-weight: 600; color: #27ae60;">R$ ${item.valorMinimo}</div>
+              <div style="font-size: 15px; font-weight: 600; color: #27ae60;">R$ ${vMin}</div>
             </div>
             <div>
               <div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">Valor Máximo</div>
-              <div style="font-size: 15px; font-weight: 600; color: #e74c3c;">R$ ${item.valorMaximo}</div>
+              <div style="font-size: 15px; font-weight: 600; color: #e74c3c;">R$ ${vMax}</div>
             </div>
             <div>
               <div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">Valor Médio</div>
-              <div style="font-size: 15px; font-weight: 600; color: #3498db;">R$ ${item.valorMedio}</div>
+              <div style="font-size: 15px; font-weight: 600; color: #3498db;">R$ ${vMed}</div>
             </div>
             <div>
               <div style="font-size: 12px; color: #6c757d; margin-bottom: 4px;">Peso Total</div>
-              <div style="font-size: 15px; font-weight: 600; color: #9b59b6;">${item.pesoTotal} kg</div>
+              <div style="font-size: 15px; font-weight: 600; color: #9b59b6;">${pTotal} kg</div>
             </div>
           </div>
         </div>
@@ -11288,13 +11504,7 @@ function getOverlayMostrado() {
         ? '<span style="color: #27ae60; font-size: 16px;" title="Rastreado">●</span>' 
         : '<span style="color: #e74c3c; font-size: 16px;" title="Não Rastreado">●</span>';
       
-      const dtInicio = viagem.dtPrevInicio ? new Date(viagem.dtPrevInicio).toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      }) : 'Não informado';
+      const dtInicio = viagem.dtPrevInicio ? fmtDataHora(viagem.dtPrevInicio) : 'Não informado';
       
       html += `
         <div style="background: #ffffff; border: 1px solid #dee2e6; border-left: 4px solid #667eea; border-radius: 6px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: all 0.2s ease;" 
@@ -11394,7 +11604,7 @@ function getOverlayMostrado() {
       servidorNormalizado = servidorNormalizado.replace(/https:\/\//, 'http://');
       
       if (servidorNormalizado !== servidor) {
-        console.log('🔄 [ROTA] Normalizando URL do servidor próprio:', servidor, '→', servidorNormalizado);
+        _log('🔄 [ROTA] Normalizando URL do servidor próprio:', servidor, '→', servidorNormalizado);
       }
       
       // Verificar se ainda está em HTTPS após normalização
@@ -11473,7 +11683,7 @@ function getOverlayMostrado() {
         console.warn('⚠️ [FETCH] URL convertida de HTTPS para HTTP:', url.substring(0, 80), '→', httpUrl.substring(0, 80));
       }
       
-      console.log('🔄 [FETCH] Usando XMLHttpRequest diretamente para servidor próprio:', httpUrl.substring(0, 80));
+      _log('🔄 [FETCH] Usando XMLHttpRequest diretamente para servidor próprio:', httpUrl.substring(0, 80));
       
       return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
@@ -11598,62 +11808,7 @@ function getOverlayMostrado() {
     return null;
   }
 
-  // Função para sincronizar rastreamento do INTEGRA_PRD
-  async function sincronizarRastreamentoIntegra(idViagem) {
-    if (!idViagem) {
-      mostrarMensagemRastreamento('ID da viagem não encontrado.', 'error');
-      return;
-    }
-
-    const btnAtualizar = document.getElementById('btnAtualizarRastreamento');
-    const textoOriginal = btnAtualizar ? btnAtualizar.innerHTML : '';
-
-    try {
-      // Mostrar loading no botão
-      if (btnAtualizar) {
-        btnAtualizar.disabled = true;
-        btnAtualizar.innerHTML = '⏳ Sincronizando...';
-      }
-
-      mostrarMensagemRastreamento('Sincronizando posições do INTEGRA_PRD...', 'info');
-
-      const response = await fetch(`/api/motorista/sincronizar-rastreamento/${idViagem}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      const resultado = await response.json();
-
-      if (response.ok && resultado.success) {
-        mostrarMensagemRastreamento(
-          resultado.message || 'Sincronização concluída com sucesso!',
-          'success'
-        );
-      } else {
-        mostrarMensagemRastreamento(
-          resultado.error || 'Erro ao sincronizar rastreamento.',
-          'error'
-        );
-        console.error('❌ Erro na sincronização:', resultado);
-      }
-    } catch (error) {
-      console.error('❌ Erro ao sincronizar rastreamento:', error);
-      mostrarMensagemRastreamento(
-        'Erro ao sincronizar rastreamento. Verifique a conexão com o servidor.',
-        'error'
-      );
-    } finally {
-      // Restaurar botão
-      if (btnAtualizar) {
-        btnAtualizar.disabled = false;
-        btnAtualizar.innerHTML = textoOriginal || '🔄 Atualizar Posições';
-      }
-    }
-  }
-
-  // Inicializar aba de rastreamento
+  // Botão atualizar: recarrega posições do banco principal (PostgreSQL). Não há mais sincronização com INTEGRA_PRD.
   function inicializarAbaRastreamento() {
     // Botão voltar
     const btnVoltar = document.getElementById('btnVoltarRastreamento');
@@ -11663,7 +11818,7 @@ function getOverlayMostrado() {
       });
     }
 
-    // Botão atualizar
+    // Botão atualizar — apenas recarrega posições do banco (Atlas Cargo / PostgreSQL)
     const btnAtualizar = document.getElementById('btnAtualizarRastreamento');
     if (btnAtualizar) {
       btnAtualizar.addEventListener('click', async () => {
@@ -11672,22 +11827,12 @@ function getOverlayMostrado() {
                         null;
         if (idViagem) {
           try {
-            // Mostrar overlay de loading
-            showRastreamentoLoading('Sincronizando Rastreamento', 'Sincronizando posições do INTEGRA_PRD...');
-            
-            // Primeiro sincronizar do INTEGRA_PRD, depois recarregar posições
-            await sincronizarRastreamentoIntegra(idViagem);
-            
-            // Atualizar mensagem do overlay
-            showRastreamentoLoading('Carregando Posições GPS', 'Buscando e processando posições GPS...');
-            
-            // Recarregar posições após sincronização
+            showRastreamentoLoading('Carregando Posições GPS', 'Buscando posições no banco...');
             await carregarPosicoesRastreamento(idViagem);
           } catch (err) {
             console.error('Erro ao atualizar rastreamento:', err);
             mostrarMensagemRastreamento('Erro ao atualizar posições. Tente novamente.', 'error');
           } finally {
-            // Sempre esconder overlay
             hideRastreamentoLoading();
           }
         } else {
@@ -11766,7 +11911,7 @@ function getOverlayMostrado() {
         const viagemResponse = await fetch(`/api/viagens/${idViagem}`);
         if (viagemResponse.ok) {
           dadosViagem = await viagemResponse.json();
-          console.log(`🔍 [RASTREAMENTO] Dados da viagem recebidos:`, {
+          _log(`🔍 [RASTREAMENTO] Dados da viagem recebidos:`, {
             ORIGEM_CIDADE: dadosViagem.ORIGEM_CIDADE,
             ORIGEM_ESTADO: dadosViagem.ORIGEM_ESTADO,
             DESTINO_CIDADE: dadosViagem.DESTINO_CIDADE,
@@ -11788,7 +11933,7 @@ function getOverlayMostrado() {
 
       const posicoesData = await response.json();
       
-      console.log(`📊 [RASTREAMENTO] Resposta da API recebida:`, {
+      _log(`📊 [RASTREAMENTO] Resposta da API recebida:`, {
         tipo: Array.isArray(posicoesData) ? 'array' : 'objeto',
         tamanho: Array.isArray(posicoesData) ? posicoesData.length : (posicoesData.posicoes?.length || 0)
       });
@@ -11799,24 +11944,24 @@ function getOverlayMostrado() {
         // Formato antigo (array direto) - compatibilidade
         posicoes = posicoesData;
         ultimaPosicaoGeral = null;
-        console.log(`📊 [RASTREAMENTO] Formato antigo (array): ${posicoes.length} posições`);
+        _log(`📊 [RASTREAMENTO] Formato antigo (array): ${posicoes.length} posições`);
       } else {
         // Formato novo (objeto com posicoes e ultimaPosicaoGeral)
         posicoes = posicoesData.posicoes || [];
         ultimaPosicaoGeral = posicoesData.ultimaPosicaoGeral || null;
-        console.log(`📊 [RASTREAMENTO] Formato novo (objeto): ${posicoes.length} posições`);
+        _log(`📊 [RASTREAMENTO] Formato novo (objeto): ${posicoes.length} posições`);
       }
       
       if (posicoes.length > 0) {
-        console.log(`✅ [RASTREAMENTO] ${posicoes.length} posições GPS carregadas para viagem ${idViagem}`);
-        console.log(`📍 [RASTREAMENTO] Primeira posição:`, posicoes[0]);
-        console.log(`📍 [RASTREAMENTO] Última posição:`, posicoes[posicoes.length - 1]);
+        _log(`✅ [RASTREAMENTO] ${posicoes.length} posições GPS carregadas para viagem ${idViagem}`);
+        _log(`📍 [RASTREAMENTO] Primeira posição:`, posicoes[0]);
+        _log(`📍 [RASTREAMENTO] Última posição:`, posicoes[posicoes.length - 1]);
       } else {
         console.warn(`⚠️ [RASTREAMENTO] Nenhuma posição encontrada na resposta da API para viagem ${idViagem}`);
       }
       
       if (ultimaPosicaoGeral) {
-        console.log(`📅 [RASTREAMENTO] Última atualização geral:`, ultimaPosicaoGeral.DHREGISTRO);
+        _log(`📅 [RASTREAMENTO] Última atualização geral:`, ultimaPosicaoGeral.DHREGISTRO);
       }
 
       // Esconder mensagem "sem viagem" e mostrar container
@@ -11847,7 +11992,7 @@ function getOverlayMostrado() {
           if (typeof dataStr === 'string') {
             // Se a string não tem timezone (não termina com Z ou +/-), 
             // interpretar como horário local do Brasil
-            // Formato esperado: "2025-12-15T17:56:00" ou "2025-12-15T17:56:00.000"
+            // Formato esperado: "2026-12-15T17:56:00" ou "2026-12-15T17:56:00.000"
             // Vamos criar um Date interpretando como horário local
             const partes = dataStr.match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
             if (partes) {
@@ -11875,15 +12020,7 @@ function getOverlayMostrado() {
         }
         
         if (ultimaDataParaExibir && !isNaN(ultimaDataParaExibir.getTime())) {
-          // Formatar no horário local (já está no horário local após a conversão acima)
-          document.getElementById('rastreamentoUltimaAtualizacao').textContent = 
-            ultimaDataParaExibir.toLocaleString('pt-BR', { 
-              day: '2-digit', 
-              month: '2-digit', 
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            });
+          document.getElementById('rastreamentoUltimaAtualizacao').textContent = fmtDataHora(ultimaDataParaExibir);
         } else {
           document.getElementById('rastreamentoUltimaAtualizacao').textContent = '-';
         }
@@ -11925,15 +12062,7 @@ function getOverlayMostrado() {
         }
         
         if (ultimaDataParaExibir && !isNaN(ultimaDataParaExibir.getTime())) {
-          // Formatar no horário local
-          document.getElementById('rastreamentoUltimaAtualizacao').textContent = 
-            ultimaDataParaExibir.toLocaleString('pt-BR', { 
-              day: '2-digit', 
-              month: '2-digit', 
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            });
+          document.getElementById('rastreamentoUltimaAtualizacao').textContent = fmtDataHora(ultimaDataParaExibir);
         } else {
           document.getElementById('rastreamentoUltimaAtualizacao').textContent = '-';
         }
@@ -11987,7 +12116,7 @@ function getOverlayMostrado() {
     mapaRastreamentoInicializando = true;
     
     try {
-      console.log(`🗺️ [MAPA RASTREAMENTO] Exibindo mapa com ${posicoes?.length || 0} posições e dados da viagem:`, dadosViagem ? 'SIM' : 'NÃO');
+      _log(`🗺️ [MAPA RASTREAMENTO] Exibindo mapa com ${posicoes?.length || 0} posições e dados da viagem:`, dadosViagem ? 'SIM' : 'NÃO');
       
       // Se não há posições e não há dados da viagem, não exibir mapa
       if ((!posicoes || posicoes.length === 0) && !dadosViagem) {
@@ -12281,14 +12410,14 @@ function getOverlayMostrado() {
       return dataA - dataB; // ASC: mais antiga primeiro
     });
 
-    console.log(`📍 [MAPA RASTREAMENTO] ${posicoesOrdenadas.length} posições ordenadas para desenhar no mapa`);
+    _log(`📍 [MAPA RASTREAMENTO] ${posicoesOrdenadas.length} posições ordenadas para desenhar no mapa`);
 
     // Preparar coordenadas das posições GPS (já ordenadas)
     let coordenadas = posicoesOrdenadas
       .filter(p => p.LATITUDE && p.LONGITUDE && !isNaN(parseFloat(p.LATITUDE)) && !isNaN(parseFloat(p.LONGITUDE)))
       .map(p => [parseFloat(p.LATITUDE), parseFloat(p.LONGITUDE)]);
     
-    console.log(`📍 [MAPA RASTREAMENTO] ${coordenadas.length} coordenadas válidas preparadas para rota`);
+    _log(`📍 [MAPA RASTREAMENTO] ${coordenadas.length} coordenadas válidas preparadas para rota`);
     
     if (coordenadas.length === 0 && posicoesOrdenadas.length > 0) {
       console.error(`❌ [MAPA RASTREAMENTO] ERRO: ${posicoesOrdenadas.length} posições mas nenhuma coordenada válida!`);
@@ -12300,7 +12429,7 @@ function getOverlayMostrado() {
     const MAX_PONTOS_MAPA = 80; // Limite máximo de pontos para desenhar no mapa (reduzido para melhor performance)
     const totalOriginal = coordenadas.length; // Guardar total original para log
     if (coordenadas.length > MAX_PONTOS_MAPA) {
-      console.log(`⚠️ [MAPA RASTREAMENTO] Muitos pontos (${totalOriginal}). Aplicando amostragem inteligente para ${MAX_PONTOS_MAPA} pontos...`);
+      _log(`⚠️ [MAPA RASTREAMENTO] Muitos pontos (${totalOriginal}). Aplicando amostragem inteligente para ${MAX_PONTOS_MAPA} pontos...`);
       
       const coordenadasAmostradas = [];
       const total = coordenadas.length;
@@ -12327,7 +12456,7 @@ function getOverlayMostrado() {
       
       coordenadas = coordenadasAmostradas;
       const reducaoPercentual = ((1 - coordenadas.length/totalOriginal) * 100).toFixed(1);
-      console.log(`✅ [MAPA RASTREAMENTO] Amostragem aplicada: ${coordenadas.length} pontos selecionados de ${totalOriginal} totais (redução de ${reducaoPercentual}%)`);
+      _log(`✅ [MAPA RASTREAMENTO] Amostragem aplicada: ${coordenadas.length} pontos selecionados de ${totalOriginal} totais (redução de ${reducaoPercentual}%)`);
       
       // Atualizar overlay com informação de amostragem
       showRastreamentoLoading('Processando Rota', `Amostragem aplicada: ${coordenadas.length} de ${totalOriginal} pontos. Calculando rota...`);
@@ -12337,7 +12466,7 @@ function getOverlayMostrado() {
     if (coordenadas.length > 0) {
       try {
         const config = window.MAP_CONFIG || {};
-        console.log(`🛣️  Calculando rota usando servidor: ${config.osrmServer || 'padrão'}...`);
+        _log(`🛣️  Calculando rota usando servidor: ${config.osrmServer || 'padrão'}...`);
         
         // Atualizar overlay para mostrar progresso do cálculo de rota
         showRastreamentoLoading('Calculando Rota', `Processando ${coordenadas.length} pontos GPS e calculando rota real...`);
@@ -12385,7 +12514,7 @@ function getOverlayMostrado() {
         const maxPontosPorSegmento = 15; // Aumentar para 15 pontos por segmento (mais rápido)
         
         if (pontosParaRota.length > maxPontosPorSegmento) {
-          console.log(`   📊 Calculando rota em segmentos de ${maxPontosPorSegmento} pontos (total: ${pontosParaRota.length})...`);
+          _log(`   📊 Calculando rota em segmentos de ${maxPontosPorSegmento} pontos (total: ${pontosParaRota.length})...`);
           
           // Função auxiliar para obter rota de um segmento (com retry e servidor alternativo)
           async function obterRotaSegmento(segmento, servidorPrincipal, servidorAlternativo = null) {
@@ -12408,7 +12537,7 @@ function getOverlayMostrado() {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 segundos
                 
-                console.log('🌐 [RASTREAMENTO] Fazendo fetch para:', rotaUrl.substring(0, 100) + '...');
+                _log('🌐 [RASTREAMENTO] Fazendo fetch para:', rotaUrl.substring(0, 100) + '...');
                 
                 // Usar função helper que força HTTP
                 const response = await fetchForcandoHTTP(rotaUrl, {
@@ -12441,7 +12570,7 @@ function getOverlayMostrado() {
                       return segmentGeometry.reverse();
                     }
                     
-                    console.log(`   ✅ Rota segmento OK: primeiro [${primeiroPontoRota[0]}, ${primeiroPontoRota[1]}], último [${ultimoPontoRota[0]}, ${ultimoPontoRota[1]}]`);
+                    _log(`   ✅ Rota segmento OK: primeiro [${primeiroPontoRota[0]}, ${primeiroPontoRota[1]}], último [${ultimoPontoRota[0]}, ${ultimoPontoRota[1]}]`);
                     return segmentGeometry;
                   }
                 }
@@ -12457,7 +12586,7 @@ function getOverlayMostrado() {
             
             // Se ambos falharem, tentar calcular em pares menores (2 pontos por vez)
             if (segmento.length > 2) {
-              console.log(`   🔄 Tentando calcular em pares menores (${segmento.length} pontos → pares de 2)...`);
+              _log(`   🔄 Tentando calcular em pares menores (${segmento.length} pontos → pares de 2)...`);
               let rotaPares = [];
               
               for (let i = 0; i < segmento.length - 1; i++) {
@@ -12505,7 +12634,7 @@ function getOverlayMostrado() {
               }
               
               if (rotaPares.length > 0) {
-                console.log(`   ✅ Rota calculada em pares (${rotaPares.length} pontos)`);
+                _log(`   ✅ Rota calculada em pares (${rotaPares.length} pontos)`);
                 return rotaPares;
               }
             }
@@ -12523,7 +12652,7 @@ function getOverlayMostrado() {
               const dist = calcularDistancia(segmento[j], segmento[j + 1]);
               if (dist > 100000) { // Mais de 100km entre pontos consecutivos = erro de dados
                 console.warn(`   ⚠️  Pontos muito distantes detectados (${(dist/1000).toFixed(1)}km) entre posições ${i+j} e ${i+j+1}`);
-                console.log(`   🔄 Dividindo segmento em partes menores...`);
+                _log(`   🔄 Dividindo segmento em partes menores...`);
                 
                 // Processar primeira parte (até o ponto problemático)
                 if (j > 0) {
@@ -12541,10 +12670,10 @@ function getOverlayMostrado() {
                       } else {
                         routeLatLngs.push(...parte1Route.slice(1));
                       }
-                      console.log(`   ✅ Primeira parte do segmento processada (${parte1Route.length} pontos)`);
+                      _log(`   ✅ Primeira parte do segmento processada (${parte1Route.length} pontos)`);
                     } else {
                       // Se falhar, calcular ponto a ponto para a primeira parte
-                      console.log(`   🔄 Calculando primeira parte ponto a ponto...`);
+                      _log(`   🔄 Calculando primeira parte ponto a ponto...`);
                         for (let k = 0; k < parte1.length - 1; k++) {
                         const par = [parte1[k], parte1[k + 1]];
                         const parCoordsStr = par.map(c => `${c[1]},${c[0]}`).join(';');
@@ -12591,7 +12720,7 @@ function getOverlayMostrado() {
                         
                         await new Promise(resolve => setTimeout(resolve, 30));
                       }
-                      console.log(`   ✅ Primeira parte calculada ponto a ponto`);
+                      _log(`   ✅ Primeira parte calculada ponto a ponto`);
                     }
                   } else if (parte1.length === 1) {
                     // Apenas um ponto, adicionar
@@ -12607,7 +12736,7 @@ function getOverlayMostrado() {
                 }
                 
                 // Tentar calcular rota OSRM mesmo para saltos grandes (pode ser viagem longa)
-                console.log(`   🔄 Tentando calcular rota OSRM para salto de ${(dist/1000).toFixed(1)}km...`);
+                _log(`   🔄 Tentando calcular rota OSRM para salto de ${(dist/1000).toFixed(1)}km...`);
                 const saltoPar = [segmento[j], segmento[j + 1]];
                 const saltoCoordsStr = saltoPar.map(c => `${c[1]},${c[0]}`).join(';');
                 
@@ -12634,7 +12763,7 @@ function getOverlayMostrado() {
                       saltoRota = parsearRespostaRota(saltoData);
                       if (saltoRota && saltoRota.length > 0) {
                         routeLatLngs.push(...saltoRota.slice(1)); // Adicionar rota completa
-                        console.log(`   ✅ Rota calculada para salto de ${(dist/1000).toFixed(1)}km (${saltoRota.length} pontos)`);
+                        _log(`   ✅ Rota calculada para salto de ${(dist/1000).toFixed(1)}km (${saltoRota.length} pontos)`);
                         break;
                       }
                     }
@@ -12661,10 +12790,10 @@ function getOverlayMostrado() {
                     
                     if (parte2Route && parte2Route.length > 0) {
                       routeLatLngs.push(...parte2Route.slice(1));
-                      console.log(`   ✅ Segunda parte do segmento processada (${parte2Route.length} pontos)`);
+                      _log(`   ✅ Segunda parte do segmento processada (${parte2Route.length} pontos)`);
                     } else {
                       // Se falhar, calcular ponto a ponto para a segunda parte
-                      console.log(`   🔄 Calculando segunda parte ponto a ponto...`);
+                      _log(`   🔄 Calculando segunda parte ponto a ponto...`);
                       for (let k = 0; k < parte2.length - 1; k++) {
                         const par = [parte2[k], parte2[k + 1]];
                         const parCoordsStr = par.map(c => `${c[1]},${c[0]}`).join(';');
@@ -12703,7 +12832,7 @@ function getOverlayMostrado() {
                         
                         await new Promise(resolve => setTimeout(resolve, 30));
                       }
-                      console.log(`   ✅ Segunda parte calculada ponto a ponto`);
+                      _log(`   ✅ Segunda parte calculada ponto a ponto`);
                     }
                   } else if (parte2.length === 1) {
                     // Apenas um ponto restante, adicionar
@@ -12731,7 +12860,7 @@ function getOverlayMostrado() {
                   // Pular primeiro ponto para não duplicar na junção
                   routeLatLngs.push(...segmentRoute.slice(1));
                 }
-                console.log(`   ✅ Segmento ${Math.floor(i / (maxPontosPorSegmento - 1)) + 1} processado (${segmentRoute.length} pontos na rota)`);
+                _log(`   ✅ Segmento ${Math.floor(i / (maxPontosPorSegmento - 1)) + 1} processado (${segmentRoute.length} pontos na rota)`);
               } else {
                 // Se OSRM falhar completamente, calcular ponto a ponto (mais lento mas garante rota)
                 console.warn(`   ⚠️  Segmento ${Math.floor(i / (maxPontosPorSegmento - 1)) + 1} falhou, calculando ponto a ponto...`);
@@ -12821,7 +12950,7 @@ function getOverlayMostrado() {
                   } else {
                     routeLatLngs.push(...rotaPontoAPonto.slice(1));
                   }
-                  console.log(`   ✅ Segmento ${Math.floor(i / (maxPontosPorSegmento - 1)) + 1} calculado ponto a ponto (${rotaPontoAPonto.length} pontos)`);
+                  _log(`   ✅ Segmento ${Math.floor(i / (maxPontosPorSegmento - 1)) + 1} calculado ponto a ponto (${rotaPontoAPonto.length} pontos)`);
                 }
               }
             } else if (!segmentoProcessado && segmento.length >= 1) {
@@ -12871,7 +13000,7 @@ function getOverlayMostrado() {
               // Recalcular após inverter
               const primeiroPontoRotaApos = routeLatLngs[0];
               const ultimoPontoRotaApos = routeLatLngs[routeLatLngs.length - 1];
-              console.log(`✅ Rota revertida: primeiro [${primeiroPontoRotaApos[0]}, ${primeiroPontoRotaApos[1]}], último [${ultimoPontoRotaApos[0]}, ${ultimoPontoRotaApos[1]}]`);
+              _log(`✅ Rota revertida: primeiro [${primeiroPontoRotaApos[0]}, ${primeiroPontoRotaApos[1]}], último [${ultimoPontoRotaApos[0]}, ${ultimoPontoRotaApos[1]}]`);
             }
             
             // Garantir que a linha verde termine EXATAMENTE na última posição GPS
@@ -12883,7 +13012,7 @@ function getOverlayMostrado() {
             // Se não estiver exatamente na última posição, adicionar/ajustar
             if (distanciaFinal > 0.0001) { // ~11 metros de diferença
               routeLatLngs[routeLatLngs.length - 1] = ultimaPosicaoGPS;
-              console.log(`🟢 Ajustando fim da rota verde para última posição GPS exata`);
+              _log(`🟢 Ajustando fim da rota verde para última posição GPS exata`);
             }
             
             // Adicionar rota OSRM (VERDE - pontos já percorridos)
@@ -12892,9 +13021,9 @@ function getOverlayMostrado() {
               weight: 4,
               opacity: 0.8
             }).addTo(mapaRastreamento);
-            console.log(`✅ Rota OSRM calculada (verde - pontos já percorridos)! (${routeLatLngs.length} pontos conectando ${pontosParaRota.length} posições GPS)`);
-            console.log(`📍 Primeiro ponto da rota verde: [${routeLatLngs[0][0]}, ${routeLatLngs[0][1]}]`);
-            console.log(`📍 Último ponto da rota verde: [${routeLatLngs[routeLatLngs.length - 1][0]}, ${routeLatLngs[routeLatLngs.length - 1][1]}]`);
+            _log(`✅ Rota OSRM calculada (verde - pontos já percorridos)! (${routeLatLngs.length} pontos conectando ${pontosParaRota.length} posições GPS)`);
+            _log(`📍 Primeiro ponto da rota verde: [${routeLatLngs[0][0]}, ${routeLatLngs[0][1]}]`);
+            _log(`📍 Último ponto da rota verde: [${routeLatLngs[routeLatLngs.length - 1][0]}, ${routeLatLngs[routeLatLngs.length - 1][1]}]`);
             
             // Atualizar overlay para mostrar que rota foi calculada
             showRastreamentoLoading('Finalizando', 'Rota calculada! Ajustando visualização do mapa...');
@@ -12975,7 +13104,7 @@ function getOverlayMostrado() {
               
               if (distanciaFinal > 0.0001) {
                 rotaPontoAPonto[rotaPontoAPonto.length - 1] = ultimaPosicaoGPS;
-                console.log(`🟢 Ajustando fim da rota verde (ponto a ponto) para última posição GPS exata`);
+                _log(`🟢 Ajustando fim da rota verde (ponto a ponto) para última posição GPS exata`);
               }
               
               linhaRastreamento = L.polyline(rotaPontoAPonto, {
@@ -12983,7 +13112,7 @@ function getOverlayMostrado() {
                 weight: 4,
                 opacity: 0.8
               }).addTo(mapaRastreamento);
-              console.log(`✅ Rota calculada ponto a ponto (verde - pontos já percorridos)! (${rotaPontoAPonto.length} pontos)`);
+              _log(`✅ Rota calculada ponto a ponto (verde - pontos já percorridos)! (${rotaPontoAPonto.length} pontos)`);
             } else {
               console.error('❌ ERRO: Não foi possível calcular rota pelas estradas. Verifique conexão com servidor OSRM/ORS.');
             }
@@ -12998,7 +13127,7 @@ function getOverlayMostrado() {
             'geojson'
           );
           
-          console.log(`   🛣️  Calculando rota completa para ${pontosParaRota.length} pontos...`);
+          _log(`   🛣️  Calculando rota completa para ${pontosParaRota.length} pontos...`);
           
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 30000);
@@ -13045,7 +13174,7 @@ function getOverlayMostrado() {
               
               if (distanciaFinal > 0.0001) {
                 routeCoords[routeCoords.length - 1] = ultimaPosicaoGPS;
-                console.log(`🟢 Ajustando fim da rota verde (poucos pontos) para última posição GPS exata`);
+                _log(`🟢 Ajustando fim da rota verde (poucos pontos) para última posição GPS exata`);
               }
 
               // Adicionar linha da rota seguindo as estradas
@@ -13058,7 +13187,7 @@ function getOverlayMostrado() {
                 opacity: 0.8
               }).addTo(mapaRastreamento);
               
-              console.log(`✅ Rota OSRM calculada! (${routeCoords.length} pontos conectando ${pontosParaRota.length} posições GPS)`);
+              _log(`✅ Rota OSRM calculada! (${routeCoords.length} pontos conectando ${pontosParaRota.length} posições GPS)`);
             } else {
               // Tentar com servidor alternativo ou overview=full
               console.warn('⚠️  OSRM não retornou rota, tentando servidor alternativo...');
@@ -13090,7 +13219,7 @@ function getOverlayMostrado() {
                     
                     if (distanciaFinal > 0.0001) {
                       routeGeometryAlt[routeGeometryAlt.length - 1] = ultimaPosicaoGPS;
-                      console.log(`🟢 Ajustando fim da rota verde (servidor alt) para última posição GPS exata`);
+                      _log(`🟢 Ajustando fim da rota verde (servidor alt) para última posição GPS exata`);
                     }
                     
                     linhaRastreamento = L.polyline(routeGeometryAlt, {
@@ -13098,7 +13227,7 @@ function getOverlayMostrado() {
                       weight: 4,
                       opacity: 0.8
                     }).addTo(mapaRastreamento);
-                    console.log(`✅ Rota calculada com servidor alternativo (verde - pontos já percorridos)! (${routeGeometryAlt.length} pontos)`);
+                    _log(`✅ Rota calculada com servidor alternativo (verde - pontos já percorridos)! (${routeGeometryAlt.length} pontos)`);
                   } else {
                     console.error('❌ ERRO: Servidor alternativo também não retornou rota válida');
                   }
@@ -13160,7 +13289,7 @@ function getOverlayMostrado() {
                 
                 if (distanciaFinal > 0.0001) {
                   routeCoordsAltCatch[routeCoordsAltCatch.length - 1] = ultimaPosicaoGPS;
-                  console.log(`🟢 Ajustando fim da rota verde (servidor alt - catch) para última posição GPS exata`);
+                  _log(`🟢 Ajustando fim da rota verde (servidor alt - catch) para última posição GPS exata`);
                 }
                 
                 linhaRastreamento = L.polyline(routeCoordsAltCatch, {
@@ -13168,7 +13297,7 @@ function getOverlayMostrado() {
                   weight: 4,
                   opacity: 0.8
                 }).addTo(mapaRastreamento);
-                console.log(`✅ Rota calculada com servidor alternativo (verde - pontos já percorridos)! (${routeCoordsAltCatch.length} pontos)`);
+                _log(`✅ Rota calculada com servidor alternativo (verde - pontos já percorridos)! (${routeCoordsAltCatch.length} pontos)`);
                 } else {
                   console.error('❌ ERRO: Servidor alternativo não retornou rota válida');
                 }
@@ -13199,7 +13328,7 @@ function getOverlayMostrado() {
         const origemCidade = (dadosViagem.ORIGEM_CIDADE || '').trim();
         const destinoCidade = (dadosViagem.DESTINO_CIDADE || '').trim();
         
-        console.log(`🗺️ [MAPA RASTREAMENTO] Valores limpos:`, {
+        _log(`🗺️ [MAPA RASTREAMENTO] Valores limpos:`, {
           origem: `${origemCidade}/${origemEstado}`,
           destino: `${destinoCidade}/${destinoEstado}`
         });
@@ -13235,7 +13364,7 @@ function getOverlayMostrado() {
               const osrmData = await osrmResponse.json();
               const routeCoords = parsearRespostaRota(osrmData);
               if (routeCoords && routeCoords.length > 0) {
-                console.log(`✅ [MAPA RASTREAMENTO] Rota planejada calculada com ${routeCoords.length} pontos`);
+                _log(`✅ [MAPA RASTREAMENTO] Rota planejada calculada com ${routeCoords.length} pontos`);
 
                 // Adicionar linha da rota planejada (origem -> destino)
                 linhaRotaPlanejada = L.polyline(routeCoords, {
@@ -13244,7 +13373,7 @@ function getOverlayMostrado() {
                   opacity: 0.6,
                   dashArray: '10, 10'
                 }).addTo(mapaRastreamento);
-                console.log(`✅ [MAPA RASTREAMENTO] Linha da rota planejada adicionada ao mapa`);
+                _log(`✅ [MAPA RASTREAMENTO] Linha da rota planejada adicionada ao mapa`);
               } else {
                 console.warn(`⚠️ [MAPA RASTREAMENTO] Rota OSRM retornou 0 pontos`);
               }
@@ -13254,7 +13383,7 @@ function getOverlayMostrado() {
           } catch (osrmErr) {
             console.warn('⚠️ [MAPA RASTREAMENTO] Erro ao calcular rota OSRM:', osrmErr);
             // Se OSRM falhar, desenhar linha reta como fallback
-            console.log(`🔄 [MAPA RASTREAMENTO] Desenhando linha reta como fallback`);
+            _log(`🔄 [MAPA RASTREAMENTO] Desenhando linha reta como fallback`);
             linhaRotaPlanejada = L.polyline(
               [[coordsOrigem.lat, coordsOrigem.lon], [coordsDestino.lat, coordsDestino.lon]],
               {
@@ -13264,7 +13393,7 @@ function getOverlayMostrado() {
                 dashArray: '10, 10'
               }
             ).addTo(mapaRastreamento);
-            console.log(`✅ [MAPA RASTREAMENTO] Linha reta (fallback) adicionada ao mapa`);
+            _log(`✅ [MAPA RASTREAMENTO] Linha reta (fallback) adicionada ao mapa`);
           }
         } else {
           console.warn(`⚠️ [MAPA RASTREAMENTO] Coordenadas inválidas! Origem: ${coordsOrigemTemp ? 'OK' : 'FALHOU'}, Destino: ${coordsDestinoTemp ? 'OK' : 'FALHOU'}`);
@@ -13287,7 +13416,7 @@ function getOverlayMostrado() {
       const ultimaLat = parseFloat(ultimaPosicao.LATITUDE);
       const ultimaLon = parseFloat(ultimaPosicao.LONGITUDE);
       
-      console.log(`🔴 Calculando rota restante: última posição GPS → destino...`);
+      _log(`🔴 Calculando rota restante: última posição GPS → destino...`);
       
       try {
               const coordsStrRestante = `${ultimaLon},${ultimaLat};${coordsDestino.lon},${coordsDestino.lat}`;
@@ -13333,13 +13462,13 @@ function getOverlayMostrado() {
             if (menorDistancia < 0.001) { // ~111 metros
               // Remover todos os pontos antes do ponto mais próximo
               routeCoordsRestanteFinal = routeCoordsRestanteFinal.slice(indiceInicio);
-              console.log(`🔴 Removendo ${indiceInicio} pontos anteriores à última posição GPS`);
+              _log(`🔴 Removendo ${indiceInicio} pontos anteriores à última posição GPS`);
             }
             
             // Garantir que o primeiro ponto seja EXATAMENTE a última posição GPS
             if (routeCoordsRestanteFinal.length > 0) {
               routeCoordsRestanteFinal[0] = [ultimaLat, ultimaLon];
-              console.log(`🔴 Garantindo que a rota vermelha comece na última posição GPS exata: [${ultimaLat}, ${ultimaLon}]`);
+              _log(`🔴 Garantindo que a rota vermelha comece na última posição GPS exata: [${ultimaLat}, ${ultimaLon}]`);
             }
             
             // Adicionar linha da rota restante (última posição → destino) em VERMELHO
@@ -13358,7 +13487,7 @@ function getOverlayMostrado() {
               </div>
             `);
             
-            console.log(`✅ Rota restante calculada! (${routeCoordsRestante.length} pontos)`);
+            _log(`✅ Rota restante calculada! (${routeCoordsRestante.length} pontos)`);
           } else {
             console.warn('⚠️  OSRM não retornou rota restante válida');
           }
@@ -13408,13 +13537,13 @@ function getOverlayMostrado() {
                 if (menorDistanciaAlt < 0.001) { // ~111 metros
                   // Remover todos os pontos antes do ponto mais próximo
                   routeCoordsRestanteAltFinal = routeCoordsRestanteAltFinal.slice(indiceInicioAlt);
-                  console.log(`🔴 Removendo ${indiceInicioAlt} pontos anteriores à última posição GPS (alt)`);
+                  _log(`🔴 Removendo ${indiceInicioAlt} pontos anteriores à última posição GPS (alt)`);
                 }
                 
                 // Garantir que o primeiro ponto seja EXATAMENTE a última posição GPS
                 if (routeCoordsRestanteAltFinal.length > 0) {
                   routeCoordsRestanteAltFinal[0] = [ultimaLat, ultimaLon];
-                  console.log(`🔴 Garantindo que a rota vermelha (alt) comece na última posição GPS exata: [${ultimaLat}, ${ultimaLon}]`);
+                  _log(`🔴 Garantindo que a rota vermelha (alt) comece na última posição GPS exata: [${ultimaLat}, ${ultimaLon}]`);
                 }
                 
                 linhaRotaRestante = L.polyline(routeCoordsRestanteAltFinal, {
@@ -13431,7 +13560,7 @@ function getOverlayMostrado() {
                   </div>
                 `);
                 
-                console.log(`✅ Rota restante calculada com servidor alternativo!`);
+                _log(`✅ Rota restante calculada com servidor alternativo!`);
               }
             }
           } catch (err) {
@@ -13510,7 +13639,7 @@ function getOverlayMostrado() {
       marcador.bindPopup(`
         <div style="min-width: 200px;">
           <strong>${index === 0 ? '📍 Início' : index === posicoesOrdenadas.length - 1 ? '📍 Posição Atual' : `📍 Posição ${index + 1}`}</strong><br>
-          <strong>Data/Hora:</strong> ${data.toLocaleString('pt-BR')}<br>
+          <strong>Data/Hora:</strong> ${fmtDataHora(data)}<br>
           <strong>Velocidade:</strong> ${velocidade}<br>
           <strong>Precisão:</strong> ${pos.PRECISAO ? pos.PRECISAO + 'm' : 'N/A'}<br>
           <strong>Coordenadas:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}
@@ -13588,14 +13717,7 @@ function getOverlayMostrado() {
                 ${isUltima ? '🏁 Última' : isPrimeira ? '📍 Primeira' : `📍 #${posicoes.length - index}`}
               </div>
               <div style="font-size: 12px; color: #6c757d;">
-                ${data.toLocaleString('pt-BR', { 
-                  day: '2-digit', 
-                  month: '2-digit', 
-                  year: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  second: '2-digit'
-                })}
+                ${fmtDataHora(pos.DHREGISTRO)}
               </div>
             </div>
             <div style="text-align: right;">
@@ -13651,7 +13773,7 @@ function getOverlayMostrado() {
         if (viagemSelecionada && parseInt(viagemSelecionada) === parseInt(idviagem)) {
           // Recarregar posições para atualizar o mapa
           await carregarPosicoesRastreamento(idviagem);
-          console.log('📍 Posição GPS atualizada via WebSocket');
+          _log('📍 Posição GPS atualizada via WebSocket');
         }
       }
     } catch (err) {
@@ -13702,7 +13824,7 @@ function getOverlayMostrado() {
               console.warn('Erro ao recarregar detalhes:', err);
             }
           }
-          console.log('🔄 Dados da viagem atualizados via WebSocket');
+          _log('🔄 Dados da viagem atualizados via WebSocket');
         }
       }
         
@@ -13787,7 +13909,7 @@ function getOverlayMostrado() {
       if (alerta.SEVERITY === 'high') {
         showMessage(`⚠️ Novo alerta crítico: ${alerta.MESSAGE || 'Alerta importante'}`, 'warning');
       }
-      console.log('⚠️ Novo alerta recebido via WebSocket (aba removida - usar módulo separado)');
+      _log('⚠️ Novo alerta recebido via WebSocket (aba removida - usar módulo separado)');
     } catch (err) {
       console.error('Erro ao processar alerta:', err);
     }
@@ -13800,7 +13922,7 @@ function getOverlayMostrado() {
   window.removerAlerta = async function(idAlerta) {
     try {
       // Aba de alertas foi removida - apenas log
-      console.log('✅ Alerta resolvido via WebSocket (aba removida - usar módulo separado)');
+      _log('✅ Alerta resolvido via WebSocket (aba removida - usar módulo separado)');
     } catch (err) {
       console.error('Erro ao processar remoção de alerta:', err);
     }
@@ -13826,7 +13948,7 @@ function getOverlayMostrado() {
         // Ignorar erro de áudio
       }
       
-      console.log('🆘 Alerta SOS recebido via WebSocket (aba removida - usar módulo separado)');
+      _log('🆘 Alerta SOS recebido via WebSocket (aba removida - usar módulo separado)');
     } catch (err) {
       console.error('Erro ao notificar SOS:', err);
     }
@@ -13840,7 +13962,7 @@ function getOverlayMostrado() {
   window.atualizarReputacaoMotorista = async function(cdmotorista, reputacao) {
     try {
       // Aba de ranking foi removida - apenas log
-      console.log('⭐ Reputação atualizada via WebSocket (aba removida - usar módulo separado)');
+      _log('⭐ Reputação atualizada via WebSocket (aba removida - usar módulo separado)');
     } catch (err) {
       console.error('Erro ao processar atualização de reputação:', err);
     }
@@ -13861,7 +13983,7 @@ function getOverlayMostrado() {
         // Atualizar grid se estiver visível
         if (gridTab && typeof window.GridEditor !== 'undefined') {
           // Recarregar grid (pode ser custoso, então apenas se necessário)
-          console.log('📋 Grid de viagens atualizado via WebSocket');
+          _log('📋 Grid de viagens atualizado via WebSocket');
         }
       }
     } catch (err) {
@@ -13964,7 +14086,7 @@ function getOverlayMostrado() {
             <li>Receba alertas e notificações automáticas</li>
           </ul>
           
-          <h4>✨ Dicas</h4>
+          <h4><i class="bx bx-bulb" style="vertical-align: middle;"></i> Dicas</h4>
           <ul>
             <li>Para criar uma nova viagem, clique em "Novo Registro" na aba Grid ou Dados</li>
             <li>Para editar uma viagem existente, clique no botão de editar (✎) na coluna Ações do grid</li>
@@ -14069,7 +14191,7 @@ function getOverlayMostrado() {
           </thead>
           <tbody>
             ${macros.map(macro => {
-              const dataHora = macro.DTOCORRENCIA ? new Date(macro.DTOCORRENCIA).toLocaleString('pt-BR') : '-';
+              const dataHora = macro.DTOCORRENCIA ? fmtDataHora(macro.DTOCORRENCIA) : '-';
               const temFoto = macro.TEM_FOTO === 'S' || macro.DSFOTOBASE64 || macro.DSCAMINHOFOTO;
               const temGPS = macro.LATITUDE && macro.LONGITUDE;
               const idSequencial = macro.IDVIAGEM_OCORRENCIA || '-';

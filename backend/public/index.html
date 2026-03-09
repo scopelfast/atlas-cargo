@@ -3,8 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>DivulgaCargas</title>
-  <link rel="icon" type="image/png" href="" id="faviconLink">
+  <title>Atlas Cargo</title>
+  <link rel="icon" type="image/png" href="/img/logoAtlasTransparente.png" id="faviconLink">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" crossorigin="anonymous">
   <script>
     // INTERCEPTOR GLOBAL: Remover ? de todas as URLs
     (function() {
@@ -76,9 +80,9 @@
       const isLocal = hostname === 'localhost' || 
                       hostname === '127.0.0.1' || 
                       hostname.startsWith('192.168.');
-      const isIntegraBrasil = hostname === 'app.integrabrasil.com' || 
-                              hostname === 'beta.integrabrasil.com' || 
-                              hostname.includes('integrabrasil.com');
+      const isAtlasCargo = hostname.includes('atlas') || 
+                           hostname.includes('atlas-cargo') || 
+                           hostname.includes('atlascargo');
       
       // CRÍTICO: Usar o protocolo REAL da página SEM REDIRECIONAMENTO
       // Se a página está em HTTP, usar HTTP; se está em HTTPS, usar HTTPS
@@ -100,7 +104,7 @@
       
       // CRÍTICO: Detectar o caminho base (subdiretório) da aplicação
       // Se a página está em /cargas/, o baseUrl deve incluir /cargas/
-      // Exemplo: https://beta.integrabrasil.com:8443/cargas/ → baseUrl = https://beta.integrabrasil.com:8443/cargas
+      // Exemplo: https://app.atlascargo.com:8443/cargas/ → baseUrl = https://app.atlascargo.com:8443/cargas
       let pathBase = window.location.pathname;
       
       // Remover nome do arquivo (index.html, dashboard.html, etc.) e manter apenas o diretório
@@ -346,432 +350,19 @@
     })();
   </script>
   <style>
-    /* Estilos críticos inline - Fallback para produção */
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    /* Fallback crítico: estilos principais em /css/style.css (identidade Atlas Cargo) */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif; background: #f1f5f9; min-height: 100vh; }
+    .login-container { display: flex; min-height: 100vh; width: 100%; }
+    .idioma-selector-web { display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 20px; }
+    .idioma-selector-web .idioma-label { font-size: 0.875rem; color: #64748b; font-weight: 500; }
+    .idioma-selector-web .btn-idioma {
+      padding: 8px 16px; border-radius: 999px; border: 1px solid #cbd5e1;
+      background: #fff; color: #475569; font-size: 0.875rem; font-weight: 500;
+      cursor: pointer; transition: background 0.2s, color 0.2s, border-color 0.2s;
     }
-    
-    body {
-      margin: 0;
-      padding: 0;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      min-height: 100vh;
-      overflow-x: hidden;
-    }
-    
-    .login-container {
-      display: flex;
-      min-height: 100vh;
-      width: 100%;
-    }
-    
-    .login-left {
-      flex: 1;
-      background: linear-gradient(135deg, #1a2a6c 0%, #2c3e50 100%);
-      color: white;
-      padding: 60px 50px;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      position: relative;
-      overflow: hidden;
-    }
-    
-    .login-branding {
-      position: relative;
-      z-index: 1;
-      text-align: center;
-      margin-bottom: 60px;
-    }
-    
-    .logo-box {
-      margin-bottom: 30px;
-    }
-    
-    .logo-box img {
-      max-width: 200px;
-      height: auto;
-      filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
-    }
-    
-    .brand-title {
-      font-size: 42px;
-      font-weight: 700;
-      margin-bottom: 10px;
-      letter-spacing: -1px;
-    }
-    
-    .brand-title span {
-      color: #ff6b6b;
-    }
-    
-    .brand-subtitle {
-      font-size: 18px;
-      opacity: 0.9;
-      font-weight: 300;
-    }
-    
-    .features-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 25px;
-      position: relative;
-      z-index: 1;
-      margin-bottom: 40px;
-    }
-    
-    .feature-card {
-      background: rgba(255, 255, 255, 0.1);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      border-radius: 16px;
-      padding: 25px;
-      text-align: center;
-      transition: all 0.3s ease;
-    }
-    
-    .feature-card:hover {
-      transform: translateY(-5px);
-      background: rgba(255, 255, 255, 0.15);
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-    }
-    
-    .feature-icon {
-      width: 60px;
-      height: 60px;
-      margin: 0 auto 15px;
-      background: linear-gradient(135deg, #ff6b6b, #ff8787);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 28px;
-      color: white;
-      box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
-    }
-    
-    .feature-card h3 {
-      font-size: 16px;
-      margin-bottom: 8px;
-      font-weight: 600;
-    }
-    
-    .feature-card p {
-      font-size: 13px;
-      opacity: 0.9;
-      line-height: 1.5;
-    }
-    
-    .login-footer {
-      position: relative;
-      z-index: 1;
-      text-align: center;
-      opacity: 0.8;
-      font-size: 14px;
-    }
-    
-    .login-footer i {
-      margin-right: 5px;
-    }
-    
-    .login-right {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 40px;
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(10px);
-    }
-    
-    .form-box {
-      width: 100%;
-      max-width: 450px;
-      background: white;
-      padding: 50px 40px;
-      border-radius: 24px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    }
-    
-    .form-header {
-      text-align: center;
-      margin-bottom: 40px;
-    }
-    
-    .form-header h2 {
-      font-size: 28px;
-      color: #1a2a6c;
-      margin-bottom: 10px;
-      font-weight: 700;
-    }
-    
-    .form-header p {
-      color: #666;
-      font-size: 15px;
-    }
-    
-    .input-box {
-      position: relative;
-      margin-bottom: 30px;
-    }
-    
-    .input-icon {
-      position: absolute;
-      left: 18px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: #999;
-      font-size: 20px;
-      z-index: 1;
-    }
-    
-    .input-box input {
-      width: 100%;
-      padding: 16px 16px 16px 50px;
-      border: 2px solid #e0e0e0;
-      border-radius: 12px;
-      font-size: 15px;
-      transition: all 0.3s ease;
-      background: #f8f9fa;
-      color: #333;
-    }
-    
-    .input-box input:focus {
-      outline: none;
-      border-color: #1a2a6c;
-      background: white;
-      box-shadow: 0 0 0 4px rgba(26, 42, 108, 0.1);
-    }
-    
-    .input-box input:focus + label,
-    .input-box input:not(:placeholder-shown) + label {
-      top: -10px;
-      left: 12px;
-      font-size: 12px;
-      color: #1a2a6c;
-      background: white;
-      padding: 0 8px;
-    }
-    
-    .input-box label {
-      position: absolute;
-      left: 50px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: #999;
-      font-size: 15px;
-      pointer-events: none;
-      transition: all 0.3s ease;
-      background: transparent;
-    }
-    
-    .toggle-password {
-      position: absolute;
-      right: 18px;
-      top: 50%;
-      transform: translateY(-50%);
-      color: #999;
-      cursor: pointer;
-      font-size: 20px;
-      z-index: 1;
-      transition: color 0.3s ease;
-    }
-    
-    .toggle-password:hover {
-      color: #1a2a6c;
-    }
-    
-    .btn {
-      width: 100%;
-      padding: 16px;
-      background: linear-gradient(135deg, #1a2a6c, #2c3e50);
-      color: white;
-      border: none;
-      border-radius: 12px;
-      font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      transition: all 0.3s ease;
-      box-shadow: 0 4px 15px rgba(26, 42, 108, 0.3);
-      margin-top: 10px;
-    }
-    
-    .btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 6px 20px rgba(26, 42, 108, 0.4);
-    }
-    
-    .btn:active {
-      transform: translateY(0);
-    }
-    
-    .btn i {
-      font-size: 20px;
-    }
-    
-    .error-message {
-      color: #e74c3c;
-      margin-bottom: 15px;
-      font-size: 14px;
-      text-align: center;
-      padding: 12px;
-      background: #fee;
-      border-radius: 8px;
-      border-left: 4px solid #e74c3c;
-      display: none;
-    }
-    
-    .error-message:not(:empty) {
-      display: block;
-    }
-    
-    .form-footer {
-      margin-top: 30px;
-      text-align: center;
-      padding-top: 20px;
-      border-top: 1px solid #e0e0e0;
-    }
-    
-    .form-footer p {
-      color: #999;
-      font-size: 13px;
-    }
-    
-    .form-footer i {
-      margin-right: 5px;
-      color: #1a2a6c;
-    }
-    
-    /* Modal Alterar Senha */
-    .modal-alterar-senha {
-      display: none;
-      position: fixed;
-      z-index: 10000;
-      left: 0;
-      top: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(4px);
-      animation: fadeIn 0.3s ease;
-    }
-    
-    .modal-alterar-senha-content {
-      background: white;
-      margin: 5% auto;
-      padding: 0;
-      border-radius: 16px;
-      width: 90%;
-      max-width: 500px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-      animation: slideDown 0.3s ease;
-      overflow: hidden;
-    }
-    
-    .modal-alterar-senha-header {
-      background: linear-gradient(135deg, #1a2a6c, #2c3e50);
-      color: white;
-      padding: 25px 30px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    
-    .modal-alterar-senha-header h3 {
-      margin: 0;
-      font-size: 22px;
-      font-weight: 600;
-    }
-    
-    .modal-alterar-senha-header .btn-fechar {
-      background: rgba(255, 255, 255, 0.2);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      color: white;
-      padding: 8px 16px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 18px;
-      font-weight: 600;
-      transition: all 0.3s;
-      border: none;
-    }
-    
-    .modal-alterar-senha-header .btn-fechar:hover {
-      background: rgba(255, 255, 255, 0.3);
-    }
-    
-    .modal-alterar-senha-body {
-      padding: 30px;
-    }
-    
-    .modal-alterar-senha-body .input-box {
-      margin-bottom: 20px;
-    }
-    
-    .modal-alterar-senha-body .btn {
-      margin-top: 10px;
-    }
-    
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
-    }
-    
-    @keyframes slideDown {
-      from {
-        transform: translateY(-50px);
-        opacity: 0;
-      }
-      to {
-        transform: translateY(0);
-        opacity: 1;
-      }
-    }
-    
-    @media (max-width: 968px) {
-      .login-container {
-        flex-direction: column;
-      }
-      
-      .login-left {
-        padding: 40px 30px;
-        min-height: auto;
-      }
-      
-      .features-grid {
-        grid-template-columns: 1fr;
-        gap: 15px;
-      }
-      
-      .login-right {
-        padding: 30px 20px;
-      }
-      
-      .form-box {
-        padding: 40px 30px;
-      }
-    }
-    
-    @media (max-width: 480px) {
-      .brand-title {
-        font-size: 32px;
-      }
-      
-      .form-box {
-        padding: 30px 20px;
-      }
-      
-      .feature-card {
-        padding: 20px;
-      }
-    }
+    .idioma-selector-web .btn-idioma:hover { background: #f1f5f9; border-color: #94a3b8; }
+    .idioma-selector-web .btn-idioma.active { background: #0d2137; color: #fff; border-color: #0d2137; }
   </style>
 </head>
 <body>
@@ -782,40 +373,39 @@
     <div class="login-left">
       <div class="login-branding">
         <div class="logo-box">
-          <img id="logoImg" src="" alt="Logo Divulga Cargas" />
+          <img id="logoImg" src="/img/logoAtlasTransparenteQuadrada.png?v=2" alt="Atlas Cargo" />
         </div>
-        <h1 class="brand-title">Divulga<span>Carga</span></h1>
         <p class="brand-subtitle">Sistema de Gestão de Transporte e Logística</p>
       </div>
 
       <div class="features-grid">
-        <div class="feature-card">
-          <div class="feature-icon">
-            <i class='bxs bxs-truck'></i>
+        <div class="feature-card feature-card-blue">
+          <div class="feature-icon feature-icon-blue">
+            <i class='bx bxs-truck'></i>
           </div>
-          <h3>Gestão Completa</h3>
-          <p>Controle total sobre viagens, rotas e frotas</p>
+          <h3 data-i18n="web.login.card1Title">Controle Total da Operação</h3>
+          <p data-i18n="web.login.card1Desc">Gerencie viagens, rotas e frotas com precisão e simplicidade.</p>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon">
-            <i class='bx bx-bar-chart-alt-2'></i>
+        <div class="feature-card feature-card-green">
+          <div class="feature-icon feature-icon-green">
+            <i class='bx bx-line-chart'></i>
           </div>
-          <h3>Relatórios Inteligentes</h3>
-          <p>Análises e insights para decisões estratégicas</p>
+          <h3 data-i18n="web.login.card2Title">Insights que Geram Resultados</h3>
+          <p data-i18n="web.login.card2Desc">Transforme dados em decisões estratégicas com relatórios inteligentes.</p>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon">
+        <div class="feature-card feature-card-purple">
+          <div class="feature-icon feature-icon-purple">
             <i class='bx bx-shield-quarter'></i>
           </div>
-          <h3>Segurança Total</h3>
-          <p>Dados protegidos com tecnologia de ponta</p>
+          <h3 data-i18n="web.login.card3Title">Segurança Inviolável</h3>
+          <p data-i18n="web.login.card3Desc">Proteção avançada para manter suas informações sempre seguras.</p>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon">
-            <i class='bx bx-time-five'></i>
+        <div class="feature-card feature-card-amber">
+          <div class="feature-icon feature-icon-amber">
+            <i class='bx bxs-bolt'></i>
           </div>
-          <h3>Agilidade</h3>
-          <p>Processos otimizados para máxima eficiência</p>
+          <h3 data-i18n="web.login.card4Title">Eficiência sem Fronteiras</h3>
+          <p data-i18n="web.login.card4Desc">Agilidade que acelera sua logística e reduz custos.</p>
         </div>
       </div>
 
@@ -827,21 +417,26 @@
     <!-- Lado Direito - Formulário de Login -->
     <div class="login-right">
       <div class="form-box">
+        <div class="idioma-selector-web">
+          <span class="idioma-label" data-i18n="web.login.idioma">Idioma:</span>
+          <button type="button" class="btn-idioma" data-locale="pt-BR" aria-pressed="true" title="Português" data-i18n="web.login.portugues">Português</button>
+          <button type="button" class="btn-idioma" data-locale="es-PY" aria-pressed="false" title="Español" data-i18n="web.login.espanhol">Español</button>
+        </div>
         <div class="form-header">
-          <h2>Bem-vindo de volta!</h2>
-          <p>Entre com suas credenciais para acessar o sistema</p>
+          <h2 data-i18n="web.login.titulo">Bem-vindo de volta!</h2>
+          <p data-i18n="web.login.descricao">Entre com suas credenciais para acessar o sistema</p>
         </div>
 
         <form id="loginForm">
           <div class="input-box">
             <i class='bx bxs-user input-icon'></i>
             <input type="text" id="username" placeholder=" " required />
-            <label for="username">Usuário</label>
+            <label for="username" data-i18n="web.login.usuario">Usuário</label>
           </div>
           <div class="input-box">
             <i class='bx bxs-lock-alt input-icon'></i>
-            <input type="password" id="password" placeholder=" " required />
-            <label for="password">Senha</label>
+            <input type="password" id="password" placeholder=" " required autocomplete="current-password" />
+            <label for="password" data-i18n="web.login.senha">Senha</label>
             <span class="toggle-password" id="togglePassword">
               <i class='bx bx-hide'></i>
             </span>
@@ -849,19 +444,19 @@
           
           <div class="error-message" id="errorMessage"></div>
           <button type="submit" class="btn">
-            <span>Entrar</span>
+            <span data-i18n="web.login.entrar">Entrar</span>
             <i class='bx bx-log-in'></i>
           </button>
           
           <div style="text-align: center; margin-top: 15px;">
-            <a href="#" id="linkAlterarSenha" style="color: #1a2a6c; text-decoration: none; font-size: 14px; display: inline-flex; align-items: center; gap: 5px;">
-              <i class='bx bx-key'></i> Alterar Senha
+            <a href="#" id="linkAlterarSenha" class="link-alterar-senha">
+              <i class='bx bx-key'></i> <span data-i18n="web.login.alterarSenha">Alterar Senha</span>
             </a>
           </div>
         </form>
 
         <div class="form-footer">
-          <p><i class='bx bx-lock'></i> Seus dados estão seguros conosco</p>
+          <p><i class='bx bx-lock'></i> <span data-i18n="web.login.dadosSeguros">Seus dados estão seguros conosco</span></p>
         </div>
       </div>
     </div>
@@ -883,7 +478,7 @@
           </div>
           <div class="input-box">
             <i class='bx bxs-lock-alt input-icon'></i>
-            <input type="password" id="alterarSenhaAtual" placeholder=" " required />
+            <input type="password" id="alterarSenhaAtual" placeholder=" " required autocomplete="current-password" />
             <label for="alterarSenhaAtual">Senha Atual</label>
             <span class="toggle-password" id="toggleSenhaAtual">
               <i class='bx bx-hide'></i>
@@ -891,7 +486,7 @@
           </div>
           <div class="input-box">
             <i class='bx bxs-lock-alt input-icon'></i>
-            <input type="password" id="alterarSenhaNova" placeholder=" " required />
+            <input type="password" id="alterarSenhaNova" placeholder=" " required autocomplete="new-password" />
             <label for="alterarSenhaNova">Nova Senha</label>
             <span class="toggle-password" id="toggleSenhaNova">
               <i class='bx bx-hide'></i>
@@ -899,7 +494,7 @@
           </div>
           <div class="input-box">
             <i class='bx bxs-lock-alt input-icon'></i>
-            <input type="password" id="alterarSenhaConfirmar" placeholder=" " required />
+            <input type="password" id="alterarSenhaConfirmar" placeholder=" " required autocomplete="new-password" />
             <label for="alterarSenhaConfirmar">Confirmar Nova Senha</label>
             <span class="toggle-password" id="toggleSenhaConfirmar">
               <i class='bx bx-hide'></i>
@@ -923,9 +518,9 @@
       const isLocal = hostname === 'localhost' || 
                       hostname === '127.0.0.1' || 
                       hostname.startsWith('192.168.');
-      const isIntegraBrasil = hostname === 'app.integrabrasil.com' || 
-                              hostname === 'beta.integrabrasil.com' || 
-                              hostname.includes('integrabrasil.com');
+      const isAtlasCargo = hostname.includes('atlas') || 
+                            hostname.includes('atlas-cargo') || 
+                            hostname.includes('atlascargo');
       const protocoloAtual = window.location.protocol;
       
       // Usar exatamente o protocolo atual da página, SEM modificações
@@ -1023,57 +618,40 @@
         document.body.appendChild(script);
       }
       
-      // Carregar scripts com protocolo correto
+      // Carregar scripts com protocolo correto (i18n-web antes do login para aplicar idioma)
       loadScript('/js/redirect.js');
       loadScript('/js/log-helper.js');
+      loadScript('/js/i18n-web.js');
       loadScript('/js/login.js');
       
-      // Corrigir imagem logo7.png e favicon quando DOM estiver pronto
+      // Aplicar logos (identidade visual): tenta carregar config, senão usa padrões
+      var logoCacheBust = '?v=2'; // incremente quando trocar a imagem da logo
+      function aplicarLogos(logoRetangular, logoQuadrada) {
+        if (typeof garantirProtocoloConsistente !== 'function') return;
+        const q = (logoQuadrada || 'logoAtlasTransparenteQuadrada.png').replace(/[^a-zA-Z0-9._-]/g, '');
+        const logoImg = document.getElementById('logoImg');
+        if (logoImg) {
+          const urlCompleta = baseUrl + '/img/' + q + logoCacheBust;
+          logoImg.setAttribute('src', garantirProtocoloConsistente(urlCompleta));
+        }
+        const faviconLink = document.getElementById('faviconLink');
+        if (faviconLink) {
+          faviconLink.setAttribute('href', garantirProtocoloConsistente(baseUrl + '/img/' + q + logoCacheBust));
+        }
+      }
       function corrigirRecursos() {
-        // Verificar se função está disponível
         if (typeof garantirProtocoloConsistente !== 'function') {
-          console.warn('[INDEX] garantirProtocoloConsistente não está disponível, aguardando...');
           setTimeout(corrigirRecursos, 100);
           return;
         }
-        
-        // Corrigir logo - sempre definir, mesmo se src estiver vazio (removido do HTML)
-        const logoImg = document.getElementById('logoImg');
-        if (logoImg) {
-          const srcAttr = logoImg.getAttribute('src') || '/img/logo7.png';
-          let urlCompleta;
-          if (srcAttr.startsWith('http')) {
-            urlCompleta = srcAttr;
-          } else if (srcAttr.startsWith('/')) {
-            // Caminho absoluto: /img/logo7.png → baseUrl + /img/logo7.png
-            urlCompleta = baseUrl + srcAttr;
-          } else {
-            // Caminho relativo: img/logo7.png → baseUrl + /img/logo7.png
-            urlCompleta = baseUrl + '/' + srcAttr;
-          }
-          const urlCorrigida = garantirProtocoloConsistente(urlCompleta);
-          logoImg.setAttribute('src', urlCorrigida);
-          console.log('[INDEX] Logo corrigido:', srcAttr, '→', urlCorrigida);
-        }
-        
-        // Corrigir favicon - sempre definir, mesmo se href estiver vazio (removido do HTML)
-        const faviconLink = document.getElementById('faviconLink');
-        if (faviconLink) {
-          const hrefAttr = faviconLink.getAttribute('href') || '/img/logo7.png';
-          let urlCompleta;
-          if (hrefAttr.startsWith('http')) {
-            urlCompleta = hrefAttr;
-          } else if (hrefAttr.startsWith('/')) {
-            // Caminho absoluto: /img/logo7.png → baseUrl + /img/logo7.png
-            urlCompleta = baseUrl + hrefAttr;
-          } else {
-            // Caminho relativo: img/logo7.png → baseUrl + /img/logo7.png
-            urlCompleta = baseUrl + '/' + hrefAttr;
-          }
-          const urlCorrigida = garantirProtocoloConsistente(urlCompleta);
-          faviconLink.setAttribute('href', urlCorrigida);
-          console.log('[INDEX] Favicon corrigido:', hrefAttr, '→', urlCorrigida);
-        }
+        fetch(baseUrl + '/api/configuracoes/identidade')
+          .then(function(res) { return res.ok ? res.json() : Promise.reject(); })
+          .then(function(data) {
+            aplicarLogos(data.logoRetangular, data.logoQuadrada);
+          })
+          .catch(function() {
+            aplicarLogos('logoAtlasTransparente.png', 'logoAtlasTransparenteQuadrada.png');
+          });
       }
       
       // Corrigir recursos quando DOM estiver pronto
@@ -1085,6 +663,36 @@
       
       // Também corrigir após um pequeno delay
       setTimeout(corrigirRecursos, 500);
+
+      // Seletor de idioma no login web (mesma chave preferredLocale do app motorista)
+      function getPreferredLocaleWeb() {
+        try { return localStorage.getItem('preferredLocale') || ''; } catch (e) { return ''; }
+      }
+      function setPreferredLocaleWeb(loc) {
+        try { localStorage.setItem('preferredLocale', loc || ''); } catch (e) {}
+        window.location.reload();
+      }
+      function initIdiomaSelectorWeb() {
+        var current = getPreferredLocaleWeb();
+        if (current !== 'pt-BR' && current !== 'es-PY') current = 'pt-BR';
+        document.querySelectorAll('.idioma-selector-web .btn-idioma').forEach(function(btn) {
+          var loc = btn.getAttribute('data-locale');
+          btn.setAttribute('aria-pressed', loc === current ? 'true' : 'false');
+          btn.classList.toggle('active', loc === current);
+          btn.onclick = function() { setPreferredLocaleWeb(loc); };
+        });
+      }
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initIdiomaSelectorWeb);
+      } else {
+        initIdiomaSelectorWeb();
+      }
+      // Aplicar traduções do painel web quando o locale estiver pronto
+      if (window.i18nWebReady) {
+        window.i18nWebReady.then(function() {
+          if (typeof window.applyI18nWeb === 'function') window.applyI18nWeb();
+        });
+      }
     })();
   </script>
 </body>

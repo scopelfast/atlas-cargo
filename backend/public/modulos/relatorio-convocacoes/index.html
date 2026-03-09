@@ -3,27 +3,31 @@
 <head>
   <meta charset="UTF-8">
   <title>Relatório de Convocações</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/modulos.css">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <style>
+    /* ========== Relatório de Convocações - Identidade Atlas Cargo ========== */
     .relatorio-container {
       padding: 20px;
       max-width: 100%;
+      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
     }
 
-    /* ========== ESTILOS DO LAYOUT PADRONIZADO ========== */
     .relatorio-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 25px;
       padding-bottom: 15px;
-      border-bottom: 2px solid #e0e0e0;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
     }
 
     .relatorio-header h2 {
       margin: 0;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 28px;
       font-weight: 700;
       display: flex;
@@ -72,15 +76,15 @@
     }
 
     .stat-card.confirmada {
-      border-left-color: #17a2b8;
+      border-left-color: var(--ac-accent, #0ea5e9);
     }
 
     .stat-card.aceita-descartada {
-      border-left-color: #6c757d;
+      border-left-color: var(--gray, #64748b);
     }
 
     .stat-card.com-acesso {
-      border-left-color: #3498db;
+      border-left-color: var(--ac-accent, #0ea5e9);
     }
 
     .stat-card.com-resposta {
@@ -88,23 +92,23 @@
     }
 
     .stat-card.total-viagens {
-      border-left-color: #667eea;
+      border-left-color: var(--ac-primary-light, #1a365d);
     }
 
     .stat-card.total {
-      border-left-color: #3498db;
+      border-left-color: var(--ac-accent, #0ea5e9);
     }
 
     .stat-card .stat-value {
       font-size: 32px;
       font-weight: 700;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       margin: 5px 0;
     }
 
     .stat-card .stat-label {
       font-size: 14px;
-      color: #6c757d;
+      color: var(--gray, #64748b);
       text-transform: uppercase;
       font-weight: 600;
     }
@@ -113,13 +117,14 @@
       background: white;
       border-radius: 12px;
       padding: 25px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
       margin-bottom: 25px;
+      border: 1px solid var(--border, #e2e8f0);
     }
 
     .filtros-box h3 {
       margin: 0 0 20px 0;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 18px;
       font-weight: 600;
       display: flex;
@@ -161,7 +166,7 @@
 
     .filtros-grid .form-control:focus {
       outline: none;
-      border-color: #3498db;
+      border-color: var(--ac-accent, #0ea5e9);
       box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
     }
 
@@ -200,7 +205,7 @@
     }
 
     .btn-primary {
-      background: #3498db;
+      background: var(--ac-accent, #0ea5e9);
       color: white;
     }
 
@@ -245,7 +250,7 @@
     }
 
     .btn-info {
-      background: #17a2b8;
+      background: var(--ac-accent, #0ea5e9);
       color: white;
     }
 
@@ -302,7 +307,7 @@
       font-family: inherit;
       box-sizing: border-box;
       background-color: #fff;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
     }
 
     .modal-content-tratamento .form-control:hover,
@@ -317,7 +322,7 @@
     .modal-content-tratamento textarea:focus,
     .modal-content-tratamento input:focus {
       outline: none;
-      border-color: #3498db;
+      border-color: var(--ac-accent, #0ea5e9);
       box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
     }
 
@@ -340,7 +345,7 @@
 
     .modal-content-tratamento input[type="date"] {
       cursor: pointer;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
     }
 
     .modal-content-tratamento input[type="date"]::-webkit-calendar-picker-indicator {
@@ -361,7 +366,7 @@
       display: block;
       margin-bottom: 8px;
       font-weight: 600;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 14px;
     }
 
@@ -376,7 +381,7 @@
 
     .modal-header-tratamento h3 {
       margin: 0;
-      color: #2c3e50;
+      color: var(--ac-primary, #0d2137);
       font-size: 24px;
     }
 
@@ -384,7 +389,7 @@
       background: none;
       border: none;
       font-size: 28px;
-      color: #6c757d;
+      color: var(--gray, #64748b);
       cursor: pointer;
       padding: 0;
       width: 32px;
@@ -432,19 +437,33 @@
       padding: 20px;
       border-radius: 8px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      max-width: 100%;
       overflow-x: auto;
+    }
+    .tabela-section table {
+      table-layout: fixed;
+      width: 100%;
+      min-width: 0;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    .tabela-section .col-acoes {
+      width: 110px;
+      min-width: 110px;
+      max-width: 110px;
+      white-space: nowrap;
+    }
+    .tabela-section .col-acoes .btn {
+      padding: 6px 8px;
+      min-width: 32px;
+      font-size: 1rem;
+      margin-right: 2px;
     }
 
     .tabela-section h3 {
       margin-top: 0;
       margin-bottom: 15px;
       color: #333;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 14px;
     }
 
     table th {
@@ -614,7 +633,7 @@
     }
     
     .modal-mapa-motorista-header {
-      background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+      background: linear-gradient(135deg, var(--ac-primary, #0d2137) 0%, var(--ac-primary-light, #1a365d) 100%);
       color: white;
       padding: 20px 25px;
       display: flex;
@@ -658,7 +677,7 @@
     .modal-mapa-motorista-info {
       padding: 20px 25px;
       background: linear-gradient(to bottom, #ffffff 0%, #f8f9fa 100%);
-      border-bottom: 2px solid #e0e0e0;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
       flex-shrink: 0;
       max-height: 200px;
       overflow-y: auto;
@@ -702,13 +721,13 @@
       padding: 12px 14px;
       background: white;
       border-radius: 8px;
-      border: 1px solid #e0e0e0;
+      border: 1px solid var(--light-gray, #e2e8f0);
       transition: all 0.2s;
       box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
     
     .modal-mapa-motorista-info-item:hover {
-      border-color: #3498db;
+      border-color: var(--ac-accent, #0ea5e9);
       box-shadow: 0 2px 6px rgba(52, 152, 219, 0.15);
       transform: translateY(-1px);
     }
@@ -737,7 +756,7 @@
     
     /* Destaque para distância */
     #mapaInfoDistancia {
-      color: #3498db !important;
+      color: var(--ac-accent, #0ea5e9) !important;
       font-weight: 600 !important;
       font-size: 15px !important;
     }
@@ -789,10 +808,10 @@
   <div class="relatorio-container">
       <!-- Cabeçalho -->
       <div class="relatorio-header">
-        <h2><i class='bx bx-bar-chart-alt-2'></i> Relatório de Convocações</h2>
+        <h2><i class='bx bx-bar-chart-alt-2'></i> <span data-i18n="web.modulos.relatorioConvocacoes.titulo">Relatório de Convocações</span></h2>
         <div style="display: flex; gap: 10px; align-items: center;">
           <button class="btn btn-info" onclick="mostrarAjudaRelatorio()" title="Como funciona? Regras e instruções">
-            <i class='bx bx-help-circle'></i> Ajuda
+            <i class='bx bx-help-circle'></i> <span data-i18n="web.modulos.relatorioConvocacoes.ajuda">Ajuda</span>
           </button>
         </div>
       </div>
@@ -804,14 +823,14 @@
 
     <!-- Filtros -->
     <div class="filtros-box">
-      <h3><i class='bx bx-filter'></i> Filtros</h3>
+      <h3><i class='bx bx-filter'></i> <span data-i18n="web.modulos.relatorioConvocacoes.tabFiltros">Filtros</span></h3>
       <div class="filtros-grid">
         <div>
-          <label for="filtroDataInicio">Data Início</label>
+          <label for="filtroDataInicio" data-i18n="web.modulos.relatorioConvocacoes.dataInicio">Data Início</label>
           <input type="date" id="filtroDataInicio" class="form-control">
         </div>
         <div>
-          <label for="filtroDataFim">Data Fim</label>
+          <label for="filtroDataFim" data-i18n="web.modulos.relatorioConvocacoes.dataFim">Data Fim</label>
           <input type="date" id="filtroDataFim" class="form-control">
         </div>
         <div>
@@ -862,13 +881,13 @@
       </div>
       <div class="filtros-actions">
         <button type="button" onclick="limparFiltros()" class="btn btn-secondary">
-          <i class='bx bx-x'></i> Limpar
+          <i class='bx bx-x'></i> <span data-i18n="web.modulos.relatorioConvocacoes.limpar">Limpar</span>
         </button>
         <button type="button" onclick="buscarRelatorio()" class="btn btn-primary">
-          <i class='bx bx-search'></i> Filtrar
+          <i class='bx bx-search'></i> <span data-i18n="web.modulos.relatorioConvocacoes.filtrar">Filtrar</span>
         </button>
         <button type="button" onclick="exportarRelatorio()" class="btn btn-success">
-          <i class='bx bx-download'></i> Exportar
+          <i class='bx bx-download'></i> <span data-i18n="web.modulos.relatorioConvocacoes.exportarExcel">Exportar Excel</span>
         </button>
       </div>
     </div>
@@ -892,23 +911,23 @@
         <div id="legendaGrid" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 15px; align-items: center;">
           <div style="font-weight: 600; color: #495057; margin-right: 10px;">Legenda:</div>
           <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 18px;">🗺️</span>
+            <i class="bx bx-map-alt" style="font-size: 1.25rem; color: #2196F3;"></i>
             <span><strong>Ver Motorista no Mapa</strong></span>
           </div>
           <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 18px;">ℹ️</span>
+            <i class="bx bx-info-circle" style="font-size: 1.25rem; color: #17a2b8;"></i>
             <span><strong>Status da convocação</strong></span>
           </div>
           <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 18px; color: #28a745;">✓</span>
+            <i class="bx bx-check-circle" style="font-size: 1.25rem; color: #28a745;"></i>
             <span><strong>Viagem Confirmada</strong></span>
           </div>
           <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 18px; color: #dc3545;">❌</span>
+            <i class="bx bx-x-circle" style="font-size: 1.25rem; color: #dc3545;"></i>
             <span><strong>Viagem Não Confirmada</strong></span>
           </div>
           <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 18px; color: #25D366;">📱</span>
+            <i class="bx bxl-whatsapp" style="font-size: 1.25rem; color: #25D366;"></i>
             <span><strong>WhatsApp</strong></span>
           </div>
         </div>
@@ -923,8 +942,8 @@
   <div id="modalMapaMotorista" class="modal-mapa-motorista">
     <div class="modal-mapa-motorista-content">
       <div class="modal-mapa-motorista-header">
-        <h3>📍 Localização do Motorista e Rota até o Carregamento</h3>
-        <button class="btn-fechar" onclick="fecharModalMapaMotorista()">✕ Fechar</button>
+        <h3><i class="bx bx-map-pin" style="vertical-align: middle;"></i> Localização do Motorista e Rota até o Carregamento</h3>
+        <button class="btn-fechar" onclick="fecharModalMapaMotorista()"><i class="bx bx-x"></i> Fechar</button>
       </div>
       <div class="modal-mapa-motorista-body">
         <div class="modal-mapa-motorista-info">
@@ -967,7 +986,7 @@
   </div>
 
   <!-- Cache Buster - deve ser o primeiro script -->
-  <script src="/js/cache-buster.js?v=202512091200"></script>
+  <script src="/js/cache-buster.js?v=202612091200"></script>
   <!-- Carregar Chart.js ANTES do script principal -->
   <script>
     // Carregar Chart.js de forma síncrona e verificar se carregou

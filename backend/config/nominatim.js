@@ -1,35 +1,26 @@
 // backend/config/nominatim.js
 // Configuração centralizada do servidor Nominatim
 // Versão: 1.0
-// Data: 2025-01-16
-// Última atualização: 2025-01-16 - Implementação do servidor próprio
+// Data: 2026-01-16
+// Última atualização: 2026-01-16 - Implementação do servidor próprio
 
 // Log inicial ao carregar o módulo
-const SERVIDOR_PROPRIO_PADRAO = 'http://186.250.92.131:8082';
-const servidorUsado = process.env.NOMINATIM_SERVER || SERVIDOR_PROPRIO_PADRAO;
+// Prioridade: .env NOMINATIM_SERVER; senão o mesmo padrão da tela "Configurações do Sistema" (nominatim.openstreetmap.org)
+const SERVIDOR_PADRAO_UI = 'https://nominatim.openstreetmap.org';
+const servidorUsado = (process.env.NOMINATIM_SERVER && process.env.NOMINATIM_SERVER.trim()) || SERVIDOR_PADRAO_UI;
 console.log(`📍 [Nominatim Config] Servidor Nominatim configurado: ${servidorUsado}`);
 
 /**
  * Obtém a URL base do servidor Nominatim
  * Prioridade:
- * 1. Variável de ambiente NOMINATIM_SERVER
- * 2. Servidor próprio (padrão recomendado)
- * 3. Servidor público (fallback)
+ * 1. Variável de ambiente NOMINATIM_SERVER (igual ao que você define em Configurações do Sistema)
+ * 2. Padrão alinhado à tela "Mapa e Roteamento": https://nominatim.openstreetmap.org
  */
 function getNominatimServer() {
-  // Servidor próprio (Integra Brasil) - RECOMENDADO
-  const SERVIDOR_PROPRIO = 'http://186.250.92.131:8082';
-  
-  // Servidor público (fallback)
-  const SERVIDOR_PUBLICO = 'https://nominatim.openstreetmap.org';
-  
-  // Verificar variável de ambiente primeiro
-  if (process.env.NOMINATIM_SERVER) {
-    return process.env.NOMINATIM_SERVER;
+  if (process.env.NOMINATIM_SERVER && process.env.NOMINATIM_SERVER.trim()) {
+    return process.env.NOMINATIM_SERVER.trim();
   }
-  
-  // Usar servidor próprio por padrão
-  return SERVIDOR_PROPRIO;
+  return SERVIDOR_PADRAO_UI;
 }
 
 /**

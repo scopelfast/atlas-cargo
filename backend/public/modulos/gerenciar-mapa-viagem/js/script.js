@@ -1,7 +1,7 @@
 // backend/public/modulos/gerenciar-mapa-viagem/js/script.js
 // Mapa de Viagem - Frontend
 // Versão: 1.0
-// Autor: Sistema DivulgaCarga
+// Atlas Cargo
 
 (function() {
   // Evitar execução múltipla do módulo (usar nome único)
@@ -12,6 +12,7 @@
   }
   window[MODULE_KEY] = true;
 
+  const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
   const filtroForm = document.getElementById('filtroForm');
   
   let mapa = null;
@@ -23,6 +24,15 @@
   let classesFrota = [];
   let contratadores = [];
   let roteiros = [];
+  let contextoMapa = { locale: 'pt-BR', timezone: 'America/Sao_Paulo' };
+  async function loadContextoMapa() {
+    try {
+      const r = await fetch('/api/contexto');
+      const d = await r.json();
+      if (d && d.locale) contextoMapa.locale = d.locale;
+      if (d && d.timezone) contextoMapa.timezone = d.timezone;
+    } catch (e) {}
+  }
 
   // Função para carregar e executar o arquivo init.sql
   async function executarInitSQL() {
@@ -258,7 +268,7 @@
     
     if (typeof L === 'undefined') {
       console.error('❌ [Mapa Viagem] Leaflet não está disponível');
-      container.innerHTML = '<p style="padding: 40px; text-align: center; color: #95a5a6;">Erro ao carregar biblioteca de mapas. Recarregue a página.</p>';
+      container.innerHTML = '<p style="padding: 40px; text-align: center; color: #95a5a6;">' + t('web.modulos.mapaViagem.erroCarregar') + '</p>';
       return;
     }
 
@@ -319,20 +329,17 @@
     marcadoresVeiculos = [];
   }
 
-  // Formatar data/hora
   function formatarDataHora(data) {
     if (!data) return '-';
     try {
       const d = new Date(data);
       if (isNaN(d.getTime())) return '-';
-      return d.toLocaleString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
+      const loc = contextoMapa.locale || 'pt-BR';
+      const tz = contextoMapa.timezone || 'America/Sao_Paulo';
+      if (typeof window.formatarDataHoraComFuso === 'function') {
+        return window.formatarDataHoraComFuso(d, loc, tz, { dateStyle: 'short', timeStyle: 'medium' });
+      }
+      return d.toLocaleString(loc, { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
     } catch (e) {
       return '-';
     }
@@ -598,7 +605,7 @@
       console.error('Erro ao carregar veículos:', err);
       const infoText = document.getElementById('mapaInfoText');
       if (infoText) {
-        infoText.textContent = 'Erro ao carregar veículos. Verifique o console para mais detalhes.';
+        infoText.textContent = t('web.modulos.mapaViagem.erroCarregar');
       }
     }
   }
@@ -661,7 +668,7 @@
     limparMarcadores();
     const infoText = document.getElementById('mapaInfoText');
     if (infoText) {
-      infoText.textContent = 'Filtros limpos. Aplique novos filtros para carregar veículos.';
+      infoText.textContent = t('web.modulos.mapaViagem.mapaInfoFiltrosLimpos');
     }
   });
 
@@ -698,6 +705,7 @@
     
     inicializado = true;
     console.log('[Mapa Viagem] Inicializando módulo...');
+    await loadContextoMapa();
     
     try {
       // Executar init.sql

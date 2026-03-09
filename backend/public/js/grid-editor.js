@@ -152,12 +152,13 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
     // Ordenar dados se houver ordenação ativa
     const sortedData = this.getSortedData();
     
+    const visibleColumns = this.columns.filter(col => !col.hidden);
     const html = `
       <table class="grid-table">
         <thead>
           <tr>
-            ${this.columns.map(col => this.renderHeader(col)).join('')}
-            ${this.showActions ? '<th class="grid-actions-header" style="width: 100px; min-width: 100px; max-width: 100px; text-align: center;">Ações</th>' : ''}
+            ${visibleColumns.map(col => this.renderHeader(col)).join('')}
+            ${this.showActions ? '<th class="grid-actions-header grid-col-right">Ações</th>' : ''}
           </tr>
         </thead>
         <tbody>
@@ -182,10 +183,16 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
       : '';
     const sortClass = isSorted ? `sort-${this.sortDirection}` : '';
     const cursorStyle = isSortable ? 'cursor: pointer;' : '';
+    const alignRight = col.align === 'right';
+    const alignClass = alignRight ? ' grid-col-right' : '';
+    // Só colunas align right ficam "justas" (min/max iguais). Outras usam width só como hint para não estourar a página.
+    const widthStyle = col.width
+      ? (alignRight ? `width: ${col.width}; min-width: ${col.width}; max-width: ${col.width};` : `width: ${col.width};`)
+      : '';
     
     return `<th 
-      style="width: ${col.width || 'auto'}; ${cursorStyle}" 
-      class="grid-header ${sortClass}"
+      style="${widthStyle} ${cursorStyle}" 
+      class="grid-header ${sortClass}${alignClass}"
       data-field="${col.field}"
       data-sortable="${isSortable}"
       title="${isSortable ? 'Clique para ordenar' : ''}"
@@ -270,10 +277,11 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
     
     const isEditing = String(this.editingId) === String(id);
     
+    const visibleColumns = this.columns.filter(col => !col.hidden);
     return `
       <tr class="grid-row ${isEditing ? 'editing' : ''}" data-grid-id="${id}">
-        ${this.columns.map(col => this.renderCell(row, col, isEditing)).join('')}
-        ${this.showActions ? `<td class="grid-actions">${this.renderActions(row, isEditing)}</td>` : ''}
+        ${visibleColumns.map(col => this.renderCell(row, col, isEditing)).join('')}
+        ${this.showActions ? `<td class="grid-actions grid-col-right">${this.renderActions(row, isEditing)}</td>` : ''}
       </tr>
     `;
   }
@@ -286,8 +294,9 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
       return this.renderEditableCell(row, col, value);
     }
     
+    const alignClass = col.align === 'right' ? ' grid-col-right' : '';
     return `
-      <td class="grid-cell" data-field="${col.field}">
+      <td class="grid-cell${alignClass}" data-field="${col.field}">
         <span class="cell-value">${this.formatCellValue(value, col)}</span>
       </td>
     `;
@@ -333,8 +342,9 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
         `;
     }
     
+    const alignClass = col.align === 'right' ? ' grid-col-right' : '';
     return `
-      <td class="grid-cell editing" data-field="${col.field}">
+      <td class="grid-cell editing${alignClass}" data-field="${col.field}">
         ${inputHtml}
       </td>
     `;
@@ -416,9 +426,10 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
       // Re-renderizar apenas a linha em modo edição
       const rowData = this.data.find(r => String(this.getRowId(r)) === String(id));
       if (rowData) {
+        const visibleCols = this.columns.filter(col => !col.hidden);
         row.innerHTML = `
-          ${this.columns.map(col => this.renderCell(rowData, col, true)).join('')}
-          ${this.showActions ? `<td class="grid-actions">${this.renderActions(rowData, true)}</td>` : ''}
+          ${visibleCols.map(col => this.renderCell(rowData, col, true)).join('')}
+          ${this.showActions ? `<td class="grid-actions grid-col-right">${this.renderActions(rowData, true)}</td>` : ''}
         `;
         row.classList.add('editing');
         
@@ -486,9 +497,10 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
       
       // Re-renderizar a linha em modo visualização
       if (rowData) {
+        const visibleCols = this.columns.filter(col => !col.hidden);
         row.innerHTML = `
-          ${this.columns.map(col => this.renderCell(rowData, col, false)).join('')}
-          ${this.showActions ? `<td class="grid-actions">${this.renderActions(rowData, false)}</td>` : ''}
+          ${visibleCols.map(col => this.renderCell(rowData, col, false)).join('')}
+          ${this.showActions ? `<td class="grid-actions grid-col-right">${this.renderActions(rowData, false)}</td>` : ''}
         `;
       }
       
@@ -505,9 +517,10 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
     const rowData = this.data.find(r => String(this.getRowId(r)) === String(this.editingId));
     
     if (row && rowData) {
+      const visibleCols = this.columns.filter(col => !col.hidden);
       row.innerHTML = `
-        ${this.columns.map(col => this.renderCell(rowData, col, false)).join('')}
-        ${this.showActions ? `<td class="grid-actions">${this.renderActions(rowData, false)}</td>` : ''}
+        ${visibleCols.map(col => this.renderCell(rowData, col, false)).join('')}
+        ${this.showActions ? `<td class="grid-actions grid-col-right">${this.renderActions(rowData, false)}</td>` : ''}
       `;
     }
     
@@ -737,7 +750,7 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
       return dateString.slice(0, 16);
     }
     
-    // Parsear string no formato SQL Server: "2025-11-21 08:00:00" ou "2025-11-21T08:00:00"
+    // Parsear string no formato SQL Server: "2026-11-21 08:00:00" ou "2026-11-21T08:00:00"
     let str = String(dateString).trim();
     
     // Remover milissegundos se existirem

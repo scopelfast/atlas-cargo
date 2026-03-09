@@ -1,10 +1,10 @@
 // backend/routes/logs-acesso.routes.js
 // Logs de Acesso - API
 // Versão: 1.0
-// Autor: Sistema DivulgaCarga
+// Atlas Cargo
 
 const express = require('express');
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const router = express.Router();
 const { poolPromise } = require('../config/db');
 const { listarLogsAcesso, listarLogsAcoes, listarOperadores, executarInitSQL } = require('../controllers/logs-acesso.controller');

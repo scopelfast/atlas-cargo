@@ -1,10 +1,12 @@
 // backend/public/motorista/pages/js/sos.js
 // Sistema de SOS (Emergência) para Motoristas
 // Versão: 1.0
-// Data: 2025-01-16
+// Data: 2026-01-16
 
+// Não redirecionar para login aqui: evita "logout" ao abrir SOS a partir de viagens (mesma origem).
+// Se não estiver autenticado, a tela SOS ainda permite voltar ao dashboard; o envio do SOS exigirá token.
 if (!verificarAuth()) {
-  window.location.href = '../index.html';
+  console.warn('[SOS] Sessão não encontrada ou expirada. Use "Voltar" para ir ao início.');
 }
 
 const motorista = getMotorista();
@@ -29,7 +31,7 @@ if (idViagemAtual) {
 obterLocalizacao();
 
 function voltar() {
-  window.history.back();
+  window.location.href = 'dashboard.html';
 }
 
 function iniciarSOS() {
@@ -276,19 +278,20 @@ function atualizarStatusConexao() {
   const statusConexaoEl = document.getElementById('statusConexao');
   const statusIndicador = document.getElementById('statusIndicador');
   
+  const baseClass = statusIndicador && statusIndicador.className.includes('status-badge-navbar') ? 'status-badge-navbar ' : 'status-bar ';
   if (navigator.onLine) {
     statusConexaoEl.textContent = 'Online';
     statusConexaoEl.style.color = '#28a745';
     if (statusIndicador) {
-      statusIndicador.textContent = '🟢 Online';
-      statusIndicador.className = 'status-bar status-online';
+      statusIndicador.textContent = 'Online - Sincronizado';
+      statusIndicador.className = baseClass + 'status-online';
     }
   } else {
     statusConexaoEl.textContent = 'Offline';
     statusConexaoEl.style.color = '#dc3545';
     if (statusIndicador) {
-      statusIndicador.textContent = '🔴 Offline';
-      statusIndicador.className = 'status-bar status-offline';
+      statusIndicador.textContent = 'Offline';
+      statusIndicador.className = baseClass + 'status-offline';
     }
   }
 }

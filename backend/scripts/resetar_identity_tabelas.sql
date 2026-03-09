@@ -5,7 +5,7 @@
 -- IMPORTANTE: Execute apenas após limpar os dados das tabelas!
 -- ============================================
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 PRINT '============================================'

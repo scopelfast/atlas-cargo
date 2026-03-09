@@ -1,9 +1,9 @@
 -- Script para ajustar tabela SOS_ALERTS para módulo separado
 -- Adiciona campos de tratamento sem remover dados existentes
--- Data: 2025-01-15
+-- Data: 2026-01-15
 -- IMPORTANTE: Este script é seguro e pode ser executado múltiplas vezes
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 -- ============================================

@@ -2,15 +2,15 @@
 -- Script para criar alertas de teste
 -- Módulo: Alertas
 -- ============================================
--- Data: 2025-01-18
--- IMPORTANTE: Execute este script no banco de dados DIVULGACARGA_PRD
+-- Data: 2026-01-18
+-- IMPORTANTE: Execute este script no banco de dados ATLAS_CARGO_PRD
 --
 -- Este script cria alertas de exemplo para testar o módulo Alertas.
 -- Os alertas são criados com diferentes status, tipos e prioridades.
 --
 -- ⚠️ ATENÇÃO: Este script cria dados de teste. Use apenas em ambiente de desenvolvimento/teste.
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 PRINT '========================================';
@@ -92,7 +92,7 @@ BEGIN
         'high',
         'Urgente',
         'Pendente',
-        '{"atrasoMinutos": 125, "etaOriginal": "2025-01-18T14:00:00", "etaAtual": "2025-01-18T16:05:00"}',
+        '{"atrasoMinutos": 125, "etaOriginal": "2026-01-18T14:00:00", "etaAtual": "2026-01-18T16:05:00"}',
         DATEADD(HOUR, -1, GETDATE()),
         0
     );
@@ -135,7 +135,7 @@ BEGIN
         'medium',
         'Alta',
         'Pendente',
-        '{"minutosParado": 45, "velocidadeMedia": 2.5, "ultimaPosicao": "2025-01-18T15:20:00"}',
+        '{"minutosParado": 45, "velocidadeMedia": 2.5, "ultimaPosicao": "2026-01-18T15:20:00"}',
         DATEADD(MINUTE, -30, GETDATE()),
         0
     );
@@ -178,7 +178,7 @@ BEGIN
         'medium',
         'Normal',
         'Pendente',
-        '{"minutosOffline": 95, "ultimaAtualizacao": "2025-01-18T13:45:00"}',
+        '{"minutosOffline": 95, "ultimaAtualizacao": "2026-01-18T13:45:00"}',
         DATEADD(MINUTE, -20, GETDATE()),
         0
     );

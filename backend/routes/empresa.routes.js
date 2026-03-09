@@ -1,8 +1,8 @@
 // backend/routes/empresa.routes.js
 const express = require('express');
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const router = express.Router();
-const { poolPromise } = require('../config/db');
+const { poolPromise, getFirstNumericValue } = require('../config/db');
 
 // Função para validar CNPJ
 function validarCNPJ(cnpj) {
@@ -47,14 +47,14 @@ router.get('/empresas', async (req, res) => {
 
     let query = `
       SELECT 
-        CDEMPRESA,
-        RZSOCIAL,
-        NMREDUZIDO,
-        CGCMATRIZ,
-        FGACTIVE,
-        DHMAINTENANCE,
-        SGUSER,
-        SERVERORIG
+        [CDEMPRESA],
+        [RZSOCIAL],
+        [NMREDUZIDO],
+        [CGCMATRIZ],
+        [FGACTIVE],
+        [DHMAINTENANCE],
+        [SGUSER],
+        [SERVERORIG]
       FROM [dbo].[EMPRESA]
       WHERE 1=1
     `;
@@ -62,27 +62,27 @@ router.get('/empresas', async (req, res) => {
     const params = [];
 
     if (codigo) {
-      query += ` AND CDEMPRESA = @CODIGO`;
+      query += ` AND [CDEMPRESA] = @CODIGO`;
       params.push({ name: 'CODIGO', value: parseInt(codigo) });
     }
     if (razaosocial) {
-      query += ` AND RZSOCIAL LIKE @RAZAOSOCIAL`;
+      query += ` AND [RZSOCIAL] LIKE @RAZAOSOCIAL`;
       params.push({ name: 'RAZAOSOCIAL', value: `%${razaosocial}%` });
     }
     if (nomereduzido) {
-      query += ` AND NMREDUZIDO LIKE @NOMEREDUZIDO`;
+      query += ` AND [NMREDUZIDO] LIKE @NOMEREDUZIDO`;
       params.push({ name: 'NOMEREDUZIDO', value: `%${nomereduzido}%` });
     }
     if (cgcmatriz) {
-      query += ` AND CGCMATRIZ = @CGCMATRIZ`;
+      query += ` AND [CGCMATRIZ] = @CGCMATRIZ`;
       params.push({ name: 'CGCMATRIZ', value: cgcmatriz });
     }
     if (situacao) {
-      query += ` AND FGACTIVE = @SITUACAO`;
+      query += ` AND [FGACTIVE] = @SITUACAO`;
       params.push({ name: 'SITUACAO', value: situacao === 'S' ? 'A' : 'I' });
     }
 
-    query += ` ORDER BY RZSOCIAL`;
+    query += ` ORDER BY [RZSOCIAL]`;
 
     const pool = await poolPromise;
     const request = pool.request();
@@ -123,16 +123,16 @@ router.get('/empresas/:id', async (req, res) => {
       .input('CDEMPRESA', sql.SmallInt, idNumerico)
       .query(`
         SELECT 
-          CDEMPRESA,
-          RZSOCIAL,
-          NMREDUZIDO,
-          CGCMATRIZ,
-          FGACTIVE,
-          DHMAINTENANCE,
-          SGUSER,
-          SERVERORIG
+          [CDEMPRESA],
+          [RZSOCIAL],
+          [NMREDUZIDO],
+          [CGCMATRIZ],
+          [FGACTIVE],
+          [DHMAINTENANCE],
+          [SGUSER],
+          [SERVERORIG]
         FROM [dbo].[EMPRESA]
-        WHERE CDEMPRESA = @CDEMPRESA
+        WHERE [CDEMPRESA] = @CDEMPRESA
       `);
 
     if (result.recordset.length === 0) {
@@ -177,7 +177,7 @@ router.post('/empresas', async (req, res) => {
     const checkDuplicate = await pool
       .request()
       .input('CGCMATRIZ', sql.Decimal(15, 0), CGCMATRIZ)
-      .query('SELECT CDEMPRESA FROM [dbo].[EMPRESA] WHERE CGCMATRIZ = @CGCMATRIZ');
+      .query('SELECT [CDEMPRESA] FROM [dbo].[EMPRESA] WHERE [CGCMATRIZ] = @CGCMATRIZ');
 
     if (checkDuplicate.recordset.length > 0) {
       return res.status(400).json({ error: 'Já existe uma empresa com este CNPJ Matriz.' });
@@ -186,8 +186,8 @@ router.post('/empresas', async (req, res) => {
     // Gerar novo ID (auto-incremento)
     const maxResult = await pool
       .request()
-      .query('SELECT ISNULL(MAX(CDEMPRESA), 0) AS maxId FROM [dbo].[EMPRESA]');
-    const novoId = maxResult.recordset[0].maxId + 1;
+      .query('SELECT COALESCE(MAX([CDEMPRESA]), 0) + 1 AS [maxId] FROM [dbo].[EMPRESA]');
+    const novoId = getFirstNumericValue(maxResult.recordset, 1);
 
     const fgactiveDB = (FGACTIVE === 'S' || FGACTIVE === 'A') ? 'A' : 'I';
 
@@ -200,8 +200,8 @@ router.post('/empresas', async (req, res) => {
       .input('FGACTIVE', fgactiveDB)
       .query(`
         INSERT INTO [dbo].[EMPRESA] (
-          CDEMPRESA, RZSOCIAL, NMREDUZIDO, CGCMATRIZ, FGACTIVE,
-          DHMAINTENANCE, SGUSER, SERVERORIG
+          [CDEMPRESA], [RZSOCIAL], [NMREDUZIDO], [CGCMATRIZ], [FGACTIVE],
+          [DHMAINTENANCE], [SGUSER], [SERVERORIG]
         )
         VALUES (
           @CDEMPRESA, @RZSOCIAL, @NMREDUZIDO, @CGCMATRIZ, @FGACTIVE,
@@ -244,7 +244,7 @@ router.put('/empresas/:id', async (req, res) => {
       .request()
       .input('CGCMATRIZ', sql.Decimal(15, 0), CGCMATRIZ)
       .input('CDEMPRESA', sql.SmallInt, idNumerico)
-      .query('SELECT CDEMPRESA FROM [dbo].[EMPRESA] WHERE CGCMATRIZ = @CGCMATRIZ AND CDEMPRESA != @CDEMPRESA');
+      .query('SELECT [CDEMPRESA] FROM [dbo].[EMPRESA] WHERE [CGCMATRIZ] = @CGCMATRIZ AND [CDEMPRESA] != @CDEMPRESA');
 
     if (checkDuplicate.recordset.length > 0) {
       return res.status(400).json({ error: 'Já existe outra empresa com este CNPJ Matriz.' });
@@ -262,14 +262,14 @@ router.put('/empresas/:id', async (req, res) => {
       .query(`
         UPDATE [dbo].[EMPRESA]
         SET 
-          RZSOCIAL = @RZSOCIAL,
-          NMREDUZIDO = @NMREDUZIDO,
-          CGCMATRIZ = @CGCMATRIZ,
-          FGACTIVE = @FGACTIVE,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE CDEMPRESA = @CDEMPRESA
+          [RZSOCIAL] = @RZSOCIAL,
+          [NMREDUZIDO] = @NMREDUZIDO,
+          [CGCMATRIZ] = @CGCMATRIZ,
+          [FGACTIVE] = @FGACTIVE,
+          [DHMAINTENANCE] = GETDATE(),
+          [SGUSER] = 'SYSTEM',
+          [SERVERORIG] = 'AppDVcargas'
+        WHERE [CDEMPRESA] = @CDEMPRESA
       `);
 
     if (result.rowsAffected[0] === 0) {
@@ -300,7 +300,7 @@ router.delete('/empresas/:id', async (req, res) => {
     const checkResult = await pool
       .request()
       .input('CDEMPRESA', sql.SmallInt, idNumerico)
-      .query(`SELECT FGACTIVE FROM [dbo].[EMPRESA] WHERE CDEMPRESA = @CDEMPRESA`);
+      .query(`SELECT [FGACTIVE] FROM [dbo].[EMPRESA] WHERE [CDEMPRESA] = @CDEMPRESA`);
 
     if (checkResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Empresa não encontrada.' });
@@ -329,11 +329,11 @@ router.delete('/empresas/:id', async (req, res) => {
       .query(`
         UPDATE [dbo].[EMPRESA]
         SET 
-          FGACTIVE = @FGACTIVE,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE CDEMPRESA = @CDEMPRESA
+          [FGACTIVE] = @FGACTIVE,
+          [DHMAINTENANCE] = GETDATE(),
+          [SGUSER] = 'SYSTEM',
+          [SERVERORIG] = 'AppDVcargas'
+        WHERE [CDEMPRESA] = @CDEMPRESA
       `);
 
     if (result.rowsAffected[0] === 0) {

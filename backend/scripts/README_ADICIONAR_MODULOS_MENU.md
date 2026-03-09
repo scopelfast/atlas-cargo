@@ -1,7 +1,7 @@
 # 📋 Script: Adicionar Módulos ao Menu
 
 **Arquivo:** `adicionar_modulos_alertas_chat_sos_ranking_menu.sql`  
-**Data:** 2025-01-18  
+**Data:** 2026-01-18  
 **Versão:** 1.0
 
 ---
@@ -41,14 +41,14 @@ Exibe uma consulta mostrando os módulos adicionados para confirmação.
 
 1. Abra o SQL Server Management Studio
 2. Conecte-se ao servidor do banco de dados
-3. Selecione o banco `DIVULGACARGA_PRD`
+3. Selecione o banco `ATLAS_CARGO_PRD`
 4. Abra o arquivo `adicionar_modulos_alertas_chat_sos_ranking_menu.sql`
 5. Execute o script (F5 ou botão Execute)
 
 ### Opção 2: Linha de Comando (sqlcmd)
 
 ```bash
-sqlcmd -S servidor -d DIVULGACARGA_PRD -i backend/scripts/adicionar_modulos_alertas_chat_sos_ranking_menu.sql
+sqlcmd -S servidor -d ATLAS_CARGO_PRD -i backend/scripts/adicionar_modulos_alertas_chat_sos_ranking_menu.sql
 ```
 
 ---
@@ -161,5 +161,5 @@ Após executar o script:
 
 ---
 
-**Criado em:** 2025-01-18  
-**Autor:** Sistema DivulgaCarga
+**Criado em:** 2026-01-18  
+**Autor:** Atlas Cargo

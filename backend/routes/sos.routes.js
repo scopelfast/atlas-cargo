@@ -1,7 +1,7 @@
 // backend/routes/sos.routes.js
 // Rotas para Alertas SOS (Emergência)
 // Versão: 2.0 - Módulo separado
-// Data: 2025-01-16
+// Data: 2026-01-16
 
 const express = require('express');
 const router = express.Router();

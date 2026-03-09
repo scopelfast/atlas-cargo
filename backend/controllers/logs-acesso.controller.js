@@ -1,9 +1,9 @@
 // backend/controllers/logs-acesso.controller.js
 // Logs de Acesso - Controller
 // Versão: 1.0
-// Autor: Sistema DivulgaCarga
+// Atlas Cargo
 
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const { poolPromise } = require('../config/db');
 
 /**
@@ -16,36 +16,36 @@ const listarLogsAcesso = async (req, res) => {
     const pool = await poolPromise;
     let query = `
       SELECT 
-        ID,
-        SGUSUARIO,
-        DHLOGIN,
-        DHLOGOUT,
-        TEMPOSESSAO,
-        DHMAINTENANCE,
-        SGUSER,
-        SERVERORIG
-      FROM USUARIOLOGACESSO
+        [ID],
+        [SGUSUARIO],
+        [DHLOGIN],
+        [DHLOGOUT],
+        [TEMPOSESSAO],
+        [DHMAINTENANCE],
+        [SGUSER],
+        [SERVERORIG]
+      FROM [dbo].[USUARIOLOGACESSO]
       WHERE 1=1
     `;
 
     const request = pool.request();
 
     if (dataInicio) {
-      query += ` AND CAST(DHLOGIN AS DATE) >= CAST(@dataInicio AS DATE)`;
+      query += ` AND CAST([DHLOGIN] AS DATE) >= CAST(@dataInicio AS DATE)`;
       request.input('dataInicio', sql.DateTime, new Date(dataInicio));
     }
 
     if (dataFim) {
-      query += ` AND CAST(DHLOGIN AS DATE) <= CAST(@dataFim AS DATE)`;
+      query += ` AND CAST([DHLOGIN] AS DATE) <= CAST(@dataFim AS DATE)`;
       request.input('dataFim', sql.DateTime, new Date(dataFim));
     }
 
     if (operador) {
-      query += ` AND UPPER(SGUSUARIO) = UPPER(@operador)`;
+      query += ` AND UPPER([SGUSUARIO]) = UPPER(@operador)`;
       request.input('operador', sql.VarChar(50), operador);
     }
 
-    query += ` ORDER BY DHLOGIN DESC`;
+    query += ` ORDER BY [DHLOGIN] DESC`;
 
     const result = await request.query(query);
 
@@ -75,21 +75,21 @@ const listarLogsAcoes = async (req, res) => {
     const pool = await poolPromise;
     let query = `
       SELECT 
-        ID,
-        SGUSUARIO,
-        [DHAÇÃO] AS DHACAO,
-        TIPOACAO,
-        MODULO,
-        DESCRICAO,
-        DETALHES,
-        IDREGISTRO,
-        TABELA,
-        IP,
-        USERAGENT,
-        DHMAINTENANCE,
-        SGUSER,
-        SERVERORIG
-      FROM USUARIOLOGACAO
+        [ID],
+        [SGUSUARIO],
+        [DHAÇÃO] AS [DHACAO],
+        [TIPOACAO],
+        [MODULO],
+        [DESCRICAO],
+        [DETALHES],
+        [IDREGISTRO],
+        [TABELA],
+        [IP],
+        [USERAGENT],
+        [DHMAINTENANCE],
+        [SGUSER],
+        [SERVERORIG]
+      FROM [dbo].[USUARIOLOGACAO]
       WHERE 1=1
     `;
 
@@ -106,7 +106,7 @@ const listarLogsAcoes = async (req, res) => {
     }
 
     if (operador) {
-      query += ` AND UPPER(SGUSUARIO) = UPPER(@operador)`;
+      query += ` AND UPPER([SGUSUARIO]) = UPPER(@operador)`;
       request.input('operador', sql.VarChar(50), operador);
     }
 
@@ -139,19 +139,19 @@ const listarOperadores = async (req, res) => {
     
     // Buscar operadores únicos das tabelas de log
     const result = await pool.request().query(`
-      SELECT DISTINCT UPPER(SGUSUARIO) AS SGUSUARIO
+      SELECT DISTINCT UPPER([SGUSUARIO]) AS [SGUSUARIO]
       FROM (
-        SELECT SGUSUARIO FROM USUARIOLOGACESSO
+        SELECT [SGUSUARIO] FROM [dbo].[USUARIOLOGACESSO]
         UNION
-        SELECT SGUSUARIO FROM USUARIOLOGACAO
-      ) AS OPERADORES
-      WHERE SGUSUARIO IS NOT NULL AND SGUSUARIO <> ''
-      ORDER BY SGUSUARIO
+        SELECT [SGUSUARIO] FROM [dbo].[USUARIOLOGACAO]
+      ) AS [OPERADORES]
+      WHERE [SGUSUARIO] IS NOT NULL AND [SGUSUARIO] <> ''
+      ORDER BY [SGUSUARIO]
     `);
 
     res.json({
       success: true,
-      operadores: result.recordset.map(r => r.SGUSUARIO)
+      operadores: (result.recordset || []).map(r => r.SGUSUARIO || r.sgusuario)
     });
   } catch (err) {
     console.error('Erro ao listar operadores:', err);

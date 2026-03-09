@@ -1,6 +1,6 @@
 -- Script para criar tabela de Mensagens (Chat Motorista ↔ Operador)
 -- Sistema de chat contextual por viagem
--- Data: 2025-01-16
+-- Data: 2026-01-16
 
 -- Tabela principal de mensagens
 IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[MESSAGES]') AND type in (N'U'))

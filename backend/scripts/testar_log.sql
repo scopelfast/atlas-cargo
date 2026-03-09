@@ -4,7 +4,7 @@
 -- Verifica se a tabela existe e testa inserção
 -- ============================================
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 PRINT '============================================';

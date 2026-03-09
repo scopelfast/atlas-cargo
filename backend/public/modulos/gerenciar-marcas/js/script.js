@@ -1,5 +1,6 @@
 // backend/public/modulos/gerenciar-marcas/js/script.js
 (function() {
+  const t = function(k) { return typeof window.tWeb === 'function' ? window.tWeb(k) : k; };
   const tabs = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
   const filtroForm = document.getElementById('filtroForm');
@@ -264,7 +265,7 @@
       const countEl = document.getElementById('marcasGridCountText');
       if (countEl) {
         const count = marcas.length || 0;
-        countEl.textContent = `${count} registro(s) encontrado(s)`;
+        countEl.textContent = (t('web.modulos.cidades.registrosEncontrados') || '{n} registro(s) encontrado(s)').replace('{n}', String(count));
       }
       
       // Se já existe uma instância do Grid na aba, atualizá-la imediatamente
@@ -332,7 +333,7 @@
       showTab(openTab);
     } catch (err) {
       console.error('Erro ao aplicar filtros:', err);
-      showMessage('Erro ao carregar marcas.', 'error');
+      showMessage(t('web.modulos.marcas.erroCarregarMarcas'), 'error');
     }
   }
 
@@ -370,7 +371,7 @@
         // Validar ID
         if (!id || id === 'null' || id === 'undefined' || id === '') {
           console.error('[Marcas] ID inválido:', id, 'Elemento:', e.currentTarget);
-          showMessage('Erro: ID não disponível.', 'error');
+          showMessage(t('web.modulos.marcas.erroIdIndisponivel'), 'error');
           return;
         }
         
@@ -448,8 +449,8 @@
       container: '#marcasGrid',
       columns: [
         { field: 'CDMARCAEQUIPAMENTO', header: 'Código', editable: false, isId: true, width: '80px' },
-        { field: 'DSMARCAEQUIPAMENTO', header: 'Descrição', editable: true, type: 'text', width: '360px', maxlength: 40 },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px',
+        { field: 'DSMARCAEQUIPAMENTO', header: 'Descrição', editable: true, type: 'text', maxlength: 40 },
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px', align: 'right',
           options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }
@@ -494,19 +495,19 @@
         document.getElementById('marcaCodigo').value = marca.CDMARCAEQUIPAMENTO;
         document.getElementById('marcaDescricao').value = marca.DSMARCAEQUIPAMENTO;
         document.getElementById('marcaSituacao').value = marca.FGACTIVE;
-        document.getElementById('formTitle').textContent = 'Editar Marca de Equipamento';
+        document.getElementById('formTitle').textContent = t('web.modulos.marcas.editarMarca');
         showTab('dados');
       }
     } catch (err) {
       console.error('Erro ao carregar marca:', err);
-      showMessage('Erro ao carregar dados para edição.', 'error');
+      showMessage(t('web.modulos.marcas.erroCarregarDados'), 'error');
     }
   }
 
   // Confirmar exclusão
   async function confirmarExclusao(id) {
     if (!id || id === 'undefined' || id === 'null' || id === '' || String(id).trim() === '') {
-      showMessage('Erro: ID não disponível.', 'error');
+      showMessage(t('web.modulos.marcas.erroIdIndisponivel'), 'error');
       return;
     }
     
@@ -534,13 +535,13 @@
       // Definir mensagem e ação baseado no status atual
       let confirmMsg, action, btnText;
       if (estaAtivo) {
-        confirmMsg = 'Tem certeza que deseja <strong>desativar</strong> esta marca?<br><br><small style="color: #666;">A marca ficará inativa e não aparecerá nas listagens padrão.</small>';
+        confirmMsg = t('web.modulos.marcas.msgDesativar');
         action = 'deactivate';
-        btnText = 'Desativar';
+        btnText = t('web.modulos.marcas.desativar');
       } else {
-        confirmMsg = 'Tem certeza que deseja <strong>reativar</strong> esta marca?<br><br><small style="color: #666;">A marca voltará a aparecer nas listagens e estará disponível para uso.</small>';
+        confirmMsg = t('web.modulos.marcas.msgReativar');
         action = 'activate';
-        btnText = 'Reativar';
+        btnText = t('web.modulos.marcas.reativar');
       }
       
       if (modalMessage) modalMessage.innerHTML = confirmMsg;
@@ -563,7 +564,7 @@
           const acao = modalEl.dataset.action || action;
           
           if (!deleteId || deleteId === 'undefined' || deleteId === 'null' || deleteId === '') {
-            showMessage('Erro: ID não disponível.', 'error');
+            showMessage(t('web.modulos.marcas.erroIdIndisponivel'), 'error');
             modalEl.style.display = 'none';
             return;
           }
@@ -575,15 +576,15 @@
           
           const data = await response.json();
           if (response.ok) {
-            showMessage(data.message || (acao === 'activate' ? 'Marca reativada com sucesso!' : 'Marca desativada com sucesso!'), 'success');
+            showMessage(data.message || (acao === 'activate' ? t('web.modulos.marcas.sucessoReativar') : t('web.modulos.marcas.sucessoDesativar')), 'success');
             showTab('grid');
             applyFilters('grid');
           } else {
-            showMessage(data.error || 'Erro ao alterar status da marca.', 'error');
+            showMessage(data.error || t('web.modulos.marcas.erroAlterarStatus'), 'error');
           }
         } catch (err) {
           console.error('[Marcas] Erro ao alterar status:', err);
-          showMessage('Erro de conexão.', 'error');
+          showMessage(t('web.modulos.marcas.erroConexao'), 'error');
         } finally {
           modalEl.style.display = 'none';
           delete modalEl.dataset.deleteId;
@@ -600,19 +601,32 @@
       modalEl.style.display = 'block';
     } catch (err) {
       console.error('[Marcas] Erro ao buscar status da marca:', err);
-      showMessage('Erro ao verificar status da marca.', 'error');
+      showMessage(t('web.modulos.marcas.erroVerificarStatus'), 'error');
     }
   }
 
-  // Salvar formulário
+  // Salvar formulário (bloqueio no início para evitar cadastro duplicado)
+  let marcaFormSubmitting = false;
   marcaForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    e.stopImmediatePropagation();
+    if (marcaFormSubmitting) return;
+    marcaFormSubmitting = true;
+    const btnSubmit = marcaForm?.querySelector('button[type="submit"]');
+    const labelOriginal = btnSubmit?.innerHTML ?? '';
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = '<i class=\'bx bx-loader-alt bx-spin\'></i> Salvando...';
+    }
+
     const id = document.getElementById('marcaCodigo')?.value;
     const descricao = document.getElementById('marcaDescricao')?.value.trim();
     const situacao = document.getElementById('marcaSituacao')?.value;
-    
+
     if (!descricao || !situacao) {
-      showMessage('Preencha todos os campos obrigatórios.', 'error');
+      showMessage(t('web.modulos.marcas.preenchaMarca'), 'error');
+      marcaFormSubmitting = false;
+      if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = labelOriginal; }
       return;
     }
 
@@ -639,15 +653,23 @@
 
       const data = await response.json();
       if (response.ok) {
-        showMessage(data.message || 'Salvo com sucesso!', 'success');
+        showMessage(data.message || t('web.modulos.marcas.sucessoSalvar'), 'success');
         showTab('grid');
         applyFilters('grid');
       } else {
-        showMessage(data.error || 'Erro ao salvar.', 'error');
+        showMessage(data.error || t('web.modulos.marcas.erroSalvar'), 'error');
       }
     } catch (err) {
       console.error('Erro ao salvar marca:', err);
-      showMessage('Erro de conexão com o servidor.', 'error');
+      showMessage(t('web.modulos.marcas.erroConexao'), 'error');
+    } finally {
+      setTimeout(() => {
+        marcaFormSubmitting = false;
+        if (btnSubmit) {
+          btnSubmit.disabled = false;
+          btnSubmit.innerHTML = labelOriginal;
+        }
+      }, 600);
     }
   });
 
@@ -674,7 +696,7 @@
   document.getElementById('btnVoltarFiltros')?.addEventListener('click', () => showTab('filtros'));
   document.getElementById('btnNovoRegistro')?.addEventListener('click', () => {
     marcaForm?.reset();
-    document.getElementById('formTitle').textContent = 'Nova Marca de Equipamento';
+    document.getElementById('formTitle').textContent = t('web.modulos.marcas.novaMarca');
     showTab('dados');
   });
 
@@ -685,7 +707,7 @@
 
   document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
     marcaForm?.reset();
-    document.getElementById('formTitle').textContent = 'Nova Marca de Equipamento';
+    document.getElementById('formTitle').textContent = t('web.modulos.marcas.novaMarca');
     showTab('dados');
   });
   

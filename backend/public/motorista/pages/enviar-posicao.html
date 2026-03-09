@@ -4,8 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Enviar Posição - Motorista</title>
-  <link rel="stylesheet" href="../css/padrao-telas.css">
   <link rel="stylesheet" href="../css/design-system.css">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <script src="../js/i18n.js"></script>
   <style>
     .icon-container {
       width: 100px;
@@ -58,12 +60,11 @@
     }
   </style>
 </head>
-<body>
-  <div id="statusIndicador" class="status-bar status-online">🟢 Online - Sincronizado</div>
-
+<body class="motorista-page">
   <div class="navbar">
-    <button class="btn-voltar" onclick="voltar()">← Voltar</button>
-    <h1>📤 Enviar Posição</h1>
+    <button class="btn-voltar" onclick="voltar()">← <span data-i18n="common.voltar">Voltar</span></button>
+    <h1><i class="bx bx-send"></i> <span data-i18n="enviarPosicao.titulo">Enviar Posição</span></h1>
+    <div id="statusIndicador" class="status-badge-navbar status-online" data-i18n="dashboard.onlineSincronizado">Online - Sincronizado</div>
   </div>
 
   <div class="container">
@@ -74,55 +75,55 @@
       <div class="card-body" style="text-align: center;">
         <div class="icon-container" id="statusIcon">📍</div>
         
-        <h3 style="font-size: 20px; font-weight: bold; color: #333; margin-bottom: 10px;">
+        <h3 style="font-size: 20px; font-weight: bold; color: #333; margin-bottom: 10px;" data-i18n="enviarPosicao.titulo">
           Enviar Posição
         </h3>
         
-        <div class="card-desc">
+        <div class="card-desc" data-i18n="enviarPosicao.cliqueEnviarLocalizacao">
           Clique no botão abaixo para enviar sua localização atual
         </div>
 
         <div class="posicao-info" id="ultimaPosicao" style="display: none;">
-          <div class="posicao-info-titulo">📍 Última Posição Enviada:</div>
+          <div class="posicao-info-titulo" data-i18n="enviarPosicao.ultimaPosicaoEnviada">📍 Última Posição Enviada:</div>
           <div class="posicao-row">
-            <span class="posicao-label">Status:</span>
+            <span class="posicao-label" data-i18n="enviarPosicao.status">Status:</span>
             <span class="posicao-value" id="infoStatus">-</span>
           </div>
           <div class="posicao-row">
-            <span class="posicao-label">Velocidade:</span>
+            <span class="posicao-label" data-i18n="enviarPosicao.velocidade">Velocidade:</span>
             <span class="posicao-value" id="infoVelocidade">-</span>
           </div>
           <div class="posicao-row">
-            <span class="posicao-label">Direção:</span>
+            <span class="posicao-label" data-i18n="enviarPosicao.direcao">Direção:</span>
             <span class="posicao-value" id="infoDirecao">-</span>
           </div>
           <div class="posicao-row">
-            <span class="posicao-label">Coordenadas:</span>
+            <span class="posicao-label" data-i18n="enviarPosicao.coordenadas">Coordenadas:</span>
             <span class="posicao-value" id="infoCoordenadas" style="font-size: 12px;">-</span>
           </div>
           <div class="posicao-row">
-            <span class="posicao-label">Horário:</span>
+            <span class="posicao-label" data-i18n="enviarPosicao.horario">Horário:</span>
             <span class="posicao-value" id="infoHorario">-</span>
           </div>
         </div>
 
         <button class="btn-primary btn-success" id="btnEnviar" onclick="enviarPosicao()">
           <span style="font-size: 20px; margin-right: 8px;">📤</span>
-          <span>Enviar Posição Agora</span>
+          <span data-i18n="enviarPosicao.enviarPosicaoAgora">Enviar Posição Agora</span>
         </button>
       </div>
     </div>
 
     <div class="card">
       <div class="card-body">
-        <div style="font-size: 15px; font-weight: 600; color: #333; margin-bottom: 10px;">
+        <div style="font-size: 15px; font-weight: 600; color: #333; margin-bottom: 10px;" data-i18n="enviarPosicao.comoFunciona">
           ℹ️ Como funciona:
         </div>
         <div style="font-size: 14px; color: #666; line-height: 22px;">
-          • A posição é capturada instantaneamente<br>
-          • Inclui velocidade e status (parado/movimento)<br>
-          • Funciona offline (sincroniza depois)<br>
-          • Informações precisas em tempo real
+          <span data-i18n="enviarPosicao.comoFunciona1">• A posição é capturada instantaneamente</span><br>
+          <span data-i18n="enviarPosicao.comoFunciona2">• Inclui velocidade e status (parado/movimento)</span><br>
+          <span data-i18n="enviarPosicao.comoFunciona3">• Funciona offline (sincroniza depois)</span><br>
+          <span data-i18n="enviarPosicao.comoFunciona4">• Informações precisas em tempo real</span>
         </div>
       </div>
     </div>
@@ -137,12 +138,34 @@
   <script>
     if (!verificarAuth()) window.location.href = '../index.html';
 
+    function applyI18n() {
+      if (typeof window.t !== 'function') return;
+      document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        var k = el.getAttribute('data-i18n');
+        if (k) el.textContent = window.t(k);
+      });
+    }
+    if (window.i18nReady) window.i18nReady.then(applyI18n);
+
     const motorista = getMotorista();
     let viagens = [];
     let viagemSelecionada = null;
 
     function voltar() {
       window.location.href = 'dashboard.html';
+    }
+
+    // Descrição da rota: roteiro ou origem → destino; nunca undefined
+    function obterDescricaoRota(v) {
+      if (!v) return 'Viagem em andamento';
+      const roteiro = v.ROTEIRO || v.roteiro || v.DSROTEIRO || v.dsroteiro;
+      if (roteiro && String(roteiro).trim() !== '' && String(roteiro) !== 'undefined') return String(roteiro).trim();
+      const origem = (v.ORIGEM_CIDADE || v.origem_cidade || '').trim();
+      const origemUF = (v.ORIGEM_ESTADO || v.origem_estado || '').trim();
+      const destino = (v.DESTINO_CIDADE || v.destino_cidade || '').trim();
+      const destinoUF = (v.DESTINO_ESTADO || v.destino_estado || '').trim();
+      if (origem || destino) return [origem, origemUF].filter(Boolean).join(' - ') + ' → ' + [destino, destinoUF].filter(Boolean).join(' - ');
+      return 'Viagem em andamento';
     }
 
     // Inicializar
@@ -182,15 +205,16 @@
     function renderizarSeletorViagem() {
       const selector = document.getElementById('viagemSelector');
 
+      var t = typeof window.t === 'function' ? window.t : function(k) { return k; };
       if (viagens.length === 0) {
         // Sem viagem - aviso
         selector.innerHTML = `
           <div style="background: #fff3cd; padding: 12px; border-radius: 10px; border-left: 4px solid #ffc107;">
             <div style="font-size: 13px; color: #856404; font-weight: 600;">
-              ⚠️ Sem viagem em andamento
+              ⚠️ ` + t('enviarPosicao.semViagemAndamento') + `
             </div>
             <div style="font-size: 12px; color: #856404; margin-top: 4px;">
-              A posição será registrada sem viagem associada
+              ` + t('enviarPosicao.posicaoRegistradaSemViagem') + `
             </div>
           </div>
         `;
@@ -199,11 +223,13 @@
       else if (viagens.length === 1) {
         // 1 viagem - selecionar automaticamente
         viagemSelecionada = viagens[0];
+        const id = viagemSelecionada.IDVIAGEM || viagemSelecionada.idviagem;
+        const rota = obterDescricaoRota(viagemSelecionada);
         selector.innerHTML = `
-          <div style="background: white; padding: 12px 16px; border-radius: 10px; border-left: 4px solid #667eea; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Viagem Atual:</div>
+          <div style="background: white; padding: 12px 16px; border-radius: 10px; border-left: 4px solid #0ea5e9; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">` + t('enviarPosicao.viagemAtual') + `</div>
             <div style="font-size: 15px; font-weight: 600; color: #333;">
-              #${viagemSelecionada.IDVIAGEM} - ${viagemSelecionada.ROTEIRO}
+              #${id} - ${rota}
             </div>
           </div>
         `;
@@ -213,16 +239,16 @@
         selector.innerHTML = `
           <div style="background: white; padding: 16px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
             <div style="font-size: 12px; color: #666; font-weight: 600; margin-bottom: 8px; text-transform: uppercase;">
-              Selecione a Viagem:
+              ` + t('enviarPosicao.selecioneViagem') + `
             </div>
             <select id="selectViagem" onchange="selecionarViagem()" 
                     style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 14px; font-weight: 600;">
-              <option value="">-- Escolha uma viagem --</option>
-              ${viagens.map(v => `
-                <option value="${v.IDVIAGEM}">
-                  #${v.IDVIAGEM} - ${v.ROTEIRO}
-                </option>
-              `).join('')}
+              <option value="">-- ` + t('enviarPosicao.escolhaViagem') + ` --</option>
+              ${viagens.map(v => {
+                const id = v.IDVIAGEM || v.idviagem;
+                const rota = obterDescricaoRota(v);
+                return `<option value="${id}">#${id} - ${rota}</option>`;
+              }).join('')}
             </select>
           </div>
         `;
@@ -234,8 +260,11 @@
       const idViagem = select.value;
 
       if (idViagem) {
-        viagemSelecionada = viagens.find(v => v.IDVIAGEM == idViagem);
-        mostrarToast(`Viagem #${idViagem} selecionada`, 'success');
+        viagemSelecionada = viagens.find(v => (v.IDVIAGEM || v.idviagem) == idViagem);
+        var msg = typeof window.t === 'function' ? window.t('enviarPosicao.viagemSelecionada') : '';
+        if (msg && msg.indexOf('{{id}}') !== -1) msg = msg.replace(/\{\{id\}\}/g, idViagem);
+        else msg = 'Viagem #' + idViagem + ' selecionada';
+        mostrarToast(msg, 'success');
       } else {
         viagemSelecionada = null;
       }
@@ -244,13 +273,14 @@
     async function enviarPosicao() {
       const btn = document.getElementById('btnEnviar');
       btn.disabled = true;
-      btn.innerHTML = '<span style="font-size: 20px; margin-right: 8px;">⏳</span><span>Obtendo localização...</span>';
+      var obtendo = typeof window.t === 'function' ? window.t('enviarPosicao.obtendoLocalizacao') : 'Obtendo localização...';
+      btn.innerHTML = '<span style="font-size: 20px; margin-right: 8px;">⏳</span><span>' + obtendo + '</span>';
 
-      const loading = mostrarLoading('Capturando GPS...');
+      const loading = mostrarLoading(typeof window.t === 'function' ? window.t('enviarPosicao.obtendoLocalizacao') : 'Capturando GPS...');
 
       try {
         const posicao = await obterGPSCompleto();
-        loading.querySelector('.loading-text').textContent = 'Enviando posição...';
+        loading.querySelector('.loading-text').textContent = (typeof window.t === 'function' ? window.t('enviarPosicao.enviandoPosicao') : 'Enviando posição...');
         
         const response = await fetch('/api/motorista/gps', {
           method: 'POST',
@@ -260,7 +290,7 @@
           },
           body: JSON.stringify({
             cdMotorista: motorista.id,
-            idViagem: viagemSelecionada?.IDVIAGEM || null,
+            idViagem: viagemSelecionada ? (viagemSelecionada.IDVIAGEM || viagemSelecionada.idviagem) : null,
             latitude: posicao.latitude,
             longitude: posicao.longitude,
             altitude: posicao.altitude,
@@ -277,8 +307,9 @@
 
         if (response.ok) {
           const data = await response.json();
+          var posicaoEnviada = typeof window.t === 'function' ? window.t('enviarPosicao.posicaoEnviada') : 'Posição enviada!';
           mostrarToast(
-            `✅ Posição enviada!\n📍 ${posicao.statusTexto}\n🚗 ${posicao.velocidade || 0} km/h`,
+            '✅ ' + posicaoEnviada + '\n📍 ' + posicao.statusTexto + '\n🚗 ' + (posicao.velocidade || 0) + ' km/h',
             'success'
           );
           mostrarUltimaPosicao(posicao);
@@ -302,18 +333,20 @@
         console.error('❌ Stack:', error.stack);
         esconderLoading();
         
-        if (error.message.includes('localização') || error.message.includes('GPS')) {
-          await mostrarModal(
-            'GPS Necessário',
-            'Para enviar a posição, precisamos acessar sua localização.\n\nPor favor, ative o GPS e permita o acesso.',
-            ['OK']
-          );
+        // Modal "GPS Necessário" só quando o usuário negou permissão (não quando é timeout ou indisponível)
+        if (error.code === 1) {
+          var tituloGps = typeof window.t === 'function' ? window.t('enviarPosicao.gpsNecessario') : 'GPS Necessário';
+          var descGps = typeof window.t === 'function' ? window.t('enviarPosicao.gpsNecessarioDesc') : 'Para enviar a posição, precisamos acessar sua localização. Por favor, permita o acesso à localização nas configurações do navegador/site.';
+          await mostrarModal(tituloGps, descGps, ['OK']);
+        } else if (error.code === 3) {
+          mostrarToast(typeof window.t === 'function' ? window.t('enviarPosicao.tempoEsgotado') : 'Tempo esgotado ao obter localização. Tente novamente.', 'error');
         } else {
-          mostrarToast(error.message || 'Erro ao enviar posição', 'error');
+          mostrarToast(error.message || (typeof window.t === 'function' ? window.t('enviarPosicao.erroEnviarPosicao') : 'Erro ao enviar posição'), 'error');
         }
       } finally {
         btn.disabled = false;
-        btn.innerHTML = '<span style="font-size: 20px; margin-right: 8px;">📤</span><span>Enviar Posição Agora</span>';
+        var lblEnviar = typeof window.t === 'function' ? window.t('enviarPosicao.enviarPosicaoAgora') : 'Enviar Posição Agora';
+        btn.innerHTML = '<span style="font-size: 20px; margin-right: 8px;">📤</span><span>' + lblEnviar + '</span>';
       }
     }
 
@@ -338,10 +371,14 @@
               direcao: coords.heading !== null ? coords.heading.toFixed(2) : null,
               precisao: coords.accuracy ? coords.accuracy.toFixed(2) : null,
               status: status,
-              statusTexto: status === 'P' ? 'Parado' : 'Em Movimento'
+              statusTexto: status === 'P' ? (typeof window.t === 'function' ? window.t('enviarPosicao.parado') : 'Parado') : (typeof window.t === 'function' ? window.t('enviarPosicao.emMovimento') : 'Em Movimento')
             });
           },
-          (error) => reject(new Error('Não foi possível obter sua localização')),
+          (error) => {
+            const err = new Error(error.message || 'Não foi possível obter sua localização');
+            err.code = error.code; // 1=permissão negada, 2=indisponível, 3=timeout
+            reject(err);
+          },
           { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         );
       });
@@ -360,7 +397,8 @@
 
     function obterDirecaoCardinal(graus) {
       if (!graus) return null;
-      const direcoes = ['Norte', 'Nordeste', 'Leste', 'Sudeste', 'Sul', 'Sudoeste', 'Oeste', 'Noroeste'];
+      var t = typeof window.t === 'function' ? window.t : function(k) { return k; };
+      const direcoes = [t('enviarPosicao.norte'), t('enviarPosicao.nordeste'), t('enviarPosicao.leste'), t('enviarPosicao.sudeste'), t('enviarPosicao.sul'), t('enviarPosicao.sudoeste'), t('enviarPosicao.oeste'), t('enviarPosicao.noroeste')];
       const indice = Math.round(parseFloat(graus) / 45) % 8;
       return direcoes[indice];
     }

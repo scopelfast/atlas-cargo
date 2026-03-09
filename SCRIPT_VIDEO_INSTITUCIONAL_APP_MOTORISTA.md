@@ -1,4 +1,4 @@
-# 🎬 Script para Vídeo Institucional - APP DivulgaCarga
+# 🎬 Script para Vídeo Institucional - APP Atlas Cargo
 
 ## 📋 Informações Gerais
 
@@ -13,10 +13,10 @@
 
 ### [00:00 - 00:15] ABERTURA
 
-**VISUAL**: Logo DivulgaCarga animado, fundo com veículos em movimento
+**VISUAL**: Logo Atlas Cargo animado, fundo com veículos em movimento
 
 **NARRADOR** (voz masculina/feminina, tom entusiasmado):
-> "Bem-vindo ao APP DivulgaCarga! A solução completa para motoristas profissionais que buscam eficiência, segurança e controle total sobre suas viagens."
+> "Bem-vindo ao APP Atlas Cargo! A solução completa para motoristas profissionais que buscam eficiência, segurança e controle total sobre suas viagens."
 
 **VISUAL**: Transição suave para tela do aplicativo
 
@@ -27,7 +27,7 @@
 **VISUAL**: Montagem mostrando desafios do dia a dia do motorista (papelada, comunicação difícil, falta de rastreamento)
 
 **NARRADOR** (tom empático):
-> "Você já passou por isso? Perder tempo com papelada, dificuldade para se comunicar com a central, não saber exatamente onde está sua carga? O APP DivulgaCarga foi criado para resolver todos esses problemas."
+> "Você já passou por isso? Perder tempo com papelada, dificuldade para se comunicar com a central, não saber exatamente onde está sua carga? O APP Atlas Cargo foi criado para resolver todos esses problemas."
 
 **VISUAL**: Problemas sendo "resolvidos" com animações (X vermelho → ✓ verde)
 
@@ -38,7 +38,7 @@
 **VISUAL**: Demonstração em tela do aplicativo (screen recording ou animação)
 
 **NARRADOR** (tom explicativo, pausado):
-> "Com o APP DivulgaCarga, você tem acesso a funcionalidades poderosas:"
+> "Com o APP Atlas Cargo, você tem acesso a funcionalidades poderosas:"
 
 **VISUAL**: Cards animados aparecendo um por um
 
@@ -79,7 +79,7 @@
 **VISUAL**: Screen recording real do aplicativo (ou animação realista)
 
 **NARRADOR** (tom didático):
-> "Vamos ver como é fácil usar o APP DivulgaCarga no seu dia a dia:"
+> "Vamos ver como é fácil usar o APP Atlas Cargo no seu dia a dia:"
 
 **CENÁRIO 1 - Login e Dashboard**
 **VISUAL**: Tela de login, digitando CPF e senha, entrando
@@ -118,7 +118,7 @@
 **VISUAL**: Cards com ícones e textos destacando benefícios
 
 **NARRADOR** (tom entusiasmado):
-> "O APP DivulgaCarga oferece benefícios reais para você:"
+> "O APP Atlas Cargo oferece benefícios reais para você:"
 
 **VISUAL**: Cada benefício aparece com animação
 
@@ -149,7 +149,7 @@
 **VISUAL**: Fotos reais ou ilustrações de motoristas usando o app
 
 **NARRADOR** (tom de testemunho):
-> "Motoristas que usam o APP DivulgaCarga relatam:"
+> "Motoristas que usam o APP Atlas Cargo relatam:"
 
 **TEXTO NA TELA** (legendas):
 - "Economizei 2 horas por dia com menos papelada" - João, Motorista
@@ -166,7 +166,7 @@
 **VISUAL**: Tela de login, processo de cadastro simplificado
 
 **NARRADOR** (tom convidativo):
-> "Começar a usar o APP DivulgaCarga é muito simples:"
+> "Começar a usar o APP Atlas Cargo é muito simples:"
 
 **VISUAL**: Passos numerados aparecendo
 
@@ -228,15 +228,15 @@
 
 ### [04:30 - 05:00] ENCERRAMENTO E CALL TO ACTION
 
-**VISUAL**: Logo DivulgaCarga, interface do app em destaque
+**VISUAL**: Logo Atlas Cargo, interface do app em destaque
 
 **NARRADOR** (tom inspirador):
-> "O APP DivulgaCarga foi feito para você, motorista profissional, que busca eficiência e tecnologia no seu dia a dia."
+> "O APP Atlas Cargo foi feito para você, motorista profissional, que busca eficiência e tecnologia no seu dia a dia."
 
 **VISUAL**: Montagem de sucesso: motorista feliz, veículo na estrada, app funcionando
 
 **NARRADOR**:
-> "Junte-se a centenas de motoristas que já transformaram sua rotina com o APP DivulgaCarga."
+> "Junte-se a centenas de motoristas que já transformaram sua rotina com o APP Atlas Cargo."
 
 **VISUAL**: Logo final, informações de contato
 
@@ -249,7 +249,7 @@
 - 💬 **Chat 24/7 no aplicativo**
 
 **NARRADOR** (tom final, entusiasmado):
-> "APP DivulgaCarga. Tecnologia que trabalha para você."
+> "APP Atlas Cargo. Tecnologia que trabalha para você."
 
 **VISUAL**: Logo animado, fade out suave
 
@@ -352,6 +352,6 @@
 
 ---
 
-**Desenvolvido para DivulgaCarga**  
-*Versão 1.0 - Dezembro 2025*
+**Desenvolvido para Atlas Cargo**  
+*Versão 1.0 - Dezembro 2026*
 

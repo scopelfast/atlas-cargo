@@ -1,8 +1,8 @@
 -- Script para adicionar campo DHACESSO à tabela CONVOCACAO
--- Database: DIVULGACARGA_PRD
--- Data: 2025-11-21
+-- Database: ATLAS_CARGO_PRD
+-- Data: 2026-11-21
 
-USE [DIVULGACARGA_PRD];
+USE [ATLAS_CARGO_PRD];
 GO
 
 -- Adicionar coluna DHACESSO (Data/Hora do primeiro acesso do motorista ao link)

@@ -2,7 +2,7 @@
 
 ## ✅ Revisão Completa Realizada
 
-Data: 2025-01-13
+Data: 2026-01-13
 
 ## 📋 Arquivos Revisados
 
@@ -118,7 +118,7 @@ Data: 2025-01-13
 
 ---
 
-**Revisão realizada por**: Sistema DivulgaCarga  
-**Data**: 2025-01-13  
+**Revisão realizada por**: Atlas Cargo  
+**Data**: 2026-01-13  
 **Status**: ✅ APROVADO
 

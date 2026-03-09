@@ -1,7 +1,7 @@
 // backend/routes/motorista-app.routes.js
 // Rotas para APP do Motorista
 // Versão: 1.0 - Inicial
-// Data: 02/01/2025
+// Data: 02/01/2026
 
 const express = require('express');
 const router = express.Router();
@@ -14,14 +14,19 @@ const sosController = require('../controllers/sos.controller');
 // ROTAS PÚBLICAS (sem autenticação)
 // ==========================================
 
+// Configurações do app (telefone suporte, etc.) - ler variável TELEFONE_SUPORTE no .env
+router.get('/config', motoristaAppController.config);
+
 // Login
 router.post('/login', motoristaAppController.login);
 
 // Cadastro (placeholder)
 router.post('/cadastro', motoristaAppController.cadastro);
 
-// Recuperar Senha
+// Recuperar Senha (envia código por SMS/email - ver implementação)
 router.post('/recuperar-senha', motoristaAppController.recuperarSenha);
+// Redefinir Senha (com código recebido)
+router.post('/redefinir-senha', motoristaAppController.redefinirSenha);
 
 // ==========================================
 // ROTAS PROTEGIDAS (com autenticação JWT)
@@ -58,7 +63,7 @@ router.post('/gps', motoristaAppController.registrarGPS);
 router.get('/posicoes/:idviagem', motoristaAppController.buscarPosicoesViagem);
 router.get('/motorista-viagem/:idviagem', motoristaAppController.buscarMotoristaViagem);
 
-// Sincronização de Rastreamento (INTEGRA_PRD -> DIVULGACARGA_PRD)
+// Sincronização de Rastreamento (rota descontinuada; INTEGRA_PRD não existe mais)
 router.post('/sincronizar-rastreamento/:idViagem', sincronizarRastreamentoController.sincronizarRastreamento);
 
 // Eventos
@@ -76,6 +81,12 @@ router.get('/sos/historico', sosController.historico);
 
 // Alterar Senha
 router.post('/alterar-senha', motoristaAppController.alterarSenha);
+
+// Definir senha do app motorista (pela web, ao editar cadastro)
+router.post('/definir-senha-admin', motoristaAppController.definirSenhaAdmin);
+
+// Aprovar/rejeitar motorista (pela web, ao editar cadastro)
+router.post('/aprovar-admin', motoristaAppController.aprovarMotoristaAdmin);
 
 module.exports = router;
 

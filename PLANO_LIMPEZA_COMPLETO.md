@@ -9,7 +9,7 @@
    - ❌ Inclui `node_modules` duplicado (~200MB+)
    - **AÇÃO:** DELETAR TUDO
 
-2. **`backend_20251201_1344.zip`** (na raiz)
+2. **`backend_20261201_1344.zip`** (na raiz)
    - ❌ Backup ZIP (43MB+)
    - **AÇÃO:** DELETAR (já está no Git)
 
@@ -57,7 +57,7 @@
 |------|------------------|
 | `backend/backend/node_modules/` | ~200 MB |
 | `backend/backend/` (resto) | ~50 MB |
-| `backend_20251201_1344.zip` | ~43 MB |
+| `backend_20261201_1344.zip` | ~43 MB |
 | `backend.zip` | ~40 MB |
 | Arquivos duplicados | ~10 MB |
 | **TOTAL** | **~343 MB** 🎉 |
@@ -83,7 +83,7 @@ Remove-Item -Path "backend" -Recurse -Force
 ### Passo 3: Deletar Backups ZIP
 ```bash
 cd ..
-Remove-Item -Path "backend_20251201_1344.zip" -Force
+Remove-Item -Path "backend_20261201_1344.zip" -Force
 Remove-Item -Path "backend.zip" -Force
 ```
 

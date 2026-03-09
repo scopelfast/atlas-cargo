@@ -1,7 +1,7 @@
 # ⚡ Passo a Passo Rápido - Teste do Módulo Alertas
 
 **Versão:** 1.0  
-**Data:** 2025-01-18
+**Data:** 2026-01-18
 
 ---
 
@@ -10,7 +10,7 @@
 ### Passo 1: Preparar Dados de Teste
 
 1. Abra o **SQL Server Management Studio**
-2. Conecte ao banco `DIVULGACARGA_PRD`
+2. Conecte ao banco `ATLAS_CARGO_PRD`
 3. Execute o script: `backend/scripts/criar_alertas_teste.sql`
 4. Verifique se apareceu a mensagem: `✅ Script concluído!`
 

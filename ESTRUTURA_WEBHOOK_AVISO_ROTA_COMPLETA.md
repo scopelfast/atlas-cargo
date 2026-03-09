@@ -25,8 +25,8 @@ Cada requisição POST envia um objeto JSON com os seguintes campos:
   "TIPO": "05 - Entrega",
   "CLASSE": "25 - Truck Baú",
   "ROTA": "617 - Itapevi Sp / Belo Horizonte MG",
-  "CARREGAMENTO": "01/12/2025 16:00",
-  "DESCARGA": "02/12/2025 08:00",
+  "CARREGAMENTO": "01/12/2026 16:00",
+  "DESCARGA": "02/12/2026 08:00",
   "CONTRATADOR": "Erasmo Araujo Santana",
   "FRETE": "3392,55",
   "PESO": "3790,000",
@@ -48,8 +48,8 @@ Cada requisição POST envia um objeto JSON com os seguintes campos:
   "TIPO": "05 - Entrega",
   "CLASSE": "25 - Truck Baú",
   "ROTA": "617 - Itapevi Sp / Belo Horizonte MG",
-  "CARREGAMENTO": "01/12/2025 16:00",
-  "DESCARGA": "02/12/2025 08:00",
+  "CARREGAMENTO": "01/12/2026 16:00",
+  "DESCARGA": "02/12/2026 08:00",
   "CONTRATADOR": "Erasmo Araujo Santana",
   "FRETE": "3392,55",
   "PESO": "3790,000",
@@ -69,8 +69,8 @@ Cada requisição POST envia um objeto JSON com os seguintes campos:
   "TIPO": "05 - Entrega",
   "CLASSE": "25 - Truck Baú",
   "ROTA": "617 - Itapevi Sp / Belo Horizonte MG",
-  "CARREGAMENTO": "01/12/2025 16:00",
-  "DESCARGA": "02/12/2025 08:00",
+  "CARREGAMENTO": "01/12/2026 16:00",
+  "DESCARGA": "02/12/2026 08:00",
   "CONTRATADOR": "Erasmo Araujo Santana",
   "FRETE": "3392,55",
   "PESO": "3790,000",
@@ -90,8 +90,8 @@ Cada requisição POST envia um objeto JSON com os seguintes campos:
 | `TIPO` | String | Sim | Tipo de viagem formatado (código - descrição) | `"05 - Entrega"` |
 | `CLASSE` | String | Sim | Classe de frota formatada (código - descrição) | `"25 - Truck Baú"` |
 | `ROTA` | String | Sim | Rota formatada. Se houver roteiro: `{IDROTEIRO} - {DSROTEIRO}`. Caso contrário: `{ORIGEM_CIDADE}/{ORIGEM_ESTADO} → {DESTINO_CIDADE}/{DESTINO_ESTADO}` | `"617 - Itapevi Sp / Belo Horizonte MG"` |
-| `CARREGAMENTO` | String | Sim | Data/hora de carregamento formatada (DD/MM/YYYY HH:mm) | `"01/12/2025 16:00"` |
-| `DESCARGA` | String | Sim | Data/hora de descarga formatada (DD/MM/YYYY HH:mm) | `"02/12/2025 08:00"` |
+| `CARREGAMENTO` | String | Sim | Data/hora de carregamento formatada (DD/MM/YYYY HH:mm) | `"01/12/2026 16:00"` |
+| `DESCARGA` | String | Sim | Data/hora de descarga formatada (DD/MM/YYYY HH:mm) | `"02/12/2026 08:00"` |
 | `CONTRATADOR` | String | Sim | Nome do contratador ou "Não informado" | `"Erasmo Araujo Santana"` |
 | `FRETE` | String | Sim | Valor do frete formatado como numérico apenas (sem "R$"), usando vírgula como separador decimal | `"3392,55"` |
 | `PESO` | String | Sim | Peso da carga formatado como numérico apenas (sem "ton"), usando vírgula como separador decimal com 3 casas | `"3790,000"` |
@@ -117,8 +117,8 @@ User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
   "TIPO": "05 - Entrega",
   "CLASSE": "25 - Truck Baú",
   "ROTA": "617 - Itapevi Sp / Belo Horizonte MG",
-  "CARREGAMENTO": "01/12/2025 16:00",
-  "DESCARGA": "02/12/2025 08:00",
+  "CARREGAMENTO": "01/12/2026 16:00",
+  "DESCARGA": "02/12/2026 08:00",
   "CONTRATADOR": "Erasmo Araujo Santana",
   "FRETE": "3392,55",
   "PESO": "3790,000",
@@ -165,7 +165,7 @@ O webhook deve retornar um status HTTP 200 (OK) com uma resposta JSON indicando 
 ### Formatação de Datas
 
 - **CARREGAMENTO** e **DESCARGA**: `DD/MM/YYYY HH:mm`
-  - Exemplo: `"01/12/2025 16:00"`
+  - Exemplo: `"01/12/2026 16:00"`
 
 ## Comportamento do Sistema
 

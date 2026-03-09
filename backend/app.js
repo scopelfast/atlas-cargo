@@ -34,6 +34,7 @@ const alertRoutes = require('./routes/alert.routes');
 const messageRoutes = require('./routes/message.routes');
 const sosRoutes = require('./routes/sos.routes');
 const reputationRoutes = require('./routes/reputation.routes');
+const configRoutes = require('./routes/config.routes');
 
 const app = express();
 
@@ -283,12 +284,17 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'user-login']
 };
 app.use(cors(corsOptions));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Popular req.user a partir do JWT quando Authorization: Bearer <token> estiver presente
+const { getUsuarioLogado } = require('./middleware/auth.middleware');
+app.use('/api', getUsuarioLogado);
+app.use('/cargas/api', getUsuarioLogado);
 
 // Rotas de API (ANTES do express.static para garantir prioridade)
 // Definir todas as rotas de API primeiro
@@ -317,6 +323,7 @@ const apiRoutes = [
   { path: '/api', route: tipoAtividadeRoutes },
   { path: '/api/motorista', route: motoristaAppRoutes },
   { path: '/api/log', route: usuariologacaoRoutes },
+  { path: '/api', route: configRoutes },
   { path: '/api/logs-acesso', route: logsAcessoRoutes },
   { path: '/api/mapa-viagem', route: mapaViagemRoutes },
   { path: '/api/alerts', route: alertRoutes },
@@ -384,6 +391,51 @@ app.get('/', (req, res) => {
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Página de chat do motorista (rotas explícitas para evitar cache/SW retornando página em branco)
+const chatHtmlPath = path.join(__dirname, 'public', 'motorista', 'pages', 'chat.html');
+const noCacheHeaders = (res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+};
+app.get('/motorista/pages/chat.html', (req, res) => {
+  noCacheHeaders(res);
+  res.sendFile(chatHtmlPath);
+});
+// URL alternativa para o chat (não costuma estar em cache do SW)
+app.get('/motorista/chat', (req, res) => {
+  noCacheHeaders(res);
+  res.sendFile(chatHtmlPath);
+});
+// Chat fora de /motorista/ — Service Worker NÃO intercepta; use se a tela continuar em branco
+app.get('/chat-motorista', (req, res) => {
+  console.log('💬 [ROTA] GET /chat-motorista — enviando chat.html');
+  noCacheHeaders(res);
+  res.sendFile(chatHtmlPath);
+});
+// Página mínima de teste (sem CSS/JS externos) — confirma se a rota responde
+app.get('/chat-motorista-minimal', (req, res) => {
+  console.log('💬 [ROTA] GET /chat-motorista-minimal');
+  noCacheHeaders(res);
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Chat Teste</title></head><body style="padding:20px;font-family:sans-serif;background:#e0f2fe;">
+<h1>Chat (página mínima)</h1>
+<p>Se você vê isto, a rota do servidor está OK.</p>
+<p><a href="/chat-motorista-standalone?viagem=1">Abrir chat standalone</a></p>
+</body></html>`);
+});
+// Chat standalone: uma única página, sem CSS/JS externos, sem SW (URL fora de /motorista/)
+app.get('/chat-motorista-standalone', (req, res) => {
+  console.log('💬 [ROTA] GET /chat-motorista-standalone');
+  noCacheHeaders(res);
+  res.sendFile(path.join(__dirname, 'public', 'motorista', 'pages', 'chat-standalone.html'));
+});
+
+// Atalho /m e /m/ -> redireciona para /motorista/ (app motorista no celular)
+app.get(['/m', '/m/'], (req, res) => {
+  res.redirect(302, '/motorista/');
 });
 
 // Servir arquivos estáticos da pasta 'public'

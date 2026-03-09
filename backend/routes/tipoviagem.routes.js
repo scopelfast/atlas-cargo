@@ -1,7 +1,7 @@
 const express = require('express');
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const router = express.Router();
-const { poolPromise } = require('../config/db');
+const { poolPromise, getFirstNumericValue } = require('../config/db');
 
 // Listar tipos de viagem com filtros
 router.get('/tipos-viagem', async (req, res) => {
@@ -9,28 +9,28 @@ router.get('/tipos-viagem', async (req, res) => {
     const { codigo, descricao, situacao } = req.query;
     let query = `
       SELECT 
-        CDTIPOVIAGEM,
-        DSTIPOVIAGEM,
-        FGACTIVE
+        [CDTIPOVIAGEM],
+        [DSTIPOVIAGEM],
+        [FGACTIVE]
       FROM [dbo].[TIPOVIAGEM]
       WHERE 1=1
     `;
 
     const params = [];
     if (codigo) {
-      query += ` AND CDTIPOVIAGEM = @CODIGO`;
+      query += ` AND [CDTIPOVIAGEM] = @CODIGO`;
       params.push({ name: 'CODIGO', value: parseInt(codigo) });
     }
     if (descricao) {
-      query += ` AND DSTIPOVIAGEM LIKE @DESCRICAO`;
+      query += ` AND [DSTIPOVIAGEM] LIKE @DESCRICAO`;
       params.push({ name: 'DESCRICAO', value: `%${descricao}%` });
     }
     if (situacao) {
-      query += ` AND FGACTIVE = @SITUACAO`;
+      query += ` AND [FGACTIVE] = @SITUACAO`;
       params.push({ name: 'SITUACAO', value: situacao === 'S' ? 'A' : 'I' });
     }
 
-    query += ` ORDER BY DSTIPOVIAGEM`;
+    query += ` ORDER BY [DSTIPOVIAGEM]`;
 
     const pool = await poolPromise;
     const request = pool.request();
@@ -65,11 +65,11 @@ router.get('/tipos-viagem/:id', async (req, res) => {
       .input('CDTIPOVIAGEM', idNum)
       .query(`
         SELECT 
-          CDTIPOVIAGEM,
-          DSTIPOVIAGEM,
-          FGACTIVE
+          [CDTIPOVIAGEM],
+          [DSTIPOVIAGEM],
+          [FGACTIVE]
         FROM [dbo].[TIPOVIAGEM]
-        WHERE CDTIPOVIAGEM = @CDTIPOVIAGEM
+        WHERE [CDTIPOVIAGEM] = @CDTIPOVIAGEM
       `);
 
     if (result.recordset.length === 0) {
@@ -97,22 +97,26 @@ router.post('/tipos-viagem', async (req, res) => {
     }
 
     const pool = await poolPromise;
-    const maxResult = await pool
-      .request()
-      .query('SELECT ISNULL(MAX(CDTIPOVIAGEM), 0) AS maxId FROM [dbo].[TIPOVIAGEM]');
-    const novoId = maxResult.recordset[0].maxId + 1;
+    const descricao = DSTIPOVIAGEM.trim();
+    const existente = await pool.query(
+      `SELECT 1 FROM "TIPOVIAGEM" WHERE UPPER(TRIM("DSTIPOVIAGEM")) = UPPER(TRIM($1)) LIMIT 1`,
+      [descricao]
+    );
+    if (existente.rows && existente.rows.length > 0) {
+      return res.status(409).json({ error: 'Já existe um tipo de viagem com esta descrição. Não é permitido cadastrar duplicados.' });
+    }
 
-    await pool
-      .request()
-      .input('CDTIPOVIAGEM', sql.Int, novoId)
-      .input('DSTIPOVIAGEM', DSTIPOVIAGEM.trim())
-      .query(`
-        INSERT INTO [dbo].[TIPOVIAGEM] (
-          CDTIPOVIAGEM, DSTIPOVIAGEM, FGACTIVE, DHMAINTENANCE, SGUSER, SERVERORIG
-        )
-        VALUES (@CDTIPOVIAGEM, @DSTIPOVIAGEM, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas')
-      `);
-
+    const getProximoId = async () => {
+      const maxResult = await pool.request().query('SELECT COALESCE(MAX([CDTIPOVIAGEM]), 0) + 1 AS [maxId] FROM [dbo].[TIPOVIAGEM]');
+      return getFirstNumericValue(maxResult.recordset, 1);
+    };
+    let novoId = await getProximoId();
+    try {
+      await pool.request().input('CDTIPOVIAGEM', sql.Int, novoId).input('DSTIPOVIAGEM', DSTIPOVIAGEM.trim())
+        .query(`INSERT INTO [dbo].[TIPOVIAGEM] ([CDTIPOVIAGEM], [DSTIPOVIAGEM], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]) VALUES (@CDTIPOVIAGEM, @DSTIPOVIAGEM, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas')`);
+    } catch (insertErr) {
+      if (String(insertErr.code) === '23505') { novoId = await getProximoId(); await pool.request().input('CDTIPOVIAGEM', sql.Int, novoId).input('DSTIPOVIAGEM', DSTIPOVIAGEM.trim()).query(`INSERT INTO [dbo].[TIPOVIAGEM] ([CDTIPOVIAGEM], [DSTIPOVIAGEM], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]) VALUES (@CDTIPOVIAGEM, @DSTIPOVIAGEM, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas')`); } else throw insertErr;
+    }
     res.status(201).json({ success: true, message: 'Tipo de viagem cadastrado com sucesso!' });
   } catch (err) {
     console.error('Erro ao inserir tipo de viagem:', err);
@@ -131,8 +135,18 @@ router.put('/tipos-viagem/:id', async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const idNumerico = parseInt(id, 10);
+    if (isNaN(idNumerico) || idNumerico <= 0) {
+      return res.status(400).json({ error: 'ID inválido.' });
+    }
+    const existente = await pool.query(
+      `SELECT 1 FROM "TIPOVIAGEM" WHERE UPPER(TRIM("DSTIPOVIAGEM")) = UPPER(TRIM($1)) AND "CDTIPOVIAGEM" != $2 LIMIT 1`,
+      [DSTIPOVIAGEM.trim(), idNumerico]
+    );
+    if (existente.rows && existente.rows.length > 0) {
+      return res.status(409).json({ error: 'Já existe outro tipo de viagem com esta descrição. Não é permitido duplicar.' });
+    }
     const fgactiveDB = FGACTIVE === 'S' ? 'A' : 'I';
-    const idNumerico = parseInt(id);
 
     await pool
       .request()
@@ -142,12 +156,12 @@ router.put('/tipos-viagem/:id', async (req, res) => {
       .query(`
         UPDATE [dbo].[TIPOVIAGEM] 
         SET 
-          DSTIPOVIAGEM = @DSTIPOVIAGEM,
-          FGACTIVE = @FGACTIVE,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE CDTIPOVIAGEM = @CDTIPOVIAGEM
+          [DSTIPOVIAGEM] = @DSTIPOVIAGEM,
+          [FGACTIVE] = @FGACTIVE,
+          [DHMAINTENANCE] = GETDATE(),
+          [SGUSER] = 'SYSTEM',
+          [SERVERORIG] = 'AppDVcargas'
+        WHERE [CDTIPOVIAGEM] = @CDTIPOVIAGEM
       `);
 
     res.json({ success: true, message: 'Tipo de viagem atualizado com sucesso!' });
@@ -175,7 +189,7 @@ router.delete('/tipos-viagem/:id', async (req, res) => {
     const checkResult = await pool
       .request()
       .input('CDTIPOVIAGEM', sql.Int, idNumerico)
-      .query(`SELECT FGACTIVE FROM [dbo].[TIPOVIAGEM] WHERE CDTIPOVIAGEM = @CDTIPOVIAGEM`);
+      .query(`SELECT [FGACTIVE] FROM [dbo].[TIPOVIAGEM] WHERE [CDTIPOVIAGEM] = @CDTIPOVIAGEM`);
 
     if (checkResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Tipo não encontrado.' });
@@ -204,11 +218,11 @@ router.delete('/tipos-viagem/:id', async (req, res) => {
       .query(`
         UPDATE [dbo].[TIPOVIAGEM] 
         SET 
-          FGACTIVE = @FGACTIVE,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE CDTIPOVIAGEM = @CDTIPOVIAGEM
+          [FGACTIVE] = @FGACTIVE,
+          [DHMAINTENANCE] = GETDATE(),
+          [SGUSER] = 'SYSTEM',
+          [SERVERORIG] = 'AppDVcargas'
+        WHERE [CDTIPOVIAGEM] = @CDTIPOVIAGEM
       `);
 
     if (result.rowsAffected[0] === 0) {

@@ -18,6 +18,7 @@ SELECT
     WHEN 'A' THEN 'Agente'
     WHEN 'G' THEN 'Grupo de Divulgação'
     WHEN 'T' THEN 'Transportador'
+    WHEN 'C' THEN 'Certificadora'
     WHEN 'U' THEN 'Unidade de Negócio'
     ELSE 'Não informado'
   END AS 'Tipo Cadastro',

@@ -4,7 +4,7 @@
 -- Tabela para registrar acessos e tempo de sessão dos usuários
 -- ============================================
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 -- Verificar se a tabela já existe

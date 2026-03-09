@@ -4,8 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Macros - Motorista</title>
-  <link rel="stylesheet" href="../css/padrao-telas.css">
   <link rel="stylesheet" href="../css/design-system.css">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <script src="../js/i18n.js"></script>
   <style>
     .viagem-selector {
       background: white;
@@ -84,10 +86,10 @@
     }
     
     /* Todos os botões com a mesma cor (roxo) */
-    .situacao-T { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-    .situacao-C { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-    .situacao-D { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
-    .situacao-P { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    .situacao-T { background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); }
+    .situacao-C { background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); }
+    .situacao-D { background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); }
+    .situacao-P { background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); }
     
     .historico-item {
       display: flex;
@@ -101,13 +103,12 @@
     .historico-hora { font-size: 12px; color: #666; }
   </style>
 </head>
-<body>
-  <div id="statusIndicador" class="status-bar status-online">🟢 Online - Sincronizado</div>
-
+<body class="motorista-page">
   <div class="navbar">
     <button class="btn-voltar" onclick="voltar()">← Voltar</button>
-    <h1>📝 Macros / Ocorrências</h1>
-    <button class="btn-voltar" onclick="forcarAtualizacao()" style="font-size: 20px; padding: 8px 12px;">🔄</button>
+    <h1><i class="bx bx-edit-alt"></i></h1>
+    <div id="statusIndicador" class="status-badge-navbar status-online">Online - Sincronizado</div>
+    <button class="btn-voltar" onclick="forcarAtualizacao()" style="font-size: 20px; padding: 8px 12px; margin-left: 0;">🔄</button>
   </div>
 
   <div class="container">
@@ -117,7 +118,7 @@
     <!-- Loading -->
     <div class="loading" id="loading">
       <div class="spinner"></div>
-      <p>Carregando macros...</p>
+      <p data-i18n="common.carregando">Carregando...</p>
     </div>
 
     <!-- Grid de Macros -->
@@ -125,14 +126,22 @@
 
     <!-- Histórico -->
     <div class="card" id="historicoCard" style="display: none;">
-      <div class="card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-        <div class="card-title">📋 Histórico</div>
+      <div class="card-header" style="background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%);">
+        <div class="card-title" data-i18n="macros.historico">📋 Histórico</div>
         <div class="card-subtitle">Últimas 5 ocorrências</div>
       </div>
       <div class="card-body" id="historicoLista"></div>
     </div>
   </div>
 
+  <script>
+    function applyI18n() {
+      if (typeof window.t !== 'function') return;
+      document.querySelectorAll('[data-i18n]').forEach(function(el) { var k = el.getAttribute('data-i18n'); if (k) el.textContent = window.t(k); });
+      document.querySelectorAll('[data-i18n-title]').forEach(function(el) { var k = el.getAttribute('data-i18n-title'); if (k) el.title = window.t(k); });
+    }
+    if (window.i18nReady) window.i18nReady.then(applyI18n);
+  </script>
   <!-- URL Helper - DEVE ser o primeiro script para garantir interceptor de fetch -->
   <script src="../js/url-helper.js"></script>
   <script src="../js/notifications.js"></script>
@@ -275,7 +284,7 @@
       } else {
         // Só 1 viagem, mostrar info
         selector.innerHTML = `
-          <div style="background: white; padding: 12px 16px; border-radius: 10px; border-left: 4px solid #667eea; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 16px;">
+          <div style="background: white; padding: 12px 16px; border-radius: 10px; border-left: 4px solid #0ea5e9; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 16px;">
             <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Viagem Atual:</div>
             <div style="font-size: 15px; font-weight: 600; color: #333;">
               #${viagemSelecionada.IDVIAGEM} - ${viagemSelecionada.ROTEIRO || 'Sem roteiro'}

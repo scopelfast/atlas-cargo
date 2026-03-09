@@ -1,8 +1,8 @@
 -- Script para verificar estrutura do campo STATUS na tabela CONVOCACAO
--- Database: DIVULGACARGA_PRD
--- Data: 2025-11-21
+-- Database: ATLAS_CARGO_PRD
+-- Data: 2026-11-21
 
-USE [DIVULGACARGA_PRD];
+USE [ATLAS_CARGO_PRD];
 GO
 
 -- Verificar estrutura da coluna STATUS

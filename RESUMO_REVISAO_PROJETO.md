@@ -1,6 +1,6 @@
-# 📋 Resumo da Revisão do Projeto - DivulgaCarga
+# 📋 Resumo da Revisão do Projeto - Atlas Cargo
 
-**Data:** 2025-11-28  
+**Data:** 2026-11-28  
 **Versão:** 1.2.0  
 **Status:** ✅ Revisão Completa - Pronto para GitHub
 
@@ -118,7 +118,7 @@ SysScopel/
 │   ├── scripts/                  ✅
 │   ├── utils/                   ✅
 │   └── *.md                      ✅ (documentação)
-└── migrate_integra_to_divulgacarga_completo.sql  ✅
+└── migrate_integra_completo.sql  ✅
 ```
 
 ---
@@ -230,8 +230,8 @@ Antes de usar o sistema, execute na ordem:
 
 ---
 
-**Mantido por:** Equipe DivulgaCarga  
-**Data de Revisão:** 2025-11-28  
+**Mantido por:** Equipe Atlas Cargo  
+**Data de Revisão:** 2026-11-28  
 **Versão:** 1.2.0  
 **Status:** ✅ PRONTO PARA GITHUB
 

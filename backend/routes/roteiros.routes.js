@@ -1,14 +1,14 @@
 // backend/routes/roteiros.routes.js
 // Gerenciar Roteiros - API
 // Versão: 1.3
-// Autor: Sistema DivulgaCarga
-// Data: 2025-01-13
+// Atlas Cargo
+// Data: 2026-01-13
 // Última atualização: Adicionado suporte ao campo RESUMOROTA
 
 const express = require('express');
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const router = express.Router();
-const { poolPromise } = require('../config/db');
+const { poolPromise, getFirstNumericValue } = require('../config/db');
 const axios = require('axios');
 const { getReverseGeocodingUrl } = require('../config/nominatim');
 
@@ -71,6 +71,14 @@ function converterEstadoParaUF(estado) {
   return estado;
 }
 
+// Helper: PostgreSQL retorna colunas em minúsculas; ler com qualquer casing
+function getRow(r, key) {
+  if (r[key] !== undefined && r[key] !== null) return r[key];
+  const lower = key.toLowerCase();
+  if (r[lower] !== undefined && r[lower] !== null) return r[lower];
+  return r[key];
+}
+
 // Função para formatar cidade com UF (converte nome de estado para UF se necessário)
 function formatarCidadeComUF(cidade, estado) {
   if (!cidade) return '';
@@ -121,81 +129,80 @@ router.get('/roteiros', async (req, res) => {
     
     let query = `
       SELECT 
-        r.IDROTEIRO,
-        r.DSROTEIRO,
-        r.DISTANCIAKM,
-        r.CDCIDADEORIGEM,
-        co.ESTADO AS ORIGEM_ESTADO,
-        co.NMCIDADE AS ORIGEM_CIDADE,
-        r.CDCIDADEDESTINO,
-        cd.ESTADO AS DESTINO_ESTADO,
-        cd.NMCIDADE AS DESTINO_CIDADE,
-        r.RESUMOROTA
+        [r].[IDROTEIRO],
+        [r].[DSROTEIRO],
+        [r].[DISTANCIAKM],
+        [r].[CDCIDADEORIGEM],
+        [co].[ESTADO] AS ORIGEM_ESTADO,
+        [co].[NMCIDADE] AS ORIGEM_CIDADE,
+        [r].[CDCIDADEDESTINO],
+        [cd].[ESTADO] AS DESTINO_ESTADO,
+        [cd].[NMCIDADE] AS DESTINO_CIDADE,
+        [r].[RESUMOROTA]
     `;
     
     if (temFGACTIVE) {
-      query += `, ISNULL(r.FGACTIVE, 'S') AS FGACTIVE`;
+      query += `, COALESCE([r].[FGACTIVE], 'S') AS FGACTIVE`;
     } else {
       query += `, 'S' AS FGACTIVE`;
     }
     
     query += `
       FROM [dbo].[ROTEIRO] r
-      LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
-      LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
+      LEFT JOIN [dbo].[CIDADE] co ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
+      LEFT JOIN [dbo].[CIDADE] cd ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
       WHERE 1=1
     `;
 
     const params = [];
     if (codigo) {
-      query += ` AND r.IDROTEIRO = @CODIGO`;
+      query += ` AND [r].[IDROTEIRO] = @CODIGO`;
       params.push({ name: 'CODIGO', value: codigo });
     }
     if (descricao) {
-      query += ` AND r.DSROTEIRO LIKE @DESCRICAO`;
+      query += ` AND [r].[DSROTEIRO] LIKE @DESCRICAO`;
       params.push({ name: 'DESCRICAO', value: `%${descricao}%` });
     }
     if (origemEstado) {
-      query += ` AND co.ESTADO = @ORIGEM_ESTADO`;
+      query += ` AND [co].[ESTADO] = @ORIGEM_ESTADO`;
       params.push({ name: 'ORIGEM_ESTADO', value: origemEstado });
     }
     if (origemCidade) {
-      query += ` AND co.NMCIDADE LIKE @ORIGEM_CIDADE`;
+      query += ` AND [co].[NMCIDADE] LIKE @ORIGEM_CIDADE`;
       params.push({ name: 'ORIGEM_CIDADE', value: `%${origemCidade}%` });
     }
     if (destinoEstado) {
-      query += ` AND cd.ESTADO = @DESTINO_ESTADO`;
+      query += ` AND [cd].[ESTADO] = @DESTINO_ESTADO`;
       params.push({ name: 'DESTINO_ESTADO', value: destinoEstado });
     }
     if (destinoCidade) {
-      query += ` AND cd.NMCIDADE LIKE @DESTINO_CIDADE`;
+      query += ` AND [cd].[NMCIDADE] LIKE @DESTINO_CIDADE`;
       params.push({ name: 'DESTINO_CIDADE', value: `%${destinoCidade}%` });
     }
 
-    query += ` ORDER BY r.IDROTEIRO`;
+    query += ` ORDER BY [r].[IDROTEIRO]`;
     const request = pool.request();
     params.forEach(p => request.input(p.name, p.value));
     
     const result = await request.query(query);
     const roteiros = result.recordset.map(r => {
       const roteiro = {
-        IDROTEIRO: r.IDROTEIRO,
-        DSROTEIRO: r.DSROTEIRO,
-        DISTANCIAKM: r.DISTANCIAKM,
-        CDCIDADEORIGEM: r.CDCIDADEORIGEM,
-        ORIGEM_ESTADO: r.ORIGEM_ESTADO,
-        ORIGEM_CIDADE: r.ORIGEM_CIDADE,
-        CDCIDADEDESTINO: r.CDCIDADEDESTINO,
-        DESTINO_ESTADO: r.DESTINO_ESTADO,
-        DESTINO_CIDADE: r.DESTINO_CIDADE,
-        RESUMOROTA: r.RESUMOROTA || null
+        IDROTEIRO: getRow(r, 'IDROTEIRO'),
+        DSROTEIRO: getRow(r, 'DSROTEIRO'),
+        DISTANCIAKM: getRow(r, 'DISTANCIAKM'),
+        CDCIDADEORIGEM: getRow(r, 'CDCIDADEORIGEM'),
+        ORIGEM_ESTADO: getRow(r, 'ORIGEM_ESTADO') || '',
+        ORIGEM_CIDADE: getRow(r, 'ORIGEM_CIDADE') || '',
+        CDCIDADEDESTINO: getRow(r, 'CDCIDADEDESTINO'),
+        DESTINO_ESTADO: getRow(r, 'DESTINO_ESTADO') || '',
+        DESTINO_CIDADE: getRow(r, 'DESTINO_CIDADE') || '',
+        RESUMOROTA: getRow(r, 'RESUMOROTA') || null
       };
       
-      // Adicionar FGACTIVE se existir no resultado
-      if (temFGACTIVE && r.FGACTIVE !== undefined) {
-        roteiro.FGACTIVE = r.FGACTIVE;
+      if (temFGACTIVE && (r.FGACTIVE !== undefined || r.fgactive !== undefined)) {
+        roteiro.FGACTIVE = r.FGACTIVE ?? r.fgactive;
       } else {
-        roteiro.FGACTIVE = 'S'; // Default se não existir o campo
+        roteiro.FGACTIVE = 'S';
       }
       
       return roteiro;
@@ -225,29 +232,29 @@ router.get('/roteiros/:id', async (req, res) => {
     
     const temFGACTIVE = checkColumn.recordset.length > 0;
     
-    let query = `
+    let     query = `
       SELECT 
-        r.IDROTEIRO,
-        r.DSROTEIRO,
-        r.DISTANCIAKM,
-        r.CDCIDADEORIGEM,
-        co.ESTADO AS ORIGEM_ESTADO,
-        co.NMCIDADE AS ORIGEM_CIDADE,
-        r.CDCIDADEDESTINO,
-        cd.ESTADO AS DESTINO_ESTADO,
-        cd.NMCIDADE AS DESTINO_CIDADE,
-        r.RESUMOROTA
+        [r].[IDROTEIRO],
+        [r].[DSROTEIRO],
+        [r].[DISTANCIAKM],
+        [r].[CDCIDADEORIGEM],
+        [co].[ESTADO] AS ORIGEM_ESTADO,
+        [co].[NMCIDADE] AS ORIGEM_CIDADE,
+        [r].[CDCIDADEDESTINO],
+        [cd].[ESTADO] AS DESTINO_ESTADO,
+        [cd].[NMCIDADE] AS DESTINO_CIDADE,
+        [r].[RESUMOROTA]
     `;
     
     if (temFGACTIVE) {
-      query += `, ISNULL(r.FGACTIVE, 'S') AS FGACTIVE`;
+      query += `, COALESCE([r].[FGACTIVE], 'S') AS FGACTIVE`;
     }
     
     query += `
       FROM [dbo].[ROTEIRO] r
-      LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
-      LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
-      WHERE r.IDROTEIRO = @IDROTEIRO
+      LEFT JOIN [dbo].[CIDADE] co ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
+      LEFT JOIN [dbo].[CIDADE] cd ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
+      WHERE [r].[IDROTEIRO] = @IDROTEIRO
     `;
     
     const result = await pool
@@ -261,22 +268,22 @@ router.get('/roteiros/:id', async (req, res) => {
     
     const r = result.recordset[0];
     const responseData = {
-      IDROTEIRO: r.IDROTEIRO,
-      DSROTEIRO: r.DSROTEIRO,
-      DISTANCIAKM: r.DISTANCIAKM,
-      CDCIDADEORIGEM: r.CDCIDADEORIGEM,
-      ORIGEM_ESTADO: r.ORIGEM_ESTADO,
-      ORIGEM_CIDADE: r.ORIGEM_CIDADE,
-      CDCIDADEDESTINO: r.CDCIDADEDESTINO,
-      DESTINO_ESTADO: r.DESTINO_ESTADO,
-      DESTINO_CIDADE: r.DESTINO_CIDADE,
-      RESUMOROTA: r.RESUMOROTA || null
+      IDROTEIRO: getRow(r, 'IDROTEIRO'),
+      DSROTEIRO: getRow(r, 'DSROTEIRO'),
+      DISTANCIAKM: getRow(r, 'DISTANCIAKM'),
+      CDCIDADEORIGEM: getRow(r, 'CDCIDADEORIGEM'),
+      ORIGEM_ESTADO: getRow(r, 'ORIGEM_ESTADO') || '',
+      ORIGEM_CIDADE: getRow(r, 'ORIGEM_CIDADE') || '',
+      CDCIDADEDESTINO: getRow(r, 'CDCIDADEDESTINO'),
+      DESTINO_ESTADO: getRow(r, 'DESTINO_ESTADO') || '',
+      DESTINO_CIDADE: getRow(r, 'DESTINO_CIDADE') || '',
+      RESUMOROTA: getRow(r, 'RESUMOROTA') || null
     };
     
-    if (temFGACTIVE && r.FGACTIVE !== undefined) {
-      responseData.FGACTIVE = r.FGACTIVE;
+    if (temFGACTIVE && (r.FGACTIVE !== undefined || r.fgactive !== undefined)) {
+      responseData.FGACTIVE = r.FGACTIVE ?? r.fgactive;
     } else {
-      responseData.FGACTIVE = 'S'; // Default se não existir o campo
+      responseData.FGACTIVE = 'S';
     }
     
     res.json(responseData);
@@ -304,8 +311,8 @@ router.post('/roteiros', async (req, res) => {
     const pool = await poolPromise;
     const maxResult = await pool
       .request()
-      .query('SELECT ISNULL(MAX(IDROTEIRO), 0) AS maxId FROM [dbo].[ROTEIRO]');
-    const novoId = maxResult.recordset[0].maxId + 1;
+      .query('SELECT COALESCE(MAX([IDROTEIRO]), 0) + 1 AS [maxId] FROM [dbo].[ROTEIRO]');
+    const novoId = getFirstNumericValue(maxResult.recordset, 1);
 
     // Verificar se a tabela tem campo FGACTIVE
     const checkColumn = await pool
@@ -331,19 +338,19 @@ router.post('/roteiros', async (req, res) => {
     
     let query = `
       INSERT INTO [dbo].[ROTEIRO] (
-        IDROTEIRO, DSROTEIRO, CDCIDADEORIGEM, CDCIDADEDESTINO, DISTANCIAKM,
+        [IDROTEIRO], [DSROTEIRO], [CDCIDADEORIGEM], [CDCIDADEDESTINO], [DISTANCIAKM],
     `;
     
     if (temRESUMOROTA && RESUMOROTA) {
-      query += `RESUMOROTA,`;
+      query += `[RESUMOROTA],`;
     }
     
     if (temFGACTIVE) {
-      query += `FGACTIVE,`;
+      query += `[FGACTIVE],`;
     }
     
     query += `
-        DHMAINTENANCE, SGUSER, SERVERORIG
+        [DHMAINTENANCE], [SGUSER], [SERVERORIG]
       )
       VALUES (@IDROTEIRO, @DSROTEIRO, @CDCIDADEORIGEM, @CDCIDADEDESTINO, @DISTANCIAKM,
     `;
@@ -372,7 +379,7 @@ router.post('/roteiros', async (req, res) => {
     
     await request.query(query);
 
-    res.status(201).json({ success: true, message: 'Roteiro cadastrado com sucesso!' });
+    res.status(201).json({ success: true, message: 'Roteiro cadastrado com sucesso!', IDROTEIRO: novoId });
   } catch (err) {
     console.error('Erro ao inserir roteiro:', err);
     res.status(500).json({ error: 'Erro ao cadastrar roteiro.' });
@@ -412,27 +419,27 @@ router.put('/roteiros/:id', async (req, res) => {
     const temRESUMOROTA = checkColumn.recordset.some(r => r.COLUMN_NAME === 'RESUMOROTA');
     
     let query = `
-      UPDATE [dbo].[ROTEIRO] 
+      UPDATE [dbo].[ROTEIRO]
       SET 
-        DSROTEIRO = @DSROTEIRO,
-        CDCIDADEORIGEM = @CDCIDADEORIGEM,
-        CDCIDADEDESTINO = @CDCIDADEDESTINO,
-        DISTANCIAKM = @DISTANCIAKM,
+        [DSROTEIRO] = @DSROTEIRO,
+        [CDCIDADEORIGEM] = @CDCIDADEORIGEM,
+        [CDCIDADEDESTINO] = @CDCIDADEDESTINO,
+        [DISTANCIAKM] = @DISTANCIAKM,
     `;
     
     if (temRESUMOROTA && RESUMOROTA !== undefined) {
-      query += `RESUMOROTA = @RESUMOROTA,`;
+      query += `[RESUMOROTA] = @RESUMOROTA,`;
     }
     
     if (temFGACTIVE && FGACTIVE) {
-      query += `FGACTIVE = @FGACTIVE,`;
+      query += `[FGACTIVE] = @FGACTIVE,`;
     }
     
     query += `
-        DHMAINTENANCE = GETDATE(),
-        SGUSER = 'SYSTEM',
-        SERVERORIG = 'AppDVcargas'
-      WHERE IDROTEIRO = @IDROTEIRO
+        [DHMAINTENANCE] = GETDATE(),
+        [SGUSER] = 'SYSTEM',
+        [SERVERORIG] = 'AppDVcargas'
+      WHERE [IDROTEIRO] = @IDROTEIRO
     `;
 
     const request = pool.request()
@@ -496,11 +503,11 @@ router.delete('/roteiros/:id', async (req, res) => {
         .input('FGACTIVE', sql.Char(1), novoStatus)
         .query(`
           UPDATE [dbo].[ROTEIRO]
-          SET FGACTIVE = @FGACTIVE,
-              DHMAINTENANCE = GETDATE(),
-              SGUSER = 'SYSTEM',
-              SERVERORIG = 'AppDVcargas'
-          WHERE IDROTEIRO = @IDROTEIRO
+          SET [FGACTIVE] = @FGACTIVE,
+              [DHMAINTENANCE] = GETDATE(),
+              [SGUSER] = 'SYSTEM',
+              [SERVERORIG] = 'AppDVcargas'
+          WHERE [IDROTEIRO] = @IDROTEIRO
         `);
 
       res.json({ success: true, message: mensagem });
@@ -511,7 +518,7 @@ router.delete('/roteiros/:id', async (req, res) => {
         .input('IDROTEIRO', sql.Decimal(15, 0), idNumerico)
         .query(`
           DELETE FROM [dbo].[ROTEIRO]
-          WHERE IDROTEIRO = @IDROTEIRO
+          WHERE [IDROTEIRO] = @IDROTEIRO
         `);
 
       res.json({ success: true, message: 'Roteiro excluído com sucesso.' });
@@ -536,23 +543,23 @@ router.get('/roteiros/:id/pontos', async (req, res) => {
       .input('IDROTEIRO', sql.Decimal(15, 0), parseFloat(id))
       .query(`
         SELECT 
-          IDROTEIRO,
-          SEQUENCIA,
-          ORDEM,
-          DSLOCAL,
-          DSPOSICAO,
-          LATITUDE,
-          LONGITUDE,
-          TPLOCAL,
-          KMENTREPONTOS,
-          CDPAISPASSAGEM,
-          ESTADOPASSAGEM,
-          DHMAINTENANCE,
-          SGUSER,
-          SERVERORIG
+          [IDROTEIRO],
+          [SEQUENCIA],
+          [ORDEM],
+          [DSLOCAL],
+          [DSPOSICAO],
+          [LATITUDE],
+          [LONGITUDE],
+          [TPLOCAL],
+          [KMENTREPONTOS],
+          [CDPAISPASSAGEM],
+          [ESTADOPASSAGEM],
+          [DHMAINTENANCE],
+          [SGUSER],
+          [SERVERORIG]
         FROM [dbo].[ROTEIROPONTOS]
-        WHERE IDROTEIRO = @IDROTEIRO
-        ORDER BY ORDEM ASC, SEQUENCIA ASC
+        WHERE [IDROTEIRO] = @IDROTEIRO
+        ORDER BY [ORDEM] ASC, [SEQUENCIA] ASC
       `);
     
     res.json(result.recordset);
@@ -573,22 +580,22 @@ router.get('/roteiros/:id/pontos/:sequencia', async (req, res) => {
       .input('SEQUENCIA', sql.SmallInt, parseInt(sequencia))
       .query(`
         SELECT 
-          IDROTEIRO,
-          SEQUENCIA,
-          ORDEM,
-          DSLOCAL,
-          DSPOSICAO,
-          LATITUDE,
-          LONGITUDE,
-          TPLOCAL,
-          KMENTREPONTOS,
-          CDPAISPASSAGEM,
-          ESTADOPASSAGEM,
-          DHMAINTENANCE,
-          SGUSER,
-          SERVERORIG
+          [IDROTEIRO],
+          [SEQUENCIA],
+          [ORDEM],
+          [DSLOCAL],
+          [DSPOSICAO],
+          [LATITUDE],
+          [LONGITUDE],
+          [TPLOCAL],
+          [KMENTREPONTOS],
+          [CDPAISPASSAGEM],
+          [ESTADOPASSAGEM],
+          [DHMAINTENANCE],
+          [SGUSER],
+          [SERVERORIG]
         FROM [dbo].[ROTEIROPONTOS]
-        WHERE IDROTEIRO = @IDROTEIRO AND SEQUENCIA = @SEQUENCIA
+        WHERE [IDROTEIRO] = @IDROTEIRO AND [SEQUENCIA] = @SEQUENCIA
       `);
     
     if (result.recordset.length === 0) {
@@ -632,8 +639,8 @@ router.post('/roteiros/:id/pontos', async (req, res) => {
       const maxSeqResult = await pool
         .request()
         .input('IDROTEIRO', sql.Decimal(15, 0), idRoteiro)
-        .query('SELECT ISNULL(MAX(SEQUENCIA), 0) AS maxSeq FROM [dbo].[ROTEIROPONTOS] WHERE IDROTEIRO = @IDROTEIRO');
-      sequenciaFinal = maxSeqResult.recordset[0].maxSeq + 1;
+        .query('SELECT COALESCE(MAX([SEQUENCIA]), 0) + 1 AS [maxSeq] FROM [dbo].[ROTEIROPONTOS] WHERE [IDROTEIRO] = @IDROTEIRO');
+      sequenciaFinal = getFirstNumericValue(maxSeqResult.recordset, 1);
     }
     
     // Truncar valores para não exceder tamanhos das colunas
@@ -657,10 +664,10 @@ router.post('/roteiros/:id/pontos', async (req, res) => {
       .input('ESTADOPASSAGEM', estadopassagemTruncado)
       .query(`
         INSERT INTO [dbo].[ROTEIROPONTOS] (
-          IDROTEIRO, SEQUENCIA, ORDEM, DSLOCAL, DSPOSICAO,
-          LATITUDE, LONGITUDE, TPLOCAL, KMENTREPONTOS,
-          CDPAISPASSAGEM, ESTADOPASSAGEM,
-          DHMAINTENANCE, SGUSER, SERVERORIG
+          [IDROTEIRO], [SEQUENCIA], [ORDEM], [DSLOCAL], [DSPOSICAO],
+          [LATITUDE], [LONGITUDE], [TPLOCAL], [KMENTREPONTOS],
+          [CDPAISPASSAGEM], [ESTADOPASSAGEM],
+          [DHMAINTENANCE], [SGUSER], [SERVERORIG]
         )
         VALUES (
           @IDROTEIRO, @SEQUENCIA, @ORDEM, @DSLOCAL, @DSPOSICAO,
@@ -726,19 +733,19 @@ router.put('/roteiros/:id/pontos/:sequencia', async (req, res) => {
       .query(`
         UPDATE [dbo].[ROTEIROPONTOS]
         SET 
-          ORDEM = @ORDEM,
-          DSLOCAL = @DSLOCAL,
-          DSPOSICAO = @DSPOSICAO,
-          LATITUDE = @LATITUDE,
-          LONGITUDE = @LONGITUDE,
-          TPLOCAL = @TPLOCAL,
-          KMENTREPONTOS = @KMENTREPONTOS,
-          CDPAISPASSAGEM = @CDPAISPASSAGEM,
-          ESTADOPASSAGEM = @ESTADOPASSAGEM,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE IDROTEIRO = @IDROTEIRO AND SEQUENCIA = @SEQUENCIA
+          [ORDEM] = @ORDEM,
+          [DSLOCAL] = @DSLOCAL,
+          [DSPOSICAO] = @DSPOSICAO,
+          [LATITUDE] = @LATITUDE,
+          [LONGITUDE] = @LONGITUDE,
+          [TPLOCAL] = @TPLOCAL,
+          [KMENTREPONTOS] = @KMENTREPONTOS,
+          [CDPAISPASSAGEM] = @CDPAISPASSAGEM,
+          [ESTADOPASSAGEM] = @ESTADOPASSAGEM,
+          [DHMAINTENANCE] = GETDATE(),
+          [SGUSER] = 'SYSTEM',
+          [SERVERORIG] = 'AppDVcargas'
+        WHERE [IDROTEIRO] = @IDROTEIRO AND [SEQUENCIA] = @SEQUENCIA
       `);
     
     res.json({ success: true, message: 'Ponto atualizado com sucesso!' });
@@ -762,7 +769,7 @@ router.delete('/roteiros/:id/pontos/:sequencia', async (req, res) => {
       .input('SEQUENCIA', sql.SmallInt, seqNum)
       .query(`
         DELETE FROM [dbo].[ROTEIROPONTOS]
-        WHERE IDROTEIRO = @IDROTEIRO AND SEQUENCIA = @SEQUENCIA
+        WHERE [IDROTEIRO] = @IDROTEIRO AND [SEQUENCIA] = @SEQUENCIA
       `);
     
     res.json({ success: true, message: 'Ponto excluído com sucesso.' });
@@ -894,16 +901,16 @@ router.post('/roteiros/:id/gerar-resumo', async (req, res) => {
       .input('IDROTEIRO', sql.Decimal(15, 0), parseFloat(id))
       .query(`
         SELECT 
-          r.CDCIDADEORIGEM,
-          co.NMCIDADE AS ORIGEM_CIDADE,
-          co.ESTADO AS ORIGEM_ESTADO,
-          r.CDCIDADEDESTINO,
-          cd.NMCIDADE AS DESTINO_CIDADE,
-          cd.ESTADO AS DESTINO_ESTADO
+          [r].[CDCIDADEORIGEM],
+          [co].[NMCIDADE] AS ORIGEM_CIDADE,
+          [co].[ESTADO] AS ORIGEM_ESTADO,
+          [r].[CDCIDADEDESTINO],
+          [cd].[NMCIDADE] AS DESTINO_CIDADE,
+          [cd].[ESTADO] AS DESTINO_ESTADO
         FROM [dbo].[ROTEIRO] r
-        LEFT JOIN [dbo].[CIDADE] co ON r.CDCIDADEORIGEM = co.CDCIDADE
-        LEFT JOIN [dbo].[CIDADE] cd ON r.CDCIDADEDESTINO = cd.CDCIDADE
-        WHERE r.IDROTEIRO = @IDROTEIRO
+        LEFT JOIN [dbo].[CIDADE] co ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
+        LEFT JOIN [dbo].[CIDADE] cd ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
+        WHERE [r].[IDROTEIRO] = @IDROTEIRO
       `);
     
     const roteiro = roteiroResult.recordset[0];
@@ -918,20 +925,20 @@ router.post('/roteiros/:id/gerar-resumo', async (req, res) => {
       .input('IDROTEIRO', sql.Decimal(15, 0), parseFloat(id))
       .query(`
         SELECT 
-          SEQUENCIA,
-          ORDEM,
-          DSLOCAL,
-          DSPOSICAO,
-          LATITUDE,
-          LONGITUDE,
-          TPLOCAL,
-          KMENTREPONTOS,
-          ESTADOPASSAGEM
+          [SEQUENCIA],
+          [ORDEM],
+          [DSLOCAL],
+          [DSPOSICAO],
+          [LATITUDE],
+          [LONGITUDE],
+          [TPLOCAL],
+          [KMENTREPONTOS],
+          [ESTADOPASSAGEM]
         FROM [dbo].[ROTEIROPONTOS]
-        WHERE IDROTEIRO = @IDROTEIRO
-          AND LATITUDE IS NOT NULL
-          AND LONGITUDE IS NOT NULL
-        ORDER BY ORDEM ASC, SEQUENCIA ASC
+        WHERE [IDROTEIRO] = @IDROTEIRO
+          AND [LATITUDE] IS NOT NULL
+          AND [LONGITUDE] IS NOT NULL
+        ORDER BY [ORDEM] ASC, [SEQUENCIA] ASC
       `);
     
     // Converter recordset para array JavaScript padrão
@@ -976,7 +983,7 @@ router.post('/roteiros/:id/gerar-resumo', async (req, res) => {
           const nominatimUrl = getReverseGeocodingUrl(ponto.LATITUDE, ponto.LONGITUDE);
           const nomResponse = await axios.get(nominatimUrl, {
             headers: { 
-              'User-Agent': 'DivulgaCarga/1.0 (roteiro@divulgacarga.com.br)' 
+              'User-Agent': 'AtlasCargo/2.0' 
             },
                     timeout: 5000
           });
@@ -1289,7 +1296,7 @@ router.post('/roteiros/:id/gerar-resumo', async (req, res) => {
                   const nominatimUrl = getReverseGeocodingUrl(lat, lon);
                   const nomResponse = await axios.get(nominatimUrl, {
                     headers: { 
-                      'User-Agent': 'DivulgaCarga/1.0 (roteiro@divulgacarga.com.br)' 
+                      'User-Agent': 'AtlasCargo/2.0' 
                     },
                     timeout: 10000 // Aumentar timeout para 10 segundos
                   });
@@ -1543,11 +1550,11 @@ router.post('/roteiros/:id/gerar-resumo', async (req, res) => {
         .input('RESUMOROTA', sql.NVarChar(sql.MAX), resumoTexto)
         .query(`
           UPDATE [dbo].[ROTEIRO]
-          SET RESUMOROTA = @RESUMOROTA,
-              DHMAINTENANCE = GETDATE(),
-              SGUSER = 'SYSTEM',
-              SERVERORIG = 'AppDVcargas'
-          WHERE IDROTEIRO = @IDROTEIRO
+          SET [RESUMOROTA] = @RESUMOROTA,
+              [DHMAINTENANCE] = GETDATE(),
+              [SGUSER] = 'SYSTEM',
+              [SERVERORIG] = 'AppDVcargas'
+          WHERE [IDROTEIRO] = @IDROTEIRO
         `);
     }
     

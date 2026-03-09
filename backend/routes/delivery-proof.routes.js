@@ -1,7 +1,7 @@
 // backend/routes/delivery-proof.routes.js
 // Rotas para comprovantes de entrega (POD)
 // Versão: 1.0
-// Data: 2025-01-16
+// Data: 2026-01-16
 
 const express = require('express');
 const router = express.Router();

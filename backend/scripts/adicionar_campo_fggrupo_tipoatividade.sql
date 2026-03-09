@@ -1,7 +1,7 @@
 -- =============================================
 -- Script: Adicionar campo FGGRUPO na tabela TIPOATIVIDADE
 -- Descrição: Adiciona campo para categorização do menu
--- Data: 2025-01-09
+-- Data: 2026-01-09
 -- =============================================
 
 -- =============================================

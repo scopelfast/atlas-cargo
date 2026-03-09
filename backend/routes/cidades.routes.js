@@ -1,11 +1,11 @@
 // backend/routes/cidades.routes.js
 // Gerenciar Cidades - API
 // Versão: 1.0
-// Autor: Sistema DivulgaCarga
-// Data: 2025-04-05
+// Atlas Cargo
+// Data: 2026-04-05
 
 const express = require('express');
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const axios = require('axios');
 const router = express.Router();
 const { poolPromise } = require('../config/db');
@@ -48,69 +48,33 @@ function getNomeEstadoPorUF(uf) {
   return estado ? estado.nome : uf;
 }
 
-// Listar cidades com filtros
+// Listar cidades com filtros (PostgreSQL)
 router.get('/cidades', async (req, res) => {
   try {
     const { estado, cidade, situacao, pais, areaDDD, mesoregiao, microregiao, regiaoFiscal } = req.query;
+    const pool = await poolPromise;
+    const values = [];
+    let paramIndex = 0;
+    const pushVal = (v) => { values.push(v); return `$${++paramIndex}`; };
+
     let query = `
-      SELECT 
-        CDCIDADE,
-        ESTADO,
-        NMCIDADE,
-        FGACTIVE,
-        CDPAIS,
-        CDUF,
-        CDMUNICIPIO,
-        CDAREADDD,
-        CDMICROREGIAO,
-        CDMESOREGIAO,
-        CDREGIAOFISCAL
-      FROM [dbo].[CIDADE]
+      SELECT "CDCIDADE", "ESTADO", "NMCIDADE", "FGACTIVE", "CDPAIS", "CDUF", "CDMUNICIPIO",
+             "CDAREADDD", "CDMICROREGIAO", "CDMESOREGIAO", "CDREGIAOFISCAL"
+      FROM "CIDADE"
       WHERE 1=1
     `;
+    if (pais) query += ` AND "CDPAIS" = ${pushVal(parseInt(pais))}`;
+    if (estado) query += ` AND "ESTADO" = ${pushVal(estado)}`;
+    if (cidade) query += ` AND "NMCIDADE" LIKE ${pushVal(`%${cidade}%`)}`;
+    if (areaDDD) query += ` AND "CDAREADDD" = ${pushVal(parseInt(areaDDD))}`;
+    if (mesoregiao) query += ` AND "CDMESOREGIAO" = ${pushVal(parseInt(mesoregiao))}`;
+    if (microregiao) query += ` AND "CDMICROREGIAO" = ${pushVal(parseInt(microregiao))}`;
+    if (regiaoFiscal) query += ` AND "CDREGIAOFISCAL" = ${pushVal(parseInt(regiaoFiscal))}`;
+    if (situacao) query += ` AND "FGACTIVE" = ${pushVal(situacao === 'S' ? 'A' : 'I')}`;
+    query += ` ORDER BY "ESTADO", "NMCIDADE"`;
 
-    const params = [];
-    if (pais) {
-      query += ` AND CDPAIS = @PAIS`;
-      params.push({ name: 'PAIS', value: parseInt(pais) });
-    }
-    if (estado) {
-      query += ` AND ESTADO = @ESTADO`;
-      params.push({ name: 'ESTADO', value: estado });
-    }
-    if (cidade) {
-      query += ` AND NMCIDADE LIKE @CIDADE`;
-      params.push({ name: 'CIDADE', value: `%${cidade}%` });
-    }
-    if (areaDDD) {
-      query += ` AND CDAREADDD = @AREADDD`;
-      params.push({ name: 'AREADDD', value: parseInt(areaDDD) });
-    }
-    if (mesoregiao) {
-      query += ` AND CDMESOREGIAO = @MESOREGIAO`;
-      params.push({ name: 'MESOREGIAO', value: parseInt(mesoregiao) });
-    }
-    if (microregiao) {
-      query += ` AND CDMICROREGIAO = @MICROREGIAO`;
-      params.push({ name: 'MICROREGIAO', value: parseInt(microregiao) });
-    }
-    if (regiaoFiscal) {
-      query += ` AND CDREGIAOFISCAL = @REGIAOFISCAL`;
-      params.push({ name: 'REGIAOFISCAL', value: parseInt(regiaoFiscal) });
-    }
-    if (situacao) {
-      query += ` AND FGACTIVE = @SITUACAO`;
-      params.push({ name: 'SITUACAO', value: situacao === 'S' ? 'A' : 'I' });
-    }
-
-    query += ` ORDER BY ESTADO, NMCIDADE`;
-
-    const pool = await poolPromise;
-    const request = pool.request();
-    params.forEach(p => request.input(p.name, p.value));
-    
-    const result = await request.query(query);
-    const cidades = result.recordset.map(c => ({
+    const result = await pool.query(query, values);
+    const cidades = (result.rows || []).map(c => ({
       CDCIDADE: c.CDCIDADE,
       ESTADO: c.ESTADO,
       NMCIDADE: c.NMCIDADE,
@@ -123,7 +87,6 @@ router.get('/cidades', async (req, res) => {
       CDMESOREGIAO: c.CDMESOREGIAO,
       CDREGIAOFISCAL: c.CDREGIAOFISCAL
     }));
-    
     res.json(cidades);
   } catch (err) {
     console.error('Erro ao listar cidades:', err);
@@ -140,52 +103,20 @@ router.post('/cidades', async (req, res) => {
     }
 
     const pool = await poolPromise;
-    const maxResult = await pool
-      .request()
-      .query('SELECT ISNULL(MAX(CDCIDADE), 0) AS maxId FROM [dbo].[CIDADE]');
-    const novoId = maxResult.recordset[0].maxId + 1;
+    const maxRes = await pool.query('SELECT COALESCE(MAX("CDCIDADE"), 0)::int AS "maxId" FROM "CIDADE"');
+    const novoId = Number((maxRes.rows || [])[0]?.maxId ?? 0) + 1;
 
-    const request = pool.request();
-    request.input('CDCIDADE', sql.Int, novoId);
-    request.input('ESTADO', ESTADO);
-    request.input('NMCIDADE', NMCIDADE.trim());
-    if (CDPAIS !== null && CDPAIS !== undefined) {
-      request.input('CDPAIS', sql.SmallInt, CDPAIS);
-    } else {
-      request.input('CDPAIS', sql.SmallInt, null);
-    }
-    request.input('CDUF', sql.SmallInt, CDUF);
-    request.input('CDMUNICIPIO', sql.Int, CDMUNICIPIO);
-    if (CDAREADDD !== null && CDAREADDD !== undefined) {
-      request.input('CDAREADDD', sql.SmallInt, CDAREADDD);
-    } else {
-      request.input('CDAREADDD', sql.SmallInt, null);
-    }
-    if (CDMICROREGIAO !== null && CDMICROREGIAO !== undefined) {
-      request.input('CDMICROREGIAO', sql.SmallInt, CDMICROREGIAO);
-    } else {
-      request.input('CDMICROREGIAO', sql.SmallInt, null);
-    }
-    if (CDMESOREGIAO !== null && CDMESOREGIAO !== undefined) {
-      request.input('CDMESOREGIAO', sql.SmallInt, CDMESOREGIAO);
-    } else {
-      request.input('CDMESOREGIAO', sql.SmallInt, null);
-    }
-    if (CDREGIAOFISCAL !== null && CDREGIAOFISCAL !== undefined) {
-      request.input('CDREGIAOFISCAL', sql.SmallInt, CDREGIAOFISCAL);
-    } else {
-      request.input('CDREGIAOFISCAL', sql.SmallInt, null);
-    }
-    await request.query(`
-        INSERT INTO [dbo].[CIDADE] (
-          CDCIDADE, ESTADO, NMCIDADE, FGACTIVE, DHMAINTENANCE, SGUSER, SERVERORIG,
-          CDPAIS, CDUF, CDMUNICIPIO, CDAREADDD, CDMICROREGIAO, CDMESOREGIAO, CDREGIAOFISCAL
-        )
-        VALUES (
-          @CDCIDADE, @ESTADO, @NMCIDADE, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas',
-          @CDPAIS, @CDUF, @CDMUNICIPIO, @CDAREADDD, @CDMICROREGIAO, @CDMESOREGIAO, @CDREGIAOFISCAL
-        )
-      `);
+    await pool.query(
+      `INSERT INTO "CIDADE" (
+        "CDCIDADE", "ESTADO", "NMCIDADE", "FGACTIVE", "DHMAINTENANCE", "SGUSER", "SERVERORIG",
+        "CDPAIS", "CDUF", "CDMUNICIPIO", "CDAREADDD", "CDMICROREGIAO", "CDMESOREGIAO", "CDREGIAOFISCAL"
+      ) VALUES ($1, $2, $3, 'A', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', $4, $5, $6, $7, $8, $9, $10)`,
+      [
+        novoId, ESTADO, NMCIDADE.trim(),
+        CDPAIS ?? null, CDUF, CDMUNICIPIO,
+        CDAREADDD ?? null, CDMICROREGIAO ?? null, CDMESOREGIAO ?? null, CDREGIAOFISCAL ?? null
+      ]
+    );
 
     res.status(201).json({ success: true, message: 'Cidade cadastrada com sucesso!' });
   } catch (err) {
@@ -208,56 +139,17 @@ router.put('/cidades/:id', async (req, res) => {
     const fgactiveDB = FGACTIVE === 'S' ? 'A' : 'I';
     const idNumerico = parseInt(id);
 
-    const request = pool.request();
-    request.input('CDCIDADE', sql.Int, idNumerico);
-    request.input('ESTADO', ESTADO);
-    request.input('NMCIDADE', NMCIDADE.trim());
-    request.input('FGACTIVE', fgactiveDB);
-    if (CDPAIS !== null && CDPAIS !== undefined) {
-      request.input('CDPAIS', sql.SmallInt, CDPAIS);
-    } else {
-      request.input('CDPAIS', sql.SmallInt, null);
-    }
-    request.input('CDUF', sql.SmallInt, CDUF);
-    request.input('CDMUNICIPIO', sql.Int, CDMUNICIPIO);
-    if (CDAREADDD !== null && CDAREADDD !== undefined) {
-      request.input('CDAREADDD', sql.SmallInt, CDAREADDD);
-    } else {
-      request.input('CDAREADDD', sql.SmallInt, null);
-    }
-    if (CDMICROREGIAO !== null && CDMICROREGIAO !== undefined) {
-      request.input('CDMICROREGIAO', sql.SmallInt, CDMICROREGIAO);
-    } else {
-      request.input('CDMICROREGIAO', sql.SmallInt, null);
-    }
-    if (CDMESOREGIAO !== null && CDMESOREGIAO !== undefined) {
-      request.input('CDMESOREGIAO', sql.SmallInt, CDMESOREGIAO);
-    } else {
-      request.input('CDMESOREGIAO', sql.SmallInt, null);
-    }
-    if (CDREGIAOFISCAL !== null && CDREGIAOFISCAL !== undefined) {
-      request.input('CDREGIAOFISCAL', sql.SmallInt, CDREGIAOFISCAL);
-    } else {
-      request.input('CDREGIAOFISCAL', sql.SmallInt, null);
-    }
-    await request.query(`
-        UPDATE [dbo].[CIDADE] 
-        SET 
-          ESTADO = @ESTADO,
-          NMCIDADE = @NMCIDADE,
-          FGACTIVE = @FGACTIVE,
-          CDPAIS = @CDPAIS,
-          CDUF = @CDUF,
-          CDMUNICIPIO = @CDMUNICIPIO,
-          CDAREADDD = @CDAREADDD,
-          CDMICROREGIAO = @CDMICROREGIAO,
-          CDMESOREGIAO = @CDMESOREGIAO,
-          CDREGIAOFISCAL = @CDREGIAOFISCAL,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE CDCIDADE = @CDCIDADE
-      `);
+    await pool.query(
+      `UPDATE "CIDADE" SET
+        "ESTADO" = $1, "NMCIDADE" = $2, "FGACTIVE" = $3, "CDPAIS" = $4, "CDUF" = $5, "CDMUNICIPIO" = $6,
+        "CDAREADDD" = $7, "CDMICROREGIAO" = $8, "CDMESOREGIAO" = $9, "CDREGIAOFISCAL" = $10,
+        "DHMAINTENANCE" = CURRENT_TIMESTAMP, "SGUSER" = 'SYSTEM', "SERVERORIG" = 'AppDVcargas'
+      WHERE "CDCIDADE" = $11`,
+      [
+        ESTADO, NMCIDADE.trim(), fgactiveDB, CDPAIS ?? null, CDUF, CDMUNICIPIO,
+        CDAREADDD ?? null, CDMICROREGIAO ?? null, CDMESOREGIAO ?? null, CDREGIAOFISCAL ?? null, idNumerico
+      ]
+    );
 
     res.json({ success: true, message: 'Cidade atualizada com sucesso!' });
   } catch (err) {
@@ -282,7 +174,7 @@ router.get('/cidades/rota', async (req, res) => {
     try {
       const response = await axios.get(osrmUrl, {
         headers: {
-          'User-Agent': 'DivulgaCarga/1.0 (contact: sistema@divulgacarga.com.br)'
+          'User-Agent': 'AtlasCargo/2.0'
         },
         timeout: 20000 // 20 segundos
       });
@@ -341,7 +233,7 @@ router.get('/cidades/coordenadas', async (req, res) => {
     try {
       response = await axios.get(url, {
         headers: {
-          'User-Agent': 'DivulgaCarga/1.0 (contact: sistema@divulgacarga.com.br)'
+          'User-Agent': 'AtlasCargo/2.0'
         },
         timeout: 15000
       });
@@ -417,7 +309,7 @@ router.get('/cidades/coordenadas', async (req, res) => {
       try {
         response = await axios.get(url, {
           headers: {
-            'User-Agent': 'DivulgaCarga/1.0 (contact: sistema@divulgacarga.com.br)'
+            'User-Agent': 'AtlasCargo/2.0'
           },
           timeout: 15000
         });
@@ -483,36 +375,20 @@ router.get('/cidades/coordenadas', async (req, res) => {
   }
 });
 
-// Buscar cidade por ID
+// Buscar cidade por ID (PostgreSQL)
 router.get('/cidades/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const pool = await poolPromise;
-    const result = await pool
-      .request()
-      .input('CDCIDADE', sql.Int, parseInt(id))
-      .query(`
-        SELECT 
-          CDCIDADE,
-          ESTADO,
-          NMCIDADE,
-          FGACTIVE,
-          CDPAIS,
-          CDUF,
-          CDMUNICIPIO,
-          CDAREADDD,
-          CDMICROREGIAO,
-          CDMESOREGIAO,
-          CDREGIAOFISCAL
-        FROM [dbo].[CIDADE]
-        WHERE CDCIDADE = @CDCIDADE
-      `);
-    
-    if (result.recordset.length === 0) {
-      return res.status(404).json({ error: 'Cidade não encontrada.' });
-    }
-    
-    const cidade = result.recordset[0];
+    const result = await pool.query(
+      `SELECT "CDCIDADE", "ESTADO", "NMCIDADE", "FGACTIVE", "CDPAIS", "CDUF", "CDMUNICIPIO",
+              "CDAREADDD", "CDMICROREGIAO", "CDMESOREGIAO", "CDREGIAOFISCAL"
+       FROM "CIDADE" WHERE "CDCIDADE" = $1`,
+      [parseInt(id)]
+    );
+    const rows = result.rows || [];
+    if (rows.length === 0) return res.status(404).json({ error: 'Cidade não encontrada.' });
+    const cidade = rows[0];
     res.json({
       CDCIDADE: cidade.CDCIDADE,
       ESTADO: cidade.ESTADO,
@@ -546,20 +422,15 @@ router.delete('/cidades/:id', async (req, res) => {
 
     const pool = await poolPromise;
 
-    // Verificar status atual
-    const checkResult = await pool
-      .request()
-      .input('CDCIDADE', sql.Int, idNumerico)
-      .query(`SELECT FGACTIVE FROM [dbo].[CIDADE] WHERE CDCIDADE = @CDCIDADE`);
+    const checkResult = await pool.query(
+      'SELECT "FGACTIVE" FROM "CIDADE" WHERE "CDCIDADE" = $1',
+      [idNumerico]
+    );
+    const checkRows = checkResult.rows || [];
+    if (checkRows.length === 0) return res.status(404).json({ error: 'Cidade não encontrada.' });
 
-    if (checkResult.recordset.length === 0) {
-      return res.status(404).json({ error: 'Cidade não encontrada.' });
-    }
-
-    const statusAtual = checkResult.recordset[0].FGACTIVE;
+    const statusAtual = checkRows[0].FGACTIVE;
     const estaAtivo = statusAtual === 'A';
-    
-    // Determinar nova situação
     let novaSituacao, mensagem;
     if (action === 'activate') {
       novaSituacao = 'A';
@@ -572,23 +443,11 @@ router.delete('/cidades/:id', async (req, res) => {
       mensagem = estaAtivo ? 'Cidade desativada com sucesso!' : 'Cidade reativada com sucesso!';
     }
 
-    const result = await pool
-      .request()
-      .input('CDCIDADE', sql.Int, idNumerico)
-      .input('FGACTIVE', sql.Char(1), novaSituacao)
-      .query(`
-        UPDATE [dbo].[CIDADE] 
-        SET 
-          FGACTIVE = @FGACTIVE,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE CDCIDADE = @CDCIDADE
-      `);
-
-    if (result.rowsAffected[0] === 0) {
-      return res.status(404).json({ error: 'Cidade não encontrada.' });
-    }
+    const result = await pool.query(
+      `UPDATE "CIDADE" SET "FGACTIVE" = $1, "DHMAINTENANCE" = CURRENT_TIMESTAMP, "SGUSER" = 'SYSTEM', "SERVERORIG" = 'AppDVcargas' WHERE "CDCIDADE" = $2`,
+      [novaSituacao, idNumerico]
+    );
+    if ((result.rowCount ?? 0) === 0) return res.status(404).json({ error: 'Cidade não encontrada.' });
 
     res.json({ success: true, message: mensagem, newStatus: novaSituacao === 'A' ? 'S' : 'N' });
   } catch (err) {
@@ -613,20 +472,14 @@ router.get('/microrregioes/:cduf', async (req, res) => {
     }
     
     const pool = await poolPromise;
-    const result = await pool
-      .request()
-      .input('CDUF', sql.SmallInt, cdufNum)
-      .query(`
-        SELECT 
-          CDUF,
-          CDMICROREGIAO,
-          DSMICROREGIAO
-        FROM [dbo].[MICROREGIAO]
-        WHERE CDUF = @CDUF
-        ORDER BY DSMICROREGIAO
-      `);
-    
-    res.json(result.recordset);
+    const result = await pool.query(
+      `SELECT "CDUF", "CDMICROREGIAO", "DSMICROREGIAO"
+       FROM "MICROREGIAO"
+       WHERE "CDUF" = $1
+       ORDER BY "DSMICROREGIAO"`,
+      [cdufNum]
+    );
+    res.json(result.rows || []);
   } catch (err) {
     console.error('Erro ao buscar microrregiões:', err);
     res.status(500).json({ error: 'Erro ao carregar microrregiões.' });
@@ -644,155 +497,115 @@ router.get('/mesorregioes/:cduf', async (req, res) => {
     }
     
     const pool = await poolPromise;
-    const result = await pool
-      .request()
-      .input('CDUF', sql.SmallInt, cdufNum)
-      .query(`
-        SELECT 
-          CDUF,
-          CDMESOREGIAO,
-          DSMESOREGIAO
-        FROM [dbo].[MESOREGIAO]
-        WHERE CDUF = @CDUF
-        ORDER BY DSMESOREGIAO
-      `);
-    
-    res.json(result.recordset);
+    const result = await pool.query(
+      `SELECT "CDUF", "CDMESOREGIAO", "DSMESOREGIAO"
+       FROM "MESOREGIAO"
+       WHERE "CDUF" = $1
+       ORDER BY "DSMESOREGIAO"`,
+      [cdufNum]
+    );
+    res.json(result.rows || []);
   } catch (err) {
     console.error('Erro ao buscar mesorregiões:', err);
     res.status(500).json({ error: 'Erro ao carregar mesorregiões.' });
   }
 });
 
-// Buscar todas as regiões fiscais
+// Buscar todas as regiões fiscais (PostgreSQL)
 router.get('/regioes-fiscais', async (req, res) => {
   try {
     const pool = await poolPromise;
-    const result = await pool
-      .request()
-      .query(`
-        SELECT 
-          CDREGIAOFISCAL,
-          DSREGIAOFISCAL
-        FROM [dbo].[REGIAOFISCAL]
-        ORDER BY DSREGIAOFISCAL
-      `);
-    res.json(result.recordset);
+    const result = await pool.query(`
+      SELECT "CDREGIAOFISCAL" AS "CDREGIAOFISCAL", "DSREGIAOFISCAL" AS "DSREGIAOFISCAL"
+      FROM "REGIAOFISCAL"
+      ORDER BY "DSREGIAOFISCAL"
+    `);
+    res.json(result.rows || []);
   } catch (err) {
     console.error('Erro ao buscar regiões fiscais:', err);
     res.status(500).json({ error: 'Erro ao carregar regiões fiscais.' });
   }
 });
 
-// Buscar CDUF a partir do ESTADO (UF)
+// Códigos CDUF (IBGE) por UF – fallback quando a tabela ESTADO estiver vazia
+const UF_PARA_CDUF = {
+  AC: 12, AL: 27, AP: 16, AM: 13, BA: 29, CE: 23, DF: 53, ES: 32, GO: 52,
+  MA: 21, MT: 51, MS: 50, MG: 31, PA: 15, PB: 25, PR: 41, PE: 26, PI: 22,
+  RJ: 33, RN: 24, RS: 43, RO: 11, RR: 14, SC: 42, SP: 35, SE: 28, TO: 17
+};
+
+// Buscar CDUF a partir do ESTADO (UF) - PostgreSQL
 router.get('/estado-cduf/:estado', async (req, res) => {
   try {
     const { estado } = req.params;
+    const uf = (estado || '').toUpperCase().trim();
     const pool = await poolPromise;
-    const result = await pool
-      .request()
-      .input('ESTADO', estado)
-      .query(`
-        SELECT TOP 1 CDUF
-        FROM [dbo].[ESTADO]
-        WHERE ESTADO = @ESTADO
-      `);
-    if (result.recordset.length > 0) {
-      res.json({ CDUF: result.recordset[0].CDUF });
-    } else {
-      res.status(404).json({ error: 'Estado não encontrado.' });
+    const result = await pool.query(
+      `SELECT "CDUF" FROM "ESTADO" WHERE "ESTADO" = $1 LIMIT 1`,
+      [uf]
+    );
+    const rows = result.rows || [];
+    if (rows.length > 0) {
+      const cduf = rows[0].CDUF ?? rows[0].cduf;
+      return res.json({ CDUF: cduf });
     }
+    const cdufFallback = UF_PARA_CDUF[uf];
+    if (cdufFallback !== undefined) {
+      return res.json({ CDUF: cdufFallback });
+    }
+    res.status(404).json({ error: 'Estado não encontrado.' });
   } catch (err) {
     console.error('Erro ao buscar CDUF do estado:', err);
     res.status(500).json({ error: 'Erro ao buscar código do estado.' });
   }
 });
 
-// Buscar todos os países
+// Buscar todos os países (PostgreSQL)
 router.get('/paises', async (req, res) => {
   try {
     const pool = await poolPromise;
-    const result = await pool
-      .request()
-      .query(`
-        SELECT 
-          CDPAIS,
-          DSPAIS
-        FROM [dbo].[PAIS]
-        ORDER BY DSPAIS
-      `);
-    res.json(result.recordset);
+    const result = await pool.query(`
+      SELECT "CDPAIS" AS "CDPAIS", "DSPAIS" AS "DSPAIS"
+      FROM "PAIS"
+      ORDER BY "DSPAIS"
+    `);
+    res.json(result.rows || []);
   } catch (err) {
     console.error('Erro ao buscar países:', err);
     res.status(500).json({ error: 'Erro ao carregar países.' });
   }
 });
 
-// Buscar DDD por código IBGE completo (7 dígitos: CDUF + CDMUNICIPIO)
+// Buscar DDD por código IBGE completo (PostgreSQL)
 router.get('/ddd-por-ibge/:codigoIBGE', async (req, res) => {
   try {
     const { codigoIBGE } = req.params;
     const codigoIBGENum = parseInt(codigoIBGE);
-    
     if (isNaN(codigoIBGENum) || codigoIBGENum <= 0) {
       return res.status(400).json({ error: 'Código IBGE inválido.' });
     }
-    
     const pool = await poolPromise;
-    
-    // Primeiro, tentar buscar na tabela MUNICIPIO usando o código IBGE completo
     try {
-      const resultMunicipio = await pool
-        .request()
-        .input('CodigoIBGE', sql.Int, codigoIBGENum)
-        .query(`
-          SELECT TOP 1 DDD
-          FROM [dbo].[MUNICIPIO]
-          WHERE CodigoIBGE = @CodigoIBGE
-            AND DDD IS NOT NULL
-            AND DDD != ''
-        `);
-      
-      if (resultMunicipio.recordset.length > 0 && resultMunicipio.recordset[0].DDD) {
-        const ddd = parseInt(resultMunicipio.recordset[0].DDD);
-        return res.json({ 
-          CDAREADDD: ddd,
-          origem: 'tabela_municipio'
-        });
+      const rMunicipio = await pool.query(
+        `SELECT "DDD" FROM "MUNICIPIO" WHERE "CodigoIBGE" = $1 AND "DDD" IS NOT NULL AND TRIM("DDD") != '' LIMIT 1`,
+        [codigoIBGENum]
+      );
+      const rowsM = rMunicipio.rows || [];
+      if (rowsM.length > 0 && rowsM[0].DDD) {
+        const ddd = parseInt(rowsM[0].DDD, 10);
+        return res.json({ CDAREADDD: ddd, origem: 'tabela_municipio' });
       }
-    } catch (errMunicipio) {
-      // Erro silencioso, tentar próxima fonte
+    } catch (_) {}
+    const codigoMunicipio = codigoIBGENum % 100000;
+    const rCidade = await pool.query(
+      `SELECT "CDAREADDD" FROM "CIDADE" WHERE "CDMUNICIPIO" = $1 AND "CDAREADDD" IS NOT NULL AND "CDAREADDD" > 0 ORDER BY "DHMAINTENANCE" DESC NULLS LAST LIMIT 1`,
+      [codigoMunicipio]
+    );
+    const rowsC = rCidade.rows || [];
+    if (rowsC.length > 0 && rowsC[0].CDAREADDD) {
+      return res.json({ CDAREADDD: rowsC[0].CDAREADDD, origem: 'tabela_cidade' });
     }
-    
-    // Se não encontrou na tabela MUNICIPIO, tentar buscar na tabela CIDADE
-    // Extrair os últimos 5 dígitos (código do município) do código IBGE completo
-    const codigoMunicipio = codigoIBGENum % 100000; // Últimos 5 dígitos
-    
-    const resultCidade = await pool
-      .request()
-      .input('CDMUNICIPIO', sql.Int, codigoMunicipio)
-      .query(`
-        SELECT TOP 1 CDAREADDD
-        FROM [dbo].[CIDADE]
-        WHERE CDMUNICIPIO = @CDMUNICIPIO
-          AND CDAREADDD IS NOT NULL
-          AND CDAREADDD > 0
-        ORDER BY DHMAINTENANCE DESC
-      `);
-    
-    if (resultCidade.recordset.length > 0 && resultCidade.recordset[0].CDAREADDD) {
-      return res.json({ 
-        CDAREADDD: resultCidade.recordset[0].CDAREADDD,
-        origem: 'tabela_cidade'
-      });
-    }
-    
-    // Se não encontrou em nenhuma tabela, retornar null
-    res.json({ 
-      CDAREADDD: null,
-      origem: 'nao_encontrado',
-      mensagem: 'DDD não encontrado. Preencha manualmente.'
-    });
+    res.json({ CDAREADDD: null, origem: 'nao_encontrado', mensagem: 'DDD não encontrado. Preencha manualmente.' });
   } catch (err) {
     console.error('Erro ao buscar DDD por código IBGE:', err);
     res.status(500).json({ error: 'Erro ao buscar DDD.' });

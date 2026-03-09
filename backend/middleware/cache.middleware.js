@@ -1,6 +1,6 @@
 // Cache Middleware - Middleware para cachear respostas de APIs
 // Versão: 1.0
-// Data: 2025-01-16
+// Data: 2026-01-16
 
 const { getCacheService } = require('../services/cache.service');
 

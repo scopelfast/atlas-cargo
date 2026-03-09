@@ -1,5 +1,5 @@
 ================================================================================
-  🔄 SISTEMA DE CACHE BUSTING - DIVULGACARGA
+  🔄 SISTEMA DE CACHE BUSTING - ATLAS CARGO
   Como Resolver Problema de Cache no Servidor de Produção
 ================================================================================
 
@@ -18,7 +18,7 @@ Sistema automático de versão que força o navegador a baixar novos arquivos!
 1️⃣ OPÇÃO FÁCIL: Use o script automático
 
    - Dê dois cliques em: atualizar-versao.bat
-   - Digite a nova versão (ex: 20250102-1600)
+   - Digite a nova versão (ex: 20260102-1600)
    - Confirme o commit e push
    - Pronto! ✅
 
@@ -27,10 +27,10 @@ Sistema automático de versão que força o navegador a baixar novos arquivos!
    Arquivo: backend/public/js/version.js
    
    Antes:
-   window.APP_VERSION = '20250102-1500';
+   window.APP_VERSION = '20260102-1500';
    
    Depois:
-   window.APP_VERSION = '20250102-1600';  ← MUDE AQUI!
+   window.APP_VERSION = '20260102-1600';  ← MUDE AQUI!
    
    Salve e publique no servidor.
 
@@ -41,9 +41,9 @@ Sistema automático de versão que força o navegador a baixar novos arquivos!
 Use: YYYYMMDD-HHMM (Data + Hora)
 
 Exemplos:
-✅ 20250102-1500  (02/Jan/2025 às 15:00)
-✅ 20250102-1630  (02/Jan/2025 às 16:30)
-✅ 20250215-0900  (15/Fev/2025 às 09:00)
+✅ 20260102-1500  (02/Jan/2026 às 15:00)
+✅ 20260102-1630  (02/Jan/2026 às 16:30)
+✅ 20260215-0900  (15/Fev/2026 às 09:00)
 
 Ou use números simples:
 ✅ v1.0.1
@@ -66,7 +66,7 @@ Atualize SEMPRE que modificar:
 
 1. Abra o site: http://cargas.integrabrasil.com:8083/
 2. Pressione F12 (abrir Console do navegador)
-3. Procure a mensagem: [Sistema] Versão: 20250102-1600
+3. Procure a mensagem: [Sistema] Versão: 20260102-1600
 4. Se aparecer a versão NOVA, está funcionando! ✅
 
 ================================================================================
@@ -130,6 +130,6 @@ Agora o sistema atualiza automaticamente para todos os usuários!
 Dúvidas? Entre em contato com o suporte.
 
 Desenvolvido por: Cleverson Scopel
-Data: 02/01/2025
+Data: 02/01/2026
 ================================================================================
 

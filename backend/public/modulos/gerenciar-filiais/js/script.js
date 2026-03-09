@@ -1,4 +1,7 @@
 // backend/public/modulos/gerenciar-filiais/js/script.js
+// i18n: helper t() e chaves web.modulos.filiais
+const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
+
 (function() {
   const tabs = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
@@ -445,7 +448,7 @@
       const countEl = document.getElementById('filiaisGridCountText');
       if (countEl) {
         const count = filiais.length || 0;
-        countEl.textContent = `${count} registro(s) encontrado(s)`;
+        countEl.textContent = count + ' ' + (t('web.modulos.filiais.registrosEncontrados').replace(/^0\s*/, ''));
       }
       
       if (typeof window.GridEditor !== 'undefined' && gridTab) {
@@ -519,7 +522,7 @@
 
         if (!empresa || !filial || empresa === 'null' || empresa === 'undefined' || filial === 'null' || filial === 'undefined') {
           console.error('[Filiais] IDs inválidos:', empresa, filial);
-          showMessage('Erro: IDs não disponíveis.', 'error');
+          showMessage(t('web.modulos.filiais.erroIdIndisponivel'), 'error');
           return;
         }
         
@@ -600,22 +603,21 @@
       columns: [
         { field: 'CDEMPRESA', header: 'Empresa', editable: false, width: '100px' },
         { field: 'CDFILIAL', header: 'Filial', editable: false, width: '100px' },
-        { field: 'ID_COMPOSTO', header: '', editable: false, isId: true, width: '0px', format: () => '', style: 'display: none;' }, // Campo virtual oculto usado como ID
-        { field: 'NMFANTASIA', header: 'Nome Fantasia', editable: true, type: 'text', width: '250px', maxlength: 20 },
-        { field: 'SGFILIAL', header: 'Sigla', editable: true, type: 'text', width: '120px', maxlength: 5 },
-        { 
-          field: 'CGC', 
-          header: 'CNPJ', 
-          editable: true, 
-          type: 'text', 
-          width: '180px',
+        { field: 'ID_COMPOSTO', header: '', editable: false, isId: true, hidden: true }, // Campo virtual usado como ID da linha (chave composta Empresa_Filial)
+        { field: 'NMFANTASIA', header: 'Nome Fantasia', editable: true, type: 'text', maxlength: 20 },
+        { field: 'SGFILIAL', header: 'Sigla', editable: true, type: 'text', maxlength: 5 },
+        {
+          field: 'CGC',
+          header: 'CNPJ',
+          editable: true,
+          type: 'text',
           format: (val) => formatarCNPJ(val)
         },
-        { field: 'FGPARCEIRO', header: 'Parceiro', editable: true, type: 'select', width: '120px',
+        { field: 'FGPARCEIRO', header: 'Parceiro', editable: true, type: 'select',
           options: [ { value: 'S', label: 'Sim' }, { value: 'N', label: 'Não' } ],
           format: (val) => val === 'S' ? '✓ Sim' : '✗ Não'
         },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px',
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px', align: 'right',
           options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }
@@ -685,20 +687,20 @@
         document.getElementById('filialCadastro').value = filialData.CDCADASTRO;
         document.getElementById('filialParceiro').value = filialData.FGPARCEIRO || 'N';
         document.getElementById('filialSituacao').value = filialData.FGACTIVE;
-        document.getElementById('formTitle').textContent = 'Editar Filial';
+        document.getElementById('formTitle').textContent = t('web.modulos.filiais.editarFilial');
         showTab('dados');
       }
     } catch (err) {
       console.error('[Filiais] Erro ao carregar filial:', err);
       if (typeof showMessage === 'function') {
-        showMessage('Erro ao carregar dados para edição.', 'error');
+        showMessage(t('web.modulos.filiais.erroCarregarDados'), 'error');
       }
     }
   }
 
   async function confirmarExclusao(empresa, filial) {
     if (!empresa || !filial || empresa === 'undefined' || empresa === 'null' || filial === 'undefined' || filial === 'null') {
-      showMessage('Erro: IDs não disponíveis.', 'error');
+      showMessage(t('web.modulos.filiais.erroIdIndisponivel'), 'error');
       return;
     }
     
@@ -757,7 +759,7 @@
           const acao = modalEl.dataset.action || action;
           
           if (!deleteEmpresa || !deleteFilial) {
-            showMessage('Erro: IDs não disponíveis.', 'error');
+            showMessage(t('web.modulos.filiais.erroIdIndisponivel'), 'error');
             modalEl.style.display = 'none';
             return;
           }
@@ -778,7 +780,7 @@
           }
         } catch (err) {
           console.error('[Filiais] Erro ao alterar status:', err);
-          showMessage('Erro de conexão.', 'error');
+          showMessage(t('web.modulos.filiais.erroConexao'), 'error');
         } finally {
           modalEl.style.display = 'none';
           delete modalEl.dataset.deleteEmpresa;
@@ -912,8 +914,19 @@
   if (filialCgc) aplicarMascaraCNPJ(filialCgc);
   if (filtroCgc) aplicarMascaraCNPJ(filtroCgc);
 
+  let filialFormSubmitting = false;
   filialForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    e.stopImmediatePropagation();
+    if (filialFormSubmitting) return;
+    filialFormSubmitting = true;
+    const btnSubmit = filialForm?.querySelector('button[type="submit"]');
+    const labelOriginal = btnSubmit?.innerHTML ?? '';
+    if (btnSubmit) {
+      btnSubmit.disabled = true;
+      btnSubmit.innerHTML = '<i class=\'bx bx-loader-alt bx-spin\'></i> Salvando...';
+    }
+
     const empresaId = document.getElementById('filialEmpresaId')?.value;
     const filialId = document.getElementById('filialId')?.value;
     const empresa = document.getElementById('filialEmpresa')?.value;
@@ -923,20 +936,21 @@
     const cadastro = document.getElementById('filialCadastro')?.value;
     const parceiro = document.getElementById('filialParceiro')?.value;
     const situacao = document.getElementById('filialSituacao')?.value;
-    
+
     if (!empresa || !nomefantasia || !sigla || !cgc || !cadastro || !situacao) {
-      showMessage('Preencha todos os campos obrigatórios.', 'error');
+      showMessage(t('web.modulos.filiais.preenchaCampos'), 'error');
+      filialFormSubmitting = false;
+      if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = labelOriginal; }
       return;
     }
-
-    // Completar CNPJ com zeros à esquerda
     cgc = cgc.padStart(14, '0');
-
     if (!validarCNPJ(cgc)) {
       showMessage('CNPJ inválido.', 'error');
+      filialFormSubmitting = false;
+      if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = labelOriginal; }
       return;
     }
-    
+
     try {
       const filialData = {
         CDEMPRESA: parseInt(empresa),
@@ -973,12 +987,17 @@
       }
     } catch (err) {
       console.error('Erro ao salvar:', err);
-      showMessage('Erro de conexão.', 'error');
+      showMessage(t('web.modulos.filiais.erroConexao'), 'error');
     } finally {
-      const btnSalvar = filialForm.querySelector('button[type="submit"]');
-      if (btnSalvar && typeof window.showLoading !== 'undefined') {
-        window.showLoading(btnSalvar, false);
-      }
+      setTimeout(() => {
+        filialFormSubmitting = false;
+        const btnSalvar = filialForm?.querySelector('button[type="submit"]');
+        if (btnSalvar) {
+          btnSalvar.disabled = false;
+          if (labelOriginal) btnSalvar.innerHTML = labelOriginal;
+          else if (typeof window.showLoading !== 'undefined') window.showLoading(btnSalvar, false);
+        }
+      }, 600);
     }
   });
 
@@ -1010,7 +1029,7 @@
     document.getElementById('filialEmpresaId').value = '';
     document.getElementById('filialId').value = '';
     document.getElementById('filialCodigo').value = '';
-    document.getElementById('formTitle').textContent = 'Nova Filial';
+    document.getElementById('formTitle').textContent = t('web.modulos.filiais.novaFilial');
     showTab('dados');
   });
 
@@ -1021,7 +1040,7 @@
     document.getElementById('filialEmpresaId').value = '';
     document.getElementById('filialId').value = '';
     document.getElementById('filialCodigo').value = '';
-    document.getElementById('formTitle').textContent = 'Nova Filial';
+    document.getElementById('formTitle').textContent = t('web.modulos.filiais.novaFilial');
     showTab('dados');
   });
   

@@ -2,8 +2,8 @@
 -- Script para criar alertas SOS de teste
 -- Módulo: SOS
 -- ============================================
--- Data: 2025-01-18
--- IMPORTANTE: Execute este script no banco de dados DIVULGACARGA_PRD
+-- Data: 2026-01-18
+-- IMPORTANTE: Execute este script no banco de dados ATLAS_CARGO_PRD
 --
 -- Este script cria alertas SOS de exemplo para testar o módulo SOS.
 -- Os alertas são criados com diferentes status e localizações GPS.
@@ -15,7 +15,7 @@
 --   2. Certifique-se de que existem motoristas cadastrados (FGTIPOCADASTRO = 'M')
 --   3. Viagens são opcionais (os SOS podem ser criados sem viagem associada)
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 PRINT '========================================';

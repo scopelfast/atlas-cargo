@@ -1,8 +1,8 @@
 // backend/routes/tipoequipamento.routes.js
 const express = require('express');
-const sql = require('mssql');
+const sql = require('../config/mssql-compat');
 const router = express.Router();
-const { poolPromise } = require('../config/db');
+const { poolPromise, getFirstNumericValue } = require('../config/db');
 
 // Função para obter descrição do tipo de veículo
 const getTipoVeiculoDescricao = (codigo) => {
@@ -25,30 +25,30 @@ router.get('/tipos-equipamento', async (req, res) => {
     const { codigo, descricao, situacao } = req.query;
     let query = `
       SELECT 
-        CDTIPOEQUIPAMENTO,
-        DSTIPOEQUIPAMENTO,
-        MASCARAIDENTIF,
-        FGTIPOVEICULO,
-        FGACTIVE
+        [CDTIPOEQUIPAMENTO],
+        [DSTIPOEQUIPAMENTO],
+        [MASCARAIDENTIF],
+        [FGTIPOVEICULO],
+        [FGACTIVE]
       FROM [dbo].[TIPOEQUIPAMENTO]
       WHERE 1=1
     `;
 
     const params = [];
     if (codigo) {
-      query += ` AND CDTIPOEQUIPAMENTO = @CODIGO`;
+      query += ` AND [CDTIPOEQUIPAMENTO] = @CODIGO`;
       params.push({ name: 'CODIGO', value: parseInt(codigo) });
     }
     if (descricao) {
-      query += ` AND DSTIPOEQUIPAMENTO LIKE @DESCRICAO`;
+      query += ` AND [DSTIPOEQUIPAMENTO] LIKE @DESCRICAO`;
       params.push({ name: 'DESCRICAO', value: `%${descricao}%` });
     }
     if (situacao) {
-      query += ` AND FGACTIVE = @SITUACAO`;
+      query += ` AND [FGACTIVE] = @SITUACAO`;
       params.push({ name: 'SITUACAO', value: situacao === 'S' ? 'A' : 'I' });
     }
 
-    query += ` ORDER BY DSTIPOEQUIPAMENTO`;
+    query += ` ORDER BY [DSTIPOEQUIPAMENTO]`;
 
     const pool = await poolPromise;
     const request = pool.request();
@@ -86,13 +86,13 @@ router.get('/tipos-equipamento/:id', async (req, res) => {
       .input('CDTIPOEQUIPAMENTO', idNum)
       .query(`
         SELECT 
-          CDTIPOEQUIPAMENTO,
-          DSTIPOEQUIPAMENTO,
-          MASCARAIDENTIF,
-          FGTIPOVEICULO,
-          FGACTIVE
+          [CDTIPOEQUIPAMENTO],
+          [DSTIPOEQUIPAMENTO],
+          [MASCARAIDENTIF],
+          [FGTIPOVEICULO],
+          [FGACTIVE]
         FROM [dbo].[TIPOEQUIPAMENTO]
-        WHERE CDTIPOEQUIPAMENTO = @CDTIPOEQUIPAMENTO
+        WHERE [CDTIPOEQUIPAMENTO] = @CDTIPOEQUIPAMENTO
       `);
 
     if (result.recordset.length === 0) {
@@ -122,25 +122,32 @@ router.post('/tipos-equipamento', async (req, res) => {
     }
 
     const pool = await poolPromise;
-    const maxResult = await pool
-      .request()
-      .query('SELECT ISNULL(MAX(CDTIPOEQUIPAMENTO), 0) AS maxId FROM [dbo].[TIPOEQUIPAMENTO]');
-    const novoId = maxResult.recordset[0].maxId + 1;
+    const descricao = DSTIPOEQUIPAMENTO.trim();
+    const existente = await pool.query(
+      `SELECT 1 FROM "TIPOEQUIPAMENTO" WHERE UPPER(TRIM("DSTIPOEQUIPAMENTO")) = UPPER(TRIM($1)) LIMIT 1`,
+      [descricao]
+    );
+    if (existente.rows && existente.rows.length > 0) {
+      return res.status(409).json({ error: 'Já existe um tipo de equipamento com esta descrição. Não é permitido cadastrar duplicados.' });
+    }
 
-    await pool
-      .request()
-      .input('CDTIPOEQUIPAMENTO', sql.SmallInt, novoId)
-      .input('DSTIPOEQUIPAMENTO', DSTIPOEQUIPAMENTO.trim())
-      .input('MASCARAIDENTIF', MASCARAIDENTIF || null)
-      .input('FGTIPOVEICULO', FGTIPOVEICULO || null)
-      .query(`
-        INSERT INTO [dbo].[TIPOEQUIPAMENTO] (
-          CDTIPOEQUIPAMENTO, DSTIPOEQUIPAMENTO, MASCARAIDENTIF, FGTIPOVEICULO,
-          FGACTIVE, DHMAINTENANCE, SGUSER, SERVERORIG
-        )
-        VALUES (@CDTIPOEQUIPAMENTO, @DSTIPOEQUIPAMENTO, @MASCARAIDENTIF, @FGTIPOVEICULO, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas')
-      `);
-
+    const getProximoId = async () => getFirstNumericValue((await pool.request().query('SELECT COALESCE(MAX([CDTIPOEQUIPAMENTO]), 0) + 1 AS [maxId] FROM [dbo].[TIPOEQUIPAMENTO]')).recordset, 1);
+    let novoId = await getProximoId();
+    const doInsert = async (id) => {
+      await pool.request().input('CDTIPOEQUIPAMENTO', sql.SmallInt, id).input('DSTIPOEQUIPAMENTO', DSTIPOEQUIPAMENTO.trim()).input('MASCARAIDENTIF', MASCARAIDENTIF || null).input('FGTIPOVEICULO', FGTIPOVEICULO || null)
+        .query(`INSERT INTO [dbo].[TIPOEQUIPAMENTO] ([CDTIPOEQUIPAMENTO], [DSTIPOEQUIPAMENTO], [MASCARAIDENTIF], [FGTIPOVEICULO], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]) VALUES (@CDTIPOEQUIPAMENTO, @DSTIPOEQUIPAMENTO, @MASCARAIDENTIF, @FGTIPOVEICULO, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas')`);
+    };
+    try {
+      await doInsert(novoId);
+    } catch (e) {
+      if (String(e.code) === '23505') {
+        if (e.constraint === 'uk_tipoequipamento_ds') {
+          return res.status(409).json({ error: 'Já existe um tipo de equipamento com esta descrição. Não é permitido cadastrar duplicados.' });
+        }
+        novoId = await getProximoId();
+        await doInsert(novoId);
+      } else throw e;
+    }
     res.status(201).json({ success: true, message: 'Tipo de equipamento cadastrado com sucesso!' });
   } catch (err) {
     console.error('Erro ao inserir tipo:', err);
@@ -159,8 +166,18 @@ router.put('/tipos-equipamento/:id', async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const idNumerico = parseInt(id, 10);
+    if (isNaN(idNumerico) || idNumerico <= 0) {
+      return res.status(400).json({ error: 'ID inválido.' });
+    }
+    const existente = await pool.query(
+      `SELECT 1 FROM "TIPOEQUIPAMENTO" WHERE UPPER(TRIM("DSTIPOEQUIPAMENTO")) = UPPER(TRIM($1)) AND "CDTIPOEQUIPAMENTO" != $2 LIMIT 1`,
+      [DSTIPOEQUIPAMENTO.trim(), idNumerico]
+    );
+    if (existente.rows && existente.rows.length > 0) {
+      return res.status(409).json({ error: 'Já existe outro tipo de equipamento com esta descrição. Não é permitido duplicar.' });
+    }
     const fgactiveDB = FGACTIVE === 'S' ? 'A' : 'I';
-    const idNumerico = parseInt(id);
 
     await pool
       .request()
@@ -172,14 +189,14 @@ router.put('/tipos-equipamento/:id', async (req, res) => {
       .query(`
         UPDATE [dbo].[TIPOEQUIPAMENTO] 
         SET 
-          DSTIPOEQUIPAMENTO = @DSTIPOEQUIPAMENTO,
-          MASCARAIDENTIF = @MASCARAIDENTIF,
-          FGTIPOVEICULO = @FGTIPOVEICULO,
-          FGACTIVE = @FGACTIVE,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE CDTIPOEQUIPAMENTO = @CDTIPOEQUIPAMENTO
+          [DSTIPOEQUIPAMENTO] = @DSTIPOEQUIPAMENTO,
+          [MASCARAIDENTIF] = @MASCARAIDENTIF,
+          [FGTIPOVEICULO] = @FGTIPOVEICULO,
+          [FGACTIVE] = @FGACTIVE,
+          [DHMAINTENANCE] = GETDATE(),
+          [SGUSER] = 'SYSTEM',
+          [SERVERORIG] = 'AppDVcargas'
+        WHERE [CDTIPOEQUIPAMENTO] = @CDTIPOEQUIPAMENTO
       `);
 
     res.json({ success: true, message: 'Tipo atualizado com sucesso!' });
@@ -207,7 +224,7 @@ router.delete('/tipos-equipamento/:id', async (req, res) => {
     const checkResult = await pool
       .request()
       .input('CDTIPOEQUIPAMENTO', sql.SmallInt, idNumerico)
-      .query(`SELECT FGACTIVE FROM [dbo].[TIPOEQUIPAMENTO] WHERE CDTIPOEQUIPAMENTO = @CDTIPOEQUIPAMENTO`);
+      .query(`SELECT [FGACTIVE] FROM [dbo].[TIPOEQUIPAMENTO] WHERE [CDTIPOEQUIPAMENTO] = @CDTIPOEQUIPAMENTO`);
 
     if (checkResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Tipo não encontrado.' });
@@ -236,11 +253,11 @@ router.delete('/tipos-equipamento/:id', async (req, res) => {
       .query(`
         UPDATE [dbo].[TIPOEQUIPAMENTO] 
         SET 
-          FGACTIVE = @FGACTIVE,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = 'SYSTEM',
-          SERVERORIG = 'AppDVcargas'
-        WHERE CDTIPOEQUIPAMENTO = @CDTIPOEQUIPAMENTO
+          [FGACTIVE] = @FGACTIVE,
+          [DHMAINTENANCE] = GETDATE(),
+          [SGUSER] = 'SYSTEM',
+          [SERVERORIG] = 'AppDVcargas'
+        WHERE [CDTIPOEQUIPAMENTO] = @CDTIPOEQUIPAMENTO
       `);
 
     if (result.rowsAffected[0] === 0) {

@@ -1,7 +1,7 @@
 // backend/public/js/permissions.js
 // Sistema de Verificação de Permissões
 // Versão: 1.0
-// Autor: Sistema DivulgaCarga
+// Atlas Cargo
 
 (function() {
   'use strict';

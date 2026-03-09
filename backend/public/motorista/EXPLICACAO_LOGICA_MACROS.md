@@ -1,6 +1,6 @@
 # 🔍 Explicação da Lógica de Validação de Macros
 
-**Data:** 2025-01-18  
+**Data:** 2026-01-18  
 **Urgente:** SIM
 
 ---
@@ -108,4 +108,4 @@ A função `validarSequencia(macro)` em `macros.html` (linha 435) funciona assim
 
 ---
 
-**Última atualização:** 2025-01-18
+**Última atualização:** 2026-01-18

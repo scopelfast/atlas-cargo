@@ -1,9 +1,9 @@
 -- Script para criar tabela RANKING_DATA
 -- Cache de rankings de motoristas para performance
--- Data: 2025-01-15
+-- Data: 2026-01-15
 -- IMPORTANTE: Este script é seguro e pode ser executado múltiplas vezes
 
-USE [DIVULGACARGA_PRD]
+USE [ATLAS_CARGO_PRD]
 GO
 
 -- ============================================

@@ -408,6 +408,30 @@
   }
 
   // ==========================================
+  // ATUALIZAR TENTATIVAS NA FILA
+  // ==========================================
+  async function atualizarTentativasFila(store, id, tentativas) {
+    if (!db) await initDB();
+    
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction([store], 'readwrite');
+      const objectStore = transaction.objectStore(store);
+      const getRequest = objectStore.get(id);
+      
+      getRequest.onsuccess = () => {
+        const item = getRequest.result;
+        if (item) {
+          item.tentativas = tentativas;
+          objectStore.put(item);
+        }
+        resolve(true);
+      };
+      
+      getRequest.onerror = () => reject(getRequest.error);
+    });
+  }
+
+  // ==========================================
   // VERIFICAR STATUS ONLINE/OFFLINE
   // ==========================================
   function isOnline() {
@@ -429,19 +453,20 @@
     
     const total = filaGPS.length + filaEventos.length + filaAcoes.length + filaComprovantes.length + filaSOS.length;
 
+    const baseClass = indicador.className.includes('status-badge-navbar') ? 'status-badge-navbar ' : 'status-bar ';
     if (isOnline()) {
       if (total === 0) {
-        indicador.className = 'status-online';
-        indicador.innerHTML = '🟢 Online - Sincronizado';
+        indicador.className = baseClass + 'status-online';
+        indicador.textContent = 'Online - Sincronizado';
       } else {
-        indicador.className = 'status-syncing';
-        indicador.innerHTML = `🟡 Sincronizando... ${total} item(ns)`;
+        indicador.className = baseClass + 'status-syncing';
+        indicador.textContent = `Sincronizando... ${total} item(ns)`;
       }
     } else {
-      indicador.className = 'status-offline';
-      indicador.innerHTML = total > 0 
-        ? `🔴 Offline - ${total} item(ns) na fila`
-        : '🔴 Offline';
+      indicador.className = baseClass + 'status-offline';
+      indicador.textContent = total > 0 
+        ? `Offline - ${total} item(ns) na fila`
+        : 'Offline';
     }
   }
 
