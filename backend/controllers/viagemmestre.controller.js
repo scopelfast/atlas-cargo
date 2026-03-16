@@ -4212,11 +4212,12 @@ const viagemController = {
       // 3. Processar a fila, um a um, com intervalo de 5 segundos
       for (let i = 0; i < convocacoes.length; i++) {
         const c = convocacoes[i];
+        const idConvItem = c.IDCONVOCACAO ?? c.idConvocacao ?? c.idconvocacao;
         
         // Extrair o número limpando caracteres especiais
         let numeroLimpo = (c.FONE1 || c.FONE || c.NRCELULAR || c.CELULAR || '').toString().replace(/\D/g, '');
         if (!numeroLimpo || numeroLimpo.length < 10) {
-           resultados.push({ idConvocacao: c.IDCONVOCACAO, status: 'erro', mensagem: 'Motorista sem número de WhatsApp válido' });
+           resultados.push({ idConvocacao: idConvItem, status: 'erro', mensagem: 'Motorista sem número de WhatsApp válido' });
            erros++;
            continue;
         }
@@ -4228,7 +4229,7 @@ const viagemController = {
         const pesoEmTon = pesoNum >= 1000 ? pesoNum / 1000 : pesoNum;
         const pesoFmt = pesoEmTon.toFixed(2).replace('.', ',');
         const cubagemFmt = (parseFloat(v.CUBAGEM || 0)).toFixed(2).replace('.', ',');
-        const linkConvocacao = `${baseUrl.replace(/\/$/, '')}/convocacao/${c.IDCONVOCACAO}`;
+        const linkConvocacao = idConvItem ? `${baseUrl.replace(/\/$/, '')}/convocacao/${idConvItem}` : '';
 
         // Mensagem padronizada: saudação + CARGA DISPONÍVEL (tipo com código, rota, país, pontos de parada) + link
         const nomeMotoristaConv = (c.NOME_MOTORISTA || 'Motorista').toString().trim();
@@ -4292,7 +4293,7 @@ const viagemController = {
         let logDetalhesJson = null;
 
         try {
-          console.log(`[SWITCH DIGITAL] Enviando msg para ${numeroLimpo} (Convocacao ${c.IDCONVOCACAO})...`);
+          console.log(`[SWITCH DIGITAL] Enviando msg para ${numeroLimpo} (Convocacao ${idConvItem})...`);
           const inicio = Date.now();
           
           const switchRes = await fetch(config.endpoint, {
@@ -4311,7 +4312,7 @@ const viagemController = {
 
           if (switchRes.ok) {
             sucessos++;
-            resultados.push({ idConvocacao: c.IDCONVOCACAO, status: 'sucesso', tempo: tempo, api: responseData });
+            resultados.push({ idConvocacao: idConvItem, status: 'sucesso', tempo: tempo, api: responseData });
             logStatusEnvio = 'ENVIADO';
             logDhEnvio = new Date();
             logStatusHttp = switchRes.status;
@@ -4319,11 +4320,13 @@ const viagemController = {
             logDetalhesJson = typeof responseData === 'object' ? JSON.stringify(responseData) : String(responseData);
             
             // Atualizar DHENVIOMETA apenas quando envio foi sucesso (motorista acionado)
+            if (idConvItem != null && idConvItem !== '') {
             try {
                await pool.request()
-                 .input('id', sql.Int, c.IDCONVOCACAO)
+                 .input('id', sql.Int, idConvItem)
                  .query(`UPDATE [dbo].[CONVOCACAO] SET [DHENVIOMETA] = GETDATE(), [DHMAINTENANCE] = GETDATE() WHERE [IDCONVOCACAO] = @id`);
             } catch(e) {}
+            }
 
           } else {
             erros++;
@@ -4339,24 +4342,25 @@ const viagemController = {
               return `Número ${numeroLimpo}: ${txt.substring(0, 300)}`;
             })();
             logMensagemErro = mensagemAmigavel.substring(0, 500);
-            resultados.push({ idConvocacao: c.IDCONVOCACAO, status: 'erro', httpStatus: switchRes.status, detalhe: responseData, mensagemAmigavel });
+            resultados.push({ idConvocacao: idConvItem, status: 'erro', httpStatus: switchRes.status, detalhe: responseData, mensagemAmigavel });
             logStatusHttp = switchRes.status;
             logTempoResposta = tempo;
             logDetalhesJson = typeof responseData === 'object' ? JSON.stringify(responseData) : String(responseData);
           }
         } catch (errApi) {
           erros++;
-          resultados.push({ idConvocacao: c.IDCONVOCACAO, status: 'erro', mensagem: errApi.message });
+          resultados.push({ idConvocacao: idConvItem, status: 'erro', mensagem: errApi.message });
           logMensagemErro = (errApi.message || '').substring(0, 500);
           logDetalhesJson = JSON.stringify({ error: errApi.message });
         }
 
-        // Gravar em LOG_ENVIO_WHATSAPP e LOGSWEBHOOKMETA para histórico e auditoria (colunas entre colchetes para PostgreSQL maiúsculas)
+        // Gravar em LOG_ENVIO_WHATSAPP e LOGSWEBHOOKMETA para histórico e auditoria (só se IDCONVOCACAO existir)
+        const idConv = idConvItem;
+        const nrCel = numeroLimpo;
+        const detalhesStr = (logDetalhesJson || '').substring(0, 4000);
+        if (idConv != null && idConv !== '') {
         try {
           const sgUserLog = getSgUser(req) || 'SYSTEM';
-          const idConv = c.IDCONVOCACAO;
-          const nrCel = numeroLimpo;
-          const detalhesStr = (logDetalhesJson || '').substring(0, 4000);
 
           await pool.request()
             .input('IDCONVOCACAO', sql.Int, idConv)
@@ -4391,6 +4395,9 @@ const viagemController = {
             `);
         } catch (logErr) {
           console.error('[SWITCH DIGITAL] Erro ao gravar log (LOG_ENVIO_WHATSAPP/LOGSWEBHOOKMETA):', logErr.message, logErr.stack);
+        }
+        } else {
+          console.warn('[SWITCH DIGITAL] Convocação sem IDCONVOCACAO - envio realizado mas log não gravado para esta linha. Verifique se o frontend envia IDCONVOCACAO ao disparar da aba Compatíveis.');
         }
 
         // Aguardar intervalo antes do próximo envio (evita bloqueio e respeita fila)

@@ -828,20 +828,14 @@
         }, 100);
       }
 
-      // Se for a aba Convocações, inicializar
+      // Se for a aba Convocações, inicializar (respeitar viagem da aba Dados primeiro)
       if (tabId === 'convocações') {
         setTimeout(async () => {
           inicializarAbaConvocacoes();
-          
-          // Se houver viagem selecionada, preencher filtro e carregar convocações
-          if (viagemSelecionada) {
-            await carregarEselecionarViagemConvocacoes(viagemSelecionada);
-          } else {
-            // Verificar se há uma viagem em edição
-            const viagemIdEmEdicao = document.getElementById('viagemId')?.value;
-            if (viagemIdEmEdicao) {
-              await carregarEselecionarViagemConvocacoes(viagemIdEmEdicao);
-            }
+          const viagemIdEmEdicao = document.getElementById('viagemId')?.value?.trim();
+          const idParaConvocacoes = viagemIdEmEdicao || viagemSelecionada || document.getElementById('filtroConvocacaoViagem')?.value?.trim();
+          if (idParaConvocacoes) {
+            await carregarEselecionarViagemConvocacoes(idParaConvocacoes);
           }
         }, 100);
       }
@@ -6200,7 +6194,10 @@
       return;
     }
 
-    const idViagemLocal = viagemSelecionada || (window.viagemAtual && window.viagemAtual.IDVIAGEM) || (document.getElementById('filtroConvocacaoViagem') ? document.getElementById('filtroConvocacaoViagem').value : null);
+    const tabConvocacoes = document.getElementById('tab-convocações') || document.querySelector('[data-tab="convocações"]')?.closest('.tab-content');
+    const filtroConv = document.getElementById('filtroConvocacaoViagem')?.value?.trim();
+    const isAbaConvocacoes = tabConvocacoes && tabConvocacoes.classList.contains('active');
+    const idViagemLocal = (isAbaConvocacoes && filtroConv) ? filtroConv : (viagemSelecionada || (window.viagemAtual && window.viagemAtual.IDVIAGEM) || filtroConv || null);
 
     if (!idViagemLocal) {
       showMessage('Nenhuma viagem selecionada.', 'error');
@@ -6778,12 +6775,17 @@
       return;
     }
 
-    if (!viagemSelecionada) {
-      showMessage('Nenhuma viagem selecionada.', 'error');
+    // Na aba Compatíveis: priorizar o valor atual do dropdown "Selecione uma Viagem" para evitar
+    // criar convocações para a viagem errada quando o usuário trocou a viagem mas não clicou em "Buscar"
+    const selectComp = document.getElementById('selectViagemPendente');
+    const idViagemDoDropdown = selectComp && selectComp.value && String(selectComp.value).trim() ? String(selectComp.value).trim() : null;
+    const idViagemLocal = idViagemDoDropdown || viagemSelecionada;
+
+    if (!idViagemLocal) {
+      showMessage('Nenhuma viagem selecionada. Selecione uma viagem na lista e, se necessário, clique em "Buscar Motoristas Compatíveis".', 'error');
       return;
     }
-
-    const idViagemLocal = viagemSelecionada;
+    viagemSelecionada = idViagemLocal;
 
     // Usar modal de confirmação estilizado
     const confirmar = await showConfirmModal(
@@ -7111,17 +7113,17 @@
           _log(`[SWITCH DIGITAL] 📤 Solicitando envio de ${convocacoesParaEnviar.length} convocações ao Backend`);
           _log('========================================');
           
-          // Adicionar log na tela informando que iniciou o processo no backend
+          // Feedback imediato na tela (ao atualizar logs, a deduplicação no merge evita duplicar com o que vem da API)
           if (typeof window.adicionarLogSwitch === 'function') {
-            console.log('[SWITCH DIGITAL LOG] Fluxo EM MASSA - adicionando "Iniciando Envios" em _listaLogsSwitch, N=', convocacoesParaEnviar.length);
             window.adicionarLogSwitch({
               tipo: 'info',
               titulo: `Iniciando Envios via Backend`,
               mensagem: `Enviando lista de ${convocacoesParaEnviar.length} motorista(s) para o processador de fila do servidor.`,
-              detalhes: `Aguarde, as mensagens serão enviadas com intervalo de 2 segundos cada...`
+              detalhes: `Aguarde, as mensagens serão enviadas com intervalo de 2 segundos cada...`,
+              idViagem: idViagemLocal
             });
           }
-          
+
           // Formatar as convocacoes para envio com nomes corretos esperados pelo backend
           const convocacoesFormatadas = convocacoesParaEnviar.map(conv => {
             return {
@@ -7173,19 +7175,17 @@
           
           _log(`[SWITCH DIGITAL] ✅ Backend recebeu a fila com sucesso:`, resultData);
           
-          // Adicionar log na tela
           const motoristasFormatados = resultData.detalhes || [];
-          
           if (typeof window.adicionarLogSwitch === 'function') {
-            console.log('[SWITCH DIGITAL LOG] Fluxo EM MASSA - adicionando "Fila Processada" em _listaLogsSwitch');
             window.adicionarLogSwitch({
               tipo: resultData.erros > 0 ? (resultData.sucessos > 0 ? 'warning' : 'erro') : 'sucesso',
               titulo: `Fila Processada no Backend`,
               mensagem: `O Servidor concluiu a fila de disparos. Sucessos: ${resultData.sucessos}, Erros: ${resultData.erros}`,
-              detalhes: motoristasFormatados
+              detalhes: motoristasFormatados,
+              idViagem: idViagemLocal
             });
           }
-          
+
           if (resultData.erros > 0) {
              showMessage(`Atenção: A fila foi processada, mas houve erro no envio de ${resultData.erros} de ${resultData.total} mensagens. Verifique a aba de Integração Switch.`, 'warning');
           } else {
@@ -7211,7 +7211,8 @@
               tipo: 'erro',
               titulo: `❌ Erro no Processamento`,
               mensagem: `Falha ao tentar solicitar o envio das mensagens de WhatsApp pelo backend: ${webhookErr.message}`,
-              detalhes: webhookErr.stack
+              detalhes: webhookErr.stack,
+              idViagem: idViagemLocal
             });
           }
           showMessage(`Erro ao disparar WhatsApp: ${webhookErr.message}`, 'error');
@@ -7244,14 +7245,18 @@
       // Só chamar dispararWhatsAppSwitchDigital se NÃO já enviamos via fluxo "em massa" acima
       // (senão duplicava: uma requisição no bloco convocacoesParaEnviar.length > 0 e outra aqui)
       if (!envioJaFeitoViaEmMassa) {
-        const idsConvocacoes = todasConvocacoes.map(c => c.IDCONVOCACAO);
+        const getIdConv = (c) => c.IDCONVOCACAO ?? c.idConvocacao ?? c.idconvocacao;
+        const idsConvocacoes = todasConvocacoes.map(getIdConv).filter(id => id != null && id !== '');
         if (!window.convocacoes) window.convocacoes = [];
         todasConvocacoes.forEach(nc => {
-           const exists = window.convocacoes.find(ec => ec.IDCONVOCACAO === nc.IDCONVOCACAO);
+           const idConv = getIdConv(nc);
+           const exists = window.convocacoes.find(ec => (ec.IDCONVOCACAO ?? ec.idconvocacao) == idConv);
            if (!exists) {
               const motOrig = selecionados.find(s => s.CDCADASTRO_MOTORISTA === nc.CDCADASTRO_MOTORISTA);
               window.convocacoes.push({
                  ...nc,
+                 IDCONVOCACAO: idConv,
+                 IDVIAGEM: nc.IDVIAGEM ?? idViagemLocal,
                  NOME_MOTORISTA: nc.NOME_MOTORISTA || (motOrig ? motOrig.NOME || motOrig.NOME_MOTORISTA : 'Motorista'),
                  NRCELULAR: nc.NRCELULAR || (motOrig ? motOrig.CELULAR || motOrig.FONE1 || motOrig.NRCELULAR : ''),
                  CELULAR: nc.CELULAR || (motOrig ? motOrig.CELULAR || motOrig.FONE1 || motOrig.NRCELULAR : ''),
@@ -7261,6 +7266,9 @@
         });
         _log('[SWITCH DIGITAL] Chamando API do Switch Digital com IDs da criacao:', idsConvocacoes);
         dispararWhatsAppSwitchDigital(idViagemLocal, idsConvocacoes);
+        const filtroConvEl = document.getElementById('filtroConvocacaoViagem');
+        if (filtroConvEl) filtroConvEl.value = idViagemLocal;
+        if (typeof window.carregarConvocacoes === 'function') window.carregarConvocacoes();
       }
       
     } catch (err) {
@@ -7315,8 +7323,11 @@
       return;
     }
     
-    // Identificar a viagem atual
-    const idViagemLocal = window.viagemAtual?.IDVIAGEM || window.viagemSelecionada || (document.getElementById('filtroConvocacaoViagem') ? document.getElementById('filtroConvocacaoViagem').value : null);
+    // Identificar a viagem atual: se estiver na aba Convocações, usar o filtro da aba; senão viagem em edição/compatíveis
+    const tabConv = document.getElementById('tab-convocações') || document.querySelector('.tab-content[data-tab-id="convocações"]');
+    const filtroConvVal = document.getElementById('filtroConvocacaoViagem')?.value?.trim();
+    const abaConvAtiva = tabConv && tabConv.classList.contains('active');
+    const idViagemLocal = (abaConvAtiva && filtroConvVal) ? filtroConvVal : (document.getElementById('viagemId')?.value?.trim() || window.viagemAtual?.IDVIAGEM || window.viagemSelecionada || filtroConvVal || null);
     if (!idViagemLocal) {
       showMessage('Selecione uma viagem primeiro.', 'warning');
       return;
@@ -7327,7 +7338,8 @@
       window.adicionarLogSwitch({
         tipo: 'info',
         titulo: 'Preparando Disparo',
-        mensagem: `Preparando para enviar WhatsApp para ${motoristasSelecionados.length} motorista(s) selecionado(s).`
+        mensagem: `Preparando para enviar WhatsApp para ${motoristasSelecionados.length} motorista(s) selecionado(s).`,
+        idViagem: idViagemLocal
       });
     }
     
@@ -7420,17 +7432,19 @@
            tipo: 'info',
            titulo: `Iniciando Envios via Backend (Switch Digital)`,
            mensagem: `Enviando lista de ${convsCompletas.length} convocações para processamento na fila.`,
-           detalhes: convsCompletas
+           detalhes: convsCompletas,
+           idViagem: idViagem
          });
       }
 
-      // Formatar as convocacoes para envio com nomes corretos esperados pelo backend
-      // Garantir que as propriedades FONE, NOME_MOTORISTA existam para não falhar na API
+      // Formatar as convocacoes para envio com nomes corretos esperados pelo backend (IDCONVOCACAO obrigatório para logs)
+      const getIdConv = (c) => c.IDCONVOCACAO ?? c.idConvocacao ?? c.idconvocacao;
       const viagemAtual = window.viagemAtual || {};
       const convocacoesFormatadas = convsCompletas.map(conv => {
+         const idConv = getIdConv(conv);
          return {
            ...conv,
-           IDCONVOCACAO: conv.IDCONVOCACAO || conv.idconvocacao,
+           IDCONVOCACAO: idConv,
            FONE: conv.FONE || conv.NRCELULAR || conv.CELULAR || conv.FONE1 || '',
            NOME_MOTORISTA: conv.NOME_MOTORISTA || conv.nome_motorista || 'Motorista',
            ORIGEM_CIDADE: viagemAtual.ORIGEM_CIDADE || conv.ORIGEM_CIDADE || '',
@@ -7482,7 +7496,8 @@
            tipo: resultData.erros > 0 ? (resultData.sucessos > 0 ? 'warning' : 'erro') : 'sucesso',
            titulo: `Fila Processada no Backend`,
            mensagem: `O Servidor concluiu a fila de disparos. Sucessos: ${resultData.sucessos}, Erros: ${resultData.erros}`,
-           detalhes: motoristasFormatados
+           detalhes: motoristasFormatados,
+           idViagem: idViagem
          });
       }
 
@@ -7521,7 +7536,8 @@
           tipo: 'erro',
           titulo: `Erro no Disparo`,
           mensagem: err.message,
-          detalhes: err.stack
+          detalhes: err.stack,
+          idViagem: idViagem
         });
       }
       showMessage(`Erro ao disparar WhatsApp: ${err.message}`, 'error');
@@ -7544,7 +7560,11 @@
     const sucessosEl = document.getElementById('totalSucessosSwitch');
     const errosEl = document.getElementById('totalErrosSwitch');
     const ultimaEl = document.getElementById('ultimaAtualizacaoSwitch');
-    const list = entries || window._listaLogsSwitch || [];
+    let list = entries != null ? entries : (window._listaLogsSwitch || []);
+    const idViagemAtual = document.getElementById('viagemId')?.value || document.getElementById('filtroConvocacaoViagem')?.value || document.getElementById('filtroIdViagem')?.value || '';
+    if (idViagemAtual && list === window._listaLogsSwitch) {
+      list = list.filter(e => e.idViagem == null || e.idViagem === '' || String(e.idViagem) === String(idViagemAtual));
+    }
     let sucessos = 0, erros = 0;
     // Contar a partir das mensagens "Fila Processada" (Sucessos: X, Erros: Y) para refletir envios reais
     const reFila = /Sucessos:\s*(\d+).*?Erros:\s*(\d+)/i;
@@ -7570,11 +7590,14 @@
         '• Se já disparou e ainda não vê nada, confira se há convocações criadas para a viagem e se a integração Switch Digital está configurada em Configurações do Sistema.</div>';
       return;
     }
-    const html = list.map(e => {
+    const cabecalhoViagem = idViagemAtual ? `<div style="margin-bottom: 12px; padding: 8px 10px; background: rgba(0,0,0,0.25); border-radius: 4px; font-size: 12px; color: #94a3b8;"><strong>Exibindo logs da Viagem ${idViagemAtual}</strong> (viagem selecionada na aba Dados / Grid / Convocações)</div>` : '';
+    const html = cabecalhoViagem + list.map(e => {
       const cor = e.tipo === 'erro' ? '#dc3545' : e.tipo === 'warning' ? '#ffc107' : e.tipo === 'sucesso' ? '#28a745' : '#17a2b8';
       const detalhes = e.detalhes ? (typeof e.detalhes === 'string' ? e.detalhes : JSON.stringify(e.detalhes).substring(0, 500)) : '';
+      const idV = e.idViagem != null && e.idViagem !== '' ? String(e.idViagem) : null;
+      const badgeViagem = idV ? `<span style="font-size: 10px; color: #94a3b8; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; margin-left: 8px;" title="Viagem a que este log pertence">Viagem ${idV}</span>` : '';
       return `<div style="margin-bottom: 12px; padding: 10px; border-left: 4px solid ${cor}; background: rgba(0,0,0,0.2); border-radius: 4px; max-width: 100%; overflow-wrap: break-word; word-break: break-word; box-sizing: border-box;">
-        <strong style="color: ${cor}">${e.titulo || e.tipo || 'Log'}</strong>
+        <strong style="color: ${cor}">${e.titulo || e.tipo || 'Log'}</strong>${badgeViagem}
         <div style="margin-top: 4px; overflow-wrap: break-word; word-break: break-word;">${(e.mensagem || '').replace(/</g, '&lt;')}</div>
         ${detalhes ? `<pre style="margin: 6px 0 0 0; font-size: 11px; white-space: pre-wrap; word-break: break-all; overflow-wrap: break-word; max-width: 100%; overflow-x: auto;">${detalhes.replace(/</g, '&lt;')}</pre>` : ''}
         <div style="margin-top: 4px; font-size: 11px; color: #888;">${e.dhlog ? new Date(e.dhlog).toLocaleString('pt-BR') : (e.ts ? new Date(e.ts).toLocaleString('pt-BR') : '')}</div>
@@ -7585,9 +7608,9 @@
 
   window.adicionarLogSwitch = function(entry) {
     if (!entry) return;
-    console.log('[SWITCH DIGITAL LOG] adicionarLogSwitch - titulo=', entry.titulo || entry.tipo);
+    const idViagem = entry.idViagem != null ? entry.idViagem : (document.getElementById('viagemId')?.value || document.getElementById('filtroConvocacaoViagem')?.value || document.getElementById('filtroIdViagem')?.value || '');
     window._listaLogsSwitch = window._listaLogsSwitch || [];
-    window._listaLogsSwitch.unshift({ ...entry, ts: Date.now() });
+    window._listaLogsSwitch.unshift({ ...entry, idViagem: idViagem || entry.idViagem, ts: Date.now() });
     atualizarVisorLogsSwitch();
   };
 
@@ -7622,6 +7645,7 @@
       }
       const logs = await res.json();
       const list = Array.isArray(logs) ? logs : [];
+      const idViagemReq = String(idViagem).trim();
       const entries = list.map(l => {
         const tipoRaw = l.tipo || l.TIPO || 'info';
         const tituloRaw = l.titulo || l.TITULO || tipoRaw || 'Log';
@@ -7633,12 +7657,23 @@
           mensagem: mensagemRaw,
           detalhes: l.detalhes != null ? l.detalhes : l.DETALHES,
           dhlog: dhlogRaw,
-          ts: dhlogRaw ? new Date(dhlogRaw).getTime() : null
+          ts: dhlogRaw ? new Date(dhlogRaw).getTime() : null,
+          idViagem: l.idViagem != null ? l.idViagem : (l.IDVIAGEM != null ? l.IDVIAGEM : idViagemReq)
         };
       });
       const merged = [...entries];
+      const fingerprint = (e) => {
+        const t = (e.dhlog ? new Date(e.dhlog).getTime() : e.ts || 0) / 60000 | 0;
+        return (e.titulo || '') + '|' + (e.mensagem || '').substring(0, 80) + '|' + t;
+      };
+      const apiFingerprints = new Set(merged.map(fingerprint));
+      const idViagemStr = String(idViagem).trim();
+      const memFiltrados = (window._listaLogsSwitch || []).filter(e => e.ts && (!e.idViagem || String(e.idViagem) === idViagemStr));
       const memCount = (window._listaLogsSwitch || []).filter(e => e.ts).length;
-      (window._listaLogsSwitch || []).forEach(e => { if (e.ts) merged.push({ ...e, dhlog: e.dhlog || new Date(e.ts).toISOString() }); });
+      memFiltrados.forEach(e => {
+        const entry = { ...e, dhlog: e.dhlog || new Date(e.ts).toISOString() };
+        if (!apiFingerprints.has(fingerprint(entry))) merged.push(entry);
+      });
       merged.sort((a, b) => (b.dhlog ? new Date(b.dhlog).getTime() : b.ts || 0) - (a.dhlog ? new Date(a.dhlog).getTime() : a.ts || 0));
       console.log('[SWITCH DIGITAL LOG] carregarLogsSwitch - API entries=', entries.length, 'memória=', memCount, 'merged total=', merged.length);
       atualizarVisorLogsSwitch(merged.slice(0, 100));
@@ -9483,6 +9518,9 @@
 
     if (selectViagem) {
       selectViagem.onchange = function() {
+        if (this.value && String(this.value).trim()) {
+          viagemSelecionada = String(this.value).trim();
+        }
         const btnBuscar = document.getElementById('btnBuscarMotoristas');
         if (btnBuscar) {
           btnBuscar.disabled = !this.value;
@@ -9545,7 +9583,8 @@
             tipo: 'info',
             titulo: 'Reenviar apenas não enviados',
             mensagem: 'Enviando ' + convocacoesFormatadas.length + ' convocação(ões) pendentes para o backend (intervalo 2 s).',
-            detalhes: convocacoesFormatadas
+            detalhes: convocacoesFormatadas,
+            idViagem: viagemSelecionada
           });
         }
         const response = await fetch('/api/viagens/webhook/switch-digital', {
@@ -9560,7 +9599,8 @@
             tipo: resultData.erros > 0 ? (resultData.sucessos > 0 ? 'warning' : 'erro') : 'sucesso',
             titulo: 'Fila Processada no Backend',
             mensagem: 'O Servidor concluiu a fila de disparos. Sucessos: ' + resultData.sucessos + ', Erros: ' + resultData.erros,
-            detalhes: resultData.detalhes || []
+            detalhes: resultData.detalhes || [],
+            idViagem: viagemSelecionada
           });
         }
         if (resultData.erros > 0) {
