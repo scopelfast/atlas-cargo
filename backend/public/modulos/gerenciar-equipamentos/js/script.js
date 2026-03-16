@@ -98,21 +98,19 @@
     init();
   }
 
-  // Função para mudar abas
+  // Função para mudar abas (escopo no container do módulo para não misturar Grid/Dados)
   async function showTab(tabId) {
     try {
-      // Primeiro, mudar a aba imediatamente
-      tabs.forEach(btn => btn.classList.remove('active'));
-      tabContents.forEach(content => content.classList.remove('active'));
-      
-      const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
-      const tabContent = document.getElementById(`tab-${tabId}`);
-      
-      if (tabBtn) {
-        tabBtn.classList.add('active');
-      }
-      if (tabContent) {
-        tabContent.classList.add('active');
+      const targetContent = document.getElementById(`tab-${tabId}`);
+      const targetBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+      if (targetContent && targetBtn) {
+        const container = targetContent.closest('[class*="-container"]') || targetContent.parentElement;
+        if (container) {
+          container.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+          container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        }
+        targetBtn.classList.add('active');
+        targetContent.classList.add('active');
       }
       
       // Aguardar um frame para garantir que a mudança foi renderizada
@@ -154,13 +152,16 @@
       console.warn('[Equipamentos] Erro ao mudar aba:', err);
       // Forçar mudança de aba mesmo em caso de erro
       try {
-        tabs.forEach(btn => btn.classList.remove('active'));
-        tabContents.forEach(content => content.classList.remove('active'));
-        const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
-        const tabContent = document.getElementById(`tab-${tabId}`);
-        if (tabBtn) tabBtn.classList.add('active');
-        if (tabContent) {
-          tabContent.classList.add('active');
+        const targetContent = document.getElementById(`tab-${tabId}`);
+        const targetBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+        if (targetContent && targetBtn) {
+          const container = targetContent.closest('[class*="-container"]') || targetContent.parentElement;
+          if (container) {
+            container.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          }
+          targetBtn.classList.add('active');
+          targetContent.classList.add('active');
         }
       } catch (forceErr) {
         console.error('[Equipamentos] Erro ao forçar mudança de aba:', forceErr);
@@ -235,10 +236,7 @@
       columns: [
         { field: 'IDEQUIPAMENTO', header: 'ID', editable: false, isId: true, width: '120px' },
         { field: 'REFEQUIPAMENTO', header: 'Referência', editable: true, type: 'text', width: '180px', maxlength: 40 },
-        { field: 'DSEQUIPAMENTO', header: 'Descrição', editable: true, type: 'text', width: '280px', maxlength: 60 },
         { field: 'TIPO_NOME', header: 'Tipo', editable: false, width: '200px' },
-        { field: 'MARCA_NOME', header: 'Marca', editable: false, width: '180px' },
-        { field: 'MODELO_NOME', header: 'Modelo', editable: false, width: '200px' },
         { field: 'CLASSE_NOME', header: 'Classe', editable: false, width: '180px' },
         { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px',
           options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
@@ -669,8 +667,10 @@
       const newConfirmYes = confirmYes.cloneNode(true);
       const newConfirmNo = confirmNo.cloneNode(true);
       
-      // Atualizar texto do botão de confirmação
-      newConfirmYes.textContent = btnText;
+      newConfirmYes.className = 'btn-filtro btn-filtro-danger';
+      newConfirmYes.innerHTML = '<i class=\'bx bx-check\'></i> ' + btnText;
+      newConfirmNo.className = 'btn-filtro btn-filtro-limpar';
+      newConfirmNo.innerHTML = '<i class=\'bx bx-x\'></i> ' + (t('web.modulos.equipamentos.cancelar') || 'Cancelar');
       
       confirmYes.parentNode.replaceChild(newConfirmYes, confirmYes);
       confirmNo.parentNode.replaceChild(newConfirmNo, confirmNo);
@@ -879,22 +879,24 @@
   });
 
   document.getElementById('btnVoltarFiltros')?.addEventListener('click', async () => await showTab('filtros'));
-  document.getElementById('btnNovoEquipamento')?.addEventListener('click', () => {
+
+  function irParaNovoEquipamento() {
     if (equipamentoForm) equipamentoForm.reset();
+    const idEquip = document.getElementById('equipamentoId');
+    const equipId = document.getElementById('equipId');
+    if (idEquip) idEquip.value = '';
+    if (equipId) equipId.value = '';
     const title = document.getElementById('formTitle');
     if (title) title.textContent = t('web.modulos.equipamentos.novoEquipamento');
     showTab('dados');
-  });
+  }
+
+  document.getElementById('btnNovoEquipamento')?.addEventListener('click', irParaNovoEquipamento);
   document.getElementById('btnCancelarDados')?.addEventListener('click', () => showTab('grid'));
   
   // Event listeners para botões do Grid
   document.getElementById('btnVoltarGrid')?.addEventListener('click', async () => await showTab('filtros'));
-  document.getElementById('btnNovoEquipamentoGrid')?.addEventListener('click', () => {
-    if (equipamentoForm) equipamentoForm.reset();
-    const title = document.getElementById('formTitle');
-    if (title) title.textContent = t('web.modulos.equipamentos.novoEquipamento');
-    showTab('dados');
-  });
+  document.getElementById('btnNovoEquipamentoGrid')?.addEventListener('click', irParaNovoEquipamento);
 
   // Exportar para Excel
   document.getElementById('btnExportarExcel')?.addEventListener('click', async () => {
@@ -1012,6 +1014,8 @@
       const nomeEquip = placa ? `${placa}${descricao ? ' - ' + descricao : ''}` : (descricao || 'Equipamento');
       document.getElementById('validadesNomeCadastro').textContent = nomeEquip;
       document.getElementById('validadesCodigoCadastro').textContent = cdCadastro;
+      const elTipo = document.getElementById('validadesTipoCadastro');
+      if (elTipo) elTipo.textContent = 'Equipamento';
       document.getElementById('validadesCadastroInfo').style.display = 'block';
       
       const response = await fetch(`/api/validades/${tpCadastro}/${cdCadastro}`);
@@ -1061,43 +1065,86 @@
       const dtLib = fmtData(val.DTLIBERACAO);
       const dtVal = fmtData(val.DTVALIDADE);
       const dias = val.DIAS_RESTANTES;
+      const removida = !!(val.REMOVIDA || val.DTREMOVIDA);
+      const dtRemovida = removida ? fmtData(val.DTREMOVIDA) : '';
+      const userRemovido = val.SGUSER_REMOVIDO || '—';
       
       let corStatus = '#27ae60';
-      let textoStatus = `✓ Válida (${dias} dias)`;
+      let textoStatus = `Válida (${dias} dias)`;
+      let statusTipo = 'valida';
       
       if (val.STATUS_VALIDADE === 'VENCIDA') {
         corStatus = '#e74c3c';
-        textoStatus = `✗ VENCIDA (${Math.abs(dias)} dias atrás)`;
+        textoStatus = `VENCIDA (${Math.abs(dias)} dias atrás)`;
+        statusTipo = 'vencida';
       } else if (val.STATUS_VALIDADE === 'VENCENDO') {
         corStatus = '#f39c12';
-        textoStatus = `⚠ Vencendo (${dias} dias)`;
+        textoStatus = `Vencendo (${dias} dias)`;
+        statusTipo = 'vencendo';
       }
       
+      const cardBg = removida ? '#f8f9fa' : '#fff';
+      const cardBorder = removida ? '#dee2e6' : '#e9ecef';
+      
       html += `
-        <div style="background: #fff; border: 1px solid #dee2e6; border-left: 4px solid ${corStatus}; border-radius: 6px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); margin-bottom: 8px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <div style="flex: 1;">
-              <strong style="font-size: 15px; color: #2c3e50; display: block; margin-bottom: 6px;">${val.DSTIPOVALIDADE}</strong>
-              <div style="font-size: 12px; color: #6c757d;">
-                <span style="background: ${corStatus}; color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-right: 8px;">${textoStatus}</span>
-                <span style="color: #95a5a6; font-weight: 600; font-size: 10px; margin-right: 8px;">${val.TPCADASTRO}</span>
-                <span>Nº <strong>${val.NRLIBERACAO}</strong></span>
-                ${val.CERTIFICADORA_NOME ? ` • Certif: <strong>${val.CERTIFICADORA_NOME}</strong>` : ''}
+        <div class="validade-card" style="background: ${cardBg}; border: 1px solid ${cardBorder}; border-left: 5px solid ${corStatus}; border-radius: 8px; padding: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 12px; overflow: hidden; display: flex; min-height: 120px; ${removida ? 'opacity: 0.92;' : ''}">
+          <div style="width: 5px; background: ${corStatus}; flex-shrink: 0;"></div>
+          <div style="flex: 1; padding: 16px 18px; display: flex; flex-direction: column; justify-content: space-between;">
+            <div>
+              <div class="validade-card-header" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+                <div style="flex: 1; min-width: 200px;">
+                  <strong style="font-size: 16px; color: #2c3e50; display: block; margin-bottom: 8px; font-weight: 700;">${val.DSTIPOVALIDADE}</strong>
+                  <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px;">
+                    <span class="validade-status-badge" data-status="${statusTipo}" style="background: ${corStatus}; color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; white-space: nowrap;">
+                      ${textoStatus}
+                    </span>
+                    <span style="color: #6c757d; font-size: 12px; font-weight: 500;">Nº <strong style="color: #2c3e50;">${val.NRLIBERACAO}</strong></span>
+                    ${val.CERTIFICADORA_NOME ? `<span style="color: #6c757d; font-size: 12px;">• Certif: <strong style="color: #495057;">${val.CERTIFICADORA_NOME}</strong></span>` : ''}
+                  </div>
+                </div>
+                <div class="validade-card-actions" style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
+                  <button onclick="window.editarValidade('${val.SEQUENCIA}')" class="btn btn-primary btn-sm">
+                    <i class='bx bx-show'></i> Ver Dados
+                  </button>
+                  ${!removida ? `
+                  <button onclick="window.excluirValidade('${val.SEQUENCIA}')" class="btn btn-secondary btn-sm" style="background: #e74c3c;">
+                    <i class='bx bx-trash'></i> Remover
+                  </button>
+                  ` : ''}
+                </div>
               </div>
             </div>
-            <div style="display: flex; gap: 6px; align-items: center;">
-              <button onclick="window.editarValidade('${val.SEQUENCIA}')" class="btn btn-primary btn-sm">
-                <i class='bx bx-show'></i> Ver Dados
-              </button>
-              <button onclick="window.excluirValidade('${val.SEQUENCIA}')" class="btn btn-secondary btn-sm" style="background: #e74c3c;">
-                <i class='bx bx-trash'></i> Remover
-              </button>
+            <div class="validade-card-footer" style="display: flex; gap: 24px; padding-top: 12px; border-top: 1px solid #f0f0f0; font-size: 13px; flex-wrap: wrap;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <i class='bx bx-calendar' style="color: #6c757d; font-size: 14px;"></i>
+                <span style="color: #6c757d; font-weight: 500;">Liberação:</span>
+                <strong style="color: #2c3e50; margin-left: 4px;">${dtLib}</strong>
+              </div>
+              ${val.SGUSER_LIBERACAO ? `
+              <div style="display: flex; align-items: center; gap: 6px; color: #6c757d;">
+                <i class='bx bx-user-check' style="font-size: 14px;"></i>
+                <span style="font-weight: 500;">Liberado por <strong>${val.SGUSER_LIBERACAO}</strong></span>
+              </div>
+              ` : ''}
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <i class='bx bx-time' style="color: ${corStatus}; font-size: 14px;"></i>
+                <span style="color: #6c757d; font-weight: 500;">Validade:</span>
+                <strong style="color: ${corStatus}; margin-left: 4px;">${dtVal}</strong>
+              </div>
+              ${removida && (dtRemovida || userRemovido !== '—') ? `
+              <div style="display: flex; align-items: center; gap: 6px; color: #6c757d;">
+                <i class='bx bx-user-x' style="font-size: 14px;"></i>
+                <span style="font-weight: 500;">Removida em ${dtRemovida || '—'} por <strong>${userRemovido}</strong></span>
+              </div>
+              ` : ''}
+              ${val.DSLIBERACAO ? `
+              <div style="display: flex; align-items: center; gap: 6px; flex: 1; min-width: 200px;">
+                <i class='bx bx-note' style="color: #6c757d; font-size: 14px;"></i>
+                <span style="color: #6c757d; font-weight: 500;">Obs:</span>
+                <strong style="color: #495057; margin-left: 4px;">${val.DSLIBERACAO}</strong>
+              </div>
+              ` : ''}
             </div>
-          </div>
-          <div style="display: flex; gap: 20px; padding-top: 10px; border-top: 1px solid #f0f0f0; font-size: 12px;">
-            <div><span style="color: #95a5a6;">📅 Liberação:</span> <strong style="color: #2c3e50;">${dtLib}</strong></div>
-            <div><span style="color: #95a5a6;">⏰ Validade:</span> <strong style="color: ${corStatus};">${dtVal}</strong></div>
-            ${val.DSLIBERACAO ? `<div style="flex: 1;"><span style="color: #95a5a6;">📝 Obs:</span> <strong style="color: #6c757d;">${val.DSLIBERACAO}</strong></div>` : ''}
           </div>
         </div>
       `;

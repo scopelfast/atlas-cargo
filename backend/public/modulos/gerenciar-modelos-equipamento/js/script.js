@@ -55,10 +55,16 @@
   }
 
   async function showTab(tabId) {
-    tabs.forEach(btn => btn.classList.remove('active'));
-    tabContents.forEach(content => content.classList.remove('active'));
-    document.querySelector(`.tab-btn[data-tab="${tabId}"]`).classList.add('active');
-    document.getElementById(`tab-${tabId}`).classList.add('active');
+    const targetContent = document.getElementById(`tab-${tabId}`);
+    const targetBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+    if (!targetContent || !targetBtn) return;
+    const container = targetContent.closest('[class*="-container"]') || targetContent.parentElement;
+    if (container) {
+      container.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    }
+    targetBtn.classList.add('active');
+    targetContent.classList.add('active');
 
     if (tabId === 'filtros' || tabId === 'dados') {
       loadCombos();
@@ -366,9 +372,9 @@
       columns: [
         { field: 'CDMODELOEQUIPAMENTO', header: 'Código', editable: false, isId: true, width: '80px' },
         { field: 'DSMODELOEQUIPAMENTO', header: 'Descrição', editable: true, type: 'text', maxlength: 40 },
-        { field: 'TIPO_NOME', header: 'Tipo', editable: false },
-        { field: 'MARCA_NOME', header: 'Marca', editable: false },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px', align: 'right',
+        { field: 'TIPO_NOME', header: 'Tipo', editable: false, width: '140px' },
+        { field: 'MARCA_NOME', header: 'Marca', editable: false, width: '140px' },
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '90px', align: 'right',
           options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }
@@ -470,8 +476,11 @@
       const newConfirmYes = confirmYes.cloneNode(true);
       const newConfirmNo = confirmNo.cloneNode(true);
       
-      // Atualizar texto do botão de confirmação
-      newConfirmYes.textContent = btnText;
+      // Manter classes e ícone no botão de confirmação
+      newConfirmYes.className = 'btn-filtro btn-filtro-danger';
+      newConfirmYes.innerHTML = '<i class=\'bx bx-check\'></i> ' + btnText;
+      newConfirmNo.className = 'btn-filtro btn-filtro-limpar';
+      newConfirmNo.innerHTML = '<i class=\'bx bx-x\'></i> ' + (t('web.modulos.modelosEquipamento.cancelar') || 'Cancelar');
       
       confirmYes.parentNode.replaceChild(newConfirmYes, confirmYes);
       confirmNo.parentNode.replaceChild(newConfirmNo, confirmNo);
@@ -618,24 +627,21 @@
 
   document.getElementById('btnVoltarFiltros')?.addEventListener('click', () => showTab('filtros'));
 
-  document.getElementById('btnNovoRegistro')?.addEventListener('click', () => {
+  function irParaNovoModelo() {
     modeloForm?.reset();
     document.getElementById('modeloCodigo').value = '';
     document.getElementById('formTitle').textContent = t('web.modulos.modelosEquipamento.novoModelo');
     showTab('dados');
-  });
+  }
+
+  document.getElementById('btnNovoRegistro')?.addEventListener('click', irParaNovoModelo);
 
   // Grid tab buttons
   document.getElementById('btnVoltarGrid')?.addEventListener('click', () => {
     showTab('filtros');
   });
 
-  document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
-    modeloForm?.reset();
-    document.getElementById('modeloCodigo').value = '';
-    document.getElementById('formTitle').textContent = t('web.modulos.modelosEquipamento.novoModelo');
-    showTab('dados');
-  });
+  document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', irParaNovoModelo);
   
   document.getElementById('btnCancelar')?.addEventListener('click', () => showTab('grid'));
 

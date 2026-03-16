@@ -21,6 +21,142 @@ const SITUACAO_VIAGEM = {
   'T': 'Em trânsito'
 };
 
+/**
+ * Envia uma única mensagem via Switch Digital (WhatsApp).
+ * Usado ao confirmar convocação: mensagem para o selecionado e para os não selecionados (ACEITA_DESCARTADA).
+ * @returns {Promise<{ ok: boolean, error?: string }>}
+ */
+async function enviarUmaMensagemSwitchDigital(pool, req, { idConvocacao, numeroCelular, corpoMensagem }) {
+  const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
+  const configQuery = await pool.request().query(`
+    SELECT "CHAVE", "VALOR" FROM "CONFIGURACAO"
+    WHERE "CHAVE" IN ('switch_digital_endpoint', 'switch_digital_metodo', 'switch_digital_content_type', 'switch_digital_token', 'switch_digital_user_id', 'switch_digital_queue_id', 'switch_digital_send_signature', 'switch_digital_close_ticket')
+  `);
+  const config = {
+    endpoint: 'https://api.switchdigital.com.br/api/messages/send',
+    metodo: 'POST',
+    contentType: 'application/json',
+    token: '',
+    userId: '',
+    queueId: '',
+    sendSignature: true,
+    closeTicket: true
+  };
+  if (configQuery.recordset) {
+    configQuery.recordset.forEach(r => {
+      const k = r.CHAVE || r.chave;
+      const v = r.VALOR || r.valor;
+      if (k === 'switch_digital_endpoint') config.endpoint = v;
+      if (k === 'switch_digital_metodo') config.metodo = v;
+      if (k === 'switch_digital_content_type') config.contentType = v;
+      if (k === 'switch_digital_token') config.token = v;
+      if (k === 'switch_digital_user_id') config.userId = v;
+      if (k === 'switch_digital_queue_id') config.queueId = v;
+      if (k === 'switch_digital_send_signature') config.sendSignature = (v === 'S');
+      if (k === 'switch_digital_close_ticket') config.closeTicket = (v !== 'N');
+    });
+  }
+  if (!config.token || String(config.token).trim() === '') {
+    return { ok: false, error: 'Token Switch Digital não configurado' };
+  }
+  const numeroLimpo = String(numeroCelular || '').replace(/\D/g, '');
+  if (!numeroLimpo || numeroLimpo.length < 10) {
+    return { ok: false, error: 'Número de celular inválido' };
+  }
+  const requestBody = {
+    number: numeroLimpo,
+    body: corpoMensagem,
+    sendSignature: config.sendSignature,
+    closeTicket: config.closeTicket
+  };
+  if (config.userId && config.userId.trim() !== '') requestBody.userId = config.userId.trim();
+  if (config.queueId && config.queueId.trim() !== '') requestBody.queueId = config.queueId.trim();
+
+  let logStatusEnvio = 'ERRO';
+  let logMensagemErro = null;
+  let logDhEnvio = null;
+  let logStatusHttp = null;
+  let logTempoResposta = null;
+  let logDetalhesJson = null;
+
+  try {
+    const inicio = Date.now();
+    const switchRes = await fetch(config.endpoint, {
+      method: config.metodo,
+      headers: {
+        'Authorization': `Bearer ${config.token}`,
+        'Content-Type': config.contentType
+      },
+      body: JSON.stringify(requestBody)
+    });
+    const tempo = Date.now() - inicio;
+    const responseText = await switchRes.text();
+    let responseData;
+    try { responseData = JSON.parse(responseText); } catch (e) { responseData = responseText; }
+
+    if (switchRes.ok) {
+      logStatusEnvio = 'ENVIADO';
+      logDhEnvio = new Date();
+      logStatusHttp = switchRes.status;
+      logTempoResposta = tempo;
+      logDetalhesJson = typeof responseData === 'object' ? JSON.stringify(responseData) : String(responseData);
+    } else {
+      logMensagemErro = (typeof responseData === 'object' ? (responseData.message || responseData.error || JSON.stringify(responseData)) : String(responseData)).substring(0, 500);
+      logStatusHttp = switchRes.status;
+      logTempoResposta = tempo;
+      logDetalhesJson = typeof responseData === 'object' ? JSON.stringify(responseData) : String(responseData);
+    }
+  } catch (errApi) {
+    logMensagemErro = (errApi.message || '').substring(0, 500);
+    logDetalhesJson = JSON.stringify({ error: errApi.message });
+  }
+
+  const sgUserLog = getSgUser(req) || 'SYSTEM';
+  const detalhesStr = (logDetalhesJson || '').substring(0, 4000);
+
+  try {
+    await pool.request()
+      .input('IDCONVOCACAO', sql.Int, idConvocacao)
+      .input('NRCELULAR', numeroLimpo)
+      .input('STATUS_ENVIO', logStatusEnvio)
+      .input('MENSAGEM_ERRO', logMensagemErro)
+      .input('DHENVIO', logDhEnvio)
+      .input('DHRESPOSTA_API', logDhEnvio)
+      .input('TENTATIVAS', 1)
+      .input('sgUser', sgUserLog)
+      .query(`
+        INSERT INTO [dbo].[LOG_ENVIO_WHATSAPP]
+          ([IDCONVOCACAO], [NRCELULAR], [STATUS_ENVIO], [MENSAGEM_ERRO], [DHENVIO], [DHRESPOSTA_API], [TENTATIVAS], [DHMAINTENANCE], [SGUSER], [SERVERORIG])
+        VALUES
+          (@IDCONVOCACAO, @NRCELULAR, @STATUS_ENVIO, @MENSAGEM_ERRO, @DHENVIO, @DHRESPOSTA_API, @TENTATIVAS, CURRENT_TIMESTAMP, @sgUser, 'AppDVcargas')
+      `);
+  } catch (logErr) {
+    console.error('[SWITCH DIGITAL] Erro ao gravar LOG_ENVIO_WHATSAPP:', logErr.message);
+  }
+
+  try {
+    await pool.request()
+      .input('IDCONVOCACAO', sql.Int, idConvocacao)
+      .input('TIPO', 'envio_switch')
+      .input('TITULO', `Switch Digital - ${logStatusEnvio === 'ENVIADO' ? 'Enviado' : 'Erro'}`)
+      .input('MENSAGEM', logStatusEnvio === 'ENVIADO' ? `Enviado para ${numeroLimpo}` : (logMensagemErro || 'Erro no envio'))
+      .input('DETALHES', detalhesStr)
+      .input('STATUS_HTTP', logStatusHttp)
+      .input('TEMPO_RESPOSTA', logTempoResposta)
+      .input('sgUser', sgUserLog)
+      .query(`
+        INSERT INTO [dbo].[LOGSWEBHOOKMETA]
+          ([IDCONVOCACAO], [TIPO], [TITULO], [MENSAGEM], [DETALHES], [STATUS_HTTP], [TEMPO_RESPOSTA], [DHLOG], [DHMAINTENANCE], [SGUSER], [SERVERORIG])
+        VALUES
+          (@IDCONVOCACAO, @TIPO, @TITULO, @MENSAGEM, @DETALHES, @STATUS_HTTP, @TEMPO_RESPOSTA, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, @sgUser, 'AppDVcargas')
+      `);
+  } catch (logErr) {
+    console.error('[SWITCH DIGITAL] Erro ao gravar LOGSWEBHOOKMETA:', logErr.message);
+  }
+
+  return { ok: logStatusEnvio === 'ENVIADO', error: logMensagemErro || undefined };
+}
+
 // Controller methods
 const viagemController = {
   // Listar viagens com filtros
@@ -180,8 +316,8 @@ const viagemController = {
         DSTIPOVIAGEM: v.DSTIPOVIAGEM || 'Não informado',
         SGUSERINCLUSAO: v.SGUSERINCLUSAO || 'Não informado',
         DHINCLUSAO: v.DHINCLUSAO,
-        CDCONTRATADOR: v.CDCONTRATADOR,
-        CONTRATADOR_NOME: v.CONTRATADOR_NOME || 'Não informado',
+        CDCONTRATADOR: v.CDCONTRATADOR ?? v.cdcontratador,
+        CONTRATADOR_NOME: v.CONTRATADOR_NOME ?? v.contratador_nome ?? 'Não informado',
         FGACTIVE: v.FGACTIVE === 'A' ? 'S' : 'N',
         CDCLASSEFROTA: v.CDCLASSEFROTA,
         DSCLASSEFROTA: v.DSCLASSEFROTA || 'Não informado',
@@ -200,10 +336,10 @@ const viagemController = {
         DESTINO_ESTADO: v.DESTINO_ESTADO || 'Não informado',
         DESTINO_CIDADE: v.DESTINO_CIDADE || 'Não informado',
         DESTINO_CODIGO: v.DESTINO_CODIGO,
-        QTD_ACIONADOS: v.QTD_ACIONADOS || 0,
-        QTD_ACEITE: v.QTD_ACEITE || 0,
-        QTD_RECUSA: v.QTD_RECUSA || 0,
-        TEM_CONFIRMADO: v.TEM_CONFIRMADO || 'N',
+        QTD_ACIONADOS: v.QTD_ACIONADOS ?? v.qtd_acionados ?? 0,
+        QTD_ACEITE: v.QTD_ACEITE ?? v.qtd_aceite ?? 0,
+        QTD_RECUSA: v.QTD_RECUSA ?? v.qtd_recusa ?? 0,
+        TEM_CONFIRMADO: v.TEM_CONFIRMADO ?? v.tem_confirmado ?? 'N',
         QTD_COMPROVANTES: (v.QTD_COMPROVANTES ?? v.qtd_comprovantes ?? 0),
         TEM_COMPROVANTE: ((v.QTD_COMPROVANTES ?? v.qtd_comprovantes ?? 0) > 0) ? 'S' : 'N'
       }));
@@ -225,8 +361,15 @@ const viagemController = {
       } = req.body;
 
       // Validações obrigatórias
-      if (!FGSITVIAGEM || !CDSITUACAOVIAGEM || !CDTIPOVIAGEM) {
-        return res.status(400).json({ error: 'Campos obrigatórios não preenchidos.' });
+      const faltandoCriar = [];
+      if (!FGSITVIAGEM) faltandoCriar.push('FGSITVIAGEM (situação)');
+      if (!CDSITUACAOVIAGEM) faltandoCriar.push('CDSITUACAOVIAGEM (cód. situação)');
+      if (!CDTIPOVIAGEM) faltandoCriar.push('CDTIPOVIAGEM (tipo de viagem)');
+      if (faltandoCriar.length > 0) {
+        return res.status(400).json({
+          error: 'Campos obrigatórios não preenchidos.',
+          camposRequeridos: faltandoCriar
+        });
       }
 
       const pool = await poolPromise;
@@ -298,8 +441,16 @@ const viagemController = {
         VLFRETE, PESO, CUBAGEM, OBSERV, FGACTIVE, FGRASTREADO, MOEDA
       } = req.body;
 
-      if (!FGSITVIAGEM || !CDSITUACAOVIAGEM || !CDTIPOVIAGEM || !FGACTIVE) {
-        return res.status(400).json({ error: 'Campos obrigatórios não preenchidos.' });
+      const faltando = [];
+      if (!FGSITVIAGEM) faltando.push('FGSITVIAGEM (situação)');
+      if (!CDSITUACAOVIAGEM) faltando.push('CDSITUACAOVIAGEM (cód. situação)');
+      if (!CDTIPOVIAGEM) faltando.push('CDTIPOVIAGEM (tipo de viagem)');
+      if (!FGACTIVE) faltando.push('FGACTIVE (ativo)');
+      if (faltando.length > 0) {
+        return res.status(400).json({
+          error: 'Campos obrigatórios não preenchidos.',
+          camposRequeridos: faltando
+        });
       }
 
       const sgUserUpd = getSgUser(req);
@@ -451,15 +602,19 @@ const viagemController = {
             [r].[DSROTEIRO],
             [co].[ESTADO] AS ORIGEM_ESTADO,
             [co].[NMCIDADE] AS ORIGEM_CIDADE,
+            [po].[SGPAIS] AS ORIGEM_PAIS,
             [cd].[ESTADO] AS DESTINO_ESTADO,
             [cd].[NMCIDADE] AS DESTINO_CIDADE,
+            [pd].[SGPAIS] AS DESTINO_PAIS,
             [cf].[DSCLASSEFROTA],
             [tv].[DSTIPOVIAGEM],
             upper(COALESCE(NULLIF(TRIM([cg].[RZSOCIAL]), ''), TRIM([cg].[NMFANTASIA]))) AS CONTRATADOR_NOME
           FROM [dbo].[VIAGEMMESTRE] [v]
           LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
           LEFT JOIN [dbo].[CIDADE] [co] ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
+          LEFT JOIN [dbo].[PAIS] [po] ON [co].[CDPAIS] = [po].[CDPAIS]
           LEFT JOIN [dbo].[CIDADE] [cd] ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
+          LEFT JOIN [dbo].[PAIS] [pd] ON [cd].[CDPAIS] = [pd].[CDPAIS]
           LEFT JOIN [dbo].[CLASSEFROTA] [cf] ON [v].[CDCLASSEFROTA] = [cf].[CDCLASSEFROTA]
           LEFT JOIN [dbo].[TIPOVIAGEM] [tv] ON [v].[CDTIPOVIAGEM] = [tv].[CDTIPOVIAGEM]
           LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [v].[CDCONTRATADOR] = [cg].[CDCADASTRO]
@@ -507,9 +662,11 @@ const viagemController = {
         ORIGEM_ESTADO: get(v, 'ORIGEM_ESTADO'),
         ORIGEM_CIDADE: get(v, 'ORIGEM_CIDADE'),
         ORIGEM_CODIGO: v.CDCIDADEORIGEM ?? v.cdcidadeorigem,
+        ORIGEM_PAIS: get(v, 'ORIGEM_PAIS'),
         DESTINO_ESTADO: get(v, 'DESTINO_ESTADO'),
         DESTINO_CIDADE: get(v, 'DESTINO_CIDADE'),
-        DESTINO_CODIGO: v.CDCIDADEDESTINO ?? v.cdcidadedestino
+        DESTINO_CODIGO: v.CDCIDADEDESTINO ?? v.cdcidadedestino,
+        DESTINO_PAIS: get(v, 'DESTINO_PAIS')
       });
     } catch (err) {
       console.error('Erro ao buscar viagem:', err);
@@ -734,31 +891,67 @@ const viagemController = {
 
   listarRoteiros: async (req, res) => {
     try {
-      const { origem, destino, roteiro } = req.query;
+      const { origem, destino, roteiro, origemPais, origemEstado, destinoPais, destinoEstado } = req.query;
       let query = `
         SELECT [r].[IDROTEIRO], [r].[DSROTEIRO], [r].[DISTANCIAKM],
                [r].[CDCIDADEORIGEM] AS ORIGEM_CODIGO,
                [co].[ESTADO] AS ORIGEM_ESTADO, [co].[NMCIDADE] AS ORIGEM_CIDADE,
+               [po].[SGPAIS] AS ORIGEM_PAIS,
                [r].[CDCIDADEDESTINO] AS DESTINO_CODIGO,
-               [cd].[ESTADO] AS DESTINO_ESTADO, [cd].[NMCIDADE] AS DESTINO_CIDADE
+               [cd].[ESTADO] AS DESTINO_ESTADO, [cd].[NMCIDADE] AS DESTINO_CIDADE,
+               [pd].[SGPAIS] AS DESTINO_PAIS
         FROM [dbo].[ROTEIRO] r
         LEFT JOIN [dbo].[CIDADE] co ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
+        LEFT JOIN [dbo].[PAIS] [po] ON [co].[CDPAIS] = [po].[CDPAIS]
         LEFT JOIN [dbo].[CIDADE] cd ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
+        LEFT JOIN [dbo].[PAIS] [pd] ON [cd].[CDPAIS] = [pd].[CDPAIS]
         WHERE 1=1
       `;
 
       const params = [];
-      if (origem) {
+      const origemNum = origem != null && origem !== '' ? parseInt(origem, 10) : NaN;
+      const destinoNum = destino != null && destino !== '' ? parseInt(destino, 10) : NaN;
+      const op = (origemPais != null && String(origemPais).trim() !== '') ? String(origemPais).trim().toUpperCase() : '';
+      const oe = (origemEstado != null && String(origemEstado).trim() !== '') ? String(origemEstado).trim() : '';
+      const dp = (destinoPais != null && String(destinoPais).trim() !== '') ? String(destinoPais).trim().toUpperCase() : '';
+      const de = (destinoEstado != null && String(destinoEstado).trim() !== '') ? String(destinoEstado).trim() : '';
+
+      if (!isNaN(origemNum)) {
         query += ` AND [r].[CDCIDADEORIGEM] = @ORIGEM`;
-        params.push({ name: 'ORIGEM', value: parseInt(origem) });
+        params.push({ name: 'ORIGEM', value: origemNum });
+      } else if (oe) {
+        query += ` AND [co].[ESTADO] = @ORIGEM_ESTADO`;
+        params.push({ name: 'ORIGEM_ESTADO', value: oe });
+        if (op) {
+          query += ` AND [po].[SGPAIS] = @ORIGEM_PAIS`;
+          params.push({ name: 'ORIGEM_PAIS', value: op });
+        }
+      } else if (op) {
+        query += ` AND [po].[SGPAIS] = @ORIGEM_PAIS`;
+        params.push({ name: 'ORIGEM_PAIS', value: op });
       }
-      if (destino) {
+
+      if (!isNaN(destinoNum)) {
         query += ` AND [r].[CDCIDADEDESTINO] = @DESTINO`;
-        params.push({ name: 'DESTINO', value: parseInt(destino) });
+        params.push({ name: 'DESTINO', value: destinoNum });
+      } else if (de) {
+        query += ` AND [cd].[ESTADO] = @DESTINO_ESTADO`;
+        params.push({ name: 'DESTINO_ESTADO', value: de });
+        if (dp) {
+          query += ` AND [pd].[SGPAIS] = @DESTINO_PAIS`;
+          params.push({ name: 'DESTINO_PAIS', value: dp });
+        }
+      } else if (dp) {
+        query += ` AND [pd].[SGPAIS] = @DESTINO_PAIS`;
+        params.push({ name: 'DESTINO_PAIS', value: dp });
       }
+
       if (roteiro) {
-        query += ` AND [r].[IDROTEIRO] = @ROTEIRO`;
-        params.push({ name: 'ROTEIRO', value: parseInt(roteiro) });
+        const roteiroNum = parseInt(roteiro, 10);
+        if (!isNaN(roteiroNum)) {
+          query += ` AND [r].[IDROTEIRO] = @ROTEIRO`;
+          params.push({ name: 'ROTEIRO', value: roteiroNum });
+        }
       }
 
       query += ` ORDER BY [r].[IDROTEIRO]`;
@@ -945,20 +1138,37 @@ const viagemController = {
       const viagem = viagemResult.recordset[0];
       const { CDCLASSEFROTA, FGRASTREADO, CDCIDADEORIGEM, CDCIDADEDESTINO, IDROTEIRO, CDCONTRATADOR } = viagem;
 
-      // Buscar micro-regiões E ESTADOS das cidades de origem e destino
+      // Regras de compatibilidade (liga/desliga) – lidas da CONFIGURACAO
+      const regrasKeys = ['regra_compativel_rastreamento', 'regra_compativel_classe_frota', 'regra_compativel_local_embarque', 'regra_compativel_local_desembarque'];
+      const regrasResult = await pool.query(
+        `SELECT "CHAVE", "VALOR" FROM "CONFIGURACAO" WHERE "CHAVE" = ANY($1::text[])`,
+        [regrasKeys]
+      );
+      const regrasMap = {};
+      (regrasResult.rows || []).forEach(r => { regrasMap[r.CHAVE || r.chave] = ((r.VALOR || r.valor) || 'S').toString().toUpperCase(); });
+      const regra = (k) => regrasMap[k] === 'S';
+      const validarRastreamento = regra('regra_compativel_rastreamento');
+      const validarClasseFrota = regra('regra_compativel_classe_frota');
+      const validarLocalEmbarque = regra('regra_compativel_local_embarque');
+      const validarLocalDesembarque = regra('regra_compativel_local_desembarque');
+
+      // Buscar país (sigla), CDUF e CDMESOREGIAO das cidades de origem e destino (roteiro usa CDCIDADE; derivamos País/Estado/Mesorregião para validar com CADASTRO_LOCAL_PREFERIDO)
       const cidadesResult = await pool
         .request()
         .input('ORIGEM', CDCIDADEORIGEM || null)
         .input('DESTINO', CDCIDADEDESTINO || null)
         .query(`
           SELECT 
-            [CDCIDADE],
-            [CDMICROREGIAO],
-            [CDUF],
-            [NMCIDADE],
-            [ESTADO]
-          FROM [dbo].[CIDADE]
-          WHERE [CDCIDADE] IN (@ORIGEM, @DESTINO)
+            [c].[CDCIDADE],
+            [c].[CDMICROREGIAO],
+            [c].[CDUF],
+            [c].[CDMESOREGIAO],
+            [c].[NMCIDADE],
+            [c].[ESTADO],
+            [p].[SGPAIS] AS [PAIS]
+          FROM [dbo].[CIDADE] [c]
+          LEFT JOIN [dbo].[PAIS] [p] ON [p].[CDPAIS] = [c].[CDPAIS]
+          WHERE [c].[CDCIDADE] IN (@ORIGEM, @DESTINO)
         `);
 
       const microregioes = cidadesResult.recordset.map(c => ({
@@ -966,11 +1176,23 @@ const viagemController = {
         microregiao: c.CDMICROREGIAO
       })).filter(m => m.microregiao);
 
-      // Buscar motoristas que têm a classe de frota cadastrada na tabela CLASSEFROTA_CG
-      // A relação entre motoristas e classes de frota está na tabela CLASSEFROTA_CG, não em EQUIPAMENTO
+      const getVal = (row, key) => (row && (row[key] != null ? row[key] : row[key.toLowerCase && key.toLowerCase()]));
+      const cidadeOrigem = (cidadesResult.recordset || []).find(c => getVal(c, 'CDCIDADE') == CDCIDADEORIGEM);
+      const cidadeDestino = (cidadesResult.recordset || []).find(c => getVal(c, 'CDCIDADE') == CDCIDADEDESTINO);
+      // Origem: país (sigla), CDUF, CDMESOREGIAO para regra local embarque (CADASTRO_LOCAL_PREFERIDO TIPO='E')
+      const origemPais = CDCIDADEORIGEM ? (getVal(cidadeOrigem, 'PAIS') || getVal(cidadeOrigem, 'SGPAIS') || 'BR') : '';
+      const origemCduf = cidadeOrigem != null ? (getVal(cidadeOrigem, 'CDUF') ?? null) : null;
+      const origemCmesoregiao = cidadeOrigem != null ? (getVal(cidadeOrigem, 'CDMESOREGIAO') ?? null) : null;
+      // Destino: país (sigla), CDUF, CDMESOREGIAO para regra local desembarque (CADASTRO_LOCAL_PREFERIDO TIPO='D')
+      const destinoPais = CDCIDADEDESTINO ? (getVal(cidadeDestino, 'PAIS') || getVal(cidadeDestino, 'SGPAIS') || 'BR') : '';
+      const destinoCduf = cidadeDestino != null ? (getVal(cidadeDestino, 'CDUF') ?? null) : null;
+      const destinoCmesoregiao = cidadeDestino != null ? (getVal(cidadeDestino, 'CDMESOREGIAO') ?? null) : null;
+
+      // Uma linha por motorista: filtro por classe via EXISTS (sem JOIN que multiplica linhas).
+      // Não retornamos classe de frota na lista de compatíveis; a coluna foi removida da tela.
 
       let query = `
-        SELECT DISTINCT
+        SELECT
           [cg].[CDCADASTRO] AS CDCADASTRO_MOTORISTA,
           [cg].[RZSOCIAL] AS NOME_MOTORISTA,
           [cg].[NRCELULAR] AS CELULAR,
@@ -983,14 +1205,13 @@ const viagemController = {
           [c].[ESTADO] AS CIDADE_ESTADO,
           [c].[CDMICROREGIAO],
           [mr].[DSMICROREGIAO] AS MICROREGIAO_NOME,
-          [cfcg].[CDCLASSEFROTA],
-          [cf].[DSCLASSEFROTA] AS CLASSE_FROTA_NOME,
           CASE 
             WHEN EXISTS (
               SELECT 1 
               FROM [dbo].[CONVOCACAO] conv 
               WHERE [conv].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO] 
                 AND [conv].[IDVIAGEM] = @IDVIAGEM
+                AND [conv].[DHENVIOMETA] IS NOT NULL
             ) THEN 1 
             ELSE 0 
           END AS FOI_ACIONADO,
@@ -1010,9 +1231,8 @@ const viagemController = {
         FROM [dbo].[CADASTROGERAL] [cg]
         INNER JOIN [dbo].[CIDADE] [c] ON [cg].[CDCIDADE] = [c].[CDCIDADE]
         LEFT JOIN [dbo].[MICROREGIAO] [mr] ON [c].[CDUF] = [mr].[CDUF] AND [c].[CDMICROREGIAO] = [mr].[CDMICROREGIAO]
-        INNER JOIN [dbo].[CLASSEFROTA_CG] [cfcg] ON [cg].[CDCADASTRO] = [cfcg].[CDCADASTRO]
-        LEFT JOIN [dbo].[CLASSEFROTA] [cf] ON [cfcg].[CDCLASSEFROTA] = [cf].[CDCLASSEFROTA]
         LEFT JOIN [dbo].[CADASTROGERAL] [t] ON [cg].[CDTRANSPORTADOR] = [t].[CDCADASTRO]
+        LEFT JOIN [dbo].[MOTORISTA_COMPLEMENTO] [mc] ON [cg].[CDCADASTRO] = [mc].[CDCADASTRO]
         LEFT JOIN [dbo].[EMPRESA] [e] ON CAST([t].[CGCCPF] AS TEXT) = CAST([e].[CGCMATRIZ] AS TEXT)
         WHERE (
           [cg].[FGTIPOCADASTRO] IN ('M','A','G','T')
@@ -1023,8 +1243,27 @@ const viagemController = {
           OR COALESCE([cg].[FGTRANSPORTADOR], 'N') = 'S'
         )
           AND [cg].[FGACTIVE] = 'A'
-          AND [cfcg].[FGACTIVE] = 'S'
-          AND [cfcg].[CDCLASSEFROTA] = @CDCLASSEFROTA
+          AND EXISTS (
+            SELECT 1 FROM [dbo].[CLASSEFROTA_CG] [cfcg]
+            WHERE [cfcg].[CDCADASTRO] = [cg].[CDCADASTRO] AND [cfcg].[FGACTIVE] = 'S'
+            ${validarClasseFrota ? `AND [cfcg].[CDCLASSEFROTA] = @CDCLASSEFROTA` : ''}
+          )
+          ${validarLocalEmbarque && CDCIDADEORIGEM ? `AND (
+            ( NOT EXISTS (SELECT 1 FROM [dbo].[CADASTRO_LOCAL_PREFERIDO] [lp] WHERE [lp].[CDCADASTRO] = [cg].[CDCADASTRO] AND [lp].[TIPO] = 'E') )
+            OR ( EXISTS (SELECT 1 FROM [dbo].[CADASTRO_LOCAL_PREFERIDO] [lp] WHERE [lp].[CDCADASTRO] = [cg].[CDCADASTRO] AND [lp].[TIPO] = 'E'
+              AND [lp].[PAIS] = @ORIGEM_PAIS
+              AND ([lp].[CDUF] IS NULL OR [lp].[CDUF] = @ORIGEM_CDUF)
+              AND ([lp].[CDMESOREGIAO] IS NULL OR [lp].[CDMESOREGIAO] = @ORIGEM_CDMESOREGIAO)
+            ) )
+          )` : ''}
+          ${validarLocalDesembarque && CDCIDADEDESTINO ? `AND (
+            ( NOT EXISTS (SELECT 1 FROM [dbo].[CADASTRO_LOCAL_PREFERIDO] [lp] WHERE [lp].[CDCADASTRO] = [cg].[CDCADASTRO] AND [lp].[TIPO] = 'D') )
+            OR ( EXISTS (SELECT 1 FROM [dbo].[CADASTRO_LOCAL_PREFERIDO] [lp] WHERE [lp].[CDCADASTRO] = [cg].[CDCADASTRO] AND [lp].[TIPO] = 'D'
+              AND [lp].[PAIS] = @DESTINO_PAIS
+              AND ([lp].[CDUF] IS NULL OR [lp].[CDUF] = @DESTINO_CDUF)
+              AND ([lp].[CDMESOREGIAO] IS NULL OR [lp].[CDMESOREGIAO] = @DESTINO_CDMESOREGIAO)
+            ) )
+          )` : ''}
       `;
 
       const request = pool.request();
@@ -1034,17 +1273,25 @@ const viagemController = {
       // Adicionar IDROTEIRO para buscar motoristas experientes nesta rota (0 = não filtrar por rota)
       request.input('IDROTEIRO', sql.Int, IDROTEIRO ? parseInt(IDROTEIRO) : 0);
 
-      // A classe de frota na tabela CLASSEFROTA_CG parece ser SmallInt, não Decimal
-      if (CDCLASSEFROTA) {
-        const classeFrotaNum = parseInt(CDCLASSEFROTA);
-        request.input('CDCLASSEFROTA', sql.SmallInt, classeFrotaNum);
-      } else {
-        return res.status(400).json({ error: 'Classe de frota não informada na viagem.' });
+      // Classe de frota – só exige parâmetro quando a regra está ligada
+      if (validarClasseFrota) {
+        if (!CDCLASSEFROTA) return res.status(400).json({ error: 'Classe de frota não informada na viagem.' });
+        request.input('CDCLASSEFROTA', sql.SmallInt, parseInt(CDCLASSEFROTA));
       }
 
-      // Aplicar filtros comuns
-      // Filtro de rastreado
-      if (FGRASTREADO === 'S') {
+      if (validarLocalEmbarque && CDCIDADEORIGEM) {
+        request.input('ORIGEM_PAIS', sql.VarChar, origemPais || '');
+        request.input('ORIGEM_CDUF', sql.SmallInt, origemCduf != null ? parseInt(origemCduf) : null);
+        request.input('ORIGEM_CDMESOREGIAO', sql.SmallInt, origemCmesoregiao != null ? parseInt(origemCmesoregiao) : null);
+      }
+      if (validarLocalDesembarque && CDCIDADEDESTINO) {
+        request.input('DESTINO_PAIS', sql.VarChar, destinoPais || '');
+        request.input('DESTINO_CDUF', sql.SmallInt, destinoCduf != null ? parseInt(destinoCduf) : null);
+        request.input('DESTINO_CDMESOREGIAO', sql.SmallInt, destinoCmesoregiao != null ? parseInt(destinoCmesoregiao) : null);
+      }
+
+      // Aplicar filtros comuns – rastreado só quando regra ligada
+      if (validarRastreamento && FGRASTREADO === 'S') {
         query += ` AND COALESCE([cg].[FGRASTREADO], 'N') = 'S'`;
       }
 
@@ -1102,8 +1349,6 @@ const viagemController = {
           CIDADE_ESTADO: get('CIDADE_ESTADO'),
           CDMICROREGIAO: get('CDMICROREGIAO'),
           MICROREGIAO_NOME: get('MICROREGIAO_NOME'),
-          CDCLASSEFROTA: get('CDCLASSEFROTA'),
-          CLASSE_FROTA_NOME: get('CLASSE_FROTA_NOME'),
           FOI_ACIONADO: get('FOI_ACIONADO'),
           QTVIAGENS: get('QTVIAGENS'),
           QTVIAGENS_NESTA_ROTA: get('QTVIAGENS_NESTA_ROTA'),
@@ -1123,6 +1368,111 @@ const viagemController = {
       res.status(500).json({ 
         error: 'Erro ao buscar motoristas compatíveis.',
         details: process.env.NODE_ENV === 'development' ? err.message : undefined
+      });
+    }
+  },
+
+  // Regras de compatibilidade (liga/desliga) – GET
+  obterRegrasCompatibilidade: async (req, res) => {
+    try {
+      const pool = await poolPromise;
+      const keys = [
+        'regra_compativel_rastreamento',
+        'regra_compativel_classe_frota',
+        'regra_compativel_local_embarque',
+        'regra_compativel_local_desembarque'
+      ];
+      const result = await pool.query(
+        `SELECT "CHAVE", "VALOR" FROM "CONFIGURACAO" WHERE "CHAVE" = ANY($1::text[])`,
+        [keys]
+      );
+      const rows = result.rows || [];
+      const get = (k) => (rows.find(r => (r.CHAVE || r.chave) === k) || {})?.VALOR ?? (rows.find(r => (r.chave || r.CHAVE) === k) || {})?.valor;
+      res.json({
+        rastreamento: (get('regra_compativel_rastreamento') || 'S').toUpperCase() === 'S',
+        classeFrota: (get('regra_compativel_classe_frota') || 'S').toUpperCase() === 'S',
+        localEmbarque: (get('regra_compativel_local_embarque') || 'S').toUpperCase() === 'S',
+        localDesembarque: (get('regra_compativel_local_desembarque') || 'S').toUpperCase() === 'S'
+      });
+    } catch (err) {
+      console.error('Erro ao obter regras de compatibilidade:', err);
+      res.status(500).json({ error: 'Erro ao carregar regras.' });
+    }
+  },
+
+  // Regras de compatibilidade – PUT (grava CONFIGURACAO + auditoria)
+  salvarRegrasCompatibilidade: async (req, res) => {
+    try {
+      const sgUser = getSgUser(req);
+      if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+      const { rastreamento, classeFrota, localEmbarque, localDesembarque } = req.body || {};
+      const pool = await poolPromise;
+      const toS = (v) => (v === true || v === 'S' || v === 's' || v === '1') ? 'S' : 'N';
+      const novos = {
+        regra_compativel_rastreamento: toS(rastreamento),
+        regra_compativel_classe_frota: toS(classeFrota),
+        regra_compativel_local_embarque: toS(localEmbarque),
+        regra_compativel_local_desembarque: toS(localDesembarque)
+      };
+      const keys = Object.keys(novos);
+      let atuais = { rows: [] };
+      try {
+        atuais = await pool.query(
+          `SELECT "CHAVE", "VALOR" FROM "CONFIGURACAO" WHERE "CHAVE" = ANY($1::text[])`,
+          [keys]
+        );
+      } catch (e) {
+        console.error('Erro ao ler CONFIGURACAO (regras compatibilidade):', e?.message || e);
+        return res.status(500).json({
+          error: 'Tabela CONFIGURACAO não encontrada ou sem permissão. Verifique o banco.',
+          details: process.env.NODE_ENV === 'development' ? (e?.message || String(e)) : undefined
+        });
+      }
+      const mapaAtual = {};
+      (atuais.rows || []).forEach(r => { mapaAtual[r.CHAVE || r.chave] = (r.VALOR || r.valor) || 'S'; });
+      for (const chave of keys) {
+        const valorNovo = novos[chave];
+        const valorAnt = mapaAtual[chave] || 'S';
+        if (valorAnt !== valorNovo) {
+          try {
+            await pool.query(
+              `INSERT INTO "REGRA_COMPATIVEL_AUDIT" ("SGUSER", "CHAVE", "VALOR_ANTERIOR", "VALOR_NOVO") VALUES ($1, $2, $3, $4)`,
+              [sgUser, chave, valorAnt, valorNovo]
+            );
+          } catch (errAudit) {
+            console.warn('Auditoria regras (REGRA_COMPATIVEL_AUDIT) ignorada:', errAudit?.message || errAudit);
+            // Continua e grava na CONFIGURACAO mesmo se a auditoria falhar
+          }
+        }
+        const descricao = 'Regra compatíveis: ' + chave.replace('regra_compativel_', '');
+        try {
+          const updateResult = await pool.query(
+            `UPDATE "CONFIGURACAO" SET "VALOR" = $1, "DHMAINTENANCE" = CURRENT_TIMESTAMP WHERE "CHAVE" = $2`,
+            [valorNovo, chave]
+          );
+          const updated = (updateResult.rowCount ?? 0) > 0;
+          if (!updated) {
+            await pool.query(
+              `INSERT INTO "CONFIGURACAO" ("CHAVE", "VALOR", "DESCRICAO", "DHMAINTENANCE") VALUES ($1, $2, $3, CURRENT_TIMESTAMP)`,
+              [chave, valorNovo, descricao]
+            );
+          }
+        } catch (errConfig) {
+          const msg = errConfig?.message || String(errConfig);
+          console.error('Erro ao gravar CONFIGURACAO (regras compatibilidade):', msg);
+          return res.status(500).json({
+            error: 'Erro ao salvar regras.',
+            details: process.env.NODE_ENV === 'development' ? msg : undefined
+          });
+        }
+      }
+      res.json({ success: true, message: 'Regras salvas com sucesso. Alterações registradas para auditoria.' });
+    } catch (err) {
+      const msg = err?.message || String(err);
+      console.error('Erro ao salvar regras de compatibilidade:', err);
+      res.status(500).json({
+        error: 'Erro ao salvar regras. Verifique se as tabelas CONFIGURACAO e REGRA_COMPATIVEL_AUDIT existem.',
+        details: process.env.NODE_ENV === 'development' ? msg : undefined
       });
     }
   },
@@ -1310,6 +1660,8 @@ const viagemController = {
           [c].[SGUSUARIO_OPERADOR],
           [c].[LATITUDE],
           [c].[LONGITUDE],
+          [c].[NRCELULAR],
+          [c].[DHENVIOMETA],
           [c].[CDMOTIVORECUSA],
           [mr].[DSMOTIVO] AS MOTIVO_RECUSA,
           [c].[CDMOTIVOREABERTURA],
@@ -1617,12 +1969,12 @@ const viagemController = {
         return res.status(403).json({ error: 'Usuário não encontrado ou inativo. Não é possível confirmar convocações.' });
       }
 
-      // Primeiro, buscar a convocação para obter o IDVIAGEM
+      // Primeiro, buscar a convocação para obter o IDVIAGEM e o motorista (CDCADASTRO_MOTORISTA)
       const convocacaoResult = await pool
         .request()
         .input('IDCONVOCACAO', sql.Int, parseInt(id))
         .query(`
-          SELECT [IDCONVOCACAO], [IDVIAGEM], [STATUS]
+          SELECT [IDCONVOCACAO], [IDVIAGEM], [STATUS], [CDCADASTRO_MOTORISTA]
           FROM [dbo].[CONVOCACAO]
           WHERE [IDCONVOCACAO] = @IDCONVOCACAO
         `);
@@ -1703,6 +2055,70 @@ const viagemController = {
               AND [STATUS] = 'ACEITA'
           `);
 
+        // 4. Definir o motorista confirmado como motorista da viagem (VIAGEMMOTORISTA)
+        const cdMotorista = convocacao.CDCADASTRO_MOTORISTA ?? convocacao.cdcadastro_motorista;
+        if (cdMotorista != null) {
+          const reqDelMot = transaction.request();
+          await reqDelMot
+            .input('IDVIAGEM_MOT', sql.Decimal(15, 0), convocacao.IDVIAGEM)
+            .query(`
+              DELETE FROM [dbo].[VIAGEMMOTORISTA]
+              WHERE [IDVIAGEM] = @IDVIAGEM_MOT
+            `);
+          const reqInsMot = transaction.request();
+          await reqInsMot
+            .input('IDVIAGEM_MOT', sql.Decimal(15, 0), convocacao.IDVIAGEM)
+            .input('CDMOTORISTA_MOT', sql.Decimal(15, 0), parseFloat(cdMotorista))
+            .input('sgUser', sql.VarChar(50), sgUserConfirm)
+            .query(`
+              INSERT INTO [dbo].[VIAGEMMOTORISTA] ([IDVIAGEM], [CDMOTORISTA], [DHMAINTENANCE], [SGUSER], [SERVERORIG])
+              VALUES (@IDVIAGEM_MOT, @CDMOTORISTA_MOT, GETDATE(), @sgUser, 'AppDVcargas')
+            `);
+          console.log(`[CONFIRMAR] Motorista ${cdMotorista} definido como motorista da viagem ${convocacao.IDVIAGEM}`);
+        }
+
+        // 5. Atualizar situação da viagem para Programada (FGSITVIAGEM = 'P' e CDSITUACAOVIAGEM correspondente)
+        const sitProgramada = await transaction.request()
+          .query(`
+            SELECT TOP 1 [CDSITUACAOVIAGEM] FROM [dbo].[SITUACAOVIAGEM]
+            WHERE [FGSITVIAGEM] = 'P' AND ([FGACTIVE] = 'A' OR [FGACTIVE] = 'S')
+          `);
+        const cdSituacaoProgramada = sitProgramada.recordset && sitProgramada.recordset[0]
+          ? (sitProgramada.recordset[0].CDSITUACAOVIAGEM ?? sitProgramada.recordset[0].cdsituacaoviagem)
+          : null;
+        if (cdSituacaoProgramada != null) {
+          const reqUpdViagem = transaction.request();
+          await reqUpdViagem
+            .input('IDVIAGEM_SIT', sql.Decimal(15, 0), convocacao.IDVIAGEM)
+            .input('FGSITVIAGEM_SIT', sql.VarChar(1), 'P')
+            .input('CDSITUACAOVIAGEM_SIT', sql.SmallInt, cdSituacaoProgramada)
+            .input('sgUser', sql.VarChar(50), sgUserConfirm)
+            .query(`
+              UPDATE [dbo].[VIAGEMMESTRE]
+              SET [FGSITVIAGEM] = @FGSITVIAGEM_SIT,
+                  [CDSITUACAOVIAGEM] = @CDSITUACAOVIAGEM_SIT,
+                  [DHMAINTENANCE] = GETDATE(),
+                  [SGUSER] = @sgUser
+              WHERE [IDVIAGEM] = @IDVIAGEM_SIT
+            `);
+          console.log(`[CONFIRMAR] Viagem ${convocacao.IDVIAGEM} atualizada para situação Programada`);
+        } else {
+          // Fallback: apenas FGSITVIAGEM se CDSITUACAOVIAGEM não existir na tabela de situações
+          const reqUpdViagem = transaction.request();
+          await reqUpdViagem
+            .input('IDVIAGEM_SIT', sql.Decimal(15, 0), convocacao.IDVIAGEM)
+            .input('FGSITVIAGEM_SIT', sql.VarChar(1), 'P')
+            .input('sgUser', sql.VarChar(50), sgUserConfirm)
+            .query(`
+              UPDATE [dbo].[VIAGEMMESTRE]
+              SET [FGSITVIAGEM] = @FGSITVIAGEM_SIT,
+                  [DHMAINTENANCE] = GETDATE(),
+                  [SGUSER] = @sgUser
+              WHERE [IDVIAGEM] = @IDVIAGEM_SIT
+            `);
+          console.log(`[CONFIRMAR] Viagem ${convocacao.IDVIAGEM} atualizada FGSITVIAGEM = P (CDSITUACAOVIAGEM não encontrado)`);
+        }
+
         await transaction.commit();
         console.log(`[CONFIRMAR] Transação commitada com sucesso para convocação ${id}`);
 
@@ -1762,13 +2178,13 @@ const viagemController = {
           console.warn('⚠️ Erro ao emitir evento WebSocket de confirmação:', wsError.message);
         }
 
-        // Buscar dados do motorista confirmado para enviar WhatsApp
+        // Buscar dados do motorista confirmado para enviar WhatsApp (nome: RZSOCIAL ou NMFANTASIA)
         const motoristaResult = await pool
           .request()
           .input('IDCONVOCACAO_MOT', sql.Int, parseInt(id))
           .query(`
             SELECT 
-              upper(cg.[RZSOCIAL]) AS NOME_MOTORISTA,
+              upper(COALESCE(NULLIF(LTRIM(RTRIM(cg.[RZSOCIAL])), ''), LTRIM(RTRIM(cg.[NMFANTASIA])))) AS NOME_MOTORISTA,
               cg.[NRCELULAR],
               v.[IDVIAGEM],
               v.[DTPREVINICIO],
@@ -1877,47 +2293,131 @@ const viagemController = {
             const contratadorCelular = motorista.CONTRATADOR_CELULAR ? formatarTelefone(motorista.CONTRATADOR_CELULAR) : null;
             const contratadorCelularWhatsApp = motorista.CONTRATADOR_CELULAR ? motorista.CONTRATADOR_CELULAR.toString().replace(/\D/g, '') : null;
 
+            // Nome: usar primeiro nome quando possível (chamar pelo nome sempre)
+            const nomeMotorista = motorista.NOME_MOTORISTA ?? motorista.nome_motorista;
+            const nomeCompleto = (nomeMotorista && String(nomeMotorista).trim()) ? String(nomeMotorista).trim() : 'Motorista';
+            const primeiroNome = nomeCompleto.split(/\s+/)[0] || nomeCompleto;
+
+            // Link do aplicativo do motorista (Configurações do Sistema)
+            let linkAppMotorista = (process.env.APP_URL || process.env.PUBLIC_URL || '').toString().trim();
+            try {
+              const cfgApp = await pool.request().input('k', sql.VarChar(50), 'link_app_motorista').query(`
+                SELECT [VALOR] FROM [dbo].[CONFIGURACAO] WHERE [CHAVE] = @k
+              `);
+              const val = cfgApp.recordset && cfgApp.recordset[0] && (cfgApp.recordset[0].VALOR != null ? cfgApp.recordset[0].VALOR : cfgApp.recordset[0].valor);
+              if (val && String(val).trim()) linkAppMotorista = String(val).trim();
+            } catch (e) {}
+
             // Mensagem de confirmação padronizada
-            const nomeMotorista = motorista.NOME_MOTORISTA || 'Motorista';
             let textoMensagem = `🎉 *PARABÉNS! Você foi selecionado!*\n\n` +
-              `Olá *${nomeMotorista.toUpperCase()}*,\n\n` +
+              `Olá *${primeiroNome}*, como está?\n\n` +
               `Temos uma ótima notícia! Você foi *SELECIONADO* para realizar a viagem:\n\n` +
               `🆔 *ID da Viagem:* ${motorista.IDVIAGEM}\n` +
-              `🗺️ *Rota:* ${motorista.DSROTEIRO || `${motorista.ORIGEM_CIDADE}/${motorista.ORIGEM_ESTADO} → ${motorista.DESTINO_CIDADE}/${motorista.DESTINO_ESTADO}`}\n` +
-              `📅 *Carregamento:* ${formatarDataHora(motorista.DTPREVINICIO)}\n` +
-              `📅 *Descarga:* ${formatarDataHora(motorista.DTPREVFINAL)}\n\n` +
               `✅ *Sua convocação foi CONFIRMADA!*\n\n` +
-              `Por favor, entre em contato conosco para os próximos passos.\n\n`;
+              `Agora, por favor, aguarde o contato do nosso time, com mais instruções dos próximos passos.\n\n` +
+              `Obrigado pela parceria! 🚛`;
 
-            // Adicionar contato do contratador se disponível
-            if (contratadorNome || contratadorCelular) {
-              textoMensagem += `📞 *Entre em Contato:*\n`;
-              if (contratadorNome) {
-                textoMensagem += `*${contratadorNome}*\n`;
-              }
-              if (contratadorCelular) {
-                textoMensagem += `📱 ${contratadorCelular}\n`;
-              }
-              textoMensagem += `\n`;
+            if (linkAppMotorista) {
+              textoMensagem += `\n\n*Aplicativo do motorista:*\n${linkAppMotorista}`;
             }
 
-            textoMensagem += `Aguardamos seu retorno! 🚛`;
-
-            whatsappLink = `https://wa.me/55${celularFormatado}?text=${encodeURIComponent(textoMensagem)}`;
+            const numWa = celularFormatado.length >= 12 ? celularFormatado : '55' + celularFormatado;
+            whatsappLink = `https://wa.me/${numWa}?text=${encodeURIComponent(textoMensagem)}`;
           }
         }
 
-        // Garantir que textoMensagem está definido
+        // Garantir que textoMensagem está definido (fallback mínimo)
         if (!textoMensagem && motorista && motorista.NRCELULAR) {
-          // Se não foi criado mas tem celular, criar mensagem básica
-          const nomeMotorista = motorista.NOME_MOTORISTA || 'Motorista';
+          const nomeMot = motorista.NOME_MOTORISTA ?? motorista.nome_motorista;
+          const nomeCompletoFallback = (nomeMot && String(nomeMot).trim()) ? String(nomeMot).trim() : 'Motorista';
+          const primeiroNomeFallback = nomeCompletoFallback.split(/\s+/)[0] || nomeCompletoFallback;
           textoMensagem = `🎉 *PARABÉNS! Você foi selecionado!*\n\n` +
-            `Olá *${nomeMotorista.toUpperCase()}*,\n\n` +
-            `Temos uma ótima notícia! Você foi *SELECIONADO* para realizar a viagem:\n\n` +
-            `🆔 *ID da Viagem:* ${motorista.IDVIAGEM}\n\n` +
+            `Olá *${primeiroNomeFallback}*, como está?\n\n` +
+            `Temos uma ótima notícia! Você foi *SELECIONADO* para a viagem ${motorista.IDVIAGEM}.\n\n` +
             `✅ *Sua convocação foi CONFIRMADA!*\n\n` +
-            `Por favor, entre em contato conosco para os próximos passos.\n\n` +
-            `Aguardamos seu retorno! 🚛`;
+            `Aguarde o contato do nosso time com as próximas instruções.\n\n` +
+            `Obrigado pela parceria! 🚛`;
+        }
+
+        // Enviar mensagens via Switch Digital (webhook): selecionado + não selecionados (ACEITA_DESCARTADA)
+        const mensagensEnviadasViaWebhook = { selecionado: false, naoSelecionados: 0 };
+        try {
+          if (motorista && motorista.NRCELULAR && textoMensagem) {
+            const rSelecionado = await enviarUmaMensagemSwitchDigital(pool, req, {
+              idConvocacao: parseInt(id),
+              numeroCelular: motorista.NRCELULAR,
+              corpoMensagem: textoMensagem
+            });
+            if (rSelecionado.ok) {
+              mensagensEnviadasViaWebhook.selecionado = true;
+              console.log(`[CONFIRMAR] Mensagem de confirmação enviada via Switch Digital para motorista selecionado (conv. ${id})`);
+            } else if (rSelecionado.error && !rSelecionado.error.includes('Token')) {
+              console.warn('[CONFIRMAR] Falha ao enviar WhatsApp para selecionado:', rSelecionado.error);
+            }
+          }
+          // Buscar convocações ACEITA_DESCARTADA da mesma viagem para avisar que não foram escolhidos
+          const descartadasResult = await pool.request()
+            .input('IDVIAGEM_DESC', sql.Decimal(15, 0), convocacao.IDVIAGEM)
+            .input('IDCONVOCACAO_CONF', sql.Int, parseInt(id))
+            .query(`
+              SELECT c.[IDCONVOCACAO], cg.[NRCELULAR], upper(COALESCE(NULLIF(LTRIM(RTRIM(cg.[RZSOCIAL])), ''), LTRIM(RTRIM(cg.[NMFANTASIA])))) AS NOME_MOTORISTA
+              FROM [dbo].[CONVOCACAO] c
+              INNER JOIN [dbo].[CADASTROGERAL] cg ON c.[CDCADASTRO_MOTORISTA] = cg.[CDCADASTRO]
+              WHERE c.[IDVIAGEM] = @IDVIAGEM_DESC
+                AND c.[IDCONVOCACAO] != @IDCONVOCACAO_CONF
+                AND c.[STATUS] = 'ACEITA_DESCARTADA'
+            `);
+          const descartadas = descartadasResult.recordset || [];
+          for (const d of descartadas) {
+            const nrCel = d.NRCELULAR ?? d.nrcelular;
+            const nomeDesc = (d.NOME_MOTORISTA ?? d.nome_motorista);
+            const nomeCompletoDesc = (nomeDesc && String(nomeDesc).trim()) ? String(nomeDesc).trim() : 'Motorista';
+            const primeiroNomeDesc = nomeCompletoDesc.split(/\s+/)[0] || nomeCompletoDesc;
+            if (nrCel && String(nrCel).replace(/\D/g, '').length >= 10) {
+              const textoNaoSelecionado = `Olá *${primeiroNomeDesc}*, como está?\n\n` +
+                `Para a viagem *${convocacao.IDVIAGEM}* outro motorista foi selecionado.\n\n` +
+                `Agradecemos seu interesse e não se preocupe! Você poderá ser convocado em novas viagens.\n\n` +
+                `Obrigado pela parceria! 🚛`;
+              const rDesc = await enviarUmaMensagemSwitchDigital(pool, req, {
+                idConvocacao: d.IDCONVOCACAO,
+                numeroCelular: nrCel,
+                corpoMensagem: textoNaoSelecionado
+              });
+              if (rDesc.ok) mensagensEnviadasViaWebhook.naoSelecionados++;
+              await new Promise(r => setTimeout(r, 2000));
+            }
+          }
+          if (mensagensEnviadasViaWebhook.naoSelecionados > 0) {
+            console.log(`[CONFIRMAR] ${mensagensEnviadasViaWebhook.naoSelecionados} mensagem(ns) "não selecionado" enviada(s) via Switch Digital`);
+          }
+
+          // Log resumo da confirmação em LOGSWEBHOOKMETA (aparece em "Atualizar Logs" junto com os envios individuais)
+          try {
+            const tipoResumo = !mensagensEnviadasViaWebhook.selecionado ? 'erro' : (mensagensEnviadasViaWebhook.naoSelecionados > 0 ? 'sucesso' : 'info');
+            const msgResumo = mensagensEnviadasViaWebhook.selecionado
+              ? `Selecionado: enviado. Não selecionados: ${mensagensEnviadasViaWebhook.naoSelecionados} enviado(s).`
+              : 'Falha ao enviar mensagem para o motorista selecionado.';
+            const detalhesResumo = JSON.stringify(mensagensEnviadasViaWebhook).substring(0, 4000);
+            await pool.request()
+              .input('IDCONVOCACAO', sql.Int, parseInt(id))
+              .input('TIPO', tipoResumo)
+              .input('TITULO', 'Confirmação - Mensagens enviadas')
+              .input('MENSAGEM', msgResumo)
+              .input('DETALHES', detalhesResumo)
+              .input('STATUS_HTTP', null)
+              .input('TEMPO_RESPOSTA', null)
+              .input('sgUser', sql.VarChar(50), sgUserConfirm)
+              .query(`
+                INSERT INTO [dbo].[LOGSWEBHOOKMETA]
+                  ([IDCONVOCACAO], [TIPO], [TITULO], [MENSAGEM], [DETALHES], [STATUS_HTTP], [TEMPO_RESPOSTA], [DHLOG], [DHMAINTENANCE], [SGUSER], [SERVERORIG])
+                VALUES
+                  (@IDCONVOCACAO, @TIPO, @TITULO, @MENSAGEM, @DETALHES, @STATUS_HTTP, @TEMPO_RESPOSTA, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, @sgUser, 'AppDVcargas')
+              `);
+          } catch (logResumoErr) {
+            console.warn('[CONFIRMAR] Erro ao gravar log resumo confirmação:', logResumoErr.message);
+          }
+        } catch (webhookErr) {
+          console.warn('[CONFIRMAR] Erro ao enviar mensagens via webhook:', webhookErr.message);
         }
 
         res.json({
@@ -1928,7 +2428,8 @@ const viagemController = {
           motorista: motorista ? {
             nome: motorista.NOME_MOTORISTA,
             celular: motorista.NRCELULAR
-          } : null
+          } : null,
+          mensagensEnviadasViaWebhook: mensagensEnviadasViaWebhook
         });
       } catch (err) {
         const idConv = req.params && req.params.id;
@@ -2000,6 +2501,7 @@ const viagemController = {
             upper(contratador.[RZSOCIAL]) AS CONTRATADOR_NOME,
             contratador.[NRCELULAR] AS CONTRATADOR_CELULAR,
             r.[DSROTEIRO],
+            v.[IDROTEIRO],
             CASE 
               WHEN EXISTS (
                 SELECT 1 
@@ -2074,6 +2576,25 @@ const viagemController = {
         }
       } else if (convocacao.CONTRATADOR_NOME) {
         // Log de debug removido
+      }
+
+      // Fallback: se origem/destino vierem vazios mas houver DSROTEIRO, tentar extrair trechos (origem -> destino)
+      const temOrigemDestino = convocacao.ORIGEM_CIDADE || convocacao.DESTINO_CIDADE;
+      if (!temOrigemDestino && convocacao.DSROTEIRO) {
+        const ds = (convocacao.DSROTEIRO || '').trim();
+        // Separadores: " -> ", " → ", " - " (espaço-hífen-espaço), " / " — evita quebrar hífen no nome da cidade
+        const match = ds.match(/^(.+?)\s*(?:->|→|\s-\s|\/)\s*(.+)$/);
+        if (match) {
+          convocacao.ORIGEM_CIDADE = match[1].trim();
+          convocacao.ORIGEM_ESTADO = '';
+          convocacao.DESTINO_CIDADE = match[2].trim();
+          convocacao.DESTINO_ESTADO = '';
+        } else {
+          convocacao.ORIGEM_CIDADE = ds;
+          convocacao.ORIGEM_ESTADO = '';
+          convocacao.DESTINO_CIDADE = '';
+          convocacao.DESTINO_ESTADO = '';
+        }
       }
 
       console.log(`[CONVOCACAO PUBLICA] Convocação encontrada: ID ${id}, Status: ${convocacao.STATUS}`);
@@ -2202,9 +2723,14 @@ const viagemController = {
     try {
       const { id } = req.params;
       const { motivoReabertura } = req.body;
-      const userLogin = req.headers['user-login'];
+      let userLogin = req.headers['user-login'];
       const sgUserReativar = getSgUser(req);
-      if (!sgUserReativar) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+      if (!sgUserReativar && !userLogin) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+
+      // Se não enviou user-login mas temos no token (via middleware), preenche
+      if (!userLogin && sgUserReativar) {
+         userLogin = sgUserReativar;
+      }
 
       console.log(`[REATIVAR] Iniciando reativação da convocação ${id} pelo usuário ${userLogin}`);
 
@@ -2262,9 +2788,9 @@ const viagemController = {
         .request()
         .input('CDMOTIVO', sql.Int, parseInt(motivoReabertura))
         .query(`
-          SELECT CDMOTIVO, DSMOTIVO
-          FROM [dbo].[MOTIVOREABERTURA]
-          WHERE CDMOTIVO = @CDMOTIVO AND FGACTIVE = 'A'
+          SELECT "CDMOTIVO", "DSMOTIVO"
+          FROM "MOTIVOREABERTURA"
+          WHERE "CDMOTIVO" = @CDMOTIVO AND "FGACTIVE" = 'A'
         `);
 
       if (motivoResult.recordset.length === 0) {
@@ -2307,8 +2833,8 @@ const viagemController = {
               )
               VALUES (
                 @IDCONVOCACAO_HIST, @IDVIAGEM_HIST, @CDCADASTRO_MOTORISTA_HIST, @STATUS_ANTERIOR_HIST,
-                @CDMOTIVOREABERTURA_HIST, GETDATE(), @SGUSUARIO_OPERADOR_HIST,
-                'A', GETDATE(), @SGUSUARIO_OPERADOR_HIST, 'AppDVcargas'
+                @CDMOTIVOREABERTURA_HIST, CURRENT_TIMESTAMP, @SGUSUARIO_OPERADOR_HIST,
+                'A', CURRENT_TIMESTAMP, @SGUSUARIO_OPERADOR_HIST, 'AppDVcargas'
               )
             `);
         }
@@ -2325,7 +2851,7 @@ const viagemController = {
             SET [STATUS] = 'ACEITA',
                 [CDMOTIVOREABERTURA] = @CDMOTIVOREABERTURA,
                 [SGUSUARIO_OPERADOR] = @SGUSUARIO_OPERADOR,
-                [DHMAINTENANCE] = GETDATE(),
+                [DHMAINTENANCE] = CURRENT_TIMESTAMP,
                 [SGUSER] = @sgUser
             WHERE [IDCONVOCACAO] = @IDCONVOCACAO_REATIVAR
           `);
@@ -2359,7 +2885,7 @@ const viagemController = {
               SET [STATUS] = 'ACEITA',
                   [CDMOTIVOREABERTURA] = @CDMOTIVOREABERTURA_AUTO,
                   [SGUSUARIO_OPERADOR] = @SGUSUARIO_OPERADOR_AUTO,
-                  [DHMAINTENANCE] = GETDATE(),
+                  [DHMAINTENANCE] = CURRENT_TIMESTAMP,
                   [SGUSER] = @sgUser
               WHERE [IDVIAGEM] = @IDVIAGEM_REATIVAR
                 AND [IDCONVOCACAO] != @IDCONVOCACAO_EXCLUIR
@@ -2504,13 +3030,14 @@ const viagemController = {
       const pool = await poolPromise;
 
       // Construir query dinamicamente para incluir geolocalização e motivo se fornecidos
+      // Usar [coluna] para o db.js converter para "COLUNA" (PostgreSQL exige aspas para maiúsculas)
       let query = `
         UPDATE [dbo].[CONVOCACAO]
-        SET STATUS = @STATUS,
-            DHRESPOSTA = GETDATE(),
-            DHACESSO = CASE WHEN DHACESSO IS NULL THEN GETDATE() ELSE DHACESSO END,
-            DHMAINTENANCE = GETDATE(),
-            SGUSER = 'MOTORISTA'
+        SET [STATUS] = @STATUS,
+            [DHRESPOSTA] = GETDATE(),
+            [DHACESSO] = CASE WHEN [DHACESSO] IS NULL THEN GETDATE() ELSE [DHACESSO] END,
+            [DHMAINTENANCE] = GETDATE(),
+            [SGUSER] = 'MOTORISTA'
       `;
 
       const request = pool.request()
@@ -2519,14 +3046,14 @@ const viagemController = {
 
       // Adicionar campo de motivo se for recusa
       if (status === 'RECUSADA' && motivoRecusa) {
-        query += `, CDMOTIVORECUSA = @CDMOTIVORECUSA`;
+        query += `, [CDMOTIVORECUSA] = @CDMOTIVORECUSA`;
         request.input('CDMOTIVORECUSA', sql.Int, parseInt(motivoRecusa));
       }
 
       // Adicionar campos de geolocalização se fornecidos
       // Atualizar sempre que houver nova localização (pode ter mudado desde o acesso)
       if (latitude !== undefined && latitude !== null && longitude !== undefined && longitude !== null) {
-        query += `, LATITUDE = @LATITUDE, LONGITUDE = @LONGITUDE`;
+        query += `, [LATITUDE] = @LATITUDE, [LONGITUDE] = @LONGITUDE`;
         request.input('LATITUDE', sql.Float, parseFloat(latitude));
         request.input('LONGITUDE', sql.Float, parseFloat(longitude));
       }
@@ -3134,6 +3661,45 @@ const viagemController = {
               [SERVERORIG] = 'AppDVcargas'
           `);
 
+        // Atualizar situação da viagem para Programada (mesma regra ao confirmar convocação)
+        const sitProgramada = await transaction.request()
+          .query(`
+            SELECT TOP 1 [CDSITUACAOVIAGEM] FROM [dbo].[SITUACAOVIAGEM]
+            WHERE [FGSITVIAGEM] = 'P' AND ([FGACTIVE] = 'A' OR [FGACTIVE] = 'S')
+          `);
+        const cdSituacaoProgramada = sitProgramada.recordset && sitProgramada.recordset[0]
+          ? (sitProgramada.recordset[0].CDSITUACAOVIAGEM ?? sitProgramada.recordset[0].cdsituacaoviagem)
+          : null;
+        if (cdSituacaoProgramada != null) {
+          const reqUpdSit = transaction.request();
+          await reqUpdSit
+            .input('IDVIAGEM_SIT', sql.Decimal(15, 0), idNum)
+            .input('FGSITVIAGEM_SIT', sql.VarChar(1), 'P')
+            .input('CDSITUACAOVIAGEM_SIT', sql.SmallInt, cdSituacaoProgramada)
+            .input('sgUser', sql.VarChar(50), sgUser)
+            .query(`
+              UPDATE [dbo].[VIAGEMMESTRE]
+              SET [FGSITVIAGEM] = @FGSITVIAGEM_SIT,
+                  [CDSITUACAOVIAGEM] = @CDSITUACAOVIAGEM_SIT,
+                  [DHMAINTENANCE] = GETDATE(),
+                  [SGUSER] = @sgUser
+              WHERE [IDVIAGEM] = @IDVIAGEM_SIT
+            `);
+        } else {
+          const reqUpdSit = transaction.request();
+          await reqUpdSit
+            .input('IDVIAGEM_SIT', sql.Decimal(15, 0), idNum)
+            .input('FGSITVIAGEM_SIT', sql.VarChar(1), 'P')
+            .input('sgUser', sql.VarChar(50), sgUser)
+            .query(`
+              UPDATE [dbo].[VIAGEMMESTRE]
+              SET [FGSITVIAGEM] = @FGSITVIAGEM_SIT,
+                  [DHMAINTENANCE] = GETDATE(),
+                  [SGUSER] = @sgUser
+              WHERE [IDVIAGEM] = @IDVIAGEM_SIT
+            `);
+        }
+
         await transaction.commit();
         res.json({ success: true, message: 'Motorista salvo com sucesso!' });
       } catch (err) {
@@ -3424,6 +3990,458 @@ const viagemController = {
   },
 
   // ========== WEBHOOK CALLBACK META ==========
+
+// Função nova para integrar com Switch Digital
+  enviarWebhookSwitchDigital: async (req, res) => {
+    try {
+      const { viagemId, convocacoes, baseUrl: baseUrlBody } = req.body;
+      console.log('[SWITCH DIGITAL LOG] Endpoint chamado - viagemId=', viagemId, 'convocacoes=', convocacoes?.length, 'ts=', new Date().toISOString());
+
+      if (!viagemId || !convocacoes || !Array.isArray(convocacoes) || convocacoes.length === 0) {
+        return res.status(400).json({ error: 'ID da viagem e lista de convocações são obrigatórios.' });
+      }
+
+      // 1. Buscar configurações do Switch Digital no banco
+      const pool = await poolPromise;
+      const configResult = await pool.request().query(`
+        SELECT "CHAVE", "VALOR" FROM "CONFIGURACAO"
+        WHERE "CHAVE" IN ('switch_digital_endpoint', 'switch_digital_metodo', 'switch_digital_content_type', 'switch_digital_token', 'switch_digital_user_id', 'switch_digital_queue_id', 'switch_digital_send_signature', 'switch_digital_close_ticket', 'moeda_padrao')
+      `);
+
+      const config = {
+        endpoint: 'https://api.switchdigital.com.br/api/messages/send',
+        metodo: 'POST',
+        contentType: 'application/json',
+        token: '',
+        userId: '',
+        queueId: '',
+        sendSignature: true,
+        closeTicket: true,
+        moeda: 'BRL'
+      };
+
+      if (configResult.recordset) {
+        configResult.recordset.forEach(r => {
+          const k = r.CHAVE || r.chave;
+          const v = r.VALOR || r.valor;
+          if (k === 'switch_digital_endpoint') config.endpoint = v;
+          if (k === 'switch_digital_metodo') config.metodo = v;
+          if (k === 'switch_digital_content_type') config.contentType = v;
+          if (k === 'switch_digital_token') config.token = v;
+          if (k === 'switch_digital_user_id') config.userId = v;
+          if (k === 'switch_digital_queue_id') config.queueId = v;
+          if (k === 'switch_digital_send_signature') config.sendSignature = (v === 'S');
+          if (k === 'switch_digital_close_ticket') config.closeTicket = (v !== 'N');
+          if (k === 'moeda_padrao') config.moeda = v;
+        });
+      }
+
+      if (!config.token) {
+        return res.status(400).json({ error: 'Token da Switch Digital não configurado. Verifique as Configurações do Sistema.' });
+      }
+
+      // URL base para o link de aceitar/recusar (enviado pelo frontend ou env)
+      const baseUrl = (baseUrlBody && String(baseUrlBody).trim()) || process.env.PUBLIC_URL || process.env.APP_URL || 'http://localhost:3000';
+
+      // 2. Buscar dados da viagem para montar a mensagem completa (formato histórico)
+      let viagem = null;
+      let pontosParada = [];
+      try {
+        const viagemResult = await pool.request().input('IDVIAGEM', sql.Decimal(15, 0), parseFloat(viagemId)).query(`
+          SELECT [v].[IDVIAGEM],[v].[IDROTEIRO],[v].[DTPREVINICIO],[v].[DTPREVFINAL],[v].[VLFRETE],[v].[PESO],[v].[CUBAGEM],[v].[OBSERV],[v].[FGRASTREADO],
+            [r].[DSROTEIRO],[cf].[DSCLASSEFROTA],[tv].[CDTIPOVIAGEM],[tv].[DSTIPOVIAGEM],
+            [co].[NMCIDADE] AS ORIGEM_CIDADE,[co].[ESTADO] AS ORIGEM_ESTADO,[po].[SGPAIS] AS ORIGEM_PAIS,[po].[DSPAIS] AS ORIGEM_PAIS_NOME,
+            [cd].[NMCIDADE] AS DESTINO_CIDADE,[cd].[ESTADO] AS DESTINO_ESTADO,[pd].[SGPAIS] AS DESTINO_PAIS,[pd].[DSPAIS] AS DESTINO_PAIS_NOME,
+            upper(COALESCE(NULLIF(TRIM([cg].[RZSOCIAL]), ''), TRIM([cg].[NMFANTASIA]))) AS CONTRATADOR_NOME
+          FROM [dbo].[VIAGEMMESTRE] [v]
+          LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
+          LEFT JOIN [dbo].[CIDADE] [co] ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
+          LEFT JOIN [dbo].[CIDADE] [cd] ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
+          LEFT JOIN [dbo].[PAIS] [po] ON [co].[CDPAIS] = [po].[CDPAIS]
+          LEFT JOIN [dbo].[PAIS] [pd] ON [cd].[CDPAIS] = [pd].[CDPAIS]
+          LEFT JOIN [dbo].[CLASSEFROTA] [cf] ON [v].[CDCLASSEFROTA] = [cf].[CDCLASSEFROTA]
+          LEFT JOIN [dbo].[TIPOVIAGEM] [tv] ON [v].[CDTIPOVIAGEM] = [tv].[CDTIPOVIAGEM]
+          LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [v].[CDCONTRATADOR] = [cg].[CDCADASTRO]
+          WHERE [v].[IDVIAGEM] = @IDVIAGEM
+        `);
+        if (viagemResult.recordset && viagemResult.recordset[0]) {
+          const row = viagemResult.recordset[0];
+          const get = (obj, ...keys) => { for (const k of keys) { if (obj[k] != null) return obj[k]; const l = k.toLowerCase(); if (obj[l] != null) return obj[l]; } return undefined; };
+          viagem = {
+            IDVIAGEM: row.IDVIAGEM ?? row.idviagem,
+            IDROTEIRO: row.IDROTEIRO ?? row.idroteiro,
+            CDTIPOVIAGEM: row.CDTIPOVIAGEM ?? row.cdtipoviagem,
+            DSTIPOVIAGEM: get(row, 'DSTIPOVIAGEM') || 'Não informado',
+            DSCLASSEFROTA: get(row, 'DSCLASSEFROTA') || 'Não informado',
+            DSROTEIRO: get(row, 'DSROTEIRO') || 'Não informado',
+            ORIGEM_CIDADE: get(row, 'ORIGEM_CIDADE') || 'Não informada',
+            ORIGEM_ESTADO: get(row, 'ORIGEM_ESTADO') || '',
+            ORIGEM_PAIS: get(row, 'ORIGEM_PAIS') || get(row, 'ORIGEM_PAIS_NOME') || '',
+            DESTINO_CIDADE: get(row, 'DESTINO_CIDADE') || 'Não informada',
+            DESTINO_ESTADO: get(row, 'DESTINO_ESTADO') || '',
+            DESTINO_PAIS: get(row, 'DESTINO_PAIS') || get(row, 'DESTINO_PAIS_NOME') || '',
+            DTPREVINICIO: row.DTPREVINICIO ?? row.dtprevinicio,
+            DTPREVFINAL: row.DTPREVFINAL ?? row.dtprevfinal,
+            CONTRATADOR_NOME: get(row, 'CONTRATADOR_NOME') || 'Não informado',
+            VLFRETE: row.VLFRETE ?? row.vlfrete,
+            PESO: row.PESO ?? row.peso,
+            CUBAGEM: row.CUBAGEM ?? row.cubagem,
+            OBSERV: row.OBSERV ?? row.observ,
+            FGRASTREADO: (row.FGRASTREADO ?? row.fgrastreado) === 'S' ? 'S' : 'N'
+          };
+        }
+        // Pontos para a mensagem: apenas Origem (O), Parada (R) e Destino (D) – NÃO incluir Passagem (P)
+        if (viagem && viagem.IDROTEIRO) {
+          try {
+            const ptsResult = await pool.request().input('IDROTEIRO', sql.Decimal(15, 0), parseFloat(viagem.IDROTEIRO)).query(`
+              SELECT [rp].[TPLOCAL],[rp].[ORDEM],[rp].[SEQUENCIA],[rp].[DSLOCAL],[rp].[ESTADOPASSAGEM],[rp].[CDPAISPASSAGEM],
+                [p].[SGPAIS] AS PAIS_SIGLA,[p].[DSPAIS] AS PAIS_NOME
+              FROM [dbo].[ROTEIROPONTOS] [rp]
+              LEFT JOIN [dbo].[PAIS] [p] ON (
+                CAST([p].[CDPAIS] AS VARCHAR(20)) = CAST([rp].[CDPAISPASSAGEM] AS VARCHAR(20))
+                OR [p].[SGPAIS] = CAST([rp].[CDPAISPASSAGEM] AS VARCHAR(20))
+              )
+              WHERE [rp].[IDROTEIRO] = @IDROTEIRO
+              ORDER BY [rp].[ORDEM] ASC, [rp].[SEQUENCIA] ASC
+            `);
+            const ptsRows = ptsResult.recordset || [];
+            const tiposExibir = new Set(['O', 'D', 'R']); // Origem, Destino, Parada (exclui P = Passagem)
+            pontosParada = ptsRows
+              .filter(r => {
+                const t = String(r.TPLOCAL ?? r.tplocal ?? '').trim().toUpperCase().substring(0, 1);
+                return tiposExibir.has(t);
+              })
+              .map(r => {
+                const paisSigla = (r.PAIS_SIGLA ?? r.pais_sigla ?? '').toString().trim();
+                const paisNome = (r.PAIS_NOME ?? r.pais_nome ?? '').toString().trim();
+                const pais = paisSigla || paisNome || String(r.CDPAISPASSAGEM ?? r.cdpaispassagem ?? '').trim();
+                return {
+                  pais,
+                  estado: String(r.ESTADOPASSAGEM ?? r.estadopassagem ?? '').trim(),
+                  cidade: String(r.DSLOCAL ?? r.dslocal ?? '').trim()
+                };
+              });
+          } catch (ePontos) {
+            // Fallback sem join e sem TPLOCAL (ex.: coluna não existir)
+            try {
+              const ptsSimple = await pool.request().input('IDROTEIRO', sql.Decimal(15, 0), parseFloat(viagem.IDROTEIRO)).query(`
+                SELECT [TPLOCAL],[ORDEM],[SEQUENCIA],[DSLOCAL],[ESTADOPASSAGEM],[CDPAISPASSAGEM] FROM [dbo].[ROTEIROPONTOS] WHERE [IDROTEIRO] = @IDROTEIRO ORDER BY [ORDEM] ASC, [SEQUENCIA] ASC
+              `);
+              const ptsRows = ptsSimple.recordset || [];
+              const tiposExibir = new Set(['O', 'D', 'R']);
+              pontosParada = ptsRows
+                .filter(r => {
+                  const t = String(r.TPLOCAL ?? r.tplocal ?? '').trim().toUpperCase().substring(0, 1);
+                  return tiposExibir.has(t);
+                })
+                .map(r => ({
+                  pais: String(r.CDPAISPASSAGEM ?? r.cdpaispassagem ?? '').trim(),
+                  estado: String(r.ESTADOPASSAGEM ?? r.estadopassagem ?? '').trim(),
+                  cidade: String(r.DSLOCAL ?? r.dslocal ?? '').trim()
+                }));
+            } catch (e2) {
+              try {
+                const ptsMin = await pool.request().input('IDROTEIRO', sql.Decimal(15, 0), parseFloat(viagem.IDROTEIRO)).query(`
+                  SELECT [DSLOCAL],[ESTADOPASSAGEM],[CDPAISPASSAGEM] FROM [dbo].[ROTEIROPONTOS] WHERE [IDROTEIRO] = @IDROTEIRO ORDER BY [ORDEM] ASC, [SEQUENCIA] ASC
+                `);
+                const ptsRows = ptsMin.recordset || [];
+                pontosParada = ptsRows.map(r => ({
+                  pais: String(r.CDPAISPASSAGEM ?? r.cdpaispassagem ?? '').trim(),
+                  estado: String(r.ESTADOPASSAGEM ?? r.estadopassagem ?? '').trim(),
+                  cidade: String(r.DSLOCAL ?? r.dslocal ?? '').trim()
+                }));
+              } catch (e3) {}
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('[SWITCH DIGITAL] Erro ao buscar viagem para mensagem:', e.message);
+      }
+
+      const formatarDataHora = (dataHora) => {
+        if (!dataHora) return 'Não informado';
+        try {
+          const s = String(dataHora).replace('Z', '').replace('T', ' ');
+          const m = s.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
+          if (m) return `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}`;
+          const d = new Date(dataHora);
+          if (isNaN(d.getTime())) return 'Data inválida';
+          const pad = (n) => String(n).padStart(2, '0');
+          return `${pad(d.getUTCDate())}/${pad(d.getUTCMonth() + 1)}/${d.getUTCFullYear()} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+        } catch (err) { return 'Data inválida'; }
+      };
+
+      // Intervalo entre envios (mínimo 2 segundos para evitar bloqueio da API)
+      const INTERVALO_ENTRE_ENVIOS_MS = 2000;
+      const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+      
+      // Módulo node-fetch para requisições
+      const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+
+      // Array para guardar resultados e montar o retorno
+      const resultados = [];
+      let sucessos = 0;
+      let erros = 0;
+
+      // Log de início de envio (persistido para aparecer em "Atualizar Logs")
+      const idConvRef = (convocacoes[0] && (convocacoes[0].IDCONVOCACAO != null ? convocacoes[0].IDCONVOCACAO : convocacoes[0].idConvocacao)) || null;
+      if (idConvRef != null) {
+        try {
+          console.log('[SWITCH DIGITAL LOG] Gravando log "Iniciando Envios" no banco');
+          const sgUserLog = getSgUser(req) || 'SYSTEM';
+          await pool.request()
+            .input('IDCONVOCACAO', sql.Int, idConvRef)
+            .input('TIPO', 'info')
+            .input('TITULO', 'Iniciando Envios via Backend (Switch Digital)')
+            .input('MENSAGEM', `Enviando lista de ${convocacoes.length} convocações para processamento na fila.`)
+            .input('DETALHES', null)
+            .input('STATUS_HTTP', null)
+            .input('TEMPO_RESPOSTA', null)
+            .input('sgUser', sgUserLog)
+            .query(`
+              INSERT INTO [dbo].[LOGSWEBHOOKMETA]
+                ([IDCONVOCACAO], [TIPO], [TITULO], [MENSAGEM], [DETALHES], [STATUS_HTTP], [TEMPO_RESPOSTA], [DHLOG], [DHMAINTENANCE], [SGUSER], [SERVERORIG])
+              VALUES
+                (@IDCONVOCACAO, @TIPO, @TITULO, @MENSAGEM, @DETALHES, @STATUS_HTTP, @TEMPO_RESPOSTA, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, @sgUser, 'AppDVcargas')
+            `);
+        } catch (logErr) {
+          console.error('[SWITCH DIGITAL] Erro ao gravar log Iniciando Envios:', logErr.message);
+        }
+      }
+
+      // 3. Processar a fila, um a um, com intervalo de 5 segundos
+      for (let i = 0; i < convocacoes.length; i++) {
+        const c = convocacoes[i];
+        
+        // Extrair o número limpando caracteres especiais
+        let numeroLimpo = (c.FONE1 || c.FONE || c.NRCELULAR || c.CELULAR || '').toString().replace(/\D/g, '');
+        if (!numeroLimpo || numeroLimpo.length < 10) {
+           resultados.push({ idConvocacao: c.IDCONVOCACAO, status: 'erro', mensagem: 'Motorista sem número de WhatsApp válido' });
+           erros++;
+           continue;
+        }
+
+        const v = viagem || c;
+        const valorFreteFmt = parseFloat(v.VLFRETE || 0).toLocaleString('pt-BR', { style: 'currency', currency: config.moeda });
+        // Peso: se valor >= 1000 assume kg e converte para ton (ex.: 12345 kg -> 12,35 ton); senão assume já em ton
+        const pesoNum = parseFloat(v.PESO || 0);
+        const pesoEmTon = pesoNum >= 1000 ? pesoNum / 1000 : pesoNum;
+        const pesoFmt = pesoEmTon.toFixed(2).replace('.', ',');
+        const cubagemFmt = (parseFloat(v.CUBAGEM || 0)).toFixed(2).replace('.', ',');
+        const linkConvocacao = `${baseUrl.replace(/\/$/, '')}/convocacao/${c.IDCONVOCACAO}`;
+
+        // Mensagem padronizada: saudação + CARGA DISPONÍVEL (tipo com código, rota, país, pontos de parada) + link
+        const nomeMotoristaConv = (c.NOME_MOTORISTA || 'Motorista').toString().trim();
+        const tipoViagemFmt = [v.CDTIPOVIAGEM, v.DSTIPOVIAGEM].filter(Boolean).join(' - ') || (v.DSTIPOVIAGEM || 'Não informado');
+        const rotaLinha = v.DSROTEIRO || `${(v.ORIGEM_CIDADE || '').trim()} -> ${(v.DESTINO_CIDADE || '').trim()}`.trim() || 'Não informado';
+        let textoWhatsApp = `Olá *${nomeMotoristaConv}*, como está? Você está sendo convocado para uma viagem.\n\n`;
+        textoWhatsApp += `  *CARGA DISPONÍVEL*\n\n`;
+        textoWhatsApp += `  ID: ${v.IDVIAGEM || viagemId}\n`;
+        textoWhatsApp += `  Tipo: ${tipoViagemFmt}\n`;
+        textoWhatsApp += `  Classe: ${v.DSCLASSEFROTA || 'Não informado'}\n`;
+        textoWhatsApp += `  Rota: ${rotaLinha}\n`;
+        if (v.ORIGEM_PAIS || v.DESTINO_PAIS) {
+          textoWhatsApp += `  País: ${(v.ORIGEM_PAIS || '-').toString().trim()} → ${(v.DESTINO_PAIS || '-').toString().trim()}\n`;
+        }
+        if (pontosParada && pontosParada.length > 0) {
+          textoWhatsApp += `  *Pontos de parada:*\n`;
+          pontosParada.forEach(pt => {
+            const partes = [pt.pais, pt.estado, pt.cidade].filter(Boolean);
+            textoWhatsApp += `  • ${partes.length ? partes.join(', ') : '—'}\n`;
+          });
+          textoWhatsApp += `\n`;
+        } else {
+          textoWhatsApp += `\n`;
+        }
+        textoWhatsApp += `  *HORÁRIOS*\n`;
+        textoWhatsApp += `  Carregamento: ${formatarDataHora(v.DTPREVINICIO)}\n`;
+        textoWhatsApp += `  Descarga: ${formatarDataHora(v.DTPREVFINAL)}\n\n`;
+        if (v.FGRASTREADO === 'S') {
+          textoWhatsApp += `  *REQUISITOS*\n`;
+          textoWhatsApp += `  ✅ Exige veículo rastreado: SIM\n\n`;
+        }
+        textoWhatsApp += `  *CONTRATADOR*\n`;
+        textoWhatsApp += `${v.CONTRATADOR_NOME || 'Não informado'}\n\n`;
+        textoWhatsApp += `  *VALORES*\n`;
+        textoWhatsApp += `  Frete: ${valorFreteFmt}\n`;
+        textoWhatsApp += `  Peso: ${pesoFmt} ton\n`;
+        textoWhatsApp += `  Cubagem: ${cubagemFmt} m³\n\n`;
+        if (v.OBSERV && String(v.OBSERV).trim()) {
+          textoWhatsApp += `  *DETALHES DA VIAGEM*\n`;
+          textoWhatsApp += `${String(v.OBSERV).trim()}\n\n`;
+        }
+        textoWhatsApp += `  Acesse o link para mais detalhes:\n\n`;
+        textoWhatsApp += `${linkConvocacao}\n\n`;
+
+        // Montar Payload Switch Digital
+        const requestBody = {
+          number: numeroLimpo,
+          body: textoWhatsApp,
+          sendSignature: config.sendSignature,
+          closeTicket: config.closeTicket
+        };
+
+        if (config.userId && config.userId.trim() !== '') requestBody.userId = config.userId.trim();
+        if (config.queueId && config.queueId.trim() !== '') requestBody.queueId = config.queueId.trim();
+
+        let logStatusEnvio = 'ERRO';
+        let logMensagemErro = null;
+        let logDhEnvio = null;
+        let logStatusHttp = null;
+        let logTempoResposta = null;
+        let logDetalhesJson = null;
+
+        try {
+          console.log(`[SWITCH DIGITAL] Enviando msg para ${numeroLimpo} (Convocacao ${c.IDCONVOCACAO})...`);
+          const inicio = Date.now();
+          
+          const switchRes = await fetch(config.endpoint, {
+            method: config.metodo,
+            headers: {
+              'Authorization': `Bearer ${config.token}`,
+              'Content-Type': config.contentType
+            },
+            body: JSON.stringify(requestBody)
+          });
+
+          const tempo = Date.now() - inicio;
+          const responseText = await switchRes.text();
+          let responseData;
+          try { responseData = JSON.parse(responseText); } catch(e) { responseData = responseText; }
+
+          if (switchRes.ok) {
+            sucessos++;
+            resultados.push({ idConvocacao: c.IDCONVOCACAO, status: 'sucesso', tempo: tempo, api: responseData });
+            logStatusEnvio = 'ENVIADO';
+            logDhEnvio = new Date();
+            logStatusHttp = switchRes.status;
+            logTempoResposta = tempo;
+            logDetalhesJson = typeof responseData === 'object' ? JSON.stringify(responseData) : String(responseData);
+            
+            // Atualizar DHENVIOMETA apenas quando envio foi sucesso (motorista acionado)
+            try {
+               await pool.request()
+                 .input('id', sql.Int, c.IDCONVOCACAO)
+                 .query(`UPDATE [dbo].[CONVOCACAO] SET [DHENVIOMETA] = GETDATE(), [DHMAINTENANCE] = GETDATE() WHERE [IDCONVOCACAO] = @id`);
+            } catch(e) {}
+
+          } else {
+            erros++;
+            const rawError = typeof responseData === 'object' ? (responseData.message || responseData.error || JSON.stringify(responseData)) : String(responseData);
+            const mensagemAmigavel = (() => {
+              const txt = (typeof responseData === 'object' && responseData.error ? responseData.error : rawError) || '';
+              if (/ticket em outro atendimento|em outro atendimento/i.test(txt)) {
+                return `Número ${numeroLimpo}: não foi possível enviar — já existe conversa em aberto com este contato no atendimento. Feche ou transfira o atendimento no painel da Switch Digital antes de reenviar.`;
+              }
+              if (/conversa em aberto|conversation already open/i.test(txt)) {
+                return `Número ${numeroLimpo}: conversa já em aberto com este contato. Encerre ou transfira no painel antes de reenviar.`;
+              }
+              return `Número ${numeroLimpo}: ${txt.substring(0, 300)}`;
+            })();
+            logMensagemErro = mensagemAmigavel.substring(0, 500);
+            resultados.push({ idConvocacao: c.IDCONVOCACAO, status: 'erro', httpStatus: switchRes.status, detalhe: responseData, mensagemAmigavel });
+            logStatusHttp = switchRes.status;
+            logTempoResposta = tempo;
+            logDetalhesJson = typeof responseData === 'object' ? JSON.stringify(responseData) : String(responseData);
+          }
+        } catch (errApi) {
+          erros++;
+          resultados.push({ idConvocacao: c.IDCONVOCACAO, status: 'erro', mensagem: errApi.message });
+          logMensagemErro = (errApi.message || '').substring(0, 500);
+          logDetalhesJson = JSON.stringify({ error: errApi.message });
+        }
+
+        // Gravar em LOG_ENVIO_WHATSAPP e LOGSWEBHOOKMETA para histórico e auditoria (colunas entre colchetes para PostgreSQL maiúsculas)
+        try {
+          const sgUserLog = getSgUser(req) || 'SYSTEM';
+          const idConv = c.IDCONVOCACAO;
+          const nrCel = numeroLimpo;
+          const detalhesStr = (logDetalhesJson || '').substring(0, 4000);
+
+          await pool.request()
+            .input('IDCONVOCACAO', sql.Int, idConv)
+            .input('NRCELULAR', nrCel)
+            .input('STATUS_ENVIO', logStatusEnvio)
+            .input('MENSAGEM_ERRO', logMensagemErro)
+            .input('DHENVIO', logDhEnvio)
+            .input('DHRESPOSTA_API', logDhEnvio)
+            .input('TENTATIVAS', 1)
+            .input('sgUser', sgUserLog)
+            .query(`
+              INSERT INTO [dbo].[LOG_ENVIO_WHATSAPP]
+                ([IDCONVOCACAO], [NRCELULAR], [STATUS_ENVIO], [MENSAGEM_ERRO], [DHENVIO], [DHRESPOSTA_API], [TENTATIVAS], [DHMAINTENANCE], [SGUSER], [SERVERORIG])
+              VALUES
+                (@IDCONVOCACAO, @NRCELULAR, @STATUS_ENVIO, @MENSAGEM_ERRO, @DHENVIO, @DHRESPOSTA_API, @TENTATIVAS, CURRENT_TIMESTAMP, @sgUser, 'AppDVcargas')
+            `);
+
+          await pool.request()
+            .input('IDCONVOCACAO', sql.Int, idConv)
+            .input('TIPO', 'envio_switch')
+            .input('TITULO', `Switch Digital - ${logStatusEnvio === 'ENVIADO' ? 'Enviado' : 'Erro'}`)
+            .input('MENSAGEM', logStatusEnvio === 'ENVIADO' ? `Enviado para ${nrCel}` : (logMensagemErro || `Erro no envio para ${nrCel}`))
+            .input('DETALHES', detalhesStr)
+            .input('STATUS_HTTP', logStatusHttp)
+            .input('TEMPO_RESPOSTA', logTempoResposta)
+            .input('sgUser', sgUserLog)
+            .query(`
+              INSERT INTO [dbo].[LOGSWEBHOOKMETA]
+                ([IDCONVOCACAO], [TIPO], [TITULO], [MENSAGEM], [DETALHES], [STATUS_HTTP], [TEMPO_RESPOSTA], [DHLOG], [DHMAINTENANCE], [SGUSER], [SERVERORIG])
+              VALUES
+                (@IDCONVOCACAO, @TIPO, @TITULO, @MENSAGEM, @DETALHES, @STATUS_HTTP, @TEMPO_RESPOSTA, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, @sgUser, 'AppDVcargas')
+            `);
+        } catch (logErr) {
+          console.error('[SWITCH DIGITAL] Erro ao gravar log (LOG_ENVIO_WHATSAPP/LOGSWEBHOOKMETA):', logErr.message, logErr.stack);
+        }
+
+        // Aguardar intervalo antes do próximo envio (evita bloqueio e respeita fila)
+        if (i < convocacoes.length - 1) {
+          await sleep(INTERVALO_ENTRE_ENVIOS_MS);
+        }
+      }
+
+      // Log de fila processada (persistido para aparecer em "Atualizar Logs")
+      if (idConvRef != null) {
+        try {
+          console.log('[SWITCH DIGITAL LOG] Gravando log "Fila Processada" no banco - sucessos=', sucessos, 'erros=', erros);
+          const sgUserLog = getSgUser(req) || 'SYSTEM';
+          const tipoFila = erros > 0 ? (sucessos > 0 ? 'warning' : 'erro') : 'sucesso';
+          const mensagemFila = `O Servidor concluiu a fila de disparos. Sucessos: ${sucessos}, Erros: ${erros}`;
+          const detalhesFila = JSON.stringify(resultados).substring(0, 4000);
+          await pool.request()
+            .input('IDCONVOCACAO', sql.Int, idConvRef)
+            .input('TIPO', tipoFila)
+            .input('TITULO', 'Fila Processada no Backend')
+            .input('MENSAGEM', mensagemFila)
+            .input('DETALHES', detalhesFila)
+            .input('STATUS_HTTP', null)
+            .input('TEMPO_RESPOSTA', null)
+            .input('sgUser', sgUserLog)
+            .query(`
+              INSERT INTO [dbo].[LOGSWEBHOOKMETA]
+                ([IDCONVOCACAO], [TIPO], [TITULO], [MENSAGEM], [DETALHES], [STATUS_HTTP], [TEMPO_RESPOSTA], [DHLOG], [DHMAINTENANCE], [SGUSER], [SERVERORIG])
+              VALUES
+                (@IDCONVOCACAO, @TIPO, @TITULO, @MENSAGEM, @DETALHES, @STATUS_HTTP, @TEMPO_RESPOSTA, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, @sgUser, 'AppDVcargas')
+            `);
+        } catch (logErr) {
+          console.error('[SWITCH DIGITAL] Erro ao gravar log Fila Processada:', logErr.message);
+        }
+      }
+
+      console.log('[SWITCH DIGITAL LOG] Respondendo ao cliente - total=', convocacoes.length, 'sucessos=', sucessos, 'erros=', erros);
+      res.json({
+        success: true,
+        message: 'Fila de envios processada',
+        total: convocacoes.length,
+        sucessos: sucessos,
+        erros: erros,
+        detalhes: resultados
+      });
+
+    } catch (err) {
+      console.error('Erro na função enviarWebhookSwitchDigital:', err);
+      res.status(500).json({ error: 'Erro no servidor ao processar fila do Switch Digital', details: err.message });
+    }
+  },
 
   // Receber retorno do webhook Meta (callback)
   receberRetornoWebhookMeta: async (req, res) => {

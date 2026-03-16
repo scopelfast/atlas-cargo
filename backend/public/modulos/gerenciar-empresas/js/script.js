@@ -1,8 +1,7 @@
 // backend/public/modulos/gerenciar-empresas/js/script.js
 // i18n: helper t() e chaves web.modulos.empresas
-const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
-
 (function() {
+  const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
   const tabs = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
   const filtroForm = document.getElementById('filtroForm');
@@ -116,6 +115,7 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     const overlay = document.getElementById('loadingOverlayInitSQL');
     if (overlay && window.getComputedStyle(overlay).display === 'none') {
       showLoadingOverlayInitSQL('Processando Inicialização', 'Carregando script de inicialização...', 'Aguarde enquanto preparamos o módulo.');
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     }
     
     try {
@@ -312,21 +312,19 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     init();
   }
 
-  // Função para mudar abas
+  // Função para mudar abas (escopo no container do módulo para não misturar Grid/Dados)
   async function showTab(tabId) {
     try {
-      // Primeiro, mudar a aba imediatamente
-      tabs.forEach(btn => btn.classList.remove('active'));
-      tabContents.forEach(content => content.classList.remove('active'));
-      
-      const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
-      const tabContent = document.getElementById(`tab-${tabId}`);
-      
-      if (tabBtn) {
-        tabBtn.classList.add('active');
-      }
-      if (tabContent) {
-        tabContent.classList.add('active');
+      const targetContent = document.getElementById(`tab-${tabId}`);
+      const targetBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+      if (targetContent && targetBtn) {
+        const container = targetContent.closest('[class*="-container"]') || targetContent.parentElement;
+        if (container) {
+          container.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+          container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        }
+        targetBtn.classList.add('active');
+        targetContent.classList.add('active');
       }
       
       // Aguardar um frame para garantir que a mudança foi renderizada
@@ -337,10 +335,10 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
           // Garantir GridEditor disponível (carregar se necessário)
           if (typeof window.GridEditor === 'undefined') {
             try { await loadScript('/js/grid-editor.js'); } catch (e) { }
-            let t = 0;
-            while (typeof window.GridEditor === 'undefined' && t < 25) {
+            let attempts = 0;
+            while (typeof window.GridEditor === 'undefined' && attempts < 25) {
               await new Promise(r => setTimeout(r, 100));
-              t++;
+              attempts++;
             }
           }
           if (typeof window.GridEditor !== 'undefined') {
@@ -358,13 +356,16 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       console.warn('[Empresas] Erro ao mudar aba:', err);
       // Forçar mudança de aba mesmo em caso de erro
       try {
-        tabs.forEach(btn => btn.classList.remove('active'));
-        tabContents.forEach(content => content.classList.remove('active'));
-        const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
-        const tabContent = document.getElementById(`tab-${tabId}`);
-        if (tabBtn) tabBtn.classList.add('active');
-        if (tabContent) {
-          tabContent.classList.add('active');
+        const targetContent = document.getElementById(`tab-${tabId}`);
+        const targetBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+        if (targetContent && targetBtn) {
+          const container = targetContent.closest('[class*="-container"]') || targetContent.parentElement;
+          if (container) {
+            container.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          }
+          targetBtn.classList.add('active');
+          targetContent.classList.add('active');
         }
       } catch (forceErr) {
         console.error('[Empresas] Erro ao forçar mudança de aba:', forceErr);
@@ -613,6 +614,7 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       const empresa = await response.json();
       
       if (empresa) {
+        showTab('dados');
         document.getElementById('empresaId').value = empresa.CDEMPRESA;
         document.getElementById('empresaCodigo').value = empresa.CDEMPRESA;
         document.getElementById('empresaRazaoSocial').value = empresa.RZSOCIAL;
@@ -620,7 +622,6 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
         document.getElementById('empresaCgcMatriz').value = formatarCNPJ(empresa.CGCMATRIZ);
         document.getElementById('empresaSituacao').value = empresa.FGACTIVE;
         document.getElementById('formTitle').textContent = t('web.modulos.empresas.editarEmpresa');
-        showTab('dados');
       }
     } catch (err) {
       console.error('[Empresas] Erro ao carregar empresa:', err);
@@ -642,46 +643,44 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     const confirmNo = document.getElementById('confirmNo');
     const modalEl = document.getElementById('confirmModal');
 
-    if (!modalEl || !confirmYes || !confirmNo) {
-      return;
-    }
-
     try {
-      // Buscar o status atual da empresa
       const idToCheck = isNaN(idStr) ? idStr : parseInt(idStr, 10);
       const response = await fetch(`/api/empresas/${idToCheck}`);
-      if (!response.ok) {
-        throw new Error('Erro ao buscar empresa');
-      }
-      
+      if (!response.ok) throw new Error('Erro ao buscar empresa');
       const empresa = await response.json();
       const estaAtivo = empresa.FGACTIVE === 'S';
-      
-      // Definir mensagem e ação baseado no status atual
       let confirmMsg, action, btnText;
       if (estaAtivo) {
-        confirmMsg = 'Tem certeza que deseja <strong>desativar</strong> esta empresa?<br><br><small style="color: #666;">A empresa ficará inativa e não aparecerá nas listagens padrão.</small>';
+        confirmMsg = 'Tem certeza que deseja desativar esta empresa?';
         action = 'deactivate';
         btnText = 'Desativar';
       } else {
-        confirmMsg = 'Tem certeza que deseja <strong>reativar</strong> esta empresa?<br><br><small style="color: #666;">A empresa voltará a aparecer nas listagens e estará disponível para uso.</small>';
+        confirmMsg = 'Tem certeza que deseja reativar esta empresa?';
         action = 'activate';
         btnText = 'Reativar';
       }
-      
-      if (modalMessage) modalMessage.innerHTML = confirmMsg;
-      
+
+      if (!modalEl || !modalMessage || !confirmYes || !confirmNo) {
+        if (window.confirm(confirmMsg)) {
+          const r = await fetch(`/api/empresas/${idStr}?action=${action}`, { method: 'DELETE' });
+          const data = await r.json();
+          if (r.ok) { showMessage(data.message || 'Status alterado.', 'success'); showTab('grid'); applyFilters('grid'); }
+          else showMessage(data.error || 'Erro ao alterar status.', 'error');
+        }
+        return;
+      }
+
+      modalMessage.innerHTML = confirmMsg;
       modalEl.dataset.deleteId = idStr;
       modalEl.dataset.action = action;
-      
       const newConfirmYes = confirmYes.cloneNode(true);
       const newConfirmNo = confirmNo.cloneNode(true);
-      
-      // Atualizar texto do botão de confirmação
-      newConfirmYes.textContent = btnText;
-      
-      confirmYes.parentNode.replaceChild(newConfirmYes, confirmYes);
-      confirmNo.parentNode.replaceChild(newConfirmNo, confirmNo);
+      newConfirmYes.className = 'btn-filtro btn-filtro-danger';
+      newConfirmYes.innerHTML = '<i class="bx bx-check"></i> ' + btnText;
+      newConfirmNo.className = 'btn-filtro btn-filtro-limpar';
+      newConfirmNo.innerHTML = '<i class="bx bx-x"></i> ' + (t('web.modulos.empresas.cancelar') || 'Cancelar');
+      if (confirmYes.parentNode) confirmYes.parentNode.replaceChild(newConfirmYes, confirmYes);
+      if (confirmNo.parentNode) confirmNo.parentNode.replaceChild(newConfirmNo, confirmNo);
       
       newConfirmYes.onclick = async () => {
         try {
@@ -722,7 +721,6 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
         delete modalEl.dataset.deleteId;
         delete modalEl.dataset.action;
       };
-      
       modalEl.style.display = 'block';
     } catch (err) {
       console.error('[Empresas] Erro ao buscar status da empresa:', err);

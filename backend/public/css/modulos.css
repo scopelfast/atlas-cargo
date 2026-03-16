@@ -587,7 +587,7 @@ body,
 .modal {
     display: none;
     position: fixed;
-    z-index: 1000;
+    z-index: 9999;
     left: 0;
     top: 0;
     width: 100%;
@@ -823,8 +823,18 @@ body,
     box-shadow: var(--shadow);
 }
 
+/* Contém o grid na largura disponível: rolagem horizontal fica dentro do módulo */
+.grid-container {
+    overflow-x: auto;
+    max-width: 100%;
+    width: 100%;
+    min-width: 0;
+    -webkit-overflow-scrolling: touch;
+}
+
 .grid-table {
     width: 100%;
+    table-layout: fixed;
     border-collapse: collapse;
     background: white;
     font-size: 14px;
@@ -889,8 +899,16 @@ body,
 .grid-cell {
     padding: 12px 16px;
     vertical-align: middle;
-    word-wrap: break-word;
-    max-width: 300px;
+    overflow-wrap: break-word;
+    word-break: normal;
+    min-width: 0;
+}
+
+.grid-cell .cell-value {
+    display: block;
+    overflow-wrap: break-word;
+    word-break: normal;
+    white-space: normal;
 }
 
 .grid-cell.editing {
@@ -943,6 +961,38 @@ body,
     justify-content: flex-end !important;
     align-items: center !important;
     gap: 6px !important;
+}
+
+/* Colunas Situação (90px) e Ações (88px) – mesmo padrão para Cidades, Estados e Mesorregiões */
+#cidadesGrid th:nth-last-child(2),
+#cidadesGrid td:nth-last-child(2),
+#estadosGrid th:nth-last-child(2),
+#estadosGrid td:nth-last-child(2),
+#mesorregiaoGrid th:nth-last-child(2),
+#mesorregiaoGrid td:nth-last-child(2) {
+    width: 90px !important;
+    min-width: 90px !important;
+    max-width: 90px !important;
+    text-align: right !important;
+    box-sizing: border-box !important;
+}
+#cidadesGrid .grid-actions-header,
+#cidadesGrid th:last-child,
+#cidadesGrid .grid-actions,
+#cidadesGrid td:last-child,
+#estadosGrid .grid-actions-header,
+#estadosGrid th:last-child,
+#estadosGrid .grid-actions,
+#estadosGrid td:last-child,
+#mesorregiaoGrid .grid-actions-header,
+#mesorregiaoGrid th:last-child,
+#mesorregiaoGrid .grid-actions,
+#mesorregiaoGrid td:last-child {
+    width: 88px !important;
+    min-width: 88px !important;
+    max-width: 88px !important;
+    text-align: right !important;
+    box-sizing: border-box !important;
 }
 
 .grid-btn-edit,
@@ -1125,10 +1175,11 @@ body,
     
     .grid-cell {
         display: grid;
-        grid-template-columns: 80px 1fr;
+        grid-template-columns: 80px minmax(120px, 1fr);
         gap: 8px;
         padding: 6px 0;
         border: none;
+        align-items: start;
     }
     
     .grid-cell::before {
@@ -1138,7 +1189,11 @@ body,
     }
     
     .grid-cell span.cell-value {
-        text-align: right;
+        text-align: left;
+        white-space: normal;
+        word-break: normal;
+        overflow-wrap: break-word;
+        min-width: 0;
     }
     
     .grid-cell.editing {

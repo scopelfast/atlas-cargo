@@ -179,6 +179,184 @@
   if (btnCarregarContexto) btnCarregarContexto.addEventListener('click', carregarContexto);
   carregarContexto();
 
+  // Switch Digital
+  const switchEndpointEl = document.getElementById('switchEndpoint');
+  const switchMetodoEl = document.getElementById('switchMetodo');
+  const switchContentTypeEl = document.getElementById('switchContentType');
+  const switchTokenEl = document.getElementById('switchToken');
+  const switchUserIdEl = document.getElementById('switchUserId');
+  const switchQueueIdEl = document.getElementById('switchQueueId');
+  const switchSendSignatureEl = document.getElementById('switchSendSignature');
+  const switchCloseTicketEl = document.getElementById('switchCloseTicket');
+  
+  const btnSalvarSwitch = document.getElementById('btnSalvarSwitch');
+  const btnCarregarSwitch = document.getElementById('btnCarregarSwitch');
+  const messageSwitchEl = document.getElementById('configSwitchMessage');
+
+  const btnTestarSwitch = document.getElementById('btnTestarSwitch');
+  const switchTestNumberEl = document.getElementById('switchTestNumber');
+  const testResultMessageEl = document.getElementById('testResultMessage');
+
+  function showSwitchMessage(text, type) {
+    if (typeof window.showMessage === 'function') window.showMessage(text, type);
+    if (messageSwitchEl) {
+      messageSwitchEl.textContent = text;
+      messageSwitchEl.className = 'message show ' + (type === 'success' ? 'success' : type === 'error' ? 'error' : 'info');
+      messageSwitchEl.style.display = 'block';
+    }
+  }
+
+  function showTestMessage(text, type) {
+    if (testResultMessageEl) {
+      testResultMessageEl.textContent = text;
+      testResultMessageEl.style.display = 'block';
+      if (type === 'success') {
+        testResultMessageEl.style.backgroundColor = '#d1e7dd';
+        testResultMessageEl.style.color = '#0f5132';
+        testResultMessageEl.style.border = '1px solid #badbcc';
+      } else if (type === 'error') {
+        testResultMessageEl.style.backgroundColor = '#f8d7da';
+        testResultMessageEl.style.color = '#842029';
+        testResultMessageEl.style.border = '1px solid #f5c2c7';
+      } else {
+        testResultMessageEl.style.backgroundColor = '#cff4fc';
+        testResultMessageEl.style.color = '#055160';
+        testResultMessageEl.style.border = '1px solid #b6effb';
+      }
+    }
+  }
+
+  async function carregarSwitch() {
+    try {
+      const res = await fetch('/api/configuracoes/switch-digital');
+      const data = await res.json();
+      if (res.ok) {
+        if (switchEndpointEl) switchEndpointEl.value = data.switchEndpoint || 'https://api.switchdigital.com.br/api/messages/send';
+        if (switchMetodoEl) switchMetodoEl.value = data.switchMetodo || 'POST';
+        if (switchContentTypeEl) switchContentTypeEl.value = data.switchContentType || 'application/json';
+        if (switchTokenEl) switchTokenEl.value = data.switchToken || '';
+        if (switchUserIdEl) switchUserIdEl.value = data.switchUserId || '';
+        if (switchQueueIdEl) switchQueueIdEl.value = data.switchQueueId || '';
+        if (switchSendSignatureEl) switchSendSignatureEl.checked = data.switchSendSignature === 'S';
+        if (switchCloseTicketEl) switchCloseTicketEl.checked = data.switchCloseTicket !== 'N'; // Padrão S (true)
+      } else {
+        showSwitchMessage(data.error || 'Erro ao carregar Switch Digital', 'error');
+      }
+    } catch (err) {
+      showSwitchMessage('Erro ao carregar Switch Digital', 'error');
+    }
+  }
+
+  let salvandoSwitch = false;
+  async function salvarSwitch() {
+    if (salvandoSwitch) return;
+    salvandoSwitch = true;
+    if (btnSalvarSwitch) {
+        btnSalvarSwitch.disabled = true;
+        btnSalvarSwitch.innerHTML = '<i class="bx bx-loader bx-spin"></i> Salvando...';
+    }
+    
+    try {
+      const res = await fetch('/api/configuracoes/switch-digital', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          switchEndpoint: switchEndpointEl?.value?.trim() || '',
+          switchMetodo: switchMetodoEl?.value || 'POST',
+          switchContentType: switchContentTypeEl?.value?.trim() || 'application/json',
+          switchToken: switchTokenEl?.value?.trim() || '',
+          switchUserId: switchUserIdEl?.value?.trim() || '',
+          switchQueueId: switchQueueIdEl?.value?.trim() || '',
+          switchSendSignature: switchSendSignatureEl?.checked ? 'S' : 'N',
+          switchCloseTicket: switchCloseTicketEl?.checked ? 'S' : 'N'
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showSwitchMessage('Configurações Switch Digital salvas com sucesso', 'success');
+      } else {
+        showSwitchMessage(data.error || 'Erro ao salvar', 'error');
+      }
+    } catch (err) {
+      showSwitchMessage('Erro ao salvar', 'error');
+    } finally {
+      salvandoSwitch = false;
+      if (btnSalvarSwitch) {
+          btnSalvarSwitch.disabled = false;
+          btnSalvarSwitch.innerHTML = '<i class="bx bx-save"></i> <span id="btnSalvarSwitchText">Salvar Configurações</span>';
+      }
+    }
+  }
+
+  let testandoSwitch = false;
+  async function testarSwitch() {
+      if (testandoSwitch) return;
+      
+      const numero = switchTestNumberEl?.value?.replace(/\D/g, '');
+      if (!numero || numero.length < 10) {
+          showTestMessage('Digite um número de WhatsApp válido (ex: 558599999999)', 'error');
+          return;
+      }
+
+      // Validar se as configurações da tela estão preenchidas
+      if (!switchEndpointEl?.value?.trim() || !switchTokenEl?.value?.trim()) {
+          showTestMessage('Preencha o Endpoint e o Token antes de testar.', 'error');
+          return;
+      }
+
+      testandoSwitch = true;
+      if (btnTestarSwitch) {
+          btnTestarSwitch.disabled = true;
+          btnTestarSwitch.innerHTML = '<i class="bx bx-loader bx-spin"></i> Enviando...';
+      }
+      showTestMessage('Enviando requisição de teste...', 'info');
+
+      try {
+          // Vamos mandar os dados que estão NA TELA, assim o usuário testa antes de precisar salvar no banco
+          const payload = {
+              numero: numero,
+              config: {
+                endpoint: switchEndpointEl.value.trim(),
+                metodo: switchMetodoEl.value,
+                contentType: switchContentTypeEl.value.trim(),
+                token: switchTokenEl.value.trim(),
+                userId: switchUserIdEl.value.trim(),
+                queueId: switchQueueIdEl.value.trim(),
+                sendSignature: switchSendSignatureEl.checked,
+                closeTicket: switchCloseTicketEl.checked
+              }
+          };
+
+          const res = await fetch('/api/configuracoes/switch-digital/teste', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+          });
+          
+          const data = await res.json();
+          
+          if (res.ok && data.success) {
+              showTestMessage('✅ Mensagem enviada com sucesso! Resposta da API: ' + (data.apiResponse ? JSON.stringify(data.apiResponse) : 'OK'), 'success');
+          } else {
+              showTestMessage('❌ Falha ao enviar. Erro: ' + (data.error || 'Desconhecido') + (data.details ? ' - ' + JSON.stringify(data.details) : ''), 'error');
+          }
+      } catch (err) {
+          showTestMessage('❌ Erro de rede ou servidor ao tentar testar: ' + err.message, 'error');
+      } finally {
+          testandoSwitch = false;
+          if (btnTestarSwitch) {
+              btnTestarSwitch.disabled = false;
+              btnTestarSwitch.innerHTML = '<i class="bx bx-send"></i> Enviar Mensagem Teste';
+          }
+      }
+  }
+
+  if (btnSalvarSwitch) btnSalvarSwitch.addEventListener('click', salvarSwitch);
+  if (btnCarregarSwitch) btnCarregarSwitch.addEventListener('click', carregarSwitch);
+  if (btnTestarSwitch) btnTestarSwitch.addEventListener('click', testarSwitch);
+  
+  carregarSwitch();
+
   function showIdentidadeMessage(text, type) {
     if (typeof window.showMessage === 'function') window.showMessage(text, type);
     if (messageIdentidadeEl) {
@@ -269,4 +447,67 @@
   if (logoQuadradaEl) logoQuadradaEl.addEventListener('change', updatePreviews);
   if (logoQuadradaEl) logoQuadradaEl.addEventListener('blur', updatePreviews);
   carregarIdentidade();
+
+  // Link do app motorista (mensagem de confirmação da convocação)
+  const linkAppMotoristaEl = document.getElementById('linkAppMotorista');
+  const btnSalvarAppMotorista = document.getElementById('btnSalvarAppMotorista');
+  const btnCarregarAppMotorista = document.getElementById('btnCarregarAppMotorista');
+  const btnSalvarAppMotoristaText = document.getElementById('btnSalvarAppMotoristaText');
+  const messageAppMotoristaEl = document.getElementById('configAppMotoristaMessage');
+
+  function showAppMotoristaMessage(text, type) {
+    if (typeof window.showMessage === 'function') window.showMessage(text, type);
+    if (messageAppMotoristaEl) {
+      messageAppMotoristaEl.textContent = text;
+      messageAppMotoristaEl.className = 'message show ' + (type === 'success' ? 'success' : type === 'error' ? 'error' : 'info');
+      messageAppMotoristaEl.style.display = 'block';
+    }
+  }
+
+  async function carregarAppMotorista() {
+    try {
+      const res = await fetch('/api/configuracoes/app-motorista');
+      const data = await res.json();
+      if (linkAppMotoristaEl) linkAppMotoristaEl.value = data.linkAppMotorista || '';
+      if (res.ok) showAppMotoristaMessage(t('web.modulos.configuracoes.configuracoesCarregadas') || 'Configurações carregadas.', 'success');
+    } catch (err) {
+      showAppMotoristaMessage('Erro ao carregar.', 'error');
+    }
+  }
+
+  let salvandoAppMotorista = false;
+  async function salvarAppMotorista() {
+    if (salvandoAppMotorista) return;
+    salvandoAppMotorista = true;
+    if (btnSalvarAppMotorista) {
+      btnSalvarAppMotorista.disabled = true;
+      if (btnSalvarAppMotoristaText) btnSalvarAppMotoristaText.textContent = (typeof window.tWeb === 'function' ? (window.tWeb('web.common.salvando') || 'Salvando...') : 'Salvando...');
+    }
+    if (messageAppMotoristaEl) { messageAppMotoristaEl.style.display = 'none'; messageAppMotoristaEl.textContent = ''; }
+    try {
+      const res = await fetch('/api/configuracoes/app-motorista', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ linkAppMotorista: linkAppMotoristaEl?.value?.trim() || '' })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showAppMotoristaMessage(data.message || (t('web.modulos.configuracoes.sucessoSalvar') || 'Salvo com sucesso!'), 'success');
+      } else {
+        showAppMotoristaMessage(data.error || 'Erro ao salvar.', 'error');
+      }
+    } catch (err) {
+      showAppMotoristaMessage('Erro ao salvar.', 'error');
+    } finally {
+      salvandoAppMotorista = false;
+      if (btnSalvarAppMotorista) {
+        btnSalvarAppMotorista.disabled = false;
+        if (btnSalvarAppMotoristaText) btnSalvarAppMotoristaText.textContent = t('web.modulos.configuracoes.salvar') || 'Salvar';
+      }
+    }
+  }
+
+  if (btnSalvarAppMotorista) btnSalvarAppMotorista.addEventListener('click', salvarAppMotorista);
+  if (btnCarregarAppMotorista) btnCarregarAppMotorista.addEventListener('click', carregarAppMotorista);
+  carregarAppMotorista();
 })();

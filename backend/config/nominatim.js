@@ -43,9 +43,10 @@ function getReverseGeocodingUrl(lat, lon) {
 function getForwardGeocodingUrl(query, options = {}) {
   const baseUrl = getNominatimServer();
   const limit = options.limit || 10;
-  const countrycodes = options.countrycodes || 'br';
-  
-  return `${baseUrl}/search?q=${encodeURIComponent(query)}&format=json&limit=${limit}&countrycodes=${countrycodes}&addressdetails=1`;
+  const countrycodes = options.countrycodes;
+  const qs = `q=${encodeURIComponent(query)}&format=json&limit=${limit}&addressdetails=1`;
+  const withCountry = countrycodes !== undefined && countrycodes !== null && String(countrycodes).trim() !== '';
+  return `${baseUrl}/search?${qs}${withCountry ? `&countrycodes=${encodeURIComponent(String(countrycodes).trim())}` : ''}`;
 }
 
 module.exports = {

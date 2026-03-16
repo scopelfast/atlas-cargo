@@ -158,7 +158,36 @@ router.put('/cidades/:id', async (req, res) => {
   }
 });
 
+// Distância Haversine em metros (fallback rota internacional quando OSRM retorna NoRoute)
+function haversineMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function buildAndSendFallbackRoute(res, lon1, lat1, lon2, lat2) {
+  const distanceM = haversineMeters(lat1, lon1, lat2, lon2);
+  res.json({
+    code: 'Ok',
+    routes: [{
+      geometry: {
+        type: 'LineString',
+        coordinates: [[lon1, lat1], [lon2, lat2]]
+      },
+      distance: distanceM,
+      duration: 0
+    }]
+  });
+}
+
 // Endpoint para obter rota usando OSRM (Open Source Routing Machine)
+// Rotas internacionais (ex.: Paraguai → Brasil): OSRM pode retornar NoRoute; nesse caso retornamos 200 com linha reta.
 // IMPORTANTE: Esta rota deve vir ANTES de /cidades/:id para não ser capturada como parâmetro
 router.get('/cidades/rota', async (req, res) => {
   try {
@@ -168,7 +197,11 @@ router.get('/cidades/rota', async (req, res) => {
       return res.status(400).json({ error: 'Coordenadas de origem e destino são obrigatórias.' });
     }
 
-    // Construir URL do OSRM
+    const lonA = parseFloat(lon1);
+    const latA = parseFloat(lat1);
+    const lonB = parseFloat(lon2);
+    const latB = parseFloat(lat2);
+
     const osrmUrl = `https://router.project-osrm.org/route/v1/driving-hgv/${lon1},${lat1};${lon2},${lat2}?overview=full&geometries=geojson`;
     
     try {
@@ -176,16 +209,23 @@ router.get('/cidades/rota', async (req, res) => {
         headers: {
           'User-Agent': 'AtlasCargo/2.0'
         },
-        timeout: 20000 // 20 segundos
+        timeout: 20000
       });
       
-      res.json(response.data);
+      const data = response.data;
+      if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+        return res.json(data);
+      }
+      buildAndSendFallbackRoute(res, lonA, latA, lonB, latB);
     } catch (err) {
-      console.error('Erro na requisição ao OSRM:', err.message);
-      return res.status(500).json({ 
-        error: 'Erro ao conectar com o serviço de roteamento.',
-        details: err.message
-      });
+      const status = err.response && err.response.status;
+      const body = err.response && err.response.data;
+      if (status === 400 && body && (body.code === 'NoRoute' || (body.message && String(body.message).toLowerCase().includes('no route')))) {
+        buildAndSendFallbackRoute(res, lonA, latA, lonB, latB);
+        return;
+      }
+      console.warn('OSRM sem rota ou indisponível (ex.: rota internacional). Usando linha reta:', err.message);
+      buildAndSendFallbackRoute(res, lonA, latA, lonB, latB);
     }
   } catch (err) {
     console.error('Erro ao buscar rota:', err.message);
@@ -197,7 +237,7 @@ router.get('/cidades/rota', async (req, res) => {
 // IMPORTANTE: Esta rota deve vir ANTES de /cidades/:id para não ser capturada como parâmetro
 router.get('/cidades/coordenadas', async (req, res) => {
   try {
-    const { cidade, estado } = req.query;
+    const { cidade, estado, pais } = req.query;
     
     if (!cidade || !estado) {
       return res.status(400).json({ 
@@ -206,7 +246,6 @@ router.get('/cidades/coordenadas', async (req, res) => {
       });
     }
 
-    // Validar e converter UF para nome completo do estado
     if (typeof estado !== 'string' || estado.trim().length === 0) {
       return res.status(400).json({ 
         success: false,
@@ -214,20 +253,30 @@ router.get('/cidades/coordenadas', async (req, res) => {
       });
     }
 
-    // Converter UF para nome completo do estado
     const nomeEstado = getNomeEstadoPorUF(estado);
+    const isBrasil = !!nomeEstado;
     
-    if (!nomeEstado) {
-      return res.status(400).json({ 
-        success: false,
-        error: `Estado "${estado}" não reconhecido.` 
-      });
+    let query;
+    let url;
+    let nomeEstadoParaMatch = nomeEstado || estado.trim();
+    
+    if (isBrasil) {
+      query = `${cidade}, ${nomeEstado}, Brasil`;
+      url = getForwardGeocodingUrl(query, { limit: 10, countrycodes: 'br' });
+    } else {
+      let paisStr = (pais != null && String(pais).trim() !== '') ? String(pais).trim() : '';
+      if (paisStr && /^\d+$/.test(paisStr)) {
+        try {
+          const pool = await poolPromise;
+          const r = await pool.query('SELECT "DSPAIS" FROM "PAIS" WHERE "CDPAIS" = $1', [parseInt(paisStr, 10)]);
+          if (r.rows && r.rows[0] && r.rows[0].DSPAIS) paisStr = r.rows[0].DSPAIS;
+        } catch (e) {
+          // manter código numérico se falhar
+        }
+      }
+      query = paisStr ? `${cidade}, ${estado.trim()}, ${paisStr}` : `${cidade}, ${estado.trim()}`;
+      url = getForwardGeocodingUrl(query, { limit: 10 });
     }
-    
-    // Usar servidor próprio de Nominatim (configurado em config/nominatim.js)
-    // Estratégia 1: Buscar com "Cidade, Estado, Brasil"
-    let query = `${cidade}, ${nomeEstado}, Brasil`;
-    let url = getForwardGeocodingUrl(query, { limit: 10, countrycodes: 'br' });
     
     let response;
     try {
@@ -251,22 +300,19 @@ router.get('/cidades/coordenadas', async (req, res) => {
     let resultado = null;
     if (response.data && response.data.length > 0) {
       const nomeCidadeLower = cidade.toLowerCase().trim();
-      const nomeEstadoLower = nomeEstado.toLowerCase().trim();
+      const nomeEstadoLower = nomeEstadoParaMatch.toLowerCase().trim();
       const estadoLower = estado.toLowerCase().trim();
       
-      // Tentar encontrar resultado que corresponda ao estado E cidade
       resultado = response.data.find(r => {
         const address = r.address || {};
         const state = (address.state || address.region || '').toLowerCase();
         const city = (address.city || address.town || address.municipality || address.county || address.village || '').toLowerCase();
         const displayName = (r.display_name || '').toLowerCase();
         
-        // Verificar se o estado corresponde (mais flexível)
         const estadoMatch = state.includes(nomeEstadoLower) || 
                            state.includes(estadoLower) ||
                            displayName.includes(nomeEstadoLower);
         
-        // Verificar se a cidade corresponde (mais flexível)
         const cidadeMatch = city.includes(nomeCidadeLower) || 
                            displayName.includes(nomeCidadeLower) ||
                            nomeCidadeLower.includes(city);
@@ -274,7 +320,6 @@ router.get('/cidades/coordenadas', async (req, res) => {
         return estadoMatch && cidadeMatch;
       });
       
-      // Se não encontrou correspondência exata, usar o primeiro resultado que tenha o estado correto
       if (!resultado && response.data.length > 0) {
         resultado = response.data.find(r => {
           const address = r.address || {};
@@ -301,8 +346,8 @@ router.get('/cidades/coordenadas', async (req, res) => {
       }
     }
     
-    // Estratégia 2: Se não encontrou, tentar apenas com a cidade
-    if (!resultado) {
+    // Estratégia 2: Só para Brasil — se não encontrou, tentar apenas com a cidade
+    if (!resultado && isBrasil) {
       query = `${cidade}, Brasil`;
       url = getForwardGeocodingUrl(query, { limit: 10, countrycodes: 'br' });
       
@@ -315,23 +360,18 @@ router.get('/cidades/coordenadas', async (req, res) => {
         });
         
         if (response.data && response.data.length > 0) {
-          // Filtrar por estado se possível
           const nomeCidadeLower = cidade.toLowerCase().trim();
           resultado = response.data.find(r => {
             const address = r.address || {};
             const state = (address.state || address.region || '').toLowerCase();
             const displayName = (r.display_name || '').toLowerCase();
-            
-            // Verificar se tem o estado E a cidade
-            const temEstado = state.includes(nomeEstado.toLowerCase()) || 
+            const temEstado = state.includes(nomeEstadoParaMatch.toLowerCase()) || 
                             state.includes(estado.toLowerCase()) ||
-                            displayName.includes(nomeEstado.toLowerCase());
+                            displayName.includes(nomeEstadoParaMatch.toLowerCase());
             const temCidade = displayName.includes(nomeCidadeLower);
-            
             return temEstado && temCidade;
           });
           
-          // Se não encontrou com estado, buscar apenas por cidade
           if (!resultado && response.data.length > 0) {
             resultado = response.data.find(r => {
               const displayName = (r.display_name || '').toLowerCase();
@@ -339,7 +379,6 @@ router.get('/cidades/coordenadas', async (req, res) => {
             });
           }
           
-          // Se ainda não encontrou, usar o primeiro resultado
           if (!resultado && response.data.length > 0) {
             resultado = response.data[0];
           }
@@ -357,10 +396,9 @@ router.get('/cidades/coordenadas', async (req, res) => {
         display_name: resultado.display_name
       });
     } else {
-      // Retornar erro 200 com success: false ao invés de 404 para melhor tratamento no frontend
       res.json({ 
         success: false, 
-        error: `Cidade "${cidade}" não encontrada no estado "${nomeEstado}". Verifique se o nome da cidade está correto.` 
+        error: `Cidade "${cidade}" não encontrada no estado "${nomeEstadoParaMatch}". Verifique se o nome da cidade está correto.` 
       });
     }
   } catch (err) {
@@ -561,16 +599,33 @@ router.get('/estado-cduf/:estado', async (req, res) => {
 });
 
 // Buscar todos os países (PostgreSQL)
+// Retorna CDPAIS, DSPAIS, SGPAIS e DDI (quando a coluna existir) para combos e telefone
 router.get('/paises', async (req, res) => {
   try {
     const pool = await poolPromise;
     const result = await pool.query(`
-      SELECT "CDPAIS" AS "CDPAIS", "DSPAIS" AS "DSPAIS"
+      SELECT "CDPAIS", "DSPAIS",
+             COALESCE(NULLIF(TRIM("SGPAIS"), ''), "CDPAIS"::TEXT) AS "SGPAIS",
+             NULLIF(TRIM(COALESCE("DDI", '')), '') AS "DDI"
       FROM "PAIS"
       ORDER BY "DSPAIS"
     `);
     res.json(result.rows || []);
   } catch (err) {
+    if (err.code === '42703') {
+      try {
+        const pool = await poolPromise;
+        const result = await pool.query(`
+          SELECT "CDPAIS", "DSPAIS", "CDPAIS"::TEXT AS "SGPAIS", NULL AS "DDI"
+          FROM "PAIS"
+          ORDER BY "DSPAIS"
+        `);
+        return res.json(result.rows || []);
+      } catch (e) {
+        console.error('Erro ao buscar países (fallback):', e);
+        return res.status(500).json({ error: 'Erro ao carregar países.' });
+      }
+    }
     console.error('Erro ao buscar países:', err);
     res.status(500).json({ error: 'Erro ao carregar países.' });
   }

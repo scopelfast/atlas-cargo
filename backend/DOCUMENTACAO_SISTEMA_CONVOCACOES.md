@@ -80,6 +80,14 @@ Um motorista é considerado **compatível** quando atende **TODOS** os critério
      - É a própria cidade de origem OU
      - É a própria cidade de destino
 
+4. **Destino preferido (quando a viagem tem cidade de destino)**
+   - Se o motorista tiver **destino preferido** preenchido no cadastro (país, estado/UF e/ou cidade em `MOTORISTA_COMPLEMENTO`), ele só aparece como compatível se o **destino da viagem** estiver de acordo:
+     - **País:** cidade de destino da viagem no mesmo país informado pelo motorista (ex.: BR).
+     - **Estado/UF:** UF da cidade de destino da viagem contida na lista do motorista (ex.: PR, SC, RS).
+     - **Cidade:** nome da cidade de destino da viagem contido na lista do motorista (ex.: Curitiba, Joinville, Pelotas), sem diferenciar maiúsculas/minúsculas.
+   - Se o motorista **não** tiver nenhum destino preferido preenchido, ele não é filtrado por esse critério (continua compatível desde que atenda classe, rastreado e demais regras).
+   - Detalhes: `modulos/gerenciar-viagens/REGRA_DESTINO_PREFERIDO_COMPATIVEIS.md`.
+
 ### Convocação
 
 Registro que representa um convite enviado a um motorista para realizar uma viagem específica.

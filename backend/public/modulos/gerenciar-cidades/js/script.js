@@ -29,10 +29,11 @@
     // Garantir que a aba de filtros está ativa e visível
     await showTab('filtros');
     await Promise.all([
-      loadEstados(),
       loadRegioesFiscais(),
       loadPaises()
     ]);
+    // Estado é carregado conforme o país selecionado (filtro e formulário)
+    resetEstadoCombos();
   }
 
   // Inicialização - tentar imediatamente e também no DOMContentLoaded
@@ -43,21 +44,19 @@
     init();
   }
 
-  // Função para mudar abas
+  // Função para mudar abas (escopo no container do módulo para não misturar Grid/Dados)
   async function showTab(tabId) {
     try {
-      // Primeiro, mudar a aba imediatamente
-      tabs.forEach(btn => btn.classList.remove('active'));
-      tabContents.forEach(content => content.classList.remove('active'));
-      
-      const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
-      const tabContent = document.getElementById(`tab-${tabId}`);
-      
-      if (tabBtn) {
-        tabBtn.classList.add('active');
-      }
-      if (tabContent) {
-        tabContent.classList.add('active');
+      const targetContent = document.getElementById(`tab-${tabId}`);
+      const targetBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+      if (targetContent && targetBtn) {
+        const container = targetContent.closest('[class*="-container"]') || targetContent.parentElement;
+        if (container) {
+          container.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+          container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        }
+        targetBtn.classList.add('active');
+        targetContent.classList.add('active');
       }
       
       // Aguardar um frame para garantir que a mudança foi renderizada
@@ -88,13 +87,16 @@
       console.warn('[Cidades] Erro ao mudar aba:', err);
       // Forçar mudança de aba mesmo em caso de erro
       try {
-        tabs.forEach(btn => btn.classList.remove('active'));
-        tabContents.forEach(content => content.classList.remove('active'));
-        const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
-        const tabContent = document.getElementById(`tab-${tabId}`);
-        if (tabBtn) tabBtn.classList.add('active');
-        if (tabContent) {
-          tabContent.classList.add('active');
+        const targetContent = document.getElementById(`tab-${tabId}`);
+        const targetBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+        if (targetContent && targetBtn) {
+          const container = targetContent.closest('[class*="-container"]') || targetContent.parentElement;
+          if (container) {
+            container.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          }
+          targetBtn.classList.add('active');
+          targetContent.classList.add('active');
         }
       } catch (forceErr) {
         console.error('[Cidades] Erro ao forçar mudança de aba:', forceErr);
@@ -155,38 +157,39 @@
     });
   }
 
-  // Carregar estados do Brasil
-  async function loadEstados() {
-    try {
-      const response = await fetch('/api/estados-brasil');
-      const estados = await response.json();
-      
-      const fillEstados = (id) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.innerHTML = '<option value="">Selecione</option>';
-        estados.forEach(e => {
-          const opt = document.createElement('option');
-          opt.value = e.uf;
-          opt.textContent = `${e.uf} - ${e.nome}`;
-          el.appendChild(opt);
-        });
-      };
+  // Limpar combos de estado (mostrar apenas "Selecione/Todos" até escolher país)
+  function resetEstadoCombos() {
+    const filtro = document.getElementById('filtroEstado');
+    const form = document.getElementById('cidadeEstado');
+    if (filtro) filtro.innerHTML = '<option value="">Todos</option>';
+    if (form) form.innerHTML = '<option value="">Selecione o país primeiro</option>';
+  }
 
-      fillEstados('filtroEstado');
-      fillEstados('cidadeEstado');
-      
+  // Carregar estados do país selecionado (filtro ou formulário)
+  async function loadEstadosParaPais(cdpais, targetSelectId) {
+    const el = document.getElementById(targetSelectId);
+    if (!el) return;
+    const isFiltro = targetSelectId === 'filtroEstado';
+    const textoPadrao = isFiltro ? 'Todos' : 'Selecione o país primeiro';
+    el.innerHTML = `<option value="">${textoPadrao}</option>`;
+    if (!cdpais) return;
+    try {
+      const base = typeof window.corrigirUrl === 'function' ? window.corrigirUrl('/api/estados') : '/api/estados';
+      const response = await fetch(`${base}?cdpais=${encodeURIComponent(cdpais)}`);
+      if (!response.ok) return;
+      const estados = await response.json();
+      if (!Array.isArray(estados)) return;
+      const primeiraOpcao = isFiltro ? 'Todos' : 'Selecione';
+      el.innerHTML = `<option value="">${primeiraOpcao}</option>`;
+      estados.forEach(e => {
+        const opt = document.createElement('option');
+        const uf = e.ESTADO ?? e.estado ?? '';
+        const nome = e.NMESTADO ?? e.nmestado ?? uf;
+        opt.value = uf;
+        opt.textContent = `${uf} - ${nome}`;
+        el.appendChild(opt);
+      });
       estadosCarregados = true;
-      
-      // Carregar países no filtro
-      if (paisesCarregados) {
-        fillPaisesFiltro();
-      }
-      
-      // Carregar regiões fiscais no filtro
-      if (regioesFiscaisCarregadas) {
-        fillRegioesFiscaisFiltro();
-      }
     } catch (err) {
       console.error('Erro ao carregar estados:', err);
       showMessage('Erro ao carregar estados. Verifique a conexão.', 'error');
@@ -539,25 +542,33 @@
   }
 
   // Funções para controlar overlay de carregamento (mesmo estilo do Gerenciar Roteiros)
+  // Quando injetado no dashboard, o overlay precisa ir para document.body para ficar visível acima de tudo
   function showLoadingOverlay(titulo = 'Carregando Cidades', texto = 'Por favor, aguarde enquanto carregamos as cidades...') {
     const overlay = document.getElementById('loadingOverlay');
     const loadingTitle = document.getElementById('loadingTitle');
     const loadingText = document.getElementById('loadingText');
     if (overlay) {
-      if (loadingTitle) {
-        loadingTitle.textContent = titulo;
+      if (loadingTitle) loadingTitle.textContent = titulo;
+      if (loadingText) loadingText.textContent = texto;
+      if (overlay.parentNode !== document.body) {
+        document.body.appendChild(overlay);
       }
-      if (loadingText) {
-        loadingText.textContent = texto;
-      }
-      overlay.style.display = 'flex';
+      overlay.style.cssText = 'display:flex !important; position:fixed !important; top:0; left:0; right:0; bottom:0; z-index:99999; background:rgba(0,0,0,0.75); align-items:center; justify-content:center;';
     }
   }
-  
+
   function hideLoadingOverlay() {
     const overlay = document.getElementById('loadingOverlay');
     if (overlay) {
       overlay.style.display = 'none';
+      const contentArea = document.getElementById('contentArea');
+      if (overlay.parentNode === document.body) {
+        if (contentArea && contentArea.querySelector('.cidades-container')) {
+          contentArea.insertBefore(overlay, contentArea.firstChild);
+        } else {
+          overlay.remove();
+        }
+      }
     }
   }
 
@@ -565,6 +576,8 @@
   async function applyFilters(openTab = 'grid') {
     // Mostrar overlay de carregamento (mesmo padrão do Gerenciar Roteiros)
     showLoadingOverlay('Carregando Cidades', 'Por favor, aguarde enquanto carregamos as cidades...');
+    // Dar tempo ao navegador pintar o overlay antes do fetch (evita overlay "sumir")
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     
     const params = new URLSearchParams();
     const pais = document.getElementById('filtroPais')?.value;
@@ -755,15 +768,19 @@
           document.getElementById('cidadeAreaDDD').value = cidade.CDAREADDD || '';
         }
 
-        // Garante que os estados foram carregados
-        if (!estadosCarregados) {
-          await loadEstados();
+        // Carrega países se necessário e define país primeiro (estado depende do país)
+        if (!paisesCarregados) {
+          await loadPaises();
+        }
+        if (cidade.CDPAIS) {
+          document.getElementById('cidadePais').value = cidade.CDPAIS;
         }
 
-        // Define o valor do estado após garantir que as opções estão carregadas
+        // Carregar estados do país da cidade e então definir o estado
+        await loadEstadosParaPais(cidade.CDPAIS || '', 'cidadeEstado');
         const estadoSelect = document.getElementById('cidadeEstado');
         const estadoUF = cidade.ESTADO?.trim().toUpperCase();
-        estadoSelect.value = estadoUF;
+        if (estadoUF) estadoSelect.value = estadoUF;
 
         // Carrega CDUF e atualiza combos dependentes
         const cduf = cidade.CDUF;
@@ -772,8 +789,6 @@
             loadMicrorregioes(cduf),
             loadMesorregioes(cduf)
           ]);
-          
-          // Define valores dos combos após carregar
           setTimeout(() => {
             if (cidade.CDMICROREGIAO) {
               document.getElementById('cidadeMicroregiao').value = cidade.CDMICROREGIAO;
@@ -792,14 +807,6 @@
           document.getElementById('cidadeRegiaoFiscal').value = cidade.CDREGIAOFISCAL;
         }
 
-        // Carrega países se necessário
-        if (!paisesCarregados) {
-          await loadPaises();
-        }
-        if (cidade.CDPAIS) {
-          document.getElementById('cidadePais').value = cidade.CDPAIS;
-        }
-
         showTab('dados');
       }
     } catch (err) {
@@ -808,35 +815,53 @@
     }
   }
 
-  // Confirmar exclusão
+  // Executar alteração de status (desativar/reativar) — usado pelo modal e pelo fallback
+  async function executarAlteracaoStatus(idParaExcluir, acao, modalEl) {
+    if (!idParaExcluir || idParaExcluir === 'null' || idParaExcluir === 'undefined' || idParaExcluir === '') {
+      showMessage('Erro: ID não disponível.', 'error');
+      return;
+    }
+    try {
+      const response = await fetch(`/api/cidades/${idParaExcluir}?action=${acao}`, { method: 'DELETE' });
+      const data = await response.json();
+      if (response.ok) {
+        showMessage(data.message || (acao === 'activate' ? 'Cidade reativada com sucesso!' : 'Cidade desativada com sucesso!'), 'success');
+        showTab('grid');
+        await applyFilters('grid');
+      } else {
+        showMessage(data.error || 'Erro ao alterar status da cidade.', 'error');
+      }
+    } catch (err) {
+      console.error('[Cidades] Erro ao alterar status:', err);
+      showMessage('Erro de conexão.', 'error');
+    } finally {
+      if (modalEl) {
+        modalEl.style.display = 'none';
+        delete modalEl.dataset.deleteId;
+        delete modalEl.dataset.action;
+      }
+    }
+  }
+
+  // Confirmar exclusão (desativar/reativar) — modal com fallback para confirm()
   async function confirmarExclusao(id) {
     if (!id || id === 'null' || id === 'undefined' || id === '') {
       showMessage('Erro: ID não disponível.', 'error');
       return;
     }
-    
     const idStr = String(id).trim();
     const modalMessage = document.getElementById('modalMessage');
     const confirmYes = document.getElementById('confirmYes');
     const confirmNo = document.getElementById('confirmNo');
     const modalEl = document.getElementById('confirmModal');
-    
-    if (!modalMessage || !confirmYes || !confirmNo || !modalEl) {
-      return;
-    }
 
     try {
-      // Buscar o status atual da cidade
       const idToCheck = isNaN(idStr) ? idStr : parseInt(idStr, 10);
       const response = await fetch(`/api/cidades/${idToCheck}`);
-      if (!response.ok) {
-        throw new Error('Erro ao buscar cidade');
-      }
-      
+      if (!response.ok) throw new Error('Erro ao buscar cidade');
       const cidade = await response.json();
       const estaAtivo = cidade.FGACTIVE === 'S';
-      
-      // Definir mensagem e ação baseado no status atual
+
       let confirmMsg, action, btnText;
       if (estaAtivo) {
         confirmMsg = t('web.modulos.cidades.msgDesativar');
@@ -847,60 +872,37 @@
         action = 'activate';
         btnText = t('web.modulos.cidades.reativar');
       }
-      
+
+      if (!modalEl || !modalMessage || !confirmYes || !confirmNo) {
+        if (window.confirm(confirmMsg)) await executarAlteracaoStatus(idStr, action, null);
+        return;
+      }
+
       modalMessage.innerHTML = confirmMsg;
-      
       modalEl.dataset.deleteId = idStr;
       modalEl.dataset.action = action;
-      
+
       const newConfirmYes = confirmYes.cloneNode(true);
       const newConfirmNo = confirmNo.cloneNode(true);
-      
-      // Atualizar texto do botão de confirmação
-      newConfirmYes.textContent = btnText;
-      
+      newConfirmYes.className = 'btn-filtro btn-filtro-danger';
+      newConfirmYes.innerHTML = '<i class=\'bx bx-check\'></i> ' + btnText;
+      newConfirmNo.className = 'btn-filtro btn-filtro-limpar';
+      newConfirmNo.innerHTML = '<i class=\'bx bx-x\'></i> ' + (t('web.modulos.cidades.cancelar') || 'Cancelar');
+
       confirmYes.parentNode.replaceChild(newConfirmYes, confirmYes);
       confirmNo.parentNode.replaceChild(newConfirmNo, confirmNo);
-      
+
       newConfirmYes.onclick = async () => {
         const idParaExcluir = modalEl.dataset.deleteId || idStr;
         const acao = modalEl.dataset.action || action;
-        
-        if (!idParaExcluir || idParaExcluir === 'null' || idParaExcluir === 'undefined' || idParaExcluir === '') {
-          showMessage('Erro: ID não disponível.', 'error');
-          modalEl.style.display = 'none';
-          return;
-        }
-        
-        try {
-          const response = await fetch(`/api/cidades/${idParaExcluir}?action=${acao}`, {
-            method: 'DELETE'
-          });
-          const data = await response.json();
-          
-          if (response.ok) {
-            showMessage(data.message || (acao === 'activate' ? 'Cidade reativada com sucesso!' : 'Cidade desativada com sucesso!'), 'success');
-            showTab('grid');
-            await applyFilters('grid');
-          } else {
-            showMessage(data.error || 'Erro ao alterar status da cidade.', 'error');
-          }
-        } catch (err) {
-          console.error('[Cidades] Erro ao alterar status:', err);
-          showMessage('Erro de conexão.', 'error');
-        } finally {
-          modalEl.style.display = 'none';
-          delete modalEl.dataset.deleteId;
-          delete modalEl.dataset.action;
-        }
+        await executarAlteracaoStatus(idParaExcluir, acao, modalEl);
       };
-    
       newConfirmNo.onclick = () => {
         modalEl.style.display = 'none';
         delete modalEl.dataset.deleteId;
         delete modalEl.dataset.action;
       };
-      
+
       modalEl.style.display = 'block';
     } catch (err) {
       console.error('[Cidades] Erro ao buscar status da cidade:', err);
@@ -1004,6 +1006,15 @@
   });
 
 
+  // Ao mudar o país no filtro: carregar estados desse país e limpar dependentes
+  document.getElementById('filtroPais')?.addEventListener('change', async (e) => {
+    const cdpais = e.target?.value || '';
+    await loadEstadosParaPais(cdpais, 'filtroEstado');
+    document.getElementById('filtroEstado').value = '';
+    document.getElementById('filtroMesoregiao').innerHTML = '<option value="">Todas</option>';
+    document.getElementById('filtroMicroregiao').innerHTML = '<option value="">Todas</option>';
+  });
+
   // Event listener para mudança de estado no filtro - carregar combos dependentes
   document.getElementById('filtroEstado')?.addEventListener('change', async (e) => {
     const estado = e.target.value;
@@ -1026,6 +1037,7 @@
 
   document.getElementById('btnLimparFiltros')?.addEventListener('click', () => {
     document.getElementById('filtroPais').value = '';
+    document.getElementById('filtroEstado').innerHTML = '<option value="">Todos</option>';
     document.getElementById('filtroEstado').value = '';
     document.getElementById('filtroCidade').value = '';
     document.getElementById('filtroAreaDDD').value = '';
@@ -1048,9 +1060,9 @@
       columns: [
         { field: 'CDCIDADE', header: 'Código', editable: false, isId: true, width: '80px' },
         { field: 'ESTADO', header: 'UF', editable: false, width: '60px' },
+        { field: 'CDAREADDD', header: 'DDD', editable: false, width: '60px' },
         { field: 'NMCIDADE', header: 'Cidade', editable: false, type: 'text' },
-        { field: 'CDAREADDD', header: 'DDD', editable: false },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px', align: 'right',
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '90px', align: 'right',
           options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }
@@ -1079,31 +1091,24 @@
     });
   }
 
-  document.getElementById('btnVoltarFiltros')?.addEventListener('click', async () => await showTab('filtros'));
-  document.getElementById('btnVoltarGrid')?.addEventListener('click', async () => await showTab('filtros'));
-  document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
+  function irParaNovoCidade() {
     cidadeForm?.reset();
     document.getElementById('cidadeId').value = '';
-    // Limpar campos
     document.getElementById('cidadeMunicipio').value = '';
-    // Limpar combos
+    document.getElementById('cidadeEstado').innerHTML = '<option value="">Selecione o país primeiro</option>';
     document.getElementById('cidadeMicroregiao').innerHTML = '<option value="">Selecione</option>';
     document.getElementById('cidadeMesoregiao').innerHTML = '<option value="">Selecione</option>';
-    // Recarregar regiões fiscais se necessário
-    if (!regioesFiscaisCarregadas) {
-      loadRegioesFiscais();
-    } else {
-      document.getElementById('cidadeRegiaoFiscal').value = '';
-    }
-    // Recarregar países se necessário
-    if (!paisesCarregados) {
-      loadPaises();
-    } else {
-      document.getElementById('cidadePais').value = '';
-    }
+    if (!regioesFiscaisCarregadas) loadRegioesFiscais();
+    else document.getElementById('cidadeRegiaoFiscal').value = '';
+    if (!paisesCarregados) loadPaises();
+    else document.getElementById('cidadePais').value = '';
     document.getElementById('formTitle').textContent = t('web.modulos.cidades.novaCidade');
     showTab('dados');
-  });
+  }
+  document.getElementById('btnVoltarFiltros')?.addEventListener('click', async () => await showTab('filtros'));
+  document.getElementById('btnVoltarGrid')?.addEventListener('click', async () => await showTab('filtros'));
+  document.getElementById('btnNovoRegistro')?.addEventListener('click', irParaNovoCidade);
+  document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', irParaNovoCidade);
   // Função para buscar e preencher DDD
   async function buscarEPreencherDDD() {
     const codigoMunicipio = document.getElementById('cidadeMunicipio')?.value;
@@ -1165,6 +1170,15 @@
     await buscarEPreencherDDD();
   });
 
+  // Ao mudar o país no formulário: carregar estados desse país e limpar dependentes
+  document.getElementById('cidadePais')?.addEventListener('change', async (e) => {
+    const cdpais = e.target?.value || '';
+    await loadEstadosParaPais(cdpais, 'cidadeEstado');
+    document.getElementById('cidadeEstado').value = '';
+    document.getElementById('cidadeMicroregiao').innerHTML = '<option value="">Selecione</option>';
+    document.getElementById('cidadeMesoregiao').innerHTML = '<option value="">Selecione</option>';
+  });
+
   // Event listener para mudança de estado - carregar combos dependentes
   document.getElementById('cidadeEstado')?.addEventListener('change', async (e) => {
     const estado = e.target.value;
@@ -1185,29 +1199,6 @@
     }
   });
 
-  document.getElementById('btnNovoRegistro')?.addEventListener('click', () => {
-    cidadeForm?.reset();
-    document.getElementById('cidadeId').value = '';
-    // Limpar campos readonly
-    document.getElementById('cidadeMunicipio').value = '';
-    // Limpar combos
-    document.getElementById('cidadeMicroregiao').innerHTML = '<option value="">Selecione</option>';
-    document.getElementById('cidadeMesoregiao').innerHTML = '<option value="">Selecione</option>';
-    // Recarregar regiões fiscais se necessário
-    if (!regioesFiscaisCarregadas) {
-      loadRegioesFiscais();
-    } else {
-      document.getElementById('cidadeRegiaoFiscal').value = '';
-    }
-    // Recarregar países se necessário
-    if (!paisesCarregados) {
-      loadPaises();
-    } else {
-      document.getElementById('cidadePais').value = '';
-    }
-    document.getElementById('formTitle').textContent = t('web.modulos.cidades.novaCidade');
-    showTab('dados');
-  });
   document.getElementById('btnCancelar')?.addEventListener('click', () => showTab('grid'));
 
   // Event listeners para os botões das abas

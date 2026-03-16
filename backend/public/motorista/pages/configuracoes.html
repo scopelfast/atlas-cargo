@@ -823,9 +823,11 @@
 
       // Suporte: usa TELEFONE_SUPORTE se definido, senão celular do motorista
       function abrirSuporte() {
-      const numero = (TELEFONE_SUPORTE && TELEFONE_SUPORTE.replace(/\D/g, '')) || (motorista?.celular || motorista?.NRCELULAR || '').replace(/\D/g, '');
+      let numero = (TELEFONE_SUPORTE && TELEFONE_SUPORTE.replace(/\D/g, '')) || (motorista?.celular || motorista?.NRCELULAR || '').replace(/\D/g, '');
       if (numero) {
-        window.open(`https://wa.me/55${numero}`, '_blank');
+        if (numero.startsWith('0')) numero = numero.substring(1);
+        const numWa = numero.length >= 12 ? numero : (numero.length >= 10 ? '55' + numero : numero);
+        window.open(`https://wa.me/${numWa}`, '_blank');
       } else {
         mostrarToast('Configure TELEFONE_SUPORTE em configuracoes.html ou cadastre o celular do motorista.', 'info');
       }

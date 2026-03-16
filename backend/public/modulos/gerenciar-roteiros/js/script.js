@@ -10,24 +10,19 @@
 //   - Correções de bugs (sintaxe, filtros, rate limiting)
 //   - i18n: helper t() e chaves web.modulos.roteiros
 
-const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
-
-// Flag global para controlar se o overlay está visível
-// Declarada no escopo global usando window para evitar erro de redeclaração
-// se o script for carregado múltiplas vezes
-if (typeof window.overlayMostrado === 'undefined') {
-  window.overlayMostrado = false;
-}
-
-// Função helper para obter o estado do overlay (opcional, mas útil para debug)
-function getOverlayMostrado() {
+(function() {
+  // Helper e overlay dentro do IIFE para permitir recarregar o módulo ao trocar de tela (evita "Identifier 't' has already been declared").
+  const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
   if (typeof window.overlayMostrado === 'undefined') {
     window.overlayMostrado = false;
   }
-  return window.overlayMostrado;
-}
+  function getOverlayMostrado() {
+    if (typeof window.overlayMostrado === 'undefined') {
+      window.overlayMostrado = false;
+    }
+    return window.overlayMostrado;
+  }
 
-(function() {
   // Elementos
   const tabs = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
@@ -37,7 +32,6 @@ function getOverlayMostrado() {
   const message = document.getElementById('message');
   const modal = document.getElementById('confirmModal');
   
-  let estadosCarregados = false;
   let cidadesOrigem = [];
   let cidadesDestino = [];
   let mapa = null;
@@ -360,7 +354,7 @@ function getOverlayMostrado() {
     
     // Garantir que a aba de filtros está ativa e visível
     await showTab('filtros');
-    await loadEstados();
+    await loadPaises();
     
     // Adicionar event listeners após o DOM estar pronto
     // Usar delegação de eventos para garantir que funcione mesmo se o elemento for recriado
@@ -522,28 +516,28 @@ function getOverlayMostrado() {
   // Função para mudar abas
   async function showTab(tabId) {
     try {
-      // Validar tabId
       if (!tabId) {
         console.warn('[showTab] tabId não fornecido, usando "filtros" como padrão');
         tabId = 'filtros';
       }
       
-      tabs.forEach(btn => btn.classList.remove('active'));
-      tabContents.forEach(content => content.classList.remove('active'));
-      
-      const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
       const tabContent = document.getElementById(`tab-${tabId}`);
+      const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
       
       if (!tabBtn) {
         console.error(`[showTab] Botão da aba "${tabId}" não encontrado`);
         return;
       }
-      
       if (!tabContent) {
         console.error(`[showTab] Conteúdo da aba "${tabId}" não encontrado`);
         return;
       }
       
+      const container = tabContent.closest('[class*="-container"]') || tabContent.parentElement;
+      if (container) {
+        container.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        container.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      }
       tabBtn.classList.add('active');
       tabContent.classList.add('active');
     
@@ -635,10 +629,12 @@ function getOverlayMostrado() {
       }
     }
     
-    // Se mudou para aba de mapa, atualizar mapa com todos os pontos
     if (tabId === 'mapa' && roteiroAtualId) {
-      // Proteção: evitar chamadas duplicadas
-      if (!atualizandoMapaComPontos) {
+      console.log('[MAPA] Aba Mapa ativada com roteiroAtualId=', roteiroAtualId, '→ inicializando mapa e atualizarMapaComPontos()');
+      if (typeof L !== 'undefined' && !mapa) {
+        await inicializarMapa();
+      }
+      if (!atualizandoMapaComPontos && mapa) {
         await atualizarMapaComPontos();
       }
     }
@@ -649,8 +645,11 @@ function getOverlayMostrado() {
         const filtrosBtn = document.querySelector('.tab-btn[data-tab="filtros"]');
         const filtrosContent = document.getElementById('tab-filtros');
         if (filtrosBtn && filtrosContent) {
-          tabs.forEach(btn => btn.classList.remove('active'));
-          tabContents.forEach(content => content.classList.remove('active'));
+          const container = filtrosContent.closest('[class*="-container"]') || filtrosContent.parentElement;
+          if (container) {
+            container.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            container.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+          }
           filtrosBtn.classList.add('active');
           filtrosContent.classList.add('active');
         }
@@ -660,59 +659,95 @@ function getOverlayMostrado() {
     }
   }
 
-  // Carregar estados do Brasil
-  async function loadEstados() {
-    if (estadosCarregados) return;
-    
+  // Carregar países (filtros, formulário Dados e combo ponto no mapa)
+  async function loadPaises() {
     try {
-      const response = await fetch('/api/estados-brasil');
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
-        throw new Error(errorData.error || `Erro ${response.status}: ${response.statusText}`);
-      }
-      
-      const estados = await response.json();
-      
-      // Verificar se estados é um array válido
-      if (!Array.isArray(estados)) {
-        console.error('Resposta da API não é um array:', estados);
-        showMessage('Erro: resposta inválida do servidor ao carregar estados.', 'error');
-        return;
-      }
-      
-      const fillEstados = (id) => {
+      const base = typeof window.corrigirUrl === 'function' ? window.corrigirUrl('/api/paises') : '/api/paises';
+      const response = await fetch(base);
+      if (!response.ok) throw new Error('Erro ao carregar países');
+      const paises = await response.json();
+      if (!Array.isArray(paises)) return;
+      const fillPais = (id, useShortLabel = false) => {
         const el = document.getElementById(id);
         if (!el) return;
-        // Para filtros, usar "Todos", para formulário usar "Selecione"
         const textoPadrao = (id.startsWith('filtro')) ? 'Todos' : 'Selecione';
         el.innerHTML = `<option value="">${textoPadrao}</option>`;
-        estados.forEach(e => {
+        paises.forEach(p => {
           const opt = document.createElement('option');
-          opt.value = e.uf;
-          opt.textContent = `${e.uf} - ${e.nome}`;
+          opt.value = p.CDPAIS ?? p.cdpais;
+          opt.textContent = useShortLabel ? (p.DSPAIS || '') : ((p.SGPAIS || p.CDPAIS) + ' - ' + (p.DSPAIS || ''));
           el.appendChild(opt);
         });
       };
-
-      fillEstados('filtroOrigemEstado');
-      fillEstados('filtroDestinoEstado');
-      fillEstados('origemEstado');
-      fillEstados('destinoEstado');
-
-      estadosCarregados = true;
+      fillPais('filtroOrigemPais');
+      fillPais('filtroDestinoPais');
+      fillPais('origemPais');
+      fillPais('destinoPais');
+      fillPais('pontoPais', true);
+      // Resetar combos de estado nos filtros (estados só após selecionar país)
+      const filtroOrigemEstado = document.getElementById('filtroOrigemEstado');
+      const filtroDestinoEstado = document.getElementById('filtroDestinoEstado');
+      if (filtroOrigemEstado) filtroOrigemEstado.innerHTML = '<option value="">Todos</option>';
+      if (filtroDestinoEstado) filtroDestinoEstado.innerHTML = '<option value="">Todos</option>';
     } catch (err) {
-      console.error('Erro ao carregar estados:', err);
-      showMessage(err.message || 'Erro ao carregar estados. Verifique a conexão.', 'error');
+      console.error('Erro ao carregar países:', err);
+      showMessage(err.message || 'Erro ao carregar países.', 'error');
     }
   }
 
-  // Carregar cidades por estado
+  // Handler para mudança de país no filtro (origem ou destino) — carrega estados e limpa seleção
+  async function handleFiltroPaisChange() {
+    const id = this.id;
+    const cdpais = this.value;
+    if (id === 'filtroOrigemPais') {
+      await loadEstadosParaPais(cdpais, 'filtroOrigemEstado');
+      const el = document.getElementById('filtroOrigemEstado');
+      if (el) el.value = '';
+    } else if (id === 'filtroDestinoPais') {
+      await loadEstadosParaPais(cdpais, 'filtroDestinoEstado');
+      const el = document.getElementById('filtroDestinoEstado');
+      if (el) el.value = '';
+    }
+  }
+
+  // Carregar estados de um país e preencher um select (origem/destino ou filtro)
+  async function loadEstadosParaPais(cdpais, targetSelectId) {
+    const el = document.getElementById(targetSelectId);
+    if (!el) return;
+    const textoPadrao = (targetSelectId.startsWith('filtro')) ? 'Todos' : 'Selecione o país primeiro';
+    el.innerHTML = `<option value="">${textoPadrao}</option>`;
+    if (!cdpais) return;
+    try {
+      const base = typeof window.corrigirUrl === 'function' ? window.corrigirUrl('/api/estados') : '/api/estados';
+      const response = await fetch(`${base}?cdpais=${encodeURIComponent(cdpais)}`);
+      if (!response.ok) return;
+      const estados = await response.json();
+      if (!Array.isArray(estados)) return;
+      const padrao = (targetSelectId.startsWith('filtro')) ? 'Todos' : 'Selecione';
+      el.innerHTML = `<option value="">${padrao}</option>`;
+      estados.forEach(e => {
+        const opt = document.createElement('option');
+        const uf = e.ESTADO ?? e.estado ?? e.PAIS_SIGLA;
+        const nome = e.NMESTADO ?? e.nmestado ?? uf;
+        opt.value = uf;
+        opt.textContent = `${uf} - ${nome}`;
+        el.appendChild(opt);
+      });
+    } catch (err) {
+      console.error('Erro ao carregar estados:', err);
+    }
+  }
+
+  // Carregar cidades por país e estado
   async function loadCidadesPorEstado(estado, tipo) {
     if (!estado) return;
-    
+    const paisEl = tipo === 'origem' ? document.getElementById('origemPais') : document.getElementById('destinoPais');
+    const cdpais = paisEl?.value;
+    const params = new URLSearchParams({ estado });
+    if (cdpais) params.append('pais', cdpais);
     try {
-      const response = await fetch(`/api/cidades?estado=${estado}`);
+      const base = typeof window.corrigirUrl === 'function' ? window.corrigirUrl('/api/cidades') : '/api/cidades';
+      const response = await fetch(`${base}?${params.toString()}`);
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
@@ -783,23 +818,31 @@ function getOverlayMostrado() {
     const params = new URLSearchParams();
     const codigo = document.getElementById('filtroCodigo')?.value;
     const descricao = document.getElementById('filtroDescricao')?.value;
+    const origemPais = document.getElementById('filtroOrigemPais')?.value;
     const origemEstado = document.getElementById('filtroOrigemEstado')?.value;
     const origemCidade = document.getElementById('filtroOrigemCidade')?.value;
+    const destinoPais = document.getElementById('filtroDestinoPais')?.value;
     const destinoEstado = document.getElementById('filtroDestinoEstado')?.value;
     const destinoCidade = document.getElementById('filtroDestinoCidade')?.value;
     
     if (codigo) params.append('codigo', codigo);
     if (descricao) params.append('descricao', descricao);
+    if (origemPais) params.append('origemPais', origemPais);
     if (origemEstado) params.append('origemEstado', origemEstado);
     if (origemCidade) params.append('origemCidade', origemCidade);
+    if (destinoPais) params.append('destinoPais', destinoPais);
     if (destinoEstado) params.append('destinoEstado', destinoEstado);
     if (destinoCidade) params.append('destinoCidade', destinoCidade);
     
-    // Mostrar overlay de carregamento
+    const queryString = params.toString();
+    const urlFiltro = `/api/roteiros?${queryString}`;
+    console.log('[FILTRO] Parâmetros enviados:', { codigo, descricao, origemPais, origemEstado, origemCidade, destinoPais, destinoEstado, destinoCidade });
+    console.log('[FILTRO] URL da requisição:', urlFiltro || '(vazio = sem filtros)');
+    
     showLoadingFiltros();
     
     try {
-      const response = await fetch(`/api/roteiros?${params.toString()}`);
+      const response = await fetch(urlFiltro);
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
@@ -975,12 +1018,12 @@ function getOverlayMostrado() {
 
 async function loadRoteiroParaEdicao(id) {
   try {
-    // IMPORTANTE: Limpar formulário ANTES de carregar novos dados
-    // Isso evita que dados de um roteiro apareçam em outro
     const roteiroForm = document.getElementById('roteiroForm');
     if (roteiroForm) {
       roteiroForm.reset();
     }
+    // Garantir que os combos de país estão populados antes de setar valor (evita estado vazio ao editar)
+    await loadPaises();
     
     const response = await fetch(`/api/roteiros/${id}`);
     
@@ -994,6 +1037,8 @@ async function loadRoteiroParaEdicao(id) {
     const idRoteiro = roteiro.IDROTEIRO ?? roteiro.idroteiro;
     const dsRoteiro = roteiro.DSROTEIRO ?? roteiro.dsroteiro;
     const distanciaKm = roteiro.DISTANCIAKM ?? roteiro.distanciakm;
+    const origemCdpais = roteiro.ORIGEM_CDPAIS ?? roteiro.origem_cdpais;
+    const destinoCdpais = roteiro.DESTINO_CDPAIS ?? roteiro.destino_cdpais;
     const origemEstadoVal = (roteiro.ORIGEM_ESTADO ?? roteiro.origem_estado) ?? '';
     const destinoEstadoVal = (roteiro.DESTINO_ESTADO ?? roteiro.destino_estado) ?? '';
     const origemCidadeCod = roteiro.CDCIDADEORIGEM ?? roteiro.cdcidadeorigem;
@@ -1001,7 +1046,6 @@ async function loadRoteiroParaEdicao(id) {
     const resumoRota = roteiro.RESUMOROTA ?? roteiro.resumorota;
 
     if (roteiro) {
-      // Preenche campos básicos
       document.getElementById('roteiroId').value = idRoteiro ?? '';
       document.getElementById('roteiroCodigo').value = idRoteiro ?? '';
       document.getElementById('roteiroDescricao').value = dsRoteiro ?? '';
@@ -1009,9 +1053,7 @@ async function loadRoteiroParaEdicao(id) {
       document.getElementById('formTitle').textContent = t('web.modulos.roteiros.editarRoteiro');
       
       const campoResumo = document.getElementById('roteiroResumoRota');
-      if (campoResumo) {
-        campoResumo.value = resumoRota ?? '';
-      }
+      if (campoResumo) campoResumo.value = resumoRota ?? '';
       
       const btnGerarResumo = document.getElementById('btnGerarResumo');
       if (btnGerarResumo) {
@@ -1019,17 +1061,36 @@ async function loadRoteiroParaEdicao(id) {
         btnGerarResumo.style.opacity = '1';
         btnGerarResumo.style.pointerEvents = 'auto';
         btnGerarResumo.style.cursor = 'pointer';
-        console.log('✅ Botão Gerar Resumo habilitado para roteiro:', idRoteiro);
       }
 
-      if (!estadosCarregados) {
-        await loadEstados();
+      if (origemCdpais != null && origemCdpais !== '') {
+        document.getElementById('origemPais').value = String(origemCdpais);
+        await loadEstadosParaPais(origemCdpais, 'origemEstado');
+      }
+      if (destinoCdpais != null && destinoCdpais !== '') {
+        document.getElementById('destinoPais').value = String(destinoCdpais);
+        await loadEstadosParaPais(destinoCdpais, 'destinoEstado');
       }
 
       const origemEstado = String(origemEstadoVal).trim().toUpperCase();
       const destinoEstado = String(destinoEstadoVal).trim().toUpperCase();
-      document.getElementById('origemEstado').value = origemEstado;
-      document.getElementById('destinoEstado').value = destinoEstado;
+      const selOrigemEstado = document.getElementById('origemEstado');
+      const selDestinoEstado = document.getElementById('destinoEstado');
+      // Garantir que o estado atual exista no combo (ex.: Paraguai pode não ter estados na API)
+      if (origemEstado && selOrigemEstado && !Array.from(selOrigemEstado.options).some(o => o.value === origemEstado)) {
+        const opt = document.createElement('option');
+        opt.value = origemEstado;
+        opt.textContent = origemEstado;
+        selOrigemEstado.appendChild(opt);
+      }
+      if (destinoEstado && selDestinoEstado && !Array.from(selDestinoEstado.options).some(o => o.value === destinoEstado)) {
+        const opt = document.createElement('option');
+        opt.value = destinoEstado;
+        opt.textContent = destinoEstado;
+        selDestinoEstado.appendChild(opt);
+      }
+      if (selOrigemEstado) selOrigemEstado.value = origemEstado;
+      if (selDestinoEstado) selDestinoEstado.value = destinoEstado;
 
       await loadCidadesPorEstado(origemEstado, 'origem');
       await loadCidadesPorEstado(destinoEstado, 'destino');
@@ -1108,19 +1169,19 @@ async function loadRoteiroParaEdicao(id) {
       const roteiro = await response.json();
       const estaAtivo = (roteiro.FGACTIVE || 'S') === 'S';
       
-      // Definir mensagem e ação baseado no status atual
+      // Definir mensagem e ação baseado no status atual (padrão: só a pergunta)
       let confirmMsg, action, btnText;
       if (estaAtivo) {
-        confirmMsg = 'Tem certeza que deseja <strong>desativar</strong> este roteiro?<br><br><small style="color: #666;">O roteiro ficará inativo e não aparecerá nas listagens padrão.</small>';
+        confirmMsg = 'Tem certeza que deseja desativar este roteiro?';
         action = 'deactivate';
         btnText = 'Desativar';
       } else {
-        confirmMsg = 'Tem certeza que deseja <strong>reativar</strong> este roteiro?<br><br><small style="color: #666;">O roteiro voltará a aparecer nas listagens e estará disponível para uso.</small>';
+        confirmMsg = 'Tem certeza que deseja reativar este roteiro?';
         action = 'activate';
         btnText = 'Reativar';
       }
       
-      modalMessage.innerHTML = confirmMsg;
+      modalMessage.textContent = confirmMsg;
       
       // Armazenar ID e ação no dataset do modal
       modalEl.dataset.deleteId = idValido;
@@ -1195,20 +1256,21 @@ async function loadRoteiroParaEdicao(id) {
         return false;
       }
       
-      // Buscar coordenadas e informações das cidades
       const origemEstado = document.getElementById('origemEstado')?.value;
       const destinoEstado = document.getElementById('destinoEstado')?.value;
+      const origemPaisCod = document.getElementById('origemPais')?.value;
+      const destinoPaisCod = document.getElementById('destinoPais')?.value;
       
       const [coordsOrigem, coordsDestino] = await Promise.all([
-        obterCoordenadasCidade(origemCidade.NMCIDADE, origemEstado),
-        obterCoordenadasCidade(destinoCidade.NMCIDADE, destinoEstado)
+        obterCoordenadasCidade(origemCidade.NMCIDADE, origemEstado, origemPaisCod),
+        obterCoordenadasCidade(destinoCidade.NMCIDADE, destinoEstado, destinoPaisCod)
       ]);
       
-      // Buscar código do país (Brasil por padrão)
       await loadPaises();
       const paises = await fetch('/api/paises').then(r => r.ok ? r.json() : []);
-      const brasil = paises.find(p => p.DSPAIS.toLowerCase().includes('brasil')) || paises[0];
-      const codigoPais = brasil ? brasil.CDPAIS : null;
+      const brasil = paises.find(p => (p.DSPAIS || '').toLowerCase().includes('brasil')) || paises[0];
+      const codigoPaisOrigem = origemPaisCod || (brasil ? brasil.CDPAIS : null);
+      const codigoPaisDestino = destinoPaisCod || (brasil ? brasil.CDPAIS : null);
       
       // Validar se temos os dados necessários
       if (!origemCidade.NMCIDADE || !origemEstado || !destinoCidade.NMCIDADE || !destinoEstado) {
@@ -1219,7 +1281,6 @@ async function loadRoteiroParaEdicao(id) {
         return false;
       }
       
-      // Criar ponto de origem (Sequência 1, Ordem 1, Tipo O)
       const pontoOrigem = {
         ORDEM: 1,
         DSLOCAL: (origemCidade.NMCIDADE || 'Origem').trim(),
@@ -1227,12 +1288,11 @@ async function loadRoteiroParaEdicao(id) {
         LATITUDE: coordsOrigem ? parseFloat(coordsOrigem.lat) : null,
         LONGITUDE: coordsOrigem ? parseFloat(coordsOrigem.lon) : null,
         TPLOCAL: 'O',
-        KMENTREPONTOS: null, // Sem distância para o primeiro ponto
+        KMENTREPONTOS: null,
         ESTADOPASSAGEM: (origemEstado || '').trim() || null,
-        CDPAISPASSAGEM: codigoPais
+        CDPAISPASSAGEM: codigoPaisOrigem
       };
       
-      // Criar ponto de destino (Sequência 2, Ordem 100, Tipo D)
       const pontoDestino = {
         ORDEM: 100,
         DSLOCAL: (destinoCidade.NMCIDADE || 'Destino').trim(),
@@ -1240,9 +1300,9 @@ async function loadRoteiroParaEdicao(id) {
         LATITUDE: coordsDestino ? parseFloat(coordsDestino.lat) : null,
         LONGITUDE: coordsDestino ? parseFloat(coordsDestino.lon) : null,
         TPLOCAL: 'D',
-        KMENTREPONTOS: null, // Será calculado depois
+        KMENTREPONTOS: null,
         ESTADOPASSAGEM: (destinoEstado || '').trim() || null,
-        CDPAISPASSAGEM: codigoPais
+        CDPAISPASSAGEM: codigoPaisDestino
       };
       
       // Validar que os campos obrigatórios estão preenchidos
@@ -1462,6 +1522,13 @@ async function loadRoteiroParaEdicao(id) {
     e.preventDefault();
     applyFilters('grid'); // Ir para Grid após aplicar filtros
   });
+  // Delegação: ao mudar país no filtro, carregar estados (fallback se init rodar antes do DOM)
+  filtroForm?.addEventListener('change', function(e) {
+    const t = e.target;
+    if (t && (t.id === 'filtroOrigemPais' || t.id === 'filtroDestinoPais')) {
+      handleFiltroPaisChange.call(t);
+    }
+  });
 
   // Eventos de abas
   tabs.forEach(btn => {
@@ -1474,61 +1541,73 @@ async function loadRoteiroParaEdicao(id) {
   document.getElementById('btnLimparFiltros')?.addEventListener('click', () => {
     document.getElementById('filtroCodigo').value = '';
     document.getElementById('filtroDescricao').value = '';
-    document.getElementById('filtroOrigemEstado').value = '';
+    document.getElementById('filtroOrigemPais').value = '';
+    document.getElementById('filtroDestinoPais').value = '';
+    const fe = document.getElementById('filtroOrigemEstado');
+    const fd = document.getElementById('filtroDestinoEstado');
+    if (fe) fe.innerHTML = '<option value="">Todos</option>';
+    if (fd) fd.innerHTML = '<option value="">Todos</option>';
     document.getElementById('filtroOrigemCidade').value = '';
-    document.getElementById('filtroDestinoEstado').value = '';
     document.getElementById('filtroDestinoCidade').value = '';
   });
 
-  document.getElementById('btnVoltarFiltros')?.addEventListener('click', () => showTab('filtros'));
-  document.getElementById('btnVoltarGrid')?.addEventListener('click', async () => await showTab('filtros'));
-  document.getElementById('btnNovoRegistro')?.addEventListener('click', () => {
-    roteiroForm?.reset();
-    document.getElementById('roteiroId').value = ''; // 👈 Limpa o ID
-    document.getElementById('roteiroCodigo').value = ''; // Limpa o código visível
-    document.getElementById('formTitle').textContent = t('web.modulos.roteiros.novoRoteiro');
-    roteiroAtualId = null; // Limpa o ID do roteiro atual
-    
-    // Desabilitar botão gerar resumo quando não há roteiro
-    const btnGerarResumo = document.getElementById('btnGerarResumo');
-    if (btnGerarResumo) {
-      btnGerarResumo.disabled = true;
-      btnGerarResumo.style.opacity = '0.5';
-    }
-    
-    // Limpar resumo
-    const campoResumo = document.getElementById('roteiroResumoRota');
-    if (campoResumo) {
-      campoResumo.value = '';
-    }
-    
-    showTab('dados');
-  });
-  document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
+  function irParaNovoRoteiro() {
     roteiroForm?.reset();
     document.getElementById('roteiroId').value = '';
     document.getElementById('roteiroCodigo').value = '';
     document.getElementById('formTitle').textContent = t('web.modulos.roteiros.novoRoteiro');
     roteiroAtualId = null;
-    
-    // Desabilitar botão gerar resumo quando não há roteiro
+    // País já preenchido por loadPaises; estado e cidade dependem da seleção
+    const oP = document.getElementById('origemPais');
+    const dP = document.getElementById('destinoPais');
+    if (oP) oP.value = '';
+    if (dP) dP.value = '';
+    const oE = document.getElementById('origemEstado');
+    const dE = document.getElementById('destinoEstado');
+    const oC = document.getElementById('origemCidade');
+    const dC = document.getElementById('destinoCidade');
+    if (oE) oE.innerHTML = '<option value="">Selecione o país primeiro</option>';
+    if (dE) dE.innerHTML = '<option value="">Selecione o país primeiro</option>';
+    if (oC) oC.innerHTML = '<option value="">Selecione um estado primeiro</option>';
+    if (dC) dC.innerHTML = '<option value="">Selecione um estado primeiro</option>';
+    document.getElementById('origemCodigo').value = '';
+    document.getElementById('destinoCodigo').value = '';
     const btnGerarResumo = document.getElementById('btnGerarResumo');
     if (btnGerarResumo) {
       btnGerarResumo.disabled = true;
       btnGerarResumo.style.opacity = '0.5';
     }
-    
-    // Limpar resumo
     const campoResumo = document.getElementById('roteiroResumoRota');
-    if (campoResumo) {
-      campoResumo.value = '';
-    }
-    
+    if (campoResumo) campoResumo.value = '';
     showTab('dados');
-  });
+  }
+  window.irParaNovoRoteiro = irParaNovoRoteiro;
+
+  document.getElementById('btnVoltarFiltros')?.addEventListener('click', () => showTab('filtros'));
+  document.getElementById('btnVoltarGrid')?.addEventListener('click', () => showTab('filtros'));
+  document.getElementById('btnNovoRoteiroFiltros')?.addEventListener('click', irParaNovoRoteiro);
+  document.getElementById('btnNovoRegistro')?.addEventListener('click', irParaNovoRoteiro);
+  document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', irParaNovoRoteiro);
   document.getElementById('btnCancelar')?.addEventListener('click', () => showTab('grid'));
 
-  // Eventos de estado para carregar cidades
+  // País: ao mudar, recarregar estados e limpar estado/cidade
+  document.getElementById('origemPais')?.addEventListener('change', function() {
+    const cdpais = this.value;
+    loadEstadosParaPais(cdpais, 'origemEstado');
+    document.getElementById('origemEstado').value = '';
+    document.getElementById('origemCidade').innerHTML = '<option value="">Selecione um estado primeiro</option>';
+    document.getElementById('origemCidade').value = '';
+    document.getElementById('origemCodigo').value = '';
+  });
+  document.getElementById('destinoPais')?.addEventListener('change', function() {
+    const cdpais = this.value;
+    loadEstadosParaPais(cdpais, 'destinoEstado');
+    document.getElementById('destinoEstado').value = '';
+    document.getElementById('destinoCidade').innerHTML = '<option value="">Selecione um estado primeiro</option>';
+    document.getElementById('destinoCidade').value = '';
+    document.getElementById('destinoCodigo').value = '';
+  });
+  // Filtro país → estado: listeners atribuídos em init() após loadPaises() para garantir que o DOM está pronto
   document.getElementById('origemEstado')?.addEventListener('change', function() {
     const estado = this.value;
     loadCidadesPorEstado(estado, 'origem');
@@ -1567,41 +1646,44 @@ async function loadRoteiroParaEdicao(id) {
     }
   };
 
-  // Função para obter coordenadas de uma cidade usando API do backend
-  async function obterCoordenadasCidade(nomeCidade, estado) {
+  // Função para obter coordenadas de uma cidade usando API do backend (aceita cidade internacional com pais opcional)
+  async function obterCoordenadasCidade(nomeCidade, estado, pais) {
+    const label = `${nomeCidade}, ${estado}${pais ? ', país=' + pais : ''}`;
     try {
       const params = new URLSearchParams({
         cidade: nomeCidade,
         estado: estado
       });
+      if (pais) params.append('pais', pais);
       
-      const response = await fetch(`/api/cidades/coordenadas?${params.toString()}`);
+      const url = `/api/cidades/coordenadas?${params.toString()}`;
+      console.log('[MAPA] Buscando coordenadas:', label, '→', url);
+      const response = await fetch(url);
       
       if (!response.ok) {
-        // Se for 404 ou outro erro HTTP, tentar parsear a resposta
         const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
-        console.error(`Erro ${response.status}:`, errorData);
+        console.warn('[MAPA] Coordenadas falharam para', label, '→', response.status, errorData);
         return null;
       }
       
       const data = await response.json();
       
-      // Verificar se a resposta indica sucesso
       if (data.success && data.lat && data.lon) {
+        console.log('[MAPA] Coordenadas OK:', label, '→', data.lat, data.lon);
         return {
           lat: data.lat,
           lon: data.lon
         };
       }
       
-      // Se success: false, logar o erro mas não retornar null imediatamente
       if (data.success === false) {
-        console.warn('API retornou success: false:', data.error);
+        console.warn('[MAPA] API coordenadas success: false para', label, '→', data.error);
+      } else {
+        console.warn('[MAPA] Resposta coordenadas sem lat/lon para', label, '→', data);
       }
-      
       return null;
     } catch (err) {
-      console.error('Erro ao obter coordenadas:', err);
+      console.error('[MAPA] Erro ao obter coordenadas para', label, err);
       return null;
     }
   }
@@ -1698,12 +1780,12 @@ async function loadRoteiroParaEdicao(id) {
         return;
       }
 
-      // Obter coordenadas
       showMessage('Buscando coordenadas das cidades...', 'success');
-      
+      const origemPaisVal = document.getElementById('origemPais')?.value;
+      const destinoPaisVal = document.getElementById('destinoPais')?.value;
       const [coordsOrigem, coordsDestino] = await Promise.all([
-        obterCoordenadasCidade(origemCidade.NMCIDADE, origemEstado),
-        obterCoordenadasCidade(destinoCidade.NMCIDADE, destinoEstado)
+        obterCoordenadasCidade(origemCidade.NMCIDADE, origemEstado, origemPaisVal),
+        obterCoordenadasCidade(destinoCidade.NMCIDADE, destinoEstado, destinoPaisVal)
       ]);
 
       if (!coordsOrigem) {
@@ -2057,7 +2139,7 @@ async function loadRoteiroParaEdicao(id) {
     tab.addEventListener('click', async () => {
       const tabId = tab.getAttribute('data-tab');
       if (tabId === 'mapa') {
-        // Verificar se Leaflet está disponível
+        console.log('[MAPA] Clique na aba Mapa → inicializando mapa');
         if (typeof L === 'undefined') {
           const leafletDisponivel = await aguardarLeaflet();
           if (!leafletDisponivel) {
@@ -2066,7 +2148,6 @@ async function loadRoteiroParaEdicao(id) {
           }
         }
         
-        // Inicializar mapa se ainda não foi inicializado (sem delays)
         if (!mapa) {
           const inicializado = await inicializarMapa();
           if (!inicializado) {
@@ -2075,20 +2156,24 @@ async function loadRoteiroParaEdicao(id) {
           }
         }
         
-        // Invalidar tamanho imediatamente usando requestAnimationFrame
         if (mapa) {
-          requestAnimationFrame(() => {
+          requestAnimationFrame(async () => {
             try {
               mapa.invalidateSize();
-              // Atualizar mapa após invalidar
-              atualizarMapa();
+              if (roteiroAtualId) {
+                await atualizarMapaComPontos();
+              } else {
+                await atualizarMapa();
+              }
             } catch (e) {
               console.warn('Erro ao invalidar tamanho:', e);
-              atualizarMapa();
+              if (roteiroAtualId) await atualizarMapaComPontos();
+              else await atualizarMapa();
             }
           });
         } else {
-          await atualizarMapa();
+          if (roteiroAtualId) await atualizarMapaComPontos();
+          else await atualizarMapa();
         }
       }
     });
@@ -2312,8 +2397,10 @@ async function loadRoteiroParaEdicao(id) {
     const origemEstado = document.getElementById('origemEstado')?.value;
     const destinoEstado = document.getElementById('destinoEstado')?.value;
 
-    // Validar se há origem e destino
+    console.log('[MAPA] atualizarMapa() → origemCidadeId=', origemCidadeId, 'destinoCidadeId=', destinoCidadeId, 'origemEstado=', origemEstado, 'destinoEstado=', destinoEstado);
+
     if (!origemCidadeId || !destinoCidadeId || !origemEstado || !destinoEstado) {
+      console.warn('[MAPA] Sem origem/destino ou estado completo. Não desenha rota.');
       if (mapa) {
         mapa.setView([-14.2350, -51.9253], 4);
       }
@@ -2354,27 +2441,32 @@ async function loadRoteiroParaEdicao(id) {
       // Atualizar mensagem do overlay
       showMapaLoading('Buscando Coordenadas', 'Obtendo localização das cidades...');
       
-      // Buscar informações das cidades
       const origemCidade = cidadesOrigem.find(c => c.CDCIDADE.toString() === origemCidadeId);
       const destinoCidade = cidadesDestino.find(c => c.CDCIDADE.toString() === destinoCidadeId);
 
       if (!origemCidade || !destinoCidade) {
+        console.warn('[MAPA] Cidade não encontrada em cidadesOrigem/cidadesDestino. origem=', !!origemCidade, 'destino=', !!destinoCidade, 'cidadesOrigem.length=', cidadesOrigem.length, 'cidadesDestino.length=', cidadesDestino.length);
         hideMapaLoading();
         showMessage('Erro ao obter informações das cidades para o mapa.', 'error');
         return;
       }
 
-      // Obter coordenadas
+      const origemPais = document.getElementById('origemPais')?.value;
+      const destinoPais = document.getElementById('destinoPais')?.value;
+      console.log('[MAPA] Origem:', origemCidade.NMCIDADE, origemEstado, 'pais=', origemPais, '| Destino:', destinoCidade.NMCIDADE, destinoEstado, 'pais=', destinoPais);
+
       const [coordsOrigem, coordsDestino] = await Promise.all([
-        obterCoordenadasCidade(origemCidade.NMCIDADE, origemEstado),
-        obterCoordenadasCidade(destinoCidade.NMCIDADE, destinoEstado)
+        obterCoordenadasCidade(origemCidade.NMCIDADE, origemEstado, origemPais),
+        obterCoordenadasCidade(destinoCidade.NMCIDADE, destinoEstado, destinoPais)
       ]);
 
       if (!coordsOrigem || !coordsDestino) {
+        console.warn('[MAPA] Coordenadas faltando. coordsOrigem=', !!coordsOrigem, 'coordsDestino=', !!coordsDestino);
         hideMapaLoading();
         showMessage('Não foi possível obter as coordenadas para exibir o mapa.', 'error');
         return;
       }
+      console.log('[MAPA] Coordenadas obtidas. Origem:', coordsOrigem, 'Destino:', coordsDestino);
       
       // Atualizar mensagem do overlay
       showMapaLoading('Montando Rota', 'Criando marcadores e traçando rota...');
@@ -2406,7 +2498,6 @@ async function loadRoteiroParaEdicao(id) {
       // Atualizar mensagem do overlay
       showMapaLoading('Calculando Rota', 'Obtendo rota real entre origem e destino...');
       
-      // Obter rota real usando OSRM (Open Source Routing Machine) via backend
       try {
         const params = new URLSearchParams({
           lon1: coordsOrigem.lon,
@@ -2414,23 +2505,26 @@ async function loadRoteiroParaEdicao(id) {
           lon2: coordsDestino.lon,
           lat2: coordsDestino.lat
         });
-        
-        // Usar AbortController para timeout
+        const rotaUrl = `/api/cidades/rota?${params.toString()}`;
+        console.log('[MAPA] Chamando API rota:', rotaUrl);
+
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 segundos de timeout
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
         
-        const rotaResponse = await fetch(`/api/cidades/rota?${params.toString()}`, { signal: controller.signal });
+        const rotaResponse = await fetch(rotaUrl, { signal: controller.signal });
         clearTimeout(timeoutId);
         
         if (!rotaResponse.ok) {
+          console.warn('[MAPA] API rota respondeu', rotaResponse.status, await rotaResponse.text().catch(() => ''));
           throw new Error(`Erro ${rotaResponse.status} ao obter rota`);
         }
         
         const rotaData = await rotaResponse.json();
+        console.log('[MAPA] Resposta rota: code=', rotaData.code, 'routes.length=', rotaData.routes ? rotaData.routes.length : 0);
         
         if (rotaData.code === 'Ok' && rotaData.routes && rotaData.routes.length > 0) {
-          // Usar a rota real obtida do OSRM
-          const coordenadasRota = rotaData.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]); // OSRM retorna [lon, lat], Leaflet precisa [lat, lon]
+          const coordenadasRota = rotaData.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
+          console.log('[MAPA] Desenhando rota OSRM, pontos:', coordenadasRota.length);
           
           linhaRota = L.polyline(coordenadasRota, {
             color: '#3498db',
@@ -2439,11 +2533,10 @@ async function loadRoteiroParaEdicao(id) {
             smoothFactor: 1
           }).addTo(mapa);
           
-          // Calcular distância real da rota
-          const distanciaRota = (rotaData.routes[0].distance / 1000).toFixed(2); // Converter metros para km
+          const distanciaRota = (rotaData.routes[0].distance / 1000).toFixed(2);
           linhaRota.bindPopup(`<strong>Distância da Rota:</strong> ${distanciaRota} km`);
         } else {
-          // Fallback: usar linha reta se não conseguir obter a rota
+          console.log('[MAPA] Usando fallback: linha reta (code=', rotaData.code, ')');
           linhaRota = L.polyline(
             [[coordsOrigem.lat, coordsOrigem.lon], [coordsDestino.lat, coordsDestino.lon]],
             {
@@ -2464,9 +2557,8 @@ async function loadRoteiroParaEdicao(id) {
         }
       } catch (err) {
         if (err.name !== 'AbortError') {
-          console.warn('Erro ao obter rota do OSRM:', err);
+          console.warn('[MAPA] Erro ao obter rota (usando linha reta):', err.message || err);
         }
-        // Fallback: usar linha reta em caso de erro
         linhaRota = L.polyline(
           [[coordsOrigem.lat, coordsOrigem.lon], [coordsDestino.lat, coordsDestino.lon]],
           {
@@ -3840,28 +3932,6 @@ async function loadRoteiroParaEdicao(id) {
     document.getElementById('pontoFormContainer').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   
-  // Carregar países para combo
-  async function loadPaises() {
-    try {
-      const response = await fetch('/api/paises');
-      if (!response.ok) return;
-      
-      const paises = await response.json();
-      const selectPais = document.getElementById('pontoPais');
-      if (!selectPais) return;
-      
-      selectPais.innerHTML = '<option value="">Selecione</option>';
-      paises.forEach(p => {
-        const opt = document.createElement('option');
-        opt.value = p.CDPAIS;
-        opt.textContent = p.DSPAIS;
-        selectPais.appendChild(opt);
-      });
-    } catch (err) {
-      console.warn('Erro ao carregar países:', err);
-    }
-  }
-  
   // Atualizar mapa com todos os pontos
   // Funções para controlar overlay de carregamento do mapa
   function showMapaLoading(titulo = 'Carregando Mapa', texto = 'Preparando visualização da rota...') {
@@ -3997,18 +4067,14 @@ async function loadRoteiroParaEdicao(id) {
   }
 
   async function atualizarMapaComPontos() {
-    if (!roteiroAtualId || !mapa) return;
-    
-    // Proteção: evitar múltiplas execuções simultâneas
-    if (atualizandoMapaComPontos) {
+    if (!roteiroAtualId || !mapa) {
+      console.log('[MAPA] atualizarMapaComPontos() ignorado: roteiroAtualId=', roteiroAtualId, 'mapa=', !!mapa);
       return;
     }
-    
-    // Marcar como executando
+    if (atualizandoMapaComPontos) return;
     atualizandoMapaComPontos = true;
-    
+    console.log('[MAPA] atualizarMapaComPontos() iniciado para roteiro', roteiroAtualId);
     try {
-      // Mostrar overlay de carregamento
       showMapaLoading('Carregando Rota', 'Carregando pontos e montando rota...');
       // SEMPRE limpar o mapa completamente antes de criar novos marcadores
       // Isso garante que não haja "resquícios" de rotas anteriores
@@ -4038,12 +4104,12 @@ async function loadRoteiroParaEdicao(id) {
       }
       
       if (pontosRoteiro.length === 0) {
+        console.warn('[MAPA] Roteiro sem pontos cadastrados');
         hideMapaLoading();
         showMessage('Nenhum ponto cadastrado para este roteiro.', 'error');
         return;
       }
-      
-      // Atualizar mensagem do overlay
+      console.log('[MAPA] Pontos do roteiro:', pontosRoteiro.length, '→', pontosRoteiro.map(p => ({ ORDEM: p.ORDEM, DSLOCAL: p.DSLOCAL, lat: p.LATITUDE, lon: p.LONGITUDE })));
       showMapaLoading('Montando Rota', 'Criando marcadores e traçando rota...');
       
       // Filtrar pontos com coordenadas e ordenar por ORDEM (garantir ordenação numérica)
@@ -4062,8 +4128,20 @@ async function loadRoteiroParaEdicao(id) {
       }
       
       if (pontosComCoordenadas.length === 0) {
+        console.log('[MAPA] Nenhum ponto com coordenadas → fallback para atualizarMapa() (origem/destino do formulário)');
         hideMapaLoading();
-        showMessage('Nenhum ponto com coordenadas válidas encontrado.', 'error');
+        showMessage('Nenhum ponto com coordenadas válidas. Usando origem e destino do formulário...', 'warning');
+        atualizandoMapaComPontos = false;
+        await atualizarMapa();
+        return;
+      }
+      
+      if (pontosComCoordenadas.length === 1) {
+        console.log('[MAPA] Apenas 1 ponto com coordenadas → fallback para atualizarMapa()');
+        hideMapaLoading();
+        showMessage('Apenas um ponto com coordenadas. Completando com origem/destino do formulário...', 'warning');
+        atualizandoMapaComPontos = false;
+        await atualizarMapa();
         return;
       }
       
@@ -5059,7 +5137,7 @@ async function loadRoteiroParaEdicao(id) {
           <h4>🔍 Filtros</h4>
           <p>Use os filtros para buscar roteiros específicos por código, descrição, origem ou destino.</p>
           
-          <h4>📝 Funcionalidades</h4>
+          <h4><i class='bx bx-list-check'></i> Funcionalidades</h4>
           <ul>
             <li><strong>Filtros:</strong> Buscar e filtrar roteiros</li>
             <li><strong>Grid:</strong> Visualizar roteiros em formato de tabela com opções de edição e exclusão</li>
@@ -5068,7 +5146,7 @@ async function loadRoteiroParaEdicao(id) {
             <li><strong>Mapa:</strong> Visualize o roteiro completo no mapa com todos os pontos</li>
           </ul>
           
-          <h4>🗺️ Pontos do Roteiro</h4>
+          <h4><i class='bx bx-map-pin'></i> Pontos do Roteiro</h4>
           <ul>
             <li><strong>Origem (O):</strong> Ponto inicial do roteiro (Ordem 1)</li>
             <li><strong>Destino (D):</strong> Ponto final do roteiro (Ordem 100)</li>
@@ -5076,24 +5154,24 @@ async function loadRoteiroParaEdicao(id) {
             <li><strong>Parada (R):</strong> Pontos de parada (Ordem 2-99)</li>
           </ul>
           
-          <h4>📏 Cálculo de Distância</h4>
+          <h4><i class='bx bx-ruler'></i> Cálculo de Distância</h4>
           <ul>
             <li>O sistema calcula automaticamente a distância total do roteiro usando rotas reais (OSRM)</li>
             <li>As distâncias entre pontos são calculadas e atualizadas automaticamente</li>
             <li>É possível recalcular as distâncias manualmente na aba "Pontos"</li>
           </ul>
           
-          <h4>📍 Resumo da Rota</h4>
+          <h4><i class='bx bx-map-alt'></i> Resumo da Rota</h4>
           <ul>
             <li>O campo "Resumo da Rota" é gerado automaticamente com base nos pontos cadastrados</li>
             <li>O resumo mostra a sequência de cidades do roteiro de forma resumida</li>
             <li>É possível gerar o resumo manualmente clicando no botão "Gerar Resumo"</li>
           </ul>
           
-          <h4>✨ Dicas</h4>
+          <h4><i class='bx bx-bulb'></i> Dicas</h4>
           <ul>
-            <li>Para criar um novo roteiro, clique em "Novo Registro" na aba Grid ou Dados</li>
-            <li>Para editar um roteiro existente, clique no botão de editar (✎) na coluna Ações do grid</li>
+            <li>Para criar um novo roteiro, clique em "Novo" na aba Filtros, Grid ou Dados</li>
+            <li>Para editar um roteiro existente, clique no ícone de edição na coluna Ações do grid</li>
             <li>Após criar um roteiro, adicione os pontos na aba "Pontos"</li>
             <li>Use a aba "Mapa" para visualizar o roteiro completo com todos os pontos</li>
             <li>O resumo da rota é gerado automaticamente, mas pode ser recalculado manualmente</li>

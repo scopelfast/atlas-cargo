@@ -84,6 +84,23 @@ const messageController = {
       }
 
       const pool = await poolPromise;
+      const idViagemNum = parseFloat(idviagem);
+
+      try {
+        const checkViagem = await pool.query(
+          `SELECT 1 FROM public."VIAGEMMESTRE" WHERE "IDVIAGEM" = $1 LIMIT 1`,
+          [idViagemNum]
+        );
+        if (!checkViagem.rows || checkViagem.rows.length === 0) {
+          return res.status(400).json({ error: 'Viagem não cadastrada no sistema.' });
+        }
+      } catch (errCheck) {
+        const code = errCheck.code || '';
+        if (code === '42P01' || /relação.*não existe|table.*does not exist/i.test(String(errCheck.message || ''))) {
+          return res.status(400).json({ error: 'Viagem não cadastrada no sistema.' });
+        }
+      }
+
       const client = await pool.connect();
 
       try {
@@ -93,7 +110,6 @@ const messageController = {
         if (req.body.idConversa) {
           idConversa = parseInt(req.body.idConversa, 10);
         } else {
-          const idViagemNum = parseFloat(idviagem);
           const findConv = await client.query(
             `SELECT "ID" FROM public."CONVERSAS" WHERE "ID_VIAGEM" = $1 LIMIT 1`,
             [idViagemNum]
@@ -590,29 +606,55 @@ const messageController = {
       const senderIdNum = parseFloat(userId);
       const senderTypeStr = (userType || '').substring(0, 20);
 
+      const isMotorista = senderTypeStr.toUpperCase() === 'MOTORISTA' || senderTypeStr.toUpperCase() === 'DRIVER';
+
       // Marcar como lidas todas as mensagens que não são do próprio usuário (PostgreSQL nativo)
-      await pool.query(
-        `UPDATE public."MESSAGES"
-         SET "READ_BY_RECEIVER" = true, "DH_LEITURA" = NOW()
-         WHERE "IDVIAGEM" = $1
-           AND ("SENDER_ID" IS DISTINCT FROM $2 OR "SENDER_TYPE" IS DISTINCT FROM $3)
-           AND (COALESCE("READ_BY_RECEIVER", false) IS NOT TRUE)`,
-        [idViagemNum, senderIdNum, senderTypeStr]
-      );
+      let updateQuery = `
+        UPDATE public."MESSAGES" m
+        SET "READ_BY_RECEIVER" = true, "DH_LEITURA" = NOW()
+        FROM public."CONVERSAS" c
+        WHERE m."ID_CONVERSA" = c."ID"
+          AND m."IDVIAGEM" = $1
+          AND (m."SENDER_ID" IS DISTINCT FROM $2 OR m."SENDER_TYPE" IS DISTINCT FROM $3)
+          AND (COALESCE(m."READ_BY_RECEIVER", false) IS NOT TRUE)
+      `;
+
+      if (isMotorista) {
+        updateQuery += `
+          AND (
+            c."ID_MOTORISTA" = $2 
+            OR EXISTS (SELECT 1 FROM public."VIAGEMMOTORISTA" vm WHERE vm."IDVIAGEM" = c."ID_VIAGEM" AND vm."CDMOTORISTA" = $2)
+            OR m."IDVIAGEM" IN (SELECT "IDVIAGEM" FROM public."VIAGEMMOTORISTA" WHERE "CDMOTORISTA" = $2)
+          )
+        `;
+      }
+
+      await pool.query(updateQuery, [idViagemNum, senderIdNum, senderTypeStr]);
 
       // Atualizar contador de não lidas na conversa (PostgreSQL: UPDATE com subquery)
-      await pool.query(
-        `UPDATE public."CONVERSAS" c
-         SET "MENSAGENS_NAO_LIDAS" = (
-           SELECT COUNT(*)::int
-           FROM public."MESSAGES" m
-           WHERE m."ID_CONVERSA" = c."ID"
-             AND (m."SENDER_ID" IS DISTINCT FROM $2 OR m."SENDER_TYPE" IS DISTINCT FROM $3)
-             AND (COALESCE(m."READ_BY_RECEIVER", false) IS NOT TRUE)
-         )
-         WHERE c."ID_VIAGEM" = $1`,
-        [idViagemNum, senderIdNum, senderTypeStr]
-      );
+      let updateConvQuery = `
+        UPDATE public."CONVERSAS" c
+        SET "MENSAGENS_NAO_LIDAS" = (
+          SELECT COUNT(*)::int
+          FROM public."MESSAGES" m
+          WHERE m."ID_CONVERSA" = c."ID"
+            AND (m."SENDER_ID" IS DISTINCT FROM $2 OR m."SENDER_TYPE" IS DISTINCT FROM $3)
+            AND (COALESCE(m."READ_BY_RECEIVER", false) IS NOT TRUE)
+        )
+        WHERE c."ID_VIAGEM" = $1
+      `;
+
+      if (isMotorista) {
+        updateConvQuery += `
+          AND (
+            c."ID_MOTORISTA" = $2 
+            OR EXISTS (SELECT 1 FROM public."VIAGEMMOTORISTA" vm WHERE vm."IDVIAGEM" = c."ID_VIAGEM" AND vm."CDMOTORISTA" = $2)
+            OR c."ID_VIAGEM" IN (SELECT "IDVIAGEM" FROM public."VIAGEMMOTORISTA" WHERE "CDMOTORISTA" = $2)
+          )
+        `;
+      }
+
+      await pool.query(updateConvQuery, [idViagemNum, senderIdNum, senderTypeStr]);
 
       res.json({ success: true, message: 'Mensagens marcadas como lidas' });
     } catch (err) {
@@ -1062,21 +1104,33 @@ const messageController = {
       const userIdNum = parseFloat(idUsuario);
       const userTypeStr = (userType || '').substring(0, 20);
 
-      // Contar mensagens não lidas onde o usuário é o destinatário (PostgreSQL nativo)
+      const isMotorista = userTypeStr.toUpperCase() === 'MOTORISTA' || userTypeStr.toUpperCase() === 'DRIVER';
+
+      let baseQuery = `
+         FROM public."MESSAGES" m
+         ${isMotorista ? 'LEFT JOIN public."CONVERSAS" c ON m."ID_CONVERSA" = c."ID"' : ''}
+         WHERE (m."SENDER_ID" IS DISTINCT FROM $1 OR m."SENDER_TYPE" IS DISTINCT FROM $2)
+           AND (COALESCE(m."READ_BY_RECEIVER", false) IS NOT TRUE)
+      `;
+
+      if (isMotorista) {
+        baseQuery += `
+           AND (
+             c."ID_MOTORISTA" = $1 
+             OR EXISTS (SELECT 1 FROM public."VIAGEMMOTORISTA" vm WHERE vm."IDVIAGEM" = c."ID_VIAGEM" AND vm."CDMOTORISTA" = $1)
+             OR m."IDVIAGEM" IN (SELECT "IDVIAGEM" FROM public."VIAGEMMOTORISTA" WHERE "CDMOTORISTA" = $1)
+           )
+        `;
+      }
+
+      // Contar mensagens não lidas
       const result = await pool.query(
-        `SELECT COUNT(*)::int AS total
-         FROM public."MESSAGES"
-         WHERE ("SENDER_ID" IS DISTINCT FROM $1 OR "SENDER_TYPE" IS DISTINCT FROM $2)
-           AND (COALESCE("READ_BY_RECEIVER", false) IS NOT TRUE)`,
+        `SELECT COUNT(*)::int AS total ${baseQuery}`,
         [userIdNum, userTypeStr]
       );
 
       const porConversaResult = await pool.query(
-        `SELECT "ID_CONVERSA", COUNT(*)::int AS nao_lidas
-         FROM public."MESSAGES"
-         WHERE ("SENDER_ID" IS DISTINCT FROM $1 OR "SENDER_TYPE" IS DISTINCT FROM $2)
-           AND (COALESCE("READ_BY_RECEIVER", false) IS NOT TRUE)
-         GROUP BY "ID_CONVERSA"`,
+        `SELECT m."ID_CONVERSA", COUNT(*)::int AS nao_lidas ${baseQuery} GROUP BY m."ID_CONVERSA"`,
         [userIdNum, userTypeStr]
       );
 

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Gerenciar Mesorregiões</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/modulos.css">
+    <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+    <style>
+      .mesorregiao-container { padding: 20px; font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif; }
+      .mesorregiao-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 2px solid var(--light-gray, #e2e8f0); }
+      .mesorregiao-header h2 { margin: 0; color: var(--ac-primary, #0d2137); font-size: 28px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+      /* Abas com ícones – mesmo modelo Cidades / Tipos de Validade */
+      .mesorregiao-container .tabs.tabs-com-icones { display: flex; margin-bottom: 25px; border-bottom: 2px solid var(--light-gray, #e2e8f0); gap: 0; }
+      .mesorregiao-container .tabs.tabs-com-icones .tab-btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border: none; background: transparent; color: #94a3b8; font-weight: 600; font-size: 15px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.2s, border-color 0.2s; font-family: inherit; }
+      .mesorregiao-container .tabs.tabs-com-icones .tab-btn i { font-size: 1.15rem; color: inherit; }
+      .mesorregiao-container .tabs.tabs-com-icones .tab-btn:hover { color: #64748b; }
+      .mesorregiao-container .tabs.tabs-com-icones .tab-btn.active { color: var(--ac-primary, #0d2137); border-bottom-color: var(--ac-primary, #0d2137); }
+      .mesorregiao-container .tabs.tabs-com-icones .tab-btn.active i { color: var(--ac-primary, #0d2137); }
+      .btn-filtro { display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.15s; }
+      .btn-filtro:hover { transform: translateY(-1px); }
+      .btn-filtro-limpar { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+      .btn-filtro-limpar:hover { background: #e2e8f0; color: #334155; }
+      .btn-filtro-aplicar { background: var(--ac-accent, #0ea5e9); color: #fff; }
+      .btn-filtro-aplicar:hover { background: #0284c7; }
+      .btn-filtro-novo { background: var(--success, #059669); color: #fff; }
+      .btn-filtro-novo:hover { background: #047857; }
+      .btn-filtro-danger { background: #dc2626; color: #fff; box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25); }
+      .btn-filtro-danger:hover { background: #b91c1c; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35); }
+      .filtros-box { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.08); margin-bottom: 25px; border: 1px solid var(--border, #e2e8f0); }
+      .filtros-box h3 { margin: 0 0 20px 0; color: var(--ac-primary, #0d2137); font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+      .filtros-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 15px; }
+      .form-dados-card { background: #fff; border-radius: 12px; border: 1px solid var(--border, #e2e8f0); box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 24px; overflow: hidden; }
+      .form-dados-card-header { padding: 14px 20px; background: #f8fafc; border-bottom: 1px solid var(--border, #e2e8f0); font-weight: 600; font-size: 1rem; color: var(--ac-primary, #0d2137); }
+      .form-dados-card-body { padding: 20px; }
+      .form-dados-card-body .input-group { margin-bottom: 16px; }
+      .form-dados-card-body label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--gray, #64748b); font-size: 14px; }
+      .form-dados-card-body .form-control { width: 100%; padding: 12px; border: 1px solid var(--border, #e2e8f0); border-radius: 8px; font-size: 16px; box-sizing: border-box; }
+      .btn { padding: 12px 24px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; margin-right: 10px; display: inline-flex; align-items: center; gap: 8px; font-family: inherit; }
+      .btn-primary { background: var(--ac-accent, #0ea5e9); color: white; }
+      .btn-primary:hover { background: #0284c7; }
+      .btn-success { background: var(--success, #059669); color: white; }
+      .btn-success:hover { background: #047857; }
+      .btn-secondary { background: #64748b; color: white; }
+      .btn-secondary:hover { background: #475569; }
+      .filtros-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px; }
+      .filtros-grid > div { display: flex; flex-direction: column; }
+      .filtros-grid label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--dark, #1e293b); font-size: 14px; }
+      .form-dados-card-body .filtros-grid { margin-bottom: 0; }
+      .form-dados-card-header i { font-size: 1.2rem; color: var(--ac-accent, #0ea5e9); }
+      /* Grid: coluna Situação e Ações no mesmo padrão de Gerenciar Cidades */
+      #mesorregiaoGrid th:nth-last-child(2), #mesorregiaoGrid td:nth-last-child(2) { width: 90px !important; min-width: 90px !important; max-width: 90px !important; text-align: right !important; }
+      #mesorregiaoGrid .grid-actions-header, #mesorregiaoGrid th:last-child { width: 88px !important; min-width: 88px !important; max-width: 88px !important; text-align: right !important; }
+      #mesorregiaoGrid .grid-actions, #mesorregiaoGrid td:last-child { width: 88px !important; min-width: 88px !important; max-width: 88px !important; }
+    </style>
+</head>
+<body>
+    <div class="mesorregiao-container">
+        <div class="mesorregiao-header">
+            <h2><i class="bx bx-map"></i> Gerenciar Mesorregiões</h2>
+        </div>
+
+        <div class="tabs tabs-com-icones">
+            <button class="tab-btn active" data-tab="filtros"><i class="bx bx-filter-alt"></i> Filtros</button>
+            <button class="tab-btn" data-tab="grid"><i class="bx bx-grid-alt"></i> Grid</button>
+            <button class="tab-btn" data-tab="dados"><i class="bx bx-edit"></i> Dados</button>
+        </div>
+
+        <div class="tab-content active" id="tab-filtros">
+            <div class="filtros-box">
+                <h3><i class="bx bx-filter"></i> Filtros</h3>
+                <form id="filtroForm" onsubmit="return false;">
+                    <div class="filtros-grid">
+                        <div class="input-group">
+                            <label for="filtroPais">País</label>
+                            <select id="filtroPais" class="form-control">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label for="filtroEstado">Estado (UF)</label>
+                            <select id="filtroEstado">
+                                <option value="">Todos</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label for="filtroDescricao">Descrição</label>
+                            <input type="text" id="filtroDescricao" class="form-control" placeholder="Descrição da mesorregião...">
+                        </div>
+                        <div class="input-group">
+                            <label for="filtroSituacao">Situação</label>
+                            <select id="filtroSituacao">
+                                <option value="">Todas</option>
+                                <option value="S">Ativo</option>
+                                <option value="N">Inativo</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="filtros-actions">
+                        <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Limpar</button>
+                        <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search"></i> Filtrar</button>
+                        <button type="button" id="btnNovo" class="btn-filtro btn-filtro-novo"><i class="bx bx-plus"></i> Novo</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="tab-content" id="tab-grid">
+            <div class="filtros-box">
+                <h3>Grid de Mesorregiões</h3>
+                <div class="filtros-actions" style="justify-content: space-between; margin-top: 0; margin-bottom: 15px;">
+                    <div class="filtros-actions" style="margin: 0;">
+                        <button type="button" id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar</button>
+                    </div>
+                    <button type="button" id="btnNovoGrid" class="btn-filtro btn-filtro-novo"><i class="bx bx-plus"></i> Novo</button>
+                </div>
+                <p id="mesorregiaoGridCount" style="padding: 10px 0; color: var(--gray); font-size: 14px;">0 registro(s) encontrado(s)</p>
+                <div id="mesorregiaoGrid" class="grid-container">
+                    <p class="empty">Aplicar filtros para carregar o grid.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="tab-dados">
+            <div class="filtros-box">
+                <h3 id="formTitle">Nova Mesorregião</h3>
+                <form id="mesorregiaoForm">
+                    <input type="hidden" id="mesoCDUF">
+                    <input type="hidden" id="mesoCDMESOREGIAO">
+                    <div class="form-dados-card">
+                        <div class="form-dados-card-header"><i class="bx bx-id-card"></i> Identificação</div>
+                        <div class="form-dados-card-body">
+                            <div class="filtros-grid">
+                                <div>
+                                    <label for="mesoEstado">Estado (UF) *</label>
+                                    <select id="mesoEstado" class="form-control" required>
+                                        <option value="">Selecione</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="mesoCDMESOREGIAOInput">Código Mesorregião *</label>
+                                    <input type="number" id="mesoCDMESOREGIAOInput" class="form-control" min="1" placeholder="Código numérico" required>
+                                </div>
+                                <div>
+                                    <label for="mesoDSMESOREGIAO">Descrição *</label>
+                                    <input type="text" id="mesoDSMESOREGIAO" class="form-control" maxlength="100" placeholder="Nome da mesorregião" required>
+                                </div>
+                                <div>
+                                    <label for="mesoFGACTIVE">Situação *</label>
+                                    <select id="mesoFGACTIVE" class="form-control">
+                                        <option value="S">Ativo</option>
+                                        <option value="N">Inativo</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="filtros-actions" style="margin-top: 20px;">
+                        <button type="submit" class="btn-filtro btn-filtro-novo"><i class="bx bx-save"></i> Salvar</button>
+                        <button type="button" id="btnCancelar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Modal de confirmação (padrão do sistema) -->
+        <div id="confirmModal" class="modal">
+            <div class="modal-content">
+                <h3>Confirmar Ação</h3>
+                <p id="modalMessage"></p>
+                <div class="modal-actions">
+                    <button id="confirmYes" class="btn-filtro btn-filtro-danger" type="button"><i class="bx bx-check"></i> Desativar</button>
+                    <button id="confirmNo" class="btn-filtro btn-filtro-limpar" type="button"><i class="bx bx-x"></i> Cancelar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/grid-editor.js"></script>
+    <script src="/modulos/gerenciar-mesorregiao/js/script.js"></script>
+</body>
+</html>

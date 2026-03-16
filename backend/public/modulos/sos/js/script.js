@@ -125,10 +125,10 @@
   /**
    * Carregar SOS do servidor
    */
-  async function carregarSOS() {
+  async function carregarSOS(semOverlay) {
     try {
-      mostrarLoading(true);
-      
+      if (!semOverlay) mostrarLoading(true);
+
       // Construir query string com filtros
       const params = new URLSearchParams();
       if (filtrosAtivos.status) params.append('status', filtrosAtivos.status);
@@ -401,7 +401,7 @@
       
       if (data.success) {
         mostrarMensagem('SOS marcado como lido', 'success');
-        carregarSOS();
+        carregarSOS(true);
         atualizarContadorMenu();
       } else {
         throw new Error(data.error || 'Erro ao marcar como lido');
@@ -409,6 +409,8 @@
     } catch (err) {
       console.error('Erro ao marcar como lido:', err);
       mostrarMensagem(t('web.modulos.sos.erroCarregar') + ' ' + err.message, 'error');
+    } finally {
+      if (typeof mostrarLoading === 'function') mostrarLoading(false);
     }
   };
 
@@ -443,15 +445,10 @@
    */
   function obterNumeroWhatsApp(numero) {
     if (!numero) return '';
-    
-    // Remover caracteres não numéricos
     let apenasNumeros = numero.toString().replace(/\D/g, '');
-    
-    // Se não começar com 55 (código do Brasil), adicionar
-    if (!apenasNumeros.startsWith('55')) {
-      apenasNumeros = '55' + apenasNumeros;
-    }
-    
+    if (apenasNumeros.startsWith('0')) apenasNumeros = apenasNumeros.substring(1);
+    if (apenasNumeros.length >= 12) return apenasNumeros; // Já tem DDI (55, 595, 54, etc.)
+    if (apenasNumeros.length >= 10) return '55' + apenasNumeros; // Brasil sem DDI
     return apenasNumeros;
   }
 
@@ -582,15 +579,10 @@
    */
   function obterNumeroWhatsApp(numero) {
     if (!numero) return '';
-    
-    // Remover caracteres não numéricos
     let apenasNumeros = numero.toString().replace(/\D/g, '');
-    
-    // Se não começar com 55 (código do Brasil), adicionar
-    if (!apenasNumeros.startsWith('55')) {
-      apenasNumeros = '55' + apenasNumeros;
-    }
-    
+    if (apenasNumeros.startsWith('0')) apenasNumeros = apenasNumeros.substring(1);
+    if (apenasNumeros.length >= 12) return apenasNumeros; // Já tem DDI (55, 595, 54, etc.)
+    if (apenasNumeros.length >= 10) return '55' + apenasNumeros; // Brasil sem DDI
     return apenasNumeros;
   }
 
@@ -631,10 +623,10 @@
         return;
       }
 
-      // Garantir que o elemento tem altura
+      // Garantir que o elemento tem altura (igual ao CSS do modal compacto)
       if (!mapaDiv.style.height || mapaDiv.style.height === '0px') {
-        mapaDiv.style.height = '500px';
-        console.log('📏 Altura do mapa definida para 500px');
+        mapaDiv.style.height = '280px';
+        console.log('📏 Altura do mapa definida para 280px');
       }
 
       // Verificar se o elemento está visível
@@ -744,96 +736,40 @@
       }
 
       const sos = data.data;
-      const lat = parseFloat(sos.LATITUDE);
-      const lon = parseFloat(sos.LONGITUDE);
-      
-      // Criar formulário de tratamento com layout de dois lados
+
+      if (sos.STATUS === 'resolved' || sos.STATUS === 'cancelled') {
+        mostrarMensagem('Este SOS já foi resolvido ou cancelado. Não é possível editar.', 'info');
+        return;
+      }
+
+      // Modal igual ao Tratar Alerta (Alertas do Sistema): só título, mensagem, status, observações e botões
       modalTratamentoContent.innerHTML = `
         <div style="margin-bottom: 20px;">
-          <h4 style="margin-bottom: 10px; color: #2c3e50; font-size: 18px; font-weight: 600;">Alerta SOS #${sos.ID}</h4>
-          <p style="color: #6c757d; margin-bottom: 15px; line-height: 1.5;">${sos.MESSAGE || 'Alerta de emergência acionado pelo motorista'}</p>
-          ${sos.NOME_MOTORISTA ? `<p style="color: #495057; margin-bottom: 5px;"><strong>Motorista:</strong> ${sos.NOME_MOTORISTA}</p>` : ''}
-          ${sos.CELULAR_MOTORISTA ? `
-            <div style="color: #495057; margin-bottom: 5px; display: flex; align-items: center; gap: 10px;">
-              <strong>Celular:</strong> 
-              <span>${formatarTelefone(sos.CELULAR_MOTORISTA)}</span>
-              <button 
-                onclick="abrirWhatsAppSOS('${sos.CELULAR_MOTORISTA}', '${sos.NOME_MOTORISTA || 'Motorista'}')" 
-                style="
-                  background: #25D366; 
-                  color: white; 
-                  border: none; 
-                  border-radius: 6px; 
-                  padding: 6px 12px; 
-                  cursor: pointer; 
-                  display: inline-flex; 
-                  align-items: center; 
-                  gap: 6px; 
-                  font-size: 13px; 
-                  font-weight: 600;
-                  transition: all 0.2s;
-                "
-                onmouseover="this.style.background='#20BA5A'; this.style.transform='translateY(-1px)'"
-                onmouseout="this.style.background='#25D366'; this.style.transform='translateY(0)'"
-                title="Abrir WhatsApp"
-              >
-                <i class='bx bxl-whatsapp' style="font-size: 18px;"></i> WhatsApp
-              </button>
-            </div>
-          ` : ''}
-          ${lat && lon ? `<p style="color: #495057; margin-bottom: 5px;"><strong>Localização (GPS):</strong> ${lat.toFixed(6)}, ${lon.toFixed(6)}</p>` : ''}
+          <h4 class="modal-tratamento-title">Alerta SOS #${sos.ID}</h4>
+          <p class="modal-tratamento-desc">${sos.MESSAGE || 'Alerta de emergência acionado pelo motorista'}</p>
         </div>
-        <div class="modal-tratamento-body">
-          <div class="modal-tratamento-form">
-            <form id="formTratamento" onsubmit="event.preventDefault(); salvarTratamento(${idSOS})">
-              <div class="input-group">
-                <label for="descricaoLocal">Descrição / Detalhes do Local</label>
-                <textarea id="descricaoLocal" class="form-control" rows="4" readonly style="background-color: #f8f9fa; cursor: not-allowed;" placeholder="Buscando endereço..."></textarea>
-                <small style="color: #6c757d; font-size: 12px; margin-top: 5px; display: block;">Endereço obtido automaticamente via geocodificação reversa</small>
-              </div>
-              <div class="input-group">
-                <label for="novoStatus">Novo Status</label>
-                <select id="novoStatus" class="form-control" required>
-                  <option value="in_progress" ${sos.STATUS === 'in_progress' ? 'selected' : ''}>Em Tratamento</option>
-                  <option value="resolved" ${sos.STATUS === 'resolved' ? 'selected' : ''}>Resolvido</option>
-                  <option value="cancelled" ${sos.STATUS === 'cancelled' ? 'selected' : ''}>Cancelado</option>
-                </select>
-              </div>
-              <div class="input-group">
-                <label for="observacoes">Observações / Notas de Resolução</label>
-                <textarea id="observacoes" class="form-control" rows="4" placeholder="Descreva as ações tomadas para resolver o SOS...">${sos.RESOLUTION_NOTES || ''}</textarea>
-              </div>
-              <div class="modal-actions">
-                <button type="button" class="btn btn-secondary" onclick="fecharModalTratamento()">Cancelar</button>
-                <button type="submit" class="btn btn-primary">Salvar</button>
-              </div>
-            </form>
+        <form id="formTratamento" onsubmit="event.preventDefault(); salvarTratamento(${idSOS})">
+          <div class="input-group">
+            <label for="novoStatus">Novo Status</label>
+            <select id="novoStatus" class="form-control" required>
+              <option value="in_progress" ${sos.STATUS === 'in_progress' ? 'selected' : ''}>Em Tratamento</option>
+              <option value="resolved" ${sos.STATUS === 'resolved' ? 'selected' : ''}>Resolvido</option>
+              <option value="cancelled" ${sos.STATUS === 'cancelled' ? 'selected' : ''}>Cancelado</option>
+            </select>
           </div>
-          <div class="modal-tratamento-mapa">
-            <div id="mapaSOSTratamento"></div>
+          <div class="input-group">
+            <label for="observacoes">Observações</label>
+            <textarea id="observacoes" class="form-control" rows="4" placeholder="Descreva as ações tomadas...">${sos.RESOLUTION_NOTES || ''}</textarea>
           </div>
-        </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" onclick="fecharModalTratamento()">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Salvar</button>
+          </div>
+        </form>
       `;
-      
+
+      modalTratamento.querySelector('.modal-content-tratamento').classList.remove('modal-historico');
       modalTratamento.classList.add('active');
-      
-      // Buscar endereço e inicializar mapa se tiver coordenadas
-      if (lat && lon && !isNaN(lat) && !isNaN(lon)) {
-        // Buscar endereço via Nominatim
-        const endereco = await buscarEnderecoNominatim(lat, lon);
-        const descricaoLocalEl = document.getElementById('descricaoLocal');
-        if (descricaoLocalEl) {
-          descricaoLocalEl.value = endereco;
-        }
-        
-        // Inicializar mapa
-        await inicializarMapaSOS(lat, lon);
-      } else {
-        const descricaoLocalEl = document.getElementById('descricaoLocal');
-        if (descricaoLocalEl) {
-          descricaoLocalEl.value = 'Coordenadas GPS não disponíveis';
-        }
-      }
     } catch (err) {
       console.error('Erro ao abrir tratamento:', err);
       mostrarMensagem(t('web.modulos.sos.erroCarregar') + ' ' + err.message, 'error');
@@ -847,7 +783,6 @@
     try {
       const novoStatus = document.getElementById('novoStatus').value;
       const observacoes = document.getElementById('observacoes').value;
-      const descricaoLocal = document.getElementById('descricaoLocal').value;
       const idUsuario = getUserId();
 
       const response = await fetch(`/api/sos/${idSOS}/tratar`, {
@@ -856,7 +791,6 @@
         body: JSON.stringify({
           status: novoStatus,
           observacoes: observacoes,
-          locationDescription: descricaoLocal,
           idUsuario: idUsuario || undefined
         })
       });
@@ -866,7 +800,7 @@
       if (data.success) {
         mostrarMensagem('SOS tratado com sucesso', 'success');
         fecharModalTratamento();
-        carregarSOS();
+        carregarSOS(true);
         atualizarContadorMenu();
       } else {
         throw new Error(data.error || 'Erro ao tratar SOS');
@@ -874,6 +808,8 @@
     } catch (err) {
       console.error('Erro ao salvar tratamento:', err);
       mostrarMensagem(t('web.modulos.sos.erroCarregar') + ' ' + err.message, 'error');
+    } finally {
+      if (typeof mostrarLoading === 'function') mostrarLoading(false);
     }
   };
 
@@ -894,6 +830,7 @@
       mapaSOSTratamento.remove();
       mapaSOSTratamento = null;
     }
+    modalTratamento.querySelector('.modal-content-tratamento').classList.remove('modal-historico');
     modalTratamento.classList.remove('active');
   };
 
@@ -918,10 +855,10 @@
         return;
       }
 
-      // Criar modal com histórico
+      // Criar modal com histórico (igual ao Alertas do Sistema)
       modalTratamentoContent.innerHTML = `
         <div style="margin-bottom: 20px;">
-          <h4 style="margin-bottom: 10px; color: #2c3e50; font-size: 18px; font-weight: 600;">Histórico do SOS #${idSOS}</h4>
+          <h4 class="modal-tratamento-title">Histórico do SOS #${idSOS}</h4>
         </div>
         <div class="historico-list" style="max-height: 400px; overflow-y: auto;">
           ${historico.length > 0 ? historico.map(item => `
@@ -945,6 +882,7 @@
         </div>
       `;
       
+      modalTratamento.querySelector('.modal-content-tratamento').classList.add('modal-historico');
       modalTratamento.classList.add('active');
     } catch (err) {
       console.error('Erro ao carregar histórico:', err);
@@ -1119,24 +1057,16 @@
         return;
       }
 
-      // Atualizar coordenadas
-      coordenadasEl.textContent = `Coordenadas: ${lat.toFixed(6)}, ${lon.toFixed(6)}`;
-      
-      // Mostrar modal primeiro
-      modalLocalizacao.classList.add('active');
-      
-      // Aguardar um pouco para o modal aparecer antes de inicializar o mapa
+      coordenadasEl.textContent = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+      modalLocalizacao.style.display = 'block';
       await new Promise(resolve => setTimeout(resolve, 300));
-      
-      // Buscar endereço via Nominatim
       enderecoEl.innerHTML = '<i class=\'bx bx-loader-alt bx-spin\'></i> Buscando endereço...';
-      
       try {
         const endereco = await buscarEnderecoNominatim(lat, lon);
-        enderecoEl.innerHTML = `<strong>Endereço:</strong><br>${endereco}`;
+        enderecoEl.textContent = endereco;
       } catch (err) {
         console.warn('Erro ao buscar endereço:', err);
-        enderecoEl.innerHTML = `<strong>Endereço:</strong><br>Não foi possível obter o endereço. Coordenadas: ${lat.toFixed(6)}, ${lon.toFixed(6)}`;
+        enderecoEl.textContent = 'Não foi possível obter o endereço.';
       }
       
       // Inicializar mapa após o modal estar visível
@@ -1152,21 +1082,29 @@
    * Fechar modal de localização
    */
   window.fecharModalLocalizacao = function() {
-    // Limpar mapa se existir
     if (mapaLocalizacao) {
       mapaLocalizacao.remove();
       mapaLocalizacao = null;
     }
     const modalLocalizacao = document.getElementById('modalLocalizacao');
-    if (modalLocalizacao) {
-      modalLocalizacao.classList.remove('active');
-    }
+    if (modalLocalizacao) modalLocalizacao.style.display = 'none';
   };
+
+  const modalLocalizacaoEl = document.getElementById('modalLocalizacao');
+  if (modalLocalizacaoEl) {
+    modalLocalizacaoEl.addEventListener('click', (e) => {
+      if (e.target === modalLocalizacaoEl) fecharModalLocalizacao();
+    });
+  }
 
   /**
    * Abrir detalhes do SOS
    */
   async function abrirDetalhesSOS(sos) {
+    if (sos.STATUS === 'resolved' || sos.STATUS === 'cancelled') {
+      await verHistorico(sos.ID);
+      return;
+    }
     await tratarSOS(sos.ID);
   }
 
@@ -1516,141 +1454,7 @@
     return statusMap[status.toLowerCase()] || status;
   }
 
-  /**
-   * Mostrar modal de ajuda
-   */
-  window.mostrarAjuda = function() {
-    const modalAjuda = document.getElementById('modalAjuda');
-    const modalAjudaContent = document.getElementById('modalAjudaContent');
-    
-    if (!modalAjuda || !modalAjudaContent) {
-      mostrarMensagem(t('web.modulos.sos.erroCarregar'), 'error');
-      return;
-    }
-    
-    modalAjudaContent.innerHTML = `
-      <div style="line-height: 1.8;">
-        <h3 style="color: #2c3e50; margin-bottom: 20px; font-size: 20px;">
-          <i class='bx bx-info-circle' style="color: #e74c3c;"></i> Como Funcionam os Alertas SOS
-        </h3>
-        
-        <div style="background: #fff5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #e74c3c;">
-          <h4 style="margin: 0 0 10px 0; color: #c0392b;">🚨 O que são Alertas SOS?</h4>
-          <p style="margin: 0; color: #721c24;">
-            Os alertas SOS são <strong>emergências críticas</strong> acionadas pelos motoristas através do aplicativo móvel.
-            São situações que requerem <strong>resposta imediata</strong> da equipe de operação.
-          </p>
-        </div>
-        
-        <h4 style="color: #2c3e50; margin-top: 25px; margin-bottom: 15px;">📋 Como Funciona?</h4>
-        
-        <div style="margin-bottom: 20px;">
-          <div style="background: #fff; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
-            <h5 style="margin: 0 0 10px 0; color: #e74c3c;">
-              <i class='bx bx-error-circle'></i> Acionamento pelo Motorista
-            </h5>
-            <p style="margin: 0 0 8px 0; color: #495057;">
-              O motorista aciona o botão de <strong>emergência (SOS)</strong> no aplicativo móvel quando está em situação de risco ou precisa de ajuda urgente.
-            </p>
-          </div>
-          
-          <div style="background: #fff; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
-            <h5 style="margin: 0 0 10px 0; color: #f39c12;">
-              <i class='bx bx-map'></i> Localização GPS
-            </h5>
-            <p style="margin: 0 0 8px 0; color: #495057;">
-              O sistema captura automaticamente a <strong>localização GPS</strong> do motorista no momento do acionamento.
-              As coordenadas são exibidas e podem ser abertas no Google Maps.
-            </p>
-          </div>
-          
-          <div style="background: #fff; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
-            <h5 style="margin: 0 0 10px 0; color: #3498db;">
-              <i class='bx bx-bell'></i> Notificação em Tempo Real
-            </h5>
-            <p style="margin: 0 0 8px 0; color: #495057;">
-              Quando um SOS é acionado, todos os operadores conectados recebem uma <strong>notificação imediata</strong> via WebSocket.
-              O alerta aparece na lista com destaque visual.
-            </p>
-          </div>
-          
-          <div style="background: #fff; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
-            <h5 style="margin: 0 0 10px 0; color: #2ecc71;">
-              <i class='bx bx-check-double'></i> Resolução
-            </h5>
-            <p style="margin: 0 0 8px 0; color: #495057;">
-              Após tomar as ações necessárias, o operador marca o SOS como <strong>Resolvido</strong>.
-              O sistema calcula automaticamente o <strong>tempo de resposta</strong>.
-            </p>
-          </div>
-        </div>
-        
-        <h4 style="color: #2c3e50; margin-top: 25px; margin-bottom: 15px;">📊 Status dos Alertas</h4>
-        
-        <div style="margin-bottom: 20px;">
-          <div style="background: #fee; padding: 10px; border-radius: 6px; margin-bottom: 8px;">
-            <strong style="color: #c0392b;">Ativo</strong> - SOS acionado, aguardando resolução
-          </div>
-          <div style="background: #fff3cd; padding: 10px; border-radius: 6px; margin-bottom: 8px;">
-            <strong style="color: #856404;">Em Tratamento</strong> - SOS em processo de resolução (permite manter histórico)
-          </div>
-          <div style="background: #d4edda; padding: 10px; border-radius: 6px; margin-bottom: 8px;">
-            <strong style="color: #155724;">Resolvido</strong> - SOS tratado e resolvido
-          </div>
-          <div style="background: #e2e3e5; padding: 10px; border-radius: 6px;">
-            <strong style="color: #383d41;">Cancelado</strong> - SOS cancelado (falso alarme, etc)
-          </div>
-        </div>
-        
-        <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
-          <h5 style="margin: 0 0 10px 0; color: #856404;">
-            <i class='bx bx-info-circle'></i> Importante
-          </h5>
-          <ul style="margin: 0; padding-left: 20px; color: #856404;">
-            <li>SOS são <strong>sempre críticos</strong> e requerem atenção imediata</li>
-            <li>A localização GPS é essencial para localizar o motorista</li>
-            <li>O tempo de resposta é calculado automaticamente</li>
-            <li>Todas as ações são registradas no histórico para auditoria</li>
-          </ul>
-        </div>
-        
-        <div style="background: #f8f9fa; border-top: 2px solid #dee2e6; padding-top: 15px; margin-top: 25px;">
-          <p style="margin: 0; color: #6c757d; font-size: 13px; text-align: center;">
-            <i class='bx bx-info-circle'></i> Para mais detalhes técnicos, consulte a documentação do sistema.
-          </p>
-        </div>
-      </div>
-    `;
-    
-    modalAjuda.classList.add('active');
-  };
-  
-  /**
-   * Fechar modal de ajuda
-   */
-  window.fecharModalAjuda = function() {
-    const modalAjuda = document.getElementById('modalAjuda');
-    if (modalAjuda) {
-      modalAjuda.classList.remove('active');
-    }
-  };
-  
-  // Fechar modal ao clicar fora
-  const modalAjuda = document.getElementById('modalAjuda');
-  if (modalAjuda) {
-    modalAjuda.addEventListener('click', (e) => {
-      if (e.target === modalAjuda) {
-        fecharModalAjuda();
-      }
-    });
-  }
-  
-  // Fechar modal de tratamento ao clicar fora
-  modalTratamento.addEventListener('click', (e) => {
-    if (e.target === modalTratamento) {
-      fecharModalTratamento();
-    }
-  });
+  // Modal de tratamento NÃO fecha ao clicar fora (evita fechar por acidente; só fecha em Cancelar/Salvar/X)
 
   /**
    * Toggle som de notificação

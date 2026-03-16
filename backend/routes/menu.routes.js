@@ -33,7 +33,7 @@ router.get('/user-menu', async (req, res) => {
       WHERE u."SGUSUARIO" = $1
         AND u."FGACTIVE" = 'S'
         AND t."FGACTIVE" = 'S'
-      ORDER BY t."CDTIPOATIVIDADE"`,
+      ORDER BY t."DSTIPOATIVIDADE"`,
       [userLogin]
     );
 

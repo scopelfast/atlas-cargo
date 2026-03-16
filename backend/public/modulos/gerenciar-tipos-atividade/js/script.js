@@ -11,6 +11,8 @@
   const tipoAtividadeForm = document.getElementById('tipoAtividadeForm');
   const message = document.getElementById('message');
   const modal = document.getElementById('confirmModal');
+  const confirmYes = document.getElementById('confirmYes');
+  const confirmNo = document.getElementById('confirmNo');
   
   let gridTab = null;
   let lastTiposAtividade = null;
@@ -68,16 +70,19 @@
     init();
   }
 
-  // Função para mudar abas
+  // Função para mudar abas (escopo no container do módulo para não misturar Grid/Dados)
   async function showTab(tabId) {
-    tabs.forEach(btn => btn.classList.remove('active'));
-    tabContents.forEach(content => content.classList.remove('active'));
-    
-    const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
-    const tabContent = document.getElementById(`tab-${tabId}`);
-    
-    if (tabBtn) tabBtn.classList.add('active');
-    if (tabContent) tabContent.classList.add('active');
+    const targetContent = document.getElementById(`tab-${tabId}`);
+    const targetBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+    if (targetContent && targetBtn) {
+      const container = targetContent.closest('[class*="-container"]') || targetContent.parentElement;
+      if (container) {
+        container.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      }
+      targetBtn.classList.add('active');
+      targetContent.classList.add('active');
+    }
 
     if (tabId === 'grid' && lastTiposAtividade) {
       if (typeof window.GridEditor !== 'undefined') {
@@ -90,14 +95,18 @@
   }
 
   // Função para exibir mensagens
-  function showMessage(text, type = 'info') {
-    if (!message) return;
-    message.textContent = text;
-    message.className = `message ${type}`;
-    message.style.display = 'block';
-    setTimeout(() => {
-      message.style.display = 'none';
-    }, 5000);
+  function showMessage(text, type = 'info', messageElement = null, fieldId = null) {
+    if (typeof window.showMessage !== 'undefined') {
+      window.showMessage(text, type, messageElement || message, fieldId);
+    } else if (message) {
+      message.textContent = text;
+      message.className = `message ${type} show`;
+      message.style.display = 'block';
+      setTimeout(() => {
+        message.className = 'message';
+        message.style.display = 'none';
+      }, 5000);
+    }
   }
 
   // Função para carregar script dinamicamente
@@ -258,6 +267,7 @@
       const response = await fetch(`/api/tipos-atividade/${codigo}`);
       const tipo = await response.json();
 
+      showTab('dados');
       document.getElementById('tipoAtividadeCodigoOriginal').value = tipo.CDTIPOATIVIDADE;
       document.getElementById('tipoAtividadeCodigo').value = tipo.CDTIPOATIVIDADE;
       document.getElementById('tipoAtividadeCodigo').readOnly = true;
@@ -265,9 +275,7 @@
       document.getElementById('tipoAtividadePrograma').value = tipo.DSPROGRAMA || '';
       document.getElementById('tipoAtividadeGrupo').value = tipo.FGGRUPO || '';
       document.getElementById('tipoAtividadeSituacao').value = tipo.FGACTIVE || 'S';
-
       document.getElementById('formTitle').textContent = t('web.modulos.tiposAtividade.editarTipo');
-      showTab('dados');
     } catch (err) {
       showMessage(t('web.modulos.tiposAtividade.erroCarregarDados'), 'error');
     }
@@ -318,11 +326,8 @@
       const result = await response.json();
       if (response.ok) {
         showMessage(result.message || t('web.modulos.tiposAtividade.sucessoSalvar'), 'success');
-        limparFormulario();
-        showTab('filtros');
-        if (lastTiposAtividade) {
-          await applyFilters('grid');
-        }
+        showTab('grid');
+        await applyFilters('grid');
       } else {
         showMessage(result.error || t('web.modulos.tiposAtividade.erroSalvar'), 'error');
       }
@@ -351,24 +356,46 @@
   // Confirmar exclusão
   async function confirmarExclusao(codigo) {
     const estaAtivo = lastTiposAtividade?.find(t => t.CDTIPOATIVIDADE === codigo)?.FGACTIVE === 'S';
-    document.getElementById('modalMessage').textContent = 
-      estaAtivo 
-        ? `Tem certeza que deseja desativar o tipo de atividade "${codigo}"?` 
-        : `Tem certeza que deseja excluir o tipo de atividade "${codigo}"?`;
+    const msg = estaAtivo
+      ? `Tem certeza que deseja desativar o tipo de atividade "${codigo}"?`
+      : `Tem certeza que deseja excluir o tipo de atividade "${codigo}"?`;
     
-    modal.style.display = 'flex';
+    const modalMsgEl = document.getElementById('modalMessage');
+    if (modalMsgEl) modalMsgEl.textContent = msg;
     
+    if (!modal || !confirmYes || !confirmNo) {
+      if (window.confirm(msg)) {
+        try {
+          const response = await fetch(`/api/tipos-atividade/${codigo}`, { method: 'DELETE', headers: getAuthHeaders() });
+          const result = await response.json();
+          if (response.ok) {
+            showMessage(result.message || t('web.modulos.tiposAtividade.sucessoSalvar'), 'success');
+            await applyFilters('grid');
+          } else {
+            showMessage(result.error || t('web.modulos.tiposAtividade.erroSalvar'), 'error');
+          }
+        } catch (err) {
+          showMessage(t('web.modulos.tiposAtividade.erroSalvar'), 'error');
+        }
+      }
+      return;
+    }
+    const btnText = estaAtivo ? 'Desativar' : 'Excluir';
+    const newYes = confirmYes.cloneNode(true);
+    const newNo = confirmNo.cloneNode(true);
+    newYes.className = 'btn-filtro btn-filtro-danger';
+    newYes.innerHTML = '<i class="bx bx-check"></i> ' + btnText;
+    newNo.className = 'btn-filtro btn-filtro-limpar';
+    newNo.innerHTML = '<i class="bx bx-x"></i> ' + (t('web.modulos.tiposAtividade.cancelar') || 'Cancelar');
+    if (confirmYes.parentNode) confirmYes.parentNode.replaceChild(newYes, confirmYes);
+    if (confirmNo.parentNode) confirmNo.parentNode.replaceChild(newNo, confirmNo);
+
+    modal.style.display = 'block';
     return new Promise((resolve) => {
       const handlerYes = async () => {
         modal.style.display = 'none';
-        confirmYes.removeEventListener('click', handlerYes);
-        confirmNo.removeEventListener('click', handlerNo);
-        
         try {
-          const response = await fetch(`/api/tipos-atividade/${codigo}`, {
-            method: 'DELETE',
-            headers: getAuthHeaders()
-          });
+          const response = await fetch(`/api/tipos-atividade/${codigo}`, { method: 'DELETE', headers: getAuthHeaders() });
           const result = await response.json();
           if (response.ok) {
             showMessage(result.message || t('web.modulos.tiposAtividade.sucessoSalvar'), 'success');
@@ -381,16 +408,9 @@
         }
         resolve();
       };
-      
-      const handlerNo = () => {
-        modal.style.display = 'none';
-        confirmYes.removeEventListener('click', handlerYes);
-        confirmNo.removeEventListener('click', handlerNo);
-        resolve();
-      };
-      
-      confirmYes.addEventListener('click', handlerYes, { once: true });
-      confirmNo.addEventListener('click', handlerNo, { once: true });
+      const handlerNo = () => { modal.style.display = 'none'; resolve(); };
+      newYes.addEventListener('click', handlerYes, { once: true });
+      newNo.addEventListener('click', handlerNo, { once: true });
     });
   }
 
@@ -422,6 +442,11 @@
     showTab('filtros');
   });
 
+  document.getElementById('btnNovoRegistro')?.addEventListener('click', () => {
+    limparFormulario();
+    showTab('dados');
+  });
+
   document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
     limparFormulario();
     showTab('dados');
@@ -438,66 +463,5 @@
     modal.style.display = 'none';
   });
 
-  // Função de ajuda
-  window.mostrarAjudaTiposAtividade = function() {
-    // Remover qualquer modal de ajuda existente primeiro
-    const modalExistente = document.getElementById('modalAjudaTiposAtividade');
-    if (modalExistente) {
-      modalExistente.remove();
-    }
-    
-    // Criar modal de ajuda com padrão único
-    const modal = document.createElement('div');
-    modal.id = 'modalAjudaTiposAtividade';
-    modal.className = 'modal-tratamento';
-    modal.style.display = 'flex';
-    modal.innerHTML = `
-      <div class="modal-content-tratamento">
-        <div class="modal-header-tratamento">
-          <h3><i class='bx bx-help-circle'></i> Ajuda - Gerenciar Tipos de Atividade</h3>
-          <button onclick="window.fecharModalAjudaTiposAtividade()" class="btn-close-modal" type="button">
-            <i class='bx bx-x'></i>
-          </button>
-        </div>
-        <div class="modal-body-tratamento">
-          <h4>📋 Sobre o Módulo</h4>
-          <p>O módulo <strong>Gerenciar Tipos de Atividade</strong> permite gerenciar os tipos de atividade cadastrados no sistema, definindo categorias para diferentes atividades que podem ser realizadas.</p>
-          
-          <h4>🔍 Filtros</h4>
-          <p>Use os filtros para buscar tipos de atividade específicos por código, descrição ou situação (Ativo/Inativo).</p>
-          
-          <h4>📝 Funcionalidades</h4>
-          <ul>
-            <li><strong>Filtros:</strong> Buscar e filtrar tipos de atividade</li>
-            <li><strong>Grid:</strong> Visualizar tipos de atividade em formato de tabela com opções de edição e exclusão</li>
-            <li><strong>Dados:</strong> Criar e editar tipos de atividade</li>
-          </ul>
-          
-          <h4>✨ Dicas</h4>
-          <ul>
-            <li>Para criar um novo tipo de atividade, clique em "Novo Registro" na aba Grid ou Dados</li>
-            <li>Para editar um tipo de atividade existente, clique no botão de editar (✎) na coluna Ações do grid</li>
-            <li>Para desativar um tipo de atividade, edite-o e altere a situação para "Inativo" ou use o botão de exclusão</li>
-            <li>O campo "Programa" permite especificar o caminho ou nome do programa a ser chamado quando este tipo de atividade for selecionado</li>
-            <li>Tipos de atividade inativos não aparecerão em seleções de novos cadastros</li>
-          </ul>
-        </div>
-        <div class="modal-footer-tratamento">
-          <button onclick="window.fecharModalAjudaTiposAtividade()" class="btn btn-secondary">
-            <i class='bx bx-x'></i> Fechar
-          </button>
-        </div>
-      </div>
-    `;
-    
-    document.body.appendChild(modal);
-  };
-
-  window.fecharModalAjudaTiposAtividade = function() {
-    const modal = document.getElementById('modalAjudaTiposAtividade');
-    if (modal) {
-      modal.remove();
-    }
-  };
 })();
 

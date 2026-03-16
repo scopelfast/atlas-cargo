@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/modulos.css">
+  <link rel="stylesheet" href="/css/dark-mode.css">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <style>
     /* ========== Mapa de Viagem - Identidade Atlas Cargo ========== */
@@ -33,9 +34,50 @@
       align-items: center;
       gap: 10px;
     }
+    .mapa-viagem-header h2 i {
+      color: inherit;
+    }
+
+    /* Abas com ícones – mesmo padrão dos demais módulos */
+    .mapa-viagem-container .tabs.tabs-com-icones {
+      display: flex;
+      margin-bottom: 25px;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
+      gap: 0;
+    }
+    .mapa-viagem-container .tabs.tabs-com-icones .tab-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      border: none;
+      background: transparent;
+      color: #94a3b8;
+      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: color 0.2s, border-color 0.2s;
+      font-family: inherit;
+    }
+    .mapa-viagem-container .tabs.tabs-com-icones .tab-btn i {
+      font-size: 1.15rem;
+      color: inherit;
+    }
+    .mapa-viagem-container .tabs.tabs-com-icones .tab-btn:hover {
+      color: #64748b;
+    }
+    .mapa-viagem-container .tabs.tabs-com-icones .tab-btn.active {
+      color: var(--ac-primary, #0d2137);
+      border-bottom-color: var(--ac-primary, #0d2137);
+    }
+    .mapa-viagem-container .tabs.tabs-com-icones .tab-btn.active i {
+      color: var(--ac-primary, #0d2137);
+    }
 
     .filtros-box {
-      background: white;
+      background: var(--white, #fff);
       border-radius: 12px;
       padding: 25px;
       box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
@@ -110,7 +152,7 @@
 
     /* ========== MAPA ========== */
     .mapa-container {
-      background: white;
+      background: var(--white, #fff);
       border-radius: 12px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
       margin-bottom: 0;
@@ -195,10 +237,20 @@
     #mapaInfo {
       margin-top: 15px;
       padding: 15px;
-      background: #f8f9fa;
+      background: var(--white, #fff);
+      border: 1px solid var(--border, #e2e8f0);
       border-radius: 8px;
-      font-size: 14px;
-      color: #6c757d;
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--dark, #1e293b);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    #mapaInfo i {
+      font-size: 1.25rem;
+      color: var(--ac-accent, #0ea5e9);
+      flex-shrink: 0;
     }
 
     /* ========== MODAL DE AJUDA ========== */
@@ -316,24 +368,15 @@
     <!-- Header Padronizado -->
     <div class="mapa-viagem-header">
       <h2>
-        <i class='bx bx-map' style="color: var(--ac-accent, #0ea5e9);"></i>
+        <i class='bx bx-map'></i>
         <span data-i18n="web.modulos.mapaViagem.titulo">Mapa de Viagem</span>
       </h2>
-      <div style="display: flex; gap: 10px; align-items: center;">
-        <button class="btn btn-info" onclick="window.mostrarAjudaMapaViagem()" title="Como funciona? Regras e instruções">
-          <i class='bx bx-help-circle'></i> <span data-i18n="web.modulos.mapaViagem.ajuda">Ajuda</span>
-        </button>
-      </div>
     </div>
 
-    <!-- Abas -->
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="filtros">
-        <i class='bx bx-filter'></i> <span data-i18n="web.modulos.mapaViagem.tabFiltros">Filtros</span>
-      </button>
-      <button class="tab-btn" data-tab="mapa">
-        <i class='bx bx-map'></i> <span data-i18n="web.modulos.mapaViagem.tabMapa">Mapa</span>
-      </button>
+    <!-- Abas (padrão com ícones como nos demais módulos) -->
+    <div class="tabs tabs-com-icones">
+      <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.mapaViagem.tabFiltros"><i class='bx bx-filter-alt'></i> Filtros</button>
+      <button class="tab-btn" data-tab="mapa" data-i18n="web.modulos.mapaViagem.tabMapa"><i class='bx bx-map'></i> Mapa</button>
     </div>
 
     <!-- Aba Filtros -->
@@ -474,53 +517,6 @@
           <i class='bx bx-info-circle'></i> 
           <span id="mapaInfoText" data-i18n="web.modulos.mapaViagem.mapaInfoApliqueFiltros">Aplique os filtros para carregar as posições dos veículos no mapa.</span>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal de Ajuda -->
-  <div id="modalAjudaMapaViagem" class="modal-tratamento" style="display: none;">
-    <div class="modal-content-tratamento">
-      <div class="modal-header-tratamento">
-        <h3><i class='bx bx-help-circle'></i> <span data-i18n="web.modulos.mapaViagem.ajudaTitulo">Ajuda - Mapa de Viagem</span></h3>
-        <button type="button" class="btn-close-modal" onclick="document.getElementById('modalAjudaMapaViagem').style.display='none'">
-          <i class='bx bx-x'></i>
-        </button>
-      </div>
-      <div class="modal-body-tratamento">
-        <h4>📋 Sobre o Módulo</h4>
-        <p>O módulo <strong>Mapa de Viagem</strong> permite visualizar a última posição de cada placa em um mapa interativo em tempo real.</p>
-
-        <h4>🗺️ Funcionalidades</h4>
-        <ul>
-          <li>Visualização da última posição de cada placa no mapa</li>
-          <li>Filtros idênticos ao módulo "Gerenciar Viagens"</li>
-          <li>Informações detalhadas ao clicar em cada marcador</li>
-          <li>Atualização em tempo real das posições</li>
-          <li>Centralização automática do mapa para mostrar todos os veículos</li>
-        </ul>
-
-        <h4>🔍 Como Usar</h4>
-        <ul>
-          <li>Use os filtros acima para selecionar as viagens que deseja visualizar</li>
-          <li>Clique em <strong>Filtrar</strong> para carregar as posições no mapa</li>
-          <li>Clique nos marcadores azuis para ver informações detalhadas de cada veículo</li>
-          <li>Use o botão <strong>Centralizar</strong> para ajustar o zoom automaticamente</li>
-          <li>Use o botão <strong>Atualizar</strong> para recarregar as posições</li>
-        </ul>
-
-        <h4>💡 Dicas</h4>
-        <ul>
-          <li>Os marcadores azuis representam a última posição de cada placa</li>
-          <li>Cada marcador mostra: Viagem, Placa, Motorista, Roteiro e Data/Hora da Posição</li>
-          <li>Use os filtros para focar em viagens específicas</li>
-          <li>O mapa se ajusta automaticamente para mostrar todos os veículos filtrados</li>
-        </ul>
-      </div>
-      <div class="modal-footer-tratamento">
-        <button type="button" onclick="document.getElementById('modalAjudaMapaViagem').style.display='none'" class="btn btn-secondary">
-          <i class='bx bx-x'></i> Fechar
-        </button>
       </div>
     </div>
   </div>

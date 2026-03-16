@@ -610,29 +610,18 @@
     }
   }
 
-  // Função para trocar de aba
+  // Função para trocar de aba (escopo no container do módulo para não misturar abas)
   function showTab(tabId) {
-    // Esconder todas as abas
-    document.querySelectorAll('.tab-content').forEach(tab => {
-      tab.classList.remove('active');
-    });
-    
-    // Remover active de todos os botões
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-      btn.classList.remove('active');
-    });
-    
-    // Mostrar aba selecionada
     const tabContent = document.getElementById(`tab-${tabId}`);
     const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
-    
-    if (tabContent) {
-      tabContent.classList.add('active');
+    if (!tabContent || !tabBtn) return;
+    const container = tabContent.closest('[class*="-container"]') || tabContent.parentElement;
+    if (container) {
+      container.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+      container.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     }
-    
-    if (tabBtn) {
-      tabBtn.classList.add('active');
-    }
+    tabContent.classList.add('active');
+    tabBtn.classList.add('active');
     
     // Se mudou para a aba do mapa, ajustar o tamanho do mapa
     if (tabId === 'mapa' && mapa) {
@@ -683,14 +672,6 @@
       mapa.setView([-23.5505, -46.6333], 5); // Voltar para São Paulo
     }
   });
-
-  // Função de ajuda
-  window.mostrarAjudaMapaViagem = function() {
-    const modal = document.getElementById('modalAjudaMapaViagem');
-    if (modal) {
-      modal.style.display = 'flex';
-    }
-  };
 
   // Flag para evitar inicialização dupla
   let inicializado = false;

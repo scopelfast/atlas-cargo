@@ -242,12 +242,18 @@ body {
   font-size: 18px;
   min-width: 24px;
   text-align: center;
+  color: inherit;
 }
 
 .menu-item span {
   font-size: 15px;
   font-weight: 500;
   flex: 1;
+}
+
+/* Garantir que todos os ícones do menu lateral usem a cor do texto (nenhum azul) */
+.sidebar .menu-item i {
+  color: inherit !important;
 }
 
 /* Menu colapsado - ajustes para categorias */
@@ -325,20 +331,20 @@ body {
   }
 }
 
-/* Badge para Alertas (laranja/amarelo) */
+/* Badge para Alertas (vermelho quando há pendentes – destaque para operadores) */
 .menu-item[data-programa="alertas"] .menu-badge {
-  background: #f39c12;
+  background: #dc3545;
   animation: pulse-badge-alerta 1.8s infinite;
 }
 
 @keyframes pulse-badge-alerta {
   0%, 100% {
     transform: scale(1);
-    box-shadow: 0 2px 4px rgba(243, 156, 18, 0.4);
+    box-shadow: 0 2px 4px rgba(220, 53, 69, 0.4);
   }
   50% {
     transform: scale(1.08);
-    box-shadow: 0 4px 8px rgba(243, 156, 18, 0.6);
+    box-shadow: 0 4px 8px rgba(220, 53, 69, 0.6);
   }
 }
 
@@ -375,8 +381,8 @@ body {
 }
 
 .menu-item[data-programa="alertas"].has-badge:not(:hover) {
-  background: rgba(243, 156, 18, 0.08);
-  border-left: 3px solid #f39c12;
+  background: rgba(220, 53, 69, 0.08);
+  border-left: 3px solid #dc3545;
 }
 
 .menu-item[data-programa="chat"].has-badge:not(:hover) {
@@ -400,6 +406,9 @@ body {
   background: var(--bg-secondary);
   transition: margin-left 0.3s ease;
   min-height: 100vh;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
 }
 
 .main.sidebar-collapsed {
@@ -435,6 +444,15 @@ body {
   box-shadow: var(--shadow);
   border: 1px solid var(--border-color);
   min-height: 400px;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+
+#contentArea {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
 }
 
 .logout-btn {

@@ -548,55 +548,95 @@
     justify-content: center;
   }
 
-  .modal-tratamento.active {
-    display: flex;
+  .modal-tratamento[style*="block"],
+  .modal-tratamento[style*="flex"] {
+    display: flex !important;
   }
 
   .modal-content-tratamento {
     background: white;
     border-radius: 12px;
-    padding: 30px;
+    padding: 0;
     max-width: 800px;
     width: 90%;
     max-height: 90vh;
-    overflow-y: auto;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    box-shadow: 0 10px 40px rgba(13, 33, 55, 0.12);
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border, #e2e8f0);
+    overflow: hidden;
   }
 
   .modal-header-tratamento {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
-    padding-bottom: 15px;
-    border-bottom: 2px solid var(--border, #e2e8f0);
+    padding: 20px 25px;
+    border-bottom: 1px solid var(--border, #e2e8f0);
+    flex-shrink: 0;
   }
 
   .modal-header-tratamento h3 {
     margin: 0;
     color: var(--ac-primary, #0d2137);
     font-size: 24px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
 
-  .close-modal {
+  .modal-body-tratamento {
+    padding: 25px;
+    max-height: calc(90vh - 140px);
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .modal-body-tratamento h4 { margin-top: 20px; margin-bottom: 10px; font-size: 18px; font-weight: 600; color: var(--ac-primary, #0d2137); }
+  .modal-body-tratamento h4:first-child { margin-top: 0; }
+  .modal-body-tratamento h5 { margin-top: 16px; margin-bottom: 8px; font-size: 16px; color: var(--ac-primary, #0d2137); }
+  .modal-body-tratamento p, .modal-body-tratamento ul, .modal-body-tratamento ol { margin-bottom: 12px; }
+
+  .btn-close-modal {
     background: none;
     border: none;
-    font-size: 28px;
+    font-size: 24px;
     color: var(--gray, #64748b);
     cursor: pointer;
-    padding: 0;
+    padding: 5px;
     width: 32px;
     height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: 4px;
-    transition: background 0.2s;
+    border-radius: 6px;
+    transition: all 0.2s;
   }
 
-  .close-modal:hover {
-    background: #f8f9fa;
+  .btn-close-modal:hover {
+    background: var(--light-gray, #e2e8f0);
+    color: var(--ac-primary, #0d2137);
   }
+
+  /* Botões padrão (modal de mensagem) */
+  .btn-filtro {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 22px;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.15s;
+  }
+  .btn-filtro:hover { transform: translateY(-1px); }
+  .btn-filtro i { font-size: 1.15rem; }
+  .btn-filtro-limpar { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+  .btn-filtro-limpar:hover { background: #e2e8f0; color: #334155; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
 
   /* Responsivo */
   @media (max-width: 968px) {
@@ -615,9 +655,6 @@
   <div class="chat-header">
     <h2><i class='bx bx-message'></i> <span data-i18n="web.modulos.chat.titulo">Chat</span></h2>
     <div style="display: flex; gap: 10px; align-items: center;">
-      <button class="btn btn-info" onclick="mostrarAjuda()" title="Como funciona? Regras e instruções">
-        <i class='bx bx-help-circle'></i> <span data-i18n="web.modulos.chat.ajuda">Ajuda</span>
-      </button>
       <button id="btnToggleSomChat" class="btn" onclick="toggleSomNotificacaoChat()" title="Ativar/Desativar som de notificação" style="background: #28a745; color: white;">
         <i class='bx bx-volume-full'></i> <span data-i18n="web.modulos.chat.som">Som</span>
       </button>
@@ -670,9 +707,8 @@
       </div>
 
       <div id="chatActive" style="display: none; flex-direction: column; height: 100%;">
-        <!-- Informações da Conversa -->
+        <!-- Informações da Conversa (uma linha viagem/rota, uma linha motorista) -->
         <div class="chat-info">
-          <h3 id="chatInfoNome">-</h3>
           <div class="chat-info-details" style="display: flex; flex-direction: column; gap: 8px;">
             <div><i class='bx bx-map'></i> <strong id="chatInfoViagem">-</strong></div>
             <div><i class='bx bx-user'></i> Motorista: <strong id="chatInfoMotorista">-</strong></div>
@@ -721,17 +757,12 @@
   <p data-i18n="web.modulos.chat.carregandoConversas">Carregando conversas...</p>
 </div>
 
-<!-- Modal de Ajuda -->
-<div id="modalAjuda" class="modal-tratamento" style="display: none;">
-  <div class="modal-content-tratamento" style="max-width: 800px;">
-    <div class="modal-header-tratamento">
-      <h3><i class='bx bx-help-circle'></i> <span data-i18n="web.modulos.chat.comoFunciona">Como Funciona o Chat</span></h3>
-      <button class="close-modal" onclick="fecharModalAjuda()">
-        <i class='bx bx-x'></i>
-      </button>
-    </div>
-    <div id="modalAjudaContent" style="max-height: 70vh; overflow-y: auto; padding-right: 10px;">
-      <!-- Conteúdo será preenchido dinamicamente -->
+<!-- Modal de mensagem (substitui alert; padrão do sistema) -->
+<div id="messageModal" class="modal" style="display: none;">
+  <div class="modal-content">
+    <p id="messageModalText"></p>
+    <div class="modal-actions">
+      <button type="button" id="messageModalOk" class="btn-filtro btn-filtro-limpar"><i class="bx bx-check"></i> OK</button>
     </div>
   </div>
 </div>

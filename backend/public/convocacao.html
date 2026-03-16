@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Responder Convocação - Atlas Cargo</title>
+  <title data-i18n="responderConvocacao.tituloPagina">Responder Convocação - Atlas Cargo</title>
   <link rel="icon" type="image/png" href="/img/logoAtlasTransparenteQuadrada.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -458,25 +458,25 @@
   <div id="modalGeolocalizacao" class="modal-geolocalizacao">
     <div class="modal-geolocalizacao-content">
       <div class="modal-geolocalizacao-header">
-        <h3>⚠️ Localização Obrigatória</h3>
+        <h3 data-i18n="responderConvocacao.localizacaoObrigatoria">⚠️ Localização Obrigatória</h3>
       </div>
       <div class="modal-geolocalizacao-body">
         <div class="icon">📍</div>
-        <p><strong>A localização é obrigatória para continuar!</strong></p>
-        <p>Precisamos da sua localização para garantir o bom funcionamento do sistema e verificar sua proximidade com o local de carregamento.</p>
+        <p><strong data-i18n="responderConvocacao.localizacaoObrigatoriaTexto">A localização é obrigatória para continuar!</strong></p>
+        <p data-i18n="responderConvocacao.localizacaoObrigatoriaDesc">Precisamos da sua localização para garantir o bom funcionamento do sistema e verificar sua proximidade com o local de carregamento.</p>
         <div class="instrucoes">
-          <h4>Como permitir a localização:</h4>
+          <h4 data-i18n="responderConvocacao.comoPermitir">Como permitir a localização:</h4>
           <ol>
-            <li>Clique no ícone de <strong>cadeado</strong> ou <strong>informações</strong> na barra de endereço do navegador</li>
-            <li>Procure por <strong>"Localização"</strong> ou <strong>"Location"</strong></li>
-            <li>Altere de <strong>"Bloquear"</strong> para <strong>"Permitir"</strong></li>
-            <li>Recarregue a página ou clique em "Tentar Novamente"</li>
+            <li data-i18n="responderConvocacao.comoPermitir1">Clique no ícone de cadeado ou informações na barra de endereço do navegador</li>
+            <li data-i18n="responderConvocacao.comoPermitir2">Procure por "Localização" ou "Location"</li>
+            <li data-i18n="responderConvocacao.comoPermitir3">Altere de "Bloquear" para "Permitir"</li>
+            <li data-i18n="responderConvocacao.comoPermitir4">Recarregue a página ou clique em "Tentar Novamente"</li>
           </ol>
         </div>
-        <p style="color: #e74c3c; font-weight: 600; margin-top: 20px;">⚠️ Você não poderá continuar sem permitir a localização.</p>
+        <p id="pLocalizacaoSemPermitir" style="color: #e74c3c; font-weight: 600; margin-top: 20px;" data-i18n="responderConvocacao.localizacaoSemPermitir">⚠️ Você não poderá continuar sem permitir a localização.</p>
       </div>
       <div class="modal-geolocalizacao-actions">
-        <button id="btnTentarGeolocalizacao" class="modal-geolocalizacao-btn modal-geolocalizacao-btn-tentar">🔄 Tentar Novamente</button>
+        <button id="btnTentarGeolocalizacao" class="modal-geolocalizacao-btn modal-geolocalizacao-btn-tentar" data-i18n="responderConvocacao.tentarNovamente">🔄 Tentar Novamente</button>
       </div>
     </div>
   </div>
@@ -485,41 +485,41 @@
   <div id="modalConfirm" class="modal-confirm">
     <div class="modal-confirm-content">
       <div class="modal-confirm-header">
-        <h3 id="modalConfirmTitle">Confirmar Ação</h3>
+        <h3 id="modalConfirmTitle" data-i18n="responderConvocacao.confirmarAcao">Confirmar Ação</h3>
       </div>
       <div class="modal-confirm-body">
         <div id="modalConfirmIcon" class="icon">⚠️</div>
         <p id="modalConfirmMessage"></p>
         <div id="modalConfirmDetalhes" class="detalhes" style="display: none;">
-          <strong>Detalhes da Convocação:</strong>
+          <strong data-i18n="responderConvocacao.detalhesConvocacao">Detalhes da Convocação:</strong>
           <span id="modalConfirmDetalhesText"></span>
         </div>
         <div id="modalConfirmMotivoRecusa" style="display: none; margin-top: 25px; text-align: left;">
           <label for="selectMotivoRecusa" style="display: block; margin-bottom: 12px; font-weight: 600; color: #1e293b; font-size: 15px;">
-            📋 Por favor, informe o motivo da recusa: <span style="color: #dc2626;">*</span>
+            <span data-i18n="responderConvocacao.motivoRecusaLabel">📋 Por favor, informe o motivo da recusa:</span> <span style="color: #dc2626;">*</span>
           </label>
           <select id="selectMotivoRecusa" style="width: 100%; padding: 14px; border: 2px solid #0ea5e9; border-radius: 8px; font-size: 16px; background: white; color: #1e293b; cursor: pointer; transition: all 0.3s;">
-            <option value="">Selecione o motivo...</option>
+            <option value="" data-i18n="responderConvocacao.selecioneMotivo">Selecione o motivo...</option>
           </select>
-          <p id="erroMotivoRecusa" style="color: #dc2626; font-size: 14px; margin-top: 8px; display: none; font-weight: 500;">
+          <p id="erroMotivoRecusa" style="color: #dc2626; font-size: 14px; margin-top: 8px; display: none; font-weight: 500;" data-i18n="responderConvocacao.motivoObrigatorio">
             ⚠️ Por favor, selecione um motivo antes de confirmar.
           </p>
         </div>
       </div>
       <div class="modal-confirm-actions">
-        <button id="modalConfirmBtnCancelar" class="modal-confirm-btn modal-confirm-btn-cancelar">Cancelar</button>
-        <button id="modalConfirmBtnConfirmar" class="modal-confirm-btn modal-confirm-btn-confirmar">Confirmar</button>
+        <button id="modalConfirmBtnCancelar" class="modal-confirm-btn modal-confirm-btn-cancelar" data-i18n="responderConvocacao.cancelar">Cancelar</button>
+        <button id="modalConfirmBtnConfirmar" class="modal-confirm-btn modal-confirm-btn-confirmar" data-i18n="responderConvocacao.confirmar">Confirmar</button>
       </div>
     </div>
   </div>
   <div class="container">
     <div id="loading" class="loading">
-      <p>Carregando convocação...</p>
+      <p data-i18n="responderConvocacao.carregando">Carregando convocação...</p>
     </div>
     <div id="content" style="display: none;">
       <div class="header">
-        <h1>🚚 Convocação de Carga</h1>
-        <p>Você foi convidado para realizar uma viagem</p>
+        <h1 data-i18n="responderConvocacao.titulo">🚚 Convocação de Carga</h1>
+        <p data-i18n="responderConvocacao.subtitulo">Você foi convidado para realizar uma viagem</p>
         <span id="statusBadge" class="status-badge"></span>
       </div>
       
@@ -530,90 +530,98 @@
       <div id="geolocalizacaoInfo" class="geolocalizacao-info" style="display: none;">
         <div class="icon">📍</div>
         <div class="content">
-          <h3>Permissão de Localização Necessária</h3>
-          <p>Para garantir o bom funcionamento da ferramenta e melhorar nossos serviços, precisamos da sua permissão para acessar sua localização. Isso nos ajuda a verificar sua proximidade com o local de carregamento e otimizar a distribuição de cargas.</p>
+          <h3 data-i18n="responderConvocacao.permissaoLocalizacao">Permissão de Localização Necessária</h3>
+          <p data-i18n="responderConvocacao.permissaoLocalizacaoDesc">Para garantir o bom funcionamento da ferramenta e melhorar nossos serviços, precisamos da sua permissão para acessar sua localização. Isso nos ajuda a verificar sua proximidade com o local de carregamento e otimizar a distribuição de cargas.</p>
         </div>
-        <button class="btn-fechar" onclick="document.getElementById('geolocalizacaoInfo').style.display='none'">Entendi</button>
+        <button class="btn-fechar" onclick="document.getElementById('geolocalizacaoInfo').style.display='none'" data-i18n="responderConvocacao.entendi">Entendi</button>
       </div>
       
       <!-- Botão para enviar localização manualmente -->
       <div id="botaoEnviarLocalizacao" style="display: none; margin-bottom: 20px; text-align: center;">
-        <button id="btnEnviarLocalizacao" class="btn btn-atlas-accent" style="background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); color: white; padding: 12px 30px; font-size: 16px; font-weight: 600; border-radius: 8px; border: none; cursor: pointer; box-shadow: 0 4px 15px rgba(13, 33, 55, 0.35); transition: all 0.3s;">
+        <button id="btnEnviarLocalizacao" class="btn btn-atlas-accent" style="background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); color: white; padding: 12px 30px; font-size: 16px; font-weight: 600; border-radius: 8px; border: none; cursor: pointer; box-shadow: 0 4px 15px rgba(13, 33, 55, 0.35); transition: all 0.3s;" data-i18n="responderConvocacao.enviarLocalizacao">
           📍 Enviar Minha Localização
         </button>
-        <p style="margin-top: 10px; color: #64748b; font-size: 14px;">Clique para compartilhar sua localização atual</p>
+        <p style="margin-top: 10px; color: #64748b; font-size: 14px;" data-i18n="responderConvocacao.enviarLocalizacaoHint">Clique para compartilhar sua localização atual</p>
       </div>
       
       <div class="info-section">
-        <h2>📋 Dados da Viagem</h2>
+        <h2 data-i18n="responderConvocacao.dadosViagem">📋 Dados da Viagem</h2>
         <div class="info-grid">
           <div class="info-item">
-            <span class="info-label">ID da Viagem</span>
+            <span class="info-label" data-i18n="responderConvocacao.idViagem">ID da Viagem</span>
             <span class="info-value" id="idViagem">-</span>
           </div>
           <div class="info-item">
-            <span class="info-label">Tipo</span>
+            <span class="info-label" data-i18n="responderConvocacao.tipo">Tipo</span>
             <span class="info-value" id="tipoViagem">-</span>
           </div>
           <div class="info-item">
-            <span class="info-label">Classe de Frota</span>
+            <span class="info-label" data-i18n="responderConvocacao.classeFrota">Classe de Frota</span>
             <span class="info-value" id="classeFrota">-</span>
           </div>
           <div class="info-item">
-            <span class="info-label">Exige Rastreado</span>
+            <span class="info-label" data-i18n="responderConvocacao.exigeRastreado">Exige Rastreado</span>
             <span class="info-value" id="rastreado">-</span>
           </div>
         </div>
       </div>
       
-      <div class="info-section">
-        <h2>📍 Rota</h2>
-        <div class="info-grid">
+      <div class="info-section" id="rotaSection">
+        <h2 data-i18n="responderConvocacao.rotaSection">📍 Rota</h2>
+        <div class="info-grid" id="rotaGrid">
           <div class="info-item">
-            <span class="info-label">Origem</span>
+            <span class="info-label" data-i18n="responderConvocacao.origem">Origem</span>
             <span class="info-value" id="origem">-</span>
           </div>
           <div class="info-item">
-            <span class="info-label">Destino</span>
+            <span class="info-label" data-i18n="responderConvocacao.destino">Destino</span>
             <span class="info-value" id="destino">-</span>
           </div>
+        </div>
+        <div id="rotaUnica" style="display: none; margin-top: 8px;">
+          <span class="info-label" data-i18n="responderConvocacao.rota">Rota</span>
+          <span class="info-value" id="rotaTexto">-</span>
+        </div>
+        <div id="pontosParadaSection" style="display: none; margin-top: 12px;">
+          <span class="info-label" data-i18n="responderConvocacao.pontosParada">Pontos de parada</span>
+          <ul id="pontosParadaList" style="margin: 6px 0 0 0; padding-left: 20px; color: #1e293b; line-height: 1.6;"></ul>
         </div>
       </div>
       
       <div class="info-section">
-        <h2>⏰ Horários</h2>
+        <h2 data-i18n="responderConvocacao.horarios">⏰ Horários</h2>
         <div class="info-grid">
           <div class="info-item">
-            <span class="info-label">Carregamento</span>
+            <span class="info-label" data-i18n="responderConvocacao.carregamento">Carregamento</span>
             <span class="info-value" id="carregamento">-</span>
           </div>
           <div class="info-item">
-            <span class="info-label">Descarga</span>
+            <span class="info-label" data-i18n="responderConvocacao.descarga">Descarga</span>
             <span class="info-value" id="descarga">-</span>
           </div>
         </div>
       </div>
       
       <div class="info-section">
-        <h2>💰 Valores</h2>
+        <h2 data-i18n="responderConvocacao.valores">💰 Valores</h2>
         <div class="info-grid">
           <div class="info-item">
-            <span class="info-label">Frete</span>
+            <span class="info-label" data-i18n="responderConvocacao.frete">Frete</span>
             <span class="info-value" id="frete">-</span>
           </div>
           <div class="info-item">
-            <span class="info-label">Peso</span>
+            <span class="info-label" data-i18n="responderConvocacao.peso">Peso</span>
             <span class="info-value" id="peso">-</span>
           </div>
           <div class="info-item">
-            <span class="info-label">Cubagem</span>
+            <span class="info-label" data-i18n="responderConvocacao.cubagem">Cubagem</span>
             <span class="info-value" id="cubagem">-</span>
           </div>
         </div>
       </div>
       
       <div id="detalhesSection" class="info-section" style="display: none;">
-        <h2>📝 Detalhes da Viagem</h2>
+        <h2 data-i18n="responderConvocacao.detalhesViagem">📝 Detalhes da Viagem</h2>
         <p id="detalhes" style="color: #1e293b; line-height: 1.6;"></p>
       </div>
       
@@ -621,13 +629,17 @@
       <div id="statusMessage" style="display: none; margin: 30px 0;"></div>
       
       <div id="actionsSection" class="actions">
-        <button id="btnAceitar" class="btn btn-aceitar">✅ Aceitar Convocação</button>
-        <button id="btnRecusar" class="btn btn-recusar">❌ Recusar Convocação</button>
+        <button id="btnAceitar" class="btn btn-aceitar" data-i18n="responderConvocacao.aceitarConvocacao">✅ Aceitar Convocação</button>
+        <button id="btnRecusar" class="btn btn-recusar" data-i18n="responderConvocacao.recusarConvocacao">❌ Recusar Convocação</button>
       </div>
     </div>
   </div>
 
+  <script>
+    window.__BASE_URL__ = window.location.protocol + '//' + window.location.host;
+  </script>
   <script src="/js/ambiente-utils.js"></script>
+  <script src="/js/i18n-web.js"></script>
   <script>
     // Extrair ID da convocação da URL
     const urlParams = new URLSearchParams(window.location.search);
@@ -650,16 +662,7 @@
     console.log('[CONVOCACAO] URL completa:', window.location.href);
     console.log('[CONVOCACAO] Pathname:', window.location.pathname);
     
-    if (!idConvocacao || isNaN(parseInt(idConvocacao))) {
-      console.error('[CONVOCACAO] ID inválido:', idConvocacao);
-      document.getElementById('loading').style.display = 'none';
-      document.getElementById('content').style.display = 'block';
-      const errorMsg = document.getElementById('errorMessage');
-      if (errorMsg) {
-        errorMsg.style.display = 'block';
-        errorMsg.textContent = 'Erro: ID de convocação inválido na URL. Verifique se o link está correto.';
-      }
-    }
+    // Erro de ID inválido será exibido após i18n pronto (no init)
     
     let convocacaoData = null;
     let localizacaoAtual = null; // Armazenar localização capturada
@@ -814,7 +817,7 @@
                   infoDiv.style.display = 'flex';
                   const contentDiv = infoDiv.querySelector('.content p');
                   if (contentDiv) {
-                    contentDiv.innerHTML = '<strong>⚠️ Permissão negada:</strong> A localização não foi capturada. Você pode continuar usando o sistema normalmente, mas algumas funcionalidades podem não estar disponíveis.';
+                    contentDiv.innerHTML = (typeof tWeb === 'function' ? tWeb('responderConvocacao.permissaoNegada') : 'Permissão negada: A localização não foi capturada. Você pode continuar usando o sistema normalmente, mas algumas funcionalidades podem não estar disponíveis.');
                   }
                 }
               }
@@ -914,7 +917,7 @@
         if (errorMsg) {
           errorMsg.style.display = 'block';
           // Mostrar mensagem mais detalhada
-          let mensagemErro = 'Erro ao carregar convocação: ' + err.message;
+          let mensagemErro = (typeof tWeb === 'function' ? tWeb('responderConvocacao.erroCarregar') : 'Erro ao carregar convocação: ') + err.message;
           
           if (err.name === 'AbortError') {
             mensagemErro = '⏱️ Tempo de espera esgotado. O servidor não respondeu a tempo.\n\n💡 Verifique se o servidor está online e tente novamente.';
@@ -928,12 +931,13 @@
           errorMsg.style.whiteSpace = 'pre-line';
           errorMsg.style.textAlign = 'left';
         } else {
-          alert('Erro ao carregar convocação: ' + err.message);
+          alert((typeof tWeb === 'function' ? tWeb('responderConvocacao.erroCarregar') : 'Erro ao carregar convocação: ') + err.message);
         }
       }
     }
 
-    function exibirConvocacao(data) {
+    async function exibirConvocacao(data) {
+      var t = typeof window.tWeb === 'function' ? window.tWeb : function(k) { return k; };
       document.getElementById('loading').style.display = 'none';
       document.getElementById('content').style.display = 'block';
       
@@ -957,11 +961,51 @@
       document.getElementById('idViagem').textContent = data.IDVIAGEM || '-';
       document.getElementById('tipoViagem').textContent = data.DSTIPOVIAGEM || '-';
       document.getElementById('classeFrota').textContent = data.DSCLASSEFROTA || '-';
-      document.getElementById('rastreado').textContent = data.FGRASTREADO === 'S' ? 'Sim' : 'Não';
+      document.getElementById('rastreado').textContent = data.FGRASTREADO === 'S' ? (typeof tWeb === 'function' ? tWeb('responderConvocacao.sim') : 'Sim') : (typeof tWeb === 'function' ? tWeb('responderConvocacao.nao') : 'Não');
       
-      // Rota
-      document.getElementById('origem').textContent = `${data.ORIGEM_CIDADE || '-'}/${data.ORIGEM_ESTADO || '-'}`;
-      document.getElementById('destino').textContent = `${data.DESTINO_CIDADE || '-'}/${data.DESTINO_ESTADO || '-'}`;
+      // Rota: se tiver origem/destino (cidade ou estado), mostrar em duas linhas; senão usar DSROTEIRO ou "Rota não informada"
+      const origemStr = [data.ORIGEM_CIDADE, data.ORIGEM_ESTADO].filter(Boolean).join('/') || '-';
+      const destinoStr = [data.DESTINO_CIDADE, data.DESTINO_ESTADO].filter(Boolean).join('/') || '-';
+      const rotaGrid = document.getElementById('rotaGrid');
+      const rotaUnica = document.getElementById('rotaUnica');
+      const rotaTexto = document.getElementById('rotaTexto');
+      if (origemStr !== '-' || destinoStr !== '-') {
+        rotaGrid.style.display = '';
+        rotaUnica.style.display = 'none';
+        document.getElementById('origem').textContent = origemStr;
+        document.getElementById('destino').textContent = destinoStr;
+      } else {
+        rotaGrid.style.display = 'none';
+        rotaUnica.style.display = 'block';
+        rotaTexto.textContent = (data.DSROTEIRO && data.DSROTEIRO.trim()) ? data.DSROTEIRO.trim() : (typeof tWeb === 'function' ? tWeb('responderConvocacao.rotaNaoInformada') : 'Rota não informada');
+      }
+      
+      // Pontos de parada: buscar se houver IDROTEIRO
+      const pontosParadaSection = document.getElementById('pontosParadaSection');
+      const pontosParadaList = document.getElementById('pontosParadaList');
+      pontosParadaSection.style.display = 'none';
+      pontosParadaList.innerHTML = '';
+      const idRoteiro = data.IDROTEIRO != null ? (typeof data.IDROTEIRO === 'number' ? data.IDROTEIRO : parseFloat(data.IDROTEIRO)) : null;
+      if (idRoteiro && !isNaN(idRoteiro)) {
+        try {
+          const respPontos = await fetch('/api/roteiros/' + encodeURIComponent(idRoteiro) + '/pontos');
+          if (respPontos.ok) {
+            const pontos = await respPontos.json();
+            const lista = Array.isArray(pontos) ? pontos : (pontos.pontos || []);
+            if (lista.length > 0) {
+              lista.sort((a, b) => (a.ORDEM != null ? a.ORDEM : a.ordem != null ? a.ordem : a.SEQUENCIA || a.sequencia || 0) - (b.ORDEM != null ? b.ORDEM : b.ordem != null ? b.ordem : b.SEQUENCIA || b.sequencia || 0));
+              pontosParadaList.innerHTML = lista.map(function(p, i) {
+                const nome = (p.DSLOCAL || p.dslocal || '').trim() || (p.DSPOSICAO || p.dsposicao || '').trim();
+                const texto = nome || ('Parada ' + (i + 1));
+                return '<li>' + texto + '</li>';
+              }).join('');
+              pontosParadaSection.style.display = 'block';
+            }
+          }
+        } catch (e) {
+          console.warn('Erro ao carregar pontos de parada:', e);
+        }
+      }
       
       // Horários (locale e timezone do contexto)
       const loc = contextoConvocacao.locale || 'pt-BR';
@@ -1031,40 +1075,41 @@
         const contratadorNome = data.CONTRATADOR_NOME || null;
         const contratadorCelular = data.CONTRATADOR_CELULAR ? formatarTelefone(data.CONTRATADOR_CELULAR) : null;
         const celularFormatadoWhatsApp = data.CONTRATADOR_CELULAR ? data.CONTRATADOR_CELULAR.toString().replace(/\D/g, '') : null;
-        const linkWhatsApp = celularFormatadoWhatsApp && celularFormatadoWhatsApp.length >= 10 
-          ? `https://wa.me/55${celularFormatadoWhatsApp}` 
+        const numWa = celularFormatadoWhatsApp && celularFormatadoWhatsApp.length >= 10
+          ? (celularFormatadoWhatsApp.length >= 12 ? celularFormatadoWhatsApp : '55' + celularFormatadoWhatsApp)
           : null;
+        const linkWhatsApp = numWa ? `https://wa.me/${numWa}` : null;
         
         statusMessageDiv.style.display = 'block';
         statusMessageDiv.innerHTML = `
           <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 25px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(17, 153, 142, 0.4);">
             <div style="font-size: 56px; margin-bottom: 20px;">🎉</div>
-            <h2 style="margin: 0 0 15px 0; font-size: 24px; font-weight: 700;">PARABÉNS! Você foi selecionado!</h2>
+            <h2 style="margin: 0 0 15px 0; font-size: 24px; font-weight: 700;">${t('responderConvocacao.parabensTitulo')}</h2>
             <div style="background: rgba(255, 255, 255, 0.15); padding: 20px; border-radius: 8px; margin: 20px 0; text-align: left; backdrop-filter: blur(10px);">
               <p style="margin: 0 0 15px 0; font-size: 16px; line-height: 1.8;">
-                Olá <strong>${data.NOME_MOTORISTA || 'Motorista'}</strong>,
+                ${t('responderConvocacao.olaMotorista')} <strong>${data.NOME_MOTORISTA || t('responderConvocacao.motorista')}</strong>,
               </p>
               <p style="margin: 0 0 15px 0; font-size: 15px; line-height: 1.8;">
-                Temos uma ótima notícia! Você foi <strong>SELECIONADO</strong> para realizar a viagem:
+                ${t('responderConvocacao.selecionadoParaViagem')}
               </p>
               <div style="margin: 15px 0; padding-left: 10px; border-left: 3px solid rgba(255, 255, 255, 0.5);">
-                <p style="margin: 5px 0; font-size: 14px;"><strong>🆔 ID da Viagem:</strong> ${data.IDVIAGEM || '-'}</p>
-                <p style="margin: 5px 0; font-size: 14px;"><strong>🗺️ Rota:</strong> ${rotaTexto}</p>
-                <p style="margin: 5px 0; font-size: 14px;"><strong>📅 Carregamento:</strong> ${formatarData(data.DTPREVINICIO)}</p>
-                <p style="margin: 5px 0; font-size: 14px;"><strong>📅 Descarga:</strong> ${formatarData(data.DTPREVFINAL)}</p>
+                <p style="margin: 5px 0; font-size: 14px;"><strong>🆔 ${t('responderConvocacao.idViagem')}:</strong> ${data.IDVIAGEM || '-'}</p>
+                <p style="margin: 5px 0; font-size: 14px;"><strong>🗺️ ${t('responderConvocacao.rota')}:</strong> ${rotaTexto}</p>
+                <p style="margin: 5px 0; font-size: 14px;"><strong>📅 ${t('responderConvocacao.carregamento')}:</strong> ${formatarData(data.DTPREVINICIO)}</p>
+                <p style="margin: 5px 0; font-size: 14px;"><strong>📅 ${t('responderConvocacao.descarga')}:</strong> ${formatarData(data.DTPREVFINAL)}</p>
               </div>
               <p style="margin: 15px 0 0 0; font-size: 15px; line-height: 1.8;">
-                ✅ <strong>Sua convocação foi CONFIRMADA!</strong>
+                ✅ <strong>${t('responderConvocacao.suaConvocacaoConfirmada')}</strong>
               </p>
               <p style="margin: 15px 0 0 0; font-size: 15px; line-height: 1.8;">
-                Por favor, entre em contato conosco para os próximos passos.
+                ${t('responderConvocacao.proximosPassos')}
               </p>
               <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.3);">
-                <p style="margin: 0 0 12px 0; font-size: 15px; font-weight: 700;">📞 Entre em Contato:</p>
+                <p style="margin: 0 0 12px 0; font-size: 15px; font-weight: 700;">📞 ${t('responderConvocacao.entreEmContato')}</p>
                 ${contratadorNome ? `
                   <p style="margin: 0 0 8px 0; font-size: 15px;"><strong>${contratadorNome}</strong></p>
                 ` : `
-                  <p style="margin: 0 0 8px 0; font-size: 14px; opacity: 0.9;">Contratador não informado</p>
+                  <p style="margin: 0 0 8px 0; font-size: 14px; opacity: 0.9;">${t('responderConvocacao.contratadorNaoInformado')}</p>
                 `}
                 ${linkWhatsApp ? `
                   <a href="${linkWhatsApp}" target="_blank" style="display: inline-block; margin-top: 8px; padding: 12px 24px; background: rgba(255, 255, 255, 0.25); color: white; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 15px; transition: all 0.3s; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.3);">
@@ -1074,13 +1119,13 @@
                   <p style="margin: 8px 0 0 0; font-size: 15px; font-weight: 600;">📱 ${contratadorCelular}</p>
                 ` : `
                   <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9; font-style: italic; background: rgba(255, 255, 255, 0.1); padding: 10px; border-radius: 6px;">
-                    ⚠️ Telefone do contratador não cadastrado. Entre em contato através dos canais de comunicação da empresa.
+                    ⚠️ ${t('responderConvocacao.telefoneNaoCadastrado')}
                   </p>
                 `}
               </div>
             </div>
             <p style="margin: 20px 0 0 0; font-size: 15px; line-height: 1.8; font-weight: 600;">
-              Aguardamos seu retorno! 🚛
+              ${t('responderConvocacao.aguardamosRetorno')} 🚛
             </p>
           </div>
         `;
@@ -1093,10 +1138,9 @@
         statusMessageDiv.innerHTML = `
           <div style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(255, 152, 0, 0.4);">
             <div style="font-size: 48px; margin-bottom: 15px;">ℹ️</div>
-            <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 700;">Convocação Não Selecionada</h3>
+            <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 700;">${t('responderConvocacao.convocacaoNaoSelecionada')}</h3>
             <p style="margin: 0; font-size: 15px; line-height: 1.6; opacity: 0.95;">
-              Você <strong>ACEITOU</strong> esta convocação, mas outro motorista foi selecionado para realizar a viagem.<br>
-              Obrigado pelo seu interesse e continue acompanhando nossas oportunidades!
+              ${t('responderConvocacao.voceAceitouOutroSelecionado')}
             </p>
           </div>
         `;
@@ -1109,10 +1153,9 @@
         statusMessageDiv.innerHTML = `
           <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);">
             <div style="font-size: 48px; margin-bottom: 15px;">⏳</div>
-            <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 700;">Aguardando Confirmação</h3>
+            <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 700;">${t('responderConvocacao.aguardandoConfirmacao')}</h3>
             <p style="margin: 0; font-size: 15px; line-height: 1.6; opacity: 0.95;">
-              Você já <strong>ACEITOU</strong> esta convocação!<br>
-              Estamos analisando e em breve entraremos em contato.
+              ${t('responderConvocacao.voceAceitouAguardando')}
             </p>
           </div>
         `;
@@ -1125,10 +1168,9 @@
         statusMessageDiv.innerHTML = `
           <div style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(250, 112, 154, 0.4);">
             <div style="font-size: 48px; margin-bottom: 15px;">❌</div>
-            <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 700;">Convocação Recusada</h3>
+            <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 700;">${t('responderConvocacao.convocacaoRecusada')}</h3>
             <p style="margin: 0; font-size: 15px; line-height: 1.6; opacity: 0.95;">
-              Você <strong>RECUSOU</strong> esta convocação.<br>
-              Continue acompanhando nossas oportunidades!
+              ${t('responderConvocacao.voceRecusou')}
             </p>
           </div>
         `;
@@ -1141,10 +1183,9 @@
         statusMessageDiv.innerHTML = `
           <div style="background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(13, 33, 55, 0.35);">
             <div style="font-size: 48px; margin-bottom: 15px;">📋</div>
-            <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 700;">Carga Já Fechada</h3>
+            <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 700;">${t('responderConvocacao.cargaJaFechada')}</h3>
             <p style="margin: 0; font-size: 15px; line-height: 1.6; opacity: 0.95;">
-              Esta carga já foi <strong>FECHADA</strong> e programada para outro motorista.<br>
-              Obrigado pelo seu interesse e continue acompanhando nossas oportunidades!
+              ${t('responderConvocacao.cargaFechadaOutroMotorista')}
             </p>
           </div>
         `;
@@ -1201,27 +1242,28 @@
         selectMotivoRecusa.value = '';
         
         // Configurar conteúdo baseado no status
+        var t = typeof window.tWeb === 'function' ? window.tWeb : function(k) { return k; };
         if (status === 'ACEITA') {
-          title.textContent = '✅ Confirmar Aceitação';
+          title.textContent = '✅ ' + t('responderConvocacao.confirmarAceitar');
           icon.textContent = '✅';
           icon.className = 'icon aceitar';
-          message.textContent = 'Tem certeza que deseja ACEITAR esta convocação?';
-          btnConfirmar.textContent = 'Sim, Aceitar';
+          message.textContent = t('responderConvocacao.confirmarAceitarMsg');
+          btnConfirmar.textContent = t('responderConvocacao.simAceitar');
           btnConfirmar.className = 'modal-confirm-btn modal-confirm-btn-confirmar';
           motivoRecusaDiv.style.display = 'none';
         } else {
-          title.textContent = '❌ Confirmar Recusa';
+          title.textContent = '❌ ' + t('responderConvocacao.confirmarRecusar');
           icon.textContent = '❌';
           icon.className = 'icon recusar';
-          message.textContent = 'Tem certeza que deseja RECUSAR esta convocação?';
-          btnConfirmar.textContent = 'Sim, Recusar';
+          message.textContent = t('responderConvocacao.confirmarRecusarMsg');
+          btnConfirmar.textContent = t('responderConvocacao.simRecusar');
           btnConfirmar.className = 'modal-confirm-btn modal-confirm-btn-confirmar';
           btnConfirmar.style.background = 'linear-gradient(135deg, #dc3545, #c82333)';
           btnConfirmar.style.color = 'white';
           motivoRecusaDiv.style.display = 'block';
           
           // Preencher select de motivos
-          selectMotivoRecusa.innerHTML = '<option value="">Selecione o motivo...</option>';
+          selectMotivoRecusa.innerHTML = '<option value="">' + t('responderConvocacao.selecioneMotivo') + '</option>';
           motivosRecusa.forEach(motivo => {
             const option = document.createElement('option');
             option.value = motivo.CDMOTIVO;
@@ -1262,6 +1304,7 @@
           if (status === 'RECUSADA') {
             const motivoSelecionado = selectMotivoRecusa.value;
             if (!motivoSelecionado || motivoSelecionado === '') {
+              erroMotivoRecusa.textContent = (typeof window.tWeb === 'function' ? window.tWeb('responderConvocacao.motivoObrigatorio') : 'Por favor, selecione um motivo antes de confirmar.');
               erroMotivoRecusa.style.display = 'block';
               selectMotivoRecusa.focus();
               return;
@@ -1343,6 +1386,7 @@
         
         // Se foi aceitação, mostrar mensagem com dados do contratador
         if (status === 'ACEITA') {
+          var tResp = typeof window.tWeb === 'function' ? window.tWeb : function(k) { return k; };
           document.getElementById('actionsSection').style.display = 'none';
           document.getElementById('successMessage').style.display = 'none';
           
@@ -1361,29 +1405,30 @@
           const contratadorNome = convocacaoData.CONTRATADOR_NOME || null;
           const contratadorCelular = convocacaoData.CONTRATADOR_CELULAR ? formatarTelefone(convocacaoData.CONTRATADOR_CELULAR) : null;
           const celularFormatadoWhatsApp = convocacaoData.CONTRATADOR_CELULAR ? convocacaoData.CONTRATADOR_CELULAR.toString().replace(/\D/g, '') : null;
-          const linkWhatsApp = celularFormatadoWhatsApp && celularFormatadoWhatsApp.length >= 10 
-            ? `https://wa.me/55${celularFormatadoWhatsApp}` 
+          const numWa = celularFormatadoWhatsApp && celularFormatadoWhatsApp.length >= 10
+            ? (celularFormatadoWhatsApp.length >= 12 ? celularFormatadoWhatsApp : '55' + celularFormatadoWhatsApp)
             : null;
+          const linkWhatsApp = numWa ? `https://wa.me/${numWa}` : null;
           
           const statusMessageDiv = document.getElementById('statusMessage');
           statusMessageDiv.style.display = 'block';
           statusMessageDiv.innerHTML = `
             <div style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 25px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);">
               <div style="font-size: 56px; margin-bottom: 20px;">✅</div>
-              <h2 style="margin: 0 0 15px 0; font-size: 24px; font-weight: 700;">CONVOCAÇÃO ACEITA COM SUCESSO!</h2>
+              <h2 style="margin: 0 0 15px 0; font-size: 24px; font-weight: 700;">${tResp('responderConvocacao.convocacaoAceitaSucesso')}</h2>
               <div style="background: rgba(255, 255, 255, 0.15); padding: 20px; border-radius: 8px; margin: 20px 0; text-align: left; backdrop-filter: blur(10px);">
                 <p style="margin: 0 0 15px 0; font-size: 16px; line-height: 1.8;">
-                  Olá <strong>${convocacaoData.NOME_MOTORISTA || 'Motorista'}</strong>,
+                  ${tResp('responderConvocacao.olaMotorista')} <strong>${convocacaoData.NOME_MOTORISTA || tResp('responderConvocacao.motorista')}</strong>,
                 </p>
                 <p style="margin: 0 0 15px 0; font-size: 15px; line-height: 1.8;">
-                  Sua <strong>ACEITAÇÃO</strong> foi registrada com sucesso! Agora é importante que você entre em contato com o <strong>CONTRATADOR</strong> para os próximos passos.
+                  ${tResp('responderConvocacao.aceitacaoRegistrada')}
                 </p>
                 <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid rgba(255, 255, 255, 0.3);">
-                  <p style="margin: 0 0 12px 0; font-size: 15px; font-weight: 700;">📞 Entre em Contato com o Contratador:</p>
+                  <p style="margin: 0 0 12px 0; font-size: 15px; font-weight: 700;">📞 ${tResp('responderConvocacao.entreContatoContratador')}</p>
                   ${contratadorNome ? `
                     <p style="margin: 0 0 8px 0; font-size: 15px;"><strong>${contratadorNome}</strong></p>
                   ` : `
-                    <p style="margin: 0 0 8px 0; font-size: 14px; opacity: 0.9;">Contratador não informado</p>
+                    <p style="margin: 0 0 8px 0; font-size: 14px; opacity: 0.9;">${tResp('responderConvocacao.contratadorNaoInformado')}</p>
                   `}
                   ${linkWhatsApp ? `
                     <a href="${linkWhatsApp}" target="_blank" style="display: inline-block; margin-top: 8px; padding: 12px 24px; background: rgba(255, 255, 255, 0.25); color: white; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 15px; transition: all 0.3s; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.3);">
@@ -1393,13 +1438,13 @@
                     <p style="margin: 8px 0 0 0; font-size: 15px; font-weight: 600;">📱 ${contratadorCelular}</p>
                   ` : `
                     <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9; font-style: italic; background: rgba(255, 255, 255, 0.1); padding: 10px; border-radius: 6px;">
-                      ⚠️ Telefone do contratador não cadastrado. Entre em contato através dos canais de comunicação da empresa.
+                      ⚠️ ${tResp('responderConvocacao.telefoneNaoCadastrado')}
                     </p>
                   `}
                 </div>
               </div>
               <p style="margin: 20px 0 0 0; font-size: 15px; line-height: 1.8; font-weight: 600;">
-                Aguardamos seu contato! 🚛
+                ${tResp('responderConvocacao.aguardamosContato')} 🚛
               </p>
             </div>
           `;
@@ -1421,13 +1466,14 @@
         
       } catch (err) {
         // Mostrar erro de forma estilizada
+        var errMsg = (typeof window.tWeb === 'function' ? window.tWeb('responderConvocacao.erroResponder') : 'Erro ao responder convocação: ') + err.message;
         const errorDiv = document.getElementById('errorMessage');
         if (errorDiv) {
           errorDiv.style.display = 'block';
-          errorDiv.textContent = '❌ Erro ao responder convocação: ' + err.message;
+          errorDiv.textContent = '❌ ' + errMsg;
           errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
         } else {
-          alert('Erro ao responder convocação: ' + err.message);
+          alert(errMsg);
         }
         document.getElementById('btnAceitar').disabled = false;
         document.getElementById('btnRecusar').disabled = false;
@@ -1471,30 +1517,28 @@
 
     // Event listener para botão "Tentar Novamente" do modal
     document.getElementById('btnTentarGeolocalizacao').addEventListener('click', async () => {
+      var tBtn = typeof window.tWeb === 'function' ? window.tWeb : function(k) { return k; };
       const btn = document.getElementById('btnTentarGeolocalizacao');
       btn.disabled = true;
-      btn.textContent = '🔄 Tentando...';
+      btn.textContent = '🔄 ' + tBtn('responderConvocacao.tentando');
       
       // Tentar capturar geolocalização novamente
       const geolocalizacao = await capturarGeolocalizacao(false, true);
       
       if (geolocalizacao) {
-        // Se conseguiu, registrar acesso
         await registrarAcessoComGeolocalizacao(geolocalizacao);
         btn.disabled = false;
-        btn.textContent = '🔄 Tentar Novamente';
+        btn.textContent = '🔄 ' + tBtn('responderConvocacao.tentarNovamente');
       } else {
-        // Se não conseguiu, manter modal aberto e reabilitar botão
         btn.disabled = false;
-        btn.textContent = '🔄 Tentar Novamente';
-        // Mostrar mensagem de erro temporária
+        btn.textContent = '🔄 ' + tBtn('responderConvocacao.tentarNovamente');
         const bodyDiv = document.querySelector('.modal-geolocalizacao-body');
         if (bodyDiv) {
           const msgErro = document.createElement('p');
           msgErro.style.color = '#e74c3c';
           msgErro.style.fontWeight = '600';
           msgErro.style.marginTop = '10px';
-          msgErro.textContent = '❌ Ainda não foi possível capturar a localização. Verifique as configurações do navegador.';
+          msgErro.textContent = '❌ ' + tBtn('responderConvocacao.erroCapturarLocalizacao');
           bodyDiv.appendChild(msgErro);
           setTimeout(() => msgErro.remove(), 5000);
         }
@@ -1535,20 +1579,20 @@
 
     // Função para enviar localização manualmente
     async function enviarLocalizacaoManual() {
+      var tLoc = typeof window.tWeb === 'function' ? window.tWeb : function(k) { return k; };
       const btn = document.getElementById('btnEnviarLocalizacao');
       if (!btn) return;
       
       btn.disabled = true;
-      btn.textContent = '📍 Capturando localização...';
+      btn.textContent = '📍 ' + tLoc('responderConvocacao.capturandoLocalizacao');
       
       try {
-        // Capturar geolocalização
         const geolocalizacao = await capturarGeolocalizacao(false, false);
         
         if (!geolocalizacao) {
-          showMessage('Não foi possível capturar sua localização. Verifique as configurações do navegador.', 'error');
+          showMessage(tLoc('responderConvocacao.erroCapturarNaoPossivel'), 'error');
           btn.disabled = false;
-          btn.textContent = '📍 Enviar Minha Localização';
+          btn.textContent = '📍 ' + tLoc('responderConvocacao.enviarLocalizacao');
           return;
         }
         
@@ -1589,22 +1633,21 @@
         // Ocultar modal bloqueante se estiver aberto
         ocultarModalGeolocalizacao();
         
-        showMessage('✅ Localização enviada com sucesso!', 'success');
-        btn.textContent = '✅ Localização Enviada!';
+        showMessage('✅ ' + tLoc('responderConvocacao.localizacaoEnviada'), 'success');
+        btn.textContent = '✅ ' + tLoc('responderConvocacao.localizacaoEnviada');
         btn.style.background = 'linear-gradient(135deg, #2ecc71, #27ae60)';
         
-        // Restaurar botão após 3 segundos
         setTimeout(() => {
           btn.disabled = false;
-          btn.textContent = '📍 Enviar Minha Localização';
+          btn.textContent = '📍 ' + tLoc('responderConvocacao.enviarLocalizacao');
           btn.style.background = 'linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%)';
         }, 3000);
         
       } catch (err) {
         console.error('Erro ao enviar localização:', err);
-        showMessage('Erro ao enviar localização. Tente novamente.', 'error');
+        showMessage(tLoc('responderConvocacao.erroEnviarLocalizacao'), 'error');
         btn.disabled = false;
-        btn.textContent = '📍 Enviar Minha Localização';
+        btn.textContent = '📍 ' + tLoc('responderConvocacao.enviarLocalizacao');
       }
     }
 
@@ -1617,10 +1660,29 @@
     document.getElementById('btnAceitar').addEventListener('click', () => responderConvocacao('ACEITA'));
     document.getElementById('btnRecusar').addEventListener('click', () => responderConvocacao('RECUSADA'));
 
-    // Carregar motivos de recusa e convocação ao iniciar
-    carregarMotivosRecusa().then(() => {
-      carregarConvocacao();
-    });
+    // Inicializar após i18n estar pronto (traduções e título)
+    (function initConvocacao() {
+      var ready = window.i18nWebReady;
+      if (!ready || typeof ready.then !== 'function') {
+        carregarMotivosRecusa().then(function() { carregarConvocacao(); });
+        return;
+      }
+      ready.then(function() {
+        if (typeof window.applyI18nWeb === 'function') window.applyI18nWeb(document);
+        if (typeof window.tWeb === 'function') document.title = window.tWeb('responderConvocacao.tituloPagina');
+        if (!idConvocacao || isNaN(parseInt(idConvocacao))) {
+          document.getElementById('loading').style.display = 'none';
+          document.getElementById('content').style.display = 'block';
+          var errorMsg = document.getElementById('errorMessage');
+          if (errorMsg) {
+            errorMsg.style.display = 'block';
+            errorMsg.textContent = window.tWeb('responderConvocacao.erroIdInvalido');
+          }
+          return;
+        }
+        carregarMotivosRecusa().then(function() { carregarConvocacao(); });
+      });
+    })();
   </script>
 </body>
 </html>

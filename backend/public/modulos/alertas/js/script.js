@@ -111,11 +111,12 @@
 
   /**
    * Carregar alertas do servidor
+   * @param {boolean} [semOverlay=false] - Se true, não exibe overlay "Carregando alertas..." (uso após salvar/marcar lido)
    */
-  async function carregarAlertas() {
+  async function carregarAlertas(semOverlay) {
     try {
-      mostrarLoading(true);
-      
+      if (!semOverlay) mostrarLoading(true);
+
       // Construir query string com filtros
       const params = new URLSearchParams();
       if (filtrosAtivos.status) params.append('status', filtrosAtivos.status);
@@ -346,10 +347,18 @@
       });
 
       const data = await response.json();
-      
+
       if (data.success) {
         mostrarMensagem('Alerta marcado como lido', 'success');
-        carregarAlertas();
+        const agora = new Date().toISOString();
+        const alerta = alertas.find(a => a.ID === idAlerta || a.id === idAlerta);
+        if (alerta) {
+          alerta.DH_LEITURA = data.data?.DH_LEITURA || agora;
+          renderizarAlertas();
+        } else {
+          carregarAlertas(true);
+        }
+        atualizarEstatisticas();
         atualizarContadorMenu();
       } else {
         throw new Error(data.error || 'Erro ao marcar como lido');
@@ -357,6 +366,8 @@
     } catch (err) {
       console.error('Erro ao marcar como lido:', err);
       mostrarMensagem(t('web.modulos.alertas.erroCarregar') + ' ' + err.message, 'error');
+    } finally {
+      mostrarLoading(false);
     }
   };
 
@@ -376,12 +387,17 @@
       }
 
       const alerta = data.data;
+
+      if (alerta.STATUS === 'Tratado' || alerta.STATUS === 'Cancelado') {
+        mostrarMensagem('Este alerta já foi tratado ou cancelado. Não é possível editar.', 'info');
+        return;
+      }
       
       // Criar formulário de tratamento
       modalTratamentoContent.innerHTML = `
         <div style="margin-bottom: 20px;">
-          <h4 style="margin-bottom: 10px; color: #2c3e50; font-size: 18px; font-weight: 600;">Alerta #${alerta.ID}</h4>
-          <p style="color: #6c757d; margin-bottom: 15px; line-height: 1.5;">${alerta.MESSAGE}</p>
+          <h4 class="modal-tratamento-title">Alerta #${alerta.ID}</h4>
+          <p class="modal-tratamento-desc">${alerta.MESSAGE}</p>
         </div>
         <form id="formTratamento" onsubmit="event.preventDefault(); salvarTratamento(${idAlerta})">
           <div class="input-group">
@@ -453,14 +469,18 @@
       if (data.success) {
         mostrarMensagem('Alerta tratado com sucesso', 'success');
         fecharModalTratamento();
-        carregarAlertas();
+        carregarAlertas(true);
         atualizarContadorMenu();
+        // Atualizar badge do header no dashboard imediatamente
+        try { document.dispatchEvent(new CustomEvent('alertas-contador-atualizado')); } catch (e) {}
       } else {
         throw new Error(data.error || 'Erro ao tratar alerta');
       }
     } catch (err) {
       console.error('Erro ao salvar tratamento:', err);
       mostrarMensagem(t('web.modulos.alertas.erroCarregar') + ' ' + err.message, 'error');
+    } finally {
+      mostrarLoading(false);
     }
   };
 
@@ -495,7 +515,7 @@
       // Criar modal com histórico
       modalTratamentoContent.innerHTML = `
         <div style="margin-bottom: 20px;">
-          <h4 style="margin-bottom: 10px; color: #2c3e50; font-size: 18px; font-weight: 600;">Histórico do Alerta #${idAlerta}</h4>
+          <h4 class="modal-tratamento-title">Histórico do Alerta #${idAlerta}</h4>
         </div>
         <div class="historico-list" style="max-height: 400px; overflow-y: auto;">
           ${historico.length > 0 ? historico.map(item => `
@@ -530,6 +550,10 @@
    * Abrir detalhes do alerta
    */
   async function abrirDetalhesAlerta(alerta) {
+    if (alerta.STATUS === 'Tratado' || alerta.STATUS === 'Cancelado') {
+      await verHistorico(alerta.ID);
+      return;
+    }
     await tratarAlerta(alerta.ID);
   }
 
@@ -669,6 +693,29 @@
   };
 
   /**
+   * Criar alerta de teste no banco (para validar se a lista exibe)
+   */
+  window.criarAlertaTeste = async function() {
+    try {
+      const response = await fetch('/api/alertas/criar-teste', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: getAuthHeaders()
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        mostrarMensagem(data.error || 'Erro ao criar alerta de teste', 'error');
+        return;
+      }
+      mostrarMensagem(data.message || 'Alerta de teste criado.', 'success');
+      recarregarAlertas();
+    } catch (err) {
+      console.error('Erro ao criar alerta de teste:', err);
+      mostrarMensagem('Erro ao criar alerta de teste: ' + (err.message || err), 'error');
+    }
+  };
+
+  /**
    * Inicializar WebSocket
    */
   function inicializarWebSocket() {
@@ -766,18 +813,43 @@
         tocarSomNotificacao('alerta');
         carregarAlertas();
         atualizarContadorMenu();
+        try { document.dispatchEvent(new CustomEvent('alertas-contador-atualizado')); } catch (e) {}
       });
 
       socket.on('alerta:atualizado', (alerta) => {
         console.log('📝 Alerta atualizado:', alerta);
         carregarAlertas();
         atualizarContadorMenu();
+        try { document.dispatchEvent(new CustomEvent('alertas-contador-atualizado')); } catch (e) {}
       });
 
       socket.on('alerta:tratado', (data) => {
         console.log('✅ Alerta tratado:', data);
         carregarAlertas();
         atualizarContadorMenu();
+        try { document.dispatchEvent(new CustomEvent('alertas-contador-atualizado')); } catch (e) {}
+      });
+
+      socket.on('alerta:lido', (data) => {
+        console.log('📖 Alerta marcado como lido:', data);
+        const id = data?.id ?? data?.ID;
+        const alerta = id != null ? alertas.find(a => a.ID === id || a.id === id) : null;
+        if (alerta) {
+          alerta.DH_LEITURA = data?.DH_LEITURA || new Date().toISOString();
+          renderizarAlertas();
+          atualizarEstatisticas();
+        } else {
+          carregarAlertas();
+        }
+        atualizarContadorMenu();
+        try { document.dispatchEvent(new CustomEvent('alertas-contador-atualizado')); } catch (e) {}
+      });
+
+      socket.on('alerta:cancelado', (data) => {
+        console.log('🚫 Alerta cancelado:', data);
+        carregarAlertas();
+        atualizarContadorMenu();
+        try { document.dispatchEvent(new CustomEvent('alertas-contador-atualizado')); } catch (e) {}
       });
 
     } catch (err) {
@@ -862,166 +934,8 @@
     return data.toLocaleString(contextoAlertas.locale || 'pt-BR', { timeZone: contextoAlertas.timezone || 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });
   }
 
-  /**
-   * Mostrar modal de ajuda
-   */
-  window.mostrarAjuda = function() {
-    const modalAjuda = document.getElementById('modalAjuda');
-    const modalAjudaContent = document.getElementById('modalAjudaContent');
-    
-    if (!modalAjuda || !modalAjudaContent) {
-      mostrarMensagem('Erro: Modal de ajuda não encontrado', 'error');
-      return;
-    }
-    
-    modalAjudaContent.innerHTML = `
-      <div style="line-height: 1.8;">
-        <h3 style="color: #2c3e50; margin-bottom: 20px; font-size: 20px;">
-          <i class='bx bx-info-circle' style="color: #3498db;"></i> Como Funcionam os Alertas
-        </h3>
-        
-        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3498db;">
-          <h4 style="margin: 0 0 10px 0; color: #2c3e50;">🎯 Geração Automática</h4>
-          <p style="margin: 0; color: #495057;">
-            Os alertas são gerados <strong>automaticamente</strong> por um job que roda no servidor a cada <strong>5 minutos</strong>.
-            O sistema verifica todas as viagens ativas e detecta situações anômalas.
-          </p>
-        </div>
-        
-        <h4 style="color: #2c3e50; margin-top: 25px; margin-bottom: 15px;">📋 Tipos de Alertas e Regras</h4>
-        
-        <div style="margin-bottom: 20px;">
-          <div style="background: #fff; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
-            <h5 style="margin: 0 0 10px 0; color: #e74c3c;">
-              <i class='bx bx-error-circle'></i> 1. PARADA PROLONGADA
-            </h5>
-            <p style="margin: 0 0 8px 0; color: #495057;">
-              <strong>Regra:</strong> Motorista parado há mais de <strong>30 minutos</strong> com velocidade < 5 km/h
-            </p>
-            <p style="margin: 0; color: #6c757d; font-size: 14px;">
-              <strong>Prioridade:</strong> Alta se > 60 min | Normal se 30-60 min
-            </p>
-          </div>
-          
-          <div style="background: #fff; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
-            <h5 style="margin: 0 0 10px 0; color: #f39c12;">
-              <i class='bx bx-time'></i> 2. ATRASO NO ETA
-            </h5>
-            <p style="margin: 0 0 8px 0; color: #495057;">
-              <strong>Regra:</strong> ETA estimado > prazo de entrega. Usa cálculo dinâmico com OSRM.
-            </p>
-            <p style="margin: 0; color: #6c757d; font-size: 14px;">
-              <strong>Prioridade:</strong> Urgente se > 120 min | Alta se ≤ 120 min
-            </p>
-          </div>
-          
-          <div style="background: #fff; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
-            <h5 style="margin: 0 0 10px 0; color: #17a2b8;">
-              <i class='bx bx-wifi-off'></i> 3. MOTORISTA OFFLINE
-            </h5>
-            <p style="margin: 0 0 8px 0; color: #495057;">
-              <strong>Regra:</strong> Sem atualização GPS há mais de <strong>90 minutos</strong>
-            </p>
-            <p style="margin: 0; color: #6c757d; font-size: 14px;">
-              <strong>Prioridade:</strong> Alta se > 180 min | Normal se 90-180 min
-            </p>
-          </div>
-          
-          <div style="background: #fff; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
-            <h5 style="margin: 0 0 10px 0; color: #6f42c1;">
-              <i class='bx bx-map'></i> 4. DESVIO DE ROTA
-            </h5>
-            <p style="margin: 0 0 8px 0; color: #495057;">
-              <strong>Regra:</strong> Posição atual está mais de <strong>500 metros</strong> fora da rota planejada
-            </p>
-            <p style="margin: 0; color: #6c757d; font-size: 14px;">
-              <strong>Prioridade:</strong> Alta se > 2000m | Normal se 500-2000m
-            </p>
-          </div>
-        </div>
-        
-        <h4 style="color: #2c3e50; margin-top: 25px; margin-bottom: 15px;">🔍 Como Verificar se Está Funcionando?</h4>
-        
-        <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
-          <h5 style="margin: 0 0 10px 0; color: #856404;">
-            <i class='bx bx-info-circle'></i> Logs do Servidor
-          </h5>
-          <p style="margin: 0 0 10px 0; color: #856404;">
-            Os logs aparecem no <strong>console do servidor Node.js</strong> (terminal onde você iniciou o servidor).
-          </p>
-          <p style="margin: 0; color: #856404; font-size: 14px;">
-            <strong>Procure por:</strong><br>
-            🔄 Job de alertas iniciado (verificação a cada 5 minutos)<br>
-            🔍 Verificando alertas para X viagem(ns) ativa(s)...<br>
-            ⚠️  Y alerta(s) encontrado(s)
-          </p>
-        </div>
-        
-        <div style="background: #d1ecf1; border: 1px solid #17a2b8; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
-          <h5 style="margin: 0 0 10px 0; color: #0c5460;">
-            <i class='bx bx-check-circle'></i> Pré-requisitos para Gerar Alertas
-          </h5>
-          <ul style="margin: 0; padding-left: 20px; color: #0c5460;">
-            <li>Viagem com status "Em Andamento" ou "Confirmada"</li>
-            <li>Dados de rastreamento GPS na tabela <code>VIAGEMRASTREAMENTO</code></li>
-            <li>Roteiro com coordenadas (para alertas de desvio/atraso)</li>
-            <li>Prazo de entrega definido (para alertas de atraso)</li>
-          </ul>
-        </div>
-        
-        <div style="background: #d4edda; border: 1px solid #28a745; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
-          <h5 style="margin: 0 0 10px 0; color: #155724;">
-            <i class='bx bx-cog'></i> Teste Manual
-          </h5>
-          <p style="margin: 0 0 10px 0; color: #155724;">
-            Você pode forçar a verificação manualmente via API:
-          </p>
-          <code style="display: block; background: #fff; padding: 10px; border-radius: 4px; color: #495057; font-size: 13px; margin-bottom: 10px;">
-            POST /api/alertas/verificar/:idviagem
-          </code>
-          <p style="margin: 0; color: #155724; font-size: 14px;">
-            Use o botão "Atualizar" acima ou aguarde o job automático (5 minutos).
-          </p>
-        </div>
-        
-        <div style="background: #f8f9fa; border-top: 2px solid #dee2e6; padding-top: 15px; margin-top: 25px;">
-          <p style="margin: 0; color: #6c757d; font-size: 13px; text-align: center;">
-            <i class='bx bx-info-circle'></i> Para mais detalhes técnicos, consulte a documentação completa no arquivo:<br>
-            <code style="font-size: 12px;">COMO_FUNCIONA_GERACAO_ALERTAS.md</code>
-          </p>
-        </div>
-      </div>
-    `;
-    
-    modalAjuda.classList.add('active');
-  };
-  
-  /**
-   * Fechar modal de ajuda
-   */
-  window.fecharModalAjuda = function() {
-    const modalAjuda = document.getElementById('modalAjuda');
-    if (modalAjuda) {
-      modalAjuda.classList.remove('active');
-    }
-  };
-  
-  // Fechar modal ao clicar fora
-  const modalAjuda = document.getElementById('modalAjuda');
-  if (modalAjuda) {
-    modalAjuda.addEventListener('click', (e) => {
-      if (e.target === modalAjuda) {
-        fecharModalAjuda();
-      }
-    });
-  }
-  
-  // Fechar modal de tratamento ao clicar fora
-  modalTratamento.addEventListener('click', (e) => {
-    if (e.target === modalTratamento) {
-      fecharModalTratamento();
-    }
-  });
+  // Modal de tratativa: não fechar ao clicar fora (só pelo botão Fechar/Cancelar)
+  // Removido: fechar ao clicar no backdrop para evitar fechamento acidental
 
   /**
    * Toggle som de notificação

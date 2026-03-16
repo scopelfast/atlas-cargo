@@ -4,10 +4,12 @@
 // Atlas Cargo
 // Data: 2026-04-05
 // i18n: helper t() e chaves web.modulos.cadastroGeral
-
-const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
+// Tudo dentro do IIFE para evitar "Identifier 't' has already been declared" ao trocar de módulo
 
 (function() {
+  console.log('[CadastroGeral] script.js IIFE iniciado');
+  const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
+
   // Elementos
   const tabs = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
@@ -24,6 +26,21 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
   let sqlExecutado = false;
   let initExecutado = false;
   let contextoCadastro = { pais: 'BR', tipoDocFisica: 'CPF', tipoDocJuridica: 'CNPJ' };
+
+  /** Tipos de cadastro que exibem a aba "Locais preferidos" (convocações/divulgação de cargas). */
+  const TIPOS_COMPATIVEIS_ENVIO = ['M'];
+  function temTipoCompativelEnvio(cadastroOrFlags) {
+    if (!cadastroOrFlags) return false;
+    return TIPOS_COMPATIVEIS_ENVIO.some(cod => cadastroOrFlags['FGMOTORISTA'] === true || cadastroOrFlags['FGMOTORISTA'] === 'S');
+  }
+  function atualizarVisibilidadeLocaisPreferidos() {
+    const chkM = document.getElementById('chkM');
+    const ehMotorista = chkM ? chkM.checked : false;
+    const tabBtn = document.getElementById('tabBtnLocaisPreferidos');
+    const divDestinoPreferido = document.getElementById('divDestinoPreferido');
+    if (tabBtn) tabBtn.style.display = ehMotorista ? 'inline-flex' : 'none';
+    if (divDestinoPreferido) divDestinoPreferido.style.display = 'none';
+  }
 
   async function loadContextoCadastro() {
     try {
@@ -163,6 +180,9 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     // Aguardar um pouco para garantir que o DOM está totalmente renderizado
     await new Promise(resolve => setTimeout(resolve, 200));
     
+    // Carregar países da tabela PAIS para os combos
+    loadPaises().catch(err => console.warn('[Cadastro Geral] Erro ao carregar países:', err));
+    
     // Mostrar aba de filtros primeiro
     await showTab('filtros');
     
@@ -180,27 +200,25 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     init();
   }
 
-  // Função para mudar abas
+  // Função para mudar abas (escopo no container do módulo para não misturar Grid/Dados)
   async function showTab(tabId) {
-    // Primeiro, desativar todas as abas
-    tabs.forEach(btn => btn.classList.remove('active'));
-    tabContents.forEach(content => {
-      content.classList.remove('active');
-      // Garantir que está escondido via CSS
-      content.style.display = 'none';
-    });
-    
-    // Ativar a aba desejada
-    const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
     const tabContent = document.getElementById(`tab-${tabId}`);
-    
-    if (tabBtn) {
-      tabBtn.classList.add('active');
+    const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+    if (!tabContent || !tabBtn) return;
+    // Fechar modal de confirmação ao trocar de aba para não mostrar mensagem de outra aba (ex.: "excluir local" na aba Validades)
+    const confirmModal = document.getElementById('confirmModal');
+    if (confirmModal) confirmModal.style.display = 'none';
+    const container = tabContent.closest('[class*="-container"]') || tabContent.parentElement;
+    if (container) {
+      container.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      container.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+        content.style.display = 'none';
+      });
     }
-    if (tabContent) {
-      tabContent.classList.add('active');
-      tabContent.style.display = 'block';
-    }
+    tabBtn.classList.add('active');
+    tabContent.classList.add('active');
+    tabContent.style.display = 'block';
     
     // Aguardar um frame para garantir que a mudança foi renderizada
     await new Promise(resolve => requestAnimationFrame(resolve));
@@ -222,8 +240,14 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
               const cidadeFormatada = `${estado} - ${cidade}`.trim();
               return {
                 ...c,
-                CIDADE: cidadeFormatada === '-' ? 'Não informado' : cidadeFormatada
+                CIDADE: cidadeFormatada === '-' ? 'Não informado' : cidadeFormatada,
+                TIPO_E_CADASTRO: `${(c.RZSOCIAL || '').trim()} — ${(c.FGTIPOCADASTRO_NOME || '').trim()}`.replace(/^ — | — $/g, '').trim() || '-'
               };
+            });
+            // Garantir TIPO_E_CADASTRO em todos os itens (quando CIDADE já vinha preenchido)
+            cadastrosComCidade.forEach(c => {
+              if (c.TIPO_E_CADASTRO) return;
+              c.TIPO_E_CADASTRO = `${(c.RZSOCIAL || '').trim()} — ${(c.FGTIPOCADASTRO_NOME || '').trim()}`.replace(/^ — | — $/g, '').trim() || '-';
             });
             try {
               gridTab.render(cadastrosComCidade);
@@ -297,6 +321,37 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       setTimeout(() => {
         aplicarMascaraCPFCNPJ();
       }, 100);
+      // Listener do País (uma vez): atualizar label documento, DDI, estado/cidade
+      const paisEl = document.getElementById('cadastroPais');
+      if (paisEl && !paisEl.hasAttribute('data-pais-listener')) {
+        paisEl.setAttribute('data-pais-listener', '1');
+        paisEl.addEventListener('change', async function() {
+          const v = (this.value || '').trim();
+          let sigla = (v && !/^\d+$/.test(v)) ? v : (listaPaisesCache.find(p => String(p.CDPAIS) === v)?.SGPAIS || v);
+          if (sigla && sigla.length > 2) {
+            const u = sigla.toUpperCase();
+            if (u === 'PARAGUAI') sigla = 'PY'; else if (u === 'BRASIL') sigla = 'BR'; else if (u === 'ARGENTINA') sigla = 'AR'; else if (u === 'URUGUAI') sigla = 'UY';
+          }
+          if (v) {
+            contextoCadastro.pais = (sigla && sigla.length === 2) ? sigla.toUpperCase() : sigla;
+            const tipos = { BR: { tipoDocFisica: 'CPF', tipoDocJuridica: 'CNPJ' }, PY: { tipoDocFisica: 'CI', tipoDocJuridica: 'RUC' }, AR: { tipoDocFisica: 'DNI', tipoDocJuridica: 'CUIT' }, UY: { tipoDocFisica: 'CI', tipoDocJuridica: 'RUT' } };
+            const t = tipos[(contextoCadastro.pais || '').toUpperCase()] || tipos.BR;
+            contextoCadastro.tipoDocFisica = t.tipoDocFisica;
+            contextoCadastro.tipoDocJuridica = t.tipoDocJuridica;
+            // País e DDI são independentes (ex.: morar no Paraguai e ter telefone Brasil). Não alterar DDI ao trocar País.
+          } else {
+            loadContextoCadastro();
+          }
+          updateLabelDocumento();
+          estadosCarregados = false;
+          await loadEstados(v || null);
+          const estadoEl = document.getElementById('cadastroEstado');
+          const cidadeEl = document.getElementById('cadastroCidade');
+          if (estadoEl) estadoEl.value = '';
+          if (cidadeEl) { cidadeEl.innerHTML = '<option value="">Selecione um estado primeiro</option>'; cidadeEl.value = ''; }
+          document.getElementById('cadastroCodigoCidade').value = '';
+        });
+      }
     }
   }
 
@@ -364,18 +419,19 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     gridTab = new window.GridEditor({
       container: '#cadastrosGrid',
       columns: [
-        { field: 'CDCADASTRO', header: 'Código', editable: false, isId: true, width: '90px' },
-        { field: 'RZSOCIAL', header: 'Razão Social', editable: true, type: 'text', maxlength: 60 },
-        { field: 'FGTIPOCADASTRO_NOME', header: 'Tipo Cadastro', editable: false },
+        { field: 'CDCADASTRO', header: 'Código', editable: false, isId: true, width: '80px' },
+        { field: 'TIPO_E_CADASTRO', header: 'Tipo & Cadastro', editable: false, width: '260px' },
         {
           field: 'CIDADE',
           header: 'Cidade',
           editable: false,
+          width: '180px',
           format: (val) => val || 'Não informado'
         },
         {
           field: 'NRCELULAR',
           header: 'Celular',
+          width: '130px',
           editable: true,
           type: 'text',
           maxlength: 15,
@@ -402,14 +458,11 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       customActions: (row) => {
         const celular = row.NRCELULAR;
         if (!celular) return '';
-        
-        // Limpar o número (remover caracteres não numéricos)
         const numeroLimpo = String(celular).replace(/\D/g, '');
         if (!numeroLimpo || numeroLimpo.length < 10) return '';
-        
-        // Criar link do WhatsApp (formato: https://wa.me/5511999999999)
-        const whatsappLink = `https://wa.me/55${numeroLimpo}`;
-        
+        // NRCELULAR já é gravado com DDI (ex.: 5545999999999 ou 595981123456); usar como está
+        const numWa = numeroLimpo.length >= 12 ? numeroLimpo : ('55' + numeroLimpo);
+        const whatsappLink = `https://wa.me/${numWa}`;
         return `<a href="${whatsappLink}" target="_blank" rel="noopener noreferrer" class="btn grid-btn-whatsapp" title="Abrir WhatsApp">💬</a>`;
       },
       // Ao clicar em editar dentro do Grid, abrir o formulário de edição
@@ -419,10 +472,13 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       },
       // Garantir que a exclusão use o mesmo fluxo/modal da lista
       onDelete: async (id) => {
-        if (!id || id === 'undefined' || id === 'null' || id === '') {
-          return;
+        if (!id || id === 'undefined' || id === 'null' || id === '') return;
+        try {
+          await confirmarExclusao(id);
+        } catch (err) {
+          console.error('[Cadastros] Erro no onDelete da grid:', err);
+          showMessage(t('web.modulos.cadastroGeral.erroConexao') || 'Erro ao abrir confirmação.', 'error');
         }
-        await confirmarExclusao(id);
       },
       onAfterEdit: (id) => {
         showMessage('Alteração salva com sucesso!', 'success');
@@ -435,93 +491,62 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     });
   }
 
-  // Carregar estados do Brasil
-  async function loadEstados() {
-    try {
-      // Verificar se já temos os dados e ambos os campos estão preenchidos
-      // Mas sempre verificar dentro da aba de filtros também
-      if (estadosCarregados) {
-        // Buscar dentro da aba de filtros primeiro
-        const tabFiltros = document.getElementById('tab-filtros');
-        let filtroEstado = null;
-        if (tabFiltros) {
-          filtroEstado = tabFiltros.querySelector('#filtroEstado');
-        }
-        if (!filtroEstado) {
-          filtroEstado = document.getElementById('filtroEstado');
-        }
-        
-        const cadastroEstado = document.getElementById('cadastroEstado');
-        
-        // Se ambos existem e têm opções, não precisa recarregar
-        if (filtroEstado && filtroEstado.options.length > 1 && 
-            cadastroEstado && cadastroEstado.options.length > 1) {
-          return;
-        }
-      }
+  // Resolver valor do combo País (sigla ou CDPAIS) para CDPAIS numérico
+  function getCdPaisFromPaisValue(val) {
+    if (val == null || val === '') return null;
+    const v = String(val).trim();
+    const n = parseInt(v, 10);
+    if (!isNaN(n) && String(n) === v) return n;
+    if (!listaPaisesCache || listaPaisesCache.length === 0) return null;
+    const p = listaPaisesCache.find(x =>
+      (String(x.SGPAIS || '').toUpperCase() === v.toUpperCase()) ||
+      (String(x.CDPAIS || '') === v)
+    );
+    return p ? (p.CDPAIS != null ? Number(p.CDPAIS) : null) : null;
+  }
 
-      // Buscar dados da API
-      const response = await fetch('/api/estados-brasil');
-      if (!response.ok) {
-        throw new Error('Erro ao buscar estados da API');
-      }
-      
+  // Carregar estados pelo país selecionado (tabela ESTADO, respeitando país)
+  async function loadEstados(cdpaisOuSiglaForcado) {
+    try {
+      const paisVal = cdpaisOuSiglaForcado != null
+        ? cdpaisOuSiglaForcado
+        : (document.getElementById('cadastroPais')?.value || '').trim();
+      const cdpais = paisVal === '' ? 1 : (getCdPaisFromPaisValue(paisVal) ?? 1);
+
+      const url = (typeof window.corrigirUrl === 'function' ? window.corrigirUrl('/api/estados') : '/api/estados') + '?cdpais=' + encodeURIComponent(cdpais);
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Erro ao buscar estados');
       const estados = await response.json();
+      const lista = Array.isArray(estados) ? estados : [];
 
       const fillEstados = async (id, defaultText = 'Selecione') => {
         let el = null;
-        
-        // Tentar encontrar o elemento várias vezes
         for (let tentativa = 0; tentativa < 5; tentativa++) {
-          // Tentar buscar diretamente
           el = document.getElementById(id);
-          
-          // Se não encontrou, tentar buscar dentro do container da aba
           if (!el) {
             const tabFiltros = document.getElementById('tab-filtros');
             const tabDados = document.getElementById('tab-dados');
-            
-            if (id === 'filtroEstado' && tabFiltros) {
-              el = tabFiltros.querySelector(`#${id}`);
-            } else if (id === 'cadastroEstado' && tabDados) {
-              el = tabDados.querySelector(`#${id}`);
-            }
+            if (id === 'filtroEstado' && tabFiltros) el = tabFiltros.querySelector(`#${id}`);
+            else if (id === 'cadastroEstado' && tabDados) el = tabDados.querySelector(`#${id}`);
           }
-          
-          // Se encontrou, sair do loop
           if (el) break;
-          
-          // Se não encontrou e ainda há tentativas, aguardar
-          if (tentativa < 4) {
-            await new Promise(resolve => setTimeout(resolve, 150));
-          }
+          if (tentativa < 4) await new Promise(r => setTimeout(r, 150));
         }
-        
-        if (!el) {
-          return false;
-        }
-
-        // Limpar e preencher
+        if (!el) return false;
         el.innerHTML = `<option value="">${defaultText}</option>`;
-        
-        if (estados && Array.isArray(estados) && estados.length > 0) {
-          estados.forEach(e => {
+        if (lista.length > 0) {
+          lista.forEach(e => {
+            const sigla = (e.ESTADO || e.estado || e.uf || '').trim();
+            const nome = (e.NMESTADO || e.nmestado || e.nome || '').trim();
+            if (!sigla) return;
             const opt = document.createElement('option');
-            opt.value = e.uf;
-            opt.textContent = `${e.uf} - ${e.nome}`;
+            opt.value = sigla;
+            opt.textContent = nome ? `${sigla} - ${nome}` : sigla;
             el.appendChild(opt);
           });
-          
-          // Forçar reflow múltiplas vezes
-          void el.offsetHeight;
-          void el.offsetWidth;
-          
-          // Disparar eventos para garantir renderização
           el.dispatchEvent(new Event('change', { bubbles: true }));
-          
           return true;
         }
-        
         return false;
       };
 
@@ -666,12 +691,64 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     });
   }
 
-  // Formatar celular
-  function formatarCelular(celular) {
-    const value = celular.replace(/\D/g, '');
-    if (value.length === 11) {
-      return value.replace(/(\d{2})(\d{1})(\d{4})(\d{4})/, '($1) $2 $3-$4');
+  // DDI conhecidos (ordem: mais longos primeiro para extrair corretamente)
+  const DDI_LIST = ['595', '593', '591', '598', '58', '57', '56', '55', '54', '51'];
+  function parseCelularE164(nrCelular) {
+    if (!nrCelular) return { ddi: '55', numero: '' };
+    const raw = String(nrCelular).replace(/\D/g, '');
+    for (const ddi of DDI_LIST) {
+      if (raw.startsWith(ddi) && raw.length > ddi.length) {
+        return { ddi, numero: raw.substring(ddi.length) };
+      }
     }
+    if (raw.length >= 10) return { ddi: '55', numero: raw };
+    return { ddi: '55', numero: raw };
+  }
+  // Máscaras de celular por país (BR, AR, PY, UY) – mesmo padrão do app motorista
+  function formatarCelularPorDdi(ddi, raw) {
+    const d = String(ddi || '').trim();
+    let v = String(raw || '').replace(/\D/g, '');
+    if (d === '55') {
+      v = v.slice(0, 11);
+      if (v.length <= 4) return v;
+      if (v.length <= 8) return v.replace(/(\d{4})(\d+)/, '$1-$2');
+      return v.replace(/(\d{2})(\d)(\d{4})(\d{4})/, '($1) $2$3-$4');
+    }
+    if (d === '54') {
+      v = v.slice(0, 12);
+      if (v.length <= 1) return v;
+      if (v.length <= 4) return v.replace(/(\d)(\d{1,3})/, '$1 $2');
+      if (v.length <= 7) return v.replace(/(\d)(\d{2,3})(\d{0,3})/, '$1 $2 $3');
+      return v.replace(/(\d)(\d{2,3})(\d{3})(\d{0,4})/, '$1 $2 $3-$4');
+    }
+    if (d === '595') {
+      v = v.slice(0, 9);
+      if (v.length <= 3) return v;
+      if (v.length <= 6) return v.replace(/(\d{3})(\d+)/, '$1 $2');
+      return v.replace(/(\d{3})(\d{3})(\d+)/, '$1 $2 $3');
+    }
+    if (d === '598') {
+      v = v.slice(0, 8);
+      if (v.length <= 4) return v;
+      return v.replace(/(\d{4})(\d+)/, '$1 $2');
+    }
+    v = v.slice(0, 15);
+    return v;
+  }
+  function validarCelularPorDdi(ddi, raw) {
+    const v = String(raw || '').replace(/\D/g, '');
+    const d = String(ddi || '').trim();
+    if (d === '55') return v.length >= 10 && v.length <= 11 && /^[1-9]\d{1,2}9\d{8}$/.test(v);
+    if (d === '54') return v.length >= 10 && v.length <= 12 && v.charAt(0) === '9';
+    if (d === '595') return v.length >= 8 && v.length <= 9; // Paraguai: 8 ou 9 dígitos (celular costuma começar com 9, mas aceita qualquer)
+    if (d === '598') return v.length === 8 && v.charAt(0) === '9';
+    return v.length >= 8;
+  }
+  function formatarCelular(celular, ddi) {
+    const value = String(celular || '').replace(/\D/g, '');
+    if (ddi) return formatarCelularPorDdi(ddi, value);
+    if (value.length === 11) return value.replace(/(\d{2})(\d{1})(\d{4})(\d{4})/, '($1) $2 $3-$4');
+    if (value.length === 10) return value.replace(/(\d{2})(\d{4})(\d{4})/, '($1) $2-$3');
     return value;
   }
 
@@ -763,6 +840,7 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       const email = document.getElementById('filtroEmail')?.value;
       const situacao = document.getElementById('filtroSituacao')?.value;
       const tipoCadastro = document.getElementById('filtroTipoCadastro')?.value;
+      const statusAprovacao = document.getElementById('filtroStatusAprovacao')?.value;
       
       if (codigo) params.append('codigo', codigo);
       // Aplicar padStart apenas se houver valor digitado (evita problema no filtro)
@@ -785,6 +863,7 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       if (email) params.append('email', email);
       if (situacao) params.append('situacao', situacao);
       if (tipoCadastro) params.append('tipoCadastro', tipoCadastro);
+      if (statusAprovacao) params.append('statusAprovacao', statusAprovacao);
       const rastreado = document.getElementById('filtroRastreado')?.value;
       if (rastreado) params.append('rastreado', rastreado);
       
@@ -797,14 +876,16 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       // Garantir que cadastros é um array
       const cadastrosArray = Array.isArray(cadastros) ? cadastros : [];
       
-      // Criar campo virtual CIDADE para cada cadastro
+      // Criar campo virtual CIDADE e TIPO_E_CADASTRO para cada cadastro
       const cadastrosComCidade = cadastrosArray.map(c => {
         const estado = c.CIDADE_ESTADO || '';
         const cidade = c.CIDADE_NOME || '';
         const cidadeFormatada = `${estado} - ${cidade}`.trim();
+        const tipoECadastro = `${(c.RZSOCIAL || '').trim()} — ${(c.FGTIPOCADASTRO_NOME || '').trim()}`.replace(/^ — | — $/g, '').trim() || '-';
         return {
           ...c,
-          CIDADE: cidadeFormatada === '-' ? 'Não informado' : cidadeFormatada
+          CIDADE: cidadeFormatada === '-' ? 'Não informado' : cidadeFormatada,
+          TIPO_E_CADASTRO: tipoECadastro
         };
       });
       
@@ -905,7 +986,7 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
             <strong>CPF/CNPJ:</strong> ${formatarCPFCNPJ(cg.CGCCPF.toString())}<br>
             <strong>Tipo:</strong> ${cg.FGTIPOCADASTRO_NOME}<br>
             <strong>Localização:</strong> ${cg.CIDADE_ESTADO} - ${cg.CIDADE_NOME}<br>
-            <strong>Celular:</strong> ${formatarCelular(cg.NRCELULAR.toString())}<br>
+            <strong>Celular:</strong> ${(function(n){ const p = parseCelularE164(n); return p.numero ? '+' + p.ddi + ' ' + formatarCelular(p.numero, p.ddi) : (n || '—'); })(cg.NRCELULAR)}<br>
             <strong>Status:</strong> ${cg.FGACTIVE === 'S' ? 'Ativo' : 'Inativo'}
           </small>
         </div>
@@ -941,9 +1022,31 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       if (cadastro) {
         document.getElementById('cadastroId').value = cadastro.CDCADASTRO;
         document.getElementById('cadastroCodigo').value = cadastro.CDCADASTRO;
-        document.getElementById('cadastroCGCCPF').value = formatarCPFCNPJ(String(cadastro.CGCCPF ?? ''));
+        const docVal = String(cadastro.CGCCPF ?? '').trim();
+        document.getElementById('cadastroCGCCPF').value = (cadastro.PAIS === 'BR') ? formatarCPFCNPJ(docVal) : docVal;
         document.getElementById('cadastroRazaoSocial').value = cadastro.RZSOCIAL;
         document.getElementById('cadastroTipoPessoa').value = cadastro.FGFISICAJURIDICA;
+        const paisEl = document.getElementById('cadastroPais');
+        const paisVal = cadastro.PAIS != null && cadastro.PAIS !== '' ? String(cadastro.PAIS).trim() : '';
+        if (paisEl) paisEl.value = paisVal;
+        // Resolver PAIS (pode ser sigla BR/PY ou CDPAIS 1/5860 ou nome "Paraguai") para label do documento
+        let siglaPais = paisVal;
+        if (paisVal && /^\d+$/.test(paisVal)) {
+          const p = listaPaisesCache.find(x => String(x.CDPAIS) === paisVal);
+          siglaPais = (p && p.SGPAIS) ? String(p.SGPAIS).trim() : paisVal;
+        }
+        if (siglaPais && siglaPais.length > 2) {
+          const u = String(siglaPais).toUpperCase();
+          if (u === 'PARAGUAI') siglaPais = 'PY'; else if (u === 'BRASIL') siglaPais = 'BR'; else if (u === 'ARGENTINA') siglaPais = 'AR'; else if (u === 'URUGUAI') siglaPais = 'UY';
+        }
+        if (siglaPais) {
+          contextoCadastro.pais = (siglaPais.length === 2) ? siglaPais.toUpperCase() : siglaPais;
+          const tipos = { BR: { tipoDocFisica: 'CPF', tipoDocJuridica: 'CNPJ' }, PY: { tipoDocFisica: 'CI', tipoDocJuridica: 'RUC' }, AR: { tipoDocFisica: 'DNI', tipoDocJuridica: 'CUIT' }, UY: { tipoDocFisica: 'CI', tipoDocJuridica: 'RUT' } };
+          const t = tipos[(contextoCadastro.pais || '').toUpperCase()] || tipos.BR;
+          contextoCadastro.tipoDocFisica = t.tipoDocFisica;
+          contextoCadastro.tipoDocJuridica = t.tipoDocJuridica;
+        }
+        updateLabelDocumento();
         // Aplicável para: preencher checkboxes
         const aplicavelIds = { O: 'chkO', P: 'chkP', M: 'chkM', T: 'chkT', A: 'chkA', G: 'chkG', C: 'chkC', U: 'chkU' };
         const aplicavelCols = { O: 'FGOPERADOR', P: 'FGPROGRAMADOR', M: 'FGMOTORISTA', T: 'FGTRANSPORTADOR', A: 'FGAGENTE', G: 'FGGRUPO', C: 'FGCERTIFICADORA', U: 'FGUNIDADENEGOCIO' };
@@ -981,7 +1084,16 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
           }
         }
         
-        // Senha do app motorista: mostrar só quando for motorista
+        // Destino preferido e senha do app motorista: mostrar só quando for motorista
+        const divDestinoPreferido = document.getElementById('divDestinoPreferido');
+        if (divDestinoPreferido) divDestinoPreferido.style.display = ehMotorista ? 'block' : 'none';
+        const paisDestinoPrefEl = document.getElementById('cadastroPaisDestinoPref');
+        const estadoDestinoPrefEl = document.getElementById('cadastroEstadoDestinoPref');
+        const cidadeDestinoPrefEl = document.getElementById('cadastroCidadeDestinoPref');
+        if (paisDestinoPrefEl) paisDestinoPrefEl.value = cadastro.PAIS_DESTINO_PREF || '';
+        if (estadoDestinoPrefEl) estadoDestinoPrefEl.value = cadastro.SIGLA_ESTADO_DESTINO_PREF || '';
+        if (cidadeDestinoPrefEl) cidadeDestinoPrefEl.value = cadastro.CIDADE_DESTINO_PREF || '';
+        atualizarVisibilidadeLocaisPreferidos();
         const divSenhaMotorista = document.getElementById('divSenhaMotorista');
         const novaSenhaMotorista = document.getElementById('novaSenhaMotorista');
         const msgSenhaMotorista = document.getElementById('msgSenhaMotorista');
@@ -1023,7 +1135,10 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
         document.getElementById('cadastroLatitude').value = cadastro.LATITUDE || '';
         document.getElementById('cadastroLongitude').value = cadastro.LONGITUDE || '';
         document.getElementById('cadastroEmail').value = cadastro.ENDEMAIL;
-        document.getElementById('cadastroCelular').value = formatarCelular(String(cadastro.NRCELULAR ?? ''));
+        const parsed = parseCelularE164(cadastro.NRCELULAR);
+        const ddiEl = document.getElementById('cadastroDDI');
+        if (ddiEl) ddiEl.value = parsed.ddi;
+        document.getElementById('cadastroCelular').value = formatarCelular(parsed.numero, parsed.ddi);
         
         // Mudar para a aba de dados ANTES de carregar estados (para garantir que os elementos estejam visíveis)
         document.getElementById('formTitle').textContent = t('web.modulos.cadastroGeral.editarCadastro');
@@ -1035,14 +1150,12 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
           codigoCidadeEl.value = String(cadastro.CDCIDADE);
         }
         
-        // Garantir que os estados estejam carregados ANTES de preencher
-        await loadEstados();
+        // Carregar estados do país do cadastro (respeitando país) e depois preencher estado/cidade
+        estadosCarregados = false;
+        await loadEstados(paisVal || cadastro.PAIS);
         
-        // Aguardar um pouco para garantir que o DOM foi atualizado e a aba está visível
         await new Promise(resolve => setTimeout(resolve, 300));
         
-        // Preencher UF - Estado
-        // Fazer trim() para remover espaços em branco no início e fim
         const estadoParaPreencher = (cadastro.CIDADE_ESTADO || '').trim();
         const cidadeId = cadastro.CDCIDADE;
         
@@ -1136,113 +1249,132 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     }
   }
 
-  // Confirmar exclusão/reativação
-  async function confirmarExclusao(id) {
-    // Validação robusta do ID
+  // Modal do módulo: buscar dentro do contentArea para não pegar modal de outro lugar no dashboard
+  function getModalElements() {
+    const root = document.getElementById('contentArea') || document.body;
+    return {
+      modalEl: root.querySelector ? root.querySelector('#confirmModal') : document.getElementById('confirmModal'),
+      modalMessage: root.querySelector ? root.querySelector('#modalMessage') : document.getElementById('modalMessage'),
+      confirmYes: root.querySelector ? root.querySelector('#confirmYes') : document.getElementById('confirmYes'),
+      confirmNo: root.querySelector ? root.querySelector('#confirmNo') : document.getElementById('confirmNo')
+    };
+  }
+
+  // Confirmar desativação/reativação de cadastro – mesmo padrão visual do Gerenciar Tipos de Validade (modal estilizado).
+  function confirmarExclusao(id) {
+    console.log('[CadastroGeral] confirmarExclusao chamada, id=', id);
     let idValido = id;
     if (idValido == null || idValido === 'undefined' || idValido === 'null' || idValido === '' || idValido === 'NaN') {
-      console.error('[Cadastros] ID inválido na função confirmarExclusao:', id);
       showMessage(t('web.modulos.cadastroGeral.erroIdIndisponivel'), 'error');
       return;
     }
-    
-    // Converter para string para garantir consistência
     idValido = String(idValido).trim();
-    
+
+    const modalEl = document.getElementById('confirmModal');
     const modalMessage = document.getElementById('modalMessage');
     const confirmYes = document.getElementById('confirmYes');
     const confirmNo = document.getElementById('confirmNo');
-    const modalEl = document.getElementById('confirmModal');
-    
-    if (!modalMessage || !confirmYes || !confirmNo || !modalEl) {
-      console.error('[Cadastros] Elementos do modal não encontrados');
-      return;
-    }
-    
-    try {
-      // Buscar o status atual do cadastro
-      const response = await fetch(`/api/cadastros-gerais/${idValido}`);
-      if (!response.ok) {
-        throw new Error('Erro ao buscar cadastro');
-      }
-      
-      const cadastro = await response.json();
-      const estaAtivo = cadastro.FGACTIVE === 'S';
-      
-      // Definir mensagem e ação baseado no status atual
-      let confirmMsg, action, btnText;
-      if (estaAtivo) {
-        confirmMsg = 'Tem certeza que deseja <strong>desativar</strong> este cadastro?<br><br><small style="color: #666;">O cadastro ficará inativo e não aparecerá nas listagens padrão.</small>';
-        action = 'deactivate';
-        btnText = 'Desativar';
-      } else {
-        confirmMsg = 'Tem certeza que deseja <strong>reativar</strong> este cadastro?<br><br><small style="color: #666;">O cadastro voltará a aparecer nas listagens e estará disponível para uso.</small>';
-        action = 'activate';
-        btnText = 'Reativar';
-      }
-      
-      modalMessage.innerHTML = confirmMsg;
-      
-      // Armazenar ID e ação no dataset do modal
-      modalEl.dataset.deleteId = idValido;
-      modalEl.dataset.action = action;
-      
-      // Clonar botões para evitar múltiplos event listeners
-      const newConfirmYes = confirmYes.cloneNode(true);
-      const newConfirmNo = confirmNo.cloneNode(true);
-      
-      // Atualizar texto do botão de confirmação
-      newConfirmYes.textContent = btnText;
-      
-      confirmYes.parentNode.replaceChild(newConfirmYes, confirmYes);
-      confirmNo.parentNode.replaceChild(newConfirmNo, confirmNo);
-      
-      newConfirmYes.onclick = async () => {
-        const idParaExcluir = modalEl.dataset.deleteId || idValido;
-        const acao = modalEl.dataset.action || action;
-        
-        if (!idParaExcluir || idParaExcluir === 'undefined' || idParaExcluir === 'null' || idParaExcluir === '') {
-          showMessage(t('web.modulos.cadastroGeral.erroIdIndisponivel'), 'error');
-          modalEl.style.display = 'none';
-          return;
-        }
-        
-        try {
-          const response = await fetch(`/api/cadastros-gerais/${idParaExcluir}?action=${acao}`, {
-            method: 'DELETE',
-            headers: getAuthHeaders()
-          });
-          const data = await response.json();
-          
-          if (response.ok) {
-            showMessage(data.message || (acao === 'activate' ? 'Cadastro reativado com sucesso!' : 'Cadastro desativado com sucesso!'), 'success');
-            // Garantir que está na aba Grid e recarregar dados
+    console.log('[CadastroGeral] confirmarExclusao modal elementos:', { modalEl: !!modalEl, modalMessage: !!modalMessage, confirmYes: !!confirmYes, confirmNo: !!confirmNo });
+
+    function executarAcao() {
+      fetch(`/api/cadastros-gerais/${idValido}`, { method: 'DELETE', headers: getAuthHeaders() })
+        .then(r => r.json().then(data => ({ ok: r.ok, data })))
+        .then(({ ok, data }) => {
+          if (ok) {
+            showMessage(data.message || 'Status alterado com sucesso.', 'success');
             showTab('grid');
             applyFilters('grid');
           } else {
             showMessage(data.error || 'Erro ao alterar status do cadastro.', 'error');
           }
-        } catch (err) {
-          console.error('[Cadastros] Erro ao alterar status:', err);
-          showMessage(t('web.modulos.cadastroGeral.erroConexao'), 'error');
-        } finally {
-          modalEl.style.display = 'none';
-          delete modalEl.dataset.deleteId;
-          delete modalEl.dataset.action;
-        }
-      };
-      
-      newConfirmNo.onclick = () => {
-        modalEl.style.display = 'none';
-        delete modalEl.dataset.deleteId;
-        delete modalEl.dataset.action;
-      };
-      
-      modalEl.style.display = 'block';
-    } catch (err) {
-      console.error('[Cadastros] Erro ao buscar status do cadastro:', err);
-      showMessage('Erro ao verificar status do cadastro.', 'error');
+        })
+        .catch(() => showMessage(t('web.modulos.cadastroGeral.erroConexao'), 'error'))
+        .finally(() => { if (modalEl) modalEl.style.display = 'none'; delete modalEl.dataset.deleteId; });
     }
+
+    fetch(`/api/cadastros-gerais/${idValido}`, { headers: getAuthHeaders() })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(function(cadastro) {
+        var estaAtivo = cadastro.FGACTIVE === 'S';
+        var msg = estaAtivo ? 'Tem certeza que deseja desativar este cadastro?' : 'Tem certeza que deseja reativar este cadastro?';
+        var btnText = estaAtivo ? 'Desativar' : 'Reativar';
+        if (!modalEl || !modalMessage || !confirmYes || !confirmNo) {
+          if (window.confirm(msg)) executarAcao();
+          return;
+        }
+        modalMessage.textContent = msg;
+        modalEl.dataset.deleteId = idValido;
+        confirmYes.className = 'btn-filtro btn-filtro-danger';
+        confirmYes.innerHTML = '<i class=\'bx bx-check\'></i> ' + btnText;
+        confirmNo.className = 'btn-filtro btn-filtro-limpar';
+        confirmNo.innerHTML = '<i class=\'bx bx-x\'></i> ' + (t('web.modulos.cadastroGeral.cancelar') || 'Cancelar');
+        confirmYes.onclick = () => executarAcao();
+        confirmNo.onclick = () => { modalEl.style.display = 'none'; delete modalEl.dataset.deleteId; };
+        if (modalEl.parentNode !== document.body) document.body.appendChild(modalEl);
+        modalEl.style.display = 'block';
+        modalEl.style.zIndex = '99999';
+      })
+      .catch(function() {
+        showMessage('Erro ao verificar status do cadastro.', 'error');
+      });
+  }
+
+  // Modal de confirmação para excluir local preferido – mesmo padrão do Gerenciar Tipos de Validade (layout, CSS, botões).
+  function confirmarRemoverLocal(sequencia, cadastroId) {
+    console.log('[CadastroGeral] confirmarRemoverLocal chamada, seq=', sequencia, 'cadastroId=', cadastroId);
+    const seq = String(sequencia).trim();
+    const cid = String(cadastroId).trim();
+    const msg = 'Tem certeza que deseja excluir este local da lista?';
+    const modalEl = document.getElementById('confirmModal');
+    const modalMessage = document.getElementById('modalMessage');
+    const confirmYes = document.getElementById('confirmYes');
+    const confirmNo = document.getElementById('confirmNo');
+    console.log('[CadastroGeral] confirmarRemoverLocal modal elementos:', { modalEl: !!modalEl, modalMessage: !!modalMessage, confirmYes: !!confirmYes, confirmNo: !!confirmNo });
+
+    function executarExcluir() {
+      fetch(`/api/cadastros-gerais/${cid}/locais-preferidos/${seq}`, { method: 'DELETE', headers: getAuthHeaders() })
+        .then(del => {
+          if (del.ok) loadLocaisPreferidosLista(cid);
+          else showMessage('Erro ao excluir.', 'error');
+        })
+        .catch(() => showMessage('Erro ao excluir.', 'error'))
+        .finally(() => { if (modalEl) modalEl.style.display = 'none'; });
+    }
+
+    if (!modalEl || !modalMessage || !confirmYes || !confirmNo) {
+      if (window.confirm(msg)) executarExcluir();
+      return;
+    }
+
+    modalMessage.textContent = msg;
+    confirmYes.className = 'btn-filtro btn-filtro-danger';
+    confirmYes.innerHTML = '<i class=\'bx bx-check\'></i> Excluir';
+    confirmNo.className = 'btn-filtro btn-filtro-limpar';
+    confirmNo.innerHTML = '<i class=\'bx bx-x\'></i> ' + (t('web.modulos.cadastroGeral.cancelar') || 'Cancelar');
+    confirmYes.onclick = () => executarExcluir();
+    confirmNo.onclick = () => { modalEl.style.display = 'none'; };
+    if (modalEl.parentNode !== document.body) document.body.appendChild(modalEl);
+    modalEl.style.display = 'block';
+    modalEl.style.zIndex = '99999';
+  }
+  window.confirmarExclusao = confirmarExclusao;
+  window.confirmarRemoverLocal = confirmarRemoverLocal;
+  console.log('[CadastroGeral] confirmarExclusao e confirmarRemoverLocal expostos em window');
+
+  // Resolver sigla do país a partir do valor do select (pode ser PY, BR, "Paraguai", CDPAIS, etc.)
+  function getPaisFromForm() {
+    const v = (document.getElementById('cadastroPais')?.value || '').trim();
+    if (!v) return (contextoCadastro && contextoCadastro.pais) || 'BR';
+    if (/^\d+$/.test(v)) {
+      const p = listaPaisesCache.find(x => String(x.CDPAIS) === v);
+      return (p && p.SGPAIS) ? String(p.SGPAIS).trim().toUpperCase() : 'BR';
+    }
+    const u = v.toUpperCase();
+    if (u === 'PARAGUAI' || u === 'PY') return 'PY';
+    if (u === 'BRASIL' || u === 'BR') return 'BR';
+    if (u === 'ARGENTINA' || u === 'AR') return 'AR';
+    if (u === 'URUGUAI' || u === 'UY') return 'UY';
+    return v.length === 2 ? v : (contextoCadastro && contextoCadastro.pais) || 'BR';
   }
 
   // Validar formulário
@@ -1252,8 +1384,8 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     const email = document.getElementById('cadastroEmail').value;
     const celular = document.getElementById('cadastroCelular').value.replace(/\D/g, '');
     
-    // Completar com zeros à esquerda só no Brasil
-    const pais = (contextoCadastro && contextoCadastro.pais) || 'BR';
+    // País do formulário (select) prevalece sobre contexto global
+    const pais = getPaisFromForm();
     if (cgccpf && cgccpf.length > 0 && pais === 'BR') {
       if (tipoPessoa === 'F') cgccpf = cgccpf.padStart(11, '0');
       else if (tipoPessoa === 'J') cgccpf = cgccpf.padStart(14, '0');
@@ -1282,9 +1414,10 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       return false;
     }
     
-    // Validar celular
-    if (celular.length !== 11) {
-      showMessage('Celular inválido. Deve ter 11 dígitos.', 'error', null, 'cadastroCelular');
+    // Validar celular por DDI (BR, AR, PY, UY)
+    const ddi = document.getElementById('cadastroDDI')?.value?.replace(/\D/g, '') || '55';
+    if (!validarCelularPorDdi(ddi, celular)) {
+      showMessage(t('web.modulos.cadastroGeral.celularInvalido') || 'Celular inválido. Verifique o DDI e o número (ex.: Brasil (11) 91234-5678).', 'error', null, 'cadastroCelular');
       return false;
     }
     
@@ -1375,13 +1508,14 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     // Remover formatação e completar zeros à esquerda só no Brasil
     let cgccpfRaw = document.getElementById('cadastroCGCCPF').value.replace(/\D/g, '');
     const tipoPessoa = document.getElementById('cadastroTipoPessoa').value;
-    const paisSubmit = (contextoCadastro && contextoCadastro.pais) || 'BR';
+    const paisSubmit = getPaisFromForm();
     if (cgccpfRaw && paisSubmit === 'BR') {
       if (tipoPessoa === 'F') cgccpfRaw = cgccpfRaw.padStart(11, '0');
       else if (tipoPessoa === 'J') cgccpfRaw = cgccpfRaw.padStart(14, '0');
     }
     
-    const celularRaw = document.getElementById('cadastroCelular').value.replace(/\D/g, '');
+    const ddiRaw = document.getElementById('cadastroDDI')?.value?.replace(/\D/g, '') || '55';
+    const celularRaw = ddiRaw + document.getElementById('cadastroCelular').value.replace(/\D/g, '');
     const cepRaw = document.getElementById('cadastroCEP').value.replace(/\D/g, '');
     
     const id = document.getElementById('cadastroId')?.value;
@@ -1417,6 +1551,7 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
         CGCCPF: cgccpfRaw,
         RZSOCIAL: razaoSocial,
         FGFISICAJURIDICA: tipoPessoa,
+        PAIS: document.getElementById('cadastroPais')?.value?.trim() || null,
         CEP: cepRaw || null,
         CDCIDADE: cidade ? parseInt(cidade) : null,
         ENDERECO: endereco,
@@ -1429,7 +1564,21 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
         LONGITUDE: longitude || null,
         ...flags,
         FGRASTREADO: document.getElementById('cadastroRastreado')?.value || null,
-        ...(ehMotorista && transportador ? { CDTRANSPORTADOR: parseFloat(transportador) } : !ehMotorista ? { CDTRANSPORTADOR: null } : {})
+        ...(ehMotorista && transportador ? { CDTRANSPORTADOR: parseFloat(transportador) } : !ehMotorista ? { CDTRANSPORTADOR: null } : {}),
+        ...(ehMotorista ? (() => {
+          const usaAbaLocais = document.getElementById('tabBtnLocaisPreferidos')?.style?.display !== 'none';
+          const get = (id) => document.getElementById(id)?.value?.trim() || null;
+          return {
+            STATUSAPROVACAO: document.getElementById('statusAprovacaoMotorista')?.value || 'P',
+            PAIS_DESTINO_PREF: usaAbaLocais ? get('locaisPaisDestinoPref') : get('cadastroPaisDestinoPref'),
+            SIGLA_ESTADO_DESTINO_PREF: usaAbaLocais ? get('locaisEstadoDestinoPref') : get('cadastroEstadoDestinoPref'),
+            CIDADE_DESTINO_PREF: usaAbaLocais ? get('locaisCidadeDestinoPref') : get('cadastroCidadeDestinoPref'),
+            PAIS_EMBARQUE_PREF: usaAbaLocais ? get('locaisPaisEmbarquePref') : null,
+            SIGLA_ESTADO_EMBARQUE_PREF: usaAbaLocais ? get('locaisEstadoEmbarquePref') : null,
+            REGIAO_EMBARQUE_PREF: usaAbaLocais ? get('locaisRegiaoEmbarquePref') : null,
+            CIDADE_EMBARQUE_PREF: usaAbaLocais ? get('locaisCidadeEmbarquePref') : null
+          };
+        })() : {})
       };
 
       let response;
@@ -1593,10 +1742,12 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     }
   }
 
-  // Eventos
-  filtroForm?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    applyFilters('grid');
+  // Eventos — delegação no document para o filtro funcionar mesmo quando o HTML é injetado depois (dashboard)
+  document.addEventListener('submit', function handleFiltroSubmit(e) {
+    if (e.target && e.target.id === 'filtroForm') {
+      e.preventDefault();
+      applyFilters('grid');
+    }
   });
 
   document.getElementById('btnLimparFiltros')?.addEventListener('click', () => {
@@ -1609,9 +1760,11 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     document.getElementById('filtroCidade').value = '';
     document.getElementById('filtroCelular').value = '';
     document.getElementById('filtroEmail').value = '';
-    document.getElementById('filtroRastreado').value = '';
-    document.getElementById('filtroSituacao').value = '';
-    document.getElementById('filtroTipoCadastro').value = '';
+document.getElementById('filtroRastreado').value = '';
+      document.getElementById('filtroSituacao').value = '';
+      document.getElementById('filtroTipoCadastro').value = '';
+      const filtroStatusAprovacaoEl = document.getElementById('filtroStatusAprovacao');
+      if (filtroStatusAprovacaoEl) filtroStatusAprovacaoEl.value = '';
   });
 
   document.getElementById('btnVoltarFiltros')?.addEventListener('click', async () => await showTab('filtros'));
@@ -1626,6 +1779,8 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     });
     const divTransportador = document.getElementById('divTransportador');
     if (divTransportador) divTransportador.style.display = 'none';
+    const divDestinoPreferido = document.getElementById('divDestinoPreferido');
+    if (divDestinoPreferido) divDestinoPreferido.style.display = 'none';
     const divSenhaMotorista = document.getElementById('divSenhaMotorista');
     if (divSenhaMotorista) divSenhaMotorista.style.display = 'none';
     const msgSenha = document.getElementById('msgSenhaMotorista');
@@ -1644,22 +1799,18 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     e.stopImmediatePropagation();
     
     // Forçar mudança para aba de filtros DIRETAMENTE, sem depender de showTab
-    // Isso garante que funcione mesmo quando não há dados ou há erros
     const tabBtn = document.querySelector('.tab-btn[data-tab="filtros"]');
     const tabContent = document.getElementById('tab-filtros');
-    
-    // Desativar todas as abas
-    tabs.forEach(btn => btn.classList.remove('active'));
-    tabContents.forEach(content => {
-      content.classList.remove('active');
-      content.style.display = 'none';
-    });
-    
-    // Ativar aba de filtros
-    if (tabBtn) {
+    if (tabContent && tabBtn) {
+      const container = tabContent.closest('[class*="-container"]') || tabContent.parentElement;
+      if (container) {
+        container.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        container.querySelectorAll('.tab-content').forEach(content => {
+          content.classList.remove('active');
+          content.style.display = 'none';
+        });
+      }
       tabBtn.classList.add('active');
-    }
-    if (tabContent) {
       tabContent.classList.add('active');
       tabContent.style.display = 'block';
     }
@@ -1690,6 +1841,8 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     });
     const divTransportador = document.getElementById('divTransportador');
     if (divTransportador) divTransportador.style.display = 'none';
+    const divDestinoPreferido = document.getElementById('divDestinoPreferido');
+    if (divDestinoPreferido) divDestinoPreferido.style.display = 'none';
     const divSenhaMotorista = document.getElementById('divSenhaMotorista');
     if (divSenhaMotorista) divSenhaMotorista.style.display = 'none';
     const msgSenha = document.getElementById('msgSenhaMotorista');
@@ -1889,15 +2042,294 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     showTab('dados');
   });
 
+  document.getElementById('btnVoltarDadosLocais')?.addEventListener('click', () => showTab('dados'));
+
+  // --- Locais preferidos: lista registro a registro (País → Estado → Mesorregião, combo Origem/Destino) ---
+  const NOME_PAIS = { BR: 'Brasil', PY: 'Paraguai', AR: 'Argentina', UY: 'Uruguai' };
+  let listaPaisesCache = [];
+  function getNomePais(sigla) {
+    if (!sigla) return '';
+    const p = listaPaisesCache.find(x => (x.SGPAIS || '').toString().toUpperCase() === (sigla || '').toString().toUpperCase());
+    return (p && p.DSPAIS) ? p.DSPAIS : (NOME_PAIS[sigla] || sigla);
+  }
+  async function loadPaises() {
+    const url = (typeof window.corrigirUrl === 'function' ? window.corrigirUrl('/api/paises') : '/api/paises');
+    const r = await fetch(url);
+    const paises = await r.json();
+    if (!Array.isArray(paises)) return;
+    listaPaisesCache = paises;
+    const opts = paises.map(p => ({ value: (p.SGPAIS != null && p.SGPAIS !== '') ? String(p.SGPAIS).trim() : String(p.CDPAIS), label: p.DSPAIS || p.SGPAIS || p.CDPAIS }));
+    function preencher(selectId, primeiraOpcaoValor, primeiraOpcaoTexto) {
+      const sel = document.getElementById(selectId);
+      if (!sel) return;
+      sel.innerHTML = '';
+      const opt0 = document.createElement('option');
+      opt0.value = primeiraOpcaoValor != null ? primeiraOpcaoValor : '';
+      opt0.textContent = primeiraOpcaoTexto != null ? primeiraOpcaoTexto : '— Selecione —';
+      sel.appendChild(opt0);
+      opts.forEach(o => {
+        const opt = document.createElement('option');
+        opt.value = o.value;
+        opt.textContent = o.label;
+        sel.appendChild(opt);
+      });
+    }
+    preencher('cadastroPais', '', 'Padrão (Configurações)');
+    preencher('cadastroPaisDestinoPref', '', '—');
+    preencher('locaisPais', '', '— Selecione —');
+    // DDI (país do celular): opções vindas da tabela PAIS (coluna DDI). Independente do campo País.
+    const ddiSel = document.getElementById('cadastroDDI');
+    if (ddiSel) {
+      const fallbackDDI = { BR: '55', PY: '595', AR: '54', UY: '598' };
+      ddiSel.innerHTML = '<option value="">—</option>';
+      paises.forEach(p => {
+        const ddi = (p.DDI != null && String(p.DDI).trim() !== '') ? String(p.DDI).trim() : fallbackDDI[(p.SGPAIS || '').toUpperCase()];
+        const label = p.DSPAIS || p.SGPAIS || p.CDPAIS;
+        if (ddi) {
+          const opt = document.createElement('option');
+          opt.value = ddi;
+          opt.textContent = '+' + ddi + ' ' + label;
+          ddiSel.appendChild(opt);
+        }
+      });
+    }
+  }
+  async function loadLocaisPreferidosEstados() {
+    const sel = document.getElementById('locaisEstado');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Todos</option>';
+    const pais = document.getElementById('locaisPais')?.value?.trim();
+    if (!pais) return;
+    const url = (typeof window.corrigirUrl === 'function' ? window.corrigirUrl('/api/estados') : '/api/estados');
+    try {
+      if (pais === 'BR') {
+        const r = await fetch('/api/estados-brasil');
+        const estados = await r.json();
+        if (Array.isArray(estados)) estados.forEach(e => {
+          const opt = document.createElement('option');
+          opt.value = e.uf || e.UF;
+          opt.textContent = e.nome || e.uf || e.UF;
+          sel.appendChild(opt);
+        });
+      } else {
+        const cdpais = getCdPaisFromPaisValue(pais);
+        if (cdpais == null) return;
+        const r = await fetch(url + '?cdpais=' + encodeURIComponent(cdpais));
+        if (!r.ok) return;
+        const lista = await r.json();
+        if (Array.isArray(lista)) lista.forEach(e => {
+          const cduf = e.CDUF != null ? e.CDUF : e.cduf;
+          const nm = (e.NMESTADO || e.nmestado || e.ESTADO || e.estado || cduf || '').toString().trim();
+          const opt = document.createElement('option');
+          opt.value = cduf != null ? String(cduf) : '';
+          opt.textContent = nm;
+          if (opt.value) sel.appendChild(opt);
+        });
+      }
+    } catch (err) { console.warn('Erro ao carregar estados:', err); }
+  }
+  async function loadLocaisPreferidosMesorregioes() {
+    const sel = document.getElementById('locaisMesorregiao');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">Todos</option>';
+    const estadoVal = document.getElementById('locaisEstado')?.value?.trim();
+    if (!estadoVal) return;
+    let cduf = null;
+    const n = parseInt(estadoVal, 10);
+    if (!isNaN(n) && String(n) === estadoVal) cduf = n;
+    else {
+      try {
+        const rCduf = await fetch(`/api/estado-cduf/${encodeURIComponent(estadoVal)}`);
+        const d = await rCduf.json();
+        cduf = d.CDUF;
+      } catch (e) {}
+    }
+    if (cduf == null) return;
+    try {
+      const r = await fetch(`/api/mesorregioes/${cduf}`);
+      const list = await r.json();
+      if (Array.isArray(list)) list.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m.CDMESOREGIAO ?? m.cdmesoregiao;
+        opt.textContent = m.DSMESOREGIAO || m.dsmesoregiao || m.CDMESOREGIAO;
+        sel.appendChild(opt);
+      });
+    } catch (err) { console.warn('Erro ao carregar mesorregiões:', err); }
+  }
+  function resetLocaisPreferidosAposPais() {
+    const estadoSel = document.getElementById('locaisEstado');
+    const mesoSel = document.getElementById('locaisMesorregiao');
+    loadLocaisPreferidosEstados();
+    if (estadoSel) estadoSel.value = '';
+    if (mesoSel) {
+      mesoSel.innerHTML = '<option value="">Todos</option>';
+      mesoSel.value = '';
+    }
+  }
+  function resetLocaisPreferidosAposEstado() {
+    loadLocaisPreferidosMesorregioes();
+    const mesoSel = document.getElementById('locaisMesorregiao');
+    if (mesoSel) mesoSel.value = '';
+  }
+  document.getElementById('locaisTipo')?.addEventListener('change', function() {
+    document.getElementById('locaisPais').value = '';
+    resetLocaisPreferidosAposPais();
+  });
+  document.getElementById('locaisPais')?.addEventListener('change', function() {
+    resetLocaisPreferidosAposPais();
+  });
+  document.getElementById('locaisEstado')?.addEventListener('change', function() {
+    resetLocaisPreferidosAposEstado();
+  });
+
+  async function loadLocaisPreferidosLista(cadastroId) {
+    const container = document.getElementById('locaisPreferidosLista');
+    if (!container) return;
+    if (!cadastroId) {
+      container.innerHTML = '<p class="empty">Selecione um cadastro na aba Dados.</p>';
+      return;
+    }
+    try {
+      const r = await fetch(`/api/cadastros-gerais/${cadastroId}/locais-preferidos`, { headers: getAuthHeaders() });
+      const lista = await r.json();
+      if (!Array.isArray(lista)) throw new Error('Resposta inválida');
+      renderLocaisPreferidosLista(lista, cadastroId);
+    } catch (err) {
+      container.innerHTML = '<p class="empty">Erro ao carregar lista. Verifique se a tabela CADASTRO_LOCAL_PREFERIDO existe.</p>';
+    }
+  }
+  function renderLocaisPreferidosLista(lista, cadastroId) {
+    const container = document.getElementById('locaisPreferidosLista');
+    if (!container) return;
+    if (cadastroId != null && cadastroId !== '') container.dataset.cadastroId = String(cadastroId);
+    window.__lastLocaisPreferidosLista = lista || [];
+    if (!lista || lista.length === 0) {
+      container.innerHTML = '<p class="empty">Nenhum local cadastrado. Adicione acima.</p>';
+      return;
+    }
+    const hasE = lista.some(x => x.TIPO === 'E');
+    const hasD = lista.some(x => x.TIPO === 'D');
+    const table = document.createElement('table');
+    table.className = 'table-list';
+    table.innerHTML = '<thead><tr><th>Tipo</th><th>País</th><th>Estado</th><th>Mesorregião</th><th></th></tr></thead><tbody></tbody>';
+    const tbody = table.querySelector('tbody');
+    lista.forEach(row => {
+      const tr = document.createElement('tr');
+      const tipoLabel = row.TIPO === 'D' ? 'Destino' : 'Origem';
+      const paisLabel = getNomePais(row.PAIS);
+      const estadoLabel = row.ESTADO_UF || 'Todos';
+      const mesoLabel = row.DSMESOREGIAO || 'Todos';
+      var seq = row.SEQUENCIA;
+      var cid = String(cadastroId);
+      tr.innerHTML = `<td>${tipoLabel}</td><td>${paisLabel}</td><td>${estadoLabel}</td><td>${mesoLabel}</td><td><button type="button" class="btn btn-small btn-remove" data-sequencia="${seq}" title="Excluir" onclick="event.preventDefault();event.stopPropagation();if(window.confirmarRemoverLocal)window.confirmarRemoverLocal('${seq}','${cid}')"><i class='bx bx-trash'></i></button></td>`;
+      tr.querySelector('button')?.addEventListener('click', function(ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        confirmarRemoverLocal(seq, cid);
+      });
+      tbody.appendChild(tr);
+    });
+    container.innerHTML = '';
+    if (!hasE || !hasD) {
+      const warn = document.createElement('p');
+      warn.className = 'message';
+      warn.style.color = '#856404';
+      warn.style.marginBottom = '12px';
+      warn.textContent = 'É necessário pelo menos uma origem e um destino.';
+      container.appendChild(warn);
+    }
+    container.appendChild(table);
+  }
+
+  function isLocalPreferidoDuplicado(tipo, pais, cduf, cdm, lista) {
+    if (!lista || !Array.isArray(lista)) return false;
+    const uf = cduf != null && cduf !== '' ? parseInt(cduf, 10) : null;
+    const meso = cdm != null && cdm !== '' ? parseInt(cdm, 10) : null;
+    const norm = (v) => (v != null && v !== '' ? Number(v) : null);
+    return lista.some(item => {
+      const itemUf = norm(item.CDUF);
+      const itemMeso = norm(item.CDMESOREGIAO);
+      return item.TIPO === tipo && String(item.PAIS || '').toUpperCase() === String(pais || '').toUpperCase()
+        && (itemUf === uf || (itemUf == null && uf == null))
+        && (itemMeso === meso || (itemMeso == null && meso == null));
+    });
+  }
+
+  document.getElementById('btnAdicionarLocalPreferido')?.addEventListener('click', async () => {
+    const id = document.getElementById('cadastroId')?.value?.trim();
+    if (!id) {
+      showMessage('Selecione um cadastro na aba Dados.', 'error');
+      return;
+    }
+    const pais = document.getElementById('locaisPais')?.value?.trim();
+    if (!pais) {
+      showMessage('Informe o país.', 'error');
+      return;
+    }
+    const tipo = document.getElementById('locaisTipo')?.value || 'E';
+    let cduf = null;
+    let cdm = null;
+    const estadoVal = document.getElementById('locaisEstado')?.value?.trim();
+    if (estadoVal) {
+      const n = parseInt(estadoVal, 10);
+      if (!isNaN(n) && String(n) === estadoVal) {
+        cduf = n;
+      } else {
+        try {
+          const r = await fetch(`/api/estado-cduf/${encodeURIComponent(estadoVal)}`);
+          const d = await r.json();
+          if (d.CDUF != null) cduf = d.CDUF;
+        } catch (e) {}
+      }
+      const mesoVal = document.getElementById('locaisMesorregiao')?.value;
+      if (mesoVal) cdm = parseInt(mesoVal, 10);
+    }
+    const listaAtual = window.__lastLocaisPreferidosLista || [];
+    if (isLocalPreferidoDuplicado(tipo, pais, cduf, cdm, listaAtual)) {
+      showMessage('Já existe um local preferido com o mesmo Tipo, País, Estado e Mesorregião.', 'error');
+      return;
+    }
+    try {
+      const r = await fetch(`/api/cadastros-gerais/${id}/locais-preferidos`, {
+        method: 'POST',
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ TIPO: tipo, PAIS: pais, CDUF: cduf, CDMESOREGIAO: cdm })
+      });
+      const data = await r.json();
+      if (r.ok && data.lista) {
+        showMessage(data.message || 'Adicionado.', 'success');
+        renderLocaisPreferidosLista(data.lista, id);
+        const hasE = data.lista.some(x => x.TIPO === 'E');
+        const hasD = data.lista.some(x => x.TIPO === 'D');
+        if (!hasE || !hasD) showMessage('É necessário pelo menos uma origem e um destino.', 'error');
+      } else {
+        showMessage(data.error || 'Erro ao adicionar.', 'error');
+      }
+    } catch (err) {
+      showMessage('Erro de conexão.', 'error');
+    }
+  });
+
+  document.querySelector('.tab-btn[data-tab="locais-preferidos"]')?.addEventListener('click', function() {
+    const id = document.getElementById('cadastroId')?.value?.trim();
+    if (id) loadLocaisPreferidosLista(id);
+  });
+
   // Aplicar máscara na inicialização se o campo já existir
   setTimeout(() => {
     aplicarMascaraCPFCNPJ();
   }, 500);
 
   document.getElementById('cadastroCelular')?.addEventListener('input', function(e) {
-    let value = e.target.value.replace(/\D/g, '');
-    if (value.length > 11) value = value.substring(0, 11);
-    e.target.value = formatarCelular(value);
+    const ddi = document.getElementById('cadastroDDI')?.value?.replace(/\D/g, '') || '55';
+    const value = e.target.value.replace(/\D/g, '');
+    e.target.value = formatarCelularPorDdi(ddi, value);
+  });
+  document.getElementById('cadastroDDI')?.addEventListener('change', function() {
+    const celularEl = document.getElementById('cadastroCelular');
+    if (!celularEl) return;
+    const ddi = this.value?.replace(/\D/g, '') || '55';
+    celularEl.value = formatarCelularPorDdi(ddi, celularEl.value.replace(/\D/g, ''));
   });
 
   document.getElementById('cadastroCEP')?.addEventListener('input', function(e) {
@@ -1925,19 +2357,23 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     document.getElementById('cadastroCodigoCidade').value = cidadeId || '';
   });
 
-  // Event listener para mostrar/esconder campo Transportador quando [M] Motorista for marcado
+  // Event listener para mostrar/esconder campo Transportador e aba Locais preferidos quando [M] Motorista for marcado
   ['chkM', 'chkO', 'chkP', 'chkT', 'chkA', 'chkG', 'chkC', 'chkU'].forEach(id => {
     document.getElementById(id)?.addEventListener('change', function() {
       const chkM = document.getElementById('chkM');
       const divTransportador = document.getElementById('divTransportador');
       const selectTransportador = document.getElementById('cadastroTransportador');
+      const divSenhaMotorista = document.getElementById('divSenhaMotorista');
       if (chkM?.checked) {
         if (divTransportador) divTransportador.style.display = 'block';
+        if (divSenhaMotorista) divSenhaMotorista.style.display = 'block';
         if (selectTransportador && selectTransportador.options.length <= 1) loadTransportadores();
       } else {
         if (divTransportador) divTransportador.style.display = 'none';
+        if (divSenhaMotorista) divSenhaMotorista.style.display = 'none';
         if (selectTransportador) selectTransportador.value = '';
       }
+      atualizarVisibilidadeLocaisPreferidos();
     });
   });
 
@@ -2188,16 +2624,20 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       
       let corStatus = '#27ae60';
       let textoStatus = `✓ Válida (${dias} dias)`;
+      let statusTipo = 'valida';
       
       if (removida) {
         corStatus = '#95a5a6';
         textoStatus = 'Removida (histórico)';
+        statusTipo = 'removida';
       } else if (val.STATUS_VALIDADE === 'VENCIDA') {
         corStatus = '#e74c3c';
         textoStatus = `✗ VENCIDA (${Math.abs(dias)} dias atrás)`;
+        statusTipo = 'vencida';
       } else if (val.STATUS_VALIDADE === 'VENCENDO') {
         corStatus = '#f39c12';
         textoStatus = `⚠ Vencendo (${dias} dias)`;
+        statusTipo = 'vencendo';
       }
       
       const cardBg = removida ? '#f8f9fa' : '#fff';
@@ -2212,7 +2652,7 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
                 <div style="flex: 1; min-width: 200px;">
                   <strong style="font-size: 16px; color: #2c3e50; display: block; margin-bottom: 8px; font-weight: 700;">${val.DSTIPOVALIDADE}</strong>
                   <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px;">
-                    <span style="background: ${corStatus}; color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; white-space: nowrap;">
+                    <span class="validade-status-badge" data-status="${statusTipo}" style="background: ${corStatus}; color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; white-space: nowrap;">
                       ${textoStatus}
                     </span>
                     <span style="color: #6c757d; font-size: 12px; font-weight: 500;">Nº <strong style="color: #2c3e50;">${val.NRLIBERACAO}</strong></span>
@@ -2449,17 +2889,23 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
   };
   
   window.excluirValidade = function(sequencia) {
+    console.log('[CadastroGeral] excluirValidade chamada, sequencia=', sequencia);
     const modalEl = document.getElementById('confirmModal');
     const modalMsg = document.getElementById('modalMessage');
-    
-    modalMsg.textContent = 'Desativar esta validade? Ela permanecerá no histórico com data e usuário da remoção (dados para seguro).';
-    modalEl.style.display = 'block';
-    
     const btnYes = document.getElementById('confirmYes');
-    const newYes = btnYes.cloneNode(true);
-    btnYes.parentNode.replaceChild(newYes, btnYes);
-    
-    newYes.onclick = async () => {
+    const btnNo = document.getElementById('confirmNo');
+    console.log('[CadastroGeral] excluirValidade modal:', { modalEl: !!modalEl, modalMsg: !!modalMsg, btnYes: !!btnYes, btnNo: !!btnNo });
+    if (!modalEl || !modalMsg || !btnYes || !btnNo) return;
+    modalMsg.textContent = 'Desativar esta validade? Ela permanecerá no histórico com data e usuário da remoção (dados para seguro).';
+    btnYes.className = 'btn-filtro btn-filtro-danger';
+    btnYes.innerHTML = '<i class=\'bx bx-check\'></i> Desativar';
+    btnNo.className = 'btn-filtro btn-filtro-limpar';
+    btnNo.innerHTML = '<i class=\'bx bx-x\'></i> ' + (t('web.modulos.cadastroGeral.cancelar') || 'Cancelar');
+    btnNo.onclick = () => { modalEl.style.display = 'none'; };
+    if (modalEl.parentNode !== document.body) document.body.appendChild(modalEl);
+    modalEl.style.display = 'block';
+    modalEl.style.zIndex = '99999';
+    btnYes.onclick = async () => {
       try {
         const { tpCadastro, cdCadastro } = cadastroAtualValidades;
         const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -2470,7 +2916,6 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
           body: JSON.stringify({ usuario })
         });
         const data = await response.json();
-        
         if (response.ok) {
           showMessage('Validade desativada. Registro mantido para histórico.', 'success');
           await carregarValidadesCadastro(tpCadastro, cdCadastro);
@@ -2484,7 +2929,7 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       }
     };
   };
-  
+
   // Funções de busca de certificadora
   window.buscarCertPorCpf = async function() {
     const cpf = document.getElementById('certCpfCnpj').value.replace(/\D/g, '');
@@ -2656,4 +3101,51 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       window.fecharModalAjudaCadastroGeral();
     }
   });
+
+  // Delegação de cliques: remover listener anterior (se existir) e registrar novo a cada carga do módulo.
+  if (window.__cadastroGeralClickDelegate) {
+    document.removeEventListener('click', window.__cadastroGeralClickDelegate, true);
+    console.log('[CadastroGeral] listener antigo removido');
+  }
+  window.__cadastroGeralClickDelegate = function(e) {
+    if (!e.target || typeof e.target.closest !== 'function') return;
+    var inModule = e.target.closest('.cadastro-geral-container') || (document.getElementById('contentArea') && e.target.closest('#contentArea') && (document.getElementById('cadastrosGrid') || document.getElementById('locaisPreferidosLista')));
+    if (!inModule) return;
+    var isGridDelete = e.target.closest('#cadastrosGrid .grid-btn-delete');
+    var isLocaisRemove = e.target.closest('#locaisPreferidosLista .btn-remove');
+    if (isGridDelete || isLocaisRemove) {
+      console.log('[CadastroGeral] clique no módulo em botão de ação:', isGridDelete ? 'grid-delete' : 'locais-remove', 'target=', e.target.tagName, e.target.className);
+    }
+    // 1) Botão Excluir da grid
+    var gridBtn = e.target.closest('#cadastrosGrid .grid-btn-delete');
+    if (gridBtn) {
+      var row = gridBtn.closest('tr[data-grid-id]');
+      if (row) {
+        var id = (row.getAttribute('data-grid-id') || '').trim();
+        if (id && id !== 'undefined' && id !== 'null') {
+          console.log('[CadastroGeral] clique grid Excluir, id=', id);
+          e.preventDefault();
+          e.stopPropagation();
+          confirmarExclusao(id);
+          return;
+        }
+      }
+    }
+    // 2) Botão Remover da Lista de locais preferidos
+    var removeBtn = e.target.closest('#locaisPreferidosLista .btn-remove');
+    if (removeBtn) {
+      var sequencia = (removeBtn.getAttribute('data-sequencia') || '').trim();
+      var container = document.getElementById('locaisPreferidosLista');
+      var cadastroIdRaw = container && container.dataset.cadastroId ? container.dataset.cadastroId : (document.getElementById('cadastroId') && document.getElementById('cadastroId').value);
+      var cadastroId = (cadastroIdRaw || '').trim();
+      if (sequencia && cadastroId) {
+        console.log('[CadastroGeral] clique Locais Excluir, seq=', sequencia, 'cadastroId=', cadastroId);
+        e.preventDefault();
+        e.stopPropagation();
+        confirmarRemoverLocal(sequencia, cadastroId);
+      }
+    }
+  };
+  document.addEventListener('click', window.__cadastroGeralClickDelegate, true);
+  console.log('[CadastroGeral] listener de clique registrado em document (capture=true), .cadastro-geral-container no DOM:', !!document.querySelector('.cadastro-geral-container'));
 })();

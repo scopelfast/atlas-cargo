@@ -19,10 +19,13 @@ window.MAP_CONFIG = {
   // OPÇÃO 1: Servidor próprio (HTTP) - Mais rápido, mas pode ter problemas com HTTPS
   // tileServer: 'http://186.250.92.131:8081/styles/osm-bright/{z}/{x}/{y}.png',
   
-  // OPÇÃO 2: Servidor público OpenStreetMap (HTTPS) - Funciona sempre, mas pode ser mais lento
-  tileServer: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  // OPÇÃO 2: Servidor público OpenStreetMap (HTTPS) - Exige header Referer; em localhost pode dar 403 "Access blocked"
+  // tileServer: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
   
-  // OPÇÃO 3: Servidor alternativo (HTTPS)
+  // OPÇÃO 3: Carto Basemaps (HTTPS) - Não exige Referer; evita 403 no Mapa de Viagem em localhost/dashboard
+  tileServer: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
+  
+  // OPÇÃO 4: Servidor alternativo OSM (HTTPS)
   // tileServer: 'https://tile.openstreetmap.de/{z}/{x}/{y}.png',
   
   // NOTA: Se quiser usar o servidor próprio, descomente a linha OPÇÃO 1 e comente a OPÇÃO 2
@@ -58,8 +61,8 @@ window.MAP_CONFIG = {
   // Centro padrão do mapa (Brasil)
   defaultCenter: [-14.2350, -51.9253],
   
-  // Atribuição (créditos)
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  // Atribuição (créditos) - Carto usa dados OSM
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
   
   // ====================================
   // RETRY E FALLBACK

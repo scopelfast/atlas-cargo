@@ -28,12 +28,17 @@ SELECT
     ELSE 'Não informado'
   END AS 'Tipo de Atuação',
   CASE e.FGTIPOCARROCERIA
-    WHEN '01' THEN '01 - Não aplicável'
-    WHEN '02' THEN '02 - Aberta'
-    WHEN '03' THEN '03 - Fechada / Baú'
-    WHEN '04' THEN '04 - Graneleira'
-    WHEN '05' THEN '05 - Porta Container'
-    WHEN '06' THEN '06 - Sider'
+    WHEN '01' THEN '01 - Baú'
+    WHEN '02' THEN '02 - Frigorífico'
+    WHEN '03' THEN '03 - Tanque'
+    WHEN '04' THEN '04 - Basculante (caçamba)'
+    WHEN '05' THEN '05 - Prancha'
+    WHEN '06' THEN '06 - Cegonha'
+    WHEN '07' THEN '07 - Silo/Basculante'
+    WHEN '08' THEN '08 - Transporte de toras'
+    WHEN '09' THEN '09 - Contêiner/carroc. aberta'
+    WHEN '10' THEN '10 - Não Aplicável'
+    WHEN '11' THEN '11 - Sider'
     ELSE 'Não informado'
   END AS 'Tipo de Carroceria',
   e.NREIXOS AS 'Número de Eixos',

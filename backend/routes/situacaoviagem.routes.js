@@ -4,27 +4,58 @@ const router = express.Router();
 const sql = require('../config/mssql-compat');
 const { poolPromise, getFirstNumericValue } = require('../config/db');
 
-// Listar situações de viagem
+// Listar situações de viagem (com filtros: codigo, descricao, situacao, fg)
 router.get('/situacoes-viagem', async (req, res) => {
   try {
+    const { codigo, descricao, situacao, fg } = req.query;
     const pool = await poolPromise;
-    const result = await pool
-      .request()
-      .query(`
-        SELECT 
-          [CDSITUACAOVIAGEM],
-          [DSSITUACAOVIAGEM],
-          [FGACTIVE]
-        FROM [dbo].[SITUACAOVIAGEM]
-        ORDER BY [DSSITUACAOVIAGEM]
-      `);
-    const situacoes = result.recordset.map(s => ({
-      CDSITUACAOVIAGEM: s.CDSITUACAOVIAGEM,
-      DSSITUACAOVIAGEM: s.DSSITUACAOVIAGEM,
-      FGACTIVE: s.FGACTIVE === 'A' ? 'S' : 'N'
-    }));
-    res.json(situacoes);
+    const params = [];
+    let n = 0;
+    const $ = () => { n++; return `$${n}`; };
+    let where = '';
+    if (codigo != null && String(codigo).trim() !== '') { params.push(parseInt(codigo, 10)); where += ` AND "CDSITUACAOVIAGEM" = ${$()}`; }
+    if (descricao != null && String(descricao).trim() !== '') { params.push('%' + String(descricao).trim() + '%'); where += ` AND "DSSITUACAOVIAGEM" ILIKE ${$()}`; }
+    if (situacao === 'S' || situacao === 'N') { params.push(situacao === 'S' ? 'A' : 'I'); where += ` AND (COALESCE("FGACTIVE", 'I') = ${$()})`; }
+    if (fg != null && String(fg).trim() !== '') { params.push(String(fg).trim().toUpperCase().substring(0, 1)); where += ` AND UPPER(TRIM(COALESCE("FGSITVIAGEM", ''))) = UPPER(TRIM(${$()}))`; }
+
+    const getFgsit = (s) => { const v = s.FGSITVIAGEM ?? s.fgsitviagem; return (v != null && String(v).trim() !== '') ? String(v).trim().toUpperCase().substring(0, 1) : null; };
+    const mapRow = (s) => ({
+      CDSITUACAOVIAGEM: s.CDSITUACAOVIAGEM ?? s.cdsituacaoviagem,
+      DSSITUACAOVIAGEM: s.DSSITUACAOVIAGEM ?? s.dssituacaoviagem,
+      FGSITVIAGEM: getFgsit(s),
+      FGACTIVE: (s.FGACTIVE ?? s.fgactive) === 'A' ? 'S' : 'N'
+    });
+
+    let sql = `SELECT "CDSITUACAOVIAGEM", "DSSITUACAOVIAGEM", "FGSITVIAGEM", "FGACTIVE" FROM "SITUACAOVIAGEM" WHERE 1=1${where} ORDER BY "DSSITUACAOVIAGEM"`;
+    let result = await pool.query(sql, params);
+    const rows = result.rows || [];
+    return res.json(rows.map(mapRow));
   } catch (err) {
+    if (err.code === '42703') {
+      try {
+        const { codigo, descricao, situacao, fg } = req.query;
+        const pool = await poolPromise;
+        const params = [];
+        let n = 0;
+        const $ = () => { n++; return `$${n}`; };
+        let where = '';
+        if (codigo != null && String(codigo).trim() !== '') { params.push(parseInt(codigo, 10)); where += ` AND "CDSITUACAOVIAGEM" = ${$()}`; }
+        if (descricao != null && String(descricao).trim() !== '') { params.push('%' + String(descricao).trim() + '%'); where += ` AND "DSSITUACAOVIAGEM" ILIKE ${$()}`; }
+        if (situacao === 'S' || situacao === 'N') { params.push(situacao === 'S' ? 'A' : 'I'); where += ` AND (COALESCE("FGACTIVE", 'I') = ${$()})`; }
+        const sqlFallback = `SELECT "CDSITUACAOVIAGEM", "DSSITUACAOVIAGEM", "FGACTIVE" FROM "SITUACAOVIAGEM" WHERE 1=1${where} ORDER BY "DSSITUACAOVIAGEM"`;
+        const result2 = await pool.query(sqlFallback, params);
+        const rows2 = result2.rows || [];
+        const mapRow2 = (s) => ({
+          CDSITUACAOVIAGEM: s.CDSITUACAOVIAGEM ?? s.cdsituacaoviagem,
+          DSSITUACAOVIAGEM: s.DSSITUACAOVIAGEM ?? s.dssituacaoviagem,
+          FGSITVIAGEM: null,
+          FGACTIVE: (s.FGACTIVE ?? s.fgactive) === 'A' ? 'S' : 'N'
+        });
+        return res.json(rows2.map(mapRow2));
+      } catch (e2) {
+        console.error('Erro ao listar situações (fallback):', e2);
+      }
+    }
     console.error('Erro ao listar situações de viagem:', err);
     res.status(500).json({ error: 'Erro ao carregar situações.' });
   }
@@ -47,6 +78,7 @@ router.get('/situacoes-viagem/:id', async (req, res) => {
         SELECT 
           [CDSITUACAOVIAGEM],
           [DSSITUACAOVIAGEM],
+          [FGSITVIAGEM],
           [FGACTIVE]
         FROM [dbo].[SITUACAOVIAGEM]
         WHERE [CDSITUACAOVIAGEM] = @CDSITUACAOVIAGEM
@@ -57,10 +89,12 @@ router.get('/situacoes-viagem/:id', async (req, res) => {
     }
 
     const situacao = result.recordset[0];
+    const fgsit = situacao.FGSITVIAGEM ?? situacao.fgsitviagem;
     res.json({
-      CDSITUACAOVIAGEM: situacao.CDSITUACAOVIAGEM,
-      DSSITUACAOVIAGEM: situacao.DSSITUACAOVIAGEM,
-      FGACTIVE: situacao.FGACTIVE === 'A' ? 'S' : 'N'
+      CDSITUACAOVIAGEM: situacao.CDSITUACAOVIAGEM ?? situacao.cdsituacaoviagem,
+      DSSITUACAOVIAGEM: situacao.DSSITUACAOVIAGEM ?? situacao.dssituacaoviagem,
+      FGSITVIAGEM: (fgsit != null && String(fgsit).trim() !== '') ? String(fgsit).trim().toUpperCase().substring(0, 1) : null,
+      FGACTIVE: (situacao.FGACTIVE ?? situacao.fgactive) === 'A' ? 'S' : 'N'
     });
   } catch (err) {
     console.error('Erro ao buscar situação de viagem:', err);
@@ -71,13 +105,14 @@ router.get('/situacoes-viagem/:id', async (req, res) => {
 // Inserir nova situação
 router.post('/situacoes-viagem', async (req, res) => {
   try {
-    const { DSSITUACAOVIAGEM } = req.body;
+    const { DSSITUACAOVIAGEM, FGSITVIAGEM } = req.body;
     if (!DSSITUACAOVIAGEM?.trim()) {
       return res.status(400).json({ error: 'Nome da situação é obrigatório.' });
     }
 
     const pool = await poolPromise;
     const descricao = DSSITUACAOVIAGEM.trim();
+    const fgsit = (FGSITVIAGEM != null && String(FGSITVIAGEM).trim() !== '') ? String(FGSITVIAGEM).trim().toUpperCase().substring(0, 1) : null;
     const existente = await pool.query(
       `SELECT 1 FROM "SITUACAOVIAGEM" WHERE UPPER(TRIM("DSSITUACAOVIAGEM")) = UPPER(TRIM($1)) LIMIT 1`,
       [descricao]
@@ -86,13 +121,24 @@ router.post('/situacoes-viagem', async (req, res) => {
       return res.status(409).json({ error: 'Já existe uma situação com esta descrição. Não é permitido cadastrar duplicados.' });
     }
 
-    const getProximoId = async () => getFirstNumericValue((await pool.request().query('SELECT COALESCE(MAX([CDSITUACAOVIAGEM]), 0) + 1 AS [maxId] FROM [dbo].[SITUACAOVIAGEM]')).recordset, 1);
+    const getProximoId = async () => {
+      const r = await pool.query('SELECT COALESCE(MAX("CDSITUACAOVIAGEM"), 0) + 1 AS "maxId" FROM "SITUACAOVIAGEM"');
+      return getFirstNumericValue(r.rows && r.rows[0] ? [r.rows[0]] : [], 1);
+    };
     let novoId = await getProximoId();
     try {
-      await pool.request().input('CDSITUACAOVIAGEM', novoId).input('DSSITUACAOVIAGEM', DSSITUACAOVIAGEM.trim())
-        .query(`INSERT INTO [dbo].[SITUACAOVIAGEM] ([CDSITUACAOVIAGEM], [DSSITUACAOVIAGEM], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]) VALUES (@CDSITUACAOVIAGEM, @DSSITUACAOVIAGEM, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas')`);
+      await pool.query(
+        `INSERT INTO "SITUACAOVIAGEM" ("CDSITUACAOVIAGEM", "DSSITUACAOVIAGEM", "FGSITVIAGEM", "FGACTIVE", "DHMAINTENANCE", "SGUSER", "SERVERORIG") VALUES ($1, $2, $3, 'A', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas')`,
+        [novoId, DSSITUACAOVIAGEM.trim(), fgsit]
+      );
     } catch (e) {
-      if (String(e.code) === '23505') { novoId = await getProximoId(); await pool.request().input('CDSITUACAOVIAGEM', novoId).input('DSSITUACAOVIAGEM', DSSITUACAOVIAGEM.trim()).query(`INSERT INTO [dbo].[SITUACAOVIAGEM] ([CDSITUACAOVIAGEM], [DSSITUACAOVIAGEM], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]) VALUES (@CDSITUACAOVIAGEM, @DSSITUACAOVIAGEM, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas')`); } else throw e;
+      if (String(e.code) === '23505') {
+        novoId = await getProximoId();
+        await pool.query(
+          `INSERT INTO "SITUACAOVIAGEM" ("CDSITUACAOVIAGEM", "DSSITUACAOVIAGEM", "FGSITVIAGEM", "FGACTIVE", "DHMAINTENANCE", "SGUSER", "SERVERORIG") VALUES ($1, $2, $3, 'A', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas')`,
+          [novoId, DSSITUACAOVIAGEM.trim(), fgsit]
+        );
+      } else throw e;
     }
     res.status(201).json({ success: true, message: 'Situação de viagem cadastrada com sucesso!' });
   } catch (err) {
@@ -105,7 +151,7 @@ router.post('/situacoes-viagem', async (req, res) => {
 router.put('/situacoes-viagem/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { DSSITUACAOVIAGEM, FGACTIVE } = req.body;
+    const { DSSITUACAOVIAGEM, FGACTIVE, FGSITVIAGEM } = req.body;
 
     if (!DSSITUACAOVIAGEM?.trim() || !['S', 'N'].includes(FGACTIVE)) {
       return res.status(400).json({ error: 'Dados inválidos.' });
@@ -124,22 +170,12 @@ router.put('/situacoes-viagem/:id', async (req, res) => {
       return res.status(409).json({ error: 'Já existe outra situação com esta descrição. Não é permitido duplicar.' });
     }
     const fgactiveDB = FGACTIVE === 'S' ? 'A' : 'I';
+    const fgsit = (FGSITVIAGEM != null && String(FGSITVIAGEM).trim() !== '') ? String(FGSITVIAGEM).trim().toUpperCase().substring(0, 1) : null;
 
-    await pool
-      .request()
-      .input('CDSITUACAOVIAGEM', id)
-      .input('DSSITUACAOVIAGEM', DSSITUACAOVIAGEM.trim())
-      .input('FGACTIVE', fgactiveDB)
-      .query(`
-        UPDATE [dbo].[SITUACAOVIAGEM] 
-        SET 
-          [DSSITUACAOVIAGEM] = @DSSITUACAOVIAGEM,
-          [FGACTIVE] = @FGACTIVE,
-          [DHMAINTENANCE] = GETDATE(),
-          [SGUSER] = 'SYSTEM',
-          [SERVERORIG] = 'AppDVcargas'
-        WHERE [CDSITUACAOVIAGEM] = @CDSITUACAOVIAGEM
-      `);
+    await pool.query(
+      `UPDATE "SITUACAOVIAGEM" SET "DSSITUACAOVIAGEM" = $1, "FGSITVIAGEM" = $2, "FGACTIVE" = $3, "DHMAINTENANCE" = CURRENT_TIMESTAMP, "SGUSER" = 'SYSTEM', "SERVERORIG" = 'AppDVcargas' WHERE "CDSITUACAOVIAGEM" = $4`,
+      [DSSITUACAOVIAGEM.trim(), fgsit, fgactiveDB, idNum]
+    );
 
     res.json({ success: true, message: 'Situação atualizada com sucesso!' });
   } catch (err) {

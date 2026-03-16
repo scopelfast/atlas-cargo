@@ -63,12 +63,18 @@
     init();
   }
 
-  // Mudar aba
+  // Mudar aba (sempre no container do módulo para não misturar com Grid/Dados de outros contextos)
   async function showTab(tabId) {
-    tabs.forEach(btn => btn.classList.remove('active'));
-    tabContents.forEach(content => content.classList.remove('active'));
-    document.querySelector(`.tab-btn[data-tab="${tabId}"]`).classList.add('active');
-    document.getElementById(`tab-${tabId}`).classList.add('active');
+    const targetContent = document.getElementById(`tab-${tabId}`);
+    const targetBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+    if (!targetContent || !targetBtn) return;
+    const container = targetContent.closest('.tipos-validade-container') || targetContent.parentElement;
+    if (container) {
+      container.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+      container.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    }
+    targetBtn.classList.add('active');
+    targetContent.classList.add('active');
 
     if (tabId === 'grid') {
       if (typeof window.GridEditor === 'undefined') {
@@ -249,10 +255,10 @@
       columns: [
         { field: 'CDTIPOVALIDADE', header: 'Código', editable: false, isId: true, width: '80px' },
         { field: 'DSTIPOVALIDADE', header: 'Descrição', editable: true, type: 'text', maxlength: 40 },
-        { field: 'FGVEICULO', header: 'Veículo', editable: true, type: 'select', options: [{value:'S',label:'Sim'},{value:'N',label:'Não'}], format: (v) => v==='S'?'✓':'✗' },
-        { field: 'FGMOTORISTA', header: 'Motorista', editable: true, type: 'select', options: [{value:'S',label:'Sim'},{value:'N',label:'Não'}], format: (v) => v==='S'?'✓':'✗' },
-        { field: 'FGTRANSPORTADOR', header: 'Transportador', editable: true, type: 'select', options: [{value:'S',label:'Sim'},{value:'N',label:'Não'}], format: (v) => v==='S'?'✓':'✗' },
-        { field: 'FGEXIGECERTIFICADORA', header: 'Exige Certif.', editable: true, type: 'select', options: [{value:'S',label:'Sim'},{value:'N',label:'Não'}], format: (v) => v==='S'?'✓':'✗', width: '110px', align: 'right' }
+        { field: 'FGVEICULO', header: 'Veículo', editable: true, type: 'select', width: '85px', options: [{value:'S',label:'Sim'},{value:'N',label:'Não'}], format: (v) => v==='S'?'✓':'✗' },
+        { field: 'FGMOTORISTA', header: 'Motorista', editable: true, type: 'select', width: '90px', options: [{value:'S',label:'Sim'},{value:'N',label:'Não'}], format: (v) => v==='S'?'✓':'✗' },
+        { field: 'FGTRANSPORTADOR', header: 'Transportador', editable: true, type: 'select', width: '110px', options: [{value:'S',label:'Sim'},{value:'N',label:'Não'}], format: (v) => v==='S'?'✓':'✗' },
+        { field: 'FGEXIGECERTIFICADORA', header: 'Exige Certif.', editable: true, type: 'select', width: '110px', align: 'right', options: [{value:'S',label:'Sim'},{value:'N',label:'Não'}], format: (v) => v==='S'?'✓':'✗' }
       ],
       apiEndpoint: '/api/tipos-validade',
       onEdit: async (id, data) => {
@@ -298,45 +304,45 @@
 
   async function confirmarExclusao(id) {
     if (!id) return;
-    
+    const idStr = String(id).trim();
+    const msg = t('web.modulos.tiposValidade.confirmarExcluir') || 'Tem certeza que deseja desativar este tipo de validade?';
     const modalMessage = document.getElementById('modalMessage');
     const confirmYes = document.getElementById('confirmYes');
     const confirmNo = document.getElementById('confirmNo');
     const modalEl = document.getElementById('confirmModal');
 
-    if (!modalEl) return;
+    function executarDesativar() {
+      fetch(`/api/tipos-validade/${idStr}`, { method: 'DELETE', headers: getAuthHeaders() })
+        .then(r => r.json().then(data => ({ ok: r.ok, data })))
+        .then(({ ok, data }) => {
+          if (ok) {
+            showMessage(t('web.modulos.tiposValidade.sucessoExcluir'), 'success');
+            applyFilters('grid');
+          } else {
+            showMessage(data.error || t('web.modulos.tiposValidade.erroExcluir'), 'error');
+          }
+        })
+        .catch(() => showMessage(t('web.modulos.tiposValidade.erroConexao'), 'error'))
+        .finally(() => { if (modalEl) modalEl.style.display = 'none'; });
+    }
 
-    modalMessage.innerHTML = t('web.modulos.tiposValidade.confirmarExcluir');
-    modalEl.dataset.deleteId = String(id);
-    
+    if (!modalEl || !modalMessage || !confirmYes || !confirmNo) {
+      if (confirm(msg)) executarDesativar();
+      return;
+    }
+
+    modalMessage.textContent = msg;
+    modalEl.dataset.deleteId = idStr;
     const newYes = confirmYes.cloneNode(true);
     const newNo = confirmNo.cloneNode(true);
-    
+    newYes.className = 'btn-filtro btn-filtro-danger';
+    newYes.innerHTML = '<i class="bx bx-check"></i> Desativar';
+    newNo.className = 'btn-filtro btn-filtro-limpar';
+    newNo.innerHTML = '<i class="bx bx-x"></i> ' + (t('web.modulos.tiposValidade.cancelar') || 'Cancelar');
     confirmYes.parentNode.replaceChild(newYes, confirmYes);
     confirmNo.parentNode.replaceChild(newNo, confirmNo);
-    
-    newYes.onclick = async () => {
-      try {
-        const response = await fetch(`/api/tipos-validade/${id}`, { method: 'DELETE', headers: getAuthHeaders() });
-        const data = await response.json();
-        
-        if (response.ok) {
-          showMessage(t('web.modulos.tiposValidade.sucessoExcluir'), 'success');
-          applyFilters('grid');
-        } else {
-          showMessage(data.error || t('web.modulos.tiposValidade.erroExcluir'), 'error');
-        }
-      } catch (err) {
-        showMessage(t('web.modulos.tiposValidade.erroConexao'), 'error');
-      } finally {
-        modalEl.style.display = 'none';
-      }
-    };
-    
-    newNo.onclick = () => {
-      modalEl.style.display = 'none';
-    };
-    
+    newYes.onclick = () => executarDesativar();
+    newNo.onclick = () => { modalEl.style.display = 'none'; delete modalEl.dataset.deleteId; };
     modalEl.style.display = 'block';
   }
 
@@ -430,12 +436,19 @@
 
   document.getElementById('btnVoltarFiltrosGrid')?.addEventListener('click', () => showTab('filtros'));
   
-  document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
+  function irParaNovoTipo() {
     tipoForm?.reset();
-    document.getElementById('formTitle').textContent = t('web.modulos.tiposValidade.novoTipo');
+    document.getElementById('formTitle').textContent = t('web.modulos.tiposValidade.novoRegistro') || t('web.modulos.tiposValidade.novoTipo') || 'Novo Tipo de Validade';
     document.getElementById('tipoCodigo').value = '';
+    const exigeN = document.querySelector('input[name="tipoExigeCertificadora"][value="N"]');
+    if (exigeN) exigeN.checked = true;
+    document.getElementById('tipoVeiculo').checked = false;
+    document.getElementById('tipoMotorista').checked = false;
+    document.getElementById('tipoTransportador').checked = false;
     showTab('dados');
-  });
+  }
+  document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', irParaNovoTipo);
+  document.getElementById('btnNovoRegistro')?.addEventListener('click', irParaNovoTipo);
   
   document.getElementById('btnCancelar')?.addEventListener('click', () => showTab('grid'));
 

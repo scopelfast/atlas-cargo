@@ -1,8 +1,7 @@
 // backend/public/modulos/gerenciar-filiais/js/script.js
 // i18n: helper t() e chaves web.modulos.filiais
-const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
-
 (function() {
+  const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
   const tabs = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
   const filtroForm = document.getElementById('filtroForm');
@@ -116,6 +115,7 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     const overlay = document.getElementById('loadingOverlayInitSQL');
     if (overlay && window.getComputedStyle(overlay).display === 'none') {
       showLoadingOverlayInitSQL('Processando Inicialização', 'Carregando script de inicialização...', 'Aguarde enquanto preparamos o módulo.');
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     }
     
     try {
@@ -322,18 +322,16 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
 
   async function showTab(tabId) {
     try {
-      // Primeiro, mudar a aba imediatamente
-      tabs.forEach(btn => btn.classList.remove('active'));
-      tabContents.forEach(content => content.classList.remove('active'));
-      
-      const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
-      const tabContent = document.getElementById(`tab-${tabId}`);
-      
-      if (tabBtn) {
-        tabBtn.classList.add('active');
-      }
-      if (tabContent) {
-        tabContent.classList.add('active');
+      const targetContent = document.getElementById(`tab-${tabId}`);
+      const targetBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+      if (targetContent && targetBtn) {
+        const container = targetContent.closest('[class*="-container"]') || targetContent.parentElement;
+        if (container) {
+          container.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+          container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        }
+        targetBtn.classList.add('active');
+        targetContent.classList.add('active');
       }
       
       // Aguardar um frame para garantir que a mudança foi renderizada
@@ -360,13 +358,16 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       console.warn('[Filiais] Erro ao mudar aba:', err);
       // Forçar mudança de aba mesmo em caso de erro
       try {
-        tabs.forEach(btn => btn.classList.remove('active'));
-        tabContents.forEach(content => content.classList.remove('active'));
-        const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
-        const tabContent = document.getElementById(`tab-${tabId}`);
-        if (tabBtn) tabBtn.classList.add('active');
-        if (tabContent) {
-          tabContent.classList.add('active');
+        const targetContent = document.getElementById(`tab-${tabId}`);
+        const targetBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+        if (targetContent && targetBtn) {
+          const container = targetContent.closest('[class*="-container"]') || targetContent.parentElement;
+          if (container) {
+            container.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          }
+          targetBtn.classList.add('active');
+          targetContent.classList.add('active');
         }
       } catch (forceErr) {
         console.error('[Filiais] Erro ao forçar mudança de aba:', forceErr);
@@ -677,6 +678,8 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       const filialData = await response.json();
       
       if (filialData) {
+        // Trocar para aba Dados primeiro (evita tela bagunçada com grid + form juntos)
+        showTab('dados');
         document.getElementById('filialEmpresaId').value = filialData.CDEMPRESA;
         document.getElementById('filialId').value = filialData.CDFILIAL;
         document.getElementById('filialEmpresa').value = filialData.CDEMPRESA;
@@ -688,7 +691,6 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
         document.getElementById('filialParceiro').value = filialData.FGPARCEIRO || 'N';
         document.getElementById('filialSituacao').value = filialData.FGACTIVE;
         document.getElementById('formTitle').textContent = t('web.modulos.filiais.editarFilial');
-        showTab('dados');
       }
     } catch (err) {
       console.error('[Filiais] Erro ao carregar filial:', err);
@@ -709,48 +711,46 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     const confirmNo = document.getElementById('confirmNo');
     const modalEl = document.getElementById('confirmModal');
 
-    if (!modalEl || !confirmYes || !confirmNo) {
-      return;
-    }
-
     try {
-      // Buscar o status atual da filial
       const empresaNum = parseInt(empresa);
       const filialNum = parseInt(filial);
       const response = await fetch(`/api/filiais/${empresaNum}/${filialNum}`);
-      if (!response.ok) {
-        throw new Error('Erro ao buscar filial');
-      }
-      
+      if (!response.ok) throw new Error('Erro ao buscar filial');
       const filialData = await response.json();
       const estaAtivo = filialData.FGACTIVE === 'S';
-      
-      // Definir mensagem e ação baseado no status atual
       let confirmMsg, action, btnText;
       if (estaAtivo) {
-        confirmMsg = 'Tem certeza que deseja <strong>desativar</strong> esta filial?<br><br><small style="color: #666;">A filial ficará inativa e não aparecerá nas listagens padrão.</small>';
+        confirmMsg = 'Tem certeza que deseja desativar esta filial?';
         action = 'deactivate';
         btnText = 'Desativar';
       } else {
-        confirmMsg = 'Tem certeza que deseja <strong>reativar</strong> esta filial?<br><br><small style="color: #666;">A filial voltará a aparecer nas listagens e estará disponível para uso.</small>';
+        confirmMsg = 'Tem certeza que deseja reativar esta filial?';
         action = 'activate';
         btnText = 'Reativar';
       }
-      
-      if (modalMessage) modalMessage.innerHTML = confirmMsg;
-      
+
+      if (!modalEl || !modalMessage || !confirmYes || !confirmNo) {
+        if (window.confirm(confirmMsg)) {
+          const r = await fetch(`/api/filiais/${empresaNum}/${filialNum}?action=${action}`, { method: 'DELETE' });
+          const data = await r.json();
+          if (r.ok) { showMessage(data.message || 'Status alterado.', 'success'); showTab('grid'); applyFilters('grid'); }
+          else showMessage(data.error || 'Erro ao alterar status.', 'error');
+        }
+        return;
+      }
+
+      modalMessage.textContent = confirmMsg;
       modalEl.dataset.deleteEmpresa = empresa;
       modalEl.dataset.deleteFilial = filial;
       modalEl.dataset.action = action;
-      
       const newConfirmYes = confirmYes.cloneNode(true);
       const newConfirmNo = confirmNo.cloneNode(true);
-      
-      // Atualizar texto do botão de confirmação
-      newConfirmYes.textContent = btnText;
-      
-      confirmYes.parentNode.replaceChild(newConfirmYes, confirmYes);
-      confirmNo.parentNode.replaceChild(newConfirmNo, confirmNo);
+      newConfirmYes.className = 'btn-filtro btn-filtro-danger';
+      newConfirmYes.innerHTML = '<i class="bx bx-check"></i> ' + btnText;
+      newConfirmNo.className = 'btn-filtro btn-filtro-limpar';
+      newConfirmNo.innerHTML = '<i class="bx bx-x"></i> ' + (t('web.modulos.filiais.cancelar') || 'Cancelar');
+      if (confirmYes.parentNode) confirmYes.parentNode.replaceChild(newConfirmYes, confirmYes);
+      if (confirmNo.parentNode) confirmNo.parentNode.replaceChild(newConfirmNo, confirmNo);
       
       newConfirmYes.onclick = async () => {
         try {
@@ -795,7 +795,6 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
         delete modalEl.dataset.deleteFilial;
         delete modalEl.dataset.action;
       };
-      
       modalEl.style.display = 'block';
     } catch (err) {
       console.error('[Filiais] Erro ao buscar status da filial:', err);

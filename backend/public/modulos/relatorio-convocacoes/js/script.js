@@ -3,9 +3,8 @@
 // Versão: 1.0
 // i18n: helper t() e chaves web.modulos.relatorioConvocacoes
 
-const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
-
 (function() {
+  const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
   let chartStatus = null;
   let chartPorData = null;
   let dadosAtuais = null;
@@ -435,6 +434,8 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     }
 
     const estatisticas = data.estatisticas || {};
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark' || document.body.getAttribute('data-theme') === 'dark';
+    const chartTextColor = isDark ? '#e2e8f0' : '#333';
     
     const dadosStatus = [
       estatisticas.PENDENTE || 0,
@@ -466,7 +467,8 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
           aspectRatio: 1.5,
           plugins: {
             legend: {
-              position: 'bottom'
+              position: 'bottom',
+              labels: { color: chartTextColor }
             },
             title: {
               display: false
@@ -567,15 +569,20 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
           aspectRatio: 1.5,
           plugins: {
             legend: {
-              position: 'bottom'
+              position: 'bottom',
+              labels: { color: chartTextColor }
             },
             title: {
               display: false
             }
           },
           scales: {
+            x: {
+              ticks: { color: chartTextColor }
+            },
             y: {
-              beginAtZero: true
+              beginAtZero: true,
+              ticks: { color: chartTextColor }
             }
           }
         }
@@ -738,24 +745,24 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       listaOrdenada = ordenarLista(lista, ordemAtual.coluna, ordemAtual.direcao);
     }
 
-    // Função para criar header com ordenação
+    // Função para criar header com ordenação (sem inline background para respeitar dark mode)
     const criarHeader = (nome, chave, largura = null) => {
       const isOrdenado = ordemAtual.coluna === nome;
       const seta = isOrdenado ? (ordemAtual.direcao === 'asc' ? ' ▲' : ' ▼') : ' ↕';
       const styleLargura = largura ? `width: ${largura}; min-width: ${largura};` : '';
-      return `<th style="padding: 12px; text-align: left; cursor: pointer; user-select: none; ${styleLargura}" 
+      const sortedClass = isOrdenado ? ' th-sorted' : '';
+      return `<th class="th-sortable${sortedClass}" style="padding: 12px; text-align: left; cursor: pointer; user-select: none; ${styleLargura}" 
+                data-col="${nome}"
                 onclick="ordenarTabela('${nome}')" 
-                onmouseover="this.style.background='#e8e8e8'" 
-                onmouseout="this.style.background='#f5f5f5'"
                 title="Clique para ordenar">
         ${nome}${seta}
       </th>`;
     };
 
     const tabela = `
-      <table>
+      <table class="relatorio-table">
         <thead>
-          <tr style="background: #f5f5f5; border-bottom: 2px solid #ddd;">
+          <tr class="thead-row">
             ${criarHeader('ID', 'IDCONVOCACAO', '60px')}
             ${criarHeader('Viagem', 'IDVIAGEM', '100px')}
             ${criarHeader('Rota', 'ORIGEM_CIDADE', '150px')}
@@ -764,16 +771,17 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
             ${criarHeader('Convocação', 'DHCONVOCACAO', '70px')}
             ${criarHeader('Acesso', 'DHACESSO', '70px')}
             ${criarHeader('Resposta', 'DHRESPOSTA', '70px')}
-            <th style="padding: 12px; text-align: left; width: 30px;" title="Indica se a viagem já possui uma convocação confirmada (independente desta convocação)"><i class="bx bx-info-circle" style="font-size: 1.1rem; color: #17a2b8;"></i></th>
+            <th style="padding: 12px; text-align: left; width: 30px;" title="Indica se a viagem já possui uma convocação confirmada (independente desta convocação)"><i class="bx bx-info-circle th-info-icon"></i></th>
             <th class="col-acoes" style="padding: 12px; text-align: left;">Ações</th>
           </tr>
         </thead>
         <tbody>
           ${listaOrdenada.map((item, index) => {
-            const rowStyle = index % 2 === 0 ? 'background: #fafafa;' : '';
+            const rowClass = index % 2 === 0 ? 'row-even' : 'row-odd';
             
-            // Formatar status igual ao gerenciar-viagens
+            // Formatar status com classe para dark mode
             let statusClass = '';
+            let statusSlug = (item.STATUS || 'PENDENTE').toLowerCase().replace('_', '-');
             let statusDisplay = item.STATUS || 'PENDENTE';
             
             if (item.STATUS === 'PENDENTE') {
@@ -793,52 +801,52 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
             }
             
             return `
-            <tr style="border-bottom: 1px solid #eee; ${rowStyle}">
+            <tr class="${rowClass}" style="border-bottom: 1px solid var(--border, #eee);">
               <td style="padding: 12px;">${item.IDCONVOCACAO}</td>
               <td style="padding: 12px;">
                 <button onclick="abrirViagem(${item.IDVIAGEM})" 
                         class="btn-link" 
-                        style="background: none; border: none; color: #667eea; cursor: pointer; text-decoration: underline; font-weight: 600; padding: 0;"
+                        style="background: none; border: none; color: var(--ac-accent, #667eea); cursor: pointer; text-decoration: underline; font-weight: 600; padding: 0;"
                         title="Clique para ver detalhes da viagem">
                   <strong>${item.IDVIAGEM}</strong>
                 </button><br>
-                <small style="color: #666;">${item.DSCLASSEFROTA || '-'}</small>
+                <small class="text-muted">${item.DSCLASSEFROTA || '-'}</small>
               </td>
               <td style="padding: 12px;">
                 ${item.ORIGEM_CIDADE || '-'}/${item.ORIGEM_ESTADO || '-'}<br>
-                <small style="color: #666;">→ ${item.DESTINO_CIDADE || '-'}/${item.DESTINO_ESTADO || '-'}</small>
+                <small class="text-muted">→ ${item.DESTINO_CIDADE || '-'}/${item.DESTINO_ESTADO || '-'}</small>
               </td>
               <td style="padding: 12px;">
                 ${criarIndicadorGeolocalizacao(item.LATITUDE, item.LONGITUDE)}
-                <span style="padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; ${statusClass}">
+                <span class="status-pill status-${statusSlug}" style="padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; ${statusClass}">
                   ${statusDisplay}
                 </span>
               </td>
               <td style="padding: 12px;">
                 ${item.NOME_MOTORISTA || 'N/A'}<br>
-                <small style="color: #666; font-size: 11px;">${criarLinkWhatsApp(item.NRCELULAR)}</small>
+                <small class="text-muted" style="font-size: 11px;">${criarLinkWhatsApp(item.NRCELULAR)}</small>
               </td>
               <td style="padding: 12px; font-size: 12px;">${formatarData(item.DHCONVOCACAO)}</td>
               <td style="padding: 12px; font-size: 12px;">
                 ${item.DHACESSO 
-                  ? `<div style="display: flex; align-items: center; gap: 6px;">
-                       <i class="bx bx-check-circle" style="color: #28a745; font-size: 1.25rem;"></i>
+                  ? `<div class="cell-acesso cell-ok" style="display: flex; align-items: center; gap: 6px;">
+                       <i class="bx bx-check-circle" style="font-size: 1.25rem;"></i>
                        <div>
-                         <div style="color: #28a745; font-weight: 600; font-size: 12px;">Acessou</div>
-                         <small style="color: #666; font-size: 10px;">${formatarData(item.DHACESSO)}</small>
+                         <div class="text-ok" style="font-weight: 600; font-size: 12px;">Acessou</div>
+                         <small class="text-muted" style="font-size: 10px;">${formatarData(item.DHACESSO)}</small>
                        </div>
                      </div>` 
-                  : `<div style="display: flex; align-items: center; gap: 6px;">
-                       <i class="bx bx-x-circle" style="color: #dc3545; font-size: 1.25rem;"></i>
+                  : `<div class="cell-acesso cell-pending" style="display: flex; align-items: center; gap: 6px;">
+                       <i class="bx bx-x-circle" style="font-size: 1.25rem;"></i>
                        <div>
-                         <div style="color: #dc3545; font-weight: 600; font-size: 12px;">Não acessou</div>
-                         <small style="color: #999; font-size: 10px;">Aguardando</small>
+                         <div class="text-pending" style="font-weight: 600; font-size: 12px;">Não acessou</div>
+                         <small class="text-muted" style="font-size: 10px;">Aguardando</small>
                        </div>
                      </div>`}
               </td>
               <td style="padding: 12px; font-size: 12px;">${formatarData(item.DHRESPOSTA)}</td>
-              <td style="padding: 12px; text-align: center;" title="${item.VIAGEM_CONFIRMADA === 'S' ? 'Esta viagem já possui uma convocação confirmada' : 'Esta viagem ainda não possui convocação confirmada'}">
-                ${item.VIAGEM_CONFIRMADA === 'S' ? '<i class="bx bx-check-circle" style="font-size: 1.25rem; color: #28a745;"></i>' : '<i class="bx bx-x-circle" style="font-size: 1.25rem; color: #dc3545;"></i>'}
+              <td class="cell-confirmada" style="padding: 12px; text-align: center;" title="${item.VIAGEM_CONFIRMADA === 'S' ? 'Esta viagem já possui uma convocação confirmada' : 'Esta viagem ainda não possui convocação confirmada'}">
+                ${item.VIAGEM_CONFIRMADA === 'S' ? '<i class="bx bx-check-circle icon-ok"></i>' : '<i class="bx bx-x-circle icon-pending"></i>'}
               </td>
               <td class="col-acoes" style="padding: 12px;">
                 ${criarBotoesAcoes(item)}
@@ -921,19 +929,21 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
 
     let html = '';
     // Link da convocação (abrir/copiar link público)
-    html += `<a href="${linkConvocacao}" target="_blank" rel="noopener noreferrer" class="btn" style="${btnStyle} background: #2196F3;" title="Abrir link da convocação"><i class="bx bx-link-alt"></i></a>`;
+    html += `<a href="${linkConvocacao}" target="_blank" rel="noopener noreferrer" class="btn btn-acao btn-acao-link" style="${btnStyle} background: #2196F3;" title="Abrir link da convocação"><i class="bx bx-link-alt"></i></a>`;
     // WhatsApp
     if (temCelular) {
       let num = String(item.NRCELULAR).replace(/\D/g, '');
-      if (!num.startsWith('55')) num = '55' + (num.startsWith('0') ? num.substring(1) : num);
+      if (num.startsWith('0')) num = num.substring(1);
+      // Se já tem 12+ dígitos, número já inclui DDI (ex.: 595981123456); não forçar 55
+      if (num.length < 12) num = '55' + num;
       const urlWa = 'https://wa.me/' + num;
-      html += `<a href="${urlWa}" target="_blank" rel="noopener noreferrer" class="btn" style="${btnStyle} background: #25D366;" title="Abrir WhatsApp"><i class="bx bxl-whatsapp"></i></a>`;
+      html += `<a href="${urlWa}" target="_blank" rel="noopener noreferrer" class="btn btn-acao btn-acao-whatsapp" style="${btnStyle} background: #25D366;" title="Abrir WhatsApp"><i class="bx bxl-whatsapp"></i></a>`;
     }
     // Ver no mapa
     if (temMapa) {
-      html += `<button onclick="abrirMapaMotorista(${item.IDCONVOCACAO}, ${item.LATITUDE}, ${item.LONGITUDE}, ${item.IDROTEIRO}, ${item.IDVIAGEM})" class="btn" style="${btnStyle} background: #28a745;" title="Ver localização do motorista e rota até o carregamento"><i class="bx bx-map-alt"></i></button>`;
+      html += `<button onclick="abrirMapaMotorista(${item.IDCONVOCACAO}, ${item.LATITUDE}, ${item.LONGITUDE}, ${item.IDROTEIRO}, ${item.IDVIAGEM})" class="btn btn-acao btn-acao-mapa" style="${btnStyle} background: #28a745;" title="Ver localização do motorista e rota até o carregamento"><i class="bx bx-map-alt"></i></button>`;
     }
-    return html || '<span style="color: #999; font-size: 12px;">-</span>';
+    return html || '<span class="text-muted" style="font-size: 12px;">-</span>';
   }
 
   // Criar link do WhatsApp
@@ -966,25 +976,20 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       celularFormatado = celular; // Retornar original se inválido
     }
     
-    // Se não começar com 55 (código do Brasil), adicionar para o link
-    if (!numeroLimpo.startsWith('55')) {
-      // Se começar com 0, remover o 0
-      if (numeroLimpo.startsWith('0')) {
-        numeroLimpo = numeroLimpo.substring(1);
-      }
+    // Número pode já vir com DDI (ex.: 595, 54, 55). Só adicionar 55 se tiver 10-11 dígitos (Brasil sem DDI)
+    if (numeroLimpo.startsWith('0')) numeroLimpo = numeroLimpo.substring(1);
+    if (numeroLimpo.length >= 12) {
+      // Já tem DDI; usar como está
+    } else if (numeroLimpo.length >= 10) {
       numeroLimpo = '55' + numeroLimpo;
     }
-    
-    // Validar se tem pelo menos 12 dígitos (55 + DDD + número)
-    if (numeroLimpo.length < 12) {
-      return celular; // Retornar número original se inválido
-    }
-    
+    if (numeroLimpo.length < 12) return celular;
     const urlWhatsApp = `https://wa.me/${numeroLimpo}`;
     
     return `<a href="${urlWhatsApp}" 
                 target="_blank" 
                 rel="noopener noreferrer"
+                class="link-whatsapp"
                 style="color: #25D366; text-decoration: none; font-weight: 500; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;"
                 title="Abrir WhatsApp">
                 <i class="bx bxl-whatsapp" style="font-size: 1em;"></i> ${celularFormatado}
@@ -1069,77 +1074,6 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       buscarRelatorio();
     }, 100);
   };
-
-  // Função para mostrar ajuda
-  window.mostrarAjudaRelatorio = function() {
-    const modal = document.getElementById('modalAjudaRelatorio');
-    if (modal) {
-      modal.classList.add('active');
-    } else {
-      // Criar modal de ajuda se não existir
-      const modalHtml = `
-        <div id="modalAjudaRelatorio" class="modal-tratamento">
-          <div class="modal-content-tratamento" style="max-width: 800px;">
-            <div class="modal-header-tratamento">
-              <h3><i class='bx bx-help-circle'></i> Como Funciona - Relatório de Convocações</h3>
-              <button class="close-modal" onclick="fecharModalAjudaRelatorio()">
-                <i class='bx bx-x'></i>
-              </button>
-            </div>
-            <div style="max-height: 70vh; overflow-y: auto; padding-right: 10px;">
-              <h4 style="color: #2c3e50; margin-top: 20px;">📋 Funcionalidades</h4>
-              <ul style="line-height: 1.8; color: #495057;">
-                <li><strong>Filtros:</strong> Busque convocações por data, status, ID de viagem, ID de convocação, motorista, viagem confirmada, motivo de recusa ou contratador.</li>
-                <li><strong>Estatísticas:</strong> Visualize resumos de total de viagens, total de convocações, status das convocações, acessos e respostas.</li>
-                <li><strong>Gráficos:</strong> Analise a distribuição de convocações por status e por data através de gráficos interativos.</li>
-                <li><strong>Tabela:</strong> Visualize todas as convocações em formato de tabela ordenável com informações detalhadas.</li>
-                <li><strong>Exportação:</strong> Exporte os dados filtrados para CSV.</li>
-                <li><strong>Mapa:</strong> Visualize a localização do motorista e a rota até o carregamento.</li>
-              </ul>
-              
-              <h4 style="color: #2c3e50; margin-top: 20px;">📊 Estatísticas</h4>
-              <ul style="line-height: 1.8; color: #495057;">
-                <li><strong>Total de Viagens:</strong> Quantidade de viagens únicas no período filtrado.</li>
-                <li><strong>Total:</strong> Total de convocações encontradas com os filtros aplicados.</li>
-                <li><strong>Pendente:</strong> Convocações aguardando resposta do motorista.</li>
-                <li><strong>Aceita:</strong> Convocações aceitas pelo motorista.</li>
-                <li><strong>Recusada:</strong> Convocações recusadas pelo motorista.</li>
-                <li><strong>Confirmada:</strong> Convocações confirmadas para execução.</li>
-                <li><strong>Aceita Descartada:</strong> Convocações aceitas mas não selecionadas.</li>
-                <li><strong>Com Acesso:</strong> Convocações que foram acessadas pelo motorista.</li>
-                <li><strong>Com Resposta:</strong> Convocações que receberam resposta do motorista.</li>
-              </ul>
-
-              <h4 style="color: #2c3e50; margin-top: 20px;">🗺️ Mapa do Motorista</h4>
-              <ul style="line-height: 1.8; color: #495057;">
-                <li>Clique no ícone <i class="bx bx-map-alt" style="font-size: 1em;"></i> na coluna "Ações" para visualizar a localização do motorista.</li>
-                <li>O mapa mostra a posição atual do motorista e calcula a rota até o local de carregamento.</li>
-                <li>A distância e tempo estimado são calculados automaticamente.</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      `;
-      document.body.insertAdjacentHTML('beforeend', modalHtml);
-      document.getElementById('modalAjudaRelatorio').classList.add('active');
-    }
-  };
-
-  // Função para fechar modal de ajuda
-  window.fecharModalAjudaRelatorio = function() {
-    const modal = document.getElementById('modalAjudaRelatorio');
-    if (modal) {
-      modal.classList.remove('active');
-    }
-  };
-
-  // Fechar modal de ajuda ao clicar fora
-  document.addEventListener('click', (e) => {
-    const modal = document.getElementById('modalAjudaRelatorio');
-    if (modal && e.target === modal) {
-      fecharModalAjudaRelatorio();
-    }
-  });
 
   // Exportar relatório
   window.exportarRelatorio = function() {

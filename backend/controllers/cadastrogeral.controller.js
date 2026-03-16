@@ -63,7 +63,8 @@ const cadastroController = {
     try {
       const {
         codigo, cgccpf, razaoSocial, nomeFantasia, tipoPessoa,
-        cidadeEstado, cidadeNome, celular, email, situacao, tipoCadastro, rastreado, transportador
+        cidadeEstado, cidadeNome, celular, email, situacao, tipoCadastro, rastreado, transportador,
+        statusAprovacao
       } = req.query;
       
       const pool = await poolPromise;
@@ -95,10 +96,13 @@ const cadastroController = {
           cg."FGOPERADOR", cg."FGPROGRAMADOR", cg."FGMOTORISTA", cg."FGTRANSPORTADOR",
           cg."FGAGENTE", cg."FGGRUPO", cg."FGCERTIFICADORA", cg."FGUNIDADENEGOCIO",
           cg."CDTRANSPORTADOR",
-          t."RZSOCIAL" AS "TRANSPORTADOR_NOME"
+          t."RZSOCIAL" AS "TRANSPORTADOR_NOME",
+          cg."PAIS",
+          mc."STATUSAPROVACAO"
         FROM "CADASTROGERAL" cg
         LEFT JOIN "CIDADE" c ON cg."CDCIDADE" = c."CDCIDADE"
         LEFT JOIN "CADASTROGERAL" t ON cg."CDTRANSPORTADOR" = t."CDCADASTRO"
+        LEFT JOIN "MOTORISTA_COMPLEMENTO" mc ON cg."CDCADASTRO" = mc."CDCADASTRO"
         WHERE 1=1
       `;
 
@@ -144,6 +148,12 @@ const cadastroController = {
       if (transportador) {
         query += ` AND cg."CDTRANSPORTADOR" = ${pushVal(parseFloat(transportador))}`;
       }
+      if (statusAprovacao) {
+        const s = String(statusAprovacao).trim().toUpperCase();
+        if (['P', 'A', 'R'].includes(s)) {
+          query += ` AND mc."CDCADASTRO" IS NOT NULL AND mc."STATUSAPROVACAO" = ${pushVal(s)}`;
+        }
+      }
 
       query += ` ORDER BY cg."RZSOCIAL"`;
 
@@ -185,7 +195,9 @@ const cadastroController = {
           FGUNIDADENEGOCIO: (cg.FGUNIDADENEGOCIO || 'N') === 'S',
           APLICAVEL_CODIGOS: aplicavel,
           CDTRANSPORTADOR: cg.CDTRANSPORTADOR || null,
-          TRANSPORTADOR_NOME: cg.TRANSPORTADOR_NOME || null
+          TRANSPORTADOR_NOME: cg.TRANSPORTADOR_NOME || null,
+          PAIS: cg.PAIS || null,
+          STATUSAPROVACAO: (cg.STATUSAPROVACAO || (cg.FGMOTORISTA === 'S' ? 'P' : null))
         };
       });
       
@@ -204,7 +216,8 @@ const cadastroController = {
         ENDERECO, NRENDERECO, COMPLEND, BAIRRO, NRCELULAR, ENDEMAIL,
         LATITUDE, LONGITUDE, FGTIPOCADASTRO, FGRASTREADO, CDTRANSPORTADOR,
         FGOPERADOR, FGPROGRAMADOR, FGMOTORISTA, FGTRANSPORTADOR: FGTRANSP,
-        FGAGENTE, FGGRUPO, FGCERTIFICADORA, FGUNIDADENEGOCIO
+        FGAGENTE, FGGRUPO, FGCERTIFICADORA, FGUNIDADENEGOCIO,
+        PAIS
       } = req.body;
 
       const flags = {
@@ -265,17 +278,18 @@ const cadastroController = {
           "ENDERECO", "NRENDERECO", "COMPLEND", "BAIRRO", "NRCELULAR", "ENDEMAIL", "LATITUDE", "LONGITUDE",
           "FGACTIVE", "FGTIPOCADASTRO", "FGOPERADOR", "FGPROGRAMADOR", "FGMOTORISTA", "FGTRANSPORTADOR",
           "FGAGENTE", "FGGRUPO", "FGCERTIFICADORA", "FGUNIDADENEGOCIO",
-          "FGRASTREADO", "CDTRANSPORTADOR", "DHMAINTENANCE", "SGUSER", "SERVERORIG"
+          "FGRASTREADO", "CDTRANSPORTADOR", "PAIS", "DHMAINTENANCE", "SGUSER", "SERVERORIG"
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'A', $16,
-          $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, CURRENT_TIMESTAMP, $27, 'AppDVcargas')`,
+          $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, CURRENT_TIMESTAMP, $28, 'AppDVcargas')`,
         [
           novoId, cgccpfStr, RZSOCIAL.trim(), NMFANTASIA?.trim() || null, FGFISICAJURIDICA,
-          CEP || null, CDCIDADE || null, ENDERECO.trim(), NRENDERECO, COMPLEND?.trim() || null,
-          BAIRRO.trim(), NRCELULAR, ENDEMAIL?.trim() || null, LATITUDE || null, LONGITUDE || null,
+          CEP || null, CDCIDADE || null, (ENDERECO && String(ENDERECO).trim()) ? String(ENDERECO).trim() : null, (NRENDERECO !== undefined && NRENDERECO !== null && NRENDERECO !== '') ? NRENDERECO : null, COMPLEND?.trim() || null,
+          (BAIRRO && String(BAIRRO).trim()) ? String(BAIRRO).trim() : null, NRCELULAR, ENDEMAIL?.trim() || null, LATITUDE || null, LONGITUDE || null,
           tipoLegado,
           toS(flags.FGOPERADOR), toS(flags.FGPROGRAMADOR), toS(flags.FGMOTORISTA), toS(flags.FGTRANSPORTADOR),
           toS(flags.FGAGENTE), toS(flags.FGGRUPO), toS(flags.FGCERTIFICADORA), toS(flags.FGUNIDADENEGOCIO),
           FGRASTREADO || 'N', (flags.FGMOTORISTA && CDTRANSPORTADOR) ? CDTRANSPORTADOR : null,
+          (PAIS && String(PAIS).trim()) ? String(PAIS).trim().toUpperCase() : null,
           sgUser
         ]
       );
@@ -303,7 +317,10 @@ const cadastroController = {
         ENDERECO, NRENDERECO, COMPLEND, BAIRRO, NRCELULAR, ENDEMAIL,
         LATITUDE, LONGITUDE, FGACTIVE, FGTIPOCADASTRO, FGRASTREADO, CDTRANSPORTADOR,
         FGOPERADOR, FGPROGRAMADOR, FGMOTORISTA, FGTRANSPORTADOR: FGTRANSP,
-        FGAGENTE, FGGRUPO, FGCERTIFICADORA, FGUNIDADENEGOCIO
+        FGAGENTE, FGGRUPO, FGCERTIFICADORA, FGUNIDADENEGOCIO,
+        PAIS,
+        STATUSAPROVACAO, PAIS_DESTINO_PREF, SIGLA_ESTADO_DESTINO_PREF, CIDADE_DESTINO_PREF,
+        PAIS_EMBARQUE_PREF, SIGLA_ESTADO_EMBARQUE_PREF, REGIAO_EMBARQUE_PREF, CIDADE_EMBARQUE_PREF
       } = req.body;
 
       const flags = {
@@ -327,14 +344,16 @@ const cadastroController = {
       }
 
       const ctx = await getContexto();
+      // País do cadastro prevalece; quando não informado, usa o padrão das Configurações.
+      const paisVal = (PAIS && String(PAIS).trim()) ? String(PAIS).trim().toUpperCase() : (ctx.pais || 'BR');
       const tipoDoc = FGFISICAJURIDICA === 'F' ? 'F' : 'J';
-      let cgccpfStr = normalizarDocumento(ctx.pais, CGCCPF.toString());
-      if (ctx.pais === 'BR') {
+      let cgccpfStr = normalizarDocumento(paisVal, CGCCPF.toString());
+      if (paisVal === 'BR') {
         if (FGFISICAJURIDICA === 'F') cgccpfStr = cgccpfStr.padStart(11, '0');
         else if (FGFISICAJURIDICA === 'J') cgccpfStr = cgccpfStr.padStart(14, '0');
       }
 
-      const validacao = validarDocumento(ctx.pais, tipoDoc, cgccpfStr);
+      const validacao = validarDocumento(paisVal, tipoDoc, cgccpfStr);
       if (!validacao.valido) {
         return res.status(400).json({ error: validacao.mensagem || 'Documento inválido.', errorKey: 'web.modulos.cadastroGeral.documentoInvalido' });
       }
@@ -361,20 +380,49 @@ const cadastroController = {
           "LATITUDE" = $13, "LONGITUDE" = $14, "FGACTIVE" = $15, "FGTIPOCADASTRO" = $16,
           "FGOPERADOR" = $17, "FGPROGRAMADOR" = $18, "FGMOTORISTA" = $19, "FGTRANSPORTADOR" = $20,
           "FGAGENTE" = $21, "FGGRUPO" = $22, "FGCERTIFICADORA" = $23, "FGUNIDADENEGOCIO" = $24,
-          "FGRASTREADO" = $25, "CDTRANSPORTADOR" = $26,
-          "DHMAINTENANCE" = CURRENT_TIMESTAMP, "SGUSER" = $27, "SERVERORIG" = 'AppDVcargas'
-        WHERE "CDCADASTRO" = $28`,
+          "FGRASTREADO" = $25, "CDTRANSPORTADOR" = $26, "PAIS" = $27,
+          "DHMAINTENANCE" = CURRENT_TIMESTAMP, "SGUSER" = $28, "SERVERORIG" = 'AppDVcargas'
+        WHERE "CDCADASTRO" = $29`,
         [
           cgccpfStr, RZSOCIAL.trim(), NMFANTASIA?.trim() || null, FGFISICAJURIDICA,
-          CEP || null, CDCIDADE || null, ENDERECO.trim(), NRENDERECO,
-          COMPLEND?.trim() || null, BAIRRO.trim(), NRCELULAR, ENDEMAIL?.trim() || null,
+          CEP || null, CDCIDADE || null, (ENDERECO && String(ENDERECO).trim()) ? String(ENDERECO).trim() : null, (NRENDERECO !== undefined && NRENDERECO !== null && NRENDERECO !== '') ? NRENDERECO : null,
+          COMPLEND?.trim() || null, (BAIRRO && String(BAIRRO).trim()) ? String(BAIRRO).trim() : null, NRCELULAR, ENDEMAIL?.trim() || null,
           LATITUDE || null, LONGITUDE || null, FGACTIVE === 'S' ? 'A' : 'I',
           tipoLegado,
           toS(flags.FGOPERADOR), toS(flags.FGPROGRAMADOR), toS(flags.FGMOTORISTA), toS(flags.FGTRANSPORTADOR),
           toS(flags.FGAGENTE), toS(flags.FGGRUPO), toS(flags.FGCERTIFICADORA), toS(flags.FGUNIDADENEGOCIO),
-          FGRASTREADO || 'N', valorTransportador, sgUserUpd, idNumerico
+          FGRASTREADO || 'N', valorTransportador,
+          (PAIS && String(PAIS).trim()) ? String(PAIS).trim().toUpperCase() : null,
+          sgUserUpd, idNumerico
         ]
       );
+
+      if (flags.FGMOTORISTA) {
+        const statusAprov = (STATUSAPROVACAO && ['P', 'A', 'R'].includes(String(STATUSAPROVACAO).trim().toUpperCase()))
+          ? String(STATUSAPROVACAO).trim().toUpperCase() : 'P';
+        const paisDest = (PAIS_DESTINO_PREF && String(PAIS_DESTINO_PREF).trim()) ? String(PAIS_DESTINO_PREF).trim().substring(0, 2) : null;
+        const estadoDest = (SIGLA_ESTADO_DESTINO_PREF && String(SIGLA_ESTADO_DESTINO_PREF).trim()) ? String(SIGLA_ESTADO_DESTINO_PREF).trim().substring(0, 10) : null;
+        const cidadeDest = (CIDADE_DESTINO_PREF && String(CIDADE_DESTINO_PREF).trim()) ? String(CIDADE_DESTINO_PREF).trim().substring(0, 100) : null;
+        const paisEmb = (PAIS_EMBARQUE_PREF && String(PAIS_EMBARQUE_PREF).trim()) ? String(PAIS_EMBARQUE_PREF).trim().substring(0, 2) : null;
+        const estadoEmb = (SIGLA_ESTADO_EMBARQUE_PREF && String(SIGLA_ESTADO_EMBARQUE_PREF).trim()) ? String(SIGLA_ESTADO_EMBARQUE_PREF).trim().substring(0, 10) : null;
+        const regiaoEmb = (REGIAO_EMBARQUE_PREF && String(REGIAO_EMBARQUE_PREF).trim()) ? String(REGIAO_EMBARQUE_PREF).trim().substring(0, 60) : null;
+        const cidadeEmb = (CIDADE_EMBARQUE_PREF && String(CIDADE_EMBARQUE_PREF).trim()) ? String(CIDADE_EMBARQUE_PREF).trim().substring(0, 100) : null;
+        const existeMc = await pool.query('SELECT 1 FROM "MOTORISTA_COMPLEMENTO" WHERE "CDCADASTRO" = $1', [idNumerico]);
+        if ((existeMc.rows || []).length > 0) {
+          await pool.query(
+            `UPDATE "MOTORISTA_COMPLEMENTO" SET "STATUSAPROVACAO" = $1, "PAIS_DESTINO_PREF" = $2, "SIGLA_ESTADO_DESTINO_PREF" = $3, "CIDADE_DESTINO_PREF" = $4,
+             "PAIS_EMBARQUE_PREF" = $6, "SIGLA_ESTADO_EMBARQUE_PREF" = $7, "REGIAO_EMBARQUE_PREF" = $8, "CIDADE_EMBARQUE_PREF" = $9
+             WHERE "CDCADASTRO" = $5`,
+            [statusAprov, paisDest, estadoDest, cidadeDest, idNumerico, paisEmb, estadoEmb, regiaoEmb, cidadeEmb]
+          );
+        } else {
+          await pool.query(
+            `INSERT INTO "MOTORISTA_COMPLEMENTO" ("CDCADASTRO", "STATUSAPROVACAO", "PAIS_DESTINO_PREF", "SIGLA_ESTADO_DESTINO_PREF", "CIDADE_DESTINO_PREF",
+             "PAIS_EMBARQUE_PREF", "SIGLA_ESTADO_EMBARQUE_PREF", "REGIAO_EMBARQUE_PREF", "CIDADE_EMBARQUE_PREF") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+            [idNumerico, statusAprov, paisDest, estadoDest, cidadeDest, paisEmb, estadoEmb, regiaoEmb, cidadeEmb]
+          );
+        }
+      }
 
       res.json({ success: true, message: 'Cadastro atualizado com sucesso!' });
     } catch (err) {
@@ -391,14 +439,14 @@ const cadastroController = {
       const result = await pool.query(
         `SELECT 
           cg."CDCADASTRO", cg."CGCCPF", cg."RZSOCIAL", cg."NMFANTASIA",
-          cg."FGFISICAJURIDICA", cg."CEP", cg."CDCIDADE",
+          cg."FGFISICAJURIDICA", cg."CEP", cg."CDCIDADE", cg."PAIS",
           c."ESTADO" AS "CIDADE_ESTADO", c."NMCIDADE" AS "CIDADE_NOME",
           cg."ENDERECO", cg."NRENDERECO", cg."COMPLEND", cg."BAIRRO",
           cg."NRCELULAR", cg."ENDEMAIL", cg."LATITUDE", cg."LONGITUDE",
           cg."FGACTIVE", cg."FGTIPOCADASTRO", cg."FGRASTREADO", cg."CDTRANSPORTADOR",
           cg."FGOPERADOR", cg."FGPROGRAMADOR", cg."FGMOTORISTA", cg."FGTRANSPORTADOR",
           cg."FGAGENTE", cg."FGGRUPO", cg."FGCERTIFICADORA", cg."FGUNIDADENEGOCIO",
-          mc."STATUSAPROVACAO"
+          mc."STATUSAPROVACAO", mc."PAIS_DESTINO_PREF", mc."SIGLA_ESTADO_DESTINO_PREF", mc."CIDADE_DESTINO_PREF"
         FROM "CADASTROGERAL" cg
         LEFT JOIN "CIDADE" c ON cg."CDCIDADE" = c."CDCIDADE"
         LEFT JOIN "MOTORISTA_COMPLEMENTO" mc ON cg."CDCADASTRO" = mc."CDCADASTRO"
@@ -418,6 +466,7 @@ const cadastroController = {
         FGFISICAJURIDICA: cg.FGFISICAJURIDICA,
         CEP: cg.CEP,
         CDCIDADE: cg.CDCIDADE,
+        PAIS: cg.PAIS || null,
         CIDADE_ESTADO: cg.CIDADE_ESTADO,
         CIDADE_NOME: cg.CIDADE_NOME,
         ENDERECO: cg.ENDERECO,
@@ -440,7 +489,14 @@ const cadastroController = {
         FGGRUPO: (cg.FGGRUPO || 'N') === 'S',
         FGCERTIFICADORA: (cg.FGCERTIFICADORA || 'N') === 'S',
         FGUNIDADENEGOCIO: (cg.FGUNIDADENEGOCIO || 'N') === 'S',
-        STATUSAPROVACAO: cg.STATUSAPROVACAO || 'P'
+        STATUSAPROVACAO: cg.STATUSAPROVACAO || 'P',
+        PAIS_DESTINO_PREF: cg.PAIS_DESTINO_PREF || null,
+        SIGLA_ESTADO_DESTINO_PREF: cg.SIGLA_ESTADO_DESTINO_PREF || null,
+        CIDADE_DESTINO_PREF: cg.CIDADE_DESTINO_PREF || null,
+        PAIS_EMBARQUE_PREF: cg.PAIS_EMBARQUE_PREF || null,
+        SIGLA_ESTADO_EMBARQUE_PREF: cg.SIGLA_ESTADO_EMBARQUE_PREF || null,
+        REGIAO_EMBARQUE_PREF: cg.REGIAO_EMBARQUE_PREF || null,
+        CIDADE_EMBARQUE_PREF: cg.CIDADE_EMBARQUE_PREF || null
       });
     } catch (err) {
       console.error('Erro ao buscar cadastro:', err);
@@ -838,6 +894,132 @@ const cadastroController = {
           detalhes: err.message 
         });
       }
+    }
+  },
+
+  // Listar locais preferidos do cadastro (lista registro a registro)
+  listarLocaisPreferidos: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const pool = await poolPromise;
+      const cdCadastro = parseFloat(id);
+      if (isNaN(cdCadastro)) return res.status(400).json({ error: 'Cadastro inválido.' });
+      const result = await pool.query(
+        `SELECT lp."CDCADASTRO", lp."SEQUENCIA", lp."TIPO", lp."PAIS", lp."CDUF", lp."CDMESOREGIAO",
+                e."ESTADO" AS "ESTADO_UF",
+                m."DSMESOREGIAO"
+         FROM "CADASTRO_LOCAL_PREFERIDO" lp
+         LEFT JOIN "ESTADO" e ON e."CDUF" = lp."CDUF"
+         LEFT JOIN "MESOREGIAO" m ON m."CDUF" = lp."CDUF" AND m."CDMESOREGIAO" = lp."CDMESOREGIAO"
+         WHERE lp."CDCADASTRO" = $1
+         ORDER BY lp."TIPO", lp."SEQUENCIA"`,
+        [cdCadastro]
+      );
+      const rows = (result.rows || []).map(r => ({
+        CDCADASTRO: r.CDCADASTRO,
+        SEQUENCIA: r.SEQUENCIA,
+        TIPO: r.TIPO,
+        PAIS: r.PAIS,
+        CDUF: r.CDUF,
+        CDMESOREGIAO: r.CDMESOREGIAO,
+        ESTADO_UF: r.ESTADO_UF || null,
+        DSMESOREGIAO: r.DSMESOREGIAO || null
+      }));
+      res.json(rows);
+    } catch (err) {
+      if (err.code === '42P01') return res.status(200).json([]);
+      console.error('Erro ao listar locais preferidos:', err);
+      res.status(500).json({ error: 'Erro ao carregar locais preferidos.' });
+    }
+  },
+
+  // Adicionar um local preferido (grava no banco e retorna a lista atualizada)
+  adicionarLocalPreferido: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { TIPO, PAIS, CDUF, CDMESOREGIAO } = req.body;
+      const pool = await poolPromise;
+      const cdCadastro = parseFloat(id);
+      if (isNaN(cdCadastro)) return res.status(400).json({ error: 'Cadastro inválido.' });
+      if (!PAIS || !String(PAIS).trim()) return res.status(400).json({ error: 'País é obrigatório.' });
+      const tipoVal = (TIPO && String(TIPO).toUpperCase().trim()) === 'D' ? 'D' : 'E';
+      const paisVal = String(PAIS).trim().toUpperCase().substring(0, 2);
+      const cdufVal = (CDUF !== undefined && CDUF !== null && CDUF !== '') ? parseInt(CDUF, 10) : null;
+      const cdmVal = (CDMESOREGIAO !== undefined && CDMESOREGIAO !== null && CDMESOREGIAO !== '') ? parseInt(CDMESOREGIAO, 10) : null;
+      if (cdufVal !== null && isNaN(cdufVal)) return res.status(400).json({ error: 'CDUF inválido.' });
+      if (cdmVal !== null && isNaN(cdmVal)) return res.status(400).json({ error: 'CDMESOREGIAO inválido.' });
+
+      // Não permitir duplicata: mesmo Tipo + País + Estado + Mesorregião para o mesmo cadastro
+      const existente = await pool.query(
+        `SELECT 1 FROM "CADASTRO_LOCAL_PREFERIDO"
+         WHERE "CDCADASTRO" = $1 AND "TIPO" = $2 AND "PAIS" = $3
+           AND (COALESCE("CDUF", -1) = COALESCE($4::int, -1))
+           AND (COALESCE("CDMESOREGIAO", -1) = COALESCE($5::int, -1))
+         LIMIT 1`,
+        [cdCadastro, tipoVal, paisVal, cdufVal, cdmVal]
+      );
+      if (existente.rows && existente.rows.length > 0) {
+        return res.status(400).json({ error: 'Já existe um local preferido com o mesmo Tipo, País, Estado e Mesorregião.' });
+      }
+
+      const nextSeq = await pool.query(
+        `SELECT COALESCE(MAX("SEQUENCIA"), 0) + 1 AS "next" FROM "CADASTRO_LOCAL_PREFERIDO" WHERE "CDCADASTRO" = $1`,
+        [cdCadastro]
+      );
+      const sequencia = (nextSeq.rows && nextSeq.rows[0]) ? nextSeq.rows[0].next : 1;
+      const sgUser = getSgUser(req) || 'SYSTEM';
+      await pool.query(
+        `INSERT INTO "CADASTRO_LOCAL_PREFERIDO" ("CDCADASTRO", "SEQUENCIA", "TIPO", "PAIS", "CDUF", "CDMESOREGIAO", "SGUSER")
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [cdCadastro, sequencia, tipoVal, paisVal, cdufVal, cdmVal, sgUser]
+      );
+      const list = await pool.query(
+        `SELECT lp."CDCADASTRO", lp."SEQUENCIA", lp."TIPO", lp."PAIS", lp."CDUF", lp."CDMESOREGIAO",
+                e."ESTADO" AS "ESTADO_UF", m."DSMESOREGIAO"
+         FROM "CADASTRO_LOCAL_PREFERIDO" lp
+         LEFT JOIN "ESTADO" e ON e."CDUF" = lp."CDUF"
+         LEFT JOIN "MESOREGIAO" m ON m."CDUF" = lp."CDUF" AND m."CDMESOREGIAO" = lp."CDMESOREGIAO"
+         WHERE lp."CDCADASTRO" = $1 ORDER BY lp."TIPO", lp."SEQUENCIA"`,
+        [cdCadastro]
+      );
+      res.status(201).json({
+        success: true,
+        message: 'Local preferido adicionado.',
+        lista: (list.rows || []).map(r => ({
+          CDCADASTRO: r.CDCADASTRO,
+          SEQUENCIA: r.SEQUENCIA,
+          TIPO: r.TIPO,
+          PAIS: r.PAIS,
+          CDUF: r.CDUF,
+          CDMESOREGIAO: r.CDMESOREGIAO,
+          ESTADO_UF: r.ESTADO_UF || null,
+          DSMESOREGIAO: r.DSMESOREGIAO || null
+        }))
+      });
+    } catch (err) {
+      if (err.code === '42P01') return res.status(400).json({ error: 'Tabela CADASTRO_LOCAL_PREFERIDO não existe. Execute o script SQL de criação.' });
+      console.error('Erro ao adicionar local preferido:', err);
+      res.status(500).json({ error: 'Erro ao gravar local preferido.' });
+    }
+  },
+
+  // Excluir um local preferido por sequência
+  excluirLocalPreferido: async (req, res) => {
+    try {
+      const { id, sequencia } = req.params;
+      const pool = await poolPromise;
+      const cdCadastro = parseFloat(id);
+      const seqNum = parseInt(sequencia, 10);
+      if (isNaN(cdCadastro) || isNaN(seqNum)) return res.status(400).json({ error: 'Parâmetros inválidos.' });
+      const del = await pool.query(
+        `DELETE FROM "CADASTRO_LOCAL_PREFERIDO" WHERE "CDCADASTRO" = $1 AND "SEQUENCIA" = $2`,
+        [cdCadastro, seqNum]
+      );
+      if ((del.rowCount || 0) === 0) return res.status(404).json({ error: 'Registro não encontrado.' });
+      res.json({ success: true, message: 'Local preferido removido.' });
+    } catch (err) {
+      console.error('Erro ao excluir local preferido:', err);
+      res.status(500).json({ error: 'Erro ao remover local preferido.' });
     }
   }
 };

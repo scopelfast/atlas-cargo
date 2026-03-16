@@ -305,18 +305,203 @@ const motoristaAppController = {
   },
 
   // ==========================================
-  // CADASTRO - Novo motorista (placeholder)
+  // CADASTRO - Novo motorista (app na rua)
+  // Recebe FormData: ddi, celular (ou ddd+numero), nome, paisDocumento, tipoDocumento, numeroDocumento,
+  // dataNascimento, nrCnh, categoriaCnh, validadeCnh, paisDestinoPref, estadoDestinoPref, cidadeDestinoPref, senha, documento (file).
+  // Cadastro fica inativo (FGACTIVE I) e pendente (STATUSAPROVACAO P) até completar/validar no Gerenciar Cadastro Geral.
   // ==========================================
   cadastro: async (req, res) => {
     try {
-      // TODO: Implementar cadastro completo
-      res.json({ 
-        success: false, 
-        message: 'Cadastro em desenvolvimento. Use o sistema web por enquanto.' 
+      const body = req.body || {};
+      const ddi = String(body.ddi || '').replace(/\D/g, '');
+      const ddd = String(body.ddd || '').replace(/\D/g, '');
+      const numero = String(body.celular || body.numero || '').replace(/\D/g, '');
+      const nome = (body.nome || '').trim();
+      const paisDocumento = (body.paisDocumento || body.pais || 'BR').toUpperCase().slice(0, 2);
+      const tipoDocumento = (body.tipoDocumento || (paisDocumento === 'BR' ? 'CPF' : 'CI')).toUpperCase();
+      const numeroDocumento = String(body.numeroDocumento || body.cpf || '').replace(/\D/g, '');
+      const senha = body.senha || '';
+      const nrCnh = (body.nrCnh || body.cnh || '').trim();
+      const categoriaCnh = (body.categoriaCnh || body.categoria || '').trim().slice(0, 5);
+      const validadeCnh = (body.validadeCnh || body.validade || '').trim();
+      const email = (body.email || '').trim() || null;
+      const fgRastreado = (body.fgRastreado || body.rastreado || 'N').toString().toUpperCase().slice(0, 1) === 'S' ? 'S' : 'N';
+      let locaisPreferidos = [];
+      try {
+        if (body.locaisPreferidos && typeof body.locaisPreferidos === 'string') locaisPreferidos = JSON.parse(body.locaisPreferidos);
+        else if (Array.isArray(body.locaisPreferidos)) locaisPreferidos = body.locaisPreferidos;
+      } catch (e) { locaisPreferidos = []; }
+      let classesFrota = [];
+      try {
+        if (body.classesFrota && typeof body.classesFrota === 'string') classesFrota = JSON.parse(body.classesFrota);
+        else if (Array.isArray(body.classesFrota)) classesFrota = body.classesFrota;
+      } catch (e) { classesFrota = []; }
+
+      if (!ddi || numero.length < 8) {
+        return res.status(400).json({ error: 'Celular obrigatório com DDI e número válido.', errorKey: 'cadastro.celularObrigatorio' });
+      }
+      if (!nome || nome.length < 2) {
+        return res.status(400).json({ error: 'Nome do motorista é obrigatório.', errorKey: 'cadastro.nomeObrigatorio' });
+      }
+      if (!numeroDocumento || numeroDocumento.length < 5) {
+        return res.status(400).json({ error: 'Documento (CPF/CI) é obrigatório.', errorKey: 'cadastro.documentoObrigatorio' });
+      }
+      if (!senha || senha.length < 6) {
+        return res.status(400).json({ error: 'Senha obrigatória com no mínimo 6 caracteres.', errorKey: 'cadastro.senhaObrigatoria' });
+      }
+
+      const tipoDoc = tipoDocumento === 'CPF' || paisDocumento === 'BR' ? 'F' : 'CI';
+      const validacao = validarDocumento(paisDocumento, tipoDoc, numeroDocumento);
+      if (!validacao.valido) {
+        return res.status(400).json({ error: validacao.mensagem || 'Documento inválido.', errorKey: 'cadastro.documentoInvalido' });
+      }
+
+      let numeroDocNormalizado = normalizarDocumento(paisDocumento, numeroDocumento);
+      if (paisDocumento === 'BR' && tipoDoc === 'F' && numeroDocNormalizado.length === 10) {
+        numeroDocNormalizado = '0' + numeroDocNormalizado;
+      }
+
+      const celularE164 = ddi + (ddd && paisDocumento === 'BR' ? ddd : '') + numero;
+      if (celularE164.length < 10) {
+        return res.status(400).json({ error: 'Número de celular inválido.', errorKey: 'cadastro.celularInvalido' });
+      }
+
+      const pool = await poolPromise;
+
+      const checkDup = await pool.query(
+        'SELECT "CDCADASTRO" FROM "CADASTROGERAL" WHERE "CGCCPF" = $1',
+        [numeroDocNormalizado]
+      );
+      if ((checkDup.rows || []).length > 0) {
+        return res.status(400).json({ error: 'Já existe um cadastro com este documento.', errorKey: 'cadastro.documentoDuplicado' });
+      }
+
+      const maxRes = await pool.query(
+        'SELECT COALESCE(MAX("CDCADASTRO")::numeric, 0) AS "maxId" FROM "CADASTROGERAL"'
+      );
+      const novoId = Number((maxRes.rows || [])[0]?.maxId ?? 0) + 1;
+
+      const senhaHash = await bcrypt.hash(senha, 10);
+
+      let fotoDocPath = null;
+      if (req.file && req.file.path) {
+        const path = require('path');
+        const nomeArquivo = `${novoId}_documento${path.extname(req.file.originalname) || '.jpg'}`;
+        const dir = require('path').join(__dirname, '..', 'public', 'uploads', 'motoristas');
+        const fs = require('fs');
+        fs.mkdirSync(dir, { recursive: true });
+        const dest = path.join(dir, nomeArquivo);
+        try {
+          fs.renameSync(req.file.path, dest);
+          fotoDocPath = '/uploads/motoristas/' + nomeArquivo;
+        } catch (e) {
+          try { fs.unlinkSync(req.file.path); } catch (_) {}
+        }
+      }
+
+      await pool.query(
+        `INSERT INTO "CADASTROGERAL" (
+          "CDCADASTRO", "CGCCPF", "RZSOCIAL", "NMFANTASIA", "FGFISICAJURIDICA",
+          "ENDERECO", "NRENDERECO", "COMPLEND", "BAIRRO",
+          "NRCELULAR", "ENDEMAIL", "FGACTIVE", "FGTIPOCADASTRO", "FGMOTORISTA",
+          "FGOPERADOR", "FGPROGRAMADOR", "FGTRANSPORTADOR", "FGAGENTE", "FGGRUPO", "FGCERTIFICADORA", "FGUNIDADENEGOCIO",
+          "FGRASTREADO", "PAIS", "DHMAINTENANCE", "SGUSER", "SERVERORIG"
+        ) VALUES ($1::bigint, $2::text, $3::text, $4::text, 'F', '', 0, NULL, '', $5::text, $6::text, 'I', 'M', 'S', 'N', 'N', 'N', 'N', 'N', 'N', 'N', $7::text, $8::text, CURRENT_TIMESTAMP, 'APP_MOTORISTA', 'AppMotorista')`,
+        [
+          novoId, numeroDocNormalizado, nome, nome, celularE164, email || null, fgRastreado, (paisDocumento && paisDocumento !== 'BR') ? paisDocumento : null
+        ]
+      );
+
+      const validadeDate = validadeCnh && /^\d{4}-\d{2}-\d{2}$/.test(validadeCnh)
+        ? validadeCnh
+        : (validadeCnh && /^\d{2}\/\d{2}\/\d{4}$/.test(validadeCnh))
+          ? validadeCnh.split('/').reverse().join('-')
+          : null;
+
+      const colsComp = ['"CDCADASTRO"', '"NRCNH"', '"CATEGORIACNH"', '"VALIDADECNH"', '"STATUSAPROVACAO"', '"SENHA"'];
+      const valsComp = ['$1::bigint', '$2::text', '$3::text', '$4::date', '$5::text', '$6::text'];
+      const paramsComp = [novoId, nrCnh || null, categoriaCnh || null, validadeDate, 'P', senhaHash];
+
+      let nextParam = 7;
+      if (fotoDocPath) {
+        colsComp.push('"FOTOCNH"');
+        valsComp.push(`$${nextParam}::text`);
+        paramsComp.push(fotoDocPath);
+        nextParam++;
+      }
+
+      await pool.query(
+        `INSERT INTO "MOTORISTA_COMPLEMENTO" (${colsComp.join(', ')}) VALUES (${valsComp.join(', ')})`,
+        paramsComp
+      );
+
+      // Locais preferidos (CADASTRO_LOCAL_PREFERIDO)
+      if (locaisPreferidos.length > 0) {
+        const seqResult = await pool.query(
+          `SELECT COALESCE(MAX("SEQUENCIA"), 0) AS "maxSeq" FROM "CADASTRO_LOCAL_PREFERIDO" WHERE "CDCADASTRO" = $1`,
+          [novoId]
+        );
+        let nextSeq = ((seqResult.rows || [])[0]?.maxSeq ?? 0) + 1;
+        for (const loc of locaisPreferidos) {
+          const tipo = (loc.TIPO && String(loc.TIPO).toUpperCase().trim()) === 'D' ? 'D' : 'E';
+          const pais = (loc.PAIS && String(loc.PAIS).trim()) ? String(loc.PAIS).trim().toUpperCase().substring(0, 2) : null;
+          if (!pais) continue;
+          const cduf = loc.CDUF != null && loc.CDUF !== '' ? parseInt(loc.CDUF, 10) : null;
+          const cdm = loc.CDMESOREGIAO != null && loc.CDMESOREGIAO !== '' ? parseInt(loc.CDMESOREGIAO, 10) : null;
+          await pool.query(
+            `INSERT INTO "CADASTRO_LOCAL_PREFERIDO" ("CDCADASTRO", "SEQUENCIA", "TIPO", "PAIS", "CDUF", "CDMESOREGIAO", "SGUSER")
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [novoId, nextSeq, tipo, pais, isNaN(cduf) ? null : cduf, isNaN(cdm) ? null : cdm, 'APP_MOTORISTA']
+          );
+          nextSeq++;
+        }
+      }
+
+      // Classes de frota (CLASSEFROTA_CG)
+      if (classesFrota.length > 0) {
+        for (const cdClasse of classesFrota) {
+          const idClasse = parseInt(cdClasse, 10);
+          if (isNaN(idClasse)) continue;
+          try {
+            await pool.query(
+              `INSERT INTO "CLASSEFROTA_CG" ("CDCADASTRO", "CDCLASSEFROTA", "FGACTIVE", "DHMAINTENANCE", "SGUSER", "SERVERORIG")
+               VALUES ($1, $2, 'S', CURRENT_TIMESTAMP, 'APP_MOTORISTA', 'AppMotorista')`,
+              [novoId, idClasse]
+            );
+          } catch (errClasse) {
+            if (errClasse.code !== '23505') console.warn('Erro ao inserir classe frota:', errClasse.message);
+          }
+        }
+      }
+
+      console.log('✅ [CADASTRO] Motorista criado:', novoId, nome, '- Pendente de aprovação');
+      res.status(201).json({
+        success: true,
+        message: 'Cadastro enviado com sucesso. Aguarde a validação e liberação pelo administrador.',
+        CDCADASTRO: novoId
       });
     } catch (err) {
       console.error('Erro no cadastro:', err);
-      res.status(500).json({ error: 'Erro ao cadastrar.', errorKey: 'cadastroErrors.erroCadastrar' });
+      res.status(500).json({ error: 'Erro ao cadastrar. Tente novamente.', errorKey: 'cadastroErrors.erroCadastrar' });
+    }
+  },
+
+  // Combo de classes de frota (PostgreSQL) para a tela de cadastro do app
+  listarClassesFrotaCombo: async (req, res) => {
+    try {
+      const pool = await poolPromise;
+      const result = await pool.query(
+        `SELECT "CDCLASSEFROTA", "DSCLASSEFROTA" FROM "CLASSEFROTA" WHERE "FGACTIVE" = 'A' ORDER BY "DSCLASSEFROTA"`
+      );
+      const rows = (result.rows || []).map(r => ({
+        CDCLASSEFROTA: r.CDCLASSEFROTA ?? r.cdclassefrota,
+        DSCLASSEFROTA: r.DSCLASSEFROTA ?? r.dsclassefrota
+      }));
+      res.json(rows);
+    } catch (err) {
+      if (err.code === '42P01') return res.json([]);
+      console.error('Erro ao listar classes de frota (combo):', err);
+      res.status(500).json({ error: 'Erro ao carregar classes de frota.' });
     }
   },
 
@@ -841,30 +1026,30 @@ const motoristaAppController = {
           [CDTIPOOCORRENCIA]
       `);
 
-      // Adicionar ícones para cada tipo
-      const macrosComIcones = result.recordset.map(macro => {
-        let icon = '📝';
-        
-        // Ícones por tipo de ocorrência
-        if (macro.CDTIPOOCORRENCIA === 103) icon = '🚚'; // Viagem - Início
-        else if (macro.CDTIPOOCORRENCIA === 104) icon = '🔄'; // Viagem - Reinício
-        else if (macro.CDTIPOOCORRENCIA === 151) icon = '📍'; // Carga - Chegada
-        else if (macro.CDTIPOOCORRENCIA === 109) icon = '📦'; // Carga - Início
-        else if (macro.CDTIPOOCORRENCIA === 110) icon = '✅'; // Carga - Fim
-        else if (macro.CDTIPOOCORRENCIA === 159) icon = '📍'; // Descarga - Chegada
-        else if (macro.CDTIPOOCORRENCIA === 192) icon = '📤'; // Descarga - Início
-        else if (macro.CDTIPOOCORRENCIA === 111) icon = '✅'; // Descarga - Fim
-        else if (macro.CDTIPOOCORRENCIA === 105) icon = '🍽️'; // Parada - Alimentação
-        else if (macro.CDTIPOOCORRENCIA === 106) icon = '⛽'; // Parada - Abastecimento
-        else if (macro.CDTIPOOCORRENCIA === 107) icon = '😴'; // Parada - Descanso
-        else if (macro.CDTIPOOCORRENCIA === 26) icon = '🚔'; // Retido - Fiscal
-        else if (macro.CDTIPOOCORRENCIA === 58) icon = '🔧'; // Parada - Manutenção
-        
-        return {
-          ...macro,
-          icon
-        };
-      });
+      // Ícones por FGSITUACAO + SEQ (compatível com códigos 1-14 e antigos)
+      const getIcon = (m) => {
+        const s = (m.FGSITUACAO || m.fgsituacao || '').toUpperCase();
+        const seq = m.SEQ != null ? m.SEQ : m.seq;
+        if (s === 'T') return seq === 2 ? '🔄' : '🚚';  // Reinício vs Início
+        if (s === 'F') return '🏁';
+        if (s === 'C') return seq === 1 ? '📍' : seq === 2 ? '📦' : '✅';  // Chegada / Início / Fim
+        if (s === 'D') return seq === 1 ? '📍' : seq === 2 ? '📤' : '✅';  // Chegada / Início / Fim
+        if (s === 'P') {
+          const desc = (m.DSTIPOOCORRENCIA || m.dstipocorrencia || '').toLowerCase();
+          if (desc.includes('abastecimento')) return '⛽';
+          if (desc.includes('alimentação') || desc.includes('banheiro')) return '🍽️';
+          if (desc.includes('manutenção')) return '🔧';
+          if (desc.includes('fiscal') || desc.includes('polícia') || desc.includes('retido')) return '🚔';
+          if (desc.includes('descanso') || desc.includes('pernoite')) return '😴';
+          return '⏸️';
+        }
+        return '📝';
+      };
+
+      const macrosComIcones = result.recordset.map(macro => ({
+        ...macro,
+        icon: getIcon(macro)
+      }));
 
       console.log(`✅ [MACROS] ${macrosComIcones.length} macros encontradas`);
 
@@ -977,6 +1162,26 @@ const motoristaAppController = {
 
       const pool = await poolPromise;
 
+      // Regra: motorista pode registrar macros enquanto a viagem não estiver Finalizada (F) ou Final de rota (E).
+      // Permitido: A (Aprovada), T (Em trânsito), P (Programada), M (Emissão docs), C (Carregamento/No embarcador), D (Descarga).
+      const situacaoViagemCheck = await pool
+        .request()
+        .input('idViagem', sql.Decimal(15, 0), parseFloat(idViagem))
+        .query(`
+          SELECT [FGSITVIAGEM] FROM [dbo].[VIAGEMMESTRE] WHERE [IDVIAGEM] = @idViagem
+        `);
+      const fgSitViagem = situacaoViagemCheck.recordset[0]?.FGSITVIAGEM ?? situacaoViagemCheck.recordset[0]?.fgsitviagem;
+      const fgNorm = fgSitViagem != null ? String(fgSitViagem).trim().toUpperCase() : '';
+      const fgBloqueio = ['F', 'E'].includes(fgNorm); // F=Finalizada, E=Final de rota
+      const fgPermitido = fgNorm && !fgBloqueio;
+      if (!fgPermitido) {
+        console.warn(`⚠️ [MACRO] Viagem ${idViagem} com FGSITVIAGEM="${fgSitViagem}" — não permitido registrar macros (viagem finalizada ou final de rota).`);
+        return res.status(403).json({
+          error: 'Situação da viagem não permite registrar macros',
+          message: 'Não é permitido registrar macros quando a viagem está finalizada ou em final de rota.'
+        });
+      }
+
       // VALIDAÇÃO DE DUPLICATAS: Verificar se já existe uma ocorrência idêntica nos últimos 5 segundos
       const duplicataCheck = await pool
         .request()
@@ -1044,6 +1249,33 @@ const motoristaAppController = {
             GETDATE()
           )
         `);
+
+      // Atualizar situação da viagem (Gerenciar Viagens) conforme TIPOOCORRENCIA.CDSITUACAOVIAGEM
+      const situacaoResult = await pool
+        .request()
+        .input('cdTipoOcorrencia', sql.SmallInt, parseInt(cdTipoOcorrencia))
+        .query(`
+          SELECT [CDSITUACAOVIAGEM]
+          FROM [dbo].[TIPOOCORRENCIA]
+          WHERE [CDTIPOOCORRENCIA] = @cdTipoOcorrencia
+        `);
+      const cdSituacaoViagem = situacaoResult.recordset[0]?.CDSITUACAOVIAGEM ?? situacaoResult.recordset[0]?.cdsituacaoviagem;
+      if (cdSituacaoViagem != null) {
+        await pool
+          .request()
+          .input('idViagem', sql.Decimal(15, 0), parseFloat(idViagem))
+          .input('CDSITUACAOVIAGEM', sql.SmallInt, cdSituacaoViagem)
+          .query(`
+            UPDATE [dbo].[VIAGEMMESTRE]
+            SET [CDSITUACAOVIAGEM] = @CDSITUACAOVIAGEM,
+                [FGSITVIAGEM] = COALESCE(
+                  (SELECT [FGSITVIAGEM] FROM [dbo].[SITUACAOVIAGEM] WHERE [CDSITUACAOVIAGEM] = @CDSITUACAOVIAGEM),
+                  [FGSITVIAGEM]
+                )
+            WHERE [IDVIAGEM] = @idViagem
+          `);
+        console.log(`   📌 Situação da viagem atualizada: CDSITUACAOVIAGEM=${cdSituacaoViagem} (FGSITVIAGEM via SITUACAOVIAGEM)`);
+      }
 
       // Também registrar na tabela VIAGEMRASTREAMENTO (rastreamento completo)
       const temGPS = latitude && longitude;
@@ -1223,7 +1455,7 @@ const motoristaAppController = {
           FROM [dbo].[VIAGEMOCORRENCIA] [VO]
           INNER JOIN [dbo].[TIPOOCORRENCIA] [T] ON [VO].[CDTIPOOCORRENCIA] = [T].[CDTIPOOCORRENCIA]
           WHERE [VO].[IDVIAGEM] = @idViagem
-          ORDER BY [VO].[DTOCORRENCIA] DESC
+          ORDER BY [VO].[DTOCORRENCIA] DESC, [VO].[IDVIAGEM_OCORRENCIA] DESC
         `);
 
       console.log(`✅ [HISTÓRICO] ${result.recordset.length} ocorrências encontradas`);

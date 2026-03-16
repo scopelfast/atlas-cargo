@@ -3,6 +3,7 @@
 <!-- Data: 2026-01-18 -->
 
 <link rel="stylesheet" href="/css/modulos.css">
+<link rel="stylesheet" href="/css/dark-mode.css">
 <style>
   /* ========== Alertas - Identidade Atlas Cargo ========== */
   .alertas-container {
@@ -28,6 +29,9 @@
     align-items: center;
     gap: 10px;
   }
+  .alertas-header h2 i {
+    color: inherit;
+  }
 
   .alertas-stats {
     display: flex;
@@ -37,7 +41,7 @@
 
   .stat-card {
     flex: 1;
-    background: white;
+    background: var(--white, #fff);
     border-radius: 8px;
     padding: 15px 20px;
     box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
@@ -76,7 +80,7 @@
   }
 
   .filtros-box {
-    background: white;
+    background: var(--white, #fff);
     border-radius: 12px;
     padding: 25px;
     box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
@@ -89,6 +93,9 @@
     color: var(--ac-primary, #0d2137);
     font-size: 18px;
     font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   .filtros-grid {
@@ -107,20 +114,21 @@
     display: block;
     margin-bottom: 8px;
     font-weight: 600;
-    color: #34495e;
+    color: var(--dark, #34495e);
     font-size: 14px;
   }
 
   .filtros-grid .form-control {
     width: 100%;
     padding: 12px;
-    border: 1px solid #dee2e6;
+    border: 1px solid var(--border, #dee2e6);
     border-radius: 8px;
     font-size: 16px;
     transition: all 0.3s;
     font-family: inherit;
     box-sizing: border-box;
-    background-color: #fff;
+    background-color: var(--white, #fff);
+    color: var(--dark, #1e293b);
   }
 
   .filtros-grid .form-control:focus {
@@ -129,40 +137,32 @@
     box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
   }
 
-  /* Wrapper para inputs de data - garante alinhamento correto */
+  /* Campos de data: mesmo padrão do Relatório de Convocações – ícone dentro do campo à direita */
   .filtros-grid .input-date-wrapper {
-    position: relative;
     display: flex;
     flex-direction: column;
   }
 
-  /* Estilização específica para inputs de data - seguindo padrão do sistema */
   .filtros-grid input[type="date"] {
-    color: #34495e;
-    background-color: #fff;
+    width: 100%;
+    box-sizing: border-box;
     cursor: pointer;
-    padding: 12px;
-    padding-right: 40px;
-    height: 44px;
+    padding: 12px 40px 12px 12px;
+    min-height: 44px;
     line-height: 1.5;
-    display: block;
-    vertical-align: middle;
+    color: var(--ac-primary, #34495e);
+    background-color: var(--white, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 8px;
+    font-size: 16px;
   }
 
-  /* Alinhamento correto do ícone de calendário (Chrome/Edge/Safari) */
   .filtros-grid input[type="date"]::-webkit-calendar-picker-indicator {
     cursor: pointer;
     opacity: 0.6;
-    padding: 0;
-    margin: 0;
-    margin-left: 8px;
+    margin-left: 4px;
     width: 20px;
     height: 20px;
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    background-size: contain;
   }
 
   .filtros-grid input[type="date"]::-webkit-calendar-picker-indicator:hover {
@@ -187,7 +187,7 @@
   }
 
   .alerta-card {
-    background: white;
+    background: var(--white, #fff);
     border-radius: 8px;
     padding: 20px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
@@ -323,7 +323,7 @@
   .empty-state {
     text-align: center;
     padding: 60px 20px;
-    background: white;
+    background: var(--white, #fff);
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   }
@@ -344,11 +344,11 @@
     font-size: 16px;
   }
 
-  /* Modal de Tratamento */
+  /* Modal de Tratamento (acima do menu do dashboard: z-index > 1014) */
   .modal-tratamento {
     display: none;
     position: fixed;
-    z-index: 1000;
+    z-index: 1050;
     left: 0;
     top: 0;
     width: 100%;
@@ -363,7 +363,7 @@
   }
 
   .modal-content-tratamento {
-    background: white;
+    background: var(--white, #fff);
     border-radius: 12px;
     padding: 30px;
     max-width: 600px;
@@ -386,6 +386,19 @@
     margin: 0;
     color: var(--ac-primary, #0d2137);
     font-size: 24px;
+  }
+
+  .modal-tratamento-title {
+    margin-bottom: 10px;
+    color: var(--ac-primary, #0d2137);
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .modal-tratamento-desc {
+    color: var(--gray, #64748b);
+    margin-bottom: 15px;
+    line-height: 1.5;
   }
 
   .close-modal {
@@ -453,9 +466,9 @@
 
   .pagination button {
     padding: 8px 16px;
-    border: 1px solid #dee2e6;
-    background: white;
-    color: #495057;
+    border: 1px solid var(--border, #dee2e6);
+    background: var(--white, #fff);
+    color: var(--dark, #495057);
     border-radius: 4px;
     cursor: pointer;
     font-weight: 600;
@@ -774,8 +787,8 @@
   <div class="alertas-header">
     <h2><i class='bx bx-bell'></i> <span data-i18n="web.modulos.alertas.titulo">Alertas do Sistema</span></h2>
     <div style="display: flex; gap: 10px; align-items: center;">
-      <button class="btn btn-info" onclick="mostrarAjuda()" title="Como funciona? Regras e instruções">
-        <i class='bx bx-help-circle'></i> <span data-i18n="web.modulos.alertas.ajuda">Ajuda</span>
+      <button type="button" class="btn btn-secondary" onclick="criarAlertaTeste()" title="Inserir um alerta de teste no banco para validar se a lista exibe">
+        <i class='bx bx-plus-circle'></i> Criar alerta de teste
       </button>
       <button id="btnToggleSomAlertas" class="btn" onclick="toggleSomNotificacaoAlertas()" title="Ativar/Desativar som de notificação" style="background: #28a745; color: white;">
         <i class='bx bx-volume-full'></i> <span data-i18n="web.modulos.alertas.som">Som</span>
@@ -899,21 +912,6 @@
 <div id="loadingOverlay" class="loading-overlay">
   <div class="spinner"></div>
   <p data-i18n="web.modulos.alertas.carregandoAlertas">Carregando alertas...</p>
-</div>
-
-<!-- Modal de Ajuda -->
-<div id="modalAjuda" class="modal-tratamento">
-  <div class="modal-content-tratamento" style="max-width: 800px;">
-    <div class="modal-header-tratamento">
-      <h3><i class='bx bx-help-circle'></i> <span data-i18n="web.modulos.alertas.comoFuncionam">Como Funcionam os Alertas</span></h3>
-      <button class="close-modal" onclick="fecharModalAjuda()">
-        <i class='bx bx-x'></i>
-      </button>
-    </div>
-    <div id="modalAjudaContent" style="max-height: 70vh; overflow-y: auto; padding-right: 10px;">
-      <!-- Conteúdo será preenchido dinamicamente -->
-    </div>
-  </div>
 </div>
 
 <script src="/modulos/alertas/js/script.js"></script>

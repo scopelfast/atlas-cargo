@@ -135,6 +135,11 @@ router.put('/cadastros-gerais/:id', cadastroController.atualizar);
 router.delete('/cadastros-gerais/:id', cadastroController.excluir);
 router.get('/cadastros-gerais/:id', cadastroController.buscarPorId);
 
+// Locais preferidos (lista registro a registro)
+router.get('/cadastros-gerais/:id/locais-preferidos', cadastroController.listarLocaisPreferidos);
+router.post('/cadastros-gerais/:id/locais-preferidos', cadastroController.adicionarLocalPreferido);
+router.delete('/cadastros-gerais/:id/locais-preferidos/:sequencia', cadastroController.excluirLocalPreferido);
+
 // Rotas de classes de frota para cadastro
 router.get('/cadastro-classes/:id', cadastroController.listarClassesParaCadastro);
 router.put('/cadastro-classes/:id', cadastroController.atualizarClassesParaCadastro);

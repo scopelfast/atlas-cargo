@@ -1,0 +1,26 @@
+-- Tabela: CADASTRO_LOCAL_PREFERIDO
+-- Lista de locais preferidos (origem/destino) por cadastro – registro a registro.
+-- País obrigatório; Estado e Mesorregião opcionais ou "Todos" (NULL).
+-- PostgreSQL
+
+CREATE TABLE IF NOT EXISTS "CADASTRO_LOCAL_PREFERIDO" (
+  "CDCADASTRO"     INT          NOT NULL,
+  "SEQUENCIA"      INT          NOT NULL,
+  "TIPO"           CHAR(1)      NOT NULL,
+  "PAIS"           VARCHAR(2)   NOT NULL,
+  "CDUF"           SMALLINT     NULL,
+  "CDMESOREGIAO"   SMALLINT     NULL,
+  "DHMAINTENANCE"  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+  "SGUSER"         VARCHAR(50)  NULL,
+  CONSTRAINT "PK_CADASTRO_LOCAL_PREFERIDO" PRIMARY KEY ("CDCADASTRO", "SEQUENCIA"),
+  CONSTRAINT "FK_CADASTRO_LOCAL_PREF_CADASTRO" FOREIGN KEY ("CDCADASTRO") REFERENCES "CADASTROGERAL" ("CDCADASTRO") ON DELETE CASCADE,
+  CONSTRAINT "CHK_TIPO_LOCAL_PREF" CHECK ("TIPO" IN ('E', 'D'))
+);
+
+COMMENT ON TABLE "CADASTRO_LOCAL_PREFERIDO" IS 'Locais preferidos (E=origem/embarque, D=destino/desembarque) por cadastro. Um registro por linha; país obrigatório; CDUF/CDMESOREGIAO NULL = Todos.';
+COMMENT ON COLUMN "CADASTRO_LOCAL_PREFERIDO"."TIPO" IS 'E = Origem (embarque), D = Destino (desembarque)';
+COMMENT ON COLUMN "CADASTRO_LOCAL_PREFERIDO"."PAIS" IS 'Sigla do país (BR, PY, AR, UY). Obrigatório.';
+COMMENT ON COLUMN "CADASTRO_LOCAL_PREFERIDO"."CDUF" IS 'Código UF (ESTADO). NULL = Todos os estados do país.';
+COMMENT ON COLUMN "CADASTRO_LOCAL_PREFERIDO"."CDMESOREGIAO" IS 'Código mesorregião (MESOREGIAO). NULL = Todas as mesorregiões do estado.';
+
+CREATE INDEX IF NOT EXISTS "IX_CADASTRO_LOCAL_PREF_CDCADASTRO" ON "CADASTRO_LOCAL_PREFERIDO" ("CDCADASTRO");

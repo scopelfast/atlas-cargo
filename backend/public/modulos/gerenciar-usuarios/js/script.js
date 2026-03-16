@@ -4,9 +4,8 @@
 // Atlas Cargo
 // i18n: helper t() e chaves web.modulos.usuarios
 
-const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
-
 (function() {
+  const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
   // Elementos
   const tabs = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
@@ -63,12 +62,14 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       overlay.style.display = 'none';
     }
   }
+  window.hideLoadingOverlayInitSQL = hideLoadingOverlayInitSQL;
 
   // Função para carregar e executar o arquivo init.sql
   async function executarInitSQL() {
     if (sqlExecutado) return;
     sqlExecutado = true;
     showLoadingOverlayInitSQL('Processando Inicialização', 'Carregando script de inicialização...', 'Aguarde enquanto preparamos o módulo.');
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     try {
       const response = await fetch('/modulos/gerenciar-usuarios/sql/init.sql');
       showLoadingOverlayInitSQL('Processando Inicialização', 'Executando comandos SQL...', 'Isso pode levar alguns segundos.');
@@ -182,6 +183,10 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       const gridEl = document.getElementById('usuariosGrid');
       if (gridEl) gridEl.innerHTML = '<p class="empty">Aplicar filtros para carregar o grid.</p>';
     });
+    document.getElementById('btnNovoRegistro')?.addEventListener('click', () => {
+      limparFormulario();
+      showTab('dados');
+    });
     document.getElementById('btnVoltarGrid')?.addEventListener('click', () => showTab('filtros'));
     document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
       limparFormulario();
@@ -244,17 +249,20 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     init();
   }
 
-  // Função para mudar abas (usa DOM atual para funcionar quando módulo é injetado)
+  // Função para mudar abas (escopo no container do módulo para não misturar Grid/Dados)
   async function showTab(tabId) {
     try {
-      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-
-      const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
       const tabContent = document.getElementById(`tab-${tabId}`);
-      
-      if (tabBtn) tabBtn.classList.add('active');
-      if (tabContent) tabContent.classList.add('active');
+      const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+      if (tabContent && tabBtn) {
+        const container = tabContent.closest('[class*="-container"]') || tabContent.parentElement;
+        if (container) {
+          container.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+          container.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        }
+        tabBtn.classList.add('active');
+        tabContent.classList.add('active');
+      }
 
       // Aguardar um frame para garantir que a mudança foi renderizada
       await new Promise(resolve => requestAnimationFrame(resolve));
@@ -383,73 +391,6 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     }
   }
 
-  // Carregar estatísticas iniciais
-
-  // Função para mostrar ajuda (PADRÃO ÚNICO)
-  function mostrarAjudaUsuarios() {
-    // Remover qualquer modal de ajuda existente primeiro
-    const modalExistente = document.getElementById('modalAjudaUsuarios');
-    if (modalExistente) {
-      modalExistente.remove();
-    }
-    
-    // Criar modal de ajuda com padrão único
-    const modal = document.createElement('div');
-    modal.id = 'modalAjudaUsuarios';
-    modal.className = 'modal-tratamento';
-    modal.style.display = 'flex';
-    modal.innerHTML = `
-      <div class="modal-content-tratamento">
-        <div class="modal-header-tratamento">
-          <h3><i class='bx bx-help-circle'></i> Ajuda - Gerenciar Usuários</h3>
-          <button onclick="window.fecharModalAjudaUsuarios()" class="btn-close-modal" type="button">
-            <i class='bx bx-x'></i>
-          </button>
-        </div>
-        <div class="modal-body-tratamento">
-          <h4>📋 Sobre o Módulo</h4>
-          <p>O módulo <strong>Gerenciar Usuários</strong> permite gerenciar todos os usuários do sistema, incluindo suas permissões, empresas e filiais associadas.</p>
-          
-          <h4>🔍 Filtros</h4>
-          <p>Use os filtros para buscar usuários por login, nome, email, código de cadastro, situação ou empresa.</p>
-          
-          <h4>📝 Funcionalidades</h4>
-          <ul>
-            <li><strong>Filtros:</strong> Buscar e filtrar usuários</li>
-            <li><strong>Grid:</strong> Visualizar usuários em formato de tabela editável</li>
-            <li><strong>Dados:</strong> Criar e editar usuários, definindo login, nome, email, senha e situação</li>
-            <li><strong>Acessos:</strong> Gerencie permissões, empresas e filiais de cada usuário</li>
-          </ul>
-          
-          <h4>🔐 Segurança</h4>
-          <ul>
-            <li>As senhas são obrigatórias e devem seguir as políticas de segurança do sistema</li>
-            <li>Apenas usuários com permissão adequada podem criar, editar ou desativar usuários</li>
-          </ul>
-        </div>
-        <div class="modal-footer-tratamento">
-          <button onclick="window.fecharModalAjudaUsuarios()" class="btn btn-secondary">
-            <i class='bx bx-x'></i> Fechar
-          </button>
-        </div>
-      </div>
-    `;
-    
-    document.body.appendChild(modal);
-  }
-
-  // Função para fechar modal de ajuda
-  function fecharModalAjudaUsuarios() {
-    const modal = document.getElementById('modalAjudaUsuarios');
-    if (modal) {
-      modal.remove();
-    }
-  }
-
-  // Expor função globalmente
-  window.mostrarAjudaUsuarios = mostrarAjudaUsuarios;
-  window.fecharModalAjudaUsuarios = fecharModalAjudaUsuarios;
-
   // Inicializar grid
   function inicializarGridTab() {
     if (typeof window.GridEditor === 'undefined') {
@@ -548,6 +489,10 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       const response = await fetch(`/api/usuarios/${login}`, { headers: getAuthHeaders() });
       const usuario = await response.json();
 
+      // Mostrar aba Dados antes de preencher (padrão Filiais/Tipos Atividade)
+      document.getElementById('formTitle').textContent = t('web.modulos.usuarios.editarUsuario');
+      await showTab('dados');
+
       // Armazenar o login do usuário sendo editado
       usuarioEmEdicao = usuario.SGUSUARIO;
 
@@ -581,9 +526,6 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       document.getElementById('usuarioSituacao').value = usuario.FGACTIVE || 'S';
       document.getElementById('usuarioSenha').required = false;
       document.getElementById('usuarioSenha').placeholder = 'Deixe em branco para manter a senha atual';
-
-      document.getElementById('formTitle').textContent = t('web.modulos.usuarios.editarUsuario');
-      showTab('dados');
     } catch (err) {
       showMessage(t('web.modulos.usuarios.erroCarregarDados'), 'error');
     }
@@ -791,10 +733,14 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
       const result = await response.json();
 
       if (response.ok) {
-        showMessage(result.message || 'Usuário salvo com sucesso!', 'success');
+        if (typeof window.showMessage !== 'undefined') {
+          window.showMessage(result.message || 'Usuário salvo com sucesso!', 'success');
+        } else {
+          showMessage(result.message || 'Usuário salvo com sucesso!', 'success');
+        }
         limparFormulario();
-        await applyFilters('grid');
         showTab('grid');
+        await applyFilters('grid');
       } else {
         showMessage(result.error || t('web.modulos.usuarios.erroSalvar'), 'error');
       }
@@ -824,53 +770,52 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     document.getElementById('formTitle').textContent = t('web.modulos.usuarios.novoUsuario');
   }
 
-  // Confirmar exclusão
+  // Confirmar exclusão (padrão: modal no topo, botões Desativar/Reativar e Cancelar)
   async function confirmarExclusao(login) {
     const estaAtivo = lastUsuarios?.find(u => u.SGUSUARIO === login)?.FGACTIVE === 'S';
-    document.getElementById('modalMessage').textContent = 
-      estaAtivo 
-        ? `Tem certeza que deseja desativar o usuário "${login}"?` 
-        : `Tem certeza que deseja reativar o usuário "${login}"?`;
-    
-    modal.style.display = 'flex';
-    
+    const modalMessage = document.getElementById('modalMessage');
+    const confirmYes = document.getElementById('confirmYes');
+    const confirmNo = document.getElementById('confirmNo');
+    if (!modalMessage || !confirmYes || !confirmNo) {
+      const msg = estaAtivo ? `Tem certeza que deseja desativar o usuário "${login}"?` : `Tem certeza que deseja reativar o usuário "${login}"?`;
+      if (window.confirm(msg)) {
+        const action = estaAtivo ? 'deactivate' : 'activate';
+        const response = await fetch(`/api/usuarios/${login}?action=${action}`, { method: 'DELETE', headers: getAuthHeaders() });
+        const result = await response.json();
+        if (response.ok) { showMessage(result.message, 'success'); await applyFilters('grid'); }
+        else { showMessage(result.error || 'Erro ao alterar status.', 'error'); }
+      }
+      return;
+    }
+    modalMessage.textContent = estaAtivo
+      ? `Tem certeza que deseja desativar o usuário "${login}"?`
+      : `Tem certeza que deseja reativar o usuário "${login}"?`;
+    const btnText = estaAtivo ? 'Desativar' : 'Reativar';
+    const newYes = confirmYes.cloneNode(true);
+    const newNo = confirmNo.cloneNode(true);
+    newYes.className = 'btn-filtro btn-filtro-danger';
+    newYes.innerHTML = '<i class="bx bx-check"></i> ' + btnText;
+    newNo.className = 'btn-filtro btn-filtro-limpar';
+    newNo.innerHTML = '<i class="bx bx-x"></i> Cancelar';
+    if (confirmYes.parentNode) confirmYes.parentNode.replaceChild(newYes, confirmYes);
+    if (confirmNo.parentNode) confirmNo.parentNode.replaceChild(newNo, confirmNo);
+
+    modal.style.display = 'block';
     return new Promise((resolve) => {
-      const confirmYes = document.getElementById('confirmYes');
-      const confirmNo = document.getElementById('confirmNo');
-      
       const handlerYes = async () => {
         try {
           const action = estaAtivo ? 'deactivate' : 'activate';
-          const response = await fetch(`/api/usuarios/${login}?action=${action}`, {
-            method: 'DELETE',
-            headers: getAuthHeaders()
-          });
+          const response = await fetch(`/api/usuarios/${login}?action=${action}`, { method: 'DELETE', headers: getAuthHeaders() });
           const result = await response.json();
-          
-          if (response.ok) {
-            showMessage(result.message, 'success');
-            await applyFilters('grid');
-          } else {
-            showMessage(result.error || 'Erro ao alterar status.', 'error');
-          }
-        } catch (err) {
-          showMessage('Erro ao alterar status do usuário.', 'error');
-        }
+          if (response.ok) { showMessage(result.message, 'success'); await applyFilters('grid'); }
+          else { showMessage(result.error || 'Erro ao alterar status.', 'error'); }
+        } catch (err) { showMessage('Erro ao alterar status do usuário.', 'error'); }
         modal.style.display = 'none';
-        confirmYes.removeEventListener('click', handlerYes);
-        confirmNo.removeEventListener('click', handlerNo);
         resolve();
       };
-      
-      const handlerNo = () => {
-        modal.style.display = 'none';
-        confirmYes.removeEventListener('click', handlerYes);
-        confirmNo.removeEventListener('click', handlerNo);
-        resolve();
-      };
-      
-      confirmYes.addEventListener('click', handlerYes, { once: true });
-      confirmNo.addEventListener('click', handlerNo, { once: true });
+      const handlerNo = () => { modal.style.display = 'none'; resolve(); };
+      newYes.addEventListener('click', handlerYes, { once: true });
+      newNo.addEventListener('click', handlerNo, { once: true });
     });
   }
 
@@ -1601,14 +1546,6 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
   document.getElementById('btnSalvarAcessos')?.addEventListener('click', salvarAtividades);
   document.getElementById('btnCancelarAcessos')?.addEventListener('click', () => {
     limparDadosAcessos();
-  });
-
-  // Fechar modal de ajuda ao clicar fora
-  document.addEventListener('click', (e) => {
-    const modal = document.getElementById('modalAjudaUsuarios');
-    if (modal && e.target === modal) {
-      fecharModalAjudaUsuarios();
-    }
   });
 
 })();

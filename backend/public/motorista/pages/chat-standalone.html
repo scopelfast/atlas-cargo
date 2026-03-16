@@ -366,6 +366,20 @@
           .then(function(data) {
             var list = (data && data.messages) ? data.messages : [];
             render(list);
+            
+            // Marcar como lidas
+            if (idMotorista) {
+              fetch(baseUrl + '/api/messages/marcar-lidas', {
+                method: 'PUT',
+                headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  idviagem: idViagem,
+                  userId: idMotorista,
+                  userType: 'driver'
+                })
+              }).catch(function(e) { console.warn('Erro ao marcar lidas', e); });
+            }
+
             // Garantir rolar até o fim após carregar (e após layout)
             var chatContainer = document.getElementById('chatMessages');
             if (chatContainer) {

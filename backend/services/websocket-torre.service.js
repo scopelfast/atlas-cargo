@@ -151,6 +151,34 @@ class WebSocketTorreService {
   }
 
   /**
+   * Emitir alerta marcado como lido (módulo Alertas do Sistema)
+   * @param {number} idAlerta - ID do alerta
+   */
+  emitirAlertaLido(idAlerta) {
+    if (!this.io) return;
+    this.io.emit('alerta:lido', { id: idAlerta, timestamp: new Date().toISOString() });
+  }
+
+  /**
+   * Emitir alerta tratado (status alterado)
+   * @param {number} idAlerta - ID do alerta
+   * @param {string} status - Novo status
+   */
+  emitirAlertaTratado(idAlerta, status) {
+    if (!this.io) return;
+    this.io.emit('alerta:tratado', { id: idAlerta, status, timestamp: new Date().toISOString() });
+  }
+
+  /**
+   * Emitir alerta cancelado
+   * @param {number} idAlerta - ID do alerta
+   */
+  emitirAlertaCancelado(idAlerta) {
+    if (!this.io) return;
+    this.io.emit('alerta:cancelado', { id: idAlerta, timestamp: new Date().toISOString() });
+  }
+
+  /**
    * Emitir nova mensagem de chat
    * @param {object} mensagem - Dados da mensagem
    */

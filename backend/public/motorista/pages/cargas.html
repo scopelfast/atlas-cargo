@@ -181,8 +181,10 @@
 
         const linkMaps = `https://www.google.com/maps/search/${encodeURIComponent(origem)}`;
         
-        const linkWhatsApp = c.CONTRATADOR_CELULAR 
-          ? `https://wa.me/55${c.CONTRATADOR_CELULAR.toString().replace(/\D/g, '')}`
+        let numCont = (c.CONTRATADOR_CELULAR || '').toString().replace(/\D/g, '');
+        if (numCont.startsWith('0')) numCont = numCont.substring(1);
+        const linkWhatsApp = numCont.length >= 10
+          ? `https://wa.me/${numCont.length >= 12 ? numCont : '55' + numCont}`
           : null;
 
         return `

@@ -5,29 +5,38 @@
 // Data: 2026-04-05
 // Última atualização: 2026-01-XX (Correção definitiva overlayMostrado)
 // i18n: helper t() e chaves web.modulos.viagens
+// Tudo dentro do IIFE para evitar "Identifier 't' has already been declared" ao recarregar o módulo.
 
-const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
+(function() {
+  const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
 
-// Flag global para controlar se o overlay está visível
-// Declarada no escopo global usando window para evitar erro de redeclaração
-// se o script for carregado múltiplas vezes
-if (typeof window.overlayMostrado === 'undefined') {
-  window.overlayMostrado = false;
-}
-
-// Função helper para obter o estado do overlay (opcional, mas útil para debug)
-function getOverlayMostrado() {
+  // Flag global para controlar se o overlay está visível
   if (typeof window.overlayMostrado === 'undefined') {
     window.overlayMostrado = false;
   }
-  return window.overlayMostrado;
-}
+  function getOverlayMostrado() {
+    if (typeof window.overlayMostrado === 'undefined') {
+      window.overlayMostrado = false;
+    }
+    return window.overlayMostrado;
+  }
 
-(function() {
   // Debug: ative no console com window.__DEBUG_VIAGENS__ = true para ver logs deste módulo
   if (typeof window.__DEBUG_VIAGENS__ === 'undefined') window.__DEBUG_VIAGENS__ = false;
   const _log = (...a) => { if (window.__DEBUG_VIAGENS__) console.log(...a); };
   const _info = (...a) => { if (window.__DEBUG_VIAGENS__) console.info(...a); };
+
+  /** Headers de autenticação para APIs (token + user-login para auditoria). */
+  function getAuthHeaders(extra = {}) {
+    const headers = { ...extra };
+    const token = localStorage.getItem('token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      if (user && (user.login || user.SGUSUARIO)) headers['user-login'] = user.login || user.SGUSUARIO;
+    } catch (e) {}
+    return headers;
+  }
 
   // Elementos
   const tabs = document.querySelectorAll('.tab-btn');
@@ -39,6 +48,7 @@ function getOverlayMostrado() {
   const modal = document.getElementById('confirmModal');
   
   let estadosCarregados = false;
+  let preenchendoFromRoteiro = false;
   let cidadesOrigem = [];
   let cidadesDestino = [];
   let roteirosCache = [];
@@ -232,6 +242,51 @@ function getOverlayMostrado() {
       }
       primeiraCarga = false; // Marcar que não é mais a primeira carga
     }
+
+    // Aplicar dark mode na aba Macros (forçar fundo escuro; CSS às vezes não vence inline/ordem)
+    aplicarDarkModeMacros();
+  }
+
+  /** Força estilos de dark mode na aba Macros (barra ID Viagem/Total + lista/tabela) quando tema for dark */
+  function aplicarDarkModeMacros() {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark' || document.body.getAttribute('data-theme') === 'dark';
+    const statsBox = document.getElementById('macrosStatsBox');
+    const listaBox = document.getElementById('macrosLista');
+    if (isDark) {
+      if (statsBox) {
+        statsBox.style.setProperty('background', '#0f172a', 'important');
+        statsBox.style.setProperty('border-color', '#334155', 'important');
+        statsBox.style.setProperty('color', '#e2e8f0', 'important');
+        statsBox.querySelectorAll('strong, span').forEach(el => {
+          el.style.setProperty('color', '#e2e8f0', 'important');
+        });
+        const succ = statsBox.querySelector('.text-success'); if (succ) succ.style.setProperty('color', '#4ade80', 'important');
+        const dang = statsBox.querySelector('.text-danger'); if (dang) dang.style.setProperty('color', '#f87171', 'important');
+      }
+      if (listaBox) {
+        listaBox.style.setProperty('background', '#1e293b', 'important');
+        listaBox.style.setProperty('border-color', '#334155', 'important');
+        listaBox.querySelectorAll('.macros-table').forEach(tbl => {
+          tbl.style.setProperty('background', '#1e293b', 'important');
+          tbl.querySelectorAll('thead tr, thead th').forEach(el => { el.style.setProperty('background', '#0f172a', 'important'); el.style.setProperty('color', '#f1f5f9', 'important'); });
+          tbl.querySelectorAll('tbody tr').forEach(tr => { tr.style.setProperty('background', '#1e293b', 'important'); });
+          tbl.querySelectorAll('tbody td').forEach(td => { td.style.setProperty('background', '#1e293b', 'important'); td.style.setProperty('color', '#e2e8f0', 'important'); });
+        });
+        Array.from(listaBox.children).filter(el => el.tagName === 'DIV').forEach(div => { div.style.setProperty('color', '#94a3b8', 'important'); });
+      }
+    } else {
+      if (statsBox) {
+        statsBox.style.removeProperty('background'); statsBox.style.removeProperty('border-color'); statsBox.style.removeProperty('color');
+        statsBox.querySelectorAll('strong, span').forEach(el => { el.style.removeProperty('color'); });
+        const succ = statsBox.querySelector('.text-success'); if (succ) succ.style.removeProperty('color');
+        const dang = statsBox.querySelector('.text-danger'); if (dang) dang.style.removeProperty('color');
+      }
+      if (listaBox) {
+        listaBox.style.removeProperty('background'); listaBox.style.removeProperty('border-color');
+        listaBox.querySelectorAll('.macros-table thead tr, .macros-table thead th, .macros-table tbody tr, .macros-table tbody td').forEach(el => { el.style.removeProperty('background'); el.style.removeProperty('color'); });
+        Array.from(listaBox.children).filter(el => el.tagName === 'DIV').forEach(div => { div.style.removeProperty('color'); });
+      }
+    }
   }
 
   // Função para preencher valores padrão dos filtros
@@ -328,8 +383,9 @@ function getOverlayMostrado() {
     // Marcar como executando IMEDIATAMENTE para evitar execuções simultâneas
     sqlExecutado = true;
     
-    // Mostrar overlay de carregamento
+    // Mostrar overlay de carregamento (padrão Gerenciar Cidades)
     showLoadingOverlayInitSQL('Processando Inicialização', 'Carregando script de inicialização...', 'Aguarde enquanto preparamos o módulo.');
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     
     try {
       // Carregar o arquivo init.sql
@@ -703,20 +759,28 @@ function getOverlayMostrado() {
         }
       }
       
-      // Primeiro, mudar a aba imediatamente
-      tabs.forEach(btn => btn.classList.remove('active'));
-      tabContents.forEach(content => {
-        content.classList.remove('active');
-      });
-      
-      const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+      // Primeiro, mudar a aba imediatamente (escopo no container do módulo)
       const tabContent = document.getElementById(`tab-${tabId}`);
-      
-      if (tabBtn) {
+      const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+      if (tabContent && tabBtn) {
+        // Usar sempre .viagens-container para garantir que TODOS os tab-content são ocultados
+        // (evita que aba Integração Switch apareça nas outras quando o container vinha diferente)
+        const container = document.querySelector('.viagens-container') || tabContent.closest('[class*="-container"]') || tabContent.parentElement;
+        if (container) {
+          container.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+          container.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.remove('active');
+            content.style.setProperty('display', 'none', 'important');
+          });
+        }
         tabBtn.classList.add('active');
-      }
-      if (tabContent) {
         tabContent.classList.add('active');
+        tabContent.style.setProperty('display', 'block', 'important');
+        // Garantir que Integração Switch e Macros fiquem ocultas quando não forem a aba ativa
+        const tabSwitch = document.getElementById('tab-integracao-switch');
+        if (tabSwitch && tabId !== 'integracao-switch') tabSwitch.style.setProperty('display', 'none', 'important');
+        const tabMacros = document.getElementById('tab-macros');
+        if (tabMacros && tabId !== 'macros') tabMacros.style.setProperty('display', 'none', 'important');
       }
       
       // Aguardar um frame para garantir que a mudança foi renderizada
@@ -803,8 +867,8 @@ function getOverlayMostrado() {
 
       // Abas Alertas, Chat, SOS e Ranking foram removidas - movidas para módulos separados
 
-      // Se for a aba Integração Meta, verificar se há viagem selecionada antes de carregar logs
-      if (tabId === 'integracao-meta') {
+      // Se for a aba Switch Digital, verificar se há viagem selecionada antes de carregar logs
+      if (tabId === 'integracao-switch') {
         setTimeout(() => {
           // Verificar se há viagem selecionada
           const idViagem = document.getElementById('filtroIdViagem')?.value || 
@@ -813,23 +877,23 @@ function getOverlayMostrado() {
           
           if (!idViagem || idViagem.trim() === '') {
             // Não há viagem selecionada - mostrar mensagem
-            const container = document.getElementById('logsIntegracaoMeta');
+            const container = document.getElementById('logsIntegracaoSwitch');
             if (container) {
               container.innerHTML = `
                 <div style="color: #856404; text-align: center; padding: 40px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px;">
                   <div style="font-size: 48px; margin-bottom: 15px;"><i class="bx bx-error-circle" style="color: #856404;"></i></div>
                   <h3 style="color: #856404; margin-bottom: 10px;">Nenhuma viagem selecionada</h3>
                   <p style="color: #856404; margin: 0;">
-                    Selecione uma viagem na aba <strong>Dados</strong> ou <strong>Grid</strong> para visualizar os logs de integração Meta.
+                    Selecione uma viagem na aba <strong>Dados</strong> ou <strong>Grid</strong> para visualizar os logs de envio.
                   </p>
                 </div>
               `;
             }
             // Limpar contadores
-            const totalEnviosEl = document.getElementById('totalEnviosMeta');
-            const totalSucessosEl = document.getElementById('totalSucessosMeta');
-            const totalErrosEl = document.getElementById('totalErrosMeta');
-            const ultimaAtualizacaoEl = document.getElementById('ultimaAtualizacaoMeta');
+            const totalEnviosEl = document.getElementById('totalEnviosSwitch');
+            const totalSucessosEl = document.getElementById('totalSucessosSwitch');
+            const totalErrosEl = document.getElementById('totalErrosSwitch');
+            const ultimaAtualizacaoEl = document.getElementById('ultimaAtualizacaoSwitch');
             if (totalEnviosEl) totalEnviosEl.textContent = '0';
             if (totalSucessosEl) totalSucessosEl.textContent = '0';
             if (totalErrosEl) totalErrosEl.textContent = '0';
@@ -838,15 +902,15 @@ function getOverlayMostrado() {
           }
           
           // Há viagem selecionada - carregar logs
-          const tabContent = document.getElementById('tab-integracao-meta');
+          const tabContent = document.getElementById('tab-integracao-switch');
           if (tabContent && tabContent.classList.contains('active')) {
-            if (typeof window.carregarLogsMeta === 'function') {
-              window.carregarLogsMeta();
+            if (typeof window.carregarLogsSwitch === 'function') {
+              window.carregarLogsSwitch();
             }
           } else {
             setTimeout(() => {
-              if (typeof window.carregarLogsMeta === 'function') {
-                window.carregarLogsMeta();
+              if (typeof window.carregarLogsSwitch === 'function') {
+                window.carregarLogsSwitch();
               }
             }, 300);
           }
@@ -866,24 +930,34 @@ function getOverlayMostrado() {
         }, 100);
       }
 
-      // Se for a aba Macros, inicializar
+      // Se for a aba Macros, inicializar e forçar dark mode na barra/tabela
       if (tabId === 'macros') {
         setTimeout(() => {
+          if (typeof aplicarDarkModeMacros === 'function') aplicarDarkModeMacros();
           carregarMacrosViagem();
         }, 100);
       }
     } catch (err) {
       // Erro silencioso ao mudar aba - forçar mudança mesmo em caso de erro
       try {
-        tabs.forEach(btn => btn.classList.remove('active'));
-        tabContents.forEach(content => {
-          content.classList.remove('active');
-        });
-        const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
         const tabContent = document.getElementById(`tab-${tabId}`);
-        if (tabBtn) tabBtn.classList.add('active');
-        if (tabContent) {
+        const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+        if (tabContent && tabBtn) {
+          const container = document.querySelector('.viagens-container') || tabContent.closest('[class*="-container"]') || tabContent.parentElement;
+          if (container) {
+            container.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            container.querySelectorAll('.tab-content').forEach(content => {
+              content.classList.remove('active');
+              content.style.setProperty('display', 'none', 'important');
+            });
+          }
+          tabBtn.classList.add('active');
           tabContent.classList.add('active');
+          tabContent.style.setProperty('display', 'block', 'important');
+          const tabSwitch = document.getElementById('tab-integracao-switch');
+          if (tabSwitch && tabId !== 'integracao-switch') tabSwitch.style.setProperty('display', 'none', 'important');
+          const tabMacros = document.getElementById('tab-macros');
+          if (tabMacros && tabId !== 'macros') tabMacros.style.setProperty('display', 'none', 'important');
         }
       } catch (forceErr) {
         console.error('[Viagens] Erro ao forçar mudança de aba:', forceErr);
@@ -1048,8 +1122,8 @@ function getOverlayMostrado() {
     gridTab = new window.GridEditor({
       container: '#viagensGrid',
       columns: [
-        { field: 'IDVIAGEM', header: 'ID', editable: false, isId: true, width: '100px' },
-        { field: 'FGSITVIAGEM_NOME', header: 'Situação Viagem', editable: true, type: 'select', width: '160px',
+        { field: 'IDVIAGEM', header: 'ID', editable: false, isId: true, width: '70px' },
+        { field: 'FGSITVIAGEM_NOME', header: 'Situação', editable: true, type: 'select', width: '110px',
           options: [
             { value: 'Aprovada', label: 'Aprovada' },
             { value: 'Cancelada', label: 'Cancelada' },
@@ -1061,38 +1135,30 @@ function getOverlayMostrado() {
             { value: 'Em trânsito', label: 'Em trânsito' }
           ]
         },
-        { field: 'DSTIPOVIAGEM', header: 'Tipo Viagem', editable: false, width: '180px' },
-        { field: 'DSROTEIRO', header: 'Roteiro', editable: false, width: '220px' },
-        { field: 'CONTRATADOR_NOME', header: 'Contratador', editable: false, width: '240px' },
-        { field: 'DSCLASSEFROTA', header: 'Classe Frota', editable: false, width: '180px' },
+        { field: 'DSTIPOVIAGEM', header: 'Tipo', editable: false, width: '100px' },
+        { field: 'DSROTEIRO', header: 'Roteiro', editable: false, width: '160px' },
+        { field: 'CONTRATADOR_NOME', header: 'Contratador', editable: false, width: '130px' },
+        { field: 'DSCLASSEFROTA', header: 'Classe Frota', editable: false, width: '100px' },
         { 
           field: 'DTPREVINICIO', 
           header: 'Data Início', 
           editable: true, 
           type: 'datetime-local', 
-          width: '170px',
+          width: '130px',
           format: (val) => {
             if (!val) return '';
-            
-            // Parsear string diretamente sem conversão de fuso horário
             let str = String(val).trim();
-            str = str.replace(/\.\d{3}/, ''); // Remover milissegundos
-            
+            str = str.replace(/\.\d{3}/, '');
             const match = str.match(/(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}):(\d{2}):?(\d{2})?/);
             if (match) {
               const [, year, month, day, hours, minutes] = match;
               return `${day}/${month}/${year} ${hours}:${minutes}`;
             }
-            
-            // Fallback
             const date = new Date(val);
             if (isNaN(date.getTime())) return val;
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            const hours = String(date.getHours()).padStart(2, '0');
-            const minutes = String(date.getMinutes()).padStart(2, '0');
-            return `${day}/${month}/${year} ${hours}:${minutes}`;
+            const y = date.getFullYear(), m = String(date.getMonth() + 1).padStart(2, '0'), d = String(date.getDate()).padStart(2, '0');
+            const h = String(date.getHours()).padStart(2, '0'), min = String(date.getMinutes()).padStart(2, '0');
+            return `${d}/${m}/${y} ${h}:${min}`;
           }
         },
         { 
@@ -1100,74 +1166,28 @@ function getOverlayMostrado() {
           header: 'Data Fim', 
           editable: true, 
           type: 'datetime-local', 
-          width: '170px',
+          width: '130px',
           format: (val) => {
             if (!val) return '';
-            
-            // Parsear string diretamente sem conversão de fuso horário
             let str = String(val).trim();
-            str = str.replace(/\.\d{3}/, ''); // Remover milissegundos
-            
+            str = str.replace(/\.\d{3}/, '');
             const match = str.match(/(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}):(\d{2}):?(\d{2})?/);
             if (match) {
               const [, year, month, day, hours, minutes] = match;
               return `${day}/${month}/${year} ${hours}:${minutes}`;
             }
-            
-            // Fallback
             const date = new Date(val);
             if (isNaN(date.getTime())) return val;
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-            const hours = String(date.getHours()).padStart(2, '0');
-            const minutes = String(date.getMinutes()).padStart(2, '0');
-            return `${day}/${month}/${year} ${hours}:${minutes}`;
-          }
-        },
-        { 
-          field: 'QTD_ACIONADOS', 
-          header: '<i class="bx bx-megaphone" style="font-size:1.1rem;" title="Ação"></i>', 
-          editable: false, 
-          width: '60px',
-          format: (val) => val || 0
-        },
-        { 
-          field: 'QTD_ACEITE', 
-          header: '<i class="bx bx-check-circle" style="font-size:1.1rem; color:#28a745;" title="Aceite"></i>', 
-          editable: false, 
-          width: '60px',
-          format: (val) => {
-            const qtd = val || 0;
-            return qtd > 0 ? `<span style="color: #28a745; font-weight: 600;">${qtd}</span>` : '0';
-          }
-        },
-        { 
-          field: 'QTD_RECUSA', 
-          header: '<i class="bx bx-x-circle" style="font-size:1.1rem; color:#dc3545;" title="Recusa"></i>', 
-          editable: false, 
-          width: '60px',
-          format: (val) => {
-            const qtd = val || 0;
-            return qtd > 0 ? `<span style="color: #dc3545; font-weight: 600;">${qtd}</span>` : '0';
-          }
-        },
-        { 
-          field: 'TEM_CONFIRMADO', 
-          header: '<i class="bx bx-check" style="font-size:1.1rem; color:#28a745;" title="Confirmado"></i>', 
-          editable: false, 
-          width: '60px',
-          format: (val) => {
-            return val === 'S' 
-              ? '<span style="color: #28a745; font-weight: 700;"><i class="bx bx-check" style="font-size:1em; vertical-align: middle;"></i> SIM</span>' 
-              : '<span style="color: #999;">NÃO</span>';
+            const y = date.getFullYear(), m = String(date.getMonth() + 1).padStart(2, '0'), d = String(date.getDate()).padStart(2, '0');
+            const h = String(date.getHours()).padStart(2, '0'), min = String(date.getMinutes()).padStart(2, '0');
+            return `${d}/${m}/${y} ${h}:${min}`;
           }
         },
         { 
           field: 'QTD_COMPROVANTES', 
-          header: '<i class="bx bx-camera" style="font-size:1.1rem;"></i> POD', 
+          header: 'POD', 
           editable: false, 
-          width: '70px',
+          width: '56px',
           title: 'Comprovante(s) de entrega (POD)',
           format: (val) => {
             const qtd = Number(val) || 0;
@@ -1361,15 +1381,63 @@ function getOverlayMostrado() {
     }
   }
 
-  // Carregar estados do Brasil
+  // Carregar países nos selects Origem/Destino (aba dados)
+  async function loadPaisesViagens() {
+    const url = (typeof window.corrigirUrl === 'function' ? window.corrigirUrl('/api/paises') : '/api/paises');
+    const r = await fetch(url);
+    const paises = await r.json();
+    if (!Array.isArray(paises)) return;
+    const opts = paises.map(p => ({ value: (p.SGPAIS != null && p.SGPAIS !== '') ? String(p.SGPAIS).trim() : String(p.CDPAIS || ''), label: p.DSPAIS || p.SGPAIS || '' }));
+    function fill(selectId) {
+      const sel = document.getElementById(selectId);
+      if (!sel) return;
+      sel.innerHTML = '<option value="">Selecione</option>';
+      opts.forEach(o => { const opt = document.createElement('option'); opt.value = o.value; opt.textContent = o.label; sel.appendChild(opt); });
+      if (opts.some(o => o.value === 'BR')) sel.value = 'BR';
+    }
+    fill('viagemOrigemPais');
+    fill('viagemDestinoPais');
+  }
+
+  // Carregar estados por país em um select (formato API: ESTADO = UF, NMESTADO = nome; ou estados-brasil: uf, nome)
+  async function loadEstadosPorPais(paisVal, estadoSelectId, defaultText) {
+    const el = document.getElementById(estadoSelectId);
+    if (!el) return;
+    el.innerHTML = `<option value="">${defaultText || 'Selecione'}</option>`;
+    if (!paisVal || String(paisVal).trim() === '') return;
+    try {
+      if (String(paisVal).toUpperCase() === 'BR') {
+        const response = await fetch('/api/estados-brasil');
+        if (!response.ok) return;
+        const estados = await response.json();
+        if (Array.isArray(estados)) estados.forEach(e => {
+          const opt = document.createElement('option');
+          opt.value = String(e.uf || '');
+          opt.textContent = `${e.uf || ''} - ${e.nome || ''}`;
+          el.appendChild(opt);
+        });
+      } else {
+        const base = (typeof window.corrigirUrl === 'function' ? window.corrigirUrl('/api/estados') : '/api/estados');
+        const response = await fetch(base + '?pais=' + encodeURIComponent(paisVal));
+        if (!response.ok) return;
+        const estados = await response.json();
+        if (Array.isArray(estados)) estados.forEach(e => {
+          const opt = document.createElement('option');
+          opt.value = String(e.ESTADO || e.estado || '');
+          opt.textContent = `${e.ESTADO || e.estado || ''} - ${e.NMESTADO || e.nmestado || ''}`;
+          el.appendChild(opt);
+        });
+      }
+    } catch (err) {
+      console.error('[Viagens] Erro ao carregar estados por país:', err);
+    }
+  }
+
+  // Carregar estados do Brasil (filtros) e por país (aba dados - Origem/Destino)
   async function loadEstados() {
     try {
-      // Buscar elementos sem ativar a aba de filtros
-      // Os elementos existem no DOM mesmo que não estejam visíveis
       let filtroOrigemEl = document.getElementById('filtroOrigemEstado');
       let filtroDestinoEl = document.getElementById('filtroDestinoEstado');
-      
-      // Se não encontrou, tentar buscar dentro do container de filtros
       if (!filtroOrigemEl || !filtroDestinoEl) {
         const filtroContainer = document.getElementById('tab-filtros');
         if (filtroContainer) {
@@ -1377,45 +1445,26 @@ function getOverlayMostrado() {
           filtroDestinoEl = filtroContainer.querySelector('#filtroDestinoEstado');
         }
       }
-      
       if (!filtroOrigemEl || !filtroDestinoEl) {
         await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Tentar novamente
         filtroOrigemEl = document.getElementById('filtroOrigemEstado');
         filtroDestinoEl = document.getElementById('filtroDestinoEstado');
-        
-        if (!filtroOrigemEl || !filtroDestinoEl) {
-          return;
-        }
+        if (!filtroOrigemEl || !filtroDestinoEl) return;
       }
-      
-      // Buscar dados
+
+      await loadPaisesViagens();
+
       const response = await fetch('/api/estados-brasil');
-      
-      if (!response.ok) {
-        throw new Error('Erro ao buscar estados da API');
-      }
-      
+      if (!response.ok) throw new Error('Erro ao buscar estados da API');
       const estados = await response.json();
-      
-      const fillEstados = (id, defaultText = 'Selecione') => {
+      const fillEstados = (id, defaultText) => {
         let el = document.getElementById(id);
-        
-        // Se não encontrou, tentar buscar dentro do container
         if (!el) {
           const container = document.getElementById('tab-filtros') || document.getElementById('tab-dados');
-          if (container) {
-            el = container.querySelector(`#${id}`);
-          }
+          if (container) el = container.querySelector(`#${id}`);
         }
-        
-        if (!el) {
-          return false;
-        }
-        
+        if (!el) return false;
         el.innerHTML = `<option value="">${defaultText}</option>`;
-        
         if (estados && Array.isArray(estados) && estados.length > 0) {
           estados.forEach(e => {
             const opt = document.createElement('option');
@@ -1424,31 +1473,37 @@ function getOverlayMostrado() {
             el.appendChild(opt);
           });
           return true;
-        } else {
-          return false;
         }
+        return false;
       };
 
-      // Preencher campos de filtro (usam "Todos")
       fillEstados('filtroOrigemEstado', 'Todos');
       fillEstados('filtroDestinoEstado', 'Todos');
-      
-      // Verificar se os campos foram realmente preenchidos (reutilizar variáveis já declaradas)
-      filtroOrigemEl = document.getElementById('filtroOrigemEstado');
-      filtroDestinoEl = document.getElementById('filtroDestinoEstado');
-      
-      // Preencher campos do formulário de dados (usam "Selecione")
-      fillEstados('viagemOrigemEstado', 'Selecione');
-      fillEstados('viagemDestinoEstado', 'Selecione');
 
-      // Forçar reflow para garantir renderização
+      const origemPais = document.getElementById('viagemOrigemPais')?.value || 'BR';
+      const destinoPais = document.getElementById('viagemDestinoPais')?.value || 'BR';
+      await loadEstadosPorPais(origemPais, 'viagemOrigemEstado', 'Selecione');
+      await loadEstadosPorPais(destinoPais, 'viagemDestinoEstado', 'Selecione');
+
       if (filtroOrigemEl) void filtroOrigemEl.offsetHeight;
       if (filtroDestinoEl) void filtroDestinoEl.offsetHeight;
-
       estadosCarregados = true;
+      // Combo Roteiro: sem origem/destino cidade = lista todos; com cidade = filtra
+      await loadRoteirosPorRota('', '');
     } catch (err) {
       showMessage('Erro ao carregar estados. Verifique a conexão.', 'error');
     }
+  }
+
+  // Atualizar combo Roteiro: filtro progressivo (país → estado → cidade); quanto mais preenchido, mais exato
+  function atualizarComboRoteiro() {
+    const origemPais = document.getElementById('viagemOrigemPais')?.value?.trim() || '';
+    const origemEstado = document.getElementById('viagemOrigemEstado')?.value?.trim() || '';
+    const origemCidade = document.getElementById('viagemOrigemCidade')?.value?.trim() || document.getElementById('viagemOrigemCodigo')?.value?.trim() || '';
+    const destinoPais = document.getElementById('viagemDestinoPais')?.value?.trim() || '';
+    const destinoEstado = document.getElementById('viagemDestinoEstado')?.value?.trim() || '';
+    const destinoCidade = document.getElementById('viagemDestinoCidade')?.value?.trim() || document.getElementById('viagemDestinoCodigo')?.value?.trim() || '';
+    loadRoteirosPorRota({ origemPais, origemEstado, origemCidade, destinoPais, destinoEstado, destinoCidade });
   }
 
   // Carregar cidades por estado
@@ -1495,16 +1550,30 @@ function getOverlayMostrado() {
     }
   }
 
-  // Carregar roteiros baseados em origem e destino
-  async function loadRoteirosPorRota(origem, destino, roteiroIdEsperado = null) {
+  // Carregar roteiros com filtro progressivo: país → estado → cidade (o que estiver preenchido)
+  async function loadRoteirosPorRota(origemDestinoOrObj, destinoOrRoteiroId, roteiroIdEsperado = null) {
     try {
-      let url = '/api/roteiros-combo';
+      let origemPais = '', origemEstado = '', origemCidade = '', destinoPais = '', destinoEstado = '', destinoCidade = '';
+      if (origemDestinoOrObj && typeof origemDestinoOrObj === 'object' && !Array.isArray(origemDestinoOrObj)) {
+        origemPais = String(origemDestinoOrObj.origemPais || '').trim();
+        origemEstado = String(origemDestinoOrObj.origemEstado || '').trim();
+        origemCidade = String(origemDestinoOrObj.origemCidade || '').trim();
+        destinoPais = String(origemDestinoOrObj.destinoPais || '').trim();
+        destinoEstado = String(origemDestinoOrObj.destinoEstado || '').trim();
+        destinoCidade = String(origemDestinoOrObj.destinoCidade || '').trim();
+      } else {
+        origemCidade = (origemDestinoOrObj != null && String(origemDestinoOrObj).trim() !== '') ? String(origemDestinoOrObj).trim() : '';
+        destinoCidade = (destinoOrRoteiroId != null && String(destinoOrRoteiroId).trim() !== '') ? String(destinoOrRoteiroId).trim() : '';
+        if (typeof roteiroIdEsperado !== 'undefined' && roteiroIdEsperado != null) roteiroIdEsperado = roteiroIdEsperado;
+      }
       const params = new URLSearchParams();
-      if (origem) params.append('origem', origem);
-      if (destino) params.append('destino', destino);
-      if (params.toString()) url += `?${params.toString()}`;
+      if (origemCidade) params.append('origem', origemCidade);
+      else { if (origemEstado) params.append('origemEstado', origemEstado); if (origemPais) params.append('origemPais', origemPais); }
+      if (destinoCidade) params.append('destino', destinoCidade);
+      else { if (destinoEstado) params.append('destinoEstado', destinoEstado); if (destinoPais) params.append('destinoPais', destinoPais); }
+      const url = '/api/roteiros-combo' + (params.toString() ? '?' + params.toString() : '');
 
-      _log('[ROTEIROS] Buscando roteiros:', { origem, destino, url });
+      _log('[ROTEIROS] Filtro progressivo:', { origemPais: origemPais || '-', origemEstado: origemEstado || '-', origemCidade: origemCidade || '-', destinoPais: destinoPais || '-', destinoEstado: destinoEstado || '-', destinoCidade: destinoCidade || '-', url });
       const response = await fetch(url);
       const roteiros = await response.json();
       _log('[ROTEIROS] Roteiros recebidos:', roteiros.length, 'roteiros');
@@ -1553,8 +1622,10 @@ function getOverlayMostrado() {
 
   // Aplicar filtros
   async function applyFilters(openTab = 'grid') {
-    // Mostrar overlay de carregamento
+    // Mostrar overlay de carregamento (padrão Gerenciar Cidades)
     showLoadingOverlayFiltros('Aplicando Filtros', 'Por favor, aguarde enquanto aplicamos os filtros...');
+    // Dar tempo ao navegador pintar o overlay antes do fetch
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     
     // Obter referência do container uma única vez
     const gridContainer = document.getElementById('viagensGrid');
@@ -1564,7 +1635,7 @@ function getOverlayMostrado() {
       window.showSkeleton(gridContainer, 6, 'grid');
     }
     
-    const btnAplicar = document.getElementById('btnAplicarFiltro');
+    const btnAplicar = filtroForm?.querySelector('button[type="submit"]');
     if (btnAplicar && typeof window.showLoading !== 'undefined') {
       window.showLoading(btnAplicar, true);
     }
@@ -1670,13 +1741,25 @@ function getOverlayMostrado() {
       setTimeout(() => {
         const abaAtiva = document.querySelector('.tab-btn.active')?.getAttribute('data-tab');
         if (abaAtiva !== openTab) {
-          // Se a aba mudou, forçar de volta
-          tabs.forEach(btn => btn.classList.remove('active'));
-          tabContents.forEach(content => content.classList.remove('active'));
-          const tabBtn = document.querySelector(`.tab-btn[data-tab="${openTab}"]`);
           const tabContent = document.getElementById(`tab-${openTab}`);
-          if (tabBtn) tabBtn.classList.add('active');
-          if (tabContent) tabContent.classList.add('active');
+          const tabBtn = document.querySelector(`.tab-btn[data-tab="${openTab}"]`);
+          if (tabContent && tabBtn) {
+            const container = document.querySelector('.viagens-container') || tabContent.closest('[class*="-container"]') || tabContent.parentElement;
+            if (container) {
+              container.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+              container.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+                content.style.setProperty('display', 'none', 'important');
+              });
+            }
+            tabBtn.classList.add('active');
+            tabContent.classList.add('active');
+            tabContent.style.setProperty('display', 'block', 'important');
+            const tabSwitch = document.getElementById('tab-integracao-switch');
+            if (tabSwitch && openTab !== 'integracao-switch') tabSwitch.style.setProperty('display', 'none', 'important');
+            const tabMacros = document.getElementById('tab-macros');
+            if (tabMacros && openTab !== 'macros') tabMacros.style.setProperty('display', 'none', 'important');
+          }
         }
         bloqueandoMudancaAba = false;
       }, 1000);
@@ -1779,13 +1862,26 @@ function getOverlayMostrado() {
         await loadCombos();
         
         // Garantir que a aba de dados continua ativa após carregar combos
-        // Forçar novamente para evitar que algum código assíncrono mude a aba
-        tabs.forEach(btn => btn.classList.remove('active'));
-        tabContents.forEach(content => content.classList.remove('active'));
-        const tabBtnDados = document.querySelector('.tab-btn[data-tab="dados"]');
+        // Forçar novamente com escopo no container do módulo
         const tabContentDados = document.getElementById('tab-dados');
-        if (tabBtnDados) tabBtnDados.classList.add('active');
-        if (tabContentDados) tabContentDados.classList.add('active');
+        const tabBtnDados = document.querySelector('.tab-btn[data-tab="dados"]');
+        if (tabContentDados && tabBtnDados) {
+          const container = document.querySelector('.viagens-container') || tabContentDados.closest('[class*="-container"]') || tabContentDados.parentElement;
+          if (container) {
+            container.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            container.querySelectorAll('.tab-content').forEach(content => {
+              content.classList.remove('active');
+              content.style.setProperty('display', 'none', 'important');
+            });
+          }
+          tabBtnDados.classList.add('active');
+          tabContentDados.classList.add('active');
+          tabContentDados.style.setProperty('display', 'block', 'important');
+          const tabSwitch = document.getElementById('tab-integracao-switch');
+          if (tabSwitch) tabSwitch.style.setProperty('display', 'none', 'important');
+          const tabMacros = document.getElementById('tab-macros');
+          if (tabMacros) tabMacros.style.setProperty('display', 'none', 'important');
+        }
         
         // Aguardar um pouco para garantir que os selects foram renderizados
         await new Promise(resolve => setTimeout(resolve, 200));
@@ -1854,6 +1950,16 @@ function getOverlayMostrado() {
           rastreadoSelect.value = '';
         }
         
+        // Preencher país origem/destino (se a API retornar; senão mantém BR do loadEstados)
+        const origemPaisVal = (viagem.ORIGEM_PAIS != null && String(viagem.ORIGEM_PAIS).trim() !== '') ? String(viagem.ORIGEM_PAIS).trim() : 'BR';
+        const destinoPaisVal = (viagem.DESTINO_PAIS != null && String(viagem.DESTINO_PAIS).trim() !== '') ? String(viagem.DESTINO_PAIS).trim() : 'BR';
+        const selOrigemPais = document.getElementById('viagemOrigemPais');
+        const selDestinoPais = document.getElementById('viagemDestinoPais');
+        if (selOrigemPais && selOrigemPais.querySelector('option[value="' + origemPaisVal + '"]')) selOrigemPais.value = origemPaisVal;
+        if (selDestinoPais && selDestinoPais.querySelector('option[value="' + destinoPaisVal + '"]')) selDestinoPais.value = destinoPaisVal;
+        if (origemPaisVal !== 'BR') await loadEstadosPorPais(origemPaisVal, 'viagemOrigemEstado', 'Selecione');
+        if (destinoPaisVal !== 'BR') await loadEstadosPorPais(destinoPaisVal, 'viagemDestinoEstado', 'Selecione');
+
         // Preencher origem e destino
         _log('[CARREGAR VIAGEM] Dados da viagem recebidos:', {
           ORIGEM_ESTADO: viagem.ORIGEM_ESTADO,
@@ -1866,6 +1972,14 @@ function getOverlayMostrado() {
         if (viagem.ORIGEM_ESTADO) {
           const estadoOrigem = viagem.ORIGEM_ESTADO.trim();
           await preencherSelect('viagemOrigemEstado', estadoOrigem);
+          const selOrigemEst = document.getElementById('viagemOrigemEstado');
+          if (selOrigemEst && selOrigemEst.value !== estadoOrigem && !selOrigemEst.querySelector('option[value="' + estadoOrigem + '"]')) {
+            const opt = document.createElement('option');
+            opt.value = estadoOrigem;
+            opt.textContent = estadoOrigem + (viagem.ORIGEM_CIDADE ? ' - ' + viagem.ORIGEM_CIDADE : ' - Origem');
+            selOrigemEst.appendChild(opt);
+            selOrigemEst.value = estadoOrigem;
+          }
           await loadCidadesPorEstado(estadoOrigem, 'origem');
           
           // Aguardar cidades carregarem e preencher
@@ -1884,6 +1998,14 @@ function getOverlayMostrado() {
         if (viagem.DESTINO_ESTADO) {
           const estadoDestino = viagem.DESTINO_ESTADO.trim();
           await preencherSelect('viagemDestinoEstado', estadoDestino);
+          const selDestinoEst = document.getElementById('viagemDestinoEstado');
+          if (selDestinoEst && selDestinoEst.value !== estadoDestino && !selDestinoEst.querySelector('option[value="' + estadoDestino + '"]')) {
+            const opt = document.createElement('option');
+            opt.value = estadoDestino;
+            opt.textContent = estadoDestino + (viagem.DESTINO_CIDADE ? ' - ' + viagem.DESTINO_CIDADE : ' - Destino');
+            selDestinoEst.appendChild(opt);
+            selDestinoEst.value = estadoDestino;
+          }
           await loadCidadesPorEstado(estadoDestino, 'destino');
           
           // Aguardar cidades carregarem e preencher
@@ -1980,16 +2102,26 @@ function getOverlayMostrado() {
           carregarMacrosViagem();
         }
         
-        // PROTEÇÃO FINAL: Garantir que a aba de dados permanece ativa
-        // Isso evita que algum código assíncrono mude a aba após o carregamento
+        // PROTEÇÃO FINAL: Garantir que a aba de dados permanece ativa (escopo no container)
         setTimeout(() => {
           const tabBtnDados = document.querySelector('.tab-btn[data-tab="dados"]');
           const tabContentDados = document.getElementById('tab-dados');
-          if (tabBtnDados && !tabBtnDados.classList.contains('active')) {
-            tabs.forEach(btn => btn.classList.remove('active'));
-            tabContents.forEach(content => content.classList.remove('active'));
+          if (tabBtnDados && tabContentDados && !tabBtnDados.classList.contains('active')) {
+            const container = document.querySelector('.viagens-container') || tabContentDados.closest('[class*="-container"]') || tabContentDados.parentElement;
+            if (container) {
+              container.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+              container.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+                content.style.setProperty('display', 'none', 'important');
+              });
+            }
             tabBtnDados.classList.add('active');
-            if (tabContentDados) tabContentDados.classList.add('active');
+            tabContentDados.classList.add('active');
+            tabContentDados.style.setProperty('display', 'block', 'important');
+            const tabSwitch = document.getElementById('tab-integracao-switch');
+            if (tabSwitch) tabSwitch.style.setProperty('display', 'none', 'important');
+            const tabMacros = document.getElementById('tab-macros');
+            if (tabMacros) tabMacros.style.setProperty('display', 'none', 'important');
           }
         }, 500);
       }
@@ -2166,79 +2298,74 @@ function getOverlayMostrado() {
     }
   }
 
-  // Confirmar exclusão
+  // Confirmar exclusão (desativar/reativar) — modal padrão ou fallback com confirm()
   async function confirmarExclusao(id) {
     let idValido = id;
     if (idValido == null || idValido === 'undefined' || idValido === 'null' || idValido === '' || idValido === 'NaN') {
       showMessage(t('web.modulos.viagens.erroIdIndisponivel'), 'error');
       return;
     }
-    
     idValido = String(idValido).trim();
-    const modalMessage = document.getElementById('modalMessage');
-    const confirmYes = document.getElementById('confirmYes');
-    const confirmNo = document.getElementById('confirmNo');
-    const modalEl = document.getElementById('confirmModal');
-    
-    if (!modalMessage || !confirmYes || !confirmNo || !modalEl) {
-      return;
-    }
 
     try {
-      // Buscar o status atual da viagem
       const idToCheck = isNaN(idValido) ? idValido : parseFloat(idValido);
       const response = await fetch(`/api/viagens/${idToCheck}`);
-      if (!response.ok) {
-        throw new Error('Erro ao buscar viagem');
-      }
-      
+      if (!response.ok) throw new Error('Erro ao buscar viagem');
       const viagem = await response.json();
       const estaAtivo = viagem.FGACTIVE === 'S';
-      
-      // Definir mensagem e ação baseado no status atual
-      let confirmMsg, action, btnText;
-      if (estaAtivo) {
-        confirmMsg = 'Tem certeza que deseja <strong>desativar</strong> esta viagem?<br><br><small style="color: #666;">A viagem ficará inativa e não aparecerá nas listagens padrão.</small>';
-        action = 'deactivate';
-        btnText = 'Desativar';
-      } else {
-        confirmMsg = 'Tem certeza que deseja <strong>reativar</strong> esta viagem?<br><br><small style="color: #666;">A viagem voltará a aparecer nas listagens e estará disponível para uso.</small>';
-        action = 'activate';
-        btnText = 'Reativar';
+      const confirmMsg = estaAtivo ? 'Tem certeza que deseja desativar esta viagem?' : 'Tem certeza que deseja reativar esta viagem?';
+      const action = estaAtivo ? 'deactivate' : 'activate';
+      const btnText = estaAtivo ? 'Desativar' : 'Reativar';
+
+      // Re-buscar elementos após o await (podem ter sido removidos do DOM pelo dashboard)
+      const modalMessage = document.getElementById('modalMessage');
+      const confirmYes = document.getElementById('confirmYes');
+      const confirmNo = document.getElementById('confirmNo');
+      const modalEl = document.getElementById('confirmModal');
+      const modalOk = modalMessage && confirmYes && confirmNo && modalEl &&
+        document.body.contains(confirmYes) && confirmYes.parentNode;
+
+      if (!modalOk) {
+        if (!window.confirm(confirmMsg)) return;
+        const res = await fetch(`/api/viagens/${idToCheck}?action=${action}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (res.ok) {
+          showMessage(data.message || (action === 'activate' ? 'Viagem reativada com sucesso!' : 'Viagem desativada com sucesso!'), 'success');
+          showTab('grid');
+          applyFilters('grid');
+        } else {
+          showMessage(data.error || 'Erro ao alterar status da viagem.', 'error');
+        }
+        return;
       }
-      
-      modalMessage.innerHTML = confirmMsg;
-      
+
+      modalMessage.textContent = confirmMsg;
       modalEl.dataset.deleteId = idValido;
       modalEl.dataset.action = action;
-      
+
       const newConfirmYes = confirmYes.cloneNode(true);
       const newConfirmNo = confirmNo.cloneNode(true);
-      
-      // Atualizar texto do botão de confirmação
-      newConfirmYes.textContent = btnText;
-      
-      confirmYes.parentNode.replaceChild(newConfirmYes, confirmYes);
-      confirmNo.parentNode.replaceChild(newConfirmNo, confirmNo);
-      
+      newConfirmYes.className = 'btn-filtro btn-filtro-danger';
+      newConfirmYes.innerHTML = '<i class=\'bx bx-check\'></i> ' + btnText;
+      newConfirmNo.className = 'btn-filtro btn-filtro-limpar';
+      newConfirmNo.innerHTML = '<i class=\'bx bx-x\'></i> Cancelar';
+
+      if (confirmYes.parentNode) confirmYes.parentNode.replaceChild(newConfirmYes, confirmYes);
+      if (confirmNo.parentNode) confirmNo.parentNode.replaceChild(newConfirmNo, confirmNo);
+
       newConfirmYes.onclick = async () => {
         const idParaExcluir = modalEl.dataset.deleteId || idValido;
         const acao = modalEl.dataset.action || action;
-        
         if (!idParaExcluir || idParaExcluir === 'undefined' || idParaExcluir === 'null' || idParaExcluir === '') {
           showMessage(t('web.modulos.viagens.erroIdIndisponivel'), 'error');
           modalEl.style.display = 'none';
           return;
         }
-        
         try {
           const idToDelete = isNaN(idParaExcluir) ? idParaExcluir : parseFloat(idParaExcluir);
-          const response = await fetch(`/api/viagens/${idToDelete}?action=${acao}`, {
-            method: 'DELETE'
-          });
-          const data = await response.json();
-          
-          if (response.ok) {
+          const res = await fetch(`/api/viagens/${idToDelete}?action=${acao}`, { method: 'DELETE' });
+          const data = await res.json();
+          if (res.ok) {
             showMessage(data.message || (acao === 'activate' ? 'Viagem reativada com sucesso!' : 'Viagem desativada com sucesso!'), 'success');
             showTab('grid');
             applyFilters('grid');
@@ -2254,17 +2381,15 @@ function getOverlayMostrado() {
           delete modalEl.dataset.action;
         }
       };
-    
       newConfirmNo.onclick = () => {
         modalEl.style.display = 'none';
         delete modalEl.dataset.deleteId;
         delete modalEl.dataset.action;
       };
-      
       modalEl.style.display = 'block';
     } catch (err) {
       console.error('[Viagens] Erro ao buscar status da viagem:', err);
-      showMessage('Erro ao verificar status da viagem.', 'error');
+      showMessage(t('web.modulos.viagens.erroConexao') || 'Não foi possível verificar a viagem. Tente novamente.', 'error');
     }
   }
 
@@ -2533,19 +2658,16 @@ function getOverlayMostrado() {
     }
   });
 
-  // Eventos: evitar submit do form (que recarrega e volta ao dashboard)
-  filtroForm?.addEventListener('submit', (e) => {
+  // Submit do form de filtros (padrão Gerenciar Situações de Viagem)
+  filtroForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    return false;
-  });
-
-  document.getElementById('btnAplicarFiltro')?.addEventListener('click', async () => {
     try {
       await applyFilters('grid');
     } catch (err) {
       console.error('Erro ao aplicar filtros:', err);
     }
+    return false;
   });
 
   document.getElementById('btnLimparFiltros')?.addEventListener('click', () => {
@@ -2572,8 +2694,10 @@ function getOverlayMostrado() {
     }
   });
 
-  // Eventos de abas
-  tabs.forEach(btn => {
+  // Eventos de abas (usar botões do container do módulo para não misturar com outros)
+  const viagensContainer = document.querySelector('.viagens-container');
+  const tabBtns = viagensContainer ? viagensContainer.querySelectorAll('.tab-btn') : document.querySelectorAll('.tab-btn');
+  tabBtns.forEach(btn => {
     btn.addEventListener('click', async () => {
       const tabId = btn.getAttribute('data-tab');
       await showTab(tabId);
@@ -2652,6 +2776,10 @@ function getOverlayMostrado() {
     document.getElementById('viagemUsuario').value = user.login || 'SYSTEM';
     document.getElementById('viagemDataInclusao').value = new Date().toISOString().slice(0, 16);
     document.getElementById('formTitle').textContent = t('web.modulos.viagens.novaViagem');
+    const selOrigemPais = document.getElementById('viagemOrigemPais');
+    const selDestinoPais = document.getElementById('viagemDestinoPais');
+    if (selOrigemPais && selOrigemPais.querySelector('option[value="BR"]')) selOrigemPais.value = 'BR';
+    if (selDestinoPais && selDestinoPais.querySelector('option[value="BR"]')) selDestinoPais.value = 'BR';
     showTab('dados');
   });
   document.getElementById('btnCancelar')?.addEventListener('click', () => showTab('grid'));
@@ -2671,11 +2799,41 @@ function getOverlayMostrado() {
     document.getElementById('viagemUsuario').value = user.login || 'SYSTEM';
     document.getElementById('viagemDataInclusao').value = new Date().toISOString().slice(0, 16);
     document.getElementById('formTitle').textContent = t('web.modulos.viagens.novaViagem');
+    const selOrigemPais = document.getElementById('viagemOrigemPais');
+    const selDestinoPais = document.getElementById('viagemDestinoPais');
+    if (selOrigemPais && selOrigemPais.querySelector('option[value="BR"]')) selOrigemPais.value = 'BR';
+    if (selDestinoPais && selDestinoPais.querySelector('option[value="BR"]')) selDestinoPais.value = 'BR';
     showTab('dados');
+  });
+
+  // País origem/destino: ao mudar, recarregar estados e limpar cidade/código; atualizar combo Roteiro
+  // (não executar quando estiver preenchendo a partir do roteiro ou quando o change foi disparado por código)
+  document.getElementById('viagemOrigemPais')?.addEventListener('change', async function(e) {
+    if (preenchendoFromRoteiro || window._settingPaisFromRoteiro || (e && e.isTrusted === false)) return;
+    const pais = this.value;
+    await loadEstadosPorPais(pais, 'viagemOrigemEstado', 'Selecione');
+    document.getElementById('viagemOrigemEstado').value = '';
+    document.getElementById('viagemOrigemCidade').value = '';
+    document.getElementById('viagemOrigemCodigo').value = '';
+    atualizarComboRoteiro();
+    const tabMapa = document.querySelector('.tab-btn[data-tab="mapa"]');
+    if (tabMapa && tabMapa.classList.contains('active')) atualizarMapa();
+  });
+  document.getElementById('viagemDestinoPais')?.addEventListener('change', async function(e) {
+    if (preenchendoFromRoteiro || window._settingPaisFromRoteiro || (e && e.isTrusted === false)) return;
+    const pais = this.value;
+    await loadEstadosPorPais(pais, 'viagemDestinoEstado', 'Selecione');
+    document.getElementById('viagemDestinoEstado').value = '';
+    document.getElementById('viagemDestinoCidade').value = '';
+    document.getElementById('viagemDestinoCodigo').value = '';
+    atualizarComboRoteiro();
+    const tabMapa = document.querySelector('.tab-btn[data-tab="mapa"]');
+    if (tabMapa && tabMapa.classList.contains('active')) atualizarMapa();
   });
 
   // Eventos de estado para carregar cidades e roteiros
   document.getElementById('viagemOrigemEstado')?.addEventListener('change', function() {
+    if (preenchendoFromRoteiro) return;
     const estado = this.value;
     loadCidadesPorEstado(estado, 'origem');
     document.getElementById('viagemOrigemCidade').value = '';
@@ -2698,6 +2856,7 @@ function getOverlayMostrado() {
   });
 
   document.getElementById('viagemOrigemCidade')?.addEventListener('change', function() {
+    if (preenchendoFromRoteiro) return;
     const cidadeId = this.value;
     document.getElementById('viagemOrigemCodigo').value = cidadeId || '';
     
@@ -2715,75 +2874,158 @@ function getOverlayMostrado() {
   });
 
   document.getElementById('viagemDestinoEstado')?.addEventListener('change', function() {
+    if (preenchendoFromRoteiro) return;
     const estado = this.value;
     loadCidadesPorEstado(estado, 'destino');
     document.getElementById('viagemDestinoCidade').value = '';
     document.getElementById('viagemDestinoCodigo').value = '';
-    
-    // Atualizar roteiros se origem estiver selecionada
-    const origem = document.getElementById('viagemOrigemCidade')?.value;
-    if (estado && origem) {
-      loadRoteirosPorRota(origem, document.getElementById('viagemDestinoCidade')?.value);
-    }
-    
-    // Atualizar mapa se a aba mapa estiver ativa
+    atualizarComboRoteiro();
     const tabMapa = document.querySelector('.tab-btn[data-tab="mapa"]');
-    if (tabMapa && tabMapa.classList.contains('active')) {
-      atualizarMapa();
-    }
+    if (tabMapa && tabMapa.classList.contains('active')) atualizarMapa();
   });
 
   document.getElementById('viagemDestinoCidade')?.addEventListener('change', function() {
+    if (preenchendoFromRoteiro) return;
     const cidadeId = this.value;
     document.getElementById('viagemDestinoCodigo').value = cidadeId || '';
-    
-    // Atualizar roteiros
-    const origem = document.getElementById('viagemOrigemCidade')?.value;
-    if (origem && cidadeId) {
-      loadRoteirosPorRota(origem, cidadeId);
-    }
-    
-    // Atualizar mapa se a aba mapa estiver ativa
+    atualizarComboRoteiro();
     const tabMapa = document.querySelector('.tab-btn[data-tab="mapa"]');
-    if (tabMapa && tabMapa.classList.contains('active')) {
-      atualizarMapa();
-    }
+    if (tabMapa && tabMapa.classList.contains('active')) atualizarMapa();
   });
 
   document.getElementById('viagemRoteiro')?.addEventListener('change', async function() {
     const roteiroId = this.value;
-    const roteiro = roteirosCache.find(r => r.IDROTEIRO.toString() === roteiroId);
-    if (roteiro) {
-      document.getElementById('viagemDistancia').value = roteiro.DISTANCIAKM || '';
-      document.getElementById('viagemOrigemEstado').value = roteiro.ORIGEM_ESTADO || '';
-      document.getElementById('viagemDestinoEstado').value = roteiro.DESTINO_ESTADO || '';
-      
-      // Recarregar cidades
-      if (roteiro.ORIGEM_ESTADO) {
-        await loadCidadesPorEstado(roteiro.ORIGEM_ESTADO, 'origem');
-        await new Promise(resolve => setTimeout(resolve, 200));
-        document.getElementById('viagemOrigemCidade').value = roteiro.ORIGEM_CODIGO || '';
-        document.getElementById('viagemOrigemCodigo').value = roteiro.ORIGEM_CODIGO || '';
+    const roteiro = roteirosCache.find(r => String(r.IDROTEIRO) === String(roteiroId));
+    if (!roteiro) return;
+    preenchendoFromRoteiro = true;
+    window._settingPaisFromRoteiro = true;
+    try {
+      function v(obj, key) {
+        if (!obj) return '';
+        const u = key.toUpperCase();
+        const found = Object.keys(obj).find(k => String(k).toUpperCase() === u);
+        if (found && obj[found] != null && obj[found] !== '') return String(obj[found]).trim();
+        if (obj[key] != null && obj[key] !== '') return String(obj[key]).trim();
+        return '';
       }
-      
-      if (roteiro.DESTINO_ESTADO) {
-        await loadCidadesPorEstado(roteiro.DESTINO_ESTADO, 'destino');
-        await new Promise(resolve => setTimeout(resolve, 200));
-        document.getElementById('viagemDestinoCidade').value = roteiro.DESTINO_CODIGO || '';
-        document.getElementById('viagemDestinoCodigo').value = roteiro.DESTINO_CODIGO || '';
+      document.getElementById('viagemDistancia').value = v(roteiro, 'DISTANCIAKM') || '';
+      const origemPaisRaw = v(roteiro, 'ORIGEM_PAIS');
+      const destinoPaisRaw = v(roteiro, 'DESTINO_PAIS');
+      const origemPais = origemPaisRaw !== '' ? origemPaisRaw.toUpperCase() : 'BR';
+      const destinoPais = destinoPaisRaw !== '' ? destinoPaisRaw.toUpperCase() : 'BR';
+      const origemEstadoR = v(roteiro, 'ORIGEM_ESTADO');
+      const destinoEstadoR = v(roteiro, 'DESTINO_ESTADO');
+      const origemCidadeR = v(roteiro, 'ORIGEM_CIDADE');
+      const destinoCidadeR = v(roteiro, 'DESTINO_CIDADE');
+      const codOrigem = v(roteiro, 'ORIGEM_CODIGO') || (roteiro.CDCIDADEORIGEM != null ? String(roteiro.CDCIDADEORIGEM) : '');
+      const codDestino = v(roteiro, 'DESTINO_CODIGO') || (roteiro.CDCIDADEDESTINO != null ? String(roteiro.CDCIDADEDESTINO) : '');
+
+      const selOrigemPais = document.getElementById('viagemOrigemPais');
+      const selDestinoPais = document.getElementById('viagemDestinoPais');
+      const selOrigemEstado = document.getElementById('viagemOrigemEstado');
+      const selDestinoEstado = document.getElementById('viagemDestinoEstado');
+      const selOrigemCidade = document.getElementById('viagemOrigemCidade');
+      const selDestinoCidade = document.getElementById('viagemDestinoCidade');
+      const optionExists = (sel, val) => sel && val !== '' && Array.from(sel.options).some(o => String(o.value) === String(val));
+
+      await loadEstadosPorPais(origemPais, 'viagemOrigemEstado', 'Selecione');
+      await loadEstadosPorPais(destinoPais, 'viagemDestinoEstado', 'Selecione');
+      await new Promise(resolve => setTimeout(resolve, 80));
+
+      if (origemEstadoR && selOrigemEstado) {
+        if (!optionExists(selOrigemEstado, origemEstadoR)) {
+          const opt = document.createElement('option');
+          opt.value = origemEstadoR;
+          opt.textContent = origemEstadoR + (origemCidadeR ? ' - ' + origemCidadeR : '');
+          selOrigemEstado.appendChild(opt);
+        }
+        selOrigemEstado.value = origemEstadoR;
+      } else if (origemCidadeR && selOrigemEstado) {
+        if (!optionExists(selOrigemEstado, origemCidadeR)) {
+          const opt = document.createElement('option');
+          opt.value = origemCidadeR;
+          opt.textContent = origemCidadeR;
+          selOrigemEstado.appendChild(opt);
+        }
+        selOrigemEstado.value = origemCidadeR;
       }
-      
-      // Atualizar mapa se a aba mapa estiver ativa
+      if (destinoEstadoR && selDestinoEstado) {
+        if (!optionExists(selDestinoEstado, destinoEstadoR)) {
+          const opt = document.createElement('option');
+          opt.value = destinoEstadoR;
+          opt.textContent = destinoEstadoR + (destinoCidadeR ? ' - ' + destinoCidadeR : '');
+          selDestinoEstado.appendChild(opt);
+        }
+        selDestinoEstado.value = destinoEstadoR;
+      } else if (destinoCidadeR && selDestinoEstado) {
+        if (!optionExists(selDestinoEstado, destinoCidadeR)) {
+          const opt = document.createElement('option');
+          opt.value = destinoCidadeR;
+          opt.textContent = destinoCidadeR;
+          selDestinoEstado.appendChild(opt);
+        }
+        selDestinoEstado.value = destinoCidadeR;
+      }
+
+      if (origemEstadoR) {
+        await loadCidadesPorEstado(origemEstadoR, 'origem');
+        await new Promise(resolve => setTimeout(resolve, 150));
+      }
+      if (selOrigemCidade) {
+        if (codOrigem && !optionExists(selOrigemCidade, codOrigem)) {
+          if (!origemEstadoR) selOrigemCidade.innerHTML = '<option value="">Selecione</option>';
+          const o = document.createElement('option');
+          o.value = codOrigem;
+          o.textContent = origemCidadeR || 'Origem';
+          selOrigemCidade.appendChild(o);
+        }
+        selOrigemCidade.value = codOrigem || '';
+      }
+      document.getElementById('viagemOrigemCodigo').value = codOrigem || '';
+
+      if (destinoEstadoR) {
+        await loadCidadesPorEstado(destinoEstadoR, 'destino');
+        await new Promise(resolve => setTimeout(resolve, 150));
+      }
+      if (selDestinoCidade) {
+        if (codDestino && !optionExists(selDestinoCidade, codDestino)) {
+          if (!destinoEstadoR) selDestinoCidade.innerHTML = '<option value="">Selecione</option>';
+          const o = document.createElement('option');
+          o.value = codDestino;
+          o.textContent = destinoCidadeR || 'Destino';
+          selDestinoCidade.appendChild(o);
+        }
+        selDestinoCidade.value = codDestino || '';
+      }
+      document.getElementById('viagemDestinoCodigo').value = codDestino || '';
+
+      function setPaisSelect(sel, sigla) {
+        if (!sel) return;
+        const s = String(sigla).toUpperCase();
+        const opts = Array.from(sel.options);
+        const found = opts.find(o => o.value && String(o.value).toUpperCase() === s);
+        if (found) { sel.value = found.value; return; }
+        const byLabel = opts.find(o => o.textContent && String(o.textContent).toUpperCase().indexOf(s) >= 0);
+        if (byLabel) { sel.value = byLabel.value; return; }
+        const opt = document.createElement('option');
+        opt.value = sigla;
+        opt.textContent = s === 'PY' ? 'Paraguai' : s === 'AR' ? 'Argentina' : s === 'UY' ? 'Uruguai' : sigla;
+        sel.appendChild(opt);
+        sel.value = sigla;
+      }
+      setPaisSelect(selOrigemPais, origemPais);
+      setPaisSelect(selDestinoPais, destinoPais);
+
       const tabMapa = document.querySelector('.tab-btn[data-tab="mapa"]');
       if (tabMapa && tabMapa.classList.contains('active')) {
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise(resolve => setTimeout(resolve, 200));
         await atualizarMapa();
       }
-      
-      // Carregar resumo da rota
-      if (roteiroId) {
-        await carregarResumoRota(roteiroId);
-      }
+      if (roteiroId) await carregarResumoRota(roteiroId);
+    } finally {
+      await new Promise(r => setTimeout(r, 0));
+      window._settingPaisFromRoteiro = false;
+      preenchendoFromRoteiro = false;
     }
   });
 
@@ -3653,26 +3895,22 @@ function getOverlayMostrado() {
       roteiroId: roteiroId
     });
 
-    // Validar se há origem e destino
-    // Se não houver dados válidos, apenas limpar e resetar o mapa
-    if (!origemCidadeId || !destinoCidadeId || !origemEstado || !destinoEstado) {
-      console.warn('[MAPA] ⚠️ Dados incompletos para exibir rota. Campos faltando:', {
+    // Validar: com roteiro basta o ID (pontos vêm da API); sem roteiro precisa origem e destino (cidade)
+    const temRoteiro = roteiroId && String(roteiroId).trim() !== '';
+    const temOrigemDestino = origemCidadeId && destinoCidadeId;
+    if (!temRoteiro && !temOrigemDestino) {
+      console.warn('[MAPA] ⚠️ Dados incompletos para exibir rota. Selecione um roteiro ou origem e destino (cidade).', {
         origemCidadeId: !origemCidadeId,
         destinoCidadeId: !destinoCidadeId,
-        origemEstado: !origemEstado,
-        destinoEstado: !destinoEstado
+        roteiroId: !roteiroId
       });
-      // Se o mapa está inicializado, apenas limpar
-      if (mapa) {
-        limparMapa();
-      }
-      // Se o mapa não está inicializado, inicializar mesmo sem dados para mostrar o mapa vazio
-      // Isso garante que o usuário veja o mapa quando abrir a aba
+      if (mapa) limparMapa();
       return;
     }
 
-    // Mostrar overlay de carregamento
+    // Mostrar overlay de carregamento (padrão Gerenciar Cidades)
     showMapaLoading('Carregando Mapa', 'Preparando visualização...');
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
     // Inicializar mapa se ainda não foi inicializado
     if (!mapa) {
@@ -5281,44 +5519,72 @@ function getOverlayMostrado() {
   let viagemSelecionada = null;
 
   // Carregar viagens pendentes
+  async function carregarRegrasCompatibilidade() {
+    try {
+      const response = await fetch('/api/viagens/regras-compatibilidade', { headers: getAuthHeaders() });
+      if (!response.ok) return;
+      const data = await response.json();
+      const set = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
+      set('regraCompativelRastreamento', data.rastreamento);
+      set('regraCompativelClasseFrota', data.classeFrota);
+      set('regraCompativelLocalEmbarque', data.localEmbarque);
+      set('regraCompativelLocalDesembarque', data.localDesembarque);
+    } catch (e) { /* ignorar */ }
+  }
+
   async function carregarViagensPendentes() {
+    const select = document.getElementById('selectViagemPendente');
+    if (!select) return;
     try {
       showMessage('Carregando viagens pendentes...', 'info');
-      const response = await fetch('/api/viagens-pendentes');
-      if (!response.ok) throw new Error('Erro ao carregar viagens pendentes');
+      const response = await fetch('/api/viagens-pendentes', { headers: getAuthHeaders() });
+      if (!response.ok) {
+        const errText = await response.text();
+        console.warn('[Viagens pendentes] Resposta não OK:', response.status, errText.slice(0, 200));
+        throw new Error('Erro ao carregar viagens pendentes');
+      }
       
-      viagensPendentes = await response.json();
-      const select = document.getElementById('selectViagemPendente');
+      const data = await response.json();
+      viagensPendentes = Array.isArray(data) ? data : (data && Array.isArray(data.data) ? data.data : []);
+      if (!Array.isArray(viagensPendentes)) viagensPendentes = [];
+      if (data && !Array.isArray(data) && data.error) {
+        console.warn('[Viagens pendentes] API retornou erro:', data.error);
+      }
       
-      select.innerHTML = '<option value="">Selecione uma viagem para ver motoristas compatíveis</option>';
-      
-      // Ordenar por ID (decrescente - mais recentes primeiro)
-      viagensPendentes.sort((a, b) => {
-        const idA = parseFloat(a.IDVIAGEM) || 0;
-        const idB = parseFloat(b.IDVIAGEM) || 0;
-        return idB - idA; // Ordem decrescente (maior ID primeiro)
-      });
-      
-      viagensPendentes.forEach(v => {
-        const option = document.createElement('option');
-        option.value = v.IDVIAGEM;
-        const origCidade = (v.ORIGEM_CIDADE != null ? v.ORIGEM_CIDADE : v.origem_cidade) || 'N/A';
-        const origEstado = (v.ORIGEM_ESTADO != null ? v.ORIGEM_ESTADO : v.origem_estado) || 'N/A';
-        const destCidade = (v.DESTINO_CIDADE != null ? v.DESTINO_CIDADE : v.destino_cidade) || 'N/A';
-        const destEstado = (v.DESTINO_ESTADO != null ? v.DESTINO_ESTADO : v.destino_estado) || 'N/A';
-        const classe = (v.DSCLASSEFROTA != null ? v.DSCLASSEFROTA : v.dsclassefrota) || 'Sem classe';
-        option.textContent = `ID ${v.IDVIAGEM} - ${origCidade}/${origEstado} → ${destCidade}/${destEstado} - ${classe}`;
-        select.appendChild(option);
-      });
+      const tinhaOpcoesAntes = select.options.length > 1;
       
       if (viagensPendentes.length === 0) {
-        showMessage('Nenhuma viagem pendente encontrada.', 'info');
+        // API retornou lista vazia: não limpa a combo para não perder a viagem que estava
+        if (tinhaOpcoesAntes) {
+          showMessage('Nenhuma viagem pendente no momento. Lista anterior mantida.', 'info');
+        } else {
+          showMessage('Nenhuma viagem pendente encontrada.', 'info');
+        }
       } else {
+        // Só limpa e preenche quando há dados novos
+        select.innerHTML = '<option value="">Selecione uma viagem para ver motoristas compatíveis</option>';
+        viagensPendentes.sort((a, b) => {
+          const idA = parseFloat(a.IDVIAGEM) || 0;
+          const idB = parseFloat(b.IDVIAGEM) || 0;
+          return idB - idA;
+        });
+        viagensPendentes.forEach(v => {
+          const option = document.createElement('option');
+          option.value = v.IDVIAGEM;
+          const origCidade = (v.ORIGEM_CIDADE != null ? v.ORIGEM_CIDADE : v.origem_cidade) || 'N/A';
+          const origEstado = (v.ORIGEM_ESTADO != null ? v.ORIGEM_ESTADO : v.origem_estado) || 'N/A';
+          const destCidade = (v.DESTINO_CIDADE != null ? v.DESTINO_CIDADE : v.destino_cidade) || 'N/A';
+          const destEstado = (v.DESTINO_ESTADO != null ? v.DESTINO_ESTADO : v.destino_estado) || 'N/A';
+          const classe = (v.DSCLASSEFROTA != null ? v.DSCLASSEFROTA : v.dsclassefrota) || 'Sem classe';
+          option.textContent = `ID ${v.IDVIAGEM} - ${origCidade}/${origEstado} → ${destCidade}/${destEstado} - ${classe}`;
+          select.appendChild(option);
+        });
         showMessage(`${viagensPendentes.length} viagem(ns) pendente(s) carregada(s).`, 'success');
       }
     } catch (err) {
       console.error('Erro ao carregar viagens pendentes:', err);
-      showMessage('Erro ao carregar viagens pendentes.', 'error');
+      showMessage('Erro ao carregar viagens pendentes. Verifique se está logado.', 'error');
+      // Não limpa a combo em caso de erro: mantém a seleção anterior para o usuário não perder a viagem que estava
     }
   }
 
@@ -5494,10 +5760,6 @@ function getOverlayMostrado() {
           valorA = (a.TRANSPORTADOR_NOME || '').toLowerCase();
           valorB = (b.TRANSPORTADOR_NOME || '').toLowerCase();
           break;
-        case 'classe':
-          valorA = (a.CLASSE_FROTA_NOME || '').toLowerCase();
-          valorB = (b.CLASSE_FROTA_NOME || '').toLowerCase();
-          break;
         case 'viagens':
           valorA = parseInt(a.QTVIAGENS) || 0;
           valorB = parseInt(b.QTVIAGENS) || 0;
@@ -5585,12 +5847,6 @@ function getOverlayMostrado() {
                 onmouseout="this.style.background='#f5f5f5'">
               Transportador ${getSortIcon('transportador')}
             </th>
-            <th style="padding: 12px; text-align: left; cursor: pointer; user-select: none;" 
-                onclick="ordenarMotoristasCompatíveis('classe')" 
-                onmouseover="this.style.background='#e8e8e8'" 
-                onmouseout="this.style.background='#f5f5f5'">
-              Classe Frota ${getSortIcon('classe')}
-            </th>
             <th style="padding: 12px; text-align: center; cursor: pointer; user-select: none; width: 80px;" 
                 onclick="ordenarMotoristasCompatíveis('viagens')" 
                 onmouseover="this.style.background='#e8e8e8'" 
@@ -5616,7 +5872,8 @@ function getOverlayMostrado() {
       // Formatar celular do motorista para WhatsApp (remover caracteres não numéricos)
       const celularFormatado = motorista.CELULAR ? motorista.CELULAR.toString().replace(/\D/g, '') : '';
       const temWhatsAppMotorista = celularFormatado.length >= 10; // Celular válido tem pelo menos 10 dígitos
-      const linkWhatsAppMotorista = temWhatsAppMotorista ? `https://wa.me/55${celularFormatado}` : '#';
+      const numWaMotorista = celularFormatado.length >= 12 ? celularFormatado : '55' + celularFormatado;
+      const linkWhatsAppMotorista = temWhatsAppMotorista ? `https://wa.me/${numWaMotorista}` : '#';
       
       // Formatar celular do motorista para exibição (com parênteses e hífen)
       let celularExibicao = '';
@@ -5636,7 +5893,8 @@ function getOverlayMostrado() {
       // Formatar celular do transportador para WhatsApp
       const celularTransportadorFormatado = motorista.TRANSPORTADOR_CELULAR ? motorista.TRANSPORTADOR_CELULAR.toString().replace(/\D/g, '') : '';
       const temWhatsAppTransportador = celularTransportadorFormatado.length >= 10;
-      const linkWhatsAppTransportador = temWhatsAppTransportador ? `https://wa.me/55${celularTransportadorFormatado}` : '#';
+      const numWaTransportador = celularTransportadorFormatado.length >= 12 ? celularTransportadorFormatado : '55' + celularTransportadorFormatado;
+      const linkWhatsAppTransportador = temWhatsAppTransportador ? `https://wa.me/${numWaTransportador}` : '#';
       
       // Formatar celular do transportador para exibição
       let celularTransportadorExibicao = '';
@@ -5653,7 +5911,8 @@ function getOverlayMostrado() {
       // Formatar celular do contratador para WhatsApp
       const celularContratadorFormatado = motorista.CONTRATADOR_CELULAR ? motorista.CONTRATADOR_CELULAR.toString().replace(/\D/g, '') : '';
       const temWhatsAppContratador = celularContratadorFormatado.length >= 10;
-      const linkWhatsAppContratador = temWhatsAppContratador ? `https://wa.me/55${celularContratadorFormatado}` : '#';
+      const numWaContratador = celularContratadorFormatado.length >= 12 ? celularContratadorFormatado : '55' + celularContratadorFormatado;
+      const linkWhatsAppContratador = temWhatsAppContratador ? `https://wa.me/${numWaContratador}` : '#';
       
       // Formatar celular do contratador para exibição
       let celularContratadorExibicao = '';
@@ -5705,9 +5964,6 @@ function getOverlayMostrado() {
                 ${temWhatsAppTransportador ? `<a href="${linkWhatsAppTransportador}" target="_blank" style="color: #25D366; text-decoration: none;" title="Abrir WhatsApp do transportador"><i class="bx bx-logo-whatsapp" style="font-size: 1em; vertical-align: middle;"></i> ${celularTransportadorExibicao}</a>` : `<i class="bx bx-logo-whatsapp" style="font-size: 1em; vertical-align: middle;"></i> ${celularTransportadorExibicao}`}
               ` : ''}
             </small>
-          </td>
-          <td style="padding: 12px;">
-            ${(motorista.CLASSE_FROTA_NOME != null ? motorista.CLASSE_FROTA_NOME : motorista.classe_frota_nome) || '-'}
           </td>
           <td style="padding: 12px; text-align: center;">
             <span style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 14px;">
@@ -5915,16 +6171,56 @@ function getOverlayMostrado() {
 
   // Enviar anúncio via WhatsApp para motoristas selecionados
   async function enviarAnuncioWhatsApp() {
-    const selecionados = motoristasCompatíveis.filter(m => m.selecionado);
+    let selecionados = [];
+    if (typeof motoristasCompatíveis !== 'undefined' && motoristasCompatíveis.length > 0) {
+       selecionados = motoristasCompatíveis.filter(m => m.selecionado);
+    }
+    
+    // Se não encontrou no array de compatíveis, tenta pegar pelos checkboxes na tela principal
+    if (selecionados.length === 0) {
+       const checkboxes = document.querySelectorAll('.motorista-checkbox:checked, .check-motorista:checked');
+       checkboxes.forEach(cb => {
+         const id = cb.value || cb.getAttribute('data-id');
+         if (id && window.convocacoes) {
+            const conv = window.convocacoes.find(c => String(c.IDCONVOCACAO) === String(id) || String(c.CDMOTORISTA) === String(id) || String(c.CDCADASTRO_MOTORISTA) === String(id));
+            if (conv) {
+               selecionados.push(conv);
+            } else {
+               // Fallback: usar id como tudo
+               selecionados.push({ id, IDCONVOCACAO: id, CDCADASTRO_MOTORISTA: id, CDMOTORISTA: id });
+            }
+         } else if (id) {
+            selecionados.push({ id, IDCONVOCACAO: id, CDCADASTRO_MOTORISTA: id, CDMOTORISTA: id });
+         }
+       });
+    }
     
     if (selecionados.length === 0) {
       showMessage('Selecione pelo menos um motorista para enviar o anúncio.', 'error');
       return;
     }
 
-    if (!viagemSelecionada) {
+    const idViagemLocal = viagemSelecionada || (window.viagemAtual && window.viagemAtual.IDVIAGEM) || (document.getElementById('filtroConvocacaoViagem') ? document.getElementById('filtroConvocacaoViagem').value : null);
+
+    if (!idViagemLocal) {
       showMessage('Nenhuma viagem selecionada.', 'error');
       return;
+    }
+
+    // Identificar a aba atual para definir o fluxo
+    const tabCompativeis = document.getElementById('tab-compativeis');
+    const isAbaCompativeis = tabCompativeis && tabCompativeis.classList.contains('active');
+
+    // Se as convocações já existirem (tiverem IDCONVOCACAO e já estiverem na aba Convocações) e não for aba de compatíveis, 
+    // não precisamos criar de novo, apenas chamamos o disparo Switch Digital.
+    // IMPORTANTE: precisamos garantir que seja array com IDCONVOCACAO preenchido e não apenas o ID do motorista
+    const convsJaExistem = !isAbaCompativeis && selecionados[0] && 
+                           (selecionados[0].IDCONVOCACAO || (selecionados[0].id && !selecionados[0].CDCADASTRO_MOTORISTA && String(selecionados[0].id).length < 10)); // Heuristica se é ID de conv ou CPF/CNPJ
+
+    if (convsJaExistem) {
+       const ids = selecionados.map(m => m.IDCONVOCACAO || m.CDCADASTRO_MOTORISTA || m.CDMOTORISTA || m.id);
+       dispararWhatsAppSwitchDigital(idViagemLocal, ids);
+       return;
     }
 
     try {
@@ -5947,22 +6243,24 @@ function getOverlayMostrado() {
       // Preparar lista de motoristas para criar convocações
       // O backend já verifica duplicatas automaticamente
       const motoristasParaEnvio = selecionados.map(m => ({
-        CDCADASTRO_MOTORISTA: m.CDCADASTRO_MOTORISTA
+        CDCADASTRO_MOTORISTA: m.CDCADASTRO_MOTORISTA || m.id
       }));
 
       // Obter usuário logado do localStorage
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       const userLogin = user.login || 'SYSTEM';
+      const token = localStorage.getItem('token') || '';
       
       // Criar convocações (o backend verifica duplicatas e reutiliza se existir)
       const response = await fetch('/api/convocacoes', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'user-login': userLogin
+          'user-login': userLogin,
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          idViagem: viagemSelecionada,
+          idViagem: idViagemLocal,
           motoristas: motoristasParaEnvio
         })
       });
@@ -6074,7 +6372,8 @@ function getOverlayMostrado() {
           fetch(`/api/convocacoes/${idConvocacao}`, {
             method: 'PUT',
             headers: {
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({
               NRCELULAR: celularFormatado,
@@ -6087,7 +6386,8 @@ function getOverlayMostrado() {
         );
         
         const textoAnuncio = encodeURIComponent(textoComLink);
-        const linkWhatsApp = `https://wa.me/55${celularFormatado}?text=${textoAnuncio}`;
+        const numWa = celularFormatado.length >= 12 ? celularFormatado : '55' + celularFormatado;
+        const linkWhatsApp = `https://wa.me/${numWa}?text=${textoAnuncio}`;
         
         // Armazenar link para exibir no modal
         linksWhatsApp.push({
@@ -6483,10 +6783,12 @@ function getOverlayMostrado() {
       return;
     }
 
+    const idViagemLocal = viagemSelecionada;
+
     // Usar modal de confirmação estilizado
     const confirmar = await showConfirmModal(
       'Confirmar Disparo de Convocações',
-      `Deseja realmente disparar <strong>${selecionados.length}</strong> convocação(ões) para esta viagem?<br><br><small style="color: #666;">As convocações serão criadas e os campos de celular, texto e link serão preenchidos automaticamente.</small>`
+      `Deseja realmente disparar <strong>${selecionados.length}</strong> convocação(ões) para esta viagem?<br><br><small style="color: #b8c5d6;">As convocações serão criadas e os campos de celular, texto e link serão preenchidos automaticamente.</small>`
     );
     if (!confirmar) return;
 
@@ -6494,7 +6796,11 @@ function getOverlayMostrado() {
       showMessage('Disparando convocações...', 'info');
       
       // Buscar dados da viagem para gerar texto e link
-      const responseViagem = await fetch(`/api/viagens/${viagemSelecionada}`);
+      const idParaBuscar = typeof idViagemLocal !== 'undefined' ? idViagemLocal : (typeof viagemSelecionada !== 'undefined' ? viagemSelecionada : null);
+      if (!idParaBuscar) {
+        throw new Error('ID da viagem não definido.');
+      }
+      const responseViagem = await fetch(`/api/viagens/${idParaBuscar}`);
       if (!responseViagem.ok) {
         throw new Error('Erro ao buscar dados da viagem');
       }
@@ -6583,7 +6889,7 @@ function getOverlayMostrado() {
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       const userLogin = user.login || 'SYSTEM';
       
-      // Primeiro, criar as convocações para obter os IDs reais
+          // Primeiro, criar as convocações para obter os IDs reais
       // Depois atualizaremos com os dados completos
       const motoristasParaCriacao = selecionados.map(m => ({
         CDCADASTRO_MOTORISTA: m.CDCADASTRO_MOTORISTA
@@ -6596,7 +6902,7 @@ function getOverlayMostrado() {
           'user-login': userLogin
         },
         body: JSON.stringify({
-          idViagem: viagemSelecionada,
+          idViagem: idParaBuscar,
           motoristas: motoristasParaCriacao
         })
       });
@@ -6611,7 +6917,7 @@ function getOverlayMostrado() {
       
       // Log de acionamento e convocações criadas (disparo automático)
       if (window.logAcionamento) {
-        window.logAcionamento(viagemSelecionada, selecionados.length, {
+        window.logAcionamento(idParaBuscar, selecionados.length, {
           tipo: 'Disparo Automático',
           motoristasSelecionados: selecionados.map(m => ({
             id: m.CDCADASTRO_MOTORISTA,
@@ -6624,7 +6930,7 @@ function getOverlayMostrado() {
       todasConvocacoes.forEach(conv => {
         if (window.logConvocacao) {
           const tipo = conv.REUTILIZADA ? 'Reutilização' : 'Criação';
-          window.logConvocacao(viagemSelecionada, conv.IDCONVOCACAO, conv.CDCADASTRO_MOTORISTA, tipo, {
+          window.logConvocacao(idParaBuscar, conv.IDCONVOCACAO, conv.CDCADASTRO_MOTORISTA, tipo, {
             reutilizada: conv.REUTILIZADA || false,
             tipoDisparo: 'automático'
           });
@@ -6680,6 +6986,8 @@ function getOverlayMostrado() {
         // Usando exatamente os mesmos dados e formatação que são usados na mensagem (textoBase)
         dadosGeradosMap.set(idConvocacao, {
           IDCONVOCACAO: idConvocacao,
+          CDCADASTRO_MOTORISTA: motorista.CDCADASTRO_MOTORISTA,
+          NOME_MOTORISTA: nomeMotoristaConvocacao,
           NRCELULAR: celularFormatado && celularFormatado.length >= 10 ? celularFormatado : null,
           TXTCONVOCACAO: textoComLink,
           LINKCONVOCACAO: linkConvocacao,
@@ -6785,181 +7093,128 @@ function getOverlayMostrado() {
         }
       }
       
-      // Enviar dados para o webhook INDIVIDUALMENTE com intervalo de 1 segundo
+      // Garantir que só enviamos convocações dos motoristas realmente selecionados (evita envio duplicado)
+      const idsSelecionados = new Set((selecionados || []).map(m => String(m.CDCADASTRO_MOTORISTA)));
+      const convocacoesFiltradas = convocacoesParaEnviar.filter(d => d.CDCADASTRO_MOTORISTA != null && idsSelecionados.has(String(d.CDCADASTRO_MOTORISTA)));
+      if (convocacoesFiltradas.length !== convocacoesParaEnviar.length) {
+        _log('[SWITCH DIGITAL] Ajuste: enviando apenas', convocacoesFiltradas.length, 'convocação(ões) dos selecionados.');
+      }
+      convocacoesParaEnviar.length = 0;
+      convocacoesParaEnviar.push(...convocacoesFiltradas);
+      
+      // Enviar dados para o webhook (Backend vai cuidar do Switch Digital)
+      let envioJaFeitoViaEmMassa = false;
       if (convocacoesParaEnviar.length > 0) {
-        let enviadosComSucesso = 0;
-        let enviadosComErro = 0;
-        
-        for (let i = 0; i < convocacoesParaEnviar.length; i++) {
-          const dadosConvocacao = convocacoesParaEnviar[i];
+        try {
+          // Log detalhado de envio (F12)
+          _log('========================================');
+          _log(`[SWITCH DIGITAL] 📤 Solicitando envio de ${convocacoesParaEnviar.length} convocações ao Backend`);
+          _log('========================================');
           
-          // Remover TXTCONVOCACAO do objeto antes de enviar ao webhook
-          const { TXTCONVOCACAO, ...dadosParaWebhook } = dadosConvocacao;
-          
-          try {
-            const inicioEnvio = Date.now();
-            const timestampEnvio = new Date().toISOString();
-            
-            // Log detalhado de envio (F12)
-            _log('========================================');
-            _log(`[WEBHOOK ENVIO] 📤 [${i + 1}/${convocacoesParaEnviar.length}] ENVIANDO CONVOCAÇÃO`);
-            _log(`[WEBHOOK ENVIO] Timestamp: ${timestampEnvio}`);
-            _log(`[WEBHOOK ENVIO] ID Convocação: ${dadosParaWebhook.IDCONVOCACAO}`);
-            _log(`[WEBHOOK ENVIO] URL: https://ia.riochat.com.br/webhook/aviso-rota-integra`);
-            _log(`[WEBHOOK ENVIO] Método: POST`);
-            _log(`[WEBHOOK ENVIO] Headers:`, { 'Content-Type': 'application/json' });
-            _log(`[WEBHOOK ENVIO] Body completo:`, JSON.stringify(dadosParaWebhook, null, 2));
-            _log('========================================');
-            
-            // Adicionar log de envio na aba e salvar no banco (gera log no terminal também)
-            if (typeof window.adicionarLogMeta === 'function') {
-              await window.adicionarLogMeta({
-                tipo: 'envio',
-                titulo: `Enviando Convocação ${dadosParaWebhook.IDCONVOCACAO}`,
-                mensagem: `[${i + 1}/${convocacoesParaEnviar.length}] Enviando convocação ${dadosParaWebhook.IDCONVOCACAO} para o webhook Meta`,
-                detalhes: {
-                  url: 'https://ia.riochat.com.br/webhook/aviso-rota-integra',
-                  metodo: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: dadosParaWebhook,
-                  timestamp: timestampEnvio
-                }
-              });
-            }
-            
-            const webhookResponse = await fetch('https://ia.riochat.com.br/webhook/aviso-rota-integra', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(dadosParaWebhook) // Enviar objeto individual, não array (sem TXTCONVOCACAO)
+          // Adicionar log na tela informando que iniciou o processo no backend
+          if (typeof window.adicionarLogSwitch === 'function') {
+            console.log('[SWITCH DIGITAL LOG] Fluxo EM MASSA - adicionando "Iniciando Envios" em _listaLogsSwitch, N=', convocacoesParaEnviar.length);
+            window.adicionarLogSwitch({
+              tipo: 'info',
+              titulo: `Iniciando Envios via Backend`,
+              mensagem: `Enviando lista de ${convocacoesParaEnviar.length} motorista(s) para o processador de fila do servidor.`,
+              detalhes: `Aguarde, as mensagens serão enviadas com intervalo de 2 segundos cada...`
             });
-            
-            const tempoResposta = Date.now() - inicioEnvio;
-            const timestampResposta = new Date().toISOString();
-            
-            // Tentar ler o body da resposta
-            let responseBody = null;
-            const contentType = webhookResponse.headers.get('content-type');
-            const responseHeaders = Object.fromEntries(webhookResponse.headers.entries());
-            
-            try {
-              if (contentType && contentType.includes('application/json')) {
-                responseBody = await webhookResponse.json();
-              } else {
-                responseBody = await webhookResponse.text();
-              }
-            } catch (bodyErr) {
-              // Ignorar erro ao ler body
-            }
-            
-            // Log detalhado de resposta (F12)
-            _log(`[WEBHOOK RESPOSTA] 📥 [${i + 1}/${convocacoesParaEnviar.length}] RESPOSTA RECEBIDA`);
-            _log(`[WEBHOOK RESPOSTA] Timestamp: ${timestampResposta}`);
-            _log(`[WEBHOOK RESPOSTA] ID Convocação: ${dadosParaWebhook.IDCONVOCACAO}`);
-            _log(`[WEBHOOK RESPOSTA] Status: ${webhookResponse.status} ${webhookResponse.statusText}`);
-            _log(`[WEBHOOK RESPOSTA] Tempo de resposta: ${tempoResposta}ms`);
-            _log(`[WEBHOOK RESPOSTA] Headers:`, JSON.stringify(responseHeaders, null, 2));
-            if (contentType && contentType.includes('application/json')) {
-              _log(`[WEBHOOK RESPOSTA] Body (JSON):`, JSON.stringify(responseBody, null, 2));
-            } else {
-              _log(`[WEBHOOK RESPOSTA] Body (Texto):`, responseBody);
-            }
-            _log('');
-            
-            // Adicionar log de resposta na aba e salvar no banco (gera log no terminal também)
-            if (typeof window.adicionarLogMeta === 'function') {
-              await window.adicionarLogMeta({
-                tipo: 'resposta',
-                titulo: `Resposta - Convocação ${dadosParaWebhook.IDCONVOCACAO}`,
-                mensagem: `Status: ${webhookResponse.status} ${webhookResponse.statusText} | Tempo: ${tempoResposta}ms`,
-                detalhes: {
-                  idConvocacao: dadosParaWebhook.IDCONVOCACAO,
-                  status: webhookResponse.status,
-                  statusText: webhookResponse.statusText,
-                  headers: responseHeaders,
-                  body: responseBody,
-                  tempoResposta: `${tempoResposta}ms`,
-                  timestamp: timestampResposta
-                },
-                status_http: webhookResponse.status,
-                tempo_resposta: tempoResposta
-              });
-            }
-            
-            if (webhookResponse.ok) {
-              // Adicionar log de sucesso na aba
-              if (typeof window.adicionarLogMeta === 'function') {
-                window.adicionarLogMeta({
-                  tipo: 'sucesso',
-                  titulo: `✅ Sucesso - Convocação ${dadosParaWebhook.IDCONVOCACAO}`,
-                  mensagem: `Convocação ${dadosParaWebhook.IDCONVOCACAO} enviada com sucesso para o webhook Meta`,
-                  detalhes: {
-                    idConvocacao: dadosParaWebhook.IDCONVOCACAO,
-                    resposta: responseBody,
-                    tempoResposta: `${tempoResposta}ms`
-                  }
-                });
-              }
-              
-              // Atualizar campo DHENVIOMETA após envio bem-sucedido
-              try {
-                const updateResponse = await fetch(`/api/convocacoes/${dadosParaWebhook.IDCONVOCACAO}/atualizar-envio-meta`, {
-                  method: 'PUT',
-                  headers: {
-                    'Content-Type': 'application/json'
-                  }
-                });
-              } catch (updateErr) {
-                // Ignorar erro ao atualizar DHENVIOMETA
-              }
-              
-              enviadosComSucesso++;
-            } else {
-              
-              // Adicionar log de erro na aba
-              if (typeof window.adicionarLogMeta === 'function') {
-                window.adicionarLogMeta({
-                  tipo: 'erro',
-                  titulo: `❌ Erro - Convocação ${dadosParaWebhook.IDCONVOCACAO}`,
-                  mensagem: `Erro ao enviar convocação ${dadosParaWebhook.IDCONVOCACAO}: Status ${webhookResponse.status} ${webhookResponse.statusText}`,
-                  detalhes: {
-                    idConvocacao: dadosParaWebhook.IDCONVOCACAO,
-                    status: webhookResponse.status,
-                    statusText: webhookResponse.statusText,
-                    body: responseBody,
-                    tempoResposta: `${tempoResposta}ms`
-                  }
-                });
-              }
-              
-              enviadosComErro++;
-            }
-          } catch (webhookErr) {
-            console.error(`[WEBHOOK ENVIO] ❌ Erro de conexão - Convocação ${dadosParaWebhook.IDCONVOCACAO}:`, webhookErr.message);
-            
-            // Adicionar log de erro de conexão na aba
-            if (typeof window.adicionarLogMeta === 'function') {
-              window.adicionarLogMeta({
-                tipo: 'erro',
-                titulo: `❌ Erro de Conexão - Convocação ${dadosParaWebhook.IDCONVOCACAO}`,
-                mensagem: `Erro de conexão ao enviar convocação ${dadosParaWebhook.IDCONVOCACAO}: ${webhookErr.message}`,
-                detalhes: {
-                  idConvocacao: dadosParaWebhook.IDCONVOCACAO,
-                  tipoErro: webhookErr.name,
-                  mensagem: webhookErr.message,
-                  stack: webhookErr.stack
-                }
-              });
-            }
-            
-            enviadosComErro++;
           }
           
-          // Aguardar 1 segundo antes do próximo envio (exceto no último)
-          if (i < convocacoesParaEnviar.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
+          // Formatar as convocacoes para envio com nomes corretos esperados pelo backend
+          const convocacoesFormatadas = convocacoesParaEnviar.map(conv => {
+            return {
+              ...conv,
+              IDCONVOCACAO: conv.IDCONVOCACAO || conv.idconvocacao,
+              FONE: conv.NRCELULAR || conv.CELULAR || conv.FONE1 || '',
+              NOME_MOTORISTA: conv.NOME_MOTORISTA || conv.nome_motorista || 'Motorista',
+              ORIGEM_CIDADE: viagemAtual.ORIGEM_CIDADE || '',
+              ORIGEM_ESTADO: viagemAtual.ORIGEM_ESTADO || '',
+              DESTINO_CIDADE: viagemAtual.DESTINO_CIDADE || '',
+              DESTINO_ESTADO: viagemAtual.DESTINO_ESTADO || '',
+              VLFRETE: viagemAtual.VLFRETE || 0,
+              PESO: viagemAtual.PESO || 0
+            };
+          });
+
+          console.log('[SWITCH DIGITAL] Payload preparado (massa):', convocacoesFormatadas);
+
+          // Obter URL pública para o link de aceitar/recusar no corpo da mensagem
+          let baseUrl = window.location.origin;
+          try {
+            const urlRes = await fetch('/api/public-url');
+            if (urlRes.ok) {
+              const urlData = await urlRes.json();
+              if (urlData && urlData.url) baseUrl = urlData.url;
+            }
+          } catch (e) { /* usa origin */ }
+
+          // Enviar requisição para nossa nova rota no backend
+          console.log('[SWITCH DIGITAL LOG] Fluxo EM MASSA - chamando fetch /api/viagens/webhook/switch-digital');
+          const response = await fetch('/api/viagens/webhook/switch-digital', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              viagemId: typeof idViagemLocal !== 'undefined' ? idViagemLocal : (typeof viagemSelecionada !== 'undefined' ? viagemSelecionada : null),
+              convocacoes: convocacoesFormatadas,
+              baseUrl: baseUrl
+            })
+          });
+          
+          console.log('[SWITCH DIGITAL] Resposta recebida (massa):', response.status);
+          const resultData = await response.json();
+          
+          if (!response.ok) {
+            throw new Error(resultData.error || `Erro HTTP: ${response.status}`);
           }
+          
+          _log(`[SWITCH DIGITAL] ✅ Backend recebeu a fila com sucesso:`, resultData);
+          
+          // Adicionar log na tela
+          const motoristasFormatados = resultData.detalhes || [];
+          
+          if (typeof window.adicionarLogSwitch === 'function') {
+            console.log('[SWITCH DIGITAL LOG] Fluxo EM MASSA - adicionando "Fila Processada" em _listaLogsSwitch');
+            window.adicionarLogSwitch({
+              tipo: resultData.erros > 0 ? (resultData.sucessos > 0 ? 'warning' : 'erro') : 'sucesso',
+              titulo: `Fila Processada no Backend`,
+              mensagem: `O Servidor concluiu a fila de disparos. Sucessos: ${resultData.sucessos}, Erros: ${resultData.erros}`,
+              detalhes: motoristasFormatados
+            });
+          }
+          
+          if (resultData.erros > 0) {
+             showMessage(`Atenção: A fila foi processada, mas houve erro no envio de ${resultData.erros} de ${resultData.total} mensagens. Verifique a aba de Integração Switch.`, 'warning');
+          } else {
+             showMessage(`${resultData.sucessos} mensagem(ns) de WhatsApp enfileirada(s) e enviada(s) com sucesso via Switch Digital!`, 'success');
+          }
+          
+          envioJaFeitoViaEmMassa = true; // Evitar chamar dispararWhatsAppSwitchDigital de novo (duplicava envio e mensagens)
+          
+          // Limpar seleção
+          if (typeof motoristasCompatíveis !== 'undefined') {
+             motoristasCompatíveis.forEach(m => m.selecionado = false);
+             if (typeof atualizarContadorSelecionados === 'function') atualizarContadorSelecionados();
+          }
+          const checkboxes = document.querySelectorAll('.check-motorista:checked, .motorista-checkbox:checked');
+          checkboxes.forEach(cb => cb.checked = false);
+          
+        } catch (webhookErr) {
+          console.error(`[SWITCH DIGITAL ENVIO] ❌ Erro ao processar fila:`, webhookErr);
+          
+          // Adicionar log de erro na tela
+          if (typeof window.adicionarLogSwitch === 'function') {
+            window.adicionarLogSwitch({
+              tipo: 'erro',
+              titulo: `❌ Erro no Processamento`,
+              mensagem: `Falha ao tentar solicitar o envio das mensagens de WhatsApp pelo backend: ${webhookErr.message}`,
+              detalhes: webhookErr.stack
+            });
+          }
+          showMessage(`Erro ao disparar WhatsApp: ${webhookErr.message}`, 'error');
         }
       }
       
@@ -6970,7 +7225,7 @@ function getOverlayMostrado() {
         
         // Log de envio WhatsApp automático
         if (window.logWhatsAppAutomatico && sucessos > 0) {
-          window.logWhatsAppAutomatico(viagemSelecionada, sucessos, {
+          window.logWhatsAppAutomatico(idParaBuscar, sucessos, {
             totalAtualizacoes: atualizacoesPromises.length,
             sucessos: sucessos,
             erros: erros,
@@ -6980,8 +7235,33 @@ function getOverlayMostrado() {
       }
       
       // Limpar seleções
-      motoristasCompatíveis.forEach(m => m.selecionado = false);
+      if (typeof motoristasCompatíveis !== 'undefined') {
+         motoristasCompatíveis.forEach(m => m.selecionado = false);
+      }
+      if (typeof atualizarContadorSelecionados === 'function') atualizarContadorSelecionados();
       renderizarMotoristasCompatíveis();
+      
+      // Só chamar dispararWhatsAppSwitchDigital se NÃO já enviamos via fluxo "em massa" acima
+      // (senão duplicava: uma requisição no bloco convocacoesParaEnviar.length > 0 e outra aqui)
+      if (!envioJaFeitoViaEmMassa) {
+        const idsConvocacoes = todasConvocacoes.map(c => c.IDCONVOCACAO);
+        if (!window.convocacoes) window.convocacoes = [];
+        todasConvocacoes.forEach(nc => {
+           const exists = window.convocacoes.find(ec => ec.IDCONVOCACAO === nc.IDCONVOCACAO);
+           if (!exists) {
+              const motOrig = selecionados.find(s => s.CDCADASTRO_MOTORISTA === nc.CDCADASTRO_MOTORISTA);
+              window.convocacoes.push({
+                 ...nc,
+                 NOME_MOTORISTA: nc.NOME_MOTORISTA || (motOrig ? motOrig.NOME || motOrig.NOME_MOTORISTA : 'Motorista'),
+                 NRCELULAR: nc.NRCELULAR || (motOrig ? motOrig.CELULAR || motOrig.FONE1 || motOrig.NRCELULAR : ''),
+                 CELULAR: nc.CELULAR || (motOrig ? motOrig.CELULAR || motOrig.FONE1 || motOrig.NRCELULAR : ''),
+                 FONE: nc.FONE || nc.FONE1 || nc.CELULAR || nc.NRCELULAR || (motOrig ? motOrig.CELULAR || motOrig.FONE1 || motOrig.NRCELULAR : '')
+              });
+           }
+        });
+        _log('[SWITCH DIGITAL] Chamando API do Switch Digital com IDs da criacao:', idsConvocacoes);
+        dispararWhatsAppSwitchDigital(idViagemLocal, idsConvocacoes);
+      }
       
     } catch (err) {
       console.error('Erro ao disparar convocações:', err);
@@ -6989,436 +7269,437 @@ function getOverlayMostrado() {
     }
   }
 
-  // ========== FUNCIONALIDADES DE INTEGRAÇÃO META ==========
+  // ========== FUNCIONALIDADES DA SWITCH DIGITAL ==========
   
-  let logsIntegracaoMeta = [];
-  
-  // Função para adicionar log à lista (definida no escopo global)
-  window.adicionarLogMeta = async function(log) {
-    const logCompleto = {
-      ...log,
-      timestamp: new Date().toISOString(),
-      id: Date.now() + Math.random()
-    };
-    
-    logsIntegracaoMeta.unshift(logCompleto);
-    
-    // Limitar a 100 logs em memória
-    if (logsIntegracaoMeta.length > 100) {
-      logsIntegracaoMeta = logsIntegracaoMeta.slice(0, 100);
+  // Função para abrir o modal de disparo WhatsApp
+  window.abrirModalDisparoWhatsApp = function() {
+    let motoristasSelecionados = [];
+    if (typeof motoristasCompatíveis !== 'undefined' && motoristasCompatíveis.length > 0) {
+       motoristasSelecionados = motoristasCompatíveis.filter(m => m.selecionado);
     }
     
-    // Salvar no banco de dados
-    try {
-      let idConvocacao = null;
-      
-      if (log.detalhes?.body?.IDCONVOCACAO) {
-        idConvocacao = log.detalhes.body.IDCONVOCACAO;
-      } else if (log.detalhes?.body?.idConvocacao) {
-        idConvocacao = log.detalhes.body.idConvocacao;
-      } else if (log.detalhes?.idConvocacao) {
-        idConvocacao = log.detalhes.idConvocacao;
-      } else if (log.detalhes?.IDCONVOCACAO) {
-        idConvocacao = log.detalhes.IDCONVOCACAO;
-      } else if (log.titulo) {
-        const match = log.titulo.match(/Convocação\s+(\d+)/);
-        if (match) {
-          idConvocacao = parseInt(match[1]);
-        }
-      } else if (log.mensagem) {
-        const match = log.mensagem.match(/convocação\s+(\d+)/i);
-        if (match) {
-          idConvocacao = parseInt(match[1]);
-        }
-      }
-      
-      const dadosParaSalvar = {
-        IDCONVOCACAO: idConvocacao,
-        tipo: log.tipo,
-        titulo: log.titulo,
-        mensagem: log.mensagem,
-        detalhes: log.detalhes,
-        status_http: log.detalhes?.status || null,
-        tempo_resposta: log.detalhes?.tempoResposta ? parseInt(String(log.detalhes.tempoResposta).replace('ms', '')) || null : null
-      };
-      
-      if (dadosParaSalvar.IDCONVOCACAO) {
-        await fetch('/api/logs-webhook-meta', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(dadosParaSalvar)
-        });
-      }
-      } catch (err) {
-        // Ignorar erro ao salvar log
-      }
-    
-    if (typeof window.atualizarExibicaoLogsMeta === 'function') {
-      window.atualizarExibicaoLogsMeta();
-    }
-  };
-  
-  // Função para atualizar a exibição dos logs (definida no escopo global)
-  window.atualizarExibicaoLogsMeta = function() {
-    const container = document.getElementById('logsIntegracaoMeta');
-    if (!container) {
-      setTimeout(() => window.atualizarExibicaoLogsMeta(), 500);
-      return;
-    }
-    
-    // Verificar se há viagem selecionada
-    const idViagem = document.getElementById('filtroIdViagem')?.value || 
-                     document.getElementById('viagemId')?.value || 
-                     null;
-    
-    if (!idViagem || idViagem.trim() === '') {
-      // Não há viagem selecionada - mostrar mensagem
-      container.innerHTML = `
-        <div style="color: #856404; text-align: center; padding: 40px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px;">
-          <div style="font-size: 48px; margin-bottom: 15px;"><i class="bx bx-error-circle" style="color: #856404;"></i></div>
-          <h3 style="color: #856404; margin-bottom: 10px;">Nenhuma viagem selecionada</h3>
-          <p style="color: #856404; margin: 0;">
-            Selecione uma viagem na aba <strong>Dados</strong> ou <strong>Grid</strong> para visualizar os logs de integração Meta.
-          </p>
-        </div>
-      `;
-      // Limpar contadores
-      const totalEnviosEl = document.getElementById('totalEnviosMeta');
-      const totalSucessosEl = document.getElementById('totalSucessosMeta');
-      const totalErrosEl = document.getElementById('totalErrosMeta');
-      const ultimaAtualizacaoEl = document.getElementById('ultimaAtualizacaoMeta');
-      if (totalEnviosEl) totalEnviosEl.textContent = '0';
-      if (totalSucessosEl) totalSucessosEl.textContent = '0';
-      if (totalErrosEl) totalErrosEl.textContent = '0';
-      if (ultimaAtualizacaoEl) ultimaAtualizacaoEl.textContent = '-';
-      return;
-    }
-    
-    if (logsIntegracaoMeta.length === 0) {
-      container.innerHTML = `
-        <div style="color: #6c757d; text-align: center; padding: 40px;">
-          Nenhum log disponível para esta viagem. Os logs aparecerão aqui quando houver envios para o webhook Meta.
-        </div>
-      `;
-      return;
-    }
-    
-    // Separar logs por tipo
-    const logsEnvios = logsIntegracaoMeta.filter(l => l.tipo === 'envio').sort((a, b) => {
-      return new Date(b.timestamp || 0) - new Date(a.timestamp || 0);
-    });
-    const logsRespostas = logsIntegracaoMeta.filter(l => l.tipo === 'resposta' || l.tipo === 'sucesso').sort((a, b) => {
-      return new Date(b.timestamp || 0) - new Date(a.timestamp || 0);
-    });
-    const logsCallbacks = logsIntegracaoMeta.filter(l => l.tipo === 'callback' || l.tipo === 'retorno').sort((a, b) => {
-      return new Date(b.timestamp || 0) - new Date(a.timestamp || 0);
-    });
-    
-    // Função auxiliar para gerar HTML de um log
-    const gerarHtmlLog = (log) => {
-      let dataHora = 'Data inválida';
-      try {
-        if (log.timestamp) dataHora = fmtDataHora(log.timestamp);
-      } catch (e) {
-        // Ignorar erro ao formatar data
-      }
-      
-      const tipoIcon = log.tipo === 'envio' ? '<i class="bx bx-send" style="font-size:16px;"></i>' : log.tipo === 'resposta' ? '<i class="bx bx-down-arrow-circle" style="font-size:16px;"></i>' : log.tipo === 'callback' || log.tipo === 'retorno' ? '<i class="bx bx-refresh" style="font-size:16px;"></i>' : log.tipo === 'sucesso' ? '<i class="bx bx-check-circle" style="font-size:16px;"></i>' : log.tipo === 'erro' ? '<i class="bx bx-x-circle" style="font-size:16px;"></i>' : '<i class="bx bx-info-circle" style="font-size:16px;"></i>';
-      const tipoCor = log.tipo === 'envio' ? '#007bff' : log.tipo === 'resposta' ? '#17a2b8' : log.tipo === 'callback' || log.tipo === 'retorno' ? '#ff9800' : log.tipo === 'sucesso' ? '#28a745' : log.tipo === 'erro' ? '#dc3545' : '#6c757d';
-      
-      return `
-        <div style="border-left: 4px solid ${tipoCor}; padding: 12px; margin-bottom: 10px; background: #f8f9fa; border-radius: 4px; display: block; visibility: visible; min-height: 60px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="display: inline-block; vertical-align: middle;">${tipoIcon}</span>
-              <strong style="color: ${tipoCor}; display: inline-block; font-size: 12px;">${log.titulo || log.tipo}</strong>
-            </div>
-            <span style="color: #6c757d; font-size: 10px; display: inline-block;">${dataHora}</span>
-          </div>
-          ${log.mensagem ? `<div style="color: #333; margin-bottom: 8px; display: block; min-height: 20px; font-size: 11px;">${log.mensagem}</div>` : ''}
-          ${log.detalhes ? `
-            <details style="margin-top: 8px; display: block;">
-              <summary style="cursor: pointer; color: #007bff; font-weight: 600; user-select: none; display: block; font-size: 11px;">Ver detalhes</summary>
-              <pre style="background: #fff; padding: 10px; border-radius: 4px; margin-top: 8px; overflow-x: auto; font-size: 10px; line-height: 1.4; display: block; min-height: 50px;">${JSON.stringify(log.detalhes, null, 2)}</pre>
-            </details>
-          ` : ''}
-        </div>
-      `;
-    };
-    
-    // Gerar HTML para cada coluna
-    const htmlColuna1 = logsEnvios.length > 0 
-      ? logsEnvios.map(gerarHtmlLog).join('')
-      : '<div style="color: #6c757d; text-align: center; padding: 20px; font-size: 12px;">Nenhum envio</div>';
-    
-    const htmlColuna2 = logsRespostas.length > 0
-      ? logsRespostas.map(gerarHtmlLog).join('')
-      : '<div style="color: #6c757d; text-align: center; padding: 20px; font-size: 12px;">Nenhuma resposta</div>';
-    
-    const htmlColuna3 = logsCallbacks.length > 0
-      ? logsCallbacks.map(gerarHtmlLog).join('')
-      : '<div style="color: #6c757d; text-align: center; padding: 20px; font-size: 12px;">Nenhum callback</div>';
-    
-    // Montar HTML com 3 colunas
-    const html = `
-      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; width: 100%;">
-        <div style="display: flex; flex-direction: column;">
-          <div style="background: #007bff; color: white; padding: 10px; text-align: center; font-weight: bold; border-radius: 4px 4px 0 0; margin-bottom: 10px;">
-            <i class="bx bx-send" style="font-size:1rem; vertical-align: middle;"></i> Envios (${logsEnvios.length})
-          </div>
-          <div style="flex: 1; overflow-y: auto; max-height: 500px;">
-            ${htmlColuna1}
-          </div>
-        </div>
-        <div style="display: flex; flex-direction: column;">
-          <div style="background: #17a2b8; color: white; padding: 10px; text-align: center; font-weight: bold; border-radius: 4px 4px 0 0; margin-bottom: 10px;">
-            <i class="bx bx-down-arrow-circle" style="font-size:1rem; vertical-align: middle;"></i> Retornos (${logsRespostas.length})
-          </div>
-          <div style="flex: 1; overflow-y: auto; max-height: 500px;">
-            ${htmlColuna2}
-          </div>
-        </div>
-        <div style="display: flex; flex-direction: column;">
-          <div style="background: #ff9800; color: white; padding: 10px; text-align: center; font-weight: bold; border-radius: 4px 4px 0 0; margin-bottom: 10px;">
-            <i class="bx bx-refresh" style="font-size:1rem; vertical-align: middle;"></i> Callbacks (${logsCallbacks.length})
-          </div>
-          <div style="flex: 1; overflow-y: auto; max-height: 500px;">
-            ${htmlColuna3}
-          </div>
-        </div>
-      </div>
-    `;
-    
-    // Verificar se a aba está ativa antes de inserir
-    const tabContent = document.getElementById('tab-integracao-meta');
-    if (!tabContent || !tabContent.classList.contains('active')) {
-      // Se a aba não estiver ativa, tentar novamente quando estiver
-      setTimeout(() => window.atualizarExibicaoLogsMeta(), 200);
-      return;
-    }
-    
-    // Inserir HTML diretamente - mesmo padrão usado nas outras abas
-    container.innerHTML = html;
-    
-    // Forçar reflow para garantir renderização
-    void container.offsetHeight;
-    
-    // Atualizar contadores
-    const totalEnvios = logsIntegracaoMeta.filter(l => l.tipo === 'envio').length;
-    const totalSucessos = logsIntegracaoMeta.filter(l => l.tipo === 'sucesso').length;
-    const totalErros = logsIntegracaoMeta.filter(l => l.tipo === 'erro').length;
-    // Tratar última atualização de forma segura
-    let ultimaAtualizacao = '-';
-    if (logsIntegracaoMeta.length > 0 && logsIntegracaoMeta[0].timestamp) {
-      try {
-        const date = new Date(logsIntegracaoMeta[0].timestamp);
-        if (!isNaN(date.getTime())) {
-          ultimaAtualizacao = fmtDataHora(date);
-        }
-      } catch (e) {
-        // Ignorar erro ao formatar data
-      }
-    }
-    
-    const totalEnviosEl = document.getElementById('totalEnviosMeta');
-    const totalSucessosEl = document.getElementById('totalSucessosMeta');
-    const totalErrosEl = document.getElementById('totalErrosMeta');
-    const ultimaAtualizacaoEl = document.getElementById('ultimaAtualizacaoMeta');
-    
-    if (totalEnviosEl) totalEnviosEl.textContent = totalEnvios;
-    if (totalSucessosEl) totalSucessosEl.textContent = totalSucessos;
-    if (totalErrosEl) totalErrosEl.textContent = totalErros;
-    if (ultimaAtualizacaoEl) ultimaAtualizacaoEl.textContent = ultimaAtualizacao;
-  };
-  
-  // Função para limpar logs (definida no escopo global)
-  window.limparLogsMeta = function() {
-    if (confirm('Deseja realmente limpar todos os logs da integração Meta?')) {
-      logsIntegracaoMeta = [];
-      if (typeof window.atualizarExibicaoLogsMeta === 'function') {
-        window.atualizarExibicaoLogsMeta();
-      }
-      showMessage('Logs limpos com sucesso!', 'success');
-    }
-  }
-  
-  // Função para exportar logs (definida no escopo global)
-  window.exportarLogsMeta = function() {
-    if (logsIntegracaoMeta.length === 0) {
-      showMessage('Nenhum log para exportar.', 'warning');
-      return;
-    }
-    
-    const dadosExportacao = {
-      dataExportacao: new Date().toISOString(),
-      totalLogs: logsIntegracaoMeta.length,
-      logs: logsIntegracaoMeta
-    };
-    
-    const blob = new Blob([JSON.stringify(dadosExportacao, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `logs-integracao-meta-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    showMessage('Logs exportados com sucesso!', 'success');
-  }
-  
-  // Função para carregar logs do banco de dados (reutilizável)
-  window.carregarLogsMeta = async function() {
-    try {
-      // Obter ID da viagem atual
-      const idViagem = document.getElementById('filtroIdViagem')?.value || 
-                       document.getElementById('viagemId')?.value || 
-                       null;
-      
-      // Verificar se há viagem selecionada
-      if (!idViagem || idViagem.trim() === '') {
-        // Não há viagem selecionada - mostrar mensagem
-        const container = document.getElementById('logsIntegracaoMeta');
-        if (container) {
-          container.innerHTML = `
-            <div style="color: #856404; text-align: center; padding: 40px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px;">
-              <div style="font-size: 48px; margin-bottom: 15px;"><i class="bx bx-error-circle" style="color: #856404;"></i></div>
-              <h3 style="color: #856404; margin-bottom: 10px;">Nenhuma viagem selecionada</h3>
-              <p style="color: #856404; margin: 0;">
-                Selecione uma viagem na aba <strong>Dados</strong> ou <strong>Grid</strong> para visualizar os logs de integração Meta.
-              </p>
-            </div>
-          `;
-        }
-        // Limpar contadores
-        const totalEnviosEl = document.getElementById('totalEnviosMeta');
-        const totalSucessosEl = document.getElementById('totalSucessosMeta');
-        const totalErrosEl = document.getElementById('totalErrosMeta');
-        const ultimaAtualizacaoEl = document.getElementById('ultimaAtualizacaoMeta');
-        if (totalEnviosEl) totalEnviosEl.textContent = '0';
-        if (totalSucessosEl) totalSucessosEl.textContent = '0';
-        if (totalErrosEl) totalErrosEl.textContent = '0';
-        if (ultimaAtualizacaoEl) ultimaAtualizacaoEl.textContent = '-';
-        // Limpar array de logs
-        logsIntegracaoMeta = [];
-        return;
-      }
-      
-      // Montar URL com filtro de viagem (obrigatório)
-      const url = `/api/logs-webhook-meta?limite=100&idViagem=${encodeURIComponent(idViagem.trim())}`;
-      
-      const response = await fetch(url);
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: `Erro ${response.status}: ${response.statusText}` }));
-        console.error('[LOGS META] Erro ao carregar logs:', errorData);
-        throw new Error(errorData.error || errorData.details || `Erro ${response.status} ao carregar logs`);
-      }
-      
-      const logsDoBanco = await response.json();
-      if (!Array.isArray(logsDoBanco)) {
-        console.error('[LOGS META] Resposta inválida do servidor:', logsDoBanco);
-        throw new Error('Resposta do servidor não é um array');
-      }
-        
-      // Converter logs do banco para o formato esperado
-      // O controller retorna campos em maiúsculas (TIPO, TITULO, etc.) e também adiciona detalhes/timestamp
-      logsIntegracaoMeta = logsDoBanco.map((log, index) => {
-        try {
-          // Tentar parsear detalhes se for string
-          let detalhesParsed = null;
-          if (log.detalhes) {
-            detalhesParsed = log.detalhes; // Já vem parseado do controller
-          } else if (log.DETALHES) {
-            if (typeof log.DETALHES === 'string') {
-              try {
-                detalhesParsed = JSON.parse(log.DETALHES);
-              } catch (e) {
-                // Ignorar erro ao parsear detalhes
-                detalhesParsed = null;
-              }
-            } else {
-              detalhesParsed = log.DETALHES;
+    // Se não encontrou no array de compatíveis, tenta pegar pelos checkboxes na tela principal
+    if (motoristasSelecionados.length === 0) {
+       const checkboxes = document.querySelectorAll('.motorista-checkbox:checked, .check-motorista:checked');
+       checkboxes.forEach(cb => {
+         // Tenta pegar o ID do checkbox ou do atributo data-id ou do atributo id (que no input gerado é check-${index})
+         let id = cb.value || cb.getAttribute('data-id');
+         
+         // No caso de "Compatíveis", o value/data-id pode não estar definido, mas o checkbox tem data-index.
+         if (!id && cb.hasAttribute('data-index') && typeof motoristasCompatíveis !== 'undefined') {
+            const index = cb.getAttribute('data-index');
+            if (motoristasCompatíveis[index]) {
+               motoristasSelecionados.push(motoristasCompatíveis[index]);
+               return; // já processado
             }
-          }
-          
-          // Obter timestamp
-          let timestampValue = null;
-          if (log.timestamp) {
-            timestampValue = log.timestamp;
-          } else if (log.DHLOG) {
-            timestampValue = new Date(log.DHLOG).toISOString();
-          } else {
-            timestampValue = new Date().toISOString();
-          }
-          
-          const logConvertido = {
-            tipo: log.TIPO || log.tipo || 'desconhecido',
-            titulo: log.TITULO || log.titulo || '',
-            mensagem: log.MENSAGEM || log.mensagem || '',
-            detalhes: detalhesParsed,
-            timestamp: timestampValue,
-            id: log.IDLOG || log.id || `log-${index}`
-          };
-          
-          return logConvertido;
-        } catch (parseErr) {
-          return null;
-        }
-      }).filter(log => log !== null);
-      
-      if (typeof window.atualizarExibicaoLogsMeta === 'function') {
-        window.atualizarExibicaoLogsMeta();
-      }
-    } catch (err) {
-      console.error('[LOGS META] Erro ao carregar logs:', err);
-      showMessage(`Erro ao carregar logs: ${err.message}`, 'error');
-      if (typeof window.atualizarExibicaoLogsMeta === 'function') {
-        window.atualizarExibicaoLogsMeta();
-      }
+         }
+         
+         // Buscar no array global de convocações se existir
+         if (id && window.convocacoes) {
+            const conv = window.convocacoes.find(c => String(c.IDCONVOCACAO) === String(id) || String(c.CDMOTORISTA) === String(id) || String(c.CDCADASTRO_MOTORISTA) === String(id));
+            if (conv) {
+               motoristasSelecionados.push(conv);
+            } else {
+               // Adicionando um objeto mínimo que será depois completado pela API
+               motoristasSelecionados.push({ id, IDCONVOCACAO: id, CDCADASTRO_MOTORISTA: id });
+            }
+         } else if (id) {
+            // Aba Convocações: se for número pequeno, provavelmente é o IDCONVOCACAO.
+            motoristasSelecionados.push({ id, IDCONVOCACAO: id, CDCADASTRO_MOTORISTA: id });
+         }
+       });
     }
-  };
-  
-  // Inicializar event listeners da aba Integração Meta
-  document.addEventListener('DOMContentLoaded', () => {
-    const btnAtualizarLogs = document.getElementById('btnAtualizarLogsMeta');
-    const btnLimparLogs = document.getElementById('btnLimparLogsMeta');
-    const btnExportarLogs = document.getElementById('btnExportarLogsMeta');
+
+    if (motoristasSelecionados.length === 0) {
+      showMessage('Selecione pelo menos um motorista para enviar mensagens.', 'warning');
+      return;
+    }
     
-    if (btnAtualizarLogs) {
-      btnAtualizarLogs.addEventListener('click', () => {
-        window.carregarLogsMeta();
+    // Identificar a viagem atual
+    const idViagemLocal = window.viagemAtual?.IDVIAGEM || window.viagemSelecionada || (document.getElementById('filtroConvocacaoViagem') ? document.getElementById('filtroConvocacaoViagem').value : null);
+    if (!idViagemLocal) {
+      showMessage('Selecione uma viagem primeiro.', 'warning');
+      return;
+    }
+    
+    // Adicionar log na aba (sem precisar abrir o modal ainda)
+    if (typeof window.adicionarLogSwitch === 'function') {
+      window.adicionarLogSwitch({
+        tipo: 'info',
+        titulo: 'Preparando Disparo',
+        mensagem: `Preparando para enviar WhatsApp para ${motoristasSelecionados.length} motorista(s) selecionado(s).`
       });
     }
     
-    if (btnLimparLogs) {
-      btnLimparLogs.addEventListener('click', window.limparLogsMeta);
-    }
+    // Identificar o contexto: Se os motoristas vêm da aba "Compatíveis", eles não têm uma Convocação criada no BD (geralmente não tem IDCONVOCACAO ou tem mas está mesclado do join).
+    // O mais seguro na aba de Compatíveis é rodar enviarAnuncioWhatsApp que cria/atualiza a convocação antes.
+    const tabCompativeis = document.getElementById('tab-compativeis');
+    const isAbaCompativeis = tabCompativeis && tabCompativeis.classList.contains('active');
     
-    if (btnExportarLogs) {
-      btnExportarLogs.addEventListener('click', window.exportarLogsMeta);
+    // Se isAbaCompativeis, usa o fluxo de enviarAnuncioWhatsApp que salva no BD e chama o disparo
+    if (isAbaCompativeis) {
+       // Quando vem dos compatíveis, `enviarAnuncioWhatsApp` pega de `motoristasCompatíveis.filter(m => m.selecionado)` 
+       // Entao precisamos garantir que a flag .selecionado está true.
+       motoristasSelecionados.forEach(m => {
+          if (m && typeof m === 'object') m.selecionado = true;
+       });
+       enviarAnuncioWhatsApp();
+    } else {
+       // Aba Convocações: as convocações já existem
+       // Para não dar erro de map se algum for undefined:
+       const ids = motoristasSelecionados.filter(m => m).map(m => m.IDCONVOCACAO || m.CDCADASTRO_MOTORISTA || m.id);
+       
+       if (ids.length === 0) {
+          showMessage("Não foi possível identificar os IDs das convocações selecionadas.", "error");
+          return;
+       }
+       
+       dispararWhatsAppSwitchDigital(idViagemLocal, ids);
     }
-    
-    // Verificar se a aba Integração Meta já está ativa ao carregar a página
-    setTimeout(() => {
-      const tabIntegracaoMeta = document.getElementById('tab-integracao-meta');
-      if (tabIntegracaoMeta && tabIntegracaoMeta.classList.contains('active')) {
-        if (typeof window.carregarLogsMeta === 'function') {
-          window.carregarLogsMeta();
+  };
+
+  async function dispararWhatsAppSwitchDigital(idViagem, convocacoesIds) {
+    const btnDisparar = document.getElementById('btnDispararConvocacoes');
+    const textOriginal = btnDisparar ? btnDisparar.innerHTML : '';
+    try {
+      console.log('[SWITCH DIGITAL LOG] dispararWhatsAppSwitchDigital chamado - idViagem=', idViagem, 'convocacoesIds=', convocacoesIds?.length, 'ts=', new Date().toISOString());
+      // Mostrar feedback na tela
+      if (btnDisparar) {
+        btnDisparar.innerHTML = `<i class='bx bx-loader-alt bx-spin'></i> Processando Fila...`;
+        btnDisparar.disabled = true;
+      }
+
+      // Normalizar IDs para comparação (número e string)
+      const idsNorm = new Set();
+      (convocacoesIds || []).forEach(id => {
+        if (id != null && id !== '') {
+          idsNorm.add(Number(id));
+          idsNorm.add(String(id));
         }
+      });
+
+      const convMatch = (c) => {
+        const idConv = c.IDCONVOCACAO ?? c.idConvocacao;
+        const idMot = c.CDMOTORISTA ?? c.cdmotorista;
+        const idCad = c.CDCADASTRO_MOTORISTA ?? c.cdcadastro_motorista;
+        return (idConv != null && (idsNorm.has(Number(idConv)) || idsNorm.has(String(idConv)))) ||
+               (idMot != null && (idsNorm.has(Number(idMot)) || idsNorm.has(String(idMot)))) ||
+               (idCad != null && (idsNorm.has(Number(idCad)) || idsNorm.has(String(idCad))));
+      };
+
+      // Buscar os dados completos das convocações selecionadas a partir do array global
+      const baseBusca = window.convocacoes && window.convocacoes.length > 0 ? window.convocacoes : (typeof motoristasCompatíveis !== 'undefined' ? motoristasCompatíveis : []);
+      let convsCompletas = baseBusca.filter(convMatch);
+
+      // Se a base de busca (frontend) não tiver todos os dados, recarregar da API
+      if (convsCompletas.length === 0 && idViagem) {
+         _log('[SWITCH DIGITAL] Buscando convocações direto da API, base frontend não tinha os dados correspondentes aos IDs', convocacoesIds);
+         try {
+            const resp = await fetch(`/api/convocacoes?idViagem=${idViagem}`);
+            if (resp.ok) {
+               const apiconvs = await resp.json();
+               convsCompletas = apiconvs.filter(convMatch);
+            }
+         } catch (e) {
+            console.error("Falha ao buscar convocações da api", e);
+         }
+      }
+
+      if (convsCompletas.length === 0) {
+        if (btnDisparar) {
+           btnDisparar.innerHTML = textOriginal;
+           btnDisparar.disabled = false;
+        }
+        throw new Error("Não foi possível encontrar os detalhes das convocações selecionadas na tela ou na API.");
+      }
+
+      // Adicionar log na tela informando que iniciou o processo no backend
+      if (typeof window.adicionarLogSwitch === 'function') {
+         console.log('[SWITCH DIGITAL LOG] Front adicionando "Iniciando Envios" em _listaLogsSwitch');
+         window.adicionarLogSwitch({
+           tipo: 'info',
+           titulo: `Iniciando Envios via Backend (Switch Digital)`,
+           mensagem: `Enviando lista de ${convsCompletas.length} convocações para processamento na fila.`,
+           detalhes: convsCompletas
+         });
+      }
+
+      // Formatar as convocacoes para envio com nomes corretos esperados pelo backend
+      // Garantir que as propriedades FONE, NOME_MOTORISTA existam para não falhar na API
+      const viagemAtual = window.viagemAtual || {};
+      const convocacoesFormatadas = convsCompletas.map(conv => {
+         return {
+           ...conv,
+           IDCONVOCACAO: conv.IDCONVOCACAO || conv.idconvocacao,
+           FONE: conv.FONE || conv.NRCELULAR || conv.CELULAR || conv.FONE1 || '',
+           NOME_MOTORISTA: conv.NOME_MOTORISTA || conv.nome_motorista || 'Motorista',
+           ORIGEM_CIDADE: viagemAtual.ORIGEM_CIDADE || conv.ORIGEM_CIDADE || '',
+           ORIGEM_ESTADO: viagemAtual.ORIGEM_ESTADO || conv.ORIGEM_ESTADO || '',
+           DESTINO_CIDADE: viagemAtual.DESTINO_CIDADE || conv.DESTINO_CIDADE || '',
+           DESTINO_ESTADO: viagemAtual.DESTINO_ESTADO || conv.DESTINO_ESTADO || '',
+           VLFRETE: viagemAtual.VLFRETE || conv.VLFRETE || 0,
+           PESO: viagemAtual.PESO || conv.PESO || 0
+         };
+      });
+
+      console.log('[SWITCH DIGITAL] Payload preparado:', convocacoesFormatadas);
+
+      // Obter URL pública para o link de aceitar/recusar no corpo da mensagem
+      let baseUrl = window.location.origin;
+      try {
+        const urlRes = await fetch('/api/public-url');
+        if (urlRes.ok) {
+          const urlData = await urlRes.json();
+          if (urlData && urlData.url) baseUrl = urlData.url;
+        }
+      } catch (e) { /* usa origin */ }
+
+      // 1. Chamar o backend
+      console.log('[SWITCH DIGITAL] Disparando requisição para:', '/api/viagens/webhook/switch-digital');
+      const response = await fetch('/api/viagens/webhook/switch-digital', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          viagemId: idViagem,
+          convocacoes: convocacoesFormatadas,
+          baseUrl: baseUrl
+        })
+      });
+
+      console.log('[SWITCH DIGITAL] Resposta recebida:', response.status);
+      const resultData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(resultData.error || `Erro HTTP: ${response.status}`);
+      }
+      
+      const motoristasFormatados = resultData.detalhes || [];
+      
+      // Adicionar log final
+      if (typeof window.adicionarLogSwitch === 'function') {
+         console.log('[SWITCH DIGITAL LOG] Front adicionando "Fila Processada" em _listaLogsSwitch');
+         window.adicionarLogSwitch({
+           tipo: resultData.erros > 0 ? (resultData.sucessos > 0 ? 'warning' : 'erro') : 'sucesso',
+           titulo: `Fila Processada no Backend`,
+           mensagem: `O Servidor concluiu a fila de disparos. Sucessos: ${resultData.sucessos}, Erros: ${resultData.erros}`,
+           detalhes: motoristasFormatados
+         });
+      }
+
+      if (resultData.erros > 0) {
+        showMessage(`Atenção: Houve erro no envio de ${resultData.erros} de ${resultData.total} mensagens. Verifique a aba de Integração Switch.`, 'warning');
+      } else {
+        showMessage(`${resultData.sucessos} mensagem(ns) de WhatsApp enviada(s) com sucesso via Switch Digital!`, 'success');
+      }
+
+      // Limpar checkboxes
+      const checkboxes = document.querySelectorAll('.check-motorista:checked, .motorista-checkbox:checked');
+      checkboxes.forEach(cb => cb.checked = false);
+      if(document.getElementById('checkAll')) document.getElementById('checkAll').checked = false;
+      if(document.getElementById('selectAllMotoristas')) document.getElementById('selectAllMotoristas').checked = false;
+      
+      // Limpar seleção no array global se for motorista compatível
+      if (typeof motoristasCompatíveis !== 'undefined') {
+         motoristasCompatíveis.forEach(m => m.selecionado = false);
+         if (typeof atualizarContadorSelecionados === 'function') atualizarContadorSelecionados();
+      }
+
+      // Voltar botao
+      if (btnDisparar) {
+        btnDisparar.innerHTML = textOriginal;
+        btnDisparar.disabled = false;
+      }
+      
+      // Recarregar os dados para atualizar a tela
+      if (typeof window.carregarConvocacoes === 'function') window.carregarConvocacoes();
+
+    } catch (err) {
+      console.error('Erro ao disparar WhatsApp Switch:', err);
+      
+      if (typeof window.adicionarLogSwitch === 'function') {
+        window.adicionarLogSwitch({
+          tipo: 'erro',
+          titulo: `Erro no Disparo`,
+          mensagem: err.message,
+          detalhes: err.stack
+        });
+      }
+      showMessage(`Erro ao disparar WhatsApp: ${err.message}`, 'error');
+      
+      const btnDisparar = document.getElementById('btnDispararConvocacoes');
+      if (btnDisparar) {
+        btnDisparar.innerHTML = textOriginal;
+        btnDisparar.disabled = false;
+      }
+    }
+  }
+
+  // ============================================
+  // Logs da Integração Switch (visor + API)
+  if (typeof window._listaLogsSwitch === 'undefined') window._listaLogsSwitch = [];
+
+  function atualizarVisorLogsSwitch(entries) {
+    const container = document.getElementById('logsIntegracaoSwitch');
+    const totalEl = document.getElementById('totalEnviosSwitch');
+    const sucessosEl = document.getElementById('totalSucessosSwitch');
+    const errosEl = document.getElementById('totalErrosSwitch');
+    const ultimaEl = document.getElementById('ultimaAtualizacaoSwitch');
+    const list = entries || window._listaLogsSwitch || [];
+    let sucessos = 0, erros = 0;
+    // Contar a partir das mensagens "Fila Processada" (Sucessos: X, Erros: Y) para refletir envios reais
+    const reFila = /Sucessos:\s*(\d+).*?Erros:\s*(\d+)/i;
+    list.forEach(e => {
+      const msg = (e.mensagem || '') + (e.titulo || '');
+      const m = reFila.exec(msg);
+      if (m) {
+        sucessos += parseInt(m[1], 10) || 0;
+        erros += parseInt(m[2], 10) || 0;
+      }
+    });
+    const totalEnvios = sucessos + erros;
+    if (totalEl) totalEl.textContent = totalEnvios;
+    if (sucessosEl) sucessosEl.textContent = sucessos;
+    if (errosEl) errosEl.textContent = erros;
+    if (ultimaEl) ultimaEl.textContent = list.length ? new Date().toLocaleString('pt-BR') : '-';
+    if (!container) return;
+    if (list.length === 0) {
+      container.innerHTML = '<div style="color: #6c757d; text-align: center; padding: 40px; line-height: 1.6;">' +
+        '<strong>Nenhum log disponível.</strong><br><br>' +
+        '• Clique em <strong>Atualizar Logs</strong> para carregar do servidor.<br>' +
+        '• Os logs só aparecem <strong>depois</strong> de usar <strong>Disparar Convocações (Switch Digital)</strong> na aba Convocações para esta viagem.<br>' +
+        '• Se já disparou e ainda não vê nada, confira se há convocações criadas para a viagem e se a integração Switch Digital está configurada em Configurações do Sistema.</div>';
+      return;
+    }
+    const html = list.map(e => {
+      const cor = e.tipo === 'erro' ? '#dc3545' : e.tipo === 'warning' ? '#ffc107' : e.tipo === 'sucesso' ? '#28a745' : '#17a2b8';
+      const detalhes = e.detalhes ? (typeof e.detalhes === 'string' ? e.detalhes : JSON.stringify(e.detalhes).substring(0, 500)) : '';
+      return `<div style="margin-bottom: 12px; padding: 10px; border-left: 4px solid ${cor}; background: rgba(0,0,0,0.2); border-radius: 4px; max-width: 100%; overflow-wrap: break-word; word-break: break-word; box-sizing: border-box;">
+        <strong style="color: ${cor}">${e.titulo || e.tipo || 'Log'}</strong>
+        <div style="margin-top: 4px; overflow-wrap: break-word; word-break: break-word;">${(e.mensagem || '').replace(/</g, '&lt;')}</div>
+        ${detalhes ? `<pre style="margin: 6px 0 0 0; font-size: 11px; white-space: pre-wrap; word-break: break-all; overflow-wrap: break-word; max-width: 100%; overflow-x: auto;">${detalhes.replace(/</g, '&lt;')}</pre>` : ''}
+        <div style="margin-top: 4px; font-size: 11px; color: #888;">${e.dhlog ? new Date(e.dhlog).toLocaleString('pt-BR') : (e.ts ? new Date(e.ts).toLocaleString('pt-BR') : '')}</div>
+      </div>`;
+    }).join('');
+    container.innerHTML = html;
+  }
+
+  window.adicionarLogSwitch = function(entry) {
+    if (!entry) return;
+    console.log('[SWITCH DIGITAL LOG] adicionarLogSwitch - titulo=', entry.titulo || entry.tipo);
+    window._listaLogsSwitch = window._listaLogsSwitch || [];
+    window._listaLogsSwitch.unshift({ ...entry, ts: Date.now() });
+    atualizarVisorLogsSwitch();
+  };
+
+  window.limparVisorLogsSwitch = function() {
+    window._listaLogsSwitch = [];
+    atualizarVisorLogsSwitch();
+  };
+
+  window.carregarLogsSwitch = async function() {
+    const idViagem = document.getElementById('filtroIdViagem')?.value || document.getElementById('viagemId')?.value || document.getElementById('filtroConvocacaoViagem')?.value || '';
+    const container = document.getElementById('logsIntegracaoSwitch');
+    if (!container) return;
+    if (!idViagem || String(idViagem).trim() === '') {
+      container.innerHTML = '<div style="color: #856404; text-align: center; padding: 40px; background: #fff3cd; border-radius: 8px;"><strong>Nenhuma viagem selecionada.</strong><br>Selecione uma viagem na aba Dados ou Grid e clique em Atualizar Logs.</div>';
+      const totalEl = document.getElementById('totalEnviosSwitch');
+      const sucessosEl = document.getElementById('totalSucessosSwitch');
+      const errosEl = document.getElementById('totalErrosSwitch');
+      const ultimaEl = document.getElementById('ultimaAtualizacaoSwitch');
+      if (totalEl) totalEl.textContent = '0';
+      if (sucessosEl) sucessosEl.textContent = '0';
+      if (errosEl) errosEl.textContent = '0';
+      if (ultimaEl) ultimaEl.textContent = '-';
+      return;
+    }
+    try {
+      const res = await fetch('/api/logs-webhook-meta?idViagem=' + encodeURIComponent(idViagem.trim()) + '&limite=100');
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        container.innerHTML = '<div style="color: #721c24; text-align: center; padding: 40px; background: #f8d7da; border-radius: 8px;">' +
+          '<strong>Erro ao carregar logs.</strong><br>' + (errBody.details || errBody.error || 'Verifique o console do servidor (F12) e se a tabela LOGSWEBHOOKMETA existe no banco.') + '</div>';
+        return;
+      }
+      const logs = await res.json();
+      const list = Array.isArray(logs) ? logs : [];
+      const entries = list.map(l => {
+        const tipoRaw = l.tipo || l.TIPO || 'info';
+        const tituloRaw = l.titulo || l.TITULO || tipoRaw || 'Log';
+        const mensagemRaw = l.mensagem || l.MENSAGEM || '';
+        const dhlogRaw = l.dhlog || l.DHLOG || l.timestamp;
+        return {
+          tipo: (tipoRaw === 'envio_switch' && mensagemRaw.indexOf('Enviado') >= 0) ? 'sucesso' : (tipoRaw === 'envio_switch' && mensagemRaw.indexOf('Erro') >= 0) ? 'erro' : (tipoRaw === 'erro' ? 'erro' : tipoRaw === 'sucesso' ? 'sucesso' : tipoRaw === 'warning' ? 'warning' : 'info'),
+          titulo: tituloRaw,
+          mensagem: mensagemRaw,
+          detalhes: l.detalhes != null ? l.detalhes : l.DETALHES,
+          dhlog: dhlogRaw,
+          ts: dhlogRaw ? new Date(dhlogRaw).getTime() : null
+        };
+      });
+      const merged = [...entries];
+      const memCount = (window._listaLogsSwitch || []).filter(e => e.ts).length;
+      (window._listaLogsSwitch || []).forEach(e => { if (e.ts) merged.push({ ...e, dhlog: e.dhlog || new Date(e.ts).toISOString() }); });
+      merged.sort((a, b) => (b.dhlog ? new Date(b.dhlog).getTime() : b.ts || 0) - (a.dhlog ? new Date(a.dhlog).getTime() : a.ts || 0));
+      console.log('[SWITCH DIGITAL LOG] carregarLogsSwitch - API entries=', entries.length, 'memória=', memCount, 'merged total=', merged.length);
+      atualizarVisorLogsSwitch(merged.slice(0, 100));
+    } catch (err) {
+      console.error('Erro ao carregar logs Switch:', err);
+      atualizarVisorLogsSwitch(window._listaLogsSwitch || []);
+    }
+  };
+
+  // Botões da aba Switch Digital (delegação: funciona com HTML injetado pelo dashboard)
+  document.addEventListener('click', function(e) {
+    const target = e.target && (e.target.id === 'btnAtualizarLogsSwitch' ? e.target : e.target.closest('#btnAtualizarLogsSwitch'));
+    if (target) {
+      e.preventDefault();
+      if (typeof window.carregarLogsSwitch === 'function') window.carregarLogsSwitch();
+      return;
+    }
+    const targetLimpar = e.target && (e.target.id === 'btnLimparLogsSwitch' ? e.target : e.target.closest('#btnLimparLogsSwitch'));
+    if (targetLimpar) {
+      e.preventDefault();
+      if (typeof window.limparVisorLogsSwitch === 'function') window.limparVisorLogsSwitch();
+    }
+  });
+
+  // Recarregar logs quando viagem for selecionada (delegação em change/input)
+  document.addEventListener('change', function(e) {
+    const id = e.target && (e.target.id === 'filtroIdViagem' || e.target.id === 'viagemId' || e.target.id === 'filtroConvocacaoViagem');
+    if (id) {
+      const tabIntegracaoSwitch = document.getElementById('tab-integracao-switch');
+      if (tabIntegracaoSwitch && tabIntegracaoSwitch.classList.contains('active')) {
+        if (typeof window.carregarLogsSwitch === 'function') window.carregarLogsSwitch();
+      }
+    }
+  });
+  document.addEventListener('input', function(e) {
+    const id = e.target && (e.target.id === 'filtroIdViagem' || e.target.id === 'viagemId' || e.target.id === 'filtroConvocacaoViagem');
+    if (id) {
+      const tabIntegracaoSwitch = document.getElementById('tab-integracao-switch');
+      if (tabIntegracaoSwitch && tabIntegracaoSwitch.classList.contains('active')) {
+        if (typeof window.carregarLogsSwitch === 'function') window.carregarLogsSwitch();
+      }
+    }
+  });
+
+  (function _initSwitchLogsOnce() {
+    // Verificar se a aba Switch Digital já está ativa ao exibir o módulo (executa quando o script roda)
+    setTimeout(() => {
+      const tabIntegracaoSwitch = document.getElementById('tab-integracao-switch');
+      if (tabIntegracaoSwitch && tabIntegracaoSwitch.classList.contains('active')) {
+        if (typeof window.carregarLogsSwitch === 'function') window.carregarLogsSwitch();
       }
     }, 500);
     
-    // Adicionar listeners para recarregar logs quando uma viagem for selecionada
+    // Legado: listeners diretos (podem não existir se DOM foi injetado depois)
     const filtroIdViagem = document.getElementById('filtroIdViagem');
     const viagemId = document.getElementById('viagemId');
     
     const recarregarLogsSeAbaAtiva = () => {
-      const tabIntegracaoMeta = document.getElementById('tab-integracao-meta');
-      if (tabIntegracaoMeta && tabIntegracaoMeta.classList.contains('active')) {
-        if (typeof window.carregarLogsMeta === 'function') {
-          window.carregarLogsMeta();
-        }
+      const tabIntegracaoSwitch = document.getElementById('tab-integracao-switch');
+      if (tabIntegracaoSwitch && tabIntegracaoSwitch.classList.contains('active')) {
+        if (typeof window.carregarLogsSwitch === 'function') window.carregarLogsSwitch();
       }
     };
     
@@ -7431,7 +7712,7 @@ function getOverlayMostrado() {
       viagemId.addEventListener('change', recarregarLogsSeAbaAtiva);
       viagemId.addEventListener('input', recarregarLogsSeAbaAtiva);
     }
-  });
+  })();
   
   // Expor função globalmente para teste no console
   // O usuário pode executar: window.carregarLogsMeta() no console para testar
@@ -7509,10 +7790,9 @@ function getOverlayMostrado() {
   function inicializarAbaConvocacoes() {
     const btnVoltar = document.getElementById('btnVoltarConvocacoes');
     const btnCarregar = document.getElementById('btnCarregarConvocacoes');
-    const btnVerLinks = document.getElementById('btnVerLinksWhatsAppConvocacoes');
-    const btnGuiaCompleto = document.getElementById('btnGuiaEnvioConvocacoes');
     const filtroViagem = document.getElementById('filtroConvocacaoViagem');
     const filtroStatus = document.getElementById('filtroConvocacaoStatus');
+    const btnDisparar = document.getElementById('btnDispararConvocacoes');
 
     if (btnVoltar) {
       btnVoltar.onclick = () => showTab('filtros');
@@ -7522,12 +7802,8 @@ function getOverlayMostrado() {
       btnCarregar.onclick = carregarConvocacoes;
     }
 
-    if (btnVerLinks) {
-      btnVerLinks.onclick = mostrarLinksWhatsAppDasConvocacoes;
-    }
-
-    if (btnGuiaCompleto) {
-      btnGuiaCompleto.onclick = mostrarGuiaCompletoEnvio;
+    if (btnDisparar) {
+       btnDisparar.onclick = window.abrirModalDisparoWhatsApp;
     }
 
     if (filtroViagem) {
@@ -7648,14 +7924,10 @@ function getOverlayMostrado() {
           continue;
         }
 
-        // Limpar número
-        let numeroLimpo = String(conv.CELULAR_MOTORISTA).replace(/\s+/g, '').replace(/[()\-\.]/g, '');
-        if (!numeroLimpo.startsWith('55')) {
-          if (numeroLimpo.startsWith('0')) {
-            numeroLimpo = numeroLimpo.substring(1);
-          }
-          numeroLimpo = '55' + numeroLimpo;
-        }
+        // Limpar número (apenas dígitos). Internacional: 12+ dígitos = já tem DDI (595, 54, 55); 10-11 = adicionar 55.
+        let numeroLimpo = String(conv.CELULAR_MOTORISTA).replace(/\D/g, '');
+        if (numeroLimpo.startsWith('0')) numeroLimpo = numeroLimpo.substring(1);
+        if (numeroLimpo.length < 12 && numeroLimpo.length >= 10) numeroLimpo = '55' + numeroLimpo;
 
         if (numeroLimpo.length < 12) {
           semCelular++;
@@ -7866,7 +8138,8 @@ function getOverlayMostrado() {
       }
       
       convocacoes = await response.json();
-      
+      window.convocacoes = convocacoes;
+
       await renderizarConvocacoes();
       
       if (convocacoes.length === 0) {
@@ -7889,22 +8162,12 @@ function getOverlayMostrado() {
   // Renderizar grid de convocações
   async function renderizarConvocacoes() {
     const container = document.getElementById('convocacoesGrid');
-    const btnVerLinks = document.getElementById('btnVerLinksWhatsAppConvocacoes');
     
     // Atualizar contador de registros
     const countEl = document.getElementById('convocacoesGridCountText');
     if (countEl) {
       const count = convocacoes.length || 0;
       countEl.textContent = count + ' ' + (t('web.modulos.viagens.registrosEncontrados').replace(/^0\s*/, ''));
-    }
-    
-    // Mostrar/ocultar botão "Ver Links WhatsApp"
-    if (btnVerLinks) {
-      if (convocacoes.length > 0) {
-        btnVerLinks.style.display = 'inline-block';
-      } else {
-        btnVerLinks.style.display = 'none';
-      }
     }
     
     if (convocacoes.length === 0) {
@@ -7938,7 +8201,7 @@ function getOverlayMostrado() {
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
           <i class="bx bx-check-circle" style="font-size: 1.25rem; color: #28a745;"></i>
-          <span><strong>Confirmar Convocação</strong></span>
+          <span><strong>Confirmar Convocação</strong> <small style="color: #6c757d;">(ativo quando status = ACEITA)</small></span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
           <i class="bx bx-refresh" style="font-size: 1.25rem; color: #ff9800;"></i>
@@ -8022,31 +8285,17 @@ function getOverlayMostrado() {
 
     const criarLinkWhatsApp = (celular) => {
       if (!celular) return '-';
-      
-      // Limpar número: remover espaços, parênteses, hífens, pontos
-      let numeroLimpo = String(celular).replace(/\s+/g, '').replace(/[()\-\.]/g, '');
-      
-      // Se não começar com 55 (código do Brasil), adicionar
-      if (!numeroLimpo.startsWith('55')) {
-        // Se começar com 0, remover o 0
-        if (numeroLimpo.startsWith('0')) {
-          numeroLimpo = numeroLimpo.substring(1);
-        }
-        numeroLimpo = '55' + numeroLimpo;
-      }
-      
-      // Validar se tem pelo menos 12 dígitos (55 + DDD + número)
-      if (numeroLimpo.length < 12) {
-        return celular; // Retornar número original se inválido
-      }
-      
+      let numeroLimpo = String(celular).replace(/\D/g, '');
+      if (numeroLimpo.startsWith('0')) numeroLimpo = numeroLimpo.substring(1);
+      // Internacional: 12+ dígitos = já tem DDI (595, 54, 55); 10-11 = adicionar 55
+      if (numeroLimpo.length < 12 && numeroLimpo.length >= 10) numeroLimpo = '55' + numeroLimpo;
+      if (numeroLimpo.length < 12) return celular;
       const urlWhatsApp = `https://wa.me/${numeroLimpo}`;
-      
       // Formatar número para exibição (com parênteses e hífen)
       let celularFormatado = '';
       if (numeroLimpo && numeroLimpo.length >= 12) {
-        // Remover código do país (55) para formatação
-        let numeroParaFormatar = numeroLimpo.substring(2); // Remove o 55
+        // Se Brasil (55), remover DDI para formatação (XX) XXXXX-XXXX; senão exibir com DDI
+        let numeroParaFormatar = numeroLimpo.startsWith('55') ? numeroLimpo.substring(2) : numeroLimpo;
         if (numeroParaFormatar.length === 11) {
           // Formato: (41) 99837-1769
           celularFormatado = `(${numeroParaFormatar.substring(0, 2)}) ${numeroParaFormatar.substring(2, 7)}-${numeroParaFormatar.substring(7)}`;
@@ -8081,7 +8330,8 @@ function getOverlayMostrado() {
         const response = await fetch(`/api/convocacoes/${idC}/historico-reabertura`);
         if (response.ok) {
           const historico = await response.json();
-          return { idConvocacao: idC, historico: historico.length > 0 ? historico : null };
+          // Tratamento para não quebrar no JSON
+          return { idConvocacao: idC, historico: Array.isArray(historico) && historico.length > 0 ? historico : null };
         }
         return { idConvocacao: idC, historico: null };
       } catch (err) {
@@ -8167,8 +8417,14 @@ function getOverlayMostrado() {
       
       if (statusConv === 'ACEITA') {
         botoesAcoes += `
-          <button onclick="confirmarConvocacao(${idConv})" class="btn" style="${btnIconStyle} background: #28a745;" title="Confirmar">
-            <i class="bx bx-check"></i>
+          <button onclick="confirmarConvocacao(${idConv})" class="btn" style="${btnIconStyle} background: #28a745;" title="Confirmar Convocação (aprovar este motorista)">
+            <i class="bx bx-check-circle"></i>
+          </button>
+        `;
+      } else if (statusConv === 'PENDENTE') {
+        botoesAcoes += `
+          <button type="button" disabled class="btn" style="${btnIconStyle} background: #adb5bd; cursor: not-allowed; opacity: 0.9;" title="Confirmar Convocação – disponível quando o motorista aceitar (status ACEITA)">
+            <i class="bx bx-check-circle"></i>
           </button>
         `;
       }
@@ -8192,7 +8448,8 @@ function getOverlayMostrado() {
       const celularMotorista = conv.CELULAR_MOTORISTA ?? conv.celular_motorista;
       const celularFormatado = celularMotorista ? String(celularMotorista).replace(/\D/g, '') : '';
       const temWhatsAppMotorista = celularFormatado.length >= 10;
-      const linkWhatsAppMotorista = temWhatsAppMotorista ? `https://wa.me/55${celularFormatado}` : '#';
+      const numWaMotorista = celularFormatado.length >= 12 ? celularFormatado : '55' + celularFormatado;
+      const linkWhatsAppMotorista = temWhatsAppMotorista ? `https://wa.me/${numWaMotorista}` : '#';
       
       // Formatar celular para exibição (com parênteses e hífen)
       let celularExibicao = '';
@@ -8392,21 +8649,28 @@ function getOverlayMostrado() {
         throw new Error('Erro ao processar resposta do servidor');
       }
       
-      // Método manual: abrir WhatsApp
-      // Usando método MANUAL (WhatsApp Web)
-      if (result.whatsappLink) {
-        showMessage(result.message || 'Convocação confirmada com sucesso! WhatsApp será aberto para o motorista selecionado.', 'success');
-        
-        // Aguardar um pouco antes de abrir WhatsApp
+      // Mensagem de sucesso: informar se o webhook enviou para selecionado e não selecionados
+      const webhook = result.mensagensEnviadasViaWebhook || {};
+      let msgSucesso = result.message || 'Convocação confirmada com sucesso!';
+      if (webhook.selecionado) {
+        msgSucesso += ' Mensagem enviada por WhatsApp (Switch Digital) ao motorista selecionado.';
+        if (webhook.naoSelecionados > 0) {
+          msgSucesso += ` ${webhook.naoSelecionados} aviso(s) enviado(s) aos que aceitaram e não foram escolhidos.`;
+        }
+      } else if (result.whatsappLink) {
+        msgSucesso += ' Abrindo WhatsApp para o motorista selecionado (envio manual).';
+      }
+      showMessage(msgSucesso, 'success');
+
+      // Se o webhook não enviou para o selecionado, abrir link manual como fallback
+      if (result.whatsappLink && !webhook.selecionado) {
         setTimeout(() => {
           const opened = window.open(result.whatsappLink, '_blank');
           if (!opened) {
             console.warn('Falha ao abrir WhatsApp. Pode estar bloqueado pelo navegador.');
-            showMessage('Convocação confirmada! Mas não foi possível abrir o WhatsApp automaticamente. Link: ' + result.whatsappLink, 'info');
+            showMessage('Convocação confirmada! Use o link da convocação para enviar a mensagem manualmente.', 'info');
           }
         }, 500);
-      } else {
-        showMessage(result.message || 'Convocação confirmada com sucesso!', 'success');
       }
 
       // Log de confirmação
@@ -8753,20 +9017,52 @@ function getOverlayMostrado() {
   // Reativar convocação (reverter CONFIRMADA ou ACEITA_DESCARTADA para ACEITA)
   window.reativarConvocacao = async function(idConvocacao) {
     if (!idConvocacao) {
-      showMessage('ID da convocação não informado.', 'error');
+      showMessage(t('web.modulos.viagens.mensagens.id_convocacao_nao_informado') || 'ID da convocação não informado.', 'error');
       return;
     }
 
     // Buscar dados da convocação
     const convocacao = convocacoes.find(c => c.IDCONVOCACAO === idConvocacao);
     if (!convocacao) {
-      showMessage('Convocação não encontrada.', 'error');
+      showMessage(t('web.modulos.viagens.mensagens.convocacao_nao_encontrada') || 'Convocação não encontrada.', 'error');
       return;
     }
 
     if (convocacao.STATUS !== 'CONFIRMADA') {
-      showMessage(`Apenas convocações com status CONFIRMADA podem ser reativadas. Status atual: ${convocacao.STATUS}`, 'error');
+      showMessage(t('web.modulos.viagens.mensagens.apenas_confirmada_reativar') || `Apenas convocações com status CONFIRMADA podem ser reativadas. Status atual: ${convocacao.STATUS}`, 'error');
       return;
+    }
+
+    // Validação: Não permitir reativar se já houver motorista ou veículo atrelado à viagem
+    try {
+      const idViagem = convocacao.IDVIAGEM;
+      const resVeiculo = await fetch(`/api/viagens/${idViagem}/veiculo`);
+      const resMotorista = await fetch(`/api/viagens/${idViagem}/motorista`);
+      
+      let temVeiculo = false;
+      let temMotorista = false;
+      
+      if (resVeiculo.ok) {
+        const veiculos = await resVeiculo.json();
+        temVeiculo = Array.isArray(veiculos) && veiculos.length > 0;
+      }
+      
+      if (resMotorista.ok) {
+        const motoristas = await resMotorista.json();
+        temMotorista = Array.isArray(motoristas) && motoristas.length > 0;
+      }
+      
+      if (temVeiculo || temMotorista) {
+        const msgPartes = [];
+        if (temMotorista) msgPartes.push(t('web.modulos.viagens.motorista') || 'um Motorista');
+        if (temVeiculo) msgPartes.push(t('web.modulos.viagens.veiculo') || 'um Veículo');
+        
+        const partesTexto = msgPartes.join(' e ');
+        showMessage(t('web.modulos.viagens.mensagens.erro_reativar_vinculos') || `Não é possível reativar a convocação, pois esta viagem já possui ${partesTexto} atrelado(s). Remova-os primeiro.`, 'error');
+        return;
+      }
+    } catch (err) {
+      console.error('Erro ao verificar vínculos da viagem:', err);
     }
 
     try {
@@ -8806,7 +9102,7 @@ function getOverlayMostrado() {
             <label for="selectMotivoReabertura" style="display: block; margin-bottom: 10px; font-weight: 600; color: #333;">
               <i class="bx bx-list-ul" style="font-size: 1em; vertical-align: middle;"></i> Selecione o motivo da reabertura: *
             </label>
-            <select id="selectMotivoReabertura" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; background: white; appearance: none; -webkit-appearance: none; -moz-appearance: none; background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23667eea%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-6.5%200-12.1%203.2-15.2%208.1-3.1%204.9-3.1%2010.8%200%2015.8l128%20128c3.2%203.2%207.1%204.7%2011.1%204.7s7.9-1.6%2011.1-4.7l128-128c3.1-5%203.1-10.9%200-15.8z%22%2F%3E%3C%2Fsvg%3E'); background-repeat: no-repeat; background-position: right 12px center; background-size: 12px; cursor: pointer; transition: border-color 0.3s, box-shadow 0.3s;">
+            <select id="selectMotivoReabertura" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; background: #fff; color: #222; appearance: none; -webkit-appearance: none; -moz-appearance: none; background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23667eea%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-6.5%200-12.1%203.2-15.2%208.1-3.1%204.9-3.1%2010.8%200%2015.8l128%20128c3.2%203.2%207.1%204.7%2011.1%204.7s7.9-1.6%2011.1-4.7l128-128c3.1-5%203.1-10.9%200-15.8z%22%2F%3E%3C%2Fsvg%3E'); background-repeat: no-repeat; background-position: right 12px center; background-size: 12px; cursor: pointer; transition: border-color 0.3s, box-shadow 0.3s;">
               ${opcoesMotivos}
             </select>
             <p id="erroMotivoReabertura" style="color: #dc3545; font-size: 14px; margin-top: 5px; display: none;">
@@ -8847,14 +9143,21 @@ function getOverlayMostrado() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'user-login': userLogin
+          'user-login': userLogin || '',
+          'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
         },
         body: JSON.stringify({ motivoReabertura })
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Erro ao reativar convocação');
+        let errorMessage = 'Erro ao reativar convocação';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          // Se não for JSON, usamos a mensagem padrão
+        }
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -9020,15 +9323,10 @@ function getOverlayMostrado() {
             continue;
           }
           
-          // Limpar número
-          let numeroLimpo = String(conv.CELULAR_MOTORISTA).replace(/\s+/g, '').replace(/[()\-\.]/g, '');
-          if (!numeroLimpo.startsWith('55')) {
-            if (numeroLimpo.startsWith('0')) {
-              numeroLimpo = numeroLimpo.substring(1);
-            }
-            numeroLimpo = '55' + numeroLimpo;
-          }
-          
+          // Limpar número (apenas dígitos). Internacional: 12+ = já tem DDI; 10-11 = adicionar 55
+          let numeroLimpo = String(conv.CELULAR_MOTORISTA).replace(/\D/g, '');
+          if (numeroLimpo.startsWith('0')) numeroLimpo = numeroLimpo.substring(1);
+          if (numeroLimpo.length < 12 && numeroLimpo.length >= 10) numeroLimpo = '55' + numeroLimpo;
           if (numeroLimpo.length < 12) {
             semCelular++;
             motoristasSemCelular.push(nomeMotorista);
@@ -9113,11 +9411,65 @@ function getOverlayMostrado() {
     const selectViagem = document.getElementById('selectViagemPendente');
     const btnDispararConvocacoes = document.getElementById('btnDispararConvocacoes');
 
+    // Carregar regras de compatibilidade ao abrir a aba
+    carregarRegrasCompatibilidade();
+
     if (btnCarregarPendentes) {
       btnCarregarPendentes.onclick = function(e) {
         e.preventDefault();
         e.stopPropagation();
         carregarViagensPendentes();
+      };
+    }
+
+    const btnSalvarRegras = document.getElementById('btnSalvarRegrasCompatibilidade');
+    if (btnSalvarRegras) {
+      btnSalvarRegras.onclick = async function() {
+        const msgEl = document.getElementById('msgRegrasCompatibilidade');
+        if (msgEl) { msgEl.style.display = 'none'; msgEl.textContent = ''; }
+        try {
+          const r = await fetch('/api/viagens/regras-compatibilidade', {
+            method: 'PUT',
+            headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({
+              rastreamento: document.getElementById('regraCompativelRastreamento')?.checked ?? true,
+              classeFrota: document.getElementById('regraCompativelClasseFrota')?.checked ?? true,
+              localEmbarque: document.getElementById('regraCompativelLocalEmbarque')?.checked ?? true,
+              localDesembarque: document.getElementById('regraCompativelLocalDesembarque')?.checked ?? true
+            })
+          });
+          let data;
+          const responseText = await r.text();
+          try {
+            data = responseText ? JSON.parse(responseText) : {};
+          } catch (_) {
+            console.error('[Regras compatibilidade] Resposta não é JSON. Status:', r.status, 'Body:', responseText.slice(0, 200));
+            if (msgEl) { msgEl.textContent = 'Erro ao salvar regras. Resposta inválida do servidor.'; msgEl.className = 'message error'; msgEl.style.display = 'inline'; }
+            return;
+          }
+          if (r.ok && data.success) {
+            if (msgEl) { msgEl.textContent = data.message || 'Regras salvas.'; msgEl.className = 'message success'; msgEl.style.display = 'inline'; }
+            // Reprocessar lista: se já tiver viagem selecionada, buscar motoristas compatíveis de novo
+            const selectViagem = document.getElementById('selectViagemPendente');
+            const idViagem = selectViagem ? selectViagem.value : null;
+            if (idViagem) {
+              buscarMotoristasCompatíveis(idViagem);
+            }
+          } else {
+            let errMsg = data.error || data.details || 'Erro ao salvar.';
+            if (data.camposRequeridos && Array.isArray(data.camposRequeridos) && data.camposRequeridos.length > 0) {
+              errMsg += ' Campos: ' + data.camposRequeridos.join(', ');
+            }
+            if (r.status === 400 && (data.error || '').indexOf('Campos obrigatórios') !== -1) {
+              errMsg += ' (Dica: se você estava só salvando as regras da aba Compatíveis, reinicie o servidor do backend e tente de novo.)';
+            }
+            console.warn('[Regras compatibilidade] Erro:', r.status, data);
+            if (msgEl) { msgEl.textContent = errMsg; msgEl.className = 'message error'; msgEl.style.display = 'inline'; }
+          }
+        } catch (e) {
+          console.error('[Regras compatibilidade] Exceção ao salvar:', e);
+          if (msgEl) { msgEl.textContent = (e && e.message) ? `Erro ao salvar regras: ${e.message}` : 'Erro ao salvar regras.'; msgEl.className = 'message error'; msgEl.style.display = 'inline'; }
+        }
       };
     }
 
@@ -9148,10 +9500,86 @@ function getOverlayMostrado() {
       btnDispararConvocacoes.onclick = dispararConvocacoes;
     }
 
-    // Botão preparar anúncio
-    const btnPrepararAnuncio = document.getElementById('btnPrepararAnuncio');
-    if (btnPrepararAnuncio) {
-      btnPrepararAnuncio.onclick = prepararAnuncioCarga;
+    async function reenviarConvocacoesFalhas() {
+      if (!viagemSelecionada) {
+        showMessage('Nenhuma viagem selecionada. Selecione uma viagem e busque motoristas compatíveis.', 'error');
+        return;
+      }
+      try {
+        const resp = await fetch('/api/convocacoes?idViagem=' + encodeURIComponent(viagemSelecionada));
+        if (!resp.ok) throw new Error('Erro ao buscar convocações');
+        const todas = await resp.json();
+        const get = (c, ...keys) => { for (const k of keys) { if (c[k] != null && c[k] !== '') return c[k]; const l = k.toLowerCase(); if (c[l] != null && c[l] !== '') return c[l]; } return null; };
+        const pendentes = todas.filter(c => {
+          const dhenvio = get(c, 'DHENVIOMETA', 'dhenviometa');
+          const nr = (get(c, 'NRCELULAR', 'nrcelular') || get(c, 'CELULAR_MOTORISTA', 'celular_motorista') || '').toString().replace(/\D/g, '');
+          return !dhenvio && nr.length >= 10;
+        });
+        if (pendentes.length === 0) {
+          showMessage('Nenhuma convocação pendente de envio para esta viagem. Todas já foram enviadas ou não há número de WhatsApp válido.', 'info');
+          return;
+        }
+        const confirmar = await showConfirmModal(
+          'Reenviar apenas não enviados',
+          `Deseja reenviar <strong>${pendentes.length}</strong> convocação(ões) que ainda não foram enviadas por WhatsApp?<br><br><small style="color: #b8c5d6;">Serão enviadas apenas as que falharam ou nunca foram disparadas (intervalo de 2 s entre cada).</small>`
+        );
+        if (!confirmar) return;
+        showMessage('Reenviando convocações não enviadas...', 'info');
+        let baseUrl = window.location.origin;
+        try {
+          const urlRes = await fetch('/api/public-url');
+          if (urlRes.ok) { const d = await urlRes.json(); if (d && d.url) baseUrl = d.url; }
+        } catch (e) {}
+        const convocacoesFormatadas = pendentes.map(c => {
+          const nr = (get(c, 'NRCELULAR', 'nrcelular') || get(c, 'CELULAR_MOTORISTA', 'celular_motorista') || '').toString().replace(/\D/g, '');
+          return {
+            IDCONVOCACAO: get(c, 'IDCONVOCACAO', 'idconvocacao'),
+            NRCELULAR: nr,
+            FONE: nr,
+            NOME_MOTORISTA: get(c, 'NOME_MOTORISTA', 'nome_motorista') || 'Motorista',
+            CDCADASTRO_MOTORISTA: get(c, 'CDCADASTRO_MOTORISTA', 'cdcadastro_motorista')
+          };
+        });
+        if (typeof window.adicionarLogSwitch === 'function') {
+          window.adicionarLogSwitch({
+            tipo: 'info',
+            titulo: 'Reenviar apenas não enviados',
+            mensagem: 'Enviando ' + convocacoesFormatadas.length + ' convocação(ões) pendentes para o backend (intervalo 2 s).',
+            detalhes: convocacoesFormatadas
+          });
+        }
+        const response = await fetch('/api/viagens/webhook/switch-digital', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ viagemId: viagemSelecionada, convocacoes: convocacoesFormatadas, baseUrl: baseUrl })
+        });
+        const resultData = await response.json();
+        if (!response.ok) throw new Error(resultData.error || 'Erro ao reenviar');
+        if (typeof window.adicionarLogSwitch === 'function') {
+          window.adicionarLogSwitch({
+            tipo: resultData.erros > 0 ? (resultData.sucessos > 0 ? 'warning' : 'erro') : 'sucesso',
+            titulo: 'Fila Processada no Backend',
+            mensagem: 'O Servidor concluiu a fila de disparos. Sucessos: ' + resultData.sucessos + ', Erros: ' + resultData.erros,
+            detalhes: resultData.detalhes || []
+          });
+        }
+        if (resultData.erros > 0) {
+          showMessage('Atenção: ' + resultData.erros + ' de ' + resultData.total + ' mensagens falharam. Verifique a aba Switch Digital.', 'warning');
+        } else {
+          showMessage(resultData.sucessos + ' mensagem(ns) reenviada(s) com sucesso.', 'success');
+        }
+        if (typeof motoristasCompatíveis !== 'undefined' && motoristasCompatíveis.length > 0 && typeof carregarMotoristasCompatíveis === 'function') {
+          carregarMotoristasCompatíveis(viagemSelecionada);
+        }
+      } catch (err) {
+        console.error('[Reenviar falhas]', err);
+        showMessage('Erro ao reenviar: ' + (err.message || err), 'error');
+      }
+    }
+
+    const btnReenviarFalhas = document.getElementById('btnReenviarFalhas');
+    if (btnReenviarFalhas) {
+      btnReenviarFalhas.onclick = reenviarConvocacoesFalhas;
     }
 
     // Botões do modal de anúncio
@@ -9171,7 +9599,7 @@ function getOverlayMostrado() {
     }
 
     if (btnEnviarWhatsApp) {
-      btnEnviarWhatsApp.onclick = enviarAnuncioWhatsApp;
+      btnEnviarWhatsApp.onclick = window.abrirModalDisparoWhatsApp;
     }
 
     // Fechar modal ao clicar fora dele
@@ -9610,8 +10038,8 @@ function getOverlayMostrado() {
             <h4 style="margin: 10px 0 5px 0; color: #667eea;">📦 Carga</h4>
             <p style="margin: 5px 0;"><strong>ID Viagem:</strong> ${idViagem || '-'}</p>
             <p style="margin: 5px 0;"><strong>Roteiro:</strong> ${convocacao.DSROTEIRO || '-'}</p>
-            <p style="margin: 5px 0;"><strong>Frete:</strong> ${formatarValor(vlFrete)}</p>
-            <p style="margin: 5px 0;"><strong>Peso:</strong> ${formatarPeso(peso)}</p>
+            <p style="margin: 5px 0;"><strong>Frete:</strong> ${typeof window.fmtMoeda === 'function' ? window.fmtMoeda(vlFrete) : vlFrete}</p>
+            <p style="margin: 5px 0;"><strong>Peso:</strong> ${typeof window.fmtPeso === 'function' ? window.fmtPeso(peso) : peso}</p>
             <p style="margin: 5px 0;"><strong>Classe:</strong> ${convocacao.DSCLASSEFROTA || '-'}</p>
           </div>
         `);
@@ -9913,12 +10341,17 @@ function getOverlayMostrado() {
 
   // Mapear tipos de carroceria
   const TIPO_CARROCERIA = {
-    '01': '01 - Não aplicável',
-    '02': '02 - Aberta',
-    '03': '03 - Fechada / Baú',
-    '04': '04 - Graneleira',
-    '05': '05 - Porta Container',
-    '06': '06 - Sider'
+    '01': '01 - Baú',
+    '02': '02 - Frigorífico',
+    '03': '03 - Tanque',
+    '04': '04 - Basculante (caçamba)',
+    '05': '05 - Prancha',
+    '06': '06 - Cegonha',
+    '07': '07 - Silo/Basculante',
+    '08': '08 - Transporte de toras',
+    '09': '09 - Contêiner/carroc. aberta',
+    '10': '10 - Não Aplicável',
+    '11': '11 - Sider'
   };
 
   // Mapear tipos de atuação
@@ -10035,12 +10468,12 @@ function getOverlayMostrado() {
       const result = await response.json();
       if (response.ok) {
         showMessage(result.message || 'Veículo salvo com sucesso!', 'success');
-        // Limpar formulário após salvar
+        // Limpar formulário após salvar (guardar idViagem antes, pois limparFormularioVeiculo zera o campo)
+        const idViagemParaRefresh = idViagem;
         limparFormularioVeiculo();
-        // Recarregar lista de veículos
-        const idViagem = document.getElementById('veiculoIdViagem')?.value;
-        if (idViagem) {
-          await carregarVeiculoViagem(idViagem);
+        // Recarregar lista de veículos (carregarVeiculoViagem restaura o id no campo)
+        if (idViagemParaRefresh) {
+          await carregarVeiculoViagem(idViagemParaRefresh);
         }
       } else {
         if (response.status === 401) {
@@ -10209,9 +10642,11 @@ function getOverlayMostrado() {
 
   // Remover veículo da viagem
   async function removerVeiculoViagem(idViagem, idequipamento) {
-    if (!confirm(`Tem certeza que deseja remover este veículo da viagem?`)) {
-      return;
-    }
+    const confirmado = await showConfirmModal(
+      '<i class="bx bx-trash"></i> Remover Veículo',
+      'Tem certeza que deseja remover este veículo da viagem?'
+    );
+    if (!confirmado) return;
 
     try {
       const response = await fetch(`/api/viagens/${idViagem}/veiculo/${idequipamento}`, {
@@ -10796,6 +11231,38 @@ function getOverlayMostrado() {
         if (idViagemNum) {
           await carregarMotoristaViagem(idViagemNum);
         }
+        // Atualizar situação da viagem no formulário "Editar Viagem" (backend alterou para Programada)
+        const viagemIdForm = document.getElementById('viagemId')?.value || document.getElementById('viagemIdViagem')?.value;
+        if (viagemIdForm && String(viagemIdForm).trim() === String(idViagemNum).trim()) {
+          try {
+            const resViagem = await fetch(`/api/viagens/${idViagemNum}`);
+            if (resViagem.ok) {
+              const viagemAtualizada = await resViagem.json();
+              const selSitViagem = document.getElementById('viagemSituacaoViagem');
+              const selSit = document.getElementById('viagemSituacao');
+              if (viagemAtualizada.FGSITVIAGEM && selSitViagem) {
+                selSitViagem.value = String(viagemAtualizada.FGSITVIAGEM).trim();
+                if (!selSitViagem.querySelector('option[value="' + selSitViagem.value + '"]')) {
+                  const opt = document.createElement('option');
+                  opt.value = selSitViagem.value;
+                  opt.textContent = viagemAtualizada.DSSITUACAOVIAGEM || viagemAtualizada.FGSITVIAGEM || 'Programada';
+                  selSitViagem.appendChild(opt);
+                }
+              }
+              if (viagemAtualizada.CDSITUACAOVIAGEM != null && selSit) {
+                selSit.value = String(viagemAtualizada.CDSITUACAOVIAGEM);
+                if (!selSit.querySelector('option[value="' + selSit.value + '"]')) {
+                  const opt = document.createElement('option');
+                  opt.value = selSit.value;
+                  opt.textContent = viagemAtualizada.DSSITUACAOVIAGEM || selSit.value;
+                  selSit.appendChild(opt);
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('Erro ao atualizar situação no formulário:', e);
+          }
+        }
       } else {
         if (response.status === 401) {
           showMessage('Sessão expirada ou não autorizado. Faça login novamente.', 'error');
@@ -10940,7 +11407,8 @@ function getOverlayMostrado() {
       const temWhatsApp = celularFormatado.length >= 10;
       
       if (temWhatsApp) {
-        const linkWhatsApp = `https://wa.me/55${celularFormatado}`;
+        const numWa = celularFormatado.length >= 12 ? celularFormatado : '55' + celularFormatado;
+        const linkWhatsApp = `https://wa.me/${numWa}`;
         const btnWhatsApp = document.createElement('a');
         btnWhatsApp.href = linkWhatsApp;
         btnWhatsApp.target = '_blank';
@@ -10995,9 +11463,11 @@ function getOverlayMostrado() {
 
   // Remover motorista da viagem
   async function removerMotoristaViagem(idViagem, cdmotorista) {
-    if (!confirm(`Tem certeza que deseja remover este motorista da viagem?`)) {
-      return;
-    }
+    const confirmado = await showConfirmModal(
+      '<i class="bx bx-trash"></i> Remover Motorista',
+      'Tem certeza que deseja remover este motorista da viagem?'
+    );
+    if (!confirmado) return;
 
     try {
       const response = await fetch(`/api/viagens/${idViagem}/motorista/${cdmotorista}`, {
@@ -11278,13 +11748,6 @@ function getOverlayMostrado() {
     document.getElementById('btnLimparMotorista')?.addEventListener('click', limparFormularioMotorista);
     document.getElementById('btnVoltarMotorista')?.addEventListener('click', () => showTab('filtros'));
     
-    // Botão de guia completo de envio (aba Convocações)
-    const btnGuiaCompleto = document.getElementById('btnGuiaEnvioConvocacoes');
-    if (btnGuiaCompleto) {
-      btnGuiaCompleto.replaceWith(btnGuiaCompleto.cloneNode(true));
-      document.getElementById('btnGuiaEnvioConvocacoes').addEventListener('click', mostrarGuiaCompletoEnvio);
-    }
-    
     // Botão fechar guia completo
     const btnFecharGuiaCompleto = document.getElementById('btnFecharGuiaCompleto');
     if (btnFecharGuiaCompleto) {
@@ -11454,10 +11917,10 @@ function getOverlayMostrado() {
       const pTotal = item.pesoTotal ?? '0.00';
       const classe = item.classefrota ?? 'Não Informada';
       html += `
-        <div style="background: white; padding: 15px 20px; border-radius: 8px; border: 1px solid #e9ecef; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+        <div class="historico-resumo-card" style="background: white; padding: 15px 20px; border-radius: 8px; border: 1px solid #e9ecef; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
             <strong style="color: #2c3e50; font-size: 16px;">${classe}</strong>
-            <span style="background: #667eea; color: white; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600;">
+            <span class="historico-badge-viagens" style="background: #667eea; color: white; padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600;">
               ${qtd} viagem(ns)
             </span>
           </div>
@@ -11505,15 +11968,17 @@ function getOverlayMostrado() {
         : '<span style="color: #e74c3c; font-size: 16px;" title="Não Rastreado">●</span>';
       
       const dtInicio = viagem.dtPrevInicio ? fmtDataHora(viagem.dtPrevInicio) : 'Não informado';
+      const celContratadorWa = viagem.celContratador ? (() => { const n = String(viagem.celContratador).replace(/\D/g, ''); return n.length >= 12 ? n : '55' + n; })() : '';
+      const celMotoristaWa = viagem.celMotorista ? (() => { const n = String(viagem.celMotorista).replace(/\D/g, ''); return n.length >= 12 ? n : '55' + n; })() : '';
       
       html += `
-        <div style="background: #ffffff; border: 1px solid #dee2e6; border-left: 4px solid #667eea; border-radius: 6px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: all 0.2s ease;" 
+        <div class="historico-viagem-card" style="background: #ffffff; border: 1px solid #dee2e6; border-left: 4px solid #667eea; border-radius: 6px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); transition: all 0.2s ease;" 
              onmouseover="this.style.boxShadow='0 3px 8px rgba(0,0,0,0.12)'; this.style.borderLeftColor='#764ba2'; this.style.transform='translateX(2px)';" 
              onmouseout="this.style.boxShadow='0 1px 3px rgba(0,0,0,0.08)'; this.style.borderLeftColor='#667eea'; this.style.transform='translateX(0)';">
           
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 15px;">
             <div style="display: flex; align-items: center; gap: 8px; flex: 1; flex-wrap: wrap;">
-              <h3 style="margin: 0; color: #2c3e50; font-size: 16px; font-weight: 700; white-space: nowrap;">
+              <h3 class="historico-viagem-titulo" style="margin: 0; color: #2c3e50; font-size: 16px; font-weight: 700; white-space: nowrap;">
                 ${iconRastreado} #${viagem.idViagem}
               </h3>
               <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; white-space: nowrap;">
@@ -11539,7 +12004,7 @@ function getOverlayMostrado() {
               <div style="font-size: 11px; color: #6c757d; margin-bottom: 3px; font-weight: 500;">🏢 Contratador</div>
               <div style="font-size: 13px; font-weight: 600; color: #2c3e50;">${viagem.contratador || 'Não informado'}</div>
               ${viagem.celContratador ? `
-                <a href="https://wa.me/55${String(viagem.celContratador).replace(/\D/g, '')}" 
+                <a href="https://wa.me/${celContratadorWa}" 
                    target="_blank" 
                    style="font-size: 13px; color: #25D366; margin-top: 4px; display: inline-flex; align-items: center; gap: 4px; text-decoration: none; font-weight: 600;"
                    onmouseover="this.style.color='#20BA59'; this.style.textDecoration='underline';" 
@@ -11557,7 +12022,7 @@ function getOverlayMostrado() {
               <div style="font-size: 11px; color: #6c757d; margin-bottom: 3px; font-weight: 500;">👤 Motorista</div>
               <div style="font-size: 13px; font-weight: 600; color: #2c3e50;">${viagem.motorista}</div>
               ${viagem.celMotorista ? `
-                <a href="https://wa.me/55${String(viagem.celMotorista).replace(/\D/g, '')}" 
+                <a href="https://wa.me/${celMotoristaWa}" 
                    target="_blank" 
                    style="font-size: 13px; color: #25D366; margin-top: 4px; display: inline-flex; align-items: center; gap: 4px; text-decoration: none; font-weight: 600;"
                    onmouseover="this.style.color='#20BA59'; this.style.textDecoration='underline';" 
@@ -11886,8 +12351,9 @@ function getOverlayMostrado() {
     const listaPosicoes = document.getElementById('listaPosicoes');
 
     try {
-      // Mostrar overlay de loading
+      // Mostrar overlay de loading (padrão Gerenciar Cidades)
       showRastreamentoLoading('Carregando Posições GPS', 'Buscando posições GPS da viagem...');
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
       
       // Mostrar loading na lista também
       if (listaPosicoes) {
@@ -13795,28 +14261,46 @@ function getOverlayMostrado() {
         // Atualizar dados no objeto lastViagens
         Object.assign(viagemSelecionada, viagem);
         
-        // Se estivermos na aba de detalhes desta viagem, recarregar
+        // Se estivermos na aba de detalhes ou na aba Dados (Editar Viagem) desta viagem, atualizar
       const abaAtiva = document.querySelector('.tab-content.active');
-      if (abaAtiva && abaAtiva.id === 'detalhes') {
-        const idViagemAtual = abaAtiva.getAttribute('data-idviagem') || 
-                              document.getElementById('viagemId')?.value;
-        if (idViagemAtual && parseInt(idViagemAtual) === parseInt(idviagem)) {
+      const idViagemAtual = (abaAtiva && abaAtiva.getAttribute('data-idviagem')) || document.getElementById('viagemId')?.value || document.getElementById('viagemIdViagem')?.value;
+      if (idViagemAtual && parseInt(idViagemAtual) === parseInt(idviagem)) {
+        if (abaAtiva && abaAtiva.id === 'tab-dados') {
+          // Aba Editar Viagem: atualizar situação e CDSITUACAOVIAGEM para refletir Programada etc.
+          const selSitViagem = document.getElementById('viagemSituacaoViagem');
+          const selSit = document.getElementById('viagemSituacao');
+          if (viagem.FGSITVIAGEM && selSitViagem) {
+            selSitViagem.value = String(viagem.FGSITVIAGEM).trim();
+            if (!selSitViagem.querySelector('option[value="' + selSitViagem.value + '"]')) {
+              const opt = document.createElement('option');
+              opt.value = selSitViagem.value;
+              opt.textContent = viagem.DSSITUACAOVIAGEM || viagem.FGSITVIAGEM || 'Programada';
+              selSitViagem.appendChild(opt);
+            }
+          }
+          if (viagem.CDSITUACAOVIAGEM != null && selSit) {
+            selSit.value = String(viagem.CDSITUACAOVIAGEM);
+            if (!selSit.querySelector('option[value="' + selSit.value + '"]')) {
+              const opt = document.createElement('option');
+              opt.value = selSit.value;
+              opt.textContent = viagem.DSSITUACAOVIAGEM || selSit.value;
+              selSit.appendChild(opt);
+            }
+          }
+          _log('🔄 Situação da viagem atualizada no formulário (WebSocket)');
+        } else if (abaAtiva && abaAtiva.id === 'detalhes') {
           // Recarregar detalhes da viagem
           if (typeof carregarDetalhesViagem === 'function') {
             await carregarDetalhesViagem(idviagem);
           } else {
-            // Fallback: recarregar via fetch
             try {
               const response = await fetch(`/api/viagens/${idviagem}`);
               if (response.ok) {
                 const dados = await response.json();
-                // Atualizar campos do formulário se estiver aberto
                 if (dados.IDVIAGEM) {
                   Object.keys(dados).forEach(key => {
                     const field = document.getElementById(key);
-                    if (field) {
-                      field.value = dados[key] || '';
-                    }
+                    if (field) field.value = dados[key] || '';
                   });
                 }
               }
@@ -14054,7 +14538,7 @@ function getOverlayMostrado() {
             <li><strong>Veículo:</strong> Associar veículos às viagens com busca por placa ou código</li>
             <li><strong>Motorista:</strong> Associar motoristas às viagens com busca por CPF, nome ou código</li>
             <li><strong>Rastreamento:</strong> Acompanhar a localização em tempo real do veículo/motorista</li>
-            <li><strong>Integração Meta:</strong> Gerenciar integrações com plataformas Meta (Facebook/Instagram)</li>
+            <li><strong>Integração Switch Digital:</strong> Histórico de envios de convocações por WhatsApp</li>
           </ul>
           
           <h4>🚛 Convocações</h4>
@@ -14123,10 +14607,12 @@ function getOverlayMostrado() {
     
     if (!container) return;
 
-    // Buscar ID da viagem
-    const idViagem = document.getElementById('filtroIdViagem')?.value || 
-                     document.getElementById('viagemId')?.value || 
-                     null;
+    // Buscar ID da viagem (várias fontes: filtro, formulário Dados, variável global)
+    const idViagemRaw = document.getElementById('filtroIdViagem')?.value || 
+                        document.getElementById('viagemId')?.value || 
+                        document.getElementById('viagemIdViagem')?.value ||
+                        (typeof viagemSelecionada !== 'undefined' && viagemSelecionada != null ? String(viagemSelecionada) : null);
+    const idViagem = (idViagemRaw && String(idViagemRaw).trim() !== '') ? String(idViagemRaw).trim() : null;
 
     if (!idViagem || idViagem.trim() === '') {
       container.innerHTML = `
@@ -14178,7 +14664,7 @@ function getOverlayMostrado() {
 
       // Formatar e exibir macros
       const html = `
-        <table style="width: 100%; border-collapse: collapse;">
+        <table class="macros-table" style="width: 100%; border-collapse: collapse;">
           <thead>
             <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
               <th style="padding: 12px; text-align: left; font-weight: 600; color: #495057;">Código</th>
@@ -14214,7 +14700,7 @@ function getOverlayMostrado() {
                   </td>
                   <td style="padding: 12px; text-align: center;">
                     ${temGPS ? `
-                      <button onclick="mostrarMapaMacro(${macro.LATITUDE}, ${macro.LONGITUDE}, ${JSON.stringify(macro.DSTIPOOCORRENCIA || 'Macro')})" 
+                      <button onclick="window.mostrarMapaMacro(${macro.LATITUDE}, ${macro.LONGITUDE}, ${JSON.stringify(macro.DSTIPOOCORRENCIA || 'Macro').replace(/\"/g, '&quot;')})" 
                               class="btn btn-primary btn-sm" 
                               style="padding: 6px 12px; font-size: 12px; cursor: pointer;">
                         <i class='bx bx-map'></i> Ver no Mapa
@@ -14230,6 +14716,9 @@ function getOverlayMostrado() {
       `;
 
       container.innerHTML = html;
+
+      // Forçar dark mode na lista/tabela de macros (evitar fundo branco)
+      if (typeof aplicarDarkModeMacros === 'function') aplicarDarkModeMacros();
 
       // Adicionar event listeners para botões de foto
       container.querySelectorAll('.btn-ver-foto-macro').forEach(btn => {
@@ -14396,23 +14885,24 @@ function getOverlayMostrado() {
               .openPopup();
           } catch (err) {
             console.error('Erro ao inicializar mapa:', err);
-            alert('Erro ao carregar mapa. Verifique se o Leaflet está carregado.');
+            if (typeof showMessage === 'function') showMessage('Erro ao carregar mapa. Verifique se o Leaflet está carregado.', 'error');
+            else alert('Erro ao carregar mapa. Verifique se o Leaflet está carregado.');
           }
         }, 200);
       } else {
         console.error('Leaflet não está disponível ou elemento do mapa não encontrado');
-        alert('Erro: Leaflet não está disponível. Recarregue a página.');
+        if (typeof showMessage === 'function') showMessage('Leaflet não está disponível. Recarregue a página ou tente abrir o módulo novamente.', 'error');
+        else alert('Erro: Leaflet não está disponível. Recarregue a página.');
       }
     }, 100);
   };
 
-  // Event listener para botão de atualizar macros
-  document.addEventListener('DOMContentLoaded', () => {
-    const btnAtualizarMacros = document.getElementById('btnAtualizarMacros');
-    if (btnAtualizarMacros) {
-      btnAtualizarMacros.addEventListener('click', () => {
-        carregarMacrosViagem();
-      });
+  // Botão Atualizar da aba Macros (delegação: funciona mesmo com HTML injetado depois pelo dashboard)
+  document.addEventListener('click', function(e) {
+    const btn = e.target && (e.target.id === 'btnAtualizarMacros' || e.target.closest('#btnAtualizarMacros'));
+    if (btn) {
+      e.preventDefault();
+      carregarMacrosViagem();
     }
   });
 

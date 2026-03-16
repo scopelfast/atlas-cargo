@@ -11,11 +11,14 @@ const grupoRoutes = require('./routes/grupo.routes');
 const classeFrotaRoutes = require('./routes/classefrota.routes');
 const tipoViagemRoutes = require('./routes/tipoviagem.routes');
 const situacaoViagemRoutes = require('./routes/situacaoviagem.routes');
+const tipoOcorrenciaRoutes = require('./routes/tipoocorrencia.routes');
 const tipoEquipamentoRoutes = require('./routes/tipoequipamento.routes');
 const modeloEquipamentoRoutes = require('./routes/modeloequipamento.routes');
 const equipamentoRoutes = require('./routes/equipamento.routes');
+const mesorregiaoRoutes = require('./routes/mesorregiao.routes');
 const cidadesRoutes = require('./routes/cidades.routes');
 const roteirosRoutes = require('./routes/roteiros.routes');
+const estadoRoutes = require('./routes/estado.routes');
 const estadosRoutes = require('./routes/estados.routes');
 const cadastroGeralRoutes = require('./routes/cadastrogeral.routes');
 const viagemRoutes = require('./routes/viagemmestre.routes');
@@ -174,6 +177,7 @@ const helmetConfig = {
         "'self'",
         "'unsafe-inline'",
         "'unsafe-eval'",
+        "blob:", // Scripts carregados via fetch+blob no dashboard (ex.: gerenciar-viagens)
         "https://cdn.jsdelivr.net",
         "https://unpkg.com" // Para Leaflet JS
       ],
@@ -216,7 +220,12 @@ const helmetConfig = {
         "https://a.tile.openstreetmap.org", // Para tiles do OpenStreetMap
         "https://b.tile.openstreetmap.org", // Para tiles do OpenStreetMap
         "https://c.tile.openstreetmap.org", // Para tiles do OpenStreetMap
-        "https://tile.openstreetmap.org" // Para tiles do OpenStreetMap (fallback)
+        "https://tile.openstreetmap.org", // Para tiles do OpenStreetMap (fallback)
+        // Tesseract.js OCR (cadastro motorista - foto documento)
+        "data:",
+        "blob:",
+        "https://tessdata.projectnaptha.com",
+        "https://cdn.jsdelivr.net/npm/tesseract.js@4/"
       ],
       formAction: [
         "'self'",
@@ -301,6 +310,7 @@ app.use('/cargas/api', getUsuarioLogado);
 const apiRoutes = [
   { path: '/api/auth', route: authRoutes },
   { path: '/api/menu', route: menuRoutes },
+  { path: '/api', route: tipoOcorrenciaRoutes },
   { path: '/api', route: marcasRoutes },
   { path: '/api', route: grupoRoutes },
   { path: '/api', route: classeFrotaRoutes },
@@ -309,8 +319,10 @@ const apiRoutes = [
   { path: '/api', route: tipoEquipamentoRoutes },
   { path: '/api', route: modeloEquipamentoRoutes },
   { path: '/api', route: equipamentoRoutes },
+  { path: '/api', route: mesorregiaoRoutes },
   { path: '/api', route: cidadesRoutes },
   { path: '/api', route: roteirosRoutes },
+  { path: '/api', route: estadoRoutes },
   { path: '/api', route: estadosRoutes },
   { path: '/api', route: cadastroGeralRoutes },
   { path: '/api', route: viagemRoutes },
@@ -458,6 +470,12 @@ const staticHeaders = (res, filePath, stat) => {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
   }
   
+  // Scripts de módulos: sempre no-cache para evitar "Identifier already been declared" ao trocar de tela
+  if (filePath.includes('modulos') && filePath.endsWith('.js')) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
   // Cache otimizado - evita problemas de versão antiga
   if (isDevelopment) {
     // DESENVOLVIMENTO: Desabilitar cache completamente para garantir sempre a última versão
@@ -472,7 +490,12 @@ const staticHeaders = (res, filePath, stat) => {
     }
   } else {
     // PRODUÇÃO: Cache inteligente com validação
-    if (filePath.endsWith('.css') || filePath.endsWith('.js')) {
+    const isDashboardOrModuleHtml = filePath.includes('dashboard.js') || (filePath.includes('modulos') && filePath.endsWith('index.html'));
+    if (isDashboardOrModuleHtml) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, max-age=0');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    } else if (filePath.endsWith('.css') || filePath.endsWith('.js')) {
       // CSS e JS: Cache curto com validação ETag
       // O cache-buster.js adiciona ?v=timestamp no frontend
       // Aqui configuramos cache curto mas com validação para garantir atualizações

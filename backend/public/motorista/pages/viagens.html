@@ -379,18 +379,17 @@
         return;
       }
 
-      // Formatar número (remover caracteres especiais)
-      const numeroLimpo = celular.replace(/\D/g, '');
+      // Formatar número (apenas dígitos). Internacional: 12+ = já tem DDI (595, 54, 55); 10-11 = adicionar 55
+      let numeroLimpo = String(celular).replace(/\D/g, '');
+      if (numeroLimpo.startsWith('0')) numeroLimpo = numeroLimpo.substring(1);
+      const numWa = numeroLimpo.length >= 12 ? numeroLimpo : (numeroLimpo.length >= 10 ? '55' + numeroLimpo : numeroLimpo);
       
-      // Mensagem padrão
       const mensagem = encodeURIComponent(
         `Olá ${nomeContratador}!\n\n` +
         `Sou o motorista da viagem #${idViagem}.\n\n` +
         `Gostaria de tirar uma dúvida sobre a viagem.`
       );
-
-      // Abrir WhatsApp
-      window.open(`https://wa.me/55${numeroLimpo}?text=${mensagem}`, '_blank');
+      window.open(`https://wa.me/${numWa}?text=${mensagem}`, '_blank');
     };
 
     window.visualizarGPS = function(idViagem) {

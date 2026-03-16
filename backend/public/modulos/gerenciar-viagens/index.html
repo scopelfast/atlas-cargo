@@ -7,12 +7,15 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/modulos.css">
+  <link rel="stylesheet" href="/css/dark-mode.css">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <style>
     /* ========== Gerenciar Viagens - Identidade Atlas Cargo ========== */
     .viagens-container {
       padding: 20px;
       font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+      width: 100%;
+      box-sizing: border-box;
     }
 
     .viagens-header {
@@ -84,25 +87,22 @@
     }
 
     .btn-secondary {
-      background: #6c757d;
-      color: white;
+      background: var(--light-gray, #e2e8f0);
+      color: var(--dark, #1e293b);
     }
 
     .btn-secondary:hover:not(:disabled) {
-      background: #5a6268;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 8px rgba(108, 117, 125, 0.3);
+      background: var(--border, #cbd5e1);
     }
 
     .btn-info {
-      background: #17a2b8;
+      background: var(--ac-accent, #0ea5e9);
       color: white;
     }
 
     .btn-info:hover:not(:disabled) {
-      background: #138496;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 8px rgba(23, 162, 184, 0.3);
+      background: var(--ac-accent-hover, #0284c7);
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35);
     }
 
     .btn-sm {
@@ -110,6 +110,10 @@
       font-size: 14px;
     }
 
+    .tabs {
+      flex-wrap: wrap;
+      gap: 4px 0;
+    }
     .tab-btn {
       display: inline-flex;
       align-items: center;
@@ -119,12 +123,281 @@
       font-size: 1.1em;
     }
 
-    .filtros-box {
-      background: white;
+    /* Abas no padrão do sistema (como Cadastro Geral) */
+    .viagens-container .tabs.tabs-com-icones {
+      display: flex;
+      flex-wrap: wrap;
+      margin-bottom: 25px;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
+      gap: 0;
+    }
+    .viagens-container .tabs.tabs-com-icones .tab-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      border: none;
+      background: transparent;
+      color: var(--gray, #94a3b8);
+      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: color 0.2s, border-color 0.2s;
+      font-family: inherit;
+    }
+    .viagens-container .tabs.tabs-com-icones .tab-btn i {
+      font-size: 1.15rem;
+      color: inherit;
+    }
+    .viagens-container .tabs.tabs-com-icones .tab-btn:hover {
+      color: var(--dark, #64748b);
+    }
+    .viagens-container .tabs.tabs-com-icones .tab-btn.active {
+      color: var(--ac-primary, #0d2137);
+      border-bottom-color: var(--ac-primary, #0d2137);
+    }
+    .viagens-container .tabs.tabs-com-icones .tab-btn.active i {
+      color: var(--ac-primary, #0d2137);
+    }
+
+    /* Filtros no padrão do sistema: grid responsivo (como Cadastro Geral) */
+    .viagens-container .filtros-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+    .viagens-container .filtros-grid > div {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .viagens-container .filtros-grid label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: var(--dark, #1e293b);
+      font-size: 14px;
+    }
+    .viagens-container .filtros-grid .form-control,
+    .viagens-container .filtros-grid input,
+    .viagens-container .filtros-grid select {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      font-size: 16px;
+      font-family: inherit;
+      box-sizing: border-box;
+      background: var(--white, #fff);
+      color: var(--dark, #1e293b);
+    }
+    .viagens-container .filtros-grid input:focus,
+    .viagens-container .filtros-grid select:focus {
+      outline: none;
+      border-color: var(--ac-accent, #0ea5e9);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+    }
+    .form-dados-card {
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid var(--border, #e2e8f0);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    .form-dados-card-header {
+      padding: 14px 20px;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border, #e2e8f0);
+      font-weight: 600;
+      font-size: 1rem;
+      color: var(--ac-primary, #0d2137);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .form-dados-card-header i { font-size: 1.2rem; color: var(--ac-accent, #0ea5e9); }
+    .form-dados-card-body { padding: 20px; }
+    /* Regras de compatibilidade: grid em uma linha na largura da tela */
+    .regras-compatibilidade-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px 24px;
+      align-items: center;
+    }
+    @media (max-width: 900px) {
+      .regras-compatibilidade-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 480px) {
+      .regras-compatibilidade-grid { grid-template-columns: 1fr; }
+    }
+    .regra-compat-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      margin: 0;
+      padding: 10px 12px;
+      border-radius: 8px;
+      transition: background 0.2s;
+    }
+    .regra-compat-item:hover { background: rgba(14, 165, 233, 0.06); }
+    .regra-compat-item input[type="checkbox"] { flex-shrink: 0; }
+    .regra-compat-item span { font-size: 14px; line-height: 1.3; }
+    .regras-compatibilidade-actions {
+      margin-top: 16px;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .viagens-container .filtros-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 15px;
+      flex-wrap: wrap;
+    }
+
+    /* Botões de ação no padrão do sistema (como Cadastro Geral) */
+    .viagens-container .btn-filtro {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 22px;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.15s;
+    }
+    .viagens-container .btn-filtro:hover {
+      transform: translateY(-1px);
+    }
+    .viagens-container .btn-filtro i {
+      font-size: 1.15rem;
+    }
+    .viagens-container .btn-filtro-limpar {
+      background: #f1f5f9;
+      color: #475569;
+      border: 1px solid #e2e8f0;
+    }
+    .viagens-container .btn-filtro-limpar:hover {
+      background: #e2e8f0;
+      color: #334155;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    /* Aba Grid: botão Voltar com a mesma cor do Gerenciar Roteiros (padrão) */
+    .viagens-container #tab-grid .filtros-actions .btn-filtro-limpar {
+      background: #f1f5f9 !important;
+      color: #475569 !important;
+      border: 1px solid #e2e8f0 !important;
+    }
+    .viagens-container #tab-grid .filtros-actions .btn-filtro-limpar:hover {
+      background: #e2e8f0 !important;
+      color: #334155 !important;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06) !important;
+    }
+    .viagens-container #tab-grid .filtros-actions .btn-filtro-novo {
+      background: var(--success, #059669) !important;
+      color: #fff !important;
+      box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25) !important;
+    }
+    .viagens-container #tab-grid .filtros-actions .btn-filtro-novo:hover {
+      background: #047857 !important;
+      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35) !important;
+    }
+    .viagens-container .btn-filtro-aplicar {
+      background: var(--ac-accent, #0ea5e9);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(14, 165, 233, 0.25);
+    }
+    .viagens-container .btn-filtro-aplicar:hover {
+      background: var(--ac-accent-hover, #0284c7);
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35);
+    }
+    .viagens-container .btn-filtro-novo {
+      background: var(--success, #059669);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);
+    }
+    .viagens-container .btn-filtro-novo:hover {
+      background: #047857;
+      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
+    }
+    .viagens-container .actions-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+
+    .viagens-container .tab-content {
+      width: 100%;
+      min-width: 0;
+      display: none !important; /* Oculta todas as abas; só a ativa é exibida */
+    }
+    .viagens-container .tab-content.active {
+      display: block !important; /* Garante que só o conteúdo da aba ativa apareça */
+    }
+    .viagens-container .form-box {
+      background: var(--white, #fff);
+      border: 1px solid var(--border, #e2e8f0);
       border-radius: 12px;
       padding: 25px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      box-shadow: var(--shadow, 0 2px 8px rgba(0,0,0,0.06));
+    }
+    .viagens-container .switch-logs-stats-box {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+    }
+    .viagens-container .macros-stats-box {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+    }
+    .viagens-container .macros-lista-box {
+      background: #fff;
+      border: 1px solid #dee2e6;
+    }
+    .viagens-container .form-box h2 {
+      color: var(--ac-primary, #0d2137);
+    }
+    .grid-count-bar {
+      padding: 10px 0;
+      color: var(--gray, #64748b);
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .legenda-grid {
+      background: var(--bg-secondary, #f8fafc);
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      padding: 15px;
+      margin: 15px 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      align-items: center;
+    }
+    .legenda-grid-title {
+      font-weight: 600;
+      color: var(--ac-primary, #1e293b);
+      margin-right: 10px;
+    }
+    .filtros-box {
+      background: var(--white, #fff);
+      border-radius: 12px;
+      padding: 25px;
+      box-shadow: var(--shadow, 0 2px 8px rgba(0,0,0,0.1));
       margin-bottom: 25px;
+      border: 1px solid var(--border, #e2e8f0);
     }
 
     .filtros-box h3 {
@@ -331,21 +604,27 @@
       font-size: 14px;
     }
 
-    /* Ajuste de larguras das colunas do grid */
+    /* Grid Viagens: garantir scroll horizontal e colunas visíveis (não cortar) */
+    #tab-grid .form-box {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow-x: auto;
+    }
+    #viagensGrid.grid-container {
+      min-width: 0;
+      overflow-x: auto;
+    }
+    /* Tabela com largura mínima para não esmagar colunas; scroll aparece no .grid-container */
+    #viagensGrid .grid-table {
+      min-width: 980px;
+    }
+    /* Coluna Ações: 2 botões (Editar, Excluir) — mesmo padrão Tipos de Validade / Gerenciar Equipamentos */
     #viagensGrid .grid-actions-header,
-    #viagensGrid .grid-actions {
-      width: 80px !important;
-      min-width: 80px !important;
-      max-width: 80px !important;
-      text-align: center;
-      padding: 8px 4px !important;
-    }
-    
-    #viagensGrid .grid-actions {
-      white-space: nowrap;
-      justify-content: flex-start !important;
-    }
-    
+    #viagensGrid th:last-child { width: 88px !important; min-width: 88px !important; max-width: 88px !important; text-align: right !important; }
+    #viagensGrid .grid-actions,
+    #viagensGrid td:last-child { width: 88px !important; min-width: 88px !important; max-width: 88px !important; }
+
     /* Célula POD clicável para ver comprovantes */
     #viagensGrid td[data-field="QTD_COMPROVANTES"] .cell-value {
       cursor: pointer;
@@ -814,62 +1093,6 @@
       }
     }
     
-    /* Overlay de carregamento do mapa */
-    #mapaLoadingOverlay {
-      background: rgba(0, 0, 0, 0.75);
-      z-index: 1000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      backdrop-filter: blur(2px);
-    }
-    
-    #mapaLoadingOverlay .calculando-content {
-      background: white;
-      padding: 30px 40px;
-      border-radius: 12px;
-      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-      text-align: center;
-      max-width: 350px;
-      animation: slideUp 0.3s ease-out;
-    }
-    
-    @keyframes slideUp {
-      from {
-        opacity: 0;
-        transform: translateY(20px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-    
-    #mapaLoadingOverlay .calculando-spinner {
-      width: 50px;
-      height: 50px;
-      border: 5px solid var(--light-gray, #e2e8f0);
-      border-top-color: #1a2a6c;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-      margin: 0 auto 20px;
-    }
-    
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-    
-    #mapaLoadingOverlay h3 {
-      margin: 0 0 10px 0;
-      color: #333;
-      font-size: 1.2em;
-    }
-    
-    #mapaLoadingOverlay p {
-      margin: 0;
-      color: #666;
-      font-size: 0.95em;
-    }
   </style>
 </head>
 <body>
@@ -877,27 +1100,22 @@
     <!-- Cabeçalho -->
     <div class="viagens-header">
       <h2><i class='bx bx-trip'></i> <span data-i18n="web.modulos.viagens.titulo">Gerenciar Viagens</span></h2>
-      <div style="display: flex; gap: 10px; align-items: center;">
-        <button class="btn btn-info" onclick="mostrarAjudaViagens()" title="Como funciona? Regras e instruções">
-          <i class='bx bx-help-circle'></i> <span data-i18n="web.modulos.viagens.ajuda">Ajuda</span>
-        </button>
-      </div>
     </div>
 
-    <!-- Abas -->
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.viagens.tabFiltros">Filtros</button>
-      <button class="tab-btn" data-tab="grid" data-i18n="web.modulos.viagens.tabGrid">Grid</button>
-      <button class="tab-btn" data-tab="dados" data-i18n="web.modulos.viagens.tabDados">Dados</button>
-      <button class="tab-btn" data-tab="historico">Histórico</button>
-      <button class="tab-btn" data-tab="mapa">Mapa</button>
-      <button class="tab-btn" data-tab="compatíveis">Compatíveis</button>
-      <button class="tab-btn" data-tab="convocações">Convocações</button>
-      <button class="tab-btn" data-tab="veiculo">Veículo</button>
-      <button class="tab-btn" data-tab="motorista">Motorista</button>
-      <button class="tab-btn" data-tab="rastreamento">Rastreamento</button>
-      <button class="tab-btn" data-tab="integracao-meta"><i class="bx bx-code-curly"></i> Integração Meta</button>
-      <button class="tab-btn" data-tab="macros">Macros</button>
+    <!-- Abas (padrão do sistema: tabs-com-icones) -->
+    <div class="tabs tabs-com-icones">
+      <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.viagens.tabFiltros"><i class='bx bx-filter-alt'></i> Filtros</button>
+      <button class="tab-btn" data-tab="grid" data-i18n="web.modulos.viagens.tabGrid"><i class='bx bx-grid-alt'></i> Grid</button>
+      <button class="tab-btn" data-tab="dados" data-i18n="web.modulos.viagens.tabDados"><i class='bx bx-edit'></i> Dados</button>
+      <button class="tab-btn" data-tab="historico"><i class='bx bx-history'></i> Histórico</button>
+      <button class="tab-btn" data-tab="mapa"><i class='bx bx-map'></i> Mapa</button>
+      <button class="tab-btn" data-tab="compatíveis"><i class='bx bx-user-check'></i> Compatíveis</button>
+      <button class="tab-btn" data-tab="convocações" data-i18n="web.modulos.viagens.tabConvocacoes"><i class="bx bx-megaphone"></i> Convocações</button>
+      <button class="tab-btn" data-tab="veiculo" data-i18n="web.modulos.viagens.tabVeiculo"><i class="bx bx-truck"></i> Veículo</button>
+      <button class="tab-btn" data-tab="motorista"><i class='bx bx-user'></i> Motorista</button>
+      <button class="tab-btn" data-tab="rastreamento"><i class='bx bx-current-location'></i> Rastreamento</button>
+      <button class="tab-btn" data-tab="integracao-switch"><i class="bx bxl-whatsapp"></i> Integração Switch</button>
+      <button class="tab-btn" data-tab="macros"><i class='bx bx-list-check'></i> Macros</button>
     </div>
 
     <!-- Filtros -->
@@ -905,22 +1123,20 @@
       <div class="filtros-box">
         <h3><i class='bx bx-filter'></i> <span data-i18n="web.modulos.viagens.tabFiltros">Filtros</span></h3>
         <form id="filtroForm" onsubmit="return false;">
-          <!-- Linha 1: ID Viagem, Tipo Viagem, Situação Viagem, Classe Frota, Contratador -->
-          <div class="input-group five-row">
+          <div class="filtros-grid">
             <div>
               <label for="filtroIdViagem">ID Viagem</label>
-              <input type="number" id="filtroIdViagem" min="1" placeholder="Digite o ID...">
+              <input type="number" id="filtroIdViagem" class="form-control" min="1" placeholder="Digite o ID...">
             </div>
             <div>
               <label for="filtroTipoViagem">Tipo Viagem</label>
-              <select id="filtroTipoViagem">
+              <select id="filtroTipoViagem" class="form-control">
                 <option value="">Todos</option>
-                <!-- Preenchido dinamicamente -->
               </select>
             </div>
             <div>
               <label for="filtroSituacaoViagem">Situação Viagem</label>
-              <select id="filtroSituacaoViagem">
+              <select id="filtroSituacaoViagem" class="form-control">
                 <option value="">Todas</option>
                 <option value="A">Aprovada</option>
                 <option value="C">Cancelada</option>
@@ -934,70 +1150,57 @@
             </div>
             <div>
               <label for="filtroClasseFrota">Classe Frota</label>
-              <select id="filtroClasseFrota">
+              <select id="filtroClasseFrota" class="form-control">
                 <option value="">Todas</option>
-                <!-- Preenchido dinamicamente -->
               </select>
             </div>
             <div>
               <label for="filtroContratador">Contratador</label>
-              <select id="filtroContratador">
+              <select id="filtroContratador" class="form-control">
                 <option value="">Todos</option>
-                <!-- Preenchido dinamicamente -->
               </select>
             </div>
-          </div>
-
-          <!-- Linha 2: Origem e Destino -->
-          <div class="input-group four-row">
             <div>
-              <label for="filtroOrigemEstado">Origem - UF - Estado</label>
-              <select id="filtroOrigemEstado">
+              <label for="filtroOrigemEstado">Origem - UF</label>
+              <select id="filtroOrigemEstado" class="form-control">
                 <option value="">Todos</option>
-                <!-- Preenchido dinamicamente -->
               </select>
             </div>
             <div>
               <label for="filtroOrigemCidade">Origem - Cidade</label>
-              <input type="text" id="filtroOrigemCidade" maxlength="40" placeholder="Digite parte do nome...">
+              <input type="text" id="filtroOrigemCidade" class="form-control" maxlength="40" placeholder="Digite parte do nome...">
             </div>
             <div>
-              <label for="filtroDestinoEstado">Destino - UF - Estado</label>
-              <select id="filtroDestinoEstado">
+              <label for="filtroDestinoEstado">Destino - UF</label>
+              <select id="filtroDestinoEstado" class="form-control">
                 <option value="">Todos</option>
-                <!-- Preenchido dinamicamente -->
               </select>
             </div>
             <div>
               <label for="filtroDestinoCidade">Destino - Cidade</label>
-              <input type="text" id="filtroDestinoCidade" maxlength="40" placeholder="Digite parte do nome...">
+              <input type="text" id="filtroDestinoCidade" class="form-control" maxlength="40" placeholder="Digite parte do nome...">
             </div>
-          </div>
-
-          <!-- Linha 3: Roteiro, Descrição Roteiro, Data Início, Data Fim e Exige Veículo Rastreado? -->
-          <div class="input-group five-row">
             <div>
               <label for="filtroRoteiro">Roteiro</label>
-              <select id="filtroRoteiro">
+              <select id="filtroRoteiro" class="form-control">
                 <option value="">Todos</option>
-                <!-- Preenchido dinamicamente -->
               </select>
             </div>
             <div>
               <label for="filtroRoteiroDescricao">Descrição Roteiro</label>
-              <input type="text" id="filtroRoteiroDescricao" readonly>
+              <input type="text" id="filtroRoteiroDescricao" class="form-control" readonly placeholder="—">
             </div>
             <div>
               <label for="filtroDataInicio">Data Início</label>
-              <input type="date" id="filtroDataInicio">
+              <input type="date" id="filtroDataInicio" class="form-control">
             </div>
             <div>
               <label for="filtroDataFim">Data Fim</label>
-              <input type="date" id="filtroDataFim">
+              <input type="date" id="filtroDataFim" class="form-control">
             </div>
             <div>
               <label for="filtroRastreado">Exige Veículo Rastreado</label>
-              <select id="filtroRastreado">
+              <select id="filtroRastreado" class="form-control">
                 <option value="">Todos</option>
                 <option value="S">Sim</option>
                 <option value="N">Não</option>
@@ -1005,7 +1208,7 @@
             </div>
             <div>
               <label for="filtroMotoristaConfirmado">Motorista Confirmado</label>
-              <select id="filtroMotoristaConfirmado">
+              <select id="filtroMotoristaConfirmado" class="form-control">
                 <option value="">Todos</option>
                 <option value="S">Sim</option>
                 <option value="N">Não</option>
@@ -1013,49 +1216,25 @@
             </div>
           </div>
 
-          <div class="filtros-actions">
-            <button type="button" id="btnLimparFiltros" class="btn btn-secondary">
-              <i class='bx bx-x'></i> <span data-i18n="web.modulos.viagens.limpar">Limpar</span>
-            </button>
-            <button type="button" id="btnAplicarFiltro" class="btn btn-primary">
-              <i class='bx bx-search'></i> <span data-i18n="web.modulos.viagens.filtrar">Filtrar</span>
-            </button>
-          </div>
+            <div class="filtros-actions">
+              <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> Limpar</button>
+              <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class='bx bx-search'></i> Filtrar</button>
+              <button type="button" id="btnNovoRegistro" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> Novo</button>
+            </div>
         </form>
       </div>
     </div>
 
-    <!-- Grid -->
+    <!-- Grid (padrão Tipos de Validade: filtros-box + filtros-actions) -->
     <div class="tab-content" id="tab-grid">
-      <div class="form-box">
-        <h2 data-i18n="web.modulos.viagens.gridTitulo">Viagens - Visualização em Grid</h2>
-        <div class="actions-top">
-          <button type="button" id="btnVoltarGrid" class="btn cancel">← <span data-i18n="web.modulos.viagens.voltarFiltros">Voltar aos Filtros</span></button>
-          <button type="button" id="btnNovoRegistroGrid" class="btn btn-primary">
-            <i class='bx bx-plus'></i> <span data-i18n="web.modulos.viagens.novoRegistro">Novo Registro</span>
-          </button>
+      <div class="filtros-box">
+        <h3 data-i18n="web.modulos.viagens.gridTitulo">Viagens - Visualização em Grid</h3>
+        <div class="filtros-actions" style="justify-content: space-between; margin-top: 0; margin-bottom: 15px;">
+          <button type="button" id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar</button>
+          <button type="button" id="btnNovoRegistroGrid" class="btn-filtro btn-filtro-novo"><i class="bx bx-plus"></i> Novo</button>
         </div>
-        <div id="viagensGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
+        <div id="viagensGridCount" class="grid-count-bar" style="padding: 10px 0; color: var(--gray); font-size: 14px; font-weight: 500;">
           <span id="viagensGridCountText" data-i18n="web.modulos.viagens.registrosEncontrados">0 registro(s) encontrado(s)</span>
-        </div>
-        <div id="legendaGrid" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin: 15px 0; display: flex; flex-wrap: wrap; gap: 20px; align-items: center;">
-          <div style="font-weight: 600; color: #495057; margin-right: 10px;">Legenda:</div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <i class="bx bx-megaphone" style="font-size: 1.25rem; color: #2196F3;"></i>
-            <span><strong>Ação:</strong> Total de motoristas acionados</span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <i class="bx bx-check-circle" style="font-size: 1.25rem; color: #28a745;"></i>
-            <span><strong>Aceite:</strong> Quantidade que aceitaram</span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <i class="bx bx-x-circle" style="font-size: 1.25rem; color: #dc3545;"></i>
-            <span><strong>Recusa:</strong> Quantidade que recusaram</span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <i class="bx bx-check" style="font-size: 1.25rem; color: #28a745;"></i>
-            <span><strong>Confirmado:</strong> Se há motorista confirmado (SIM/NÃO)</span>
-          </div>
         </div>
         <div id="viagensGrid" class="grid-container"></div>
       </div>
@@ -1067,195 +1246,216 @@
         <h2 id="formTitle" data-i18n="web.modulos.viagens.novaViagem">Nova Viagem</h2>
         <form id="viagemForm">
           <input type="hidden" id="viagemId">
-          
-          <!-- Linha 1: ID, Situação Viagem, Situação, Tipo Viagem -->
-          <div class="input-group four-row">
-            <div>
-              <label for="viagemIdViagem">ID Viagem</label>
-              <input type="text" id="viagemIdViagem" readonly>
-            </div>
-            <div>
-              <label for="viagemSituacaoViagem">Situação Viagem *</label>
-              <select id="viagemSituacaoViagem" required>
-                <option value="">Selecione</option>
-                <option value="A">Aprovada</option>
-                <option value="C">Cancelada</option>
-                <option value="D">Preparação</option>
-                <option value="E">Final de rota</option>
-                <option value="F">Viagem finalizada</option>
-                <option value="M">Emissão documentos</option>
-                <option value="P">Programada</option>
-                <option value="T">Em trânsito</option>
-              </select>
-            </div>
-            <div>
-              <label for="viagemSituacao">Situação *</label>
-              <select id="viagemSituacao" required>
-                <option value="">Selecione</option>
-                <!-- Preenchido dinamicamente -->
-              </select>
-            </div>
-            <div>
-              <label for="viagemTipoViagem">Tipo Viagem *</label>
-              <select id="viagemTipoViagem" required>
-                <option value="">Selecione</option>
-                <!-- Preenchido dinamicamente -->
-              </select>
-            </div>
-          </div>
 
-          <!-- Linha 2: Usuário, Data Inclusão, Contratador, Situação -->
-          <div class="input-group four-row">
-            <div>
-              <label for="viagemUsuario">Usuário Inclusão</label>
-              <input type="text" id="viagemUsuario" readonly>
-            </div>
-            <div>
-              <label for="viagemDataInclusao">Data Inclusão</label>
-              <input type="datetime-local" id="viagemDataInclusao" readonly>
-            </div>
-            <div>
-              <label for="viagemContratador">Contratador</label>
-              <select id="viagemContratador">
-                <option value="">Selecione</option>
-                <!-- Preenchido dinamicamente -->
-              </select>
-            </div>
-            <div>
-              <label for="viagemSituacaoAtiva">Situação *</label>
-              <select id="viagemSituacaoAtiva" required>
-                <option value="S">Ativo</option>
-                <option value="N">Inativo</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Linha 3: Classe Frota, Data Início, Data Fim e Exige Veículo Rastreado? -->
-          <div class="input-group four-row">
-            <div>
-              <label for="viagemClasseFrota">Classe Frota</label>
-              <select id="viagemClasseFrota">
-                <option value="">Selecione</option>
-                <!-- Preenchido dinamicamente -->
-              </select>
-            </div>
-            <div>
-              <label for="viagemDataInicio">Data Início Prevista *</label>
-              <input type="datetime-local" id="viagemDataInicio" required>
-            </div>
-            <div>
-              <label for="viagemDataFim">Data Fim Prevista *</label>
-              <input type="datetime-local" id="viagemDataFim" required>
-            </div>
-            <div>
-              <label for="viagemRastreado">Exige Veículo Rastreado *</label>
-              <select id="viagemRastreado" required>
-                <option value="">Selecione</option>
-                <option value="S">Sim</option>
-                <option value="N">Não</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Linha 5: Origem -->
-          <div class="input-group triple">
-            <div>
-              <label for="viagemOrigemEstado">Origem - UF - Estado</label>
-              <select id="viagemOrigemEstado">
-                <option value="">Selecione</option>
-                <!-- Preenchido dinamicamente -->
-              </select>
-            </div>
-            <div>
-              <label for="viagemOrigemCidade">Origem - Cidade</label>
-              <select id="viagemOrigemCidade">
-                <option value="">Selecione um estado primeiro</option>
-                <!-- Preenchido dinamicamente -->
-              </select>
-            </div>
-            <div>
-              <label for="viagemOrigemCodigo">Origem - Código</label>
-              <input type="text" id="viagemOrigemCodigo" readonly>
-            </div>
-          </div>
-
-          <!-- Linha 6: Destino -->
-          <div class="input-group triple">
-            <div>
-              <label for="viagemDestinoEstado">Destino - UF - Estado</label>
-              <select id="viagemDestinoEstado">
-                <option value="">Selecione</option>
-                <!-- Preenchido dinamicamente -->
-              </select>
-            </div>
-            <div>
-              <label for="viagemDestinoCidade">Destino - Cidade</label>
-              <select id="viagemDestinoCidade">
-                <option value="">Selecione um estado primeiro</option>
-                <!-- Preenchido dinamicamente -->
-              </select>
-            </div>
-            <div>
-              <label for="viagemDestinoCodigo">Destino - Código</label>
-              <input type="text" id="viagemDestinoCodigo" readonly>
-            </div>
-          </div>
-
-          <!-- Linha 7: Roteiro, Distância, Frete, Peso e Cubagem -->
-          <div class="input-group five-row">
-            <div>
-              <label for="viagemRoteiro">Roteiro</label>
-              <select id="viagemRoteiro">
-                <option value="">Selecione</option>
-                <!-- Preenchido dinamicamente -->
-              </select>
-            </div>
-            <div>
-              <label for="viagemDistancia">Distância (km)</label>
-              <div style="display: flex; gap: 10px; align-items: flex-end;">
-                <input type="number" id="viagemDistancia" step="0.01" min="0" style="flex: 1;">
-                <button type="button" id="btnCalcularDistancia" class="btn btn-info" style="white-space: nowrap;" title="Calcular distância entre origem e destino">
-                  <i class='bx bx-calculator'></i> Calcular
-                </button>
+          <div class="form-dados-card">
+            <div class="form-dados-card-header"><i class='bx bx-trip'></i> Identificação</div>
+            <div class="form-dados-card-body">
+              <div class="filtros-grid">
+                <div>
+                  <label for="viagemIdViagem">ID Viagem</label>
+                  <input type="text" id="viagemIdViagem" readonly class="form-control">
+                </div>
+                <div>
+                  <label for="viagemSituacaoViagem">Situação Viagem *</label>
+                  <select id="viagemSituacaoViagem" required class="form-control">
+                    <option value="">Selecione</option>
+                    <option value="A">Aprovada</option>
+                    <option value="C">Cancelada</option>
+                    <option value="D">Preparação</option>
+                    <option value="E">Final de rota</option>
+                    <option value="F">Viagem finalizada</option>
+                    <option value="M">Emissão documentos</option>
+                    <option value="P">Programada</option>
+                    <option value="T">Em trânsito</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="viagemSituacao">Situação *</label>
+                  <select id="viagemSituacao" required class="form-control">
+                    <option value="">Selecione</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="viagemTipoViagem">Tipo Viagem *</label>
+                  <select id="viagemTipoViagem" required class="form-control">
+                    <option value="">Selecione</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="viagemUsuario">Usuário Inclusão</label>
+                  <input type="text" id="viagemUsuario" readonly class="form-control">
+                </div>
+                <div>
+                  <label for="viagemDataInclusao">Data Inclusão</label>
+                  <input type="datetime-local" id="viagemDataInclusao" readonly class="form-control">
+                </div>
+                <div>
+                  <label for="viagemContratador">Contratador</label>
+                  <select id="viagemContratador" class="form-control">
+                    <option value="">Selecione</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="viagemSituacaoAtiva">Situação *</label>
+                  <select id="viagemSituacaoAtiva" required class="form-control">
+                    <option value="S">Ativo</option>
+                    <option value="N">Inativo</option>
+                  </select>
+                </div>
               </div>
             </div>
-            <div>
-              <label for="viagemFrete">Frete</label>
-              <input type="number" id="viagemFrete" step="0.01" min="0" placeholder="0.00">
-            </div>
-            <div>
-              <label for="viagemMoeda">Moeda</label>
-              <select id="viagemMoeda">
-                <option value="BRL">BRL (Real)</option>
-                <option value="PYG">PYG (Guarani)</option>
-                <option value="ARS">ARS (Peso AR)</option>
-                <option value="UYU">UYU (Peso UY)</option>
-                <option value="USD">USD (Dólar)</option>
-              </select>
-            </div>
-            <div>
-              <label for="viagemPeso">Peso</label>
-              <input type="number" id="viagemPeso" step="0.001" min="0" placeholder="0.000">
-            </div>
-            <div>
-              <label for="viagemCubagem">Cubagem (M³)</label>
-              <input type="number" id="viagemCubagem" step="0.001" min="0" placeholder="0.000">
+          </div>
+
+          <div class="form-dados-card">
+            <div class="form-dados-card-header"><i class='bx bx-calendar'></i> Datas e frota</div>
+            <div class="form-dados-card-body">
+              <div class="filtros-grid">
+                <div>
+                  <label for="viagemClasseFrota">Classe Frota</label>
+                  <select id="viagemClasseFrota" class="form-control">
+                    <option value="">Selecione</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="viagemDataInicio">Data Início Prevista *</label>
+                  <input type="datetime-local" id="viagemDataInicio" required class="form-control">
+                </div>
+                <div>
+                  <label for="viagemDataFim">Data Fim Prevista *</label>
+                  <input type="datetime-local" id="viagemDataFim" required class="form-control">
+                </div>
+                <div>
+                  <label for="viagemRastreado">Exige Veículo Rastreado *</label>
+                  <select id="viagemRastreado" required class="form-control">
+                    <option value="">Selecione</option>
+                    <option value="S">Sim</option>
+                    <option value="N">Não</option>
+                  </select>
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- Linha 9: Observações -->
-          <div class="input-group">
-            <label for="viagemObserv">Observações</label>
-            <textarea id="viagemObserv" maxlength="2048" style="min-height: 120px; resize: vertical;"></textarea>
+          <div class="form-dados-card">
+            <div class="form-dados-card-header"><i class='bx bx-map-pin'></i> Origem</div>
+            <div class="form-dados-card-body">
+              <div class="filtros-grid">
+                <div>
+                  <label for="viagemOrigemPais">País</label>
+                  <select id="viagemOrigemPais" class="form-control">
+                    <option value="">Selecione</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="viagemOrigemEstado">UF - Estado</label>
+                  <select id="viagemOrigemEstado" class="form-control">
+                    <option value="">Selecione</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="viagemOrigemCidade">Cidade</label>
+                  <select id="viagemOrigemCidade" class="form-control">
+                    <option value="">Selecione um estado primeiro</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="viagemOrigemCodigo">Código</label>
+                  <input type="text" id="viagemOrigemCodigo" readonly class="form-control">
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div class="form-actions">
-            <button type="submit" class="btn btn-primary">
-              <i class='bx bx-save'></i> Salvar
-            </button>
-            <button type="button" id="btnCancelar" class="btn btn-secondary">
-              <i class='bx bx-x'></i> Cancelar
-            </button>
+          <div class="form-dados-card">
+            <div class="form-dados-card-header"><i class='bx bx-map'></i> Destino</div>
+            <div class="form-dados-card-body">
+              <div class="filtros-grid">
+                <div>
+                  <label for="viagemDestinoPais">País</label>
+                  <select id="viagemDestinoPais" class="form-control">
+                    <option value="">Selecione</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="viagemDestinoEstado">UF - Estado</label>
+                  <select id="viagemDestinoEstado" class="form-control">
+                    <option value="">Selecione</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="viagemDestinoCidade">Cidade</label>
+                  <select id="viagemDestinoCidade" class="form-control">
+                    <option value="">Selecione um estado primeiro</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="viagemDestinoCodigo">Código</label>
+                  <input type="text" id="viagemDestinoCodigo" readonly class="form-control">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-dados-card">
+            <div class="form-dados-card-header"><i class='bx bx-dollar-circle'></i> Roteiro e valores</div>
+            <div class="form-dados-card-body">
+              <div class="filtros-grid">
+                <div>
+                  <label for="viagemRoteiro">Roteiro</label>
+                  <select id="viagemRoteiro" class="form-control">
+                    <option value="">Selecione</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="viagemDistancia">Distância (km)</label>
+                  <div style="display: flex; gap: 10px; align-items: flex-end;">
+                    <input type="number" id="viagemDistancia" step="0.01" min="0" class="form-control" style="flex: 1;">
+                    <button type="button" id="btnCalcularDistancia" class="btn btn-info" style="white-space: nowrap;" title="Calcular distância entre origem e destino">
+                      <i class='bx bx-calculator'></i> Calcular
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label for="viagemFrete">Frete</label>
+                  <input type="number" id="viagemFrete" step="0.01" min="0" placeholder="0.00" class="form-control">
+                </div>
+                <div>
+                  <label for="viagemMoeda">Moeda</label>
+                  <select id="viagemMoeda" class="form-control">
+                    <option value="BRL">BRL (Real)</option>
+                    <option value="PYG">PYG (Guarani)</option>
+                    <option value="ARS">ARS (Peso AR)</option>
+                    <option value="UYU">UYU (Peso UY)</option>
+                    <option value="USD">USD (Dólar)</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="viagemPeso">Peso</label>
+                  <input type="number" id="viagemPeso" step="0.001" min="0" placeholder="0.000" class="form-control">
+                </div>
+                <div>
+                  <label for="viagemCubagem">Cubagem (M³)</label>
+                  <input type="number" id="viagemCubagem" step="0.001" min="0" placeholder="0.000" class="form-control">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-dados-card">
+            <div class="form-dados-card-header"><i class='bx bx-note'></i> Observações</div>
+            <div class="form-dados-card-body">
+              <div class="filtros-grid">
+                <div style="grid-column: 1 / -1;">
+                  <label for="viagemObserv">Observações</label>
+                  <textarea id="viagemObserv" class="form-control" maxlength="2048" style="min-height: 120px; resize: vertical;"></textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="filtros-actions" style="margin-top: 20px;">
+            <button type="submit" class="btn-filtro btn-filtro-novo"><i class="bx bx-save"></i> Salvar</button>
+            <button type="button" id="btnCancelar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Cancelar</button>
           </div>
         </form>
       </div>
@@ -1266,7 +1466,7 @@
       <div class="form-box">
         <h2>Histórico de Viagens do Roteiro</h2>
         <div class="actions-top">
-          <button type="button" id="btnVoltarHistorico" class="btn cancel">← Voltar aos Filtros</button>
+          <button type="button" id="btnVoltarHistorico" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar aos Filtros</button>
           <button type="button" id="btnCarregarHistorico" class="btn save">🔄 Carregar Histórico</button>
         </div>
 
@@ -1276,25 +1476,25 @@
         </div>
 
         <!-- Resumo por Classe de Frota -->
-        <div id="historicoResumo" style="display: none; margin: 20px 0; padding: 20px; background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); border-radius: 12px; border: 1px solid #667eea30;">
-          <h3 style="margin: 0 0 15px 0; color: var(--ac-primary, #0d2137); font-size: 18px; font-weight: 600;">📊 Resumo por Classe de Frota</h3>
+        <div id="historicoResumo" class="historico-resumo-box" style="display: none; margin: 20px 0; padding: 20px; background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); border-radius: 12px; border: 1px solid #667eea30;">
+          <h3 style="margin: 0 0 15px 0; color: var(--ac-primary, #0d2137); font-size: 18px; font-weight: 600;"><i class='bx bx-bar-chart-alt-2'></i> Resumo por Classe de Frota</h3>
           <div id="historicoResumoContent" style="display: grid; gap: 15px;">
             <!-- Resumos serão inseridos aqui via JavaScript -->
           </div>
         </div>
 
         <!-- Legenda -->
-        <div id="historicoLegenda" style="display: none; margin: 15px 0; padding: 12px 15px; background: #f8f9fa; border-left: 4px solid #667eea; border-radius: 4px;">
+        <div id="historicoLegenda" class="historico-legenda-box" style="display: none; margin: 15px 0; padding: 12px 15px; background: #f8f9fa; border-left: 4px solid #667eea; border-radius: 4px;">
           <strong style="color: var(--ac-primary, #0d2137);">Legenda:</strong>
           <span style="margin-left: 15px; color: #666;">
-            <span style="color: #27ae60; font-weight: 600;">●</span> Rastreado
-            <span style="margin-left: 15px; color: #e74c3c; font-weight: 600;">●</span> Não Rastreado
+            <span class="legenda-bullet-rastreado" style="color: #27ae60; font-weight: 600;">●</span> Rastreado
+            <span class="legenda-bullet-nao-rastreado" style="margin-left: 15px; color: #e74c3c; font-weight: 600;">●</span> Não Rastreado
           </span>
         </div>
 
         <!-- Grid de Viagens -->
-        <div id="historicoViagensGrid" style="margin-top: 20px;">
-          <div class="empty" style="text-align: center; padding: 40px 20px; background: #f8f9fa; border-radius: 8px; border: 2px dashed #dee2e6;">
+        <div id="historicoViagensGrid" class="historico-viagens-grid" style="margin-top: 20px;">
+          <div class="empty historico-empty-box" style="text-align: center; padding: 40px 20px; background: #f8f9fa; border-radius: 8px; border: 2px dashed #dee2e6;">
             <div style="font-size: 48px; margin-bottom: 15px;">📋</div>
             <h3 style="color: var(--ac-primary, #0d2137); margin-bottom: 10px;">Como visualizar o histórico?</h3>
             <ol style="text-align: left; display: inline-block; color: #6c757d; line-height: 1.8;">
@@ -1323,12 +1523,13 @@
         </p>
         <div style="position: relative;">
           <div id="mapaRota" style="height: 600px; width: 100%; border: 2px solid #ddd; border-radius: 8px; background: #f5f5f5;"></div>
-          <!-- Overlay de carregamento do mapa -->
+          <!-- Overlay de carregamento do mapa (padrão Gerenciar Cidades) -->
           <div id="mapaLoadingOverlay" class="calculando-overlay" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 8px;">
             <div class="calculando-content">
               <div class="calculando-spinner"></div>
               <h3 id="mapaLoadingTitle">Carregando Mapa</h3>
               <p id="mapaLoadingText">Preparando visualização da rota...</p>
+              <p class="calculando-detalhe">Isso pode levar alguns segundos.</p>
             </div>
           </div>
         </div>
@@ -1367,8 +1568,38 @@
       <div class="form-box">
         <h2>Motoristas Compatíveis</h2>
         <div class="actions-top" style="margin-bottom: 16px;">
-          <button type="button" id="btnVoltarCompatíveis" class="btn cancel">← Voltar aos Filtros</button>
+          <button type="button" id="btnVoltarCompatíveis" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar aos Filtros</button>
           <button type="button" id="btnCarregarViagensPendentes" class="btn info">Carregar Viagens Pendentes</button>
+        </div>
+
+        <!-- Card: Regras de compatibilidade (auditáveis) -->
+        <div class="form-dados-card" style="margin-bottom: 20px;">
+          <div class="form-dados-card-header"><i class='bx bx-cog'></i> Regras de compatibilidade</div>
+          <div class="form-dados-card-body">
+            <p class="hint" style="margin-bottom: 14px;">Marque as validações que devem ser aplicadas ao buscar motoristas compatíveis. As alterações são gravadas para auditoria.</p>
+            <div class="regras-compatibilidade-grid">
+              <label class="regra-compat-item">
+                <input type="checkbox" id="regraCompativelRastreamento" value="S">
+                <span>Validar exigência de rastreamento</span>
+              </label>
+              <label class="regra-compat-item">
+                <input type="checkbox" id="regraCompativelClasseFrota" value="S">
+                <span>Validar classe de frota</span>
+              </label>
+              <label class="regra-compat-item">
+                <input type="checkbox" id="regraCompativelLocalEmbarque" value="S">
+                <span>Validar local de embarque / carregamento</span>
+              </label>
+              <label class="regra-compat-item">
+                <input type="checkbox" id="regraCompativelLocalDesembarque" value="S">
+                <span>Validar local de desembarque / descarga</span>
+              </label>
+            </div>
+            <div class="regras-compatibilidade-actions">
+              <button type="button" id="btnSalvarRegrasCompatibilidade" class="btn btn-primary" style="padding: 8px 16px;"><i class='bx bx-save'></i> Salvar regras</button>
+              <span id="msgRegrasCompatibilidade" class="message" style="margin-left: 12px; display: none;"></span>
+            </div>
+          </div>
         </div>
         
         <!-- Seleção de Viagem -->
@@ -1395,8 +1626,13 @@
         <div id="acoesLote" style="margin-top: 20px; padding: 12px 15px; background: #f0f8ff; border-radius: 8px; display: none;">
           <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
             <span id="contadorSelecionados" style="font-weight: 600; color: var(--ac-primary, #0d2137); font-size: 14px;"></span>
-            <button type="button" id="btnPrepararAnuncio" class="btn" style="padding: 8px 16px; font-size: 14px; background: #FF9800; color: white;">📢 Preparar Anúncio</button>
-            <button type="button" id="btnDispararConvocacoes" class="btn save" style="padding: 8px 16px; font-size: 14px;">Disparar Convocações</button>
+            <!-- Substituído btnDispararConvocacoes para indicar que o Switch Digital foi acionado -->
+            <button type="button" id="btnDispararConvocacoes" class="btn save" style="padding: 8px 16px; font-size: 14px; background-color: #25D366; border-color: #25D366; color: white;">
+              <i class='bx bxl-whatsapp' style="margin-right: 5px; font-size: 16px; vertical-align: middle;"></i> Disparar Convocações (Switch Digital)
+            </button>
+            <button type="button" id="btnReenviarFalhas" class="btn info" style="padding: 8px 16px; font-size: 14px;" title="Reenviar apenas convocações que falharam ou ainda não foram enviadas por WhatsApp">
+              <i class='bx bx-refresh' style="margin-right: 5px; font-size: 16px; vertical-align: middle;"></i> Reenviar apenas não enviados
+            </button>
           </div>
         </div>
       </div>
@@ -1408,8 +1644,8 @@
         <h3 data-i18n="web.modulos.viagens.confirmarAcao">Confirmar Ação</h3>
         <p id="modalMessage"></p>
         <div class="modal-actions">
-          <button id="confirmYes" class="btn delete" data-i18n="web.modulos.viagens.sim">Sim</button>
-          <button id="confirmNo" class="btn cancel" data-i18n="web.modulos.viagens.cancelar">Cancelar</button>
+          <button id="confirmYes" class="btn-filtro btn-filtro-danger" type="button"><i class="bx bx-check"></i> Desativar</button>
+          <button id="confirmNo" class="btn-filtro btn-filtro-limpar" type="button"><i class="bx bx-x"></i> Cancelar</button>
         </div>
       </div>
     </div>
@@ -1417,17 +1653,12 @@
     <!-- Aba Convocações -->
     <div class="tab-content" id="tab-convocações">
       <div class="form-box">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div style="margin-bottom: 20px;">
           <h2 style="margin: 0;">Gerenciar Convocações</h2>
-          <button type="button" id="btnGuiaEnvioConvocacoes" class="btn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3); transition: all 0.3s;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(102, 126, 234, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(102, 126, 234, 0.3)'">
-            <i class="bx bx-book-open" style="font-size: 20px;"></i>
-            <span>Guia de Envio de Convocações</span>
-          </button>
         </div>
         <div class="actions-top">
-          <button id="btnVoltarConvocacoes" type="button" class="btn cancel">← Voltar aos Filtros</button>
+          <button id="btnVoltarConvocacoes" type="button" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar aos Filtros</button>
           <button id="btnCarregarConvocacoes" type="button" class="btn info">Carregar Convocações</button>
-          <button id="btnVerLinksWhatsAppConvocacoes" type="button" class="btn" style="background: #25D366; color: white; display: none;"><i class="bx bx-link-alt"></i> Ver Links WhatsApp</button>
         </div>
         <div style="margin-top: 20px; padding: 15px; background: #f9f9f9; border-radius: 8px;">
           <div style="display: flex; gap: 15px; flex-wrap: wrap; margin-bottom: 15px;">
@@ -1494,7 +1725,7 @@
       <div class="form-box">
         <h2>Gerenciar Veículo da Viagem</h2>
         <div class="actions-top">
-          <button id="btnVoltarVeiculo" type="button" class="btn cancel">← Voltar aos Filtros</button>
+          <button id="btnVoltarVeiculo" type="button" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar aos Filtros</button>
         </div>
         <form id="veiculoForm">
           <input type="hidden" id="veiculoIdViagem">
@@ -1658,7 +1889,7 @@
       <div class="form-box">
         <h2>Gerenciar Motorista da Viagem</h2>
         <div class="actions-top">
-          <button id="btnVoltarMotorista" type="button" class="btn cancel">← Voltar aos Filtros</button>
+          <button id="btnVoltarMotorista" type="button" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar aos Filtros</button>
         </div>
         <form id="motoristaForm">
           <input type="hidden" id="motoristaIdViagem">
@@ -1824,7 +2055,7 @@
       <div class="form-box">
         <h2>Rastreamento GPS da Viagem</h2>
         <div class="actions-top">
-          <button id="btnVoltarRastreamento" type="button" class="btn cancel">← Voltar aos Filtros</button>
+          <button id="btnVoltarRastreamento" type="button" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar aos Filtros</button>
           <button id="btnAtualizarRastreamento" type="button" class="btn info">🔄 Atualizar Posições</button>
         </div>
 
@@ -1852,22 +2083,15 @@
           <p style="font-size: 13px; color: #95a5a6;">O rastreamento mostra todas as posições GPS registradas pelo motorista durante a viagem.</p>
         </div>
 
-        <!-- Overlay de Loading para Rastreamento -->
-        <div id="rastreamentoLoadingOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); z-index: 10000; align-items: center; justify-content: center;">
-          <div style="background: white; padding: 30px; border-radius: 12px; text-align: center; box-shadow: 0 4px 20px rgba(0,0,0,0.3); max-width: 400px;">
-            <div style="margin-bottom: 20px;">
-              <div style="border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 0 auto;"></div>
-            </div>
-            <h3 id="rastreamentoLoadingTitulo" style="margin: 0 0 10px 0; color: #333; font-size: 18px;">Carregando Posições GPS</h3>
-            <p id="rastreamentoLoadingTexto" style="margin: 0; color: #666; font-size: 14px;">Aguarde enquanto buscamos as posições...</p>
+        <!-- Overlay de Loading para Rastreamento (padrão Gerenciar Cidades) -->
+        <div id="rastreamentoLoadingOverlay" class="calculando-overlay" style="display: none;">
+          <div class="calculando-content">
+            <div class="calculando-spinner"></div>
+            <h3 id="rastreamentoLoadingTitulo">Carregando Posições GPS</h3>
+            <p id="rastreamentoLoadingTexto">Aguarde enquanto buscamos as posições...</p>
+            <p class="calculando-detalhe">Isso pode levar alguns segundos.</p>
           </div>
         </div>
-        <style>
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        </style>
 
         <!-- Container do Mapa e Lista -->
         <div id="rastreamentoContainer" style="display: none;">
@@ -1956,16 +2180,13 @@
     </div>
   </div>
 
-  <!-- Overlay de carregamento para filtros -->
+  <!-- Overlay de carregamento para filtros (padrão Gerenciar Cidades) -->
   <div id="loadingOverlayFiltros" class="calculando-overlay" style="display: none;">
     <div class="calculando-content">
       <div class="calculando-spinner"></div>
       <h3 id="loadingTitleFiltros">Aplicando Filtros</h3>
       <p id="loadingTextFiltros">Por favor, aguarde enquanto aplicamos os filtros...</p>
       <p class="calculando-detalhe">Isso pode levar alguns segundos.</p>
-      <button type="button" onclick="hideLoadingOverlayFiltros()" class="btn cancel" style="margin-top: 15px;">
-        Cancelar
-      </button>
     </div>
   </div>
 
@@ -1983,7 +2204,7 @@
   <script src="/js/grid-editor.js"></script>
   <!-- Socket.io é carregado por websocket-torre.js quando necessário -->
   <script src="js/websocket-torre.js"></script>
-  <script src="js/script.js?v=202603011200"></script>
+  <script src="js/script.js?v=202603061900"></script>
 
   <!-- Modal Dados Completos do Veículo -->
   <div id="modalDadosVeiculo" class="modal-tratamento" style="display: none;">
@@ -2095,45 +2316,42 @@
 
     <!-- Aba Ranking removida - movida para módulo separado -->
 
-    <!-- Aba Integração Meta -->
-    <div class="tab-content" id="tab-integracao-meta">
+    <!-- Aba Integração Switch -->
+    <div class="tab-content" id="tab-integracao-switch">
       <div class="form-box">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-          <h2 style="margin: 0;">Integração Meta - Logs de Webhook</h2>
+          <h2 style="margin: 0;"><i class="bx bxl-whatsapp" style="color: #25D366;"></i> Switch Digital - Logs de Envio</h2>
           <div style="display: flex; gap: 10px;">
-            <button id="btnAtualizarLogsMeta" type="button" class="btn btn-primary btn-sm">
+            <button id="btnAtualizarLogsSwitch" type="button" class="btn btn-primary btn-sm">
               <i class='bx bx-refresh'></i> Atualizar Logs
             </button>
-            <button id="btnLimparLogsMeta" type="button" class="btn btn-secondary btn-sm">
-              <i class='bx bx-trash'></i> Limpar Logs
-            </button>
-            <button id="btnExportarLogsMeta" type="button" class="btn btn-info btn-sm">
-              <i class='bx bx-download'></i> Exportar Logs
+            <button id="btnLimparLogsSwitch" type="button" class="btn btn-secondary btn-sm">
+              <i class='bx bx-trash'></i> Limpar Visor
             </button>
           </div>
         </div>
         
-        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <div id="switchLogsStatsBox" class="switch-logs-stats-box" style="padding: 15px; border-radius: 8px; margin-bottom: 20px;">
           <div style="display: flex; gap: 20px; flex-wrap: wrap;">
             <div>
-              <strong>Total de Envios:</strong> <span id="totalEnviosMeta">0</span>
+              <strong>Total de Envios:</strong> <span id="totalEnviosSwitch">0</span>
             </div>
             <div>
-              <strong>Sucessos:</strong> <span id="totalSucessosMeta" style="color: #28a745;">0</span>
+              <strong>Sucessos:</strong> <span id="totalSucessosSwitch" class="text-success" style="color: #28a745;">0</span>
             </div>
             <div>
-              <strong>Erros:</strong> <span id="totalErrosMeta" style="color: #dc3545;">0</span>
+              <strong>Erros:</strong> <span id="totalErrosSwitch" class="text-danger" style="color: #dc3545;">0</span>
             </div>
             <div>
-              <strong>Última Atualização:</strong> <span id="ultimaAtualizacaoMeta">-</span>
+              <strong>Última Atualização:</strong> <span id="ultimaAtualizacaoSwitch">-</span>
             </div>
           </div>
         </div>
 
-        <div id="logsIntegracaoMetaParent" style="background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; max-height: 600px; overflow: visible; display: block; visibility: visible;">
-          <div id="logsIntegracaoMeta" style="font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.6; display: block; visibility: visible; min-height: 100px; width: 100%;">
-            <div style="color: #6c757d; text-align: center; padding: 40px;">
-              Nenhum log disponível. Os logs aparecerão aqui quando houver envios para o webhook Meta.
+        <div id="logsIntegracaoSwitchParent" class="switch-logs-viewer" style="background: #1e1e1e; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; max-height: 600px; overflow: auto; max-width: 100%; box-sizing: border-box;">
+          <div id="logsIntegracaoSwitch" class="switch-logs-content" style="font-family: 'Courier New', monospace; font-size: 12px; line-height: 1.6; min-height: 100px; width: 100%; max-width: 100%; color: #a9b7c6; word-wrap: break-word; overflow-wrap: break-word; word-break: break-word; box-sizing: border-box;">
+            <div class="switch-logs-empty" style="color: #6c757d; text-align: center; padding: 40px;">
+              Nenhum log disponível nesta sessão.
             </div>
           </div>
         </div>
@@ -2152,7 +2370,7 @@
           </div>
         </div>
         
-        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <div id="macrosStatsBox" class="macros-stats-box" style="padding: 15px; border-radius: 8px; margin-bottom: 20px;">
           <div style="display: flex; gap: 20px; flex-wrap: wrap;">
             <div>
               <strong>ID Viagem:</strong> <span id="macrosIdViagem">-</span>
@@ -2163,14 +2381,82 @@
           </div>
         </div>
 
-        <div id="macrosLista" style="background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; max-height: 600px; overflow-y: auto;">
-          <div style="color: #6c757d; text-align: center; padding: 40px;">
+        <div id="macrosLista" class="macros-lista-box" style="border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; max-height: 600px; overflow-y: auto;">
+          <div class="macros-lista-empty" style="color: #6c757d; text-align: center; padding: 40px;">
             Selecione uma viagem na aba <strong>Dados</strong> ou <strong>Grid</strong> para visualizar as macros.
           </div>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- Switch Logs: evitar que o conteúdo ultrapasse a tela -->
+  <style>
+    #logsIntegracaoSwitchParent.switch-logs-viewer { min-width: 0; }
+    #logsIntegracaoSwitch.switch-logs-content pre { max-width: 100%; }
+    .tab-content#tab-integracao-switch .form-box { min-width: 0; max-width: 100%; overflow: hidden; }
+  </style>
+  <!-- Dark mode: Switch Logs + Macros (forçar fundo escuro) -->
+  <style>
+    /* Barra Total de Envios / Sucessos / Erros / Última Atualização - SEM fundo branco */
+    html[data-theme="dark"] #switchLogsStatsBox,
+    body[data-theme="dark"] #switchLogsStatsBox,
+    html[data-theme="dark"] .viagens-container #switchLogsStatsBox,
+    body[data-theme="dark"] .viagens-container #switchLogsStatsBox {
+      background: #0f172a !important;
+      border-color: #334155 !important;
+    }
+    html[data-theme="dark"] #switchLogsStatsBox strong,
+    html[data-theme="dark"] #switchLogsStatsBox span,
+    body[data-theme="dark"] #switchLogsStatsBox strong,
+    body[data-theme="dark"] #switchLogsStatsBox span {
+      color: #e2e8f0 !important;
+    }
+    html[data-theme="dark"] #switchLogsStatsBox .text-success,
+    body[data-theme="dark"] #switchLogsStatsBox .text-success { color: #4ade80 !important; }
+    html[data-theme="dark"] #switchLogsStatsBox .text-danger,
+    body[data-theme="dark"] #switchLogsStatsBox .text-danger { color: #f87171 !important; }
+    /* Macros */
+    html[data-theme="dark"] .viagens-container #tab-macros .macros-stats-box,
+    body[data-theme="dark"] .viagens-container #tab-macros .macros-stats-box {
+      background: #0f172a !important;
+      border-color: #334155 !important;
+    }
+    html[data-theme="dark"] .viagens-container #tab-macros .macros-stats-box strong,
+    html[data-theme="dark"] .viagens-container #tab-macros .macros-stats-box span,
+    html[data-theme="dark"] .viagens-container #macrosIdViagem,
+    html[data-theme="dark"] .viagens-container #totalMacrosViagem,
+    body[data-theme="dark"] .viagens-container #tab-macros .macros-stats-box strong,
+    body[data-theme="dark"] .viagens-container #tab-macros .macros-stats-box span {
+      color: #e2e8f0 !important;
+    }
+    html[data-theme="dark"] .viagens-container #macrosLista,
+    html[data-theme="dark"] .viagens-container .macros-lista-box,
+    body[data-theme="dark"] .viagens-container #macrosLista {
+      background: #1e293b !important;
+      border-color: #334155 !important;
+    }
+    html[data-theme="dark"] .viagens-container #macrosLista .macros-table,
+    body[data-theme="dark"] .viagens-container #macrosLista .macros-table {
+      background: #1e293b !important;
+    }
+    html[data-theme="dark"] .viagens-container #macrosLista .macros-table thead tr,
+    html[data-theme="dark"] .viagens-container #macrosLista .macros-table thead th {
+      background: #0f172a !important;
+      color: #f1f5f9 !important;
+      border-color: #334155 !important;
+    }
+    html[data-theme="dark"] .viagens-container #macrosLista .macros-table tbody tr,
+    html[data-theme="dark"] .viagens-container #macrosLista .macros-table tbody td {
+      background: #1e293b !important;
+      color: #e2e8f0 !important;
+      border-color: #334155 !important;
+    }
+    html[data-theme="dark"] .viagens-container #macrosLista tr:hover td,
+    body[data-theme="dark"] .viagens-container #macrosLista tr:hover td {
+      background: #334155 !important;
+    }
+  </style>
 
 </body>
 </html>

@@ -125,37 +125,32 @@
     box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
   }
 
+  /* Campos de data: mesmo padrão do Relatório de Convocações – ícone dentro do campo à direita */
   .filtros-grid .input-date-wrapper {
-    position: relative;
     display: flex;
     flex-direction: column;
   }
 
   .filtros-grid input[type="date"] {
-    color: #34495e;
-    background-color: #fff;
+    width: 100%;
+    box-sizing: border-box;
     cursor: pointer;
-    padding: 12px;
-    padding-right: 40px;
-    height: 44px;
+    padding: 12px 40px 12px 12px;
+    min-height: 44px;
     line-height: 1.5;
-    display: block;
-    vertical-align: middle;
+    color: var(--ac-primary, #34495e);
+    background-color: var(--white, #fff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 8px;
+    font-size: 16px;
   }
 
   .filtros-grid input[type="date"]::-webkit-calendar-picker-indicator {
     cursor: pointer;
     opacity: 0.6;
-    padding: 0;
-    margin: 0;
-    margin-left: 8px;
+    margin-left: 4px;
     width: 20px;
     height: 20px;
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    background-size: contain;
   }
 
   .filtros-grid input[type="date"]::-webkit-calendar-picker-indicator:hover {
@@ -305,11 +300,11 @@
     font-size: 16px;
   }
 
-  /* Modal de Tratamento */
+  /* Modal de Tratamento (acima do menu do dashboard: z-index > 1014) */
   .modal-tratamento {
     display: none;
     position: fixed;
-    z-index: 1000;
+    z-index: 1050;
     left: 0;
     top: 0;
     width: 100%;
@@ -323,21 +318,20 @@
     display: flex;
   }
 
+  /* Mesmo tamanho e formato do modal Tratar Alerta (Alertas do Sistema) */
   .modal-content-tratamento {
-    background: white;
+    background: var(--white, #fff);
     border-radius: 12px;
     padding: 30px;
-    max-width: 1200px;
-    width: 95%;
+    max-width: 600px;
+    width: 90%;
     max-height: 90vh;
     overflow-y: auto;
     box-shadow: 0 10px 40px rgba(0,0,0,0.2);
   }
 
   .modal-tratamento-body {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 30px;
+    display: block;
     margin-top: 20px;
   }
 
@@ -347,7 +341,8 @@
   }
 
   .modal-tratamento-mapa {
-    min-height: 500px;
+    min-height: 280px;
+    margin-top: 20px;
     border-radius: 8px;
     overflow: hidden;
     border: 2px solid #e9ecef;
@@ -356,24 +351,10 @@
 
   .modal-tratamento-mapa #mapaSOSTratamento {
     width: 100% !important;
-    height: 500px !important;
-    min-height: 500px !important;
+    height: 280px !important;
+    min-height: 280px !important;
     position: relative;
     z-index: 1;
-  }
-
-  @media (max-width: 968px) {
-    .modal-tratamento-body {
-      grid-template-columns: 1fr;
-    }
-    
-    .modal-tratamento-mapa {
-      min-height: 400px;
-    }
-    
-    .modal-tratamento-mapa #mapaSOSTratamento {
-      min-height: 400px;
-    }
   }
 
   .modal-header-tratamento {
@@ -754,6 +735,122 @@
     border-top: 1px solid #dee2e6;
     line-height: 1.5;
   }
+
+  .modal-tratamento-title {
+    margin-bottom: 10px;
+    color: var(--ac-primary, #0d2137);
+    font-size: 18px;
+    font-weight: 600;
+  }
+
+  .modal-tratamento-desc {
+    color: var(--gray, #64748b);
+    margin-bottom: 15px;
+    line-height: 1.5;
+  }
+
+  /* Modal Localização do SOS (padrão = Localização do Motorista – Relatório Convocações) */
+  .modal-mapa-motorista {
+    display: none;
+    position: fixed;
+    z-index: 10000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+  }
+  .modal-mapa-motorista-content {
+    background: white;
+    margin: 2% auto;
+    padding: 0;
+    border-radius: 12px;
+    width: 95%;
+    max-width: 900px;
+    height: 90vh;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .modal-mapa-motorista-header {
+    background: linear-gradient(135deg, var(--ac-primary, #0d2137) 0%, var(--ac-primary-light, #1a365d) 100%);
+    color: white;
+    padding: 20px 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  .modal-mapa-motorista-header h3 { margin: 0; font-size: 20px; font-weight: 600; }
+  .modal-mapa-motorista-header .btn-fechar {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+    transition: all 0.3s;
+  }
+  .modal-mapa-motorista-header .btn-fechar:hover {
+    background: rgba(255, 255, 255, 0.25);
+    transform: translateY(-1px);
+  }
+  .modal-mapa-motorista-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .modal-mapa-motorista-info {
+    padding: 20px 25px;
+    background: linear-gradient(to bottom, #ffffff 0%, #f8f9fa 100%);
+    border-bottom: 2px solid var(--light-gray, #e2e8f0);
+    flex-shrink: 0;
+  }
+  .modal-mapa-motorista-info-grid-sos {
+    display: grid;
+    grid-template-columns: 1fr minmax(200px, 0.6fr);
+    gap: 12px;
+  }
+  .modal-mapa-motorista-info-item {
+    display: flex;
+    flex-direction: column;
+    padding: 12px 14px;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid var(--light-gray, #e2e8f0);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .modal-mapa-motorista-info-item label {
+    font-size: 11px;
+    color: #666;
+    font-weight: 600;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .modal-mapa-motorista-info-item span {
+    font-size: 14px;
+    color: #333;
+    font-weight: 500;
+    word-break: break-word;
+    line-height: 1.4;
+  }
+  .modal-mapa-motorista-map {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+  }
+  #mapaLocalizacao {
+    width: 100%;
+    height: 100%;
+    min-height: 400px;
+  }
 </style>
 
 <div class="sos-container">
@@ -761,9 +858,6 @@
   <div class="sos-header">
     <h2><i class='bx bx-error-circle'></i> <span data-i18n="web.modulos.sos.titulo">Alertas SOS</span></h2>
     <div style="display: flex; gap: 10px; align-items: center;">
-      <button class="btn btn-info" onclick="mostrarAjuda()" title="Como funciona? Regras e instruções">
-        <i class='bx bx-help-circle'></i> <span data-i18n="web.modulos.sos.ajuda">Ajuda</span>
-      </button>
       <button id="btnToggleSomSOS" class="btn" onclick="toggleSomNotificacaoSOS()" title="Ativar/Desativar som de notificação" style="background: #28a745; color: white;">
         <i class='bx bx-volume-full'></i> <span data-i18n="web.modulos.sos.som">Som</span>
       </button>
@@ -872,38 +966,29 @@
   <p data-i18n="web.modulos.sos.carregandoSOS">Carregando alertas SOS...</p>
 </div>
 
-<!-- Modal de Ajuda -->
-<div id="modalAjuda" class="modal-tratamento">
-  <div class="modal-content-tratamento" style="max-width: 800px;">
-    <div class="modal-header-tratamento">
-      <h3><i class='bx bx-help-circle'></i> <span data-i18n="web.modulos.sos.comoFuncionam">Como Funcionam os Alertas SOS</span></h3>
-      <button class="close-modal" onclick="fecharModalAjuda()">
-        <i class='bx bx-x'></i>
-      </button>
+<!-- Modal de Localização (padrão: Localização do Motorista – Relatório de Convocações) -->
+<div id="modalLocalizacao" class="modal-mapa-motorista">
+  <div class="modal-mapa-motorista-content">
+    <div class="modal-mapa-motorista-header">
+      <h3><i class="bx bx-map-pin" style="vertical-align: middle;"></i> <span data-i18n="web.modulos.sos.localizacaoSOS">Localização do SOS</span></h3>
+      <button class="btn-fechar" onclick="fecharModalLocalizacao()"><i class="bx bx-x"></i> Fechar</button>
     </div>
-    <div id="modalAjudaContent" style="max-height: 70vh; overflow-y: auto; padding-right: 10px;">
-      <!-- Conteúdo será preenchido dinamicamente -->
-    </div>
-  </div>
-</div>
-
-<!-- Modal de Localização -->
-<div id="modalLocalizacao" class="modal-tratamento">
-  <div class="modal-content-tratamento" style="max-width: 900px;">
-    <div class="modal-header-tratamento">
-      <h3><i class='bx bx-map'></i> <span data-i18n="web.modulos.sos.localizacaoSOS">Localização do SOS</span></h3>
-      <button class="close-modal" onclick="fecharModalLocalizacao()">
-        <i class='bx bx-x'></i>
-      </button>
-    </div>
-    <div id="modalLocalizacaoContent" style="padding: 20px 0;">
-      <div id="infoLocalizacao" style="margin-bottom: 15px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid var(--ac-accent, #0ea5e9);">
-        <p id="enderecoLocalizacao" style="margin: 0; color: #495057; font-size: 14px; line-height: 1.6;">
-          <i class='bx bx-loader-alt bx-spin'></i> Buscando endereço...
-        </p>
-        <p id="coordenadasLocalizacao" style="margin: 5px 0 0 0; color: var(--gray, #64748b); font-size: 12px;"></p>
+    <div class="modal-mapa-motorista-body">
+      <div class="modal-mapa-motorista-info">
+        <div class="modal-mapa-motorista-info-grid modal-mapa-motorista-info-grid-sos">
+          <div class="modal-mapa-motorista-info-item">
+            <label>Endereço</label>
+            <span id="enderecoLocalizacao"><i class='bx bx-loader-alt bx-spin'></i> Buscando endereço...</span>
+          </div>
+          <div class="modal-mapa-motorista-info-item">
+            <label>Coordenadas</label>
+            <span id="coordenadasLocalizacao">-</span>
+          </div>
+        </div>
       </div>
-      <div id="mapaLocalizacao" style="width: 100%; height: 500px; border-radius: 8px; overflow: hidden; border: 2px solid #e9ecef;"></div>
+      <div class="modal-mapa-motorista-map">
+        <div id="mapaLocalizacao"></div>
+      </div>
     </div>
   </div>
 </div>

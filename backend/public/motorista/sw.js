@@ -92,12 +92,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // Estratégia para páginas HTML: Network First (tenta online, fallback cache)
+  // Estratégia para páginas HTML: sempre buscar na rede quando online (evita precisar F5 para atualizar)
   if (url.pathname.endsWith('.html') || url.pathname.endsWith('/')) {
     event.respondWith(
-      fetch(event.request)
+      fetch(event.request, { cache: 'no-store' })
         .then((response) => {
-          // Salvar no cache
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, responseToCache);
@@ -105,13 +104,11 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          // Offline - buscar do cache
           return caches.match(event.request).then((cached) => {
             if (cached) {
               console.log('📦 Servindo do cache:', url.pathname);
               return cached;
             }
-            // Fallback para dashboard
             return caches.match('/motorista/pages/dashboard.html');
           });
         })

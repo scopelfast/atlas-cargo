@@ -4,9 +4,8 @@
 // Atlas Cargo
 // i18n: helper t() e chaves web.modulos.logsAcesso
 
-const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
-
 (function() {
+  const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
   const tabs = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
   const filtroForm = document.getElementById('filtroForm');
@@ -151,23 +150,28 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     await showTab('filtros');
   }
 
-  // Mostrar aba
-  async function showTab(tabId) {
-    tabs.forEach(tab => {
-      if (tab.getAttribute('data-tab') === tabId) {
-        tab.classList.add('active');
-      } else {
-        tab.classList.remove('active');
-      }
-    });
-
-    tabContents.forEach(content => {
-      if (content.id === `tab-${tabId}`) {
-        content.classList.add('active');
-      } else {
-        content.classList.remove('active');
-      }
-    });
+  // Mostrar aba (escopo no container do módulo)
+  function showTab(tabId) {
+    const tabContent = document.getElementById(`tab-${tabId}`);
+    const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+    if (!tabContent || !tabBtn) return;
+    const container = tabContent.closest('[class*="-container"]') || tabContent.parentElement;
+    if (container) {
+      container.querySelectorAll('.tab-btn').forEach(tab => {
+        if (tab.getAttribute('data-tab') === tabId) {
+          tab.classList.add('active');
+        } else {
+          tab.classList.remove('active');
+        }
+      });
+      container.querySelectorAll('.tab-content').forEach(content => {
+        if (content.id === `tab-${tabId}`) {
+          content.classList.add('active');
+        } else {
+          content.classList.remove('active');
+        }
+      });
+    }
   }
 
   // Aplicar filtros
@@ -491,15 +495,6 @@ const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
     // Atualizar ícones de ordenação
     atualizarIconesOrdenacao('tabelaTopModulos', ordenacaoTopModulos.campo, ordenacaoTopModulos.direcao);
   }
-
-
-  // Função de ajuda
-  window.mostrarAjudaLogsAcesso = function() {
-    const modal = document.getElementById('modalAjudaLogsAcesso');
-    if (modal) {
-      modal.style.display = 'flex';
-    }
-  };
 
   // Event listeners
   tabs.forEach(tab => {

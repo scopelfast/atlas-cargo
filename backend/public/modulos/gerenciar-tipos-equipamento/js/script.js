@@ -72,10 +72,16 @@
 
   // Função para mudar abas
   async function showTab(tabId) {
-    tabs.forEach(btn => btn.classList.remove('active'));
-    tabContents.forEach(content => content.classList.remove('active'));
-    document.querySelector(`.tab-btn[data-tab="${tabId}"]`).classList.add('active');
-    document.getElementById(`tab-${tabId}`).classList.add('active');
+    const targetContent = document.getElementById(`tab-${tabId}`);
+    const targetBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+    if (!targetContent || !targetBtn) return;
+    const container = targetContent.closest('[class*="-container"]') || targetContent.parentElement;
+    if (container) {
+      container.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    }
+    targetBtn.classList.add('active');
+    targetContent.classList.add('active');
 
     // Se a aba Grid foi ativada, garantir que o GridEditor seja inicializado
     if (tabId === 'grid') {
@@ -357,7 +363,7 @@
         { field: 'DSTIPOEQUIPAMENTO', header: 'Descrição', editable: true, type: 'text', maxlength: 40 },
         { field: 'MASCARAIDENTIF', header: 'Máscara', editable: true, type: 'text', maxlength: 50 },
         { field: 'FGTIPOVEICULO_DESC', header: 'Tipo Veículo', editable: false },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px', align: 'right',
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '90px', align: 'right',
           options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }
@@ -458,7 +464,11 @@
       modalEl.dataset.deleteId = idStr;
       modalEl.dataset.action = action;
       
-      confirmYes.textContent = btnText;
+      confirmYes.className = 'btn-filtro btn-filtro-danger';
+      confirmYes.innerHTML = '<i class=\'bx bx-check\'></i> ' + btnText;
+      confirmNo.className = 'btn-filtro btn-filtro-limpar';
+      confirmNo.innerHTML = '<i class=\'bx bx-x\'></i> ' + (t('web.modulos.tiposEquipamento.cancelar') || 'Cancelar');
+      
       confirmYes.onclick = async () => {
         try {
           const deleteId = modalEl.dataset.deleteId || idStr;
@@ -591,22 +601,22 @@
   });
 
   document.getElementById('btnVoltarFiltros')?.addEventListener('click', () => showTab('filtros'));
-  document.getElementById('btnNovoRegistro')?.addEventListener('click', () => {
+
+  function irParaNovoTipo() {
     tipoForm?.reset();
+    document.getElementById('tipoCodigo').value = '';
     document.getElementById('formTitle').textContent = t('web.modulos.tiposEquipamento.novoTipo');
     showTab('dados');
-  });
+  }
+
+  document.getElementById('btnNovoRegistro')?.addEventListener('click', irParaNovoTipo);
 
   // Grid tab buttons
   document.getElementById('btnVoltarGrid')?.addEventListener('click', () => {
     showTab('filtros');
   });
 
-  document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
-    tipoForm?.reset();
-    document.getElementById('formTitle').textContent = t('web.modulos.tiposEquipamento.novoTipo');
-    showTab('dados');
-  });
+  document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', irParaNovoTipo);
   
   document.getElementById('btnCancelar')?.addEventListener('click', () => showTab('grid'));
 

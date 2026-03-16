@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/modulos.css">
+  <link rel="stylesheet" href="/css/dark-mode.css">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <style>
     /* ========== Relatório de Convocações - Identidade Atlas Cargo ========== */
@@ -34,6 +35,9 @@
       align-items: center;
       gap: 10px;
     }
+    .relatorio-header h2 i {
+      color: inherit;
+    }
 
     .relatorio-stats {
       display: grid;
@@ -43,7 +47,7 @@
     }
 
     .stat-card {
-      background: white;
+      background: var(--white, #fff);
       border-radius: 8px;
       padding: 15px 20px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
@@ -114,7 +118,7 @@
     }
 
     .filtros-box {
-      background: white;
+      background: var(--white, #fff);
       border-radius: 12px;
       padding: 25px;
       box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
@@ -148,20 +152,21 @@
       display: block;
       margin-bottom: 8px;
       font-weight: 600;
-      color: #34495e;
+      color: var(--dark, #1e293b);
       font-size: 14px;
     }
 
     .filtros-grid .form-control {
       width: 100%;
       padding: 12px;
-      border: 1px solid #dee2e6;
+      border: 1px solid var(--border, #e2e8f0);
       border-radius: 8px;
       font-size: 16px;
       transition: all 0.3s;
       font-family: inherit;
       box-sizing: border-box;
-      background-color: #fff;
+      background-color: var(--white, #fff);
+      color: var(--dark, #1e293b);
     }
 
     .filtros-grid .form-control:focus {
@@ -413,7 +418,7 @@
     }
 
     .grafico-container {
-      background: white;
+      background: var(--white, #fff);
       padding: 20px;
       border-radius: 8px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
@@ -423,7 +428,7 @@
     .grafico-container h3 {
       margin-top: 0;
       margin-bottom: 15px;
-      color: #333;
+      color: var(--ac-primary, #0d2137);
       font-size: 18px;
     }
 
@@ -433,7 +438,7 @@
     }
 
     .tabela-section {
-      background: white;
+      background: var(--white, #fff);
       padding: 20px;
       border-radius: 8px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
@@ -463,23 +468,23 @@
     .tabela-section h3 {
       margin-top: 0;
       margin-bottom: 15px;
-      color: #333;
+      color: var(--ac-primary, #0d2137);
     }
 
     table th {
-      background: #f8f9fa;
+      background: var(--light-gray, #f8f9fa);
       padding: 12px;
       text-align: left;
       font-weight: 600;
-      color: #333;
-      border-bottom: 2px solid #dee2e6;
+      color: var(--dark, #1e293b);
+      border-bottom: 2px solid var(--border, #e2e8f0);
       position: sticky;
       top: 0;
       z-index: 10;
     }
 
     table th:hover {
-      background: #e9ecef;
+      background: var(--border, #e9ecef);
     }
 
     .btn-link {
@@ -500,12 +505,27 @@
 
     table td {
       padding: 10px 12px;
-      border-bottom: 1px solid #dee2e6;
+      border-bottom: 1px solid var(--border, #e2e8f0);
+      color: var(--dark, #1e293b);
     }
 
     table tr:hover {
-      background: #f8f9fa;
+      background: var(--light-gray, #f8f9fa);
     }
+
+    .relatorio-table .th-info-icon {
+      font-size: 1.1rem;
+      color: var(--info, #17a2b8);
+    }
+    .relatorio-container .text-muted {
+      color: var(--gray, #64748b);
+    }
+    .relatorio-container .cell-acesso.cell-ok .bx-check-circle,
+    .relatorio-container .cell-acesso.cell-ok .text-ok { color: #28a745; }
+    .relatorio-container .cell-acesso.cell-pending .bx-x-circle,
+    .relatorio-container .cell-acesso.cell-pending .text-pending { color: #dc3545; }
+    .relatorio-container .cell-confirmada .icon-ok { color: #28a745; font-size: 1.25rem; }
+    .relatorio-container .cell-confirmada .icon-pending { color: #dc3545; font-size: 1.25rem; }
 
     .badge {
       padding: 4px 8px;
@@ -809,11 +829,6 @@
       <!-- Cabeçalho -->
       <div class="relatorio-header">
         <h2><i class='bx bx-bar-chart-alt-2'></i> <span data-i18n="web.modulos.relatorioConvocacoes.titulo">Relatório de Convocações</span></h2>
-        <div style="display: flex; gap: 10px; align-items: center;">
-          <button class="btn btn-info" onclick="mostrarAjudaRelatorio()" title="Como funciona? Regras e instruções">
-            <i class='bx bx-help-circle'></i> <span data-i18n="web.modulos.relatorioConvocacoes.ajuda">Ajuda</span>
-          </button>
-        </div>
       </div>
 
       <!-- Estatísticas -->

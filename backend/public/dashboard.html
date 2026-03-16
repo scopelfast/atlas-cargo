@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" href="/img/logoAtlasTransparente.png" id="faviconLink">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <script>
     // INTERCEPTOR GLOBAL: Remover ? de todas as URLs
     (function() {
@@ -194,6 +194,8 @@
       createLink(`/css/boxicons.min.css?v=${cacheVersion}`);
       createLink(`/css/modulos.css?v=${cacheVersion}`);
       createLink(`/css/dashboard.css?v=${cacheVersion}`);
+      createLink(`/css/dashboard-adminlte.css?v=${cacheVersion}`);
+      createLink(`/css/dark-mode.css?v=${cacheVersion}`);
       
       // Corrigir favicon
       const faviconLink = document.getElementById('faviconLink');
@@ -259,6 +261,14 @@
   </script>
 </head>
 <body>
+  <script>
+    (function() {
+      var theme = localStorage.getItem('theme');
+      if (theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
   <div class="sidebar">
     <div class="logo" id="logoAtlasCargo" style="cursor: pointer;" title="Voltar ao início - Atlas Cargo">
       <img src="/img/logoAtlasTransparente.png" alt="Atlas Cargo" class="logo-img">
@@ -273,8 +283,8 @@
   <div class="main">
     <div class="header">
       <div style="display: flex; align-items: center; gap: 15px;">
-        <button class="toggle-menu-btn" id="toggleMenuBtn" title="Recolher/Expandir Menu">
-          <i class='bx bx-chevron-left' id="toggleMenuIcon"></i>
+        <button class="toggle-menu-btn" id="toggleMenuBtn" title="Recolher menu" data-i18n-title-expanded="web.dashboard.recolherMenu" data-i18n-title-collapsed="web.dashboard.expandirMenu" aria-label="Alternar menu" aria-expanded="true">
+          <i class='bx bx-menu' id="toggleMenuIcon" aria-hidden="true"></i>
         </button>
         <div class="user-info">
           <h2 id="userName">Carregando...</h2>
@@ -282,14 +292,28 @@
         </div>
       </div>
       <div style="display: flex; gap: 10px; align-items: center;">
+        <button type="button" class="header-icon-btn" id="themeToggleBtn" title="Alternar modo escuro" aria-label="Modo escuro">
+          <i class='bx bx-moon' id="themeToggleIcon"></i>
+        </button>
+        <div class="header-shortcuts" id="headerShortcuts" style="display: none; align-items: center; gap: 6px;">
+          <button type="button" class="header-icon-btn" id="headerBtnChat" title="Chat" style="display: none;" aria-label="Chat">
+            <i class='bx bx-message-dots'></i>
+            <span class="header-icon-badge" id="headerBadgeChat" data-count="0">0</span>
+          </button>
+          <button type="button" class="header-icon-btn header-icon-btn-alertas" id="headerBtnAlertas" title="Alertas do Sistema" style="display: none;" aria-label="Alertas">
+            <i class='bx bx-bell'></i>
+            <span class="header-icon-badge" id="headerBadgeAlertas" data-count="0">0</span>
+          </button>
+          <button type="button" class="header-icon-btn header-icon-btn-sos" id="headerBtnSos" title="SOS" style="display: none;" aria-label="SOS">
+            <i class='bx bx-error-circle'></i>
+            <span class="header-icon-badge" id="headerBadgeSos" data-count="0">0</span>
+          </button>
+        </div>
         <div class="idioma-selector-dash" style="display: flex; align-items: center; gap: 6px;">
           <span style="font-size: 0.8rem; color: var(--gray, #64748b);" data-i18n="web.dashboard.idioma">Idioma:</span>
           <button type="button" class="logout-btn btn-idioma-dash" data-locale="pt-BR" title="Português" style="padding: 6px 10px; font-size: 0.85rem;">PT</button>
           <button type="button" class="logout-btn btn-idioma-dash" data-locale="es-PY" title="Español" style="padding: 6px 10px; font-size: 0.85rem;">ES</button>
         </div>
-        <button class="logout-btn" id="docLink">
-          <i class='bx bx-book'></i> <span data-i18n="web.dashboard.documentacaoCss">Documentação CSS</span>
-        </button>
         <button class="logout-btn" id="logoutBtn"><span data-i18n="web.dashboard.sair">Sair</span></button>
       </div>
     </div>

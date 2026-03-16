@@ -1,0 +1,45 @@
+---
+description: Padrão de UI dos módulos (botões, overlays, dark mode) - referências e regras
+alwaysApply: true
+---
+
+# Padrão de UI dos Módulos (SysScopel)
+
+Use estes padrões ao criar ou ajustar módulos do dashboard (Gerenciar Viagens, Cidades, Situações de Viagem, etc.).
+
+## Referências de padrão
+
+- **Aba Filtros e botões (Limpar / Filtrar / Novo):** referência = **Gerenciar Situações de Viagem**
+  - Estrutura: `<div class="filtros-actions">` sem classe extra
+  - Limpar: `class="btn-filtro btn-filtro-limpar"`, ícone `bx-x`
+  - Filtrar: `type="submit"` (submit do form), `class="btn-filtro btn-filtro-aplicar"`, ícone `bx-search`
+  - Novo: `class="btn-filtro btn-filtro-novo"`, ícone `bx-plus`
+  - Cores/estilos vêm do CSS; no dark mode usar regras em `dark-mode.css` com especificidade suficiente (ex.: `.viagens-container #tab-filtros .btn-filtro-*`)
+
+- **Overlays de carregamento:** referência = **Gerenciar Cidades**
+  - HTML: `class="calculando-overlay"`, dentro: `calculando-content`, `calculando-spinner`, `h3`, `p`, `p class="calculando-detalhe"`
+  - Mostrar: `showLoadingOverlay()` → `overlay.style.display = 'flex'`
+  - **Sempre** após mostrar: `await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));` para o navegador pintar antes do fetch
+  - Esconder no `finally` com `hideLoadingOverlay()`
+
+## Dark mode
+
+- **Nunca** fundo branco em painéis, barras de totais ou tabelas no modo escuro.
+- Cores padrão: fundo de painel `#0f172a` ou `#1e293b`, texto `#e2e8f0` / `#94a3b8`, bordas `#334155`.
+- Legenda com bullets (ex.: Rastreado / Não Rastreado): usar classes (ex.: `legenda-bullet-rastreado`, `legenda-bullet-nao-rastreado`) e no dark mode forçar cores com **especificidade maior** que a regra genérica dos `span` (ex.: `#historicoLegenda span.legenda-bullet-rastreado`).
+- Se o CSS não vencer (inline/ordem de carregamento): aplicar estilos via **JavaScript** ao carregar e ao renderizar (ex.: `aplicarDarkModeMacros()` em Gerenciar Viagens), checando `document.documentElement.getAttribute('data-theme') === 'dark'`.
+
+## Código a evitar
+
+- **querySelectorAll('> div')** é inválido (o `>` exige seletor à esquerda). Usar `Array.from(elemento.children).filter(el => el.tagName === 'DIV')` ou `elemento.querySelectorAll(':scope > div')` para filhos diretos.
+
+## Resumo
+
+1. Botões da aba Filtros = mesmo HTML e ícones do Gerenciar Situações de Viagem.
+2. Overlays = estrutura do Gerenciar Cidades + yield (requestAnimationFrame duplo) antes do fetch.
+3. Dark mode = sem fundo branco; usar CSS com !important e, se necessário, JS para forçar estilos.
+4. Filhos diretos no JS = não usar `'> div'` em querySelectorAll.
+
+## Modelo de modernização futuro
+
+O **redesign completo** (novo layout, paleta, tipografia, ícones) está definido em **`docs/REDESIGN_ATLAS_CARGO_RECOMENDACOES.md`**. Esse é o “modelo” de modernização: Tailwind CSS + design system, top navbar ou sidebar colapsável, nova paleta (emerald/slate ou dark-first), nova fonte e ícones (Heroicons/Phosphor/Lucide). Ao evoluir o front, seguir esse documento. O padrão desta regra (overlays, botões, dark mode) vale para o estado atual dos módulos até e durante a aplicação do redesign.

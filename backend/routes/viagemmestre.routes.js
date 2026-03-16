@@ -7,7 +7,11 @@
 const express = require('express');
 const router = express.Router();
 const viagemController = require('../controllers/viagemmestre.controller');
-const { cacheComboMiddleware } = require('../middleware/cache.middleware');
+const { cacheComboMiddleware, cacheMiddleware } = require('../middleware/cache.middleware');
+
+// Cache para roteiros-combo: chave inclui query (origem/destino/país/estado) para filtro progressivo
+const CACHE_TTL_COMBO = 10 * 60 * 1000;
+const cacheRoteirosCombo = () => cacheMiddleware(CACHE_TTL_COMBO, (req) => `COMBO:${req.path}:${JSON.stringify(req.query || {})}`);
 
 // 🔍 ROTA DE DEBUG - Listar todas as rotas registradas
 router.get('/debug-rotas', (req, res) => {
@@ -26,6 +30,8 @@ router.get('/debug-rotas', (req, res) => {
 // Rotas principais
 router.get('/viagens', viagemController.listar);
 router.post('/viagens', viagemController.criar);
+// PUT /viagens/regras-compatibilidade DEVE vir ANTES de PUT /viagens/:id
+router.put('/viagens/regras-compatibilidade', viagemController.salvarRegrasCompatibilidade);
 router.put('/viagens/:id', viagemController.atualizar);
 router.delete('/viagens/:id', viagemController.excluir);
 
@@ -36,6 +42,9 @@ router.get('/viagens/historico-roteiro', viagemController.buscarHistoricoRoteiro
 router.get('/viagens/equipamentos/buscar', viagemController.buscarEquipamento);
 router.get('/viagens/cadastros-gerais/buscar', viagemController.buscarCadastroGeral);
 
+// GET /viagens/regras-compatibilidade DEVE vir ANTES de GET /viagens/:id
+router.get('/viagens/regras-compatibilidade', viagemController.obterRegrasCompatibilidade);
+
 router.get('/viagens/:id', viagemController.buscarPorId);
 
 // Rotas de combos (com cache de 10 minutos)
@@ -43,7 +52,7 @@ router.get('/tipos-viagem-combo', cacheComboMiddleware(), viagemController.lista
 router.get('/situacoes-viagem-combo', cacheComboMiddleware(), viagemController.listarSituacoesViagem);
 router.get('/classes-frota-combo', cacheComboMiddleware(), viagemController.listarClassesFrota);
 router.get('/contratadores-combo', cacheComboMiddleware(), viagemController.listarContratadores);
-router.get('/roteiros-combo', cacheComboMiddleware(), viagemController.listarRoteiros);
+router.get('/roteiros-combo', cacheRoteirosCombo(), viagemController.listarRoteiros);
 router.get('/motivos-recusa-combo', cacheComboMiddleware(), viagemController.listarMotivosRecusa);
 router.get('/motivos-reabertura-combo', cacheComboMiddleware(), viagemController.listarMotivosReabertura);
 
@@ -68,6 +77,9 @@ router.put('/convocacoes/:id/atualizar-envio-meta', viagemController.atualizarEn
 // Rotas para logs do webhook Meta
 router.post('/logs-webhook-meta', viagemController.salvarLogWebhookMeta);
 router.get('/logs-webhook-meta', viagemController.listarLogsWebhookMeta);
+
+// Rota para o Webhook da Switch Digital
+router.post('/viagens/webhook/switch-digital', viagemController.enviarWebhookSwitchDigital);
 
 // Rota para receber retorno do webhook Meta (callback)
 router.post('/webhook-meta-callback', viagemController.receberRetornoWebhookMeta);
@@ -99,5 +111,8 @@ router.delete('/viagens/:id/veiculo/:idequipamento', viagemController.removerVei
 router.get('/viagens/:id/motorista', viagemController.buscarMotoristaViagem);
 router.post('/viagens/:id/motorista', viagemController.salvarMotoristaViagem);
 router.delete('/viagens/:id/motorista/:cdmotorista', viagemController.removerMotoristaViagem);
+
+// Rota Switch Digital Webhook
+router.post('/viagens/webhook/switch-digital', viagemController.enviarWebhookSwitchDigital);
 
 module.exports = router;

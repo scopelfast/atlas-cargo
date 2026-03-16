@@ -10,11 +10,12 @@ const getTipoVeiculoDescricao = (codigo) => {
     '01': '01 - Truck',
     '02': '02 - Toco',
     '03': '03 - Cavalo Mecânico',
-    '04': '04 - Van',
+    '04': '04 - VAN',
     '05': '05 - Utilitário',
     '06': '06 - Carreta',
-    '07': '07 - Outros (passeio)',
-    '08': '08 - Não se aplica'
+    '07': '07 - VUC',
+    '08': '08 - Leve 3/4',
+    '09': '09 - Bi-Truck'
   };
   return descricoes[codigo] || codigo || 'Não informado';
 };

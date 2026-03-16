@@ -295,8 +295,9 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
     }
     
     const alignClass = col.align === 'right' ? ' grid-col-right' : '';
+    const label = (col.header || col.field).replace(/"/g, '&quot;');
     return `
-      <td class="grid-cell${alignClass}" data-field="${col.field}">
+      <td class="grid-cell${alignClass}" data-field="${col.field}" data-label="${label}">
         <span class="cell-value">${this.formatCellValue(value, col)}</span>
       </td>
     `;
@@ -343,8 +344,9 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
     }
     
     const alignClass = col.align === 'right' ? ' grid-col-right' : '';
+    const label = (col.header || col.field).replace(/"/g, '&quot;');
     return `
-      <td class="grid-cell editing${alignClass}" data-field="${col.field}">
+      <td class="grid-cell editing${alignClass}" data-field="${col.field}" data-label="${label}">
         ${inputHtml}
       </td>
     `;

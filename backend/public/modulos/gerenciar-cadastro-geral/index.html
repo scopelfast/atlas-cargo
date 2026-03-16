@@ -33,6 +33,47 @@
       align-items: center;
       gap: 10px;
     }
+    .cadastro-geral-header h2 i {
+      color: var(--ac-accent, #0ea5e9);
+    }
+
+    /* Abas com ícones – destaque ativo, inativo em cinza */
+    .cadastro-geral-container .tabs.tabs-com-icones {
+      display: flex;
+      margin-bottom: 25px;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
+      gap: 0;
+    }
+    .cadastro-geral-container .tabs.tabs-com-icones .tab-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      border: none;
+      background: transparent;
+      color: #94a3b8;
+      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: color 0.2s, border-color 0.2s;
+      font-family: inherit;
+    }
+    .cadastro-geral-container .tabs.tabs-com-icones .tab-btn i {
+      font-size: 1.15rem;
+      color: inherit;
+    }
+    .cadastro-geral-container .tabs.tabs-com-icones .tab-btn:hover {
+      color: #64748b;
+    }
+    .cadastro-geral-container .tabs.tabs-com-icones .tab-btn.active {
+      color: var(--ac-primary, #0d2137);
+      border-bottom-color: var(--ac-primary, #0d2137);
+    }
+    .cadastro-geral-container .tabs.tabs-com-icones .tab-btn.active i {
+      color: var(--ac-primary, #0d2137);
+    }
 
 
     /* ========== BOTÕES - Atlas Cargo ========== */
@@ -57,6 +98,73 @@
       opacity: 0.6;
       cursor: not-allowed;
       pointer-events: none;
+    }
+    .btn-small { padding: 6px 10px; font-size: 14px; }
+    /* Botão Excluir da Lista de locais preferidos – alinhado ao padrão do módulo */
+    .locais-preferidos-lista .btn-remove {
+      background: #dc2626;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
+      transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+    }
+    .locais-preferidos-lista .btn-remove:hover {
+      background: #b91c1c;
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
+      transform: translateY(-1px);
+    }
+    .locais-preferidos-lista .btn-remove:active {
+      transform: translateY(0);
+    }
+    [data-theme="dark"] .locais-preferidos-lista .btn-remove {
+      background: #dc2626;
+      color: #fff;
+    }
+    [data-theme="dark"] .locais-preferidos-lista .btn-remove:hover {
+      background: #b91c1c;
+    }
+    .locais-preferidos-lista .table-list { width: 100%; border-collapse: collapse; margin-top: 8px; background: #fff; font-size: 14px; }
+    .locais-preferidos-lista .table-list thead { background: linear-gradient(135deg, var(--primary, #1e3a5f), #2c3e8f); color: #fff; font-weight: 600; }
+    .locais-preferidos-lista .table-list thead th { padding: 12px 16px; text-align: left; border-bottom: 2px solid rgba(255,255,255,0.2); color: #fff; }
+    .locais-preferidos-lista .table-list th:last-child, .locais-preferidos-lista .table-list td:last-child { text-align: right; width: 1%; white-space: nowrap; padding-right: 16px; }
+    .locais-preferidos-lista .table-list tbody td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; }
+    .locais-preferidos-lista .table-list thead th:last-child { text-align: right; }
+    /* Dark mode: lista de locais preferidos */
+    [data-theme="dark"] .locais-preferidos-lista .table-list,
+    [data-theme="dark"] .cadastro-geral-container .locais-preferidos-lista .table-list {
+      background: #1e293b;
+    }
+    [data-theme="dark"] .locais-preferidos-lista .table-list thead,
+    [data-theme="dark"] .cadastro-geral-container .locais-preferidos-lista .table-list thead {
+      background: linear-gradient(135deg, #1e3a5f, #334155);
+      border-bottom-color: #475569;
+    }
+    [data-theme="dark"] .locais-preferidos-lista .table-list tbody tr,
+    [data-theme="dark"] .cadastro-geral-container .locais-preferidos-lista .table-list tbody tr {
+      border-bottom-color: #334155;
+      background: #1e293b;
+    }
+    [data-theme="dark"] .locais-preferidos-lista .table-list tbody tr:hover,
+    [data-theme="dark"] .cadastro-geral-container .locais-preferidos-lista .table-list tbody tr:hover {
+      background: #334155;
+    }
+    [data-theme="dark"] .locais-preferidos-lista .table-list tbody td,
+    [data-theme="dark"] .cadastro-geral-container .locais-preferidos-lista .table-list tbody td {
+      color: #e2e8f0;
+      border-bottom-color: #334155;
+    }
+    [data-theme="dark"] .locais-preferidos-lista .table-list .empty,
+    [data-theme="dark"] .cadastro-geral-container .locais-preferidos-lista .empty {
+      color: #94a3b8;
     }
 
     .btn-primary {
@@ -220,6 +328,43 @@
       box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
     }
 
+    /* Cards da aba Dados – separação por seção */
+    .form-dados-card {
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid var(--border, #e2e8f0);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      margin-bottom: 24px;
+      overflow: hidden;
+    }
+    .form-dados-card-header {
+      padding: 14px 20px;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border, #e2e8f0);
+      font-weight: 600;
+      font-size: 1rem;
+      color: var(--ac-primary, #0d2137);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .form-dados-card-header i {
+      font-size: 1.2rem;
+      color: var(--ac-accent, #0ea5e9);
+    }
+    .form-dados-card-body {
+      padding: 20px;
+    }
+    .form-dados-card-body .input-group {
+      margin-bottom: 16px;
+    }
+    .form-dados-card-body .input-group:last-child {
+      margin-bottom: 0;
+    }
+    .form-dados-card.senha-motorista-section {
+      border-left: 4px solid var(--ac-accent, #0ea5e9);
+    }
+
     .filtros-actions {
       display: flex;
       gap: 10px;
@@ -229,6 +374,70 @@
 
     .filtros-actions .btn {
       margin-right: 0;
+    }
+
+    /* Botões Limpar / Filtrar – estilo moderno */
+    .filtros-actions-moderno {
+      padding-top: 20px;
+      margin-top: 20px;
+      border-top: 1px solid var(--border, #e2e8f0);
+      gap: 12px;
+    }
+    .btn-filtro {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 22px;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.15s;
+    }
+    .btn-filtro:hover {
+      transform: translateY(-1px);
+    }
+    .btn-filtro i {
+      font-size: 1.15rem;
+    }
+    .btn-filtro-limpar {
+      background: #f1f5f9;
+      color: #475569;
+      border: 1px solid #e2e8f0;
+    }
+    .btn-filtro-limpar:hover {
+      background: #e2e8f0;
+      color: #334155;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .btn-filtro-aplicar {
+      background: var(--ac-accent, #0ea5e9);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(14, 165, 233, 0.25);
+    }
+    .btn-filtro-aplicar:hover {
+      background: var(--ac-accent-hover, #0284c7);
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35);
+    }
+    .btn-filtro-novo {
+      background: var(--success, #059669);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);
+    }
+    .btn-filtro-novo:hover {
+      background: #047857;
+      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
+    }
+    .btn-filtro-danger {
+      background: #dc2626;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
+    }
+    .btn-filtro-danger:hover {
+      background: #b91c1c;
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
     }
 
     /* ========== MODAIS - Atlas Cargo ========== */
@@ -405,6 +614,9 @@
       resize: vertical;
       font-family: inherit;
       line-height: 1.5;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
     }
 
     .modal-content-tratamento label {
@@ -418,6 +630,12 @@
     /* ========== ESTILOS ESPECÍFICOS DO MODAL DE VALIDADE ========== */
     .modal-validade-field {
       margin-bottom: 20px;
+      width: 100%;
+    }
+    .modal-validade-field .form-control {
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
     }
 
     .modal-validade-field label {
@@ -781,19 +999,36 @@
       text-decoration: none;
       transform: scale(1.1);
     }
-    /* Ajustar largura da coluna de ações para comportar apenas os 3 ícones */
-    .grid-actions-header {
-      width: 110px !important;
-      min-width: 110px !important;
-      max-width: 110px !important;
-      text-align: center !important;
+    /* Grid Cadastro Geral: colunas Situação e Ações no padrão (como Tipos de Validade) */
+    #cadastrosGrid th:nth-last-child(2),
+    #cadastrosGrid td:nth-last-child(2) {
+      width: 120px !important; min-width: 120px !important; max-width: 120px !important;
+      text-align: right !important;
+      white-space: nowrap !important;
+      overflow: visible !important;
     }
-    .grid-actions {
-      width: 110px !important;
-      min-width: 110px !important;
-      max-width: 110px !important;
-      padding: 8px 4px !important;
-      justify-content: flex-start !important;
+    #cadastrosGrid td:nth-last-child(2) .cell-value { text-align: right !important; }
+    /* Ações: 3 botões (32px cada + 6px gap) = 108px conteúdo; padding 8px cada lado = 124px total — coluna justa */
+    #cadastrosGrid .grid-actions-header,
+    #cadastrosGrid th:last-child {
+      width: 124px !important; min-width: 124px !important; max-width: 124px !important;
+      text-align: right !important;
+      padding: 12px 8px !important;
+      box-sizing: border-box !important;
+    }
+    #cadastrosGrid .grid-table td.grid-actions,
+    #cadastrosGrid .grid-actions,
+    #cadastrosGrid td:last-child {
+      width: 124px !important; min-width: 124px !important; max-width: 124px !important;
+      padding: 8px !important;
+      box-sizing: border-box !important;
+      display: flex !important; justify-content: flex-end !important; align-items: center !important; gap: 6px !important;
+      overflow: hidden !important;
+    }
+    /* Garante alinhamento à direita do grupo de botões (fallback para tabelas) */
+    #cadastrosGrid .grid-table td.grid-actions > *:first-child,
+    #cadastrosGrid td:last-child > *:first-child {
+      margin-left: auto !important;
     }
   </style>
 </head>
@@ -812,24 +1047,20 @@
     <!-- Header Padronizado -->
     <div class="cadastro-geral-header">
       <h2>
-        <i class='bx bx-user-circle' style="color: var(--ac-accent, #0ea5e9);"></i>
+        <i class='bx bx-user-circle'></i>
         <span data-i18n="web.modulos.cadastroGeral.titulo">Gerenciar Cadastro Geral</span>
       </h2>
-      <div style="display: flex; gap: 10px; align-items: center;">
-        <button onclick="window.mostrarAjudaCadastroGeral()" class="btn btn-info" title="Como funciona? Regras e instruções">
-          <i class='bx bx-help-circle'></i> <span data-i18n="web.modulos.cadastroGeral.ajuda">Ajuda</span>
-        </button>
-      </div>
     </div>
 
 
-    <!-- Abas -->
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.cadastroGeral.tabFiltros">Filtros</button>
-      <button class="tab-btn" data-tab="grid" data-i18n="web.modulos.cadastroGeral.tabGrid">Grid</button>
-      <button class="tab-btn" data-tab="dados" data-i18n="web.modulos.cadastroGeral.tabDados">Dados</button>
-      <button class="tab-btn" data-tab="classes">Classes Frota</button>
-      <button class="tab-btn" data-tab="validades">Validades</button>
+    <!-- Abas (com ícones) -->
+    <div class="tabs tabs-com-icones">
+      <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.cadastroGeral.tabFiltros"><i class='bx bx-filter-alt'></i> Filtros</button>
+      <button class="tab-btn" data-tab="grid" data-i18n="web.modulos.cadastroGeral.tabGrid"><i class='bx bx-grid-alt'></i> Grid</button>
+      <button class="tab-btn" data-tab="dados" data-i18n="web.modulos.cadastroGeral.tabDados"><i class='bx bx-edit'></i> Dados</button>
+      <button class="tab-btn" data-tab="classes"><i class='bx bx-layer'></i> Classes Frota</button>
+      <button class="tab-btn" data-tab="validades"><i class='bx bx-calendar-check'></i> Validades</button>
+      <button class="tab-btn" data-tab="locais-preferidos" id="tabBtnLocaisPreferidos" style="display: none;"><i class='bx bx-map'></i> Locais preferidos</button>
     </div>
 
     <!-- Filtros -->
@@ -843,8 +1074,8 @@
               <input type="number" id="filtroCodigo" class="form-control" min="1">
             </div>
             <div>
-              <label for="filtroCGCCPF">CPF/CNPJ</label>
-              <input type="text" id="filtroCGCCPF" class="form-control" maxlength="18">
+              <label for="filtroCGCCPF">Documento (CPF/CI/CNPJ)</label>
+              <input type="text" id="filtroCGCCPF" class="form-control" maxlength="18" placeholder="Busca por documento">
             </div>
             <div>
               <label for="filtroRazaoSocial">Razão Social</label>
@@ -914,14 +1145,26 @@
                 <option value="N">Inativo</option>
               </select>
             </div>
+            <div>
+              <label for="filtroStatusAprovacao">Status de Aprovação (Motorista)</label>
+              <select id="filtroStatusAprovacao" class="form-control" title="Filtra cadastros que são motoristas pelo status de login no app">
+                <option value="">Todos</option>
+                <option value="P">Pendente</option>
+                <option value="A">Aprovado</option>
+                <option value="R">Rejeitado</option>
+              </select>
+            </div>
           </div>
 
-          <div class="filtros-actions">
-            <button type="button" id="btnLimparFiltros" class="btn btn-secondary">
-              <i class='bx bx-x'></i> <span data-i18n="web.modulos.cadastroGeral.limpar">Limpar</span>
+          <div class="filtros-actions filtros-actions-moderno">
+            <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar">
+              <i class='bx bx-eraser'></i> <span data-i18n="web.modulos.cadastroGeral.limpar">Limpar</span>
             </button>
-            <button type="submit" class="btn btn-primary">
-              <i class='bx bx-search'></i> <span data-i18n="web.modulos.cadastroGeral.filtrar">Filtrar</span>
+            <button type="submit" class="btn-filtro btn-filtro-aplicar">
+              <i class='bx bx-search-alt'></i> <span data-i18n="web.modulos.cadastroGeral.filtrar">Filtrar</span>
+            </button>
+            <button type="button" id="btnNovoRegistro" class="btn-filtro btn-filtro-novo">
+              <i class='bx bx-plus'></i> <span>Novo</span>
             </button>
           </div>
         </form>
@@ -934,11 +1177,11 @@
         <h2 data-i18n="web.modulos.cadastroGeral.gridTitulo">Cadastros Gerais - Visualização em Grid</h2>
         <div class="actions-top">
           <div style="display: flex; gap: 10px;">
-            <button id="btnVoltarGrid" class="btn cancel">← <span data-i18n="web.modulos.cadastroGeral.voltarFiltros">Voltar aos Filtros</span></button>
-            <button id="btnExportarExcel" class="btn save" style="background-color: #27ae60;">📥 Exportar para Excel</button>
+            <button id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> Voltar</button>
+            <button id="btnExportarExcel" class="btn-filtro btn-filtro-novo"><i class='bx bx-download'></i> Exportar</button>
           </div>
-          <button id="btnNovoRegistroGrid" class="btn btn-primary">
-            <i class='bx bx-plus'></i> <span data-i18n="web.modulos.cadastroGeral.novoRegistro">Novo Registro</span>
+          <button id="btnNovoRegistroGrid" class="btn-filtro btn-filtro-novo">
+            <i class='bx bx-plus'></i> Novo
           </button>
         </div>
         <div id="cadastrosGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
@@ -954,130 +1197,155 @@
         <h2 id="formTitle" data-i18n="web.modulos.cadastroGeral.novoCadastro">Novo Cadastro Geral</h2>
         <form id="cadastroForm">
           <input type="hidden" id="cadastroId">
-          
-          <!-- Linha 1: Código, CGCCPF, Razão Social, Transportador -->
-          <div class="input-group four-row">
-            <div>
-              <label for="cadastroCodigo">Código</label>
-              <input type="text" id="cadastroCodigo" readonly>
-            </div>
-            <div>
-              <label for="cadastroCGCCPF" id="labelCadastroCGCCPF">CPF/CNPJ *</label>
-              <input type="text" id="cadastroCGCCPF" required maxlength="18" data-i18n-placeholder="web.modulos.cadastroGeral.documentoPlaceholder">
-            </div>
-            <div>
-              <label for="cadastroRazaoSocial">Razão Social *</label>
-              <input type="text" id="cadastroRazaoSocial" required maxlength="60">
-            </div>
-            <div id="divTransportador" style="display: none;">
-              <label for="cadastroTransportador">Transportador</label>
-              <select id="cadastroTransportador">
-                <option value="">Selecione</option>
-                <!-- Preenchido dinamicamente -->
-              </select>
+
+          <!-- Card Identificação -->
+          <div class="form-dados-card">
+            <div class="form-dados-card-header"><i class='bx bx-id-card'></i> Identificação</div>
+            <div class="form-dados-card-body">
+              <div class="input-group four-row">
+                <div>
+                  <label for="cadastroCodigo">Código</label>
+                  <input type="text" id="cadastroCodigo" readonly>
+                </div>
+                <div>
+                  <label for="cadastroCGCCPF" id="labelCadastroCGCCPF">Documento (CPF/CI/CNPJ) *</label>
+                  <input type="text" id="cadastroCGCCPF" required maxlength="18" data-i18n-placeholder="web.modulos.cadastroGeral.documentoPlaceholder">
+                </div>
+                <div>
+                  <label for="cadastroRazaoSocial">Razão Social *</label>
+                  <input type="text" id="cadastroRazaoSocial" required maxlength="60">
+                </div>
+                <div id="divTransportador" style="display: none;">
+                  <label for="cadastroTransportador">Transportador</label>
+                  <select id="cadastroTransportador">
+                    <option value="">Selecione</option>
+                  </select>
+                </div>
+              </div>
+              <div class="input-group four-row">
+                <div>
+                  <label for="cadastroTipoPessoa">Tipo Pessoa *</label>
+                  <select id="cadastroTipoPessoa" required>
+                    <option value="">Selecione</option>
+                    <option value="F">Física</option>
+                    <option value="J">Jurídica</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="cadastroPais">País</label>
+                  <select id="cadastroPais">
+                    <option value="">Padrão (Configurações)</option>
+                    <!-- Opções carregadas da tabela PAIS via /api/paises -->
+                  </select>
+                </div>
+                <div>
+                  <label for="cadastroRastreado">Possui Veículo Rastreado *</label>
+                  <select id="cadastroRastreado" required>
+                    <option value="">Selecione</option>
+                    <option value="S">Sim</option>
+                    <option value="N">Não</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="cadastroSituacao">Situação *</label>
+                  <select id="cadastroSituacao" required>
+                    <option value="S">Ativo</option>
+                    <option value="N">Inativo</option>
+                  </select>
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- Linha 2: Tipo Pessoa, Veículo Rastreado?, Situação -->
-          <div class="input-group four-row">
-            <div>
-              <label for="cadastroTipoPessoa">Tipo Pessoa *</label>
-              <select id="cadastroTipoPessoa" required>
-                <option value="">Selecione</option>
-                <option value="F">Física</option>
-                <option value="J">Jurídica</option>
-              </select>
-            </div>
-            <div>
-              <label for="cadastroRastreado">Possui Veículo Rastreado *</label>
-              <select id="cadastroRastreado" required>
-                <option value="">Selecione</option>
-                <option value="S">Sim</option>
-                <option value="N">Não</option>
-              </select>
-            </div>
-            <div>
-              <label for="cadastroSituacao">Situação *</label>
-              <select id="cadastroSituacao" required>
-                <option value="S">Ativo</option>
-                <option value="N">Inativo</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Linha 3: CEP, Endereço, Número, Bairro -->
-          <div class="input-group four-row">
-            <div>
-              <label for="cadastroCEP">CEP</label>
-              <input type="text" id="cadastroCEP" maxlength="9">
-            </div>
-            <div>
-              <label for="cadastroEndereco">Endereço *</label>
-              <input type="text" id="cadastroEndereco" required maxlength="100">
-            </div>
-            <div>
-              <label for="cadastroNumero">Número *</label>
-              <input type="number" id="cadastroNumero" min="1" required>
-            </div>
-            <div>
-              <label for="cadastroBairro">Bairro *</label>
-              <input type="text" id="cadastroBairro" required maxlength="30">
-            </div>
-          </div>
-
-          <!-- Linha 4: Complemento, Estado, Cidade, Código Cidade -->
-          <div class="input-group five-row">
-            <div>
-              <label for="cadastroComplemento">Complemento</label>
-              <input type="text" id="cadastroComplemento" maxlength="60">
-            </div>
-            <div>
-              <label for="cadastroEstado">UF - Estado</label>
-              <select id="cadastroEstado">
-                <option value="">Selecione</option>
-                <!-- Preenchido dinamicamente -->
-              </select>
-            </div>
-            <div>
-              <label for="cadastroCidade">Cidade</label>
-              <select id="cadastroCidade">
-                <option value="">Selecione um estado primeiro</option>
-                <!-- Preenchido dinamicamente -->
-              </select>
-            </div>
-            <div>
-              <label for="cadastroCodigoCidade">Código Cidade</label>
-              <input type="text" id="cadastroCodigoCidade" readonly>
-            </div>
-            <div>
-              <label for="btnBuscarCEP" class="btn-label">Buscar CEP</label>
-              <button type="button" id="btnBuscarCEP" class="btn search">Buscar</button>
+          <!-- Card Endereço -->
+          <div class="form-dados-card">
+            <div class="form-dados-card-header"><i class='bx bx-map-pin'></i> Endereço</div>
+            <div class="form-dados-card-body">
+              <div class="input-group four-row">
+                <div>
+                  <label for="cadastroCEP">CEP</label>
+                  <input type="text" id="cadastroCEP" maxlength="9">
+                </div>
+                <div>
+                  <label for="cadastroEndereco">Endereço</label>
+                  <input type="text" id="cadastroEndereco" maxlength="100">
+                </div>
+                <div>
+                  <label for="cadastroNumero">Número</label>
+                  <input type="number" id="cadastroNumero" min="0" placeholder="S/N">
+                </div>
+                <div>
+                  <label for="cadastroBairro">Bairro</label>
+                  <input type="text" id="cadastroBairro" maxlength="30">
+                </div>
+              </div>
+              <div class="input-group five-row">
+                <div>
+                  <label for="cadastroComplemento">Complemento</label>
+                  <input type="text" id="cadastroComplemento" maxlength="60">
+                </div>
+                <div>
+                  <label for="cadastroEstado">UF - Estado</label>
+                  <select id="cadastroEstado">
+                    <option value="">Selecione</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="cadastroCidade">Cidade</label>
+                  <select id="cadastroCidade">
+                    <option value="">Selecione um estado primeiro</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="cadastroCodigoCidade">Código Cidade</label>
+                  <input type="text" id="cadastroCodigoCidade" readonly>
+                </div>
+                <div>
+                  <label for="btnBuscarCEP" class="btn-label">Buscar CEP</label>
+                  <button type="button" id="btnBuscarCEP" class="btn search">Buscar</button>
+                </div>
+              </div>
+              <div class="input-group four-row">
+                <div>
+                  <label for="cadastroLatitude">Latitude</label>
+                  <input type="number" id="cadastroLatitude" step="0.000001">
+                </div>
+                <div>
+                  <label for="cadastroLongitude">Longitude</label>
+                  <input type="number" id="cadastroLongitude" step="0.000001">
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- Linha 5: Latitude, Longitude, Email, Celular -->
-          <div class="input-group four-row">
-            <div>
-              <label for="cadastroLatitude">Latitude</label>
-              <input type="number" id="cadastroLatitude" step="0.000001">
-            </div>
-            <div>
-              <label for="cadastroLongitude">Longitude</label>
-              <input type="number" id="cadastroLongitude" step="0.000001">
-            </div>
-            <div>
-              <label for="cadastroEmail">Email</label>
-              <input type="text" id="cadastroEmail" maxlength="200" placeholder="exemplo@email.com">
-            </div>
-            <div>
-              <label for="cadastroCelular">Celular *</label>
-              <input type="text" id="cadastroCelular" required maxlength="15">
+          <!-- Card Contato -->
+          <div class="form-dados-card">
+            <div class="form-dados-card-header"><i class='bx bx-phone'></i> Contato</div>
+            <div class="form-dados-card-body">
+              <div class="input-group four-row">
+                <div>
+                  <label for="cadastroEmail">Email</label>
+                  <input type="text" id="cadastroEmail" maxlength="200" placeholder="exemplo@email.com" autocomplete="email">
+                </div>
+                <div class="input-phone-wrapper" style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0;">
+                  <label for="cadastroCelular" style="width: 100%; margin-bottom: 4px;">Celular *</label>
+                  <div class="phone-input-group" style="display: flex; border: 1px solid var(--input-border, #ced4da); border-radius: 6px; overflow: hidden; max-width: 100%;">
+                    <select id="cadastroDDI" class="form-control" title="Código do país do celular (independente do país do endereço)" style="width: auto; min-width: 120px; border: none; border-right: 1px solid var(--input-border, #ced4da); border-radius: 0;">
+                      <option value="">+DDI</option>
+                    </select>
+                    <input type="text" id="cadastroCelular" required maxlength="15" placeholder="DDD + número (BR) ou só número" style="flex: 1; min-width: 140px; border: none; border-radius: 0;">
+                  </div>
+                  <small class="hint" style="width: 100%; margin-top: 4px;">País do celular (DDI) é independente do país do cadastro. Brasil: DDD + número. Outros: só o número.</small>
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- Tipo de Cadastro: linha própria antes dos botões -->
+          <!-- Card Tipo de Cadastro -->
+          <div class="form-dados-card">
+            <div class="form-dados-card-header"><i class='bx bx-category'></i> Tipo de Cadastro</div>
+            <div class="form-dados-card-body">
           <div class="aplicavel-para-section">
-            <label class="block-label">Tipo de Cadastro</label>
             <div id="cadastroAplicavelPara" class="aplicavel-para-checks">
               <label class="check-item"><input type="checkbox" id="chkO" value="O"> Operador do Sistema</label>
               <label class="check-item"><input type="checkbox" id="chkP" value="P"> Programador / Contratador</label>
@@ -1090,11 +1358,40 @@
             </div>
             <small class="hint">Marque pelo menos uma opção</small>
           </div>
+            </div>
+          </div>
+
+          <!-- Card Destino preferido (visível só para motorista) -->
+          <div id="divDestinoPreferido" class="form-dados-card" style="display: none;">
+            <div class="form-dados-card-header"><i class='bx bx-map-pin'></i> Destino preferido</div>
+            <div class="form-dados-card-body">
+              <p class="hint" style="margin-bottom: 12px;">Região de preferência para divulgação de cargas (informado no cadastro pelo app).</p>
+              <div class="input-group four-row">
+                <div>
+                  <label for="cadastroPaisDestinoPref">País destino</label>
+                  <select id="cadastroPaisDestinoPref" class="form-control">
+                    <option value="">—</option>
+                    <!-- Opções carregadas da tabela PAIS via /api/paises -->
+                  </select>
+                </div>
+                <div>
+                  <label for="cadastroEstadoDestinoPref">Estado / UF</label>
+                  <input type="text" id="cadastroEstadoDestinoPref" class="form-control" maxlength="10" placeholder="Ex: PR, SC, RS">
+                </div>
+                <div>
+                  <label for="cadastroCidadeDestinoPref">Cidade (opcional)</label>
+                  <input type="text" id="cadastroCidadeDestinoPref" class="form-control" maxlength="100" placeholder="Ex: Curitiba">
+                </div>
+              </div>
+            </div>
+          </div>
 
           <hr class="form-section-divider">
 
-          <!-- Senha do app motorista (visível só ao editar cadastro que é motorista) -->
-          <div id="divSenhaMotorista" class="senha-motorista-section" style="display: none;">
+          <!-- Card App Motorista (visível só ao editar cadastro que é motorista) -->
+          <div id="divSenhaMotorista" class="form-dados-card senha-motorista-section" style="display: none;">
+            <div class="form-dados-card-header"><i class='bx bx-lock-alt'></i> App Motorista</div>
+            <div class="form-dados-card-body">
             <label class="block-label">Status de Aprovação (login no app)</label>
             <p class="hint" style="margin-bottom: 8px;">O motorista só consegue entrar no app quando estiver <strong>Aprovado</strong>.</p>
             <div class="input-group" style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 20px;">
@@ -1115,7 +1412,7 @@
             <label class="block-label">Senha do app motorista</label>
             <p class="hint" style="margin-bottom: 10px;">Define a senha usada no login do app (CPF + esta senha). Mínimo 6 caracteres.</p>
             <div class="input-group" style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
-              <div style="flex: 1; min-width: 180px;">
+              <div style="width: 200px;">
                 <label for="novaSenhaMotorista">Nova senha</label>
                 <input type="password" id="novaSenhaMotorista" placeholder="Mín. 6 caracteres" autocomplete="new-password" maxlength="50" minlength="6" style="width: 100%;">
               </div>
@@ -1124,6 +1421,7 @@
               </button>
             </div>
             <div id="msgSenhaMotorista" class="message" style="margin-top: 10px; display: none;"></div>
+            </div>
           </div>
 
           <div class="form-actions">
@@ -1146,18 +1444,18 @@
       <div class="form-box">
         <h2>Classes de Frota</h2>
         <div class="actions-top">
-          <button id="btnVoltarDados" class="btn cancel">← Voltar aos Dados</button>
-          <button id="btnSalvarClasses" class="btn save">Salvar Classes</button>
+          <button id="btnVoltarDados" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> Voltar aos Dados</button>
+          <button id="btnSalvarClasses" class="btn-filtro btn-filtro-novo"><i class='bx bx-save'></i> Salvar Classes</button>
         </div>
         
         <div class="form-box">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
             <h3 style="margin: 0;">Selecione as classes de frota permitidas para este cadastro:</h3>
             <div style="display: flex; gap: 10px;">
-              <button type="button" id="btnSelecionarTodos" class="btn info" style="white-space: nowrap;">
+              <button type="button" id="btnSelecionarTodos" class="btn-filtro btn-filtro-aplicar" style="white-space: nowrap;">
                 <i class='bx bx-check-square'></i> Selecionar Todos
               </button>
-              <button type="button" id="btnDesmarcarTodos" class="btn cancel" style="white-space: nowrap;">
+              <button type="button" id="btnDesmarcarTodos" class="btn-filtro btn-filtro-limpar" style="white-space: nowrap;">
                 <i class='bx bx-square'></i> Desmarcar Todos
               </button>
             </div>
@@ -1171,13 +1469,74 @@
       </div>
     </div>
 
+    <!-- Locais preferidos (origem e destino) – visível só para tipo compatível com envio (ex.: Motorista) -->
+    <div class="tab-content" id="tab-locais-preferidos" style="display: none;">
+      <div class="form-box">
+        <h2>Locais preferidos</h2>
+        <div class="actions-top">
+          <button type="button" id="btnVoltarDadosLocais" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> Voltar aos Dados</button>
+        </div>
+        <p class="hint" style="margin-bottom: 20px;">Onde o cadastro prefere carregar (origem) e descarregar (destino) – usado na divulgação de cargas. Preencha, clique em Adicionar para gravar cada linha; em baixo, a lista. É necessário pelo menos uma origem e um destino.</p>
+
+        <div class="form-dados-card" style="margin-bottom: 24px;">
+          <div class="form-dados-card-header"><i class='bx bx-plus-circle'></i> Adicionar local preferido</div>
+          <div class="form-dados-card-body">
+            <div class="input-group four-row">
+              <div>
+                <label for="locaisTipo">Tipo *</label>
+                <select id="locaisTipo" class="form-control">
+                  <option value="E">Origem (embarque)</option>
+                  <option value="D">Destino (desembarque)</option>
+                </select>
+              </div>
+              <div>
+                <label for="locaisPais">País *</label>
+                <select id="locaisPais" class="form-control" required>
+                  <option value="">— Selecione —</option>
+                  <!-- Opções carregadas da tabela PAIS via /api/paises -->
+                </select>
+              </div>
+              <div>
+                <label for="locaisEstado">Estado / UF</label>
+                <select id="locaisEstado" class="form-control">
+                  <option value="">Todos</option>
+                  <!-- Preenchido quando País = BR -->
+                </select>
+              </div>
+              <div>
+                <label for="locaisMesorregiao">Mesorregião</label>
+                <select id="locaisMesorregiao" class="form-control">
+                  <option value="">Todos</option>
+                  <!-- Preenchido quando Estado selecionado (Brasil) -->
+                </select>
+              </div>
+            </div>
+            <div class="form-actions" style="margin-top: 16px;">
+              <button type="button" id="btnAdicionarLocalPreferido" class="btn btn-primary">
+                <i class='bx bx-plus'></i> Adicionar e gravar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-dados-card">
+          <div class="form-dados-card-header"><i class='bx bx-list-ul'></i> Lista de locais preferidos</div>
+          <div class="form-dados-card-body">
+            <div id="locaisPreferidosLista" class="locais-preferidos-lista">
+              <p class="empty">Nenhum local cadastrado. Adicione acima.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Validades -->
     <div class="tab-content" id="tab-validades">
       <div class="form-box">
         <h2>Gerenciar Validades do Cadastro</h2>
         <div class="actions-top">
-          <button id="btnVoltarDadosValidades" class="btn cancel">← Voltar aos Dados</button>
-          <button id="btnNovaValidade" class="btn save">+ Nova Validade</button>
+          <button id="btnVoltarDadosValidades" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> Voltar aos Dados</button>
+          <button id="btnNovaValidade" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> Nova Validade</button>
         </div>
 
         <!-- Info do Cadastro -->
@@ -1315,15 +1674,17 @@
             </div>
           </div>
         </div>
+    </div>
+    <!-- fim #tab-validades -->
 
-    <!-- Modal -->
+    <!-- Modal de confirmação (desativar/reativar, etc.) – fora das abas para abrir em qualquer aba -->
     <div id="confirmModal" class="modal">
       <div class="modal-content">
         <h3 data-i18n="web.modulos.cadastroGeral.confirmarAcao">Confirmar Ação</h3>
         <p id="modalMessage"></p>
         <div class="modal-actions">
-          <button id="confirmYes" class="btn delete" data-i18n="web.modulos.cadastroGeral.sim">Sim</button>
-          <button id="confirmNo" class="btn cancel" data-i18n="web.modulos.cadastroGeral.cancelar">Cancelar</button>
+          <button id="confirmYes" class="btn-filtro btn-filtro-danger" data-i18n="web.modulos.cadastroGeral.sim"><i class='bx bx-check'></i> Sim</button>
+          <button id="confirmNo" class="btn-filtro btn-filtro-limpar" data-i18n="web.modulos.cadastroGeral.cancelar"><i class='bx bx-x'></i> Cancelar</button>
         </div>
       </div>
     </div>

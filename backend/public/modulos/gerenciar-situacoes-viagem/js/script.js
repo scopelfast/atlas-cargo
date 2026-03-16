@@ -58,12 +58,18 @@
     init();
   }
 
-  // Função para mudar abas
+  // Função para mudar abas (escopo no container do módulo para não misturar Grid/Dados)
   async function showTab(tabId) {
-    tabs.forEach(btn => btn.classList.remove('active'));
-    tabContents.forEach(content => content.classList.remove('active'));
-    document.querySelector(`.tab-btn[data-tab="${tabId}"]`).classList.add('active');
-    document.getElementById(`tab-${tabId}`).classList.add('active');
+    const targetContent = document.getElementById(`tab-${tabId}`);
+    const targetBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+    if (!targetContent || !targetBtn) return;
+    const container = targetContent.closest('[class*="-container"]') || targetContent.parentElement;
+    if (container) {
+      container.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    }
+    targetBtn.classList.add('active');
+    targetContent.classList.add('active');
 
     // Se a aba Grid foi ativada, garantir que o GridEditor seja inicializado
     if (tabId === 'grid') {
@@ -92,10 +98,12 @@
     const params = new URLSearchParams();
     const codigo = document.getElementById('filtroCodigo')?.value;
     const descricao = document.getElementById('filtroDescricao')?.value;
+    const fg = document.getElementById('filtroFG')?.value?.trim();
     const situacao = document.getElementById('filtroSituacao')?.value;
     
     if (codigo) params.append('codigo', codigo);
     if (descricao) params.append('descricao', descricao);
+    if (fg) params.append('fg', fg);
     if (situacao) params.append('situacao', situacao);
     
     try {
@@ -190,7 +198,10 @@
       columns: [
         { field: 'CDSITUACAOVIAGEM', header: 'Código', editable: false, isId: true, width: '80px' },
         { field: 'DSSITUACAOVIAGEM', header: 'Descrição', editable: true, type: 'text', maxlength: 40 },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px', align: 'right',
+        { field: 'FGSITVIAGEM', header: 'FG', editable: true, type: 'text', width: '55px', maxlength: 1,
+          format: (val) => val != null && String(val).trim() !== '' ? String(val).toUpperCase() : '—'
+        },
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '90px', align: 'right',
           options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }
@@ -285,6 +296,7 @@
         <div>
           <strong>${s.CDSITUACAOVIAGEM} - ${s.DSSITUACAOVIAGEM}</strong>
           <small>
+            ${(s.FGSITVIAGEM != null && String(s.FGSITVIAGEM).trim() !== '') ? '<strong>FGSITVIAGEM:</strong> ' + String(s.FGSITVIAGEM).toUpperCase() + ' &nbsp; ' : ''}
             <strong>Status:</strong> ${s.FGACTIVE === 'S' ? 'Ativo' : 'Inativo'}
           </small>
         </div>
@@ -334,6 +346,8 @@
       if (situacao) {
         document.getElementById('situacaoCodigo').value = situacao.CDSITUACAOVIAGEM;
         document.getElementById('situacaoDescricao').value = situacao.DSSITUACAOVIAGEM;
+        const fgsitEl = document.getElementById('situacaoFgsitViagem');
+        if (fgsitEl) fgsitEl.value = (situacao.FGSITVIAGEM != null && String(situacao.FGSITVIAGEM).trim() !== '') ? String(situacao.FGSITVIAGEM).trim().toUpperCase() : '';
         document.getElementById('situacaoSituacao').value = situacao.FGACTIVE;
         document.getElementById('formTitle').textContent = t('web.modulos.situacoesViagem.editarSituacao');
         showTab('dados');
@@ -460,6 +474,7 @@
     const id = document.getElementById('situacaoCodigo')?.value;
     const descricao = document.getElementById('situacaoDescricao')?.value.trim();
     const situacao = document.getElementById('situacaoSituacao')?.value;
+    const fgsitViagem = document.getElementById('situacaoFgsitViagem')?.value?.trim() ?? '';
 
     if (!descricao || !situacao) {
       showMessage(t('web.modulos.situacoesViagem.preenchaCampos'), 'error');
@@ -469,7 +484,10 @@
     }
 
     try {
-      const situacaoData = { DSSITUACAOVIAGEM: descricao };
+      const situacaoData = {
+        DSSITUACAOVIAGEM: descricao,
+        FGSITVIAGEM: (fgsitViagem !== '') ? fgsitViagem.toUpperCase().substring(0, 1) : null
+      };
       let response;
       
       if (id) {
@@ -524,28 +542,26 @@
     });
   });
 
+  function irParaNovaSituacao() {
+    situacaoForm?.reset();
+    document.getElementById('formTitle').textContent = t('web.modulos.situacoesViagem.novaSituacao') || 'Nova Situação de Viagem';
+    const codigoEl = document.getElementById('situacaoCodigo');
+    if (codigoEl) codigoEl.value = '';
+    const fgsitEl = document.getElementById('situacaoFgsitViagem');
+    if (fgsitEl) fgsitEl.value = '';
+    showTab('dados');
+  }
   document.getElementById('btnLimparFiltros')?.addEventListener('click', () => {
     document.getElementById('filtroCodigo').value = '';
     document.getElementById('filtroDescricao').value = '';
+    const filtroFGEl = document.getElementById('filtroFG');
+    if (filtroFGEl) filtroFGEl.value = '';
     document.getElementById('filtroSituacao').value = '';
   });
   document.getElementById('btnVoltarFiltros')?.addEventListener('click', () => showTab('filtros'));
-  document.getElementById('btnNovoRegistro')?.addEventListener('click', () => {
-    situacaoForm?.reset();
-    document.getElementById('formTitle').textContent = t('web.modulos.situacoesViagem.novaSituacao');
-    showTab('dados');
-  });
-
-  // Grid tab buttons
-  document.getElementById('btnVoltarGrid')?.addEventListener('click', () => {
-    showTab('filtros');
-  });
-
-  document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
-    situacaoForm?.reset();
-    document.getElementById('formTitle').textContent = t('web.modulos.situacoesViagem.novaSituacao');
-    showTab('dados');
-  });
+  document.getElementById('btnNovoRegistro')?.addEventListener('click', irParaNovaSituacao);
+  document.getElementById('btnVoltarGrid')?.addEventListener('click', () => showTab('filtros'));
+  document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', irParaNovaSituacao);
   document.getElementById('btnCancelar')?.addEventListener('click', () => showTab('grid'));
 
   // Usar showMessage do utils.js se disponível, senão usar função local

@@ -124,10 +124,27 @@ self.addEventListener('fetch', (event) => {
     return; // Não interceptar - deixar o navegador fazer a requisição normalmente
   }
 
-  // Chat: sempre buscar no servidor, nunca usar cache (evita tela em branco)
-  if (url.pathname.endsWith('/chat.html') || url.pathname.endsWith('/pages/chat.html') || url.pathname.endsWith('/motorista/chat')) {
+  // Páginas HTML (navegação): sempre buscar no servidor quando online, para telas atualizarem sem F5
+  const isHtmlPage = event.request.mode === 'navigate' ||
+    event.request.destination === 'document' ||
+    url.pathname.endsWith('.html') ||
+    url.pathname.endsWith('/');
+  if (isHtmlPage) {
     event.respondWith(
       fetch(event.request, { cache: 'no-store', redirect: 'follow' })
+        .then((response) => {
+          if (response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return response;
+        })
+        .catch(() => {
+          return caches.match(event.request)
+            .then((cached) => cached || caches.match(`${MOTORISTA_PATH}/pages/dashboard.html`) || caches.match(`${MOTORISTA_PATH}/index.html`));
+        })
     );
     return;
   }

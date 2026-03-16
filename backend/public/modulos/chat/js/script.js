@@ -338,59 +338,26 @@
       
       conversaAtual = conversa;
       
-      // Atualizar UI
       renderizarConversas();
       mostrarChatAtivo();
-      
-      // Atualizar informações
-      document.getElementById('chatInfoNome').textContent = conversa.motorista_nome || `Viagem ${conversa.viagem_codigo || 'N/A'}`;
-      
-      // Atualizar informações da viagem
+
+      const nomeMotorista = conversa.motorista_nome || conversa.MOTORISTA_NOME || '';
+      document.getElementById('chatInfoMotorista').textContent = nomeMotorista.trim() || 'Não informado';
+
       const viagemInfo = [];
       if (conversa.viagem_codigo || conversa.ID_VIAGEM) {
         viagemInfo.push(`Viagem: ${conversa.viagem_codigo || conversa.ID_VIAGEM}`);
       }
-      
-      // Formatar rota: "Rota: (número) - Cidade/UF → Cidade/UF"
       if (conversa.viagem_origem && conversa.viagem_destino) {
-        let rotaTexto = '';
-        if (conversa.viagem_rota_id || conversa.viagem_rota_descricao) {
-          const rotaNumero = conversa.viagem_rota_id || conversa.viagem_rota_descricao;
-          rotaTexto = `Rota: ${rotaNumero} - `;
-        }
-        rotaTexto += `${conversa.viagem_origem} → ${conversa.viagem_destino}`;
-        viagemInfo.push(rotaTexto);
+        viagemInfo.push(`${conversa.viagem_origem} → ${conversa.viagem_destino}`);
       } else if (conversa.viagem_origem) {
         viagemInfo.push(`Origem: ${conversa.viagem_origem}`);
       } else if (conversa.viagem_destino) {
         viagemInfo.push(`Destino: ${conversa.viagem_destino}`);
       }
-      
-      if (conversa.viagem_situacao && conversa.viagem_situacao.trim() !== '') {
-        const situacaoTexto = conversa.viagem_situacao_codigo 
-          ? `${conversa.viagem_situacao_codigo} - ${conversa.viagem_situacao}`
-          : conversa.viagem_situacao;
-        viagemInfo.push(`Situação: ${situacaoTexto}`);
-      }
-      
-      document.getElementById('chatInfoViagem').innerHTML = viagemInfo.length > 0 
-        ? viagemInfo.join(' | ') 
-        : (conversa.viagem_codigo || conversa.ID_VIAGEM || 'N/A');
-      
-      // Formatar informações do motorista
-      let motoristaInfo = conversa.motorista_nome || 'N/A';
-      if (conversa.motorista_id) {
-        motoristaInfo += ` (Código: ${conversa.motorista_id})`;
-      }
-      if (conversa.motorista_cpf) {
-        // Formatar CPF: 000.000.000-00
-        const cpf = conversa.motorista_cpf.toString().replace(/\D/g, '');
-        const cpfFormatado = cpf.length === 11 
-          ? cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4')
-          : conversa.motorista_cpf;
-        motoristaInfo += ` | CPF: ${cpfFormatado}`;
-      }
-      document.getElementById('chatInfoMotorista').textContent = motoristaInfo;
+      document.getElementById('chatInfoViagem').textContent = viagemInfo.length > 0
+        ? viagemInfo.join(' | ')
+        : (conversa.viagem_codigo || conversa.ID_VIAGEM || '-');
       
       // Entrar na sala WebSocket
       if (socket && socket.connected) {
@@ -432,7 +399,6 @@
     conversaAtual = conversaVirtual;
     renderizarConversas();
     mostrarChatAtivo();
-    document.getElementById('chatInfoNome').textContent = conversaVirtual.motorista_nome;
     document.getElementById('chatInfoViagem').textContent = 'Viagem: ' + idViagem;
     document.getElementById('chatInfoMotorista').textContent = 'Envie a primeira mensagem para iniciar o chat.';
     if (socket && socket.connected && idViagem) {
@@ -446,11 +412,12 @@
    */
   async function carregarMensagensPorViagem(idViagem) {
     try {
-      const response = await fetch(`/api/messages/viagem/${idViagem}?limit=100`, {
+      const response = await fetch(`/api/chat/viagem/${idViagem}?limit=100`, {
         headers: getAuthHeaders()
       });
       if (!response.ok) {
-        throw new Error(`Erro ${response.status}: ${response.statusText}`);
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || `Erro ${response.status}`);
       }
       const data = await response.json();
       mensagens = data.messages || [];
@@ -747,7 +714,7 @@
         body: JSON.stringify(body)
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
       if (data.success && data.message) {
         chatInputEl.value = '';
@@ -787,7 +754,11 @@
       }
     } catch (err) {
       console.error('Erro ao enviar mensagem:', err);
-      mostrarMensagem(t('web.modulos.chat.erroCarregar') + ' ' + err.message, 'error');
+      const msg = err.message || '';
+      const amigavel = (msg.includes('não cadastrada') || msg.includes('não existe') || msg.includes('não encontrada'))
+        ? 'Viagem não cadastrada no sistema. Verifique o código da viagem.'
+        : (t('web.modulos.chat.erroCarregar') || 'Erro') + ' ' + msg;
+      mostrarMensagem(amigavel, 'error');
     } finally {
       const btnEnviar = document.getElementById('btnEnviar');
       if (btnEnviar) btnEnviar.disabled = false;
@@ -799,26 +770,30 @@
    */
   async function marcarComoLidas(idConversa) {
     try {
-      if (!conversaAtual || !conversaAtual.ID_VIAGEM) return;
-      
+      const idViagem = conversaAtual && (conversaAtual.ID_VIAGEM ?? conversaAtual.id_viagem);
+      if (!conversaAtual || idViagem == null || idViagem === '') return;
+      if (idUsuario == null || idUsuario === '') return;
+
       const response = await fetch('/api/chat/marcar-lidas', {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify({
-          idviagem: conversaAtual.ID_VIAGEM,
-          userId: idUsuario,
+          idviagem: Number(idViagem),
+          userId: Number(idUsuario),
           userType: 'OPERADOR'
         })
       });
-      
+
       if (!response.ok) {
-        console.warn('marcarComoLidas: servidor retornou', response.status);
+        const errText = await response.text();
+        console.warn('marcarComoLidas: servidor retornou', response.status, errText);
         return;
       }
-      
+
       // Atualizar contador local e estatísticas só após o servidor confirmar
       if (conversaAtual) {
         conversaAtual.MENSAGENS_NAO_LIDAS = 0;
+        conversaAtual.mensagens_nao_lidas = 0;
         renderizarConversas();
       }
       await atualizarEstatisticas();
@@ -1088,56 +1063,6 @@
   };
 
   /**
-   * Mostrar ajuda
-   */
-  window.mostrarAjuda = function() {
-    const modal = document.getElementById('modalAjuda');
-    const content = document.getElementById('modalAjudaContent');
-    
-    if (modal && content) {
-      content.innerHTML = `
-        <h4>Como Funciona o Chat</h4>
-        <p>O módulo de Chat permite comunicação em tempo real entre operadores e motoristas.</p>
-        
-        <h5 style="margin-top: 20px;">Funcionalidades:</h5>
-        <ul>
-          <li><strong>Lista de Conversas:</strong> Visualize todas as conversas ativas</li>
-          <li><strong>Chat em Tempo Real:</strong> Mensagens são atualizadas instantaneamente via WebSocket</li>
-          <li><strong>Busca:</strong> Use a barra de busca para encontrar conversas específicas</li>
-          <li><strong>Contador de Não Lidas:</strong> Veja quantas mensagens não foram lidas</li>
-          <li><strong>Histórico Completo:</strong> Todas as mensagens são salvas e podem ser consultadas</li>
-        </ul>
-        
-        <h5 style="margin-top: 20px;">Como Usar:</h5>
-        <ol>
-          <li>Selecione uma conversa da lista à esquerda</li>
-          <li>As mensagens serão carregadas automaticamente</li>
-          <li>Digite sua mensagem no campo inferior e pressione Enter ou clique em Enviar</li>
-          <li>Novas mensagens aparecerão automaticamente em tempo real</li>
-        </ol>
-        
-        <h5 style="margin-top: 20px;">Dicas:</h5>
-        <ul>
-          <li>Use Shift+Enter para quebrar linha</li>
-          <li>Mensagens não lidas aparecem destacadas na lista</li>
-          <li>O contador no menu mostra o total de mensagens não lidas</li>
-        </ul>
-      `;
-      modal.style.display = 'flex';
-    }
-  };
-
-  /**
-   * Fechar modal de ajuda
-   */
-  window.fecharModalAjuda = function() {
-    const modal = document.getElementById('modalAjuda');
-    if (modal) {
-      modal.style.display = 'none';
-    }
-  };
-
-  /**
    * Mostrar loading
    * Evita "piscar" em carregamentos rápidos
    */
@@ -1174,14 +1099,31 @@
   }
 
   /**
-   * Mostrar mensagem
+   * Mostrar mensagem (padrão do sistema: modal em vez de alert)
    */
   function mostrarMensagem(texto, tipo = 'info') {
-    // Usar sistema de mensagens global se disponível
     if (typeof window.showMessage === 'function') {
       window.showMessage(texto, tipo);
+      return;
+    }
+    console.log(`[${tipo.toUpperCase()}] ${texto}`);
+    const modal = document.getElementById('messageModal');
+    const textEl = document.getElementById('messageModalText');
+    const btnOk = document.getElementById('messageModalOk');
+    if (modal && textEl && btnOk) {
+      textEl.textContent = texto;
+      modal.style.display = 'block';
+      const fechar = function() {
+        modal.style.display = 'none';
+        btnOk.removeEventListener('click', fechar);
+        modal.removeEventListener('click', onClickOverlay);
+      };
+      function onClickOverlay(e) {
+        if (e.target === modal) fechar();
+      }
+      btnOk.addEventListener('click', fechar);
+      modal.addEventListener('click', onClickOverlay);
     } else {
-      console.log(`[${tipo.toUpperCase()}] ${texto}`);
       alert(texto);
     }
   }

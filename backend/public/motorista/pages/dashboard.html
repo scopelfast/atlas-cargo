@@ -1556,9 +1556,9 @@
       if (convocacoesValue) convocacoesValue.textContent = format(stats.convocacoes);
       const cargasValue = document.getElementById('cargasValue');
       if (cargasValue) cargasValue.textContent = format(stats.cargas);
-      // Enviar Posição: mesmo número de viagens em andamento (posições são por viagem)
+      // Enviar Posição não deve mostrar viagens em andamento (removido contagem do botão)
       const posicaoValue = document.getElementById('posicaoValue');
-      if (posicaoValue) posicaoValue.textContent = format(stats.viagens);
+      if (posicaoValue) posicaoValue.textContent = '';
     }
 
     // Atualizar estatísticas a cada 60 segundos

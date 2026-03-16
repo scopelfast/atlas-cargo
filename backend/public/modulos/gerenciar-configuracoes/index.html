@@ -13,8 +13,20 @@
     .configuracoes-container {
       padding: 24px;
       font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
-      max-width: 1100px;
-      margin: 0 auto;
+      width: 100%;
+      max-width: none;
+      box-sizing: border-box;
+    }
+    /* Garantir uso da largura total quando dentro do dashboard (#contentArea) */
+    #contentArea .configuracoes-container,
+    .content-box .configuracoes-container {
+      width: 100%;
+      max-width: 100%;
+    }
+    /* Expandir a área de conteúdo do dashboard quando for esta página */
+    #contentArea:has(.configuracoes-container) {
+      max-width: none;
+      width: 100%;
     }
 
     .configuracoes-header {
@@ -37,11 +49,13 @@
       color: var(--ac-accent, #0ea5e9);
     }
 
-    /* Grid de cards: 1 coluna em mobile, 2 em telas maiores */
+    /* Grid de cards: 1 coluna em mobile, 2 em telas maiores (usa toda a largura) */
     .config-cards {
       display: grid;
       grid-template-columns: 1fr;
       gap: 24px;
+      width: 100%;
+      max-width: 100%;
     }
 
     @media (min-width: 900px) {
@@ -54,10 +68,10 @@
     }
 
     .config-card {
-      background: #fff;
+      background: var(--white, #fff);
       border-radius: 12px;
       border: 1px solid var(--border, #e2e8f0);
-      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,0.06));
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -65,7 +79,7 @@
 
     .config-card-header {
       padding: 18px 22px;
-      background: linear-gradient(to bottom, #f8fafc, #f1f5f9);
+      background: var(--bg-secondary, #f8fafc);
       border-bottom: 1px solid var(--border, #e2e8f0);
       display: flex;
       align-items: center;
@@ -84,9 +98,14 @@
       color: var(--ac-primary, #0d2137);
     }
 
+    .config-card-header-no-icon i {
+      display: none;
+    }
+
     .config-card-body {
       padding: 22px;
       flex: 1;
+      background: var(--white, #fff);
     }
 
     .config-card-body .card-desc {
@@ -122,7 +141,8 @@
       transition: border-color 0.2s, box-shadow 0.2s;
       font-family: inherit;
       box-sizing: border-box;
-      background: #fff;
+      background: var(--white, #fff);
+      color: var(--dark, #1e293b);
     }
 
     .config-card .form-group input:focus,
@@ -138,10 +158,10 @@
       margin-top: 4px;
     }
 
-    /* Contexto: campos em grid 2 colunas no card */
+    /* Mesmo padrão do Cadastro Geral: grid com colunas proporcionais (não esticar demais) */
     .config-card .form-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: 16px 20px;
     }
 
@@ -153,7 +173,7 @@
 
     .config-card-footer {
       padding: 16px 22px;
-      background: #f8fafc;
+      background: var(--bg-secondary, #f8fafc);
       border-top: 1px solid var(--border, #e2e8f0);
       display: flex;
       align-items: center;
@@ -199,12 +219,12 @@
     }
 
     .btn-secondary {
-      background: #e2e8f0;
+      background: var(--light-gray, #e2e8f0);
       color: var(--dark, #1e293b);
     }
 
     .btn-secondary:hover:not(:disabled) {
-      background: #cbd5e1;
+      background: var(--border, #cbd5e1);
     }
 
     .config-card .message {
@@ -221,15 +241,15 @@
     }
 
     .config-card .message.success {
-      background: #d1fae5;
-      color: #065f46;
-      border: 1px solid #a7f3d0;
+      background: rgba(52, 211, 153, 0.2);
+      color: var(--success-text, #065f46);
+      border: 1px solid var(--success, #34d399);
     }
 
     .config-card .message.error {
-      background: #fee2e2;
-      color: #991b1b;
-      border: 1px solid #fecaca;
+      background: rgba(248, 113, 113, 0.2);
+      color: var(--danger-text, #991b1b);
+      border: 1px solid var(--danger, #f87171);
     }
 
     .logo-preview {
@@ -240,9 +260,15 @@
       border: 1px solid var(--border, #e2e8f0);
       border-radius: 8px;
       padding: 6px;
-      background: #f8fafc;
+      background: var(--bg-secondary, #f8fafc);
+    }
+
+    .config-switch-options {
+      background: var(--bg-secondary, #f8fafc);
+      border: 1px solid var(--border, #e2e8f0);
     }
   </style>
+  <link rel="stylesheet" href="/css/dark-mode.css">
 </head>
 <body>
   <div class="configuracoes-container">
@@ -347,17 +373,19 @@
         </div>
         <div class="config-card-body">
           <p class="card-desc" data-i18n="web.modulos.configuracoes.identidadeDesc">Defina os arquivos de logo exibidos no sistema. Os arquivos devem estar na pasta /img/ do servidor. Ambas as logos são transparentes (PNG).</p>
-          <div class="form-group">
-            <label for="logoRetangular" data-i18n="web.modulos.configuracoes.logoRetangular">Logo retangular (login, sidebar)</label>
-            <input type="text" id="logoRetangular" placeholder="logoAtlasTransparente.png" autocomplete="off">
-            <div class="hint">Nome do arquivo em /img/</div>
-            <img id="previewRetangular" class="logo-preview" alt="Preview" style="display: none;">
-          </div>
-          <div class="form-group">
-            <label for="logoQuadrada" data-i18n="web.modulos.configuracoes.logoQuadrada">Logo quadrada (favicon, PWA)</label>
-            <input type="text" id="logoQuadrada" placeholder="logoAtlasTransparenteQuadrada.png" autocomplete="off">
-            <div class="hint">Nome do arquivo em /img/</div>
-            <img id="previewQuadrada" class="logo-preview" alt="Preview" style="display: none;">
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="logoRetangular" data-i18n="web.modulos.configuracoes.logoRetangular">Logo retangular (login, sidebar)</label>
+              <input type="text" id="logoRetangular" placeholder="logoAtlasTransparente.png" autocomplete="off">
+              <div class="hint">Nome do arquivo em /img/</div>
+              <img id="previewRetangular" class="logo-preview" alt="Preview" style="display: none;">
+            </div>
+            <div class="form-group">
+              <label for="logoQuadrada" data-i18n="web.modulos.configuracoes.logoQuadrada">Logo quadrada (favicon, PWA)</label>
+              <input type="text" id="logoQuadrada" placeholder="logoAtlasTransparenteQuadrada.png" autocomplete="off">
+              <div class="hint">Nome do arquivo em /img/</div>
+              <img id="previewQuadrada" class="logo-preview" alt="Preview" style="display: none;">
+            </div>
           </div>
         </div>
         <div class="config-card-footer">
@@ -377,15 +405,17 @@
         </div>
         <div class="config-card-body">
           <p class="card-desc" data-i18n="web.modulos.configuracoes.mapaDesc">Defina os endereços dos servidores de geocodificação (Nominatim) e de roteamento (ORS/OSRM). Deixe em branco para usar o valor padrão do sistema.</p>
-          <div class="form-group">
-            <label for="nominatimServer" data-i18n="web.modulos.configuracoes.nominatimServer">Servidor Nominatim (geocodificação)</label>
-            <input type="url" id="nominatimServer" placeholder="Ex: https://nominatim.example.com" autocomplete="off">
-            <div class="hint">Buscar coordenadas a partir de endereços</div>
-          </div>
-          <div class="form-group">
-            <label for="osrmServer" data-i18n="web.modulos.configuracoes.osrmServer">Servidor de Roteamento (ORS/OSRM)</label>
-            <input type="url" id="osrmServer" placeholder="Ex: https://router.example.com" autocomplete="off">
-            <div class="hint">Calcular rotas no mapa</div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="nominatimServer" data-i18n="web.modulos.configuracoes.nominatimServer">Servidor Nominatim (geocodificação)</label>
+              <input type="url" id="nominatimServer" placeholder="Ex: https://nominatim.example.com" autocomplete="off">
+              <div class="hint">Buscar coordenadas a partir de endereços</div>
+            </div>
+            <div class="form-group">
+              <label for="osrmServer" data-i18n="web.modulos.configuracoes.osrmServer">Servidor de Roteamento (ORS/OSRM)</label>
+              <input type="url" id="osrmServer" placeholder="Ex: https://router.example.com" autocomplete="off">
+              <div class="hint">Calcular rotas no mapa</div>
+            </div>
           </div>
         </div>
         <div class="config-card-footer">
@@ -393,6 +423,117 @@
           <div style="display: flex; gap: 10px; margin-left: auto;">
             <button type="button" id="btnCarregar" class="btn btn-secondary"><i class="bx bx-refresh"></i> <span data-i18n="web.modulos.configuracoes.recarregar">Recarregar</span></button>
             <button type="button" id="btnSalvar" class="btn btn-primary"><i class="bx bx-save"></i> <span id="btnSalvarText" data-i18n="web.modulos.configuracoes.salvar">Salvar</span></button>
+          </div>
+        </div>
+      </article>
+
+      <!-- Card 4: Webhook Switch Digital -->
+      <article class="config-card card-full">
+        <div class="config-card-header">
+          <i class="bx bx-message-square-dots"></i>
+          <h3 data-i18n="web.modulos.configuracoes.switchDigital">Integração Switch Digital (WhatsApp)</h3>
+        </div>
+        <div class="config-card-body">
+          <p class="card-desc" data-i18n="web.modulos.configuracoes.switchDesc">Credenciais e parâmetros para envio de mensagens via API Switch Digital.</p>
+          
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="switchEndpoint" data-i18n="web.modulos.configuracoes.switchEndpoint">Endpoint da API</label>
+              <input type="url" id="switchEndpoint" class="form-control" placeholder="https://api.switchdigital.com.br/api/messages/send">
+            </div>
+            
+            <div class="form-group">
+              <label for="switchMetodo" data-i18n="web.modulos.configuracoes.switchMetodo">Método HTTP</label>
+              <select id="switchMetodo" class="form-control">
+                <option value="POST">POST</option>
+                <option value="GET">GET</option>
+                <option value="PUT">PUT</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="switchToken" data-i18n="web.modulos.configuracoes.switchToken">Token de Autorização</label>
+              <input type="password" id="switchToken" class="form-control" placeholder="Seu token de acesso (não digite 'Bearer')">
+              <div class="hint">O sistema adicionará 'Bearer ' automaticamente no cabeçalho.</div>
+            </div>
+
+            <div class="form-group">
+              <label for="switchContentType" data-i18n="web.modulos.configuracoes.switchContentType">Content-Type</label>
+              <input type="text" id="switchContentType" class="form-control" value="application/json" placeholder="application/json">
+            </div>
+
+            <div class="form-group">
+              <label for="switchUserId" data-i18n="web.modulos.configuracoes.switchUserId">User ID (userId)</label>
+              <input type="text" id="switchUserId" class="form-control" placeholder="ID do usuário (opcional)" autocomplete="off" readonly onfocus="this.removeAttribute('readonly');">
+            </div>
+            
+            <div class="form-group">
+              <label for="switchQueueId" data-i18n="web.modulos.configuracoes.switchQueueId">Queue ID (queueId)</label>
+              <input type="text" id="switchQueueId" class="form-control" placeholder="ID da fila (opcional)">
+            </div>
+
+            <div class="form-group config-switch-options" style="grid-column: 1 / -1; display: flex; gap: 30px; margin-top: 10px; align-items: center; padding: 15px; border-radius: 8px;">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0;">
+                <input type="checkbox" id="switchSendSignature" style="margin:0; width: 18px; height: 18px;">
+                <strong data-i18n="web.modulos.configuracoes.switchSignature">Assinar mensagem (sendSignature)</strong>
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0;">
+                <input type="checkbox" id="switchCloseTicket" checked style="margin:0; width: 18px; height: 18px;">
+                <strong data-i18n="web.modulos.configuracoes.switchCloseTicket">Encerrar ticket (closeTicket)</strong>
+              </label>
+            </div>
+          </div>
+
+          <hr style="margin: 25px 0; border: none; border-top: 1px dashed #e0e0e0;">
+
+          <h4 style="margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+            <i class="bx bx-test-tube" style="color: #6366f1;"></i> 
+            Área de Teste Rápido
+          </h4>
+          <div class="form-grid" style="align-items: end;">
+             <div class="form-group">
+                <label for="switchTestNumber">Número do WhatsApp (com DDI e DDD)</label>
+                <input type="text" id="switchTestNumber" class="form-control" placeholder="Ex: 558599999999">
+             </div>
+             <div class="form-group">
+                <button type="button" id="btnTestarSwitch" class="btn btn-secondary" style="width: 100%; justify-content: center;">
+                  <i class="bx bx-send"></i> Enviar Mensagem Teste
+                </button>
+             </div>
+             <div class="form-group" style="grid-column: 1 / -1;">
+                <div id="testResultMessage" style="display: none; padding: 10px; border-radius: 4px; font-size: 14px; margin-top: 5px;"></div>
+             </div>
+          </div>
+
+        </div>
+        <div class="config-card-footer">
+          <div id="configSwitchMessage" class="message" role="alert"></div>
+          <div style="display: flex; gap: 10px; margin-left: auto;">
+            <button type="button" id="btnCarregarSwitch" class="btn btn-secondary"><i class="bx bx-refresh"></i> <span data-i18n="web.modulos.configuracoes.recarregar">Recarregar</span></button>
+            <button type="button" id="btnSalvarSwitch" class="btn btn-primary"><i class="bx bx-save"></i> <span id="btnSalvarSwitchText" data-i18n="web.modulos.configuracoes.salvar">Salvar Configurações</span></button>
+          </div>
+        </div>
+      </article>
+
+      <!-- Card 5: App do Motorista (link na mensagem de confirmação) -->
+      <article class="config-card card-full">
+        <div class="config-card-header">
+          <i class="bx bx-link-alt"></i>
+          <h3>Link do app motorista</h3>
+        </div>
+        <div class="config-card-body">
+          <p class="card-desc">URL do aplicativo do motorista. Esse link é exibido na mensagem de confirmação quando um motorista é selecionado para a viagem (WhatsApp).</p>
+          <div class="form-group">
+            <label for="linkAppMotorista">Link do aplicativo do motorista</label>
+            <input type="url" id="linkAppMotorista" class="form-control" placeholder="Ex: https://meudominio.com/motorista/" autocomplete="off">
+            <div class="hint">Ex.: https://meudominio.com/motorista/ ou o endereço da PWA do app.</div>
+          </div>
+        </div>
+        <div class="config-card-footer">
+          <div id="configAppMotoristaMessage" class="message" role="alert"></div>
+          <div style="display: flex; gap: 10px; margin-left: auto;">
+            <button type="button" id="btnCarregarAppMotorista" class="btn btn-secondary"><i class="bx bx-refresh"></i> Recarregar</button>
+            <button type="button" id="btnSalvarAppMotorista" class="btn btn-primary"><i class="bx bx-save"></i> <span id="btnSalvarAppMotoristaText">Salvar</span></button>
           </div>
         </div>
       </article>

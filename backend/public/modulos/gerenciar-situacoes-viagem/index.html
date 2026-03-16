@@ -34,6 +34,84 @@
         gap: 10px;
       }
 
+      .situacoes-viagem-container .tabs.tabs-com-icones {
+        display: flex;
+        margin-bottom: 25px;
+        border-bottom: 2px solid var(--light-gray, #e2e8f0);
+        gap: 0;
+      }
+      .situacoes-viagem-container .tabs.tabs-com-icones .tab-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 20px;
+        border: none;
+        background: transparent;
+        color: #94a3b8;
+        font-weight: 600;
+        font-size: 15px;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+        transition: color 0.2s, border-color 0.2s;
+        font-family: inherit;
+      }
+      .situacoes-viagem-container .tabs.tabs-com-icones .tab-btn i { font-size: 1.15rem; color: inherit; }
+      .situacoes-viagem-container .tabs.tabs-com-icones .tab-btn:hover { color: #64748b; }
+      .situacoes-viagem-container .tabs.tabs-com-icones .tab-btn.active { color: var(--ac-primary, #0d2137); border-bottom-color: var(--ac-primary, #0d2137); }
+      .situacoes-viagem-container .tabs.tabs-com-icones .tab-btn.active i { color: var(--ac-primary, #0d2137); }
+
+      .btn-filtro {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 22px;
+        border: none;
+        border-radius: 10px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+        transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.15s;
+      }
+      .btn-filtro:hover { transform: translateY(-1px); }
+      .btn-filtro i { font-size: 1.15rem; }
+      .btn-filtro-limpar { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+      .btn-filtro-limpar:hover { background: #e2e8f0; color: #334155; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+      .btn-filtro-aplicar { background: var(--ac-accent, #0ea5e9); color: #fff; box-shadow: 0 2px 8px rgba(14, 165, 233, 0.25); }
+      .btn-filtro-aplicar:hover { background: var(--ac-accent-hover, #0284c7); box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35); }
+      .btn-filtro-novo { background: var(--success, #059669); color: #fff; box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25); }
+      .btn-filtro-novo:hover { background: #047857; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35); }
+      .btn-filtro-danger { background: #dc2626; color: #fff; box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25); }
+      .btn-filtro-danger:hover { background: #b91c1c; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35); }
+
+      .form-dados-card {
+        background: #fff;
+        border-radius: 12px;
+        border: 1px solid var(--border, #e2e8f0);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        margin-bottom: 24px;
+        overflow: hidden;
+      }
+      .form-dados-card-header {
+        padding: 14px 20px;
+        background: #f8fafc;
+        border-bottom: 1px solid var(--border, #e2e8f0);
+        font-weight: 600;
+        font-size: 1rem;
+        color: var(--ac-primary, #0d2137);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .form-dados-card-header i { font-size: 1.2rem; color: var(--ac-accent, #0ea5e9); }
+      .form-dados-card-body { padding: 20px; }
+
+      #situacoesGrid .grid-actions-header,
+      #situacoesGrid th:last-child { width: 88px !important; min-width: 88px !important; max-width: 88px !important; }
+      #situacoesGrid .grid-actions,
+      #situacoesGrid td:last-child { width: 88px !important; min-width: 88px !important; max-width: 88px !important; }
+
       /* ========== BOTÕES - Atlas Cargo ========== */
       .btn {
         padding: 12px 24px;
@@ -309,24 +387,14 @@
 </head>
 <body>
     <div class="situacoes-viagem-container">
-      <!-- Header Padronizado -->
       <div class="situacoes-viagem-header">
-        <h2>
-          <i class='bx bx-check-square'></i>
-          <span data-i18n="web.modulos.situacoesViagem.titulo">Gerenciar Situações de Viagem</span>
-        </h2>
-        <div style="display: flex; gap: 10px; align-items: center;">
-          <button class="btn btn-info" onclick="window.mostrarAjudaSituacoesViagem()" title="Como funciona? Regras e instruções">
-            <i class='bx bx-help-circle'></i> Ajuda
-          </button>
-        </div>
+        <h2><i class='bx bx-check-square'></i> <span data-i18n="web.modulos.situacoesViagem.titulo">Gerenciar Situações de Viagem</span></h2>
       </div>
 
-      <!-- Abas -->
-      <div class="tabs">
-        <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.situacoesViagem.tabFiltros">Filtros</button>
-        <button class="tab-btn" data-tab="grid" data-i18n="web.modulos.situacoesViagem.tabGrid">Grid</button>
-        <button class="tab-btn" data-tab="dados" data-i18n="web.modulos.situacoesViagem.tabDados">Dados</button>
+      <div class="tabs tabs-com-icones">
+        <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.situacoesViagem.tabFiltros"><i class='bx bx-filter-alt'></i> Filtros</button>
+        <button class="tab-btn" data-tab="grid" data-i18n="web.modulos.situacoesViagem.tabGrid"><i class='bx bx-grid-alt'></i> Grid</button>
+        <button class="tab-btn" data-tab="dados" data-i18n="web.modulos.situacoesViagem.tabDados"><i class='bx bx-edit'></i> Dados</button>
       </div>
 
       <!-- Filtros -->
@@ -344,6 +412,20 @@
                 <input type="text" id="filtroDescricao" maxlength="40" class="form-control">
               </div>
               <div>
+                <label for="filtroFG">FG (cód. situação)</label>
+                <select id="filtroFG" class="form-control">
+                  <option value="">Todos</option>
+                  <option value="P">P - Programada</option>
+                  <option value="D">D - Preparação</option>
+                  <option value="T">T - Em trânsito</option>
+                  <option value="A">A - Aprovada</option>
+                  <option value="F">F - Finalizada</option>
+                  <option value="C">C - Cancelada</option>
+                  <option value="E">E - Final de rota</option>
+                  <option value="M">M - Emissão documentos</option>
+                </select>
+              </div>
+              <div>
                 <label for="filtroSituacao">Situação</label>
                 <select id="filtroSituacao" class="form-control">
                   <option value="">Todas</option>
@@ -353,12 +435,9 @@
               </div>
             </div>
             <div class="filtros-actions">
-              <button type="button" id="btnLimparFiltros" class="btn btn-secondary">
-                <i class='bx bx-x'></i> Limpar
-              </button>
-              <button type="submit" class="btn btn-primary">
-                <i class='bx bx-search'></i> Filtrar
-              </button>
+              <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> Limpar</button>
+              <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class='bx bx-search'></i> Filtrar</button>
+              <button type="button" id="btnNovoRegistro" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> Novo</button>
             </div>
           </form>
         </div>
@@ -366,15 +445,11 @@
 
       <!-- Grid -->
       <div class="tab-content" id="tab-grid">
-        <div class="form-box">
-          <h2 data-i18n="web.modulos.situacoesViagem.gridTitulo">Visualização em Grid</h2>
-          <div class="actions-top">
-            <button id="btnVoltarGrid" class="btn btn-cancel">
-              <i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.situacoesViagem.voltarFiltros">Voltar aos Filtros</span>
-            </button>
-            <button id="btnNovoRegistroGrid" class="btn btn-primary">
-              <i class='bx bx-plus'></i> <span data-i18n="web.modulos.situacoesViagem.novoRegistro">Novo Registro</span>
-            </button>
+        <div class="filtros-box">
+          <h3 data-i18n="web.modulos.situacoesViagem.gridTitulo">Visualização em Grid</h3>
+          <div class="filtros-actions" style="justify-content: space-between; margin-top: 0; margin-bottom: 15px;">
+            <button id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> Voltar</button>
+            <button id="btnNovoRegistroGrid" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> Novo</button>
           </div>
           <div id="situacoesGridCount" style="padding: 10px 0; color: var(--gray); font-size: 14px; font-weight: 500;">
             <span id="situacoesGridCountText" data-i18n="web.modulos.cidades.registrosEncontrados">0 registro(s) encontrado(s)</span>
@@ -387,34 +462,48 @@
 
       <!-- Dados -->
       <div class="tab-content" id="tab-dados">
-        <div class="form-box">
-          <h2 id="formTitle" data-i18n="web.modulos.situacoesViagem.novaSituacao">Nova Situação de Viagem</h2>
+        <div class="filtros-box">
+          <h3 id="formTitle" data-i18n="web.modulos.situacoesViagem.novaSituacao">Nova Situação de Viagem</h3>
           <form id="situacaoForm">
-            <div class="input-group triple">
-              <div>
-                <label for="situacaoCodigo">Código</label>
-                <input type="text" id="situacaoCodigo" readonly class="form-control">
-              </div>
-              <div>
-                <label for="situacaoDescricao">Descrição *</label>
-                <input type="text" id="situacaoDescricao" required maxlength="40" class="form-control">
-              </div>
-              <div>
-                <label for="situacaoSituacao">Situação *</label>
-                <select id="situacaoSituacao" required class="form-control">
-                  <option value="S">Ativo</option>
-                  <option value="N">Inativo</option>
-                </select>
+            <div class="form-dados-card">
+              <div class="form-dados-card-header"><i class='bx bx-check-square'></i> Identificação</div>
+              <div class="form-dados-card-body">
+                <div class="filtros-grid">
+                  <div>
+                    <label for="situacaoCodigo">Código</label>
+                    <input type="text" id="situacaoCodigo" readonly class="form-control">
+                  </div>
+                  <div>
+                    <label for="situacaoDescricao">Descrição *</label>
+                    <input type="text" id="situacaoDescricao" required maxlength="40" class="form-control">
+                  </div>
+                  <div>
+                    <label for="situacaoFgsitViagem">FGSITVIAGEM (cód. situação)</label>
+                    <select id="situacaoFgsitViagem" class="form-control" title="Código usado em VIAGEMMESTRE: P=Programada, D=Preparação, T=Trânsito, A=Aprovada, F=Finalizada, etc.">
+                      <option value="">—</option>
+                      <option value="P">P - Programada</option>
+                      <option value="D">D - Preparação</option>
+                      <option value="T">T - Em trânsito</option>
+                      <option value="A">A - Aprovada</option>
+                      <option value="F">F - Finalizada</option>
+                      <option value="C">C - Cancelada</option>
+                      <option value="E">E - Final de rota</option>
+                      <option value="M">M - Emissão documentos</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for="situacaoSituacao">Situação *</label>
+                    <select id="situacaoSituacao" required class="form-control">
+                      <option value="S">Ativo</option>
+                      <option value="N">Inativo</option>
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
-
-            <div class="form-actions">
-              <button type="submit" class="btn btn-primary">
-                <i class='bx bx-save'></i> <span data-i18n="web.modulos.situacoesViagem.salvar">Salvar</span>
-              </button>
-              <button type="button" id="btnCancelar" class="btn btn-secondary">
-                <i class='bx bx-x'></i> <span data-i18n="web.modulos.situacoesViagem.cancelar">Cancelar</span>
-              </button>
+            <div class="filtros-actions" style="margin-top: 20px;">
+              <button type="submit" class="btn-filtro btn-filtro-novo"><i class='bx bx-save'></i> <span data-i18n="web.modulos.situacoesViagem.salvar">Salvar</span></button>
+              <button type="button" id="btnCancelar" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> <span data-i18n="web.modulos.situacoesViagem.cancelar">Cancelar</span></button>
             </div>
           </form>
         </div>
@@ -425,8 +514,8 @@
           <h3 data-i18n="web.modulos.situacoesViagem.confirmarAcao">Confirmar Ação</h3>
           <p id="modalMessage"></p>
           <div class="modal-actions">
-            <button id="confirmYes" class="btn delete" data-i18n="web.modulos.situacoesViagem.sim">Sim</button>
-            <button id="confirmNo" class="btn cancel" data-i18n="web.modulos.situacoesViagem.cancelar">Cancelar</button>
+            <button id="confirmYes" class="btn-filtro btn-filtro-danger" data-i18n="web.modulos.situacoesViagem.sim"><i class='bx bx-check'></i> Sim</button>
+            <button id="confirmNo" class="btn-filtro btn-filtro-limpar" data-i18n="web.modulos.situacoesViagem.cancelar"><i class='bx bx-x'></i> Cancelar</button>
           </div>
         </div>
       </div>

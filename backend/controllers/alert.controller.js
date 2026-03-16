@@ -577,7 +577,7 @@ const alertController = {
   marcarComoLido: async (req, res) => {
     try {
       const sql = require('../config/mssql-compat');
-      const { poolPromise } = require('../config/db');
+      const { poolPromise, createTransaction } = require('../config/db');
       const { id } = req.params;
       const idUsuario = req.user?.cdcadastro || req.user?.id || req.body.idUsuario;
       
@@ -586,37 +586,42 @@ const alertController = {
       }
 
       const pool = await poolPromise;
-      const transaction = new sql.Transaction(pool);
+      const transaction = await createTransaction(pool);
       
       await transaction.begin();
       
       try {
-        // Atualizar alerta
+        // Atualizar alerta (colunas entre colchetes para PostgreSQL manter maiúsculas)
         await transaction.request()
           .input('id', sql.Int, parseInt(id))
           .input('idUsuario', sql.Decimal(15, 0), parseFloat(idUsuario))
           .query(`
             UPDATE [dbo].[ALERTS]
-            SET ID_USUARIO_LEU = @idUsuario,
-                DH_LEITURA = SYSUTCDATETIME()
-            WHERE ID = @id
+            SET [ID_USUARIO_LEU] = @idUsuario,
+                [DH_LEITURA] = SYSUTCDATETIME()
+            WHERE [ID] = @id
           `);
 
-        // Registrar no histórico
-        await transaction.request()
-          .input('idAlert', sql.Int, parseInt(id))
-          .input('idUsuario', sql.Decimal(15, 0), parseFloat(idUsuario))
-          .query(`
-            INSERT INTO [dbo].[ALERT_HISTORY] (ID_ALERT, ID_USUARIO, ACAO, DH_ACAO)
-            VALUES (@idAlert, @idUsuario, 'LEU', SYSUTCDATETIME())
-          `);
+        // Registrar no histórico (se a tabela ALERT_HISTORY existir)
+        try {
+          await transaction.request()
+            .input('idAlert', sql.Int, parseInt(id))
+            .input('idUsuario', sql.Decimal(15, 0), parseFloat(idUsuario))
+            .query(`
+              INSERT INTO [dbo].[ALERT_HISTORY] ([ID_ALERT], [ID_USUARIO], [ACAO], [DH_ACAO])
+              VALUES (@idAlert, @idUsuario, 'LEU', SYSUTCDATETIME())
+            `);
+        } catch (errHistory) {
+          if (errHistory.code !== '42P01') throw errHistory;
+          // 42P01 = tabela não existe; seguir sem histórico
+        }
 
         await transaction.commit();
 
         // Emitir evento WebSocket
         try {
           const websocketTorre = req.app?.get('websocketTorre');
-          if (websocketTorre) {
+          if (websocketTorre && typeof websocketTorre.emitirAlertaLido === 'function') {
             websocketTorre.emitirAlertaLido(parseInt(id));
           }
         } catch (err) {
@@ -674,7 +679,7 @@ const alertController = {
   tratar: async (req, res) => {
     try {
       const sql = require('../config/mssql-compat');
-      const { poolPromise } = require('../config/db');
+      const { poolPromise, createTransaction } = require('../config/db');
       const { id } = req.params;
       const { status, observacoes } = req.body;
       const idUsuario = req.user?.cdcadastro || req.body.idUsuario;
@@ -687,7 +692,7 @@ const alertController = {
       }
 
       const pool = await poolPromise;
-      const transaction = new sql.Transaction(pool);
+      const transaction = await createTransaction(pool);
       
       await transaction.begin();
       
@@ -695,11 +700,11 @@ const alertController = {
         // Buscar status anterior
         const alertaAnterior = await transaction.request()
           .input('id', sql.Int, parseInt(id))
-          .query(`SELECT STATUS FROM [dbo].[ALERTS] WHERE ID = @id`);
+          .query(`SELECT [STATUS] FROM [dbo].[ALERTS] WHERE [ID] = @id`);
 
         const statusAnterior = alertaAnterior.recordset[0]?.STATUS || null;
 
-        // Atualizar alerta
+        // Atualizar alerta (colunas entre colchetes para PostgreSQL)
         await transaction.request()
           .input('id', sql.Int, parseInt(id))
           .input('status', sql.NVarChar(50), status)
@@ -707,32 +712,36 @@ const alertController = {
           .input('observacoes', sql.NVarChar(sql.MAX), observacoes || null)
           .query(`
             UPDATE [dbo].[ALERTS]
-            SET STATUS = @status,
-                ID_USUARIO_TRATOU = @idUsuario,
-                DH_TRATAMENTO = SYSUTCDATETIME(),
-                OBSERVACOES = @observacoes
-            WHERE ID = @id
+            SET [STATUS] = @status,
+                [ID_USUARIO_TRATOU] = @idUsuario,
+                [DH_TRATAMENTO] = SYSUTCDATETIME(),
+                [OBSERVACOES] = @observacoes
+            WHERE [ID] = @id
           `);
 
-        // Registrar no histórico
-        await transaction.request()
-          .input('idAlert', sql.Int, parseInt(id))
-          .input('idUsuario', sql.Decimal(15, 0), parseFloat(idUsuario))
-          .input('statusAnterior', sql.NVarChar(50), statusAnterior)
-          .input('statusNovo', sql.NVarChar(50), status)
-          .input('observacoes', sql.NVarChar(sql.MAX), observacoes || null)
-          .query(`
-            INSERT INTO [dbo].[ALERT_HISTORY] 
-              (ID_ALERT, ID_USUARIO, ACAO, STATUS_ANTERIOR, STATUS_NOVO, OBSERVACOES, DH_ACAO)
-            VALUES (@idAlert, @idUsuario, 'TRATOU', @statusAnterior, @statusNovo, @observacoes, SYSUTCDATETIME())
-          `);
+        // Registrar no histórico (se a tabela ALERT_HISTORY existir)
+        try {
+          await transaction.request()
+            .input('idAlert', sql.Int, parseInt(id))
+            .input('idUsuario', sql.Decimal(15, 0), parseFloat(idUsuario))
+            .input('statusAnterior', sql.NVarChar(50), statusAnterior)
+            .input('statusNovo', sql.NVarChar(50), status)
+            .input('observacoes', sql.NVarChar(sql.MAX), observacoes || null)
+            .query(`
+              INSERT INTO [dbo].[ALERT_HISTORY] 
+                ([ID_ALERT], [ID_USUARIO], [ACAO], [STATUS_ANTERIOR], [STATUS_NOVO], [OBSERVACOES], [DH_ACAO])
+              VALUES (@idAlert, @idUsuario, 'TRATOU', @statusAnterior, @statusNovo, @observacoes, SYSUTCDATETIME())
+            `);
+        } catch (errHistory) {
+          if (errHistory.code !== '42P01') throw errHistory;
+        }
 
         await transaction.commit();
 
         // Emitir evento WebSocket
         try {
           const websocketTorre = req.app?.get('websocketTorre');
-          if (websocketTorre) {
+          if (websocketTorre && typeof websocketTorre.emitirAlertaTratado === 'function') {
             websocketTorre.emitirAlertaTratado(parseInt(id), status);
           }
         } catch (err) {
@@ -801,22 +810,22 @@ const alertController = {
       let updates = [];
       if (status) {
         request.input('status', sql.NVarChar(50), status);
-        updates.push('STATUS = @status');
+        updates.push('[STATUS] = @status');
       }
       if (prioridade) {
         request.input('prioridade', sql.NVarChar(20), prioridade);
-        updates.push('PRIORIDADE = @prioridade');
+        updates.push('[PRIORIDADE] = @prioridade');
       }
       if (observacoes !== undefined) {
         request.input('observacoes', sql.NVarChar(sql.MAX), observacoes);
-        updates.push('OBSERVACOES = @observacoes');
+        updates.push('[OBSERVACOES] = @observacoes');
       }
 
       if (updates.length === 0) {
         return res.status(400).json({ error: 'Nenhum campo para atualizar' });
       }
 
-      const query = `UPDATE [dbo].[ALERTS] SET ${updates.join(', ')} WHERE ID = @id`;
+      const query = `UPDATE [dbo].[ALERTS] SET ${updates.join(', ')} WHERE [ID] = @id`;
       await request.query(query);
 
       // Registrar no histórico se houver mudança de status
@@ -827,7 +836,7 @@ const alertController = {
             .input('idUsuario', sql.Decimal(15, 0), parseFloat(idUsuario))
             .input('statusNovo', sql.NVarChar(50), status)
             .query(`
-              INSERT INTO [dbo].[ALERT_HISTORY] (ID_ALERT, ID_USUARIO, ACAO, STATUS_NOVO, DH_ACAO)
+              INSERT INTO [dbo].[ALERT_HISTORY] ([ID_ALERT], [ID_USUARIO], [ACAO], [STATUS_NOVO], [DH_ACAO])
               VALUES (@idAlert, @idUsuario, 'ATUALIZOU', @statusNovo, SYSUTCDATETIME())
             `);
         } catch (err) {
@@ -880,7 +889,7 @@ const alertController = {
   cancelar: async (req, res) => {
     try {
       const sql = require('../config/mssql-compat');
-      const { poolPromise } = require('../config/db');
+      const { poolPromise, createTransaction } = require('../config/db');
       const { id } = req.params;
       const { observacoes } = req.body;
       const idUsuario = req.user?.cdcadastro || req.body.idUsuario;
@@ -890,7 +899,7 @@ const alertController = {
       }
 
       const pool = await poolPromise;
-      const transaction = new sql.Transaction(pool);
+      const transaction = await createTransaction(pool);
       
       await transaction.begin();
       
@@ -898,39 +907,43 @@ const alertController = {
         // Buscar status anterior
         const alertaAnterior = await transaction.request()
           .input('id', sql.Int, parseInt(id))
-          .query(`SELECT STATUS FROM [dbo].[ALERTS] WHERE ID = @id`);
+          .query(`SELECT [STATUS] FROM [dbo].[ALERTS] WHERE [ID] = @id`);
 
         const statusAnterior = alertaAnterior.recordset[0]?.STATUS || null;
 
-        // Atualizar alerta
+        // Atualizar alerta (colunas entre colchetes para PostgreSQL)
         await transaction.request()
           .input('id', sql.Int, parseInt(id))
           .input('observacoes', sql.NVarChar(sql.MAX), observacoes || null)
           .query(`
             UPDATE [dbo].[ALERTS]
-            SET STATUS = 'Cancelado',
-                OBSERVACOES = @observacoes
-            WHERE ID = @id
+            SET [STATUS] = 'Cancelado',
+                [OBSERVACOES] = @observacoes
+            WHERE [ID] = @id
           `);
 
-        // Registrar no histórico
-        await transaction.request()
-          .input('idAlert', sql.Int, parseInt(id))
-          .input('idUsuario', sql.Decimal(15, 0), parseFloat(idUsuario))
-          .input('statusAnterior', sql.NVarChar(50), statusAnterior)
-          .input('observacoes', sql.NVarChar(sql.MAX), observacoes || null)
-          .query(`
-            INSERT INTO [dbo].[ALERT_HISTORY] 
-              (ID_ALERT, ID_USUARIO, ACAO, STATUS_ANTERIOR, STATUS_NOVO, OBSERVACOES, DH_ACAO)
-            VALUES (@idAlert, @idUsuario, 'CANCELOU', @statusAnterior, 'Cancelado', @observacoes, SYSUTCDATETIME())
-          `);
+        // Registrar no histórico (se a tabela ALERT_HISTORY existir)
+        try {
+          await transaction.request()
+            .input('idAlert', sql.Int, parseInt(id))
+            .input('idUsuario', sql.Decimal(15, 0), parseFloat(idUsuario))
+            .input('statusAnterior', sql.NVarChar(50), statusAnterior)
+            .input('observacoes', sql.NVarChar(sql.MAX), observacoes || null)
+            .query(`
+              INSERT INTO [dbo].[ALERT_HISTORY] 
+                ([ID_ALERT], [ID_USUARIO], [ACAO], [STATUS_ANTERIOR], [STATUS_NOVO], [OBSERVACOES], [DH_ACAO])
+              VALUES (@idAlert, @idUsuario, 'CANCELOU', @statusAnterior, 'Cancelado', @observacoes, SYSUTCDATETIME())
+            `);
+        } catch (errHistory) {
+          if (errHistory.code !== '42P01') throw errHistory;
+        }
 
         await transaction.commit();
 
         // Emitir evento WebSocket
         try {
           const websocketTorre = req.app?.get('websocketTorre');
-          if (websocketTorre) {
+          if (websocketTorre && typeof websocketTorre.emitirAlertaCancelado === 'function') {
             websocketTorre.emitirAlertaCancelado(parseInt(id));
           }
         } catch (err) {
@@ -979,6 +992,37 @@ const alertController = {
    * @author Atlas Cargo
    * @since 2.0
    */
+  /**
+   * Criar um alerta de teste (para validar a listagem no módulo Alertas)
+   * POST /api/alertas/criar-teste
+   */
+  criarAlertaTeste: async (req, res) => {
+    try {
+      const { poolPromise } = require('../config/db');
+      const pool = await poolPromise;
+      const insert = await pool.query(`
+        INSERT INTO "ALERTS" (
+          "IDVIAGEM", "TYPE", "MESSAGE", "SEVERITY", "PRIORIDADE", "STATUS", "DETAILS"
+        ) VALUES (
+          1, 'PARADA', 'Alerta de teste - parada prolongada (use para validar a tela)', 'medium', 'Normal', 'Pendente',
+          '{"minutosParado": 45, "origem": "teste"}'
+        )
+        RETURNING *
+      `);
+      const row = insert.rows && insert.rows[0];
+      if (!row) {
+        return res.status(500).json({ success: false, error: 'Falha ao inserir alerta de teste' });
+      }
+      res.json({ success: true, data: row, message: 'Alerta de teste criado. Clique em Atualizar para ver na lista.' });
+    } catch (err) {
+      console.error('Erro ao criar alerta de teste:', err);
+      const msg = err.code === '42P01'
+        ? 'Tabela ALERTS não existe. Execute: backend/scripts/criar_tabela_alerts_postgres.sql'
+        : (err.message || 'Erro ao criar alerta de teste');
+      res.status(500).json({ success: false, error: msg });
+    }
+  },
+
   contador: async (req, res) => {
     try {
       const { poolPromise } = require('../config/db');

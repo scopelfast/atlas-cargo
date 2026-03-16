@@ -10,97 +10,135 @@
   <script src="../js/i18n.js"></script>
   <style>
     .viagem-selector {
-      background: white;
-      padding: 16px;
-      margin-bottom: 16px;
-      border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      background: #f8fafc;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
     }
-    
-    .viagem-label {
-      font-size: 12px;
-      color: #666;
-      font-weight: 600;
-      margin-bottom: 8px;
-      text-transform: uppercase;
-    }
-    
+    .viagem-label { font-size: 11px; color: #64748b; font-weight: 500; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; }
     .viagem-select {
       width: 100%;
-      padding: 12px;
-      border: 2px solid #e0e0e0;
-      border-radius: 10px;
-      font-size: 14px;
-      font-weight: 600;
-      color: #333;
-      background: white;
+      padding: 10px 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #334155;
+      background: #fff;
     }
-    
     .viagem-info {
-      font-size: 15px;
-      font-weight: 600;
-      color: #333;
-      padding: 12px;
-      background: #f8f9fa;
-      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #334155;
+      padding: 10px 0;
     }
-    
-    .macros-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-    
-    .macro-btn {
-      aspect-ratio: 1;
-      border-radius: 12px;
-      padding: 8px 4px;
-      border: none;
-      color: white;
-      font-weight: 600;
-      font-size: 10px;
-      cursor: pointer;
-      position: relative;
+
+    .macros-container { margin-bottom: 20px; }
+    .macro-categoria { margin-bottom: 18px; }
+    /* Divisor no estilo do web: barra escura com ícone e título */
+    .macro-divisor {
       display: flex;
-      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      background: #1c212f;
+      color: #e2e8f0;
+      padding: 10px 14px;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      border: 1px solid rgba(148, 163, 184, 0.15);
+    }
+    .macro-divisor-icon {
+      font-size: 18px;
+      color: #94a3b8;
+      display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-      transition: transform 0.2s;
-      line-height: 1.1;
     }
-    
-    .macro-btn:active { transform: scale(0.95); }
-    .macro-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    
-    .macro-icon { font-size: 20px; margin-bottom: 4px; }
-    .lock-badge {
-      position: absolute;
-      top: 4px;
-      right: 4px;
-      background: rgba(0,0,0,0.3);
-      border-radius: 8px;
-      padding: 2px 6px;
-      font-size: 12px;
+    .macro-divisor-icon.bx { font-family: 'boxicons' !important; }
+    .macro-divisor-text {
+      font-size: 13px;
+      font-weight: 600;
+      color: #f1f5f9;
+      letter-spacing: 0.02em;
     }
-    
-    /* Todos os botões com a mesma cor (roxo) */
-    .situacao-T { background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); }
-    .situacao-C { background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); }
-    .situacao-D { background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); }
-    .situacao-P { background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); }
-    
+    .macro-list { display: flex; flex-direction: column; gap: 2px; }
+    .macro-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 44px;
+      padding: 0 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      background: #fff;
+      color: #334155;
+      font-size: 13px;
+      font-weight: 500;
+      text-align: left;
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s, box-shadow 0.12s;
+      position: relative;
+    }
+    /* Disponíveis para clique: destaque com barra esquerda e fundo suave */
+    .macro-btn:not(:disabled) {
+      border-left: 3px solid #2563eb;
+      background: #f0f9ff;
+      border-color: #bae6fd #e2e8f0 #e2e8f0 #2563eb;
+      font-weight: 600;
+      color: #1e3a8a;
+    }
+    .macro-btn:not(:disabled):hover {
+      background: #e0f2fe;
+      border-color: #7dd3fc #cbd5e1 #cbd5e1 #2563eb;
+      box-shadow: 0 1px 3px rgba(37, 99, 235, 0.12);
+    }
+    .macro-btn:not(:disabled):active { background: #bae6fd; }
+    .macro-btn:disabled {
+      background: #f8fafc;
+      color: #94a3b8;
+      cursor: not-allowed;
+      border-color: #f1f5f9;
+    }
+    .macro-btn .macro-icon-wrap {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 14px;
+      color: #64748b;
+      background: #f1f5f9;
+    }
+    .macro-btn:not(:disabled) .macro-icon-wrap {
+      color: #2563eb;
+      background: #e0f2fe;
+    }
+    .macro-btn .macro-label { flex: 1; min-width: 0; }
+    .macro-btn .macro-status {
+      flex-shrink: 0;
+      font-size: 14px;
+      color: #94a3b8;
+    }
+    .macro-btn:disabled .macro-status { color: #cbd5e1; }
+    .macro-btn.macro-done .macro-status { color: #16a34a; }
+    /* Seta azul nos disponíveis (ainda não registrados) */
+    .macro-btn:not(:disabled):not(.macro-done) .macro-status { color: #2563eb; }
+    .macro-icon-wrap.bx { font-family: 'boxicons' !important; }
+    .lock-badge { display: none; }
+
     .historico-item {
       display: flex;
       justify-content: space-between;
-      padding: 10px 0;
-      border-bottom: 1px solid #f0f0f0;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #f1f5f9;
     }
-    
     .historico-item:last-child { border-bottom: none; }
-    .historico-texto { font-size: 14px; color: #333; flex: 1; }
-    .historico-hora { font-size: 12px; color: #666; }
+    .historico-texto { font-size: 13px; color: #334155; flex: 1; }
+    .historico-hora { font-size: 11px; color: #94a3b8; }
   </style>
 </head>
 <body class="motorista-page">
@@ -121,16 +159,16 @@
       <p data-i18n="common.carregando">Carregando...</p>
     </div>
 
-    <!-- Grid de Macros -->
-    <div class="macros-grid" id="macrosGrid" style="display: none;"></div>
+    <!-- Macros por categoria -->
+    <div class="macros-container" id="macrosContainer" style="display: none;"></div>
 
     <!-- Histórico -->
-    <div class="card" id="historicoCard" style="display: none;">
-      <div class="card-header" style="background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%);">
-        <div class="card-title" data-i18n="macros.historico">📋 Histórico</div>
-        <div class="card-subtitle">Últimas 5 ocorrências</div>
+    <div class="card" id="historicoCard" style="display: none; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+      <div class="card-header" style="background: #f8fafc; padding: 10px 14px; border-bottom: 1px solid #e2e8f0;">
+        <div class="card-title" data-i18n="macros.historico" style="font-size: 12px; font-weight: 600; color: #334155;">Histórico</div>
+        <div class="card-subtitle" style="font-size: 11px; color: #64748b;">Todas as ocorrências da viagem</div>
       </div>
-      <div class="card-body" id="historicoLista"></div>
+      <div class="card-body" id="historicoLista" style="padding: 8px 14px;"></div>
     </div>
   </div>
 
@@ -266,29 +304,22 @@
       // Se tem mais de 1, mostrar select
       if (viagens.length > 1) {
         selector.innerHTML = `
-          <div style="background: white; padding: 16px; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-            <div style="font-size: 12px; color: #666; font-weight: 600; margin-bottom: 8px; text-transform: uppercase;">
-              Selecione a Viagem:
-            </div>
-            <select id="selectViagem" onchange="selecionarViagem()" 
-                    style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 14px; font-weight: 600;">
-              <option value="">-- Escolha uma viagem --</option>
-              ${viagens.map(v => `
-                <option value="${v.IDVIAGEM}" ${viagemSelecionada?.IDVIAGEM === v.IDVIAGEM ? 'selected' : ''}>
-                  #${v.IDVIAGEM} - ${v.ROTEIRO || 'Sem roteiro'}
-                </option>
-              `).join('')}
-            </select>
-          </div>
+          <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: #94a3b8; margin-bottom: 6px;">Selecione a viagem</div>
+          <select id="selectViagem" onchange="selecionarViagem()" class="viagem-select">
+            <option value="">— Escolha uma viagem —</option>
+            ${viagens.map(v => `
+              <option value="${v.IDVIAGEM}" ${viagemSelecionada?.IDVIAGEM === v.IDVIAGEM ? 'selected' : ''}>
+                #${v.IDVIAGEM} · ${v.ROTEIRO || 'Sem roteiro'}
+              </option>
+            `).join('')}
+          </select>
         `;
       } else {
         // Só 1 viagem, mostrar info
         selector.innerHTML = `
-          <div style="background: white; padding: 12px 16px; border-radius: 10px; border-left: 4px solid #0ea5e9; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 16px;">
-            <div style="font-size: 12px; color: #666; margin-bottom: 4px;">Viagem Atual:</div>
-            <div style="font-size: 15px; font-weight: 600; color: #333;">
-              #${viagemSelecionada.IDVIAGEM} - ${viagemSelecionada.ROTEIRO || 'Sem roteiro'}
-            </div>
+          <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: #94a3b8; margin-bottom: 4px;">Viagem atual</div>
+          <div style="font-size: 14px; font-weight: 500; color: #334155;">
+            #${viagemSelecionada.IDVIAGEM} · ${viagemSelecionada.ROTEIRO || 'Sem roteiro'}
           </div>
         `;
       }
@@ -355,37 +386,91 @@
       }
     }
 
-    // Renderizar macros
+    // Ícone Boxicons por tipo (visual mais neutro)
+    function getMacroIconClass(macro) {
+      const s = (macro.FGSITUACAO || macro.fgsituacao || '').toUpperCase().trim();
+      const seq = macro.SEQ != null ? macro.SEQ : macro.seq;
+      const desc = (macro.DSTIPOOCORRENCIA || macro.dstipocorrencia || '').toLowerCase();
+      if (s === 'T') return seq === 2 ? 'bx-refresh' : 'bx-play-circle';
+      if (s === 'F') return 'bx-flag';
+      if (s === 'C') return seq === 1 ? 'bx-map-pin' : seq === 2 ? 'bx-package' : 'bx-check-circle';
+      if (s === 'D') return seq === 1 ? 'bx-map-pin' : seq === 2 ? 'bx-upload' : 'bx-check-circle';
+      if (s === 'P') {
+        if (desc.includes('abastecimento')) return 'bx-gas-pump';
+        if (desc.includes('alimentação') || desc.includes('banheiro')) return 'bx-bowl-rice';
+        if (desc.includes('manutenção')) return 'bx-wrench';
+        if (desc.includes('fiscal') || desc.includes('polícia') || desc.includes('retido')) return 'bx-shield-alt';
+        if (desc.includes('descanso') || desc.includes('pernoite')) return 'bx-bed';
+        return 'bx-stop-circle';
+      }
+      return 'bx-circle';
+    }
+
+    // Ordem e rótulos das categorias (FGSITUACAO) + ícone para o divisor
+    const CATEGORIAS = [
+      { id: 'T', titulo: 'Partida', icon: 'bx-play-circle' },
+      { id: 'P', titulo: 'Paradas', icon: 'bx-stop-circle' },
+      { id: 'C', titulo: 'Carregamento', icon: 'bx-package' },
+      { id: 'D', titulo: 'Descarga', icon: 'bx-upload' },
+      { id: 'F', titulo: 'Final', icon: 'bx-flag' }
+    ];
+
+    // Renderizar macros agrupadas por categoria
     function renderizarMacros() {
-      const grid = document.getElementById('macrosGrid');
+      const container = document.getElementById('macrosContainer');
       
       if (!viagemSelecionada) {
-        grid.style.display = 'none';
+        container.style.display = 'none';
         return;
       }
 
-      grid.innerHTML = '';
-      grid.style.display = 'grid';
+      container.innerHTML = '';
+      container.style.display = 'block';
 
-      macros.forEach(macro => {
-        const validacao = validarSequencia(macro);
-        
-        const btn = document.createElement('button');
-        btn.className = `macro-btn situacao-${macro.FGSITUACAO}`;
-        btn.disabled = !validacao.valido;
-        btn.onclick = () => selecionarMacro(macro);
-        
-        // Verificar se macro já foi registrada (está no histórico)
-        const jaRegistrada = historico.some(h => h.CDTIPOOCORRENCIA === macro.CDTIPOOCORRENCIA);
-        
-        btn.innerHTML = `
-          <div class="macro-icon">${macro.icon}</div>
-          <span>${macro.DSTIPOOCORRENCIA}</span>
-          ${jaRegistrada ? '<div class="lock-badge" style="background: rgba(40, 167, 69, 0.8);">✅</div>' : ''}
-          ${!validacao.valido && !jaRegistrada ? '<div class="lock-badge">🔒</div>' : ''}
+      const situacao = (m) => (m.FGSITUACAO || m.fgsituacao || '').toUpperCase().trim();
+      const seq = (m) => (m.SEQ != null ? m.SEQ : m.seq);
+
+      CATEGORIAS.forEach(cat => {
+        const itens = macros.filter(m => situacao(m) === cat.id);
+        if (itens.length === 0) return;
+
+        const sec = document.createElement('div');
+        sec.className = 'macro-categoria';
+        sec.innerHTML = `
+          <div class="macro-divisor">
+            <span class="macro-divisor-icon bx ${cat.icon}"></span>
+            <span class="macro-divisor-text">${cat.titulo}</span>
+          </div>
+          <div class="macro-list"></div>
         `;
-        
-        grid.appendChild(btn);
+        const list = sec.querySelector('.macro-list');
+
+        itens.sort((a, b) => {
+          const sa = seq(a), sb = seq(b);
+          if (sa !== sb) return sa - sb;
+          return (a.CDTIPOOCORRENCIA || a.cdtipocorrencia || 0) - (b.CDTIPOOCORRENCIA || b.cdtipocorrencia || 0);
+        });
+
+        itens.forEach(macro => {
+          const validacao = validarSequencia(macro);
+          const btn = document.createElement('button');
+          btn.className = 'macro-btn';
+          if (historico.some(h => (h.CDTIPOOCORRENCIA || h.cdtipocorrencia) === (macro.CDTIPOOCORRENCIA || macro.cdtipocorrencia))) btn.classList.add('macro-done');
+          btn.disabled = !validacao.valido;
+          btn.onclick = () => selecionarMacro(macro);
+          const jaRegistrada = historico.some(h => (h.CDTIPOOCORRENCIA || h.cdtipocorrencia) === (macro.CDTIPOOCORRENCIA || macro.cdtipocorrencia));
+          const nome = macro.DSTIPOOCORRENCIA || macro.dstipocorrencia || 'Macro';
+          const iconClass = getMacroIconClass(macro);
+          const statusIcon = jaRegistrada ? 'bx-check' : (!validacao.valido ? 'bx-lock-alt' : 'bx-chevron-right');
+          btn.innerHTML = `
+            <span class="macro-icon-wrap bx ${iconClass}"></span>
+            <span class="macro-label">${nome}</span>
+            <span class="macro-status bx ${statusIcon}"></span>
+          `;
+          list.appendChild(btn);
+        });
+
+        container.appendChild(sec);
       });
     }
 
@@ -406,18 +491,26 @@
         });
 
         if (response.ok) {
-          historico = await response.json();
+          let raw = await response.json();
+          // Ordenar por data/hora DESC e por ID DESC: mesma data = desempate por ID (última registrada = primeira)
+          historico = [...raw].sort((a, b) => {
+            const da = new Date(a.DTOCORRENCIA || a.dtocorrencia || 0).getTime();
+            const db = new Date(b.DTOCORRENCIA || b.dtocorrencia || 0).getTime();
+            if (db !== da) return db - da;
+            const ia = a.IDVIAGEM_OCORRENCIA ?? a.idviagem_ocorrencia ?? 0;
+            const ib = b.IDVIAGEM_OCORRENCIA ?? b.idviagem_ocorrencia ?? 0;
+            return Number(ib) - Number(ia);
+          });
           console.log(`📋 Histórico carregado: ${historico.length} macros para viagem #${idViagem}`);
-          console.log(`📋 Macros:`, historico.map(h => h.DSTIPOOCORRENCIA).join(', '));
+          console.log(`📋 Macros:`, historico.map(h => h.DSTIPOOCORRENCIA || h.dstipocorrencia).join(', '));
           
           if (historico.length > 0) {
             card.style.display = 'block';
-            
             const lista = document.getElementById('historicoLista');
-            lista.innerHTML = historico.slice(0, 5).map(h => `
+            lista.innerHTML = historico.map(h => `
               <div class="historico-item">
-                <span class="historico-texto">${h.DSTIPOOCORRENCIA}</span>
-                <span class="historico-hora">${formatarData(h.DTOCORRENCIA)}</span>
+                <span class="historico-texto">${h.DSTIPOOCORRENCIA || h.dstipocorrencia || 'Ocorrência'}</span>
+                <span class="historico-hora">${formatarData(h.DTOCORRENCIA || h.dtocorrencia)}</span>
               </div>
             `).join('');
           } else {
@@ -447,128 +540,88 @@
       });
     }
 
-    // Validar sequência
+    // Normalizar chaves do histórico (PostgreSQL pode retornar minúsculas; SEQ como número)
+    function norm(h) {
+      const seqRaw = h.SEQ != null ? h.SEQ : h.seq;
+      return {
+        FGSITUACAO: (h.FGSITUACAO || h.fgsituacao || '').toUpperCase().trim(),
+        SEQ: seqRaw != null ? Number(seqRaw) : null,
+        CDTIPOOCORRENCIA: h.CDTIPOOCORRENCIA != null ? h.CDTIPOOCORRENCIA : h.cdtipocorrencia
+      };
+    }
+
+    // Validar sequência (regras por FGSITUACAO + SEQ)
     function validarSequencia(macro) {
-      // Debug
-      console.log(`📝 Validando ${macro.DSTIPOOCORRENCIA}:`, {
-        historico: historico.length,
-        codigo: macro.CDTIPOOCORRENCIA,
-        situacao: macro.FGSITUACAO,
-        seq: macro.SEQ
-      });
+      const s = (macro.FGSITUACAO || macro.fgsituacao || '').toUpperCase().trim();
+      const seqMacro = macro.SEQ != null ? macro.SEQ : macro.seq;
 
-      // Se não tem histórico, só permite "Viagem - Início" (103)
+      // Viagem encerrada só quando existir macro "Viagem - Fim" (FGSITUACAO F, SEQ 1). C = Carregamento (fase normal), não encerra.
+      if (historico.some(h => { const x = norm(h); return x.FGSITUACAO === 'F' && x.SEQ === 1; })) {
+        return { valido: false, mensagem: 'Viagem encerrada. Não é permitido registrar mais macros.' };
+      }
+
+      // Sem histórico: só permite T, SEQ 1 (Início de viagem)
       if (historico.length === 0) {
-        const valido = macro.CDTIPOOCORRENCIA === 103;
-        console.log(`  → ${valido ? '✅' : '🔒'} ${valido ? 'Permitido' : 'Bloqueado'} (sem histórico)`);
-        
-        if (valido) {
-          return {valido: true};
-        }
-        return {valido: false, mensagem: 'Primeira macro deve ser: Viagem - Início'};
+        const valido = s === 'T' && seqMacro === 1;
+        return valido ? { valido: true } : { valido: false, mensagem: 'Primeira macro deve ser: Início de viagem' };
       }
 
-      const ultima = historico[0];
+      // historico já vem ordenado: mais recente primeiro (DESC por DTOCORRENCIA + ID)
+      const ultima = norm(historico[0]);
 
-      // Viagem - Reinício (104): sempre permitido após paradas
-      if (macro.CDTIPOOCORRENCIA === 104) {
-        const macrosParada = [110, 111, 105, 106, 107, 26, 58];
-        if (macrosParada.includes(ultima.CDTIPOOCORRENCIA) || ultima.FGSITUACAO === 'P') {
-          return {valido: true};
-        }
-        return {valido: false};
+      // T, SEQ 1 (Início de viagem): só uma vez na viagem — se já existe no histórico, desabilitar
+      if (s === 'T' && seqMacro === 1) {
+        const jaInicio = historico.some(h => norm(h).FGSITUACAO === 'T' && norm(h).SEQ === 1);
+        return jaInicio ? { valido: false, mensagem: 'Início de viagem já registrado' } : { valido: true };
       }
 
-      // PARADAS (Situação P): sempre permitidas
-      if (macro.FGSITUACAO === 'P') {
-        console.log('  → ✅ Permitido (parada)');
-        return {valido: true};
+      // T, SEQ 2 (Reinício): só quando última for P ou (C/D com SEQ 3)
+      if (s === 'T' && seqMacro === 2) {
+        const ok = ultima.FGSITUACAO === 'P' || (ultima.FGSITUACAO === 'C' && ultima.SEQ === 3) || (ultima.FGSITUACAO === 'D' && ultima.SEQ === 3);
+        return ok ? { valido: true } : { valido: false, mensagem: 'Reinício só após parada ou fim de carga/descarga' };
       }
 
-      // REGRA ESPECIAL: Após "Fim" permite "Chegada" (múltiplos pontos)
-      // Carga: Após Fim (110) → permite Chegada (151) novamente
-      if (macro.CDTIPOOCORRENCIA === 151 && ultima.CDTIPOOCORRENCIA === 110) {
-        console.log('  → ✅ Permitido (novo ponto de carga)');
-        return {valido: true};
+      // P (Paradas): só quando última for T
+      if (s === 'P') {
+        return ultima.FGSITUACAO === 'T' ? { valido: true } : { valido: false, mensagem: 'Parada só após Partida (T)' };
       }
 
-      // Descarga: Após Fim (111) → permite Chegada (159) novamente
-      if (macro.CDTIPOOCORRENCIA === 159 && ultima.CDTIPOOCORRENCIA === 111) {
-        console.log('  → ✅ Permitido (novo ponto de descarga)');
-        return {valido: true};
+      // C, SEQ 1 (Chegada carga): só quando última for T (em trânsito — Início ou Reinício)
+      if (s === 'C' && seqMacro === 1) {
+        return ultima.FGSITUACAO === 'T' ? { valido: true } : { valido: false, mensagem: 'Chegada ao carregamento só quando estiver em trânsito (Partida T)' };
+      }
+      // C, SEQ 2: só quando última for C, SEQ 1
+      if (s === 'C' && seqMacro === 2) {
+        return ultima.FGSITUACAO === 'C' && ultima.SEQ === 1 ? { valido: true } : { valido: false, mensagem: 'Registre a chegada ao carregamento primeiro' };
+      }
+      // C, SEQ 3: só quando última for C, SEQ 2
+      if (s === 'C' && seqMacro === 3) {
+        return ultima.FGSITUACAO === 'C' && ultima.SEQ === 2 ? { valido: true } : { valido: false, mensagem: 'Registre o início do carregamento primeiro' };
       }
 
-      // SEQUENCIAMENTO RIGOROSO por SEQ
-      // Mesma situação (C ou D), deve seguir SEQ: 1 → 2 → 3
-      
-      // Se a macro atual é SEQ 1 (Chegada)
-      if (macro.SEQ === 1) {
-        // Permite se:
-        // 1. Última macro não é da mesma situação (ex: última foi Descarga, agora quer Carga)
-        // 2. Última macro é SEQ 3 (Fim) da mesma situação (ciclo completo, pode começar novo)
-        // 3. Última macro não é SEQ 1 ou SEQ 2 da mesma situação (não está no meio de um ciclo)
-        if (ultima.FGSITUACAO !== macro.FGSITUACAO) {
-          console.log('  → ✅ Permitido (situação diferente)');
-          return {valido: true};
-        }
-        
-        if (ultima.SEQ === 3) {
-          console.log('  → ✅ Permitido (ciclo anterior completo, pode iniciar novo)');
-          return {valido: true};
-        }
-        
-        if (ultima.SEQ === 1 || ultima.SEQ === 2) {
-          console.log('  → 🔒 Bloqueado (já tem chegada/início, precisa completar sequência)');
-          return {valido: false, mensagem: 'Complete a sequência antes de registrar nova chegada'};
-        }
-        
-        return {valido: true};
+      // D: só habilitar se já houve ciclo completo de C (pelo menos um C, SEQ 3 no histórico)
+      const teveCicloCarga = historico.some(h => norm(h).FGSITUACAO === 'C' && norm(h).SEQ === 3);
+      // D, SEQ 1 (Chegada descarga): última T e já teve ciclo de carga
+      if (s === 'D' && seqMacro === 1) {
+        const ok = ultima.FGSITUACAO === 'T' && teveCicloCarga;
+        return ok ? { valido: true } : { valido: false, mensagem: 'Descarga só após Partida e um ciclo completo de carregamento' };
+      }
+      // D, SEQ 2: só quando última for D, SEQ 1
+      if (s === 'D' && seqMacro === 2) {
+        return ultima.FGSITUACAO === 'D' && ultima.SEQ === 1 ? { valido: true } : { valido: false, mensagem: 'Registre a chegada à descarga primeiro' };
+      }
+      // D, SEQ 3: só quando última for D, SEQ 2
+      if (s === 'D' && seqMacro === 3) {
+        return ultima.FGSITUACAO === 'D' && ultima.SEQ === 2 ? { valido: true } : { valido: false, mensagem: 'Registre o início da descarga primeiro' };
       }
 
-      // Se a macro atual é SEQ 2 (Início)
-      if (macro.SEQ === 2) {
-        // Só permite se a última for SEQ 1 (Chegada) da mesma situação
-        if (ultima.FGSITUACAO === macro.FGSITUACAO && ultima.SEQ === 1) {
-          console.log('  → ✅ Permitido (após chegada)');
-          return {valido: true};
-        }
-        
-        // Se última é SEQ 3 (Fim) da mesma situação, não pode pular para Início
-        if (ultima.FGSITUACAO === macro.FGSITUACAO && ultima.SEQ === 3) {
-          console.log('  → 🔒 Bloqueado (ciclo completo, precisa registrar nova chegada primeiro)');
-          return {valido: false, mensagem: 'Registre a chegada primeiro para iniciar novo ciclo'};
-        }
-        
-        console.log('  → 🔒 Bloqueado (precisa registrar chegada primeiro)');
-        return {valido: false, mensagem: 'Registre a chegada primeiro'};
+      // F, SEQ 1 (Fim de rota): quando última for T ou D, SEQ 3
+      if (s === 'F' && seqMacro === 1) {
+        const ok = ultima.FGSITUACAO === 'T' || (ultima.FGSITUACAO === 'D' && ultima.SEQ === 3);
+        return ok ? { valido: true } : { valido: false, mensagem: 'Fim de rota só após Partida ou fim da descarga' };
       }
 
-      // Se a macro atual é SEQ 3 (Fim)
-      if (macro.SEQ === 3) {
-        // Só permite se a última for SEQ 2 (Início) da mesma situação
-        if (ultima.FGSITUACAO === macro.FGSITUACAO && ultima.SEQ === 2) {
-          console.log('  → ✅ Permitido (após início)');
-          return {valido: true};
-        }
-        
-        // Se última é SEQ 1 (Chegada) da mesma situação, não pode pular para Fim
-        if (ultima.FGSITUACAO === macro.FGSITUACAO && ultima.SEQ === 1) {
-          console.log('  → 🔒 Bloqueado (precisa registrar início primeiro)');
-          return {valido: false, mensagem: 'Registre o início primeiro'};
-        }
-        
-        // Se última já é SEQ 3 (Fim) da mesma situação, não pode repetir
-        if (ultima.FGSITUACAO === macro.FGSITUACAO && ultima.SEQ === 3) {
-          console.log('  → 🔒 Bloqueado (já foi registrado o fim, inicie novo ciclo)');
-          return {valido: false, mensagem: 'Ciclo já completo, registre nova chegada para iniciar novo ciclo'};
-        }
-        
-        console.log('  → 🔒 Bloqueado (precisa registrar início primeiro)');
-        return {valido: false, mensagem: 'Registre o início primeiro'};
-      }
-
-      // Qualquer outra situação
-      return {valido: true};
+      return { valido: false, mensagem: 'Sequência não permitida' };
     }
 
     // Selecionar macro

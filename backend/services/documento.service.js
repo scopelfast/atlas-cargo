@@ -117,12 +117,16 @@ function validarDocumento(pais, tipo, valor) {
       return ok ? { valido: true } : { valido: false, mensagem: 'RUC inválido. Use 8 ou 9 dígitos.' };
     }
   }
-  // AR, UY: por ora formato mínimo (Fase posterior)
-  if (p === 'AR' || p === 'UY') {
+  // AR, UY, PT e outros: formato mínimo (número/cartão cidadão, 3–20 caracteres)
+  if (p === 'AR' || p === 'UY' || p === 'PT') {
     const limpo = String(valor).replace(/[^\d\w]/g, '');
     if (limpo.length < 3) return { valido: false, mensagem: 'Documento inválido' };
+    if (limpo.length > 20) return { valido: false, mensagem: 'Documento muito longo' };
     return { valido: true };
   }
+  // Outros países não mapeados: aceitar mínimo 3 dígitos para não bloquear cadastro
+  const limpo = String(valor).replace(/[^\d\w]/g, '');
+  if (limpo.length >= 3 && limpo.length <= 20) return { valido: true };
   // Fallback: Brasil
   if (isFisica) return validarCPF(valor) ? { valido: true } : { valido: false, mensagem: 'CPF inválido' };
   if (isJuridica) return validarCNPJ(valor) ? { valido: true } : { valido: false, mensagem: 'CNPJ inválido' };

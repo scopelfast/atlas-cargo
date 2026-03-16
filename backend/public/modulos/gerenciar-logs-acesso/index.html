@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/modulos.css">
+  <link rel="stylesheet" href="/css/dark-mode.css">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <style>
     /* ========== Logs de Acesso - Identidade Atlas Cargo ========== */
@@ -32,6 +33,74 @@
       display: flex;
       align-items: center;
       gap: 10px;
+    }
+    .logs-acesso-header h2 i {
+      color: inherit;
+    }
+
+    /* Abas com ícones – mesmo padrão dos demais módulos (Filiais, Tipos de Atividade) */
+    .logs-acesso-container .tabs.tabs-com-icones {
+      display: flex;
+      margin-bottom: 25px;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
+      gap: 0;
+    }
+    .logs-acesso-container .tabs.tabs-com-icones .tab-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      border: none;
+      background: transparent;
+      color: #94a3b8;
+      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: color 0.2s, border-color 0.2s;
+      font-family: inherit;
+    }
+    .logs-acesso-container .tabs.tabs-com-icones .tab-btn i {
+      font-size: 1.15rem;
+      color: inherit;
+    }
+    .logs-acesso-container .tabs.tabs-com-icones .tab-btn:hover {
+      color: #64748b;
+    }
+    .logs-acesso-container .tabs.tabs-com-icones .tab-btn.active {
+      color: var(--ac-primary, #0d2137);
+      border-bottom-color: var(--ac-primary, #0d2137);
+    }
+    .logs-acesso-container .tabs.tabs-com-icones .tab-btn.active i {
+      color: var(--ac-primary, #0d2137);
+    }
+
+    /* Botões Voltar/Limpar – padrão do sistema (como Filiais) */
+    .btn-filtro {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 22px;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.15s;
+    }
+    .btn-filtro:hover { transform: translateY(-1px); }
+    .btn-filtro i { font-size: 1.15rem; }
+    .btn-filtro-limpar {
+      background: #f1f5f9;
+      color: #475569;
+      border: 1px solid #e2e8f0;
+    }
+    .btn-filtro-limpar:hover {
+      background: #e2e8f0;
+      color: #334155;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     }
 
     /* ========== BOTÕES - Atlas Cargo ========== */
@@ -104,7 +173,7 @@
 
     /* ========== FILTROS ========== */
     .filtros-box {
-      background: white;
+      background: var(--white, #fff);
       border-radius: 12px;
       padding: 25px;
       box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
@@ -151,7 +220,8 @@
       transition: all 0.3s;
       font-family: inherit;
       box-sizing: border-box;
-      background-color: #fff;
+      background-color: var(--white, #fff);
+      color: var(--dark, #1e293b);
     }
 
     .filtros-grid .form-control:focus {
@@ -180,7 +250,7 @@
     }
 
     .resumo-card {
-      background: white;
+      background: var(--white, #fff);
       border-radius: 12px;
       padding: 25px;
       box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
@@ -246,7 +316,7 @@
     .estatisticas-table {
       width: 100%;
       border-collapse: collapse;
-      background: white;
+      background: var(--white, #fff);
       border-radius: 12px;
       overflow: hidden;
       box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
@@ -301,10 +371,11 @@
       padding: 12px 15px;
       border-bottom: 1px solid var(--border, #e2e8f0);
       font-size: 14px;
+      color: var(--dark, #1e293b);
     }
 
     .estatisticas-table tbody tr:hover {
-      background: #f8fafc;
+      background: var(--light-gray, #f8fafc);
     }
 
     .estatisticas-table tbody tr:last-child td {
@@ -326,7 +397,7 @@
     }
 
     .modal-content-tratamento {
-      background: white;
+      background: var(--white, #fff);
       border-radius: 12px;
       width: 90%;
       max-width: 800px;
@@ -428,7 +499,7 @@
 
     /* ========== GRID / FORM BOX ========== */
     .grid-container {
-      background: white;
+      background: var(--white, #fff);
       border-radius: 12px;
       padding: 20px;
       box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
@@ -436,7 +507,7 @@
     }
 
     .form-box {
-      background: white;
+      background: var(--white, #fff);
       border-radius: 12px;
       padding: 25px;
       box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
@@ -526,20 +597,15 @@
     <!-- Header Padronizado -->
     <div class="logs-acesso-header">
       <h2>
-        <i class='bx bx-history' style="color: var(--ac-accent, #0ea5e9);"></i>
+        <i class='bx bx-history'></i>
         <span data-i18n="web.modulos.logsAcesso.titulo">Logs de Acesso</span>
       </h2>
-      <div style="display: flex; gap: 10px; align-items: center;">
-        <button class="btn btn-info" onclick="window.mostrarAjudaLogsAcesso()" title="Como funciona? Regras e instruções">
-          <i class='bx bx-help-circle'></i> <span data-i18n="web.modulos.logsAcesso.ajuda">Ajuda</span>
-        </button>
-      </div>
     </div>
 
-    <!-- Abas -->
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.logsAcesso.tabFiltros">Filtros</button>
-      <button class="tab-btn" data-tab="resumo" data-i18n="web.modulos.logsAcesso.tabResumo">Resumo</button>
+    <!-- Abas (padrão com ícones como nos demais módulos) -->
+    <div class="tabs tabs-com-icones">
+      <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.logsAcesso.tabFiltros"><i class='bx bx-filter-alt'></i> Filtros</button>
+      <button class="tab-btn" data-tab="resumo" data-i18n="web.modulos.logsAcesso.tabResumo"><i class='bx bx-bar-chart-alt-2'></i> Resumo</button>
     </div>
 
     <!-- Filtros -->
@@ -579,9 +645,9 @@
     <div class="tab-content" id="tab-resumo">
       <div class="form-box">
         <h2 data-i18n="web.modulos.logsAcesso.resumoAcessos">Resumo de Acessos</h2>
-        <div class="actions-top">
-          <button type="button" id="btnVoltarResumo" class="btn btn-cancel">
-            <i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.logsAcesso.voltarFiltros">Voltar aos Filtros</span>
+        <div class="filtros-actions" style="justify-content: flex-start; margin-bottom: 20px;">
+          <button type="button" id="btnVoltarResumo" class="btn-filtro btn-filtro-limpar">
+            <i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.logsAcesso.voltarFiltros">Voltar</span>
           </button>
         </div>
 
@@ -688,50 +754,6 @@
       </div>
     </div>
 
-  </div>
-
-  <!-- Modal de Ajuda -->
-  <div id="modalAjudaLogsAcesso" class="modal-tratamento" style="display: none;">
-    <div class="modal-content-tratamento">
-      <div class="modal-header-tratamento">
-        <h3><i class='bx bx-help-circle'></i> Ajuda - Logs de Acesso</h3>
-        <button type="button" class="btn-close-modal" onclick="document.getElementById('modalAjudaLogsAcesso').style.display='none'">
-          <i class='bx bx-x'></i>
-        </button>
-      </div>
-      <div class="modal-body-tratamento">
-        <h4>📋 Sobre o Módulo</h4>
-        <p>O módulo <strong>Logs de Acesso</strong> permite visualizar e analisar todas as atividades dos usuários no sistema, incluindo acessos, tempo logado, módulos acessados e ações realizadas.</p>
-
-        <h4>🔍 Filtros</h4>
-        <ul>
-          <li><strong>Data Início/Fim:</strong> Filtre os logs por período específico</li>
-          <li><strong>Operador:</strong> Filtre por login do usuário específico</li>
-          <li>Clique em "Filtrar" para aplicar os filtros ou "Limpar" para resetar</li>
-        </ul>
-
-        <h4>📊 Resumo</h4>
-        <ul>
-          <li>Visualize estatísticas gerais de acessos</li>
-          <li>Veja o tempo total logado de todos os usuários</li>
-          <li>Confira quantos módulos foram acessados</li>
-          <li>Analise estatísticas por operador</li>
-          <li>Veja os módulos mais acessados</li>
-        </ul>
-
-        <h4>💡 Dicas</h4>
-        <ul>
-          <li>Use os filtros para análises específicas por período ou usuário</li>
-          <li>O resumo oferece uma visão geral rápida das atividades</li>
-          <li>Os detalhes permitem análise aprofundada de cada acesso</li>
-        </ul>
-      </div>
-      <div class="modal-footer-tratamento">
-        <button type="button" onclick="document.getElementById('modalAjudaLogsAcesso').style.display='none'" class="btn btn-secondary">
-          <i class='bx bx-x'></i> Fechar
-        </button>
-      </div>
-    </div>
   </div>
 
   <!-- Modal de Confirmação -->

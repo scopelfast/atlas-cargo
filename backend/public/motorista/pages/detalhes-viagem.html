@@ -354,9 +354,13 @@
 
     function applyI18n() {
       if (typeof window.t !== 'function') return;
+      function t(k) { return k; } // fallback no detalhe da viagem
       document.querySelectorAll('[data-i18n]').forEach(function(el) {
         var k = el.getAttribute('data-i18n');
-        if (k) el.textContent = window.t(k);
+        if (k && typeof window.t === 'function') {
+          var val = window.t(k);
+          if(val !== k) el.textContent = val;
+        }
       });
     }
     if (window.i18nReady) window.i18nReady.then(applyI18n);
@@ -488,18 +492,16 @@
         if (response.ok) {
           const data = await response.json();
           posicoesGPS = data.posicoes || [];
-
-          if (posicoesGPS.length > 0) {
-            renderizarMapa();
-          }
         }
+        await renderizarMapa();
       } catch (err) {
         console.error('Erro ao carregar posições GPS:', err);
+        await renderizarMapa();
       }
     }
 
-    // Renderizar mapa
-    function renderizarMapa() {
+    // Renderizar mapa (origem, destino, rota prevista OSRM/ORS e rota percorrida)
+    async function renderizarMapa() {
       if (!map) return;
 
       const routeCoordinates = [];
@@ -614,7 +616,45 @@
           .addTo(map);
       }
 
-      // Desenhar rota percorrida (polyline)
+      // Desenhar rota prevista (OSRM/ORS) entre origem e destino para traçar a rota nas estradas
+      const origemLat = dadosViagem && dadosViagem.ORIGEM_LATITUDE && dadosViagem.ORIGEM_LATITUDE != 0 ? parseFloat(dadosViagem.ORIGEM_LATITUDE) : null;
+      const origemLon = dadosViagem && dadosViagem.ORIGEM_LONGITUDE ? parseFloat(dadosViagem.ORIGEM_LONGITUDE) : null;
+      const destinoLat = dadosViagem && dadosViagem.DESTINO_LATITUDE && dadosViagem.DESTINO_LATITUDE != 0 ? parseFloat(dadosViagem.DESTINO_LATITUDE) : null;
+      const destinoLon = dadosViagem && dadosViagem.DESTINO_LONGITUDE ? parseFloat(dadosViagem.DESTINO_LONGITUDE) : null;
+      if (origemLat != null && origemLon != null && destinoLat != null && destinoLon != null &&
+          !isNaN(origemLat) && !isNaN(origemLon) && !isNaN(destinoLat) && !isNaN(destinoLon) &&
+          typeof window.getOSRMUrl === 'function') {
+        try {
+          const osrmUrl = window.getOSRMUrl([
+            { lat: origemLat, lon: origemLon },
+            { lat: destinoLat, lon: destinoLon }
+          ], { overview: 'full', geometries: 'geojson' });
+          const config = window.MAP_CONFIG || {};
+          const timeout = config.routeTimeout || 15000;
+          const res = await fetch(osrmUrl, { signal: AbortSignal.timeout(timeout) });
+          const data = await res.json();
+          if (data.routes && data.routes[0] && data.routes[0].geometry && data.routes[0].geometry.coordinates) {
+            const coords = data.routes[0].geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
+            coords.forEach(function(p) { bounds.push(p); });
+            L.polyline(coords, {
+              color: '#6366f1',
+              weight: 5,
+              opacity: 0.9,
+              dashArray: '10, 10'
+            }).addTo(map);
+          }
+        } catch (e) {
+          console.warn('Rota prevista (OSRM/ORS) não disponível, desenhando linha reta:', e.message);
+          L.polyline([[origemLat, origemLon], [destinoLat, destinoLon]], {
+            color: '#6366f1',
+            weight: 4,
+            opacity: 0.7,
+            dashArray: '8, 8'
+          }).addTo(map);
+        }
+      }
+
+      // Desenhar rota percorrida (polyline dos pontos GPS)
       if (routeCoordinates.length > 1) {
         L.polyline(routeCoordinates, {
           color: '#0ea5e9',
@@ -945,7 +985,7 @@
           container.innerHTML = `
             <div class="historico-list">
               ${eventos.map(evento => {
-                const hora = new Date(evento.DHREGISTRO || evento.CREATED_AT).toLocaleString('pt-BR', {
+                const hora = new Date(evento.DTOCORRENCIA || evento.DHREGISTRO || evento.CREATED_AT).toLocaleString('pt-BR', {
                   day: '2-digit',
                   month: '2-digit',
                   hour: '2-digit',
@@ -954,11 +994,11 @@
                 return `
                   <div class="historico-item">
                     <div class="historico-header">
-                      <div class="historico-tipo">📝 ${evento.DSMACRO || evento.TIPO || 'Evento'}</div>
+                      <div class="historico-tipo">📝 ${evento.DSTIPOOCORRENCIA || evento.DSMACRO || evento.TIPO || 'Evento'}</div>
                       <div class="historico-hora">${hora}</div>
                     </div>
                     <div class="historico-descricao">
-                      ${evento.DESCRICAO || evento.OBSERVACAO || 'Sem descrição'}
+                      ${evento.DSOBSERVACAO || evento.DESCRICAO || evento.OBSERVACAO || 'Sem descrição'}
                     </div>
                   </div>
                 `;
@@ -1025,11 +1065,18 @@
                 const tipoClasse = alerta.TYPE === 'CRITICAL' || alerta.SEVERITY === 'HIGH' ? 'critico' :
                                   alerta.TYPE === 'WARNING' || alerta.SEVERITY === 'MEDIUM' ? 'medio' : 'baixo';
                 
+                let statusFormatado = alerta.STATUS || (typeof window.t === 'function' ? window.t('detalhesViagem.ativo') : 'Ativo');
+                if (statusFormatado.toLowerCase() === 'resolved' || statusFormatado.toLowerCase() === 'resolvido') {
+                  statusFormatado = (typeof window.t === 'function' && window.t('detalhesViagem.resolvido') && window.t('detalhesViagem.resolvido') !== 'detalhesViagem.resolvido') ? window.t('detalhesViagem.resolvido') : 'Resolvido';
+                } else if (statusFormatado.toLowerCase() === 'active' || statusFormatado.toLowerCase() === 'ativo') {
+                  statusFormatado = (typeof window.t === 'function' && window.t('detalhesViagem.ativo') && window.t('detalhesViagem.ativo') !== 'detalhesViagem.ativo') ? window.t('detalhesViagem.ativo') : 'Ativo';
+                }
+
                 return `
                   <div class="alerta-item ${tipoClasse}">
                     <div class="alerta-header">
                       <div class="alerta-tipo">🚨 ${alerta.TYPE || alerta.TIPO || 'Alerta'}</div>
-                      <div class="alerta-status">${alerta.STATUS || (typeof window.t === 'function' ? window.t('detalhesViagem.ativo') : 'Ativo')}</div>
+                      <div class="alerta-status">${statusFormatado}</div>
                     </div>
                     <div class="alerta-descricao">
                       ${alerta.MESSAGE || alerta.MENSAGEM || 'Sem descrição'}

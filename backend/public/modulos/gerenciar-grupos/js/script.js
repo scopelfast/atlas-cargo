@@ -186,12 +186,18 @@
     init();
   }
 
-  // Função para mudar abas
+  // Função para mudar abas (escopo no container do módulo para não misturar Grid/Dados)
   async function showTab(tabId) {
-    tabs.forEach(btn => btn.classList.remove('active'));
-    tabContents.forEach(content => content.classList.remove('active'));
-    document.querySelector(`.tab-btn[data-tab="${tabId}"]`).classList.add('active');
-    document.getElementById(`tab-${tabId}`).classList.add('active');
+    const targetContent = document.getElementById(`tab-${tabId}`);
+    const targetBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
+    if (!targetContent || !targetBtn) return;
+    const container = targetContent.closest('[class*="-container"]') || targetContent.parentElement;
+    if (container) {
+      container.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    }
+    targetBtn.classList.add('active');
+    targetContent.classList.add('active');
 
     // Se a aba Grid foi ativada, garantir que o GridEditor seja inicializado
     if (tabId === 'grid') {
@@ -422,7 +428,7 @@
       columns: [
         { field: 'CDGRUPOEQUIPAMENTO', header: 'Código', editable: false, isId: true, width: '80px' },
         { field: 'DSGRUPOEQUIPAMENTO', header: 'Descrição', editable: true, type: 'text', maxlength: 40 },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px', align: 'right',
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '90px', align: 'right',
           options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }
@@ -522,8 +528,10 @@
       const newConfirmYes = confirmYes.cloneNode(true);
       const newConfirmNo = confirmNo.cloneNode(true);
       
-      // Atualizar texto do botão de confirmação
-      newConfirmYes.textContent = btnText;
+      newConfirmYes.className = 'btn-filtro btn-filtro-danger';
+      newConfirmYes.innerHTML = '<i class=\'bx bx-check\'></i> ' + btnText;
+      newConfirmNo.className = 'btn-filtro btn-filtro-limpar';
+      newConfirmNo.innerHTML = '<i class=\'bx bx-x\'></i> ' + (t('web.modulos.grupos.cancelar') || 'Cancelar');
       
       confirmYes.parentNode.replaceChild(newConfirmYes, confirmYes);
       confirmNo.parentNode.replaceChild(newConfirmNo, confirmNo);
@@ -661,22 +669,22 @@
   });
 
   document.getElementById('btnVoltarFiltros')?.addEventListener('click', () => showTab('filtros'));
-  document.getElementById('btnNovoRegistro')?.addEventListener('click', () => {
+
+  function irParaNovoGrupo() {
     grupoForm?.reset();
+    document.getElementById('grupoCodigo').value = '';
     document.getElementById('formTitle').textContent = t('web.modulos.grupos.novoGrupo');
     showTab('dados');
-  });
+  }
+
+  document.getElementById('btnNovoRegistro')?.addEventListener('click', irParaNovoGrupo);
 
   // Grid tab buttons
   document.getElementById('btnVoltarGrid')?.addEventListener('click', () => {
     showTab('filtros');
   });
 
-  document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
-    grupoForm?.reset();
-    document.getElementById('formTitle').textContent = t('web.modulos.grupos.novoGrupo');
-    showTab('dados');
-  });
+  document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', irParaNovoGrupo);
   
   document.getElementById('btnCancelar')?.addEventListener('click', () => showTab('grid'));
 

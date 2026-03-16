@@ -5,10 +5,25 @@
 
 const express = require('express');
 const router = express.Router();
+const path = require('path');
+const multer = require('multer');
 const motoristaAppController = require('../controllers/motorista-app.controller');
 const sincronizarRastreamentoController = require('../controllers/sincronizar-rastreamento-integra.controller');
 const deliveryProofRoutes = require('./delivery-proof.routes');
 const sosController = require('../controllers/sos.controller');
+
+const uploadMotoristasDir = path.join(__dirname, '..', 'public', 'uploads', 'motoristas');
+const storageMotorista = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    require('fs').mkdirSync(uploadMotoristasDir, { recursive: true });
+    cb(null, uploadMotoristasDir);
+  },
+  filename: (_req, file, cb) => {
+    const ext = (file.originalname && path.extname(file.originalname)) || '.jpg';
+    cb(null, `doc_${Date.now()}${ext}`);
+  }
+});
+const uploadDocMotorista = multer({ storage: storageMotorista }).single('documento');
 
 // ==========================================
 // ROTAS PÚBLICAS (sem autenticação)
@@ -17,11 +32,19 @@ const sosController = require('../controllers/sos.controller');
 // Configurações do app (telefone suporte, etc.) - ler variável TELEFONE_SUPORTE no .env
 router.get('/config', motoristaAppController.config);
 
+// Combo de classes de frota (PostgreSQL) para a tela de cadastro
+router.get('/classes-frota-combo', motoristaAppController.listarClassesFrotaCombo);
+
 // Login
 router.post('/login', motoristaAppController.login);
 
-// Cadastro (placeholder)
-router.post('/cadastro', motoristaAppController.cadastro);
+// Cadastro (multipart: campos + foto documento)
+router.post('/cadastro', (req, res, next) => {
+  uploadDocMotorista(req, res, (err) => {
+    if (err) return res.status(400).json({ error: 'Erro no upload da foto do documento.', errorKey: 'cadastro.uploadErro' });
+    next();
+  });
+}, motoristaAppController.cadastro);
 
 // Recuperar Senha (envia código por SMS/email - ver implementação)
 router.post('/recuperar-senha', motoristaAppController.recuperarSenha);

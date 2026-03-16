@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Gerenciar Tipo de Ocorrência</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/modulos.css">
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <style>
+      /* ========== Gerenciar Tipo de Ocorrência - Identidade Atlas Cargo ========== */
+      .tipo-ocorrencia-container {
+        padding: 20px;
+        font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+      }
+
+      .tipo-ocorrencia-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 25px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid var(--light-gray, #e2e8f0);
+      }
+
+      .tipo-ocorrencia-header h2 {
+        margin: 0;
+        color: var(--ac-primary, #0d2137);
+        font-size: 28px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .tipo-ocorrencia-container .tabs.tabs-com-icones {
+        display: flex;
+        margin-bottom: 25px;
+        border-bottom: 2px solid var(--light-gray, #e2e8f0);
+        gap: 0;
+      }
+      .tipo-ocorrencia-container .tabs.tabs-com-icones .tab-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 20px;
+        border: none;
+        background: transparent;
+        color: #94a3b8;
+        font-weight: 600;
+        font-size: 15px;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+        transition: color 0.2s, border-color 0.2s;
+        font-family: inherit;
+      }
+      .tipo-ocorrencia-container .tabs.tabs-com-icones .tab-btn i { font-size: 1.15rem; color: inherit; }
+      .tipo-ocorrencia-container .tabs.tabs-com-icones .tab-btn:hover { color: #64748b; }
+      .tipo-ocorrencia-container .tabs.tabs-com-icones .tab-btn.active { color: var(--ac-primary, #0d2137); border-bottom-color: var(--ac-primary, #0d2137); }
+      .tipo-ocorrencia-container .tabs.tabs-com-icones .tab-btn.active i { color: var(--ac-primary, #0d2137); }
+
+      .btn-filtro {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 22px;
+        border: none;
+        border-radius: 10px;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+        transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.15s;
+      }
+      .btn-filtro:hover { transform: translateY(-1px); }
+      .btn-filtro i { font-size: 1.15rem; }
+      .btn-filtro-limpar { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+      .btn-filtro-limpar:hover { background: #e2e8f0; color: #334155; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+      .btn-filtro-aplicar { background: var(--ac-accent, #0ea5e9); color: #fff; box-shadow: 0 2px 8px rgba(14, 165, 233, 0.25); }
+      .btn-filtro-aplicar:hover { background: var(--ac-accent-hover, #0284c7); box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35); }
+      .btn-filtro-novo { background: var(--success, #059669); color: #fff; box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25); }
+      .btn-filtro-novo:hover { background: #047857; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35); }
+      .btn-filtro-danger { background: #dc2626; color: #fff; box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25); }
+      .btn-filtro-danger:hover { background: #b91c1c; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35); }
+
+      .form-dados-card {
+        background: #fff;
+        border-radius: 12px;
+        border: 1px solid var(--border, #e2e8f0);
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        margin-bottom: 24px;
+        overflow: hidden;
+      }
+      .form-dados-card-header {
+        padding: 14px 20px;
+        background: #f8fafc;
+        border-bottom: 1px solid var(--border, #e2e8f0);
+        font-weight: 600;
+        font-size: 1rem;
+        color: var(--ac-primary, #0d2137);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .form-dados-card-header i { font-size: 1.2rem; color: var(--ac-accent, #0ea5e9); }
+      .form-dados-card-body { padding: 20px; overflow: visible; }
+      .form-dados-card-body .filtros-grid { overflow: visible; }
+
+      .form-group-toggle-wrap {
+        margin: 20px 0 8px 0;
+        padding: 16px 0 0 0;
+        border-top: 1px solid var(--border, #e2e8f0);
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .form-dados-card-tempo .form-group-toggle-wrap {
+        border-top: none;
+        padding-top: 0;
+        margin-top: 0;
+      }
+      .form-group-toggle { margin: 0 0 8px 0; }
+      .toggle-label {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        cursor: pointer;
+        font-weight: 500;
+        color: #334155;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .toggle-label .toggle-slider {
+        flex-shrink: 0;
+        margin: 0;
+      }
+      .toggle-label .toggle-text {
+        flex: 1;
+        min-width: 0;
+        line-height: 1.4;
+        padding-left: 0;
+      }
+      .form-text-toggle {
+        margin: 0;
+        font-size: 13px;
+        color: #64748b;
+        line-height: 1.45;
+      }
+      .form-group-dependent.form-group-fullwidth {
+        margin-top: 12px;
+        margin-bottom: 16px;
+      }
+      .form-group-dependent.form-group-fullwidth .form-control { max-width: 200px; }
+      .form-control-toggle {
+        position: absolute;
+        opacity: 0;
+        width: 0;
+        height: 0;
+        margin: 0;
+        padding: 0;
+        pointer-events: none;
+      }
+      .toggle-slider {
+        width: 44px;
+        height: 24px;
+        background: #cbd5e1;
+        border-radius: 24px;
+        position: relative;
+        transition: background 0.2s;
+      }
+      .toggle-slider::after {
+        content: '';
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        left: 2px;
+        top: 2px;
+        background: #fff;
+        border-radius: 50%;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        transition: transform 0.2s;
+      }
+      .form-control-toggle:checked + .toggle-slider {
+        background: var(--ac-accent, #0ea5e9);
+      }
+      .form-control-toggle:checked + .toggle-slider::after {
+        transform: translateX(20px);
+      }
+      .toggle-text { user-select: none; }
+      .form-group-dependent { margin-top: 8px; margin-bottom: 16px; }
+
+      #tiposOcorrenciaGrid .grid-actions-header,
+      #tiposOcorrenciaGrid th:last-child { width: 88px !important; min-width: 88px !important; max-width: 88px !important; }
+      #tiposOcorrenciaGrid .grid-actions,
+      #tiposOcorrenciaGrid td:last-child { width: 88px !important; min-width: 88px !important; max-width: 88px !important; }
+
+      .filtros-box {
+        background: white;
+        border-radius: 12px;
+        padding: 25px;
+        box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
+        margin-bottom: 25px;
+        border: 1px solid var(--border, #e2e8f0);
+      }
+      .filtros-box h3 {
+        margin: 0 0 20px 0;
+        color: var(--ac-primary, #0d2137);
+        font-size: 18px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .filtros-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin-bottom: 15px;
+      }
+      .filtros-grid > div { display: flex; flex-direction: column; }
+      .filtros-grid label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: var(--dark, #1e293b);
+        font-size: 14px;
+      }
+      .filtros-grid .form-control {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid var(--border, #e2e8f0);
+        border-radius: 8px;
+        font-size: 16px;
+        transition: all 0.3s;
+        font-family: inherit;
+        box-sizing: border-box;
+        background-color: #fff;
+        color: var(--ac-primary, #0d2137);
+      }
+      .filtros-grid .form-control:focus {
+        outline: none;
+        border-color: var(--ac-accent, #0ea5e9);
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+      }
+      .form-dados-card-body .form-group-dependent label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: var(--dark, #1e293b);
+        font-size: 14px;
+      }
+      .form-dados-card-body .form-control {
+        width: 100%;
+        max-width: 320px;
+        padding: 12px;
+        border: 1px solid var(--border, #e2e8f0);
+        border-radius: 8px;
+        font-size: 16px;
+        transition: all 0.3s;
+        font-family: inherit;
+        box-sizing: border-box;
+        background-color: #fff;
+        color: var(--ac-primary, #0d2137);
+      }
+      .form-dados-card-body .form-control:focus {
+        outline: none;
+        border-color: var(--ac-accent, #0ea5e9);
+        box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+      }
+      .filtros-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        margin-top: 15px;
+      }
+      .filtros-actions .btn { margin-right: 0; }
+
+    </style>
+</head>
+<body>
+    <div class="tipo-ocorrencia-container">
+      <div class="tipo-ocorrencia-header">
+        <h2><i class='bx bx-list-check'></i> Gerenciar Tipo de Ocorrência</h2>
+      </div>
+
+      <div class="tabs tabs-com-icones">
+        <button class="tab-btn active" data-tab="filtros"><i class='bx bx-filter-alt'></i> Filtros</button>
+        <button class="tab-btn" data-tab="grid"><i class='bx bx-grid-alt'></i> Grid</button>
+        <button class="tab-btn" data-tab="dados"><i class='bx bx-edit'></i> Dados</button>
+      </div>
+
+      <!-- Filtros -->
+      <div class="tab-content active" id="tab-filtros">
+        <div class="filtros-box">
+          <h3><i class='bx bx-filter'></i> Filtros</h3>
+          <form id="filtroForm" onsubmit="return false;">
+            <div class="filtros-grid">
+              <div>
+                <label for="filtroCodigo">Código</label>
+                <input type="number" id="filtroCodigo" min="0" class="form-control">
+              </div>
+              <div>
+                <label for="filtroDescricao">Descrição</label>
+                <input type="text" id="filtroDescricao" maxlength="100" class="form-control">
+              </div>
+              <div>
+                <label for="filtroSituacao">Situação</label>
+                <select id="filtroSituacao" class="form-control">
+                  <option value="">Todas</option>
+                  <option value="S">Ativo</option>
+                  <option value="N">Inativo</option>
+                </select>
+              </div>
+            </div>
+            <div class="filtros-actions">
+              <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> Limpar</button>
+              <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class='bx bx-search'></i> Filtrar</button>
+              <button type="button" id="btnNovoRegistro" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> Novo</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Grid -->
+      <div class="tab-content" id="tab-grid">
+        <div class="filtros-box">
+          <h3>Visualização em Grid</h3>
+          <div class="filtros-actions" style="justify-content: space-between; margin-top: 0; margin-bottom: 15px;">
+            <button id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> Voltar</button>
+            <button id="btnNovoRegistroGrid" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> Novo</button>
+          </div>
+          <div style="padding: 10px 0; color: var(--gray); font-size: 14px; font-weight: 500;">
+            <span id="tiposOcorrenciaGridCountText">0 registro(s) encontrado(s)</span>
+          </div>
+          <div id="tiposOcorrenciaGrid" class="grid-container">
+            <p class="empty">Aplicar filtros para carregar o grid.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dados -->
+      <div class="tab-content" id="tab-dados">
+        <div class="filtros-box">
+          <h3 id="formTitle">Novo Tipo de Ocorrência</h3>
+          <form id="tipoOcorrenciaForm">
+            <div class="form-dados-card">
+              <div class="form-dados-card-header"><i class='bx bx-list-check'></i> Identificação</div>
+              <div class="form-dados-card-body">
+                <div class="filtros-grid">
+                  <div>
+                    <label for="tipoCodigo">Código</label>
+                    <input type="text" id="tipoCodigo" readonly class="form-control">
+                  </div>
+                  <div>
+                    <label for="tipoDescricao">Descrição *</label>
+                    <input type="text" id="tipoDescricao" required maxlength="100" class="form-control" placeholder="Ex: Viagem - Início">
+                  </div>
+                  <div>
+                    <label for="tipoFgSituacao">Situação macro (FGSITUACAO)</label>
+                    <select id="tipoFgSituacao" class="form-control">
+                      <option value="">—</option>
+                      <option value="T">T - Viagem</option>
+                      <option value="P">P - Parada</option>
+                      <option value="C">C - Carga</option>
+                      <option value="D">D - Descarga</option>
+                      <option value="F">F - Final</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for="tipoSeq">Sequência (SEQ)</label>
+                    <input type="number" id="tipoSeq" min="0" class="form-control" placeholder="Ex: 1">
+                  </div>
+                  <div>
+                    <label for="tipoSituacaoViagem">Situação da viagem (ao registrar esta macro)</label>
+                    <select id="tipoSituacaoViagem" class="form-control">
+                      <option value="">— Nenhuma —</option>
+                    </select>
+                    <small class="form-text text-muted">Atualiza a situação da viagem no Gerenciar Viagens quando o motorista registrar esta macro.</small>
+                  </div>
+                  <div>
+                    <label for="tipoSituacao">Situação *</label>
+                    <select id="tipoSituacao" required class="form-control">
+                      <option value="S">Ativo</option>
+                      <option value="N">Inativo</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="form-dados-card form-dados-card-tempo">
+              <div class="form-dados-card-header"><i class='bx bx-time-five'></i> Tempo para alertas</div>
+              <div class="form-dados-card-body">
+                <div class="form-group-toggle-wrap">
+                  <div class="form-group-toggle">
+                    <label class="toggle-label">
+                      <input type="checkbox" id="tipoControleTempo" class="form-control-toggle">
+                      <span class="toggle-slider"></span>
+                      <span class="toggle-text">Controlar tempo para esta situação (alertas)</span>
+                    </label>
+                  </div>
+                  <p class="form-text form-text-toggle">Ligado: gera alerta se passar do tempo máximo sem a próxima ação. Ex.: Início/Reinício pode servir para tempo de direção.</p>
+                </div>
+                <div id="wrapTempoMaximo" class="form-group-dependent form-group-fullwidth" style="display: none;">
+                  <label for="tipoTempoMaximo">Tempo máximo (minutos)</label>
+                  <input type="number" id="tipoTempoMaximo" min="0" class="form-control form-control-tempo" placeholder="Ex: 240 (4 horas)">
+                  <small class="form-text text-muted">Se a última macro da viagem for esta e passar deste tempo sem registrar a próxima, o sistema pode gerar alerta.</small>
+                </div>
+              </div>
+            </div>
+            <div class="filtros-actions" style="margin-top: 20px;">
+              <button type="submit" class="btn-filtro btn-filtro-novo"><i class='bx bx-save'></i> Salvar</button>
+              <button type="button" id="btnCancelar" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> Cancelar</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div id="confirmModal" class="modal">
+        <div class="modal-content">
+          <h3>Confirmar Ação</h3>
+          <p id="modalMessage"></p>
+          <div class="modal-actions">
+            <button id="confirmYes" class="btn-filtro btn-filtro-danger" type="button"><i class='bx bx-check'></i> Desativar</button>
+            <button id="confirmNo" class="btn-filtro btn-filtro-limpar" type="button"><i class='bx bx-x'></i> Cancelar</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="message" class="message"></div>
+    </div>
+
+    <script src="/js/cache-buster.js?v=202612091200"></script>
+    <script src="/js/utils.js"></script>
+    <script>
+      (function() {
+        if (typeof window.GridEditor === 'undefined') {
+          const script = document.createElement('script');
+          script.src = '/js/grid-editor.js';
+          document.head.appendChild(script);
+        }
+      })();
+    </script>
+    <script src="js/script.js"></script>
+</body>
+</html>

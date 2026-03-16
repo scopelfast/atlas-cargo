@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" href="/img/logoAtlasTransparente.png" id="faviconLink">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" crossorigin="anonymous">
   <script>
     // INTERCEPTOR GLOBAL: Remover ? de todas as URLs
@@ -296,6 +296,8 @@
       // Carregar CSS com protocolo correto
       loadCSS('/css/boxicons.min.css');
       loadCSS('/css/style.css');
+      loadCSS('/css/login-adminlte.css');
+      loadCSS('/css/dark-mode.css');
       
       // Monitorar continuamente e corrigir URLs
       setInterval(function() {
@@ -363,59 +365,36 @@
     }
     .idioma-selector-web .btn-idioma:hover { background: #f1f5f9; border-color: #94a3b8; }
     .idioma-selector-web .btn-idioma.active { background: #0d2137; color: #fff; border-color: #0d2137; }
+    .login-theme-toggle { position: fixed; top: 20px; right: 20px; z-index: 1000; }
+    .theme-toggle-btn {
+      width: 44px; height: 44px; border-radius: 50%;
+      border: 1px solid #e2e8f0; background: #fff;
+      color: #64748b; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 1.4rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+    }
+    .theme-toggle-btn:hover { background: #f1f5f9; color: #0d2137; border-color: #cbd5e1; }
   </style>
 </head>
-<body>
-  <!-- Redirecionamento via script externo recomendado -->
+<body class="login-page">
+  <script>
+    (function() {
+      var theme = localStorage.getItem('theme');
+      if (theme === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+  <!-- Botão modo escuro/claro (canto superior) -->
+  <div class="login-theme-toggle" title="Alternar modo escuro">
+    <button type="button" id="themeToggleBtn" class="theme-toggle-btn" aria-label="Modo escuro">
+      <i class='bx bx-moon' id="themeToggleIcon"></i>
+    </button>
+  </div>
 
   <div class="login-container">
-    <!-- Lado Esquerdo - Marketing/Informações -->
-    <div class="login-left">
-      <div class="login-branding">
-        <div class="logo-box">
-          <img id="logoImg" src="/img/logoAtlasTransparenteQuadrada.png?v=2" alt="Atlas Cargo" />
-        </div>
-        <p class="brand-subtitle">Sistema de Gestão de Transporte e Logística</p>
-      </div>
-
-      <div class="features-grid">
-        <div class="feature-card feature-card-blue">
-          <div class="feature-icon feature-icon-blue">
-            <i class='bx bxs-truck'></i>
-          </div>
-          <h3 data-i18n="web.login.card1Title">Controle Total da Operação</h3>
-          <p data-i18n="web.login.card1Desc">Gerencie viagens, rotas e frotas com precisão e simplicidade.</p>
-        </div>
-        <div class="feature-card feature-card-green">
-          <div class="feature-icon feature-icon-green">
-            <i class='bx bx-line-chart'></i>
-          </div>
-          <h3 data-i18n="web.login.card2Title">Insights que Geram Resultados</h3>
-          <p data-i18n="web.login.card2Desc">Transforme dados em decisões estratégicas com relatórios inteligentes.</p>
-        </div>
-        <div class="feature-card feature-card-purple">
-          <div class="feature-icon feature-icon-purple">
-            <i class='bx bx-shield-quarter'></i>
-          </div>
-          <h3 data-i18n="web.login.card3Title">Segurança Inviolável</h3>
-          <p data-i18n="web.login.card3Desc">Proteção avançada para manter suas informações sempre seguras.</p>
-        </div>
-        <div class="feature-card feature-card-amber">
-          <div class="feature-icon feature-icon-amber">
-            <i class='bx bxs-bolt'></i>
-          </div>
-          <h3 data-i18n="web.login.card4Title">Eficiência sem Fronteiras</h3>
-          <p data-i18n="web.login.card4Desc">Agilidade que acelera sua logística e reduz custos.</p>
-        </div>
-      </div>
-
-      <div class="login-footer">
-        <p><i class='bx bx-info-circle'></i> Sistema desenvolvido com tecnologia de ponta</p>
-      </div>
-    </div>
-
-    <!-- Lado Direito - Formulário de Login -->
-    <div class="login-right">
+    <!-- Área única: formulário com logo abaixo do subtítulo -->
+    <div class="login-center">
       <div class="form-box">
         <div class="idioma-selector-web">
           <span class="idioma-label" data-i18n="web.login.idioma">Idioma:</span>
@@ -426,17 +405,22 @@
           <h2 data-i18n="web.login.titulo">Bem-vindo de volta!</h2>
           <p data-i18n="web.login.descricao">Entre com suas credenciais para acessar o sistema</p>
         </div>
+        <div class="login-branding">
+          <div class="logo-box">
+            <img id="logoImg" src="/img/logoAtlasTransparenteQuadrada.png?v=2" alt="Atlas Cargo" />
+          </div>
+        </div>
 
         <form id="loginForm">
           <div class="input-box">
+            <label for="username" data-i18n="web.login.usuario">Usuário</label>
             <i class='bx bxs-user input-icon'></i>
             <input type="text" id="username" placeholder=" " required />
-            <label for="username" data-i18n="web.login.usuario">Usuário</label>
           </div>
           <div class="input-box">
+            <label for="password" data-i18n="web.login.senha">Senha</label>
             <i class='bx bxs-lock-alt input-icon'></i>
             <input type="password" id="password" placeholder=" " required autocomplete="current-password" />
-            <label for="password" data-i18n="web.login.senha">Senha</label>
             <span class="toggle-password" id="togglePassword">
               <i class='bx bx-hide'></i>
             </span>
@@ -471,34 +455,28 @@
       </div>
       <div class="modal-alterar-senha-body">
         <form id="formAlterarSenha">
-          <div class="input-box">
+          <div class="input-box modal-input-box">
+            <label for="alterarSenhaUsuario">Usuário (Login)</label>
             <i class='bx bxs-user input-icon'></i>
             <input type="text" id="alterarSenhaUsuario" placeholder=" " required />
-            <label for="alterarSenhaUsuario">Usuário (Login)</label>
           </div>
-          <div class="input-box">
+          <div class="input-box modal-input-box">
+            <label for="alterarSenhaAtual">Senha Atual</label>
             <i class='bx bxs-lock-alt input-icon'></i>
             <input type="password" id="alterarSenhaAtual" placeholder=" " required autocomplete="current-password" />
-            <label for="alterarSenhaAtual">Senha Atual</label>
-            <span class="toggle-password" id="toggleSenhaAtual">
-              <i class='bx bx-hide'></i>
-            </span>
+            <span class="toggle-password" id="toggleSenhaAtual"><i class='bx bx-hide'></i></span>
           </div>
-          <div class="input-box">
+          <div class="input-box modal-input-box">
+            <label for="alterarSenhaNova">Nova Senha</label>
             <i class='bx bxs-lock-alt input-icon'></i>
             <input type="password" id="alterarSenhaNova" placeholder=" " required autocomplete="new-password" />
-            <label for="alterarSenhaNova">Nova Senha</label>
-            <span class="toggle-password" id="toggleSenhaNova">
-              <i class='bx bx-hide'></i>
-            </span>
+            <span class="toggle-password" id="toggleSenhaNova"><i class='bx bx-hide'></i></span>
           </div>
-          <div class="input-box">
+          <div class="input-box modal-input-box">
+            <label for="alterarSenhaConfirmar">Confirmar Nova Senha</label>
             <i class='bx bxs-lock-alt input-icon'></i>
             <input type="password" id="alterarSenhaConfirmar" placeholder=" " required autocomplete="new-password" />
-            <label for="alterarSenhaConfirmar">Confirmar Nova Senha</label>
-            <span class="toggle-password" id="toggleSenhaConfirmar">
-              <i class='bx bx-hide'></i>
-            </span>
+            <span class="toggle-password" id="toggleSenhaConfirmar"><i class='bx bx-hide'></i></span>
           </div>
           
           <div class="error-message" id="errorMessageSenha"></div>
@@ -693,6 +671,33 @@
           if (typeof window.applyI18nWeb === 'function') window.applyI18nWeb();
         });
       }
+
+      // Modo escuro na tela de login (mesma chave 'theme' do dashboard)
+      (function() {
+        var KEY = 'theme';
+        var root = document.documentElement;
+        var btn = document.getElementById('themeToggleBtn');
+        var icon = document.getElementById('themeToggleIcon');
+        function getTheme() { try { return localStorage.getItem(KEY) || 'light'; } catch (e) { return 'light'; } }
+        function setTheme(theme) {
+          if (theme === 'dark') {
+            root.setAttribute('data-theme', 'dark');
+            if (icon) { icon.className = 'bx bx-sun'; }
+            if (btn) btn.setAttribute('title', 'Ativar modo claro');
+          } else {
+            root.removeAttribute('data-theme');
+            if (icon) { icon.className = 'bx bx-moon'; }
+            if (btn) btn.setAttribute('title', 'Alternar modo escuro');
+          }
+          try { localStorage.setItem(KEY, theme); } catch (e) {}
+        }
+        setTheme(getTheme());
+        if (btn) {
+          btn.addEventListener('click', function() {
+            setTheme(getTheme() === 'dark' ? 'light' : 'dark');
+          });
+        }
+      })();
     })();
   </script>
 </body>

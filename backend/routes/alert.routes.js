@@ -23,6 +23,9 @@ router.get('/contador', alertController.contador);
 // Listar alertas com filtros
 router.get('/', alertController.listar);
 
+// Criar alerta de teste (para validar se a lista exibe)
+router.post('/criar-teste', alertController.criarAlertaTeste);
+
 // Listar apenas pendentes
 router.get('/pendentes', alertController.listarPendentes);
 

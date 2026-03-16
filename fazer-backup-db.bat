@@ -8,12 +8,15 @@ echo   Iniciando Backup do PostgreSQL...
 echo ==========================================
 echo.
 
-:: Configurando a senha fornecida no .env
-set "PGPASSWORD=Atlas2020$$"
+:: Configurando a senha (ajuste se necessario)
+set "PGPASSWORD=SistMSQLServer2025&*"
 
-:: O comando usa as aspas no SET para garantir que o & e o * sejam lidos corretamente como texto
+:: Nome do arquivo com data e hora para nao sobrescrever backups antigos
+for /f "tokens=1-6 delims=/: " %%a in ("%date% %time%") do set DTS=%%c%%a%%b_%%d%%e%%f
+set DTS=%DTS: =0%
+set "ARQUIVO=%~dp0atlas_cargo_prd_backup_%DTS%.sql"
 
-"C:\Program Files\PostgreSQL\18\bin\pg_dump.exe" -U atlascargo -h localhost -p 5432 -F c -b -v -f "C:\gitHub\SysScopel\atlas_cargo_prd_backup.dump" atlas_cargo_prd
+"C:\Program Files\PostgreSQL\18\bin\pg_dump.exe" -U sa -h localhost -p 5432 -F p -b -v -f "%ARQUIVO%" atlas_cargo_prd
 
 if %errorlevel% neq 0 (
   echo.
@@ -25,7 +28,7 @@ if %errorlevel% neq 0 (
 echo.
 echo ==========================================
 echo   Backup concluido com sucesso!
-echo   Arquivo gerado: atlas_cargo_prd_backup.dump
+echo   Arquivo gerado: %ARQUIVO%
 echo ==========================================
 echo.
 pause

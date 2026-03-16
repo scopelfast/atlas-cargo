@@ -111,8 +111,8 @@ router.get('/roteiros', async (req, res) => {
     const { 
       codigo, 
       descricao, 
-      origemEstado, origemCidade, 
-      destinoEstado, destinoCidade 
+      origemPais, origemEstado, origemCidade, 
+      destinoPais, destinoEstado, destinoCidade 
     } = req.query;
     
     // Verificar se a tabela tem campo FGACTIVE
@@ -133,9 +133,11 @@ router.get('/roteiros', async (req, res) => {
         [r].[DSROTEIRO],
         [r].[DISTANCIAKM],
         [r].[CDCIDADEORIGEM],
+        [co].[CDPAIS] AS ORIGEM_CDPAIS,
         [co].[ESTADO] AS ORIGEM_ESTADO,
         [co].[NMCIDADE] AS ORIGEM_CIDADE,
         [r].[CDCIDADEDESTINO],
+        [cd].[CDPAIS] AS DESTINO_CDPAIS,
         [cd].[ESTADO] AS DESTINO_ESTADO,
         [cd].[NMCIDADE] AS DESTINO_CIDADE,
         [r].[RESUMOROTA]
@@ -163,6 +165,10 @@ router.get('/roteiros', async (req, res) => {
       query += ` AND [r].[DSROTEIRO] LIKE @DESCRICAO`;
       params.push({ name: 'DESCRICAO', value: `%${descricao}%` });
     }
+    if (origemPais) {
+      query += ` AND [co].[CDPAIS] = @ORIGEM_PAIS`;
+      params.push({ name: 'ORIGEM_PAIS', value: origemPais });
+    }
     if (origemEstado) {
       query += ` AND [co].[ESTADO] = @ORIGEM_ESTADO`;
       params.push({ name: 'ORIGEM_ESTADO', value: origemEstado });
@@ -170,6 +176,10 @@ router.get('/roteiros', async (req, res) => {
     if (origemCidade) {
       query += ` AND [co].[NMCIDADE] LIKE @ORIGEM_CIDADE`;
       params.push({ name: 'ORIGEM_CIDADE', value: `%${origemCidade}%` });
+    }
+    if (destinoPais) {
+      query += ` AND [cd].[CDPAIS] = @DESTINO_PAIS`;
+      params.push({ name: 'DESTINO_PAIS', value: destinoPais });
     }
     if (destinoEstado) {
       query += ` AND [cd].[ESTADO] = @DESTINO_ESTADO`;
@@ -191,9 +201,11 @@ router.get('/roteiros', async (req, res) => {
         DSROTEIRO: getRow(r, 'DSROTEIRO'),
         DISTANCIAKM: getRow(r, 'DISTANCIAKM'),
         CDCIDADEORIGEM: getRow(r, 'CDCIDADEORIGEM'),
+        ORIGEM_CDPAIS: getRow(r, 'ORIGEM_CDPAIS'),
         ORIGEM_ESTADO: getRow(r, 'ORIGEM_ESTADO') || '',
         ORIGEM_CIDADE: getRow(r, 'ORIGEM_CIDADE') || '',
         CDCIDADEDESTINO: getRow(r, 'CDCIDADEDESTINO'),
+        DESTINO_CDPAIS: getRow(r, 'DESTINO_CDPAIS'),
         DESTINO_ESTADO: getRow(r, 'DESTINO_ESTADO') || '',
         DESTINO_CIDADE: getRow(r, 'DESTINO_CIDADE') || '',
         RESUMOROTA: getRow(r, 'RESUMOROTA') || null
@@ -238,9 +250,11 @@ router.get('/roteiros/:id', async (req, res) => {
         [r].[DSROTEIRO],
         [r].[DISTANCIAKM],
         [r].[CDCIDADEORIGEM],
+        [co].[CDPAIS] AS ORIGEM_CDPAIS,
         [co].[ESTADO] AS ORIGEM_ESTADO,
         [co].[NMCIDADE] AS ORIGEM_CIDADE,
         [r].[CDCIDADEDESTINO],
+        [cd].[CDPAIS] AS DESTINO_CDPAIS,
         [cd].[ESTADO] AS DESTINO_ESTADO,
         [cd].[NMCIDADE] AS DESTINO_CIDADE,
         [r].[RESUMOROTA]
@@ -272,9 +286,11 @@ router.get('/roteiros/:id', async (req, res) => {
       DSROTEIRO: getRow(r, 'DSROTEIRO'),
       DISTANCIAKM: getRow(r, 'DISTANCIAKM'),
       CDCIDADEORIGEM: getRow(r, 'CDCIDADEORIGEM'),
+      ORIGEM_CDPAIS: getRow(r, 'ORIGEM_CDPAIS'),
       ORIGEM_ESTADO: getRow(r, 'ORIGEM_ESTADO') || '',
       ORIGEM_CIDADE: getRow(r, 'ORIGEM_CIDADE') || '',
       CDCIDADEDESTINO: getRow(r, 'CDCIDADEDESTINO'),
+      DESTINO_CDPAIS: getRow(r, 'DESTINO_CDPAIS'),
       DESTINO_ESTADO: getRow(r, 'DESTINO_ESTADO') || '',
       DESTINO_CIDADE: getRow(r, 'DESTINO_CIDADE') || '',
       RESUMOROTA: getRow(r, 'RESUMOROTA') || null

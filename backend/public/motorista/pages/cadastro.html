@@ -21,40 +21,66 @@
       background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
       min-height: 100vh;
       padding: 20px;
+      padding-left: max(12px, env(safe-area-inset-left));
+      padding-right: max(12px, env(safe-area-inset-right));
     }
 
     .container {
       background: white;
       border-radius: 20px;
       box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-      padding: 40px 30px;
+      padding: 0 0 40px 0;
       max-width: 500px;
+      width: 100%;
+      margin: 0 auto;
+      overflow: hidden;
+    }
+
+    /* Celular: menos margem e padding para os campos aproveitarem toda a largura */
+    @media (max-width: 480px) {
+      body { padding-left: 8px; padding-right: 8px; }
+      .container { border-radius: 16px; }
+      #formCadastro { padding: 20px 16px 32px; }
+      .form-section-body { padding: 12px 0; }
+      input, select { padding: 12px 14px; font-size: 16px; }
+    }
+
+    /* Topo igual ao index do motorista (logo-section) */
+    .logo-section {
+      background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%);
+      color: #fff;
+      text-align: center;
+      padding: 24px 24px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .logo-section .logo-wrap { margin-bottom: 8px; }
+    .logo-section .logo {
+      max-width: 100%;
+      height: auto;
+      min-height: 48px;
+      object-fit: contain;
+      display: block;
       margin: 0 auto;
     }
-
-    .logo {
-      text-align: center;
-      margin-bottom: 30px;
+    .logo-section .app-badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      color: rgba(255,255,255,0.9);
+      background: rgba(255,255,255,0.15);
+      padding: 6px 14px;
+      border-radius: 999px;
+    }
+    .logo-section .cadastro-titulo {
+      font-size: 1rem;
+      font-weight: 600;
+      color: rgba(255,255,255,0.95);
+      margin: 12px 0 0 0;
     }
 
-    .logo-icon {
-      font-size: 60px;
-      margin-bottom: 10px;
-    }
-
-    h1 {
-      font-size: 24px;
-      color: #333;
-      margin-bottom: 10px;
-      text-align: center;
-    }
-
-    .subtitle {
-      font-size: 14px;
-      color: #666;
-      text-align: center;
-      margin-bottom: 30px;
-    }
+    #formCadastro { padding: 24px 24px 40px; box-sizing: border-box; }
+    .form-section:first-of-type { padding-top: 0; }
 
     .form-group {
       margin-bottom: 20px;
@@ -186,19 +212,83 @@
       font-weight: normal;
       flex: 1;
     }
+    .locais-hint { margin-bottom: 16px; font-size: 13px; color: #666; line-height: 1.4; }
+    .locais-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 20px; margin-bottom: 16px; }
+    .locais-cell { margin-bottom: 0; }
+    .locais-cell select { min-width: 0; width: 100%; }
+    .locais-cell-pais select { min-width: 120px; }
+    .locais-cell-estado select, .locais-cell-meso select { min-width: 100px; }
+    .label-nowrap { white-space: nowrap; }
+    .btn-adicionar-local { width: 100%; max-width: 220px; margin-bottom: 16px; }
+    .locais-lista { margin-top: 8px; min-height: 24px; }
+    .locais-lista .item-local { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: #f8fafc; border-radius: 8px; margin-bottom: 8px; font-size: 14px; flex-wrap: wrap; }
+    .locais-lista .item-local .tipo { font-weight: 600; min-width: 72px; }
+    .locais-lista .item-local .remover { margin-left: auto; padding: 6px 12px; font-size: 12px; cursor: pointer; color: #dc2626; background: transparent; border: 1px solid #dc2626; border-radius: 6px; }
+    .checkbox-list { display: flex; flex-wrap: wrap; gap: 12px 20px; }
+    .checkbox-list label { display: flex; align-items: center; gap: 8px; font-weight: normal; margin: 0; cursor: pointer; }
+    .checkbox-list input[type="checkbox"] { width: auto; flex-shrink: 0; }
+    .checkbox-list-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 24px; }
+    .checkbox-list-grid label { min-width: 0; }
+    @media (min-width: 420px) {
+      .checkbox-list-grid { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 480px) {
+      .locais-grid { grid-template-columns: 1fr; }
+    }
+
+    .form-section {
+      margin: 24px 0 0 0;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #e2e8f0;
+    }
+    .form-section-header {
+      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+      color: #f1f5f9;
+      padding: 12px 16px;
+      font-size: 15px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .form-section-header .icon {
+      font-size: 1.25rem;
+      opacity: 0.95;
+    }
+    .form-section-body {
+      padding: 16px;
+      background: #fff;
+    }
+    .btn-foto-opcao {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      margin: 4px 8px 4px 0;
+      border: 2px solid #0ea5e9;
+      background: #f0f9ff;
+      color: #0369a1;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .btn-foto-opcao:hover { background: #e0f2fe; }
+    #ocrStatus { font-size: 13px; color: #64748b; margin-top: 10px; min-height: 20px; }
+    #ocrStatus.ocr-ok { color: #059669; }
+    #ocrStatus.ocr-erro { color: #dc2626; }
   </style>
 </head>
 <body class="motorista-page">
   <div class="container">
-    <div class="logo">
-      <div class="logo-icon">🚛</div>
-      <h1 data-i18n="cadastro.titulo">Cadastro de Motorista</h1>
-      <div class="subtitle" data-i18n="cadastro.subtitle">Preencha seus dados para criar sua conta</div>
-    </div>
-
-    <div class="info-box">
-      ⚠️ <strong>Atenção:</strong> O cadastro está temporariamente desabilitado. Entre em contato com o RH ou administrador para criar sua conta.
-    </div>
+    <header class="logo-section">
+      <div class="logo-wrap">
+        <img id="logoImg" alt="Atlas Cargo" class="logo" src="/img/logoAtlasTransparente.png">
+      </div>
+      <span class="app-badge">Motorista</span>
+      <h1 class="cadastro-titulo" data-i18n="cadastro.titulo">Cadastro de Motorista</h1>
+    </header>
 
     <div id="successMessage" class="success-message"></div>
     <div id="errorMessage" class="error-message"></div>
@@ -209,234 +299,848 @@
     </div>
 
     <form id="formCadastro" style="display: block;">
-      <div class="form-group">
-        <label for="nome">Nome Completo *</label>
-        <input 
-          type="text" 
-          id="nome" 
-          placeholder="Digite seu nome completo"
-          required
-          disabled
-        >
+      <input type="file" id="fotoDocumentoCamera" accept="image/*" capture="environment" style="display: none;">
+      <input type="file" id="fotoDocumentoGaleria" accept="image/*" style="display: none;">
+
+      <!-- 1. DOCUMENTO (foto + OCR) — oculto por enquanto; API de anexo será usada depois -->
+      <div id="blocoAnexo" class="form-section" style="display: none;">
+        <div class="form-section-header">
+          <span class="icon">🪪</span> <span data-i18n="cadastro.secDocumento">Documento (CNH ou Licença)</span>
+        </div>
+        <div class="form-section-body">
+          <p style="font-size: 13px; color: #666; margin-bottom: 8px;" data-i18n="cadastro.documentoIntro">Tire uma foto agora ou use uma foto já salva. A leitura automática preenche os dados abaixo.</p>
+          <p style="font-size: 12px; color: #888; margin-bottom: 12px;" data-i18n="cadastro.documentoOpcional">Você pode preencher todos os campos manualmente. A foto do documento é opcional.</p>
+          <div>
+            <button type="button" class="btn-foto-opcao" id="btnTirarFoto">📷 <span data-i18n="cadastro.tirarFoto">Tirar foto agora</span></button>
+            <button type="button" class="btn-foto-opcao" id="btnEscolherFoto">🖼️ <span data-i18n="cadastro.escolherFoto">Escolher foto já salva</span></button>
+          </div>
+          <p id="ocrStatus"></p>
+        </div>
       </div>
 
-      <div class="form-group">
-        <label for="cpf">CPF *</label>
-        <input 
-          type="tel" 
-          id="cpf" 
-          placeholder="000.000.000-00"
-          required
-          maxlength="14"
-          inputmode="numeric"
-          pattern="[0-9]*"
-          disabled
-        >
+      <!-- 2. IDENTIFICAÇÃO -->
+      <div class="form-section">
+        <div class="form-section-header">
+          <span class="icon">👤</span> <span data-i18n="cadastro.secIdentificacao">Identificação</span>
+        </div>
+        <div class="form-section-body">
+          <div class="form-group">
+            <label for="nome" data-i18n="cadastro.nome">Nome Completo *</label>
+            <input type="text" id="nome" data-i18n-placeholder="cadastro.nomePlaceholder" placeholder="Digite ou confira o nome" required>
+          </div>
+          <div class="form-group">
+            <label for="paisDocumento" data-i18n="cadastro.paisDocumento">País do documento</label>
+            <select id="paisDocumento">
+              <option value="">—</option>
+              <!-- Preenchido da tabela PAIS via /api/paises -->
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="cpf" data-i18n="cadastro.cpfCi">CPF / CI / Documento *</label>
+            <input type="tel" id="cpf" data-i18n-placeholder="cadastro.cpfCiPlaceholder" placeholder="Somente números" required maxlength="18" inputmode="numeric">
+          </div>
+        </div>
       </div>
 
-      <div class="form-group">
-        <label for="celular">Celular *</label>
-        <input 
-          type="tel" 
-          id="celular" 
-          placeholder="(00) 00000-0000"
-          required
-          maxlength="15"
-          disabled
-        >
+      <!-- 3. CONTATO -->
+      <div class="form-section">
+        <div class="form-section-header">
+          <span class="icon">📱</span> <span data-i18n="cadastro.secContato">Contato</span>
+        </div>
+        <div class="form-section-body">
+          <div class="form-group">
+            <label for="ddi" data-i18n="cadastro.ddi">DDI (país do celular) *</label>
+            <select id="ddi" required>
+              <option value="">—</option>
+              <!-- Preenchido da tabela PAIS (coluna DDI) via /api/paises -->
+            </select>
+          </div>
+          <div id="dddGroup" class="form-group ddd-group" style="display: none;">
+            <label for="ddd" data-i18n="cadastro.ddd">DDD (código de área)</label>
+            <input type="tel" id="ddd" data-i18n-placeholder="cadastro.dddPlaceholder" placeholder="Ex: 41" maxlength="2" inputmode="numeric" style="max-width: 80px;" title="Código de área (2 dígitos)">
+          </div>
+          <div class="form-group">
+            <label for="celular" data-i18n="cadastro.numeroCelular">Número do celular *</label>
+            <input type="tel" id="celular" data-i18n-placeholder="cadastro.numeroCelularPlaceholder" placeholder="9XXXX-XXXX" required maxlength="10" inputmode="numeric" title="Brasil: só o número com 9 dígitos (ex: 99837-1769). DDD no campo acima.">
+          </div>
+          <div class="form-group">
+            <label for="email" data-i18n="cadastro.email">E-mail</label>
+            <input type="email" id="email" autocomplete="email" data-i18n-placeholder="cadastro.emailPlaceholder" placeholder="seu@email.com">
+          </div>
+        </div>
       </div>
 
-      <div class="form-group">
-        <label for="email">E-mail</label>
-        <input 
-          type="email" 
-          id="email" 
-          placeholder="seu@email.com"
-          disabled
-        >
+      <!-- 4. LOCAIS PREFERIDOS (origem e destino) -->
+      <div class="form-section">
+        <div class="form-section-header">
+          <span class="icon">📍</span> <span data-i18n="cadastro.secLocaisPreferidos">Locais preferidos</span>
+        </div>
+        <div class="form-section-body">
+          <p class="hint locais-hint" data-i18n="cadastro.locaisPreferidosHint">Onde prefere carregar (origem) e descarregar (destino). Adicione ao menos uma origem e um destino.</p>
+          <div class="locais-grid">
+            <div class="form-group locais-cell locais-cell-tipo">
+              <label for="locaisTipo" data-i18n="cadastro.locaisTipo">Tipo</label>
+              <select id="locaisTipo">
+                <option value="E" data-i18n="cadastro.locaisTipoOrigem">Origem (embarque)</option>
+                <option value="D" data-i18n="cadastro.locaisTipoDestino">Destino (desembarque)</option>
+              </select>
+            </div>
+            <div class="form-group locais-cell locais-cell-pais">
+              <label for="locaisPais" data-i18n="cadastro.locaisPais">País</label>
+              <select id="locaisPais" required>
+                <option value="">—</option>
+              </select>
+            </div>
+            <div id="locaisEstadoGroup" class="form-group locais-cell locais-cell-estado" style="display: none;">
+              <label for="locaisEstado" class="label-nowrap" data-i18n="cadastro.locaisEstadoUF">Estado/UF</label>
+              <select id="locaisEstado" title="">
+                <option value="">—</option>
+              </select>
+            </div>
+            <div id="locaisMesoGroup" class="form-group locais-cell locais-cell-meso" style="display: none;">
+              <label for="locaisMesorregiao" data-i18n="cadastro.locaisMesorregiao">Mesorregião</label>
+              <select id="locaisMesorregiao">
+                <option value="">—</option>
+              </select>
+            </div>
+          </div>
+          <button type="button" id="btnAdicionarLocal" class="btn btn-adicionar-local"><span data-i18n="cadastro.adicionarLocal">Adicionar local</span></button>
+          <div id="locaisPreferidosLista" class="locais-lista"></div>
+        </div>
       </div>
 
-      <div class="form-group">
-        <label for="cnh">CNH *</label>
-        <input 
-          type="text" 
-          id="cnh" 
-          placeholder="Número da CNH"
-          required
-          maxlength="11"
-          disabled
-        >
+      <!-- 5. CLASSE DE FROTA -->
+      <div class="form-section">
+        <div class="form-section-header">
+          <span class="icon">🚛</span> <span data-i18n="cadastro.secClasseFrota">Classe de frota</span>
+        </div>
+        <div class="form-section-body">
+          <p class="hint classe-frota-hint" data-i18n="cadastro.classeFrotaHint">Selecione as classes de veículo que você opera (ex.: 3 eixos, 6 eixos).</p>
+          <div id="classesFrotaCheckboxes" class="checkbox-list checkbox-list-grid"></div>
+        </div>
       </div>
 
-      <div class="form-group">
-        <label for="categoriaCNH">Categoria CNH *</label>
-        <select id="categoriaCNH" required disabled>
-          <option value="">Selecione...</option>
-          <option value="C">C</option>
-          <option value="D">D</option>
-          <option value="E">E</option>
-        </select>
+      <!-- 6. VEÍCULO RASTREADO -->
+      <div class="form-section">
+        <div class="form-section-header">
+          <span class="icon">📡</span> <span data-i18n="cadastro.secVeiculoRastreado">Possui veículo rastreado?</span>
+        </div>
+        <div class="form-section-body">
+          <div class="form-group">
+            <select id="fgRastreado">
+              <option value="N">Não</option>
+              <option value="S">Sim</option>
+            </select>
+          </div>
+        </div>
       </div>
 
-      <div class="form-group">
-        <label for="senha">Senha *</label>
-        <input 
-type="password"
-          id="senha"
-          autocomplete="new-password"
-          placeholder="Mínimo 6 caracteres"
-          required
-          minlength="6"
-          disabled
-        >
+      <!-- 7. CNH / LICENÇA -->
+      <div class="form-section">
+        <div class="form-section-header">
+          <span class="icon">🪪</span> <span data-i18n="cadastro.secCnhLicenca">CNH / Licença</span>
+        </div>
+        <div class="form-section-body">
+          <div class="form-group">
+            <label for="cnh" data-i18n="cadastro.numeroCnh">Número da CNH / Licença</label>
+            <input type="text" id="cnh" data-i18n-placeholder="cadastro.numeroCnhPlaceholder" placeholder="Número do documento" maxlength="20">
+          </div>
+          <div class="form-group">
+            <label for="categoriaCNH" data-i18n="cadastro.categoria">Categoria</label>
+            <select id="categoriaCNH">
+              <option value="">—</option>
+              <option value="B">B</option>
+              <option value="AB">AB</option>
+              <option value="C">C</option>
+              <option value="D">D</option>
+              <option value="E">E</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="validadeCnh" data-i18n="cadastro.validade">Validade</label>
+            <input type="text" id="validadeCnh" data-i18n-placeholder="cadastro.validadePlaceholder" placeholder="DD/MM/AAAA" maxlength="10" inputmode="numeric" autocomplete="off" title="Digite no formato DD/MM/AAAA">
+          </div>
+        </div>
       </div>
 
-      <div class="form-group">
-        <label for="confirmarSenha">Confirmar Senha *</label>
-        <input 
-          type="password" 
-          id="confirmarSenha" 
-          placeholder="Digite novamente a senha"
-          autocomplete="new-password"
-          required
-          minlength="6"
-          disabled
-        >
+      <!-- 8. ACESSO -->
+      <div class="form-section">
+        <div class="form-section-header">
+          <span class="icon">🔐</span> <span data-i18n="cadastro.secAcesso">Acesso</span>
+        </div>
+        <div class="form-section-body">
+          <div class="form-group">
+            <label for="senha" data-i18n="cadastro.senha">Senha *</label>
+            <input type="password" id="senha" autocomplete="new-password" data-i18n-placeholder="cadastro.senhaPlaceholder" placeholder="Mínimo 6 caracteres" required minlength="6">
+          </div>
+          <div class="form-group">
+            <label for="confirmarSenha" data-i18n="cadastro.confirmarSenha">Confirmar Senha *</label>
+            <input type="password" id="confirmarSenha" data-i18n-placeholder="cadastro.confirmarSenhaPlaceholder" placeholder="Digite novamente" autocomplete="new-password" required minlength="6">
+          </div>
+          <div class="checkbox-group">
+            <input type="checkbox" id="termos" required>
+            <label for="termos" data-i18n="cadastro.termos">Li e aceito os termos de uso e política de privacidade</label>
+          </div>
+        </div>
       </div>
 
-      <div class="checkbox-group">
-        <input type="checkbox" id="termos" required disabled>
-        <label for="termos">
-          Li e aceito os termos de uso e política de privacidade
-        </label>
-      </div>
-
-      <button type="submit" class="btn btn-primary" disabled>
-        ✅ Criar Conta
-      </button>
-
-      <button type="button" class="btn btn-secondary" onclick="voltar()">
-        ← Voltar para Login
-      </button>
-
-      <div style="text-align: center; margin-top: 20px; font-size: 13px; color: #666;">
-        💼 <strong>Para cadastro:</strong><br>
-        Entre em contato com o RH ou administrador<br>
-        📞 Telefone: (XX) XXXX-XXXX<br>
-        📧 Email: rh@empresa.com.br
-      </div>
+      <button type="submit" class="btn btn-primary">✅ <span data-i18n="cadastro.enviarCadastro">Enviar cadastro</span></button>
+      <button type="button" class="btn btn-secondary" onclick="voltar()">← <span data-i18n="cadastro.voltarLogin">Voltar para Login</span></button>
     </form>
   </div>
 
-  <!-- URL Helper - DEVE ser o primeiro script para garantir interceptor de fetch -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
   <script src="../js/url-helper.js"></script>
   <script>
+    var arquivoDocumentoParaEnvio = null;
+
     function applyI18n() {
       if (typeof window.t !== 'function') return;
       document.querySelectorAll('[data-i18n]').forEach(function(el) { var k = el.getAttribute('data-i18n'); if (k) el.textContent = window.t(k); });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) { var k = el.getAttribute('data-i18n-placeholder'); if (k) el.placeholder = window.t(k); });
       document.querySelectorAll('[data-i18n-title]').forEach(function(el) { var k = el.getAttribute('data-i18n-title'); if (k) el.title = window.t(k); });
     }
     if (window.i18nReady) window.i18nReady.then(applyI18n);
-    function voltar() {
-      window.location.href = '../index.html';
+    function voltar() { window.location.href = '../index.html'; }
+
+    async function loadPaisesCadastroMotorista() {
+      try {
+        var base = (typeof window.getBaseUrl === 'function') ? window.getBaseUrl() : '';
+        var r = await fetch((base || '') + '/api/paises');
+        var paises = await r.json();
+        if (!Array.isArray(paises)) return;
+        var pDoc = document.getElementById('paisDocumento');
+        var ddi = document.getElementById('ddi');
+        var locaisPais = document.getElementById('locaisPais');
+        var fallbackDDI = { BR: '55', PY: '595', AR: '54', UY: '598' };
+        if (pDoc) {
+          pDoc.innerHTML = '<option value="">—</option>';
+          paises.forEach(function(p) {
+            var v = (p.SGPAIS != null && p.SGPAIS !== '') ? String(p.SGPAIS).trim() : String(p.CDPAIS || '');
+            var lbl = p.DSPAIS || p.SGPAIS || p.CDPAIS || v;
+            if (v) { var o = document.createElement('option'); o.value = v; o.textContent = lbl; pDoc.appendChild(o); }
+          });
+        }
+        if (ddi) {
+          ddi.innerHTML = '<option value="">—</option>';
+          paises.forEach(function(p) {
+            var d = (p.DDI != null && String(p.DDI).trim() !== '') ? String(p.DDI).trim() : fallbackDDI[(p.SGPAIS || '').toUpperCase()];
+            var lbl = p.DSPAIS || p.SGPAIS || p.CDPAIS;
+            if (d && lbl) { var o = document.createElement('option'); o.value = d; o.textContent = '+' + d + ' ' + lbl; ddi.appendChild(o); }
+          });
+          if (ddi.options.length > 1) ddi.selectedIndex = 1;
+          toggleDddPorPais();
+        }
+        if (locaisPais) {
+          locaisPais.innerHTML = '<option value="">—</option>';
+          paises.forEach(function(p) {
+            var v = (p.SGPAIS != null && p.SGPAIS !== '') ? String(p.SGPAIS).trim() : String(p.CDPAIS || '');
+            var lbl = p.DSPAIS || p.SGPAIS || p.CDPAIS || v;
+            if (v) { var o = document.createElement('option'); o.value = v; o.textContent = lbl; locaisPais.appendChild(o); }
+          });
+        }
+      } catch (e) { console.warn('Erro ao carregar países:', e); }
     }
+
+    var locaisPreferidosArray = [];
+    var baseUrl = (typeof window.getBaseUrl === 'function') ? window.getBaseUrl() : '';
+
+    var tLocais = function(key) { return (typeof window.t === 'function' ? window.t(key) : key); };
+
+    function toggleLocaisEstadoMesoregiao() {
+      var pais = document.getElementById('locaisPais') && document.getElementById('locaisPais').value;
+      var estadoGroup = document.getElementById('locaisEstadoGroup');
+      var mesoGroup = document.getElementById('locaisMesoGroup');
+      var estadoSel = document.getElementById('locaisEstado');
+      var mesoSel = document.getElementById('locaisMesorregiao');
+      var isBrasil = (pais === 'BR');
+      var temPais = !!pais;
+      if (estadoGroup) estadoGroup.style.display = temPais ? '' : 'none';
+      if (mesoGroup) mesoGroup.style.display = temPais ? '' : 'none';
+      if (estadoSel) {
+        estadoSel.innerHTML = temPais ? ('<option value="">' + tLocais('cadastro.locaisTodos') + '</option>') : '<option value="">—</option>';
+        estadoSel.title = isBrasil ? tLocais('cadastro.locaisEstadoUFHint') : '';
+      }
+      if (mesoSel) mesoSel.innerHTML = temPais ? ('<option value="">' + tLocais('cadastro.locaisTodos') + '</option>') : '<option value="">—</option>';
+      if (temPais) loadLocaisEstados();
+    }
+
+    async function loadLocaisEstados() {
+      var sel = document.getElementById('locaisEstado');
+      if (!sel) return;
+      var pais = document.getElementById('locaisPais') && document.getElementById('locaisPais').value;
+      if (!pais) return;
+      sel.innerHTML = '<option value="">' + tLocais('cadastro.locaisTodos') + '</option>';
+      try {
+        if (pais === 'BR') {
+          var r = await fetch(baseUrl + '/api/estados-brasil');
+          var estados = await r.json();
+          if (Array.isArray(estados)) estados.forEach(function(e) {
+            var opt = document.createElement('option');
+            opt.value = e.uf || e.UF || e.estado;
+            opt.textContent = e.nome || e.uf || e.UF || opt.value;
+            sel.appendChild(opt);
+          });
+        } else {
+          var r2 = await fetch(baseUrl + '/api/estados?pais=' + encodeURIComponent(pais));
+          var lista = await r2.json();
+          if (Array.isArray(lista)) lista.forEach(function(e) {
+            var opt = document.createElement('option');
+            var cduf = e.CDUF != null ? e.CDUF : e.cduf;
+            var nm = e.NMESTADO || e.nmestado || e.ESTADO || e.estado || cduf;
+            opt.value = cduf != null ? String(cduf) : '';
+            opt.textContent = nm;
+            if (opt.value) sel.appendChild(opt);
+          });
+        }
+      } catch (err) { console.warn('Erro ao carregar estados:', err); }
+    }
+    async function loadLocaisMesorregioes() {
+      var sel = document.getElementById('locaisMesorregiao');
+      if (!sel) return;
+      sel.innerHTML = '<option value="">' + tLocais('cadastro.locaisTodos') + '</option>';
+      var estadoVal = document.getElementById('locaisEstado') && document.getElementById('locaisEstado').value;
+      if (!estadoVal) return;
+      var cduf = null;
+      var cdufNum = parseInt(estadoVal, 10);
+      if (!isNaN(cdufNum) && String(cdufNum) === String(estadoVal).trim()) {
+        cduf = cdufNum;
+      } else {
+        try {
+          var rCduf = await fetch(baseUrl + '/api/estado-cduf/' + encodeURIComponent(estadoVal));
+          var d = await rCduf.json();
+          if (d.CDUF != null) cduf = d.CDUF;
+        } catch (e) {}
+      }
+      if (cduf == null) return;
+      try {
+        var r = await fetch(baseUrl + '/api/mesorregioes/' + cduf);
+        var list = await r.json();
+        if (Array.isArray(list)) list.forEach(function(m) {
+          var opt = document.createElement('option');
+          opt.value = m.CDMESOREGIAO != null ? m.CDMESOREGIAO : m.cdmesoregiao;
+          opt.textContent = m.DSMESOREGIAO || m.dsmesoregiao || opt.value;
+          sel.appendChild(opt);
+        });
+      } catch (err) { console.warn('Erro ao carregar mesorregiões:', err); }
+    }
+    function renderLocaisLista() {
+      var container = document.getElementById('locaisPreferidosLista');
+      if (!container) return;
+      if (locaisPreferidosArray.length === 0) { container.innerHTML = ''; return; }
+      var removerLbl = tLocais('cadastro.remover');
+      var tipoDestino = tLocais('cadastro.locaisTipoDestino').replace(/\s*\([^)]*\)$/, '');
+      var tipoOrigem = tLocais('cadastro.locaisTipoOrigem').replace(/\s*\([^)]*\)$/, '');
+      container.innerHTML = locaisPreferidosArray.map(function(item, idx) {
+        var tipoLbl = item.TIPO === 'D' ? tipoDestino : tipoOrigem;
+        var paisLbl = item.paisLbl || item.PAIS;
+        var ufLbl = item.estadoLbl || (item.CDUF != null ? 'UF ' + item.CDUF : tLocais('cadastro.locaisTodos'));
+        var mesoLbl = item.mesoLbl || (item.CDMESOREGIAO != null ? item.CDMESOREGIAO : tLocais('cadastro.locaisTodos'));
+        return '<div class="item-local" data-idx="' + idx + '"><span class="tipo">' + tipoLbl + '</span> ' + paisLbl + ' / ' + ufLbl + ' / ' + mesoLbl + '<button type="button" class="remover">' + removerLbl + '</button></div>';
+      }).join('');
+      container.querySelectorAll('.remover').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var idx = parseInt(btn.closest('.item-local').getAttribute('data-idx'), 10);
+          locaisPreferidosArray.splice(idx, 1);
+          renderLocaisLista();
+        });
+      });
+    }
+    document.getElementById('btnAdicionarLocal') && document.getElementById('btnAdicionarLocal').addEventListener('click', async function() {
+      var pais = (document.getElementById('locaisPais') && document.getElementById('locaisPais').value) || '';
+      if (!pais.trim()) { alert('Selecione o país.'); return; }
+      var tipo = (document.getElementById('locaisTipo') && document.getElementById('locaisTipo').value) || 'E';
+      var estadoSel = document.getElementById('locaisEstado');
+      var mesoSel = document.getElementById('locaisMesorregiao');
+      var estadoVal = estadoSel && estadoSel.value;
+      var cduf = null;
+      var cdm = null;
+      if (estadoVal) {
+        var cdufNum = parseInt(estadoVal, 10);
+        if (!isNaN(cdufNum) && String(cdufNum) === String(estadoVal).trim()) {
+          cduf = cdufNum;
+        } else {
+          try {
+            var r = await fetch(baseUrl + '/api/estado-cduf/' + encodeURIComponent(estadoVal));
+            var d = await r.json();
+            if (d.CDUF != null) cduf = d.CDUF;
+          } catch (e) {}
+        }
+      }
+      if (mesoSel && mesoSel.value) cdm = parseInt(mesoSel.value, 10);
+      var paisLbl = (document.getElementById('locaisPais') && document.getElementById('locaisPais').selectedOptions[0]) ? document.getElementById('locaisPais').selectedOptions[0].textContent : pais;
+      var estadoLbl = (estadoSel && estadoSel.selectedOptions[0]) ? estadoSel.selectedOptions[0].textContent : (estadoVal || 'Todos');
+      var mesoLbl = (mesoSel && mesoSel.selectedOptions[0]) ? mesoSel.selectedOptions[0].textContent : 'Todos';
+      locaisPreferidosArray.push({ TIPO: tipo, PAIS: pais.trim().toUpperCase().substring(0, 2), CDUF: cduf, CDMESOREGIAO: isNaN(cdm) ? null : cdm, paisLbl: paisLbl, estadoLbl: estadoLbl, mesoLbl: mesoLbl });
+      renderLocaisLista();
+    });
+    document.getElementById('locaisPais') && document.getElementById('locaisPais').addEventListener('change', toggleLocaisEstadoMesoregiao);
+    document.getElementById('locaisEstado') && document.getElementById('locaisEstado').addEventListener('change', loadLocaisMesorregioes);
+
+    async function loadClassesFrota() {
+      var container = document.getElementById('classesFrotaCheckboxes');
+      if (!container) return;
+      try {
+        var r = await fetch(baseUrl + '/api/motorista/classes-frota-combo');
+        var list = await r.json();
+        if (!Array.isArray(list)) return;
+        container.innerHTML = list.map(function(c) {
+          var id = c.CDCLASSEFROTA != null ? c.CDCLASSEFROTA : c.cdclassefrota;
+          var nome = c.DSCLASSEFROTA || c.dsclassefrota || id;
+          return '<label><input type="checkbox" name="classeFrota" value="' + id + '"> ' + (nome || id) + '</label>';
+        }).join('');
+      } catch (err) { container.innerHTML = '<p style="font-size:13px;color:#666;">Não foi possível carregar as classes.</p>'; }
+    }
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function() {
+      loadPaisesCadastroMotorista();
+      loadClassesFrota();
+    });
+    else { loadPaisesCadastroMotorista(); loadClassesFrota(); }
 
     function mostrarMensagem(tipo, mensagem) {
-      const successDiv = document.getElementById('successMessage');
-      const errorDiv = document.getElementById('errorMessage');
-      
+      var successDiv = document.getElementById('successMessage');
+      var errorDiv = document.getElementById('errorMessage');
       successDiv.style.display = 'none';
       errorDiv.style.display = 'none';
-      
-      if (tipo === 'success') {
-        successDiv.textContent = mensagem;
-        successDiv.style.display = 'block';
-      } else {
-        errorDiv.textContent = mensagem;
-        errorDiv.style.display = 'block';
+      if (tipo === 'success') { successDiv.textContent = mensagem; successDiv.style.display = 'block'; }
+      else { errorDiv.textContent = mensagem; errorDiv.style.display = 'block'; }
+    }
+
+    function setOcrStatus(msg, ok) {
+      var el = document.getElementById('ocrStatus');
+      el.textContent = msg;
+      el.className = ok === true ? 'ocr-ok' : (ok === false ? 'ocr-erro' : '');
+    }
+
+    function normalizarParaBusca(s) {
+      if (!s) return '';
+      try {
+        s = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      } catch (e) {}
+      var mapa = { 'Á':'A','À':'A','Ã':'A','Â':'A','É':'E','Ê':'E','Í':'I','Ó':'O','Ô':'O','Õ':'O','Ú':'U','Ç':'C','Ñ':'N' };
+      return s.toUpperCase().replace(/[ÁÀÃÂÉÊÍÓÔÕÚÇÑ]/g, function(c) { return mapa[c] || c; });
+    }
+    function textoPareceIlegivel(texto) {
+      if (!texto || texto.length < 20) return true;
+      var trecho = (texto + '').substring(0, 600);
+      var uteis = (trecho.match(/[A-Za-z0-9]/g) || []).length;
+      if (uteis < 25) return true;
+      if (!/\d{2}\/\d{2}\/\d{4}/.test(texto) && !/\d{3}\.\d{3}\.\d{3}/.test(texto) && !/BRASIL|PARAGUAY|REGISTRO|CPF|NOME|SOBRENOME/i.test(texto)) return true;
+      return false;
+    }
+    function identificarDocumento(texto) {
+      if (!texto || !texto.trim()) return 'DESCONHECIDO';
+      var t = normalizarParaBusca(texto).replace(/\s+/g, ' ');
+      if (!t.trim()) return 'DESCONHECIDO';
+      // CNH Brasil: cabeçalho (com espaços colapsados). OCR às vezes lê "NABILITAÇÃO" em vez de "HABILITAÇÃO"
+      if (t.indexOf('REPUBLICA FEDERATIVA DO BRASIL') >= 0) return 'CNH_BR';
+      if (t.indexOf('CARTEIRA NACIONAL DE HABILITACAO') >= 0 || t.indexOf('CARTEIRA NACIONAL DE NABILITACAO') >= 0) return 'CNH_BR';
+      if (t.indexOf('REPUBLICA') >= 0 && t.indexOf('BRASIL') >= 0) return 'CNH_BR';
+      if (t.indexOf('CARTEIRA') >= 0 && (t.indexOf('HABILITACAO') >= 0 || t.indexOf('NABILITACAO') >= 0 || t.indexOf('BILITACAO') >= 0)) return 'CNH_BR';
+      if (t.indexOf('NACIONAL') >= 0 && (t.indexOf('HABILITACAO') >= 0 || t.indexOf('NABILITACAO') >= 0)) return 'CNH_BR';
+      if (t.indexOf('BRASIL') >= 0 && (t.indexOf('HABILITACAO') >= 0 || t.indexOf('MINISTERIO') >= 0 || t.indexOf('TRANSPORTES') >= 0 || t.indexOf('TRANSITO') >= 0 || t.indexOf('VALIDADE') >= 0)) return 'CNH_BR';
+      if (t.indexOf('BRASIL') >= 0 && (t.indexOf('REGISTRO') >= 0 || t.indexOf('CPF') >= 0 || t.indexOf('N REGISTRO') >= 0)) return 'CNH_BR';
+      if (t.indexOf('BRASIL') >= 0) return 'CNH_BR';
+      // Fallback CNH BR: padrões típicos (CPF + data, ou REGISTRO + data, ou VALIDADE + data + números)
+      if (/\d{3}\.\d{3}\.\d{3}-\d{2}/.test(texto) && /\d{2}\/\d{2}\/\d{4}/.test(texto)) return 'CNH_BR';
+      if ((t.indexOf('REGISTRO') >= 0 || t.indexOf('N REGISTRO') >= 0) && /\d{2}\/\d{2}\/\d{4}/.test(texto)) return 'CNH_BR';
+      if (/\d{2}\/\d{2}\/\d{4}/.test(texto) && (/\d{11}/.test(texto) || t.indexOf('VALIDADE') >= 0 || t.indexOf('CAT') >= 0)) return 'CNH_BR';
+      // Licença Paraguai
+      if (t.indexOf('REPUBLICA DEL PARAGUAY') >= 0 || (t.indexOf('PARAGUAY') >= 0 && t.indexOf('LICENCIA') >= 0)) return 'LICENCIA_PY';
+      if (t.indexOf('PARAGUAY') >= 0) return 'LICENCIA_PY';
+      if (t.indexOf('APELLIDO') >= 0 && t.indexOf('NOMBRE') >= 0 && /\d{2}-\d{2}-\d{4}/.test(texto)) return 'LICENCIA_PY';
+      return 'DESCONHECIDO';
+    }
+
+    function parseCNH(texto) {
+      var cpf = texto.match(/\d{3}[.\s]\d{3}[.\s]\d{3}[-–—\s]?\d{2}/);
+      if (!cpf) cpf = texto.match(/\d{3}\.\d{3}\.\d{3}-\d{2}/);
+      var cpfNum = texto.match(/(?:CPF|4d)\s*[:\s]*\d{0,2}\s*(\d{3}[.\s]?\d{3}[.\s]?\d{3}[-–—]?\d{2})/i);
+      if (!cpfNum) cpfNum = texto.match(/(?:CPF|4d)\s*[:\s]*\s*(\d{11})/i);
+      if (!cpfNum) cpfNum = texto.match(/\b(\d{11})\b/);
+      var datas = texto.match(/\d{2}\/\d{2}\/\d{4}/g);
+      var reg = texto.match(/(?:N[°º]?\s*REGISTRO|REGISTRO|N[°º]?\s*REG\.?)\s*[:\s]*(\d{8,12})/i) || texto.match(/\b(\d{9,12})\b/);
+      var headerWords = /MINISTERIO|CIDADES|DEPARTAMENTO|TRANSITO|REPUBLICA|BRASIL|HABILITACAO|CARTEIRA|NACIONAL|PERMISO|CONDUCION|DRIVING/i;
+      var nome = '';
+      var sobrenome = texto.match(/(?:1\s+)?SOBRENOME\s*[:\s]*([A-Za-zÀ-ÿ\s]+?)(?=\n|2\s+NOME|\d\s+[A-Z]|$)/i);
+      var nome2 = texto.match(/(?:2\s+)?NOME\s*(?:E\s+SOBRENOME)?\s*[:\s]*([A-Za-zÀ-ÿ\s]+?)(?=\n|3\s+|\d\s+[A-Z]|$)/i);
+      if (sobrenome && sobrenome[1]) sobrenome = sobrenome[1].trim();
+      else sobrenome = '';
+      if (nome2 && nome2[1]) nome2 = nome2[1].trim();
+      else nome2 = '';
+      if (nome2 || sobrenome) {
+        nome = (nome2 + ' ' + sobrenome).trim();
+        if (headerWords.test(nome)) nome = '';
+      }
+      if (!nome) {
+        var linhas = texto.split(/\r?\n/).map(function(l) { return l.trim(); }).filter(function(l) { return l.length > 4 && !/^\d{2}\/\d{2}\/\d{4}/.test(l) && !/\d{3}\.\d{3}\.\d{3}/.test(l) && !headerWords.test(l); });
+        nome = (linhas[0] || linhas[1] || '').trim();
+        if (nome && headerWords.test(nome)) nome = '';
+      }
+      var catVal = null;
+      if (texto.match(/A\/B1|A\/B\s*1|CAT\.?\s*HAB\.?\s*[:\s]*A\/B/i)) catVal = 'AB';
+      else if (texto.match(/\bA\/B\b/i)) catVal = 'AB';
+      else {
+        var cat = texto.match(/(?:CAT\.?\s*HAB\.?|CATEGORIA)\s*[:\s]*([A-Za-z0-9\/]+)/i) || texto.match(/\b(A\/B1|A\/B|AB|B1|C1|D1|A|B|C|D|E)\b/gi);
+        if (cat && cat[1]) catVal = (cat[1].toUpperCase().replace(/\s/g, ''));
+        else if (cat && cat[0]) catVal = cat[0].toUpperCase().replace(/\s/g, '');
+        if (catVal === 'A/B1' || catVal === 'A/B') catVal = 'AB';
+      }
+      try {
+        if (catVal && !document.getElementById('categoriaCNH').querySelector('option[value="' + catVal + '"]')) { if (catVal.indexOf('B') >= 0) catVal = 'AB'; else catVal = null; }
+      } catch (e) { }
+      return {
+        nome: nome || null,
+        cpf: (cpf && cpf[0]) ? cpf[0].replace(/\D/g, '') : (cpfNum && cpfNum[1] ? String(cpfNum[1]).replace(/\D/g, '') : null),
+        nrCnh: reg && reg[1] ? reg[1] : null,
+        dataNascimento: datas && datas[0] ? datas[0] : null,
+        validade: datas && datas.length >= 2 ? datas[datas.length - 1] : null,
+        categoria: catVal
+      };
+    }
+
+    function parseLicenciaPY(texto) {
+      var nasc = texto.match(/\d{2}-\d{2}-\d{4}/);
+      var nom = texto.match(/NOMBRE\s*[:]?\s*([A-Za-z\s]+)/i);
+      var ape = texto.match(/APELLIDO\s*[:]?\s*([A-Za-z\s]+)/i);
+      var ci = texto.match(/\b(\d{5,9})(?:-?\d)?\b/);
+      var nome = (nom && nom[1] ? nom[1].trim() : '') + (ape && ape[1] ? ' ' + ape[1].trim() : '');
+      return {
+        nome: nome.trim() || null,
+        cpf: ci ? ci[1] : null,
+        dataNascimento: nasc ? nasc[0] : null,
+        validade: null,
+        categoria: null
+      };
+    }
+
+    function nomePareceValido(nome) {
+      if (!nome || typeof nome !== 'string') return false;
+      var n = nome.trim();
+      if (n.length < 5) return false;
+      if (/[())\]\[;\\\/_|<>]/.test(n)) return false;
+      var u = n.toUpperCase();
+      if (/MINISTERIO|INFRAESTRUTURA|DEPARTAMENTO|REPUBLICA|BRASIL|CIDADES|TRANSPORTES|TRANSITO|HABILITACAO|CARTEIRA|NACIONAL|PERMISO|CONDUCION|DRIVING/i.test(u)) return false;
+      var letrasOuEspaco = (n.match(/[A-Za-zÀ-ÿ\s]/g) || []).length;
+      if (n.length > 0 && letrasOuEspaco / n.length < 0.7) return false;
+      var palavras = (n.match(/[A-Za-zÀ-ÿ]{2,}/g) || []);
+      if (palavras.length < 1) return false;
+      return true;
+    }
+    function formatarValidadeDDMMAAAA(v) {
+      if (!v || typeof v !== 'string') return '';
+      var n = v.replace(/\D/g, '');
+      if (n.length <= 2) return n;
+      if (n.length <= 4) return n.slice(0, 2) + '/' + n.slice(2);
+      return n.slice(0, 2) + '/' + n.slice(2, 4) + '/' + n.slice(4, 8);
+    }
+    function validadeParaDDMMAAAA(val) {
+      if (!val || typeof val !== 'string') return '';
+      var s = val.trim();
+      var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (m) return m[3] + '/' + m[2] + '/' + m[1];
+      m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+      if (m) return s.slice(0, 10);
+      var n = s.replace(/\D/g, '');
+      if (n.length >= 8) return formatarValidadeDDMMAAAA(n.slice(0, 8));
+      return formatarValidadeDDMMAAAA(n);
+    }
+    function preencherCamposOCR(dados) {
+      if (dados.nome && nomePareceValido(dados.nome)) document.getElementById('nome').value = dados.nome;
+      if (dados.cpf) document.getElementById('cpf').value = dados.cpf;
+      if (dados.nrCnh) document.getElementById('cnh').value = dados.nrCnh;
+      if (dados.validade) document.getElementById('validadeCnh').value = validadeParaDDMMAAAA(dados.validade);
+      var confiaNoParse = nomePareceValido(dados.nome) || (dados.cpf && dados.cpf.length === 11);
+      if (dados.categoria && confiaNoParse) {
+        var sel = document.getElementById('categoriaCNH');
+        var opts = ['B', 'AB', 'C', 'D', 'E'];
+        if (opts.indexOf(dados.categoria) >= 0) {
+          for (var i = 0; i < sel.options.length; i++) {
+            if (sel.options[i].value === dados.categoria) { sel.value = dados.categoria; break; }
+          }
+        }
       }
     }
 
-    // Máscaras
-    document.getElementById('cpf').addEventListener('input', (e) => {
-      let value = e.target.value.replace(/\D/g, '');
-      if (value.length > 11) value = value.slice(0, 11);
-      
-      value = value.replace(/(\d{3})(\d)/, '$1.$2');
-      value = value.replace(/(\d{3})(\d)/, '$1.$2');
-      value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-      
-      e.target.value = value;
-    });
-
-    document.getElementById('celular').addEventListener('input', (e) => {
-      let value = e.target.value.replace(/\D/g, '');
-      if (value.length > 11) value = value.slice(0, 11);
-      
-      if (value.length <= 10) {
-        value = value.replace(/(\d{2})(\d)/, '($1) $2');
-        value = value.replace(/(\d{4})(\d)/, '$1-$2');
-      } else {
-        value = value.replace(/(\d{2})(\d)/, '($1) $2');
-        value = value.replace(/(\d{5})(\d)/, '$1-$2');
-      }
-      
-      e.target.value = value;
-    });
-
-    document.getElementById('formCadastro').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      
-      const senha = document.getElementById('senha').value;
-      const confirmarSenha = document.getElementById('confirmarSenha').value;
-      
-      if (senha !== confirmarSenha) {
-        mostrarMensagem('error', '❌ As senhas não coincidem');
+    function redimensionarImagemParaOCR(file, maxPx, cb) {
+      var img = new Image();
+      var url = URL.createObjectURL(file);
+      img.onload = function() {
+        URL.revokeObjectURL(url);
+        var w = img.width, h = img.height;
+        if (w <= maxPx && h <= maxPx) { cb(file); return; }
+        var scale = maxPx / Math.max(w, h);
+        var c = document.createElement('canvas');
+        c.width = Math.round(w * scale);
+        c.height = Math.round(h * scale);
+        var ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0, c.width, c.height);
+        c.toBlob(function(blob) {
+          cb(blob ? new File([blob], file.name || 'doc.jpg', { type: 'image/jpeg' }) : file);
+        }, 'image/jpeg', 0.92);
+      };
+      img.onerror = function() { URL.revokeObjectURL(url); cb(file); };
+      img.src = url;
+    }
+    function preprocessarImagemParaOCR(file, cb) {
+      var img = new Image();
+      var url = URL.createObjectURL(file);
+      img.onload = function() {
+        URL.revokeObjectURL(url);
+        var c = document.createElement('canvas');
+        c.width = img.width;
+        c.height = img.height;
+        var ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        var d = ctx.getImageData(0, 0, c.width, c.height);
+        var data = d.data;
+        var contrast = 1.4;
+        var offset = 128 * (1 - contrast);
+        for (var i = 0; i < data.length; i += 4) {
+          var g = (0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]);
+          g = Math.min(255, Math.max(0, (g * contrast + offset)));
+          data[i] = data[i+1] = data[i+2] = g;
+        }
+        ctx.putImageData(d, 0, 0);
+        c.toBlob(function(blob) {
+          cb(blob ? new File([blob], file.name || 'doc.jpg', { type: 'image/jpeg' }) : file);
+        }, 'image/jpeg', 0.9);
+      };
+      img.onerror = function() { URL.revokeObjectURL(url); cb(file); };
+      img.src = url;
+    }
+    function rotacionarImagem90(file, cb) {
+      var img = new Image();
+      var url = URL.createObjectURL(file);
+      img.onload = function() {
+        URL.revokeObjectURL(url);
+        var c = document.createElement('canvas');
+        c.width = img.height;
+        c.height = img.width;
+        var ctx = c.getContext('2d');
+        ctx.translate(c.width / 2, c.height / 2);
+        ctx.rotate(-90 * Math.PI / 180);
+        ctx.drawImage(img, -img.width / 2, -img.height / 2, img.width, img.height);
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        c.toBlob(function(blob) {
+          cb(blob ? new File([blob], file.name || 'doc.jpg', { type: 'image/jpeg' }) : file);
+        }, 'image/jpeg', 0.9);
+      };
+      img.onerror = function() { URL.revokeObjectURL(url); cb(file); };
+      img.src = url;
+    }
+    function processarFotoDocumento(file) {
+      var t = window.t || function(k) { return k; };
+      if (!file || !file.type.match(/^image\//)) {
+        setOcrStatus(t('cadastro.ocrSelecioneImagem'), false);
         return;
       }
-      
-      const dados = {
-        nome: document.getElementById('nome').value,
-        cpf: document.getElementById('cpf').value.replace(/\D/g, ''),
-        celular: document.getElementById('celular').value.replace(/\D/g, ''),
-        email: document.getElementById('email').value,
-        cnh: document.getElementById('cnh').value,
-        categoriaCNH: document.getElementById('categoriaCNH').value,
-        senha: senha,
-      };
-      
-      const loading = document.getElementById('loading');
-      const form = document.getElementById('formCadastro');
-      
+      arquivoDocumentoParaEnvio = file;
+      setOcrStatus(t('cadastro.ocrAnalisando'), null);
+      if (typeof Tesseract === 'undefined') {
+        setOcrStatus(t('cadastro.ocrIndisponivel'), false);
+        return;
+      }
+      function rodarOCR(arquivo, ehRetry, arquivoOriginal, jaTentouRotacao) {
+        ehRetry = !!ehRetry;
+        jaTentouRotacao = !!jaTentouRotacao;
+        var optsOCR = { logger: function() {}, psm: ehRetry ? 6 : 3 };
+        Tesseract.recognize(arquivo, 'por+spa', optsOCR)
+          .then(function(result) {
+            var text = (result && result.data && result.data.text) ? result.data.text : '';
+            var tipo = identificarDocumento(text);
+            var dados = {};
+            if (tipo === 'CNH_BR') {
+              dados = parseCNH(text);
+              document.getElementById('paisDocumento').value = 'BR';
+              preencherCamposOCR(dados);
+              setOcrStatus(t('cadastro.ocrPronto'), true);
+              return;
+            }
+            if (tipo === 'LICENCIA_PY') {
+              dados = parseLicenciaPY(text);
+              document.getElementById('paisDocumento').value = 'PY';
+              preencherCamposOCR(dados);
+              setOcrStatus(t('cadastro.ocrPronto'), true);
+              return;
+            }
+            if (console && console.log) console.log('[OCR] Documento não reconhecido. Texto lido (primeiros 800 chars):', (text || '').substring(0, 800));
+            if (textoPareceIlegivel(text) && arquivoOriginal) {
+              if (!ehRetry) {
+                preprocessarImagemParaOCR(arquivoOriginal, function(file2) {
+                  rodarOCR(file2, true, arquivoOriginal, false);
+                });
+                return;
+              }
+              if (ehRetry && !jaTentouRotacao) {
+                rotacionarImagem90(arquivoOriginal, function(fileRot) {
+                  rodarOCR(fileRot, true, arquivoOriginal, true);
+                });
+                return;
+              }
+            }
+            setOcrStatus(textoPareceIlegivel(text) ? t('cadastro.ocrFotoIlegivel') : t('cadastro.ocrNaoReconhecido'), false);
+          })
+          .catch(function(err) {
+            setOcrStatus(t('cadastro.ocrErro'), false);
+          });
+      }
+      redimensionarImagemParaOCR(file, 2000, function(arquivo) { rodarOCR(arquivo, false, file, false); });
+    }
+
+    // Máscara Validade CNH: DD/MM/AAAA + teclado numérico no celular
+    (function() {
+      var el = document.getElementById('validadeCnh');
+      if (!el) return;
+      el.addEventListener('input', function() {
+        var v = this.value.replace(/\D/g, '').slice(0, 8);
+        this.value = formatarValidadeDDMMAAAA(v);
+      });
+      el.addEventListener('paste', function(e) {
+        e.preventDefault();
+        var t = (e.clipboardData || window.clipboardData).getData('text');
+        var f = validadeParaDDMMAAAA(t);
+        if (f) { this.value = f; this.dispatchEvent(new Event('input', { bubbles: true })); }
+      });
+    })();
+
+    document.getElementById('btnTirarFoto').addEventListener('click', function() {
+      document.getElementById('fotoDocumentoCamera').click();
+    });
+    document.getElementById('btnEscolherFoto').addEventListener('click', function() {
+      document.getElementById('fotoDocumentoGaleria').click();
+    });
+    document.getElementById('fotoDocumentoCamera').addEventListener('change', function() {
+      var f = this.files[0];
+      if (f) processarFotoDocumento(f);
+      this.value = '';
+    });
+    document.getElementById('fotoDocumentoGaleria').addEventListener('change', function() {
+      var f = this.files[0];
+      if (f) processarFotoDocumento(f);
+      this.value = '';
+    });
+
+    function toggleDddPorPais() {
+      var ddiEl = document.getElementById('ddi');
+      var dddGroup = document.getElementById('dddGroup');
+      var dddEl = document.getElementById('ddd');
+      var celularEl = document.getElementById('celular');
+      var ddi = (ddiEl && ddiEl.value) ? String(ddiEl.value).trim() : '';
+      var exigeDdd = (ddi === '55');
+      if (dddGroup) dddGroup.style.display = exigeDdd ? '' : 'none';
+      if (dddEl && !exigeDdd) dddEl.value = '';
+      if (celularEl) {
+        celularEl.placeholder = exigeDdd ? '9XXXX-XXXX' : (typeof window.t === 'function' ? window.t('cadastro.numeroCelularPlaceholder') : 'Número do celular');
+        celularEl.title = exigeDdd ? 'Só o número (9 dígitos). DDD no campo acima. Ex: 99837-1769' : 'Digite o número sem DDI';
+        var onlyNumber = celularEl.value.replace(/\D/g, '');
+        if (exigeDdd && onlyNumber.length > 9) onlyNumber = onlyNumber.slice(-9);
+        celularEl.value = formatarCelularPorDdi(ddi, onlyNumber);
+      }
+    }
+    document.getElementById('ddi').addEventListener('change', toggleDddPorPais);
+
+    // Máscaras de celular por país. Brasil: DDD em campo separado; aqui só o número com máscara 9XXXX-XXXX
+    function formatarCelularPorDdi(ddi, raw) {
+      var d = String(ddi || '').trim();
+      var v = String(raw || '').replace(/\D/g, '');
+      if (d === '55') {
+        v = v.slice(0, 9);
+        if (v.length <= 5) return v;
+        return v.slice(0, 5) + '-' + v.slice(5);
+      }
+      if (d === '54') {
+        v = v.slice(0, 12);
+        if (v.length <= 1) return v;
+        if (v.length <= 4) return v.replace(/(\d)(\d{1,3})/, '$1 $2');
+        if (v.length <= 7) return v.replace(/(\d)(\d{2,3})(\d{0,3})/, '$1 $2 $3');
+        return v.replace(/(\d)(\d{2,3})(\d{3})(\d{0,4})/, '$1 $2 $3-$4');
+      }
+      if (d === '595') {
+        v = v.slice(0, 9);
+        if (v.length <= 3) return v;
+        if (v.length <= 6) return v.replace(/(\d{3})(\d+)/, '$1 $2');
+        return v.replace(/(\d{3})(\d{3})(\d+)/, '$1 $2 $3');
+      }
+      if (d === '598') {
+        v = v.slice(0, 8);
+        if (v.length <= 4) return v;
+        return v.replace(/(\d{4})(\d+)/, '$1 $2');
+      }
+      v = v.slice(0, 15);
+      return v;
+    }
+    function validarCelularPorDdi(ddi, raw) {
+      var v = String(raw || '').replace(/\D/g, '');
+      var d = String(ddi || '').trim();
+      if (d === '55') return v.length >= 10 && v.length <= 11 && /^[1-9]\d{1,2}9\d{8}$/.test(v);
+      if (d === '54') return v.length >= 10 && v.length <= 12 && v.charAt(0) === '9';
+      if (d === '595') return v.length >= 8 && v.length <= 9 && v.charAt(0) === '9';
+      if (d === '598') return v.length === 8 && v.charAt(0) === '9';
+      return v.length >= 8;
+    }
+
+    document.getElementById('celular').addEventListener('input', function(e) {
+      var ddi = (document.getElementById('ddi') && document.getElementById('ddi').value) || '55';
+      var v = e.target.value.replace(/\D/g, '');
+      e.target.value = formatarCelularPorDdi(ddi, v);
+    });
+
+    document.getElementById('formCadastro').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var senha = document.getElementById('senha').value;
+      var confirmarSenha = document.getElementById('confirmarSenha').value;
+      var t = window.t || function(k) { return k; };
+      if (senha !== confirmarSenha) {
+        mostrarMensagem('error', t('cadastro.senhasNaoCoincidem'));
+        return;
+      }
+      var ddiCad = (document.getElementById('ddi') && document.getElementById('ddi').value) || '';
+      var dddRaw = (document.getElementById('ddd') && document.getElementById('ddd').value.replace(/\D/g, '')) || '';
+      var celularRaw = (document.getElementById('celular') && document.getElementById('celular').value.replace(/\D/g, '')) || '';
+      var celularCompleto = (ddiCad === '55') ? (dddRaw + celularRaw) : celularRaw;
+      if (!validarCelularPorDdi(ddiCad, celularCompleto)) {
+        mostrarMensagem('error', t('cadastro.celularInvalido') || 'Celular inválido. Brasil: DDD (2 dígitos) e número 9XXXX-XXXX. Ex: DDD 41, número 99837-1769.');
+        return;
+      }
+      var fd = new FormData();
+      fd.append('ddi', document.getElementById('ddi').value);
+      fd.append('ddd', dddRaw);
+      fd.append('celular', celularRaw);
+      fd.append('nome', document.getElementById('nome').value.trim());
+      var locaisPayload = locaisPreferidosArray.map(function(item) { return { TIPO: item.TIPO, PAIS: item.PAIS, CDUF: item.CDUF, CDMESOREGIAO: item.CDMESOREGIAO }; });
+      fd.append('locaisPreferidos', JSON.stringify(locaisPayload));
+      var classesFrota = Array.from(document.querySelectorAll('input[name="classeFrota"]:checked')).map(function(cb) { return parseInt(cb.value, 10); }).filter(function(n) { return !isNaN(n); });
+      fd.append('classesFrota', JSON.stringify(classesFrota));
+      fd.append('fgRastreado', (document.getElementById('fgRastreado') && document.getElementById('fgRastreado').value) || 'N');
+      fd.append('paisDocumento', document.getElementById('paisDocumento').value);
+      fd.append('numeroDocumento', document.getElementById('cpf').value.replace(/\D/g, ''));
+      fd.append('email', document.getElementById('email').value.trim());
+      fd.append('nrCnh', document.getElementById('cnh').value.trim());
+      fd.append('categoriaCnh', document.getElementById('categoriaCNH').value);
+      fd.append('validadeCnh', document.getElementById('validadeCnh').value.trim());
+      fd.append('senha', senha);
+      if (arquivoDocumentoParaEnvio) fd.append('documento', arquivoDocumentoParaEnvio);
+      var loading = document.getElementById('loading');
+      var form = document.getElementById('formCadastro');
       loading.style.display = 'block';
       form.style.display = 'none';
-      
       try {
-        const response = await fetch('/api/motorista/cadastro', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(dados),
-        });
-
-        const data = await response.json();
-        
+        var response = await fetch('/api/motorista/cadastro', { method: 'POST', body: fd });
+        var data = await response.json();
         loading.style.display = 'none';
-        
         if (response.ok) {
-          mostrarMensagem('success', '✅ Cadastro realizado com sucesso! Redirecionando...');
-          setTimeout(() => {
-            window.location.href = '../index.html';
-          }, 2000);
+          mostrarMensagem('success', data.message || 'Cadastro enviado. Aguarde a validação pelo administrador.');
+          setTimeout(function() { window.location.href = '../index.html'; }, 3000);
         } else {
           form.style.display = 'block';
-          mostrarMensagem('error', data.error || 'Erro ao realizar cadastro');
+          mostrarMensagem('error', data.error || t('cadastro.erroEnviar'));
         }
-      } catch (error) {
+      } catch (err) {
         loading.style.display = 'none';
         form.style.display = 'block';
-        mostrarMensagem('error', '❌ Erro de conexão. Tente novamente.');
+        mostrarMensagem('error', t('cadastro.erroConexao'));
       }
     });
   </script>

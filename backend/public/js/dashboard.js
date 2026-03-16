@@ -78,6 +78,33 @@
     document.addEventListener(evento, atualizarAtividade, { passive: true });
   });
 
+  // Modo escuro: aplicar tema salvo e botão de alternância
+  (function() {
+    const KEY = 'theme';
+    const root = document.documentElement;
+    const btn = document.getElementById('themeToggleBtn');
+    const icon = document.getElementById('themeToggleIcon');
+    function getTheme() { return localStorage.getItem(KEY) || 'light'; }
+    function setTheme(theme) {
+      if (theme === 'dark') {
+        root.setAttribute('data-theme', 'dark');
+        if (icon) { icon.className = 'bx bx-sun'; }
+        if (btn) btn.setAttribute('title', 'Ativar modo claro');
+      } else {
+        root.removeAttribute('data-theme');
+        if (icon) { icon.className = 'bx bx-moon'; }
+        if (btn) btn.setAttribute('title', 'Ativar modo escuro');
+      }
+      localStorage.setItem(KEY, theme);
+    }
+    setTheme(getTheme());
+    if (btn) {
+      btn.addEventListener('click', function() {
+        setTheme(getTheme() === 'dark' ? 'light' : 'dark');
+      });
+    }
+  })();
+
   // Função para fazer logout (manual ou automático)
   const fazerLogout = async (automatico = false) => {
     // Limpar timers
@@ -275,11 +302,6 @@
       });
     })();
 
-    // Vincula link de documentação CSS
-    document.getElementById('docLink')?.addEventListener('click', () => {
-      window.open(corrigirUrl('/css/documentacao-modulos.html'), '_blank');
-    });
-
     // Vincula clique no logo para voltar ao início
     document.getElementById('logoAtlasCargo')?.addEventListener('click', () => {
       if (typeof window.showWelcomeScreen === 'function') {
@@ -292,6 +314,17 @@
           }
         }, 100);
       }
+    });
+
+    // Botões Chat e SOS no header: abrir módulo correspondente
+    document.getElementById('headerBtnChat')?.addEventListener('click', () => {
+      if (typeof window.loadModuleContent === 'function') window.loadModuleContent('chat');
+    });
+    document.getElementById('headerBtnAlertas')?.addEventListener('click', () => {
+      if (typeof window.loadModuleContent === 'function') window.loadModuleContent('alertas');
+    });
+    document.getElementById('headerBtnSos')?.addEventListener('click', () => {
+      if (typeof window.loadModuleContent === 'function') window.loadModuleContent('sos');
     });
 
     // Aplicar identidade visual configurada (logos)
@@ -490,6 +523,12 @@
               menuItem.classList.remove('has-badge');
             }
           }
+          const headerBadgeChat = document.getElementById('headerBadgeChat');
+          if (headerBadgeChat) {
+            headerBadgeChat.textContent = total > 99 ? '99+' : total.toString();
+            headerBadgeChat.style.display = total > 0 ? 'inline-flex' : 'none';
+            headerBadgeChat.setAttribute('data-count', total);
+          }
           
           // Tocar som se aumentou (apenas se contexto de áudio estiver pronto)
           if (total > (ultimoContador.chat || 0)) {
@@ -540,6 +579,22 @@
                 badge.style.display = 'none';
               }
               menuItem.classList.remove('has-badge');
+            }
+          }
+          
+          // Atualizar badge e estado vermelho no header
+          const headerBadgeAlertas = document.getElementById('headerBadgeAlertas');
+          const headerBtnAlertas = document.getElementById('headerBtnAlertas');
+          if (headerBadgeAlertas) {
+            headerBadgeAlertas.textContent = pendentes > 99 ? '99+' : pendentes.toString();
+            headerBadgeAlertas.style.display = pendentes > 0 ? 'inline-flex' : 'none';
+            headerBadgeAlertas.setAttribute('data-count', pendentes);
+          }
+          if (headerBtnAlertas) {
+            if (pendentes > 0) {
+              headerBtnAlertas.classList.add('has-alerts');
+            } else {
+              headerBtnAlertas.classList.remove('has-alerts');
             }
           }
           
@@ -595,6 +650,12 @@
               }
               menuItem.classList.remove('has-badge');
             }
+          }
+          const headerBadgeSos = document.getElementById('headerBadgeSos');
+          if (headerBadgeSos) {
+            headerBadgeSos.textContent = totalPendentes > 99 ? '99+' : totalPendentes.toString();
+            headerBadgeSos.style.display = totalPendentes > 0 ? 'inline-flex' : 'none';
+            headerBadgeSos.setAttribute('data-count', totalPendentes);
           }
           
           // Tocar som se aumentou (apenas se contexto de áudio estiver pronto)
@@ -663,6 +724,11 @@
     setInterval(() => {
       atualizarTodosContadores();
     }, 30000);
+    
+    // Quando o módulo Alertas tratar um alerta, atualizar contador do header na hora
+    document.addEventListener('alertas-contador-atualizado', () => {
+      atualizarContadorAlertas({}).catch(() => {});
+    });
   };
 
   // Função para inicializar o toggle do menu
@@ -672,32 +738,32 @@
     const toggleBtn = document.getElementById('toggleMenuBtn');
     const toggleIcon = toggleBtn?.querySelector('i');
 
-    // Verificar estado salvo no localStorage
+    const updateToggleState = (collapsed) => {
+      if (toggleIcon) toggleIcon.className = collapsed ? 'bx bx-menu' : 'bx bx-menu';
+      if (toggleBtn) {
+        toggleBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        const titleExpanded = toggleBtn.getAttribute('data-i18n-title-expanded');
+        const titleCollapsed = toggleBtn.getAttribute('data-i18n-title-collapsed');
+        const t = typeof window.tWeb === 'function' ? window.tWeb : (k) => k;
+        toggleBtn.title = collapsed ? (titleCollapsed ? t(titleCollapsed) : 'Expandir menu') : (titleExpanded ? t(titleExpanded) : 'Recolher menu');
+      }
+    };
+
     const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
     if (isCollapsed) {
       sidebar?.classList.add('collapsed');
       main?.classList.add('sidebar-collapsed');
-      if (toggleIcon) {
-        toggleIcon.className = 'bx bx-chevron-right';
-      }
+      updateToggleState(true);
+    } else {
+      updateToggleState(false);
     }
 
-    // Adicionar evento de clique no botão
     toggleBtn?.addEventListener('click', () => {
       sidebar?.classList.toggle('collapsed');
       main?.classList.toggle('sidebar-collapsed');
-      
-      // Atualizar ícone
-      if (toggleIcon) {
-        if (sidebar?.classList.contains('collapsed')) {
-          toggleIcon.className = 'bx bx-chevron-right';
-        } else {
-          toggleIcon.className = 'bx bx-chevron-left';
-        }
-      }
-
-      // Salvar estado no localStorage
-      localStorage.setItem('sidebarCollapsed', sidebar?.classList.contains('collapsed') ? 'true' : 'false');
+      const collapsed = sidebar?.classList.contains('collapsed');
+      updateToggleState(collapsed);
+      localStorage.setItem('sidebarCollapsed', collapsed ? 'true' : 'false');
     });
   };
 
@@ -782,7 +848,9 @@
                 </div>
                 <div class="menu-category-items" data-grupo-items="${key}" style="display: ${isExpanded ? 'block' : 'none'};">
                   ${grupo.items.map(item => {
-                    const itemLabel = _tMenu('web.menu.item.' + (item.programa || '')) || item.nome;
+                    // Prioridade: nome do banco (Gerenciar Tipos de Atividade) → tradução → fallback
+                    const nomeBanco = (item.nome && String(item.nome).trim()) ? String(item.nome).trim() : '';
+                    const itemLabel = nomeBanco || _tMenu('web.menu.item.' + (item.programa || '')) || item.nome || '';
                     return `
                     <div class="menu-item" data-id="${item.id}" data-programa="${item.programa}">
                       <i class='${item.iconClass}'></i>
@@ -851,6 +919,27 @@
             }
           });
         });
+
+        // Mostrar botões Chat, Alertas e SOS no header apenas se o usuário tiver o item no menu
+        const headerShortcuts = document.getElementById('headerShortcuts');
+        const headerBtnChat = document.getElementById('headerBtnChat');
+        const headerBtnAlertas = document.getElementById('headerBtnAlertas');
+        const headerBtnSos = document.getElementById('headerBtnSos');
+        const hasChat = !!document.querySelector('[data-programa="chat"]');
+        const hasAlertas = !!document.querySelector('[data-programa="alertas"]');
+        const hasSos = !!document.querySelector('[data-programa="sos"]');
+        if (headerShortcuts) {
+          headerShortcuts.style.display = (hasChat || hasAlertas || hasSos) ? 'flex' : 'none';
+        }
+        if (headerBtnChat) {
+          headerBtnChat.style.display = hasChat ? 'inline-flex' : 'none';
+        }
+        if (headerBtnAlertas) {
+          headerBtnAlertas.style.display = hasAlertas ? 'inline-flex' : 'none';
+        }
+        if (headerBtnSos) {
+          headerBtnSos.style.display = hasSos ? 'inline-flex' : 'none';
+        }
       } else {
         const semPerm = (typeof window.tWeb === 'function' ? window.tWeb('web.menu.semPermissoes') : 'Sem permissões');
         menuContainer.innerHTML = '<div class="menu-item"><span>' + semPerm + '</span></div>';
@@ -987,7 +1076,14 @@
         }
       }
 
-      const response = await fetch(corrigirUrl(`/modulos/${programa}/index.html`));
+      // Evitar cache ao trocar de programa: URL com cache-buster + no-store
+      // (sem cache-buster o HTML pode vir do cache; sem reexecutar scripts com src igual a tela fica em branco)
+      const baseHtmlUrl = corrigirUrl(`/modulos/${programa}/index.html`);
+      const htmlUrl = baseHtmlUrl + (baseHtmlUrl.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now();
+      const response = await fetch(htmlUrl, {
+        cache: 'no-store',
+        headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
+      });
       if (response.ok) {
         let html = await response.text();
         
@@ -1071,6 +1167,10 @@
           }
           
           const newScript = document.createElement('script');
+          // Cache-buster: forçar nova execução ao trocar de módulo (evita precisar F5 para cliques funcionarem).
+          const sep = scriptSrc && scriptSrc.indexOf('?') >= 0 ? '&' : '?';
+          if (scriptSrc) scriptSrc = scriptSrc + sep + '_=' + Date.now() + '&r=' + Math.random().toString(36).slice(2);
+
           const isViagensScript = scriptSrc && scriptSrc.includes('gerenciar-viagens/js/script.js');
           // Workaround: carregar script grande de gerenciar-viagens via fetch+blob para evitar
           // "Unexpected end of input" por truncamento (cache/compressão).
@@ -1158,11 +1258,11 @@
 
         // Carrega o script do módulo só se ainda não foi carregado pelo HTML do módulo
         // (evita carregar 2x e "Unexpected end of input" ao reexecutar/sobrescrever)
-        const moduleScriptUrl = corrigirUrl(`/modulos/${programa}/js/script.js`);
+        const moduleScriptBaseUrl = corrigirUrl(`/modulos/${programa}/js/script.js`);
         const alreadyLoadedModuleScript = contentArea.querySelector(`script[src*="${programa}/js/script.js"]`);
         if (!alreadyLoadedModuleScript) {
           const script = document.createElement('script');
-          script.src = moduleScriptUrl;
+          script.src = moduleScriptBaseUrl + (moduleScriptBaseUrl.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now() + '&r=' + Math.random().toString(36).slice(2);
           script.onerror = () => { /* silencioso */ };
           script.onload = () => {
             const modulosComMapa = ['gerenciar-viagens', 'gerenciar-roteiros', 'relatorio-convocacoes'];
@@ -1293,6 +1393,8 @@
       { programa: 'gerenciar-viagens', nome: _t('web.dashboard.gerenciarViagens'), icon: 'bx-trip' },
       { programa: 'relatorio-convocacoes', nome: _t('web.dashboard.relatorioConvocacoes'), icon: 'bx-bar-chart-alt-2' },
       { programa: 'gerenciar-equipamentos', nome: _t('web.dashboard.gerenciarEquipamentos'), icon: 'bx-package' },
+      { programa: 'gerenciar-mesorregiao', nome: _t('web.dashboard.gerenciarMesorregiao') || 'Mesorregiões', icon: 'bx-map' },
+      { programa: 'gerenciar-estados', nome: _t('web.dashboard.gerenciarEstados') || 'Estados', icon: 'bx-map-pin' },
       { programa: 'gerenciar-logs-acesso', nome: _t('web.dashboard.logsAcesso'), icon: 'bx-history' }
     ];
     

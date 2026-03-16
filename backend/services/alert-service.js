@@ -120,7 +120,7 @@ const alertService = {
             WHERE [IDVIAGEM] = @idviagem
               AND [DHREGISTRO] >= (CURRENT_TIMESTAMP - INTERVAL '60 minutes')
             ORDER BY [DHREGISTRO] DESC
-            LIMIT 3
+            LIMIT 60
           ) [sub]
           WHERE sub.[VELOCIDADE] < 5
         `);
@@ -225,8 +225,9 @@ const alertService = {
             AND [v].[CDSITUACAOVIAGEM] IN (
               SELECT [CDSITUACAOVIAGEM] 
               FROM [dbo].[SITUACAOVIAGEM] 
-              WHERE UPPER([DSSITUACAOVIAGEM]) LIKE '%ANDAMENTO%' 
+WHERE UPPER([DSSITUACAOVIAGEM]) LIKE '%ANDAMENTO%'
                  OR UPPER([DSSITUACAOVIAGEM]) LIKE '%CONFIRMADA%'
+                 OR UPPER([DSSITUACAOVIAGEM]) LIKE '%APROVADO%'
             )
             AND [v].[DTPREVFINAL] IS NOT NULL
         `);
@@ -385,8 +386,9 @@ const alertService = {
             AND [v].[CDSITUACAOVIAGEM] IN (
               SELECT [CDSITUACAOVIAGEM] 
               FROM [dbo].[SITUACAOVIAGEM] 
-              WHERE UPPER([DSSITUACAOVIAGEM]) LIKE '%ANDAMENTO%' 
+WHERE UPPER([DSSITUACAOVIAGEM]) LIKE '%ANDAMENTO%'
                  OR UPPER([DSSITUACAOVIAGEM]) LIKE '%CONFIRMADA%'
+                 OR UPPER([DSSITUACAOVIAGEM]) LIKE '%APROVADO%'
             )
             AND [v].[DTPREVFINAL] IS NOT NULL
         `);
@@ -556,8 +558,9 @@ SELECT [ID] FROM [dbo].[ALERTS]
                   SELECT 1 
                   FROM [dbo].[SITUACAOVIAGEM] [s]
                   WHERE [s].[CDSITUACAOVIAGEM] = [v].[CDSITUACAOVIAGEM]
-                    AND (UPPER([s].[DSSITUACAOVIAGEM]) LIKE '%ANDAMENTO%' 
-                      OR UPPER([s].[DSSITUACAOVIAGEM]) LIKE '%CONFIRMADA%')
+AND (UPPER([s].[DSSITUACAOVIAGEM]) LIKE '%ANDAMENTO%'
+                      OR UPPER([s].[DSSITUACAOVIAGEM]) LIKE '%CONFIRMADA%'
+                      OR UPPER([s].[DSSITUACAOVIAGEM]) LIKE '%APROVADO%')
                 )
             `);
 
@@ -583,6 +586,52 @@ SELECT [ID] FROM [dbo].[ALERTS]
                 details: JSON.stringify({
                   minutosOffline: data.minutosOffline,
                   ultimaPosicao: data.DHREGISTRO
+                })
+              };
+            }
+          }
+        }
+      } else {
+        // Nenhuma posição registrada na viagem: considerar offline se viagem ativa e início > 90 min
+        const viagemSemPosicao = await pool.request()
+          .input('idviagem', sql.Decimal(15, 0), idViagem)
+          .query(`
+            SELECT [v].[IDVIAGEM], [v].[DTPREVINICIO],
+              EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - [v].[DTPREVINICIO]))/60::float as "minutosOffline"
+            FROM [dbo].[VIAGEMMESTRE] [v]
+            WHERE [v].[IDVIAGEM] = @idviagem
+              AND [v].[DTPREVINICIO] IS NOT NULL
+              AND [v].[DTPREVINICIO] < CURRENT_TIMESTAMP
+              AND EXISTS (
+                SELECT 1 FROM [dbo].[SITUACAOVIAGEM] [s]
+                WHERE [s].[CDSITUACAOVIAGEM] = [v].[CDSITUACAOVIAGEM]
+                  AND (UPPER([s].[DSSITUACAOVIAGEM]) LIKE '%ANDAMENTO%'
+                    OR UPPER([s].[DSSITUACAOVIAGEM]) LIKE '%CONFIRMADA%'
+                    OR UPPER([s].[DSSITUACAOVIAGEM]) LIKE '%APROVADO%')
+              )
+          `);
+        if (viagemSemPosicao.recordset.length > 0) {
+          const data = viagemSemPosicao.recordset[0];
+          const minutosOffline = data.minutosOffline || 0;
+          if (minutosOffline >= 90) {
+            const existeAlerta = await pool.request()
+              .input('idviagem', sql.Decimal(15, 0), idViagem)
+              .input('type', sql.NVarChar(20), 'offline')
+              .query(`
+                SELECT [ID] FROM [dbo].[ALERTS]
+                WHERE [IDVIAGEM] = @idviagem AND [TYPE] = @type AND [RESOLVED] = false
+                LIMIT 1
+              `);
+            if (existeAlerta.recordset.length === 0) {
+              return {
+                idviagem: idViagem,
+                type: 'offline',
+                message: `Motorista sem registro de posição há ${Math.round(minutosOffline)} minutos`,
+                severity: minutosOffline > 180 ? 'high' : 'medium',
+                details: JSON.stringify({
+                  minutosOffline,
+                  semPosicao: true,
+                  dtPrevInicio: data.DTPREVINICIO
                 })
               };
             }
@@ -618,8 +667,9 @@ SELECT [ID] FROM [dbo].[ALERTS]
             AND [v].[CDSITUACAOVIAGEM] IN (
               SELECT [CDSITUACAOVIAGEM] 
               FROM [dbo].[SITUACAOVIAGEM] 
-              WHERE UPPER([DSSITUACAOVIAGEM]) LIKE '%ANDAMENTO%' 
+WHERE UPPER([DSSITUACAOVIAGEM]) LIKE '%ANDAMENTO%'
                  OR UPPER([DSSITUACAOVIAGEM]) LIKE '%CONFIRMADA%'
+                 OR UPPER([DSSITUACAOVIAGEM]) LIKE '%APROVADO%'
             )
         `);
 
@@ -691,7 +741,6 @@ SELECT [ID] FROM [dbo].[ALERTS]
           }
         } else if (origemLat && origemLon && destinoLat && destinoLon) {
           // Sem pontos de rota, usar origem e destino
-          // Calcular distância mínima da linha origem-destino
           const distancia = alertService.distanciaParaLinha(
             ultimaPos.LATITUDE,
             ultimaPos.LONGITUDE,
@@ -701,6 +750,40 @@ SELECT [ID] FROM [dbo].[ALERTS]
             destinoLon
           );
           distanciaMinima = distancia;
+        } else {
+          // Fallback: roteiro sem ROTEIROPONTOS — segmento 1ª posição até penúltima; distância da posição atual a esse segmento
+          const primeiraResult = await pool.request()
+            .input('idviagem', sql.Decimal(15, 0), idViagem)
+            .query(`
+              SELECT [LATITUDE], [LONGITUDE]
+              FROM [dbo].[VIAGEMRASTREAMENTO]
+              WHERE [IDVIAGEM] = @idviagem AND [LATITUDE] IS NOT NULL AND [LONGITUDE] IS NOT NULL
+              ORDER BY [DHREGISTRO] ASC
+              LIMIT 1
+            `);
+          const penultimaResult = await pool.request()
+            .input('idviagem', sql.Decimal(15, 0), idViagem)
+            .query(`
+              SELECT [LATITUDE], [LONGITUDE]
+              FROM [dbo].[VIAGEMRASTREAMENTO]
+              WHERE [IDVIAGEM] = @idviagem AND [LATITUDE] IS NOT NULL AND [LONGITUDE] IS NOT NULL
+              ORDER BY [DHREGISTRO] DESC
+              OFFSET 1
+              LIMIT 1
+            `);
+          const primeira = primeiraResult.recordset[0];
+          const penultima = penultimaResult.recordset[0];
+          if (primeira && penultima) {
+            const dist = alertService.distanciaParaLinha(
+              ultimaPos.LATITUDE,
+              ultimaPos.LONGITUDE,
+              primeira.LATITUDE,
+              primeira.LONGITUDE,
+              penultima.LATITUDE,
+              penultima.LONGITUDE
+            );
+            if (dist < distanciaMinima) distanciaMinima = dist;
+          }
         }
 
         // Se está fora do buffer de 500m
@@ -786,13 +869,13 @@ SELECT [ID] FROM [dbo].[ALERTS]
         .input('idviagem', sql.Decimal(15, 0), alerta.idviagem)
         .input('type', sql.NVarChar(20), alerta.type)
         .query(`
-SELECT [ID]
+          SELECT [ID]
           FROM [dbo].[ALERTS]
           WHERE [IDVIAGEM] = @idviagem
             AND [TYPE] = @type
+            AND ([RESOLVED] = false OR [RESOLVED] IS NULL)
             AND ([STATUS] IS NULL OR [STATUS] = 'Pendente' OR [STATUS] = 'Em Análise')
           LIMIT 1
-            AND [RESOLVED] = false
         `);
 
       if (existeResult.recordset.length > 0) {

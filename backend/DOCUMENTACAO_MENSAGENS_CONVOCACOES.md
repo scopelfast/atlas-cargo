@@ -11,77 +11,87 @@ Este documento descreve o sistema de mensagens de convocações, incluindo os pa
 Quando uma convocação é criada e enviada, o motorista recebe:
 
 ```
-Olá [NOME DO MOTORISTA]! Você foi convocado para uma viagem.
+Olá [NOME], como está? Você está sendo convocado para uma viagem.
 
-🚚 CARGA DISPONÍVEL
+  CARGA DISPONÍVEL
 
-🆔 ID: [ID_VIAGEM]
-📦 Tipo: [TIPO_VIAGEM]
-🚛 Classe: [CLASSE_FROTA]
-🗺️ Rota: [ROTEIRO]
+  ID: [ID_VIAGEM]
+  Tipo: [CÓDIGO - TIPO_VIAGEM]   (ex: 01 - Coleta)
+  Classe: [CLASSE_FROTA]
+  Rota: [ORIGEM -> DESTINO]
+  País: [PAÍS_ORIGEM] → [PAÍS_DESTINO]   (quando disponível)
+  Pontos de parada:   (quando o roteiro tiver pontos cadastrados)
+  • País, Estado, Cidade
+  • ...
 
-⏰ HORÁRIOS
-📅 Carregamento: [DATA/HORA]
-📅 Descarga: [DATA/HORA]
+  HORÁRIOS
+  Carregamento: DD/MM/AAAA HH:mm
+  Descarga: DD/MM/AAAA HH:mm
 
-✅ REQUISITOS (se aplicável)
-✅ Exige Veículo Rastreado: SIM
+  REQUISITOS (se a viagem exige rastreado)
+  ✅ Exige veículo rastreado: SIM
 
-👤 CONTRATADOR
-[NOME_CONTRATADOR]
+  CONTRATADOR
+  [NOME_CONTRATADOR]
 
-💰 VALORES
-💵 Frete: R$ [VALOR]
-📊 Peso: [PESO] ton
-📦 Cubagem: [CUBAGEM] m³
+  VALORES
+  Frete: R$ [VALOR]
+  Peso: [PESO] ton
+  Cubagem: [CUBAGEM] m³
 
-📝 DETALHES DA VIAGEM (se houver)
-[OBSERVAÇÕES]
+  DETALHES DA VIAGEM (se houver)
+  [OBSERVAÇÕES]
 
-🔗 Acesse o link para mais detalhes:
-
-[LINK_CONVOCACAO]
+  Acesse o link para mais detalhes:
+  [LINK_CONVOCACAO]
 ```
 
 **Características:**
-- Nome do motorista personalizado em maiúsculas
-- Todos os detalhes da viagem formatados
+- Saudação: "Olá [nome], como está? Você está sendo convocado..."
+- Tipo exibido com código + descrição (ex: 01 - Coleta)
+- Rota: origem -> destino; linha de País quando cidade tem país cadastrado; pontos de parada do roteiro (País, Estado, Cidade)
 - Link único para cada motorista responder
-- Adaptação para links locais vs públicos
 
-### 2. Mensagem de Confirmação
+### 2. Mensagem de Confirmação (motorista selecionado)
 
-Quando uma convocação é aceita e confirmada pelo operador:
+Quando a convocação é confirmada pelo operador:
 
 ```
 🎉 PARABÉNS! Você foi selecionado!
 
-Olá [NOME DO MOTORISTA],
+Olá [PRIMEIRO_NOME], como está?
 
 Temos uma ótima notícia! Você foi SELECIONADO para realizar a viagem:
 
 🆔 ID da Viagem: [ID_VIAGEM]
-🗺️ Rota: [ROTEIRO]
-📅 Carregamento: [DATA/HORA]
-📅 Descarga: [DATA/HORA]
-
 ✅ Sua convocação foi CONFIRMADA!
+Agora, por favor, aguarde o contato do nosso time, com mais instruções dos próximos passos.
 
-Por favor, entre em contato conosco para os próximos passos.
+Obrigado pela parceria! 🚛
 
-📞 Entre em Contato:
-[NOME_CONTRATADOR]
-📱 [TELEFONE_CONTRATADOR]
-
-Aguardamos seu retorno! 🚛
+Aplicativo do motorista:
+[LINK_APP_MOTORISTA]
 ```
 
 **Características:**
-- Nome do motorista personalizado em maiúsculas
-- Mensagem de parabéns destacada
-- Detalhes da viagem confirmada
-- Contato do contratador incluído
-- Tom profissional e acolhedor
+- Sempre chamar o motorista pelo nome (primeiro nome)
+- Link do app: configurável em **Configurações do Sistema** (chave `link_app_motorista`) ou variável de ambiente APP_URL/PUBLIC_URL
+
+### 3. Mensagem para quem aceitou mas não foi escolhido
+
+Quando outro motorista é confirmado, os que tinham aceito recebem:
+
+```
+Olá [PRIMEIRO_NOME], como está?
+Para a viagem [ID_VIAGEM] outro motorista foi selecionado.
+Agradecemos seu interesse e não se preocupe! Você poderá ser convocado em novas viagens.
+
+Obrigado pela parceria! 🚛
+```
+
+**Características:**
+- Tom cordial; reforça que poderá ser convocado em novas viagens
+- Sempre pelo primeiro nome
 
 ## Métodos de Envio
 
@@ -154,6 +164,17 @@ Aguardamos seu retorno! 🚛
 4. **Envio:**
    - **WaboxApp:** Mensagem de confirmação enviada automaticamente
    - **Manual:** WhatsApp abre com mensagem pré-formatada
+
+## Link do aplicativo do motorista (mensagem de confirmação)
+
+O link que aparece na mensagem de confirmação ("Aplicativo do motorista") pode ser definido de duas formas:
+
+1. **Configurações do Sistema (banco):** na tabela `CONFIGURACAO`, chave `link_app_motorista`, valor = URL (ex: `https://meudominio.com/motorista/`).
+2. **Variáveis de ambiente:** se a chave não existir no banco, o sistema usa `APP_URL` ou `PUBLIC_URL` do `.env`.
+
+Assim o operador não precisa alterar código para trocar o link do app.
+
+---
 
 ## Configuração WaboxApp
 

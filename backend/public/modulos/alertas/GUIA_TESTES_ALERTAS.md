@@ -8,7 +8,7 @@
 
 ## 📖 Índice
 
-1. [Visão Geral](#visão-geral)
+1. [Visão Geral](#visão-geral) — Regras e melhorias planejadas, macros, proximidade, criticidade
 2. [Como Funciona](#como-funciona)
 3. [Pré-requisitos](#pré-requisitos)
 4. [Preparação do Ambiente](#preparação-do-ambiente)
@@ -16,6 +16,7 @@
 6. [Scripts SQL de Teste](#scripts-sql-de-teste)
 7. [Checklist de Validação](#checklist-de-validação)
 8. [Troubleshooting](#troubleshooting)
+9. [Documentos relacionados](#-documentos-relacionados)
 
 ---
 
@@ -28,6 +29,31 @@ O módulo **Alertas** permite visualizar, filtrar e tratar alertas gerados autom
 - 📴 **Motorista offline** (>90 minutos sem atualização GPS)
 - 🗺️ **Desvios de rota** (motorista fora da rota planejada)
 
+### Regras e melhorias planejadas (por tipo de alerta)
+
+Todas as regras abaixo devem ser **ligáveis/desligáveis** em Configurações do Sistema (nem todo cliente vai querer). Quando a Integração Switch Digital (WhatsApp) estiver habilitada: gerar alerta no Atlas Cargo **e** enviar mensagem ao motorista e a números adicionais (+D1), na quantidade necessária.
+
+| Tipo | Regras / melhorias planejadas |
+|------|------------------------------|
+| **Atrasos** | Tratar de formas distintas: (1) **Carregamento/Descarga** – calcular se o motorista chega no local em tempo hábil (posição atual vs posição do local de carregamento/descarga); tempo, distância; antecipar ao evento para minimizar impacto na operação e com o cliente; mesma regra para descarga; (2) **Atraso para início de viagem**. |
+| **Paradas prolongadas** | Usar a tabela **Gerenciar Tipo de Ocorrência** (eventos controlados ou não; tempos). Paradas **sem macro informada** devem ser identificadas e gerar alerta (ex.: “parado sem macro registrada”). |
+| **Motorista offline** | Tempo máximo sem posição **configurável**. |
+| **Desvios de rota** | **Distância máxima** do desvio configurável. |
+
+
+### Alertas por macros (parado x em rodagem)
+
+- **Última macro tipo T + X posições no mesmo lugar em Y tempo:** interpretar como possível parada → gerar alerta de **parado sem macro registrada** e colocar para alguém tratar (seguindo regras de Configurações e Switch Digital).
+- **Última macro não é T + posicionando em pontos distintos:** sinal de **em rodagem** mas motorista esqueceu de enviar a macro. Identificar qual foi a última macro (e sequenciamento) e gerar alerta já informando **quais macros deixaram de ser informadas**, tanto para o motorista quanto para outros contatos (alertas + Switch Digital).
+
+### Alertas por proximidade (raio)
+
+- Quando o motorista posicionar **dentro de um raio configurável** da **origem**, dos **pontos de parada**, **passagem** e **final do roteiro**, gerar alertas para facilitar a operação (ex.: “Motorista próximo ao local de carregamento”).
+
+### Criticidade e priorização
+
+- Incluir **grau de risco**, **nível de risco** ou **criticidade** dos alertas para definir **quem atende primeiro** e **quem trata depois** (ordenação/fila por criticidade na tela e, se aplicável, nas notificações).
+
 ---
 
 ## 🔧 Como Funciona
@@ -38,7 +64,7 @@ Os alertas são gerados **automaticamente** pelo sistema através de um processo
 
 1. **Verifica viagens ativas** periodicamente (a cada 5 minutos)
 2. **Analisa dados de rastreamento** (GPS, velocidade, posição)
-3. **Compara com parâmetros configurados** (tempo de parada, ETA, rota)
+3. **Compara com parâmetros configurados** (tempo de parada, ETA, rota). *Onde estão hoje:* parte dos parâmetros está no código em `alert-service.js` (valores fixos); o plano para centralizar em Configurações do Sistema está em **PLANO_CONFIGURACAO_ALERTAS_SISTEMA.md** (chaves `alert_*` na tabela CONFIGURACAO).
 4. **Cria alertas** quando detecta situações anômalas
 5. **Notifica em tempo real** via WebSocket
 
@@ -388,5 +414,14 @@ Em caso de problemas não resolvidos:
 
 ---
 
+## 📎 Documentos relacionados
+
+- **PASSO_A_PASSO_TESTE_RAPIDO.md** – Teste rápido do módulo
+- **PLANO_CONFIGURACAO_ALERTAS_SISTEMA.md** – Configurações de alertas em Configurações do Sistema (tempos, tipos ativos, etc.)
+- **PREPARACAO_INTEGRACAO_E_PROXIMOS_PASSOS.md** – Pontos de integração (ex.: Switch Digital), variáveis para templates e checklist para não refazer trabalho
+- **docs/PLANO_INTEGRACAO_SWITCH_DIGITAL_E_REGRAS.md** (raiz do repositório) – Plano geral de integração WhatsApp e regras configuráveis
+
+---
+
 **Documento criado em:** 2026-01-18  
-**Última atualização:** 2026-01-18
+**Última atualização:** 2026-03-06 — Apontamentos integrados (regras por tipo, macros, proximidade, criticidade, local dos parâmetros).
