@@ -40,15 +40,14 @@ git push origin main
 if %errorlevel% neq 0 (
   echo.
   echo O remoto tem commits que voce nao tem localmente.
-  echo Como a sua maquina e a fonte, pode sobrescrever o remoto.
-  set /p FORCAR="Sobrescrever o GitHub com sua versao? (S/N): "
-  set FORCAR=%FORCAR: =%
-  if /i "%FORCAR%"=="S" (
-    git push origin main --force
-    if errorlevel 1 (echo Erro no push --force.) else (echo Concluido. Remoto atualizado com sua versao.)
-  ) else (
-    echo Push cancelado. Nada foi enviado.
+  echo Sobrescrevendo o GitHub com sua versao (push --force)...
+  git push origin main --force
+  if errorlevel 1 (
+    echo Erro no push --force. Verifique conexao e credenciais.
+    pause
+    exit /b 1
   )
+  echo Concluido. Remoto atualizado com sua versao.
   echo.
   pause
   exit /b 0
