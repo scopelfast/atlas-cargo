@@ -254,25 +254,22 @@ if (isDevelopment) {
 
 app.use(helmet(helmetConfig));
 
-// Middleware para redirecionar HTTPS para HTTP em desenvolvimento
+// Middleware para redirecionar HTTPS para HTTP em desenvolvimento (apenas quando NÃO há proxy)
+// Com Cloudflare/proxy: NÃO redirecionar quando x-forwarded-proto existe, senão causa ERR_TOO_MANY_REDIRECTS
 if (isDevelopment) {
   app.use((req, res, next) => {
-    // Remover qualquer header que possa forçar HTTPS
     res.removeHeader('Strict-Transport-Security');
     res.removeHeader('Upgrade-Insecure-Requests');
-    
-    // Se a requisição vier via HTTPS em desenvolvimento, redirecionar para HTTP
-    if (req.secure || req.get('x-forwarded-proto') === 'https') {
+    const viaProxy = req.get('x-forwarded-proto');
+    // Só redirecionar se a conexão direta com o Node for HTTPS (req.secure), não quando o proxy disse que o cliente usou HTTPS
+    if (!viaProxy && req.secure) {
       const host = req.get('host');
       const url = req.url;
       const httpUrl = `http://${host}${url}`;
       console.warn(`⚠️ [DEV] Redirecionando HTTPS → HTTP: ${req.protocol}://${host}${url} → ${httpUrl}`);
       return res.redirect(301, httpUrl);
     }
-    
-    // Adicionar header para indicar que estamos forçando HTTP
-    res.setHeader('X-Force-HTTP', 'true');
-    
+    if (!viaProxy) res.setHeader('X-Force-HTTP', 'true');
     next();
   });
 }

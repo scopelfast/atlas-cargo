@@ -104,23 +104,22 @@
       
       // CRÍTICO: Detectar o caminho base (subdiretório) da aplicação
       // Se a página está em /cargas/, o baseUrl deve incluir /cargas/
-      // Exemplo: https://app.atlascargo.com:8443/cargas/ → baseUrl = https://app.atlascargo.com:8443/cargas
+      // Se a página está em /, /login ou /index.html → usar raiz para que CSS/img carreguem de /css/, /img/
       let pathBase = window.location.pathname;
       
-      // Remover nome do arquivo (index.html, dashboard.html, etc.) e manter apenas o diretório
-      // /cargas/ → /cargas
-      // /cargas/index.html → /cargas
-      // / → /
-      if (pathBase.endsWith('.html')) {
-        // Se termina com .html, remover o arquivo e manter o diretório
+      // Páginas "raiz" do app: assets devem vir da raiz do servidor (/css/, /img/), não de /login/css/
+      const isPaginaRaiz = pathBase === '/' || pathBase === '' || pathBase === '/login' || pathBase === '/index.html' || pathBase.startsWith('/login?');
+      if (isPaginaRaiz) {
+        pathBase = '/';
+      } else if (pathBase.endsWith('.html')) {
+        // Se termina com .html, remover o arquivo e manter o diretório (ex: /cargas/index.html → /cargas/)
         const lastSlash = pathBase.lastIndexOf('/');
         if (lastSlash > 0) {
-          pathBase = pathBase.substring(0, lastSlash + 1); // Incluir a barra final
+          pathBase = pathBase.substring(0, lastSlash + 1);
         } else {
           pathBase = '/';
         }
       } else if (!pathBase.endsWith('/')) {
-        // Se não termina com /, adicionar
         pathBase = pathBase + '/';
       }
       
