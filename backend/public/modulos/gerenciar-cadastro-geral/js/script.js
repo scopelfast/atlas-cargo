@@ -867,7 +867,9 @@
       const rastreado = document.getElementById('filtroRastreado')?.value;
       if (rastreado) params.append('rastreado', rastreado);
       
-      const response = await fetch(`/api/cadastros-gerais?${params.toString()}`);
+      const queryString = params.toString();
+      const url = queryString ? `/api/cadastros-gerais?${queryString}` : '/api/cadastros-gerais';
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }

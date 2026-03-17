@@ -203,8 +203,9 @@ const cadastroController = {
       
       res.json(cadastros);
     } catch (err) {
-      console.error('Erro ao listar cadastros gerais:', err);
-      res.status(500).json({ error: 'Erro ao carregar cadastros.' });
+      console.error('[CadastroGeral] Erro ao listar:', err.message || err);
+      if (err.stack) console.error(err.stack);
+      res.status(500).json({ error: 'Erro ao carregar cadastros.', details: process.env.NODE_ENV === 'development' ? (err.message || String(err)) : undefined });
     }
   },
 

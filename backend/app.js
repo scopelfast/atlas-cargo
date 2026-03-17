@@ -179,7 +179,16 @@ const helmetConfig = {
         "'unsafe-eval'",
         "blob:", // Scripts carregados via fetch+blob no dashboard (ex.: gerenciar-viagens)
         "https://cdn.jsdelivr.net",
-        "https://unpkg.com" // Para Leaflet JS
+        "https://unpkg.com", // Para Leaflet JS
+        "https://static.cloudflareinsights.com" // Beacon do Cloudflare (analytics)
+      ],
+      scriptSrcElem: [
+        "'self'",
+        "'unsafe-inline'",
+        "blob:",
+        "https://cdn.jsdelivr.net",
+        "https://unpkg.com",
+        "https://static.cloudflareinsights.com" // Beacon do Cloudflare (carregado como <script src="...">)
       ],
       scriptSrcAttr: [
         "'unsafe-inline'" // Permitir event handlers inline (onclick, onload, etc)
