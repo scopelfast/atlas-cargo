@@ -23,6 +23,8 @@ if "%MSG%"=="" set MSG=Atualizacao
 echo.
 echo Adicionando arquivos...
 git add -A
+REM Garantir que .env nunca seja commitado (seguranca)
+git reset HEAD -- .env .env.local backend/.env backend/.env.local 2>nul
 
 echo Fazendo commit: %MSG%
 git commit -m "%MSG%"
@@ -36,9 +38,17 @@ echo.
 echo Enviando para GitHub...
 git push origin main
 if %errorlevel% neq 0 (
-  echo Erro no push. Verifique conexao e credenciais.
+  echo.
+  echo O remoto tem commits que voce nao tem localmente.
+  echo Como a sua maquina e a fonte, pode sobrescrever o remoto.
+  set /p FORCAR="Sobrescrever o GitHub com sua versao? (S/N): "
+  if /i "%FORCAR%"=="S" git push origin main --force
+  if /i "%FORCAR%"=="S" if %errorlevel% equ 0 echo Concluido. Remoto atualizado com sua versao.
+  if /i "%FORCAR%"=="S" if %errorlevel% neq 0 echo Erro no push --force.
+  if /i not "%FORCAR%"=="S" echo Push cancelado. Nada foi enviado.
+  echo.
   pause
-  exit /b 1
+  exit /b 0
 )
 
 echo.
