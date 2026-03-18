@@ -261,23 +261,21 @@ if (isDevelopment) {
   // As faixas já foram adicionadas acima (192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12)
 }
 
-app.use(helmet(helmetConfig));
-
-// Garantir que o beacon do Cloudflare seja permitido pelo CSP (evitar erro no console quando atrás de proxy/CDN)
+// Interceptar setHeader para injetar Cloudflare no CSP (antes do Helmet definir o header)
 app.use((req, res, next) => {
-  res.setHeader('Content-Security-Policy',
-    (res.getHeader('Content-Security-Policy') || '')
-      .replace(/\bscript-src\s+([^;]+);/i, (m, list) => {
-        if (/static\.cloudflareinsights\.com/i.test(list)) return m;
-        return `script-src ${list} https://static.cloudflareinsights.com;`;
-      })
-      .replace(/\bscript-src-elem\s+([^;]+);/i, (m, list) => {
-        if (/static\.cloudflareinsights\.com/i.test(list)) return m;
-        return `script-src-elem ${list} https://static.cloudflareinsights.com;`;
-      })
-  );
+  const origSetHeader = res.setHeader.bind(res);
+  res.setHeader = function (name, value) {
+    if (name.toLowerCase() === 'content-security-policy' && typeof value === 'string' && !/static\.cloudflareinsights\.com/i.test(value)) {
+      value = value
+        .replace(/(\bscript-src\s+)([^;]+)(;)/gi, (_, p, list, s) => p + list.trim() + ' https://static.cloudflareinsights.com' + s)
+        .replace(/(\bscript-src-elem\s+)([^;]+)(;)/gi, (_, p, list, s) => p + list.trim() + ' https://static.cloudflareinsights.com' + s);
+    }
+    return origSetHeader(name, value);
+  };
   next();
 });
+
+app.use(helmet(helmetConfig));
 
 // Middleware para redirecionar HTTPS para HTTP em desenvolvimento (apenas quando NÃO há proxy)
 // Com Cloudflare/proxy: NÃO redirecionar quando x-forwarded-proto existe, senão causa ERR_TOO_MANY_REDIRECTS
@@ -472,6 +470,34 @@ app.get(['/m', '/m/'], (req, res) => {
   res.redirect(302, '/motorista/');
 });
 
+// Manifest do motorista ANTES do express.static para evitar 403 (proxy/static)
+const manifestPath = path.join(__dirname, 'public', 'motorista', 'manifest.json');
+app.get(['/motorista/manifest.json', '/cargas/motorista/manifest.json'], (req, res) => {
+  const fs = require('fs');
+  try {
+    const manifestContent = fs.readFileSync(manifestPath, 'utf8');
+    const manifest = JSON.parse(manifestContent);
+    const requestPath = req.originalUrl || req.path || req.url;
+    const pathBase = (requestPath && (requestPath.includes('/cargas/motorista/manifest.json') || requestPath.includes('/cargas/'))) ? '/cargas' : '';
+    if (manifest.start_url) {
+      manifest.start_url = pathBase + (manifest.start_url.startsWith('/') ? manifest.start_url : '/' + manifest.start_url);
+    }
+    if (manifest.icons && Array.isArray(manifest.icons)) {
+      manifest.icons = manifest.icons.map(icon => {
+        let iconSrc = icon.src;
+        iconSrc = iconSrc.startsWith('/') ? pathBase + iconSrc : pathBase + '/' + iconSrc;
+        return { ...icon, src: iconSrc };
+      });
+    }
+    res.setHeader('Content-Type', 'application/manifest+json');
+    res.setHeader('Cache-Control', 'public, max-age=300, must-revalidate');
+    res.status(200).json(manifest);
+  } catch (err) {
+    console.error('Erro ao ler manifest.json:', err);
+    res.status(404).send('Manifest não encontrado');
+  }
+});
+
 // Servir arquivos estáticos da pasta 'public'
 // IMPORTANTE: Colocado DEPOIS das rotas específicas para não interferir
 // Configurar headers corretos para arquivos estáticos
@@ -585,67 +611,6 @@ app.get('/test-css', (req, res) => {
       res.status(404).send(`CSS não encontrado: ${cssPath}`);
     }
   });
-});
-
-// Rota para servir manifest.json do motorista com caminhos corrigidos
-app.get(['/motorista/manifest.json', '/cargas/motorista/manifest.json'], (req, res) => {
-  const fs = require('fs');
-  const manifestPath = path.join(__dirname, 'public', 'motorista', 'manifest.json');
-  
-  try {
-    const manifestContent = fs.readFileSync(manifestPath, 'utf8');
-    const manifest = JSON.parse(manifestContent);
-    
-    // Detectar caminho base da requisição usando originalUrl ou path
-    // originalUrl inclui o caminho completo, path pode não incluir
-    const requestPath = req.originalUrl || req.path || req.url;
-    // Detectar se está em /cargas/motorista/manifest.json
-    let pathBase = '';
-    if (requestPath && (requestPath.includes('/cargas/motorista/manifest.json') || requestPath.includes('/cargas/'))) {
-      pathBase = '/cargas';
-    }
-    
-    console.log('📦 [MANIFEST] Request path:', requestPath);
-    console.log('📦 [MANIFEST] Detected pathBase:', pathBase || '(raiz)');
-    console.log('📦 [MANIFEST] Full request object:', {
-      originalUrl: req.originalUrl,
-      path: req.path,
-      url: req.url,
-      baseUrl: req.baseUrl
-    });
-    
-    // Corrigir start_url
-    if (manifest.start_url) {
-      // Se start_url já começa com /, adicionar pathBase antes
-      manifest.start_url = pathBase + (manifest.start_url.startsWith('/') ? manifest.start_url : '/' + manifest.start_url);
-    }
-    
-    // Corrigir ícones
-    if (manifest.icons && Array.isArray(manifest.icons)) {
-      manifest.icons = manifest.icons.map(icon => {
-        // Se src começa com /, adicionar pathBase antes
-        let iconSrc = icon.src;
-        if (iconSrc.startsWith('/')) {
-          iconSrc = pathBase + iconSrc;
-        } else {
-          iconSrc = pathBase + '/' + iconSrc;
-        }
-        console.log('📦 [MANIFEST] Corrigindo ícone:', icon.src, '→', iconSrc);
-        return {
-          ...icon,
-          src: iconSrc
-        };
-      });
-    }
-    
-    console.log('📦 [MANIFEST] Icons corrigidos:', JSON.stringify(manifest.icons, null, 2));
-    
-    res.setHeader('Content-Type', 'application/manifest+json');
-    res.json(manifest);
-  } catch (err) {
-    console.error('Erro ao ler manifest.json:', err);
-    res.status(404).send('Manifest não encontrado');
-  }
 });
 
 // Qualquer outra rota não encontrada → redireciona para frontend (SPA-friendly)
