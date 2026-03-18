@@ -263,6 +263,22 @@ if (isDevelopment) {
 
 app.use(helmet(helmetConfig));
 
+// Garantir que o beacon do Cloudflare seja permitido pelo CSP (evitar erro no console quando atrás de proxy/CDN)
+app.use((req, res, next) => {
+  res.setHeader('Content-Security-Policy',
+    (res.getHeader('Content-Security-Policy') || '')
+      .replace(/\bscript-src\s+([^;]+);/i, (m, list) => {
+        if (/static\.cloudflareinsights\.com/i.test(list)) return m;
+        return `script-src ${list} https://static.cloudflareinsights.com;`;
+      })
+      .replace(/\bscript-src-elem\s+([^;]+);/i, (m, list) => {
+        if (/static\.cloudflareinsights\.com/i.test(list)) return m;
+        return `script-src-elem ${list} https://static.cloudflareinsights.com;`;
+      })
+  );
+  next();
+});
+
 // Middleware para redirecionar HTTPS para HTTP em desenvolvimento (apenas quando NÃO há proxy)
 // Com Cloudflare/proxy: NÃO redirecionar quando x-forwarded-proto existe, senão causa ERR_TOO_MANY_REDIRECTS
 if (isDevelopment) {

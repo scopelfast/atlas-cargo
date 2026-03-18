@@ -867,10 +867,12 @@
       const rastreado = document.getElementById('filtroRastreado')?.value;
       if (rastreado) params.append('rastreado', rastreado);
       
-      const queryString = params.toString();
+      const queryString = params.toString().trim();
       const url = queryString ? `/api/cadastros-gerais?${queryString}` : '/api/cadastros-gerais';
       const response = await fetch(url);
       if (!response.ok) {
+        const errBody = await response.text();
+        console.error('[CadastroGeral] GET %s → %s. Resposta:', url, response.status, errBody.slice(0, 500));
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const cadastros = await response.json();
@@ -957,7 +959,7 @@
 
       showTab(openTab);
     } catch (err) {
-      console.error('Erro ao aplicar filtros:', err);
+      console.error('[CadastroGeral] Erro ao aplicar filtros:', err.message || err);
       showMessage('Erro ao carregar cadastros.', 'error');
     } finally {
       // Esconder overlay de carregamento

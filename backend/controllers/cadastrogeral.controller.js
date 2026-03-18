@@ -203,9 +203,13 @@ const cadastroController = {
       
       res.json(cadastros);
     } catch (err) {
-      console.error('[CadastroGeral] Erro ao listar:', err.message || err);
+      const msg = err.message || String(err);
+      const code = err.code; // código do PostgreSQL (ex: 42P01 = tabela não existe, 28P01 = auth failed)
+      console.error('[CadastroGeral] Erro ao listar:', msg);
+      if (code) console.error('[CadastroGeral] Código:', code, err.detail || '');
       if (err.stack) console.error(err.stack);
-      res.status(500).json({ error: 'Erro ao carregar cadastros.', details: process.env.NODE_ENV === 'development' ? (err.message || String(err)) : undefined });
+      const details = process.env.NODE_ENV === 'development' ? { message: msg, code: code || undefined, detail: err.detail } : undefined;
+      res.status(500).json({ error: 'Erro ao carregar cadastros.', ...(details && { details }) });
     }
   },
 

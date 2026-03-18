@@ -1,0 +1,22 @@
+---
+description: Documentar alterações de estrutura do banco em scripts SQL para o servidor (pgAdmin)
+alwaysApply: false
+globs: backend/**/*.js, backend/scripts/**/*.sql, script_db_postgres.sql
+---
+
+# Estrutura do banco – documentar para o servidor
+
+Sempre que houver alteração na **estrutura do banco** (novas tabelas, colunas, índices, constraints) no código ou em scripts:
+
+1. **Criar ou atualizar um script SQL** em `backend/scripts/` que reproduza essa alteração.
+2. O script deve ser **executável no pgAdmin do servidor** (PostgreSQL, banco `atlas_cargo_prd`).
+3. Preferir scripts **idempotentes**: usar `CREATE TABLE IF NOT EXISTS`, ou `DO $$ ... IF NOT EXISTS (SELECT 1 FROM information_schema.columns ...) THEN ALTER TABLE ... END IF; END $$;` para colunas.
+4. Nomear de forma clara:
+   - Nova tabela: `criar_tabela_<nome>_postgres.sql`
+   - Novas colunas/ajustes: `adicionar_<descricao>_postgres.sql`
+5. Incluir no topo do script um comentário com: nome, objetivo e instrução (ex.: "Executar no pgAdmin, banco atlas_cargo_prd").
+
+Referências:
+- Política e fluxo: `docs/ESTRUTURA_BANCO_DOCUMENTACAO.md`
+- Convenções e exemplos: `backend/scripts/README_ESTRUTURA_BANCO_SERVIDOR.md`
+- Schema base: `script_db_postgres.sql` (atualizar quando a estrutura geral mudar).

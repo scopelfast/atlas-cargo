@@ -29,12 +29,17 @@ git reset HEAD -- .env .env.local backend/.env backend/.env.local 2>nul
 echo Fazendo commit: %MSG%
 git commit -m "%MSG%"
 if %errorlevel% neq 0 (
-  echo Nenhuma alteracao para commitar, ou erro no commit.
-  pause
-  exit /b 0
+  echo Nenhuma alteracao para commitar.
+  git status -sb | findstr /C:"ahead" >nul
+  if %errorlevel% neq 0 (
+    echo Nao ha commits pendentes para enviar.
+    pause
+    exit /b 0
+  )
+  echo Voce tem commits locais ainda nao enviados. Enviando...
+  echo.
 )
 
-echo.
 echo Enviando para GitHub...
 git push origin main
 if %errorlevel% neq 0 (

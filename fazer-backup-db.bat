@@ -25,6 +25,9 @@ if %errorlevel% neq 0 (
   exit /b 1
 )
 
+:: Remove linha invalida "\restrict ..." que alguns editores inserem (gera erro no psql)
+powershell -NoProfile -Command "(Get-Content -LiteralPath '%ARQUIVO%' -Raw) -replace '(?m)^\\restrict[^\r\n]*[\r\n]+', '' | Set-Content -LiteralPath '%ARQUIVO%' -NoNewline; (Get-Content -LiteralPath '%ARQUIVO%') | Set-Content -LiteralPath '%ARQUIVO%'"
+
 echo.
 echo ==========================================
 echo   Backup concluido com sucesso!
