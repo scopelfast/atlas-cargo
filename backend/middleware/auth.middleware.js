@@ -1,5 +1,6 @@
 // backend/middleware/auth.middleware.js
 const jwt = require('jsonwebtoken');
+const { isCurrentToken } = require('../motorista-session');
 
 // Middleware para extrair usuário do token JWT (opcional - não bloqueia)
 const getUsuarioLogado = (req, res, next) => {
@@ -108,5 +109,65 @@ const requireAuth = (req, res, next) => {
   }
 };
 
-module.exports = { getUsuarioLogado, requireAuth };
+// Middleware para rotas do app motorista: exige JWT e que o token seja o da sessão ativa (um login por motorista).
+const requireMotoristaAuth = (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    let token = null;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    } else {
+      token = req.headers['x-token'] || req.query.token;
+    }
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'Token de autenticação não fornecido. Faça login novamente.',
+        errorKey: 'login.tokenObrigatorio'
+      });
+    }
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (err) {
+      if (err.name === 'TokenExpiredError') {
+        return res.status(401).json({
+          success: false,
+          message: 'Token expirado. Faça login novamente.',
+          errorKey: 'login.tokenExpirado'
+        });
+      }
+      return res.status(401).json({
+        success: false,
+        message: 'Token inválido. Faça login novamente.',
+        errorKey: 'login.tokenInvalido'
+      });
+    }
+    const id = decoded.id ?? decoded.cdcadastro;
+    const idStr = id != null ? String(id) : '(null)';
+    if (!isCurrentToken(id, token)) {
+      console.log('[AUTH MOTORISTA] 401 sessão inválida decoded.id=%s decoded.cdcadastro=%s idUsado=%s', decoded.id, decoded.cdcadastro, idStr);
+      return res.status(401).json({
+        success: false,
+        message: 'Sessão encerrada em outro dispositivo. Faça login novamente.',
+        errorKey: 'login.sessaoEncerradaOutroDispositivo'
+      });
+    }
+    req.user = {
+      login: decoded.login,
+      id,
+      cdcadastro: id,
+      nome: decoded.nome,
+      email: decoded.email
+    };
+    next();
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: 'Erro ao verificar autenticação.'
+    });
+  }
+};
+
+module.exports = { getUsuarioLogado, requireAuth, requireMotoristaAuth };
 

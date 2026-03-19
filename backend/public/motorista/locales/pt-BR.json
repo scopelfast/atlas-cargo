@@ -22,7 +22,8 @@
     "cadastroPendente": "Cadastro pendente de aprovação.",
     "sistemaConfiguracao": "Sistema em configuração. Cadastro de motoristas ainda não disponível.",
     "erroConfigServidor": "Erro de configuração do servidor.",
-    "erroLogin": "Erro ao fazer login."
+    "erroLogin": "Erro ao fazer login.",
+    "sessaoEncerradaOutroDispositivo": "Sessão encerrada em outro dispositivo. Faça login novamente."
   },
   "recuperarSenhaErrors": {
     "identificacaoObrigatoria": "Documento ou celular é obrigatório.",
@@ -214,7 +215,13 @@
     "semCargas": "Nenhuma carga disponível.",
     "carregando": "Carregando cargas...",
     "filtrosBusca": "Filtros de Busca",
-    "buscarCargas": "Buscar Cargas"
+    "buscarCargas": "Buscar Cargas",
+    "pais": "País",
+    "todosPaises": "Todos os países",
+    "estado": "Estado / UF",
+    "todosEstados": "Todos os estados",
+    "regiao": "Região",
+    "todosRegioes": "Todas as regiões"
   },
   "configuracoes": {
     "titulo": "Configurações",

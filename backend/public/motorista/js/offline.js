@@ -185,7 +185,9 @@
         throw new Error('GPS inválido: faltam campos obrigatórios (LATITUDE, LONGITUDE, IDVIAGEM)');
       }
     } else if (store === 'filaEventos') {
-      if (!data.IDVIAGEM) {
+      // Aceitar payload direto (IDVIAGEM/idViagem) ou dentro de data (ex.: postComFila envia { data: { idViagem, ... } })
+      var idViagemVal = data.IDVIAGEM ?? data.idViagem ?? (data.data && (data.data.IDVIAGEM ?? data.data.idViagem));
+      if (!idViagemVal) {
         throw new Error('Evento inválido: falta IDVIAGEM');
       }
     } else if (store === 'filaMensagens') {

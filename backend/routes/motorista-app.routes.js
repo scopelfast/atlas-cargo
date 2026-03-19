@@ -11,6 +11,7 @@ const motoristaAppController = require('../controllers/motorista-app.controller'
 const sincronizarRastreamentoController = require('../controllers/sincronizar-rastreamento-integra.controller');
 const deliveryProofRoutes = require('./delivery-proof.routes');
 const sosController = require('../controllers/sos.controller');
+const { requireAuth, requireMotoristaAuth } = require('../middleware/auth.middleware');
 
 const uploadMotoristasDir = path.join(__dirname, '..', 'public', 'uploads', 'motoristas');
 const storageMotorista = multer.diskStorage({
@@ -51,10 +52,14 @@ router.post('/recuperar-senha', motoristaAppController.recuperarSenha);
 // Redefinir Senha (com código recebido)
 router.post('/redefinir-senha', motoristaAppController.redefinirSenha);
 
+// Rotas de admin (dashboard web) – JWT genérico, sem sessão única do motorista
+router.post('/definir-senha-admin', requireAuth, motoristaAppController.definirSenhaAdmin);
+router.post('/aprovar-admin', requireAuth, motoristaAppController.aprovarMotoristaAdmin);
+
 // ==========================================
-// ROTAS PROTEGIDAS (com autenticação JWT)
-// TODO: Adicionar middleware de autenticação
+// ROTAS PROTEGIDAS (uma sessão por motorista)
 // ==========================================
+router.use(requireMotoristaAuth);
 
 // Perfil
 router.get('/perfil/:id', motoristaAppController.perfil);
@@ -104,12 +109,6 @@ router.get('/sos/historico', sosController.historico);
 
 // Alterar Senha
 router.post('/alterar-senha', motoristaAppController.alterarSenha);
-
-// Definir senha do app motorista (pela web, ao editar cadastro)
-router.post('/definir-senha-admin', motoristaAppController.definirSenhaAdmin);
-
-// Aprovar/rejeitar motorista (pela web, ao editar cadastro)
-router.post('/aprovar-admin', motoristaAppController.aprovarMotoristaAdmin);
 
 module.exports = router;
 

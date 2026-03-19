@@ -229,7 +229,7 @@
     }
     if (window.i18nReady) window.i18nReady.then(applyI18n);
 
-    function t(k) { return typeof window.t === 'function' ? window.t(k) : k; }
+    const _t = (typeof window.t === 'function' ? window.t : function(k) { return k; });
 
     let intervaloGPS = null;
     let watchId = null;
@@ -244,11 +244,11 @@
         console.log('🧪 Testando GPS...');
         
         if (!navigator.geolocation) {
-          mostrarToast(t('rastreamento.dispositivoNaoSuportaGPS'), 'error');
+          mostrarToast(_t('rastreamento.dispositivoNaoSuportaGPS'), 'error');
           return;
         }
 
-        mostrarToast(t('rastreamento.gpsDisponivel'), 'success');
+        mostrarToast(_t('rastreamento.gpsDisponivel'), 'success');
 
         const pos = await new Promise((resolve, reject) => {
           navigator.geolocation.getCurrentPosition(
@@ -268,11 +268,11 @@
         console.error('❌ Erro GPS:', err);
         
         if (err.code === 1) {
-          mostrarToast(t('rastreamento.permissaoNegada'), 'error');
+          mostrarToast(_t('rastreamento.permissaoNegada'), 'error');
         } else if (err.code === 2) {
-          mostrarToast(t('rastreamento.gpsIndisponivel'), 'error');
+          mostrarToast(_t('rastreamento.gpsIndisponivel'), 'error');
         } else if (err.code === 3) {
-          mostrarToast(t('rastreamento.timeout'), 'warning');
+          mostrarToast(_t('rastreamento.timeout'), 'warning');
         }
       }
     }
@@ -280,7 +280,7 @@
     // SOLICITAR PERMISSÃO GPS
     async function solicitarPermissaoGPS() {
       if (!navigator.geolocation) {
-        mostrarToast(t('rastreamento.gpsNaoDisponivel'), 'error');
+        mostrarToast(_t('rastreamento.gpsNaoDisponivel'), 'error');
         return false;
       }
 
@@ -364,7 +364,7 @@
               console.log('✅ GPS enviado com sucesso!');
               atualizarUltimoHistorico(true);
               document.getElementById('gpsDetalhe').textContent = 
-                (t('rastreamento.ultimaPosicao') || 'Última posição:') + ' ' + new Date().toLocaleTimeString('pt-BR');
+                (_t('rastreamento.ultimaPosicao') || 'Última posição:') + ' ' + new Date().toLocaleTimeString('pt-BR');
             } else {
               console.error('❌ Erro do servidor:', resultado);
               // Erro ao enviar - adicionar à fila
@@ -382,7 +382,7 @@
           // Offline - adicionar à fila
           console.log('📴 Offline - adicionando à fila');
           await window.OfflineDB.adicionarFila('filaGPS', dados);
-          document.getElementById('gpsDetalhe').textContent = t('rastreamento.offlinePosicaoEnviada');
+          document.getElementById('gpsDetalhe').textContent = _t('rastreamento.offlinePosicaoEnviada');
           atualizarUltimoHistorico(false);
         }
 
@@ -390,16 +390,16 @@
       } catch (err) {
         console.error('❌ ERRO GPS:', err);
         
-        let mensagemErro = t('rastreamento.erroCapturarLocalizacao');
+        let mensagemErro = _t('rastreamento.erroCapturarLocalizacao');
         
         if (err.code === 1) {
-          mensagemErro = t('rastreamento.permissaoNegada');
+          mensagemErro = _t('rastreamento.permissaoNegada');
           
           // Oferecer ajuda
           mostrarModal(
-            t('rastreamento.permissaoNegadaTitulo'),
+            _t('rastreamento.permissaoNegadaTitulo'),
             mensagemErro + '\n\nDeseja ver instruções detalhadas?',
-            [t('rastreamento.cancelar'), 'Ver Instruções']
+            [_t('rastreamento.cancelar'), 'Ver Instruções']
           ).then(resposta => {
             if (resposta === 'Ver Instruções') {
               window.open('ajuda-gps.html', '_blank');
@@ -407,9 +407,9 @@
           });
           return;
         } else if (err.code === 2) {
-          mensagemErro = t('rastreamento.gpsIndisponivel');
+          mensagemErro = _t('rastreamento.gpsIndisponivel');
         } else if (err.code === 3) {
-          mensagemErro = t('rastreamento.timeout');
+          mensagemErro = _t('rastreamento.timeout');
         } else if (err.message) {
           mensagemErro = err.message;
         }
@@ -436,8 +436,8 @@
       document.getElementById('btnIniciar').style.display = 'none';
       document.getElementById('btnPausar').style.display = 'block';
       document.getElementById('gpsIcon').textContent = '🟢';
-      document.getElementById('gpsTexto').textContent = t('rastreamento.rastreando');
-      document.getElementById('gpsDetalhe').textContent = t('rastreamento.gpsAtivoEnviando');
+      document.getElementById('gpsTexto').textContent = _t('rastreamento.rastreando');
+      document.getElementById('gpsDetalhe').textContent = _t('rastreamento.gpsAtivoEnviando');
       document.getElementById('gpsTimer').style.display = 'block';
 
       // Enviar primeira posição imediatamente
@@ -476,21 +476,21 @@
       document.getElementById('btnIniciar').style.display = 'block';
       document.getElementById('btnPausar').style.display = 'none';
       document.getElementById('gpsIcon').textContent = '⏸';
-      document.getElementById('gpsTexto').textContent = t('rastreamento.rastreamentoPausado');
-      document.getElementById('gpsDetalhe').textContent = t('rastreamento.cliqueIniciarContinuar');
+      document.getElementById('gpsTexto').textContent = _t('rastreamento.rastreamentoPausado');
+      document.getElementById('gpsDetalhe').textContent = _t('rastreamento.cliqueIniciarContinuar');
       document.getElementById('gpsTimer').style.display = 'none';
     }
 
     // ENVIAR POSIÇÃO MANUAL
     async function enviarPosicaoAgora() {
       document.getElementById('btnEnviarAgora').disabled = true;
-      document.getElementById('btnEnviarAgora').textContent = '📡 ' + t('rastreamento.enviando');
+      document.getElementById('btnEnviarAgora').textContent = '📡 ' + _t('rastreamento.enviando');
 
       await capturarPosicao();
       
       setTimeout(() => {
         document.getElementById('btnEnviarAgora').disabled = false;
-        document.getElementById('btnEnviarAgora').textContent = '📍 ' + t('rastreamento.enviarPosicaoAgora');
+        document.getElementById('btnEnviarAgora').textContent = '📍 ' + _t('rastreamento.enviarPosicaoAgora');
       }, 2000);
     }
 
@@ -573,12 +573,12 @@
     async function voltar() {
       if (rastreando) {
         const resposta = await mostrarModal(
-          t('rastreamento.rastreamentoAtivo'),
-          t('rastreamento.desejaSair'),
-          [t('rastreamento.cancelar'), t('rastreamento.sair')]
+          _t('rastreamento.rastreamentoAtivo'),
+          _t('rastreamento.desejaSair'),
+          [_t('rastreamento.cancelar'), _t('rastreamento.sair')]
         );
         
-        if (resposta === t('rastreamento.sair')) {
+        if (resposta === _t('rastreamento.sair')) {
           pausarRastreamento();
           window.location.href = 'dashboard.html';
         }
@@ -647,10 +647,10 @@
           if (response.ok) {
             console.log('✅ GPS simulado enviado!');
             atualizarUltimoHistorico(true);
-            mostrarToast(t('rastreamento.posicaoSimuladaEnviada') + '\n\n' + 
+            mostrarToast(_t('rastreamento.posicaoSimuladaEnviada') + '\n\n' + 
                   'Lat: ' + dados.latitude.toFixed(6) + '\nLng: ' + dados.longitude.toFixed(6));
             document.getElementById('gpsDetalhe').textContent = 
-              '✅ ' + (t('rastreamento.ultimaPosicao') || 'Última posição') + ' (simulada): ' + new Date().toLocaleTimeString('pt-BR');
+              '✅ ' + (_t('rastreamento.ultimaPosicao') || 'Última posição') + ' (simulada): ' + new Date().toLocaleTimeString('pt-BR');
           } else {
             await window.OfflineDB.adicionarFila('filaGPS', dados);
             atualizarUltimoHistorico(false);
@@ -658,11 +658,11 @@
         } else {
           await window.OfflineDB.adicionarFila('filaGPS', dados);
           atualizarUltimoHistorico(false);
-          mostrarToast(t('rastreamento.offlineGpsFila'), 'warning');
+          mostrarToast(_t('rastreamento.offlineGpsFila'), 'warning');
         }
       } catch (err) {
         console.error('Erro ao enviar GPS simulado:', err);
-        mostrarToast(t('rastreamento.erroEnviar'), 'error');
+        mostrarToast(_t('rastreamento.erroEnviar'), 'error');
       }
     }
     

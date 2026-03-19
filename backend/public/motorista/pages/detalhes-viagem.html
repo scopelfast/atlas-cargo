@@ -3,6 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
   <title>Detalhes da Viagem - Motorista</title>
   <link rel="stylesheet" href="../css/design-system.css">
   <link rel="stylesheet" href="../css/style.css">
@@ -359,9 +361,14 @@
         var k = el.getAttribute('data-i18n');
         if (k && typeof window.t === 'function') {
           var val = window.t(k);
-          if(val !== k) el.textContent = val;
+          if (val !== k) el.textContent = val;
         }
       });
+      if (dadosViagem && document.getElementById('tituloViagem')) {
+        var titulo = typeof window.t === 'function' ? window.t('detalhesViagem.titulo') : 'Detalhes da Viagem';
+        if (titulo === 'detalhesViagem.titulo') titulo = 'Detalhes da Viagem';
+        document.getElementById('tituloViagem').textContent = '🚛 ' + titulo + ' #' + dadosViagem.IDVIAGEM;
+      }
     }
     if (window.i18nReady) window.i18nReady.then(applyI18n);
 
@@ -431,7 +438,8 @@
 
         if (response.ok) {
           dadosViagem = await response.json();
-          var titulo = typeof window.t === 'function' ? window.t('detalhesViagem.titulo') : 'Detalhes da Viagem';
+          var titulo = (typeof window.t === 'function' ? window.t('detalhesViagem.titulo') : 'Detalhes da Viagem');
+          if (titulo === 'detalhesViagem.titulo') titulo = 'Detalhes da Viagem';
           document.getElementById('tituloViagem').textContent = '🚛 ' + titulo + ' #' + dadosViagem.IDVIAGEM;
           
           // Adicionar botões de navegação se houver coordenadas
@@ -541,7 +549,24 @@
           .addTo(map);
       }
 
-      // Adicionar posições GPS (rota percorrida)
+      // Ordem cronológica para a rota percorrida (primeira posição = início do trajeto)
+      const posicoesParaRota = posicoesGPS.length > 0
+        ? [...posicoesGPS].sort(function(a, b) {
+            const tA = new Date(a.DHPOSICAO || a.DHREGISTRO).getTime();
+            const tB = new Date(b.DHPOSICAO || b.DHREGISTRO).getTime();
+            return tA - tB;
+          })
+        : [];
+      posicoesParaRota.forEach(function(pos) {
+        const lat = parseFloat(pos.LATITUDE);
+        const lng = parseFloat(pos.LONGITUDE);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          routeCoordinates.push([lat, lng]);
+          bounds.push([lat, lng]);
+        }
+      });
+
+      // Adicionar posições GPS (marcadores)
       if (posicoesGPS.length > 0) {
         posicoesGPS.forEach((pos, index) => {
           const lat = parseFloat(pos.LATITUDE);
@@ -550,7 +575,6 @@
           if (isNaN(lat) || isNaN(lng)) return;
 
           const position = [lat, lng];
-          routeCoordinates.push(position);
           bounds.push(position);
 
           const isUltima = index === 0;
@@ -631,7 +655,10 @@
           ], { overview: 'full', geometries: 'geojson' });
           const config = window.MAP_CONFIG || {};
           const timeout = config.routeTimeout || 15000;
-          const res = await fetch(osrmUrl, { signal: AbortSignal.timeout(timeout) });
+          const controller = new AbortController();
+          const timeoutId = setTimeout(function() { controller.abort(); }, timeout);
+          const res = await fetch(osrmUrl, { signal: controller.signal });
+          clearTimeout(timeoutId);
           const data = await res.json();
           if (data.routes && data.routes[0] && data.routes[0].geometry && data.routes[0].geometry.coordinates) {
             const coords = data.routes[0].geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
@@ -654,21 +681,63 @@
         }
       }
 
-      // Desenhar rota percorrida (polyline dos pontos GPS)
+      // Desenhar rota percorrida: OSRM (seguir ruas) entre primeira e última posição; fallback linha reta
       if (routeCoordinates.length > 1) {
-        L.polyline(routeCoordinates, {
-          color: '#0ea5e9',
-          weight: 4,
-          opacity: 0.8,
-          smoothFactor: 1
-        }).addTo(map);
+        const primeiro = routeCoordinates[0];
+        const ultimo = routeCoordinates[routeCoordinates.length - 1];
+        const getUrl = typeof window.getOSRMUrl === 'function' ? window.getOSRMUrl : null;
+        const config = window.MAP_CONFIG || {};
+        const timeout = config.routeTimeout || 15000;
+        if (getUrl && (primeiro[0] !== ultimo[0] || primeiro[1] !== ultimo[1])) {
+          const coords = [{ lat: primeiro[0], lon: primeiro[1] }, { lat: ultimo[0], lon: ultimo[1] }];
+          const osrmUrl = getUrl(coords, { overview: 'full', geometries: 'geojson' });
+          const controller = new AbortController();
+          const t = setTimeout(function() { controller.abort(); }, timeout);
+          fetch(osrmUrl, { signal: controller.signal })
+            .then(function(r) { clearTimeout(t); return r.json(); })
+            .then(function(data) {
+              if (data && data.routes && data.routes[0] && data.routes[0].geometry && data.routes[0].geometry.coordinates) {
+                const latLngs = data.routes[0].geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
+                L.polyline(latLngs, { color: '#0ea5e9', weight: 4, opacity: 0.8 }).addTo(map);
+              } else {
+                L.polyline(routeCoordinates, { color: '#0ea5e9', weight: 4, opacity: 0.8 }).addTo(map);
+              }
+            })
+            .catch(function() {
+              L.polyline(routeCoordinates, { color: '#0ea5e9', weight: 4, opacity: 0.8 }).addTo(map);
+            });
+        } else {
+          L.polyline(routeCoordinates, { color: '#0ea5e9', weight: 4, opacity: 0.8 }).addTo(map);
+        }
       }
 
-      // Ajustar zoom para mostrar tudo
+      // Ajustar zoom para mostrar tudo (removendo outliers para não zoomar no hemisfério por causa de 1 ponto errado)
       if (bounds.length > 0) {
-        const boundsGroup = L.latLngBounds(bounds);
+        var boundsParaZoom = filtrarOutliersBounds(bounds, 2500);
+        var boundsGroup = L.latLngBounds(boundsParaZoom);
         map.fitBounds(boundsGroup, { padding: [30, 30] });
       }
+    }
+
+    // Remove pontos muito distantes do restante (ex.: coordenada errada nos EUA) para o zoom não abranger o hemisfério
+    function filtrarOutliersBounds(bounds, maxKm) {
+      if (!bounds || bounds.length <= 2) return bounds;
+      maxKm = maxKm || 2500;
+      function distKm(p1, p2) {
+        var R = 6371;
+        var dLat = (p2[0] - p1[0]) * Math.PI / 180;
+        var dLon = (p2[1] - p1[1]) * Math.PI / 180;
+        var a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(p1[0]*Math.PI/180)*Math.cos(p2[0]*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      }
+      var latSum = 0, lonSum = 0;
+      bounds.forEach(function(p) { latSum += p[0]; lonSum += p[1]; });
+      var centro = [latSum / bounds.length, lonSum / bounds.length];
+      var filtrado = bounds.filter(function(p) {
+        return distKm(centro, p) <= maxKm;
+      });
+      if (filtrado.length >= 2) return filtrado;
+      return bounds;
     }
 
     // Carregar estatísticas
@@ -912,9 +981,12 @@
             return;
           }
 
+          const base = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
+          const placeholderSvg = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%23f0f0f0%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%22 y=%2250%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22%3E📸%3C/text%3E%3C/svg%3E';
           container.innerHTML = `
             <div class="galeria-grid">
               ${fotos.map(foto => {
+                const fid = foto.ID || foto.IDPROOF;
                 const data = new Date(foto.RECORDED_AT || foto.CREATED_AT || foto.DHREGISTRO).toLocaleString('pt-BR', {
                   day: '2-digit',
                   month: '2-digit',
@@ -922,10 +994,8 @@
                   minute: '2-digit'
                 });
                 return `
-                  <div class="foto-item" onclick="abrirFoto('${foto.ID || foto.IDPROOF}', '${idViagem}')">
-                    <img src="/api/motorista/delivery-proof/${foto.ID || foto.IDPROOF}/photo" 
-                         alt="Foto ${foto.ID || foto.IDPROOF}" 
-                         onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%23f0f0f0%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%22 y=%2250%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22%3E📸%3C/text%3E%3C/svg%3E'">
+                  <div class="foto-item" onclick="abrirFoto('${fid}', '${idViagem}')">
+                    <img data-photo-id="${fid}" src="${placeholderSvg}" alt="Foto ${fid}">
                     <div class="foto-overlay">
                       <div>${data}</div>
                     </div>
@@ -934,6 +1004,25 @@
               }).join('')}
             </div>
           `;
+          fotos.forEach(function(foto) {
+            const fid = foto.ID || foto.IDPROOF;
+            const img = container.querySelector('img[data-photo-id="' + fid + '"]');
+            if (!img) return;
+            const url = base + '/api/motorista/delivery-proof/' + fid + '/photo';
+            fetch(url, { headers: { 'Authorization': 'Bearer ' + token } })
+              .then(function(r) {
+                if (!r.ok) return;
+                return r.blob();
+              })
+              .then(function(blob) {
+                if (blob) {
+                  var objUrl = URL.createObjectURL(blob);
+                  img.src = objUrl;
+                  img.dataset.objUrl = objUrl;
+                }
+              })
+              .catch(function() {});
+          });
         } else {
             var nenhumaFoto2 = typeof window.t === 'function' ? window.t('detalhesViagem.nenhumaFotoRegistrada') : 'Nenhuma foto registrada';
             container.innerHTML = `
@@ -956,7 +1045,25 @@
     }
 
     function abrirFoto(idFoto, idViagem) {
-      window.open(`/api/motorista/delivery-proof/${idFoto}/photo`, '_blank');
+      var img = document.querySelector('img[data-photo-id="' + idFoto + '"]');
+      if (img && img.dataset.objUrl) {
+        window.open(img.dataset.objUrl, '_blank');
+        return;
+      }
+      var base = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
+      var url = base + '/api/motorista/delivery-proof/' + idFoto + '/photo';
+      fetch(url, { headers: { 'Authorization': 'Bearer ' + token } })
+        .then(function(r) {
+          if (!r.ok) throw new Error('Não autorizado');
+          return r.blob();
+        })
+        .then(function(blob) {
+          var objUrl = URL.createObjectURL(blob);
+          window.open(objUrl, '_blank');
+        })
+        .catch(function() {
+          mostrarToast(typeof window.t === 'function' ? window.t('detalhesViagem.erroCarregarFotos') : 'Erro ao carregar foto', 'error');
+        });
     }
 
     // Carregar histórico

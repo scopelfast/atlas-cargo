@@ -7,6 +7,7 @@
 const sql = require('../config/mssql-compat');
 const { poolPromise } = require('../config/db');
 const jwt = require('jsonwebtoken');
+const { setCurrentToken } = require('../motorista-session');
 const { getContexto } = require('../services/contexto.service');
 const { validarDocumento, normalizarDocumento } = require('../services/documento.service');
 
@@ -223,7 +224,9 @@ const motoristaAppController = {
         { expiresIn: '7d' }
       );
 
-      console.log('✅ [LOGIN] Login realizado com sucesso!');
+      const motoristaId = motorista.CDCADASTRO;
+      setCurrentToken(motoristaId, token);
+      console.log('✅ [LOGIN] Login realizado com sucesso! CDCADASTRO=%s', motoristaId);
       console.log('👤 [LOGIN] Motorista:', motorista.CDCADASTRO, '-', motorista.RZSOCIAL);
 
       res.json({
@@ -662,7 +665,7 @@ const motoristaAppController = {
   // ==========================================
   cargasDisponiveis: async (req, res) => {
     try {
-      const { estado, distanciaMax, freteMin, idmotorista } = req.query;
+      const { estado, distanciaMax, freteMin, idmotorista, pais, regiao } = req.query;
 
       const pool = await poolPromise;
       let query = `
@@ -698,6 +701,8 @@ const motoristaAppController = {
         LEFT JOIN [dbo].[ROTEIRO] r ON v.[IDROTEIRO] = r.[IDROTEIRO]
         LEFT JOIN [dbo].[CIDADE] co ON r.[CDCIDADEORIGEM] = co.[CDCIDADE]
         LEFT JOIN [dbo].[CIDADE] cd ON r.[CDCIDADEDESTINO] = cd.[CDCIDADE]
+        LEFT JOIN [dbo].[PAIS] po ON co.[CDPAIS] = po.[CDPAIS]
+        LEFT JOIN [dbo].[PAIS] pd ON cd.[CDPAIS] = pd.[CDPAIS]
         LEFT JOIN [dbo].[CADASTROGERAL] cont ON v.[CDCONTRATADOR] = cont.[CDCADASTRO]
         WHERE v.[FGSITVIAGEM] IN ('D', 'P')
           AND v.[FGACTIVE] = 'S'
@@ -724,6 +729,18 @@ const motoristaAppController = {
       if (estado) {
         query += ` AND (co.[ESTADO] = @estado OR cd.[ESTADO] = @estado)`;
         params.push({ name: 'estado', value: estado });
+      }
+
+      if (pais && String(pais).trim() !== '') {
+        const paisSigla = String(pais).trim().toUpperCase().substring(0, 2);
+        query += ` AND (po.[SGPAIS] = @pais OR pd.[SGPAIS] = @pais)`;
+        params.push({ name: 'pais', value: paisSigla });
+      }
+
+      if (regiao != null && String(regiao).trim() !== '') {
+        const regiaoVal = isNaN(Number(regiao)) ? regiao : Number(regiao);
+        query += ` AND (co.[CDMESOREGIAO] = @regiao OR cd.[CDMESOREGIAO] = @regiao)`;
+        params.push({ name: 'regiao', value: regiaoVal });
       }
 
       if (distanciaMax) {

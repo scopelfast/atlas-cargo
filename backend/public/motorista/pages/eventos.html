@@ -136,7 +136,7 @@
     }
     if (window.i18nReady) window.i18nReady.then(applyI18n);
 
-    function t(k) { return typeof window.t === 'function' ? window.t(k) : k; }
+    const _t = (typeof window.t === 'function' ? window.t : function(k) { return k; });
 
     let tipoSelecionado = null;
     let fotoAtual = null;
@@ -146,7 +146,7 @@
     function selecionarTipo(tipo) {
       tipoSelecionado = tipo;
       document.querySelectorAll('.evento-btn').forEach(btn => btn.classList.remove('ativo'));
-      event.target.closest('.evento-btn').classList.add('ativo');
+      event.target.closes_t('.evento-btn').classList.add('ativo');
     }
 
     function previewFoto() {
@@ -165,7 +165,7 @@
 
     async function salvarEvento() {
       if (!tipoSelecionado) {
-        window.Notificacoes.aviso(t('eventos.selecioneTipo'));
+        window.Notificacoes.aviso(_t('eventos.selecioneTipo'));
         return;
       }
 
@@ -192,31 +192,31 @@
           });
 
           if (response.ok) {
-            window.Notificacoes.sucesso(t('eventos.eventoRegistrado'));
+            window.Notificacoes.sucesso(_t('eventos.eventoRegistrado'));
             adicionarHistorico(evento, true);
             limparFormulario();
           } else {
             await window.OfflineDB.adicionarFila('filaEventos', evento);
-            window.Notificacoes.aviso(t('eventos.erroEnviarFila'));
+            window.Notificacoes.aviso(_t('eventos.erroEnviarFila'));
             adicionarHistorico(evento, false);
             limparFormulario();
           }
         } else {
           await window.OfflineDB.adicionarFila('filaEventos', evento);
-          window.Notificacoes.info(t('eventos.offlineSalvo'));
+          window.Notificacoes.info(_t('eventos.offlineSalvo'));
           adicionarHistorico(evento, false);
           limparFormulario();
         }
       } catch (err) {
         console.error('Erro:', err);
-        window.Notificacoes.erro(t('eventos.erroSalvar'));
+        window.Notificacoes.erro(_t('eventos.erroSalvar'));
       }
     }
 
     function adicionarHistorico(evento, enviado) {
       const tipoNomes = {
-        'P': t('eventos.parada'), 'A': t('eventos.abastecimento'), 'R': t('eventos.refeicao'),
-        'M': t('eventos.mecanico'), 'I': t('eventos.imprevisto'), 'C': t('eventos.coleta'), 'E': t('eventos.entrega')
+        'P': _t('eventos.parada'), 'A': _t('eventos.abastecimento'), 'R': _t('eventos.refeicao'),
+        'M': _t('eventos.mecanico'), 'I': _t('eventos.imprevisto'), 'C': _t('eventos.coleta'), 'E': _t('eventos.entrega')
       };
 
       historico.unshift({
@@ -235,7 +235,7 @@
       const container = document.getElementById('historicoEventos');
       
       if (historico.length === 0) {
-        container.innerHTML = '<div class="empty">' + t('eventos.nenhumEvento') + '</div>';
+        container.innerHTML = '<div class="empty">' + _t('eventos.nenhumEvento') + '</div>';
         return;
       }
 

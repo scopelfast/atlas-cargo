@@ -22,7 +22,8 @@
     "cadastroPendente": "Registro pendiente de aprobación.",
     "sistemaConfiguracao": "Sistema en configuración. Registro de conductores aún no disponible.",
     "erroConfigServidor": "Error de configuración del servidor.",
-    "erroLogin": "Error al iniciar sesión."
+    "erroLogin": "Error al iniciar sesión.",
+    "sessaoEncerradaOutroDispositivo": "Sesión cerrada en otro dispositivo. Inicie sesión nuevamente."
   },
   "recuperarSenhaErrors": {
     "identificacaoObrigatoria": "Documento o celular es obligatorio.",
@@ -214,7 +215,13 @@
     "semCargas": "Ninguna carga disponible.",
     "carregando": "Cargando cargas...",
     "filtrosBusca": "Filtros de búsqueda",
-    "buscarCargas": "Buscar cargas"
+    "buscarCargas": "Buscar cargas",
+    "pais": "País",
+    "todosPaises": "Todos los países",
+    "estado": "Estado / UF",
+    "todosEstados": "Todos los estados",
+    "regiao": "Región",
+    "todosRegioes": "Todas las regiones"
   },
   "configuracoes": {
     "titulo": "Configuración",

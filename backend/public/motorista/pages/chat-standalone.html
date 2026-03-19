@@ -405,7 +405,15 @@
             senderId: idMotorista,
             senderName: motorista.NOME || motorista.nome || 'Motorista'
           })
-        }).then(function(r) { return r.json(); });
+        }).then(function(r) {
+          return r.json().then(function(data) {
+            if (!r.ok) {
+              var msg = (data && data.error) ? data.error : ('Erro ' + r.status);
+              throw new Error(msg);
+            }
+            return data;
+          });
+        });
       }
 
       document.getElementById('btnSend').onclick = function() {
@@ -413,7 +421,10 @@
         var texto = (input.value || '').trim();
         if (!texto || !idMotorista) return;
         input.value = '';
-        enviarTexto(texto).then(function() { load(); }).catch(function() { load(); });
+        enviarTexto(texto).then(function() { load(); }).catch(function(err) {
+          showStatus(err.message || 'Erro ao enviar.');
+          load();
+        });
       };
       document.getElementById('inputMsg').onkeypress = function(e) {
         if (e.key === 'Enter') document.getElementById('btnSend').click();

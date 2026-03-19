@@ -12,6 +12,7 @@
     /* Estilos específicos da página Cargas (padrão vem de padrao-telas.css) */
     .filtros { background: white; padding: 16px; margin-bottom: 16px; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); border: 1px solid var(--gray-200, #e9ecef); }
     .filtros-titulo { font-size: 14px; color: #666; font-weight: 600; margin-bottom: 12px; }
+    .filtro-label { font-size: 12px; color: #555; font-weight: 600; display: block; margin-bottom: 4px; }
     .filtro-input { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 14px; margin-bottom: 10px; }
     .btn-filtrar { width: 100%; padding: 14px; background: #0ea5e9; color: white; border: none; border-radius: 12px; font-weight: 700; font-size: 15px; cursor: pointer; }
     
@@ -40,16 +41,21 @@
 
   <div class="container">
     <div class="filtros">
-      <div class="filtros-titulo">🔍 Filtros de Busca</div>
-      <select class="filtro-input" id="filtroEstado">
-        <option value="">Todos os Estados</option>
-        <option value="PR">PR - Paraná</option>
-        <option value="SP">SP - São Paulo</option>
-        <option value="SC">SC - Santa Catarina</option>
-        <option value="RS">RS - Rio Grande do Sul</option>
-        <option value="RJ">RJ - Rio de Janeiro</option>
-        <option value="MG">MG - Minas Gerais</option>
+      <div class="filtros-titulo">🔍 <span data-i18n="cargas.filtrosBusca">Filtros de Busca</span></div>
+      <label class="filtro-label" for="filtroPais"><span data-i18n="cargas.pais">País</span></label>
+      <select class="filtro-input" id="filtroPais">
+        <option value="" data-i18n="cargas.todosPaises">Todos os países</option>
       </select>
+      <label class="filtro-label" for="filtroEstado"><span data-i18n="cargas.estado">Estado / UF</span></label>
+      <select class="filtro-input" id="filtroEstado">
+        <option value="" data-i18n="cargas.todosEstados">Todos os estados</option>
+      </select>
+      <div id="filtroRegiaoWrap" style="display: none;">
+        <label class="filtro-label" for="filtroRegiao"><span data-i18n="cargas.regiao">Região</span></label>
+        <select class="filtro-input" id="filtroRegiao">
+          <option value="" data-i18n="cargas.todosRegioes">Todas as regiões</option>
+        </select>
+      </div>
       <input type="number" class="filtro-input" id="filtroDistancia" placeholder="Distância máxima (km)">
       <button class="btn-filtrar" onclick="aplicarFiltros()">🔍 <span data-i18n="cargas.buscarCargas">Buscar Cargas</span></button>
     </div>
@@ -81,8 +87,113 @@
     const token = localStorage.getItem('token');
     if (!token) window.location.href = '../index.html';
 
+    const baseUrl = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
+    const _t = (typeof window.t === 'function' ? window.t : function(k) { return k; });
+
     console.log('🚚 Página Cargas carregada');
     console.log('👤 Motorista:', motorista);
+
+    // Contexto (país padrão) - Fase 4 multimoeda/multipaís
+    let contextoPais = 'BR';
+    async function loadContexto() {
+      try {
+        const r = await fetch(baseUrl + '/api/contexto');
+        const d = await r.json();
+        if (d && d.pais) contextoPais = String(d.pais).toUpperCase().substring(0, 2);
+      } catch (e) {}
+    }
+
+    async function loadPaises() {
+      const sel = document.getElementById('filtroPais');
+      if (!sel) return;
+      try {
+        await loadContexto();
+        const r = await fetch(baseUrl + '/api/paises');
+        const paises = await r.json();
+        if (!Array.isArray(paises)) return;
+        sel.innerHTML = '<option value="">' + _t('cargas.todosPaises') + '</option>';
+        paises.forEach(function(p) {
+          const v = (p.SGPAIS != null && p.SGPAIS !== '') ? String(p.SGPAIS).trim() : String(p.CDPAIS || '');
+          const lbl = p.DSPAIS || p.SGPAIS || p.CDPAIS || v;
+          if (!v) return;
+          const o = document.createElement('option');
+          o.value = v;
+          o.textContent = lbl;
+          sel.appendChild(o);
+        });
+        sel.value = contextoPais || '';
+        await loadEstados();
+      } catch (err) { console.warn('Erro ao carregar países:', err); }
+    }
+
+    async function loadEstados() {
+      const sel = document.getElementById('filtroEstado');
+      const regiaoWrap = document.getElementById('filtroRegiaoWrap');
+      const pais = document.getElementById('filtroPais') && document.getElementById('filtroPais').value;
+      if (!sel) return;
+      sel.innerHTML = '<option value="">' + _t('cargas.todosEstados') + '</option>';
+      if (regiaoWrap) regiaoWrap.style.display = 'none';
+      if (document.getElementById('filtroRegiao')) document.getElementById('filtroRegiao').innerHTML = '<option value="">' + _t('cargas.todosRegioes') + '</option>';
+      if (!pais) return;
+      try {
+        if (pais === 'BR') {
+          if (regiaoWrap) regiaoWrap.style.display = 'block';
+          const r = await fetch(baseUrl + '/api/estados-brasil');
+          const estados = await r.json();
+          if (Array.isArray(estados)) estados.forEach(function(e) {
+            const o = document.createElement('option');
+            o.value = e.uf || e.UF || e.estado;
+            o.textContent = e.nome || e.uf || e.UF || o.value;
+            sel.appendChild(o);
+          });
+        } else {
+          const r2 = await fetch(baseUrl + '/api/estados?pais=' + encodeURIComponent(pais));
+          const lista = await r2.json();
+          if (Array.isArray(lista)) lista.forEach(function(e) {
+            const o = document.createElement('option');
+            const cduf = e.CDUF != null ? e.CDUF : e.cduf;
+            const nm = e.NMESTADO || e.nmestado || e.ESTADO || e.estado || cduf;
+            o.value = cduf != null ? String(cduf) : (e.uf || e.UF || '');
+            o.textContent = nm;
+            if (o.value || o.textContent) sel.appendChild(o);
+          });
+        }
+      } catch (err) { console.warn('Erro ao carregar estados:', err); }
+    }
+
+    async function loadRegioes() {
+      const sel = document.getElementById('filtroRegiao');
+      const estadoVal = document.getElementById('filtroEstado') && document.getElementById('filtroEstado').value;
+      if (!sel || !estadoVal) return;
+      sel.innerHTML = '<option value="">' + _t('cargas.todosRegioes') + '</option>';
+      let cduf = parseInt(estadoVal, 10);
+      if (isNaN(cduf)) {
+        try {
+          const r = await fetch(baseUrl + '/api/estado-cduf/' + encodeURIComponent(estadoVal));
+          const d = await r.json();
+          if (d && d.CDUF != null) cduf = d.CDUF;
+        } catch (e) { return; }
+      }
+      if (isNaN(cduf)) return;
+      try {
+        const r = await fetch(baseUrl + '/api/mesorregioes/' + cduf);
+        const list = await r.json();
+        if (Array.isArray(list)) list.forEach(function(m) {
+          const o = document.createElement('option');
+          o.value = m.CDMESOREGIAO != null ? m.CDMESOREGIAO : m.cdmesoregiao;
+          o.textContent = m.DSMESOREGIAO || m.dsmesoregiao || o.value;
+          sel.appendChild(o);
+        });
+      } catch (err) { console.warn('Erro ao carregar regiões:', err); }
+    }
+
+    document.getElementById('filtroPais').addEventListener('change', function() {
+      loadEstados();
+    });
+    document.getElementById('filtroEstado').addEventListener('change', function() {
+      var pais = document.getElementById('filtroPais') && document.getElementById('filtroPais').value;
+      if (pais === 'BR') loadRegioes(); else document.getElementById('filtroRegiao').innerHTML = '<option value="">' + _t('cargas.todosRegioes') + '</option>';
+    });
 
     function formatarMoeda(v, moeda) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: (moeda && moeda.trim()) || 'BRL' }).format(v || 0); }
     function formatarData(d) { return d ? new Date(d).toLocaleDateString('pt-BR') : '-'; }
@@ -102,12 +213,16 @@
     async function aplicarFiltros() {
       console.log('🔍 Aplicando filtros...');
       
-      const estado = document.getElementById('filtroEstado').value;
-      const distancia = document.getElementById('filtroDistancia').value;
+      const pais = document.getElementById('filtroPais') && document.getElementById('filtroPais').value;
+      const estado = document.getElementById('filtroEstado') && document.getElementById('filtroEstado').value;
+      const regiao = document.getElementById('filtroRegiao') && document.getElementById('filtroRegiao').value;
+      const distancia = document.getElementById('filtroDistancia') && document.getElementById('filtroDistancia').value;
 
-      let url = '/api/motorista/cargas-disponiveis?';
-      url += `idmotorista=${motorista.id}&`; // Filtrar por classes do motorista
-      if (estado) url += `estado=${estado}&`;
+      let url = baseUrl + '/api/motorista/cargas-disponiveis?';
+      url += `idmotorista=${motorista.id || motorista.CDCADASTRO || ''}&`;
+      if (pais) url += `pais=${encodeURIComponent(pais)}&`;
+      if (estado) url += `estado=${encodeURIComponent(estado)}&`;
+      if (regiao) url += `regiao=${encodeURIComponent(regiao)}&`;
       if (distancia) url += `distanciaMax=${distancia}&`;
 
       console.log('📡 URL:', url);
@@ -322,7 +437,7 @@
     if (window.OfflineDB && window.OfflineDB.atualizarIndicador) {
       window.OfflineDB.atualizarIndicador();
     }
-    aplicarFiltros();
+    loadPaises().then(aplicarFiltros);
   </script>
 </body>
 </html>

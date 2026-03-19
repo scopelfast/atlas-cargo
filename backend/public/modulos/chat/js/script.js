@@ -249,6 +249,7 @@
         conversas = data.data;
         renderizarConversas();
         atualizarEstatisticas();
+        entrarEmSalasDasConversas();
       } else {
         throw new Error(data.error || 'Erro ao carregar conversas');
       }
@@ -831,6 +832,24 @@
   };
 
   /**
+   * Entrar nas salas Socket.IO de todas as conversas carregadas,
+   * para receber nova-mensagem mesmo sem ter uma conversa selecionada (som + badge).
+   */
+  function entrarEmSalasDasConversas() {
+    if (!socket || !socket.connected || !conversas.length) return;
+    const viagensJaEntradas = new Set();
+    conversas.forEach(function(c) {
+      if (c.ID_VIAGEM != null && !viagensJaEntradas.has(Number(c.ID_VIAGEM))) {
+        socket.emit('join-viagem', c.ID_VIAGEM);
+        viagensJaEntradas.add(Number(c.ID_VIAGEM));
+      }
+      if (c.ID != null) {
+        socket.emit('join-conversa', c.ID);
+      }
+    });
+  }
+
+  /**
    * Inicializar WebSocket
    */
   function inicializarWebSocket() {
@@ -894,13 +913,17 @@
         console.log('✅ WebSocket Chat conectado:', socket.id);
         estaConectado = true;
         
-        // Entrar na sala da conversa atual
+        // Entrar na sala da conversa atual (se houver)
         if (conversaAtual) {
           if (conversaAtual.ID_VIAGEM) {
             socket.emit('join-viagem', conversaAtual.ID_VIAGEM);
           }
-          socket.emit('join-conversa', conversaAtual.ID);
+          if (conversaAtual.ID != null) {
+            socket.emit('join-conversa', conversaAtual.ID);
+          }
         }
+        // Entrar em todas as salas das conversas para receber nova-mensagem (alerta + badge)
+        entrarEmSalasDasConversas();
       });
       
       socket.on('disconnect', () => {

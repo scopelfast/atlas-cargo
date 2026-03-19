@@ -192,8 +192,9 @@ class WebSocketTorreService {
       timestamp: new Date().toISOString()
     };
 
-    if (mensagem.CDVIAGEM) {
-      const room = `torre:viagem-${mensagem.CDVIAGEM}`;
+    const idViagem = mensagem.CDVIAGEM ?? mensagem.IDVIAGEM;
+    if (idViagem != null) {
+      const room = `torre:viagem-${idViagem}`;
       this.io.to(room).emit('torre:nova-mensagem', data);
     }
   }

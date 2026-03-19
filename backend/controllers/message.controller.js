@@ -72,6 +72,7 @@ const messageController = {
    * @since 2.0
    */
   enviar: async (req, res) => {
+    let client = null;
     try {
       const { idviagem, content, senderType, senderId, senderName } = req.body;
 
@@ -82,6 +83,11 @@ const messageController = {
       if (content.trim().length === 0) {
         return res.status(400).json({ error: 'Mensagem não pode estar vazia' });
       }
+
+      // Normalizar senderType (frontend pode enviar 'driver' ou 'motorista')
+      const senderTypeNorm = String(senderType || '').toUpperCase() === 'DRIVER' || String(senderType || '').toUpperCase() === 'MOTORISTA'
+        ? 'MOTORISTA'
+        : (senderType || '').substring(0, 10);
 
       const pool = await poolPromise;
       const idViagemNum = parseFloat(idviagem);
@@ -117,11 +123,12 @@ const messageController = {
           if (findConv.rows && findConv.rows.length > 0) {
             idConversa = findConv.rows[0].ID ?? findConv.rows[0].id;
           } else {
+            const idCriador = Math.floor(Number(senderId)) || 0;
             const insertConv = await client.query(
               `INSERT INTO public."CONVERSAS" ("TIPO", "ID_VIAGEM", "ID_CRIADOR", "MENSAGENS_NAO_LIDAS", "DH_CRIACAO")
                VALUES ('VIAGEM', $1, $2, 0, NOW())
                RETURNING "ID"`,
-              [idViagemNum, parseFloat(senderId)]
+              [idViagemNum, idCriador]
             );
             const row = insertConv.rows && insertConv.rows[0];
             idConversa = row ? (row.ID ?? row.id) : null;
@@ -134,8 +141,8 @@ const messageController = {
           return res.status(500).json({ error: 'Não foi possível obter ou criar a conversa.' });
         }
 
-        const idViagemNum = parseFloat(idviagem);
         const tipoMsg = (req.body.tipo || 'TEXTO').substring(0, 20);
+        const senderIdNum = Number(senderId);
         const insertMsg = await client.query(
           `INSERT INTO public."MESSAGES" (
             "IDVIAGEM", "ID_CONVERSA", "SENDER_TYPE", "SENDER_ID", "SENDER_NAME", "CONTENT", "TIPO",
@@ -146,8 +153,8 @@ const messageController = {
           [
             idViagemNum,
             idConversa,
-            (senderType || '').substring(0, 10),
-            parseFloat(senderId),
+            senderTypeNorm,
+            isNaN(senderIdNum) ? 0 : senderIdNum,
             (senderName || null),
             content.trim(),
             tipoMsg
@@ -188,14 +195,13 @@ const messageController = {
           SYNCED: messageRow.SYNCED ?? messageRow.synced
         };
 
-        const app = require('../app');
-        const io = app.get('io');
+        const io = req.app && req.app.get ? req.app.get('io') : null;
         if (io) {
           io.to(`viagem-${idviagem}`).emit('nova-mensagem', message);
           io.to(`conversa-${idConversa}`).emit('nova-mensagem', message);
         }
         try {
-          const websocketTorre = app.get('websocketTorre');
+          const websocketTorre = req.app && req.app.get ? req.app.get('websocketTorre') : null;
           if (websocketTorre) {
             websocketTorre.emitirNovaMensagem(message);
           }
@@ -210,14 +216,19 @@ const messageController = {
         });
       } catch (err) {
         try {
-          await client.query('ROLLBACK');
+          if (client) await client.query('ROLLBACK');
         } catch (_) {}
-        client.release();
+        if (client) client.release();
         throw err;
       }
     } catch (err) {
-      console.error('Erro ao enviar mensagem:', err);
-      res.status(500).json({ error: 'Erro ao enviar mensagem.' });
+      console.error('Erro ao enviar mensagem:', err.message || err);
+      if (process.env.NODE_ENV !== 'production' && err.stack) console.error(err.stack);
+      const isDev = process.env.NODE_ENV !== 'production';
+      res.status(500).json({
+        error: isDev ? (err.message || 'Erro ao enviar mensagem.') : 'Erro ao enviar mensagem.',
+        ...(isDev && err.code && { code: err.code })
+      });
     }
   },
 
@@ -343,14 +354,13 @@ const messageController = {
           CREATED_AT: messageRow.CREATED_AT ?? messageRow.created_at,
           SYNCED: messageRow.SYNCED ?? messageRow.synced
         };
-        const app = require('../app');
-        const io = app.get('io');
+        const io = req.app && req.app.get ? req.app.get('io') : null;
         if (io) {
           io.to(`viagem-${idviagem}`).emit('nova-mensagem', message);
           io.to(`conversa-${idConversa}`).emit('nova-mensagem', message);
         }
         try {
-          const websocketTorre = app.get('websocketTorre');
+          const websocketTorre = req.app && req.app.get ? req.app.get('websocketTorre') : null;
           if (websocketTorre) websocketTorre.emitirNovaMensagem(message);
         } catch (e) {
           console.warn('⚠️ Erro ao emitir WebSocket mensagem:', e.message);
@@ -438,8 +448,7 @@ const messageController = {
         SYNCED: msgRow.SYNCED ?? msgRow.synced
       } : null;
       try {
-        const app = require('../app');
-        const websocketTorre = app.get('websocketTorre');
+        const websocketTorre = req.app && req.app.get ? req.app.get('websocketTorre') : null;
         if (websocketTorre && message) websocketTorre.emitirNovaMensagem(message);
       } catch (e) {
         console.warn('⚠️ Erro ao emitir WebSocket após transcrição:', e.message);

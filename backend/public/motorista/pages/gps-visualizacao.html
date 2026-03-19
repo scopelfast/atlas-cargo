@@ -236,7 +236,8 @@
       });
     }
     if (window.i18nReady) window.i18nReady.then(applyI18n);
-    function t(k) { return typeof window.t === 'function' ? window.t(k) : k; }
+    // Helper de tradução: usa referência fixa ao tradutor para evitar recursão (nunca usar nome "t" que pode conflitar com window.t)
+    const _t = (typeof window.t === 'function' ? window.t : function(k) { return k; });
 
     const motorista = getMotorista();
     const token = localStorage.getItem('token');
@@ -251,7 +252,7 @@
     idViagem = params.get('viagem');
 
     if (!idViagem) {
-      mostrarToast(t('gpsVisualizacao.viagemNaoEspecificada'), 'error');
+      mostrarToast(_t('gpsVisualizacao.viagemNaoEspecificada'), 'error');
       setTimeout(() => {
         window.location.href = 'viagens.html';
       }, 2000);
@@ -369,6 +370,12 @@
           DHREGISTRO: p.DHREGISTRO ?? p.dhiregistro,
           DHPOSICAO: p.DHPOSICAO ?? p.dhposicao
         }));
+        // Garantir ordem: mais recente primeiro (índice 0 = última posição)
+        posicoesGPS.sort(function(a, b) {
+          const tA = new Date(a.DHPOSICAO || a.DHREGISTRO).getTime();
+          const tB = new Date(b.DHPOSICAO || b.DHREGISTRO).getTime();
+          return tB - tA;
+        });
 
         if (posicoesGPS.length === 0) {
           const emptyEl = document.getElementById('mapEmptyMessage');
@@ -407,6 +414,46 @@
           mostrarToast('Erro ao carregar posições GPS. Verifique a conexão.', 'error');
         }
       }
+    }
+
+    /**
+     * Obter rota seguindo ruas (OSRM) entre primeiro e último ponto; fallback: linha reta
+     */
+    function desenharRotaNoMapa(routeCoordinates) {
+      const primeiro = routeCoordinates[0];
+      const ultimo = routeCoordinates[routeCoordinates.length - 1];
+      if (primeiro[0] === ultimo[0] && primeiro[1] === ultimo[1]) {
+        routePolyline = L.polyline(routeCoordinates, { color: '#0ea5e9', weight: 4, opacity: 0.8 }).addTo(map);
+        return;
+      }
+      const config = window.MAP_CONFIG;
+      const getUrl = typeof window.getOSRMUrl === 'function' ? window.getOSRMUrl : null;
+      if (!getUrl || !config || !config.osrmServer) {
+        routePolyline = L.polyline(routeCoordinates, { color: '#0ea5e9', weight: 4, opacity: 0.8 }).addTo(map);
+        return;
+      }
+      const coords = [{ lat: primeiro[0], lon: primeiro[1] }, { lat: ultimo[0], lon: ultimo[1] }];
+      const url = getUrl(coords, { overview: 'full', geometries: 'geojson' });
+      const timeout = (config.routeTimeout || 15000);
+      const controller = new AbortController();
+      const t = setTimeout(function() { controller.abort(); }, timeout);
+      fetch(url, { signal: controller.signal })
+        .then(function(r) { clearTimeout(t); return r.json(); })
+        .then(function(data) {
+          if (data && data.routes && data.routes[0] && data.routes[0].geometry && data.routes[0].geometry.coordinates) {
+            const coordsGeo = data.routes[0].geometry.coordinates;
+            const latLngs = coordsGeo.map(function(c) { return [c[1], c[0]]; });
+            routePolyline = L.polyline(latLngs, { color: '#0ea5e9', weight: 4, opacity: 0.8 }).addTo(map);
+            if (latLngs.length > 0) {
+              map.fitBounds(L.latLngBounds(latLngs), { padding: [20, 20] });
+            }
+          } else {
+            routePolyline = L.polyline(routeCoordinates, { color: '#0ea5e9', weight: 4, opacity: 0.8 }).addTo(map);
+          }
+        })
+        .catch(function() {
+          routePolyline = L.polyline(routeCoordinates, { color: '#0ea5e9', weight: 4, opacity: 0.8 }).addTo(map);
+        });
     }
 
     // Renderizar mapa com Leaflet
@@ -468,14 +515,9 @@
         markers.push(marker);
       });
 
-      // Desenhar rota
+      // Desenhar rota: tentar OSRM (seguir ruas); se falhar, usar linha reta entre pontos
       if (routeCoordinates.length > 1) {
-        routePolyline = L.polyline(routeCoordinates, {
-          color: '#0ea5e9',
-          weight: 4,
-          opacity: 0.8,
-          smoothFactor: 1
-        }).addTo(map);
+        desenharRotaNoMapa(routeCoordinates);
       }
 
       // Ajustar zoom para mostrar toda a rota
@@ -595,10 +637,27 @@
       document.getElementById('distanciaPercorrida').innerHTML = 
         `${distanciaTotal.toFixed(2)}<span class="stat-unit"> km</span>`;
 
-      // Calcular velocidade média
-      const velocidades = posicoesGPS
-        .filter(p => p.VELOCIDADE)
+      // Calcular velocidade média (da API ou estimada por distância/tempo entre pontos)
+      let velocidades = posicoesGPS
+        .filter(p => p.VELOCIDADE != null && p.VELOCIDADE !== '')
         .map(p => parseFloat(p.VELOCIDADE));
+      
+      if (velocidades.length === 0 && posicoesGPS.length >= 2) {
+        const estimadas = [];
+        for (let i = 1; i < posicoesGPS.length; i++) {
+          const prev = posicoesGPS[i];
+          const curr = posicoesGPS[i - 1];
+          const dist = calcularDistancia(
+            parseFloat(prev.LATITUDE), parseFloat(prev.LONGITUDE),
+            parseFloat(curr.LATITUDE), parseFloat(curr.LONGITUDE)
+          );
+          const tPrev = new Date(prev.DHPOSICAO || prev.DHREGISTRO).getTime();
+          const tCurr = new Date(curr.DHPOSICAO || curr.DHREGISTRO).getTime();
+          const horas = (tCurr - tPrev) / 3600000;
+          if (horas > 0 && dist >= 0) estimadas.push(dist / horas);
+        }
+        if (estimadas.length > 0) velocidades = estimadas;
+      }
       
       if (velocidades.length > 0) {
         const velocidadeMedia = velocidades.reduce((a, b) => a + b, 0) / velocidades.length;
@@ -682,21 +741,34 @@
               destinoLng
             );
             
-            // Calcular velocidade média das últimas 5 posições
-            const ultimas5 = posicoesGPS.slice(0, 5).filter(p => p.VELOCIDADE);
+            // Velocidade média: das últimas posições (API) ou estimada por distância/tempo
+            let velMedia = 0;
+            const ultimas5 = posicoesGPS.slice(0, 5).filter(p => p.VELOCIDADE != null && p.VELOCIDADE !== '');
             if (ultimas5.length > 0) {
-              const velMedia = ultimas5.reduce((sum, p) => sum + parseFloat(p.VELOCIDADE), 0) / ultimas5.length;
-              
-              if (velMedia > 0 && distanciaRestante > 0) {
-                const tempoHoras = distanciaRestante / velMedia;
-                const horas = Math.floor(tempoHoras);
-                const minutos = Math.floor((tempoHoras - horas) * 60);
-                
-                document.getElementById('tempoEstimado').innerHTML = 
-                  horas > 0 ? `${horas}h ${minutos}min` : `${minutos}min`;
-              } else {
-                document.getElementById('tempoEstimado').textContent = 'Calculando...';
+              velMedia = ultimas5.reduce((sum, p) => sum + parseFloat(p.VELOCIDADE), 0) / ultimas5.length;
+            } else if (posicoesGPS.length >= 2) {
+              const estimadas = [];
+              for (let i = 1; i < Math.min(6, posicoesGPS.length); i++) {
+                const prev = posicoesGPS[i];
+                const curr = posicoesGPS[i - 1];
+                const dist = calcularDistancia(
+                  parseFloat(prev.LATITUDE), parseFloat(prev.LONGITUDE),
+                  parseFloat(curr.LATITUDE), parseFloat(curr.LONGITUDE)
+                );
+                const horas = (new Date(curr.DHPOSICAO || curr.DHREGISTRO) - new Date(prev.DHPOSICAO || prev.DHREGISTRO)) / 3600000;
+                if (horas > 0 && dist >= 0) estimadas.push(dist / horas);
               }
+              if (estimadas.length > 0) velMedia = estimadas.reduce((a, b) => a + b, 0) / estimadas.length;
+            }
+            
+            if (velMedia > 0 && distanciaRestante > 0) {
+              const tempoHoras = distanciaRestante / velMedia;
+              const horas = Math.floor(tempoHoras);
+              const minutos = Math.floor((tempoHoras - horas) * 60);
+              document.getElementById('tempoEstimado').innerHTML = 
+                horas > 0 ? `${horas}h ${minutos}min` : `${minutos}min`;
+            } else if (distanciaRestante > 0) {
+              document.getElementById('tempoEstimado').textContent = 'N/A';
             } else {
               document.getElementById('tempoEstimado').textContent = 'N/A';
             }

@@ -170,14 +170,19 @@ async function postComFila(url, dados, tipoFila = 'acao') {
                     : 'filaAcoes';
     
     try {
-      await window.OfflineDB.adicionarFila(filaStore, {
+      // Incluir IDVIAGEM/idViagem no topo para validarDadosFila(filaEventos)
+      var payloadFila = {
         url: url,
-        endpoint: url, // Para compatibilidade
+        endpoint: url,
         method: 'POST',
         data: dados,
         tipo: tipoFila,
         timestamp: new Date().toISOString()
-      });
+      };
+      if (tipoFila === 'macro' && dados && (dados.idViagem != null || dados.IDVIAGEM != null)) {
+        payloadFila.IDVIAGEM = dados.IDVIAGEM ?? dados.idViagem;
+      }
+      await window.OfflineDB.adicionarFila(filaStore, payloadFila);
       
       console.log(`💾 Salvo na fila: ${filaStore}`);
       await window.OfflineDB.atualizarIndicador();

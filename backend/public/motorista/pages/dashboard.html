@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#0d2137">
   <title>Dashboard - Motorista</title>
+  <script>
+    (function(){ try { var t = localStorage.getItem('tema'); if (t == null || t === '') t = 'auto'; var dark = t === 'escuro' || (t === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.classList.toggle('tema-escuro', !!dark); } catch(e) { var m = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)'); if (m) document.documentElement.classList.toggle('tema-escuro', m.matches); } })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">

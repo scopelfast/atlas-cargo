@@ -413,24 +413,32 @@ body.motorista-dashboard-page .header-motorista {
 }
 
 /* ==================== TEMA ESCURO (todas as telas do app) ==================== */
-/* Sobrescrever backgrounds !important das classes body.motorista-page e motorista-dashboard-page */
+/* html.tema-escuro: aplicado no <head> no celular para primeiro paint; body.tema-escuro: aplicado pelo url-helper */
+html.tema-escuro,
+html.tema-escuro body,
 body.tema-escuro.motorista-page,
 body.tema-escuro.motorista-dashboard-page {
   background: #1a1a1a !important;
   color: #e5e5e5 !important;
 }
-body.tema-escuro {
+body.tema-escuro,
+html.tema-escuro body {
   background: #1a1a1a !important;
   color: #e5e5e5 !important;
 }
+html.tema-escuro .navbar,
 body.tema-escuro .navbar {
   background: linear-gradient(165deg, #0f172a 0%, #1e293b 50%, #334155 100%);
   color: #f1f5f9;
 }
+html.tema-escuro .container,
 body.tema-escuro .container {
   background: transparent;
   color: inherit;
 }
+html.tema-escuro .card,
+html.tema-escuro .config-section,
+html.tema-escuro .dashboard-block,
 body.tema-escuro .card,
 body.tema-escuro .config-section,
 body.tema-escuro .dashboard-block {
@@ -438,12 +446,21 @@ body.tema-escuro .dashboard-block {
   box-shadow: 0 2px 8px rgba(0,0,0,0.3);
   border-color: #404040;
 }
+html.tema-escuro .config-section-title,
+html.tema-escuro .card-title,
+html.tema-escuro h1,
+html.tema-escuro h2,
 body.tema-escuro .config-section-title,
 body.tema-escuro .card-title,
 body.tema-escuro h1,
 body.tema-escuro h2 {
   color: #f0f0f0;
 }
+html.tema-escuro .config-item,
+html.tema-escuro .config-item-title,
+html.tema-escuro .config-item-desc,
+html.tema-escuro .config-title,
+html.tema-escuro .config-desc,
 body.tema-escuro .config-item,
 body.tema-escuro .config-item-title,
 body.tema-escuro .config-item-desc,
@@ -452,9 +469,14 @@ body.tema-escuro .config-desc {
   border-bottom-color: #404040;
   color: #e5e5e5;
 }
+html.tema-escuro .config-item-desc,
 body.tema-escuro .config-item-desc {
   color: #a3a3a3;
 }
+html.tema-escuro .select-input,
+html.tema-escuro .input-field,
+html.tema-escuro input,
+html.tema-escuro select,
 body.tema-escuro .select-input,
 body.tema-escuro .input-field,
 body.tema-escuro input,
@@ -463,34 +485,51 @@ body.tema-escuro select {
   border-color: #525252;
   color: #f5f5f5;
 }
+html.tema-escuro .input-label,
+html.tema-escuro label,
 body.tema-escuro .input-label,
 body.tema-escuro label {
   color: #d4d4d4;
 }
+html.tema-escuro .link-item,
+html.tema-escuro a,
 body.tema-escuro .link-item,
 body.tema-escuro a {
   color: #7dd3fc;
 }
+html.tema-escuro .btn-action.secondary,
 body.tema-escuro .btn-action.secondary {
   background: #525252;
   color: #e5e5e5;
 }
+html.tema-escuro .btn-action.secondary:hover,
 body.tema-escuro .btn-action.secondary:hover {
   background: #737373;
 }
+html.tema-escuro .header-motorista,
 body.tema-escuro .header-motorista {
   background: linear-gradient(165deg, #0f172a 0%, #1e293b 50%, #334155 100%);
   color: #f1f5f9;
 }
+html.tema-escuro #modalSenha > div,
+html.tema-escuro .modal-dialog,
 body.tema-escuro #modalSenha > div,
 body.tema-escuro .modal-dialog {
   background: #262626 !important;
   color: #e5e5e5;
 }
+html.tema-escuro #modalSenha h2,
+html.tema-escuro .modal-title,
 body.tema-escuro #modalSenha h2,
 body.tema-escuro .modal-title {
   color: #f0f0f0 !important;
 }
+html.tema-escuro .filtros,
+html.tema-escuro .route-section,
+html.tema-escuro .passo,
+html.tema-escuro .destaque,
+html.tema-escuro .obs-box,
+html.tema-escuro .chat-card,
 body.tema-escuro .filtros,
 body.tema-escuro .route-section,
 body.tema-escuro .passo,
@@ -501,14 +540,19 @@ body.tema-escuro .chat-card {
   border-color: #404040;
   color: #e5e5e5;
 }
+html.tema-escuro .chat-msg.operador,
 body.tema-escuro .chat-msg.operador {
   background: #334155 !important;
   color: #f1f5f9;
 }
+html.tema-escuro .chat-msg.motorista,
 body.tema-escuro .chat-msg.motorista {
   background: #1e3a2f !important;
   color: #d1fae5;
 }
+html.tema-escuro .status-bar.status-online,
 body.tema-escuro .status-bar.status-online { background: #064e3b; color: #a7f3d0; }
+html.tema-escuro .status-bar.status-offline,
 body.tema-escuro .status-bar.status-offline { background: #7f1d1d; color: #fecaca; }
+html.tema-escuro .status-bar.status-syncing,
 body.tema-escuro .status-bar.status-syncing { background: #78350f; color: #fef3c7; }

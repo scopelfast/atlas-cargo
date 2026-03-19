@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Configurações - Motorista</title>
+  <script>
+    (function(){ try { var t = localStorage.getItem('tema'); if (t == null || t === '') t = 'auto'; var dark = t === 'escuro' || (t === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.classList.toggle('tema-escuro', !!dark); } catch(e) { var m = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)'); if (m) document.documentElement.classList.toggle('tema-escuro', m.matches); } })();
+  </script>
   <link rel="stylesheet" href="../css/design-system.css">
   <link rel="stylesheet" href="../css/style.css">
   <link rel="stylesheet" href="../css/padrao-telas.css">

@@ -6,6 +6,9 @@
   <meta name="theme-color" content="#0d2137">
   <meta name="description" content="App Atlas Cargo para Motoristas">
   <title>Atlas Cargo - Motorista</title>
+  <script>
+    (function(){ try { var t = localStorage.getItem('tema'); if (t == null || t === '') t = 'auto'; var dark = t === 'escuro' || (t === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.classList.toggle('tema-escuro', !!dark); } catch(e) { var m = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)'); if (m) document.documentElement.classList.toggle('tema-escuro', m.matches); } })();
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -127,6 +130,17 @@
     .links a:hover { text-decoration: underline; }
     .footer { text-align: center; padding: 20px 16px; color: #64748b; font-size: 0.8125rem; }
     .footer .version { margin-top: 4px; opacity: 0.8; }
+    /* Modo escuro (celular e desktop) – aplicado via html.tema-escuro no head */
+    html.tema-escuro body { background: #1a1a1a !important; color: #e5e5e5 !important; }
+    html.tema-escuro .login-container { background: #262626 !important; border-color: #404040 !important; }
+    html.tema-escuro .welcome-title { color: #f0f0f0 !important; }
+    html.tema-escuro .welcome-desc { color: #a3a3a3 !important; }
+    html.tema-escuro .login-form label { color: #d4d4d4 !important; }
+    html.tema-escuro .login-form input { background: #3d3d3d !important; border-color: #525252 !important; color: #f5f5f5 !important; }
+    html.tema-escuro .btn-idioma { background: #3d3d3d !important; border-color: #525252 !important; color: #e5e5e5 !important; }
+    html.tema-escuro .btn-idioma.active { background: #1e293b !important; border-color: #334155 !important; color: #f1f5f9 !important; }
+    html.tema-escuro .footer { color: #a3a3a3 !important; }
+    html.tema-escuro .links a { color: #7dd3fc !important; }
   </style>
   <script>
     // CRÍTICO: Executar ANTES de qualquer outro código para detectar ambiente

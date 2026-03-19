@@ -350,26 +350,24 @@
     inicializarAtualizacaoContadores();
   };
 
-  // AudioContext global (será criado/resumido quando necessário)
+  // AudioContext global (só criado após primeiro gesto do usuário - política do navegador)
   let globalAudioContext = null;
+  let audioContextUnlocked = false;
 
   /**
-   * Obter ou criar AudioContext (resumindo se necessário)
+   * Obter ou criar AudioContext (apenas se já foi desbloqueado por gesto do usuário)
    */
   const obterAudioContext = async () => {
+    if (!audioContextUnlocked) return null;
     try {
       if (!globalAudioContext) {
         globalAudioContext = new (window.AudioContext || window.webkitAudioContext)();
       }
-      
-      // Se o contexto estiver suspenso, tentar resumir
       if (globalAudioContext.state === 'suspended') {
         await globalAudioContext.resume();
       }
-      
       return globalAudioContext;
     } catch (err) {
-      // Se não conseguir criar/resumir, retornar null
       return null;
     }
   };
@@ -420,22 +418,23 @@
   };
 
   /**
-   * Inicializar AudioContext na primeira interação do usuário
+   * Inicializar AudioContext na primeira interação do usuário (obrigatório para não gerar aviso no console)
    */
   const inicializarAudioContext = () => {
-    // Tentar criar o contexto na primeira interação
     const eventos = ['click', 'touchstart', 'keydown'];
-    const inicializar = async () => {
-      await obterAudioContext();
-      // Remover listeners após primeira inicialização
-      eventos.forEach(evento => {
-        document.removeEventListener(evento, inicializar, { once: true });
-      });
+    const unlock = async () => {
+      audioContextUnlocked = true;
+      try {
+        if (!globalAudioContext) {
+          globalAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (globalAudioContext.state === 'suspended') {
+          await globalAudioContext.resume();
+        }
+      } catch (e) {}
+      eventos.forEach(ev => document.removeEventListener(ev, unlock));
     };
-    
-    eventos.forEach(evento => {
-      document.addEventListener(evento, inicializar, { once: true, passive: true });
-    });
+    eventos.forEach(ev => document.addEventListener(ev, unlock, { once: true, passive: true }));
   };
 
   /**
@@ -729,7 +728,96 @@
     document.addEventListener('alertas-contador-atualizado', () => {
       atualizarContadorAlertas({}).catch(() => {});
     });
+
+    // Socket.IO: receber em tempo real mensagens (chat), alertas e SOS (som + badge) na tela web
+    inicializarSocketDashboard();
   };
+
+  /**
+   * Obter path base para Socket.IO quando a aplicação está sob um subpath (ex.: /cargas)
+   */
+  function getSocketIoPath() {
+    const base = (typeof window.__BASE_URL__ !== 'undefined' && window.__BASE_URL__) ? window.__BASE_URL__ : '';
+    if (base && base.startsWith('http')) {
+      const match = base.match(/^https?:\/\/[^/]+(\/.*)?$/);
+      return (match && match[1]) ? match[1].replace(/\/$/, '') + '/socket.io' : '/socket.io';
+    }
+    if (window.location.pathname.includes('/cargas')) return '/cargas/socket.io';
+    if (window.location.pathname.includes('/motorista')) return '/motorista/socket.io';
+    return '/socket.io';
+  }
+
+  /**
+   * Conectar ao Socket.IO: chat (nova-mensagem), torre (alertas e SOS) para som + badge no dashboard
+   */
+  function inicializarSocketDashboard() {
+    const hasChat = !!document.querySelector('[data-programa="chat"]');
+    const hasAlertas = !!document.querySelector('[data-programa="alertas"]');
+    const hasSos = !!document.querySelector('[data-programa="sos"]');
+    if (!hasChat && !hasAlertas && !hasSos) return;
+
+    function conectar() {
+      if (typeof io === 'undefined') return;
+      const path = getSocketIoPath();
+      const opts = { transports: ['websocket', 'polling'] };
+      if (path !== '/socket.io') opts.path = path;
+      const socket = io(window.location.origin, opts);
+
+      socket.on('connect', () => {
+        if (hasChat) {
+          fetch(corrigirUrl('/api/chat/conversas?limit=200'), { headers: getAuthHeaders() })
+            .then(r => r.ok ? r.json() : { data: [] })
+            .then(data => {
+              const conversas = Array.isArray(data.data) ? data.data : (data.data && data.data.data) ? data.data.data : [];
+              const viagensJaEntradas = new Set();
+              conversas.forEach(c => {
+                if (c.ID_VIAGEM != null && !viagensJaEntradas.has(Number(c.ID_VIAGEM))) {
+                  socket.emit('join-viagem', c.ID_VIAGEM);
+                  viagensJaEntradas.add(Number(c.ID_VIAGEM));
+                }
+                if (c.ID != null) socket.emit('join-conversa', c.ID);
+              });
+            })
+            .catch(() => {});
+        }
+        if (hasAlertas || hasSos) {
+          socket.emit('torre:join-all');
+        }
+      });
+
+      if (hasChat) {
+        socket.on('nova-mensagem', (mensagem) => {
+          const isMotorista = (mensagem.SENDER_TYPE || '').toUpperCase() === 'MOTORISTA';
+          if (!isMotorista) return;
+          atualizarContadorChat({}).catch(() => {});
+          tocarSomNotificacao('chat').catch(() => {});
+        });
+      }
+
+      if (hasAlertas) {
+        socket.on('torre:novo-alerta', () => {
+          atualizarContadorAlertas({}).catch(() => {});
+          tocarSomNotificacao('alerta').catch(() => {});
+        });
+      }
+
+      if (hasSos) {
+        socket.on('torre:sos-alerta', () => {
+          atualizarContadorSOS({}).catch(() => {});
+          tocarSomNotificacao('sos').catch(() => {});
+        });
+      }
+    }
+
+    if (typeof io !== 'undefined') {
+      conectar();
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = corrigirUrl('/socket.io/socket.io.js');
+    script.onload = () => setTimeout(conectar, 100);
+    document.head.appendChild(script);
+  }
 
   // Função para inicializar o toggle do menu
   const initMenuToggle = () => {
