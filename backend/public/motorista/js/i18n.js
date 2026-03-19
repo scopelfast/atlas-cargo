@@ -3,8 +3,11 @@
 // Atlas Cargo - Plano Multimoeda/Multilíngua
 
 (function() {
-  const baseUrl = window.__BASE_URL__ || (window.location.origin + (window.location.pathname.includes('/motorista') ? window.location.pathname.substring(0, window.location.pathname.indexOf('/motorista')) : '') || '');
-  const localePath = baseUrl.replace(/\/$/, '') + '/motorista/locales';
+  const origin = window.location.origin;
+  const pathname = window.location.pathname || '';
+  const baseUrl = window.__BASE_URL__ || (origin + (pathname.includes('/motorista') ? pathname.substring(0, pathname.indexOf('/motorista')) : pathname.includes('/mc') ? pathname.substring(0, pathname.indexOf('/mc')) : ''));
+  // Sempre carregar locales do path canônico (evita 404 quando app está em /mc)
+  const localePath = (pathname.includes('/mc') ? origin : (baseUrl.replace(/\/$/, ''))) + '/motorista/locales';
 
   let messages = {};
   let locale = 'pt-BR';

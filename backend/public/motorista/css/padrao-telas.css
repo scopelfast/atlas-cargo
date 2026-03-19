@@ -1,9 +1,8 @@
 /* ========================================
    CSS PADRÃO - TODAS AS TELAS DO APP
-   Versão: 4.0 - Visual profissional Atlas Cargo
+   Versão: 5.0 - Nova identidade (Teal + Slate)
+   design-system.css deve ser incluído ANTES
    ======================================== */
-   
-/* NOTA: design-system.css deve ser incluído ANTES deste arquivo nas páginas HTML */
 
 * {
   margin: 0;
@@ -12,11 +11,11 @@
 }
 
 html, body {
-  background: var(--gray-100, #f1f5f9);
-  font-family: var(--font-family, 'Plus Jakarta Sans', system-ui, sans-serif);
+  background: var(--app-bg);
+  font-family: var(--font-family);
   width: 100%;
   overflow-x: hidden;
-  color: var(--gray-900, #0f172a);
+  color: var(--app-text);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -28,72 +27,72 @@ html, body {
   text-align: center;
   font-size: 13px;
   font-weight: 600;
-  border-radius: var(--radius-md, 14px);
+  border-radius: var(--radius-md);
   letter-spacing: 0.02em;
 }
 
 .status-online {
-  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
-  color: #065f46;
-  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.2);
+  background: var(--success-bg);
+  color: var(--success);
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);
 }
 
 .status-offline {
-  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
-  color: #991b1b;
-  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.15);
+  background: var(--error-bg);
+  color: var(--error);
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.2);
 }
 
 .status-syncing {
-  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-  color: #92400e;
-  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.15);
+  background: var(--warning-bg);
+  color: var(--warning);
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.2);
 }
 
 /* ==================== NAVBAR ==================== */
 .navbar {
-  background: linear-gradient(165deg, #061428 0%, #0d2137 48%, #1a365d 100%);
-  color: white;
+  background: var(--app-header-bg);
+  color: var(--app-header-text);
   padding: 14px 18px;
   display: flex;
   align-items: center;
   gap: 14px;
-  box-shadow: 0 4px 20px rgba(6, 20, 40, 0.25);
+  box-shadow: var(--shadow-md);
   position: sticky;
   top: 0;
-  z-index: var(--z-sticky, 1020);
+  z-index: var(--z-sticky);
   backdrop-filter: blur(12px);
-  border-radius: var(--radius-lg, 18px);
+  border-radius: var(--radius-lg);
   margin: 0 auto;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .btn-voltar {
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: white;
+  background: var(--app-header-badge-bg);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--app-header-text);
   padding: 10px 16px;
-  border-radius: var(--radius-md, 14px);
+  border-radius: var(--radius-md);
   cursor: pointer;
-  font-weight: var(--font-weight-semibold, 600);
-  font-size: var(--font-size-sm, 13px);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-sm);
   transition: all 0.2s ease;
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-height: 44px;
 }
 
 .btn-voltar:hover {
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.3);
   transform: translateX(-2px);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
 }
 
 .btn-voltar:active {
   transform: translateX(0) scale(0.98);
 }
 
-/* Título da página: ícone (Boxicons) + texto, sempre alinhados e mesma cor */
 .navbar h1 {
   display: flex;
   align-items: center;
@@ -103,7 +102,7 @@ html, body {
   flex: 1;
   margin: 0;
   letter-spacing: -0.02em;
-  color: #fff;
+  color: var(--app-header-text);
   min-width: 0;
 }
 .navbar h1 i.bx {
@@ -112,23 +111,22 @@ html, body {
   flex-shrink: 0;
 }
 
-/* Badge "Online - Sincronizado" dentro da navbar (padrão ÚNICO em todas as telas) */
 .status-badge-navbar {
   margin-left: auto;
   font-size: 11px;
   font-weight: 600;
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--app-header-badge-bg);
   padding: 8px 14px;
-  border-radius: var(--radius-full, 9999px);
+  border-radius: var(--radius-full);
   white-space: nowrap;
   flex-shrink: 0;
   letter-spacing: 0.03em;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  color: var(--app-header-text);
 }
-/* Ponto verde/vermelho/amarelo via CSS (nunca use emoji no badge) */
 .status-badge-navbar::before {
   content: '';
   width: 6px;
@@ -152,25 +150,26 @@ html, body {
 
 /* ==================== CARDS ==================== */
 .card {
-  background: var(--white, #ffffff);
-  border-radius: var(--radius-card, 20px);
-  margin-bottom: var(--spacing-md, 16px);
-  box-shadow: var(--shadow-md, 0 4px 14px rgba(0,0,0,0.08));
+  background: var(--app-card);
+  color: var(--app-text);
+  border-radius: var(--radius-card);
+  margin-bottom: var(--spacing-md);
+  box-shadow: var(--shadow-md);
   overflow: hidden;
   transition: all 0.25s ease;
-  border: 1px solid rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--app-card-border);
 }
 
 .card:hover {
-  box-shadow: var(--shadow-lg, 0 12px 28px rgba(0,0,0,0.1));
+  box-shadow: var(--shadow-lg);
   transform: translateY(-2px);
 }
 
 .card-header {
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
-  color: white;
+  background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);
+  color: #fff;
   padding: 18px 20px;
-  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.2);
+  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.25);
 }
 
 .card-title {
@@ -178,6 +177,7 @@ html, body {
   font-weight: 700;
   margin-bottom: 6px;
   letter-spacing: -0.02em;
+  color: inherit;
 }
 
 .card-subtitle {
@@ -187,24 +187,33 @@ html, body {
 
 .card-body {
   padding: 18px 20px;
+  color: var(--app-text);
+}
+
+.card-body,
+.card-body p,
+.card-body label {
+  color: var(--app-text-secondary);
 }
 
 /* ==================== BOTÕES ==================== */
 .btn-primary {
   width: 100%;
   padding: 16px;
-  background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%);
-  color: white;
+  min-height: 48px;
+  background: var(--app-header-bg);
+  color: var(--app-header-text);
   border: none;
-  border-radius: var(--radius-md, 14px);
-  font-size: var(--font-size-base, 15px);
-  font-weight: var(--font-weight-bold, 700);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(13, 33, 55, 0.3);
+  box-shadow: var(--shadow-md);
   transition: all 0.25s ease;
   position: relative;
   overflow: hidden;
   letter-spacing: 0.02em;
+  font-family: var(--font-family);
 }
 
 .btn-primary::before {
@@ -227,7 +236,7 @@ html, body {
 
 .btn-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 28px rgba(13, 33, 55, 0.35);
+  box-shadow: var(--shadow-lg);
 }
 
 .btn-primary:active {
@@ -235,17 +244,17 @@ html, body {
 }
 
 .btn-success {
-  background: #059669;
+  background: var(--success);
   box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
 }
 
 .btn-danger {
-  background: #dc2626;
+  background: var(--error);
   box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
 }
 
 .btn-warning {
-  background: #d97706;
+  background: var(--warning);
   color: #fff;
   box-shadow: 0 4px 12px rgba(217, 119, 6, 0.3);
 }
@@ -254,40 +263,40 @@ html, body {
 .info-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: var(--spacing-sm, 8px);
-  margin-bottom: var(--spacing-md, 16px);
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-md);
 }
 
 .info-item {
-  background: var(--gray-50, #f8f9fa);
-  padding: var(--spacing-md, 12px);
-  border-radius: var(--radius-md, 12px);
+  background: var(--app-surface);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
   text-align: center;
-  transition: all var(--transition-base, 250ms ease);
-  border: 1px solid var(--gray-200, #e9ecef);
+  transition: all var(--transition-base);
+  border: 1px solid var(--app-card-border);
 }
 
 .info-item:hover {
-  background: var(--white, #ffffff);
-  box-shadow: var(--shadow-sm, 0 1px 3px rgba(0,0,0,0.08));
+  box-shadow: var(--shadow-sm);
   transform: translateY(-2px);
 }
 
 .info-icon {
   font-size: 22px;
   margin-bottom: 6px;
+  color: var(--app-primary);
 }
 
 .info-label {
-  font-size: 10px;
-  color: var(--gray-600, #64748b);
+  font-size: 12px;
+  color: var(--app-text-muted);
   text-transform: uppercase;
   font-weight: 600;
 }
 
 .info-value {
-  font-size: 15px;
-  color: var(--gray-900, #0f172a);
+  font-size: 16px;
+  color: var(--app-text);
   font-weight: 700;
   margin-top: 4px;
 }
@@ -296,17 +305,18 @@ html, body {
 .loading {
   text-align: center;
   padding: 60px 20px;
-  color: var(--gray-600, #64748b);
+  color: var(--app-text-muted);
 }
 
-.spinner {
-  border: 4px solid var(--gray-200, #e2e8f0);
-  border-top: 4px solid var(--ac-accent, #0ea5e9);
+.padrao-telas .spinner,
+.loading .spinner {
+  border: 4px solid var(--gray-200);
+  border-top-color: var(--app-primary);
   border-radius: 50%;
   width: 50px;
   height: 50px;
   animation: spin 1s linear infinite;
-  margin: 0 auto var(--spacing-md, 16px);
+  margin: 0 auto var(--spacing-md);
 }
 
 @keyframes spin {
@@ -318,21 +328,22 @@ html, body {
 .empty {
   text-align: center;
   padding: 60px 20px;
-  color: var(--gray-500, #adb5bd);
-  animation: fadeIn var(--transition-base, 250ms ease);
+  color: var(--app-text-muted);
+  animation: fadeIn var(--transition-base);
 }
 
 .empty-icon {
   font-size: 64px;
-  margin-bottom: var(--spacing-md, 16px);
+  margin-bottom: var(--spacing-md);
   opacity: 0.6;
   animation: pulse 2s ease-in-out infinite;
+  color: var(--app-primary);
 }
 
 .empty-text {
-  font-size: var(--font-size-base, 15px);
-  color: var(--gray-600, #6c757d);
-  font-weight: var(--font-weight-medium, 500);
+  font-size: var(--font-size-base);
+  color: var(--app-text-muted);
+  font-weight: var(--font-weight-medium);
 }
 
 /* ==================== UTILS ==================== */
@@ -342,12 +353,11 @@ html, body {
 
 /* ========================================
    PADRÃO ÚNICO - TODAS AS PÁGINAS DO APP MOTORISTA
-   (dashboard, gps, viagens, etc.) — conteúdo no topo, igual à tela de login
    ======================================== */
 body.motorista-page,
 body.motorista-dashboard-page {
   min-height: 100vh;
-  background: linear-gradient(165deg, #f0f9ff 0%, #e0f2fe 25%, #f1f5f9 60%, #f8fafc 100%) !important;
+  background: var(--app-bg) !important;
   padding-bottom: 28px;
   padding-top: max(16px, env(safe-area-inset-top)) !important;
   display: block !important;
@@ -365,15 +375,14 @@ body.motorista-dashboard-page .container {
 
 body.motorista-page .navbar,
 body.motorista-dashboard-page .navbar {
-  background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%);
+  background: var(--app-header-bg);
   padding: 12px 16px;
-  /* Padrão: mesma faixa 480px centralizada do container (não largura total) */
   max-width: 480px;
   margin-left: auto;
   margin-right: auto;
   margin-top: 16px;
   border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  box-shadow: var(--shadow-md);
 }
 
 /* Status bar (Online / Sincronizado) também no padrão 480px */
@@ -402,7 +411,7 @@ body.motorista-dashboard-page .card {
   margin-bottom: 16px;
 }
 
-/* Header do dashboard: mesma largura e centralização do container (padrão 480px) */
+/* Header do dashboard */
 body.motorista-dashboard-page .header-motorista {
   max-width: 480px;
   margin-left: auto;
@@ -410,68 +419,42 @@ body.motorista-dashboard-page .header-motorista {
   margin-bottom: 20px;
   border-radius: 16px;
   margin-top: 16px;
+  background: var(--app-header-bg);
+  color: var(--app-header-text);
 }
 
-/* ==================== TEMA ESCURO (todas as telas do app) ==================== */
-/* html.tema-escuro: aplicado no <head> no celular para primeiro paint; body.tema-escuro: aplicado pelo url-helper */
-html.tema-escuro,
-html.tema-escuro body,
-body.tema-escuro.motorista-page,
-body.tema-escuro.motorista-dashboard-page {
-  background: #1a1a1a !important;
-  color: #e5e5e5 !important;
-}
-body.tema-escuro,
-html.tema-escuro body {
-  background: #1a1a1a !important;
-  color: #e5e5e5 !important;
-}
-html.tema-escuro .navbar,
-body.tema-escuro .navbar {
-  background: linear-gradient(165deg, #0f172a 0%, #1e293b 50%, #334155 100%);
-  color: #f1f5f9;
-}
+/* ==================== TEMA ESCURO – overrides (variáveis já em design-system) ==================== */
 html.tema-escuro .container,
 body.tema-escuro .container {
   background: transparent;
   color: inherit;
 }
-html.tema-escuro .card,
 html.tema-escuro .config-section,
 html.tema-escuro .dashboard-block,
-body.tema-escuro .card,
 body.tema-escuro .config-section,
 body.tema-escuro .dashboard-block {
-  background: #262626;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-  border-color: #404040;
+  background: var(--app-card) !important;
+  border-color: var(--app-card-border);
+  color: var(--app-text);
 }
 html.tema-escuro .config-section-title,
-html.tema-escuro .card-title,
-html.tema-escuro h1,
-html.tema-escuro h2,
+html.tema-escuro .config-item-title,
+html.tema-escuro .config-title,
 body.tema-escuro .config-section-title,
-body.tema-escuro .card-title,
-body.tema-escuro h1,
-body.tema-escuro h2 {
-  color: #f0f0f0;
+body.tema-escuro .config-item-title,
+body.tema-escuro .config-title {
+  color: var(--app-text) !important;
+}
+html.tema-escuro .config-item-desc,
+html.tema-escuro .config-desc,
+body.tema-escuro .config-item-desc,
+body.tema-escuro .config-desc {
+  color: var(--app-text-muted) !important;
 }
 html.tema-escuro .config-item,
-html.tema-escuro .config-item-title,
-html.tema-escuro .config-item-desc,
-html.tema-escuro .config-title,
-html.tema-escuro .config-desc,
-body.tema-escuro .config-item,
-body.tema-escuro .config-item-title,
-body.tema-escuro .config-item-desc,
-body.tema-escuro .config-title,
-body.tema-escuro .config-desc {
-  border-bottom-color: #404040;
-  color: #e5e5e5;
-}
-html.tema-escuro .config-item-desc,
-body.tema-escuro .config-item-desc {
-  color: #a3a3a3;
+body.tema-escuro .config-item {
+  border-bottom-color: var(--app-card-border);
+  color: var(--app-text);
 }
 html.tema-escuro .select-input,
 html.tema-escuro .input-field,
@@ -481,48 +464,49 @@ body.tema-escuro .select-input,
 body.tema-escuro .input-field,
 body.tema-escuro input,
 body.tema-escuro select {
-  background: #3d3d3d;
-  border-color: #525252;
-  color: #f5f5f5;
+  background: var(--app-input-bg) !important;
+  border-color: var(--app-input-border) !important;
+  color: var(--app-input-text) !important;
 }
 html.tema-escuro .input-label,
 html.tema-escuro label,
 body.tema-escuro .input-label,
 body.tema-escuro label {
-  color: #d4d4d4;
+  color: var(--app-text-secondary) !important;
 }
 html.tema-escuro .link-item,
 html.tema-escuro a,
 body.tema-escuro .link-item,
 body.tema-escuro a {
-  color: #7dd3fc;
+  color: var(--app-accent) !important;
 }
 html.tema-escuro .btn-action.secondary,
 body.tema-escuro .btn-action.secondary {
-  background: #525252;
-  color: #e5e5e5;
+  background: var(--gray-700) !important;
+  color: var(--app-text) !important;
 }
 html.tema-escuro .btn-action.secondary:hover,
 body.tema-escuro .btn-action.secondary:hover {
-  background: #737373;
+  background: var(--gray-600) !important;
 }
 html.tema-escuro .header-motorista,
 body.tema-escuro .header-motorista {
-  background: linear-gradient(165deg, #0f172a 0%, #1e293b 50%, #334155 100%);
-  color: #f1f5f9;
+  background: var(--app-header-bg) !important;
+  color: var(--app-header-text) !important;
 }
 html.tema-escuro #modalSenha > div,
 html.tema-escuro .modal-dialog,
 body.tema-escuro #modalSenha > div,
 body.tema-escuro .modal-dialog {
-  background: #262626 !important;
-  color: #e5e5e5;
+  background: var(--app-card) !important;
+  color: var(--app-text) !important;
+  border-color: var(--app-card-border);
 }
 html.tema-escuro #modalSenha h2,
 html.tema-escuro .modal-title,
 body.tema-escuro #modalSenha h2,
 body.tema-escuro .modal-title {
-  color: #f0f0f0 !important;
+  color: var(--app-text) !important;
 }
 html.tema-escuro .filtros,
 html.tema-escuro .route-section,
@@ -536,23 +520,32 @@ body.tema-escuro .passo,
 body.tema-escuro .destaque,
 body.tema-escuro .obs-box,
 body.tema-escuro .chat-card {
-  background: #262626 !important;
-  border-color: #404040;
-  color: #e5e5e5;
+  background: var(--app-card) !important;
+  border-color: var(--app-card-border);
+  color: var(--app-text);
 }
 html.tema-escuro .chat-msg.operador,
 body.tema-escuro .chat-msg.operador {
-  background: #334155 !important;
-  color: #f1f5f9;
+  background: var(--gray-700) !important;
+  color: var(--app-text);
 }
 html.tema-escuro .chat-msg.motorista,
 body.tema-escuro .chat-msg.motorista {
-  background: #1e3a2f !important;
-  color: #d1fae5;
+  background: var(--app-primary-dark) !important;
+  color: #ccfbf1;
 }
 html.tema-escuro .status-bar.status-online,
-body.tema-escuro .status-bar.status-online { background: #064e3b; color: #a7f3d0; }
+body.tema-escuro .status-bar.status-online {
+  background: var(--success-bg) !important;
+  color: #a7f3d0;
+}
 html.tema-escuro .status-bar.status-offline,
-body.tema-escuro .status-bar.status-offline { background: #7f1d1d; color: #fecaca; }
+body.tema-escuro .status-bar.status-offline {
+  background: var(--error-bg) !important;
+  color: #fecaca;
+}
 html.tema-escuro .status-bar.status-syncing,
-body.tema-escuro .status-bar.status-syncing { background: #78350f; color: #fef3c7; }
+body.tema-escuro .status-bar.status-syncing {
+  background: var(--warning-bg) !important;
+  color: #fef3c7;
+}
