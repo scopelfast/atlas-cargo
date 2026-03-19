@@ -2535,12 +2535,14 @@ document.getElementById('filtroRastreado').value = '';
       formValidade.addEventListener('submit', salvarValidade);
     }
     
-    // Carregar validades do cadastro atual
-    const cdCadastro = document.getElementById('cadastroId')?.value || document.getElementById('cadastroCodigo')?.value;
+    // Carregar validades do cadastro atual (usar cadastroId = CDCADASTRO numérico)
+    const rawId = document.getElementById('cadastroId')?.value?.trim();
+    const rawCod = document.getElementById('cadastroCodigo')?.value?.trim();
+    const cdCadastro = rawId || rawCod;
     const tpCadastro = obterTipoCadastro();
     
     if (cdCadastro && tpCadastro) {
-      await carregarValidadesCadastro(tpCadastro, cdCadastro);
+      await carregarValidadesCadastro(tpCadastro, String(cdCadastro).trim());
     }
   }
   
@@ -2565,11 +2567,14 @@ document.getElementById('filtroRastreado').value = '';
       document.getElementById('validadesTipoCadastro').textContent = tipoNome;
       document.getElementById('validadesCadastroInfo').style.display = 'block';
       
-      // Buscar validades
-      const response = await fetch(`/api/validades/${tpCadastro}/${cdCadastro}`);
-      const data = await response.json();
-      const validades = response.ok && Array.isArray(data) ? data : [];
-      
+      // Buscar validades (URL corrigida para subpath; aceitar array ou { validades: [] })
+      const url = (typeof window.corrigirUrl === 'function' ? window.corrigirUrl : (u) => u)(`/api/validades/${tpCadastro}/${cdCadastro}`);
+      const response = await fetch(url);
+      const data = await response.json().catch(() => []);
+      let validades = [];
+      if (response.ok) {
+        validades = Array.isArray(data) ? data : (data && Array.isArray(data.validades) ? data.validades : []);
+      }
       if (!response.ok) {
         console.warn('API validades retornou', response.status, data?.error || data);
         showMessage(data?.error || 'Erro ao carregar validades', 'error');

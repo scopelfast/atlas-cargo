@@ -1067,7 +1067,7 @@
     <div class="tab-content active" id="tab-filtros">
       <div class="filtros-box">
         <h3><i class='bx bx-filter'></i> <span data-i18n="web.modulos.cadastroGeral.tabFiltros">Filtros</span></h3>
-        <form id="filtroForm" onsubmit="return false;">
+        <form id="filtroForm" onsubmit="return false;" autocomplete="off">
           <div class="filtros-grid">
             <div>
               <label for="filtroCodigo" data-i18n="web.modulos.cadastroGeral.codigo">Código</label>
@@ -1195,7 +1195,7 @@
     <div class="tab-content" id="tab-dados">
       <div class="form-box">
         <h2 id="formTitle" data-i18n="web.modulos.cadastroGeral.novoCadastro">Novo Cadastro Geral</h2>
-        <form id="cadastroForm">
+        <form id="cadastroForm" autocomplete="off">
           <input type="hidden" id="cadastroId">
 
           <!-- Card Identificação -->
@@ -1233,7 +1233,7 @@
                 </div>
                 <div>
                   <label for="cadastroPais">País</label>
-                  <select id="cadastroPais">
+                  <select id="cadastroPais" autocomplete="off">
                     <option value="">Padrão (Configurações)</option>
                     <!-- Opções carregadas da tabela PAIS via /api/paises -->
                   </select>
@@ -1264,35 +1264,35 @@
               <div class="input-group four-row">
                 <div>
                   <label for="cadastroCEP">CEP</label>
-                  <input type="text" id="cadastroCEP" maxlength="9">
+                  <input type="text" id="cadastroCEP" maxlength="9" autocomplete="off">
                 </div>
                 <div>
                   <label for="cadastroEndereco">Endereço</label>
-                  <input type="text" id="cadastroEndereco" maxlength="100">
+                  <input type="text" id="cadastroEndereco" maxlength="100" autocomplete="off">
                 </div>
                 <div>
                   <label for="cadastroNumero">Número</label>
-                  <input type="number" id="cadastroNumero" min="0" placeholder="S/N">
+                  <input type="number" id="cadastroNumero" min="0" placeholder="S/N" autocomplete="off">
                 </div>
                 <div>
                   <label for="cadastroBairro">Bairro</label>
-                  <input type="text" id="cadastroBairro" maxlength="30">
+                  <input type="text" id="cadastroBairro" maxlength="30" autocomplete="off">
                 </div>
               </div>
               <div class="input-group five-row">
                 <div>
                   <label for="cadastroComplemento">Complemento</label>
-                  <input type="text" id="cadastroComplemento" maxlength="60">
+                  <input type="text" id="cadastroComplemento" maxlength="60" autocomplete="off">
                 </div>
                 <div>
                   <label for="cadastroEstado">UF - Estado</label>
-                  <select id="cadastroEstado">
+                  <select id="cadastroEstado" autocomplete="off">
                     <option value="">Selecione</option>
                   </select>
                 </div>
                 <div>
                   <label for="cadastroCidade">Cidade</label>
-                  <select id="cadastroCidade">
+                  <select id="cadastroCidade" autocomplete="off">
                     <option value="">Selecione um estado primeiro</option>
                   </select>
                 </div>
@@ -1325,7 +1325,7 @@
               <div class="input-group four-row">
                 <div>
                   <label for="cadastroEmail">Email</label>
-                  <input type="text" id="cadastroEmail" maxlength="200" placeholder="exemplo@email.com" autocomplete="email">
+                  <input type="text" id="cadastroEmail" maxlength="200" placeholder="exemplo@email.com" autocomplete="off">
                 </div>
                 <div class="input-phone-wrapper" style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0;">
                   <label for="cadastroCelular" style="width: 100%; margin-bottom: 4px;">Celular *</label>
@@ -1333,7 +1333,7 @@
                     <select id="cadastroDDI" class="form-control" title="Código do país do celular (independente do país do endereço)" style="width: auto; min-width: 120px; border: none; border-right: 1px solid var(--input-border, #ced4da); border-radius: 0;">
                       <option value="">+DDI</option>
                     </select>
-                    <input type="text" id="cadastroCelular" required maxlength="15" placeholder="DDD + número (BR) ou só número" style="flex: 1; min-width: 140px; border: none; border-radius: 0;">
+                    <input type="text" id="cadastroCelular" required maxlength="15" placeholder="DDD + número (BR) ou só número" autocomplete="off" style="flex: 1; min-width: 140px; border: none; border-radius: 0;">
                   </div>
                   <small class="hint" style="width: 100%; margin-top: 4px;">País do celular (DDI) é independente do país do cadastro. Brasil: DDD + número. Outros: só o número.</small>
                 </div>
