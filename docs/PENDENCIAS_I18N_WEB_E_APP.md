@@ -2,6 +2,8 @@
 
 Resumo do que **já tem** e do que **ainda falta** para tradução (português / espanhol).
 
+**Atualização:** Tema padrão do sistema alterado para **modo dark** (login e dashboard). Todas as telas web principais e o modal Alterar Senha estão preparadas para i18n (PT/ES); módulos Estados, Mesorregiões e Tipo de Ocorrência incluídos.
+
 ---
 
 ## App Motorista

@@ -37,7 +37,7 @@ if ([string]::IsNullOrWhiteSpace($status)) {
     $ahead = git status | Select-String "Your branch is ahead"
     if ($ahead) {
         Write-Host "Fazendo push dos commits existentes..." -ForegroundColor Yellow
-        git push
+        git push origin main
         if ($LASTEXITCODE -eq 0) {
             Write-Host "Push realizado com sucesso!" -ForegroundColor Green
         } else {
@@ -58,6 +58,9 @@ Write-Host ""
 # Adicionar todos os arquivos
 Write-Host "Adicionando arquivos ao staging..." -ForegroundColor Yellow
 git add .
+
+# Garantir que .env nunca seja commitado (seguranca)
+git reset HEAD -- .env .env.local backend/.env backend/.env.local 2>$null
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Erro ao adicionar arquivos." -ForegroundColor Red
@@ -99,7 +102,7 @@ if ($statusFull -match "Your branch is behind") {
 
 # Fazer push
 Write-Host "Fazendo push para o GitHub..." -ForegroundColor Yellow
-git push
+git push origin main
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""

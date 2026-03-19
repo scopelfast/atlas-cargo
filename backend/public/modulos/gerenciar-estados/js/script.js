@@ -2,6 +2,7 @@
 // Módulo Gerenciar Estados - cadastro de estados (BR, PY, AR, UY)
 
 (function() {
+  const t = function(k) { return typeof window.tWeb === 'function' ? window.tWeb(k) : k; };
   const tabs = document.querySelectorAll('.estados-container .tab-btn');
   const tabContents = document.querySelectorAll('.estados-container .tab-content');
   const filtroForm = document.getElementById('filtroForm');
@@ -82,7 +83,7 @@
       }));
 
       const countEl = document.getElementById('estadosGridCount');
-      if (countEl) countEl.textContent = lastEstados.length + ' registro(s) encontrado(s)';
+      if (countEl) countEl.textContent = (t('web.modulos.estados.registrosEncontrados') || '').replace('{n}', lastEstados.length);
 
       if (typeof window.GridEditor !== 'undefined' && gridTab) gridTab.render(lastEstados);
       if (openTab === 'grid') {
@@ -195,7 +196,7 @@
       opt.textContent = (row.PAIS_SIGLA || row.CDPAIS) + ' - ' + (row.DSPAIS || '');
       document.getElementById('estadoPais').appendChild(opt);
       document.getElementById('estadoPais').disabled = true;
-      document.getElementById('formTitle').textContent = 'Editar Estado';
+      document.getElementById('formTitle').textContent = t('web.modulos.estados.editarEstado');
       showTab('dados');
     } catch (e) {
       showMessage('Erro ao carregar registro.', 'error');
@@ -210,7 +211,7 @@
     document.getElementById('estadoCDUFInput').readOnly = false;
     document.getElementById('estadoPais').disabled = false;
     preencherComboPais('estadoPais', false);
-    document.getElementById('formTitle').textContent = 'Novo Estado';
+    document.getElementById('formTitle').textContent = t('web.modulos.estados.novoEstado');
   }
 
   async function salvarForm(e) {

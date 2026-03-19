@@ -281,19 +281,19 @@
 <body>
     <div class="tipo-ocorrencia-container">
       <div class="tipo-ocorrencia-header">
-        <h2><i class='bx bx-list-check'></i> Gerenciar Tipo de Ocorrência</h2>
+        <h2><i class='bx bx-list-check'></i> <span data-i18n="web.modulos.tipoOcorrencia.titulo">Gerenciar Tipo de Ocorrência</span></h2>
       </div>
 
       <div class="tabs tabs-com-icones">
-        <button class="tab-btn active" data-tab="filtros"><i class='bx bx-filter-alt'></i> Filtros</button>
-        <button class="tab-btn" data-tab="grid"><i class='bx bx-grid-alt'></i> Grid</button>
-        <button class="tab-btn" data-tab="dados"><i class='bx bx-edit'></i> Dados</button>
+        <button class="tab-btn active" data-tab="filtros"><i class='bx bx-filter-alt'></i> <span data-i18n="web.modulos.tipoOcorrencia.tabFiltros">Filtros</span></button>
+        <button class="tab-btn" data-tab="grid"><i class='bx bx-grid-alt'></i> <span data-i18n="web.modulos.tipoOcorrencia.tabGrid">Grid</span></button>
+        <button class="tab-btn" data-tab="dados"><i class='bx bx-edit'></i> <span data-i18n="web.modulos.tipoOcorrencia.tabDados">Dados</span></button>
       </div>
 
       <!-- Filtros -->
       <div class="tab-content active" id="tab-filtros">
         <div class="filtros-box">
-          <h3><i class='bx bx-filter'></i> Filtros</h3>
+          <h3><i class='bx bx-filter'></i> <span data-i18n="web.modulos.tipoOcorrencia.filtros">Filtros</span></h3>
           <form id="filtroForm" onsubmit="return false;">
             <div class="filtros-grid">
               <div>
@@ -305,18 +305,18 @@
                 <input type="text" id="filtroDescricao" maxlength="100" class="form-control">
               </div>
               <div>
-                <label for="filtroSituacao">Situação</label>
+                <label for="filtroSituacao" data-i18n="web.modulos.tipoOcorrencia.situacao">Situação</label>
                 <select id="filtroSituacao" class="form-control">
                   <option value="">Todas</option>
-                  <option value="S">Ativo</option>
-                  <option value="N">Inativo</option>
+                  <option value="S" data-i18n="web.modulos.tipoOcorrencia.ativo">Ativo</option>
+                  <option value="N" data-i18n="web.modulos.tipoOcorrencia.inativo">Inativo</option>
                 </select>
               </div>
             </div>
             <div class="filtros-actions">
-              <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> Limpar</button>
-              <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class='bx bx-search'></i> Filtrar</button>
-              <button type="button" id="btnNovoRegistro" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> Novo</button>
+              <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> <span data-i18n="web.modulos.tipoOcorrencia.limpar">Limpar</span></button>
+              <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class='bx bx-search'></i> <span data-i18n="web.modulos.tipoOcorrencia.filtrar">Filtrar</span></button>
+              <button type="button" id="btnNovoRegistro" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> <span data-i18n="web.modulos.tipoOcorrencia.novo">Novo</span></button>
             </div>
           </form>
         </div>
@@ -325,10 +325,10 @@
       <!-- Grid -->
       <div class="tab-content" id="tab-grid">
         <div class="filtros-box">
-          <h3>Visualização em Grid</h3>
+          <h3 data-i18n="web.modulos.tipoOcorrencia.tabGrid">Grid</h3>
           <div class="filtros-actions" style="justify-content: space-between; margin-top: 0; margin-bottom: 15px;">
-            <button id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> Voltar</button>
-            <button id="btnNovoRegistroGrid" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> Novo</button>
+            <button id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.tipoOcorrencia.voltar">Voltar</span></button>
+            <button id="btnNovoRegistroGrid" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> <span data-i18n="web.modulos.tipoOcorrencia.novo">Novo</span></button>
           </div>
           <div style="padding: 10px 0; color: var(--gray); font-size: 14px; font-weight: 500;">
             <span id="tiposOcorrenciaGridCountText">0 registro(s) encontrado(s)</span>
@@ -342,10 +342,10 @@
       <!-- Dados -->
       <div class="tab-content" id="tab-dados">
         <div class="filtros-box">
-          <h3 id="formTitle">Novo Tipo de Ocorrência</h3>
+          <h3 id="formTitle" data-i18n="web.modulos.tipoOcorrencia.novoTipo">Novo Tipo de Ocorrência</h3>
           <form id="tipoOcorrenciaForm">
             <div class="form-dados-card">
-              <div class="form-dados-card-header"><i class='bx bx-list-check'></i> Identificação</div>
+              <div class="form-dados-card-header"><i class='bx bx-list-check'></i> <span data-i18n="web.modulos.tipoOcorrencia.identificacao">Identificação</span></div>
               <div class="form-dados-card-body">
                 <div class="filtros-grid">
                   <div>
@@ -379,10 +379,10 @@
                     <small class="form-text text-muted">Atualiza a situação da viagem no Gerenciar Viagens quando o motorista registrar esta macro.</small>
                   </div>
                   <div>
-                    <label for="tipoSituacao">Situação *</label>
+                    <label for="tipoSituacao" data-i18n="web.modulos.tipoOcorrencia.situacao">Situação *</label>
                     <select id="tipoSituacao" required class="form-control">
-                      <option value="S">Ativo</option>
-                      <option value="N">Inativo</option>
+                      <option value="S" data-i18n="web.modulos.tipoOcorrencia.ativo">Ativo</option>
+                      <option value="N" data-i18n="web.modulos.tipoOcorrencia.inativo">Inativo</option>
                     </select>
                   </div>
                 </div>
@@ -409,8 +409,8 @@
               </div>
             </div>
             <div class="filtros-actions" style="margin-top: 20px;">
-              <button type="submit" class="btn-filtro btn-filtro-novo"><i class='bx bx-save'></i> Salvar</button>
-              <button type="button" id="btnCancelar" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> Cancelar</button>
+              <button type="submit" class="btn-filtro btn-filtro-novo"><i class='bx bx-save'></i> <span data-i18n="web.modulos.tipoOcorrencia.salvar">Salvar</span></button>
+              <button type="button" id="btnCancelar" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> <span data-i18n="web.modulos.tipoOcorrencia.cancelar">Cancelar</span></button>
             </div>
           </form>
         </div>
@@ -418,11 +418,11 @@
 
       <div id="confirmModal" class="modal">
         <div class="modal-content">
-          <h3>Confirmar Ação</h3>
+          <h3 data-i18n="web.modulos.tipoOcorrencia.confirmarAcao">Confirmar Ação</h3>
           <p id="modalMessage"></p>
           <div class="modal-actions">
-            <button id="confirmYes" class="btn-filtro btn-filtro-danger" type="button"><i class='bx bx-check'></i> Desativar</button>
-            <button id="confirmNo" class="btn-filtro btn-filtro-limpar" type="button"><i class='bx bx-x'></i> Cancelar</button>
+            <button id="confirmYes" class="btn-filtro btn-filtro-danger" type="button"><i class='bx bx-check'></i> <span data-i18n="web.modulos.tipoOcorrencia.desativar">Desativar</span></button>
+            <button id="confirmNo" class="btn-filtro btn-filtro-limpar" type="button"><i class='bx bx-x'></i> <span data-i18n="web.modulos.tipoOcorrencia.cancelar">Cancelar</span></button>
           </div>
         </div>
       </div>

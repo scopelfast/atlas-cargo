@@ -59,49 +59,49 @@
 <body>
     <div class="mesorregiao-container">
         <div class="mesorregiao-header">
-            <h2><i class="bx bx-map"></i> Gerenciar Mesorregiões</h2>
+            <h2><i class="bx bx-map"></i> <span data-i18n="web.modulos.mesorregiao.titulo">Gerenciar Mesorregiões</span></h2>
         </div>
 
         <div class="tabs tabs-com-icones">
-            <button class="tab-btn active" data-tab="filtros"><i class="bx bx-filter-alt"></i> Filtros</button>
-            <button class="tab-btn" data-tab="grid"><i class="bx bx-grid-alt"></i> Grid</button>
-            <button class="tab-btn" data-tab="dados"><i class="bx bx-edit"></i> Dados</button>
+            <button class="tab-btn active" data-tab="filtros"><i class="bx bx-filter-alt"></i> <span data-i18n="web.modulos.mesorregiao.tabFiltros">Filtros</span></button>
+            <button class="tab-btn" data-tab="grid"><i class="bx bx-grid-alt"></i> <span data-i18n="web.modulos.mesorregiao.tabGrid">Grid</span></button>
+            <button class="tab-btn" data-tab="dados"><i class="bx bx-edit"></i> <span data-i18n="web.modulos.mesorregiao.tabDados">Dados</span></button>
         </div>
 
         <div class="tab-content active" id="tab-filtros">
             <div class="filtros-box">
-                <h3><i class="bx bx-filter"></i> Filtros</h3>
+                <h3><i class="bx bx-filter"></i> <span data-i18n="web.modulos.mesorregiao.filtros">Filtros</span></h3>
                 <form id="filtroForm" onsubmit="return false;">
                     <div class="filtros-grid">
                         <div class="input-group">
-                            <label for="filtroPais">País</label>
+                            <label for="filtroPais" data-i18n="web.modulos.mesorregiao.pais">País</label>
                             <select id="filtroPais" class="form-control">
-                                <option value="">Todos</option>
+                                <option value="" data-i18n="web.modulos.mesorregiao.todas">Todas</option>
                             </select>
                         </div>
                         <div class="input-group">
-                            <label for="filtroEstado">Estado (UF)</label>
+                            <label for="filtroEstado" data-i18n="web.modulos.mesorregiao.estadoUf">Estado (UF)</label>
                             <select id="filtroEstado">
-                                <option value="">Todos</option>
+                                <option value="" data-i18n="web.modulos.mesorregiao.todas">Todas</option>
                             </select>
                         </div>
                         <div class="input-group">
-                            <label for="filtroDescricao">Descrição</label>
+                            <label for="filtroDescricao" data-i18n="web.modulos.mesorregiao.descricao">Descrição</label>
                             <input type="text" id="filtroDescricao" class="form-control" placeholder="Descrição da mesorregião...">
                         </div>
                         <div class="input-group">
-                            <label for="filtroSituacao">Situação</label>
+                            <label for="filtroSituacao" data-i18n="web.modulos.mesorregiao.situacao">Situação</label>
                             <select id="filtroSituacao">
-                                <option value="">Todas</option>
-                                <option value="S">Ativo</option>
-                                <option value="N">Inativo</option>
+                                <option value="" data-i18n="web.modulos.mesorregiao.todas">Todas</option>
+                                <option value="S" data-i18n="web.modulos.mesorregiao.ativo">Ativo</option>
+                                <option value="N" data-i18n="web.modulos.mesorregiao.inativo">Inativo</option>
                             </select>
                         </div>
                     </div>
                     <div class="filtros-actions">
-                        <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Limpar</button>
-                        <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search"></i> Filtrar</button>
-                        <button type="button" id="btnNovo" class="btn-filtro btn-filtro-novo"><i class="bx bx-plus"></i> Novo</button>
+                        <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> <span data-i18n="web.modulos.mesorregiao.limpar">Limpar</span></button>
+                        <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search"></i> <span data-i18n="web.modulos.mesorregiao.filtrar">Filtrar</span></button>
+                        <button type="button" id="btnNovo" class="btn-filtro btn-filtro-novo"><i class="bx bx-plus"></i> <span data-i18n="web.modulos.mesorregiao.novo">Novo</span></button>
                     </div>
                 </form>
             </div>
@@ -109,57 +109,57 @@
 
         <div class="tab-content" id="tab-grid">
             <div class="filtros-box">
-                <h3>Grid de Mesorregiões</h3>
+                <h3 data-i18n="web.modulos.mesorregiao.gridMesorregioes">Grid de Mesorregiões</h3>
                 <div class="filtros-actions" style="justify-content: space-between; margin-top: 0; margin-bottom: 15px;">
                     <div class="filtros-actions" style="margin: 0;">
-                        <button type="button" id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar</button>
+                        <button type="button" id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> <span data-i18n="web.modulos.mesorregiao.voltar">Voltar</span></button>
                     </div>
-                    <button type="button" id="btnNovoGrid" class="btn-filtro btn-filtro-novo"><i class="bx bx-plus"></i> Novo</button>
+                    <button type="button" id="btnNovoGrid" class="btn-filtro btn-filtro-novo"><i class="bx bx-plus"></i> <span data-i18n="web.modulos.mesorregiao.novo">Novo</span></button>
                 </div>
                 <p id="mesorregiaoGridCount" style="padding: 10px 0; color: var(--gray); font-size: 14px;">0 registro(s) encontrado(s)</p>
                 <div id="mesorregiaoGrid" class="grid-container">
-                    <p class="empty">Aplicar filtros para carregar o grid.</p>
+                    <p class="empty" data-i18n="web.modulos.mesorregiao.aplicarFiltros">Aplicar filtros para carregar o grid.</p>
                 </div>
             </div>
         </div>
 
         <div class="tab-content" id="tab-dados">
             <div class="filtros-box">
-                <h3 id="formTitle">Nova Mesorregião</h3>
+                <h3 id="formTitle" data-i18n="web.modulos.mesorregiao.novaMesorregiao">Nova Mesorregião</h3>
                 <form id="mesorregiaoForm">
                     <input type="hidden" id="mesoCDUF">
                     <input type="hidden" id="mesoCDMESOREGIAO">
                     <div class="form-dados-card">
-                        <div class="form-dados-card-header"><i class="bx bx-id-card"></i> Identificação</div>
+                        <div class="form-dados-card-header"><i class="bx bx-id-card"></i> <span data-i18n="web.modulos.mesorregiao.identificacao">Identificação</span></div>
                         <div class="form-dados-card-body">
                             <div class="filtros-grid">
                                 <div>
-                                    <label for="mesoEstado">Estado (UF) *</label>
+                                    <label for="mesoEstado" data-i18n="web.modulos.mesorregiao.estadoUf">Estado (UF) *</label>
                                     <select id="mesoEstado" class="form-control" required>
-                                        <option value="">Selecione</option>
+                                        <option value="" data-i18n="web.modulos.mesorregiao.selecione">Selecione</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label for="mesoCDMESOREGIAOInput">Código Mesorregião *</label>
+                                    <label for="mesoCDMESOREGIAOInput" data-i18n="web.modulos.mesorregiao.codigoMesorregiao">Código Mesorregião *</label>
                                     <input type="number" id="mesoCDMESOREGIAOInput" class="form-control" min="1" placeholder="Código numérico" required>
                                 </div>
                                 <div>
-                                    <label for="mesoDSMESOREGIAO">Descrição *</label>
+                                    <label for="mesoDSMESOREGIAO" data-i18n="web.modulos.mesorregiao.descricao">Descrição *</label>
                                     <input type="text" id="mesoDSMESOREGIAO" class="form-control" maxlength="100" placeholder="Nome da mesorregião" required>
                                 </div>
                                 <div>
-                                    <label for="mesoFGACTIVE">Situação *</label>
+                                    <label for="mesoFGACTIVE" data-i18n="web.modulos.mesorregiao.situacao">Situação *</label>
                                     <select id="mesoFGACTIVE" class="form-control">
-                                        <option value="S">Ativo</option>
-                                        <option value="N">Inativo</option>
+                                        <option value="S" data-i18n="web.modulos.mesorregiao.ativo">Ativo</option>
+                                        <option value="N" data-i18n="web.modulos.mesorregiao.inativo">Inativo</option>
                                     </select>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div class="filtros-actions" style="margin-top: 20px;">
-                        <button type="submit" class="btn-filtro btn-filtro-novo"><i class="bx bx-save"></i> Salvar</button>
-                        <button type="button" id="btnCancelar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar</button>
+                        <button type="submit" class="btn-filtro btn-filtro-novo"><i class="bx bx-save"></i> <span data-i18n="web.modulos.mesorregiao.salvar">Salvar</span></button>
+                        <button type="button" id="btnCancelar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> <span data-i18n="web.modulos.mesorregiao.voltar">Voltar</span></button>
                     </div>
                 </form>
             </div>
@@ -168,11 +168,11 @@
         <!-- Modal de confirmação (padrão do sistema) -->
         <div id="confirmModal" class="modal">
             <div class="modal-content">
-                <h3>Confirmar Ação</h3>
+                <h3 data-i18n="web.modulos.mesorregiao.confirmarAcao">Confirmar Ação</h3>
                 <p id="modalMessage"></p>
                 <div class="modal-actions">
-                    <button id="confirmYes" class="btn-filtro btn-filtro-danger" type="button"><i class="bx bx-check"></i> Desativar</button>
-                    <button id="confirmNo" class="btn-filtro btn-filtro-limpar" type="button"><i class="bx bx-x"></i> Cancelar</button>
+                    <button id="confirmYes" class="btn-filtro btn-filtro-danger" type="button"><i class="bx bx-check"></i> <span data-i18n="web.modulos.mesorregiao.desativar">Desativar</span></button>
+                    <button id="confirmNo" class="btn-filtro btn-filtro-limpar" type="button"><i class="bx bx-x"></i> <span data-i18n="web.modulos.mesorregiao.cancelar">Cancelar</span></button>
                 </div>
             </div>
         </div>

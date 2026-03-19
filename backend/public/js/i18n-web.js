@@ -44,6 +44,14 @@
       var k = node.getAttribute('data-i18n-title');
       if (k) { node.title = window.tWeb(k); }
     });
+    scope.querySelectorAll('[data-i18n-title-expanded]').forEach(function(node) {
+      var k = node.getAttribute('data-i18n-title-expanded');
+      if (k && node.getAttribute('aria-expanded') === 'true') node.title = window.tWeb(k);
+    });
+    scope.querySelectorAll('[data-i18n-title-collapsed]').forEach(function(node) {
+      var k = node.getAttribute('data-i18n-title-collapsed');
+      if (k && node.getAttribute('aria-expanded') === 'false') node.title = window.tWeb(k);
+    });
   };
 
   function getPreferred() {

@@ -1,4 +1,5 @@
 @echo off
+setlocal EnableDelayedExpansion
 chcp 65001 >nul
 title AtlasCargo - Subir para GitHub
 cd /d "%~dp0"
@@ -17,8 +18,13 @@ if %errorlevel% neq 0 (
 )
 
 echo.
-set /p MSG="Digite a mensagem do commit (ou Enter para 'Atualizacao'): "
-if "%MSG%"=="" set MSG=Atualizacao
+if "%~1"=="" (
+  set /p MSG="Digite a mensagem do commit (ou Enter para 'Atualizacao'): "
+  if "!MSG!"=="" set MSG=Atualizacao
+) else (
+  set "MSG=%*"
+  echo Mensagem: !MSG!
+)
 
 echo.
 echo Adicionando arquivos...

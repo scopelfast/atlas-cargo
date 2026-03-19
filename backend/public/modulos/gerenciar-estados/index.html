@@ -55,47 +55,47 @@
 <body>
     <div class="estados-container">
         <div class="estados-header">
-            <h2><i class="bx bx-map-pin"></i> Gerenciar Estados</h2>
+            <h2><i class="bx bx-map-pin"></i> <span data-i18n="web.modulos.estados.titulo">Gerenciar Estados</span></h2>
         </div>
 
         <div class="tabs tabs-com-icones">
-            <button class="tab-btn active" data-tab="filtros"><i class="bx bx-filter-alt"></i> Filtros</button>
-            <button class="tab-btn" data-tab="grid"><i class="bx bx-grid-alt"></i> Grid</button>
-            <button class="tab-btn" data-tab="dados"><i class="bx bx-edit"></i> Dados</button>
+            <button class="tab-btn active" data-tab="filtros"><i class="bx bx-filter-alt"></i> <span data-i18n="web.modulos.estados.tabFiltros">Filtros</span></button>
+            <button class="tab-btn" data-tab="grid"><i class="bx bx-grid-alt"></i> <span data-i18n="web.modulos.estados.tabGrid">Grid</span></button>
+            <button class="tab-btn" data-tab="dados"><i class="bx bx-edit"></i> <span data-i18n="web.modulos.estados.tabDados">Dados</span></button>
         </div>
 
         <div class="tab-content active" id="tab-filtros">
             <div class="filtros-box">
-                <h3><i class="bx bx-filter"></i> Filtros</h3>
+                <h3><i class="bx bx-filter"></i> <span data-i18n="web.modulos.estados.filtros">Filtros</span></h3>
                 <form id="filtroForm" onsubmit="return false;">
                     <div class="filtros-grid">
                         <div class="input-group">
-                            <label for="filtroPais">País</label>
+                            <label for="filtroPais" data-i18n="web.modulos.estados.pais">País</label>
                             <select id="filtroPais" class="form-control">
-                                <option value="">Todos</option>
+                                <option value="" data-i18n="web.modulos.estados.todas">Todas</option>
                             </select>
                         </div>
                         <div class="input-group">
-                            <label for="filtroNome">Nome do estado</label>
+                            <label for="filtroNome" data-i18n="web.modulos.estados.nomeEstado">Nome do estado</label>
                             <input type="text" id="filtroNome" class="form-control" placeholder="Nome...">
                         </div>
                         <div class="input-group">
-                            <label for="filtroSigla">Sigla</label>
+                            <label for="filtroSigla" data-i18n="web.modulos.estados.sigla">Sigla</label>
                             <input type="text" id="filtroSigla" class="form-control" placeholder="Ex: PR, ASN" maxlength="10">
                         </div>
                         <div class="input-group">
-                            <label for="filtroSituacao">Situação</label>
+                            <label for="filtroSituacao" data-i18n="web.modulos.estados.situacao">Situação</label>
                             <select id="filtroSituacao">
-                                <option value="">Todas</option>
-                                <option value="S">Ativo</option>
-                                <option value="N">Inativo</option>
+                                <option value="" data-i18n="web.modulos.estados.todas">Todas</option>
+                                <option value="S" data-i18n="web.modulos.estados.ativo">Ativo</option>
+                                <option value="N" data-i18n="web.modulos.estados.inativo">Inativo</option>
                             </select>
                         </div>
                     </div>
                     <div class="filtros-actions">
-                        <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Limpar</button>
-                        <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search"></i> Filtrar</button>
-                        <button type="button" id="btnNovo" class="btn-filtro btn-filtro-novo"><i class="bx bx-plus"></i> Novo</button>
+                        <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> <span data-i18n="web.modulos.estados.limpar">Limpar</span></button>
+                        <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search"></i> <span data-i18n="web.modulos.estados.filtrar">Filtrar</span></button>
+                        <button type="button" id="btnNovo" class="btn-filtro btn-filtro-novo"><i class="bx bx-plus"></i> <span data-i18n="web.modulos.estados.novo">Novo</span></button>
                     </div>
                 </form>
             </div>
@@ -103,61 +103,61 @@
 
         <div class="tab-content" id="tab-grid">
             <div class="filtros-box">
-                <h3>Grid de Estados</h3>
+                <h3 data-i18n="web.modulos.estados.gridEstados">Grid de Estados</h3>
                 <div class="filtros-actions" style="justify-content: space-between; margin-top: 0; margin-bottom: 15px;">
                     <div class="filtros-actions" style="margin: 0;">
-                        <button type="button" id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar</button>
+                        <button type="button" id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> <span data-i18n="web.modulos.estados.voltar">Voltar</span></button>
                     </div>
-                    <button type="button" id="btnNovoGrid" class="btn-filtro btn-filtro-novo"><i class="bx bx-plus"></i> Novo</button>
+                    <button type="button" id="btnNovoGrid" class="btn-filtro btn-filtro-novo"><i class="bx bx-plus"></i> <span data-i18n="web.modulos.estados.novo">Novo</span></button>
                 </div>
                 <p id="estadosGridCount" style="padding: 10px 0; color: var(--gray); font-size: 14px;">0 registro(s) encontrado(s)</p>
                 <div id="estadosGrid" class="grid-container">
-                    <p class="empty">Aplicar filtros para carregar o grid.</p>
+                    <p class="empty" data-i18n="web.modulos.estados.aplicarFiltros">Aplicar filtros para carregar o grid.</p>
                 </div>
             </div>
         </div>
 
         <div class="tab-content" id="tab-dados">
             <div class="filtros-box">
-                <h3 id="formTitle">Novo Estado</h3>
+                <h3 id="formTitle" data-i18n="web.modulos.estados.novoEstado">Novo Estado</h3>
                 <form id="estadoForm">
                     <input type="hidden" id="estadoCDPAIS">
                     <input type="hidden" id="estadoCDUF">
                     <div class="form-dados-card">
-                        <div class="form-dados-card-header"><i class="bx bx-id-card"></i> Identificação</div>
+                        <div class="form-dados-card-header"><i class="bx bx-id-card"></i> <span data-i18n="web.modulos.estados.identificacao">Identificação</span></div>
                         <div class="form-dados-card-body">
                             <div class="filtros-grid">
                                 <div>
-                                    <label for="estadoPais">País *</label>
+                                    <label for="estadoPais" data-i18n="web.modulos.estados.pais">País *</label>
                                     <select id="estadoPais" class="form-control" required>
-                                        <option value="">Selecione</option>
+                                        <option value="" data-i18n="web.modulos.estados.selecione">Selecione</option>
                                     </select>
                                 </div>
                                 <div>
-                                    <label for="estadoCDUFInput">Código (CDUF) *</label>
+                                    <label for="estadoCDUFInput" data-i18n="web.modulos.estados.codigoCduf">Código (CDUF) *</label>
                                     <input type="number" id="estadoCDUFInput" class="form-control" min="1" placeholder="Código numérico do estado" required>
                                 </div>
                                 <div>
-                                    <label for="estadoSigla">Sigla (UF)</label>
+                                    <label for="estadoSigla" data-i18n="web.modulos.estados.sigla">Sigla (UF)</label>
                                     <input type="text" id="estadoSigla" class="form-control" maxlength="10" placeholder="Ex: PR, ASN">
                                 </div>
                                 <div>
-                                    <label for="estadoNMESTADO">Nome do estado *</label>
+                                    <label for="estadoNMESTADO" data-i18n="web.modulos.estados.nomeEstadoObrig">Nome do estado *</label>
                                     <input type="text" id="estadoNMESTADO" class="form-control" maxlength="100" placeholder="Ex: Paraná, Alto Paraná" required>
                                 </div>
                                 <div>
-                                    <label for="estadoFGACTIVE">Situação *</label>
+                                    <label for="estadoFGACTIVE" data-i18n="web.modulos.estados.situacaoObrig">Situação *</label>
                                     <select id="estadoFGACTIVE" class="form-control">
-                                        <option value="S">Ativo</option>
-                                        <option value="N">Inativo</option>
+                                        <option value="S" data-i18n="web.modulos.estados.ativo">Ativo</option>
+                                        <option value="N" data-i18n="web.modulos.estados.inativo">Inativo</option>
                                     </select>
                                 </div>
                             </div>
                         </div>
                     </div>
                     <div class="filtros-actions" style="margin-top: 20px;">
-                        <button type="submit" class="btn-filtro btn-filtro-novo"><i class="bx bx-save"></i> Salvar</button>
-                        <button type="button" id="btnCancelar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar</button>
+                        <button type="submit" class="btn-filtro btn-filtro-novo"><i class="bx bx-save"></i> <span data-i18n="web.modulos.estados.salvar">Salvar</span></button>
+                        <button type="button" id="btnCancelar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> <span data-i18n="web.modulos.estados.voltar">Voltar</span></button>
                     </div>
                 </form>
             </div>
@@ -166,11 +166,11 @@
         <!-- Modal de confirmação (padrão do sistema) -->
         <div id="confirmModal" class="modal">
             <div class="modal-content">
-                <h3>Confirmar Ação</h3>
+                <h3 data-i18n="web.modulos.estados.confirmarAcao">Confirmar Ação</h3>
                 <p id="modalMessage"></p>
                 <div class="modal-actions">
-                    <button id="confirmYes" class="btn-filtro btn-filtro-danger" type="button"><i class="bx bx-check"></i> Desativar</button>
-                    <button id="confirmNo" class="btn-filtro btn-filtro-limpar" type="button"><i class="bx bx-x"></i> Cancelar</button>
+                    <button id="confirmYes" class="btn-filtro btn-filtro-danger" type="button"><i class="bx bx-check"></i> <span data-i18n="web.modulos.estados.desativar">Desativar</span></button>
+                    <button id="confirmNo" class="btn-filtro btn-filtro-limpar" type="button"><i class="bx bx-x"></i> <span data-i18n="web.modulos.estados.cancelar">Cancelar</span></button>
                 </div>
             </div>
         </div>

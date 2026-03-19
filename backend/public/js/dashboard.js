@@ -84,7 +84,7 @@
     const root = document.documentElement;
     const btn = document.getElementById('themeToggleBtn');
     const icon = document.getElementById('themeToggleIcon');
-    function getTheme() { return localStorage.getItem(KEY) || 'light'; }
+    function getTheme() { return localStorage.getItem(KEY) || 'dark'; }
     function setTheme(theme) {
       if (theme === 'dark') {
         root.setAttribute('data-theme', 'dark');
@@ -936,9 +936,11 @@
                 </div>
                 <div class="menu-category-items" data-grupo-items="${key}" style="display: ${isExpanded ? 'block' : 'none'};">
                   ${grupo.items.map(item => {
-                    // Prioridade: nome do banco (Gerenciar Tipos de Atividade) → tradução → fallback
+                    // Prioridade: tradução i18n (para PT/ES) → nome do banco → fallback
                     const nomeBanco = (item.nome && String(item.nome).trim()) ? String(item.nome).trim() : '';
-                    const itemLabel = nomeBanco || _tMenu('web.menu.item.' + (item.programa || '')) || item.nome || '';
+                    const menuKey = 'web.menu.item.' + (item.programa || '');
+                    const translated = _tMenu(menuKey);
+                    const itemLabel = (translated && translated !== menuKey) ? translated : (nomeBanco || item.nome || '');
                     return `
                     <div class="menu-item" data-id="${item.id}" data-programa="${item.programa}">
                       <i class='${item.iconClass}'></i>
@@ -1225,6 +1227,9 @@
         // Inserir apenas o conteúdo do body no DOM
         contentArea.innerHTML = htmlToInject;
 
+        // Aplicar traduções (PT/ES) no conteúdo do módulo
+        if (typeof window.applyI18nWeb === 'function') window.applyI18nWeb(contentArea);
+
         // Mover links CSS que eventualmente tenham ficado no contentArea para o head
         const linksInHTML = contentArea.querySelectorAll('link[rel="stylesheet"][href]');
         linksInHTML.forEach(link => {
@@ -1320,6 +1325,9 @@
         // Aguardar todos os scripts do HTML carregarem (especialmente map-config.js)
         await Promise.all(scriptPromises);
         console.log('✅ [DASHBOARD] Todos os scripts do HTML carregados');
+
+        // Reaplicar traduções após scripts do módulo (podem ter inserido mais DOM com data-i18n)
+        if (typeof window.applyI18nWeb === 'function') window.applyI18nWeb(contentArea);
 
         // Armazenar módulo atual para uso no log-helper
         window.currentModule = programa;

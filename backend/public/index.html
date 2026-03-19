@@ -379,7 +379,7 @@
   <script>
     (function() {
       var theme = localStorage.getItem('theme');
-      if (theme === 'dark') {
+      if (theme === 'dark' || theme === null || theme === '') {
         document.documentElement.setAttribute('data-theme', 'dark');
       }
     })();
@@ -449,30 +449,30 @@
   <div id="modalAlterarSenha" class="modal-alterar-senha">
     <div class="modal-alterar-senha-content">
       <div class="modal-alterar-senha-header">
-        <h3><i class='bx bx-key' style="margin-right: 10px;"></i> Alterar Senha</h3>
+        <h3><i class='bx bx-key' style="margin-right: 10px;"></i> <span data-i18n="web.login.alterarSenhaModalTitulo">Alterar Senha</span></h3>
         <button type="button" class="btn-fechar" id="btnFecharModalSenha">&times;</button>
       </div>
       <div class="modal-alterar-senha-body">
         <form id="formAlterarSenha">
           <div class="input-box modal-input-box">
-            <label for="alterarSenhaUsuario">Usuário (Login)</label>
+            <label for="alterarSenhaUsuario" data-i18n="web.login.usuarioLogin">Usuário (Login)</label>
             <i class='bx bxs-user input-icon'></i>
             <input type="text" id="alterarSenhaUsuario" placeholder=" " required />
           </div>
           <div class="input-box modal-input-box">
-            <label for="alterarSenhaAtual">Senha Atual</label>
+            <label for="alterarSenhaAtual" data-i18n="web.login.senhaAtual">Senha Atual</label>
             <i class='bx bxs-lock-alt input-icon'></i>
             <input type="password" id="alterarSenhaAtual" placeholder=" " required autocomplete="current-password" />
             <span class="toggle-password" id="toggleSenhaAtual"><i class='bx bx-hide'></i></span>
           </div>
           <div class="input-box modal-input-box">
-            <label for="alterarSenhaNova">Nova Senha</label>
+            <label for="alterarSenhaNova" data-i18n="web.login.novaSenha">Nova Senha</label>
             <i class='bx bxs-lock-alt input-icon'></i>
             <input type="password" id="alterarSenhaNova" placeholder=" " required autocomplete="new-password" />
             <span class="toggle-password" id="toggleSenhaNova"><i class='bx bx-hide'></i></span>
           </div>
           <div class="input-box modal-input-box">
-            <label for="alterarSenhaConfirmar">Confirmar Nova Senha</label>
+            <label for="alterarSenhaConfirmar" data-i18n="web.login.confirmarNovaSenha">Confirmar Nova Senha</label>
             <i class='bx bxs-lock-alt input-icon'></i>
             <input type="password" id="alterarSenhaConfirmar" placeholder=" " required autocomplete="new-password" />
             <span class="toggle-password" id="toggleSenhaConfirmar"><i class='bx bx-hide'></i></span>
@@ -480,7 +480,7 @@
           
           <div class="error-message" id="errorMessageSenha"></div>
           <button type="submit" class="btn">
-            <span>Alterar Senha</span>
+            <span data-i18n="web.login.alterarSenha">Alterar Senha</span>
             <i class='bx bx-check'></i>
           </button>
         </form>
@@ -665,11 +665,17 @@
         initIdiomaSelectorWeb();
       }
       // Aplicar traduções do painel web quando o locale estiver pronto
-      if (window.i18nWebReady) {
-        window.i18nWebReady.then(function() {
-          if (typeof window.applyI18nWeb === 'function') window.applyI18nWeb();
-        });
+      // (i18n-web.js pode ainda não ter rodado; aguardar até i18nWebReady existir)
+      function applyIdiomaQuandoPronto() {
+        if (window.i18nWebReady) {
+          window.i18nWebReady.then(function() {
+            if (typeof window.applyI18nWeb === 'function') window.applyI18nWeb();
+          });
+        } else {
+          setTimeout(applyIdiomaQuandoPronto, 30);
+        }
       }
+      applyIdiomaQuandoPronto();
 
       // Modo escuro na tela de login (mesma chave 'theme' do dashboard)
       (function() {
@@ -677,7 +683,7 @@
         var root = document.documentElement;
         var btn = document.getElementById('themeToggleBtn');
         var icon = document.getElementById('themeToggleIcon');
-        function getTheme() { try { return localStorage.getItem(KEY) || 'light'; } catch (e) { return 'light'; } }
+        function getTheme() { try { return localStorage.getItem(KEY) || 'dark'; } catch (e) { return 'dark'; } }
         function setTheme(theme) {
           if (theme === 'dark') {
             root.setAttribute('data-theme', 'dark');

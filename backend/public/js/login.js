@@ -1,6 +1,31 @@
 // backend/public/js/login.js
 console.log('[LOGIN] Script login.js carregado');
 
+// Helper de tradução para login (não sobrescreve window.tWeb do i18n-web.js)
+function tLogin(key) {
+  var fn = window.tWeb;
+  if (typeof fn === 'function') {
+    try {
+      var v = fn(key);
+      if (v != null && v !== '' && v !== key) return v;
+    } catch (e) { /* fallback se i18n não pronto */ }
+  }
+  var fallback = {
+    'web.login.preenchaCampos': 'Preencha todos os campos.',
+    'web.login.entrar': 'Entrar',
+    'web.login.entrando': 'Entrando...',
+    'web.login.credenciaisInvalidas': 'Credenciais inválidas.',
+    'web.login.erroConectarServidor': 'Não foi possível conectar ao servidor.',
+    'web.login.alterarSenha': 'Alterar Senha',
+    'web.login.alterando': 'Alterando...',
+    'web.login.senhasNaoCoincidem': 'As senhas não coincidem.',
+    'web.login.senhaMinima6': 'A nova senha deve ter no mínimo 6 caracteres.',
+    'web.login.senhaAlteradaSucesso': 'Senha alterada com sucesso!',
+    'web.login.erroAlterarSenha': 'Erro ao alterar senha.'
+  };
+  return fallback[key] != null ? fallback[key] : key;
+}
+
 // Função para obter o caminho base da aplicação
 function obterCaminhoBase() {
   // Se já estiver definido no index.html, usar
@@ -103,7 +128,7 @@ function initLogin() {
 
     // Validação básica
     if (!username || !password) {
-      showError('Preencha todos os campos.');
+      showError(tLogin('web.login.preenchaCampos'));
       return;
     }
 
@@ -111,8 +136,8 @@ function initLogin() {
     showError('');
     btn.disabled = true;
     const btnSpan = btn.querySelector('span');
-    const originalText = btnSpan ? btnSpan.textContent : 'Entrar';
-    if (btnSpan) btnSpan.textContent = 'Entrando...';
+    const originalText = btnSpan ? btnSpan.textContent : tLogin('web.login.entrar');
+    if (btnSpan) btnSpan.textContent = tLogin('web.login.entrando');
 
     try {
       const baseUrl = obterCaminhoBase();
@@ -170,12 +195,12 @@ function initLogin() {
         // Usar replace para não adicionar ao histórico e evitar ?
         window.location.replace(cleanUrl);
       } else {
-        console.error('[LOGIN] Login falhou:', data.message || 'Credenciais inválidas.');
-        showError(data.message || 'Credenciais inválidas.');
+        console.error('[LOGIN] Login falhou:', data.message || tLogin('web.login.credenciaisInvalidas'));
+        showError(data.message || tLogin('web.login.credenciaisInvalidas'));
       }
     } catch (err) {
       console.error('[LOGIN] Erro ao fazer login:', err);
-      showError('Não foi possível conectar ao servidor.');
+      showError(tLogin('web.login.erroConectarServidor'));
     } finally {
       btn.disabled = false;
       if (btnSpan) btnSpan.textContent = originalText;
@@ -264,21 +289,21 @@ function initLogin() {
       // Validações
       if (!usuario || !senhaAtual || !senhaNova || !senhaConfirmar) {
         if (errorMessageSenha) {
-          errorMessageSenha.textContent = 'Preencha todos os campos.';
+          errorMessageSenha.textContent = tLogin('web.login.preenchaCampos');
         }
         return;
       }
 
       if (senhaNova !== senhaConfirmar) {
         if (errorMessageSenha) {
-          errorMessageSenha.textContent = 'As senhas não coincidem.';
+          errorMessageSenha.textContent = tLogin('web.login.senhasNaoCoincidem');
         }
         return;
       }
 
       if (senhaNova.length < 6) {
         if (errorMessageSenha) {
-          errorMessageSenha.textContent = 'A nova senha deve ter no mínimo 6 caracteres.';
+          errorMessageSenha.textContent = tLogin('web.login.senhaMinima6');
         }
         return;
       }
@@ -288,10 +313,10 @@ function initLogin() {
 
       const btn = formAlterarSenha.querySelector('button[type="submit"]');
       const btnSpan = btn?.querySelector('span');
-      const originalText = btnSpan ? btnSpan.textContent : 'Alterar Senha';
+      const originalText = btnSpan ? btnSpan.textContent : tLogin('web.login.alterarSenha');
       
       if (btn) btn.disabled = true;
-      if (btnSpan) btnSpan.textContent = 'Alterando...';
+      if (btnSpan) btnSpan.textContent = tLogin('web.login.alterando');
 
       try {
         const apiUrl = corrigirUrl('/api/auth/alterar-senha');
@@ -315,7 +340,7 @@ function initLogin() {
             errorMessageSenha.style.background = '#d4edda';
             errorMessageSenha.style.borderLeftColor = '#28a745';
             errorMessageSenha.style.color = '#155724';
-            errorMessageSenha.textContent = 'Senha alterada com sucesso!';
+            errorMessageSenha.textContent = tLogin('web.login.senhaAlteradaSucesso');
           }
           
           // Limpar formulário após 2 segundos e fechar modal
@@ -331,12 +356,12 @@ function initLogin() {
           }, 2000);
         } else {
           if (errorMessageSenha) {
-            errorMessageSenha.textContent = data.message || 'Erro ao alterar senha.';
+            errorMessageSenha.textContent = data.message || tLogin('web.login.erroAlterarSenha');
           }
         }
       } catch (err) {
         if (errorMessageSenha) {
-          errorMessageSenha.textContent = 'Não foi possível conectar ao servidor.';
+          errorMessageSenha.textContent = tLogin('web.login.erroConectarServidor');
         }
       } finally {
         if (btn) btn.disabled = false;
