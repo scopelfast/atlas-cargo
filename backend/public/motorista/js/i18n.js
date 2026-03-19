@@ -6,8 +6,9 @@
   const origin = window.location.origin;
   const pathname = window.location.pathname || '';
   const baseUrl = window.__BASE_URL__ || (origin + (pathname.includes('/motorista') ? pathname.substring(0, pathname.indexOf('/motorista')) : pathname.includes('/mc') ? pathname.substring(0, pathname.indexOf('/mc')) : ''));
-  // Sempre carregar locales do path canônico (evita 404 quando app está em /mc)
-  const localePath = (pathname.includes('/mc') ? origin : (baseUrl.replace(/\/$/, ''))) + '/motorista/locales';
+  // Locales: se a app está em /mc, pedir /mc/motorista/locales (evita 404)
+  const pathBase = pathname.includes('/mc') ? '/mc' : (pathname.includes('/motorista') ? pathname.substring(0, pathname.indexOf('/motorista')) : '');
+  const localePath = (origin + pathBase).replace(/\/$/, '') + '/motorista/locales';
 
   let messages = {};
   let locale = 'pt-BR';

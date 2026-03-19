@@ -17,17 +17,17 @@
   --app-accent: #14b8a6;
   --app-accent-muted: rgba(20, 184, 166, 0.15);
 
-  /* Superfícies */
-  --app-bg: #f0fdfa;
-  --app-bg-alt: #f8fafc;
+  /* Superfícies (modo claro: não branco puro para reduzir brilho) */
+  --app-bg: #e8f6f4;
+  --app-bg-alt: #f0faf9;
   --app-surface: #ffffff;
   --app-card: #ffffff;
-  --app-card-border: rgba(0, 0, 0, 0.06);
+  --app-card-border: rgba(0, 0, 0, 0.08);
 
-  /* Texto */
+  /* Texto (contraste reforçado) */
   --app-text: #0f172a;
-  --app-text-secondary: #475569;
-  --app-text-muted: #64748b;
+  --app-text-secondary: #334155;
+  --app-text-muted: #475569;
 
   /* Header/Navbar */
   --app-header-bg: linear-gradient(165deg, #134e4a 0%, #0f766e 40%, #0d9488 100%);
@@ -143,9 +143,10 @@ html[data-theme="dark"] {
   --app-card: #1e293b;
   --app-card-border: #334155;
 
+  /* Texto escuro: tons mais claros para não esconder letras */
   --app-text: #f1f5f9;
   --app-text-secondary: #e2e8f0;
-  --app-text-muted: #94a3b8;
+  --app-text-muted: #cbd5e1;
 
   --app-header-bg: linear-gradient(165deg, #134e4a 0%, #0f766e 40%, #14b8a6 100%);
   --app-header-text: #f1f5f9;

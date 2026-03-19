@@ -9,24 +9,35 @@
   <link rel="stylesheet" href="../css/padrao-telas.css">
   <script src="../js/i18n.js"></script>
   <style>
-    /* Estilos específicos da página Cargas (padrão vem de padrao-telas.css) */
-    .filtros { background: white; padding: 16px; margin-bottom: 16px; border-radius: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); border: 1px solid var(--gray-200, #e9ecef); }
-    .filtros-titulo { font-size: 14px; color: #666; font-weight: 600; margin-bottom: 12px; }
-    .filtro-label { font-size: 12px; color: #555; font-weight: 600; display: block; margin-bottom: 4px; }
-    .filtro-input { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 14px; margin-bottom: 10px; }
-    .btn-filtrar { width: 100%; padding: 14px; background: #0ea5e9; color: white; border: none; border-radius: 12px; font-weight: 700; font-size: 15px; cursor: pointer; }
-    
-    .route-section { background: #f8f9fa; padding: 14px; border-radius: 12px; margin-bottom: 14px; }
+    /* Estilos específicos da página Cargas */
+    .filtros { background: var(--app-card); padding: 16px; margin-bottom: 16px; border-radius: 16px; box-shadow: var(--shadow-md); border: 1px solid var(--app-card-border); color: var(--app-text); }
+    .filtros-titulo { font-size: 15px; color: var(--app-text); font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .filtros-titulo .bx { font-size: 20px; color: var(--app-primary); }
+    .filtro-label { font-size: 13px; color: var(--app-text-secondary); font-weight: 600; display: block; margin-bottom: 4px; }
+    .filtro-input { width: 100%; padding: 12px; border: 2px solid var(--app-input-border); border-radius: 10px; font-size: 14px; margin-bottom: 10px; background: var(--app-input-bg); color: var(--app-input-text); }
+    .btn-filtrar { width: 100%; padding: 14px; background: var(--app-primary); color: var(--app-header-text); border: none; border-radius: 12px; font-weight: 700; font-size: 15px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+    .btn-filtrar .bx { font-size: 20px; }
+
+    .route-section { background: var(--app-bg-alt); padding: 14px; border-radius: 12px; margin-bottom: 14px; border: 1px solid var(--app-card-border); }
     .route-item { display: flex; align-items: center; gap: 12px; margin: 10px 0; }
     .route-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
-    .route-icon.origem { background: #28a745; color: white; }
-    .route-icon.destino { background: #dc3545; color: white; }
-    .route-label { font-size: 11px; color: #666; font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
-    .route-cidade { font-size: 15px; color: #333; font-weight: 600; }
-    
-    .obs-box { margin: 14px 0; padding: 12px; background: #fffbea; border-left: 4px solid #ffc107; border-radius: 8px; }
-    .obs-titulo { font-size: 11px; color: #856404; font-weight: 600; text-transform: uppercase; margin-bottom: 6px; }
-    .obs-texto { font-size: 13px; color: #333; }
+    .route-icon.origem { background: var(--success); color: white; }
+    .route-icon.destino { background: var(--error); color: white; }
+    .route-label { font-size: 11px; color: var(--app-text-muted); font-weight: 600; text-transform: uppercase; margin-bottom: 4px; }
+    .route-cidade { font-size: 15px; color: var(--app-text); font-weight: 600; }
+
+    .obs-box { margin: 14px 0; padding: 12px; background: var(--warning-bg); border-left: 4px solid var(--warning); border-radius: 8px; }
+    .obs-titulo { font-size: 11px; color: var(--warning); font-weight: 600; text-transform: uppercase; margin-bottom: 6px; }
+    .obs-texto { font-size: 13px; color: var(--app-text-secondary); }
+
+    .empty { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+    .empty .bx { font-size: 32px; color: var(--app-primary); opacity: 0.9; }
+    .info-icon { display: flex; align-items: center; justify-content: center; }
+    .info-icon .bx { font-size: 18px; color: var(--app-primary); }
+    .cargas-obs-texto { text-align: center; color: var(--app-text-muted); font-size: 12px; margin-top: 12px; padding: 0 16px; }
+    .cargas-classe-box { background: var(--app-accent-muted); padding: 12px; border-radius: 10px; margin-bottom: 14px; border: 1px solid var(--app-card-border); }
+    .cargas-classe-titulo { font-size: 12px; font-weight: 600; color: var(--app-primary); margin-bottom: 6px; }
+    .cargas-classe-sub { font-size: 11px; color: var(--app-text-muted); }
     
     .btn-aceitar { width: 100%; padding: 14px; background: #28a745; color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3); }
     .btn-aceitar:active { transform: scale(0.96); }
@@ -35,13 +46,13 @@
 <body class="motorista-page">
   <div class="navbar">
     <button class="btn-voltar" onclick="voltar()">← Voltar</button>
-    <h1><i class="bx bx-package"></i></h1>
+    <h1><i class="bx bx-package"></i> <span data-i18n="cargas.titulo">Cargas Disponíveis</span></h1>
     <div id="statusIndicador" class="status-badge-navbar status-online">Online - Sincronizado</div>
   </div>
 
   <div class="container">
     <div class="filtros">
-      <div class="filtros-titulo">🔍 <span data-i18n="cargas.filtrosBusca">Filtros de Busca</span></div>
+      <div class="filtros-titulo"><i class="bx bx-search-alt"></i> <span data-i18n="cargas.filtrosBusca">Filtros de Busca</span></div>
       <label class="filtro-label" for="filtroPais"><span data-i18n="cargas.pais">País</span></label>
       <select class="filtro-input" id="filtroPais">
         <option value="" data-i18n="cargas.todosPaises">Todos os países</option>
@@ -57,7 +68,7 @@
         </select>
       </div>
       <input type="number" class="filtro-input" id="filtroDistancia" placeholder="Distância máxima (km)">
-      <button class="btn-filtrar" onclick="aplicarFiltros()">🔍 <span data-i18n="cargas.buscarCargas">Buscar Cargas</span></button>
+      <button class="btn-filtrar" onclick="aplicarFiltros()"><i class="bx bx-search"></i> <span data-i18n="cargas.buscarCargas">Buscar Cargas</span></button>
     </div>
 
     <div id="cargasList">
@@ -81,7 +92,14 @@
         if (k) el.title = window.t(k);
       });
     }
-    if (window.i18nReady) window.i18nReady.then(applyI18n);
+    if (window.i18nReady) window.i18nReady.then(function() {
+      applyI18n();
+      // Atualizar placeholders dos selects após i18n (evita chaves cruas)
+      var optEstado = document.querySelector('#filtroEstado option[data-i18n="cargas.todosEstados"]');
+      var optRegiao = document.querySelector('#filtroRegiao option[data-i18n="cargas.todosRegioes"]');
+      if (optEstado && typeof window.t === 'function') optEstado.textContent = window.t('cargas.todosEstados');
+      if (optRegiao && typeof window.t === 'function') optRegiao.textContent = window.t('cargas.todosRegioes');
+    });
 
     const motorista = JSON.parse(localStorage.getItem('motorista') || '{}');
     const token = localStorage.getItem('token');
@@ -283,8 +301,8 @@
       
       if (!cargas || cargas.length === 0) {
         const _t = (typeof window.t === 'function' ? window.t : function(k){ return k; });
-        lista.innerHTML = '<div class="empty">📭 ' + _t('cargas.semCargas') + '</div>' +
-          '<p style="text-align: center; color: #666; font-size: 12px; margin-top: 12px; padding: 0 16px;">' +
+        lista.innerHTML = '<div class="empty"><i class="bx bx-package"></i> ' + _t('cargas.semCargas') + '</div>' +
+          '<p class="cargas-obs-texto">' +
           'Aparecem aqui apenas viagens em <strong>Preparação</strong> ou <strong>Programada</strong>, ativas, sem motorista confirmado. ' +
           'Use os filtros acima e clique em Buscar Cargas.</p>';
         return;
@@ -305,32 +323,32 @@
         return `
           <div class="card">
             <div class="card-header">
-              <div class="card-title">🚚 Viagem #${c.IDVIAGEM}</div>
+              <div class="card-title"><i class="bx bx-map-alt"></i> Viagem #${c.IDVIAGEM}</div>
               <div class="card-subtitle">${c.DSTIPOVIAGEM || 'Tipo não definido'}</div>
             </div>
             <div class="card-body">
-              <div style="background: #e3f2fd; padding: 12px; border-radius: 10px; margin-bottom: 14px;">
-                <div style="font-size: 12px; font-weight: 600; color: #1976d2; margin-bottom: 6px;">
-                  🚛 ${c.DSCLASSEFROTA || 'Classe não definida'}
+              <div class="cargas-classe-box">
+                <div class="cargas-classe-titulo">
+                  <i class="bx bx-truck"></i> ${c.DSCLASSEFROTA || 'Classe não definida'}
                 </div>
-                <div style="font-size: 11px; color: #666;">
-                  ${c.FGRASTREADO === 'S' ? '📡 Exige Rastreamento' : '📍 Não exige rastreamento'}
+                <div class="cargas-classe-sub">
+                  ${c.FGRASTREADO === 'S' ? '<i class="bx bx-radar"></i> Exige Rastreamento' : '<i class="bx bx-map-pin"></i> Não exige rastreamento'}
                 </div>
               </div>
 
               <div class="route-section">
                 <div class="route-item">
-                  <div class="route-icon origem">📍</div>
+                  <div class="route-icon origem"><i class="bx bx-map-pin"></i></div>
                   <div style="flex: 1;">
                     <div class="route-label">Origem</div>
                     <div class="route-cidade">${origem}</div>
                     <a href="${linkMaps}" target="_blank" style="font-size: 11px; color: #0ea5e9; text-decoration: none; font-weight: 600; margin-top: 4px; display: inline-block;">
-                      🗺️ Abrir no Mapa
+                      <i class="bx bx-map"></i> Abrir no Mapa
                     </a>
                   </div>
                 </div>
                 <div class="route-item">
-                  <div class="route-icon destino">🎯</div>
+                  <div class="route-icon destino"><i class="bx bx-target-lock"></i></div>
                   <div>
                     <div class="route-label">Destino</div>
                     <div class="route-cidade">${destino}</div>
@@ -340,32 +358,32 @@
 
               <div class="info-grid">
                 <div class="info-item">
-                  <div class="info-icon">📏</div>
+                  <div class="info-icon"><i class="bx bx-ruler"></i></div>
                   <div class="info-label">Distância</div>
                   <div class="info-value">${formatarDistancia(c.DISTANCIAKM)} km</div>
                 </div>
                 <div class="info-item">
-                  <div class="info-icon">💰</div>
+                  <div class="info-icon"><i class="bx bx-dollar"></i></div>
                   <div class="info-label">Frete</div>
                   <div class="info-value">${formatarMoeda(c.VLFRETE, c.MOEDA)}</div>
                 </div>
                 <div class="info-item">
-                  <div class="info-icon">📦</div>
+                  <div class="info-icon"><i class="bx bx-package"></i></div>
                   <div class="info-label">Peso</div>
                   <div class="info-value">${formatarPeso(c.PESO)} kg</div>
                 </div>
                 <div class="info-item">
-                  <div class="info-icon">📦</div>
+                  <div class="info-icon"><i class="bx bx-package"></i></div>
                   <div class="info-label">Cubagem</div>
                   <div class="info-value">${formatarCubagem(c.CUBAGEM)} m³</div>
                 </div>
                 <div class="info-item">
-                  <div class="info-icon">📅</div>
+                  <div class="info-icon"><i class="bx bx-calendar"></i></div>
                   <div class="info-label">Início</div>
                   <div class="info-value">${formatarData(c.DTPREVINICIO)}</div>
                 </div>
                 <div class="info-item">
-                  <div class="info-icon">🏢</div>
+                  <div class="info-icon"><i class="bx bx-building"></i></div>
                   <div class="info-label">Contratador</div>
                   <div class="info-value" style="font-size: 12px;">${(c.CONTRATADOR || 'N/I').substring(0, 15)}</div>
                 </div>
@@ -437,7 +455,10 @@
     if (window.OfflineDB && window.OfflineDB.atualizarIndicador) {
       window.OfflineDB.atualizarIndicador();
     }
-    loadPaises().then(aplicarFiltros);
+    // Carregar países/estados só após i18n para traduzir "Todos os estados" / "Todas as regiões"
+    (window.i18nReady ? window.i18nReady : Promise.resolve()).then(function() {
+      loadPaises().then(aplicarFiltros);
+    });
   </script>
 </body>
 </html>
