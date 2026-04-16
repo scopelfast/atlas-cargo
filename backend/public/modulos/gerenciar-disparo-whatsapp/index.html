@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Disparo WhatsApp (oportunidades)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/modulos.css">
+  <link rel="stylesheet" href="/css/dark-mode.css">
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+  <style>
+    .disparo-wa-container {
+      padding: 20px;
+      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+      width: 100%;
+      max-width: none;
+      margin: 0;
+      box-sizing: border-box;
+    }
+    .dw-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 22px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
+    }
+    .dw-header h2 {
+      margin: 0;
+      color: var(--ac-primary, #0d2137);
+      font-size: 28px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .disparo-wa-container .tabs.tabs-com-icones {
+      display: flex;
+      margin-bottom: 22px;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
+      gap: 0;
+    }
+    .disparo-wa-container .tabs.tabs-com-icones .tab-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      border: none;
+      background: transparent;
+      color: #94a3b8;
+      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: color 0.2s, border-color 0.2s;
+      font-family: inherit;
+    }
+    .disparo-wa-container .tabs.tabs-com-icones .tab-btn i { font-size: 1.15rem; color: inherit; }
+    .disparo-wa-container .tabs.tabs-com-icones .tab-btn:hover { color: #64748b; }
+    .disparo-wa-container .tabs.tabs-com-icones .tab-btn.active {
+      color: var(--ac-primary, #0d2137);
+      border-bottom-color: var(--ac-primary, #0d2137);
+    }
+    .disparo-wa-container .tabs.tabs-com-icones .tab-btn.active i { color: var(--ac-primary, #0d2137); }
+
+    .dw-tab-content { display: none; }
+    .dw-tab-content.active { display: block; }
+
+    .form-dados-card {
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid var(--border, #e2e8f0);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+    .form-dados-card-header {
+      padding: 14px 20px;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border, #e2e8f0);
+      font-weight: 600;
+      font-size: 1rem;
+      color: var(--ac-primary, #0d2137);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .form-dados-card-body {
+      padding: 16px 18px;
+    }
+    .dw-info {
+      font-size: 0.9rem;
+      line-height: 1.55;
+      color: #334155;
+      margin: 0 0 12px 0;
+    }
+    .dw-info:last-child { margin-bottom: 0; }
+    .dw-info code {
+      background: #e2e8f0;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+    }
+    .dw-field { margin-bottom: 14px; }
+    .dw-field:last-child { margin-bottom: 0; }
+    .dw-field label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #0f172a;
+      font-size: 14px;
+    }
+    .dw-field textarea,
+    .dw-field input[type="number"] {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 11px 12px;
+      font-family: inherit;
+      font-size: 14px;
+      background: #fff;
+      color: #0f172a;
+    }
+    .dw-field textarea { min-height: 96px; resize: vertical; }
+    #listaLinhas { min-height: 200px; font-family: ui-monospace, monospace; font-size: 0.82rem; }
+    .dw-row-inline {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 4px;
+    }
+    @media (max-width: 640px) {
+      .dw-row-inline { grid-template-columns: 1fr; }
+    }
+    .dw-grid-empty {
+      margin: 12px 0 0;
+      padding: 18px 16px;
+      border-radius: 10px;
+      border: 1px dashed #cbd5e1;
+      background: #f8fafc;
+      color: #64748b;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      text-align: center;
+    }
+    .filtros-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+      margin-bottom: 8px;
+    }
+    .btn-filtro {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 18px;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
+    }
+    .btn-filtro:hover { transform: translateY(-1px); }
+    .btn-filtro i { font-size: 1.05rem; }
+    .btn-filtro-limpar {
+      background: #f1f5f9;
+      color: #475569;
+      border: 1px solid #e2e8f0;
+    }
+    .btn-filtro-limpar:hover { background: #e2e8f0; }
+    .btn-filtro-aplicar {
+      background: var(--ac-accent, #0ea5e9);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(14, 165, 233, 0.25);
+    }
+    .btn-filtro-aplicar:hover { background: var(--ac-accent-hover, #0284c7); }
+    .btn-filtro-novo {
+      background: var(--success, #059669);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);
+    }
+    .btn-filtro-novo:hover { background: #047857; }
+    #dwMessage.message { margin: 4px 0 12px; }
+    .dw-preview-wrap {
+      overflow-x: auto;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      margin-top: 8px;
+      background: #fff;
+    }
+    .dw-preview-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    .dw-preview-table th,
+    .dw-preview-table td {
+      border-bottom: 1px solid #e2e8f0;
+      padding: 9px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    .dw-preview-table th {
+      background: #f8fafc;
+      font-weight: 600;
+      color: #475569;
+    }
+    .dw-ok { color: #15803d; font-weight: 600; }
+    .dw-err { color: #b91c1c; font-weight: 600; }
+    .dw-stats { margin-top: 10px; font-size: 0.9rem; color: #475569; }
+    .dw-preview-titulo { color: var(--ac-primary, #0f172a); font-size: 1rem; margin: 0 0 8px 0; }
+    .calculando-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 10040;
+    }
+    .calculando-content {
+      background: #fff;
+      padding: 28px 32px;
+      border-radius: 12px;
+      max-width: 400px;
+      text-align: center;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+    }
+    .calculando-spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #e2e8f0;
+      border-top-color: #0d2137;
+      border-radius: 50%;
+      margin: 0 auto 16px;
+      animation: dwspin 0.8s linear infinite;
+    }
+    @keyframes dwspin { to { transform: rotate(360deg); } }
+
+    .dw-confirm-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 10050;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      box-sizing: border-box;
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(4px);
+    }
+    .dw-confirm-dialog {
+      width: 100%;
+      max-width: 440px;
+      background: #fff;
+      border-radius: 14px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.18);
+      padding: 22px 22px 18px;
+      box-sizing: border-box;
+    }
+    .dw-confirm-dialog h3 {
+      margin: 0 0 12px 0;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #0f172a;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      line-height: 1.35;
+    }
+    .dw-confirm-dialog h3 .bx { font-size: 1.35rem; color: #25d366; }
+    .dw-confirm-msg {
+      margin: 0 0 20px 0;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #475569;
+      white-space: pre-wrap;
+    }
+    .dw-confirm-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    .dw-confirm-actions .btn-confirm-enviar {
+      background: #25d366;
+      color: #fff;
+      border: none;
+      box-shadow: 0 2px 10px rgba(37, 211, 102, 0.35);
+    }
+    .dw-confirm-actions .btn-confirm-enviar:hover {
+      background: #1eb855;
+      filter: brightness(1.02);
+    }
+
+    html[data-theme="dark"] .dw-header { border-bottom-color: #334155; }
+    html[data-theme="dark"] .dw-header h2 { color: #e2e8f0; }
+    html[data-theme="dark"] .disparo-wa-container .tabs.tabs-com-icones { border-bottom-color: #334155; }
+    html[data-theme="dark"] .disparo-wa-container .tabs.tabs-com-icones .tab-btn { color: #94a3b8; }
+    html[data-theme="dark"] .disparo-wa-container .tabs.tabs-com-icones .tab-btn:hover { color: #cbd5e1; }
+    html[data-theme="dark"] .disparo-wa-container .tabs.tabs-com-icones .tab-btn.active {
+      color: #e2e8f0;
+      border-bottom-color: #38bdf8;
+    }
+    html[data-theme="dark"] .disparo-wa-container .tabs.tabs-com-icones .tab-btn.active i { color: #38bdf8; }
+    html[data-theme="dark"] .form-dados-card {
+      background: #1e293b;
+      border-color: #334155;
+    }
+    html[data-theme="dark"] .form-dados-card-header {
+      background: #0f172a;
+      border-bottom-color: #334155;
+      color: #e2e8f0;
+    }
+    html[data-theme="dark"] .dw-info { color: #cbd5e1; }
+    html[data-theme="dark"] .dw-info code { background: #334155; color: #e2e8f0; }
+    html[data-theme="dark"] .dw-field label { color: #cbd5e1; }
+    html[data-theme="dark"] .dw-field textarea,
+    html[data-theme="dark"] .dw-field input[type="number"] {
+      background: #0f172a;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+    html[data-theme="dark"] .dw-grid-empty {
+      background: #0f172a;
+      border-color: #334155;
+      color: #94a3b8;
+    }
+    html[data-theme="dark"] .dw-preview-wrap {
+      border-color: #334155;
+      background: #0f172a;
+    }
+    html[data-theme="dark"] .dw-preview-table th {
+      background: #1e293b;
+      color: #94a3b8;
+      border-color: #334155;
+    }
+    html[data-theme="dark"] .dw-preview-table td { border-color: #334155; color: #e2e8f0; }
+    html[data-theme="dark"] .dw-stats { color: #94a3b8; }
+    html[data-theme="dark"] .dw-preview-titulo { color: #e2e8f0; }
+    html[data-theme="dark"] .btn-filtro-limpar {
+      background: #1e293b;
+      color: #e2e8f0;
+      border-color: #334155;
+    }
+    html[data-theme="dark"] .calculando-content { background: #1e293b; color: #e2e8f0; }
+    html[data-theme="dark"] .dw-confirm-dialog {
+      background: #1e293b;
+      border-color: #334155;
+    }
+    html[data-theme="dark"] .dw-confirm-dialog h3 { color: #e2e8f0; }
+    html[data-theme="dark"] .dw-confirm-msg { color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="disparo-wa-container" id="dwRoot">
+    <div class="dw-header">
+      <h2>
+        <i class="bx bxl-whatsapp" style="font-size: 1.75rem; color: #25D366;" aria-hidden="true"></i>
+        <span data-i18n="web.modulos.disparoWhatsappOportunidades.tituloModulo">Disparo WhatsApp (oportunidades)</span>
+      </h2>
+    </div>
+
+    <div class="tabs tabs-com-icones" role="tablist" aria-label="Disparo WhatsApp">
+      <button type="button" class="tab-btn active" data-dw-tab="filtros" role="tab" aria-selected="true" id="dwTabFiltros">
+        <i class="bx bx-filter-alt" aria-hidden="true"></i>
+        <span data-i18n="web.modulos.disparoWhatsappOportunidades.tabFiltros">Filtros</span>
+      </button>
+      <button type="button" class="tab-btn" data-dw-tab="grid" role="tab" aria-selected="false" id="dwTabGrid">
+        <i class="bx bx-grid-alt" aria-hidden="true"></i>
+        <span data-i18n="web.modulos.disparoWhatsappOportunidades.tabGrid">Grid</span>
+      </button>
+    </div>
+
+    <div class="dw-tab-content active" id="dw-tab-filtros" role="tabpanel" aria-labelledby="dwTabFiltros">
+      <div class="form-dados-card">
+        <div class="form-dados-card-header">
+          <i class="bx bx-info-circle"></i>
+          <span data-i18n="web.modulos.disparoWhatsappOportunidades.cardInfoTitle">Formato e integração</span>
+        </div>
+        <div class="form-dados-card-body">
+          <p class="dw-info" data-i18n="web.modulos.disparoWhatsappOportunidades.infoPar1"></p>
+          <p class="dw-info" data-i18n="web.modulos.disparoWhatsappOportunidades.infoPar2"></p>
+        </div>
+      </div>
+
+      <div class="form-dados-card">
+        <div class="form-dados-card-header">
+          <i class="bx bx-edit-alt"></i>
+          <span data-i18n="web.modulos.disparoWhatsappOportunidades.cardFormTitle">Mensagem e lista</span>
+        </div>
+        <div class="form-dados-card-body">
+          <div class="dw-field">
+            <label for="templateMsg" data-i18n="web.modulos.disparoWhatsappOportunidades.labelTemplateMsg">Texto da mensagem (modelo)</label>
+            <textarea id="templateMsg" data-i18n-placeholder="web.modulos.disparoWhatsappOportunidades.placeholderTemplate" placeholder=""></textarea>
+          </div>
+          <div class="dw-field">
+            <label for="listaLinhas" data-i18n="web.modulos.disparoWhatsappOportunidades.labelListaLinhas">Lista de destinatários (uma linha por pessoa)</label>
+            <textarea id="listaLinhas" data-i18n-placeholder="web.modulos.disparoWhatsappOportunidades.placeholderLista" placeholder=""></textarea>
+          </div>
+          <div class="dw-row-inline">
+            <div class="dw-field">
+              <label for="delayMs" data-i18n="web.modulos.disparoWhatsappOportunidades.labelDelayMs">Intervalo entre envios (ms)</label>
+              <input type="number" id="delayMs" value="650" min="200" max="5000" step="50" />
+            </div>
+            <div class="dw-field">
+              <label for="maxLinhas" data-i18n="web.modulos.disparoWhatsappOportunidades.labelMaxLinhas">Máximo de envios nesta rodada</label>
+              <input type="number" id="maxLinhas" value="200" min="1" max="2000" step="1" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="filtros-actions">
+        <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnPreview">
+          <i class="bx bx-search"></i> <span data-i18n="web.modulos.disparoWhatsappOportunidades.btnPreview">Pré-visualizar</span>
+        </button>
+        <button type="button" class="btn-filtro btn-filtro-novo" id="btnEnviar">
+          <i class="bx bxl-whatsapp"></i> <span data-i18n="web.modulos.disparoWhatsappOportunidades.btnEnviar">Processar envios</span>
+        </button>
+        <button type="button" class="btn-filtro btn-filtro-limpar" id="btnLimpar">
+          <i class="bx bx-x"></i> <span data-i18n="web.modulos.disparoWhatsappOportunidades.btnLimpar">Limpar</span>
+        </button>
+      </div>
+
+      <div id="dwMessage" class="message" style="display:none;"></div>
+    </div>
+
+    <div class="dw-tab-content" id="dw-tab-grid" role="tabpanel" aria-labelledby="dwTabGrid">
+      <div class="form-dados-card">
+        <div class="form-dados-card-header">
+          <i class="bx bx-grid-alt"></i>
+          <span data-i18n="web.modulos.disparoWhatsappOportunidades.gridTitulo">Pré-visualização de destinatários</span>
+        </div>
+        <div class="form-dados-card-body">
+          <div class="filtros-actions" style="margin-top:0;">
+            <button type="button" class="btn-filtro btn-filtro-limpar" id="btnVoltarFiltros">
+              <i class="bx bx-arrow-back"></i> <span data-i18n="web.modulos.disparoWhatsappOportunidades.voltarFiltros">Voltar aos filtros</span>
+            </button>
+          </div>
+          <p id="dwGridEmpty" class="dw-grid-empty" data-i18n="web.modulos.disparoWhatsappOportunidades.emptyGridHint"></p>
+          <div id="previewArea" style="display:none;">
+            <h3 class="dw-preview-titulo" data-i18n="web.modulos.disparoWhatsappOportunidades.previewTitulo">Prévia</h3>
+            <div class="dw-preview-wrap">
+              <table class="dw-preview-table" id="previewTable">
+                <thead>
+                  <tr>
+                    <th data-i18n="web.modulos.disparoWhatsappOportunidades.thNome">Nome</th>
+                    <th data-i18n="web.modulos.disparoWhatsappOportunidades.thTelefone">Telefone (E.164)</th>
+                    <th data-i18n="web.modulos.disparoWhatsappOportunidades.thUfCidade">UF / Cidade</th>
+                    <th data-i18n="web.modulos.disparoWhatsappOportunidades.thDdd">DDD</th>
+                    <th data-i18n="web.modulos.disparoWhatsappOportunidades.thStatus">Status</th>
+                    <th data-i18n="web.modulos.disparoWhatsappOportunidades.thInicioMsg">Início da mensagem</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+            <p class="dw-stats" id="previewStats"></p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="calculando-overlay" id="dwOverlay" aria-hidden="true">
+    <div class="calculando-content">
+      <div class="calculando-spinner"></div>
+      <h3 id="dwOverlayTitle" data-i18n="web.modulos.disparoWhatsappOportunidades.overlayProcessando">Processando…</h3>
+      <p id="dwOverlayText" data-i18n="web.modulos.disparoWhatsappOportunidades.overlayAguarde">Aguarde.</p>
+      <p class="calculando-detalhe" id="dwOverlayDetalhe"></p>
+    </div>
+  </div>
+
+  <div id="dwConfirmModal" class="dw-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="dwConfirmTitle" aria-describedby="dwConfirmMessage">
+    <div class="dw-confirm-dialog">
+      <h3 id="dwConfirmTitle">
+        <i class="bx bxl-whatsapp" aria-hidden="true"></i>
+        <span id="dwConfirmTitleText" data-i18n="web.modulos.disparoWhatsappOportunidades.modalConfirmTitulo">Confirmar envio</span>
+      </h3>
+      <p id="dwConfirmMessage" class="dw-confirm-msg"></p>
+      <div class="dw-confirm-actions">
+        <button type="button" class="btn-filtro btn-filtro-limpar" id="dwConfirmCancel" data-i18n="web.modulos.disparoWhatsappOportunidades.modalCancelar">Cancelar</button>
+        <button type="button" class="btn-filtro btn-confirm-enviar" id="dwConfirmOk">
+          <i class="bx bxl-whatsapp" aria-hidden="true"></i>
+          <span data-i18n="web.modulos.disparoWhatsappOportunidades.modalConfirmEnviar">Enviar</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/utils.js"></script>
+  <script src="js/script.js"></script>
+</body>
+</html>
