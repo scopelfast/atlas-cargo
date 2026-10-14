@@ -2,6 +2,9 @@
 const express = require('express');
 const router = express.Router();
 const controleValidadeController = require('../controllers/controlevalidade.controller');
+const { towerAuthAndTenant } = require('../middleware/tower-auth-chain.middleware');
+
+router.use(towerAuthAndTenant);
 
 // Combos (DEVEM vir ANTES das rotas com parâmetros)
 router.get('/validades/tipos-combo/:tpCadastro', controleValidadeController.listarTiposParaCombo);

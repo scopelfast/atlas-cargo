@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>GPS - Motorista</title>
   <link rel="stylesheet" href="../css/design-system.css">
   <link rel="stylesheet" href="../css/style.css">
@@ -128,6 +128,30 @@
       color: #666;
       line-height: 20px;
     }
+    .container {
+      padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px));
+    }
+    .btn-primary.btn-success {
+      width: 100%;
+      max-width: 100%;
+      margin-top: 8px;
+      margin-bottom: max(16px, env(safe-area-inset-bottom, 0px));
+      box-sizing: border-box;
+    }
+    #bannerGeoHttp {
+      background: #fff3cd;
+      color: #856404;
+      padding: 12px 14px;
+      border-radius: 10px;
+      margin: 0 0 16px 0;
+      font-size: 13px;
+      line-height: 1.45;
+      border: 1px solid #ffc107;
+    }
+    #bannerGeoHttp code {
+      font-size: 12px;
+      word-break: break-all;
+    }
   </style>
 </head>
 <body class="motorista-page">
@@ -138,6 +162,9 @@
   </div>
 
   <div class="container">
+    <div id="bannerGeoHttp" style="display: none;" role="alert">
+      <strong>GPS no navegador:</strong> em <code>http://</code> + IP da rede (ex.: 192.168.x.x) o Chrome <strong>não permite</strong> ler a posição — não é falha do app. Para testar envio: use <strong>HTTPS</strong> (produção) ou <code>http://localhost</code> no PC.
+    </div>
     <!-- Status GPS Automático -->
     <div id="statusGPS" style="margin-bottom: 16px;"></div>
 
@@ -197,6 +224,16 @@
   
   <script>
     if (!verificarAuth()) window.location.href = '../index.html';
+
+    (function mostrarBannerGeoSeHttpIp() {
+      try {
+        if (window.location.protocol === 'https:') return;
+        var h = (window.location.hostname || '').toLowerCase();
+        if (h === 'localhost' || h === '127.0.0.1') return;
+        var el = document.getElementById('bannerGeoHttp');
+        if (el) el.style.display = 'block';
+      } catch (e) {}
+    })();
 
     function applyI18n() {
       if (typeof window.t !== 'function') return;
@@ -268,44 +305,31 @@
         // Atualizar visibilidade dos termos
         atualizarTermos();
         
-        console.log('✅ Configurações GPS carregadas e aplicadas:', { 
-          gpsAtivo: gpsAtivoBool, 
-          intervalo, 
-          termos: termosBool,
-          localStorage: {
-            gps_ativo: localStorage.getItem('gps_ativo'),
-            gps_intervalo: localStorage.getItem('gps_intervalo'),
-            gps_termos: localStorage.getItem('gps_termos')
-          },
-          elementos: {
-            gpsAtivoEl_checked: gpsAtivoEl.checked,
-            intervaloEl_value: intervaloEl.value,
-            termosEl_checked: termosEl.checked
-          }
-        });
+        if (typeof window !== 'undefined' && localStorage.getItem('motorista_debug') === '1') {
+          console.log('Configurações GPS aplicadas', { gpsAtivo: gpsAtivoBool, intervalo, termos: termosBool });
+        }
       } catch (error) {
         console.error('❌ Erro ao carregar configurações:', error);
         console.error('Stack:', error.stack);
       }
     }
     
-    // Carregar quando o DOM estiver pronto (múltiplas estratégias)
+    // Carregar quando o DOM estiver pronto (uma vez + um retry curto se necessário)
     function iniciarCarregamento() {
+      function tick() {
+        carregarConfiguracoes();
+      }
       if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-          setTimeout(carregarConfiguracoes, 100);
+        document.addEventListener('DOMContentLoaded', function () {
+          setTimeout(tick, 0);
+          setTimeout(tick, 400);
         });
       } else {
-        // DOM já está pronto
-        setTimeout(carregarConfiguracoes, 100);
+        setTimeout(tick, 0);
+        setTimeout(tick, 400);
       }
-      
-      // Também carregar após delays progressivos para garantir
-      setTimeout(carregarConfiguracoes, 300);
-      setTimeout(carregarConfiguracoes, 600);
-      setTimeout(carregarConfiguracoes, 1000);
     }
-    
+
     iniciarCarregamento();
 
     function atualizarTermos() {
@@ -469,7 +493,7 @@
 
     // Listener para eventos de GPS
     window.addEventListener('gpsEnviado', (e) => {
-      console.log('🎉 GPS enviado!', e.detail);
+      if (localStorage.getItem('motorista_debug') === '1') console.log('GPS enviado', e.detail);
       atualizarStatusGPS();
       
       // Piscar o indicador
@@ -484,9 +508,8 @@
     
     // Atualizar quando a página ganhar foco (voltar de outra aba)
     window.addEventListener('focus', () => {
-      console.log('🔄 Página ganhou foco, recarregando configurações...');
       setTimeout(() => {
-        carregarConfiguracoes(); // Recarregar configurações também
+        carregarConfiguracoes();
         atualizarStatusGPS();
       }, 100);
     });
@@ -494,31 +517,41 @@
     // Recarregar configurações quando a página for exibida (visibilidade)
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden) {
-        console.log('🔄 Página ficou visível, recarregando configurações...');
         setTimeout(() => {
           carregarConfiguracoes();
           atualizarStatusGPS();
         }, 100);
       }
     });
-    
-    // Recarregar periodicamente (a cada 5 segundos) para garantir sincronização
+
+    // Mesma regra de minutos que carregarConfiguracoes (LS em segundos; input em minutos)
+    function intervaloMinutosDoLocalStorage() {
+      const s = localStorage.getItem('gps_intervalo') || '900';
+      const n = parseInt(s, 10);
+      if (!Number.isFinite(n) || n < 1) return 15;
+      return n >= 60 ? Math.round(n / 60) : Math.max(1, n);
+    }
+
+    // Sincronizar UI se outra aba/script alterar localStorage (comparar unidades corretas)
     setInterval(() => {
       const gpsAtivoEl = document.getElementById('gpsAtivo');
       const intervaloEl = document.getElementById('intervalo');
       const termosEl = document.getElementById('aceitoTermos');
-      
+
       if (gpsAtivoEl && intervaloEl && termosEl) {
-        const localStorageAtivo = localStorage.getItem('gps_ativo') === 'true';
-        const localStorageIntervalo = localStorage.getItem('gps_intervalo') || '900';
-        
-        // Verificar se há divergência entre localStorage e elementos
-        if (gpsAtivoEl.checked !== localStorageAtivo || intervaloEl.value !== localStorageIntervalo) {
-          console.warn('⚠️ Divergência detectada entre localStorage e elementos. Recarregando...');
+        const lsAtivo = localStorage.getItem('gps_ativo') === 'true';
+        const lsTermos = localStorage.getItem('gps_termos') === 'true';
+        const minEsperado = intervaloMinutosDoLocalStorage();
+        const minUi = Math.max(1, parseInt(intervaloEl.value, 10) || 15);
+
+        if (gpsAtivoEl.checked !== lsAtivo || minUi !== minEsperado || termosEl.checked !== lsTermos) {
+          if (localStorage.getItem('motorista_debug') === '1') {
+            console.warn('GPS UI vs localStorage: reaplicando valores');
+          }
           carregarConfiguracoes();
         }
       }
-    }, 5000);
+    }, 15000);
 
     async function salvar() {
       const ativo = document.getElementById('gpsAtivo').checked;
@@ -587,17 +620,9 @@
           return;
         }
         
-        console.log('✅ Configurações GPS salvas com sucesso:', {
-          ativo,
-          intervaloMin,
-          intervaloSeg: intervaloEmSegundos,
-          termos: termosAceitos,
-          localStorage: {
-            gps_ativo: localStorage.getItem('gps_ativo'),
-            gps_intervalo: localStorage.getItem('gps_intervalo'),
-            gps_termos: localStorage.getItem('gps_termos')
-          }
-        });
+        if (localStorage.getItem('motorista_debug') === '1') {
+          console.log('Configurações GPS salvas', { ativo, intervaloMin, intervaloSeg: intervaloEmSegundos, termos: termosAceitos });
+        }
       } catch (error) {
         console.error('❌ Erro ao salvar no localStorage:', error);
         mostrarToast((typeof window.t === 'function' ? window.t('gps.erroSalvarConfig') : 'Erro ao salvar configurações') + ': ' + error.message, 'error');
@@ -626,7 +651,6 @@
       // Recarregar configurações na tela para confirmar (com delay para garantir)
       setTimeout(() => {
         carregarConfiguracoes();
-        console.log('🔄 Configurações recarregadas após salvar');
       }, 200);
       
       // Reiniciar GPS automático com as novas configurações

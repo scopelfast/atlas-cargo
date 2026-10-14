@@ -95,6 +95,11 @@
   let idViagem = null;
   let mensagens = [];
   let socket = null;
+  let pollTimer = null;
+  let pollInFlight = false;
+  /** Polling HTTP junto com WebSocket: no celular o socket costuma falhar (HTTP, rede, sleep) — sem isso o operador manda e o motorista não vê. */
+  const POLL_MS = 2500;
+  let ultimaAssinaturaLista = '';
   const baseUrl = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
   
   // Obter ID do motorista corretamente
@@ -168,11 +173,51 @@
     conectarWebSocket();
 
     logStep('carregando mensagens...');
-    await carregarMensagens();
+    await carregarMensagens({});
+
+    iniciarPollingMensagens();
+    document.addEventListener('visibilitychange', onVisibilityChat);
 
     logStep('atualizando status');
     await atualizarStatusBar();
     logStep('init ok');
+  }
+
+  function onVisibilityChat() {
+    if (!document.hidden && idViagem && token) {
+      carregarMensagens({ poll: true, silent: true }).catch(function() {});
+    }
+  }
+
+  function mergeServidorComPendentes(serverMapped, pending) {
+    const map = new Map();
+    serverMapped.forEach(function(m) {
+      const id = m.ID != null ? m.ID : m.id;
+      if (id != null && id !== '') map.set(String(id), m);
+    });
+    pending.forEach(function(m) {
+      const id = m.ID != null ? m.ID : m.id;
+      if (id != null && id !== '' && !map.has(String(id))) map.set(String(id), m);
+    });
+    return Array.from(map.values()).sort(function(a, b) {
+      return new Date(a.CREATED_AT || a.timestamp || 0) - new Date(b.CREATED_AT || b.timestamp || 0);
+    });
+  }
+
+  function pararPollingMensagens() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+  }
+
+  function iniciarPollingMensagens() {
+    pararPollingMensagens();
+    pollTimer = setInterval(function() {
+      if (document.hidden || !idViagem || !token) return;
+      if (pollInFlight) return;
+      carregarMensagens({ poll: true, silent: true }).catch(function() {});
+    }, POLL_MS);
   }
 
   // ==========================================
@@ -190,7 +235,9 @@
         transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionDelay: 1000,
-        reconnectionAttempts: 5
+        reconnectionDelayMax: 10000,
+        reconnectionAttempts: 50,
+        auth: { token: localStorage.getItem('token') || '' }
       });
 
       socket.on('connect', () => {
@@ -211,9 +258,10 @@
         
         // Verificar se não é mensagem própria
         const senderId = mensagem.SENDER_ID || mensagem.senderId;
-        const senderType = mensagem.SENDER_TYPE || mensagem.senderType;
-        
-        if (senderId != idMotorista || senderType !== 'driver') {
+        const senderType = String(mensagem.SENDER_TYPE || mensagem.senderType || '').toUpperCase();
+        const isPropria = String(senderId) === String(idMotorista) && (senderType === 'DRIVER' || senderType === 'MOTORISTA');
+
+        if (!isPropria) {
           mensagens.push(mensagem);
           renderizar();
           scrollBottom();
@@ -258,9 +306,21 @@
   // ==========================================
   // CARREGAR MENSAGENS
   // ==========================================
-  async function carregarMensagens() {
+  async function carregarMensagens(opts) {
+    opts = opts || {};
+    const poll = !!opts.poll;
+    const silent = !!opts.silent;
+    const container = document.getElementById('chatContainer');
+    const oldH = container ? container.scrollHeight : 0;
+    const oldT = container ? container.scrollTop : 0;
+    let nearBottom = true;
+    if (container && poll) {
+      nearBottom = (container.scrollHeight - container.scrollTop - container.clientHeight) < 120;
+    }
+
     var url = baseUrl + '/api/messages/viagem/' + idViagem;
-    logStep('fetch ' + url);
+    if (!poll) logStep('fetch ' + url);
+    if (poll) pollInFlight = true;
     try {
       const response = await fetch(url, {
         headers: {
@@ -273,21 +333,51 @@
         console.warn('[CHAT] response.json falhou', e);
         return {};
       });
-      logStep('API status=' + response.status + ' msgs=' + ((data && (data.messages || data.data && data.data.messages)) ? (data.messages || data.data.messages).length : 0));
+      if (!poll) {
+        logStep('API status=' + response.status + ' msgs=' + ((data && (data.messages || data.data && data.data.messages)) ? (data.messages || data.data.messages).length : 0));
+      }
       if (response.ok && data) {
-        mensagens = data.messages || (data.data && data.data.messages) || [];
-        // Converter para formato compatível
-        mensagens = mensagens.map(m => ({
+        const pending = mensagens.filter(function(m) { return m.enviado === false; });
+        let lista = data.messages || (data.data && data.data.messages) || [];
+        lista = lista.map(m => ({
           ...m,
           remetente: (m.SENDER_TYPE === 'driver' || m.SENDER_TYPE === 'MOTORISTA') ? 'motorista' : 'operador',
           enviado: true,
           timestamp: m.CREATED_AT
         }));
+        const merged = mergeServidorComPendentes(lista, pending);
+        const assinatura = merged.map(function(m) {
+          return (m.ID != null ? m.ID : m.id) + '|' + String(m.CONTENT || m.content || '').slice(0, 48);
+        }).join('¦');
+        if (poll && assinatura === ultimaAssinaturaLista) {
+          return;
+        }
+        const prevOpIds = new Set(mensagens.filter(function(m) { return m.remetente === 'operador'; }).map(function(m) { return String(m.ID != null ? m.ID : m.id); }));
+        ultimaAssinaturaLista = assinatura;
+        mensagens = merged;
         renderizar();
-        scrollBottom();
+        if (nearBottom || !poll) {
+          scrollBottom();
+        } else if (container) {
+          requestAnimationFrame(function() {
+            var newH = container.scrollHeight;
+            container.scrollTop = oldT + (newH - oldH);
+          });
+        }
         marcarComoLidas();
-        logStep('Chat pronto. ' + mensagens.length + ' mensagem(ns)');
+        if (poll) {
+          merged.forEach(function(m) {
+            if (m.remetente !== 'operador') return;
+            var oid = String(m.ID != null ? m.ID : m.id);
+            if (oid && !prevOpIds.has(oid)) notificarNovaMensagem(m);
+          });
+        }
+        if (!poll) logStep('Chat pronto. ' + mensagens.length + ' mensagem(ns)');
       } else {
+        if (poll) {
+          console.warn('[CHAT] poll: API', response.status, data && (data.error || data.message));
+          return;
+        }
         mensagens = [];
         renderizar();
         logStep('API status ' + response.status);
@@ -302,11 +392,17 @@
         }
       }
     } catch (err) {
+      if (poll) {
+        console.warn('[CHAT] poll fetch:', err.message || err);
+        return;
+      }
       console.error('Erro ao carregar mensagens:', err);
       logStep('ERRO fetch: ' + (err.message || err));
       mensagens = [];
       renderizar();
       mostrarEstadoErroOuVazio('Erro de conexão. Verifique sua internet e tente novamente.');
+    } finally {
+      if (poll) pollInFlight = false;
     }
   }
 
@@ -715,6 +811,8 @@
   // NAVEGAÇÃO
   // ==========================================
   window.voltar = function() {
+    document.removeEventListener('visibilitychange', onVisibilityChat);
+    pararPollingMensagens();
     if (socket) {
       socket.emit('leave-viagem', idViagem);
       socket.disconnect();

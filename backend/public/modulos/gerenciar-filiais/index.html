@@ -173,14 +173,6 @@
     .btn-filtro-danger { background: #dc2626; color: #fff; box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25); }
     .btn-filtro-danger:hover { background: #b91c1c; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35); }
 
-    /* Botões da aba Filtros – bloco moderno (padrão Cadastro Geral) */
-    .filiais-container .filtros-actions-moderno {
-      padding-top: 20px;
-      margin-top: 20px;
-      border-top: 1px solid var(--border, #e2e8f0);
-      gap: 12px;
-    }
-
     /* ========== BOTÕES - Padrão do Sistema ========== */
     .btn {
       padding: 12px 24px;
@@ -498,14 +490,14 @@
         </div>
 
         <div class="tabs tabs-com-icones">
-            <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.filiais.tabFiltros"><i class='bx bx-filter-alt'></i> Filtros</button>
-            <button class="tab-btn" data-tab="grid" data-i18n="web.modulos.filiais.tabGrid"><i class='bx bx-grid-alt'></i> Grid</button>
-            <button class="tab-btn" data-tab="dados" data-i18n="web.modulos.filiais.tabDados"><i class='bx bx-edit'></i> Dados</button>
+            <button type="button" class="tab-btn active" data-tab="filtros"><i class='bx bx-filter-alt'></i> <span data-i18n="web.modulos.filiais.tabFiltros">Filtros</span></button>
+            <button type="button" class="tab-btn" data-tab="grid"><i class='bx bx-grid-alt'></i> <span data-i18n="web.modulos.filiais.tabGrid">Grid</span></button>
+            <button type="button" class="tab-btn" data-tab="dados"><i class='bx bx-edit'></i> <span data-i18n="web.modulos.filiais.tabDados">Dados</span></button>
         </div>
 
         <div class="tab-content active" id="tab-filtros">
             <div class="filtros-box">
-                <h3><i class='bx bx-filter'></i> <span data-i18n="web.modulos.filiais.filtrosBusca">Filtros de Busca</span></h3>
+                <h3><i class='bx bx-filter'></i> <span data-i18n="web.modulos.filiais.tabFiltros">Filtros</span></h3>
                 <form id="filtroForm" onsubmit="return false;">
                     <div class="filtros-grid">
                         <div>
@@ -547,10 +539,10 @@
                             </select>
                         </div>
                     </div>
-                    <div class="filtros-actions filtros-actions-moderno">
-                        <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class='bx bx-eraser'></i> <span data-i18n="web.modulos.filiais.limpar">Limpar</span></button>
-                        <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class='bx bx-search-alt'></i> <span data-i18n="web.modulos.filiais.filtrar">Filtrar</span></button>
-                        <button type="button" id="btnNovoRegistro" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> <span>Novo</span></button>
+                    <div class="filtros-actions">
+                        <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> <span data-i18n="web.modulos.filiais.limpar">Limpar</span></button>
+                        <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class='bx bx-search'></i> <span data-i18n="web.modulos.filiais.filtrar">Filtrar</span></button>
+                        <button type="button" id="btnNovoRegistro" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> <span data-i18n="web.modulos.filiais.novoRegistro">Novo</span></button>
                     </div>
                 </form>
             </div>
@@ -558,12 +550,12 @@
 
         <div class="tab-content" id="tab-grid">
             <div class="form-box">
-                <h2 data-i18n="web.modulos.filiais.gridTitulo">Visualização em Grid</h2>
+                <h2 class="form-panel-titulo"><i class='bx bx-grid-alt' aria-hidden="true"></i> <span data-i18n="web.modulos.filiais.gridTitulo">Visualização em Grid</span></h2>
                 <div class="actions-top">
                     <div style="display: flex; gap: 10px;">
-                        <button type="button" id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.filiais.voltarFiltros">Voltar</span></button>
+                        <button type="button" id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> <span>Voltar</span></button>
                     </div>
-                    <button type="button" id="btnNovoRegistroGrid" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> <span data-i18n="web.modulos.filiais.novoRegistro">Novo</span></button>
+                    <button type="button" id="btnNovoRegistroGrid" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> <span>Novo</span></button>
                 </div>
                 <div id="filiaisGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
                     <span id="filiaisGridCountText" data-i18n="web.modulos.filiais.registrosEncontrados">0 registro(s) encontrado(s)</span>
@@ -576,7 +568,7 @@
 
         <div class="tab-content" id="tab-dados">
             <div class="form-box">
-                <h2 id="formTitle" data-i18n="web.modulos.filiais.novaFilial">Nova Filial</h2>
+                <h2 id="formTitle" class="form-panel-titulo"><i class='bx bx-edit' aria-hidden="true"></i> <span data-i18n="web.modulos.filiais.novaFilial">Nova Filial</span></h2>
                 <form id="filialForm">
                     <input type="hidden" id="filialEmpresaId">
                     <input type="hidden" id="filialId">

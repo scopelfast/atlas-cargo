@@ -3,11 +3,16 @@ const express = require('express');
 const sql = require('../config/mssql-compat');
 const router = express.Router();
 const { poolPromise, getFirstNumericValue } = require('../config/db');
+const { towerAuthAndTenant } = require('../middleware/tower-auth-chain.middleware');
+const { tenantIdForRequest } = require('../utils/tenant-context');
+
+router.use(towerAuthAndTenant);
 
 // Listar modelos de equipamento com filtros
 router.get('/modelos-equipamento', async (req, res) => {
   try {
     const { codigo, descricao, tipo, marca, situacao } = req.query;
+    const tenantId = tenantIdForRequest(req);
     let query = `
       SELECT 
         [m].[CDMODELOEQUIPAMENTO],
@@ -19,8 +24,10 @@ router.get('/modelos-equipamento', async (req, res) => {
         [m].[FGACTIVE]
       FROM [dbo].[MODELOEQUIPAMENTO] m
       LEFT JOIN [dbo].[TIPOEQUIPAMENTO] t ON [m].[CDTIPOEQUIPAMENTO] = [t].[CDTIPOEQUIPAMENTO]
+        AND ([t].[TENANT_ID] = [m].[TENANT_ID] OR [t].[TENANT_ID] = 'default')
       LEFT JOIN [dbo].[MARCAEQUIPAMENTO] ma ON [m].[CDMARCAEQUIPAMENTO] = [ma].[CDMARCAEQUIPAMENTO]
-      WHERE 1=1
+        AND ([ma].[TENANT_ID] = [m].[TENANT_ID] OR [ma].[TENANT_ID] = 'default')
+      WHERE 1=1 AND ([m].[TENANT_ID] = @TENANT_ID OR [m].[TENANT_ID] = 'default')
     `;
 
     const params = [];
@@ -40,28 +47,33 @@ router.get('/modelos-equipamento', async (req, res) => {
       query += ` AND [m].[CDMARCAEQUIPAMENTO] = @MARCA`;
       params.push({ name: 'MARCA', value: parseInt(marca) });
     }
-    if (situacao) {
-      query += ` AND [m].[FGACTIVE] = @SITUACAO`;
-      params.push({ name: 'SITUACAO', value: situacao === 'S' ? 'A' : 'I' });
+    if (situacao === 'S') {
+      query += ` AND ([m].[FGACTIVE] = 'A' OR [m].[FGACTIVE] = 'S')`;
+    } else if (situacao === 'N') {
+      query += ` AND ([m].[FGACTIVE] = 'I' OR [m].[FGACTIVE] = 'N')`;
     }
 
     query += ` ORDER BY [m].[DSMODELOEQUIPAMENTO]`;
 
     const pool = await poolPromise;
-    const request = pool.request();
+    const request = pool.request().input('TENANT_ID', sql.VarChar(64), tenantId);
     params.forEach(p => request.input(p.name, p.value));
     
     const result = await request.query(query);
     const get = (row, key) => row[key] != null ? row[key] : row[key.toLowerCase()];
-    const modelos = result.recordset.map(m => ({
-      CDMODELOEQUIPAMENTO: get(m, 'CDMODELOEQUIPAMENTO'),
-      DSMODELOEQUIPAMENTO: get(m, 'DSMODELOEQUIPAMENTO'),
-      CDTIPOEQUIPAMENTO: get(m, 'CDTIPOEQUIPAMENTO'),
-      TIPO_NOME: get(m, 'TIPO_NOME') || 'Não informado',
-      CDMARCAEQUIPAMENTO: get(m, 'CDMARCAEQUIPAMENTO'),
-      MARCA_NOME: get(m, 'MARCA_NOME') || 'Não informada',
-      FGACTIVE: get(m, 'FGACTIVE') === 'A' ? 'S' : 'N'
-    }));
+    const modelos = result.recordset.map(m => {
+      const fg = get(m, 'FGACTIVE');
+      const ativo = fg === 'A' || fg === 'S';
+      return {
+        CDMODELOEQUIPAMENTO: get(m, 'CDMODELOEQUIPAMENTO'),
+        DSMODELOEQUIPAMENTO: get(m, 'DSMODELOEQUIPAMENTO'),
+        CDTIPOEQUIPAMENTO: get(m, 'CDTIPOEQUIPAMENTO'),
+        TIPO_NOME: get(m, 'TIPO_NOME') || 'Não informado',
+        CDMARCAEQUIPAMENTO: get(m, 'CDMARCAEQUIPAMENTO'),
+        MARCA_NOME: get(m, 'MARCA_NOME') || 'Não informada',
+        FGACTIVE: ativo ? 'S' : 'N'
+      };
+    });
     
     res.json(modelos);
   } catch (err) {
@@ -79,10 +91,12 @@ router.get('/modelos-equipamento/:id', async (req, res) => {
       return res.status(400).json({ error: 'ID inválido.' });
     }
 
+    const tenantId = tenantIdForRequest(req);
     const pool = await poolPromise;
     const result = await pool
       .request()
       .input('CDMODELOEQUIPAMENTO', idNum)
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
       .query(`
         SELECT 
           [CDMODELOEQUIPAMENTO],
@@ -92,6 +106,7 @@ router.get('/modelos-equipamento/:id', async (req, res) => {
           [FGACTIVE]
         FROM [dbo].[MODELOEQUIPAMENTO]
         WHERE [CDMODELOEQUIPAMENTO] = @CDMODELOEQUIPAMENTO
+          AND ([TENANT_ID] = @TENANT_ID OR [TENANT_ID] = 'default')
       `);
 
     if (result.recordset.length === 0) {
@@ -99,12 +114,14 @@ router.get('/modelos-equipamento/:id', async (req, res) => {
     }
 
     const modelo = result.recordset[0];
+    const fg = modelo.FGACTIVE;
+    const ativo = fg === 'A' || fg === 'S';
     res.json({
       CDMODELOEQUIPAMENTO: modelo.CDMODELOEQUIPAMENTO,
       DSMODELOEQUIPAMENTO: modelo.DSMODELOEQUIPAMENTO,
       CDTIPOEQUIPAMENTO: modelo.CDTIPOEQUIPAMENTO,
       CDMARCAEQUIPAMENTO: modelo.CDMARCAEQUIPAMENTO,
-      FGACTIVE: modelo.FGACTIVE === 'A' ? 'S' : 'N'
+      FGACTIVE: ativo ? 'S' : 'N'
     });
   } catch (err) {
     console.error('Erro ao buscar modelo de equipamento:', err);
@@ -124,10 +141,24 @@ router.post('/modelos-equipamento', async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const tenantId = tenantIdForRequest(req);
     const descricao = DSMODELOEQUIPAMENTO.trim();
+
+    const tipoRef = await pool.query(
+      `SELECT 1 FROM "TIPOEQUIPAMENTO" WHERE "CDTIPOEQUIPAMENTO" = $1 AND ("TENANT_ID" = $2 OR "TENANT_ID" = 'default') LIMIT 1`,
+      [parseInt(CDTIPOEQUIPAMENTO, 10), tenantId]
+    );
+    const marcaRef = await pool.query(
+      `SELECT 1 FROM "MARCAEQUIPAMENTO" WHERE "CDMARCAEQUIPAMENTO" = $1 AND ("TENANT_ID" = $2 OR "TENANT_ID" = 'default') LIMIT 1`,
+      [parseInt(CDMARCAEQUIPAMENTO, 10), tenantId]
+    );
+    if (!tipoRef.rows?.length || !marcaRef.rows?.length) {
+      return res.status(400).json({ error: 'Tipo ou marca inválidos para este tenant.' });
+    }
+
     const existente = await pool.query(
-      `SELECT 1 FROM "MODELOEQUIPAMENTO" WHERE UPPER(TRIM("DSMODELOEQUIPAMENTO")) = UPPER(TRIM($1)) LIMIT 1`,
-      [descricao]
+      `SELECT 1 FROM "MODELOEQUIPAMENTO" WHERE UPPER(TRIM("DSMODELOEQUIPAMENTO")) = UPPER(TRIM($1)) AND "TENANT_ID" = $2 LIMIT 1`,
+      [descricao, tenantId]
     );
     if (existente.rows && existente.rows.length > 0) {
       return res.status(409).json({ error: 'Já existe um modelo de equipamento com esta descrição. Não é permitido cadastrar duplicados.' });
@@ -136,8 +167,13 @@ router.post('/modelos-equipamento', async (req, res) => {
     const getProximoId = async () => getFirstNumericValue((await pool.request().query('SELECT COALESCE(MAX([CDMODELOEQUIPAMENTO]), 0) + 1 AS [maxId] FROM [dbo].[MODELOEQUIPAMENTO]')).recordset, 1);
     let novoId = await getProximoId();
     const doInsert = async (id) => {
-      await pool.request().input('CDMODELOEQUIPAMENTO', sql.SmallInt, id).input('DSMODELOEQUIPAMENTO', DSMODELOEQUIPAMENTO.trim()).input('CDTIPOEQUIPAMENTO', sql.SmallInt, CDTIPOEQUIPAMENTO).input('CDMARCAEQUIPAMENTO', sql.SmallInt, CDMARCAEQUIPAMENTO)
-        .query(`INSERT INTO [dbo].[MODELOEQUIPAMENTO] ([CDMODELOEQUIPAMENTO], [DSMODELOEQUIPAMENTO], [CDTIPOEQUIPAMENTO], [CDMARCAEQUIPAMENTO], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]) VALUES (@CDMODELOEQUIPAMENTO, @DSMODELOEQUIPAMENTO, @CDTIPOEQUIPAMENTO, @CDMARCAEQUIPAMENTO, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas')`);
+      await pool.request()
+        .input('CDMODELOEQUIPAMENTO', sql.SmallInt, id)
+        .input('DSMODELOEQUIPAMENTO', DSMODELOEQUIPAMENTO.trim())
+        .input('CDTIPOEQUIPAMENTO', sql.SmallInt, CDTIPOEQUIPAMENTO)
+        .input('CDMARCAEQUIPAMENTO', sql.SmallInt, CDMARCAEQUIPAMENTO)
+        .input('TENANT_ID', sql.VarChar(64), tenantId)
+        .query(`INSERT INTO [dbo].[MODELOEQUIPAMENTO] ([CDMODELOEQUIPAMENTO], [DSMODELOEQUIPAMENTO], [CDTIPOEQUIPAMENTO], [CDMARCAEQUIPAMENTO], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG], [TENANT_ID]) VALUES (@CDMODELOEQUIPAMENTO, @DSMODELOEQUIPAMENTO, @CDTIPOEQUIPAMENTO, @CDMARCAEQUIPAMENTO, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas', @TENANT_ID)`);
     };
     try { await doInsert(novoId); } catch (e) { if (String(e.code) === '23505') { novoId = await getProximoId(); await doInsert(novoId); } else throw e; }
     res.status(201).json({ success: true, message: 'Modelo de equipamento cadastrado com sucesso!' });
@@ -158,22 +194,41 @@ router.put('/modelos-equipamento/:id', async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const tenantId = tenantIdForRequest(req);
     const idNumerico = parseInt(id, 10);
     if (isNaN(idNumerico) || idNumerico <= 0) {
       return res.status(400).json({ error: 'ID inválido.' });
     }
+
+    const tipoRefUpd = await pool.query(
+      `SELECT 1 FROM "TIPOEQUIPAMENTO" WHERE "CDTIPOEQUIPAMENTO" = $1 AND ("TENANT_ID" = $2 OR "TENANT_ID" = 'default') LIMIT 1`,
+      [parseInt(CDTIPOEQUIPAMENTO, 10), tenantId]
+    );
+    const marcaRefUpd = await pool.query(
+      `SELECT 1 FROM "MARCAEQUIPAMENTO" WHERE "CDMARCAEQUIPAMENTO" = $1 AND ("TENANT_ID" = $2 OR "TENANT_ID" = 'default') LIMIT 1`,
+      [parseInt(CDMARCAEQUIPAMENTO, 10), tenantId]
+    );
+    if (!tipoRefUpd.rows?.length || !marcaRefUpd.rows?.length) {
+      return res.status(400).json({ error: 'Tipo ou marca inválidos para este tenant.' });
+    }
+
     const existente = await pool.query(
-      `SELECT 1 FROM "MODELOEQUIPAMENTO" WHERE UPPER(TRIM("DSMODELOEQUIPAMENTO")) = UPPER(TRIM($1)) AND "CDMODELOEQUIPAMENTO" != $2 LIMIT 1`,
-      [DSMODELOEQUIPAMENTO.trim(), idNumerico]
+      `SELECT 1 FROM "MODELOEQUIPAMENTO"
+       WHERE UPPER(TRIM("DSMODELOEQUIPAMENTO")) = UPPER(TRIM($1))
+         AND "CDMODELOEQUIPAMENTO" != $2
+         AND "TENANT_ID" = $3
+       LIMIT 1`,
+      [DSMODELOEQUIPAMENTO.trim(), idNumerico, tenantId]
     );
     if (existente.rows && existente.rows.length > 0) {
       return res.status(409).json({ error: 'Já existe outro modelo de equipamento com esta descrição. Não é permitido duplicar.' });
     }
     const fgactiveDB = FGACTIVE === 'S' ? 'A' : 'I';
 
-    await pool
+    const upd = await pool
       .request()
       .input('CDMODELOEQUIPAMENTO', sql.SmallInt, idNumerico)
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
       .input('DSMODELOEQUIPAMENTO', DSMODELOEQUIPAMENTO.trim())
       .input('CDTIPOEQUIPAMENTO', sql.SmallInt, CDTIPOEQUIPAMENTO)
       .input('CDMARCAEQUIPAMENTO', sql.SmallInt, CDMARCAEQUIPAMENTO)
@@ -188,8 +243,12 @@ router.put('/modelos-equipamento/:id', async (req, res) => {
           [DHMAINTENANCE] = GETDATE(),
           [SGUSER] = 'SYSTEM',
           [SERVERORIG] = 'AppDVcargas'
-        WHERE [CDMODELOEQUIPAMENTO] = @CDMODELOEQUIPAMENTO
+        WHERE [CDMODELOEQUIPAMENTO] = @CDMODELOEQUIPAMENTO AND [TENANT_ID] = @TENANT_ID
       `);
+
+    if (!upd.rowsAffected || upd.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: 'Modelo não encontrado ou não pode ser alterado (catálogo compartilhado).' });
+    }
 
     res.json({ success: true, message: 'Modelo atualizado com sucesso!' });
   } catch (err) {
@@ -211,19 +270,21 @@ router.delete('/modelos-equipamento/:id', async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const tenantId = tenantIdForRequest(req);
 
     // Verificar status atual
     const checkResult = await pool
       .request()
       .input('CDMODELOEQUIPAMENTO', sql.SmallInt, idNumerico)
-      .query(`SELECT [FGACTIVE] FROM [dbo].[MODELOEQUIPAMENTO] WHERE [CDMODELOEQUIPAMENTO] = @CDMODELOEQUIPAMENTO`);
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
+      .query(`SELECT [FGACTIVE] FROM [dbo].[MODELOEQUIPAMENTO] WHERE [CDMODELOEQUIPAMENTO] = @CDMODELOEQUIPAMENTO AND [TENANT_ID] = @TENANT_ID`);
 
     if (checkResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Modelo não encontrado.' });
     }
 
     const statusAtual = checkResult.recordset[0].FGACTIVE;
-    const estaAtivo = statusAtual === 'A';
+    const estaAtivo = statusAtual === 'A' || statusAtual === 'S';
     
     // Determinar nova situação
     let novaSituacao, mensagem;
@@ -241,6 +302,7 @@ router.delete('/modelos-equipamento/:id', async (req, res) => {
     const result = await pool
       .request()
       .input('CDMODELOEQUIPAMENTO', sql.SmallInt, idNumerico)
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
       .input('FGACTIVE', sql.Char(1), novaSituacao)
       .query(`
         UPDATE [dbo].[MODELOEQUIPAMENTO]
@@ -249,7 +311,7 @@ router.delete('/modelos-equipamento/:id', async (req, res) => {
           [DHMAINTENANCE] = GETDATE(),
           [SGUSER] = 'SYSTEM',
           [SERVERORIG] = 'AppDVcargas'
-        WHERE [CDMODELOEQUIPAMENTO] = @CDMODELOEQUIPAMENTO
+        WHERE [CDMODELOEQUIPAMENTO] = @CDMODELOEQUIPAMENTO AND [TENANT_ID] = @TENANT_ID
       `);
 
     if (result.rowsAffected[0] === 0) {
@@ -268,8 +330,13 @@ const createComboRoute = (tableName, idField, nameField) => {
   return async (req, res) => {
     try {
       const pool = await poolPromise;
-      const pgQuery = `SELECT "${idField}", "${nameField}" FROM "${tableName}" ORDER BY "${nameField}"`;
-      const result = await pool.query(pgQuery, []);
+      const tenantId = tenantIdForRequest(req);
+      const condicoes = [`("TENANT_ID" = $1 OR "TENANT_ID" = 'default')`];
+      if (tableName === 'TIPOEQUIPAMENTO' || tableName === 'MARCAEQUIPAMENTO') {
+        condicoes.push(`("FGACTIVE" = 'A' OR "FGACTIVE" = 'S')`);
+      }
+      const pgQuery = `SELECT "${idField}", "${nameField}" FROM "${tableName}" WHERE ${condicoes.join(' AND ')} ORDER BY "${nameField}"`;
+      const result = await pool.query(pgQuery, [tenantId]);
       res.json(result.rows || []);
     } catch (err) {
       console.error(`Erro ao carregar ${tableName}:`, err);

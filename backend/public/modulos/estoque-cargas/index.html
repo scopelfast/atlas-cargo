@@ -1,0 +1,1329 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WMS — Cargas programadas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/modulos.css" />
+  <link rel="stylesheet" href="/css/dark-mode.css" />
+  <link rel="stylesheet" href="/css/boxicons.min.css" />
+  <style>
+    .wms-carga-container { padding: 20px; font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif; }
+    /* Uma linha de separação: só na barra de abas (evita “dupla linha” + sublinhado deslocado). */
+    .wms-carga-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 8px; padding-bottom: 0; border-bottom: none; }
+    .wms-carga-header h2 { margin: 0; color: var(--ac-primary, #0d2137); font-size: 28px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .wms-carga-header h2 .bx {
+      font-family: 'boxicons' !important;
+      font-size: 1.35rem;
+      font-weight: 400;
+      line-height: 1;
+      display: inline-block;
+      color: inherit;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wms-carga-container .tabs.tabs-com-icones {
+      display: flex; flex-wrap: wrap; margin-bottom: 25px; margin-top: 4px;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0); gap: 0;
+    }
+    .wms-carga-container .tabs.tabs-com-icones .tab-btn {
+      display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border: none; background: transparent; color: #94a3b8; font-weight: 600; font-size: 15px; cursor: pointer;
+      border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.2s, border-color 0.2s; font-family: inherit;
+    }
+    .wms-carga-container .tabs.tabs-com-icones .tab-btn i { font-size: 1.15rem; color: inherit; }
+    .wms-carga-container .tabs.tabs-com-icones .tab-btn:hover { color: #64748b; }
+    .wms-carga-container .tabs.tabs-com-icones .tab-btn.active {
+      color: var(--ac-primary, #0d2137);
+      border-bottom-color: var(--ac-primary, #0d2137);
+    }
+    .wms-carga-container .tabs.tabs-com-icones .tab-btn.active i { color: inherit; }
+    .filtros-box { background: white; border-radius: 12px; padding: 25px; box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08)); margin-bottom: 25px; border: 1px solid var(--border, #e2e8f0); }
+    .wms-resumo-log-totais { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 8px; }
+    .wms-resumo-log-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 12px 14px; }
+    .wms-resumo-log-card strong { display: block; font-size: 1.15rem; color: var(--ac-primary, #0d2137); margin-top: 4px; }
+    .wms-resumo-log-card span.lbl { font-size: 12px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; }
+    html[data-theme='dark'] .wms-resumo-logistico-box.filtros-box,
+    html[data-theme='dark'] .wms-resumo-log-card { background: #1e293b; border-color: #334155; }
+    html[data-theme='dark'] .wms-resumo-log-card strong { color: #e2e8f0; }
+    html[data-theme='dark'] .wms-resumo-log-card span.lbl { color: #94a3b8; }
+    .filtros-box h3 { margin: 0 0 20px; color: var(--ac-primary, #0d2137); font-size: 18px; font-weight: 600; }
+    .nf-badge-cad { display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 6px; font-size: 11px; font-weight: 700; vertical-align: middle; }
+    .nf-badge-cad-rascunho { background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+    html[data-theme='dark'] .nf-badge-cad-rascunho { background: #422006; color: #fde68a; border-color: #b45309; }
+    .btn-nf-completar-cad { margin-left: 4px; font-size: 12px; }
+    .nf-ee-pendente-resumo { margin: 0 0 12px; font-size: 14px; line-height: 1.5; color: #475569; }
+    html[data-theme='dark'] .nf-ee-pendente-resumo { color: #94a3b8; }
+    .nf-ee-pendente-acoes-top { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .filtros-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 15px; }
+    .filtros-grid label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--dark, #1e293b); font-size: 14px; }
+    .filtros-grid .form-control { width: 100%; padding: 12px; border: 1px solid var(--border, #e2e8f0); border-radius: 8px; font-size: 15px; font-family: inherit; box-sizing: border-box; }
+    .filtros-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 15px; flex-wrap: wrap; }
+    .btn-filtro { display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; }
+    .btn-filtro-limpar { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+    .btn-filtro-aplicar { background: var(--ac-accent, #0ea5e9); color: #fff; }
+    .btn-filtro-novo { background: var(--success, #059669); color: #fff; }
+    /* Ações da grid de cargas: compactas, só ícone + tooltip */
+    .carga-acoes { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+    .carga-acoes .btn-carga-acao {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 30px; height: 30px; padding: 0; border-radius: 8px;
+      border: 1px solid transparent; cursor: pointer; font-size: 16px; line-height: 1;
+    }
+    .carga-acoes .btn-carga-acao.btn-abrir-carga { background: var(--ac-accent, #0ea5e9); color: #fff; }
+    .carga-acoes .btn-carga-acao.btn-editar-carga {
+      background: #f1f5f9; color: #475569; border-color: #e2e8f0;
+    }
+    .carga-acoes .btn-carga-acao.btn-excluir-carga {
+      background: #fef2f2; color: #b91c1c; border-color: #fecaca;
+    }
+    .carga-acoes .btn-carga-acao:hover { filter: brightness(1.05); }
+    .wms-sep-table th.num, .wms-sep-table td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .wms-sep-table td.peso-seco { color: #854d0e; }
+    .wms-sep-table td.peso-frio { color: #1d4ed8; }
+    .wms-sep-table-wrap { overflow-x: auto; border: 1px solid var(--border, #e2e8f0); border-radius: 10px; }
+    .wms-sep-table-wrap-scroll { max-height: min(56vh, calc(100dvh - 300px)); overflow-y: auto; overflow-x: auto; position: relative; }
+    .wms-sep-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; }
+    .wms-sep-table th, .wms-sep-table td { padding: 10px 12px; border-bottom: 1px solid var(--border, #e2e8f0); text-align: left; }
+    .wms-sep-table td.col-chave { font-family: Consolas, 'Courier New', monospace; font-size: 12px; white-space: nowrap; }
+    .wms-chave-nfe-cell { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; vertical-align: middle; }
+    .wms-chave-nfe-text { font-family: Consolas, 'Courier New', monospace; font-size: 12px; }
+    .nf-line-chave .wms-chave-nfe-text { word-break: break-all; white-space: normal; font-size: 11px; line-height: 1.35; max-width: min(100%, 42rem); }
+    .btn-copiar-chave-nfe { padding: 4px 10px; font-size: 13px; flex-shrink: 0; line-height: 1; }
+    .wms-sep-table td.col-rota { white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 600; text-align: center; width: 4.5rem; max-width: 5.5rem; }
+    .wms-sep-table th:nth-child(3) { text-align: center; }
+    .wms-sep-table td.col-cargas { max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .wms-sep-table td.col-destino { min-width: 220px; word-break: break-word; }
+    .wms-sep-table td.col-emissao, .wms-sep-table td.col-importacao { white-space: nowrap; }
+    tr.wms-nf-grupo-header td { background: #f1f5f9; font-size: 13px; border-bottom: 1px solid #cbd5e1; cursor: pointer; }
+    tr.wms-nf-grupo-header .wms-grupo-chevron { font-size: 1.1rem; vertical-align: middle; margin-right: 4px; color: #64748b; }
+    tr.wms-nf-grupo-header.is-expanded td { border-bottom-color: #e2e8f0; }
+    html[data-theme="dark"] tr.wms-nf-grupo-header td { background: #1e293b !important; color: #e2e8f0; border-bottom-color: #334155 !important; }
+    html[data-theme="dark"] tr.wms-nf-grupo-header .wms-grupo-chevron { color: #94a3b8; }
+    .wms-dest-resumo-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+    .wms-dest-resumo-head-actions { margin-top: 0 !important; }
+    .wms-dest-accordion-wrap { max-height: min(48vh, 420px); overflow-y: auto; border: 1px solid var(--border, #e2e8f0); border-radius: 10px; background: #f8fafc; }
+    .wms-dest-acc-item { border-bottom: 1px solid var(--border, #e2e8f0); }
+    .wms-dest-acc-item:last-child { border-bottom: none; }
+    .wms-dest-acc-head {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 8px 6px 4px;
+    }
+    .wms-dest-acc-head .btn-dest-resumo-filtrar { flex-shrink: 0; padding: 6px 12px; font-size: 12px; }
+    .wms-dest-acc-toggle {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; flex: 1 1 200px; min-width: 0;
+      padding: 4px 8px; border: none; background: transparent; cursor: pointer; text-align: left; font: inherit; color: inherit;
+    }
+    .wms-dest-acc-head:hover .wms-dest-acc-toggle,
+    .wms-dest-acc-toggle:hover { background: #f1f5f9; border-radius: 8px; }
+    .wms-dest-acc-chevron { font-size: 1.2rem; color: #64748b; flex-shrink: 0; }
+    .wms-dest-acc-main { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .wms-dest-acc-mun { font-weight: 600; font-size: 13px; color: var(--ac-primary, #0d2137); }
+    .wms-dest-acc-ent { font-size: 13px; color: #475569; word-break: break-word; }
+    .wms-dest-acc-stats { display: flex; flex-wrap: wrap; gap: 10px 14px; font-size: 12px; align-items: baseline; }
+    .wms-dest-acc-stats strong { font-size: 14px; color: var(--ac-primary, #0d2137); }
+    .wms-dest-acc-panel { padding: 0 12px 10px 36px; }
+    html[data-theme="dark"] .wms-dest-acc-head:hover .wms-dest-acc-toggle,
+    html[data-theme="dark"] .wms-dest-acc-toggle:hover { background: #1e293b; }
+    .wms-dest-acc-nf-list { margin: 0; padding: 0 0 0 18px; font-size: 13px; }
+    .wms-dest-acc-nf-list li { margin: 4px 0; }
+    .wms-dest-acc-nf-num { font-weight: 600; }
+    html[data-theme="dark"] .wms-dest-accordion-wrap { background: #0f172a; border-color: #334155; }
+    html[data-theme="dark"] .wms-dest-acc-item { border-bottom-color: #334155; }
+    html[data-theme="dark"] .wms-dest-acc-toggle:hover { background: #1e293b; }
+    html[data-theme="dark"] .wms-dest-acc-mun,
+    html[data-theme="dark"] .wms-dest-acc-stats strong { color: #e2e8f0; }
+    html[data-theme="dark"] .wms-dest-acc-ent { color: #94a3b8; }
+    html[data-theme="dark"] .wms-dest-acc-chevron { color: #94a3b8; }
+    .status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; }
+    .status-dot.sim { background: #10b981; box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2); }
+    .status-dot.nao { background: #ef4444; box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2); }
+    .btn-link-nf { background: transparent; border: none; color: var(--ac-accent, #0ea5e9); cursor: pointer; font-weight: 700; text-decoration: underline; padding: 0; font: inherit; }
+    .wms-modal-backdrop { position: fixed; inset: 0; background: rgba(2, 6, 23, 0.65); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 18px; }
+    .wms-modal { width: min(980px, 96vw); max-height: 90vh; overflow: hidden; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; box-shadow: 0 12px 32px rgba(0,0,0,0.28); display: flex; flex-direction: column; }
+    .wms-modal h3 { margin: 0 0 14px; }
+    /* Cabeçalhos modais padrão (sem romaneio — ver .rom-modal-header abaixo). */
+    .wms-modal-header:not(.rom-modal-header) {
+      position: sticky;
+      top: 0;
+      z-index: 8;
+      background: inherit;
+      padding: 10px 0 16px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    /* Cabeçalho em linha (título + Fechar): evita h3 com margin-bottom “grudando” o botão na borda. */
+    .wms-modal > .filtros-actions.wms-modal-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .wms-modal > .filtros-actions.wms-modal-header h3 {
+      margin: 0;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    #nfDetalheConteudo { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+    .nf-header-fixed { flex: 0 0 auto; }
+    .nf-itens-scroll { flex: 1 1 auto; min-height: 220px; max-height: calc(90vh - 300px); overflow: auto; border: 1px solid #33415533; border-radius: 10px; }
+    .wms-modal .nf-itens-scroll .wms-sep-table th { position: sticky; top: 0; z-index: 7; }
+    .td-right { text-align: right !important; }
+    .nf-meta-item { background: rgba(15, 23, 42, 0.03); border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 10px; }
+    .nf-meta-item strong { display: block; font-size: 12px; color: #64748b; margin-bottom: 2px; }
+    .nf-head-compact { border: 1px solid #33415555; border-radius: 8px; overflow: hidden; display: grid; grid-template-columns: 1fr 1fr 1fr; }
+    .nf-col { border-right: 1px solid #33415555; padding: 8px 10px; background: rgba(15, 23, 42, 0.02); }
+    .nf-col:last-child { border-right: none; }
+    .nf-col h4 { margin: 0 0 6px; font-size: 16px; font-weight: 700; border-bottom: 1px solid #33415555; padding-bottom: 4px; }
+    .nf-line { margin: 2px 0; font-size: 14px; line-height: 1.3; }
+    .nota-with-dot { display: inline-flex; align-items: center; gap: 6px; }
+    .btn-nf-excluir {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 28px; height: 28px; padding: 0; margin-left: 4px;
+      border: 1px solid #fecaca; border-radius: 6px; background: #fef2f2;
+      color: #dc2626; cursor: pointer; vertical-align: middle;
+    }
+    .btn-nf-excluir:hover { background: #fee2e2; border-color: #f87171; }
+    html[data-theme="dark"] .btn-nf-excluir {
+      background: #450a0a; border-color: #7f1d1d; color: #fca5a5;
+    }
+    html[data-theme="dark"] .btn-nf-excluir:hover { background: #7f1d1d; }
+    .nf-meta-grid { display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 0; font-size: 14px; color: #475569; }
+    .wms-sep-table th { background: #f8fafc; font-weight: 600; color: #334155; position: sticky; top: 0; z-index: 4; box-shadow: 0 1px 0 #e2e8f0; }
+    .wms-sep-table tr:last-child td { border-bottom: none; }
+    html[data-theme='dark'] .wms-carga-header h2 { color: #e2e8f0; }
+    html[data-theme='dark'] .wms-carga-header h2 .bx { color: inherit; }
+    html[data-theme='dark'] .wms-carga-container .tabs.tabs-com-icones { border-bottom-color: #334155; }
+    html[data-theme='dark'] .wms-carga-container .tabs.tabs-com-icones .tab-btn { color: #94a3b8; }
+    html[data-theme='dark'] .wms-carga-container .tabs.tabs-com-icones .tab-btn:hover { color: #cbd5e1; }
+    /* Mesmo padrão visual das abas Filtros/Grid/Dados. */
+    html[data-theme='dark'] .wms-carga-container .tabs.tabs-com-icones .tab-btn.active {
+      color: #38bdf8 !important;
+      border-bottom-color: #38bdf8 !important;
+    }
+    html[data-theme='dark'] .wms-carga-container .tabs.tabs-com-icones .tab-btn.active i {
+      color: inherit !important;
+    }
+    html[data-theme='dark'] .filtros-box { background: #0f172a; border-color: #334155; }
+    html[data-theme='dark'] .filtros-box h3 { color: #e2e8f0; }
+    html[data-theme='dark'] .filtros-grid label { color: #cbd5e1; }
+    html[data-theme='dark'] .filtros-grid .form-control { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+    html[data-theme='dark'] .wms-sep-table th { background: #1e293b; color: #e2e8f0; box-shadow: 0 1px 0 #334155; }
+    html[data-theme='dark'] .wms-sep-table td { border-color: #334155; color: #e2e8f0; }
+    html[data-theme='dark'] .wms-sep-table-wrap { border-color: #334155; }
+    html[data-theme='dark'] .btn-filtro-limpar { background: #1e293b; color: #cbd5e1; border-color: #475569; }
+    html[data-theme='dark'] .carga-acoes .btn-carga-acao.btn-editar-carga {
+      background: #1e293b; color: #cbd5e1; border-color: #475569;
+    }
+    html[data-theme='dark'] .carga-acoes .btn-carga-acao.btn-excluir-carga {
+      background: #3f1d1d; color: #fca5a5; border-color: #7f1d1d;
+    }
+    html[data-theme='dark'] .wms-sep-table td.peso-seco { color: #fde68a; }
+    html[data-theme='dark'] .wms-sep-table td.peso-frio { color: #93c5fd; }
+    html[data-theme='dark'] .btn-link-nf { color: #38bdf8; }
+    html[data-theme='dark'] .wms-modal { background: #0f172a; border-color: #334155; color: #e2e8f0; }
+    html[data-theme='dark'] .carga-delete-modal-regra { color: #94a3b8 !important; }
+    html[data-theme='dark'] .nf-meta-grid { color: #94a3b8; }
+    html[data-theme='dark'] .wms-modal-header:not(.rom-modal-header) { border-bottom-color: #334155; }
+    html[data-theme='dark'] .nf-meta-item { background: rgba(30, 41, 59, 0.6); border-color: #334155; }
+    html[data-theme='dark'] .nf-meta-item strong { color: #94a3b8; }
+    html[data-theme='dark'] .nf-head-compact { border-color: #334155; }
+    html[data-theme='dark'] .nf-col { border-right-color: #334155; background: rgba(30, 41, 59, 0.55); }
+    html[data-theme='dark'] .nf-col h4 { border-bottom-color: #334155; color: #cbd5e1; }
+    .carga-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 16px; font-size: 14px; color: #475569; }
+    html[data-theme='dark'] .carga-meta { color: #94a3b8; }
+    .wms-programacao-bloqueada {
+      margin: 0 0 16px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid #f59e0b;
+      background: #fffbeb;
+      color: #92400e;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+    html[data-theme='dark'] .wms-programacao-bloqueada {
+      background: #422006;
+      border-color: #b45309;
+      color: #fde68a;
+    }
+    .carga-pag-info { font-size: 14px; color: #64748b; }
+    html[data-theme='dark'] .carga-pag-info { color: #94a3b8; }
+    #crRomBackdrop .wms-modal, #rsRomBackdrop .wms-modal { max-height: 90vh; overflow-y: auto; width: min(920px, 96vw); }
+    .rom-din-tit { margin: 0 0 18px; font-size: 13px; line-height: 1.5; color: #64748b; }
+    html[data-theme='dark'] .rom-din-tit { color: #94a3b8; }
+    /* Mesmo padrão visual nos dois modais (só mudam campos / relatório). */
+    #crRomBackdrop .rom-sec,
+    #rsRomBackdrop .rom-sec { margin-bottom: 18px; }
+    #crRomBackdrop .rom-sec-titulo,
+    #rsRomBackdrop .rom-sec-titulo {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #64748b;
+      margin: 0 0 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    html[data-theme='dark'] #crRomBackdrop .rom-sec-titulo,
+    html[data-theme='dark'] #rsRomBackdrop .rom-sec-titulo {
+      color: #94a3b8;
+      border-bottom-color: #334155;
+    }
+    #crRomBackdrop .rom-bloco-filtros,
+    #rsRomBackdrop .rom-bloco-filtros {
+      display: grid !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px 20px;
+      align-items: stretch;
+    }
+    #crRomBackdrop .rom-bloco-filtros > div,
+    #rsRomBackdrop .rom-bloco-filtros > div { min-width: 0; }
+    #crRomBackdrop .rom-cel-span-2,
+    #rsRomBackdrop .rom-cel-span-2 { grid-column: 1 / -1; }
+    #crRomBackdrop .rom-filtro-geo,
+    #rsRomBackdrop .rom-filtro-geo {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px 20px;
+      align-items: start;
+    }
+    @media (max-width: 640px) {
+      #crRomBackdrop .rom-filtro-geo,
+      #rsRomBackdrop .rom-filtro-geo { grid-template-columns: 1fr; }
+    }
+    #crRomBackdrop .rom-filtro-cont,
+    #rsRomBackdrop .rom-filtro-cont {
+      font-weight: 500;
+      color: #64748b;
+      font-size: 12px;
+    }
+    #crRomBackdrop .rom-imp-multi,
+    #rsRomBackdrop .rom-imp-multi {
+      min-height: 100px;
+      padding: 4px 6px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    #crRomBackdrop .rom-imp-multi option,
+    #rsRomBackdrop .rom-imp-multi option {
+      padding: 4px 8px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    html[data-theme='dark'] #crRomBackdrop .rom-imp-multi,
+    html[data-theme='dark'] #rsRomBackdrop .rom-imp-multi {
+      background: #0f172a;
+      color: #e2e8f0;
+      border-color: #334155;
+    }
+    #crRomBackdrop .rom-bloco-ord,
+    #rsRomBackdrop .rom-bloco-ord {
+      display: grid !important;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px 18px;
+      align-items: stretch;
+    }
+    #crRomBackdrop .rom-bloco-ord > div,
+    #rsRomBackdrop .rom-bloco-ord > div { min-width: 0; }
+    @media (max-width: 640px) {
+      #crRomBackdrop .rom-bloco-ord,
+      #rsRomBackdrop .rom-bloco-ord { grid-template-columns: 1fr; }
+    }
+    #crRomBackdrop .rom-bloco-filtros label,
+    #rsRomBackdrop .rom-bloco-filtros label,
+    #crRomBackdrop .rom-bloco-ord label,
+    #rsRomBackdrop .rom-bloco-ord label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 600;
+      font-size: 13px;
+      color: #475569;
+    }
+    #crRomBackdrop .rom-bloco-filtros .form-control,
+    #rsRomBackdrop .rom-bloco-filtros .form-control,
+    #crRomBackdrop .rom-bloco-ord .form-control,
+    #rsRomBackdrop .rom-bloco-ord .form-control {
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 44px;
+      padding: 10px 12px;
+      font-size: 14px;
+      line-height: 1.35;
+      border-radius: 8px;
+    }
+    /* Romaneio / Resumo picking: mesmo critério de respiro dos modais com “Fechar” (título + × + linha). */
+    #crRomBackdrop .rom-modal-header,
+    #rsRomBackdrop .rom-modal-header {
+      position: sticky;
+      top: 0;
+      z-index: 8;
+      background: inherit;
+      display: flex !important;
+      align-items: center;
+      justify-content: space-between !important;
+      gap: 12px;
+      margin: 0 0 16px 0;
+      padding: 14px 0 22px;
+      border-bottom: 1px solid #e2e8f0;
+      flex-wrap: nowrap;
+      box-sizing: border-box;
+    }
+    html[data-theme='dark'] #crRomBackdrop .rom-modal-header,
+    html[data-theme='dark'] #rsRomBackdrop .rom-modal-header { border-bottom-color: #334155; }
+    #crRomBackdrop .rom-modal-header h3,
+    #rsRomBackdrop .rom-modal-header h3 {
+      margin: 0;
+      flex: 1;
+      min-width: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    #crRomBackdrop .rom-modal-header .rom-modal-close,
+    #rsRomBackdrop .rom-modal-header .rom-modal-close {
+      flex-shrink: 0;
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      border: 1px solid #cbd5e1;
+      background: #f1f5f9;
+      color: #0f172a;
+      cursor: pointer;
+      font-size: 26px;
+      line-height: 1;
+      font-weight: 300;
+    }
+    #crRomBackdrop .rom-modal-header .rom-modal-close:hover,
+    #rsRomBackdrop .rom-modal-header .rom-modal-close:hover { background: #e2e8f0; }
+    html[data-theme='dark'] #crRomBackdrop .rom-modal-header .rom-modal-close,
+    html[data-theme='dark'] #rsRomBackdrop .rom-modal-header .rom-modal-close {
+      background: #1e293b;
+      border-color: #475569;
+      color: #f8fafc;
+    }
+    #rsRomBackdrop .rs-rom-aviso-continuo {
+      align-items: flex-start;
+      gap: 10px;
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid #93c5fd;
+      background: #eff6ff;
+      color: #1e3a5f;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    #rsRomBackdrop .rs-rom-aviso-continuo .bx {
+      flex-shrink: 0;
+      font-size: 20px;
+      color: #2563eb;
+      margin-top: 1px;
+    }
+    html[data-theme='dark'] #rsRomBackdrop .rs-rom-aviso-continuo {
+      border-color: #334155;
+      background: rgba(30, 58, 138, 0.35);
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] #rsRomBackdrop .rs-rom-aviso-continuo .bx { color: #60a5fa; }
+    #crRomBackdrop .rom-rodape-acoes,
+    #rsRomBackdrop .rom-rodape-acoes {
+      display: flex !important;
+      justify-content: flex-end !important;
+      margin-top: 8px;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    html[data-theme='dark'] #crRomBackdrop .rom-bloco-filtros label,
+    html[data-theme='dark'] #rsRomBackdrop .rom-bloco-filtros label,
+    html[data-theme='dark'] #crRomBackdrop .rom-bloco-ord label,
+    html[data-theme='dark'] #rsRomBackdrop .rom-bloco-ord label { color: #cbd5e1; }
+    html[data-theme='dark'] #crRomBackdrop .rom-bloco-filtros .form-control,
+    html[data-theme='dark'] #rsRomBackdrop .rom-bloco-filtros .form-control,
+    html[data-theme='dark'] #crRomBackdrop .rom-bloco-ord .form-control,
+    html[data-theme='dark'] #rsRomBackdrop .rom-bloco-ord .form-control {
+      background: #1e293b;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+  <div id="loadingOverlay" class="calculando-overlay" style="display: none;">
+    <div class="calculando-content">
+      <div class="calculando-spinner"></div>
+      <h3 id="loadingTitle">Carregando</h3>
+      <p id="loadingText">Aguarde...</p>
+      <p class="calculando-detalhe" id="loadingDetalhe"></p>
+    </div>
+  </div>
+
+  <div class="wms-carga-container">
+    <div class="wms-carga-header">
+      <h2><i class="bx bxs-truck" aria-hidden="true"></i> Cargas programadas</h2>
+      <button type="button" class="btn-filtro btn-filtro-limpar" id="btnVoltarEstoque"><i class="bx bx-arrow-back"></i> Estoque</button>
+    </div>
+
+    <div class="tabs tabs-com-icones">
+      <button type="button" class="tab-btn active" data-tab="nf"><i class="bx bx-filter-alt"></i> Filtros</button>
+      <button type="button" class="tab-btn" data-tab="cargas"><i class="bx bx-grid-alt"></i> Grid</button>
+      <button type="button" class="tab-btn" data-tab="detalhe" id="tabBtnDetalheCarga" style="display: none;"><i class="bx bx-edit"></i> Dados</button>
+    </div>
+
+    <div class="tab-content active" id="tab-nf">
+      <div class="filtros-box">
+        <h3><i class="bx bx-file"></i> Importar NF-e de saída</h3>
+        <p style="margin: 0 0 16px; color: #64748b; font-size: 14px; line-height: 1.5;">
+          O <strong>emitente</strong> do XML deve ser o <strong>dono do estoque</strong> (mesmo CNPJ do CGC cadastrado no dono). O CNPJ do <strong>cliente/entrega</strong> na nota não substitui o emitente. Selecionar o dono na lista classifica o estoque, mas não ignora essa regra. A nota fica disponível para compor uma <strong>carga programada</strong>.
+        </p>
+        <div class="filtros-grid">
+          <div>
+            <label for="impSaidaCdDono">Dono do estoque</label>
+            <select id="impSaidaCdDono" class="form-control"><option value="">Selecione… (ou inferir pelo emitente)</option></select>
+          </div>
+          <div>
+            <label for="impSaidaArquivo">Arquivo(s) XML</label>
+            <input type="file" id="impSaidaArquivo" class="form-control" accept=".xml,application/xml,text/xml" multiple />
+            <small style="display:block; margin-top:6px; color:#64748b;">Selecione vários XMLs de uma vez (sem upload de pasta).</small>
+          </div>
+        </div>
+        <div class="filtros-actions">
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnImportarNfSaida"><i class="bx bx-upload"></i> Importar</button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnAtualizarListaNf"><i class="bx bx-refresh"></i> Atualizar lista</button>
+        </div>
+      </div>
+      <div class="filtros-box">
+        <h3><i class="bx bx-list-ul"></i> NF-e de saída importadas</h3>
+        <div class="filtros-grid" style="margin-bottom: 10px;">
+          <div>
+            <label for="filtroNfCdDono"><i class="bx bx-buildings"></i> Dono do estoque</label>
+            <select id="filtroNfCdDono" class="form-control" title="Filtra NF-e pelo dono gravado na importação">
+              <option value="">Todos</option>
+            </select>
+          </div>
+          <div>
+            <label for="filtroNfEmCarga">Em carga</label>
+            <select id="filtroNfEmCarga" class="form-control">
+              <option value="">Todos</option>
+              <option value="S">Sim</option>
+              <option value="N">Não</option>
+            </select>
+          </div>
+          <div>
+            <label for="filtroNfEmissaoDe">Emissão de</label>
+            <input type="date" id="filtroNfEmissaoDe" class="form-control" />
+          </div>
+          <div>
+            <label for="filtroNfEmissaoAte">Emissão até</label>
+            <input type="date" id="filtroNfEmissaoAte" class="form-control" />
+          </div>
+          <div>
+            <label for="filtroNfNumero">Número NF</label>
+            <input type="text" id="filtroNfNumero" class="form-control" placeholder="Ex.: 123456" maxlength="20" />
+          </div>
+          <div>
+            <label for="filtroNfSerie">Série</label>
+            <input type="text" id="filtroNfSerie" class="form-control" placeholder="Ex.: 1" maxlength="10" />
+          </div>
+          <div>
+            <label for="filtroNfPedido">Pedido (xPed)</label>
+            <input type="text" id="filtroNfPedido" class="form-control" placeholder="Ex.: 72554" maxlength="20" />
+          </div>
+          <div>
+            <label for="filtroNfCodigoProd">Código produto</label>
+            <input type="text" id="filtroNfCodigoProd" class="form-control" placeholder="Ex.: 6.03.04.255" maxlength="40" />
+          </div>
+          <div>
+            <label for="filtroNfDescProd">Descrição produto</label>
+            <input type="text" id="filtroNfDescProd" class="form-control" placeholder="Ex.: FEIJAO PRETO" maxlength="80" />
+          </div>
+          <div>
+            <label for="filtroNfSaidaDe">Saída de</label>
+            <input type="date" id="filtroNfSaidaDe" class="form-control" title="Data de saída da mercadoria no XML (ide.dSaiEnt)" />
+          </div>
+          <div>
+            <label for="filtroNfSaidaAte">Saída até</label>
+            <input type="date" id="filtroNfSaidaAte" class="form-control" title="Data de saída da mercadoria no XML (ide.dSaiEnt)" />
+          </div>
+        </div>
+        <div style="margin-bottom: 12px;">
+          <label style="display: inline-flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; cursor: pointer;">
+            <input type="checkbox" id="filtroNfCadPendente" />
+            Somente NF com cadastro de entrega pendente (rascunho)
+          </label>
+        </div>
+        <p style="margin: 0 0 10px; color: #64748b; font-size: 13px; line-height: 1.45;">
+          Pedido, código e descrição buscam nos <strong>itens</strong> da nota (LINHAS_JSON). Saída = data do XML (<code>ide.dSaiEnt</code>); notas antigas só têm saída após reimportar o XML.
+        </p>
+        <div class="filtros-actions" style="margin-top: 0; margin-bottom: 12px;">
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnFiltrarNf"><i class="bx bx-search"></i> Filtrar</button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnLimparFiltroNf"><i class="bx bx-x"></i> Limpar</button>
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnAbrirNfEePendentes" style="display: none;"><i class="bx bx-map-pin"></i> Cadastros pendentes</button>
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnExportarNfImportadas"><i class="bx bx-download"></i> Exportar CSV</button>
+        </div>
+        <div id="listaNfSaida" class="wms-sep-table-wrap wms-sep-table-wrap-scroll">
+          <p class="empty" style="padding: 16px;">Carregando…</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-cargas">
+      <div class="filtros-box">
+        <h3><i class="bx bx-plus-circle"></i> Nova carga programada</h3>
+        <div class="filtros-grid">
+          <div>
+            <label for="novaCargaDesc">Descrição (opcional)</label>
+            <input type="text" id="novaCargaDesc" class="form-control" placeholder="Ex.: Rota Sul 28/04" maxlength="200" />
+          </div>
+          <div>
+            <label for="novaCargaDono">Dono do estoque (opcional)</label>
+            <select id="novaCargaDono" class="form-control"><option value="">— Rota mista / definir pelas NF —</option></select>
+            <p class="form-hint" style="margin: 4px 0 0; font-size: 11px; color: #64748b;">
+              Na montagem, bipe as notas: o dono é o emitente de cada NF (importação XML). Opcional aqui só se a rota for de um único dono.
+            </p>
+          </div>
+        </div>
+        <div class="filtros-actions">
+          <button type="button" class="btn-filtro btn-filtro-novo" id="btnCriarCarga"><i class="bx bx-plus"></i> Criar carga</button>
+        </div>
+      </div>
+      <div class="filtros-box">
+        <h3><i class="bx bx-grid-alt"></i> Cargas</h3>
+        <form id="formFiltroCargas" onsubmit="return false;">
+          <div class="filtros-grid">
+            <div>
+              <label for="filtroCargaSt">Montagem (ST_CARGA)</label>
+              <select id="filtroCargaSt" class="form-control">
+                <option value="">Todas</option>
+                <option value="RASCUNHO">Rascunho</option>
+                <option value="EM_EXPEDICAO">Em expedição</option>
+                <option value="EXPEDIDA">Expedida</option>
+              </select>
+            </div>
+            <div>
+              <label for="filtroCargaStExp">Expedição</label>
+              <select id="filtroCargaStExp" class="form-control">
+                <option value="">Todas</option>
+                <option value="NAO_EXPEDIDA">Ainda não saiu (não expedida)</option>
+                <option value="SEM_REGISTRO">Sem registro de expedição</option>
+                <option value="PRONTA_EXPEDICAO">Pronta para expedição</option>
+                <option value="EM_EXPEDICAO">Em expedição</option>
+                <option value="EXPEDIDA">Expedida (já saiu)</option>
+              </select>
+              <p class="form-hint" style="margin: 4px 0 0; font-size: 11px; color: #64748b;">
+                Para ver cargas na base que ainda não foram confirmadas como saída, use <strong>Ainda não saiu</strong>.
+              </p>
+            </div>
+            <div>
+              <label for="filtroCargaDhDe">Criada a partir de</label>
+              <input type="date" id="filtroCargaDhDe" class="form-control" />
+            </div>
+            <div>
+              <label for="filtroCargaDhAte">Criada até</label>
+              <input type="date" id="filtroCargaDhAte" class="form-control" />
+            </div>
+            <div>
+              <label for="filtroCargaDhExpDe">Saída confirmada a partir de</label>
+              <input type="date" id="filtroCargaDhExpDe" class="form-control" title="Data de Confirmar saída na Expedição (DH_SAIDA)" />
+            </div>
+            <div>
+              <label for="filtroCargaDhExpAte">Saída confirmada até</label>
+              <input type="date" id="filtroCargaDhExpAte" class="form-control" />
+              <p class="form-hint" style="margin: 4px 0 0; font-size: 11px; color: #64748b;">
+                Usa a data de <strong>Confirmar saída</strong> (Expedição). Combine com <strong>Expedida</strong> para ver o embarcado no dia.
+              </p>
+            </div>
+            <div>
+              <label for="filtroCargaBusca">Busca (ID ou descrição)</label>
+              <input type="text" id="filtroCargaBusca" class="form-control" placeholder="Ex.: 42 ou Rota Sul" maxlength="120" />
+            </div>
+            <div>
+              <label for="filtroCargaNumeroNf">Número NF</label>
+              <input type="text" id="filtroCargaNumeroNf" class="form-control" placeholder="Ex.: 123456" maxlength="20" title="Filtra cargas que contêm esta NF e restringe linhas no CSV" />
+            </div>
+            <div>
+              <label for="filtroCargaSerie">Série NF</label>
+              <input type="text" id="filtroCargaSerie" class="form-control" placeholder="Opcional" maxlength="10" />
+            </div>
+            <div>
+              <label for="filtroCargaIdViagem">ID viagem</label>
+              <input type="number" id="filtroCargaIdViagem" class="form-control" placeholder="Opcional" min="1" step="1" title="Filtra cargas com rota/viagem calculada" />
+            </div>
+            <div>
+              <label for="filtroCargaPageSize">Por página</label>
+              <select id="filtroCargaPageSize" class="form-control">
+                <option value="25">25</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+              </select>
+            </div>
+          </div>
+          <div class="filtros-actions">
+            <button type="button" class="btn-filtro btn-filtro-limpar" id="btnFiltroCargasLimpar"><i class="bx bx-x"></i> Limpar</button>
+            <button type="submit" class="btn-filtro btn-filtro-aplicar" id="btnFiltroCargasAplicar"><i class="bx bx-search"></i> Filtrar</button>
+            <button type="button" class="btn-filtro btn-filtro-limpar" id="btnAtualizarCargas"><i class="bx bx-refresh"></i> Atualizar</button>
+          </div>
+        </form>
+        <div class="filtros-actions" style="margin-top: 12px; margin-bottom: 4px; justify-content: flex-start; flex-wrap: wrap;">
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnResumoProgramacaoCargas"><i class="bx bx-printer"></i> Resumo programação (filtros)</button>
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnExportarNfCargas"><i class="bx bx-download"></i> Exportar NF (CSV)</button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnResumoEmbarcadas" title="Ignora filtro de expedição e lista só cargas já expedidas"><i class="bx bx-package"></i> Resumo embarcadas (expedidas)</button>
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnMesclarCargas"><i class="bx bx-git-merge"></i> Mesclar cargas</button>
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnDistribuirNfRota" title="Vincula NF-e disponíveis às cargas em rascunho conforme NR_ROTA do cadastro de endereços de entrega"><i class="bx bx-transfer-alt"></i> Distribuir NF por rota</button>
+        </div>
+        <p class="form-hint" style="margin: 8px 0 0; font-size: 11px; color: #64748b;">
+          <strong>Exportar NF (CSV):</strong> uma linha por nota (chave, número, carga, expedição, destino…) — use os filtros acima, inclusive <strong>Número NF</strong>, para conciliar cancelamentos.
+        </p>
+        <p class="form-hint" style="margin: 0 0 12px; font-size: 11px; color: #64748b;">
+          O resumo usa os <strong>filtros acima</strong> (datas, busca, expedição). Para ver o que já saiu, use <strong>Expedição = Expedida</strong> ou o botão <strong>Resumo embarcadas</strong>.
+        </p>
+        <div id="listaCargas" class="wms-sep-table-wrap wms-sep-table-wrap-scroll">
+          <p class="empty" style="padding: 16px;">Carregando…</p>
+        </div>
+        <div id="cargaListPaginacao" class="filtros-actions" style="margin-top: 12px; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px;"></div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-detalhe">
+      <div class="filtros-box">
+        <div class="filtros-actions" style="justify-content: space-between; margin-top: 0; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; align-items: center;">
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnFecharDetalheCarga"><i class="bx bx-arrow-back"></i> Voltar às cargas</button>
+          <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+            <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnImprimirResumoCarga"><i class="bx bx-printer"></i> Imprimir resumo ¹</button>
+            <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnImprimirFriosCarga"><i class="bx bx-printer"></i> Imprimir resumo ²</button>
+          </div>
+        </div>
+        <div class="carga-meta" id="cargaDetalheMeta"></div>
+        <div id="cargaDetalheDonoBox" class="filtros-box" style="margin: 12px 0 16px; padding: 12px 14px;">
+          <h4 style="margin: 0 0 6px; font-size: 0.95rem;"><i class="bx bx-user"></i> Dono do estoque da carga</h4>
+          <p class="hint" style="margin: 0 0 10px;">
+            Campo editável do cabeçalho da carga (usado na expedição). Diferente de <strong>Donos (NF)</strong> acima, que só mostram o emitente das notas.
+            Se divergir das NF, a expedição bloqueia — altere aqui ou use <strong>Alinhar às NF</strong>.
+          </p>
+          <div class="filtros-grid" style="max-width: 640px; align-items: end;">
+            <div>
+              <label for="detalheCargaDono">Dono</label>
+              <select id="detalheCargaDono" class="form-control">
+                <option value="">— Rota mista / definir pelas NF —</option>
+              </select>
+            </div>
+            <div class="filtros-actions" style="margin-top: 0; flex-wrap: wrap; gap: 8px;">
+              <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnSalvarDonoCargaDetalhe"><i class="bx bx-save"></i> Salvar dono</button>
+              <button type="button" class="btn-filtro btn-filtro-limpar" id="btnAlinharDonoCargaNf" title="Define o dono da carga igual ao das NF (quando todas forem do mesmo dono)"><i class="bx bx-link"></i> Alinhar às NF</button>
+            </div>
+          </div>
+          <div id="detalheCargaDonoAviso" class="hint" style="display: none; margin-top: 10px; padding: 8px 10px; border-radius: 6px;" role="status"></div>
+        </div>
+        <div id="cargaResumoLogisticoBox" class="filtros-box wms-resumo-logistico-box" style="margin: 16px 0; display: none;">
+          <h3 style="margin-top: 0;"><i class="bx bx-bar-chart-alt-2"></i> Programação — peso e volumes (NF-e)</h3>
+          <p class="hint" style="margin-top: 0;">
+            Totais para definir veículo (como a planilha de rotas). Peso = <code>PESO_KG</code> do cadastro WMS × quantidade de cada linha da NF-e — mesma regra do PDF <strong>Resumo programação</strong> e da coluna Peso do resumo executivo.
+            <strong>Imprimir resumo ¹</strong> com filtro de unidade ou destino mostra peso só da seleção (menor que o total da carga aqui).
+            <strong>Unidades</strong> = soma das quantidades da nota (não é m³ nem palete).
+          </p>
+          <div id="cargaResumoLogisticoTotais" class="wms-resumo-log-totais"></div>
+          <div id="cargaResumoLogisticoAviso" class="hint" style="display: none; margin-top: 8px;"></div>
+          <div id="cargaResumoLogisticoDestinosWrap" style="margin-top: 12px; display: none;">
+            <div class="wms-dest-resumo-head">
+              <h4 style="margin: 0; font-size: 0.95rem;">Por destino (município / entrega)</h4>
+              <div class="filtros-actions wms-dest-resumo-head-actions">
+                <button type="button" class="btn-filtro btn-filtro-limpar" id="btnDestResumoExpandAll" title="Mostrar lista de NF de cada parada"><i class="bx bx-expand-alt"></i> Expandir todas</button>
+                <button type="button" class="btn-filtro btn-filtro-limpar" id="btnDestResumoCollapseAll" title="Só resumo por parada"><i class="bx bx-collapse-alt"></i> Recolher todas</button>
+              </div>
+            </div>
+            <p class="hint" style="margin: 6px 0 8px;">Clique na linha para ver as NF da parada. Use <strong>Ver NF</strong> para filtrar a lista abaixo.</p>
+            <div id="cargaResumoLogisticoDestinos" class="wms-dest-accordion-wrap"></div>
+          </div>
+        </div>
+        <div id="cargaProgramacaoBloqueioBanner" class="wms-programacao-bloqueada" style="display: none" role="status" aria-live="polite"></div>
+        <div class="filtros-box" id="wmsRotaOperacionalBox" style="margin: 16px 0;">
+          <h3 style="margin-top: 0;"><i class="bx bx-map"></i> Rota operacional (planejamento)</h3>
+          <p class="hint" style="margin-top: 0;">
+            Planejamento de rota e geração de viagem em rascunho. <strong>Não altera</strong> expedição nem NF-e.
+            Paradas precisam bater com endereços de entrega com coordenadas no cadastro.
+          </p>
+          <div class="filtros-grid" style="max-width: 980px;">
+            <div style="grid-column: 1 / -1;">
+              <label for="wmsRotaUnidadeEmbarque">Unidade de negócio (embarque no cadastro)</label>
+              <select id="wmsRotaUnidadeEmbarque" class="form-control">
+                <option value="">— Informar coordenadas manualmente —</option>
+              </select>
+              <small class="hint">Opcional: unidades de negócio cadastradas (Gerenciar Cadastro Geral). Ao selecionar, o embarque usa as coordenadas do cadastro.</small>
+            </div>
+            <div style="grid-column: 1 / -1;">
+              <label for="wmsRotaOrigemCoord">Coordenadas de embarque (lat, lon)</label>
+              <input type="text" id="wmsRotaOrigemCoord" class="form-control" maxlength="120" placeholder="-25.50, -49.25" autocomplete="off" />
+              <small class="hint">Preencha se não escolher unidade acima (latitude, longitude, separadas por vírgula).</small>
+            </div>
+            <div>
+              <label for="wmsRotaOrigemLabel">Nome do embarque (opcional)</label>
+              <input type="text" id="wmsRotaOrigemLabel" class="form-control" maxlength="200" placeholder="Ex.: CD Matriz / Pátio X" />
+            </div>
+            <div>
+              <label for="wmsRotaRetornaOrigem">Retornar ao embarque ao final</label>
+              <select id="wmsRotaRetornaOrigem" class="form-control">
+                <option value="S" selected>Sim</option>
+                <option value="N">Não</option>
+              </select>
+            </div>
+          </div>
+          <div class="filtros-actions" style="margin-top: 8px;">
+            <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnWmsPlanejarParadas"><i class="bx bx-list-ul"></i> Montar paradas (NF)</button>
+            <button type="button" class="btn-filtro btn-filtro-novo" id="btnWmsCalcularRota"><i class="bx bx-trip"></i> Calcular rota (OSRM) e salvar</button>
+            <button type="button" class="btn-filtro btn-filtro-novo" id="btnWmsGerarViagemRascunho"><i class="bx bx-navigation"></i> Gerar viagem (rascunho)</button>
+          </div>
+          <div id="wmsRotaOperacionalPreviaParadas" class="hint" style="margin-top: 10px; white-space: pre-wrap; display: none;"></div>
+          <div id="wmsRotaOperacionalResumo" class="hint" style="margin-top: 12px; white-space: pre-wrap;">—</div>
+        </div>
+        <div id="cargaNfProgramacaoBox" class="filtros-box" style="margin: 16px 0;">
+          <h3 style="margin-top: 0;"><i class="bx bx-link"></i> Notas nesta carga</h3>
+          <p class="hint" style="margin-top: 0;">
+            A <strong>ordem gravada</strong> na programação não é alterada aqui (use expedição / rota operacional para sequência de saída).
+            Filtre um ponto de entrega para ver só as NF daquele local ou transferir o bloco para balancear peso entre cargas.
+          </p>
+          <div class="filtros-grid" style="max-width: 980px;">
+            <div>
+              <label for="filtroDetalheDestino">Filtrar por entrega</label>
+              <select id="filtroDetalheDestino" class="form-control">
+                <option value="">Todos os destinos</option>
+              </select>
+            </div>
+            <div>
+              <label for="modoListaNfDetalhe">Exibição</label>
+              <select id="modoListaNfDetalhe" class="form-control">
+                <option value="plana">Lista plana (ordem)</option>
+                <option value="grupo" selected>Por endereço de entrega</option>
+              </select>
+            </div>
+          </div>
+          <div class="filtros-actions" style="margin-top: 8px; margin-bottom: 12px;">
+            <button type="button" class="btn-filtro btn-filtro-limpar" id="btnLimparFiltroDestinoNf"><i class="bx bx-x"></i> Limpar filtro</button>
+            <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnTransferirDestinoNf" style="display: none;"><i class="bx bx-transfer"></i> Transferir destino para outra carga</button>
+          </div>
+          <div id="listaCargaNfes" class="wms-sep-table-wrap wms-sep-table-wrap-scroll" style="margin-bottom: 8px;">
+            <p class="empty" style="padding: 16px;">—</p>
+          </div>
+          <p id="cargaNfFiltroResumo" class="hint" style="display: none; margin: 0;"></p>
+        </div>
+        <h3><i class="bx bx-plus"></i> Incluir NF disponível</h3>
+        <div class="filtros-grid" style="max-width: 720px;">
+          <div style="grid-column: 1 / -1;">
+            <label for="selNfDisponivel">NF ainda não vinculada a nenhuma carga</label>
+            <select id="selNfDisponivel" class="form-control" title="Ordenado por UF e cidade de entrega, unidade e número da NF">
+              <option value="">Carregue as disponíveis…</option>
+            </select>
+            <p class="hint" style="margin:6px 0 0;font-size:13px;">
+              Exibição: <strong>UF — Cidade — Unidade de entrega — NF/Série</strong> (local de entrega da nota, não o cadastro do destinatário).
+            </p>
+          </div>
+          <div style="grid-column: 1 / -1;">
+            <label for="inputChaveNfCarga">Bipar chave da NF-e (44 dígitos)</label>
+            <input type="text" id="inputChaveNfCarga" class="form-control" inputmode="numeric" autocomplete="off" placeholder="Bipe ou digite a chave completa da NF-e" />
+          </div>
+        </div>
+        <div class="filtros-actions">
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnFecharDetalheCargaIncluir" title="Voltar à lista de cargas"><i class="bx bx-arrow-back"></i> Voltar às cargas</button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnBiparNfCarga"><i class="bx bx-barcode-reader"></i> Buscar pela chave</button>
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnAdicionarNfCarga"><i class="bx bx-link"></i> Adicionar à carga</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="message" class="message" style="display: none;"></div>
+  <div id="nfDetalheModal" class="wms-modal-backdrop">
+    <div class="wms-modal">
+      <div class="filtros-actions wms-modal-header" style="justify-content: space-between; margin-top: 0; margin-bottom: 16px;">
+        <h3><i class="bx bx-receipt"></i> Espelho da NF-e</h3>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnCopiarChaveNfDetalhe" style="display: none;" title="Copiar chave de acesso da NF-e (44 dígitos)"><i class="bx bx-copy"></i> Copiar chave</button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnExcluirNfDetalhe" title="Excluir importação desta NF-e"><i class="bx bx-trash"></i> Excluir importação</button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnFecharNfDetalhe"><i class="bx bx-x"></i> Fechar</button>
+        </div>
+      </div>
+      <div id="nfDetalheConteudo"><p class="empty">Carregando…</p></div>
+    </div>
+  </div>
+  <div id="cargaEditModal" class="wms-modal-backdrop">
+    <div class="wms-modal" style="width: min(560px, 96vw); max-height: unset;">
+      <div class="filtros-actions wms-modal-header" style="justify-content: flex-start; margin-top: 0; margin-bottom: 12px;">
+        <h3><i class="bx bx-edit"></i> Editar carga</h3>
+      </div>
+      <div class="filtros-grid" style="margin-bottom: 0;">
+        <div style="grid-column: 1 / -1;">
+          <label for="cargaEditDescricao">Descrição da carga *</label>
+          <input type="text" id="cargaEditDescricao" class="form-control" maxlength="200" />
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label for="cargaEditDono">Dono do estoque da carga</label>
+          <select id="cargaEditDono" class="form-control">
+            <option value="">— Rota mista / definir pelas NF —</option>
+          </select>
+          <small class="hint">Se divergir do dono das NF, a expedição pedirá alinhamento.</small>
+        </div>
+      </div>
+      <div class="filtros-actions" style="margin-top: 16px;">
+        <button type="button" class="btn-filtro btn-filtro-limpar" id="btnCancelarCargaEditModal"><i class="bx bx-x"></i> Cancelar</button>
+        <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnSalvarCargaEditModal"><i class="bx bx-save"></i> Salvar</button>
+      </div>
+    </div>
+  </div>
+  <div id="cargaDeleteModal" class="wms-modal-backdrop">
+    <div class="wms-modal" style="width: min(560px, 96vw); max-height: unset;">
+      <div class="filtros-actions wms-modal-header" style="justify-content: space-between; margin-top: 0; margin-bottom: 12px;">
+        <h3><i class="bx bx-trash"></i> Excluir carga</h3>
+        <button type="button" class="btn-filtro btn-filtro-limpar" id="btnFecharCargaDeleteModal"><i class="bx bx-x"></i> Fechar</button>
+      </div>
+      <p style="margin: 0;">Confirma exclusão da carga <strong id="cargaDeleteLabel">#—</strong>?</p>
+      <p class="carga-delete-modal-regra" style="margin: 10px 0 0; font-size: 14px; line-height: 1.45; color: #475569;">
+        O sistema só aceita exclusão quando <strong>todos</strong> os requisitos abaixo se cumprem ao mesmo tempo:
+        montagem em <strong>Rascunho</strong>, <strong>sem</strong> NF-e na carga e expedição <strong>não</strong> em andamento nem já expedida
+        (o botão “Excluir” na lista só aparece nesse caso).
+      </p>
+      <div class="filtros-actions" style="margin-top: 16px;">
+        <button type="button" class="btn-filtro btn-filtro-limpar" id="btnCancelarCargaDeleteModal"><i class="bx bx-x"></i> Cancelar</button>
+        <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnConfirmarCargaDeleteModal"><i class="bx bx-trash"></i> Excluir</button>
+      </div>
+    </div>
+  </div>
+  <div id="nfRemoveModal" class="wms-modal-backdrop">
+    <div class="wms-modal" style="width: min(560px, 96vw); max-height: unset;">
+      <div class="filtros-actions wms-modal-header" style="justify-content: space-between; margin-top: 0; margin-bottom: 12px;">
+        <h3><i class="bx bx-unlink"></i> Remover NF da carga</h3>
+        <button type="button" class="btn-filtro btn-filtro-limpar" id="btnFecharNfRemoveModal"><i class="bx bx-x"></i> Fechar</button>
+      </div>
+      <p style="margin: 0;">Confirma remover esta NF da carga?</p>
+      <div class="filtros-actions" style="margin-top: 16px;">
+        <button type="button" class="btn-filtro btn-filtro-limpar" id="btnCancelarNfRemoveModal"><i class="bx bx-x"></i> Cancelar</button>
+        <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnConfirmarNfRemoveModal"><i class="bx bx-unlink"></i> Remover</button>
+      </div>
+    </div>
+  </div>
+  <div id="nfExcluirModal" class="wms-modal-backdrop">
+    <div class="wms-modal" style="width: min(560px, 96vw); max-height: unset;">
+      <div class="filtros-actions wms-modal-header" style="justify-content: space-between; margin-top: 0; margin-bottom: 12px;">
+        <h3><i class="bx bx-trash"></i> Excluir importação da NF-e</h3>
+        <button type="button" class="btn-filtro btn-filtro-limpar" id="btnFecharNfExcluirModal"><i class="bx bx-x"></i> Fechar</button>
+      </div>
+      <p style="margin: 0;">Confirma excluir definitivamente a importação <strong id="nfExcluirLabel">—</strong>?</p>
+      <p class="form-hint" style="margin: 10px 0 0; font-size: 13px; line-height: 1.45; color: #64748b;">
+        Só é permitido se a NF <strong>não</strong> estiver vinculada a nenhuma carga. Esta ação não pode ser desfeita.
+      </p>
+      <div class="filtros-actions" style="margin-top: 16px;">
+        <button type="button" class="btn-filtro btn-filtro-limpar" id="btnCancelarNfExcluirModal"><i class="bx bx-x"></i> Cancelar</button>
+        <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnConfirmarNfExcluirModal"><i class="bx bx-trash"></i> Excluir</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="nfEnderecoPendenteModal" class="wms-modal-backdrop">
+    <div class="wms-modal" style="width: min(760px, 96vw); max-height: 90vh; display: flex; flex-direction: column;">
+      <div class="filtros-actions wms-modal-header" style="justify-content: space-between; margin-top: 0; margin-bottom: 12px; flex-shrink: 0;">
+        <h3><i class="bx bx-map-pin"></i> Cadastro de entrega pendente</h3>
+        <button type="button" class="btn-filtro btn-filtro-limpar" id="btnFecharNfEePendenteModal"><i class="bx bx-x"></i> Fechar</button>
+      </div>
+      <p id="nfEePendenteResumo" class="nf-ee-pendente-resumo"></p>
+      <div class="nf-ee-pendente-acoes-top">
+        <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnNfEeCompletarPrimeiro" style="display: none;">
+          <i class="bx bx-edit"></i> Completar o primeiro da lista
+        </button>
+        <button type="button" class="btn-filtro btn-filtro-limpar" id="btnNfEeFiltrarListaPendentes">
+          <i class="bx bx-filter-alt"></i> Ver só pendentes na lista
+        </button>
+      </div>
+      <div class="wms-sep-table-wrap wms-sep-table-wrap-scroll" style="flex: 1; min-height: 120px; margin-bottom: 12px;">
+        <div id="nfEePendenteLista"></div>
+      </div>
+      <p class="form-hint" style="margin: 0; font-size: 13px; line-height: 1.45; color: #64748b; flex-shrink: 0;">
+        Preencha <strong>rota</strong> e <strong>coordenadas</strong>, salve, depois use <strong>Próximo da fila</strong> no Cadastro Geral — ou volte aqui pelo botão <strong>Cadastros pendentes</strong> (sem reimportar XML).
+      </p>
+    </div>
+  </div>
+
+  <div id="crRomBackdrop" class="wms-modal-backdrop" style="display: none;">
+    <div class="wms-modal">
+      <div class="wms-modal-header rom-modal-header">
+        <h3><i class="bx bx-printer"></i> Romaneio Modelo 2</h3>
+        <button type="button" class="rom-modal-close" id="btnCrRomFechar" aria-label="Fechar"><span aria-hidden="true">×</span></button>
+      </div>
+      <p id="crRomTituloDinamico" class="rom-din-tit" aria-live="polite"></p>
+      <div class="rom-sec">
+        <div class="rom-sec-titulo">Opções do relatório</div>
+        <div class="rom-bloco-filtros">
+          <div>
+            <label for="crRomConservacao">Romaneio — conservação</label>
+            <select id="crRomConservacao" class="form-control">
+              <option value="todos">Todos os produtos</option>
+              <option value="refri">Só refrigerado / congelado</option>
+              <option value="seco">Só seco / ambiente</option>
+            </select>
+          </div>
+          <div>
+            <label for="crRomAgrupar">Romaneio — linhas</label>
+            <select id="crRomAgrupar" class="form-control">
+              <option value="1">Somar qtd. por código no mesmo destinatário / NF</option>
+              <option value="0">Uma linha por item da NF (detalhado)</option>
+            </select>
+          </div>
+          <div>
+            <label for="crRomFolhas">Romaneio — folhas</label>
+            <select id="crRomFolhas" class="form-control">
+              <option value="nota">Uma folha por NF (recomendado)</option>
+              <option value="dest">Uma folha por destino (UF + município + CNPJ entrega)</option>
+              <option value="endereco">Uma folha por endereço de entrega</option>
+              <option value="continuo">Listagem contínua (sem quebra)</option>
+            </select>
+          </div>
+          <div>
+            <label for="crRomCdDono">Dono do estoque</label>
+            <select id="crRomCdDono" class="form-control">
+              <option value="">Todos os donos</option>
+            </select>
+          </div>
+          <div class="rom-filtro-geo">
+            <div>
+              <label for="crRomUnidade">Unidade de destino (cidade/UF)
+                <span id="crRomUnidContador" class="rom-filtro-cont"></span>
+              </label>
+              <select id="crRomUnidade" class="form-control" title="Filtra por município/UF de entrega da NF-e.">
+                <option value="">Todas as unidades</option>
+              </select>
+            </div>
+            <div>
+              <label for="crRomDestino">Local de entrega / destino
+                <span id="crRomDestContador" class="rom-filtro-cont"></span>
+              </label>
+              <select id="crRomDestino" class="form-control" title="Cliente ou unidade de entrega (ex.: rede — loja).">
+                <option value="">Todos os destinos</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label for="crRomCodigo">Código do produto
+              <span id="crRomCodContador" class="rom-filtro-cont"></span>
+            </label>
+            <select id="crRomCodigo" class="form-control" title="Filtra o romaneio por um código de produto da carga.">
+              <option value="">Todos os códigos</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="rom-sec">
+        <div class="rom-sec-titulo">Ordenação</div>
+        <div class="rom-bloco-ord">
+        <div>
+          <label for="crRomOrd1">Ordenação 1</label>
+          <select id="crRomOrd1" class="form-control">
+            <option value="unidade">Unidade (cidade/UF)</option>
+            <option value="destino">Destino (cliente)</option>
+            <option value="conservacao">Conservação</option>
+            <option value="categoria">Categoria (WMS)</option>
+            <option value="nome">Nome</option>
+            <option value="codigo">Código</option>
+          </select>
+        </div>
+        <div>
+          <label for="crRomOrd2">Ordenação 2</label>
+          <select id="crRomOrd2" class="form-control">
+            <option value="destino">Destino (cliente)</option>
+            <option value="unidade">Unidade (cidade/UF)</option>
+            <option value="conservacao">Conservação</option>
+            <option value="categoria">Categoria (WMS)</option>
+            <option value="nome">Nome</option>
+            <option value="codigo">Código</option>
+            <option value="">(não usar)</option>
+          </select>
+        </div>
+        <div>
+          <label for="crRomOrd3">Ordenação 3</label>
+          <select id="crRomOrd3" class="form-control">
+            <option value="conservacao">Conservação</option>
+            <option value="categoria">Categoria (WMS)</option>
+            <option value="nome">Nome</option>
+            <option value="codigo">Código</option>
+            <option value="unidade">Unidade (cidade/UF)</option>
+            <option value="destino">Destino (cliente)</option>
+            <option value="">(não usar)</option>
+          </select>
+        </div>
+        <div>
+          <label for="crRomOrd4">Ordenação 4</label>
+          <select id="crRomOrd4" class="form-control">
+            <option value="categoria">Categoria (WMS)</option>
+            <option value="nome">Nome</option>
+            <option value="codigo">Código</option>
+            <option value="conservacao">Conservação</option>
+            <option value="unidade">Unidade (cidade/UF)</option>
+            <option value="destino">Destino (cliente)</option>
+            <option value="">(não usar)</option>
+          </select>
+        </div>
+        <div>
+          <label for="crRomOrd5">Ordenação 5</label>
+          <select id="crRomOrd5" class="form-control">
+            <option value="nome">Nome</option>
+            <option value="codigo">Código</option>
+            <option value="categoria">Categoria (WMS)</option>
+            <option value="conservacao">Conservação</option>
+            <option value="unidade">Unidade (cidade/UF)</option>
+            <option value="destino">Destino (cliente)</option>
+            <option value="">(não usar)</option>
+          </select>
+        </div>
+      </div>
+      </div>
+      <div class="rom-rodape-acoes">
+        <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnCrRomGerar"><i class="bx bx-printer"></i> Gerar impressão</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="rsRomBackdrop" class="wms-modal-backdrop" style="display: none;">
+    <div class="wms-modal">
+      <div class="wms-modal-header rom-modal-header">
+        <h3><i class="bx bx-printer"></i> Resumo de picking</h3>
+        <button type="button" class="rom-modal-close" id="btnRsRomFechar" aria-label="Fechar"><span aria-hidden="true">×</span></button>
+      </div>
+      <p id="rsRomTituloDinamico" class="rom-din-tit" aria-live="polite"></p>
+      <div class="rom-sec">
+        <div class="rom-sec-titulo">Opções do relatório</div>
+        <div class="rom-bloco-filtros">
+          <div>
+            <label for="rsRomConservacao">Romaneio — conservação</label>
+            <select id="rsRomConservacao" class="form-control">
+              <option value="todos">Todos os produtos</option>
+              <option value="refri">Só refrigerado / congelado</option>
+              <option value="seco">Só seco / ambiente</option>
+            </select>
+          </div>
+          <div>
+            <label for="rsRomAgrupar">Romaneio — linhas</label>
+            <select id="rsRomAgrupar" class="form-control">
+              <option value="1">Somar qtd. por código no mesmo destinatário / NF</option>
+              <option value="0">Uma linha por item da NF (detalhado)</option>
+            </select>
+          </div>
+          <div>
+            <label for="rsRomFolhas">Romaneio — folhas</label>
+            <select id="rsRomFolhas" class="form-control">
+              <option value="dono">Uma folha por dono do estoque</option>
+              <option value="nota">Uma folha por NF</option>
+              <option value="dest">Uma folha por destino (UF + município + CNPJ entrega)</option>
+              <option value="endereco">Uma folha por endereço de entrega</option>
+              <option value="continuo">Listagem contínua (sem quebra)</option>
+            </select>
+          </div>
+          <div>
+            <label for="rsRomCdDono">Dono do estoque</label>
+            <select id="rsRomCdDono" class="form-control">
+              <option value="">Todos os donos</option>
+            </select>
+          </div>
+          <div class="rom-filtro-geo">
+            <div>
+              <label for="rsRomUnidade">Unidade de destino (cidade/UF)
+                <span id="rsRomUnidContador" class="rom-filtro-cont"></span>
+              </label>
+              <select id="rsRomUnidade" class="form-control" title="Filtra por município/UF de entrega da NF-e.">
+                <option value="">Todas as unidades</option>
+              </select>
+            </div>
+            <div>
+              <label for="rsRomDestino">Local de entrega / destino
+                <span id="rsRomDestContador" class="rom-filtro-cont"></span>
+              </label>
+              <select id="rsRomDestino" class="form-control" title="Cliente ou unidade de entrega (ex.: rede — loja).">
+                <option value="">Todos os destinos</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label for="rsRomCodigo">Código do produto
+              <span id="rsRomCodContador" class="rom-filtro-cont"></span>
+            </label>
+            <select id="rsRomCodigo" class="form-control" title="Filtra o resumo por um código de produto da carga.">
+              <option value="">Todos os códigos</option>
+            </select>
+          </div>
+        </div>
+        <div id="rsRomAvisoContinuoDonos" class="rs-rom-aviso-continuo" style="display: none;" role="status">
+          <i class="bx bx-info-circle" aria-hidden="true"></i>
+          <div>
+            Com <strong>listagem contínua</strong> e <strong>todos os donos</strong>, o PDF fica em <strong>uma folha</strong> e o picking aparece em <strong>blocos separados por dono do estoque</strong>. Confira o dono de cada bloco antes de separar, para não misturar estoque entre donos.
+          </div>
+        </div>
+        <div class="rs-rom-aviso-continuo" style="margin-top: 8px;" role="note">
+          <i class="bx bx-info-circle" aria-hidden="true"></i>
+          <div>
+            O «Total geral (carga)» do romaneio usa <strong>PESO_KG × qCom</strong> (mesma regra do <strong>Peso estimado</strong> e do <strong>Resumo programação</strong>).
+            Com <strong>unidade</strong> ou <strong>destino</strong> filtrado, o peso no PDF é <strong>só da seleção</strong> — compare com o total da carga na tela ou no resumo executivo.
+          </div>
+        </div>
+      </div>
+      <div class="rom-sec">
+        <div class="rom-sec-titulo">Ordenação</div>
+        <div class="rom-bloco-ord">
+        <div>
+          <label for="rsRomOrd1">Ordenação 1</label>
+          <select id="rsRomOrd1" class="form-control">
+            <option value="unidade">Unidade (cidade/UF)</option>
+            <option value="destino">Destino (cliente)</option>
+            <option value="conservacao">Conservação</option>
+            <option value="categoria">Categoria (WMS)</option>
+            <option value="nome">Nome</option>
+            <option value="codigo">Código</option>
+          </select>
+        </div>
+        <div>
+          <label for="rsRomOrd2">Ordenação 2</label>
+          <select id="rsRomOrd2" class="form-control">
+            <option value="destino">Destino (cliente)</option>
+            <option value="unidade">Unidade (cidade/UF)</option>
+            <option value="conservacao">Conservação</option>
+            <option value="categoria">Categoria (WMS)</option>
+            <option value="nome">Nome</option>
+            <option value="codigo">Código</option>
+            <option value="">(não usar)</option>
+          </select>
+        </div>
+        <div>
+          <label for="rsRomOrd3">Ordenação 3</label>
+          <select id="rsRomOrd3" class="form-control">
+            <option value="conservacao">Conservação</option>
+            <option value="categoria">Categoria (WMS)</option>
+            <option value="nome">Nome</option>
+            <option value="codigo">Código</option>
+            <option value="unidade">Unidade (cidade/UF)</option>
+            <option value="destino">Destino (cliente)</option>
+            <option value="">(não usar)</option>
+          </select>
+        </div>
+        <div>
+          <label for="rsRomOrd4">Ordenação 4</label>
+          <select id="rsRomOrd4" class="form-control">
+            <option value="categoria">Categoria (WMS)</option>
+            <option value="nome">Nome</option>
+            <option value="codigo">Código</option>
+            <option value="conservacao">Conservação</option>
+            <option value="unidade">Unidade (cidade/UF)</option>
+            <option value="destino">Destino (cliente)</option>
+            <option value="">(não usar)</option>
+          </select>
+        </div>
+        <div>
+          <label for="rsRomOrd5">Ordenação 5</label>
+          <select id="rsRomOrd5" class="form-control">
+            <option value="nome">Nome</option>
+            <option value="codigo">Código</option>
+            <option value="categoria">Categoria (WMS)</option>
+            <option value="conservacao">Conservação</option>
+            <option value="unidade">Unidade (cidade/UF)</option>
+            <option value="destino">Destino (cliente)</option>
+            <option value="">(não usar)</option>
+          </select>
+        </div>
+      </div>
+      </div>
+      <div class="rom-rodape-acoes">
+        <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnRsRomGerar"><i class="bx bx-printer"></i> Gerar impressão</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="cargaDistribuirNfModal" class="wms-modal-backdrop">
+    <div class="wms-modal" style="width: min(920px, 96vw); max-height: 90vh; overflow: hidden; display: flex; flex-direction: column;">
+      <div class="filtros-actions wms-modal-header" style="justify-content: flex-start; margin-top: 0; margin-bottom: 12px; flex-shrink: 0;">
+        <h3><i class="bx bx-transfer-alt"></i> Distribuir NF-e por rota cadastrada</h3>
+      </div>
+      <p style="margin: 0 0 12px; color: #64748b; font-size: 14px; line-height: 1.5; flex-shrink: 0;">
+        Só entram NF-e <strong>sem carga</strong> (nunca notas já vinculadas a outra montagem). A rota vem do
+        <code>NR_ROTA</code> em <strong>Cadastro Geral → Endereços de entrega</strong>. Use os <strong>filtros do grid</strong>
+        (ex.: busca <em>04/08</em>) para limitar as cargas do dia.
+        A <strong>data de saída</strong> vem do XML (<code>ide.dSaiEnt</code>) — <em>não</em> é expedição WMS.
+        Com data na descrição da carga (ex. <em>Rota 1 - 04/08</em>), entram notas com saída <strong>no mesmo dia ou anterior</strong>
+        (backlog / NF retirada da montagem antes de expedir). Bloqueia só saída <strong>posterior</strong> à programação.
+      </p>
+      <div id="cargaDistribuirNfResumo" style="margin: 0 0 12px; font-size: 14px; line-height: 1.45; flex-shrink: 0;"></div>
+      <div id="cargaDistribuirNfDetalhe" class="wms-sep-table-wrap wms-sep-table-wrap-scroll" style="flex: 1 1 auto; min-height: 120px; max-height: 50vh;">
+        <p class="empty" style="padding: 16px;">Carregando prévia…</p>
+      </div>
+      <div class="filtros-actions" style="margin-top: 16px; flex-shrink: 0;">
+        <button type="button" class="btn-filtro btn-filtro-limpar" id="btnCancelarDistribuirNfModal"><i class="bx bx-x"></i> Cancelar</button>
+        <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnConfirmarDistribuirNfModal" disabled><i class="bx bx-check"></i> Confirmar distribuição</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="cargaMergeModal" class="wms-modal-backdrop">
+    <div class="wms-modal" style="width: min(640px, 96vw); max-height: unset;">
+      <div class="filtros-actions wms-modal-header" style="justify-content: flex-start; margin-top: 0; margin-bottom: 12px;">
+        <h3><i class="bx bx-git-merge"></i> Mesclar cargas</h3>
+      </div>
+      <p style="margin: 0 0 12px; color: #64748b; font-size: 14px; line-height: 1.5;">
+        As NF-e da carga de <strong>origem</strong> passam para a carga <strong>destino</strong> (a origem é removida). Apenas cargas em <strong>RASCUNHO</strong>.
+      </p>
+      <div class="filtros-grid">
+        <div>
+          <label for="cargaMergeOrigem">Carga de origem (precisa ter NF-e)</label>
+          <select id="cargaMergeOrigem" class="form-control"></select>
+        </div>
+        <div>
+          <label for="cargaMergeDestino">Carga destino (permanece)</label>
+          <select id="cargaMergeDestino" class="form-control"></select>
+        </div>
+      </div>
+      <div style="margin-top: 14px;">
+        <div style="font-weight: 600; margin-bottom: 8px; color: var(--dark, #1e293b);">Descrição após mesclagem</div>
+        <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; cursor: pointer; font-size: 14px;">
+          <input type="radio" name="cargaMergeDesc" value="manter_destino" checked />
+          Manter descrição da carga destino
+        </label>
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px;">
+          <input type="radio" name="cargaMergeDesc" value="concatenar" />
+          Concatenar descrições (até 200 caracteres)
+        </label>
+      </div>
+      <p id="cargaMergeResumo" style="margin: 12px 0 0; color: #64748b; font-size: 14px;"></p>
+      <div class="filtros-actions" style="margin-top: 16px;">
+        <button type="button" class="btn-filtro btn-filtro-limpar" id="btnCancelarCargaMergeModal"><i class="bx bx-x"></i> Cancelar</button>
+        <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnConfirmarCargaMergeModal"><i class="bx bx-git-merge"></i> Confirmar mesclagem</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="cargaTransferDestModal" class="wms-modal-backdrop">
+    <div class="wms-modal" style="width: min(560px, 96vw); max-height: unset;">
+      <div class="filtros-actions wms-modal-header" style="justify-content: flex-start; margin-top: 0; margin-bottom: 12px;">
+        <h3><i class="bx bx-transfer"></i> Transferir entrega para outra carga</h3>
+      </div>
+      <p class="hint" style="margin-top: 0;">
+        Todas as NF-e do ponto de entrega selecionado saem desta carga e entram na carga destino (ordem relativa mantida; depois renumera 1…n em cada carga).
+        Não altera expedição. Só cargas com programação editável.
+      </p>
+      <p id="cargaTransferDestResumo" style="margin: 0 0 12px; font-size: 14px; line-height: 1.45;"></p>
+      <div class="filtros-grid">
+        <div style="grid-column: 1 / -1;">
+          <label for="cargaTransferDestSelect">Carga destino</label>
+          <select id="cargaTransferDestSelect" class="form-control">
+            <option value="">— Selecione —</option>
+          </select>
+        </div>
+        <div style="grid-column: 1 / -1;">
+          <label for="cargaTransferDestIdManual">Ou informe o ID da carga destino</label>
+          <input type="number" id="cargaTransferDestIdManual" class="form-control" min="1" step="1" placeholder="Ex.: 2" />
+        </div>
+      </div>
+      <div class="filtros-actions" style="margin-top: 16px;">
+        <button type="button" class="btn-filtro btn-filtro-limpar" id="btnCancelarCargaTransferDest"><i class="bx bx-x"></i> Cancelar</button>
+        <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnConfirmarCargaTransferDest"><i class="bx bx-transfer"></i> Confirmar transferência</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/cache-buster.js?v=202604281900"></script>
+  <script src="js/script.js?v=202607061130"></script>
+</body>
+</html>

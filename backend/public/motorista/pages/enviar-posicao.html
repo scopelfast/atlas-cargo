@@ -282,7 +282,8 @@
         const posicao = await obterGPSCompleto();
         loading.querySelector('.loading-text').textContent = (typeof window.t === 'function' ? window.t('enviarPosicao.enviandoPosicao') : 'Enviando posição...');
         
-        const response = await fetch('/api/motorista/gps', {
+        const urlGps = typeof window.corrigirUrl === 'function' ? window.corrigirUrl('/api/motorista/gps') : '/api/motorista/gps';
+        const response = await fetch(urlGps, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

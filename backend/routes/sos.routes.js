@@ -6,7 +6,24 @@
 const express = require('express');
 const router = express.Router();
 const sosController = require('../controllers/sos.controller');
-const { requireAuth } = require('../middleware/auth.middleware');
+const { towerAuthAndTenant } = require('../middleware/tower-auth-chain.middleware');
+const { requireTenantModule } = require('../middleware/tenant-module.middleware');
+
+/** Legado: POST /api/sos/motorista/sos sem JWT (uso raro; app usa /api/motorista/sos) */
+function sosLegacyPublicSkip(req) {
+  const p = (req.path || '').split('?')[0];
+  return p === '/motorista/sos' && req.method === 'POST';
+}
+
+router.use((req, res, next) => {
+  if (sosLegacyPublicSkip(req)) return next();
+  return towerAuthAndTenant(req, res, next);
+});
+
+router.use((req, res, next) => {
+  if (sosLegacyPublicSkip(req)) return next();
+  return requireTenantModule('sos')(req, res, next);
+});
 
 // ============================================
 // Rotas legadas (mantidas para compatibilidade)
@@ -17,13 +34,13 @@ const { requireAuth } = require('../middleware/auth.middleware');
 router.post('/motorista/sos', sosController.criar);
 
 // Rota para motorista ver histórico
-router.get('/motorista/sos/historico', requireAuth, sosController.historico);
+router.get('/motorista/sos/historico', sosController.historico);
 
 // Rota para admin listar alertas ativos (requer autenticação)
-router.get('/ativos', requireAuth, sosController.listarAtivos);
+router.get('/ativos', sosController.listarAtivos);
 
 // Rota para admin resolver alerta (requer autenticação)
-router.put('/resolver/:id', requireAuth, sosController.resolver);
+router.put('/resolver/:id', sosController.resolver);
 
 // ============================================
 // Rotas do módulo separado (novas)
@@ -31,30 +48,30 @@ router.put('/resolver/:id', requireAuth, sosController.resolver);
 // Nota: Estas rotas funcionam quando registradas como /api/sos no app.js
 
 // Contador de pendentes (para badge) - DEVE VIR ANTES DE /:id
-router.get('/contador', requireAuth, sosController.contador);
+router.get('/contador', sosController.contador);
 
 // Listar SOS com filtros
-router.get('/', requireAuth, sosController.listar);
+router.get('/', sosController.listar);
 
 // Listar apenas pendentes
-router.get('/pendentes', requireAuth, sosController.listarPendentes);
+router.get('/pendentes', sosController.listarPendentes);
 
 // Buscar endereço via geocodificação reversa (Nominatim)
-router.get('/geocodificar/:lat/:lon', requireAuth, sosController.geocodificar);
+router.get('/geocodificar/:lat/:lon', sosController.geocodificar);
 
 // Buscar histórico de ações
-router.get('/:id/historico', requireAuth, sosController.buscarHistorico);
+router.get('/:id/historico', sosController.buscarHistorico);
 
 // Marcar como lido
-router.post('/:id/ler', requireAuth, sosController.marcarComoLido);
+router.post('/:id/ler', sosController.marcarComoLido);
 
 // Tratar SOS (mudar status)
-router.post('/:id/tratar', requireAuth, sosController.tratar);
+router.post('/:id/tratar', sosController.tratar);
 
 // Buscar detalhes de um SOS (rota com parâmetro dinâmico - DEVE VIR POR ÚLTIMO)
-router.get('/:id', requireAuth, sosController.buscarPorId);
+router.get('/:id', sosController.buscarPorId);
 
 // Atualizar SOS
-router.put('/:id', requireAuth, sosController.atualizar);
+router.put('/:id', sosController.atualizar);
 
 module.exports = router;

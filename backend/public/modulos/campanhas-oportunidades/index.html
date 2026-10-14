@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Campanhas de Oportunidades</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/modulos.css">
+  <link rel="stylesheet" href="/css/dark-mode.css">
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+  <style>
+    .campanhas-oportunidades-container {
+      padding: 20px;
+      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+      width: 100%;
+      margin: 0 auto;
+    }
+    .campanhas-oportunidades-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
+    }
+    .campanhas-oportunidades-header h2 {
+      margin: 0;
+      color: var(--ac-primary, #0d2137);
+      font-size: 28px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .oport-switch-badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border: 1px solid transparent;
+      line-height: 1.2;
+    }
+    .oport-switch-badge--ok {
+      background: #e8f9ef;
+      color: #0f7a36;
+      border-color: #b7ebca;
+    }
+    .oport-switch-badge--down {
+      background: #fdecec;
+      color: #a91d2f;
+      border-color: #f5c2c7;
+    }
+    .oport-switch-badge--loading {
+      background: #eff6ff;
+      color: #1d4ed8;
+      border-color: #bfdbfe;
+    }
+    .campanhas-oportunidades-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .form-dados-card {
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid var(--border, #e2e8f0);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      overflow: hidden;
+    }
+    .form-dados-card-header {
+      padding: 14px 20px;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border, #e2e8f0);
+      font-weight: 600;
+      font-size: 1rem;
+      color: var(--ac-primary, #0d2137);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .form-dados-card-header i {
+      font-size: 1.15rem;
+      color: var(--ac-accent, #0ea5e9);
+    }
+    .form-dados-card-body {
+      padding: 16px 18px;
+    }
+    .form-linha-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .form-campanha-linha-nome {
+      margin-bottom: 14px;
+    }
+    .form-campanha-linha-nome .campo {
+      margin-bottom: 0;
+    }
+    /* Faixa campanha: grid 5×2 — mesma linha de rótulos, segunda linha checkbox + números */
+    .form-campanha-numeros-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin-bottom: 14px;
+      margin-top: 2px;
+    }
+    .form-campanha-numeros {
+      display: grid;
+      grid-template-columns: minmax(10.5rem, 1.55fr) repeat(4, minmax(5.75rem, 1fr));
+      column-gap: clamp(12px, 2vw, 20px);
+      row-gap: 8px;
+      align-items: end;
+      width: max-content;
+      min-width: 100%;
+      box-sizing: border-box;
+      padding-bottom: 2px;
+    }
+    .form-campanha-num-lbl {
+      display: block;
+      margin: 0;
+      padding: 0 0 2px 0;
+      font-size: 13px;
+      font-weight: 600;
+      color: #1e293b;
+      line-height: 1.3;
+      align-self: end;
+    }
+    .form-campanha-num-lbl-cel {
+      white-space: normal;
+      word-break: break-word;
+    }
+    .form-campanha-num-lbl:not(.form-campanha-num-lbl-cel) {
+      white-space: nowrap;
+    }
+    .form-campanha-num-cel-wrap {
+      display: flex;
+      align-items: center;
+      min-height: 42px;
+      box-sizing: border-box;
+    }
+    .form-campanha-num-cel-cb {
+      width: 1.2rem;
+      height: 1.2rem;
+      min-width: 1.2rem;
+      margin: 0;
+      accent-color: #0ea5e9;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .form-campanha-num-inp {
+      margin: 0;
+      min-width: 0;
+    }
+    .form-campanha-num-inp input[type="number"] {
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+      margin: 0;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 10px 11px;
+      font-family: inherit;
+      font-size: 14px;
+      background: #fff;
+      color: #0f172a;
+    }
+    .campo-checkbox-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0;
+      padding: 0;
+      border: none;
+      background: transparent;
+      font-size: 14px;
+      font-weight: 500;
+      color: #334155;
+      line-height: 1.35;
+      cursor: pointer;
+      max-width: 100%;
+    }
+    .campo-checkbox-inline:hover span {
+      color: #0f172a;
+    }
+    .campo-checkbox-inline input[type="checkbox"] {
+      width: 1.125rem;
+      height: 1.125rem;
+      min-width: 1.125rem;
+      margin: 0;
+      padding: 0;
+      flex-shrink: 0;
+      accent-color: #0ea5e9;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .form-campanha-msg {
+      margin-top: 4px;
+    }
+    .campo {
+      margin-bottom: 10px;
+    }
+    .campo label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #1e293b;
+    }
+    .campo input:not([type="checkbox"]),
+    .campo textarea {
+      width: 100%;
+      box-sizing: border-box;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 11px 12px;
+      font-family: inherit;
+      font-size: 14px;
+      background: #fff;
+      color: #0f172a;
+    }
+    .campo input[type="checkbox"] {
+      width: 1.125rem;
+      height: 1.125rem;
+      min-width: 1.125rem;
+      margin: 2px 0 0 0;
+      padding: 0;
+      flex-shrink: 0;
+      accent-color: #0ea5e9;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .campo textarea {
+      min-height: 96px;
+      resize: vertical;
+    }
+    .filtros-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+      margin-bottom: 8px;
+    }
+    .filtro-status-msg {
+      font-size: 12px;
+      margin: 0 0 4px 0;
+      min-height: 1.25em;
+      color: #64748b;
+      line-height: 1.35;
+    }
+    .filtro-status-msg.filtro-status-erro {
+      color: #b91c1c;
+    }
+    .btn-filtro {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 18px;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s, box-shadow 0.2s, transform 0.15s;
+    }
+    .btn-filtro:hover { transform: translateY(-1px); }
+    .btn-filtro i { font-size: 1.05rem; }
+    .btn-filtro-limpar {
+      background: #f1f5f9;
+      color: #475569;
+      border: 1px solid #e2e8f0;
+    }
+    .btn-filtro-limpar:hover { background: #e2e8f0; }
+    .btn-filtro-aplicar {
+      background: var(--ac-accent, #0ea5e9);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(14, 165, 233, 0.25);
+    }
+    .btn-filtro-aplicar:hover { background: var(--ac-accent-hover, #0284c7); }
+    .btn-filtro-novo {
+      background: var(--success, #059669);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);
+    }
+    .btn-filtro-novo:hover { background: #047857; }
+    .lista-elegiveis {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      max-height: 280px;
+      overflow: auto;
+      background: #fff;
+      margin-top: 6px;
+    }
+    .oport-item {
+      display: flex;
+      gap: 8px;
+      padding: 9px 10px;
+      border-bottom: 1px dashed #e2e8f0;
+      font-size: 13px;
+      color: #334155;
+    }
+    .oport-item:last-child { border-bottom: none; }
+    .tabela-wrap {
+      overflow: auto;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      margin-top: 10px;
+      background: #fff;
+    }
+    .oport-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .oport-table th,
+    .oport-table td {
+      border-bottom: 1px solid #e2e8f0;
+      padding: 9px 10px;
+      text-align: left;
+      white-space: nowrap;
+    }
+    .oport-table th {
+      background: #f8fafc;
+      color: #475569;
+      font-weight: 600;
+    }
+    #campInfo {
+      margin: 8px 0 0;
+      color: #64748b;
+      font-size: 13px;
+      min-height: 20px;
+    }
+    .bloco-full {
+      margin-top: 16px;
+    }
+    @media (max-width: 1050px) {
+      .campanhas-oportunidades-grid,
+      .form-linha-2 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    html[data-theme="dark"] .campanhas-oportunidades-header {
+      border-bottom-color: #334155;
+    }
+    html[data-theme="dark"] .campanhas-oportunidades-header h2 {
+      color: #e2e8f0;
+    }
+    html[data-theme="dark"] .form-dados-card {
+      background: #1e293b;
+      border-color: #334155;
+    }
+    html[data-theme="dark"] .form-dados-card-header {
+      background: #0f172a;
+      border-bottom-color: #334155;
+      color: #e2e8f0;
+    }
+    html[data-theme="dark"] .campo label {
+      color: #cbd5e1;
+    }
+    html[data-theme="dark"] .form-campanha-num-lbl {
+      color: #cbd5e1;
+    }
+    html[data-theme="dark"] .form-campanha-num-inp input[type="number"] {
+      background: #0f172a;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+    html[data-theme="dark"] .campo input:not([type="checkbox"]),
+    html[data-theme="dark"] .campo textarea {
+      background: #0f172a;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+    html[data-theme="dark"] .campo-checkbox-inline {
+      color: #cbd5e1;
+    }
+    html[data-theme="dark"] .campo-checkbox-inline:hover span {
+      color: #e2e8f0;
+    }
+    html[data-theme="dark"] .lista-elegiveis,
+    html[data-theme="dark"] .tabela-wrap {
+      background: #0f172a;
+      border-color: #334155;
+    }
+    html[data-theme="dark"] .oport-item {
+      border-bottom-color: #334155;
+      color: #cbd5e1;
+    }
+    html[data-theme="dark"] .oport-table th {
+      background: #1e293b;
+      color: #94a3b8;
+      border-bottom-color: #334155;
+    }
+    html[data-theme="dark"] .oport-table td {
+      border-bottom-color: #334155;
+      color: #e2e8f0;
+    }
+    html[data-theme="dark"] #campInfo { color: #94a3b8; }
+    html[data-theme="dark"] .filtro-status-msg { color: #94a3b8; }
+    html[data-theme="dark"] .filtro-status-msg.filtro-status-erro { color: #f87171; }
+    html[data-theme="dark"] .btn-filtro-limpar {
+      background: #1e293b;
+      color: #e2e8f0;
+      border-color: #334155;
+    }
+
+    /* Modal confirmação disparo (substitui window.confirm) */
+    .oport-confirm-modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 10050;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      box-sizing: border-box;
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(4px);
+    }
+    .oport-confirm-dialog {
+      width: 100%;
+      max-width: 420px;
+      background: #fff;
+      border-radius: 14px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.18);
+      padding: 22px 22px 18px;
+      box-sizing: border-box;
+    }
+    .oport-confirm-dialog h3 {
+      margin: 0 0 12px 0;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #0f172a;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      line-height: 1.35;
+    }
+    .oport-confirm-dialog h3 span {
+      flex: 1;
+      min-width: 0;
+    }
+    .oport-confirm-dialog h3 .bx {
+      font-size: 1.35rem;
+      color: #25d366;
+    }
+    .oport-confirm-msg {
+      margin: 0 0 20px 0;
+      font-size: 14px;
+      line-height: 1.5;
+      color: #475569;
+    }
+    .oport-confirm-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    .oport-confirm-actions .btn-confirm-disparar {
+      background: #25d366;
+      color: #fff;
+      border: none;
+      box-shadow: 0 2px 10px rgba(37, 211, 102, 0.35);
+    }
+    .oport-confirm-actions .btn-confirm-disparar:hover {
+      background: #1eb855;
+      filter: brightness(1.02);
+    }
+    html[data-theme="dark"] .oport-confirm-dialog {
+      background: #1e293b;
+      border-color: #334155;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+    }
+    html[data-theme="dark"] .oport-confirm-dialog h3 {
+      color: #e2e8f0;
+    }
+    html[data-theme="dark"] .oport-confirm-msg {
+      color: #94a3b8;
+    }
+    html[data-theme="dark"] .oport-switch-badge--ok {
+      background: rgba(34, 197, 94, 0.2);
+      color: #86efac;
+      border-color: rgba(34, 197, 94, 0.5);
+    }
+    html[data-theme="dark"] .oport-switch-badge--down {
+      background: rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+      border-color: rgba(239, 68, 68, 0.5);
+    }
+    html[data-theme="dark"] .oport-switch-badge--loading {
+      background: rgba(59, 130, 246, 0.2);
+      color: #93c5fd;
+      border-color: rgba(59, 130, 246, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <div class="campanhas-oportunidades-container">
+    <div class="campanhas-oportunidades-header">
+      <h2><i class="bx bxs-megaphone"></i> <span data-i18n="web.modulos.campanhasOportunidades.tituloModulo">Campanhas de Oportunidades</span> <span id="oportSwitchHealthBadge" class="oport-switch-badge oport-switch-badge--loading">Sessão Switch: verificando...</span></h2>
+    </div>
+
+    <div class="form-dados-card">
+      <div class="form-dados-card-header">
+        <i class="bx bx-edit-alt"></i> <span data-i18n="web.modulos.campanhasOportunidades.configCardTitle">Configuração da Campanha</span>
+      </div>
+      <div class="form-dados-card-body">
+        <div class="form-campanha-linha-nome">
+          <div class="campo">
+            <label for="campNome" data-i18n="web.modulos.campanhasOportunidades.labelNomeCampanha">Nome da campanha</label>
+            <input id="campNome" data-i18n-placeholder="web.modulos.campanhasOportunidades.placeholderNomeCampanha" placeholder="Ex.: Lote Sul - Semana 16">
+          </div>
+        </div>
+        <div class="form-campanha-numeros-wrap">
+          <div class="form-campanha-numeros">
+            <label class="form-campanha-num-lbl form-campanha-num-lbl-cel" for="campSomenteCelValido" data-i18n="web.modulos.campanhasOportunidades.labelSomenteCel">Somente celulares válidos (E.164 BR)</label>
+            <label class="form-campanha-num-lbl" for="campExpira" data-i18n="web.modulos.campanhasOportunidades.labelExpiraHoras">Expiração do link (horas)</label>
+            <label class="form-campanha-num-lbl" for="campIntervaloMs" data-i18n="web.modulos.campanhasOportunidades.labelIntervaloMs">Intervalo entre envios (ms)</label>
+            <label class="form-campanha-num-lbl" for="campMaxExecucao" data-i18n="web.modulos.campanhasOportunidades.labelMaxExecucao">Máximo por execução</label>
+            <label class="form-campanha-num-lbl" for="campRetryMax" data-i18n="web.modulos.campanhasOportunidades.labelRetryMax">Retry por falha (limite)</label>
+            <div class="form-campanha-num-cel-wrap">
+              <input id="campSomenteCelValido" type="checkbox" class="form-campanha-num-cel-cb" data-i18n-title="web.modulos.campanhasOportunidades.titleSomenteCel" title="Somente celulares válidos (E.164 BR)">
+            </div>
+            <div class="form-campanha-num-inp"><input id="campExpira" type="number" min="1" max="240" value="48"></div>
+            <div class="form-campanha-num-inp"><input id="campIntervaloMs" type="number" min="200" max="10000" value="650"></div>
+            <div class="form-campanha-num-inp"><input id="campMaxExecucao" type="number" min="1" max="50000" value="5000"></div>
+            <div class="form-campanha-num-inp"><input id="campRetryMax" type="number" min="0" max="10" value="3"></div>
+          </div>
+        </div>
+        <div class="campo form-campanha-msg">
+          <label for="campMsg" data-i18n="web.modulos.campanhasOportunidades.labelMensagemTemplate">Mensagem (use {{nome}} e {{link_oportunidades}})</label>
+          <textarea id="campMsg">Olá, {{nome}}! Temos novas oportunidades de carga para seu perfil. Acesse: {{link_oportunidades}}</textarea>
+        </div>
+        <p data-i18n="web.modulos.campanhasOportunidades.placeholdersAjuda" style="margin:6px 0 0; color:#64748b; font-size:12px;">
+          Placeholders suportados: {{nome}} e {{link_oportunidades}}. O link é gerado automaticamente por motorista.
+        </p>
+      </div>
+    </div>
+
+    <div class="form-dados-card bloco-full">
+      <div class="form-dados-card-header">
+        <i class="bx bx-check-shield"></i> <span data-i18n="web.modulos.campanhasOportunidades.regrasCardTitle">Regras de compatibilidade</span>
+      </div>
+      <div class="form-dados-card-body">
+        <p data-i18n="web.modulos.campanhasOportunidades.regrasIntro" style="margin:0 0 10px; color:#64748b; font-size:13px;">
+          Marque as validações aplicadas na busca de motoristas compatíveis (não persistem como regra global).
+        </p>
+        <div class="filtros-actions">
+          <label class="oport-item" style="border:0; padding:0; background:transparent;"><input id="rgClasseFrota" type="checkbox"><span data-i18n="web.modulos.campanhasOportunidades.rgClasseFrota">Validar classe de frota</span></label>
+          <label class="oport-item" style="border:0; padding:0; background:transparent;"><input id="rgRastreamento" type="checkbox"><span data-i18n="web.modulos.campanhasOportunidades.rgRastreamento">Validar exigência de rastreamento</span></label>
+          <label class="oport-item" style="border:0; padding:0; background:transparent;"><input id="rgLocalEmbarque" type="checkbox"><span data-i18n="web.modulos.campanhasOportunidades.rgLocalEmbarque">Validar local de embarque</span></label>
+          <label class="oport-item" style="border:0; padding:0; background:transparent;"><input id="rgLocalDesembarque" type="checkbox"><span data-i18n="web.modulos.campanhasOportunidades.rgLocalDesembarque">Validar local de desembarque</span></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="campanhas-oportunidades-grid">
+      <div class="form-dados-card">
+        <div class="form-dados-card-header">
+          <i class="bx bx-trip"></i> <span data-i18n="web.modulos.campanhasOportunidades.viagensCardTitle">Viagens elegíveis</span>
+        </div>
+        <div class="form-dados-card-body">
+          <div class="campo">
+            <input id="qViagens" data-i18n-placeholder="web.modulos.campanhasOportunidades.placeholderBuscaViagens" placeholder="Buscar por ID/roteiro">
+          </div>
+          <div class="filtros-actions">
+            <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnLoadViagens" data-i18n-title="web.modulos.campanhasOportunidades.titleFiltrarViagens" title="Busca na API pelos termos acima; mantém viagens já selecionadas."><i class="bx bx-search"></i> <span data-i18n="web.modulos.campanhasOportunidades.btnFiltrar">Filtrar</span></button>
+            <button type="button" class="btn-filtro btn-filtro-limpar" id="btnSelViagens"><i class="bx bx-check-square"></i> <span data-i18n="web.modulos.campanhasOportunidades.btnMarcarTodasViagens">Marcar todas</span></button>
+            <button type="button" class="btn-filtro btn-filtro-limpar" id="btnDeselViagens"><i class="bx bx-checkbox-minus"></i> <span data-i18n="web.modulos.campanhasOportunidades.btnDesmarcarTodasViagens">Desmarcar todas</span></button>
+          </div>
+          <p id="statusFiltroViagens" class="filtro-status-msg" role="status" aria-live="polite"></p>
+          <div class="lista-elegiveis" id="listViagens"></div>
+        </div>
+      </div>
+
+      <div class="form-dados-card">
+        <div class="form-dados-card-header">
+          <i class="bx bxs-user-check"></i> <span data-i18n="web.modulos.campanhasOportunidades.motoristasCardTitle">Motoristas elegíveis</span>
+        </div>
+        <div class="form-dados-card-body">
+          <div class="campo">
+            <input id="qMotoristas" data-i18n-placeholder="web.modulos.campanhasOportunidades.placeholderBuscaMotoristas" placeholder="Buscar por nome/telefone">
+          </div>
+          <div class="filtros-actions">
+            <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnLoadMotoristas" data-i18n-title="web.modulos.campanhasOportunidades.titleFiltrarMotoristas" title="Busca na API pelos termos acima; mantém motoristas já selecionados (inclui outras páginas)."><i class="bx bx-search"></i> <span data-i18n="web.modulos.campanhasOportunidades.btnFiltrar">Filtrar</span></button>
+            <button type="button" class="btn-filtro btn-filtro-limpar" id="btnSelMotoristas"><i class="bx bx-check-square"></i> <span data-i18n="web.modulos.campanhasOportunidades.btnMarcarTodosMotoristas">Marcar todos</span></button>
+            <button type="button" class="btn-filtro btn-filtro-limpar" id="btnDeselMotoristas"><i class="bx bx-checkbox-minus"></i> <span data-i18n="web.modulos.campanhasOportunidades.btnDesmarcarTodosMotoristas">Desmarcar todas</span></button>
+          </div>
+          <div class="filtros-actions" style="margin-top:0;">
+            <button type="button" class="btn-filtro btn-filtro-limpar" id="btnPrevMotoristas"><i class="bx bx-chevron-left"></i> <span data-i18n="web.modulos.campanhasOportunidades.btnAnterior">Anterior</span></button>
+            <button type="button" class="btn-filtro btn-filtro-limpar" id="btnNextMotoristas"><span data-i18n="web.modulos.campanhasOportunidades.btnProxima">Próxima</span> <i class="bx bx-chevron-right"></i></button>
+            <span id="lblPageMotoristas" style="align-self:center; font-size:13px; color:#64748b;">Página 1/1</span>
+          </div>
+          <p id="statusFiltroMotoristas" class="filtro-status-msg" role="status" aria-live="polite"></p>
+          <div class="lista-elegiveis" id="listMotoristas"></div>
+          <p id="motoristasInfo" style="margin:8px 0 0; font-size:12px; color:#64748b;"></p>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-dados-card bloco-full">
+      <div class="form-dados-card-header">
+        <i class="bx bx-send"></i> <span data-i18n="web.modulos.campanhasOportunidades.execCardTitle">Execução e Monitoramento</span>
+      </div>
+      <div class="form-dados-card-body">
+        <div class="filtros-actions">
+          <button type="button" class="btn-filtro btn-filtro-novo" id="btnCriarCampanha"><i class="bx bx-plus"></i> <span data-i18n="web.modulos.campanhasOportunidades.btnCriarCampanha">Criar campanha</span></button>
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnDispararCampanha"><i class="bx bxl-whatsapp"></i> <span data-i18n="web.modulos.campanhasOportunidades.btnDispararCampanha">Disparar campanha selecionada</span></button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnPausarCampanha"><i class="bx bx-pause-circle"></i> <span data-i18n="web.modulos.campanhasOportunidades.btnPausar">Pausar</span></button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnRetomarCampanha"><i class="bx bx-play-circle"></i> <span data-i18n="web.modulos.campanhasOportunidades.btnRetomar">Retomar</span></button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnReprocessarFalhas"><i class="bx bx-refresh"></i> <span data-i18n="web.modulos.campanhasOportunidades.btnReprocessarFalhas">Reprocessar falhas</span></button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnCarregarCampanhas"><i class="bx bx-refresh"></i> <span data-i18n="web.modulos.campanhasOportunidades.btnAtualizarCampanhas">Atualizar campanhas</span></button>
+        </div>
+        <p id="campInfo"></p>
+        <div class="tabela-wrap">
+          <table class="oport-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th data-i18n="web.modulos.campanhasOportunidades.thId">ID</th>
+                <th data-i18n="web.modulos.campanhasOportunidades.thNome">Nome</th>
+                <th data-i18n="web.modulos.campanhasOportunidades.thStatus">Status</th>
+                <th data-i18n="web.modulos.campanhasOportunidades.thViagens">Viagens</th>
+                <th data-i18n="web.modulos.campanhasOportunidades.thDestinatarios">Destinatários</th>
+                <th data-i18n="web.modulos.campanhasOportunidades.thEnviados">Enviados</th>
+                <th data-i18n="web.modulos.campanhasOportunidades.thFalhas">Falhas</th>
+                <th data-i18n="web.modulos.campanhasOportunidades.thProcessados">Processados</th>
+                <th data-i18n="web.modulos.campanhasOportunidades.thCriadoEm">Criado em</th>
+              </tr>
+            </thead>
+            <tbody id="tbodyCampanhas"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="oportConfirmModal" class="oport-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="oportConfirmTitle" aria-describedby="oportConfirmMessage">
+      <div class="oport-confirm-dialog">
+        <h3 id="oportConfirmTitle"><i class="bx bxl-whatsapp" aria-hidden="true"></i> <span id="oportConfirmTitleText" data-i18n="web.modulos.campanhasOportunidades.modalTituloPadrao">Confirmar</span></h3>
+        <p id="oportConfirmMessage" class="oport-confirm-msg"></p>
+        <div class="oport-confirm-actions">
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="oportConfirmCancel" data-i18n="web.modulos.campanhasOportunidades.modalCancelar">Cancelar</button>
+          <button type="button" class="btn-filtro btn-confirm-disparar" id="oportConfirmOk"><i class="bx bxl-whatsapp" aria-hidden="true"></i> <span data-i18n="web.modulos.campanhasOportunidades.modalDisparar">Disparar</span></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/utils.js"></script>
+  <script src="js/script.js"></script>
+</body>
+</html>

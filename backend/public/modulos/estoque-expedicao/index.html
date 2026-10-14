@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WMS — Expedição</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/modulos.css" />
+  <link rel="stylesheet" href="/css/dark-mode.css" />
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+  <style>
+    .expedicao-container { padding: 20px; display: grid; gap: 14px; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+    .exp-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding-bottom: 12px; border-bottom: 2px solid var(--light-gray, #e2e8f0); }
+    .exp-head h2 { margin: 0; color: var(--ac-primary, #0d2137); font-size: 28px; display: flex; align-items: center; gap: 8px; }
+    .exp-head p { margin: 6px 0 0; color: #64748b; font-size: 14px; }
+    .filtros-box { background: #fff; border-radius: 12px; padding: 16px; box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08)); border: 1px solid var(--border, #e2e8f0); }
+    .filtros-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 12px; }
+    .filtros-grid label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--dark, #1e293b); font-size: 14px; }
+    .filtros-grid .form-control { width: 100%; padding: 12px; border: 1px solid var(--border, #e2e8f0); border-radius: 8px; font-size: 15px; font-family: inherit; box-sizing: border-box; }
+    .filtros-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 12px; flex-wrap: wrap; }
+    .btn-filtro { display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; }
+    .btn-filtro-limpar { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+    .btn-filtro-aplicar { background: var(--ac-accent, #0ea5e9); color: #fff; }
+    .btn-filtro-novo { background: var(--success, #059669); color: #fff; }
+    /* Lista só precisa de #/rota/status — detalhe (tabelas) leva o resto. */
+    .exp-layout { display: grid; grid-template-columns: minmax(260px, 300px) minmax(0, 1fr); gap: 12px; min-height: 65vh; }
+    .exp-card { border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; overflow: hidden; box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08)); }
+    .exp-card-head { padding: 12px 16px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #0f172a; background: #f8fafc; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .exp-card-head > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .exp-body { padding: 16px; }
+    .exp-list { max-height: 62vh; overflow: auto; display: grid; gap: 8px; }
+    .exp-item { border: 1px solid #dbeafe; border-radius: 10px; padding: 10px 12px; cursor: pointer; background: #f8fbff; }
+    .exp-item.active { border-color: #2563eb; background: #eff6ff; }
+    .exp-item-title { font-weight: 700; color: #0f172a; margin: 0 0 4px; font-size: 13px; line-height: 1.35; word-break: break-word; }
+    .exp-item-meta { font-size: 12px; color: #475569; display: flex; gap: 10px; flex-wrap: wrap; }
+    .status-tag { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid #cbd5e1; background: #f8fafc; }
+    .status-tag.pronta_expedicao { border-color: #93c5fd; background: #eff6ff; color: #1e3a8a; }
+    .status-tag.em_expedicao { border-color: #fcd34d; background: #fffbeb; color: #92400e; }
+    .status-tag.expedida { border-color: #86efac; background: #f0fdf4; color: #166534; }
+    .exp-grid { display: grid; grid-template-columns: repeat(3, minmax(160px, 1fr)); gap: 10px; margin-bottom: 12px; }
+    .exp-field { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; background: #f8fafc; }
+    .exp-field .k { font-size: 11px; color: #64748b; text-transform: uppercase; }
+    .exp-field .v { margin-top: 4px; font-weight: 600; color: #0f172a; word-break: break-word; }
+    /* Bloco operacional: status + formulário + ações (sem duplicar motorista/placa). */
+    .exp-ops {
+      margin: 14px 0 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      background: #f8fafc;
+      overflow: hidden;
+    }
+    .exp-ops-head {
+      padding: 10px 14px;
+      font-weight: 700;
+      font-size: 13px;
+      color: #0f172a;
+      border-bottom: 1px solid #e2e8f0;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .exp-ops-head i { color: #64748b; font-size: 1.1rem; }
+    .exp-ops-body { padding: 12px 14px 14px; }
+    .exp-ops-status {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      margin-bottom: 12px;
+    }
+    .exp-ops-meta {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 6px;
+      font-size: 13px;
+      min-width: 0;
+    }
+    .exp-ops-meta .k {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      color: #64748b;
+    }
+    .exp-ops-meta .v { font-weight: 600; color: #0f172a; }
+    .exp-ops-form {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.4fr) minmax(100px, 0.7fr);
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .exp-ops-form label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin: 0;
+      font-size: 12px;
+      font-weight: 600;
+      color: #475569;
+    }
+    .exp-ops-form .exp-input { margin: 0; }
+    .exp-ops .exp-actions { margin-top: 0; }
+    .exp-ops .exp-actions--relatorios {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #e2e8f0;
+    }
+    .exp-nf-section {
+      margin-top: 4px;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+    }
+    .exp-nf-section-head {
+      padding: 10px 14px;
+      font-weight: 700;
+      font-size: 13px;
+      color: #0f172a;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .exp-nf-section-head i { color: #64748b; }
+    .exp-nf-section .exp-nf-wrap {
+      margin: 0;
+      border: none;
+      border-radius: 0;
+      max-height: 32vh;
+    }
+    html[data-theme='dark'] .exp-ops { background: #0f172a; border-color: #334155; }
+    html[data-theme='dark'] .exp-ops-head { background: #1e293b; border-bottom-color: #334155; color: #e2e8f0; }
+    html[data-theme='dark'] .exp-ops-head i { color: #94a3b8; }
+    html[data-theme='dark'] .exp-ops-meta .k { color: #94a3b8; }
+    html[data-theme='dark'] .exp-ops-meta .v { color: #e2e8f0; }
+    html[data-theme='dark'] .exp-ops-form label { color: #cbd5e1; }
+    html[data-theme='dark'] .exp-ops .exp-actions--relatorios { border-top-color: #334155; }
+    html[data-theme='dark'] .exp-nf-section { background: #0f172a; border-color: #334155; }
+    html[data-theme='dark'] .exp-nf-section-head { background: #1e293b; border-bottom-color: #334155; color: #e2e8f0; }
+    @media (max-width: 900px) {
+      .exp-ops-form { grid-template-columns: 1fr; }
+    }
+    .exp-nf-wrap { overflow: auto; max-height: 38vh; border: 1px solid #e2e8f0; border-radius: 10px; }
+    .exp-nf-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+    .exp-nf-table th, .exp-nf-table td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+    .exp-nf-table th { background: #f8fafc; font-weight: 600; color: #334155; position: sticky; top: 0; z-index: 2; box-shadow: 0 1px 0 #e2e8f0; }
+    .exp-nf-table tr:last-child td { border-bottom: none; }
+    .exp-nf-table .col-numero { white-space: nowrap; }
+    .exp-nf-table .col-destino { min-width: 300px; }
+    .exp-nf-table .col-itens { width: 72px; }
+    .exp-nf-table .right { text-align: right; }
+    /* Ações da carga: mesmo padrão dos filtros (tamanho do conteúdo, não estica em 2 colunas). */
+    .exp-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 12px;
+    }
+    .exp-actions--primarias {
+      padding-top: 4px;
+      margin-bottom: 2px;
+    }
+    .exp-actions--relatorios {
+      margin-top: 8px;
+      padding-top: 10px;
+      border-top: 1px solid #e2e8f0;
+    }
+    html[data-theme='dark'] .exp-actions--relatorios { border-top-color: #334155; }
+    .exp-actions .btn-filtro {
+      padding: 10px 16px;
+      font-size: 14px;
+      border-radius: 8px;
+      white-space: nowrap;
+    }
+    .btn-filtro:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+    .btn-filtro.btn-filtro-alerta { background: #b45309; color: #fff; }
+    html[data-theme='dark'] .btn-filtro.btn-filtro-alerta { background: #92400e; color: #ffedd5; }
+    .exp-painel-alerta { display: none; padding: 12px 14px; border-radius: 10px; margin-bottom: 12px; font-weight: 600; font-size: 15px; line-height: 1.45; border: 1px solid transparent; }
+    .exp-painel-alerta.error { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+    .exp-painel-alerta.warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+    .exp-painel-alerta.success { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+    .exp-input { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 10px 10px; font: inherit; box-sizing: border-box; }
+    .exp-input.input-erro-exp { outline: 2px solid #dc2626; border-color: #dc2626; }
+    html[data-theme='dark'] .exp-head h2, html[data-theme='dark'] .exp-item-title, html[data-theme='dark'] .exp-field .v, html[data-theme='dark'] .exp-card-head { color: #e2e8f0; }
+    html[data-theme='dark'] .exp-head p, html[data-theme='dark'] .exp-item-meta, html[data-theme='dark'] .exp-field .k { color: #94a3b8; }
+    html[data-theme='dark'] .exp-head { border-bottom-color: #334155; }
+    html[data-theme='dark'] .filtros-box { background: #0f172a; border-color: #334155; }
+    html[data-theme='dark'] .filtros-grid label { color: #cbd5e1; }
+    html[data-theme='dark'] .filtros-grid .form-control { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+    html[data-theme='dark'] .btn-filtro-limpar { background: #1e293b; color: #cbd5e1; border-color: #475569; }
+    html[data-theme='dark'] .exp-card, html[data-theme='dark'] .exp-item, html[data-theme='dark'] .exp-item.active, html[data-theme='dark'] .exp-field { background: #0f172a; border-color: #334155; }
+    html[data-theme='dark'] .exp-card-head { background: #1e293b; border-color: #334155; }
+    html[data-theme='dark'] .exp-nf-wrap { border-color: #334155; }
+    html[data-theme='dark'] .exp-nf-table th, html[data-theme='dark'] .exp-nf-table td { border-bottom-color: #334155; }
+    html[data-theme='dark'] .exp-nf-table th { background: #1e293b; color: #e2e8f0; box-shadow: 0 1px 0 #334155; }
+    html[data-theme='dark'] .exp-input { background: #0f172a; border-color: #475569; color: #e2e8f0; }
+    html[data-theme='dark'] .exp-painel-alerta.error { background: #450a0a; border-color: #7f1d1d; color: #fecaca; }
+    html[data-theme='dark'] .exp-painel-alerta.warning { background: #422006; border-color: #854d0e; color: #fde68a; }
+    html[data-theme='dark'] .exp-painel-alerta.success { background: #052e16; border-color: #166534; color: #bbf7d0; }
+    html[data-theme='dark'] .exp-input.input-erro-exp { outline-color: #f87171; border-color: #f87171; }
+    .exp-estoque-wrap { margin-top: 10px; margin-bottom: 16px; border: 1px solid #fcd34d; border-radius: 10px; background: #fffbeb; overflow: hidden; padding-bottom: 8px; }
+    .exp-estoque-wrap.exp-estoque-wrap--hist {
+      border-color: #cbd5e1; background: #f8fafc;
+    }
+    html[data-theme='dark'] .exp-estoque-wrap.exp-estoque-wrap--hist {
+      background: #0f172a; border-color: #475569;
+    }
+    .exp-estoque-body { padding: 10px 12px; font-size: 13px; line-height: 1.45; color: #78350f; }
+    .exp-estoque-body ul { margin: 8px 0 0 18px; padding: 0; }
+    .exp-estoque-body li { margin-bottom: 6px; }
+    .exp-estoque-ok { padding: 10px 12px; font-size: 13px; color: #166534; }
+    .exp-estoque-hist {
+      padding: 10px 12px; font-size: 13px; line-height: 1.5; color: #334155;
+      background: #f1f5f9; border-radius: 8px; border: 1px solid #cbd5e1;
+    }
+    .exp-estoque-hist strong { color: #0f172a; }
+    html[data-theme='dark'] .exp-estoque-hist {
+      background: #1e293b; border-color: #475569; color: #cbd5e1;
+    }
+    html[data-theme='dark'] .exp-estoque-hist strong { color: #f1f5f9; }
+    .exp-estoque-detalhes { margin: 0; }
+    .exp-estoque-detalhes summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 10px 12px;
+      font-size: 13px;
+      color: #166534;
+      user-select: none;
+    }
+    .exp-estoque-detalhes summary::-webkit-details-marker { display: none; }
+    .exp-estoque-detalhes summary::before {
+      content: '▸';
+      display: inline-block;
+      margin-right: 6px;
+      transition: transform 0.15s ease;
+      color: #15803d;
+    }
+    .exp-estoque-detalhes[open] summary::before { transform: rotate(90deg); }
+    .exp-estoque-detalhes summary .exp-estoque-ver-detalhe {
+      margin-left: 8px;
+      font-size: 12px;
+      color: #15803d;
+      text-decoration: underline;
+      font-weight: normal;
+    }
+    .exp-estoque-detalhes ul {
+      margin: 0 0 8px 18px;
+      padding: 0 12px 8px 0;
+      font-size: 12px;
+      line-height: 1.45;
+      color: #78350f;
+    }
+    html[data-theme='dark'] .exp-estoque-detalhes summary { color: #86efac; }
+    html[data-theme='dark'] .exp-estoque-detalhes summary::before { color: #4ade80; }
+    html[data-theme='dark'] .exp-estoque-detalhes ul { color: #fde68a; }
+    html[data-theme='dark'] .exp-estoque-wrap { background: #422006; border-color: #b45309; }
+    html[data-theme='dark'] .exp-estoque-body { color: #fde68a; }
+    html[data-theme='dark'] .exp-estoque-ok { color: #86efac; }
+    /* —— Divergências de validação (painel expedição) —— */
+    .exp-divergencias-wrap {
+      display: none;
+      margin-top: 10px;
+      margin-bottom: 16px;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      background: #fff;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+    }
+    .exp-divergencias-head {
+      padding: 12px 14px;
+      font-weight: 700;
+      font-size: 14px;
+      color: #0f172a;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
+    }
+    .exp-divergencias-head-main { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .exp-divergencias-head-main i { font-size: 1.25rem; color: #dc2626; flex-shrink: 0; }
+    .exp-divergencias-head-sub { display: block; font-size: 11px; font-weight: 500; color: #64748b; margin-top: 2px; line-height: 1.35; }
+    .exp-divergencias-count {
+      font-size: 12px; font-weight: 700; color: #991b1b;
+      background: #fee2e2; border: 1px solid #fecaca;
+      padding: 4px 10px; border-radius: 999px; white-space: nowrap;
+    }
+    .exp-divergencias-hint { padding: 10px 14px 0; }
+    .exp-div-resumo {
+      display: flex; flex-wrap: wrap; gap: 8px;
+    }
+    .exp-div-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 11px; font-weight: 600; line-height: 1.3;
+      padding: 6px 10px; border-radius: 8px; border: 1px solid transparent;
+    }
+    .exp-div-chip strong { font-size: 13px; font-weight: 800; }
+    .exp-div-chip--pedido { background: #fff7ed; border-color: #fed7aa; color: #9a3412; }
+    .exp-div-chip--opl { background: #fef3c7; border-color: #fde68a; color: #92400e; }
+    .exp-div-chip--sepnf { background: #f3e8ff; border-color: #e9d5ff; color: #6b21a8; }
+    .exp-div-chip--outros { background: #f1f5f9; border-color: #e2e8f0; color: #475569; }
+    .exp-divergencias-body { max-height: 280px; overflow: auto; padding: 0 10px 10px; }
+    .exp-divergencias-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; }
+    .exp-divergencias-table th,
+    .exp-divergencias-table td {
+      padding: 7px 8px;
+      border-bottom: 1px solid #e2e8f0;
+      text-align: left;
+      vertical-align: top;
+    }
+    .exp-divergencias-table th {
+      background: #e2e8f0;
+      color: #0f172a;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-bottom: 2px solid #64748b;
+      box-shadow: 0 1px 0 #cbd5e1;
+    }
+    .exp-divergencias-table tbody tr:hover td { background: #f8fafc; }
+    .exp-divergencias-table .col-tipo { width: 118px; min-width: 118px; vertical-align: top; }
+    .exp-divergencias-table .col-pedido { width: 92px; min-width: 92px; font-variant-numeric: tabular-nums; }
+    .exp-divergencias-table .col-codigo { width: 118px; font-family: Consolas, 'Courier New', monospace; font-size: 11px; white-space: nowrap; }
+    .exp-divergencias-table .col-desc { max-width: 200px; line-height: 1.35; }
+    .exp-divergencias-table .col-desc .exp-div-ctx {
+      display: block;
+      margin-top: 3px;
+      font-size: 10px;
+      color: #475569;
+      line-height: 1.3;
+      font-weight: 500;
+    }
+    .exp-divergencias-table .col-obs { max-width: 180px; font-size: 11px; color: #b45309; line-height: 1.35; }
+    .exp-divergencias-table .col-num { width: 52px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .exp-div-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1.25;
+      padding: 3px 6px;
+      border-radius: 6px;
+      white-space: nowrap;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+    .exp-div-badge--pedido { background: #ffedd5; color: #9a3412; }
+    .exp-div-badge--sepnf { background: #ede9fe; color: #5b21b6; }
+    .exp-div-badge--falta { background: #fee2e2; color: #991b1b; }
+    .exp-div-badge--sobra { background: #fef3c7; color: #92400e; }
+    .exp-div-badge--naosep { background: #fecaca; color: #7f1d1d; }
+    .exp-div-badge--xped { background: #cffafe; color: #155e75; }
+    .exp-div-badge--outro { background: #e2e8f0; color: #334155; }
+    .exp-div-badge--embalagem { background: #e0e7ff; color: #3730a3; }
+    .exp-liberacao-wrap {
+      margin: 12px 0;
+      padding: 12px 14px;
+      border: 1px solid #fcd34d;
+      border-radius: 8px;
+      background: #fffbeb;
+    }
+    .exp-liberacao-head {
+      font-weight: 600;
+      color: #b45309;
+      margin-bottom: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 6px;
+    }
+    .exp-liberacao-head-sub {
+      font-size: 11px;
+      font-weight: 500;
+      color: #92400e;
+      opacity: 0.9;
+    }
+    .exp-liberacao-wrap textarea { min-height: 64px; resize: vertical; width: 100%; margin-bottom: 8px; }
+    html[data-theme='dark'] .exp-liberacao-wrap {
+      background: #1e293b;
+      border-color: #854d0e;
+    }
+    html[data-theme='dark'] .exp-liberacao-head { color: #fbbf24; }
+    html[data-theme='dark'] .exp-liberacao-head-sub { color: #fcd34d; }
+    .exp-divergencias-foot {
+      padding: 12px 14px;
+      display: grid;
+      gap: 10px;
+      border-top: 1px solid #e2e8f0;
+      background: #f8fafc;
+    }
+    .exp-divergencias-foot-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      margin: 0;
+    }
+    .exp-divergencias-foot textarea { min-height: 64px; resize: vertical; }
+    html[data-theme='dark'] .exp-divergencias-wrap {
+      background: #0f172a;
+      border-color: #334155;
+      box-shadow: none;
+    }
+    html[data-theme='dark'] .exp-divergencias-head {
+      color: #e2e8f0;
+      border-bottom-color: #334155;
+      background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    }
+    html[data-theme='dark'] .exp-divergencias-head-main i { color: #f87171; }
+    html[data-theme='dark'] .exp-divergencias-head-sub { color: #94a3b8; }
+    html[data-theme='dark'] .exp-divergencias-count {
+      color: #fecaca;
+      background: #450a0a;
+      border-color: #7f1d1d;
+    }
+    html[data-theme='dark'] .exp-div-chip--pedido { background: #431407; border-color: #9a3412; color: #fdba74; }
+    html[data-theme='dark'] .exp-div-chip--opl { background: #422006; border-color: #b45309; color: #fde68a; }
+    html[data-theme='dark'] .exp-div-chip--sepnf { background: #2e1065; border-color: #6b21a8; color: #e9d5ff; }
+    html[data-theme='dark'] .exp-div-chip--outros { background: #1e293b; border-color: #475569; color: #cbd5e1; }
+    html[data-theme='dark'] .exp-divergencias-table td {
+      border-bottom-color: #334155;
+      color: #e2e8f0;
+      background: #0f172a;
+    }
+    html[data-theme='dark'] .exp-divergencias-table th {
+      background: #334155;
+      color: #f8fafc;
+      border-bottom: 2px solid #64748b;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+    }
+    html[data-theme='dark'] .exp-divergencias-table tbody tr:hover td { background: #1e293b; }
+    html[data-theme='dark'] .exp-divergencias-table .col-obs { color: #fbbf24; }
+    html[data-theme='dark'] .exp-div-badge--pedido { background: #431407; color: #fdba74; }
+    html[data-theme='dark'] .exp-div-badge--sepnf { background: #2e1065; color: #e9d5ff; }
+    html[data-theme='dark'] .exp-div-badge--falta { background: #450a0a; color: #fecaca; }
+    html[data-theme='dark'] .exp-div-badge--sobra { background: #422006; color: #fde68a; }
+    html[data-theme='dark'] .exp-div-badge--naosep { background: #450a0a; color: #fca5a5; }
+    html[data-theme='dark'] .exp-div-badge--xped { background: #083344; color: #67e8f9; }
+    html[data-theme='dark'] .exp-div-badge--outro { background: #334155; color: #e2e8f0; }
+    html[data-theme='dark'] .exp-div-badge--embalagem { background: #312e81; color: #c7d2fe; }
+    html[data-theme='dark'] .exp-divergencias-foot {
+      border-top-color: #334155;
+      background: #1e293b;
+    }
+    html[data-theme='dark'] .exp-divergencias-foot-title { color: #94a3b8; }
+    .exp-conferencias-wrap {
+      display: none;
+      margin-top: 10px;
+      margin-bottom: 16px;
+      border: 1px solid #bfdbfe;
+      border-radius: 12px;
+      background: #fff;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(29, 78, 216, 0.08);
+    }
+    .exp-conferencias-head {
+      padding: 12px 14px;
+      font-weight: 700;
+      font-size: 14px;
+      color: #1e3a8a;
+      border-bottom: 1px solid #bfdbfe;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(180deg, #eff6ff 0%, #fff 100%);
+    }
+    .exp-conferencias-head i { font-size: 1.2rem; color: #2563eb; }
+    .exp-conferencias-hint {
+      padding: 8px 14px 0;
+      font-size: 12px;
+      color: #475569;
+      line-height: 1.4;
+    }
+    .exp-conferencias-body { max-height: 220px; overflow: auto; padding: 0 10px 10px; }
+    .exp-conferencias-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 12px; }
+    .exp-conferencias-table th,
+    .exp-conferencias-table td {
+      padding: 7px 8px;
+      border-bottom: 1px solid #dbeafe;
+      text-align: left;
+      vertical-align: top;
+    }
+    .exp-conferencias-table th {
+      background: #dbeafe;
+      color: #1e3a8a;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-bottom: 2px solid #3b82f6;
+      box-shadow: 0 1px 0 #bfdbfe;
+    }
+    .exp-conferencias-table tbody td {
+      color: #0f172a;
+      background: #fff;
+    }
+    .exp-conferencias-table tbody tr:nth-child(even) td { background: #f8fafc; }
+    .exp-conferencias-table .col-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .exp-conferencias-table .col-codigo { font-family: Consolas, 'Courier New', monospace; font-size: 11px; white-space: nowrap; }
+    .exp-conf-sit { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; white-space: nowrap; }
+    .exp-conf-sit--ok { background: #dcfce7; color: #166534; }
+    .exp-conf-sit--warn { background: #fef3c7; color: #92400e; }
+    html[data-theme='dark'] .exp-conferencias-wrap {
+      background: #0f172a;
+      border-color: #1d4ed8;
+      box-shadow: none;
+    }
+    html[data-theme='dark'] .exp-conferencias-head {
+      color: #93c5fd;
+      border-bottom-color: #1d4ed8;
+      background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    }
+    html[data-theme='dark'] .exp-conferencias-hint { color: #94a3b8; }
+    html[data-theme='dark'] .exp-conferencias-table td {
+      border-bottom-color: #334155;
+      color: #e2e8f0;
+      background: #0f172a;
+    }
+    html[data-theme='dark'] .exp-conferencias-table tbody tr:nth-child(even) td {
+      background: #111827;
+    }
+    html[data-theme='dark'] .exp-conferencias-table th {
+      background: #1e3a8a;
+      color: #f8fafc;
+      border-bottom: 2px solid #60a5fa;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
+    }
+    html[data-theme='dark'] .exp-conf-sit--ok { background: #052e16; color: #86efac; }
+    html[data-theme='dark'] .exp-conf-sit--warn { background: #422006; color: #fde68a; }
+    .exp-liberacao-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .exp-historico-wrap { margin-top: 10px; margin-bottom: 12px; border: 1px solid #cbd5e1; border-radius: 10px; background: #f8fafc; overflow: hidden; }
+    .exp-historico-head { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .exp-historico-title { font-weight: 700; color: #0f172a; }
+    .exp-historico-perm { font-size: 12px; padding: 3px 8px; border-radius: 999px; border: 1px solid #94a3b8; background: #e2e8f0; color: #334155; }
+    .exp-historico-perm.ok { border-color: #86efac; background: #dcfce7; color: #166534; }
+    .exp-historico-perm.no { border-color: #fecaca; background: #fee2e2; color: #991b1b; }
+    .exp-historico-body { max-height: 180px; overflow: auto; padding: 10px 12px; display: grid; gap: 8px; }
+    .exp-historico-item { border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px 10px; background: #fff; }
+    .exp-historico-item b { color: #0f172a; }
+    .exp-historico-empty { font-size: 13px; color: #475569; }
+    html[data-theme='dark'] .exp-historico-wrap { background: #0f172a; border-color: #334155; }
+    html[data-theme='dark'] .exp-historico-head { border-bottom-color: #334155; }
+    html[data-theme='dark'] .exp-historico-title { color: #e2e8f0; }
+    html[data-theme='dark'] .exp-historico-perm { border-color: #475569; background: #1e293b; color: #cbd5e1; }
+    html[data-theme='dark'] .exp-historico-perm.ok { border-color: #166534; background: #052e16; color: #bbf7d0; }
+    html[data-theme='dark'] .exp-historico-perm.no { border-color: #7f1d1d; background: #450a0a; color: #fecaca; }
+    html[data-theme='dark'] .exp-historico-item { border-color: #334155; background: #1e293b; color: #e2e8f0; }
+    html[data-theme='dark'] .exp-historico-item b { color: #f8fafc; }
+    html[data-theme='dark'] .exp-historico-empty { color: #94a3b8; }
+    .exp-reabrir-wrap { display: none; margin: 0 0 12px; border: 1px solid #fcd34d; border-radius: 10px; background: #fffbeb; overflow: hidden; }
+    .exp-reabrir-head { padding: 10px 12px; font-weight: 700; color: #92400e; border-bottom: 1px solid #fcd34d; display: flex; align-items: center; gap: 8px; }
+    .exp-reabrir-body { padding: 12px; display: grid; gap: 10px; }
+    .exp-reabrir-desc { margin: 0; font-size: 13px; color: #78350f; line-height: 1.45; }
+    .exp-reabrir-body textarea { min-height: 72px; resize: vertical; }
+    html[data-theme='dark'] .exp-reabrir-wrap { background: #422006; border-color: #b45309; }
+    html[data-theme='dark'] .exp-reabrir-head { color: #fde68a; border-bottom-color: #b45309; }
+    html[data-theme='dark'] .exp-reabrir-desc { color: #fcd34d; }
+    .exp-detalhe-vazio {
+      text-align: center; padding: 28px 20px; color: #64748b; border: 1px dashed #cbd5e1;
+      border-radius: 10px; background: #f8fafc; margin-bottom: 12px;
+    }
+    .exp-detalhe-vazio i { font-size: 2.2rem; color: #94a3b8; display: block; margin-bottom: 10px; }
+    .exp-detalhe-vazio p { margin: 0 0 8px; font-size: 15px; color: #334155; font-weight: 600; }
+    .exp-detalhe-vazio-hint { font-size: 13px !important; font-weight: 400 !important; color: #64748b !important; max-width: 420px; margin: 0 auto !important; }
+    html[data-theme='dark'] .exp-detalhe-vazio { background: #0f172a; border-color: #334155; }
+    html[data-theme='dark'] .exp-detalhe-vazio p { color: #e2e8f0; }
+    html[data-theme='dark'] .exp-detalhe-vazio-hint { color: #94a3b8 !important; }
+    @media (max-width: 1366px) {
+      .exp-nf-table { font-size: 12px; }
+      .exp-nf-table th, .exp-nf-table td { padding: 9px 10px; }
+      .exp-nf-table .col-destino { min-width: 220px; }
+      .exp-nf-table .col-itens { width: 64px; }
+    }
+    @media (min-width: 1900px) {
+      .exp-nf-table .col-destino { min-width: 380px; }
+      .exp-nf-table .col-itens { width: 84px; }
+    }
+    @media (max-width: 1080px) { .exp-layout { grid-template-columns: 1fr; } .exp-list { max-height: 42vh; } .exp-grid { grid-template-columns: 1fr; } }
+    @media (min-width: 1081px) and (max-width: 1320px) { .exp-grid { grid-template-columns: repeat(2, minmax(160px, 1fr)); } }
+    #exRomBackdrop, #rsRomBackdrop { position: fixed; inset: 0; background: rgba(2, 6, 23, 0.65); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 18px; }
+    #exRomBackdrop .exp-rom-modal, #rsRomBackdrop .exp-rom-modal { width: min(920px, 96vw); max-height: 90vh; overflow-y: auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; box-shadow: 0 12px 32px rgba(0,0,0,0.28); }
+    html[data-theme='dark'] #exRomBackdrop .exp-rom-modal, html[data-theme='dark'] #rsRomBackdrop .exp-rom-modal { background: #0f172a; border-color: #334155; color: #e2e8f0; }
+    .rom-din-tit { margin: 0 0 18px; font-size: 13px; line-height: 1.5; color: #64748b; }
+    html[data-theme='dark'] .rom-din-tit { color: #94a3b8; }
+    #exRomBackdrop .rom-sec,
+    #rsRomBackdrop .rom-sec { margin-bottom: 18px; }
+    #exRomBackdrop .rom-sec-titulo,
+    #rsRomBackdrop .rom-sec-titulo {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #64748b;
+      margin: 0 0 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    html[data-theme='dark'] #exRomBackdrop .rom-sec-titulo,
+    html[data-theme='dark'] #rsRomBackdrop .rom-sec-titulo {
+      color: #94a3b8;
+      border-bottom-color: #334155;
+    }
+    #exRomBackdrop .rom-bloco-filtros,
+    #rsRomBackdrop .rom-bloco-filtros {
+      display: grid !important;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px 20px;
+      align-items: stretch;
+    }
+    #exRomBackdrop .rom-bloco-filtros > div,
+    #rsRomBackdrop .rom-bloco-filtros > div { min-width: 0; }
+    #exRomBackdrop .rom-cel-span-2,
+    #rsRomBackdrop .rom-cel-span-2 { grid-column: 1 / -1; }
+    #exRomBackdrop .rom-filtro-geo,
+    #rsRomBackdrop .rom-filtro-geo {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px 20px;
+      align-items: start;
+    }
+    @media (max-width: 640px) {
+      #exRomBackdrop .rom-filtro-geo,
+      #rsRomBackdrop .rom-filtro-geo { grid-template-columns: 1fr; }
+    }
+    #exRomBackdrop .rom-filtro-cont,
+    #rsRomBackdrop .rom-filtro-cont {
+      font-weight: 500;
+      color: #64748b;
+      font-size: 12px;
+    }
+    #exRomBackdrop .rom-imp-multi,
+    #rsRomBackdrop .rom-imp-multi {
+      min-height: 100px;
+      padding: 4px 6px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    html[data-theme='dark'] #exRomBackdrop .rom-imp-multi,
+    html[data-theme='dark'] #rsRomBackdrop .rom-imp-multi {
+      background: #0f172a;
+      color: #e2e8f0;
+      border-color: #334155;
+    }
+    #exRomBackdrop .rom-bloco-ord,
+    #rsRomBackdrop .rom-bloco-ord {
+      display: grid !important;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px 18px;
+      align-items: stretch;
+    }
+    #exRomBackdrop .rom-bloco-ord > div,
+    #rsRomBackdrop .rom-bloco-ord > div { min-width: 0; }
+    @media (max-width: 640px) {
+      #exRomBackdrop .rom-bloco-ord,
+      #rsRomBackdrop .rom-bloco-ord { grid-template-columns: 1fr; }
+    }
+    #exRomBackdrop .rom-bloco-filtros label,
+    #rsRomBackdrop .rom-bloco-filtros label,
+    #exRomBackdrop .rom-bloco-ord label,
+    #rsRomBackdrop .rom-bloco-ord label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 600;
+      font-size: 13px;
+      color: #475569;
+    }
+    #exRomBackdrop .rom-bloco-filtros .form-control,
+    #rsRomBackdrop .rom-bloco-filtros .form-control,
+    #exRomBackdrop .rom-bloco-ord .form-control,
+    #rsRomBackdrop .rom-bloco-ord .form-control {
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 44px;
+      padding: 10px 12px;
+      font-size: 14px;
+      line-height: 1.35;
+      border-radius: 8px;
+    }
+    /* Mesmo respiro que Cargas programadas: título + � nunca colados na linha inferior. */
+    #exRomBackdrop .rom-modal-header,
+    #rsRomBackdrop .rom-modal-header {
+      display: flex !important;
+      align-items: center;
+      justify-content: space-between !important;
+      gap: 12px;
+      margin: 0 0 16px 0;
+      padding: 14px 0 22px;
+      border-bottom: 1px solid #e2e8f0;
+      flex-wrap: nowrap;
+      box-sizing: border-box;
+    }
+    html[data-theme='dark'] #exRomBackdrop .rom-modal-header,
+    html[data-theme='dark'] #rsRomBackdrop .rom-modal-header { border-bottom-color: #334155; }
+    #exRomBackdrop .rom-modal-header h3,
+    #rsRomBackdrop .rom-modal-header h3 {
+      margin: 0;
+      flex: 1;
+      min-width: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    #exRomBackdrop .rom-modal-header .rom-modal-close,
+    #rsRomBackdrop .rom-modal-header .rom-modal-close {
+      flex-shrink: 0;
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 10px;
+      border: 1px solid #cbd5e1;
+      background: #f1f5f9;
+      color: #0f172a;
+      cursor: pointer;
+      font-size: 26px;
+      line-height: 1;
+      font-weight: 300;
+    }
+    #exRomBackdrop .rom-modal-header .rom-modal-close:hover,
+    #rsRomBackdrop .rom-modal-header .rom-modal-close:hover { background: #e2e8f0; }
+    html[data-theme='dark'] #exRomBackdrop .rom-modal-header .rom-modal-close,
+    html[data-theme='dark'] #rsRomBackdrop .rom-modal-header .rom-modal-close {
+      background: #1e293b;
+      border-color: #475569;
+      color: #f8fafc;
+    }
+    #rsRomBackdrop .rs-rom-aviso-continuo {
+      align-items: flex-start;
+      gap: 10px;
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid #93c5fd;
+      background: #eff6ff;
+      color: #1e3a5f;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    #rsRomBackdrop .rs-rom-aviso-continuo .bx {
+      flex-shrink: 0;
+      font-size: 20px;
+      color: #2563eb;
+      margin-top: 1px;
+    }
+    html[data-theme='dark'] #rsRomBackdrop .rs-rom-aviso-continuo {
+      border-color: #334155;
+      background: rgba(30, 58, 138, 0.35);
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] #rsRomBackdrop .rs-rom-aviso-continuo .bx { color: #60a5fa; }
+    #exRomBackdrop .rom-rodape-acoes,
+    #rsRomBackdrop .rom-rodape-acoes {
+      display: flex !important;
+      justify-content: flex-end !important;
+      margin-top: 8px;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    html[data-theme='dark'] #exRomBackdrop .rom-bloco-filtros label,
+    html[data-theme='dark'] #rsRomBackdrop .rom-bloco-filtros label,
+    html[data-theme='dark'] #exRomBackdrop .rom-bloco-ord label,
+    html[data-theme='dark'] #rsRomBackdrop .rom-bloco-ord label { color: #cbd5e1; }
+    html[data-theme='dark'] #exRomBackdrop .rom-bloco-filtros .form-control,
+    html[data-theme='dark'] #rsRomBackdrop .rom-bloco-filtros .form-control,
+    html[data-theme='dark'] #exRomBackdrop .rom-bloco-ord .form-control,
+    html[data-theme='dark'] #rsRomBackdrop .rom-bloco-ord .form-control {
+      background: #1e293b;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+  <div class="expedicao-container">
+    <div class="exp-head">
+      <div>
+        <h2><i class="bx bx-export"></i> Expedição</h2>
+      </div>
+      <button type="button" class="btn-filtro btn-filtro-limpar" id="btnVoltarEstoque"><i class="bx bx-arrow-back"></i> Estoque</button>
+    </div>
+
+    <div class="filtros-box">
+      <form id="formFiltrosExpedicao" onsubmit="return false;">
+        <div class="filtros-grid">
+          <div>
+            <label for="filtroStatusExpedicao">Status da expedição</label>
+            <select class="form-control" id="filtroStatusExpedicao">
+              <option value="">Todos</option>
+              <option value="PRONTA_EXPEDICAO">Pronta para expedição</option>
+              <option value="EM_EXPEDICAO">Em expedição</option>
+              <option value="EXPEDIDA">Expedida</option>
+            </select>
+          </div>
+        </div>
+        <div class="filtros-actions">
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnLimparExpedicao"><i class="bx bx-x"></i> Limpar</button>
+          <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search"></i> Filtrar</button>
+          <button type="button" class="btn-filtro btn-filtro-novo" id="btnAtualizarExpedicao"><i class="bx bx-refresh"></i> Atualizar</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="exp-layout">
+      <section class="exp-card">
+        <div class="exp-card-head">
+          <span>Cargas para expedir</span>
+          <span id="contadorCargasExp">0</span>
+        </div>
+        <div class="exp-body">
+          <div class="exp-list" id="listaCargasExpedicao"></div>
+        </div>
+      </section>
+
+      <section class="exp-card">
+        <div class="exp-card-head">
+          <span id="tituloDetalheExpedicao">Selecione uma carga</span>
+          <span id="statusDetalheExpedicao" class="status-tag pronta_expedicao">PRONTA_EXPEDICAO</span>
+        </div>
+        <div class="exp-body">
+          <div id="expPainelAlerta" class="exp-painel-alerta" role="alert" aria-live="polite"></div>
+          <div id="expDetalheVazio" class="exp-detalhe-vazio" hidden>
+            <i class="bx bx-package"></i>
+            <p id="expDetalheVazioMsg">Selecione uma carga na lista à esquerda.</p>
+            <p class="exp-detalhe-vazio-hint">Liberação por divergência só se aplica quando existir carga com validação pendente.</p>
+          </div>
+          <div id="expDetalheOperacional">
+          <div id="expEstoqueWrap" class="exp-estoque-wrap" style="display:none;">
+            <div id="expEstoqueHead" class="exp-divergencias-head" style="color:#b45309;"><i class="bx bx-lock-alt"></i> Estoque / reserva OPL (obrigatório para expedir)</div>
+            <div id="expEstoqueBody" class="exp-estoque-body"></div>
+          </div>
+          <div id="expDivergenciasWrap" class="exp-divergencias-wrap">
+            <div class="exp-divergencias-head">
+              <div class="exp-divergencias-head-main">
+                <i class="bx bx-error-circle"></i>
+                <div>
+                  Divergências de validação
+                  <span class="exp-divergencias-head-sub">NF-e × separação OPL — itens em vermelho bloqueiam expedição sem liberação</span>
+                </div>
+              </div>
+              <span id="expDivergenciasCount" class="exp-divergencias-count" style="display:none;"></span>
+            </div>
+            <div id="expDivergenciasHint" class="exp-divergencias-hint"></div>
+            <div class="exp-divergencias-body">
+              <table class="exp-divergencias-table">
+                <thead>
+                  <tr>
+                    <th class="col-tipo">Tipo</th>
+                    <th class="col-pedido">Pedido</th>
+                    <th class="col-codigo">Código</th>
+                    <th class="col-desc">Produto</th>
+                    <th class="col-obs">Obs. OPL</th>
+                    <th class="col-num">Sep.</th>
+                    <th class="col-num">NF qtd</th>
+                    <th class="col-num">Dif</th>
+                  </tr>
+                </thead>
+                <tbody id="expDivergenciasBody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div id="expConferenciasWrap" class="exp-conferencias-wrap">
+            <div class="exp-conferencias-head">
+              <i class="bx bx-info-circle"></i>
+              A conferir: xPed NF ≠ pedido OPL
+              <span style="font-size:11px;font-weight:500;opacity:.85;">(não bloqueia)</span>
+            </div>
+            <div id="expConferenciasHint" class="exp-conferencias-hint"></div>
+            <div class="exp-conferencias-body">
+              <table class="exp-conferencias-table">
+                <thead>
+                  <tr>
+                    <th>xPed NF</th>
+                    <th>OPL sugerido</th>
+                    <th>Código</th>
+                    <th>Produto</th>
+                    <th>Qtd NF</th>
+                    <th>Qtd OPL</th>
+                    <th>Situação</th>
+                  </tr>
+                </thead>
+                <tbody id="expConferenciasBody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div id="expHistoricoWrap" class="exp-historico-wrap">
+            <div class="exp-historico-head">
+              <span class="exp-historico-title">Controle de liberação por divergência</span>
+              <span id="expPermissaoBadge" class="exp-historico-perm">Permissão: --</span>
+            </div>
+            <div id="expHistoricoBody" class="exp-historico-body">
+              <div class="exp-historico-empty">Sem histórico para esta carga.</div>
+            </div>
+          </div>
+          <div id="expLiberacaoWrap" class="exp-liberacao-wrap" style="display:none;">
+            <div class="exp-liberacao-head">
+              <i class="bx bx-shield-quarter"></i>
+              Liberação por supervisor
+              <span class="exp-liberacao-head-sub">Use quando estoque/OPL ou NF bloqueiam — inicia a expedição com registro de auditoria</span>
+            </div>
+            <p id="expLiberacaoHint" class="exp-liberacao-hint hint" style="display:none;"></p>
+            <textarea id="inputJustificativaBloqueio" class="exp-input" placeholder="Justificativa (mín. 10 caracteres): ex. reservas removidas na migração; mercadoria separada e conferida."></textarea>
+            <div class="exp-liberacao-row">
+              <input id="inputAutorizadoLogin" class="exp-input" style="max-width:240px;" placeholder="Usuário autorizador" maxlength="50" />
+              <input id="inputAutorizadoSenha" type="password" class="exp-input" style="max-width:220px;" placeholder="Senha do autorizador" maxlength="100" />
+              <button type="button" class="btn-filtro btn-filtro-alerta" id="btnLiberarComDivergencia">
+                <i class="bx bx-shield-quarter"></i> Liberar e iniciar expedição
+              </button>
+            </div>
+          </div>
+          <div class="exp-ops">
+            <div class="exp-ops-head"><i class="bx bx-truck"></i> Dados da expedição</div>
+            <div class="exp-ops-body">
+              <div class="exp-ops-status">
+                <div class="exp-ops-meta"><span class="k">Início</span><span class="v" id="detInicioExp">-</span></div>
+                <div class="exp-ops-meta"><span class="k">Saída</span><span class="v" id="detSaidaConfirmadaExp">-</span></div>
+                <span id="detConferenteExp" hidden>-</span>
+                <span id="detMotoristaExp" hidden>-</span>
+                <span id="detPlacaExp" hidden>-</span>
+              </div>
+              <div class="exp-ops-form">
+                <label for="inputConferenteExp">Conferente
+                  <input class="exp-input" id="inputConferenteExp" placeholder="Nome do conferente" maxlength="120" autocomplete="name" />
+                </label>
+                <label for="inputMotoristaExp">Motorista
+                  <input class="exp-input" id="inputMotoristaExp" placeholder="Nome do motorista" maxlength="120" autocomplete="name" />
+                </label>
+                <label for="inputPlacaExp">Placa
+                  <input class="exp-input" id="inputPlacaExp" placeholder="ABC1D23" maxlength="10" autocomplete="off" />
+                </label>
+              </div>
+
+              <div id="expReabrirWrap" class="exp-reabrir-wrap" style="display:none;" aria-hidden="true">
+                <div class="exp-reabrir-head"><i class="bx bx-undo"></i> Reabrir expedição — embarcar em outro veículo</div>
+                <div class="exp-reabrir-body">
+                  <p class="exp-reabrir-desc">
+                    A carga já foi expedida. Preencha a justificativa e a autorização abaixo, depois clique em
+                    <strong>Reabrir expedição</strong>. Em seguida informe o <strong>novo motorista e placa</strong> e confirme a saída novamente.
+                  </p>
+                  <textarea id="inputJustificativaReabrir" class="exp-input" maxlength="1000"
+                    placeholder="Justificativa (obrigatória) — ex.: veículo voltou ao pátio; carga seguirá em outro caminhão."></textarea>
+                  <div class="exp-liberacao-row">
+                    <input id="inputReabrirAutorizadoLogin" class="exp-input" style="max-width:240px;" placeholder="Usuário autorizador" maxlength="50" autocomplete="username" />
+                    <input id="inputReabrirAutorizadoSenha" type="password" class="exp-input" style="max-width:220px;" placeholder="Senha do autorizador" maxlength="100" autocomplete="current-password" />
+                  </div>
+                </div>
+              </div>
+
+              <div class="exp-actions exp-actions--primarias">
+                <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnIniciarExpedicao"><i class="bx bx-play-circle"></i> Iniciar expedição</button>
+                <button type="button" class="btn-filtro btn-filtro-novo" id="btnConfirmarSaidaExp"><i class="bx bx-check-shield"></i> Confirmar saída</button>
+                <button type="button" class="btn-filtro btn-filtro-limpar" id="btnVoltarMontagemExp" style="display:none;" disabled
+                  title="Libera a carga em Cargas Programadas para incluir ou remover NF-e (expedição em andamento, saída ainda não confirmada).">
+                  <i class="bx bx-edit-alt"></i> Voltar à montagem
+                </button>
+                <button type="button" class="btn-filtro btn-filtro-alerta" id="btnReabrirExpedicao" style="display:none;" disabled
+                  title="Volta carga expedida para «Em expedição» (novo veículo). Estorna saída de estoque e recria reservas OPL. Exige autorização.">
+                  <i class="bx bx-undo"></i> Reabrir expedição
+                </button>
+              </div>
+
+              <div class="exp-actions exp-actions--relatorios">
+                <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnRevalidarCargaExp" disabled
+                  title="Recalcula as divergências desta carga usando a lógica atual (útil quando o algoritmo de match foi atualizado ou após correção retroativa).">
+                  <i class="bx bx-refresh"></i> Re-validar carga
+                </button>
+                <button type="button" class="btn-filtro btn-filtro-limpar" id="btnImprimirResumoExp" disabled><i class="bx bx-printer"></i> Resumo ¹</button>
+                <button type="button" class="btn-filtro btn-filtro-limpar" id="btnImprimirFriosExp" disabled><i class="bx bx-printer"></i> Resumo ²</button>
+                <button type="button" class="btn-filtro btn-filtro-limpar" id="btnImprimirDivergenciasExp" disabled title="Relatório de divergências entre NF-e e separação física desta carga (para validação fiscal/contábil)"><i class="bx bx-error-circle"></i> Divergências</button>
+                <button type="button" class="btn-filtro btn-filtro-limpar" id="btnExportarDivergenciasCsvExp" disabled title="Exporta CSV (Excel-BR) com todas as divergências desta carga"><i class="bx bx-spreadsheet"></i> CSV</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="exp-nf-section">
+            <div class="exp-nf-section-head"><span><i class="bx bx-receipt"></i> NF-e da carga</span></div>
+            <div class="exp-nf-wrap">
+              <table class="exp-nf-table">
+                <colgroup>
+                  <col style="width: 140px;" />
+                  <col />
+                  <col style="width: 72px;" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th class="col-numero">Nº / Série</th>
+                    <th class="col-destino">Destino</th>
+                    <th class="col-itens right">Itens</th>
+                  </tr>
+                </thead>
+                <tbody id="tbodyNfesExpedicao"></tbody>
+              </table>
+            </div>
+          </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div id="exRomBackdrop">
+    <div class="exp-rom-modal">
+      <div class="rom-modal-header">
+        <h3><i class="bx bx-printer"></i> Romaneio Modelo 2</h3>
+        <button type="button" class="rom-modal-close" id="btnExRomFechar" aria-label="Fechar"><i class="bx bx-x" aria-hidden="true"></i></button>
+      </div>
+      <p id="exRomTituloDinamicoExp" class="rom-din-tit" aria-live="polite"></p>
+      <div class="rom-sec">
+        <div class="rom-sec-titulo">Opções do relatório</div>
+        <div class="rom-bloco-filtros">
+          <div>
+            <label for="exRomConservacao">Romaneio — conservação</label>
+            <select id="exRomConservacao" class="form-control">
+              <option value="todos">Todos os produtos</option>
+              <option value="refri">Só refrigerado / congelado</option>
+              <option value="seco">Só seco / ambiente</option>
+            </select>
+          </div>
+          <div>
+            <label for="exRomAgrupar">Romaneio — linhas</label>
+            <select id="exRomAgrupar" class="form-control">
+              <option value="1">Somar qtd. por código no mesmo destinatário / NF</option>
+              <option value="0">Uma linha por item da NF (detalhado)</option>
+            </select>
+          </div>
+          <div>
+            <label for="exRomFolhas">Romaneio — folhas</label>
+            <select id="exRomFolhas" class="form-control">
+              <option value="nota">Uma folha por NF (recomendado)</option>
+              <option value="dest">Uma folha por destino (UF + município + CNPJ entrega)</option>
+              <option value="endereco">Uma folha por endereço de entrega</option>
+              <option value="continuo">Listagem contínua (sem quebra)</option>
+            </select>
+          </div>
+          <div>
+            <label for="exRomCdDonoExp">Dono do estoque</label>
+            <select id="exRomCdDonoExp" class="form-control">
+              <option value="">Todos os donos</option>
+            </select>
+          </div>
+          <div class="rom-filtro-geo">
+            <div>
+              <label for="exRomUnidadeExp">Unidade de destino (cidade/UF)
+                <span id="exRomUnidContadorExp" class="rom-filtro-cont"></span>
+              </label>
+              <select id="exRomUnidadeExp" class="form-control" title="Filtra por município/UF de entrega da NF-e.">
+                <option value="">Todas as unidades</option>
+              </select>
+            </div>
+            <div>
+              <label for="exRomDestinoExp">Local de entrega / destino
+                <span id="exRomDestContadorExp" class="rom-filtro-cont"></span>
+              </label>
+              <select id="exRomDestinoExp" class="form-control" title="Cliente ou unidade de entrega (ex.: rede — loja).">
+                <option value="">Todos os destinos</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label for="exRomCodigoExp">Código do produto
+              <span id="exRomCodContadorExp" class="rom-filtro-cont"></span>
+            </label>
+            <select id="exRomCodigoExp" class="form-control" title="Filtra o romaneio por um código de produto da carga.">
+              <option value="">Todos os códigos</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="rom-sec">
+        <div class="rom-sec-titulo">Ordenação</div>
+        <div class="rom-bloco-ord">
+        <div>
+          <label for="exRomOrd1">Ordenação 1</label>
+          <select id="exRomOrd1" class="form-control">
+            <option value="unidade">Unidade (cidade/UF)</option>
+            <option value="destino">Destino (cliente)</option>
+            <option value="conservacao">Conservação</option>
+            <option value="categoria">Categoria (WMS)</option>
+            <option value="nome">Nome</option>
+            <option value="codigo">Código</option>
+          </select>
+        </div>
+        <div>
+          <label for="exRomOrd2">Ordenação 2</label>
+          <select id="exRomOrd2" class="form-control">
+            <option value="destino">Destino (cliente)</option>
+            <option value="unidade">Unidade (cidade/UF)</option>
+            <option value="conservacao">Conservação</option>
+            <option value="categoria">Categoria (WMS)</option>
+            <option value="nome">Nome</option>
+            <option value="codigo">Código</option>
+            <option value="">(não usar)</option>
+          </select>
+        </div>
+        <div>
+          <label for="exRomOrd3">Ordenação 3</label>
+          <select id="exRomOrd3" class="form-control">
+            <option value="conservacao">Conservação</option>
+            <option value="categoria">Categoria (WMS)</option>
+            <option value="nome">Nome</option>
+            <option value="codigo">Código</option>
+            <option value="unidade">Unidade (cidade/UF)</option>
+            <option value="destino">Destino (cliente)</option>
+            <option value="">(não usar)</option>
+          </select>
+        </div>
+        <div>
+          <label for="exRomOrd4">Ordenação 4</label>
+          <select id="exRomOrd4" class="form-control">
+            <option value="categoria">Categoria (WMS)</option>
+            <option value="nome">Nome</option>
+            <option value="codigo">Código</option>
+            <option value="conservacao">Conservação</option>
+            <option value="unidade">Unidade (cidade/UF)</option>
+            <option value="destino">Destino (cliente)</option>
+            <option value="">(não usar)</option>
+          </select>
+        </div>
+        <div>
+          <label for="exRomOrd5">Ordenação 5</label>
+          <select id="exRomOrd5" class="form-control">
+            <option value="nome">Nome</option>
+            <option value="codigo">Código</option>
+            <option value="categoria">Categoria (WMS)</option>
+            <option value="conservacao">Conservação</option>
+            <option value="unidade">Unidade (cidade/UF)</option>
+            <option value="destino">Destino (cliente)</option>
+            <option value="">(não usar)</option>
+          </select>
+        </div>
+      </div>
+      </div>
+      <div class="rom-rodape-acoes">
+        <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnExRomGerar"><i class="bx bx-printer"></i> Gerar impressão</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="rsRomBackdrop">
+    <div class="exp-rom-modal">
+      <div class="rom-modal-header">
+        <h3><i class="bx bx-printer"></i> Resumo de picking</h3>
+        <button type="button" class="rom-modal-close" id="btnRsRomFecharExp" aria-label="Fechar"><i class="bx bx-x" aria-hidden="true"></i></button>
+      </div>
+      <p id="rsRomTituloDinamicoExp" class="rom-din-tit" aria-live="polite"></p>
+      <div class="rom-sec">
+        <div class="rom-sec-titulo">Opções do relatório</div>
+        <div class="rom-bloco-filtros">
+          <div>
+            <label for="rsRomConservacaoExp">Romaneio — conservação</label>
+            <select id="rsRomConservacaoExp" class="form-control">
+              <option value="todos">Todos os produtos</option>
+              <option value="refri">Só refrigerado / congelado</option>
+              <option value="seco">Só seco / ambiente</option>
+            </select>
+          </div>
+          <div>
+            <label for="rsRomAgruparExp">Romaneio — linhas</label>
+            <select id="rsRomAgruparExp" class="form-control">
+              <option value="1">Somar qtd. por código no mesmo destinatário / NF</option>
+              <option value="0">Uma linha por item da NF (detalhado)</option>
+            </select>
+          </div>
+          <div>
+            <label for="rsRomFolhasExp">Romaneio — folhas</label>
+            <select id="rsRomFolhasExp" class="form-control">
+              <option value="dono">Uma folha por dono do estoque</option>
+              <option value="nota">Uma folha por NF</option>
+              <option value="dest">Uma folha por destino (UF + município + CNPJ entrega)</option>
+              <option value="endereco">Uma folha por endereço de entrega</option>
+              <option value="continuo">Listagem contínua (sem quebra)</option>
+            </select>
+          </div>
+          <div>
+            <label for="rsRomCdDonoExp">Dono do estoque</label>
+            <select id="rsRomCdDonoExp" class="form-control">
+              <option value="">Todos os donos</option>
+            </select>
+          </div>
+          <div class="rom-filtro-geo">
+            <div>
+              <label for="rsRomUnidadeExp">Unidade de destino (cidade/UF)
+                <span id="rsRomUnidContadorExp" class="rom-filtro-cont"></span>
+              </label>
+              <select id="rsRomUnidadeExp" class="form-control" title="Filtra por município/UF de entrega da NF-e.">
+                <option value="">Todas as unidades</option>
+              </select>
+            </div>
+            <div>
+              <label for="rsRomDestinoExp">Local de entrega / destino
+                <span id="rsRomDestContadorExp" class="rom-filtro-cont"></span>
+              </label>
+              <select id="rsRomDestinoExp" class="form-control" title="Cliente ou unidade de entrega (ex.: rede — loja).">
+                <option value="">Todos os destinos</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label for="rsRomCodigoExp">Código do produto
+              <span id="rsRomCodContadorExp" class="rom-filtro-cont"></span>
+            </label>
+            <select id="rsRomCodigoExp" class="form-control" title="Filtra o resumo por um código de produto da carga.">
+              <option value="">Todos os códigos</option>
+            </select>
+          </div>
+        </div>
+        <div id="rsRomAvisoContinuoDonosExp" class="rs-rom-aviso-continuo" style="display: none;" role="status">
+          <i class="bx bx-info-circle" aria-hidden="true"></i>
+          <div>
+            Com <strong>listagem contínua</strong> e <strong>todos os donos</strong>, o PDF fica em <strong>uma folha</strong> e o picking aparece em <strong>blocos separados por dono do estoque</strong>. Confira o dono de cada bloco antes de separar, para não misturar estoque entre donos.
+          </div>
+        </div>
+      </div>
+      <div class="rom-sec">
+        <div class="rom-sec-titulo">Ordenação</div>
+        <div class="rom-bloco-ord">
+        <div>
+          <label for="rsRomOrd1Exp">Ordenação 1</label>
+          <select id="rsRomOrd1Exp" class="form-control">
+            <option value="unidade">Unidade (cidade/UF)</option>
+            <option value="destino">Destino (cliente)</option>
+            <option value="conservacao">Conservação</option>
+            <option value="categoria">Categoria (WMS)</option>
+            <option value="nome">Nome</option>
+            <option value="codigo">Código</option>
+          </select>
+        </div>
+        <div>
+          <label for="rsRomOrd2Exp">Ordenação 2</label>
+          <select id="rsRomOrd2Exp" class="form-control">
+            <option value="destino">Destino (cliente)</option>
+            <option value="unidade">Unidade (cidade/UF)</option>
+            <option value="conservacao">Conservação</option>
+            <option value="categoria">Categoria (WMS)</option>
+            <option value="nome">Nome</option>
+            <option value="codigo">Código</option>
+            <option value="">(não usar)</option>
+          </select>
+        </div>
+        <div>
+          <label for="rsRomOrd3Exp">Ordenação 3</label>
+          <select id="rsRomOrd3Exp" class="form-control">
+            <option value="conservacao">Conservação</option>
+            <option value="categoria">Categoria (WMS)</option>
+            <option value="nome">Nome</option>
+            <option value="codigo">Código</option>
+            <option value="unidade">Unidade (cidade/UF)</option>
+            <option value="destino">Destino (cliente)</option>
+            <option value="">(não usar)</option>
+          </select>
+        </div>
+        <div>
+          <label for="rsRomOrd4Exp">Ordenação 4</label>
+          <select id="rsRomOrd4Exp" class="form-control">
+            <option value="categoria">Categoria (WMS)</option>
+            <option value="nome">Nome</option>
+            <option value="codigo">Código</option>
+            <option value="conservacao">Conservação</option>
+            <option value="unidade">Unidade (cidade/UF)</option>
+            <option value="destino">Destino (cliente)</option>
+            <option value="">(não usar)</option>
+          </select>
+        </div>
+        <div>
+          <label for="rsRomOrd5Exp">Ordenação 5</label>
+          <select id="rsRomOrd5Exp" class="form-control">
+            <option value="nome">Nome</option>
+            <option value="codigo">Código</option>
+            <option value="categoria">Categoria (WMS)</option>
+            <option value="conservacao">Conservação</option>
+            <option value="unidade">Unidade (cidade/UF)</option>
+            <option value="destino">Destino (cliente)</option>
+            <option value="">(não usar)</option>
+          </select>
+        </div>
+      </div>
+      </div>
+      <div class="rom-rodape-acoes">
+        <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnRsRomGerarExp"><i class="bx bx-printer"></i> Gerar impressão</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="loadingOverlay" class="calculando-overlay" style="display: none;">
+    <div class="calculando-content">
+      <div class="calculando-spinner"></div>
+      <h3 id="loadingTitle">Carregando</h3>
+      <p id="loadingText">Aguarde...</p>
+      <p class="calculando-detalhe" id="loadingDetalhe"></p>
+    </div>
+  </div>
+
+  <script src="/js/utils.js?v=202606011430"></script>
+  <script src="js/script.js?v=202609101145"></script>
+</body>
+</html>

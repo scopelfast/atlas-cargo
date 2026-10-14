@@ -440,9 +440,9 @@
 
     <!-- Abas -->
     <div class="tabs tabs-com-icones">
-      <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.cidades.tabFiltros"><i class='bx bx-filter-alt'></i> Filtros</button>
-      <button class="tab-btn" data-tab="grid" data-i18n="web.modulos.cidades.tabGrid"><i class='bx bx-grid-alt'></i> Grid</button>
-      <button class="tab-btn" data-tab="dados" data-i18n="web.modulos.cidades.tabDados"><i class='bx bx-edit'></i> Dados</button>
+      <button type="button" class="tab-btn active" data-tab="filtros"><i class='bx bx-filter-alt'></i> <span data-i18n="web.modulos.cidades.tabFiltros">Filtros</span></button>
+      <button type="button" class="tab-btn" data-tab="grid"><i class='bx bx-grid-alt'></i> <span data-i18n="web.modulos.cidades.tabGrid">Grid</span></button>
+      <button type="button" class="tab-btn" data-tab="dados"><i class='bx bx-edit'></i> <span data-i18n="web.modulos.cidades.tabDados">Dados</span></button>
     </div>
 
     <!-- Filtros -->
@@ -511,7 +511,7 @@
               <i class='bx bx-search'></i> <span data-i18n="web.modulos.cidades.filtrar">Filtrar</span>
             </button>
             <button type="button" id="btnNovoRegistro" class="btn-filtro btn-filtro-novo">
-              <i class='bx bx-plus'></i> <span>Novo</span>
+              <i class='bx bx-plus'></i> <span data-i18n="web.modulos.cidades.novo">Novo</span>
             </button>
           </div>
         </form>
@@ -524,9 +524,9 @@
       <div class="filtros-box">
         <h3 data-i18n="web.modulos.cidades.cidadesCadastradas">Cidades Cadastradas</h3>
         <div class="filtros-actions" style="justify-content: space-between; margin-top: 0; margin-bottom: 15px;">
-          <button id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> Voltar</button>
-          <button id="btnNovoRegistroGrid" class="btn-filtro btn-filtro-novo">
-            <i class='bx bx-plus'></i> Novo
+          <button type="button" id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.cidades.voltar">Voltar</span></button>
+          <button type="button" id="btnNovoRegistroGrid" class="btn-filtro btn-filtro-novo">
+            <i class='bx bx-plus'></i> <span data-i18n="web.modulos.cidades.novo">Novo</span>
           </button>
         </div>
         <div id="cidadesGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">

@@ -1,5 +1,6 @@
 // backend/controllers/usuariologacao.controller.js
 const { registrarAcao, buscarLogs } = require('../models/usuariologacao.model');
+const { tenantIdForRequest } = require('../utils/tenant-context');
 
 /**
  * Registrar ação do usuário (endpoint)
@@ -93,6 +94,7 @@ const registrarAcaoUsuario = async (req, res) => {
     }
     
     const userAgent = req.headers['user-agent'] || null;
+    const tenantId = tenantIdForRequest(req);
 
     const idLog = await registrarAcao({
       sgUsuario,
@@ -103,7 +105,8 @@ const registrarAcaoUsuario = async (req, res) => {
       idRegistro,
       tabela,
       ip,
-      userAgent
+      userAgent,
+      tenantId
     });
 
     return res.json({

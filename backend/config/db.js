@@ -36,25 +36,13 @@ function convertSqlToPg(sql, inputs) {
     topLimitParam = n;
     return 'SELECT ';
   });
-  pgSql = pgSql.replace(/\[dbo\]\.\[([^\]]+)\]/g, (_, t) => '"' + t.trim() + '"');
-  // Preservar caso original de tabelas e colunas (compatível com banco em maiúsculas, ex.: migrado do SQL Server)
-  pgSql = pgSql.replace(/\.\[([^\]]+)\]/g, (_, col) => '."' + col.trim() + '"');
-  pgSql = pgSql.replace(/\[([^\]]+)\]/g, (_, n) => '"' + n.trim() + '"');
+  // Preservar o texto entre colchetes (migrações SQL Server → PG costumam usar "VIAGEMMESTRE" com o mesmo casing).
+  pgSql = pgSql.replace(/\[dbo\]\.\[([^\]]+)\]/g, (_, t) => '"' + String(t).trim().replace(/"/g, '""') + '"');
+  pgSql = pgSql.replace(/\.\[([^\]]+)\]/g, (_, col) => '."' + String(col).trim().replace(/"/g, '""') + '"');
+  pgSql = pgSql.replace(/\[([^\]]+)\]/g, (_, n) => '"' + String(n).trim().replace(/"/g, '""') + '"');
 
-  // Migração SQL Server → PostgreSQL: nomes de tabela sem colchetes viram minúsculas no PG.
-  // Quotar e manter maiúsculas quando aparecem em posição de tabela (INSERT INTO / UPDATE / FROM / JOIN).
-  const quoteTableName = (m, t, after) => (t.startsWith('"') ? m : after + '"' + t.toUpperCase() + '"');
-  pgSql = pgSql.replace(/\bINSERT\s+INTO\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/gi, (m, t) => quoteTableName(m, t, 'INSERT INTO '));
-  pgSql = pgSql.replace(/\bUPDATE\s+([A-Za-z_][A-Za-z0-9_]*)\s+SET\b/gi, (m, t) => quoteTableName(m, t, 'UPDATE '));
-  // Não quotar após FROM quando for subquery: FROM ( ... ) — evita quebra de CTE/alias
-  pgSql = pgSql.replace(/\bFROM\s+(?!\()([A-Za-z_][A-Za-z0-9_]*)(\s)/gi, (m, t, s) => (t.startsWith('"') ? m : 'FROM "' + t.toUpperCase() + '"' + s));
-  pgSql = pgSql.replace(/\b(LEFT|RIGHT|INNER|OUTER|CROSS)?\s*JOIN\s+([A-Za-z_][A-Za-z0-9_]*)(\s)/gi, (m, side, t, s) => {
-    const join = side ? side + ' JOIN ' : 'JOIN ';
-    return t.startsWith('"') ? m : join + '"' + t.toUpperCase() + '"' + s;
-  });
-
-  // Aliases sem aspas para PostgreSQL: referências como V.[col] viram v."COL"; alias em minúsculo
-  pgSql = pgSql.replace(/(\b(?:FROM|JOIN)\s+(?:"[^"]+"|[a-z_][a-z0-9_]*))\s+(?:AS\s+)?(?!["])(?!(?:WHERE|ON|LEFT|INNER|RIGHT|JOIN|AND|OR|GROUP|ORDER|BY|SET|VALUES|EXCLUDED|LIMIT|OFFSET|UNION|SELECT|FROM)\b)(\w+)(?=\s|$|\))/gi, (_, p, a) => p + ' AS ' + a.toLowerCase());
+  // IMPORTANTE: não forçar quote/casing de tabelas/aliases sem colchetes.
+  // Isso já causou regressões (ex.: "ALERTS" vs alerts) em módulos distintos.
   // DATEADD antes de GETDATE, para não sobrar DATEADD(SECOND, -5, CURRENT_TIMESTAMP) (PostgreSQL interpretaria SECOND como coluna)
   pgSql = pgSql.replace(/\bDATEADD\s*\(\s*SECOND\s*,\s*-\s*(\d+)\s*,\s*GETDATE\s*\(\s*\)\s*\)/gi, '(CURRENT_TIMESTAMP - INTERVAL \'$1 seconds\')');
   pgSql = pgSql.replace(/\bDATEADD\s*\(\s*SECOND\s*,\s*-\s*(\d+)\s*,\s*CURRENT_TIMESTAMP\s*\)/gi, '(CURRENT_TIMESTAMP - INTERVAL \'$1 seconds\')');

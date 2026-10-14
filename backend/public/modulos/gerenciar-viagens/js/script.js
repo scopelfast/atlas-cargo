@@ -38,6 +38,122 @@
     return headers;
   }
 
+  function buildApiUrl(path) {
+    const pathname = (window.location && window.location.pathname) || '';
+    let prefix = '';
+    if (pathname.indexOf('/cargas') !== -1) prefix = '/cargas';
+    else if (pathname.indexOf('/motorista') !== -1) prefix = '/motorista';
+    const clean = path.startsWith('/') ? path : `/${path}`;
+    return `${prefix}${clean}`;
+  }
+
+  /** /api/viagens + sufixo (/path ou ?query), respeitando prefixo /cargas quando aplicável. */
+  function urlApiViagens(pathOrQuery = '') {
+    const base = buildApiUrl('/api/viagens');
+    if (!pathOrQuery) return base;
+    const s = String(pathOrQuery);
+    if (s.startsWith('?') || s.startsWith('/')) return base + s;
+    return `${base}/${s}`;
+  }
+
+  /**
+   * fetch para rotas sob /api/viagens com Authorization + user-login (auditoria no backend).
+   * @param {string} pathSuffix '' | '/id' | '?a=1' | '/regras-compatibilidade'
+   * @param {RequestInit} [init]
+   */
+  function fetchApiViagens(pathSuffix = '', init = {}) {
+    const url = urlApiViagens(pathSuffix);
+    const { headers: initHeaders, ...rest } = init;
+    const headers = getAuthHeaders({
+      Accept: 'application/json',
+      ...(initHeaders && typeof initHeaders === 'object' ? initHeaders : {})
+    });
+    return fetch(url, { ...rest, headers });
+  }
+
+  /**
+   * Se response não for ok, consome o corpo (JSON ou texto) e devolve Error com httpStatus.
+   * Se ok, devolve null (chame em seguida response.json() / .text()).
+   */
+  async function rejeicaoSeRespostaNaoOk(response, fallbackMsg = 'Operação não concluída.') {
+    if (response.ok) return null;
+    let payload = {};
+    try {
+      const ct = (response.headers.get('content-type') || '');
+      if (ct.includes('application/json')) {
+        payload = await response.json();
+      } else {
+        const t = await response.text();
+        if (t) payload = { error: t };
+      }
+    } catch (e) {
+      /* ignore */
+    }
+    const text = (payload && (payload.error || payload.message || payload.details)) || fallbackMsg;
+    const err = new Error(String(text));
+    err.httpStatus = response.status;
+    err.payload = payload;
+    return err;
+  }
+
+  /** Tipo de toast para showMessage quando o erro veio da API (409 = conflito / regra de negócio). */
+  function tipoMensagemErroHttp(err) {
+    return err && err.httpStatus === 409 ? 'warning' : 'error';
+  }
+
+  function fetchApiAbsPath(apiPath, init = {}) {
+    const clean = apiPath.startsWith('/') ? apiPath : `/${apiPath}`;
+    const url = buildApiUrl(clean);
+    const { headers: initHeaders, ...rest } = init;
+    const headers = getAuthHeaders({
+      Accept: 'application/json',
+      ...(initHeaders && typeof initHeaders === 'object' ? initHeaders : {})
+    });
+    return fetch(url, { ...rest, headers });
+  }
+
+  /** Converte resposta do gateway (OSRM ou GeoJSON ORS) para formato OSRM esperado pela UI. */
+  function normalizarJsonRotaGateway(raw) {
+    if (!raw) return null;
+    if (raw.code === 'Ok' && raw.routes && raw.routes[0] && raw.routes[0].geometry && raw.routes[0].geometry.coordinates) {
+      return raw;
+    }
+    if (typeof window.normalizarRespostaGatewayOsrm === 'function') {
+      return window.normalizarRespostaGatewayOsrm(raw);
+    }
+    return null;
+  }
+
+  async function fetchRotaOsrmViaBackend(coordsStr, timeoutMs = 35000) {
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const url = `${buildApiUrl('/api/mapa/rota-osrm')}?coords=${encodeURIComponent(coordsStr)}`;
+      const response = await fetch(url, {
+        signal: controller.signal,
+        cache: 'no-store',
+        headers: getAuthHeaders({ Accept: 'application/json' })
+      });
+      if (!response.ok) throw new Error(`proxy HTTP ${response.status}`);
+      const raw = await response.json();
+      const norm = normalizarJsonRotaGateway(raw);
+      return norm != null ? norm : raw;
+    } finally {
+      clearTimeout(tid);
+    }
+  }
+
+  /** Base OSRM pública para fallback quando router do banco é ORS (GET direto ao ORS não existe no browser). */
+  function baseOsrmPublicaFallback() {
+    return 'https://router.project-osrm.org/route/v1/driving';
+  }
+
+  function servidorParaFetchDiretoOsrm(servidorConfig) {
+    const s = String(servidorConfig || '').trim();
+    if (s.includes('/ors/')) return baseOsrmPublicaFallback();
+    return s || baseOsrmPublicaFallback();
+  }
+
   // Elementos
   const tabs = document.querySelectorAll('.tab-btn');
   const tabContents = document.querySelectorAll('.tab-content');
@@ -89,6 +205,9 @@
       const d = await r.json();
       if (d && d.locale) contextoViagens.locale = d.locale;
       if (d && d.timezone) contextoViagens.timezone = d.timezone;
+      if (d && d.timezone && typeof window.syncAtlasTimezoneInstalacao === 'function') {
+        window.syncAtlasTimezoneInstalacao(d.timezone);
+      }
     } catch (e) {}
   }
   function fmtDataHora(data) {
@@ -127,56 +246,52 @@
 
   // Função para carregar o Leaflet dinamicamente
   async function carregarLeaflet() {
-    // Se já está carregado, retornar
-    if (typeof L !== 'undefined') {
-      return true;
-    }
-
-    // Verificar se o CSS já foi carregado
-    if (!document.querySelector('link[href*="leaflet"]')) {
+    // CSS primeiro: se L já veio no HTML do módulo e o CSS do head não foi injetado no dashboard,
+    // os tiles ficam espalhados (clássico “mapa doido”).
+    if (!document.querySelector('link[href*="leaflet"][rel="stylesheet"]')) {
       const link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
       link.crossOrigin = '';
       document.head.appendChild(link);
     }
 
-    // Carregar o script do Leaflet
+    if (typeof L !== 'undefined') {
+      return true;
+    }
+
     return new Promise((resolve, reject) => {
-      // Verificar se já existe um script do Leaflet
-      if (document.querySelector('script[src*="leaflet"]')) {
-        // Aguardar o script carregar
+      const existing = document.querySelector('script[src*="leaflet"]');
+      if (existing) {
         let tentativas = 0;
         const checkInterval = setInterval(() => {
           if (typeof L !== 'undefined') {
             clearInterval(checkInterval);
             resolve(true);
-          } else if (tentativas++ > 20) {
+          } else if (tentativas++ > 30) {
             clearInterval(checkInterval);
-            reject(new Error('Timeout ao carregar Leaflet'));
+            try { existing.remove(); } catch (e) { /* ignore */ }
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+            script.crossOrigin = '';
+            script.onload = () => (typeof L !== 'undefined' ? resolve(true) : reject(new Error('Leaflet sem global L')));
+            script.onerror = () => reject(new Error('Falha ao baixar leaflet.js (unpkg)'));
+            document.head.appendChild(script);
           }
-        }, 500);
+        }, 200);
         return;
       }
 
       const script = document.createElement('script');
       script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
       script.crossOrigin = '';
       script.onload = () => {
-        // Aguardar um pouco para garantir que L está disponível
         setTimeout(() => {
-          if (typeof L !== 'undefined') {
-            resolve(true);
-          } else {
-            reject(new Error('Leaflet carregado mas L não está disponível'));
-          }
-        }, 100);
+          if (typeof L !== 'undefined') resolve(true);
+          else reject(new Error('Leaflet carregado mas L não está disponível'));
+        }, 50);
       };
-      script.onerror = () => {
-        reject(new Error('Erro ao carregar o script do Leaflet'));
-      };
+      script.onerror = () => reject(new Error('Falha ao baixar leaflet.js (unpkg)'));
       document.head.appendChild(script);
     });
   }
@@ -297,10 +412,10 @@
       filtroMotoristaConfirmado.value = '';
     }
 
-    // Situação Viagem = Preparação (valor padrão, mas pode ser alterado ou limpo)
+    // Situação Viagem = todas (evita ocultar viagens vindas de deep links, ex.: Relatório de Convocações)
     const filtroSituacaoViagem = document.getElementById('filtroSituacaoViagem');
     if (filtroSituacaoViagem) {
-      filtroSituacaoViagem.value = 'D'; // D = Preparação
+      filtroSituacaoViagem.value = '';
     }
 
     // Data Início = hoje - 30 dias
@@ -310,7 +425,9 @@
       const dataInicio = new Date(hoje);
       dataInicio.setDate(dataInicio.getDate() - 30);
       // Formatar como YYYY-MM-DD para input type="date"
-      const dataInicioFormatada = dataInicio.toISOString().split('T')[0];
+      const dataInicioFormatada = (typeof window.dataApiParaInputDate === 'function')
+        ? window.dataApiParaInputDate(dataInicio, contextoViagens.timezone)
+        : dataInicio.toISOString().split('T')[0];
       filtroDataInicio.value = dataInicioFormatada;
     }
 
@@ -321,7 +438,9 @@
       const dataFim = new Date(hoje);
       dataFim.setDate(dataFim.getDate() + 7);
       // Formatar como YYYY-MM-DD para input type="date"
-      const dataFimFormatada = dataFim.toISOString().split('T')[0];
+      const dataFimFormatada = (typeof window.dataApiParaInputDate === 'function')
+        ? window.dataApiParaInputDate(dataFim, contextoViagens.timezone)
+        : dataFim.toISOString().split('T')[0];
       filtroDataFim.value = dataFimFormatada;
     }
   }
@@ -478,7 +597,7 @@
       // Executar o SQL via API e AGUARDAR completamente a resposta
       let execResponse;
       try {
-        execResponse = await fetch('/api/viagens/executar-init-sql', {
+        execResponse = await fetchApiViagens('/executar-init-sql', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sql: sqlLimpo }),
@@ -864,6 +983,9 @@
       // Se for a aba Switch Digital, verificar se há viagem selecionada antes de carregar logs
       if (tabId === 'integracao-switch') {
         setTimeout(() => {
+          if (typeof window.verificarSaudeSwitchBadge === 'function') {
+            window.verificarSaudeSwitchBadge();
+          }
           // Verificar se há viagem selecionada
           const idViagem = document.getElementById('filtroIdViagem')?.value || 
                           document.getElementById('viagemId')?.value || 
@@ -918,7 +1040,8 @@
           
           // Se houver um roteiro selecionado, carregar automaticamente
           const selectRoteiro = document.getElementById('viagemRoteiro');
-          if (selectRoteiro && selectRoteiro.value && selectRoteiro.value !== '') {
+          const modoHist = document.querySelector('input[name="historicoModo"]:checked')?.value;
+          if (modoHist !== 'regional' && selectRoteiro && selectRoteiro.value && selectRoteiro.value !== '') {
             await carregarHistoricoRoteiro();
           }
         }, 100);
@@ -1141,18 +1264,7 @@
           width: '130px',
           format: (val) => {
             if (!val) return '';
-            let str = String(val).trim();
-            str = str.replace(/\.\d{3}/, '');
-            const match = str.match(/(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}):(\d{2}):?(\d{2})?/);
-            if (match) {
-              const [, year, month, day, hours, minutes] = match;
-              return `${day}/${month}/${year} ${hours}:${minutes}`;
-            }
-            const date = new Date(val);
-            if (isNaN(date.getTime())) return val;
-            const y = date.getFullYear(), m = String(date.getMonth() + 1).padStart(2, '0'), d = String(date.getDate()).padStart(2, '0');
-            const h = String(date.getHours()).padStart(2, '0'), min = String(date.getMinutes()).padStart(2, '0');
-            return `${d}/${m}/${y} ${h}:${min}`;
+            return fmtDataHora(val);
           }
         },
         { 
@@ -1163,18 +1275,7 @@
           width: '130px',
           format: (val) => {
             if (!val) return '';
-            let str = String(val).trim();
-            str = str.replace(/\.\d{3}/, '');
-            const match = str.match(/(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}):(\d{2}):?(\d{2})?/);
-            if (match) {
-              const [, year, month, day, hours, minutes] = match;
-              return `${day}/${month}/${year} ${hours}:${minutes}`;
-            }
-            const date = new Date(val);
-            if (isNaN(date.getTime())) return val;
-            const y = date.getFullYear(), m = String(date.getMonth() + 1).padStart(2, '0'), d = String(date.getDate()).padStart(2, '0');
-            const h = String(date.getHours()).padStart(2, '0'), min = String(date.getMinutes()).padStart(2, '0');
-            return `${d}/${m}/${y} ${h}:${min}`;
+            return fmtDataHora(val);
           }
         },
         { 
@@ -1191,7 +1292,8 @@
           }
         }
       ],
-      apiEndpoint: '/api/viagens',
+      apiEndpoint: buildApiUrl('/api/viagens'),
+      buildFetchHeaders: () => getAuthHeaders(),
       // Ao clicar em editar dentro do Grid, abrir o formulário de edição
       onBeforeEdit: async (id) => {
         await loadViagemParaEdicao(id);
@@ -1271,9 +1373,9 @@
       }
       
       // Buscar dados
-      const tiposResponse = await fetch('/api/tipos-viagem-combo');
-      const situacoesResponse = await fetch('/api/situacoes-viagem-combo');
-      const classesResponse = await fetch('/api/classes-frota-combo');
+      const tiposResponse = await fetch('/api/tipos-viagem-combo', { headers: getAuthHeaders() });
+      const situacoesResponse = await fetch('/api/situacoes-viagem-combo', { headers: getAuthHeaders() });
+      const classesResponse = await fetch('/api/classes-frota-combo', { headers: getAuthHeaders() });
       let contratadoresResponse = await fetch('/api/contratadores-combo');
       let contratadores = contratadoresResponse.ok ? await contratadoresResponse.json() : [];
       if (!Array.isArray(contratadores) || contratadores.length === 0) {
@@ -1482,8 +1584,8 @@
       if (filtroOrigemEl) void filtroOrigemEl.offsetHeight;
       if (filtroDestinoEl) void filtroDestinoEl.offsetHeight;
       estadosCarregados = true;
-      // Combo Roteiro: sem origem/destino cidade = lista todos; com cidade = filtra
-      await loadRoteirosPorRota('', '');
+      // Combo Roteiro: preencher conforme país/estado/cidade atuais (ex.: BR/BR já selecionados = só roteiros domésticos)
+      await atualizarComboRoteiro();
     } catch (err) {
       showMessage('Erro ao carregar estados. Verifique a conexão.', 'error');
     }
@@ -1497,7 +1599,7 @@
     const destinoPais = document.getElementById('viagemDestinoPais')?.value?.trim() || '';
     const destinoEstado = document.getElementById('viagemDestinoEstado')?.value?.trim() || '';
     const destinoCidade = document.getElementById('viagemDestinoCidade')?.value?.trim() || document.getElementById('viagemDestinoCodigo')?.value?.trim() || '';
-    loadRoteirosPorRota({ origemPais, origemEstado, origemCidade, destinoPais, destinoEstado, destinoCidade });
+    return loadRoteirosPorRota({ origemPais, origemEstado, origemCidade, destinoPais, destinoEstado, destinoCidade });
   }
 
   // Carregar cidades por estado
@@ -1568,7 +1670,7 @@
       const url = '/api/roteiros-combo' + (params.toString() ? '?' + params.toString() : '');
 
       _log('[ROTEIROS] Filtro progressivo:', { origemPais: origemPais || '-', origemEstado: origemEstado || '-', origemCidade: origemCidade || '-', destinoPais: destinoPais || '-', destinoEstado: destinoEstado || '-', destinoCidade: destinoCidade || '-', url });
-      const response = await fetch(url);
+      const response = await fetch(url, { headers: getAuthHeaders() });
       const roteiros = await response.json();
       _log('[ROTEIROS] Roteiros recebidos:', roteiros.length, 'roteiros');
       roteirosCache = roteiros;
@@ -1584,7 +1686,7 @@
           console.warn('[ROTEIROS] ⚠️ Roteiro esperado não encontrado na lista filtrada:', roteiroIdEsperado);
           // Buscar roteiro específico pela API
           try {
-            const roteiroResponse = await fetch(`/api/roteiros/${roteiroIdEsperado}`);
+            const roteiroResponse = await fetch(`/api/roteiros/${roteiroIdEsperado}`, { headers: getAuthHeaders() });
             if (roteiroResponse.ok) {
               const roteiroEspecifico = await roteiroResponse.json();
               _log('[ROTEIROS] ✅ Roteiro específico encontrado:', roteiroEspecifico);
@@ -1648,7 +1750,10 @@
       bloqueandoMudancaAba = true;
       
       const params = new URLSearchParams();
-      const idViagem = document.getElementById('filtroIdViagem')?.value;
+      const idViagemRaw = document.getElementById('filtroIdViagem')?.value;
+      const idViagem = idViagemRaw != null ? String(idViagemRaw).trim() : '';
+      /** Com ID explícito, não misturar situação/datas de período (AND no servidor zerava o resultado). */
+      const filtroSomentePorId = idViagem !== '';
       const situacaoViagem = document.getElementById('filtroSituacaoViagem')?.value;
       const tipoViagem = document.getElementById('filtroTipoViagem')?.value;
       const origemEstado = document.getElementById('filtroOrigemEstado')?.value;
@@ -1664,7 +1769,7 @@
       const motoristaConfirmado = document.getElementById('filtroMotoristaConfirmado')?.value;
       
       if (idViagem) params.append('idViagem', idViagem);
-      if (situacaoViagem) params.append('situacaoViagem', situacaoViagem);
+      if (!filtroSomentePorId && situacaoViagem) params.append('situacaoViagem', situacaoViagem);
       if (tipoViagem) params.append('tipoViagem', tipoViagem);
       if (origemEstado) params.append('origemEstado', origemEstado);
       if (origemCidade) params.append('origemCidade', origemCidade);
@@ -1673,12 +1778,12 @@
       if (roteiro) params.append('roteiro', roteiro);
       if (classeFrota) params.append('classeFrota', classeFrota);
       if (contratador) params.append('contratador', contratador);
-      if (dataInicio) params.append('dataInicio', dataInicio);
-      if (dataFim) params.append('dataFim', dataFim);
+      if (!filtroSomentePorId && dataInicio) params.append('dataInicio', dataInicio);
+      if (!filtroSomentePorId && dataFim) params.append('dataFim', dataFim);
       if (rastreado) params.append('rastreado', rastreado);
       if (motoristaConfirmado) params.append('motoristaConfirmado', motoristaConfirmado);
       
-      const response = await fetch(`/api/viagens?${params.toString()}`);
+      const response = await fetchApiViagens('?' + params.toString());
       const viagens = await response.json();
       
       // Armazenar dados em cache
@@ -1844,7 +1949,7 @@
       await new Promise(resolve => requestAnimationFrame(resolve));
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      const response = await fetch(`/api/viagens/${id}`);
+      const response = await fetchApiViagens(`/${id}`);
       const viagem = await response.json();
       
       if (viagem) {
@@ -2125,42 +2230,18 @@
     }
   }
 
-  // Formatar data para input datetime-local (sem conversão de fuso horário)
+  // Formatar data para input datetime-local.
+  // JSON costuma trazer instante em ISO UTC (...Z): converter para hora local do navegador (evita +3h em Brasília).
+  // String SQL sem fuso ("2026-03-30 17:00:00"): usar dígitos como relógio de negócio, sem deslocar.
   function formatarDataParaInput(data) {
+    if (typeof window.dataApiParaDatetimeLocal === 'function') {
+      return window.dataApiParaDatetimeLocal(data, contextoViagens.timezone);
+    }
     if (!data) return '';
-    
-    // Se já está no formato correto (YYYY-MM-DDTHH:mm), retornar direto
-    if (typeof data === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(data)) {
-      return data.slice(0, 16);
-    }
-    
-    // Parsear string no formato SQL Server: "2026-11-21 08:00:00" ou "2026-11-21T08:00:00"
-    let str = String(data).trim();
-    
-    // Remover milissegundos se existirem
-    str = str.replace(/\.\d{3}/, '');
-    
-    // Extrair componentes da data diretamente da string (sem conversão de fuso)
-    const match = str.match(/(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}):(\d{2}):?(\d{2})?/);
-    if (match) {
-      const [, ano, mes, dia, horas, minutos] = match;
-      return `${ano}-${mes}-${dia}T${horas}:${minutos}`;
-    }
-    
-    // Fallback: usar Date apenas se não conseguir parsear
-    const d = new Date(data);
-    if (isNaN(d.getTime())) return '';
-    
-    // Ajustar para fuso horário local (compensar a diferença)
-    const offset = d.getTimezoneOffset(); // diferença em minutos
-    const dLocal = new Date(d.getTime() - (offset * 60 * 1000));
-    
-    const ano = dLocal.getFullYear();
-    const mes = String(dLocal.getMonth() + 1).padStart(2, '0');
-    const dia = String(dLocal.getDate()).padStart(2, '0');
-    const horasLocal = String(dLocal.getHours()).padStart(2, '0');
-    const minutosLocal = String(dLocal.getMinutes()).padStart(2, '0');
-    return `${ano}-${mes}-${dia}T${horasLocal}:${minutosLocal}`;
+    const str = String(data).trim().replace(/\.\d+/, '');
+    const m = str.match(/(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}):(\d{2})/);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}`;
+    return '';
   }
 
   // Modal de comprovantes de entrega (POD)
@@ -2173,6 +2254,12 @@
           el._podMap = null;
         }
       });
+      if (window.__podModalBlobUrls && window.__podModalBlobUrls.length) {
+        window.__podModalBlobUrls.forEach((u) => {
+          try { URL.revokeObjectURL(u); } catch (e) { /* ignore */ }
+        });
+        window.__podModalBlobUrls = [];
+      }
       modal.style.display = 'none';
     }
   }
@@ -2193,8 +2280,16 @@
     modal.style.alignItems = 'center';
     modal.style.justifyContent = 'center';
 
+    if (!window.__podModalBlobUrls) window.__podModalBlobUrls = [];
+    window.__podModalBlobUrls.forEach((u) => {
+      try { URL.revokeObjectURL(u); } catch (e) { /* ignore */ }
+    });
+    window.__podModalBlobUrls = [];
+
     try {
-      const res = await fetch(`/api/motorista/delivery-proof/viagem/${encodeURIComponent(idviagem)}`);
+      const res = await fetchApiAbsPath(`/api/motorista/delivery-proof/viagem/${encodeURIComponent(idviagem)}`, {
+        headers: getAuthHeaders()
+      });
       if (!res.ok) throw new Error('Erro ao carregar comprovantes');
       const data = await res.json();
       const comprovantes = data.comprovantes || [];
@@ -2243,18 +2338,18 @@
             <div class="pod-card-section">
               <h4>Recebedor</h4>
               <div class="pod-value">${receiverName}</div>
-              ${receiverDoc ? `<div style="font-size:13px;color:#6c757d;margin-top:4px;">CPF/RG: ${receiverDoc}</div>` : ''}
+              ${receiverDoc ? `<div class="pod-meta">CPF/RG: ${receiverDoc}</div>` : ''}
             </div>
             ${obs ? `<div class="pod-card-section"><h4>Observações</h4><div class="pod-value">${obs}</div></div>` : ''}
-            ${photoName ? `<div class="pod-card-section"><h4>Arquivo da foto</h4><div class="pod-value" style="font-size:12px;">${photoName}</div></div>` : ''}
+            ${photoName ? `<div class="pod-card-section"><h4>Arquivo da foto</h4><div class="pod-value pod-filename">${photoName}</div></div>` : ''}
             <div class="pod-card-section">
               <h4>Foto do comprovante</h4>
-              ${photoUrl ? `<img class="pod-foto" src="${photoUrl}" alt="Comprovante" loading="lazy" />` : '<div style="padding:40px;text-align:center;color:#999;background:#f1f3f5;border-radius:8px;">Sem foto</div>'}
+              ${photoUrl ? `<img class="pod-foto pod-foto-auth" src="" alt="Carregando foto…" data-photo-api="${String(photoUrl).replace(/"/g, '&quot;')}" />` : '<div class="pod-placeholder">Sem foto</div>'}
             </div>
             ${assinaturaHtml}
             <div class="pod-card-section">
               <h4>Local do registro</h4>
-              ${hasLatLng ? `<div id="${mapId}" class="pod-map-container"></div><div class="pod-coords">${coordsStr}</div><a href="${linkMapa}" target="_blank" rel="noopener" class="pod-map-link">&#128506; Abrir no Google Maps</a><br/><a href="${linkOsm}" target="_blank" rel="noopener" class="pod-map-link">&#128506; Ver no OpenStreetMap</a>` : '<div class="pod-value" style="color:#999;">Local não registrado</div>'}
+              ${hasLatLng ? `<div id="${mapId}" class="pod-map-container"></div><div class="pod-coords">${coordsStr}</div><a href="${linkMapa}" target="_blank" rel="noopener" class="pod-map-link">&#128506; Abrir no Google Maps</a><br/><a href="${linkOsm}" target="_blank" rel="noopener" class="pod-map-link">&#128506; Ver no OpenStreetMap</a>` : '<div class="pod-value pod-muted">Local não registrado</div>'}
             </div>
             <div class="pod-card-section">
               <span class="pod-synced ${syncedClass}">${syncedLabel}</span>
@@ -2264,6 +2359,33 @@
         lista.appendChild(card);
         if (hasLatLng && mapId) comprovantesComMapa.push({ mapId, lat: Number(lat), lng: Number(lng) });
       });
+      // Fotos exigem Authorization; <img src> não envia Bearer — carregar via fetch + blob
+      (async () => {
+        const imgs = lista.querySelectorAll('img.pod-foto-auth[data-photo-api]');
+        for (const img of imgs) {
+          const url = img.getAttribute('data-photo-api');
+          if (!url) continue;
+          try {
+            const r = await fetch(url, { headers: getAuthHeaders() });
+            if (r.ok) {
+              const blob = await r.blob();
+              const obj = URL.createObjectURL(blob);
+              window.__podModalBlobUrls.push(obj);
+              img.src = obj;
+              img.alt = 'Comprovante';
+              img.removeAttribute('data-photo-api');
+            } else {
+              img.alt = 'Não foi possível carregar a foto';
+              img.style.minHeight = '80px';
+              img.classList.add('pod-foto-erro');
+            }
+          } catch (e) {
+            img.alt = 'Erro ao carregar foto';
+            img.style.minHeight = '80px';
+            img.classList.add('pod-foto-erro');
+          }
+        }
+      })();
       // Inicializar mapas Leaflet nos cards (local onde o motorista registrou)
       if (comprovantesComMapa.length > 0 && typeof carregarLeaflet === 'function') {
         (async () => {
@@ -2303,7 +2425,7 @@
 
     try {
       const idToCheck = isNaN(idValido) ? idValido : parseFloat(idValido);
-      const response = await fetch(`/api/viagens/${idToCheck}`);
+      const response = await fetchApiViagens(`/${idToCheck}`);
       if (!response.ok) throw new Error('Erro ao buscar viagem');
       const viagem = await response.json();
       const estaAtivo = viagem.FGACTIVE === 'S';
@@ -2320,8 +2442,17 @@
         document.body.contains(confirmYes) && confirmYes.parentNode;
 
       if (!modalOk) {
-        if (!window.confirm(confirmMsg)) return;
-        const res = await fetch(`/api/viagens/${idToCheck}?action=${action}`, { method: 'DELETE' });
+        const ok =
+          typeof window.confirmPadrao === 'function'
+            ? await window.confirmPadrao(confirmMsg, {
+                title: estaAtivo ? 'Desativar viagem' : 'Reativar viagem',
+                danger: estaAtivo,
+                confirmText: btnText,
+                cancelText: 'Cancelar',
+              })
+            : window.confirm(confirmMsg);
+        if (!ok) return;
+        const res = await fetchApiViagens(`/${idToCheck}?action=${action}`, { method: 'DELETE' });
         const data = await res.json();
         if (res.ok) {
           showMessage(data.message || (action === 'activate' ? 'Viagem reativada com sucesso!' : 'Viagem desativada com sucesso!'), 'success');
@@ -2357,7 +2488,7 @@
         }
         try {
           const idToDelete = isNaN(idParaExcluir) ? idParaExcluir : parseFloat(idParaExcluir);
-          const res = await fetch(`/api/viagens/${idToDelete}?action=${acao}`, { method: 'DELETE' });
+          const res = await fetchApiViagens(`/${idToDelete}?action=${acao}`, { method: 'DELETE' });
           const data = await res.json();
           if (res.ok) {
             showMessage(data.message || (acao === 'activate' ? 'Viagem reativada com sucesso!' : 'Viagem desativada com sucesso!'), 'success');
@@ -2581,23 +2712,21 @@
         FGRASTREADO: rastreado
       };
 
-      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
-      const headers = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const jsonHeaders = { 'Content-Type': 'application/json' };
 
       let response;
       const id = document.getElementById('viagemId')?.value;
       if (id) {
         viagemData.FGACTIVE = document.getElementById('viagemSituacaoAtiva')?.value;
-        response = await fetch(`/api/viagens/${id}`, {
+        response = await fetchApiViagens(`/${id}`, {
           method: 'PUT',
-          headers,
+          headers: jsonHeaders,
           body: JSON.stringify(viagemData)
         });
       } else {
-        response = await fetch('/api/viagens', {
+        response = await fetchApiViagens('', {
           method: 'POST',
-          headers,
+          headers: jsonHeaders,
           body: JSON.stringify(viagemData)
         });
       }
@@ -2612,7 +2741,7 @@
           try {
             const websocketTorre = window.WebSocketTorre;
             // Buscar dados atualizados da viagem para emitir evento
-            const viagemAtualizada = await fetch(`/api/viagens/${id}`).then(r => r.json());
+            const viagemAtualizada = await fetchApiViagens(`/${id}`).then(r => r.json());
             if (viagemAtualizada && viagemAtualizada.IDVIAGEM) {
               // O evento será emitido automaticamente pelo controller no backend
               // Mas podemos forçar uma atualização na UI local se necessário
@@ -2768,7 +2897,9 @@
     document.getElementById('viagemId').value = '';
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     document.getElementById('viagemUsuario').value = user.login || 'SYSTEM';
-    document.getElementById('viagemDataInclusao').value = new Date().toISOString().slice(0, 16);
+    document.getElementById('viagemDataInclusao').value = (typeof window.agoraParaDatetimeLocal === 'function')
+      ? window.agoraParaDatetimeLocal(contextoViagens.timezone)
+      : new Date().toISOString().slice(0, 16);
     document.getElementById('formTitle').textContent = t('web.modulos.viagens.novaViagem');
     const selOrigemPais = document.getElementById('viagemOrigemPais');
     const selDestinoPais = document.getElementById('viagemDestinoPais');
@@ -2791,7 +2922,9 @@
     document.getElementById('viagemId').value = '';
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     document.getElementById('viagemUsuario').value = user.login || 'SYSTEM';
-    document.getElementById('viagemDataInclusao').value = new Date().toISOString().slice(0, 16);
+    document.getElementById('viagemDataInclusao').value = (typeof window.agoraParaDatetimeLocal === 'function')
+      ? window.agoraParaDatetimeLocal(contextoViagens.timezone)
+      : new Date().toISOString().slice(0, 16);
     document.getElementById('formTitle').textContent = t('web.modulos.viagens.novaViagem');
     const selOrigemPais = document.getElementById('viagemOrigemPais');
     const selDestinoPais = document.getElementById('viagemDestinoPais');
@@ -2832,16 +2965,7 @@
     loadCidadesPorEstado(estado, 'origem');
     document.getElementById('viagemOrigemCidade').value = '';
     document.getElementById('viagemOrigemCodigo').value = '';
-    
-    // Atualizar roteiros se destino estiver selecionado
-    const destino = document.getElementById('viagemDestinoCidade')?.value;
-    if (estado && destino) {
-      const origemCidade = document.getElementById('viagemOrigemCidade')?.value;
-      if (origemCidade) {
-        loadRoteirosPorRota(origemCidade, destino);
-      }
-    }
-    
+    atualizarComboRoteiro();
     // Atualizar mapa se a aba mapa estiver ativa
     const tabMapa = document.querySelector('.tab-btn[data-tab="mapa"]');
     if (tabMapa && tabMapa.classList.contains('active')) {
@@ -2853,13 +2977,7 @@
     if (preenchendoFromRoteiro) return;
     const cidadeId = this.value;
     document.getElementById('viagemOrigemCodigo').value = cidadeId || '';
-    
-    // Atualizar roteiros
-    const destino = document.getElementById('viagemDestinoCidade')?.value;
-    if (cidadeId && destino) {
-      loadRoteirosPorRota(cidadeId, destino);
-    }
-    
+    atualizarComboRoteiro();
     // Atualizar mapa se a aba mapa estiver ativa
     const tabMapa = document.querySelector('.tab-btn[data-tab="mapa"]');
     if (tabMapa && tabMapa.classList.contains('active')) {
@@ -3149,7 +3267,7 @@
   // Carregar todos os roteiros para o filtro
   async function loadRoteirosParaFiltro() {
     try {
-      const response = await fetch('/api/roteiros-combo');
+      const response = await fetch('/api/roteiros-combo', { headers: getAuthHeaders() });
       if (response.ok) {
         const roteiros = await response.json();
         const filtroRoteiroSelect = document.getElementById('filtroRoteiro');
@@ -3172,7 +3290,7 @@
   document.getElementById('filtroRoteiro')?.addEventListener('change', function() {
     const roteiroId = this.value;
     if (roteiroId) {
-      fetch(`/api/roteiros-combo?roteiro=${roteiroId}`)
+      fetch(`/api/roteiros-combo?roteiro=${roteiroId}`, { headers: getAuthHeaders() })
         .then(r => r.json())
         .then(roteiros => {
           if (roteiros.length > 0) {
@@ -3278,15 +3396,28 @@
       const coordsStr = coords.map(c => `${c.lon},${c.lat}`).join(';');
       const config = window.MAP_CONFIG || {};
       const osrmUrl = construirUrlRota(
-        config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
+        servidorParaFetchDiretoOsrm(config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv'),
         coordsStr,
         'full',
         'geojson'
       );
-      const response = await fetchForcandoHTTP(osrmUrl, { signal: AbortSignal.timeout(config.routeTimeout || 15000) });
-      const data = await response.json();
+      let data = null;
+      try {
+        data = await fetchRotaOsrmViaBackend(coordsStr, Math.min((config.routeTimeout || 15000) + 10000, 45000));
+      } catch (proxyErr) {
+        data = null;
+      }
+      if (!data || !data.code || data.code !== 'Ok') {
+        try {
+          const response = await fetchForcandoHTTP(osrmUrl, { signal: AbortSignal.timeout(config.routeTimeout || 15000) });
+          const raw = await response.json();
+          data = normalizarJsonRotaGateway(raw) || raw;
+        } catch (e) {
+          data = data || null;
+        }
+      }
       
-      if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+      if (data && data.code === 'Ok' && data.routes && data.routes.length > 0) {
         return parseFloat((data.routes[0].distance / 1000).toFixed(2));
       }
       return null;
@@ -3318,8 +3449,16 @@
     }
 
     if (origemCidadeId === destinoCidadeId) {
-      showMessage('A cidade de origem e destino não podem ser iguais.', 'error');
-      return;
+      /** Ida e volta: calcula pelos pontos do roteiro, se houver. */
+      if (roteiroId) {
+        // fall through to the points-based calculation below
+      } else {
+        showMessage(
+          'Origem e destino na mesma cidade (ida e volta): selecione o roteiro com pontos cadastrados para calcular a distância.',
+          'warning'
+        );
+        return;
+      }
     }
 
     // Mostrar loading
@@ -3463,17 +3602,44 @@
   // Função para inicializar o mapa
   // Flag para controlar inicialização do mapa
   let mapaInicializando = false;
+  let mapaInitTentativas = 0;
+
+  function destruirMapaNoContainer(mapaDiv) {
+    if (mapa) {
+      try {
+        mapa.off();
+        mapa.remove();
+      } catch (e) {
+        /* ignore */
+      }
+      mapa = null;
+    }
+    if (!mapaDiv) return;
+    try {
+      mapaDiv.innerHTML = '';
+    } catch (e) {
+      /* ignore */
+    }
+    try {
+      delete mapaDiv._leaflet_id;
+    } catch (e) {
+      mapaDiv._leaflet_id = undefined;
+    }
+    // Remove classes leaflet-* deixadas por init anterior
+    if (mapaDiv.className && typeof mapaDiv.className === 'string') {
+      mapaDiv.className = mapaDiv.className
+        .split(/\s+/)
+        .filter((c) => c && !c.startsWith('leaflet-'))
+        .join(' ');
+    }
+  }
 
   async function inicializarMapa() {
-    // Verificar se Leaflet está disponível
-    if (typeof L === 'undefined') {
-      console.error('Leaflet não está carregado. Aguardando...');
-      // Tentar carregar o Leaflet
-      const leafletDisponivel = await aguardarLeaflet();
-      if (!leafletDisponivel) {
-        showMessage('Erro ao carregar a biblioteca de mapas. Recarregue a página.', 'error');
-        return false;
-      }
+    // Sempre garante CSS do Leaflet (mesmo se L já estiver no window)
+    const leafletDisponivel = await aguardarLeaflet();
+    if (!leafletDisponivel || typeof L === 'undefined') {
+      showMessage('Erro ao carregar a biblioteca de mapas. Recarregue a página.', 'error');
+      return false;
     }
 
     const mapaDiv = document.getElementById('mapaRota');
@@ -3485,59 +3651,26 @@
     // Se já está inicializado e funcionando, não fazer nada
     if (mapa) {
       try {
-        // Verificar se o mapa está em estado válido e se o container ainda existe
         const container = mapa.getContainer();
         if (mapa._loaded && container && container.parentNode === mapaDiv) {
-          // Mapa válido e no container correto
-          return true;
-        } else {
-          // Mapa está em estado inválido ou container foi movido, remover
           try {
-            mapa.remove();
-          } catch (e2) {
-            // Ignorar erro de remoção
-          }
-          mapa = null;
-        }
-      } catch (e) {
-        // Se houver erro ao verificar, destruir e recriar
-        try {
-          mapa.remove();
-        } catch (e2) {
-          // Ignorar erro de remoção
-        }
-        mapa = null;
-      }
-    }
-
-    // Verificar se o container já tem um mapa inicializado
-    if (mapaDiv._leaflet_id) {
-      console.warn('⚠️ [VIAGENS] Container do mapa já tem um mapa inicializado. Removendo...');
-      try {
-        // Tentar obter o mapa existente e removê-lo
-        const existingMap = L.Map.prototype.getContainer ? null : (window.L && window.L.map ? null : null);
-        // Limpar o ID do Leaflet do container
-        delete mapaDiv._leaflet_id;
-        // Se houver referência ao mapa, removê-lo
-        if (mapa) {
-          try {
-            mapa.remove();
+            mapa.invalidateSize();
           } catch (e) {
-            // Ignorar
+            /* ignore */
           }
-          mapa = null;
+          return true;
         }
       } catch (e) {
-        console.warn('⚠️ [VIAGENS] Erro ao limpar mapa existente:', e);
-        // Limpar manualmente o container
-        mapaDiv.innerHTML = '';
-        mapaDiv._leaflet_id = undefined;
+        /* recriar abaixo */
       }
+      destruirMapaNoContainer(mapaDiv);
+    } else if (mapaDiv._leaflet_id) {
+      console.warn('⚠️ [VIAGENS] Container com _leaflet_id órfão — limpando');
+      destruirMapaNoContainer(mapaDiv);
     }
     
     // Proteção contra race condition
     if (mapaInicializando) {
-      // Aguardar até que a inicialização termine
       let tentativas = 0;
       while (mapaInicializando && tentativas < 20) {
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -3549,104 +3682,28 @@
     mapaInicializando = true;
 
     try {
-      // Verificar se o elemento está visível antes de inicializar
       const tabMapa = document.getElementById('tab-mapa');
-      if (tabMapa) {
-        // Garantir que a aba está visível
-        if (tabMapa.style.display === 'none') {
-          tabMapa.style.display = 'block';
-        }
-        // Aguardar um pouco para o elemento estar totalmente visível
-        await new Promise(resolve => setTimeout(resolve, 100));
+      if (tabMapa && tabMapa.style.display === 'none') {
+        tabMapa.style.display = 'block';
       }
+      await new Promise(resolve => setTimeout(resolve, 50));
 
-      // Verificar novamente se o elemento está visível
-      if (mapaDiv.offsetParent === null && mapaDiv.offsetWidth === 0 && mapaDiv.offsetHeight === 0) {
-        // Elemento ainda não está visível, aguardar mais um pouco
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
-      
-      // IMPORTANTE: Se já existe um mapa, remover corretamente antes de limpar o HTML
-      if (mapa) {
-        try {
-          // Remover todas as camadas primeiro
-          mapa.eachLayer((layer) => {
-            try {
-              mapa.removeLayer(layer);
-            } catch (e) {
-              // Ignorar erro
-            }
-          });
-          // Remover o mapa
-          mapa.remove();
-        } catch (e) {
-          console.warn('Erro ao remover mapa existente:', e);
-        }
-        mapa = null;
-        // Aguardar um pouco para garantir que o Leaflet limpou tudo
-        await new Promise(resolve => setTimeout(resolve, 50));
-      }
-      
-      // Limpar conteúdo anterior se houver (apenas se não houver mapa ativo)
-      if (mapaDiv.children.length > 0 || mapaDiv._leaflet_id) {
-        // Verificar se há elementos do Leaflet antes de limpar
-        const hasLeafletElements = Array.from(mapaDiv.children).some(child => 
-          child.classList.contains('leaflet-container') || 
-          child.classList.contains('leaflet-pane')
-        );
-        
-        if (hasLeafletElements || mapaDiv._leaflet_id) {
-          // Se há elementos do Leaflet, aguardar mais um pouco antes de limpar
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-        
-        // Limpar completamente
-        mapaDiv.innerHTML = '';
-        if (mapaDiv._leaflet_id) {
-          delete mapaDiv._leaflet_id;
-        }
-        
-        // Limpar qualquer referência do Leaflet
-        if (typeof L !== 'undefined' && L.DomUtil) {
-          try {
-            L.DomUtil.empty(mapaDiv);
-          } catch (e) {
-            // Ignorar
-          }
-        }
-        
-        // Aguardar um frame para garantir que o DOM foi limpo
-        await new Promise(resolve => requestAnimationFrame(resolve));
-        await new Promise(resolve => setTimeout(resolve, 50));
-      }
-      
-      // Verificar novamente se está limpo antes de criar
-      if (mapaDiv._leaflet_id) {
-        console.warn('⚠️ [VIAGENS] Container ainda tem _leaflet_id após limpeza. Forçando remoção...');
-        mapaDiv.innerHTML = '';
-        delete mapaDiv._leaflet_id;
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-      
-      // Criar mapa centrado no Brasil
-      mapa = L.map('mapaRota', {
+      // Limpeza final antes de criar (sem recursão)
+      destruirMapaNoContainer(mapaDiv);
+      await new Promise(resolve => requestAnimationFrame(resolve));
+
+      mapa = L.map(mapaDiv, {
         preferCanvas: false,
         zoomControl: true
       }).setView([-14.2350, -51.9253], 4);
 
-      // Adicionar camada de tiles do OpenStreetMap
-      // IMPORTANTE: Usar APENAS getTileServerUrl() do map-config.js
       _log('🗺️ [VIAGENS] Inicializando mapa...');
-      _log('🗺️ [VIAGENS] MAP_CONFIG disponível:', !!window.MAP_CONFIG);
-      _log('🗺️ [VIAGENS] getTileServerUrl disponível:', typeof window.getTileServerUrl === 'function');
       
       const tileConfig = window.getTileLayerConfig ? window.getTileLayerConfig() : {
-        url: window.getTileServerUrl ? window.getTileServerUrl() : (window.MAP_CONFIG?.tileServer || 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'),
+        url: window.getTileServerUrl ? window.getTileServerUrl() : (window.MAP_CONFIG?.tileServer || 'https://tile.openstreetmap.de/{z}/{x}/{y}.png'),
         attribution: '© OpenStreetMap',
         maxZoom: 19
       };
-      
-      _log('🗺️ [VIAGENS] Tile server selecionado:', tileConfig.url);
       
       const tileOptions = {
         attribution: tileConfig.attribution,
@@ -3655,30 +3712,23 @@
         updateWhenZooming: true
       };
       
-      // Se usar servidor OpenStreetMap com {s}, adicionar subdomínios
-      if (tileConfig.url.includes('{s}')) {
+      if (tileConfig.url && tileConfig.url.includes('{s}')) {
         tileOptions.subdomains = ['a', 'b', 'c'];
-        _log('🗺️ [VIAGENS] Adicionando subdomínios para OpenStreetMap');
       }
       
       L.tileLayer(tileConfig.url, tileOptions).addTo(mapa);
       _log('✅ [VIAGENS] TileLayer adicionado ao mapa');
       
-      // Invalidar tamanho múltiplas vezes para garantir renderização correta
-      // Aguardar um pouco para o container estar totalmente visível
       setTimeout(() => {
         if (mapa) {
           try {
             mapa.invalidateSize();
-            // Forçar recálculo do tamanho
-            mapa._onResize();
           } catch (e) {
             console.warn('Erro ao invalidar tamanho do mapa:', e);
           }
         }
       }, 100);
       
-      // Invalidar novamente após mais um delay (garantir que está visível)
       setTimeout(() => {
         if (mapa) {
           try {
@@ -3689,46 +3739,27 @@
         }
       }, 300);
       
+      mapaInitTentativas = 0;
       mapaInicializando = false;
       return true;
     } catch (err) {
       console.error('Erro ao inicializar mapa:', err);
-      
-      // Se o erro for "Map container is already initialized", limpar e tentar novamente
-      if (err.message && err.message.includes('already initialized')) {
-        console.warn('⚠️ [VIAGENS] Mapa já estava inicializado. Limpando container...');
-        const mapaDiv = document.getElementById('mapaRota');
-        if (mapaDiv) {
-          // Limpar completamente o container
-          mapaDiv.innerHTML = '';
-          delete mapaDiv._leaflet_id;
-          // Limpar referência do mapa
-          if (mapa) {
-            try {
-              mapa.remove();
-            } catch (e) {
-              // Ignorar
-            }
-            mapa = null;
-          }
-          // Tentar novamente após limpar
-          await new Promise(resolve => setTimeout(resolve, 100));
-          mapaInicializando = false;
-          return await inicializarMapa(); // Tentar novamente
-        }
-      }
-      
+      destruirMapaNoContainer(mapaDiv);
       mapaInicializando = false;
-      // Limpar referência se houver erro
-      if (mapa) {
-        try {
-          mapa.remove();
-        } catch (e) {
-          // Ignorar erro
-        }
-        mapa = null;
+
+      // Uma única retentativa (sem recursão infinita)
+      const msg = (err && err.message) ? String(err.message) : '';
+      if (mapaInitTentativas < 1 && (msg.includes('already initialized') || msg.includes('Maximum call stack'))) {
+        mapaInitTentativas += 1;
+        await new Promise(resolve => setTimeout(resolve, 150));
+        return await inicializarMapa();
       }
-      showMessage('Erro ao inicializar o mapa. Verifique se a biblioteca foi carregada.', 'error');
+
+      mapaInitTentativas = 0;
+      showMessage(
+        'Erro ao inicializar o mapa' + (msg ? ': ' + msg : '. Tente recarregar o módulo.'),
+        'error'
+      );
       return false;
     }
   }
@@ -3949,156 +3980,37 @@
             // Log removido para reduzir verbosidade
             
             if (pontosComCoordenadas.length >= 2) {
-              // Criar marcadores para cada ponto
-              const cores = {
-                'O': '#2ecc71', // Verde - Origem
-                'D': '#e74c3c', // Vermelho - Destino
-                'P': '#3498db', // Azul - Passagem
-                'R': '#f39c12'  // Laranja - Parada
-              };
-              
-              const icones = {
-                'O': '🏁', // Origem mostra bandeira verde
-                'D': '🏁', // Destino mostra bandeira xadrez
-                'P': '📍',
-                'R': '⏸'
-              };
-              
-              const tiposDescricao = {
-                'O': 'Origem',
-                'D': 'Destino',
-                'P': 'Passagem',
-                'R': 'Parada'
-              };
-              
-                // IMPORTANTE: Limpar marcadores anteriores antes de criar novos
-                if (marcadoresPontosRoteiro && marcadoresPontosRoteiro.length > 0) {
-                  _log('🗺️ [ROTEIROS] Limpando marcadores anteriores dos pontos do roteiro...');
-                  marcadoresPontosRoteiro.forEach(m => {
-                    try {
-                      if (m && mapa.hasLayer(m)) {
-                        mapa.removeLayer(m);
-                      }
-                    } catch (e) {
-                      // Ignorar
+              // IMPORTANTE: Limpar marcadores anteriores antes de criar novos
+              if (marcadoresPontosRoteiro && marcadoresPontosRoteiro.length > 0) {
+                _log('🗺️ [ROTEIROS] Limpando marcadores anteriores dos pontos do roteiro...');
+                marcadoresPontosRoteiro.forEach(m => {
+                  try {
+                    if (m && mapa.hasLayer(m)) {
+                      mapa.removeLayer(m);
                     }
-                  });
-                  marcadoresPontosRoteiro = [];
-                }
-                
-                const marcadores = [];
-                const latlngs = [];
-                
-                // Calcular distâncias acumuladas desde a origem
-                let distanciaAcumulada = 0;
-                
-                // Ajustar tipos: garantir que apenas o primeiro seja Origem e o último seja Destino
-                pontosComCoordenadas.forEach((ponto, index) => {
-                // Normalizar TPLOCAL - garantir que seja string e uppercase, tratar null/undefined
-                let tipoLocal = '';
-                if (ponto.TPLOCAL !== null && ponto.TPLOCAL !== undefined) {
-                  tipoLocal = String(ponto.TPLOCAL).trim().toUpperCase();
-                }
-                
-                const isPrimeiro = index === 0;
-                const isUltimo = index === pontosComCoordenadas.length - 1;
-                const isIntermediario = !isPrimeiro && !isUltimo;
-                
-                // Lógica de ajuste de tipos:
-                // - Primeiro ponto SEMPRE é Origem (O)
-                // - Último ponto SEMPRE é Destino (D)
-                // - Pontos intermediários: manter tipo original (P ou R), mas converter O/D para P
-                
-                const tipoOriginal = tipoLocal; // Guardar tipo original para debug
-                
-                if (isPrimeiro) {
-                  // Primeiro ponto sempre é Origem
-                  tipoLocal = 'O';
-                } else if (isUltimo) {
-                  // Último ponto sempre é Destino
-                  tipoLocal = 'D';
-                } else if (isIntermediario) {
-                  // Pontos intermediários: se for O ou D, converter para Passagem
-                  // Caso contrário, manter o tipo original (P ou R)
-                  if (tipoLocal === 'O' || tipoLocal === 'D' || !tipoLocal || tipoLocal === '') {
-                    tipoLocal = 'P'; // Default para Passagem se não tiver tipo ou for O/D
+                  } catch (e) {
+                    // Ignorar
                   }
-                  // Se já é P ou R, manter o tipo original
-                }
-                
-                // Debug: mostrar ajuste de tipo
-                if (tipoOriginal !== tipoLocal) {
-                  _log(`Ponto ${index + 1}: Tipo ajustado de "${tipoOriginal}" para "${tipoLocal}"`);
-                }
-                
-                const cor = cores[tipoLocal] || '#95a5a6';
-                const icone = icones[tipoLocal] || '📍';
-                const descricaoTipo = tiposDescricao[tipoLocal] || tipoLocal || 'Não definido';
-                
-                // Calcular distância acumulada (somar distâncias dos pontos anteriores)
-                if (index > 0 && ponto.KMENTREPONTOS) {
-                  distanciaAcumulada += parseFloat(ponto.KMENTREPONTOS) || 0;
-                }
-                
-                // Número da ordem para exibir no marcador
-                const numeroOrdem = index + 1;
-                
-                // Criar marcador customizado com número da ordem
-                // Para Origem e Destino, mostrar apenas o ícone (sem número sobreposto)
-                // Para Passagem e Parada, mostrar número + ícone
-                const mostrarNumero = tipoLocal !== 'O' && tipoLocal !== 'D';
-                
-                const marcador = L.marker([ponto.LATITUDE, ponto.LONGITUDE], {
-                  icon: L.divIcon({
-                    className: 'custom-marker',
-                    html: `<div style="
-                      background: ${cor};
-                      width: 35px;
-                      height: 35px;
-                      border-radius: 50%;
-                      border: 3px solid white;
-                      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                      display: flex;
-                      align-items: center;
-                      justify-content: center;
-                      font-size: ${tipoLocal === 'O' ? '18px' : tipoLocal === 'D' ? '20px' : '12px'};
-                      font-weight: bold;
-                      color: white;
-                      position: relative;
-                    ">
-                      ${mostrarNumero ? `<span style="position: absolute; top: -2px; left: -2px; background: rgba(0,0,0,0.7); color: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold;">${numeroOrdem}</span>` : ''}
-                      <span style="font-size: ${tipoLocal === 'O' ? '20px' : tipoLocal === 'D' ? '18px' : '18px'}; line-height: 1;">${icone}</span>
-                    </div>`,
-                    iconSize: [35, 35],
-                    iconAnchor: [17, 17]
-                  })
-                }).addTo(mapa);
-                
-                // IMPORTANTE: Armazenar marcador para poder limpar depois
-                marcadoresPontosRoteiro.push(marcador);
-                marcadores.push(marcador);
-                
-                // Popup com informações detalhadas
-                const popupContent = `
-                  <div style="min-width: 250px;">
-                    <div style="background: ${cor}; color: white; padding: 8px; border-radius: 4px 4px 0 0; margin: -10px -10px 10px -10px;">
-                      <strong>Ponto ${numeroOrdem} - ${descricaoTipo}</strong>
-                    </div>
-                    <strong>${ponto.DSLOCAL || 'Sem descrição'}</strong><br>
-                    <small style="color: #666;">${ponto.DSPOSICAO || 'Sem posição'}</small><br>
-                    <hr style="margin: 8px 0;">
-                    <strong>Ordem no roteiro:</strong> ${ponto.ORDEM || 'N/A'}<br>
-                    ${ponto.KMENTREPONTOS ? `<strong>Distância do ponto anterior:</strong> ${parseFloat(ponto.KMENTREPONTOS).toFixed(2)} km<br>` : ''}
-                    ${index > 0 ? `<strong>Distância acumulada da origem:</strong> ${distanciaAcumulada.toFixed(2)} km<br>` : ''}
-                    <strong>Coordenadas:</strong><br>
-                    <small style="font-family: monospace;">${parseFloat(ponto.LATITUDE).toFixed(6)}, ${parseFloat(ponto.LONGITUDE).toFixed(6)}</small>
-                  </div>
-                `;
-                marcador.bindPopup(popupContent);
-                
-                marcadores.push(marcador);
-                latlngs.push([ponto.LATITUDE, ponto.LONGITUDE]);
-              });
+                });
+                marcadoresPontosRoteiro = [];
+              }
+
+              const marcadores = [];
+              let latlngs = [];
+
+              if (window.AtlasRoteiroMapMarkers && typeof window.AtlasRoteiroMapMarkers.addPontosMarkers === 'function') {
+                const res = window.AtlasRoteiroMapMarkers.addPontosMarkers(mapa, pontosComCoordenadas);
+                (res.markers || []).forEach((m) => {
+                  marcadores.push(m);
+                  marcadoresPontosRoteiro.push(m);
+                });
+                latlngs = res.latlngs || [];
+              } else {
+                console.warn('[MAPA VIAGENS] AtlasRoteiroMapMarkers indisponível');
+                pontosComCoordenadas.forEach((p) => {
+                  if (p.LATITUDE && p.LONGITUDE) latlngs.push([Number(p.LATITUDE), Number(p.LONGITUDE)]);
+                });
+              }
               
               // Atualizar mensagem do overlay
               showMapaLoading('Traçando Rota', 'Calculando rota real entre os pontos...');
@@ -4110,12 +4022,14 @@
               
               try {
                 const config = window.MAP_CONFIG || {};
-                
+                /** true se algum trecho usou linha reta (proxy/OSRM falharam) — estilo/aviso no mapa */
+                let rotaAlgumTrechoLinhaReta = false;
+
                 // Função helper para normalizar URL do OSRM (garantir HTTP para servidor próprio)
                 function normalizarOSRMUrl(servidor) {
                   if (!servidor) return 'https://router.project-osrm.org/route/v1/driving-hgv';
                   // Se for servidor próprio, garantir que use HTTP (não HTTPS)
-                  const servidoresProprios = ['186.250.92.131', 'app.integrabrasil.com', 'beta.integrabrasil.com'];
+                  const servidoresProprios = ['186.250.92.131'];
                   const isServidorProprio = servidoresProprios.some(s => servidor.includes(s));
                   
                   if (isServidorProprio) {
@@ -4145,7 +4059,7 @@
                     
                     // IMPORTANTE: Normalizar servidor ANTES de construir URL
                     let servidorNormalizado = servidor;
-                    const servidoresProprios = ['186.250.92.131', 'app.integrabrasil.com', 'beta.integrabrasil.com'];
+                    const servidoresProprios = ['186.250.92.131'];
                     const isServidorProprio = servidoresProprios.some(s => servidor && servidor.includes(s));
                     
                     if (isServidorProprio) {
@@ -4157,7 +4071,7 @@
                     }
                     
                     // IMPORTANTE: Usar construirUrlRota que já normaliza corretamente
-                    const osrmUrl = construirUrlRota(servidorNormalizado, coordsStr, 'full', 'geojson');
+                    const osrmUrl = construirUrlRota(servidorParaFetchDiretoOsrm(servidorNormalizado), coordsStr, 'full', 'geojson');
                     
                     // Verificar e corrigir URL antes de fazer fetch
                     let urlFinal = osrmUrl;
@@ -4176,16 +4090,26 @@
                     }
                     
                     try {
+                      try {
+                        const segmentData = await fetchRotaOsrmViaBackend(coordsStr, 110000);
+                        if (segmentData && segmentData.code === 'Ok' && segmentData.routes && segmentData.routes[0] && segmentData.routes[0].geometry) {
+                          const segmentGeometry = segmentData.routes[0].geometry.coordinates;
+                          return segmentGeometry.map(c => [c[1], c[0]]);
+                        }
+                      } catch (proxyErr) {
+                        _log('[MAPA] Proxy rota (segmento) falhou, tentando direto:', proxyErr && proxyErr.message);
+                      }
                       const controller = new AbortController();
-                      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 segundos
+                      const timeoutId = setTimeout(() => controller.abort(), 90000);
                       
                       _log('🌐 [OSRM] Fazendo fetch para:', urlFinal.substring(0, 100) + '...');
                       const response = await fetchForcandoHTTP(urlFinal, { signal: controller.signal });
                       clearTimeout(timeoutId);
                       
                       if (response.ok) {
-                        const segmentData = await response.json();
-                        if (segmentData.code === 'Ok' && segmentData.routes && segmentData.routes[0]) {
+                        const rawSeg = await response.json();
+                        const segmentData = normalizarJsonRotaGateway(rawSeg) || rawSeg;
+                        if (segmentData.code === 'Ok' && segmentData.routes && segmentData.routes[0] && segmentData.routes[0].geometry) {
                           const segmentGeometry = segmentData.routes[0].geometry.coordinates;
                           return segmentGeometry.map(c => [c[1], c[0]]); // Converter [lon, lat] para [lat, lon]
                         }
@@ -4230,8 +4154,8 @@
                           _log(`[MAPA] Segmento ${i + 1}/${latlngs.length - 1} calculado com servidor alternativo`);
                         } catch (err2) {
                           console.warn(`[MAPA] Segmento ${i + 1} falhou em ambos servidores, usando linha reta`);
-                          // Se ambos falharem, usar linha reta para esse segmento
                           segmentRoute = segmento;
+                          rotaAlgumTrechoLinhaReta = true;
                         }
                       }
                     } else {
@@ -4244,6 +4168,7 @@
                       } catch (err) {
                         console.warn(`[MAPA] Segmento ${i + 1} falhou, usando linha reta`);
                         segmentRoute = segmento;
+                        rotaAlgumTrechoLinhaReta = true;
                       }
                     }
                     
@@ -4260,9 +4185,9 @@
                       }
                     }
                     
-                    // Pequeno delay entre segmentos para não sobrecarregar o servidor
+                    // Pequeno delay entre segmentos (proxy já serializa no servidor)
                     if (i < latlngs.length - 2) {
-                      await new Promise(resolve => setTimeout(resolve, 500)); // Aumentado para 500ms
+                      await new Promise(resolve => setTimeout(resolve, 150));
                     }
                   }
                   
@@ -4276,44 +4201,108 @@
                     osrmSucesso = true; // Permitir desenhar mesmo com alguns segmentos em linha reta
                   }
                 } else {
-                  // Para poucos pontos, fazer uma única requisição
-                  // Formato correto para OSRM: "lon,lat;lon,lat" (longitude primeiro!)
+                  // Poucos pontos na lista: com 3+ waypoints uma única chamada ao proxy costuma 502 (~35s×mirrors).
                   const coordsStr = latlngs.map(c => `${c[1]},${c[0]}`).join(';');
-                  // IMPORTANTE: Usar construirUrlRota que já normaliza corretamente
+                  const routeMs = config.routeTimeout || 30000;
                   const osrmUrl = construirUrlRota(
-                    config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
+                    servidorParaFetchDiretoOsrm(config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv'),
                     coordsStr,
                     'full',
                     'geojson'
                   );
-                  
-                  // Verificar se URL está correto antes de fazer fetch
-                  if (osrmUrl.includes('186.250.92.131') && osrmUrl.startsWith('https:')) {
-                    console.error('❌ [OSRM] ERRO CRÍTICO: URL ainda está em HTTPS!', osrmUrl);
-                  }
-                  
-                  // Usar AbortController para timeout (aumentado para 30s)
-                  const controller = new AbortController();
-                  const timeoutId = setTimeout(() => controller.abort(), config.routeTimeout || 30000);
-                  
-                      _log('🌐 [OSRM] Fazendo fetch para:', osrmUrl.substring(0, 100) + '...');
-                      const response = await fetchForcandoHTTP(osrmUrl, { signal: controller.signal });
-                      clearTimeout(timeoutId);
-                      
-                      if (!response.ok) {
-                        throw new Error(`OSRM retornou status ${response.status}: ${response.statusText}`);
+
+                  if (latlngs.length > 2) {
+                    _log(`[MAPA] ${latlngs.length} pontos: rota por trechos (proxy → OSRM direto → LR só no trecho).`);
+                    let mergedLl = [];
+                    let totalDistM = 0;
+                    const osrmPublicDriving = 'https://router.project-osrm.org/route/v1/driving';
+                    for (let si = 0; si < latlngs.length - 1; si++) {
+                      const segStr = `${latlngs[si][1]},${latlngs[si][0]};${latlngs[si + 1][1]},${latlngs[si + 1][0]}`;
+                      let segData = null;
+                      try {
+                        segData = await fetchRotaOsrmViaBackend(segStr, 55000);
+                      } catch (e) {
+                        _log('[MAPA] Trecho proxy ' + (si + 1) + ':', e && e.message);
                       }
-                      
-                      data = await response.json();
-                  
-                  // Log removido
-                  
-                  if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-                    const geometry = data.routes[0].geometry.coordinates;
-                    routeLatLngs = geometry.map(c => [c[1], c[0]]); // OSRM retorna [lon, lat], Leaflet precisa [lat, lon]
+                      if (!segData || segData.code !== 'Ok' || !segData.routes || !segData.routes[0]) {
+                        try {
+                          const segOsrmUrl = construirUrlRota(
+                            servidorParaFetchDiretoOsrm(config.osrmServer || osrmPublicDriving),
+                            segStr,
+                            'full',
+                            'geojson'
+                          );
+                          const controller = new AbortController();
+                          const timeoutId = setTimeout(() => controller.abort(), 28000);
+                          const response = await fetchForcandoHTTP(segOsrmUrl, { signal: controller.signal });
+                          clearTimeout(timeoutId);
+                          if (response.ok) {
+                            const rawSeg = await response.json();
+                            segData = normalizarJsonRotaGateway(rawSeg) || rawSeg;
+                          }
+                        } catch (directErr) {
+                          _log('[MAPA] Trecho ' + (si + 1) + ' OSRM direto:', directErr && directErr.message);
+                        }
+                      }
+                      let geom;
+                      if (segData && segData.code === 'Ok' && segData.routes && segData.routes[0] && segData.routes[0].geometry) {
+                        geom = segData.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+                        totalDistM += segData.routes[0].distance || 0;
+                      } else {
+                        rotaAlgumTrechoLinhaReta = true;
+                        console.warn('[MAPA] Trecho ' + (si + 1) + '/' + (latlngs.length - 1) + ': sem geometria OSRM — linha reta entre estes waypoints');
+                        geom = [latlngs[si], latlngs[si + 1]];
+                      }
+                      if (mergedLl.length === 0) mergedLl.push(...geom);
+                      else mergedLl.push(...geom.slice(1));
+                      if (si < latlngs.length - 2) {
+                        await new Promise(resolve => setTimeout(resolve, 120));
+                      }
+                    }
+                    routeLatLngs = mergedLl;
+                    data = {
+                      code: 'Ok',
+                      routes: [{ distance: totalDistM, geometry: { coordinates: mergedLl.map((ll) => [ll[1], ll[0]]) } }]
+                    };
                     osrmSucesso = true;
                   } else {
-                    throw new Error(`OSRM retornou código: ${data.code}, mensagem: ${data.message || 'N/A'}`);
+                    try {
+                      data = await fetchRotaOsrmViaBackend(coordsStr, 55000);
+                    } catch (proxyErr) {
+                      data = null;
+                    }
+                    if (!data || data.code !== 'Ok') {
+                      try {
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), Math.max(routeMs, 90000));
+                        _log('🌐 [OSRM] Fazendo fetch para:', osrmUrl.substring(0, 100) + '...');
+                        const response = await fetchForcandoHTTP(osrmUrl, { signal: controller.signal });
+                        clearTimeout(timeoutId);
+                        if (response.ok) {
+                          data = await response.json();
+                        }
+                      } catch (e) {
+                        _log('[MAPA] OSRM direto (2 pts):', e && e.message);
+                        data = null;
+                      }
+                    }
+                    if (data && data.code === 'Ok' && data.routes && data.routes.length > 0) {
+                      const geometry = data.routes[0].geometry.coordinates;
+                      routeLatLngs = geometry.map(c => [c[1], c[0]]);
+                      osrmSucesso = true;
+                    } else {
+                      rotaAlgumTrechoLinhaReta = true;
+                      routeLatLngs = latlngs.slice();
+                      osrmSucesso = true;
+                      data = {
+                        code: 'Ok',
+                        routes: [{
+                          distance: 0,
+                          geometry: { coordinates: latlngs.map(ll => [ll[1], ll[0]]) }
+                        }]
+                      };
+                      console.warn('[MAPA] Dois pontos: OSRM indisponível — exibindo linha reta (confira login/proxy ou tente de novo).');
+                    }
                   }
                 }
                 
@@ -4330,10 +4319,13 @@
                     opacity: 0.7
                   }).addTo(mapa);
                   
-                  // Calcular distância total se tiver dados do OSRM
                   if (data && data.routes && data.routes[0]) {
-                    const distanciaTotal = (data.routes[0].distance / 1000).toFixed(2);
-                    linhaRota.bindPopup(`<strong>Distância total da rota:</strong> ${distanciaTotal} km`);
+                    const distM = data.routes[0].distance || 0;
+                    const distanciaTotal = distM > 0 ? (distM / 1000).toFixed(2) + ' km' : '—';
+                    const avisoTrecho = rotaAlgumTrechoLinhaReta
+                      ? '<br><small style="color:#e74c3c">Parte da linha está em linha reta: o roteador (OSRM) falhou em um ou mais trechos — verifique login, rede ou tente de novo.</small>'
+                      : '';
+                    linhaRota.bindPopup(`<strong>Distância pela rota (OSRM):</strong> ${distanciaTotal}${avisoTrecho}`);
                   }
                   
                   // Log removido
@@ -4589,7 +4581,7 @@
         // Formato OSRM: "lon,lat;lon,lat" (longitude primeiro!)
         const coordsStr = `${coordsOrigem.lon},${coordsOrigem.lat};${coordsDestino.lon},${coordsDestino.lat}`;
         const osrmUrl = construirUrlRota(
-          config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
+          servidorParaFetchDiretoOsrm(config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv'),
           coordsStr,
           'full',
           'geojson'
@@ -4602,18 +4594,24 @@
           console.error('❌ [OSRM] ERRO CRÍTICO: URL ainda está em HTTPS!', osrmUrl);
         }
         
-        // Usar AbortController para timeout
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 segundos de timeout
-        
-        const rotaResponse = await fetchForcandoHTTP(osrmUrl, { signal: controller.signal });
-        clearTimeout(timeoutId);
-        
-        if (!rotaResponse.ok) {
-          throw new Error(`OSRM retornou status ${rotaResponse.status}: ${rotaResponse.statusText}`);
+        const timeoutRotaMs = 90000;
+        try {
+          rotaData = await fetchRotaOsrmViaBackend(coordsStr, 110000);
+        } catch (proxyErr) {
+          rotaData = null;
         }
-        
-        rotaData = await rotaResponse.json();
+        if (!rotaData || !rotaData.code || rotaData.code !== 'Ok') {
+          // Usar AbortController para timeout
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), timeoutRotaMs);
+          const rotaResponse = await fetchForcandoHTTP(osrmUrl, { signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (!rotaResponse.ok) {
+            throw new Error(`OSRM retornou status ${rotaResponse.status}: ${rotaResponse.statusText}`);
+          }
+          const rawRota = await rotaResponse.json();
+          rotaData = normalizarJsonRotaGateway(rawRota) || rawRota;
+        }
         
         // Log removido
         
@@ -4737,7 +4735,7 @@
         // Função renderizarInformacoesRota removida - seção "Informações da Rota para o Motorista" foi removida
       } catch (err) {
         if (err.name === 'AbortError') {
-          console.warn('[MAPA] ⏱️ Timeout ao obter rota do OSRM (mais de 20s)');
+          console.warn('[MAPA] ⏱️ Timeout ao obter rota do OSRM (origem/destino)');
         } else {
           console.error('[MAPA] ❌ Erro ao obter rota do OSRM:', err);
           console.error('[MAPA] Detalhes do erro:', {
@@ -4902,7 +4900,7 @@
   async function obterCidadePorCoordenada(lat, lon) {
     try {
       // Usar Nominatim para reverse geocoding
-      const nominatimServer = window.MAP_CONFIG?.nominatimServer || 'http://app.integrabrasil.com:8080/nominatim';
+      const nominatimServer = window.MAP_CONFIG?.nominatimServer || 'https://nominatim.openstreetmap.org';
       const url = `${nominatimServer}/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`;
       const response = await fetch(url, {
         headers: {
@@ -5510,12 +5508,59 @@
   
   let viagensPendentes = [];
   let motoristasCompatíveis = [];
+  let viagemResumoCompativeis = null;
   let viagemSelecionada = null;
+
+  function aplicarResumoClasseViagemCompativeis() {
+    const box = document.getElementById('resumoClasseExigidaCompativeis');
+    const txt = document.getElementById('resumoClasseExigidaCompativeisTexto');
+    if (!box || !txt) return;
+    const v = viagemResumoCompativeis;
+    if (!v) {
+      box.style.display = 'none';
+      txt.textContent = '';
+      const extra = document.getElementById('resumoClasseExigidaCompativeisExtra');
+      if (extra) {
+        extra.style.display = 'none';
+        extra.textContent = '';
+      }
+      return;
+    }
+    const ds = v.DSCLASSEFROTA_VIAGEM != null ? v.DSCLASSEFROTA_VIAGEM : v.dsclassefrota_viagem;
+    const cd = v.CDCLASSEFROTA != null ? v.CDCLASSEFROTA : v.cdclassefrota;
+    const fr = v.FGRASTREADO != null ? v.FGRASTREADO : v.fgrastreado;
+    const dsStr = ds != null && String(ds).trim() !== '' ? String(ds).trim() : '';
+    let texto = '';
+    if (dsStr) {
+      texto = cd != null && String(cd).trim() !== '' ? `${dsStr} · cód. ${String(cd).trim()}` : dsStr;
+    } else if (cd != null && String(cd).trim() !== '') {
+      texto = `Classe código ${String(cd).trim()}`;
+    } else {
+      texto = 'Classe não informada na viagem';
+    }
+    txt.textContent = texto;
+    const extra = document.getElementById('resumoClasseExigidaCompativeisExtra');
+    if (extra) {
+      if (String(fr || '').trim().toUpperCase() === 'S') {
+        extra.textContent = 'Esta viagem exige veículo rastreado.';
+        extra.style.display = 'block';
+      } else {
+        extra.style.display = 'none';
+        extra.textContent = '';
+      }
+    }
+    box.style.display = 'block';
+  }
+
+  function limparResumoClasseViagemCompativeis() {
+    viagemResumoCompativeis = null;
+    aplicarResumoClasseViagemCompativeis();
+  }
 
   // Carregar viagens pendentes
   async function carregarRegrasCompatibilidade() {
     try {
-      const response = await fetch('/api/viagens/regras-compatibilidade', { headers: getAuthHeaders() });
+      const response = await fetchApiViagens('/regras-compatibilidade');
       if (!response.ok) return;
       const data = await response.json();
       const set = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
@@ -5531,7 +5576,7 @@
     if (!select) return;
     try {
       showMessage('Carregando viagens pendentes...', 'info');
-      const response = await fetch('/api/viagens-pendentes', { headers: getAuthHeaders() });
+      const response = await fetchApiAbsPath('/api/viagens-pendentes');
       if (!response.ok) {
         const errText = await response.text();
         console.warn('[Viagens pendentes] Resposta não OK:', response.status, errText.slice(0, 200));
@@ -5609,7 +5654,7 @@
         if (!viagemEncontrada) {
           // Buscar dados da viagem para adicionar à lista
           try {
-            const response = await fetch(`/api/viagens/${idViagem}`);
+            const response = await fetchApiViagens(`/${idViagem}`);
             if (response.ok) {
               const viagem = await response.json();
               const option = document.createElement('option');
@@ -5685,20 +5730,29 @@
       if (gridContainer && typeof window.hideSkeleton === 'function') {
         window.hideSkeleton(gridContainer);
       }
+      limparResumoClasseViagemCompativeis();
       showMessage('Selecione uma viagem primeiro.', 'error');
       return;
     }
 
     try {
       showMessage('Buscando motoristas compatíveis...', 'info');
-      const response = await fetch(`/api/viagens/${idViagem}/motoristas-compativel`);
+      const response = await fetchApiViagens(`/${idViagem}/motoristas-compativel`);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || 'Erro ao buscar motoristas compatíveis');
       }
       
-      motoristasCompatíveis = await response.json();
+      const payload = await response.json();
+      if (Array.isArray(payload)) {
+        motoristasCompatíveis = payload;
+        viagemResumoCompativeis = null;
+      } else {
+        motoristasCompatíveis = Array.isArray(payload.motoristas) ? payload.motoristas : [];
+        viagemResumoCompativeis = payload.viagemResumo || payload.viagemresumo || null;
+      }
       viagemSelecionada = idViagem;
+      aplicarResumoClasseViagemCompativeis();
       
       // Esconder skeleton antes de renderizar
       if (gridContainer && typeof window.hideSkeleton === 'function') {
@@ -5715,6 +5769,11 @@
     } catch (err) {
       console.error('Erro ao buscar motoristas compatíveis:', err);
       showMessage(err.message || 'Erro ao buscar motoristas compatíveis.', 'error');
+      viagemResumoCompativeis = null;
+      aplicarResumoClasseViagemCompativeis();
+      if (gridContainer && typeof window.hideSkeleton === 'function') {
+        window.hideSkeleton(gridContainer);
+      }
     }
   }
 
@@ -5761,6 +5820,18 @@
         case 'rota':
           valorA = parseInt(a.QTVIAGENS_NESTA_ROTA) || 0;
           valorB = parseInt(b.QTVIAGENS_NESTA_ROTA) || 0;
+          break;
+        case 'conjunto':
+          valorA = String(
+            a.CONJUNTO_PLACAS_CLASSES_MOTORISTA != null
+              ? a.CONJUNTO_PLACAS_CLASSES_MOTORISTA
+              : a.conjunto_placas_classes_motorista || ''
+          ).toLowerCase();
+          valorB = String(
+            b.CONJUNTO_PLACAS_CLASSES_MOTORISTA != null
+              ? b.CONJUNTO_PLACAS_CLASSES_MOTORISTA
+              : b.conjunto_placas_classes_motorista || ''
+          ).toLowerCase();
           break;
         default:
           return 0;
@@ -5841,6 +5912,13 @@
                 onmouseout="this.style.background='#f5f5f5'">
               Transportador ${getSortIcon('transportador')}
             </th>
+            <th style="padding: 12px; text-align: left; cursor: pointer; user-select: none; min-width: 200px;" 
+                onclick="ordenarMotoristasCompatíveis('conjunto')" 
+                onmouseover="this.style.background='#e8e8e8'" 
+                onmouseout="this.style.background='#f5f5f5'"
+                title="Veículos aprovados no cadastro do motorista (placa e classe). Confira antes de convocar.">
+              Placas / classes ${getSortIcon('conjunto')}
+            </th>
             <th style="padding: 12px; text-align: center; cursor: pointer; user-select: none; width: 80px;" 
                 onclick="ordenarMotoristasCompatíveis('viagens')" 
                 onmouseover="this.style.background='#e8e8e8'" 
@@ -5859,6 +5937,28 @@
         </thead>
         <tbody>
     `;
+
+    const escHtmlMotoristaCompat = (s) => String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+
+    const htmlConjuntoPlacasClassesMotorista = (motorista) => {
+      const raw = String(
+        motorista.CONJUNTO_PLACAS_CLASSES_MOTORISTA != null
+          ? motorista.CONJUNTO_PLACAS_CLASSES_MOTORISTA
+          : motorista.conjunto_placas_classes_motorista || ''
+      ).trim();
+      if (!raw) {
+        return '<span style="color:#999;font-size:13px;">Sem veículo aprovado no cadastro</span>';
+      }
+      const partes = raw.split('~~LINE~~').map((p) => p.trim()).filter(Boolean);
+      return partes.map((linha, idx) => (
+        (idx > 0 ? '<hr class="motorista-compat-placa-sep" style="border:0;border-top:1px solid #dee2e6;margin:10px 0;background:transparent;" />' : '')
+        + `<div class="motorista-compat-placa-linha">${escHtmlMotoristaCompat(linha)}</div>`
+      )).join('');
+    };
 
     motoristasCompatíveis.forEach((motorista, index) => {
       const isChecked = motorista.selecionado || false;
@@ -5920,6 +6020,10 @@
         }
       }
       
+      const foiAcionado =
+        Number(motorista.FOI_ACIONADO) === 1 ||
+        motorista.FOI_ACIONADO === true ||
+        String(motorista.FOI_ACIONADO || '').trim() === '1';
       html += `
         <tr style="border-bottom: 1px solid #eee; ${index % 2 === 0 ? 'background: #fafafa;' : ''}">
           <td style="padding: 12px;">
@@ -5931,8 +6035,8 @@
           </td>
           <td style="padding: 12px;">
             <div style="display: flex; align-items: center; gap: 8px;">
-              ${motorista.FOI_ACIONADO === 1 
-                ? '<span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #28a745; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2); flex-shrink: 0;" title="Motorista acionado (já foi convocado)"></span>'
+              ${foiAcionado
+                ? '<span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #28a745; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2); flex-shrink: 0;" title="Motorista acionado (já foi convocado / WhatsApp ou acesso registrado)"></span>'
                 : '<span style="display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: #dc3545; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.2); flex-shrink: 0;" title="Motorista não acionado (ainda não foi convocado)"></span>'}
               <div>
                 <strong>${(motorista.NOME_MOTORISTA != null ? motorista.NOME_MOTORISTA : motorista.nome_motorista) || '-'}</strong><br>
@@ -5958,6 +6062,9 @@
                 ${temWhatsAppTransportador ? `<a href="${linkWhatsAppTransportador}" target="_blank" style="color: #25D366; text-decoration: none;" title="Abrir WhatsApp do transportador"><i class="bx bx-logo-whatsapp" style="font-size: 1em; vertical-align: middle;"></i> ${celularTransportadorExibicao}</a>` : `<i class="bx bx-logo-whatsapp" style="font-size: 1em; vertical-align: middle;"></i> ${celularTransportadorExibicao}`}
               ` : ''}
             </small>
+          </td>
+          <td style="padding: 12px; vertical-align: top; font-size: 14px;">
+            ${htmlConjuntoPlacasClassesMotorista(motorista)}
           </td>
           <td style="padding: 12px; text-align: center;">
             <span style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 14px;">
@@ -6035,7 +6142,7 @@
       showMessage('Carregando dados da viagem...', 'info');
       
       // Buscar dados completos da viagem
-      const response = await fetch(`/api/viagens/${viagemSelecionada}`);
+      const response = await fetchApiViagens(`/${viagemSelecionada}`);
       if (!response.ok) {
         throw new Error('Erro ao buscar dados da viagem');
       }
@@ -6130,37 +6237,43 @@
     }
   }
 
-  // Função para obter URL pública (para funcionar no celular)
-  // USA DETECÇÃO AUTOMÁTICA: Detecta ambiente baseado na URL atual do navegador
+  // Função para obter URL pública (para funcionar no celular / ngrok)
   async function obterUrlPublica() {
-    // PRIORIDADE 1: Usar o utilitário de ambiente se disponível (detecção automática)
+    // PRIORIDADE 1: backend (.env PUBLIC_URL) — mesmo se a torre estiver aberta em localhost
+    try {
+      const urlRes = await fetch('/api/public-url', { headers: typeof getAuthHeaders === 'function' ? getAuthHeaders() : {} });
+      if (urlRes.ok) {
+        const urlData = await urlRes.json();
+        if (urlData && urlData.url && String(urlData.url).trim()) {
+          const u = String(urlData.url).trim().replace(/\/$/, '');
+          const host = (() => {
+            try { return new URL(u).hostname; } catch (_) { return ''; }
+          })();
+          const isLocal =
+            host === 'localhost' ||
+            host === '127.0.0.1' ||
+            host.startsWith('192.168.') ||
+            host.startsWith('10.');
+          if (!isLocal) return u;
+          // Se API devolveu localhost, ainda pode ser útil se o browser estiver no ngrok
+        }
+      }
+    } catch (e) {
+      console.warn('[URL] /api/public-url falhou:', e && e.message ? e.message : e);
+    }
+
+    // PRIORIDADE 2: utilitário de ambiente
     if (typeof window !== 'undefined' && typeof window.obterUrlBase === 'function') {
       try {
         const urlBase = await window.obterUrlBase();
-        // URL base obtida automaticamente
-        return urlBase;
+        if (urlBase) return String(urlBase).replace(/\/$/, '');
       } catch (err) {
         console.warn('[URL] Erro ao obter URL base do utilitário, usando fallback:', err);
       }
     }
     
-    // PRIORIDADE 2: Detecção manual baseada no hostname
-    const hostname = window.location.hostname;
-    const isLocalhost = hostname === 'localhost' || 
-                        hostname === '127.0.0.1' ||
-                        hostname.startsWith('192.168.') ||
-                        hostname.startsWith('10.') ||
-                        hostname.startsWith('172.');
-    
-    if (isLocalhost) {
-      // Ambiente LOCAL detectado
-      return 'http://localhost:3000';
-    }
-    
-    // PRIORIDADE 3: Usar origem atual (produção)
-    const urlAtual = window.location.origin;
-    // Ambiente PRODUÇÃO detectado
-    return urlAtual;
+    // PRIORIDADE 3: origem atual (ngrok / produção) ou localhost
+    return String(window.location.origin || 'http://localhost:3001').replace(/\/$/, '');
   }
 
   // Enviar anúncio via WhatsApp para motoristas selecionados
@@ -6205,7 +6318,7 @@
     }
 
     // Identificar a aba atual para definir o fluxo
-    const tabCompativeis = document.getElementById('tab-compativeis');
+    const tabCompativeis = document.getElementById('tab-compatíveis');
     const isAbaCompativeis = tabCompativeis && tabCompativeis.classList.contains('active');
 
     // Se as convocações já existirem (tiverem IDCONVOCACAO e já estiverem na aba Convocações) e não for aba de compatíveis, 
@@ -6262,10 +6375,8 @@
         })
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Erro ao criar convocações');
-      }
+      const errCriar = await rejeicaoSeRespostaNaoOk(response, 'Erro ao criar convocações');
+      if (errCriar) throw errCriar;
 
       const result = await response.json();
       const todasConvocacoes = result.convocacoes || [];
@@ -6440,7 +6551,7 @@
       
     } catch (err) {
       console.error('Erro ao enviar anúncio:', err);
-      showMessage('Erro ao criar convocações: ' + err.message, 'error');
+      showMessage('Erro ao criar convocações: ' + err.message, tipoMensagemErroHttp(err));
     }
   }
 
@@ -6766,6 +6877,35 @@
     });
   }
 
+  async function validarSaudeSwitchDigitalAntesDoDisparo(idViagem, totalItens) {
+    let response;
+    let payload = null;
+    try {
+      response = await fetchApiViagens('/webhook/switch-digital/health', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          viagemId: idViagem || null,
+          total: totalItens || 0
+        })
+      });
+      try {
+        payload = await response.json();
+      } catch (e) {
+        payload = null;
+      }
+    } catch (err) {
+      throw new Error(`Falha ao verificar saúde da integração Switch Digital: ${err.message}`);
+    }
+
+    if (!response.ok || !payload || payload.healthy !== true) {
+      const msg = (payload && (payload.message || payload.error))
+        || 'Switch Digital indisponível para envio neste momento.';
+      throw new Error(msg);
+    }
+    return payload;
+  }
+
   // Disparar convocações
   async function dispararConvocacoes() {
     const selecionados = motoristasCompatíveis.filter(m => m.selecionado);
@@ -6802,7 +6942,7 @@
       if (!idParaBuscar) {
         throw new Error('ID da viagem não definido.');
       }
-      const responseViagem = await fetch(`/api/viagens/${idParaBuscar}`);
+      const responseViagem = await fetchApiViagens(`/${idParaBuscar}`);
       if (!responseViagem.ok) {
         throw new Error('Erro ao buscar dados da viagem');
       }
@@ -6909,10 +7049,8 @@
         })
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Erro ao criar convocações');
-      }
+      const errCriarConv = await rejeicaoSeRespostaNaoOk(response, 'Erro ao criar convocações');
+      if (errCriarConv) throw errCriarConv;
 
       const result = await response.json();
       const todasConvocacoes = result.convocacoes || [];
@@ -7078,18 +7216,26 @@
           const dadosGerados = dadosGeradosMap.get(idConvocacao);
           
           if (dadosGerados) {
-            // Buscar convocação do banco para verificar DHENVIOMETA
+            // Buscar convocação do banco para verificar DHENVIOMETA (PG pode devolver dhenviometa)
             try {
               const responseConvocacao = await fetch(`/api/convocacoes/${idConvocacao}`);
               if (responseConvocacao.ok) {
                 const convocacaoCompleta = await responseConvocacao.json();
-                // Só adicionar se DHENVIOMETA estiver vazio/null
-                if (!convocacaoCompleta.DHENVIOMETA) {
+                const dhMeta = convocacaoCompleta.DHENVIOMETA ?? convocacaoCompleta.dhenviometa;
+                const jaEnviado = dhMeta != null && String(dhMeta).trim() !== '';
+                if (!jaEnviado) {
                   convocacoesParaEnviar.push(dadosGerados);
+                } else {
+                  _log(`[SWITCH DIGITAL] Convocação ${idConvocacao} já tem DHENVIOMETA — pulando fila em massa (fallback tentará envio se necessário).`);
                 }
+              } else {
+                // Sem confirmação no servidor: não bloquear o disparo
+                _log(`[SWITCH DIGITAL] Não foi possível ler convocação ${idConvocacao} (${responseConvocacao.status}); incluindo na fila mesmo assim.`);
+                convocacoesParaEnviar.push(dadosGerados);
               }
             } catch (err) {
-              // Ignorar erro ao verificar convocação
+              _log(`[SWITCH DIGITAL] Erro ao verificar DHENVIOMETA da convocação ${idConvocacao}:`, err.message || err);
+              convocacoesParaEnviar.push(dadosGerados);
             }
           }
         }
@@ -7108,6 +7254,8 @@
       let envioJaFeitoViaEmMassa = false;
       if (convocacoesParaEnviar.length > 0) {
         try {
+          await validarSaudeSwitchDigitalAntesDoDisparo(idViagemLocal, convocacoesParaEnviar.length);
+
           // Log detalhado de envio (F12)
           _log('========================================');
           _log(`[SWITCH DIGITAL] 📤 Solicitando envio de ${convocacoesParaEnviar.length} convocações ao Backend`);
@@ -7154,7 +7302,7 @@
 
           // Enviar requisição para nossa nova rota no backend
           console.log('[SWITCH DIGITAL LOG] Fluxo EM MASSA - chamando fetch /api/viagens/webhook/switch-digital');
-          const response = await fetch('/api/viagens/webhook/switch-digital', {
+          const response = await fetchApiViagens('/webhook/switch-digital', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
@@ -7167,11 +7315,9 @@
           });
           
           console.log('[SWITCH DIGITAL] Resposta recebida (massa):', response.status);
+          const errMassa = await rejeicaoSeRespostaNaoOk(response, `Erro ao enviar fila Switch Digital (${response.status})`);
+          if (errMassa) throw errMassa;
           const resultData = await response.json();
-          
-          if (!response.ok) {
-            throw new Error(resultData.error || `Erro HTTP: ${response.status}`);
-          }
           
           _log(`[SWITCH DIGITAL] ✅ Backend recebeu a fila com sucesso:`, resultData);
           
@@ -7215,7 +7361,7 @@
               idViagem: idViagemLocal
             });
           }
-          showMessage(`Erro ao disparar WhatsApp: ${webhookErr.message}`, 'error');
+          showMessage(`Erro ao disparar WhatsApp: ${webhookErr.message}`, tipoMensagemErroHttp(webhookErr));
         }
       }
       
@@ -7265,7 +7411,11 @@
            }
         });
         _log('[SWITCH DIGITAL] Chamando API do Switch Digital com IDs da criacao:', idsConvocacoes);
-        dispararWhatsAppSwitchDigital(idViagemLocal, idsConvocacoes);
+        try {
+          await dispararWhatsAppSwitchDigital(idViagemLocal, idsConvocacoes);
+        } catch (e) {
+          console.error('[SWITCH DIGITAL] dispararWhatsAppSwitchDigital (fallback):', e);
+        }
         const filtroConvEl = document.getElementById('filtroConvocacaoViagem');
         if (filtroConvEl) filtroConvEl.value = idViagemLocal;
         if (typeof window.carregarConvocacoes === 'function') window.carregarConvocacoes();
@@ -7273,7 +7423,7 @@
       
     } catch (err) {
       console.error('Erro ao disparar convocações:', err);
-      showMessage(err.message || 'Erro ao disparar convocações.', 'error');
+      showMessage(err.message || 'Erro ao disparar convocações.', tipoMensagemErroHttp(err));
     }
   }
 
@@ -7345,17 +7495,18 @@
     
     // Identificar o contexto: Se os motoristas vêm da aba "Compatíveis", eles não têm uma Convocação criada no BD (geralmente não tem IDCONVOCACAO ou tem mas está mesclado do join).
     // O mais seguro na aba de Compatíveis é rodar enviarAnuncioWhatsApp que cria/atualiza a convocação antes.
-    const tabCompativeis = document.getElementById('tab-compativeis');
+    const tabCompativeis = document.getElementById('tab-compatíveis');
     const isAbaCompativeis = tabCompativeis && tabCompativeis.classList.contains('active');
     
-    // Se isAbaCompativeis, usa o fluxo de enviarAnuncioWhatsApp que salva no BD e chama o disparo
+    // Se isAbaCompativeis, usar o fluxo de disparo automático (Switch Digital) direto.
+    // Evita cair no modal de links manuais quando vários motoristas são selecionados.
     if (isAbaCompativeis) {
        // Quando vem dos compatíveis, `enviarAnuncioWhatsApp` pega de `motoristasCompatíveis.filter(m => m.selecionado)` 
        // Entao precisamos garantir que a flag .selecionado está true.
        motoristasSelecionados.forEach(m => {
           if (m && typeof m === 'object') m.selecionado = true;
        });
-       enviarAnuncioWhatsApp();
+       dispararConvocacoes();
     } else {
        // Aba Convocações: as convocações já existem
        // Para não dar erro de map se algum for undefined:
@@ -7469,8 +7620,10 @@
       } catch (e) { /* usa origin */ }
 
       // 1. Chamar o backend
-      console.log('[SWITCH DIGITAL] Disparando requisição para:', '/api/viagens/webhook/switch-digital');
-      const response = await fetch('/api/viagens/webhook/switch-digital', {
+      await validarSaudeSwitchDigitalAntesDoDisparo(idViagem, convocacoesFormatadas.length);
+
+      console.log('[SWITCH DIGITAL] Disparando requisição para:', urlApiViagens('/webhook/switch-digital'));
+      const response = await fetchApiViagens('/webhook/switch-digital', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -7481,11 +7634,9 @@
       });
 
       console.log('[SWITCH DIGITAL] Resposta recebida:', response.status);
+      const errSwitch = await rejeicaoSeRespostaNaoOk(response, `Erro ao enviar fila Switch Digital (${response.status})`);
+      if (errSwitch) throw errSwitch;
       const resultData = await response.json();
-
-      if (!response.ok) {
-        throw new Error(resultData.error || `Erro HTTP: ${response.status}`);
-      }
       
       const motoristasFormatados = resultData.detalhes || [];
       
@@ -7540,7 +7691,7 @@
           idViagem: idViagem
         });
       }
-      showMessage(`Erro ao disparar WhatsApp: ${err.message}`, 'error');
+      showMessage(`Erro ao disparar WhatsApp: ${err.message}`, tipoMensagemErroHttp(err));
       
       const btnDisparar = document.getElementById('btnDispararConvocacoes');
       if (btnDisparar) {
@@ -7566,7 +7717,7 @@
       list = list.filter(e => e.idViagem == null || e.idViagem === '' || String(e.idViagem) === String(idViagemAtual));
     }
     let sucessos = 0, erros = 0;
-    // Contar a partir das mensagens "Fila Processada" (Sucessos: X, Erros: Y) para refletir envios reais
+    // 1) Resumo "Fila Processada" (Sucessos: X, Erros: Y) quando existir
     const reFila = /Sucessos:\s*(\d+).*?Erros:\s*(\d+)/i;
     list.forEach(e => {
       const msg = (e.mensagem || '') + (e.titulo || '');
@@ -7576,6 +7727,14 @@
         erros += parseInt(m[2], 10) || 0;
       }
     });
+    // 2) Se não houve linha de fila (ex.: só logs gravados no banco), contar cada envio_switch individual
+    if (sucessos === 0 && erros === 0) {
+      list.forEach(e => {
+        const tit = (e.titulo || '');
+        if (/Switch Digital\s*-\s*Enviado/i.test(tit)) sucessos += 1;
+        else if (/Switch Digital\s*-\s*Erro/i.test(tit)) erros += 1;
+      });
+    }
     const totalEnvios = sucessos + erros;
     if (totalEl) totalEl.textContent = totalEnvios;
     if (sucessosEl) sucessosEl.textContent = sucessos;
@@ -7586,20 +7745,42 @@
       container.innerHTML = '<div style="color: #6c757d; text-align: center; padding: 40px; line-height: 1.6;">' +
         '<strong>Nenhum log disponível.</strong><br><br>' +
         '• Clique em <strong>Atualizar Logs</strong> para carregar do servidor.<br>' +
-        '• Os logs só aparecem <strong>depois</strong> de usar <strong>Disparar Convocações (Switch Digital)</strong> na aba Convocações para esta viagem.<br>' +
-        '• Se já disparou e ainda não vê nada, confira se há convocações criadas para a viagem e se a integração Switch Digital está configurada em Configurações do Sistema.</div>';
+        '• Inclui envios da <strong>fila Switch</strong> na aba Convocações, da <strong>campanha de oportunidades</strong> e registros antigos em <strong>LOG_ENVIO_WHATSAPP</strong> (unificados na mesma lista).<br>' +
+        '• Se ainda não vê nada, confira convocações para a viagem e a integração Switch em Configurações do Sistema.</div>';
       return;
     }
     const cabecalhoViagem = idViagemAtual ? `<div style="margin-bottom: 12px; padding: 8px 10px; background: rgba(0,0,0,0.25); border-radius: 4px; font-size: 12px; color: #94a3b8;"><strong>Exibindo logs da Viagem ${idViagemAtual}</strong> (viagem selecionada na aba Dados / Grid / Convocações)</div>` : '';
+    const escapeHtmlLog = (v) => String(v == null ? '' : v)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+    const normalizeDetailText = (v) => String(v == null ? '' : v)
+      .replace(/Atendente:\s*(undefined|null)\b/gi, 'Atendente: não informado');
+    const formatarDetalheExpandivel = (detalhes, tipo) => {
+      if (!detalhes) return '';
+      const detalheRaw = typeof detalhes === 'string' ? detalhes : JSON.stringify(detalhes);
+      const detalheNorm = normalizeDetailText(detalheRaw || '').substring(0, 2500);
+      const detalheEsc = escapeHtmlLog(detalheNorm);
+      const knownTicket = /ticket em outro atendimento|conversa em aberto|atendimento em aberto/i.test(detalheNorm);
+      const resumo = knownTicket
+        ? 'Detalhes técnicos (ticket já aberto no atendimento)'
+        : (tipo === 'erro' ? 'Detalhes técnicos do erro' : 'Detalhes técnicos');
+      return `<details style="margin-top: 6px;">
+        <summary style="cursor: pointer; font-size: 11px; color: #93c5fd;">${resumo}</summary>
+        <pre style="margin: 6px 0 0 0; font-size: 11px; white-space: pre-wrap; word-break: break-all; overflow-wrap: break-word; max-width: 100%; overflow-x: auto;">${detalheEsc}</pre>
+      </details>`;
+    };
     const html = cabecalhoViagem + list.map(e => {
       const cor = e.tipo === 'erro' ? '#dc3545' : e.tipo === 'warning' ? '#ffc107' : e.tipo === 'sucesso' ? '#28a745' : '#17a2b8';
-      const detalhes = e.detalhes ? (typeof e.detalhes === 'string' ? e.detalhes : JSON.stringify(e.detalhes).substring(0, 500)) : '';
+      const detalhesHtml = formatarDetalheExpandivel(e.detalhes, e.tipo);
       const idV = e.idViagem != null && e.idViagem !== '' ? String(e.idViagem) : null;
       const badgeViagem = idV ? `<span style="font-size: 10px; color: #94a3b8; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; margin-left: 8px;" title="Viagem a que este log pertence">Viagem ${idV}</span>` : '';
       return `<div style="margin-bottom: 12px; padding: 10px; border-left: 4px solid ${cor}; background: rgba(0,0,0,0.2); border-radius: 4px; max-width: 100%; overflow-wrap: break-word; word-break: break-word; box-sizing: border-box;">
         <strong style="color: ${cor}">${e.titulo || e.tipo || 'Log'}</strong>${badgeViagem}
-        <div style="margin-top: 4px; overflow-wrap: break-word; word-break: break-word;">${(e.mensagem || '').replace(/</g, '&lt;')}</div>
-        ${detalhes ? `<pre style="margin: 6px 0 0 0; font-size: 11px; white-space: pre-wrap; word-break: break-all; overflow-wrap: break-word; max-width: 100%; overflow-x: auto;">${detalhes.replace(/</g, '&lt;')}</pre>` : ''}
+        <div style="margin-top: 4px; overflow-wrap: break-word; word-break: break-word;">${escapeHtmlLog(normalizeDetailText(e.mensagem || ''))}</div>
+        ${detalhesHtml}
         <div style="margin-top: 4px; font-size: 11px; color: #888;">${e.dhlog ? new Date(e.dhlog).toLocaleString('pt-BR') : (e.ts ? new Date(e.ts).toLocaleString('pt-BR') : '')}</div>
       </div>`;
     }).join('');
@@ -7612,6 +7793,42 @@
     window._listaLogsSwitch = window._listaLogsSwitch || [];
     window._listaLogsSwitch.unshift({ ...entry, idViagem: idViagem || entry.idViagem, ts: Date.now() });
     atualizarVisorLogsSwitch();
+  };
+
+  function atualizarBadgeSaudeSwitch(status, texto) {
+    const badge = document.getElementById('switchSaudeBadge');
+    if (!badge) return;
+    badge.classList.remove('switch-saude-badge--ok', 'switch-saude-badge--down', 'switch-saude-badge--loading');
+    if (status === 'ok') badge.classList.add('switch-saude-badge--ok');
+    else if (status === 'down') badge.classList.add('switch-saude-badge--down');
+    else badge.classList.add('switch-saude-badge--loading');
+    badge.textContent = texto || 'Sessão Switch: verificando...';
+  }
+
+  window.verificarSaudeSwitchBadge = async function() {
+    const tabIntegracaoSwitch = document.getElementById('tab-integracao-switch');
+    if (!tabIntegracaoSwitch || !tabIntegracaoSwitch.classList.contains('active')) return;
+
+    const idViagem = document.getElementById('filtroIdViagem')?.value
+      || document.getElementById('viagemId')?.value
+      || document.getElementById('filtroConvocacaoViagem')?.value
+      || '';
+    atualizarBadgeSaudeSwitch('loading', 'Sessão Switch: verificando...');
+    try {
+      const response = await fetchApiViagens('/webhook/switch-digital/health', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ viagemId: idViagem || null })
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (response.ok && payload && payload.healthy === true) {
+        atualizarBadgeSaudeSwitch('ok', 'Sessão Switch: ativa');
+      } else {
+        atualizarBadgeSaudeSwitch('down', 'Sessão Switch: inativa');
+      }
+    } catch (err) {
+      atualizarBadgeSaudeSwitch('down', 'Sessão Switch: inativa');
+    }
   };
 
   window.limparVisorLogsSwitch = function() {
@@ -7633,10 +7850,11 @@
       if (sucessosEl) sucessosEl.textContent = '0';
       if (errosEl) errosEl.textContent = '0';
       if (ultimaEl) ultimaEl.textContent = '-';
+      if (typeof window.verificarSaudeSwitchBadge === 'function') window.verificarSaudeSwitchBadge();
       return;
     }
     try {
-      const res = await fetch('/api/logs-webhook-meta?idViagem=' + encodeURIComponent(idViagem.trim()) + '&limite=100');
+      const res = await fetch('/api/logs-webhook-meta?idViagem=' + encodeURIComponent(idViagem.trim()) + '&limite=250');
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
         container.innerHTML = '<div style="color: #721c24; text-align: center; padding: 40px; background: #f8d7da; border-radius: 8px;">' +
@@ -7676,10 +7894,12 @@
       });
       merged.sort((a, b) => (b.dhlog ? new Date(b.dhlog).getTime() : b.ts || 0) - (a.dhlog ? new Date(a.dhlog).getTime() : a.ts || 0));
       console.log('[SWITCH DIGITAL LOG] carregarLogsSwitch - API entries=', entries.length, 'memória=', memCount, 'merged total=', merged.length);
-      atualizarVisorLogsSwitch(merged.slice(0, 100));
+      atualizarVisorLogsSwitch(merged.slice(0, 250));
+      if (typeof window.verificarSaudeSwitchBadge === 'function') window.verificarSaudeSwitchBadge();
     } catch (err) {
       console.error('Erro ao carregar logs Switch:', err);
       atualizarVisorLogsSwitch(window._listaLogsSwitch || []);
+      if (typeof window.verificarSaudeSwitchBadge === 'function') window.verificarSaudeSwitchBadge();
     }
   };
 
@@ -7689,6 +7909,7 @@
     if (target) {
       e.preventDefault();
       if (typeof window.carregarLogsSwitch === 'function') window.carregarLogsSwitch();
+      if (typeof window.verificarSaudeSwitchBadge === 'function') window.verificarSaudeSwitchBadge();
       return;
     }
     const targetLimpar = e.target && (e.target.id === 'btnLimparLogsSwitch' ? e.target : e.target.closest('#btnLimparLogsSwitch'));
@@ -7724,6 +7945,7 @@
       const tabIntegracaoSwitch = document.getElementById('tab-integracao-switch');
       if (tabIntegracaoSwitch && tabIntegracaoSwitch.classList.contains('active')) {
         if (typeof window.carregarLogsSwitch === 'function') window.carregarLogsSwitch();
+        if (typeof window.verificarSaudeSwitchBadge === 'function') window.verificarSaudeSwitchBadge();
       }
     }, 500);
     
@@ -7781,13 +8003,15 @@
           valorA = parseInt(a.IDCONVOCACAO) || 0;
           valorB = parseInt(b.IDCONVOCACAO) || 0;
           break;
-        case 'viagem':
-          valorA = parseInt(a.IDVIAGEM) || 0;
-          valorB = parseInt(b.IDVIAGEM) || 0;
-          break;
         case 'motorista':
           valorA = (a.NOME_MOTORISTA || '').toLowerCase();
           valorB = (b.NOME_MOTORISTA || '').toLowerCase();
+          break;
+        case 'freteProposto':
+          valorA = Number(a.VL_FRETE_PROPOSTO_MOTORISTA ?? a.vl_frete_proposto_motorista);
+          valorB = Number(b.VL_FRETE_PROPOSTO_MOTORISTA ?? b.vl_frete_proposto_motorista);
+          if (!Number.isFinite(valorA)) valorA = -1;
+          if (!Number.isFinite(valorB)) valorB = -1;
           break;
         case 'rota':
           valorA = ((a.ORIGEM_CIDADE || '') + ' ' + (a.DESTINO_CIDADE || '')).toLowerCase();
@@ -7801,13 +8025,21 @@
           valorA = a.DHCONVOCACAO ? new Date(a.DHCONVOCACAO).getTime() : 0;
           valorB = b.DHCONVOCACAO ? new Date(b.DHCONVOCACAO).getTime() : 0;
           break;
-        case 'dataAcesso':
-          valorA = a.DHACESSO ? new Date(a.DHACESSO).getTime() : 0;
-          valorB = b.DHACESSO ? new Date(b.DHACESSO).getTime() : 0;
-          break;
         case 'dataResposta':
           valorA = a.DHRESPOSTA ? new Date(a.DHRESPOSTA).getTime() : 0;
           valorB = b.DHRESPOSTA ? new Date(b.DHRESPOSTA).getTime() : 0;
+          break;
+        case 'placasConf':
+          valorA = String(
+            (a.FGCONFIRMACAOPLACAS ?? a.fgconfirmacaoplacas ?? '') +
+              (a.TXTPLACASDIVERGENCIA ?? a.txtplacasdivergencia ?? '') +
+              (a.PLACASESPERADAS ?? a.placasesperadas ?? '')
+          ).toLowerCase();
+          valorB = String(
+            (b.FGCONFIRMACAOPLACAS ?? b.fgconfirmacaoplacas ?? '') +
+              (b.TXTPLACASDIVERGENCIA ?? b.txtplacasdivergencia ?? '') +
+              (b.PLACASESPERADAS ?? b.placasesperadas ?? '')
+          ).toLowerCase();
           break;
         default:
           return 0;
@@ -7839,6 +8071,11 @@
 
     if (btnDisparar) {
        btnDisparar.onclick = window.abrirModalDisparoWhatsApp;
+    }
+
+    const filtroDivPlacasEl = document.getElementById('filtroConvocacaoDivergenciaPlacas');
+    if (filtroDivPlacasEl) {
+      filtroDivPlacasEl.onchange = carregarConvocacoes;
     }
 
     if (filtroViagem) {
@@ -7974,7 +8211,7 @@
         let viagemData = viagensMap.get(conv.IDVIAGEM);
         if (!viagemData) {
           try {
-            const responseViagem = await fetch(`/api/viagens/${conv.IDVIAGEM}`);
+            const responseViagem = await fetchApiViagens(`/${conv.IDVIAGEM}`);
             if (responseViagem.ok) {
               viagemData = await responseViagem.json();
               viagensMap.set(conv.IDVIAGEM, viagemData);
@@ -8156,11 +8393,13 @@
       
       const filtroViagem = document.getElementById('filtroConvocacaoViagem')?.value?.trim();
       const filtroStatus = document.getElementById('filtroConvocacaoStatus')?.value?.trim();
+      const filtroDivPlacas = document.getElementById('filtroConvocacaoDivergenciaPlacas');
       
       let url = '/api/convocacoes';
       const params = [];
       if (filtroViagem) params.push(`idViagem=${encodeURIComponent(filtroViagem)}`);
       if (filtroStatus) params.push(`status=${encodeURIComponent(filtroStatus)}`);
+      if (filtroDivPlacas && filtroDivPlacas.checked) params.push('divergenciaPlacas=1');
       
       if (params.length > 0) {
         url += '?' + params.join('&');
@@ -8169,6 +8408,9 @@
       const response = await fetch(url);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        if (response.status === 503 && errorData.error) {
+          throw new Error(errorData.error);
+        }
         throw new Error(errorData.error || 'Erro ao carregar convocações');
       }
       
@@ -8177,6 +8419,7 @@
 
       await renderizarConvocacoes();
       
+      const soDivPlacas = !!(filtroDivPlacas && filtroDivPlacas.checked);
       if (convocacoes.length === 0) {
         let mensagem = 'Nenhuma convocação encontrada.';
         if (filtroViagem) {
@@ -8184,15 +8427,45 @@
         } else if (filtroStatus) {
           mensagem += ` (Filtro: Status ${filtroStatus})`;
         }
+        if (soDivPlacas) {
+          mensagem += ' Com «Somente divergência de placas»: nenhum registro FG=D no período/filtros atuais.';
+        }
         showMessage(mensagem, 'warning');
       } else {
-        showMessage(`${convocacoes.length} convocação(ões) encontrada(s).`, 'success');
+        let okMsg = `${convocacoes.length} convocação(ões) encontrada(s).`;
+        if (soDivPlacas) okMsg += ' Filtro ativo: divergência de placas (aceite bloqueado até alinhar).';
+        showMessage(okMsg, 'success');
       }
     } catch (err) {
       console.error('Erro ao carregar convocações:', err);
       showMessage('Erro ao carregar convocações: ' + err.message, 'error');
     }
   }
+
+  window.carregarConvocacoes = carregarConvocacoes;
+
+  /** Abre aba Convocações, marca filtro de divergência e recarrega (usado pelo dashboard / deep link). */
+  window.__aplicarAbrirConvocacoesDivergenciaPlacas = function __aplicarAbrirConvocacoesDivergenciaPlacas() {
+    try {
+      const vc = document.querySelector('.viagens-container');
+      const tabBtn = vc && vc.querySelector('.tab-btn[data-tab="convocações"]');
+      if (tabBtn) tabBtn.click();
+    } catch (e) {
+      console.warn('[convocações] abrir aba divergência:', e);
+    }
+    setTimeout(() => {
+      try {
+        const cb = document.getElementById('filtroConvocacaoDivergenciaPlacas');
+        if (cb) cb.checked = true;
+        const fs = document.getElementById('filtroConvocacaoStatus');
+        if (fs && String(fs.value || '').trim() === '') fs.value = 'PENDENTE';
+        const btn = document.getElementById('btnCarregarConvocacoes');
+        if (btn) btn.click();
+      } catch (e2) {
+        console.warn('[convocações] aplicar filtro divergência:', e2);
+      }
+    }, 700);
+  };
 
   // Renderizar grid de convocações
   async function renderizarConvocacoes() {
@@ -8202,13 +8475,54 @@
     const countEl = document.getElementById('convocacoesGridCountText');
     if (countEl) {
       const count = convocacoes.length || 0;
-      countEl.textContent = count + ' ' + (t('web.modulos.viagens.registrosEncontrados').replace(/^0\s*/, ''));
+      const filtroDivCount = document.getElementById('filtroConvocacaoDivergenciaPlacas');
+      const sufDiv =
+        filtroDivCount && filtroDivCount.checked
+          ? ' · ' +
+            (t('web.modulos.viagens.convocacoesContadorSufixoDivergencia') !==
+            'web.modulos.viagens.convocacoesContadorSufixoDivergencia'
+              ? t('web.modulos.viagens.convocacoesContadorSufixoDivergencia')
+              : 'Somente divergência de placas')
+          : '';
+      countEl.textContent = count + ' ' + (t('web.modulos.viagens.registrosEncontrados').replace(/^0\s*/, '')) + sufDiv;
     }
     
     if (convocacoes.length === 0) {
       container.innerHTML = '<p class="empty">Nenhuma convocação encontrada.</p>';
       return;
     }
+
+    if (ordenacaoConvocacoes.campo === 'dataAcesso' || ordenacaoConvocacoes.campo === 'viagem') {
+      ordenacaoConvocacoes = { campo: null, direcao: 'asc' };
+    }
+
+    const escHtml = (s) => {
+      if (s == null || s === '') return '';
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    };
+    const escAttr = (s) => {
+      if (s == null || s === '') return '';
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/</g, '&lt;')
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
+
+    window.__convGridJustificativaPlacas = Object.create(null);
+
+    const primeiraConv = convocacoes[0];
+    const classeBanner = String(primeiraConv?.DSCLASSEFROTA ?? primeiraConv?.dsclassefrota ?? '').trim();
+    const idViagemBanner = primeiraConv?.IDVIAGEM ?? primeiraConv?.idviagem ?? '';
+    const classeUnica = convocacoes.every(
+      (c) => String(c.DSCLASSEFROTA ?? c.dsclassefrota ?? '').trim() === classeBanner
+    );
 
     // Obter URL base pública (para funcionar no celular)
     const urlBase = await obterUrlPublica();
@@ -8224,27 +8538,37 @@
     };
     
     let html = `
-      <div id="legendaGrid" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 15px; align-items: center;">
-        <div style="font-weight: 600; color: #495057; margin-right: 10px;">Legenda:</div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <i class="bx bx-link-alt" style="font-size: 1.25rem; color: #2196F3;"></i>
-          <span><strong>Link da convocação</strong></span>
+      <details id="legendaGrid" class="convocacoes-legenda-details" style="margin-bottom:12px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;">
+        <summary style="cursor:pointer;padding:10px 14px;font-weight:600;color:#334155;list-style:none;">
+          <span style="display:inline-flex;align-items:center;gap:8px;"><i class="bx bx-help-circle" aria-hidden="true"></i> Ajuda — ícones e filtros <span style="font-weight:400;color:#64748b;font-size:13px;">(clique para ver)</span></span>
+        </summary>
+        <div class="convocacoes-legenda-conteudo" style="padding:0 14px 14px;font-size:13px;color:#475569;line-height:1.55;border-top:1px solid #e2e8f0;">
+          <p style="margin:12px 0 6px;"><strong>Legenda</strong></p>
+          <ul style="margin:0 0 12px 18px;padding:0;list-style:disc;">
+            <li style="margin-bottom:6px;"><i class="bx bx-map-alt" style="color:#28a745;vertical-align:middle;" aria-hidden="true"></i> <strong>Ver motorista no mapa</strong> — posição na rota; o botão só aparece quando a convocação tem latitude e longitude.</li>
+            <li style="margin-bottom:6px;"><strong>Status da convocação</strong> — na coluna <em>Resposta</em>: bolinha de GPS (localização registrada ou não) + ícone do status. A data é <code>DHRESPOSTA</code>. Passe o mouse na célula para ver o texto completo (recusa, campanha, divergência, etc.).</li>
+            <li style="margin-bottom:6px;"><strong>Viagem confirmada (outro motorista)</strong> — linha com borda/indigo à esquerda quando a viagem já foi fechada com outro motorista e esta convocação segue pendente.</li>
+            <li style="margin-bottom:6px;"><strong>Divergência de placas</strong> — linha com <strong>tarja vermelha</strong> (<code>FGCONFIRMACAOPLACAS = D</code>); o botão verde de <strong>confirmar programação</strong> na torre fica desativado até o motorista voltar a confirmar placas no app/link (após alinhar viagem/cadastro). Use «Ver justificativa» para ler o texto do motorista. Filtro «Somente divergência de placas». Na coluna <em>Placa(s)</em>, bolinha vermelha = divergência; verde = confirmou placas.</li>
+            <li style="margin-bottom:6px;"><strong>Viagem não confirmada</strong> — convocação ainda não está em <code>CONFIRMADA</code>; a decisão final de fechar a carga na torre é o botão confirmar (quando o motorista já tiver aceito).</li>
+            <li style="margin-bottom:6px;"><i class="bx bx-logo-whatsapp" style="color:#25D366;vertical-align:middle;" aria-hidden="true"></i> <strong>WhatsApp</strong> — apenas na coluna <em>Ações</em> (botão verde). O número não aparece na coluna Motorista.</li>
+            <li style="margin-bottom:6px;"><i class="bx bx-link-alt" style="color:#2196F3;vertical-align:middle;" aria-hidden="true"></i> <strong>Link público</strong> — abre a página <code>/convocacao</code> desta linha.</li>
+            <li style="margin-bottom:6px;"><strong>ID da viagem</strong> — aparece no cartão acima da tabela (classe de frota / viagem), não repetido em cada linha.</li>
+            <li style="margin-bottom:6px;"><strong>Convocação e acesso</strong> — abaixo dos botões, duas linhas compactas (<code>Convocação:</code> data · <code>Acesso:</code> data ou «Sem registro»). Clique no cabeçalho <em>Ações</em> para ordenar por data de convocação.</li>
+            <li style="margin-bottom:6px;"><i class="bx bx-check-circle" style="color:#28a745;vertical-align:middle;" aria-hidden="true"></i> <strong>Confirmar / reativar</strong> — confirmar só com status ACEITA; reativar aparece quando já está CONFIRMADA.</li>
+          </ul>
+          <p style="margin:0 0 10px;"><strong>Campanha / link de oportunidades:</strong> status ACEITA ou RECUSADA podem refletir resposta pelo link público da campanha (onde também pode ser gravada a localização). O botão de mapa só aparece com latitude/longitude na convocação. <strong>CONFIRMADA</strong> é sempre decisão da torre.</p>
+          <p style="margin:0;"><strong>Link campanha (auditoria):</strong> origem quando <code>SGUSER = APP_MOTORISTA_LINK</code> (resposta pelo link público da campanha). Na Gerenciar Viagens, <strong>confirmar exige GPS</strong> nesses casos — peça ao motorista enviar localização na página de oportunidades antes de confirmar.</p>
         </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <i class="bx bx-map-alt" style="font-size: 1.25rem; color: #28a745;"></i>
-          <span><strong>Ver Motorista no Mapa</strong></span>
-        </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <i class="bx bx-check-circle" style="font-size: 1.25rem; color: #28a745;"></i>
-          <span><strong>Confirmar Convocação</strong> <small style="color: #6c757d;">(ativo quando status = ACEITA)</small></span>
-        </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <i class="bx bx-refresh" style="font-size: 1.25rem; color: #ff9800;"></i>
-          <span><strong>Reativar Convocação</strong></span>
-        </div>
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <i class="bx bx-history" style="font-size: 1.25rem; color: #6c757d;"></i>
-          <span><strong>Histórico de Reabertura</strong></span>
+      </details>
+      <div class="convocacoes-context-banner" role="region" aria-label="Contexto da viagem">
+        <div class="convocacoes-context-banner-inner">
+          <span class="convocacoes-context-pill">
+            <i class="bx bx-category-alt" aria-hidden="true"></i>
+            <span class="convocacoes-context-label">Classe de frota</span>
+            <strong class="convocacoes-context-value">${escHtml(classeBanner || '—')}</strong>
+          </span>
+          ${idViagemBanner !== '' && idViagemBanner != null ? `<span class="convocacoes-context-sub">Viagem · ${escHtml(String(idViagemBanner))}</span>` : ''}
+          ${!classeUnica ? `<span class="convocacoes-context-warn" title="Esta lista mistura mais de uma classe — verifique o filtro da viagem.">Classes misturadas na lista</span>` : ''}
         </div>
       </div>
       <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
@@ -8256,49 +8580,46 @@
                 onmouseout="this.style.background='#f5f5f5'">
               ID ${getSortIcon('id')}
             </th>
-            <th style="padding: 12px; text-align: left; width: 100px; cursor: pointer; user-select: none;" 
-                onclick="ordenarConvocacoes('viagem')" 
-                onmouseover="this.style.background='#e8e8e8'" 
-                onmouseout="this.style.background='#f5f5f5'">
-              Viagem ${getSortIcon('viagem')}
-            </th>
-            <th style="padding: 12px; text-align: left; width: 100px; cursor: pointer; user-select: none;" 
+            <th style="padding: 12px; text-align: left; min-width: 148px; cursor: pointer; user-select: none;" 
                 onclick="ordenarConvocacoes('rota')" 
                 onmouseover="this.style.background='#e8e8e8'" 
                 onmouseout="this.style.background='#f5f5f5'">
               Rota ${getSortIcon('rota')}
             </th>
-            <th style="padding: 12px; text-align: left; width: 120px; cursor: pointer; user-select: none;" 
-                onclick="ordenarConvocacoes('status')" 
-                onmouseover="this.style.background='#e8e8e8'" 
-                onmouseout="this.style.background='#f5f5f5'">
-              Status ${getSortIcon('status')}
-            </th>
-            <th style="padding: 12px; text-align: left; width: 180px; cursor: pointer; user-select: none;" 
+            <th style="padding: 12px; text-align: left; min-width: 192px; cursor: pointer; user-select: none;" 
                 onclick="ordenarConvocacoes('motorista')" 
                 onmouseover="this.style.background='#e8e8e8'" 
                 onmouseout="this.style.background='#f5f5f5'">
               Motorista ${getSortIcon('motorista')}
             </th>
-            <th style="padding: 12px; text-align: left; width: 70px; cursor: pointer; user-select: none;" 
-                onclick="ordenarConvocacoes('dataConvocacao')" 
+            <th style="padding: 12px; text-align: left; min-width: 172px; max-width: 300px; cursor: pointer; user-select: none;" 
+                onclick="ordenarConvocacoes('placasConf')" 
                 onmouseover="this.style.background='#e8e8e8'" 
-                onmouseout="this.style.background='#f5f5f5'">
-              Convocação ${getSortIcon('dataConvocacao')}
+                onmouseout="this.style.background='#f5f5f5'"
+                title="Placas esperadas (viagem ou cadastro motorista). Bolinha: verde = confirmou placas no app/link (C); vermelha = divergência (D).">
+              Placa(s) ${getSortIcon('placasConf')}
             </th>
-            <th style="padding: 12px; text-align: left; width: 70px; cursor: pointer; user-select: none;" 
-                onclick="ordenarConvocacoes('dataAcesso')" 
+            <th style="padding: 12px; text-align: left; width: 106px; cursor: pointer; user-select: none;" 
+                onclick="ordenarConvocacoes('freteProposto')" 
                 onmouseover="this.style.background='#e8e8e8'" 
-                onmouseout="this.style.background='#f5f5f5'">
-              Acesso ${getSortIcon('dataAcesso')}
+                onmouseout="this.style.background='#f5f5f5'"
+                title="Valor informado pelo motorista ao aceitar pelo link público (opcional)">
+              Frete ${getSortIcon('freteProposto')}
             </th>
-            <th style="padding: 12px; text-align: left; width: 70px; cursor: pointer; user-select: none;" 
+            <th style="padding: 12px; text-align: left; min-width: 96px; max-width: 136px; cursor: pointer; user-select: none;" 
                 onclick="ordenarConvocacoes('dataResposta')" 
                 onmouseover="this.style.background='#e8e8e8'" 
-                onmouseout="this.style.background='#f5f5f5'">
+                onmouseout="this.style.background='#f5f5f5'"
+                title="Ícone = status · bolinha = GPS na convocação · data = DHRESPOSTA. Passe o mouse na célula para o texto completo.">
               Resposta ${getSortIcon('dataResposta')}
             </th>
-            <th style="padding: 12px; text-align: left; width: 110px;">Ações</th>
+            <th class="convocacoes-th-acoes" style="padding: 10px 4px; text-align: center; width: 1%; cursor: pointer; user-select: none;" 
+                onclick="ordenarConvocacoes('dataConvocacao')" 
+                onmouseover="this.style.background='#e8e8e8'" 
+                onmouseout="this.style.background='#f5f5f5'"
+                title="Botões de ação; abaixo, DHCONVOCACAO e DHACESSO (abertura do link). Clique para ordenar por data de convocação.">
+              Ações ${getSortIcon('dataConvocacao')}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -8395,34 +8716,33 @@
       const origemEstado = conv.ORIGEM_ESTADO ?? conv.origem_estado;
       const destinoCidade = conv.DESTINO_CIDADE ?? conv.destino_cidade;
       const destinoEstado = conv.DESTINO_ESTADO ?? conv.destino_estado;
-      const dsClasseFrota = conv.DSCLASSEFROTA ?? conv.dsclassefrota;
       const dsRoteiro = conv.DSROTEIRO ?? conv.dsroteiro;
       const idViagem = conv.IDVIAGEM ?? conv.idviagem;
       const idRoteiro = conv.IDROTEIRO ?? conv.idroteiro;
       const lat = conv.LATITUDE ?? conv.latitude;
       const lng = conv.LONGITUDE ?? conv.longitude;
+      const sgUserNorm = String(conv.SGUSER ?? conv.sguser ?? '').trim().toUpperCase();
+
+      const placasEsp = String(conv.PLACASESPERADAS ?? conv.placasesperadas ?? '').trim();
+      const dsClasseConjunto = String(conv.DSCLASSEFROTA_CONJUNTO ?? conv.dsclassefrota_conjunto ?? '').trim();
+      const fgPlacas = String(conv.FGCONFIRMACAOPLACAS ?? conv.fgconfirmacaoplacas ?? '').trim().toUpperCase();
+      const txtPlDiv = String(conv.TXTPLACASDIVERGENCIA ?? conv.txtplacasdivergencia ?? '').trim();
+      if (fgPlacas === 'D') {
+        window.__convGridJustificativaPlacas[idConv] = txtPlDiv;
+      }
+      const dhPlConf = conv.DHCONFIRMACAOPLACAS ?? conv.dhconfirmacaoplacas;
       
-      let statusClass = '';
       let statusDisplay = (conv.STATUS ?? conv.status) || 'PENDENTE';
-      
       const statusConv = conv.STATUS ?? conv.status;
-      if (statusConv === 'PENDENTE') {
-        statusClass = 'background: #fff3cd; color: #856404;';
-      } else if (statusConv === 'ACEITA') {
-        statusClass = 'background: #d4edda; color: #155724;';
-      } else if (statusConv === 'ACEITA_DESCARTADA') {
-        statusClass = 'background: #ffeaa7; color: #856404;';
+      if (statusConv === 'ACEITA_DESCARTADA') {
         statusDisplay = 'ACEITA (Não Selecionada)';
       } else if (statusConv === 'RECUSADA') {
-        statusClass = 'background: #f8d7da; color: #721c24;';
         const motivoRecusa = conv.MOTIVO_RECUSA ?? conv.motivo_recusa;
         if (motivoRecusa) {
           statusDisplay = `RECUSADA - ${motivoRecusa}`;
         } else if (conv.CDMOTIVORECUSA ?? conv.cdmotivorecusa) {
           statusDisplay = `RECUSADA (Motivo: ${conv.CDMOTIVORECUSA ?? conv.cdmotivorecusa})`;
         }
-      } else if (statusConv === 'CONFIRMADA') {
-        statusClass = 'background: #cce5ff; color: #004085;';
       }
       
       // Usar o link salvo na tabela, se existir. Caso contrário, gerar novo link
@@ -8433,51 +8753,20 @@
       // Verificar se tem localização para mostrar botão "Ver no Mapa"
       const temLocalizacao = lat !== null && lat !== undefined && lng !== null && lng !== undefined &&
                             !isNaN(lat) && !isNaN(lng);
-      
-      // Botão de ações (ícones Boxicons – padrão moderno)
-      const btnIconStyle = 'padding: 8px 10px; font-size: 1.2rem; color: white; text-decoration: none; border-radius: 6px; margin-right: 6px; display: inline-flex; align-items: center; justify-content: center; min-width: 36px; border: none; cursor: pointer;';
-      let botoesAcoes = `
-        <a href="${linkConvocacao}" target="_blank" class="btn" style="${btnIconStyle} background: #2196F3;" title="Ver Link">
-          <i class="bx bx-link-alt"></i>
-        </a>
-      `;
-      
-      if (temLocalizacao && idRoteiro) {
-        botoesAcoes += `
-          <button onclick="abrirMapaMotorista(${idConv}, ${lat}, ${lng}, ${idRoteiro}, ${idViagem})" class="btn" style="${btnIconStyle} background: #28a745;" title="Ver no Mapa">
-            <i class="bx bx-map-alt"></i>
-          </button>
-        `;
-      }
-      
-      if (statusConv === 'ACEITA') {
-        botoesAcoes += `
-          <button onclick="confirmarConvocacao(${idConv})" class="btn" style="${btnIconStyle} background: #28a745;" title="Confirmar Convocação (aprovar este motorista)">
-            <i class="bx bx-check-circle"></i>
-          </button>
-        `;
-      } else if (statusConv === 'PENDENTE') {
-        botoesAcoes += `
-          <button type="button" disabled class="btn" style="${btnIconStyle} background: #adb5bd; cursor: not-allowed; opacity: 0.9;" title="Confirmar Convocação – disponível quando o motorista aceitar (status ACEITA)">
-            <i class="bx bx-check-circle"></i>
-          </button>
-        `;
-      }
-      
-      if (statusConv === 'CONFIRMADA') {
-        botoesAcoes += `
-          <button onclick="reativarConvocacao(${idConv})" class="btn" style="${btnIconStyle} background: #ff9800; margin-left: 4px;" title="Reativar Convocação">
-            <i class="bx bx-refresh"></i>
-          </button>
-        `;
-      }
+      const bloquearConfirmSemGeo =
+        statusConv === 'ACEITA' && !temLocalizacao && sgUserNorm === 'APP_MOTORISTA_LINK';
 
       // Destacar visualmente se for PENDENTE mas viagem já foi confirmada
       const viagemJaConfirmada = conv.VIAGEM_JA_CONFIRMADA ?? conv.viagem_ja_confirmada;
       const isPendenteMasConfirmada = statusConv === 'PENDENTE' && (viagemJaConfirmada === 1 || viagemJaConfirmada === true);
-      const rowStyle = isPendenteMasConfirmada 
-        ? 'border-left: 4px solid #667eea; background: #f0f4ff !important;' 
-        : (index % 2 === 0 ? 'background: #fafafa;' : '');
+      let rowStyle = index % 2 === 0 ? 'background: #fafafa;' : '';
+      if (fgPlacas === 'D') {
+        rowStyle = isPendenteMasConfirmada
+          ? 'border-left: 5px solid #b91c1c; box-shadow: inset 5px 0 0 0 #dc2626; background: #fef2f2 !important;'
+          : 'border-left: 5px solid #dc2626; background: #fef2f2 !important;';
+      } else if (isPendenteMasConfirmada) {
+        rowStyle = 'border-left: 4px solid #667eea; background: #f0f4ff !important;';
+      }
       
       // Formatar celular do motorista para WhatsApp e exibição
       const celularMotorista = conv.CELULAR_MOTORISTA ?? conv.celular_motorista;
@@ -8485,8 +8774,7 @@
       const temWhatsAppMotorista = celularFormatado.length >= 10;
       const numWaMotorista = celularFormatado.length >= 12 ? celularFormatado : '55' + celularFormatado;
       const linkWhatsAppMotorista = temWhatsAppMotorista ? `https://wa.me/${numWaMotorista}` : '#';
-      
-      // Formatar celular para exibição (com parênteses e hífen)
+
       let celularExibicao = '';
       if (celularFormatado && celularFormatado.length >= 10) {
         if (celularFormatado.length === 11) {
@@ -8497,56 +8785,216 @@
           celularExibicao = celularFormatado;
         }
       }
+      const titleWaAcoes =
+        temWhatsAppMotorista && celularExibicao ? escAttr('WhatsApp — ' + celularExibicao) : '';
+
+      // Botões em linha: link → WhatsApp → mapa → confirmar / reativar (até 4 ícones)
+      const btnIconStyle =
+        'box-sizing:border-box;padding:0;width:34px;height:34px;font-size:1.05rem;color:#fff;text-decoration:none;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;border:none;cursor:pointer;flex-shrink:0;';
+      let botoesInner = `
+        <a href="${linkConvocacao}" target="_blank" rel="noopener noreferrer" class="btn" style="${btnIconStyle} background:#2196F3;" title="Abrir link público da convocação">
+          <i class="bx bx-link-alt" aria-hidden="true"></i>
+        </a>`;
+      if (temWhatsAppMotorista) {
+        botoesInner += `
+        <a href="${linkWhatsAppMotorista}" target="_blank" rel="noopener noreferrer" class="btn" style="${btnIconStyle} background:#25D366;" title="${titleWaAcoes}">
+          <i class="bx bxl-whatsapp" aria-hidden="true"></i>
+        </a>`;
+      }
+      if (temLocalizacao && idRoteiro) {
+        botoesInner += `
+        <button type="button" onclick="abrirMapaMotorista(${idConv}, ${lat}, ${lng}, ${idRoteiro}, ${idViagem})" class="btn" style="${btnIconStyle} background:#15803d;" title="Ver motorista no mapa (rota)">
+          <i class="bx bx-map-alt" aria-hidden="true"></i>
+        </button>`;
+      }
+      if (statusConv === 'ACEITA') {
+        const bloquearConfirmDivergenciaPlacas = fgPlacas === 'D';
+        const titleConfirm = bloquearConfirmDivergenciaPlacas
+          ? 'Não é possível confirmar: divergência de placas registrada. Alinhe com o motorista e ajuste o cadastro antes de confirmar.'
+          : bloquearConfirmSemGeo
+            ? 'Sem GPS na convocação (resposta veio do link da campanha). Peça ao motorista enviar localização na página de oportunidades antes de confirmar.'
+            : 'Confirmar convocação (aprovar este motorista)';
+        const escTitle = titleConfirm.replace(/"/g, '&quot;');
+        botoesInner += bloquearConfirmSemGeo || bloquearConfirmDivergenciaPlacas
+          ? `
+        <button type="button" disabled class="btn" style="${btnIconStyle} background:#adb5bd;cursor:not-allowed;opacity:0.85;" title="${escTitle}">
+          <i class="bx bx-check-circle" aria-hidden="true"></i>
+        </button>`
+          : `
+        <button type="button" onclick="confirmarConvocacao(${idConv})" class="btn" style="${btnIconStyle} background:#28a745;" title="${escTitle}">
+          <i class="bx bx-check-circle" aria-hidden="true"></i>
+        </button>`;
+      } else if (statusConv === 'PENDENTE') {
+        botoesInner += `
+        <button type="button" disabled class="btn" style="${btnIconStyle} background:#adb5bd;cursor:not-allowed;opacity:0.9;" title="Confirmar — disponível quando o motorista aceitar (status ACEITA)">
+          <i class="bx bx-check-circle" aria-hidden="true"></i>
+        </button>`;
+      }
+      if (statusConv === 'CONFIRMADA') {
+        botoesInner += `
+        <button type="button" onclick="reativarConvocacao(${idConv})" class="btn" style="${btnIconStyle} background:#ff9800;" title="Reativar convocação">
+          <i class="bx bx-refresh" aria-hidden="true"></i>
+        </button>`;
+      }
+      const dhConvFmt = formatarData(conv.DHCONVOCACAO ?? conv.dhconvocacao);
+      const dhAcessoRaw = conv.DHACESSO ?? conv.dhacesso;
+      const dhAcessoFmt = dhAcessoRaw ? formatarData(dhAcessoRaw) : '';
+      const htmlMetaGrid =
+        '<div class="convocacoes-acoes-meta-stack" role="group" aria-label="Convocação e acesso ao link">' +
+        '<div class="convocacoes-acoes-meta-grid">' +
+        `<span class="convocacoes-meta-lbl">Convocação</span><span class="convocacoes-meta-sep">:</span><span class="convocacoes-meta-val" title="DHCONVOCACAO">${dhConvFmt}</span>` +
+        (dhAcessoRaw
+          ? `<span class="convocacoes-meta-lbl convocacoes-meta-lbl--acc"><i class="bx bx-check-circle" aria-hidden="true"></i> Acesso</span><span class="convocacoes-meta-sep">:</span><span class="convocacoes-meta-val convocacoes-meta-val--acc" title="DHACESSO — primeiro acesso ao link">${dhAcessoFmt}</span>`
+          : `<span class="convocacoes-meta-lbl convocacoes-meta-lbl--acc convocacoes-meta-lbl--acc-pend"><i class="bx bx-circle" aria-hidden="true"></i> Acesso</span><span class="convocacoes-meta-sep">:</span><span class="convocacoes-meta-val convocacoes-meta-val--pend" title="Sem DHACESSO">Sem registro</span>`) +
+        '</div></div>';
+      const botoesAcoes =
+        '<div class="convocacoes-acoes-cell">' +
+        '<div class="convocacoes-acoes-row" role="group" aria-label="Ações da convocação" style="display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;justify-content:center;gap:2px;">' +
+        botoesInner +
+        '</div>' +
+        htmlMetaGrid +
+        '</div>';
       
       const cdCadastroMotorista = conv.CDCADASTRO_MOTORISTA ?? conv.cdcadastro_motorista;
 
+      const titlePlacaCel =
+        fgPlacas === 'C'
+          ? 'Confirmou placas no app ou link (FGCONFIRMACAOPLACAS = C).'
+          : fgPlacas === 'D'
+            ? 'Divergência de placas no app ou link (FGCONFIRMACAOPLACAS = D).' +
+              (txtPlDiv ? ' Detalhe: ' + String(txtPlDiv).replace(/\s+/g, ' ').trim() : '')
+            : 'Sem registro de confirmação de placas (app/link) nesta convocação.';
+      let bolinhaPlaca = '';
+      if (fgPlacas === 'C') {
+        bolinhaPlaca =
+          '<span class="convocacao-placa-status-dot convocacao-placa-status-dot--ok" title="Confirmou placas (app/link)" aria-hidden="true"></span>';
+      } else if (fgPlacas === 'D') {
+        bolinhaPlaca =
+          '<span class="convocacao-placa-status-dot convocacao-placa-status-dot--div" title="Divergência de placas (app/link)" aria-hidden="true"></span>';
+      }
+      const partesPlaca = placasEsp
+        ? placasEsp.split(',').map((x) => String(x).trim()).filter(Boolean)
+        : [];
+      const partesClasse = dsClasseConjunto
+        ? dsClasseConjunto.split(/\s*\|\s*/).map((x) => String(x).trim()).filter(Boolean)
+        : [];
+      let htmlPlacasCorpo = '';
+      if (partesPlaca.length === 0) {
+        htmlPlacasCorpo = '<span style="color:#999">—</span>';
+      } else if (partesPlaca.length === 1) {
+        const p0 = partesPlaca[0];
+        const lin =
+          partesClasse.length > 0 ? `${p0} — ${partesClasse.join(' | ')}` : p0;
+        htmlPlacasCorpo = `<div class="convocacao-placa-stack"><div class="convocacao-placa-linha">${escHtml(lin)}</div></div>`;
+      } else {
+        const segs = [];
+        for (let pi = 0; pi < partesPlaca.length; pi++) {
+          const cls =
+            partesClasse[pi] != null && String(partesClasse[pi]).trim() !== ''
+              ? String(partesClasse[pi]).trim()
+              : partesClasse.length === 1
+                ? String(partesClasse[0]).trim()
+                : '';
+          segs.push(cls ? `${partesPlaca[pi]} — ${cls}` : partesPlaca[pi]);
+        }
+        const blocos = [];
+        for (let si = 0; si < segs.length; si++) {
+          const ult = si === segs.length - 1;
+          const texto = ult ? segs[si] : `${segs[si]} ·`;
+          blocos.push(`<div class="convocacao-placa-linha">${escHtml(texto)}</div>`);
+          if (!ult) {
+            blocos.push('<div class="convocacao-placa-sep" aria-hidden="true"></div>');
+          }
+        }
+        htmlPlacasCorpo = `<div class="convocacao-placa-stack">${blocos.join('')}</div>`;
+      }
+      const htmlCelPlacas = `<div class="convocacao-placa-cel" title="${escAttr(titlePlacaCel)}"><div style="display:flex;align-items:flex-start;gap:8px;"><span style="flex-shrink:0;padding-top:3px;">${bolinhaPlaca}</span>${htmlPlacasCorpo}</div>${txtPlDiv && fgPlacas === 'D' ? `<div class="convocacao-placa-cel-divergencia" style="margin-top:6px;font-size:10px;color:#9a3412;line-height:1.35;word-break:break-word;">${escHtml(txtPlDiv)}</div>` : ''}${dhPlConf && (fgPlacas === 'C' || fgPlacas === 'D') ? `<div style="margin-top:4px;color:#666;font-size:10px;">${formatarData(dhPlConf)}</div>` : ''}</div>`;
+
+      const moedaConv = conv.MOEDA ?? conv.moeda ?? 'BRL';
+      const vlFretePropRaw = conv.VL_FRETE_PROPOSTO_MOTORISTA ?? conv.vl_frete_proposto_motorista;
+      let txtFretePropostoMotorista = '—';
+      if (vlFretePropRaw != null && vlFretePropRaw !== '' && Number.isFinite(Number(vlFretePropRaw))) {
+        try {
+          txtFretePropostoMotorista = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: String(moedaConv || 'BRL').substring(0, 3) }).format(Number(vlFretePropRaw));
+        } catch (eCur) {
+          txtFretePropostoMotorista = String(vlFretePropRaw);
+        }
+      }
+
+      const linhasTooltipResposta = [String(statusDisplay || '').trim() || statusConv || '—'];
+      if (sgUserNorm === 'APP_MOTORISTA_LINK') {
+        linhasTooltipResposta.push('Última resposta: link público de campanha (oportunidades).');
+      }
+      if (fgPlacas === 'D') {
+        linhasTooltipResposta.push(
+          statusConv === 'PENDENTE'
+            ? 'Divergência de placas — aceite bloqueado até alinhar na torre.'
+            : 'Divergência de placas registrada (FG = D). Verifique alinhamento com o motorista.',
+        );
+      }
+      if (isPendenteMasConfirmada) {
+        linhasTooltipResposta.push('Viagem já confirmada com outro motorista.');
+      }
+      if (temHistoricoReabertura && motivoReabertura) {
+        linhasTooltipResposta.push('Reabertura: ' + String(motivoReabertura).replace(/\s+/g, ' ').trim());
+      }
+      const titleRespostaCel = escAttr(linhasTooltipResposta.join(' '));
+
+      let iconStatusConv = '<i class="bx bx-help-circle" aria-hidden="true" style="color:#94a3b8;font-size:1.25rem;flex-shrink:0;"></i>';
+      if (fgPlacas === 'D') {
+        iconStatusConv =
+          '<i class="bx bx-error" aria-hidden="true" style="color:#dc2626;font-size:1.35rem;flex-shrink:0;" title="Divergência de placas — confirmar programação bloqueado até alinhar"></i>';
+      } else if (statusConv === 'ACEITA') {
+        iconStatusConv =
+          '<i class="bx bx-check-circle" aria-hidden="true" style="color:#28a745;font-size:1.3rem;flex-shrink:0;" title="ACEITA"></i>';
+      } else if (statusConv === 'PENDENTE') {
+        iconStatusConv =
+          '<i class="bx bx-time-five" aria-hidden="true" style="color:#b7791f;font-size:1.3rem;flex-shrink:0;" title="PENDENTE"></i>';
+      } else if (statusConv === 'RECUSADA') {
+        iconStatusConv =
+          '<i class="bx bx-x-circle" aria-hidden="true" style="color:#c0392b;font-size:1.3rem;flex-shrink:0;" title="RECUSADA"></i>';
+      } else if (statusConv === 'CONFIRMADA') {
+        iconStatusConv =
+          '<i class="bx bx-badge-check" aria-hidden="true" style="color:#1a5276;font-size:1.3rem;flex-shrink:0;" title="CONFIRMADA"></i>';
+      } else if (statusConv === 'ACEITA_DESCARTADA') {
+        iconStatusConv =
+          '<i class="bx bx-user-x" aria-hidden="true" style="color:#a67c00;font-size:1.25rem;flex-shrink:0;" title="ACEITA (não selecionada)"></i>';
+      }
+
+      const badgeDivPlacasGrid =
+        fgPlacas === 'D'
+          ? '<div style="margin-top:4px;"><span style="display:inline-block;padding:2px 8px;font-size:10px;font-weight:700;border-radius:4px;background:#fee2e2;color:#991b1b;border:1px solid #fecaca;line-height:1.2;">Divergência placas</span></div><button type="button" class="convocacoes-btn-ver-justificativa" onclick="abrirJustificativaDivergenciaConvocacaoTorre(' +
+            idConv +
+            ')">Ver justificativa</button>'
+          : '';
+      const htmlCelResposta = `<div class="convocacao-cel-resposta" style="display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;max-width:200px;" title="${titleRespostaCel}">
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+            ${criarIndicadorGeolocalizacao(lat, lng)}
+            ${iconStatusConv}
+          </div>
+          <div class="convocacao-cel-resposta-data" style="font-size:12px;line-height:1.35;">
+            <div>${formatarData(conv.DHRESPOSTA ?? conv.dhresposta)}</div>
+            ${badgeDivPlacasGrid}
+          </div>
+        </div>`;
+
       html += `
-        <tr style="border-bottom: 1px solid #eee; ${rowStyle}">
+        <tr class="${fgPlacas === 'D' ? 'convocacao-tr-divergencia-placas' : ''}" style="border-bottom: 1px solid #eee; ${rowStyle}">
           <td style="padding: 12px;">${idConv}</td>
-          <td style="padding: 12px;">
-            <strong>${idViagem}</strong><br>
-            <small style="color: #666;">${dsClasseFrota || '-'}</small>
-          </td>
           <td style="padding: 12px;">
             ${origemCidade || '-'}/${origemEstado || '-'}<br>
             <small style="color: #666;">→ ${destinoCidade || '-'}/${destinoEstado || '-'}</small>
           </td>
           <td style="padding: 12px;">
-            ${criarIndicadorGeolocalizacao(lat, lng)}
-            <span style="padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; ${statusClass}">
-              ${statusDisplay}
-            </span>
-            ${isPendenteMasConfirmada ? '<br><small style="color: #667eea; font-weight: 600; margin-top: 4px; display: block;"><i class="bx bx-info-circle" style="font-size: 1em; vertical-align: middle;"></i> Viagem já confirmada</small>' : ''}
-            ${temHistoricoReabertura && motivoReabertura ? `<br><small style="color: #6c757d; font-weight: 600; margin-top: 4px; display: block;"><i class="bx bx-history" style="font-size: 1em; vertical-align: middle;"></i> Histórico de Reabertura: ${motivoReabertura}</small>` : ''}
-          </td>
-          <td style="padding: 12px;">
             ${nomeMotorista || '-'}<br>
             <small style="color: #666;">
               ${cdCadastroMotorista ? `Código: ${cdCadastroMotorista}` : ''}
-              ${cdCadastroMotorista && celularExibicao ? ' | ' : ''}
-              ${celularExibicao ? (temWhatsAppMotorista ? `<a href="${linkWhatsAppMotorista}" target="_blank" style="color: #25D366; text-decoration: none;" title="Abrir WhatsApp do motorista"><i class="bx bx-logo-whatsapp" style="font-size: 1em; vertical-align: middle;"></i> ${celularExibicao}</a>` : `<i class="bx bx-logo-whatsapp" style="font-size: 1em; vertical-align: middle;"></i> ${celularExibicao}`) : ''}
             </small>
           </td>
-          <td style="padding: 12px; font-size: 12px;">${formatarData(conv.DHCONVOCACAO ?? conv.dhconvocacao)}</td>
-          <td style="padding: 12px; font-size: 12px;">
-            ${(conv.DHACESSO ?? conv.dhacesso) 
-              ? `<div style="display: flex; align-items: center; gap: 6px;">
-                   <i class="bx bx-check-circle" style="color: #28a745; font-size: 1.25rem;"></i>
-                   <div>
-                     <div style="color: #28a745; font-weight: 600; font-size: 12px;">Acessou</div>
-                     <small style="color: #666; font-size: 10px;">${formatarData(conv.DHACESSO)}</small>
-                   </div>
-                 </div>` 
-              : `<div style="display: flex; align-items: center; gap: 6px;">
-                   <i class="bx bx-x-circle" style="color: #dc3545; font-size: 1.25rem;"></i>
-                   <div>
-                     <div style="color: #dc3545; font-weight: 600; font-size: 12px;">Não acessou</div>
-                     <small style="color: #999; font-size: 10px;">Aguardando</small>
-                   </div>
-                 </div>`}
-          </td>
-          <td style="padding: 12px; font-size: 12px;">${formatarData(conv.DHRESPOSTA)}</td>
-          <td style="padding: 12px;">
+          <td style="padding: 12px; font-size: 12px; max-width: 240px; vertical-align: top;">${htmlCelPlacas}</td>
+          <td style="padding: 12px; font-size: 12px; white-space: nowrap;" title="Proposta ao aceitar (/convocacao)">${txtFretePropostoMotorista}</td>
+          <td style="padding: 12px; font-size: 12px; vertical-align: top;">${htmlCelResposta}</td>
+          <td class="convocacoes-td-acoes" style="padding: 10px 4px; vertical-align: top; text-align: center;">
             ${botoesAcoes}
           </td>
         </tr>
@@ -8561,6 +9009,25 @@
     container.innerHTML = html;
   }
 
+  window.abrirJustificativaDivergenciaConvocacaoTorre = function (idConvocacao) {
+    const id = idConvocacao == null ? '' : String(idConvocacao).trim();
+    const map = window.__convGridJustificativaPlacas || {};
+    const texto = id && map[id] != null ? String(map[id]) : '';
+    const pre = document.getElementById('modalJustificativaDivergenciaPlacasCorpo');
+    const modal = document.getElementById('modalJustificativaDivergenciaPlacas');
+    if (pre) {
+      pre.textContent = texto.trim() ? texto : '(Sem texto de justificativa gravado.)';
+    }
+    if (modal) {
+      modal.style.display = 'flex';
+    }
+  };
+
+  window.fecharModalJustificativaDivergenciaPlacasTorre = function () {
+    const modal = document.getElementById('modalJustificativaDivergenciaPlacas');
+    if (modal) modal.style.display = 'none';
+  };
+
   // Confirmar convocação (muda para CONFIRMADA e recusa outras da mesma viagem)
   window.confirmarConvocacao = async function(idConvocacao) {
     if (!idConvocacao) {
@@ -8568,23 +9035,64 @@
       return;
     }
 
-    // Buscar dados da convocação para mostrar no modal
-    const convocacao = convocacoes.find(c => c.IDCONVOCACAO === idConvocacao);
+    const idConvNum = Number(idConvocacao);
+    const statusConvNorm = (s) => String(s == null ? '' : s).trim().toUpperCase();
+
+    // Buscar dados da convocação para mostrar no modal (ID pode vir string do DOM)
+    const convocacao = convocacoes.find(c => Number(c.IDCONVOCACAO) === idConvNum);
     if (!convocacao) {
-      showMessage('Convocação não encontrada.', 'error');
+      showMessage('Convocação não encontrada. Atualize a lista (Carregar Convocações).', 'error');
       return;
     }
 
-    if (convocacao.STATUS !== 'ACEITA') {
-      showMessage('Apenas convocações com status ACEITA podem ser confirmadas.', 'error');
+    const st = statusConvNorm(convocacao.STATUS);
+    if (st !== 'ACEITA') {
+      const extra =
+        st === 'ACEITA_DESCARTADA'
+          ? ' Esta linha já está como aceita (não selecionada).'
+          : st === 'CONFIRMADA'
+            ? ' Esta convocação já está confirmada.'
+            : '';
+      showMessage('Apenas convocações com status ACEITA podem ser confirmadas.' + extra, 'error');
+      return;
+    }
+
+    const fgPlacasConf = String(
+      convocacao.FGCONFIRMACAOPLACAS ?? convocacao.fgconfirmacaoplacas ?? ''
+    )
+      .trim()
+      .toUpperCase();
+    if (fgPlacasConf === 'D') {
+      showMessage(
+        'Não é possível confirmar: há divergência de placas registrada (FG = D). Alinhe com o motorista, ajuste o cadastro e use «Ver justificativa» na linha se precisar do texto informado.',
+        'error'
+      );
+      return;
+    }
+
+    const sgConfFront = String(convocacao.SGUSER ?? convocacao.sguser ?? '').trim().toUpperCase();
+    const latCf = convocacao.LATITUDE ?? convocacao.latitude;
+    const lngCf = convocacao.LONGITUDE ?? convocacao.longitude;
+    const temLocCf =
+      latCf != null &&
+      lngCf != null &&
+      String(latCf).trim() !== '' &&
+      String(lngCf).trim() !== '' &&
+      !isNaN(Number(latCf)) &&
+      !isNaN(Number(lngCf));
+    if (sgConfFront === 'APP_MOTORISTA_LINK' && !temLocCf) {
+      showMessage(
+        'Não é possível confirmar: o aceite veio do link da campanha e ainda não há GPS nesta convocação. Peça ao motorista tocar em «Atualizar localização» na página de oportunidades e, em seguida, use «Carregar Convocações» aqui.',
+        'error'
+      );
       return;
     }
 
     // Verificar se já existe outra convocação confirmada para a mesma viagem
-    const jaConfirmada = convocacoes.find(c => 
-      c.IDVIAGEM === convocacao.IDVIAGEM && 
-      c.IDCONVOCACAO !== idConvocacao && 
-      c.STATUS === 'CONFIRMADA'
+    const jaConfirmada = convocacoes.find(c =>
+      Number(c.IDVIAGEM) === Number(convocacao.IDVIAGEM) &&
+      Number(c.IDCONVOCACAO) !== idConvNum &&
+      statusConvNorm(c.STATUS) === 'CONFIRMADA'
     );
 
     if (jaConfirmada) {
@@ -8593,32 +9101,34 @@
     }
 
     // Contar outras convocações ACEITAS
-    const outrasAceitas = convocacoes.filter(c => 
-      c.IDVIAGEM === convocacao.IDVIAGEM && 
-      c.IDCONVOCACAO !== idConvocacao && 
-      c.STATUS === 'ACEITA'
+    const outrasAceitas = convocacoes.filter(c =>
+      Number(c.IDVIAGEM) === Number(convocacao.IDVIAGEM) &&
+      Number(c.IDCONVOCACAO) !== idConvNum &&
+      statusConvNorm(c.STATUS) === 'ACEITA'
     ).length;
     
     // Mostrar modal de confirmação personalizado
     let mensagemAtencao = '';
     if (outrasAceitas > 0) {
       mensagemAtencao = `
-        <p style="color: #856404; font-weight: 600; margin-top: 15px;">
-          <i class="bx bx-error-circle" style="font-size: 1.1em; vertical-align: middle;"></i> ATENÇÃO:
-        </p>
-        <p style="color: #856404; margin-top: 10px;">
-          <strong>${outrasAceitas}</strong> convocação(ões) ACEITA(S) será(ão) marcada(s) como "ACEITA (Não Selecionada)" - mantendo o histórico de que o motorista aceitou.
-        </p>
-        <p style="color: #666; margin-top: 10px; font-size: 13px; font-style: italic;">
-          <i class="bx bx-info-circle" style="font-size: 1em; vertical-align: middle;"></i> Convocações PENDENTE permanecerão como PENDENTE. Apenas convocações realmente RECUSADAS pelo motorista ficam como RECUSADA.
-        </p>
+        <div class="convocacao-modal-alerta" role="region" aria-label="Aviso sobre outras convocações">
+          <p class="convocacao-modal-alerta__titulo">
+            <i class="bx bx-error-circle" aria-hidden="true"></i> ATENÇÃO:
+          </p>
+          <p class="convocacao-modal-alerta__texto">
+            <strong>${outrasAceitas}</strong> convocação(ões) ACEITA(S) será(ão) marcada(s) como "ACEITA (Não Selecionada)" - mantendo o histórico de que o motorista aceitou.
+          </p>
+          <p class="convocacao-modal-alerta__nota">
+            <i class="bx bx-info-circle" aria-hidden="true"></i> Convocações PENDENTE permanecerão como PENDENTE. Apenas convocações realmente RECUSADAS pelo motorista ficam como RECUSADA.
+          </p>
+        </div>
       `;
     }
     
     const mensagemCompleta = `
-      <div style="text-align: left; line-height: 1.8;">
-        <p><strong>Viagem:</strong> ${convocacao.IDVIAGEM}</p>
-        <p><strong>Motorista:</strong> ${convocacao.NOME_MOTORISTA || 'N/A'}</p>
+      <div class="convocacao-modal-body">
+        <p class="convocacao-modal-meta"><strong>Viagem:</strong> <span class="convocacao-modal-meta-valor">${convocacao.IDVIAGEM}</span></p>
+        <p class="convocacao-modal-meta"><strong>Motorista:</strong> <span class="convocacao-modal-meta-valor">${convocacao.NOME_MOTORISTA || 'N/A'}</span></p>
         ${mensagemAtencao}
       </div>
     `;
@@ -8653,7 +9163,7 @@
       const user = JSON.parse(localStorage.getItem('user') || '{}');
       const userLogin = user.login || 'SYSTEM';
 
-      const response = await fetch(`/api/convocacoes/${idConvocacao}/confirmar`, {
+      const response = await fetch(`/api/convocacoes/${idConvNum}/confirmar`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -8684,20 +9194,30 @@
         throw new Error('Erro ao processar resposta do servidor');
       }
       
-      // Mensagem de sucesso: informar se o webhook enviou para selecionado e não selecionados
+      // Sucesso da confirmação + canal da mensagem: Switch Digital primeiro; wa.me só se a API do Switch falhar.
       const webhook = result.mensagensEnviadasViaWebhook || {};
       let msgSucesso = result.message || 'Convocação confirmada com sucesso!';
+      let tipoToast = 'success';
       if (webhook.selecionado) {
         msgSucesso += ' Mensagem enviada por WhatsApp (Switch Digital) ao motorista selecionado.';
         if (webhook.naoSelecionados > 0) {
           msgSucesso += ` ${webhook.naoSelecionados} aviso(s) enviado(s) aos que aceitaram e não foram escolhidos.`;
         }
       } else if (result.whatsappLink) {
-        msgSucesso += ' Abrindo WhatsApp para o motorista selecionado (envio manual).';
+        tipoToast = 'warning';
+        msgSucesso += ' O envio automático pelo Switch Digital não foi concluído.';
+        if (webhook.erroSelecionado) {
+          msgSucesso += ` Detalhe: ${webhook.erroSelecionado}`;
+        }
+        msgSucesso += ' Abrindo o WhatsApp com o texto pré-preenchido (envio manual de reserva). Corrija o ticket/fila no Switch ou feche o atendimento em aberto para esse número.';
       }
-      showMessage(msgSucesso, 'success');
+      const nVeicVinc = Number(result.veiculosVinculadosConfirmacao);
+      if (Number.isFinite(nVeicVinc) && nVeicVinc > 0) {
+        msgSucesso += ` ${nVeicVinc} veículo(s) vinculado(s) à viagem (aba Gerenciar Veículo).`;
+      }
+      showMessage(msgSucesso, tipoToast);
 
-      // Se o webhook não enviou para o selecionado, abrir link manual como fallback
+      // Se o Switch não enviou para o selecionado, abrir link wa.me como fallback
       if (result.whatsappLink && !webhook.selecionado) {
         setTimeout(() => {
           const opened = window.open(result.whatsappLink, '_blank');
@@ -8730,102 +9250,122 @@
     }
   };
 
-  // Mostrar validades do motorista
-  window.mostrarValidadesMotorista = async function(cdMotorista, nomeMotorista) {
+  /**
+   * Modal de validades: resolve só após fechar (X, Fechar, fundo ou Esc).
+   * O #confirmModal (modulos.css) usa z-index 9999, acima do .modal-tratamento padrão (1000).
+   */
+  async function aguardarModalValidadesFechado(config) {
     const modal = document.getElementById('modalValidadesMotorista');
     const conteudo = document.getElementById('modalValidadesMotoristaConteudo');
     const subtitulo = document.getElementById('modalValidadesMotoristaSubtitulo');
     const titulo = document.querySelector('#modalValidadesMotorista h3');
-    
+    const { tituloHtml, subtituloText, setTimeoutTituloCheck, carregar } = config;
+
     if (!modal || !conteudo) {
       console.error('Modal de validades não encontrado');
       return;
     }
-    
-    // Configurar event listeners do botão fechar (garantir que funcione)
-    const btnFechar = document.getElementById('btnFecharModalValidadesMotorista');
-    if (btnFechar) {
-      // Remover listeners anteriores para evitar duplicação
-      const novoBtnFechar = btnFechar.cloneNode(true);
-      btnFechar.parentNode.replaceChild(novoBtnFechar, btnFechar);
-      
-      // Adicionar novo listener
-      novoBtnFechar.addEventListener('click', () => {
+
+    await new Promise((resolve) => {
+      let settled = false;
+      const isClosed = () => settled;
+
+      const finalize = () => {
+        if (settled) return;
+        settled = true;
         modal.style.display = 'none';
-      });
-    }
-    
-    // Fechar ao clicar fora do modal
-    const fecharAoClicarFora = (e) => {
-      if (e.target === modal) {
-        modal.style.display = 'none';
-        modal.removeEventListener('click', fecharAoClicarFora);
+        modal.removeEventListener('click', onBackdropClick);
+        document.removeEventListener('keydown', onEscape);
+        resolve();
+      };
+
+      const onBackdropClick = (e) => {
+        if (e.target === modal) finalize();
+      };
+      const onEscape = (e) => {
+        if (e.key === 'Escape' && modal.style.display === 'flex') finalize();
+      };
+
+      modal.addEventListener('click', onBackdropClick);
+      document.addEventListener('keydown', onEscape);
+
+      const btnX = document.getElementById('btnFecharModalValidadesMotorista');
+      const btnRodape = document.getElementById('btnFecharModalValidadesRodape');
+      if (btnX) {
+        btnX.onclick = (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          finalize();
+        };
       }
-    };
-    modal.addEventListener('click', fecharAoClicarFora);
-    
-    // Atualizar título e subtítulo
-    if (titulo) {
-      titulo.innerHTML = '<i class=\'bx bx-user\'></i> Validades do Motorista';
-    }
-    if (subtitulo) {
-      subtitulo.textContent = `${nomeMotorista} • Código: ${cdMotorista}`;
-    }
-    
-    // Mostrar modal
-    modal.style.display = 'flex';
-    
-    // Garantir que o título tenha o ícone após mostrar o modal
-    setTimeout(() => {
-      const tituloModal = document.querySelector('#modalValidadesMotorista h3');
-      if (tituloModal && tituloModal.textContent.includes('Motorista')) {
-        tituloModal.innerHTML = '<i class=\'bx bx-user\'></i> Validades do Motorista';
+      if (btnRodape) {
+        btnRodape.onclick = (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          finalize();
+        };
       }
-    }, 10);
-    
-    // Mostrar loading
-    conteudo.innerHTML = '<div style="text-align: center; padding: 40px; color: #6c757d;">Carregando validades...</div>';
-    
-    try {
-      // Buscar validades do motorista (tipo MOT = Motorista)
-      const response = await fetch(`/api/validades/MOT/${cdMotorista}`);
-      
-      if (!response.ok) {
-        throw new Error(`Erro ao buscar validades: ${response.status}`);
+
+      if (titulo) titulo.innerHTML = tituloHtml;
+      if (subtitulo) subtitulo.textContent = subtituloText;
+
+      modal.style.display = 'flex';
+
+      if (typeof setTimeoutTituloCheck === 'function') {
+        setTimeout(setTimeoutTituloCheck, 10);
       }
-      
-      const validades = await response.json();
-      
-      // Renderizar validades
-      if (!validades || validades.length === 0) {
-        conteudo.innerHTML = `
+
+      conteudo.innerHTML = '<div style="text-align: center; padding: 40px; color: #6c757d;">Carregando validades...</div>';
+
+      (async () => {
+        await carregar(conteudo, isClosed);
+      })();
+    });
+  }
+
+  // Mostrar validades do motorista
+  window.mostrarValidadesMotorista = async function(cdMotorista, nomeMotorista) {
+    await aguardarModalValidadesFechado({
+      tituloHtml: '<i class=\'bx bx-user\'></i> Validades do Motorista',
+      subtituloText: `${nomeMotorista} • Código: ${cdMotorista}`,
+      setTimeoutTituloCheck: () => {
+        const tituloModal = document.querySelector('#modalValidadesMotorista h3');
+        if (tituloModal && tituloModal.textContent.includes('Motorista')) {
+          tituloModal.innerHTML = '<i class=\'bx bx-user\'></i> Validades do Motorista';
+        }
+      },
+      carregar: async (conteudo, isClosed) => {
+        try {
+          const response = await fetch(`/api/validades/MOT/${cdMotorista}`);
+          if (!response.ok) {
+            throw new Error(`Erro ao buscar validades: ${response.status}`);
+          }
+          const validades = await response.json();
+          if (isClosed()) return;
+          if (!validades || validades.length === 0) {
+            conteudo.innerHTML = `
           <div style="text-align: center; padding: 40px; color: #6c757d;">
             <p style="font-size: 16px; margin-bottom: 10px;"><i class="bx bx-list-ul" style="vertical-align: middle;"></i> Nenhuma validade cadastrada para este motorista.</p>
             <p style="font-size: 13px; color: #95a5a6;">Este motorista não possui validades cadastradas no sistema.</p>
           </div>
         `;
-        return;
-      }
-      
-      let html = '<div style="display: grid; gap: 12px;">';
-      
-      validades.forEach(val => {
-        const dtLib = fmtData(val.DTLIBERACAO);
-        const dtVal = fmtData(val.DTVALIDADE);
-        const dias = val.DIAS_RESTANTES;
-        
-        let corStatus = '#27ae60';
-        let textoStatus = `<i class="bx bx-check" style="font-size:1em; vertical-align: middle;"></i> Válida (${dias} dias)`;
-        
-        if (val.STATUS_VALIDADE === 'VENCIDA') {
-          corStatus = '#e74c3c';
-          textoStatus = `<i class="bx bx-x-circle" style="font-size:1em; vertical-align: middle;"></i> VENCIDA (${Math.abs(dias)} dias atrás)`;
-        } else if (val.STATUS_VALIDADE === 'VENCENDO') {
-          corStatus = '#f39c12';
-          textoStatus = `<i class="bx bx-error-circle" style="font-size:1em; vertical-align: middle;"></i> Vencendo (${dias} dias)`;
-        }
-        
-        html += `
+            return;
+          }
+          let html = '<div style="display: grid; gap: 12px;">';
+          validades.forEach((val) => {
+            const dtLib = fmtData(val.DTLIBERACAO);
+            const dtVal = fmtData(val.DTVALIDADE);
+            const dias = val.DIAS_RESTANTES;
+            let corStatus = '#27ae60';
+            let textoStatus = `<i class="bx bx-check" style="font-size:1em; vertical-align: middle;"></i> Válida (${dias} dias)`;
+            if (val.STATUS_VALIDADE === 'VENCIDA') {
+              corStatus = '#e74c3c';
+              textoStatus = `<i class="bx bx-x-circle" style="font-size:1em; vertical-align: middle;"></i> VENCIDA (${Math.abs(dias)} dias atrás)`;
+            } else if (val.STATUS_VALIDADE === 'VENCENDO') {
+              corStatus = '#f39c12';
+              textoStatus = `<i class="bx bx-error-circle" style="font-size:1em; vertical-align: middle;"></i> Vencendo (${dias} dias)`;
+            }
+            html += `
           <div class="validade-card" style="background: #fff; border: 1px solid #e9ecef; border-left: 5px solid ${corStatus}; border-radius: 8px; padding: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 12px; overflow: hidden; display: flex; min-height: 120px;">
             <div style="width: 5px; background: ${corStatus}; flex-shrink: 0;"></div>
             <div style="flex: 1; padding: 16px 18px; display: flex; flex-direction: column; justify-content: space-between;">
@@ -8863,118 +9403,67 @@
             </div>
           </div>
         `;
-      });
-      
-      html += '</div>';
-      conteudo.innerHTML = html;
-      
-    } catch (err) {
-      console.error('Erro ao carregar validades:', err);
-      conteudo.innerHTML = `
+          });
+          html += '</div>';
+          if (!isClosed()) conteudo.innerHTML = html;
+        } catch (err) {
+          console.error('Erro ao carregar validades:', err);
+          if (!isClosed()) {
+            conteudo.innerHTML = `
         <div style="text-align: center; padding: 40px; color: #e74c3c;">
           <p style="font-size: 16px; margin-bottom: 10px;"><i class="bx bx-x-circle" style="vertical-align: middle;"></i> Erro ao carregar validades</p>
           <p style="font-size: 13px; color: #95a5a6;">${err.message || 'Não foi possível carregar as validades do motorista.'}</p>
         </div>
       `;
-    }
+          }
+        }
+      }
+    });
   };
-  
+
   // Mostrar validades do veículo
   window.mostrarValidadesVeiculo = async function(idequipamento, nomeVeiculo) {
-    const modal = document.getElementById('modalValidadesMotorista');
-    const conteudo = document.getElementById('modalValidadesMotoristaConteudo');
-    const subtitulo = document.getElementById('modalValidadesMotoristaSubtitulo');
-    const titulo = document.querySelector('#modalValidadesMotorista h3');
-    
-    if (!modal || !conteudo) {
-      console.error('Modal de validades não encontrado');
-      return;
-    }
-    
-    // Configurar event listeners do botão fechar (garantir que funcione)
-    const btnFechar = document.getElementById('btnFecharModalValidadesMotorista');
-    if (btnFechar) {
-      // Remover listeners anteriores para evitar duplicação
-      const novoBtnFechar = btnFechar.cloneNode(true);
-      btnFechar.parentNode.replaceChild(novoBtnFechar, btnFechar);
-      
-      // Adicionar novo listener
-      novoBtnFechar.addEventListener('click', () => {
-        modal.style.display = 'none';
-      });
-    }
-    
-    // Fechar ao clicar fora do modal
-    const fecharAoClicarFora = (e) => {
-      if (e.target === modal) {
-        modal.style.display = 'none';
-        modal.removeEventListener('click', fecharAoClicarFora);
-      }
-    };
-    modal.addEventListener('click', fecharAoClicarFora);
-    
-    // Atualizar título e subtítulo
-    if (titulo) {
-      titulo.innerHTML = '<i class=\'bx bx-truck\'></i> Validades do Veículo';
-    }
-    if (subtitulo) {
-      subtitulo.textContent = `${nomeVeiculo} • Código: ${idequipamento}`;
-    }
-    
-    // Mostrar modal
-    modal.style.display = 'flex';
-    
-    // Garantir que o título tenha o ícone após mostrar o modal
-    setTimeout(() => {
-      const tituloModal = document.querySelector('#modalValidadesMotorista h3');
-      if (tituloModal && tituloModal.textContent.includes('Veículo')) {
-        tituloModal.innerHTML = '<i class=\'bx bx-truck\'></i> Validades do Veículo';
-      }
-    }, 10);
-    
-    // Mostrar loading
-    conteudo.innerHTML = '<div style="text-align: center; padding: 40px; color: #6c757d;">Carregando validades...</div>';
-    
-    try {
-      // Buscar validades do veículo (tipo EQP = Equipamento)
-      const response = await fetch(`/api/validades/EQP/${idequipamento}`);
-      
-      if (!response.ok) {
-        throw new Error(`Erro ao buscar validades: ${response.status}`);
-      }
-      
-      const validades = await response.json();
-      
-      // Renderizar validades
-      if (!validades || validades.length === 0) {
-        conteudo.innerHTML = `
+    await aguardarModalValidadesFechado({
+      tituloHtml: '<i class=\'bx bx-truck\'></i> Validades do Veículo',
+      subtituloText: `${nomeVeiculo} • Código: ${idequipamento}`,
+      setTimeoutTituloCheck: () => {
+        const tituloModal = document.querySelector('#modalValidadesMotorista h3');
+        if (tituloModal && tituloModal.textContent.includes('Veículo')) {
+          tituloModal.innerHTML = '<i class=\'bx bx-truck\'></i> Validades do Veículo';
+        }
+      },
+      carregar: async (conteudo, isClosed) => {
+        try {
+          const response = await fetch(`/api/validades/EQP/${idequipamento}`);
+          if (!response.ok) {
+            throw new Error(`Erro ao buscar validades: ${response.status}`);
+          }
+          const validades = await response.json();
+          if (isClosed()) return;
+          if (!validades || validades.length === 0) {
+            conteudo.innerHTML = `
           <div style="text-align: center; padding: 40px; color: #6c757d;">
             <p style="font-size: 16px; margin-bottom: 10px;"><i class="bx bx-list-ul" style="vertical-align: middle;"></i> Nenhuma validade cadastrada para este veículo.</p>
             <p style="font-size: 13px; color: #95a5a6;">Este veículo não possui validades cadastradas no sistema.</p>
           </div>
         `;
-        return;
-      }
-      
-      let html = '<div style="display: grid; gap: 12px;">';
-      
-      validades.forEach(val => {
-        const dtLib = fmtData(val.DTLIBERACAO);
-        const dtVal = fmtData(val.DTVALIDADE);
-        const dias = val.DIAS_RESTANTES;
-        
-        let corStatus = '#27ae60';
-        let textoStatus = `<i class="bx bx-check" style="font-size:1em; vertical-align: middle;"></i> Válida (${dias} dias)`;
-        
-        if (val.STATUS_VALIDADE === 'VENCIDA') {
-          corStatus = '#e74c3c';
-          textoStatus = `<i class="bx bx-x-circle" style="font-size:1em; vertical-align: middle;"></i> VENCIDA (${Math.abs(dias)} dias atrás)`;
-        } else if (val.STATUS_VALIDADE === 'VENCENDO') {
-          corStatus = '#f39c12';
-          textoStatus = `<i class="bx bx-error-circle" style="font-size:1em; vertical-align: middle;"></i> Vencendo (${dias} dias)`;
-        }
-        
-        html += `
+            return;
+          }
+          let html = '<div style="display: grid; gap: 12px;">';
+          validades.forEach((val) => {
+            const dtLib = fmtData(val.DTLIBERACAO);
+            const dtVal = fmtData(val.DTVALIDADE);
+            const dias = val.DIAS_RESTANTES;
+            let corStatus = '#27ae60';
+            let textoStatus = `<i class="bx bx-check" style="font-size:1em; vertical-align: middle;"></i> Válida (${dias} dias)`;
+            if (val.STATUS_VALIDADE === 'VENCIDA') {
+              corStatus = '#e74c3c';
+              textoStatus = `<i class="bx bx-x-circle" style="font-size:1em; vertical-align: middle;"></i> VENCIDA (${Math.abs(dias)} dias atrás)`;
+            } else if (val.STATUS_VALIDADE === 'VENCENDO') {
+              corStatus = '#f39c12';
+              textoStatus = `<i class="bx bx-error-circle" style="font-size:1em; vertical-align: middle;"></i> Vencendo (${dias} dias)`;
+            }
+            html += `
           <div class="validade-card" style="background: #fff; border: 1px solid #e9ecef; border-left: 5px solid ${corStatus}; border-radius: 8px; padding: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 12px; overflow: hidden; display: flex; min-height: 120px;">
             <div style="width: 5px; background: ${corStatus}; flex-shrink: 0;"></div>
             <div style="flex: 1; padding: 16px 18px; display: flex; flex-direction: column; justify-content: space-between;">
@@ -9012,42 +9501,23 @@
             </div>
           </div>
         `;
-      });
-      
-      html += '</div>';
-      conteudo.innerHTML = html;
-      
-    } catch (err) {
-      console.error('Erro ao carregar validades:', err);
-      conteudo.innerHTML = `
+          });
+          html += '</div>';
+          if (!isClosed()) conteudo.innerHTML = html;
+        } catch (err) {
+          console.error('Erro ao carregar validades:', err);
+          if (!isClosed()) {
+            conteudo.innerHTML = `
         <div style="text-align: center; padding: 40px; color: #e74c3c;">
           <p style="font-size: 16px; margin-bottom: 10px;"><i class="bx bx-x-circle" style="vertical-align: middle;"></i> Erro ao carregar validades</p>
           <p style="font-size: 13px; color: #95a5a6;">${err.message || 'Não foi possível carregar as validades do veículo.'}</p>
         </div>
       `;
-    }
-  };
-
-  // Event listener para fechar modal de validades (backup caso o modal já exista no DOM)
-  document.addEventListener('DOMContentLoaded', () => {
-    const btnFechar = document.getElementById('btnFecharModalValidadesMotorista');
-    const modal = document.getElementById('modalValidadesMotorista');
-    
-    if (btnFechar && modal) {
-      btnFechar.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        modal.style.display = 'none';
-      });
-      
-      // Fechar ao clicar fora do modal
-      modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-          modal.style.display = 'none';
+          }
         }
-      });
-    }
-  });
+      }
+    });
+  };
 
   // Reativar convocação (reverter CONFIRMADA ou ACEITA_DESCARTADA para ACEITA)
   window.reativarConvocacao = async function(idConvocacao) {
@@ -9071,8 +9541,8 @@
     // Validação: Não permitir reativar se já houver motorista ou veículo atrelado à viagem
     try {
       const idViagem = convocacao.IDVIAGEM;
-      const resVeiculo = await fetch(`/api/viagens/${idViagem}/veiculo`);
-      const resMotorista = await fetch(`/api/viagens/${idViagem}/motorista`);
+      const resVeiculo = await fetchApiViagens(`/${idViagem}/veiculo`);
+      const resMotorista = await fetchApiViagens(`/${idViagem}/motorista`);
       
       let temVeiculo = false;
       let temMotorista = false;
@@ -9120,27 +9590,27 @@
       });
 
       const mensagemModal = `
-        <div style="text-align: left; line-height: 1.8;">
-          <p><strong>Viagem:</strong> ${convocacao.IDVIAGEM}</p>
-          <p><strong>Motorista:</strong> ${convocacao.NOME_MOTORISTA || 'N/A'}</p>
-          <p><strong>Status Atual:</strong> CONFIRMADA</p>
-          <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 8px;">
-            <p style="margin: 0 0 10px 0; font-weight: 600; color: #856404;">
-              <i class="bx bx-error-circle" style="font-size: 1.1em; vertical-align: middle;"></i> ATENÇÃO:
+        <div class="convocacao-modal-body">
+          <p class="convocacao-modal-meta"><strong>Viagem:</strong> <span class="convocacao-modal-meta-valor">${convocacao.IDVIAGEM}</span></p>
+          <p class="convocacao-modal-meta"><strong>Motorista:</strong> <span class="convocacao-modal-meta-valor">${convocacao.NOME_MOTORISTA || 'N/A'}</span></p>
+          <p class="convocacao-modal-meta"><strong>Status Atual:</strong> <span class="convocacao-modal-meta-valor">CONFIRMADA</span></p>
+          <div class="convocacao-modal-alerta" style="margin-top: 20px;" role="region" aria-label="Aviso sobre reativação">
+            <p class="convocacao-modal-alerta__titulo">
+              <i class="bx bx-error-circle" aria-hidden="true"></i> ATENÇÃO:
             </p>
-            <p style="margin: 0; color: #856404; font-size: 14px;">
+            <p class="convocacao-modal-alerta__texto" style="margin-bottom: 0;">
               Esta convocação será reativada e o status voltará para <strong>ACEITA</strong>.<br>
               <strong>As outras convocações ACEITA (Não Selecionada) da mesma viagem também serão reativadas automaticamente.</strong>
             </p>
           </div>
           <div style="margin-top: 20px;">
-            <label for="selectMotivoReabertura" style="display: block; margin-bottom: 10px; font-weight: 600; color: #333;">
+            <label for="selectMotivoReabertura" class="convocacao-modal-reativar-label" style="display: block; margin-bottom: 10px; font-weight: 600;">
               <i class="bx bx-list-ul" style="font-size: 1em; vertical-align: middle;"></i> Selecione o motivo da reabertura: *
             </label>
-            <select id="selectMotivoReabertura" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; background: #fff; color: #222; appearance: none; -webkit-appearance: none; -moz-appearance: none; background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23667eea%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-6.5%200-12.1%203.2-15.2%208.1-3.1%204.9-3.1%2010.8%200%2015.8l128%20128c3.2%203.2%207.1%204.7%2011.1%204.7s7.9-1.6%2011.1-4.7l128-128c3.1-5%203.1-10.9%200-15.8z%22%2F%3E%3C%2Fsvg%3E'); background-repeat: no-repeat; background-position: right 12px center; background-size: 12px; cursor: pointer; transition: border-color 0.3s, box-shadow 0.3s;">
+            <select id="selectMotivoReabertura" class="convocacao-modal-select" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; background: #fff; color: #222; appearance: none; -webkit-appearance: none; -moz-appearance: none; background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23667eea%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-6.5%200-12.1%203.2-15.2%208.1-3.1%204.9-3.1%2010.8%200%2015.8l128%20128c3.2%203.2%207.1%204.7%2011.1%204.7s7.9-1.6%2011.1-4.7l128-128c3.1-5%203.1-10.9%200-15.8z%22%2F%3E%3C%2Fsvg%3E'); background-repeat: no-repeat; background-position: right 12px center; background-size: 12px; cursor: pointer; transition: border-color 0.3s, box-shadow 0.3s;">
               ${opcoesMotivos}
             </select>
-            <p id="erroMotivoReabertura" style="color: #dc3545; font-size: 14px; margin-top: 5px; display: none;">
+            <p id="erroMotivoReabertura" class="convocacao-modal-erro" style="font-size: 14px; margin-top: 5px; display: none;">
               Por favor, selecione um motivo.
             </p>
           </div>
@@ -9261,7 +9731,7 @@
       // Se houver convocações para enviar, abrir modal de links
       if (convocacoesParaEnviar.length > 0) {
         // Buscar dados completos da viagem para gerar mensagem formatada
-        const responseViagem = await fetch(`/api/viagens/${result.idViagem}`);
+        const responseViagem = await fetchApiViagens(`/${result.idViagem}`);
         if (!responseViagem.ok) {
           throw new Error('Erro ao buscar dados da viagem');
         }
@@ -9463,9 +9933,9 @@
         const msgEl = document.getElementById('msgRegrasCompatibilidade');
         if (msgEl) { msgEl.style.display = 'none'; msgEl.textContent = ''; }
         try {
-          const r = await fetch('/api/viagens/regras-compatibilidade', {
+          const r = await fetchApiViagens('/regras-compatibilidade', {
             method: 'PUT',
-            headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               rastreamento: document.getElementById('regraCompativelRastreamento')?.checked ?? true,
               classeFrota: document.getElementById('regraCompativelClasseFrota')?.checked ?? true,
@@ -9518,6 +9988,7 @@
 
     if (selectViagem) {
       selectViagem.onchange = function() {
+        limparResumoClasseViagemCompativeis();
         if (this.value && String(this.value).trim()) {
           viagemSelecionada = String(this.value).trim();
         }
@@ -9587,13 +10058,14 @@
             idViagem: viagemSelecionada
           });
         }
-        const response = await fetch('/api/viagens/webhook/switch-digital', {
+        const response = await fetchApiViagens('/webhook/switch-digital', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ viagemId: viagemSelecionada, convocacoes: convocacoesFormatadas, baseUrl: baseUrl })
         });
+        const errReenv = await rejeicaoSeRespostaNaoOk(response, 'Erro ao reenviar mensagens');
+        if (errReenv) throw errReenv;
         const resultData = await response.json();
-        if (!response.ok) throw new Error(resultData.error || 'Erro ao reenviar');
         if (typeof window.adicionarLogSwitch === 'function') {
           window.adicionarLogSwitch({
             tipo: resultData.erros > 0 ? (resultData.sucessos > 0 ? 'warning' : 'erro') : 'sucesso',
@@ -9613,7 +10085,7 @@
         }
       } catch (err) {
         console.error('[Reenviar falhas]', err);
-        showMessage('Erro ao reenviar: ' + (err.message || err), 'error');
+        showMessage('Erro ao reenviar: ' + (err.message || err), tipoMensagemErroHttp(err));
       }
     }
 
@@ -9923,15 +10395,230 @@
   let mapaMotorista = null;
   let mapaMotoristaLayer = null;
 
+  /** Desenha rota por estradas (GeoJSON). Só desenha linha reta se opts.permitirLinhaReta === true (não usado no modal motorista). */
+  function mapaMotoristaColocarCamadaRota(map, geometry, latM, lonM, latO, lonO, opts) {
+    opts = opts || {};
+    const permitirLinhaReta = opts.permitirLinhaReta === true;
+    if (mapaMotoristaLayer) {
+      try {
+        map.removeLayer(mapaMotoristaLayer);
+      } catch (e) {
+        /* ignore */
+      }
+      mapaMotoristaLayer = null;
+    }
+    const okGeom =
+      geometry &&
+      geometry.type === 'LineString' &&
+      geometry.coordinates &&
+      geometry.coordinates.length >= 2;
+    if (okGeom) {
+      mapaMotoristaLayer = L.geoJSON(
+        { type: 'Feature', properties: {}, geometry },
+        { style: { color: '#667eea', weight: 5, opacity: 0.92, lineJoin: 'round' } }
+      ).addTo(map);
+    } else if (permitirLinhaReta) {
+      mapaMotoristaLayer = L.polyline(
+        [
+          [latM, lonM],
+          [latO, lonO],
+        ],
+        {
+          color: '#667eea',
+          weight: 5,
+          opacity: 0.9,
+          dashArray: '10 7',
+          lineJoin: 'round',
+        }
+      ).addTo(map);
+    }
+    return mapaMotoristaLayer;
+  }
+
+  /** Leaflet em modal: redesenha tiles e ajusta zoom incluindo a polyline. */
+  function mapaMotoristaInvalidarEAjustar(map, marcM, marcO) {
+    if (!map) return;
+    const refit = () => {
+      try {
+        map.invalidateSize(true);
+      } catch (e) {
+        /* ignore */
+      }
+      const parts = [marcM, marcO];
+      if (mapaMotoristaLayer) parts.push(mapaMotoristaLayer);
+      const fg = L.featureGroup(parts.filter(Boolean));
+      try {
+        const b = fg.getBounds();
+        if (b && b.isValid()) {
+          map.fitBounds(b.pad(0.1), {
+            maxZoom: 15,
+            padding: [28, 28],
+            animate: false,
+          });
+        }
+      } catch (e) {
+        /* ignore */
+      }
+    };
+    requestAnimationFrame(() => requestAnimationFrame(refit));
+    setTimeout(refit, 120);
+    setTimeout(refit, 450);
+    setTimeout(refit, 900);
+    setTimeout(refit, 1600);
+  }
+
+  /** Painel flutuante (base esquerda): compara ETA da rota com DTPREVINICIO da viagem. */
+  function atualizarPainelChegadaMapaMotorista(convocacao, { durationSec, origemOk }) {
+    const floatRoot = document.getElementById('mapaMotoristaChegadaFloat');
+    const timeEl = document.getElementById('mapaMotoristaChegadaAtualizado');
+    const resumoEl = document.getElementById('mapaMotoristaChegadaResumo');
+    const statusEl = document.getElementById('mapaMotoristaChegadaStatus');
+    if (!floatRoot || !resumoEl) return;
+    floatRoot.style.display = 'block';
+    const agoraRelogio = new Date();
+    if (timeEl) {
+      timeEl.textContent = `Dados atualizados às ${String(agoraRelogio.getHours()).padStart(2, '0')}:${String(agoraRelogio.getMinutes()).padStart(2, '0')}:${String(agoraRelogio.getSeconds()).padStart(2, '0')}`;
+    }
+    floatRoot.classList.remove(
+      'modal-mapa-motorista-chegada--ok',
+      'modal-mapa-motorista-chegada--atraso',
+      'modal-mapa-motorista-chegada--incerto',
+      'modal-mapa-motorista-chegada--neutro'
+    );
+
+    const aplicarStatusVisual = (titulo, situacao) => {
+      if (statusEl) {
+        statusEl.textContent = titulo || '';
+        statusEl.style.display = titulo ? 'block' : 'none';
+      }
+      if (situacao === 'ok') floatRoot.classList.add('modal-mapa-motorista-chegada--ok');
+      else if (situacao === 'atraso') floatRoot.classList.add('modal-mapa-motorista-chegada--atraso');
+      else if (situacao === 'incerto') floatRoot.classList.add('modal-mapa-motorista-chegada--incerto');
+      else floatRoot.classList.add('modal-mapa-motorista-chegada--neutro');
+    };
+
+    const staleLimMin = 90;
+    const ultimaDh =
+      convocacao.ULTIMA_POSICAO_VIAGEM_DH ??
+      convocacao.ultima_posicao_viagem_dh ??
+      convocacao.DHMAINTENANCE_CONVOCACAO ??
+      convocacao.dhmaintenance_convocacao;
+    let posicaoDesatualizada = true;
+    if (ultimaDh) {
+      const t = new Date(ultimaDh).getTime();
+      if (!Number.isNaN(t)) posicaoDesatualizada = (Date.now() - t) / 60000 > staleLimMin;
+    }
+
+    const dtPrev = convocacao.DTPREVINICIO ?? convocacao.dtprevinicio;
+    const agoraMs = Date.now();
+    let resumo = '';
+
+    if (!origemOk) {
+      resumo = 'Sem origem do roteiro no mapa. Não é possível estimar se o motorista chega a tempo para o carregamento.';
+      aplicarStatusVisual('Não é possível estimar', 'neutro');
+    } else if (!dtPrev) {
+      resumo = 'Sem data/hora de início da viagem (carregamento) cadastrada. Cadastre a previsão na viagem para comparar com o tempo de rota.';
+      aplicarStatusVisual('Sem previsão de carregamento na viagem', 'neutro');
+    } else if (durationSec == null || !Number.isFinite(durationSec) || durationSec <= 0) {
+      resumo = 'Tempo de percurso até a origem indisponível. Use a distância exibida acima como referência.';
+      aplicarStatusVisual('Tempo de rota indisponível', 'neutro');
+    } else {
+      const chegada = new Date(agoraMs + durationSec * 1000);
+      const limite = new Date(dtPrev);
+      const chegadaStr = fmtDataHora(chegada);
+      const limiteStr = fmtDataHora(limite);
+      const agoraStr = fmtDataHora(new Date(agoraMs));
+      let prefix = '';
+      if (posicaoDesatualizada) {
+        prefix = `Posição pode estar desatualizada (último sinal há mais de ${staleLimMin} min ou sem data). `;
+      }
+      if (Number.isNaN(limite.getTime())) {
+        resumo = prefix + 'Previsão de carregamento em formato não reconhecido.';
+        aplicarStatusVisual('Data de carregamento inválida', 'neutro');
+      } else if (limite.getTime() < agoraMs) {
+        resumo =
+          prefix +
+          `A data/hora de carregamento prevista (${limiteStr}) já foi ultrapassada (referência: agora ${agoraStr}). ` +
+          `Com a posição atual, chegada estimada na origem: ${chegadaStr}. Indicativo: atraso em relação ao agendamento.`;
+        aplicarStatusVisual('Atraso: previsão de carregamento já ultrapassada', 'atraso');
+      } else if (chegada.getTime() <= limite.getTime()) {
+        if (posicaoDesatualizada) {
+          resumo =
+            prefix +
+            `Chegada estimada ${chegadaStr} · Carregamento previsto ${limiteStr} · A rota sugere tempo para chegar antes do limite, mas o sinal de posição está antigo: trate como estimativa incerta.`;
+          aplicarStatusVisual('Prazo provável (estimativa incerta)', 'incerto');
+        } else {
+          resumo =
+            prefix + `Chegada estimada ${chegadaStr} · Carregamento previsto ${limiteStr} · Indicativo: dentro do prazo para chegar a tempo do carregamento.`;
+          aplicarStatusVisual('No prazo (estimativa)', 'ok');
+        }
+      } else {
+        resumo =
+          prefix + `Chegada estimada ${chegadaStr} · Carregamento previsto ${limiteStr} · Indicativo: atraso provável para o carregamento.`;
+        aplicarStatusVisual('Atraso provável', 'atraso');
+      }
+    }
+    resumoEl.textContent = resumo;
+  }
+
   // Função para abrir modal com mapa do motorista
   window.abrirMapaMotorista = async function(idConvocacao, latMotorista, lonMotorista, idRoteiro, idViagem) {
     try {
-      // Buscar dados da convocação
-      const convocacao = convocacoes.find(c => c.IDCONVOCACAO === idConvocacao);
+      const chFloat = document.getElementById('mapaMotoristaChegadaFloat');
+      if (chFloat) chFloat.style.display = 'none';
+
+      let convocacao = convocacoes.find(c => c.IDCONVOCACAO === idConvocacao);
       if (!convocacao) {
         showMessage('Convocação não encontrada.', 'error');
         return;
       }
+
+      const bannerTexto = document.getElementById('mapaBannerUltimaPosicaoTexto');
+      if (bannerTexto) {
+        bannerTexto.textContent = 'Carregando…';
+        bannerTexto.classList.add('banner-sem-dados');
+      }
+
+      try {
+        const respConv = await fetch(`/api/convocacoes/${idConvocacao}`, { headers: getAuthHeaders() });
+        if (respConv.ok) {
+          const fresh = await respConv.json();
+          convocacao = { ...convocacao, ...fresh };
+        }
+      } catch (e) {
+        console.warn('Não foi possível atualizar dados da convocação para o mapa:', e);
+      }
+
+      const aplicarTextoUltimaPosicao = () => {
+        const ultimaViagemDh =
+          convocacao.ULTIMA_POSICAO_VIAGEM_DH ??
+          convocacao.ultima_posicao_viagem_dh ??
+          convocacao.Ultima_Posicao_Viagem_Dh;
+        const dhMaintConv =
+          convocacao.DHMAINTENANCE_CONVOCACAO ??
+          convocacao.dhmaintenance_convocacao ??
+          convocacao.Dhmaintenance_Convocacao;
+        let texto = '—';
+        let temDados = false;
+        if (ultimaViagemDh) {
+          texto = fmtDataHora(ultimaViagemDh) + ' (rastreamento na viagem)';
+          temDados = true;
+        } else if (dhMaintConv) {
+          texto = fmtDataHora(dhMaintConv) + ' (última atualização no link da convocação)';
+          temDados = true;
+        } else {
+          texto = 'Sem registro de data/hora — ainda não há rastreamento na viagem nem atualização de posição pelo link.';
+        }
+        if (bannerTexto) {
+          bannerTexto.textContent = texto;
+          if (temDados) bannerTexto.classList.remove('banner-sem-dados');
+          else bannerTexto.classList.add('banner-sem-dados');
+        }
+        if (ultimaViagemDh) return fmtDataHora(ultimaViagemDh);
+        if (dhMaintConv) return fmtDataHora(dhMaintConv) + ' (link)';
+        return '—';
+      };
+      const textoResumoUltimaPosicao = aplicarTextoUltimaPosicao();
 
       // Preencher informações no modal
       document.getElementById('mapaInfoMotorista').textContent = convocacao.NOME_MOTORISTA || '-';
@@ -9953,7 +10640,7 @@
       // Se não tiver na convocação, buscar da viagem
       if (!vlFrete && idViagem) {
         try {
-          const viagemResponse = await fetch(`/api/viagens/${idViagem}`);
+          const viagemResponse = await fetchApiViagens(`/${idViagem}`);
           if (viagemResponse.ok) {
             const viagem = await viagemResponse.json();
             vlFrete = viagem.VLFRETE || vlFrete;
@@ -9965,9 +10652,7 @@
           console.error('Erro ao buscar dados da viagem:', err);
         }
       }
-      
-      document.getElementById('mapaInfoFrete').textContent = fmtMoeda(vlFrete, moedaFrete);
-      document.getElementById('mapaInfoPeso').textContent = formatarPeso(peso);
+
       document.getElementById('mapaInfoDistancia').textContent = 'Calculando...';
 
       // Abrir modal
@@ -10050,6 +10735,16 @@
       
       L.tileLayer(tileConfig.url, tileOptions).addTo(mapaMotorista);
 
+      mapaMotorista.whenReady(() => {
+        requestAnimationFrame(() => {
+          try {
+            mapaMotorista.invalidateSize(true);
+          } catch (e) {
+            /* ignore */
+          }
+        });
+      });
+
       // Criar ícones personalizados
       const iconeMotorista = L.divIcon({
         className: 'custom-marker-motorista',
@@ -10074,6 +10769,7 @@
             <p style="margin: 5px 0;"><strong>Nome:</strong> ${convocacao.NOME_MOTORISTA || '-'}</p>
             <p style="margin: 5px 0;"><strong>Celular:</strong> ${convocacao.CELULAR_MOTORISTA || '-'}</p>
             <p style="margin: 5px 0;"><strong>Status:</strong> ${convocacao.STATUS || '-'}</p>
+            <p style="margin: 5px 0;"><strong>Referência de posição:</strong> ${textoResumoUltimaPosicao}</p>
             <hr style="margin: 10px 0;">
             <h4 style="margin: 10px 0 5px 0; color: #667eea;">📦 Carga</h4>
             <p style="margin: 5px 0;"><strong>ID Viagem:</strong> ${idViagem || '-'}</p>
@@ -10097,75 +10793,76 @@
             </div>
           `);
 
-        // Calcular e desenhar rota usando OSRM
-        try {
-          const config = window.MAP_CONFIG || {};
-          const coordsStr = `${lonMotorista},${latMotorista};${origemLon},${origemLat}`;
-          const osrmUrl = construirUrlRota(
-            config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
-            coordsStr,
-            'full',
-            'geojson'
-          );
-          const rotaResponse = await fetchForcandoHTTP(osrmUrl, { signal: AbortSignal.timeout(config.routeTimeout || 15000) });
-          const rotaData = await rotaResponse.json();
+        // Rota por estradas: vários servidores (map-config.js); sem linha reta no mapa se falhar
+        const haversineKm = calcularDistanciaHaversine(latMotorista, lonMotorista, origemLat, origemLon);
+        const distEl = document.getElementById('mapaInfoDistancia');
+        if (distEl) {
+          distEl.textContent = `${haversineKm.toFixed(2)} km (calculando rota por estradas…)`;
+        }
 
-          if (rotaData.code === 'Ok' && rotaData.routes && rotaData.routes.length > 0) {
-            const route = rotaData.routes[0];
+        try {
+          const resultado =
+            typeof window.buscarRotaMotoristaParaOrigem === 'function'
+              ? await window.buscarRotaMotoristaParaOrigem(lonMotorista, latMotorista, origemLon, origemLat)
+              : { ok: false };
+
+          if (resultado.ok && resultado.route) {
+            const route = resultado.route;
             const distanciaKm = (route.distance / 1000).toFixed(2);
             const duracaoMin = Math.round(route.duration / 60);
+            if (distEl) distEl.textContent = `${distanciaKm} km (aprox. ${duracaoMin} min)`;
 
-            // Atualizar informação de distância
-            document.getElementById('mapaInfoDistancia').textContent = `${distanciaKm} km (aprox. ${duracaoMin} min)`;
-
-            // Desenhar rota no mapa
-            const rotaGeoJson = {
-              type: 'Feature',
-              geometry: route.geometry
-            };
-
-            if (mapaMotoristaLayer) {
-              mapaMotorista.removeLayer(mapaMotoristaLayer);
-            }
-
-            mapaMotoristaLayer = L.geoJSON(rotaGeoJson, {
-              style: {
-                color: '#667eea',
-                weight: 5,
-                opacity: 0.7
-              }
-            }).addTo(mapaMotorista);
-
-            // Ajustar zoom para mostrar ambos os pontos
-            const grupo = L.featureGroup([marcadorMotorista, marcadorOrigem]);
-            mapaMotorista.fitBounds(grupo.getBounds().pad(0.1));
+            mapaMotoristaColocarCamadaRota(mapaMotorista, route.geometry, latMotorista, lonMotorista, origemLat, origemLon, {
+              permitirLinhaReta: false,
+            });
+            mapaMotoristaInvalidarEAjustar(mapaMotorista, marcadorMotorista, marcadorOrigem);
+            atualizarPainelChegadaMapaMotorista(convocacao, { durationSec: route.duration, origemOk: true });
           } else {
-            // Se OSRM falhar, usar cálculo Haversine
-            const distanciaHaversine = calcularDistanciaHaversine(latMotorista, lonMotorista, origemLat, origemLon);
-            document.getElementById('mapaInfoDistancia').textContent = `${distanciaHaversine.toFixed(2)} km (linha reta)`;
-            
-            // Ajustar zoom
-            const grupo = L.featureGroup([marcadorMotorista, marcadorOrigem]);
-            mapaMotorista.fitBounds(grupo.getBounds().pad(0.1));
+            if (distEl) {
+              distEl.textContent = `${haversineKm.toFixed(2)} km (rota por estradas indisponível — verifique o servidor em Configurações » Mapa)`;
+            }
+            mapaMotoristaColocarCamadaRota(mapaMotorista, null, latMotorista, lonMotorista, origemLat, origemLon, {
+              permitirLinhaReta: true,
+            });
+            mapaMotoristaInvalidarEAjustar(mapaMotorista, marcadorMotorista, marcadorOrigem);
+            const durEst = (haversineKm / 50) * 3600;
+            atualizarPainelChegadaMapaMotorista(convocacao, { durationSec: durEst, origemOk: true });
           }
         } catch (err) {
-          console.error('Erro ao calcular rota:', err);
-          // Usar cálculo Haversine como fallback
-          const distanciaHaversine = calcularDistanciaHaversine(latMotorista, lonMotorista, origemLat, origemLon);
-          document.getElementById('mapaInfoDistancia').textContent = `${distanciaHaversine.toFixed(2)} km (linha reta)`;
-          
-          // Ajustar zoom
-          const grupo = L.featureGroup([marcadorMotorista, marcadorOrigem]);
-          mapaMotorista.fitBounds(grupo.getBounds().pad(0.1));
+          console.error('[ROTA-OSRM] Modal motorista — erro ao calcular rota:', err);
+          if (distEl) {
+            distEl.textContent = `${haversineKm.toFixed(2)} km (erro ao obter rota — verifique rede/servidor)`;
+          }
+          mapaMotoristaColocarCamadaRota(mapaMotorista, null, latMotorista, lonMotorista, origemLat, origemLon, {
+            permitirLinhaReta: true,
+          });
+          mapaMotoristaInvalidarEAjustar(mapaMotorista, marcadorMotorista, marcadorOrigem);
+          const durEst = (haversineKm / 50) * 3600;
+          atualizarPainelChegadaMapaMotorista(convocacao, { durationSec: durEst, origemOk: true });
         }
       } else {
-        // Se não tiver origem, apenas mostrar motorista
         mapaMotorista.setView([latMotorista, lonMotorista], 12);
         document.getElementById('mapaInfoDistancia').textContent = 'Origem não encontrada no roteiro';
+        atualizarPainelChegadaMapaMotorista(convocacao, { durationSec: null, origemOk: false });
+        setTimeout(() => {
+          try {
+            mapaMotorista.invalidateSize(true);
+          } catch (e) {
+            /* ignore */
+          }
+        }, 200);
       }
 
-      // Abrir popup do motorista
       marcadorMotorista.openPopup();
+      if (mapaMotorista) {
+        setTimeout(() => {
+          try {
+            mapaMotorista.invalidateSize(true);
+          } catch (e) {
+            /* ignore */
+          }
+        }, 300);
+      }
 
     } catch (err) {
       console.error('Erro ao abrir mapa do motorista:', err);
@@ -10177,6 +10874,8 @@
   window.fecharModalMapaMotorista = function() {
     const modal = document.getElementById('modalMapaMotorista');
     modal.style.display = 'none';
+    const chFloat = document.getElementById('mapaMotoristaChegadaFloat');
+    if (chFloat) chFloat.style.display = 'none';
     
     // Limpar mapa
     if (mapaMotorista) {
@@ -10305,7 +11004,7 @@
     }
 
     try {
-      const response = await fetch(`/api/viagens/equipamentos/buscar?placa=${encodeURIComponent(placa)}`);
+      const response = await fetchApiViagens(`/equipamentos/buscar?placa=${encodeURIComponent(placa)}`);
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Erro ao buscar equipamento.' }));
         showMessage(error.error || 'Equipamento não encontrado.', 'error');
@@ -10348,7 +11047,7 @@
     }
 
     try {
-      const response = await fetch(`/api/viagens/equipamentos/buscar?codigo=${encodeURIComponent(codigoNum)}`);
+      const response = await fetchApiViagens(`/equipamentos/buscar?codigo=${encodeURIComponent(codigoNum)}`);
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Erro ao buscar equipamento.' }));
         if (response.status === 404) {
@@ -10491,13 +11190,9 @@
     const tpequipamentoFormatado = String(tpequipamento).padStart(2, '0').substring(0, 2).toUpperCase();
 
     try {
-      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
-      const headers = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const response = await fetch(`/api/viagens/${idViagem}/veiculo`, {
+      const response = await fetchApiViagens(`/${idViagem}/veiculo`, {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           idequipamento: parseFloat(idequipamento),
           refequipamento: refequipamento.toUpperCase(),
@@ -10581,7 +11276,7 @@
     document.getElementById('veiculoIdViagem').value = idViagem;
 
     try {
-      const response = await fetch(`/api/viagens/${idViagem}/veiculo`).catch(() => null);
+      const response = await fetchApiViagens(`/${idViagem}/veiculo`).catch(() => null);
       if (!response) {
         limparListaVeiculos();
         return;
@@ -10689,7 +11384,7 @@
     if (!confirmado) return;
 
     try {
-      const response = await fetch(`/api/viagens/${idViagem}/veiculo/${idequipamento}`, {
+      const response = await fetchApiViagens(`/${idViagem}/veiculo/${idequipamento}`, {
         method: 'DELETE'
       });
 
@@ -10705,6 +11400,51 @@
       console.error('Erro ao remover veículo:', err);
       showMessage('Erro ao remover veículo.', 'error');
     }
+  }
+
+  /** Força dark mode nos modais Dados Completos (veículo/motorista) — CSS do módulo às vezes não vence. */
+  function aplicarDarkModeModalDadosCompletos(modal) {
+    if (!modal) return;
+    const isDark =
+      document.documentElement.getAttribute('data-theme') === 'dark' ||
+      document.body.getAttribute('data-theme') === 'dark';
+    if (!isDark) return;
+    const content = modal.querySelector('.modal-content-tratamento');
+    const body = modal.querySelector('.modal-body-tratamento');
+    const footer = modal.querySelector('.modal-footer-tratamento');
+    const header = modal.querySelector('.modal-header-tratamento');
+    if (content) {
+      content.style.setProperty('background', '#1e293b', 'important');
+      content.style.setProperty('color', '#e2e8f0', 'important');
+    }
+    if (body) {
+      body.style.setProperty('background', '#1e293b', 'important');
+      body.style.setProperty('color', '#e2e8f0', 'important');
+    }
+    if (footer) {
+      footer.style.setProperty('background', '#1e293b', 'important');
+      footer.style.setProperty('border-top-color', '#334155', 'important');
+    }
+    if (header) {
+      header.style.setProperty('border-bottom-color', '#334155', 'important');
+      header.querySelectorAll('h3').forEach((h) => h.style.setProperty('color', '#f1f5f9', 'important'));
+    }
+    modal.querySelectorAll('.modal-dados-completos-nome').forEach((el) => {
+      el.style.setProperty('color', '#f1f5f9', 'important');
+      el.style.setProperty('border-bottom-color', '#334155', 'important');
+    });
+    modal.querySelectorAll('.modal-dados-completos-table tbody tr').forEach((tr) => {
+      tr.style.setProperty('background', '#0f172a', 'important');
+      tr.style.setProperty('border-bottom-color', '#334155', 'important');
+    });
+    modal.querySelectorAll('.modal-dados-completos-table td:first-child').forEach((td) => {
+      td.style.setProperty('color', '#94a3b8', 'important');
+      td.style.setProperty('background', 'transparent', 'important');
+    });
+    modal.querySelectorAll('.modal-dados-completos-table td:last-child').forEach((td) => {
+      td.style.setProperty('color', '#e2e8f0', 'important');
+      td.style.setProperty('background', 'transparent', 'important');
+    });
   }
 
   // Mostrar dados completos do veículo em modal
@@ -10740,7 +11480,7 @@
     const nomeVeiculo = `${veiculo.REFEQUIPAMENTO || 'N/A'} - ${veiculo.DSEQUIPAMENTO || 'Sem descrição'}`;
 
     conteudo.innerHTML = `
-      <p style="font-size: 18px; font-weight: 700; color: #2c3e50; margin: 0 0 25px 0; padding-bottom: 15px; border-bottom: 2px solid #e9ecef; text-transform: uppercase;">${nomeVeiculo}</p>
+      <p class="modal-dados-completos-nome">${nomeVeiculo}</p>
 
       <table class="modal-dados-completos-table">
         <tbody>
@@ -10826,6 +11566,7 @@
 
     // Mostrar modal
     modal.style.display = 'flex';
+    aplicarDarkModeModalDadosCompletos(modal);
     
     // Garantir que o título tenha o ícone após mostrar o modal
     setTimeout(() => {
@@ -10833,6 +11574,7 @@
       if (tituloModal) {
         tituloModal.innerHTML = '<i class=\'bx bx-truck\'></i> Dados Completos do Veículo';
       }
+      aplicarDarkModeModalDadosCompletos(modal);
     }, 10);
     
     // Event listener para fechar
@@ -10879,7 +11621,7 @@
     }
 
     try {
-      const response = await fetch(`/api/viagens/cadastros-gerais/buscar?cpf=${encodeURIComponent(cpf)}`);
+      const response = await fetchApiViagens(`/cadastros-gerais/buscar?cpf=${encodeURIComponent(cpf)}`);
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Erro ao buscar cadastro.' }));
         showMessage(error.error || 'Cadastro não encontrado.', 'error');
@@ -10920,7 +11662,7 @@
     }
 
     try {
-      const response = await fetch(`/api/viagens/cadastros-gerais/buscar?nome=${encodeURIComponent(nome)}`);
+      const response = await fetchApiViagens(`/cadastros-gerais/buscar?nome=${encodeURIComponent(nome)}`);
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Erro ao buscar cadastro.' }));
         showMessage(error.error || 'Cadastro não encontrado.', 'error');
@@ -10994,8 +11736,7 @@
     }
 
     try {
-      const url = `/api/viagens/cadastros-gerais/buscar?codigo=${encodeURIComponent(codigoNum)}`;
-      const response = await fetch(url);
+      const response = await fetchApiViagens(`/cadastros-gerais/buscar?codigo=${encodeURIComponent(codigoNum)}`);
       
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Erro ao buscar cadastro.' }));
@@ -11249,13 +11990,9 @@
     }
 
     try {
-      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
-      const headers = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-
-      const response = await fetch(`/api/viagens/${idViagemNum}/motorista`, {
+      const response = await fetchApiViagens(`/${idViagemNum}/motorista`, {
         method: 'POST',
-        headers,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           cdmotorista: cdmotoristaNum
         })
@@ -11275,7 +12012,7 @@
         const viagemIdForm = document.getElementById('viagemId')?.value || document.getElementById('viagemIdViagem')?.value;
         if (viagemIdForm && String(viagemIdForm).trim() === String(idViagemNum).trim()) {
           try {
-            const resViagem = await fetch(`/api/viagens/${idViagemNum}`);
+            const resViagem = await fetchApiViagens(`/${idViagemNum}`);
             if (resViagem.ok) {
               const viagemAtualizada = await resViagem.json();
               const selSitViagem = document.getElementById('viagemSituacaoViagem');
@@ -11372,7 +12109,7 @@
     document.getElementById('motoristaIdViagem').value = idViagem;
 
     try {
-      const response = await fetch(`/api/viagens/${idViagem}/motorista`).catch(() => null);
+      const response = await fetchApiViagens(`/${idViagem}/motorista`).catch(() => null);
       if (!response) {
         limparListaMotoristas();
         return;
@@ -11510,7 +12247,7 @@
     if (!confirmado) return;
 
     try {
-      const response = await fetch(`/api/viagens/${idViagem}/motorista/${cdmotorista}`, {
+      const response = await fetchApiViagens(`/${idViagem}/motorista/${cdmotorista}`, {
         method: 'DELETE'
       });
 
@@ -11573,7 +12310,7 @@
     const nomeMotorista = (motorista.RZSOCIAL || motorista.NMFANTASIA || 'N/A').toUpperCase();
 
     conteudo.innerHTML = `
-      <p style="font-size: 18px; font-weight: 700; color: #2c3e50; margin: 0 0 25px 0; padding-bottom: 15px; border-bottom: 2px solid #e9ecef; text-transform: uppercase;">${nomeMotorista}</p>
+      <p class="modal-dados-completos-nome">${nomeMotorista}</p>
 
       <table class="modal-dados-completos-table">
         <tbody>
@@ -11647,6 +12384,7 @@
 
     // Mostrar modal
     modal.style.display = 'flex';
+    aplicarDarkModeModalDadosCompletos(modal);
     
     // Garantir que o título tenha o ícone após mostrar o modal
     setTimeout(() => {
@@ -11654,6 +12392,7 @@
       if (tituloModal) {
         tituloModal.innerHTML = '<i class=\'bx bx-user\'></i> Dados Completos do Motorista';
       }
+      aplicarDarkModeModalDadosCompletos(modal);
     }, 10);
     
     // Event listener para fechar
@@ -11850,7 +12589,86 @@
   
   let historicoCarregado = false;
   let historicoViagens = [];
-  
+  let historicoListaEstadosBr = [];
+
+  function historicoEsc(txt) {
+    return String(txt == null ? '' : txt)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function togglePainelHistoricoRegional() {
+    const modo = document.querySelector('input[name="historicoModo"]:checked')?.value;
+    const painel = document.getElementById('historicoRegionalPainel');
+    if (!painel) return;
+    painel.style.display = modo === 'regional' ? 'block' : 'none';
+  }
+
+  async function popularHistoricoCombosUf() {
+    const so = document.getElementById('histUfOrigem');
+    const sd = document.getElementById('histUfDestino');
+    if (!so || !sd || so.dataset.populated === '1') return;
+    try {
+      const base =
+        typeof window.corrigirUrl === 'function' ? window.corrigirUrl.bind(window) : function (u) {
+          return u;
+        };
+      const r = await fetch(base('/api/estados?pais=BR&situacao=S'), { headers: getAuthHeaders({ Accept: 'application/json' }) });
+      if (!r.ok) return;
+      const rows = await r.json();
+      historicoListaEstadosBr = Array.isArray(rows) ? rows : [];
+      const opts =
+        '<option value="">(qualquer)</option>' +
+        historicoListaEstadosBr
+          .map(function (e) {
+            const uf = String(e.ESTADO != null ? e.ESTADO : e.estado || '').trim();
+            const cduf = e.CDUF != null ? e.CDUF : e.cduf;
+            if (!uf) return '';
+            return '<option value="' + historicoEsc(uf) + '" data-cduf="' + String(cduf != null ? cduf : '') + '">' + historicoEsc(uf) + '</option>';
+          })
+          .join('');
+      so.innerHTML = opts;
+      sd.innerHTML = opts;
+      so.dataset.populated = '1';
+    } catch (_e) {}
+  }
+
+  async function popularHistoricoMesorregioes(selectEl, ufSigla) {
+    if (!selectEl) return;
+    selectEl.innerHTML = '<option value="">(qualquer)</option>';
+    if (!ufSigla || !historicoListaEstadosBr.length) return;
+    const row = historicoListaEstadosBr.find(function (e) {
+      const u = String(e.ESTADO != null ? e.ESTADO : e.estado || '').trim().toUpperCase();
+      return u === String(ufSigla).trim().toUpperCase();
+    });
+    const cduf = row ? (row.CDUF != null ? row.CDUF : row.cduf) : null;
+    if (cduf == null || cduf === '') return;
+    try {
+      const base =
+        typeof window.corrigirUrl === 'function' ? window.corrigirUrl.bind(window) : function (u) {
+          return u;
+        };
+      const r = await fetch(base('/api/mesorregioes?cduf=' + encodeURIComponent(String(cduf)) + '&situacao=S'), {
+        headers: getAuthHeaders({ Accept: 'application/json' })
+      });
+      if (!r.ok) return;
+      const mesos = await r.json();
+      if (!Array.isArray(mesos)) return;
+      mesos.forEach(function (m) {
+        const cdu = m.CDUF != null ? m.CDUF : m.cduf;
+        const cdm = m.CDMESOREGIAO != null ? m.CDMESOREGIAO : m.cdmesoregiao;
+        const ds = m.DSMESOREGIAO != null ? m.DSMESOREGIAO : m.dsmesoregiao || '';
+        if (cdu == null || cdm == null) return;
+        const val = String(cdu) + '_' + String(cdm);
+        const op = document.createElement('option');
+        op.value = val;
+        op.textContent = ds || val;
+        selectEl.appendChild(op);
+      });
+    } catch (_e2) {}
+  }
+
   // Inicializar aba Histórico
   function inicializarAbaHistorico() {
     const btnVoltarHistorico = document.getElementById('btnVoltarHistorico');
@@ -11867,29 +12685,120 @@
       btnCarregarHistorico.dataset.listenerAdded = 'true';
       btnCarregarHistorico.addEventListener('click', carregarHistoricoRoteiro);
     }
+
+    document.querySelectorAll('input[name="historicoModo"]').forEach(function (rad) {
+      if (!rad.dataset.historicoModoBound) {
+        rad.dataset.historicoModoBound = '1';
+        rad.addEventListener('change', function () {
+          togglePainelHistoricoRegional();
+          if (rad.value === 'regional') {
+            popularHistoricoCombosUf();
+          }
+        });
+      }
+    });
+
+    const btnPref = document.getElementById('btnHistoricoPreencherDoRoteiro');
+    if (btnPref && !btnPref.dataset.bound) {
+      btnPref.dataset.bound = '1';
+      btnPref.addEventListener('click', async function () {
+        const sel = document.getElementById('viagemRoteiro');
+        const id = sel && sel.value ? String(sel.value).trim() : '';
+        if (!id) {
+          showMessage('Selecione um roteiro na aba Dados para preencher as UF.', 'info');
+          return;
+        }
+        try {
+          const base =
+            typeof window.corrigirUrl === 'function' ? window.corrigirUrl.bind(window) : function (u) {
+              return u;
+            };
+          const r = await fetch(base('/api/roteiros/' + encodeURIComponent(id)), { headers: getAuthHeaders() });
+          if (!r.ok) throw new Error('Roteiro não encontrado');
+          const ro = await r.json();
+          const ufo = ro.ORIGEM_ESTADO || ro.origem_estado || '';
+          const ufd = ro.DESTINO_ESTADO || ro.destino_estado || '';
+          await popularHistoricoCombosUf();
+          const so = document.getElementById('histUfOrigem');
+          const sd = document.getElementById('histUfDestino');
+          if (so && ufo) so.value = String(ufo).trim().substring(0, 2).toUpperCase();
+          if (sd && ufd) sd.value = String(ufd).trim().substring(0, 2).toUpperCase();
+          await popularHistoricoMesorregioes(document.getElementById('histMesoOrigem'), so && so.value);
+          await popularHistoricoMesorregioes(document.getElementById('histMesoDestino'), sd && sd.value);
+          showMessage('UF preenchidas conforme o roteiro selecionado.', 'success');
+        } catch (e) {
+          showMessage(e.message || 'Não foi possível ler o roteiro.', 'error');
+        }
+      });
+    }
+
+    const so = document.getElementById('histUfOrigem');
+    const sd = document.getElementById('histUfDestino');
+    if (so && !so.dataset.mesoBound) {
+      so.dataset.mesoBound = '1';
+      so.addEventListener('change', function () {
+        popularHistoricoMesorregioes(document.getElementById('histMesoOrigem'), so.value);
+      });
+    }
+    if (sd && !sd.dataset.mesoBound) {
+      sd.dataset.mesoBound = '1';
+      sd.addEventListener('change', function () {
+        popularHistoricoMesorregioes(document.getElementById('histMesoDestino'), sd.value);
+      });
+    }
+
+    togglePainelHistoricoRegional();
   }
   
-  // Carregar histórico do roteiro
+  // Carregar histórico do roteiro (ou referência regional)
   async function carregarHistoricoRoteiro() {
     try {
-      // Pegar o ID do roteiro da aba Dados
+      const modoEl = document.querySelector('input[name="historicoModo"]:checked');
+      const modo = modoEl && modoEl.value === 'regional' ? 'regional' : 'roteiro';
+
       const selectRoteiro = document.getElementById('viagemRoteiro');
       const idRoteiro = selectRoteiro?.value;
-      
-      if (!idRoteiro || idRoteiro === '') {
-        showMessage('Por favor, selecione um roteiro na aba Dados primeiro.', 'error');
-        return;
+      const nomeRoteiroCombo = selectRoteiro?.selectedOptions[0]?.text || 'Roteiro';
+
+      const ufo = (document.getElementById('histUfOrigem') && document.getElementById('histUfOrigem').value) || '';
+      const ufd = (document.getElementById('histUfDestino') && document.getElementById('histUfDestino').value) || '';
+      const mo = (document.getElementById('histMesoOrigem') && document.getElementById('histMesoOrigem').value) || '';
+      const md = (document.getElementById('histMesoDestino') && document.getElementById('histMesoDestino').value) || '';
+
+      if (modo === 'roteiro') {
+        if (!idRoteiro || idRoteiro === '') {
+          showMessage('Por favor, selecione um roteiro na aba Dados primeiro.', 'error');
+          return;
+        }
+      } else {
+        const temReg = !!(ufo || ufd || mo || md);
+        if (!temReg) {
+          showMessage('No modo regional, informe ao menos UF origem, UF destino ou uma mesorregião.', 'error');
+          return;
+        }
       }
-      
-      // Pegar o nome do roteiro para exibir
-      const nomeRoteiro = selectRoteiro?.selectedOptions[0]?.text || 'Roteiro';
-      
+
       showMessage('Carregando histórico...', 'info');
-      
-      const response = await fetch(`/api/viagens/historico-roteiro?idRoteiro=${idRoteiro}`);
-      
+
+      let qs = 'modo=' + encodeURIComponent(modo);
+      if (modo === 'roteiro') {
+        qs += '&idRoteiro=' + encodeURIComponent(String(idRoteiro));
+      } else {
+        if (ufo) qs += '&ufOrigem=' + encodeURIComponent(ufo);
+        if (ufd) qs += '&ufDestino=' + encodeURIComponent(ufd);
+        if (mo) qs += '&mesoOrigem=' + encodeURIComponent(mo);
+        if (md) qs += '&mesoDestino=' + encodeURIComponent(md);
+      }
+
+      const response = await fetchApiViagens('/historico-roteiro?' + qs);
+
       if (!response.ok) {
-        throw new Error('Erro ao carregar histórico');
+        let msg = 'Erro ao carregar histórico';
+        try {
+          const errBody = await response.json();
+          msg = errBody.error || msg;
+        } catch (_x) {}
+        throw new Error(msg);
       }
       
       const data = await response.json();
@@ -11898,27 +12807,32 @@
         historicoViagens = data.viagens || [];
         historicoCarregado = true;
         
-        // Atualizar título com nome do roteiro
-        const tituloHistorico = document.querySelector('#tab-historico h2');
-        if (tituloHistorico) {
-          tituloHistorico.innerHTML = `Histórico de Viagens do Roteiro <span style="color: #667eea;">${nomeRoteiro}</span>`;
+        const h2Hist = document.querySelector('#tab-historico h2.form-panel-titulo');
+        if (h2Hist) {
+          if (modo === 'roteiro') {
+            h2Hist.innerHTML =
+              `<i class='bx bx-history' aria-hidden="true"></i> <span>Histórico de Viagens do Roteiro</span> <span style="color: #667eea;">${historicoEsc(nomeRoteiroCombo)}</span>`;
+          } else {
+            h2Hist.innerHTML =
+              `<i class='bx bx-history' aria-hidden="true"></i> <span>Histórico — referência regional</span> <span style="color: #64748b; font-weight: 500;">${historicoEsc(data.criterioDescricao || '')}</span>`;
+          }
         }
         
-        // Atualizar contador
         const countDiv = document.getElementById('historicoCount');
         const countText = document.getElementById('historicoCountText');
         if (countDiv && countText) {
-          countText.textContent = `${data.totalRegistros || 0} viagem(ns) encontrada(s) no roteiro ${nomeRoteiro}`;
+          const crit = data.criterioDescricao ? ` · ${data.criterioDescricao}` : '';
+          const baseTxt =
+            modo === 'roteiro'
+              ? `${data.totalRegistros || 0} viagem(ns) encontrada(s) no roteiro ${nomeRoteiroCombo}`
+              : `${data.totalRegistros || 0} viagem(ns) encontrada(s)${crit}`;
+          countText.textContent = baseTxt;
           countDiv.style.display = 'block';
         }
         
-        // Renderizar resumo
         renderizarResumoHistorico(data.resumo || []);
-        
-        // Renderizar viagens
         renderizarHistoricoViagens(historicoViagens);
         
-        // Mostrar legenda
         const legenda = document.getElementById('historicoLegenda');
         if (legenda) {
           legenda.style.display = historicoViagens.length > 0 ? 'block' : 'none';
@@ -11995,7 +12909,7 @@
     if (!grid) return;
     
     if (!viagens || viagens.length === 0) {
-      grid.innerHTML = '<p class="empty">Nenhuma viagem encontrada para este roteiro.</p>';
+      grid.innerHTML = '<p class="empty">Nenhuma viagem encontrada para os critérios selecionados.</p>';
       return;
     }
     
@@ -12027,6 +12941,10 @@
               <span style="color: #6c757d; font-size: 12px;">
                 ${viagem.tipoViagem || 'N/A'} • ${viagem.classeFrota || 'N/A'}
               </span>
+              ${viagem.nomeRoteiro || viagem.ufOrigemRoteiro || viagem.ufDestinoRoteiro ? `
+              <div style="width: 100%; font-size: 11px; color: #64748b; margin-top: 4px; line-height: 1.35;">
+                ${viagem.nomeRoteiro ? '<strong>' + historicoEsc(viagem.nomeRoteiro) + '</strong> · ' : ''}${historicoEsc(viagem.ufOrigemRoteiro || '—')} → ${historicoEsc(viagem.ufDestinoRoteiro || '—')}
+              </div>` : ''}
             </div>
             <div style="text-align: right;">
               <div style="font-size: 20px; font-weight: 700; color: #27ae60; white-space: nowrap;">R$ ${viagem.vlFrete}</div>
@@ -12091,17 +13009,23 @@
   let mapaRastreamento = null;
   let mapaRastreamentoInicializando = false; // Flag para evitar múltiplas inicializações simultâneas
   let marcadoresRastreamento = [];
-  let linhaRastreamento = null;
+  let linhaRastreamento = null; // LayerGroup: trajeto já percorrido (GPS)
   let marcadorOrigemRastreamento = null;
   let marcadorDestinoRastreamento = null;
-  let linhaRotaPlanejada = null;
-  let linhaRotaRestante = null; // Rota da última posição GPS até o destino (vermelha)
+  let linhaRotaPlanejada = null; // LayerGroup: rota cadastrada (planejada)
+  let linhaRotaRestante = null; // LayerGroup: o que ainda falta percorrer
+  let marcadoresParadaRoteiroRastreamento = [];
 
-  // Função auxiliar para construir URL de roteamento (suporta OSRM e ORS) - escopo global
+  // Função auxiliar para construir URL de roteamento (OSRM Route GET). ORS não aceita este formato no browser — sempre trocar base.
   function construirUrlRota(servidor, coordsStr, overview = 'simplified', geometries = 'geojson') {
-    // IMPORTANTE: Normalizar URL - garantir HTTP para servidor próprio
     let servidorNormalizado = servidor;
-    const servidoresProprios = ['186.250.92.131', 'app.integrabrasil.com', 'beta.integrabrasil.com'];
+    if (typeof servidorParaFetchDiretoOsrm === 'function') {
+      servidorNormalizado = servidorParaFetchDiretoOsrm(servidor);
+    } else if (servidor && String(servidor).includes('/ors/')) {
+      servidorNormalizado = 'https://router.project-osrm.org/route/v1/driving';
+    }
+    // IMPORTANTE: Normalizar URL - garantir HTTP para servidor próprio
+    const servidoresProprios = ['186.250.92.131'];
     const isServidorProprio = servidor && servidoresProprios.some(s => servidor.includes(s));
     
     if (isServidorProprio) {
@@ -12149,7 +13073,7 @@
   async function fetchForcandoHTTP(url, options = {}) {
     // Se for servidor próprio, garantir que seja HTTP
     let fetchUrl = url;
-    const servidoresProprios = ['186.250.92.131', 'app.integrabrasil.com', 'beta.integrabrasil.com'];
+    const servidoresProprios = ['186.250.92.131'];
     const isServidorProprio = servidoresProprios.some(servidor => url.includes(servidor));
     
     // CRÍTICO: Para servidores próprios, SEMPRE usar XMLHttpRequest
@@ -12301,14 +13225,17 @@
   
   // Função auxiliar para parsear resposta (suporta OSRM e ORS) - escopo global
   function parsearRespostaRota(data) {
-    // ORS retorna: { routes: [{ geometry: { coordinates: [[lon, lat], ...] } }] }
-    // OSRM retorna: { code: 'Ok', routes: [{ geometry: { coordinates: [[lon, lat], ...] } }] }
-    if (data.routes && data.routes[0] && data.routes[0].geometry) {
-      return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]); // Converter [lon, lat] para [lat, lon]
+    let d = data;
+    if (typeof window.normalizarRespostaGatewayOsrm === 'function') {
+      const n = window.normalizarRespostaGatewayOsrm(data);
+      if (n) d = n;
     }
-    // Fallback para formato OSRM com code
-    if (data.code === 'Ok' && data.routes && data.routes[0] && data.routes[0].geometry) {
-      return data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+    // ORS GeoJSON bruto (FeatureCollection) → normalizar acima; OSRM: { code, routes }
+    if (d.routes && d.routes[0] && d.routes[0].geometry) {
+      return d.routes[0].geometry.coordinates.map(c => [c[1], c[0]]); // Converter [lon, lat] para [lat, lon]
+    }
+    if (d.code === 'Ok' && d.routes && d.routes[0] && d.routes[0].geometry) {
+      return d.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
     }
     return null;
   }
@@ -12403,7 +13330,9 @@
       // Buscar motorista da viagem (mesmo que não tenha posições GPS)
       let motorista = null;
       try {
-        const motoristaResponse = await fetch(`/api/motorista/motorista-viagem/${idViagem}`);
+        const motoristaResponse = await fetchApiAbsPath(`/api/motorista/motorista-viagem/${encodeURIComponent(idViagem)}`, {
+          headers: getAuthHeaders()
+        });
         if (motoristaResponse.ok) {
           motorista = await motoristaResponse.json();
         }
@@ -12414,7 +13343,7 @@
       // Buscar dados da viagem (origem e destino)
       let dadosViagem = null;
       try {
-        const viagemResponse = await fetch(`/api/viagens/${idViagem}`);
+        const viagemResponse = await fetchApiViagens(`/${idViagem}`);
         if (viagemResponse.ok) {
           dadosViagem = await viagemResponse.json();
           _log(`🔍 [RASTREAMENTO] Dados da viagem recebidos:`, {
@@ -12430,11 +13359,18 @@
         console.warn('Erro ao buscar dados da viagem:', err);
       }
 
-      // Buscar posições
-      const response = await fetch(`/api/motorista/posicoes/${idViagem}`);
+      // Buscar posições (fetchApiAbsPath: /cargas/api/... quando o dashboard está sob /cargas/)
+      const response = await fetchApiAbsPath(`/api/motorista/posicoes/${encodeURIComponent(idViagem)}`, {
+        headers: getAuthHeaders()
+      });
       
       if (!response.ok) {
-        throw new Error(`Erro ao buscar posições: ${response.status}`);
+        let det = '';
+        try {
+          const errBody = await response.clone().json();
+          det = errBody.error || errBody.message || '';
+        } catch (_) { /* ignore */ }
+        throw new Error(`Erro ao buscar posições: ${response.status}${det ? ' — ' + det : ''}`);
       }
 
       const posicoesData = await response.json();
@@ -12457,13 +13393,26 @@
         ultimaPosicaoGeral = posicoesData.ultimaPosicaoGeral || null;
         _log(`📊 [RASTREAMENTO] Formato novo (objeto): ${posicoes.length} posições`);
       }
+
+      function normalizarPosicaoGps(p) {
+        if (!p || typeof p !== 'object') return p;
+        return {
+          ...p,
+          LATITUDE: p.LATITUDE != null ? p.LATITUDE : p.latitude,
+          LONGITUDE: p.LONGITUDE != null ? p.LONGITUDE : p.longitude,
+          DHREGISTRO: p.DHREGISTRO != null ? p.DHREGISTRO : p.dhiregistro,
+          DHPOSICAO: p.DHPOSICAO != null ? p.DHPOSICAO : p.dhposicao,
+          VELOCIDADE: p.VELOCIDADE != null ? p.VELOCIDADE : p.velocidade,
+        };
+      }
+      posicoes = (posicoes || []).map(normalizarPosicaoGps);
       
       if (posicoes.length > 0) {
         _log(`✅ [RASTREAMENTO] ${posicoes.length} posições GPS carregadas para viagem ${idViagem}`);
         _log(`📍 [RASTREAMENTO] Primeira posição:`, posicoes[0]);
         _log(`📍 [RASTREAMENTO] Última posição:`, posicoes[posicoes.length - 1]);
       } else {
-        console.warn(`⚠️ [RASTREAMENTO] Nenhuma posição encontrada na resposta da API para viagem ${idViagem}`);
+        _log(`[RASTREAMENTO] Nenhuma posição GPS na API para viagem ${idViagem} (normal se o app ainda não enviou GPS).`);
       }
       
       if (ultimaPosicaoGeral) {
@@ -12483,6 +13432,24 @@
         ? posicoes[0].NOME_MOTORISTA 
         : (motorista ? motorista.NOME_MOTORISTA : 'Não informado');
       document.getElementById('rastreamentoMotorista').textContent = nomeMotorista;
+
+      // Placa(s) vinculadas à viagem (aba Veículo / VIAGEMVEICULO)
+      const elPlaca = document.getElementById('rastreamentoPlaca');
+      if (elPlaca) {
+        let txtPlaca = '—';
+        try {
+          const vr = await fetchApiViagens(`/${idViagem}/veiculo`);
+          if (vr.ok) {
+            const veics = await vr.json();
+            const arr = Array.isArray(veics) ? veics : (veics ? [veics] : []);
+            const placas = arr
+              .map((v) => String(v.REFEQUIPAMENTO || v.refequipamento || v.PLACA || v.placa || '').trim())
+              .filter(Boolean);
+            if (placas.length) txtPlaca = placas.join(', ');
+          }
+        } catch (_) { /* ignore */ }
+        elPlaca.textContent = txtPlaca;
+      }
 
       // Atualizar informações
       if (posicoes && posicoes.length > 0) {
@@ -12634,9 +13601,9 @@
     // Usar APENAS MAP_CONFIG global de /js/map-config.js
     // Se não estiver disponível, usar fallback mínimo (não criar config completo)
     const config = window.MAP_CONFIG || {
-      tileServer: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      tileServer: 'https://tile.openstreetmap.de/{z}/{x}/{y}.png',
       osrmServer: 'https://router.project-osrm.org/route/v1/driving-hgv',
-      nominatimServer: window.MAP_CONFIG?.nominatimServer || 'http://app.integrabrasil.com:8080/nominatim',
+      nominatimServer: window.MAP_CONFIG?.nominatimServer || 'https://nominatim.openstreetmap.org',
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
       maxZoom: 19
     };
@@ -12726,6 +13693,12 @@
           }
           linhaRotaRestante = null;
         }
+        (marcadoresParadaRoteiroRastreamento || []).forEach((m) => {
+          try {
+            mapaRastreamento.removeLayer(m);
+          } catch (e) { /* ignore */ }
+        });
+        marcadoresParadaRoteiroRastreamento = [];
         marcadoresRastreamento.forEach(m => {
           try {
             mapaRastreamento.removeLayer(m);
@@ -12762,46 +13735,29 @@
       mapaRastreamento = null;
     }
     marcadoresRastreamento = [];
+    marcadoresParadaRoteiroRastreamento = [];
 
-    // IMPORTANTE: Verificar se o container já tem um mapa antes de criar novo
-    // Usar o mapaDiv que já foi verificado acima
-    if (mapaDiv) {
-      // Verificar se há um mapa Leaflet existente no container
-      if (mapaDiv._leaflet_id || (typeof L !== 'undefined' && L.DomUtil.get(mapaDiv))) {
-        console.warn('⚠️ [RASTREAMENTO] Container já tem mapa. Limpando antes de criar novo...');
-        try {
-          // Tentar obter o mapa existente do Leaflet
-          if (typeof L !== 'undefined') {
-            const mapaExistente = L.DomUtil.get(mapaDiv);
-            if (mapaExistente && mapaExistente._leaflet_id) {
-              const mapaInstance = L.Map.prototype.getContainer ? L.Map.prototype.getContainer.call({ _container: mapaDiv }) : null;
-              if (mapaInstance && typeof mapaInstance.remove === 'function') {
-                mapaInstance.remove();
-              }
-            }
+    // Só limpar de novo se o DOM ainda estiver vinculado a um mapa Leaflet.
+    // NÃO usar L.DomUtil.get(mapaDiv): para um elemento ele devolve o próprio nó (sempre truthy) e gerava falso "já tem mapa".
+    if (mapaDiv && mapaDiv._leaflet_id) {
+      _log('[RASTREAMENTO] Container ainda com _leaflet_id após remove(); limpando DOM...');
+      try {
+        if (mapaRastreamento && typeof mapaRastreamento.remove === 'function') {
+          try {
+            mapaRastreamento.remove();
+          } catch (e) {
+            /* ignore */
           }
-          
-          // Remover mapa global se existir
-          if (mapaRastreamento && typeof mapaRastreamento.remove === 'function') {
-            try {
-              mapaRastreamento.remove();
-            } catch (e) {
-              console.warn('⚠️ [RASTREAMENTO] Erro ao remover mapa global:', e);
-            }
-          }
-        } catch (e) {
-          console.warn('⚠️ [RASTREAMENTO] Erro ao limpar mapa existente:', e);
         }
-        
-        // Limpar completamente o container
-        mapaDiv.innerHTML = '';
-        if (mapaDiv._leaflet_id) {
-          delete mapaDiv._leaflet_id;
-        }
-        
-        // Aguardar um pouco para garantir que a limpeza foi concluída
-        await new Promise(resolve => setTimeout(resolve, 100));
+      } catch (e) {
+        /* ignore */
       }
+      mapaRastreamento = null;
+      mapaDiv.innerHTML = '';
+      delete mapaDiv._leaflet_id;
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    if (mapaDiv) {
       
       // Verificar novamente se o elemento ainda existe (usar mapaDiv já verificado)
       if (!mapaDiv) {
@@ -12836,7 +13792,7 @@
       
       // Verificar novamente se o container está limpo antes de criar
       if (mapaDiv._leaflet_id) {
-        console.warn('⚠️ [RASTREAMENTO] Container ainda tem _leaflet_id. Forçando limpeza...');
+        _log('[RASTREAMENTO] _leaflet_id residual antes de L.map(); limpando container.');
         mapaDiv.innerHTML = '';
         delete mapaDiv._leaflet_id;
         await new Promise(resolve => setTimeout(resolve, 150));
@@ -12896,18 +13852,34 @@
       }
     }
 
-    // Adicionar tiles
-    const tileOptions = {
-      attribution: config.attribution,
-      maxZoom: config.maxZoom
-    };
-    
-    // Se usar servidor OpenStreetMap com {s}, adicionar subdomínios
-    if (config.tileServer && config.tileServer.includes('{s}')) {
-      tileOptions.subdomains = ['a', 'b', 'c'];
+    // Adicionar tiles (MapHelper evita recursão getTileUrl ↔ getTileServerUrl)
+    let tileUrl = 'https://tile.openstreetmap.de/{z}/{x}/{y}.png';
+    try {
+      if (window.MapHelper && typeof window.MapHelper.getTileUrl === 'function') {
+        tileUrl = window.MapHelper.getTileUrl();
+      } else if (typeof window.getTileServerUrl === 'function') {
+        tileUrl = window.getTileServerUrl();
+      } else if (config.tileServer) {
+        tileUrl = config.tileServer;
+      }
+    } catch (_) {
+      tileUrl = config.tileServer || tileUrl;
     }
-    
-    L.tileLayer(config.tileServer, tileOptions).addTo(mapaRastreamento);
+    const tileOptions = {
+      attribution:
+        config.attribution ||
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: config.maxZoom || 19
+    };
+    if (tileUrl && tileUrl.includes('{s}')) {
+      tileOptions.subdomains = tileUrl.includes('cartocdn') ? ['a', 'b', 'c', 'd'] : ['a', 'b', 'c'];
+    }
+    L.tileLayer(tileUrl, tileOptions).addTo(mapaRastreamento);
+    setTimeout(() => {
+      try {
+        if (mapaRastreamento) mapaRastreamento.invalidateSize();
+      } catch (_) { /* ignore */ }
+    }, 80);
 
     // Ordenar posições por data/hora (garantir ordem cronológica)
     const posicoesOrdenadas = [...posicoes].sort((a, b) => {
@@ -12920,10 +13892,71 @@
 
     // Preparar coordenadas das posições GPS (já ordenadas)
     let coordenadas = posicoesOrdenadas
-      .filter(p => p.LATITUDE && p.LONGITUDE && !isNaN(parseFloat(p.LATITUDE)) && !isNaN(parseFloat(p.LONGITUDE)))
-      .map(p => [parseFloat(p.LATITUDE), parseFloat(p.LONGITUDE)]);
+      .filter((p) => {
+        const la = parseFloat(String(p.LATITUDE != null ? p.LATITUDE : p.latitude || '').replace(',', '.'));
+        const lo = parseFloat(String(p.LONGITUDE != null ? p.LONGITUDE : p.longitude || '').replace(',', '.'));
+        return Number.isFinite(la) && Number.isFinite(lo);
+      })
+      .map((p) => {
+        const la = parseFloat(String(p.LATITUDE != null ? p.LATITUDE : p.latitude).replace(',', '.'));
+        const lo = parseFloat(String(p.LONGITUDE != null ? p.LONGITUDE : p.longitude).replace(',', '.'));
+        return [la, lo];
+      });
+
+    /** Distância em km (Haversine) — [lat, lon] */
+    function haversineKmRastreamento(a, b) {
+      const R = 6371;
+      const dLat = (b[0] - a[0]) * Math.PI / 180;
+      const dLon = (b[1] - a[1]) * Math.PI / 180;
+      const la = (a[0] * Math.PI) / 180;
+      const lb = (b[0] * Math.PI) / 180;
+      const h = Math.sin(dLat / 2) ** 2 + Math.cos(la) * Math.cos(lb) * Math.sin(dLon / 2) ** 2;
+      return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+    }
+
+    /**
+     * Remove pontos após “salto” impossível em sequência temporal (ex.: vários pings na América do Norte
+     * no meio de trajeto no Sul do Brasil). O OSRM público responde 400 se a polyline mistura continentes.
+     */
+    function filtrarCoordenadasGpsRastreamento(coords) {
+      if (!coords || coords.length < 2) return coords || [];
+      const maxSaltoKm = 400;
+      const out = [coords[0]];
+      for (let i = 1; i < coords.length; i++) {
+        const prev = out[out.length - 1];
+        const cur = coords[i];
+        const d = haversineKmRastreamento(prev, cur);
+        if (d > maxSaltoKm) {
+          _log(`[RASTREAMENTO] Ignorando ponto após salto de ~${Math.round(d)} km (GPS espúrio ou troca de ordem lat/lon).`);
+          continue;
+        }
+        out.push(cur);
+      }
+      return out.length >= 2 ? out : coords;
+    }
+
+    if (coordenadas.length >= 2) {
+      const antes = coordenadas.length;
+      coordenadas = filtrarCoordenadasGpsRastreamento(coordenadas);
+      if (coordenadas.length < antes) {
+        _log(`[RASTREAMENTO] Filtro anti-spike: ${antes} → ${coordenadas.length} pontos`);
+      }
+    }
     
     _log(`📍 [MAPA RASTREAMENTO] ${coordenadas.length} coordenadas válidas preparadas para rota`);
+
+    /** Proxy backend OSRM — rota planejada (cinza), restante (laranja) e já percorrido (verde nas vias). */
+    /** timeoutMs: o proxy no servidor pode tentar vários mirrors (até ~35s cada); 40s no cliente aborta antes da resposta. */
+    async function rotaGeometriaViaBackendProxy(coordsStr, timeoutMs) {
+      try {
+        const d = await fetchRotaOsrmViaBackend(coordsStr, timeoutMs != null ? timeoutMs : 110000);
+        const g = parsearRespostaRota(d);
+        if (g && g.length > 0) return g;
+      } catch (e) {
+        _log('[RASTREAMENTO] Proxy rota:', e && e.message);
+      }
+      return null;
+    }
     
     if (coordenadas.length === 0 && posicoesOrdenadas.length > 0) {
       console.error(`❌ [MAPA RASTREAMENTO] ERRO: ${posicoesOrdenadas.length} posições mas nenhuma coordenada válida!`);
@@ -12965,1190 +13998,398 @@
       _log(`✅ [MAPA RASTREAMENTO] Amostragem aplicada: ${coordenadas.length} pontos selecionados de ${totalOriginal} totais (redução de ${reducaoPercentual}%)`);
       
       // Atualizar overlay com informação de amostragem
-      showRastreamentoLoading('Processando Rota', `Amostragem aplicada: ${coordenadas.length} de ${totalOriginal} pontos. Calculando rota...`);
+      showRastreamentoLoading('Ajustando mapa', `Amostragem: ${coordenadas.length} de ${totalOriginal} pontos GPS.`);
     }
 
-    // Calcular rota real usando OSRM/ORS conectando TODOS os pontos GPS consecutivos
-    if (coordenadas.length > 0) {
+    /** Ordem por ORDEM/SEQUENCIA; só pontos com lat/lon válidos. */
+    function ordenarPontosRoteiroRastreamento(pontos) {
+      if (!Array.isArray(pontos)) return [];
+      return pontos
+        .filter(p => {
+          const lat = parseFloat(p.LATITUDE != null ? p.LATITUDE : p.latitude);
+          const lon = parseFloat(p.LONGITUDE != null ? p.LONGITUDE : p.longitude);
+          return !isNaN(lat) && !isNaN(lon) && lat !== 0 && lon !== 0;
+        })
+        .sort((a, b) => {
+          const oa = (a.ORDEM != null ? a.ORDEM : a.ordem) || 0;
+          const ob = (b.ORDEM != null ? b.ORDEM : b.ordem) || 0;
+          if (oa !== ob) return oa - ob;
+          const sa = (a.SEQUENCIA != null ? a.SEQUENCIA : a.sequencia) || 0;
+          const sb = (b.SEQUENCIA != null ? b.SEQUENCIA : b.sequencia) || 0;
+          return sa - sb;
+        })
+        .map(p => ({
+          lat: parseFloat(p.LATITUDE != null ? p.LATITUDE : p.latitude),
+          lon: parseFloat(p.LONGITUDE != null ? p.LONGITUDE : p.longitude)
+        }));
+    }
+
+    async function geometriaRotaCadastroRoteiro(pontos) {
+      if (!pontos || pontos.length < 2) return null;
+      const coordsStr = pontos.map(p => `${p.lon},${p.lat}`).join(';');
+      let geo = await rotaGeometriaViaBackendProxy(coordsStr, 110000);
+      if (geo && geo.length > 1) return geo;
+      const merged = [];
+      for (let i = 0; i < pontos.length - 1; i++) {
+        const seg = `${pontos[i].lon},${pontos[i].lat};${pontos[i + 1].lon},${pontos[i + 1].lat}`;
+        let leg = await rotaGeometriaViaBackendProxy(seg, 110000);
+        if (!leg || leg.length < 2) {
+          leg = [[pontos[i].lat, pontos[i].lon], [pontos[i + 1].lat, pontos[i + 1].lon]];
+        }
+        if (merged.length === 0) merged.push(...leg);
+        else merged.push(...leg.slice(1));
+      }
+      return merged.length > 1 ? merged : null;
+    }
+
+    let pontosRoteiroOrdenados = [];
+    if (dadosViagem && dadosViagem.IDROTEIRO) {
       try {
-        const config = window.MAP_CONFIG || {};
-        _log(`🛣️  Calculando rota usando servidor: ${config.osrmServer || 'padrão'}...`);
-        
-        // Atualizar overlay para mostrar progresso do cálculo de rota
-        showRastreamentoLoading('Calculando Rota', `Processando ${coordenadas.length} pontos GPS e calculando rota real...`);
-        
-        // Função auxiliar para construir URL de roteamento (suporta OSRM e ORS)
-        // Usar a função global construirUrlRota (definida acima no escopo)
-        
-        // Usar a função global parsearRespostaRota (definida acima no escopo)
-        
-        // Função para calcular distância entre dois pontos
-        function calcularDistancia(coord1, coord2) {
-          const R = 6371e3; // Raio da Terra em metros
-          const φ1 = coord1[0] * Math.PI / 180;
-          const φ2 = coord2[0] * Math.PI / 180;
-          const Δφ = (coord2[0] - coord1[0]) * Math.PI / 180;
-          const Δλ = (coord2[1] - coord1[1]) * Math.PI / 180;
-          const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-                    Math.cos(φ1) * Math.cos(φ2) *
-                    Math.sin(Δλ/2) * Math.sin(Δλ/2);
-          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-          return R * c; // Distância em metros
+        const pr = await fetch(`/api/roteiros/${dadosViagem.IDROTEIRO}/pontos`, { headers: getAuthHeaders() });
+        if (pr.ok) {
+          const raw = await pr.json();
+          pontosRoteiroOrdenados = ordenarPontosRoteiroRastreamento(raw);
+          _log(`[RASTREAMENTO] Roteiro ${dadosViagem.IDROTEIRO}: ${pontosRoteiroOrdenados.length} paradas com coordenadas`);
         }
-        
-        // Filtrar pontos muito próximos e fazer amostragem inteligente para performance
-        let pontosFiltrados = [coordenadas[0]];
-        for (let i = 1; i < coordenadas.length; i++) {
-          const distancia = calcularDistancia(pontosFiltrados[pontosFiltrados.length - 1], coordenadas[i]);
-          if (distancia >= 200) { // Aumentar para 200 metros (mais agressivo)
-            pontosFiltrados.push(coordenadas[i]);
-          }
-        }
-        // Sempre incluir último ponto
-        if (pontosFiltrados[pontosFiltrados.length - 1] !== coordenadas[coordenadas.length - 1]) {
-          pontosFiltrados.push(coordenadas[coordenadas.length - 1]);
-        }
-        
-        // Logs removidos para reduzir verbosidade
-        
-        // NÃO fazer amostragem - usar TODOS os pontos filtrados para garantir rota completa
-        let pontosParaRota = pontosFiltrados;
-        
-        // Calcular rota conectando pontos consecutivos em pares (mais preciso)
-        // Para muitos pontos, processar em segmentos maiores para ser mais rápido
-        let routeLatLngs = [];
-        const maxPontosPorSegmento = 15; // Aumentar para 15 pontos por segmento (mais rápido)
-        
-        if (pontosParaRota.length > maxPontosPorSegmento) {
-          _log(`   📊 Calculando rota em segmentos de ${maxPontosPorSegmento} pontos (total: ${pontosParaRota.length})...`);
-          
-          // Função auxiliar para obter rota de um segmento (com retry e servidor alternativo)
-          async function obterRotaSegmento(segmento, servidorPrincipal, servidorAlternativo = null) {
-            // IMPORTANTE: segmento já está na ordem correta (primeiro → último)
-            // Formato OSRM: lon,lat;lon,lat;...
-            const coordsStr = segmento.map(c => `${c[1]},${c[0]}`).join(';');
-            // Log removido
-            
-            // Tentar primeiro com servidor principal
-            for (const servidor of [servidorPrincipal, servidorAlternativo].filter(s => s)) {
-              const rotaUrl = construirUrlRota(servidor, coordsStr, 'simplified', 'geojson');
-              
-              // Verificar se URL está correto antes de fazer fetch
-              if ((rotaUrl.includes('186.250.92.131') || rotaUrl.includes('app.integrabrasil.com')) && rotaUrl.startsWith('https:')) {
-                console.error('❌ [RASTREAMENTO] ERRO CRÍTICO: URL ainda está em HTTPS!', rotaUrl);
-                continue; // Pular este servidor e tentar próximo
-              }
-              
-              try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 25000); // 25 segundos
-                
-                _log('🌐 [RASTREAMENTO] Fazendo fetch para:', rotaUrl.substring(0, 100) + '...');
-                
-                // Usar função helper que força HTTP
-                const response = await fetchForcandoHTTP(rotaUrl, {
-                  signal: controller.signal
-                });
-                clearTimeout(timeoutId);
-                
-                if (response.ok) {
-                  const segmentData = await response.json();
-                  const segmentGeometry = parsearRespostaRota(segmentData);
-                  if (segmentGeometry && segmentGeometry.length > 0) {
-                    // Verificar se a rota está na ordem correta (primeiro ponto do segmento deve ser próximo ao primeiro ponto da rota)
-                    const primeiroPontoSegmento = segmento[0];
-                    const primeiroPontoRota = segmentGeometry[0];
-                    const ultimoPontoSegmento = segmento[segmento.length - 1];
-                    const ultimoPontoRota = segmentGeometry[segmentGeometry.length - 1];
-                    
-                    const distInicio = Math.sqrt(
-                      Math.pow(primeiroPontoRota[0] - primeiroPontoSegmento[0], 2) + 
-                      Math.pow(primeiroPontoRota[1] - primeiroPontoSegmento[1], 2)
-                    );
-                    const distFim = Math.sqrt(
-                      Math.pow(ultimoPontoRota[0] - ultimoPontoSegmento[0], 2) + 
-                      Math.pow(ultimoPontoRota[1] - ultimoPontoSegmento[1], 2)
-                    );
-                    
-                    // Se a rota está invertida (último ponto da rota está próximo ao primeiro ponto do segmento)
-                    if (distInicio > 0.01 && distFim < 0.01) {
-                      console.warn(`   ⚠️  Rota invertida detectada! Revertendo ordem...`);
-                      return segmentGeometry.reverse();
-                    }
-                    
-                    _log(`   ✅ Rota segmento OK: primeiro [${primeiroPontoRota[0]}, ${primeiroPontoRota[1]}], último [${ultimoPontoRota[0]}, ${ultimoPontoRota[1]}]`);
-                    return segmentGeometry;
-                  }
-                }
-              } catch (err) {
-                if (err.name === 'AbortError') {
-                  console.warn(`   ⏱️  Timeout no servidor ${servidor === servidorPrincipal ? 'principal' : 'alternativo'}`);
-                } else {
-                  console.warn(`   Erro no servidor ${servidor === servidorPrincipal ? 'principal' : 'alternativo'}:`, err.message);
-                }
-                // Continuar para tentar próximo servidor ou método
-              }
-            }
-            
-            // Se ambos falharem, tentar calcular em pares menores (2 pontos por vez)
-            if (segmento.length > 2) {
-              _log(`   🔄 Tentando calcular em pares menores (${segmento.length} pontos → pares de 2)...`);
-              let rotaPares = [];
-              
-              for (let i = 0; i < segmento.length - 1; i++) {
-                const par = [segmento[i], segmento[i + 1]];
-                const parCoordsStr = par.map(c => `${c[1]},${c[0]}`).join(';');
-                
-                // Tentar ambos servidores para cada par
-                let parRota = null;
-                for (const servidor of [servidorPrincipal, servidorAlternativo].filter(s => s)) {
-                  try {
-                    const parUrl = construirUrlRota(servidor, parCoordsStr, 'simplified', 'geojson');
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s para pares
-                    
-                    const parResponse = await fetch(parUrl, { signal: controller.signal });
-                    clearTimeout(timeoutId);
-                    
-                    if (parResponse.ok) {
-                      const parData = await parResponse.json();
-                      parRota = parsearRespostaRota(parData);
-                      if (parRota && parRota.length > 0) {
-                        break; // Sucesso, sair do loop de servidores
-                      }
-                    }
-                  } catch (err) {
-                    // Continuar para próximo servidor
-                  }
-                }
-                
-                if (parRota && parRota.length > 0) {
-                  if (i === 0) {
-                    rotaPares.push(...parRota);
-                  } else {
-                    rotaPares.push(...parRota.slice(1)); // Pular primeiro para não duplicar
-                  }
-                  await new Promise(resolve => setTimeout(resolve, 50)); // Pequeno delay
-                } else {
-                  // Se falhar, adicionar linha reta para este par
-                  if (i === 0) {
-                    rotaPares.push(...par);
-                  } else {
-                    rotaPares.push(par[1]);
-                  }
-                }
-              }
-              
-              if (rotaPares.length > 0) {
-                _log(`   ✅ Rota calculada em pares (${rotaPares.length} pontos)`);
-                return rotaPares;
-              }
-            }
-            
-            return null;
-          }
-          
-          // Calcular rota segmento por segmento (conectar pontos consecutivos)
-          for (let i = 0; i < pontosParaRota.length - 1; i += maxPontosPorSegmento - 1) {
-            let segmento = pontosParaRota.slice(i, Math.min(i + maxPontosPorSegmento, pontosParaRota.length));
-            
-            // Verificar se há pontos muito distantes no segmento e dividir se necessário
-            let segmentoProcessado = false;
-            for (let j = 0; j < segmento.length - 1; j++) {
-              const dist = calcularDistancia(segmento[j], segmento[j + 1]);
-              if (dist > 100000) { // Mais de 100km entre pontos consecutivos = erro de dados
-                console.warn(`   ⚠️  Pontos muito distantes detectados (${(dist/1000).toFixed(1)}km) entre posições ${i+j} e ${i+j+1}`);
-                _log(`   🔄 Dividindo segmento em partes menores...`);
-                
-                // Processar primeira parte (até o ponto problemático)
-                if (j > 0) {
-                  const parte1 = segmento.slice(0, j + 1);
-                  if (parte1.length >= 2) {
-                    const parte1Route = await obterRotaSegmento(
-                      parte1,
-                      config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
-                      config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv'
-                    );
-                    
-                    if (parte1Route && parte1Route.length > 0) {
-                      if (i === 0 && routeLatLngs.length === 0) {
-                        routeLatLngs.push(...parte1Route);
-                      } else {
-                        routeLatLngs.push(...parte1Route.slice(1));
-                      }
-                      _log(`   ✅ Primeira parte do segmento processada (${parte1Route.length} pontos)`);
-                    } else {
-                      // Se falhar, calcular ponto a ponto para a primeira parte
-                      _log(`   🔄 Calculando primeira parte ponto a ponto...`);
-                        for (let k = 0; k < parte1.length - 1; k++) {
-                        const par = [parte1[k], parte1[k + 1]];
-                        const parCoordsStr = par.map(c => `${c[1]},${c[0]}`).join(';');
-                        
-                        let parRota = null;
-                        for (const servidor of [
-                          config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
-                          config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv'
-                        ].filter(s => s)) {
-                          try {
-                            const parUrl = construirUrlRota(servidor, parCoordsStr, 'simplified', 'geojson');
-                            const controller = new AbortController();
-                            const timeoutId = setTimeout(() => controller.abort(), 8000);
-                            
-                            const parResponse = await fetch(parUrl, { signal: controller.signal });
-                            clearTimeout(timeoutId);
-                            
-                            if (parResponse.ok) {
-                              const parData = await parResponse.json();
-                              parRota = parsearRespostaRota(parData);
-                              if (parRota && parRota.length > 0) {
-                                break;
-                              }
-                            }
-                          } catch (err) {
-                            // Continuar para próximo servidor
-                          }
-                        }
-                        
-                        if (parRota && parRota.length > 0) {
-                          if (i === 0 && routeLatLngs.length === 0 && k === 0) {
-                            routeLatLngs.push(...parRota);
-                          } else {
-                            routeLatLngs.push(...parRota.slice(1));
-                          }
-                        } else {
-                          // Linha reta apenas para este par
-                          if (i === 0 && routeLatLngs.length === 0 && k === 0) {
-                            routeLatLngs.push(...par);
-                          } else {
-                            routeLatLngs.push(par[1]);
-                          }
-                        }
-                        
-                        await new Promise(resolve => setTimeout(resolve, 30));
-                      }
-                      _log(`   ✅ Primeira parte calculada ponto a ponto`);
-                    }
-                  } else if (parte1.length === 1) {
-                    // Apenas um ponto, adicionar
-                    if (i === 0 && routeLatLngs.length === 0) {
-                      routeLatLngs.push(parte1[0]);
-                    }
-                  }
-                } else {
-                  // j === 0, então o primeiro ponto do segmento já está na rota ou precisa ser adicionado
-                  if (i === 0 && routeLatLngs.length === 0) {
-                    routeLatLngs.push(segmento[0]);
-                  }
-                }
-                
-                // Tentar calcular rota OSRM mesmo para saltos grandes (pode ser viagem longa)
-                _log(`   🔄 Tentando calcular rota OSRM para salto de ${(dist/1000).toFixed(1)}km...`);
-                const saltoPar = [segmento[j], segmento[j + 1]];
-                const saltoCoordsStr = saltoPar.map(c => `${c[1]},${c[0]}`).join(';');
-                
-                let saltoRota = null;
-                for (const servidor of [
-                  config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
-                  config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv'
-                ].filter(s => s)) {
-                  try {
-                    const saltoUrl = construirUrlRota(servidor, saltoCoordsStr, 'full', 'geojson');
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s para saltos grandes
-                    
-                    // Usar fetchForcandoHTTP para servidores próprios
-                    const servidoresProprios = ['186.250.92.131', 'app.integrabrasil.com', 'beta.integrabrasil.com'];
-                    const isServidorProprio = servidoresProprios.some(s => saltoUrl.includes(s));
-                    const saltoResponse = isServidorProprio 
-                      ? await fetchForcandoHTTP(saltoUrl, { signal: controller.signal })
-                      : await fetch(saltoUrl, { signal: controller.signal });
-                    clearTimeout(timeoutId);
-                    
-                    if (saltoResponse.ok) {
-                      const saltoData = await saltoResponse.json();
-                      saltoRota = parsearRespostaRota(saltoData);
-                      if (saltoRota && saltoRota.length > 0) {
-                        routeLatLngs.push(...saltoRota.slice(1)); // Adicionar rota completa
-                        _log(`   ✅ Rota calculada para salto de ${(dist/1000).toFixed(1)}km (${saltoRota.length} pontos)`);
-                        break;
-                      }
-                    }
-                  } catch (err) {
-                    // Continuar para próximo servidor
-                  }
-                }
-                
-                // Se falhar, apenas logar - NÃO adicionar linha reta
-                if (!saltoRota) {
-                  console.error(`   ❌ ERRO: Não foi possível calcular rota para salto de ${(dist/1000).toFixed(1)}km`);
-                  // Pular este salto e continuar
-                }
-                
-                // Processar segunda parte (após o ponto problemático)
-                if (j + 1 < segmento.length - 1) {
-                  const parte2 = segmento.slice(j + 1);
-                  if (parte2.length >= 2) {
-                    const parte2Route = await obterRotaSegmento(
-                      parte2,
-                      config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
-                      config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv'
-                    );
-                    
-                    if (parte2Route && parte2Route.length > 0) {
-                      routeLatLngs.push(...parte2Route.slice(1));
-                      _log(`   ✅ Segunda parte do segmento processada (${parte2Route.length} pontos)`);
-                    } else {
-                      // Se falhar, calcular ponto a ponto para a segunda parte
-                      _log(`   🔄 Calculando segunda parte ponto a ponto...`);
-                      for (let k = 0; k < parte2.length - 1; k++) {
-                        const par = [parte2[k], parte2[k + 1]];
-                        const parCoordsStr = par.map(c => `${c[1]},${c[0]}`).join(';');
-                        
-                        let parRota = null;
-                        for (const servidor of [
-                          config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
-                          config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv'
-                        ].filter(s => s)) {
-                          try {
-                            const parUrl = construirUrlRota(servidor, parCoordsStr, 'simplified', 'geojson');
-                            const controller = new AbortController();
-                            const timeoutId = setTimeout(() => controller.abort(), 8000);
-                            
-                            const parResponse = await fetch(parUrl, { signal: controller.signal });
-                            clearTimeout(timeoutId);
-                            
-                            if (parResponse.ok) {
-                              const parData = await parResponse.json();
-                              parRota = parsearRespostaRota(parData);
-                              if (parRota && parRota.length > 0) {
-                                break;
-                              }
-                            }
-                          } catch (err) {
-                            // Continuar para próximo servidor
-                          }
-                        }
-                        
-                        if (parRota && parRota.length > 0) {
-                          routeLatLngs.push(...parRota.slice(1));
-                        } else {
-                          // Linha reta apenas para este par
-                          routeLatLngs.push(par[1]);
-                        }
-                        
-                        await new Promise(resolve => setTimeout(resolve, 30));
-                      }
-                      _log(`   ✅ Segunda parte calculada ponto a ponto`);
-                    }
-                  } else if (parte2.length === 1) {
-                    // Apenas um ponto restante, adicionar
-                    routeLatLngs.push(parte2[0]);
-                  }
-                }
-                
-                segmentoProcessado = true;
-                break;
-              }
-            }
-            
-            // Se não houve problema de distância, processar segmento normalmente
-            if (!segmentoProcessado && segmento.length >= 2) {
-              const segmentRoute = await obterRotaSegmento(
-                segmento, 
-                config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
-                config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv'
-              );
-              
-              if (segmentRoute && segmentRoute.length > 0) {
-                if (i === 0) {
-                  routeLatLngs.push(...segmentRoute);
-                } else {
-                  // Pular primeiro ponto para não duplicar na junção
-                  routeLatLngs.push(...segmentRoute.slice(1));
-                }
-                _log(`   ✅ Segmento ${Math.floor(i / (maxPontosPorSegmento - 1)) + 1} processado (${segmentRoute.length} pontos na rota)`);
-              } else {
-                // Se OSRM falhar completamente, calcular ponto a ponto (mais lento mas garante rota)
-                console.warn(`   ⚠️  Segmento ${Math.floor(i / (maxPontosPorSegmento - 1)) + 1} falhou, calculando ponto a ponto...`);
-                let rotaPontoAPonto = [];
-                
-                for (let j = 0; j < segmento.length - 1; j++) {
-                  const par = [segmento[j], segmento[j + 1]];
-                  const parCoordsStr = par.map(c => `${c[1]},${c[0]}`).join(';');
-                  
-                  // Tentar ambos servidores para cada par
-                  let parRota = null;
-                  for (const servidor of [
-                    config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
-                    config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv'
-                  ].filter(s => s)) {
-                    try {
-                      const parUrl = construirUrlRota(servidor, parCoordsStr, 'simplified', 'geojson');
-                      const controller = new AbortController();
-                      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s para pares
-                      
-                      const parResponse = await fetch(parUrl, { signal: controller.signal });
-                      clearTimeout(timeoutId);
-                      
-                      if (parResponse.ok) {
-                        const parData = await parResponse.json();
-                        parRota = parsearRespostaRota(parData);
-                        if (parRota && parRota.length > 0) {
-                          break; // Sucesso, sair do loop
-                        }
-                      }
-                    } catch (err) {
-                      // Continuar para próximo servidor
-                    }
-                  }
-                  
-                  if (parRota && parRota.length > 0) {
-                    if (j === 0 && i === 0) {
-                      rotaPontoAPonto.push(...parRota);
-                    } else {
-                      rotaPontoAPonto.push(...parRota.slice(1));
-                    }
-                  } else {
-                    // Tentar com overview=full como último recurso
-                    console.warn(`   ⚠️  Tentando par ${j + 1} com overview=full...`);
-                    for (const servidor of [
-                      config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
-                      config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv'
-                    ].filter(s => s)) {
-                      try {
-                        const parUrlFull = construirUrlRota(servidor, parCoordsStr, 'full', 'geojson');
-                        const controllerFull = new AbortController();
-                        const timeoutIdFull = setTimeout(() => controllerFull.abort(), 20000);
-                        
-                        const parResponseFull = await fetch(parUrlFull, { signal: controllerFull.signal });
-                        clearTimeout(timeoutIdFull);
-                        
-                        if (parResponseFull.ok) {
-                          const parDataFull = await parResponseFull.json();
-                          parRota = parsearRespostaRota(parDataFull);
-                          if (parRota && parRota.length > 0) {
-                            break;
-                          }
-                        }
-                      } catch (err) {
-                        // Continuar
-                      }
-                    }
-                    
-                    if (parRota && parRota.length > 0) {
-                      if (j === 0 && i === 0) {
-                        rotaPontoAPonto.push(...parRota);
-                      } else {
-                        rotaPontoAPonto.push(...parRota.slice(1));
-                      }
-                    } else {
-                      console.error(`   ❌ ERRO: Não foi possível calcular rota para par ${j + 1} após todas tentativas`);
-                      // NÃO adicionar linha reta - pular este par
-                    }
-                  }
-                  
-                  await new Promise(resolve => setTimeout(resolve, 30)); // Delay menor
-                }
-                
-                if (rotaPontoAPonto.length > 0) {
-                  if (i === 0) {
-                    routeLatLngs.push(...rotaPontoAPonto);
-                  } else {
-                    routeLatLngs.push(...rotaPontoAPonto.slice(1));
-                  }
-                  _log(`   ✅ Segmento ${Math.floor(i / (maxPontosPorSegmento - 1)) + 1} calculado ponto a ponto (${rotaPontoAPonto.length} pontos)`);
-                }
-              }
-            } else if (!segmentoProcessado && segmento.length >= 1) {
-              // Segmento válido mas com apenas 1 ponto ou não processado, adicionar o ponto
-              if (i === 0) {
-                routeLatLngs.push(...segmento);
-              } else {
-                routeLatLngs.push(...segmento.slice(1));
-              }
-            }
-            
-            // Delay menor entre segmentos (mais rápido)
-            if (i + maxPontosPorSegmento < pontosParaRota.length - 1) {
-              await new Promise(resolve => setTimeout(resolve, 50)); // Reduzir delay
-              // Mostrar progresso
-              const progresso = Math.min(Math.round(((i + maxPontosPorSegmento) / pontosParaRota.length) * 100), 100);
-              // Log removido
-            }
-          }
-          
-          // Adicionar linha da rota seguindo as estradas
-          if (routeLatLngs.length > 0) {
-            // Remover linha anterior se existir
-            if (linhaRastreamento) {
-              mapaRastreamento.removeLayer(linhaRastreamento);
-            }
-            
-            // VERIFICAR SE A ROTA ESTÁ NA ORDEM CORRETA (primeiro → último)
-            const primeiraPosicaoGPS = coordenadas[0];
-            const ultimaPosicaoGPS = coordenadas[coordenadas.length - 1];
-            const primeiroPontoRota = routeLatLngs[0];
-            const ultimoPontoRota = routeLatLngs[routeLatLngs.length - 1];
-            
-            const distInicio = Math.sqrt(
-              Math.pow(primeiroPontoRota[0] - primeiraPosicaoGPS[0], 2) + 
-              Math.pow(primeiroPontoRota[1] - primeiraPosicaoGPS[1], 2)
-            );
-            const distFim = Math.sqrt(
-              Math.pow(ultimoPontoRota[0] - ultimaPosicaoGPS[0], 2) + 
-              Math.pow(ultimoPontoRota[1] - ultimaPosicaoGPS[1], 2)
-            );
-            
-            // Se a rota está invertida (último ponto da rota está próximo ao primeiro GPS)
-            if (distInicio > 0.01 && distFim < 0.01) {
-              console.warn(`⚠️  ROTA INVERTIDA DETECTADA! Revertendo ordem da rota completa...`);
-              routeLatLngs.reverse();
-              // Recalcular após inverter
-              const primeiroPontoRotaApos = routeLatLngs[0];
-              const ultimoPontoRotaApos = routeLatLngs[routeLatLngs.length - 1];
-              _log(`✅ Rota revertida: primeiro [${primeiroPontoRotaApos[0]}, ${primeiroPontoRotaApos[1]}], último [${ultimoPontoRotaApos[0]}, ${ultimoPontoRotaApos[1]}]`);
-            }
-            
-            // Garantir que a linha verde termine EXATAMENTE na última posição GPS
-            const distanciaFinal = Math.sqrt(
-              Math.pow(routeLatLngs[routeLatLngs.length - 1][0] - ultimaPosicaoGPS[0], 2) + 
-              Math.pow(routeLatLngs[routeLatLngs.length - 1][1] - ultimaPosicaoGPS[1], 2)
-            );
-            
-            // Se não estiver exatamente na última posição, adicionar/ajustar
-            if (distanciaFinal > 0.0001) { // ~11 metros de diferença
-              routeLatLngs[routeLatLngs.length - 1] = ultimaPosicaoGPS;
-              _log(`🟢 Ajustando fim da rota verde para última posição GPS exata`);
-            }
-            
-            // Adicionar rota OSRM (VERDE - pontos já percorridos)
-            linhaRastreamento = L.polyline(routeLatLngs, {
-              color: '#27ae60', // Verde para pontos já percorridos
-              weight: 4,
-              opacity: 0.8
-            }).addTo(mapaRastreamento);
-            _log(`✅ Rota OSRM calculada (verde - pontos já percorridos)! (${routeLatLngs.length} pontos conectando ${pontosParaRota.length} posições GPS)`);
-            _log(`📍 Primeiro ponto da rota verde: [${routeLatLngs[0][0]}, ${routeLatLngs[0][1]}]`);
-            _log(`📍 Último ponto da rota verde: [${routeLatLngs[routeLatLngs.length - 1][0]}, ${routeLatLngs[routeLatLngs.length - 1][1]}]`);
-            
-            // Atualizar overlay para mostrar que rota foi calculada
-            showRastreamentoLoading('Finalizando', 'Rota calculada! Ajustando visualização do mapa...');
-          } else {
-            // Se não conseguiu calcular rota, tentar calcular ponto a ponto como último recurso
-            console.warn('⚠️  Rota em segmentos falhou, tentando calcular ponto a ponto...');
-            let rotaPontoAPonto = [];
-            
-            for (let i = 0; i < pontosParaRota.length - 1; i++) {
-              const par = [pontosParaRota[i], pontosParaRota[i + 1]];
-              const parCoordsStr = par.map(c => `${c[1]},${c[0]}`).join(';');
-              
-              let parRota = null;
-              for (const servidor of [
-                config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
-                config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv'
-              ].filter(s => s)) {
-                try {
-                  const parUrl = construirUrlRota(servidor, parCoordsStr, 'simplified', 'geojson');
-                  const controller = new AbortController();
-                  const timeoutId = setTimeout(() => controller.abort(), 15000);
-                  
-                  const parResponse = await fetch(parUrl, { signal: controller.signal });
-                  clearTimeout(timeoutId);
-                  
-                  if (parResponse.ok) {
-                    const parData = await parResponse.json();
-                    parRota = parsearRespostaRota(parData);
-                    if (parRota && parRota.length > 0) {
-                      break;
-                    }
-                  }
-                } catch (err) {
-                  // Continuar
-                }
-              }
-              
-              if (parRota && parRota.length > 0) {
-                if (i === 0) {
-                  rotaPontoAPonto.push(...parRota);
-                } else {
-                  rotaPontoAPonto.push(...parRota.slice(1));
-                }
-              } else {
-                console.error(`   ❌ Não foi possível calcular rota para par ${i + 1}/${pontosParaRota.length - 1}`);
-              }
-              
-              await new Promise(resolve => setTimeout(resolve, 100));
-            }
-            
-            if (rotaPontoAPonto.length > 0) {
-              // VERIFICAR SE A ROTA ESTÁ NA ORDEM CORRETA (primeiro → último)
-              const primeiraPosicaoGPS = coordenadas[0];
-              const ultimaPosicaoGPS = coordenadas[coordenadas.length - 1];
-              const primeiroPontoRota = rotaPontoAPonto[0];
-              const ultimoPontoRota = rotaPontoAPonto[rotaPontoAPonto.length - 1];
-              
-              const distInicio = Math.sqrt(
-                Math.pow(primeiroPontoRota[0] - primeiraPosicaoGPS[0], 2) + 
-                Math.pow(primeiroPontoRota[1] - primeiraPosicaoGPS[1], 2)
-              );
-              const distFim = Math.sqrt(
-                Math.pow(ultimoPontoRota[0] - ultimaPosicaoGPS[0], 2) + 
-                Math.pow(ultimoPontoRota[1] - ultimaPosicaoGPS[1], 2)
-              );
-              
-              // Se a rota está invertida, reverter
-              if (distInicio > 0.01 && distFim < 0.01) {
-                console.warn(`⚠️  ROTA INVERTIDA DETECTADA (ponto a ponto)! Revertendo ordem...`);
-                rotaPontoAPonto.reverse();
-              }
-              
-              // Garantir que a linha verde termine EXATAMENTE na última posição GPS
-              const distanciaFinal = Math.sqrt(
-                Math.pow(rotaPontoAPonto[rotaPontoAPonto.length - 1][0] - ultimaPosicaoGPS[0], 2) + 
-                Math.pow(rotaPontoAPonto[rotaPontoAPonto.length - 1][1] - ultimaPosicaoGPS[1], 2)
-              );
-              
-              if (distanciaFinal > 0.0001) {
-                rotaPontoAPonto[rotaPontoAPonto.length - 1] = ultimaPosicaoGPS;
-                _log(`🟢 Ajustando fim da rota verde (ponto a ponto) para última posição GPS exata`);
-              }
-              
-              linhaRastreamento = L.polyline(rotaPontoAPonto, {
-                color: '#27ae60', // Verde para pontos já percorridos
-                weight: 4,
-                opacity: 0.8
-              }).addTo(mapaRastreamento);
-              _log(`✅ Rota calculada ponto a ponto (verde - pontos já percorridos)! (${rotaPontoAPonto.length} pontos)`);
-            } else {
-              console.error('❌ ERRO: Não foi possível calcular rota pelas estradas. Verifique conexão com servidor OSRM/ORS.');
-            }
-          }
-        } else {
-          // Poucos pontos: calcular rota completa de uma vez conectando todos os pontos
-          const coordsStr = pontosParaRota.map(c => `${c[1]},${c[0]}`).join(';');
-          const rotaUrl = construirUrlRota(
-            config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
-            coordsStr,
-            'simplified',
-            'geojson'
-          );
-          
-          _log(`   🛣️  Calculando rota completa para ${pontosParaRota.length} pontos...`);
-          
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 30000);
-          
-            const osrmResponse = await fetchForcandoHTTP(rotaUrl, {
-              signal: controller.signal
-            });
-          
-          clearTimeout(timeoutId);
-
-          if (osrmResponse.ok) {
-            const osrmData = await osrmResponse.json();
-            const routeGeometry = parsearRespostaRota(osrmData);
-            if (routeGeometry && routeGeometry.length > 0) {
-              // routeGeometry já está no formato [lat, lon] da função parsearRespostaRota
-              let routeCoords = routeGeometry;
-
-              // VERIFICAR SE A ROTA ESTÁ NA ORDEM CORRETA (primeiro → último)
-              const primeiraPosicaoGPS = coordenadas[0];
-              const ultimaPosicaoGPS = coordenadas[coordenadas.length - 1];
-              const primeiroPontoRota = routeCoords[0];
-              const ultimoPontoRota = routeCoords[routeCoords.length - 1];
-              
-              const distInicio = Math.sqrt(
-                Math.pow(primeiroPontoRota[0] - primeiraPosicaoGPS[0], 2) + 
-                Math.pow(primeiroPontoRota[1] - primeiraPosicaoGPS[1], 2)
-              );
-              const distFim = Math.sqrt(
-                Math.pow(ultimoPontoRota[0] - ultimaPosicaoGPS[0], 2) + 
-                Math.pow(ultimoPontoRota[1] - ultimaPosicaoGPS[1], 2)
-              );
-              
-              // Se a rota está invertida, reverter
-              if (distInicio > 0.01 && distFim < 0.01) {
-                console.warn(`⚠️  ROTA INVERTIDA DETECTADA (poucos pontos)! Revertendo ordem...`);
-                routeCoords = routeCoords.reverse();
-              }
-              
-              // Garantir que a linha verde termine EXATAMENTE na última posição GPS
-              const distanciaFinal = Math.sqrt(
-                Math.pow(routeCoords[routeCoords.length - 1][0] - ultimaPosicaoGPS[0], 2) + 
-                Math.pow(routeCoords[routeCoords.length - 1][1] - ultimaPosicaoGPS[1], 2)
-              );
-              
-              if (distanciaFinal > 0.0001) {
-                routeCoords[routeCoords.length - 1] = ultimaPosicaoGPS;
-                _log(`🟢 Ajustando fim da rota verde (poucos pontos) para última posição GPS exata`);
-              }
-
-              // Adicionar linha da rota seguindo as estradas
-              if (linhaRastreamento) {
-                mapaRastreamento.removeLayer(linhaRastreamento);
-              }
-              linhaRastreamento = L.polyline(routeCoords, {
-                color: '#27ae60', // Verde para pontos já percorridos
-                weight: 4,
-                opacity: 0.8
-              }).addTo(mapaRastreamento);
-              
-              _log(`✅ Rota OSRM calculada! (${routeCoords.length} pontos conectando ${pontosParaRota.length} posições GPS)`);
-            } else {
-              // Tentar com servidor alternativo ou overview=full
-              console.warn('⚠️  OSRM não retornou rota, tentando servidor alternativo...');
-              const rotaUrlAlt = construirUrlRota(
-                config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv',
-                coordsStr,
-                'full',
-                'geojson'
-              );
-              
-              try {
-                const controllerAlt = new AbortController();
-                const timeoutIdAlt = setTimeout(() => controllerAlt.abort(), 30000);
-                const osrmResponseAlt = await fetchForcandoHTTP(rotaUrlAlt, { signal: controllerAlt.signal });
-                clearTimeout(timeoutIdAlt);
-                
-                if (osrmResponseAlt.ok) {
-                  const osrmDataAlt = await osrmResponseAlt.json();
-                  const routeGeometryAlt = parsearRespostaRota(osrmDataAlt);
-                  if (routeGeometryAlt && routeGeometryAlt.length > 0) {
-                    // Garantir que a linha verde termine EXATAMENTE na última posição GPS
-                    const ultimaPosicaoGPS = coordenadas[coordenadas.length - 1];
-                    const ultimoPontoRota = routeGeometryAlt[routeGeometryAlt.length - 1];
-                    
-                    const distanciaFinal = Math.sqrt(
-                      Math.pow(ultimoPontoRota[0] - ultimaPosicaoGPS[0], 2) + 
-                      Math.pow(ultimoPontoRota[1] - ultimaPosicaoGPS[1], 2)
-                    );
-                    
-                    if (distanciaFinal > 0.0001) {
-                      routeGeometryAlt[routeGeometryAlt.length - 1] = ultimaPosicaoGPS;
-                      _log(`🟢 Ajustando fim da rota verde (servidor alt) para última posição GPS exata`);
-                    }
-                    
-                    linhaRastreamento = L.polyline(routeGeometryAlt, {
-                      color: '#27ae60', // Verde para pontos já percorridos
-                      weight: 4,
-                      opacity: 0.8
-                    }).addTo(mapaRastreamento);
-                    _log(`✅ Rota calculada com servidor alternativo (verde - pontos já percorridos)! (${routeGeometryAlt.length} pontos)`);
-                  } else {
-                    console.error('❌ ERRO: Servidor alternativo também não retornou rota válida');
-                  }
-                } else {
-                  console.error('❌ ERRO: Servidor alternativo retornou erro');
-                }
-              } catch (err) {
-                console.error('❌ ERRO: Falha ao tentar servidor alternativo:', err);
-              }
-            }
-          } else {
-            // Tentar servidor alternativo se o principal falhou
-            console.warn('⚠️  Erro ao calcular rota OSRM, tentando servidor alternativo...');
-            const rotaUrlAlt = construirUrlRota(
-              config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv',
-              coordsStr,
-              'full',
-              'geojson'
-            );
-            
-            try {
-              const controllerAlt = new AbortController();
-              const timeoutIdAlt = setTimeout(() => controllerAlt.abort(), 30000);
-              const osrmResponseAlt = await fetchForcandoHTTP(rotaUrlAlt, { signal: controllerAlt.signal });
-              clearTimeout(timeoutIdAlt);
-              
-              if (osrmResponseAlt.ok) {
-                const osrmDataAlt = await osrmResponseAlt.json();
-              const routeGeometryAlt = parsearRespostaRota(osrmDataAlt);
-              if (routeGeometryAlt && routeGeometryAlt.length > 0) {
-                let routeCoordsAltCatch = routeGeometryAlt;
-                
-                // VERIFICAR SE A ROTA ESTÁ NA ORDEM CORRETA (primeiro → último)
-                const primeiraPosicaoGPS = coordenadas[0];
-                const ultimaPosicaoGPS = coordenadas[coordenadas.length - 1];
-                const primeiroPontoRota = routeCoordsAltCatch[0];
-                const ultimoPontoRota = routeCoordsAltCatch[routeCoordsAltCatch.length - 1];
-                
-                const distInicio = Math.sqrt(
-                  Math.pow(primeiroPontoRota[0] - primeiraPosicaoGPS[0], 2) + 
-                  Math.pow(primeiroPontoRota[1] - primeiraPosicaoGPS[1], 2)
-                );
-                const distFim = Math.sqrt(
-                  Math.pow(ultimoPontoRota[0] - ultimaPosicaoGPS[0], 2) + 
-                  Math.pow(ultimoPontoRota[1] - ultimaPosicaoGPS[1], 2)
-                );
-                
-                // Se a rota está invertida, reverter
-                if (distInicio > 0.01 && distFim < 0.01) {
-                  console.warn(`⚠️  ROTA INVERTIDA DETECTADA (servidor alt - catch)! Revertendo ordem...`);
-                  routeCoordsAltCatch = routeCoordsAltCatch.reverse();
-                }
-                
-                // Garantir que a linha verde termine EXATAMENTE na última posição GPS
-                const distanciaFinal = Math.sqrt(
-                  Math.pow(routeCoordsAltCatch[routeCoordsAltCatch.length - 1][0] - ultimaPosicaoGPS[0], 2) + 
-                  Math.pow(routeCoordsAltCatch[routeCoordsAltCatch.length - 1][1] - ultimaPosicaoGPS[1], 2)
-                );
-                
-                if (distanciaFinal > 0.0001) {
-                  routeCoordsAltCatch[routeCoordsAltCatch.length - 1] = ultimaPosicaoGPS;
-                  _log(`🟢 Ajustando fim da rota verde (servidor alt - catch) para última posição GPS exata`);
-                }
-                
-                linhaRastreamento = L.polyline(routeCoordsAltCatch, {
-                  color: '#27ae60', // Verde para pontos já percorridos
-                  weight: 4,
-                  opacity: 0.8
-                }).addTo(mapaRastreamento);
-                _log(`✅ Rota calculada com servidor alternativo (verde - pontos já percorridos)! (${routeCoordsAltCatch.length} pontos)`);
-                } else {
-                  console.error('❌ ERRO: Servidor alternativo não retornou rota válida');
-                }
-              } else {
-                console.error('❌ ERRO: Servidor alternativo retornou erro HTTP');
-              }
-            } catch (err) {
-              console.error('❌ ERRO: Falha ao tentar servidor alternativo:', err);
-            }
-          }
-        }
-      } catch (osrmErr) {
-        console.error('❌ ERRO CRÍTICO ao calcular rota OSRM:', osrmErr);
-        console.error('   Verifique se o servidor de roteamento está acessível');
+      } catch (e) {
+        _log('[RASTREAMENTO] Pontos do roteiro:', e && e.message);
       }
     }
 
-    // Buscar e exibir origem/destino e rota planejada
+    /** Contorno escuro + linha viva (lê melhor sobre o mapa). */
+    function addPolylineDuplaRastreamento(latlngs, estilo) {
+      const g = L.layerGroup();
+      const base = {
+        lineJoin: 'round',
+        lineCap: 'round',
+        interactive: false,
+        dashArray: estilo.dashArray || null
+      };
+      L.polyline(latlngs, {
+        ...base,
+        color: estilo.outline || '#0f172a',
+        weight: (estilo.weight || 5) + 4,
+        opacity: 0.88
+      }).addTo(g);
+      L.polyline(latlngs, {
+        ...base,
+        color: estilo.color,
+        weight: estilo.weight || 5,
+        opacity: estilo.opacity != null ? estilo.opacity : 1
+      }).addTo(g);
+      g.addTo(mapaRastreamento);
+      return g;
+    }
+
+    /** Paradas do roteiro ainda à frente da última posição GPS. */
+    function waypointsRestantesAposGps(pontosRoteiro, ultimaLat, ultimaLon) {
+      if (!pontosRoteiro || pontosRoteiro.length < 1) return [];
+      let bestIdx = 0;
+      let bestD = Infinity;
+      for (let i = 0; i < pontosRoteiro.length; i++) {
+        const d = haversineKmRastreamento(
+          [ultimaLat, ultimaLon],
+          [pontosRoteiro[i].lat, pontosRoteiro[i].lon]
+        );
+        if (d < bestD) {
+          bestD = d;
+          bestIdx = i;
+        }
+      }
+      // < 2 km do ponto → considera visitado e parte do próximo
+      const start = bestD < 2 ? bestIdx + 1 : bestIdx;
+      return pontosRoteiro.slice(Math.min(start, pontosRoteiro.length));
+    }
+
+    // 1) Rota cadastrada (planejada) — primeiro, por baixo
+    // 2) O que ainda falta — laranja
+    // 3) Já percorrido (GPS) — verde por cima
     let coordsOrigem = null;
     let coordsDestino = null;
     let todasCoordenadas = [...coordenadas];
 
-    if (dadosViagem && dadosViagem.ORIGEM_CIDADE && dadosViagem.DESTINO_CIDADE) {
+    const podeRoteiroMapa = pontosRoteiroOrdenados && pontosRoteiroOrdenados.length >= 2;
+    const podeGeocodeCidades = dadosViagem && dadosViagem.ORIGEM_CIDADE && dadosViagem.DESTINO_CIDADE;
+
+    if (dadosViagem && (podeRoteiroMapa || podeGeocodeCidades)) {
       try {
-        // Limpar espaços dos estados (pode vir "PR " em vez de "PR")
-        const origemEstado = (dadosViagem.ORIGEM_ESTADO || '').trim();
-        const destinoEstado = (dadosViagem.DESTINO_ESTADO || '').trim();
-        const origemCidade = (dadosViagem.ORIGEM_CIDADE || '').trim();
-        const destinoCidade = (dadosViagem.DESTINO_CIDADE || '').trim();
-        
-        _log(`🗺️ [MAPA RASTREAMENTO] Valores limpos:`, {
-          origem: `${origemCidade}/${origemEstado}`,
-          destino: `${destinoCidade}/${destinoEstado}`
-        });
-        
-        // Obter coordenadas de origem e destino
-        const [coordsOrigemTemp, coordsDestinoTemp] = await Promise.all([
-          obterCoordenadasCidade(origemCidade, origemEstado),
-          obterCoordenadasCidade(destinoCidade, destinoEstado)
-        ]);
-
-        if (coordsOrigemTemp && coordsDestinoTemp) {
-          coordsOrigem = coordsOrigemTemp;
-          coordsDestino = coordsDestinoTemp;
-
-          // Adicionar origem e destino às coordenadas para ajustar o zoom
+        if (podeRoteiroMapa) {
+          coordsOrigem = { lat: pontosRoteiroOrdenados[0].lat, lon: pontosRoteiroOrdenados[0].lon };
+          const ultP = pontosRoteiroOrdenados[pontosRoteiroOrdenados.length - 1];
+          coordsDestino = { lat: ultP.lat, lon: ultP.lon };
           todasCoordenadas.push([coordsOrigem.lat, coordsOrigem.lon]);
           todasCoordenadas.push([coordsDestino.lat, coordsDestino.lon]);
 
-          // Calcular rota real usando OSRM/ORS
-          try {
-            const coordsStr = `${coordsOrigem.lon},${coordsOrigem.lat};${coordsDestino.lon},${coordsDestino.lat}`;
-            const rotaUrl = construirUrlRota(
-              config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
-              coordsStr,
-              'full',
-              'geojson'
-            );
-            const osrmResponse = await fetchForcandoHTTP(rotaUrl, {
-              signal: AbortSignal.timeout(15000)
+          let routeCoords = await geometriaRotaCadastroRoteiro(pontosRoteiroOrdenados);
+          if (!routeCoords || routeCoords.length < 2) {
+            routeCoords = pontosRoteiroOrdenados.map((p) => [p.lat, p.lon]);
+          }
+          if (routeCoords && routeCoords.length > 1) {
+            linhaRotaPlanejada = addPolylineDuplaRastreamento(routeCoords, {
+              color: '#64748b',
+              outline: '#1e293b',
+              weight: 3,
+              opacity: 0.55,
+              dashArray: '10, 8'
             });
+            _log(`✅ [MAPA RASTREAMENTO] Rota cadastrada (${routeCoords.length} pts)`);
+          }
 
-            if (osrmResponse.ok) {
-              const osrmData = await osrmResponse.json();
-              const routeCoords = parsearRespostaRota(osrmData);
-              if (routeCoords && routeCoords.length > 0) {
-                _log(`✅ [MAPA RASTREAMENTO] Rota planejada calculada com ${routeCoords.length} pontos`);
-
-                // Adicionar linha da rota planejada (origem -> destino)
-                linhaRotaPlanejada = L.polyline(routeCoords, {
-                  color: '#95a5a6',
-                  weight: 3,
-                  opacity: 0.6,
-                  dashArray: '10, 10'
-                }).addTo(mapaRastreamento);
-                _log(`✅ [MAPA RASTREAMENTO] Linha da rota planejada adicionada ao mapa`);
-              } else {
-                console.warn(`⚠️ [MAPA RASTREAMENTO] Rota OSRM retornou 0 pontos`);
-              }
-            } else {
-              console.warn(`⚠️ [MAPA RASTREAMENTO] Erro ao calcular rota OSRM: ${osrmResponse.status}`);
-            }
-          } catch (osrmErr) {
-            console.warn('⚠️ [MAPA RASTREAMENTO] Erro ao calcular rota OSRM:', osrmErr);
-            // Se OSRM falhar, desenhar linha reta como fallback
-            _log(`🔄 [MAPA RASTREAMENTO] Desenhando linha reta como fallback`);
-            linhaRotaPlanejada = L.polyline(
-              [[coordsOrigem.lat, coordsOrigem.lon], [coordsDestino.lat, coordsDestino.lon]],
-              {
-                color: '#95a5a6',
-                weight: 3,
-                opacity: 0.6,
-                dashArray: '10, 10'
-              }
-            ).addTo(mapaRastreamento);
-            _log(`✅ [MAPA RASTREAMENTO] Linha reta (fallback) adicionada ao mapa`);
+          // Marcadores numerados das paradas do roteiro (sequência)
+          if (window.AtlasRoteiroMapMarkers && typeof window.AtlasRoteiroMapMarkers.addPontosMarkers === 'function') {
+            const ptsAtlas = pontosRoteiroOrdenados.map((p, i) => ({
+              LATITUDE: p.lat,
+              LONGITUDE: p.lon,
+              DSLOCAL: `Parada ${i + 1}`,
+              DSPOSICAO: '',
+              TPLOCAL: i === 0 ? 'O' : i === pontosRoteiroOrdenados.length - 1 ? 'D' : 'P',
+              ORDEM: i + 1
+            }));
+            const resM = window.AtlasRoteiroMapMarkers.addPontosMarkers(mapaRastreamento, ptsAtlas);
+            marcadoresParadaRoteiroRastreamento = resM.markers || [];
+          } else {
+            pontosRoteiroOrdenados.forEach((p, i) => {
+              const isO = i === 0;
+              const isD = i === pontosRoteiroOrdenados.length - 1;
+              const cor = isO ? '#2ecc71' : isD ? '#e74c3c' : '#3498db';
+              const m = L.marker([p.lat, p.lon], {
+                icon: L.divIcon({
+                  className: 'custom-marker marcador-rastreamento-seq',
+                  html: `<div style="background:${cor};width:28px;height:28px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;font:800 12px/1 system-ui;color:#fff;">${i + 1}</div>`,
+                  iconSize: [28, 28],
+                  iconAnchor: [14, 14]
+                }),
+                zIndexOffset: 300 + i
+              }).addTo(mapaRastreamento);
+              marcadoresParadaRoteiroRastreamento.push(m);
+            });
           }
         } else {
-          console.warn(`⚠️ [MAPA RASTREAMENTO] Coordenadas inválidas! Origem: ${coordsOrigemTemp ? 'OK' : 'FALHOU'}, Destino: ${coordsDestinoTemp ? 'OK' : 'FALHOU'}`);
+          const origemEstado = (dadosViagem.ORIGEM_ESTADO || '').trim();
+          const destinoEstado = (dadosViagem.DESTINO_ESTADO || '').trim();
+          const origemCidade = (dadosViagem.ORIGEM_CIDADE || '').trim();
+          const destinoCidade = (dadosViagem.DESTINO_CIDADE || '').trim();
+
+          const [coordsOrigemTemp, coordsDestinoTemp] = await Promise.all([
+            obterCoordenadasCidade(origemCidade, origemEstado),
+            obterCoordenadasCidade(destinoCidade, destinoEstado)
+          ]);
+
+          if (coordsOrigemTemp && coordsDestinoTemp) {
+            coordsOrigem = coordsOrigemTemp;
+            coordsDestino = coordsDestinoTemp;
+            todasCoordenadas.push([coordsOrigem.lat, coordsOrigem.lon]);
+            todasCoordenadas.push([coordsDestino.lat, coordsDestino.lon]);
+
+            const coordsStr = `${coordsOrigem.lon},${coordsOrigem.lat};${coordsDestino.lon},${coordsDestino.lat}`;
+            let routeCoords = await rotaGeometriaViaBackendProxy(coordsStr, 110000);
+            if (!routeCoords || routeCoords.length < 2) {
+              routeCoords = [
+                [coordsOrigem.lat, coordsOrigem.lon],
+                [coordsDestino.lat, coordsDestino.lon]
+              ];
+            }
+            linhaRotaPlanejada = addPolylineDuplaRastreamento(routeCoords, {
+              color: '#64748b',
+              outline: '#1e293b',
+              weight: 3,
+              opacity: 0.55,
+              dashArray: '10, 8'
+            });
+          }
         }
       } catch (err) {
         console.error('❌ [MAPA RASTREAMENTO] Erro ao obter coordenadas:', err);
       }
-    } else {
-      console.warn(`⚠️ [MAPA RASTREAMENTO] Dados da viagem incompletos:`, {
-        temDadosViagem: !!dadosViagem,
-        temOrigem: !!(dadosViagem && dadosViagem.ORIGEM_CIDADE),
-        temDestino: !!(dadosViagem && dadosViagem.DESTINO_CIDADE)
-      });
+    } else if (dadosViagem) {
+      console.warn(`⚠️ [MAPA RASTREAMENTO] Sem roteiro com paradas GPS nem cidade origem/destino para traçado planejado`);
     }
 
-    // Calcular e desenhar rota da última posição GPS até o destino (VERMELHA)
-    // Isso deve ser feito independentemente de ter dados completos da viagem, desde que tenha posições GPS e destino
-    if (posicoesOrdenadas && posicoesOrdenadas.length > 0 && coordsDestino) {
-      const ultimaPosicao = posicoesOrdenadas[posicoesOrdenadas.length - 1];
-      const ultimaLat = parseFloat(ultimaPosicao.LATITUDE);
-      const ultimaLon = parseFloat(ultimaPosicao.LONGITUDE);
-      
-      _log(`🔴 Calculando rota restante: última posição GPS → destino...`);
-      
+    // O que ainda falta: última posição GPS → paradas restantes do roteiro → destino
+    if (coordenadas.length > 0 && coordsDestino) {
+      const ultimaLat = coordenadas[coordenadas.length - 1][0];
+      const ultimaLon = coordenadas[coordenadas.length - 1][1];
       try {
-              const coordsStrRestante = `${ultimaLon},${ultimaLat};${coordsDestino.lon},${coordsDestino.lat}`;
-              const rotaUrlRestante = construirUrlRota(
-                config.osrmServer || 'https://router.project-osrm.org/route/v1/driving-hgv',
-                coordsStrRestante,
-                'full',
-                'geojson'
-              );
-              
-        const osrmResponseRestante = await fetchForcandoHTTP(rotaUrlRestante, {
-          signal: AbortSignal.timeout(20000)
+        const restantes = waypointsRestantesAposGps(pontosRoteiroOrdenados, ultimaLat, ultimaLon);
+        const ptsRestantes = [{ lat: ultimaLat, lon: ultimaLon }];
+        restantes.forEach((p) => {
+          const last = ptsRestantes[ptsRestantes.length - 1];
+          if (haversineKmRastreamento([last.lat, last.lon], [p.lat, p.lon]) > 0.05) {
+            ptsRestantes.push({ lat: p.lat, lon: p.lon });
+          }
         });
-        
-        if (osrmResponseRestante.ok) {
-          const osrmDataRestante = await osrmResponseRestante.json();
-          const routeCoordsRestante = parsearRespostaRota(osrmDataRestante);
-          
-          if (routeCoordsRestante && routeCoordsRestante.length > 0) {
-            // Garantir que a linha vermelha comece EXATAMENTE na última posição GPS
-            // O OSRM pode retornar uma rota que começa antes da última posição GPS (ex: na origem)
-            // Precisamos encontrar o ponto mais próximo da última posição GPS e remover tudo antes dele
-            let routeCoordsRestanteFinal = [...routeCoordsRestante];
-            
-            // Encontrar o índice do ponto mais próximo da última posição GPS
-            let indiceInicio = 0;
-            let menorDistancia = Infinity;
-            
-            for (let i = 0; i < routeCoordsRestanteFinal.length; i++) {
-              const ponto = routeCoordsRestanteFinal[i];
-              const distancia = Math.sqrt(
-                Math.pow(ponto[0] - ultimaLat, 2) + 
-                Math.pow(ponto[1] - ultimaLon, 2)
+        const destLast = ptsRestantes[ptsRestantes.length - 1];
+        if (
+          haversineKmRastreamento(
+            [destLast.lat, destLast.lon],
+            [coordsDestino.lat, coordsDestino.lon]
+          ) > 0.08
+        ) {
+          ptsRestantes.push({ lat: coordsDestino.lat, lon: coordsDestino.lon });
+        }
+
+        if (ptsRestantes.length >= 2) {
+          let geoRest = await geometriaRotaCadastroRoteiro(ptsRestantes);
+          if (!geoRest || geoRest.length < 2) {
+            geoRest = ptsRestantes.map((p) => [p.lat, p.lon]);
+          }
+          geoRest[0] = [ultimaLat, ultimaLon];
+          linhaRotaRestante = addPolylineDuplaRastreamento(geoRest, {
+            color: '#ea580c',
+            outline: '#7c2d12',
+            weight: 5,
+            opacity: 1,
+            dashArray: '12, 8'
+          });
+          linhaRotaRestante.eachLayer((ly) => {
+            if (ly.bindPopup) {
+              ly.bindPopup(
+                `<div style="min-width:200px;font:600 13px/1.4 system-ui"><strong style="color:#ea580c">Ainda falta percorrer</strong><br>Da posição atual até o destino${restantes.length ? ` · ${restantes.length} parada(s) à frente` : ''}</div>`
               );
-              if (distancia < menorDistancia) {
-                menorDistancia = distancia;
-                indiceInicio = i;
-              }
             }
-            
-            // Se encontrou um ponto próximo (dentro de ~100 metros), usar a partir dele
-            // Caso contrário, usar toda a rota mas garantir que comece na última posição GPS
-            if (menorDistancia < 0.001) { // ~111 metros
-              // Remover todos os pontos antes do ponto mais próximo
-              routeCoordsRestanteFinal = routeCoordsRestanteFinal.slice(indiceInicio);
-              _log(`🔴 Removendo ${indiceInicio} pontos anteriores à última posição GPS`);
-            }
-            
-            // Garantir que o primeiro ponto seja EXATAMENTE a última posição GPS
-            if (routeCoordsRestanteFinal.length > 0) {
-              routeCoordsRestanteFinal[0] = [ultimaLat, ultimaLon];
-              _log(`🔴 Garantindo que a rota vermelha comece na última posição GPS exata: [${ultimaLat}, ${ultimaLon}]`);
-            }
-            
-            // Adicionar linha da rota restante (última posição → destino) em VERMELHO
-            linhaRotaRestante = L.polyline(routeCoordsRestanteFinal, {
-              color: '#e74c3c', // Vermelho
-              weight: 4,
-              opacity: 0.8,
-              dashArray: '5, 5' // Linha tracejada para diferenciar
-            }).addTo(mapaRastreamento);
-            
-            linhaRotaRestante.bindPopup(`
-              <div style="min-width: 200px;">
-                <strong>🔴 Rota Restante</strong><br>
-                <strong>Última Posição GPS → Destino</strong><br>
-                <strong>Distância restante:</strong> Calculando...
-              </div>
-            `);
-            
-            _log(`✅ Rota restante calculada! (${routeCoordsRestante.length} pontos)`);
-          } else {
-            console.warn('⚠️  OSRM não retornou rota restante válida');
-          }
-        } else {
-          // Tentar servidor alternativo
-          console.warn('⚠️  Tentando servidor alternativo para rota restante...');
-          const rotaUrlRestanteAlt = construirUrlRota(
-            config.osrmServerAlt || 'https://routing.openstreetmap.de/routed-car/route/v1/driving-hgv',
-            coordsStrRestante,
-            'full',
-            'geojson'
-          );
-          
-          try {
-            const osrmResponseRestanteAlt = await fetchForcandoHTTP(rotaUrlRestanteAlt, {
-              signal: AbortSignal.timeout(20000)
-            });
-            
-            if (osrmResponseRestanteAlt.ok) {
-              const osrmDataRestanteAlt = await osrmResponseRestanteAlt.json();
-              const routeCoordsRestanteAlt = parsearRespostaRota(osrmDataRestanteAlt);
-              
-              if (routeCoordsRestanteAlt && routeCoordsRestanteAlt.length > 0) {
-                // Garantir que a linha vermelha comece EXATAMENTE na última posição GPS
-                // O OSRM pode retornar uma rota que começa antes da última posição GPS (ex: na origem)
-                // Precisamos encontrar o ponto mais próximo da última posição GPS e remover tudo antes dele
-                let routeCoordsRestanteAltFinal = [...routeCoordsRestanteAlt];
-                
-                // Encontrar o índice do ponto mais próximo da última posição GPS
-                let indiceInicioAlt = 0;
-                let menorDistanciaAlt = Infinity;
-                
-                for (let i = 0; i < routeCoordsRestanteAltFinal.length; i++) {
-                  const ponto = routeCoordsRestanteAltFinal[i];
-                  const distancia = Math.sqrt(
-                    Math.pow(ponto[0] - ultimaLat, 2) + 
-                    Math.pow(ponto[1] - ultimaLon, 2)
-                  );
-                  if (distancia < menorDistanciaAlt) {
-                    menorDistanciaAlt = distancia;
-                    indiceInicioAlt = i;
-                  }
-                }
-                
-                // Se encontrou um ponto próximo (dentro de ~100 metros), usar a partir dele
-                // Caso contrário, usar toda a rota mas garantir que comece na última posição GPS
-                if (menorDistanciaAlt < 0.001) { // ~111 metros
-                  // Remover todos os pontos antes do ponto mais próximo
-                  routeCoordsRestanteAltFinal = routeCoordsRestanteAltFinal.slice(indiceInicioAlt);
-                  _log(`🔴 Removendo ${indiceInicioAlt} pontos anteriores à última posição GPS (alt)`);
-                }
-                
-                // Garantir que o primeiro ponto seja EXATAMENTE a última posição GPS
-                if (routeCoordsRestanteAltFinal.length > 0) {
-                  routeCoordsRestanteAltFinal[0] = [ultimaLat, ultimaLon];
-                  _log(`🔴 Garantindo que a rota vermelha (alt) comece na última posição GPS exata: [${ultimaLat}, ${ultimaLon}]`);
-                }
-                
-                linhaRotaRestante = L.polyline(routeCoordsRestanteAltFinal, {
-                  color: '#e74c3c',
-                  weight: 4,
-                  opacity: 0.8,
-                  dashArray: '5, 5'
-                }).addTo(mapaRastreamento);
-                
-                linhaRotaRestante.bindPopup(`
-                  <div style="min-width: 200px;">
-                    <strong>🔴 Rota Restante</strong><br>
-                    <strong>Última Posição GPS → Destino</strong>
-                  </div>
-                `);
-                
-                _log(`✅ Rota restante calculada com servidor alternativo!`);
-              }
-            }
-          } catch (err) {
-            console.warn('Erro ao calcular rota restante com servidor alternativo:', err);
-          }
+          });
+          _log(`✅ [MAPA RASTREAMENTO] Rota restante (${geoRest.length} pts, ${restantes.length} paradas à frente)`);
         }
       } catch (osrmErr) {
         console.warn('Erro ao calcular rota restante:', osrmErr);
+        linhaRotaRestante = addPolylineDuplaRastreamento(
+          [[ultimaLat, ultimaLon], [coordsDestino.lat, coordsDestino.lon]],
+          { color: '#ea580c', outline: '#7c2d12', weight: 5, opacity: 0.95, dashArray: '12, 8' }
+        );
       }
     }
 
-    // Adicionar marcadores de origem e destino (se coordenadas foram obtidas)
-    if (coordsOrigem && coordsDestino && dadosViagem) {
-      // Adicionar marcador de origem
+    // Já percorrido (GPS) — verde vivo por cima
+    // Liga os pings GPS pelas estradas (OSRM), não em linha reta no mapa.
+    // Com poucos pings (ex.: só início + atual) a reta “corta” a cidade; o snap segue as vias.
+    if (coordenadas.length > 1) {
+      if (linhaRastreamento) {
+        try { mapaRastreamento.removeLayer(linhaRastreamento); } catch (e) { /* ignore */ }
+      }
+
+      /** Amostra waypoints GPS para o OSRM (limite de URL / waypoints), mantendo 1º e último. */
+      function amostrarWaypointsGpsParaOsrm(coords, maxPts) {
+        const max = Math.max(2, maxPts || 40);
+        if (!coords || coords.length <= max) {
+          return (coords || []).map((c) => ({ lat: c[0], lon: c[1] }));
+        }
+        const out = [{ lat: coords[0][0], lon: coords[0][1] }];
+        const mid = max - 2;
+        for (let i = 1; i <= mid; i++) {
+          const idx = Math.round((i * (coords.length - 1)) / (mid + 1));
+          out.push({ lat: coords[idx][0], lon: coords[idx][1] });
+        }
+        const last = coords[coords.length - 1];
+        const prev = out[out.length - 1];
+        if (prev.lat !== last[0] || prev.lon !== last[1]) {
+          out.push({ lat: last[0], lon: last[1] });
+        }
+        return out;
+      }
+
+      let geoPercorrido = null;
+      try {
+        const ptsOsrm = amostrarWaypointsGpsParaOsrm(coordenadas, 40);
+        if (ptsOsrm.length >= 2) {
+          geoPercorrido = await geometriaRotaCadastroRoteiro(ptsOsrm);
+        }
+      } catch (eOsrmGps) {
+        _log('[RASTREAMENTO] OSRM trajeto percorrido:', eOsrmGps && eOsrmGps.message);
+      }
+      if (!geoPercorrido || geoPercorrido.length < 2) {
+        // Fallback: polyline dos pontos GPS (pode parecer “reta” se só houver 2 pings)
+        geoPercorrido = coordenadas;
+        _log(`⚠️ [MAPA RASTREAMENTO] Percorrido sem OSRM — polyline bruta (${coordenadas.length} pts GPS)`);
+      } else {
+        _log(`✅ [MAPA RASTREAMENTO] Percorrido via estradas (${geoPercorrido.length} pts geom, ${coordenadas.length} GPS)`);
+      }
+
+      linhaRastreamento = addPolylineDuplaRastreamento(geoPercorrido, {
+        color: '#059669',
+        outline: '#064e3b',
+        weight: 6,
+        opacity: 1
+      });
+      linhaRastreamento.eachLayer((ly) => {
+        if (ly.bindPopup) {
+          ly.bindPopup(
+            `<div style="min-width:200px;font:600 13px/1.4 system-ui"><strong style="color:#059669">Já percorrido</strong><br>Trajeto GPS nas vias · ${coordenadas.length} posição(ões)</div>`
+          );
+        }
+      });
+    }
+
+    // Marcadores origem / destino (fallback se Atlas não desenhou)
+    if (coordsOrigem && coordsDestino && dadosViagem && marcadoresParadaRoteiroRastreamento.length === 0) {
       marcadorOrigemRastreamento = L.marker([coordsOrigem.lat, coordsOrigem.lon], {
         icon: L.divIcon({
           className: 'custom-marker origem-rastreamento',
-          html: '<div style="background: #2ecc71; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">🏁</div>',
-          iconSize: [30, 30],
-          iconAnchor: [15, 15]
-        })
+          html: '<div style="background:#2ecc71;color:#fff;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-weight:800;border:3px solid #0f172a;box-shadow:0 2px 8px rgba(0,0,0,.4);font-size:14px;">O</div>',
+          iconSize: [34, 34],
+          iconAnchor: [17, 17]
+        }),
+        zIndexOffset: 700
       }).addTo(mapaRastreamento)
-        .bindPopup(`
-          <div style="min-width: 200px;">
-            <strong>🏁 Origem</strong><br>
-            <strong>Cidade:</strong> ${dadosViagem.ORIGEM_CIDADE}, ${dadosViagem.ORIGEM_ESTADO}<br>
-            <strong>Coordenadas:</strong> ${coordsOrigem.lat.toFixed(6)}, ${coordsOrigem.lon.toFixed(6)}
-          </div>
-        `);
+        .bindPopup(`<strong>Origem</strong><br>${dadosViagem.ORIGEM_CIDADE || ''}, ${dadosViagem.ORIGEM_ESTADO || ''}`);
 
-      // Adicionar marcador de destino
       marcadorDestinoRastreamento = L.marker([coordsDestino.lat, coordsDestino.lon], {
         icon: L.divIcon({
           className: 'custom-marker destino-rastreamento',
-          html: '<div style="background: #e74c3c; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 3px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">🏁</div>',
-          iconSize: [30, 30],
-          iconAnchor: [15, 15]
-        })
+          html: '<div style="background:#e74c3c;color:#fff;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-weight:800;border:3px solid #0f172a;box-shadow:0 2px 8px rgba(0,0,0,.4);font-size:14px;">D</div>',
+          iconSize: [34, 34],
+          iconAnchor: [17, 17]
+        }),
+        zIndexOffset: 700
       }).addTo(mapaRastreamento)
-        .bindPopup(`
-          <div style="min-width: 200px;">
-            <strong>🏁 Destino</strong><br>
-            <strong>Cidade:</strong> ${dadosViagem.DESTINO_CIDADE}, ${dadosViagem.DESTINO_ESTADO}<br>
-            <strong>Coordenadas:</strong> ${coordsDestino.lat.toFixed(6)}, ${coordsDestino.lon.toFixed(6)}
-          </div>
-        `);
+        .bindPopup(`<strong>Destino</strong><br>${dadosViagem.DESTINO_CIDADE || ''}, ${dadosViagem.DESTINO_ESTADO || ''}`);
     }
 
-    // Adicionar marcadores (usar posicoesOrdenadas para garantir ordem cronológica)
+    // Marcadores GPS: sequência (primeira / intermediárias amostradas / atual)
+    const totalGps = posicoesOrdenadas.length;
+    const maxMarcadoresGps = 24;
+    const stepGps = totalGps > maxMarcadoresGps ? Math.ceil(totalGps / maxMarcadoresGps) : 1;
     posicoesOrdenadas.forEach((pos, index) => {
+      const isPrimeira = index === 0;
+      const isUltima = index === totalGps - 1;
+      if (!isPrimeira && !isUltima && index % stepGps !== 0) return;
+
       const lat = parseFloat(pos.LATITUDE);
       const lng = parseFloat(pos.LONGITUDE);
-      const data = new Date(pos.DHREGISTRO);
-      const velocidade = pos.VELOCIDADE ? `${parseFloat(pos.VELOCIDADE).toFixed(0)} km/h` : 'N/A';
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+      const data = new Date(pos.DHREGISTRO || pos.DHPOSICAO);
+      const velocidade = pos.VELOCIDADE ? `${parseFloat(pos.VELOCIDADE).toFixed(0)} km/h` : '—';
 
-      // Ícone diferente para primeira e última posição
-      let iconColor = '#667eea';
-      let iconSize = [12, 12];
-      if (index === 0) {
-        iconColor = '#27ae60'; // Verde para início
-        iconSize = [16, 16];
-      } else if (index === posicoesOrdenadas.length - 1) {
-        iconColor = '#e74c3c'; // Vermelho para posição atual
-        iconSize = [16, 16];
+      let htmlIcon;
+      let size = 26;
+      let z = 400 + index;
+      if (isUltima) {
+        size = 40;
+        z = 900;
+        htmlIcon = `<div title="Posição atual" style="background:#dc2626;width:${size}px;height:${size}px;border-radius:50%;border:3px solid #fff;box-shadow:0 3px 12px rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;color:#fff;font-size:18px;">🚚</div>`;
+      } else if (isPrimeira) {
+        size = 30;
+        z = 650;
+        htmlIcon = `<div title="Primeiro GPS" style="background:#059669;width:${size}px;height:${size}px;border-radius:50%;border:3px solid #0f172a;box-shadow:0 2px 8px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;color:#fff;font:800 12px/1 system-ui;">1</div>`;
+      } else {
+        htmlIcon = `<div title="GPS #${index + 1}" style="background:#2563eb;width:${size}px;height:${size}px;border-radius:50%;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;color:#fff;font:700 11px/1 system-ui;">${index + 1}</div>`;
       }
 
-      const icon = L.divIcon({
-        className: 'marcador-rastreamento',
-        html: `<div style="background: ${iconColor}; width: ${iconSize[0]}px; height: ${iconSize[1]}px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>`,
-        iconSize: iconSize,
-        iconAnchor: [iconSize[0]/2, iconSize[1]/2]
-      });
+      const marcador = L.marker([lat, lng], {
+        icon: L.divIcon({
+          className: 'marcador-rastreamento marcador-rastreamento-seq',
+          html: htmlIcon,
+          iconSize: [size, size],
+          iconAnchor: [size / 2, size / 2]
+        }),
+        zIndexOffset: z
+      }).addTo(mapaRastreamento);
 
-      const marcador = L.marker([lat, lng], { icon }).addTo(mapaRastreamento);
-      
       marcador.bindPopup(`
-        <div style="min-width: 200px;">
-          <strong>${index === 0 ? '📍 Início' : index === posicoesOrdenadas.length - 1 ? '📍 Posição Atual' : `📍 Posição ${index + 1}`}</strong><br>
-          <strong>Data/Hora:</strong> ${fmtDataHora(data)}<br>
-          <strong>Velocidade:</strong> ${velocidade}<br>
-          <strong>Precisão:</strong> ${pos.PRECISAO ? pos.PRECISAO + 'm' : 'N/A'}<br>
-          <strong>Coordenadas:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}
+        <div style="min-width:210px;font:400 13px/1.45 system-ui">
+          <strong>${isPrimeira ? 'Início do rastreamento' : isUltima ? 'Posição atual' : `Ponto GPS #${index + 1}`}</strong><br>
+          <span style="color:#64748b">${fmtDataHora(data)}</span><br>
+          Velocidade: ${velocidade}<br>
+          <small style="font-family:ui-monospace,monospace">${lat.toFixed(6)}, ${lng.toFixed(6)}</small>
         </div>
       `);
 
@@ -14157,14 +14398,18 @@
 
     // Ajustar zoom para mostrar toda a rota (GPS + origem/destino)
     if (todasCoordenadas.length > 0) {
-      mapaRastreamento.fitBounds(todasCoordenadas, { padding: [50, 50] });
-      
-      // Invalidar tamanho do mapa para garantir renderização correta
+      try {
+        const b = L.latLngBounds(todasCoordenadas);
+        if (b.isValid()) {
+          mapaRastreamento.fitBounds(b.pad(0.12), { maxZoom: 15, animate: true });
+        }
+      } catch (_) { /* ignore */ }
+
       setTimeout(() => {
         if (mapaRastreamento) {
           mapaRastreamento.invalidateSize();
         }
-      }, 100);
+      }, 120);
     }
     
     // Esconder overlay após finalizar mapa (com pequeno delay para garantir que tudo foi renderizado)
@@ -14216,7 +14461,7 @@
         <div style="background: ${corFundo}; border: 1px solid ${corBorda}; border-left: 4px solid ${corBorda}; border-radius: 6px; padding: 12px; cursor: pointer; transition: all 0.2s;"
              onmouseover="this.style.boxShadow='0 2px 8px rgba(0,0,0,0.1)'; this.style.transform='translateX(2px)';"
              onmouseout="this.style.boxShadow='none'; this.style.transform='translateX(0)';"
-             onclick="if(window.mapaRastreamento && window.marcadoresRastreamento && window.marcadoresRastreamento[${posicoes.length - 1 - index}]) { window.marcadoresRastreamento[${posicoes.length - 1 - index}].openPopup(); window.mapaRastreamento.setView([${pos.LATITUDE}, ${pos.LONGITUDE}], 15); }">
+             onclick="if(window.mapaRastreamento){ window.mapaRastreamento.setView([${parseFloat(pos.LATITUDE)}, ${parseFloat(pos.LONGITUDE)}], 15); }">
           <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
             <div style="flex: 1;">
               <div style="font-weight: 600; color: #2c3e50; margin-bottom: 4px;">
@@ -14334,7 +14579,7 @@
             await carregarDetalhesViagem(idviagem);
           } else {
             try {
-              const response = await fetch(`/api/viagens/${idviagem}`);
+              const response = await fetchApiViagens(`/${idviagem}`);
               if (response.ok) {
                 const dados = await response.json();
                 if (dados.IDVIAGEM) {
@@ -14681,7 +14926,9 @@
     `;
 
     try {
-      const response = await fetch(`/api/motorista/historico-macros/${idViagem}`);
+      const response = await fetchApiAbsPath(`/api/motorista/historico-macros/${encodeURIComponent(idViagem)}`, {
+        headers: getAuthHeaders()
+      });
       
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -14874,7 +15121,7 @@
         </div>
         <div class="modal-body-tratamento" style="padding: 20px;">
           <div id="mapaMacro" style="width: 100%; height: 500px; border-radius: 8px; border: 1px solid #dee2e6;"></div>
-          <div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 6px;">
+          <div class="modal-macro-coords">
             <strong>Coordenadas:</strong> ${latitude}, ${longitude}
           </div>
         </div>
@@ -14888,53 +15135,65 @@
 
     document.body.appendChild(modal);
 
-    // Inicializar mapa após o modal ser adicionado ao DOM
-    setTimeout(() => {
+    // Leaflet é carregado sob demanda (não assume L global ao abrir o módulo no dashboard).
+    void (async () => {
+      const okLeaflet = await aguardarLeaflet();
+      await new Promise((r) => setTimeout(r, 50));
+      if (!document.getElementById('modalMapaMacro')) return;
       const mapaDiv = document.getElementById('mapaMacro');
-      if (mapaDiv && typeof L !== 'undefined') {
-        // Limpar mapa anterior se existir
-        if (mapaDiv._leaflet_id) {
-          mapaDiv.innerHTML = '';
-          delete mapaDiv._leaflet_id;
-        }
-
-        // Aguardar um pouco para garantir que o elemento está visível
-        setTimeout(() => {
-          try {
-            // Criar mapa
-            const mapa = L.map('mapaMacro').setView([parseFloat(latitude), parseFloat(longitude)], 15);
-
-            // Adicionar tile layer
-            if (typeof window.MapConfig !== 'undefined' && window.MapConfig.getTileServerUrl) {
-              const tileUrl = window.MapConfig.getTileServerUrl();
-              L.tileLayer(tileUrl, {
-                maxZoom: 19,
-                attribution: '© OpenStreetMap contributors'
-              }).addTo(mapa);
-            } else {
-              L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '© OpenStreetMap contributors'
-              }).addTo(mapa);
-            }
-
-            // Adicionar marcador
-            L.marker([parseFloat(latitude), parseFloat(longitude)])
-              .addTo(mapa)
-              .bindPopup(`<strong>${descricaoEscapada}</strong><br>Coordenadas: ${latitude}, ${longitude}`)
-              .openPopup();
-          } catch (err) {
-            console.error('Erro ao inicializar mapa:', err);
-            if (typeof showMessage === 'function') showMessage('Erro ao carregar mapa. Verifique se o Leaflet está carregado.', 'error');
-            else alert('Erro ao carregar mapa. Verifique se o Leaflet está carregado.');
-          }
-        }, 200);
-      } else {
-        console.error('Leaflet não está disponível ou elemento do mapa não encontrado');
-        if (typeof showMessage === 'function') showMessage('Leaflet não está disponível. Recarregue a página ou tente abrir o módulo novamente.', 'error');
-        else alert('Erro: Leaflet não está disponível. Recarregue a página.');
+      if (!mapaDiv) {
+        console.error('Elemento #mapaMacro não encontrado após abrir o modal');
+        if (typeof showMessage === 'function') showMessage('Erro ao montar o mapa. Tente fechar e abrir de novo.', 'error');
+        return;
       }
-    }, 100);
+      if (!okLeaflet || typeof L === 'undefined') {
+        console.error('Leaflet não está disponível após tentativa de carregamento');
+        if (typeof showMessage === 'function') showMessage('Leaflet não está disponível (rede bloqueada?). Recarregue a página ou libere unpkg.com.', 'error');
+        else alert('Erro: Leaflet não carregou. Verifique rede/firewall.');
+        return;
+      }
+      if (mapaDiv._leaflet_id) {
+        mapaDiv.innerHTML = '';
+        delete mapaDiv._leaflet_id;
+      }
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      await new Promise((r) => setTimeout(r, 150));
+      try {
+        const mapa = L.map('mapaMacro').setView([parseFloat(latitude), parseFloat(longitude)], 15);
+
+        let tileUrl = 'https://tile.openstreetmap.de/{z}/{x}/{y}.png';
+        let tileAttribution = '&copy; OpenStreetMap contributors';
+        let maxZ = 19;
+        if (typeof window.getTileLayerConfig === 'function') {
+          const tc = window.getTileLayerConfig();
+          if (tc && tc.url) {
+            tileUrl = tc.url;
+            if (tc.attribution) tileAttribution = tc.attribution;
+            if (tc.maxZoom) maxZ = tc.maxZoom;
+          }
+        } else if (typeof window.getTileServerUrl === 'function') {
+          tileUrl = window.getTileServerUrl();
+          if (window.MAP_CONFIG && window.MAP_CONFIG.attribution) tileAttribution = window.MAP_CONFIG.attribution;
+          if (window.MAP_CONFIG && window.MAP_CONFIG.maxZoom) maxZ = window.MAP_CONFIG.maxZoom;
+        } else if (window.MAP_CONFIG && window.MAP_CONFIG.tileServer) {
+          tileUrl = window.MAP_CONFIG.tileServer;
+          if (window.MAP_CONFIG.attribution) tileAttribution = window.MAP_CONFIG.attribution;
+          if (window.MAP_CONFIG.maxZoom) maxZ = window.MAP_CONFIG.maxZoom;
+        }
+        const tileOpts = { maxZoom: maxZ, attribution: tileAttribution };
+        if (tileUrl.includes('{s}')) tileOpts.subdomains = ['a', 'b', 'c'];
+        L.tileLayer(tileUrl, tileOpts).addTo(mapa);
+
+        L.marker([parseFloat(latitude), parseFloat(longitude)])
+          .addTo(mapa)
+          .bindPopup(`<strong>${descricaoEscapada}</strong><br>Coordenadas: ${latitude}, ${longitude}`)
+          .openPopup();
+      } catch (err) {
+        console.error('Erro ao inicializar mapa:', err);
+        if (typeof showMessage === 'function') showMessage('Erro ao carregar mapa. Verifique se o Leaflet está carregado.', 'error');
+        else alert('Erro ao carregar mapa. Verifique se o Leaflet está carregado.');
+      }
+    })();
   };
 
   // Botão Atualizar da aba Macros (delegação: funciona mesmo com HTML injetado depois pelo dashboard)

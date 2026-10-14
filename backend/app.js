@@ -22,6 +22,7 @@ const estadoRoutes = require('./routes/estado.routes');
 const estadosRoutes = require('./routes/estados.routes');
 const cadastroGeralRoutes = require('./routes/cadastrogeral.routes');
 const viagemRoutes = require('./routes/viagemmestre.routes');
+const viagemPublicRoutes = require('./routes/viagem-public.routes');
 const tipoValidadeRoutes = require('./routes/tipovalidade.routes');
 const controleValidadeRoutes = require('./routes/controlevalidade.routes');
 const empresaRoutes = require('./routes/empresa.routes');
@@ -38,6 +39,21 @@ const messageRoutes = require('./routes/message.routes');
 const sosRoutes = require('./routes/sos.routes');
 const reputationRoutes = require('./routes/reputation.routes');
 const configRoutes = require('./routes/config.routes');
+const saasAdminRoutes = require('./routes/saas-admin.routes');
+const oportunidadesCampanhasRoutes = require('./routes/oportunidades-campanhas.routes');
+const wmsCadastroRoutes = require('./routes/wms-cadastro.routes');
+const wmsRecebimentoRoutes = require('./routes/wms-recebimento.routes');
+const wmsSeparacaoRoutes = require('./routes/wms-separacao.routes');
+const wmsCargaRoutes = require('./routes/wms-carga.routes');
+const wmsExpedicaoRoutes = require('./routes/wms-expedicao.routes');
+const wmsRelatoriosRoutes = require('./routes/wms-relatorios.routes');
+const wmsInventarioRoutes = require('./routes/wms-inventario.routes');
+const wmsDashboardRoutes = require('./routes/wms-dashboard.routes');
+const wmsTransferenciaRoutes = require('./routes/wms-transferencia-dono.routes');
+const wmsBaixaEstoqueRoutes = require('./routes/wms-baixa-estoque.routes');
+const wmsDiagnosticoSkuRoutes = require('./routes/wms-diagnostico-sku.routes');
+const wmsAuditoriaSaudeRoutes = require('./routes/wms-auditoria-saude.routes');
+const wmsReservasOplRoutes = require('./routes/wms-reservas-opl.routes');
 
 const app = express();
 
@@ -130,23 +146,7 @@ const getAllCSPUrls = () => {
   return urls;
 };
 
-// Função para gerar URLs de Nominatim usando as constantes
-// NOTA: Nominatim e ORS estão disponíveis APENAS no servidor de produção (APP), não no beta
-const getNominatimUrls = () => {
-  const urls = [];
-  // Nominatim: url/nominatim/ (sempre HTTP na porta 8080, apenas produção)
-  urls.push(`http://${URL_CONFIG.APP.HTTP}/${URL_CONFIG.ROUTES.NOMINATIM}`);
-  return urls;
-};
-
-// Função para gerar URLs de ORS usando as constantes
-// NOTA: Nominatim e ORS estão disponíveis APENAS no servidor de produção (APP), não no beta
-const getORSUrls = () => {
-  const urls = [];
-  // ORS: url/ors/ (sempre HTTP na porta 8080, apenas produção)
-  urls.push(`http://${URL_CONFIG.APP.HTTP}/${URL_CONFIG.ROUTES.ORS}`);
-  return urls;
-};
+// Nominatim/ORS no front vêm de Configurações (DB); CSP cobre ...CSP_URLS e mirrors públicos.
 
 const CSP_URLS = getAllCSPUrls();
 
@@ -215,8 +215,7 @@ const helmetConfig = {
         "http://127.0.0.1:*",
         // URLs geradas dinamicamente a partir de URL_CONFIG (Beta e App)
         ...CSP_URLS, // URLs base de Beta e App (HTTP/HTTPS/WS/WSS) geradas dinamicamente
-        ...getNominatimUrls(), // URLs de Nominatim (app.integrabrasil.com:8080/nominatim/) - apenas produção
-        ...getORSUrls(), // URLs de ORS (app.integrabrasil.com:8080/ors/) - apenas produção
+        "http://186.250.92.131:*", // stack de mapas próprio (Nominatim/ORS em outro host)
         // Serviços externos/CDN
         "https://fonts.googleapis.com",
         "https://fonts.gstatic.com",
@@ -244,7 +243,12 @@ const helmetConfig = {
         `https://${URL_CONFIG.APP.HTTPS}` // Servidor app (HTTPS) - gerado dinamicamente
       ],
       frameSrc: ["'self'"],
-      objectSrc: ["'none'"]
+      objectSrc: ["'none'"],
+      // Helmet (useDefaults) inclui upgrade-insecure-requests nos defaults; isso faz o
+      // navegador reescrever TODO pedido para https:// mesmo com página em http://IP:porta.
+      // Servidor só em HTTP → net::ERR_SSL_PROTOCOL_ERROR. Desabilitar sempre aqui;
+      // em produção com HTTPS real o site já é servido em TLS (não depende desta diretiva).
+      upgradeInsecureRequests: null
     }
   }
 };
@@ -255,7 +259,7 @@ if (isDevelopment) {
   helmetConfig.crossOriginEmbedderPolicy = false;
   helmetConfig.originAgentCluster = false;
   helmetConfig.strictTransportSecurity = false;
-  
+
   // Em desenvolvimento, permitir conexões HTTP locais sem restrições
   // Nota: "*" não funciona no CSP, então usamos faixas de IP específicas
   // As faixas já foram adicionadas acima (192.168.0.0/16, 10.0.0.0/8, 172.16.0.0/12)
@@ -300,16 +304,33 @@ if (isDevelopment) {
 // Compressão HTTP para reduzir tamanho das respostas (JSON, HTML, CSS, JS)
 app.use(compression());
 
-// Configurar CORS para permitir acesso via IP local em desenvolvimento
+// CORS: em produção, defina CORS_ORIGINS (lista separada por vírgula) para restringir.
+const corsAllowedList = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+let corsProdWarned = false;
 const corsOptions = {
   origin: function (origin, callback) {
-    // Em desenvolvimento, permitir qualquer origem (localhost, IP local, etc)
     if (isDevelopment || !origin) {
       callback(null, true);
-    } else {
-      // Em produção, validar origem
-      callback(null, true); // Por enquanto permitir todas, ajustar depois se necessário
+      return;
     }
+    if (corsAllowedList.length === 0) {
+      if (!corsProdWarned) {
+        corsProdWarned = true;
+        console.warn(
+          '⚠️ Produção: CORS_ORIGINS vazio — qualquer origem com credenciais ainda é aceita. Defina CORS_ORIGINS no .env para restringir.'
+        );
+      }
+      callback(null, true);
+      return;
+    }
+    if (corsAllowedList.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+    callback(null, false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
@@ -317,19 +338,69 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
+const { blockExecutarInitSqlInProduction } = require('./middleware/security-hardening.middleware');
+app.use(blockExecutarInitSqlInProduction);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Popular req.user a partir do JWT quando Authorization: Bearer <token> estiver presente
-const { getUsuarioLogado } = require('./middleware/auth.middleware');
+const { getUsuarioLogado, verifyTowerSessionNotRevoked } = require('./middleware/auth.middleware');
+const { attachTenantContext } = require('./middleware/tenant.middleware');
 app.use('/api', getUsuarioLogado);
+app.use('/api', attachTenantContext);
+app.use('/api', verifyTowerSessionNotRevoked);
 app.use('/cargas/api', getUsuarioLogado);
+app.use('/cargas/api', attachTenantContext);
+app.use('/cargas/api', verifyTowerSessionNotRevoked);
 
 // Rotas de API (ANTES do express.static para garantir prioridade)
-// Definir todas as rotas de API primeiro
+// Ordem importa: prefixos específicos e rotas SEM router.use(towerAuth) global devem vir
+// ANTES de qualquer app.use('/api', router) que aplique auth em todo o router — senão
+// /api/motorista/login, /api/contexto e /api/configuracoes/* recebem 401 do primeiro /api genérico.
 const apiRoutes = [
+  // Convocação pública + combo motivos recusa + public-url — sem JWT torre (antes de routers com towerAuth em paths genéricos).
+  { path: '/api', route: viagemPublicRoutes },
   { path: '/api/auth', route: authRoutes },
   { path: '/api/menu', route: menuRoutes },
+  { path: '/api/saas', route: saasAdminRoutes },
+  { path: '/api/motorista', route: motoristaAppRoutes },
+  { path: '/api/log', route: usuariologacaoRoutes },
+  // Config (GET /contexto, /configuracoes/mapa, identidade, etc.) ANTES de cidades/estado/viagem:
+  // cidades e estado aplicam towerAuth em qualquer path que não tenha rota pública explícita; o i18n do app motorista
+  // chama GET /api/contexto sem Bearer e recebia 401 antes de chegar em config.routes.
+  { path: '/api', route: configRoutes },
+  // Cidades + estado: rotas públicas (/paises, /estados-brasil, /estado-cduf, /mesorregioes, GET /estados?…).
+  // DEVEM vir ANTES de viagemRoutes: o router de viagem aplica towerAuth em tudo que não passar no viagemPublicSkip;
+  // se req.path variar (proxy/versão Express), GET /api/estados?pais=AR caía em 401 e o cadastro motorista só carregava UF para o Brasil (estados-brasil).
+  { path: '/api', route: cidadesRoutes },
+  { path: '/api', route: estadoRoutes },
+  // Viagens: convocação pública, combos, etc. (viagemPublicSkip para alguns GET).
+  { path: '/api', route: viagemRoutes },
+  { path: '/api', route: oportunidadesCampanhasRoutes },
+  { path: '/api', route: wmsCadastroRoutes },
+  { path: '/api', route: wmsRecebimentoRoutes },
+  { path: '/api', route: wmsSeparacaoRoutes },
+  { path: '/api', route: wmsCargaRoutes },
+  { path: '/api', route: wmsExpedicaoRoutes },
+  { path: '/api', route: wmsRelatoriosRoutes },
+  { path: '/api', route: wmsInventarioRoutes },
+  { path: '/api', route: wmsDashboardRoutes },
+  { path: '/api', route: wmsTransferenciaRoutes },
+  { path: '/api', route: wmsBaixaEstoqueRoutes },
+  { path: '/api', route: wmsDiagnosticoSkuRoutes },
+  { path: '/api', route: wmsAuditoriaSaudeRoutes },
+  { path: '/api', route: wmsReservasOplRoutes },
+  { path: '/api/relatorio-convocacoes', route: relatorioConvocacoesRoutes },
+  { path: '/api/logs-acesso', route: logsAcessoRoutes },
+  { path: '/api/mapa-viagem', route: mapaViagemRoutes },
+  { path: '/api/alerts', route: alertRoutes },
+  { path: '/api/alertas', route: alertRoutes }, // Alias para módulo separado
+  { path: '/api/messages', route: messageRoutes },
+  { path: '/api/chat', route: messageRoutes }, // Alias para módulo separado
+  { path: '/api/sos', route: sosRoutes }, // Rotas do módulo SOS
+  { path: '/api/reputation', route: reputationRoutes },
+  { path: '/api/ranking', route: reputationRoutes }, // Alias para módulo separado
   { path: '/api', route: tipoOcorrenciaRoutes },
   { path: '/api', route: marcasRoutes },
   { path: '/api', route: grupoRoutes },
@@ -340,31 +411,15 @@ const apiRoutes = [
   { path: '/api', route: modeloEquipamentoRoutes },
   { path: '/api', route: equipamentoRoutes },
   { path: '/api', route: mesorregiaoRoutes },
-  { path: '/api', route: cidadesRoutes },
   { path: '/api', route: roteirosRoutes },
-  { path: '/api', route: estadoRoutes },
   { path: '/api', route: estadosRoutes },
   { path: '/api', route: cadastroGeralRoutes },
-  { path: '/api', route: viagemRoutes },
   { path: '/api', route: tipoValidadeRoutes },
   { path: '/api', route: controleValidadeRoutes },
   { path: '/api', route: empresaRoutes },
   { path: '/api', route: filialRoutes },
-  { path: '/api/relatorio-convocacoes', route: relatorioConvocacoesRoutes },
   { path: '/api', route: usuarioRoutes },
-  { path: '/api', route: tipoAtividadeRoutes },
-  { path: '/api/motorista', route: motoristaAppRoutes },
-  { path: '/api/log', route: usuariologacaoRoutes },
-  { path: '/api', route: configRoutes },
-  { path: '/api/logs-acesso', route: logsAcessoRoutes },
-  { path: '/api/mapa-viagem', route: mapaViagemRoutes },
-  { path: '/api/alerts', route: alertRoutes },
-  { path: '/api/alertas', route: alertRoutes }, // Alias para módulo separado
-  { path: '/api/messages', route: messageRoutes },
-  { path: '/api/chat', route: messageRoutes }, // Alias para módulo separado
-  { path: '/api/sos', route: sosRoutes }, // Rotas do módulo SOS
-  { path: '/api/reputation', route: reputationRoutes },
-  { path: '/api/ranking', route: reputationRoutes } // Alias para módulo separado
+  { path: '/api', route: tipoAtividadeRoutes }
 ];
 
 // Registrar rotas na raiz /api/...
@@ -611,6 +666,14 @@ app.get('/test-css', (req, res) => {
       res.status(404).send(`CSS não encontrado: ${cssPath}`);
     }
   });
+});
+
+// APIs sem rota → JSON 404 (nunca index.html: o front faria JSON.parse e mostraria "<!DOCTYPE").
+app.use('/api', (req, res) => {
+  res.status(404).json({ error: 'Rota de API não encontrada.', path: req.originalUrl });
+});
+app.use('/cargas/api', (req, res) => {
+  res.status(404).json({ error: 'Rota de API não encontrada.', path: req.originalUrl });
 });
 
 // Qualquer outra rota não encontrada → redireciona para frontend (SPA-friendly)

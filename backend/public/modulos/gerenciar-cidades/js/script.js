@@ -1,6 +1,6 @@
 // backend/public/modulos/gerenciar-cidades/js/script.js
 // Gerenciar Cidades - Frontend
-// Versão: 1.1 - Correção de edição
+// Versão: 1.2 - Estado na edição (auth + fallback CDPAIS/CDUF)
 // Atlas Cargo
 // Data: 2026-04-05
 
@@ -20,6 +20,26 @@
   let paisesCarregados = false;
   let gridTab = null;
   let lastCidades = null; // cache dos últimos resultados do filtro
+
+  function getAuthHeaders(extra = {}) {
+    const headers = { Accept: 'application/json', ...extra };
+    const token = localStorage.getItem('token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      if (user && (user.login || user.SGUSUARIO)) headers['user-login'] = user.login || user.SGUSUARIO;
+    } catch (e) {}
+    return headers;
+  }
+
+  /** fetch para /api/* com JWT (funciona mesmo fora do patch global do dashboard). */
+  function fetchApi(path, init = {}) {
+    const clean = path.startsWith('/') ? path : `/${path}`;
+    const url = typeof window.corrigirUrl === 'function' ? window.corrigirUrl(clean) : clean;
+    const { headers: mergeH, ...rest } = init;
+    const headers = getAuthHeaders(mergeH && typeof mergeH === 'object' ? { ...mergeH } : {});
+    return fetch(url, { ...rest, headers });
+  }
 
   // Função de inicialização
   async function init() {
@@ -174,19 +194,21 @@
     el.innerHTML = `<option value="">${textoPadrao}</option>`;
     if (!cdpais) return;
     try {
-      const base = typeof window.corrigirUrl === 'function' ? window.corrigirUrl('/api/estados') : '/api/estados';
-      const response = await fetch(`${base}?cdpais=${encodeURIComponent(cdpais)}`);
-      if (!response.ok) return;
+      const response = await fetchApi(`/api/estados?cdpais=${encodeURIComponent(cdpais)}`);
+      if (!response.ok) {
+        console.warn('[Cidades] Falha ao listar estados:', response.status, 'cdpais=', cdpais);
+        return;
+      }
       const estados = await response.json();
       if (!Array.isArray(estados)) return;
       const primeiraOpcao = isFiltro ? 'Todos' : 'Selecione';
       el.innerHTML = `<option value="">${primeiraOpcao}</option>`;
       estados.forEach(e => {
         const opt = document.createElement('option');
-        const uf = e.ESTADO ?? e.estado ?? '';
-        const nome = e.NMESTADO ?? e.nmestado ?? uf;
+        const uf = String(e.ESTADO ?? e.estado ?? '').trim();
+        const nome = String(e.NMESTADO ?? e.nmestado ?? uf).trim();
         opt.value = uf;
-        opt.textContent = `${uf} - ${nome}`;
+        opt.textContent = nome ? `${uf} - ${nome}` : uf;
         el.appendChild(opt);
       });
       estadosCarregados = true;
@@ -196,10 +218,66 @@
     }
   }
 
+  function normUfEstado(v) {
+    return String(v || '').trim().toUpperCase();
+  }
+
+  /**
+   * Na edição, o combo pode ficar sem a UF salva (lista vazia para o país ou sigla divergente).
+   * Preenche via GET /api/estados/:cdpais/:cduf ou adiciona opção mínima.
+   */
+  async function garantirOpcaoEstadoEdicao(sel, ufRaw, cdpais, cduf) {
+    if (!sel) return;
+    const cp = cdpais != null && String(cdpais).trim() !== '' ? Number(cdpais) : NaN;
+    const cu = cduf != null && String(cduf).trim() !== '' ? Number(cduf) : NaN;
+    const want = ufRaw ? normUfEstado(ufRaw) : '';
+
+    async function aplicarPorChaveComposta() {
+      if (Number.isNaN(cp) || Number.isNaN(cu)) return false;
+      try {
+        const r = await fetchApi(`/api/estados/${cp}/${cu}`);
+        if (!r.ok) return false;
+        const e = await r.json();
+        const sigla = String(e.ESTADO ?? e.estado ?? '').trim();
+        const nome = String(e.NMESTADO ?? e.nmestado ?? '').trim();
+        if (!sigla) return false;
+        const ja = Array.from(sel.options).some(o => normUfEstado(o.value) === normUfEstado(sigla));
+        if (!ja) {
+          const opt = document.createElement('option');
+          opt.value = sigla;
+          opt.textContent = nome ? `${sigla} - ${nome}` : sigla;
+          sel.appendChild(opt);
+        }
+        const idx = Array.from(sel.options).findIndex(o => normUfEstado(o.value) === normUfEstado(sigla));
+        if (idx >= 0) sel.selectedIndex = idx;
+        return true;
+      } catch (err) {
+        console.warn('[Cidades] Estado por CDPAIS/CDUF:', err);
+        return false;
+      }
+    }
+
+    if (want) {
+      const idxFound = Array.from(sel.options).findIndex(o => normUfEstado(o.value) === want);
+      if (idxFound >= 0) {
+        sel.selectedIndex = idxFound;
+        return;
+      }
+      if (await aplicarPorChaveComposta()) return;
+      const opt = document.createElement('option');
+      opt.value = want;
+      opt.textContent = want;
+      sel.appendChild(opt);
+      sel.value = want;
+      return;
+    }
+    await aplicarPorChaveComposta();
+  }
+
   // Carregar regiões fiscais
   async function loadRegioesFiscais() {
     try {
-      const response = await fetch('/api/regioes-fiscais');
+      const response = await fetchApi('/api/regioes-fiscais');
       const data = await response.json();
       const regioes = Array.isArray(data) ? data : (data && data.regioes) || [];
       if (!response.ok) {
@@ -234,7 +312,7 @@
     
     if (!regioes) {
       // Se não passou a lista, buscar novamente
-      fetch('/api/regioes-fiscais')
+      fetchApi('/api/regioes-fiscais')
         .then(res => res.json())
         .then(data => {
           const list = Array.isArray(data) ? data : [];
@@ -261,7 +339,7 @@
   // Carregar países
   async function loadPaises() {
     try {
-      const response = await fetch('/api/paises');
+      const response = await fetchApi('/api/paises');
       const data = await response.json();
       const paises = Array.isArray(data) ? data : (data && data.paises) || [];
       if (!response.ok) {
@@ -296,7 +374,7 @@
     
     if (!paises) {
       // Se não passou a lista, buscar novamente
-      fetch('/api/paises')
+      fetchApi('/api/paises')
         .then(res => res.json())
         .then(data => {
           const list = Array.isArray(data) ? data : [];
@@ -329,7 +407,7 @@
         if (select) select.innerHTML = '<option value="">Selecione</option>';
         return;
       }
-      const response = await fetch(`/api/microrregioes/${cdufNum}`);
+      const response = await fetchApi(`/api/microrregioes/${cdufNum}`);
       
       if (!response.ok) {
         console.error('[Microrregiões] Erro na resposta:', response.status, response.statusText);
@@ -373,7 +451,7 @@
         if (select) select.innerHTML = '<option value="">Selecione</option>';
         return;
       }
-      const response = await fetch(`/api/mesorregioes/${cdufNum}`);
+      const response = await fetchApi(`/api/mesorregioes/${cdufNum}`);
       
       if (!response.ok) {
         console.error('[Mesorregiões] Erro na resposta:', response.status, response.statusText);
@@ -413,7 +491,7 @@
     try {
       if (!estado || estado === '') return null;
       
-      const response = await fetch(`/api/estado-cduf/${estado}`);
+      const response = await fetchApi(`/api/estado-cduf/${encodeURIComponent(estado)}`);
       if (response.ok) {
         const data = await response.json();
         return data.CDUF;
@@ -454,7 +532,7 @@
       // Concatenar CDUF (2 dígitos) + Código Município (5 dígitos) = Código IBGE completo (7 dígitos)
       const codigoIBGECompleto = parseInt(`${cdufNum}${String(codigoMunicipioNum).padStart(5, '0')}`);
       
-      const response = await fetch(`/api/ddd-por-ibge/${codigoIBGECompleto}`);
+      const response = await fetchApi(`/api/ddd-por-ibge/${codigoIBGECompleto}`);
       
       if (response.ok) {
         const data = await response.json();
@@ -481,7 +559,7 @@
         return;
       }
       
-      const response = await fetch(`/api/mesorregioes/${cdufNum}`);
+      const response = await fetchApi(`/api/mesorregioes/${cdufNum}`);
       if (!response.ok) {
         const select = document.getElementById('filtroMesoregiao');
         if (select) select.innerHTML = '<option value="">Todas</option>';
@@ -516,7 +594,7 @@
         return;
       }
       
-      const response = await fetch(`/api/microrregioes/${cdufNum}`);
+      const response = await fetchApi(`/api/microrregioes/${cdufNum}`);
       if (!response.ok) {
         const select = document.getElementById('filtroMicroregiao');
         if (select) select.innerHTML = '<option value="">Todas</option>';
@@ -599,7 +677,7 @@
     if (situacao) params.append('situacao', situacao);
     
     try {
-      const response = await fetch(`/api/cidades?${params.toString()}`);
+      const response = await fetchApi(`/api/cidades?${params.toString()}`);
       const cidades = await response.json();
 
       // Salvar cache de resultados
@@ -744,7 +822,7 @@
         cidadeForm.reset();
       }
       
-      const response = await fetch(`/api/cidades/${id}`);
+      const response = await fetchApi(`/api/cidades/${id}`);
       const cidade = await response.json();
 
       if (cidade) {
@@ -776,11 +854,10 @@
           document.getElementById('cidadePais').value = cidade.CDPAIS;
         }
 
-        // Carregar estados do país da cidade e então definir o estado
+        // Carregar estados do país da cidade e então definir o estado (com fallback se a lista vier vazia)
         await loadEstadosParaPais(cidade.CDPAIS || '', 'cidadeEstado');
         const estadoSelect = document.getElementById('cidadeEstado');
-        const estadoUF = cidade.ESTADO?.trim().toUpperCase();
-        if (estadoUF) estadoSelect.value = estadoUF;
+        await garantirOpcaoEstadoEdicao(estadoSelect, cidade.ESTADO, cidade.CDPAIS, cidade.CDUF);
 
         // Carrega CDUF e atualiza combos dependentes
         const cduf = cidade.CDUF;
@@ -822,7 +899,7 @@
       return;
     }
     try {
-      const response = await fetch(`/api/cidades/${idParaExcluir}?action=${acao}`, { method: 'DELETE' });
+      const response = await fetchApi(`/api/cidades/${idParaExcluir}?action=${acao}`, { method: 'DELETE' });
       const data = await response.json();
       if (response.ok) {
         showMessage(data.message || (acao === 'activate' ? 'Cidade reativada com sucesso!' : 'Cidade desativada com sucesso!'), 'success');
@@ -857,7 +934,7 @@
 
     try {
       const idToCheck = isNaN(idStr) ? idStr : parseInt(idStr, 10);
-      const response = await fetch(`/api/cidades/${idToCheck}`);
+      const response = await fetchApi(`/api/cidades/${idToCheck}`);
       if (!response.ok) throw new Error('Erro ao buscar cidade');
       const cidade = await response.json();
       const estaAtivo = cidade.FGACTIVE === 'S';
@@ -874,7 +951,16 @@
       }
 
       if (!modalEl || !modalMessage || !confirmYes || !confirmNo) {
-        if (window.confirm(confirmMsg)) await executarAlteracaoStatus(idStr, action, null);
+        const ok =
+          typeof window.confirmPadrao === 'function'
+            ? await window.confirmPadrao(String(confirmMsg || '').replace(/<[^>]*>/g, ''), {
+                title: estaAtivo ? 'Desativar cidade' : 'Reativar cidade',
+                danger: estaAtivo,
+                confirmText: btnText,
+                cancelText: t('web.modulos.cidades.cancelar') || 'Cancelar',
+              })
+            : window.confirm(String(confirmMsg || '').replace(/<[^>]*>/g, ''));
+        if (ok) await executarAlteracaoStatus(idStr, action, null);
         return;
       }
 
@@ -966,14 +1052,14 @@
       let response;
       if (id) {
         // Atualização
-        response = await fetch(`/api/cidades/${id}`, {
+        response = await fetchApi(`/api/cidades/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(cidadeData)
         });
       } else {
         // Inclusão
-        response = await fetch('/api/cidades', {
+        response = await fetchApi('/api/cidades', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(cidadeData)

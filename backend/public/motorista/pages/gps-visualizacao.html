@@ -131,6 +131,10 @@
       font-size: 12px;
       color: #666;
     }
+    .gps-marker-veiculo {
+      background: transparent !important;
+      border: none !important;
+    }
   </style>
 </head>
 <body class="motorista-page">
@@ -351,16 +355,55 @@
 
     // Carregar posições GPS
     const baseUrl = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
+    function extrairListaPosicoesApi(data) {
+      if (!data) return [];
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data.posicoes)) return data.posicoes;
+      if (data.data && Array.isArray(data.data.posicoes)) return data.data.posicoes;
+      return [];
+    }
     async function carregarPosicoes() {
       try {
-        const response = await fetch(`${baseUrl}/api/motorista/posicoes/${idViagem}`, {
+        const urlPos =
+          typeof window.corrigirUrl === 'function'
+            ? window.corrigirUrl('/api/motorista/posicoes/' + encodeURIComponent(idViagem))
+            : baseUrl + '/api/motorista/posicoes/' + encodeURIComponent(idViagem);
+        const response = await fetch(urlPos, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         });
 
+        if (!response.ok) {
+          let msgErro = 'HTTP ' + response.status;
+          try {
+            const errBody = await response.json();
+            msgErro = errBody.error || errBody.message || msgErro;
+          } catch (_) {
+            try {
+              msgErro = (await response.text()) || msgErro;
+            } catch (__) { /* ignore */ }
+          }
+          console.error('[gps-visualizacao] Falha ao buscar posições:', msgErro);
+          if (typeof mostrarToast === 'function') {
+            mostrarToast(msgErro, 'error');
+          }
+          posicoesGPS = [];
+          const emptyEl = document.getElementById('mapEmptyMessage');
+          if (emptyEl) {
+            emptyEl.style.display = 'flex';
+            emptyEl.innerHTML =
+              '<div style="font-size: 48px; margin-bottom: 16px;">📍</div><div>Não foi possível carregar as posições</div><div style="font-size: 12px; margin-top: 8px;">' +
+              (typeof window.escapeHtml === 'function' ? window.escapeHtml(String(msgErro)) : String(msgErro)) +
+              '</div>';
+          }
+          renderizarHistorico();
+          atualizarEstatisticas();
+          return;
+        }
+
         const data = await response.json().catch(() => ({}));
-        let raw = (response.ok && data && data.posicoes) ? data.posicoes : [];
+        let raw = extrairListaPosicoesApi(data);
         // Normalizar chaves para maiúsculas (backend pode retornar minúsculas no PostgreSQL)
         posicoesGPS = raw.map(p => ({
           ...p,
@@ -392,7 +435,14 @@
         if (emptyEl2) emptyEl2.style.display = 'none';
 
         // Renderizar no mapa
-        renderizarMapa();
+        try {
+          renderizarMapa();
+        } catch (rmErr) {
+          console.error('[gps-visualizacao] renderizarMapa:', rmErr);
+          if (typeof mostrarToast === 'function') {
+            mostrarToast((rmErr && rmErr.message) ? rmErr.message : 'Erro ao desenhar o mapa.', 'error');
+          }
+        }
         
         // Renderizar histórico
         renderizarHistorico();
@@ -417,43 +467,36 @@
     }
 
     /**
-     * Obter rota seguindo ruas (OSRM) entre primeiro e último ponto; fallback: linha reta
+     * Rota por estradas via gateway (evita CORS/405); fallback: polyline dos pontos GPS.
      */
-    function desenharRotaNoMapa(routeCoordinates) {
+    async function desenharRotaNoMapa(routeCoordinates) {
       const primeiro = routeCoordinates[0];
       const ultimo = routeCoordinates[routeCoordinates.length - 1];
       if (primeiro[0] === ultimo[0] && primeiro[1] === ultimo[1]) {
         routePolyline = L.polyline(routeCoordinates, { color: '#0ea5e9', weight: 4, opacity: 0.8 }).addTo(map);
         return;
       }
-      const config = window.MAP_CONFIG;
-      const getUrl = typeof window.getOSRMUrl === 'function' ? window.getOSRMUrl : null;
-      if (!getUrl || !config || !config.osrmServer) {
+      if (typeof window.fetchOsrmRouteJsonViaBackend !== 'function') {
         routePolyline = L.polyline(routeCoordinates, { color: '#0ea5e9', weight: 4, opacity: 0.8 }).addTo(map);
         return;
       }
-      const coords = [{ lat: primeiro[0], lon: primeiro[1] }, { lat: ultimo[0], lon: ultimo[1] }];
-      const url = getUrl(coords, { overview: 'full', geometries: 'geojson' });
-      const timeout = (config.routeTimeout || 15000);
-      const controller = new AbortController();
-      const t = setTimeout(function() { controller.abort(); }, timeout);
-      fetch(url, { signal: controller.signal })
-        .then(function(r) { clearTimeout(t); return r.json(); })
-        .then(function(data) {
-          if (data && data.routes && data.routes[0] && data.routes[0].geometry && data.routes[0].geometry.coordinates) {
-            const coordsGeo = data.routes[0].geometry.coordinates;
-            const latLngs = coordsGeo.map(function(c) { return [c[1], c[0]]; });
-            routePolyline = L.polyline(latLngs, { color: '#0ea5e9', weight: 4, opacity: 0.8 }).addTo(map);
-            if (latLngs.length > 0) {
-              map.fitBounds(L.latLngBounds(latLngs), { padding: [20, 20] });
-            }
-          } else {
-            routePolyline = L.polyline(routeCoordinates, { color: '#0ea5e9', weight: 4, opacity: 0.8 }).addTo(map);
-          }
-        })
-        .catch(function() {
-          routePolyline = L.polyline(routeCoordinates, { color: '#0ea5e9', weight: 4, opacity: 0.8 }).addTo(map);
-        });
+      const coordsStr = primeiro[1] + ',' + primeiro[0] + ';' + ultimo[1] + ',' + ultimo[0];
+      try {
+        const raw = await window.fetchOsrmRouteJsonViaBackend(coordsStr, 70000);
+        var data = raw;
+        if (typeof window.normalizarRespostaGatewayOsrm === 'function') {
+          var n = window.normalizarRespostaGatewayOsrm(raw);
+          if (n) data = n;
+        }
+        if (data && data.routes && data.routes[0] && data.routes[0].geometry && data.routes[0].geometry.coordinates) {
+          const latLngs = data.routes[0].geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
+          routePolyline = L.polyline(latLngs, { color: '#0ea5e9', weight: 4, opacity: 0.8 }).addTo(map);
+          return;
+        }
+      } catch (e) {
+        console.warn('[gps-visualizacao] Rota gateway:', e && e.message);
+      }
+      routePolyline = L.polyline(routeCoordinates, { color: '#0ea5e9', weight: 4, opacity: 0.8 }).addTo(map);
     }
 
     // Renderizar mapa com Leaflet
@@ -472,9 +515,16 @@
       const routeCoordinates = [];
       const bounds = [];
 
+      const iconVeiculoUltima = L.divIcon({
+        className: 'gps-marker-veiculo',
+        html: '<div style="font-size:26px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))">🚛</div>',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+      });
+
       posicoesGPS.forEach((pos, index) => {
-        const lat = parseFloat(pos.LATITUDE);
-        const lng = parseFloat(pos.LONGITUDE);
+        const lat = parseFloat(String(pos.LATITUDE != null ? pos.LATITUDE : '').replace(',', '.'));
+        const lng = parseFloat(String(pos.LONGITUDE != null ? pos.LONGITUDE : '').replace(',', '.'));
         
         if (isNaN(lat) || isNaN(lng)) return;
 
@@ -482,11 +532,14 @@
         routeCoordinates.push(position);
         bounds.push(position);
 
-        // Criar marcador
+        // Criar marcador (última posição = caminhão; demais = pin padrão)
         const isUltima = index === 0; // Primeira é a mais recente
-        const marker = L.marker(position, {
+        const markerOptions = {
           title: `Posição ${posicoesGPS.length - index}`
-        });
+        };
+        // Evita passar icon undefined para o Leaflet (quebra em _initIcon/createIcon).
+        if (isUltima) markerOptions.icon = iconVeiculoUltima;
+        const marker = L.marker(position, markerOptions);
 
         // Popup com informações
         const popupContent = `
@@ -499,36 +552,34 @@
         marker.bindPopup(popupContent);
         marker.addTo(map);
 
-        // Estilo especial para última posição
-        if (isUltima) {
-          const circle = L.circleMarker(position, {
-            radius: 10,
-            fillColor: '#e74c3c',
-            color: '#fff',
-            weight: 2,
-            opacity: 1,
-            fillOpacity: 1
-          }).addTo(map);
-          markers.push(circle);
-        }
-
         markers.push(marker);
       });
 
-      // Desenhar rota: tentar OSRM (seguir ruas); se falhar, usar linha reta entre pontos
+      // Desenhar rota: gateway (estradas); se falhar, polyline dos pontos
       if (routeCoordinates.length > 1) {
-        desenharRotaNoMapa(routeCoordinates);
+        void desenharRotaNoMapa(routeCoordinates).catch(function(e) {
+          console.warn('[gps-visualizacao] desenharRotaNoMapa:', e && e.message);
+        });
       }
 
       // Ajustar zoom para mostrar toda a rota
       if (bounds.length > 0) {
-        const boundsGroup = L.latLngBounds(bounds);
-        map.fitBounds(boundsGroup, { padding: [20, 20] });
-        
-        // Se houver apenas uma posição, definir zoom manual
-        if (bounds.length === 1) {
-          map.setZoom(15);
-          map.setView(bounds[0]);
+        try {
+          const boundsGroup = L.latLngBounds(bounds);
+          map.fitBounds(boundsGroup, { padding: [20, 20] });
+          
+          // Se houver apenas uma posição, definir zoom manual
+          if (bounds.length === 1) {
+            map.setZoom(15);
+            map.setView(bounds[0]);
+          }
+        } catch (fbErr) {
+          console.warn('[gps-visualizacao] fitBounds:', fbErr && fbErr.message);
+          if (bounds.length === 1 && bounds[0]) {
+            try {
+              map.setView(bounds[0], 15);
+            } catch (_) { /* ignore */ }
+          }
         }
       }
 
@@ -707,8 +758,12 @@
           return;
         }
 
-        // Buscar dados da viagem para obter destino
-        const response = await fetch(`/api/motorista/viagem/${idViagem}`, {
+        // Buscar dados da viagem para obter destino (mesmo prefixo /cargas que posicoes)
+        const urlViagem =
+          typeof window.corrigirUrl === 'function'
+            ? window.corrigirUrl('/api/motorista/viagem/' + encodeURIComponent(idViagem))
+            : `/api/motorista/viagem/${encodeURIComponent(idViagem)}`;
+        const response = await fetch(urlViagem, {
           headers: {
             'Authorization': `Bearer ${token}`
           }

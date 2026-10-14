@@ -504,9 +504,9 @@
         </div>
 
         <div class="tabs tabs-com-icones">
-            <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.tiposValidade.tabFiltros"><i class='bx bx-filter-alt'></i> Filtros</button>
-            <button class="tab-btn" data-tab="grid" data-i18n="web.modulos.tiposValidade.tabGrid"><i class='bx bx-grid-alt'></i> Grid</button>
-            <button class="tab-btn" data-tab="dados" data-i18n="web.modulos.tiposValidade.tabDados"><i class='bx bx-edit'></i> Dados</button>
+            <button type="button" class="tab-btn active" data-tab="filtros"><i class='bx bx-filter-alt'></i> <span data-i18n="web.modulos.tiposValidade.tabFiltros">Filtros</span></button>
+            <button type="button" class="tab-btn" data-tab="grid"><i class='bx bx-grid-alt'></i> <span data-i18n="web.modulos.tiposValidade.tabGrid">Grid</span></button>
+            <button type="button" class="tab-btn" data-tab="dados"><i class='bx bx-edit'></i> <span data-i18n="web.modulos.tiposValidade.tabDados">Dados</span></button>
         </div>
 
         <div class="tab-content active" id="tab-filtros">
@@ -534,9 +534,9 @@
                         </div>
                     </div>
                     <div class="filtros-actions">
-                        <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> Limpar</button>
-                        <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class='bx bx-search'></i> Filtrar</button>
-                        <button type="button" id="btnNovoRegistro" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> Novo</button>
+                        <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> <span data-i18n="web.modulos.tiposValidade.limpar">Limpar</span></button>
+                        <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class='bx bx-search'></i> <span data-i18n="web.modulos.tiposValidade.filtrar">Filtrar</span></button>
+                        <button type="button" id="btnNovoRegistro" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> <span data-i18n="web.modulos.tiposValidade.novo">Novo</span></button>
                     </div>
                 </form>
             </div>
@@ -546,11 +546,11 @@
             <div class="filtros-box">
                 <h3 data-i18n="web.modulos.tiposValidade.listaCadastrados">Tipos de Validade Cadastrados</h3>
                 <div class="filtros-actions" style="justify-content: space-between; margin-top: 0; margin-bottom: 15px;">
-                    <button id="btnVoltarFiltrosGrid" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> Voltar</button>
-                    <button id="btnNovoRegistroGrid" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> Novo</button>
+                    <button type="button" id="btnVoltarFiltrosGrid" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.tiposValidade.voltar">Voltar</span></button>
+                    <button type="button" id="btnNovoRegistroGrid" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> <span data-i18n="web.modulos.tiposValidade.novo">Novo</span></button>
                 </div>
                 <div id="tiposGridCount" style="padding: 10px 0; color: var(--gray); font-size: 14px; font-weight: 500;">
-                    <span id="tiposGridCountText" data-i18n="web.modulos.cidades.registrosEncontrados">0 registro(s) encontrado(s)</span>
+                    <span id="tiposGridCountText" data-i18n="web.modulos.tiposValidade.registrosEncontrados">0 registro(s) encontrado(s)</span>
                 </div>
                 <div id="tiposGrid" class="grid-container">
                     <p class="empty">Aplicar filtros para carregar o grid.</p>

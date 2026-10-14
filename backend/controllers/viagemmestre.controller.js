@@ -8,6 +8,10 @@ const sql = require('../config/mssql-compat');
 const axios = require('axios');
 const { poolPromise, getFirstNumericValue, createTransaction } = require('../config/db');
 const { getSgUser } = require('../utils/audit');
+const { tenantIdForRequest } = require('../utils/tenant-context');
+const { getDefaultTenantId } = require('../middleware/tenant.middleware');
+const convocacaoMsgTpl = require('../services/convocacao-mensagem-template.service');
+const { getContexto } = require('../services/contexto.service');
 
 // Constantes
 const SITUACAO_VIAGEM = {
@@ -21,140 +25,343 @@ const SITUACAO_VIAGEM = {
   'T': 'Em trânsito'
 };
 
+function normalizarDigitosTelefoneBR(val) {
+  if (val == null || val === '') return '';
+  let d = String(val).replace(/\D/g, '');
+  if (d.startsWith('55') && d.length >= 12) d = d.slice(2);
+  return d;
+}
+
+function normalizarDigitosSoNumeros(val) {
+  if (val == null || val === '') return '';
+  return String(val).replace(/\D/g, '');
+}
+
+function isPaisBrTelefone(paisPadrao) {
+  const p = String(paisPadrao == null ? 'BR' : paisPadrao)
+    .trim()
+    .toUpperCase();
+  return p === 'BR' || p === 'BRA';
+}
+
+/** Compara telefone informado na página pública com o cadastro. BR: DDD + número; demais países: dígitos, igualdade ou sufixo (≥8 dígitos no menor). */
+function telefoneMotoristaConfere(informado, cadastro, paisPadrao) {
+  if (isPaisBrTelefone(paisPadrao)) {
+    const a = normalizarDigitosTelefoneBR(informado);
+    const b = normalizarDigitosTelefoneBR(cadastro);
+    if (!a || !b || a.length < 10 || b.length < 10) return false;
+    if (a === b) return true;
+    return a.slice(-11) === b.slice(-11) || a.slice(-10) === b.slice(-10);
+  }
+  const a = normalizarDigitosSoNumeros(informado);
+  const b = normalizarDigitosSoNumeros(cadastro);
+  if (!a || !b || a.length < 8 || b.length < 8) return false;
+  if (a === b) return true;
+  if (a.length <= b.length && b.endsWith(a) && a.length >= 8) return true;
+  if (b.length <= a.length && a.endsWith(b) && b.length >= 8) return true;
+  return false;
+}
+
 /**
- * Envia uma única mensagem via Switch Digital (WhatsApp).
- * Usado ao confirmar convocação: mensagem para o selecionado e para os não selecionados (ACEITA_DESCARTADA).
- * @returns {Promise<{ ok: boolean, error?: string }>}
+ * URL da página pública da convocação (aceitar/recusar).
+ * Prioriza link já montado no payload; senão usa IDCONVOCACAO + baseUrl.
+ * Evita `id ? url : ''` (ID 0 ou outros valores falsy quebravam o link).
  */
-async function enviarUmaMensagemSwitchDigital(pool, req, { idConvocacao, numeroCelular, corpoMensagem }) {
-  const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
-  const configQuery = await pool.request().query(`
-    SELECT "CHAVE", "VALOR" FROM "CONFIGURACAO"
-    WHERE "CHAVE" IN ('switch_digital_endpoint', 'switch_digital_metodo', 'switch_digital_content_type', 'switch_digital_token', 'switch_digital_user_id', 'switch_digital_queue_id', 'switch_digital_send_signature', 'switch_digital_close_ticket')
-  `);
-  const config = {
-    endpoint: 'https://api.switchdigital.com.br/api/messages/send',
-    metodo: 'POST',
-    contentType: 'application/json',
-    token: '',
-    userId: '',
-    queueId: '',
-    sendSignature: true,
-    closeTicket: true
-  };
-  if (configQuery.recordset) {
-    configQuery.recordset.forEach(r => {
-      const k = r.CHAVE || r.chave;
-      const v = r.VALOR || r.valor;
-      if (k === 'switch_digital_endpoint') config.endpoint = v;
-      if (k === 'switch_digital_metodo') config.metodo = v;
-      if (k === 'switch_digital_content_type') config.contentType = v;
-      if (k === 'switch_digital_token') config.token = v;
-      if (k === 'switch_digital_user_id') config.userId = v;
-      if (k === 'switch_digital_queue_id') config.queueId = v;
-      if (k === 'switch_digital_send_signature') config.sendSignature = (v === 'S');
-      if (k === 'switch_digital_close_ticket') config.closeTicket = (v !== 'N');
-    });
-  }
-  if (!config.token || String(config.token).trim() === '') {
-    return { ok: false, error: 'Token Switch Digital não configurado' };
-  }
-  const numeroLimpo = String(numeroCelular || '').replace(/\D/g, '');
-  if (!numeroLimpo || numeroLimpo.length < 10) {
-    return { ok: false, error: 'Número de celular inválido' };
-  }
-  const requestBody = {
-    number: numeroLimpo,
-    body: corpoMensagem,
-    sendSignature: config.sendSignature,
-    closeTicket: config.closeTicket
-  };
-  if (config.userId && config.userId.trim() !== '') requestBody.userId = config.userId.trim();
-  if (config.queueId && config.queueId.trim() !== '') requestBody.queueId = config.queueId.trim();
+/** Valor opcional informado pelo motorista ao aceitar (BR: vírgula decimal). Retorna { ok, value } ou { ok: false, error }. */
+function parseValorFretePropostaMotorista(raw) {
+  if (raw == null || String(raw).trim() === '') return { ok: true, value: null };
+  let s = String(raw).trim().replace(/\s/g, '').replace(/[^\d.,-]/g, '');
+  if (s === '' || s === '-') return { ok: false, error: 'Informe um valor numérico válido para o frete.' };
+  if (/,/.test(s) && /\./.test(s)) s = s.replace(/\./g, '').replace(',', '.');
+  else if (/,/.test(s)) s = s.replace(',', '.');
+  const n = parseFloat(s);
+  if (!Number.isFinite(n)) return { ok: false, error: 'Valor de frete inválido.' };
+  if (n < 0) return { ok: false, error: 'O frete proposto não pode ser negativo.' };
+  if (n > 999999999.99) return { ok: false, error: 'Valor acima do limite permitido.' };
+  return { ok: true, value: Math.round(n * 100) / 100 };
+}
 
-  let logStatusEnvio = 'ERRO';
-  let logMensagemErro = null;
-  let logDhEnvio = null;
-  let logStatusHttp = null;
-  let logTempoResposta = null;
-  let logDetalhesJson = null;
-
+function isUrlLocalHost(u) {
+  const s = String(u || '').trim().toLowerCase();
+  if (!s) return true;
   try {
-    const inicio = Date.now();
-    const switchRes = await fetch(config.endpoint, {
-      method: config.metodo,
-      headers: {
-        'Authorization': `Bearer ${config.token}`,
-        'Content-Type': config.contentType
-      },
-      body: JSON.stringify(requestBody)
-    });
-    const tempo = Date.now() - inicio;
-    const responseText = await switchRes.text();
-    let responseData;
-    try { responseData = JSON.parse(responseText); } catch (e) { responseData = responseText; }
+    const host = new URL(s.includes('://') ? s : `http://${s}`).hostname;
+    return (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host.startsWith('192.168.') ||
+      host.startsWith('10.') ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+    );
+  } catch (_) {
+    return /localhost|127\.0\.0\.1/.test(s);
+  }
+}
 
-    if (switchRes.ok) {
-      logStatusEnvio = 'ENVIADO';
-      logDhEnvio = new Date();
-      logStatusHttp = switchRes.status;
-      logTempoResposta = tempo;
-      logDetalhesJson = typeof responseData === 'object' ? JSON.stringify(responseData) : String(responseData);
-    } else {
-      logMensagemErro = (typeof responseData === 'object' ? (responseData.message || responseData.error || JSON.stringify(responseData)) : String(responseData)).substring(0, 500);
-      logStatusHttp = switchRes.status;
-      logTempoResposta = tempo;
-      logDetalhesJson = typeof responseData === 'object' ? JSON.stringify(responseData) : String(responseData);
+/**
+ * Base pública para links de convocação/WhatsApp.
+ * Se PUBLIC_URL (ou APP_URL) for público, manda nele — ignora localhost vindo do browser.
+ */
+function resolverBaseUrlPublica(baseUrlBody) {
+  const fromEnv = String(process.env.PUBLIC_URL || process.env.APP_URL || '')
+    .trim()
+    .replace(/\/$/, '');
+  const fromBody = String(baseUrlBody || '')
+    .trim()
+    .replace(/\/$/, '');
+  if (fromEnv && !isUrlLocalHost(fromEnv)) return fromEnv;
+  if (fromBody && !isUrlLocalHost(fromBody)) return fromBody;
+  if (fromEnv) return fromEnv;
+  if (fromBody) return fromBody;
+  return 'http://localhost:3001';
+}
+
+/** Reescreve link localhost → PUBLIC_URL quando o .env tem URL pública (ngrok/domínio). */
+function reescreverLinkSeLocal(link, basePublica) {
+  const s = String(link || '').trim();
+  if (!s || !basePublica || isUrlLocalHost(basePublica)) return s;
+  if (!isUrlLocalHost(s)) return s;
+  try {
+    const path = s.includes('://') ? new URL(s).pathname + (new URL(s).search || '') : s;
+    const p = path.startsWith('/') ? path : `/${path}`;
+    return `${basePublica.replace(/\/$/, '')}${p}`;
+  } catch (_) {
+    const m = s.match(/\/convocacao\/[^?\s#]+/i);
+    if (m) return `${basePublica.replace(/\/$/, '')}${m[0]}`;
+    return s;
+  }
+}
+
+function resolverLinkConvocacaoParaMensagem(convPayload, baseUrl) {
+  const base = resolverBaseUrlPublica(baseUrl);
+  const keysLink = ['LINKCONVOCACAO', 'linkconvocacao', 'LINK_CONVOCACAO'];
+  for (const k of keysLink) {
+    const x = convPayload[k];
+    if (x == null || x === '') continue;
+    const s = String(x).trim();
+    if (!s) continue;
+    if (/^https?:\/\//i.test(s)) return reescreverLinkSeLocal(s, base);
+    if (s.startsWith('/') && base) return `${base}${s}`;
+    return reescreverLinkSeLocal(s, base);
+  }
+  const idRaw =
+    convPayload.IDCONVOCACAO ??
+    convPayload.idConvocacao ??
+    convPayload.idconvocacao ??
+    convPayload.ID_CONVOCACAO;
+  if (idRaw == null || idRaw === '') return '';
+  const idStr = String(idRaw).trim();
+  if (!idStr || idStr === 'undefined' || idStr === 'null') return '';
+  if (!base) return `/convocacao/${idStr}`;
+  return `${base}/convocacao/${idStr}`;
+}
+
+const {
+  parseSwitchSendSignatureFromDb,
+  parseSwitchCloseTicketFromDb,
+  registrarResumoEtapaWhatsApp,
+  enviarUmaMensagemSwitchDigital,
+} = require('../services/whatsapp-switch-digital.service');
+const {
+  gravarDivergenciaPlacasSomente,
+  notificarDivergenciaPlacasContratador,
+} = require('../services/convocacao-placas-divergencia.service');
+const {
+  sqlCoalescePlacasEsperadasConvocacao,
+  sqlCoalesceDsClasseConjuntoConvocacao,
+  sqlPlacasEsperadasPorViagemMotoristaParams,
+  sqlDsClasseConjuntoPorViagemMotoristaParams,
+  sqlCoalescePlacasEsperadasConvocacaoComSnapshot,
+  sqlCoalesceDsClasseConjuntoConvocacaoComSnapshot,
+} = require('../helpers/convocacao-placas-esperadas.sql');
+
+/**
+ * O SELECT de responderConvocacao pode cair em fallback sem PLACASESPERADAS / DSCLASSEFROTA_CONJUNTO (42703),
+ * zerando o gate e ignorando o fluxo DIVERGE (aceite sem FG e sem WhatsApp). Alinha com GET público.
+ */
+async function enriquecerPlacasConjuntoConvRowResponder(pool, idConvocacao, tenantId, convRow) {
+  const pl = String(convRow.PLACASESPERADAS ?? convRow.placasesperadas ?? '').trim();
+  const cl = String(convRow.DSCLASSEFROTA_CONJUNTO ?? convRow.dsclassefrota_conjunto ?? '').trim();
+  if (pl || cl) return;
+  const sqlEnrich = `
+    SELECT
+      (${sqlCoalescePlacasEsperadasConvocacaoComSnapshot()}) AS [PLACASESPERADAS],
+      (${sqlCoalesceDsClasseConjuntoConvocacaoComSnapshot()}) AS [DSCLASSEFROTA_CONJUNTO]
+    FROM [dbo].[CONVOCACAO] c
+    WHERE c.[IDCONVOCACAO] = @IDCONVOCACAO AND c.[TENANT_ID] = @TENANT_ID
+  `;
+  try {
+    const r = await pool
+      .request()
+      .input('IDCONVOCACAO', sql.Int, parseInt(idConvocacao, 10))
+      .input('TENANT_ID', sql.NVarChar(64), String(tenantId || '').trim())
+      .query(sqlEnrich);
+    const row = r.recordset && r.recordset[0];
+    if (!row) return;
+    const p2 = row.PLACASESPERADAS ?? row.placasesperadas;
+    const c2 = row.DSCLASSEFROTA_CONJUNTO ?? row.dsclassefrota_conjunto;
+    if (p2 != null && String(p2).trim() !== '') convRow.PLACASESPERADAS = p2;
+    if (c2 != null && String(c2).trim() !== '') convRow.DSCLASSEFROTA_CONJUNTO = c2;
+  } catch (e) {
+    if (e.code === '42703') return;
+    throw e;
+  }
+}
+
+/** Char(2) para VIAGEMVEICULO.TPEQUIPAMENTO a partir de EQUIPAMENTO.CDTIPOEquipamento. */
+function formatarTpeEquipamentoParaViagem(cdTipo) {
+  if (cdTipo == null || cdTipo === '') return '01';
+  const n = parseInt(String(cdTipo).replace(/\D/g, ''), 10);
+  if (Number.isFinite(n)) return String(n).padStart(2, '0').slice(0, 2);
+  const s = String(cdTipo).trim().toUpperCase().replace(/\s/g, '');
+  if (s.length >= 2) return s.slice(0, 2);
+  return s.padStart(2, '0').slice(0, 2);
+}
+
+function normalizarTokenPlaca(raw) {
+  return String(raw || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '');
+}
+
+/**
+ * Inclui em VIAGEMVEICULO os equipamentos do motorista que batem com PLACASESPERADAS
+ * (mesma expressão da listagem). Não remove vínculos já existentes. Falhas são engolidas pelo caller.
+ */
+async function vincularVeiculosViagemAoConfirmarConvocacao(transaction, {
+  idConvocacao,
+  idViagem,
+  cdMotorista,
+  tenantId,
+  sgUser,
+}) {
+  if (cdMotorista == null || cdMotorista === '') return 0;
+  const tid = tenantId != null ? String(tenantId) : '';
+  const idConv = parseInt(idConvocacao, 10);
+  const idV = parseFloat(idViagem);
+  const cdMot = parseFloat(cdMotorista);
+  if (!Number.isFinite(idConv) || !Number.isFinite(idV) || !Number.isFinite(cdMot)) return 0;
+
+  const rowPlacas = await transaction
+    .request()
+    .input('IDCONVOCACAO', sql.Int, idConv)
+    .input('TENANT_ID', sql.NVarChar(64), tid)
+    .query(`
+      SELECT (${sqlCoalescePlacasEsperadasConvocacaoComSnapshot()}) AS [PLACASESPERADAS]
+      FROM [dbo].[CONVOCACAO] c
+      WHERE c.[IDCONVOCACAO] = @IDCONVOCACAO AND c.[TENANT_ID] = @TENANT_ID
+    `);
+
+  const r0 = rowPlacas.recordset && rowPlacas.recordset[0];
+  const rawPlacas = r0
+    ? String(r0.PLACASESPERADAS ?? r0.placasesperadas ?? '').trim()
+    : '';
+  const tokens = rawPlacas
+    .split(/[,;|]+/)
+    .map((p) => normalizarTokenPlaca(p))
+    .filter(Boolean);
+
+  const equipPorId = new Map();
+
+  const upsertEquipRow = (row) => {
+    if (!row) return;
+    const ide = row.IDEQUIPAMENTO ?? row.idequipamento;
+    if (ide == null) return;
+    const idNum = parseFloat(ide);
+    if (!Number.isFinite(idNum)) return;
+    const ref = row.REFEQUIPAMENTO ?? row.refequipamento ?? '';
+    const cdTipo = row.CDTIPOEQUIPAMENTO ?? row.cdtipoequipamento;
+    equipPorId.set(idNum, {
+      idequipamento: idNum,
+      refequipamento: String(ref || '').trim() || 'SEMPLACA',
+      tpequipamento: formatarTpeEquipamentoParaViagem(cdTipo),
+    });
+  };
+
+  if (tokens.length > 0) {
+    for (const placaTok of tokens) {
+      const rEq = await transaction
+        .request()
+        .input('CDMOTORISTA', sql.Decimal(15, 0), cdMot)
+        .input('TENANT_ID', sql.NVarChar(64), tid)
+        .input('PLACA', sql.VarChar(20), placaTok)
+        .query(`
+          SELECT
+            e.[IDEQUIPAMENTO],
+            e.[REFEQUIPAMENTO],
+            e.[CDTIPOEQUIPAMENTO]
+          FROM [dbo].[MOTORISTA_VEICULO] mv
+          INNER JOIN [dbo].[EQUIPAMENTO] e ON e.[IDEQUIPAMENTO] = mv.[CDEQUIPAMENTO]
+            AND (e.[TENANT_ID] = @TENANT_ID OR e.[TENANT_ID] = 'default')
+          WHERE mv.[CDCADASTRO] = @CDMOTORISTA
+            AND (mv.[TENANT_ID] = @TENANT_ID OR mv.[TENANT_ID] IS NULL)
+            AND COALESCE(mv.[FGACTIVE], 'S') = 'S'
+            AND COALESCE(mv.[STATUSAPROVACAO], 'P') = 'A'
+            AND mv.[CDEQUIPAMENTO] IS NOT NULL
+            AND (
+              UPPER(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(COALESCE(mv.[PLACA], ''))), '-', ''), ' ', ''), '.', '')) = @PLACA
+              OR UPPER(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(COALESCE(e.[REFEQUIPAMENTO], ''))), '-', ''), ' ', ''), '.', '')) = @PLACA
+            )
+          ORDER BY e.[IDEQUIPAMENTO] ASC
+        `);
+      const first = rEq.recordset && rEq.recordset[0];
+      if (first) upsertEquipRow(first);
     }
-  } catch (errApi) {
-    logMensagemErro = (errApi.message || '').substring(0, 500);
-    logDetalhesJson = JSON.stringify({ error: errApi.message });
-  }
-
-  const sgUserLog = getSgUser(req) || 'SYSTEM';
-  const detalhesStr = (logDetalhesJson || '').substring(0, 4000);
-
-  try {
-    await pool.request()
-      .input('IDCONVOCACAO', sql.Int, idConvocacao)
-      .input('NRCELULAR', numeroLimpo)
-      .input('STATUS_ENVIO', logStatusEnvio)
-      .input('MENSAGEM_ERRO', logMensagemErro)
-      .input('DHENVIO', logDhEnvio)
-      .input('DHRESPOSTA_API', logDhEnvio)
-      .input('TENTATIVAS', 1)
-      .input('sgUser', sgUserLog)
+  } else {
+    const rAll = await transaction
+      .request()
+      .input('CDMOTORISTA', sql.Decimal(15, 0), cdMot)
+      .input('TENANT_ID', sql.NVarChar(64), tid)
       .query(`
-        INSERT INTO [dbo].[LOG_ENVIO_WHATSAPP]
-          ([IDCONVOCACAO], [NRCELULAR], [STATUS_ENVIO], [MENSAGEM_ERRO], [DHENVIO], [DHRESPOSTA_API], [TENTATIVAS], [DHMAINTENANCE], [SGUSER], [SERVERORIG])
-        VALUES
-          (@IDCONVOCACAO, @NRCELULAR, @STATUS_ENVIO, @MENSAGEM_ERRO, @DHENVIO, @DHRESPOSTA_API, @TENTATIVAS, CURRENT_TIMESTAMP, @sgUser, 'AppDVcargas')
+        SELECT DISTINCT
+          e.[IDEQUIPAMENTO],
+          e.[REFEQUIPAMENTO],
+          e.[CDTIPOEQUIPAMENTO]
+        FROM [dbo].[MOTORISTA_VEICULO] mv
+        INNER JOIN [dbo].[EQUIPAMENTO] e ON e.[IDEQUIPAMENTO] = mv.[CDEQUIPAMENTO]
+          AND (e.[TENANT_ID] = @TENANT_ID OR e.[TENANT_ID] = 'default')
+        WHERE mv.[CDCADASTRO] = @CDMOTORISTA
+          AND (mv.[TENANT_ID] = @TENANT_ID OR mv.[TENANT_ID] IS NULL)
+          AND COALESCE(mv.[FGACTIVE], 'S') = 'S'
+          AND COALESCE(mv.[STATUSAPROVACAO], 'P') = 'A'
+          AND mv.[CDEQUIPAMENTO] IS NOT NULL
+        ORDER BY e.[IDEQUIPAMENTO] ASC
       `);
-  } catch (logErr) {
-    console.error('[SWITCH DIGITAL] Erro ao gravar LOG_ENVIO_WHATSAPP:', logErr.message);
+    for (const row of rAll.recordset || []) upsertEquipRow(row);
   }
 
-  try {
-    await pool.request()
-      .input('IDCONVOCACAO', sql.Int, idConvocacao)
-      .input('TIPO', 'envio_switch')
-      .input('TITULO', `Switch Digital - ${logStatusEnvio === 'ENVIADO' ? 'Enviado' : 'Erro'}`)
-      .input('MENSAGEM', logStatusEnvio === 'ENVIADO' ? `Enviado para ${numeroLimpo}` : (logMensagemErro || 'Erro no envio'))
-      .input('DETALHES', detalhesStr)
-      .input('STATUS_HTTP', logStatusHttp)
-      .input('TEMPO_RESPOSTA', logTempoResposta)
-      .input('sgUser', sgUserLog)
+  let inseridos = 0;
+  for (const eq of equipPorId.values()) {
+    const chk = await transaction
+      .request()
+      .input('IDVIAGEM', sql.Decimal(15, 0), idV)
+      .input('IDEQUIPAMENTO', sql.Decimal(15, 0), eq.idequipamento)
       .query(`
-        INSERT INTO [dbo].[LOGSWEBHOOKMETA]
-          ([IDCONVOCACAO], [TIPO], [TITULO], [MENSAGEM], [DETALHES], [STATUS_HTTP], [TEMPO_RESPOSTA], [DHLOG], [DHMAINTENANCE], [SGUSER], [SERVERORIG])
-        VALUES
-          (@IDCONVOCACAO, @TIPO, @TITULO, @MENSAGEM, @DETALHES, @STATUS_HTTP, @TEMPO_RESPOSTA, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, @sgUser, 'AppDVcargas')
+        SELECT COUNT(*) AS [C]
+        FROM [dbo].[VIAGEMVEICULO]
+        WHERE [IDVIAGEM] = @IDVIAGEM AND [IDEQUIPAMENTO] = @IDEQUIPAMENTO
       `);
-  } catch (logErr) {
-    console.error('[SWITCH DIGITAL] Erro ao gravar LOGSWEBHOOKMETA:', logErr.message);
+    if (getFirstNumericValue(chk.recordset, 0) > 0) continue;
+
+    await transaction
+      .request()
+      .input('IDVIAGEM', sql.Decimal(15, 0), idV)
+      .input('IDEQUIPAMENTO', sql.Decimal(15, 0), eq.idequipamento)
+      .input('REFEQUIPAMENTO', sql.VarChar(20), String(eq.refequipamento).toUpperCase().slice(0, 20))
+      .input('TPEQUIPAMENTO', sql.Char(2), String(eq.tpequipamento || '01').toUpperCase().slice(0, 2))
+      .input('sgUser', sql.VarChar(50), sgUser)
+      .query(`
+        INSERT INTO [dbo].[VIAGEMVEICULO] ([IDVIAGEM], [IDEQUIPAMENTO], [REFEQUIPAMENTO], [TPEQUIPAMENTO], [DHMAINTENANCE], [SGUSER], [SERVERORIG])
+        VALUES (@IDVIAGEM, @IDEQUIPAMENTO, @REFEQUIPAMENTO, @TPEQUIPAMENTO, GETDATE(), @sgUser, 'AppDVcargas')
+      `);
+    inseridos++;
   }
 
-  return { ok: logStatusEnvio === 'ENVIADO', error: logMensagemErro || undefined };
+  if (inseridos > 0) {
+    console.log(`[CONFIRMAR] ${inseridos} veículo(s) vinculado(s) à viagem ${idV} a partir do motorista ${cdMot} (conv. ${idConv}).`);
+  }
+  return inseridos;
 }
 
 // Controller methods
@@ -199,98 +406,118 @@ const viagemController = {
           [cd].[ESTADO] AS DESTINO_ESTADO,
           [cd].[NMCIDADE] AS DESTINO_CIDADE,
           [cd].[CDCIDADE] AS DESTINO_CODIGO,
-          (SELECT COUNT(*) FROM [dbo].[CONVOCACAO] WHERE [IDVIAGEM] = [v].[IDVIAGEM]) AS QTD_ACIONADOS,
-          (SELECT COUNT(*) FROM [dbo].[CONVOCACAO] WHERE [IDVIAGEM] = [v].[IDVIAGEM] AND [STATUS] IN ('ACEITA', 'ACEITA_DESCARTADA')) AS QTD_ACEITE,
-          (SELECT COUNT(*) FROM [dbo].[CONVOCACAO] WHERE [IDVIAGEM] = [v].[IDVIAGEM] AND [STATUS] = 'RECUSADA') AS QTD_RECUSA,
+          (SELECT COUNT(*) FROM [dbo].[CONVOCACAO] WHERE [IDVIAGEM] = [v].[IDVIAGEM] AND [TENANT_ID] = [v].[TENANT_ID]) AS QTD_ACIONADOS,
+          (SELECT COUNT(*) FROM [dbo].[CONVOCACAO] WHERE [IDVIAGEM] = [v].[IDVIAGEM] AND [TENANT_ID] = [v].[TENANT_ID] AND [STATUS] IN ('ACEITA', 'ACEITA_DESCARTADA')) AS QTD_ACEITE,
+          (SELECT COUNT(*) FROM [dbo].[CONVOCACAO] WHERE [IDVIAGEM] = [v].[IDVIAGEM] AND [TENANT_ID] = [v].[TENANT_ID] AND [STATUS] = 'RECUSADA') AS QTD_RECUSA,
           CASE 
-            WHEN EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] WHERE [IDVIAGEM] = [v].[IDVIAGEM] AND [STATUS] = 'CONFIRMADA') THEN 'S'
+            WHEN EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] WHERE [IDVIAGEM] = [v].[IDVIAGEM] AND [TENANT_ID] = [v].[TENANT_ID] AND [STATUS] = 'CONFIRMADA') THEN 'S'
             ELSE 'N'
           END AS TEM_CONFIRMADO,
-          (SELECT COUNT(*) FROM [dbo].[DELIVERY_PROOFS] WHERE [IDVIAGEM] = [v].[IDVIAGEM]) AS QTD_COMPROVANTES
+          (SELECT COUNT(*) FROM [dbo].[DELIVERY_PROOFS] WHERE [IDVIAGEM] = [v].[IDVIAGEM] AND [TENANT_ID] = [v].[TENANT_ID]) AS QTD_COMPROVANTES
         FROM [dbo].[VIAGEMMESTRE] v
         LEFT JOIN [dbo].[SITUACAOVIAGEM] s ON [v].[CDSITUACAOVIAGEM] = [s].[CDSITUACAOVIAGEM]
+          AND ([s].[TENANT_ID] = [v].[TENANT_ID] OR [s].[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[TIPOVIAGEM] t ON [v].[CDTIPOVIAGEM] = [t].[CDTIPOVIAGEM]
-        LEFT JOIN [dbo].[CADASTROGERAL] cg ON [v].[CDCONTRATADOR] = [cg].[CDCADASTRO]
+          AND ([t].[TENANT_ID] = [v].[TENANT_ID] OR [t].[TENANT_ID] = 'default')
+        LEFT JOIN [dbo].[CADASTROGERAL] cg ON [v].[CDCONTRATADOR] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [v].[TENANT_ID]
         LEFT JOIN [dbo].[CLASSEFROTA] cf ON [v].[CDCLASSEFROTA] = [cf].[CDCLASSEFROTA]
-        LEFT JOIN [dbo].[ROTEIRO] r ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
+          AND ([cf].[TENANT_ID] = [v].[TENANT_ID] OR [cf].[TENANT_ID] = 'default')
+        LEFT JOIN [dbo].[ROTEIRO] r ON [v].[IDROTEIRO] = [r].[IDROTEIRO] AND ([r].[TENANT_ID] = [v].[TENANT_ID] OR [r].[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[CIDADE] co ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
         LEFT JOIN [dbo].[CIDADE] cd ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
         WHERE 1=1
       `;
 
+      const idViagemTrim = idViagem != null ? String(idViagem).trim() : '';
+      const idViagemNum = idViagemTrim !== '' ? parseFloat(idViagemTrim) : NaN;
+      /** ID numérico explícito: lista só por tenant + ID (não combinar situação/período — gerava grid vazio em deep links). */
+      const narrowById = idViagemTrim !== '' && Number.isFinite(idViagemNum);
+
       const params = [];
-      if (idViagem) {
+      if (narrowById) {
         query += ` AND [v].[IDVIAGEM] = @IDVIAGEM`;
-        params.push({ name: 'IDVIAGEM', value: parseFloat(idViagem) });
-      }
-      if (situacaoViagem) {
-        query += ` AND [v].[FGSITVIAGEM] = @SITUACAOVIAGEM`;
-        params.push({ name: 'SITUACAOVIAGEM', value: situacaoViagem });
-      }
-      if (tipoViagem) {
-        query += ` AND [v].[CDTIPOVIAGEM] = @TIPOVIAGEM`;
-        params.push({ name: 'TIPOVIAGEM', value: parseInt(tipoViagem) });
-      }
-      if (classeFrota) {
-        query += ` AND [v].[CDCLASSEFROTA] = @CLASSEFROTA`;
-        params.push({ name: 'CLASSEFROTA', value: parseInt(classeFrota) });
-      }
-      if (contratador) {
-        query += ` AND [v].[CDCONTRATADOR] = @CONTRATADOR`;
-        params.push({ name: 'CONTRATADOR', value: parseFloat(contratador) });
-      }
-      if (origemEstado) {
-        query += ` AND [co].[ESTADO] = @ORIGEM_ESTADO`;
-        params.push({ name: 'ORIGEM_ESTADO', value: origemEstado });
-      }
-      if (origemCidade) {
-        query += ` AND [co].[NMCIDADE] LIKE @ORIGEM_CIDADE`;
-        params.push({ name: 'ORIGEM_CIDADE', value: `%${origemCidade}%` });
-      }
-      if (destinoEstado) {
-        query += ` AND [cd].[ESTADO] = @DESTINO_ESTADO`;
-        params.push({ name: 'DESTINO_ESTADO', value: destinoEstado });
-      }
-      if (destinoCidade) {
-        query += ` AND [cd].[NMCIDADE] LIKE @DESTINO_CIDADE`;
-        params.push({ name: 'DESTINO_CIDADE', value: `%${destinoCidade}%` });
-      }
-      if (roteiro) {
-        query += ` AND [v].[IDROTEIRO] = @ROTEIRO`;
-        params.push({ name: 'ROTEIRO', value: parseFloat(roteiro) });
-      }
-      if (dataInicio) {
-        query += ` AND [v].[DTPREVINICIO] >= @DATAINICIO`;
-        params.push({ name: 'DATAINICIO', value: new Date(dataInicio) });
-      }
-      if (dataFim) {
-        query += ` AND [v].[DTPREVFINAL] <= @DATAFIM`;
-        params.push({ name: 'DATAFIM', value: new Date(dataFim) });
-      }
-      if (frete) {
-        query += ` AND [v].[VLFRETE] = @FRETE`;
-        params.push({ name: 'FRETE', value: parseFloat(frete) });
-      }
-      if (peso) {
-        query += ` AND [v].[PESO] = @PESO`;
-        params.push({ name: 'PESO', value: parseFloat(peso) });
-      }
-      if (cubagem) {
-        query += ` AND [v].[CUBAGEM] = @CUBAGEM`;
-        params.push({ name: 'CUBAGEM', value: parseFloat(cubagem) });
-      }
-      if (rastreado) {
-        query += ` AND [v].[FGRASTREADO] = @RASTREADO`;
-        params.push({ name: 'RASTREADO', value: rastreado });
-      }
-      if (motoristaConfirmado) {
-        if (motoristaConfirmado === 'S') {
-          query += ` AND EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] WHERE [IDVIAGEM] = [v].[IDVIAGEM] AND [STATUS] = 'CONFIRMADA')`;
-        } else if (motoristaConfirmado === 'N') {
-          query += ` AND NOT EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] WHERE [IDVIAGEM] = [v].[IDVIAGEM] AND [STATUS] = 'CONFIRMADA')`;
+        params.push({ name: 'IDVIAGEM', value: idViagemNum });
+      } else {
+        if (idViagemTrim !== '' && Number.isFinite(idViagemNum)) {
+          query += ` AND [v].[IDVIAGEM] = @IDVIAGEM`;
+          params.push({ name: 'IDVIAGEM', value: idViagemNum });
+        }
+        if (situacaoViagem) {
+          query += ` AND [v].[FGSITVIAGEM] = @SITUACAOVIAGEM`;
+          params.push({ name: 'SITUACAOVIAGEM', value: situacaoViagem });
+        }
+        if (tipoViagem) {
+          query += ` AND [v].[CDTIPOVIAGEM] = @TIPOVIAGEM`;
+          params.push({ name: 'TIPOVIAGEM', value: parseInt(tipoViagem) });
+        }
+        if (classeFrota) {
+          query += ` AND [v].[CDCLASSEFROTA] = @CLASSEFROTA`;
+          params.push({ name: 'CLASSEFROTA', value: parseInt(classeFrota) });
+        }
+        if (contratador) {
+          query += ` AND [v].[CDCONTRATADOR] = @CONTRATADOR`;
+          params.push({ name: 'CONTRATADOR', value: parseFloat(contratador) });
+        }
+        if (origemEstado) {
+          query += ` AND [co].[ESTADO] = @ORIGEM_ESTADO`;
+          params.push({ name: 'ORIGEM_ESTADO', value: origemEstado });
+        }
+        if (origemCidade) {
+          query += ` AND [co].[NMCIDADE] LIKE @ORIGEM_CIDADE`;
+          params.push({ name: 'ORIGEM_CIDADE', value: `%${origemCidade}%` });
+        }
+        if (destinoEstado) {
+          query += ` AND [cd].[ESTADO] = @DESTINO_ESTADO`;
+          params.push({ name: 'DESTINO_ESTADO', value: destinoEstado });
+        }
+        if (destinoCidade) {
+          query += ` AND [cd].[NMCIDADE] LIKE @DESTINO_CIDADE`;
+          params.push({ name: 'DESTINO_CIDADE', value: `%${destinoCidade}%` });
+        }
+        if (roteiro) {
+          query += ` AND [v].[IDROTEIRO] = @ROTEIRO`;
+          params.push({ name: 'ROTEIRO', value: parseFloat(roteiro) });
+        }
+        // Período: com início e fim, incluir viagens que se sobrepõem ao intervalo (não só as “contidas”).
+        // Antes: início >= X e fim <= Y excluía viagens longas (ex.: prev. fim em dez. com filtro até abril).
+        if (dataInicio && dataFim) {
+          query += ` AND [v].[DTPREVINICIO] <= @DATAFIM AND [v].[DTPREVFINAL] >= @DATAINICIO`;
+          params.push({ name: 'DATAINICIO', value: new Date(dataInicio) });
+          params.push({ name: 'DATAFIM', value: new Date(dataFim) });
+        } else if (dataInicio) {
+          query += ` AND [v].[DTPREVINICIO] >= @DATAINICIO`;
+          params.push({ name: 'DATAINICIO', value: new Date(dataInicio) });
+        } else if (dataFim) {
+          query += ` AND [v].[DTPREVFINAL] <= @DATAFIM`;
+          params.push({ name: 'DATAFIM', value: new Date(dataFim) });
+        }
+        if (frete) {
+          query += ` AND [v].[VLFRETE] = @FRETE`;
+          params.push({ name: 'FRETE', value: parseFloat(frete) });
+        }
+        if (peso) {
+          query += ` AND [v].[PESO] = @PESO`;
+          params.push({ name: 'PESO', value: parseFloat(peso) });
+        }
+        if (cubagem) {
+          query += ` AND [v].[CUBAGEM] = @CUBAGEM`;
+          params.push({ name: 'CUBAGEM', value: parseFloat(cubagem) });
+        }
+        if (rastreado) {
+          query += ` AND [v].[FGRASTREADO] = @RASTREADO`;
+          params.push({ name: 'RASTREADO', value: rastreado });
+        }
+        if (motoristaConfirmado) {
+          if (motoristaConfirmado === 'S') {
+            query += ` AND EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] WHERE [IDVIAGEM] = [v].[IDVIAGEM] AND [TENANT_ID] = [v].[TENANT_ID] AND [STATUS] = 'CONFIRMADA')`;
+          } else if (motoristaConfirmado === 'N') {
+            query += ` AND NOT EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] WHERE [IDVIAGEM] = [v].[IDVIAGEM] AND [TENANT_ID] = [v].[TENANT_ID] AND [STATUS] = 'CONFIRMADA')`;
+          }
         }
       }
 
+      params.push({ name: 'TENANT_ID', value: tenantIdForRequest(req) });
+      query += ` AND [v].[TENANT_ID] = @TENANT_ID`;
       query += ` ORDER BY [v].[IDVIAGEM] DESC`;
 
       const pool = await poolPromise;
@@ -404,19 +631,20 @@ const viagemController = {
       request.input('MOEDA', (MOEDA && String(MOEDA).trim().substring(0, 3)) || 'BRL');
       request.input('SGUSERINCLUSAO', sgUser);
       request.input('DHINCLUSAO', new Date());
+      request.input('TENANT_ID', tenantIdForRequest(req));
 
       await request.query(`
         INSERT INTO [dbo].[VIAGEMMESTRE] (
           [IDVIAGEM], [FGSITVIAGEM], [CDSITUACAOVIAGEM], [CDTIPOVIAGEM], [CDCONTRATADOR],
           [CDCLASSEFROTA], [DTPREVINICIO], [DTPREVFINAL], [IDROTEIRO], [DISTANCIAKM],
           [VLFRETE], [PESO], [CUBAGEM], [OBSERV], [FGRASTREADO], [MOEDA], [SGUSERINCLUSAO], [DHINCLUSAO],
-          [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]
+          [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG], [TENANT_ID]
         )
         VALUES (
           @IDVIAGEM, @FGSITVIAGEM, @CDSITUACAOVIAGEM, @CDTIPOVIAGEM, @CDCONTRATADOR,
           @CDCLASSEFROTA, @DTPREVINICIO, @DTPREVFINAL, @IDROTEIRO, @DISTANCIAKM,
           @VLFRETE, @PESO, @CUBAGEM, @OBSERV, @FGRASTREADO, @MOEDA, @SGUSERINCLUSAO, @DHINCLUSAO,
-          'A', GETDATE(), @SGUSERINCLUSAO, 'AppDVcargas'
+          'A', GETDATE(), @SGUSERINCLUSAO, 'AppDVcargas', @TENANT_ID
         )
       `);
 
@@ -478,6 +706,7 @@ const viagemController = {
       request.input('FGRASTREADO', FGRASTREADO || 'N');
       request.input('MOEDA', (MOEDA != null && MOEDA !== '') ? String(MOEDA).trim().substring(0, 3) : null);
       request.input('sgUser', sql.VarChar(50), sgUserUpd);
+      request.input('TENANT_ID', tenantIdForRequest(req));
 
       await request.query(`
         UPDATE [dbo].[VIAGEMMESTRE]
@@ -501,7 +730,7 @@ const viagemController = {
           [DHMAINTENANCE] = GETDATE(),
           [SGUSER] = @sgUser,
           [SERVERORIG] = 'AppDVcargas'
-        WHERE [IDVIAGEM] = @IDVIAGEM
+        WHERE [IDVIAGEM] = @IDVIAGEM AND [TENANT_ID] = @TENANT_ID
       `);
 
       // Emitir evento WebSocket para atualização de viagem
@@ -512,6 +741,7 @@ const viagemController = {
           const viagemAtualizada = await pool
             .request()
             .input('IDVIAGEM', sql.Decimal(15, 0), idNumerico)
+            .input('TENANT_ID', tenantIdForRequest(req))
             .query(`
               SELECT 
                 [v].[IDVIAGEM],
@@ -538,17 +768,20 @@ const viagemController = {
                 [cd].[ESTADO] AS DESTINO_ESTADO,
                 [cd].[NMCIDADE] AS DESTINO_CIDADE,
                 CASE 
-                  WHEN EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] WHERE [IDVIAGEM] = [v].[IDVIAGEM] AND [STATUS] = 'CONFIRMADA') THEN 'S'
+                  WHEN EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] WHERE [IDVIAGEM] = [v].[IDVIAGEM] AND [TENANT_ID] = [v].[TENANT_ID] AND [STATUS] = 'CONFIRMADA') THEN 'S'
                   ELSE 'N'
                 END AS TEM_CONFIRMADO
               FROM [dbo].[VIAGEMMESTRE] v
               LEFT JOIN [dbo].[SITUACAOVIAGEM] s ON [v].[CDSITUACAOVIAGEM] = [s].[CDSITUACAOVIAGEM]
+                AND ([s].[TENANT_ID] = [v].[TENANT_ID] OR [s].[TENANT_ID] = 'default')
               LEFT JOIN [dbo].[TIPOVIAGEM] t ON [v].[CDTIPOVIAGEM] = [t].[CDTIPOVIAGEM]
+                AND ([t].[TENANT_ID] = [v].[TENANT_ID] OR [t].[TENANT_ID] = 'default')
               LEFT JOIN [dbo].[CLASSEFROTA] cf ON [v].[CDCLASSEFROTA] = [cf].[CDCLASSEFROTA]
-              LEFT JOIN [dbo].[ROTEIRO] r ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
+                AND ([cf].[TENANT_ID] = [v].[TENANT_ID] OR [cf].[TENANT_ID] = 'default')
+              LEFT JOIN [dbo].[ROTEIRO] r ON [v].[IDROTEIRO] = [r].[IDROTEIRO] AND ([r].[TENANT_ID] = [v].[TENANT_ID] OR [r].[TENANT_ID] = 'default')
               LEFT JOIN [dbo].[CIDADE] co ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
               LEFT JOIN [dbo].[CIDADE] cd ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
-              WHERE [v].[IDVIAGEM] = @IDVIAGEM
+              WHERE [v].[IDVIAGEM] = @IDVIAGEM AND [v].[TENANT_ID] = @TENANT_ID
             `);
 
           if (viagemAtualizada.recordset && viagemAtualizada.recordset[0]) {
@@ -576,6 +809,7 @@ const viagemController = {
       const result = await pool
         .request()
         .input('IDVIAGEM', sql.Decimal(15, 0), parseFloat(id))
+        .input('TENANT_ID', tenantIdForRequest(req))
         .query(`
           SELECT 
             [v].[IDVIAGEM],
@@ -610,15 +844,17 @@ const viagemController = {
             [tv].[DSTIPOVIAGEM],
             upper(COALESCE(NULLIF(TRIM([cg].[RZSOCIAL]), ''), TRIM([cg].[NMFANTASIA]))) AS CONTRATADOR_NOME
           FROM [dbo].[VIAGEMMESTRE] [v]
-          LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
+          LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO] AND ([r].[TENANT_ID] = [v].[TENANT_ID] OR [r].[TENANT_ID] = 'default')
           LEFT JOIN [dbo].[CIDADE] [co] ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
           LEFT JOIN [dbo].[PAIS] [po] ON [co].[CDPAIS] = [po].[CDPAIS]
           LEFT JOIN [dbo].[CIDADE] [cd] ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
           LEFT JOIN [dbo].[PAIS] [pd] ON [cd].[CDPAIS] = [pd].[CDPAIS]
           LEFT JOIN [dbo].[CLASSEFROTA] [cf] ON [v].[CDCLASSEFROTA] = [cf].[CDCLASSEFROTA]
+            AND ([cf].[TENANT_ID] = [v].[TENANT_ID] OR [cf].[TENANT_ID] = 'default')
           LEFT JOIN [dbo].[TIPOVIAGEM] [tv] ON [v].[CDTIPOVIAGEM] = [tv].[CDTIPOVIAGEM]
-          LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [v].[CDCONTRATADOR] = [cg].[CDCADASTRO]
-          WHERE [v].[IDVIAGEM] = @IDVIAGEM
+            AND ([tv].[TENANT_ID] = [v].[TENANT_ID] OR [tv].[TENANT_ID] = 'default')
+          LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [v].[CDCONTRATADOR] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [v].[TENANT_ID]
+          WHERE [v].[IDVIAGEM] = @IDVIAGEM AND [v].[TENANT_ID] = @TENANT_ID
         `);
 
       if (result.recordset.length === 0) {
@@ -694,16 +930,18 @@ const viagemController = {
       // Verificar status atual
       const checkRequest = pool.request();
       checkRequest.input('IDVIAGEM', sql.Decimal(15, 0), idNumerico);
+      checkRequest.input('TENANT_ID', tenantIdForRequest(req));
 
       const checkResult = await checkRequest.query(`
-        SELECT [FGACTIVE] FROM [dbo].[VIAGEMMESTRE] WHERE [IDVIAGEM] = @IDVIAGEM
+        SELECT [FGACTIVE] FROM [dbo].[VIAGEMMESTRE] WHERE [IDVIAGEM] = @IDVIAGEM AND [TENANT_ID] = @TENANT_ID
       `);
 
       if (checkResult.recordset.length === 0) {
         return res.status(404).json({ error: 'Viagem não encontrada.' });
       }
 
-      const statusAtual = checkResult.recordset[0].FGACTIVE;
+      const rowChk = checkResult.recordset[0] || {};
+      const statusAtual = rowChk.FGACTIVE ?? rowChk.fgactive;
       const estaAtivo = statusAtual === 'A';
 
       // Determinar nova situação
@@ -719,25 +957,158 @@ const viagemController = {
         mensagem = estaAtivo ? 'Viagem desativada com sucesso!' : 'Viagem reativada com sucesso!';
       }
 
-      const request = pool.request();
+      const tid = tenantIdForRequest(req);
       const sgUserStatus = getSgUser(req);
       if (!sgUserStatus) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
-      request.input('IDVIAGEM', sql.Decimal(15, 0), idNumerico);
-      request.input('FGACTIVE', sql.Char(1), novaSituacao);
-      request.input('sgUser', sql.VarChar(50), sgUserStatus);
 
-      const result = await request.query(`
-        UPDATE [dbo].[VIAGEMMESTRE]
-        SET 
-          FGACTIVE = @FGACTIVE,
-          DHMAINTENANCE = GETDATE(),
-          SGUSER = @sgUser,
-          SERVERORIG = 'AppDVcargas'
-        WHERE IDVIAGEM = @IDVIAGEM
-      `);
-
-      if (result.rowsAffected[0] === 0) {
-        return res.status(404).json({ error: 'Viagem não encontrada.' });
+      /** Inativar = FGACTIVE I + situação Cancelada (FGSITVIAGEM = C); guarda CDSIT/FG anteriores em PREV_* se as colunas existirem. */
+      if (novaSituacao === 'I') {
+        const rSit = await pool.query(
+          `SELECT s."CDSITUACAOVIAGEM", s."FGSITVIAGEM"
+             FROM "SITUACAOVIAGEM" s
+            WHERE (s."TENANT_ID" = $1 OR s."TENANT_ID" = 'default')
+              AND (s."FGACTIVE" IN ('A', 'S', 'T'))
+              AND upper(trim(s."FGSITVIAGEM"::text)) = 'C'
+            ORDER BY CASE WHEN s."TENANT_ID" = $1 THEN 0 ELSE 1 END, s."CDSITUACAOVIAGEM" ASC
+            LIMIT 1`,
+          [tid]
+        );
+        if (!rSit.rows.length) {
+          return res.status(400).json({
+            error:
+              'Não há situação de viagem ativa com código Cancelada (FGSITVIAGEM = C). Cadastre em Gerenciar Situações de Viagem.',
+          });
+        }
+        const rowS = rSit.rows[0] || {};
+        const cdCanc = Number(rowS.CDSITUACAOVIAGEM ?? rowS.cdsituacaoviagem);
+        const fgCanc = String(rowS.FGSITVIAGEM ?? rowS.fgsitviagem ?? 'C')
+          .trim()
+          .toUpperCase()
+          .slice(0, 1);
+        if (!Number.isFinite(cdCanc)) {
+          return res.status(400).json({ error: 'Situação Cancelada inválida no cadastro (CDSITUACAOVIAGEM).' });
+        }
+        const sqlComPrev = `
+          UPDATE "VIAGEMMESTRE" SET
+            "PREV_CDSIT_INAT" = "CDSITUACAOVIAGEM",
+            "PREV_FGSIT_INAT" = "FGSITVIAGEM",
+            "FGACTIVE" = $1::char,
+            "CDSITUACAOVIAGEM" = $5::integer,
+            "FGSITVIAGEM" = $6::char,
+            "DHMAINTENANCE" = CURRENT_TIMESTAMP,
+            "SGUSER" = $4,
+            "SERVERORIG" = 'AppDVcargas'
+           WHERE "IDVIAGEM" = $2::numeric AND "TENANT_ID" = $3`;
+        const sqlSemPrev = `
+          UPDATE "VIAGEMMESTRE" SET
+            "FGACTIVE" = $1::char,
+            "CDSITUACAOVIAGEM" = $5::integer,
+            "FGSITVIAGEM" = $6::char,
+            "DHMAINTENANCE" = CURRENT_TIMESTAMP,
+            "SGUSER" = $4,
+            "SERVERORIG" = 'AppDVcargas'
+           WHERE "IDVIAGEM" = $2::numeric AND "TENANT_ID" = $3`;
+        const paramsUp = [novaSituacao, idNumerico, tid, sgUserStatus, cdCanc, fgCanc];
+        let rUp;
+        try {
+          rUp = await pool.query(sqlComPrev, paramsUp);
+        } catch (eI) {
+          if (eI && eI.code === '42703') {
+            rUp = await pool.query(sqlSemPrev, paramsUp);
+          } else {
+            throw eI;
+          }
+        }
+        if ((rUp.rowCount ?? 0) === 0) {
+          return res.status(404).json({ error: 'Viagem não encontrada.' });
+        }
+        mensagem = 'Viagem inativada e marcada como Cancelada.';
+      } else {
+        let pr = {};
+        try {
+          const rPrev = await pool.query(
+            `SELECT "PREV_CDSIT_INAT", "PREV_FGSIT_INAT"
+               FROM "VIAGEMMESTRE"
+              WHERE "IDVIAGEM" = $1::numeric AND "TENANT_ID" = $2`,
+            [idNumerico, tid]
+          );
+          pr = rPrev.rows[0] || {};
+        } catch (eSel) {
+          if (!(eSel && eSel.code === '42703')) throw eSel;
+        }
+        const cdPv = pr.PREV_CDSIT_INAT ?? pr.prev_cdsit_inat;
+        const fgPv = pr.PREV_FGSIT_INAT ?? pr.prev_fgsit_inat;
+        const hasPrev =
+          cdPv != null &&
+          fgPv != null &&
+          String(fgPv).trim() !== '' &&
+          Number.isFinite(Number(cdPv));
+        let cdUse;
+        let fgUse;
+        if (hasPrev) {
+          cdUse = Math.floor(Number(cdPv));
+          fgUse = String(fgPv).trim().toUpperCase().slice(0, 1);
+        } else {
+          const rD = await pool.query(
+            `SELECT s."CDSITUACAOVIAGEM", s."FGSITVIAGEM"
+               FROM "SITUACAOVIAGEM" s
+              WHERE (s."TENANT_ID" = $1 OR s."TENANT_ID" = 'default')
+                AND (s."FGACTIVE" IN ('A', 'S', 'T'))
+                AND upper(trim(s."FGSITVIAGEM"::text)) = 'D'
+              ORDER BY CASE WHEN s."TENANT_ID" = $1 THEN 0 ELSE 1 END, s."CDSITUACAOVIAGEM" ASC
+              LIMIT 1`,
+            [tid]
+          );
+          if (!rD.rows.length) {
+            return res.status(400).json({
+              error:
+                'Não há situação de viagem ativa com código Preparação (FGSITVIAGEM = D). Cadastre em Gerenciar Situações de Viagem.',
+            });
+          }
+          const rowD = rD.rows[0] || {};
+          cdUse = Number(rowD.CDSITUACAOVIAGEM ?? rowD.cdsituacaoviagem);
+          fgUse = String(rowD.FGSITVIAGEM ?? rowD.fgsitviagem ?? 'D').trim().toUpperCase().slice(0, 1);
+        }
+        if (!Number.isFinite(cdUse)) {
+          return res.status(400).json({ error: 'Situação para reativação inválida (CDSITUACAOVIAGEM).' });
+        }
+        const sqlReativComPrev = `
+          UPDATE "VIAGEMMESTRE" SET
+            "FGACTIVE" = $1::char,
+            "CDSITUACAOVIAGEM" = $5::integer,
+            "FGSITVIAGEM" = $6::char,
+            "PREV_CDSIT_INAT" = NULL,
+            "PREV_FGSIT_INAT" = NULL,
+            "DHMAINTENANCE" = CURRENT_TIMESTAMP,
+            "SGUSER" = $4,
+            "SERVERORIG" = 'AppDVcargas'
+           WHERE "IDVIAGEM" = $2::numeric AND "TENANT_ID" = $3`;
+        const sqlReativSemPrevCols = `
+          UPDATE "VIAGEMMESTRE" SET
+            "FGACTIVE" = $1::char,
+            "CDSITUACAOVIAGEM" = $5::integer,
+            "FGSITVIAGEM" = $6::char,
+            "DHMAINTENANCE" = CURRENT_TIMESTAMP,
+            "SGUSER" = $4,
+            "SERVERORIG" = 'AppDVcargas'
+           WHERE "IDVIAGEM" = $2::numeric AND "TENANT_ID" = $3`;
+        const paramsRe = [novaSituacao, idNumerico, tid, sgUserStatus, cdUse, fgUse];
+        let rUp;
+        try {
+          rUp = await pool.query(sqlReativComPrev, paramsRe);
+        } catch (eA) {
+          if (eA && eA.code === '42703') {
+            rUp = await pool.query(sqlReativSemPrevCols, paramsRe);
+          } else {
+            throw eA;
+          }
+        }
+        if ((rUp.rowCount ?? 0) === 0) {
+          return res.status(404).json({ error: 'Viagem não encontrada.' });
+        }
+        mensagem = hasPrev
+          ? 'Viagem reativada; situação restaurada à anterior ao cancelamento.'
+          : 'Viagem reativada; situação definida como Preparação (sem registro da situação anterior).';
       }
 
       res.json({ success: true, message: mensagem, newStatus: novaSituacao === 'A' ? 'S' : 'N' });
@@ -751,10 +1122,19 @@ const viagemController = {
   listarTiposViagem: async (req, res) => {
     try {
       const pool = await poolPromise;
-      const result = await pool
-        .request()
-        .query('SELECT [CDTIPOVIAGEM], [DSTIPOVIAGEM] FROM [dbo].[TIPOVIAGEM] WHERE [FGACTIVE] = \'A\' ORDER BY [DSTIPOVIAGEM]');
-      res.json(result.recordset);
+      const tenantId = tenantIdForRequest(req);
+      const result = await pool.query(
+        `SELECT "CDTIPOVIAGEM", "DSTIPOVIAGEM" FROM "TIPOVIAGEM"
+         WHERE ("FGACTIVE" = 'A' OR "FGACTIVE" = 'S' OR "FGACTIVE" = 'T')
+           AND ("TENANT_ID" = $1 OR "TENANT_ID" = 'default')
+         ORDER BY "DSTIPOVIAGEM"`,
+        [tenantId]
+      );
+      const rows = (result.rows || []).map((r) => ({
+        CDTIPOVIAGEM: r.CDTIPOVIAGEM ?? r.cdtipoviagem,
+        DSTIPOVIAGEM: r.DSTIPOVIAGEM ?? r.dstipoviagem
+      }));
+      res.json(rows);
     } catch (err) {
       if (err.code === '42P01') {
         return res.json([]);
@@ -767,10 +1147,19 @@ const viagemController = {
   listarSituacoesViagem: async (req, res) => {
     try {
       const pool = await poolPromise;
-      const result = await pool
-        .request()
-        .query('SELECT [CDSITUACAOVIAGEM], [DSSITUACAOVIAGEM] FROM [dbo].[SITUACAOVIAGEM] WHERE [FGACTIVE] = \'A\' ORDER BY [DSSITUACAOVIAGEM]');
-      res.json(result.recordset);
+      const tenantId = tenantIdForRequest(req);
+      const result = await pool.query(
+        `SELECT "CDSITUACAOVIAGEM", "DSSITUACAOVIAGEM" FROM "SITUACAOVIAGEM"
+         WHERE ("FGACTIVE" = 'A' OR "FGACTIVE" = 'S' OR "FGACTIVE" = 'T')
+           AND ("TENANT_ID" = $1 OR "TENANT_ID" = 'default')
+         ORDER BY "DSSITUACAOVIAGEM"`,
+        [tenantId]
+      );
+      const rows = (result.rows || []).map((r) => ({
+        CDSITUACAOVIAGEM: r.CDSITUACAOVIAGEM ?? r.cdsituacaoviagem,
+        DSSITUACAOVIAGEM: r.DSSITUACAOVIAGEM ?? r.dssituacaoviagem
+      }));
+      res.json(rows);
     } catch (err) {
       if (err.code === '42P01') {
         return res.json([]);
@@ -783,10 +1172,19 @@ const viagemController = {
   listarClassesFrota: async (req, res) => {
     try {
       const pool = await poolPromise;
-      const result = await pool
-        .request()
-        .query('SELECT [CDCLASSEFROTA], [DSCLASSEFROTA] FROM [dbo].[CLASSEFROTA] WHERE [FGACTIVE] = \'A\' ORDER BY [DSCLASSEFROTA]');
-      res.json(result.recordset);
+      const tenantId = tenantIdForRequest(req);
+      const result = await pool.query(
+        `SELECT "CDCLASSEFROTA", "DSCLASSEFROTA" FROM "CLASSEFROTA"
+         WHERE ("FGACTIVE" = 'A' OR "FGACTIVE" = 'S')
+           AND ("TENANT_ID" = $1 OR "TENANT_ID" = 'default')
+         ORDER BY "DSCLASSEFROTA"`,
+        [tenantId]
+      );
+      const rows = (result.rows || []).map((r) => ({
+        CDCLASSEFROTA: r.CDCLASSEFROTA ?? r.cdclassefrota,
+        DSCLASSEFROTA: r.DSCLASSEFROTA ?? r.dsclassefrota
+      }));
+      res.json(rows);
     } catch (err) {
       if (err.code === '42P01') {
         return res.json([]);
@@ -906,9 +1304,11 @@ const viagemController = {
         LEFT JOIN [dbo].[CIDADE] cd ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
         LEFT JOIN [dbo].[PAIS] [pd] ON [cd].[CDPAIS] = [pd].[CDPAIS]
         WHERE 1=1
+          AND ([r].[TENANT_ID] = @TENANT_ID OR [r].[TENANT_ID] = 'default')
       `;
 
       const params = [];
+      params.push({ name: 'TENANT_ID', value: tenantIdForRequest(req) });
       const origemNum = origem != null && origem !== '' ? parseInt(origem, 10) : NaN;
       const destinoNum = destino != null && destino !== '' ? parseInt(destino, 10) : NaN;
       const op = (origemPais != null && String(origemPais).trim() !== '') ? String(origemPais).trim().toUpperCase() : '';
@@ -1060,24 +1460,29 @@ const viagemController = {
           [cd].[CDMICROREGIAO] AS DESTINO_MICROREGIAO
         FROM [dbo].[VIAGEMMESTRE] [v]
         LEFT JOIN [dbo].[SITUACAOVIAGEM] [s] ON [v].[CDSITUACAOVIAGEM] = [s].[CDSITUACAOVIAGEM]
+          AND ([s].[TENANT_ID] = [v].[TENANT_ID] OR [s].[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[TIPOVIAGEM] [t] ON [v].[CDTIPOVIAGEM] = [t].[CDTIPOVIAGEM]
-        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [v].[CDCONTRATADOR] = [cg].[CDCADASTRO]
+          AND ([t].[TENANT_ID] = [v].[TENANT_ID] OR [t].[TENANT_ID] = 'default')
+        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [v].[CDCONTRATADOR] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [v].[TENANT_ID]
         LEFT JOIN [dbo].[CLASSEFROTA] [cf] ON [v].[CDCLASSEFROTA] = [cf].[CDCLASSEFROTA]
-        LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
+          AND ([cf].[TENANT_ID] = [v].[TENANT_ID] OR [cf].[TENANT_ID] = 'default')
+        LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO] AND ([r].[TENANT_ID] = [v].[TENANT_ID] OR [r].[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[CIDADE] [co] ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
         LEFT JOIN [dbo].[CIDADE] [cd] ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
         WHERE [v].[FGACTIVE] = 'A'
           AND [v].[FGSITVIAGEM] IN ('P', 'D')
+          AND [v].[TENANT_ID] = @TENANT_ID
           AND NOT EXISTS (
             SELECT 1 
             FROM [dbo].[CONVOCACAO] [c] 
             WHERE [c].[IDVIAGEM] = [v].[IDVIAGEM] 
+              AND [c].[TENANT_ID] = [v].[TENANT_ID]
               AND [c].[STATUS] IN ('ACEITA', 'CONFIRMADA')
           )
         ORDER BY [v].[DTPREVINICIO] DESC
       `;
 
-      const result = await pool.request().query(query);
+      const result = await pool.request().input('TENANT_ID', tenantIdForRequest(req)).query(query);
       // Normalizar chaves para o frontend (PostgreSQL pode retornar minúsculas)
       const get = (row, ...keys) => {
         for (const k of keys) {
@@ -1118,17 +1523,22 @@ const viagemController = {
       const viagemResult = await pool
         .request()
         .input('IDVIAGEM', sql.Decimal(15, 0), idViagem)
+        .input('TENANT_ID', tenantIdForRequest(req))
         .query(`
           SELECT 
+            [v].[IDVIAGEM],
             [v].[CDCLASSEFROTA],
+            [cfv].[DSCLASSEFROTA] AS [DSCLASSEFROTA_VIAGEM],
             [v].[FGRASTREADO],
             [v].[IDROTEIRO],
             [v].[CDCONTRATADOR],
             [r].[CDCIDADEORIGEM],
             [r].[CDCIDADEDESTINO]
           FROM [dbo].[VIAGEMMESTRE] v
-          LEFT JOIN [dbo].[ROTEIRO] r ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
-          WHERE [v].[IDVIAGEM] = @IDVIAGEM
+          LEFT JOIN [dbo].[ROTEIRO] r ON [v].[IDROTEIRO] = [r].[IDROTEIRO] AND ([r].[TENANT_ID] = [v].[TENANT_ID] OR [r].[TENANT_ID] = 'default')
+          LEFT JOIN [dbo].[CLASSEFROTA] AS [cfv] ON [cfv].[CDCLASSEFROTA] = [v].[CDCLASSEFROTA]
+            AND ([cfv].[TENANT_ID] = [v].[TENANT_ID] OR [cfv].[TENANT_ID] = 'default')
+          WHERE [v].[IDVIAGEM] = @IDVIAGEM AND [v].[TENANT_ID] = @TENANT_ID
         `);
 
       if (viagemResult.recordset.length === 0) {
@@ -1136,17 +1546,31 @@ const viagemController = {
       }
 
       const viagem = viagemResult.recordset[0];
-      const { CDCLASSEFROTA, FGRASTREADO, CDCIDADEORIGEM, CDCIDADEDESTINO, IDROTEIRO, CDCONTRATADOR } = viagem;
+      const getViagemCampo = (k) => (viagem[k] != null ? viagem[k] : viagem[String(k).toLowerCase()]);
+      const CDCLASSEFROTA = getViagemCampo('CDCLASSEFROTA');
+      const FGRASTREADO = getViagemCampo('FGRASTREADO');
+      const CDCIDADEORIGEM = getViagemCampo('CDCIDADEORIGEM');
+      const CDCIDADEDESTINO = getViagemCampo('CDCIDADEDESTINO');
+      const IDROTEIRO = getViagemCampo('IDROTEIRO');
+      const CDCONTRATADOR = getViagemCampo('CDCONTRATADOR');
+      const viagemResumo = {
+        IDVIAGEM: getViagemCampo('IDVIAGEM'),
+        CDCLASSEFROTA,
+        DSCLASSEFROTA_VIAGEM: getViagemCampo('DSCLASSEFROTA_VIAGEM'),
+        FGRASTREADO,
+      };
 
       // Regras de compatibilidade (liga/desliga) – lidas da CONFIGURACAO
       const regrasKeys = ['regra_compativel_rastreamento', 'regra_compativel_classe_frota', 'regra_compativel_local_embarque', 'regra_compativel_local_desembarque'];
       const regrasResult = await pool.query(
-        `SELECT "CHAVE", "VALOR" FROM "CONFIGURACAO" WHERE "CHAVE" = ANY($1::text[])`,
-        [regrasKeys]
+        `SELECT "CHAVE", "VALOR" FROM "CONFIGURACAO" WHERE "CHAVE" = ANY($1::text[]) AND "TENANT_ID" = $2`,
+        [regrasKeys, tenantIdForRequest(req)]
       );
       const regrasMap = {};
       (regrasResult.rows || []).forEach(r => { regrasMap[r.CHAVE || r.chave] = ((r.VALOR || r.valor) || 'S').toString().toUpperCase(); });
-      const regra = (k) => regrasMap[k] === 'S';
+      // Mesmo critério de obterRegrasCompatibilidade: chave ausente em CONFIGURACAO = padrão 'S' (regra ligada).
+      // Antes: regrasMap[k] === 'S' excluía chave ausente → UI mostrava ligado (GET) e a busca aplicava desligado (furo).
+      const regra = (k) => ((regrasMap[k] || 'S').toString().toUpperCase() === 'S');
       const validarRastreamento = regra('regra_compativel_rastreamento');
       const validarClasseFrota = regra('regra_compativel_classe_frota');
       const validarLocalEmbarque = regra('regra_compativel_local_embarque');
@@ -1179,17 +1603,17 @@ const viagemController = {
       const getVal = (row, key) => (row && (row[key] != null ? row[key] : row[key.toLowerCase && key.toLowerCase()]));
       const cidadeOrigem = (cidadesResult.recordset || []).find(c => getVal(c, 'CDCIDADE') == CDCIDADEORIGEM);
       const cidadeDestino = (cidadesResult.recordset || []).find(c => getVal(c, 'CDCIDADE') == CDCIDADEDESTINO);
-      // Origem: país (sigla), CDUF, CDMESOREGIAO para regra local embarque (CADASTRO_LOCAL_PREFERIDO TIPO='E')
-      const origemPais = CDCIDADEORIGEM ? (getVal(cidadeOrigem, 'PAIS') || getVal(cidadeOrigem, 'SGPAIS') || 'BR') : '';
+      // Origem: país (sigla 2 letras, alinhado a CADASTRO_LOCAL_PREFERIDO.PAIS)
+      const rawOrigemPais = CDCIDADEORIGEM ? (getVal(cidadeOrigem, 'PAIS') || getVal(cidadeOrigem, 'SGPAIS') || 'BR') : '';
+      const origemPais = rawOrigemPais ? String(rawOrigemPais).trim().toUpperCase().substring(0, 2) : '';
       const origemCduf = cidadeOrigem != null ? (getVal(cidadeOrigem, 'CDUF') ?? null) : null;
       const origemCmesoregiao = cidadeOrigem != null ? (getVal(cidadeOrigem, 'CDMESOREGIAO') ?? null) : null;
-      // Destino: país (sigla), CDUF, CDMESOREGIAO para regra local desembarque (CADASTRO_LOCAL_PREFERIDO TIPO='D')
-      const destinoPais = CDCIDADEDESTINO ? (getVal(cidadeDestino, 'PAIS') || getVal(cidadeDestino, 'SGPAIS') || 'BR') : '';
+      const destinoPaisRaw = CDCIDADEDESTINO ? (getVal(cidadeDestino, 'PAIS') || getVal(cidadeDestino, 'SGPAIS') || 'BR') : '';
+      const destinoPais = destinoPaisRaw ? String(destinoPaisRaw).trim().toUpperCase().substring(0, 2) : '';
       const destinoCduf = cidadeDestino != null ? (getVal(cidadeDestino, 'CDUF') ?? null) : null;
       const destinoCmesoregiao = cidadeDestino != null ? (getVal(cidadeDestino, 'CDMESOREGIAO') ?? null) : null;
 
-      // Uma linha por motorista: filtro por classe via EXISTS (sem JOIN que multiplica linhas).
-      // Não retornamos classe de frota na lista de compatíveis; a coluna foi removida da tela.
+      // Uma linha por motorista. Classe de frota: só aplica EXISTS em CLASSEFROTA_CG quando a regra está ligada (CONFIG).
 
       let query = `
         SELECT
@@ -1211,7 +1635,16 @@ const viagemController = {
               FROM [dbo].[CONVOCACAO] conv 
               WHERE [conv].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO] 
                 AND [conv].[IDVIAGEM] = @IDVIAGEM
-                AND [conv].[DHENVIOMETA] IS NOT NULL
+                AND [conv].[TENANT_ID] = @TENANT_ID
+                AND (
+                  [conv].[DHENVIOMETA] IS NOT NULL
+                  OR [conv].[DHACESSO] IS NOT NULL
+                  OR EXISTS (
+                    SELECT 1 FROM [dbo].[LOG_ENVIO_WHATSAPP] lw
+                    WHERE lw.[IDCONVOCACAO] = conv.[IDCONVOCACAO]
+                      AND UPPER(COALESCE(lw.[STATUS_ENVIO], '')) = 'ENVIADO'
+                  )
+                )
             ) THEN 1 
             ELSE 0 
           END AS FOI_ACIONADO,
@@ -1220,18 +1653,46 @@ const viagemController = {
             FROM [dbo].[VIAGEMMESTRE] v 
             INNER JOIN [dbo].[VIAGEMMOTORISTA] m ON [v].[IDVIAGEM] = [m].[IDVIAGEM] 
             WHERE [m].[CDMOTORISTA] = [cg].[CDCADASTRO]
+              AND [v].[TENANT_ID] = @TENANT_ID
           ) AS QTVIAGENS,
           (
             SELECT COUNT(*) 
             FROM [dbo].[VIAGEMMESTRE] v2 
             INNER JOIN [dbo].[VIAGEMMOTORISTA] m2 ON [v2].[IDVIAGEM] = [m2].[IDVIAGEM] 
             WHERE [m2].[CDMOTORISTA] = [cg].[CDCADASTRO]
+              AND [v2].[TENANT_ID] = @TENANT_ID
               AND (@IDROTEIRO = 0 OR [v2].[IDROTEIRO] = @IDROTEIRO)
-          ) AS QTVIAGENS_NESTA_ROTA
+          ) AS QTVIAGENS_NESTA_ROTA,
+          (
+            SELECT STRING_AGG(x.[linha], '~~LINE~~' ORDER BY x.[ord_placa])
+            FROM (
+              SELECT DISTINCT
+                UPPER(REPLACE(REPLACE(REPLACE(LTRIM(RTRIM(COALESCE(
+                  NULLIF(LTRIM(RTRIM(COALESCE(mv.[PLACA], ''))), ''),
+                  LTRIM(RTRIM(COALESCE(eq.[REFEQUIPAMENTO], '')))
+                ))), '-', ''), ' ', ''), '.', '')) AS [ord_placa],
+                TRIM(BOTH FROM COALESCE(
+                  NULLIF(LTRIM(RTRIM(COALESCE(mv.[PLACA], ''))), ''),
+                  NULLIF(LTRIM(RTRIM(COALESCE(eq.[REFEQUIPAMENTO], ''))), '')
+                ))
+                || ' — '
+                || TRIM(BOTH FROM COALESCE(NULLIF(TRIM(BOTH FROM COALESCE(cf.[DSCLASSEFROTA], '')), ''), '(classe não informada)')) AS [linha]
+              FROM [dbo].[MOTORISTA_VEICULO] AS mv
+              LEFT JOIN [dbo].[EQUIPAMENTO] AS eq ON eq.[IDEQUIPAMENTO] = mv.[CDEQUIPAMENTO]
+                AND (eq.[TENANT_ID] = [cg].[TENANT_ID] OR eq.[TENANT_ID] = 'default')
+              LEFT JOIN [dbo].[CLASSEFROTA] AS cf ON cf.[CDCLASSEFROTA] = COALESCE(eq.[CDCLASSEFROTA], mv.[CDCLASSEFROTA])
+                AND (cf.[TENANT_ID] = [cg].[TENANT_ID] OR cf.[TENANT_ID] = 'default')
+              WHERE mv.[CDCADASTRO] = [cg].[CDCADASTRO]
+                AND (mv.[TENANT_ID] = [cg].[TENANT_ID] OR mv.[TENANT_ID] IS NULL)
+                AND COALESCE(mv.[FGACTIVE], 'S') = 'S'
+                AND COALESCE(mv.[STATUSAPROVACAO], 'P') = 'A'
+            ) AS x
+            WHERE TRIM(COALESCE(x.[ord_placa], '')) <> ''
+          ) AS CONJUNTO_PLACAS_CLASSES_MOTORISTA
         FROM [dbo].[CADASTROGERAL] [cg]
         INNER JOIN [dbo].[CIDADE] [c] ON [cg].[CDCIDADE] = [c].[CDCIDADE]
         LEFT JOIN [dbo].[MICROREGIAO] [mr] ON [c].[CDUF] = [mr].[CDUF] AND [c].[CDMICROREGIAO] = [mr].[CDMICROREGIAO]
-        LEFT JOIN [dbo].[CADASTROGERAL] [t] ON [cg].[CDTRANSPORTADOR] = [t].[CDCADASTRO]
+        LEFT JOIN [dbo].[CADASTROGERAL] [t] ON [cg].[CDTRANSPORTADOR] = [t].[CDCADASTRO] AND [t].[TENANT_ID] = [cg].[TENANT_ID]
         LEFT JOIN [dbo].[MOTORISTA_COMPLEMENTO] [mc] ON [cg].[CDCADASTRO] = [mc].[CDCADASTRO]
         LEFT JOIN [dbo].[EMPRESA] [e] ON CAST([t].[CGCCPF] AS TEXT) = CAST([e].[CGCMATRIZ] AS TEXT)
         WHERE (
@@ -1242,16 +1703,19 @@ const viagemController = {
           OR COALESCE([cg].[FGGRUPO], 'N') = 'S'
           OR COALESCE([cg].[FGTRANSPORTADOR], 'N') = 'S'
         )
-          AND [cg].[FGACTIVE] = 'A'
+          AND ([cg].[FGACTIVE] = 'A' OR [cg].[FGACTIVE] = 'S')
+          AND [cg].[TENANT_ID] = @TENANT_ID
+          ${validarClasseFrota ? `
           AND EXISTS (
             SELECT 1 FROM [dbo].[CLASSEFROTA_CG] [cfcg]
-            WHERE [cfcg].[CDCADASTRO] = [cg].[CDCADASTRO] AND [cfcg].[FGACTIVE] = 'S'
-            ${validarClasseFrota ? `AND [cfcg].[CDCLASSEFROTA] = @CDCLASSEFROTA` : ''}
-          )
+            WHERE [cfcg].[CDCADASTRO] = [cg].[CDCADASTRO]
+              AND ([cfcg].[FGACTIVE] = 'S' OR [cfcg].[FGACTIVE] = 'A')
+              AND [cfcg].[CDCLASSEFROTA] = @CDCLASSEFROTA
+          )` : ''}
           ${validarLocalEmbarque && CDCIDADEORIGEM ? `AND (
             ( NOT EXISTS (SELECT 1 FROM [dbo].[CADASTRO_LOCAL_PREFERIDO] [lp] WHERE [lp].[CDCADASTRO] = [cg].[CDCADASTRO] AND [lp].[TIPO] = 'E') )
             OR ( EXISTS (SELECT 1 FROM [dbo].[CADASTRO_LOCAL_PREFERIDO] [lp] WHERE [lp].[CDCADASTRO] = [cg].[CDCADASTRO] AND [lp].[TIPO] = 'E'
-              AND [lp].[PAIS] = @ORIGEM_PAIS
+              AND UPPER(TRIM(COALESCE([lp].[PAIS], ''))) = UPPER(TRIM(COALESCE(@ORIGEM_PAIS, '')))
               AND ([lp].[CDUF] IS NULL OR [lp].[CDUF] = @ORIGEM_CDUF)
               AND ([lp].[CDMESOREGIAO] IS NULL OR [lp].[CDMESOREGIAO] = @ORIGEM_CDMESOREGIAO)
             ) )
@@ -1259,7 +1723,7 @@ const viagemController = {
           ${validarLocalDesembarque && CDCIDADEDESTINO ? `AND (
             ( NOT EXISTS (SELECT 1 FROM [dbo].[CADASTRO_LOCAL_PREFERIDO] [lp] WHERE [lp].[CDCADASTRO] = [cg].[CDCADASTRO] AND [lp].[TIPO] = 'D') )
             OR ( EXISTS (SELECT 1 FROM [dbo].[CADASTRO_LOCAL_PREFERIDO] [lp] WHERE [lp].[CDCADASTRO] = [cg].[CDCADASTRO] AND [lp].[TIPO] = 'D'
-              AND [lp].[PAIS] = @DESTINO_PAIS
+              AND UPPER(TRIM(COALESCE([lp].[PAIS], ''))) = UPPER(TRIM(COALESCE(@DESTINO_PAIS, '')))
               AND ([lp].[CDUF] IS NULL OR [lp].[CDUF] = @DESTINO_CDUF)
               AND ([lp].[CDMESOREGIAO] IS NULL OR [lp].[CDMESOREGIAO] = @DESTINO_CDMESOREGIAO)
             ) )
@@ -1267,6 +1731,7 @@ const viagemController = {
       `;
 
       const request = pool.request();
+      request.input('TENANT_ID', sql.NVarChar(64), tenantIdForRequest(req));
       // Adicionar IDVIAGEM para o JOIN com CONVOCACAO
       request.input('IDVIAGEM', sql.Decimal(15, 0), parseFloat(idViagem));
       
@@ -1280,24 +1745,23 @@ const viagemController = {
       }
 
       if (validarLocalEmbarque && CDCIDADEORIGEM) {
-        request.input('ORIGEM_PAIS', sql.VarChar, origemPais || '');
-        request.input('ORIGEM_CDUF', sql.SmallInt, origemCduf != null ? parseInt(origemCduf) : null);
-        request.input('ORIGEM_CDMESOREGIAO', sql.SmallInt, origemCmesoregiao != null ? parseInt(origemCmesoregiao) : null);
+        request.input('ORIGEM_PAIS', sql.VarChar, origemPais || 'BR');
+        request.input('ORIGEM_CDUF', sql.SmallInt, origemCduf != null ? parseInt(origemCduf, 10) : null);
+        request.input('ORIGEM_CDMESOREGIAO', sql.SmallInt, origemCmesoregiao != null ? parseInt(origemCmesoregiao, 10) : null);
       }
       if (validarLocalDesembarque && CDCIDADEDESTINO) {
-        request.input('DESTINO_PAIS', sql.VarChar, destinoPais || '');
-        request.input('DESTINO_CDUF', sql.SmallInt, destinoCduf != null ? parseInt(destinoCduf) : null);
-        request.input('DESTINO_CDMESOREGIAO', sql.SmallInt, destinoCmesoregiao != null ? parseInt(destinoCmesoregiao) : null);
+        request.input('DESTINO_PAIS', sql.VarChar, destinoPais || 'BR');
+        request.input('DESTINO_CDUF', sql.SmallInt, destinoCduf != null ? parseInt(destinoCduf, 10) : null);
+        request.input('DESTINO_CDMESOREGIAO', sql.SmallInt, destinoCmesoregiao != null ? parseInt(destinoCmesoregiao, 10) : null);
       }
 
-      // Aplicar filtros comuns – rastreado só quando regra ligada
+      // Rastreamento: só filtra quando a regra está ligada E a viagem exige veículo rastreado (FGRASTREADO = S).
+      // Cadastro com "Possui Veículo Rastreado = Não" fica de fora nesse caso — desligue a regra ou alinhe cadastro/viagem.
       if (validarRastreamento && FGRASTREADO === 'S') {
         query += ` AND COALESCE([cg].[FGRASTREADO], 'N') = 'S'`;
       }
 
-      // Regra de negócio: compatíveis são listados apenas por TIPO + CLASSE FROTA + RASTREADO.
-      // Localização (cidade/micro-região) NÃO é critério obrigatório para aparecer na lista.
-      // Assim, todos que têm a classe da viagem e atendem rastreado (se exigido) são listados.
+      // Com regra de classe desligada, não exige vínculo em CLASSEFROTA_CG. Rastreamento e locais seguem CONFIG + viagem.
 
       // Ordenar por: Experiência na rota DESC → Experiência geral DESC → Nome
       query += ` ORDER BY QTVIAGENS_NESTA_ROTA DESC, QTVIAGENS DESC, [cg].[RZSOCIAL]`;
@@ -1318,7 +1782,7 @@ const viagemController = {
               FROM [dbo].[CADASTROGERAL] [cg]
               INNER JOIN [dbo].[CIDADE] [c] ON [cg].[CDCIDADE] = [c].[CDCIDADE]
               WHERE ( [cg].[FGTIPOCADASTRO] IN ('M','A','G','T') OR ( [cg].[FGMOTORISTA] = 'S' OR ([cg].[FGMOTORISTA] IS NULL AND [cg].[FGTIPOCADASTRO] = 'M') ) OR COALESCE([cg].[FGAGENTE], 'N') = 'S' OR COALESCE([cg].[FGGRUPO], 'N') = 'S' OR COALESCE([cg].[FGTRANSPORTADOR], 'N') = 'S' )
-                AND [cg].[FGACTIVE] = 'A'
+                AND ([cg].[FGACTIVE] = 'A' OR [cg].[FGACTIVE] = 'S')
                 AND [c].[CDMICROREGIAO] IN (${valoresMicro.join(', ')})
             `);
           }
@@ -1336,14 +1800,22 @@ const viagemController = {
       // Normalizar chaves: PostgreSQL devolve em minúsculas; frontend espera MAIÚSCULAS_COM_UNDERSCORE
       const recordset = raw.map(row => {
         const get = (key) => (row[key] != null ? row[key] : row[key.toLowerCase()]);
+        const cdMot = get('CDCADASTRO_MOTORISTA');
+        const cdTransp = get('CDTRANSPORTADOR');
+        const mesmoCadastro =
+          cdTransp != null &&
+          cdMot != null &&
+          String(cdTransp).trim() !== '' &&
+          Number(cdMot) === Number(cdTransp);
+        const transpInvalido = cdTransp == null || String(cdTransp).trim() === '' || mesmoCadastro;
         return {
-          CDCADASTRO_MOTORISTA: get('CDCADASTRO_MOTORISTA'),
+          CDCADASTRO_MOTORISTA: cdMot,
           NOME_MOTORISTA: get('NOME_MOTORISTA'),
           CELULAR: get('CELULAR'),
           EMAIL: get('EMAIL'),
-          CDTRANSPORTADOR: get('CDTRANSPORTADOR'),
-          TRANSPORTADOR_NOME: get('TRANSPORTADOR_NOME'),
-          TRANSPORTADOR_CELULAR: get('TRANSPORTADOR_CELULAR'),
+          CDTRANSPORTADOR: transpInvalido ? null : cdTransp,
+          TRANSPORTADOR_NOME: transpInvalido ? null : get('TRANSPORTADOR_NOME'),
+          TRANSPORTADOR_CELULAR: transpInvalido ? null : get('TRANSPORTADOR_CELULAR'),
           CDCIDADE: get('CDCIDADE'),
           CIDADE_NOME: get('CIDADE_NOME'),
           CIDADE_ESTADO: get('CIDADE_ESTADO'),
@@ -1352,6 +1824,7 @@ const viagemController = {
           FOI_ACIONADO: get('FOI_ACIONADO'),
           QTVIAGENS: get('QTVIAGENS'),
           QTVIAGENS_NESTA_ROTA: get('QTVIAGENS_NESTA_ROTA'),
+          CONJUNTO_PLACAS_CLASSES_MOTORISTA: get('CONJUNTO_PLACAS_CLASSES_MOTORISTA'),
         };
       });
 
@@ -1359,7 +1832,7 @@ const viagemController = {
         console.log(`[Compatíveis] Viagem ${idViagem}: ${recordset.length} registro(s) retornado(s).`);
       }
 
-      res.json(recordset);
+      res.json({ motoristas: recordset, viagemResumo });
     } catch (err) {
       console.error('Erro ao buscar motoristas compatíveis:', err);
       console.error('Stack trace:', err.stack);
@@ -1376,6 +1849,7 @@ const viagemController = {
   obterRegrasCompatibilidade: async (req, res) => {
     try {
       const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
       const keys = [
         'regra_compativel_rastreamento',
         'regra_compativel_classe_frota',
@@ -1383,8 +1857,8 @@ const viagemController = {
         'regra_compativel_local_desembarque'
       ];
       const result = await pool.query(
-        `SELECT "CHAVE", "VALOR" FROM "CONFIGURACAO" WHERE "CHAVE" = ANY($1::text[])`,
-        [keys]
+        `SELECT "CHAVE", "VALOR" FROM "CONFIGURACAO" WHERE "CHAVE" = ANY($1::text[]) AND "TENANT_ID" = $2`,
+        [keys, tid]
       );
       const rows = result.rows || [];
       const get = (k) => (rows.find(r => (r.CHAVE || r.chave) === k) || {})?.VALOR ?? (rows.find(r => (r.chave || r.CHAVE) === k) || {})?.valor;
@@ -1407,6 +1881,7 @@ const viagemController = {
       if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
       const { rastreamento, classeFrota, localEmbarque, localDesembarque } = req.body || {};
       const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
       const toS = (v) => (v === true || v === 'S' || v === 's' || v === '1') ? 'S' : 'N';
       const novos = {
         regra_compativel_rastreamento: toS(rastreamento),
@@ -1418,8 +1893,8 @@ const viagemController = {
       let atuais = { rows: [] };
       try {
         atuais = await pool.query(
-          `SELECT "CHAVE", "VALOR" FROM "CONFIGURACAO" WHERE "CHAVE" = ANY($1::text[])`,
-          [keys]
+          `SELECT "CHAVE", "VALOR" FROM "CONFIGURACAO" WHERE "CHAVE" = ANY($1::text[]) AND "TENANT_ID" = $2`,
+          [keys, tid]
         );
       } catch (e) {
         console.error('Erro ao ler CONFIGURACAO (regras compatibilidade):', e?.message || e);
@@ -1447,14 +1922,19 @@ const viagemController = {
         const descricao = 'Regra compatíveis: ' + chave.replace('regra_compativel_', '');
         try {
           const updateResult = await pool.query(
-            `UPDATE "CONFIGURACAO" SET "VALOR" = $1, "DHMAINTENANCE" = CURRENT_TIMESTAMP WHERE "CHAVE" = $2`,
-            [valorNovo, chave]
+            `UPDATE "CONFIGURACAO" SET "VALOR" = $1, "DHMAINTENANCE" = CURRENT_TIMESTAMP WHERE "CHAVE" = $2 AND "TENANT_ID" = $3`,
+            [valorNovo, chave, tid]
           );
           const updated = (updateResult.rowCount ?? 0) > 0;
           if (!updated) {
             await pool.query(
-              `INSERT INTO "CONFIGURACAO" ("CHAVE", "VALOR", "DESCRICAO", "DHMAINTENANCE") VALUES ($1, $2, $3, CURRENT_TIMESTAMP)`,
-              [chave, valorNovo, descricao]
+              `INSERT INTO "CONFIGURACAO" ("TENANT_ID", "CHAVE", "VALOR", "DESCRICAO", "DHMAINTENANCE")
+               VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+               ON CONFLICT ("TENANT_ID", "CHAVE") DO UPDATE SET
+                 "VALOR" = EXCLUDED."VALOR",
+                 "DESCRICAO" = EXCLUDED."DESCRICAO",
+                 "DHMAINTENANCE" = CURRENT_TIMESTAMP`,
+              [tid, chave, valorNovo, descricao]
             );
           }
         } catch (errConfig) {
@@ -1493,8 +1973,35 @@ const viagemController = {
         return res.status(400).json({ error: 'Login do usuário não fornecido. É necessário estar autenticado para criar convocações.' });
       }
 
-      // Validar se o usuário existe e está ativo
       const pool = await poolPromise;
+      const tenantIdConv = tenantIdForRequest(req);
+      const vTenantCheck = await pool
+        .request()
+        .input('IDVIAGEM', sql.Decimal(15, 0), idViagem)
+        .input('TENANT_ID', tenantIdConv)
+        .query(`
+          SELECT 1 FROM [dbo].[VIAGEMMESTRE]
+          WHERE [IDVIAGEM] = @IDVIAGEM AND [TENANT_ID] = @TENANT_ID
+        `);
+      if (vTenantCheck.recordset.length === 0) {
+        return res.status(404).json({ error: 'Viagem não encontrada.' });
+      }
+
+      const jaConfirmada = await pool
+        .request()
+        .input('IDVIAGEM', sql.Decimal(15, 0), idViagem)
+        .input('TENANT_ID', tenantIdConv)
+        .query(`
+          SELECT 1 FROM [dbo].[CONVOCACAO]
+          WHERE [IDVIAGEM] = @IDVIAGEM AND [TENANT_ID] = @TENANT_ID AND [STATUS] = 'CONFIRMADA'
+        `);
+      if (jaConfirmada.recordset && jaConfirmada.recordset.length > 0) {
+        return res.status(409).json({
+          error: 'Esta viagem já possui motorista confirmado. Não é possível criar novas convocações por aqui.'
+        });
+      }
+
+      // Validar se o usuário existe e está ativo
       const usuarioResult = await pool
         .request()
         .input('SGUSUARIO', sql.VarChar(50), userLogin)
@@ -1532,6 +2039,7 @@ const viagemController = {
           .request()
           .input('IDVIAGEM', sql.Decimal(15, 0), idViagem)
           .input('CDCADASTRO_MOTORISTA', sql.Decimal(15, 0), CDCADASTRO_MOTORISTA)
+          .input('TENANT_ID', tenantIdConv)
           .query(`
             SELECT TOP 1 
               [IDCONVOCACAO],
@@ -1542,6 +2050,7 @@ const viagemController = {
             FROM [dbo].[CONVOCACAO]
             WHERE [IDVIAGEM] = @IDVIAGEM
               AND [CDCADASTRO_MOTORISTA] = @CDCADASTRO_MOTORISTA
+              AND [TENANT_ID] = @TENANT_ID
             ORDER BY [DHCONVOCACAO] DESC
           `);
 
@@ -1567,11 +2076,14 @@ const viagemController = {
           .input('IDVIAGEM', sql.Decimal(15, 0), idViagem)
           .input('CDCADASTRO_MOTORISTA', sql.Decimal(15, 0), CDCADASTRO_MOTORISTA)
           .input('STATUS', sql.VarChar(20), 'PENDENTE')
-          .input('SGUSUARIO_OPERADOR', sql.VarChar(50), usuarioOperador);
+          .input('SGUSUARIO_OPERADOR', sql.VarChar(50), usuarioOperador)
+          .input('TENANT_ID', tenantIdConv);
 
         // Adicionar campos opcionais se fornecidos (colunas entre colchetes para db.js → "COL" no PG)
-        let camposInsert = '[IDCONVOCACAO], [IDVIAGEM], [CDCADASTRO_MOTORISTA], [STATUS], [DHCONVOCACAO], [SGUSUARIO_OPERADOR], [DHMAINTENANCE], [SGUSER], [SERVERORIG]';
-        let valoresInsert = '@IDCONVOCACAO, @IDVIAGEM, @CDCADASTRO_MOTORISTA, @STATUS, GETDATE(), @SGUSUARIO_OPERADOR, GETDATE(), \'SYSTEM\', \'AppDVcargas\'';
+        const exprSnapPlacas = `(${sqlPlacasEsperadasPorViagemMotoristaParams()})`;
+        const exprSnapClasses = `(${sqlDsClasseConjuntoPorViagemMotoristaParams()})`;
+        let camposInsert = '[IDCONVOCACAO], [IDVIAGEM], [CDCADASTRO_MOTORISTA], [STATUS], [DHCONVOCACAO], [SGUSUARIO_OPERADOR], [DHMAINTENANCE], [SGUSER], [SERVERORIG], [TENANT_ID], [TXT_PLACAS_SNAPSHOT], [TXT_CLASSES_CONJ_SNAPSHOT]';
+        let valoresInsert = `@IDCONVOCACAO, @IDVIAGEM, @CDCADASTRO_MOTORISTA, @STATUS, GETDATE(), @SGUSUARIO_OPERADOR, GETDATE(), 'SYSTEM', 'AppDVcargas', @TENANT_ID, ${exprSnapPlacas}, ${exprSnapClasses}`;
 
         if (NRCELULAR !== undefined && NRCELULAR !== null) {
           camposInsert += ', [NRCELULAR]';
@@ -1628,6 +2140,22 @@ const viagemController = {
         novas,
         reutilizadas
       });
+
+      // Log-resumo da etapa de divulgação/disparo de convocações
+      await registrarResumoEtapaWhatsApp(pool, {
+        idConvocacao: (convocacoes[0] && convocacoes[0].IDCONVOCACAO) || null,
+        etapa: 'DIVULGACAO',
+        mensagem: `Convocações preparadas para viagem #${idViagem}. Novas=${novas}, Reutilizadas=${reutilizadas}, Total=${convocacoes.length}.`,
+        detalhes: JSON.stringify({
+          idViagem: Number(idViagem),
+          total: convocacoes.length,
+          novas,
+          reutilizadas,
+          motoristas: convocacoes.map((c) => c.CDCADASTRO_MOTORISTA)
+        }),
+        status: 'info',
+        sgUser: usuarioOperador
+      });
     } catch (err) {
       console.error('Erro ao criar convocações:', err);
       console.error('Detalhes do erro:', {
@@ -1643,13 +2171,52 @@ const viagemController = {
     }
   },
 
+  /** GET — contagem de convocações pendentes com divergência de placas (badge header; ignora viagem já confirmada). */
+  contadorDivergenciaPlacasConvocacoes: async (req, res) => {
+    try {
+      const tenantId = tenantIdForRequest(req);
+      const pool = await poolPromise;
+      const r = await pool
+        .request()
+        .input('TENANT_ID', sql.NVarChar(64), tenantId)
+        .query(`
+          SELECT COUNT(*) AS total
+          FROM [dbo].[CONVOCACAO] c
+          WHERE c.[TENANT_ID] = @TENANT_ID
+            AND UPPER(TRIM(COALESCE(c.[STATUS], ''))) = 'PENDENTE'
+            AND UPPER(TRIM(COALESCE(c.[FGCONFIRMACAOPLACAS], ''))) = 'D'
+            AND NOT EXISTS (
+              SELECT 1
+              FROM [dbo].[CONVOCACAO] c2
+              WHERE c2.[IDVIAGEM] = c.[IDVIAGEM]
+                AND c2.[TENANT_ID] = c.[TENANT_ID]
+                AND c2.[STATUS] = 'CONFIRMADA'
+            )
+        `);
+      const row = r.recordset && r.recordset[0];
+      const raw = row != null ? row.total ?? row.TOTAL : 0;
+      const total = typeof raw === 'number' && Number.isFinite(raw) ? raw : parseInt(String(raw), 10) || 0;
+      res.json({ success: true, data: { total } });
+    } catch (err) {
+      const em = String(err.message || '');
+      if (err.code === '42703' && /fgconfirmacaoplacas/i.test(em)) {
+        return res.json({ success: true, data: { total: 0 } });
+      }
+      console.error('[CONTADOR DIVERGENCIA PLACAS]', err.message);
+      res.status(500).json({ success: false, error: 'Erro ao contar divergências de placas.' });
+    }
+  },
+
   // Listar convocações com filtros
   listarConvocacoes: async (req, res) => {
     try {
-      const { idViagem, status, cdcadastroMotorista } = req.query;
+      const { idViagem, status, cdcadastroMotorista, divergenciaPlacas } = req.query;
       const pool = await poolPromise;
+      // Uma linha por (viagem + motorista): evita lista duplicada por campanhas/disparos repetidos.
+      // Prioridade: CONFIRMADA > ACEITA > PENDENTE > ACEITA_DESCARTADA > RECUSADA; desempate por data e ID.
       let query = `
-        SELECT 
+        SELECT * FROM (
+        SELECT DISTINCT ON ([c].[IDVIAGEM], [c].[CDCADASTRO_MOTORISTA])
           [c].[IDCONVOCACAO],
           [c].[IDVIAGEM],
           [c].[CDCADASTRO_MOTORISTA],
@@ -1660,8 +2227,17 @@ const viagemController = {
           [c].[SGUSUARIO_OPERADOR],
           [c].[LATITUDE],
           [c].[LONGITUDE],
+          [c].[SGUSER],
           [c].[NRCELULAR],
           [c].[DHENVIOMETA],
+          [c].[DHMAINTENANCE] AS [DHMAINTENANCE_CONVOCACAO],
+          (
+            SELECT MAX(COALESCE([vr].[DHPOSICAO], [vr].[DHREGISTRO]))
+            FROM [dbo].[VIAGEMRASTREAMENTO] [vr]
+            WHERE [vr].[IDVIAGEM] = [c].[IDVIAGEM]
+              AND [vr].[CDCADASTRO] = [c].[CDCADASTRO_MOTORISTA]
+              AND [vr].[TENANT_ID] = [c].[TENANT_ID]
+          ) AS [ULTIMA_POSICAO_VIAGEM_DH],
           [c].[CDMOTIVORECUSA],
           [mr].[DSMOTIVO] AS MOTIVO_RECUSA,
           [c].[CDMOTIVOREABERTURA],
@@ -1672,6 +2248,8 @@ const viagemController = {
           [v].[DTPREVFINAL],
           [v].[FGRASTREADO],
           [v].[VLFRETE],
+          COALESCE([v].[MOEDA], 'BRL') AS [MOEDA],
+          [c].[VL_FRETE_PROPOSTO_MOTORISTA],
           [v].[PESO],
           [v].[CUBAGEM],
           upper([cg].[RZSOCIAL]) AS NOME_MOTORISTA,
@@ -1689,24 +2267,33 @@ const viagemController = {
               SELECT 1 
               FROM [dbo].[CONVOCACAO] [c2] 
               WHERE [c2].[IDVIAGEM] = [c].[IDVIAGEM] 
+                AND [c2].[TENANT_ID] = [c].[TENANT_ID]
                 AND [c2].[STATUS] = 'CONFIRMADA'
                 AND [c2].[IDCONVOCACAO] != [c].[IDCONVOCACAO]
             ) THEN 1 
             ELSE 0 
-          END AS VIAGEM_JA_CONFIRMADA
+          END AS VIAGEM_JA_CONFIRMADA,
+          [c].[FGCONFIRMACAOPLACAS],
+          [c].[TXTPLACASDIVERGENCIA],
+          [c].[DHCONFIRMACAOPLACAS],
+          (${sqlCoalescePlacasEsperadasConvocacaoComSnapshot()}) AS [PLACASESPERADAS],
+          (${sqlCoalesceDsClasseConjuntoConvocacaoComSnapshot()}) AS [DSCLASSEFROTA_CONJUNTO]
         FROM [dbo].[CONVOCACAO] [c]
-        INNER JOIN [dbo].[VIAGEMMESTRE] [v] ON [c].[IDVIAGEM] = [v].[IDVIAGEM]
-        INNER JOIN [dbo].[CADASTROGERAL] [cg] ON [c].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO]
+        INNER JOIN [dbo].[VIAGEMMESTRE] [v] ON [c].[IDVIAGEM] = [v].[IDVIAGEM] AND [c].[TENANT_ID] = [v].[TENANT_ID]
+        INNER JOIN [dbo].[CADASTROGERAL] [cg] ON [c].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [c].[TENANT_ID]
         LEFT JOIN [dbo].[CLASSEFROTA] [cf] ON [v].[CDCLASSEFROTA] = [cf].[CDCLASSEFROTA]
-        LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
+          AND ([cf].[TENANT_ID] = [v].[TENANT_ID] OR [cf].[TENANT_ID] = 'default')
+        LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO] AND ([r].[TENANT_ID] = [v].[TENANT_ID] OR [r].[TENANT_ID] = 'default')
           LEFT JOIN [dbo].[CIDADE] [co] ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
           LEFT JOIN [dbo].[CIDADE] [cd] ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
           LEFT JOIN [dbo].[MOTIVORECUSA] [mr] ON [c].[CDMOTIVORECUSA] = [mr].[CDMOTIVO]
           LEFT JOIN [dbo].[MOTIVOREABERTURA] [mra] ON [c].[CDMOTIVOREABERTURA] = [mra].[CDMOTIVO]
           WHERE 1=1
+            AND [c].[TENANT_ID] = @TENANT_ID
       `;
 
       const request = pool.request();
+      request.input('TENANT_ID', tenantIdForRequest(req));
 
       if (idViagem) {
         query += ` AND [c].[IDVIAGEM] = @IDVIAGEM`;
@@ -1723,7 +2310,28 @@ const viagemController = {
         request.input('CDCADASTRO_MOTORISTA', sql.Decimal(15, 0), parseFloat(cdcadastroMotorista));
       }
 
-      query += ` ORDER BY [c].[DHCONVOCACAO] DESC`;
+      const divPlacas = divergenciaPlacas != null && String(divergenciaPlacas).trim() !== ''
+        ? String(divergenciaPlacas).trim().toLowerCase()
+        : '';
+      if (['1', 'true', 's', 'sim', 'yes'].includes(divPlacas)) {
+        query += ` AND UPPER(TRIM(COALESCE([c].[FGCONFIRMACAOPLACAS], ''))) = 'D'`;
+      }
+
+      query += ` ORDER BY
+          [c].[IDVIAGEM],
+          [c].[CDCADASTRO_MOTORISTA],
+          CASE UPPER(LTRIM(RTRIM(COALESCE([c].[STATUS], ''))))
+            WHEN 'CONFIRMADA' THEN 1
+            WHEN 'ACEITA' THEN 2
+            WHEN 'PENDENTE' THEN 3
+            WHEN 'ACEITA_DESCARTADA' THEN 4
+            WHEN 'RECUSADA' THEN 5
+            ELSE 6
+          END,
+          [c].[DHCONVOCACAO] DESC,
+          [c].[IDCONVOCACAO] DESC
+        ) conv_dedup
+        ORDER BY conv_dedup.[DHCONVOCACAO] DESC`;
 
       const result = await request.query(query);
       // Normalizar chaves para maiúsculas (PostgreSQL retorna minúsculas em aliases sem aspas)
@@ -1741,9 +2349,21 @@ const viagemController = {
           destino_cidade: 'DESTINO_CIDADE',
           destino_estado: 'DESTINO_ESTADO',
           viagem_ja_confirmada: 'VIAGEM_JA_CONFIRMADA',
+          ultima_posicao_viagem_dh: 'ULTIMA_POSICAO_VIAGEM_DH',
+          dhmaintenance_convocacao: 'DHMAINTENANCE_CONVOCACAO',
+          dtprevinicio: 'DTPREVINICIO',
+          dtprevfinal: 'DTPREVFINAL',
           idviagem: 'IDVIAGEM',
           idroteiro: 'IDROTEIRO',
           cdcadastro_motorista: 'CDCADASTRO_MOTORISTA',
+          moeda: 'MOEDA',
+          vl_frete_proposto_motorista: 'VL_FRETE_PROPOSTO_MOTORISTA',
+          sguser: 'SGUSER',
+          placasesperadas: 'PLACASESPERADAS',
+          fgconfirmacaoplacas: 'FGCONFIRMACAOPLACAS',
+          txtplacasdivergencia: 'TXTPLACASDIVERGENCIA',
+          dhconfirmacaoplacas: 'DHCONFIRMACAOPLACAS',
+          dsclassefrota_conjunto: 'DSCLASSEFROTA_CONJUNTO',
         };
         Object.keys(map).forEach((k) => {
           if (r[k] !== undefined && r[map[k]] === undefined) r[map[k]] = r[k];
@@ -1752,6 +2372,12 @@ const viagemController = {
       });
       res.json(recordset);
     } catch (err) {
+      if (err.code === '42703') {
+        return res.status(503).json({
+          error: 'Execute a migração de colunas de confirmação de placas em CONVOCACAO (script adicionar_convocacao_confirmacao_placas_postgres.sql).',
+          errorKey: 'convocacao.listaConvocacoesSchemaPendente',
+        });
+      }
       console.error('Erro ao listar convocações:', err);
       res.status(500).json({ error: 'Erro ao listar convocações.' });
     }
@@ -1765,6 +2391,7 @@ const viagemController = {
       const result = await pool
         .request()
         .input('IDCONVOCACAO', sql.Int, parseInt(id))
+        .input('TENANT_ID', sql.NVarChar(64), tenantIdForRequest(req))
         .query(`
           SELECT 
             [c].[IDCONVOCACAO],
@@ -1772,39 +2399,91 @@ const viagemController = {
             [c].[CDCADASTRO_MOTORISTA],
             [c].[STATUS],
             [c].[DHCONVOCACAO],
+            [c].[DHACESSO],
             [c].[DHRESPOSTA],
+            [c].[LATITUDE],
+            [c].[LONGITUDE],
             [c].[SGUSUARIO_OPERADOR],
             [c].[DHENVIOMETA],
+            [c].[DHMAINTENANCE] AS [DHMAINTENANCE_CONVOCACAO],
+            (
+              SELECT MAX(COALESCE([vr].[DHPOSICAO], [vr].[DHREGISTRO]))
+              FROM [dbo].[VIAGEMRASTREAMENTO] [vr]
+              WHERE [vr].[IDVIAGEM] = [c].[IDVIAGEM]
+                AND [vr].[CDCADASTRO] = [c].[CDCADASTRO_MOTORISTA]
+            ) AS [ULTIMA_POSICAO_VIAGEM_DH],
             [v].[CDCLASSEFROTA],
             [v].[DTPREVINICIO],
             [v].[DTPREVFINAL],
             [v].[FGRASTREADO],
             [v].[OBSERV],
+            [v].[VLFRETE],
+            [v].[PESO],
+            [v].[IDROTEIRO],
             upper([cg].[RZSOCIAL]) AS NOME_MOTORISTA,
             [cg].[NRCELULAR] AS CELULAR_MOTORISTA,
             [cf].[DSCLASSEFROTA],
+            [r].[DSROTEIRO],
             [r].[CDCIDADEORIGEM],
             [r].[CDCIDADEDESTINO],
             [co].[NMCIDADE] AS ORIGEM_CIDADE,
             [co].[ESTADO] AS ORIGEM_ESTADO,
             [cd].[NMCIDADE] AS DESTINO_CIDADE,
-            [cd].[ESTADO] AS DESTINO_ESTADO
+            [cd].[ESTADO] AS DESTINO_ESTADO,
+            [c].[FGCONFIRMACAOPLACAS],
+            [c].[TXTPLACASDIVERGENCIA],
+            [c].[DHCONFIRMACAOPLACAS],
+            (${sqlCoalescePlacasEsperadasConvocacaoComSnapshot()}) AS [PLACASESPERADAS],
+            (${sqlCoalesceDsClasseConjuntoConvocacaoComSnapshot()}) AS [DSCLASSEFROTA_CONJUNTO]
           FROM [dbo].[CONVOCACAO] [c]
-          INNER JOIN [dbo].[VIAGEMMESTRE] [v] ON [c].[IDVIAGEM] = [v].[IDVIAGEM]
-          INNER JOIN [dbo].[CADASTROGERAL] [cg] ON [c].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO]
+          INNER JOIN [dbo].[VIAGEMMESTRE] [v] ON [c].[IDVIAGEM] = [v].[IDVIAGEM] AND [c].[TENANT_ID] = [v].[TENANT_ID]
+          INNER JOIN [dbo].[CADASTROGERAL] [cg] ON [c].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [c].[TENANT_ID]
           LEFT JOIN [dbo].[CLASSEFROTA] [cf] ON [v].[CDCLASSEFROTA] = [cf].[CDCLASSEFROTA]
-          LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
+            AND ([cf].[TENANT_ID] = [v].[TENANT_ID] OR [cf].[TENANT_ID] = 'default')
+          LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO] AND ([r].[TENANT_ID] = [v].[TENANT_ID] OR [r].[TENANT_ID] = 'default')
           LEFT JOIN [dbo].[CIDADE] [co] ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
           LEFT JOIN [dbo].[CIDADE] [cd] ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
-          WHERE [c].[IDCONVOCACAO] = @IDCONVOCACAO
+          WHERE [c].[IDCONVOCACAO] = @IDCONVOCACAO AND [c].[TENANT_ID] = @TENANT_ID
         `);
 
       if (result.recordset.length === 0) {
         return res.status(404).json({ error: 'Convocação não encontrada.' });
       }
 
-      res.json(result.recordset[0]);
+      const row = { ...result.recordset[0] };
+      const keyMap = {
+        nome_motorista: 'NOME_MOTORISTA',
+        celular_motorista: 'CELULAR_MOTORISTA',
+        dsclassefrota: 'DSCLASSEFROTA',
+        dsroteiro: 'DSROTEIRO',
+        origem_cidade: 'ORIGEM_CIDADE',
+        origem_estado: 'ORIGEM_ESTADO',
+        destino_cidade: 'DESTINO_CIDADE',
+        destino_estado: 'DESTINO_ESTADO',
+        ultima_posicao_viagem_dh: 'ULTIMA_POSICAO_VIAGEM_DH',
+        dhmaintenance_convocacao: 'DHMAINTENANCE_CONVOCACAO',
+        idviagem: 'IDVIAGEM',
+        idroteiro: 'IDROTEIRO',
+        cdcadastro_motorista: 'CDCADASTRO_MOTORISTA',
+        dtprevinicio: 'DTPREVINICIO',
+        dtprevfinal: 'DTPREVFINAL',
+        placasesperadas: 'PLACASESPERADAS',
+        fgconfirmacaoplacas: 'FGCONFIRMACAOPLACAS',
+        txtplacasdivergencia: 'TXTPLACASDIVERGENCIA',
+        dhconfirmacaoplacas: 'DHCONFIRMACAOPLACAS',
+        dsclassefrota_conjunto: 'DSCLASSEFROTA_CONJUNTO',
+      };
+      Object.keys(keyMap).forEach((k) => {
+        if (row[k] !== undefined && row[keyMap[k]] === undefined) row[keyMap[k]] = row[k];
+      });
+      res.json(row);
     } catch (err) {
+      if (err.code === '42703') {
+        return res.status(503).json({
+          error: 'Migração de colunas de confirmação de placas pendente em CONVOCACAO.',
+          errorKey: 'convocacao.listaConvocacoesSchemaPendente',
+        });
+      }
       console.error('Erro ao buscar convocação:', err);
       res.status(500).json({ error: 'Erro ao buscar convocação.' });
     }
@@ -1821,8 +2500,10 @@ const viagemController = {
       }
 
       const pool = await poolPromise;
+      const tidUpdConv = tenantIdForRequest(req);
       const request = pool.request()
-        .input('IDCONVOCACAO', sql.Int, parseInt(id));
+        .input('IDCONVOCACAO', sql.Int, parseInt(id))
+        .input('TENANT_ID', sql.NVarChar(64), tidUpdConv);
 
       let updates = [];
 
@@ -1850,15 +2531,19 @@ const viagemController = {
       const query = `
         UPDATE [dbo].[CONVOCACAO]
         SET ${updates.join(', ')}
-        WHERE [IDCONVOCACAO] = @IDCONVOCACAO
+        WHERE [IDCONVOCACAO] = @IDCONVOCACAO AND [TENANT_ID] = @TENANT_ID
       `;
 
       const result = await request.query(query);
+      const nAf = result.rowsAffected && result.rowsAffected[0] != null ? result.rowsAffected[0] : 0;
+      if (!nAf) {
+        return res.status(404).json({ error: 'Convocação não encontrada ou fora do tenant.' });
+      }
 
       res.json({
         success: true,
         message: 'Convocação atualizada com sucesso!',
-        rowsAffected: result.rowsAffected[0]
+        rowsAffected: nAf
       });
     } catch (err) {
       console.error('[ATUALIZAR CONVOCACAO] Erro ao atualizar convocação:', err);
@@ -1879,15 +2564,21 @@ const viagemController = {
       }
 
       const pool = await poolPromise;
+      const tidMeta = tenantIdForRequest(req);
 
-      await pool.request()
+      const rMeta = await pool.request()
         .input('IDCONVOCACAO', sql.Int, parseInt(id))
+        .input('TENANT_ID', sql.NVarChar(64), tidMeta)
         .query(`
           UPDATE [dbo].[CONVOCACAO]
           SET [DHENVIOMETA] = GETDATE(),
               [DHMAINTENANCE] = GETDATE()
-          WHERE [IDCONVOCACAO] = @IDCONVOCACAO
+          WHERE [IDCONVOCACAO] = @IDCONVOCACAO AND [TENANT_ID] = @TENANT_ID
         `);
+      const nMeta = rMeta.rowsAffected && rMeta.rowsAffected[0] != null ? rMeta.rowsAffected[0] : 0;
+      if (!nMeta) {
+        return res.status(404).json({ error: 'Convocação não encontrada ou fora do tenant.' });
+      }
 
       res.json({
         success: true,
@@ -1916,9 +2607,11 @@ const viagemController = {
       if (!sgUserConv) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
 
       const pool = await poolPromise;
-      await pool
+      const tidSt = tenantIdForRequest(req);
+      const rSt = await pool
         .request()
         .input('IDCONVOCACAO', sql.Int, parseInt(id))
+        .input('TENANT_ID', sql.NVarChar(64), tidSt)
         .input('STATUS', sql.VarChar(20), status)
         .input('sgUser', sql.VarChar(50), sgUserConv)
         .query(`
@@ -1927,8 +2620,12 @@ const viagemController = {
               [DHRESPOSTA] = CASE WHEN @STATUS IN ('ACEITA', 'RECUSADA') THEN GETDATE() ELSE [DHRESPOSTA] END,
               [DHMAINTENANCE] = GETDATE(),
               [SGUSER] = @sgUser
-          WHERE [IDCONVOCACAO] = @IDCONVOCACAO
+          WHERE [IDCONVOCACAO] = @IDCONVOCACAO AND [TENANT_ID] = @TENANT_ID
         `);
+      const nSt = rSt.rowsAffected && rSt.rowsAffected[0] != null ? rSt.rowsAffected[0] : 0;
+      if (!nSt) {
+        return res.status(404).json({ error: 'Convocação não encontrada ou fora do tenant.' });
+      }
 
       res.json({ success: true, message: 'Status da convocação atualizado com sucesso!' });
     } catch (err) {
@@ -1969,14 +2666,18 @@ const viagemController = {
         return res.status(403).json({ error: 'Usuário não encontrado ou inativo. Não é possível confirmar convocações.' });
       }
 
+      const tidConfirm = tenantIdForRequest(req);
+
       // Primeiro, buscar a convocação para obter o IDVIAGEM e o motorista (CDCADASTRO_MOTORISTA)
       const convocacaoResult = await pool
         .request()
         .input('IDCONVOCACAO', sql.Int, parseInt(id))
+        .input('TENANT_ID', sql.NVarChar(64), tidConfirm)
         .query(`
-          SELECT [IDCONVOCACAO], [IDVIAGEM], [STATUS], [CDCADASTRO_MOTORISTA]
+          SELECT [IDCONVOCACAO], [IDVIAGEM], [STATUS], [CDCADASTRO_MOTORISTA], [TENANT_ID],
+                 [LATITUDE], [LONGITUDE], [SGUSER]
           FROM [dbo].[CONVOCACAO]
-          WHERE [IDCONVOCACAO] = @IDCONVOCACAO
+          WHERE [IDCONVOCACAO] = @IDCONVOCACAO AND [TENANT_ID] = @TENANT_ID
         `);
 
       if (convocacaoResult.recordset.length === 0) {
@@ -1985,10 +2686,37 @@ const viagemController = {
 
       const convocacao = convocacaoResult.recordset[0];
 
-      // Validar se a convocação está ACEITA
-      if (convocacao.STATUS !== 'ACEITA') {
+      // Validar se a convocação está ACEITA (PG pode devolver casing/espacos diferentes)
+      const statusConv = String(convocacao.STATUS ?? convocacao.status ?? '')
+        .trim()
+        .toUpperCase();
+      if (statusConv !== 'ACEITA') {
+        const msgExtra =
+          statusConv === 'ACEITA_DESCARTADA'
+            ? ' Esta convocação já foi marcada como aceita porém não selecionada.'
+            : statusConv === 'CONFIRMADA'
+              ? ' Esta convocação já está confirmada.'
+              : '';
         return res.status(400).json({
-          error: 'Apenas convocações com status ACEITA podem ser confirmadas.'
+          error: `Apenas convocações com status ACEITA podem ser confirmadas.${msgExtra}`
+        });
+      }
+
+      const sgConfirm = String(convocacao.SGUSER ?? convocacao.sguser ?? '').trim().toUpperCase();
+      const latConf = convocacao.LATITUDE ?? convocacao.latitude;
+      const lngConf = convocacao.LONGITUDE ?? convocacao.longitude;
+      const temGpsConfirm =
+        latConf != null &&
+        lngConf != null &&
+        String(latConf).trim() !== '' &&
+        String(lngConf).trim() !== '' &&
+        Number.isFinite(Number(latConf)) &&
+        Number.isFinite(Number(lngConf));
+      if (sgConfirm === 'APP_MOTORISTA_LINK' && !temGpsConfirm) {
+        return res.status(400).json({
+          error:
+            'Não é possível confirmar: o aceite veio do link da campanha e ainda não há GPS nesta convocação. Peça ao motorista «Atualizar localização» na página de oportunidades e recarregue a lista.',
+          code: 'CONFIRMAR_SEM_GPS_LINK_CAMPANHA'
         });
       }
 
@@ -1997,10 +2725,12 @@ const viagemController = {
         .request()
         .input('IDVIAGEM', sql.Decimal(15, 0), convocacao.IDVIAGEM)
         .input('IDCONVOCACAO', sql.Int, parseInt(id))
+        .input('TENANT_ID', sql.NVarChar(64), tidConfirm)
         .query(`
           SELECT [IDCONVOCACAO]
           FROM [dbo].[CONVOCACAO]
           WHERE [IDVIAGEM] = @IDVIAGEM
+            AND [TENANT_ID] = @TENANT_ID
             AND [STATUS] = 'CONFIRMADA'
             AND [IDCONVOCACAO] != @IDCONVOCACAO
         `);
@@ -2017,10 +2747,12 @@ const viagemController = {
       console.log(`[CONFIRMAR] Transação iniciada para convocação ${id}`);
 
       try {
+        let veiculosVinculadosConfirmacao = 0;
         // 1. Confirmar a convocação selecionada
         const request1 = transaction.request();
         await request1
           .input('IDCONVOCACAO_CONFIRM', sql.Int, parseInt(id))
+          .input('TENANT_ID', sql.NVarChar(64), tidConfirm)
           .input('SGUSUARIO_OPERADOR_CONFIRM', sql.VarChar(50), userLogin)
           .input('sgUser', sql.VarChar(50), sgUserConfirm)
           .query(`
@@ -2030,7 +2762,7 @@ const viagemController = {
                 [SGUSUARIO_OPERADOR] = @SGUSUARIO_OPERADOR_CONFIRM,
                 [DHMAINTENANCE] = GETDATE(),
                 [SGUSER] = @sgUser
-            WHERE [IDCONVOCACAO] = @IDCONVOCACAO_CONFIRM
+            WHERE [IDCONVOCACAO] = @IDCONVOCACAO_CONFIRM AND [TENANT_ID] = @TENANT_ID
           `);
 
         // 2. NÃO recusar convocações PENDENTES automaticamente
@@ -2042,6 +2774,7 @@ const viagemController = {
         await request3
           .input('IDVIAGEM_DESCARTAR', sql.Decimal(15, 0), convocacao.IDVIAGEM)
           .input('IDCONVOCACAO_EXCLUIR_DESC', sql.Int, parseInt(id))
+          .input('TENANT_ID', sql.NVarChar(64), tidConfirm)
           .input('SGUSUARIO_OPERADOR_DESC', sql.VarChar(50), userLogin)
           .input('sgUser', sql.VarChar(50), sgUserConfirm)
           .query(`
@@ -2051,6 +2784,7 @@ const viagemController = {
                 [DHMAINTENANCE] = GETDATE(),
                 [SGUSER] = @sgUser
             WHERE [IDVIAGEM] = @IDVIAGEM_DESCARTAR
+              AND [TENANT_ID] = @TENANT_ID
               AND [IDCONVOCACAO] != @IDCONVOCACAO_EXCLUIR_DESC
               AND [STATUS] = 'ACEITA'
           `);
@@ -2061,9 +2795,14 @@ const viagemController = {
           const reqDelMot = transaction.request();
           await reqDelMot
             .input('IDVIAGEM_MOT', sql.Decimal(15, 0), convocacao.IDVIAGEM)
+            .input('TENANT_ID', sql.NVarChar(64), tidConfirm)
             .query(`
               DELETE FROM [dbo].[VIAGEMMOTORISTA]
               WHERE [IDVIAGEM] = @IDVIAGEM_MOT
+                AND EXISTS (
+                  SELECT 1 FROM [dbo].[VIAGEMMESTRE] [v]
+                  WHERE [v].[IDVIAGEM] = @IDVIAGEM_MOT AND [v].[TENANT_ID] = @TENANT_ID
+                )
             `);
           const reqInsMot = transaction.request();
           await reqInsMot
@@ -2075,6 +2814,21 @@ const viagemController = {
               VALUES (@IDVIAGEM_MOT, @CDMOTORISTA_MOT, GETDATE(), @sgUser, 'AppDVcargas')
             `);
           console.log(`[CONFIRMAR] Motorista ${cdMotorista} definido como motorista da viagem ${convocacao.IDVIAGEM}`);
+        }
+
+        // 4b. Vincular veículos do motorista à viagem (VIAGEMVEICULO), pelas mesmas placas esperadas da convocação
+        if (cdMotorista != null) {
+          try {
+            veiculosVinculadosConfirmacao = await vincularVeiculosViagemAoConfirmarConvocacao(transaction, {
+              idConvocacao: parseInt(id, 10),
+              idViagem: convocacao.IDVIAGEM,
+              cdMotorista,
+              tenantId: tidConfirm,
+              sgUser: sgUserConfirm,
+            });
+          } catch (eVinc) {
+            console.warn('[CONFIRMAR] Vínculo automático de veículos à viagem ignorado:', eVinc.message);
+          }
         }
 
         // 5. Atualizar situação da viagem para Programada (FGSITVIAGEM = 'P' e CDSITUACAOVIAGEM correspondente)
@@ -2090,6 +2844,7 @@ const viagemController = {
           const reqUpdViagem = transaction.request();
           await reqUpdViagem
             .input('IDVIAGEM_SIT', sql.Decimal(15, 0), convocacao.IDVIAGEM)
+            .input('TENANT_ID', sql.NVarChar(64), tidConfirm)
             .input('FGSITVIAGEM_SIT', sql.VarChar(1), 'P')
             .input('CDSITUACAOVIAGEM_SIT', sql.SmallInt, cdSituacaoProgramada)
             .input('sgUser', sql.VarChar(50), sgUserConfirm)
@@ -2099,7 +2854,7 @@ const viagemController = {
                   [CDSITUACAOVIAGEM] = @CDSITUACAOVIAGEM_SIT,
                   [DHMAINTENANCE] = GETDATE(),
                   [SGUSER] = @sgUser
-              WHERE [IDVIAGEM] = @IDVIAGEM_SIT
+              WHERE [IDVIAGEM] = @IDVIAGEM_SIT AND [TENANT_ID] = @TENANT_ID
             `);
           console.log(`[CONFIRMAR] Viagem ${convocacao.IDVIAGEM} atualizada para situação Programada`);
         } else {
@@ -2107,6 +2862,7 @@ const viagemController = {
           const reqUpdViagem = transaction.request();
           await reqUpdViagem
             .input('IDVIAGEM_SIT', sql.Decimal(15, 0), convocacao.IDVIAGEM)
+            .input('TENANT_ID', sql.NVarChar(64), tidConfirm)
             .input('FGSITVIAGEM_SIT', sql.VarChar(1), 'P')
             .input('sgUser', sql.VarChar(50), sgUserConfirm)
             .query(`
@@ -2114,7 +2870,7 @@ const viagemController = {
               SET [FGSITVIAGEM] = @FGSITVIAGEM_SIT,
                   [DHMAINTENANCE] = GETDATE(),
                   [SGUSER] = @sgUser
-              WHERE [IDVIAGEM] = @IDVIAGEM_SIT
+              WHERE [IDVIAGEM] = @IDVIAGEM_SIT AND [TENANT_ID] = @TENANT_ID
             `);
           console.log(`[CONFIRMAR] Viagem ${convocacao.IDVIAGEM} atualizada FGSITVIAGEM = P (CDSITUACAOVIAGEM não encontrado)`);
         }
@@ -2127,9 +2883,11 @@ const viagemController = {
           const websocketTorre = req.app.get('websocketTorre');
           if (websocketTorre && convocacao.IDVIAGEM) {
             // Buscar dados atualizados da viagem com motorista confirmado
+            const tidConv = convocacao.TENANT_ID != null ? String(convocacao.TENANT_ID) : String(tenantIdForRequest(req));
             const viagemAtualizada = await pool
               .request()
               .input('IDVIAGEM', sql.Decimal(15, 0), convocacao.IDVIAGEM)
+              .input('TENANT_ID', sql.NVarChar(64), tidConv)
               .query(`
                 SELECT 
                   v.[IDVIAGEM],
@@ -2157,14 +2915,18 @@ const viagemController = {
                   'S' AS TEM_CONFIRMADO
                 FROM [dbo].[VIAGEMMESTRE] v
                 LEFT JOIN [dbo].[SITUACAOVIAGEM] s ON v.[CDSITUACAOVIAGEM] = s.[CDSITUACAOVIAGEM]
+                  AND (s.[TENANT_ID] = v.[TENANT_ID] OR s.[TENANT_ID] = 'default')
                 LEFT JOIN [dbo].[TIPOVIAGEM] t ON v.[CDTIPOVIAGEM] = t.[CDTIPOVIAGEM]
+                  AND (t.[TENANT_ID] = v.[TENANT_ID] OR t.[TENANT_ID] = 'default')
                 LEFT JOIN [dbo].[CLASSEFROTA] cf ON v.[CDCLASSEFROTA] = cf.[CDCLASSEFROTA]
+                  AND (cf.[TENANT_ID] = v.[TENANT_ID] OR cf.[TENANT_ID] = 'default')
                 LEFT JOIN [dbo].[ROTEIRO] r ON v.[IDROTEIRO] = r.[IDROTEIRO]
+                  AND (r.[TENANT_ID] = v.[TENANT_ID] OR r.[TENANT_ID] = 'default')
                 LEFT JOIN [dbo].[CIDADE] co ON r.[CDCIDADEORIGEM] = co.[CDCIDADE]
                 LEFT JOIN [dbo].[CIDADE] cd ON r.[CDCIDADEDESTINO] = cd.[CDCIDADE]
-                LEFT JOIN [dbo].[CONVOCACAO] c ON c.[IDVIAGEM] = v.[IDVIAGEM] AND c.[STATUS] = 'CONFIRMADA'
-                LEFT JOIN [dbo].[CADASTROGERAL] cg ON c.[CDCADASTRO_MOTORISTA] = cg.[CDCADASTRO]
-                WHERE v.[IDVIAGEM] = @IDVIAGEM
+                LEFT JOIN [dbo].[CONVOCACAO] c ON c.[IDVIAGEM] = v.[IDVIAGEM] AND c.[STATUS] = 'CONFIRMADA' AND c.[TENANT_ID] = v.[TENANT_ID]
+                LEFT JOIN [dbo].[CADASTROGERAL] cg ON c.[CDCADASTRO_MOTORISTA] = cg.[CDCADASTRO] AND cg.[TENANT_ID] = c.[TENANT_ID]
+                WHERE v.[IDVIAGEM] = @IDVIAGEM AND v.[TENANT_ID] = @TENANT_ID
               `);
 
             if (viagemAtualizada.recordset && viagemAtualizada.recordset[0]) {
@@ -2179,9 +2941,11 @@ const viagemController = {
         }
 
         // Buscar dados do motorista confirmado para enviar WhatsApp (nome: RZSOCIAL ou NMFANTASIA)
+        const tidMot = convocacao.TENANT_ID != null ? String(convocacao.TENANT_ID) : String(tenantIdForRequest(req));
         const motoristaResult = await pool
           .request()
           .input('IDCONVOCACAO_MOT', sql.Int, parseInt(id))
+          .input('TENANT_ID', sql.NVarChar(64), tidMot)
           .query(`
             SELECT 
               upper(COALESCE(NULLIF(LTRIM(RTRIM(cg.[RZSOCIAL])), ''), LTRIM(RTRIM(cg.[NMFANTASIA])))) AS NOME_MOTORISTA,
@@ -2198,13 +2962,13 @@ const viagemController = {
               upper(contratador.[RZSOCIAL]) AS CONTRATADOR_NOME,
               contratador.[NRCELULAR] AS CONTRATADOR_CELULAR
             FROM [dbo].[CONVOCACAO] c
-            INNER JOIN [dbo].[CADASTROGERAL] cg ON c.[CDCADASTRO_MOTORISTA] = cg.[CDCADASTRO]
-            INNER JOIN [dbo].[VIAGEMMESTRE] v ON c.[IDVIAGEM] = v.[IDVIAGEM]
-            LEFT JOIN [dbo].[ROTEIRO] r ON v.[IDROTEIRO] = r.[IDROTEIRO]
+            INNER JOIN [dbo].[CADASTROGERAL] cg ON c.[CDCADASTRO_MOTORISTA] = cg.[CDCADASTRO] AND cg.[TENANT_ID] = c.[TENANT_ID]
+            INNER JOIN [dbo].[VIAGEMMESTRE] v ON c.[IDVIAGEM] = v.[IDVIAGEM] AND c.[TENANT_ID] = v.[TENANT_ID]
+            LEFT JOIN [dbo].[ROTEIRO] r ON v.[IDROTEIRO] = r.[IDROTEIRO] AND (r.[TENANT_ID] = v.[TENANT_ID] OR r.[TENANT_ID] = 'default')
             LEFT JOIN [dbo].[CIDADE] co ON r.[CDCIDADEORIGEM] = co.[CDCIDADE]
             LEFT JOIN [dbo].[CIDADE] cd ON r.[CDCIDADEDESTINO] = cd.[CDCIDADE]
-            LEFT JOIN [dbo].[CADASTROGERAL] contratador ON v.[CDCONTRATADOR] = contratador.[CDCADASTRO]
-            WHERE c.[IDCONVOCACAO] = @IDCONVOCACAO_MOT
+            LEFT JOIN [dbo].[CADASTROGERAL] contratador ON v.[CDCONTRATADOR] = contratador.[CDCADASTRO] AND contratador.[TENANT_ID] = v.[TENANT_ID]
+            WHERE c.[IDCONVOCACAO] = @IDCONVOCACAO_MOT AND c.[TENANT_ID] = @TENANT_ID
           `);
 
         // Contar quantas foram afetadas para mensagem
@@ -2212,10 +2976,12 @@ const viagemController = {
           .request()
           .input('IDVIAGEM_COUNT', sql.Decimal(15, 0), convocacao.IDVIAGEM)
           .input('IDCONVOCACAO_COUNT', sql.Int, parseInt(id))
+          .input('TENANT_ID', sql.NVarChar(64), tidConfirm)
           .query(`
             SELECT COUNT(*) AS TOTAL
             FROM [dbo].[CONVOCACAO]
             WHERE [IDVIAGEM] = @IDVIAGEM_COUNT
+              AND [TENANT_ID] = @TENANT_ID
               AND [IDCONVOCACAO] != @IDCONVOCACAO_COUNT
               AND [STATUS] = 'ACEITA_DESCARTADA'
           `);
@@ -2235,7 +3001,33 @@ const viagemController = {
         let whatsappLink = null;
         let textoMensagem = null; // Inicializar variável
 
+        let templatesConvocacaoConfirm = {};
+        try {
+          templatesConvocacaoConfirm = await convocacaoMsgTpl.carregarTemplatesConvocacao(pool, tidMot);
+        } catch (eTplC) {
+          templatesConvocacaoConfirm = {
+            [convocacaoMsgTpl.CHAVE_DISPARO]: '',
+            [convocacaoMsgTpl.CHAVE_CONF_SELECIONADO]: '',
+            [convocacaoMsgTpl.CHAVE_CONF_NAO_SELECIONADO]: '',
+          };
+        }
+
+        let linkAppMotorista = '';
         if (motorista && motorista.NRCELULAR) {
+          linkAppMotorista = (process.env.APP_URL || process.env.PUBLIC_URL || '').toString().trim();
+          try {
+            const tidCfg = tidMot;
+            const cfgApp = await pool
+              .request()
+              .input('tid', sql.NVarChar(64), tidCfg)
+              .input('k', sql.VarChar(50), 'link_app_motorista')
+              .query(`
+              SELECT [VALOR] FROM [dbo].[CONFIGURACAO] WHERE [TENANT_ID] = @tid AND [CHAVE] = @k
+            `);
+            const val = cfgApp.recordset && cfgApp.recordset[0] && (cfgApp.recordset[0].VALOR != null ? cfgApp.recordset[0].VALOR : cfgApp.recordset[0].valor);
+            if (val && String(val).trim()) linkAppMotorista = String(val).trim();
+          } catch (e) {}
+
           const celularFormatado = motorista.NRCELULAR.toString().replace(/\D/g, '');
           if (celularFormatado.length >= 10) {
             // Formatar datas (SQL Server retorna como string ISO)
@@ -2298,28 +3090,12 @@ const viagemController = {
             const nomeCompleto = (nomeMotorista && String(nomeMotorista).trim()) ? String(nomeMotorista).trim() : 'Motorista';
             const primeiroNome = nomeCompleto.split(/\s+/)[0] || nomeCompleto;
 
-            // Link do aplicativo do motorista (Configurações do Sistema)
-            let linkAppMotorista = (process.env.APP_URL || process.env.PUBLIC_URL || '').toString().trim();
-            try {
-              const cfgApp = await pool.request().input('k', sql.VarChar(50), 'link_app_motorista').query(`
-                SELECT [VALOR] FROM [dbo].[CONFIGURACAO] WHERE [CHAVE] = @k
-              `);
-              const val = cfgApp.recordset && cfgApp.recordset[0] && (cfgApp.recordset[0].VALOR != null ? cfgApp.recordset[0].VALOR : cfgApp.recordset[0].valor);
-              if (val && String(val).trim()) linkAppMotorista = String(val).trim();
-            } catch (e) {}
-
-            // Mensagem de confirmação padronizada
-            let textoMensagem = `🎉 *PARABÉNS! Você foi selecionado!*\n\n` +
-              `Olá *${primeiroNome}*, como está?\n\n` +
-              `Temos uma ótima notícia! Você foi *SELECIONADO* para realizar a viagem:\n\n` +
-              `🆔 *ID da Viagem:* ${motorista.IDVIAGEM}\n` +
-              `✅ *Sua convocação foi CONFIRMADA!*\n\n` +
-              `Agora, por favor, aguarde o contato do nosso time, com mais instruções dos próximos passos.\n\n` +
-              `Obrigado pela parceria! 🚛`;
-
-            if (linkAppMotorista) {
-              textoMensagem += `\n\n*Aplicativo do motorista:*\n${linkAppMotorista}`;
-            }
+            textoMensagem = convocacaoMsgTpl.resolverCorpoConfirmacaoSelecionado(
+              templatesConvocacaoConfirm,
+              primeiroNome,
+              motorista.IDVIAGEM,
+              linkAppMotorista
+            );
 
             const numWa = celularFormatado.length >= 12 ? celularFormatado : '55' + celularFormatado;
             whatsappLink = `https://wa.me/${numWa}?text=${encodeURIComponent(textoMensagem)}`;
@@ -2331,28 +3107,34 @@ const viagemController = {
           const nomeMot = motorista.NOME_MOTORISTA ?? motorista.nome_motorista;
           const nomeCompletoFallback = (nomeMot && String(nomeMot).trim()) ? String(nomeMot).trim() : 'Motorista';
           const primeiroNomeFallback = nomeCompletoFallback.split(/\s+/)[0] || nomeCompletoFallback;
-          textoMensagem = `🎉 *PARABÉNS! Você foi selecionado!*\n\n` +
-            `Olá *${primeiroNomeFallback}*, como está?\n\n` +
-            `Temos uma ótima notícia! Você foi *SELECIONADO* para a viagem ${motorista.IDVIAGEM}.\n\n` +
-            `✅ *Sua convocação foi CONFIRMADA!*\n\n` +
-            `Aguarde o contato do nosso time com as próximas instruções.\n\n` +
-            `Obrigado pela parceria! 🚛`;
+          textoMensagem = convocacaoMsgTpl.resolverCorpoConfirmacaoSelecionado(
+            templatesConvocacaoConfirm,
+            primeiroNomeFallback,
+            motorista.IDVIAGEM,
+            linkAppMotorista
+          );
         }
 
-        // Enviar mensagens via Switch Digital (webhook): selecionado + não selecionados (ACEITA_DESCARTADA)
-        const mensagensEnviadasViaWebhook = { selecionado: false, naoSelecionados: 0 };
+        // Enviar mensagens via Switch Digital (API): selecionado + não selecionados (ACEITA_DESCARTADA).
+        // Se o Switch falhar, o front ainda recebe whatsappLink (wa.me) como fallback — não é "troca de canal por escolha", é reserva.
+        const mensagensEnviadasViaWebhook = { selecionado: false, naoSelecionados: 0, erroSelecionado: null };
         try {
           if (motorista && motorista.NRCELULAR && textoMensagem) {
             const rSelecionado = await enviarUmaMensagemSwitchDigital(pool, req, {
               idConvocacao: parseInt(id),
               numeroCelular: motorista.NRCELULAR,
-              corpoMensagem: textoMensagem
+              corpoMensagem: textoMensagem,
+              tenantId: tidMot
             });
             if (rSelecionado.ok) {
               mensagensEnviadasViaWebhook.selecionado = true;
               console.log(`[CONFIRMAR] Mensagem de confirmação enviada via Switch Digital para motorista selecionado (conv. ${id})`);
-            } else if (rSelecionado.error && !rSelecionado.error.includes('Token')) {
-              console.warn('[CONFIRMAR] Falha ao enviar WhatsApp para selecionado:', rSelecionado.error);
+            } else {
+              const errSel = rSelecionado.error || 'Erro desconhecido no Switch Digital';
+              mensagensEnviadasViaWebhook.erroSelecionado = errSel;
+              if (!errSel.includes('Token')) {
+                console.warn('[CONFIRMAR] Falha ao enviar WhatsApp para selecionado (Switch Digital):', errSel);
+              }
             }
           }
           // Buscar convocações ACEITA_DESCARTADA da mesma viagem para avisar que não foram escolhidos
@@ -2374,14 +3156,16 @@ const viagemController = {
             const nomeCompletoDesc = (nomeDesc && String(nomeDesc).trim()) ? String(nomeDesc).trim() : 'Motorista';
             const primeiroNomeDesc = nomeCompletoDesc.split(/\s+/)[0] || nomeCompletoDesc;
             if (nrCel && String(nrCel).replace(/\D/g, '').length >= 10) {
-              const textoNaoSelecionado = `Olá *${primeiroNomeDesc}*, como está?\n\n` +
-                `Para a viagem *${convocacao.IDVIAGEM}* outro motorista foi selecionado.\n\n` +
-                `Agradecemos seu interesse e não se preocupe! Você poderá ser convocado em novas viagens.\n\n` +
-                `Obrigado pela parceria! 🚛`;
+              const textoNaoSelecionado = convocacaoMsgTpl.resolverCorpoNaoSelecionado(
+                templatesConvocacaoConfirm,
+                primeiroNomeDesc,
+                convocacao.IDVIAGEM
+              );
               const rDesc = await enviarUmaMensagemSwitchDigital(pool, req, {
                 idConvocacao: d.IDCONVOCACAO,
                 numeroCelular: nrCel,
-                corpoMensagem: textoNaoSelecionado
+                corpoMensagem: textoNaoSelecionado,
+                tenantId: tidMot
               });
               if (rDesc.ok) mensagensEnviadasViaWebhook.naoSelecionados++;
               await new Promise(r => setTimeout(r, 2000));
@@ -2394,9 +3178,12 @@ const viagemController = {
           // Log resumo da confirmação em LOGSWEBHOOKMETA (aparece em "Atualizar Logs" junto com os envios individuais)
           try {
             const tipoResumo = !mensagensEnviadasViaWebhook.selecionado ? 'erro' : (mensagensEnviadasViaWebhook.naoSelecionados > 0 ? 'sucesso' : 'info');
+            const errS = mensagensEnviadasViaWebhook.erroSelecionado;
             const msgResumo = mensagensEnviadasViaWebhook.selecionado
               ? `Selecionado: enviado. Não selecionados: ${mensagensEnviadasViaWebhook.naoSelecionados} enviado(s).`
-              : 'Falha ao enviar mensagem para o motorista selecionado.';
+              : (errS
+                ? `Falha Switch Digital (selecionado): ${String(errS).substring(0, 280)}`
+                : 'Falha ao enviar mensagem para o motorista selecionado.');
             const detalhesResumo = JSON.stringify(mensagensEnviadasViaWebhook).substring(0, 4000);
             await pool.request()
               .input('IDCONVOCACAO', sql.Int, parseInt(id))
@@ -2429,7 +3216,8 @@ const viagemController = {
             nome: motorista.NOME_MOTORISTA,
             celular: motorista.NRCELULAR
           } : null,
-          mensagensEnviadasViaWebhook: mensagensEnviadasViaWebhook
+          mensagensEnviadasViaWebhook: mensagensEnviadasViaWebhook,
+          veiculosVinculadosConfirmacao,
         });
       } catch (err) {
         const idConv = req.params && req.params.id;
@@ -2469,22 +3257,31 @@ const viagemController = {
       }
 
       const pool = await poolPromise;
-      const result = await pool
-        .request()
-        .input('IDCONVOCACAO', sql.Int, parseInt(id))
-        .query(`
+      const sqlConvPubPlacasExtra = `,
+            c.[FGCONFIRMACAOPLACAS],
+            c.[TXTPLACASDIVERGENCIA],
+            c.[DHCONFIRMACAOPLACAS],
+            (${sqlCoalescePlacasEsperadasConvocacaoComSnapshot()}) AS [PLACASESPERADAS],
+            (${sqlCoalesceDsClasseConjuntoConvocacaoComSnapshot()}) AS [DSCLASSEFROTA_CONJUNTO]`;
+      const sqlConvPub = `
           SELECT 
             c.[IDCONVOCACAO],
             c.[IDVIAGEM],
+            c.[TENANT_ID],
             c.[STATUS],
             c.[DHCONVOCACAO],
             c.[DHACESSO],
+            c.[LATITUDE],
+            c.[LONGITUDE],
+            c.[DH_LOCALIZACAO_MOTORISTA],
             v.[CDCLASSEFROTA],
             v.[DTPREVINICIO],
             v.[DTPREVFINAL],
             v.[FGRASTREADO],
             v.[OBSERV],
             v.[VLFRETE],
+            COALESCE(v.[MOEDA], 'BRL') AS [MOEDA],
+            c.[VL_FRETE_PROPOSTO_MOTORISTA],
             v.[PESO],
             v.[CUBAGEM],
             upper(cg.[RZSOCIAL]) AS NOME_MOTORISTA,
@@ -2507,75 +3304,144 @@ const viagemController = {
                 SELECT 1 
                 FROM [dbo].[CONVOCACAO] c2 
                 WHERE c2.[IDVIAGEM] = c.[IDVIAGEM] 
+                  AND c2.[TENANT_ID] = c.[TENANT_ID]
                   AND c2.[STATUS] = 'CONFIRMADA'
                   AND c2.[IDCONVOCACAO] != c.[IDCONVOCACAO]
               ) THEN 1 
               ELSE 0 
-            END AS VIAGEM_JA_CONFIRMADA
+            END AS [VIAGEM_JA_CONFIRMADA]
           FROM [dbo].[CONVOCACAO] c
-          INNER JOIN [dbo].[VIAGEMMESTRE] v ON c.[IDVIAGEM] = v.[IDVIAGEM]
-          INNER JOIN [dbo].[CADASTROGERAL] cg ON c.[CDCADASTRO_MOTORISTA] = cg.[CDCADASTRO]
+          INNER JOIN [dbo].[VIAGEMMESTRE] v ON c.[IDVIAGEM] = v.[IDVIAGEM] AND c.[TENANT_ID] = v.[TENANT_ID]
+          INNER JOIN [dbo].[CADASTROGERAL] cg ON c.[CDCADASTRO_MOTORISTA] = cg.[CDCADASTRO] AND cg.[TENANT_ID] = c.[TENANT_ID]
           LEFT JOIN [dbo].[CLASSEFROTA] cf ON v.[CDCLASSEFROTA] = cf.[CDCLASSEFROTA]
-          LEFT JOIN [dbo].[ROTEIRO] r ON v.[IDROTEIRO] = r.[IDROTEIRO]
+            AND (cf.[TENANT_ID] = v.[TENANT_ID] OR cf.[TENANT_ID] = 'default')
+          LEFT JOIN [dbo].[ROTEIRO] r ON v.[IDROTEIRO] = r.[IDROTEIRO] AND (r.[TENANT_ID] = v.[TENANT_ID] OR r.[TENANT_ID] = 'default')
           LEFT JOIN [dbo].[CIDADE] co ON r.[CDCIDADEORIGEM] = co.[CDCIDADE]
           LEFT JOIN [dbo].[CIDADE] cd ON r.[CDCIDADEDESTINO] = cd.[CDCIDADE]
           LEFT JOIN [dbo].[TIPOVIAGEM] tv ON v.[CDTIPOVIAGEM] = tv.[CDTIPOVIAGEM]
+            AND (tv.[TENANT_ID] = v.[TENANT_ID] OR tv.[TENANT_ID] = 'default')
           LEFT JOIN [dbo].[CADASTROGERAL] contratador ON v.[CDCONTRATADOR] = contratador.[CDCADASTRO] 
+            AND contratador.[TENANT_ID] = v.[TENANT_ID]
             AND contratador.[FGACTIVE] = 'A'
           WHERE c.[IDCONVOCACAO] = @IDCONVOCACAO
-        `);
+        `;
+      const sqlConvPubComPlacas = sqlConvPub.replace(
+        /END AS \[VIAGEM_JA_CONFIRMADA\]\s*\n\s*FROM \[dbo\]\.\[CONVOCACAO\] c/,
+        'END AS [VIAGEM_JA_CONFIRMADA]' + sqlConvPubPlacasExtra + '\n          FROM [dbo].[CONVOCACAO] c'
+      );
+      const stripSqlColVlFreteProp = (sqlStr) =>
+        sqlStr.replace(/\s*,\s*c\.\[VL_FRETE_PROPOSTO_MOTORISTA\]\s*\n/gi, '\n');
+      const sqlConvPubSemDh = sqlConvPub.replace(/\s*,\s*c\.\[DH_LOCALIZACAO_MOTORISTA\]\s*/i, '\n            ');
+      const sqlConvPubSemVlProp = stripSqlColVlFreteProp(sqlConvPub);
+      const sqlConvPubSemDhSemVlProp = stripSqlColVlFreteProp(sqlConvPubSemDh);
+      const sqlConvPubComPlacasSemDh = sqlConvPubComPlacas.replace(/\s*,\s*c\.\[DH_LOCALIZACAO_MOTORISTA\]\s*/i, '\n            ');
+      const sqlConvPubComPlacasSemVlProp = stripSqlColVlFreteProp(sqlConvPubComPlacas);
+      const sqlConvPubComPlacasSemDhSemVlProp = stripSqlColVlFreteProp(sqlConvPubComPlacasSemDh);
+      let usedFallbackSemDhColuna = false;
+      let result;
+      const reqPub = () => pool.request().input('IDCONVOCACAO', sql.Int, parseInt(id));
+      const placas427 = (msg) =>
+        /fgconfirmacaoplacas|txtplacasdivergencia|dhconfirmacaoplacas|placasesperadas|dsclassefrota_conjunto|viagemveiculo|motorista_veiculo|statusaprovacao|cdequipamento|equipamento/i.test(
+          String(msg || '')
+        );
+
+      async function queryPubComFallbackPlacas(sqlCom, sqlSem) {
+        try {
+          return await reqPub().query(sqlCom);
+        } catch (e) {
+          if (e.code === '42703' && placas427(e.message)) {
+            return await reqPub().query(sqlSem);
+          }
+          throw e;
+        }
+      }
+
+      try {
+        result = await queryPubComFallbackPlacas(sqlConvPubComPlacas, sqlConvPub);
+      } catch (err) {
+        const em = String(err.message || '');
+        if (err.code === '42703' && /localizacao_motorista/i.test(em)) {
+          usedFallbackSemDhColuna = true;
+          try {
+            result = await queryPubComFallbackPlacas(sqlConvPubComPlacasSemDh, sqlConvPubSemDh);
+          } catch (err2) {
+            const em2 = String(err2.message || '');
+            if (err2.code === '42703' && /vl_frete_proposto/i.test(em2)) {
+              result = await queryPubComFallbackPlacas(sqlConvPubComPlacasSemDhSemVlProp, sqlConvPubSemDhSemVlProp);
+            } else throw err2;
+          }
+        } else if (err.code === '42703' && /vl_frete_proposto/i.test(em)) {
+          try {
+            result = await queryPubComFallbackPlacas(sqlConvPubComPlacasSemVlProp, sqlConvPubSemVlProp);
+          } catch (err2) {
+            const em2 = String(err2.message || '');
+            if (err2.code === '42703' && /localizacao_motorista/i.test(em2)) {
+              usedFallbackSemDhColuna = true;
+              result = await queryPubComFallbackPlacas(sqlConvPubComPlacasSemDhSemVlProp, sqlConvPubSemDhSemVlProp);
+            } else throw err2;
+          }
+        } else {
+          throw err;
+        }
+      }
 
       if (result.recordset.length === 0) {
         return res.status(404).json({ error: 'Convocação não encontrada.' });
       }
 
       const convocacao = result.recordset[0];
+      // PostgreSQL (pg) devolve nomes de colunas em minúsculas; o front/API esperam UPPER_SNAKE.
+      if (convocacao.CONTRATADOR_NOME == null && convocacao.contratador_nome != null) {
+        convocacao.CONTRATADOR_NOME = convocacao.contratador_nome;
+      }
+      if (convocacao.CONTRATADOR_CELULAR == null && convocacao.contratador_celular != null) {
+        convocacao.CONTRATADOR_CELULAR = convocacao.contratador_celular;
+      }
+      if (convocacao.CDCONTRATADOR == null && convocacao.cdcontratador != null) {
+        convocacao.CDCONTRATADOR = convocacao.cdcontratador;
+      }
 
-      // Debug: Se o contratador não foi encontrado no JOIN, tentar buscar diretamente
-      // Isso pode acontecer se o contratador estiver inativo ou se houver algum problema no JOIN
-      if (!convocacao.CONTRATADOR_NOME && convocacao.CDCONTRATADOR) {
-        console.log('[DEBUG CONTRATADOR] Contratador não encontrado no JOIN. CDCONTRATADOR:', convocacao.CDCONTRATADOR);
-        // Tentar buscar o contratador diretamente (primeiro ativo, depois qualquer um para debug)
+      // Se o JOIN não trouxe contratador (ex.: FGACTIVE != 'A' no cadastro), buscar diretamente.
+      if (!convocacao.CONTRATADOR_NOME && convocacao.CDCONTRATADOR != null && convocacao.CDCONTRATADOR !== '') {
         try {
-          // Primeiro tentar buscar apenas ativos
+          const tidContr = convocacao.TENANT_ID != null ? String(convocacao.TENANT_ID) : (convocacao.tenant_id != null ? String(convocacao.tenant_id) : null);
+          const cdContr = parseFloat(convocacao.CDCONTRATADOR);
           let contratadorResult = await pool
             .request()
-            .input('CDCONTRATADOR', sql.Decimal(15, 0), parseFloat(convocacao.CDCONTRATADOR))
+            .input('CDCONTRATADOR', sql.Decimal(15, 0), cdContr)
+            .input('TENANT_ID', sql.NVarChar(64), tidContr || tenantIdForRequest(req))
             .query(`
               SELECT upper([RZSOCIAL]) AS [RZSOCIAL], [NRCELULAR], [FGACTIVE]
               FROM [dbo].[CADASTROGERAL]
-              WHERE [CDCADASTRO] = @CDCONTRATADOR AND [FGACTIVE] = 'A'
+              WHERE [CDCADASTRO] = @CDCONTRATADOR AND [TENANT_ID] = @TENANT_ID AND [FGACTIVE] = 'A'
             `);
 
-          // Se não encontrou ativo, buscar qualquer um (para debug)
           if (contratadorResult.recordset.length === 0) {
             contratadorResult = await pool
               .request()
-              .input('CDCONTRATADOR', sql.Decimal(15, 0), parseFloat(convocacao.CDCONTRATADOR))
+              .input('CDCONTRATADOR', sql.Decimal(15, 0), cdContr)
+              .input('TENANT_ID', sql.NVarChar(64), tidContr || tenantIdForRequest(req))
               .query(`
                 SELECT upper([RZSOCIAL]) AS [RZSOCIAL], [NRCELULAR], [FGACTIVE]
                 FROM [dbo].[CADASTROGERAL]
-                WHERE [CDCADASTRO] = @CDCONTRATADOR
+                WHERE [CDCADASTRO] = @CDCONTRATADOR AND [TENANT_ID] = @TENANT_ID
               `);
-
-            if (contratadorResult.recordset.length > 0) {
-              // Log de debug removido
-            }
           }
 
           if (contratadorResult.recordset.length > 0) {
             const contratador = contratadorResult.recordset[0];
-            convocacao.CONTRATADOR_NOME = contratador.RZSOCIAL;
-            convocacao.CONTRATADOR_CELULAR = contratador.NRCELULAR;
-            // Log de debug removido
+            convocacao.CONTRATADOR_NOME = contratador.RZSOCIAL ?? contratador.rzsocial;
+            convocacao.CONTRATADOR_CELULAR = contratador.NRCELULAR ?? contratador.nrcelular;
           } else {
-            // Log de debug removido
+            console.warn(
+              '[CONVOCACAO PUBLICA] Contratador não encontrado no cadastro (CDCONTRATADOR=',
+              convocacao.CDCONTRATADOR,
+              ').'
+            );
           }
         } catch (err) {
-          console.error('[DEBUG CONTRATADOR] Erro ao buscar contratador separadamente:', err);
+          console.error('[CONVOCACAO PUBLICA] Erro ao buscar contratador (fallback):', err.message);
         }
-      } else if (convocacao.CONTRATADOR_NOME) {
-        // Log de debug removido
       }
 
       // Fallback: se origem/destino vierem vazios mas houver DSROTEIRO, tentar extrair trechos (origem -> destino)
@@ -2598,7 +3464,50 @@ const viagemController = {
       }
 
       console.log(`[CONVOCACAO PUBLICA] Convocação encontrada: ID ${id}, Status: ${convocacao.STATUS}`);
-      res.json(convocacao);
+      const convocacaoPublica = { ...convocacao };
+      const rawTidPub =
+        convocacao.TENANT_ID != null
+          ? String(convocacao.TENANT_ID)
+          : convocacao.tenant_id != null
+            ? String(convocacao.tenant_id)
+            : '';
+      const tidPub =
+        rawTidPub.trim() !== '' ? rawTidPub.trim() : getDefaultTenantId();
+      let ctxPub = { pais: 'BR' };
+      try {
+        ctxPub = await getContexto(tidPub);
+      } catch (_) {
+        ctxPub = { pais: 'BR' };
+      }
+      const paisPadraoPub = ctxPub.pais || 'BR';
+      delete convocacaoPublica.TENANT_ID;
+      delete convocacaoPublica.tenant_id;
+      convocacaoPublica.paisPadrao = paisPadraoPub;
+      const nrMot =
+        convocacao.NRCELULAR != null
+          ? String(convocacao.NRCELULAR)
+          : convocacao.nrcelular != null
+            ? String(convocacao.nrcelular)
+            : '';
+      const digMot = isPaisBrTelefone(paisPadraoPub)
+        ? normalizarDigitosTelefoneBR(nrMot)
+        : normalizarDigitosSoNumeros(nrMot);
+      convocacaoPublica.celularCadastroFinal4 =
+        digMot.length >= 4 ? digMot.slice(-4) : null;
+      convocacaoPublica.exigeConfirmacaoCelular = true;
+      const dhLoc =
+        convocacao.DH_LOCALIZACAO_MOTORISTA ?? convocacao.dh_localizacao_motorista;
+      const latC = convocacao.LATITUDE ?? convocacao.latitude;
+      const lonC = convocacao.LONGITUDE ?? convocacao.longitude;
+      const temLatLon =
+        latC != null && lonC != null && String(latC).trim() !== '' && String(lonC).trim() !== '';
+      // Aceite libera com DH_LOCALIZACAO_MOTORISTA ou, em legado, lat/lon já gravados no acesso.
+      convocacaoPublica.localizacaoMotoristaEnviada = usedFallbackSemDhColuna
+        ? temLatLon
+        : (dhLoc != null && String(dhLoc).trim() !== '') || temLatLon;
+      delete convocacaoPublica.NRCELULAR;
+      delete convocacaoPublica.nrcelular;
+      res.json(convocacaoPublica);
     } catch (err) {
       console.error(`[CONVOCACAO PUBLICA] Erro ao buscar convocação ID ${req.params.id}:`, err);
       console.error('[CONVOCACAO PUBLICA] Stack trace:', err.stack);
@@ -2606,6 +3515,49 @@ const viagemController = {
         error: 'Erro ao buscar convocação.',
         details: process.env.NODE_ENV === 'development' ? err.message : undefined
       });
+    }
+  },
+
+  /**
+   * Lista pontos do roteiro da viagem vinculada à convocação (página pública, sem JWT).
+   * Evita expor GET /api/roteiros/:id/pontos sem autenticação (enumerável entre tenants).
+   */
+  listarPontosRoteiroConvocacaoPublica: async (req, res) => {
+    try {
+      const idConv = parseInt(req.params.id, 10);
+      if (!Number.isFinite(idConv) || idConv <= 0) {
+        return res.status(400).json({ error: 'ID de convocação inválido.' });
+      }
+      const pool = await poolPromise;
+      const sub = `
+        SELECT v."IDROTEIRO"
+        FROM "CONVOCACAO" c
+        INNER JOIN "VIAGEMMESTRE" v ON c."IDVIAGEM" = v."IDVIAGEM" AND c."TENANT_ID" = v."TENANT_ID"
+        WHERE c."IDCONVOCACAO" = $1
+        LIMIT 1
+      `;
+      const vr = await pool.query(sub, [idConv]);
+      if (!vr.rows || vr.rows.length === 0) {
+        return res.status(404).json({ error: 'Convocação não encontrada.' });
+      }
+      const idRoteiro = vr.rows[0].IDROTEIRO ?? vr.rows[0].idroteiro;
+      if (idRoteiro == null || idRoteiro === '' || (typeof idRoteiro === 'number' && !Number.isFinite(idRoteiro))) {
+        return res.json([]);
+      }
+      const r2 = await pool.query(
+        `SELECT 
+          rp."IDROTEIRO", rp."SEQUENCIA", rp."ORDEM", rp."DSLOCAL", rp."DSPOSICAO",
+          rp."LATITUDE", rp."LONGITUDE", rp."TPLOCAL", rp."KMENTREPONTOS",
+          rp."CDPAISPASSAGEM", rp."ESTADOPASSAGEM", rp."DHMAINTENANCE", rp."SGUSER", rp."SERVERORIG"
+         FROM "ROTEIROPONTOS" rp
+         WHERE rp."IDROTEIRO" = $1::numeric
+         ORDER BY rp."ORDEM" ASC NULLS LAST, rp."SEQUENCIA" ASC NULLS LAST`,
+        [idRoteiro]
+      );
+      res.json(r2.rows || []);
+    } catch (err) {
+      console.error('[CONVOCACAO PUBLICA] roteiro-pontos:', err);
+      res.status(500).json({ error: 'Erro ao carregar pontos do roteiro.' });
     }
   },
 
@@ -2618,37 +3570,80 @@ const viagemController = {
       const { id } = req.params;
       const { latitude, longitude } = req.body;
       const pool = await poolPromise;
+      const idConv = parseInt(id, 10);
+      const temCoords =
+        latitude !== undefined &&
+        latitude !== null &&
+        String(latitude).trim() !== '' &&
+        longitude !== undefined &&
+        longitude !== null &&
+        String(longitude).trim() !== '';
 
       console.log(`[REGISTRAR ACESSO] ID Convocação: ${id}, Lat: ${latitude}, Long: ${longitude}`);
 
-      // Construir query dinamicamente para incluir geolocalização se fornecida
-      let query = `
-        UPDATE [dbo].[CONVOCACAO]
-        SET [DHACESSO] = CASE WHEN [DHACESSO] IS NULL THEN CURRENT_TIMESTAMP ELSE [DHACESSO] END,
-            [DHMAINTENANCE] = CURRENT_TIMESTAMP,
-            [SGUSER] = 'MOTORISTA'
-      `;
-
-      const request = pool.request()
-        .input('IDCONVOCACAO', sql.Int, parseInt(id));
-
-      // Adicionar campos de geolocalização se fornecidos
-      if (latitude !== undefined && latitude !== null && longitude !== undefined && longitude !== null) {
-        query += `, [LATITUDE] = @LATITUDE, [LONGITUDE] = @LONGITUDE`;
-        request.input('LATITUDE', sql.Float, parseFloat(latitude));
-        request.input('LONGITUDE', sql.Float, parseFloat(longitude));
+      // Com GPS: grava lat/lon + DH_LOCALIZACAO_MOTORISTA (mesmo critério do aceite / atualizar-localizacao).
+      // Sem isso o acesso salvava só coordenadas e o botão Aceitar permanecia bloqueado.
+      let result;
+      if (temCoords) {
+        const latN = parseFloat(latitude);
+        const lonN = parseFloat(longitude);
+        const queryComDh = `
+          UPDATE [dbo].[CONVOCACAO]
+          SET [DHACESSO] = CASE WHEN [DHACESSO] IS NULL THEN CURRENT_TIMESTAMP ELSE [DHACESSO] END,
+              [DHMAINTENANCE] = CURRENT_TIMESTAMP,
+              [SGUSER] = 'MOTORISTA',
+              [LATITUDE] = @LATITUDE,
+              [LONGITUDE] = @LONGITUDE,
+              [DH_LOCALIZACAO_MOTORISTA] = CURRENT_TIMESTAMP
+          WHERE [IDCONVOCACAO] = @IDCONVOCACAO
+        `;
+        const querySemDh = `
+          UPDATE [dbo].[CONVOCACAO]
+          SET [DHACESSO] = CASE WHEN [DHACESSO] IS NULL THEN CURRENT_TIMESTAMP ELSE [DHACESSO] END,
+              [DHMAINTENANCE] = CURRENT_TIMESTAMP,
+              [SGUSER] = 'MOTORISTA',
+              [LATITUDE] = @LATITUDE,
+              [LONGITUDE] = @LONGITUDE
+          WHERE [IDCONVOCACAO] = @IDCONVOCACAO
+        `;
+        try {
+          result = await pool
+            .request()
+            .input('IDCONVOCACAO', sql.Int, idConv)
+            .input('LATITUDE', sql.Float, latN)
+            .input('LONGITUDE', sql.Float, lonN)
+            .query(queryComDh);
+        } catch (e) {
+          if (e.code === '42703' && /localizacao_motorista/i.test(String(e.message))) {
+            console.warn('[REGISTRAR ACESSO] Coluna DH_LOCALIZACAO_MOTORISTA ausente — fallback sem DH');
+            result = await pool
+              .request()
+              .input('IDCONVOCACAO', sql.Int, idConv)
+              .input('LATITUDE', sql.Float, latN)
+              .input('LONGITUDE', sql.Float, lonN)
+              .query(querySemDh);
+          } else {
+            throw e;
+          }
+        }
+      } else {
+        const query = `
+          UPDATE [dbo].[CONVOCACAO]
+          SET [DHACESSO] = CASE WHEN [DHACESSO] IS NULL THEN CURRENT_TIMESTAMP ELSE [DHACESSO] END,
+              [DHMAINTENANCE] = CURRENT_TIMESTAMP,
+              [SGUSER] = 'MOTORISTA'
+          WHERE [IDCONVOCACAO] = @IDCONVOCACAO
+        `;
+        result = await pool.request().input('IDCONVOCACAO', sql.Int, idConv).query(query);
       }
-
-      query += ` WHERE [IDCONVOCACAO] = @IDCONVOCACAO`;
-
-      const result = await request.query(query);
 
       console.log(`[REGISTRAR ACESSO] Linhas afetadas: ${result.rowsAffected[0]}`);
 
       res.json({
         success: true,
         message: 'Acesso registrado com sucesso',
-        idConvocacao: parseInt(id)
+        idConvocacao: idConv,
+        localizacaoRegistrada: temCoords
       });
     } catch (error) {
       console.error('[REGISTRAR ACESSO] Erro:', error);
@@ -2676,7 +3671,16 @@ const viagemController = {
 
       console.log(`[ATUALIZAR LOCALIZAÇÃO] ID Convocação: ${id}, Lat: ${latitude}, Long: ${longitude}`);
 
-      const query = `
+      const queryComDh = `
+        UPDATE [dbo].[CONVOCACAO]
+        SET [LATITUDE] = @LATITUDE,
+            [LONGITUDE] = @LONGITUDE,
+            [DH_LOCALIZACAO_MOTORISTA] = GETDATE(),
+            [DHMAINTENANCE] = GETDATE(),
+            [SGUSER] = 'MOTORISTA'
+        WHERE [IDCONVOCACAO] = @IDCONVOCACAO
+      `;
+      const querySemDh = `
         UPDATE [dbo].[CONVOCACAO]
         SET [LATITUDE] = @LATITUDE,
             [LONGITUDE] = @LONGITUDE,
@@ -2685,11 +3689,27 @@ const viagemController = {
         WHERE [IDCONVOCACAO] = @IDCONVOCACAO
       `;
 
-      const result = await pool.request()
+      const reqUp = pool
+        .request()
         .input('IDCONVOCACAO', sql.Int, parseInt(id))
         .input('LATITUDE', sql.Float, parseFloat(latitude))
-        .input('LONGITUDE', sql.Float, parseFloat(longitude))
-        .query(query);
+        .input('LONGITUDE', sql.Float, parseFloat(longitude));
+      let result;
+      try {
+        result = await reqUp.query(queryComDh);
+      } catch (e) {
+        if (e.code === '42703' && /localizacao_motorista/i.test(String(e.message))) {
+          console.warn('[ATUALIZAR LOCALIZAÇÃO] Coluna DH_LOCALIZACAO_MOTORISTA ausente — rode o script convocacao_dh_localizacao_motorista_postgres.sql');
+          result = await pool
+            .request()
+            .input('IDCONVOCACAO', sql.Int, parseInt(id))
+            .input('LATITUDE', sql.Float, parseFloat(latitude))
+            .input('LONGITUDE', sql.Float, parseFloat(longitude))
+            .query(querySemDh);
+        } else {
+          throw e;
+        }
+      }
 
       console.log(`[ATUALIZAR LOCALIZAÇÃO] Linhas afetadas: ${result.rowsAffected[0]}`);
 
@@ -2743,6 +3763,7 @@ const viagemController = {
       }
 
       const pool = await poolPromise;
+      const tidReat = tenantIdForRequest(req);
 
       // Validar usuário existe e está ativo
       const usuarioResult = await pool
@@ -2763,10 +3784,11 @@ const viagemController = {
       const convocacaoResult = await pool
         .request()
         .input('IDCONVOCACAO', sql.Int, parseInt(id))
+        .input('TENANT_ID', sql.NVarChar(64), tidReat)
         .query(`
           SELECT [IDCONVOCACAO], [IDVIAGEM], [STATUS]
           FROM [dbo].[CONVOCACAO]
-          WHERE [IDCONVOCACAO] = @IDCONVOCACAO
+          WHERE [IDCONVOCACAO] = @IDCONVOCACAO AND [TENANT_ID] = @TENANT_ID
         `);
 
       if (convocacaoResult.recordset.length === 0) {
@@ -2807,10 +3829,11 @@ const viagemController = {
         const motoristaResult = await pool
           .request()
           .input('IDCONVOCACAO_MOT', sql.Int, parseInt(id))
+          .input('TENANT_ID', sql.NVarChar(64), tidReat)
           .query(`
             SELECT [CDCADASTRO_MOTORISTA]
             FROM [dbo].[CONVOCACAO]
-            WHERE [IDCONVOCACAO] = @IDCONVOCACAO_MOT
+            WHERE [IDCONVOCACAO] = @IDCONVOCACAO_MOT AND [TENANT_ID] = @TENANT_ID
           `);
 
         const motorista = motoristaResult.recordset[0];
@@ -2843,6 +3866,7 @@ const viagemController = {
         const request1 = transaction.request();
         await request1
           .input('IDCONVOCACAO_REATIVAR', sql.Int, parseInt(id))
+          .input('TENANT_ID', sql.NVarChar(64), tidReat)
           .input('CDMOTIVOREABERTURA', sql.Int, parseInt(motivoReabertura))
           .input('SGUSUARIO_OPERADOR', sql.VarChar(50), userLogin)
           .input('sgUser', sql.VarChar(50), sgUserReativar)
@@ -2853,7 +3877,7 @@ const viagemController = {
                 [SGUSUARIO_OPERADOR] = @SGUSUARIO_OPERADOR,
                 [DHMAINTENANCE] = CURRENT_TIMESTAMP,
                 [SGUSER] = @sgUser
-            WHERE [IDCONVOCACAO] = @IDCONVOCACAO_REATIVAR
+            WHERE [IDCONVOCACAO] = @IDCONVOCACAO_REATIVAR AND [TENANT_ID] = @TENANT_ID
           `);
 
         // 4. Contar quantas convocações ACEITA_DESCARTADA serão reativadas
@@ -2861,10 +3885,12 @@ const viagemController = {
         const countResult = await countRequest
           .input('IDVIAGEM_COUNT', sql.Decimal(15, 0), convocacao.IDVIAGEM)
           .input('IDCONVOCACAO_COUNT', sql.Int, parseInt(id))
+          .input('TENANT_ID', sql.NVarChar(64), tidReat)
           .query(`
             SELECT COUNT(*) AS TOTAL
             FROM [dbo].[CONVOCACAO]
             WHERE [IDVIAGEM] = @IDVIAGEM_COUNT
+              AND [TENANT_ID] = @TENANT_ID
               AND [IDCONVOCACAO] != @IDCONVOCACAO_COUNT
               AND [STATUS] = 'ACEITA_DESCARTADA'
           `);
@@ -2877,6 +3903,7 @@ const viagemController = {
           await request2
             .input('IDVIAGEM_REATIVAR', sql.Decimal(15, 0), convocacao.IDVIAGEM)
             .input('IDCONVOCACAO_EXCLUIR', sql.Int, parseInt(id))
+            .input('TENANT_ID', sql.NVarChar(64), tidReat)
             .input('CDMOTIVOREABERTURA_AUTO', sql.Int, parseInt(motivoReabertura))
             .input('SGUSUARIO_OPERADOR_AUTO', sql.VarChar(50), userLogin)
             .input('sgUser', sql.VarChar(50), sgUserReativar)
@@ -2888,6 +3915,7 @@ const viagemController = {
                   [DHMAINTENANCE] = CURRENT_TIMESTAMP,
                   [SGUSER] = @sgUser
               WHERE [IDVIAGEM] = @IDVIAGEM_REATIVAR
+                AND [TENANT_ID] = @TENANT_ID
                 AND [IDCONVOCACAO] != @IDCONVOCACAO_EXCLUIR
                 AND [STATUS] = 'ACEITA_DESCARTADA'
             `);
@@ -2936,7 +3964,11 @@ const viagemController = {
     try {
       const { id } = req.params;
       const pool = await poolPromise;
-      const reqParam = pool.request().input('IDCONVOCACAO', sql.Int, parseInt(id));
+      const tidHistReab = tenantIdForRequest(req);
+      const reqParam = pool
+        .request()
+        .input('IDCONVOCACAO', sql.Int, parseInt(id))
+        .input('TENANT_ID', sql.NVarChar(64), tidHistReab);
 
       const queryUpper = `
         SELECT 
@@ -2952,7 +3984,8 @@ const viagemController = {
           [h].[SGUSUARIO_OPERADOR],
           [h].[OBSERVACAO]
         FROM [dbo].[HISTORICOREABERTURA] [h]
-        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [h].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO]
+        INNER JOIN [dbo].[CONVOCACAO] [conv] ON [h].[IDCONVOCACAO] = [conv].[IDCONVOCACAO] AND [conv].[TENANT_ID] = @TENANT_ID
+        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [h].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [conv].[TENANT_ID]
         LEFT JOIN [dbo].[MOTIVOREABERTURA] [mr] ON [h].[CDMOTIVOREABERTURA] = [mr].[CDMOTIVO]
         WHERE [h].[IDCONVOCACAO] = @IDCONVOCACAO
           AND [h].[FGACTIVE] = 'A'
@@ -2972,7 +4005,8 @@ const viagemController = {
           [h].[sgusuario_operador],
           [h].[observacao]
         FROM [dbo].[HISTORICOREABERTURA] [h]
-        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [h].[cdcadastro_motorista] = [cg].[cdcadastro]
+        INNER JOIN [dbo].[CONVOCACAO] [conv] ON [h].[idconvocacao] = [conv].[idconvocacao] AND [conv].[tenant_id] = @TENANT_ID
+        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [h].[cdcadastro_motorista] = [cg].[cdcadastro] AND [cg].[tenant_id] = [conv].[tenant_id]
         LEFT JOIN [dbo].[MOTIVOREABERTURA] [mr] ON [h].[cdmotivoreabertura] = [mr].[cdmotivo]
         WHERE [h].[idconvocacao] = @IDCONVOCACAO
           AND [h].[fgactive] = 'A'
@@ -2984,7 +4018,11 @@ const viagemController = {
         result = await reqParam.query(queryUpper);
       } catch (errUpper) {
         if (errUpper.code === '42703' && /coluna.*não existe|column.*does not exist/i.test(String(errUpper.message))) {
-          result = await pool.request().input('IDCONVOCACAO', sql.Int, parseInt(id)).query(queryLower);
+          result = await pool
+            .request()
+            .input('IDCONVOCACAO', sql.Int, parseInt(id))
+            .input('TENANT_ID', sql.NVarChar(64), tidHistReab)
+            .query(queryLower);
         } else {
           throw errUpper;
         }
@@ -3016,7 +4054,17 @@ const viagemController = {
   responderConvocacao: async (req, res) => {
     try {
       const { id } = req.params;
-      const { status, latitude, longitude, motivoRecusa } = req.body;
+      const {
+        status,
+        latitude,
+        longitude,
+        motivoRecusa,
+        telefoneConfirmacao,
+        valorFretePropostoMotorista,
+        vlFretePropostoMotorista,
+        confirmacaoPlacasModo,
+        confirmacaoPlacasTexto,
+      } = req.body;
 
       if (!status || !['ACEITA', 'RECUSADA'].includes(status)) {
         return res.status(400).json({ error: 'Status inválido. Use ACEITA ou RECUSADA.' });
@@ -3028,6 +4076,303 @@ const viagemController = {
       }
 
       const pool = await poolPromise;
+      const idInt = parseInt(id, 10);
+      if (isNaN(idInt)) {
+        return res.status(400).json({ error: 'ID de convocação inválido.' });
+      }
+
+      const sqlConvRespExtraPlacas = `,
+            c.[FGCONFIRMACAOPLACAS],
+            (${sqlCoalescePlacasEsperadasConvocacaoComSnapshot()}) AS [PLACASESPERADAS],
+            (${sqlCoalesceDsClasseConjuntoConvocacaoComSnapshot()}) AS [DSCLASSEFROTA_CONJUNTO]`;
+      const sqlConvResp = `
+          SELECT 
+            c.[IDVIAGEM], 
+            c.[STATUS], 
+            c.[TENANT_ID],
+            c.[CDCADASTRO_MOTORISTA],
+            c.[LATITUDE],
+            c.[LONGITUDE],
+            c.[DH_LOCALIZACAO_MOTORISTA],
+            cg.[NRCELULAR] AS [NRCELULAR_MOTORISTA],
+            upper(cg.[RZSOCIAL]) AS [NOME_MOTORISTA]
+          FROM [dbo].[CONVOCACAO] c
+          INNER JOIN [dbo].[CADASTROGERAL] cg ON c.[CDCADASTRO_MOTORISTA] = cg.[CDCADASTRO] AND cg.[TENANT_ID] = c.[TENANT_ID]
+          WHERE c.[IDCONVOCACAO] = @IDCONVOCACAO
+        `;
+      const sqlConvRespComPlacas = sqlConvResp.replace(
+        /cg\.\[NRCELULAR\] AS \[NRCELULAR_MOTORISTA\]\s*\n\s*FROM \[dbo\]\.\[CONVOCACAO\] c/,
+        `cg.[NRCELULAR] AS [NRCELULAR_MOTORISTA]${sqlConvRespExtraPlacas}
+          FROM [dbo].[CONVOCACAO] c`
+      );
+      const sqlConvRespSemDh = sqlConvResp.replace(/\s*,\s*c\.\[DH_LOCALIZACAO_MOTORISTA\]\s*/i, '\n            ');
+      const sqlConvRespComPlacasSemDh = sqlConvRespComPlacas.replace(/\s*,\s*c\.\[DH_LOCALIZACAO_MOTORISTA\]\s*/i, '\n            ');
+      let usedFallbackSemDhColunaResp = false;
+      let convSel;
+      const reqConvSel = () => pool.request().input('IDCONVOCACAO', sql.Int, idInt);
+      const placas427Sel = (msg) =>
+        /fgconfirmacaoplacas|placasesperadas|dsclassefrota_conjunto|viagemveiculo|motorista_veiculo|statusaprovacao|refequipamento|equipamento/i.test(
+          String(msg || '')
+        );
+      try {
+        try {
+          convSel = await reqConvSel().query(sqlConvRespComPlacas);
+        } catch (e0) {
+          if (e0.code === '42703' && placas427Sel(e0.message)) {
+            convSel = await reqConvSel().query(sqlConvResp);
+          } else throw e0;
+        }
+      } catch (err) {
+        const em = String(err.message || '');
+        if (err.code === '42703' && /localizacao_motorista/i.test(em)) {
+          usedFallbackSemDhColunaResp = true;
+          try {
+            try {
+              convSel = await reqConvSel().query(sqlConvRespComPlacasSemDh);
+            } catch (e1) {
+              if (e1.code === '42703' && placas427Sel(e1.message)) {
+                convSel = await reqConvSel().query(sqlConvRespSemDh);
+              } else throw e1;
+            }
+          } catch (err2) {
+            throw err2;
+          }
+        } else {
+          throw err;
+        }
+      }
+
+      if (!convSel.recordset || convSel.recordset.length === 0) {
+        return res.status(404).json({ error: 'Convocação não encontrada.' });
+      }
+
+      const convRow = convSel.recordset[0];
+      const statusAtual = convRow.STATUS ?? convRow.status;
+      const idViagem = convRow.IDVIAGEM ?? convRow.idviagem;
+      const rawTidConv = convRow.TENANT_ID ?? convRow.tenant_id;
+      const tidConvResp =
+        rawTidConv != null && String(rawTidConv).trim() !== '' ? String(rawTidConv).trim() : getDefaultTenantId();
+
+      if (statusAtual !== 'PENDENTE') {
+        return res.status(409).json({
+          code: 'CONVOCACAO_JA_RESPONDIDA',
+          error:
+            'Esta convocação já foi respondida. Atualize a página para ver o status atual.',
+        });
+      }
+
+      let vlFretePropGravar = null;
+      if (status === 'ACEITA') {
+        const rawPgEarly =
+          valorFretePropostoMotorista !== undefined && valorFretePropostoMotorista !== null
+            ? valorFretePropostoMotorista
+            : vlFretePropostoMotorista;
+        if (rawPgEarly !== undefined && rawPgEarly !== null && String(rawPgEarly).trim() !== '') {
+          const pGEarly = parseValorFretePropostaMotorista(rawPgEarly);
+          if (!pGEarly.ok) {
+            return res.status(400).json({ code: 'VALOR_FRETE_INVALIDO', error: pGEarly.error });
+          }
+          vlFretePropGravar = pGEarly.value;
+        }
+      }
+
+      await enriquecerPlacasConjuntoConvRowResponder(pool, idInt, tidConvResp, convRow);
+
+      const placasEsperadasGate = String(
+        convRow.PLACASESPERADAS ?? convRow.placasesperadas ?? ''
+      ).trim();
+      const conjuntoClasseGate = String(
+        convRow.DSCLASSEFROTA_CONJUNTO ?? convRow.dsclassefrota_conjunto ?? ''
+      ).trim();
+      const fgPlacasRowPre = String(
+        convRow.FGCONFIRMACAOPLACAS ?? convRow.fgconfirmacaoplacas ?? ''
+      )
+        .trim()
+        .toUpperCase();
+      const placasObrigatoriasAceite =
+        status === 'ACEITA' &&
+        (placasEsperadasGate.length > 0 || conjuntoClasseGate.length > 0) &&
+        !fgPlacasRowPre;
+
+      let fgPlacasUpdate = null;
+      let txtPlacasUpdate = null;
+      const modoPlacasBody = String(confirmacaoPlacasModo || '').trim().toUpperCase();
+      const textoPlacasResposta =
+        confirmacaoPlacasTexto != null ? String(confirmacaoPlacasTexto).trim().slice(0, 2000) : '';
+
+      if (status === 'ACEITA') {
+        if (modoPlacasBody === 'DIVERGE') {
+          if (!textoPlacasResposta) {
+            return res.status(400).json({
+              code: 'TEXTO_DIVERGENCIA_PLACAS_OBRIGATORIO',
+              error: 'Informe a descrição da divergência das placas.',
+            });
+          }
+          let nGravDiv = 0;
+          try {
+            nGravDiv = await gravarDivergenciaPlacasSomente(pool, {
+              idConvocacao: idInt,
+              tenantId: tidConvResp,
+              texto: textoPlacasResposta,
+              vlFretePropostoMotorista: vlFretePropGravar,
+            });
+            if (nGravDiv > 0) {
+              await notificarDivergenciaPlacasContratador(pool, req, {
+                idConvocacao: idInt,
+                tenantId: tidConvResp,
+                textoDivergencia: textoPlacasResposta,
+                nomeMotorista: convRow.NOME_MOTORISTA ?? convRow.nome_motorista ?? '',
+              });
+            }
+          } catch (divErr) {
+            console.error('[RESPONDER PUBLICO] divergência placas:', divErr);
+            return res.status(500).json({
+              error: 'Não foi possível registrar a divergência. Tente novamente.',
+            });
+          }
+          if (!nGravDiv) {
+            return res.status(409).json({
+              code: 'CONVOCACAO_NAO_ATUALIZADA',
+              error:
+                'Não foi possível registrar a divergência. A convocação pode já ter sido respondida; atualize a página.',
+            });
+          }
+          return res.status(422).json({
+            success: false,
+            code: 'ACEITE_BLOQUEADO_DIVERGENCIA_PLACAS',
+            divergenciaRegistrada: true,
+            FGCONFIRMACAOPLACAS: 'D',
+            message:
+              'Registramos que suas placas divergem do cadastro. Não é possível aceitar esta carga até a empresa alinhar os dados. Aguarde contato da transportadora ou use Recusar.',
+          });
+        }
+
+        if (fgPlacasRowPre === 'D') {
+          if (modoPlacasBody !== 'CONFIRMA') {
+            return res.status(422).json({
+              code: 'ACEITE_BLOQUEADO_DIVERGENCIA_PLACAS',
+              divergenciaRegistrada: true,
+              error:
+                'Não é possível aceitar enquanto houver divergência de placas. Após a transportadora alinhar os dados, use «Confirmo estas placas» e aceite novamente, ou recuse.',
+            });
+          }
+          fgPlacasUpdate = 'C';
+          txtPlacasUpdate = null;
+        } else if (placasObrigatoriasAceite) {
+          if (modoPlacasBody !== 'CONFIRMA') {
+            return res.status(422).json({
+              code: 'CONFIRMACAO_PLACAS_OBRIGATORIA',
+              error:
+                'Confirme as placas e/ou o conjunto (classe) cadastrado nesta viagem antes de aceitar (mesmo critério do app do motorista).',
+              placasEsperadas: placasEsperadasGate,
+              classeConjuntoEsperada: conjuntoClasseGate,
+            });
+          }
+          fgPlacasUpdate = 'C';
+          txtPlacasUpdate = null;
+        } else if (modoPlacasBody === 'CONFIRMA') {
+          // Ex.: motorista confirmou no link/app mas o SELECT deste handler caiu em fallback sem
+          // PLACASESPERADAS — ainda assim persiste auditoria na CONVOCACAO (FG / DH).
+          fgPlacasUpdate = 'C';
+          txtPlacasUpdate = null;
+        }
+
+        const dhLocMotorista =
+          convRow.DH_LOCALIZACAO_MOTORISTA ?? convRow.dh_localizacao_motorista;
+        const latRowDb = convRow.LATITUDE ?? convRow.latitude;
+        const lonRowDb = convRow.LONGITUDE ?? convRow.longitude;
+        const temLatLonDb =
+          latRowDb != null &&
+          lonRowDb != null &&
+          String(latRowDb).trim() !== '' &&
+          String(lonRowDb).trim() !== '';
+        const locRegistradaOk = usedFallbackSemDhColunaResp
+          ? temLatLonDb
+          : (dhLocMotorista != null && String(dhLocMotorista).trim() !== '') || temLatLonDb;
+        if (!locRegistradaOk) {
+          return res.status(400).json({
+            code: 'LOCALIZACAO_NAO_ENVIADA',
+            error:
+              'Antes de aceitar, use o botão «Enviar minha localização» nesta página para registrar sua posição.',
+          });
+        }
+
+        const latN = latitude !== undefined && latitude !== null ? parseFloat(latitude) : NaN;
+        const lonN = longitude !== undefined && longitude !== null ? parseFloat(longitude) : NaN;
+        if (!Number.isFinite(latN) || !Number.isFinite(lonN)) {
+          return res.status(400).json({
+            code: 'LOCALIZACAO_RESPOSTA_OBRIGATORIA',
+            error: 'Latitude e longitude atuais são obrigatórias para aceitar a convocação.',
+          });
+        }
+        if (latN < -90 || latN > 90 || lonN < -180 || lonN > 180) {
+          return res.status(400).json({ error: 'Coordenadas de localização inválidas.' });
+        }
+
+        const nrCad =
+          convRow.NRCELULAR_MOTORISTA != null
+            ? String(convRow.NRCELULAR_MOTORISTA)
+            : convRow.nrcelular_motorista != null
+              ? String(convRow.nrcelular_motorista)
+              : '';
+        let ctxResp = { pais: 'BR' };
+        try {
+          ctxResp = await getContexto(tidConvResp);
+        } catch (_) {
+          ctxResp = { pais: 'BR' };
+        }
+        const paisPadraoResp = ctxResp.pais || 'BR';
+        const digCad = isPaisBrTelefone(paisPadraoResp)
+          ? normalizarDigitosTelefoneBR(nrCad)
+          : normalizarDigitosSoNumeros(nrCad);
+        const minDigCad = isPaisBrTelefone(paisPadraoResp) ? 10 : 8;
+        if (!digCad || digCad.length < minDigCad) {
+          return res.status(400).json({
+            code: 'TELEFONE_CADASTRO_INCOMPLETO',
+            error:
+              'Não é possível aceitar pelo link: o cadastro do motorista não possui celular válido. Entre em contato com a empresa.',
+          });
+        }
+
+        const telInf = telefoneConfirmacao != null ? String(telefoneConfirmacao).trim() : '';
+        if (!telInf) {
+          return res.status(400).json({
+            code: 'TELEFONE_CONFIRMACAO_OBRIGATORIO',
+            error: 'Informe o número do celular cadastrado para confirmar sua identidade.',
+          });
+        }
+        if (!telefoneMotoristaConfere(telInf, nrCad, paisPadraoResp)) {
+          return res.status(400).json({
+            code: 'TELEFONE_NAO_CONFERE',
+            error: 'O celular informado não confere com o cadastro desta convocação.',
+          });
+        }
+
+        const outraConfirmada = await pool
+          .request()
+          .input('IDVIAGEM', sql.Decimal(15, 0), parseFloat(idViagem))
+          .input('IDCONVOCACAO', sql.Int, idInt)
+          .input('TENANT_ID', sql.NVarChar(64), tidConvResp)
+          .query(`
+            SELECT 1 AS [OK]
+            WHERE EXISTS (
+              SELECT 1
+              FROM [dbo].[CONVOCACAO]
+              WHERE [IDVIAGEM] = @IDVIAGEM
+                AND [TENANT_ID] = @TENANT_ID
+                AND [STATUS] = 'CONFIRMADA'
+                AND [IDCONVOCACAO] <> @IDCONVOCACAO
+            )
+          `);
+
+        if (outraConfirmada.recordset && outraConfirmada.recordset.length > 0) {
+          return res.status(409).json({
+            code: 'VIAGEM_JA_FECHADA',
+            error:
+              'Outro motorista já foi confirmado nesta viagem e a carga foi fechada. Não é possível aceitar esta convocação.',
+          });
+        }
+      }
 
       // Construir query dinamicamente para incluir geolocalização e motivo se fornecidos
       // Usar [coluna] para o db.js converter para "COLUNA" (PostgreSQL exige aspas para maiúsculas)
@@ -3042,9 +4387,10 @@ const viagemController = {
 
       const request = pool.request()
         .input('IDCONVOCACAO', sql.Int, parseInt(id))
+        .input('TENANT_ID', sql.NVarChar(64), tidConvResp)
         .input('STATUS', sql.VarChar(20), status);
 
-      // Adicionar campo de motivo se for recusa
+      // vlFretePropGravar já calculado no início (ACEITA), inclusive para ramo DIVERGE gravar frete.
       if (status === 'RECUSADA' && motivoRecusa) {
         query += `, [CDMOTIVORECUSA] = @CDMOTIVORECUSA`;
         request.input('CDMOTIVORECUSA', sql.Int, parseInt(motivoRecusa));
@@ -3058,13 +4404,90 @@ const viagemController = {
         request.input('LONGITUDE', sql.Float, parseFloat(longitude));
       }
 
-      query += ` WHERE [IDCONVOCACAO] = @IDCONVOCACAO AND [STATUS] = 'PENDENTE'`;
+      if (vlFretePropGravar !== null) {
+        query += `, [VL_FRETE_PROPOSTO_MOTORISTA] = @VL_FRETE_PROPOSTO_MOTORISTA`;
+        request.input('VL_FRETE_PROPOSTO_MOTORISTA', sql.Decimal(15, 2), vlFretePropGravar);
+      }
 
-      await request.query(query);
+      if (fgPlacasUpdate != null) {
+        query += `, [FGCONFIRMACAOPLACAS] = @FGCONFIRMACAOPLACAS, [TXTPLACASDIVERGENCIA] = CASE WHEN @FGCONFIRMACAOPLACAS = 'D' THEN @TXTPLACASDIVERGENCIA ELSE NULL END, [DHCONFIRMACAOPLACAS] = GETDATE()`;
+        request.input('FGCONFIRMACAOPLACAS', sql.NVarChar(1), fgPlacasUpdate);
+        request.input('TXTPLACASDIVERGENCIA', sql.NVarChar(4000), txtPlacasUpdate != null ? txtPlacasUpdate : '');
+      }
+
+      query += ` WHERE [IDCONVOCACAO] = @IDCONVOCACAO AND [TENANT_ID] = @TENANT_ID AND [STATUS] = 'PENDENTE'`;
+
+      let updResult;
+      try {
+        updResult = await request.query(query);
+      } catch (updErr) {
+        const emu = String(updErr.message || '');
+        if (updErr.code === '42703' && /vl_frete_proposto/i.test(emu)) {
+          return res.status(503).json({
+            code: 'COLUNA_FRETE_PROPOSTO_AUSENTE',
+            error:
+              'Servidor sem coluna VL_FRETE_PROPOSTO_MOTORISTA. Execute o script backend/scripts/adicionar_vlfrete_proposto_motorista_convocacao_postgres.sql no banco.',
+          });
+        }
+        if (updErr.code === '42703' && /fgconfirmacaoplacas|txtplacasdivergencia|dhconfirmacaoplacas/i.test(emu)) {
+          return res.status(503).json({
+            code: 'COLUNA_CONFIRMACAO_PLACAS_AUSENTE',
+            error:
+              'Servidor sem colunas de confirmação de placas na convocação. Execute o script de migração correspondente no banco.',
+          });
+        }
+        throw updErr;
+      }
+      const nAfetadas =
+        updResult.rowsAffected && updResult.rowsAffected[0] != null
+          ? updResult.rowsAffected[0]
+          : 0;
+
+      if (nAfetadas === 0) {
+        if (status === 'ACEITA') {
+          return res.status(409).json({
+            code: 'VIAGEM_JA_FECHADA',
+            error:
+              'Não foi possível registrar o aceite. A viagem pode ter sido fechada com outro motorista — atualize a página.',
+          });
+        }
+        return res.status(409).json({
+          code: 'CONVOCACAO_NAO_ATUALIZADA',
+          error:
+            'Não foi possível atualizar a convocação. Ela pode já ter sido respondida; atualize a página.',
+        });
+      }
+
+      // Aceite com placas confirmadas: já grava VIAGEMVEICULO (antes só na confirmação da torre).
+      let veiculosVinculadosAceite = 0;
+      if (status === 'ACEITA' && fgPlacasUpdate === 'C') {
+        const cdMotAceite =
+          convRow.CDCADASTRO_MOTORISTA != null
+            ? convRow.CDCADASTRO_MOTORISTA
+            : convRow.cdcadastro_motorista;
+        if (cdMotAceite != null && idViagem != null) {
+          try {
+            veiculosVinculadosAceite = await vincularVeiculosViagemAoConfirmarConvocacao(pool, {
+              idConvocacao: idInt,
+              idViagem,
+              cdMotorista: cdMotAceite,
+              tenantId: tidConvResp,
+              sgUser: 'MOTORISTA',
+            });
+          } catch (eVincAce) {
+            console.warn(
+              '[ACEITE PUBLICO] Vínculo automático de veículos à viagem ignorado:',
+              eVincAce && eVincAce.message,
+            );
+          }
+        }
+      }
 
       res.json({
         success: true,
-        message: status === 'ACEITA' ? 'Convocação aceita com sucesso!' : 'Convocação recusada.'
+        message: status === 'ACEITA' ? 'Convocação aceita com sucesso!' : 'Convocação recusada.',
+        ...(fgPlacasUpdate != null ? { FGCONFIRMACAOPLACAS: fgPlacasUpdate } : {}),
+        ...(status === 'ACEITA' ? { veiculosVinculados: veiculosVinculadosAceite } : {}),
       });
     } catch (err) {
       console.error('Erro ao responder convocação:', err);
@@ -3511,6 +4934,7 @@ const viagemController = {
       }
 
       const pool = await poolPromise;
+      const tidBuscaCg = tenantIdForRequest(req);
       let query = `
         SELECT 
           cg.[CDCADASTRO] AS [CDCADASTROGERAL],
@@ -3537,11 +4961,11 @@ const viagemController = {
           cg.[LONGITUDE] AS [LONGITUDE]
         FROM [dbo].[CADASTROGERAL] cg
         LEFT JOIN [dbo].[CIDADE] c ON cg.[CDCIDADE] = c.[CDCIDADE]
-        LEFT JOIN [dbo].[CADASTROGERAL] t ON cg.[CDTRANSPORTADOR] = t.[CDCADASTRO]
-        WHERE 1=1
+        LEFT JOIN [dbo].[CADASTROGERAL] t ON cg.[CDTRANSPORTADOR] = t.[CDCADASTRO] AND t.[TENANT_ID] = cg.[TENANT_ID]
+        WHERE cg.[TENANT_ID] = @TENANT_ID
       `;
 
-      const request = pool.request();
+      const request = pool.request().input('TENANT_ID', sql.NVarChar(64), tidBuscaCg);
       if (cpf) {
         const cpfLimpo = cpf.replace(/[^\d]+/g, '');
         query += ` AND cg.[CGCCPF] = @CPF`;
@@ -3574,9 +4998,11 @@ const viagemController = {
     try {
       const { id } = req.params;
       const pool = await poolPromise;
+      const tidMotViag = tenantIdForRequest(req);
 
       const result = await pool.request()
         .input('IDVIAGEM', sql.Decimal(15, 0), parseFloat(id))
+        .input('TENANT_ID', sql.NVarChar(64), tidMotViag)
         .query(`
           SELECT 
             [vm].[IDVIAGEM],
@@ -3603,8 +5029,9 @@ const viagemController = {
             [cg].[LATITUDE],
             [cg].[LONGITUDE]
           FROM [dbo].[VIAGEMMOTORISTA] [vm]
-          INNER JOIN [dbo].[CADASTROGERAL] [cg] ON [vm].[CDMOTORISTA] = [cg].[CDCADASTRO]
-          LEFT JOIN [dbo].[CADASTROGERAL] [t] ON [cg].[CDTRANSPORTADOR] = [t].[CDCADASTRO]
+          INNER JOIN [dbo].[VIAGEMMESTRE] [v] ON [vm].[IDVIAGEM] = [v].[IDVIAGEM] AND [v].[TENANT_ID] = @TENANT_ID
+          INNER JOIN [dbo].[CADASTROGERAL] [cg] ON [vm].[CDMOTORISTA] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [v].[TENANT_ID]
+          LEFT JOIN [dbo].[CADASTROGERAL] [t] ON [cg].[CDTRANSPORTADOR] = [t].[CDCADASTRO] AND [t].[TENANT_ID] = [cg].[TENANT_ID]
           WHERE [vm].[IDVIAGEM] = @IDVIAGEM
           ORDER BY [vm].[CDMOTORISTA]
         `);
@@ -3919,6 +5346,8 @@ const viagemController = {
   listarLogsWebhookMeta: async (req, res) => {
     try {
       const { limite = 100, idConvocacao, idViagem } = req.query;
+      const lim = Math.min(500, Math.max(1, parseInt(limite, 10) || 100));
+      const tenantId = tenantIdForRequest(req);
 
       const pool = await poolPromise;
       let query = `
@@ -3940,44 +5369,131 @@ const viagemController = {
 
       if (idConvocacao) {
         query += ` AND [l].[IDCONVOCACAO] = @IDCONVOCACAO`;
-        request.input('IDCONVOCACAO', sql.Int, parseInt(idConvocacao));
+        request.input('IDCONVOCACAO', sql.Int, parseInt(idConvocacao, 10));
       }
 
-      // Filtrar por ID da viagem através das convocações
+      // Filtrar por ID da viagem através das convocações (escopo do tenant)
       if (idViagem) {
         query += ` AND [l].[IDCONVOCACAO] IN (
           SELECT [IDCONVOCACAO] 
           FROM [dbo].[CONVOCACAO] 
-          WHERE [IDVIAGEM] = @IDVIAGEM
+          WHERE [IDVIAGEM] = @IDVIAGEM AND [TENANT_ID] = @TENANT_ID
         )`;
         request.input('IDVIAGEM', sql.Decimal(15, 0), parseFloat(idViagem));
+        request.input('TENANT_ID', sql.NVarChar(64), tenantId);
       }
 
       query += ` ORDER BY [l].[DHLOG] DESC LIMIT @LIMITE`;
-      request.input('LIMITE', sql.Int, parseInt(limite));
+      request.input('LIMITE', sql.Int, lim);
 
       const result = await request.query(query);
+      let rawMeta = result.recordset || [];
 
-      // Parse dos detalhes JSON
-      const logs = result.recordset.map(log => {
+      /** Inclui envios registrados só em LOG_ENVIO_WHATSAPP (ex.: fluxos antigos / campanha antes do META). */
+      let rawEnvio = [];
+      if (idViagem && !idConvocacao) {
+        try {
+          const r2 = await pool
+            .request()
+            .input('IDVIAGEM', sql.Decimal(15, 0), parseFloat(idViagem))
+            .input('TENANT_ID', sql.NVarChar(64), tenantId)
+            .input('LIMITE', sql.Int, lim)
+            .query(`
+              SELECT 
+                lw.[IDCONVOCACAO],
+                lw.[NRCELULAR],
+                lw.[STATUS_ENVIO],
+                lw.[MENSAGEM_ERRO],
+                lw.[DHENVIO]
+              FROM [dbo].[LOG_ENVIO_WHATSAPP] lw
+              INNER JOIN [dbo].[CONVOCACAO] c ON c.[IDCONVOCACAO] = lw.[IDCONVOCACAO]
+              WHERE c.[IDVIAGEM] = @IDVIAGEM AND c.[TENANT_ID] = @TENANT_ID
+              ORDER BY lw.[DHENVIO] DESC
+              LIMIT @LIMITE
+            `);
+          rawEnvio = r2.recordset || [];
+        } catch (e) {
+          if (e && e.code !== '42P01') {
+            console.warn('[LOGS WEBHOOK META] LOG_ENVIO_WHATSAPP:', e.message);
+          }
+        }
+      }
+
+      const normEnvio = rawEnvio.map((lw) => {
+        const ok = String(lw.STATUS_ENVIO || lw.status_envio || '').toUpperCase() === 'ENVIADO';
+        const cel = lw.NRCELULAR || lw.nrcelular || '';
+        return {
+          IDLOG: null,
+          IDCONVOCACAO: lw.IDCONVOCACAO ?? lw.idconvocacao,
+          TIPO: 'envio_switch',
+          TITULO: ok ? 'Switch Digital - Enviado' : 'Switch Digital - Erro',
+          MENSAGEM: ok ? `Enviado para ${cel}` : String(lw.MENSAGEM_ERRO || lw.mensagem_erro || 'Erro no envio').substring(0, 500),
+          DETALHES: JSON.stringify({ fonte: 'LOG_ENVIO_WHATSAPP', idConvocacao: lw.IDCONVOCACAO ?? lw.idconvocacao }),
+          STATUS_HTTP: null,
+          TEMPO_RESPOSTA: null,
+          DHLOG: lw.DHENVIO || lw.dhenvio,
+          __dedupe: 'envio'
+        };
+      });
+      const normMeta = rawMeta.map((m) => ({ ...m, __dedupe: 'meta' }));
+      let combined = [...normMeta, ...normEnvio];
+      combined.sort((a, b) => {
+        const ta = a.DHLOG ? new Date(a.DHLOG).getTime() : 0;
+        const tb = b.DHLOG ? new Date(b.DHLOG).getTime() : 0;
+        return tb - ta;
+      });
+
+      if (idViagem && !idConvocacao && normEnvio.length) {
+        const out = [];
+        for (const row of combined) {
+          if (row.__dedupe === 'envio') {
+            const t = row.DHLOG ? new Date(row.DHLOG).getTime() : 0;
+            // Só omitir LOG_ENVIO_WHATSAPP se já existir meta do *mesmo* disparo Switch (título "Switch Digital …").
+            // Metas "Fluxo WhatsApp – DIVERGENCIA_…", DIVULGACAO, webhooks etc. não devem esconder o envio.
+            const dup = out.some(
+              (x) =>
+                x.__dedupe === 'meta' &&
+                Number(x.IDCONVOCACAO) === Number(row.IDCONVOCACAO) &&
+                Math.abs((x.DHLOG ? new Date(x.DHLOG).getTime() : 0) - t) < 5000 &&
+                /^Switch Digital\b/i.test(String(x.TITULO || x.titulo || ''))
+            );
+            if (dup) continue;
+          }
+          out.push(row);
+        }
+        combined = out;
+      }
+
+      combined = combined.slice(0, lim);
+
+      const logs = combined.map((log) => {
+        const { __dedupe, ...rest } = log;
         let detalhesParsed = null;
         try {
-          if (log.DETALHES) {
-            if (typeof log.DETALHES === 'string') {
-              detalhesParsed = JSON.parse(log.DETALHES);
+          if (rest.DETALHES) {
+            if (typeof rest.DETALHES === 'string') {
+              detalhesParsed = JSON.parse(rest.DETALHES);
             } else {
-              detalhesParsed = log.DETALHES;
+              detalhesParsed = rest.DETALHES;
             }
           }
         } catch (e) {
-          // Se falhar o parse, manter como string ou null
-          detalhesParsed = log.DETALHES;
+          detalhesParsed = rest.DETALHES;
         }
 
+        let tsIso = null;
+        if (rest.DHLOG) {
+          const d = rest.DHLOG;
+          if (d instanceof Date && !isNaN(d.getTime())) tsIso = d.toISOString();
+          else {
+            const t = new Date(d);
+            if (!isNaN(t.getTime())) tsIso = t.toISOString();
+          }
+        }
         return {
-          ...log,
+          ...rest,
           detalhes: detalhesParsed,
-          timestamp: log.DHLOG ? log.DHLOG.toISOString() : null
+          timestamp: tsIso
         };
       });
 
@@ -3991,6 +5507,128 @@ const viagemController = {
 
   // ========== WEBHOOK CALLBACK META ==========
 
+// Pré-check de saúde da integração Switch Digital (antes de iniciar fila)
+  verificarSaudeSwitchDigital: async (req, res) => {
+    try {
+      const pool = await poolPromise;
+      const tenantId = tenantIdForRequest(req);
+
+      const configResult = await pool
+        .request()
+        .input('tenantId', sql.NVarChar(64), tenantId)
+        .query(`
+        SELECT "CHAVE", "VALOR" FROM "CONFIGURACAO"
+        WHERE "TENANT_ID" = @tenantId
+          AND "CHAVE" IN ('switch_digital_endpoint', 'switch_digital_token')
+      `);
+
+      let endpoint = 'https://api.switchdigital.com.br/api/messages/send';
+      let token = '';
+      for (const r of (configResult.recordset || [])) {
+        const k = r.CHAVE || r.chave;
+        const v = r.VALOR || r.valor;
+        if (k === 'switch_digital_endpoint' && v) endpoint = String(v);
+        if (k === 'switch_digital_token' && v) token = String(v);
+      }
+
+      if (!token || !token.trim()) {
+        return res.status(400).json({
+          healthy: false,
+          code: 'SWITCH_TOKEN_NOT_CONFIGURED',
+          message: 'Token da Switch Digital não configurado. Configure em Configurações > Switch / WhatsApp.'
+        });
+      }
+
+      // Heurística de saúde (só para badge / pré-check leve):
+      // - Último sucesso → ativa
+      // - Último ERR_WAPP_NOT_INITIALIZED só bloqueia por poucos minutos (evita ficar 30 min
+      //   preso depois que o usuário já reconectou o WhatsApp na Switch).
+      const logsResult = await pool
+        .request()
+        .input('TENANT_ID', sql.NVarChar(64), tenantId)
+        .query(`
+          SELECT [l].[TITULO], [l].[MENSAGEM], [l].[DETALHES], [l].[DHLOG]
+          FROM [dbo].[LOGSWEBHOOKMETA] [l]
+          INNER JOIN [dbo].[CONVOCACAO] [c] ON [c].[IDCONVOCACAO] = [l].[IDCONVOCACAO]
+          WHERE [l].[TIPO] = 'envio_switch'
+            AND [c].[TENANT_ID] = @TENANT_ID
+          ORDER BY [l].[DHLOG] DESC
+          LIMIT 80
+        `);
+
+      const agora = Date.now();
+      const JANELA_MINUTOS = 1.5;
+      const eventoDecisivo = (logsResult.recordset || []).find((row) => {
+        const titulo = String(row.TITULO ?? row.titulo ?? '');
+        const msg = String(row.MENSAGEM ?? row.mensagem ?? '');
+        const det = String(row.DETALHES ?? row.detalhes ?? '');
+        const txt = `${titulo} ${msg} ${det}`;
+        const isSuccess = /Switch Digital - Enviado|Enviado para\s+\d+/i.test(txt);
+        const isNotInit = /ERR_WAPP_NOT_INITIALIZED|WAPP_NOT_INITIALIZED/i.test(txt);
+        if (!isSuccess && !isNotInit) return false;
+        return true;
+      });
+
+      if (eventoDecisivo) {
+        const titulo = String(eventoDecisivo.TITULO ?? eventoDecisivo.titulo ?? '');
+        const msg = String(eventoDecisivo.MENSAGEM ?? eventoDecisivo.mensagem ?? '');
+        const det = String(eventoDecisivo.DETALHES ?? eventoDecisivo.detalhes ?? '');
+        const txt = `${titulo} ${msg} ${det}`;
+        const isSuccess = /Switch Digital - Enviado|Enviado para\s+\d+/i.test(txt);
+        const isNotInit = /ERR_WAPP_NOT_INITIALIZED|WAPP_NOT_INITIALIZED/i.test(txt);
+        if (isSuccess) {
+          return res.json({
+            healthy: true,
+            code: 'OK',
+            message: 'Integração Switch Digital apta para disparo da fila.',
+            endpoint
+          });
+        }
+        if (isNotInit) {
+          const dh = eventoDecisivo.DHLOG ?? eventoDecisivo.dhlog;
+          const ts = dh ? new Date(dh).getTime() : NaN;
+          const diffMin = Number.isFinite(ts) ? ((agora - ts) / 60000) : 999;
+          if (Number.isFinite(diffMin) && diffMin <= JANELA_MINUTOS) {
+            return res.status(409).json({
+              healthy: false,
+              code: 'ERR_WAPP_NOT_INITIALIZED',
+              message:
+                'Switch Digital sem sessão ativa de WhatsApp (falha recente). Conecte o WhatsApp no painel da Switch (QR) e dispare de novo em ~1–2 min.',
+              endpoint,
+              retryAfterSeconds: Math.max(5, Math.ceil((JANELA_MINUTOS - diffMin) * 60))
+            });
+          }
+          // Erro antigo: libera nova tentativa (usuário pode já ter reconectado)
+          return res.json({
+            healthy: true,
+            code: 'OK_RETRY_AFTER_WAPP_ERROR',
+            message:
+              'Última falha de sessão WhatsApp já passou. Pode disparar de novo — a Switch precisa estar conectada.',
+            endpoint,
+            lastWappErrorMinutesAgo: Math.round(diffMin)
+          });
+        }
+      }
+
+      // Sem evidência recente de sessão inativa: segue como saudável.
+
+      return res.json({
+        healthy: true,
+        code: 'OK',
+        message: 'Integração Switch Digital apta para disparo da fila.',
+        endpoint
+      });
+    } catch (err) {
+      console.error('[SWITCH DIGITAL] Erro no pré-check de saúde:', err);
+      return res.status(500).json({
+        healthy: false,
+        code: 'SWITCH_HEALTHCHECK_ERROR',
+        message: 'Falha ao verificar saúde da integração Switch Digital.',
+        details: err.message
+      });
+    }
+  },
+
 // Função nova para integrar com Switch Digital
   enviarWebhookSwitchDigital: async (req, res) => {
     try {
@@ -4003,9 +5641,28 @@ const viagemController = {
 
       // 1. Buscar configurações do Switch Digital no banco
       const pool = await poolPromise;
-      const configResult = await pool.request().query(`
+      const tidSwitch = tenantIdForRequest(req);
+
+      const bloqueioConf = await pool
+        .request()
+        .input('IDVIAGEM', sql.Decimal(15, 0), parseFloat(viagemId))
+        .input('TENANT_ID', sql.NVarChar(64), tidSwitch)
+        .query(`
+          SELECT 1 FROM [dbo].[CONVOCACAO]
+          WHERE [IDVIAGEM] = @IDVIAGEM AND [TENANT_ID] = @TENANT_ID AND [STATUS] = 'CONFIRMADA'
+        `);
+      if (bloqueioConf.recordset && bloqueioConf.recordset.length > 0) {
+        return res.status(409).json({
+          error: 'Esta viagem já possui motorista confirmado. Não é possível disparar WhatsApp de convocação para ela.'
+        });
+      }
+      const configResult = await pool
+        .request()
+        .input('tenantId', sql.NVarChar(64), tidSwitch)
+        .query(`
         SELECT "CHAVE", "VALOR" FROM "CONFIGURACAO"
-        WHERE "CHAVE" IN ('switch_digital_endpoint', 'switch_digital_metodo', 'switch_digital_content_type', 'switch_digital_token', 'switch_digital_user_id', 'switch_digital_queue_id', 'switch_digital_send_signature', 'switch_digital_close_ticket', 'moeda_padrao')
+        WHERE "TENANT_ID" = @tenantId
+          AND "CHAVE" IN ('switch_digital_endpoint', 'switch_digital_metodo', 'switch_digital_content_type', 'switch_digital_token', 'switch_digital_user_id', 'switch_digital_queue_id', 'switch_digital_send_signature', 'switch_digital_close_ticket', 'moeda_padrao')
       `);
 
       const config = {
@@ -4030,39 +5687,53 @@ const viagemController = {
           if (k === 'switch_digital_token') config.token = v;
           if (k === 'switch_digital_user_id') config.userId = v;
           if (k === 'switch_digital_queue_id') config.queueId = v;
-          if (k === 'switch_digital_send_signature') config.sendSignature = (v === 'S');
-          if (k === 'switch_digital_close_ticket') config.closeTicket = (v !== 'N');
+          if (k === 'switch_digital_send_signature') config.sendSignature = parseSwitchSendSignatureFromDb(v);
+          if (k === 'switch_digital_close_ticket') config.closeTicket = parseSwitchCloseTicketFromDb(v);
           if (k === 'moeda_padrao') config.moeda = v;
         });
       }
+
+      console.log(
+        '[SWITCH DIGITAL] fila disparos (CONFIGURACAO): sendSignature=%s closeTicket=%s userId=%s queueId=%s',
+        config.sendSignature,
+        config.closeTicket,
+        (config.userId && String(config.userId).trim()) || '(omitido)',
+        (config.queueId && String(config.queueId).trim()) || '(omitido)'
+      );
 
       if (!config.token) {
         return res.status(400).json({ error: 'Token da Switch Digital não configurado. Verifique as Configurações do Sistema.' });
       }
 
-      // URL base para o link de aceitar/recusar (enviado pelo frontend ou env)
-      const baseUrl = (baseUrlBody && String(baseUrlBody).trim()) || process.env.PUBLIC_URL || process.env.APP_URL || 'http://localhost:3000';
+      // URL base para o link de aceitar/recusar (PUBLIC_URL manda se for público; ignora localhost do browser)
+      const baseUrl = resolverBaseUrlPublica(baseUrlBody);
+      console.log('[SWITCH DIGITAL] baseUrl link convocação =', baseUrl, '| body=', baseUrlBody || '(vazio)', '| PUBLIC_URL=', process.env.PUBLIC_URL || '(vazio)');
 
       // 2. Buscar dados da viagem para montar a mensagem completa (formato histórico)
       let viagem = null;
       let pontosParada = [];
       try {
-        const viagemResult = await pool.request().input('IDVIAGEM', sql.Decimal(15, 0), parseFloat(viagemId)).query(`
+        const viagemResult = await pool.request()
+          .input('IDVIAGEM', sql.Decimal(15, 0), parseFloat(viagemId))
+          .input('TENANT_ID', sql.NVarChar(64), tidSwitch)
+          .query(`
           SELECT [v].[IDVIAGEM],[v].[IDROTEIRO],[v].[DTPREVINICIO],[v].[DTPREVFINAL],[v].[VLFRETE],[v].[PESO],[v].[CUBAGEM],[v].[OBSERV],[v].[FGRASTREADO],
             [r].[DSROTEIRO],[cf].[DSCLASSEFROTA],[tv].[CDTIPOVIAGEM],[tv].[DSTIPOVIAGEM],
             [co].[NMCIDADE] AS ORIGEM_CIDADE,[co].[ESTADO] AS ORIGEM_ESTADO,[po].[SGPAIS] AS ORIGEM_PAIS,[po].[DSPAIS] AS ORIGEM_PAIS_NOME,
             [cd].[NMCIDADE] AS DESTINO_CIDADE,[cd].[ESTADO] AS DESTINO_ESTADO,[pd].[SGPAIS] AS DESTINO_PAIS,[pd].[DSPAIS] AS DESTINO_PAIS_NOME,
             upper(COALESCE(NULLIF(TRIM([cg].[RZSOCIAL]), ''), TRIM([cg].[NMFANTASIA]))) AS CONTRATADOR_NOME
           FROM [dbo].[VIAGEMMESTRE] [v]
-          LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
+          LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO] AND ([r].[TENANT_ID] = [v].[TENANT_ID] OR [r].[TENANT_ID] = 'default')
           LEFT JOIN [dbo].[CIDADE] [co] ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
           LEFT JOIN [dbo].[CIDADE] [cd] ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
           LEFT JOIN [dbo].[PAIS] [po] ON [co].[CDPAIS] = [po].[CDPAIS]
           LEFT JOIN [dbo].[PAIS] [pd] ON [cd].[CDPAIS] = [pd].[CDPAIS]
           LEFT JOIN [dbo].[CLASSEFROTA] [cf] ON [v].[CDCLASSEFROTA] = [cf].[CDCLASSEFROTA]
+            AND ([cf].[TENANT_ID] = [v].[TENANT_ID] OR [cf].[TENANT_ID] = 'default')
           LEFT JOIN [dbo].[TIPOVIAGEM] [tv] ON [v].[CDTIPOVIAGEM] = [tv].[CDTIPOVIAGEM]
-          LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [v].[CDCONTRATADOR] = [cg].[CDCADASTRO]
-          WHERE [v].[IDVIAGEM] = @IDVIAGEM
+            AND ([tv].[TENANT_ID] = [v].[TENANT_ID] OR [tv].[TENANT_ID] = 'default')
+          LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [v].[CDCONTRATADOR] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [v].[TENANT_ID]
+          WHERE [v].[IDVIAGEM] = @IDVIAGEM AND [v].[TENANT_ID] = @TENANT_ID
         `);
         if (viagemResult.recordset && viagemResult.recordset[0]) {
           const row = viagemResult.recordset[0];
@@ -4182,6 +5853,7 @@ const viagemController = {
       const resultados = [];
       let sucessos = 0;
       let erros = 0;
+      let filaInterrompidaPorWappNaoInicializado = false;
 
       // Log de início de envio (persistido para aparecer em "Atualizar Logs")
       const idConvRef = (convocacoes[0] && (convocacoes[0].IDCONVOCACAO != null ? convocacoes[0].IDCONVOCACAO : convocacoes[0].idConvocacao)) || null;
@@ -4209,10 +5881,25 @@ const viagemController = {
         }
       }
 
+      let templatesConvocacaoDisparo = {};
+      try {
+        templatesConvocacaoDisparo = await convocacaoMsgTpl.carregarTemplatesConvocacao(pool, tidSwitch);
+      } catch (eTpl) {
+        console.warn('[SWITCH DIGITAL] Não foi possível carregar templates de convocação:', eTpl.message);
+        templatesConvocacaoDisparo = {
+          [convocacaoMsgTpl.CHAVE_DISPARO]: '',
+          [convocacaoMsgTpl.CHAVE_CONF_SELECIONADO]: '',
+          [convocacaoMsgTpl.CHAVE_CONF_NAO_SELECIONADO]: '',
+        };
+      }
+
       // 3. Processar a fila, um a um, com intervalo de 5 segundos
       for (let i = 0; i < convocacoes.length; i++) {
+        if (filaInterrompidaPorWappNaoInicializado) {
+          break;
+        }
         const c = convocacoes[i];
-        const idConvItem = c.IDCONVOCACAO ?? c.idConvocacao ?? c.idconvocacao;
+        const idConvItem = c.IDCONVOCACAO ?? c.idConvocacao ?? c.idconvocacao ?? c.ID_CONVOCACAO;
         
         // Extrair o número limpando caracteres especiais
         let numeroLimpo = (c.FONE1 || c.FONE || c.NRCELULAR || c.CELULAR || '').toString().replace(/\D/g, '');
@@ -4229,50 +5916,31 @@ const viagemController = {
         const pesoEmTon = pesoNum >= 1000 ? pesoNum / 1000 : pesoNum;
         const pesoFmt = pesoEmTon.toFixed(2).replace('.', ',');
         const cubagemFmt = (parseFloat(v.CUBAGEM || 0)).toFixed(2).replace('.', ',');
-        const linkConvocacao = idConvItem ? `${baseUrl.replace(/\/$/, '')}/convocacao/${idConvItem}` : '';
+        const linkConvocacao = resolverLinkConvocacaoParaMensagem(c, baseUrl);
+        if (!linkConvocacao) {
+          console.warn('[SWITCH DIGITAL] Link da convocação vazio — IDCONVOCACAO/LINKCONVOCACAO ausente ou inválido no item da fila.', {
+            idConvocacao: idConvItem,
+            keys: Object.keys(c || {}),
+          });
+        }
 
         // Mensagem padronizada: saudação + CARGA DISPONÍVEL (tipo com código, rota, país, pontos de parada) + link
         const nomeMotoristaConv = (c.NOME_MOTORISTA || 'Motorista').toString().trim();
         const tipoViagemFmt = [v.CDTIPOVIAGEM, v.DSTIPOVIAGEM].filter(Boolean).join(' - ') || (v.DSTIPOVIAGEM || 'Não informado');
         const rotaLinha = v.DSROTEIRO || `${(v.ORIGEM_CIDADE || '').trim()} -> ${(v.DESTINO_CIDADE || '').trim()}`.trim() || 'Não informado';
-        let textoWhatsApp = `Olá *${nomeMotoristaConv}*, como está? Você está sendo convocado para uma viagem.\n\n`;
-        textoWhatsApp += `  *CARGA DISPONÍVEL*\n\n`;
-        textoWhatsApp += `  ID: ${v.IDVIAGEM || viagemId}\n`;
-        textoWhatsApp += `  Tipo: ${tipoViagemFmt}\n`;
-        textoWhatsApp += `  Classe: ${v.DSCLASSEFROTA || 'Não informado'}\n`;
-        textoWhatsApp += `  Rota: ${rotaLinha}\n`;
-        if (v.ORIGEM_PAIS || v.DESTINO_PAIS) {
-          textoWhatsApp += `  País: ${(v.ORIGEM_PAIS || '-').toString().trim()} → ${(v.DESTINO_PAIS || '-').toString().trim()}\n`;
-        }
-        if (pontosParada && pontosParada.length > 0) {
-          textoWhatsApp += `  *Pontos de parada:*\n`;
-          pontosParada.forEach(pt => {
-            const partes = [pt.pais, pt.estado, pt.cidade].filter(Boolean);
-            textoWhatsApp += `  • ${partes.length ? partes.join(', ') : '—'}\n`;
-          });
-          textoWhatsApp += `\n`;
-        } else {
-          textoWhatsApp += `\n`;
-        }
-        textoWhatsApp += `  *HORÁRIOS*\n`;
-        textoWhatsApp += `  Carregamento: ${formatarDataHora(v.DTPREVINICIO)}\n`;
-        textoWhatsApp += `  Descarga: ${formatarDataHora(v.DTPREVFINAL)}\n\n`;
-        if (v.FGRASTREADO === 'S') {
-          textoWhatsApp += `  *REQUISITOS*\n`;
-          textoWhatsApp += `  ✅ Exige veículo rastreado: SIM\n\n`;
-        }
-        textoWhatsApp += `  *CONTRATADOR*\n`;
-        textoWhatsApp += `${v.CONTRATADOR_NOME || 'Não informado'}\n\n`;
-        textoWhatsApp += `  *VALORES*\n`;
-        textoWhatsApp += `  Frete: ${valorFreteFmt}\n`;
-        textoWhatsApp += `  Peso: ${pesoFmt} ton\n`;
-        textoWhatsApp += `  Cubagem: ${cubagemFmt} m³\n\n`;
-        if (v.OBSERV && String(v.OBSERV).trim()) {
-          textoWhatsApp += `  *DETALHES DA VIAGEM*\n`;
-          textoWhatsApp += `${String(v.OBSERV).trim()}\n\n`;
-        }
-        textoWhatsApp += `  Acesse o link para mais detalhes:\n\n`;
-        textoWhatsApp += `${linkConvocacao}\n\n`;
+        const textoWhatsApp = convocacaoMsgTpl.resolverCorpoDisparo(templatesConvocacaoDisparo, {
+          nomeMotoristaConv,
+          viagemId,
+          v,
+          tipoViagemFmt,
+          rotaLinha,
+          pontosParada,
+          formatarDataHora,
+          valorFreteFmt,
+          pesoFmt,
+          cubagemFmt,
+          linkConvocacao,
+        });
 
         // Montar Payload Switch Digital
         const requestBody = {
@@ -4310,6 +5978,14 @@ const viagemController = {
           let responseData;
           try { responseData = JSON.parse(responseText); } catch(e) { responseData = responseText; }
 
+          const normalizarErroSwitch = (input) => {
+            let txt = input != null ? String(input) : '';
+            if (!txt) return txt;
+            // Evitar exibir "Atendente: undefined/null" para o usuário.
+            txt = txt.replace(/Atendente:\s*(undefined|null)\b/gi, 'Atendente: não informado');
+            return txt;
+          };
+
           if (switchRes.ok) {
             sucessos++;
             resultados.push({ idConvocacao: idConvItem, status: 'sucesso', tempo: tempo, api: responseData });
@@ -4322,22 +5998,39 @@ const viagemController = {
             // Atualizar DHENVIOMETA apenas quando envio foi sucesso (motorista acionado)
             if (idConvItem != null && idConvItem !== '') {
             try {
-               await pool.request()
-                 .input('id', sql.Int, idConvItem)
-                 .query(`UPDATE [dbo].[CONVOCACAO] SET [DHENVIOMETA] = GETDATE(), [DHMAINTENANCE] = GETDATE() WHERE [IDCONVOCACAO] = @id`);
+              const tidSw = (c.TENANT_ID != null && String(c.TENANT_ID).trim() !== '')
+                ? String(c.TENANT_ID).trim()
+                : (c.tenant_id != null && String(c.tenant_id).trim() !== '')
+                  ? String(c.tenant_id).trim()
+                  : tenantIdForRequest(req);
+              await pool.request()
+                .input('id', sql.Int, idConvItem)
+                .input('TENANT_ID', sql.NVarChar(64), tidSw)
+                .query(
+                  `UPDATE [dbo].[CONVOCACAO] SET [DHENVIOMETA] = GETDATE(), [DHMAINTENANCE] = GETDATE() WHERE [IDCONVOCACAO] = @id AND [TENANT_ID] = @TENANT_ID`
+                );
             } catch(e) {}
             }
 
           } else {
             erros++;
-            const rawError = typeof responseData === 'object' ? (responseData.message || responseData.error || JSON.stringify(responseData)) : String(responseData);
+            if (responseData && typeof responseData === 'object') {
+              if (responseData.error) responseData.error = normalizarErroSwitch(responseData.error);
+              if (responseData.message) responseData.message = normalizarErroSwitch(responseData.message);
+            }
+            const rawError = typeof responseData === 'object'
+              ? normalizarErroSwitch(responseData.message || responseData.error || JSON.stringify(responseData))
+              : normalizarErroSwitch(responseData);
             const mensagemAmigavel = (() => {
-              const txt = (typeof responseData === 'object' && responseData.error ? responseData.error : rawError) || '';
+              const txt = normalizarErroSwitch((typeof responseData === 'object' && responseData.error ? responseData.error : rawError) || '');
               if (/ticket em outro atendimento|em outro atendimento/i.test(txt)) {
                 return `Número ${numeroLimpo}: não foi possível enviar — já existe conversa em aberto com este contato no atendimento. Feche ou transfira o atendimento no painel da Switch Digital antes de reenviar.`;
               }
               if (/conversa em aberto|conversation already open/i.test(txt)) {
                 return `Número ${numeroLimpo}: conversa já em aberto com este contato. Encerre ou transfira no painel antes de reenviar.`;
+              }
+              if (/ERR_WAPP_NOT_INITIALIZED|WAPP_NOT_INITIALIZED/i.test(txt)) {
+                return `Número ${numeroLimpo}: integração Switch Digital sem sessão ativa de WhatsApp (ERR_WAPP_NOT_INITIALIZED). Inicialize/conecte o WhatsApp no painel da Switch Digital e tente novamente.`;
               }
               return `Número ${numeroLimpo}: ${txt.substring(0, 300)}`;
             })();
@@ -4346,6 +6039,12 @@ const viagemController = {
             logStatusHttp = switchRes.status;
             logTempoResposta = tempo;
             logDetalhesJson = typeof responseData === 'object' ? JSON.stringify(responseData) : String(responseData);
+
+            // Quando a sessão WhatsApp não está inicializada na Switch, interromper a fila evita
+            // múltiplas tentativas inúteis com o mesmo erro para os próximos motoristas.
+            if (/ERR_WAPP_NOT_INITIALIZED|WAPP_NOT_INITIALIZED/i.test(rawError || '')) {
+              filaInterrompidaPorWappNaoInicializado = true;
+            }
           }
         } catch (errApi) {
           erros++;
@@ -4403,6 +6102,29 @@ const viagemController = {
         // Aguardar intervalo antes do próximo envio (evita bloqueio e respeita fila)
         if (i < convocacoes.length - 1) {
           await sleep(INTERVALO_ENTRE_ENVIOS_MS);
+        }
+      }
+
+      // Registrar convocações restantes como não processadas quando a fila foi interrompida
+      // por indisponibilidade da sessão WhatsApp na Switch Digital.
+      if (filaInterrompidaPorWappNaoInicializado) {
+        const idsJaProcessados = new Set(
+          resultados
+            .map(r => r && (r.idConvocacao != null ? String(r.idConvocacao) : null))
+            .filter(Boolean)
+        );
+        for (const cRest of convocacoes) {
+          const idRest = cRest.IDCONVOCACAO ?? cRest.idConvocacao ?? cRest.idconvocacao ?? cRest.ID_CONVOCACAO;
+          const idRestStr = idRest != null ? String(idRest) : null;
+          if (idRestStr && idsJaProcessados.has(idRestStr)) continue;
+          erros++;
+          resultados.push({
+            idConvocacao: idRest,
+            status: 'erro',
+            httpStatus: 503,
+            detalhe: { error: 'ERR_WAPP_NOT_INITIALIZED' },
+            mensagemAmigavel: 'Fila interrompida: Switch Digital sem sessão ativa de WhatsApp (ERR_WAPP_NOT_INITIALIZED). Inicialize/conecte o WhatsApp no painel da Switch Digital e reenfileire os envios.'
+          });
         }
       }
 
@@ -4480,14 +6202,18 @@ const viagemController = {
 
       // Verificar se a convocação existe e obter STATUS atual
       const checkResult = await request.query(`
-        SELECT [IDCONVOCACAO], [STATUS] FROM [dbo].[CONVOCACAO] WHERE [IDCONVOCACAO] = @IDCONVOCACAO
+        SELECT [IDCONVOCACAO], [STATUS], [TENANT_ID] FROM [dbo].[CONVOCACAO] WHERE [IDCONVOCACAO] = @IDCONVOCACAO
       `);
 
       if (checkResult.recordset.length === 0) {
         return res.status(404).json({ error: 'Convocação não encontrada.' });
       }
 
-      const statusAtual = checkResult.recordset[0].STATUS;
+      const rowCb = checkResult.recordset[0];
+      const statusAtual = rowCb.STATUS;
+      const rawTidCb = rowCb.TENANT_ID ?? rowCb.tenant_id;
+      const tidWebhookConv =
+        rawTidCb != null && String(rawTidCb).trim() !== '' ? String(rawTidCb).trim() : getDefaultTenantId();
 
       // Determinar STATUS baseado nos dados recebidos
       // Se CDMOTIVORECUSA foi enviado, significa que foi RECUSADA
@@ -4514,7 +6240,8 @@ const viagemController = {
       // Montar query de atualização dinamicamente
       let updateFields = [];
       const updateRequest = pool.request()
-        .input('IDCONVOCACAO', sql.Int, parseInt(IDCONVOCACAO));
+        .input('IDCONVOCACAO', sql.Int, parseInt(IDCONVOCACAO))
+        .input('TENANT_ID', sql.NVarChar(64), tidWebhookConv);
 
       // Sempre atualizar DHRESPOSTA quando houver retorno (colunas entre colchetes para PostgreSQL)
       updateFields.push('[DHRESPOSTA] = GETDATE()');
@@ -4547,7 +6274,7 @@ const viagemController = {
       const updateQuery = `
         UPDATE [dbo].[CONVOCACAO]
         SET ${updateFields.join(', ')}
-        WHERE [IDCONVOCACAO] = @IDCONVOCACAO
+        WHERE [IDCONVOCACAO] = @IDCONVOCACAO AND [TENANT_ID] = @TENANT_ID
       `;
 
       const result = await updateRequest.query(updateQuery);
@@ -4598,19 +6325,61 @@ const viagemController = {
     }
   },
 
-  // Buscar histórico de viagens por roteiro
+  // Buscar histórico de viagens por roteiro (modo roteiro) ou referência regional (UF/mesorregião dos cadastros ROTEIRO → CIDADE)
   buscarHistoricoRoteiro: async (req, res) => {
     try {
-      const { idRoteiro } = req.query;
+      const modoRaw = (req.query.modo || 'roteiro').toString().toLowerCase().trim();
+      const modo = modoRaw === 'regional' ? 'regional' : 'roteiro';
+      const idRoteiro = req.query.idRoteiro != null && String(req.query.idRoteiro).trim() !== '' ? parseInt(req.query.idRoteiro, 10) : null;
+      const ufOrigem = req.query.ufOrigem ? String(req.query.ufOrigem).trim().toUpperCase().substring(0, 2) : '';
+      const ufDestino = req.query.ufDestino ? String(req.query.ufDestino).trim().toUpperCase().substring(0, 2) : '';
 
-      if (!idRoteiro) {
-        return res.status(400).json({ error: 'ID do Roteiro é obrigatório' });
+      function parseMesoKey(raw) {
+        if (raw == null || String(raw).trim() === '') return null;
+        const s = String(raw).trim();
+        const idx = s.indexOf('_');
+        if (idx < 1) return null;
+        const a = parseInt(s.slice(0, idx), 10);
+        const b = parseInt(s.slice(idx + 1), 10);
+        if (Number.isNaN(a) || Number.isNaN(b)) return null;
+        return { cduf: a, cdmeso: b };
+      }
+
+      const mesoOrigem = parseMesoKey(req.query.mesoOrigem);
+      const mesoDestino = parseMesoKey(req.query.mesoDestino);
+
+      const temFiltroRegional = !!(ufOrigem || ufDestino || mesoOrigem || mesoDestino);
+
+      if (modo === 'roteiro') {
+        if (!idRoteiro || Number.isNaN(idRoteiro)) {
+          return res.status(400).json({ error: 'ID do Roteiro é obrigatório no modo roteiro.' });
+        }
+      } else {
+        if (!temFiltroRegional) {
+          return res.status(400).json({
+            error: 'No modo regional, informe ao menos UF origem, UF destino ou uma mesorregião (origem e/ou destino).'
+          });
+        }
       }
 
       const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
 
-      // Query principal para buscar as viagens do roteiro
-      const viagensQuery = `
+      const joinsGeo = `
+        LEFT JOIN [dbo].[ROTEIRO] [R] ON [VM].[IDROTEIRO] = [R].[IDROTEIRO]
+          AND ([R].[TENANT_ID] = [VM].[TENANT_ID] OR [R].[TENANT_ID] = 'default')
+        LEFT JOIN [dbo].[CIDADE] [CO] ON [R].[CDCIDADEORIGEM] = [CO].[CDCIDADE]
+        LEFT JOIN [dbo].[CIDADE] [CD] ON [R].[CDCIDADEDESTINO] = [CD].[CDCIDADE]
+      `;
+
+      const selectGeo = `
+          , [R].[DSROTEIRO] AS [DSROTEIRO_NOME]
+          , [R].[IDROTEIRO] AS [IDROTEIRO_REF]
+          , [CO].[ESTADO] AS [UF_ORIGEM]
+          , [CD].[ESTADO] AS [UF_DESTINO]
+      `;
+
+      const viagensSelectCore = `
         SELECT 
           [VM].[IDVIAGEM],
           [TV].[DSTIPOVIAGEM],
@@ -4625,30 +6394,85 @@ const viagemController = {
           [VM].[FGRASTREADO],
           (SELECT UPPER([M].[RZSOCIAL])
            FROM [dbo].[VIAGEMMOTORISTA] [V]
-           INNER JOIN [dbo].[CADASTROGERAL] [M] ON [V].[CDMOTORISTA] = [M].[CDCADASTRO]
+           INNER JOIN [dbo].[CADASTROGERAL] [M] ON [V].[CDMOTORISTA] = [M].[CDCADASTRO] AND [M].[TENANT_ID] = [VM].[TENANT_ID]
            WHERE [V].[IDVIAGEM] = [VM].[IDVIAGEM] LIMIT 1) AS MOTORISTA,
           (SELECT [M].[NRCELULAR]
            FROM [dbo].[VIAGEMMOTORISTA] [V]
-           INNER JOIN [dbo].[CADASTROGERAL] [M] ON [V].[CDMOTORISTA] = [M].[CDCADASTRO]
+           INNER JOIN [dbo].[CADASTROGERAL] [M] ON [V].[CDMOTORISTA] = [M].[CDCADASTRO] AND [M].[TENANT_ID] = [VM].[TENANT_ID]
            WHERE [V].[IDVIAGEM] = [VM].[IDVIAGEM] LIMIT 1) AS CELMOTORISTA,
           (SELECT [V].[CDMOTORISTA]
            FROM [dbo].[VIAGEMMOTORISTA] [V]
            WHERE [V].[IDVIAGEM] = [VM].[IDVIAGEM] LIMIT 1) AS CDMOTORISTA
+          ${selectGeo}
         FROM [dbo].[VIAGEMMESTRE] [VM]
         LEFT JOIN [dbo].[SITUACAOVIAGEM] [SV] ON [VM].[CDSITUACAOVIAGEM] = [SV].[CDSITUACAOVIAGEM]
+          AND ([SV].[TENANT_ID] = [VM].[TENANT_ID] OR [SV].[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[TIPOVIAGEM] [TV] ON [VM].[CDTIPOVIAGEM] = [TV].[CDTIPOVIAGEM]
+          AND ([TV].[TENANT_ID] = [VM].[TENANT_ID] OR [TV].[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[CLASSEFROTA] [CF] ON [VM].[CDCLASSEFROTA] = [CF].[CDCLASSEFROTA]
-        LEFT JOIN [dbo].[CADASTROGERAL] [CT] ON [VM].[CDCONTRATADOR] = [CT].[CDCADASTRO]
-        WHERE [VM].[IDROTEIRO] = @IDROTEIRO
-        ORDER BY [VM].[DTPREVINICIO] DESC, [VM].[IDVIAGEM]
+          AND ([CF].[TENANT_ID] = [VM].[TENANT_ID] OR [CF].[TENANT_ID] = 'default')
+        LEFT JOIN [dbo].[CADASTROGERAL] [CT] ON [VM].[CDCONTRATADOR] = [CT].[CDCADASTRO] AND [CT].[TENANT_ID] = [VM].[TENANT_ID]
+        ${joinsGeo}
       `;
 
+      let viagensQuery;
       const request = pool.request();
-      request.input('IDROTEIRO', sql.Int, parseInt(idRoteiro));
+      request.input('TENANT_ID', sql.NVarChar(64), tid);
+
+      if (modo === 'roteiro') {
+        viagensQuery =
+          viagensSelectCore +
+          ` WHERE [VM].[IDROTEIRO] = @IDROTEIRO AND [VM].[TENANT_ID] = @TENANT_ID
+        ORDER BY [VM].[DTPREVINICIO] DESC, [VM].[IDVIAGEM]`;
+        request.input('IDROTEIRO', sql.Int, idRoteiro);
+      } else {
+        const parts = ['[VM].[TENANT_ID] = @TENANT_ID'];
+        if (ufOrigem) {
+          parts.push(
+            '[CO].[CDCIDADE] IS NOT NULL AND UPPER(TRIM([CO].[ESTADO])) = @UF_ORIGEM'
+          );
+          request.input('UF_ORIGEM', sql.NVarChar(4), ufOrigem);
+        }
+        if (ufDestino) {
+          parts.push(
+            '[CD].[CDCIDADE] IS NOT NULL AND UPPER(TRIM([CD].[ESTADO])) = @UF_DESTINO'
+          );
+          request.input('UF_DESTINO', sql.NVarChar(4), ufDestino);
+        }
+        if (mesoOrigem) {
+          parts.push(
+            '[CO].[CDCIDADE] IS NOT NULL AND [CO].[CDUF] = @MESO_ORI_UF AND [CO].[CDMESOREGIAO] = @MESO_ORI_REG'
+          );
+          request.input('MESO_ORI_UF', sql.Int, mesoOrigem.cduf);
+          request.input('MESO_ORI_REG', sql.Int, mesoOrigem.cdmeso);
+        }
+        if (mesoDestino) {
+          parts.push(
+            '[CD].[CDCIDADE] IS NOT NULL AND [CD].[CDUF] = @MESO_DST_UF AND [CD].[CDMESOREGIAO] = @MESO_DST_REG'
+          );
+          request.input('MESO_DST_UF', sql.Int, mesoDestino.cduf);
+          request.input('MESO_DST_REG', sql.Int, mesoDestino.cdmeso);
+        }
+        viagensQuery =
+          viagensSelectCore +
+          ` WHERE ${parts.join(' AND ')}
+        ORDER BY [VM].[DTPREVINICIO] DESC, [VM].[IDVIAGEM]`;
+      }
+
       const result = await request.query(viagensQuery);
 
-      // Query para resumo por classe de frota
-      const resumoQuery = `
+      let resumoQuery;
+      const resumoRequest = pool.request();
+      resumoRequest.input('TENANT_ID', sql.NVarChar(64), tid);
+
+      const joinsGeoResumo = `
+        LEFT JOIN [dbo].[ROTEIRO] [R] ON [VM].[IDROTEIRO] = [R].[IDROTEIRO]
+          AND ([R].[TENANT_ID] = [VM].[TENANT_ID] OR [R].[TENANT_ID] = 'default')
+        LEFT JOIN [dbo].[CIDADE] [CO] ON [R].[CDCIDADEORIGEM] = [CO].[CDCIDADE]
+        LEFT JOIN [dbo].[CIDADE] [CD] ON [R].[CDCIDADEDESTINO] = [CD].[CDCIDADE]
+      `;
+
+      const resumoCore = `
         SELECT 
           [CF].[CDCLASSEFROTA],
           [CF].[DSCLASSEFROTA],
@@ -4659,13 +6483,52 @@ const viagemController = {
           SUM([VM].[PESO]) AS PESO_TOTAL
         FROM [dbo].[VIAGEMMESTRE] [VM]
         LEFT JOIN [dbo].[CLASSEFROTA] [CF] ON [VM].[CDCLASSEFROTA] = [CF].[CDCLASSEFROTA]
-        WHERE [VM].[IDROTEIRO] = @IDROTEIRO
-        GROUP BY [CF].[CDCLASSEFROTA], [CF].[DSCLASSEFROTA]
-        ORDER BY [CF].[DSCLASSEFROTA]
+          AND ([CF].[TENANT_ID] = [VM].[TENANT_ID] OR [CF].[TENANT_ID] = 'default')
+        ${joinsGeoResumo}
       `;
 
-      const resumoRequest = pool.request();
-      resumoRequest.input('IDROTEIRO', sql.Int, parseInt(idRoteiro));
+      if (modo === 'roteiro') {
+        resumoQuery =
+          resumoCore +
+          ` WHERE [VM].[IDROTEIRO] = @IDROTEIRO AND [VM].[TENANT_ID] = @TENANT_ID
+        GROUP BY [CF].[CDCLASSEFROTA], [CF].[DSCLASSEFROTA]
+        ORDER BY [CF].[DSCLASSEFROTA]`;
+        resumoRequest.input('IDROTEIRO', sql.Int, idRoteiro);
+      } else {
+        const partsR = ['[VM].[TENANT_ID] = @TENANT_ID'];
+        if (ufOrigem) {
+          partsR.push(
+            '[CO].[CDCIDADE] IS NOT NULL AND UPPER(TRIM([CO].[ESTADO])) = @UF_ORIGEM'
+          );
+          resumoRequest.input('UF_ORIGEM', sql.NVarChar(4), ufOrigem);
+        }
+        if (ufDestino) {
+          partsR.push(
+            '[CD].[CDCIDADE] IS NOT NULL AND UPPER(TRIM([CD].[ESTADO])) = @UF_DESTINO'
+          );
+          resumoRequest.input('UF_DESTINO', sql.NVarChar(4), ufDestino);
+        }
+        if (mesoOrigem) {
+          partsR.push(
+            '[CO].[CDCIDADE] IS NOT NULL AND [CO].[CDUF] = @MESO_ORI_UF AND [CO].[CDMESOREGIAO] = @MESO_ORI_REG'
+          );
+          resumoRequest.input('MESO_ORI_UF', sql.Int, mesoOrigem.cduf);
+          resumoRequest.input('MESO_ORI_REG', sql.Int, mesoOrigem.cdmeso);
+        }
+        if (mesoDestino) {
+          partsR.push(
+            '[CD].[CDCIDADE] IS NOT NULL AND [CD].[CDUF] = @MESO_DST_UF AND [CD].[CDMESOREGIAO] = @MESO_DST_REG'
+          );
+          resumoRequest.input('MESO_DST_UF', sql.Int, mesoDestino.cduf);
+          resumoRequest.input('MESO_DST_REG', sql.Int, mesoDestino.cdmeso);
+        }
+        resumoQuery =
+          resumoCore +
+          ` WHERE ${partsR.join(' AND ')}
+        GROUP BY [CF].[CDCLASSEFROTA], [CF].[DSCLASSEFROTA]
+        ORDER BY [CF].[DSCLASSEFROTA]`;
+      }
+
       const resumoResult = await resumoRequest.query(resumoQuery);
 
       // Formatar resumo (compatível com SQL Server maiúsculas e PostgreSQL minúsculas)
@@ -4693,6 +6556,18 @@ const viagemController = {
         };
       });
 
+      const partesCriterio = [];
+      if (modo === 'regional') {
+        if (ufOrigem) partesCriterio.push(`UF origem ${ufOrigem}`);
+        if (ufDestino) partesCriterio.push(`UF destino ${ufDestino}`);
+        if (mesoOrigem) partesCriterio.push(`Mesorregião origem (${mesoOrigem.cduf}/${mesoOrigem.cdmeso})`);
+        if (mesoDestino) partesCriterio.push(`Mesorregião destino (${mesoDestino.cduf}/${mesoDestino.cdmeso})`);
+      }
+      const criterioDescricao =
+        modo === 'roteiro'
+          ? `Roteiro ID ${idRoteiro}`
+          : `Referência regional: ${partesCriterio.join(' · ') || '—'}`;
+
       // Formatar viagens (compatível com SQL Server maiúsculas e PostgreSQL minúsculas)
       const viagens = result.recordset.map(viagem => {
         const v = (key, def) => (viagem[key] ?? viagem[key?.toLowerCase?.()] ?? def);
@@ -4709,12 +6584,18 @@ const viagemController = {
           rastreado: (v('FGRASTREADO', '') === 'S' || v('FGRASTREADO', '') === 's') ? 'Sim' : 'Não',
           motorista: v('MOTORISTA', null) || 'Não Informado',
           celMotorista: v('CELMOTORISTA', null),
-          cdMotorista: v('CDMOTORISTA', null)
+          cdMotorista: v('CDMOTORISTA', null),
+          nomeRoteiro: v('DSROTEIRO_NOME', null),
+          idRoteiro: v('IDROTEIRO_REF', null),
+          ufOrigemRoteiro: v('UF_ORIGEM', null),
+          ufDestinoRoteiro: v('UF_DESTINO', null)
         };
       });
 
       res.json({
         success: true,
+        modo,
+        criterioDescricao,
         totalRegistros: viagens.length,
         viagens: viagens,
         resumo: resumo

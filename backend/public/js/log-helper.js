@@ -288,7 +288,27 @@
   // Interceptação automática de eventos
   // ============================================
 
-  // Interceptar cliques em TODOS os botões e links de ação
+  /**
+   * Não registrar clique: menu lateral, cabeçalho (exceto Sair), abas de módulo,
+   * barra padrão Limpar/Filtrar/Novo — a abertura do programa já vai em logAberturaTela.
+   */
+  function shouldSkipAutomatedActionLogging(el) {
+    if (!el || typeof el.closest !== 'function') return true;
+    if (el.closest('.sidebar')) return true;
+    if (el.closest('.header') && !(el.id === 'logoutBtn' || el.closest('#logoutBtn'))) return true;
+    if (el.classList && el.classList.contains('tab-btn')) return true;
+    if (el.closest && el.closest('.tab-btn')) return true;
+    if (el.classList && (
+      el.classList.contains('btn-filtro') ||
+      el.classList.contains('btn-filtro-limpar') ||
+      el.classList.contains('btn-filtro-aplicar') ||
+      el.classList.contains('btn-filtro-novo')
+    )) return true;
+    if (el.closest && el.closest('.filtros-actions')) return true;
+    return false;
+  }
+
+  // Interceptar cliques em botões e links de ação (exclui navegação de UI)
   document.addEventListener('click', function(e) {
     const target = e.target;
     
@@ -313,6 +333,7 @@
     }
     
     if (!button) return;
+    if (shouldSkipAutomatedActionLogging(button)) return;
     
     // Obter texto do botão (remover espaços e quebras de linha)
     let text = button.textContent.trim().replace(/\s+/g, ' ');
@@ -464,10 +485,13 @@
     });
   }, true);
 
-  // Interceptar submissão de formulários
+  // Interceptar submissão de formulários (exceto filtros locais do dashboard)
   document.addEventListener('submit', function(e) {
     const form = e.target;
     if (form.tagName === 'FORM') {
+      if (form.id === 'filtroForm' || form.closest('.filtros-box') || form.getAttribute('data-no-audit-log') === 'true') {
+        return;
+      }
       // Obter módulo atual (mesma lógica dos botões)
       let modulo = 'desconhecido';
       if (window.currentModule) {

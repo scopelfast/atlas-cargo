@@ -1,5 +1,6 @@
 // backend/models/usuariologacao.model.js
 const { poolPromise } = require('../config/db');
+const { getDefaultTenantId } = require('../middleware/tenant.middleware');
 
 /**
  * Registrar ação do usuário
@@ -19,11 +20,15 @@ async function registrarAcao(dados) {
   try {
     const pool = await poolPromise;
     const detalhesJson = dados.detalhes ? JSON.stringify(dados.detalhes) : null;
+    const tid =
+      dados.tenantId != null && String(dados.tenantId).trim() !== ''
+        ? String(dados.tenantId).trim()
+        : getDefaultTenantId();
     const result = await pool.query(
       `INSERT INTO "USUARIOLOGACAO" (
         "SGUSUARIO", "DHAÇÃO", "TIPOACAO", "MODULO", "DESCRICAO", "DETALHES",
-        "IDREGISTRO", "TABELA", "IP", "USERAGENT", "DHMAINTENANCE"
-      ) VALUES ($1, CURRENT_TIMESTAMP, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
+        "IDREGISTRO", "TABELA", "IP", "USERAGENT", "DHMAINTENANCE", "TENANT_ID"
+      ) VALUES ($1, CURRENT_TIMESTAMP, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, $10)
       RETURNING "ID"`,
       [
         dados.sgUsuario,
@@ -34,7 +39,8 @@ async function registrarAcao(dados) {
         dados.idRegistro || null,
         dados.tabela || null,
         dados.ip || null,
-        dados.userAgent || null
+        dados.userAgent || null,
+        tid
       ]
     );
     return result.rows[0]?.ID ?? null;

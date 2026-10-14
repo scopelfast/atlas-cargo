@@ -10,6 +10,17 @@
   const modal = document.getElementById('confirmModal');
   let gridTab = null;
   let lastClasses = null; // cache dos últimos resultados do filtro
+
+  function getAuthHeaders(extra = {}) {
+    const headers = { ...extra };
+    const token = localStorage.getItem('token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      if (user && (user.login || user.SGUSUARIO)) headers['user-login'] = user.login || user.SGUSUARIO;
+    } catch (e) {}
+    return headers;
+  }
   
   let sqlExecutado = false;
   let initExecutado = false;
@@ -106,7 +117,7 @@
       try {
         execResponse = await fetch('/api/classes-frota/executar-init-sql', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({ sql: sqlLimpo }),
           signal: AbortSignal.timeout(120000)
         });
@@ -252,7 +263,7 @@
     if (situacao) params.append('situacao', situacao);
     
     try {
-      const response = await fetch(`/api/classes-frota?${params.toString()}`);
+      const response = await fetch(`/api/classes-frota?${params.toString()}`, { headers: getAuthHeaders() });
       const classes = await response.json();
 
       // salvar cache de resultados
@@ -439,6 +450,7 @@
         }
       ],
       apiEndpoint: '/api/classes-frota',
+      buildFetchHeaders: () => getAuthHeaders(),
       // Ao clicar em editar dentro do Grid, abrir o formulário de edição (mesmo comportamento da lista)
       onBeforeEdit: async (id) => {
         await loadClasseParaEdicao(id);
@@ -470,9 +482,13 @@
         classeForm.reset();
       }
       
-      const response = await fetch(`/api/classes-frota`);
-      const classes = await response.json();
-      const classe = classes.find(c => c.CDCLASSEFROTA.toString() === id.toString());
+      const response = await fetch(`/api/classes-frota/${encodeURIComponent(id)}`, { headers: getAuthHeaders() });
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        showMessage(errBody.error || t('web.modulos.classesFrota.erroCarregarDados'), 'error');
+        return;
+      }
+      const classe = await response.json();
       
       if (classe) {
         document.getElementById('classeCodigo').value = classe.CDCLASSEFROTA;
@@ -509,7 +525,7 @@
     try {
       // Buscar o status atual da classe
       const idToCheck = isNaN(idStr) ? idStr : parseInt(idStr, 10);
-      const response = await fetch(`/api/classes-frota/${idToCheck}`);
+      const response = await fetch(`/api/classes-frota/${idToCheck}`, { headers: getAuthHeaders() });
       if (!response.ok) {
         throw new Error('Erro ao buscar classe');
       }
@@ -558,7 +574,8 @@
           
           const idToDelete = isNaN(deleteId) ? deleteId : parseInt(deleteId, 10);
           const response = await fetch(`/api/classes-frota/${idToDelete}?action=${acao}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getAuthHeaders()
           });
           
           const data = await response.json();
@@ -637,13 +654,13 @@
         classeData.FGACTIVE = situacao;
         response = await fetch(`/api/classes-frota/${id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(classeData)
         });
       } else {
         response = await fetch('/api/classes-frota', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(classeData)
         });
       }

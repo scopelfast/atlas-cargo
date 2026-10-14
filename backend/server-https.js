@@ -11,7 +11,7 @@ const path = require('path');
 // Importar app Express existente
 const app = require('./app');
 
-const PORT_HTTP = process.env.PORT || 3000;
+const PORT_HTTP = process.env.PORT || 3001;
 const PORT_HTTPS = process.env.PORT_HTTPS || 3443;
 
 // =============================================
@@ -37,6 +37,27 @@ if (fs.existsSync(sslKeyPath) && fs.existsSync(sslCertPath)) {
       console.log('🔐 SSL ativo!');
       console.log('==============================================');
       console.log('');
+      try {
+        const { startAlertJob, restartAlertJob } = require('./jobs/alertas-viagem-job');
+        const { startWmsRelatorioVencimentoJob } = require('./jobs/wms-relatorio-vencimento-job');
+        const { startWmsCategoriaSugestaoJob } = require('./jobs/wms-categoria-sugestao-job');
+        const { startWmsEstoqueValorSnapshotJob } = require('./jobs/wms-estoque-valor-snapshot-job');
+        const { agendarSincronizarLedgerExpedicaoOnStart } = require('./jobs/wms-sincronizar-ledger-expedicao-job');
+        startAlertJob(app);
+        startWmsRelatorioVencimentoJob();
+        startWmsCategoriaSugestaoJob();
+        startWmsEstoqueValorSnapshotJob();
+        agendarSincronizarLedgerExpedicaoOnStart();
+        app.set('restartAlertJob', () => {
+          try {
+            restartAlertJob(app);
+          } catch (e2) {
+            console.error('❌ Erro ao reiniciar job de alertas:', e2.message);
+          }
+        });
+      } catch (e) {
+        console.error('❌ Não foi possível iniciar o job de alertas:', e.message);
+      }
     });
 
     console.log('✅ Certificados SSL encontrados e carregados!');
@@ -78,6 +99,23 @@ http.createServer((req, res) => {
   console.log(`🔀 Servidor HTTP rodando na porta ${PORT_HTTP} (redireciona para HTTPS)`);
   console.log('');
 });
+
+// =============================================
+// Encerramento — job de alertas (mesmo módulo do server.js)
+// =============================================
+const { stopAlertJob } = require('./jobs/alertas-viagem-job');
+const { stopWmsRelatorioVencimentoJob } = require('./jobs/wms-relatorio-vencimento-job');
+const { stopWmsCategoriaSugestaoJob } = require('./jobs/wms-categoria-sugestao-job');
+const { stopWmsEstoqueValorSnapshotJob } = require('./jobs/wms-estoque-valor-snapshot-job');
+function encerrarJobAlertasHttps() {
+  stopAlertJob();
+  stopWmsRelatorioVencimentoJob();
+  stopWmsCategoriaSugestaoJob();
+  stopWmsEstoqueValorSnapshotJob();
+  console.log('🛑 Job de alertas encerrado');
+}
+process.on('SIGTERM', encerrarJobAlertasHttps);
+process.on('SIGINT', encerrarJobAlertasHttps);
 
 // =============================================
 // Tratamento de Erros

@@ -7,6 +7,14 @@
 
 (function() {
   'use strict';
+
+  function urlHelperDebugLog() {
+    try {
+      return localStorage.getItem('motorista_debug') === '1';
+    } catch (e) {
+      return false;
+    }
+  }
   
   // Se já foi inicializado, não fazer nada
   if (window.__URL_HELPER_INITIALIZED__) {
@@ -134,14 +142,14 @@
     if (typeof input === 'string') {
       if (!input.startsWith('http://') && !input.startsWith('https://')) {
         urlToFetch = window.corrigirUrl(input);
-        console.log(`🔧 [FETCH INTERCEPTOR] Corrigindo URL: ${input} → ${urlToFetch}`);
+        if (urlHelperDebugLog()) console.log('[FETCH INTERCEPTOR]', input, '→', urlToFetch);
       }
     }
     // Se input é um Request object, criar novo com URL corrigida
     else if (input && typeof input === 'object' && input.url) {
       if (!input.url.startsWith('http://') && !input.url.startsWith('https://')) {
         const correctedUrl = window.corrigirUrl(input.url);
-        console.log(`🔧 [FETCH INTERCEPTOR] Corrigindo Request URL: ${input.url} → ${correctedUrl}`);
+        if (urlHelperDebugLog()) console.log('[FETCH INTERCEPTOR] Request', input.url, '→', correctedUrl);
         urlToFetch = new Request(correctedUrl, input);
       } else {
         urlToFetch = input;
@@ -156,7 +164,14 @@
         const isLoginPage = pathname.endsWith('index.html') || pathname.endsWith('/motorista') || pathname.endsWith('/motorista/');
         var urlStr = typeof urlToFetch === 'string' ? urlToFetch : (urlToFetch && urlToFetch.url) ? String(urlToFetch.url) : '';
         var isApiCall = urlStr.indexOf('/api/') !== -1;
-        if (isMotorista && !isLoginPage && isApiCall) {
+        // Evita logout indevido: só derrubar sessão quando o 401 vier de endpoint autenticado do app motorista.
+        // Endpoints auxiliares (contexto, países, catálogos etc.) podem retornar 401 por política do backend e não
+        // devem expulsar o motorista da sessão.
+        var isMotoristaAuthEndpoint =
+          /\/api\/motorista(\/|$)/i.test(urlStr) ||
+          /\/api\/chat(\/|$)/i.test(urlStr) ||
+          /\/api\/messages(\/|$)/i.test(urlStr);
+        if (isMotorista && !isLoginPage && isApiCall && isMotoristaAuthEndpoint) {
           var base = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
           var goLogin = function() {
             localStorage.removeItem('token');
@@ -181,7 +196,7 @@
     });
   };
   
-  console.log('✅ [URL HELPER] Inicializado. Base URL:', baseUrl);
+  if (urlHelperDebugLog()) console.log('[URL HELPER] Base URL:', baseUrl);
 
   // Aplicar tema (claro/escuro/auto) em todas as páginas que carregam este script.
   // No celular: aplicar em documentElement (html) também para primeiro paint e quando body ainda não existe;
@@ -189,6 +204,7 @@
   (function aplicarTemaGlobal() {
     function aplicar(escuro) {
       document.documentElement.classList.toggle('tema-escuro', escuro);
+      document.documentElement.setAttribute('data-theme', escuro ? 'dark' : 'light');
       if (document.body) document.body.classList.toggle('tema-escuro', escuro);
     }
     try {

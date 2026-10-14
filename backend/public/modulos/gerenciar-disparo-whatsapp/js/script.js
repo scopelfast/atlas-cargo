@@ -34,6 +34,7 @@
   const overlayTitle = document.getElementById('dwOverlayTitle');
   const overlayText = document.getElementById('dwOverlayText');
   const overlayDetalhe = document.getElementById('dwOverlayDetalhe');
+  const dwSwitchHealthBadge = document.getElementById('dwSwitchHealthBadge');
 
   let ultimaPrevia = null;
 
@@ -102,6 +103,34 @@
     }
   }
 
+  function setSwitchHealthBadgeDw(status, text) {
+    if (!dwSwitchHealthBadge) return;
+    dwSwitchHealthBadge.classList.remove('dw-switch-badge--ok', 'dw-switch-badge--down', 'dw-switch-badge--loading');
+    if (status === 'ok') dwSwitchHealthBadge.classList.add('dw-switch-badge--ok');
+    else if (status === 'down') dwSwitchHealthBadge.classList.add('dw-switch-badge--down');
+    else dwSwitchHealthBadge.classList.add('dw-switch-badge--loading');
+    dwSwitchHealthBadge.textContent = text || 'Sessão Switch: verificando...';
+  }
+
+  async function refreshSwitchHealthDw() {
+    setSwitchHealthBadgeDw('loading', 'Sessão Switch: verificando...');
+    try {
+      const res = await fetch('/api/viagens/webhook/switch-digital/health', {
+        method: 'POST',
+        headers: getAuthJsonHeaders(),
+        body: JSON.stringify({ origem: 'disparo-whatsapp-oportunidades' })
+      });
+      const data = await parseJsonResponse(res).catch(() => ({}));
+      if (res.ok && data && data.healthy === true) {
+        setSwitchHealthBadgeDw('ok', 'Sessão Switch: ativa');
+      } else {
+        setSwitchHealthBadgeDw('down', 'Sessão Switch: inativa');
+      }
+    } catch (_) {
+      setSwitchHealthBadgeDw('down', 'Sessão Switch: inativa');
+    }
+  }
+
   function escapeHtml(s) {
     if (s == null) return '';
     const d = document.createElement('div');
@@ -117,7 +146,13 @@
       const btnOk = document.getElementById('dwConfirmOk');
       const btnCancel = document.getElementById('dwConfirmCancel');
       if (!modal || !msgEl || !btnOk || !btnCancel) {
-        resolve(window.confirm(String(message || '')));
+        if (typeof window.confirmPadrao === 'function') {
+          window.confirmPadrao(String(message || ''), {
+            title: titleText || 'Confirmar Ação',
+          }).then((ok) => resolve(!!ok));
+        } else {
+          resolve(window.confirm(String(message || '')));
+        }
         return;
       }
       if (titleEl) titleEl.textContent = titleText;
@@ -231,6 +266,7 @@
       showLocalMessage(e.message || tco('erroPreviaHttp'), 'error');
     } finally {
       hideLoading();
+      refreshSwitchHealthDw();
     }
   }
 
@@ -329,4 +365,5 @@
   if (btnLimpar) btnLimpar.addEventListener('click', () => limpar());
 
   applyI18nDwRoot();
+  refreshSwitchHealthDw();
 })();

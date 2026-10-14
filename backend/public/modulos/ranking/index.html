@@ -1,25 +1,26 @@
 <!-- Módulo: Ranking -->
-<!-- Versão: 1.0 - Identidade Atlas Cargo -->
-<!-- Data: 2026-01-18 -->
+<!-- Versão: 1.1 - Driver Score e pontuação por alertas -->
+<!-- Data: 2026-03 -->
 
 <link rel="stylesheet" href="/css/modulos.css">
 <style>
   /* ========== Ranking - Identidade Atlas Cargo ========== */
-  .module-container {
-    padding: 20px;
+  .ranking-container {
+    padding: 24px;
     font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+    max-width: 900px;
   }
 
-  .module-header {
+  .ranking-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 20px;
-    padding-bottom: 15px;
+    margin-bottom: 24px;
+    padding-bottom: 16px;
     border-bottom: 2px solid var(--light-gray, #e2e8f0);
   }
-  
-  .module-header h2 {
+
+  .ranking-header h2 {
     margin: 0;
     color: var(--ac-primary, #0d2137);
     font-size: 24px;
@@ -28,46 +29,118 @@
     align-items: center;
     gap: 10px;
   }
-  
-  .coming-soon {
-    text-align: center;
-    padding: 60px 20px;
-    background: var(--light, #f8fafc);
-    border-radius: 8px;
-    margin-top: 40px;
-    border: 1px solid var(--border, #e2e8f0);
-  }
-  
-  .coming-soon i {
-    font-size: 64px;
+
+  .ranking-header h2 i {
     color: var(--ac-accent, #0ea5e9);
-    margin-bottom: 20px;
   }
-  
-  .coming-soon h3 {
+
+  .ranking-status {
+    padding: 32px 28px;
+    background: var(--light, #f8fafc);
+    border-radius: 12px;
+    border: 1px solid var(--border, #e2e8f0);
+    margin-bottom: 28px;
+  }
+
+  .ranking-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    background: rgba(14, 165, 233, 0.12);
+    color: var(--ac-accent, #0ea5e9);
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 16px;
+  }
+
+  .ranking-status h3 {
     color: var(--ac-primary, #0d2137);
-    margin-bottom: 10px;
+    margin: 0 0 10px 0;
+    font-size: 1.25rem;
     font-weight: 600;
   }
-  
-  .coming-soon p {
+
+  .ranking-status p {
     color: var(--gray, #64748b);
-    font-size: 16px;
+    font-size: 15px;
+    line-height: 1.55;
+    margin: 0 0 12px 0;
   }
+
+  .ranking-status p:last-child {
+    margin-bottom: 0;
+  }
+
+  .ranking-preview {
+    margin-top: 28px;
+    padding: 24px;
+    background: var(--bg-secondary, #f1f5f9);
+    border-radius: 10px;
+    border-left: 4px solid var(--ac-accent, #0ea5e9);
+  }
+
+  .ranking-preview h4 {
+    margin: 0 0 12px 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--ac-primary, #0d2137);
+  }
+
+  .ranking-preview ul {
+    margin: 0;
+    padding-left: 20px;
+    color: var(--gray, #64748b);
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  .ranking-preview ul li {
+    margin-bottom: 4px;
+  }
+
+  .ranking-preview .hint {
+    font-size: 13px;
+    color: var(--gray, #94a3b8);
+    margin-top: 12px;
+  }
+
+  [data-theme="dark"] .ranking-status { background: #0f172a; border-color: #334155; }
+  [data-theme="dark"] .ranking-status h3 { color: #e2e8f0; }
+  [data-theme="dark"] .ranking-status p { color: #94a3b8; }
+  [data-theme="dark"] .ranking-status-badge { background: rgba(56, 189, 248, 0.2); color: #38bdf8; }
+  [data-theme="dark"] .ranking-preview { background: #1e293b; border-left-color: #38bdf8; }
+  [data-theme="dark"] .ranking-preview h4 { color: #e2e8f0; }
+  [data-theme="dark"] .ranking-preview ul { color: #94a3b8; }
+  [data-theme="dark"] .ranking-preview .hint { color: #64748b; }
 </style>
 
-<div class="module-container">
-  <div class="module-header">
-    <h2><i class='bx bx-trophy'></i> <span data-i18n="web.modulos.ranking.titulo">Ranking</span></h2>
+<div class="ranking-container">
+  <div class="ranking-header">
+    <h2><i class="bx bx-trophy"></i> <span data-i18n="web.modulos.ranking.titulo">Ranking</span></h2>
   </div>
-  
-  <div class="coming-soon">
-    <i class='bx bx-trophy'></i>
-    <h3 data-i18n="web.modulos.ranking.emDesenvolvimento">Módulo em Desenvolvimento</h3>
-    <p data-i18n="web.modulos.ranking.emBreve">O módulo de Ranking está sendo desenvolvido e estará disponível em breve.</p>
-    <p style="margin-top: 20px; font-size: 14px; color: var(--gray, #64748b);" data-i18n="web.modulos.ranking.descricao">
-      Este módulo exibirá rankings e métricas de desempenho dos motoristas.
+
+  <div class="ranking-status">
+    <span class="ranking-status-badge"><i class="bx bx-info-circle"></i> <span data-i18n="web.modulos.ranking.emDesenvolvimento">Em desenvolvimento</span></span>
+    <h3 data-i18n="web.modulos.ranking.emBreve">Módulo em construção</h3>
+    <p data-i18n="web.modulos.ranking.descricao">
+      Este módulo exibirá o <strong>ranking de motoristas</strong> com base em uma pontuação de desempenho (Driver Score). A pontuação será calculada a partir dos <strong>alertas</strong> gerados pelo sistema durante as viagens.
     </p>
+    <p data-i18n="web.modulos.ranking.driverScore">
+      Cada motorista receberá uma nota de <strong>0 a 100</strong>. Quanto maior a nota, melhor o desempenho (menos ocorrências de alertas no período). Os critérios e pesos por tipo de alerta serão configuráveis.
+    </p>
+  </div>
+
+  <div class="ranking-preview">
+    <h4 data-i18n="web.modulos.ranking.oQueVira">O que virá neste módulo</h4>
+    <ul>
+      <li data-i18n="web.modulos.ranking.preview1">Ranking ordenado por pontuação (período selecionável: mês, trimestre)</li>
+      <li data-i18n="web.modulos.ranking.preview2">Driver Score por motorista com detalhamento por tipo de alerta</li>
+      <li data-i18n="web.modulos.ranking.preview3">Pesos configuráveis por tipo (ex.: excesso de velocidade, atraso, offline, desvio de rota)</li>
+      <li data-i18n="web.modulos.ranking.preview4">Uso dos dados da tabela de Alertas já gerados pelo sistema</li>
+    </ul>
+    <p class="hint" data-i18n="web.modulos.ranking.previewHint">Documento de apoio: Alertas → RANKING_ALERTAS_PONTUACAO.md (critérios e boas práticas).</p>
   </div>
 </div>
 

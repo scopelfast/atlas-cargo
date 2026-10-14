@@ -8,9 +8,47 @@
 const express = require('express');
 const sql = require('../config/mssql-compat');
 const router = express.Router();
-const { poolPromise, getFirstNumericValue } = require('../config/db');
+const { poolPromise, getFirstNumericValue, createTransaction } = require('../config/db');
 const axios = require('axios');
 const { getReverseGeocodingUrl } = require('../config/nominatim');
+const { towerAuthAndTenant } = require('../middleware/tower-auth-chain.middleware');
+const { tenantIdForRequest } = require('../utils/tenant-context');
+const { getDefaultTenantId } = require('../middleware/tenant.middleware');
+const { seedOrigemDestinoSeVazio } = require('../services/roteiro-pontos-seed.service');
+const { fetchRouteResumoSegment } = require('../services/mapa-rota-fetch.service');
+
+function toNullableNumber(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = parseFloat(String(v).replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+
+router.use(towerAuthAndTenant);
+
+/** Retorna { ok, tenantIdDb } | { error: 'not_found' } | { error: 'forbidden_catalog' } */
+async function assertRoteiroAcesso(pool, idRoteiro, req, { exigeMutacao }) {
+  const tidReq = tenantIdForRequest(req);
+  const result = await pool
+    .request()
+    .input('IDROTEIRO', sql.Decimal(15, 0), parseFloat(idRoteiro))
+    .query(`SELECT [TENANT_ID] AS tdb FROM [dbo].[ROTEIRO] WHERE [IDROTEIRO] = @IDROTEIRO`);
+  if (!result.recordset.length) return { error: 'not_found' };
+  const row = result.recordset[0];
+  let tenantIdDb = row.tdb != null && String(row.tdb).trim() !== '' ? String(row.tdb).trim() : '';
+  if (!tenantIdDb) {
+    const alt = row.TENANT_ID != null ? row.TENANT_ID : row.tenant_id;
+    if (alt != null && String(alt).trim() !== '') tenantIdDb = String(alt).trim();
+  }
+  if (!tenantIdDb) tenantIdDb = getDefaultTenantId();
+  const visivel = tenantIdDb === 'default' || tenantIdDb === String(tidReq);
+  if (!visivel) return { error: 'not_found' };
+  // Mutação só no roteiro do próprio tenant (inclui TENANT_ID = default para usuário default).
+  // Não usar "tenantIdDb === 'default' → bloquear": isso impedia o dono da instalação padrão de editar/gerar resumo.
+  if (exigeMutacao && String(tenantIdDb) !== String(tidReq)) {
+    return { error: 'forbidden_catalog' };
+  }
+  return { ok: true, tenantIdDb };
+}
 
 // Mapeamento de nomes de estados para UF
 const ESTADOS_PARA_UF = {
@@ -105,6 +143,350 @@ function formatarCidadeComUF(cidade, estado) {
   return uf ? `${cidadeLimpa}/${uf}` : cidadeLimpa;
 }
 
+function nomeCidadeBaseFmt(s) {
+  if (!s) return '';
+  return String(s).split('/')[0].trim().toLowerCase();
+}
+
+/** Extrai [lon,lat][] da geometria OSRM/GeoJSON da rota. */
+function extrairCoordsGeometriaRota(route) {
+  const g = route && route.geometry;
+  if (!g || !g.coordinates || !Array.isArray(g.coordinates)) return [];
+  const c = g.coordinates;
+  if (g.type === 'LineString') return c.length >= 2 ? c : [];
+  if (g.type === 'MultiLineString') {
+    const flat = [];
+    for (const ring of c) {
+      if (Array.isArray(ring)) flat.push(...ring);
+    }
+    return flat.length >= 2 ? flat : [];
+  }
+  if (Array.isArray(c[0]) && typeof c[0][0] === 'number') return c.length >= 2 ? c : [];
+  return [];
+}
+
+function distanciaKm(lon1, lat1, lon2, lat2) {
+  const R = 6371;
+  const toR = (d) => (d * Math.PI) / 180;
+  const dLat = toR(lat2 - lat1);
+  const dLon = toR(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toR(lat1)) * Math.cos(toR(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+function comprimentoPolilinhaKm(coords) {
+  let t = 0;
+  for (let i = 1; i < coords.length; i++) {
+    t += distanciaKm(coords[i - 1][0], coords[i - 1][1], coords[i][0], coords[i][1]);
+  }
+  return t;
+}
+
+/** Ponto [lon,lat] na polilinha após percorrer ~`kmGeo` km ao longo dos vértices. */
+function pontoAoLongoPolilinha(coords, kmGeo) {
+  if (!coords || coords.length < 2 || kmGeo <= 0) {
+    const p0 = coords && coords[0];
+    return p0 ? [p0[0], p0[1]] : null;
+  }
+  let restante = kmGeo;
+  for (let i = 1; i < coords.length; i++) {
+    const [lon0, lat0] = coords[i - 1];
+    const [lon1, lat1] = coords[i];
+    const seg = distanciaKm(lon0, lat0, lon1, lat1);
+    if (seg < 1e-9) continue;
+    if (restante <= seg) {
+      const t = restante / seg;
+      return [lon0 + t * (lon1 - lon0), lat0 + t * (lat1 - lat0)];
+    }
+    restante -= seg;
+  }
+  const last = coords[coords.length - 1];
+  return [last[0], last[1]];
+}
+
+/** Projeção escalar de (px,py) no segmento [x0,y0]-[x1,y1] em graus (trechos curtos PR). */
+function projectTOnSegmentLonLat(x0, y0, x1, y1, px, py) {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const len2 = dx * dx + dy * dy;
+  if (len2 < 1e-18) return 0;
+  let t = ((px - x0) * dx + (py - y0) * dy) / len2;
+  return Math.max(0, Math.min(1, t));
+}
+
+/** Km acumulados ao longo da polilinha até o ponto da malha mais próximo de (lon,lat). */
+function kmAoLongoAteProjecao(coords, lon, lat) {
+  if (!coords || coords.length < 2) return 0;
+  let bestDist = Infinity;
+  let bestAccum = 0;
+  let accum = 0;
+  for (let i = 1; i < coords.length; i++) {
+    const [x0, y0] = coords[i - 1];
+    const [x1, y1] = coords[i];
+    const segLen = distanciaKm(x0, y0, x1, y1);
+    if (segLen < 1e-9) continue;
+    const t = projectTOnSegmentLonLat(x0, y0, x1, y1, lon, lat);
+    const mx = x0 + t * (x1 - x0);
+    const my = y0 + t * (y1 - y0);
+    const d = distanciaKm(mx, my, lon, lat);
+    if (d < bestDist) {
+      bestDist = d;
+      bestAccum = accum + t * segLen;
+    }
+    accum += segLen;
+  }
+  return bestAccum;
+}
+
+async function nominatimCidadeFormatada(lat, lon) {
+  try {
+    const nominatimUrl = getReverseGeocodingUrl(lat, lon);
+    const nomResponse = await axios.get(nominatimUrl, {
+      headers: { 'User-Agent': 'AtlasCargo/2.0' },
+      timeout: 8000,
+    });
+    const info = nomResponse.data;
+    let cidade =
+      info.address?.city ||
+      info.address?.town ||
+      info.address?.village ||
+      info.address?.municipality ||
+      info.address?.county ||
+      '';
+    if (cidade) {
+      cidade = cidade
+        .trim()
+        .replace(/,\s*[A-Z]{2}$/i, '')
+        .replace(/\.\s*[A-Z]{2}$/i, '')
+        .replace(/\s+[A-Z]{2}$/i, '')
+        .replace(/,\s*[A-Za-z\s]+$/i, '')
+        .trim();
+    }
+    const estadoNome = info.address?.state || info.address?.state_code || '';
+    if (!cidade || cidade.length < 2) return null;
+    const cidadeLower = cidade.toLowerCase().trim();
+    if (['brasil', 'brazil', 'unknown', 'desconhecido'].includes(cidadeLower)) return null;
+    return formatarCidadeComUF(cidade.trim(), estadoNome);
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * Amostra pontos ao longo da geometria e consulta Nominatim em série (respeito à política de uso).
+ */
+async function coletarCidadesAmostragemRota(coords, distanciaTotalKm) {
+  const resultado = [];
+  if (!coords || coords.length < 2) return resultado;
+  const comprimentoGeo = comprimentoPolilinhaKm(coords);
+  const refKm = distanciaTotalKm > 0 ? distanciaTotalKm : comprimentoGeo;
+  if (refKm < 2 || comprimentoGeo < 0.5) return resultado;
+
+  const intervalo = Math.max(18, Math.min(48, refKm / 11));
+  const maxChamadas = 22;
+  const evitarPontasKm = Math.min(10, refKm * 0.035);
+  let kmCursor = evitarPontasKm;
+  let chamadas = 0;
+  while (kmCursor < refKm - evitarPontasKm && chamadas < maxChamadas) {
+    const frac = kmCursor / refKm;
+    const kmGeo = frac * comprimentoGeo;
+    const pt = pontoAoLongoPolilinha(coords, kmGeo);
+    if (pt) {
+      const [lon, lat] = pt;
+      // eslint-disable-next-line no-await-in-loop
+      const fmt = await nominatimCidadeFormatada(lat, lon);
+      if (fmt) {
+        const base = nomeCidadeBaseFmt(fmt);
+        const ultimo = resultado.length ? nomeCidadeBaseFmt(resultado[resultado.length - 1].fmt) : '';
+        if (!ultimo || base !== ultimo) resultado.push({ fmt, kmAlong: kmGeo });
+      }
+      chamadas += 1;
+    }
+    kmCursor += intervalo;
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((r) => setTimeout(r, 115));
+  }
+  return resultado;
+}
+
+/**
+ * Monta sequência origem → cidades (amostras + paradas) → destino na ordem do percurso.
+ * Paradas do roteiro são posicionadas pela projeção na geometria OSRM (evita empilhar tudo antes do destino).
+ * @param {Array<{ label: string, lat: number, lon: number, ordem?: number }>} intermediariosComCoord
+ * @param {Array<{ fmt: string, kmAlong: number }|string>} amostrasComKm
+ * @param {Array<[number,number]>} coordsGeo [lon,lat][]
+ */
+function montarLinhaCidadesMotorista(origFmt, destFmt, intermediariosComCoord, amostrasComKm, coordsGeo) {
+  const nb = nomeCidadeBaseFmt;
+  const comprimento =
+    coordsGeo && coordsGeo.length >= 2 ? comprimentoPolilinhaKm(coordsGeo) : 0;
+
+  const amostrasNorm = (amostrasComKm || [])
+    .map((x) => (typeof x === 'string' ? { fmt: x, kmAlong: 0 } : x))
+    .filter((x) => x && x.fmt);
+
+  if (comprimento < 0.5) {
+    const interLabels = (intermediariosComCoord || [])
+      .slice()
+      .sort((a, b) => (a.ordem || 0) - (b.ordem || 0))
+      .map((w) => w.label)
+      .filter(Boolean);
+    const raw = [origFmt, ...amostrasNorm.map((a) => a.fmt), ...interLabels, destFmt].filter(Boolean);
+    const out = [];
+    for (const c of raw) {
+      if (!out.length || nb(c) !== nb(out[out.length - 1])) out.push(c);
+    }
+    return out;
+  }
+
+  const items = [];
+  items.push({ fmt: origFmt, km: 0 });
+  for (const a of amostrasNorm) {
+    const km = typeof a.kmAlong === 'number' && a.kmAlong >= 0 ? a.kmAlong : 0;
+    items.push({ fmt: a.fmt, km });
+  }
+  for (const w of intermediariosComCoord || []) {
+    if (!w || !w.label) continue;
+    const la = Number(w.lat);
+    const lo = Number(w.lon);
+    if (!Number.isFinite(la) || !Number.isFinite(lo)) continue;
+    items.push({ fmt: w.label, km: kmAoLongoAteProjecao(coordsGeo, lo, la) });
+  }
+  items.push({ fmt: destFmt, km: comprimento });
+  items.sort((a, b) => a.km - b.km || String(a.fmt).localeCompare(String(b.fmt)));
+
+  const out = [];
+  for (const it of items) {
+    if (!it.fmt) continue;
+    const last = out[out.length - 1];
+    if (!last || nb(last) !== nb(it.fmt)) out.push(it.fmt);
+  }
+  return out;
+}
+
+/**
+ * Monta rota completa: se só 2 pontos, uma chamada; senão, um trecho por par consecutivo (evita falha/timeout em rotas longas).
+ * Usa o mesmo gateway lógico de GET /api/mapa/rota-osrm (router no banco, ORS, espelhos) + fallback sem steps.
+ * Trechos com coords iguais (ex.: 2 entregas no mesmo GPS) ou falha OSRM → reta haversine (não aborta o resumo inteiro).
+ */
+function haversineMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function rotaTrechoReta(lon1, lat1, lon2, lat2) {
+  const dist = haversineMeters(lat1, lon1, lat2, lon2);
+  const dur = Math.max(1, Math.round(dist / 12)); // ~43 km/h
+  return {
+    code: 'Ok',
+    routes: [
+      {
+        distance: dist,
+        duration: dur,
+        legs: [{ distance: dist, duration: dur, steps: [] }],
+        geometry: {
+          type: 'LineString',
+          coordinates: [
+            [lon1, lat1],
+            [lon2, lat2],
+          ],
+        },
+      },
+    ],
+  };
+}
+
+async function obterRotaMontadaTrechos(pontosOrdenados, tenantId) {
+  if (!pontosOrdenados || pontosOrdenados.length < 2) return null;
+
+  const lon = (p) => parseFloat(getRow(p, 'LONGITUDE') != null ? getRow(p, 'LONGITUDE') : p.LONGITUDE);
+  const lat = (p) => parseFloat(getRow(p, 'LATITUDE') != null ? getRow(p, 'LATITUDE') : p.LATITUDE);
+
+  async function trechoEntre(i, j) {
+    const lo1 = lon(pontosOrdenados[i]);
+    const la1 = lat(pontosOrdenados[i]);
+    const lo2 = lon(pontosOrdenados[j]);
+    const la2 = lat(pontosOrdenados[j]);
+    if (![lo1, la1, lo2, la2].every(Number.isFinite)) return null;
+
+    // Mesmo GPS (duas NF no mesmo endereço) — OSRM costuma falhar; trata como trecho zero
+    const dApprox = haversineMeters(la1, lo1, la2, lo2);
+    if (dApprox < 8) {
+      return rotaTrechoReta(lo1, la1, lo2, la2);
+    }
+
+    const coordsStr = `${lo1},${la1};${lo2},${la2}`;
+    try {
+      const data = await fetchRouteResumoSegment(coordsStr, tenantId);
+      if (data && data.code === 'Ok' && data.routes && data.routes[0]) return data;
+    } catch (e) {
+      console.warn(`[Resumo Rota] Trecho ${i + 1}→${j + 1} OSRM:`, e && e.message ? e.message : e);
+    }
+    console.warn(`[Resumo Rota] Trecho ${i + 1}→${j + 1}: fallback linha reta (${(dApprox / 1000).toFixed(2)} km)`);
+    return rotaTrechoReta(lo1, la1, lo2, la2);
+  }
+
+  if (pontosOrdenados.length === 2) {
+    return trechoEntre(0, 1);
+  }
+
+  const nSeg = pontosOrdenados.length - 1;
+  // Sequencial com leve pausa: evita rate-limit do OSRM público em 12+ trechos paralelos
+  const resultados = [];
+  for (let i = 0; i < nSeg; i++) {
+    // eslint-disable-next-line no-await-in-loop
+    const data = await trechoEntre(i, i + 1);
+    if (!data || data.code !== 'Ok' || !data.routes || !data.routes[0]) {
+      console.error(`[Resumo Rota] Falha definitiva no trecho ${i + 1}/${nSeg}`);
+      return null;
+    }
+    resultados.push({ i, data });
+    if (i < nSeg - 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((r) => setTimeout(r, 40));
+    }
+  }
+
+  let totalDist = 0;
+  let totalDur = 0;
+  const mergedLegs = [];
+  const coordsMerged = [];
+
+  for (const { data } of resultados) {
+    const r0 = data.routes[0];
+    totalDist += r0.distance || 0;
+    totalDur += r0.duration || 0;
+    if (r0.legs && r0.legs.length) {
+      mergedLegs.push(...r0.legs);
+    }
+    const g = r0.geometry && r0.geometry.coordinates;
+    if (g && g.length) {
+      if (coordsMerged.length === 0) coordsMerged.push(...g);
+      else coordsMerged.push(...g.slice(1));
+    }
+  }
+
+  return {
+    code: 'Ok',
+    routes: [
+      {
+        distance: totalDist,
+        duration: totalDur,
+        legs: mergedLegs,
+        geometry: coordsMerged.length ? { type: 'LineString', coordinates: coordsMerged } : undefined,
+      },
+    ],
+  };
+}
+
 // Listar roteiros com filtros
 router.get('/roteiros', async (req, res) => {
   try {
@@ -154,6 +536,7 @@ router.get('/roteiros', async (req, res) => {
       LEFT JOIN [dbo].[CIDADE] co ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
       LEFT JOIN [dbo].[CIDADE] cd ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
       WHERE 1=1
+        AND ([r].[TENANT_ID] = @TID OR [r].[TENANT_ID] = 'default')
     `;
 
     const params = [];
@@ -192,6 +575,7 @@ router.get('/roteiros', async (req, res) => {
 
     query += ` ORDER BY [r].[IDROTEIRO]`;
     const request = pool.request();
+    request.input('TID', sql.NVarChar(64), tenantIdForRequest(req));
     params.forEach(p => request.input(p.name, p.value));
     
     const result = await request.query(query);
@@ -269,11 +653,13 @@ router.get('/roteiros/:id', async (req, res) => {
       LEFT JOIN [dbo].[CIDADE] co ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
       LEFT JOIN [dbo].[CIDADE] cd ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
       WHERE [r].[IDROTEIRO] = @IDROTEIRO
+        AND ([r].[TENANT_ID] = @TID OR [r].[TENANT_ID] = 'default')
     `;
     
     const result = await pool
       .request()
       .input('IDROTEIRO', sql.Decimal(15, 0), parseFloat(id))
+      .input('TID', sql.NVarChar(64), tenantIdForRequest(req))
       .query(query);
     
     if (result.recordset.length === 0) {
@@ -325,6 +711,7 @@ router.post('/roteiros', async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const tenantId = tenantIdForRequest(req);
     const maxResult = await pool
       .request()
       .query('SELECT COALESCE(MAX([IDROTEIRO]), 0) + 1 AS [maxId] FROM [dbo].[ROTEIRO]');
@@ -366,6 +753,7 @@ router.post('/roteiros', async (req, res) => {
     }
     
     query += `
+        [TENANT_ID],
         [DHMAINTENANCE], [SGUSER], [SERVERORIG]
       )
       VALUES (@IDROTEIRO, @DSROTEIRO, @CDCIDADEORIGEM, @CDCIDADEDESTINO, @DISTANCIAKM,
@@ -379,7 +767,7 @@ router.post('/roteiros', async (req, res) => {
       query += `'S',`;
     }
     
-    query += `GETDATE(), 'SYSTEM', 'AppDVcargas')
+    query += `@TID, GETDATE(), 'SYSTEM', 'AppDVcargas')
     `;
 
     const request = pool.request()
@@ -387,7 +775,8 @@ router.post('/roteiros', async (req, res) => {
       .input('DSROTEIRO', DSROTEIRO.trim())
       .input('CDCIDADEORIGEM', sql.Int, CDCIDADEORIGEM)
       .input('CDCIDADEDESTINO', sql.Int, CDCIDADEDESTINO)
-      .input('DISTANCIAKM', DISTANCIAKM ? parseFloat(DISTANCIAKM) : null);
+      .input('DISTANCIAKM', DISTANCIAKM ? parseFloat(DISTANCIAKM) : null)
+      .input('TID', sql.NVarChar(64), tenantId);
     
     if (temRESUMOROTA && RESUMOROTA) {
       request.input('RESUMOROTA', sql.NVarChar(sql.MAX), RESUMOROTA.trim());
@@ -395,7 +784,25 @@ router.post('/roteiros', async (req, res) => {
     
     await request.query(query);
 
-    res.status(201).json({ success: true, message: 'Roteiro cadastrado com sucesso!', IDROTEIRO: novoId });
+    let pontosOrigemDestinoGerados = false;
+    try {
+      const seed = await seedOrigemDestinoSeVazio(pool, novoId, CDCIDADEORIGEM, CDCIDADEDESTINO);
+      pontosOrigemDestinoGerados = !!seed.seeded;
+      if (!seed.seeded && seed.reason && seed.reason !== 'already_has_points') {
+        console.warn('[Roteiros] Seed pontos origem/destino não aplicado:', seed.reason, 'IDROTEIRO=', novoId);
+      }
+    } catch (seedErr) {
+      console.error('[Roteiros] Erro ao criar pontos automáticos do roteiro:', seedErr.message);
+    }
+
+    res.status(201).json({
+      success: true,
+      message: pontosOrigemDestinoGerados
+        ? 'Roteiro cadastrado com sucesso. Pontos de origem e destino foram criados automaticamente.'
+        : 'Roteiro cadastrado com sucesso!',
+      IDROTEIRO: novoId,
+      pontosOrigemDestinoGerados
+    });
   } catch (err) {
     console.error('Erro ao inserir roteiro:', err);
     res.status(500).json({ error: 'Erro ao cadastrar roteiro.' });
@@ -421,6 +828,7 @@ router.put('/roteiros/:id', async (req, res) => {
 
     const pool = await poolPromise;
     const idNumerico = parseFloat(id);
+    const tenantId = tenantIdForRequest(req);
 
     // Verificar se a tabela tem campo FGACTIVE e RESUMOROTA
     const checkColumn = await pool
@@ -455,11 +863,12 @@ router.put('/roteiros/:id', async (req, res) => {
         [DHMAINTENANCE] = GETDATE(),
         [SGUSER] = 'SYSTEM',
         [SERVERORIG] = 'AppDVcargas'
-      WHERE [IDROTEIRO] = @IDROTEIRO
+      WHERE [IDROTEIRO] = @IDROTEIRO AND [TENANT_ID] = @TID
     `;
 
     const request = pool.request()
       .input('IDROTEIRO', sql.Decimal(15, 0), idNumerico)
+      .input('TID', sql.NVarChar(64), tenantId)
       .input('DSROTEIRO', DSROTEIRO.trim())
       .input('CDCIDADEORIGEM', sql.Int, CDCIDADEORIGEM)
       .input('CDCIDADEDESTINO', sql.Int, CDCIDADEDESTINO)
@@ -473,9 +882,30 @@ router.put('/roteiros/:id', async (req, res) => {
       request.input('FGACTIVE', sql.Char(1), FGACTIVE);
     }
     
-    await request.query(query);
+    const updResult = await request.query(query);
+    const affected = updResult.rowsAffected && updResult.rowsAffected[0];
+    if (!affected) {
+      return res.status(404).json({ error: 'Roteiro não encontrado ou catálogo compartilhado não pode ser alterado por este tenant.' });
+    }
 
-    res.json({ success: true, message: 'Roteiro atualizado com sucesso!' });
+    let pontosOrigemDestinoGerados = false;
+    try {
+      const seed = await seedOrigemDestinoSeVazio(pool, idNumerico, CDCIDADEORIGEM, CDCIDADEDESTINO);
+      pontosOrigemDestinoGerados = !!seed.seeded;
+      if (pontosOrigemDestinoGerados) {
+        console.log('[Roteiros] Pontos origem/destino criados após atualização do roteiro', idNumerico);
+      }
+    } catch (seedErr) {
+      console.error('[Roteiros] Erro ao seed pontos após PUT:', seedErr.message);
+    }
+
+    res.json({
+      success: true,
+      message: pontosOrigemDestinoGerados
+        ? 'Roteiro atualizado com sucesso. Pontos de origem e destino foram criados automaticamente.'
+        : 'Roteiro atualizado com sucesso!',
+      pontosOrigemDestinoGerados
+    });
   } catch (err) {
     console.error('Erro ao atualizar roteiro:', err);
     res.status(500).json({ error: 'Erro ao atualizar roteiro.' });
@@ -494,6 +924,7 @@ router.delete('/roteiros/:id', async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const tenantId = tenantIdForRequest(req);
     
     // Verificar se a tabela tem campo FGACTIVE
     const checkColumn = await pool
@@ -513,9 +944,10 @@ router.delete('/roteiros/:id', async (req, res) => {
         ? 'Roteiro reativado com sucesso.' 
         : 'Roteiro desativado com sucesso.';
       
-      await pool
+      const delUpd = await pool
         .request()
         .input('IDROTEIRO', sql.Decimal(15, 0), idNumerico)
+        .input('TID', sql.NVarChar(64), tenantId)
         .input('FGACTIVE', sql.Char(1), novoStatus)
         .query(`
           UPDATE [dbo].[ROTEIRO]
@@ -523,20 +955,29 @@ router.delete('/roteiros/:id', async (req, res) => {
               [DHMAINTENANCE] = GETDATE(),
               [SGUSER] = 'SYSTEM',
               [SERVERORIG] = 'AppDVcargas'
-          WHERE [IDROTEIRO] = @IDROTEIRO
+          WHERE [IDROTEIRO] = @IDROTEIRO AND [TENANT_ID] = @TID
         `);
 
+      const affected = delUpd.rowsAffected && delUpd.rowsAffected[0];
+      if (!affected) {
+        return res.status(404).json({ error: 'Roteiro não encontrado ou catálogo compartilhado não pode ser alterado por este tenant.' });
+      }
       res.json({ success: true, message: mensagem });
     } else {
       // Se não tiver FGACTIVE, fazer DELETE físico (comportamento antigo)
-      await pool
+      const delR = await pool
         .request()
         .input('IDROTEIRO', sql.Decimal(15, 0), idNumerico)
+        .input('TID', sql.NVarChar(64), tenantId)
         .query(`
           DELETE FROM [dbo].[ROTEIRO]
-          WHERE [IDROTEIRO] = @IDROTEIRO
+          WHERE [IDROTEIRO] = @IDROTEIRO AND [TENANT_ID] = @TID
         `);
 
+      const affected = delR.rowsAffected && delR.rowsAffected[0];
+      if (!affected) {
+        return res.status(404).json({ error: 'Roteiro não encontrado ou catálogo compartilhado não pode ser alterado por este tenant.' });
+      }
       res.json({ success: true, message: 'Roteiro excluído com sucesso.' });
     }
   } catch (err) {
@@ -554,6 +995,10 @@ router.get('/roteiros/:id/pontos', async (req, res) => {
   try {
     const { id } = req.params;
     const pool = await poolPromise;
+    const acc = await assertRoteiroAcesso(pool, id, req, { exigeMutacao: false });
+    if (acc.error) {
+      return res.status(404).json({ error: 'Roteiro não encontrado.' });
+    }
     const result = await pool
       .request()
       .input('IDROTEIRO', sql.Decimal(15, 0), parseFloat(id))
@@ -590,6 +1035,10 @@ router.get('/roteiros/:id/pontos/:sequencia', async (req, res) => {
   try {
     const { id, sequencia } = req.params;
     const pool = await poolPromise;
+    const acc = await assertRoteiroAcesso(pool, id, req, { exigeMutacao: false });
+    if (acc.error) {
+      return res.status(404).json({ error: 'Roteiro não encontrado.' });
+    }
     const result = await pool
       .request()
       .input('IDROTEIRO', sql.Decimal(15, 0), parseFloat(id))
@@ -629,6 +1078,14 @@ router.get('/roteiros/:id/pontos/:sequencia', async (req, res) => {
 router.post('/roteiros/:id/pontos', async (req, res) => {
   try {
     const { id } = req.params;
+    const pool = await poolPromise;
+    const acc = await assertRoteiroAcesso(pool, id, req, { exigeMutacao: true });
+    if (acc.error === 'not_found') {
+      return res.status(404).json({ error: 'Roteiro não encontrado.' });
+    }
+    if (acc.error === 'forbidden_catalog') {
+      return res.status(404).json({ error: 'Roteiro não encontrado ou catálogo compartilhado não pode ser alterado por este tenant.' });
+    }
     const {
       SEQUENCIA,
       ORDEM,
@@ -646,7 +1103,6 @@ router.post('/roteiros/:id/pontos', async (req, res) => {
       return res.status(400).json({ error: 'Local, Posição e Ordem são obrigatórios.' });
     }
     
-    const pool = await poolPromise;
     const idRoteiro = parseFloat(id);
     
     // Se SEQUENCIA não foi informada, gerar automaticamente
@@ -672,10 +1128,10 @@ router.post('/roteiros/:id/pontos', async (req, res) => {
       .input('ORDEM', sql.SmallInt, parseInt(ORDEM))
       .input('DSLOCAL', dslocalTruncado)
       .input('DSPOSICAO', dsposicaoTruncado)
-      .input('LATITUDE', LATITUDE ? parseFloat(LATITUDE) : null)
-      .input('LONGITUDE', LONGITUDE ? parseFloat(LONGITUDE) : null)
+      .input('LATITUDE', toNullableNumber(LATITUDE))
+      .input('LONGITUDE', toNullableNumber(LONGITUDE))
       .input('TPLOCAL', tplocalTruncado)
-      .input('KMENTREPONTOS', KMENTREPONTOS ? parseFloat(KMENTREPONTOS) : null)
+      .input('KMENTREPONTOS', toNullableNumber(KMENTREPONTOS))
       .input('CDPAISPASSAGEM', CDPAISPASSAGEM ? parseInt(CDPAISPASSAGEM) : null)
       .input('ESTADOPASSAGEM', estadopassagemTruncado)
       .query(`
@@ -704,9 +1160,139 @@ router.post('/roteiros/:id/pontos', async (req, res) => {
 });
 
 // Atualizar ponto
+/**
+ * Reordena pontos em lote. Body: { sequencias: number[] } — ordem visual completa (inclui O e D).
+ * Renumeração ORDEM: 1, 10, 20, …, 10*(n-1). Origem (O) deve ser o 1º e Destino (D) o último, se existirem.
+ */
+router.put('/roteiros/:id/pontos/reordenar', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const pool = await poolPromise;
+    const acc = await assertRoteiroAcesso(pool, id, req, { exigeMutacao: true });
+    if (acc.error === 'not_found') {
+      return res.status(404).json({ error: 'Roteiro não encontrado.' });
+    }
+    if (acc.error === 'forbidden_catalog') {
+      return res.status(404).json({ error: 'Roteiro não encontrado ou catálogo compartilhado não pode ser alterado por este tenant.' });
+    }
+
+    const rawSeq = req.body && Array.isArray(req.body.sequencias) ? req.body.sequencias : null;
+    if (!rawSeq || !rawSeq.length) {
+      return res.status(400).json({ error: 'Informe sequencias[] na nova ordem.' });
+    }
+
+    const sequencias = rawSeq.map((s) => parseInt(s, 10)).filter((n) => Number.isFinite(n));
+    if (sequencias.length !== rawSeq.length) {
+      return res.status(400).json({ error: 'Sequências inválidas.' });
+    }
+    if (new Set(sequencias).size !== sequencias.length) {
+      return res.status(400).json({ error: 'Sequências duplicadas na ordem.' });
+    }
+
+    const idRoteiro = parseFloat(id);
+    const atuais = await pool
+      .request()
+      .input('IDROTEIRO', sql.Decimal(15, 0), idRoteiro)
+      .query(`
+        SELECT [SEQUENCIA], [TPLOCAL], [ORDEM]
+          FROM [dbo].[ROTEIROPONTOS]
+         WHERE [IDROTEIRO] = @IDROTEIRO
+         ORDER BY [ORDEM] ASC, [SEQUENCIA] ASC
+      `);
+
+    const rows = Array.from(atuais.recordset || []);
+    if (!rows.length) {
+      return res.status(404).json({ error: 'Roteiro sem pontos.' });
+    }
+    if (sequencias.length !== rows.length) {
+      return res.status(400).json({
+        error: `Quantidade de sequências (${sequencias.length}) difere dos pontos do roteiro (${rows.length}).`,
+      });
+    }
+
+    const bySeq = new Map(rows.map((r) => [parseInt(r.SEQUENCIA, 10), r]));
+    for (const seq of sequencias) {
+      if (!bySeq.has(seq)) {
+        return res.status(400).json({ error: `Sequência ${seq} não pertence a este roteiro.` });
+      }
+    }
+
+    const normTp = (v) => String(v == null ? '' : v).trim().toUpperCase();
+    const primeiro = bySeq.get(sequencias[0]);
+    const ultimo = bySeq.get(sequencias[sequencias.length - 1]);
+    const temOrigem = rows.some((r) => normTp(r.TPLOCAL) === 'O');
+    const temDestino = rows.some((r) => normTp(r.TPLOCAL) === 'D');
+    if (temOrigem && normTp(primeiro.TPLOCAL) !== 'O') {
+      return res.status(400).json({ error: 'A Origem deve permanecer na primeira posição.' });
+    }
+    if (temDestino && normTp(ultimo.TPLOCAL) !== 'D') {
+      return res.status(400).json({ error: 'O Destino deve permanecer na última posição.' });
+    }
+    for (let i = 1; i < sequencias.length - 1; i++) {
+      const tp = normTp(bySeq.get(sequencias[i]).TPLOCAL);
+      if (tp === 'O' || tp === 'D') {
+        return res.status(400).json({ error: 'Origem e Destino não podem ficar no meio da rota.' });
+      }
+    }
+
+    const transaction = await createTransaction(pool);
+    await transaction.begin();
+    try {
+      for (let i = 0; i < sequencias.length; i++) {
+        const novaOrdem = i === 0 ? 1 : 10 * i;
+        await transaction
+          .request()
+          .input('IDROTEIRO', sql.Decimal(15, 0), idRoteiro)
+          .input('SEQUENCIA', sql.SmallInt, sequencias[i])
+          .input('ORDEM', sql.SmallInt, novaOrdem)
+          .query(`
+            UPDATE [dbo].[ROTEIROPONTOS]
+               SET [ORDEM] = @ORDEM,
+                   [DHMAINTENANCE] = GETDATE(),
+                   [SGUSER] = 'SYSTEM',
+                   [SERVERORIG] = 'AppDVcargas'
+             WHERE [IDROTEIRO] = @IDROTEIRO AND [SEQUENCIA] = @SEQUENCIA
+          `);
+      }
+      await transaction.commit();
+    } catch (txErr) {
+      try {
+        await transaction.rollback();
+      } catch (_) {}
+      throw txErr;
+    }
+
+    const atualizados = await pool
+      .request()
+      .input('IDROTEIRO', sql.Decimal(15, 0), idRoteiro)
+      .query(`
+        SELECT 
+          [IDROTEIRO], [SEQUENCIA], [ORDEM], [DSLOCAL], [DSPOSICAO],
+          [LATITUDE], [LONGITUDE], [TPLOCAL], [KMENTREPONTOS],
+          [CDPAISPASSAGEM], [ESTADOPASSAGEM], [DHMAINTENANCE], [SGUSER], [SERVERORIG]
+        FROM [dbo].[ROTEIROPONTOS]
+        WHERE [IDROTEIRO] = @IDROTEIRO
+        ORDER BY [ORDEM] ASC, [SEQUENCIA] ASC
+      `);
+
+    res.json({ success: true, message: 'Ordem dos pontos atualizada.', pontos: atualizados.recordset });
+  } catch (err) {
+    console.error('Erro ao reordenar pontos:', err);
+    res.status(500).json({ error: 'Erro ao reordenar pontos do roteiro.' });
+  }
+});
+
 router.put('/roteiros/:id/pontos/:sequencia', async (req, res) => {
   try {
     const { id, sequencia } = req.params;
+    const pool = await poolPromise;
+    const acc = await assertRoteiroAcesso(pool, id, req, { exigeMutacao: true });
+    if (acc.error === 'not_found') {
+      return res.status(404).json({ error: 'Roteiro não encontrado.' });
+    }
+    if (acc.error === 'forbidden_catalog') {
+      return res.status(404).json({ error: 'Roteiro não encontrado ou catálogo compartilhado não pode ser alterado por este tenant.' });
+    }
     const {
       ORDEM,
       DSLOCAL,
@@ -723,7 +1309,6 @@ router.put('/roteiros/:id/pontos/:sequencia', async (req, res) => {
       return res.status(400).json({ error: 'Local, Posição e Ordem são obrigatórios.' });
     }
     
-    const pool = await poolPromise;
     const idRoteiro = parseFloat(id);
     const seqNum = parseInt(sequencia);
     
@@ -776,6 +1361,13 @@ router.delete('/roteiros/:id/pontos/:sequencia', async (req, res) => {
   try {
     const { id, sequencia } = req.params;
     const pool = await poolPromise;
+    const acc = await assertRoteiroAcesso(pool, id, req, { exigeMutacao: true });
+    if (acc.error === 'not_found') {
+      return res.status(404).json({ error: 'Roteiro não encontrado.' });
+    }
+    if (acc.error === 'forbidden_catalog') {
+      return res.status(404).json({ error: 'Roteiro não encontrado ou catálogo compartilhado não pode ser alterado por este tenant.' });
+    }
     const idRoteiro = parseFloat(id);
     const seqNum = parseInt(sequencia);
     
@@ -910,11 +1502,20 @@ router.post('/roteiros/:id/gerar-resumo', async (req, res) => {
   try {
     const { id } = req.params;
     const pool = await poolPromise;
+    const accG = await assertRoteiroAcesso(pool, id, req, { exigeMutacao: true });
+    if (accG.error === 'not_found') {
+      return res.status(404).json({ error: 'Roteiro não encontrado.' });
+    }
+    if (accG.error === 'forbidden_catalog') {
+      return res.status(404).json({ error: 'Roteiro não encontrado ou catálogo compartilhado não pode ser alterado por este tenant.' });
+    }
+    const tenantId = tenantIdForRequest(req);
     
     // 1. Buscar roteiro para obter cidades de origem e destino
     const roteiroResult = await pool
       .request()
       .input('IDROTEIRO', sql.Decimal(15, 0), parseFloat(id))
+      .input('TID', sql.NVarChar(64), tenantId)
       .query(`
         SELECT 
           [r].[CDCIDADEORIGEM],
@@ -926,7 +1527,7 @@ router.post('/roteiros/:id/gerar-resumo', async (req, res) => {
         FROM [dbo].[ROTEIRO] r
         LEFT JOIN [dbo].[CIDADE] co ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
         LEFT JOIN [dbo].[CIDADE] cd ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
-        WHERE [r].[IDROTEIRO] = @IDROTEIRO
+        WHERE [r].[IDROTEIRO] = @IDROTEIRO AND [r].[TENANT_ID] = @TID
       `);
     
     const roteiro = roteiroResult.recordset[0];
@@ -988,14 +1589,22 @@ router.post('/roteiros/:id/gerar-resumo', async (req, res) => {
         ponto.ESTADO_REAL = estadoDestinoReal;
         console.log(`[Resumo] Ponto destino: ${cidadeDestinoReal}/${estadoDestinoReal}`);
       }
-      // Para todos os outros pontos (intermediários), buscar nome real usando Nominatim
+      // Intermediários: se já há rótulo útil (DSPOSICAO/DSLOCAL), evita Nominatim (muito mais rápido)
       else {
+        const labelBruto = String(ponto.DSPOSICAO || ponto.DSLOCAL || '').trim();
+        const labelOk =
+          labelBruto.length >= 3 &&
+          !/^[\d.,\s-]+$/.test(labelBruto) &&
+          !/^coord/i.test(labelBruto);
+        if (labelOk) {
+          ponto.NMCIDADE_REAL = labelBruto.split(/[,/]/)[0].trim();
+          ponto.ESTADO_REAL = ponto.ESTADOPASSAGEM || '';
+        } else {
         try {
-          // Aguardar para respeitar rate limit (reduzido para ser mais rápido)
           if (i > 0) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            await new Promise((resolve) => setTimeout(resolve, 150));
           }
-          
+
           const nominatimUrl = getReverseGeocodingUrl(ponto.LATITUDE, ponto.LONGITUDE);
           const nomResponse = await axios.get(nominatimUrl, {
             headers: { 
@@ -1038,6 +1647,7 @@ router.post('/roteiros/:id/gerar-resumo', async (req, res) => {
           ponto.NMCIDADE_REAL = ponto.DSPOSICAO || ponto.DSLOCAL;
           ponto.ESTADO_REAL = ponto.ESTADOPASSAGEM || '';
         }
+        }
       }
       
       // Garantir que sempre tenha um nome (fallback final)
@@ -1072,21 +1682,14 @@ router.post('/roteiros/:id/gerar-resumo', async (req, res) => {
       return ordemA - ordemB;
     });
     
-    const coords = pontosOrdenados.map(p => `${parseFloat(p.LONGITUDE)},${parseFloat(p.LATITUDE)}`).join(';');
-    const osrmUrl = `https://router.project-osrm.org/route/v1/driving-hgv/${coords}?overview=full&geometries=geojson&steps=true`;
-    
-    // 5. Buscar rota do OSRM
-    let osrmResponse;
-    try {
-      osrmResponse = await axios.get(osrmUrl, { timeout: 30000 });
-    } catch (osrmErr) {
-      console.error('[Resumo Rota] Erro ao buscar rota do OSRM:', osrmErr.message);
-      return res.status(500).json({ 
-        error: 'Erro ao conectar com o serviço de roteamento. Tente novamente mais tarde.' 
+    // 5. Buscar rota (trechos curtos + espelhos — mais robusto que uma única URL longa no OSRM público)
+    const rotaData = await obterRotaMontadaTrechos(pontosOrdenados, tenantId);
+    if (!rotaData) {
+      return res.status(502).json({
+        error:
+          'Não foi possível calcular a rota nos servidores de roteamento. Verifique Configurações » Mapa ou tente novamente em instantes.',
       });
     }
-    
-    const rotaData = osrmResponse.data;
     
     if (rotaData.code !== 'Ok' || !rotaData.routes || rotaData.routes.length === 0) {
       console.error('[Resumo Rota] OSRM retornou erro:', rotaData.code, rotaData.message);
@@ -1143,12 +1746,12 @@ router.post('/roteiros/:id/gerar-resumo', async (req, res) => {
     
     if (route.legs && route.legs.length > 0) {
       // Garantir que temos legs suficientes para os pontos
-      const numLegs = Math.min(route.legs.length, pontos.length - 1);
+      const numLegs = Math.min(route.legs.length, pontosOrdenados.length - 1);
       
       for (let legIndex = 0; legIndex < numLegs; legIndex++) {
         const leg = route.legs[legIndex];
-        const pontoOrigemTrecho = pontos[legIndex];
-        const pontoDestinoTrecho = pontos[legIndex + 1];
+        const pontoOrigemTrecho = pontosOrdenados[legIndex];
+        const pontoDestinoTrecho = pontosOrdenados[legIndex + 1];
         
         // Validar que os pontos existem
         if (!pontoOrigemTrecho || !pontoDestinoTrecho) {
@@ -1157,7 +1760,8 @@ router.post('/roteiros/:id/gerar-resumo', async (req, res) => {
         }
         
         const rodoviasTrecho = new Set();
-        const cidadesTrecho = new Set();
+        /** Cidades do trecho na ordem dos steps (Nominatim), para "Passa por …". */
+        const cidadesTrechoLista = [];
         const instrucoesTrecho = [];
         
         // Processar steps do leg para extrair rodovias (na ordem da rota)
@@ -1281,123 +1885,101 @@ router.post('/roteiros/:id/gerar-resumo', async (req, res) => {
             }
           }
           
-          // Processar steps selecionados em paralelo (com limite de concorrência)
+          // Processar steps selecionados em paralelo (sem delays artificiais; Nominatim já tem timeout curto)
           const promisesNominatim = [];
-          const maxConcorrencia = 3; // Reduzir concorrência para evitar rate limit (429)
           
           // Processar todos os steps selecionados (não limitar pelo numCidadesDesejadas aqui)
           // Ordenar por índice para processar na ordem da rota
           stepsParaProcessar.sort((a, b) => a.index - b.index);
           
           for (let idx = 0; idx < stepsParaProcessar.length; idx++) {
-            const { step } = stepsParaProcessar[idx];
-            
+            const { step, index: stepIndex } = stepsParaProcessar[idx];
+
             if (step.maneuver && step.maneuver.location) {
               const [lon, lat] = step.maneuver.location;
-              
-              // Criar promise para processar esta cidade
+
               const promise = (async () => {
                 try {
-                  // Delay escalonado para evitar rate limit do Nominatim
-                  // Aumentar delay entre grupos para evitar 429
-                  if (idx > 0 && idx % maxConcorrencia === 0) {
-                    await new Promise(resolve => setTimeout(resolve, 2000)); // Aumentar para 2 segundos
-                  }
-                  
-                  // Delay adicional antes de cada requisição para evitar sobrecarga
-                  if (idx > 0) {
-                    await new Promise(resolve => setTimeout(resolve, 500)); // 500ms entre cada requisição
-                  }
-                  
                   const nominatimUrl = getReverseGeocodingUrl(lat, lon);
                   const nomResponse = await axios.get(nominatimUrl, {
-                    headers: { 
-                      'User-Agent': 'AtlasCargo/2.0' 
+                    headers: {
+                      'User-Agent': 'AtlasCargo/2.0',
                     },
-                    timeout: 10000 // Aumentar timeout para 10 segundos
+                    timeout: 8000,
                   });
-                  
+
                   const info = nomResponse.data;
-                  
-                  // Tentar múltiplos campos para encontrar o nome da cidade (prioridade)
-                  let cidade = info.address?.city || 
-                              info.address?.town || 
-                              info.address?.village || 
-                              info.address?.municipality ||
-                              info.address?.county || '';
-                  
-                  // Limpar cidade: remover vírgulas, pontos e estados que possam estar no nome
+
+                  let cidade =
+                    info.address?.city ||
+                    info.address?.town ||
+                    info.address?.village ||
+                    info.address?.municipality ||
+                    info.address?.county ||
+                    '';
+
                   if (cidade) {
-                    cidade = cidade.trim()
-                      .replace(/,\s*[A-Z]{2}$/i, '') // Remove ",SP", ",MG", etc do final
-                      .replace(/\.\s*[A-Z]{2}$/i, '') // Remove ".SP", ".MG", etc do final
-                      .replace(/\s+[A-Z]{2}$/i, '') // Remove " SP", " MG", etc do final
-                      .replace(/,\s*[A-Za-z\s]+$/i, '') // Remove vírgulas e texto após
+                    cidade = cidade
+                      .trim()
+                      .replace(/,\s*[A-Z]{2}$/i, '')
+                      .replace(/\.\s*[A-Z]{2}$/i, '')
+                      .replace(/\s+[A-Z]{2}$/i, '')
+                      .replace(/,\s*[A-Za-z\s]+$/i, '')
                       .trim();
                   }
-                  
-                  // Tentar múltiplos campos para encontrar o estado
-                  const estadoNome = info.address?.state || 
-                                    info.address?.state_code || 
-                                    '';
-                  
-                  // Verificar se encontrou uma cidade válida
+
+                  const estadoNome = info.address?.state || info.address?.state_code || '';
+
                   if (cidade && cidade.trim().length > 2) {
-                    // Ignorar apenas nomes genéricos óbvios
                     const cidadeLower = cidade.toLowerCase().trim();
                     const ignorar = ['brasil', 'brazil', 'unknown', 'desconhecido'];
                     if (ignorar.includes(cidadeLower)) {
-                      return null;
+                      return { stepIndex, cidadeCompleta: null };
                     }
-                    
-                    // Converter nome de estado para UF e formatar cidade
                     const cidadeCompleta = formatarCidadeComUF(cidade.trim(), estadoNome);
-                    return cidadeCompleta; // Retornar para processar depois
+                    return { stepIndex, cidadeCompleta };
                   }
-                  
-                  return null;
+
+                  return { stepIndex, cidadeCompleta: null };
                 } catch (nomErr) {
-                  // Continuar mesmo se Nominatim falhar
                   console.warn(`[Resumo Rota] Erro ao buscar cidade do Nominatim:`, nomErr.message);
-                  return null;
+                  return { stepIndex, cidadeCompleta: null };
                 }
               })();
-              
+
               promisesNominatim.push(promise);
             }
           }
-          
-          // Aguardar todas as promises e processar resultados
-          const resultados = await Promise.all(promisesNominatim);
-          
-          // Função auxiliar simples para comparar cidades (só nome, case-insensitive)
-          const nomeCidade = (cidade) => {
+
+          const resultadosComIndice = await Promise.all(promisesNominatim);
+          resultadosComIndice.sort((a, b) => a.stepIndex - b.stepIndex);
+
+          const nomeCidadeBase = (cidade) => {
             if (!cidade) return '';
             return cidade.split('/')[0].trim().toLowerCase();
           };
-          
+
           let cidadesAdicionadas = 0;
-          for (const cidadeCompleta of resultados) {
+          for (const { cidadeCompleta } of resultadosComIndice) {
             if (cidadeCompleta && cidadeCompleta.trim() && cidadeCompleta.trim().length > 2) {
-              // Adicionar todas as cidades únicas (sem duplicatas exatas)
-              const nomeCidadeAtual = nomeCidade(cidadeCompleta);
-              const jaExiste = Array.from(cidadesTrecho).some(c => 
-                nomeCidade(c) === nomeCidadeAtual
-              );
-              
+              const nomeAtual = nomeCidadeBase(cidadeCompleta);
+              const jaExiste = cidadesTrechoLista.some((c) => nomeCidadeBase(c) === nomeAtual);
               if (!jaExiste) {
-                cidadesTrecho.add(cidadeCompleta);
+                cidadesTrechoLista.push(cidadeCompleta);
                 todasCidades.add(cidadeCompleta);
-                cidadesAdicionadas++;
+                cidadesAdicionadas += 1;
               }
             }
           }
-          
-          // Log para debug
+
           if (cidadesAdicionadas === 0 && promisesNominatim.length > 0) {
-            console.warn(`[Resumo Rota] ⚠️ Nenhuma cidade adicionada para trecho de ${distanciaTrecho.toFixed(1)}km. Processados: ${promisesNominatim.length} steps, Resultados válidos: ${resultados.filter(r => r && r.trim()).length}`);
+            console.warn(
+              `[Resumo Rota] ⚠️ Nenhuma cidade adicionada para trecho de ${distanciaTrecho.toFixed(1)}km. Processados: ${promisesNominatim.length} steps, Resultados válidos: ${resultadosComIndice.filter((r) => r && r.cidadeCompleta && String(r.cidadeCompleta).trim()).length}`,
+            );
           } else if (cidadesAdicionadas > 0) {
-            console.log(`[Resumo Rota] ✅ ${cidadesAdicionadas} cidades adicionadas para trecho de ${distanciaTrecho.toFixed(1)}km: ${Array.from(cidadesTrecho).slice(0, 5).join(', ')}${cidadesTrecho.size > 5 ? '...' : ''}`);
+            console.log(
+              `[Resumo Rota] ✅ ${cidadesAdicionadas} cidades adicionadas para trecho de ${distanciaTrecho.toFixed(1)}km: ${cidadesTrechoLista.slice(0, 5).join(', ')}${cidadesTrechoLista.length > 5 ? '...' : ''}`,
+            );
           }
           
           // Extrair instrução importante (apenas primeira) de qualquer step
@@ -1421,12 +2003,54 @@ router.post('/roteiros/:id/gerar-resumo', async (req, res) => {
           pontoDestino: pontoDestinoTrecho,
           distancia: leg.distance / 1000,
           rodovias: rodoviasPrincipaisTrecho.length > 0 ? rodoviasPrincipaisTrecho : Array.from(rodoviasTrecho).slice(0, 3),
-          cidades: Array.from(cidadesTrecho),
-          instrucoes: instrucoesTrecho
+          cidades: cidadesTrechoLista.slice(),
+          instrucoes: instrucoesTrecho,
         });
       }
     }
     
+    const coordsRotaGeo = extrairCoordsGeometriaRota(route);
+    const distKmRotaNum = route.distance ? route.distance / 1000 : 0;
+    const nomeOrigemLinha = pontoOrigem.NMCIDADE_REAL || pontoOrigem.DSLOCAL;
+    const estadoOrigemLinha = pontoOrigem.ESTADO_REAL || pontoOrigem.ESTADOPASSAGEM || '';
+    const nomeDestinoLinha = pontoDestino.NMCIDADE_REAL || pontoDestino.DSLOCAL;
+    const estadoDestinoLinha = pontoDestino.ESTADO_REAL || pontoDestino.ESTADOPASSAGEM || '';
+    const origFmtLinha = formatarCidadeComUF(nomeOrigemLinha, estadoOrigemLinha);
+    const destFmtLinha = formatarCidadeComUF(nomeDestinoLinha, estadoDestinoLinha);
+    const intermediariosFmt = pontosIntermediarios.map((p) =>
+      formatarCidadeComUF(p.NMCIDADE_REAL || p.DSLOCAL, p.ESTADO_REAL || p.ESTADOPASSAGEM || ''),
+    );
+    const intermediariosComCoord = pontosIntermediarios.map((p) => ({
+      label: formatarCidadeComUF(p.NMCIDADE_REAL || p.DSLOCAL, p.ESTADO_REAL || p.ESTADOPASSAGEM || ''),
+      lat: parseFloat(getRow(p, 'LATITUDE') != null ? getRow(p, 'LATITUDE') : p.LATITUDE),
+      lon: parseFloat(getRow(p, 'LONGITUDE') != null ? getRow(p, 'LONGITUDE') : p.LONGITUDE),
+      ordem: parseFloat(getRow(p, 'ORDEM') != null ? getRow(p, 'ORDEM') : p.ORDEM) || 0,
+    }));
+    let cidadesPercursoMotorista = [];
+    try {
+      if (coordsRotaGeo.length >= 2 && distKmRotaNum > 0) {
+        const amostras = await coletarCidadesAmostragemRota(coordsRotaGeo, distKmRotaNum);
+        cidadesPercursoMotorista = montarLinhaCidadesMotorista(
+          origFmtLinha,
+          destFmtLinha,
+          intermediariosComCoord,
+          amostras,
+          coordsRotaGeo,
+        );
+      }
+    } catch (err) {
+      console.warn('[Resumo Rota] Cidades por amostragem:', err.message);
+    }
+    if (!cidadesPercursoMotorista.length) {
+      const nb = nomeCidadeBaseFmt;
+      const raw = [origFmtLinha, ...intermediariosFmt.filter(Boolean), destFmtLinha].filter(Boolean);
+      for (const c of raw) {
+        if (!cidadesPercursoMotorista.length || nb(c) !== nb(cidadesPercursoMotorista[cidadesPercursoMotorista.length - 1])) {
+          cidadesPercursoMotorista.push(c);
+        }
+      }
+    }
+
     // 8. Montar resumo formatado seguindo o padrão do exemplo
     // Usar texto simples em vez de emojis para evitar problemas de encoding no banco
     let resumoTexto = `[] Resumo da Rota – Roteiro #${id}\n`;
@@ -1451,7 +2075,12 @@ router.post('/roteiros/:id/gerar-resumo', async (req, res) => {
     const nomeDestino = pontoDestino.NMCIDADE_REAL || pontoDestino.DSLOCAL;
     const estadoDestino = pontoDestino.ESTADO_REAL || pontoDestino.ESTADOPASSAGEM || '';
     resumoTexto += `Destino (Final): ${formatarCidadeComUF(nomeDestino, estadoDestino)}\n\n`;
-    
+
+    resumoTexto += `[] Cidades ao longo do percurso (ordem aproximada, pela malha rodoviária)\n`;
+    resumoTexto += `${cidadesPercursoMotorista.join(' → ')}\n`;
+    resumoTexto +=
+      '(Lista gerada por amostragem ao longo da rota + pontos do roteiro; nomes via Nominatim — podem faltar municípios muito pequenos ou variar a grafia.)\n\n';
+
     // Orientações de percurso
     resumoTexto += `[] Orientações de percurso\n`;
     
@@ -1548,13 +2177,15 @@ router.post('/roteiros/:id/gerar-resumo', async (req, res) => {
     resumoTexto += `Distância total: ${distanciaTotal} km.\n`;
     resumoTexto += `Tempo estimado de viagem: ${tempoEstimado}–${tempoEstimado + 2} horas (dependendo de tráfego e paradas).\n`;
     
-    // 7. Salvar resumo no banco
+    // 7. Salvar resumo no banco (PostgreSQL: information_schema em minúsculas)
     const checkResumoColumn = await pool
       .request()
       .query(`
-        SELECT COLUMN_NAME 
-        FROM INFORMATION_SCHEMA.COLUMNS 
-        WHERE TABLE_NAME = 'ROTEIRO' AND COLUMN_NAME = 'RESUMOROTA'
+        SELECT column_name AS "COLUMN_NAME"
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND LOWER(table_name) = 'roteiro'
+          AND LOWER(column_name) = 'resumorota'
       `);
     
     const temRESUMOROTA = checkResumoColumn.recordset.length > 0;
@@ -1563,6 +2194,7 @@ router.post('/roteiros/:id/gerar-resumo', async (req, res) => {
       await pool
         .request()
         .input('IDROTEIRO', sql.Decimal(15, 0), parseFloat(id))
+        .input('TID', sql.NVarChar(64), tenantId)
         .input('RESUMOROTA', sql.NVarChar(sql.MAX), resumoTexto)
         .query(`
           UPDATE [dbo].[ROTEIRO]
@@ -1570,7 +2202,7 @@ router.post('/roteiros/:id/gerar-resumo', async (req, res) => {
               [DHMAINTENANCE] = GETDATE(),
               [SGUSER] = 'SYSTEM',
               [SERVERORIG] = 'AppDVcargas'
-          WHERE [IDROTEIRO] = @IDROTEIRO
+          WHERE [IDROTEIRO] = @IDROTEIRO AND [TENANT_ID] = @TID
         `);
     }
     

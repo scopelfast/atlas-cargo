@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Configurações - Motorista</title>
   <script>
-    (function(){ try { var t = localStorage.getItem('tema'); if (t == null || t === '') t = 'auto'; var dark = t === 'escuro' || (t === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.classList.toggle('tema-escuro', !!dark); } catch(e) { var m = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)'); if (m) document.documentElement.classList.toggle('tema-escuro', m.matches); } })();
+    (function(){ try { var t = localStorage.getItem('tema'); if (t == null || t === '') t = 'auto'; var dark = t === 'escuro' || (t === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.classList.toggle('tema-escuro', !!dark); document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light'); document.documentElement.style.colorScheme = dark ? 'dark' : 'light'; } catch(e) { var m = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)'); if (m) { document.documentElement.classList.toggle('tema-escuro', m.matches); document.documentElement.setAttribute('data-theme', m.matches ? 'dark' : 'light'); document.documentElement.style.colorScheme = m.matches ? 'dark' : 'light'; } } })();
   </script>
   <link rel="stylesheet" href="../css/design-system.css">
   <link rel="stylesheet" href="../css/style.css">
@@ -269,14 +269,14 @@
         <div class="config-item-label">
           <span class="config-item-icon">🎨</span>
           <div class="config-item-text">
-            <div class="config-item-title" data-i18n="configuracoes.tema">Tema</div>
+            <div class="config-item-title" id="configTemaTitulo" data-i18n="configuracoes.tema">Tema</div>
             <div class="config-item-desc" data-i18n="configuracoes.temaDesc">Escolher tema claro ou escuro</div>
           </div>
         </div>
-        <select class="select-input" id="selectTema" onchange="alterarTema()">
-          <option value="claro">Claro</option>
-          <option value="escuro">Escuro</option>
-          <option value="auto">Automático</option>
+        <select class="select-input" id="selectTema" onchange="alterarTema()" aria-labelledby="configTemaTitulo">
+          <option value="claro" data-i18n="configuracoes.temaClaro">Claro</option>
+          <option value="escuro" data-i18n="configuracoes.temaEscuro">Escuro</option>
+          <option value="auto" data-i18n="configuracoes.temaAutomatico" data-i18n-title="configuracoes.temaAutomaticoHint" title="Segue a aparência do sistema do aparelho (claro/escuro).">Automático</option>
         </select>
       </div>
 
@@ -441,30 +441,32 @@
     </div>
   </div>
 
-  <!-- Modal Alterar Senha -->
+  <!-- Modal Alterar Senha: campos dentro de <form> (Chromium / gerenciadores de senha) -->
   <div id="modalSenha" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center;">
     <div style="background: white; border-radius: 16px; padding: 24px; max-width: 400px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,0.2);">
       <h2 style="margin: 0 0 20px 0; font-size: 20px; color: #333;">Alterar Senha</h2>
-      
-      <div class="input-group">
-        <label class="input-label">Senha Atual</label>
-        <input type="password" id="senhaAtual" class="input-field" placeholder="Digite sua senha atual" autocomplete="current-password">
-      </div>
 
-      <div class="input-group">
-        <label class="input-label">Nova Senha</label>
-        <input type="password" id="novaSenha" class="input-field" placeholder="Digite a nova senha" autocomplete="new-password">
-      </div>
+      <form id="formAlterarSenha" autocomplete="on" novalidate>
+        <div class="input-group">
+          <label class="input-label" for="senhaAtual">Senha Atual</label>
+          <input type="password" id="senhaAtual" name="current_password" class="input-field" placeholder="Digite sua senha atual" autocomplete="current-password">
+        </div>
 
-      <div class="input-group">
-        <label class="input-label">Confirmar Nova Senha</label>
-        <input type="password" id="confirmarSenha" class="input-field" placeholder="Confirme a nova senha" autocomplete="new-password">
-      </div>
+        <div class="input-group">
+          <label class="input-label" for="novaSenha">Nova Senha</label>
+          <input type="password" id="novaSenha" name="new_password" class="input-field" placeholder="Digite a nova senha" autocomplete="new-password">
+        </div>
 
-      <div style="display: flex; gap: 10px; margin-top: 20px;">
-        <button class="btn-action secondary" style="flex: 1;" onclick="fecharModalSenha()">Cancelar</button>
-        <button class="btn-action" style="flex: 1;" onclick="salvarNovaSenha()">Salvar</button>
-      </div>
+        <div class="input-group">
+          <label class="input-label" for="confirmarSenha">Confirmar Nova Senha</label>
+          <input type="password" id="confirmarSenha" name="confirm_new_password" class="input-field" placeholder="Confirme a nova senha" autocomplete="new-password">
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 20px;">
+          <button type="button" class="btn-action secondary" style="flex: 1;" onclick="fecharModalSenha()">Cancelar</button>
+          <button type="submit" class="btn-action" style="flex: 1;">Salvar</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -503,8 +505,8 @@
 
       // Carregar configurações salvas
       function carregarConfiguracoes() {
-      // Tema
-      const tema = localStorage.getItem('tema') || 'claro';
+      // Tema: mesmo padrão do index (sem valor salvo = automático)
+      const tema = localStorage.getItem('tema') || 'auto';
       document.getElementById('selectTema').value = tema;
       aplicarTema(tema);
 
@@ -542,10 +544,31 @@
       mostrarToast('Tema alterado com sucesso', 'success');
     }
 
+      var __mqTemaListener = null;
       function aplicarTema(tema) {
-      const escuro = tema === 'escuro' || (tema === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-      document.body.classList.toggle('tema-escuro', escuro);
-    }
+        var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+        var escuro = tema === 'escuro' || (tema === 'auto' && mq && mq.matches);
+        var root = document.documentElement;
+        root.classList.toggle('tema-escuro', !!escuro);
+        root.setAttribute('data-theme', escuro ? 'dark' : 'light');
+        root.style.colorScheme = escuro ? 'dark' : 'light';
+        if (document.body) document.body.classList.toggle('tema-escuro', !!escuro);
+        var metaTheme = document.querySelector('meta[name="theme-color"]');
+        if (!metaTheme) {
+          metaTheme = document.createElement('meta');
+          metaTheme.setAttribute('name', 'theme-color');
+          document.head.appendChild(metaTheme);
+        }
+        metaTheme.setAttribute('content', escuro ? '#0f172a' : '#0d9488');
+        if (__mqTemaListener && mq) {
+          try { mq.removeEventListener('change', __mqTemaListener); } catch (e1) {}
+          __mqTemaListener = null;
+        }
+        if (tema === 'auto' && mq) {
+          __mqTemaListener = function () { aplicarTema('auto'); };
+          mq.addEventListener('change', __mqTemaListener);
+        }
+      }
 
     // Idioma: preferência salva; use a tradução do navegador para ver em espanhol/inglês
     function alterarIdioma() {
@@ -856,15 +879,16 @@
       window.abrirSuporte = abrirSuporte;
       window.voltar = voltar;
 
-      // Inicializar
-      carregarConfiguracoes();
-
-      // Detectar mudança de tema do sistema (se modo auto)
-      if (localStorage.getItem('tema') === 'auto') {
-        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-          aplicarTema('auto');
+      var formAlterarSenha = document.getElementById('formAlterarSenha');
+      if (formAlterarSenha) {
+        formAlterarSenha.addEventListener('submit', function (e) {
+          e.preventDefault();
+          salvarNovaSenha();
         });
       }
+
+      // Inicializar
+      carregarConfiguracoes();
     })();
   </script>
 </body>

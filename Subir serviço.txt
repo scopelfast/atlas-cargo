@@ -1,0 +1,5 @@
+No Windows, a partir da raiz do projeto (c:\gitHub\SysScopel):
+
+Backend
+cd c:\gitHub\SysScopel\backend
+npm run dev

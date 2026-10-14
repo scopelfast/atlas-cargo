@@ -18,6 +18,56 @@
   let lastTiposAtividade = null;
   let sqlExecutado = false;
   let initExecutado = false;
+  function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+  }
+
+  async function carregarCatalogoModulosLicenca() {
+    const selLic = document.getElementById('tipoAtividadeModuloLicenca');
+    const selProd = document.getElementById('tipoAtividadeModuloProduto');
+    if (!selLic && !selProd) return;
+    try {
+      const response = await fetch('/api/tipos-atividade/catalogo-modulos-licenca', { headers: getAuthHeaders() });
+      const data = await response.json();
+      const codigos = Array.isArray(data.codigos) ? data.codigos : [];
+      if (selLic) {
+        selLic.innerHTML = '';
+        const o0 = document.createElement('option');
+        o0.value = '';
+        o0.textContent = t('web.modulos.tiposAtividade.moduloLicencaOpcaoNenhuma');
+        selLic.appendChild(o0);
+        codigos.forEach((c) => {
+          const o = document.createElement('option');
+          o.value = c;
+          o.textContent = c;
+          selLic.appendChild(o);
+        });
+      }
+      if (selProd) {
+        selProd.innerHTML = '';
+        const p0 = document.createElement('option');
+        p0.value = '';
+        p0.textContent = t('web.modulos.tiposAtividade.moduloProdutoNenhum');
+        selProd.appendChild(p0);
+        const produtos = Array.isArray(data.produtos) ? data.produtos : [];
+        produtos.forEach((p) => {
+          const cd = p.cd_modulo != null ? p.cd_modulo : p.CD_MODULO;
+          if (cd == null || cd === '') return;
+          const o = document.createElement('option');
+          o.value = String(cd);
+          const fg = p.fgactive != null ? p.fgactive : p.FGACTIVE;
+          const base =
+            p.nome != null ? p.nome : (p.NOME != null ? p.NOME : String(p.codigo || p.CODIGO || cd));
+          o.textContent = fg === 'N' ? `${base} (inativo)` : base;
+          selProd.appendChild(o);
+        });
+      }
+    } catch (e) {
+      console.warn('[Tipos Atividade] Catálogo módulos/licença:', e);
+    }
+  }
 
   function getAuthHeaders(extra = {}) {
     const headers = { ...extra };
@@ -62,6 +112,7 @@
     } catch (err) {
     }
     await showTab('filtros');
+    await carregarCatalogoModulosLicenca();
   }
 
   if (document.readyState === 'loading') {
@@ -174,7 +225,9 @@
       if (descricao) params.append('descricao', descricao);
       if (situacao) params.append('situacao', situacao);
 
-      const response = await fetch(`/api/tipos-atividade?${params.toString()}`);
+      const response = await fetch(`/api/tipos-atividade?${params.toString()}`, {
+        headers: getAuthHeaders(),
+      });
       const body = await response.json();
 
       if (!response.ok) {
@@ -183,6 +236,15 @@
         lastTiposAtividade = [];
       } else {
         lastTiposAtividade = Array.isArray(body) ? body : [];
+      }
+
+      if (lastTiposAtividade.length > 0) {
+        const r0 = lastTiposAtividade[0];
+        console.log('[TiposAtividade] grid dados (1ª linha)', {
+          CDTIPOATIVIDADE: r0.CDTIPOATIVIDADE ?? r0.cdtipoatividade,
+          nm_modulo_produto: r0.nm_modulo_produto ?? r0.NM_MODULO_PRODUTO,
+          keys: r0 && typeof r0 === 'object' ? Object.keys(r0) : [],
+        });
       }
 
       const tiposAtividade = lastTiposAtividade;
@@ -234,6 +296,32 @@
         { field: 'DSPROGRAMA', header: 'Programa', editable: false,
           format: (val) => val || '-'
         },
+        {
+          field: 'nm_modulo_produto',
+          header: t('web.modulos.tiposAtividade.gridModulo'),
+          editable: false,
+          width: '160px',
+          format: (val, row) => {
+            const pick = (v) => {
+              if (v == null) return '';
+              if (typeof v === 'object') return '';
+              const s = String(v).trim();
+              return s !== '' ? s : '';
+            };
+            const txt =
+              pick(val) ||
+              (row && pick(row.nm_modulo_produto)) ||
+              (row && pick(row.NM_MODULO_PRODUTO)) ||
+              (row && pick(row.codigo_catalogo_modulo)) ||
+              (row && pick(row.CODIGO_CATALOGO_MODULO)) ||
+              (row && pick(row.cod_modulo_produto)) ||
+              (row && pick(row.COD_MODULO_PRODUTO));
+            if (txt) return txt;
+            const cd = row && (row.CD_MODULO_PRODUTO ?? row.cd_modulo_produto);
+            if (cd != null && cd !== '') return '#' + String(cd);
+            return '—';
+          },
+        },
         { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px', align: 'right',
           options: [{ value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' }],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
@@ -264,17 +352,55 @@
         tipoAtividadeForm.reset();
       }
       
-      const response = await fetch(`/api/tipos-atividade/${codigo}`);
+      await carregarCatalogoModulosLicenca();
+      const response = await fetch(`/api/tipos-atividade/${codigo}`, { headers: getAuthHeaders() });
       const tipo = await response.json();
+      if (!response.ok) {
+        console.error('[TiposAtividade] GET tipo falhou', response.status, tipo);
+        showMessage(t('web.modulos.tiposAtividade.erroCarregarDados'), 'error');
+        return;
+      }
+      console.log('[TiposAtividade] GET tipo para edição', codigo, {
+        lic: tipo.CODIGO_MODULO_LICENCA ?? tipo.codigo_modulo_licenca,
+        cdMod: tipo.CD_MODULO_PRODUTO ?? tipo.cd_modulo_produto,
+        nmMod: tipo.NM_MODULO_PRODUTO ?? tipo.nm_modulo_produto,
+        keys: tipo && typeof tipo === 'object' ? Object.keys(tipo) : [],
+      });
 
       showTab('dados');
-      document.getElementById('tipoAtividadeCodigoOriginal').value = tipo.CDTIPOATIVIDADE;
-      document.getElementById('tipoAtividadeCodigo').value = tipo.CDTIPOATIVIDADE;
+      const cdTipo = tipo.CDTIPOATIVIDADE ?? tipo.cdtipoatividade;
+      document.getElementById('tipoAtividadeCodigoOriginal').value = cdTipo;
+      document.getElementById('tipoAtividadeCodigo').value = cdTipo;
       document.getElementById('tipoAtividadeCodigo').readOnly = true;
-      document.getElementById('tipoAtividadeDescricao').value = tipo.DSTIPOATIVIDADE || '';
-      document.getElementById('tipoAtividadePrograma').value = tipo.DSPROGRAMA || '';
-      document.getElementById('tipoAtividadeGrupo').value = tipo.FGGRUPO || '';
-      document.getElementById('tipoAtividadeSituacao').value = tipo.FGACTIVE || 'S';
+      document.getElementById('tipoAtividadeDescricao').value = tipo.DSTIPOATIVIDADE || tipo.dstipoatividade || '';
+      document.getElementById('tipoAtividadePrograma').value = tipo.DSPROGRAMA || tipo.dsprograma || '';
+      document.getElementById('tipoAtividadeGrupo').value = tipo.FGGRUPO || tipo.fggrupo || '';
+      const cdMod = tipo.CD_MODULO_PRODUTO != null ? tipo.CD_MODULO_PRODUTO : tipo.cd_modulo_produto;
+      const selProd = document.getElementById('tipoAtividadeModuloProduto');
+      if (selProd) {
+        const vMod = cdMod != null && cdMod !== '' ? String(cdMod) : '';
+        if (vMod && !Array.from(selProd.options).some((o) => o.value === vMod)) {
+          const opt = document.createElement('option');
+          opt.value = vMod;
+          opt.textContent = (tipo.NM_MODULO_PRODUTO || tipo.nm_modulo_produto || vMod) + ' (atual)';
+          selProd.appendChild(opt);
+        }
+        selProd.value = vMod || '';
+      }
+      const licRaw = tipo.CODIGO_MODULO_LICENCA ?? tipo.codigo_modulo_licenca;
+      const licTrim = licRaw != null && String(licRaw).trim() !== '' ? String(licRaw).trim() : '';
+      const selLic = document.getElementById('tipoAtividadeModuloLicenca');
+      if (selLic && licTrim) {
+        const has = Array.from(selLic.options).some((o) => o.value === licTrim);
+        if (!has) {
+          const opt = document.createElement('option');
+          opt.value = licTrim;
+          opt.textContent = licTrim + ' (extra)';
+          selLic.appendChild(opt);
+        }
+        selLic.value = licTrim;
+      } else if (selLic) selLic.value = '';
+      document.getElementById('tipoAtividadeSituacao').value = tipo.FGACTIVE || tipo.fgactive || 'S';
       document.getElementById('formTitle').textContent = t('web.modulos.tiposAtividade.editarTipo');
     } catch (err) {
       showMessage(t('web.modulos.tiposAtividade.erroCarregarDados'), 'error');
@@ -299,6 +425,11 @@
     const programa = document.getElementById('tipoAtividadePrograma').value.trim();
     const grupo = document.getElementById('tipoAtividadeGrupo').value.trim();
     const situacao = document.getElementById('tipoAtividadeSituacao').value;
+    const selMod = document.getElementById('tipoAtividadeModuloLicenca');
+    const codigoModuloLicenca = selMod && selMod.value ? selMod.value.trim() : '';
+    const selProd = document.getElementById('tipoAtividadeModuloProduto');
+    const rawCdProd = selProd && selProd.value !== '' && selProd.value != null ? parseInt(selProd.value, 10) : null;
+    const cdModuloProduto = Number.isFinite(rawCdProd) ? rawCdProd : null;
 
     if (!codigo || !descricao) {
       showMessage(t('web.modulos.tiposAtividade.preenchaCampos'), 'error');
@@ -311,19 +442,25 @@
       const url = codigoOriginal ? `/api/tipos-atividade/${codigoOriginal}` : '/api/tipos-atividade';
       const method = codigoOriginal ? 'PUT' : 'POST';
 
+      const payload = {
+        CDTIPOATIVIDADE: parseInt(codigo, 10),
+        DSTIPOATIVIDADE: descricao,
+        DSPROGRAMA: programa || null,
+        FGGRUPO: grupo || null,
+        FGACTIVE: situacao,
+        CODIGO_MODULO_LICENCA: codigoModuloLicenca || null,
+        CD_MODULO_PRODUTO: cdModuloProduto,
+      };
+      console.log('[TiposAtividade] salvar', method, url, payload);
+
       const response = await fetch(url, {
         method,
         headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({
-          CDTIPOATIVIDADE: parseInt(codigo),
-          DSTIPOATIVIDADE: descricao,
-          DSPROGRAMA: programa || null,
-          FGGRUPO: grupo || null,
-          FGACTIVE: situacao
-        })
+        body: JSON.stringify(payload),
       });
 
       const result = await response.json();
+      console.log('[TiposAtividade] salvar resposta', response.status, response.ok, result);
       if (response.ok) {
         showMessage(result.message || t('web.modulos.tiposAtividade.sucessoSalvar'), 'success');
         showTab('grid');
@@ -349,6 +486,10 @@
     document.getElementById('tipoAtividadeDescricao').value = '';
     document.getElementById('tipoAtividadePrograma').value = '';
     document.getElementById('tipoAtividadeGrupo').value = '';
+    const selL = document.getElementById('tipoAtividadeModuloLicenca');
+    if (selL) selL.value = '';
+    const selP = document.getElementById('tipoAtividadeModuloProduto');
+    if (selP) selP.value = '';
     document.getElementById('tipoAtividadeSituacao').value = 'S';
     document.getElementById('formTitle').textContent = t('web.modulos.tiposAtividade.novoTipo');
   }
@@ -364,7 +505,16 @@
     if (modalMsgEl) modalMsgEl.textContent = msg;
     
     if (!modal || !confirmYes || !confirmNo) {
-      if (window.confirm(msg)) {
+      const ok =
+        typeof window.confirmPadrao === 'function'
+          ? await window.confirmPadrao(msg, {
+              title: estaAtivo ? 'Desativar tipo de atividade' : 'Excluir tipo de atividade',
+              danger: true,
+              confirmText: estaAtivo ? 'Desativar' : 'Excluir',
+              cancelText: 'Cancelar',
+            })
+          : window.confirm(msg);
+      if (ok) {
         try {
           const response = await fetch(`/api/tipos-atividade/${codigo}`, { method: 'DELETE', headers: getAuthHeaders() });
           const result = await response.json();
@@ -442,12 +592,14 @@
     showTab('filtros');
   });
 
-  document.getElementById('btnNovoRegistro')?.addEventListener('click', () => {
+  document.getElementById('btnNovoRegistro')?.addEventListener('click', async () => {
+    await carregarCatalogoModulosLicenca();
     limparFormulario();
     showTab('dados');
   });
 
-  document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
+  document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', async () => {
+    await carregarCatalogoModulosLicenca();
     limparFormulario();
     showTab('dados');
   });

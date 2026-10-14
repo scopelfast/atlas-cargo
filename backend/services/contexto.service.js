@@ -3,6 +3,8 @@
 // Atlas Cargo - Plano Multimoeda/Multilíngua
 
 const { poolPromise } = require('../config/db');
+const sql = require('../config/mssql-compat');
+const { getDefaultTenantId } = require('../middleware/tenant.middleware');
 
 const CHAVES = {
   PAIS_PADRAO: 'pais_padrao',
@@ -22,24 +24,33 @@ const DEFAULTS = {
   timezone: 'America/Sao_Paulo'
 };
 
-let cacheContexto = null;
-let cacheTimestamp = 0;
+/** @type {Map<string, { data: object, ts: number }>} */
+const cacheContextoPorTenant = new Map();
 const CACHE_TTL_MS = 60 * 1000; // 1 minuto
+
+function ctxTenantKey(tenantId) {
+  if (tenantId != null && String(tenantId).trim() !== '') return String(tenantId).trim();
+  return getDefaultTenantId();
+}
 
 /**
  * Retorna o contexto atual (país, locale, moeda, tipo de documento).
  * Lê de CONFIGURACAO quando existir; senão usa defaults (Brasil, pt-BR, BRL, CPF/CNPJ).
+ * @param {string} [tenantId] — default: DEFAULT_TENANT_ID
  * @returns {Promise<{ pais: string, locale: string, moeda: string, tipoDocFisica: string, tipoDocJuridica: string }>}
  */
-async function getContexto() {
+async function getContexto(tenantId) {
+  const tkey = ctxTenantKey(tenantId);
   const now = Date.now();
-  if (cacheContexto && (now - cacheTimestamp) < CACHE_TTL_MS) {
-    return cacheContexto;
+  const slot = cacheContextoPorTenant.get(tkey);
+  if (slot && slot.data && (now - slot.ts) < CACHE_TTL_MS) {
+    return slot.data;
   }
   try {
     const pool = await poolPromise;
     const result = await pool
       .request()
+      .input('tenantId', sql.NVarChar(64), tkey)
       .input('k1', CHAVES.PAIS_PADRAO)
       .input('k2', CHAVES.IDIOMA_PADRAO)
       .input('k3', CHAVES.MOEDA_PADRAO)
@@ -48,14 +59,15 @@ async function getContexto() {
       .input('k6', CHAVES.TIMEZONE)
       .query(`
         SELECT "CHAVE", "VALOR" FROM "CONFIGURACAO"
-        WHERE "CHAVE" IN (@k1, @k2, @k3, @k4, @k5, @k6)
+        WHERE "TENANT_ID" = @tenantId
+          AND "CHAVE" IN (@k1, @k2, @k3, @k4, @k5, @k6)
       `);
     const rows = result.recordset || [];
     const getVal = (chave) => {
       const r = rows.find(x => (x.CHAVE || x.chave) === chave);
       return (r && (r.VALOR != null ? r.VALOR : r.valor)) ? String(r.VALOR || r.valor).trim() : null;
     };
-    cacheContexto = {
+    const data = {
       pais: getVal(CHAVES.PAIS_PADRAO) || DEFAULTS.pais,
       locale: getVal(CHAVES.IDIOMA_PADRAO) || DEFAULTS.locale,
       moeda: getVal(CHAVES.MOEDA_PADRAO) || DEFAULTS.moeda,
@@ -63,22 +75,25 @@ async function getContexto() {
       tipoDocJuridica: getVal(CHAVES.TIPO_DOC_JURIDICA) || DEFAULTS.tipoDocJuridica,
       timezone: getVal(CHAVES.TIMEZONE) || DEFAULTS.timezone
     };
-    cacheTimestamp = now;
-    return cacheContexto;
+    cacheContextoPorTenant.set(tkey, { data, ts: now });
+    return data;
   } catch (err) {
     console.error('[contexto.service] Erro ao ler CONFIGURACAO, usando defaults:', err.message);
-    cacheContexto = { ...DEFAULTS };
-    cacheTimestamp = now;
-    return cacheContexto;
+    const data = { ...DEFAULTS };
+    cacheContextoPorTenant.set(tkey, { data, ts: now });
+    return data;
   }
 }
 
 /**
  * Invalida o cache (útil após alterar configuração).
  */
-function invalidateCache() {
-  cacheContexto = null;
-  cacheTimestamp = 0;
+function invalidateCache(tenantId) {
+  if (tenantId != null && String(tenantId).trim() !== '') {
+    cacheContextoPorTenant.delete(ctxTenantKey(tenantId));
+  } else {
+    cacheContextoPorTenant.clear();
+  }
 }
 
 module.exports = {

@@ -64,13 +64,6 @@
     .empresas-container .tabs.tabs-com-icones .tab-btn.active { color: var(--ac-primary, #0d2137); border-bottom-color: var(--ac-primary, #0d2137); }
     .empresas-container .tabs.tabs-com-icones .tab-btn.active i { color: var(--ac-primary, #0d2137); }
 
-    .empresas-container .filtros-actions-moderno {
-      padding-top: 20px;
-      margin-top: 20px;
-      border-top: 1px solid var(--border, #e2e8f0);
-      gap: 12px;
-    }
-
     .btn-filtro {
       display: inline-flex;
       align-items: center;
@@ -480,14 +473,14 @@
         </div>
 
         <div class="tabs tabs-com-icones">
-            <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.empresas.tabFiltros"><i class='bx bx-filter-alt'></i> Filtros</button>
-            <button class="tab-btn" data-tab="grid" data-i18n="web.modulos.empresas.tabGrid"><i class='bx bx-grid-alt'></i> Grid</button>
-            <button class="tab-btn" data-tab="dados" data-i18n="web.modulos.empresas.tabDados"><i class='bx bx-edit'></i> Dados</button>
+            <button type="button" class="tab-btn active" data-tab="filtros"><i class='bx bx-filter-alt'></i> <span data-i18n="web.modulos.empresas.tabFiltros">Filtros</span></button>
+            <button type="button" class="tab-btn" data-tab="grid"><i class='bx bx-grid-alt'></i> <span data-i18n="web.modulos.empresas.tabGrid">Grid</span></button>
+            <button type="button" class="tab-btn" data-tab="dados"><i class='bx bx-edit'></i> <span data-i18n="web.modulos.empresas.tabDados">Dados</span></button>
         </div>
 
         <div class="tab-content active" id="tab-filtros">
             <div class="filtros-box">
-                <h3><i class='bx bx-filter'></i> <span data-i18n="web.modulos.empresas.filtrosBusca">Filtros de Busca</span></h3>
+                <h3><i class='bx bx-filter'></i> <span data-i18n="web.modulos.empresas.tabFiltros">Filtros</span></h3>
                 <form id="filtroForm" onsubmit="return false;">
                     <div class="filtros-grid">
                         <div>
@@ -515,9 +508,9 @@
                             </select>
                         </div>
                     </div>
-                    <div class="filtros-actions filtros-actions-moderno">
-                        <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class='bx bx-eraser'></i> <span data-i18n="web.modulos.empresas.limpar">Limpar</span></button>
-                        <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class='bx bx-search-alt'></i> <span data-i18n="web.modulos.empresas.filtrar">Filtrar</span></button>
+                    <div class="filtros-actions">
+                        <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> <span data-i18n="web.modulos.empresas.limpar">Limpar</span></button>
+                        <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class='bx bx-search'></i> <span data-i18n="web.modulos.empresas.filtrar">Filtrar</span></button>
                         <button type="button" id="btnNovoRegistro" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> <span data-i18n="web.modulos.empresas.novoRegistro">Novo</span></button>
                     </div>
                 </form>
@@ -526,7 +519,7 @@
 
         <div class="tab-content" id="tab-grid">
             <div class="form-box">
-                <h2 data-i18n="web.modulos.empresas.gridTitulo">Visualização em Grid</h2>
+                <h2 class="form-panel-titulo"><i class='bx bx-grid-alt' aria-hidden="true"></i> <span data-i18n="web.modulos.empresas.gridTitulo">Visualização em Grid</span></h2>
                 <div class="actions-top">
                     <div style="display: flex; gap: 10px;">
                         <button type="button" id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.empresas.voltarFiltros">Voltar</span></button>
@@ -544,7 +537,7 @@
 
         <div class="tab-content" id="tab-dados">
             <div class="form-box">
-                <h2 id="formTitle" data-i18n="web.modulos.empresas.novaEmpresa">Nova Empresa</h2>
+                <h2 id="formTitle" class="form-panel-titulo"><i class='bx bx-edit' aria-hidden="true"></i> <span data-i18n="web.modulos.empresas.novaEmpresa">Nova Empresa</span></h2>
                 <form id="empresaForm">
                     <input type="hidden" id="empresaId">
                     <div class="form-dados-card">

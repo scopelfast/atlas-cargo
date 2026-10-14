@@ -93,23 +93,33 @@
       
       const host = window.location.host;
       
-      // CRÍTICO: Detectar o caminho base (subdiretório) da aplicação
-      // Se a página está em /cargas/, o baseUrl deve incluir /cargas/
-      let pathBase = window.location.pathname;
-      if (pathBase.endsWith('.html')) {
-        const lastSlash = pathBase.lastIndexOf('/');
-        if (lastSlash > 0) {
-          pathBase = pathBase.substring(0, lastSlash + 1);
-        } else {
-          pathBase = '/';
+      // CRÍTICO: pathBase para estáticos (CSS, img). APIs ficam em /api ou /cargas/api — NUNCA em /dashboard/api.
+      // Rota limpa /dashboard (sem .html) não é prefixo de deploy; antes virava __BASE_URL__=.../dashboard e quebrava fetch('/api/...').
+      let pathBase = '/';
+      const rawPath = window.location.pathname || '/';
+      if (rawPath.indexOf('/cargas') !== -1) {
+        pathBase = '/cargas/';
+      } else if (rawPath.indexOf('/motorista') !== -1 && rawPath.indexOf('/cargas') === -1) {
+        pathBase = '/motorista/';
+      } else if (/\.html$/i.test(rawPath)) {
+        const lastSlash = rawPath.lastIndexOf('/');
+        pathBase = lastSlash > 0 ? rawPath.substring(0, lastSlash + 1) : '/';
+      } else if (/^\/(dashboard|login)(\/|$)/.test(rawPath)) {
+        pathBase = '/';
+      } else if (rawPath !== '/' && rawPath.length > 1) {
+        const segs = rawPath.split('/').filter(function(s) { return s; });
+        if (segs.length > 0) {
+          pathBase = '/' + segs[0] + '/';
         }
-      } else if (!pathBase.endsWith('/')) {
-        pathBase = pathBase + '/';
       }
-      
+
       const baseUrl = protocol + '//' + host + (pathBase === '/' ? '' : pathBase.replace(/\/$/, ''));
-      
-      console.log('[DASHBOARD] Ambiente: ATLAS CARGO | Protocol:', protocoloAtual, '| PathBase:', pathBase, '| BaseURL:', baseUrl);
+      // Log de ambiente: localStorage.setItem('DEBUG_DASHBOARD','1') e recarregar
+      try {
+        if (localStorage.getItem('DEBUG_DASHBOARD') === '1') {
+          console.log('[DASHBOARD] Ambiente: ATLAS CARGO | Protocol:', protocoloAtual, '| PathBase:', pathBase, '| BaseURL:', baseUrl);
+        }
+      } catch (e) {}
       
       // Função para garantir que URLs usem o mesmo protocolo da página
       // Função para garantir protocolo consistente
@@ -158,14 +168,12 @@
           if (link.href) {
             const urlCorrigida = garantirProtocoloConsistente(link.href);
             if (urlCorrigida !== link.href) {
-              console.log('🔄 [DASHBOARD] Tentando carregar CSS com protocolo corrigido:', urlCorrigida);
               link.setAttribute('href', urlCorrigida);
               return;
             }
           }
           // Tentar carregar novamente após um delay
           setTimeout(() => {
-            console.log('🔄 [DASHBOARD] Tentando carregar novamente:', link.href);
             const newLink = document.createElement('link');
             newLink.rel = 'stylesheet';
             let retryUrl = link.href || url;
@@ -175,9 +183,7 @@
           }, 1000);
         };
         
-        link.onload = function() {
-          console.log('✅ [DASHBOARD] CSS carregado:', url);
-        };
+        link.onload = function() { /* sucesso: sem log (evita poluir o console) */ };
         
         document.head.appendChild(link);
       }
@@ -186,7 +192,7 @@
       // Em desenvolvimento: usar timestamp atual (sempre atualizado)
       // Em produção: usar versão fixa (atualizada a cada deploy)
       const isDev = isLocal;
-      const cacheVersion = isDev ? Date.now() : '20260102';
+      const cacheVersion = isDev ? Date.now() : '20260506';
       
       // Armazenar globalmente para uso em scripts
       window.__CACHE_VERSION__ = cacheVersion;
@@ -210,52 +216,132 @@
       window.corrigirUrl = function(url) {
         if (!url) return url;
         if (url.startsWith('http://') || url.startsWith('https://')) return url;
-        
-        // Obter baseUrl - sempre verificar __BASE_URL__ primeiro
+        const cleanUrl = url.startsWith('/') ? url : '/' + url;
+        // REST: sempre na raiz do host (ou /cargas), nunca sob /dashboard
+        if (cleanUrl.startsWith('/api/')) {
+          const pn = window.location.pathname || '';
+          if (pn.indexOf('/cargas') !== -1) {
+            return window.location.origin + '/cargas' + cleanUrl;
+          }
+          return window.location.origin + cleanUrl;
+        }
+        if (cleanUrl.startsWith('/cargas/api/')) {
+          return window.location.origin + cleanUrl;
+        }
+
         let baseUrl = window.__BASE_URL__;
-        
-        // Se não estiver definido, calcular a partir do pathname
         if (!baseUrl) {
-          const pathname = window.location.pathname;
+          const pathname = window.location.pathname || '/';
           let pathBase = '/';
-          
-          // Detectar se está em /cargas/ ou /motorista/
-          if (pathname.includes('/cargas')) {
+          if (pathname.indexOf('/cargas') !== -1) {
             pathBase = '/cargas/';
-          } else if (pathname.includes('/motorista')) {
+          } else if (pathname.indexOf('/motorista') !== -1 && pathname.indexOf('/cargas') === -1) {
             pathBase = '/motorista/';
-          } else if (pathname !== '/') {
-            // Pegar o primeiro segmento do path
-            const segments = pathname.split('/').filter(s => s);
+          } else if (/^\/(dashboard|login)(\/|$)/.test(pathname)) {
+            pathBase = '/';
+          } else if (pathname !== '/' && pathname.length > 1 && !/\.html$/i.test(pathname)) {
+            var segments = pathname.split('/').filter(function(s) { return s; });
             if (segments.length > 0) {
               pathBase = '/' + segments[0] + '/';
             }
+          } else if (/\.html$/i.test(pathname)) {
+            var ls = pathname.lastIndexOf('/');
+            pathBase = ls > 0 ? pathname.substring(0, ls + 1) : '/';
           }
-          
           baseUrl = window.location.protocol + '//' + window.location.host + (pathBase === '/' ? '' : pathBase.replace(/\/$/, ''));
         }
-        
-        // Garantir que baseUrl não termine com / antes de concatenar
         const cleanBaseUrl = baseUrl.replace(/\/$/, '');
-        const cleanUrl = url.startsWith('/') ? url : '/' + url;
-        
         return cleanBaseUrl + cleanUrl;
       };
       
-      // Interceptar fetch() globalmente para corrigir URLs automaticamente
+      // Interceptar fetch() globalmente: corrigir URLs + JWT nas chamadas /api (módulos legados sem getAuthHeaders)
+      function atlasDashboardBearerSkip(pathname) {
+        if (!pathname || pathname.indexOf('/api') === -1) return true;
+        var skip = [
+          '/api/auth/login',
+          '/api/motorista/login',
+          '/api/motorista/cadastro',
+          '/api/motorista/recuperar-senha',
+          '/api/motorista/redefinir-senha',
+          '/api/motorista/config',
+          '/api/motorista/classes-frota-combo',
+          '/api/motorista/sos',
+          '/api/public/'
+        ];
+        for (var i = 0; i < skip.length; i++) {
+          if (pathname.indexOf(skip[i]) !== -1) return true;
+        }
+        return false;
+      }
+      function atlasAttachBearerIfNeeded(input, init) {
+        try {
+          var token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
+          if (!token) return init;
+          var urlStr = typeof input === 'string' ? input : (input && input.url) ? input.url : '';
+          if (!urlStr) return init;
+          var u = new URL(urlStr, window.location.origin);
+          if (atlasDashboardBearerSkip(u.pathname)) return init;
+          var hasAuth = false;
+          if (init && init.headers) {
+            if (typeof Headers !== 'undefined' && init.headers instanceof Headers) {
+              hasAuth = init.headers.has('Authorization');
+            } else {
+              hasAuth = !!(init.headers.Authorization || init.headers.authorization);
+            }
+          }
+          if (!hasAuth && typeof Request !== 'undefined' && input instanceof Request) {
+            hasAuth = !!input.headers.get('Authorization');
+          }
+          if (hasAuth) return init;
+          init = init ? Object.assign({}, init) : {};
+          if (typeof Headers !== 'undefined' && init.headers instanceof Headers) {
+            var h = new Headers(init.headers);
+            h.set('Authorization', 'Bearer ' + token);
+            init.headers = h;
+          } else {
+            init.headers = Object.assign({}, init.headers || {});
+            init.headers.Authorization = 'Bearer ' + token;
+          }
+          return init;
+        } catch (e) {
+          return init;
+        }
+      }
       const originalFetch = window.fetch;
       window.fetch = function(input, init) {
-        // Se input é uma string (URL), corrigir
         if (typeof input === 'string' && !input.startsWith('http://') && !input.startsWith('https://') && input.startsWith('/')) {
           input = window.corrigirUrl(input);
-        }
-        // Se input é um Request object, criar novo com URL corrigida
-        else if (input && typeof input === 'object' && input.url && !input.url.startsWith('http://') && !input.url.startsWith('https://') && input.url.startsWith('/')) {
+        } else if (input && typeof input === 'object' && input.url && !input.url.startsWith('http://') && !input.url.startsWith('https://') && input.url.startsWith('/')) {
           const correctedUrl = window.corrigirUrl(input.url);
           input = new Request(correctedUrl, input);
         }
-        
-        return originalFetch.call(this, input, init);
+        init = atlasAttachBearerIfNeeded(input, init);
+        return originalFetch.call(this, input, init).then(function(response) {
+          if (response.status !== 401) return response;
+          try {
+            if (typeof localStorage !== 'undefined' && !localStorage.getItem('token')) return response;
+            var urlStr = typeof input === 'string' ? input : (input && input.url) ? input.url : '';
+            if (!urlStr) return response;
+            var u = new URL(urlStr, window.location.origin);
+            var path = (u.pathname || '').toLowerCase();
+            if (path.indexOf('/api/auth/') === 0 || path.indexOf('/cargas/api/auth/') === 0) return response;
+            var clone = response.clone();
+            clone.json().then(function(data) {
+              if (!data || data.code !== 'SESSION_REVOKED') return;
+              if (typeof window.__atlasExecuteTowerLogout === 'function') {
+                window.__atlasExecuteTowerLogout();
+              } else {
+                try {
+                  localStorage.clear();
+                  sessionStorage.clear();
+                } catch (e) {}
+                var pb = (window.location.pathname && window.location.pathname.indexOf('/cargas') !== -1) ? '/cargas' : '';
+                window.location.replace(window.location.origin + pb + '/?atlas_sessao=deslocada');
+              }
+            }).catch(function() { /* corpo não-JSON */ });
+          } catch (e) { /* ignore */ }
+          return response;
+        });
       };
     })();
   </script>
@@ -272,6 +358,10 @@
   <div class="sidebar">
     <div class="logo" id="logoAtlasCargo" style="cursor: pointer;" title="Voltar ao início - Atlas Cargo">
       <img src="/img/logoAtlasTransparente.png" alt="Atlas Cargo" class="logo-img">
+    </div>
+    <div class="product-module-bar" id="productModuleBar" style="display:none;" aria-label="Módulo do produto">
+      <label for="productModuleSelect" class="product-module-label" data-i18n="web.menu.moduloProduto">Módulo</label>
+      <select id="productModuleSelect" class="product-module-select" title="Selecionar módulo"></select>
     </div>
     <div class="menu" id="menuContainer">
       <div class="menu-item">
@@ -303,6 +393,14 @@
           <button type="button" class="header-icon-btn header-icon-btn-alertas" id="headerBtnAlertas" title="Alertas do Sistema" style="display: none;" aria-label="Alertas">
             <i class='bx bx-bell'></i>
             <span class="header-icon-badge" id="headerBadgeAlertas" data-count="0">0</span>
+          </button>
+          <button type="button" class="header-icon-btn header-icon-btn-motoristas-pendentes" id="headerBtnMotoristasPendentes" title="Motoristas pendentes de aprovação (cadastro pelo app)" style="display: none;" aria-label="Motoristas pendentes">
+            <i class='bx bx-id-card'></i>
+            <span class="header-icon-badge" id="headerBadgeMotoristasPendentes" data-count="0">0</span>
+          </button>
+          <button type="button" class="header-icon-btn header-icon-btn-divergencia-placas" id="headerBtnDivergenciaPlacas" title="Divergência de placas (convocações pendentes)" style="display: none;" aria-label="Divergência de placas">
+            <i class='bx bx-car'></i>
+            <span class="header-icon-badge" id="headerBadgeDivergenciaPlacas" data-count="0">0</span>
           </button>
           <button type="button" class="header-icon-btn header-icon-btn-sos" id="headerBtnSos" title="SOS" style="display: none;" aria-label="SOS">
             <i class='bx bx-error-circle'></i>

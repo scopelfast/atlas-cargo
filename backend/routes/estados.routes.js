@@ -1,6 +1,9 @@
 // backend/routes/estados.routes.js
 const express = require('express');
 const router = express.Router();
+const { towerAuthAndTenant } = require('../middleware/tower-auth-chain.middleware');
+
+router.use(towerAuthAndTenant);
 
 // Endpoint para listar estados do Brasil
 router.get('/estados-brasil', (req, res) => {

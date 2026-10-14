@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Perfil - Motorista</title>
+  <script>
+    (function(){ try { var t = localStorage.getItem('tema'); if (t == null || t === '') t = 'auto'; var dark = t === 'escuro' || (t === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.classList.toggle('tema-escuro', !!dark); document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light'); document.documentElement.style.colorScheme = dark ? 'dark' : 'light'; } catch(e) { var m = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)'); if (m) { document.documentElement.classList.toggle('tema-escuro', m.matches); document.documentElement.setAttribute('data-theme', m.matches ? 'dark' : 'light'); document.documentElement.style.colorScheme = m.matches ? 'dark' : 'light'; } } })();
+  </script>
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="../css/design-system.css">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <script src="../js/i18n.js"></script>
+  <style>
+    .perfil-section {
+      background: white;
+      border-radius: 12px;
+      padding: 18px 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+    .perfil-section h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0 0 12px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .perfil-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 14px;
+    }
+    .perfil-status.P { background: #fff3cd; color: #856404; }
+    .perfil-status.A { background: #d4edda; color: #155724; }
+    .perfil-status.R { background: #f8d7da; color: #721c24; }
+    .perfil-field { margin-bottom: 14px; }
+    .perfil-field label {
+      display: block;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: #334155;
+      margin-bottom: 6px;
+    }
+    .perfil-field input, .perfil-field select {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+    .perfil-field input:focus, .perfil-field select:focus {
+      outline: none;
+      border-color: #0ea5e9;
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+    }
+    .perfil-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .perfil-hint { font-size: 0.75rem; color: #64748b; margin-top: 4px; line-height: 1.4; }
+    .perfil-preview {
+      margin-top: 10px;
+      max-width: 100%;
+      border-radius: 10px;
+      border: 1px solid #e2e8f0;
+      max-height: 200px;
+      object-fit: contain;
+      background: #f8fafc;
+    }
+    .btn-salvar {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 700;
+      background: var(--app-header-bg, #0d9488);
+      color: #fff;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .btn-salvar:disabled { opacity: 0.6; cursor: not-allowed; }
+    #perfilMensagem { min-height: 1.25rem; font-size: 0.875rem; margin-top: 8px; }
+    #perfilMensagem.erro { color: #b91c1c; }
+    #perfilMensagem.ok { color: #15803d; }
+    body.tema-escuro .perfil-section {
+      background: #1e293b;
+      border: 1px solid #334155;
+      box-shadow: none;
+    }
+    body.tema-escuro .perfil-section h2 { color: #f1f5f9; }
+    body.tema-escuro .perfil-field label { color: #cbd5e1; }
+    body.tema-escuro .perfil-field input,
+    body.tema-escuro .perfil-field select {
+      background: #0f172a;
+      border-color: #475569;
+      color: #e2e8f0;
+    }
+    body.tema-escuro .perfil-hint { color: #94a3b8; }
+    body.tema-escuro .perfil-preview { border-color: #475569; background: #0f172a; }
+  </style>
+</head>
+<body class="motorista-page">
+  <div class="navbar">
+    <button type="button" class="btn-voltar" onclick="voltar()">← <span data-i18n="common.voltar">Voltar</span></button>
+    <h1><i class="bx bx-user-circle"></i></h1>
+    <div class="status-badge-navbar status-online" data-i18n="dashboard.onlineSincronizado">Online</div>
+  </div>
+
+  <div class="container">
+    <div id="perfilLoading" class="perfil-section">
+      <p data-i18n="common.carregando">Carregando...</p>
+    </div>
+
+    <form id="formPerfil" style="display: none;">
+      <div class="perfil-section">
+        <h2><i class="bx bx-check-shield"></i> <span data-i18n="perfil.tituloStatus">Aprovação do cadastro</span></h2>
+        <div id="badgeStatus" class="perfil-status P" role="status"></div>
+        <p class="perfil-hint" data-i18n="perfil.hintStatus">Alterações na CNH ou na foto do documento voltam para análise da empresa.</p>
+      </div>
+
+      <div class="perfil-section">
+        <h2><i class="bx bx-user"></i> <span data-i18n="perfil.tituloDados">Dados pessoais</span></h2>
+        <div class="perfil-field">
+          <label for="nome" data-i18n="perfil.nome">Nome completo</label>
+          <input type="text" id="nome" name="nome" required maxlength="120" autocomplete="name">
+        </div>
+        <div class="perfil-field">
+          <label for="cpfDisplay" data-i18n="perfil.documento">Documento</label>
+          <input type="text" id="cpfDisplay" readonly disabled style="opacity: 0.85;">
+        </div>
+        <div class="perfil-row2">
+          <div class="perfil-field">
+            <label for="ddi" data-i18n="cadastro.ddi">DDI</label>
+            <select id="ddi" name="ddi">
+              <option value="55">+55 (BR)</option>
+              <option value="595">+595 (PY)</option>
+            </select>
+          </div>
+          <div class="perfil-field">
+            <label for="ddd" data-i18n="perfil.ddd">DDD</label>
+            <input type="tel" id="ddd" name="ddd" maxlength="3" inputmode="numeric" placeholder="11">
+          </div>
+        </div>
+        <div class="perfil-field">
+          <label for="celular" data-i18n="perfil.celular">Celular (somente número)</label>
+          <input type="tel" id="celular" name="celular" maxlength="11" inputmode="numeric" required>
+        </div>
+        <div class="perfil-field">
+          <label for="email" data-i18n="perfil.email">E-mail</label>
+          <input type="email" id="email" name="email" maxlength="200" autocomplete="email">
+        </div>
+      </div>
+
+      <div class="perfil-section">
+        <h2><i class="bx bx-map"></i> <span data-i18n="perfil.tituloEndereco">Endereço</span></h2>
+        <div class="perfil-field">
+          <label for="endereco" data-i18n="perfil.endereco">Logradouro</label>
+          <input type="text" id="endereco" name="endereco" maxlength="200">
+        </div>
+        <div class="perfil-row2">
+          <div class="perfil-field">
+            <label for="nrendereco" data-i18n="perfil.numero">Número</label>
+            <input type="text" id="nrendereco" name="nrendereco" maxlength="20">
+          </div>
+          <div class="perfil-field">
+            <label for="cep" data-i18n="perfil.cep">CEP (somente dígitos)</label>
+            <input type="tel" id="cep" name="cep" maxlength="9" inputmode="numeric">
+          </div>
+        </div>
+        <div class="perfil-field">
+          <label for="complend" data-i18n="perfil.complemento">Complemento</label>
+          <input type="text" id="complend" name="complend" maxlength="80">
+        </div>
+        <div class="perfil-field">
+          <label for="bairro" data-i18n="perfil.bairro">Bairro</label>
+          <input type="text" id="bairro" name="bairro" maxlength="60">
+        </div>
+        <div class="perfil-field">
+          <label for="cdcidade" data-i18n="perfil.cdcidade">Código da cidade (opcional)</label>
+          <input type="number" id="cdcidade" name="cdcidade" min="0" step="1" placeholder="">
+        </div>
+        <div class="perfil-field">
+          <label for="comprovanteEndereco" data-i18n="perfil.comprovanteEnderecoLabel">Comprovante de endereço (foto)</label>
+          <input type="file" id="comprovanteEndereco" name="comprovanteEndereco" accept="image/jpeg,image/png,image/webp" capture="environment">
+          <p class="perfil-hint" data-i18n="perfil.comprovanteEnderecoHint">Conta de luz, água ou carta com nome e endereço.</p>
+          <img id="previewComprovanteEndereco" class="perfil-preview" alt="" style="display: none;">
+        </div>
+      </div>
+
+      <div class="perfil-section">
+        <h2><i class="bx bx-id-card"></i> <span data-i18n="perfil.tituloCnh">CNH e documento</span></h2>
+        <p class="perfil-hint" style="margin-top:0;margin-bottom:12px;" data-i18n="perfil.subtituloCnhFrenteVerso">Frente e verso da CNH: dois campos abaixo (ambos opcionais ao atualizar).</p>
+        <div class="perfil-row2">
+          <div class="perfil-field">
+            <label for="nrCnh" data-i18n="perfil.nrCnh">Nº CNH</label>
+            <input type="text" id="nrCnh" name="nrCnh" maxlength="11" inputmode="numeric" title="Até 11 dígitos (registro CNH Brasil)">
+          </div>
+          <div class="perfil-field">
+            <label for="categoriaCnh" data-i18n="perfil.categoria">Categoria</label>
+            <select id="categoriaCnh" name="categoriaCnh">
+              <option value="">—</option>
+              <option value="B">B</option>
+              <option value="AB">AB</option>
+              <option value="C">C</option>
+              <option value="D">D</option>
+              <option value="E">E</option>
+            </select>
+          </div>
+        </div>
+        <div class="perfil-field">
+          <label for="validadeCnh" data-i18n="perfil.validade">Validade</label>
+          <input type="date" id="validadeCnh" name="validadeCnh">
+        </div>
+        <div class="perfil-field">
+          <label for="documento" data-i18n="perfil.novaFotoCnh">Nova foto da CNH — frente (opcional)</label>
+          <input type="file" id="documento" name="documento" accept="image/jpeg,image/png,image/webp" capture="environment">
+          <p class="perfil-hint" data-i18n="perfil.lgpdDocumento">A foto é usada apenas para conferência cadastral e segurança operacional, conforme política da transportadora.</p>
+          <img id="previewCnh" class="perfil-preview" alt="" style="display: none;">
+        </div>
+        <div class="perfil-field">
+          <label for="documentoVerso" data-i18n="perfil.novaFotoCnhVerso">Nova foto da CNH — verso (opcional)</label>
+          <input type="file" id="documentoVerso" name="documentoVerso" accept="image/jpeg,image/png,image/webp" capture="environment">
+          <p class="perfil-hint" data-i18n="perfil.lgpdDocumentoVerso">Mesmo uso da frente: só para conferência. Envie o verso da mesma carteira.</p>
+          <img id="previewCnhVerso" class="perfil-preview" alt="" style="display: none;">
+        </div>
+      </div>
+
+      <div class="perfil-section" style="padding-bottom: 8px;">
+        <button type="submit" class="btn-salvar" id="btnSalvarPerfil" data-i18n="common.salvar">Salvar</button>
+        <div id="perfilMensagem"></div>
+      </div>
+    </form>
+
+    <div id="secaoVeiculos" style="display: none;">
+      <p class="perfil-hint" style="margin:0 0 12px 0;" data-i18n="perfil.infoVeiculosLogin">Placas e CRLV: só depois do login, aqui em «Meus veículos».</p>
+      <p class="perfil-hint" style="margin:0 0 10px 0;" data-i18n="perfil.infoVeiculosNaoNoCadastroWeb">No cadastro inicial você já pode enviar veículos; aqui no perfil você complementa ou altera depois do login.</p>
+      <div class="perfil-section">
+        <h2><i class="bx bx-car"></i> <span data-i18n="veiculos.tituloLista">Meus veículos</span></h2>
+        <p class="perfil-hint" data-i18n="veiculos.hintLista">Cada veículo passa por aprovação da empresa. Formatos de placa: antiga ou Mercosul (7 caracteres, sem hífen obrigatório).</p>
+        <p class="perfil-hint" data-i18n="veiculos.hintConjunto" style="margin-top:8px;">Cavalo + carreta: faça um envio por placa (cavalo com papel CAVALO e CRLV do cavalo; depois carreta com papel CARRETA e CRLV da carreta).</p>
+        <p class="perfil-hint" data-i18n="veiculos.hintRodotremVariasPlacas" style="margin-top:8px;">Rodotrem ou várias unidades (3 placas ou mais): use um envio para cada placa — mesma regra: uma placa por vez, com papel no conjunto (ex.: 3ª roda, DOLLY) e CRLV se tiver.</p>
+        <div id="listaVeiculos" class="perfil-hint"></div>
+      </div>
+      <div class="perfil-section">
+        <h2><i class="bx bx-plus-circle"></i> <span data-i18n="veiculos.tituloNovo">Incluir veículo</span></h2>
+        <p class="perfil-hint" style="margin:0 0 12px 0;" data-i18n="veiculos.hintClassePorPlaca">Cada envio é uma placa: escolha a classe de frota desta placa (obrigatório). Outra placa = outro envio com outra classe, se for o caso.</p>
+        <form id="formNovoVeiculo">
+          <div class="perfil-field">
+            <label for="veicPlaca" data-i18n="veiculos.placa">Placa</label>
+            <input type="text" id="veicPlaca" maxlength="10" required placeholder="ABC1234 ou ABC1D23" autocomplete="off">
+          </div>
+          <div class="perfil-field">
+            <label for="veicClasseFrota" data-i18n="veiculos.classeFrotaDestaPlaca">Classe de frota (desta placa)</label>
+            <select id="veicClasseFrota" required>
+              <option value="" data-i18n="veiculos.classePlaceholder">Escolha na lista (obrigatório)</option>
+            </select>
+          </div>
+          <div class="perfil-field">
+            <label for="veicRenavam" data-i18n="veiculos.renavam">RENAVAM (opcional)</label>
+            <input type="text" id="veicRenavam" maxlength="11" inputmode="numeric">
+          </div>
+          <div class="perfil-field">
+            <label for="veicPapel" data-i18n="veiculos.papel">Papel no conjunto (ex.: CAVALO, CARRETA)</label>
+            <input type="text" id="veicPapel" maxlength="20" placeholder="CAVALO" value="CAVALO">
+          </div>
+          <div class="perfil-field">
+            <label for="veicCrlv" data-i18n="veiculos.crlv">Foto do CRLV (opcional, JPEG/PNG/WebP, máx. 5 MB)</label>
+            <input type="file" id="veicCrlv" accept="image/jpeg,image/png,image/webp" capture="environment">
+            <p class="perfil-hint" data-i18n="veiculos.lgpdCrlv">Documento usado apenas para conferência cadastral e segurança operacional.</p>
+          </div>
+          <button type="submit" class="btn-salvar" id="btnSalvarVeiculo" data-i18n="veiculos.enviar">Enviar para análise</button>
+          <div id="veiculoMensagem"></div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="../js/url-helper.js"></script>
+  <script src="../js/notifications.js"></script>
+  <script src="../js/auth.js"></script>
+  <script>
+    if (typeof verificarAuth === 'function' && !verificarAuth()) {
+      window.location.href = '../index.html';
+    }
+
+    function voltar() {
+      window.location.href = 'dashboard.html';
+    }
+
+    function corrigir(u) {
+      return typeof window.corrigirUrl === 'function' ? window.corrigirUrl(u) : u;
+    }
+
+    function formatarCpf(c) {
+      const d = String(c || '').replace(/\D/g, '');
+      if (d.length !== 11) return c || '—';
+      return d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    }
+
+    function preencherCelular(nr) {
+      const d = String(nr != null ? nr : '').replace(/\D/g, '');
+      var ddiEl = document.getElementById('ddi');
+      var dddEl = document.getElementById('ddd');
+      var celEl = document.getElementById('celular');
+      if (!ddiEl || !celEl) return;
+      if (d.startsWith('55') && d.length >= 12) {
+        ddiEl.value = '55';
+        var rest = d.slice(2);
+        if (dddEl) dddEl.value = rest.slice(0, 2);
+        celEl.value = rest.slice(2);
+      } else if (d.startsWith('595') && d.length >= 10) {
+        ddiEl.value = '595';
+        if (dddEl) dddEl.value = '';
+        celEl.value = d.slice(3);
+      } else {
+        ddiEl.value = '55';
+        if (dddEl) dddEl.value = '';
+        celEl.value = d;
+      }
+    }
+
+    function dataIsoParaInput(v) {
+      if (!v) return '';
+      if (typeof v === 'string') return v.slice(0, 10);
+      try {
+        return new Date(v).toISOString().slice(0, 10);
+      } catch (e) {
+        return '';
+      }
+    }
+
+    function aplicarStatusBadge(st) {
+      var b = document.getElementById('badgeStatus');
+      if (!b) return;
+      var s = String(st || 'P').toUpperCase().trim().charAt(0);
+      b.className = 'perfil-status ' + (s === 'A' || s === 'R' || s === 'P' ? s : 'P');
+      var t = typeof window.t === 'function' ? window.t : function (k) { return k; };
+      if (s === 'A') b.textContent = t('perfil.statusAprovado');
+      else if (s === 'R') b.textContent = t('perfil.statusRejeitado');
+      else b.textContent = t('perfil.statusPendente');
+    }
+
+    function urlFoto(path) {
+      if (!path) return '';
+      var p = String(path);
+      if (p.indexOf('http') === 0) return p;
+      return corrigir(p);
+    }
+
+    var ultimoPerfil = null;
+    var veiculoFormSubmitting = false;
+    /** Mapa CDCLASSEFROTA → descrição (combo do app). */
+    var mapClasseFrotaVeiculo = {};
+
+    async function carregarComboClasseFrota() {
+      var sel = document.getElementById('veicClasseFrota');
+      if (!sel) return;
+      var token = typeof getToken === 'function' ? getToken() : localStorage.getItem('token');
+      try {
+        var res = await fetch(corrigir('/api/motorista/classes-frota-combo'), {
+          headers: token ? { Authorization: 'Bearer ' + token } : {}
+        });
+        if (!res.ok) return;
+        var arr = await res.json();
+        if (!Array.isArray(arr)) return;
+        mapClasseFrotaVeiculo = {};
+        while (sel.options.length > 1) {
+          sel.remove(1);
+        }
+        arr.forEach(function (row) {
+          var id = row.CDCLASSEFROTA != null ? row.CDCLASSEFROTA : row.cdclassefrota;
+          var ds = row.DSCLASSEFROTA != null ? row.DSCLASSEFROTA : row.dsclassefrota;
+          if (id == null || String(id).trim() === '') return;
+          mapClasseFrotaVeiculo[String(id)] = ds || String(id);
+          var o = document.createElement('option');
+          o.value = String(id);
+          o.textContent = ds || String(id);
+          sel.appendChild(o);
+        });
+      } catch (e) {
+        console.warn('Combo classe frota:', e);
+      }
+    }
+
+    function labelStatusVeiculo(st) {
+      var s = String(st || 'P').toUpperCase().trim().charAt(0);
+      var t = typeof window.t === 'function' ? window.t : function (k) { return k; };
+      if (s === 'A') return t('perfil.statusAprovado');
+      if (s === 'R') return t('perfil.statusRejeitado');
+      return t('perfil.statusPendente');
+    }
+
+    async function carregarVeiculos() {
+      var box = document.getElementById('listaVeiculos');
+      if (!box) return;
+      var token = typeof getToken === 'function' ? getToken() : localStorage.getItem('token');
+      try {
+        var res = await fetch(corrigir('/api/motorista/veiculos'), {
+          headers: { Authorization: 'Bearer ' + token }
+        });
+        if (res.status === 401) {
+          window.location.href = '../index.html';
+          return;
+        }
+        if (!res.ok) {
+          var raw = await res.text();
+          var errMsg = raw;
+          try {
+            var ej = JSON.parse(raw);
+            errMsg = ej.error || ej.message || raw;
+          } catch (parseErr) {
+            /* manter raw */
+          }
+          box.innerHTML =
+            '<p class="perfil-hint">' +
+            (errMsg ||
+              (res.status === 503
+                ? typeof window.t === 'function'
+                  ? window.t('veiculos.schemaPendente')
+                  : 'Atualize o banco.'
+                : 'Erro')) +
+            '</p>';
+          return;
+        }
+        var rows = await res.json();
+        if (!Array.isArray(rows) || rows.length === 0) {
+          box.innerHTML =
+            '<p class="perfil-hint">' + (typeof window.t === 'function' ? window.t('veiculos.nenhum') : 'Nenhum veículo cadastrado.') + '</p>';
+          return;
+        }
+        box.innerHTML =
+          '<ul style="margin:0;padding-left:1.1rem;">' +
+          rows
+            .map(function (r) {
+              var pl = r.PLACA != null ? r.PLACA : r.placa;
+              var st = r.STATUSAPROVACAO != null ? r.STATUSAPROVACAO : r.statusaprovacao;
+              var papel = r.PAPEL_CONJUNTO != null ? r.PAPEL_CONJUNTO : r.papel_conjunto;
+              var extra = papel ? ' · ' + String(papel) : '';
+              var cdCl = r.CDCLASSEFROTA != null ? r.CDCLASSEFROTA : r.cdclassefrota;
+              var dsCl = r.ds_classe_frota || r.DSCLASSEFROTA || r.dsclassefrota || '';
+              if (!dsCl && cdCl != null && mapClasseFrotaVeiculo[String(cdCl)]) dsCl = mapClasseFrotaVeiculo[String(cdCl)];
+              var extraCl = dsCl ? ' · ' + String(dsCl) : cdCl != null ? ' · classe #' + String(cdCl) : '';
+              return (
+                '<li style="margin-bottom:8px;"><strong>' +
+                String(pl || '') +
+                '</strong>' +
+                extra +
+                extraCl +
+                ' — ' +
+                labelStatusVeiculo(st) +
+                '</li>'
+              );
+            })
+            .join('') +
+          '</ul>';
+      } catch (e) {
+        box.innerHTML = '<p class="perfil-hint">Erro de rede.</p>';
+      }
+    }
+
+    async function carregarPerfil() {
+      var token = typeof getToken === 'function' ? getToken() : localStorage.getItem('token');
+      var loadEl = document.getElementById('perfilLoading');
+      var formEl = document.getElementById('formPerfil');
+      try {
+        var res = await fetch(corrigir('/api/motorista/perfil'), {
+          headers: { Authorization: 'Bearer ' + token }
+        });
+        if (res.status === 401) {
+          window.location.href = '../index.html';
+          return;
+        }
+        if (!res.ok) {
+          var errTxt = await res.text();
+          if (loadEl) loadEl.innerHTML = '<p class="perfil-hint">' + (typeof escapeHtml === 'function' ? escapeHtml(errTxt) : 'Erro') + '</p>';
+          return;
+        }
+        var p = await res.json();
+        ultimoPerfil = p;
+        var get = function (k) { return p[k] != null ? p[k] : p[k && k.toLowerCase()]; };
+        if (loadEl) loadEl.style.display = 'none';
+        if (formEl) formEl.style.display = 'block';
+        var secVeic = document.getElementById('secaoVeiculos');
+        if (secVeic) secVeic.style.display = 'block';
+        await carregarComboClasseFrota();
+        carregarVeiculos();
+
+        document.getElementById('nome').value = get('RZSOCIAL') || get('rzsocial') || '';
+        document.getElementById('cpfDisplay').value = formatarCpf(get('CGCCPF') || get('cgccpf'));
+        preencherCelular(get('NRCELULAR') || get('nrcelular'));
+        document.getElementById('email').value = get('ENDEMAIL') || get('endemail') || '';
+        document.getElementById('endereco').value = get('ENDERECO') || get('endereco') || '';
+        var nrend = get('NRENDERECO') != null ? get('NRENDERECO') : get('nrendereco');
+        document.getElementById('nrendereco').value = nrend != null && nrend !== '' ? String(nrend) : '';
+        document.getElementById('complend').value = get('COMPLEND') || get('complend') || '';
+        document.getElementById('bairro').value = get('BAIRRO') || get('bairro') || '';
+        var cep = get('CEP') != null ? get('CEP') : get('cep');
+        document.getElementById('cep').value = cep != null && cep !== '' ? String(cep).replace(/\D/g, '') : '';
+        var cid = get('CDCIDADE') != null ? get('CDCIDADE') : get('cdcidade');
+        document.getElementById('cdcidade').value = cid != null && cid !== '' ? String(cid) : '';
+
+        var nrCnhEl = document.getElementById('nrCnh');
+        if (nrCnhEl) {
+          var nrc = String(get('NRCNH') || get('nrcnh') || '').replace(/\D/g, '').slice(0, 11);
+          nrCnhEl.value = nrc;
+        }
+        var catEl = document.getElementById('categoriaCnh');
+        if (catEl) {
+          var catVal = String(get('CATEGORIACNH') || get('categoriacnh') || '').trim().toUpperCase();
+          var hasOpt = Array.from(catEl.options).some(function(o) {
+            return o.value === catVal;
+          });
+          if (catVal && !hasOpt) {
+            var optExtra = document.createElement('option');
+            optExtra.value = catVal;
+            optExtra.textContent = catVal;
+            catEl.appendChild(optExtra);
+          }
+          catEl.value = catVal;
+        }
+        document.getElementById('validadeCnh').value = dataIsoParaInput(get('VALIDADECNH') || get('validadecnh'));
+
+        aplicarStatusBadge(get('STATUSAPROVACAO') || get('statusaprovacao'));
+
+        var foto = get('FOTOCNH') || get('fotocnh');
+        var prev = document.getElementById('previewCnh');
+        if (foto && prev) {
+          prev.src = urlFoto(foto);
+          prev.style.display = 'block';
+        } else if (prev) {
+          prev.removeAttribute('src');
+          prev.style.display = 'none';
+        }
+
+        var fotoV = get('FOTOCNH_VERSO') || get('foto_cnh_verso');
+        var prevV = document.getElementById('previewCnhVerso');
+        if (fotoV && prevV) {
+          prevV.src = urlFoto(fotoV);
+          prevV.style.display = 'block';
+        } else if (prevV) {
+          prevV.removeAttribute('src');
+          prevV.style.display = 'none';
+        }
+
+        var fotoComp = get('FOTO_COMPROVANTE_ENDERECO') || get('foto_comprovante_endereco');
+        var prevComp = document.getElementById('previewComprovanteEndereco');
+        if (fotoComp && prevComp) {
+          prevComp.src = urlFoto(fotoComp);
+          prevComp.style.display = 'block';
+        } else if (prevComp) {
+          prevComp.removeAttribute('src');
+          prevComp.style.display = 'none';
+        }
+
+        if (typeof window.t === 'function') {
+          document.querySelectorAll('[data-i18n]').forEach(function (el) {
+            var k = el.getAttribute('data-i18n');
+            if (k) el.textContent = window.t(k);
+          });
+        }
+      } catch (e) {
+        console.error(e);
+        if (loadEl) loadEl.innerHTML = '<p class="perfil-hint">Erro de rede.</p>';
+      }
+    }
+
+    document.getElementById('documento').addEventListener('change', function () {
+      var f = this.files && this.files[0];
+      var prev = document.getElementById('previewCnh');
+      if (!f || !prev) return;
+      var r = new FileReader();
+      r.onload = function () {
+        prev.src = r.result;
+        prev.style.display = 'block';
+      };
+      r.readAsDataURL(f);
+    });
+
+    var docVersoEl = document.getElementById('documentoVerso');
+    if (docVersoEl) {
+      docVersoEl.addEventListener('change', function () {
+        var f = this.files && this.files[0];
+        var prev = document.getElementById('previewCnhVerso');
+        if (!f || !prev) return;
+        var r = new FileReader();
+        r.onload = function () {
+          prev.src = r.result;
+          prev.style.display = 'block';
+        };
+        r.readAsDataURL(f);
+      });
+    }
+
+    var compEndEl = document.getElementById('comprovanteEndereco');
+    if (compEndEl) {
+      compEndEl.addEventListener('change', function () {
+        var f = this.files && this.files[0];
+        var prev = document.getElementById('previewComprovanteEndereco');
+        if (!f || !prev) return;
+        var r = new FileReader();
+        r.onload = function () {
+          prev.src = r.result;
+          prev.style.display = 'block';
+        };
+        r.readAsDataURL(f);
+      });
+    }
+
+    document.getElementById('formPerfil').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var msg = document.getElementById('perfilMensagem');
+      var btn = document.getElementById('btnSalvarPerfil');
+      msg.textContent = '';
+      msg.className = '';
+      btn.disabled = true;
+      var token = typeof getToken === 'function' ? getToken() : localStorage.getItem('token');
+      var fd = new FormData();
+      fd.append('nome', document.getElementById('nome').value.trim());
+      fd.append('ddi', document.getElementById('ddi').value);
+      fd.append('ddd', document.getElementById('ddd').value.replace(/\D/g, ''));
+      fd.append('celular', document.getElementById('celular').value.replace(/\D/g, ''));
+      fd.append('email', document.getElementById('email').value.trim());
+      fd.append('endereco', document.getElementById('endereco').value.trim());
+      fd.append('nrendereco', document.getElementById('nrendereco').value.trim());
+      fd.append('complend', document.getElementById('complend').value.trim());
+      fd.append('bairro', document.getElementById('bairro').value.trim());
+      fd.append('cep', document.getElementById('cep').value.replace(/\D/g, ''));
+      var cidVal = document.getElementById('cdcidade').value.trim();
+      if (cidVal) fd.append('cdcidade', cidVal);
+      fd.append('nrCnh', document.getElementById('nrCnh').value.trim());
+      fd.append('categoriaCnh', document.getElementById('categoriaCnh').value.trim());
+      var vd = document.getElementById('validadeCnh').value;
+      if (vd) fd.append('validadeCnh', vd);
+      var fileEl = document.getElementById('documento');
+      if (fileEl.files && fileEl.files[0]) fd.append('documento', fileEl.files[0]);
+      var fileVersoEl = document.getElementById('documentoVerso');
+      if (fileVersoEl && fileVersoEl.files && fileVersoEl.files[0]) fd.append('documentoVerso', fileVersoEl.files[0]);
+      var fileCompEl = document.getElementById('comprovanteEndereco');
+      if (fileCompEl && fileCompEl.files && fileCompEl.files[0]) fd.append('comprovanteEndereco', fileCompEl.files[0]);
+
+      try {
+        var res = await fetch(corrigir('/api/motorista/perfil'), {
+          method: 'PUT',
+          headers: { Authorization: 'Bearer ' + token },
+          body: fd
+        });
+        var data = null;
+        try {
+          data = await res.json();
+        } catch (errJ) {
+          data = {};
+        }
+        if (!res.ok) {
+          msg.className = 'erro';
+          msg.textContent = data.error || ('Erro ' + res.status);
+          if (typeof mostrarToast === 'function') mostrarToast(msg.textContent, 'error');
+          btn.disabled = false;
+          return;
+        }
+        msg.className = 'ok';
+        msg.textContent = data.message || 'OK';
+        if (typeof mostrarToast === 'function') mostrarToast(msg.textContent, 'success');
+        if (data.perfil) ultimoPerfil = data.perfil;
+        if (data.perfil) aplicarStatusBadge(data.perfil.STATUSAPROVACAO || data.perfil.statusaprovacao);
+        document.getElementById('documento').value = '';
+        var docVIn = document.getElementById('documentoVerso');
+        if (docVIn) docVIn.value = '';
+        var compIn = document.getElementById('comprovanteEndereco');
+        if (compIn) compIn.value = '';
+        var foto = data.perfil && (data.perfil.FOTOCNH || data.perfil.fotocnh);
+        var prev = document.getElementById('previewCnh');
+        if (foto && prev) {
+          prev.src = urlFoto(foto);
+          prev.style.display = 'block';
+        }
+        var fotoV = data.perfil && (data.perfil.FOTOCNH_VERSO || data.perfil.foto_cnh_verso);
+        var prevV = document.getElementById('previewCnhVerso');
+        if (fotoV && prevV) {
+          prevV.src = urlFoto(fotoV);
+          prevV.style.display = 'block';
+        } else if (prevV) {
+          prevV.removeAttribute('src');
+          prevV.style.display = 'none';
+        }
+        var fotoC = data.perfil && (data.perfil.FOTO_COMPROVANTE_ENDERECO || data.perfil.foto_comprovante_endereco);
+        var prevC = document.getElementById('previewComprovanteEndereco');
+        if (fotoC && prevC) {
+          prevC.src = urlFoto(fotoC);
+          prevC.style.display = 'block';
+        }
+      } catch (err) {
+        msg.className = 'erro';
+        msg.textContent = 'Erro de rede.';
+        if (typeof mostrarToast === 'function') mostrarToast(msg.textContent, 'error');
+      }
+      btn.disabled = false;
+    });
+
+    document.getElementById('formNovoVeiculo').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (veiculoFormSubmitting) return;
+      veiculoFormSubmitting = true;
+      var msg = document.getElementById('veiculoMensagem');
+      var btn = document.getElementById('btnSalvarVeiculo');
+      var labelOriginal = btn ? btn.textContent : '';
+      msg.textContent = '';
+      msg.className = '';
+      var selClasse = document.getElementById('veicClasseFrota');
+      if (!selClasse || !selClasse.value) {
+        msg.className = 'erro';
+        msg.textContent = typeof window.t === 'function' ? window.t('veiculos.classeObrigatoria') : 'Escolha a classe de frota na lista.';
+        if (typeof mostrarToast === 'function') mostrarToast(msg.textContent, 'error');
+        veiculoFormSubmitting = false;
+        return;
+      }
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = typeof window.t === 'function' ? window.t('common.carregando') : '...';
+      }
+      var token = typeof getToken === 'function' ? getToken() : localStorage.getItem('token');
+      var fd = new FormData();
+      fd.append('placa', document.getElementById('veicPlaca').value.trim());
+      fd.append('renavam', document.getElementById('veicRenavam').value.trim());
+      fd.append('papelConjunto', document.getElementById('veicPapel').value.trim());
+      var selCl = document.getElementById('veicClasseFrota');
+      if (selCl && selCl.value) fd.append('cdClasseFrota', selCl.value);
+      var crlv = document.getElementById('veicCrlv');
+      if (crlv.files && crlv.files[0]) fd.append('crlv', crlv.files[0]);
+      try {
+        var res = await fetch(corrigir('/api/motorista/veiculos'), {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + token },
+          body: fd
+        });
+        var data = {};
+        try {
+          data = await res.json();
+        } catch (j) {}
+        if (!res.ok) {
+          msg.className = 'erro';
+          msg.textContent = data.error || 'Erro ' + res.status;
+          if (typeof mostrarToast === 'function') mostrarToast(msg.textContent, 'error');
+          veiculoFormSubmitting = false;
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = labelOriginal;
+          }
+          return;
+        }
+        msg.className = 'ok';
+        msg.textContent = data.message || 'OK';
+        if (typeof mostrarToast === 'function') mostrarToast(msg.textContent, 'success');
+        document.getElementById('veicPlaca').value = '';
+        document.getElementById('veicRenavam').value = '';
+        document.getElementById('veicPapel').value = 'CAVALO';
+        var scl = document.getElementById('veicClasseFrota');
+        if (scl) scl.selectedIndex = 0;
+        document.getElementById('veicCrlv').value = '';
+        await carregarVeiculos();
+      } catch (err) {
+        msg.className = 'erro';
+        msg.textContent = 'Erro de rede.';
+        if (typeof mostrarToast === 'function') mostrarToast(msg.textContent, 'error');
+      }
+      setTimeout(function () {
+        veiculoFormSubmitting = false;
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = labelOriginal;
+        }
+      }, 600);
+    });
+
+    if (window.i18nReady) {
+      window.i18nReady.then(function () {
+        if (typeof window.t === 'function') {
+          document.querySelectorAll('[data-i18n]').forEach(function (el) {
+            var k = el.getAttribute('data-i18n');
+            if (k) el.textContent = window.t(k);
+          });
+        }
+        carregarPerfil();
+      });
+    } else {
+      carregarPerfil();
+    }
+  </script>
+</body>
+</html>

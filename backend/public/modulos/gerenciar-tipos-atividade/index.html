@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/modulos.css">
+  <link rel="stylesheet" href="/css/dark-mode.css">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <style>
     /* ========== Gerenciar Tipos de Atividade - Identidade Atlas Cargo ========== */
@@ -63,13 +64,6 @@
     .tipos-atividade-container .tabs.tabs-com-icones .tab-btn:hover { color: #64748b; }
     .tipos-atividade-container .tabs.tabs-com-icones .tab-btn.active { color: var(--ac-primary, #0d2137); border-bottom-color: var(--ac-primary, #0d2137); }
     .tipos-atividade-container .tabs.tabs-com-icones .tab-btn.active i { color: var(--ac-primary, #0d2137); }
-
-    .tipos-atividade-container .filtros-actions-moderno {
-      padding-top: 20px;
-      margin-top: 20px;
-      border-top: 1px solid var(--border, #e2e8f0);
-      gap: 12px;
-    }
 
     .btn-filtro {
       display: inline-flex;
@@ -401,9 +395,9 @@
 
     <!-- Abas -->
     <div class="tabs tabs-com-icones">
-      <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.tiposAtividade.tabFiltros"><i class='bx bx-filter-alt'></i> Filtros</button>
-      <button class="tab-btn" data-tab="grid" data-i18n="web.modulos.tiposAtividade.tabGrid"><i class='bx bx-grid-alt'></i> Grid</button>
-      <button class="tab-btn" data-tab="dados" data-i18n="web.modulos.tiposAtividade.tabDados"><i class='bx bx-edit'></i> Dados</button>
+      <button type="button" class="tab-btn active" data-tab="filtros"><i class='bx bx-filter-alt'></i> <span data-i18n="web.modulos.tiposAtividade.tabFiltros">Filtros</span></button>
+      <button type="button" class="tab-btn" data-tab="grid"><i class='bx bx-grid-alt'></i> <span data-i18n="web.modulos.tiposAtividade.tabGrid">Grid</span></button>
+      <button type="button" class="tab-btn" data-tab="dados"><i class='bx bx-edit'></i> <span data-i18n="web.modulos.tiposAtividade.tabDados">Dados</span></button>
     </div>
 
     <!-- Filtros -->
@@ -429,9 +423,9 @@
               </select>
             </div>
           </div>
-          <div class="filtros-actions filtros-actions-moderno">
-            <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class='bx bx-eraser'></i> <span data-i18n="web.modulos.tiposAtividade.limpar">Limpar</span></button>
-            <button type="submit" id="btnAplicarFiltros" class="btn-filtro btn-filtro-aplicar"><i class='bx bx-search-alt'></i> <span data-i18n="web.modulos.tiposAtividade.filtrar">Filtrar</span></button>
+          <div class="filtros-actions">
+            <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> <span data-i18n="web.modulos.tiposAtividade.limpar">Limpar</span></button>
+            <button type="submit" id="btnAplicarFiltros" class="btn-filtro btn-filtro-aplicar"><i class='bx bx-search'></i> <span data-i18n="web.modulos.tiposAtividade.filtrar">Filtrar</span></button>
             <button type="button" id="btnNovoRegistro" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> <span data-i18n="web.modulos.tiposAtividade.novoRegistro">Novo</span></button>
           </div>
         </form>
@@ -441,7 +435,7 @@
     <!-- Grid -->
     <div class="tab-content" id="tab-grid">
       <div class="form-box">
-        <h2 data-i18n="web.modulos.tiposAtividade.gridTitulo">Tipos de Atividade - Visualização em Grid</h2>
+        <h2 class="form-panel-titulo"><i class='bx bx-grid-alt' aria-hidden="true"></i> <span data-i18n="web.modulos.tiposAtividade.gridTitulo">Tipos de Atividade - Visualização em Grid</span></h2>
         <div class="actions-top">
           <div style="display: flex; gap: 10px;">
             <button type="button" id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.tiposAtividade.voltarFiltros">Voltar</span></button>
@@ -460,7 +454,7 @@
     <!-- Dados -->
     <div class="tab-content" id="tab-dados">
       <div class="form-box">
-        <h2 id="formTitle" data-i18n="web.modulos.tiposAtividade.novoTipo">Novo Tipo de Atividade</h2>
+        <h2 id="formTitle" class="form-panel-titulo"><i class='bx bx-edit' aria-hidden="true"></i> <span data-i18n="web.modulos.tiposAtividade.novoTipo">Novo Tipo de Atividade</span></h2>
         <form id="tipoAtividadeForm">
           <input type="hidden" id="tipoAtividadeCodigoOriginal">
           
@@ -497,6 +491,20 @@
                 <div>
                   <label for="tipoAtividadeGrupo">Grupo (FGGRUPO)</label>
                   <input type="text" id="tipoAtividadeGrupo" maxlength="50" placeholder="Grupo do tipo de atividade" class="form-control">
+                </div>
+                <div>
+                  <label for="tipoAtividadeModuloProduto" data-i18n="web.modulos.tiposAtividade.moduloProduto">Módulo de produto (menu)</label>
+                  <select id="tipoAtividadeModuloProduto" class="form-control">
+                    <option value="" data-i18n="web.modulos.tiposAtividade.moduloProdutoNenhum">— Não definido —</option>
+                  </select>
+                  <small class="form-text text-muted" data-i18n="web.modulos.tiposAtividade.moduloProdutoAjuda" style="display:block;margin-top:6px;color:#64748b;font-size:12px;">Agrupa a função no menu por produto (ex.: Torre logística).</small>
+                </div>
+                <div>
+                  <label for="tipoAtividadeModuloLicenca" data-i18n="web.modulos.tiposAtividade.licencaSaaS">Chave de licença SaaS (opcional)</label>
+                  <select id="tipoAtividadeModuloLicenca" class="form-control">
+                    <option value="" data-i18n="web.modulos.tiposAtividade.moduloLicencaOpcaoNenhuma">— Nenhuma —</option>
+                  </select>
+                  <small class="form-text text-muted" data-i18n="web.modulos.tiposAtividade.licencaSaaSAjuda" style="display:block;margin-top:6px;color:#64748b;font-size:12px;">Só preencha se esta tela depender de um módulo cadastrado em Operação SaaS → Catálogo.</small>
                 </div>
               </div>
             </div>

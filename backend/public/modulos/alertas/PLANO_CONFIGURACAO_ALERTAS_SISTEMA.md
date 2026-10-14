@@ -28,6 +28,8 @@ Objetivo: concentrar em **Configurações do Sistema** (gerenciar-configuracoes)
 | `alert_atraso_margem_minutos` | (Opcional) Margem em minutos além do prazo para considerar atraso | 0 | minutos | verificarAtraso (se usar no futuro) |
 | **Job (quando verifica)** | | | | |
 | `alert_job_intervalo_minutos` | Intervalo da verificação automática | 5 | minutos | server.js – iniciarJobAlertas |
+| `alert_cooldown_minutos` | Tempo mínimo para repetir o mesmo alerta (mesma viagem + tipo) após tratado/cancelado | 30 | minutos | alert-service / salvarAlerta |
+| `alert_whatsapp_reenvio_minutos` | Tempo mínimo para reenviar WhatsApp do mesmo alerta para o mesmo destino | 30 | minutos | alert-notification-service |
 | `alert_job_ativo` | Job de alertas ligado (S/N) | S | S/N | server.js – poder pausar o job |
 | **Tipos ativos (liga/desliga)** | | | | |
 | `alert_tipo_parada_ativo` | Gerar alerta de parada prolongada | S | S/N | verificarAlertas |
@@ -39,6 +41,10 @@ Objetivo: concentrar em **Configurações do Sistema** (gerenciar-configuracoes)
 | `alert_situacoes_viagem` | Códigos de situação que disparam verificação (separados por vírgula; vazio = usar padrão ANDAMENTO,CONFIRMADA,APROVADO) | (vazio = lógica atual) | ex: 1,2,10 | Queries em alert-service (IN list) |
 
 - **Regras claras na tela:** em cada campo, hint/tooltip explicando: "Gera quando...", "Considera viagens em...", etc.
+- **Cooldown (regra operacional):**
+  - `alert_cooldown_minutos`: impede recriação imediata do mesmo alerta após tratamento/cancelamento.
+  - `alert_whatsapp_reenvio_minutos`: impede reenvio repetitivo da mesma notificação no WhatsApp para o mesmo destino.
+  - `0` em qualquer um dos dois campos = sem cooldown (comportamento imediato).
 
 ---
 

@@ -3,10 +3,21 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const { findByEmail, findByLogin } = require('../models/user.model');
 const { registrarLogin, registrarLogout, registrarLogoutPorUsuario } = require('../models/usuariologacesso.model');
+const { getDefaultTenantId } = require('../middleware/tenant.middleware');
+const { poolPromise } = require('../config/db');
+const {
+  resolveTowerSessionSlotForLogin,
+  getTowerSessionTtlHours,
+} = require('../services/tenant-concurrent-sessions.service');
 require('dotenv').config();
 
 const login = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, kickOldestSession } = req.body || {};
+  const kick =
+    kickOldestSession === true ||
+    kickOldestSession === 'true' ||
+    kickOldestSession === 1 ||
+    kickOldestSession === '1';
 
   console.log('[AUTH] Tentativa de login recebida:', {
     email: email ? email.substring(0, 10) + '...' : 'undefined',
@@ -72,8 +83,6 @@ const login = async (req, res) => {
       });
     }
 
-    console.log('[AUTH] Login bem-sucedido para usuário:', user.SGUSUARIO);
-
     // Garantir id numérico (PostgreSQL pode retornar CDCADASTRO em maiúsculas ou minúsculas)
     let userId = user.CDCADASTRO ?? user.cdcadastro ?? user.id;
     let userIdNum = userId != null ? parseFloat(userId) : NaN;
@@ -92,26 +101,50 @@ const login = async (req, res) => {
     const nomeUser = user.NMUSUARIO ?? user.nmusuario;
     const emailUser = user.ENDEMAIL ?? user.endemail;
 
-    const token = jwt.sign(
-      {
-        id: userIdNum,
-        cdcadastro: userIdNum,
-        login: loginName,
-        nome: nomeUser,
-        email: emailUser
-      },
-      process.env.JWT_SECRET,
-      { expiresIn: '8h' }
-    );
+    const rawTid = user.TENANT_ID ?? user.tenant_id;
+    const tenantId =
+      rawTid != null && String(rawTid).trim() !== '' ? String(rawTid).trim() : getDefaultTenantId();
 
-    // Registrar login na tabela USUARIOLOGACESSO
+    const pool = await poolPromise;
+    const sessGate = await resolveTowerSessionSlotForLogin(pool, tenantId, kick, loginName);
+    if (!sessGate.ok) {
+      const status = sessGate.code === 'CONCURRENT_SESSION_LIMIT' ? 409 : 503;
+      return res.status(status).json({
+        success: false,
+        code: sessGate.code,
+        message: sessGate.message,
+        maxConcurrentSessions: sessGate.maxConcurrentSessions,
+        openSessions: sessGate.openSessions,
+      });
+    }
+
+    console.log('[AUTH] Login bem-sucedido (sessão autorizada) para usuário:', user.SGUSUARIO);
+
+    // Registrar login na tabela USUARIOLOGACESSO (antes do JWT: token leva logAcessoId para revogar ao encerrar sessão)
     let idLogAcesso = null;
     try {
-      idLogAcesso = await registrarLogin(user.SGUSUARIO);
+      idLogAcesso = await registrarLogin(loginName, tenantId);
     } catch (logErr) {
-      // Não falhar o login se houver erro ao registrar log
       console.error('Erro ao registrar log de acesso:', logErr);
     }
+
+    const ttlH = getTowerSessionTtlHours();
+    const payload = {
+      id: userIdNum,
+      cdcadastro: userIdNum,
+      login: loginName,
+      nome: nomeUser,
+      email: emailUser,
+      tenantId,
+    };
+    if (idLogAcesso != null && idLogAcesso !== '') {
+      const lid = typeof idLogAcesso === 'number' ? idLogAcesso : parseInt(String(idLogAcesso), 10);
+      if (Number.isFinite(lid) && lid > 0) {
+        payload.logAcessoId = lid;
+        payload.idLogAcesso = lid;
+      }
+    }
+    const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: `${ttlH}h` });
 
     return res.json({
       success: true,
@@ -122,7 +155,8 @@ const login = async (req, res) => {
         cdcadastro: userIdNum,
         login: loginName,
         nome: nomeUser,
-        email: emailUser
+        email: emailUser,
+        tenantId,
       }
     });
 

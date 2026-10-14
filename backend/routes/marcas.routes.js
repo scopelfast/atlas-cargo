@@ -2,22 +2,54 @@
 const express = require('express');
 const router = express.Router();
 const { poolPromise } = require('../config/db');
+const { towerAuthAndTenant } = require('../middleware/tower-auth-chain.middleware');
+const { tenantIdForRequest } = require('../utils/tenant-context');
+
+router.use(towerAuthAndTenant);
 
 // Listar marcas (query nativa PostgreSQL para evitar problema de capitalização)
 router.get('/marcas', async (req, res) => {
   try {
     const pool = await poolPromise;
+    const tenantId = tenantIdForRequest(req);
+    const { codigo, descricao, situacao } = req.query;
+    const params = [tenantId];
+    let next = 2;
+    let where = `("TENANT_ID" = $1 OR "TENANT_ID" = 'default')`;
+    if (codigo) {
+      const n = parseInt(codigo, 10);
+      if (!isNaN(n) && n > 0) {
+        where += ` AND "CDMARCAEQUIPAMENTO" = $${next}`;
+        params.push(n);
+        next++;
+      }
+    }
+    if (descricao && String(descricao).trim()) {
+      where += ` AND "DSMARCAEQUIPAMENTO" ILIKE $${next}`;
+      params.push(`%${String(descricao).trim()}%`);
+      next++;
+    }
+    if (situacao === 'S') {
+      where += ` AND ("FGACTIVE" = 'A' OR "FGACTIVE" = 'S')`;
+    } else if (situacao === 'N') {
+      where += ` AND ("FGACTIVE" = 'I' OR "FGACTIVE" = 'N')`;
+    }
     const result = await pool.query(`
       SELECT "CDMARCAEQUIPAMENTO", "DSMARCAEQUIPAMENTO", "FGACTIVE"
       FROM "MARCAEQUIPAMENTO"
+      WHERE ${where}
       ORDER BY "DSMARCAEQUIPAMENTO"
-    `);
+    `, params);
     const rows = result.rows || [];
-    const marcas = rows.map(r => ({
-      CDMARCAEQUIPAMENTO: r.CDMARCAEQUIPAMENTO ?? r.cdmarcaequipamento,
-      DSMARCAEQUIPAMENTO: r.DSMARCAEQUIPAMENTO ?? r.dsmarcaequipamento,
-      FGACTIVE: (r.FGACTIVE ?? r.fgactive) === 'A' ? 'S' : 'N'
-    }));
+    const marcas = rows.map(r => {
+      const fg = r.FGACTIVE ?? r.fgactive;
+      const ativo = fg === 'A' || fg === 'S';
+      return {
+        CDMARCAEQUIPAMENTO: r.CDMARCAEQUIPAMENTO ?? r.cdmarcaequipamento,
+        DSMARCAEQUIPAMENTO: r.DSMARCAEQUIPAMENTO ?? r.dsmarcaequipamento,
+        FGACTIVE: ativo ? 'S' : 'N'
+      };
+    });
     res.json(marcas);
   } catch (err) {
     if (err.code === '42P01') {
@@ -38,11 +70,13 @@ router.get('/marcas/:id', async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const tenantId = tenantIdForRequest(req);
     const result = await pool.query(
       `SELECT "CDMARCAEQUIPAMENTO", "DSMARCAEQUIPAMENTO", "FGACTIVE"
        FROM "MARCAEQUIPAMENTO"
-       WHERE "CDMARCAEQUIPAMENTO" = $1`,
-      [idNum]
+       WHERE "CDMARCAEQUIPAMENTO" = $1
+         AND ("TENANT_ID" = $2 OR "TENANT_ID" = 'default')`,
+      [idNum, tenantId]
     );
 
     const rows = result.rows || [];
@@ -52,10 +86,12 @@ router.get('/marcas/:id', async (req, res) => {
 
     const marca = rows[0];
     const get = (r, k) => r[k] != null ? r[k] : r[k && k.toLowerCase()];
+    const fg = get(marca, 'FGACTIVE');
+    const ativo = fg === 'A' || fg === 'S';
     res.json({
       CDMARCAEQUIPAMENTO: get(marca, 'CDMARCAEQUIPAMENTO'),
       DSMARCAEQUIPAMENTO: get(marca, 'DSMARCAEQUIPAMENTO'),
-      FGACTIVE: (get(marca, 'FGACTIVE') === 'A') ? 'S' : 'N'
+      FGACTIVE: ativo ? 'S' : 'N'
     });
   } catch (err) {
     if (err.code === '42P01') {
@@ -75,12 +111,15 @@ router.post('/marcas', async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const tenantId = tenantIdForRequest(req);
     const descricao = DSMARCAEQUIPAMENTO.trim();
 
-    // Evitar duplicata por descrição (case-insensitive)
+    // Evitar duplicata por descrição no mesmo tenant (case-insensitive)
     const existente = await pool.query(
-      `SELECT 1 FROM "MARCAEQUIPAMENTO" WHERE UPPER(TRIM("DSMARCAEQUIPAMENTO")) = UPPER(TRIM($1)) LIMIT 1`,
-      [descricao]
+      `SELECT 1 FROM "MARCAEQUIPAMENTO"
+       WHERE UPPER(TRIM("DSMARCAEQUIPAMENTO")) = UPPER(TRIM($1)) AND "TENANT_ID" = $2
+       LIMIT 1`,
+      [descricao, tenantId]
     );
     if (existente.rows && existente.rows.length > 0) {
       return res.status(409).json({ error: 'Já existe uma marca com esta descrição. Não é permitido cadastrar duplicados.' });
@@ -95,15 +134,17 @@ router.post('/marcas', async (req, res) => {
     let novoId = await getProximoId();
     try {
       await pool.query(
-        `INSERT INTO "MARCAEQUIPAMENTO" ("CDMARCAEQUIPAMENTO", "DSMARCAEQUIPAMENTO", "FGACTIVE", "DHMAINTENANCE", "SGUSER", "SERVERORIG") VALUES ($1, $2, 'A', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas')`,
-        [novoId, descricao]
+        `INSERT INTO "MARCAEQUIPAMENTO" ("CDMARCAEQUIPAMENTO", "DSMARCAEQUIPAMENTO", "FGACTIVE", "DHMAINTENANCE", "SGUSER", "SERVERORIG", "TENANT_ID")
+         VALUES ($1, $2, 'A', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', $3)`,
+        [novoId, descricao, tenantId]
       );
     } catch (e) {
       if (String(e.code) === '23505') {
         novoId = await getProximoId();
         await pool.query(
-          `INSERT INTO "MARCAEQUIPAMENTO" ("CDMARCAEQUIPAMENTO", "DSMARCAEQUIPAMENTO", "FGACTIVE", "DHMAINTENANCE", "SGUSER", "SERVERORIG") VALUES ($1, $2, 'A', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas')`,
-          [novoId, descricao]
+          `INSERT INTO "MARCAEQUIPAMENTO" ("CDMARCAEQUIPAMENTO", "DSMARCAEQUIPAMENTO", "FGACTIVE", "DHMAINTENANCE", "SGUSER", "SERVERORIG", "TENANT_ID")
+           VALUES ($1, $2, 'A', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', $3)`,
+          [novoId, descricao, tenantId]
         );
       } else throw e;
     }
@@ -125,15 +166,20 @@ router.put('/marcas/:id', async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const tenantId = tenantIdForRequest(req);
     const idNum = parseInt(id, 10);
     if (isNaN(idNum) || idNum <= 0) {
       return res.status(400).json({ error: 'ID inválido.' });
     }
 
-    // Evitar duplicata: outra marca (código diferente) com a mesma descrição
+    // Evitar duplicata: outra marca do mesmo tenant (código diferente) com a mesma descrição
     const existente = await pool.query(
-      `SELECT 1 FROM "MARCAEQUIPAMENTO" WHERE UPPER(TRIM("DSMARCAEQUIPAMENTO")) = UPPER(TRIM($1)) AND "CDMARCAEQUIPAMENTO" != $2 LIMIT 1`,
-      [DSMARCAEQUIPAMENTO.trim(), idNum]
+      `SELECT 1 FROM "MARCAEQUIPAMENTO"
+       WHERE UPPER(TRIM("DSMARCAEQUIPAMENTO")) = UPPER(TRIM($1))
+         AND "CDMARCAEQUIPAMENTO" != $2
+         AND "TENANT_ID" = $3
+       LIMIT 1`,
+      [DSMARCAEQUIPAMENTO.trim(), idNum, tenantId]
     );
     if (existente.rows && existente.rows.length > 0) {
       return res.status(409).json({ error: 'Já existe outra marca com esta descrição. Não é permitido duplicar.' });
@@ -141,12 +187,16 @@ router.put('/marcas/:id', async (req, res) => {
 
     const fgactiveDB = FGACTIVE === 'S' ? 'A' : 'I';
 
-    await pool.query(
+    const upd = await pool.query(
       `UPDATE "MARCAEQUIPAMENTO"
        SET "DSMARCAEQUIPAMENTO" = $1, "FGACTIVE" = $2, "DHMAINTENANCE" = CURRENT_TIMESTAMP, "SGUSER" = 'SYSTEM', "SERVERORIG" = 'AppDVcargas'
-       WHERE "CDMARCAEQUIPAMENTO" = $3`,
-      [DSMARCAEQUIPAMENTO.trim(), fgactiveDB, idNum]
+       WHERE "CDMARCAEQUIPAMENTO" = $3 AND "TENANT_ID" = $4`,
+      [DSMARCAEQUIPAMENTO.trim(), fgactiveDB, idNum, tenantId]
     );
+
+    if (!upd.rowCount) {
+      return res.status(404).json({ error: 'Marca não encontrada ou não pode ser alterada (catálogo compartilhado).' });
+    }
 
     res.json({ success: true, message: 'Marca de equipamento atualizada com sucesso!' });
   } catch (err) {
@@ -170,10 +220,11 @@ router.delete('/marcas/:id', async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const tenantId = tenantIdForRequest(req);
 
     const checkResult = await pool.query(
-      `SELECT "FGACTIVE" FROM "MARCAEQUIPAMENTO" WHERE "CDMARCAEQUIPAMENTO" = $1`,
-      [idNum]
+      `SELECT "FGACTIVE" FROM "MARCAEQUIPAMENTO" WHERE "CDMARCAEQUIPAMENTO" = $1 AND "TENANT_ID" = $2`,
+      [idNum, tenantId]
     );
 
     if (!checkResult.rows || checkResult.rows.length === 0) {
@@ -181,7 +232,7 @@ router.delete('/marcas/:id', async (req, res) => {
     }
 
     const statusAtual = checkResult.rows[0].FGACTIVE ?? checkResult.rows[0].fgactive;
-    const estaAtivo = statusAtual === 'A';
+    const estaAtivo = statusAtual === 'A' || statusAtual === 'S';
 
     let novaSituacao, mensagem;
     if (action === 'activate') {
@@ -198,8 +249,8 @@ router.delete('/marcas/:id', async (req, res) => {
     const updateResult = await pool.query(
       `UPDATE "MARCAEQUIPAMENTO"
        SET "FGACTIVE" = $1, "DHMAINTENANCE" = CURRENT_TIMESTAMP, "SGUSER" = 'SYSTEM', "SERVERORIG" = 'AppDVcargas'
-       WHERE "CDMARCAEQUIPAMENTO" = $2`,
-      [novaSituacao, idNum]
+       WHERE "CDMARCAEQUIPAMENTO" = $2 AND "TENANT_ID" = $3`,
+      [novaSituacao, idNum, tenantId]
     );
 
     if (updateResult.rowCount === 0) {

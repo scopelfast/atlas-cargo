@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Baixas / Perdas · WMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/modulos.css" />
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+  <style>
+    /* ========== Baixas / Perdas (espelho de Transferências entre Donos) ========== */
+    .wms-baixa-container {
+      padding: 20px;
+      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+    }
+    .wms-baixa-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
+    }
+    .wms-baixa-header h2 {
+      margin: 0;
+      color: var(--ac-primary, #0d2137);
+      font-size: 24px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .wms-baixa-header h2 i { color: #dc2626; }
+
+    .filtros-box {
+      background: #fff;
+      border-radius: 12px;
+      padding: 18px 22px;
+      margin-bottom: 18px;
+      box-shadow: 0 2px 14px rgba(15, 23, 42, 0.05);
+    }
+    .filtros-box h3 {
+      margin: 0 0 12px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .filtros-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .filtros-grid label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: 4px;
+    }
+    .filtros-grid .form-control {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      background: #fff;
+      color: #0f172a;
+      box-sizing: border-box;
+    }
+    .filtros-grid .form-control:focus {
+      outline: none;
+      border-color: #0ea5e9;
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+    }
+    .filtros-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .filtros-actions--end { justify-content: flex-end; }
+
+    .btn-filtro {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.15s;
+    }
+    .btn-filtro:hover { transform: translateY(-1px); }
+    .btn-filtro i { font-size: 1.1rem; }
+    .btn-filtro-limpar { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+    .btn-filtro-limpar:hover { background: #e2e8f0; color: #334155; }
+    .btn-filtro-aplicar { background: #0ea5e9; color: #fff; }
+    .btn-filtro-aplicar:hover { background: #0284c7; box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35); }
+    .btn-filtro-novo { background: #16a34a; color: #fff; }
+    .btn-filtro-novo:hover { background: #15803d; box-shadow: 0 4px 12px rgba(22, 163, 74, 0.35); }
+    .btn-filtro:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .lista-box {
+      background: #fff;
+      border-radius: 12px;
+      padding: 18px 22px;
+      box-shadow: 0 2px 14px rgba(15, 23, 42, 0.05);
+    }
+    .lista-box .meta {
+      font-size: 13px;
+      color: #475569;
+      margin-bottom: 10px;
+    }
+    table.wms-baixa-tabela {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    table.wms-baixa-tabela th,
+    table.wms-baixa-tabela td {
+      padding: 8px 10px;
+      text-align: left;
+      border-bottom: 1px solid #e2e8f0;
+      vertical-align: top;
+    }
+    table.wms-baixa-tabela th {
+      background: #f8fafc;
+      color: #475569;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      border-bottom: 2px solid #cbd5e1;
+    }
+    table.wms-baixa-tabela tr:hover td { background: #f8fafc; }
+    .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+    .badge-ok { background: #dcfce7; color: #166534; }
+    .badge-est { background: #fee2e2; color: #991b1b; }
+    .btn-acao {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #475569;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .btn-acao:hover { background: #f1f5f9; color: #0f172a; border-color: #94a3b8; }
+    .btn-acao i { font-size: 14px; }
+
+    .vazio-msg {
+      padding: 28px 18px;
+      text-align: center;
+      color: #64748b;
+      font-size: 14px;
+    }
+    .vazio-msg i { font-size: 32px; display: block; margin: 0 auto 8px; color: #cbd5e1; }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+    .modal[hidden] { display: none; }
+    .modal-content {
+      background: #fff;
+      border-radius: 12px;
+      padding: 22px 26px;
+      max-width: 640px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(15, 23, 42, 0.3);
+    }
+    .modal-content h3 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .modal-content .hint {
+      font-size: 12.5px;
+      color: #64748b;
+      line-height: 1.5;
+    }
+
+    .calculando-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1500;
+    }
+    .calculando-overlay .calculando-content {
+      background: #fff;
+      padding: 28px 36px;
+      border-radius: 14px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      text-align: center;
+      min-width: 260px;
+    }
+    .calculando-overlay .calculando-spinner {
+      width: 42px;
+      height: 42px;
+      border: 4px solid #e2e8f0;
+      border-top-color: #0ea5e9;
+      border-radius: 50%;
+      margin: 0 auto 14px;
+      animation: spinBaixa 0.9s linear infinite;
+    }
+    @keyframes spinBaixa { to { transform: rotate(360deg); } }
+    .calculando-overlay h3 { margin: 0 0 6px; font-size: 18px; color: #0f172a; }
+    .calculando-overlay p { margin: 0; font-size: 13px; color: #64748b; }
+    .calculando-overlay .calculando-detalhe { font-size: 12px; color: #94a3b8; margin-top: 6px; }
+
+    .baixa-shelf-box {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin: 12px 0;
+      font-size: 13.5px;
+      line-height: 1.45;
+      color: #0f172a;
+    }
+    .baixa-shelf-box h4 {
+      margin: 0 0 8px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .baixa-linhas-wrap {
+      max-height: 240px;
+      overflow: auto;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      margin: 10px 0 0;
+    }
+    .baixa-check-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      margin-top: 10px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #475569;
+      cursor: pointer;
+    }
+    .baixa-check-row input {
+      margin-top: 3px;
+      flex-shrink: 0;
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+
+    .btn-filtro-danger {
+      background: #dc2626;
+      color: #fff;
+      border-color: #dc2626;
+      box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
+    }
+    .btn-filtro-danger:hover {
+      background: #b91c1c;
+      border-color: #b91c1c;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
+    }
+
+    #modalNovaBaixa .modal-content { max-width: 920px; }
+    #modalPreviewBaixa .modal-content { max-width: 960px; }
+    #modalDetalheBaixa .modal-content { max-width: 820px; }
+    #modalEstornarBaixa .modal-content { max-width: 560px; }
+    #modalEstornarBaixa h3 .modal-icon-danger { color: #dc2626; font-size: 1.35rem; }
+
+    .baixa-estorno-alerta {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      margin: 0 0 16px;
+      padding: 12px 14px;
+      background: #eff6ff;
+      border: 1px solid #93c5fd;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: #1e3a5f;
+    }
+    .baixa-estorno-alerta i {
+      font-size: 1.35rem;
+      color: #2563eb;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .baixa-estorno-alerta strong { color: #0f172a; }
+    .baixa-estorno-form label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: 6px;
+    }
+    .baixa-estorno-form textarea.form-control {
+      min-height: 72px;
+      resize: vertical;
+      width: 100%;
+      box-sizing: border-box;
+    }
+
+    /* Dark mode (mesmo padrão Transferências) */
+    html[data-theme='dark'] .filtros-box,
+    html[data-theme='dark'] .lista-box,
+    html[data-theme='dark'] .modal-content,
+    body[data-theme='dark'] .filtros-box,
+    body[data-theme='dark'] .lista-box,
+    body[data-theme='dark'] .modal-content {
+      background: #1e293b;
+      color: #e2e8f0;
+      box-shadow: 0 2px 14px rgba(0, 0, 0, 0.35);
+    }
+    html[data-theme='dark'] .filtros-grid .form-control,
+    html[data-theme='dark'] .form-control,
+    body[data-theme='dark'] .filtros-grid .form-control,
+    body[data-theme='dark'] .form-control {
+      background: #0f172a;
+      color: #e2e8f0;
+      border-color: #334155;
+    }
+    html[data-theme='dark'] .filtros-grid label,
+    html[data-theme='dark'] .lista-box .meta,
+    body[data-theme='dark'] .filtros-grid label,
+    body[data-theme='dark'] .lista-box .meta { color: #94a3b8; }
+    html[data-theme='dark'] table.wms-baixa-tabela th,
+    body[data-theme='dark'] table.wms-baixa-tabela th {
+      background: #0f172a;
+      color: #94a3b8;
+      border-bottom-color: #334155;
+    }
+    html[data-theme='dark'] table.wms-baixa-tabela td,
+    body[data-theme='dark'] table.wms-baixa-tabela td {
+      border-bottom-color: #334155;
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] table.wms-baixa-tabela tr:hover td,
+    body[data-theme='dark'] table.wms-baixa-tabela tr:hover td { background: #0f172a; }
+    html[data-theme='dark'] .btn-acao,
+    body[data-theme='dark'] .btn-acao {
+      background: #0f172a;
+      color: #94a3b8;
+      border-color: #334155;
+    }
+    html[data-theme='dark'] .btn-acao:hover,
+    body[data-theme='dark'] .btn-acao:hover {
+      background: #334155;
+      color: #e2e8f0;
+      border-color: #475569;
+    }
+    html[data-theme='dark'] .btn-filtro-limpar,
+    body[data-theme='dark'] .btn-filtro-limpar {
+      background: #334155;
+      color: #e2e8f0;
+      border-color: #475569;
+    }
+    html[data-theme='dark'] .btn-filtro-limpar:hover,
+    body[data-theme='dark'] .btn-filtro-limpar:hover { background: #475569; }
+    html[data-theme='dark'] .filtros-box h3,
+    body[data-theme='dark'] .filtros-box h3 { color: #e2e8f0; }
+    html[data-theme='dark'] .wms-baixa-header,
+    body[data-theme='dark'] .wms-baixa-header { border-bottom-color: #334155; }
+    html[data-theme='dark'] .wms-baixa-header h2,
+    body[data-theme='dark'] .wms-baixa-header h2 { color: #e2e8f0; }
+    html[data-theme='dark'] .vazio-msg,
+    body[data-theme='dark'] .vazio-msg { color: #94a3b8; }
+    html[data-theme='dark'] .calculando-overlay .calculando-content,
+    body[data-theme='dark'] .calculando-overlay .calculando-content {
+      background: #1e293b;
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] .calculando-overlay h3,
+    body[data-theme='dark'] .calculando-overlay h3 { color: #e2e8f0; }
+    html[data-theme='dark'] .calculando-overlay p,
+    body[data-theme='dark'] .calculando-overlay p { color: #94a3b8; }
+    html[data-theme='dark'] .baixa-shelf-box,
+    body[data-theme='dark'] .baixa-shelf-box {
+      background: #0f172a;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] .baixa-shelf-box h4,
+    body[data-theme='dark'] .baixa-shelf-box h4 { color: #f1f5f9; }
+    html[data-theme='dark'] .baixa-linhas-wrap,
+    body[data-theme='dark'] .baixa-linhas-wrap { border-color: #334155; }
+    html[data-theme='dark'] .modal-content .hint,
+    html[data-theme='dark'] .baixa-check-row,
+    body[data-theme='dark'] .modal-content .hint,
+    body[data-theme='dark'] .baixa-check-row { color: #94a3b8; }
+    html[data-theme='dark'] .modal-content h3,
+    body[data-theme='dark'] .modal-content h3 { color: #f1f5f9; }
+    html[data-theme='dark'] .baixa-estorno-alerta,
+    body[data-theme='dark'] .baixa-estorno-alerta {
+      background: #1e3a5f;
+      border-color: #334155;
+      color: #cbd5e1;
+    }
+    html[data-theme='dark'] .baixa-estorno-alerta i,
+    body[data-theme='dark'] .baixa-estorno-alerta i { color: #60a5fa; }
+    html[data-theme='dark'] .baixa-estorno-alerta strong,
+    body[data-theme='dark'] .baixa-estorno-alerta strong { color: #f1f5f9; }
+    html[data-theme='dark'] .baixa-estorno-form label,
+    body[data-theme='dark'] .baixa-estorno-form label { color: #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="wms-baixa-container">
+    <div class="wms-baixa-header">
+      <h2><i class="bx bx-minus-circle"></i> Baixas / Perdas de estoque</h2>
+      <button type="button" id="btnNovaBaixa" class="btn-filtro btn-filtro-novo">
+        <i class="bx bx-plus"></i> Nova baixa
+      </button>
+    </div>
+
+    <div class="filtros-box">
+      <h3><i class="bx bx-filter"></i> Filtros</h3>
+      <form id="formFiltros" onsubmit="return false;">
+        <div class="filtros-grid">
+          <div>
+            <label for="filtroDono">Dono do estoque</label>
+            <select id="filtroDono" class="form-control"><option value="">Todos</option></select>
+          </div>
+          <div>
+            <label for="filtroStatus">Status</label>
+            <select id="filtroStatus" class="form-control">
+              <option value="">Todos</option>
+              <option value="CONFIRMADO">Confirmado</option>
+              <option value="ESTORNADO">Estornado</option>
+            </select>
+          </div>
+          <div>
+            <label for="filtroDataInicio">De</label>
+            <input type="date" id="filtroDataInicio" class="form-control" />
+          </div>
+          <div>
+            <label for="filtroDataFim">Até</label>
+            <input type="date" id="filtroDataFim" class="form-control" />
+          </div>
+          <div>
+            <label for="filtroLimite">Limite</label>
+            <select id="filtroLimite" class="form-control">
+              <option value="50">50 últimas</option>
+              <option value="100" selected>100 últimas</option>
+              <option value="200">200 últimas</option>
+            </select>
+          </div>
+        </div>
+        <div class="filtros-actions">
+          <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Limpar</button>
+          <button type="submit" id="btnFiltrarLista" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search"></i> Filtrar</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="lista-box">
+      <div class="meta" id="listaMeta">—</div>
+      <div id="listaWrapper">
+        <div class="vazio-msg"><i class="bx bx-loader-alt bx-spin"></i> Carregando…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Nova baixa -->
+  <div id="modalNovaBaixa" class="modal" hidden role="dialog" aria-labelledby="modalNovaBaixaTitulo">
+    <div class="modal-content">
+      <h3 id="modalNovaBaixaTitulo"><i class="bx bx-minus-circle"></i> Nova baixa de estoque</h3>
+      <p class="hint" style="margin: 0 0 14px;">
+        Registra retirada com motivo (espelho OL). Gera <strong>documento numerado</strong> e
+        <strong>saída no ledger</strong>. Revise na prévia antes de confirmar.
+      </p>
+      <form id="formNovaBaixa" onsubmit="return false;">
+        <div class="filtros-grid" style="margin-bottom: 8px;">
+          <div>
+            <label for="docDono">Dono do estoque *</label>
+            <select id="docDono" class="form-control" required></select>
+          </div>
+          <div>
+            <label for="docMotivo">Motivo *</label>
+            <select id="docMotivo" class="form-control" required></select>
+          </div>
+          <div style="grid-column: span 2;">
+            <label for="docObs">Observação</label>
+            <input type="text" id="docObs" class="form-control" maxlength="500" placeholder="Opcional" />
+          </div>
+        </div>
+        <label class="baixa-check-row" for="docMarcarApontados">
+          <input type="checkbox" id="docMarcarApontados" />
+          <span>Marcar shelf-life como apontados ao confirmar (vencidos já passados ao cliente)</span>
+        </label>
+
+        <div id="boxShelfImport" class="baixa-shelf-box">
+          <h4><i class="bx bx-import"></i> Importar do shelf-life (Datas críticas)</h4>
+          <p class="hint" style="margin: 0 0 10px;">Mesmo critério do relatório — vencidos ou horizonte do dono.</p>
+          <div class="filtros-grid" style="margin-bottom: 8px;">
+            <div>
+              <label for="docShelfModo">Consulta</label>
+              <select id="docShelfModo" class="form-control">
+                <option value="cobranca-vencidos" selected>Só vencidos</option>
+                <option value="saldo">Saldo por validade (horizonte)</option>
+                <option value="cobranca">Todas com saldo FEFO</option>
+              </select>
+            </div>
+            <div>
+              <label for="docShelfData">A partir de</label>
+              <input type="date" id="docShelfData" class="form-control" />
+            </div>
+            <div>
+              <label for="docShelfHorizonte">Horizonte (dias)</label>
+              <input type="number" id="docShelfHorizonte" class="form-control" min="1" max="1095" placeholder="Vazio = dono" />
+            </div>
+            <div>
+              <label for="docShelfApontado">Apontamento</label>
+              <select id="docShelfApontado" class="form-control">
+                <option value="nao">Só não apontados</option>
+                <option value="todos">Todos</option>
+                <option value="sim">Só apontados</option>
+              </select>
+            </div>
+          </div>
+          <div class="filtros-actions filtros-actions--end">
+            <button type="button" id="btnImportarShelf" class="btn-filtro btn-filtro-limpar"><i class="bx bx-download"></i> Importar linhas</button>
+          </div>
+        </div>
+
+        <p class="hint" style="margin: 14px 0 8px; font-weight: 600; color: #0f172a;">Linhas do documento</p>
+        <div class="filtros-grid" style="margin-bottom: 4px; grid-template-columns: 2fr 1fr 1fr 1fr auto; align-items: end;">
+          <div>
+            <label for="addCodigo">Código produto</label>
+            <input type="text" id="addCodigo" class="form-control" placeholder="Ex.: 6.03.12.020.20" autocomplete="off" />
+          </div>
+          <div>
+            <label for="addLote">Lote</label>
+            <input type="text" id="addLote" class="form-control" />
+          </div>
+          <div>
+            <label for="addValidade">Validade</label>
+            <input type="date" id="addValidade" class="form-control" />
+          </div>
+          <div>
+            <label for="addQtd">Qtd</label>
+            <input type="number" id="addQtd" class="form-control" min="0" step="0.001" placeholder="0" />
+          </div>
+          <button type="button" id="btnAddLinha" class="btn-filtro btn-filtro-aplicar" title="Linha manual"><i class="bx bx-plus"></i></button>
+        </div>
+        <p class="hint" id="addProdutoHint" style="margin: 0 0 8px;">Digite o código e aguarde a descrição, ou clique em +.</p>
+        <div class="baixa-linhas-wrap">
+          <table class="wms-baixa-tabela">
+            <thead>
+              <tr><th>Código</th><th>Descrição</th><th>Lote</th><th>Validade</th><th class="num">Qtd</th><th></th></tr>
+            </thead>
+            <tbody id="docLinhasBody">
+              <tr><td colspan="6">Adicione linhas manualmente ou importe do shelf-life.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="filtros-actions filtros-actions--end" style="margin-top: 14px;">
+          <button type="button" id="btnFecharNovaBaixa" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Cancelar</button>
+          <button type="button" id="btnPreviewDoc" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search-alt"></i> Prévia</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Prévia -->
+  <div id="modalPreviewBaixa" class="modal" hidden role="dialog">
+    <div class="modal-content">
+      <h3><i class="bx bx-search-alt"></i> Prévia da baixa</h3>
+      <p class="hint" id="modalPreviewResumo"></p>
+      <div id="modalPreviewAvisos" class="hint" style="color:#b45309;display:none;"></div>
+      <div class="baixa-linhas-wrap" style="max-height:360px;">
+        <table class="wms-baixa-tabela">
+          <thead>
+            <tr><th>Código</th><th>Lote</th><th>Validade</th><th class="num">Saldo FEFO</th><th class="num">Qtd baixa</th><th>Status</th></tr>
+          </thead>
+          <tbody id="modalPreviewBody"></tbody>
+        </table>
+      </div>
+      <div class="filtros-actions filtros-actions--end" style="margin-top: 14px;">
+        <button type="button" id="modalPreviewCancelar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Voltar</button>
+        <button type="button" id="modalPreviewConfirmar" class="btn-filtro btn-filtro-novo"><i class="bx bx-check"></i> Confirmar baixa</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Detalhe -->
+  <div id="modalDetalheBaixa" class="modal" hidden role="dialog">
+    <div class="modal-content">
+      <h3><i class="bx bx-file"></i> Documento <span id="detNrDoc"></span></h3>
+      <p class="hint" id="detResumo"></p>
+      <div class="baixa-linhas-wrap">
+        <table class="wms-baixa-tabela">
+          <thead>
+            <tr><th>Código</th><th>Descrição</th><th>Lote</th><th>Validade</th><th class="num">Qtd</th></tr>
+          </thead>
+          <tbody id="detLinhasBody"></tbody>
+        </table>
+      </div>
+      <div class="filtros-actions filtros-actions--end" style="margin-top: 14px;">
+        <button type="button" id="modalDetFechar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Fechar</button>
+        <button type="button" id="modalDetImprimir" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-printer"></i> Imprimir documento</button>
+        <button type="button" id="modalDetEstornar" class="btn-filtro btn-filtro-danger" style="display:none;"><i class="bx bx-undo"></i> Estornar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Estornar (padrão cancelar transferência) -->
+  <div id="modalEstornarBaixa" class="modal" hidden role="dialog">
+    <div class="modal-content">
+      <h3><i class="bx bx-undo modal-icon-danger"></i> Estornar baixa</h3>
+      <div class="baixa-estorno-alerta">
+        <i class="bx bx-info-circle"></i>
+        <div>
+          <strong>A quantidade volta para o saldo do dono.</strong>
+          O estorno gera movimento reverso no ledger. Use só se a baixa foi lançada por engano.
+        </div>
+      </div>
+      <div class="baixa-estorno-form">
+        <label for="estornoMotivo">Motivo do estorno (opcional)</label>
+        <textarea id="estornoMotivo" class="form-control" rows="3" maxlength="255" placeholder="Ex.: documento duplicado, motivo errado…"></textarea>
+      </div>
+      <div class="filtros-actions filtros-actions--end" style="margin-top: 18px;">
+        <button type="button" id="modalEstCancelar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Voltar</button>
+        <button type="button" id="modalEstConfirmar" class="btn-filtro btn-filtro-danger"><i class="bx bx-undo"></i> Confirmar estorno</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="loadingOverlay" class="calculando-overlay">
+    <div class="calculando-content">
+      <div class="calculando-spinner"></div>
+      <h3 id="loadingTitulo">Carregando…</h3>
+      <p id="loadingDesc">Aguarde.</p>
+      <p class="calculando-detalhe" id="loadingDetalhe"></p>
+    </div>
+  </div>
+
+  <div id="message" class="message" style="display:none;"></div>
+
+  <script src="/js/utils.js"></script>
+  <script src="js/script.js?v=202609101100"></script>
+</body>
+</html>

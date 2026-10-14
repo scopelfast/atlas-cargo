@@ -29,6 +29,169 @@ function normalizarChavesViagem(row) {
 const bcrypt = require('bcrypt');
 const axios = require('axios');
 const { getReverseGeocodingUrl } = require('../config/nominatim');
+const alertService = require('../services/alert-service');
+const { getDefaultTenantId } = require('../middleware/tenant.middleware');
+const { tenantIdForRequest } = require('../utils/tenant-context');
+const { assertViagemTenantAccess } = require('../utils/viagem-tenant-access');
+const {
+  resolveViagemRastreamentoPg,
+  vrDhOrdSql,
+  insertGpsViagemRastreamento,
+} = require('../services/viagem-rastreamento-pg.service');
+const { normalizarPlacaBrasil } = require('../utils/placa-util');
+const {
+  sqlPlacasEsperadasPorViagemMotoristaParams,
+  sqlDsClasseConjuntoPorViagemMotoristaParams,
+  sqlCoalescePlacasEsperadasConvocacaoComSnapshot,
+  sqlCoalesceDsClasseConjuntoConvocacaoComSnapshot,
+} = require('../helpers/convocacao-placas-esperadas.sql');
+const {
+  gravarDivergenciaPlacasSomente,
+  notificarDivergenciaPlacasContratador,
+} = require('../services/convocacao-placas-divergencia.service');
+
+/** Coluna NRCNH no PostgreSQL costuma ser varchar(11): só dígitos, no máx. 11 (Brasil). */
+function normalizarNrcnhMotoristaDb(nrRaw, paisDoc) {
+  const t = String(nrRaw || '').trim();
+  if (!t) return null;
+  const p = String(paisDoc || 'BR').toUpperCase().slice(0, 2);
+  if (p === 'BR') {
+    const d = t.replace(/\D/g, '');
+    return d.length > 0 ? d.slice(0, 11) : null;
+  }
+  const compact = t.replace(/\s/g, '');
+  return compact.length > 0 ? compact.slice(0, 11) : null;
+}
+
+/** CDCADASTRO do motorista autenticado (JWT). */
+function getMotoristaCadastroId(req) {
+  const id = req.user && (req.user.cdcadastro ?? req.user.id);
+  if (id == null || id === '') return NaN;
+  const n = parseFloat(id);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+/** Evita IDOR: parâmetro de rota deve ser o mesmo motorista do token. */
+function assertSameMotorista(req, res, paramId) {
+  const self = getMotoristaCadastroId(req);
+  const other = parseFloat(paramId);
+  if (!Number.isFinite(self) || !Number.isFinite(other) || self !== other) {
+    res.status(403).json({ error: 'Acesso negado.', errorKey: 'commonErrors.acessoNegado' });
+    return false;
+  }
+  return true;
+}
+
+/** Desfaz cadastro de motorista recém-criado (ordem respeitando FKs). */
+async function rollbackCadastroMotorista(pool, novoId) {
+  const id = Number(novoId);
+  if (!Number.isFinite(id)) return;
+  const stmts = [
+    ['DELETE FROM "MOTORISTA_VEICULO" WHERE "CDCADASTRO" = $1::bigint', [id]],
+    ['DELETE FROM "CADASTRO_LOCAL_PREFERIDO" WHERE "CDCADASTRO" = $1::bigint', [id]],
+    ['DELETE FROM "CLASSEFROTA_CG" WHERE "CDCADASTRO" = $1::bigint', [id]],
+    ['DELETE FROM "MOTORISTA_COMPLEMENTO" WHERE "CDCADASTRO" = $1::bigint', [id]],
+    ['DELETE FROM "CADASTROGERAL" WHERE "CDCADASTRO" = $1::bigint', [id]],
+  ];
+  for (const [q, p] of stmts) {
+    try {
+      await pool.query(q, p);
+    } catch (_) {
+      /* best effort */
+    }
+  }
+}
+
+/**
+ * Insert ou update de veículo (mesma semântica de criarVeiculoMotorista), sem enviar resposta HTTP.
+ */
+async function persistVeiculoMotoristaInterno(pool, opts) {
+  const pathMod = require('path');
+  const fs = require('fs');
+  const {
+    cdcadastro,
+    tenantId,
+    placaNormalizada,
+    renavam,
+    papel,
+    cdClasseFrota,
+    cdTipoEquipamento,
+    crlvMulterFile,
+    sguser,
+    serverOrig,
+  } = opts;
+  const id = Number(cdcadastro);
+  const tid = String(tenantId != null && String(tenantId).trim() !== '' ? tenantId : getDefaultTenantId()).trim();
+  const norm = placaNormalizada;
+  const cdTipo = cdTipoEquipamento == null || cdTipoEquipamento === '' ? null : cdTipoEquipamento;
+
+  let fotoCrlv = null;
+  if (crlvMulterFile && crlvMulterFile.path) {
+    const nomeArquivo = `mv_${id}_${Date.now()}${pathMod.extname(crlvMulterFile.originalname) || '.jpg'}`;
+    const dir = pathMod.join(__dirname, '..', 'public', 'uploads', 'veiculos');
+    fs.mkdirSync(dir, { recursive: true });
+    const dest = pathMod.join(dir, nomeArquivo);
+    try {
+      fs.renameSync(crlvMulterFile.path, dest);
+      fotoCrlv = '/uploads/veiculos/' + nomeArquivo;
+    } catch (e) {
+      try {
+        fs.unlinkSync(crlvMulterFile.path);
+      } catch (_) {}
+      const err = new Error('CRLV_SAVE');
+      err.code = 'CRLV_SAVE';
+      throw err;
+    }
+  }
+
+  const exist = await pool.query(
+    `SELECT mv."IDVEICULOMOTORISTA"
+     FROM "MOTORISTA_VEICULO" mv
+     INNER JOIN "CADASTROGERAL" cg ON cg."CDCADASTRO" = mv."CDCADASTRO"
+     WHERE mv."CDCADASTRO" = $1::numeric
+       AND mv."PLACA_NORMALIZADA" = $2
+       AND (mv."TENANT_ID" = $3 OR (mv."TENANT_ID" IS NULL AND cg."TENANT_ID" = $3))
+       AND COALESCE(mv."FGACTIVE", 'S') = 'S'`,
+    [id, norm, tid]
+  );
+
+  const sg = sguser || 'APP_MOTORISTA';
+  const srv = serverOrig || 'AppMotorista';
+  if (exist.rows && exist.rows.length > 0) {
+    const idv = exist.rows[0].IDVEICULOMOTORISTA ?? exist.rows[0].idveiculomotorista;
+    await pool.query(
+      `UPDATE "MOTORISTA_VEICULO" SET
+         "PLACA" = $1,
+         "PLACA_NORMALIZADA" = $1,
+         "RENAVAM" = $2,
+         "CDTIPOEQUIPAMENTO" = $3,
+         "CDCLASSEFROTA" = $4,
+         "PAPEL_CONJUNTO" = $5,
+         "FOTOCRLV" = COALESCE($6, "FOTOCRLV"),
+         "STATUSAPROVACAO" = 'P',
+         "MOTIVOREPROVACAO" = NULL,
+         "DHMAINTENANCE" = CURRENT_TIMESTAMP,
+         "SGUSER" = $7,
+         "TENANT_ID" = COALESCE("TENANT_ID", $8::varchar)
+       WHERE "IDVEICULOMOTORISTA" = $9::int`,
+      [norm, renavam, cdTipo, cdClasseFrota, papel, fotoCrlv, sg, tid, idv]
+    );
+    return;
+  }
+
+  await pool.query(
+    `INSERT INTO "MOTORISTA_VEICULO" (
+      "CDCADASTRO", "PLACA", "PLACA_NORMALIZADA", "RENAVAM", "CDTIPOEQUIPAMENTO", "CDCLASSEFROTA",
+      "PAPEL_CONJUNTO", "FOTOCRLV", "TENANT_ID", "STATUSAPROVACAO", "FGACTIVE",
+      "SGUSER", "SERVERORIG"
+    ) VALUES (
+      $1::numeric, $2, $3, $4, $5, $6,
+      $7, $8, $9, 'P', 'S',
+      $10, $11
+    )`,
+    [id, norm, norm, renavam, cdTipo, cdClasseFrota, papel, fotoCrlv, tid, sg, srv]
+  );
+}
 
 // Códigos de recuperação de senha (em memória, válidos 15 min). Em produção: enviar por SMS/email e usar Redis.
 const codigosRecuperacao = new Map();
@@ -84,6 +247,112 @@ async function obterEnderecoPorCoordenadas(latitude, longitude) {
   }
 }
 
+/** Perfil completo (mesmo SELECT de GET perfil) para tenant com coluna TENANT_ID ou legado sem coluna. */
+async function loadPerfilMotoristaApp(pool, id, tenantId) {
+  const idNum = parseFloat(id);
+  if (!Number.isFinite(idNum)) return null;
+  const tid = tenantId != null ? String(tenantId).trim() : '';
+
+  // PostgreSQL: identificadores entre aspas (cadastro não usa minúsculas implícitas em cg.CDCADASTRO).
+  const sqlComTenant = `
+    SELECT
+      cg."CDCADASTRO",
+      cg."CGCCPF",
+      cg."RZSOCIAL",
+      cg."NRCELULAR",
+      cg."ENDEMAIL",
+      cg."ENDERECO",
+      cg."NRENDERECO",
+      cg."COMPLEND",
+      cg."BAIRRO",
+      cg."CEP",
+      cg."CDCIDADE",
+      c."NMCIDADE",
+      c."ESTADO",
+      cg."LATITUDE",
+      cg."LONGITUDE",
+      cg."FGACTIVE",
+      mc."NRCNH",
+      mc."CATEGORIACNH",
+      mc."VALIDADECNH",
+      mc."FOTOCNH",
+      mc."FOTOCNH_VERSO",
+      mc."FOTO_COMPROVANTE_ENDERECO",
+      mc."STATUSAPROVACAO"
+    FROM "CADASTROGERAL" cg
+    LEFT JOIN "MOTORISTA_COMPLEMENTO" mc ON cg."CDCADASTRO" = mc."CDCADASTRO"
+    LEFT JOIN "CIDADE" c ON cg."CDCIDADE" = c."CDCIDADE"
+    WHERE cg."CDCADASTRO" = $1
+      AND (cg."FGMOTORISTA" = 'S' OR (cg."FGMOTORISTA" IS NULL AND cg."FGTIPOCADASTRO" = 'M'))
+      AND cg."TENANT_ID" = $2
+  `;
+  const sqlSemTenant = `
+    SELECT
+      cg."CDCADASTRO",
+      cg."CGCCPF",
+      cg."RZSOCIAL",
+      cg."NRCELULAR",
+      cg."ENDEMAIL",
+      cg."ENDERECO",
+      cg."NRENDERECO",
+      cg."COMPLEND",
+      cg."BAIRRO",
+      cg."CEP",
+      cg."CDCIDADE",
+      c."NMCIDADE",
+      c."ESTADO",
+      cg."LATITUDE",
+      cg."LONGITUDE",
+      cg."FGACTIVE",
+      mc."NRCNH",
+      mc."CATEGORIACNH",
+      mc."VALIDADECNH",
+      mc."FOTOCNH",
+      mc."FOTOCNH_VERSO",
+      mc."FOTO_COMPROVANTE_ENDERECO",
+      mc."STATUSAPROVACAO"
+    FROM "CADASTROGERAL" cg
+    LEFT JOIN "MOTORISTA_COMPLEMENTO" mc ON cg."CDCADASTRO" = mc."CDCADASTRO"
+    LEFT JOIN "CIDADE" c ON cg."CDCIDADE" = c."CDCIDADE"
+    WHERE cg."CDCADASTRO" = $1
+      AND (cg."FGMOTORISTA" = 'S' OR (cg."FGMOTORISTA" IS NULL AND cg."FGTIPOCADASTRO" = 'M'))
+  `;
+
+  let sqlRun = tid !== '' ? sqlComTenant : sqlSemTenant;
+  let paramsRun = tid !== '' ? [idNum, tid] : [idNum];
+  for (let attempt = 0; attempt < 6; attempt++) {
+    try {
+      const result = await pool.query(sqlRun, paramsRun);
+      return (result.rows && result.rows[0]) || null;
+    } catch (err) {
+      const msg = String((err && err.message) || '');
+      if (err.code === '42703' && /tenant_id/i.test(msg) && tid !== '') {
+        sqlRun = sqlSemTenant;
+        paramsRun = [idNum];
+        continue;
+      }
+      if (err.code === '42703' && /foto_comprovante_endereco/i.test(msg)) {
+        sqlRun = sqlRun.replace(/\s*,\s*mc\."FOTO_COMPROVANTE_ENDERECO"\s*/gi, ' ');
+        continue;
+      }
+      if (err.code === '42703' && /foto_cnh_verso/i.test(msg)) {
+        sqlRun = sqlRun.replace(/\s*,\s*mc\."FOTOCNH_VERSO"\s*/gi, ' ');
+        continue;
+      }
+      throw err;
+    }
+  }
+  return null;
+}
+
+function parseValidadeCnhPerfil(raw) {
+  const v = String(raw || '').trim();
+  if (!v) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(v)) return v.split('/').reverse().join('-');
+  return null;
+}
+
 const motoristaAppController = {
   // ==========================================
   // AUTH - Login do Motorista
@@ -101,7 +370,7 @@ const motoristaAppController = {
         return res.status(400).json({ error: 'Documento e senha são obrigatórios.', errorKey: 'login.senhaObrigatoria' });
       }
 
-      const ctx = await getContexto();
+      const ctx = await getContexto(tenantIdForRequest(req));
       const pais = (ctx && ctx.pais) ? ctx.pais : 'BR';
 
       const validacao = validarDocumento(pais, 'F', documento);
@@ -123,12 +392,28 @@ const motoristaAppController = {
       console.log('🔍 [LOGIN] Buscando motorista com documento:', docNormalizado, docAlternativo !== docNormalizado ? 'ou ' + docAlternativo : '');
       
       let result;
-      try {
-        result = await pool
-          .request()
-          .input('doc1', sql.VarChar(14), docNormalizado)
-          .input('doc2', sql.VarChar(14), docAlternativo)
-          .query(`
+      const sqlMotoristaComTenant = `
+          SELECT 
+            cg.[CDCADASTRO],
+            cg.[CGCCPF],
+            cg.[RZSOCIAL],
+            cg.[NRCELULAR],
+            cg.[ENDEMAIL],
+            cg.[FGACTIVE],
+            cg.[FGTIPOCADASTRO],
+            cg.[TENANT_ID],
+            mc.[NRCNH],
+            mc.[CATEGORIACNH],
+            mc.[VALIDADECNH],
+            mc.[STATUSAPROVACAO],
+            mc.[SENHA]
+          FROM [dbo].[CADASTROGERAL] cg
+          LEFT JOIN [dbo].[MOTORISTA_COMPLEMENTO] mc ON cg.[CDCADASTRO] = mc.[CDCADASTRO]
+          WHERE (cg.[CGCCPF] = @doc1 OR cg.[CGCCPF] = @doc2)
+            AND (cg.[FGMOTORISTA] = 'S' OR (cg.[FGMOTORISTA] IS NULL AND cg.[FGTIPOCADASTRO] = 'M'))
+            AND (cg.[FGACTIVE] = 'S' OR cg.[FGACTIVE] = 'A')
+        `;
+      const sqlMotoristaSemTenant = `
           SELECT 
             cg.[CDCADASTRO],
             cg.[CGCCPF],
@@ -147,7 +432,25 @@ const motoristaAppController = {
           WHERE (cg.[CGCCPF] = @doc1 OR cg.[CGCCPF] = @doc2)
             AND (cg.[FGMOTORISTA] = 'S' OR (cg.[FGMOTORISTA] IS NULL AND cg.[FGTIPOCADASTRO] = 'M'))
             AND (cg.[FGACTIVE] = 'S' OR cg.[FGACTIVE] = 'A')
-        `);
+        `;
+      try {
+        try {
+          result = await pool
+            .request()
+            .input('doc1', sql.VarChar(14), docNormalizado)
+            .input('doc2', sql.VarChar(14), docAlternativo)
+            .query(sqlMotoristaComTenant);
+        } catch (errCol) {
+          if (errCol.code === '42703') {
+            result = await pool
+              .request()
+              .input('doc1', sql.VarChar(14), docNormalizado)
+              .input('doc2', sql.VarChar(14), docAlternativo)
+              .query(sqlMotoristaSemTenant);
+          } else {
+            throw errCol;
+          }
+        }
       } catch (err) {
         if (err.code === '42P01') {
           console.warn('❌ [LOGIN] Tabela de cadastro não existe no banco (cadastrogeral/motorista_complemento). Configure o banco para o app motorista.');
@@ -214,11 +517,15 @@ const motoristaAppController = {
 
       // Gerar token JWT
       console.log('🎫 [LOGIN] Gerando token JWT...');
+      const rawMt = motorista.TENANT_ID ?? motorista.tenant_id;
+      const tenantId =
+        rawMt != null && String(rawMt).trim() !== '' ? String(rawMt).trim() : getDefaultTenantId();
       const token = jwt.sign(
         {
           id: motorista.CDCADASTRO,
           cpf: motorista.CGCCPF,
-          tipo: 'motorista'
+          tipo: 'motorista',
+          tenantId,
         },
         process.env.JWT_SECRET,
         { expiresIn: '7d' }
@@ -258,59 +565,665 @@ const motoristaAppController = {
   perfil: async (req, res) => {
     try {
       const { id } = req.params;
+      if (!assertSameMotorista(req, res, id)) return;
 
       const pool = await poolPromise;
-      const result = await pool
-        .request()
-        .input('id', sql.Decimal(15, 0), parseFloat(id))
-        .query(`
-          SELECT 
-            cg.CDCADASTRO,
-            cg.CGCCPF,
-            cg.RZSOCIAL,
-            cg.NMFANTASIA,
-            cg.NRCELULAR,
-            cg.ENDEMAIL,
-            cg.ENDERECO,
-            cg.NRENDERECO,
-            cg.COMPLEND,
-            cg.BAIRRO,
-            cg.CEP,
-            cg.CDCIDADE,
-            c.NMCIDADE,
-            c.ESTADO,
-            cg.LATITUDE,
-            cg.LONGITUDE,
-            cg.FGACTIVE,
-            mc.NRCNH,
-            mc.CATEGORIACNH,
-            mc.VALIDADECNH,
-            mc.DATAPRIMEIRAHAB,
-            mc.FOTOCNH,
-            mc.FOTOMOTORISTA,
-            mc.STATUSAPROVACAO
-          FROM [dbo].[CADASTROGERAL] cg
-          LEFT JOIN [dbo].[MOTORISTA_COMPLEMENTO] mc ON cg.CDCADASTRO = mc.CDCADASTRO
-          LEFT JOIN [dbo].[CIDADE] c ON cg.CDCIDADE = c.CDCIDADE
-          WHERE cg.CDCADASTRO = @id
-            AND (cg.FGMOTORISTA = 'S' OR (cg.FGMOTORISTA IS NULL AND cg.FGTIPOCADASTRO = 'M'))
-        `);
-
-      if (result.recordset.length === 0) {
+      const row = await loadPerfilMotoristaApp(pool, parseFloat(id), tenantIdForRequest(req));
+      if (!row) {
         return res.status(404).json({ error: 'Motorista não encontrado.', errorKey: 'commonErrors.motoristaNaoEncontrado' });
       }
 
-      res.json(result.recordset[0]);
+      res.json(row);
     } catch (err) {
       console.error('Erro ao buscar perfil:', err);
       res.status(500).json({ error: 'Erro ao buscar perfil.', errorKey: 'commonErrors.erroBuscarPerfil' });
     }
   },
 
+  /** GET /api/motorista/perfil — mesmo payload de GET /perfil/:id, usando só o JWT. */
+  perfilMe: async (req, res) => {
+    try {
+      const id = getMotoristaCadastroId(req);
+      if (!Number.isFinite(id)) {
+        return res.status(401).json({ error: 'Sessão inválida.', errorKey: 'login.tokenInvalido' });
+      }
+      const pool = await poolPromise;
+      const row = await loadPerfilMotoristaApp(pool, id, tenantIdForRequest(req));
+      if (!row) {
+        return res.status(404).json({ error: 'Motorista não encontrado.', errorKey: 'commonErrors.motoristaNaoEncontrado' });
+      }
+      res.json(row);
+    } catch (err) {
+      console.error('Erro ao buscar perfil (me):', err);
+      res.status(500).json({ error: 'Erro ao buscar perfil.', errorKey: 'commonErrors.erroBuscarPerfil' });
+    }
+  },
+
+  /**
+   * PUT /api/motorista/perfil ou PUT /api/motorista/perfil/:id
+   * FormData: nome, ddi, ddd, celular, email, endereco, nrendereco, complend, bairro, cep, cdcidade,
+   * nrCnh, categoriaCnh, validadeCnh; arquivos opcionais documento (frente), documentoVerso (verso).
+   * Alteração de CNH / validade / categoria ou nova foto → STATUSAPROVACAO = P (reanálise na torre).
+   */
+  atualizarPerfil: async (req, res) => {
+    try {
+      const paramId = req.params && req.params.id;
+      let idNum = paramId != null && String(paramId).trim() !== '' ? parseFloat(paramId) : getMotoristaCadastroId(req);
+      if (!Number.isFinite(idNum)) {
+        return res.status(401).json({ error: 'Sessão inválida.', errorKey: 'login.tokenInvalido' });
+      }
+      if (paramId != null && String(paramId).trim() !== '') {
+        if (!assertSameMotorista(req, res, paramId)) return;
+      }
+
+      const body = req.body || {};
+      const nome = (body.nome || body.rzsocial || '').trim();
+      if (!nome || nome.length < 2) {
+        return res.status(400).json({ error: 'Nome é obrigatório.', errorKey: 'perfil.nomeObrigatorio' });
+      }
+
+      const ddi = String(body.ddi || '55').replace(/\D/g, '');
+      const ddd = String(body.ddd || '').replace(/\D/g, '');
+      const numero = String(body.celular || body.numero || '').replace(/\D/g, '');
+      const celularE164 = ddi + (ddd && ddi === '55' ? ddd : '') + numero;
+      if (!ddi || numero.length < 8) {
+        return res.status(400).json({ error: 'Celular obrigatório com DDI e número válido.', errorKey: 'cadastro.celularObrigatorio' });
+      }
+
+      const email = (body.email || body.endemail || '').trim() || null;
+      const endereco = (body.endereco || '').trim();
+      const complend = (body.complend || '').trim() || null;
+      const bairro = (body.bairro || '').trim();
+      let nrendereco = body.nrendereco;
+      if (nrendereco === '' || nrendereco == null) nrendereco = 0;
+      else {
+        const n = parseInt(String(nrendereco).replace(/\D/g, ''), 10);
+        nrendereco = Number.isFinite(n) ? n : 0;
+      }
+
+      const cepDigits = String(body.cep || '').replace(/\D/g, '');
+      const cepVal = cepDigits ? parseInt(cepDigits, 10) : null;
+
+      let cdcidade = body.cdcidade;
+      if (cdcidade === '' || cdcidade == null) cdcidade = null;
+      else {
+        const c = parseInt(String(cdcidade), 10);
+        cdcidade = Number.isFinite(c) ? c : null;
+      }
+
+      const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
+      const current = await loadPerfilMotoristaApp(pool, idNum, tid);
+      if (!current) {
+        return res.status(404).json({ error: 'Motorista não encontrado.', errorKey: 'commonErrors.motoristaNaoEncontrado' });
+      }
+
+      const getc = (row, k) => (row[k] != null ? row[k] : row[k && k.toLowerCase()]);
+      const paisMot = String(
+        getc(current, 'PAIS') || body.paisDocumento || body.pais || 'BR'
+      )
+        .toUpperCase()
+        .slice(0, 2);
+      const nrCnhRaw = (body.nrCnh || body.cnh || '').trim() || null;
+      const nrCnh = normalizarNrcnhMotoristaDb(nrCnhRaw, paisMot);
+      const categoriaCnh = (body.categoriaCnh || body.categoria || '').trim().slice(0, 5) || null;
+      const validadeCnhParsed = parseValidadeCnhPerfil(body.validadeCnh || body.validade);
+
+      const oldNr = String(getc(current, 'NRCNH') || '').trim();
+      const oldNrNorm = normalizarNrcnhMotoristaDb(oldNr, paisMot) || '';
+      const oldCat = String(getc(current, 'CATEGORIACNH') || '').trim();
+      const oldValRaw = getc(current, 'VALIDADECNH');
+      let oldValStr = '';
+      if (oldValRaw) {
+        oldValStr =
+          typeof oldValRaw === 'string'
+            ? oldValRaw.slice(0, 10)
+            : new Date(oldValRaw).toISOString().slice(0, 10);
+      }
+      const oldStatus = String(getc(current, 'STATUSAPROVACAO') || 'P').trim().toUpperCase().slice(0, 1);
+
+      const docArr = (req.files && req.files.documento) || [];
+      const docVersoArr = (req.files && req.files.documentoVerso) || [];
+      const compArr = (req.files && req.files.comprovanteEndereco) || [];
+      const docFit = docArr[0];
+      const docVersoFit = docVersoArr[0];
+      const compFit = compArr[0];
+      let needsReapproval = !!(docFit && docFit.path) || !!(docVersoFit && docVersoFit.path);
+      const valStr = validadeCnhParsed || '';
+      if (!needsReapproval) {
+        if ((nrCnh || '') !== oldNrNorm) needsReapproval = true;
+        if ((categoriaCnh || '') !== (oldCat || '')) needsReapproval = true;
+        if (valStr !== oldValStr) needsReapproval = true;
+      }
+
+      const validadeCnhFinal =
+        validadeCnhParsed != null && validadeCnhParsed !== '' ? validadeCnhParsed : oldValStr || null;
+
+      let fotoCnhPath = getc(current, 'FOTOCNH') || null;
+      if (docFit && docFit.path) {
+        const pathMod = require('path');
+        const fs = require('fs');
+        const nomeArquivo = `${idNum}_cnh_${Date.now()}${pathMod.extname(docFit.originalname) || '.jpg'}`;
+        const dir = pathMod.join(__dirname, '..', 'public', 'uploads', 'motoristas');
+        fs.mkdirSync(dir, { recursive: true });
+        const dest = pathMod.join(dir, nomeArquivo);
+        try {
+          fs.renameSync(docFit.path, dest);
+          fotoCnhPath = '/uploads/motoristas/' + nomeArquivo;
+        } catch (e) {
+          try {
+            fs.unlinkSync(docFit.path);
+          } catch (_) {}
+          return res.status(400).json({ error: 'Erro ao salvar foto do documento.', errorKey: 'cadastro.uploadErro' });
+        }
+      }
+
+      let fotoCnhVersoPath = getc(current, 'FOTOCNH_VERSO') || getc(current, 'foto_cnh_verso') || null;
+      if (docVersoFit && docVersoFit.path) {
+        const pathMod = require('path');
+        const fs = require('fs');
+        const nomeArquivo = `${idNum}_cnh_verso_${Date.now()}${pathMod.extname(docVersoFit.originalname) || '.jpg'}`;
+        const dir = pathMod.join(__dirname, '..', 'public', 'uploads', 'motoristas');
+        fs.mkdirSync(dir, { recursive: true });
+        const dest = pathMod.join(dir, nomeArquivo);
+        try {
+          fs.renameSync(docVersoFit.path, dest);
+          fotoCnhVersoPath = '/uploads/motoristas/' + nomeArquivo;
+        } catch (e) {
+          try {
+            fs.unlinkSync(docVersoFit.path);
+          } catch (_) {}
+          return res.status(400).json({ error: 'Erro ao salvar foto do verso da CNH.', errorKey: 'cadastro.uploadErro' });
+        }
+      }
+
+      const oldComp = String(getc(current, 'FOTO_COMPROVANTE_ENDERECO') || getc(current, 'foto_comprovante_endereco') || '').trim();
+      let fotoCompPath = oldComp || null;
+      if (compFit && compFit.path) {
+        const pathMod = require('path');
+        const fs = require('fs');
+        const nomeArquivo = `${idNum}_comprovante_${Date.now()}${pathMod.extname(compFit.originalname) || '.jpg'}`;
+        const dir = pathMod.join(__dirname, '..', 'public', 'uploads', 'motoristas');
+        fs.mkdirSync(dir, { recursive: true });
+        const dest = pathMod.join(dir, nomeArquivo);
+        try {
+          fs.renameSync(compFit.path, dest);
+          fotoCompPath = '/uploads/motoristas/' + nomeArquivo;
+          needsReapproval = true;
+        } catch (e) {
+          try {
+            fs.unlinkSync(compFit.path);
+          } catch (_) {}
+          return res.status(400).json({ error: 'Erro ao salvar comprovante de endereço.', errorKey: 'cadastro.uploadErro' });
+        }
+      }
+
+      const rqCg = pool.request().input('id', sql.Decimal(15, 0), idNum).input('tid', sql.NVarChar(64), tid);
+      rqCg.input('rz', sql.NVarChar(200), nome);
+      rqCg.input('cel', sql.NVarChar(40), celularE164);
+      rqCg.input('endemail', sql.NVarChar(200), email);
+      rqCg.input('endereco', sql.NVarChar(200), endereco || '');
+      rqCg.input('nrend', sql.Int, nrendereco);
+      rqCg.input('compl', sql.NVarChar(120), complend);
+      rqCg.input('bairro', sql.NVarChar(60), bairro || '');
+      rqCg.input('cep', sql.Int, cepVal == null || !Number.isFinite(cepVal) ? null : cepVal);
+      rqCg.input('cdcid', sql.Int, cdcidade == null ? null : cdcidade);
+
+      let updCg;
+      try {
+        updCg = await rqCg.query(`
+          UPDATE [dbo].[CADASTROGERAL]
+          SET
+            [RZSOCIAL] = @rz,
+            [NMFANTASIA] = @rz,
+            [NRCELULAR] = @cel,
+            [ENDEMAIL] = @endemail,
+            [ENDERECO] = @endereco,
+            [NRENDERECO] = @nrend,
+            [COMPLEND] = @compl,
+            [BAIRRO] = @bairro,
+            [CEP] = @cep,
+            [CDCIDADE] = @cdcid,
+            [DHMAINTENANCE] = CURRENT_TIMESTAMP,
+            [SGUSER] = 'APP_MOTORISTA'
+          WHERE [CDCADASTRO] = @id
+            AND (COALESCE([FGMOTORISTA], '') = 'S' OR (COALESCE([FGMOTORISTA], '') = '' AND [FGTIPOCADASTRO] = 'M'))
+            AND [TENANT_ID] = @tid
+        `);
+      } catch (errUpd) {
+        if (errUpd.code !== '42703') throw errUpd;
+        const rqCgLegacy = pool
+          .request()
+          .input('id', sql.Decimal(15, 0), idNum)
+          .input('rz', sql.NVarChar(200), nome)
+          .input('cel', sql.NVarChar(40), celularE164)
+          .input('endemail', sql.NVarChar(200), email)
+          .input('endereco', sql.NVarChar(200), endereco || '')
+          .input('nrend', sql.Int, nrendereco)
+          .input('compl', sql.NVarChar(120), complend)
+          .input('bairro', sql.NVarChar(60), bairro || '')
+          .input('cep', sql.Int, cepVal == null || !Number.isFinite(cepVal) ? null : cepVal)
+          .input('cdcid', sql.Int, cdcidade == null ? null : cdcidade);
+        updCg = await rqCgLegacy.query(`
+          UPDATE [dbo].[CADASTROGERAL]
+          SET
+            [RZSOCIAL] = @rz,
+            [NMFANTASIA] = @rz,
+            [NRCELULAR] = @cel,
+            [ENDEMAIL] = @endemail,
+            [ENDERECO] = @endereco,
+            [NRENDERECO] = @nrend,
+            [COMPLEND] = @compl,
+            [BAIRRO] = @bairro,
+            [CEP] = @cep,
+            [CDCIDADE] = @cdcid,
+            [DHMAINTENANCE] = CURRENT_TIMESTAMP,
+            [SGUSER] = 'APP_MOTORISTA'
+          WHERE [CDCADASTRO] = @id
+            AND (COALESCE([FGMOTORISTA], '') = 'S' OR (COALESCE([FGMOTORISTA], '') = '' AND [FGTIPOCADASTRO] = 'M'))
+        `);
+      }
+
+      const affectedCg = updCg.rowsAffected && updCg.rowsAffected[0];
+      if (!affectedCg) {
+        return res.status(404).json({ error: 'Motorista não encontrado ou sem permissão para atualizar.', errorKey: 'commonErrors.motoristaNaoEncontrado' });
+      }
+
+      const statusMc = needsReapproval ? 'P' : oldStatus;
+      const rqMc = pool
+        .request()
+        .input('id', sql.Decimal(15, 0), idNum)
+        .input('nr', sql.NVarChar(20), nrCnh)
+        .input('cat', sql.NVarChar(10), categoriaCnh)
+        .input('val', sql.NVarChar(30), validadeCnhFinal || '')
+        .input('foto', sql.NVarChar(500), fotoCnhPath)
+        .input(
+          'fotoverso',
+          sql.NVarChar(500),
+          fotoCnhVersoPath != null ? String(fotoCnhVersoPath) : ''
+        )
+        .input('fotocomp', sql.NVarChar(500), fotoCompPath != null ? String(fotoCompPath) : '')
+        .input('st', sql.VarChar(1), statusMc);
+
+      let updMcSql = `
+        UPDATE [dbo].[MOTORISTA_COMPLEMENTO]
+        SET
+          [NRCNH] = @nr,
+          [CATEGORIACNH] = @cat,
+          [VALIDADECNH] = CASE WHEN TRIM(COALESCE(@val, '')) = '' THEN NULL ELSE CAST(@val AS DATE) END,
+          [FOTOCNH] = @foto,
+          [FOTOCNH_VERSO] = NULLIF(LTRIM(RTRIM(@fotoverso)), ''),
+          [FOTO_COMPROVANTE_ENDERECO] = NULLIF(LTRIM(RTRIM(@fotocomp)), ''),
+          [STATUSAPROVACAO] = @st,
+          [DHMAINTENANCE] = CURRENT_TIMESTAMP,
+          [SGUSER] = 'APP_MOTORISTA'
+        WHERE [CDCADASTRO] = @id
+      `;
+
+      const insMcSqlFullWithVerso = `
+              INSERT INTO [dbo].[MOTORISTA_COMPLEMENTO] (
+                [CDCADASTRO], [NRCNH], [CATEGORIACNH], [VALIDADECNH], [FOTOCNH], [FOTOCNH_VERSO], [FOTO_COMPROVANTE_ENDERECO], [STATUSAPROVACAO], [SGUSER], [SERVERORIG]
+              ) VALUES (
+                @id, @nr, @cat,
+                CASE WHEN TRIM(COALESCE(@val, '')) = '' THEN NULL ELSE CAST(@val AS DATE) END,
+                @foto, NULLIF(LTRIM(RTRIM(@fotoverso)), ''), NULLIF(LTRIM(RTRIM(@fotocomp)), ''), @st, 'APP_MOTORISTA', 'AppMotorista'
+              )`;
+
+      const insMcSqlFull = `
+              INSERT INTO [dbo].[MOTORISTA_COMPLEMENTO] (
+                [CDCADASTRO], [NRCNH], [CATEGORIACNH], [VALIDADECNH], [FOTOCNH], [FOTO_COMPROVANTE_ENDERECO], [STATUSAPROVACAO], [SGUSER], [SERVERORIG]
+              ) VALUES (
+                @id, @nr, @cat,
+                CASE WHEN TRIM(COALESCE(@val, '')) = '' THEN NULL ELSE CAST(@val AS DATE) END,
+                @foto, NULLIF(LTRIM(RTRIM(@fotocomp)), ''), @st, 'APP_MOTORISTA', 'AppMotorista'
+              )`;
+      const insMcSqlLegacy = `
+              INSERT INTO [dbo].[MOTORISTA_COMPLEMENTO] (
+                [CDCADASTRO], [NRCNH], [CATEGORIACNH], [VALIDADECNH], [FOTOCNH], [STATUSAPROVACAO], [SGUSER], [SERVERORIG]
+              ) VALUES (
+                @id, @nr, @cat,
+                CASE WHEN TRIM(COALESCE(@val, '')) = '' THEN NULL ELSE CAST(@val AS DATE) END,
+                @foto, @st, 'APP_MOTORISTA', 'AppMotorista'
+              )`;
+      const updMcSqlLegacy = updMcSql.replace(
+        /\s*,\s*\[FOTO_COMPROVANTE_ENDERECO\]\s*=\s*NULLIF\s*\(\s*LTRIM\s*\(\s*RTRIM\s*\(\s*@fotocomp\s*\)\s*\)\s*,\s*''\s*\)\s*/,
+        ' '
+      );
+      const updMcSqlNoVerso = updMcSql.replace(
+        /\s*,\s*\[FOTOCNH_VERSO\]\s*=\s*NULLIF\s*\(\s*LTRIM\s*\(\s*RTRIM\s*\(\s*@fotoverso\s*\)\s*\)\s*,\s*''\s*\)\s*/,
+        ' '
+      );
+
+      try {
+        const updMc = await rqMc.query(updMcSql);
+        const affMc = updMc.rowsAffected && updMc.rowsAffected[0];
+        if (!affMc) {
+          try {
+            await pool
+              .request()
+              .input('id', sql.Decimal(15, 0), idNum)
+              .input('nr', sql.NVarChar(20), nrCnh)
+              .input('cat', sql.NVarChar(10), categoriaCnh)
+              .input('val', sql.NVarChar(30), validadeCnhFinal || '')
+              .input('foto', sql.NVarChar(500), fotoCnhPath)
+              .input('fotoverso', sql.NVarChar(500), fotoCnhVersoPath != null ? String(fotoCnhVersoPath) : '')
+              .input('fotocomp', sql.NVarChar(500), fotoCompPath != null ? String(fotoCompPath) : '')
+              .input('st', sql.VarChar(1), statusMc)
+              .query(insMcSqlFullWithVerso);
+          } catch (eIns) {
+            if (eIns.code === '42703' && /foto_cnh_verso/i.test(String(eIns.message || ''))) {
+              await pool
+                .request()
+                .input('id', sql.Decimal(15, 0), idNum)
+                .input('nr', sql.NVarChar(20), nrCnh)
+                .input('cat', sql.NVarChar(10), categoriaCnh)
+                .input('val', sql.NVarChar(30), validadeCnhFinal || '')
+                .input('foto', sql.NVarChar(500), fotoCnhPath)
+                .input('fotocomp', sql.NVarChar(500), fotoCompPath != null ? String(fotoCompPath) : '')
+                .input('st', sql.VarChar(1), statusMc)
+                .query(insMcSqlFull);
+            } else if (eIns.code === '42703' && /foto_comprovante_endereco/i.test(String(eIns.message || ''))) {
+              await pool
+                .request()
+                .input('id', sql.Decimal(15, 0), idNum)
+                .input('nr', sql.NVarChar(20), nrCnh)
+                .input('cat', sql.NVarChar(10), categoriaCnh)
+                .input('val', sql.NVarChar(30), validadeCnhFinal || '')
+                .input('foto', sql.NVarChar(500), fotoCnhPath)
+                .input('st', sql.VarChar(1), statusMc)
+                .query(insMcSqlLegacy);
+            } else throw eIns;
+          }
+        }
+      } catch (errMc) {
+        if (errMc.code === '23505') {
+          return res.status(400).json({
+            error: 'Número de CNH já vinculado a outro cadastro.',
+            errorKey: 'perfil.cnhDuplicada',
+          });
+        }
+        if (errMc.code === '42703' && /foto_cnh_verso/i.test(String(errMc.message || ''))) {
+          const rqNv = pool
+            .request()
+            .input('id', sql.Decimal(15, 0), idNum)
+            .input('nr', sql.NVarChar(20), nrCnh)
+            .input('cat', sql.NVarChar(10), categoriaCnh)
+            .input('val', sql.NVarChar(30), validadeCnhFinal || '')
+            .input('foto', sql.NVarChar(500), fotoCnhPath)
+            .input('fotocomp', sql.NVarChar(500), fotoCompPath != null ? String(fotoCompPath) : '')
+            .input('st', sql.VarChar(1), statusMc);
+          const updNv = await rqNv.query(updMcSqlNoVerso);
+          const affNv = updNv.rowsAffected && updNv.rowsAffected[0];
+          if (!affNv) {
+            try {
+              await pool
+                .request()
+                .input('id', sql.Decimal(15, 0), idNum)
+                .input('nr', sql.NVarChar(20), nrCnh)
+                .input('cat', sql.NVarChar(10), categoriaCnh)
+                .input('val', sql.NVarChar(30), validadeCnhFinal || '')
+                .input('foto', sql.NVarChar(500), fotoCnhPath)
+                .input('fotocomp', sql.NVarChar(500), fotoCompPath != null ? String(fotoCompPath) : '')
+                .input('st', sql.VarChar(1), statusMc)
+                .query(insMcSqlFull);
+            } catch (eInsNv) {
+              if (eInsNv.code === '42703' && /foto_comprovante_endereco/i.test(String(eInsNv.message || ''))) {
+                await pool
+                  .request()
+                  .input('id', sql.Decimal(15, 0), idNum)
+                  .input('nr', sql.NVarChar(20), nrCnh)
+                  .input('cat', sql.NVarChar(10), categoriaCnh)
+                  .input('val', sql.NVarChar(30), validadeCnhFinal || '')
+                  .input('foto', sql.NVarChar(500), fotoCnhPath)
+                  .input('st', sql.VarChar(1), statusMc)
+                  .query(insMcSqlLegacy);
+              } else throw eInsNv;
+            }
+          }
+        } else if (errMc.code === '42703' && /foto_comprovante_endereco/i.test(String(errMc.message || ''))) {
+          const rqMc2 = pool
+            .request()
+            .input('id', sql.Decimal(15, 0), idNum)
+            .input('nr', sql.NVarChar(20), nrCnh)
+            .input('cat', sql.NVarChar(10), categoriaCnh)
+            .input('val', sql.NVarChar(30), validadeCnhFinal || '')
+            .input('foto', sql.NVarChar(500), fotoCnhPath)
+            .input(
+              'fotoverso',
+              sql.NVarChar(500),
+              fotoCnhVersoPath != null ? String(fotoCnhVersoPath) : ''
+            )
+            .input('st', sql.VarChar(1), statusMc);
+          const updMc2 = await rqMc2.query(updMcSqlLegacy);
+          const aff2 = updMc2.rowsAffected && updMc2.rowsAffected[0];
+          if (!aff2) {
+            await pool
+              .request()
+              .input('id', sql.Decimal(15, 0), idNum)
+              .input('nr', sql.NVarChar(20), nrCnh)
+              .input('cat', sql.NVarChar(10), categoriaCnh)
+              .input('val', sql.NVarChar(30), validadeCnhFinal || '')
+              .input('foto', sql.NVarChar(500), fotoCnhPath)
+              .input('st', sql.VarChar(1), statusMc)
+              .query(insMcSqlLegacy);
+          }
+        } else throw errMc;
+      }
+
+      const fresh = await loadPerfilMotoristaApp(pool, idNum, tid);
+      res.json({
+        success: true,
+        message: needsReapproval
+          ? 'Dados salvos. CNH, comprovante de endereço ou documento serão analisados novamente pela empresa antes de concluir a liberação.'
+          : 'Perfil atualizado com sucesso.',
+        errorKey: needsReapproval ? 'perfil.salvoPendenteRevisao' : 'perfil.salvoOk',
+        perfil: fresh,
+        pendenteReanalise: !!needsReapproval,
+      });
+    } catch (err) {
+      console.error('Erro ao atualizar perfil:', err);
+      res.status(500).json({ error: 'Erro ao atualizar perfil.', errorKey: 'perfil.erroAtualizar' });
+    }
+  },
+
+  // ==========================================
+  // VEÍCULOS DO MOTORISTA (app) — Fase B
+  // ==========================================
+  listarVeiculosMotorista: async (req, res) => {
+    try {
+      const id = getMotoristaCadastroId(req);
+      if (!Number.isFinite(id)) {
+        return res.status(401).json({ error: 'Sessão inválida.', errorKey: 'login.tokenInvalido' });
+      }
+      const tid = tenantIdForRequest(req);
+      const pool = await poolPromise;
+      const qPlain = `SELECT mv.* FROM "MOTORISTA_VEICULO" mv
+           INNER JOIN "CADASTROGERAL" cg ON cg."CDCADASTRO" = mv."CDCADASTRO"
+           WHERE mv."CDCADASTRO" = $1::numeric
+             AND (mv."TENANT_ID" = $2 OR (mv."TENANT_ID" IS NULL AND cg."TENANT_ID" = $2))
+             AND COALESCE(mv."FGACTIVE", 'S') = 'S'
+           ORDER BY mv."IDVEICULOMOTORISTA" DESC`;
+      const qRich = `SELECT mv.*, cf."DSCLASSEFROTA" AS "ds_classe_frota" FROM "MOTORISTA_VEICULO" mv
+           INNER JOIN "CADASTROGERAL" cg ON cg."CDCADASTRO" = mv."CDCADASTRO"
+           LEFT JOIN "CLASSEFROTA" cf ON cf."CDCLASSEFROTA" = mv."CDCLASSEFROTA"
+             AND (cf."TENANT_ID" = $2 OR cf."TENANT_ID" = 'default' OR cf."TENANT_ID" IS NULL)
+           WHERE mv."CDCADASTRO" = $1::numeric
+             AND (mv."TENANT_ID" = $2 OR (mv."TENANT_ID" IS NULL AND cg."TENANT_ID" = $2))
+             AND COALESCE(mv."FGACTIVE", 'S') = 'S'
+           ORDER BY mv."IDVEICULOMOTORISTA" DESC`;
+      try {
+        let r;
+        try {
+          r = await pool.query(qRich, [id, tid]);
+        } catch (e) {
+          if (e.code === '42703') r = await pool.query(qPlain, [id, tid]);
+          else throw e;
+        }
+        return res.json(r.rows || []);
+      } catch (e) {
+        if (e.code === '42703') {
+          const r2 = await pool.query(
+            `SELECT * FROM "MOTORISTA_VEICULO"
+             WHERE "CDCADASTRO" = $1::numeric AND COALESCE("FGACTIVE", 'S') = 'S'
+             ORDER BY "IDVEICULOMOTORISTA" DESC`,
+            [id]
+          );
+          return res.json(r2.rows || []);
+        }
+        throw e;
+      }
+    } catch (err) {
+      if (err.code === '42P01' || err.code === '42703') {
+        return res.status(503).json({
+          error:
+            'Tabela ou colunas de veículo não disponíveis. Execute backend/scripts/adicionar_motorista_veiculo_aprovacao_tenant_postgres.sql.',
+          errorKey: 'veiculos.schemaPendente',
+        });
+      }
+      console.error('Erro ao listar veículos do motorista:', err);
+      res.status(500).json({ error: 'Erro ao listar veículos.', errorKey: 'veiculos.erroListar' });
+    }
+  },
+
+  criarVeiculoMotorista: async (req, res) => {
+    try {
+      const id = getMotoristaCadastroId(req);
+      if (!Number.isFinite(id)) {
+        return res.status(401).json({ error: 'Sessão inválida.', errorKey: 'login.tokenInvalido' });
+      }
+      const tid = tenantIdForRequest(req);
+      const body = req.body || {};
+      const placaRaw = (body.placa || '').trim();
+      const norm = normalizarPlacaBrasil(placaRaw);
+      if (!norm) {
+        return res.status(400).json({ error: 'Placa inválida (informe 7 caracteres: antiga ou Mercosul).', errorKey: 'veiculos.placaInvalida' });
+      }
+      const renavam = (body.renavam || '').replace(/\D/g, '').slice(0, 11) || null;
+      const papel = (body.papelConjunto || body.papel || '').trim().slice(0, 20) || null;
+      let cdTipo = body.cdTipoEquipamento ?? body.CDTIPOEquipamento;
+      if (cdTipo === '' || cdTipo === undefined) cdTipo = null;
+      else {
+        const n = parseInt(String(cdTipo), 10);
+        cdTipo = Number.isFinite(n) ? n : null;
+      }
+
+      let cdClasseFrota = body.cdClasseFrota ?? body.CDCLASSEFROTA;
+      if (cdClasseFrota === '' || cdClasseFrota === undefined) cdClasseFrota = null;
+      else {
+        const nc = parseInt(String(cdClasseFrota), 10);
+        cdClasseFrota = Number.isFinite(nc) && nc > 0 ? nc : null;
+      }
+      if (!cdClasseFrota) {
+        return res.status(400).json({
+          error: 'Escolha a classe de frota na lista (não digite — selecione uma opção).',
+          errorKey: 'veiculos.classeObrigatoria',
+        });
+      }
+
+      let fotoCrlv = null;
+      if (req.file && req.file.path) {
+        const pathMod = require('path');
+        const fs = require('fs');
+        const nomeArquivo = `mv_${id}_${Date.now()}${pathMod.extname(req.file.originalname) || '.jpg'}`;
+        const dir = pathMod.join(__dirname, '..', 'public', 'uploads', 'veiculos');
+        fs.mkdirSync(dir, { recursive: true });
+        const dest = pathMod.join(dir, nomeArquivo);
+        try {
+          fs.renameSync(req.file.path, dest);
+          fotoCrlv = '/uploads/veiculos/' + nomeArquivo;
+        } catch (e) {
+          try {
+            fs.unlinkSync(req.file.path);
+          } catch (_) {}
+          return res.status(400).json({ error: 'Erro ao salvar CRLV.', errorKey: 'veiculos.uploadErro' });
+        }
+      }
+
+      const pool = await poolPromise;
+
+      const exist = await pool.query(
+        `SELECT mv."IDVEICULOMOTORISTA"
+         FROM "MOTORISTA_VEICULO" mv
+         INNER JOIN "CADASTROGERAL" cg ON cg."CDCADASTRO" = mv."CDCADASTRO"
+         WHERE mv."CDCADASTRO" = $1::numeric
+           AND mv."PLACA_NORMALIZADA" = $2
+           AND (mv."TENANT_ID" = $3 OR (mv."TENANT_ID" IS NULL AND cg."TENANT_ID" = $3))
+           AND COALESCE(mv."FGACTIVE", 'S') = 'S'`,
+        [id, norm, tid]
+      );
+
+      const sg = 'APP_MOTORISTA';
+      if (exist.rows && exist.rows.length > 0) {
+        const idv = exist.rows[0].IDVEICULOMOTORISTA ?? exist.rows[0].idveiculomotorista;
+        await pool.query(
+          `UPDATE "MOTORISTA_VEICULO" SET
+             "PLACA" = $1,
+             "PLACA_NORMALIZADA" = $1,
+             "RENAVAM" = $2,
+             "CDTIPOEQUIPAMENTO" = $3,
+             "CDCLASSEFROTA" = $4,
+             "PAPEL_CONJUNTO" = $5,
+             "FOTOCRLV" = COALESCE($6, "FOTOCRLV"),
+             "STATUSAPROVACAO" = 'P',
+             "MOTIVOREPROVACAO" = NULL,
+             "DHMAINTENANCE" = CURRENT_TIMESTAMP,
+             "SGUSER" = $7,
+             "TENANT_ID" = COALESCE("TENANT_ID", $8::varchar)
+           WHERE "IDVEICULOMOTORISTA" = $9::int`,
+          [norm, renavam, cdTipo, cdClasseFrota, papel, fotoCrlv, sg, tid, idv]
+        );
+        const rUp = await pool.query(`SELECT * FROM "MOTORISTA_VEICULO" WHERE "IDVEICULOMOTORISTA" = $1::int`, [idv]);
+        return res.json({
+          success: true,
+          message: 'Veículo atualizado e enviado novamente para análise.',
+          veiculo: (rUp.rows && rUp.rows[0]) || null,
+        });
+      }
+
+      const ins = await pool.query(
+        `INSERT INTO "MOTORISTA_VEICULO" (
+          "CDCADASTRO", "PLACA", "PLACA_NORMALIZADA", "RENAVAM", "CDTIPOEQUIPAMENTO", "CDCLASSEFROTA",
+          "PAPEL_CONJUNTO", "FOTOCRLV", "TENANT_ID", "STATUSAPROVACAO", "FGACTIVE",
+          "SGUSER", "SERVERORIG"
+        ) VALUES (
+          $1::numeric, $2, $3, $4, $5, $6,
+          $7, $8, $9, 'P', 'S',
+          $10, 'AppMotorista'
+        )
+        RETURNING *`,
+        [id, norm, norm, renavam, cdTipo, cdClasseFrota, papel, fotoCrlv, tid, sg]
+      );
+
+      const row = ins.rows && ins.rows[0];
+      return res.status(201).json({
+        success: true,
+        message: 'Veículo cadastrado. Aguarde a análise da empresa.',
+        veiculo: row,
+      });
+    } catch (err) {
+      if (err.code === '23505') {
+        return res.status(409).json({
+          error: 'Esta placa já está cadastrada para outro registro ativo.',
+          errorKey: 'veiculos.placaDuplicada',
+        });
+      }
+      if (err.code === '42703' || err.code === '23502') {
+        return res.status(503).json({
+          error:
+            'Estrutura de veículos não atualizada no banco. Execute adicionar_motorista_veiculo_aprovacao_tenant_postgres.sql e, se o erro citar CDCLASSEFROTA, adicionar_motorista_veiculo_cdclassefrota_postgres.sql (pasta backend/scripts).',
+          errorKey: 'veiculos.schemaPendente',
+        });
+      }
+      console.error('Erro ao criar veículo do motorista:', err);
+      res.status(500).json({ error: 'Erro ao cadastrar veículo.', errorKey: 'veiculos.erroSalvar' });
+    }
+  },
+
   // ==========================================
   // CADASTRO - Novo motorista (app na rua)
   // Recebe FormData: ddi, celular (ou ddd+numero), nome, paisDocumento, tipoDocumento, numeroDocumento,
-  // dataNascimento, nrCnh, categoriaCnh, validadeCnh, paisDestinoPref, estadoDestinoPref, cidadeDestinoPref, senha, documento (file).
+  // nrCnh, categoriaCnh, validadeCnh, senha, documento (frente CNH, opcional), documentoVerso (verso, opcional), comprovanteEndereco (obrigatório),
+  // veiculos (JSON array: placa, cdClasseFrota, renavam, papel) + arquivos opcionais veiculoCrlv_0 … veiculoCrlv_14.
   // Cadastro fica inativo (FGACTIVE I) e pendente (STATUSAPROVACAO P) até completar/validar no Gerenciar Cadastro Geral.
   // ==========================================
   cadastro: async (req, res) => {
@@ -325,6 +1238,7 @@ const motoristaAppController = {
       const numeroDocumento = String(body.numeroDocumento || body.cpf || '').replace(/\D/g, '');
       const senha = body.senha || '';
       const nrCnh = (body.nrCnh || body.cnh || '').trim();
+      const nrCnhDb = normalizarNrcnhMotoristaDb(nrCnh, paisDocumento);
       const categoriaCnh = (body.categoriaCnh || body.categoria || '').trim().slice(0, 5);
       const validadeCnh = (body.validadeCnh || body.validade || '').trim();
       const email = (body.email || '').trim() || null;
@@ -339,6 +1253,74 @@ const motoristaAppController = {
         if (body.classesFrota && typeof body.classesFrota === 'string') classesFrota = JSON.parse(body.classesFrota);
         else if (Array.isArray(body.classesFrota)) classesFrota = body.classesFrota;
       } catch (e) { classesFrota = []; }
+      let veiculosBody = [];
+      try {
+        if (body.veiculos && typeof body.veiculos === 'string') veiculosBody = JSON.parse(body.veiculos);
+        else if (Array.isArray(body.veiculos)) veiculosBody = body.veiculos;
+      } catch (e) {
+        veiculosBody = [];
+      }
+
+      const docArr = (req.files && req.files.documento) || [];
+      const docVersoArr = (req.files && req.files.documentoVerso) || [];
+      const compArr = (req.files && req.files.comprovanteEndereco) || [];
+      const docFile = docArr[0];
+      const docVersoFile = docVersoArr[0];
+      const compFile = compArr[0];
+      if (!compFile || !compFile.path) {
+        return res.status(400).json({
+          error:
+            'Envie uma foto do comprovante de endereço (conta de luz, água, gás ou correspondência com seu nome e endereço).',
+          errorKey: 'cadastro.comprovanteEnderecoObrigatorio',
+        });
+      }
+      if (!Array.isArray(classesFrota) || classesFrota.length < 1) {
+        return res.status(400).json({
+          error: 'Marque ao menos uma classe de frota na lista (toque nas caixinhas — não precisa digitar).',
+          errorKey: 'cadastro.classeFrotaObrigatoria',
+        });
+      }
+      if (!Array.isArray(veiculosBody) || veiculosBody.length < 1) {
+        return res.status(400).json({
+          error: 'Inclua ao menos um veículo (placa e classe de frota) neste cadastro.',
+          errorKey: 'cadastro.veiculosObrigatorioMin1',
+        });
+      }
+      if (veiculosBody.length > 15) {
+        return res.status(400).json({
+          error: 'No máximo 15 veículos por cadastro.',
+          errorKey: 'cadastro.veiculosLimiteExcedido',
+        });
+      }
+      const veiculosSan = [];
+      const placasCadastroSet = new Set();
+      for (let vi = 0; vi < veiculosBody.length; vi++) {
+        const v = veiculosBody[vi] || {};
+        const norm = normalizarPlacaBrasil(String(v.placa || '').trim());
+        if (!norm) {
+          return res.status(400).json({
+            error: `Placa inválida no veículo ${vi + 1}. Use 7 caracteres (padrão antigo ou Mercosul).`,
+            errorKey: 'veiculos.placaInvalida',
+          });
+        }
+        if (placasCadastroSet.has(norm)) {
+          return res.status(400).json({
+            error: 'Há placas repetidas na lista de veículos.',
+            errorKey: 'cadastro.veiculosPlacaDuplicadaLista',
+          });
+        }
+        placasCadastroSet.add(norm);
+        const nc = parseInt(v.cdClasseFrota ?? v.CDCLASSEFROTA, 10);
+        if (!Number.isFinite(nc) || nc < 1) {
+          return res.status(400).json({
+            error: `Escolha a classe de frota no veículo ${vi + 1}.`,
+            errorKey: 'veiculos.classeObrigatoria',
+          });
+        }
+        const renavamV = String(v.renavam || '').replace(/\D/g, '').slice(0, 11) || null;
+        const papelV = (v.papelConjunto || v.papel || 'CAVALO').toString().trim().slice(0, 20) || 'CAVALO';
+        veiculosSan.push({ norm, renavam: renavamV, papel: papelV, cdClasseFrota: nc });
+      }
 
       if (!ddi || numero.length < 8) {
         return res.status(400).json({ error: 'Celular obrigatório com DDI e número válido.', errorKey: 'cadastro.celularObrigatorio' });
@@ -387,18 +1369,58 @@ const motoristaAppController = {
       const senhaHash = await bcrypt.hash(senha, 10);
 
       let fotoDocPath = null;
-      if (req.file && req.file.path) {
-        const path = require('path');
-        const nomeArquivo = `${novoId}_documento${path.extname(req.file.originalname) || '.jpg'}`;
-        const dir = require('path').join(__dirname, '..', 'public', 'uploads', 'motoristas');
+      if (docFile && docFile.path) {
+        const pathMod = require('path');
+        const nomeArquivo = `${novoId}_documento${pathMod.extname(docFile.originalname) || '.jpg'}`;
+        const dir = pathMod.join(__dirname, '..', 'public', 'uploads', 'motoristas');
         const fs = require('fs');
         fs.mkdirSync(dir, { recursive: true });
-        const dest = path.join(dir, nomeArquivo);
+        const dest = pathMod.join(dir, nomeArquivo);
         try {
-          fs.renameSync(req.file.path, dest);
+          fs.renameSync(docFile.path, dest);
           fotoDocPath = '/uploads/motoristas/' + nomeArquivo;
         } catch (e) {
-          try { fs.unlinkSync(req.file.path); } catch (_) {}
+          try {
+            fs.unlinkSync(docFile.path);
+          } catch (_) {}
+        }
+      }
+
+      let fotoVersoPath = null;
+      if (docVersoFile && docVersoFile.path) {
+        const pathMod = require('path');
+        const fs = require('fs');
+        const nomeV = `${novoId}_cnh_verso${pathMod.extname(docVersoFile.originalname) || '.jpg'}`;
+        const dir = pathMod.join(__dirname, '..', 'public', 'uploads', 'motoristas');
+        fs.mkdirSync(dir, { recursive: true });
+        const destV = pathMod.join(dir, nomeV);
+        try {
+          fs.renameSync(docVersoFile.path, destV);
+          fotoVersoPath = '/uploads/motoristas/' + nomeV;
+        } catch (e) {
+          try {
+            fs.unlinkSync(docVersoFile.path);
+          } catch (_) {}
+          return res.status(400).json({ error: 'Erro ao salvar foto do verso da CNH.', errorKey: 'cadastro.uploadErro' });
+        }
+      }
+
+      let fotoCompPath = null;
+      {
+        const pathMod = require('path');
+        const fs = require('fs');
+        const nomeComp = `${novoId}_comprovante_endereco${pathMod.extname(compFile.originalname) || '.jpg'}`;
+        const dir = pathMod.join(__dirname, '..', 'public', 'uploads', 'motoristas');
+        fs.mkdirSync(dir, { recursive: true });
+        const destComp = pathMod.join(dir, nomeComp);
+        try {
+          fs.renameSync(compFile.path, destComp);
+          fotoCompPath = '/uploads/motoristas/' + nomeComp;
+        } catch (e) {
+          try {
+            fs.unlinkSync(compFile.path);
+          } catch (_) {}
+          return res.status(400).json({ error: 'Erro ao salvar comprovante de endereço.', errorKey: 'cadastro.uploadErro' });
         }
       }
 
@@ -423,7 +1445,7 @@ const motoristaAppController = {
 
       const colsComp = ['"CDCADASTRO"', '"NRCNH"', '"CATEGORIACNH"', '"VALIDADECNH"', '"STATUSAPROVACAO"', '"SENHA"'];
       const valsComp = ['$1::bigint', '$2::text', '$3::text', '$4::date', '$5::text', '$6::text'];
-      const paramsComp = [novoId, nrCnh || null, categoriaCnh || null, validadeDate, 'P', senhaHash];
+      const paramsComp = [novoId, nrCnhDb, categoriaCnh || null, validadeDate, 'P', senhaHash];
 
       let nextParam = 7;
       if (fotoDocPath) {
@@ -432,11 +1454,51 @@ const motoristaAppController = {
         paramsComp.push(fotoDocPath);
         nextParam++;
       }
+      if (fotoVersoPath) {
+        colsComp.push('"FOTOCNH_VERSO"');
+        valsComp.push(`$${nextParam}::text`);
+        paramsComp.push(fotoVersoPath);
+        nextParam++;
+      }
+      if (fotoCompPath) {
+        colsComp.push('"FOTO_COMPROVANTE_ENDERECO"');
+        valsComp.push(`$${nextParam}::text`);
+        paramsComp.push(fotoCompPath);
+        nextParam++;
+      }
 
-      await pool.query(
-        `INSERT INTO "MOTORISTA_COMPLEMENTO" (${colsComp.join(', ')}) VALUES (${valsComp.join(', ')})`,
-        paramsComp
-      );
+      try {
+        await pool.query(
+          `INSERT INTO "MOTORISTA_COMPLEMENTO" (${colsComp.join(', ')}) VALUES (${valsComp.join(', ')})`,
+          paramsComp
+        );
+      } catch (eIns) {
+        try {
+          await pool.query('DELETE FROM "CADASTROGERAL" WHERE "CDCADASTRO" = $1::bigint', [novoId]);
+        } catch (_) {}
+        if (eIns.code === '42703' && /foto_comprovante_endereco/i.test(String(eIns.message || ''))) {
+          return res.status(503).json({
+            error:
+              'Execute no banco: backend/scripts/adicionar_motorista_comprovante_endereco_postgres.sql (coluna de comprovante de endereço).',
+            errorKey: 'cadastro.schemaComprovante',
+          });
+        }
+        if (eIns.code === '42703' && /foto_cnh_verso/i.test(String(eIns.message || ''))) {
+          return res.status(503).json({
+            error:
+              'Execute no banco: backend/scripts/adicionar_motorista_cnh_verso_postgres.sql (coluna do verso da CNH).',
+            errorKey: 'cadastro.schemaCnhVerso',
+          });
+        }
+        if (eIns.code === '22001') {
+          return res.status(400).json({
+            error:
+              'Algum texto enviado excede o tamanho permitido no banco. Número da CNH (Brasil): use até 11 dígitos.',
+            errorKey: 'cadastro.campoTextoMuitoLongo',
+          });
+        }
+        throw eIns;
+      }
 
       // Locais preferidos (CADASTRO_LOCAL_PREFERIDO)
       if (locaisPreferidos.length > 0) {
@@ -477,11 +1539,60 @@ const motoristaAppController = {
         }
       }
 
-      console.log('✅ [CADASTRO] Motorista criado:', novoId, nome, '- Pendente de aprovação');
+      const tidCad = tenantIdForRequest(req);
+      try {
+        for (let i = 0; i < veiculosSan.length; i++) {
+          const vs = veiculosSan[i];
+          const arr = (req.files && req.files[`veiculoCrlv_${i}`]) || [];
+          const crlvF = arr[0] || null;
+          await persistVeiculoMotoristaInterno(pool, {
+            cdcadastro: novoId,
+            tenantId: tidCad,
+            placaNormalizada: vs.norm,
+            renavam: vs.renavam,
+            papel: vs.papel,
+            cdClasseFrota: vs.cdClasseFrota,
+            cdTipoEquipamento: null,
+            crlvMulterFile: crlvF,
+            sguser: 'APP_MOTORISTA_CADASTRO',
+            serverOrig: 'AppMotoristaCadastro',
+          });
+        }
+      } catch (veErr) {
+        console.error('Erro ao gravar veículos no cadastro:', veErr);
+        await rollbackCadastroMotorista(pool, novoId);
+        if (veErr.code === '23505') {
+          return res.status(409).json({
+            error: 'Uma das placas já está cadastrada no sistema para outro motorista.',
+            errorKey: 'veiculos.placaDuplicada',
+          });
+        }
+        if (veErr.code === 'CRLV_SAVE') {
+          return res.status(400).json({
+            error: 'Erro ao salvar foto do CRLV de um veículo.',
+            errorKey: 'veiculos.uploadErro',
+          });
+        }
+        if (veErr.code === '42P01' || veErr.code === '42703' || veErr.code === '23502') {
+          return res.status(503).json({
+            error:
+              'Estrutura de veículos não atualizada no banco. Execute backend/scripts/adicionar_motorista_veiculo_aprovacao_tenant_postgres.sql (e CDCLASSEFROTA se necessário).',
+            errorKey: 'veiculos.schemaPendente',
+          });
+        }
+        return res.status(500).json({
+          error: 'Erro ao salvar veículos junto com o cadastro. Tente novamente.',
+          errorKey: 'cadastro.erroVeiculosPosMotorista',
+        });
+      }
+
+      console.log('✅ [CADASTRO] Motorista criado:', novoId, nome, '- Pendente de aprovação (com', veiculosSan.length, 'veículo(s))');
       res.status(201).json({
         success: true,
-        message: 'Cadastro enviado com sucesso. Aguarde a validação e liberação pelo administrador.',
-        CDCADASTRO: novoId
+        message:
+          'Cadastro e veículos enviados com sucesso. Aguarde a validação e liberação pelo administrador.',
+        CDCADASTRO: novoId,
+        veiculos: veiculosSan.length,
       });
     } catch (err) {
       console.error('Erro no cadastro:', err);
@@ -493,8 +1604,13 @@ const motoristaAppController = {
   listarClassesFrotaCombo: async (req, res) => {
     try {
       const pool = await poolPromise;
+      const tenantId = tenantIdForRequest(req);
       const result = await pool.query(
-        `SELECT "CDCLASSEFROTA", "DSCLASSEFROTA" FROM "CLASSEFROTA" WHERE "FGACTIVE" = 'A' ORDER BY "DSCLASSEFROTA"`
+        `SELECT "CDCLASSEFROTA", "DSCLASSEFROTA" FROM "CLASSEFROTA"
+         WHERE ("FGACTIVE" = 'A' OR "FGACTIVE" = 'S')
+           AND ("TENANT_ID" = $1 OR "TENANT_ID" = 'default')
+         ORDER BY "DSCLASSEFROTA"`,
+        [tenantId]
       );
       const rows = (result.rows || []).map(r => ({
         CDCLASSEFROTA: r.CDCLASSEFROTA ?? r.cdclassefrota,
@@ -514,10 +1630,14 @@ const motoristaAppController = {
   minhasConvocacoes: async (req, res) => {
     try {
       const { idmotorista } = req.params;
+      if (!assertSameMotorista(req, res, idmotorista)) return;
 
       const pool = await poolPromise;
+      // Uma linha por viagem: evita "zona" com várias CONVOCACAO duplicadas (ex.: campanhas antigas).
+      // Por viagem, prioriza o registro "melhor": CONFIRMADA > ACEITA > PENDENTE > demais.
       let query = `
-        SELECT 
+        SELECT * FROM (
+        SELECT DISTINCT ON (c.[IDVIAGEM])
           c.[IDCONVOCACAO],
           c.[IDVIAGEM],
           c.[STATUS],
@@ -528,6 +1648,11 @@ const motoristaAppController = {
           c.[NRCELULAR],
           c.[LATITUDE],
           c.[LONGITUDE],
+          c.[FGCONFIRMACAOPLACAS],
+          c.[TXTPLACASDIVERGENCIA],
+          c.[DHCONFIRMACAOPLACAS],
+          (${sqlCoalescePlacasEsperadasConvocacaoComSnapshot()}) AS [PLACASESPERADAS],
+          (${sqlCoalesceDsClasseConjuntoConvocacaoComSnapshot()}) AS [DSCLASSEFROTA_CONJUNTO],
           v.[DTPREVINICIO],
           v.[DTPREVFINAL],
           v.[VLFRETE],
@@ -549,28 +1674,45 @@ const motoristaAppController = {
           cd.[ESTADO] AS DESTINO_ESTADO,
           cont.[RZSOCIAL] AS CONTRATADOR
         FROM [dbo].[CONVOCACAO] c
-        INNER JOIN [dbo].[VIAGEMMESTRE] v ON c.[IDVIAGEM] = v.[IDVIAGEM]
+        INNER JOIN [dbo].[VIAGEMMESTRE] v ON c.[IDVIAGEM] = v.[IDVIAGEM] AND c.[TENANT_ID] = v.[TENANT_ID]
         LEFT JOIN [dbo].[SITUACAOVIAGEM] sv ON v.[CDSITUACAOVIAGEM] = sv.[CDSITUACAOVIAGEM]
+          AND (sv.[TENANT_ID] = @tenantId OR sv.[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[TIPOVIAGEM] tv ON v.[CDTIPOVIAGEM] = tv.[CDTIPOVIAGEM]
+          AND (tv.[TENANT_ID] = @tenantId OR tv.[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[CLASSEFROTA] cf ON v.[CDCLASSEFROTA] = cf.[CDCLASSEFROTA]
+          AND (cf.[TENANT_ID] = v.[TENANT_ID] OR cf.[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[ROTEIRO] r ON v.[IDROTEIRO] = r.[IDROTEIRO]
+          AND (r.[TENANT_ID] = @tenantId OR r.[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[CIDADE] co ON r.[CDCIDADEORIGEM] = co.[CDCIDADE]
         LEFT JOIN [dbo].[CIDADE] cd ON r.[CDCIDADEDESTINO] = cd.[CDCIDADE]
-        LEFT JOIN [dbo].[CADASTROGERAL] cont ON v.[CDCONTRATADOR] = cont.[CDCADASTRO]
+        LEFT JOIN [dbo].[CADASTROGERAL] cont ON v.[CDCONTRATADOR] = cont.[CDCADASTRO] AND cont.[TENANT_ID] = v.[TENANT_ID]
         WHERE c.[CDCADASTRO_MOTORISTA] = @idmotorista
+          AND v.[TENANT_ID] = @tenantId
         ORDER BY 
+          c.[IDVIAGEM],
           CASE 
-            WHEN c.[STATUS] = 'PENDENTE' THEN 1
+            WHEN c.[STATUS] = 'CONFIRMADA' THEN 1
             WHEN c.[STATUS] = 'ACEITA' THEN 2
-            WHEN c.[STATUS] = 'CONFIRMADA' THEN 3
+            WHEN c.[STATUS] = 'PENDENTE' THEN 3
             ELSE 4
           END,
-          c.[DHCONVOCACAO] DESC
+          c.[DHCONVOCACAO] DESC,
+          c.[IDCONVOCACAO] DESC
+        ) conv_um_por_viagem
+        ORDER BY 
+          CASE 
+            WHEN conv_um_por_viagem.[STATUS] = 'PENDENTE' THEN 1
+            WHEN conv_um_por_viagem.[STATUS] = 'ACEITA' THEN 2
+            WHEN conv_um_por_viagem.[STATUS] = 'CONFIRMADA' THEN 3
+            ELSE 4
+          END,
+          conv_um_por_viagem.[DHCONVOCACAO] DESC
       `;
 
       const result = await pool
         .request()
         .input('idmotorista', sql.Decimal(15, 0), parseFloat(idmotorista))
+        .input('tenantId', sql.NVarChar(64), tenantIdForRequest(req))
         .query(query);
 
       const recordset = (result.recordset || []).map((row) => {
@@ -587,6 +1729,12 @@ const motoristaAppController = {
       });
       res.json(recordset);
     } catch (err) {
+      if (err.code === '42703') {
+        return res.status(503).json({
+          error: 'Base sem colunas de confirmação de placas na convocação. Execute o script SQL de migração.',
+          errorKey: 'convocacao.listaConvocacoesSchemaPendente',
+        });
+      }
       console.error('Erro ao listar convocações:', err);
       res.status(500).json({ error: 'Erro ao buscar convocações.' });
     }
@@ -601,11 +1749,88 @@ const motoristaAppController = {
       const { latitude, longitude } = req.body;
 
       const pool = await poolPromise;
-      
-      // Atualizar status para ACEITA
-      await pool
+      const idMot = getMotoristaCadastroId(req);
+      if (!Number.isFinite(idMot)) {
+        return res.status(401).json({ error: 'Sessão inválida.', errorKey: 'login.tokenInvalido' });
+      }
+      const tid = tenantIdForRequest(req);
+
+      let placasObrigatorias = false;
+      let placasEsperadasGate = '';
+      let conjuntoClasseGate = '';
+      try {
+        const pre = await pool
+          .request()
+          .input('id', sql.Int, parseInt(id, 10))
+          .input('mot', sql.Decimal(15, 0), idMot)
+          .input('tenantId', sql.NVarChar(64), tid)
+          .query(`
+            SELECT
+              UPPER(TRIM(COALESCE(c.[STATUS], ''))) AS [STATUS],
+              c.[FGCONFIRMACAOPLACAS] AS [FG],
+              (${sqlCoalescePlacasEsperadasConvocacaoComSnapshot()}) AS [PLACASESPERADAS],
+              (${sqlCoalesceDsClasseConjuntoConvocacaoComSnapshot()}) AS [DSCLASSEFROTA_CONJUNTO]
+            FROM [dbo].[CONVOCACAO] AS c
+            WHERE c.[IDCONVOCACAO] = @id
+              AND c.[CDCADASTRO_MOTORISTA] = @mot
+              AND c.[TENANT_ID] = @tenantId
+          `);
+        const preRow = pre.recordset && pre.recordset[0];
+        if (!preRow) {
+          return res.status(404).json({ error: 'Convocação não encontrada ou sem permissão.' });
+        }
+        const stPre = String(preRow.STATUS ?? preRow.status ?? '').trim();
+        if (stPre === 'CONFIRMADA' || stPre === 'ACEITA_DESCARTADA') {
+          return res.status(409).json({
+            error:
+              'Esta convocação já foi definida pela torre (confirmada ou não selecionada). Atualize a lista no app.',
+            errorKey: 'convocacao.definidaNaTorre',
+            statusAtual: stPre,
+          });
+        }
+        placasEsperadasGate = String(preRow.PLACASESPERADAS ?? preRow.placasesperadas ?? '').trim();
+        conjuntoClasseGate = String(
+          preRow.DSCLASSEFROTA_CONJUNTO ?? preRow.dsclassefrota_conjunto ?? ''
+        ).trim();
+        const fgPre = String(preRow.FG ?? preRow.fgconfirmacaoplacas ?? '').trim().toUpperCase();
+        if (stPre === 'PENDENTE' && fgPre === 'D') {
+          return res.status(422).json({
+            error:
+              'Não é possível aceitar: já foi registrada divergência de placas. Aguarde o alinhamento pela transportadora ou recuse a convocação.',
+            errorKey: 'convocacao.aceiteBloqueadoDivergenciaPlacas',
+            divergenciaRegistrada: true,
+            aceiteBloqueadoDivergenciaPlacas: true,
+          });
+        }
+        placasObrigatorias =
+          stPre === 'PENDENTE' &&
+          (placasEsperadasGate.length > 0 || conjuntoClasseGate.length > 0) &&
+          !fgPre;
+      } catch (preErr) {
+        if (preErr.code === '42703') {
+          return res.status(503).json({
+            error: 'Base sem colunas de confirmação de placas. Execute o script SQL de migração.',
+            errorKey: 'convocacao.confirmacaoPlacasSchemaPendente',
+          });
+        }
+        throw preErr;
+      }
+      if (placasObrigatorias) {
+        return res.status(422).json({
+          error: 'Confirme as placas e/ou o conjunto (classe) da viagem antes de aceitar.',
+          errorKey: 'convocacao.confirmarPlacasObrigatorio',
+          precisaConfirmarPlacas: true,
+          placasEsperadas: placasEsperadasGate,
+          classeConjuntoEsperada: conjuntoClasseGate,
+        });
+      }
+
+      // Atualizar status para ACEITA — só se a convocação for deste motorista e tenant
+      const upd = await pool
         .request()
-        .input('id', sql.Int, parseInt(id))
+        .input('id', sql.Int, parseInt(id, 10))
+        .input('mot', sql.Decimal(15, 0), idMot)
+        .input('tenantId', sql.NVarChar(64), tid)
         .input('latitude', sql.Float, latitude || null)
         .input('longitude', sql.Float, longitude || null)
         .query(`
@@ -616,7 +1841,40 @@ const motoristaAppController = {
             [LATITUDE] = COALESCE(@latitude, [LATITUDE]),
             [LONGITUDE] = COALESCE(@longitude, [LONGITUDE])
           WHERE [IDCONVOCACAO] = @id
+            AND [CDCADASTRO_MOTORISTA] = @mot
+            AND [TENANT_ID] = @tenantId
+            AND UPPER(TRIM(COALESCE([STATUS],''))) NOT IN ('CONFIRMADA', 'ACEITA_DESCARTADA')
         `);
+
+      let affected = upd.rowsAffected && upd.rowsAffected[0];
+      if (!affected) {
+        const chk = await pool
+          .request()
+          .input('id', sql.Int, parseInt(id, 10))
+          .input('mot', sql.Decimal(15, 0), idMot)
+          .input('tenantId', sql.NVarChar(64), tid)
+          .query(`
+            SELECT UPPER(TRIM(COALESCE([STATUS],''))) AS [STATUS]
+            FROM [dbo].[CONVOCACAO]
+            WHERE [IDCONVOCACAO] = @id
+              AND [CDCADASTRO_MOTORISTA] = @mot
+              AND [TENANT_ID] = @tenantId
+          `);
+        const row = chk.recordset && chk.recordset[0];
+        if (!row) {
+          return res.status(404).json({ error: 'Convocação não encontrada ou sem permissão.' });
+        }
+        const st = String(row.STATUS ?? row.status ?? '').trim();
+        if (st === 'CONFIRMADA' || st === 'ACEITA_DESCARTADA') {
+          return res.status(409).json({
+            error:
+              'Esta convocação já foi definida pela torre (confirmada ou não selecionada). Atualize a lista no app.',
+            errorKey: 'convocacao.definidaNaTorre',
+            statusAtual: st
+          });
+        }
+        return res.status(409).json({ error: 'Não foi possível aceitar esta convocação agora. Atualize e tente novamente.' });
+      }
 
       res.json({ success: true, message: 'Convocação aceita com sucesso!' });
     } catch (err) {
@@ -634,10 +1892,17 @@ const motoristaAppController = {
       const { motivo } = req.body;
 
       const pool = await poolPromise;
-      
-      await pool
+      const idMot = getMotoristaCadastroId(req);
+      if (!Number.isFinite(idMot)) {
+        return res.status(401).json({ error: 'Sessão inválida.', errorKey: 'login.tokenInvalido' });
+      }
+      const tid = tenantIdForRequest(req);
+
+      const upd = await pool
         .request()
-        .input('id', sql.Int, parseInt(id))
+        .input('id', sql.Int, parseInt(id, 10))
+        .input('mot', sql.Decimal(15, 0), idMot)
+        .input('tenantId', sql.NVarChar(64), tid)
         .input('motivo', sql.Int, motivo || null)
         .query(`
           UPDATE [dbo].[CONVOCACAO]
@@ -646,7 +1911,40 @@ const motoristaAppController = {
             [DHRESPOSTA] = CURRENT_TIMESTAMP,
             [CDMOTIVORECUSA] = @motivo
           WHERE [IDCONVOCACAO] = @id
+            AND [CDCADASTRO_MOTORISTA] = @mot
+            AND [TENANT_ID] = @tenantId
+            AND UPPER(TRIM(COALESCE([STATUS],''))) NOT IN ('CONFIRMADA', 'ACEITA_DESCARTADA')
         `);
+
+      let affected = upd.rowsAffected && upd.rowsAffected[0];
+      if (!affected) {
+        const chk = await pool
+          .request()
+          .input('id', sql.Int, parseInt(id, 10))
+          .input('mot', sql.Decimal(15, 0), idMot)
+          .input('tenantId', sql.NVarChar(64), tid)
+          .query(`
+            SELECT UPPER(TRIM(COALESCE([STATUS],''))) AS [STATUS]
+            FROM [dbo].[CONVOCACAO]
+            WHERE [IDCONVOCACAO] = @id
+              AND [CDCADASTRO_MOTORISTA] = @mot
+              AND [TENANT_ID] = @tenantId
+          `);
+        const row = chk.recordset && chk.recordset[0];
+        if (!row) {
+          return res.status(404).json({ error: 'Convocação não encontrada ou sem permissão.' });
+        }
+        const st = String(row.STATUS ?? row.status ?? '').trim();
+        if (st === 'CONFIRMADA' || st === 'ACEITA_DESCARTADA') {
+          return res.status(409).json({
+            error:
+              'Esta convocação já foi definida pela torre (confirmada ou não selecionada). Atualize a lista no app.',
+            errorKey: 'convocacao.definidaNaTorre',
+            statusAtual: st
+          });
+        }
+        return res.status(409).json({ error: 'Não foi possível recusar esta convocação agora. Atualize e tente novamente.' });
+      }
 
       res.json({ success: true, message: 'Convocação recusada.' });
     } catch (err) {
@@ -656,16 +1954,202 @@ const motoristaAppController = {
   },
 
   // ==========================================
+  // CONVOCAÇÃO — confirmação de placas (VIAGEMVEICULO) antes / além do aceite
+  // ==========================================
+  confirmarPlacasConvocacao: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const modoRaw = (req.body && req.body.modo) || '';
+      const modo = String(modoRaw).trim().toUpperCase();
+      if (modo !== 'CONFIRMA' && modo !== 'DIVERGE') {
+        return res.status(400).json({
+          error: 'Informe modo CONFIRMA ou DIVERGE.',
+          errorKey: 'convocacao.modoConfirmacaoPlacasInvalido',
+        });
+      }
+
+      const pool = await poolPromise;
+      const idMot = getMotoristaCadastroId(req);
+      if (!Number.isFinite(idMot)) {
+        return res.status(401).json({ error: 'Sessão inválida.', errorKey: 'login.tokenInvalido' });
+      }
+      const tid = tenantIdForRequest(req);
+      const idConv = parseInt(id, 10);
+
+      if (modo === 'DIVERGE') {
+        const texto = String((req.body && req.body.texto) || '').trim().slice(0, 2000);
+        if (!texto) {
+          return res.status(400).json({
+            error: 'Informe a descrição da divergência das placas.',
+            errorKey: 'convocacao.textoDivergenciaPlacasObrigatorio',
+          });
+        }
+        let vlFretePropApp = null;
+        const rVo = req.body && (req.body.vlFretePropostoMotorista ?? req.body.valorFretePropostoMotorista);
+        if (rVo !== undefined && rVo !== null && String(rVo).trim() !== '') {
+          let s = String(rVo).trim().replace(/\s/g, '').replace(/[^\d.,-]/g, '');
+          if (/,/.test(s) && /\./.test(s)) s = s.replace(/\./g, '').replace(',', '.');
+          else if (/,/.test(s)) s = s.replace(',', '.');
+          const n = parseFloat(s);
+          if (Number.isFinite(n) && n >= 0 && n <= 999999999.99) vlFretePropApp = Math.round(n * 100) / 100;
+        }
+        let nomeMotorista = '';
+        try {
+          const nm = await pool
+            .request()
+            .input('id', sql.Int, idConv)
+            .input('mot', sql.Decimal(15, 0), idMot)
+            .input('tenantId', sql.NVarChar(64), tid)
+            .query(`
+              SELECT upper(TRIM(COALESCE(cg.[RZSOCIAL], ''))) AS [NM]
+              FROM [dbo].[CONVOCACAO] c
+              INNER JOIN [dbo].[CADASTROGERAL] cg ON c.[CDCADASTRO_MOTORISTA] = cg.[CDCADASTRO] AND cg.[TENANT_ID] = c.[TENANT_ID]
+              WHERE c.[IDCONVOCACAO] = @id AND c.[CDCADASTRO_MOTORISTA] = @mot AND c.[TENANT_ID] = @tenantId
+            `);
+          const rowNm = nm.recordset && nm.recordset[0];
+          nomeMotorista = rowNm ? String(rowNm.NM ?? rowNm.nm ?? '').trim() : '';
+        } catch (_) {
+          nomeMotorista = '';
+        }
+        let nGrav = 0;
+        try {
+          nGrav = await gravarDivergenciaPlacasSomente(pool, {
+            idConvocacao: idConv,
+            tenantId: tid,
+            texto,
+            cdCadastroMotorista: idMot,
+            sgUserGravacao: 'MOTORISTA',
+            vlFretePropostoMotorista: vlFretePropApp,
+          });
+          if (nGrav > 0) {
+            await notificarDivergenciaPlacasContratador(pool, req, {
+              idConvocacao: idConv,
+              tenantId: tid,
+              textoDivergencia: texto,
+              nomeMotorista,
+            });
+          }
+        } catch (divErr) {
+          console.error('[CONFIRMAR PLACAS APP] divergência:', divErr);
+          return res.status(500).json({ error: 'Não foi possível registrar a divergência. Tente novamente.' });
+        }
+        if (!nGrav) {
+          const chk = await pool
+            .request()
+            .input('id', sql.Int, idConv)
+            .input('mot', sql.Decimal(15, 0), idMot)
+            .input('tenantId', sql.NVarChar(64), tid)
+            .query(`
+              SELECT UPPER(TRIM(COALESCE([STATUS], ''))) AS [STATUS]
+              FROM [dbo].[CONVOCACAO]
+              WHERE [IDCONVOCACAO] = @id
+                AND [CDCADASTRO_MOTORISTA] = @mot
+                AND [TENANT_ID] = @tenantId
+            `);
+          const row = chk.recordset && chk.recordset[0];
+          if (!row) {
+            return res.status(404).json({ error: 'Convocação não encontrada ou sem permissão.' });
+          }
+          const st = String(row.STATUS ?? row.status ?? '').trim();
+          if (st !== 'PENDENTE') {
+            return res.status(409).json({
+              error: 'Só é possível registrar divergência em convocação pendente.',
+              errorKey: 'convocacao.confirmacaoPlacasStatusInvalido',
+              statusAtual: st,
+            });
+          }
+          return res.status(409).json({ error: 'Não foi possível registrar agora. Atualize e tente novamente.' });
+        }
+        return res.json({
+          success: true,
+          FGCONFIRMACAOPLACAS: 'D',
+          aceiteBloqueadoDivergenciaPlacas: true,
+          divergenciaRegistrada: true,
+        });
+      }
+
+      const upd = await pool
+        .request()
+        .input('id', sql.Int, idConv)
+        .input('mot', sql.Decimal(15, 0), idMot)
+        .input('tenantId', sql.NVarChar(64), tid)
+        .input('fg', sql.NVarChar(1), 'C')
+        .input('txt', sql.NVarChar(4000), '')
+        .query(`
+          UPDATE [dbo].[CONVOCACAO]
+          SET
+            [FGCONFIRMACAOPLACAS] = @fg,
+            [TXTPLACASDIVERGENCIA] = NULL,
+            [DHCONFIRMACAOPLACAS] = CURRENT_TIMESTAMP
+          WHERE [IDCONVOCACAO] = @id
+            AND [CDCADASTRO_MOTORISTA] = @mot
+            AND [TENANT_ID] = @tenantId
+            AND UPPER(TRIM(COALESCE([STATUS], ''))) = 'PENDENTE'
+        `);
+
+      const affected = upd.rowsAffected && upd.rowsAffected[0];
+      if (!affected) {
+        const chk = await pool
+          .request()
+          .input('id', sql.Int, idConv)
+          .input('mot', sql.Decimal(15, 0), idMot)
+          .input('tenantId', sql.NVarChar(64), tid)
+          .query(`
+            SELECT UPPER(TRIM(COALESCE([STATUS], ''))) AS [STATUS]
+            FROM [dbo].[CONVOCACAO]
+            WHERE [IDCONVOCACAO] = @id
+              AND [CDCADASTRO_MOTORISTA] = @mot
+              AND [TENANT_ID] = @tenantId
+          `);
+        const row = chk.recordset && chk.recordset[0];
+        if (!row) {
+          return res.status(404).json({ error: 'Convocação não encontrada ou sem permissão.' });
+        }
+        const st = String(row.STATUS ?? row.status ?? '').trim();
+        if (st !== 'PENDENTE') {
+          return res.status(409).json({
+            error: 'Só é possível registrar confirmação de placas em convocação pendente.',
+            errorKey: 'convocacao.confirmacaoPlacasStatusInvalido',
+            statusAtual: st,
+          });
+        }
+        return res.status(409).json({ error: 'Não foi possível registrar agora. Atualize e tente novamente.' });
+      }
+
+      res.json({ success: true, FGCONFIRMACAOPLACAS: 'C' });
+    } catch (err) {
+      if (err.code === '42703') {
+        return res.status(503).json({
+          error: 'Base sem colunas de confirmação de placas. Execute o script SQL de migração.',
+          errorKey: 'convocacao.confirmacaoPlacasSchemaPendente',
+        });
+      }
+      console.error('Erro ao confirmar placas da convocação:', err);
+      res.status(500).json({ error: 'Erro ao registrar confirmação de placas.' });
+    }
+  },
+
+  // ==========================================
   // GPS - Registrar posição
   // ==========================================
   // ==========================================
   // CARGAS DISPONÍVEIS - Listar viagens abertas para o motorista aceitar
-  // Regra: FGSITVIAGEM IN ('D','P') = Preparação ou Programada; FGACTIVE = 'S';
+  // Regra: Preparação ou Programada; FGACTIVE ativo ('A' ou 'S');
+  // Compatibilidade: algumas bases usam FGSITVIAGEM legado ('D','P'), outras variam e dependem do texto da situação.
   //        sem convocação CONFIRMADA ou ACEITA (viagem ainda disponível).
+  //        Nota: viagens criadas pelo Gerenciar Viagens gravam FGACTIVE = 'A'.
   // ==========================================
   cargasDisponiveis: async (req, res) => {
     try {
       const { estado, distanciaMax, freteMin, idmotorista, pais, regiao } = req.query;
+
+      const idMotNum = getMotoristaCadastroId(req);
+      if (!Number.isFinite(idMotNum)) {
+        return res.status(401).json({ error: 'Sessão inválida.', errorKey: 'login.tokenInvalido' });
+      }
+      if (idmotorista != null && String(idmotorista).trim() !== '' && parseFloat(idmotorista) !== idMotNum) {
+        return res.status(403).json({ error: 'Acesso negado.', errorKey: 'commonErrors.acessoNegado' });
+      }
 
       const pool = await poolPromise;
       let query = `
@@ -693,38 +2177,37 @@ const motoristaAppController = {
           cd.[ESTADO] AS DESTINO_ESTADO,
           cont.[RZSOCIAL] AS CONTRATADOR,
           cont.[NRCELULAR] AS CONTRATADOR_CELULAR,
-          (SELECT COUNT(*) FROM [dbo].[CONVOCACAO] WHERE [IDVIAGEM] = v.[IDVIAGEM]) AS TOTAL_CONVOCACOES
+          (SELECT COUNT(*) FROM [dbo].[CONVOCACAO] cx WHERE cx.[IDVIAGEM] = v.[IDVIAGEM] AND cx.[TENANT_ID] = v.[TENANT_ID]) AS TOTAL_CONVOCACOES
         FROM [dbo].[VIAGEMMESTRE] v
         LEFT JOIN [dbo].[SITUACAOVIAGEM] sv ON v.[CDSITUACAOVIAGEM] = sv.[CDSITUACAOVIAGEM]
+          AND (sv.[TENANT_ID] = @tenantId OR sv.[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[TIPOVIAGEM] tv ON v.[CDTIPOVIAGEM] = tv.[CDTIPOVIAGEM]
+          AND (tv.[TENANT_ID] = @tenantId OR tv.[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[CLASSEFROTA] cf ON v.[CDCLASSEFROTA] = cf.[CDCLASSEFROTA]
+          AND (cf.[TENANT_ID] = v.[TENANT_ID] OR cf.[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[ROTEIRO] r ON v.[IDROTEIRO] = r.[IDROTEIRO]
+          AND (r.[TENANT_ID] = @tenantId OR r.[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[CIDADE] co ON r.[CDCIDADEORIGEM] = co.[CDCIDADE]
         LEFT JOIN [dbo].[CIDADE] cd ON r.[CDCIDADEDESTINO] = cd.[CDCIDADE]
         LEFT JOIN [dbo].[PAIS] po ON co.[CDPAIS] = po.[CDPAIS]
         LEFT JOIN [dbo].[PAIS] pd ON cd.[CDPAIS] = pd.[CDPAIS]
-        LEFT JOIN [dbo].[CADASTROGERAL] cont ON v.[CDCONTRATADOR] = cont.[CDCADASTRO]
-        WHERE v.[FGSITVIAGEM] IN ('D', 'P')
-          AND v.[FGACTIVE] = 'S'
-          AND NOT EXISTS (
-            SELECT 1 FROM [dbo].[CONVOCACAO] 
-            WHERE [IDVIAGEM] = v.[IDVIAGEM] 
-            AND [STATUS] IN ('CONFIRMADA', 'ACEITA')
+        LEFT JOIN [dbo].[CADASTROGERAL] cont ON v.[CDCONTRATADOR] = cont.[CDCADASTRO] AND cont.[TENANT_ID] = v.[TENANT_ID]
+        WHERE (
+            v.[FGSITVIAGEM] IN ('D', 'P')
+            OR UPPER(COALESCE(sv.[DSSITUACAOVIAGEM], '')) LIKE '%PREPAR%'
+            OR UPPER(COALESCE(sv.[DSSITUACAOVIAGEM], '')) LIKE '%PROGRAM%'
           )
+          AND (v.[FGACTIVE] = 'S' OR v.[FGACTIVE] = 'A')
+          AND NOT EXISTS (
+            SELECT 1 FROM [dbo].[CONVOCACAO] cx
+            WHERE cx.[IDVIAGEM] = v.[IDVIAGEM]
+            AND cx.[TENANT_ID] = v.[TENANT_ID]
+            AND cx.[STATUS] IN ('CONFIRMADA', 'ACEITA')
+          )
+          AND v.[TENANT_ID] = @tenantId
       `;
 
-      const params = [];
-
-      // Filtro por classes de frota do motorista - COMENTADO para trazer todas as cargas
-      // if (idmotorista) {
-      //   query += ` AND EXISTS (
-      //     SELECT 1 FROM [dbo].[CLASSEFROTA_CG] ccf
-      //     WHERE ccf.CDCADASTRO = @idmotorista
-      //     AND ccf.CDCLASSEFROTA = v.CDCLASSEFROTA
-      //     AND ccf.FGACTIVE = 'S'
-      //   )`;
-      //   params.push({ name: 'idmotorista', value: parseFloat(idmotorista), type: sql.Decimal(15, 0) });
-      // }
+      const params = [{ name: 'tenantId', value: tenantIdForRequest(req) }];
 
       if (estado) {
         query += ` AND (co.[ESTADO] = @estado OR cd.[ESTADO] = @estado)`;
@@ -758,11 +2241,46 @@ const motoristaAppController = {
       const request = pool.request();
       params.forEach(p => request.input(p.name, p.value));
 
-      const result = await request.query(query);
-      res.json(result.recordset);
+      let recordset = (await request.query(query)).recordset || [];
+
+      // POD_ACEITAR: motorista só pode aceitar se tiver a classe de frota da viagem (evita subquery complexa no PG)
+      if (recordset.length > 0 && idMotNum != null) {
+        let idsCompativeis = [];
+        try {
+          const comp = await pool.request()
+            .input('idmotorista', idMotNum)
+            .query(`
+              SELECT v.[IDVIAGEM]
+              FROM [dbo].[VIAGEMMESTRE] v
+              LEFT JOIN [dbo].[SITUACAOVIAGEM] sv ON v.[CDSITUACAOVIAGEM] = sv.[CDSITUACAOVIAGEM]
+                AND (sv.[TENANT_ID] = v.[TENANT_ID] OR sv.[TENANT_ID] = 'default')
+              INNER JOIN [dbo].[CLASSEFROTA_CG] ccf
+                ON ccf.[CDCADASTRO] = @idmotorista AND ccf.[CDCLASSEFROTA] = v.[CDCLASSEFROTA]
+                AND (ccf.[FGACTIVE] = 'S' OR ccf.[FGACTIVE] = 'A')
+              WHERE (
+                  v.[FGSITVIAGEM] IN ('D', 'P')
+                  OR UPPER(COALESCE(sv.[DSSITUACAOVIAGEM], '')) LIKE '%PREPAR%'
+                  OR UPPER(COALESCE(sv.[DSSITUACAOVIAGEM], '')) LIKE '%PROGRAM%'
+                )
+                AND (v.[FGACTIVE] = 'S' OR v.[FGACTIVE] = 'A')
+            `);
+          idsCompativeis = (comp.recordset || []).map(r => r.IDVIAGEM ?? r.idviagem);
+        } catch (errClasse) {
+          console.warn('Cargas: não foi possível verificar classes (CLASSEFROTA_CG); POD_ACEITAR = 0 para todos.', errClasse.message);
+        }
+        const setCompativeis = new Set(idsCompativeis.map(String));
+        recordset = recordset.map(r => ({
+          ...r,
+          POD_ACEITAR: setCompativeis.has(String(r.IDVIAGEM ?? r.idviagem)) ? 1 : 0
+        }));
+      } else {
+        recordset = recordset.map(r => ({ ...r, POD_ACEITAR: 0 }));
+      }
+
+      res.json(recordset);
     } catch (err) {
       console.error('Erro ao listar cargas disponíveis:', err);
-      res.status(500).json({ error: 'Erro ao buscar cargas.' });
+      res.status(500).json({ error: 'Erro ao buscar cargas.', detalhe: process.env.NODE_ENV !== 'production' ? err.message : undefined });
     }
   },
 
@@ -772,21 +2290,46 @@ const motoristaAppController = {
   aceitarCarga: async (req, res) => {
     try {
       const { idviagem } = req.params;
-      const { idmotorista } = req.body;
       const { latitude, longitude } = req.body;
 
       const pool = await poolPromise;
+      const idMotNum = getMotoristaCadastroId(req);
+      if (!Number.isFinite(idMotNum)) {
+        return res.status(401).json({ error: 'Sessão inválida.', errorKey: 'login.tokenInvalido' });
+      }
 
-      // Buscar dados do motorista
-      const motorista = await pool
-        .request()
-        .input('id', sql.Decimal(15, 0), parseFloat(idmotorista))
-        .query(`
-          SELECT NRCELULAR FROM CADASTROGERAL WHERE CDCADASTRO = @id
-        `);
+      // Buscar dados do motorista e da viagem (classe de frota)
+      const [motorista, viagem] = await Promise.all([
+        pool.request().input('id', sql.Decimal(15, 0), idMotNum)
+          .query(`SELECT NRCELULAR FROM [dbo].[CADASTROGERAL] WHERE CDCADASTRO = @id`),
+        pool.request()
+          .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
+          .input('tid', sql.NVarChar(64), tenantIdForRequest(req))
+          .query(`SELECT [CDCLASSEFROTA] FROM [dbo].[VIAGEMMESTRE] WHERE [IDVIAGEM] = @idviagem AND [TENANT_ID] = @tid`)
+      ]);
 
       if (motorista.recordset.length === 0) {
         return res.status(404).json({ error: 'Motorista não encontrado.' });
+      }
+      if (viagem.recordset.length === 0) {
+        return res.status(404).json({ error: 'Viagem não encontrada.' });
+      }
+
+      const cdClasseFrota = viagem.recordset[0].CDCLASSEFROTA ?? viagem.recordset[0].cdclassefrota;
+      if (cdClasseFrota != null) {
+        const compat = await pool.request()
+          .input('id', sql.Decimal(15, 0), idMotNum)
+          .input('classe', cdClasseFrota)
+          .query(`
+            SELECT 1 FROM [dbo].[CLASSEFROTA_CG]
+            WHERE [CDCADASTRO] = @id AND [CDCLASSEFROTA] = @classe
+            AND ([FGACTIVE] = 'S' OR [FGACTIVE] = 'A')
+          `);
+        if (!compat.recordset || compat.recordset.length === 0) {
+          return res.status(400).json({
+            error: 'Você não possui a classe de frota necessária para esta viagem. Não é possível aceitar esta carga.'
+          });
+        }
       }
 
       const celular = motorista.recordset[0].NRCELULAR;
@@ -795,18 +2338,22 @@ const motoristaAppController = {
       await pool
         .request()
         .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
-        .input('cdcadastro', sql.Decimal(15, 0), parseFloat(idmotorista))
+        .input('cdcadastro', sql.Decimal(15, 0), idMotNum)
         .input('celular', sql.Decimal(15, 0), celular)
         .input('latitude', sql.Float, latitude || null)
         .input('longitude', sql.Float, longitude || null)
+        .input('TENANT_ID', tenantIdForRequest(req))
         .query(`
           INSERT INTO [dbo].[CONVOCACAO] (
-            IDVIAGEM, CDCADASTRO_MOTORISTA, STATUS, DHCONVOCACAO, 
-            NRCELULAR, TXTCONVOCACAO, LATITUDE, LONGITUDE, SGUSUARIO_OPERADOR
+            IDVIAGEM, CDCADASTRO_MOTORISTA, STATUS, DHCONVOCACAO,
+            NRCELULAR, TXTCONVOCACAO, LATITUDE, LONGITUDE, SGUSUARIO_OPERADOR, TENANT_ID,
+            TXT_PLACAS_SNAPSHOT, TXT_CLASSES_CONJ_SNAPSHOT
           )
           VALUES (
             @idviagem, @cdcadastro, 'ACEITA', GETDATE(),
-            @celular, 'Carga aceita pelo motorista via APP', @latitude, @longitude, 'APP_MOTORISTA'
+            @celular, 'Carga aceita pelo motorista via APP', @latitude, @longitude, 'APP_MOTORISTA', @TENANT_ID,
+            (${sqlPlacasEsperadasPorViagemMotoristaParams({ tenant: '@TENANT_ID', viagem: '@idviagem', motorista: '@cdcadastro' })}),
+            (${sqlDsClasseConjuntoPorViagemMotoristaParams({ tenant: '@TENANT_ID', viagem: '@idviagem', motorista: '@cdcadastro' })})
           )
         `);
 
@@ -825,6 +2372,8 @@ const motoristaAppController = {
       const { cdMotorista } = req.params;
 
       console.log(`🚛 [VIAGENS] Buscando viagens do motorista ${cdMotorista}`);
+
+      if (!assertSameMotorista(req, res, cdMotorista)) return;
 
       // Validar e converter cdMotorista
       if (!cdMotorista) {
@@ -849,6 +2398,7 @@ const motoristaAppController = {
 
       const request = pool.request();
       request.input('cdMotorista', sql.Decimal(15, 0), cdMotoristaNum);
+      request.input('TENANT_ID', tenantIdForRequest(req));
 
       const result = await request.query(`
         SELECT 
@@ -875,16 +2425,21 @@ const motoristaAppController = {
           0 AS DESTINO_LONGITUDE
         FROM [dbo].[VIAGEMMESTRE] [V]
         INNER JOIN [dbo].[VIAGEMMOTORISTA] [M] ON [V].[IDVIAGEM] = [M].[IDVIAGEM]
-        INNER JOIN [dbo].[CADASTROGERAL] [C] ON [M].[CDMOTORISTA] = [C].[CDCADASTRO]
+        INNER JOIN [dbo].[CADASTROGERAL] [C] ON [M].[CDMOTORISTA] = [C].[CDCADASTRO] AND [C].[TENANT_ID] = [V].[TENANT_ID]
         LEFT JOIN [dbo].[SITUACAOVIAGEM] [S] ON [V].[CDSITUACAOVIAGEM] = [S].[CDSITUACAOVIAGEM]
+          AND ([S].[TENANT_ID] = [V].[TENANT_ID] OR [S].[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[TIPOVIAGEM] [T] ON [V].[CDTIPOVIAGEM] = [T].[CDTIPOVIAGEM]
+          AND ([T].[TENANT_ID] = @TENANT_ID OR [T].[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[CLASSEFROTA] [F] ON [V].[CDCLASSEFROTA] = [F].[CDCLASSEFROTA]
+          AND ([F].[TENANT_ID] = [V].[TENANT_ID] OR [F].[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[ROTEIRO] [R] ON [V].[IDROTEIRO] = [R].[IDROTEIRO]
-        LEFT JOIN [dbo].[CADASTROGERAL] [P] ON [V].[CDCONTRATADOR] = [P].[CDCADASTRO]
+          AND ([R].[TENANT_ID] = @TENANT_ID OR [R].[TENANT_ID] = 'default')
+        LEFT JOIN [dbo].[CADASTROGERAL] [P] ON [V].[CDCONTRATADOR] = [P].[CDCADASTRO] AND [P].[TENANT_ID] = [V].[TENANT_ID]
         LEFT JOIN [dbo].[CIDADE] [CO_ORIGEM] ON [R].[CDCIDADEORIGEM] = [CO_ORIGEM].[CDCIDADE]
         LEFT JOIN [dbo].[CIDADE] [CD_DESTINO] ON [R].[CDCIDADEDESTINO] = [CD_DESTINO].[CDCIDADE]
         WHERE [V].[FGSITVIAGEM] NOT IN ('C', 'F', 'E')
           AND [M].[CDMOTORISTA] = @cdMotorista
+          AND [V].[TENANT_ID] = @TENANT_ID
         ORDER BY [V].[DTPREVINICIO]
       `);
 
@@ -930,10 +2485,17 @@ const motoristaAppController = {
       }
 
       const pool = await poolPromise;
+      const cdMot = getMotoristaCadastroId(req);
+      if (!Number.isFinite(cdMot)) {
+        return res.status(401).json({ error: 'Sessão inválida.', errorKey: 'login.tokenInvalido' });
+      }
+      const tid = tenantIdForRequest(req);
 
       const result = await pool
         .request()
         .input('idViagem', sql.Decimal(15, 0), parseFloat(idViagem))
+        .input('cdMot', sql.Decimal(15, 0), cdMot)
+        .input('tid', sql.NVarChar(64), tid)
         .query(`
           SELECT 
             V.[IDVIAGEM],
@@ -969,19 +2531,23 @@ const motoristaAppController = {
             0 AS DESTINO_LONGITUDE
           FROM [dbo].[VIAGEMMESTRE] V
           LEFT JOIN [dbo].[ROTEIRO] R ON V.[IDROTEIRO] = R.[IDROTEIRO]
+            AND (R.[TENANT_ID] = @tid OR R.[TENANT_ID] = 'default')
           LEFT JOIN [dbo].[CIDADE] CO_ORIGEM ON R.[CDCIDADEORIGEM] = CO_ORIGEM.[CDCIDADE]
           LEFT JOIN [dbo].[CIDADE] CD_DESTINO ON R.[CDCIDADEDESTINO] = CD_DESTINO.[CDCIDADE]
           LEFT JOIN [dbo].[SITUACAOVIAGEM] S ON V.[CDSITUACAOVIAGEM] = S.[CDSITUACAOVIAGEM]
+            AND (S.[TENANT_ID] = V.[TENANT_ID] OR S.[TENANT_ID] = 'default')
           LEFT JOIN [dbo].[TIPOVIAGEM] T ON V.[CDTIPOVIAGEM] = T.[CDTIPOVIAGEM]
+            AND (T.[TENANT_ID] = @tid OR T.[TENANT_ID] = 'default')
           LEFT JOIN [dbo].[CLASSEFROTA] F ON V.[CDCLASSEFROTA] = F.[CDCLASSEFROTA]
-          LEFT JOIN [dbo].[CADASTROGERAL] P ON V.[CDCONTRATADOR] = P.[CDCADASTRO]
-          LEFT JOIN [dbo].[VIAGEMMOTORISTA] VM ON V.[IDVIAGEM] = VM.[IDVIAGEM]
-          LEFT JOIN [dbo].[CADASTROGERAL] M ON VM.[CDMOTORISTA] = M.[CDCADASTRO]
-          WHERE V.[IDVIAGEM] = @idViagem
+            AND (F.[TENANT_ID] = V.[TENANT_ID] OR F.[TENANT_ID] = 'default')
+          LEFT JOIN [dbo].[CADASTROGERAL] P ON V.[CDCONTRATADOR] = P.[CDCADASTRO] AND P.[TENANT_ID] = V.[TENANT_ID]
+          INNER JOIN [dbo].[VIAGEMMOTORISTA] VM ON V.[IDVIAGEM] = VM.[IDVIAGEM] AND VM.[CDMOTORISTA] = @cdMot
+          LEFT JOIN [dbo].[CADASTROGERAL] M ON VM.[CDMOTORISTA] = M.[CDCADASTRO] AND M.[TENANT_ID] = V.[TENANT_ID]
+          WHERE V.[IDVIAGEM] = @idViagem AND V.[TENANT_ID] = @tid
         `);
 
       if (result.recordset.length === 0) {
-        console.warn(`⚠️ [VIAGEM] Viagem ${idViagem} não encontrada`);
+        console.warn(`⚠️ [VIAGEM] Viagem ${idViagem} não encontrada ou não atribuída a este motorista`);
         return res.status(404).json({ error: 'Viagem não encontrada' });
       }
 
@@ -1016,32 +2582,39 @@ const motoristaAppController = {
       console.log('📝 [MACROS] Buscando tipos de ocorrência...');
 
       const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
 
-      // Buscar todas as macros ordenadas
-      const result = await pool.request().query(`
+      const result = await pool.query(
+        `
         SELECT 
-          [CDTIPOOCORRENCIA],
-          [DSTIPOOCORRENCIA],
-          [CDEDIPADRAO],
-          [FGSITUACAO],
-          [SEQ],
-          CASE [FGSITUACAO]
+          "CDTIPOOCORRENCIA",
+          "DSTIPOOCORRENCIA",
+          "CDEDIPADRAO",
+          "FGSITUACAO",
+          "SEQ",
+          CASE "FGSITUACAO"
             WHEN 'T' THEN 'TRÂNSITO'
             WHEN 'C' THEN 'CARREGAMENTO'
             WHEN 'D' THEN 'DESCARGA'
             WHEN 'P' THEN 'PARADA'
-          END AS SITUACAO_TEXTO
-        FROM [dbo].[TIPOOCORRENCIA]
+          END AS "SITUACAO_TEXTO"
+        FROM "TIPOOCORRENCIA"
+        WHERE ("TENANT_ID" = $1 OR "TENANT_ID" = 'default')
         ORDER BY 
-          CASE [FGSITUACAO]
+          CASE "FGSITUACAO"
             WHEN 'T' THEN 1
             WHEN 'C' THEN 2
             WHEN 'D' THEN 3
             WHEN 'P' THEN 4
+            ELSE 5
           END,
-          [SEQ],
-          [CDTIPOOCORRENCIA]
-      `);
+          "SEQ",
+          "CDTIPOOCORRENCIA"
+      `,
+        [tid]
+      );
+
+      const rows = result.rows || [];
 
       // Ícones por FGSITUACAO + SEQ (compatível com códigos 1-14 e antigos)
       const getIcon = (m) => {
@@ -1063,7 +2636,7 @@ const motoristaAppController = {
         return '📝';
       };
 
-      const macrosComIcones = result.recordset.map(macro => ({
+      const macrosComIcones = rows.map((macro) => ({
         ...macro,
         icon: getIcon(macro)
       }));
@@ -1089,6 +2662,8 @@ const motoristaAppController = {
       if (!idViagem || !cdTipoOcorrencia) {
         return res.status(400).json({ error: 'idViagem e cdTipoOcorrencia são obrigatórios' });
       }
+
+      if (!(await assertViagemTenantAccess(req, res, idViagem))) return;
 
       const pool = await poolPromise;
 
@@ -1137,8 +2712,22 @@ const motoristaAppController = {
         status,
         direcao,
         fotoBase64,
-        observacao
+        observacao,
+        dtoCorrencia,
+        occurredAt
       } = req.body;
+
+      /** Data/hora do evento no aparelho (ISO). Evita todas as macros com o mesmo GETDATE() no sync e alinha fuso ao motorista. */
+      function parseDtoOcorrenciaCliente(raw) {
+        if (raw == null || raw === '') return null;
+        const d = new Date(raw);
+        if (Number.isNaN(d.getTime())) return null;
+        const now = Date.now();
+        if (d.getTime() > now + 5 * 60 * 1000) return null;
+        if (d.getTime() < now - 90 * 24 * 60 * 60 * 1000) return null;
+        return d;
+      }
+      const dtoOcorrenciaCliente = parseDtoOcorrenciaCliente(dtoCorrencia ?? occurredAt);
       
       console.log('📝 [MACRO] Campos extraídos:', {
         idViagem,
@@ -1177,16 +2766,24 @@ const motoristaAppController = {
         });
       }
 
+      if (!assertSameMotorista(req, res, cdMotorista)) return;
+
       const pool = await poolPromise;
+      const tidMacro = tenantIdForRequest(req);
 
       // Regra: motorista pode registrar macros enquanto a viagem não estiver Finalizada (F) ou Final de rota (E).
       // Permitido: A (Aprovada), T (Em trânsito), P (Programada), M (Emissão docs), C (Carregamento/No embarcador), D (Descarga).
       const situacaoViagemCheck = await pool
         .request()
         .input('idViagem', sql.Decimal(15, 0), parseFloat(idViagem))
+        .input('tenantId', sql.NVarChar(64), tidMacro)
         .query(`
-          SELECT [FGSITVIAGEM] FROM [dbo].[VIAGEMMESTRE] WHERE [IDVIAGEM] = @idViagem
+          SELECT [FGSITVIAGEM] FROM [dbo].[VIAGEMMESTRE]
+          WHERE [IDVIAGEM] = @idViagem AND [TENANT_ID] = @tenantId
         `);
+      if (!situacaoViagemCheck.recordset?.length) {
+        return res.status(404).json({ error: 'Viagem não encontrada.', errorKey: 'commonErrors.naoEncontrado' });
+      }
       const fgSitViagem = situacaoViagemCheck.recordset[0]?.FGSITVIAGEM ?? situacaoViagemCheck.recordset[0]?.fgsitviagem;
       const fgNorm = fgSitViagem != null ? String(fgSitViagem).trim().toUpperCase() : '';
       const fgBloqueio = ['F', 'E'].includes(fgNorm); // F=Finalizada, E=Final de rota
@@ -1228,12 +2825,27 @@ const motoristaAppController = {
         });
       }
 
+      const tipoPermitido = await pool
+        .request()
+        .input('cd', sql.SmallInt, parseInt(cdTipoOcorrencia, 10))
+        .input('tid', sql.NVarChar(64), tidMacro)
+        .query(`
+          SELECT 1 FROM [dbo].[TIPOOCORRENCIA]
+          WHERE [CDTIPOOCORRENCIA] = @cd
+            AND ([TENANT_ID] = @tid OR [TENANT_ID] = 'default')
+            AND (COALESCE([FGACTIVE], 'A') IN ('A', 'S', 'T'))
+        `);
+      if (!tipoPermitido.recordset || tipoPermitido.recordset.length === 0) {
+        return res.status(400).json({ error: 'Tipo de ocorrência inválido ou indisponível para este cliente.' });
+      }
+
       // Inserir ocorrência com GPS completo
       await pool
         .request()
         .input('idViagem', sql.Decimal(15, 0), parseFloat(idViagem))
         .input('cdTipoOcorrencia', sql.SmallInt, parseInt(cdTipoOcorrencia))
         .input('cdMotorista', sql.Decimal(15, 0), parseFloat(cdMotorista))
+        .input('dtoOcorrencia', sql.DateTime, dtoOcorrenciaCliente)
         .input('latitude', sql.Decimal(10, 7), latitude ? parseFloat(latitude) : null)
         .input('longitude', sql.Decimal(10, 7), longitude ? parseFloat(longitude) : null)
         .input('precisao', sql.Decimal(10, 2), precisao ? parseFloat(precisao) : null)
@@ -1256,14 +2868,14 @@ const motoristaAppController = {
             @idViagem,
             @cdTipoOcorrencia,
             @cdMotorista,
-            GETDATE(),
+            COALESCE(@dtoOcorrencia, CURRENT_TIMESTAMP),
             @observacao,
             @latitude,
             @longitude,
             @precisao,
             @fotoBase64,
             'S',
-            GETDATE()
+            CURRENT_TIMESTAMP
           )
         `);
 
@@ -1271,16 +2883,19 @@ const motoristaAppController = {
       const situacaoResult = await pool
         .request()
         .input('cdTipoOcorrencia', sql.SmallInt, parseInt(cdTipoOcorrencia))
+        .input('tid', sql.NVarChar(64), tidMacro)
         .query(`
           SELECT [CDSITUACAOVIAGEM]
           FROM [dbo].[TIPOOCORRENCIA]
           WHERE [CDTIPOOCORRENCIA] = @cdTipoOcorrencia
+            AND ([TENANT_ID] = @tid OR [TENANT_ID] = 'default')
         `);
       const cdSituacaoViagem = situacaoResult.recordset[0]?.CDSITUACAOVIAGEM ?? situacaoResult.recordset[0]?.cdsituacaoviagem;
       if (cdSituacaoViagem != null) {
         await pool
           .request()
           .input('idViagem', sql.Decimal(15, 0), parseFloat(idViagem))
+          .input('tenantId', sql.NVarChar(64), tidMacro)
           .input('CDSITUACAOVIAGEM', sql.SmallInt, cdSituacaoViagem)
           .query(`
             UPDATE [dbo].[VIAGEMMESTRE]
@@ -1289,118 +2904,60 @@ const motoristaAppController = {
                   (SELECT [FGSITVIAGEM] FROM [dbo].[SITUACAOVIAGEM] WHERE [CDSITUACAOVIAGEM] = @CDSITUACAOVIAGEM),
                   [FGSITVIAGEM]
                 )
-            WHERE [IDVIAGEM] = @idViagem
+            WHERE [IDVIAGEM] = @idViagem AND [TENANT_ID] = @tenantId
           `);
         console.log(`   📌 Situação da viagem atualizada: CDSITUACAOVIAGEM=${cdSituacaoViagem} (FGSITVIAGEM via SITUACAOVIAGEM)`);
       }
 
-      // Também registrar na tabela VIAGEMRASTREAMENTO (rastreamento completo)
+      const tipoResult = await pool
+        .request()
+        .input('cdTipoOcorrencia', sql.SmallInt, cdTipoOcorrencia)
+        .input('tid', sql.NVarChar(64), tidMacro)
+        .query(`
+          SELECT [DSTIPOOCORRENCIA]
+          FROM [dbo].[TIPOOCORRENCIA]
+          WHERE [CDTIPOOCORRENCIA] = @cdTipoOcorrencia
+            AND ([TENANT_ID] = @tid OR [TENANT_ID] = 'default')
+        `);
+
+      const nomeMacro = tipoResult.recordset[0]?.DSTIPOOCORRENCIA || 'Ocorrência';
+
+      // Também registrar na tabela VIAGEMRASTREAMENTO (rastreamento completo; colunas conforme PG real)
       const temGPS = latitude && longitude;
       if (temGPS) {
-        // Usar data atual para DHPOSICAO (data da posição GPS)
-        const dataPosicao = new Date();
-        
-        // Calcular próxima sequência para a viagem
-        const seqResult = await pool
-          .request()
-          .input('idViagem', sql.Decimal(15, 0), parseFloat(idViagem))
-          .query(`
-            SELECT ISNULL(MAX([SEQUENCIA]), 0) + 1 AS proximaSequencia
-            FROM [dbo].[VIAGEMRASTREAMENTO]
-            WHERE [IDVIAGEM] = @idViagem
-          `);
-        
-        const proximaSequencia = seqResult.recordset[0]?.proximaSequencia || 1;
-        
-        // Buscar nome da ocorrência
-        const tipoResultTemp = await pool
-          .request()
-          .input('cdTipoOcorrencia', sql.SmallInt, cdTipoOcorrencia)
-          .query(`
-            SELECT [DSTIPOOCORRENCIA]
-            FROM [dbo].[TIPOOCORRENCIA]
-            WHERE [CDTIPOOCORRENCIA] = @cdTipoOcorrencia
-          `);
-        
-        const nomeOcorrencia = tipoResultTemp.recordset[0]?.DSTIPOOCORRENCIA || 'Ocorrência';
-        
-        // Fazer reverse geocoding para obter endereço
+        const dataPosicao = dtoOcorrenciaCliente ? new Date(dtoOcorrenciaCliente.getTime()) : new Date();
         console.log(`📍 [MACRO] Iniciando geocodificação reversa...`);
         const endereco = await obterEnderecoPorCoordenadas(
           parseFloat(latitude),
           parseFloat(longitude)
         );
-        
-        const dsPosicao = `Macro: ${nomeOcorrencia} - ${endereco}`;
+        const dsPosicao = `Macro: ${nomeMacro} - ${endereco}`;
         console.log(`📍 [MACRO] DSPOSICAO: ${dsPosicao}`);
-        
-        await pool
-          .request()
-          .input('idViagem', sql.Decimal(15, 0), parseFloat(idViagem))
-          .input('cdCadastro', sql.Decimal(15, 0), parseFloat(cdMotorista))
-          .input('latitude', sql.Decimal(10, 8), parseFloat(latitude))
-          .input('longitude', sql.Decimal(11, 8), parseFloat(longitude))
-          .input('velocidade', sql.Decimal(5, 2), velocidade ? parseFloat(velocidade) : null)
-          .input('precisao', sql.Int, precisao ? Math.round(parseFloat(precisao)) : null)
-          .input('altitude', sql.Decimal(10, 2), altitude ? parseFloat(altitude) : null)
-          .input('status', sql.Char(1), status || 'P')
-          .input('direcao', sql.Decimal(5, 2), direcao ? parseFloat(direcao) : null)
-          .input('dhPosicao', sql.DateTime, dataPosicao)
-          .input('sequencia', sql.Int, proximaSequencia)
-          .input('dsPosicao', sql.VarChar(200), dsPosicao)
-          .query(`
-            INSERT INTO [dbo].[VIAGEMRASTREAMENTO] (
-              [IDVIAGEM],
-              [CDCADASTRO],
-              [LATITUDE],
-              [LONGITUDE],
-              [VELOCIDADE],
-              [PRECISAO],
-              [ALTITUDE],
-              [FGSTATUS],
-              [DIRECAO],
-              [DHPOSICAO],
-              [DHREGISTRO],
-              [TIPO],
-              [FONTE],
-              [VERSAOAPP],
-              [SEQUENCIA],
-              [DSPOSICAO]
-            ) VALUES (
-              @idViagem,
-              @cdCadastro,
-              @latitude,
-              @longitude,
-              @velocidade,
-              @precisao,
-              @altitude,
-              @status,
-              @direcao,
-              @dhPosicao,
-              GETDATE(),
-              'M',
-              'APP',
-              '1.0.0',
-              @sequencia,
-              @dsPosicao
-            )
-          `);
+        const velMacro =
+          velocidade !== undefined && velocidade !== null && String(velocidade).trim() !== ''
+            ? parseFloat(velocidade)
+            : null;
+        await insertGpsViagemRastreamento(pool, {
+          tenantId: tidMacro,
+          idViagem: parseFloat(idViagem),
+          cdCadastro: parseFloat(cdMotorista),
+          latitude: parseFloat(latitude),
+          longitude: parseFloat(longitude),
+          velocidade: velMacro,
+          precisao: precisao ? Math.round(parseFloat(precisao)) : null,
+          altitude: altitude ? parseFloat(altitude) : null,
+          fgstatus: status || 'P',
+          direcao: direcao ? parseFloat(direcao) : null,
+          tipo: 'M',
+          dsPosicao,
+          versaoApp: '1.0.0',
+          dataPosicao,
+        });
         console.log(`   📍 GPS: ${latitude}, ${longitude}`);
       } else {
         console.log(`   📍 GPS: Não fornecido`);
       }
 
-      // Buscar nome da ocorrência
-      const tipoResult = await pool
-        .request()
-        .input('cdTipoOcorrencia', sql.SmallInt, cdTipoOcorrencia)
-        .query(`
-          SELECT [DSTIPOOCORRENCIA]
-          FROM [dbo].[TIPOOCORRENCIA]
-          WHERE [CDTIPOOCORRENCIA] = @cdTipoOcorrencia
-        `);
-
-      const nomeMacro = tipoResult.recordset[0]?.DSTIPOOCORRENCIA || 'Ocorrência';
       const statusTexto = status === 'P' ? 'Parado' : 'Em Movimento';
 
       console.log(`✅ [MACRO] ${nomeMacro} registrada!`);
@@ -1446,11 +3003,15 @@ const motoristaAppController = {
 
       console.log(`📋 [HISTÓRICO] Buscando macros da viagem ${idViagem}`);
 
+      if (!(await assertViagemTenantAccess(req, res, idViagem))) return;
+
       const pool = await poolPromise;
+      const tidHist = tenantIdForRequest(req);
 
       const result = await pool
         .request()
         .input('idViagem', sql.Int, idViagem)
+        .input('tid', sql.NVarChar(64), tidHist)
         .query(`
           SELECT 
             [VO].[IDVIAGEM_OCORRENCIA],
@@ -1471,6 +3032,7 @@ const motoristaAppController = {
             [VO].[FGSINCRONIZADO]
           FROM [dbo].[VIAGEMOCORRENCIA] [VO]
           INNER JOIN [dbo].[TIPOOCORRENCIA] [T] ON [VO].[CDTIPOOCORRENCIA] = [T].[CDTIPOOCORRENCIA]
+            AND ([T].[TENANT_ID] = @tid OR [T].[TENANT_ID] = 'default')
           WHERE [VO].[IDVIAGEM] = @idViagem
           ORDER BY [VO].[DTOCORRENCIA] DESC, [VO].[IDVIAGEM_OCORRENCIA] DESC
         `);
@@ -1502,7 +3064,7 @@ const motoristaAppController = {
       console.log('📍 [GPS] Headers:', JSON.stringify(req.headers, null, 2));
 
       const {
-        cdMotorista,
+        cdMotorista: cdMotoristaBody,
         idViagem,
         latitude,
         longitude,
@@ -1514,9 +3076,19 @@ const motoristaAppController = {
         tipoEnvio,
         dtPosicao,
       } = req.body;
+      const statusNormalizado = String(status || '').trim().toUpperCase();
+      const velocidadeInformada = velocidade !== undefined && velocidade !== null && String(velocidade).trim() !== '';
+      let velocidadeNormalizada = velocidadeInformada ? parseFloat(velocidade) : null;
+      if (!Number.isFinite(velocidadeNormalizada)) velocidadeNormalizada = null;
+      if (velocidadeNormalizada === null && statusNormalizado === 'P') {
+        // App às vezes envia status "Parado" sem velocidade.
+        // Para telemetria/alertas, normalizamos para 0 km/h.
+        velocidadeNormalizada = 0;
+      }
+      const origemVelocidade = (tipoEnvio === 'A' ? 'automatica' : 'manual');
       
       console.log('📍 [GPS] Campos extraídos:', {
-        cdMotorista,
+        cdMotorista: cdMotoristaBody,
         idViagem,
         latitude,
         longitude,
@@ -1524,25 +3096,27 @@ const motoristaAppController = {
         velocidade,
         status
       });
+      console.log(`📍 [GPS] velocidade normalizada: ${velocidadeNormalizada ?? 'null'} (origem=${origemVelocidade})`);
 
       // Validações detalhadas
       const erros = [];
       
-      if (!cdMotorista) {
+      if (!cdMotoristaBody) {
         erros.push('cdMotorista é obrigatório');
-      } else if (isNaN(parseFloat(cdMotorista))) {
+      } else if (isNaN(parseFloat(cdMotoristaBody))) {
         erros.push('cdMotorista deve ser um número válido');
       }
       
-      if (!latitude) {
+      const latNum = parseFloat(latitude);
+      const lngNum = parseFloat(longitude);
+      if (latitude === undefined || latitude === null || String(latitude).trim() === '') {
         erros.push('latitude é obrigatória');
-      } else if (isNaN(parseFloat(latitude))) {
+      } else if (!Number.isFinite(latNum)) {
         erros.push('latitude deve ser um número válido');
       }
-      
-      if (!longitude) {
+      if (longitude === undefined || longitude === null || String(longitude).trim() === '') {
         erros.push('longitude é obrigatória');
-      } else if (isNaN(parseFloat(longitude))) {
+      } else if (!Number.isFinite(lngNum)) {
         erros.push('longitude deve ser um número válido');
       }
       
@@ -1554,64 +3128,51 @@ const motoristaAppController = {
         });
       }
 
-      const pool = await poolPromise;
+      const cdMotoristaToken = getMotoristaCadastroId(req);
+      if (!Number.isFinite(cdMotoristaToken)) {
+        return res.status(401).json({ error: 'Sessão inválida.', errorKey: 'login.tokenInvalido' });
+      }
+      if (cdMotoristaBody != null && parseFloat(cdMotoristaBody) !== cdMotoristaToken) {
+        return res.status(403).json({ error: 'Acesso negado.', errorKey: 'commonErrors.acessoNegado' });
+      }
+      const cdMotorista = cdMotoristaToken;
 
-      // Se TEM viagem: salvar em VIAGEMRASTREAMENTO
+      const pool = await poolPromise;
+      const tidGps = tenantIdForRequest(req);
+
+      // Se TEM viagem: salvar em VIAGEMRASTREAMENTO (mesma regra de GET /posicoes: motorista deve estar em VIAGEMMOTORISTA)
       if (idViagem) {
-        // Usar dtPosicao se fornecido, senão usar data/hora atual
+        if (!(await assertViagemTenantAccess(req, res, idViagem))) return;
+
         const dataPosicao = dtPosicao ? new Date(dtPosicao) : new Date();
-        
-        // Calcular próxima sequência para a viagem ANTES de criar o request
-        const seqResult = await pool
-          .request()
-          .input('idViagem', sql.Decimal(15, 0), parseFloat(idViagem))
-          .query(`
-            SELECT ISNULL(MAX([SEQUENCIA]), 0) + 1 AS proximaSequencia
-            FROM [dbo].[VIAGEMRASTREAMENTO]
-            WHERE [IDVIAGEM] = @idViagem
-          `);
-        
-        const proximaSequencia = seqResult.recordset[0]?.proximaSequencia || 1;
-        
-        // Fazer reverse geocoding para obter endereço
+
         console.log(`📍 [GPS] Iniciando geocodificação reversa...`);
         const endereco = await obterEnderecoPorCoordenadas(
           parseFloat(latitude),
           parseFloat(longitude)
         );
-        
+
         const tipoTexto = tipoEnvio === 'A' ? 'GPS Automático' : 'GPS Manual';
         const dsPosicao = `${tipoTexto} - ${endereco}`;
         console.log(`📍 [GPS] DSPOSICAO: ${dsPosicao}`);
-        
-        // Agora criar o request e inserir
-        await pool
-          .request()
-          .input('idViagem', sql.Decimal(15, 0), parseFloat(idViagem))
-          .input('cdCadastro', sql.Decimal(15, 0), parseFloat(cdMotorista))
-          .input('latitude', sql.Decimal(10, 8), parseFloat(latitude))
-          .input('longitude', sql.Decimal(11, 8), parseFloat(longitude))
-          .input('velocidade', sql.Decimal(5, 2), velocidade ? parseFloat(velocidade) : null)
-          .input('precisao', sql.Int, precisao ? Math.round(parseFloat(precisao)) : null)
-          .input('altitude', sql.Decimal(10, 2), altitude ? parseFloat(altitude) : null)
-          .input('status', sql.Char(1), status || 'P')
-          .input('direcao', sql.Decimal(5, 2), direcao ? parseFloat(direcao) : null)
-          .input('tipo', sql.Char(1), tipoEnvio || 'M')
-          .input('dhPosicao', sql.DateTime, dataPosicao)
-          .input('sequencia', sql.Int, proximaSequencia)
-          .input('dsPosicao', sql.VarChar(200), dsPosicao)
-          .query(`
-            INSERT INTO [dbo].[VIAGEMRASTREAMENTO] (
-              [IDVIAGEM], [CDCADASTRO], [LATITUDE], [LONGITUDE], [VELOCIDADE],
-              [PRECISAO], [ALTITUDE], [FGSTATUS], [DIRECAO], [DHPOSICAO], [DHREGISTRO],
-              [TIPO], [FONTE], [VERSAOAPP], [SEQUENCIA], [DSPOSICAO]
-            ) VALUES (
-              @idViagem, @cdCadastro, @latitude, @longitude, @velocidade,
-              @precisao, @altitude, @status, @direcao, @dhPosicao, GETDATE(),
-              @tipo, 'APP', '1.0.0', @sequencia, @dsPosicao
-            )
-          `);
-        
+
+        await insertGpsViagemRastreamento(pool, {
+          tenantId: tidGps,
+          idViagem: parseFloat(idViagem),
+          cdCadastro: cdMotorista,
+          latitude: parseFloat(latitude),
+          longitude: parseFloat(longitude),
+          velocidade: velocidadeNormalizada,
+          precisao: precisao ? Math.round(parseFloat(precisao)) : null,
+          altitude: altitude ? parseFloat(altitude) : null,
+          fgstatus: status || 'P',
+          direcao: direcao ? parseFloat(direcao) : null,
+          tipo: tipoEnvio || 'M',
+          dsPosicao,
+          versaoApp: '1.0.0',
+          dataPosicao,
+        });
+
         console.log(`✅ [GPS] Posição salva em VIAGEMRASTREAMENTO (viagem #${idViagem})`);
         
         // Emitir evento WebSocket para Torre de Controle
@@ -1621,15 +3182,26 @@ const motoristaAppController = {
             websocketTorre.emitirAtualizacaoGPS(idViagem, {
               latitude: parseFloat(latitude),
               longitude: parseFloat(longitude),
-              velocidade: velocidade ? parseFloat(velocidade) : null,
+              velocidade: velocidadeNormalizada,
               precisao: precisao ? Math.round(precisao) : null,
               altitude: altitude ? parseFloat(altitude) : null,
               direcao: direcao ? parseFloat(direcao) : null,
               timestamp: new Date().toISOString()
             });
           }
+
+          // Reavaliar alertas imediatamente após novo GPS da viagem (não esperar ciclo de 5 minutos)
+          if (idViagem) {
+            const alertas = await alertService.verificarAlertas(parseInt(idViagem, 10));
+            if (Array.isArray(alertas) && alertas.length > 0 && websocketTorre) {
+              alertas.forEach((alerta) => websocketTorre.emitirNovoAlerta(alerta));
+              console.log(`🚨 [GPS] ${alertas.length} alerta(s) emitido(s) em tempo real para viagem ${idViagem}`);
+            } else {
+              console.log(`ℹ️ [GPS] Nenhum alerta novo após reavaliação imediata da viagem ${idViagem}`);
+            }
+          }
         } catch (err) {
-          console.warn('⚠️ Erro ao emitir evento WebSocket GPS:', err.message);
+          console.warn('⚠️ Erro ao processar WebSocket/alertas pós-GPS:', err.message);
         }
       } 
       // Se NÃO tem viagem: salvar em MOTORISTARASTREAMENTO
@@ -1639,7 +3211,7 @@ const motoristaAppController = {
           .input('cdCadastro', sql.Decimal(15, 0), cdMotorista)
           .input('latitude', sql.Decimal(10, 8), latitude)
           .input('longitude', sql.Decimal(11, 8), longitude)
-          .input('velocidade', sql.Decimal(5, 2), velocidade || null)
+          .input('velocidade', sql.Decimal(5, 2), velocidadeNormalizada)
           .input('precisao', sql.Int, precisao ? Math.round(precisao) : null)
           .input('altitude', sql.Decimal(10, 2), altitude || null)
           .input('status', sql.Char(1), status || 'P')
@@ -1663,14 +3235,14 @@ const motoristaAppController = {
       const statusTexto = status === 'P' ? 'Parado' : 'Em Movimento';
       const tipoTexto = tipoEnvio === 'M' ? 'Manual' : 'Automático';
 
-      console.log(`✅ [GPS] ${statusTexto}, ${velocidade || 0} km/h (${tipoTexto})`);
+      console.log(`✅ [GPS] ${statusTexto}, ${velocidadeNormalizada ?? 0} km/h (${tipoTexto})`);
 
       res.json({
         success: true,
         message: 'Posição GPS registrada com sucesso',
         dados: {
           status: statusTexto,
-          velocidade: velocidade ? `${velocidade} km/h` : 'N/A',
+          velocidade: velocidadeInformada ? `${velocidadeNormalizada} km/h` : 'N/A',
           tipo: tipoTexto,
           viagem: idViagem || 'Sem viagem',
         },
@@ -1709,9 +3281,24 @@ const motoristaAppController = {
         });
       }
 
+      if (!assertSameMotorista(req, res, idmotorista)) return;
+
       console.log('✅ Dados OK:', { idviagem, idmotorista, tipo });
 
       const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
+      const existeViagem = await pool
+        .request()
+        .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
+        .input('tenantId', sql.NVarChar(64), tid)
+        .query(`
+          SELECT 1 AS ok
+          FROM [dbo].[VIAGEMMESTRE]
+          WHERE [IDVIAGEM] = @idviagem AND [TENANT_ID] = @tenantId
+        `);
+      if (!existeViagem.recordset?.length) {
+        return res.status(404).json({ error: 'Viagem não encontrada.', errorKey: 'commonErrors.naoEncontrado' });
+      }
       
       // TODO: Salvar foto se tiver
       // Por enquanto, salvar apenas os dados do evento
@@ -1756,68 +3343,56 @@ const motoristaAppController = {
         return res.status(400).json({ error: 'ID da viagem é obrigatório.' });
       }
 
+      if (!(await assertViagemTenantAccess(req, res, idviagem))) return;
+
       console.log(`🔍 [RASTREAMENTO] Buscando posições para viagem: ${idviagem} (tipo: ${typeof idviagem})`);
 
       const pool = await poolPromise;
+      const tidRast = tenantIdForRequest(req);
 
-      // Verificar qual tabela existe e obter nome REAL (schema + table) para PostgreSQL
-      // pg_tables retorna o nome exato (case-sensitive); evita erro quando tabela é "VIAGEMRASTREAMENTO"
       let tableName = null;
-      let tableSchema = null;
       let tableExists = false;
-      let realTableRef = null; // identificador já entre aspas para PG, ex: "public"."VIAGEMRASTREAMENTO"
-
+      let realTableRef = null;
+      let rastCtx = null;
       try {
-        const tableCheck = await pool.query(`
-          SELECT schemaname, tablename
-          FROM pg_tables
-          WHERE schemaname IN ('dbo', 'public')
-            AND LOWER(tablename) = 'viagemrastreamento'
-          LIMIT 1
-        `);
-        const row = tableCheck.rows?.[0];
-        if (row) {
-          tableSchema = row.schemaname ?? row.SCHEMANAME;
-          const tablename = row.tablename ?? row.TABLENAME;
-          tableName = 'VIAGEMRASTREAMENTO';
+        rastCtx = await resolveViagemRastreamentoPg(pool);
+        if (rastCtx.found) {
           tableExists = true;
-          realTableRef = `"${tableSchema}"."${tablename}"`;
+          realTableRef = rastCtx.fromSql;
+          tableName = 'VIAGEMRASTREAMENTO';
           console.log(`🔍 [RASTREAMENTO] Tabela encontrada: ${realTableRef}`);
         }
       } catch (err) {
-        console.warn('Erro ao verificar tabela de rastreamento:', err.message);
+        console.warn('Erro ao resolver tabela de rastreamento:', err.message);
       }
 
-      if (!tableExists) {
-        try {
-          const tableCheck2 = await pool.query(`
-            SELECT schemaname, tablename
-            FROM pg_tables
-            WHERE schemaname IN ('dbo', 'public')
-              AND LOWER(tablename) = 'viagem_rastreamento'
-            LIMIT 1
-          `);
-          const row2 = tableCheck2.rows?.[0];
-          if (row2) {
-            tableSchema = row2.schemaname ?? row2.SCHEMANAME;
-            const tablename2 = row2.tablename ?? row2.TABLENAME;
-            tableName = 'VIAGEM_RASTREAMENTO';
-            tableExists = true;
-            realTableRef = `"${tableSchema}"."${tablename2}"`;
-            console.log(`🔍 [RASTREAMENTO] Tabela encontrada: ${realTableRef}`);
-          }
-        } catch (err) {
-          console.warn('Erro ao verificar VIAGEM_RASTREAMENTO:', err.message);
-        }
-      }
-
-      if (!tableExists || !realTableRef) {
+      if (!tableExists || !realTableRef || !rastCtx) {
         console.warn('Nenhuma tabela de rastreamento encontrada. Retornando posições vazias.');
         return res.json({
           posicoes: [],
           ultimaPosicaoGeral: null
         });
       }
+
+      const colsR = rastCtx.cols;
+      const dhOrdVr = vrDhOrdSql(colsR);
+      if (!colsR.idv || !colsR.lat || !colsR.lon || !dhOrdVr) {
+        console.warn('[RASTREAMENTO] Colunas id/lat/lon/data não mapeadas nesta tabela.');
+        return res.json({
+          posicoes: [],
+          ultimaPosicaoGeral: null
+        });
+      }
+
+      const colSeq = colsR.seq ? `COALESCE(vr.${colsR.seq}::numeric, 0)` : '0';
+      const colDsp = colsR.dsp ? `vr.${colsR.dsp}` : 'NULL';
+      const colVel = colsR.vel ? `vr.${colsR.vel}` : 'NULL';
+      const colPrec = colsR.prec ? `COALESCE(vr.${colsR.prec}::numeric, 10)` : '10';
+      const colBat = colsR.bat ? `vr.${colsR.bat}` : 'NULL';
+      const colTipo = colsR.tipo ? `COALESCE(vr.${colsR.tipo}::text, 'A')` : `'A'`;
+      const colFonte = colsR.fonte ? `COALESCE(vr.${colsR.fonte}::text, 'RASTER')` : `'RASTER'`;
+      const colFg = colsR.fgstatus ? `vr.${colsR.fgstatus}` : 'NULL';
+      const colCdSel = colsR.cdcad ? `vr.${colsR.cdcad} AS CDCADASTRO` : 'NULL AS CDCADASTRO';
       
       // DEBUG: Verificar se há registros na tabela antes de fazer a query principal
       // Testar com diferentes tipos de dados para garantir compatibilidade
@@ -1828,7 +3403,7 @@ const motoristaAppController = {
         const debugResult = await debugRequest.query(`
           SELECT COUNT(*) as total
           FROM ${realTableRef || '[dbo].[VIAGEMRASTREAMENTO]'}
-          WHERE [IDVIAGEM] = @idviagem
+          WHERE ${colsR.idv} = @idviagem
         `);
         const totalDebug = debugResult.recordset[0].total;
         console.log(`🔍 [DEBUG] Total de registros na tabela VIAGEMRASTREAMENTO para IDVIAGEM = ${idviagem} (Decimal): ${totalDebug}`);
@@ -1841,7 +3416,7 @@ const motoristaAppController = {
             const debugResult2 = await debugRequest2.query(`
               SELECT COUNT(*) as total
               FROM ${realTableRef || '[dbo].[VIAGEMRASTREAMENTO]'}
-              WHERE [IDVIAGEM] = @idviagem
+              WHERE ${colsR.idv} = @idviagem
             `);
             const totalDebug2 = debugResult2.recordset[0].total;
             console.log(`🔍 [DEBUG] Total de registros na tabela VIAGEMRASTREAMENTO para IDVIAGEM = ${idviagem} (Int): ${totalDebug2}`);
@@ -1856,7 +3431,7 @@ const motoristaAppController = {
             const debugResult3 = await pool.request().query(`
               SELECT COUNT(*) as total
               FROM ${realTableRef || '[dbo].[VIAGEMRASTREAMENTO]'}
-              WHERE [IDVIAGEM] = ${parseFloat(idviagem)}
+              WHERE ${colsR.idv} = ${parseFloat(idviagem)}
             `);
             const totalDebug3 = debugResult3.recordset[0].total;
             console.log(`🔍 [DEBUG] Total de registros na tabela VIAGEMRASTREAMENTO para IDVIAGEM = ${idviagem} (direto): ${totalDebug3}`);
@@ -1870,17 +3445,17 @@ const motoristaAppController = {
           const sampleRequest = pool.request();
           sampleRequest.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
           const sampleResult = await sampleRequest.query(`
-            SELECT TOP 3
-              [IDVIAGEM],
-              [SEQUENCIA],
-              [LATITUDE],
-              [LONGITUDE],
-              [DHPOSICAO],
-              [DHREGISTRO],
-              [CDCADASTRO]
-            FROM ${realTableRef}
-            WHERE [IDVIAGEM] = @idviagem
-            ORDER BY ISNULL([DHPOSICAO], [DHREGISTRO]) DESC
+            SELECT
+              vr.${colsR.idv},
+              ${colSeq} AS SEQUENCIA,
+              CAST(vr.${colsR.lat} AS DECIMAL(10,8)) AS LATITUDE,
+              CAST(vr.${colsR.lon} AS DECIMAL(11,8)) AS LONGITUDE,
+              ${dhOrdVr} AS DH_ORD
+              ${colsR.cdcad ? `, vr.${colsR.cdcad} AS CDCADASTRO` : ''}
+            FROM ${realTableRef} vr
+            WHERE vr.${colsR.idv} = @idviagem
+            ORDER BY ${dhOrdVr} DESC
+            LIMIT 3
           `);
           console.log(`🔍 [DEBUG] Amostra de registros:`, JSON.stringify(sampleResult.recordset, null, 2));
         }
@@ -1895,6 +3470,7 @@ const motoristaAppController = {
         const motoristaResult = await pool
           .request()
           .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
+          .input('tidRast', sql.NVarChar(64), tidRast)
           .query(`
             SELECT TOP 1
               [vm].[CDMOTORISTA] AS CDCADASTRO,
@@ -1902,7 +3478,8 @@ const motoristaAppController = {
               [cg].[CGCCPF] AS CPF_MOTORISTA,
               [cg].[NRCELULAR] AS CELULAR
             FROM [dbo].[VIAGEMMOTORISTA] [vm]
-            INNER JOIN [dbo].[CADASTROGERAL] [cg] ON [vm].[CDMOTORISTA] = [cg].[CDCADASTRO]
+            INNER JOIN [dbo].[VIAGEMMESTRE] [v] ON [vm].[IDVIAGEM] = [v].[IDVIAGEM] AND [v].[TENANT_ID] = @tidRast
+            INNER JOIN [dbo].[CADASTROGERAL] [cg] ON [vm].[CDMOTORISTA] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [v].[TENANT_ID]
             WHERE [vm].[IDVIAGEM] = @idviagem
             ORDER BY [vm].[CDMOTORISTA]
           `);
@@ -1917,6 +3494,7 @@ const motoristaAppController = {
           const motoristaResult2 = await pool
             .request()
             .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
+            .input('tidRast', sql.NVarChar(64), tidRast)
             .query(`
               SELECT TOP 1
                 [vm].[CDMOTORISTA] AS CDCADASTRO,
@@ -1924,7 +3502,8 @@ const motoristaAppController = {
                 [cg].[CGCCPF] AS CPF_MOTORISTA,
                 [cg].[NRCELULAR] AS CELULAR
               FROM [dbo].[VIAGEMMOTORISTA] [vm]
-              INNER JOIN [dbo].[CADASTROGERAL] [cg] ON [vm].[CDMOTORISTA] = [cg].[CDCADASTROGERAL]
+              INNER JOIN [dbo].[VIAGEMMESTRE] [v] ON [vm].[IDVIAGEM] = [v].[IDVIAGEM] AND [v].[TENANT_ID] = @tidRast
+              INNER JOIN [dbo].[CADASTROGERAL] [cg] ON [vm].[CDMOTORISTA] = [cg].[CDCADASTROGERAL] AND [cg].[TENANT_ID] = [v].[TENANT_ID]
               WHERE [vm].[IDVIAGEM] = @idviagem
               ORDER BY [vm].[CDMOTORISTA]
             `);
@@ -1950,141 +3529,58 @@ const motoristaAppController = {
       let result;
       
       if (tableName === 'VIAGEMRASTREAMENTO') {
-        // Tabela VIAGEMRASTREAMENTO (estrutura do banco existente)
-        // Buscar motorista da viagem para fazer JOIN (se a tabela existir)
-        let cdMotorista = null;
-        try {
-          const motoristaViagemQuery = await pool
-            .request()
-            .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
-            .query(`
-              SELECT TOP 1 [CDMOTORISTA]
-              FROM [dbo].[VIAGEMMOTORISTA]
-              WHERE [IDVIAGEM] = @idviagem
-            `);
-          const rowMotorista = motoristaViagemQuery.recordset?.[0];
-          cdMotorista = rowMotorista ? (rowMotorista.CDMOTORISTA ?? rowMotorista.cdmotorista) : null;
-        } catch (errMotorista) {
-          if (errMotorista.code !== '42P01') console.warn('Erro ao buscar motorista da viagem (continuando sem):', errMotorista.message);
-        }
-        console.log(`🔍 [RASTREAMENTO] Motorista encontrado: ${cdMotorista ? cdMotorista : 'Nenhum'}`);
-
+        // Listagem só por IDVIAGEM. assertViagemTenantAccess já garantiu acesso; JOIN com VIAGEMMESTRE/TENANT
+        // zerava o resultado em PostgreSQL quando TENANT_ID do JWT ≠ da viagem. Nomes vêm de motoristaViagem abaixo.
         const request = pool.request();
         request.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
-        
-        // Adicionar filtro de data limite se disponível
         if (dataLimite) {
           request.input('dataLimite', sql.DateTime, dataLimite);
         }
-        
-        // Usar DHPOSICAO se existir, senão usar DHREGISTRO
-        // LATITUDE e LONGITUDE podem ser float ou decimal
-        // Filtrar apenas posições até 2 horas antes da data de início prevista
-        // IMPORTANTE: Usar DHPOSICAO (data da posição GPS) para comparação, não DHREGISTRO (data de inserção)
-        const filtroData = dataLimite 
-          ? `AND ISNULL(vr.[DHPOSICAO], vr.[DHREGISTRO]) <= @dataLimite`
-          : '';
-        
+        const filtroData = dataLimite ? `AND ${dhOrdVr} <= @dataLimite` : '';
         if (dataLimite) {
           console.log(`🔍 Aplicando filtro: posições com DHPOSICAO/DHREGISTRO <= ${dataLimite.toISOString()}`);
-          console.log(`📊 Total de posições antes do filtro será verificado após a query`);
-        } else {
-          // Log removido
         }
-        
-        if (cdMotorista) {
-          try {
-            request.input('cdmotorista', sql.Decimal(15, 0), parseFloat(cdMotorista));
-            result = await request.query(`
-              SELECT 
-                vr.[IDVIAGEM],
-                ISNULL(vr.[SEQUENCIA], 0) AS SEQUENCIA,
-                vr.[DSPOSICAO],
-                CAST(vr.[LATITUDE] AS DECIMAL(10,8)) AS LATITUDE,
-                CAST(vr.[LONGITUDE] AS DECIMAL(11,8)) AS LONGITUDE,
-                ISNULL(vr.[VELOCIDADE], NULL) AS VELOCIDADE,
-                ISNULL(vr.[PRECISAO], 10) AS PRECISAO,
-                ISNULL(vr.[BATERIA], NULL) AS BATERIA,
-                ISNULL(vr.[DHPOSICAO], vr.[DHREGISTRO]) AS DHREGISTRO,
-                ISNULL(vr.[TIPO], 'A') AS TIPO,
-                ISNULL(vr.[FONTE], 'RASTER') AS FONTE,
-                vr.[FGSTATUS],
-                vr.[CDCADASTRO] AS CDCADASTRO,
-                cg.[RZSOCIAL] AS NOME_MOTORISTA,
-                cg.[CGCCPF] AS CPF_MOTORISTA
-              FROM ${realTableRef} vr
-              LEFT JOIN [dbo].[CADASTROGERAL] cg ON cg.[CDCADASTRO] = vr.[CDCADASTRO]
-              WHERE vr.[IDVIAGEM] = @idviagem
-                ${filtroData}
-            ORDER BY ISNULL(vr.[DHPOSICAO], vr.[DHREGISTRO]) ASC
-            `);
-            console.log(`📊 Query VIAGEMRASTREAMENTO executada. Registros encontrados: ${result.recordset.length}`);
-          } catch (errJoin) {
-            if (errJoin.code === '42703') {
-              console.warn('Query com JOIN em CADASTROGERAL falhou (coluna inexistente). Usando query sem motorista.');
-              cdMotorista = null;
-            } else {
-              throw errJoin;
-            }
-          }
-        }
-        if (!result) {
-          result = await request.query(`
+        result = await request.query(`
             SELECT 
-              vr.[IDVIAGEM],
-              ISNULL(vr.[SEQUENCIA], 0) AS SEQUENCIA,
-              vr.[DSPOSICAO],
-              CAST(vr.[LATITUDE] AS DECIMAL(10,8)) AS LATITUDE,
-              CAST(vr.[LONGITUDE] AS DECIMAL(11,8)) AS LONGITUDE,
-              ISNULL(vr.[VELOCIDADE], NULL) AS VELOCIDADE,
-              ISNULL(vr.[PRECISAO], 10) AS PRECISAO,
-              ISNULL(vr.[BATERIA], NULL) AS BATERIA,
-              ISNULL(vr.[DHPOSICAO], vr.[DHREGISTRO]) AS DHREGISTRO,
-              ISNULL(vr.[TIPO], 'A') AS TIPO,
-              ISNULL(vr.[FONTE], 'RASTER') AS FONTE,
-              vr.[FGSTATUS],
-              ISNULL(vr.[CDCADASTRO], NULL) AS CDCADASTRO,
+              vr.${colsR.idv} AS IDVIAGEM,
+              ${colSeq} AS SEQUENCIA,
+              ${colDsp} AS DSPOSICAO,
+              CAST(vr.${colsR.lat} AS DECIMAL(10,8)) AS LATITUDE,
+              CAST(vr.${colsR.lon} AS DECIMAL(11,8)) AS LONGITUDE,
+              ${colVel} AS VELOCIDADE,
+              ${colPrec} AS PRECISAO,
+              ${colBat} AS BATERIA,
+              ${dhOrdVr} AS DHREGISTRO,
+              ${colTipo} AS TIPO,
+              ${colFonte} AS FONTE,
+              ${colFg} AS FGSTATUS,
+              ${colCdSel},
               NULL AS NOME_MOTORISTA,
               NULL AS CPF_MOTORISTA
             FROM ${realTableRef} vr
-            WHERE vr.[IDVIAGEM] = @idviagem
+            WHERE vr.${colsR.idv} = @idviagem
               ${filtroData}
-            ORDER BY ISNULL(vr.[DHPOSICAO], vr.[DHREGISTRO]) ASC
+            ORDER BY ${dhOrdVr} ASC
           `);
-          
-          // Log removido
-          if (result.recordset.length === 0 && dataLimite) {
-            console.warn(`⚠️  Nenhuma posição encontrada com filtro. Verificando total sem filtro...`);
-            const testRequest2 = pool.request();
-            testRequest2.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
-            const testResult2 = await testRequest2.query(`
+        console.log(`📊 [RASTREAMENTO] Lista direta ${realTableRef} viagem ${idviagem}: ${result.recordset.length} registro(s)`);
+        if (result.recordset.length === 0 && dataLimite) {
+          console.warn(`⚠️  Nenhuma posição encontrada com filtro. Verificando total sem filtro...`);
+          const testRequest2 = pool.request();
+          testRequest2.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
+          const testResult2 = await testRequest2.query(`
               SELECT COUNT(*) as total 
-              FROM ${realTableRef} 
-              WHERE [IDVIAGEM] = @idviagem
+              FROM ${realTableRef} vr
+              WHERE vr.${colsR.idv} = @idviagem
             `);
-            const totalSemFiltro2 = testResult2.recordset[0].total;
-            console.log(`📊 Total de posições na tabela (sem filtro): ${totalSemFiltro2}`);
-            if (totalSemFiltro2 > 0) {
-              const sampleRequest2 = pool.request();
-              sampleRequest2.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
-              const sampleResult2 = await sampleRequest2.query(`
-                SELECT TOP 5 
-                  ISNULL(vr.[DHPOSICAO], vr.[DHREGISTRO]) AS DATA_POSICAO,
-                  vr.[SEQUENCIA]
-                FROM ${realTableRef} vr
-                WHERE vr.[IDVIAGEM] = @idviagem
-                ORDER BY ISNULL(vr.[DHPOSICAO], vr.[DHREGISTRO]) DESC
-              `);
-              // Logs removidos
-            }
-          }
-          console.log(`📊 Total de registros encontrados (sem motorista): ${result.recordset.length}`);
+          const totalSemFiltro2 = testResult2.recordset[0].total;
+          console.log(`📊 Total de posições na tabela (sem filtro): ${totalSemFiltro2}`);
         }
         } else {
           // Tabela VIAGEM_RASTREAMENTO (estrutura nova)
           try {
             const request2 = pool.request();
             request2.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
+            request2.input('tidRast', sql.NVarChar(64), tidRast);
             
             // REMOVIDO: Filtro de data que estava excluindo posições válidas
             // Mostrar TODAS as posições GPS da viagem
@@ -2106,7 +3602,8 @@ const motoristaAppController = {
                 cg.[RZSOCIAL] AS NOME_MOTORISTA,
                 cg.[CGCCPF] AS CPF_MOTORISTA
               FROM ${realTableRef} vr
-              LEFT JOIN [dbo].[CADASTROGERAL] cg ON vr.[CDCADASTRO] = cg.[CDCADASTRO]
+              INNER JOIN [dbo].[VIAGEMMESTRE] v ON vr.[IDVIAGEM] = v.[IDVIAGEM] AND v.[TENANT_ID] = @tidRast
+              LEFT JOIN [dbo].[CADASTROGERAL] cg ON vr.[CDCADASTRO] = cg.[CDCADASTRO] AND cg.[TENANT_ID] = v.[TENANT_ID]
               WHERE vr.[IDVIAGEM] = @idviagem
                 ${filtroData2}
               ORDER BY vr.[DHREGISTRO] ASC
@@ -2115,6 +3612,7 @@ const motoristaAppController = {
           console.warn('Tentando com estrutura alternativa...', err.message);
           const request3 = pool.request();
           request3.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
+          request3.input('tidRast', sql.NVarChar(64), tidRast);
           
           // Adicionar filtro de data limite se disponível
           if (dataLimite) {
@@ -2142,7 +3640,9 @@ const motoristaAppController = {
                 cg.[RZSOCIAL] AS NOME_MOTORISTA,
                 cg.[CGCCPF] AS CPF_MOTORISTA
               FROM ${realTableRef} vr
+              INNER JOIN [dbo].[VIAGEMMESTRE] v ON vr.[IDVIAGEM] = v.[IDVIAGEM] AND v.[TENANT_ID] = @tidRast
               LEFT JOIN [dbo].[CADASTROGERAL] cg ON (vr.[CDCADASTRO] = cg.[CDCADASTRO] OR vr.[CDMOTORISTA] = cg.[CDCADASTRO])
+                AND cg.[TENANT_ID] = v.[TENANT_ID]
               WHERE vr.[IDVIAGEM] = @idviagem
                 ${filtroData3}
               ORDER BY vr.[DHREGISTRO] ASC
@@ -2173,10 +3673,10 @@ const motoristaAppController = {
           ultimaPosicaoRequest.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
           const ultimaPosicaoResult = await ultimaPosicaoRequest.query(`
             SELECT TOP 1
-              ISNULL(vr.[DHPOSICAO], vr.[DHREGISTRO]) AS DHREGISTRO
+              ${dhOrdVr} AS DHREGISTRO
             FROM ${realTableRef} vr
-            WHERE vr.[IDVIAGEM] = @idviagem
-            ORDER BY ISNULL(vr.[DHPOSICAO], vr.[DHREGISTRO]) DESC
+            WHERE vr.${colsR.idv} = @idviagem
+            ORDER BY ${dhOrdVr} DESC
           `);
           if (ultimaPosicaoResult.recordset.length > 0) {
             const row = ultimaPosicaoResult.recordset[0];
@@ -2212,8 +3712,8 @@ const motoristaAppController = {
           finalCheckRequest.input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem));
           const finalCheckResult = await finalCheckRequest.query(`
             SELECT COUNT(*) as total
-            FROM ${realTableRef}
-            WHERE [IDVIAGEM] = @idviagem
+            FROM ${realTableRef} vr
+            WHERE vr.${colsR.idv} = @idviagem
           `);
           const totalFinal = finalCheckResult.recordset[0].total;
           console.log(`🔍 [DEBUG FINAL] Total de registros na tabela VIAGEMRASTREAMENTO para IDVIAGEM = ${idviagem}: ${totalFinal}`);
@@ -2264,6 +3764,8 @@ const motoristaAppController = {
       if (!idviagem) {
         return res.status(400).json({ error: 'ID da viagem é obrigatório.' });
       }
+
+      if (!(await assertViagemTenantAccess(req, res, idviagem))) return;
 
       const pool = await poolPromise;
 
@@ -2503,12 +4005,16 @@ const motoristaAppController = {
         return res.status(400).json({ error: 'A nova senha deve ter pelo menos 6 caracteres', errorKey: 'alterarSenhaErrors.senhaMinima' });
       }
 
+      if (!assertSameMotorista(req, res, idMotorista)) return;
+
       const pool = await poolPromise;
+      const tidSenha = tenantIdForRequest(req);
 
       // Buscar motorista e senha atual
       const result = await pool
         .request()
         .input('id', sql.Decimal(15, 0), parseFloat(idMotorista))
+        .input('tenantId', sql.NVarChar(64), tidSenha)
         .query(`
           SELECT 
             mc.SENHA,
@@ -2518,6 +4024,7 @@ const motoristaAppController = {
           FROM [dbo].[CADASTROGERAL] cg
           LEFT JOIN [dbo].[MOTORISTA_COMPLEMENTO] mc ON cg.CDCADASTRO = mc.CDCADASTRO
           WHERE cg.CDCADASTRO = @id
+            AND cg.[TENANT_ID] = @tenantId
             AND (cg.FGMOTORISTA = 'S' OR (cg.FGMOTORISTA IS NULL AND cg.FGTIPOCADASTRO = 'M'))
             AND cg.FGACTIVE = 'A'
         `);
@@ -2740,6 +4247,10 @@ const motoristaAppController = {
       const { cdMotorista } = req.params;
       const { limit = 10 } = req.query;
 
+      if (!assertSameMotorista(req, res, cdMotorista)) return;
+
+      const tid = tenantIdForRequest(req);
+
       console.log(`🔔 [NOTIFICAÇÕES] Buscando notificações recentes para motorista ${cdMotorista}`);
       console.log('🔔 [NOTIF] v2 — mensagens via ID_CONVERSA + ID_VIAGEM; SOS via CDVIAGEM');
 
@@ -2752,6 +4263,7 @@ const motoristaAppController = {
         const mensagensResult = await pool
           .request()
           .input('cdMotorista', sql.Decimal(15, 0), cdMotorista)
+          .input('tenantId', sql.NVarChar(64), tid)
           .input('limit', sql.Int, parseInt(limit))
           .query(`
             SELECT TOP (@limit)
@@ -2765,10 +4277,14 @@ const motoristaAppController = {
               r.[DSROTEIRO]
             FROM [dbo].[MESSAGES] m
             INNER JOIN [dbo].[CONVERSAS] c ON m.[ID_CONVERSA] = c.[ID]
-            LEFT JOIN [dbo].[CADASTROGERAL] cg ON m.[SENDER_ID] = cg.[CDCADASTRO]
-            LEFT JOIN [dbo].[VIAGEMMESTRE] v ON c.[ID_VIAGEM] = v.[IDVIAGEM]
+            LEFT JOIN [dbo].[CADASTROGERAL] cg ON m.[SENDER_ID] = cg.[CDCADASTRO] AND cg.[TENANT_ID] = c.[TENANT_ID]
+            LEFT JOIN [dbo].[VIAGEMMESTRE] v ON c.[ID_VIAGEM] = v.[IDVIAGEM] AND c.[TENANT_ID] = v.[TENANT_ID]
             LEFT JOIN [dbo].[ROTEIRO] r ON v.[IDROTEIRO] = r.[IDROTEIRO]
+              AND (r.[TENANT_ID] = @tenantId OR r.[TENANT_ID] = 'default')
             WHERE c.[ID_MOTORISTA] = @cdMotorista
+              AND c.[TENANT_ID] = @tenantId
+              AND m.[TENANT_ID] = @tenantId
+              AND v.[TENANT_ID] = @tenantId
               AND m.[SENDER_TYPE] = 'OPERADOR'
               AND (m.[READ_BY_RECEIVER] IS NOT TRUE)
             ORDER BY m.[CREATED_AT] DESC
@@ -2798,6 +4314,7 @@ const motoristaAppController = {
         const convocacoesResult = await pool
           .request()
           .input('cdMotorista', sql.Decimal(15, 0), cdMotorista)
+          .input('tenantId', sql.NVarChar(64), tid)
           .input('limit', sql.Int, parseInt(limit))
           .query(`
             SELECT TOP (@limit)
@@ -2808,9 +4325,12 @@ const motoristaAppController = {
               c.[STATUS],
               r.[DSROTEIRO]
             FROM [dbo].[CONVOCACAO] c
-            LEFT JOIN [dbo].[VIAGEMMESTRE] v ON c.[IDVIAGEM] = v.[IDVIAGEM]
+            LEFT JOIN [dbo].[VIAGEMMESTRE] v ON c.[IDVIAGEM] = v.[IDVIAGEM] AND c.[TENANT_ID] = v.[TENANT_ID]
             LEFT JOIN [dbo].[ROTEIRO] r ON v.[IDROTEIRO] = r.[IDROTEIRO]
+              AND (r.[TENANT_ID] = @tenantId OR r.[TENANT_ID] = 'default')
             WHERE c.[CDCADASTRO_MOTORISTA] = @cdMotorista
+              AND c.[TENANT_ID] = @tenantId
+              AND v.[TENANT_ID] = @tenantId
               AND c.[STATUS] IN ('PENDENTE', 'ENVIADA')
             ORDER BY c.[DHCONVOCACAO] DESC
           `);
@@ -2849,6 +4369,7 @@ const motoristaAppController = {
         try {
           sosResult = await pool.request()
             .input('cdMotorista', sql.Decimal(15, 0), cdMotorista)
+            .input('tenantId', sql.NVarChar(64), tid)
             .input('limit', sql.Int, parseInt(limit))
             .query(`
               SELECT TOP (@limit)
@@ -2860,9 +4381,11 @@ const motoristaAppController = {
                 v.[IDVIAGEM],
                 r.[DSROTEIRO]
               FROM [dbo].[SOS_ALERTS] s
-              LEFT JOIN [dbo].[VIAGEMMESTRE] v ON s.[CDVIAGEM] = v.[IDVIAGEM]
+              LEFT JOIN [dbo].[VIAGEMMESTRE] v ON s.[CDVIAGEM] = v.[IDVIAGEM] AND s.[TENANT_ID] = v.[TENANT_ID]
               LEFT JOIN [dbo].[ROTEIRO] r ON v.[IDROTEIRO] = r.[IDROTEIRO]
+                AND (r.[TENANT_ID] = @tenantId OR r.[TENANT_ID] = 'default')
               WHERE s.[CDMOTORISTA] = @cdMotorista
+                AND (s.[CDVIAGEM] IS NULL OR v.[TENANT_ID] = @tenantId)
                 AND s.[STATUS] IN ('PENDENTE', 'ABERTO', 'active')
               ORDER BY s.[CREATED_AT] DESC
             `);
@@ -2872,6 +4395,7 @@ const motoristaAppController = {
             // Fallback: mesmo esquema (CDVIAGEM), caso alguma coluna tenha nome diferente
             sosResult = await pool.request()
               .input('cdMotorista', sql.Decimal(15, 0), cdMotorista)
+              .input('tenantId', sql.NVarChar(64), tid)
               .input('limit', sql.Int, parseInt(limit))
               .query(`
                 SELECT TOP (@limit)
@@ -2883,9 +4407,11 @@ const motoristaAppController = {
                   v.[IDVIAGEM],
                   r.[DSROTEIRO]
                 FROM [dbo].[SOS_ALERTS] s
-                LEFT JOIN [dbo].[VIAGEMMESTRE] v ON s.[CDVIAGEM] = v.[IDVIAGEM]
+                LEFT JOIN [dbo].[VIAGEMMESTRE] v ON s.[CDVIAGEM] = v.[IDVIAGEM] AND s.[TENANT_ID] = v.[TENANT_ID]
                 LEFT JOIN [dbo].[ROTEIRO] r ON v.[IDROTEIRO] = r.[IDROTEIRO]
+                  AND (r.[TENANT_ID] = @tenantId OR r.[TENANT_ID] = 'default')
                 WHERE s.[CDMOTORISTA] = @cdMotorista
+                  AND (s.[CDVIAGEM] IS NULL OR v.[TENANT_ID] = @tenantId)
                   AND s.[STATUS] IN ('PENDENTE', 'ABERTO', 'active')
                 ORDER BY s.[CREATED_AT] DESC
               `);
@@ -2918,15 +4444,18 @@ const motoristaAppController = {
         const alertasResult = await pool
           .request()
           .input('cdMotorista', sql.Decimal(15, 0), cdMotorista)
+          .input('tenantId', sql.NVarChar(64), tid)
           .input('limit', sql.Int, parseInt(limit))
           .query(`
             SELECT [a].[ID], [a].[IDVIAGEM], [a].[MESSAGE], [a].[TYPE], [a].[STATUS], [a].[CREATED_AT],
               [v].[IDVIAGEM], [r].[DSROTEIRO]
             FROM [dbo].[ALERTS] [a]
             INNER JOIN [dbo].[VIAGEMMOTORISTA] [vm] ON [a].[IDVIAGEM] = [vm].[IDVIAGEM]
-            LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [a].[IDVIAGEM] = [v].[IDVIAGEM]
+            LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [a].[IDVIAGEM] = [v].[IDVIAGEM] AND [v].[TENANT_ID] = @tenantId
             LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
+              AND ([r].[TENANT_ID] = [v].[TENANT_ID] OR [r].[TENANT_ID] = 'default')
             WHERE [vm].[CDMOTORISTA] = @cdMotorista
+              AND [v].[TENANT_ID] = @tenantId
               AND [a].[STATUS] IN ('PENDENTE', 'ACTIVE')
             ORDER BY [a].[CREATED_AT] DESC
             LIMIT @limit

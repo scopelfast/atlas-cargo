@@ -9,7 +9,9 @@ const express = require('express');
 const multer = require('multer');
 const router = express.Router();
 const messageController = require('../controllers/message.controller');
-const { getUsuarioLogado } = require('../middleware/auth.middleware');
+const { requireMotoristaOrTowerAuth } = require('../middleware/auth.middleware');
+const { attachTenantContext } = require('../middleware/tenant.middleware');
+const { requireTenantModule } = require('../middleware/tenant-module.middleware');
 
 const uploadAudioDir = path.join(__dirname, '..', 'public', 'uploads', 'audio');
 try {
@@ -35,8 +37,10 @@ const uploadAudio = multer({
   }
 });
 
-// Middleware opcional (não bloqueia se não autenticado para permitir offline)
-router.use(getUsuarioLogado);
+// Fase 3 multi-tenant: exige JWT (dashboard ou app motorista); depois repõe req.tenantId a partir do token.
+router.use(requireMotoristaOrTowerAuth);
+router.use(attachTenantContext);
+router.use(requireTenantModule('chat'));
 
 // ============================================
 // Rotas do módulo separado (novas)

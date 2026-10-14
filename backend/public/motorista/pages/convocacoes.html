@@ -283,6 +283,46 @@
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
+
+    .placas-box {
+      background: #e8f4fc;
+      border: 1px solid #b6e0fe;
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+    }
+    .placas-valor {
+      font-size: 16px;
+      font-weight: 700;
+      color: #0c4a6e;
+      letter-spacing: 0.02em;
+      margin-top: 6px;
+    }
+    .placas-acoes { margin-top: 12px; }
+    .placas-badge {
+      margin-top: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 6px 10px;
+      border-radius: 8px;
+      display: inline-block;
+    }
+    .placas-badge.ok { background: #d4edda; color: #155724; }
+    .placas-badge.diverge { background: #fff3cd; color: #856404; }
+    .placas-div-txt {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #333;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .placas-aviso {
+      font-size: 13px;
+      color: #856404;
+      margin-bottom: 10px;
+      text-align: center;
+    }
+    .btn-secondary { background: #6c757d; color: white; }
   </style>
 </head>
 <body class="motorista-page">
@@ -338,6 +378,90 @@
       window.location.href = '../index.html';
     }
 
+    function escapeHtml(str) {
+      if (str == null || str === '') return '';
+      const d = document.createElement('div');
+      d.textContent = String(str);
+      return d.innerHTML;
+    }
+
+    function tLoc(k, fb) {
+      if (typeof window.t === 'function') {
+        const v = window.t(k);
+        if (v && v !== k) return v;
+      }
+      return fb != null ? fb : k;
+    }
+
+    function msgConvocacaoApi(errorKey, fallback) {
+      const map = {
+        'convocacao.confirmarPlacasObrigatorio': 'convocacoes.err_confirmarPlacasObrigatorio',
+        'convocacao.confirmacaoPlacasSchemaPendente': 'convocacoes.err_confirmacaoSchemaPendente',
+        'convocacao.listaConvocacoesSchemaPendente': 'convocacoes.err_listaSchemaPendente',
+        'convocacao.aceiteBloqueadoDivergenciaPlacas': 'convocacoes.avisoAceiteBloqueadoDivergencia'
+      };
+      const kk = map[errorKey];
+      if (kk) return tLoc(kk, fallback);
+      return fallback || '';
+    }
+
+    async function confirmarPlacasApi(idConvocacao, modo, texto) {
+      try {
+        const response = await fetch(`/api/motorista/confirmar-placas-convocacao/${idConvocacao}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ modo, texto: texto || '' })
+        });
+        const body = await response.json().catch(() => ({}));
+        if (response.ok) {
+          if (body.divergenciaRegistrada || body.aceiteBloqueadoDivergenciaPlacas) {
+            mostrarToast(
+              tLoc('convocacoes.toastPlacasDivergenciaBloqueio', body.message || ''),
+              'warning'
+            );
+          } else {
+            mostrarToast(
+              modo === 'CONFIRMA'
+                ? tLoc('convocacoes.toastPlacasOk', 'Registrado.')
+                : tLoc('convocacoes.toastPlacasDivergencia', 'Registrado.'),
+              'success'
+            );
+          }
+          await carregarConvocacoes();
+          return true;
+        }
+        if (response.status === 503) {
+          mostrarToast(
+            msgConvocacaoApi(body.errorKey, body.error) || tLoc('convocacoes.err_confirmacaoSchemaPendente', ''),
+            'warning'
+          );
+        } else {
+          mostrarToast(body.error || tLoc('convocacoes.toastErroConfirmarPlacas', 'Erro'), 'error');
+        }
+      } catch (e) {
+        mostrarToast(tLoc('convocacoes.toastErroConfirmarPlacas', 'Erro'), 'error');
+      }
+      return false;
+    }
+
+    window.confirmarPlacasMotoristaClick = async function(ev, idConvocacao, modo) {
+      if (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
+      if (modo === 'DIVERGE') {
+        const promptMsg = tLoc('convocacoes.observacaoDivergenciaPrompt', '');
+        const texto = window.prompt(promptMsg, '');
+        if (texto === null) return;
+        await confirmarPlacasApi(idConvocacao, 'DIVERGE', texto);
+        return;
+      }
+      await confirmarPlacasApi(idConvocacao, 'CONFIRMA', '');
+    };
+
     function formatarMoeda(valor, moeda) {
       return new Intl.NumberFormat('pt-BR', { 
         style: 'currency', 
@@ -379,6 +503,20 @@
             await window.OfflineDB.salvarCache('convocacoes', convocacoes);
             filtrarPeriodo(periodoAtual);
             registrarAcessoConvocacoesNoServidor(convocacoes);
+            return;
+          }
+          if (response.status === 503) {
+            let body = {};
+            try {
+              body = await response.json();
+            } catch (_) {}
+            mostrarToast(
+              msgConvocacaoApi(body.errorKey, body.error) || tLoc('convocacoes.err_listaSchemaPendente', 'Servidor desatualizado.'),
+              'warning'
+            );
+            const convocacoes = await window.OfflineDB.buscarCache('convocacoes');
+            convocacoesGlobal = convocacoes || [];
+            filtrarPeriodo(periodoAtual);
             return;
           }
         }
@@ -528,6 +666,17 @@
           : (dsRoteiro ? ((dsRoteiro.split(/\s*->\s*|\s*→\s*/)[1] || '').trim() || 'Não informado') : 'Não informado');
 
         const podeAceitar = c.STATUS === 'PENDENTE';
+        const placasStr = String((c.PLACASESPERADAS != null ? c.PLACASESPERADAS : c.placasesperadas) || '').trim();
+        const classeStr = String(
+          (c.DSCLASSEFROTA_CONJUNTO != null ? c.DSCLASSEFROTA_CONJUNTO : c.dsclassefrota_conjunto) || ''
+        ).trim();
+        const fgPlacas = String((c.FGCONFIRMACAOPLACAS != null ? c.FGCONFIRMACAOPLACAS : c.fgconfirmacaoplacas) || '').trim().toUpperCase();
+        const txtDivPlacas = String((c.TXTPLACASDIVERGENCIA != null ? c.TXTPLACASDIVERGENCIA : c.txtplacasdivergen) || '').trim();
+        const precisaConfirmarPlacas =
+          podeAceitar &&
+          (placasStr.length > 0 || classeStr.length > 0) &&
+          (!fgPlacas || fgPlacas === 'D');
+        const aceiteBloqueadoDiv = podeAceitar && fgPlacas === 'D';
 
         return `
           <div class="card" id="card-${c.IDCONVOCACAO}" onclick="toggleCard(event, ${c.IDCONVOCACAO})">
@@ -598,13 +747,35 @@
                 </div>
               ` : ''}
 
+              ${(placasStr || classeStr) ? `
+                <div class="placas-box" onclick="event.stopPropagation()">
+                  <div class="route-label">${typeof window.t === 'function' ? window.t('convocacoes.placasTitulo') : 'Placas da viagem'}</div>
+                  <div class="placas-valor">${escapeHtml(
+                    [placasStr, classeStr ? ('Classe do conjunto: ' + classeStr) : '']
+                      .filter(function (x) { return x; })
+                      .join(' · ') || '—'
+                  )}</div>
+                  ${fgPlacas === 'C' ? `<div class="placas-badge ok">${escapeHtml(tLoc('convocacoes.badgePlacasOk', ''))}</div>` : ''}
+                  ${fgPlacas === 'D' ? `<div class="placas-badge diverge">${escapeHtml(tLoc('convocacoes.badgePlacasDivergencia', ''))}</div>${txtDivPlacas ? `<div class="placas-div-txt">${escapeHtml(txtDivPlacas)}</div>` : ''}` : ''}
+                  ${precisaConfirmarPlacas ? `
+                    <div class="placas-acoes">
+                      ${fgPlacas === 'D' ? `<p class="placas-aviso">${escapeHtml(tLoc('convocacoes.placasReconfirmarAposAlinhamento', 'Se a transportadora já ajustou os dados da viagem ou do seu cadastro, toque em «Confirmo estas placas» e depois em Aceitar.'))}</p>` : ''}
+                      <button type="button" class="btn btn-primary" style="margin-bottom:8px;width:100%;" onclick="confirmarPlacasMotoristaClick(event, ${c.IDCONVOCACAO}, 'CONFIRMA')">${escapeHtml(tLoc('convocacoes.placasConfirmar', 'Confirmo estas placas'))}</button>
+                      <button type="button" class="btn btn-secondary" style="width:100%;" onclick="confirmarPlacasMotoristaClick(event, ${c.IDCONVOCACAO}, 'DIVERGE')">${escapeHtml(tLoc('convocacoes.placasDivergir', 'Conjunto diferente'))}</button>
+                    </div>
+                  ` : ''}
+                </div>
+              ` : ''}
+
               ${podeAceitar ? `
                 <div class="buttons">
-                  <button class="btn btn-success" onclick="aceitar(${c.IDCONVOCACAO}, ${c.IDVIAGEM})">
-                    ✓ Aceitar
+                  ${precisaConfirmarPlacas && !aceiteBloqueadoDiv ? `<p class="placas-aviso">${escapeHtml(tLoc('convocacoes.err_confirmarPlacasObrigatorio', 'Confirme as placas antes de aceitar.'))}</p>` : ''}
+                  ${aceiteBloqueadoDiv ? `<p class="placas-aviso">${escapeHtml(tLoc('convocacoes.avisoAceiteBloqueadoDivergencia', ''))}</p>` : ''}
+                  <button class="btn btn-success" ${precisaConfirmarPlacas || aceiteBloqueadoDiv ? 'disabled style="opacity:0.55;cursor:not-allowed"' : ''} onclick="aceitar(${c.IDCONVOCACAO}, ${c.IDVIAGEM})">
+                    ✓ ${typeof window.t === 'function' ? window.t('convocacoes.aceitar') : 'Aceitar'}
                   </button>
                   <button class="btn btn-danger" onclick="recusar(${c.IDCONVOCACAO})">
-                    ✗ Recusar
+                    ✗ ${typeof window.t === 'function' ? window.t('convocacoes.recusar') : 'Recusar'}
                   </button>
                 </div>
               ` : ''}
@@ -615,6 +786,24 @@
     }
 
     async function aceitar(idConvocacao, idViagem) {
+      const conv = (convocacoesGlobal || []).find(function(x) {
+        return (x.IDCONVOCACAO === idConvocacao) || (x.idconvocacao === idConvocacao);
+      });
+      const placasStr0 = conv ? String((conv.PLACASESPERADAS != null ? conv.PLACASESPERADAS : conv.placasesperadas) || '').trim() : '';
+      const classeStr0 = conv
+        ? String(
+            (conv.DSCLASSEFROTA_CONJUNTO != null
+              ? conv.DSCLASSEFROTA_CONJUNTO
+              : conv.dsclassefrota_conjunto) || ''
+          ).trim()
+        : '';
+      const fg0 = conv ? String((conv.FGCONFIRMACAOPLACAS != null ? conv.FGCONFIRMACAOPLACAS : conv.fgconfirmacaoplacas) || '').trim().toUpperCase() : '';
+      const st0 = conv ? String(conv.STATUS || '').trim() : '';
+      if (window.OfflineDB && !window.OfflineDB.isOnline() && st0 === 'PENDENTE' && (placasStr0 || classeStr0) && !fg0) {
+        mostrarToast(tLoc('convocacoes.toastPrecisaOnlinePlacas', ''), 'warning');
+        return;
+      }
+
       const resposta = await mostrarModal(
         '✅ Aceitar Viagem',
         'Deseja aceitar esta convocação?',
@@ -650,7 +839,14 @@
             mostrarToast('Convocação aceita com sucesso!', 'success');
             carregarConvocacoes();
           } else {
-            mostrarToast('Erro ao aceitar convocação', 'error');
+            let body = {};
+            try {
+              body = await response.json();
+            } catch (_) {}
+            const msg =
+              msgConvocacaoApi(body.errorKey, body.error) ||
+              (body.error || 'Erro ao aceitar convocação');
+            mostrarToast(msg, response.status === 422 ? 'warning' : 'error');
           }
         } else {
           await window.OfflineDB.adicionarFila('filaAcoes', {

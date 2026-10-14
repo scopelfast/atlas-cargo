@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Estoque (WMS)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/modulos.css" />
+  <link rel="stylesheet" href="/css/dark-mode.css" />
+  <link rel="stylesheet" href="/css/boxicons.min.css" />
+  <style>
+    /* Largura como demais módulos (.modulo-container): corpo fluido, sem coluna estreita centralizada. */
+    .estoque-hub { padding: 20px; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; width: 100%; max-width: none; margin: 0; box-sizing: border-box; }
+    .estoque-hub-header { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid var(--border, #e2e8f0); display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .estoque-hub-header-text { min-width: 0; flex: 1; }
+    .estoque-hub-manual {
+      display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px;
+      border-radius: 8px; background: var(--ac-accent, #0ea5e9); color: #fff !important;
+      font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap;
+    }
+    .estoque-hub-header h2 { margin: 0; color: var(--ac-primary, #0d2137); font-size: 26px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .estoque-hub-header p { margin: 10px 0 0; color: #64748b; font-size: 15px; line-height: 1.5; }
+    html[data-theme='dark'] .estoque-hub-header p { color: #94a3b8; }
+    .estoque-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+    .estoque-card {
+      background: #fff; border: 1px solid var(--border, #e2e8f0); border-radius: 12px; padding: 18px 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06); cursor: pointer; text-align: left; transition: transform 0.15s, box-shadow 0.15s;
+      font-family: inherit;
+    }
+    .estoque-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+    html[data-theme='dark'] .estoque-card { background: #0f172a; border-color: #334155; }
+    .estoque-card i { font-size: 1.75rem; color: var(--ac-accent, #0ea5e9); margin-bottom: 10px; display: block; }
+    .estoque-card h3 { margin: 0 0 6px; font-size: 17px; font-weight: 600; color: var(--ac-primary, #0d2137); }
+    html[data-theme='dark'] .estoque-card h3 { color: #e2e8f0; }
+    .estoque-card span { font-size: 13px; color: #64748b; line-height: 1.4; }
+    html[data-theme='dark'] .estoque-card span { color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="estoque-hub">
+    <div class="estoque-hub-header">
+      <div class="estoque-hub-header-text">
+        <h2><i class="bx bx-package"></i> Gestão de Estoque (WMS)</h2>
+        <p>Painel inicial. Use os atalhos abaixo ou o menu lateral <strong>WMS</strong>. Cada tela será evoluída conforme o <code>docs/RF_WMS_ATLAS_v1.md</code>.</p>
+      </div>
+      <a class="estoque-hub-manual" href="/modulos/estoque/manual-operacional-wms.html" target="_blank" rel="noopener">
+        <i class="bx bx-book-open"></i> Manual operacional
+      </a>
+    </div>
+    <div class="estoque-cards" id="estoqueHubCards"></div>
+  </div>
+  <script src="js/script.js"></script>
+</body>
+</html>

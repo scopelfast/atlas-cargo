@@ -21,6 +21,9 @@
       const r = await fetch('/api/contexto');
       const d = await r.json();
       contextEquipamentos = d;
+      if (d && d.timezone && typeof window.syncAtlasTimezoneInstalacao === 'function') {
+        window.syncAtlasTimezoneInstalacao(d.timezone);
+      }
       updateLabelPlaca();
     } catch (e) {
       console.warn('[Equipamentos] Erro ao carregar contexto:', e);
@@ -233,12 +236,13 @@
 
     gridTab = new window.GridEditor({
       container: '#equipamentosGrid',
+      actionsWidth: '76px',
       columns: [
-        { field: 'IDEQUIPAMENTO', header: 'ID', editable: false, isId: true, width: '120px' },
-        { field: 'REFEQUIPAMENTO', header: 'Referência', editable: true, type: 'text', width: '180px', maxlength: 40 },
-        { field: 'TIPO_NOME', header: 'Tipo', editable: false, width: '200px' },
-        { field: 'CLASSE_NOME', header: 'Classe', editable: false, width: '180px' },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px',
+        { field: 'IDEQUIPAMENTO', header: 'ID', editable: false, isId: true, width: '10%' },
+        { field: 'REFEQUIPAMENTO', header: 'Referência', editable: true, type: 'text', width: '25%', maxlength: 40 },
+        { field: 'TIPO_NOME', header: 'Tipo', editable: false, width: '26%' },
+        { field: 'CLASSE_NOME', header: 'Classe', editable: false, width: '27%' },
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '12%',
           options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }
@@ -403,7 +407,7 @@
       const countEl = document.getElementById('equipamentosGridCountText');
       if (countEl) {
         const count = equipamentos.length || 0;
-        countEl.textContent = (t('web.modulos.cidades.registrosEncontrados') || '{n} registro(s) encontrado(s)').replace('{n}', String(count));
+        countEl.textContent = (t('web.modulos.equipamentos.registrosEncontrados') || '{n} registro(s) encontrado(s)').replace('{n}', String(count));
       }
       
       // Se já existe uma instância do Grid na aba, atualizá-la imediatamente
@@ -586,8 +590,8 @@
           rastreadoSelect.value = '';
         }
         
-        const title = document.getElementById('formTitle');
-        if (title) title.textContent = t('web.modulos.equipamentos.editarEquipamento');
+        const titleText = document.getElementById('formTitleText');
+        if (titleText) titleText.textContent = t('web.modulos.equipamentos.editarEquipamento');
         showTab('dados');
         
         // Carregar modelos com base na MARCA (não no tipo)
@@ -754,11 +758,361 @@
   loadCombos();
   setupTipoModeloListeners();
 
+  async function duploRequestAnimationFrame() {
+    await new Promise(function (resolve) {
+      requestAnimationFrame(function () {
+        requestAnimationFrame(resolve);
+      });
+    });
+  }
+
+  function safeSetFicha(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.value = value != null && value !== '' ? String(value) : '';
+  }
+
+  /** Monta o corpo de PUT/POST em EQUIPAMENTO a partir do DOM (Dados + dimensões na aba Ficha). */
+  function montarPayloadEquipamentoDom() {
+    const ref = safeGet('equipRef', true);
+    const tipo = safeGet('equipTipo', true);
+    const marca = safeGet('equipMarca', true);
+    const tipoAtuacao = safeGet('equipTipoAtuacao', true);
+    const carroceria = safeGet('equipCarroceria', true);
+    const ativo = safeGet('equipAtivo', true);
+    const rastreado = safeGet('equipRastreado', true);
+    if (!ref || !tipo || !marca || !tipoAtuacao || !carroceria || !ativo || !rastreado) {
+      return { ok: false };
+    }
+    return {
+      ok: true,
+      data: {
+        REFEQUIPAMENTO: ref,
+        DSEQUIPAMENTO: safeGet('equipNome'),
+        CDGRUPOEQUIPAMENTO: safeGet('equipGrupo') || null,
+        CDTIPOEQUIPAMENTO: tipo,
+        CDMARCAEQUIPAMENTO: marca,
+        CDMODELOEQUIPAMENTO: safeGet('equipModelo') || null,
+        CDCLASSEFROTA: safeGet('equipClasse') || null,
+        FGTIPOATUACAO: tipoAtuacao,
+        FGTIPOCARROCERIA: carroceria,
+        NREIXOS: safeGet('equipEixos') ? parseInt(safeGet('equipEixos'), 10) : null,
+        CAPACIDCARGA: safeGet('equipCapacidade') ? parseFloat(safeGet('equipCapacidade')) : null,
+        ANOFABRICA: safeGet('equipAno') ? parseInt(safeGet('equipAno'), 10) : null,
+        ALTURA: safeGet('equipAltura') ? parseFloat(safeGet('equipAltura')) : null,
+        LARGURA: safeGet('equipLargura') ? parseFloat(safeGet('equipLargura')) : null,
+        COMPRIMENTO: safeGet('equipComprimento') ? parseFloat(safeGet('equipComprimento')) : null,
+        MTCUBICO: safeGet('equipCubico') ? parseFloat(safeGet('equipCubico')) : null,
+        FGACTIVE: ativo,
+        FGRASTREADO: rastreado
+      }
+    };
+  }
+
+  function aplicarDimensoesEquipamentoNoDom(eq) {
+    if (!eq || typeof eq !== 'object') return;
+    const str = function (key) {
+      const val = eq[key];
+      return val != null && val !== '' ? String(val) : '';
+    };
+    safeSet('equipCapacidade', str('CAPACIDCARGA'));
+    safeSet('equipAltura', str('ALTURA'));
+    safeSet('equipLargura', str('LARGURA'));
+    safeSet('equipComprimento', str('COMPRIMENTO'));
+    safeSet('equipCubico', str('MTCUBICO'));
+  }
+
+  async function carregarFichaTecnicaEquipamento() {
+    const overlay = document.getElementById('overlayFichaTecnica');
+    const equipId =
+      (document.getElementById('equipamentoId') && document.getElementById('equipamentoId').value.trim()) ||
+      (document.getElementById('equipId') && document.getElementById('equipId').value.trim()) ||
+      '';
+    if (!equipId) {
+      showMessage(t('web.modulos.equipamentos.selecioneEquipamento'), 'error');
+      return false;
+    }
+    const refEl = document.getElementById('fichaTecnicaRefEquip');
+    const idEl = document.getElementById('fichaTecnicaIdEquip');
+    const refPlaca = document.getElementById('equipRef') ? String(document.getElementById('equipRef').value || '').trim() : '';
+    if (refEl) refEl.textContent = refPlaca || '—';
+    if (idEl) idEl.textContent = equipId;
+    if (overlay) {
+      overlay.style.display = 'flex';
+      overlay.setAttribute('aria-hidden', 'false');
+      await duploRequestAnimationFrame();
+    }
+    try {
+      const base =
+        typeof window.corrigirUrl === 'function' ? window.corrigirUrl.bind(window) : function (u) {
+          return u;
+        };
+      const urlFicha = base('/api/equipamentos/' + encodeURIComponent(equipId) + '/ficha-tecnica');
+      const urlEquip = base('/api/equipamentos/' + encodeURIComponent(equipId));
+      const [r, rEq] = await Promise.all([fetch(urlFicha), fetch(urlEquip)]);
+      const data = await r.json().catch(function () {
+        return {};
+      });
+      const eq = await rEq.json().catch(function () {
+        return {};
+      });
+      if (!r.ok) {
+        showMessage(data.error || t('web.modulos.equipamentos.fichaTecnicaErroCarregar'), 'error');
+        return false;
+      }
+      if (rEq.ok && eq && typeof eq === 'object') {
+        aplicarDimensoesEquipamentoNoDom(eq);
+      }
+      const g = function (k, alt) {
+        return data[k] != null ? data[k] : data[alt];
+      };
+      safeSetFicha('fichaRenavam', g('NRRENAVAM', 'nrrenavam'));
+      safeSetFicha('fichaChassi', g('NRCHASSI', 'nrchassi'));
+      safeSetFicha('fichaNrFrota', g('NRFROTA', 'nrfrota'));
+      safeSetFicha('fichaNumeroCarroceria', g('NUMEROCARROCERIA', 'numerocarroceria'));
+      safeSetFicha('fichaCategoriaCnh', g('CATEGORIACNH', 'categoriacnh'));
+      safeSetFicha('fichaTara', g('TARA', 'tara'));
+      safeSetFicha('fichaCapacTracao', g('CAPACTRACAO', 'capactracao'));
+      safeSetFicha('fichaCapacTanque', g('CAPACTANQUE', 'capactanque'));
+      return true;
+    } catch (err) {
+      console.error('[Equipamentos] ficha técnica:', err);
+      showMessage(t('web.modulos.equipamentos.erroConexao'), 'error');
+      return false;
+    } finally {
+      if (overlay) {
+        overlay.style.display = 'none';
+        overlay.setAttribute('aria-hidden', 'true');
+      }
+    }
+  }
+
+  function escHtmlText(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function escHtmlAttr(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function urlPublicaUploadEquip(relPath) {
+    const p = String(relPath || '').trim();
+    if (!p) return '';
+    if (/^https?:\/\//i.test(p)) return p;
+    const path = p.startsWith('/') ? p : '/' + p;
+    return typeof window.corrigirUrl === 'function' ? window.corrigirUrl(path) : path;
+  }
+
+  function authHeadersTorre(extra) {
+    const headers = Object.assign({}, extra || {});
+    try {
+      const token = localStorage.getItem('token');
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      if (user && (user.login || user.SGUSUARIO)) headers['user-login'] = user.login || user.SGUSUARIO;
+    } catch (_e) {}
+    return headers;
+  }
+
+  async function carregarDocumentosAppEquipamento() {
+    const overlay = document.getElementById('overlayEquipDocumentos');
+    const equipId =
+      (document.getElementById('equipamentoId') && document.getElementById('equipamentoId').value.trim()) ||
+      (document.getElementById('equipId') && document.getElementById('equipId').value.trim()) ||
+      '';
+    if (!equipId) {
+      showMessage(t('web.modulos.equipamentos.selecioneEquipamento'), 'error');
+      return false;
+    }
+    const refEl = document.getElementById('equipDocRefEquip');
+    const idEl = document.getElementById('equipDocIdEquip');
+    const refPlaca = document.getElementById('equipRef') ? String(document.getElementById('equipRef').value || '').trim() : '';
+    if (refEl) refEl.textContent = refPlaca || '—';
+    if (idEl) idEl.textContent = equipId;
+    const lista = document.getElementById('equipDocumentosAppLista');
+    const vazio = document.getElementById('equipDocumentosAppVazio');
+    if (overlay) {
+      overlay.style.display = 'flex';
+      overlay.setAttribute('aria-hidden', 'false');
+      await duploRequestAnimationFrame();
+    }
+    try {
+      const base =
+        typeof window.corrigirUrl === 'function' ? window.corrigirUrl.bind(window) : function (u) {
+          return u;
+        };
+      const r = await fetch(base('/api/equipamentos/' + encodeURIComponent(equipId) + '/documentos-app'));
+      const raw = await r.json().catch(function () {
+        return {};
+      });
+      if (!r.ok) {
+        showMessage(raw.error || t('web.modulos.equipamentos.documentosAppErroCarregar'), 'error');
+        if (lista) lista.innerHTML = '';
+        if (vazio) vazio.style.display = 'block';
+        return false;
+      }
+      const rows = Array.isArray(raw) ? raw : [];
+      if (rows.length === 0) {
+        if (lista) lista.innerHTML = '';
+        if (vazio) vazio.style.display = 'block';
+        return true;
+      }
+      if (vazio) vazio.style.display = 'none';
+      const abrir =
+        t('web.modulos.equipamentos.abrirNovaAba') ||
+        t('web.modulos.cadastroGeral.abrirNovaAba') ||
+        'Abrir em nova aba';
+      function stLab(s) {
+        const x = String(s == null ? '' : s).trim().toUpperCase();
+        if (x === 'A') return t('web.modulos.equipamentos.documentosAppStatusA') || 'Aprovado';
+        if (x === 'R') return t('web.modulos.equipamentos.documentosAppStatusR') || 'Rejeitado';
+        return t('web.modulos.equipamentos.documentosAppStatusP') || 'Pendente';
+      }
+      function blocoDoc(label, url, idv, tipoDoc) {
+        const idvStr = idv != null && idv !== '' ? String(idv) : '';
+        const has = !!(url && String(url).trim());
+        const u = has ? urlPublicaUploadEquip(url) : '';
+        const semArq =
+          t('web.modulos.equipamentos.documentosAppSemArquivoBloco') || 'Nenhum arquivo.';
+        const subst = t('web.modulos.equipamentos.documentosAppSubstituir') || 'Substituir';
+        const rem = t('web.modulos.equipamentos.documentosAppExcluir') || 'Remover';
+        const botoes = idvStr
+          ? '<div class="equip-doc-app-acoes" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px">' +
+            '<input type="file" class="equip-doc-app-file" data-idv="' +
+            escHtmlAttr(idvStr) +
+            '" data-tipo="' +
+            escHtmlAttr(tipoDoc) +
+            '" accept="image/jpeg,image/png,image/webp" style="display:none" />' +
+            '<button type="button" class="btn btn-sm btn-outline-primary equip-doc-app-subst" data-idv="' +
+            escHtmlAttr(idvStr) +
+            '" data-tipo="' +
+            escHtmlAttr(tipoDoc) +
+            '">' +
+            escHtmlText(subst) +
+            '</button>' +
+            '<button type="button" class="btn btn-sm btn-outline-danger equip-doc-app-del" data-idv="' +
+            escHtmlAttr(idvStr) +
+            '" data-tipo="' +
+            escHtmlAttr(tipoDoc) +
+            '"' +
+            (has ? '' : ' disabled') +
+            '>' +
+            escHtmlText(rem) +
+            '</button>' +
+            '</div>'
+          : '';
+        return (
+          '<div class="equip-doc-app-bloco" style="max-width:300px">' +
+          '<strong style="display:block;margin-bottom:6px;font-size:13px">' +
+          escHtmlText(label) +
+          '</strong>' +
+          (has
+            ? '<a href="' +
+              escHtmlAttr(u) +
+              '" target="_blank" rel="noopener noreferrer" class="torre-motorista-anexo-abrir">' +
+              escHtmlText(abrir) +
+              '</a>'
+            : '<p class="hint" style="margin:4px 0 0 0">' + escHtmlText(semArq) + '</p>') +
+          (has
+            ? '<div class="torre-motorista-anexo-thumb" style="margin-top:8px">' +
+              '<img class="equip-doc-app-thumb" src="' +
+              escHtmlAttr(u) +
+              '" alt="" aria-hidden="true" loading="lazy" style="max-width:100%;max-height:240px;border-radius:8px;border:1px solid #cbd5e1;cursor:pointer" />' +
+              '</div>'
+            : '') +
+          botoes +
+          '</div>'
+        );
+      }
+      if (lista) {
+        lista.innerHTML = rows
+          .map(function (row) {
+            const pl = String(row.PLACA || row.placa || '').trim() || '—';
+            const nome = String(row.motorista_nome || row.MOTORISTA_NOME || '').trim() || '—';
+            const st = stLab(row.STATUSAPROVACAO || row.statusaprovacao);
+            const crlv = row.FOTOCRLV || row.fotocrlv || '';
+            const fotoV = row.FOTOVEICULO || row.fotoveiculo || '';
+            const idv = row.IDVEICULOMOTORISTA != null ? row.IDVEICULOMOTORISTA : row.idveiculomotorista;
+            const titulo = pl + ' · ' + nome + ' · ' + st;
+            const blocos =
+              blocoDoc(
+                t('web.modulos.equipamentos.documentosAppCrlvLabel') || 'CRLV (documento)',
+                crlv,
+                idv,
+                'crlv'
+              ) +
+              blocoDoc(
+                t('web.modulos.equipamentos.documentosAppFotoVeiculoLabel') || 'Foto do veículo',
+                fotoV,
+                idv,
+                'foto-veiculo'
+              );
+            const corpo =
+              '<div class="equip-doc-app-blocos" style="display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start">' +
+              blocos +
+              '</div>';
+            return (
+              '<div class="form-dados-card equip-doc-app-card" style="margin-bottom:16px">' +
+              '<div class="form-dados-card-header"><i class="bx bx-car"></i> ' +
+              escHtmlText(titulo) +
+              '</div>' +
+              '<div class="form-dados-card-body">' +
+              corpo +
+              '</div></div>'
+            );
+          })
+          .join('');
+      }
+      return true;
+    } catch (err) {
+      console.error('[Equipamentos] documentos app:', err);
+      showMessage(t('web.modulos.equipamentos.erroConexao'), 'error');
+      return false;
+    } finally {
+      if (overlay) {
+        overlay.style.display = 'none';
+        overlay.setAttribute('aria-hidden', 'true');
+      }
+    }
+  }
+
   // Eventos de abas
   tabs.forEach(btn => {
     btn.addEventListener('click', async () => {
       const tabId = btn.getAttribute('data-tab');
-      
+
+      if (tabId === 'ficha-tecnica') {
+        const equipId =
+          document.getElementById('equipamentoId')?.value || document.getElementById('equipamentoCodigo')?.value || document.getElementById('equipId')?.value;
+        if (!equipId) {
+          showMessage(t('web.modulos.equipamentos.selecioneEquipamento'), 'error');
+          return;
+        }
+        await showTab('ficha-tecnica');
+        await carregarFichaTecnicaEquipamento();
+        return;
+      }
+
+      if (tabId === 'documentos-app') {
+        const equipId =
+          document.getElementById('equipamentoId')?.value ||
+          document.getElementById('equipamentoCodigo')?.value ||
+          document.getElementById('equipId')?.value;
+        if (!equipId) {
+          showMessage(t('web.modulos.equipamentos.selecioneEquipamento'), 'error');
+          return;
+        }
+        await showTab('documentos-app');
+        await carregarDocumentosAppEquipamento();
+        return;
+      }
+
       // Lógica especial para aba Validades
       if (tabId === 'validades') {
         const equipId = document.getElementById('equipamentoId')?.value || document.getElementById('equipamentoCodigo')?.value;
@@ -790,16 +1144,8 @@
       window.showLoading(btnSalvar, true);
     }
 
-    const ref = safeGet('equipRef', true);
-    const tipo = safeGet('equipTipo', true);
-    const marca = safeGet('equipMarca', true);
-    const tipoAtuacao = safeGet('equipTipoAtuacao', true);
-    const carroceria = safeGet('equipCarroceria', true);
-    const ativo = safeGet('equipAtivo', true);
-    
-    const rastreado = safeGet('equipRastreado', true);
-    
-    if (!ref || !tipo || !marca || !tipoAtuacao || !carroceria || !ativo || !rastreado) {
+    const built = montarPayloadEquipamentoDom();
+    if (!built.ok) {
       if (!document.querySelector('.message.show')) {
         showMessage(t('web.modulos.equipamentos.preenchaCampos'), 'error');
       }
@@ -811,26 +1157,7 @@
     }
 
     try {
-      const equipamentoData = {
-        REFEQUIPAMENTO: ref,
-        DSEQUIPAMENTO: safeGet('equipNome'),
-        CDGRUPOEQUIPAMENTO: safeGet('equipGrupo') || null,
-        CDTIPOEQUIPAMENTO: tipo,
-        CDMARCAEQUIPAMENTO: marca,
-        CDMODELOEQUIPAMENTO: safeGet('equipModelo') || null,
-        CDCLASSEFROTA: safeGet('equipClasse') || null,
-        FGTIPOATUACAO: tipoAtuacao,
-        FGTIPOCARROCERIA: carroceria,
-        NREIXOS: safeGet('equipEixos') ? parseInt(safeGet('equipEixos')) : null,
-        CAPACIDCARGA: safeGet('equipCapacidade') ? parseFloat(safeGet('equipCapacidade')) : null,
-        ANOFABRICA: safeGet('equipAno') ? parseInt(safeGet('equipAno')) : null,
-        ALTURA: safeGet('equipAltura') ? parseFloat(safeGet('equipAltura')) : null,
-        LARGURA: safeGet('equipLargura') ? parseFloat(safeGet('equipLargura')) : null,
-        COMPRIMENTO: safeGet('equipComprimento') ? parseFloat(safeGet('equipComprimento')) : null,
-        MTCUBICO: safeGet('equipCubico') ? parseFloat(safeGet('equipCubico')) : null,
-        FGACTIVE: ativo,
-        FGRASTREADO: rastreado
-      };
+      const equipamentoData = built.data;
 
       const id = safeGet('equipamentoId');
       let response;
@@ -886,14 +1213,194 @@
     const equipId = document.getElementById('equipId');
     if (idEquip) idEquip.value = '';
     if (equipId) equipId.value = '';
-    const title = document.getElementById('formTitle');
-    if (title) title.textContent = t('web.modulos.equipamentos.novoEquipamento');
+    ['equipCapacidade', 'equipAltura', 'equipLargura', 'equipComprimento', 'equipCubico'].forEach(function (fid) {
+      safeSet(fid, '');
+    });
+    const titleText = document.getElementById('formTitleText');
+    if (titleText) titleText.textContent = t('web.modulos.equipamentos.novoEquipamento');
     showTab('dados');
   }
 
   document.getElementById('btnNovoEquipamento')?.addEventListener('click', irParaNovoEquipamento);
   document.getElementById('btnCancelarDados')?.addEventListener('click', () => showTab('grid'));
-  
+
+  document.getElementById('btnVoltarDadosFichaTecnica')?.addEventListener('click', async () => {
+    await showTab('dados');
+  });
+
+  document.getElementById('btnVoltarDadosDocumentosApp')?.addEventListener('click', async () => {
+    await showTab('dados');
+  });
+
+  document.getElementById('equipDocumentosAppLista')?.addEventListener('click', async function (ev) {
+    const sub = ev.target.closest && ev.target.closest('.equip-doc-app-subst');
+    if (sub) {
+      const row = sub.closest('.equip-doc-app-acoes');
+      const inp = row && row.querySelector('input.equip-doc-app-file');
+      if (inp) inp.click();
+      return;
+    }
+    const del = ev.target.closest && ev.target.closest('.equip-doc-app-del');
+    if (del) {
+      if (del.disabled) return;
+      const idv = del.getAttribute('data-idv');
+      const tipo = del.getAttribute('data-tipo');
+      if (!idv || !tipo) return;
+      const msg =
+        t('web.modulos.equipamentos.documentosAppConfirmaExcluir') || 'Remover este arquivo?';
+      const confirmado = typeof window.confirmPadrao === 'function'
+        ? await window.confirmPadrao(msg, { danger: true, confirmText: 'OK' })
+        : false;
+      if (!confirmado) return;
+      (async function () {
+        const base =
+          typeof window.corrigirUrl === 'function' ? window.corrigirUrl.bind(window) : function (u) {
+            return u;
+          };
+        try {
+          const r = await fetch(
+            base(
+              '/api/cadastros-gerais/motorista-veiculos/' +
+                encodeURIComponent(idv) +
+                '/anexos/' +
+                encodeURIComponent(tipo)
+            ),
+            { method: 'DELETE', headers: authHeadersTorre() }
+          );
+          const d = await r.json().catch(function () {
+            return {};
+          });
+          if (!r.ok) {
+            showMessage(d.error || t('web.modulos.equipamentos.documentosAppErroExcluir'), 'error');
+            return;
+          }
+          showMessage(d.message || t('web.modulos.equipamentos.documentosAppExcluido'), 'success');
+          await carregarDocumentosAppEquipamento();
+        } catch (_e) {
+          showMessage(t('web.modulos.equipamentos.erroConexao'), 'error');
+        }
+      })();
+      return;
+    }
+    const el = ev.target.closest && ev.target.closest('img.equip-doc-app-thumb');
+    if (el && el.src) {
+      ev.preventDefault();
+      window.open(el.src, '_blank', 'noopener,noreferrer');
+    }
+  });
+
+  document.getElementById('equipDocumentosAppLista')?.addEventListener('change', function (ev) {
+    const inp = ev.target;
+    if (!inp || !inp.classList || !inp.classList.contains('equip-doc-app-file')) return;
+    const f = inp.files && inp.files[0];
+    inp.value = '';
+    if (!f) return;
+    const idv = inp.getAttribute('data-idv');
+    const tipo = inp.getAttribute('data-tipo');
+    if (!idv || !tipo) return;
+    const fd = new FormData();
+    fd.append('arquivo', f);
+    fd.append('tipo', tipo);
+    (async function () {
+      const base =
+        typeof window.corrigirUrl === 'function' ? window.corrigirUrl.bind(window) : function (u) {
+          return u;
+        };
+      try {
+        const r = await fetch(
+          base('/api/cadastros-gerais/motorista-veiculos/' + encodeURIComponent(idv) + '/anexos'),
+          { method: 'POST', headers: authHeadersTorre(), body: fd }
+        );
+        const d = await r.json().catch(function () {
+          return {};
+        });
+        if (!r.ok) {
+          showMessage(d.error || t('web.modulos.equipamentos.documentosAppErroUpload'), 'error');
+          return;
+        }
+        showMessage(d.message || t('web.modulos.equipamentos.documentosAppEnviado'), 'success');
+        await carregarDocumentosAppEquipamento();
+      } catch (_e) {
+        showMessage(t('web.modulos.equipamentos.erroConexao'), 'error');
+      }
+    })();
+  });
+
+  const formFichaTecnica = document.getElementById('formFichaTecnica');
+  let formFichaSubmitting = false;
+  formFichaTecnica?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (formFichaSubmitting) return;
+    const equipId =
+      (document.getElementById('equipamentoId') && document.getElementById('equipamentoId').value.trim()) ||
+      (document.getElementById('equipId') && document.getElementById('equipId').value.trim()) ||
+      '';
+    if (!equipId) {
+      showMessage(t('web.modulos.equipamentos.selecioneEquipamento'), 'error');
+      return;
+    }
+    formFichaSubmitting = true;
+    const btnSalvar = document.getElementById('btnSalvarFichaTecnica');
+    if (btnSalvar && typeof window.showLoading === 'function') window.showLoading(btnSalvar, true);
+    const builtEquip = montarPayloadEquipamentoDom();
+    if (!builtEquip.ok) {
+      if (!document.querySelector('.message.show')) {
+        showMessage(t('web.modulos.equipamentos.preenchaCampos'), 'error');
+      }
+      formFichaSubmitting = false;
+      if (btnSalvar && typeof window.showLoading === 'function') window.showLoading(btnSalvar, false);
+      return;
+    }
+
+    const body = {
+      NRRENAVAM: safeGet('fichaRenavam') || null,
+      NRCHASSI: safeGet('fichaChassi') || null,
+      NRFROTA: safeGet('fichaNrFrota') || null,
+      NUMEROCARROCERIA: safeGet('fichaNumeroCarroceria') || null,
+      CATEGORIACNH: safeGet('fichaCategoriaCnh') || null,
+      TARA: safeGet('fichaTara') ? parseFloat(safeGet('fichaTara')) : null,
+      CAPACTRACAO: safeGet('fichaCapacTracao') ? parseFloat(safeGet('fichaCapacTracao')) : null,
+      CAPACTANQUE: safeGet('fichaCapacTanque') ? parseFloat(safeGet('fichaCapacTanque')) : null,
+    };
+    try {
+      const base =
+        typeof window.corrigirUrl === 'function' ? window.corrigirUrl.bind(window) : function (u) {
+          return u;
+        };
+      const rPutEquip = await fetch(base('/api/equipamentos/' + encodeURIComponent(equipId)), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(builtEquip.data),
+      });
+      const putEquipData = await rPutEquip.json().catch(function () {
+        return {};
+      });
+      if (!rPutEquip.ok) {
+        showMessage(putEquipData.error || t('web.modulos.equipamentos.erroSalvar'), 'error');
+        return;
+      }
+      const r = await fetch(base('/api/equipamentos/' + encodeURIComponent(equipId) + '/ficha-tecnica'), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await r.json().catch(function () {
+        return {};
+      });
+      if (r.ok) {
+        showMessage(data.message || t('web.modulos.equipamentos.fichaTecnicaSucessoSalvar'), 'success');
+      } else {
+        showMessage(data.error || t('web.modulos.equipamentos.fichaTecnicaErroSalvar'), 'error');
+      }
+    } catch (err) {
+      console.error('[Equipamentos] salvar ficha:', err);
+      showMessage(t('web.modulos.equipamentos.erroConexao'), 'error');
+    } finally {
+      formFichaSubmitting = false;
+      if (btnSalvar && typeof window.showLoading === 'function') window.showLoading(btnSalvar, false);
+    }
+  });
+
   // Event listeners para botões do Grid
   document.getElementById('btnVoltarGrid')?.addEventListener('click', async () => await showTab('filtros'));
   document.getElementById('btnNovoEquipamentoGrid')?.addEventListener('click', irParaNovoEquipamento);
@@ -1216,8 +1723,12 @@
         document.getElementById('validadeSequencia').value = val.SEQUENCIA;
         document.getElementById('validadeTipo').value = val.CDTIPOVALIDADE;
         document.getElementById('validadeNrLiberacao').value = val.NRLIBERACAO;
-        document.getElementById('validadeDtLiberacao').value = new Date(val.DTLIBERACAO).toISOString().split('T')[0];
-        document.getElementById('validadeDtValidade').value = new Date(val.DTVALIDADE).toISOString().split('T')[0];
+        document.getElementById('validadeDtLiberacao').value = (typeof window.dataApiParaInputDate === 'function')
+          ? window.dataApiParaInputDate(val.DTLIBERACAO, contextEquipamentos && contextEquipamentos.timezone)
+          : new Date(val.DTLIBERACAO).toISOString().split('T')[0];
+        document.getElementById('validadeDtValidade').value = (typeof window.dataApiParaInputDate === 'function')
+          ? window.dataApiParaInputDate(val.DTVALIDADE, contextEquipamentos && contextEquipamentos.timezone)
+          : new Date(val.DTVALIDADE).toISOString().split('T')[0];
         document.getElementById('validadeDsLiberacao').value = val.DSLIBERACAO || '';
         
         const certResultado = document.getElementById('certResultado');

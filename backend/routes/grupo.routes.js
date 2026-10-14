@@ -3,26 +3,61 @@ const express = require('express');
 const router = express.Router();
 const sql = require('../config/mssql-compat');
 const { poolPromise, getFirstNumericValue } = require('../config/db');
+const { towerAuthAndTenant } = require('../middleware/tower-auth-chain.middleware');
+const { tenantIdForRequest } = require('../utils/tenant-context');
+
+router.use(towerAuthAndTenant);
 
 // Listar grupos
 router.get('/grupos', async (req, res) => {
   try {
+    const tenantId = tenantIdForRequest(req);
+    const { codigo, descricao, situacao } = req.query;
+    const params = [tenantId];
+    let next = 2;
+    let where = `("TENANT_ID" = $1 OR "TENANT_ID" = 'default')`;
+    if (codigo) {
+      const n = parseInt(codigo, 10);
+      if (!isNaN(n) && n > 0) {
+        where += ` AND "CDGRUPOEQUIPAMENTO" = $${next}`;
+        params.push(n);
+        next++;
+      }
+    }
+    if (descricao && String(descricao).trim()) {
+      where += ` AND "DSGRUPOEQUIPAMENTO" ILIKE $${next}`;
+      params.push(`%${String(descricao).trim()}%`);
+      next++;
+    }
+    if (situacao === 'S') {
+      where += ` AND ("FGACTIVE" = 'A' OR "FGACTIVE" = 'S')`;
+    } else if (situacao === 'N') {
+      where += ` AND ("FGACTIVE" = 'I' OR "FGACTIVE" = 'N')`;
+    }
+
     const pool = await poolPromise;
-    const result = await pool
-      .request()
-      .query(`
-        SELECT 
-          [CDGRUPOEQUIPAMENTO] AS id,
-          [DSGRUPOEQUIPAMENTO] AS nome,
-          [FGACTIVE] AS ativo
-        FROM [dbo].[GRUPOEQUIPAMENTO]
-        ORDER BY [DSGRUPOEQUIPAMENTO]
-      `);
-    const grupos = result.recordset.map(g => ({
-      CDGRUPOEQUIPAMENTO: g.id,
-      DSGRUPOEQUIPAMENTO: g.nome,
-      FGACTIVE: g.ativo === 'A' ? 'S' : 'N'
-    }));
+    const result = await pool.query(
+      `
+      SELECT 
+        "CDGRUPOEQUIPAMENTO" AS id,
+        "DSGRUPOEQUIPAMENTO" AS nome,
+        "FGACTIVE" AS ativo
+      FROM "GRUPOEQUIPAMENTO"
+      WHERE ${where}
+      ORDER BY "DSGRUPOEQUIPAMENTO"
+    `,
+      params
+    );
+
+    const rows = result.rows || [];
+    const grupos = rows.map((g) => {
+      const ativo = g.ativo === 'A' || g.ativo === 'S';
+      return {
+        CDGRUPOEQUIPAMENTO: g.id,
+        DSGRUPOEQUIPAMENTO: g.nome,
+        FGACTIVE: ativo ? 'S' : 'N'
+      };
+    });
     res.json(grupos);
   } catch (err) {
     console.error('Erro ao listar grupos de equipamento:', err);
@@ -40,27 +75,28 @@ router.get('/grupos/:id', async (req, res) => {
     }
 
     const pool = await poolPromise;
-    const result = await pool
-      .request()
-      .input('CDGRUPOEQUIPAMENTO', idNum)
-      .query(`
-        SELECT 
-          [CDGRUPOEQUIPAMENTO],
-          [DSGRUPOEQUIPAMENTO],
-          [FGACTIVE]
-        FROM [dbo].[GRUPOEQUIPAMENTO]
-        WHERE [CDGRUPOEQUIPAMENTO] = @CDGRUPOEQUIPAMENTO
-      `);
+    const tenantId = tenantIdForRequest(req);
+    const result = await pool.query(
+      `SELECT "CDGRUPOEQUIPAMENTO", "DSGRUPOEQUIPAMENTO", "FGACTIVE"
+       FROM "GRUPOEQUIPAMENTO"
+       WHERE "CDGRUPOEQUIPAMENTO" = $1
+         AND ("TENANT_ID" = $2 OR "TENANT_ID" = 'default')`,
+      [idNum, tenantId]
+    );
 
-    if (result.recordset.length === 0) {
+    const rows = result.rows || [];
+    if (rows.length === 0) {
       return res.status(404).json({ error: 'Grupo não encontrado.' });
     }
 
-    const grupo = result.recordset[0];
+    const grupo = rows[0];
+    const get = (r, k) => (r[k] != null ? r[k] : r[k && k.toLowerCase()]);
+    const fg = get(grupo, 'FGACTIVE');
+    const ativo = fg === 'A' || fg === 'S';
     res.json({
-      CDGRUPOEQUIPAMENTO: grupo.CDGRUPOEQUIPAMENTO,
-      DSGRUPOEQUIPAMENTO: grupo.DSGRUPOEQUIPAMENTO,
-      FGACTIVE: grupo.FGACTIVE === 'A' ? 'S' : 'N'
+      CDGRUPOEQUIPAMENTO: get(grupo, 'CDGRUPOEQUIPAMENTO'),
+      DSGRUPOEQUIPAMENTO: get(grupo, 'DSGRUPOEQUIPAMENTO'),
+      FGACTIVE: ativo ? 'S' : 'N'
     });
   } catch (err) {
     console.error('Erro ao buscar grupo:', err);
@@ -77,22 +113,43 @@ router.post('/grupos', async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const tenantId = tenantIdForRequest(req);
     const descricao = DSGRUPOEQUIPAMENTO.trim();
     const existente = await pool.query(
-      `SELECT 1 FROM "GRUPOEQUIPAMENTO" WHERE UPPER(TRIM("DSGRUPOEQUIPAMENTO")) = UPPER(TRIM($1)) LIMIT 1`,
-      [descricao]
+      `SELECT 1 FROM "GRUPOEQUIPAMENTO"
+       WHERE UPPER(TRIM("DSGRUPOEQUIPAMENTO")) = UPPER(TRIM($1)) AND "TENANT_ID" = $2
+       LIMIT 1`,
+      [descricao, tenantId]
     );
     if (existente.rows && existente.rows.length > 0) {
       return res.status(409).json({ error: 'Já existe um grupo com esta descrição. Não é permitido cadastrar duplicados.' });
     }
 
-    const getProximoId = async () => getFirstNumericValue((await pool.request().query('SELECT COALESCE(MAX([CDGRUPOEQUIPAMENTO]), 0) + 1 AS [maxId] FROM [dbo].[GRUPOEQUIPAMENTO]')).recordset, 1);
+    const getProximoId = async () =>
+      getFirstNumericValue(
+        (await pool.request().query('SELECT COALESCE(MAX([CDGRUPOEQUIPAMENTO]), 0) + 1 AS [maxId] FROM [dbo].[GRUPOEQUIPAMENTO]')).recordset,
+        1
+      );
     let novoId = await getProximoId();
+
+    const doInsert = async (nid) => {
+      await pool
+        .request()
+        .input('CDGRUPOEQUIPAMENTO', sql.SmallInt, nid)
+        .input('DSGRUPOEQUIPAMENTO', DSGRUPOEQUIPAMENTO.trim())
+        .input('TENANT_ID', sql.VarChar(64), tenantId)
+        .query(
+          `INSERT INTO [dbo].[GRUPOEQUIPAMENTO] ([CDGRUPOEQUIPAMENTO], [DSGRUPOEQUIPAMENTO], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG], [TENANT_ID]) VALUES (@CDGRUPOEQUIPAMENTO, @DSGRUPOEQUIPAMENTO, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas', @TENANT_ID)`
+        );
+    };
+
     try {
-      await pool.request().input('CDGRUPOEQUIPAMENTO', novoId).input('DSGRUPOEQUIPAMENTO', DSGRUPOEQUIPAMENTO.trim())
-        .query(`INSERT INTO [dbo].[GRUPOEQUIPAMENTO] ([CDGRUPOEQUIPAMENTO], [DSGRUPOEQUIPAMENTO], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]) VALUES (@CDGRUPOEQUIPAMENTO, @DSGRUPOEQUIPAMENTO, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas')`);
+      await doInsert(novoId);
     } catch (e) {
-      if (String(e.code) === '23505') { novoId = await getProximoId(); await pool.request().input('CDGRUPOEQUIPAMENTO', novoId).input('DSGRUPOEQUIPAMENTO', DSGRUPOEQUIPAMENTO.trim()).query(`INSERT INTO [dbo].[GRUPOEQUIPAMENTO] ([CDGRUPOEQUIPAMENTO], [DSGRUPOEQUIPAMENTO], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]) VALUES (@CDGRUPOEQUIPAMENTO, @DSGRUPOEQUIPAMENTO, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas')`); } else throw e;
+      if (String(e.code) === '23505') {
+        novoId = await getProximoId();
+        await doInsert(novoId);
+      } else throw e;
     }
     res.status(201).json({ success: true, message: 'Grupo de equipamento cadastrado com sucesso!' });
   } catch (err) {
@@ -112,34 +169,34 @@ router.put('/grupos/:id', async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const tenantId = tenantIdForRequest(req);
     const idNum = parseInt(id, 10);
     if (isNaN(idNum) || idNum <= 0) {
       return res.status(400).json({ error: 'ID inválido.' });
     }
     const existente = await pool.query(
-      `SELECT 1 FROM "GRUPOEQUIPAMENTO" WHERE UPPER(TRIM("DSGRUPOEQUIPAMENTO")) = UPPER(TRIM($1)) AND "CDGRUPOEQUIPAMENTO" != $2 LIMIT 1`,
-      [DSGRUPOEQUIPAMENTO.trim(), idNum]
+      `SELECT 1 FROM "GRUPOEQUIPAMENTO"
+       WHERE UPPER(TRIM("DSGRUPOEQUIPAMENTO")) = UPPER(TRIM($1))
+         AND "CDGRUPOEQUIPAMENTO" != $2
+         AND "TENANT_ID" = $3
+       LIMIT 1`,
+      [DSGRUPOEQUIPAMENTO.trim(), idNum, tenantId]
     );
     if (existente.rows && existente.rows.length > 0) {
       return res.status(409).json({ error: 'Já existe outro grupo com esta descrição. Não é permitido duplicar.' });
     }
     const fgactiveDB = FGACTIVE === 'S' ? 'A' : 'I';
 
-    await pool
-      .request()
-      .input('CDGRUPOEQUIPAMENTO', id)
-      .input('DSGRUPOEQUIPAMENTO', DSGRUPOEQUIPAMENTO.trim())
-      .input('FGACTIVE', fgactiveDB)
-      .query(`
-        UPDATE [dbo].[GRUPOEQUIPAMENTO]
-        SET 
-          [DSGRUPOEQUIPAMENTO] = @DSGRUPOEQUIPAMENTO,
-          [FGACTIVE] = @FGACTIVE,
-          [DHMAINTENANCE] = GETDATE(),
-          [SGUSER] = 'SYSTEM',
-          [SERVERORIG] = 'AppDVcargas'
-        WHERE [CDGRUPOEQUIPAMENTO] = @CDGRUPOEQUIPAMENTO
-      `);
+    const upd = await pool.query(
+      `UPDATE "GRUPOEQUIPAMENTO"
+       SET "DSGRUPOEQUIPAMENTO" = $1, "FGACTIVE" = $2, "DHMAINTENANCE" = CURRENT_TIMESTAMP, "SGUSER" = 'SYSTEM', "SERVERORIG" = 'AppDVcargas'
+       WHERE "CDGRUPOEQUIPAMENTO" = $3 AND "TENANT_ID" = $4`,
+      [DSGRUPOEQUIPAMENTO.trim(), fgactiveDB, idNum, tenantId]
+    );
+
+    if (!upd.rowCount) {
+      return res.status(404).json({ error: 'Grupo não encontrado ou não pode ser alterado (catálogo compartilhado).' });
+    }
 
     res.json({ success: true, message: 'Grupo de equipamento atualizado com sucesso!' });
   } catch (err) {
@@ -153,29 +210,27 @@ router.delete('/grupos/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { action } = req.query;
-    
-    // Validar e converter ID para número
+
     const idNum = parseInt(id, 10);
     if (isNaN(idNum) || idNum <= 0) {
       return res.status(400).json({ error: 'ID inválido.' });
     }
-    
+
     const pool = await poolPromise;
+    const tenantId = tenantIdForRequest(req);
 
-    // Verificar status atual
-    const checkResult = await pool
-      .request()
-      .input('CDGRUPOEQUIPAMENTO', idNum)
-      .query(`SELECT [FGACTIVE] FROM [dbo].[GRUPOEQUIPAMENTO] WHERE [CDGRUPOEQUIPAMENTO] = @CDGRUPOEQUIPAMENTO`);
+    const checkResult = await pool.query(
+      `SELECT "FGACTIVE" FROM "GRUPOEQUIPAMENTO" WHERE "CDGRUPOEQUIPAMENTO" = $1 AND "TENANT_ID" = $2`,
+      [idNum, tenantId]
+    );
 
-    if (checkResult.recordset.length === 0) {
+    if (!checkResult.rows || checkResult.rows.length === 0) {
       return res.status(404).json({ error: 'Grupo de equipamento não encontrado.' });
     }
 
-    const statusAtual = checkResult.recordset[0].FGACTIVE;
-    const estaAtivo = statusAtual === 'A';
-    
-    // Determinar nova situação
+    const statusAtual = checkResult.rows[0].FGACTIVE ?? checkResult.rows[0].fgactive;
+    const estaAtivo = statusAtual === 'A' || statusAtual === 'S';
+
     let novaSituacao, mensagem;
     if (action === 'activate') {
       novaSituacao = 'A';
@@ -188,21 +243,14 @@ router.delete('/grupos/:id', async (req, res) => {
       mensagem = estaAtivo ? 'Grupo de equipamento desativado com sucesso!' : 'Grupo de equipamento reativado com sucesso!';
     }
 
-    const result = await pool
-      .request()
-      .input('CDGRUPOEQUIPAMENTO', idNum)
-      .input('FGACTIVE', sql.Char(1), novaSituacao)
-      .query(`
-        UPDATE [dbo].[GRUPOEQUIPAMENTO]
-        SET 
-          [FGACTIVE] = @FGACTIVE,
-          [DHMAINTENANCE] = GETDATE(),
-          [SGUSER] = 'SYSTEM',
-          [SERVERORIG] = 'AppDVcargas'
-        WHERE [CDGRUPOEQUIPAMENTO] = @CDGRUPOEQUIPAMENTO
-      `);
+    const updateResult = await pool.query(
+      `UPDATE "GRUPOEQUIPAMENTO"
+       SET "FGACTIVE" = $1, "DHMAINTENANCE" = CURRENT_TIMESTAMP, "SGUSER" = 'SYSTEM', "SERVERORIG" = 'AppDVcargas'
+       WHERE "CDGRUPOEQUIPAMENTO" = $2 AND "TENANT_ID" = $3`,
+      [novaSituacao, idNum, tenantId]
+    );
 
-    if (result.rowsAffected[0] === 0) {
+    if (updateResult.rowCount === 0) {
       return res.status(404).json({ error: 'Grupo de equipamento não encontrado.' });
     }
 
@@ -222,7 +270,7 @@ router.post('/grupos/executar-init-sql', async (req, res) => {
     }
     const sqlUpper = sql.trim().toUpperCase();
     const comandosBloqueados = [
-      'DROP DATABASE', 'DROP TABLE', 'TRUNCATE TABLE', 
+      'DROP DATABASE', 'DROP TABLE', 'TRUNCATE TABLE',
       'ALTER DATABASE', 'CREATE DATABASE', 'BACKUP DATABASE',
       'RESTORE DATABASE', 'SHUTDOWN', 'KILL'
     ];
@@ -232,7 +280,7 @@ router.post('/grupos/executar-init-sql', async (req, res) => {
       }
     }
     const pool = await poolPromise;
-    const comandos = sql.split(/\bGO\b/gi).filter(cmd => cmd.trim().length > 0);
+    const comandos = sql.split(/\bGO\b/gi).filter((cmd) => cmd.trim().length > 0);
     const resultados = [];
     for (const comando of comandos) {
       const cmdLimpo = comando.trim();
@@ -242,7 +290,7 @@ router.post('/grupos/executar-init-sql', async (req, res) => {
         request.timeout = 120000;
         const result = await request.query(cmdLimpo);
         if (result.recordset && result.recordset.length > 0) {
-          const rows = result.recordset.map(row => {
+          const rows = result.recordset.map((row) => {
             const obj = {};
             for (const key in row) {
               obj[key] = row[key];

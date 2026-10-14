@@ -79,6 +79,34 @@ body,
     font-weight: 700;
 }
 
+/* Alertas (Configurações): bloco explicativo de precedência */
+.alertas-precedencia-box {
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border: 1px solid #fde68a;
+    background: #fffbeb;
+    border-radius: 8px;
+    color: #7c2d12;
+}
+
+.alertas-precedencia-box strong {
+    color: #7c2d12;
+}
+
+.alertas-badge-restart {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #7c2d12;
+    background: #ffedd5;
+    border: 1px solid #fdba74;
+    vertical-align: middle;
+}
+
 .form-box {
     background: white;
     border-radius: 12px;
@@ -92,6 +120,28 @@ body,
     color: #2c3e50;
     font-size: 20px;
     font-weight: 600;
+}
+
+.form-box h2.form-panel-titulo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.form-box h2.form-panel-titulo > i.bx {
+    flex-shrink: 0;
+}
+
+.form-box h3.form-subtitulo-painel {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.form-box h3.form-subtitulo-painel > i.bx {
+    flex-shrink: 0;
 }
 
 /* ========== INPUTS ========== */
@@ -349,19 +399,39 @@ body,
     border: 1px solid #f5c6cb;
 }
 
-/* ========== TOAST MENSAGENS (Erros no topo) ========== */
+.message.warning {
+    background: #fff8e6;
+    color: #7c2d12;
+    border: 1px solid #fcd34d;
+}
+
+/* ========== TOAST MENSAGENS (Erros no topo) ==========
+ * O toast precisa ficar SEMPRE acima de qualquer overlay/modal do sistema.
+ * Modais comuns usam 10050-10060; os modais globais (utils.js) usam 100000.
+ * Por isso usamos o z-index máximo possível (2^31-1) + `isolation: isolate`
+ * que cria um stacking context próprio + `backdrop-filter: none` para
+ * neutralizar qualquer filtro "vazado" do modal por trás (bug conhecido do
+ * Chromium quando o backdrop-filter de um irmão fixed afeta a pintura do
+ * elemento posterior). `will-change: transform` força o navegador a usar
+ * uma camada GPU separada, deixando a renderização do toast totalmente
+ * independente do conteúdo abaixo. */
 .toast-message {
     position: fixed;
     top: 20px;
     left: 50%;
     transform: translateX(-50%) translateY(-100px);
-    z-index: 10000;
+    z-index: 2147483647;
+    isolation: isolate;
+    filter: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    will-change: transform, opacity;
     min-width: 400px;
     max-width: 90%;
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
     border-radius: 12px;
     opacity: 0;
-    transition: all 0.3s ease;
+    transition: transform 0.3s ease, opacity 0.3s ease;
     pointer-events: none;
 }
 
@@ -381,7 +451,7 @@ body,
 }
 
 .toast-error {
-    background: #fff;
+    background: #fff !important;
     border-left: 5px solid #e74c3c;
     color: #721c24;
 }
@@ -401,7 +471,7 @@ body,
 }
 
 .toast-success {
-    background: #fff;
+    background: #fff !important;
     border-left: 5px solid #2ecc71;
     color: #155724;
 }
@@ -418,6 +488,26 @@ body,
 
 .toast-success .toast-close:hover {
     background: rgba(21, 87, 36, 0.1);
+}
+
+.toast-warning {
+    background: #fff !important;
+    border-left: 5px solid #f59e0b;
+    color: #78350f;
+}
+
+.toast-warning .toast-content i:first-child {
+    color: #d97706;
+    font-size: 24px;
+    flex-shrink: 0;
+}
+
+.toast-warning .toast-close {
+    color: #78350f;
+}
+
+.toast-warning .toast-close:hover {
+    background: rgba(120, 53, 15, 0.08);
 }
 
 .toast-content span {
@@ -617,7 +707,8 @@ body,
 }
 
 .modal-content p,
-.modal-content #modalMessage {
+.modal-content #modalMessage,
+.modal-content .modal-message-body {
     flex: 1;
     overflow-y: auto;
     min-height: 0;
@@ -628,24 +719,28 @@ body,
 
 /* Scrollbar personalizada para o modal */
 .modal-content p::-webkit-scrollbar,
-.modal-content #modalMessage::-webkit-scrollbar {
+.modal-content #modalMessage::-webkit-scrollbar,
+.modal-content .modal-message-body::-webkit-scrollbar {
     width: 6px;
 }
 
 .modal-content p::-webkit-scrollbar-track,
-.modal-content #modalMessage::-webkit-scrollbar-track {
+.modal-content #modalMessage::-webkit-scrollbar-track,
+.modal-content .modal-message-body::-webkit-scrollbar-track {
     background: #f1f1f1;
     border-radius: 10px;
 }
 
 .modal-content p::-webkit-scrollbar-thumb,
-.modal-content #modalMessage::-webkit-scrollbar-thumb {
+.modal-content #modalMessage::-webkit-scrollbar-thumb,
+.modal-content .modal-message-body::-webkit-scrollbar-thumb {
     background: #888;
     border-radius: 10px;
 }
 
 .modal-content p::-webkit-scrollbar-thumb:hover,
-.modal-content #modalMessage::-webkit-scrollbar-thumb:hover {
+.modal-content #modalMessage::-webkit-scrollbar-thumb:hover,
+.modal-content .modal-message-body::-webkit-scrollbar-thumb:hover {
     background: #555;
 }
 
@@ -654,6 +749,95 @@ body,
     flex-shrink: 0;
     padding-top: 15px;
     border-top: 1px solid #e9ecef;
+}
+
+/* Confirmação curta (Sim/Não) — não esticar o texto no meio do modal */
+.modal.modal--confirm {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    box-sizing: border-box;
+}
+.modal.modal--confirm .modal-content--confirm {
+    margin: 0;
+    width: 100%;
+    max-width: 420px;
+    max-height: none;
+    padding: 20px 22px 18px;
+}
+.modal.modal--confirm .modal-content--confirm #modalMessage,
+.modal.modal--confirm .modal-content--confirm .modal-message-body {
+    flex: 0 0 auto;
+    max-height: none;
+    overflow: visible;
+    margin-bottom: 16px;
+    padding-right: 0;
+    text-align: center;
+    line-height: 1.5;
+    font-size: 15px;
+    color: #334155;
+}
+.modal.modal--confirm .modal-content--confirm .modal-actions {
+    margin-top: 0;
+    padding-top: 14px;
+}
+html[data-theme='dark'] .modal.modal--confirm .modal-content--confirm {
+    background: #0f172a;
+    border: 1px solid #334155;
+    color: #e2e8f0;
+}
+html[data-theme='dark'] .modal.modal--confirm .modal-content--confirm #modalMessage {
+    color: #e2e8f0;
+}
+html[data-theme='dark'] .modal.modal--confirm .modal-content--confirm .modal-actions {
+    border-top-color: #334155;
+}
+
+/* Prompt de texto no modal de confirmação (ex.: motivo reabertura recebimento) */
+.modal.modal--confirm #confirmModalTitle {
+    flex: 0 0 auto;
+    margin: 0 0 10px;
+    font-size: 1.15rem;
+    line-height: 1.35;
+    text-align: center;
+    color: #2c3e50;
+}
+.modal.modal--confirm #confirmModalInput {
+    display: none;
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0 0 16px;
+    padding: 10px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 15px;
+    font-family: inherit;
+    min-height: 42px;
+    text-align: left;
+    background: #fff;
+    color: #1e293b;
+    flex: 0 0 auto;
+}
+.modal.modal--confirm #confirmModalInput.is-visible {
+    display: block;
+}
+.modal.modal--confirm #confirmModalInput:focus {
+    outline: none;
+    border-color: var(--ac-accent, #0ea5e9);
+    box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+}
+html[data-theme='dark'] .modal.modal--confirm #confirmModalTitle {
+    color: #e2e8f0;
+}
+html[data-theme='dark'] .modal.modal--confirm #confirmModalInput {
+    background: #1e293b;
+    border-color: #334155;
+    color: #e2e8f0;
+}
+html[data-theme='dark'] .modal.modal--confirm #confirmModalInput:focus {
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.25);
 }
 
 /* ========== CLASSES DE FROTA EM 3 COLUNAS ========== */
@@ -844,21 +1028,23 @@ body,
     background: linear-gradient(135deg, var(--primary), #2c3e8f);
     color: white;
     font-weight: 600;
+}
+
+/* Sticky no <thead> falha em vários browsers; .grid-header tinha position:relative e anulava sticky nos th */
+.grid-table thead th {
     position: sticky;
     top: 0;
     z-index: 10;
-}
-
-.grid-table thead th {
     padding: 12px 16px;
     text-align: left;
     border-bottom: 2px solid rgba(255, 255, 255, 0.2);
     white-space: nowrap;
     user-select: none;
+    background: linear-gradient(135deg, var(--primary), #2c3e8f);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
 }
 
 .grid-header {
-    position: relative;
     transition: background-color 0.2s;
 }
 
@@ -1317,4 +1503,233 @@ body,
 
 .map-modal-actions button:last-child {
     min-width: 100px;
+}
+
+/* ========== Cadastro Geral — aba Veículos: tabela compacta (documentos por ícone) ========== */
+.cadastro-geral-container .torre-tabela-veiculos {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+}
+
+.cadastro-geral-container .torre-tabela-veiculos thead th {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--gray);
+    padding: 10px 10px;
+    border-bottom: 2px solid var(--light-gray);
+    white-space: nowrap;
+}
+
+.cadastro-geral-container .torre-tabela-veiculos tbody td {
+    padding: 10px 10px;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--border);
+}
+
+.cadastro-geral-container .torre-tabela-veiculos tbody tr:hover td {
+    background: rgba(14, 165, 233, 0.04);
+}
+
+.cadastro-geral-container .torre-tabela-veiculos .torre-mv-col-placa {
+    min-width: 6.5rem;
+}
+
+.cadastro-geral-container .torre-tabela-veiculos .torre-mv-col-papel {
+    min-width: 5rem;
+    max-width: 8rem;
+}
+
+.cadastro-geral-container .torre-tabela-veiculos .torre-mv-col-classe {
+    min-width: 7rem;
+    max-width: 11rem;
+    word-break: break-word;
+    line-height: 1.35;
+}
+
+.cadastro-geral-container .torre-tabela-veiculos .torre-mv-col-ren {
+    white-space: nowrap;
+}
+
+.cadastro-geral-container .torre-tabela-veiculos .torre-mv-col-eq {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.cadastro-geral-container .torre-tabela-veiculos .torre-mv-doc-td {
+    min-width: 168px;
+    max-width: 240px;
+}
+
+.cadastro-geral-container .torre-mv-doc-cell {
+    min-height: 36px;
+}
+
+.cadastro-geral-container .torre-mv-doc-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.cadastro-geral-container .torre-mv-doc-status {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+}
+
+.cadastro-geral-container .torre-mv-doc-preview {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.cadastro-geral-container .torre-mv-doc-mini {
+    width: 32px;
+    height: 32px;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+    cursor: pointer;
+    background: var(--light);
+}
+
+.cadastro-geral-container .torre-mv-doc-link {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ac-accent);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.cadastro-geral-container .torre-mv-doc-link:hover {
+    text-decoration: underline;
+}
+
+.cadastro-geral-container .torre-mv-doc-empty {
+    display: inline-block;
+    color: var(--gray);
+    opacity: 0.65;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.cadastro-geral-container .torre-mv-doc-btns {
+    display: inline-flex;
+    flex-shrink: 0;
+    gap: 4px;
+    align-items: center;
+}
+
+.cadastro-geral-container .torre-mv-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    margin: 0;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #fff;
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+}
+
+.cadastro-geral-container .torre-mv-btn i {
+    pointer-events: none;
+}
+
+.cadastro-geral-container .torre-mv-btn-sub {
+    color: var(--ac-accent);
+    border-color: rgba(14, 165, 233, 0.45);
+    background: rgba(14, 165, 233, 0.06);
+}
+
+.cadastro-geral-container .torre-mv-btn-sub:hover:not(:disabled) {
+    background: rgba(14, 165, 233, 0.14);
+    border-color: var(--ac-accent);
+}
+
+.cadastro-geral-container .torre-mv-btn-del {
+    color: var(--danger);
+    border-color: rgba(220, 38, 38, 0.35);
+    background: rgba(220, 38, 38, 0.05);
+}
+
+.cadastro-geral-container .torre-mv-btn-del:hover:not(:disabled) {
+    background: rgba(220, 38, 38, 0.12);
+}
+
+.cadastro-geral-container .torre-mv-btn:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+}
+
+.cadastro-geral-container .torre-mv-acoes-td {
+    min-width: 5.25rem;
+    width: 1%;
+}
+
+.cadastro-geral-container .torre-mv-acoes-wrap {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.cadastro-geral-container .btn-torre-mv-acao {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    line-height: 1.25;
+    border-radius: 8px;
+}
+
+.cadastro-geral-container .btn-torre-mv-acao.btn-torre-mv-acao-icon {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    line-height: 1;
+}
+
+.cadastro-geral-container .btn-torre-mv-acao.btn-torre-mv-acao-icon i {
+    pointer-events: none;
+}
+
+/* Cadastro Geral — aba Veículos (atrelar equipamento da frota) */
+.cadastro-geral-container #tab-veiculos-motorista .torre-atrelar-equipamento-frota.form-dados-card {
+    margin-top: 20px;
+}
+
+/* Cadastro Geral — aba Documentos (CNH / comprovante) */
+.cadastro-geral-container #tab-anexos-motorista .torre-doc-cnh-resumo {
+    margin: 0 0 14px;
+    font-size: 13px;
+    color: #475569;
+    line-height: 1.45;
+}
+
+.cadastro-geral-container #tab-anexos-motorista .torre-motorista-anexos-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.cadastro-geral-container #tab-anexos-motorista .torre-hint-sem-comprovante {
+    margin-top: 12px;
+    margin-bottom: 0;
 }

@@ -5,11 +5,13 @@
 const sql = require('../config/mssql-compat');
 const { poolPromise, getFirstNumericValue } = require('../config/db');
 const { getSgUser } = require('../utils/audit');
+const { tenantIdForRequest } = require('../utils/tenant-context');
 
 // Listar tipos de validade com filtros
 const listar = async (req, res) => {
   try {
     const { codigo, descricao, tipoCadastro } = req.query;
+    const tenantId = tenantIdForRequest(req);
 
     let query = `
       SELECT 
@@ -25,11 +27,11 @@ const listar = async (req, res) => {
         [SGUSER],
         [SERVERORIG]
       FROM [dbo].[TIPOVALIDADE]
-      WHERE 1=1
+      WHERE 1=1 AND ([TENANT_ID] = @TENANT_ID OR [TENANT_ID] = 'default')
     `;
 
     const pool = await poolPromise;
-    const request = pool.request();
+    const request = pool.request().input('TENANT_ID', sql.VarChar(64), tenantId);
 
     if (codigo) {
       query += ` AND [CDTIPOVALIDADE] = @codigo`;
@@ -65,12 +67,18 @@ const listar = async (req, res) => {
 const buscarPorId = async (req, res) => {
   try {
     const { id } = req.params;
+    const tenantId = tenantIdForRequest(req);
     const pool = await poolPromise;
     
     const result = await pool
       .request()
       .input('codigo', sql.SmallInt, parseInt(id))
-      .query('SELECT * FROM [dbo].[TIPOVALIDADE] WHERE [CDTIPOVALIDADE] = @codigo');
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
+      .query(`
+        SELECT * FROM [dbo].[TIPOVALIDADE]
+        WHERE [CDTIPOVALIDADE] = @codigo
+          AND ([TENANT_ID] = @TENANT_ID OR [TENANT_ID] = 'default')
+      `);
 
     if (result.recordset.length === 0) {
       return res.status(404).json({ error: 'Tipo de validade não encontrado.' });
@@ -93,12 +101,18 @@ const criar = async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const tenantId = tenantIdForRequest(req);
     const descricao = String(DSTIPOVALIDADE).trim();
-    const existente = await pool.query(
-      `SELECT 1 FROM "TIPOVALIDADE" WHERE UPPER(TRIM("DSTIPOVALIDADE")) = UPPER(TRIM($1)) LIMIT 1`,
-      [descricao]
-    );
-    if (existente.rows && existente.rows.length > 0) {
+    const existente = await pool
+      .request()
+      .input('descDup', sql.VarChar(40), descricao)
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
+      .query(`
+        SELECT 1 FROM [dbo].[TIPOVALIDADE]
+        WHERE UPPER(TRIM([DSTIPOVALIDADE])) = UPPER(TRIM(@descDup)) AND [TENANT_ID] = @TENANT_ID
+        LIMIT 1
+      `);
+    if (existente.recordset && existente.recordset.length > 0) {
       return res.status(409).json({ error: 'Já existe um tipo de validade com esta descrição. Não é permitido cadastrar duplicados.' });
     }
 
@@ -116,16 +130,17 @@ const criar = async (req, res) => {
         .input('fornecedor', sql.Char(1), FGFORNECEDOR || 'N')
         .input('certificadora', sql.Char(1), FGEXIGECERTIFICADORA || 'N')
         .input('sgUser', sql.VarChar(50), sgUser)
+        .input('TENANT_ID', sql.VarChar(64), tenantId)
         .query(`
           INSERT INTO [dbo].[TIPOVALIDADE] (
             [CDTIPOVALIDADE], [DSTIPOVALIDADE], [FGVEICULO], [FGMOTORISTA], [FGTRANSPORTADOR],
             [FGCLIENTE], [FGFORNECEDOR], [FGEXIGECERTIFICADORA],
-            [DHMAINTENANCE], [SGUSER], [SERVERORIG]
+            [DHMAINTENANCE], [SGUSER], [SERVERORIG], [TENANT_ID]
           )
           VALUES (
             @codigo, @descricao, @veiculo, @motorista, @transportador,
             @cliente, @fornecedor, @certificadora,
-            GETDATE(), @sgUser, 'AppDVcargas'
+            GETDATE(), @sgUser, 'AppDVcargas', @TENANT_ID
           )
         `);
     };
@@ -167,6 +182,7 @@ const atualizar = async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const tenantId = tenantIdForRequest(req);
     const idNum = parseInt(id, 10);
     if (isNaN(idNum) || idNum <= 0) {
       return res.status(400).json({ error: 'ID inválido.' });
@@ -176,7 +192,8 @@ const atualizar = async (req, res) => {
     const checkExist = await pool
       .request()
       .input('codigo', sql.SmallInt, idNum)
-      .query('SELECT [CDTIPOVALIDADE] FROM [dbo].[TIPOVALIDADE] WHERE [CDTIPOVALIDADE] = @codigo');
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
+      .query('SELECT [CDTIPOVALIDADE] FROM [dbo].[TIPOVALIDADE] WHERE [CDTIPOVALIDADE] = @codigo AND [TENANT_ID] = @TENANT_ID');
 
     if (checkExist.recordset.length === 0) {
       return res.status(404).json({ error: 'Tipo de validade não encontrado.' });
@@ -186,17 +203,26 @@ const atualizar = async (req, res) => {
     if (!sgUserUpd) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
 
     const descricao = String(DSTIPOVALIDADE).trim();
-    const existente = await pool.query(
-      `SELECT 1 FROM "TIPOVALIDADE" WHERE UPPER(TRIM("DSTIPOVALIDADE")) = UPPER(TRIM($1)) AND "CDTIPOVALIDADE" != $2 LIMIT 1`,
-      [descricao, idNum]
-    );
-    if (existente.rows && existente.rows.length > 0) {
+    const existente = await pool
+      .request()
+      .input('descDup', sql.VarChar(40), descricao)
+      .input('codigo', sql.SmallInt, idNum)
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
+      .query(`
+        SELECT 1 FROM [dbo].[TIPOVALIDADE]
+        WHERE UPPER(TRIM([DSTIPOVALIDADE])) = UPPER(TRIM(@descDup))
+          AND [CDTIPOVALIDADE] != @codigo
+          AND [TENANT_ID] = @TENANT_ID
+        LIMIT 1
+      `);
+    if (existente.recordset && existente.recordset.length > 0) {
       return res.status(409).json({ error: 'Já existe outro tipo de validade com esta descrição. Não é permitido duplicar.' });
     }
 
     await pool
       .request()
       .input('codigo', sql.SmallInt, idNum)
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
       .input('descricao', sql.VarChar(40), DSTIPOVALIDADE)
       .input('veiculo', sql.Char(1), FGVEICULO || 'N')
       .input('motorista', sql.Char(1), FGMOTORISTA || 'N')
@@ -218,7 +244,7 @@ const atualizar = async (req, res) => {
           [DHMAINTENANCE] = GETDATE(),
           [SGUSER] = @sgUser,
           [SERVERORIG] = 'AppDVcargas'
-        WHERE [CDTIPOVALIDADE] = @codigo
+        WHERE [CDTIPOVALIDADE] = @codigo AND [TENANT_ID] = @TENANT_ID
       `);
 
     res.json({ success: true, message: 'Tipo de validade atualizado com sucesso!' });
@@ -232,13 +258,18 @@ const atualizar = async (req, res) => {
 const excluir = async (req, res) => {
   try {
     const { id } = req.params;
+    const tenantId = tenantIdForRequest(req);
     const pool = await poolPromise;
 
-    // Verificar se existem validades associadas
+    // Verificar se existem validades associadas (mesmo tenant)
     const checkValidades = await pool
       .request()
       .input('codigo', sql.SmallInt, parseInt(id))
-      .query('SELECT COUNT(*) AS QTD FROM [dbo].[CONTROLEVALIDADE] WHERE [CDTIPOVALIDADE] = @codigo');
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
+      .query(`
+        SELECT COUNT(*) AS QTD FROM [dbo].[CONTROLEVALIDADE]
+        WHERE [CDTIPOVALIDADE] = @codigo AND [TENANT_ID] = @TENANT_ID
+      `);
 
     if (checkValidades.recordset[0].QTD > 0) {
       return res.status(400).json({ 
@@ -250,7 +281,8 @@ const excluir = async (req, res) => {
     const checkExist = await pool
       .request()
       .input('codigo', sql.SmallInt, parseInt(id))
-      .query('SELECT [CDTIPOVALIDADE] FROM [dbo].[TIPOVALIDADE] WHERE [CDTIPOVALIDADE] = @codigo');
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
+      .query('SELECT [CDTIPOVALIDADE] FROM [dbo].[TIPOVALIDADE] WHERE [CDTIPOVALIDADE] = @codigo AND [TENANT_ID] = @TENANT_ID');
 
     if (checkExist.recordset.length === 0) {
       return res.status(404).json({ error: 'Tipo de validade não encontrado.' });
@@ -260,7 +292,8 @@ const excluir = async (req, res) => {
     await pool
       .request()
       .input('codigo', sql.SmallInt, parseInt(id))
-      .query('DELETE FROM [dbo].[TIPOVALIDADE] WHERE [CDTIPOVALIDADE] = @codigo');
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
+      .query('DELETE FROM [dbo].[TIPOVALIDADE] WHERE [CDTIPOVALIDADE] = @codigo AND [TENANT_ID] = @TENANT_ID');
 
     res.json({ success: true, message: 'Tipo de validade excluído com sucesso!' });
   } catch (err) {

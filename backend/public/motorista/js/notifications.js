@@ -349,5 +349,9 @@ if (!document.getElementById('notifications-styles')) {
   document.head.appendChild(styles);
 }
 
-// Log de inicialização
-console.log('✅ Sistema de notificações carregado');
+// Log só com: localStorage.setItem('motorista_debug','1')
+try {
+  if (localStorage.getItem('motorista_debug') === '1') {
+    console.log('[notifications] carregado');
+  }
+} catch (e) {}

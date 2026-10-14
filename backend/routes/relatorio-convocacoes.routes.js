@@ -6,6 +6,11 @@
 const express = require('express');
 const router = express.Router();
 const relatorioController = require('../controllers/relatorio-convocacoes.controller');
+const { towerAuthAndTenant } = require('../middleware/tower-auth-chain.middleware');
+const { requireTenantModule } = require('../middleware/tenant-module.middleware');
+
+router.use(towerAuthAndTenant);
+router.use(requireTenantModule('convocacoes'));
 
 // Rotas
 router.get('/relatorio', relatorioController.buscarRelatorio);

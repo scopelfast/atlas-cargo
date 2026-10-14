@@ -191,8 +191,9 @@
     if (!verificarAuth()) window.location.href = '../index.html';
 
     const motorista = getMotorista();
-    // Obter ID do motorista corretamente
-    const idMotorista = motorista?.CDCADASTRO || motorista?.id || motorista?.cdcadastro || null;
+    // Preferir ID do JWT (tipo motorista) para bater com requireMotoristaAuth / assertSameMotorista
+    const idMotorista =
+      getMotoristaIdDoToken() ?? motorista?.CDCADASTRO ?? motorista?.id ?? motorista?.cdcadastro ?? null;
     let macros = [];
     let historico = [];
     let viagens = [];
@@ -242,7 +243,12 @@
           
           if (response.ok) {
             const dados = await response.json();
-            await window.OfflineDB.salvarCache('viagens', dados);
+            await window.OfflineDB.salvarCache('viagens', {
+              dados,
+              timestamp: Date.now(),
+              url: `/api/motorista/viagens-andamento/${idMotorista}`,
+              version: '2.0'
+            });
             resultado = { dados, fonte: 'online' };
           } else {
             throw new Error('Erro ao buscar viagens');
@@ -530,14 +536,21 @@
       }
     }
 
+    var TZ_MACRO_HISTORICO = 'America/Sao_Paulo';
+
     function formatarData(data) {
       if (!data) return '-';
-      return new Date(data).toLocaleString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+      try {
+        return new Date(data).toLocaleString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          timeZone: TZ_MACRO_HISTORICO
+        });
+      } catch (e) {
+        return new Date(data).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+      }
     }
 
     // Normalizar chaves do histórico (PostgreSQL pode retornar minúsculas; SEQ como número)
@@ -711,6 +724,7 @@
           idViagem: viagemSelecionada.IDVIAGEM,
           cdMotorista: idMotorista,
           cdTipoOcorrencia: macro.CDTIPOOCORRENCIA,
+          dtoCorrencia: new Date().toISOString(),
           latitude: posicao?.latitude || null,
           longitude: posicao?.longitude || null,
           altitude: posicao?.altitude || null,

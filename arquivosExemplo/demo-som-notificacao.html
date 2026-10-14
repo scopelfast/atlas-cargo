@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Demo — Som notificação Atlas Cargo (~5 s)</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --ok: #34d399;
+      --warn: #fbbf24;
+      --danger: #f87171;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: linear-gradient(160deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 20px;
+    }
+    .wrap { max-width: 640px; margin: 0 auto; }
+    h1 { font-size: 1.4rem; margin: 0 0 8px; }
+    p { color: var(--muted); line-height: 1.5; }
+    .card {
+      background: var(--card);
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 20px;
+      margin-top: 16px;
+    }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      background: #334155;
+    }
+    .status.on { background: rgba(52, 211, 153, 0.15); color: var(--ok); }
+    .status.off { background: rgba(248, 113, 113, 0.15); color: var(--danger); }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-weight: 600;
+      cursor: pointer;
+      color: #0f172a;
+    }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-unlock { background: var(--accent); }
+    .btn-chat { background: #7dd3fc; }
+    .btn-alerta { background: var(--warn); }
+    .btn-sos { background: var(--danger); color: #fff; }
+    .btn-toggle { background: #cbd5e1; }
+    code {
+      background: #0f172a;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+    ul { color: var(--muted); padding-left: 1.2rem; }
+    .log {
+      margin-top: 12px;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 0.8rem;
+      color: var(--muted);
+      max-height: 160px;
+      overflow: auto;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Demo — som ~5 s (Atlas Cargo)</h1>
+    <p>
+      Mesma lógica do <code>dashboard.js</code>: pulsos via Web Audio.
+      <strong>Alerta / SOS</strong> ≈ 5 s · <strong>Chat</strong> ≈ 2 s.
+    </p>
+
+    <div class="card">
+      <div>
+        Áudio:
+        <span id="stAudio" class="status off">bloqueado</span>
+        &nbsp; Som:
+        <span id="stSom" class="status on">ligado</span>
+      </div>
+
+      <div class="row">
+        <button type="button" class="btn-unlock" id="btnUnlock">1) Liberar áudio (clique)</button>
+        <button type="button" class="btn-toggle" id="btnToggle">Ligar / desligar som</button>
+      </div>
+
+      <div class="row">
+        <button type="button" class="btn-chat" id="btnChat" disabled>Chat (~2 s · 600 Hz)</button>
+        <button type="button" class="btn-alerta" id="btnAlerta" disabled>Alerta (~5 s · 800 Hz)</button>
+        <button type="button" class="btn-sos" id="btnSos" disabled>SOS (~5 s · sirene)</button>
+      </div>
+
+      <div class="log" id="log"></div>
+    </div>
+
+    <div class="card">
+      <strong>No sistema real</strong>
+      <ul>
+        <li><code>dashboard.js</code> → <code>tocarSomNotificacao(tipo)</code></li>
+        <li>Eventos: <code>torre:novo-alerta</code>, <code>torre:nova-mensagem</code>, <code>torre:sos-alerta</code></li>
+        <li>Preferência: <code>localStorage.notificacao_som</code></li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    let ctx = null;
+    let unlocked = false;
+    const frequencies = { sos: 1000, alerta: 800, chat: 600, geral: 500 };
+
+    function log(msg) {
+      const el = document.getElementById('log');
+      const t = new Date().toLocaleTimeString('pt-BR');
+      el.textContent = '[' + t + '] ' + msg + '\n' + el.textContent;
+    }
+
+    function somHabilitado() {
+      return localStorage.getItem('notificacao_som') !== 'false';
+    }
+
+    function atualizarUI() {
+      const stAudio = document.getElementById('stAudio');
+      const stSom = document.getElementById('stSom');
+      stAudio.textContent = unlocked ? 'liberado' : 'bloqueado';
+      stAudio.className = 'status ' + (unlocked ? 'on' : 'off');
+      stSom.textContent = somHabilitado() ? 'ligado' : 'desligado';
+      stSom.className = 'status ' + (somHabilitado() ? 'on' : 'off');
+      ['btnChat', 'btnAlerta', 'btnSos'].forEach(function (id) {
+        document.getElementById(id).disabled = !unlocked;
+      });
+    }
+
+    async function liberarAudio() {
+      try {
+        if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+        if (ctx.state === 'suspended') await ctx.resume();
+        unlocked = true;
+        log('AudioContext liberado (state=' + ctx.state + ')');
+      } catch (e) {
+        unlocked = false;
+        log('Falha ao liberar áudio: ' + e.message);
+      }
+      atualizarUI();
+    }
+
+    /** Espelho do dashboard.js — pulsos ~5 s (alerta/SOS) ou ~2 s (chat). */
+    function tocarSomNotificacao(tipo) {
+      try {
+        if (!somHabilitado()) {
+          log('Som desligado (notificacao_som=false)');
+          return;
+        }
+        if (!unlocked || !ctx) {
+          log('Áudio ainda bloqueado — clique em Liberar áudio');
+          return;
+        }
+        const freq = frequencies[tipo] || 500;
+        const duracaoSec = tipo === 'chat' ? 2 : 5;
+        const periodoPulso = 0.4;
+        const now = ctx.currentTime;
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        oscillator.type = 'sine';
+        oscillator.frequency.value = freq;
+        gainNode.gain.setValueAtTime(0.0001, now);
+        const nPulsos = Math.max(1, Math.floor(duracaoSec / periodoPulso));
+        for (let i = 0; i < nPulsos; i++) {
+          const t0 = now + i * periodoPulso;
+          gainNode.gain.setValueAtTime(0.0001, t0);
+          gainNode.gain.linearRampToValueAtTime(0.22, t0 + 0.02);
+          gainNode.gain.setValueAtTime(0.22, t0 + 0.16);
+          gainNode.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.32);
+          if (tipo === 'sos') {
+            oscillator.frequency.setValueAtTime(i % 2 === 0 ? 1000 : 750, t0);
+          }
+        }
+        oscillator.start(now);
+        oscillator.stop(now + duracaoSec + 0.05);
+        log('Tocando: ' + tipo + ' · ' + duracaoSec + 's · base ' + freq + ' Hz');
+      } catch (e) {
+        log('Erro ao tocar: ' + e.message);
+      }
+    }
+
+    document.getElementById('btnUnlock').addEventListener('click', liberarAudio);
+    document.getElementById('btnChat').addEventListener('click', function () { tocarSomNotificacao('chat'); });
+    document.getElementById('btnAlerta').addEventListener('click', function () { tocarSomNotificacao('alerta'); });
+    document.getElementById('btnSos').addEventListener('click', function () { tocarSomNotificacao('sos'); });
+    document.getElementById('btnToggle').addEventListener('click', function () {
+      const on = somHabilitado();
+      localStorage.setItem('notificacao_som', on ? 'false' : 'true');
+      log('notificacao_som = ' + localStorage.getItem('notificacao_som'));
+      atualizarUI();
+    });
+
+    atualizarUI();
+    log('Pronto. Clique em Liberar áudio primeiro.');
+  </script>
+</body>
+</html>

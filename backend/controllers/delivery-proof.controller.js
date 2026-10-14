@@ -5,6 +5,8 @@
 
 const sql = require('../config/mssql-compat');
 const { poolPromise } = require('../config/db');
+const { assertViagemTenantAccess, getMotoristaCadastroId } = require('../utils/viagem-tenant-access');
+const { tenantIdForRequest } = require('../utils/tenant-context');
 
 const deliveryProofController = {
   /**
@@ -25,8 +27,6 @@ const deliveryProofController = {
         longitude
       } = req.body;
 
-      const { idmotorista } = req.user || req.body; // Via token JWT ou body (dev)
-
       if (!idviagem) {
         return res.status(400).json({ error: 'ID da viagem é obrigatório' });
       }
@@ -34,6 +34,13 @@ const deliveryProofController = {
       if (!photoData && !signatureData) {
         return res.status(400).json({ error: 'É necessário pelo menos foto ou assinatura' });
       }
+
+      const idMotNum = getMotoristaCadastroId(req);
+      if (!Number.isFinite(idMotNum)) {
+        return res.status(401).json({ error: 'Sessão inválida.', errorKey: 'login.tokenInvalido' });
+      }
+
+      if (!(await assertViagemTenantAccess(req, res, idviagem))) return;
 
       const pool = await poolPromise;
 
@@ -59,7 +66,7 @@ const deliveryProofController = {
 
       await pool.request()
         .input('idviagem', sql.Decimal(15, 0), parseFloat(idviagem))
-        .input('cdmotorista', sql.Decimal(15, 0), idmotorista ? parseFloat(idmotorista) : null)
+        .input('cdmotorista', sql.Decimal(15, 0), idMotNum)
         .input('photoData', sql.VarBinary(sql.MAX), photoBuffer)
         .input('photoName', sql.NVarChar(255), photoName || null)
         .input('signatureData', sql.NVarChar(sql.MAX), signatureData || null)
@@ -106,27 +113,46 @@ const deliveryProofController = {
         return res.status(400).json({ error: 'ID da viagem é obrigatório' });
       }
 
+      if (!(await assertViagemTenantAccess(req, res, idviagem))) return;
+
       const pool = await poolPromise;
-      const result = await pool.request()
-        .input('idviagem', sql.Decimal(15, 0), idviagem)
-        .query(`
+      const tid = tenantIdForRequest(req);
+      const reqSql = pool.request();
+      reqSql.input('idviagem', sql.Decimal(15, 0), idviagem);
+      reqSql.input('tenantId', sql.NVarChar(64), tid);
+      let joinMotorista = '';
+      if (req.user && req.user.tipo === 'motorista') {
+        const self = getMotoristaCadastroId(req);
+        if (!Number.isFinite(self)) {
+          return res.status(401).json({ error: 'Sessão inválida.', errorKey: 'login.tokenInvalido' });
+        }
+        reqSql.input('cdMotorista', sql.Decimal(15, 0), self);
+        joinMotorista = `
+          AND EXISTS (
+            SELECT 1 FROM [dbo].[VIAGEMMOTORISTA] vm
+            WHERE vm.[IDVIAGEM] = dp.[IDVIAGEM] AND vm.[CDMOTORISTA] = @cdMotorista
+          )`;
+      }
+      const result = await reqSql.query(`
           SELECT 
-            [ID],
-            [IDVIAGEM],
-            [CDMOTORISTA],
-            [PHOTO_NAME],
-            [SIGNATURE_DATA],
-            [RECEIVER_NAME],
-            [RECEIVER_DOCUMENT],
-            [OBSERVATIONS],
-            [LATITUDE],
-            [LONGITUDE],
-            [RECORDED_AT],
-            [SYNCED],
-            [CREATED_BY]
-          FROM [dbo].[DELIVERY_PROOFS]
-          WHERE [IDVIAGEM] = @idviagem
-          ORDER BY [RECORDED_AT] DESC
+            dp.[ID],
+            dp.[IDVIAGEM],
+            dp.[CDMOTORISTA],
+            dp.[PHOTO_NAME],
+            dp.[SIGNATURE_DATA],
+            dp.[RECEIVER_NAME],
+            dp.[RECEIVER_DOCUMENT],
+            dp.[OBSERVATIONS],
+            dp.[LATITUDE],
+            dp.[LONGITUDE],
+            dp.[RECORDED_AT],
+            dp.[SYNCED],
+            dp.[CREATED_BY]
+          FROM [dbo].[DELIVERY_PROOFS] dp
+          INNER JOIN [dbo].[VIAGEMMESTRE] v ON dp.[IDVIAGEM] = v.[IDVIAGEM]
+          WHERE dp.[IDVIAGEM] = @idviagem AND v.[TENANT_ID] = @tenantId
+          ${joinMotorista}
+          ORDER BY dp.[RECORDED_AT] DESC
         `);
 
       // Converter foto binária para base64 (se necessário)
@@ -159,12 +185,29 @@ const deliveryProofController = {
       }
 
       const pool = await poolPromise;
-      const result = await pool.request()
-        .input('id', sql.Int, id)
-        .query(`
-          SELECT [PHOTO_DATA], [PHOTO_NAME]
-          FROM [dbo].[DELIVERY_PROOFS]
-          WHERE [ID] = @id
+      const tid = tenantIdForRequest(req);
+      const reqSql = pool.request();
+      reqSql.input('id', sql.Int, id);
+      reqSql.input('tenantId', sql.NVarChar(64), tid);
+      let extraMotorista = '';
+      if (req.user && req.user.tipo === 'motorista') {
+        const self = getMotoristaCadastroId(req);
+        if (!Number.isFinite(self)) {
+          return res.status(401).json({ error: 'Sessão inválida.', errorKey: 'login.tokenInvalido' });
+        }
+        reqSql.input('cdMotorista', sql.Decimal(15, 0), self);
+        extraMotorista = `
+          AND EXISTS (
+            SELECT 1 FROM [dbo].[VIAGEMMOTORISTA] vm
+            WHERE vm.[IDVIAGEM] = dp.[IDVIAGEM] AND vm.[CDMOTORISTA] = @cdMotorista
+          )`;
+      }
+      const result = await reqSql.query(`
+          SELECT dp.[PHOTO_DATA], dp.[PHOTO_NAME]
+          FROM [dbo].[DELIVERY_PROOFS] dp
+          INNER JOIN [dbo].[VIAGEMMESTRE] v ON dp.[IDVIAGEM] = v.[IDVIAGEM]
+          WHERE dp.[ID] = @id AND v.[TENANT_ID] = @tenantId
+          ${extraMotorista}
         `);
 
       if (result.recordset.length === 0) {

@@ -22,6 +22,17 @@
   let sqlExecutado = false;
   let initExecutado = false;
 
+  function getAuthHeaders(extra = {}) {
+    const headers = { ...extra };
+    const token = localStorage.getItem('token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      if (user && (user.login || user.SGUSUARIO)) headers['user-login'] = user.login || user.SGUSUARIO;
+    } catch (e) {}
+    return headers;
+  }
+
   // Função para carregar e executar o arquivo init.sql
   async function executarInitSQL() {
     if (sqlExecutado) return;
@@ -111,7 +122,7 @@
     if (situacao) params.append('situacao', situacao);
     
     try {
-      const response = await fetch(`/api/tipos-viagem?${params.toString()}`);
+      const response = await fetch(`/api/tipos-viagem?${params.toString()}`, { headers: getAuthHeaders() });
       const tipos = await response.json();
 
       // salvar cache de resultados
@@ -294,6 +305,7 @@
 
     gridTab = new window.GridEditor({
       container: tiposGridContainer,
+      buildFetchHeaders: () => getAuthHeaders(),
       columns: [
         { field: 'CDTIPOVIAGEM', header: 'Código', editable: false, isId: true, width: '80px' },
         { field: 'DSTIPOVIAGEM', header: 'Descrição', editable: true, type: 'text', maxlength: 40 },
@@ -306,7 +318,7 @@
       onEdit: async (id, updatedData) => {
         await fetch(`/api/tipos-viagem/${id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(updatedData)
         });
       },
@@ -331,11 +343,14 @@
         tipoForm.reset();
       }
       
-      const response = await fetch(`/api/tipos-viagem`);
-      const tipos = await response.json();
-      const tipo = tipos.find(t => t.CDTIPOVIAGEM.toString() === id.toString());
-      
-      if (tipo) {
+      const response = await fetch(`/api/tipos-viagem/${encodeURIComponent(id)}`, { headers: getAuthHeaders() });
+      if (!response.ok) {
+        showMessage(t('web.modulos.tiposViagem.erroCarregarDados'), 'error');
+        return;
+      }
+      const tipo = await response.json();
+
+      if (tipo && tipo.CDTIPOVIAGEM != null) {
         document.getElementById('tipoCodigo').value = tipo.CDTIPOVIAGEM;
         document.getElementById('tipoDescricao').value = tipo.DSTIPOVIAGEM;
         document.getElementById('tipoSituacao').value = tipo.FGACTIVE;
@@ -367,7 +382,7 @@
     try {
       // Buscar o status atual do tipo
       const idToCheck = isNaN(idStr) ? idStr : parseInt(idStr, 10);
-      const response = await fetch(`/api/tipos-viagem/${idToCheck}`);
+      const response = await fetch(`/api/tipos-viagem/${idToCheck}`, { headers: getAuthHeaders() });
       if (!response.ok) {
         throw new Error('Erro ao buscar tipo');
       }
@@ -414,7 +429,8 @@
           
           const idToDelete = isNaN(deleteId) ? deleteId : parseInt(deleteId, 10);
           const response = await fetch(`/api/tipos-viagem/${idToDelete}?action=${acao}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getAuthHeaders()
           });
           
           const data = await response.json();
@@ -480,13 +496,13 @@
         tipoData.FGACTIVE = situacao;
         response = await fetch(`/api/tipos-viagem/${id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(tipoData)
         });
       } else {
         response = await fetch('/api/tipos-viagem', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(tipoData)
         });
       }

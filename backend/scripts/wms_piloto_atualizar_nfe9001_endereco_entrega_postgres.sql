@@ -1,0 +1,24 @@
+-- Piloto WMS — NF 9001: alinhar destino/entrega ao cadastro 11 (08.742.760/0001-86) e ponto 6013 HPMP.
+-- Emitente permanece 08.742.760/0048-40 (filial estoque / WMS dono).
+-- Referência: NF real 1851 (entrega no bloco <entrega> da XML Teknisa).
+
+UPDATE "WMS_NFE_SAIDA"
+   SET "CNPJ_DEST" = '08742760000186',
+       "XNOME_DEST" = 'NUTRIVILLE RESTAURANTE LTDA',
+       "CNPJ_ENTREGA" = '08742760000186',
+       "XNOME_ENTREGA" = 'NUTRIVILLE RESTAURANTE LTDA - 6013 - HPMP - CURITIBA PR MILI',
+       "XLGR_DEST" = 'PREFEITO OMAR SABBAG',
+       "NRO_DEST" = '894',
+       "XCPL_DEST" = 'ANEXO HOSPITAL POLICIA MILITAR',
+       "XBAIRRO_DEST" = 'JARDIM BOTANICO',
+       "XMUN_DEST" = 'CURITIBA',
+       "UF_DEST" = 'PR',
+       "CEP_DEST" = '80210000'
+ WHERE "NUMERO_NF" = '9001'
+   AND "SERIE" = '1'
+   AND "CNPJ_EMITENTE" = '08742760004840';
+
+SELECT "CD_NFE_SAIDA", "NUMERO_NF", "CNPJ_EMITENTE", "CNPJ_ENTREGA", "XNOME_ENTREGA",
+       "XLGR_DEST", "NRO_DEST", "XMUN_DEST", "UF_DEST", "CEP_DEST"
+  FROM "WMS_NFE_SAIDA"
+ WHERE "NUMERO_NF" = '9001' AND "SERIE" = '1';

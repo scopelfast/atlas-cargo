@@ -13,6 +13,183 @@
 (function() {
   // Helper e overlay dentro do IIFE para permitir recarregar o módulo ao trocar de tela (evita "Identifier 't' has already been declared").
   const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
+
+  function getAuthHeaders(extra = {}) {
+    const headers = { ...extra };
+    const token = localStorage.getItem('token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      if (user && (user.login || user.SGUSUARIO)) headers['user-login'] = user.login || user.SGUSUARIO;
+    } catch (e) {}
+    return headers;
+  }
+
+  function aplicarFormatoOsrmGateway(data) {
+    if (!data) return null;
+    if (data.code === 'Ok' && data.routes && data.routes[0] && data.routes[0].geometry && data.routes[0].geometry.coordinates) {
+      return data;
+    }
+    if (typeof window.normalizarRespostaGatewayOsrm === 'function') {
+      return window.normalizarRespostaGatewayOsrm(data);
+    }
+    return null;
+  }
+
+  async function obterJsonRotaDiretaSegmento(segStr, timeoutMs) {
+    if (typeof window.fetchOsrmRouteJsonViaBackend === 'function') {
+      try {
+        const raw = await window.fetchOsrmRouteJsonViaBackend(segStr, timeoutMs || 70000);
+        const data = aplicarFormatoOsrmGateway(raw);
+        if (data) return data;
+      } catch (e) {
+        console.warn('[ROTEIROS] Trecho via gateway-backend falhou:', e && e.message);
+      }
+    }
+    return null;
+  }
+
+  function parseCoordsStrParaPares(coordsStr) {
+    return String(coordsStr)
+      .split(';')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((p) => {
+        const [a, b] = p.split(',').map(Number);
+        return { lon: a, lat: b };
+      })
+      .filter((p) => Number.isFinite(p.lon) && Number.isFinite(p.lat));
+  }
+
+  function haversineKmLonLat(lon1, lat1, lon2, lat2) {
+    const R = 6371;
+    const toRad = (d) => (d * Math.PI) / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+  }
+
+  /** Roteamento sempre via gateway-backend do Atlas (evita CORS no navegador). */
+  async function obterJsonRotaOsrm(coordsStr, timeoutMs) {
+    const pares = parseCoordsStrParaPares(coordsStr);
+    if (pares.length < 2) return null;
+
+    // Evita abort prematuro no cliente; mirrors públicos podem levar mais de 35-55s.
+    const msUmTrecho = timeoutMs != null ? Math.max(timeoutMs, 70000) : 70000;
+
+    async function fetchUmTrecho(segStr) {
+      let data = null;
+      if (typeof window.fetchOsrmRouteJsonViaBackend === 'function') {
+        try {
+          const raw = await window.fetchOsrmRouteJsonViaBackend(segStr, msUmTrecho);
+          data = aplicarFormatoOsrmGateway(raw);
+        } catch (e) {
+          console.warn('[ROTEIROS] Gateway trecho:', e && e.message);
+        }
+      }
+      if (!data || data.code !== 'Ok' || !data.routes || !data.routes[0] || !data.routes[0].geometry) {
+        data = await obterJsonRotaDiretaSegmento(segStr, msUmTrecho);
+      }
+      if (data && data.code === 'Ok' && data.routes && data.routes[0] && data.routes[0].geometry) {
+        return data;
+      }
+      return null;
+    }
+
+    if (pares.length === 2) {
+      const str = `${pares[0].lon},${pares[0].lat};${pares[1].lon},${pares[1].lat}`;
+      const data = await fetchUmTrecho(str);
+      if (data) return Object.assign(data, { _trechosReta: 0, _trechosTotal: 1 });
+      /** Fallback 1 trecho: geometria em linha reta (não some a rota do mapa). */
+      const distM = haversineKmLonLat(pares[0].lon, pares[0].lat, pares[1].lon, pares[1].lat) * 1000;
+      return {
+        code: 'Ok',
+        _trechosReta: 1,
+        _trechosTotal: 1,
+        routes: [
+          {
+            distance: distM,
+            duration: 0,
+            legs: [{ distance: distM, duration: 0 }],
+            geometry: {
+              type: 'LineString',
+              coordinates: [
+                [pares[0].lon, pares[0].lat],
+                [pares[1].lon, pares[1].lat],
+              ],
+            },
+          },
+        ],
+      };
+    }
+
+    console.info(
+      `[ROTEIROS] Rota com ${pares.length} pontos → ${pares.length - 1} trechos via gateway-backend.`
+    );
+    const coordsMerged = [];
+    const legsMerged = [];
+    let totalDist = 0;
+    let totalDur = 0;
+    let trechosReta = 0;
+    const nTrechos = pares.length - 1;
+    for (let i = 0; i < nTrechos; i++) {
+      const a = pares[i];
+      const b = pares[i + 1];
+      const segStr = `${a.lon},${a.lat};${b.lon},${b.lat}`;
+      let data = await fetchUmTrecho(segStr);
+      let g;
+      let segDist;
+      let segDur;
+      if (data && data.routes && data.routes[0]) {
+        g = data.routes[0].geometry.coordinates;
+        segDist = data.routes[0].distance || 0;
+        segDur = data.routes[0].duration || 0;
+      } else {
+        /** Um trecho falhou: não descarta a rota inteira — usa reta só neste trecho. */
+        console.warn(`[ROTEIROS] Trecho ${i + 1}/${nTrechos} sem geometria → linha reta neste segmento`);
+        trechosReta += 1;
+        g = [
+          [a.lon, a.lat],
+          [b.lon, b.lat],
+        ];
+        segDist = haversineKmLonLat(a.lon, a.lat, b.lon, b.lat) * 1000;
+        segDur = 0;
+      }
+      totalDist += segDist;
+      totalDur += segDur;
+      legsMerged.push({ distance: segDist, duration: segDur });
+      if (coordsMerged.length === 0) {
+        coordsMerged.push(...g);
+      } else {
+        coordsMerged.push(...g.slice(1));
+      }
+    }
+    return {
+      code: 'Ok',
+      _trechosReta: trechosReta,
+      _trechosTotal: nTrechos,
+      routes: [
+        {
+          distance: totalDist,
+          duration: totalDur,
+          legs: legsMerged,
+          geometry: { type: 'LineString', coordinates: coordsMerged },
+        },
+      ],
+    };
+  }
+
+  /**
+   * Pontos [{lon,lat},...].
+   * ORS (/ors/v2) não aceita GET no navegador (POST /geojson + CORS) — sempre via gateway-backend.
+   */
+  async function obterJsonRotaPontos(coordsArray, timeoutMs) {
+    const coordsStr = coordsArray.map(c => `${Number(c.lon)},${Number(c.lat)}`).join(';');
+    return obterJsonRotaOsrm(coordsStr, timeoutMs);
+  }
   if (typeof window.overlayMostrado === 'undefined') {
     window.overlayMostrado = false;
   }
@@ -172,7 +349,7 @@
       try {
         execResponse = await fetch('/api/roteiros/executar-init-sql', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({ sql: sqlLimpo }),
           // Aumentar timeout para scripts grandes (MERGE pode demorar)
           signal: AbortSignal.timeout(120000) // 120 segundos (2 minutos)
@@ -266,56 +443,45 @@
 
   // Função para carregar o Leaflet dinamicamente
   async function carregarLeaflet() {
-    // Se já está carregado, retornar
-    if (typeof L !== 'undefined') {
-      return true;
-    }
-
-    // Verificar se o CSS já foi carregado
-    if (!document.querySelector('link[href*="leaflet"]')) {
+    // CSS primeiro: L no HTML sem leaflet.css = tiles espalhados no container
+    if (!document.querySelector('link[href*="leaflet"][rel="stylesheet"]')) {
       const link = document.createElement('link');
       link.rel = 'stylesheet';
       link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-      link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
       link.crossOrigin = '';
       document.head.appendChild(link);
     }
 
-    // Carregar o script do Leaflet
+    if (typeof L !== 'undefined') {
+      return true;
+    }
+
     return new Promise((resolve, reject) => {
-      // Verificar se já existe um script do Leaflet
-      if (document.querySelector('script[src*="leaflet"]')) {
-        // Aguardar o script carregar
+      const existing = document.querySelector('script[src*="leaflet"]');
+      if (existing) {
         let tentativas = 0;
         const checkInterval = setInterval(() => {
           if (typeof L !== 'undefined') {
             clearInterval(checkInterval);
             resolve(true);
-          } else if (tentativas++ > 20) {
+          } else if (tentativas++ > 30) {
             clearInterval(checkInterval);
             reject(new Error('Timeout ao carregar Leaflet'));
           }
-        }, 500);
+        }, 200);
         return;
       }
 
       const script = document.createElement('script');
       script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
       script.crossOrigin = '';
       script.onload = () => {
-        // Aguardar um pouco para garantir que L está disponível
         setTimeout(() => {
-          if (typeof L !== 'undefined') {
-            resolve(true);
-          } else {
-            reject(new Error('Leaflet carregado mas L não está disponível'));
-          }
-        }, 100);
+          if (typeof L !== 'undefined') resolve(true);
+          else reject(new Error('Leaflet carregado mas L não está disponível'));
+        }, 50);
       };
-      script.onerror = () => {
-        reject(new Error('Erro ao carregar o script do Leaflet'));
-      };
+      script.onerror = () => reject(new Error('Falha ao baixar leaflet.js (unpkg)'));
       document.head.appendChild(script);
     });
   }
@@ -406,6 +572,8 @@
     } else {
       console.warn('⚠️ Botão btnGerarResumo não encontrado ao inicializar');
     }
+
+    sincronizarBotaoGerarResumo();
   }
 
   // Inicialização - tentar imediatamente e também no DOMContentLoaded
@@ -477,6 +645,7 @@
 
     gridTab = new window.GridEditor({
       container: '#roteirosGrid',
+      buildFetchHeaders: () => getAuthHeaders(),
       columns: [
         { field: 'IDROTEIRO', header: 'Código', editable: false, isId: true, width: '100px' },
         { field: 'DSROTEIRO', header: 'Descrição', editable: true, type: 'text' },
@@ -615,12 +784,17 @@
         const btnNovoPonto = document.getElementById('btnNovoPonto');
         const btnVoltarPontos = document.getElementById('btnVoltarPontos');
         const btnCalcularPontos = document.getElementById('btnCalcularDistanciaPontos');
+        const btnOtimizarOrdem = document.getElementById('btnOtimizarOrdemPontos');
         
         if (btnNovoPonto) btnNovoPonto.style.display = 'none';
         if (btnVoltarPontos) btnVoltarPontos.style.display = 'none';
         if (btnCalcularPontos) {
           btnCalcularPontos.disabled = true;
           btnCalcularPontos.style.opacity = '0.5';
+        }
+        if (btnOtimizarOrdem) {
+          btnOtimizarOrdem.disabled = true;
+          btnOtimizarOrdem.style.opacity = '0.5';
         }
         
         if (gridPontos) {
@@ -842,7 +1016,7 @@
     showLoadingFiltros();
     
     try {
-      const response = await fetch(urlFiltro);
+      const response = await fetch(urlFiltro, { headers: getAuthHeaders() });
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
@@ -1016,6 +1190,19 @@
     }
   }
 
+  /** "Gerar Resumo" chama a API com ID persistido — só faz sentido com `roteiroId` preenchido (após salvar ou ao editar). */
+  function sincronizarBotaoGerarResumo() {
+    const hid = document.getElementById('roteiroId');
+    const btn = document.getElementById('btnGerarResumo');
+    if (!btn) return;
+    const id = hid && String(hid.value || '').trim();
+    const ok = !!id;
+    btn.disabled = !ok;
+    btn.style.opacity = ok ? '1' : '0.5';
+    btn.style.pointerEvents = ok ? 'auto' : '';
+    btn.style.cursor = ok ? 'pointer' : 'not-allowed';
+  }
+
 async function loadRoteiroParaEdicao(id) {
   try {
     const roteiroForm = document.getElementById('roteiroForm');
@@ -1025,7 +1212,7 @@ async function loadRoteiroParaEdicao(id) {
     // Garantir que os combos de país estão populados antes de setar valor (evita estado vazio ao editar)
     await loadPaises();
     
-    const response = await fetch(`/api/roteiros/${id}`);
+    const response = await fetch(`/api/roteiros/${id}`, { headers: getAuthHeaders() });
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
@@ -1055,13 +1242,7 @@ async function loadRoteiroParaEdicao(id) {
       const campoResumo = document.getElementById('roteiroResumoRota');
       if (campoResumo) campoResumo.value = resumoRota ?? '';
       
-      const btnGerarResumo = document.getElementById('btnGerarResumo');
-      if (btnGerarResumo) {
-        btnGerarResumo.disabled = false;
-        btnGerarResumo.style.opacity = '1';
-        btnGerarResumo.style.pointerEvents = 'auto';
-        btnGerarResumo.style.cursor = 'pointer';
-      }
+      sincronizarBotaoGerarResumo();
 
       if (origemCdpais != null && origemCdpais !== '') {
         document.getElementById('origemPais').value = String(origemCdpais);
@@ -1161,7 +1342,7 @@ async function loadRoteiroParaEdicao(id) {
     try {
       // Buscar o status atual do roteiro
       const idToCheck = isNaN(idValido) ? idValido : parseFloat(idValido);
-      const response = await fetch(`/api/roteiros/${idToCheck}`);
+      const response = await fetch(`/api/roteiros/${idToCheck}`, { headers: getAuthHeaders() });
       if (!response.ok) {
         throw new Error('Erro ao buscar roteiro');
       }
@@ -1209,7 +1390,8 @@ async function loadRoteiroParaEdicao(id) {
         
         try {
           const response = await fetch(`/api/roteiros/${idParaExcluir}?action=${acao}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getAuthHeaders()
           });
           const data = await response.json();
           
@@ -1318,7 +1500,7 @@ async function loadRoteiroParaEdicao(id) {
       // Primeiro criar o ponto de origem
       const responseOrigem = await fetch(`/api/roteiros/${idRoteiro}/pontos`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(pontoOrigem)
       });
       
@@ -1334,7 +1516,7 @@ async function loadRoteiroParaEdicao(id) {
       // Depois criar o ponto de destino
       const responseDestino = await fetch(`/api/roteiros/${idRoteiro}/pontos`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify(pontoDestino)
       });
       
@@ -1354,11 +1536,12 @@ async function loadRoteiroParaEdicao(id) {
   }
 
   let roteiroFormSubmitting = false;
-  roteiroForm?.addEventListener('submit', async (e) => {
+    roteiroForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
     e.stopImmediatePropagation();
     if (roteiroFormSubmitting) return;
     roteiroFormSubmitting = true;
+    let salvarRoteiroOk = false;
     const btnSubmit = roteiroForm?.querySelector('button[type="submit"]');
     const labelOriginal = btnSubmit?.innerHTML ?? '';
     if (btnSubmit) {
@@ -1398,7 +1581,7 @@ async function loadRoteiroParaEdicao(id) {
         // Atualizar roteiro existente
         response = await fetch(`/api/roteiros/${id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(roteiroData)
         });
         idRoteiroSalvo = id;
@@ -1407,13 +1590,34 @@ async function loadRoteiroParaEdicao(id) {
         novoRoteiro = true;
         response = await fetch('/api/roteiros', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(roteiroData)
         });
       }
 
       const data = await response.json();
       if (response.ok) {
+        salvarRoteiroOk = true;
+        const ridPontosAuto =
+          idRoteiroSalvo ||
+          id ||
+          (data.IDROTEIRO != null ? data.IDROTEIRO : null) ||
+          (data.idRoteiro != null ? data.idRoteiro : null);
+        if (data.pontosOrigemDestinoGerados && ridPontosAuto != null && String(ridPontosAuto).trim() !== '') {
+          const rid = String(ridPontosAuto).trim();
+          document.getElementById('roteiroId').value = rid;
+          document.getElementById('roteiroCodigo').value = rid;
+          roteiroAtualId = rid;
+          await carregarPontos(rid);
+          showMessage(data.message || 'Roteiro salvo com pontos de origem e destino.', 'success');
+          showTab('pontos');
+          roteiroFormSubmitting = false;
+          if (btnSubmit) {
+            btnSubmit.disabled = false;
+            btnSubmit.innerHTML = labelOriginal;
+          }
+          return;
+        }
         // Se for novo roteiro, obter ID da resposta da API ou por busca
         if (novoRoteiro) {
           if (data && (data.IDROTEIRO != null || data.idRoteiro != null)) {
@@ -1421,7 +1625,7 @@ async function loadRoteiroParaEdicao(id) {
           }
           if (!idRoteiroSalvo) {
             await new Promise(resolve => setTimeout(resolve, 300));
-            const roteirosResponse = await fetch(`/api/roteiros?descricao=${encodeURIComponent(descricao)}`);
+            const roteirosResponse = await fetch(`/api/roteiros?descricao=${encodeURIComponent(descricao)}`, { headers: getAuthHeaders() });
             if (roteirosResponse.ok) {
               const roteiros = await roteirosResponse.json();
               const roteiroCorreto = roteiros.find(r => 
@@ -1439,7 +1643,7 @@ async function loadRoteiroParaEdicao(id) {
           
           if (idRoteiroSalvo) {
             // Verificar se já existem pontos para este roteiro
-            const pontosResponse = await fetch(`/api/roteiros/${idRoteiroSalvo}/pontos`);
+            const pontosResponse = await fetch(`/api/roteiros/${idRoteiroSalvo}/pontos`, { headers: getAuthHeaders() });
             const pontosExistentes = pontosResponse.ok ? await pontosResponse.json() : [];
             
             if (pontosExistentes.length === 0) {
@@ -1483,7 +1687,7 @@ async function loadRoteiroParaEdicao(id) {
           }
         } else {
           // Roteiro existente - verificar se há pontos
-          const pontosResponse = await fetch(`/api/roteiros/${idRoteiroSalvo || id}/pontos`);
+          const pontosResponse = await fetch(`/api/roteiros/${idRoteiroSalvo || id}/pontos`, { headers: getAuthHeaders() });
           const pontosExistentes = pontosResponse.ok ? await pontosResponse.json() : [];
           
           if (pontosExistentes.length === 0) {
@@ -1507,6 +1711,9 @@ async function loadRoteiroParaEdicao(id) {
       console.error('Erro ao salvar:', err);
       showMessage(t('web.modulos.roteiros.erroConexao'), 'error');
     } finally {
+      if (salvarRoteiroOk) {
+        sincronizarBotaoGerarResumo();
+      }
       setTimeout(() => {
         roteiroFormSubmitting = false;
         if (btnSubmit) {
@@ -1572,11 +1779,7 @@ async function loadRoteiroParaEdicao(id) {
     if (dC) dC.innerHTML = '<option value="">Selecione um estado primeiro</option>';
     document.getElementById('origemCodigo').value = '';
     document.getElementById('destinoCodigo').value = '';
-    const btnGerarResumo = document.getElementById('btnGerarResumo');
-    if (btnGerarResumo) {
-      btnGerarResumo.disabled = true;
-      btnGerarResumo.style.opacity = '0.5';
-    }
+    sincronizarBotaoGerarResumo();
     const campoResumo = document.getElementById('roteiroResumoRota');
     if (campoResumo) campoResumo.value = '';
     showTab('dados');
@@ -1726,13 +1929,43 @@ async function loadRoteiroParaEdicao(id) {
       return;
     }
 
+    /** Ida e volta (mesmo CD / mesma cidade) é válido — distância vem dos pontos do roteiro. */
     if (origemCidadeId === destinoCidadeId) {
-      showMessage('A cidade de origem e destino não podem ser iguais.', 'error');
+      if (roteiroId) {
+        if (pontosRoteiro.length === 0) {
+          await carregarPontos(roteiroId);
+        }
+        const ptsGps = pontosRoteiro
+          .filter((p) => p.LATITUDE && p.LONGITUDE)
+          .sort((a, b) => (a.ORDEM || 0) - (b.ORDEM || 0));
+        if (ptsGps.length >= 2) {
+          if (btnCalcular && typeof window.showLoading !== 'undefined') {
+            window.showLoading(btnCalcular, true);
+          }
+          if (btnCalcular) btnCalcular.disabled = true;
+          try {
+            await recalcularTodasDistancias(roteiroId, false);
+          } finally {
+            if (btnCalcular && typeof window.showLoading !== 'undefined') {
+              window.showLoading(btnCalcular, false);
+            }
+            if (btnCalcular) btnCalcular.disabled = false;
+          }
+          return;
+        }
+        showMessage(
+          'Rota circular (mesma cidade de origem e destino): use a aba Pontos com origem → entregas → retorno e calcule de novo.',
+          'warning'
+        );
+        return;
+      }
+      showMessage(
+        'Origem e destino na mesma cidade (ida e volta): salve o roteiro, cadastre os pontos e calcule a distância pelos pontos.',
+        'warning'
+      );
       return;
     }
 
-    // Mostrar loading e overlay
-    showCalculandoOverlay('Calculando Distância', 'Calculando a distância entre origem e destino...', 'Aguarde, isso pode levar alguns segundos.');
     if (btnCalcular && typeof window.showLoading !== 'undefined') {
       window.showLoading(btnCalcular, true);
     }
@@ -1741,34 +1974,22 @@ async function loadRoteiroParaEdicao(id) {
     try {
       let distanciaTotal = 0;
       
-      // Se houver roteiro selecionado, recalcular todas as distâncias (entre pontos e total)
+      // Se houver roteiro com ≥2 pontos GPS, delegar para recalcularTodasDistancias (ela já exibe overlay próprio)
       if (roteiroId) {
-        // Carregar pontos do roteiro se ainda não foram carregados
         if (pontosRoteiro.length === 0) {
           await carregarPontos(roteiroId);
         }
-        
-        // Filtrar pontos com coordenadas e ordenar por ORDEM
         const pontosComCoordenadas = pontosRoteiro
           .filter(p => p.LATITUDE && p.LONGITUDE)
           .sort((a, b) => (a.ORDEM || 0) - (b.ORDEM || 0));
         
         if (pontosComCoordenadas.length >= 2) {
-          // Recalcular todas as distâncias (entre pontos e total) usando a função dedicada
           await recalcularTodasDistancias(roteiroId, false);
-          
-          // Opcional: Gerar resumo automaticamente após calcular distâncias
-          // (comentado para não sobrecarregar - usuário pode clicar em "Gerar Resumo" manualmente)
-          // await gerarResumoRota();
-          
-          btnCalcular.disabled = false;
-          if (btnCalcular && typeof window.showLoading !== 'undefined') {
-            window.showLoading(btnCalcular, false);
-          }
-          
           return;
         }
       }
+
+      showCalculandoOverlay('Calculando Distância', 'Calculando a distância entre origem e destino...', 'Aguarde, isso pode levar alguns segundos.');
       
       // Se não houver pontos cadastrados ou não houver roteiro, calcular apenas origem-destino
       // Buscar informações das cidades
@@ -1800,11 +2021,10 @@ async function loadRoteiroParaEdicao(id) {
 
       // Tentar usar OSRM para rota real (com steps para obter rodovias)
       try {
-        const osrmUrl = `https://router.project-osrm.org/route/v1/driving-hgv/${coordsOrigem.lon},${coordsOrigem.lat};${coordsDestino.lon},${coordsDestino.lat}?overview=full&geometries=geojson&steps=true`;
-        const response = await fetch(osrmUrl);
-        const data = await response.json();
+        const coordsStrCalc = `${coordsOrigem.lon},${coordsOrigem.lat};${coordsDestino.lon},${coordsDestino.lat}`;
+        const data = await obterJsonRotaOsrm(coordsStrCalc, 32000);
         
-        if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+        if (data && data.code === 'Ok' && data.routes && data.routes.length > 0) {
           distanciaTotal = (data.routes[0].distance / 1000).toFixed(2);
           if (campoDistancia) {
             campoDistancia.value = parseFloat(distanciaTotal);
@@ -1820,7 +2040,7 @@ async function loadRoteiroParaEdicao(id) {
               try {
                 const roteiroUpdateResponse = await fetch(`/api/roteiros/${roteiroId}`, {
                   method: 'PUT',
-                  headers: { 'Content-Type': 'application/json' },
+                  headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
                   body: JSON.stringify({
                     DSROTEIRO: descricao,
                     CDCIDADEORIGEM: parseInt(origemCidade),
@@ -1883,7 +2103,7 @@ async function loadRoteiroParaEdicao(id) {
           try {
             const roteiroUpdateResponse = await fetch(`/api/roteiros/${roteiroId}`, {
               method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
+              headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
               body: JSON.stringify({
                 DSROTEIRO: descricao,
                 CDCIDADEORIGEM: parseInt(origemCidade),
@@ -1916,11 +2136,10 @@ async function loadRoteiroParaEdicao(id) {
       let coordenadasParaResumo = [[coordsOrigem.lat, coordsOrigem.lon], [coordsDestino.lat, coordsDestino.lon]];
       
       try {
-        const osrmUrlResumo = `https://router.project-osrm.org/route/v1/driving-hgv/${coordsOrigem.lon},${coordsOrigem.lat};${coordsDestino.lon},${coordsDestino.lat}?overview=full&geometries=geojson&steps=true`;
-        const responseResumo = await fetch(osrmUrlResumo);
-        const dataResumo = await responseResumo.json();
+        const coordsStrResumo = `${coordsOrigem.lon},${coordsOrigem.lat};${coordsDestino.lon},${coordsDestino.lat}`;
+        const dataResumo = await obterJsonRotaOsrm(coordsStrResumo, 32000);
         
-        if (dataResumo.code === 'Ok' && dataResumo.routes && dataResumo.routes.length > 0) {
+        if (dataResumo && dataResumo.code === 'Ok' && dataResumo.routes && dataResumo.routes.length > 0) {
           osrmDataParaResumo = dataResumo;
           const geometry = dataResumo.routes[0].geometry;
           if (geometry && geometry.coordinates) {
@@ -1961,9 +2180,6 @@ async function loadRoteiroParaEdicao(id) {
 
   // Função para gerar resumo da rota
   async function gerarResumoRota(e) {
-    console.log('🔵 [INÍCIO] Função gerarResumoRota chamada');
-    
-    // Declarar variáveis fora do try para serem acessíveis no finally
     const roteiroId = document.getElementById('roteiroId')?.value;
     const btnGerarResumo = document.getElementById('btnGerarResumo');
     const campoResumo = document.getElementById('roteiroResumoRota');
@@ -1974,14 +2190,8 @@ async function loadRoteiroParaEdicao(id) {
         e.stopPropagation();
       }
       
-      console.log('📋 Roteiro ID:', roteiroId);
-      console.log('🔘 Botão encontrado:', !!btnGerarResumo);
-      console.log('🔘 Botão desabilitado:', btnGerarResumo?.disabled);
-      console.log('📝 Campo resumo encontrado:', !!campoResumo);
-      
       if (!roteiroId) {
         const msg = 'Selecione um roteiro antes de gerar o resumo.';
-        console.warn('⚠️', msg);
         alert(msg);
         if (typeof showMessage !== 'undefined') {
           showMessage(msg, 'error');
@@ -1990,11 +2200,8 @@ async function loadRoteiroParaEdicao(id) {
       }
       
       if (btnGerarResumo?.disabled) {
-        console.warn('⚠️ Botão está desabilitado!');
         return;
       }
-      
-      console.log('✅ Validações passadas, iniciando requisição...');
       
       // Desabilitar botão primeiro para evitar múltiplos cliques
       if (btnGerarResumo) {
@@ -2004,7 +2211,11 @@ async function loadRoteiroParaEdicao(id) {
       }
       
       // Mostrar overlay IMEDIATAMENTE (antes de qualquer outra operação)
-      showCalculandoOverlay('Gerando Resumo da Rota', 'Processando informações da rota e gerando resumo detalhado...', 'Isso pode levar alguns segundos.');
+      showCalculandoOverlay(
+        'Gerando Resumo da Rota',
+        'Processando rota, amostragem de cidades (Nominatim) e texto do resumo…',
+        'Rotas longas podem levar até ~1–2 minutos.',
+      );
       
       // Garantir que o overlay foi exibido
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -2018,30 +2229,40 @@ async function loadRoteiroParaEdicao(id) {
         campoResumo.value = 'Gerando resumo da rota...\n\nAguarde, isso pode levar alguns segundos...';
       }
       
-      console.log('📡 Fazendo requisição para /api/roteiros/' + roteiroId + '/gerar-resumo');
-      
-      const response = await fetch(`/api/roteiros/${roteiroId}/gerar-resumo`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-      
-      console.log('📥 Resposta recebida:', response.status, response.statusText);
+      const ctrlResumo = new AbortController();
+      const timeoutResumo = setTimeout(() => ctrlResumo.abort(), 120000);
+      let response;
+      try {
+        response = await fetch(`/api/roteiros/${roteiroId}/gerar-resumo`, {
+          method: 'POST',
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+          signal: ctrlResumo.signal,
+        });
+      } finally {
+        clearTimeout(timeoutResumo);
+      }
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        const errorMsg = errorData.error || `Erro ${response.status}: ${response.statusText}`;
-        console.error('❌ Erro na resposta:', errorMsg);
+        let errorMsg = errorData.error || errorData.message || `Erro ${response.status}: ${response.statusText}`;
+        if (response.status === 502 || response.status === 503) {
+          errorMsg =
+            errorData.error ||
+            'Não foi possível montar a rota no servidor de mapa. Tente de novo em instantes (Configurações » Mapa).';
+        } else if (response.status === 400) {
+          errorMsg = errorMsg || 'Verifique se há pelo menos dois pontos com coordenadas válidas no roteiro.';
+        } else if (response.status >= 500) {
+          errorMsg =
+            errorMsg ||
+            'Falha no servidor ao gerar o resumo. Se persistir, verifique os logs do backend ou Configurações » Mapa.';
+        }
         throw new Error(errorMsg);
       }
       
       const data = await response.json();
-      console.log('📦 Dados recebidos:', data);
       
       if (campoResumo && data.resumo) {
         campoResumo.value = data.resumo;
-        console.log('✅ Resumo atualizado no campo');
-      } else {
-        console.warn('⚠️ Campo resumo não encontrado ou dados.resumo vazio');
       }
       
       if (typeof showMessage !== 'undefined') {
@@ -2052,7 +2273,10 @@ async function loadRoteiroParaEdicao(id) {
       
     } catch (err) {
       console.error('❌ Erro ao gerar resumo:', err);
-      const errorMsg = 'Erro ao gerar resumo da rota: ' + err.message;
+      const errorMsg =
+        err && err.name === 'AbortError'
+          ? 'Tempo esgotado ao gerar o resumo (rota muito longa ou Nominatim lento). Tente de novo ou reduza pontos intermediários.'
+          : 'Erro ao gerar resumo da rota: ' + (err && err.message ? err.message : String(err));
       
       if (typeof showMessage !== 'undefined') {
         showMessage(errorMsg, 'error');
@@ -2061,20 +2285,15 @@ async function loadRoteiroParaEdicao(id) {
       }
       
       if (campoResumo) {
-        campoResumo.value = 'Erro ao gerar resumo. Verifique se há pontos cadastrados com coordenadas válidas.';
+        campoResumo.value = 'Erro ao gerar resumo:\n' + (err && err.message ? err.message : String(err));
       }
     } finally {
-      console.log('🔚 Finalizando função gerarResumoRota');
       // Remover loading e overlay
       hideCalculandoOverlay();
       if (btnGerarResumo && typeof window.showLoading !== 'undefined') {
         window.showLoading(btnGerarResumo, false);
       }
-      if (btnGerarResumo) {
-        btnGerarResumo.disabled = false;
-        btnGerarResumo.style.opacity = '1';
-        btnGerarResumo.style.cursor = 'pointer';
-      }
+      sincronizarBotaoGerarResumo();
     }
   }
   
@@ -2084,6 +2303,10 @@ async function loadRoteiroParaEdicao(id) {
   // Event listener para o botão calcular distância (aba Dados)
   document.getElementById('btnCalcularDistancia')?.addEventListener('click', calcularDistancia);
   
+  document.getElementById('btnOtimizarOrdemPontos')?.addEventListener('click', () => {
+    otimizarOrdemPontosClick();
+  });
+
   // Event listener para o botão calcular distância (aba Pontos)
   document.getElementById('btnCalcularDistanciaPontos')?.addEventListener('click', async () => {
     const roteiroId = document.getElementById('roteiroId')?.value;
@@ -2184,15 +2407,11 @@ async function loadRoteiroParaEdicao(id) {
 
   // Função para inicializar o mapa
   async function inicializarMapa() {
-    // Verificar se Leaflet está disponível
-    if (typeof L === 'undefined') {
-      console.error('Leaflet não está carregado. Aguardando...');
-      // Tentar carregar o Leaflet
-      const leafletDisponivel = await aguardarLeaflet();
-      if (!leafletDisponivel) {
-        showMessage('Erro ao carregar a biblioteca de mapas. Recarregue a página.', 'error');
-        return false;
-      }
+    // Sempre garante CSS do Leaflet (mesmo se L já estiver no window)
+    const leafletDisponivel = await aguardarLeaflet();
+    if (!leafletDisponivel || typeof L === 'undefined') {
+      showMessage('Erro ao carregar a biblioteca de mapas. Recarregue a página.', 'error');
+      return false;
     }
 
     const mapaDiv = document.getElementById('mapaRota');
@@ -2339,31 +2558,32 @@ async function loadRoteiroParaEdicao(id) {
     } catch (err) {
       console.error('Erro ao inicializar mapa:', err);
       
-      // Se o erro for "Map container is already initialized", limpar e tentar novamente
-      if (err.message && err.message.includes('already initialized')) {
-        console.warn('⚠️ [ROTEIROS] Mapa já estava inicializado. Limpando container...');
-        const mapaDiv = document.getElementById('mapaRota');
-        if (mapaDiv) {
-          // Limpar completamente o container
-          mapaDiv.innerHTML = '';
-          delete mapaDiv._leaflet_id;
-          // Limpar referência do mapa
-          if (mapa) {
-            try {
-              mapa.remove();
-            } catch (e) {
-              // Ignorar
-            }
-            mapa = null;
-          }
-          // Tentar novamente após limpar
-          await new Promise(resolve => setTimeout(resolve, 100));
-          mapaInicializando = false;
-          return await inicializarMapa(); // Tentar novamente
-        }
-      }
-      
       mapaInicializando = false;
+
+      // Uma retentativa no máximo (evita Maximum call stack size exceeded)
+      if (
+        !window.__roteirosMapaRetry &&
+        err.message &&
+        (err.message.includes('already initialized') || err.message.includes('Maximum call stack'))
+      ) {
+        window.__roteirosMapaRetry = true;
+        console.warn('⚠️ [ROTEIROS] Mapa já estava inicializado. Limpando e tentando 1x...');
+        const mapaDivRetry = document.getElementById('mapaRota');
+        if (mapaDivRetry) {
+          mapaDivRetry.innerHTML = '';
+          try { delete mapaDivRetry._leaflet_id; } catch (e) { mapaDivRetry._leaflet_id = undefined; }
+        }
+        if (mapa) {
+          try { mapa.remove(); } catch (e) { /* ignore */ }
+          mapa = null;
+        }
+        await new Promise(resolve => setTimeout(resolve, 100));
+        const ok = await inicializarMapa();
+        window.__roteirosMapaRetry = false;
+        return ok;
+      }
+      window.__roteirosMapaRetry = false;
+      
       // Limpar referência se houver erro
       if (mapa) {
         try {
@@ -2522,7 +2742,7 @@ async function loadRoteiroParaEdicao(id) {
         const rotaData = await rotaResponse.json();
         console.log('[MAPA] Resposta rota: code=', rotaData.code, 'routes.length=', rotaData.routes ? rotaData.routes.length : 0);
         
-        if (rotaData.code === 'Ok' && rotaData.routes && rotaData.routes.length > 0) {
+        if (rotaData && rotaData.code === 'Ok' && rotaData.routes && rotaData.routes.length > 0) {
           const coordenadasRota = rotaData.routes[0].geometry.coordinates.map(coord => [coord[1], coord[0]]);
           console.log('[MAPA] Desenhando rota OSRM, pontos:', coordenadasRota.length);
           
@@ -2705,12 +2925,17 @@ async function loadRoteiroParaEdicao(id) {
       const btnNovoPonto = document.getElementById('btnNovoPonto');
       const btnVoltarPontos = document.getElementById('btnVoltarPontos');
       const btnCalcularPontos = document.getElementById('btnCalcularDistanciaPontos');
+      const btnOtimizarOrdem = document.getElementById('btnOtimizarOrdemPontos');
       
       if (btnNovoPonto) btnNovoPonto.style.display = 'none';
       if (btnVoltarPontos) btnVoltarPontos.style.display = 'none';
       if (btnCalcularPontos) {
         btnCalcularPontos.disabled = true;
         btnCalcularPontos.style.opacity = '0.5';
+      }
+      if (btnOtimizarOrdem) {
+        btnOtimizarOrdem.disabled = true;
+        btnOtimizarOrdem.style.opacity = '0.5';
       }
       
       if (gridPontos) {
@@ -2720,7 +2945,7 @@ async function loadRoteiroParaEdicao(id) {
     }
     
     try {
-      const response = await fetch(`/api/roteiros/${idRoteiro}/pontos`);
+      const response = await fetch(`/api/roteiros/${idRoteiro}/pontos`, { headers: getAuthHeaders() });
       if (!response.ok) {
         if (response.status === 404) {
           pontosRoteiro = [];
@@ -2734,6 +2959,7 @@ async function loadRoteiroParaEdicao(id) {
             const btnNovoPonto = document.getElementById('btnNovoPonto');
             const btnVoltarPontos = document.getElementById('btnVoltarPontos');
             const btnCalcularPontos = document.getElementById('btnCalcularDistanciaPontos');
+            const btnOtimizarOrdem = document.getElementById('btnOtimizarOrdemPontos');
             
             if (btnNovoPonto) btnNovoPonto.style.display = 'block';
             if (btnVoltarPontos) btnVoltarPontos.style.display = 'block';
@@ -2741,12 +2967,14 @@ async function loadRoteiroParaEdicao(id) {
               btnCalcularPontos.disabled = false;
               btnCalcularPontos.style.opacity = '1';
             }
+            if (btnOtimizarOrdem) {
+              btnOtimizarOrdem.disabled = true;
+              btnOtimizarOrdem.style.opacity = '0.5';
+            }
             
             // Renderizar grid vazio
             if (typeof window.GridEditor !== 'undefined') {
-              if (!gridPontos) {
-                inicializarGridPontos();
-              }
+              ensureGridPontos();
               if (gridPontos) {
                 gridPontos.render([]);
               }
@@ -2780,6 +3008,7 @@ async function loadRoteiroParaEdicao(id) {
         const btnNovoPonto = document.getElementById('btnNovoPonto');
         const btnVoltarPontos = document.getElementById('btnVoltarPontos');
         const btnCalcularPontos = document.getElementById('btnCalcularDistanciaPontos');
+        const btnOtimizarOrdem = document.getElementById('btnOtimizarOrdemPontos');
         
         if (btnNovoPonto) btnNovoPonto.style.display = 'block';
         if (btnVoltarPontos) btnVoltarPontos.style.display = 'block';
@@ -2787,14 +3016,17 @@ async function loadRoteiroParaEdicao(id) {
           btnCalcularPontos.disabled = false;
           btnCalcularPontos.style.opacity = '1';
         }
+        if (btnOtimizarOrdem) {
+          const podeOtimizar = Array.isArray(pontosRoteiro) && pontosRoteiro.length >= 3;
+          btnOtimizarOrdem.disabled = !podeOtimizar;
+          btnOtimizarOrdem.style.opacity = podeOtimizar ? '1' : '0.5';
+        }
         
         // Renderizar grid
         if (typeof GridEditor !== 'undefined') {
-          if (!gridPontos) {
-            inicializarGridPontos();
-          }
+          ensureGridPontos();
           if (gridPontos) {
-            gridPontos.render(pontosRoteiro);
+            gridPontos.render(enriquecerPontosParaGrid(pontosRoteiro));
           }
         } else {
           console.warn('[Roteiros] GridEditor não está disponível. Recarregue a página.');
@@ -2820,7 +3052,7 @@ async function loadRoteiroParaEdicao(id) {
     
     try {
       // Recarregar pontos do banco para garantir dados atualizados
-      const pontosResponse = await fetch(`/api/roteiros/${idRoteiro}/pontos`);
+      const pontosResponse = await fetch(`/api/roteiros/${idRoteiro}/pontos`, { headers: getAuthHeaders() });
       if (!pontosResponse.ok) {
         console.error('[Recalcular] Erro ao carregar pontos:', pontosResponse.status);
         return;
@@ -2889,13 +3121,10 @@ async function loadRoteiroParaEdicao(id) {
             .filter(Boolean)
             .join(';');
           
-          const osrmUrl = (window.getOSRMUrl
-            ? window.getOSRMUrl(pontosComCoordenadas.map(p => getCoord(p)).filter(Boolean))
-            : `https://router.project-osrm.org/route/v1/driving-hgv/${coordsStr}?overview=full&geometries=geojson`);
-          const response = await fetch(osrmUrl);
-          const data = await response.json();
+          const coordsArrOpt = pontosComCoordenadas.map(p => getCoord(p)).filter(Boolean);
+          const data = await obterJsonRotaPontos(coordsArrOpt, 40000);
           
-          if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+          if (data && data.code === 'Ok' && data.routes && data.routes.length > 0) {
             const route = data.routes[0];
             distanciaTotal = parseFloat((route.distance / 1000).toFixed(2));
             
@@ -2912,7 +3141,7 @@ async function loadRoteiroParaEdicao(id) {
                 atualizacoes.push(
                   fetch(`/api/roteiros/${idRoteiro}/pontos/${pontoAtual.SEQUENCIA}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
                     body: JSON.stringify({
                       ORDEM: pontoAtual.ORDEM,
                       DSLOCAL: pontoAtual.DSLOCAL,
@@ -2959,7 +3188,7 @@ async function loadRoteiroParaEdicao(id) {
             if (descricao && origemCidade && destinoCidade) {
               const roteiroUpdateResponse = await fetch(`/api/roteiros/${idRoteiro}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
                 body: JSON.stringify({
                   DSROTEIRO: descricao,
                   CDCIDADEORIGEM: parseInt(origemCidade),
@@ -2994,17 +3223,15 @@ async function loadRoteiroParaEdicao(id) {
           // Calcular distância usando OSRM
           try {
             const coordsStr = `${pontoAnterior.LONGITUDE},${pontoAnterior.LATITUDE};${pontoAtual.LONGITUDE},${pontoAtual.LATITUDE}`;
-            const osrmUrl = `https://router.project-osrm.org/route/v1/driving-hgv/${coordsStr}?overview=full`;
-            const response = await fetch(osrmUrl);
-            const data = await response.json();
+            const data = await obterJsonRotaOsrm(coordsStr, 28000);
             
-            if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+            if (data && data.code === 'Ok' && data.routes && data.routes.length > 0) {
               const distancia = parseFloat((data.routes[0].distance / 1000).toFixed(4));
               
               // Atualizar no banco de dados
               const updateResponse = await fetch(`/api/roteiros/${idRoteiro}/pontos/${pontoAtual.SEQUENCIA}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
                 body: JSON.stringify({
                   ORDEM: pontoAtual.ORDEM,
                   DSLOCAL: pontoAtual.DSLOCAL,
@@ -3037,11 +3264,9 @@ async function loadRoteiroParaEdicao(id) {
             .map(p => `${p.LONGITUDE},${p.LATITUDE}`)
             .join(';');
           
-          const osrmUrl = `https://router.project-osrm.org/route/v1/driving-hgv/${coordsStr}?overview=full&geometries=geojson`;
-          const response = await fetch(osrmUrl);
-          const data = await response.json();
+          const data = await obterJsonRotaOsrm(coordsStr, 40000);
           
-          if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+          if (data && data.code === 'Ok' && data.routes && data.routes.length > 0) {
             distanciaTotal = parseFloat((data.routes[0].distance / 1000).toFixed(2));
             
             // Atualizar campo na tela
@@ -3058,7 +3283,7 @@ async function loadRoteiroParaEdicao(id) {
             if (descricao && origemCidade && destinoCidade) {
               const roteiroUpdateResponse = await fetch(`/api/roteiros/${idRoteiro}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
                 body: JSON.stringify({
                   DSROTEIRO: descricao,
                   CDCIDADEORIGEM: parseInt(origemCidade),
@@ -3089,7 +3314,7 @@ async function loadRoteiroParaEdicao(id) {
         await atualizarSomaDistancias();
       } else {
         // Se silencioso, apenas recarregar os dados sem renderizar
-        const pontosResponse = await fetch(`/api/roteiros/${idRoteiro}/pontos`);
+        const pontosResponse = await fetch(`/api/roteiros/${idRoteiro}/pontos`, { headers: getAuthHeaders() });
         if (pontosResponse.ok) {
           pontosRoteiro = await pontosResponse.json();
         }
@@ -3187,14 +3412,19 @@ async function loadRoteiroParaEdicao(id) {
       }
 
       const coords = pontosOrdenados.map(p => getCoord(p)).filter(Boolean);
-      const coordsStr = coords.map(c => `${c.lon},${c.lat}`).join(';');
-      const osrmUrl = (window.getOSRMUrl ? window.getOSRMUrl(coords) : `https://router.project-osrm.org/route/v1/driving-hgv/${coordsStr}?overview=full&geometries=geojson`);
-      const response = await fetch(osrmUrl);
-      const data = await response.json();
+      const data = await obterJsonRotaPontos(coords, 70000);
       
-      if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+      if (data && data.code === 'Ok' && data.routes && data.routes.length > 0) {
         const distanciaTotal = parseFloat((data.routes[0].distance / 1000).toFixed(2));
-        somaElement.textContent = `Distância total (rota real): ${distanciaTotal.toFixed(2)} km`;
+        const trechosReta = Number(data._trechosReta) || 0;
+        const trechosTotal = Number(data._trechosTotal) || 0;
+        if (trechosTotal > 0 && trechosReta >= trechosTotal) {
+          somaElement.textContent = `Distância total (linha reta): ${distanciaTotal.toFixed(2)} km`;
+        } else if (trechosReta > 0) {
+          somaElement.textContent = `Distância total (parcial em rua): ${distanciaTotal.toFixed(2)} km — ${trechosReta} trecho(s) em linha reta`;
+        } else {
+          somaElement.textContent = `Distância total (rota real): ${distanciaTotal.toFixed(2)} km`;
+        }
         return;
       }
     } catch (err) {
@@ -3234,52 +3464,540 @@ async function loadRoteiroParaEdicao(id) {
   }
   
   // Inicializar Grid de Pontos
+  function normTpLocalPonto(p) {
+    return String(p && p.TPLOCAL != null ? p.TPLOCAL : '')
+      .trim()
+      .toUpperCase();
+  }
+
+  function seqPonto(p) {
+    return parseInt(p && p.SEQUENCIA, 10);
+  }
+
+  /** Pontos ordenados por ORDEM (e SEQUENCIA como desempate). */
+  function pontosOrdenadosPorOrdem(lista) {
+    return (lista || []).slice().sort((a, b) => {
+      const oa = parseFloat(a.ORDEM) || 0;
+      const ob = parseFloat(b.ORDEM) || 0;
+      if (oa !== ob) return oa - ob;
+      return seqPonto(a) - seqPonto(b);
+    });
+  }
+
+  function chaveMunicipioPonto(p) {
+    const uf = String(p && p.ESTADOPASSAGEM != null ? p.ESTADOPASSAGEM : '')
+      .trim()
+      .toUpperCase();
+    let mun = String(p && p.DSPOSICAO != null ? p.DSPOSICAO : '')
+      .trim()
+      .toUpperCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+    const slash = mun.lastIndexOf('/');
+    if (slash > 0) mun = mun.slice(0, slash).trim();
+    mun = mun.replace(/\s+/g, ' ');
+    return `${uf}|${mun || '_SEM_'}`;
+  }
+
+  function haversineKmPontos(aLat, aLon, bLat, bLon) {
+    const R = 6371;
+    const toRad = (d) => (d * Math.PI) / 180;
+    const dLat = toRad(bLat - aLat);
+    const dLon = toRad(bLon - aLon);
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(aLat)) * Math.cos(toRad(bLat)) * Math.sin(dLon / 2) ** 2;
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+  }
+
+  function nnPontosFrom(curLat, curLon, stops) {
+    const remaining = (stops || []).slice();
+    const ordered = [];
+    let la = Number(curLat);
+    let lo = Number(curLon);
+    while (remaining.length) {
+      let bestI = 0;
+      let bestD = Infinity;
+      for (let i = 0; i < remaining.length; i++) {
+        const sla = parseFloat(remaining[i].LATITUDE);
+        const slo = parseFloat(remaining[i].LONGITUDE);
+        if (!Number.isFinite(sla) || !Number.isFinite(slo)) continue;
+        const d = haversineKmPontos(la, lo, sla, slo);
+        if (d < bestD) {
+          bestD = d;
+          bestI = i;
+        }
+      }
+      const next = remaining.splice(bestI, 1)[0];
+      ordered.push(next);
+      const nLat = parseFloat(next.LATITUDE);
+      const nLon = parseFloat(next.LONGITUDE);
+      if (Number.isFinite(nLat) && Number.isFinite(nLon)) {
+        la = nLat;
+        lo = nLon;
+      }
+    }
+    return ordered;
+  }
+
+  /**
+   * Cluster por município (DSPOSICAO/UF) + NN. Origem e Destino ficam nas pontas.
+   */
+  function otimizarIntermediariosClusterMunicipio(lista) {
+    const ordenados = pontosOrdenadosPorOrdem(lista);
+    if (ordenados.length < 3) return ordenados.map(seqPonto);
+
+    let origem = ordenados.find((p) => normTpLocalPonto(p) === 'O') || ordenados[0];
+    let destino = ordenados.find((p) => normTpLocalPonto(p) === 'D') || ordenados[ordenados.length - 1];
+    if (seqPonto(origem) === seqPonto(destino) && ordenados.length > 1) {
+      destino = ordenados[ordenados.length - 1];
+    }
+    const mid = ordenados.filter(
+      (p) => seqPonto(p) !== seqPonto(origem) && seqPonto(p) !== seqPonto(destino)
+    );
+    if (!mid.length) return ordenados.map(seqPonto);
+
+    const byMun = new Map();
+    for (const s of mid) {
+      const key = chaveMunicipioPonto(s);
+      if (!byMun.has(key)) byMun.set(key, []);
+      byMun.get(key).push(s);
+    }
+    const clusters = [];
+    for (const [, pts] of byMun) {
+      let sumLat = 0;
+      let sumLon = 0;
+      let n = 0;
+      for (const p of pts) {
+        const la = parseFloat(p.LATITUDE);
+        const lo = parseFloat(p.LONGITUDE);
+        if (!Number.isFinite(la) || !Number.isFinite(lo)) continue;
+        sumLat += la;
+        sumLon += lo;
+        n += 1;
+      }
+      clusters.push({
+        pts,
+        clat: n ? sumLat / n : parseFloat(origem.LATITUDE) || 0,
+        clon: n ? sumLon / n : parseFloat(origem.LONGITUDE) || 0,
+      });
+    }
+
+    const remaining = clusters.slice();
+    const midOrdered = [];
+    let curLat = parseFloat(origem.LATITUDE);
+    let curLon = parseFloat(origem.LONGITUDE);
+    if (!Number.isFinite(curLat)) curLat = 0;
+    if (!Number.isFinite(curLon)) curLon = 0;
+    while (remaining.length) {
+      let bestI = 0;
+      let bestD = Infinity;
+      for (let i = 0; i < remaining.length; i++) {
+        const d = haversineKmPontos(curLat, curLon, remaining[i].clat, remaining[i].clon);
+        if (d < bestD) {
+          bestD = d;
+          bestI = i;
+        }
+      }
+      const cluster = remaining.splice(bestI, 1)[0];
+      const within = nnPontosFrom(curLat, curLon, cluster.pts);
+      for (const s of within) {
+        midOrdered.push(s);
+        const la = parseFloat(s.LATITUDE);
+        const lo = parseFloat(s.LONGITUDE);
+        if (Number.isFinite(la) && Number.isFinite(lo)) {
+          curLat = la;
+          curLon = lo;
+        }
+      }
+    }
+
+    return [origem, ...midOrdered, destino].map(seqPonto);
+  }
+
+  let persistindoOrdemPontos = false;
+
+  async function persistirOrdemPontos(sequenciasOrdenadas, opts) {
+    const silencioso = opts && opts.silencioso;
+    const idRoteiro = roteiroAtualId || document.getElementById('roteiroId')?.value;
+    if (!idRoteiro) {
+      showMessage('Selecione um roteiro antes de reordenar.', 'error');
+      return false;
+    }
+    if (!Array.isArray(sequenciasOrdenadas) || sequenciasOrdenadas.length < 2) {
+      showMessage('Ordem inválida.', 'error');
+      return false;
+    }
+    if (persistindoOrdemPontos) return false;
+    persistindoOrdemPontos = true;
+    try {
+      const response = await fetch(`/api/roteiros/${idRoteiro}/pontos/reordenar`, {
+        method: 'PUT',
+        headers: Object.assign(getAuthHeaders(), { 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ sequencias: sequenciasOrdenadas }),
+      });
+      const j = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error((j && j.error) || 'Erro ao salvar ordem.');
+      }
+      if (Array.isArray(j.pontos)) {
+        pontosRoteiro = j.pontos;
+      } else {
+        await carregarPontos(idRoteiro, true);
+      }
+      if (gridPontos) {
+        gridPontos.render(enriquecerPontosParaGrid(pontosRoteiro));
+      }
+      await atualizarSomaDistancias();
+      if (!silencioso) {
+        showMessage('Ordem salva. Recalculando distâncias…', 'success');
+      }
+      await recalcularTodasDistancias(idRoteiro, !!silencioso);
+      return true;
+    } catch (e) {
+      console.error('[Pontos] persistirOrdemPontos:', e);
+      showMessage(e.message || 'Erro ao salvar ordem dos pontos.', 'error');
+      return false;
+    } finally {
+      persistindoOrdemPontos = false;
+    }
+  }
+
+  function moverPontoIntermediario(sequencia, direcao) {
+    const ordenados = pontosOrdenadosPorOrdem(pontosRoteiro);
+    if (ordenados.length < 3) return;
+    const idx = ordenados.findIndex((p) => seqPonto(p) === parseInt(sequencia, 10));
+    if (idx <= 0 || idx >= ordenados.length - 1) return;
+    const alvo = idx + (direcao < 0 ? -1 : 1);
+    if (alvo <= 0 || alvo >= ordenados.length - 1) return;
+    const arr = ordenados.slice();
+    const tmp = arr[idx];
+    arr[idx] = arr[alvo];
+    arr[alvo] = tmp;
+    persistirOrdemPontos(arr.map(seqPonto));
+  }
+
+  function ativarReordenacaoPontosGrid() {
+    const container = document.getElementById('pontosGrid');
+    if (!container) return;
+    const tbody = container.querySelector('tbody');
+    if (!tbody) return;
+
+    const buildMeta = () => {
+      const ordenados = pontosOrdenadosPorOrdem(pontosRoteiro);
+      const seqToMeta = new Map();
+      ordenados.forEach((p, i) => {
+        const tp = normTpLocalPonto(p);
+        const fixo = tp === 'O' || tp === 'D' || i === 0 || i === ordenados.length - 1;
+        seqToMeta.set(String(seqPonto(p)), { fixo, index: i });
+      });
+      return seqToMeta;
+    };
+
+    const seqToMeta = buildMeta();
+    const rows = Array.from(tbody.querySelectorAll('tr[data-grid-id]'));
+    rows.forEach((tr) => {
+      const id = tr.getAttribute('data-grid-id');
+      const meta = seqToMeta.get(String(id));
+      if (!meta || meta.fixo) {
+        tr.removeAttribute('draggable');
+        tr.classList.remove('ponto-reorderable');
+        return;
+      }
+      tr.classList.add('ponto-reorderable');
+      tr.setAttribute('draggable', 'true');
+    });
+
+    if (tbody._pontoDndBound) return;
+    tbody._pontoDndBound = true;
+
+    let dragSeq = null;
+
+    tbody.addEventListener('dragstart', (e) => {
+      const tr = e.target.closest('tr[data-grid-id]');
+      if (!tr || !tr.classList.contains('ponto-reorderable')) {
+        e.preventDefault();
+        return;
+      }
+      if (e.target.closest('.grid-btn-edit, .grid-btn-delete, .btn-ponto-up, .btn-ponto-down')) {
+        e.preventDefault();
+        return;
+      }
+      const meta = buildMeta().get(String(tr.getAttribute('data-grid-id')));
+      if (!meta || meta.fixo) {
+        e.preventDefault();
+        return;
+      }
+      dragSeq = tr.getAttribute('data-grid-id');
+      tr.classList.add('ponto-dragging');
+      try {
+        e.dataTransfer.setData('text/plain', dragSeq);
+        e.dataTransfer.effectAllowed = 'move';
+      } catch (_) {}
+    });
+
+    tbody.addEventListener('dragend', () => {
+      dragSeq = null;
+      tbody.querySelectorAll('tr.ponto-dragging, tr.ponto-drag-over').forEach((el) => {
+        el.classList.remove('ponto-dragging', 'ponto-drag-over');
+      });
+    });
+
+    tbody.addEventListener('dragover', (e) => {
+      const tr = e.target.closest('tr[data-grid-id]');
+      if (!tr || !dragSeq) return;
+      const meta = buildMeta().get(String(tr.getAttribute('data-grid-id')));
+      if (!meta || meta.fixo) return;
+      e.preventDefault();
+      tbody.querySelectorAll('tr.ponto-drag-over').forEach((el) => el.classList.remove('ponto-drag-over'));
+      tr.classList.add('ponto-drag-over');
+    });
+
+    tbody.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const tr = e.target.closest('tr[data-grid-id]');
+      tbody.querySelectorAll('tr.ponto-drag-over').forEach((el) => el.classList.remove('ponto-drag-over'));
+      if (!tr || !dragSeq) return;
+      const targetSeq = tr.getAttribute('data-grid-id');
+      if (!targetSeq || String(targetSeq) === String(dragSeq)) return;
+      const metaT = buildMeta().get(String(targetSeq));
+      if (!metaT || metaT.fixo) return;
+
+      const ordenadosNow = pontosOrdenadosPorOrdem(pontosRoteiro);
+      const from = ordenadosNow.findIndex((p) => String(seqPonto(p)) === String(dragSeq));
+      const to = ordenadosNow.findIndex((p) => String(seqPonto(p)) === String(targetSeq));
+      if (from <= 0 || from >= ordenadosNow.length - 1) return;
+      if (to <= 0 || to >= ordenadosNow.length - 1) return;
+      const arr = ordenadosNow.slice();
+      const [moved] = arr.splice(from, 1);
+      arr.splice(to, 0, moved);
+      const origem = arr.find((p) => normTpLocalPonto(p) === 'O') || arr[0];
+      const destino = arr.find((p) => normTpLocalPonto(p) === 'D') || arr[arr.length - 1];
+      const mid = arr.filter((p) => seqPonto(p) !== seqPonto(origem) && seqPonto(p) !== seqPonto(destino));
+      persistirOrdemPontos([origem, ...mid, destino].map(seqPonto));
+    });
+  }
+
+  function garantirDelegacaoCliqueReordenacaoPontos() {
+    const container = document.getElementById('pontosGrid');
+    if (!container || container._pontoReorderClickBound) return;
+    container._pontoReorderClickBound = true;
+    container.addEventListener('click', (e) => {
+      const up = e.target.closest('.btn-ponto-up');
+      const down = e.target.closest('.btn-ponto-down');
+      if (!up && !down) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const btn = up || down;
+      if (btn.disabled) return;
+      const tr = btn.closest('tr[data-grid-id]');
+      if (!tr) return;
+      const seq = tr.getAttribute('data-grid-id');
+      moverPontoIntermediario(seq, up ? -1 : 1);
+    });
+  }
+
+  async function otimizarOrdemPontosClick() {
+    const idRoteiro = roteiroAtualId || document.getElementById('roteiroId')?.value;
+    if (!idRoteiro) {
+      showMessage('Selecione um roteiro na aba "Dados".', 'error');
+      return;
+    }
+    if (!pontosRoteiro.length) {
+      await carregarPontos(idRoteiro);
+    }
+    if (pontosRoteiro.length < 3) {
+      showMessage('É necessário ter origem, destino e ao menos uma passagem.', 'error');
+      return;
+    }
+    const antes = pontosOrdenadosPorOrdem(pontosRoteiro).map(seqPonto).join(',');
+    const nova = otimizarIntermediariosClusterMunicipio(pontosRoteiro);
+    if (nova.join(',') === antes) {
+      showMessage('A ordem já está otimizada por município/proximidade.', 'success');
+      return;
+    }
+    const btn = document.getElementById('btnOtimizarOrdemPontos');
+    if (btn) btn.disabled = true;
+    try {
+      await persistirOrdemPontos(nova);
+    } finally {
+      if (btn && pontosRoteiro.length >= 3) {
+        btn.disabled = false;
+        btn.style.opacity = '1';
+      }
+    }
+  }
+
+  /** Enriquece pontos para a grid: passo visual, badges, coluna de reordenar. */
+  function enriquecerPontosParaGrid(lista) {
+    const ordenados = pontosOrdenadosPorOrdem(lista);
+    return ordenados.map((p, i) => {
+      const tp = normTpLocalPonto(p);
+      const tipos = { O: 'Origem', D: 'Destino', P: 'Passagem', R: 'Parada' };
+      const cls = { O: 'ponto-tipo-o', D: 'ponto-tipo-d', P: 'ponto-tipo-p', R: 'ponto-tipo-r' };
+      const label = tipos[tp] || tp || '—';
+      const badgeCls = cls[tp] || 'ponto-tipo-p';
+      const local = String(p.DSLOCAL || '').trim() || 'Sem nome';
+      const pos = String(p.DSPOSICAO || '').trim();
+      const fixo = tp === 'O' || tp === 'D' || i === 0 || i === ordenados.length - 1;
+      const podeSubir = !fixo && i > 1;
+      const podeDescer = !fixo && i < ordenados.length - 2;
+      const reorderHtml =
+        '<span class="ponto-reorder-actions" title="' +
+        (fixo ? 'Origem/Destino fixos na ponta' : 'Reordenar parada') +
+        '">' +
+        '<button type="button" class="ponto-drag-handle" title="' +
+        (fixo ? 'Fixo' : 'Arrastar') +
+        '" ' +
+        (fixo ? 'disabled' : '') +
+        ' draggable="false" aria-label="Arrastar">⠿</button>' +
+        '<button type="button" class="btn-ponto-up" title="Subir" ' +
+        (podeSubir ? '' : 'disabled') +
+        ' aria-label="Subir"><i class=\'bx bx-chevron-up\'></i></button>' +
+        '<button type="button" class="btn-ponto-down" title="Descer" ' +
+        (podeDescer ? '' : 'disabled') +
+        ' aria-label="Descer"><i class=\'bx bx-chevron-down\'></i></button>' +
+        '</span>';
+      return Object.assign({}, p, {
+        _PASSO: i + 1,
+        _TIPO_HTML: '<span class="ponto-tipo-badge ' + badgeCls + '">' + label + '</span>',
+        _LOCAL_HTML:
+          '<span class="ponto-local-main">' +
+          escapeHtmlPontos(local) +
+          '</span>' +
+          (pos ? '<span class="ponto-local-sub">' + escapeHtmlPontos(pos) + '</span>' : ''),
+        _PASSO_HTML: '<span class="ponto-passo">' + (i + 1) + '</span>',
+        _REORDER_HTML: reorderHtml,
+        _FIXO: fixo,
+      });
+    });
+  }
+
+  function escapeHtmlPontos(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function renderGridPontosAtual() {
+    if (!gridPontos) return;
+    gridPontos.render(enriquecerPontosParaGrid(pontosRoteiro));
+  }
+
+  /** Recria a grid se ainda estiver no layout antigo (ações misturadas). */
+  function ensureGridPontos() {
+    const precisaNovo =
+      !gridPontos ||
+      !Array.isArray(gridPontos.columns) ||
+      !gridPontos.columns.some((c) => c && c.field === '_REORDER_HTML');
+    if (!precisaNovo) return;
+    const el = document.getElementById('pontosGrid');
+    if (el && el.parentNode) {
+      const neu = el.cloneNode(false);
+      neu.id = 'pontosGrid';
+      neu.className = el.className;
+      el.parentNode.replaceChild(neu, el);
+    }
+    gridPontos = null;
+    inicializarGridPontos();
+  }
+
   function inicializarGridPontos() {
     if (typeof window.GridEditor === 'undefined') {
       console.error('[Pontos] GridEditor não está disponível');
       return;
     }
 
+    garantirDelegacaoCliqueReordenacaoPontos();
+
+    /** Força reinicializar se já existia grid com colunas antigas. */
     gridPontos = new window.GridEditor({
       container: '#pontosGrid',
+      buildFetchHeaders: () => getAuthHeaders(),
+      actionsWidth: '84px',
       columns: [
-        { field: 'SEQUENCIA', header: 'Seq', editable: false, isId: true, width: '60px' },
-        { field: 'ORDEM', header: 'Ordem', editable: true, type: 'number', width: '80px' },
-        { field: 'TPLOCAL', header: 'Tipo', editable: true, type: 'select',
-          options: [
-            { value: 'O', label: 'Origem' },
-            { value: 'D', label: 'Destino' },
-            { value: 'P', label: 'Passagem' },
-            { value: 'R', label: 'Parada' }
-          ],
-          format: (val) => {
-            if (val === null || val === undefined) return 'Não definido';
-            const tipoNormalizado = String(val).trim().toUpperCase();
-            const tipos = { 'O': 'Origem', 'D': 'Destino', 'P': 'Passagem', 'R': 'Parada' };
-            return tipos[tipoNormalizado] || tipoNormalizado || 'Não definido';
-          }
+        { field: 'SEQUENCIA', header: 'Seq', editable: false, isId: true, hidden: true, sortable: false },
+        {
+          field: '_PASSO_HTML',
+          header: '#',
+          editable: false,
+          width: '44px',
+          sortable: false,
+          format: (val) => val || '',
         },
-        { field: 'DSLOCAL', header: 'Local', editable: true, type: 'text' },
-        { field: 'DSPOSICAO', header: 'Posição', editable: true, type: 'text' },
-        { field: 'LATITUDE', header: 'Latitude', editable: true, type: 'number',
-          format: (val) => val ? parseFloat(val).toFixed(6) : ''
+        {
+          field: '_REORDER_HTML',
+          header: 'Ord.',
+          editable: false,
+          width: '108px',
+          sortable: false,
+          format: (val) => val || '',
         },
-        { field: 'LONGITUDE', header: 'Longitude', editable: true, type: 'number',
-          format: (val) => val ? parseFloat(val).toFixed(6) : ''
+        {
+          field: '_TIPO_HTML',
+          header: 'Tipo',
+          editable: false,
+          width: '100px',
+          sortable: false,
+          format: (val) => val || '',
         },
-        { field: 'KMENTREPONTOS', header: 'Dist. (km)', editable: true, type: 'number',
-          format: (val) => val ? parseFloat(val).toFixed(4) : ''
+        {
+          field: '_LOCAL_HTML',
+          header: 'Parada',
+          editable: false,
+          sortable: false,
+          format: (val) => val || '',
         },
-        { field: 'ESTADOPASSAGEM', header: 'UF', editable: true, type: 'text', width: '60px', align: 'right' }
+        {
+          field: 'KMENTREPONTOS',
+          header: 'Dist. (km)',
+          editable: false,
+          type: 'number',
+          width: '88px',
+          align: 'right',
+          sortable: false,
+          format: (val) => (val != null && val !== '' ? parseFloat(val).toFixed(1) : '—'),
+        },
+        {
+          field: 'ESTADOPASSAGEM',
+          header: 'UF',
+          editable: false,
+          type: 'text',
+          width: '44px',
+          sortable: false,
+        },
+        { field: 'ORDEM', header: 'Ordem', editable: false, hidden: true, sortable: false },
+        { field: 'TPLOCAL', header: 'TipoRaw', editable: false, hidden: true, sortable: false },
+        { field: 'DSLOCAL', header: 'Local', editable: false, hidden: true, sortable: false },
+        { field: 'DSPOSICAO', header: 'Posição', editable: false, hidden: true, sortable: false },
+        { field: 'LATITUDE', header: 'Latitude', editable: false, hidden: true, sortable: false },
+        { field: 'LONGITUDE', header: 'Longitude', editable: false, hidden: true, sortable: false },
       ],
       apiEndpoint: `/api/roteiros/${roteiroAtualId}/pontos`,
+      onAfterRender: () => {
+        ativarReordenacaoPontosGrid();
+        const tbody = document.querySelector('#pontosGrid tbody');
+        if (!tbody) return;
+        tbody.querySelectorAll('tr[data-grid-id]').forEach((tr) => {
+          const seq = tr.getAttribute('data-grid-id');
+          const p = pontosRoteiro.find((x) => String(seqPonto(x)) === String(seq));
+          if (!p) return;
+          const ordenados = pontosOrdenadosPorOrdem(pontosRoteiro);
+          const idx = ordenados.findIndex((x) => String(seqPonto(x)) === String(seq));
+          const tp = normTpLocalPonto(p);
+          const fixo = tp === 'O' || tp === 'D' || idx <= 0 || idx >= ordenados.length - 1;
+          tr.classList.toggle('ponto-row-fixo', !!fixo);
+        });
+      },
       onBeforeEdit: async (id) => {
         if (!id || id === 'undefined' || id === 'null' || id === '') {
           console.warn('[Pontos] ID inválido no onBeforeEdit:', id);
           return false;
         }
         await carregarPontoParaEdicao(id);
-        return false; // Cancelar edição inline, usar formulário
+        return false;
       },
       onDelete: async (id) => {
         if (!id || id === 'undefined' || id === 'null' || id === '') {
@@ -3288,10 +4006,10 @@ async function loadRoteiroParaEdicao(id) {
           return;
         }
         await confirmarExclusaoPonto(id);
-      }
+      },
     });
   }
-  
+
   // Carregar ponto para edição
   async function carregarPontoParaEdicao(sequencia) {
     try {
@@ -3501,7 +4219,7 @@ async function loadRoteiroParaEdicao(id) {
       
       // Usar Nominatim para geocodificação (tentar servidor configurado; em caso de falha, API pública)
       const servers = [
-        (window.MAP_CONFIG?.nominatimServer || 'http://app.integrabrasil.com:8080/nominatim').replace(/\/$/, ''),
+        (window.MAP_CONFIG?.nominatimServer || 'https://nominatim.openstreetmap.org').replace(/\/$/, ''),
         'https://nominatim.openstreetmap.org'
       ];
       const opts = { headers: { 'User-Agent': 'AtlasCargo/2.0' } };
@@ -3598,11 +4316,9 @@ async function loadRoteiroParaEdicao(id) {
       // Tentar calcular usando OSRM (rota real)
       try {
         const coordsStr = `${pontoAnterior.LONGITUDE},${pontoAnterior.LATITUDE};${longitudeAtual},${latitudeAtual}`;
-        const osrmUrl = `https://router.project-osrm.org/route/v1/driving-hgv/${coordsStr}?overview=full`;
-        const response = await fetch(osrmUrl);
-        const data = await response.json();
+        const data = await obterJsonRotaOsrm(coordsStr, 28000);
         
-        if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+        if (data && data.code === 'Ok' && data.routes && data.routes.length > 0) {
           const distancia = parseFloat((data.routes[0].distance / 1000).toFixed(4)); // Converter metros para km, 4 casas decimais
           return distancia;
         }
@@ -3706,14 +4422,14 @@ async function loadRoteiroParaEdicao(id) {
         // Atualizar
         response = await fetch(`/api/roteiros/${idRoteiro}/pontos/${sequencia}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(pontoData)
         });
       } else {
         // Criar
         response = await fetch(`/api/roteiros/${idRoteiro}/pontos`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(pontoData)
         });
       }
@@ -3821,7 +4537,8 @@ async function loadRoteiroParaEdicao(id) {
       
       try {
         const response = await fetch(`/api/roteiros/${idRoteiroParaExclusao}/pontos/${seqNum}`, {
-          method: 'DELETE'
+          method: 'DELETE',
+          headers: getAuthHeaders()
         });
         
         const data = await response.json();
@@ -3839,7 +4556,7 @@ async function loadRoteiroParaEdicao(id) {
           await new Promise(resolve => setTimeout(resolve, 1000));
           
           // Recarregar pontos do banco para pegar os valores atualizados
-          const pontosResponse = await fetch(`/api/roteiros/${idRoteiroParaExclusao}/pontos`);
+          const pontosResponse = await fetch(`/api/roteiros/${idRoteiroParaExclusao}/pontos`, { headers: getAuthHeaders() });
           if (pontosResponse.ok) {
             const pontosAtualizados = await pontosResponse.json();
             
@@ -3854,13 +4571,9 @@ async function loadRoteiroParaEdicao(id) {
             
             // Renderizar grid com dados atualizados
             if (typeof window.GridEditor !== 'undefined') {
-              if (!gridPontos) {
-                inicializarGridPontos();
-              }
+              ensureGridPontos();
               if (gridPontos) {
-                // Ordenar pontos por ORDEM antes de renderizar
-                const pontosOrdenados = [...pontosRoteiro].sort((a, b) => (a.ORDEM || 0) - (b.ORDEM || 0));
-                gridPontos.render(pontosOrdenados);
+                gridPontos.render(enriquecerPontosParaGrid(pontosRoteiro));
               }
             } else {
               console.warn('[Roteiros] GridEditor não está disponível. Recarregue a página.');
@@ -4145,124 +4858,18 @@ async function loadRoteiroParaEdicao(id) {
         return;
       }
       
-      // Criar marcadores para cada ponto
-      const cores = {
-        'O': '#2ecc71', // Verde - Origem
-        'D': '#e74c3c', // Vermelho - Destino
-        'P': '#3498db', // Azul - Passagem
-        'R': '#f39c12'  // Laranja - Parada
-      };
-      
-      const icones = {
-        'O': '🏁', // Origem mostra bandeira verde
-        'D': '🏁', // Destino mostra bandeira xadrez
-        'P': '📍',
-        'R': '⏸'
-      };
-      
-      const tiposDescricao = {
-        'O': 'Origem',
-        'D': 'Destino',
-        'P': 'Passagem',
-        'R': 'Parada'
-      };
-      
+      // Marcadores unificados (mesmo visual que Gerenciar Viagens)
       const latlngs = [];
-      
-      // Calcular distâncias acumuladas desde a origem
-      let distanciaAcumulada = 0;
-      
-      pontosComCoordenadas.forEach((ponto, index) => {
-        if (!ponto.LATITUDE || !ponto.LONGITUDE) return;
-        
-        // Normalizar TPLOCAL - garantir que seja string e uppercase, tratar null/undefined
-        let tipoLocal = '';
-        if (ponto.TPLOCAL !== null && ponto.TPLOCAL !== undefined) {
-          tipoLocal = String(ponto.TPLOCAL).trim().toUpperCase();
-        }
-        
-        const isPrimeiro = index === 0;
-        const isUltimo = index === pontosComCoordenadas.length - 1;
-        const isIntermediario = !isPrimeiro && !isUltimo;
-        
-        // Lógica de ajuste de tipos (mesma de Gerenciar Viagens):
-        // - Primeiro ponto SEMPRE é Origem (O)
-        // - Último ponto SEMPRE é Destino (D)
-        // - Pontos intermediários: manter tipo original (P ou R), mas converter O/D para P
-        
-        const tipoOriginal = tipoLocal; // Guardar tipo original para debug
-        
-        if (isPrimeiro) {
-          // Primeiro ponto sempre é Origem
-          tipoLocal = 'O';
-        } else if (isUltimo) {
-          // Último ponto sempre é Destino
-          tipoLocal = 'D';
-        } else if (isIntermediario) {
-          // Pontos intermediários: se for O ou D, converter para Passagem
-          // Caso contrário, manter o tipo original (P ou R)
-          if (tipoLocal === 'O' || tipoLocal === 'D' || !tipoLocal || tipoLocal === '') {
-            tipoLocal = 'P'; // Default para Passagem se não tiver tipo ou for O/D
-          }
-          // Se já é P ou R, manter o tipo original
-        }
-        
-        // Tipo ajustado automaticamente se necessário
-        
-        const cor = cores[tipoLocal] || '#95a5a6';
-        const icone = icones[tipoLocal] || '📍';
-        const descricaoTipo = tiposDescricao[tipoLocal] || tipoLocal || 'Não definido';
-        
-        // Calcular distância acumulada (somar distâncias dos pontos anteriores)
-        if (index > 0 && ponto.KMENTREPONTOS) {
-          distanciaAcumulada += parseFloat(ponto.KMENTREPONTOS) || 0;
-        }
-        
-        // Criar marcador customizado com tamanho ajustado para melhor visibilidade
-        const tamanhoMarcador = (tipoLocal === 'O' || tipoLocal === 'D') ? 35 : 30;
-        const tamanhoFonte = (tipoLocal === 'O' || tipoLocal === 'D') ? 16 : 14;
-        const numeroOrdem = isIntermediario ? `<span style="font-size: 10px; font-weight: bold; position: absolute; top: -2px; right: -2px; background: white; border-radius: 50%; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; border: 2px solid ${cor};">${index + 1}</span>` : '';
-        
-        const marcador = L.marker([ponto.LATITUDE, ponto.LONGITUDE], {
-          icon: L.divIcon({
-            className: 'custom-marker',
-            html: `<div style="
-              background: ${cor};
-              width: ${tamanhoMarcador}px;
-              height: ${tamanhoMarcador}px;
-              border-radius: 50%;
-              border: 3px solid white;
-              box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-size: ${tamanhoFonte}px;
-              position: relative;
-            ">${icone}${numeroOrdem}</div>`,
-            iconSize: [tamanhoMarcador, tamanhoMarcador],
-            iconAnchor: [tamanhoMarcador / 2, tamanhoMarcador / 2]
-          })
-        }).addTo(mapa);
-        
-        // Popup com informações
-        const popupContent = `
-          <div style="min-width: 200px;">
-            <strong>${ponto.DSLOCAL || 'Sem descrição'}</strong><br>
-            <small>${ponto.DSPOSICAO || 'Sem posição'}</small><br>
-            <hr style="margin: 8px 0;">
-            <strong>Tipo:</strong> ${descricaoTipo}<br>
-            <strong>Ordem:</strong> ${ponto.ORDEM || 'N/A'}<br>
-            ${ponto.KMENTREPONTOS ? `<strong>Distância do ponto anterior:</strong> ${parseFloat(ponto.KMENTREPONTOS).toFixed(2)} km<br>` : ''}
-            ${index > 0 ? `<strong>Distância da origem:</strong> ${distanciaAcumulada.toFixed(2)} km<br>` : ''}
-            <strong>Coordenadas:</strong><br>
-            <small>${parseFloat(ponto.LATITUDE).toFixed(6)}, ${parseFloat(ponto.LONGITUDE).toFixed(6)}</small>
-          </div>
-        `;
-        marcador.bindPopup(popupContent);
-        
-        marcadoresPontos.push(marcador);
-        latlngs.push([ponto.LATITUDE, ponto.LONGITUDE]);
-      });
+      if (window.AtlasRoteiroMapMarkers && typeof window.AtlasRoteiroMapMarkers.addPontosMarkers === 'function') {
+        const res = window.AtlasRoteiroMapMarkers.addPontosMarkers(mapa, pontosComCoordenadas);
+        (res.markers || []).forEach((m) => marcadoresPontos.push(m));
+        (res.latlngs || []).forEach((ll) => latlngs.push(ll));
+      } else {
+        console.warn('[MAPA] AtlasRoteiroMapMarkers indisponível — recarregue map-helper.js');
+        pontosComCoordenadas.forEach((p) => {
+          if (p.LATITUDE && p.LONGITUDE) latlngs.push([Number(p.LATITUDE), Number(p.LONGITUDE)]);
+        });
+      }
       
       // Atualizar mensagem do overlay
       showMapaLoading('Traçando Rota', 'Calculando rota real entre os pontos...');
@@ -4280,37 +4887,38 @@ async function loadRoteiroParaEdicao(id) {
       let osrmData = null; // Variável para armazenar dados do OSRM
       
       if (latlngs.length > 1) {
-        // OTIMIZAÇÃO: Para poucos pontos (≤5), não precisa de steps=true (mais rápido)
-        const totalPontos = latlngs.length;
-        const usarSteps = totalPontos > 5; // Só usar steps para muitos pontos
-        
-        // Tentar obter rota do OSRM (com timeout para não travar)
+        // Tentar obter rota do OSRM (via backend para evitar CORS no OSRM público)
         try {
           const coordsStr = latlngs.map(c => `${c[1]},${c[0]}`).join(';');
           console.log('🗺️ [ROTEIROS] Coordenadas enviadas ao OSRM:', coordsStr);
-          // Para poucos pontos, remover steps=true para ser mais rápido
-          const osrmUrl = usarSteps 
-            ? `https://router.project-osrm.org/route/v1/driving-hgv/${coordsStr}?overview=full&geometries=geojson&steps=true`
-            : `https://router.project-osrm.org/route/v1/driving-hgv/${coordsStr}?overview=full&geometries=geojson`;
+          const nTrechos = Math.max(1, latlngs.length - 1);
+          const timeoutHardMax = nTrechos * 58000 + 20000;
+          osrmData = await Promise.race([
+            obterJsonRotaOsrm(coordsStr, 55000),
+            new Promise((_, reject) => {
+              setTimeout(() => {
+                const err = new Error('Tempo máximo ao calcular rota');
+                err.name = 'AbortError';
+                reject(err);
+              }, timeoutHardMax);
+            })
+          ]);
           
-          // Usar AbortController para timeout (reduzir timeout para poucos pontos)
-          const controller = new AbortController();
-          const timeout = totalPontos <= 5 ? 10000 : 30000; // 10s para poucos pontos, 30s para muitos
-          const timeoutId = setTimeout(() => controller.abort(), timeout);
-          
-          const response = await fetch(osrmUrl, { signal: controller.signal });
-          clearTimeout(timeoutId);
-          osrmData = await response.json();
-          
-          if (osrmData.code === 'Ok' && osrmData.routes && osrmData.routes.length > 0) {
+          if (osrmData && osrmData.code === 'Ok' && osrmData.routes && osrmData.routes.length > 0) {
             const geometry = osrmData.routes[0].geometry.coordinates;
             const routeLatLngs = geometry.map(c => [c[1], c[0]]);
+            const trechosReta = Number(osrmData._trechosReta) || 0;
+            const trechosTotal = Number(osrmData._trechosTotal) || Math.max(1, latlngs.length - 1);
+            const soLinhaReta = trechosReta > 0 && trechosReta >= trechosTotal;
+            const parcialReta = trechosReta > 0 && !soLinhaReta;
             
             console.log('✅ [ROTEIROS] Rota OSRM calculada com sucesso:', {
               totalPontos: routeLatLngs.length,
               primeiroPonto: routeLatLngs[0],
               ultimoPonto: routeLatLngs[routeLatLngs.length - 1],
-              distancia: (osrmData.routes[0].distance / 1000).toFixed(2) + ' km'
+              distancia: (osrmData.routes[0].distance / 1000).toFixed(2) + ' km',
+              trechosReta,
+              trechosTotal
             });
             
             // IMPORTANTE: Limpar rota anterior ANTES de criar nova
@@ -4324,15 +4932,24 @@ async function loadRoteiroParaEdicao(id) {
               linhaRota = null;
             }
             
-            // Criar nova rota
+            // Criar nova rota (tracejada só se 100% linha reta)
             linhaRota = L.polyline(routeLatLngs, {
               color: '#3498db',
               weight: 4,
-              opacity: 0.7
+              opacity: 0.7,
+              dashArray: soLinhaReta ? '10, 10' : null
             }).addTo(mapa);
             
             const distanciaTotal = (osrmData.routes[0].distance / 1000).toFixed(2);
-            linhaRota.bindPopup(`<strong>Distância total da rota:</strong> ${distanciaTotal} km`);
+            if (soLinhaReta) {
+              linhaRota.bindPopup(`<strong>Distância (linha reta):</strong> ${distanciaTotal} km<br><small>Roteador de ruas indisponível.</small>`);
+              showMessage('Mapa em linha reta: o roteador (OSRM/ORS) não respondeu. Verifique a configuração de rota do mapa.', 'warning');
+            } else if (parcialReta) {
+              linhaRota.bindPopup(`<strong>Distância da rota:</strong> ${distanciaTotal} km<br><small>${trechosReta} trecho(s) em linha reta (falha parcial do roteador).</small>`);
+              showMessage(`Rota desenhada com ${trechosReta} trecho(s) em linha reta (roteador falhou nesses segmentos).`, 'warning');
+            } else {
+              linhaRota.bindPopup(`<strong>Distância total da rota:</strong> ${distanciaTotal} km`);
+            }
             console.log('✅ [ROTEIROS] Nova rota desenhada no mapa');
           } else {
             // Fallback: linha reta se OSRM não retornar rota válida
@@ -4342,11 +4959,14 @@ async function loadRoteiroParaEdicao(id) {
               opacity: 0.7,
               dashArray: '10, 10'
             }).addTo(mapa);
+            showMessage('Mapa em linha reta: não foi possível obter geometria de ruas/rodovias.', 'warning');
             osrmData = null; // Limpar dados inválidos
           }
         } catch (err) {
           if (err.name !== 'AbortError') {
             console.warn('Erro ao obter rota do OSRM, usando linha reta:', err);
+          } else {
+            console.warn('[MAPA] Timeout ao montar rota OSRM — linha reta');
           }
           // Fallback: linha reta
           linhaRota = L.polyline(latlngs, {
@@ -4355,6 +4975,7 @@ async function loadRoteiroParaEdicao(id) {
             opacity: 0.7,
             dashArray: '10, 10'
           }).addTo(mapa);
+          showMessage('Mapa em linha reta: tempo esgotado ou falha ao consultar o roteador de ruas.', 'warning');
           osrmData = null; // Limpar dados em caso de erro
         }
       }
@@ -4937,7 +5558,7 @@ async function loadRoteiroParaEdicao(id) {
     
     // Buscar endereço usando reverse geocoding (Nominatim)
     try {
-      const nominatimServer = window.MAP_CONFIG?.nominatimServer || 'http://app.integrabrasil.com:8080/nominatim';
+      const nominatimServer = window.MAP_CONFIG?.nominatimServer || 'https://nominatim.openstreetmap.org';
       const reverseUrl = `${nominatimServer}/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`;
       const reverseResponse = await fetch(reverseUrl, {
         headers: {

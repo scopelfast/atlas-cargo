@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>WMS — Cobrança operacional</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/modulos.css" />
+  <link rel="stylesheet" href="/css/dark-mode.css" />
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+  <style>
+    .wms-cob-container { padding: 20px; font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif; max-width: 1400px; }
+    .wms-cob-header { margin-bottom: 22px; padding-bottom: 15px; border-bottom: 2px solid #e2e8f0; }
+    .wms-cob-header h2 { margin: 0; font-size: 28px; font-weight: 700; color: #0d2137; display: flex; align-items: center; gap: 10px; }
+    .wms-cob-header p { margin: 8px 0 0; color: #64748b; font-size: 14px; line-height: 1.55; max-width: 920px; }
+    .filtros-box { background: #fff; border-radius: 14px; padding: 22px 24px; border: 1px solid #e2e8f0; margin-bottom: 18px; box-shadow: 0 4px 14px rgba(15,23,42,.04); }
+    .filtros-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 15px; }
+    .wms-cob-container .filtros-grid label { display: block; margin-bottom: 8px; font-weight: 600; font-size: 14px; color: #1e293b; }
+    .wms-cob-container .form-control { width: 100%; min-height: 46px; padding: 12px; border: 1px solid #e2e8f0; border-radius: 10px; font-size: 15px; box-sizing: border-box; background: #fff; color: #0d2137; }
+    .filtros-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: flex-end; margin-top: 15px; }
+    .btn-filtro { display: inline-flex; align-items: center; gap: 8px; padding: 11px 20px; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; transition: transform .15s, box-shadow .2s; }
+    .btn-filtro:hover { transform: translateY(-1px); }
+    .btn-filtro-limpar { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+    .btn-filtro-aplicar { background: #0ea5e9; color: #fff; box-shadow: 0 2px 10px rgba(14,165,233,.28); }
+    .btn-filtro-outline { background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; }
+
+    /* —— Cards KPI (padrão Estoque / WMS — visão geral) —— */
+    .wms-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 20px; }
+    .wms-stat-grid--hero { grid-template-columns: 1.2fr 1fr 1fr; }
+    @media (max-width: 1024px) { .wms-stat-grid--hero { grid-template-columns: 1fr; } }
+    .dashboard-stat-card {
+      background: #fff; border-radius: 12px; padding: 20px 22px; box-shadow: 0 4px 14px rgba(15,23,42,.05);
+      border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 16px;
+      border-left: 4px solid #0ea5e9; min-height: 108px;
+    }
+    .dashboard-stat-card.primary { border-left-color: #0ea5e9; }
+    .dashboard-stat-card.success { border-left-color: #059669; }
+    .dashboard-stat-card.info { border-left-color: #17a2b8; }
+    .dashboard-stat-card.warning { border-left-color: #f39c12; }
+    .dashboard-stat-card.purple { border-left-color: #7c3aed; }
+    .stat-card-icon {
+      width: 52px; height: 52px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+      font-size: 24px; color: #fff; flex-shrink: 0;
+    }
+    .dashboard-stat-card.primary .stat-card-icon { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
+    .dashboard-stat-card.success .stat-card-icon { background: linear-gradient(135deg, #059669, #047857); }
+    .dashboard-stat-card.info .stat-card-icon { background: linear-gradient(135deg, #17a2b8, #0e7490); }
+    .dashboard-stat-card.warning .stat-card-icon { background: linear-gradient(135deg, #f39c12, #d97706); }
+    .dashboard-stat-card.purple .stat-card-icon { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+    .stat-card-content { flex: 1; min-width: 0; }
+    .stat-card-content h4 { margin: 0 0 6px; color: #64748b; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+    .stat-value { font-size: 1.55rem; font-weight: 800; color: #0d2137; margin: 0; line-height: 1.2; }
+    .stat-label { font-size: 12px; color: #64748b; display: block; margin-top: 4px; line-height: 1.4; }
+    .stat-label-row { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: #64748b; margin-top: 6px; }
+    .stat-label-row strong { color: #0f172a; font-weight: 700; }
+    .wms-cob-share { display: flex; gap: 4px; margin-top: 8px; height: 5px; border-radius: 999px; overflow: hidden; background: #e2e8f0; }
+    .wms-cob-share__arm { background: #0ea5e9; }
+    .wms-cob-share__exp { background: #8b5cf6; }
+    .wms-cob-share-legend { display: flex; gap: 12px; margin-top: 5px; font-size: 11px; color: #64748b; }
+    .wms-cob-share-legend span::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+    .wms-cob-share-legend .leg-arm::before { background: #0ea5e9; }
+    .wms-cob-share-legend .leg-exp::before { background: #8b5cf6; }
+    .wms-cob-badge {
+      display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; padding: 4px 8px; border-radius: 999px;
+      font-size: 11px; font-weight: 600; background: #fff7ed; color: #c2410c; border: 1px solid #fdba74;
+    }
+
+    .wms-cob-avisos { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 12px; margin-bottom: 16px; font-size: 13px; color: #92400e; overflow: hidden; }
+    .wms-cob-avisos__toggle {
+      width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      padding: 12px 16px; border: 0; background: transparent; color: inherit; font: inherit; font-weight: 600; cursor: pointer; text-align: left;
+    }
+    .wms-cob-avisos__toggle i.bx-chevron-down { transition: transform .2s; font-size: 20px; }
+    .wms-cob-avisos.is-open .wms-cob-avisos__toggle i.bx-chevron-down { transform: rotate(180deg); }
+    .wms-cob-avisos__body { display: none; padding: 0 16px 14px; border-top: 1px solid rgba(251,191,36,.35); }
+    .wms-cob-avisos.is-open .wms-cob-avisos__body { display: block; }
+    .wms-cob-avisos ul { margin: 10px 0 0; padding-left: 18px; line-height: 1.5; }
+
+    .wms-cob-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+    .wms-cob-tab { padding: 10px 18px; border-radius: 10px; border: 1px solid #e2e8f0; background: #f8fafc; font-weight: 600; cursor: pointer; font-size: 14px; color: #334155; display: inline-flex; align-items: center; gap: 6px; }
+    .wms-cob-tab.active { background: #0ea5e9; color: #fff; border-color: #0ea5e9; box-shadow: 0 2px 10px rgba(14,165,233,.25); }
+    .wms-cob-panel { display: none; }
+    .wms-cob-panel.active { display: block; }
+
+    .wms-cob-section { margin-bottom: 22px; }
+    .wms-cob-section h3 { font-size: 15px; font-weight: 700; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; color: #0d2137; }
+    .wms-cob-section h3 .hint-inline { font-size: 12px; font-weight: 500; color: #94a3b8; margin-left: 4px; }
+    .wms-cob-charts-row { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; margin-bottom: 20px; }
+    @media (max-width: 960px) { .wms-cob-charts-row { grid-template-columns: 1fr; } }
+    .wms-cob-chart-card {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 16px 18px 12px;
+      box-shadow: 0 4px 14px rgba(15,23,42,.04);
+    }
+    .wms-cob-chart-card h4 { margin: 0 0 12px; font-size: 14px; font-weight: 700; color: #334155; display: flex; align-items: center; gap: 8px; }
+    .wms-cob-chart-wrap { position: relative; height: 280px; }
+    .wms-cob-chart-wrap--sm { height: 260px; }
+
+    .wms-cob-table-wrap { overflow: auto; border: 1px solid #e2e8f0; border-radius: 12px; max-height: 420px; background: #fff; }
+    .wms-cob-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .wms-cob-table th, .wms-cob-table td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+    .wms-cob-table th { background: #f8fafc; font-weight: 600; position: sticky; top: 0; z-index: 1; }
+    .wms-cob-table td.num { text-align: right; white-space: nowrap; }
+    .wms-cob-table tr:hover td { background: rgba(14,165,233,.04); }
+    .badge-sem-preco { color: #c2410c; font-size: 11px; font-weight: 600; }
+
+    /* Dark mode */
+    html[data-theme='dark'] .wms-cob-header h2, body[data-theme='dark'] .wms-cob-header h2 { color: #e2e8f0; }
+    html[data-theme='dark'] .wms-cob-header p, body[data-theme='dark'] .wms-cob-header p { color: #94a3b8; }
+    html[data-theme='dark'] .wms-cob-header { border-color: #334155; }
+    html[data-theme='dark'] .filtros-box, body[data-theme='dark'] .filtros-box { background: #0f172a; border-color: #334155; }
+    html[data-theme='dark'] .wms-cob-container .filtros-grid label { color: #e2e8f0; }
+    html[data-theme='dark'] .wms-cob-container .form-control { background: #0f172a; border-color: #334155; color: #e2e8f0; }
+    html[data-theme='dark'] .btn-filtro-limpar { background: #1e293b; color: #e2e8f0; border-color: #334155; }
+    html[data-theme='dark'] .btn-filtro-outline { color: #fdba74; border-color: #c2410c; background: #422006; }
+    html[data-theme='dark'] .wms-cob-tab { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+    html[data-theme='dark'] .wms-cob-tab.active { background: #0284c7; border-color: #38bdf8; }
+    html[data-theme='dark'] .dashboard-stat-card { background: #0f172a; border-color: #334155; box-shadow: none; }
+    html[data-theme='dark'] .dashboard-stat-card.primary { border-left-color: #38bdf8; }
+    html[data-theme='dark'] .dashboard-stat-card.success { border-left-color: #34d399; }
+    html[data-theme='dark'] .dashboard-stat-card.info { border-left-color: #38bdf8; }
+    html[data-theme='dark'] .dashboard-stat-card.purple { border-left-color: #a78bfa; }
+    html[data-theme='dark'] .dashboard-stat-card.primary .stat-card-icon { background: linear-gradient(135deg, #0ea5e9, #0369a1); }
+    html[data-theme='dark'] .dashboard-stat-card.success .stat-card-icon { background: linear-gradient(135deg, #10b981, #047857); }
+    html[data-theme='dark'] .dashboard-stat-card.info .stat-card-icon { background: linear-gradient(135deg, #06b6d4, #0e7490); }
+    html[data-theme='dark'] .dashboard-stat-card.purple .stat-card-icon { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+    html[data-theme='dark'] .stat-card-content h4, html[data-theme='dark'] .stat-label, html[data-theme='dark'] .stat-label-row { color: #94a3b8; }
+    html[data-theme='dark'] .stat-value, html[data-theme='dark'] .stat-label-row strong { color: #f1f5f9; }
+    html[data-theme='dark'] .wms-cob-share { background: #334155; }
+    html[data-theme='dark'] .wms-cob-badge { background: #422006; color: #fde68a; border-color: #b45309; }
+    html[data-theme='dark'] .wms-cob-avisos { background: #422006; border-color: #b45309; color: #fde68a; }
+    html[data-theme='dark'] .wms-cob-avisos__body { border-top-color: #78350f; }
+    html[data-theme='dark'] .wms-cob-chart-card, html[data-theme='dark'] .wms-cob-table-wrap { background: #0f172a; border-color: #334155; }
+    html[data-theme='dark'] .wms-cob-chart-card h4, html[data-theme='dark'] .wms-cob-section h3 { color: #e2e8f0; }
+    html[data-theme='dark'] .wms-cob-table th { background: #1e293b; color: #e2e8f0; }
+    html[data-theme='dark'] .wms-cob-table td { border-color: #334155; color: #e2e8f0; }
+    html[data-theme='dark'] .wms-cob-table tr:hover td { background: rgba(56,189,248,.08); }
+    html[data-theme='dark'] .badge-sem-preco { color: #fdba74; }
+  </style>
+</head>
+<body>
+  <div class="wms-cob-container" id="wmsCobRoot">
+    <div class="wms-cob-header">
+      <h2><i class="bx bx-receipt"></i> Cobrança operacional WMS</h2>
+      <p>
+        Armazenagem (% sobre pico de valor no período) e expedição (% sobre NF-e expedidas).
+        Data de referência da expedição: <strong>saída no XML da NF</strong>; se ausente, <strong>confirmação da saída</strong> no módulo Expedição.
+        Configure os percentuais em <strong>Cadastros WMS → Dono do estoque</strong>.
+      </p>
+    </div>
+
+    <div id="message" class="message" style="display:none;"></div>
+
+    <div class="filtros-box">
+      <h3 style="margin:0 0 14px;font-size:16px;color:inherit;">Período de apuração</h3>
+      <form id="formFiltrosCobranca">
+        <div class="filtros-grid">
+          <div>
+            <label for="filtroCdDono">Dono do estoque</label>
+            <select id="filtroCdDono" class="form-control"><option value="">Todos</option></select>
+          </div>
+          <div>
+            <label for="filtroDataIni">Data início</label>
+            <input type="date" id="filtroDataIni" class="form-control" required />
+          </div>
+          <div>
+            <label for="filtroDataFim">Data fim</label>
+            <input type="date" id="filtroDataFim" class="form-control" required />
+          </div>
+        </div>
+        <div class="filtros-actions">
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnLimpar"><i class="bx bx-x"></i> Limpar</button>
+          <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search"></i> Filtrar</button>
+          <button type="button" class="btn-filtro btn-filtro-outline" id="btnExportResumo"><i class="bx bx-spreadsheet"></i> Exportar resumo CSV</button>
+          <button type="button" class="btn-filtro btn-filtro-outline" id="btnExportExp"><i class="bx bx-export"></i> Exportar NF expedidas CSV</button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnValorEstoque"><i class="bx bx-money"></i> Valor de estoque</button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnVoltar"><i class="bx bx-arrow-back"></i> Painel Estoque</button>
+        </div>
+      </form>
+    </div>
+
+    <div id="avisosBox" class="wms-cob-avisos" style="display:none;">
+      <button type="button" class="wms-cob-avisos__toggle" id="btnToggleAvisos">
+        <span><i class="bx bx-info-circle"></i> Observações <span id="avisosCount"></span></span>
+        <i class="bx bx-chevron-down"></i>
+      </button>
+      <div class="wms-cob-avisos__body" id="avisosBody"></div>
+    </div>
+
+    <div class="wms-stat-grid wms-stat-grid--hero" id="kpisResumo"></div>
+
+    <div class="wms-cob-tabs" role="tablist">
+      <button type="button" class="wms-cob-tab active" data-tab="resumo"><i class="bx bx-pie-chart-alt-2"></i> Resumo</button>
+      <button type="button" class="wms-cob-tab" data-tab="armazenagem"><i class="bx bx-package"></i> Armazenagem</button>
+      <button type="button" class="wms-cob-tab" data-tab="expedicao"><i class="bx bx-export"></i> Expedição</button>
+    </div>
+
+    <div id="tab-resumo" class="wms-cob-panel active">
+      <div class="wms-cob-charts-row">
+        <div class="wms-cob-chart-card">
+          <h4><i class="bx bx-line-chart"></i> Visão do período</h4>
+          <div class="wms-cob-chart-wrap"><canvas id="chartComboPeriodo"></canvas></div>
+        </div>
+        <div class="wms-cob-chart-card">
+          <h4><i class="bx bx-bar-chart-alt-2"></i> Cobrança por dono</h4>
+          <div class="wms-cob-chart-wrap wms-cob-chart-wrap--sm"><canvas id="chartCobrancaDono"></canvas></div>
+        </div>
+      </div>
+      <div class="wms-cob-section">
+        <h3><i class="bx bx-list-check"></i> Consolidado por dono</h3>
+        <div class="wms-cob-table-wrap">
+          <table class="wms-cob-table">
+            <thead>
+              <tr>
+                <th>Dono</th>
+                <th class="num">% arm.</th>
+                <th class="num">Pico estoque (R$)</th>
+                <th class="num">Cobr. arm.</th>
+                <th class="num">% exp.</th>
+                <th class="num">Valor NF exp. (R$)</th>
+                <th class="num">Cobr. exp.</th>
+                <th class="num">Total cobr.</th>
+              </tr>
+            </thead>
+            <tbody id="tblResumoDono"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-armazenagem" class="wms-cob-panel">
+      <div class="wms-cob-section">
+        <h3><i class="bx bx-line-chart"></i> Evolução diária — valor em snapshot</h3>
+        <div class="wms-cob-chart-card"><div class="wms-cob-chart-wrap"><canvas id="chartArmazenagem"></canvas></div></div>
+      </div>
+      <div class="wms-cob-section">
+        <h3><i class="bx bx-trophy"></i> Pico por dono (snapshots no período)</h3>
+        <div class="wms-cob-table-wrap">
+          <table class="wms-cob-table">
+            <thead>
+              <tr>
+                <th>Dono</th>
+                <th class="num">% cobrança</th>
+                <th class="num">Pico valor (R$)</th>
+                <th>Data pico</th>
+                <th class="num">Cobrança est. (R$)</th>
+                <th class="num">SKUs s/ preço no pico</th>
+              </tr>
+            </thead>
+            <tbody id="tblArmazenagemDono"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-expedicao" class="wms-cob-panel">
+      <div class="wms-cob-section">
+        <h3><i class="bx bx-line-chart"></i> Evolução diária — valor NF expedidas e cobrança est.</h3>
+        <div class="wms-cob-chart-card"><div class="wms-cob-chart-wrap"><canvas id="chartExpedicao"></canvas></div></div>
+      </div>
+      <div class="wms-cob-section">
+        <h3><i class="bx bx-trophy"></i> Por dono</h3>
+        <div class="wms-cob-table-wrap">
+          <table class="wms-cob-table">
+            <thead>
+              <tr>
+                <th>Dono</th>
+                <th class="num">% cobrança</th>
+                <th class="num">Valor NF (R$)</th>
+                <th class="num">Cobrança est. (R$)</th>
+                <th class="num">Cargas</th>
+                <th class="num">NF-e</th>
+                <th class="num">NF s/ valor</th>
+              </tr>
+            </thead>
+            <tbody id="tblExpedicaoDono"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="wms-cob-section">
+        <h3><i class="bx bx-truck"></i> Por carga (saída confirmada)</h3>
+        <div class="wms-cob-table-wrap">
+          <table class="wms-cob-table">
+            <thead>
+              <tr>
+                <th>Carga</th>
+                <th>Descrição</th>
+                <th>Saída</th>
+                <th>Motorista</th>
+                <th>Placa</th>
+                <th class="num">Valor NF (R$)</th>
+                <th class="num">NF-e</th>
+              </tr>
+            </thead>
+            <tbody id="tblExpedicaoCarga"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="wms-cob-section">
+        <h3><i class="bx bx-file"></i> Detalhe NF-e</h3>
+        <div class="wms-cob-table-wrap" style="max-height:360px;">
+          <table class="wms-cob-table">
+            <thead>
+              <tr>
+                <th>Carga</th>
+                <th>Saída</th>
+                <th>Dono</th>
+                <th>NF / Série</th>
+                <th class="num">Valor (R$)</th>
+                <th>Fonte</th>
+                <th>Destino</th>
+              </tr>
+            </thead>
+            <tbody id="tblExpedicaoNf"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="loadingOverlay" class="calculando-overlay" style="display:none;">
+    <div class="calculando-content">
+      <div class="calculando-spinner"></div>
+      <h3 id="loadingTitle">Carregando</h3>
+      <p id="loadingText">Aguarde…</p>
+      <p class="calculando-detalhe" id="loadingDetalhe"></p>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="js/script.js"></script>
+</body>
+</html>

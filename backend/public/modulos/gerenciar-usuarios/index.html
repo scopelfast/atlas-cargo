@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/modulos.css">
+  <link rel="stylesheet" href="/css/dark-mode.css">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <style>
     /* ========== Gerenciar Usuários - Identidade Atlas Cargo ========== */
@@ -189,13 +190,6 @@
     .btn-filtro-aplicar:hover { background: var(--ac-accent-hover, #0284c7); box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35); }
     .btn-filtro-novo { background: var(--success, #059669); color: #fff; box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25); }
     .btn-filtro-novo:hover { background: #047857; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35); }
-
-    .usuarios-container .filtros-actions-moderno {
-      padding-top: 20px;
-      margin-top: 20px;
-      border-top: 1px solid var(--border, #e2e8f0);
-      gap: 12px;
-    }
 
     /* ========== BOTÕES - Padrão do Sistema ========== */
     .btn {
@@ -483,6 +477,109 @@
       padding: 20px;
       font-style: italic;
     }
+
+    /* Modal Buscar Cadastro Geral — contraste em claro e escuro */
+    .busca-cadastro-modal__field {
+      margin-bottom: 15px;
+      text-align: left;
+    }
+    .busca-cadastro-label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--dark, #1e293b);
+    }
+    .busca-cadastro-input-wrap {
+      position: relative;
+      display: block;
+    }
+    .busca-cadastro-input-wrap .bx-search {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1.25rem;
+      color: #94a3b8;
+      pointer-events: none;
+      z-index: 1;
+    }
+    /* Mesmo padrão de .filtros-grid .form-control (o input do modal fica fora do grid) */
+    .busca-cadastro-modal__field .form-control.busca-cadastro-input,
+    #buscaCadastroModal .busca-cadastro-modal__field .form-control {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px 14px 12px 44px;
+      min-height: 48px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      font-size: 15px;
+      line-height: 1.45;
+      font-family: inherit;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      background-color: #fff;
+      color: var(--dark, #1e293b);
+    }
+    .busca-cadastro-modal__field .form-control.busca-cadastro-input:focus,
+    #buscaCadastroModal .busca-cadastro-modal__field .form-control:focus {
+      outline: none;
+      border-color: var(--ac-accent, #0ea5e9);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+    }
+    .busca-cadastro-resultados {
+      max-height: 400px;
+      overflow-y: auto;
+      text-align: left;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 10px;
+      padding: 10px;
+      background: var(--light, #f8fafc);
+    }
+    .busca-cadastro-item {
+      cursor: pointer;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      background: #fff;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .busca-cadastro-item:last-child {
+      margin-bottom: 0;
+    }
+    .busca-cadastro-item:hover {
+      background: #f1f5f9;
+      border-color: var(--ac-accent, #0ea5e9);
+    }
+    .busca-cadastro-item__title {
+      display: block;
+      font-weight: 600;
+      font-size: 15px;
+      color: var(--ac-primary, #0d2137);
+      margin-bottom: 6px;
+    }
+    .busca-cadastro-item__meta {
+      display: block;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #64748b;
+    }
+    .busca-cadastro-resultados .busca-cadastro-empty {
+      margin: 0;
+      padding: 16px;
+      font-style: normal;
+    }
+    .busca-cadastro-limite-msg {
+      text-align: center;
+      color: #64748b;
+      font-size: 13px;
+      margin: 12px 0 0;
+      padding: 0 8px;
+    }
+    .busca-cadastro-modal__actions {
+      text-align: center;
+    }
+
     .acesso-section {
       background: var(--light, #f8fafc);
       border-radius: 8px;
@@ -502,12 +599,17 @@
       gap: 10px;
       margin-top: 15px;
     }
-    /* Container principal - Grid horizontal para distribuir grupos */
+    /* Um módulo por linha: leitura vertical + subgrupos dentro do card */
     #atividadesContainer {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      display: flex;
+      flex-direction: column;
       gap: 20px;
       width: 100%;
+      max-width: none;
+      margin: 0;
+    }
+    #tab-acessos .acesso-section {
+      max-width: 100%;
     }
     
     /* Estilos para grupos de atividades - Atlas Cargo */
@@ -521,8 +623,96 @@
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      height: 100%;
-      min-height: 400px;
+      min-height: 0;
+    }
+    .modulo-permissoes-card .grupo-atividades-titulo h4::before {
+      content: none;
+    }
+    .modulo-permissoes-body {
+      padding: 14px 16px 18px;
+      background: var(--light, #f8fafc);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .permissoes-subgrupo {
+      margin-bottom: 14px;
+      padding: 10px 0 4px 14px;
+      border-left: 3px solid var(--ac-accent, #0ea5e9);
+      background: rgba(255, 255, 255, 0.6);
+      border-radius: 0 8px 8px 0;
+    }
+    .permissoes-subgrupo:last-child {
+      margin-bottom: 0;
+    }
+    .permissoes-subgrupo-head {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      margin-bottom: 10px;
+    }
+    .permissoes-subgrupo-titulo {
+      margin: 0;
+      flex: 1 1 140px;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--ac-primary, #0d2137);
+      letter-spacing: 0.02em;
+    }
+    .subgrupo-contador {
+      font-size: 12px !important;
+      min-width: 52px !important;
+      padding: 4px 10px !important;
+    }
+    .grupo-checkbox-toggle--sub {
+      padding: 4px 8px;
+    }
+    .grupo-checkbox-toggle--sub label {
+      font-size: 12px;
+    }
+    .grupo-checkbox-toggle--sub input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+    }
+    .permissoes-subgrupo-lista {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 14px;
+      max-height: none;
+      padding: 0;
+      background: transparent;
+      align-items: start;
+    }
+    .checkbox-item--acesso {
+      padding: 8px 10px;
+      align-items: flex-start;
+    }
+    .checkbox-item--acesso::before {
+      display: none;
+    }
+    .checkbox-item--acesso:hover {
+      transform: none;
+    }
+    .checkbox-item--acesso .check-indicator {
+      display: none !important;
+    }
+    .perm-linha-principal {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px 8px;
+    }
+    .perm-programa-slug {
+      display: inline-block;
+      margin-top: 4px;
+      font-size: 11px;
+      font-family: ui-monospace, 'Cascadia Code', monospace;
+      font-weight: 500;
+      color: var(--gray, #64748b);
+      background: var(--light-gray, #e2e8f0);
+      padding: 2px 8px;
+      border-radius: 4px;
     }
     .grupo-atividades-section:hover {
       box-shadow: 0 4px 12px rgba(14, 165, 233, 0.12);
@@ -685,6 +875,20 @@
       justify-content: center;
       border: 2px solid var(--success, #059669);
     }
+    .badge-atividade-sensivel {
+      display: inline-block;
+      margin-left: 8px;
+      padding: 2px 8px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      border-radius: 4px;
+      background: rgba(234, 88, 12, 0.14);
+      color: #c2410c;
+      border: 1px solid rgba(234, 88, 12, 0.35);
+      vertical-align: middle;
+    }
     .checkbox-item label {
       display: flex;
       flex-direction: column;
@@ -719,13 +923,31 @@
       display: inline-block;
       margin-top: 3px;
     }
+    .modulo-produto-nome {
+      color: var(--gray, #64748b);
+      font-size: 11px;
+      font-weight: 500;
+      font-style: normal;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      padding: 3px 6px;
+      border-radius: 4px;
+      display: inline-block;
+      margin-top: 3px;
+      margin-left: 4px;
+    }
     
     /* ========== RESPONSIVIDADE ========== */
     
+    @media (max-width: 900px) {
+      .permissoes-subgrupo-lista {
+        grid-template-columns: 1fr;
+      }
+    }
+
     /* Tablet (≤1024px) */
     @media (max-width: 1024px) {
       #atividadesContainer {
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
         gap: 16px;
       }
       
@@ -762,8 +984,7 @@
     /* Mobile (≤768px) */
     @media (max-width: 768px) {
       #atividadesContainer {
-        grid-template-columns: 1fr;
-        gap: 16px;
+        gap: 14px;
       }
       
       .grupo-atividades-section {
@@ -823,6 +1044,11 @@
       .programa-nome {
         font-size: 10px;
         padding: 2px 5px;
+      }
+      .modulo-produto-nome {
+        font-size: 10px;
+        padding: 2px 5px;
+        margin-left: 2px;
       }
     }
     
@@ -998,10 +1224,10 @@
 
       <!-- Abas com ícones (padrão Filiais / Tipos Atividade) -->
       <div class="tabs tabs-com-icones">
-        <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.usuarios.tabFiltros"><i class='bx bx-filter-alt'></i> Filtros</button>
-        <button class="tab-btn" data-tab="grid" data-i18n="web.modulos.usuarios.tabGrid"><i class='bx bx-grid-alt'></i> Grid</button>
-        <button class="tab-btn" data-tab="dados" data-i18n="web.modulos.usuarios.tabDados"><i class='bx bx-edit'></i> Dados</button>
-        <button class="tab-btn" data-tab="acessos"><i class='bx bx-lock-alt'></i> Acessos</button>
+        <button type="button" class="tab-btn active" data-tab="filtros"><i class='bx bx-filter-alt'></i> <span data-i18n="web.modulos.usuarios.tabFiltros">Filtros</span></button>
+        <button type="button" class="tab-btn" data-tab="grid"><i class='bx bx-grid-alt'></i> <span data-i18n="web.modulos.usuarios.tabGrid">Grid</span></button>
+        <button type="button" class="tab-btn" data-tab="dados"><i class='bx bx-edit'></i> <span data-i18n="web.modulos.usuarios.tabDados">Dados</span></button>
+        <button type="button" class="tab-btn" data-tab="acessos"><i class='bx bx-lock-alt'></i> <span data-i18n="web.modulos.usuarios.tabAcessos">Acessos</span></button>
       </div>
 
       <!-- Filtros -->
@@ -1041,10 +1267,10 @@
                 </select>
               </div>
             </div>
-            <div class="filtros-actions filtros-actions-moderno">
-              <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class='bx bx-eraser'></i> <span data-i18n="web.modulos.usuarios.limpar">Limpar</span></button>
-              <button type="submit" id="btnAplicarFiltros" class="btn-filtro btn-filtro-aplicar"><i class='bx bx-search-alt'></i> <span data-i18n="web.modulos.usuarios.filtrar">Filtrar</span></button>
-              <button type="button" id="btnNovoRegistro" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> <span>Novo</span></button>
+            <div class="filtros-actions">
+              <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> <span data-i18n="web.modulos.usuarios.limpar">Limpar</span></button>
+              <button type="submit" id="btnAplicarFiltros" class="btn-filtro btn-filtro-aplicar"><i class='bx bx-search'></i> <span data-i18n="web.modulos.usuarios.filtrar">Filtrar</span></button>
+              <button type="button" id="btnNovoRegistro" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> <span data-i18n="web.modulos.usuarios.novoRegistro">Novo</span></button>
             </div>
           </form>
         </div>
@@ -1053,12 +1279,12 @@
     <!-- Grid -->
     <div class="tab-content" id="tab-grid">
       <div class="form-box">
-        <h2 data-i18n="web.modulos.usuarios.gridTitulo">Visualização em Grid</h2>
+        <h2 class="form-panel-titulo"><i class='bx bx-grid-alt' aria-hidden="true"></i> <span data-i18n="web.modulos.usuarios.gridTitulo">Visualização em Grid</span></h2>
         <div class="actions-top">
           <div style="display: flex; gap: 10px;">
-            <button type="button" id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.usuarios.voltarFiltros">Voltar</span></button>
+            <button type="button" id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> <span>Voltar</span></button>
           </div>
-          <button type="button" id="btnNovoRegistroGrid" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> <span data-i18n="web.modulos.usuarios.novoRegistro">Novo</span></button>
+          <button type="button" id="btnNovoRegistroGrid" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> <span>Novo</span></button>
         </div>
         <div id="usuariosGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
           <span id="usuariosGridCountText" data-i18n="web.modulos.usuarios.registrosEncontrados">0 registro(s) encontrado(s)</span>
@@ -1072,7 +1298,7 @@
     <!-- Dados -->
     <div class="tab-content" id="tab-dados">
       <div class="form-box">
-        <h2 id="formTitle" data-i18n="web.modulos.usuarios.novoUsuario">Novo Usuário</h2>
+        <h2 id="formTitle" class="form-panel-titulo"><i class='bx bx-edit' aria-hidden="true"></i> <span data-i18n="web.modulos.usuarios.novoUsuario">Novo Usuário</span></h2>
         <form id="usuarioForm">
           <input type="hidden" id="usuarioLoginOriginal">
           
@@ -1091,6 +1317,19 @@
                 <div>
                   <label for="usuarioEmail">Email *</label>
                   <input type="text" id="usuarioEmail" required maxlength="200" placeholder="exemplo@email.com" autocomplete="email" class="form-control">
+                </div>
+                <div id="usuarioTenantSaasWrap" style="display: none;">
+                  <label for="usuarioTenantSelect">Tenant (organização) *</label>
+                  <select id="usuarioTenantSelect" class="form-control" title="Clientes em Operação SaaS">
+                  </select>
+                  <label for="usuarioTenantManual" style="margin-top: 12px;">Ou tenant manual (opcional)</label>
+                  <input type="text" id="usuarioTenantManual" class="form-control" maxlength="64" placeholder="ex.: cliente_beta — só letras, números, . _ -" autocomplete="off">
+                  <small style="color: #64748b; display: block; margin-top: 6px;">Se preencher o campo manual, ele <strong>prevalece</strong> sobre o select (útil antes de cadastrar o cliente em Operação SaaS). Valor gravado em <code>TENANT_ID</code> no login (JWT).</small>
+                </div>
+                <div id="usuarioTenantReadonlyWrap" style="display: none;">
+                  <label for="usuarioTenantReadonly">Tenant</label>
+                  <input type="text" id="usuarioTenantReadonly" class="form-control" readonly autocomplete="off">
+                  <small style="color: #64748b; display: block; margin-top: 6px;">Usuários novos ficam no mesmo tenant do seu login. Para mudar de organização, peça a equipe Atlas ou um usuário com Operação SaaS.</small>
                 </div>
               </div>
             </div>
@@ -1139,7 +1378,7 @@
     <!-- Acessos -->
     <div class="tab-content" id="tab-acessos">
       <div class="form-box">
-        <h2 id="acessosTitle">Gerenciar Acessos do Usuário</h2>
+        <h2 id="acessosTitle" class="form-panel-titulo"><i class='bx bx-shield-quarter' aria-hidden="true"></i> <span>Gerenciar Acessos do Usuário</span></h2>
         <div style="margin-bottom: 20px;">
           <label for="usuarioAcessoSelect">Selecione o Usuário:</label>
           <select id="usuarioAcessoSelect" style="width: 100%; padding: 10px; font-size: 14px;">
@@ -1148,9 +1387,18 @@
         </div>
 
         <div id="acessosContent" style="display: none;">
+          <div id="acessoModuloFiltroWrap" class="acesso-modulo-filtro-wrap" style="display: none; margin-bottom: 18px;">
+            <label for="acessoModuloFiltro" data-i18n="web.modulos.usuarios.filtroModuloOpcional">Filtrar por módulo (opcional)</label>
+            <select id="acessoModuloFiltro" class="form-control" style="width: 100%; max-width: 480px; margin-top: 8px; padding: 10px; font-size: 14px;">
+              <option value="" data-i18n="web.modulos.usuarios.todosModulos">Todos os módulos</option>
+            </select>
+          </div>
           <!-- Atividades -->
           <div class="acesso-section">
             <h3>Atividades (Permissões)</h3>
+            <p id="permissoesEscopoInfo" class="hint" style="display: none; margin-bottom: 12px; color: #64748b; font-size: 0.95rem;" data-i18n="web.modulos.usuarios.permissoesEscopoOperador">
+              Você só vê e pode alterar as atividades que o seu próprio usuário já possui. O que você não tem no seu login não aparece aqui; permissões já dadas por outro administrador fora desse escopo permanecem até alguém com acesso total ajustar.
+            </p>
             <p style="color: #6c757d; margin-bottom: 10px;">Selecione as atividades que o usuário pode realizar no sistema:</p>
             <div id="atividadesContainer">
               <p class="empty">Carregando atividades...</p>
@@ -1215,17 +1463,21 @@
     </div>
 
     <!-- Modal de Busca de Cadastro -->
-    <div id="buscaCadastroModal" class="modal">
-      <div class="modal-content" style="max-width: 800px; max-height: 80vh; overflow-y: auto;">
+    <div id="buscaCadastroModal" class="modal busca-cadastro-modal">
+      <div class="modal-content busca-cadastro-modal__content" style="max-width: 800px; max-height: 80vh; overflow-y: auto;">
         <h3>Buscar Cadastro Geral</h3>
-        <div style="margin-bottom: 15px;">
-          <input type="text" id="buscaCadastroInput" placeholder="Digite código, nome ou CPF/CNPJ..." style="width: 100%; padding: 10px; font-size: 14px;">
+        <div class="busca-cadastro-modal__field">
+          <label for="buscaCadastroInput" class="busca-cadastro-label">Buscar cadastro</label>
+          <div class="busca-cadastro-input-wrap">
+            <i class="bx bx-search" aria-hidden="true"></i>
+            <input type="search" id="buscaCadastroInput" class="form-control busca-cadastro-input" placeholder="Código, nome ou CPF/CNPJ…" autocomplete="off" enterkeyhint="search">
+          </div>
         </div>
-        <div id="resultadosBuscaCadastro" style="max-height: 400px; overflow-y: auto;">
-          <p class="empty">Digite algo para buscar...</p>
+        <div id="resultadosBuscaCadastro" class="busca-cadastro-resultados" role="listbox" aria-label="Resultados da busca">
+          <p class="empty busca-cadastro-empty">Digite algo para buscar...</p>
         </div>
-        <div class="modal-actions" style="margin-top: 15px;">
-          <button id="btnFecharBuscaCadastro" class="btn cancel">Fechar</button>
+        <div class="modal-actions busca-cadastro-modal__actions">
+          <button type="button" id="btnFecharBuscaCadastro" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Fechar</button>
         </div>
       </div>
     </div>

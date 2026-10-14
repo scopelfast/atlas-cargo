@@ -14,6 +14,17 @@
 
   let combosCarregados = false;
 
+  function getAuthHeaders(extra = {}) {
+    const headers = { ...extra };
+    const token = localStorage.getItem('token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      if (user && (user.login || user.SGUSUARIO)) headers['user-login'] = user.login || user.SGUSUARIO;
+    } catch (e) {}
+    return headers;
+  }
+
   // Função para carregar e executar o arquivo init.sql
   async function executarInitSQL() {
     if (sqlExecutado) return;
@@ -110,8 +121,8 @@
 
     try {
       const [tiposResp, marcasResp] = await Promise.all([
-        fetch('/api/tipos-combo'),
-        fetch('/api/marcas-combo')
+        fetch('/api/tipos-combo', { headers: getAuthHeaders() }),
+        fetch('/api/marcas-combo', { headers: getAuthHeaders() })
       ]);
 
       const tiposContentType = tiposResp.headers.get('content-type');
@@ -170,7 +181,7 @@
     if (situacao) params.append('situacao', situacao);
 
     try {
-      const response = await fetch(`/api/modelos-equipamento?${params.toString()}`);
+      const response = await fetch(`/api/modelos-equipamento?${params.toString()}`, { headers: getAuthHeaders() });
       const modelos = await response.json();
 
       // salvar cache de resultados
@@ -369,6 +380,7 @@
 
     gridTab = new window.GridEditor({
       container: '#modelosGrid',
+      buildFetchHeaders: () => getAuthHeaders(),
       columns: [
         { field: 'CDMODELOEQUIPAMENTO', header: 'Código', editable: false, isId: true, width: '80px' },
         { field: 'DSMODELOEQUIPAMENTO', header: 'Descrição', editable: true, type: 'text', maxlength: 40 },
@@ -410,11 +422,14 @@
         modeloForm.reset();
       }
       
-      const response = await fetch(`/api/modelos-equipamento`);
-      const modelos = await response.json();
-      const modelo = modelos.find(m => m.CDMODELOEQUIPAMENTO.toString() === id.toString());
+      const response = await fetch(`/api/modelos-equipamento/${encodeURIComponent(id)}`, { headers: getAuthHeaders() });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || response.statusText);
+      }
+      const modelo = await response.json();
 
-      if (modelo) {
+      if (modelo && modelo.CDMODELOEQUIPAMENTO != null) {
         document.getElementById('modeloCodigo').value = modelo.CDMODELOEQUIPAMENTO;
         document.getElementById('modeloDescricao').value = modelo.DSMODELOEQUIPAMENTO;
         document.getElementById('modeloSituacao').value = modelo.FGACTIVE;
@@ -448,7 +463,7 @@
     try {
       // Buscar o status atual do modelo
       const idToCheck = isNaN(idStr) ? idStr : parseInt(idStr, 10);
-      const response = await fetch(`/api/modelos-equipamento/${idToCheck}`);
+      const response = await fetch(`/api/modelos-equipamento/${idToCheck}`, { headers: getAuthHeaders() });
       if (!response.ok) {
         throw new Error('Erro ao buscar modelo');
       }
@@ -498,7 +513,8 @@
           
           const idToDelete = isNaN(deleteId) ? deleteId : parseInt(deleteId, 10);
           const response = await fetch(`/api/modelos-equipamento/${idToDelete}?action=${acao}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getAuthHeaders()
           });
           
           const data = await response.json();
@@ -570,13 +586,13 @@
         modeloData.FGACTIVE = situacao;
         response = await fetch(`/api/modelos-equipamento/${id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(modeloData)
         });
       } else {
         response = await fetch('/api/modelos-equipamento', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(modeloData)
         });
       }

@@ -1,6 +1,91 @@
 // WebSocket Service para Torre de Controle
 // Emite eventos em tempo real para atualizações de viagens, GPS, alertas, etc.
-// Versão: 1.0
+// Multi-tenant: salas torre:all-viagens:<TENANT_ID> + validação torre:join-viagem
+
+const { poolPromise } = require('../config/db');
+const { getDefaultTenantId } = require('../middleware/tenant.middleware');
+const { socketTenantId, torreAllViagensRoom } = require('./socket-tenant.service');
+
+async function tenantFromViagem(idviagem) {
+  if (idviagem == null || idviagem === '') return getDefaultTenantId();
+  const id = typeof idviagem === 'number' ? idviagem : parseFloat(idviagem);
+  if (!Number.isFinite(id)) return getDefaultTenantId();
+  try {
+    const pool = await poolPromise;
+    const r = await pool.query(
+      'SELECT "TENANT_ID" FROM public."VIAGEMMESTRE" WHERE "IDVIAGEM" = $1 LIMIT 1',
+      [id]
+    );
+    const row = r.rows && r.rows[0];
+    const tid = row && (row.TENANT_ID ?? row.tenant_id);
+    if (tid != null && String(tid).trim() !== '') return String(tid).trim();
+  } catch (_) {
+    /* coluna/tabela ausente */
+  }
+  return getDefaultTenantId();
+}
+
+async function tenantFromSosId(idSos) {
+  const id = parseInt(idSos, 10);
+  if (!Number.isFinite(id)) return getDefaultTenantId();
+  try {
+    const pool = await poolPromise;
+    const r = await pool.query(
+      'SELECT "TENANT_ID", "CDVIAGEM" FROM public."SOS_ALERTS" WHERE "ID" = $1 LIMIT 1',
+      [id]
+    );
+    const row = r.rows && r.rows[0];
+    if (row) {
+      const tid = row.TENANT_ID ?? row.tenant_id;
+      if (tid != null && String(tid).trim() !== '') return String(tid).trim();
+      return tenantFromViagem(row.CDVIAGEM ?? row.cdviagem);
+    }
+  } catch (_) {}
+  return getDefaultTenantId();
+}
+
+async function tenantFromAlertId(idAlerta) {
+  const id = parseInt(idAlerta, 10);
+  if (!Number.isFinite(id)) return getDefaultTenantId();
+  try {
+    const pool = await poolPromise;
+    const r = await pool.query(
+      'SELECT "TENANT_ID", "IDVIAGEM" FROM public."ALERTS" WHERE "ID" = $1 LIMIT 1',
+      [id]
+    );
+    const row = r.rows && r.rows[0];
+    if (row) {
+      const tid = row.TENANT_ID ?? row.tenant_id;
+      if (tid != null && String(tid).trim() !== '') return String(tid).trim();
+      return tenantFromViagem(row.IDVIAGEM ?? row.idviagem);
+    }
+  } catch (_) {}
+  return getDefaultTenantId();
+}
+
+async function tenantFromMotorista(cdmotorista) {
+  const id = parseFloat(cdmotorista);
+  if (!Number.isFinite(id)) return getDefaultTenantId();
+  try {
+    const pool = await poolPromise;
+    const r = await pool.query(
+      'SELECT "TENANT_ID" FROM public."CADASTROGERAL" WHERE "CDCADASTRO" = $1 LIMIT 1',
+      [id]
+    );
+    const row = r.rows && r.rows[0];
+    const tid = row && (row.TENANT_ID ?? row.tenant_id);
+    if (tid != null && String(tid).trim() !== '') return String(tid).trim();
+  } catch (_) {}
+  return getDefaultTenantId();
+}
+
+async function tenantFromAlertPayload(alerta) {
+  if (!alerta || typeof alerta !== 'object') return getDefaultTenantId();
+  const direct = alerta.TENANT_ID ?? alerta.tenant_id;
+  if (direct != null && String(direct).trim() !== '') return String(direct).trim();
+  const idv = alerta.CDVIAGEM ?? alerta.IDVIAGEM ?? alerta.idviagem;
+  return tenantFromViagem(idv);
+}
 
 /**
  * Classe para gerenciar eventos WebSocket da Torre de Controle
@@ -11,9 +96,6 @@ class WebSocketTorreService {
     this.setupEventHandlers();
   }
 
-  /**
-   * Configurar handlers de eventos do Socket.io
-   */
   setupEventHandlers() {
     if (!this.io) {
       console.warn('⚠️ WebSocket Torre: Socket.io não disponível');
@@ -23,35 +105,46 @@ class WebSocketTorreService {
     this.io.on('connection', (socket) => {
       console.log('🏢 Torre de Controle: Cliente conectado:', socket.id);
 
-      // Cliente quer acompanhar uma viagem específica
-      socket.on('torre:join-viagem', (idviagem) => {
-        const room = `torre:viagem-${idviagem}`;
-        socket.join(room);
-        console.log(`🏢 Torre: Cliente ${socket.id} entrou na viagem ${idviagem}`);
-        
-        // Confirmar entrada
-        socket.emit('torre:joined', { idviagem, room });
+      socket.on('torre:join-viagem', async (idviagem) => {
+        try {
+          const id = parseFloat(idviagem);
+          if (!Number.isFinite(id) || id <= 0) return;
+          const tid = socketTenantId(socket);
+          const pool = await poolPromise;
+          const r = await pool.query(
+            'SELECT 1 FROM public."VIAGEMMESTRE" WHERE "IDVIAGEM" = $1 AND "TENANT_ID" = $2 LIMIT 1',
+            [id, tid]
+          );
+          if (r.rows && r.rows.length > 0) {
+            const room = `torre:viagem-${idviagem}`;
+            socket.join(room);
+            socket.emit('torre:joined', { idviagem, room });
+            console.log(`🏢 Torre: Cliente ${socket.id} entrou na viagem ${idviagem} (tenant ${tid})`);
+          } else {
+            console.warn(`🏢 [WS] torre:join-viagem negado: ${idviagem} (socket ${socket.id})`);
+          }
+        } catch (e) {
+          console.warn('🏢 [WS] torre:join-viagem erro:', e.message);
+        }
       });
 
-      // Cliente quer sair de uma viagem
       socket.on('torre:leave-viagem', (idviagem) => {
         const room = `torre:viagem-${idviagem}`;
         socket.leave(room);
         console.log(`🏢 Torre: Cliente ${socket.id} saiu da viagem ${idviagem}`);
       });
 
-      // Cliente quer acompanhar todas as viagens (torre de controle)
       socket.on('torre:join-all', () => {
-        socket.join('torre:all-viagens');
-        console.log(`🏢 Torre: Cliente ${socket.id} entrou na sala de todas as viagens`);
-        
+        const room = torreAllViagensRoom(socketTenantId(socket));
+        socket.join(room);
+        console.log(`🏢 Torre: Cliente ${socket.id} entrou em ${room}`);
         socket.emit('torre:joined-all');
       });
 
-      // Cliente quer sair de todas as viagens
       socket.on('torre:leave-all', () => {
+        socket.leave(torreAllViagensRoom(socketTenantId(socket)));
         socket.leave('torre:all-viagens');
-        console.log(`🏢 Torre: Cliente ${socket.id} saiu da sala de todas as viagens`);
+        console.log(`🏢 Torre: Cliente ${socket.id} saiu da sala all-viagens`);
       });
 
       socket.on('disconnect', () => {
@@ -62,258 +155,209 @@ class WebSocketTorreService {
     console.log('✅ WebSocket Torre Service inicializado');
   }
 
-  /**
-   * Emitir atualização de posição GPS
-   * @param {number} idviagem - ID da viagem
-   * @param {object} posicao - Dados da posição GPS
-   */
   emitirAtualizacaoGPS(idviagem, posicao) {
     if (!this.io) return;
-
-    const room = `torre:viagem-${idviagem}`;
-    const data = {
-      idviagem,
-      posicao,
-      timestamp: new Date().toISOString()
-    };
-
-    // Emitir para sala específica da viagem
-    this.io.to(room).emit('torre:gps-update', data);
-    
-    // Emitir para sala de todas as viagens (torre de controle)
-    this.io.to('torre:all-viagens').emit('torre:gps-update', data);
+    void (async () => {
+      const tid = await tenantFromViagem(idviagem);
+      const roomAll = torreAllViagensRoom(tid);
+      const room = `torre:viagem-${idviagem}`;
+      const data = { idviagem, posicao, timestamp: new Date().toISOString() };
+      this.io.to(room).emit('torre:gps-update', data);
+      this.io.to(roomAll).emit('torre:gps-update', data);
+    })();
   }
 
-  /**
-   * Emitir atualização de status da viagem
-   * @param {number} idviagem - ID da viagem
-   * @param {object} viagem - Dados atualizados da viagem
-   */
   emitirAtualizacaoViagem(idviagem, viagem) {
     if (!this.io) return;
-
-    const room = `torre:viagem-${idviagem}`;
-    const data = {
-      idviagem,
-      viagem,
-      timestamp: new Date().toISOString()
-    };
-
-    // Emitir para sala específica da viagem
-    this.io.to(room).emit('torre:viagem-update', data);
-    
-    // Emitir para sala de todas as viagens
-    this.io.to('torre:all-viagens').emit('torre:viagem-update', data);
+    const tidDirect = viagem && (viagem.TENANT_ID ?? viagem.tenant_id);
+    void (async () => {
+      const tid =
+        tidDirect != null && String(tidDirect).trim() !== ''
+          ? String(tidDirect).trim()
+          : await tenantFromViagem(idviagem);
+      const roomAll = torreAllViagensRoom(tid);
+      const room = `torre:viagem-${idviagem}`;
+      const data = { idviagem, viagem, timestamp: new Date().toISOString() };
+      this.io.to(room).emit('torre:viagem-update', data);
+      this.io.to(roomAll).emit('torre:viagem-update', data);
+    })();
   }
 
-  /**
-   * Emitir novo alerta
-   * @param {object} alerta - Dados do alerta
-   */
   emitirNovoAlerta(alerta) {
     if (!this.io) return;
-
-    const data = {
-      alerta,
-      timestamp: new Date().toISOString()
-    };
-
-    // Emitir para sala de todas as viagens (alertas aparecem na torre)
-    this.io.to('torre:all-viagens').emit('torre:novo-alerta', data);
-
-    // Se o alerta é de uma viagem específica, emitir também para sua sala
-    if (alerta.CDVIAGEM) {
-      const room = `torre:viagem-${alerta.CDVIAGEM}`;
-      this.io.to(room).emit('torre:novo-alerta', data);
-    }
+    void (async () => {
+      const tid = await tenantFromAlertPayload(alerta);
+      const roomAll = torreAllViagensRoom(tid);
+      const data = { alerta, timestamp: new Date().toISOString() };
+      this.io.to(roomAll).emit('torre:novo-alerta', data);
+      const idViagem = alerta.CDVIAGEM ?? alerta.IDVIAGEM ?? alerta.idviagem;
+      if (idViagem != null && idViagem !== '') {
+        const room = `torre:viagem-${idViagem}`;
+        this.io.to(room).emit('torre:novo-alerta', data);
+      }
+    })();
   }
 
-  /**
-   * Emitir alerta resolvido
-   * @param {number} idAlerta - ID do alerta
-   * @param {number} idviagem - ID da viagem (opcional)
-   */
   emitirAlertaResolvido(idAlerta, idviagem = null) {
     if (!this.io) return;
-
-    const data = {
-      idAlerta,
-      idviagem,
-      timestamp: new Date().toISOString()
-    };
-
-    this.io.to('torre:all-viagens').emit('torre:alerta-resolvido', data);
-
-    if (idviagem) {
-      const room = `torre:viagem-${idviagem}`;
-      this.io.to(room).emit('torre:alerta-resolvido', data);
-    }
+    void (async () => {
+      const tid = idviagem != null && idviagem !== ''
+        ? await tenantFromViagem(idviagem)
+        : await tenantFromAlertId(idAlerta);
+      const roomAll = torreAllViagensRoom(tid);
+      const data = { idAlerta, idviagem, timestamp: new Date().toISOString() };
+      this.io.to(roomAll).emit('torre:alerta-resolvido', data);
+      if (idviagem) {
+        const room = `torre:viagem-${idviagem}`;
+        this.io.to(room).emit('torre:alerta-resolvido', data);
+      }
+    })();
   }
 
-  /**
-   * Emitir alerta marcado como lido (módulo Alertas do Sistema)
-   * @param {number} idAlerta - ID do alerta
-   */
   emitirAlertaLido(idAlerta) {
     if (!this.io) return;
-    this.io.emit('alerta:lido', { id: idAlerta, timestamp: new Date().toISOString() });
+    void (async () => {
+      const tid = await tenantFromAlertId(idAlerta);
+      const payload = { id: idAlerta, timestamp: new Date().toISOString() };
+      this.io.to(torreAllViagensRoom(tid)).emit('alerta:lido', payload);
+    })();
   }
 
-  /**
-   * Emitir alerta tratado (status alterado)
-   * @param {number} idAlerta - ID do alerta
-   * @param {string} status - Novo status
-   */
   emitirAlertaTratado(idAlerta, status) {
     if (!this.io) return;
-    this.io.emit('alerta:tratado', { id: idAlerta, status, timestamp: new Date().toISOString() });
+    void (async () => {
+      const tid = await tenantFromAlertId(idAlerta);
+      const payload = { id: idAlerta, status, timestamp: new Date().toISOString() };
+      this.io.to(torreAllViagensRoom(tid)).emit('alerta:tratado', payload);
+    })();
   }
 
-  /**
-   * Emitir alerta cancelado
-   * @param {number} idAlerta - ID do alerta
-   */
   emitirAlertaCancelado(idAlerta) {
     if (!this.io) return;
-    this.io.emit('alerta:cancelado', { id: idAlerta, timestamp: new Date().toISOString() });
+    void (async () => {
+      const tid = await tenantFromAlertId(idAlerta);
+      const payload = { id: idAlerta, timestamp: new Date().toISOString() };
+      this.io.to(torreAllViagensRoom(tid)).emit('alerta:cancelado', payload);
+    })();
   }
 
-  /**
-   * Emitir nova mensagem de chat
-   * @param {object} mensagem - Dados da mensagem
-   */
   emitirNovaMensagem(mensagem) {
     if (!this.io) return;
-
-    // Isso já é tratado pelo sistema de chat existente
-    // Mas podemos adicionar notificação na torre se necessário
-    const data = {
-      mensagem,
-      timestamp: new Date().toISOString()
-    };
-
     const idViagem = mensagem.CDVIAGEM ?? mensagem.IDVIAGEM;
-    if (idViagem != null) {
+    if (idViagem == null) return;
+    const tidDirect = mensagem.TENANT_ID ?? mensagem.tenant_id;
+    void (async () => {
+      const tid =
+        tidDirect != null && String(tidDirect).trim() !== ''
+          ? String(tidDirect).trim()
+          : await tenantFromViagem(idViagem);
+      const roomAll = torreAllViagensRoom(tid);
+      const data = { mensagem, timestamp: new Date().toISOString() };
       const room = `torre:viagem-${idViagem}`;
       this.io.to(room).emit('torre:nova-mensagem', data);
-    }
+      this.io.to(roomAll).emit('torre:nova-mensagem', data);
+    })();
   }
 
-  /**
-   * Emitir alerta SOS
-   * @param {object} sosAlert - Dados do alerta SOS
-   */
   emitirSOS(sosAlert) {
     if (!this.io) return;
-
-    const data = {
-      sos: sosAlert,
-      timestamp: new Date().toISOString(),
-      prioridade: 'CRITICA'
-    };
-
-    // SOS vai para todas as salas da torre (máxima prioridade)
-    this.io.to('torre:all-viagens').emit('torre:sos-alerta', data);
-
-    if (sosAlert.CDVIAGEM) {
-      const room = `torre:viagem-${sosAlert.CDVIAGEM}`;
-      this.io.to(room).emit('torre:sos-alerta', data);
-    }
+    void (async () => {
+      const tidDirect = sosAlert && (sosAlert.TENANT_ID ?? sosAlert.tenant_id);
+      const tid =
+        tidDirect != null && String(tidDirect).trim() !== ''
+          ? String(tidDirect).trim()
+          : await tenantFromViagem(sosAlert.CDVIAGEM ?? sosAlert.cdviagem);
+      const roomAll = torreAllViagensRoom(tid);
+      const data = { sos: sosAlert, timestamp: new Date().toISOString(), prioridade: 'CRITICA' };
+      this.io.to(roomAll).emit('torre:sos-alerta', data);
+      if (sosAlert.CDVIAGEM) {
+        const room = `torre:viagem-${sosAlert.CDVIAGEM}`;
+        this.io.to(room).emit('torre:sos-alerta', data);
+      }
+    })();
   }
 
-  /**
-   * Emitir SOS marcado como lido
-   * @param {number} idSos - ID do alerta SOS
-   */
+  /** Divergência de placas na convocação (motorista declarou DIVERGE; aceite bloqueado). */
+  emitirDivergenciaPlacasConvocacao(payload) {
+    if (!this.io || !payload || typeof payload !== 'object') return;
+    void (async () => {
+      const tidDirect = payload.TENANT_ID ?? payload.tenant_id;
+      const idv = payload.IDVIAGEM ?? payload.idviagem;
+      const tid =
+        tidDirect != null && String(tidDirect).trim() !== ''
+          ? String(tidDirect).trim()
+          : await tenantFromViagem(idv);
+      const roomAll = torreAllViagensRoom(tid);
+      const data = {
+        ...payload,
+        timestamp: new Date().toISOString(),
+        prioridade: 'ALTA',
+      };
+      this.io.to(roomAll).emit('torre:divergencia-placas-convocacao', data);
+      if (idv != null && String(idv).trim() !== '') {
+        this.io.to(`torre:viagem-${idv}`).emit('torre:divergencia-placas-convocacao', data);
+      }
+    })();
+  }
+
   emitirSOSLido(idSos) {
     if (!this.io) return;
-
-    const data = {
-      idSos,
-      timestamp: new Date().toISOString()
-    };
-
-    this.io.to('torre:all-viagens').emit('torre:sos-lido', data);
+    void (async () => {
+      const tid = await tenantFromSosId(idSos);
+      const data = { idSos, timestamp: new Date().toISOString() };
+      this.io.to(torreAllViagensRoom(tid)).emit('torre:sos-lido', data);
+    })();
   }
 
-  /**
-   * Emitir SOS tratado (status alterado)
-   * @param {number} idSos - ID do alerta SOS
-   * @param {string} status - Novo status
-   */
   emitirSOSTratado(idSos, status) {
     if (!this.io) return;
-
-    const data = {
-      idSos,
-      status,
-      timestamp: new Date().toISOString()
-    };
-
-    this.io.to('torre:all-viagens').emit('torre:sos-tratado', data);
+    void (async () => {
+      const tid = await tenantFromSosId(idSos);
+      const data = { idSos, status, timestamp: new Date().toISOString() };
+      this.io.to(torreAllViagensRoom(tid)).emit('torre:sos-tratado', data);
+    })();
   }
 
-  /**
-   * Emitir atualização de reputação de motorista
-   * @param {number} cdmotorista - ID do motorista
-   * @param {object} reputacao - Dados da reputação
-   */
   emitirAtualizacaoReputacao(cdmotorista, reputacao) {
     if (!this.io) return;
-
-    const data = {
-      cdmotorista,
-      reputacao,
-      timestamp: new Date().toISOString()
-    };
-
-    this.io.to('torre:all-viagens').emit('torre:reputacao-update', data);
+    void (async () => {
+      const tid = await tenantFromMotorista(cdmotorista);
+      const data = { cdmotorista, reputacao, timestamp: new Date().toISOString() };
+      this.io.to(torreAllViagensRoom(tid)).emit('torre:reputacao-update', data);
+    })();
   }
 
-  /**
-   * Emitir atualização de convocação
-   * @param {number} idviagem - ID da viagem
-   * @param {object} convocacao - Dados da convocação
-   */
   emitirAtualizacaoConvocacao(idviagem, convocacao) {
     if (!this.io) return;
-
-    const room = `torre:viagem-${idviagem}`;
-    const data = {
-      idviagem,
-      convocacao,
-      timestamp: new Date().toISOString()
-    };
-
-    this.io.to(room).emit('torre:convocacao-update', data);
-    this.io.to('torre:all-viagens').emit('torre:convocacao-update', data);
+    void (async () => {
+      const tid = await tenantFromViagem(idviagem);
+      const roomAll = torreAllViagensRoom(tid);
+      const room = `torre:viagem-${idviagem}`;
+      const data = { idviagem, convocacao, timestamp: new Date().toISOString() };
+      this.io.to(room).emit('torre:convocacao-update', data);
+      this.io.to(roomAll).emit('torre:convocacao-update', data);
+    })();
   }
 
-  /**
-   * Emitir atualização de lista de viagens (quando há filtros aplicados)
-   * @param {array} viagens - Lista atualizada de viagens
-   */
   emitirAtualizacaoListaViagens(viagens) {
     if (!this.io) return;
-
     const data = {
       viagens,
       count: viagens.length,
       timestamp: new Date().toISOString()
     };
-
-    this.io.to('torre:all-viagens').emit('torre:lista-viagens-update', data);
+    const first = viagens && viagens[0];
+    const tid = first && (first.TENANT_ID ?? first.tenant_id);
+    if (tid != null && String(tid).trim() !== '') {
+      this.io.to(torreAllViagensRoom(tid)).emit('torre:lista-viagens-update', data);
+    } else {
+      this.io.emit('torre:lista-viagens-update', data);
+    }
   }
 }
 
-// Singleton
 let instance = null;
 
-/**
- * Obter instância do serviço
- * @param {object} io - Instância do Socket.io
- * @returns {WebSocketTorreService}
- */
 function getWebSocketTorreService(io) {
   if (!instance && io) {
     instance = new WebSocketTorreService(io);

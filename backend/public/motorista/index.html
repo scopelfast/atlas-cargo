@@ -505,29 +505,44 @@
         })
         .then((registration) => {
           console.log('✅ Service Worker registrado');
-          
-          // Verificar atualizações a cada 60 segundos
-          setInterval(() => {
+
+          const hostname = window.location.hostname || '';
+          const isLocalDev =
+            hostname === 'localhost' ||
+            hostname === '127.0.0.1' ||
+            hostname === '[::1]';
+
+          // Verificar atualizações periodicamente (sem update() imediato — evita loop com “Update on reload” no DevTools)
+          setInterval(function () {
             registration.update();
           }, 60000);
-          
-          // Atualizar imediatamente
-          registration.update();
-          
-          // Listener para quando houver atualização
-          registration.addEventListener('updatefound', () => {
-            const newWorker = registration.installing;
-            
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                console.log('🆕 Nova versão disponível! Recarregando...');
-                
-                // Recarregar página para usar nova versão
-                setTimeout(() => {
-                  window.location.reload();
-                }, 1000);
-              }
-            });
+
+          // Troca real de controlador (ex.: após skipWaiting no SW): um reload basta.
+          // Em localhost não recarregamos: DevTools “Update on reload” + skipWaiting gerava loop infinito.
+          var swReloading = false;
+          navigator.serviceWorker.addEventListener('controllerchange', function () {
+            if (swReloading) return;
+            if (!navigator.serviceWorker.controller) return;
+            if (isLocalDev) {
+              console.log(
+                '🆕 Service Worker atualizado (localhost: sem reload automático; use F5 se precisar).'
+              );
+              return;
+            }
+            var last = 0;
+            try {
+              last = parseInt(sessionStorage.getItem('motorista_sw_reload_guard') || '0', 10) || 0;
+            } catch (e) {}
+            if (Date.now() - last < 8000) {
+              console.warn('🆕 Service Worker: reload automático suprimido (evita loop).');
+              return;
+            }
+            try {
+              sessionStorage.setItem('motorista_sw_reload_guard', String(Date.now()));
+            } catch (e2) {}
+            swReloading = true;
+            console.log('🆕 Nova versão do app (Service Worker). Recarregando…');
+            window.location.reload();
           });
         })
         .catch(err => console.error('❌ Erro ao registrar SW:', err));

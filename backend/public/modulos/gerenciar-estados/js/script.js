@@ -127,7 +127,18 @@
     const modalOk = modalEl && modalMessage && confirmYes && confirmNo &&
       document.body.contains(confirmYes) && confirmYes.parentNode;
     if (!modalOk) {
-      if (window.confirm(msg)) executarDesativarEstado(cdpais, cduf);
+      const prom =
+        typeof window.confirmPadrao === 'function'
+          ? window.confirmPadrao(msg, {
+              title: 'Desativar estado',
+              danger: true,
+              confirmText: 'Desativar',
+              cancelText: 'Cancelar',
+            })
+          : Promise.resolve(window.confirm(msg));
+      prom.then(function (ok) {
+        if (ok) executarDesativarEstado(cdpais, cduf);
+      });
       return;
     }
     modalMessage.textContent = msg;
@@ -151,13 +162,14 @@
     if (typeof window.GridEditor === 'undefined') return;
     gridTab = new window.GridEditor({
       container: '#estadosGrid',
+      actionsWidth: '76px',
       columns: [
         { field: 'id', header: 'Chave', editable: false, isId: true, width: '80px', hidden: true },
-        { field: 'PAIS_SIGLA', header: 'País', editable: false, width: '70px' },
-        { field: 'ESTADO', header: 'Sigla', editable: false, width: '80px' },
-        { field: 'CDUF', header: 'CDUF', editable: false, width: '80px' },
-        { field: 'NMESTADO', header: 'Nome', editable: false, width: '220px' },
-        { field: 'FGACTIVE', header: 'Situação', editable: false, width: '90px', align: 'right', format: (val) => val === 'S' ? 'Ativo' : 'Inativo' }
+        { field: 'PAIS_SIGLA', header: 'País', editable: false, width: '10%' },
+        { field: 'ESTADO', header: 'Sigla', editable: false, width: '12%' },
+        { field: 'CDUF', header: 'CDUF', editable: false, width: '12%' },
+        { field: 'NMESTADO', header: 'Nome', editable: false, width: '56%' },
+        { field: 'FGACTIVE', header: 'Situação', editable: false, width: '10%', align: 'right', format: (val) => val === 'S' ? 'Ativo' : 'Inativo' }
       ],
       apiEndpoint: '/api/estados',
       onBeforeEdit: async (id) => {

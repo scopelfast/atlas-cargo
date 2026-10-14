@@ -103,6 +103,11 @@
       border-left-color: var(--ac-accent, #0ea5e9);
     }
 
+    /* KPI divergência placas */
+    .stat-card.divergencia-placas {
+      border-left-color: #dc2626;
+    }
+
     .stat-card .stat-value {
       font-size: 32px;
       font-weight: 700;
@@ -183,6 +188,35 @@
 
     .filtros-actions .btn {
       margin-right: 0;
+    }
+
+    /* Checkbox alinhado à grade (mesma altura visual dos .form-control) */
+    .relatorio-filtro-checkbox-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 48px;
+      padding: 10px 12px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      background-color: var(--white, #fff);
+      box-sizing: border-box;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--dark, #1e293b);
+      line-height: 1.35;
+    }
+    .relatorio-filtro-checkbox-wrap input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      margin: 0;
+      accent-color: #dc2626;
+      cursor: pointer;
+    }
+    .relatorio-filtro-checkbox-wrap span {
+      flex: 1;
+      min-width: 0;
     }
 
     /* ========== BOTÕES - Padrão do Sistema ========== */
@@ -445,24 +479,70 @@
       max-width: 100%;
       overflow-x: auto;
     }
-    .tabela-section table {
+    .tabela-section table.relatorio-table {
       table-layout: fixed;
       width: 100%;
-      min-width: 0;
+      min-width: 940px;
       border-collapse: collapse;
       font-size: 14px;
     }
-    .tabela-section .col-acoes {
-      width: 110px;
-      min-width: 110px;
-      max-width: 110px;
-      white-space: nowrap;
+    /* Proporções estáveis — evita “buraco” entre colunas no layout fixo */
+    .relatorio-table col.rel-col-id { width: 3.25rem; }
+    .relatorio-table col.rel-col-viagem { width: 11%; }
+    .relatorio-table col.rel-col-rota { width: 20%; }
+    .relatorio-table col.rel-col-motorista { width: 23%; }
+    .relatorio-table col.rel-col-acesso { width: 15%; }
+    .relatorio-table col.rel-col-resposta { width: 13%; }
+    /* Até 3 ícones + data DHCONVOCACAO — coluna compacta */
+    .relatorio-table col.rel-col-acoes { width: 8.75rem; min-width: 8.75rem; max-width: 10rem; }
+    .relatorio-table td.rel-td-rota,
+    .relatorio-table td.rel-td-motorista {
+      word-break: break-word;
+      overflow-wrap: anywhere;
     }
-    .tabela-section .col-acoes .btn {
-      padding: 6px 8px;
-      min-width: 32px;
-      font-size: 1rem;
-      margin-right: 2px;
+    .relatorio-table td.rel-td-resposta .convocacao-cel-resposta {
+      max-width: 100%;
+    }
+    .tabela-section td.relatorio-td-acoes {
+      width: 1%;
+    }
+    .tabela-section .col-acoes {
+      white-space: normal;
+      vertical-align: top;
+    }
+    .tabela-section .relatorio-acoes-row .btn-acao {
+      text-decoration: none;
+      flex-shrink: 0;
+    }
+    .tabela-section .relatorio-acoes-cell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 8px;
+      width: fit-content;
+      max-width: 100%;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .tabela-section .relatorio-acoes-dhconv {
+      font-size: 11px;
+      line-height: 1.35;
+      color: #64748b;
+      white-space: normal;
+      word-break: break-word;
+      max-width: 100%;
+      text-align: center;
+    }
+
+    .relatorio-table tbody tr.relatorio-row-pendente-viagem-ja-confirmada {
+      border-left: 4px solid #667eea;
+      background: #f0f4ff;
+    }
+    html[data-theme='dark'] .relatorio-table tbody tr.relatorio-row-pendente-viagem-ja-confirmada,
+    body[data-theme='dark'] .relatorio-table tbody tr.relatorio-row-pendente-viagem-ja-confirmada {
+      background: rgba(102, 126, 234, 0.14);
+      border-left-color: #818cf8;
     }
 
     .tabela-section h3 {
@@ -659,17 +739,68 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 16px;
       flex-shrink: 0;
       box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
-    
-    .modal-mapa-motorista-header h3 {
+
+    .modal-mapa-motorista-header-main {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px 20px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .modal-mapa-motorista-header-main h3 {
       margin: 0;
       font-size: 20px;
       font-weight: 600;
+      line-height: 1.25;
+    }
+
+    .modal-mapa-motorista-ultima-inline {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 10px;
+      font-size: 13px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+
+    .modal-mapa-motorista-ultima-inline > i.bx {
+      font-size: 1.25rem;
+      line-height: 1;
+      opacity: 0.95;
+    }
+
+    .modal-mapa-motorista-ultima-inline-label {
+      font-weight: 700;
+      opacity: 0.95;
+      white-space: nowrap;
+    }
+
+    .modal-mapa-motorista-ultima-inline-valor {
+      font-weight: 600;
+      line-height: 1.35;
+      flex: 1 1 180px;
+      min-width: 0;
+      word-break: break-word;
+    }
+
+    .modal-mapa-motorista-ultima-inline-valor.banner-sem-dados {
+      opacity: 0.88;
     }
     
     .modal-mapa-motorista-header .btn-fechar {
+      flex-shrink: 0;
+      align-self: center;
       background: rgba(255, 255, 255, 0.15);
       border: 1px solid rgba(255, 255, 255, 0.25);
       color: white;
@@ -699,39 +830,28 @@
       background: linear-gradient(to bottom, #ffffff 0%, #f8f9fa 100%);
       border-bottom: 2px solid var(--light-gray, #e2e8f0);
       flex-shrink: 0;
-      max-height: 200px;
+      max-height: min(42vh, 360px);
       overflow-y: auto;
+      overflow-x: hidden;
+      max-width: 100%;
+      box-sizing: border-box;
     }
-    
+
     .modal-mapa-motorista-info-grid {
       display: grid;
-      grid-template-columns: 
-        minmax(280px, 2fr)     /* Motorista - maior */
-        minmax(160px, 1fr)     /* Celular */
-        minmax(90px, 0.5fr)    /* ID Viagem - menor */
-        minmax(320px, 2.2fr)   /* Roteiro - maior */
-        minmax(110px, 0.6fr)   /* Frete - menor */
-        minmax(90px, 0.5fr)    /* Peso - menor */
-        minmax(200px, 1.2fr);  /* Distância */
       gap: 12px;
+      width: 100%;
+      min-width: 0;
     }
-    
-    @media (max-width: 1400px) {
-      .modal-mapa-motorista-info-grid {
-        grid-template-columns: 
-          minmax(200px, 1.5fr)
-          minmax(140px, 1fr)
-          minmax(80px, 0.5fr)
-          minmax(250px, 1.8fr)
-          minmax(100px, 0.6fr)
-          minmax(80px, 0.5fr)
-          minmax(180px, 1fr);
-      }
+    .modal-mapa-motorista-info-grid--linha-unica {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
     }
-    
-    @media (max-width: 1200px) {
-      .modal-mapa-motorista-info-grid {
-        grid-template-columns: repeat(2, 1fr);
+    @media (max-width: 1280px) {
+      .modal-mapa-motorista-info-grid--linha-unica {
+        grid-template-columns: repeat(5, minmax(130px, 1fr));
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 6px;
       }
     }
     
@@ -744,6 +864,7 @@
       border: 1px solid var(--light-gray, #e2e8f0);
       transition: all 0.2s;
       box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      min-width: 0;
     }
     
     .modal-mapa-motorista-info-item:hover {
@@ -786,6 +907,66 @@
       min-height: 0;
       position: relative;
     }
+
+    .modal-mapa-motorista-chegada-float {
+      position: absolute;
+      left: max(12px, env(safe-area-inset-left, 0px));
+      bottom: max(12px, env(safe-area-inset-bottom, 0px));
+      z-index: 1090;
+      max-width: min(560px, calc(100% - 24px));
+      width: max-content;
+      pointer-events: none;
+    }
+    .modal-mapa-motorista-chegada-float-inner {
+      pointer-events: auto;
+      background: rgba(255, 255, 255, 0.97);
+      border: 1px solid rgba(226, 232, 240, 0.98);
+      border-radius: 14px;
+      padding: 14px 16px 12px;
+      box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.07), 0 12px 32px -8px rgba(15, 23, 42, 0.2);
+    }
+    .modal-mapa-motorista-chegada-cabecalho { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 8px; }
+    .modal-mapa-motorista-chegada-titulo {
+      margin: 0; flex: 1; min-width: 0; font-size: 13px; font-weight: 700; color: var(--ac-primary, #0d2137);
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap; line-height: 1.3;
+    }
+    .modal-mapa-motorista-chegada-titulo i { font-size: 1.1rem; color: #64748b; }
+    .modal-mapa-motorista-chegada-atualizado {
+      flex-shrink: 0; max-width: 52%; margin: 0; padding: 2px 0 0 4px; font-size: 11px; font-weight: 600;
+      line-height: 1.35; color: #64748b; text-align: right; font-variant-numeric: tabular-nums;
+    }
+    .modal-mapa-motorista-chegada-status {
+      margin: 0 0 10px 0; padding: 10px 12px; border-radius: 10px; font-size: 13px; font-weight: 700; line-height: 1.35; display: none;
+    }
+    .modal-mapa-motorista-chegada-float.modal-mapa-motorista-chegada--ok .modal-mapa-motorista-chegada-status {
+      display: block; background: rgba(14, 165, 233, 0.12); color: #0369a1; border: 1px solid rgba(14, 165, 233, 0.35);
+    }
+    .modal-mapa-motorista-chegada-float.modal-mapa-motorista-chegada--atraso .modal-mapa-motorista-chegada-status {
+      display: block; background: rgba(245, 158, 11, 0.14); color: #b45309; border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+    .modal-mapa-motorista-chegada-float.modal-mapa-motorista-chegada--incerto .modal-mapa-motorista-chegada-status {
+      display: block; background: rgba(234, 179, 8, 0.12); color: #854d0e; border: 1px solid rgba(234, 179, 8, 0.45);
+    }
+    .modal-mapa-motorista-chegada-float.modal-mapa-motorista-chegada--neutro .modal-mapa-motorista-chegada-status {
+      display: block; background: rgba(100, 116, 139, 0.12); color: #334155; border: 1px solid rgba(100, 116, 139, 0.35);
+    }
+    .modal-mapa-motorista-chegada-resumo {
+      margin: 10px 0 0 0; padding-top: 8px; border-top: 1px solid rgba(226, 232, 240, 0.9);
+      font-size: 12px; font-weight: 600; color: #475569; line-height: 1.45; max-width: 520px;
+    }
+    .modal-mapa-motorista-chegada-float.modal-mapa-motorista-chegada--ok .modal-mapa-motorista-chegada-float-inner { border-left: 4px solid #0ea5e9; }
+    .modal-mapa-motorista-chegada-float.modal-mapa-motorista-chegada--atraso .modal-mapa-motorista-chegada-float-inner { border-left: 4px solid #f59e0b; }
+    .modal-mapa-motorista-chegada-float.modal-mapa-motorista-chegada--incerto .modal-mapa-motorista-chegada-float-inner { border-left: 4px solid #eab308; }
+    .modal-mapa-motorista-chegada-float.modal-mapa-motorista-chegada--neutro .modal-mapa-motorista-chegada-float-inner { border-left: 4px solid #64748b; }
+    .modal-mapa-pin-amostra { flex-shrink: 0; margin-top: 2px; }
+    .modal-mapa-pin-amostra--ok {
+      width: 18px; height: 18px; background: #3498db; border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+      border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    }
+    .modal-mapa-pin-amostra--alerta {
+      width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent;
+      border-top: 17px solid #f59e0b; filter: drop-shadow(0 1px 3px rgba(0,0,0,0.25)); transform: translateY(2px);
+    }
     
     #mapaMotorista {
       width: 100%;
@@ -821,6 +1002,80 @@
         transform: translateY(0);
         opacity: 1;
       }
+    }
+
+    .relatorio-table tbody tr.relatorio-row-divergencia-placas {
+      border-left: 5px solid #dc2626;
+      background: #fef2f2;
+      box-shadow: inset 5px 0 0 0 #b91c1c;
+    }
+    html[data-theme='dark'] .relatorio-table tbody tr.relatorio-row-divergencia-placas,
+    body[data-theme='dark'] .relatorio-table tbody tr.relatorio-row-divergencia-placas {
+      background: #450a0a !important;
+      border-left-color: #f87171;
+      box-shadow: inset 5px 0 0 0 #dc2626;
+    }
+
+    .relatorio-btn-ver-justificativa {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #991b1b;
+      background: #fee2e2;
+      border: 1px solid #fecaca;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .relatorio-btn-ver-justificativa:hover {
+      background: #fecaca;
+    }
+    html[data-theme='dark'] .relatorio-btn-ver-justificativa,
+    body[data-theme='dark'] .relatorio-btn-ver-justificativa {
+      color: #fecaca !important;
+      background: #7f1d1d !important;
+      border-color: #991b1b !important;
+    }
+
+    #modalJustificativaDivergenciaPlacasRel {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 12000;
+      align-items: center;
+      justify-content: center;
+      background: rgba(15, 23, 42, 0.55);
+      padding: 16px;
+    }
+    #modalJustificativaDivergenciaPlacasRel .modal-justificativa-divergencia-content {
+      max-width: 560px;
+      width: 100%;
+      background: var(--white, #fff);
+      border-radius: 12px;
+      padding: 22px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+      border: 1px solid var(--light-gray, #e2e8f0);
+    }
+    html[data-theme='dark'] #modalJustificativaDivergenciaPlacasRel .modal-justificativa-divergencia-content,
+    body[data-theme='dark'] #modalJustificativaDivergenciaPlacasRel .modal-justificativa-divergencia-content {
+      background: #0f172a !important;
+      border-color: #334155 !important;
+    }
+    html[data-theme='dark'] #modalJustificativaDivergenciaPlacasRel .modal-justificativa-divergencia-content h3,
+    body[data-theme='dark'] #modalJustificativaDivergenciaPlacasRel .modal-justificativa-divergencia-content h3 {
+      color: #fecaca !important;
+    }
+    html[data-theme='dark'] #modalJustificativaDivergenciaPlacasRel .modal-justificativa-divergencia-content p,
+    body[data-theme='dark'] #modalJustificativaDivergenciaPlacasRel .modal-justificativa-divergencia-content p {
+      color: #94a3b8 !important;
+    }
+    html[data-theme='dark'] #modalJustificativaDivergenciaPlacasRel #modalJustificativaDivergenciaPlacasCorpoRel,
+    body[data-theme='dark'] #modalJustificativaDivergenciaPlacasRel #modalJustificativaDivergenciaPlacasCorpoRel {
+      background: #1e293b !important;
+      border-color: #7f1d1d !important;
+      color: #e2e8f0 !important;
     }
   </style>
 </head>
@@ -893,6 +1148,13 @@
             <!-- Preenchido dinamicamente -->
           </select>
         </div>
+        <div>
+          <label for="filtroDivergenciaPlacasRel" data-i18n="web.modulos.relatorioConvocacoes.filtroDivergenciaPlacasTitulo">Divergência de placas</label>
+          <div class="relatorio-filtro-checkbox-wrap" title="Filtra convocações com FGCONFIRMACAOPLACAS = D (motorista declarou divergência; aceite bloqueado até alinhar na torre).">
+            <input type="checkbox" id="filtroDivergenciaPlacasRel" value="1" aria-describedby="hintFiltroDivergenciaPlacasRel">
+            <span id="hintFiltroDivergenciaPlacasRel" data-i18n="web.modulos.relatorioConvocacoes.filtroDivergenciaPlacas">Somente divergência de placas (aceite bloqueado)</span>
+          </div>
+        </div>
       </div>
       <div class="filtros-actions">
         <button type="button" onclick="limparFiltros()" class="btn btn-secondary">
@@ -923,32 +1185,41 @@
     <div class="tabela-section">
       <div style="margin-bottom: 15px;">
         <h3 style="margin: 0 0 15px 0;">Listagem de Convocações</h3>
-        <div id="legendaGrid" style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 15px; align-items: center;">
-          <div style="font-weight: 600; color: #495057; margin-right: 10px;">Legenda:</div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <i class="bx bx-map-alt" style="font-size: 1.25rem; color: #2196F3;"></i>
-            <span><strong>Ver Motorista no Mapa</strong></span>
+        <details id="legendaGrid" class="convocacoes-legenda-details relatorio-legenda-ajuda" style="margin-bottom:12px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;">
+          <summary style="cursor:pointer;padding:10px 14px;font-weight:600;color:#334155;list-style:none;">
+            <span style="display:inline-flex;align-items:center;gap:8px;"><i class="bx bx-help-circle" aria-hidden="true"></i> Ajuda — ícones e filtros <span style="font-weight:400;color:#64748b;font-size:13px;">(clique para ver)</span></span>
+          </summary>
+          <div class="convocacoes-legenda-conteudo" style="padding:0 14px 14px;font-size:13px;color:#475569;line-height:1.55;border-top:1px solid #e2e8f0;">
+            <p style="margin:12px 0 6px;"><strong>Legenda</strong></p>
+            <ul style="margin:0 0 12px 18px;padding:0;list-style:disc;">
+              <li style="margin-bottom:6px;"><i class="bx bx-map-alt" style="color:#28a745;vertical-align:middle;" aria-hidden="true"></i> <strong>Ver motorista no mapa</strong> — na coluna <em>Ações</em> (ícone verde escuro); só aparece com latitude, longitude e roteiro na convocação.</li>
+              <li style="margin-bottom:6px;"><strong>Status da convocação</strong> — na coluna <em>Resposta</em>: bolinha de GPS + ícone do status. A data é <code>DHRESPOSTA</code>. Passe o mouse na célula para ver o texto completo (recusa, campanha, divergência, viagem já confirmada, etc.).</li>
+              <li style="margin-bottom:6px;"><strong>Viagem confirmada (outro motorista)</strong> — linha com borda índigo à esquerda quando a viagem já foi fechada com outro motorista e esta convocação segue <strong>PENDENTE</strong> (equivalente ao indicador que existia na coluna de informação).</li>
+              <li style="margin-bottom:6px;"><strong>Divergência de placas</strong> — linha com <strong>tarja vermelha</strong> (<code>FGCONFIRMACAOPLACAS = D</code>); na torre, <strong>confirmar programação fica bloqueado</strong> até alinhar. Use «Ver justificativa» na coluna Resposta. Filtro «Divergência de placas» acima.</li>
+              <li style="margin-bottom:6px;"><strong>Viagem não confirmada</strong> — convocação ainda não está em <code>CONFIRMADA</code>; no relatório isso é o status da linha (torre confirma no módulo Gerenciar Viagens).</li>
+              <li style="margin-bottom:6px;"><i class="bx bx-logo-whatsapp" style="color:#25D366;vertical-align:middle;" aria-hidden="true"></i> <strong>WhatsApp</strong> — só na coluna <em>Ações</em> (botão verde). Em <em>Motorista</em> o celular aparece como texto para consulta.</li>
+              <li style="margin-bottom:6px;"><i class="bx bx-link-alt" style="color:#2196F3;vertical-align:middle;" aria-hidden="true"></i> <strong>Link público</strong> — primeiro ícone em <em>Ações</em>; abre <code>/convocacao</code> desta linha.</li>
+              <li style="margin-bottom:6px;"><strong>Coluna Ações</strong> — botões <strong>em linha</strong> (link → WhatsApp → mapa); <strong>abaixo</strong>, data da convocação (<code>DHCONVOCACAO</code>). Clique no cabeçalho <em>Ações</em> para ordenar por essa data.</li>
+            </ul>
+            <p style="margin:0 0 10px;"><strong>Campanha / link de oportunidades:</strong> status ACEITA ou RECUSADA podem refletir resposta pelo link público da campanha (onde também pode ser gravada a localização). O botão de mapa só aparece com latitude/longitude na convocação. <strong>CONFIRMADA</strong> é sempre decisão da torre.</p>
+            <p style="margin:0;"><strong>Link campanha (auditoria):</strong> origem quando <code>SGUSER = APP_MOTORISTA_LINK</code> (resposta pelo link público da campanha). Na Gerenciar Viagens, <strong>confirmar exige GPS</strong> nesses casos — peça ao motorista enviar localização na página de oportunidades antes de confirmar.</p>
           </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <i class="bx bx-info-circle" style="font-size: 1.25rem; color: #17a2b8;"></i>
-            <span><strong>Status da convocação</strong></span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <i class="bx bx-check-circle" style="font-size: 1.25rem; color: #28a745;"></i>
-            <span><strong>Viagem Confirmada</strong></span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <i class="bx bx-x-circle" style="font-size: 1.25rem; color: #dc3545;"></i>
-            <span><strong>Viagem Não Confirmada</strong></span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <i class="bx bxl-whatsapp" style="font-size: 1.25rem; color: #25D366;"></i>
-            <span><strong>WhatsApp</strong></span>
-          </div>
-        </div>
+        </details>
       </div>
       <div id="tabelaContainer">
         <div class="loading">Carregando dados</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Justificativa divergência de placas -->
+  <div id="modalJustificativaDivergenciaPlacasRel" role="dialog" aria-modal="true" aria-labelledby="modalJustificativaDivergenciaPlacasTituloRel">
+    <div class="modal-justificativa-divergencia-content">
+      <h3 id="modalJustificativaDivergenciaPlacasTituloRel" style="margin-top: 0; color: #991b1b;">Divergência de placas — justificativa</h3>
+      <p style="font-size: 13px; color: #64748b; margin: 0 0 12px 0;">Texto informado pelo motorista no link ou app. Corrija o cadastro na torre antes de confirmar a programação.</p>
+      <pre id="modalJustificativaDivergenciaPlacasCorpoRel" style="white-space: pre-wrap; word-break: break-word; max-height: 50vh; overflow: auto; margin: 0; padding: 14px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; font-family: inherit; font-size: 14px; line-height: 1.45; color: #1e293b;"></pre>
+      <div style="margin-top: 18px; display: flex; justify-content: flex-end;">
+        <button type="button" class="btn-filtro btn-filtro-aplicar" onclick="fecharModalJustificativaDivergenciaPlacasRelatorio()"><i class="bx bx-check"></i> Entendi</button>
       </div>
     </div>
   </div>
@@ -957,12 +1228,19 @@
   <div id="modalMapaMotorista" class="modal-mapa-motorista">
     <div class="modal-mapa-motorista-content">
       <div class="modal-mapa-motorista-header">
-        <h3><i class="bx bx-map-pin" style="vertical-align: middle;"></i> Localização do Motorista e Rota até o Carregamento</h3>
+        <div class="modal-mapa-motorista-header-main">
+          <h3><i class="bx bx-map-pin" style="vertical-align: middle;"></i> Localização do Motorista e Rota até o Carregamento</h3>
+          <div class="modal-mapa-motorista-ultima-inline" id="mapaBannerUltimaPosicao" aria-live="polite">
+            <i class="bx bx-time-five" aria-hidden="true"></i>
+            <span class="modal-mapa-motorista-ultima-inline-label">Última posição do veículo</span>
+            <span class="modal-mapa-motorista-ultima-inline-valor banner-sem-dados" id="mapaBannerUltimaPosicaoTexto">Carregando…</span>
+          </div>
+        </div>
         <button class="btn-fechar" onclick="fecharModalMapaMotorista()"><i class="bx bx-x"></i> Fechar</button>
       </div>
       <div class="modal-mapa-motorista-body">
         <div class="modal-mapa-motorista-info">
-          <div class="modal-mapa-motorista-info-grid">
+          <div class="modal-mapa-motorista-info-grid modal-mapa-motorista-info-grid--linha-unica">
             <div class="modal-mapa-motorista-info-item">
               <label>Motorista</label>
               <span id="mapaInfoMotorista">-</span>
@@ -980,21 +1258,23 @@
               <span id="mapaInfoRoteiro">-</span>
             </div>
             <div class="modal-mapa-motorista-info-item">
-              <label>Frete</label>
-              <span id="mapaInfoFrete">-</span>
-            </div>
-            <div class="modal-mapa-motorista-info-item">
-              <label>Peso</label>
-              <span id="mapaInfoPeso">-</span>
-            </div>
-            <div class="modal-mapa-motorista-info-item">
-              <label>Distância até Origem</label>
+              <label>Distância até a origem</label>
               <span id="mapaInfoDistancia" style="color: #667eea; font-weight: 600;">Calculando...</span>
             </div>
           </div>
         </div>
         <div class="modal-mapa-motorista-map">
           <div id="mapaMotorista"></div>
+          <div id="mapaMotoristaChegadaFloat" class="modal-mapa-motorista-chegada-float" style="display: none;" aria-live="polite">
+            <div class="modal-mapa-motorista-chegada-float-inner">
+              <div class="modal-mapa-motorista-chegada-cabecalho">
+                <h4 class="modal-mapa-motorista-chegada-titulo"><i class="bx bx-trip" aria-hidden="true"></i> Chegada ao carregamento</h4>
+                <time id="mapaMotoristaChegadaAtualizado" class="modal-mapa-motorista-chegada-atualizado"></time>
+              </div>
+              <div id="mapaMotoristaChegadaStatus" class="modal-mapa-motorista-chegada-status" role="status" aria-live="polite"></div>
+              <p id="mapaMotoristaChegadaResumo" class="modal-mapa-motorista-chegada-resumo"></p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1047,7 +1327,7 @@
     })();
   </script>
   <script src="/js/map-config.js"></script>
-  <script src="/modulos/relatorio-convocacoes/js/script.js"></script>
+  <script src="/modulos/relatorio-convocacoes/js/script.js?v=202603311445"></script>
 </body>
 </html>
 

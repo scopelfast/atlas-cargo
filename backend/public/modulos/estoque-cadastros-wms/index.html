@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>WMS — Cadastros</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/modulos.css" />
+  <link rel="stylesheet" href="/css/dark-mode.css" />
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+  <style>
+    .wms-cadastros-container { padding: 20px; font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif; }
+    .wms-cadastros-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid var(--light-gray, #e2e8f0); }
+    .wms-cadastros-header h2 { margin: 0; color: var(--ac-primary, #0d2137); font-size: 28px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .wms-cadastros-container .tabs.tabs-com-icones { display: flex; flex-wrap: wrap; margin-bottom: 25px; border-bottom: 2px solid var(--light-gray, #e2e8f0); gap: 0; }
+    .wms-cadastros-container .tabs.tabs-com-icones .tab-btn {
+      display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border: none; background: transparent; color: #94a3b8; font-weight: 600; font-size: 15px; cursor: pointer;
+      border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.2s, border-color 0.2s; font-family: inherit;
+    }
+    .wms-cadastros-container .tabs.tabs-com-icones .tab-btn i { font-size: 1.15rem; color: inherit; }
+    .wms-cadastros-container .tabs.tabs-com-icones .tab-btn:hover { color: #64748b; }
+    .wms-cadastros-container .tabs.tabs-com-icones .tab-btn.active { color: var(--ac-primary, #0d2137); border-bottom-color: var(--ac-primary, #0d2137); }
+    .wms-cadastros-container .tabs.tabs-com-icones .tab-btn.active i { color: var(--ac-primary, #0d2137); }
+    .wms-tipo-cadastro .entity-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+    .wms-tipo-cadastro .entity-btns button {
+      padding: 10px 16px; border-radius: 10px; border: 1px solid var(--border, #e2e8f0); background: #fff; font-weight: 600; cursor: pointer; font-family: inherit; font-size: 14px;
+    }
+    .wms-tipo-cadastro .entity-btns button.active { background: var(--ac-accent, #0ea5e9); color: #fff; border-color: var(--ac-accent, #0ea5e9); }
+    html[data-theme='dark'] .wms-cadastros-header { border-bottom-color: #334155; }
+    html[data-theme='dark'] .wms-cadastros-header h2 { color: #e2e8f0; }
+    html[data-theme='dark'] .wms-cadastros-container .tabs.tabs-com-icones { border-bottom-color: #334155; }
+    html[data-theme='dark'] .wms-cadastros-container .tabs.tabs-com-icones .tab-btn { color: #94a3b8; }
+    html[data-theme='dark'] .wms-cadastros-container .tabs.tabs-com-icones .tab-btn:hover { color: #cbd5e1; }
+    html[data-theme='dark'] .wms-cadastros-container .tabs.tabs-com-icones .tab-btn.active { color: #38bdf8; border-bottom-color: #38bdf8; }
+    html[data-theme='dark'] .wms-cadastros-container .tabs.tabs-com-icones .tab-btn.active i { color: #38bdf8; }
+    html[data-theme='dark'] .wms-tipo-cadastro .entity-btns button { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+    html[data-theme='dark'] .wms-tipo-cadastro .entity-btns button.active { background: #0284c7; color: #fff; border-color: #0284c7; }
+    html[data-theme='dark'] .wms-cadastros-container .filtros-box { background: #0f172a; border-color: #334155; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.35); }
+    html[data-theme='dark'] .wms-cadastros-container .filtros-box h3 { color: #e2e8f0; }
+    html[data-theme='dark'] .wms-cadastros-container .filtros-grid label { color: #cbd5e1; }
+    html[data-theme='dark'] .wms-cadastros-container .filtros-grid .form-control { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+    html[data-theme='dark'] .wms-cadastros-container .btn-filtro-limpar { background: #1e293b; color: #cbd5e1; border-color: #334155; }
+    html[data-theme='dark'] .wms-cadastros-container .form-dados-card { background: #0f172a; border-color: #334155; }
+    html[data-theme='dark'] .wms-cadastros-container .form-dados-card-header { background: #1e293b; color: #e2e8f0; border-bottom-color: #334155; }
+    html[data-theme='dark'] .wms-cadastros-container .form-dados-card-body { color: #e2e8f0; }
+    .filtros-box { background: white; border-radius: 12px; padding: 25px; box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08)); margin-bottom: 25px; border: 1px solid var(--border, #e2e8f0); }
+    .filtros-box h3 { margin: 0 0 20px; color: var(--ac-primary, #0d2137); font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .filtros-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px; }
+    .filtros-grid > div { display: flex; flex-direction: column; }
+    .filtros-grid label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--dark, #1e293b); font-size: 14px; }
+    .filtros-grid .form-control { width: 100%; padding: 12px; border: 1px solid var(--border, #e2e8f0); border-radius: 8px; font-size: 16px; font-family: inherit; box-sizing: border-box; }
+    .filtros-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 15px; flex-wrap: wrap; }
+    .btn-filtro { display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; transition: transform 0.15s, box-shadow 0.2s; }
+    .btn-filtro:hover { transform: translateY(-1px); }
+    .btn-filtro-limpar { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+    .btn-filtro-aplicar { background: var(--ac-accent, #0ea5e9); color: #fff; box-shadow: 0 2px 8px rgba(14, 165, 233, 0.25); }
+    .btn-filtro-novo { background: var(--success, #059669); color: #fff; box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25); }
+    .form-dados-card { background: #fff; border-radius: 12px; border: 1px solid var(--border, #e2e8f0); box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 24px; overflow: hidden; }
+    .form-dados-card-header { padding: 14px 20px; background: #f8fafc; border-bottom: 1px solid var(--border, #e2e8f0); font-weight: 600; font-size: 1rem; color: var(--ac-primary, #0d2137); display: flex; align-items: center; gap: 10px; }
+    .form-dados-card-header i { font-size: 1.2rem; color: var(--ac-accent, #0ea5e9); }
+    .form-dados-card-body { padding: 20px; }
+    #wmsCadGrid.grid-container {
+      min-height: 120px;
+      max-height: min(68vh, calc(100dvh - 260px));
+      overflow-y: auto;
+      overflow-x: auto;
+      position: relative;
+      border-radius: 8px;
+      border: 1px solid var(--border, #e2e8f0);
+    }
+    #wmsCadGrid .grid-table {
+      width: max-content;
+      min-width: 100%;
+      table-layout: auto;
+    }
+    html[data-theme='dark'] .wms-cadastros-container #wmsCadGrid.grid-container {
+      border-color: #334155;
+    }
+    #wmsCadGrid th[data-field="CGC"],
+    #wmsCadGrid td[data-field="CGC"] {
+      width: 190px !important;
+      min-width: 190px !important;
+      max-width: 190px !important;
+      box-sizing: border-box !important;
+    }
+    #wmsCadGrid td[data-field="CGC"] .cell-value {
+      white-space: nowrap !important;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.2px;
+    }
+    #wmsCadGrid th[data-field="CODIGO"],
+    #wmsCadGrid td[data-field="CODIGO"] {
+      width: 170px !important;
+      min-width: 170px !important;
+      max-width: 170px !important;
+      box-sizing: border-box !important;
+    }
+    #wmsCadGrid td[data-field="CODIGO"] .cell-value {
+      white-space: nowrap !important;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.2px;
+    }
+    #wmsCadGrid th[data-field="NOME"],
+    #wmsCadGrid td[data-field="NOME"] {
+      width: 240px !important;
+      min-width: 240px !important;
+      box-sizing: border-box !important;
+    }
+    #wmsCadGrid td[data-field="NOME"] .cell-value {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      white-space: normal !important;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+    #wmsCadGrid th[data-field="NU_DIAS_REL_VENCIMENTO"],
+    #wmsCadGrid td[data-field="NU_DIAS_REL_VENCIMENTO"] {
+      width: 132px !important;
+      min-width: 132px !important;
+      max-width: 132px !important;
+      box-sizing: border-box !important;
+      white-space: nowrap !important;
+      text-align: right !important;
+    }
+    #wmsCadGrid td[data-field="NU_DIAS_REL_VENCIMENTO"] .cell-value {
+      white-space: nowrap !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
+      font-variant-numeric: tabular-nums;
+    }
+    #wmsCadGrid th[data-field="NU_DIAS_MIN_VALID_RECEB"],
+    #wmsCadGrid td[data-field="NU_DIAS_MIN_VALID_RECEB"] {
+      width: 136px !important;
+      min-width: 136px !important;
+      max-width: 136px !important;
+      box-sizing: border-box !important;
+      white-space: nowrap !important;
+      text-align: right !important;
+    }
+    #wmsCadGrid td[data-field="NU_DIAS_MIN_VALID_RECEB"] .cell-value {
+      white-space: nowrap !important;
+      overflow: visible !important;
+      text-overflow: clip !important;
+      font-variant-numeric: tabular-nums;
+    }
+    #wmsCadGrid th[data-field="FGACTIVE"],
+    #wmsCadGrid td[data-field="FGACTIVE"] {
+      width: 90px !important;
+      min-width: 90px !important;
+      max-width: 90px !important;
+      text-align: right !important;
+      box-sizing: border-box !important;
+      white-space: nowrap !important;
+    }
+    #wmsCadGrid td[data-field="FGACTIVE"] .cell-value {
+      white-space: nowrap !important;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #wmsCadGrid th[data-field="TIPO_ARMAZENAGEM"],
+    #wmsCadGrid td[data-field="TIPO_ARMAZENAGEM"] {
+      width: 132px !important;
+      min-width: 132px !important;
+      max-width: 132px !important;
+      box-sizing: border-box !important;
+    }
+    #wmsCadGrid td[data-field="TIPO_ARMAZENAGEM"] .cell-value {
+      white-space: nowrap !important;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #wmsCadGrid th[data-field="CODIGO_INTERNO"],
+    #wmsCadGrid td[data-field="CODIGO_INTERNO"] {
+      width: 190px !important;
+      min-width: 190px !important;
+      max-width: 190px !important;
+      box-sizing: border-box !important;
+    }
+    #wmsCadGrid td[data-field="CODIGO_INTERNO"] .cell-value {
+      white-space: nowrap !important;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-variant-numeric: tabular-nums;
+    }
+    #wmsCadGrid th[data-field="FATOR_CONVERSAO"],
+    #wmsCadGrid td[data-field="FATOR_CONVERSAO"] {
+      width: 140px !important;
+      min-width: 140px !important;
+      max-width: 140px !important;
+      box-sizing: border-box !important;
+      white-space: nowrap !important;
+      text-align: right !important;
+      line-height: 1.2 !important;
+    }
+    #wmsCadGrid td[data-field="FATOR_CONVERSAO"] .cell-value {
+      white-space: nowrap !important;
+      overflow: hidden;
+      text-overflow: clip;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.2px;
+    }
+    #wmsCadGrid .grid-actions-header,
+    #wmsCadGrid .grid-actions {
+      width: 76px !important;
+      min-width: 76px !important;
+      max-width: 76px !important;
+      text-align: right !important;
+      box-sizing: border-box !important;
+    }
+    #wmsCadGrid .grid-actions-header {
+      padding: 12px 4px !important;
+    }
+    #wmsCadGrid .grid-actions {
+      padding: 8px 4px !important;
+      display: flex !important;
+      justify-content: flex-end !important;
+      align-items: center !important;
+      gap: 4px !important;
+      white-space: nowrap !important;
+    }
+    /* Mantém a coluna de ações visível sem precisar rolar até o fim. */
+    #wmsCadGrid .grid-actions-header {
+      position: sticky !important;
+      right: 0;
+      z-index: 12 !important;
+      background: linear-gradient(135deg, var(--primary), #2c3e8f) !important;
+      box-shadow: -6px 0 10px rgba(15, 23, 42, 0.14);
+    }
+    #wmsCadGrid .grid-actions {
+      position: sticky !important;
+      right: 0;
+      z-index: 11 !important;
+      background: #ffffff !important;
+      box-shadow: -6px 0 10px rgba(15, 23, 42, 0.12);
+    }
+    .sug-cat-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 10050;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .sug-cat-modal.is-open { display: flex; }
+    .sug-cat-modal-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.55);
+    }
+    .sug-cat-modal-panel {
+      position: relative;
+      z-index: 1;
+      width: min(1280px, 100%);
+      max-height: calc(100vh - 40px);
+      display: flex;
+      flex-direction: column;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 12px;
+      padding: 16px;
+      background: #f8fafc;
+      box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+    }
+    .sug-cat-box {
+      margin: 0;
+      border: none;
+      border-radius: 0;
+      padding: 0;
+      background: transparent;
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .sug-cat-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .sug-cat-head strong { color: var(--ac-primary, #0d2137); }
+    .sug-cat-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    #sugCategoriasGridWrap {
+      flex: 1;
+      min-height: 200px;
+      max-height: calc(100vh - 260px);
+      overflow: auto;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      background: #fff;
+    }
+    #sugCategoriasGridWrap table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    #sugCategoriasGridWrap th, #sugCategoriasGridWrap td {
+      border-bottom: 1px solid var(--border, #e2e8f0);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+      white-space: nowrap;
+    }
+    #sugCategoriasGridWrap td.sug-cat-desc { white-space: normal; min-width: 220px; }
+    #sugCategoriasResumo { margin-top: 8px; color: #64748b; font-size: 13px; }
+    html[data-theme='dark'] .wms-cadastros-container #wmsCadGrid .grid-actions-header {
+      background: linear-gradient(135deg, #1e3a5f, #334155) !important;
+      box-shadow: -6px 0 10px rgba(2, 6, 23, 0.42);
+    }
+    html[data-theme='dark'] .wms-cadastros-container #wmsCadGrid .grid-actions {
+      background: #1e293b !important;
+      box-shadow: -6px 0 10px rgba(2, 6, 23, 0.36);
+    }
+    html[data-theme='dark'] .sug-cat-modal-panel { background: #0f172a; border-color: #334155; }
+    html[data-theme='dark'] .sug-cat-box { background: transparent; }
+    html[data-theme='dark'] .sug-cat-head strong { color: #e2e8f0; }
+    html[data-theme='dark'] #sugCategoriasGridWrap {
+      background: #1e293b;
+      border-color: #334155;
+    }
+    html[data-theme='dark'] #sugCategoriasGridWrap th,
+    html[data-theme='dark'] #sugCategoriasGridWrap td { border-bottom-color: #334155; color: #e2e8f0; }
+    html[data-theme='dark'] #sugCategoriasResumo { color: #94a3b8; }
+    .wms-cad-modal-tabs { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+    .wms-cad-modal-tabs button {
+      padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border, #e2e8f0);
+      background: #fff; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .wms-cad-modal-tabs button.active { background: var(--ac-accent, #0ea5e9); color: #fff; border-color: var(--ac-accent, #0ea5e9); }
+    .cons-badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+    .cons-SECO { background: #fef3c7; color: #92400e; }
+    .cons-REFRIGERADO { background: #dbeafe; color: #1e40af; }
+    .cons-CONGELADO { background: #e0f2fe; color: #0c4a6e; }
+    html[data-theme='dark'] .wms-cad-modal-tabs button { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+    html[data-theme='dark'] .wms-cad-modal-tabs button.active { background: #0284c7; color: #fff; }
+    html[data-theme='dark'] .cons-SECO { background: #422006; color: #fde68a; }
+    html[data-theme='dark'] .cons-REFRIGERADO { background: #1e3a5f; color: #93c5fd; }
+    html[data-theme='dark'] .cons-CONGELADO { background: #0c4a6e; color: #7dd3fc; }
+    #wmsPendenciasResumo, #wmsOlResumo { margin: 8px 0; font-size: 13px; color: #64748b; }
+    html[data-theme='dark'] #wmsPendenciasResumo, html[data-theme='dark'] #wmsOlResumo { color: #94a3b8; }
+    #sugCategoriasGridWrap td.pend-col-cat,
+    #sugCategoriasGridWrap td.pend-col-cons {
+      min-width: 240px;
+      white-space: normal;
+      vertical-align: middle;
+    }
+    #sugCategoriasGridWrap td .pend-cat.form-control,
+    #sugCategoriasGridWrap td .pend-cons.form-control {
+      width: 100%;
+      min-width: 240px;
+      max-width: 340px;
+      padding: 12px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      font-size: 16px;
+      font-family: inherit;
+      box-sizing: border-box;
+      background: #fff;
+      color: var(--dark, #1e293b);
+      min-height: 46px;
+    }
+    #sugCategoriasGridWrap td .pend-cat.form-control:focus,
+    #sugCategoriasGridWrap td .pend-cons.form-control:focus {
+      outline: none;
+      border-color: var(--ac-accent, #0ea5e9);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+    }
+    html[data-theme='dark'] .wms-cadastros-container #sugCategoriasGridWrap td .pend-cat.form-control,
+    html[data-theme='dark'] .wms-cadastros-container #sugCategoriasGridWrap td .pend-cons.form-control {
+      background: #1e293b !important;
+      border-color: #334155 !important;
+      color: #e2e8f0 !important;
+    }
+    html[data-theme='dark'] .wms-cadastros-container #sugCategoriasGridWrap td .pend-cat.form-control option,
+    html[data-theme='dark'] .wms-cadastros-container #sugCategoriasGridWrap td .pend-cons.form-control option {
+      background: #1e293b;
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] .wms-cadastros-container #sugCategoriasGridWrap td .pend-cat.form-control:focus,
+    html[data-theme='dark'] .wms-cadastros-container #sugCategoriasGridWrap td .pend-cons.form-control:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+    }
+  </style>
+</head>
+<body>
+  <div id="loadingOverlay" class="calculando-overlay" style="display: none;">
+    <div class="calculando-content">
+      <div class="calculando-spinner"></div>
+      <h3 id="loadingTitle">Carregando</h3>
+      <p id="loadingText">Por favor, aguarde...</p>
+      <p class="calculando-detalhe" id="loadingDetalhe">Isso pode levar alguns segundos.</p>
+    </div>
+  </div>
+
+  <div class="wms-cadastros-container">
+    <div class="wms-cadastros-header">
+      <h2><i class="bx bx-cog"></i> <span data-i18n="web.modulos.wmsCadastros.titulo">Cadastros WMS</span></h2>
+    </div>
+
+    <div class="filtros-box wms-tipo-cadastro">
+      <h3><i class="bx bx-layer"></i> Tipo de cadastro</h3>
+      <div class="entity-btns" id="entityTabs">
+        <button type="button" data-entity="dono" class="active">Dono do estoque</button>
+        <button type="button" data-entity="armazem">Armazém</button>
+        <button type="button" data-entity="area">Área</button>
+        <button type="button" data-entity="doca">Doca</button>
+        <button type="button" data-entity="grupo">Grupo produto</button>
+        <button type="button" data-entity="categoria">Categoria produto</button>
+        <button type="button" data-entity="produto">Produto</button>
+        <button type="button" data-entity="operacional">Catálogo OL</button>
+        <button type="button" data-entity="depara">De-para produto</button>
+      </div>
+    </div>
+
+    <div class="tabs tabs-com-icones">
+      <button type="button" class="tab-btn active" data-tab="filtros"><i class="bx bx-filter-alt"></i> <span data-i18n="web.modulos.wmsCadastros.tabFiltros">Filtros</span></button>
+      <button type="button" class="tab-btn" data-tab="grid"><i class="bx bx-grid-alt"></i> <span data-i18n="web.modulos.wmsCadastros.tabGrid">Grid</span></button>
+      <button type="button" class="tab-btn" data-tab="dados"><i class="bx bx-edit"></i> <span data-i18n="web.modulos.wmsCadastros.tabDados">Dados</span></button>
+    </div>
+
+    <div class="tab-content active" id="tab-filtros">
+      <div class="filtros-box">
+        <h3><i class="bx bx-filter"></i> <span data-i18n="web.modulos.wmsCadastros.filtros">Filtros</span></h3>
+        <form id="filtroForm" onsubmit="return false;">
+          <div class="filtros-grid" id="filtroGridCampos"></div>
+          <div class="filtros-actions">
+            <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Limpar</button>
+            <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search"></i> Filtrar</button>
+            <button type="button" id="btnImportarProdutos" class="btn-filtro btn-filtro-aplicar" style="display:none;"><i class="bx bx-upload"></i> Importar XML</button>
+            <button type="button" id="btnPreencherUmOperacional" class="btn-filtro btn-filtro-aplicar" style="display:none;"><i class="bx bx-wrench"></i> Preencher UM faltantes</button>
+            <button type="button" id="btnNovoRegistro" class="btn-filtro btn-filtro-novo"><i class="bx bx-plus"></i> Novo</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-grid">
+      <div class="filtros-box">
+        <h3 data-i18n="web.modulos.wmsCadastros.gridTitulo">Visualização em Grid</h3>
+        <div class="filtros-actions" style="justify-content: space-between; margin-top: 0; margin-bottom: 15px;">
+          <button type="button" id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar</button>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button type="button" id="btnPendenciasCadastroGrid" class="btn-filtro btn-filtro-limpar" style="display:none;"><i class="bx bx-error-circle"></i> Pendências</button>
+            <button type="button" id="btnClassificacaoOlGrid" class="btn-filtro btn-filtro-aplicar" style="display:none;"><i class="bx bx-git-branch"></i> Classificação OL</button>
+            <button type="button" id="btnSugestoesCategoriaGrid" class="btn-filtro btn-filtro-aplicar" style="display:none;"><i class="bx bx-brain"></i> Sugestões categoria</button>
+            <button type="button" id="btnPreencherUmOperacionalGrid" class="btn-filtro btn-filtro-aplicar" style="display:none;"><i class="bx bx-wrench"></i> Preencher UM faltantes</button>
+            <button type="button" id="btnImportarProdutosGrid" class="btn-filtro btn-filtro-aplicar" style="display:none;"><i class="bx bx-upload"></i> Importar XML</button>
+            <button type="button" id="btnNovoRegistroGrid" class="btn-filtro btn-filtro-novo"><i class="bx bx-plus"></i> Novo</button>
+          </div>
+        </div>
+        <div id="wmsCadGridCount" style="padding: 10px 0; color: var(--gray, #64748b); font-size: 14px; font-weight: 500;">
+          <span id="wmsCadGridCountText">0 registro(s) encontrado(s)</span>
+        </div>
+        <div id="wmsCadGrid" class="grid-container">
+          <p class="empty">Aplicar filtros para carregar o grid.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-dados">
+      <div class="filtros-box">
+        <h3 id="formTitle">Novo</h3>
+        <form id="cadForm">
+          <input type="hidden" id="f_id" value="" />
+          <div id="formCamposHost"></div>
+          <div id="produtoImportPanel" class="form-dados-card" style="display:none;">
+            <div class="form-dados-card-header"><i class="bx bx-upload"></i> Importar produtos por XML</div>
+            <div class="form-dados-card-body">
+              <div class="filtros-grid">
+                <div>
+                  <label for="import_prod_cd_dono">Dono do estoque (importação XML)</label>
+                  <select id="import_prod_cd_dono" class="form-control"><option value="">Selecione…</option></select>
+                  <p class="hint" style="margin:6px 0 0;font-size:13px;">Mesmo dono da aba <strong>Filtros</strong>. Ao escolher aqui, o filtro é preenchido. Opcional só se o CNPJ do emitente na NF-e já estiver cadastrado como dono.</p>
+                </div>
+                <div>
+                  <label for="import_prod_arquivos">XML(s) NF-e (saída)</label>
+                  <input type="file" id="import_prod_arquivos" class="form-control" accept=".xml,application/xml,text/xml" multiple />
+                </div>
+              </div>
+              <div class="filtros-actions" style="margin-top: 14px;">
+                <button type="button" id="btnEnviarImportProd" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-upload"></i> Processar importação</button>
+              </div>
+            </div>
+          </div>
+          <div class="filtros-actions" style="margin-top: 20px;">
+            <button type="submit" class="btn-filtro btn-filtro-novo"><i class="bx bx-save"></i> Salvar</button>
+            <button type="button" id="btnCancelar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="sugCategoriasModal" class="sug-cat-modal" aria-hidden="true">
+      <div class="sug-cat-modal-backdrop" id="sugCategoriasBackdrop"></div>
+      <div class="sug-cat-modal-panel">
+        <div id="sugCategoriasPanel" class="sug-cat-box">
+          <div class="sug-cat-head">
+            <strong>Sugestões de categoria (revisão rápida)</strong>
+            <div class="sug-cat-actions">
+              <select id="sugCategoriaModo" class="form-control" style="max-width:160px;">
+                <option value="todos" selected>Todas</option>
+                <option value="alto">Altas</option>
+                <option value="medio">Médias</option>
+              </select>
+              <button type="button" id="btnSugCategoriaCarregar" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-refresh"></i> Atualizar</button>
+              <button type="button" id="btnSugCategoriaSimularAltas" class="btn-filtro btn-filtro-limpar" title="Conta quantas altas seriam aplicadas (sem gravar)"><i class="bx bx-test-tube"></i> Simular altas</button>
+              <button type="button" id="btnSugCategoriaAplicarAltas" class="btn-filtro btn-filtro-novo" title="Aplica automaticamente só confiança alta (mesmo dono)"><i class="bx bx-bot"></i> Aplicar altas (lote)</button>
+              <button type="button" id="btnSugCategoriaAplicar" class="btn-filtro btn-filtro-novo"><i class="bx bx-check-double"></i> Aprovar selecionadas</button>
+              <button type="button" id="btnSugCategoriaFechar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Fechar</button>
+            </div>
+          </div>
+          <div id="sugCategoriasGridWrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:32px"><input type="checkbox" id="sugCategoriaMarcarTodos" /></th>
+                  <th>ID</th>
+                  <th>Código</th>
+                  <th>Produto</th>
+                  <th>Conservação</th>
+                  <th>Categoria sugerida</th>
+                  <th>Score</th>
+                  <th>Evid.</th>
+                  <th>Conf.</th>
+                </tr>
+              </thead>
+              <tbody id="sugCategoriasBody">
+                <tr><td colspan="9" style="text-align:center;color:#64748b">Selecione o dono nos Filtros e clique em Atualizar.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div id="sugCategoriasResumo"></div>
+          <p id="sugCategoriasHint" class="hint" style="margin:8px 0 0;font-size:13px;">
+            Use o <strong>mesmo dono</strong> da aba Filtros. Pares por nome/código com produtos que já têm categoria; não mistura seco com refrigerado/congelado quando ambos estão definidos.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div id="wmsCadastrosModal" class="sug-cat-modal" aria-hidden="true">
+      <div class="sug-cat-modal-backdrop" id="wmsCadastrosModalBackdrop"></div>
+      <div class="sug-cat-modal-panel">
+        <div class="sug-cat-box">
+          <div class="sug-cat-head">
+            <strong id="wmsCadModalTitulo">Pendências de cadastro</strong>
+            <button type="button" id="btnWmsCadModalFechar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Fechar</button>
+          </div>
+          <div class="wms-cad-modal-tabs">
+            <button type="button" class="active" data-wms-cad-tab="pendencias">Pendências</button>
+            <button type="button" data-wms-cad-tab="ol">Revisão classificação OL</button>
+          </div>
+          <div id="wmsCadTabPendencias">
+            <div class="sug-cat-actions" style="margin-bottom:10px;">
+              <select id="pendenciasTipo" class="form-control" style="max-width:220px;">
+                <option value="pendente">Sem categoria ou conservação</option>
+                <option value="sem_categoria">Só sem categoria</option>
+                <option value="sem_conservacao">Só sem conservação</option>
+              </select>
+              <button type="button" id="btnPendenciasAtualizar" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-refresh"></i> Atualizar</button>
+            </div>
+            <p class="hint" style="margin:0 0 10px;font-size:13px;">Escolha <strong>categoria</strong> (e <strong>conservação</strong> se faltar) na linha e clique <strong>Salvar</strong>.</p>
+            <div id="wmsPendenciasResumo"></div>
+            <div id="sugCategoriasGridWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Dono</th>
+                    <th>ID</th>
+                    <th>Código</th>
+                    <th>Produto</th>
+                    <th>Conservação</th>
+                    <th>Categoria</th>
+                    <th>Motivo</th>
+                    <th style="width:100px">Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="wmsPendenciasBody">
+                  <tr><td colspan="8" style="text-align:center;color:#64748b">Clique em Atualizar.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div id="wmsCadTabOl" style="display:none;">
+            <p class="hint" style="margin:0 0 10px;font-size:13px;">
+              Planilha <strong>exportar.xlsx</strong> (aba Exportar Planilha). Simule, revise conservação e categoria, depois aplique.
+              Atualiza <strong>todos os donos</strong> com o mesmo código de estoque.
+            </p>
+            <div class="sug-cat-actions" style="margin-bottom:10px;">
+              <input type="file" id="olClassArquivo" class="form-control" accept=".xlsx,.xls" style="max-width:320px;" />
+              <button type="button" id="btnOlClassSimular" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search-alt"></i> Simular</button>
+              <button type="button" id="btnOlClassAplicar" class="btn-filtro btn-filtro-novo"><i class="bx bx-check-double"></i> Aplicar selecionados</button>
+              <button type="button" id="btnOlClassAplicarTodos" class="btn-filtro btn-filtro-novo"><i class="bx bx-bot"></i> Aplicar todos</button>
+            </div>
+            <div id="wmsOlResumo"></div>
+            <div id="sugCategoriasGridWrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:32px"><input type="checkbox" id="olClassMarcarTodos" checked /></th>
+                    <th>Cód. estoque</th>
+                    <th>Produto</th>
+                    <th>Conservação</th>
+                    <th>Categoria WMS (OL)</th>
+                    <th>Classe › Grupo › Família</th>
+                  </tr>
+                </thead>
+                <tbody id="wmsOlPreviewBody">
+                  <tr><td colspan="6" style="text-align:center;color:#64748b">Selecione exportar.xlsx e clique em Simular.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="confirmModal" class="modal modal--confirm" role="dialog" aria-modal="true" aria-labelledby="modalMessage">
+      <div class="modal-content modal-content--confirm">
+        <p id="modalMessage" class="modal-message-body"></p>
+        <div class="modal-actions">
+          <button type="button" id="confirmYes" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-check"></i> Confirmar</button>
+          <button type="button" id="confirmNo" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="wmsCadMessage" class="message" aria-live="polite"></div>
+  </div>
+
+  <script src="/js/cache-buster.js?v=202604281015"></script>
+  <script src="/js/utils.js"></script>
+  <script>
+    (function () {
+      if (typeof window.GridEditor === 'undefined') {
+        var s = document.createElement('script');
+        s.src = '/js/grid-editor.js';
+        document.head.appendChild(s);
+      }
+    })();
+  </script>
+  <script src="js/script.js?v=202607071820"></script>
+</body>
+</html>

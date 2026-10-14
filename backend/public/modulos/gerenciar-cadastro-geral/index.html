@@ -33,10 +33,21 @@
       align-items: center;
       gap: 10px;
     }
-    .cadastro-geral-header h2 i {
-      color: var(--ac-accent, #0ea5e9);
-    }
 
+    /* Títulos de painel (aba): ícone + texto alinhados */
+    .cadastro-geral-container .form-box > h2.form-panel-titulo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 0;
+    }
+    .cadastro-geral-container .form-box > h2.form-panel-titulo > i.bx {
+      flex-shrink: 0;
+    }
+    .cadastro-geral-container .btn-filtro i.bx {
+      flex-shrink: 0;
+    }
     /* Abas com ícones – destaque ativo, inativo em cinza */
     .cadastro-geral-container .tabs.tabs-com-icones {
       display: flex;
@@ -271,6 +282,23 @@
       flex-shrink: 0;
     }
 
+    /* Lista / grid: aprovação app motorista */
+    .badge-cadastro-app {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      border-radius: 6px;
+      background: rgba(14, 165, 233, 0.18);
+      color: #0369a1;
+      vertical-align: middle;
+    }
+    .cadastro-aprovacao-pendente { color: #b45309; font-weight: 600; }
+    .cadastro-aprovacao-aprovado { color: #047857; font-weight: 600; }
+    .cadastro-aprovacao-rejeitado { color: #b91c1c; font-weight: 600; }
+
     .filtros-box {
       background: white;
       border-radius: 12px;
@@ -363,6 +391,89 @@
     }
     .form-dados-card.senha-motorista-section {
       border-left: 4px solid var(--ac-accent, #0ea5e9);
+    }
+
+    /* App motorista: aprovação + senha alinhados (lado a lado no desktop, em seguida no mobile) */
+    .app-motorista-acoes {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+    @media (min-width: 768px) {
+      .app-motorista-acoes {
+        grid-template-columns: 1fr 1fr;
+        gap: 20px 24px;
+      }
+    }
+    .app-motorista-acoes-col .block-label:first-child {
+      margin-top: 0;
+    }
+    .app-motorista-acoes-col .input-group {
+      margin-bottom: 0;
+    }
+    .app-motorista-acoes-col #msgStatusAprovacao,
+    .app-motorista-acoes-col #msgSenhaMotorista {
+      margin-top: 8px;
+      margin-bottom: 0;
+    }
+
+    /* Atrelar equipamento (torre): mesmo padrão visual do Status (input-group + select em modulos.css) */
+    .torre-atrelar-equipamento-frota .torre-atrelar-equip-row.input-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 16px;
+      align-items: flex-end;
+      margin-bottom: 0;
+    }
+    .torre-atrelar-equipamento-frota .torre-atrelar-equip-col-combo {
+      flex: 0 1 auto;
+      min-width: 160px;
+      max-width: 400px;
+      width: 100%;
+    }
+    .torre-atrelar-equipamento-frota .torre-atrelar-equip-col-papel {
+      flex: 0 0 auto;
+      min-width: 120px;
+      max-width: 200px;
+      width: 100%;
+    }
+    .torre-atrelar-equipamento-frota .torre-atrelar-equip-col-btn .btn {
+      margin-right: 0;
+    }
+    /* Reforço de especificidade: alguns temas sobrescrevem .form-control e deixam o select “fino” / nativo */
+    .cadastro-geral-container .torre-atrelar-equipamento-frota .torre-atrelar-equip-row.input-group select.form-control,
+    .cadastro-geral-container .torre-atrelar-equipamento-frota .torre-atrelar-equip-row.input-group input.form-control {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      font-size: 16px;
+      line-height: 1.4;
+      transition: all 0.3s;
+      font-family: inherit;
+      box-sizing: border-box;
+    }
+    .cadastro-geral-container .torre-atrelar-equipamento-frota .torre-atrelar-equip-row.input-group select.form-control {
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23475569' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      background-size: 12px;
+      padding-right: 40px;
+    }
+    .cadastro-geral-container .torre-atrelar-equipamento-frota .torre-atrelar-equip-row.input-group select.form-control:focus,
+    .cadastro-geral-container .torre-atrelar-equipamento-frota .torre-atrelar-equip-row.input-group input.form-control:focus {
+      outline: none;
+      border-color: var(--ac-accent, #0ea5e9);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+    }
+    @media (max-width: 640px) {
+      .torre-atrelar-equipamento-frota .torre-atrelar-equip-col-papel {
+        max-width: none;
+      }
     }
 
     .filtros-actions {
@@ -1030,6 +1141,141 @@
     #cadastrosGrid td:last-child > *:first-child {
       margin-left: auto !important;
     }
+
+    .imp-end-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .imp-end-table th, .imp-end-table td { border: 1px solid #e2e8f0; padding: 8px 10px; text-align: left; vertical-align: top; }
+    .imp-end-table th { background: #f8fafc; font-weight: 600; }
+    .imp-end-status-ok { color: #059669; font-weight: 600; }
+    .imp-end-status-aviso { color: #b45309; font-weight: 600; }
+    .imp-end-status-erro { color: #b91c1c; font-weight: 600; }
+    html[data-theme='dark'] .imp-end-table th, html[data-theme='dark'] .imp-end-table td { border-color: #334155; }
+    html[data-theme='dark'] .imp-end-table th { background: #0f172a; color: #e2e8f0; }
+    .ee-rota-hint { font-weight: 400; font-size: 12px; color: #64748b; }
+    .ee-rota-ausente { color: #d97706; font-weight: 600; }
+    .ee-badge-rascunho { display: inline-block; margin-left: 6px; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; }
+    html[data-theme='dark'] .ee-rota-hint { color: #94a3b8; }
+    html[data-theme='dark'] .ee-rota-ausente { color: #fbbf24; }
+    html[data-theme='dark'] .ee-badge-rascunho { background: #422006; color: #fde68a; border-color: #b45309; }
+    /* Enderecos de entrega: refinamento visual da tabela */
+    .ee-table-wrap {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow-x: auto;
+      overflow-y: auto;
+      max-height: 58vh;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      background: #ffffff;
+      -webkit-overflow-scrolling: touch;
+    }
+    #tab-enderecos-entrega .form-dados-card-body {
+      min-width: 0;
+    }
+    #eeTabela {
+      width: 100%;
+      max-width: 100%;
+      table-layout: fixed;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 13px;
+    }
+    #eeTabela thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #f8fafc;
+      color: #334155;
+      border-bottom: 1px solid #cbd5e1;
+      padding: 10px 8px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    #eeTabela tbody td {
+      padding: 8px 6px;
+      border-bottom: 1px solid #e2e8f0;
+      color: #1f2937;
+      vertical-align: top;
+    }
+    #eeTabela tbody tr:nth-child(even) td { background: #fcfdff; }
+    #eeTabela tbody tr:hover td { background: #eef6ff; }
+    #eeTabela td.ee-cell-ponto {
+      font-weight: 600;
+      color: #0f172a;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      line-height: 1.35;
+    }
+    #eeTabela td.ee-cell-uf span {
+      display: inline-block;
+      min-width: 30px;
+      text-align: center;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #dbeafe;
+      color: #1d4ed8;
+      font-weight: 700;
+    }
+    #eeTabela td.ee-cell-mun {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 0;
+    }
+    #eeTabela td.ee-cell-cep {
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+      font-size: 12.5px;
+    }
+    #eeTabela td.ee-cell-log,
+    #eeTabela td.ee-cell-ll {
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      hyphens: auto;
+      line-height: 1.35;
+      font-size: 12.5px;
+    }
+    #eeTabela td.ee-cell-num { white-space: nowrap; text-align: center; }
+    #eeTabela td.ee-cell-acoes {
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+    #eeTabela .ee-ll-pair {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 3px;
+      font-size: 11.5px;
+      line-height: 1.2;
+      font-variant-numeric: tabular-nums;
+    }
+    #eeTabela .ee-ll-line {
+      word-break: break-all;
+      max-width: 100%;
+    }
+    #eeTabela td.ee-cell-acoes .btn { margin-right: 6px; }
+    #eeTabela td.ee-cell-acoes .btn:last-child { margin-right: 0; }
+    html[data-theme='dark'] .ee-table-wrap {
+      background: #0f172a;
+      border-color: #334155;
+    }
+    html[data-theme='dark'] #eeTabela thead th {
+      background: #1e293b;
+      color: #e2e8f0;
+      border-bottom-color: #334155;
+    }
+    html[data-theme='dark'] #eeTabela tbody td {
+      color: #e2e8f0;
+      border-bottom-color: #334155;
+      background: #0f172a;
+    }
+    html[data-theme='dark'] #eeTabela tbody tr:nth-child(even) td { background: #111b2f; }
+    html[data-theme='dark'] #eeTabela tbody tr:hover td { background: #1e293b; }
+    html[data-theme='dark'] #eeTabela td.ee-cell-ponto { color: #f1f5f9; }
+    html[data-theme='dark'] #eeTabela td.ee-cell-uf span {
+      background: #1e3a8a;
+      color: #bfdbfe;
+    }
   </style>
 </head>
 <body>
@@ -1055,16 +1301,20 @@
 
     <!-- Abas (com ícones) -->
     <div class="tabs tabs-com-icones">
-      <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.cadastroGeral.tabFiltros"><i class='bx bx-filter-alt'></i> Filtros</button>
-      <button class="tab-btn" data-tab="grid" data-i18n="web.modulos.cadastroGeral.tabGrid"><i class='bx bx-grid-alt'></i> Grid</button>
-      <button class="tab-btn" data-tab="dados" data-i18n="web.modulos.cadastroGeral.tabDados"><i class='bx bx-edit'></i> Dados</button>
-      <button class="tab-btn" data-tab="classes"><i class='bx bx-layer'></i> Classes Frota</button>
-      <button class="tab-btn" data-tab="validades"><i class='bx bx-calendar-check'></i> Validades</button>
-      <button class="tab-btn" data-tab="locais-preferidos" id="tabBtnLocaisPreferidos" style="display: none;"><i class='bx bx-map'></i> Locais preferidos</button>
+      <button type="button" class="tab-btn active" data-tab="filtros"><i class='bx bx-filter-alt'></i> <span data-i18n="web.modulos.cadastroGeral.tabFiltros">Filtros</span></button>
+      <button type="button" class="tab-btn" data-tab="grid"><i class='bx bx-grid-alt'></i> <span data-i18n="web.modulos.cadastroGeral.tabGrid">Grid</span></button>
+      <button type="button" class="tab-btn" data-tab="dados"><i class='bx bx-edit'></i> <span data-i18n="web.modulos.cadastroGeral.tabDados">Dados</span></button>
+      <button type="button" class="tab-btn" data-tab="anexos-motorista" id="tabBtnAnexosMotorista" style="display: none;"><i class='bx bx-image'></i> <span data-i18n="web.modulos.cadastroGeral.tabAnexosMotorista">Documentos</span></button>
+      <button type="button" class="tab-btn" data-tab="veiculos-motorista" id="tabBtnVeiculosMotorista" style="display: none;"><i class='bx bx-car'></i> <span data-i18n="web.modulos.cadastroGeral.tabVeiculosMotorista">Veículos</span></button>
+      <button type="button" class="tab-btn" data-tab="enderecos-entrega" id="tabBtnEnderecosEntrega" style="display: none;"><i class='bx bx-package'></i> <span>Endereços de entrega</span></button>
+      <button type="button" class="tab-btn" data-tab="classes" id="tabBtnClassesFrota" style="display: none;"><i class='bx bx-layer'></i> <span>Classes Frota</span></button>
+      <button type="button" class="tab-btn" data-tab="validades" id="tabBtnValidades" style="display: none;"><i class='bx bx-calendar-check'></i> <span>Validades</span></button>
+      <button type="button" class="tab-btn" data-tab="locais-preferidos" id="tabBtnLocaisPreferidos" style="display: none;"><i class='bx bx-map'></i> <span>Locais preferidos</span></button>
     </div>
 
     <!-- Filtros -->
     <div class="tab-content active" id="tab-filtros">
+      <div id="painelVeiculosMotoristaApp" class="filtros-box" style="display: none; margin-bottom: 16px; border-left: 4px solid #0ea5e9;"></div>
       <div class="filtros-box">
         <h3><i class='bx bx-filter'></i> <span data-i18n="web.modulos.cadastroGeral.tabFiltros">Filtros</span></h3>
         <form id="filtroForm" onsubmit="return false;" autocomplete="off">
@@ -1126,6 +1376,7 @@
                 <option value="A">Agente / Parceiro</option>
                 <option value="G">Grupo de Divulgação</option>
                 <option value="C">Certificadora</option>
+                <option value="E">Cliente</option>
                 <option value="U">Unidade de Negócio</option>
               </select>
             </div>
@@ -1156,15 +1407,15 @@
             </div>
           </div>
 
-          <div class="filtros-actions filtros-actions-moderno">
+          <div class="filtros-actions">
             <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar">
-              <i class='bx bx-eraser'></i> <span data-i18n="web.modulos.cadastroGeral.limpar">Limpar</span>
+              <i class='bx bx-x'></i> <span data-i18n="web.modulos.cadastroGeral.limpar">Limpar</span>
             </button>
             <button type="submit" class="btn-filtro btn-filtro-aplicar">
-              <i class='bx bx-search-alt'></i> <span data-i18n="web.modulos.cadastroGeral.filtrar">Filtrar</span>
+              <i class='bx bx-search'></i> <span data-i18n="web.modulos.cadastroGeral.filtrar">Filtrar</span>
             </button>
             <button type="button" id="btnNovoRegistro" class="btn-filtro btn-filtro-novo">
-              <i class='bx bx-plus'></i> <span>Novo</span>
+              <i class='bx bx-plus'></i> <span data-i18n="web.modulos.cadastroGeral.novo">Novo</span>
             </button>
           </div>
         </form>
@@ -1174,7 +1425,7 @@
     <!-- Grid -->
     <div class="tab-content" id="tab-grid">
       <div class="form-box">
-        <h2 data-i18n="web.modulos.cadastroGeral.gridTitulo">Cadastros Gerais - Visualização em Grid</h2>
+        <h2 class="form-panel-titulo"><i class='bx bx-grid-alt' aria-hidden="true"></i> <span data-i18n="web.modulos.cadastroGeral.gridTitulo">Visualização em Grid</span></h2>
         <div class="actions-top">
           <div style="display: flex; gap: 10px;">
             <button id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> Voltar</button>
@@ -1194,7 +1445,7 @@
     <!-- Dados -->
     <div class="tab-content" id="tab-dados">
       <div class="form-box">
-        <h2 id="formTitle" data-i18n="web.modulos.cadastroGeral.novoCadastro">Novo Cadastro Geral</h2>
+        <h2 id="formTitle" class="form-panel-titulo"><i class='bx bx-edit' aria-hidden="true"></i> <span id="formTitleText" data-i18n="web.modulos.cadastroGeral.novoCadastro">Novo Cadastro</span></h2>
         <form id="cadastroForm" autocomplete="off">
           <input type="hidden" id="cadastroId">
 
@@ -1239,14 +1490,6 @@
                   </select>
                 </div>
                 <div>
-                  <label for="cadastroRastreado">Possui Veículo Rastreado *</label>
-                  <select id="cadastroRastreado" required>
-                    <option value="">Selecione</option>
-                    <option value="S">Sim</option>
-                    <option value="N">Não</option>
-                  </select>
-                </div>
-                <div>
                   <label for="cadastroSituacao">Situação *</label>
                   <select id="cadastroSituacao" required>
                     <option value="S">Ativo</option>
@@ -1257,9 +1500,9 @@
             </div>
           </div>
 
-          <!-- Card Endereço -->
+          <!-- Card Endereço (matriz / fiscal do cadastro) -->
           <div class="form-dados-card">
-            <div class="form-dados-card-header"><i class='bx bx-map-pin'></i> Endereço</div>
+            <div class="form-dados-card-header"><i class='bx bx-map-pin'></i> Endereço (matriz)</div>
             <div class="form-dados-card-body">
               <div class="input-group four-row">
                 <div>
@@ -1354,10 +1597,38 @@
               <label class="check-item"><input type="checkbox" id="chkA" value="A"> Agente / Parceiro</label>
               <label class="check-item"><input type="checkbox" id="chkG" value="G"> Grupo de Divulgação</label>
               <label class="check-item"><input type="checkbox" id="chkC" value="C"> Certificadora</label>
+              <label class="check-item"><input type="checkbox" id="chkE" value="E"> Cliente</label>
               <label class="check-item"><input type="checkbox" id="chkU" value="U"> Unidade de Negócio</label>
             </div>
             <small class="hint">Marque pelo menos uma opção</small>
           </div>
+              <div id="divBlocoTipoTransporteBr" style="display: none;">
+                <hr class="form-section-divider" aria-hidden="true">
+                <p id="hintBlocoRastreadoIntro" class="hint" style="margin-bottom: 12px;"></p>
+                <div id="divTipoTransporteBr" class="input-group four-row">
+                <div>
+                  <label for="cadastroRastreado" id="labelCadastroRastreado">Possui Veículo Rastreado *</label>
+                  <select id="cadastroRastreado">
+                    <option value="">Selecione</option>
+                    <option value="S">Sim</option>
+                    <option value="N">Não</option>
+                  </select>
+                  <small id="hintCadastroRastreado" class="hint"></small>
+                </div>
+                <div id="divClassificacaoTransporteBr" style="display: none;">
+                  <label for="cadastroTipoTransporteBr">Classificação no Brasil (motorista / transportador)</label>
+                  <select id="cadastroTipoTransporteBr">
+                    <option value="">Selecione</option>
+                    <option value="TAC">TAC — Transportador autônomo de cargas</option>
+                    <option value="ETC">ETC — Empresa de transporte de cargas</option>
+                    <option value="CTC">CTC — Cooperativa de transporte de cargas</option>
+                    <option value="TAC_AGG">TAC agregado — veículo vinculado a uma ETC</option>
+                    <option value="TAC_IND">TAC independente — serviços eventuais</option>
+                  </select>
+                  <small class="hint">Opcional quando o tipo for Motorista e/ou Transportador. Útil para relatórios e integrações.</small>
+                </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1392,35 +1663,40 @@
           <div id="divSenhaMotorista" class="form-dados-card senha-motorista-section" style="display: none;">
             <div class="form-dados-card-header"><i class='bx bx-lock-alt'></i> App Motorista</div>
             <div class="form-dados-card-body">
-            <label class="block-label">Status de Aprovação (login no app)</label>
-            <p class="hint" style="margin-bottom: 8px;">O motorista só consegue entrar no app quando estiver <strong>Aprovado</strong>.</p>
-            <div class="input-group" style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 20px;">
-              <div style="min-width: 200px;">
-                <label for="statusAprovacaoMotorista">Status</label>
-                <select id="statusAprovacaoMotorista">
-                  <option value="P">Pendente</option>
-                  <option value="A">Aprovado</option>
-                  <option value="R">Rejeitado</option>
-                </select>
+              <div class="app-motorista-acoes">
+                <div class="app-motorista-acoes-col app-motorista-acoes-col--status">
+                  <label class="block-label">Status de Aprovação (login no app)</label>
+                  <p class="hint" style="margin: 0 0 8px 0;">O motorista só consegue entrar no app quando estiver <strong>Aprovado</strong>.</p>
+                  <div class="input-group" style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 160px; max-width: 280px;">
+                      <label for="statusAprovacaoMotorista">Status</label>
+                      <select id="statusAprovacaoMotorista" class="form-control" style="width: 100%;">
+                        <option value="P">Pendente</option>
+                        <option value="A">Aprovado</option>
+                        <option value="R">Rejeitado</option>
+                      </select>
+                    </div>
+                    <button type="button" id="btnAplicarStatusAprovacao" class="btn btn-primary">
+                      <i class='bx bx-check'></i> Aplicar
+                    </button>
+                  </div>
+                  <div id="msgStatusAprovacao" class="message" style="display: none;"></div>
+                </div>
+                <div class="app-motorista-acoes-col app-motorista-acoes-col--senha">
+                  <label class="block-label">Senha do app motorista</label>
+                  <p class="hint" style="margin: 0 0 10px 0;">Define a senha usada no login do app (CPF + esta senha). Mínimo 6 caracteres.</p>
+                  <div class="input-group" style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 160px; max-width: 280px;">
+                      <label for="novaSenhaMotorista">Nova senha</label>
+                      <input type="password" id="novaSenhaMotorista" class="form-control" placeholder="Mín. 6 caracteres" autocomplete="new-password" maxlength="50" minlength="6" style="width: 100%;">
+                    </div>
+                    <button type="button" id="btnDefinirSenhaMotorista" class="btn btn-primary">
+                      <i class='bx bx-lock-alt'></i> Definir senha
+                    </button>
+                  </div>
+                  <div id="msgSenhaMotorista" class="message" style="display: none;"></div>
+                </div>
               </div>
-              <button type="button" id="btnAplicarStatusAprovacao" class="btn btn-primary">
-                <i class='bx bx-check'></i> Aplicar
-              </button>
-            </div>
-            <div id="msgStatusAprovacao" class="message" style="margin-bottom: 16px; display: none;"></div>
-
-            <label class="block-label">Senha do app motorista</label>
-            <p class="hint" style="margin-bottom: 10px;">Define a senha usada no login do app (CPF + esta senha). Mínimo 6 caracteres.</p>
-            <div class="input-group" style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
-              <div style="width: 200px;">
-                <label for="novaSenhaMotorista">Nova senha</label>
-                <input type="password" id="novaSenhaMotorista" placeholder="Mín. 6 caracteres" autocomplete="new-password" maxlength="50" minlength="6" style="width: 100%;">
-              </div>
-              <button type="button" id="btnDefinirSenhaMotorista" class="btn btn-primary">
-                <i class='bx bx-lock-alt'></i> Definir senha
-              </button>
-            </div>
-            <div id="msgSenhaMotorista" class="message" style="margin-top: 10px; display: none;"></div>
             </div>
           </div>
 
@@ -1439,12 +1715,242 @@
       </div>
     </div>
 
+    <!-- Anexos do app (CNH / comprovante) — só motorista; substituir ou remover pela torre -->
+    <div class="tab-content" id="tab-anexos-motorista" style="display: none;">
+      <div class="form-box">
+        <h2 class="form-panel-titulo"><i class='bx bx-image' aria-hidden="true"></i> <span data-i18n="web.modulos.cadastroGeral.tabAnexosMotorista">Documentos</span></h2>
+        <div class="actions-top">
+          <button type="button" id="btnVoltarDadosAnexosMotorista" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.cadastroGeral.voltarAosDados">Voltar aos Dados</span></button>
+        </div>
+
+        <div id="divAnexosMotoristaAppTorre" class="form-dados-card torre-motorista-anexos" style="display: none;">
+          <div class="form-dados-card-header">
+            <i class="bx bx-id-card" aria-hidden="true"></i>
+            <span data-i18n="web.modulos.cadastroGeral.anexosCardTitulo">CNH e comprovante</span>
+          </div>
+          <div class="form-dados-card-body">
+          <p id="torreDadosCnhResumo" class="torre-doc-cnh-resumo" style="display: none;"></p>
+          <div class="torre-motorista-anexos-grid">
+            <div id="torreBlocoFotoCnh" class="torre-anexo-bloco-wrap" style="display: none; max-width: 300px;">
+              <strong style="display:block; margin-bottom:6px; font-size: 13px;" data-i18n="web.modulos.cadastroGeral.fotoCnhFrenteLabel">CNH — frente</strong>
+              <a id="torreLinkFotoCnh" href="#" target="_blank" rel="noopener noreferrer" class="torre-motorista-anexo-abrir" data-i18n="web.modulos.cadastroGeral.abrirNovaAba">Abrir em nova aba</a>
+              <div class="torre-motorista-anexo-thumb" style="margin-top: 8px;"><img id="torreImgFotoCnh" alt="" aria-hidden="true" loading="lazy" style="max-width:100%; max-height:240px; border-radius: 8px; border: 1px solid #cbd5e1; cursor: pointer;" /></div>
+              <div class="torre-anexo-acoes" style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px;">
+                <input type="file" id="torreInputFotoCnh" class="torre-anexo-file" data-anexo-tipo="cnh-frente" accept="image/jpeg,image/png,image/webp" style="display:none" />
+                <button type="button" class="btn btn-sm btn-outline-primary btn-torre-anexo-subst" data-anexo-tipo="cnh-frente"><i class="bx bx-upload"></i> <span data-i18n="web.modulos.cadastroGeral.anexoSubstituir">Substituir</span></button>
+                <button type="button" class="btn btn-sm btn-outline-danger btn-torre-anexo-excl" data-anexo-tipo="cnh-frente"><i class="bx bx-trash"></i> <span data-i18n="web.modulos.cadastroGeral.anexoExcluir">Remover</span></button>
+              </div>
+            </div>
+            <div id="torreBlocoFotoCnhVerso" class="torre-anexo-bloco-wrap" style="display: none; max-width: 300px;">
+              <strong style="display:block; margin-bottom:6px; font-size: 13px;" data-i18n="web.modulos.cadastroGeral.fotoCnhVersoLabel">CNH — verso</strong>
+              <a id="torreLinkFotoCnhVerso" href="#" target="_blank" rel="noopener noreferrer" class="torre-motorista-anexo-abrir" data-i18n="web.modulos.cadastroGeral.abrirNovaAba">Abrir em nova aba</a>
+              <div class="torre-motorista-anexo-thumb" style="margin-top: 8px;"><img id="torreImgFotoCnhVerso" alt="" aria-hidden="true" loading="lazy" style="max-width:100%; max-height:240px; border-radius: 8px; border: 1px solid #cbd5e1; cursor: pointer;" /></div>
+              <div class="torre-anexo-acoes" style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px;">
+                <input type="file" id="torreInputFotoCnhVerso" class="torre-anexo-file" data-anexo-tipo="cnh-verso" accept="image/jpeg,image/png,image/webp" style="display:none" />
+                <button type="button" class="btn btn-sm btn-outline-primary btn-torre-anexo-subst" data-anexo-tipo="cnh-verso"><i class="bx bx-upload"></i> <span data-i18n="web.modulos.cadastroGeral.anexoSubstituir">Substituir</span></button>
+                <button type="button" class="btn btn-sm btn-outline-danger btn-torre-anexo-excl" data-anexo-tipo="cnh-verso"><i class="bx bx-trash"></i> <span data-i18n="web.modulos.cadastroGeral.anexoExcluir">Remover</span></button>
+              </div>
+            </div>
+            <div id="torreBlocoComprovante" class="torre-anexo-bloco-wrap" style="display: none; max-width: 300px;">
+              <strong style="display:block; margin-bottom:6px; font-size: 13px;" data-i18n="web.modulos.cadastroGeral.comprovanteEnderecoLabel">Comprovante de endereço</strong>
+              <a id="torreLinkComprovante" href="#" target="_blank" rel="noopener noreferrer" class="torre-motorista-anexo-abrir" data-i18n="web.modulos.cadastroGeral.abrirNovaAba">Abrir em nova aba</a>
+              <div class="torre-motorista-anexo-thumb" style="margin-top: 8px;"><img id="torreImgComprovante" alt="" aria-hidden="true" loading="lazy" style="max-width:100%; max-height:240px; border-radius: 8px; border: 1px solid #cbd5e1; cursor: pointer;" /></div>
+              <div class="torre-anexo-acoes" style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px;">
+                <input type="file" id="torreInputComprovante" class="torre-anexo-file" data-anexo-tipo="comprovante-endereco" accept="image/jpeg,image/png,image/webp" style="display:none" />
+                <button type="button" class="btn btn-sm btn-outline-primary btn-torre-anexo-subst" data-anexo-tipo="comprovante-endereco"><i class="bx bx-upload"></i> <span data-i18n="web.modulos.cadastroGeral.anexoSubstituir">Substituir</span></button>
+                <button type="button" class="btn btn-sm btn-outline-danger btn-torre-anexo-excl" data-anexo-tipo="comprovante-endereco"><i class="bx bx-trash"></i> <span data-i18n="web.modulos.cadastroGeral.anexoExcluir">Remover</span></button>
+              </div>
+            </div>
+          </div>
+          <p id="torreHintSemComprovante" class="hint torre-hint-sem-comprovante" style="display: none;" data-i18n="web.modulos.cadastroGeral.semComprovanteCadastrado">Não há comprovante de endereço cadastrado (cadastro antigo ou ainda não enviado).</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Veículos — só motorista com cadastro salvo -->
+    <div class="tab-content" id="tab-veiculos-motorista" style="display: none;">
+      <div class="form-box">
+        <h2 class="form-panel-titulo"><i class='bx bx-car' aria-hidden="true"></i> <span data-i18n="web.modulos.cadastroGeral.tabVeiculosMotorista">Veículos</span></h2>
+        <div class="actions-top">
+          <button type="button" id="btnVoltarDadosVeiculosMotorista" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.cadastroGeral.voltarAosDados">Voltar aos Dados</span></button>
+        </div>
+
+        <div id="divVeiculosMotoristaAppTorre" class="form-dados-card torre-motorista-veiculos" style="display: none;">
+          <div class="form-dados-card-header">
+            <i class="bx bx-list-ul" aria-hidden="true"></i>
+            <span data-i18n="web.modulos.cadastroGeral.veiculosCardVinculosTitulo">Vínculos e documentos</span>
+          </div>
+          <div class="form-dados-card-body">
+            <div class="torre-veiculos-table-wrap" style="overflow-x: auto;">
+              <table class="table torre-tabela-veiculos" style="width: 100%; font-size: 13px;">
+                <thead>
+                  <tr>
+                    <th data-i18n="web.modulos.cadastroGeral.veiculosColPlaca">Placa</th>
+                    <th data-i18n="web.modulos.cadastroGeral.veiculosColPapel">Papel</th>
+                    <th data-i18n="web.modulos.cadastroGeral.veiculosColClasse">Classe</th>
+                    <th data-i18n="web.modulos.cadastroGeral.veiculosColStatus">Status</th>
+                    <th data-i18n="web.modulos.cadastroGeral.veiculosColRenavam">RENAVAM</th>
+                    <th data-i18n="web.modulos.cadastroGeral.veiculosColCrlv">CRLV</th>
+                    <th data-i18n="web.modulos.cadastroGeral.veiculosColFotoVeiculo">Foto veículo</th>
+                    <th data-i18n="web.modulos.cadastroGeral.veiculosColEquipamento">Equip.</th>
+                    <th data-i18n="web.modulos.cadastroGeral.veiculosColAcoes">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="torreTbodyVeiculosMotoristaApp"></tbody>
+              </table>
+            </div>
+            <p id="torreVeiculosMotoristaAppVazio" class="hint" style="display: none; margin-top: 12px; margin-bottom: 0;"></p>
+          </div>
+        </div>
+
+        <div id="divTorreAtrelarEquipamentoFrota" class="form-dados-card torre-atrelar-equipamento-frota" style="display: none;">
+          <div class="form-dados-card-header">
+            <i class="bx bx-link" aria-hidden="true"></i>
+            <span data-i18n="web.modulos.cadastroGeral.atrelarEquipTitulo">Atrelar equipamento da frota (torre)</span>
+          </div>
+          <div class="form-dados-card-body">
+            <div class="torre-atrelar-equip-row input-group">
+              <div class="torre-atrelar-equip-col-combo">
+                <label for="torreSelectEquipFrota" data-i18n="web.modulos.cadastroGeral.atrelarEquipLabelCombo">Equipamento</label>
+                <select id="torreSelectEquipFrota" class="form-control" style="width: 100%;">
+                  <option value="" data-i18n="web.modulos.cadastroGeral.atrelarEquipPlaceholder">Selecione…</option>
+                </select>
+              </div>
+              <div class="torre-atrelar-equip-col-papel">
+                <label for="torrePapelEquipFrota" data-i18n="web.modulos.cadastroGeral.atrelarEquipPapel">Papel (opcional)</label>
+                <input type="text" id="torrePapelEquipFrota" class="form-control" style="width: 100%;" maxlength="20" placeholder="CAVALO" />
+              </div>
+              <div class="torre-atrelar-equip-col-btn">
+                <button type="button" id="btnTorreVincularEquipFrota" class="btn btn-primary">
+                  <i class="bx bx-link"></i> <span data-i18n="web.modulos.cadastroGeral.atrelarEquipBtn">Atrelar</span>
+                </button>
+              </div>
+            </div>
+            <div id="msgTorreVincularEquipFrota" class="message" style="display: none; margin-top: 12px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Endereços de entrega (pontos adicionais ao CNPJ matriz) — só PJ com cadastro salvo -->
+    <div class="tab-content" id="tab-enderecos-entrega" style="display: none;">
+      <div class="form-box">
+        <h2 class="form-panel-titulo"><i class='bx bx-package' aria-hidden="true"></i> <span>Endereços de entrega</span></h2>
+        <div class="actions-top">
+          <button type="button" id="btnVoltarDadosEndEntrega" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.cadastroGeral.voltarAosDados">Voltar aos Dados</span></button>
+        </div>
+        <div id="eeBannerFilaNfPendentes" class="ee-banner-fila-nf" style="display: none; margin-bottom: 16px; padding: 14px 16px; border-radius: 10px; border: 1px solid #f59e0b; background: #fffbeb; color: #92400e;">
+          <p id="eeBannerFilaNfTxt" style="margin: 0 0 10px; font-weight: 600; line-height: 1.45;"></p>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnEeProximoPendenteNf"><i class="bx bx-skip-next"></i> Próximo da fila</button>
+            <button type="button" class="btn-filtro btn-filtro-limpar" id="btnEeVoltarPendenciasNf"><i class="bx bx-list-ul"></i> Voltar à lista em Cargas</button>
+          </div>
+        </div>
+        <p class="hint" style="margin-bottom: 16px;">
+          Pontos de descarga vinculados a este <strong>CNPJ (Pessoa Jurídica)</strong>. O endereço principal do cadastro continua na aba <strong>Dados</strong> (cartão &quot;Endereço (matriz)&quot;).
+          Coordenadas no formato copiado do Google: <code>latitude, longitude</code>.
+        </p>
+        <div class="form-dados-card" style="margin-bottom: 20px;">
+          <div class="form-dados-card-header"><i class='bx bx-plus-circle'></i> <span id="eeFormTitulo">Novo ponto de entrega</span></div>
+          <div class="form-dados-card-body">
+            <input type="hidden" id="eeEditId" value="" />
+            <div class="input-group four-row">
+              <div>
+                <label for="eeDsPonto">Nome do ponto *</label>
+                <input type="text" id="eeDsPonto" class="form-control" maxlength="200" placeholder="Ex.: Loja X / CD Y" />
+              </div>
+              <div>
+                <label for="eeNrRota">Rota (nº) <span class="ee-rota-hint">— obrigatório para romaneio de separação</span></label>
+                <input type="number" id="eeNrRota" class="form-control" min="0" step="1" placeholder="Ex.: 12 (planilha ROTAS)" />
+              </div>
+              <div>
+                <label for="eeUf">UF *</label>
+                <input type="text" id="eeUf" class="form-control" maxlength="2" placeholder="SC" style="text-transform:uppercase;" />
+                <small id="eeUfHint" class="hint"></small>
+              </div>
+              <div>
+                <label for="eeCdCidade">Município *</label>
+                <select id="eeCdCidade" class="form-control">
+                  <option value="">Selecione a UF primeiro</option>
+                </select>
+              </div>
+            </div>
+            <div class="input-group four-row">
+              <div>
+                <label for="eeCep">CEP</label>
+                <input type="text" id="eeCep" class="form-control" maxlength="12" placeholder="Somente números" />
+              </div>
+              <div style="grid-column: span 2;">
+                <label for="eeLogradouro">Logradouro *</label>
+                <input type="text" id="eeLogradouro" class="form-control" maxlength="200" />
+              </div>
+              <div>
+                <label for="eeNumero">Número *</label>
+                <input type="text" id="eeNumero" class="form-control" maxlength="30" placeholder="S/N" />
+              </div>
+            </div>
+            <div class="input-group four-row">
+              <div>
+                <label for="eeComplemento">Complemento</label>
+                <input type="text" id="eeComplemento" class="form-control" maxlength="120" />
+              </div>
+              <div style="grid-column: span 3;">
+                <label for="eeCoordenadas">Coordenadas (lat, lon) *</label>
+                <input type="text" id="eeCoordenadas" class="form-control" maxlength="120" placeholder="-26.2392, -48.8103" />
+              </div>
+            </div>
+            <div class="form-actions" style="margin-top: 12px;">
+              <button type="button" id="btnEeSalvar" class="btn btn-primary"><i class='bx bx-save'></i> Salvar ponto</button>
+              <button type="button" id="btnEeLimpar" class="btn btn-secondary"><i class='bx bx-eraser'></i> Limpar formulário</button>
+            </div>
+          </div>
+        </div>
+        <div class="form-dados-card">
+          <div class="form-dados-card-header"><i class='bx bx-list-ul'></i> Pontos cadastrados</div>
+          <div class="form-dados-card-body">
+            <div class="ee-table-wrap">
+            <table class="imp-end-table" id="eeTabela">
+              <colgroup>
+                <col style="width: 20%">
+                <col style="width: 52px">
+                <col style="width: 10%">
+                <col style="width: 80px">
+                <col style="width: 14%">
+                <col style="width: 44px">
+                <col style="width: 52px">
+                <col style="width: 11%">
+                <col style="width: 190px">
+              </colgroup>
+              <thead>
+                <tr>
+                  <th>Ponto</th>
+                  <th>UF</th>
+                  <th>Município</th>
+                  <th>CEP</th>
+                  <th>Logradouro</th>
+                  <th>Nº</th>
+                  <th>Rota</th>
+                  <th>Lat/Lon</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="eeTabelaBody">
+                <tr><td colspan="9" class="empty">Salve o cadastro como PJ e abra esta aba novamente.</td></tr>
+              </tbody>
+            </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Classes de Frota -->
     <div class="tab-content" id="tab-classes">
       <div class="form-box">
-        <h2>Classes de Frota</h2>
+        <h2 class="form-panel-titulo"><i class='bx bx-layer' aria-hidden="true"></i> <span data-i18n="web.modulos.cadastroGeral.tituloPainelClassesFrota">Classes de Frota</span></h2>
         <div class="actions-top">
-          <button id="btnVoltarDados" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> Voltar aos Dados</button>
+          <button id="btnVoltarDados" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.cadastroGeral.voltarAosDados">Voltar aos Dados</span></button>
           <button id="btnSalvarClasses" class="btn-filtro btn-filtro-novo"><i class='bx bx-save'></i> Salvar Classes</button>
         </div>
         
@@ -1469,14 +1975,13 @@
       </div>
     </div>
 
-    <!-- Locais preferidos (origem e destino) – visível só para tipo compatível com envio (ex.: Motorista) -->
+    <!-- Locais preferidos (origem e destino) – aba visível para M, T, Agente/Parceiro ou Grupo de Divulgação -->
     <div class="tab-content" id="tab-locais-preferidos" style="display: none;">
       <div class="form-box">
-        <h2>Locais preferidos</h2>
+        <h2 class="form-panel-titulo"><i class='bx bx-map' aria-hidden="true"></i> <span data-i18n="web.modulos.cadastroGeral.tituloPainelLocaisPreferidos">Locais preferidos</span></h2>
         <div class="actions-top">
-          <button type="button" id="btnVoltarDadosLocais" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> Voltar aos Dados</button>
+          <button type="button" id="btnVoltarDadosLocais" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.cadastroGeral.voltarAosDados">Voltar aos Dados</span></button>
         </div>
-        <p class="hint" style="margin-bottom: 20px;">Onde o cadastro prefere carregar (origem) e descarregar (destino) – usado na divulgação de cargas. Preencha, clique em Adicionar para gravar cada linha; em baixo, a lista. É necessário pelo menos uma origem e um destino.</p>
 
         <div class="form-dados-card" style="margin-bottom: 24px;">
           <div class="form-dados-card-header"><i class='bx bx-plus-circle'></i> Adicionar local preferido</div>
@@ -1533,9 +2038,9 @@
     <!-- Validades -->
     <div class="tab-content" id="tab-validades">
       <div class="form-box">
-        <h2>Gerenciar Validades do Cadastro</h2>
+        <h2 class="form-panel-titulo"><i class='bx bx-calendar-check' aria-hidden="true"></i> <span data-i18n="web.modulos.cadastroGeral.tituloPainelValidadesCadastro">Gerenciar Validades do Cadastro</span></h2>
         <div class="actions-top">
-          <button id="btnVoltarDadosValidades" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> Voltar aos Dados</button>
+          <button id="btnVoltarDadosValidades" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.cadastroGeral.voltarAosDados">Voltar aos Dados</span></button>
           <button id="btnNovaValidade" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> Nova Validade</button>
         </div>
 
@@ -1708,6 +2213,7 @@
   <!-- Cache Buster - deve ser o primeiro script -->
   <script src="/js/cache-buster.js?v=202612091200"></script>
   <script src="/js/utils.js"></script>
+  <script src="/js/i18n-web.js"></script>
   <script src="/js/log-helper.js"></script>
   <script src="/js/init-overlay-helper.js"></script>
   <script src="js/script.js" defer></script>

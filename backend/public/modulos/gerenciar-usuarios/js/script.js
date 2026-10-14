@@ -25,6 +25,11 @@
   let atividadesDisponiveis = [];
   let empresasSelecionadas = [];
   let filiaisSelecionadas = [];
+  /** @type {{ saasAdmin: boolean, tenantId: string }} */
+  let usuarioContext = { saasAdmin: false, tenantId: 'default' };
+  let saasClientesCache = null;
+  /** @type {Set<number>|null} null = SaaS admin ou não carregado; Set = CDTIPOATIVIDADE que o operador logado pode conceder */
+  let actorAssignableTipoIds = null;
 
   // Headers de autenticação para as chamadas à API
   function getAuthHeaders(extra = {}) {
@@ -226,6 +231,85 @@
     applyFilters('grid');
   }
 
+  async function loadUsuarioContext() {
+    try {
+      const r = await fetch('/api/usuarios/contexto', { headers: getAuthHeaders() });
+      if (!r.ok) return;
+      const d = await r.json();
+      usuarioContext = {
+        saasAdmin: !!d.saasAdmin,
+        tenantId: d.tenantId != null && String(d.tenantId).trim() !== '' ? String(d.tenantId).trim() : 'default',
+      };
+    } catch (e) {
+      /* mantém default */
+    }
+  }
+
+  async function ensureSaasClientesOptions() {
+    if (saasClientesCache) return saasClientesCache;
+    try {
+      const r = await fetch('/api/saas/clientes', { headers: getAuthHeaders() });
+      if (!r.ok) {
+        saasClientesCache = [];
+        return [];
+      }
+      const d = await r.json();
+      saasClientesCache = Array.isArray(d.clientes) ? d.clientes : [];
+      return saasClientesCache;
+    } catch (e) {
+      saasClientesCache = [];
+      return [];
+    }
+  }
+
+  /**
+   * @param {string|null|undefined} tenantIdAtual — ao criar usuário, usar null para default/contexto
+   */
+  async function aplicarUiTenantNoFormulario(tenantIdAtual) {
+    const wrapSaas = document.getElementById('usuarioTenantSaasWrap');
+    const wrapRo = document.getElementById('usuarioTenantReadonlyWrap');
+    const sel = document.getElementById('usuarioTenantSelect');
+    const inpRo = document.getElementById('usuarioTenantReadonly');
+    if (!wrapSaas || !wrapRo || !sel || !inpRo) return;
+
+    const tid =
+      tenantIdAtual != null && String(tenantIdAtual).trim() !== ''
+        ? String(tenantIdAtual).trim()
+        : usuarioContext.tenantId;
+
+    if (usuarioContext.saasAdmin) {
+      wrapSaas.style.display = '';
+      wrapRo.style.display = 'none';
+      await ensureSaasClientesOptions();
+      const seen = new Set();
+      sel.innerHTML = '';
+      function addOpt(val, label) {
+        const v = String(val).trim();
+        if (!v || seen.has(v)) return;
+        seen.add(v);
+        const o = document.createElement('option');
+        o.value = v;
+        o.textContent = label;
+        sel.appendChild(o);
+      }
+      addOpt('default', 'default (instalação / legado)');
+      (saasClientesCache || []).forEach((c) => {
+        const id = c.TENANT_ID || c.tenant_id;
+        if (id == null || String(id).trim() === '') return;
+        const nm = c.NM_CLIENTE || c.nm_cliente || id;
+        addOpt(String(id).trim(), `${String(id).trim()} — ${nm}`);
+      });
+      if (!seen.has(tid)) addOpt(tid, tid);
+      sel.value = tid;
+      const manual = document.getElementById('usuarioTenantManual');
+      if (manual) manual.value = '';
+    } else {
+      wrapSaas.style.display = 'none';
+      wrapRo.style.display = '';
+      inpRo.value = usuarioContext.tenantId || 'default';
+    }
+  }
+
   // Função de inicialização
   async function init() {
     if (initExecutado) return;
@@ -237,6 +321,7 @@
     } catch (err) {
     }
     await loadEmpresasParaFiltro();
+    await loadUsuarioContext();
     await showTab('filtros');
 
     // Anexar listeners após o DOM estar pronto (corrige filtro/editar quando módulo é injetado)
@@ -270,6 +355,8 @@
       if (tabId === 'acessos') {
         // Limpar dados anteriores ao abrir a aba
         limparDadosAcessos();
+        await loadUsuarioContext();
+        await ensureActorAssignableTipos();
         await carregarUsuariosParaAcessos();
         await carregarTodasAtividades();
         await carregarEmpresasParaAcessos();
@@ -401,6 +488,7 @@
       container: '#usuariosGrid',
       columns: [
         { field: 'SGUSUARIO', header: 'Login', editable: false, isId: true, width: '120px' },
+        { field: 'TENANT_ID', header: 'Tenant', editable: false, width: '110px' },
         { field: 'NMUSUARIO', header: 'Nome', editable: false },
         { field: 'ENDEMAIL', header: 'E-mail', editable: false },
         { field: 'CADASTRO_NOME', header: 'Cadastro', editable: false },
@@ -526,6 +614,7 @@
       document.getElementById('usuarioSituacao').value = usuario.FGACTIVE || 'S';
       document.getElementById('usuarioSenha').required = false;
       document.getElementById('usuarioSenha').placeholder = 'Deixe em branco para manter a senha atual';
+      await aplicarUiTenantNoFormulario(usuario.TENANT_ID);
     } catch (err) {
       showMessage(t('web.modulos.usuarios.erroCarregarDados'), 'error');
     }
@@ -545,7 +634,7 @@
       modal.style.display = 'flex';
       input.value = '';
       input.focus();
-      document.getElementById('resultadosBuscaCadastro').innerHTML = '<p class="empty">Digite algo para buscar...</p>';
+      document.getElementById('resultadosBuscaCadastro').innerHTML = '<p class="empty busca-cadastro-empty">Digite algo para buscar...</p>';
     }
   }
 
@@ -555,9 +644,9 @@
     const termo = document.getElementById('buscaCadastroInput')?.value.trim();
     const resultadosDiv = document.getElementById('resultadosBuscaCadastro');
     
-    if (!termo || termo.length < 2) {
+      if (!termo || termo.length < 2) {
       if (resultadosDiv) {
-        resultadosDiv.innerHTML = '<p class="empty">Digite pelo menos 2 caracteres para buscar...</p>';
+        resultadosDiv.innerHTML = '<p class="empty busca-cadastro-empty">Digite pelo menos 2 caracteres para buscar...</p>';
       }
       return;
     }
@@ -591,7 +680,7 @@
         if (!resultadosDiv) return;
 
         if (!cadastros || cadastros.length === 0) {
-          resultadosDiv.innerHTML = '<p class="empty">Nenhum cadastro encontrado.</p>';
+          resultadosDiv.innerHTML = '<p class="empty busca-cadastro-empty">Nenhum cadastro encontrado.</p>';
           return;
         }
 
@@ -600,25 +689,24 @@
         
         resultadosDiv.innerHTML = resultadosLimitados.map(c => {
           const cgccpfFormatado = c.CGCCPF ? formatarCPFCNPJ(c.CGCCPF) : 'Não informado';
+          const nomeEsc = String(c.RZSOCIAL || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
           return `
-            <div class="list-item" style="cursor: pointer; padding: 12px; border: 1px solid #dee2e6; border-radius: 4px; margin-bottom: 8px; transition: background 0.2s;" 
-                 onclick="selecionarCadastro(${c.CDCADASTRO}, '${(c.RZSOCIAL || '').replace(/'/g, "\\'")}')">
-              <div>
-                <strong>${c.CDCADASTRO} - ${c.RZSOCIAL || 'Sem nome'}</strong>
-                ${c.NMFANTASIA ? `<br><small style="color: #6c757d;">${c.NMFANTASIA}</small>` : ''}
-                <br><small style="color: #6c757d;">CPF/CNPJ: ${cgccpfFormatado}</small>
-                ${c.CIDADE_NOME ? `<br><small style="color: #6c757d;">${c.CIDADE_NOME} - ${c.CIDADE_ESTADO}</small>` : ''}
-              </div>
+            <div class="busca-cadastro-item" role="option"
+                 onclick="selecionarCadastro(${c.CDCADASTRO}, '${nomeEsc}')">
+              <span class="busca-cadastro-item__title">${c.CDCADASTRO} — ${c.RZSOCIAL || 'Sem nome'}</span>
+              ${c.NMFANTASIA ? `<span class="busca-cadastro-item__meta">${c.NMFANTASIA}</span>` : ''}
+              <span class="busca-cadastro-item__meta">CPF/CNPJ: ${cgccpfFormatado}</span>
+              ${c.CIDADE_NOME ? `<span class="busca-cadastro-item__meta">${c.CIDADE_NOME} — ${c.CIDADE_ESTADO || ''}</span>` : ''}
             </div>
           `;
         }).join('');
 
         if (cadastros.length > 20) {
-          resultadosDiv.innerHTML += `<p style="text-align: center; color: #6c757d; margin-top: 10px;">Mostrando 20 de ${cadastros.length} resultados. Refine sua busca para ver mais.</p>`;
+          resultadosDiv.innerHTML += `<p class="busca-cadastro-limite-msg">Mostrando 20 de ${cadastros.length} resultados. Refine sua busca para ver mais.</p>`;
         }
       } catch (err) {
         if (resultadosDiv) {
-          resultadosDiv.innerHTML = '<p class="empty">Erro ao buscar cadastros.</p>';
+          resultadosDiv.innerHTML = '<p class="empty busca-cadastro-empty">Erro ao buscar cadastros.</p>';
         }
       }
     }, 500);
@@ -724,6 +812,17 @@
 
       if (senha) body.SENHA = senha;
 
+      if (usuarioContext.saasAdmin) {
+        const wrapSaas = document.getElementById('usuarioTenantSaasWrap');
+        const sel = document.getElementById('usuarioTenantSelect');
+        const manualEl = document.getElementById('usuarioTenantManual');
+        const manual = manualEl && manualEl.value ? manualEl.value.trim() : '';
+        if (wrapSaas && wrapSaas.style.display !== 'none') {
+          if (manual) body.TENANT_ID = manual;
+          else if (sel && sel.value) body.TENANT_ID = sel.value.trim();
+        }
+      }
+
       const response = await fetch(url, {
         method,
         headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
@@ -768,6 +867,9 @@
     limparCadastroSelecionado();
     document.getElementById('usuarioSituacao').value = 'S';
     document.getElementById('formTitle').textContent = t('web.modulos.usuarios.novoUsuario');
+    const manualClear = document.getElementById('usuarioTenantManual');
+    if (manualClear) manualClear.value = '';
+    void aplicarUiTenantNoFormulario(null);
   }
 
   // Confirmar exclusão (padrão: modal no topo, botões Desativar/Reativar e Cancelar)
@@ -778,7 +880,16 @@
     const confirmNo = document.getElementById('confirmNo');
     if (!modalMessage || !confirmYes || !confirmNo) {
       const msg = estaAtivo ? `Tem certeza que deseja desativar o usuário "${login}"?` : `Tem certeza que deseja reativar o usuário "${login}"?`;
-      if (window.confirm(msg)) {
+      const ok =
+        typeof window.confirmPadrao === 'function'
+          ? await window.confirmPadrao(msg, {
+              title: estaAtivo ? 'Desativar usuário' : 'Reativar usuário',
+              danger: estaAtivo,
+              confirmText: estaAtivo ? 'Desativar' : 'Reativar',
+              cancelText: 'Cancelar',
+            })
+          : window.confirm(msg);
+      if (ok) {
         const action = estaAtivo ? 'deactivate' : 'activate';
         const response = await fetch(`/api/usuarios/${login}?action=${action}`, { method: 'DELETE', headers: getAuthHeaders() });
         const result = await response.json();
@@ -924,6 +1035,103 @@
     usuarioSelecionadoAcessos = null;
     empresasSelecionadas = [];
     filiaisSelecionadas = [];
+
+    const escopoInfo = document.getElementById('permissoesEscopoInfo');
+    if (escopoInfo) {
+      escopoInfo.style.display = 'none';
+    }
+
+    const wrapMod = document.getElementById('acessoModuloFiltroWrap');
+    if (wrapMod) wrapMod.style.display = 'none';
+    const selMod = document.getElementById('acessoModuloFiltro');
+    if (selMod) {
+      selMod.innerHTML = '';
+      const o0 = document.createElement('option');
+      o0.value = '';
+      o0.textContent = t('web.modulos.usuarios.todosModulos');
+      selMod.appendChild(o0);
+    }
+  }
+
+  function popularAcessoModuloFiltro() {
+    const sel = document.getElementById('acessoModuloFiltro');
+    const wrap = document.getElementById('acessoModuloFiltroWrap');
+    if (!sel || !wrap) return;
+    const vAnt = sel.value;
+    const seen = new Map();
+    document.querySelectorAll('#atividadesContainer .modulo-permissoes-card').forEach((card) => {
+      const ch = card.getAttribute('data-modulo-chave') || '';
+      const h4 = card.querySelector('.modulo-permissoes-titulo h4');
+      const rotulo = h4 ? h4.textContent.trim() : ch;
+      if (ch && !seen.has(ch)) seen.set(ch, rotulo || ch);
+    });
+    sel.innerHTML = '';
+    const o0 = document.createElement('option');
+    o0.value = '';
+    o0.textContent = t('web.modulos.usuarios.todosModulos');
+    sel.appendChild(o0);
+    Array.from(seen.entries())
+      .sort((a, b) => String(a[1]).localeCompare(String(b[1]), 'pt-BR'))
+      .forEach(([chave, rotulo]) => {
+        const o = document.createElement('option');
+        o.value = chave;
+        o.textContent = rotulo;
+        sel.appendChild(o);
+      });
+    if (vAnt && seen.has(vAnt)) sel.value = vAnt;
+    else sel.value = '';
+    wrap.style.display = seen.size > 0 ? 'block' : 'none';
+    try {
+      if (typeof window.applyI18nWeb === 'function') window.applyI18nWeb(wrap);
+    } catch (e) {}
+  }
+
+  async function ensureActorAssignableTipos() {
+    actorAssignableTipoIds = null;
+    if (usuarioContext.saasAdmin) return;
+    let actorLogin = '';
+    try {
+      const userStr = typeof localStorage !== 'undefined' ? localStorage.getItem('user') : null;
+      if (userStr) {
+        const u = JSON.parse(userStr);
+        if (u && u.login) actorLogin = String(u.login).trim();
+      }
+    } catch (e) {
+      actorLogin = '';
+    }
+    if (!actorLogin) {
+      actorAssignableTipoIds = new Set();
+      return;
+    }
+    try {
+      const r = await fetch(`/api/usuarios/${encodeURIComponent(actorLogin)}/atividades`, {
+        headers: getAuthHeaders()
+      });
+      const rows = r.ok ? await r.json() : [];
+      actorAssignableTipoIds = new Set();
+      if (!Array.isArray(rows)) return;
+      rows.forEach((row) => {
+        const cd = Number(row.CDTIPOATIVIDADE ?? row.cdtipoatividade);
+        const ok =
+          row.TEM_ACESSO === 1 ||
+          row.TEM_ACESSO === true ||
+          row.tem_acesso === 1 ||
+          row.tem_acesso === true;
+        if (ok && !Number.isNaN(cd) && cd > 0) actorAssignableTipoIds.add(cd);
+      });
+    } catch (e) {
+      actorAssignableTipoIds = new Set();
+    }
+  }
+
+  function aplicarFiltroModuloAcessos() {
+    const sel = document.getElementById('acessoModuloFiltro');
+    if (!sel) return;
+    const val = sel.value;
+    document.querySelectorAll('#atividadesContainer .modulo-permissoes-card').forEach((card) => {
+      const ch = card.dataset.moduloChave || '';
+      card.style.display = !val || ch === val ? '' : 'none';
+    });
   }
 
   // Carregar usuários para aba de acessos
@@ -966,8 +1174,13 @@
   async function carregarTodasAtividades() {
     try {
       const response = await fetch('/api/atividades', { headers: getAuthHeaders() });
-      atividadesDisponiveis = await response.json();
+      const data = await response.json();
+      atividadesDisponiveis = Array.isArray(data) ? data : [];
+      if (!response.ok || !Array.isArray(data)) {
+        showMessage(t('web.modulos.usuarios.erroCarregarDados'), 'error');
+      }
     } catch (err) {
+      atividadesDisponiveis = [];
       showMessage('Erro ao carregar atividades.', 'error');
     }
   }
@@ -1054,7 +1267,88 @@
     await carregarFiliaisUsuario(login);
   }
 
-  // Carregar atividades do usuário (agrupadas por FGGRUPO - versão simplificada e prática)
+  function cdTipoAtividade(at) {
+    return at.CDTIPOATIVIDADE ?? at.cdtipoatividade;
+  }
+
+  function escHtml(s) {
+    return String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  const ROTULO_GRUPO_MENU = {
+    CADASTROS: 'Cadastros',
+    EQUIPAMENTOS: 'Equipamentos',
+    LOGISTICA: 'Logística',
+    WMS: 'WMS',
+    GESTAO: 'Gestão',
+    SISTEMA: 'Sistema',
+    OUTROS: 'Outros'
+  };
+
+  function normalizeModuloProduto(atividade) {
+    const cod =
+      atividade.COD_MODULO_PRODUTO ||
+      atividade.cod_modulo_produto ||
+      atividade.CD_MODULO_PRODUTO ||
+      atividade.cd_modulo_produto ||
+      '';
+    const nome =
+      atividade.NM_MODULO_PRODUTO ||
+      atividade.nm_modulo_produto ||
+      '';
+    const codigoLicenca =
+      atividade.CODIGO_MODULO_LICENCA ||
+      atividade.codigo_modulo_licenca ||
+      '';
+
+    const chaveBruta = String(cod || codigoLicenca || nome || '').trim();
+    const chave = chaveBruta ? chaveBruta.toUpperCase() : 'SEM_MODULO';
+    const rotulo = String(nome || cod || codigoLicenca || 'Plataforma / Sem módulo').trim();
+    return { chave, rotulo };
+  }
+
+  function getGrupoChaveAtividade(atividade) {
+    const ch =
+      (atividade.GRUPO_CHAVE && String(atividade.GRUPO_CHAVE).trim()) ||
+      (atividade.grupo_chave && String(atividade.grupo_chave).trim()) ||
+      (atividade.FGGRUPO && String(atividade.FGGRUPO).trim()) ||
+      (atividade.fggrupo && String(atividade.fggrupo).trim()) ||
+      '';
+    if (!ch) return 'OUTROS';
+    return ch.toUpperCase();
+  }
+
+  function tituloSubgrupo(primeiraAtividade, chaveGrupo) {
+    const r =
+      (primeiraAtividade && (primeiraAtividade.GRUPO_ROTULO || primeiraAtividade.grupo_rotulo)) || '';
+    if (r && String(r).trim()) return String(r).trim();
+    return ROTULO_GRUPO_MENU[chaveGrupo] || chaveGrupo;
+  }
+
+  function aplicarClasseContador(el, selecionadas, total) {
+    if (!el) return;
+    el.textContent = `${selecionadas}/${total}`;
+    el.classList.remove('completo', 'parcial');
+    const percentual = total > 0 ? (selecionadas / total) * 100 : 0;
+    if (percentual === 100) el.classList.add('completo');
+    else if (percentual > 0) el.classList.add('parcial');
+  }
+
+  function usuarioTemAcessoAtividade(auList, cd) {
+    const n = Number(cd);
+    return auList.some((au) => {
+      const idAu = Number(au.CDTIPOATIVIDADE ?? au.cdtipoatividade);
+      const ok =
+        au.TEM_ACESSO === 1 || au.TEM_ACESSO === true || au.tem_acesso === 1 || au.tem_acesso === true;
+      return idAu === n && ok;
+    });
+  }
+
+  // Carregar atividades: módulo de produto → subgrupos de menu (Cadastros, Logística…) → itens
   async function carregarAtividadesUsuario(login) {
     try {
       const response = await fetch(`/api/usuarios/${login}/atividades`, { headers: getAuthHeaders() });
@@ -1062,157 +1356,290 @@
       const container = document.getElementById('atividadesContainer');
       
       if (!container) return;
+      if (!response.ok || !Array.isArray(atividadesUsuario)) {
+        showMessage(t('web.modulos.usuarios.erroCarregarDados'), 'error');
+        return;
+      }
 
-      // Agrupar atividades por FGGRUPO
-      const atividadesPorGrupo = {};
-      atividadesDisponiveis.forEach(atividade => {
-        // Garantir que o grupo existe (pode ser null, undefined ou string vazia)
-        const grupo = (atividade.FGGRUPO && atividade.FGGRUPO.trim()) ? atividade.FGGRUPO.trim() : 'OUTROS';
-        if (!atividadesPorGrupo[grupo]) {
-          atividadesPorGrupo[grupo] = [];
+      const podeAtribuirTudo = usuarioContext.saasAdmin === true;
+      const visiveis = podeAtribuirTudo
+        ? atividadesDisponiveis
+        : (atividadesDisponiveis || []).filter((at) => {
+            const cd = Number(cdTipoAtividade(at));
+            return actorAssignableTipoIds && actorAssignableTipoIds.has(cd);
+          });
+
+      const escopoInfo = document.getElementById('permissoesEscopoInfo');
+      if (escopoInfo) {
+        if (podeAtribuirTudo) {
+          escopoInfo.style.display = 'none';
+        } else {
+          escopoInfo.style.display = '';
+          try {
+            if (typeof window.applyI18nWeb === 'function') window.applyI18nWeb(escopoInfo);
+          } catch (e) {}
         }
-        atividadesPorGrupo[grupo].push(atividade);
-      });
+      }
 
-      // Ordenar grupos (CADASTROS, EQUIPAMENTOS, VIAGENS, etc.)
       const ordemGrupos = [
         'CADASTROS',
         'EQUIPAMENTOS',
-        'VIAGENS & LOGÍSTICA',
-        'GESTÃO & ADMINISTRAÇÃO',
+        'LOGISTICA',
+        'WMS',
+        'GESTAO',
+        'SISTEMA',
         'OUTROS'
       ];
-      const gruposOrdenados = Object.keys(atividadesPorGrupo).sort((a, b) => {
-        const indexA = ordemGrupos.indexOf(a);
-        const indexB = ordemGrupos.indexOf(b);
-        if (indexA === -1 && indexB === -1) return a.localeCompare(b);
-        if (indexA === -1) return 1;
-        if (indexB === -1) return -1;
-        return indexA - indexB;
+
+      const atividadesPorModulo = {};
+      visiveis.forEach((atividade) => {
+        const modulo = normalizeModuloProduto(atividade);
+        if (!atividadesPorModulo[modulo.chave]) {
+          atividadesPorModulo[modulo.chave] = {
+            rotulo: modulo.rotulo,
+            atividades: []
+          };
+        }
+        atividadesPorModulo[modulo.chave].atividades.push(atividade);
+      });
+
+      const modulosOrdenados = Object.keys(atividadesPorModulo).sort((a, b) => {
+        if (a === 'SEM_MODULO') return 1;
+        if (b === 'SEM_MODULO') return -1;
+        return String(atividadesPorModulo[a].rotulo).localeCompare(
+          String(atividadesPorModulo[b].rotulo),
+          'pt-BR'
+        );
       });
 
       container.innerHTML = '';
 
-      gruposOrdenados.forEach(grupo => {
-        const atividadesDoGrupo = atividadesPorGrupo[grupo];
-        const grupoId = `grupo_${grupo.replace(/[^a-zA-Z0-9]/g, '_')}`;
-        
-        // Contar quantas estão selecionadas
-        let selecionadas = 0;
-        atividadesDoGrupo.forEach(atividade => {
-          const temAcesso = atividadesUsuario.some(au => au.CDTIPOATIVIDADE === atividade.CDTIPOATIVIDADE && au.TEM_ACESSO === 1);
-          if (temAcesso) selecionadas++;
+      modulosOrdenados.forEach((moduloChave) => {
+        const moduloInfo = atividadesPorModulo[moduloChave];
+        const listaModulo = moduloInfo.atividades;
+        const moduloSafe = moduloChave.replace(/[^a-zA-Z0-9]/g, '_');
+        const moduloBodyId = `mb_${moduloSafe}`;
+        const rotuloTitulo = escHtml(moduloInfo.rotulo || 'Plataforma / Sem módulo');
+
+        const porGrupo = {};
+        listaModulo.forEach((atividade) => {
+          const g = getGrupoChaveAtividade(atividade);
+          if (!porGrupo[g]) porGrupo[g] = [];
+          porGrupo[g].push(atividade);
         });
 
-        // Criar seção do grupo (layout melhorado)
+        Object.keys(porGrupo).forEach((g) => {
+          porGrupo[g].sort((a, b) =>
+            String(a.DSTIPOATIVIDADE || a.dstipoatividade || '').localeCompare(
+              String(b.DSTIPOATIVIDADE || b.dstipoatividade || ''),
+              'pt-BR'
+            )
+          );
+        });
+
+        const gruposOrdenados = Object.keys(porGrupo).sort((a, b) => {
+          const indexA = ordemGrupos.indexOf(a);
+          const indexB = ordemGrupos.indexOf(b);
+          if (indexA === -1 && indexB === -1) return a.localeCompare(b);
+          if (indexA === -1) return 1;
+          if (indexB === -1) return -1;
+          return indexA - indexB;
+        });
+
+        let selecionadasModulo = 0;
+        listaModulo.forEach((atividade) => {
+          if (usuarioTemAcessoAtividade(atividadesUsuario, cdTipoAtividade(atividade))) {
+            selecionadasModulo++;
+          }
+        });
+        const totalModulo = listaModulo.length;
+        const percentualMod =
+          totalModulo > 0 ? (selecionadasModulo / totalModulo) * 100 : 0;
+        const contadorModClass =
+          percentualMod === 100
+            ? 'grupo-contador modulo-permissoes-contador completo'
+            : percentualMod > 0
+              ? 'grupo-contador modulo-permissoes-contador parcial'
+              : 'grupo-contador modulo-permissoes-contador';
+        const todosModulo = selecionadasModulo === totalModulo && totalModulo > 0;
+
+        const subgruposHtml = gruposOrdenados
+          .map((chaveGrupo) => {
+            const arr = porGrupo[chaveGrupo];
+            const subListaId = `sg_${moduloSafe}_${chaveGrupo.replace(/[^a-zA-Z0-9]/g, '_')}`;
+            const tituloSub = escHtml(tituloSubgrupo(arr[0], chaveGrupo));
+            let selSub = 0;
+            arr.forEach((atividade) => {
+              if (usuarioTemAcessoAtividade(atividadesUsuario, cdTipoAtividade(atividade))) {
+                selSub++;
+              }
+            });
+            const totalSub = arr.length;
+            const pctSub = totalSub > 0 ? (selSub / totalSub) * 100 : 0;
+            const clsSub =
+              pctSub === 100
+                ? 'subgrupo-contador grupo-contador completo'
+                : pctSub > 0
+                  ? 'subgrupo-contador grupo-contador parcial'
+                  : 'subgrupo-contador grupo-contador';
+            const todosSub = selSub === totalSub && totalSub > 0;
+
+            const linhas = arr
+              .map((atividade) => {
+                const cd = cdTipoAtividade(atividade);
+                const temAcesso = usuarioTemAcessoAtividade(atividadesUsuario, cd);
+                const sensivel =
+                  atividade.ATIVIDADE_SENSIVEL === true || atividade.ATIVIDADE_SENSIVEL === 1;
+                const badgeSens = sensivel
+                  ? `<span class="badge-atividade-sensivel" title="${escHtml(t('web.modulos.usuarios.acessoSensivel'))}">${escHtml(t('web.modulos.usuarios.badgeSensivel'))}</span>`
+                  : '';
+                const nomeAt = escHtml(atividade.DSTIPOATIVIDADE || atividade.dstipoatividade || '');
+                const prog = atividade.DSPROGRAMA || atividade.dsprograma;
+                const progHtml = prog
+                  ? `<code class="perm-programa-slug">${escHtml(prog)}</code>`
+                  : '';
+                return `
+                <div class="checkbox-item checkbox-item--acesso">
+                  <input type="checkbox" class="input-atividade-permissao" id="atividade_${cd}"
+                         value="${cd}" ${temAcesso ? 'checked' : ''}
+                         onchange="atualizarResumoSublista('${subListaId}','${moduloBodyId}')">
+                  <label for="atividade_${cd}">
+                    <span class="perm-linha-principal">
+                      <strong>${nomeAt}</strong>
+                      ${badgeSens}
+                    </span>
+                    ${progHtml}
+                  </label>
+                </div>`;
+              })
+              .join('');
+
+            return `
+            <section class="permissoes-subgrupo" data-grupo-chave="${escHtml(chaveGrupo)}">
+              <div class="permissoes-subgrupo-head">
+                <h5 class="permissoes-subgrupo-titulo">${tituloSub}</h5>
+                <span class="${clsSub}">${selSub}/${totalSub}</span>
+                <div class="grupo-checkbox-toggle grupo-checkbox-toggle--sub" title="${todosSub ? 'Desmarcar este grupo' : 'Marcar este grupo'}">
+                  <input type="checkbox" id="toggle_${subListaId}" ${todosSub ? 'checked' : ''}
+                         onchange="toggleTodosSublista('${subListaId}','${moduloBodyId}')">
+                  <label for="toggle_${subListaId}">Grupo</label>
+                </div>
+              </div>
+              <div class="permissoes-subgrupo-lista" id="${subListaId}">
+                ${linhas}
+              </div>
+            </section>`;
+          })
+          .join('');
+
         const grupoSection = document.createElement('div');
-        grupoSection.className = 'grupo-atividades-section';
-        
-        // Calcular percentual de seleção para cor do contador
-        const percentual = atividadesDoGrupo.length > 0 ? (selecionadas / atividadesDoGrupo.length) * 100 : 0;
-        const contadorClass = percentual === 100 ? 'grupo-contador completo' : percentual > 0 ? 'grupo-contador parcial' : 'grupo-contador';
-        const todosSelecionados = selecionadas === atividadesDoGrupo.length;
-        
+        grupoSection.className = 'grupo-atividades-section modulo-permissoes-card';
+        grupoSection.dataset.moduloChave = moduloChave;
+
         grupoSection.innerHTML = `
-          <div class="grupo-atividades-titulo">
-            <h4>${grupo}</h4>
+          <div class="grupo-atividades-titulo modulo-permissoes-titulo">
+            <h4>${rotuloTitulo}</h4>
             <div class="grupo-atividades-controles">
-              <span class="${contadorClass}">${selecionadas}/${atividadesDoGrupo.length}</span>
-              <div class="grupo-checkbox-toggle" onclick="toggleTodosGrupo('${grupoId}')" title="${todosSelecionados ? 'Desselecionar todos' : 'Selecionar todos'}">
-                <input type="checkbox" id="toggle_${grupoId}" ${todosSelecionados ? 'checked' : ''} onchange="toggleTodosGrupo('${grupoId}')">
-                <label for="toggle_${grupoId}">Todos</label>
+              <span class="${contadorModClass}">${selecionadasModulo}/${totalModulo}</span>
+              <div class="grupo-checkbox-toggle" title="${todosModulo ? 'Desmarcar todo o módulo' : 'Marcar todo o módulo'}">
+                <input type="checkbox" id="toggle_${moduloBodyId}" ${todosModulo ? 'checked' : ''}
+                       onchange="toggleTodosModulo('${moduloBodyId}')">
+                <label for="toggle_${moduloBodyId}">Todos</label>
               </div>
             </div>
           </div>
-          <div class="grupo-atividades-lista" id="${grupoId}">
-            ${atividadesDoGrupo.map(atividade => {
-              const temAcesso = atividadesUsuario.some(au => au.CDTIPOATIVIDADE === atividade.CDTIPOATIVIDADE && au.TEM_ACESSO === 1);
-              return `
-                <div class="checkbox-item">
-                  <input type="checkbox" id="atividade_${atividade.CDTIPOATIVIDADE}" 
-                         value="${atividade.CDTIPOATIVIDADE}" ${temAcesso ? 'checked' : ''}
-                         onchange="atualizarResumoGrupo('${grupoId}')">
-                  <label for="atividade_${atividade.CDTIPOATIVIDADE}">
-                    <strong>${atividade.DSTIPOATIVIDADE}</strong>
-                    ${atividade.DSPROGRAMA ? `<span class="programa-nome">${atividade.DSPROGRAMA}</span>` : ''}
-                  </label>
-                  ${temAcesso ? '<div class="check-indicator">✓</div>' : '<div class="check-indicator">✓</div>'}
-                </div>
-              `;
-            }).join('')}
+          <div class="modulo-permissoes-body" id="${moduloBodyId}">
+            ${subgruposHtml}
           </div>
         `;
         container.appendChild(grupoSection);
       });
 
-      // Se não há grupos, mostrar mensagem
-      if (gruposOrdenados.length === 0) {
-        container.innerHTML = '<p class="empty">Nenhuma atividade disponível.</p>';
+      modulosOrdenados.forEach((moduloChave) => {
+        const moduloSafe = moduloChave.replace(/[^a-zA-Z0-9]/g, '_');
+        const moduloBodyId = `mb_${moduloSafe}`;
+        const body = document.getElementById(moduloBodyId);
+        if (!body) return;
+        body.querySelectorAll('.permissoes-subgrupo-lista').forEach((el) => {
+          if (el.id) atualizarResumoSublista(el.id, moduloBodyId);
+        });
+        atualizarResumoModulo(moduloBodyId);
+      });
+
+      if (modulosOrdenados.length === 0) {
+        const msg = podeAtribuirTudo
+          ? 'Nenhuma atividade disponível.'
+          : 'Nenhuma atividade disponível para o seu usuário conceder. Peça a um administrador com acesso mais amplo ou à Operação SaaS.';
+        container.innerHTML = `<p class="empty">${escHtml(msg)}</p>`;
       }
+
+      popularAcessoModuloFiltro();
+      aplicarFiltroModuloAcessos();
     } catch (err) {
       showMessage('Erro ao carregar atividades do usuário.', 'error');
     }
   }
 
-  // Funções globais para interação com grupos (versão simplificada)
-  window.toggleTodosGrupo = function(grupoId) {
-    const grupo = document.getElementById(grupoId);
-    if (!grupo) return;
-    
-    const toggleCheckbox = document.getElementById(`toggle_${grupoId}`);
-    if (!toggleCheckbox) return;
-    
+  window.toggleTodosSublista = function (subListaId, moduloBodyId) {
+    const lista = document.getElementById(subListaId);
+    const toggleCheckbox = document.getElementById(`toggle_${subListaId}`);
+    if (!lista || !toggleCheckbox) return;
     const selecionar = toggleCheckbox.checked;
-    const checkboxes = grupo.querySelectorAll('input[type="checkbox"]:not(#toggle_' + grupoId + ')');
-    checkboxes.forEach(cb => {
+    lista.querySelectorAll('.input-atividade-permissao').forEach((cb) => {
       cb.checked = selecionar;
-      // Disparar evento change para atualizar indicadores
-      cb.dispatchEvent(new Event('change'));
     });
-    atualizarResumoGrupo(grupoId);
+    atualizarResumoSublista(subListaId, moduloBodyId);
   };
 
-  window.atualizarResumoGrupo = function(grupoId) {
-    const grupo = document.getElementById(grupoId);
-    if (!grupo) return;
-    
-    // Excluir o toggle checkbox da contagem
-    const checkboxes = grupo.querySelectorAll('input[type="checkbox"]:not(#toggle_' + grupoId + ')');
-    const total = checkboxes.length;
-    const selecionadas = Array.from(checkboxes).filter(cb => cb.checked).length;
-    
-    // Atualizar indicadores visuais de cada checkbox
-    checkboxes.forEach(cb => {
-      const checkboxItem = cb.closest('.checkbox-item');
-      const indicator = checkboxItem?.querySelector('.check-indicator');
-      if (indicator) {
-        indicator.style.display = cb.checked ? 'flex' : 'none';
-      }
+  window.toggleTodosModulo = function (moduloBodyId) {
+    const body = document.getElementById(moduloBodyId);
+    const toggleCheckbox = document.getElementById(`toggle_${moduloBodyId}`);
+    if (!body || !toggleCheckbox) return;
+    const selecionar = toggleCheckbox.checked;
+    body.querySelectorAll('.input-atividade-permissao').forEach((cb) => {
+      cb.checked = selecionar;
     });
-    
-    // Atualizar toggle checkbox do grupo
-    const toggleCheckbox = document.getElementById(`toggle_${grupoId}`);
+    body.querySelectorAll('.permissoes-subgrupo-lista').forEach((el) => {
+      if (el.id) atualizarResumoSublista(el.id, moduloBodyId);
+    });
+    atualizarResumoModulo(moduloBodyId);
+  };
+
+  window.atualizarResumoSublista = function (subListaId, moduloBodyId) {
+    const lista = document.getElementById(subListaId);
+    if (!lista) return;
+    const checkboxes = lista.querySelectorAll('.input-atividade-permissao');
+    const total = checkboxes.length;
+    const selecionadas = Array.from(checkboxes).filter((cb) => cb.checked).length;
+
+    const toggleCheckbox = document.getElementById(`toggle_${subListaId}`);
     if (toggleCheckbox) {
       toggleCheckbox.checked = selecionadas === total && total > 0;
       toggleCheckbox.indeterminate = selecionadas > 0 && selecionadas < total;
     }
-    
-    // Atualizar contador no título do grupo
-    const grupoSection = grupo.closest('.grupo-atividades-section');
-    if (grupoSection) {
-      const contador = grupoSection.querySelector('.grupo-contador');
-      if (contador) {
-        contador.textContent = `${selecionadas}/${total}`;
-        
-        // Atualizar classe do contador baseado no percentual
-        contador.classList.remove('completo', 'parcial');
-        const percentual = total > 0 ? (selecionadas / total) * 100 : 0;
-        if (percentual === 100) {
-          contador.classList.add('completo');
-        } else if (percentual > 0) {
-          contador.classList.add('parcial');
-        }
-      }
+
+    const sub = lista.closest('.permissoes-subgrupo');
+    const contadorSub = sub?.querySelector('.subgrupo-contador');
+    aplicarClasseContador(contadorSub, selecionadas, total);
+
+    atualizarResumoModulo(moduloBodyId);
+  };
+
+  window.atualizarResumoModulo = function (moduloBodyId) {
+    const body = document.getElementById(moduloBodyId);
+    if (!body) return;
+    const checkboxes = body.querySelectorAll('.input-atividade-permissao');
+    const total = checkboxes.length;
+    const selecionadas = Array.from(checkboxes).filter((cb) => cb.checked).length;
+
+    const card = body.closest('.modulo-permissoes-card');
+    const contadorMod = card?.querySelector('.modulo-permissoes-contador');
+    aplicarClasseContador(contadorMod, selecionadas, total);
+
+    const toggleMod = document.getElementById(`toggle_${moduloBodyId}`);
+    if (toggleMod) {
+      toggleMod.checked = selecionadas === total && total > 0;
+      toggleMod.indeterminate = selecionadas > 0 && selecionadas < total;
     }
   };
 
@@ -1501,7 +1928,9 @@
       return;
     }
 
-    const checkboxes = document.querySelectorAll('#atividadesContainer input[type="checkbox"]:checked');
+    const checkboxes = document.querySelectorAll(
+      '#atividadesContainer .input-atividade-permissao:checked'
+    );
     const atividades = [...new Set(
       Array.from(checkboxes)
         .map(cb => parseInt(cb.value, 10))
@@ -1540,6 +1969,7 @@
   // Event Listeners (replicados em attachEventListeners ao final de init para funcionar quando módulo é injetado)
 
   document.getElementById('usuarioAcessoSelect')?.addEventListener('change', selecionarUsuarioAcessos);
+  document.getElementById('acessoModuloFiltro')?.addEventListener('change', aplicarFiltroModuloAcessos);
   document.getElementById('btnAdicionarEmpresa')?.addEventListener('click', adicionarEmpresa);
   document.getElementById('btnAdicionarFilial')?.addEventListener('click', adicionarFilial);
   document.getElementById('empresaFilialSelect')?.addEventListener('change', carregarFiliaisPorEmpresa);

@@ -10,6 +10,9 @@ const { poolPromise } = require('../config/db');
 const { listarLogsAcesso, listarLogsAcoes, listarOperadores, executarInitSQL } = require('../controllers/logs-acesso.controller');
 const fs = require('fs');
 const path = require('path');
+const { towerAuthAndTenant } = require('../middleware/tower-auth-chain.middleware');
+
+router.use(towerAuthAndTenant);
 
 // Listar logs de acesso
 router.get('/', listarLogsAcesso);

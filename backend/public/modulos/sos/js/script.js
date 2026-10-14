@@ -1192,6 +1192,13 @@
             menuItem.classList.remove('has-badge');
           }
         }
+        // Header do dashboard (mesmo critério que dashboard.js atualizarContadorSOS)
+        const headerBadgeSos = document.getElementById('headerBadgeSos');
+        if (headerBadgeSos) {
+          headerBadgeSos.textContent = totalPendentes > 99 ? '99+' : totalPendentes.toString();
+          headerBadgeSos.style.display = totalPendentes > 0 ? 'inline-flex' : 'none';
+          headerBadgeSos.setAttribute('data-count', totalPendentes);
+        }
       }
     } catch (err) {
       console.error('Erro ao atualizar contador do menu:', err);
@@ -1324,7 +1331,8 @@
         transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionAttempts: 5,
-        reconnectionDelay: 1000
+        reconnectionDelay: 1000,
+        auth: { token: localStorage.getItem('token') || '' }
       });
 
       socket.on('connect', () => {

@@ -3,6 +3,10 @@ const express = require('express');
 const sql = require('../config/mssql-compat');
 const router = express.Router();
 const { poolPromise, getFirstNumericValue } = require('../config/db');
+const { towerAuthAndTenant } = require('../middleware/tower-auth-chain.middleware');
+const { tenantIdForRequest } = require('../utils/tenant-context');
+
+router.use(towerAuthAndTenant);
 
 // Função para obter descrição do tipo de veículo
 const getTipoVeiculoDescricao = (codigo) => {
@@ -24,6 +28,7 @@ const getTipoVeiculoDescricao = (codigo) => {
 router.get('/tipos-equipamento', async (req, res) => {
   try {
     const { codigo, descricao, situacao } = req.query;
+    const tenantId = tenantIdForRequest(req);
     let query = `
       SELECT 
         [CDTIPOEQUIPAMENTO],
@@ -32,7 +37,7 @@ router.get('/tipos-equipamento', async (req, res) => {
         [FGTIPOVEICULO],
         [FGACTIVE]
       FROM [dbo].[TIPOEQUIPAMENTO]
-      WHERE 1=1
+      WHERE 1=1 AND ([TENANT_ID] = @TENANT_ID OR [TENANT_ID] = 'default')
     `;
 
     const params = [];
@@ -44,26 +49,31 @@ router.get('/tipos-equipamento', async (req, res) => {
       query += ` AND [DSTIPOEQUIPAMENTO] LIKE @DESCRICAO`;
       params.push({ name: 'DESCRICAO', value: `%${descricao}%` });
     }
-    if (situacao) {
-      query += ` AND [FGACTIVE] = @SITUACAO`;
-      params.push({ name: 'SITUACAO', value: situacao === 'S' ? 'A' : 'I' });
+    if (situacao === 'S') {
+      query += ` AND ([FGACTIVE] = 'A' OR [FGACTIVE] = 'S')`;
+    } else if (situacao === 'N') {
+      query += ` AND ([FGACTIVE] = 'I' OR [FGACTIVE] = 'N')`;
     }
 
     query += ` ORDER BY [DSTIPOEQUIPAMENTO]`;
 
     const pool = await poolPromise;
-    const request = pool.request();
+    const request = pool.request().input('TENANT_ID', sql.VarChar(64), tenantId);
     params.forEach(p => request.input(p.name, p.value));
     
     const result = await request.query(query);
-    const tipos = result.recordset.map(t => ({
-      CDTIPOEQUIPAMENTO: t.CDTIPOEQUIPAMENTO,
-      DSTIPOEQUIPAMENTO: t.DSTIPOEQUIPAMENTO,
-      MASCARAIDENTIF: t.MASCARAIDENTIF || 'Não informada',
-      FGTIPOVEICULO: t.FGTIPOVEICULO || 'Não informado',
-      FGTIPOVEICULO_DESC: getTipoVeiculoDescricao(t.FGTIPOVEICULO),
-      FGACTIVE: t.FGACTIVE === 'A' ? 'S' : 'N'
-    }));
+    const tipos = result.recordset.map(t => {
+      const fg = t.FGACTIVE;
+      const ativo = fg === 'A' || fg === 'S';
+      return {
+        CDTIPOEQUIPAMENTO: t.CDTIPOEQUIPAMENTO,
+        DSTIPOEQUIPAMENTO: t.DSTIPOEQUIPAMENTO,
+        MASCARAIDENTIF: t.MASCARAIDENTIF || 'Não informada',
+        FGTIPOVEICULO: t.FGTIPOVEICULO || 'Não informado',
+        FGTIPOVEICULO_DESC: getTipoVeiculoDescricao(t.FGTIPOVEICULO),
+        FGACTIVE: ativo ? 'S' : 'N'
+      };
+    });
     
     res.json(tipos);
   } catch (err) {
@@ -81,10 +91,12 @@ router.get('/tipos-equipamento/:id', async (req, res) => {
       return res.status(400).json({ error: 'ID inválido.' });
     }
 
+    const tenantId = tenantIdForRequest(req);
     const pool = await poolPromise;
     const result = await pool
       .request()
       .input('CDTIPOEQUIPAMENTO', idNum)
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
       .query(`
         SELECT 
           [CDTIPOEQUIPAMENTO],
@@ -94,6 +106,7 @@ router.get('/tipos-equipamento/:id', async (req, res) => {
           [FGACTIVE]
         FROM [dbo].[TIPOEQUIPAMENTO]
         WHERE [CDTIPOEQUIPAMENTO] = @CDTIPOEQUIPAMENTO
+          AND ([TENANT_ID] = @TENANT_ID OR [TENANT_ID] = 'default')
       `);
 
     if (result.recordset.length === 0) {
@@ -101,12 +114,14 @@ router.get('/tipos-equipamento/:id', async (req, res) => {
     }
 
     const tipo = result.recordset[0];
+    const fg = tipo.FGACTIVE;
+    const ativo = fg === 'A' || fg === 'S';
     res.json({
       CDTIPOEQUIPAMENTO: tipo.CDTIPOEQUIPAMENTO,
       DSTIPOEQUIPAMENTO: tipo.DSTIPOEQUIPAMENTO,
       MASCARAIDENTIF: tipo.MASCARAIDENTIF,
       FGTIPOVEICULO: tipo.FGTIPOVEICULO,
-      FGACTIVE: tipo.FGACTIVE === 'A' ? 'S' : 'N'
+      FGACTIVE: ativo ? 'S' : 'N'
     });
   } catch (err) {
     console.error('Erro ao buscar tipo de equipamento:', err);
@@ -123,10 +138,13 @@ router.post('/tipos-equipamento', async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const tenantId = tenantIdForRequest(req);
     const descricao = DSTIPOEQUIPAMENTO.trim();
     const existente = await pool.query(
-      `SELECT 1 FROM "TIPOEQUIPAMENTO" WHERE UPPER(TRIM("DSTIPOEQUIPAMENTO")) = UPPER(TRIM($1)) LIMIT 1`,
-      [descricao]
+      `SELECT 1 FROM "TIPOEQUIPAMENTO"
+       WHERE UPPER(TRIM("DSTIPOEQUIPAMENTO")) = UPPER(TRIM($1)) AND "TENANT_ID" = $2
+       LIMIT 1`,
+      [descricao, tenantId]
     );
     if (existente.rows && existente.rows.length > 0) {
       return res.status(409).json({ error: 'Já existe um tipo de equipamento com esta descrição. Não é permitido cadastrar duplicados.' });
@@ -135,14 +153,19 @@ router.post('/tipos-equipamento', async (req, res) => {
     const getProximoId = async () => getFirstNumericValue((await pool.request().query('SELECT COALESCE(MAX([CDTIPOEQUIPAMENTO]), 0) + 1 AS [maxId] FROM [dbo].[TIPOEQUIPAMENTO]')).recordset, 1);
     let novoId = await getProximoId();
     const doInsert = async (id) => {
-      await pool.request().input('CDTIPOEQUIPAMENTO', sql.SmallInt, id).input('DSTIPOEQUIPAMENTO', DSTIPOEQUIPAMENTO.trim()).input('MASCARAIDENTIF', MASCARAIDENTIF || null).input('FGTIPOVEICULO', FGTIPOVEICULO || null)
-        .query(`INSERT INTO [dbo].[TIPOEQUIPAMENTO] ([CDTIPOEQUIPAMENTO], [DSTIPOEQUIPAMENTO], [MASCARAIDENTIF], [FGTIPOVEICULO], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]) VALUES (@CDTIPOEQUIPAMENTO, @DSTIPOEQUIPAMENTO, @MASCARAIDENTIF, @FGTIPOVEICULO, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas')`);
+      await pool.request()
+        .input('CDTIPOEQUIPAMENTO', sql.SmallInt, id)
+        .input('DSTIPOEQUIPAMENTO', DSTIPOEQUIPAMENTO.trim())
+        .input('MASCARAIDENTIF', MASCARAIDENTIF || null)
+        .input('FGTIPOVEICULO', FGTIPOVEICULO || null)
+        .input('TENANT_ID', sql.VarChar(64), tenantId)
+        .query(`INSERT INTO [dbo].[TIPOEQUIPAMENTO] ([CDTIPOEQUIPAMENTO], [DSTIPOEQUIPAMENTO], [MASCARAIDENTIF], [FGTIPOVEICULO], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG], [TENANT_ID]) VALUES (@CDTIPOEQUIPAMENTO, @DSTIPOEQUIPAMENTO, @MASCARAIDENTIF, @FGTIPOVEICULO, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas', @TENANT_ID)`);
     };
     try {
       await doInsert(novoId);
     } catch (e) {
       if (String(e.code) === '23505') {
-        if (e.constraint === 'uk_tipoequipamento_ds') {
+        if (e.constraint === 'uk_tipoequipamento_ds' || e.constraint === 'uk_tipoequipamento_tenant_ds') {
           return res.status(409).json({ error: 'Já existe um tipo de equipamento com esta descrição. Não é permitido cadastrar duplicados.' });
         }
         novoId = await getProximoId();
@@ -167,22 +190,28 @@ router.put('/tipos-equipamento/:id', async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const tenantId = tenantIdForRequest(req);
     const idNumerico = parseInt(id, 10);
     if (isNaN(idNumerico) || idNumerico <= 0) {
       return res.status(400).json({ error: 'ID inválido.' });
     }
     const existente = await pool.query(
-      `SELECT 1 FROM "TIPOEQUIPAMENTO" WHERE UPPER(TRIM("DSTIPOEQUIPAMENTO")) = UPPER(TRIM($1)) AND "CDTIPOEQUIPAMENTO" != $2 LIMIT 1`,
-      [DSTIPOEQUIPAMENTO.trim(), idNumerico]
+      `SELECT 1 FROM "TIPOEQUIPAMENTO"
+       WHERE UPPER(TRIM("DSTIPOEQUIPAMENTO")) = UPPER(TRIM($1))
+         AND "CDTIPOEQUIPAMENTO" != $2
+         AND "TENANT_ID" = $3
+       LIMIT 1`,
+      [DSTIPOEQUIPAMENTO.trim(), idNumerico, tenantId]
     );
     if (existente.rows && existente.rows.length > 0) {
       return res.status(409).json({ error: 'Já existe outro tipo de equipamento com esta descrição. Não é permitido duplicar.' });
     }
     const fgactiveDB = FGACTIVE === 'S' ? 'A' : 'I';
 
-    await pool
+    const upd = await pool
       .request()
       .input('CDTIPOEQUIPAMENTO', sql.SmallInt, idNumerico)
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
       .input('DSTIPOEQUIPAMENTO', DSTIPOEQUIPAMENTO.trim())
       .input('MASCARAIDENTIF', MASCARAIDENTIF || null)
       .input('FGTIPOVEICULO', FGTIPOVEICULO || null)
@@ -197,8 +226,12 @@ router.put('/tipos-equipamento/:id', async (req, res) => {
           [DHMAINTENANCE] = GETDATE(),
           [SGUSER] = 'SYSTEM',
           [SERVERORIG] = 'AppDVcargas'
-        WHERE [CDTIPOEQUIPAMENTO] = @CDTIPOEQUIPAMENTO
+        WHERE [CDTIPOEQUIPAMENTO] = @CDTIPOEQUIPAMENTO AND [TENANT_ID] = @TENANT_ID
       `);
+
+    if (!upd.rowsAffected || upd.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: 'Tipo não encontrado ou não pode ser alterado (catálogo compartilhado).' });
+    }
 
     res.json({ success: true, message: 'Tipo atualizado com sucesso!' });
   } catch (err) {
@@ -220,19 +253,21 @@ router.delete('/tipos-equipamento/:id', async (req, res) => {
     }
 
     const pool = await poolPromise;
+    const tenantId = tenantIdForRequest(req);
 
     // Verificar status atual
     const checkResult = await pool
       .request()
       .input('CDTIPOEQUIPAMENTO', sql.SmallInt, idNumerico)
-      .query(`SELECT [FGACTIVE] FROM [dbo].[TIPOEQUIPAMENTO] WHERE [CDTIPOEQUIPAMENTO] = @CDTIPOEQUIPAMENTO`);
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
+      .query(`SELECT [FGACTIVE] FROM [dbo].[TIPOEQUIPAMENTO] WHERE [CDTIPOEQUIPAMENTO] = @CDTIPOEQUIPAMENTO AND [TENANT_ID] = @TENANT_ID`);
 
     if (checkResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Tipo não encontrado.' });
     }
 
     const statusAtual = checkResult.recordset[0].FGACTIVE;
-    const estaAtivo = statusAtual === 'A';
+    const estaAtivo = statusAtual === 'A' || statusAtual === 'S';
     
     // Determinar nova situação
     let novaSituacao, mensagem;
@@ -250,6 +285,7 @@ router.delete('/tipos-equipamento/:id', async (req, res) => {
     const result = await pool
       .request()
       .input('CDTIPOEQUIPAMENTO', sql.SmallInt, idNumerico)
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
       .input('FGACTIVE', sql.Char(1), novaSituacao)
       .query(`
         UPDATE [dbo].[TIPOEQUIPAMENTO] 
@@ -258,7 +294,7 @@ router.delete('/tipos-equipamento/:id', async (req, res) => {
           [DHMAINTENANCE] = GETDATE(),
           [SGUSER] = 'SYSTEM',
           [SERVERORIG] = 'AppDVcargas'
-        WHERE [CDTIPOEQUIPAMENTO] = @CDTIPOEQUIPAMENTO
+        WHERE [CDTIPOEQUIPAMENTO] = @CDTIPOEQUIPAMENTO AND [TENANT_ID] = @TENANT_ID
       `);
 
     if (result.rowsAffected[0] === 0) {

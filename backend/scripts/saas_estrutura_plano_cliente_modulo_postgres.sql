@@ -1,0 +1,94 @@
+-- Estrutura SaaS: Módulo (catálogo) → Plano → Cliente contratante (por TENANT_ID) → habilitação efetiva.
+-- Permissões de quem acessa o sistema continuam em USUARIO / USUARIOATIVIDADE (não substituído aqui).
+-- EMPRESA = cadastro operacional (CNPJ, frota); vínculo opcional em SAAS_CLIENTE_CONTRATANTE.CDEMPRESA.
+-- PostgreSQL. Idempotente. Rode após backup.
+
+-- 1) Catálogo de módulos licenciáveis (chaves alinhadas ao código: alertas, ranking, sos, chat, mapa_viagem)
+CREATE TABLE IF NOT EXISTS "SAAS_MODULO" (
+  "CODIGO" varchar(40) NOT NULL PRIMARY KEY,
+  "NM_EXIBICAO" varchar(120) NOT NULL,
+  "ORDEM" smallint NOT NULL DEFAULT 0,
+  "FGACTIVE" char(1) NOT NULL DEFAULT 'S',
+  "DHMAINTENANCE" timestamp NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO "SAAS_MODULO" ("CODIGO", "NM_EXIBICAO", "ORDEM", "FGACTIVE")
+VALUES
+  ('alertas', 'Alertas', 1, 'S'),
+  ('ranking', 'Ranking', 2, 'S'),
+  ('sos', 'SOS', 3, 'S'),
+  ('chat', 'Chat', 4, 'S'),
+  ('mapa_viagem', 'Mapa de viagem', 5, 'S'),
+  ('convocacoes', 'Convocações', 6, 'S')
+ON CONFLICT ("CODIGO") DO UPDATE SET
+  "NM_EXIBICAO" = EXCLUDED."NM_EXIBICAO",
+  "ORDEM" = EXCLUDED."ORDEM";
+
+-- 2) Planos (ex.: Básico, Completo, Personalizado)
+CREATE TABLE IF NOT EXISTS "SAAS_PLANO" (
+  "CD_PLANO" smallint NOT NULL PRIMARY KEY,
+  "NM_PLANO" varchar(120) NOT NULL,
+  "DS_PLANO" varchar(500) NULL,
+  "FGACTIVE" char(1) NOT NULL DEFAULT 'S',
+  "DHMAINTENANCE" timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "UK_SAAS_PLANO_NM" UNIQUE ("NM_PLANO")
+);
+
+INSERT INTO "SAAS_PLANO" ("CD_PLANO", "NM_PLANO", "DS_PLANO", "FGACTIVE")
+SELECT 1, 'Completo', 'Inclui todos os módulos do catálogo.', 'S'
+WHERE NOT EXISTS (SELECT 1 FROM "SAAS_PLANO" WHERE "CD_PLANO" = 1);
+
+-- 3) Plano × módulos (o que cada plano libera)
+CREATE TABLE IF NOT EXISTS "SAAS_PLANO_MODULO" (
+  "CD_PLANO" smallint NOT NULL,
+  "CODIGO_MODULO" varchar(40) NOT NULL,
+  PRIMARY KEY ("CD_PLANO", "CODIGO_MODULO"),
+  CONSTRAINT "FK_SAAS_PLANO_MOD_PLANO" FOREIGN KEY ("CD_PLANO") REFERENCES "SAAS_PLANO" ("CD_PLANO") ON DELETE CASCADE,
+  CONSTRAINT "FK_SAAS_PLANO_MOD_MOD" FOREIGN KEY ("CODIGO_MODULO") REFERENCES "SAAS_MODULO" ("CODIGO") ON DELETE CASCADE
+);
+
+INSERT INTO "SAAS_PLANO_MODULO" ("CD_PLANO", "CODIGO_MODULO")
+SELECT 1, m."CODIGO"
+FROM "SAAS_MODULO" m
+WHERE m."FGACTIVE" = 'S'
+  AND NOT EXISTS (
+    SELECT 1 FROM "SAAS_PLANO_MODULO" pm WHERE pm."CD_PLANO" = 1 AND pm."CODIGO_MODULO" = m."CODIGO"
+  );
+
+-- 4) Cliente contratante (organização que paga / usa o tenant lógico)
+CREATE TABLE IF NOT EXISTS "SAAS_CLIENTE_CONTRATANTE" (
+  "TENANT_ID" varchar(64) NOT NULL PRIMARY KEY,
+  "NM_CLIENTE" varchar(200) NOT NULL,
+  "CD_PLANO" smallint NOT NULL,
+  "CDEMPRESA" smallint NULL,
+  "FGACTIVE" char(1) NOT NULL DEFAULT 'S',
+  "DHMAINTENANCE" timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "FK_SAAS_CLIENTE_PLANO" FOREIGN KEY ("CD_PLANO") REFERENCES "SAAS_PLANO" ("CD_PLANO"),
+  CONSTRAINT "FK_SAAS_CLIENTE_EMPRESA" FOREIGN KEY ("CDEMPRESA") REFERENCES "EMPRESA" ("CDEMPRESA")
+);
+
+CREATE INDEX IF NOT EXISTS "IX_SAAS_CLIENTE_PLANO" ON "SAAS_CLIENTE_CONTRATANTE" ("CD_PLANO");
+
+INSERT INTO "SAAS_CLIENTE_CONTRATANTE" ("TENANT_ID", "NM_CLIENTE", "CD_PLANO", "CDEMPRESA", "FGACTIVE")
+SELECT 'default', 'Instalação padrão', 1, NULL, 'S'
+WHERE NOT EXISTS (SELECT 1 FROM "SAAS_CLIENTE_CONTRATANTE" WHERE "TENANT_ID" = 'default');
+
+-- 5) Overrides por tenant (gravado pela tela «Tenants e módulos»; quando existir, prevalece sobre o plano)
+CREATE TABLE IF NOT EXISTS "SAAS_TENANT_MODULO" (
+  "TENANT_ID" varchar(64) NOT NULL,
+  "CODIGO_MODULO" varchar(40) NOT NULL,
+  "FG_HABILITADO" char(1) NOT NULL DEFAULT 'S',
+  "DHMAINTENANCE" timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY ("TENANT_ID", "CODIGO_MODULO"),
+  CONSTRAINT "FK_SAAS_TENANT_MOD_MOD" FOREIGN KEY ("CODIGO_MODULO") REFERENCES "SAAS_MODULO" ("CODIGO") ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS "IX_SAAS_TENANT_MOD_TENANT" ON "SAAS_TENANT_MODULO" ("TENANT_ID");
+
+-- Limite de usuários ativos (assentos); NULL = ilimitado. Ver também saas_assentos_usuarios_postgres.sql
+ALTER TABLE "SAAS_PLANO" ADD COLUMN IF NOT EXISTS "MAX_ASSENTOS_USUARIOS" integer NULL;
+ALTER TABLE "SAAS_CLIENTE_CONTRATANTE" ADD COLUMN IF NOT EXISTS "MAX_ASSENTOS_USUARIOS_OVR" integer NULL;
+
+-- Sessões simultâneas torre (JWT + USUARIOLOGACESSO). Ver saas_sessoes_simultaneas_postgres.sql
+ALTER TABLE "SAAS_PLANO" ADD COLUMN IF NOT EXISTS "MAX_SESSOES_SIMULTANEAS" integer NULL;
+ALTER TABLE "SAAS_CLIENTE_CONTRATANTE" ADD COLUMN IF NOT EXISTS "MAX_SESSOES_SIMULTANEAS_OVR" integer NULL;

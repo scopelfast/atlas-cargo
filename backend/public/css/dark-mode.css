@@ -43,6 +43,28 @@
 [data-theme="dark"] .header {
   background: #1e293b;
   border-bottom-color: #334155;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
+}
+
+[data-theme="dark"] .main > .header.is-scrolled {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.38);
+}
+
+[data-theme="dark"] .sidebar-float-toggle {
+  background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
+  box-shadow: 0 4px 14px rgba(56, 189, 248, 0.35);
+}
+
+[data-theme="dark"] .header-icon-btn-divergencia-placas.has-divergencia {
+  border-color: #f59e0b;
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.18);
+}
+
+[data-theme="dark"] .header-icon-btn-divergencia-placas.has-divergencia:hover {
+  border-color: #fbbf24;
+  color: #fffbeb;
+  background: rgba(245, 158, 11, 0.28);
 }
 
 [data-theme="dark"] .user-info h2 {
@@ -60,6 +82,11 @@
 [data-theme="dark"] #contentArea {
   background: #1e293b;
   box-shadow: 0 0 1px rgba(0,0,0,.3), 0 1px 3px rgba(0,0,0,.4);
+}
+
+[data-theme="dark"] .welcome-manual-btn {
+  background: #0284c7;
+  color: #f8fafc;
 }
 
 [data-theme="dark"] .welcome-section {
@@ -116,6 +143,32 @@
   background: rgba(248, 113, 113, 0.25);
 }
 
+[data-theme="dark"] .header-icon-btn-motoristas-pendentes.has-pending {
+  border-color: #f87171;
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.18);
+  animation: header-motoristas-alerta-pulse-dark 1.8s ease-in-out infinite;
+}
+[data-theme="dark"] .header-icon-btn-motoristas-pendentes.has-pending:hover {
+  animation: none;
+  border-color: #ef4444;
+  color: #fca5a5;
+  background: rgba(248, 113, 113, 0.28);
+}
+@keyframes header-motoristas-alerta-pulse-dark {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(248, 113, 113, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="dark"] .header-icon-btn-motoristas-pendentes.has-pending {
+    animation: none;
+  }
+}
+
 [data-theme="dark"] .btn-idioma-dash {
   background: #334155;
   color: #e2e8f0;
@@ -162,6 +215,7 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
 [data-theme="dark"] .dashboard-stat-card.success { border-left-color: #34d399; }
 [data-theme="dark"] .dashboard-stat-card.warning { border-left-color: #fbbf24; }
 [data-theme="dark"] .dashboard-stat-card.info { border-left-color: #38bdf8; }
+[data-theme="dark"] .dashboard-stat-card.danger { border-left-color: #f87171; }
 [data-theme="dark"] .dashboard-stat-card.primary .stat-card-icon {
   background: linear-gradient(135deg, #38bdf8, #0ea5e9) !important;
 }
@@ -174,6 +228,9 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
 [data-theme="dark"] .dashboard-stat-card.info .stat-card-icon {
   background: linear-gradient(135deg, #38bdf8, #0ea5e9) !important;
 }
+[data-theme="dark"] .dashboard-stat-card.danger .stat-card-icon {
+  background: linear-gradient(135deg, #f87171, #ef4444) !important;
+}
 [data-theme="dark"] .dashboard-stat-card .stat-value,
 [data-theme="dark"] .dashboard-stat-card .stat-tip,
 [data-theme="dark"] .dashboard-stat-card .stat-card-content h4 {
@@ -181,6 +238,10 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
 }
 [data-theme="dark"] .dashboard-stat-card .stat-label {
   color: #cbd5e1;
+}
+
+[data-theme="dark"] .dashboard-stat-card .stat-kpi-detalhe {
+  color: #94a3b8;
 }
 
 /* Cards de estatísticas em qualquer módulo (SOS, Alertas, Chat, etc.): mesmo padrão com vida */
@@ -525,6 +586,39 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
   background: #1e293b;
   border-color: #334155;
 }
+/* Dados completos veículo/motorista: tabela não pode ficar branca com texto claro */
+[data-theme="dark"] .modal-tratamento .modal-body-tratamento {
+  background: #1e293b;
+  color: #e2e8f0;
+}
+[data-theme="dark"] .modal-tratamento .modal-dados-completos-nome,
+[data-theme="dark"] .modal-tratamento .modal-body-tratamento > p.modal-dados-completos-nome {
+  color: #f1f5f9 !important;
+  border-bottom-color: #334155 !important;
+}
+[data-theme="dark"] .modal-tratamento .modal-dados-completos-table tbody tr {
+  background: #0f172a !important;
+  border-bottom-color: #334155 !important;
+}
+[data-theme="dark"] .modal-tratamento .modal-dados-completos-table tbody tr:hover {
+  background: #1e293b !important;
+}
+[data-theme="dark"] .modal-tratamento .modal-dados-completos-table td:first-child {
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] .modal-tratamento .modal-dados-completos-table td:last-child {
+  color: #e2e8f0 !important;
+}
+[data-theme="dark"] .modal-tratamento .modal-dados-completos-resumo {
+  background: #0f172a;
+  border-color: #334155;
+}
+[data-theme="dark"] .modal-tratamento .modal-dados-completos-resumo h4 {
+  color: #f1f5f9 !important;
+}
+[data-theme="dark"] .modal-tratamento .modal-dados-completos-resumo p {
+  color: #94a3b8 !important;
+}
 [data-theme="dark"] .modal-tratamento .modal-tratamento-mapa {
   background: #0f172a;
   border-color: #334155;
@@ -572,6 +666,83 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
   background: #334155;
   color: #fff;
 }
+
+/* Modal POD (Gerenciar Viagens): .pod-card era branco enquanto h4/p do modal recebem texto claro — contraste zero */
+[data-theme="dark"] #modalComprovantes .pod-card {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+[data-theme="dark"] #modalComprovantes .pod-card-header {
+  border-bottom: 1px solid #334155;
+}
+[data-theme="dark"] #modalComprovantes .pod-card-section {
+  border-bottom-color: #334155 !important;
+}
+[data-theme="dark"] #modalComprovantes .pod-card .pod-card-section h4 {
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] #modalComprovantes .pod-card .pod-value {
+  color: #e2e8f0 !important;
+}
+[data-theme="dark"] #modalComprovantes .pod-card .pod-meta {
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] #modalComprovantes .pod-card .pod-muted {
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] #modalComprovantes .pod-foto {
+  background: #1e293b !important;
+  border-color: #475569 !important;
+}
+[data-theme="dark"] #modalComprovantes .pod-assinatura {
+  background: #1e293b !important;
+  border-color: #475569 !important;
+}
+[data-theme="dark"] #modalComprovantes .pod-map-container {
+  background: #1e293b !important;
+  border-color: #475569 !important;
+}
+[data-theme="dark"] #modalComprovantes .pod-coords {
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] #modalComprovantes .pod-map-link {
+  color: #38bdf8 !important;
+}
+[data-theme="dark"] #modalComprovantes .pod-placeholder {
+  background: #1e293b !important;
+  color: #94a3b8 !important;
+  border: 1px dashed #475569 !important;
+}
+[data-theme="dark"] #modalComprovantes .pod-synced.sim {
+  background: rgba(34, 197, 94, 0.22) !important;
+  color: #86efac !important;
+}
+[data-theme="dark"] #modalComprovantes .pod-synced.nao {
+  background: rgba(239, 68, 68, 0.18) !important;
+  color: #fca5a5 !important;
+}
+[data-theme="dark"] #modalComprovantes #modalComprovantesCarregando {
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] #modalComprovantes .pod-foto.pod-foto-erro {
+  background: #1e293b !important;
+  border-color: #475569 !important;
+}
+
+/* Modal "Localização da Macro" — caixa de coordenadas legível no tema escuro */
+[data-theme="dark"] #modalMapaMacro .modal-macro-coords {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+[data-theme="dark"] #modalMapaMacro .modal-macro-coords strong {
+  color: #f1f5f9 !important;
+}
+[data-theme="dark"] #modalMapaMacro #mapaMacro {
+  border-color: #334155 !important;
+}
+
 [data-theme="dark"] .loading-overlay {
   background: rgba(15, 23, 42, 0.95);
 }
@@ -623,11 +794,21 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
 }
 
 /* ========== Módulos (Gerenciar Cadastro Geral e demais) ========== */
+[data-theme="dark"] .cadastro-geral-container .badge-cadastro-app {
+  background: rgba(56, 189, 248, 0.18);
+  color: #7dd3fc;
+}
+[data-theme="dark"] .cadastro-geral-container .cadastro-aprovacao-pendente { color: #fcd34d; }
+[data-theme="dark"] .cadastro-geral-container .cadastro-aprovacao-aprovado { color: #6ee7b7; }
+[data-theme="dark"] .cadastro-geral-container .cadastro-aprovacao-rejeitado { color: #fca5a5; }
+
+/* Módulos “cadastro” (padrão = Gerenciar Usuários): fundo neutro, sem gradiente ciano */
 [data-theme="dark"] .cadastro-geral-container,
 [data-theme="dark"] .cidades-container,
 [data-theme="dark"] .filiais-container,
 [data-theme="dark"] .empresas-container,
 [data-theme="dark"] .tipos-atividade-container,
+[data-theme="dark"] .saas-op-container,
 [data-theme="dark"] .usuarios-container,
 [data-theme="dark"] .tipos-validade-container,
 [data-theme="dark"] .tipos-viagem-container,
@@ -651,6 +832,48 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
   color: #e2e8f0;
 }
 
+/* Tipos de Atividade / Operação SaaS: <style> inline do módulo carrega depois — reforço (padrão Usuários) */
+[data-theme="dark"] #contentArea .saas-op-container {
+  max-width: none;
+}
+[data-theme="dark"] .tipos-atividade-container .filtros-box input.form-control,
+[data-theme="dark"] .tipos-atividade-container .filtros-box select.form-control,
+[data-theme="dark"] .tipos-atividade-container .filtros-box textarea.form-control,
+[data-theme="dark"] .saas-op-container .filtros-box input.form-control,
+[data-theme="dark"] .saas-op-container .filtros-box select.form-control,
+[data-theme="dark"] .saas-op-container .filtros-box textarea.form-control {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+[data-theme="dark"] .tipos-atividade-container .filtros-box .form-control:focus,
+[data-theme="dark"] .saas-op-container .filtros-box .form-control:focus {
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2) !important;
+}
+[data-theme="dark"] .tipos-atividade-container .filtros-box input::placeholder,
+[data-theme="dark"] .tipos-atividade-container .filtros-box textarea::placeholder,
+[data-theme="dark"] .saas-op-container .filtros-box input::placeholder,
+[data-theme="dark"] .saas-op-container .filtros-box textarea::placeholder {
+  color: #64748b !important;
+}
+[data-theme="dark"] .tipos-atividade-container .filtros-grid label,
+[data-theme="dark"] .saas-op-container .filtros-grid label {
+  color: #cbd5e1 !important;
+}
+[data-theme="dark"] .tipos-atividade-container .form-dados-card {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+[data-theme="dark"] .tipos-atividade-container .form-dados-card-header {
+  background: #0f172a !important;
+  border-bottom-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+[data-theme="dark"] .tipos-atividade-container .form-dados-card-body {
+  background: #1e293b !important;
+}
+
 [data-theme="dark"] .cadastro-geral-header h2,
 [data-theme="dark"] .cadastro-geral-header h2 i,
 [data-theme="dark"] .cidades-header h2,
@@ -672,6 +895,8 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
 [data-theme="dark"] .viagens-header h2,
 [data-theme="dark"] .logs-acesso-header h2,
 [data-theme="dark"] .logs-acesso-header h2 i,
+[data-theme="dark"] .saas-op-header h2,
+[data-theme="dark"] .saas-op-header h2 i,
 [data-theme="dark"] .mapa-viagem-header h2,
 [data-theme="dark"] .mapa-viagem-header h2 i,
 [data-theme="dark"] .relatorio-header h2,
@@ -679,7 +904,8 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
 [data-theme="dark"] .alertas-header h2,
 [data-theme="dark"] .alertas-header h2 i,
 [data-theme="dark"] .modulo-container h1,
-[data-theme="dark"] .configuracoes-header h2 {
+[data-theme="dark"] .configuracoes-header h2,
+[data-theme="dark"] .configuracoes-header h2 i {
   color: #f1f5f9;
 }
 
@@ -702,6 +928,7 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
 [data-theme="dark"] .roteiros-header,
 [data-theme="dark"] .viagens-header,
 [data-theme="dark"] .logs-acesso-header,
+[data-theme="dark"] .saas-op-header,
 [data-theme="dark"] .mapa-viagem-header {
   border-bottom-color: #334155;
 }
@@ -715,6 +942,19 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
 [data-theme="dark"] .relatorio-container .tabela-section {
   background: #1e293b;
   border-color: #334155;
+}
+[data-theme="dark"] .relatorio-container .filtros-grid label {
+  color: #cbd5e1 !important;
+}
+[data-theme="dark"] .relatorio-container .filtros-grid .form-control {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+[data-theme="dark"] .relatorio-container .relatorio-filtro-checkbox-wrap {
+  background: #0f172a !important;
+  border-color: #475569 !important;
+  color: #e2e8f0 !important;
 }
 /* Cards de estatísticas com mais vida no dark: fundo destacado, borda e faixa colorida viva */
 [data-theme="dark"] .relatorio-container .stat-card {
@@ -732,6 +972,11 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
 [data-theme="dark"] .relatorio-container .stat-card.com-resposta { border-left-color: #a78bfa; }
 [data-theme="dark"] .relatorio-container .stat-card.total-viagens { border-left-color: #475569; }
 [data-theme="dark"] .relatorio-container .stat-card.total { border-left-color: #38bdf8; }
+[data-theme="dark"] .relatorio-container .stat-card.divergencia-placas {
+  border-left-color: #fb923c;
+  background: #334155;
+  border-color: #475569;
+}
 [data-theme="dark"] .relatorio-container .stat-card .stat-value {
   color: #f1f5f9;
 }
@@ -791,6 +1036,10 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
   background: rgba(148, 163, 184, 0.3) !important;
   color: #cbd5e1 !important;
 }
+[data-theme="dark"] .relatorio-container .rel-motorista-tel-line {
+  color: #94a3b8 !important;
+}
+
 [data-theme="dark"] .relatorio-container .link-whatsapp {
   color: #4ade80 !important;
 }
@@ -817,19 +1066,42 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
 [data-theme="dark"] .relatorio-container .btn-acao.btn-acao-mapa {
   background: #15803d !important;
 }
-[data-theme="dark"] .relatorio-container #legendaGrid {
-  background: #1e293b !important;
+[data-theme="dark"] .relatorio-container details#legendaGrid.convocacoes-legenda-details,
+[data-theme="dark"] .relatorio-container #legendaGrid.relatorio-legenda-ajuda {
+  background: #0f172a !important;
   border-color: #334155 !important;
-  color: #e2e8f0;
 }
-[data-theme="dark"] .relatorio-container #legendaGrid div,
-[data-theme="dark"] .relatorio-container #legendaGrid span {
+[data-theme="dark"] .relatorio-container details#legendaGrid summary {
   color: #e2e8f0 !important;
 }
-[data-theme="dark"] .relatorio-container #legendaGrid .bx-map-alt,
-[data-theme="dark"] .relatorio-container #legendaGrid .bx-info-circle,
-[data-theme="dark"] .relatorio-container #legendaGrid .bx-check-circle {
-  color: #38bdf8 !important;
+[data-theme="dark"] .relatorio-container .relatorio-legenda-ajuda .convocacoes-legenda-conteudo {
+  color: #94a3b8 !important;
+  border-top-color: #334155 !important;
+}
+[data-theme="dark"] .relatorio-container .relatorio-legenda-ajuda .convocacoes-legenda-conteudo strong {
+  color: #e2e8f0 !important;
+}
+[data-theme="dark"] .relatorio-container .relatorio-legenda-ajuda .convocacoes-legenda-conteudo code {
+  color: #7dd3fc !important;
+  background: rgba(15, 23, 42, 0.6) !important;
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+[data-theme="dark"] .relatorio-container .relatorio-legenda-ajuda .convocacoes-legenda-conteudo em {
+  color: #cbd5e1 !important;
+}
+[data-theme="dark"] .relatorio-container .relatorio-legenda-ajuda .bx-map-alt {
+  color: #4ade80 !important;
+}
+[data-theme="dark"] .relatorio-container .convocacao-cel-resposta .convocacao-cel-resposta-data {
+  color: #cbd5e1 !important;
+}
+[data-theme="dark"] .relatorio-container .relatorio-acoes-row .btn-acao {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="dark"] .relatorio-container .relatorio-acoes-dhconv {
+  color: #94a3b8 !important;
 }
 
 /* Modal "Localização do Motorista e Rota até o Carregamento" (Relatório + Gerenciar Viagens) */
@@ -854,6 +1126,60 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
 [data-theme="dark"] .modal-mapa-motorista-header .btn-fechar:hover {
   background: rgba(255, 255, 255, 0.2);
   color: #fff;
+}
+[data-theme="dark"] .modal-mapa-motorista-ultima-inline {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+[data-theme="dark"] .modal-mapa-motorista-ultima-inline > i.bx {
+  color: #e2e8f0;
+}
+[data-theme="dark"] .modal-mapa-motorista-ultima-inline-label {
+  color: #e2e8f0;
+}
+[data-theme="dark"] .modal-mapa-motorista-ultima-inline-valor:not(.banner-sem-dados) {
+  color: #f1f5f9;
+}
+[data-theme="dark"] .modal-mapa-motorista-ultima-inline-valor.banner-sem-dados {
+  color: #fcd34d;
+}
+[data-theme="dark"] .modal-mapa-motorista-chegada-float-inner {
+  background: rgba(30, 41, 59, 0.96);
+  border-color: #334155;
+}
+[data-theme="dark"] .modal-mapa-motorista-chegada-titulo {
+  color: #f1f5f9;
+}
+[data-theme="dark"] .modal-mapa-motorista-chegada-titulo i {
+  color: #94a3b8;
+}
+[data-theme="dark"] .modal-mapa-motorista-chegada-atualizado {
+  color: #94a3b8;
+}
+[data-theme="dark"] .modal-mapa-motorista-chegada-float.modal-mapa-motorista-chegada--ok .modal-mapa-motorista-chegada-status {
+  background: rgba(56, 189, 248, 0.12);
+  color: #7dd3fc;
+  border-color: rgba(56, 189, 248, 0.4);
+}
+[data-theme="dark"] .modal-mapa-motorista-chegada-float.modal-mapa-motorista-chegada--atraso .modal-mapa-motorista-chegada-status {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.45);
+}
+[data-theme="dark"] .modal-mapa-motorista-chegada-float.modal-mapa-motorista-chegada--incerto .modal-mapa-motorista-chegada-status {
+  background: rgba(234, 179, 8, 0.12);
+  color: #fde047;
+  border-color: rgba(234, 179, 8, 0.4);
+}
+[data-theme="dark"] .modal-mapa-motorista-chegada-float.modal-mapa-motorista-chegada--neutro .modal-mapa-motorista-chegada-status {
+  background: rgba(100, 116, 139, 0.2);
+  color: #e2e8f0;
+  border-color: #475569;
+}
+[data-theme="dark"] .modal-mapa-motorista-chegada-resumo {
+  color: #cbd5e1;
+  border-top-color: #334155;
 }
 [data-theme="dark"] .modal-mapa-motorista-info {
   background: #1e293b;
@@ -912,6 +1238,159 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
   color: #38bdf8;
 }
 
+[data-theme="dark"] .mapa-viagem-container .leaflet-tooltip.mapa-viagem-placa-legenda {
+  color: #f1f5f9 !important;
+  background: rgba(15, 23, 42, 0.96) !important;
+  border-color: #475569 !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45) !important;
+}
+[data-theme="dark"] .mapa-viagem-container .leaflet-tooltip.mapa-viagem-placa-legenda::before {
+  border-top-color: rgba(15, 23, 42, 0.96) !important;
+}
+
+[data-theme="dark"] .mapa-viagem-container .mapa-resumo-stats-grid .dashboard-stat-card {
+  background: #334155 !important;
+  border-color: #475569 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-resumo-stats-grid .dashboard-stat-card.primary {
+  border-left-color: #38bdf8 !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-resumo-stats-grid .dashboard-stat-card.info {
+  border-left-color: #38bdf8 !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-resumo-stats-grid .dashboard-stat-card.warning {
+  border-left-color: #fbbf24 !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-resumo-stats-grid .dashboard-stat-card.primary .stat-card-icon {
+  background: linear-gradient(135deg, #38bdf8, #0ea5e9) !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-resumo-stats-grid .dashboard-stat-card.info .stat-card-icon {
+  background: linear-gradient(135deg, #38bdf8, #0ea5e9) !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-resumo-stats-grid .dashboard-stat-card.warning .stat-card-icon {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b) !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-resumo-stats-grid .stat-card-content h4,
+[data-theme="dark"] .mapa-viagem-container .mapa-resumo-stats-grid .stat-value {
+  color: #f1f5f9 !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-resumo-stats-grid .stat-label {
+  color: #cbd5e1 !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-resumo-stats-grid .dashboard-stat-card.info .stat-value {
+  color: #7dd3fc !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-resumo-stats-grid .dashboard-stat-card.warning .stat-value {
+  color: #fcd34d !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-legenda-bloco h4 {
+  color: #e2e8f0 !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-legenda-chip {
+  background: #0f172a !important;
+  border-color: #475569 !important;
+  color: #e2e8f0 !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-legenda-chip:hover {
+  background: #334155 !important;
+  border-color: #64748b !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-legenda-chip.mapa-legenda-chip--ativo {
+  background: #38bdf8 !important;
+  color: #0f172a !important;
+  border-color: #38bdf8 !important;
+  box-shadow: 0 2px 12px rgba(56, 189, 248, 0.35) !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-amostras-viagem details {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-amostras-viagem summary {
+  color: #cbd5e1 !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-resumo-placeholder {
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .mapa-viagem-container .mapa-legenda-estatica {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-legenda-linha {
+  color: #cbd5e1 !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-legenda-linha strong {
+  color: #f1f5f9 !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-legenda-desc,
+[data-theme="dark"] .mapa-viagem-container .mapa-legenda-contagem-posicao {
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-legenda-posicao-float-inner {
+  background: rgba(15, 23, 42, 0.94) !important;
+  border-color: #334155 !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45) !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-legenda-posicao-float .mapa-legenda-estatica {
+  background: rgba(30, 41, 59, 0.85) !important;
+  border-color: #334155 !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-legenda-posicao-compact {
+  color: #cbd5e1 !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-legenda-posicao-item strong {
+  color: #f1f5f9 !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-legenda-posicao-seta {
+  color: #64748b !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-legenda-posicao-float .mapa-legenda-contagem-posicao {
+  border-top-color: #334155 !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-legenda-posicao-titulo {
+  color: #f1f5f9 !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-legenda-posicao-titulo i {
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-legenda-dados-atualizados {
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-legenda-dados-atualizados--loading {
+  color: #38bdf8 !important;
+}
+[data-theme="dark"] .mapa-viagem-container .leaflet-tooltip.mapa-viagem-placa-legenda--stale {
+  color: #fde68a !important;
+  background: rgba(120, 53, 15, 0.95) !important;
+  border-color: #fbbf24 !important;
+}
+[data-theme="dark"] .mapa-viagem-container .leaflet-tooltip.mapa-viagem-placa-legenda--stale::before {
+  border-top-color: rgba(120, 53, 15, 0.95) !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-viagem-leaflet-host {
+  box-shadow: inset 0 0 0 1px #334155 !important;
+}
+[data-theme="dark"] .mapa-viagem-container.mapa--maximo {
+  background: #020617 !important;
+  box-shadow: none !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-max-fab-btn {
+  background: rgba(15, 23, 42, 0.88) !important;
+  color: #f1f5f9 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.55) !important;
+}
+[data-theme="dark"] .mapa-viagem-container .mapa-max-fab-btn:hover {
+  background: rgba(51, 65, 85, 0.95) !important;
+}
+[data-theme="dark"] .mapa-max-toolbar {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%) !important;
+  border-color: #334155 !important;
+}
+[data-theme="dark"] .mapa-max-toolbar .mapa-max-toolbar-texto {
+  color: #e2e8f0 !important;
+}
+
 /* Configurações do Sistema - cards */
 [data-theme="dark"] .configuracoes-header {
   border-bottom-color: #334155;
@@ -929,10 +1408,6 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
   color: #f1f5f9;
 }
 
-[data-theme="dark"] .config-card-header i {
-  color: #38bdf8;
-}
-
 [data-theme="dark"] .config-card-body {
   background: #1e293b;
   color: #e2e8f0;
@@ -942,25 +1417,94 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
   color: #94a3b8;
 }
 
+[data-theme="dark"] .config-card-body code {
+  background: #334155;
+  color: #e2e8f0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.92em;
+}
+
+[data-theme="dark"] .msg-conv-secao {
+  border-bottom-color: #334155;
+}
+[data-theme="dark"] .msg-conv-secao-titulo {
+  color: #f1f5f9;
+}
+[data-theme="dark"] .msg-conv-preview-titulo {
+  color: #e2e8f0;
+}
+[data-theme="dark"] .msg-conv-preview-live {
+  background: #0f172a;
+  border-color: #334155;
+  color: #cbd5e1;
+}
+[data-theme="dark"] .msg-conv-preview-live.msg-conv-preview-loading {
+  color: #64748b;
+}
+[data-theme="dark"] .config-hr {
+  border-top-color: #475569;
+}
+[data-theme="dark"] .config-subheading {
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .msg-alert-bloco {
+  border-top-color: #334155 !important;
+  --msg-alert-chip-bg: #1e293b;
+  --msg-alert-chip-border: #475569;
+  --msg-alert-chip-hover: #334155;
+}
+[data-theme="dark"] button.msg-alert-chip {
+  color: #e2e8f0 !important;
+}
+[data-theme="dark"] button.msg-alert-chip:hover {
+  color: #38bdf8 !important;
+  border-color: #38bdf8 !important;
+  background: #0f172a !important;
+}
+[data-theme="dark"] .msg-alert-modelo-wrap label span.msg-alert-modelo-hint {
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] .msg-alert-detalhes-vars {
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] .msg-alert-detalhes-vars summary {
+  color: #cbd5e1 !important;
+}
+[data-theme="dark"] .msg-alert-placeholders-titulo {
+  color: #94a3b8 !important;
+}
+
 [data-theme="dark"] .config-card .form-group label {
   color: #cbd5e1;
 }
 
 [data-theme="dark"] .config-card .form-group input,
-[data-theme="dark"] .config-card .form-group select {
+[data-theme="dark"] .config-card .form-group select,
+[data-theme="dark"] .config-card .form-group textarea {
   background: #0f172a;
   border-color: #334155;
   color: #e2e8f0;
 }
 
 [data-theme="dark"] .config-card .form-group input:focus,
-[data-theme="dark"] .config-card .form-group select:focus {
+[data-theme="dark"] .config-card .form-group select:focus,
+[data-theme="dark"] .config-card .form-group textarea:focus {
   border-color: #38bdf8;
   box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
 }
 
 [data-theme="dark"] .config-card .form-group .hint {
   color: #94a3b8;
+}
+
+[data-theme="dark"] .config-external-link {
+  color: #38bdf8;
+}
+
+[data-theme="dark"] .config-external-link:hover {
+  color: #7dd3fc;
 }
 
 [data-theme="dark"] .config-card-footer {
@@ -980,14 +1524,65 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
   border-color: #f87171;
 }
 
-[data-theme="dark"] .configuracoes-container .btn-secondary {
-  background: #334155;
-  color: #e2e8f0;
-  border: 1px solid #475569;
+[data-theme="dark"] .alertas-block {
+  border-top-color: #334155;
 }
 
-[data-theme="dark"] .configuracoes-container .btn-secondary:hover:not(:disabled) {
-  background: #475569;
+[data-theme="dark"] .alertas-block-title {
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .alertas-block-desc {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .alertas-block-whatsapp {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .alertas-subtitle {
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .alertas-quando-job {
+  background: #0f172a;
+  border-color: #334155;
+}
+
+[data-theme="dark"] .alertas-quando-job label {
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .alertas-quando-grid .hint {
+  color: #94a3b8;
+}
+
+/* Configurações: btn-filtro (estilos inline do módulo carregam por cima do tema) */
+[data-theme="dark"] .configuracoes-container .btn-filtro-limpar {
+  background: #334155 !important;
+  color: #e2e8f0 !important;
+  border-color: #475569 !important;
+}
+[data-theme="dark"] .configuracoes-container .btn-filtro-limpar:hover:not(:disabled) {
+  background: #475569 !important;
+  color: #f1f5f9 !important;
+}
+[data-theme="dark"] .configuracoes-container .btn-filtro-aplicar {
+  background: #0ea5e9 !important;
+  color: #fff !important;
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.25) !important;
+}
+[data-theme="dark"] .configuracoes-container .btn-filtro-aplicar:hover:not(:disabled) {
+  background: #0284c7 !important;
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35) !important;
+}
+[data-theme="dark"] .configuracoes-container .btn-filtro-danger {
+  background: #dc2626 !important;
+  color: #fff !important;
+}
+[data-theme="dark"] .configuracoes-container .btn-filtro-danger:hover:not(:disabled) {
+  background: #b91c1c !important;
 }
 
 [data-theme="dark"] .configuracoes-container .logo-preview {
@@ -1024,6 +1619,7 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
 
 /* Abas: forçar cor da aba ativa em dark (sobrescreve estilos dos módulos carregados depois) */
 [data-theme="dark"] .mapa-viagem-container .tabs.tabs-com-icones .tab-btn.active,
+[data-theme="dark"] .saas-op-container .tabs.tabs-com-icones .tab-btn.active,
 [data-theme="dark"] .filiais-container .tabs.tabs-com-icones .tab-btn.active,
 [data-theme="dark"] .tipos-atividade-container .tabs.tabs-com-icones .tab-btn.active,
 [data-theme="dark"] .tipos-validade-container .tabs.tabs-com-icones .tab-btn.active,
@@ -1033,6 +1629,7 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
 [data-theme="dark"] .equipamentos-container .tabs.tabs-com-icones .tab-btn.active,
 [data-theme="dark"] .tipos-equipamento-container .tabs.tabs-com-icones .tab-btn.active,
 [data-theme="dark"] .tipos-viagem-container .tabs.tabs-com-icones .tab-btn.active,
+[data-theme="dark"] .viagens-container .tabs.tabs-com-icones .tab-btn.active,
 [data-theme="dark"] .empresas-container .tabs.tabs-com-icones .tab-btn.active,
 [data-theme="dark"] .cidades-container .tabs.tabs-com-icones .tab-btn.active,
 [data-theme="dark"] .grupos-equipamento-container .tabs.tabs-com-icones .tab-btn.active,
@@ -1042,11 +1639,14 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
 [data-theme="dark"] .marcas-container .tabs.tabs-com-icones .tab-btn.active,
 [data-theme="dark"] .estados-container .tabs.tabs-com-icones .tab-btn.active,
 [data-theme="dark"] .mesorregiao-container .tabs.tabs-com-icones .tab-btn.active,
-[data-theme="dark"] .usuarios-container .tabs.tabs-com-icones .tab-btn.active {
+[data-theme="dark"] .usuarios-container .tabs.tabs-com-icones .tab-btn.active,
+[data-theme="dark"] .configuracoes-container .tabs.tabs-com-icones .tab-btn.active,
+[data-theme="dark"] .logs-acesso-container .tabs.tabs-com-icones .tab-btn.active {
   color: #38bdf8 !important;
   border-bottom-color: #38bdf8 !important;
 }
 [data-theme="dark"] .mapa-viagem-container .tabs.tabs-com-icones .tab-btn.active i,
+[data-theme="dark"] .saas-op-container .tabs.tabs-com-icones .tab-btn.active i,
 [data-theme="dark"] .filiais-container .tabs.tabs-com-icones .tab-btn.active i,
 [data-theme="dark"] .tipos-atividade-container .tabs.tabs-com-icones .tab-btn.active i,
 [data-theme="dark"] .tipos-validade-container .tabs.tabs-com-icones .tab-btn.active i,
@@ -1056,6 +1656,7 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
 [data-theme="dark"] .equipamentos-container .tabs.tabs-com-icones .tab-btn.active i,
 [data-theme="dark"] .tipos-equipamento-container .tabs.tabs-com-icones .tab-btn.active i,
 [data-theme="dark"] .tipos-viagem-container .tabs.tabs-com-icones .tab-btn.active i,
+[data-theme="dark"] .viagens-container .tabs.tabs-com-icones .tab-btn.active i,
 [data-theme="dark"] .empresas-container .tabs.tabs-com-icones .tab-btn.active i,
 [data-theme="dark"] .cidades-container .tabs.tabs-com-icones .tab-btn.active i,
 [data-theme="dark"] .grupos-equipamento-container .tabs.tabs-com-icones .tab-btn.active i,
@@ -1065,7 +1666,103 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
 [data-theme="dark"] .marcas-container .tabs.tabs-com-icones .tab-btn.active i,
 [data-theme="dark"] .estados-container .tabs.tabs-com-icones .tab-btn.active i,
 [data-theme="dark"] .mesorregiao-container .tabs.tabs-com-icones .tab-btn.active i,
-[data-theme="dark"] .usuarios-container .tabs.tabs-com-icones .tab-btn.active i {
+[data-theme="dark"] .usuarios-container .tabs.tabs-com-icones .tab-btn.active i,
+[data-theme="dark"] .configuracoes-container .tabs.tabs-com-icones .tab-btn.active i,
+[data-theme="dark"] .logs-acesso-container .tabs.tabs-com-icones .tab-btn.active i {
+  color: #38bdf8 !important;
+}
+
+/* Gerenciar Equipamentos — form-box de todas as abas: mesmo tratamento do global (sem painel com borda só em Ficha/Documentos/Grid) */
+[data-theme="dark"] .equipamentos-container .tab-content .form-box {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #e2e8f0;
+}
+[data-theme="dark"] .equipamentos-container .tab-content .form-box h2 {
+  color: #f1f5f9;
+}
+[data-theme="dark"] .equipamentos-container #tab-ficha-tecnica .form-dados-card,
+[data-theme="dark"] .equipamentos-container #tab-documentos-app .form-dados-card {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+[data-theme="dark"] .equipamentos-container #tab-ficha-tecnica .form-dados-card-header,
+[data-theme="dark"] .equipamentos-container #tab-documentos-app .form-dados-card-header {
+  background: #0f172a !important;
+  border-bottom-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+[data-theme="dark"] .equipamentos-container #tab-ficha-tecnica .form-dados-card-body,
+[data-theme="dark"] .equipamentos-container #tab-documentos-app .form-dados-card-body {
+  background: #1e293b !important;
+}
+[data-theme="dark"] .equipamentos-container #tab-ficha-tecnica .input-group label,
+[data-theme="dark"] .equipamentos-container #tab-documentos-app .input-group label {
+  color: #cbd5e1 !important;
+}
+[data-theme="dark"] .equipamentos-container #tab-ficha-tecnica .input-group .form-control,
+[data-theme="dark"] .equipamentos-container #tab-documentos-app .input-group .form-control {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+[data-theme="dark"] .equipamentos-container #tab-ficha-tecnica .filtros-actions-moderno,
+[data-theme="dark"] .equipamentos-container #tab-documentos-app .filtros-actions-moderno {
+  border-top-color: #334155;
+}
+[data-theme="dark"] .equipamentos-container #tab-ficha-tecnica .equip-tab-resumo-meta,
+[data-theme="dark"] .equipamentos-container #tab-documentos-app .equip-tab-resumo-meta {
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] .equipamentos-container #tab-documentos-app .empty {
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] .equipamentos-container #tab-documentos-app a.torre-motorista-anexo-abrir {
+  color: #38bdf8 !important;
+}
+[data-theme="dark"] .equipamentos-container #tab-documentos-app .equip-doc-app-thumb {
+  border-color: #334155 !important;
+}
+
+[data-theme="dark"] .logs-acesso-container .tabs.tabs-com-icones .tab-btn.active {
+  background: transparent !important;
+}
+[data-theme="dark"] .logs-acesso-container .tabs.tabs-com-icones .tab-btn.active span {
+  color: #38bdf8 !important;
+}
+
+[data-theme="dark"] .configuracoes-container .tabs.tabs-com-icones {
+  border-bottom-color: #334155;
+}
+[data-theme="dark"] .configuracoes-container .tabs.tabs-com-icones .tab-btn.active {
+  background: transparent !important;
+}
+[data-theme="dark"] .configuracoes-container .tabs.tabs-com-icones .tab-btn.active span {
+  color: #38bdf8 !important;
+}
+
+/* Gerenciar Viagens: mesma faixa de abas que Tipos de Viagem (sem pill; cor ativa #38bdf8) */
+[data-theme="dark"] .viagens-container .tabs.tabs-com-icones .tab-btn.active {
+  background: transparent !important;
+}
+[data-theme="dark"] .viagens-container .tabs.tabs-com-icones .tab-btn.active span {
+  color: #38bdf8 !important;
+}
+
+/* Abas: texto <span> e fundo (var(--ac-primary) claro no dark sobrescrevia só no botão) */
+[data-theme="dark"] .usuarios-container .tabs.tabs-com-icones .tab-btn.active,
+[data-theme="dark"] .tipos-atividade-container .tabs.tabs-com-icones .tab-btn.active,
+[data-theme="dark"] .empresas-container .tabs.tabs-com-icones .tab-btn.active,
+[data-theme="dark"] .filiais-container .tabs.tabs-com-icones .tab-btn.active,
+[data-theme="dark"] .saas-op-container .tabs.tabs-com-icones .tab-btn.active {
+  background: transparent !important;
+}
+[data-theme="dark"] .usuarios-container .tabs.tabs-com-icones .tab-btn.active span,
+[data-theme="dark"] .tipos-atividade-container .tabs.tabs-com-icones .tab-btn.active span,
+[data-theme="dark"] .empresas-container .tabs.tabs-com-icones .tab-btn.active span,
+[data-theme="dark"] .filiais-container .tabs.tabs-com-icones .tab-btn.active span,
+[data-theme="dark"] .saas-op-container .tabs.tabs-com-icones .tab-btn.active span {
   color: #38bdf8 !important;
 }
 
@@ -1077,11 +1774,12 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
   color: #94a3b8;
   background: transparent;
 }
-[data-theme="dark"] .viagens-container .tab-btn:hover {
+[data-theme="dark"] .viagens-container .tabs:not(.tabs-com-icones) .tab-btn:hover {
   color: #cbd5e1;
   background: rgba(51, 65, 85, 0.5);
 }
-[data-theme="dark"] .viagens-container .tab-btn.active {
+/* Só aplica “pill” em .tab-btn fora do padrão tabs-com-icones (se existir) */
+[data-theme="dark"] .viagens-container .tabs:not(.tabs-com-icones) .tab-btn.active {
   color: #38bdf8;
   background: #1e293b;
   border-bottom-color: #38bdf8;
@@ -1222,6 +1920,138 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
   border-left-color: #38bdf8 !important;
   box-shadow: 0 1px 3px rgba(0,0,0,0.2) !important;
 }
+[data-theme="dark"] .viagens-container .historico-modo-filtro-box {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+}
+[data-theme="dark"] .viagens-container .historico-modo-filtro-box .hint {
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .viagens-container .convocacoes-legenda-details {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+}
+[data-theme="dark"] .viagens-container .convocacoes-legenda-details summary {
+  color: #e2e8f0 !important;
+}
+[data-theme="dark"] .viagens-container .convocacoes-legenda-conteudo {
+  color: #94a3b8 !important;
+  border-top-color: #334155 !important;
+}
+[data-theme="dark"] .viagens-container .convocacoes-legenda-conteudo strong,
+[data-theme="dark"] .viagens-container .convocacoes-legenda-conteudo em {
+  color: #e2e8f0 !important;
+}
+[data-theme="dark"] .viagens-container .convocacoes-legenda-conteudo code {
+  color: #7dd3fc !important;
+  background: rgba(15, 23, 42, 0.6) !important;
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacoes-acoes-row .btn {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacoes-acoes-dhconv {
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacoes-context-banner {
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.12) 0%, rgba(99, 102, 241, 0.1) 100%) !important;
+  border-color: rgba(51, 65, 85, 0.95) !important;
+}
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacoes-context-pill {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+  box-shadow: none !important;
+}
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacoes-context-label {
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacoes-context-value {
+  color: #f1f5f9 !important;
+}
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacoes-context-sub {
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacoes-context-warn {
+  color: #fdba74 !important;
+  background: rgba(154, 52, 18, 0.35) !important;
+  border-color: rgba(234, 88, 12, 0.45) !important;
+}
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacoes-acoes-meta-stack {
+  border-top-color: #334155 !important;
+}
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacoes-meta-lbl {
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacoes-meta-val {
+  color: #cbd5e1 !important;
+}
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacoes-meta-lbl--acc {
+  color: #86efac !important;
+}
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacoes-meta-lbl--acc i {
+  color: #4ade80 !important;
+}
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacoes-meta-lbl--acc-pend {
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacoes-meta-lbl--acc-pend i {
+  color: #64748b !important;
+}
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacoes-meta-val--acc {
+  color: #bbf7d0 !important;
+}
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacoes-meta-val--pend {
+  color: #64748b !important;
+}
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacao-placa-sep {
+  border-top-color: #475569 !important;
+}
+
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacao-motorista-tel {
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacao-placa-cel {
+  color: #e2e8f0 !important;
+}
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacao-placa-cel .convocacao-placa-status-dot--ok {
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.35);
+}
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacao-placa-cel .convocacao-placa-status-dot--div {
+  box-shadow: 0 0 0 2px rgba(248, 113, 113, 0.4);
+}
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacao-placa-cel-divergencia {
+  color: #fdba74 !important;
+}
+
+/* Configurações > Alertas: caixa de precedência (melhor contraste em dark) */
+[data-theme="dark"] #boxAlertas .alertas-precedencia-box {
+  background: #1f2937 !important;
+  border-color: #475569 !important;
+  color: #e2e8f0 !important;
+}
+[data-theme="dark"] #boxAlertas .alertas-precedencia-box strong,
+[data-theme="dark"] #boxAlertas .alertas-precedencia-box em {
+  color: #f8fafc !important;
+}
+[data-theme="dark"] #boxAlertas .alertas-badge-restart {
+  color: #fed7aa !important;
+  background: #7c2d12 !important;
+  border-color: #9a3412 !important;
+}
+[data-theme="dark"] #boxAlertas .alertas-onde-gera .alertas-checkbox-item {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+[data-theme="dark"] #boxAlertas .alertas-onde-gera .alertas-checkbox-item input {
+  accent-color: #38bdf8;
+}
 [data-theme="dark"] .viagens-container .historico-viagem-titulo {
   color: #f1f5f9 !important;
 }
@@ -1276,6 +2106,17 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
   background: #0f172a !important;
   border-color: #334155 !important;
 }
+[data-theme="dark"] .viagens-container #tab-compatíveis .resumo-classe-viagem-compat {
+  background: #1e3a5f !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+[data-theme="dark"] .viagens-container #tab-compatíveis .resumo-classe-viagem-compat strong {
+  color: #f1f5f9 !important;
+}
+[data-theme="dark"] .viagens-container #tab-compatíveis #resumoClasseExigidaCompativeisExtra {
+  color: #fcd34d !important;
+}
 [data-theme="dark"] .viagens-container #tab-compatíveis .form-box label {
   color: #cbd5e1 !important;
 }
@@ -1305,6 +2146,11 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
 }
 [data-theme="dark"] .viagens-container #tab-convocações .form-box label {
   color: #cbd5e1 !important;
+}
+[data-theme="dark"] .viagens-container #tab-convocações .convocacoes-filtro-divergencia-wrap {
+  background: #0f172a !important;
+  border-color: #475569 !important;
+  color: #e2e8f0 !important;
 }
 [data-theme="dark"] .viagens-container #tab-convocações .form-box input,
 [data-theme="dark"] .viagens-container #tab-convocações .form-box select {
@@ -1412,6 +2258,16 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
   border-color: #334155 !important;
   color: #e2e8f0 !important;
 }
+[data-theme="dark"] .viagens-container #motoristasCompatíveisGrid .motorista-compat-placa-sep {
+  border: 0 !important;
+  border-top: 1px solid #475569 !important;
+  margin: 10px 0 !important;
+  background: transparent !important;
+}
+[data-theme="dark"] .viagens-container #motoristasCompatíveisGrid .motorista-compat-placa-linha {
+  color: #e2e8f0 !important;
+  font-weight: 600 !important;
+}
 /* Convocações: tabela */
 [data-theme="dark"] .viagens-container #convocacoesGrid table,
 [data-theme="dark"] .viagens-container #convocacoesGrid .grid-table {
@@ -1424,6 +2280,34 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
   color: #e2e8f0 !important;
   border-color: #334155 !important;
   background: #1e293b !important;
+}
+[data-theme="dark"] .viagens-container #convocacoesGrid tbody tr.convocacao-tr-divergencia-placas td {
+  background: #450a0a !important;
+  box-shadow: inset 5px 0 0 0 #dc2626 !important;
+}
+[data-theme="dark"] .viagens-container #convocacoesGrid tbody tr.convocacao-tr-divergencia-placas:hover td {
+  background: #5c0f0f !important;
+}
+[data-theme="dark"] .viagens-container #convocacoesGrid .convocacoes-btn-ver-justificativa {
+  color: #fecaca !important;
+  background: #7f1d1d !important;
+  border-color: #991b1b !important;
+}
+[data-theme="dark"] .viagens-container #modalJustificativaDivergenciaPlacas .modal-content {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+[data-theme="dark"] .viagens-container #modalJustificativaDivergenciaPlacas #modalJustificativaDivergenciaPlacasTitulo {
+  color: #fecaca !important;
+}
+[data-theme="dark"] .viagens-container #modalJustificativaDivergenciaPlacas .modal-content > p {
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] .viagens-container #modalJustificativaDivergenciaPlacas #modalJustificativaDivergenciaPlacasCorpo {
+  background: #1e293b !important;
+  border-color: #7f1d1d !important;
+  color: #e2e8f0 !important;
 }
 [data-theme="dark"] .viagens-container #convocacoesGrid tr:hover td {
   background: #334155 !important;
@@ -1785,13 +2669,7 @@ body[data-theme="dark"] .viagens-container .switch-logs-empty {
 [data-theme="dark"] .logs-acesso-container .tabs.tabs-com-icones .tab-btn:hover {
   color: #cbd5e1;
 }
-[data-theme="dark"] .logs-acesso-container .tabs.tabs-com-icones .tab-btn.active {
-  color: #38bdf8;
-  border-bottom-color: #38bdf8;
-}
-[data-theme="dark"] .logs-acesso-container .tabs.tabs-com-icones .tab-btn.active i {
-  color: #38bdf8;
-}
+/* aba ativa: ver bloco global com !important + span (evita var(--ac-primary) claro do <style> do módulo) */
 [data-theme="dark"] .logs-acesso-container .estatisticas-table,
 [data-theme="dark"] .logs-acesso-container .grid-container,
 [data-theme="dark"] .logs-acesso-container .form-box {
@@ -1851,6 +2729,137 @@ body[data-theme="dark"] .viagens-container .switch-logs-empty {
 [data-theme="dark"] .logs-acesso-container .modal-body-tratamento p,
 [data-theme="dark"] .logs-acesso-container .modal-body-tratamento li {
   color: #94a3b8;
+}
+
+/* Operação SaaS – modo dark (mesma paleta Logs de Acesso) */
+[data-theme="dark"] .saas-op-container .saas-op-header {
+  border-bottom-color: #334155;
+}
+[data-theme="dark"] .saas-op-container .saas-op-header h2,
+[data-theme="dark"] .saas-op-container .saas-op-header h2 i {
+  color: #f1f5f9;
+}
+[data-theme="dark"] .saas-op-container .filtros-box {
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
+}
+[data-theme="dark"] .saas-op-container .filtros-box h3 {
+  color: #f1f5f9;
+}
+[data-theme="dark"] .saas-op-container .filtros-box h4,
+[data-theme="dark"] .saas-op-container .saas-subsection-title {
+  color: #e2e8f0;
+}
+[data-theme="dark"] .saas-op-container .saas-subsection-title i {
+  color: #38bdf8;
+}
+[data-theme="dark"] .saas-op-container .filtros-grid label {
+  color: #cbd5e1;
+}
+[data-theme="dark"] .saas-op-container .filtros-grid .form-control:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+}
+[data-theme="dark"] .saas-op-container .saas-op-info {
+  color: #94a3b8;
+}
+[data-theme="dark"] .saas-op-container .saas-op-info strong {
+  color: #cbd5e1;
+}
+[data-theme="dark"] .saas-op-container .saas-plano-select-row > label,
+[data-theme="dark"] .saas-op-container .saas-plano-limit-card > label:first-of-type {
+  color: #cbd5e1;
+}
+[data-theme="dark"] .saas-op-container .saas-plano-limit-card {
+  background: #0f172a;
+  border-color: #334155;
+}
+[data-theme="dark"] .saas-op-container .saas-plano-hint summary {
+  color: #38bdf8;
+}
+[data-theme="dark"] .saas-op-container .saas-plano-modulos-block,
+[data-theme="dark"] .saas-op-container .saas-plano-footer-actions {
+  border-top-color: #334155;
+}
+[data-theme="dark"] .saas-op-container .tabs.tabs-com-icones {
+  border-bottom-color: #334155;
+}
+[data-theme="dark"] .saas-op-container .tabs.tabs-com-icones .tab-btn {
+  color: #94a3b8;
+}
+[data-theme="dark"] .saas-op-container .tabs.tabs-com-icones .tab-btn:hover {
+  color: #cbd5e1;
+}
+[data-theme="dark"] .saas-op-container .tabs.tabs-com-icones .tab-btn.active {
+  color: #38bdf8;
+  border-bottom-color: #38bdf8;
+}
+[data-theme="dark"] .saas-op-container .tabs.tabs-com-icones .tab-btn.active i {
+  color: #38bdf8;
+}
+[data-theme="dark"] .saas-op-container .estatisticas-table {
+  background: #1e293b;
+  border-color: #334155;
+}
+[data-theme="dark"] .saas-op-container .estatisticas-table thead {
+  background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
+  color: #f1f5f9;
+}
+[data-theme="dark"] .saas-op-container .estatisticas-table td,
+[data-theme="dark"] .saas-op-container .estatisticas-table th {
+  border-color: #334155;
+  color: #e2e8f0;
+}
+[data-theme="dark"] .saas-op-container .estatisticas-table tbody tr:hover {
+  background: #334155;
+}
+[data-theme="dark"] .saas-op-container .estatisticas-table code {
+  background: #0f172a;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+}
+[data-theme="dark"] .saas-op-container .btn-filtro.saas-btn-excluir {
+  color: #fca5a5 !important;
+  border-color: #7f1d1d !important;
+  background: rgba(127, 29, 29, 0.25) !important;
+  box-shadow: none !important;
+}
+[data-theme="dark"] .saas-op-container .btn-filtro.saas-btn-excluir:hover:not(:disabled) {
+  background: #450a0a !important;
+  border-color: #f87171 !important;
+}
+[data-theme="dark"] .saas-op-container .saas-modulos-grid label.saas-modulo-chip {
+  background: #0f172a;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+[data-theme="dark"] .saas-op-container .saas-modulos-grid label.saas-modulo-chip:hover {
+  background: #334155;
+}
+[data-theme="dark"] .saas-op-container .saas-modulo-chip-name {
+  color: #f1f5f9;
+}
+[data-theme="dark"] .saas-op-container .saas-modulo-chip-code {
+  color: #94a3b8;
+}
+[data-theme="dark"] .saas-op-container .calculando-content {
+  background: #1e293b;
+  border-color: #334155;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+}
+[data-theme="dark"] .saas-op-container .calculando-content p {
+  color: #e2e8f0 !important;
+}
+[data-theme="dark"] .saas-op-container .saas-spinner {
+  border-color: #334155;
+  border-top-color: #38bdf8;
+}
+[data-theme="dark"] .saas-op-container .saas-msg.ok {
+  color: #34d399;
+}
+[data-theme="dark"] .saas-op-container .saas-msg.err {
+  color: #f87171;
 }
 
 /* Gerenciar Empresas – aba Dados: fundo dos campos igual ao Gerenciar Cidades */
@@ -1964,6 +2973,9 @@ body[data-theme="dark"] .viagens-container .switch-logs-empty {
   border-color: #334155 !important;
   color: #e2e8f0 !important;
 }
+[data-theme="dark"] .usuarios-container .acesso-modulo-filtro-wrap label {
+  color: #e2e8f0 !important;
+}
 
 /* Grupos de atividades (Cadastros, Equipamentos, etc.) */
 [data-theme="dark"] .usuarios-container .grupo-atividades-section {
@@ -2013,6 +3025,40 @@ body[data-theme="dark"] .viagens-container .switch-logs-empty {
   background: #0f172a !important;
 }
 
+[data-theme="dark"] .usuarios-container .modulo-permissoes-body {
+  background: #0f172a !important;
+}
+[data-theme="dark"] .usuarios-container .permissoes-subgrupo {
+  background: rgba(30, 41, 59, 0.55) !important;
+  border-left-color: #38bdf8 !important;
+}
+[data-theme="dark"] .usuarios-container .permissoes-subgrupo-titulo {
+  color: #f1f5f9 !important;
+}
+[data-theme="dark"] .usuarios-container .subgrupo-contador {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #e2e8f0 !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+[data-theme="dark"] .usuarios-container .subgrupo-contador.completo {
+  background: rgba(34, 197, 94, 0.25) !important;
+  border-color: rgba(34, 197, 94, 0.5) !important;
+  color: #86efac !important;
+}
+[data-theme="dark"] .usuarios-container .subgrupo-contador.parcial {
+  background: rgba(234, 179, 8, 0.2) !important;
+  border-color: rgba(234, 179, 8, 0.4) !important;
+  color: #fde047 !important;
+}
+[data-theme="dark"] .usuarios-container .perm-programa-slug {
+  background: #334155 !important;
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] .usuarios-container .checkbox-item--acesso {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+
 /* Itens de permissão (checkboxes) */
 [data-theme="dark"] .usuarios-container .checkbox-item {
   background: #1e293b !important;
@@ -2033,12 +3079,23 @@ body[data-theme="dark"] .viagens-container .switch-logs-empty {
   background: #334155 !important;
   color: #94a3b8 !important;
 }
+[data-theme="dark"] .usuarios-container .checkbox-item label .modulo-produto-nome,
+[data-theme="dark"] .usuarios-container .checkbox-item .modulo-produto-nome {
+  background: rgba(16, 185, 129, 0.15) !important;
+  border-color: rgba(52, 211, 153, 0.45) !important;
+  color: #6ee7b7 !important;
+}
 [data-theme="dark"] .usuarios-container .checkbox-item input[type="checkbox"]:checked + label,
 [data-theme="dark"] .usuarios-container .checkbox-item input[type="checkbox"]:checked + label strong {
   color: #38bdf8 !important;
 }
 [data-theme="dark"] .usuarios-container .checkbox-item input[type="checkbox"] {
   accent-color: #38bdf8 !important;
+}
+[data-theme="dark"] .usuarios-container .badge-atividade-sensivel {
+  background: rgba(251, 146, 60, 0.12);
+  color: #fdba74;
+  border-color: rgba(251, 146, 60, 0.45);
 }
 [data-theme="dark"] .usuarios-container .check-indicator {
   background: rgba(56, 189, 248, 0.2) !important;
@@ -2085,6 +3142,11 @@ body[data-theme="dark"] .viagens-container .switch-logs-empty {
 [data-theme="dark"] .form-dados-card-body label,
 [data-theme="dark"] .block-label {
   color: #cbd5e1;
+}
+
+[data-theme="dark"] .tipo-ocorrencia-container .form-text-toggle,
+[data-theme="dark"] .tipo-ocorrencia-container .form-text-help-tempo {
+  color: #94a3b8 !important;
 }
 
 [data-theme="dark"] .hint,
@@ -2153,6 +3215,40 @@ body[data-theme="dark"] .viagens-container .switch-logs-empty {
   background: #047857 !important;
 }
 
+/* Operação SaaS: estilos inline do módulo vencem o tema escuro sem reforço */
+[data-theme="dark"] .saas-op-container .btn-filtro-limpar {
+  background: #334155 !important;
+  color: #e2e8f0 !important;
+  border-color: #475569 !important;
+}
+[data-theme="dark"] .saas-op-container .btn-filtro-limpar:hover:not(:disabled) {
+  background: #475569 !important;
+  color: #f1f5f9 !important;
+}
+[data-theme="dark"] .saas-op-container .btn-filtro-aplicar {
+  background: #0ea5e9 !important;
+  color: #fff !important;
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.25) !important;
+}
+[data-theme="dark"] .saas-op-container .btn-filtro-aplicar:hover:not(:disabled) {
+  background: #0284c7 !important;
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35) !important;
+}
+[data-theme="dark"] .saas-op-container .btn-filtro-novo {
+  background: #059669 !important;
+  color: #fff !important;
+  box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25) !important;
+}
+[data-theme="dark"] .saas-op-container .btn-filtro-novo:hover:not(:disabled) {
+  background: #047857 !important;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35) !important;
+}
+[data-theme="dark"] .saas-op-container .btn-filtro-aplicar:disabled,
+[data-theme="dark"] .saas-op-container .btn-filtro-novo:disabled {
+  opacity: 0.55 !important;
+  cursor: not-allowed !important;
+}
+
 [data-theme="dark"] .btn-filtro-danger {
   background: #dc2626;
   color: #fff;
@@ -2187,8 +3283,11 @@ body[data-theme="dark"] .viagens-container .switch-logs-empty {
   color: #e2e8f0;
 }
 
+/* Removido border-top nos módulos; se ainda existir a classe, não desenhar linha */
 [data-theme="dark"] .filtros-actions-moderno {
-  border-top-color: #334155;
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0;
 }
 
 [data-theme="dark"] .form-section-divider {
@@ -2202,6 +3301,105 @@ body[data-theme="dark"] .viagens-container .switch-logs-empty {
 [data-theme="dark"] .senha-motorista-section {
   background: transparent;
   border-color: #334155;
+}
+
+/* Cadastro Geral — form-box de todas as abas: sem painel com borda só em Documentos/Veículos */
+[data-theme="dark"] .cadastro-geral-container .tab-content .form-box {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: #e2e8f0;
+}
+[data-theme="dark"] .cadastro-geral-container .tab-content .form-box h2 {
+  color: #f1f5f9 !important;
+}
+[data-theme="dark"] .cadastro-geral-container .tab-content .form-box .hint {
+  color: #94a3b8;
+}
+[data-theme="dark"] .cadastro-geral-container #tab-anexos-motorista .torre-doc-cnh-resumo {
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] .cadastro-geral-container #tab-anexos-motorista a.torre-motorista-anexo-abrir {
+  color: #38bdf8 !important;
+}
+
+/* Combo Equipamento (atrelar frota): mesma leitura do Status — fundo escuro + seta clara (não apagar background-image) */
+[data-theme="dark"] .cadastro-geral-container .torre-atrelar-equipamento-frota .torre-atrelar-equip-row.input-group select.form-control {
+  background-color: #0f172a;
+  color: #e2e8f0;
+  border-color: #334155;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23e2e8f0' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+}
+[data-theme="dark"] .cadastro-geral-container .torre-atrelar-equipamento-frota .torre-atrelar-equip-row.input-group select.form-control:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+}
+[data-theme="dark"] .cadastro-geral-container .torre-atrelar-equipamento-frota .torre-atrelar-equip-row.input-group input.form-control {
+  background-color: #0f172a !important;
+  color: #e2e8f0 !important;
+  border-color: #334155 !important;
+}
+
+[data-theme="dark"] .cadastro-geral-container .torre-motorista-veiculos .table {
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .cadastro-geral-container .torre-motorista-veiculos .table th,
+[data-theme="dark"] .cadastro-geral-container .torre-motorista-veiculos .table td {
+  border-color: #334155;
+}
+
+[data-theme="dark"] .cadastro-geral-container #torreImgFotoCnh,
+[data-theme="dark"] .cadastro-geral-container #torreImgFotoCnhVerso,
+[data-theme="dark"] .cadastro-geral-container #torreImgComprovante {
+  border-color: #334155 !important;
+}
+
+[data-theme="dark"] .cadastro-geral-container .torre-tabela-veiculos thead th {
+  color: #94a3b8 !important;
+  border-bottom-color: #334155 !important;
+}
+
+[data-theme="dark"] .cadastro-geral-container .torre-tabela-veiculos tbody td {
+  border-bottom-color: #334155;
+}
+
+[data-theme="dark"] .cadastro-geral-container .torre-tabela-veiculos tbody tr:hover td {
+  background: rgba(56, 189, 248, 0.06) !important;
+}
+
+[data-theme="dark"] .cadastro-geral-container .torre-mv-doc-mini {
+  border-color: #334155 !important;
+  background: #0f172a;
+}
+
+[data-theme="dark"] .cadastro-geral-container .torre-mv-doc-link {
+  color: #38bdf8 !important;
+}
+
+[data-theme="dark"] .cadastro-geral-container .torre-mv-btn {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+}
+
+[data-theme="dark"] .cadastro-geral-container .torre-mv-btn-sub {
+  color: #38bdf8 !important;
+  border-color: rgba(56, 189, 248, 0.45) !important;
+  background: rgba(56, 189, 248, 0.08) !important;
+}
+
+[data-theme="dark"] .cadastro-geral-container .torre-mv-btn-del {
+  color: #f87171 !important;
+  border-color: rgba(248, 113, 113, 0.45) !important;
+  background: rgba(248, 113, 113, 0.08) !important;
+}
+
+[data-theme="dark"] .cadastro-geral-container .torre-mv-btn:hover:not(:disabled) {
+  filter: brightness(1.12);
 }
 
 /* Modais */
@@ -2224,6 +3422,143 @@ body[data-theme="dark"] .viagens-container .switch-logs-empty {
 
 [data-theme="dark"] .modal-actions {
   border-top-color: #334155;
+}
+
+/* Operação SaaS — corpo do modal de exclusão (lista + código) */
+[data-theme="dark"] .saas-confirm-modal #modalMessage ul,
+[data-theme="dark"] .saas-confirm-modal #modalMessage li {
+  color: #94a3b8;
+}
+[data-theme="dark"] .saas-confirm-modal #modalMessage strong {
+  color: #e2e8f0;
+}
+[data-theme="dark"] .saas-confirm-modal #modalMessage code {
+  background: #0f172a;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+}
+
+/* Gerenciar Usuários — modal Buscar Cadastro Geral (lista não herda texto claro sobre fundo branco) */
+[data-theme="dark"] .usuarios-container .busca-cadastro-resultados {
+  background: #0f172a;
+  border-color: #334155;
+}
+[data-theme="dark"] .usuarios-container .busca-cadastro-item {
+  background: #1e293b;
+  border-color: #334155;
+  color: #e2e8f0;
+}
+[data-theme="dark"] .usuarios-container .busca-cadastro-item:hover {
+  background: #334155;
+  border-color: #38bdf8;
+}
+[data-theme="dark"] .usuarios-container .busca-cadastro-item__title {
+  color: #f1f5f9;
+}
+[data-theme="dark"] .usuarios-container .busca-cadastro-item__meta {
+  color: #94a3b8;
+}
+[data-theme="dark"] .usuarios-container .busca-cadastro-resultados .busca-cadastro-empty,
+[data-theme="dark"] .usuarios-container .busca-cadastro-limite-msg {
+  color: #94a3b8 !important;
+}
+[data-theme="dark"] .usuarios-container #buscaCadastroModal .busca-cadastro-label {
+  color: #cbd5e1 !important;
+}
+[data-theme="dark"] .usuarios-container #buscaCadastroModal .busca-cadastro-input-wrap .bx-search {
+  color: #64748b !important;
+}
+[data-theme="dark"] .usuarios-container #buscaCadastroModal .busca-cadastro-modal__field .form-control {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+  padding: 12px 14px 12px 44px !important;
+  min-height: 48px !important;
+  border-radius: 8px !important;
+}
+[data-theme="dark"] .usuarios-container #buscaCadastroModal .busca-cadastro-modal__field .form-control::placeholder {
+  color: #64748b !important;
+}
+[data-theme="dark"] .usuarios-container #buscaCadastroModal .busca-cadastro-modal__field .form-control:focus {
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2) !important;
+}
+
+/* Gerenciar Viagens — modal #confirmModal (Confirmar / Reativar convocação): texto e alertas */
+[data-theme="dark"] .viagens-container #confirmModal .convocacao-modal-meta,
+[data-theme="dark"] #confirmModal .convocacao-modal-meta {
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] .viagens-container #confirmModal .convocacao-modal-meta strong,
+[data-theme="dark"] #confirmModal .convocacao-modal-meta strong {
+  color: #e2e8f0 !important;
+}
+
+[data-theme="dark"] .viagens-container #confirmModal .convocacao-modal-meta-valor,
+[data-theme="dark"] #confirmModal .convocacao-modal-meta-valor {
+  color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] .viagens-container #confirmModal .convocacao-modal-alerta,
+[data-theme="dark"] #confirmModal .convocacao-modal-alerta {
+  background: rgba(245, 158, 11, 0.12) !important;
+  border-color: #92400e !important;
+  border-left-color: #f59e0b !important;
+}
+
+[data-theme="dark"] .viagens-container #confirmModal .convocacao-modal-alerta__titulo,
+[data-theme="dark"] #confirmModal .convocacao-modal-alerta__titulo {
+  color: #fcd34d !important;
+}
+
+[data-theme="dark"] .viagens-container #confirmModal .convocacao-modal-alerta__texto,
+[data-theme="dark"] #confirmModal .convocacao-modal-alerta__texto {
+  color: #fde68a !important;
+}
+
+[data-theme="dark"] .viagens-container #confirmModal .convocacao-modal-alerta__nota,
+[data-theme="dark"] #confirmModal .convocacao-modal-alerta__nota {
+  color: #cbd5e1 !important;
+  font-style: italic;
+}
+
+[data-theme="dark"] .viagens-container #confirmModal .convocacao-modal-reativar-label,
+[data-theme="dark"] #confirmModal .convocacao-modal-reativar-label {
+  color: #e2e8f0 !important;
+}
+
+[data-theme="dark"] .viagens-container #confirmModal .convocacao-modal-select,
+[data-theme="dark"] #confirmModal .convocacao-modal-select {
+  background: #0f172a !important;
+  border-color: #475569 !important;
+  color: #e2e8f0 !important;
+}
+
+[data-theme="dark"] .viagens-container #confirmModal .convocacao-modal-select option,
+[data-theme="dark"] #confirmModal .convocacao-modal-select option {
+  background: #1e293b;
+  color: #e2e8f0;
+}
+
+[data-theme="dark"] .viagens-container #confirmModal .convocacao-modal-erro,
+[data-theme="dark"] #confirmModal .convocacao-modal-erro {
+  color: #fca5a5 !important;
+}
+
+[data-theme="dark"] .modal-content #modalMessage::-webkit-scrollbar-track,
+[data-theme="dark"] .modal-content .modal-message-body::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+[data-theme="dark"] .modal-content #modalMessage::-webkit-scrollbar-thumb,
+[data-theme="dark"] .modal-content .modal-message-body::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+[data-theme="dark"] .modal-content #modalMessage::-webkit-scrollbar-thumb:hover,
+[data-theme="dark"] .modal-content .modal-message-body::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }
 
 [data-theme="dark"] .modal-footer-tratamento {
@@ -2367,7 +3702,10 @@ body[data-theme="dark"] .viagens-container .switch-logs-empty {
 }
 
 [data-theme="dark"] .grid-table thead th {
+  background: linear-gradient(135deg, #1e3a5f, #334155);
+  color: #f1f5f9;
   border-bottom-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
 }
 
 [data-theme="dark"] .grid-table tbody tr {
@@ -2635,119 +3973,91 @@ body[data-theme="dark"] .viagens-container .switch-logs-empty {
 }
 
 /* ========== Página de Login (index.html) ========== */
-[data-theme="dark"] body.login-page {
-  background: #0f172a;
-  color: #e2e8f0;
-}
+/* Visual claro/escuro do login: login-adminlte.css (evita sobreposição que “apagava” o novo layout). */
 
-[data-theme="dark"] .login-container {
-  background: transparent;
-}
-
-[data-theme="dark"] .login-container .form-box,
-[data-theme="dark"] .login-center .form-box {
-  background: #1e293b;
-  border: 1px solid #334155;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-}
-
-[data-theme="dark"] .login-container .form-header h2,
-[data-theme="dark"] .login-center .form-header h2 {
-  color: #f1f5f9;
-}
-
-[data-theme="dark"] .login-container .form-header p,
-[data-theme="dark"] .login-center .form-header p {
-  color: #94a3b8;
-}
-
-[data-theme="dark"] .login-container .idioma-label,
-[data-theme="dark"] .login-center .idioma-label {
-  color: #94a3b8;
-}
-
-[data-theme="dark"] .login-container .btn-idioma,
-[data-theme="dark"] .login-center .btn-idioma {
-  background: #334155;
-  color: #e2e8f0;
-  border-color: #475569;
-}
-
-[data-theme="dark"] .login-container .btn-idioma:hover,
-[data-theme="dark"] .login-center .btn-idioma:hover {
-  background: #475569;
-  border-color: #64748b;
-}
-
-[data-theme="dark"] .login-container .btn-idioma.active,
-[data-theme="dark"] .login-center .btn-idioma.active {
-  background: #0ea5e9;
-  color: #fff;
-  border-color: #0ea5e9;
-}
-
-[data-theme="dark"] .login-container .input-box input,
-[data-theme="dark"] .login-center .input-box input {
-  background: #0f172a;
-  border-color: #334155;
-  color: #e2e8f0;
-}
-
-[data-theme="dark"] .login-container .input-box input:focus,
-[data-theme="dark"] .login-center .input-box input:focus {
-  border-color: #38bdf8;
-  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
-}
-
-[data-theme="dark"] .login-container .input-box label,
-[data-theme="dark"] .login-center .input-box label {
-  color: #cbd5e1;
-}
-
-[data-theme="dark"] .login-container .btn[type="submit"],
-[data-theme="dark"] .login-center .btn[type="submit"] {
-  background: #059669;
-  color: #fff;
-}
-
-[data-theme="dark"] .login-container .btn[type="submit"]:hover,
-[data-theme="dark"] .login-center .btn[type="submit"]:hover {
-  background: #047857;
-}
-
-[data-theme="dark"] .login-container .form-footer p,
-[data-theme="dark"] .login-center .form-footer p {
-  color: #94a3b8;
-}
-
-[data-theme="dark"] .login-container .link-alterar-senha,
-[data-theme="dark"] .login-center .link-alterar-senha {
-  color: #38bdf8;
-}
-
-[data-theme="dark"] .login-theme-toggle .theme-toggle-btn {
-  background: #1e293b;
-  border-color: #334155;
-  color: #e2e8f0;
-}
-
-[data-theme="dark"] .login-theme-toggle .theme-toggle-btn:hover {
-  background: #334155;
-  color: #f1f5f9;
-  border-color: #475569;
-}
-
+/* Modal Alterar Senha (login index.html) — cabeçalho não podia ficar #f8f9fa com título claro; labels #495057 ilegíveis no corpo escuro */
 [data-theme="dark"] .modal-alterar-senha-content {
   background: #1e293b;
-  border-color: #334155;
+  border: 1px solid #334155;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
 }
 
-[data-theme="dark"] .modal-alterar-senha-header h3 {
-  color: #f1f5f9;
+[data-theme="dark"] .modal-alterar-senha-header {
+  background: #0f172a !important;
+  border-bottom: 1px solid #334155 !important;
+}
+
+[data-theme="dark"] .modal-alterar-senha-header h3,
+[data-theme="dark"] .modal-alterar-senha-header h3 span {
+  color: #f1f5f9 !important;
+}
+
+[data-theme="dark"] .modal-alterar-senha-header h3 i {
+  color: #38bdf8 !important;
+}
+
+[data-theme="dark"] .modal-alterar-senha-header .btn-fechar {
+  color: #e2e8f0 !important;
+  opacity: 1;
+}
+
+[data-theme="dark"] .modal-alterar-senha-header .btn-fechar:hover {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-radius: 0.25rem;
+}
+
+[data-theme="dark"] #modalAlterarSenha .input-box label,
+[data-theme="dark"] .modal-alterar-senha .input-box label,
+[data-theme="dark"] .modal-alterar-senha .modal-input-box label {
+  color: #cbd5e1 !important;
+}
+
+[data-theme="dark"] #modalAlterarSenha .input-box .input-icon,
+[data-theme="dark"] .modal-alterar-senha .input-box .input-icon {
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] #modalAlterarSenha .input-box .toggle-password,
+[data-theme="dark"] .modal-alterar-senha .input-box .toggle-password {
+  color: #94a3b8 !important;
+}
+
+[data-theme="dark"] #modalAlterarSenha .input-box .toggle-password:hover,
+[data-theme="dark"] .modal-alterar-senha .input-box .toggle-password:hover {
+  color: #e2e8f0 !important;
+  background: rgba(255, 255, 255, 0.08) !important;
 }
 
 [data-theme="dark"] .modal-alterar-senha-body .input-box input {
-  background: #0f172a;
-  border-color: #334155;
-  color: #e2e8f0;
+  background: #0f172a !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+[data-theme="dark"] .modal-alterar-senha-body .input-box input:focus {
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+  outline: none;
+}
+
+[data-theme="dark"] #modalAlterarSenha .error-message:not(:empty),
+[data-theme="dark"] .modal-alterar-senha .error-message:not(:empty) {
+  color: #fca5a5;
+  background: rgba(127, 29, 29, 0.35);
+  border: 1px solid #7f1d1d;
+}
+
+/* Recebimento WMS — histórico envios relatório vencimento */
+[data-theme="dark"] .wms-rec-container .wms-rec-table-envios thead tr,
+[data-theme="dark"] .wms-rec-container .wms-rec-table-envios tbody tr {
+  border-color: #334155 !important;
+}
+[data-theme="dark"] .wms-rec-container .wms-rec-table-envios th,
+[data-theme="dark"] .wms-rec-container .wms-rec-table-envios td {
+  color: #e2e8f0 !important;
+}
+
+[data-theme="dark"] .dashboard-module-hub-desc {
+  color: #94a3b8 !important;
 }

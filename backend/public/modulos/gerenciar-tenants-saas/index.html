@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Operação SaaS — Atlas Cargo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/modulos.css">
+  <link rel="stylesheet" href="/css/dark-mode.css">
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+  <style>
+    /* Operação SaaS — alinhado a Logs de Acesso / Filiais (abas com ícones, filtros-box, tabelas) */
+    .saas-op-container {
+      padding: 20px;
+      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+    .saas-op-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
+    }
+    .saas-op-header h2 {
+      margin: 0;
+      color: var(--ac-primary, #0d2137);
+      font-size: 28px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .saas-op-header h2 i { color: inherit; }
+
+    .saas-op-container .tabs.tabs-com-icones {
+      display: flex;
+      flex-wrap: wrap;
+      margin-bottom: 25px;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
+      gap: 0;
+    }
+    .saas-op-container .tabs.tabs-com-icones .tab-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      border: none;
+      background: transparent;
+      color: #94a3b8;
+      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: color 0.2s, border-color 0.2s;
+      font-family: inherit;
+    }
+    .saas-op-container .tabs.tabs-com-icones .tab-btn i { font-size: 1.15rem; color: inherit; }
+    .saas-op-container .tabs.tabs-com-icones .tab-btn:hover { color: #64748b; }
+    .saas-op-container .tabs.tabs-com-icones .tab-btn.active {
+      color: var(--ac-primary, #0d2137);
+      border-bottom-color: var(--ac-primary, #0d2137);
+    }
+    .saas-op-container .tabs.tabs-com-icones .tab-btn.active i { color: var(--ac-primary, #0d2137); }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .saas-op-info {
+      font-size: 14px;
+      line-height: 1.55;
+      color: var(--gray, #64748b);
+      margin: 0 0 8px;
+    }
+    .saas-op-info strong { color: var(--dark, #1e293b); font-weight: 600; }
+
+    /* Cards de seção — mesmo padrão visual de Logs de Acesso (modo claro) */
+    .saas-op-container .filtros-box {
+      background: var(--white, #fff);
+      border-radius: 12px;
+      padding: 25px;
+      box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
+      margin-bottom: 25px;
+      border: 1px solid var(--border, #e2e8f0);
+    }
+    .saas-op-container .filtros-box h3 {
+      margin: 0 0 20px 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--ac-primary, #0d2137);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .saas-op-container .filtros-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-bottom: 8px;
+    }
+    .saas-op-container .filtros-grid label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 600;
+      color: var(--dark, #1e293b);
+      font-size: 14px;
+    }
+    .saas-op-container .form-control {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      font-size: 15px;
+      font-family: inherit;
+      box-sizing: border-box;
+      background: var(--white, #fff);
+      color: var(--dark, #1e293b);
+    }
+    .saas-op-container .form-control:focus {
+      outline: none;
+      border-color: var(--ac-accent, #0ea5e9);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+    }
+
+    /* Tabela (mesmo espírito que Logs — estatisticas-table) */
+    .saas-op-container .estatisticas-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--white, #fff);
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border, #e2e8f0);
+    }
+    .saas-op-container .estatisticas-table thead {
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    }
+    .saas-op-container .estatisticas-table th {
+      padding: 12px 14px;
+      text-align: left;
+      font-weight: 600;
+      color: #475569;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      border-bottom: 1px solid var(--border, #e2e8f0);
+    }
+    .saas-op-container .estatisticas-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 14px;
+      color: var(--dark, #1e293b);
+    }
+    .saas-op-container .estatisticas-table tbody tr:hover { background: #f8fafc; }
+    .saas-op-container .estatisticas-table tbody tr:last-child td { border-bottom: none; }
+    .saas-op-container .estatisticas-table code { font-size: 13px; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }
+
+    /* Uma coluna (como Gerenciar Cadastro Geral: formulário acima, lista abaixo) */
+    .saas-split-layout {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      align-items: stretch;
+      width: 100%;
+    }
+
+    .saas-subsection-title {
+      margin: 0 0 16px;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--ac-primary, #0d2137);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .saas-subsection-title i { color: var(--ac-accent, #0ea5e9); font-size: 1.2rem; }
+
+    .filtros-grid--plano-novo {
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      max-width: none;
+    }
+
+    /* Composição do plano — limites em cartões (evita botão “flutuando” à direita do texto) */
+    .saas-plano-select-row {
+      max-width: 440px;
+      margin-bottom: 4px;
+    }
+    .saas-plano-select-row > label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: var(--dark, #1e293b);
+      font-size: 14px;
+    }
+    .saas-plano-limits {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+      margin-top: 18px;
+    }
+    @media (min-width: 880px) {
+      .saas-plano-limits {
+        grid-template-columns: 1fr 1fr;
+        align-items: stretch;
+      }
+    }
+    .saas-plano-limit-card {
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 12px;
+      padding: 16px 18px;
+      background: #f8fafc;
+      box-sizing: border-box;
+    }
+    .saas-plano-limit-card > label:first-of-type {
+      display: block;
+      margin: 0 0 8px 0;
+      font-weight: 600;
+      color: var(--dark, #1e293b);
+      font-size: 14px;
+      line-height: 1.35;
+    }
+    .saas-plano-limit-input {
+      max-width: 280px;
+      width: 100%;
+    }
+    .saas-plano-hint {
+      margin-top: 10px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .saas-plano-hint summary {
+      cursor: pointer;
+      list-style: none;
+      font-weight: 600;
+      color: var(--ac-accent, #0284c7);
+      user-select: none;
+      padding: 4px 0;
+    }
+    .saas-plano-hint summary::-webkit-details-marker { display: none; }
+    .saas-plano-hint summary::before {
+      content: '▸ ';
+      display: inline-block;
+      transition: transform 0.15s ease;
+      color: #64748b;
+    }
+    .saas-plano-hint[open] summary::before {
+      transform: rotate(90deg);
+    }
+    .saas-plano-hint .saas-op-info {
+      margin: 8px 0 0;
+      font-size: 13px;
+    }
+    .saas-plano-limit-card__actions {
+      margin-top: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .saas-plano-limit-card__actions .btn-filtro {
+      padding: 10px 16px;
+      font-size: 14px;
+    }
+    .saas-plano-modulos-block {
+      margin-top: 22px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border, #e2e8f0);
+    }
+    .saas-plano-modulos-block .saas-subsection-title {
+      margin-bottom: 12px;
+    }
+    .saas-plano-footer-actions {
+      margin-top: 18px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border, #e2e8f0);
+    }
+
+    .saas-modulos-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    @media (min-width: 480px) {
+      .saas-modulos-grid {
+        grid-template-columns: repeat(auto-fill, minmax(268px, 1fr));
+      }
+    }
+    .saas-modulos-grid label.saas-modulo-chip {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin: 0;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border, #e2e8f0);
+      background: #f8fafc;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 14px;
+      color: var(--dark, #1e293b);
+      line-height: 1.45;
+      min-height: 52px;
+      box-sizing: border-box;
+    }
+    .saas-modulos-grid label.saas-modulo-chip input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      margin: 2px 0 0 0;
+    }
+    .saas-modulo-chip-text {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+      flex: 1;
+    }
+    .saas-modulo-chip-name { font-weight: 600; }
+    .saas-modulo-chip-code {
+      font-size: 12px;
+      font-family: ui-monospace, Consolas, monospace;
+      color: #64748b;
+    }
+
+    /* Ações — padrão Cadastro Geral (Limpar / Filtrar / Novo) */
+    .saas-op-container .filtros-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+      align-items: center;
+      margin-top: 15px;
+    }
+    .saas-op-container .filtros-actions .btn-filtro {
+      margin-right: 0;
+    }
+    .saas-op-container .btn-filtro:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .saas-op-container .saas-catalogo-acoes {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .saas-op-container .saas-catalogo-acoes .btn-filtro {
+      padding: 8px 14px;
+      font-size: 14px;
+      border-radius: 8px;
+    }
+    /* Excluir em linha — contorno (perigo), alinhado ao padrão de ações secundárias */
+    .saas-op-container .btn-filtro.saas-btn-excluir {
+      background: transparent;
+      color: #b91c1c;
+      border: 1px solid #fecaca;
+      box-shadow: none;
+      font-weight: 600;
+    }
+    .saas-op-container .btn-filtro.saas-btn-excluir:hover:not(:disabled) {
+      background: #fef2f2;
+      border-color: #f87171;
+      transform: translateY(-1px);
+    }
+    .saas-op-container .btn-filtro.saas-btn-excluir:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .saas-msg { margin-top: 12px; font-size: 14px; }
+    .saas-msg.ok { color: #059669; }
+    .saas-msg.err { color: #dc2626; }
+
+    /* Modal de confirmação — mesmo padrão dos demais módulos (modulos.css + btn-filtro) */
+    .saas-confirm-modal { z-index: 10050; }
+    .saas-confirm-modal .modal-content {
+      text-align: left;
+    }
+    .saas-confirm-modal .modal-content > h3 {
+      text-align: center;
+    }
+    .saas-confirm-modal #modalMessage {
+      text-align: left;
+    }
+    .saas-confirm-modal #modalMessage p { margin: 0 0 12px; }
+    .saas-confirm-modal #modalMessage p:last-child { margin-bottom: 0; }
+    .saas-confirm-modal #modalMessage ul {
+      margin: 0 0 14px;
+      padding-left: 1.25rem;
+      line-height: 1.55;
+    }
+    .saas-confirm-modal #modalMessage code {
+      font-size: 0.95em;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    .saas-confirm-modal .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .btn-filtro {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 22px;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.15s;
+    }
+    .btn-filtro:hover { transform: translateY(-1px); }
+    .btn-filtro i { font-size: 1.15rem; }
+    .saas-op-container .btn-filtro-aplicar {
+      background: var(--ac-accent, #0ea5e9);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(14, 165, 233, 0.25);
+    }
+    .saas-op-container .btn-filtro-aplicar:hover:not(:disabled) {
+      background: var(--ac-accent-hover, #0284c7);
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35);
+    }
+    .saas-op-container .btn-filtro-novo {
+      background: var(--success, #059669);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);
+    }
+    .saas-op-container .btn-filtro-novo:hover:not(:disabled) {
+      background: #047857;
+      box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35);
+    }
+    .btn-filtro-limpar { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+    .btn-filtro-limpar:hover { background: #e2e8f0; color: #334155; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .btn-filtro-danger { background: #dc2626; color: #fff; box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25); }
+    .btn-filtro-danger:hover { background: #b91c1c; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35); }
+
+    .saas-op-container .calculando-overlay {
+      position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45);
+      display: none; align-items: center; justify-content: center; z-index: 9999;
+    }
+    .saas-op-container .calculando-overlay.show { display: flex; }
+    .saas-op-container .calculando-content {
+      background: var(--white, #fff); padding: 24px 32px; border-radius: 12px;
+      box-shadow: var(--shadow, 0 8px 32px rgba(0,0,0,0.12)); text-align: center;
+      border: 1px solid var(--border, #e2e8f0);
+    }
+    @keyframes saas-spin { to { transform: rotate(360deg); } }
+    .saas-spinner {
+      width: 40px; height: 40px; border: 3px solid #e2e8f0; border-top-color: var(--ac-accent, #0ea5e9);
+      border-radius: 50%; margin: 0 auto 12px; animation: saas-spin 0.8s linear infinite;
+    }
+
+    #contentArea .saas-op-container { max-width: none; }
+  </style>
+</head>
+<body>
+  <div class="saas-op-container">
+    <div class="saas-op-header">
+      <h2><i class="bx bx-layer"></i> Operação SaaS</h2>
+    </div>
+
+    <div class="tabs tabs-com-icones" role="tablist">
+      <button type="button" class="tab-btn active" data-tab="catalogo"><i class="bx bx-list-ul"></i> <span>Catálogo</span></button>
+      <button type="button" class="tab-btn" data-tab="planos"><i class="bx bx-package"></i> <span>Planos</span></button>
+      <button type="button" class="tab-btn" data-tab="clientes"><i class="bx bx-buildings"></i> <span>Clientes</span></button>
+      <button type="button" class="tab-btn" data-tab="override"><i class="bx bx-slider-alt"></i> <span>Override tenant</span></button>
+    </div>
+
+    <div id="tab-catalogo" class="tab-content active">
+      <div class="saas-split-layout">
+        <div class="filtros-box">
+          <h3><i class="bx bx-plus-circle"></i> Novo módulo</h3>
+          <div class="filtros-grid">
+            <div>
+              <label for="newCod">Código</label>
+              <input id="newCod" class="form-control" type="text" placeholder="ex.: meu_modulo" maxlength="40" autocomplete="off" />
+            </div>
+            <div>
+              <label for="newNm">Nome na tela</label>
+              <input id="newNm" class="form-control" type="text" placeholder="Nome exibido" />
+            </div>
+            <div>
+              <label for="newOrd">Ordem</label>
+              <input id="newOrd" class="form-control" type="number" value="0" />
+            </div>
+          </div>
+          <div class="filtros-actions">
+            <button type="button" class="btn-filtro btn-filtro-novo" id="btnAddModulo"><i class="bx bx-plus"></i> <span>Cadastrar / atualizar</span></button>
+          </div>
+          <div class="saas-msg" id="msgCatalogo" style="display:none;"></div>
+        </div>
+        <div class="filtros-box">
+          <h3><i class="bx bx-table"></i> Módulos cadastrados</h3>
+          <div id="tableCatalogoWrap"><p class="saas-op-info">Carregando…</p></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-planos" class="tab-content">
+      <div class="saas-split-layout">
+        <div class="filtros-box">
+          <h3><i class="bx bx-plus-circle"></i> Novo plano</h3>
+          <div class="filtros-grid filtros-grid--plano-novo">
+            <div>
+              <label for="newPlanoNm">Nome</label>
+              <input id="newPlanoNm" class="form-control" type="text" placeholder="Ex.: Básico" />
+            </div>
+            <div>
+              <label for="newPlanoDs">Descrição</label>
+              <input id="newPlanoDs" class="form-control" type="text" placeholder="Opcional" />
+            </div>
+          </div>
+          <div class="filtros-actions">
+            <button type="button" class="btn-filtro btn-filtro-novo" id="btnAddPlano"><i class="bx bx-plus"></i> <span>Criar plano</span></button>
+          </div>
+          <div class="saas-msg" id="msgPlanoNovo" style="display:none;"></div>
+        </div>
+        <div class="filtros-box">
+          <h3><i class="bx bx-check-square"></i> Composição do plano</h3>
+          <p class="saas-op-info" style="margin: -8px 0 16px;">Escolha o plano, ajuste limites (cada um com o seu guardar) e marque os módulos. Use <strong>Salvar plano</strong> para gravar os módulos de uma vez.</p>
+
+          <div class="saas-plano-select-row">
+            <label for="selPlano">Plano</label>
+            <select id="selPlano" class="form-control"><option value="">Carregando…</option></select>
+          </div>
+
+          <div class="saas-plano-limits" aria-label="Limites do plano">
+            <div class="saas-plano-limit-card">
+              <label for="planoMaxAssentos">Máx. usuários ativos (assentos)</label>
+              <input id="planoMaxAssentos" class="form-control saas-plano-limit-input" type="number" min="1" max="999999" placeholder="vazio = ilimitado" />
+              <details class="saas-plano-hint">
+                <summary>Como usar este limite</summary>
+                <p class="saas-op-info">Referência na lista de clientes (uso/lim). O cadastro de utilizadores ativos <strong>não</strong> é bloqueado por este número. O controlo de acessos simultâneos ao painel é o limite de sessões ao lado.</p>
+              </details>
+              <div class="saas-plano-limit-card__actions">
+                <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnSavePlanoAssentos"><i class="bx bx-save"></i> <span>Guardar assentos</span></button>
+              </div>
+            </div>
+            <div class="saas-plano-limit-card">
+              <label for="planoMaxSessoes">Máx. logins simultâneos (painel torre)</label>
+              <input id="planoMaxSessoes" class="form-control saas-plano-limit-input" type="number" min="1" max="999999" placeholder="vazio = ilimitado" />
+              <details class="saas-plano-hint">
+                <summary>Como contam as sessões</summary>
+                <p class="saas-op-info">Conta sessões abertas na janela do token (até o utilizador sair com Sair). Se alterar a duração do JWT, alinhe <code>TOWER_SESSION_TTL_HOURS</code> no <code>.env</code>.</p>
+              </details>
+              <div class="saas-plano-limit-card__actions">
+                <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnSavePlanoSessoes"><i class="bx bx-save"></i> <span>Guardar sessões</span></button>
+              </div>
+            </div>
+          </div>
+
+          <div class="saas-plano-modulos-block">
+            <h4 class="saas-subsection-title"><i class="bx bx-grid-alt"></i> Módulos incluídos no plano</h4>
+            <div id="planoModulosGrid" class="saas-modulos-grid"></div>
+          </div>
+
+          <div class="filtros-actions saas-plano-footer-actions">
+            <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnSavePlanoMods"><i class="bx bx-save"></i> <span>Salvar plano</span></button>
+            <button type="button" class="btn-filtro btn-filtro-limpar" id="btnLimparComposicaoPlano" title="Remove todos os módulos deste plano">
+              <i class="bx bx-eraser"></i> <span>Limpar composição</span>
+            </button>
+          </div>
+          <div class="saas-msg" id="msgPlano" style="display:none;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-clientes" class="tab-content">
+      <div class="saas-split-layout">
+        <div class="filtros-box">
+          <h3><i class="bx bx-user-plus"></i> Novo cliente</h3>
+          <div class="filtros-grid">
+            <div>
+              <label for="newTenantId">Tenant ID</label>
+              <input id="newTenantId" class="form-control" type="text" placeholder="ex.: cliente_x" />
+            </div>
+            <div>
+              <label for="newClienteNm">Nome</label>
+              <input id="newClienteNm" class="form-control" type="text" />
+            </div>
+            <div>
+              <label for="newClientePlano">Plano</label>
+              <select id="newClientePlano" class="form-control"></select>
+            </div>
+            <div>
+              <label for="newClienteEmp">CD empresa (opcional)</label>
+              <input id="newClienteEmp" class="form-control" type="number" placeholder="Gerenciar Empresas" />
+            </div>
+            <div>
+              <label for="newClienteMaxAssentos">Override máx. usuários (opcional)</label>
+              <input id="newClienteMaxAssentos" class="form-control" type="number" min="1" max="999999" placeholder="usa o limite do plano" />
+            </div>
+            <div>
+              <label for="newClienteMaxSessoes">Override logins simultâneos (opcional)</label>
+              <input id="newClienteMaxSessoes" class="form-control" type="number" min="1" max="999999" placeholder="usa o limite do plano" />
+            </div>
+          </div>
+          <div class="filtros-actions">
+            <button type="button" class="btn-filtro btn-filtro-novo" id="btnAddCliente"><i class="bx bx-plus"></i> <span>Cadastrar cliente</span></button>
+          </div>
+          <div class="saas-msg" id="msgClienteNovo" style="display:none;"></div>
+        </div>
+        <div class="filtros-box">
+          <h3><i class="bx bx-list-ul"></i> Clientes cadastrados</h3>
+          <div class="saas-msg" id="msgClientesLista" style="display: none;"></div>
+          <div id="tableClientesWrap" style="overflow-x:auto;"><p class="saas-op-info">Carregando…</p></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-override" class="tab-content">
+      <div class="filtros-box">
+        <h3><i class="bx bx-slider-alt"></i> Override por tenant</h3>
+        <div class="filtros-grid" style="max-width: 100%;">
+          <div style="max-width: 420px;">
+            <label for="saasTenantSelect">Tenant</label>
+            <select id="saasTenantSelect" class="form-control"><option value="">Carregando…</option></select>
+          </div>
+        </div>
+        <div id="saasModulosCard" style="display: none; margin-top: 20px;">
+          <h4 class="saas-subsection-title" style="margin-top: 0;"><i class="bx bx-toggle-right"></i> Módulos (override)</h4>
+          <div class="saas-modulos-grid" id="saasModulosGrid"></div>
+          <div class="filtros-actions">
+            <button type="button" class="btn-filtro btn-filtro-aplicar" id="saasBtnSalvar" disabled><i class="bx bx-save"></i> <span>Salvar override</span></button>
+          </div>
+          <div class="saas-msg" id="saasMsg" style="display: none;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="confirmModal" class="modal saas-confirm-modal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="saasConfirmTitulo">
+      <div class="modal-content">
+        <h3 id="saasConfirmTitulo">Excluir módulo do catálogo</h3>
+        <div id="modalMessage" class="modal-message-body"></div>
+        <div class="modal-actions">
+          <button type="button" id="confirmYes" class="btn-filtro btn-filtro-danger"><i class="bx bx-trash"></i> Excluir</button>
+          <button type="button" id="confirmNo" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="saasLoadingOverlay" class="calculando-overlay" aria-hidden="true">
+      <div class="calculando-content">
+        <div class="saas-spinner"></div>
+        <p style="margin:0;font-size:15px;color:var(--dark,#1e293b);">Carregando…</p>
+      </div>
+    </div>
+  </div>
+  <script src="/modulos/gerenciar-tenants-saas/js/script.js"></script>
+</body>
+</html>

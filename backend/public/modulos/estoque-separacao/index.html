@@ -1,0 +1,1453 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WMS — Separação (OPL)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/modulos.css" />
+  <link rel="stylesheet" href="/css/dark-mode.css" />
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+  <style>
+    .wms-sep-container { padding: 20px; font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif; }
+    .wms-sep-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid var(--light-gray, #e2e8f0); }
+    .wms-sep-header h2 { margin: 0; color: var(--ac-primary, #0d2137); font-size: 28px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .wms-sep-container .tabs.tabs-com-icones { display: flex; flex-wrap: wrap; margin-bottom: 25px; border-bottom: 2px solid var(--light-gray, #e2e8f0); gap: 0; }
+    .wms-sep-container .tabs.tabs-com-icones .tab-btn {
+      display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border: none; background: transparent; color: #94a3b8; font-weight: 600; font-size: 15px; cursor: pointer;
+      border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.2s, border-color 0.2s; font-family: inherit;
+    }
+    .wms-sep-container .tabs.tabs-com-icones .tab-btn i { font-size: 1.15rem; color: inherit; }
+    .wms-sep-container .tabs.tabs-com-icones .tab-btn:hover { color: #64748b; }
+    .wms-sep-container .tabs.tabs-com-icones .tab-btn.active { color: var(--ac-primary, #0d2137); border-bottom-color: var(--ac-primary, #0d2137); }
+    .filtros-box { background: white; border-radius: 12px; padding: 25px; box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08)); margin-bottom: 25px; border: 1px solid var(--border, #e2e8f0); }
+    .filtros-box h3 { margin: 0 0 20px; color: var(--ac-primary, #0d2137); font-size: 18px; font-weight: 600; }
+    .filtros-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 15px; }
+    .filtros-grid label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--dark, #1e293b); font-size: 14px; }
+    .filtros-grid .form-control { width: 100%; padding: 12px; border: 1px solid var(--border, #e2e8f0); border-radius: 8px; font-size: 16px; font-family: inherit; box-sizing: border-box; }
+    .filtros-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 15px; flex-wrap: wrap; }
+    .prog-imprimir-opcao {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      color: #475569;
+      cursor: pointer;
+      margin: 0;
+      user-select: none;
+    }
+    .prog-imprimir-opcao input { margin: 0; cursor: pointer; }
+    html[data-theme='dark'] .prog-imprimir-opcao { color: #94a3b8; }
+    .btn-filtro { display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; }
+    .btn-filtro-limpar { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+    .btn-filtro-aplicar { background: var(--ac-accent, #0ea5e9); color: #fff; }
+    .btn-filtro-novo { background: var(--success, #059669); color: #fff; }
+    .wms-sep-table-wrap { overflow-x: auto; border: 1px solid var(--border, #e2e8f0); border-radius: 10px; }
+    .wms-sep-table-wrap-scroll { max-height: min(60vh, calc(100dvh - 280px)); overflow-y: auto; overflow-x: auto; position: relative; }
+    .wms-sep-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    #listaImportacoes .wms-sep-table { border-collapse: separate; border-spacing: 0; }
+    #listaImportacoes .wms-sep-table thead th {
+      position: sticky;
+      top: 0;
+      z-index: 6;
+      background: #f8fafc;
+      box-shadow: 0 2px 2px -1px rgba(15, 23, 42, 0.12);
+    }
+    html[data-theme='dark'] #listaImportacoes .wms-sep-table thead th {
+      background: #1e293b;
+      box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.45);
+    }
+    #oplItensTable { border-collapse: separate; border-spacing: 0; }
+    #oplItensTable thead th {
+      position: sticky;
+      top: 0;
+      z-index: 6;
+      background: #f8fafc;
+      box-shadow: 0 2px 2px -1px rgba(15, 23, 42, 0.12);
+    }
+    .wms-sep-table th, .wms-sep-table td { padding: 10px 12px; border-bottom: 1px solid var(--border, #e2e8f0); text-align: left; vertical-align: top; }
+    .wms-sep-table th.num, .wms-sep-table td.num {
+      text-align: right;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    .opl-prog-tree th.num:nth-child(2),
+    .opl-prog-tree td.num:nth-child(2) { width: 72px; }
+    .opl-prog-tree th.num:nth-child(n+3),
+    .opl-prog-tree td.num:nth-child(n+3) { min-width: 108px; }
+    .wms-sep-table th { background: #f8fafc; font-weight: 600; color: #334155; }
+    .wms-sep-table tr:last-child td { border-bottom: none; }
+    tr.opl-pick-hidden { display: none !important; }
+    .wms-sep-table input.pick-qtd { width: 100px; padding: 8px; border-radius: 8px; border: 1px solid #cbd5e1; text-align: right; font-variant-numeric: tabular-nums; }
+    html[data-theme='dark'] .wms-sep-header { border-bottom-color: #334155; }
+    html[data-theme='dark'] .wms-sep-header h2 { color: #e2e8f0; }
+    html[data-theme='dark'] .wms-sep-container .tabs.tabs-com-icones { border-bottom-color: #334155; }
+    html[data-theme='dark'] .wms-sep-container .tabs.tabs-com-icones .tab-btn { color: #94a3b8; }
+    html[data-theme='dark'] .wms-sep-container .tabs.tabs-com-icones .tab-btn:hover { color: #cbd5e1; }
+    html[data-theme='dark'] .wms-sep-container .tabs.tabs-com-icones .tab-btn.active { color: #38bdf8; border-bottom-color: #38bdf8; }
+    html[data-theme='dark'] .filtros-box { background: #0f172a; border-color: #334155; }
+    html[data-theme='dark'] .filtros-box h3 { color: #e2e8f0; }
+    html[data-theme='dark'] .filtros-grid label { color: #cbd5e1; }
+    html[data-theme='dark'] .filtros-grid .form-control { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+    html[data-theme='dark'] .wms-sep-table th { background: #1e293b; color: #e2e8f0; }
+    html[data-theme='dark'] #oplItensTable thead th {
+      background: #1e293b;
+      box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.45);
+    }
+    html[data-theme='dark'] .wms-sep-table td { border-color: #334155; color: #e2e8f0; }
+    html[data-theme='dark'] .wms-sep-table-wrap { border-color: #334155; }
+    html[data-theme='dark'] .wms-sep-table input.pick-qtd { background: #0f172a; border-color: #475569; color: #e2e8f0; }
+    #oplItensTable th.opl-pick-qt-pedida,
+    #oplItensTable td.opl-pick-qt-pedida { text-align: right; font-variant-numeric: tabular-nums; }
+    .opl-badge { display: inline-block; font-size: 11px; line-height: 1.25; padding: 3px 8px; border-radius: 9999px; font-weight: 600; white-space: nowrap; }
+    .opl-badge-pend { background: #e2e8f0; color: #475569; }
+    .opl-badge-ok { background: #d1fae5; color: #047857; }
+    .opl-badge-div { background: #fee2e2; color: #b91c1c; }
+    .opl-badge-canc { background: #ede9fe; color: #5b21b6; }
+    .opl-badge-subst { background: #ffedd5; color: #c2410c; }
+    .opl-badge-extra { background: #ecfdf5; color: #047857; }
+    /* Resumo na lista de importações (Pendente / Parcial / Concluída …). */
+    .opl-badge-sit-ok { background: #d1fae5; color: #047857; }
+    .opl-badge-sit-pend { background: #e2e8f0; color: #475569; }
+    .opl-badge-sit-parc { background: #fef3c7; color: #92400e; }
+    .opl-badge-sit-div { background: #fee2e2; color: #b91c1c; }
+    html[data-theme='dark'] #listaImportacoes .opl-badge-sit-ok { background: rgba(16, 185, 129, 0.22); color: #6ee7b7; }
+    html[data-theme='dark'] #listaImportacoes .opl-badge-sit-pend { background: #334155; color: #cbd5e1; }
+    html[data-theme='dark'] #listaImportacoes .opl-badge-sit-parc { background: rgba(245, 158, 11, 0.2); color: #fcd34d; }
+    html[data-theme='dark'] #listaImportacoes .opl-badge-sit-div { background: rgba(248, 113, 113, 0.18); color: #fca5a5; }
+    .opl-import-sit-resumo {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+    html[data-theme='dark'] .opl-import-sit-resumo { border-top-color: #334155; color: #cbd5e1; }
+    html[data-theme='dark'] #oplItensTable .opl-badge-pend { background: #334155; color: #cbd5e1; }
+    html[data-theme='dark'] #oplItensTable .opl-badge-ok { background: rgba(16, 185, 129, 0.22); color: #6ee7b7; }
+    html[data-theme='dark'] #oplItensTable .opl-badge-div { background: rgba(248, 113, 113, 0.18); color: #fca5a5; }
+    html[data-theme='dark'] #oplItensTable .opl-badge-canc { background: rgba(167, 139, 250, 0.22); color: #c4b5fd; }
+    html[data-theme='dark'] #oplItensTable .opl-badge-subst { background: rgba(251, 146, 60, 0.2); color: #fdba74; }
+    html[data-theme='dark'] #oplItensTable .opl-badge-extra { background: rgba(52, 211, 153, 0.18); color: #6ee7b7; }
+    #btnSalvarPicking.opl-salvar-pendente {
+      box-shadow: 0 0 0 2px #f59e0b;
+      font-weight: 700;
+    }
+    .opl-pick-dirty-hint {
+      margin: 0 0 10px;
+      font-size: 13px;
+      color: #92400e;
+      display: none;
+    }
+    html[data-theme='dark'] .opl-pick-dirty-hint { color: #fcd34d; }
+    .btn-acao-canc-item {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border: 1px solid #c4b5fd;
+      border-radius: 6px;
+      background: #f5f3ff;
+      color: #6d28d9;
+      cursor: pointer;
+      padding: 0;
+    }
+    .btn-acao-canc-item:hover { background: #ede9fe; }
+    .btn-acao-canc-item:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-acao-subst-item {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 28px;
+      border-radius: 6px;
+      border: 1px solid #fdba74;
+      background: #fff7ed;
+      color: #c2410c;
+      cursor: pointer;
+      padding: 0;
+      margin-left: 4px;
+    }
+    .btn-acao-subst-item:hover { background: #ffedd5; }
+    .btn-acao-subst-item:disabled { opacity: 0.45; cursor: not-allowed; }
+    html[data-theme='dark'] .btn-acao-canc-item {
+      background: #1e1b4b;
+      border-color: #5b21b6;
+      color: #c4b5fd;
+    }
+    html[data-theme='dark'] .btn-acao-subst-item {
+      background: #431407;
+      border-color: #c2410c;
+      color: #fdba74;
+    }
+    /* Modal substituir — mesmo padrão modal--confirm do recebimento / cadastro */
+    #oplSubstituirItemModal.modal--confirm {
+      align-items: center;
+      justify-content: center;
+    }
+    #oplSubstituirItemModal .opl-subst-modal-content {
+      max-width: 440px;
+      width: min(440px, 96vw);
+      text-align: left;
+    }
+    #oplSubstituirItemModal .opl-subst-modal-content h3 {
+      text-align: left;
+      margin: 0 0 10px;
+    }
+    #oplSubstituirItemModal .modal-message-body {
+      text-align: left;
+      margin: 0 0 14px;
+      max-height: none;
+      flex: none;
+      font-size: 14px;
+      line-height: 1.45;
+      color: #475569;
+    }
+    html[data-theme='dark'] #oplSubstituirItemModal .modal-message-body { color: #94a3b8; }
+    #oplSubstituirItemModal .opl-subst-form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin: 0 0 4px;
+      text-align: left;
+    }
+    #oplSubstituirItemModal .opl-subst-form label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 600;
+      font-size: 13px;
+      color: #334155;
+    }
+    html[data-theme='dark'] #oplSubstituirItemModal .opl-subst-form label { color: #cbd5e1; }
+    #oplSubstituirItemModal .opl-subst-form .form-control {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      font-size: 15px;
+      font-family: inherit;
+      min-height: 42px;
+    }
+    html[data-theme='dark'] #oplSubstituirItemModal .opl-subst-form .form-control {
+      background: #1e293b;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+    #oplSubstituirItemModal .modal-actions.filtros-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 14px;
+      margin-top: 16px;
+    }
+    html[data-theme='dark'] #oplSubstituirItemModal .modal-actions.filtros-actions {
+      border-top-color: #334155;
+    }
+    #oplItensBody td.opl-pick-acoes { white-space: nowrap; width: 1%; }
+    .opl-pick-delta { color: #b91c1c; font-weight: 600; }
+    html[data-theme='dark'] .wms-sep-table .opl-pick-delta { color: #fca5a5; }
+    .btn-sm-opl { padding: 6px 12px !important; font-size: 13px !important; }
+    #listaImportacoes .opl-list-actions-header,
+    #listaImportacoes td.opl-list-actions-cell {
+      width: 1%;
+      white-space: nowrap;
+      text-align: right;
+      vertical-align: middle;
+    }
+    #listaImportacoes .opl-list-actions {
+      display: inline-flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: nowrap;
+    }
+    #listaImportacoes .opl-list-actions .btn-sm-opl {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 8px 14px !important;
+      font-size: 13px !important;
+      line-height: 1.2;
+    }
+    #listaImportacoes .opl-list-actions .btn-sm-opl i {
+      font-size: 1.05rem;
+      line-height: 1;
+    }
+    #listaImportacoes .opl-list-actions .opl-btn-excluir {
+      border-width: 1px;
+      color: #991b1b;
+      background: #fef2f2;
+      border-color: #fecaca;
+    }
+    #listaImportacoes .opl-list-actions .opl-btn-excluir:hover {
+      background: #fee2e2;
+      border-color: #fca5a5;
+    }
+    html[data-theme='dark'] #listaImportacoes .opl-list-actions .btn-filtro-aplicar {
+      background: #0369a1;
+      color: #f8fafc;
+      border: 1px solid #0ea5e9;
+      box-shadow: none;
+    }
+    html[data-theme='dark'] #listaImportacoes .opl-list-actions .btn-filtro-aplicar:hover {
+      background: #0284c7;
+      filter: none;
+    }
+    html[data-theme='dark'] #listaImportacoes .opl-list-actions .opl-btn-excluir {
+      background: rgba(127, 29, 29, 0.35);
+      color: #fecaca;
+      border-color: rgba(248, 113, 113, 0.45);
+    }
+    html[data-theme='dark'] #listaImportacoes .opl-list-actions .opl-btn-excluir:hover {
+      background: rgba(153, 27, 27, 0.5);
+      color: #fff;
+    }
+    /* Visibilidade da aba vem de .tab-content / .tab-content.active (modulos.css); não ocultar #painelDetalheSep senão o Detalhe / Picking fica em branco. */
+    .sep-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 16px; font-size: 14px; color: #475569; }
+    html[data-theme='dark'] .sep-meta { color: #94a3b8; }
+    html[data-theme='dark'] .opl-pick-hint { color: #94a3b8 !important; }
+    html[data-theme='dark'] .opl-pick-hint .opl-badge-pend { background: #334155; color: #cbd5e1; }
+    html[data-theme='dark'] .opl-pick-hint .opl-badge-ok { background: rgba(16, 185, 129, 0.22); color: #6ee7b7; }
+    html[data-theme='dark'] .opl-pick-hint .opl-badge-div { background: rgba(248, 113, 113, 0.18); color: #fca5a5; }
+    .opl-sim-cobertura-wrap {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #fecaca;
+      background: #fff7ed;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #1e293b;
+    }
+    .opl-sim-cobertura-wrap.opl-sim-cobertura-warn {
+      border-color: #fcd34d;
+      background: #fffbeb;
+    }
+    html[data-theme='dark'] .opl-sim-cobertura-wrap {
+      border-color: #7f1d1d;
+      background: #1c1917;
+      color: #e7e5e4;
+    }
+    html[data-theme='dark'] .opl-sim-cobertura-wrap.opl-sim-cobertura-warn {
+      border-color: #854d0e;
+      background: #292524;
+    }
+    .opl-pick-encerrado-hint { margin-top: 8px; font-size: 13px; color: #b45309; }
+    html[data-theme='dark'] .opl-pick-encerrado-hint { color: #fbbf24; }
+    /* Confirmação de exclusão: mesmo padrão do Gerenciar Cadastro Geral (#confirmModal + modulos.css). */
+    #oplExcluirImportModal .modal-actions,
+    #oplAuditoriaCadModal .modal-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+    .opl-auditoria-modal { max-width: min(920px, 96vw); max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; }
+    .opl-auditoria-corpo { overflow: auto; max-height: min(60vh, 520px); font-size: 13px; }
+    .opl-auditoria-sec { margin-bottom: 16px; }
+    .opl-auditoria-sec h4 { margin: 0 0 8px; font-size: 14px; color: #b45309; }
+    html[data-theme='dark'] .opl-auditoria-sec h4 { color: #fbbf24; }
+    .opl-auditoria-sec table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .opl-auditoria-sec th, .opl-auditoria-sec td { border: 1px solid #e2e8f0; padding: 6px 8px; text-align: left; vertical-align: top; }
+    html[data-theme='dark'] .opl-auditoria-sec th,
+    html[data-theme='dark'] .opl-auditoria-sec td { border-color: #334155; }
+    .opl-auditoria-sec th { background: #f8fafc; font-weight: 600; }
+    html[data-theme='dark'] .opl-auditoria-sec th { background: #1e293b; }
+
+    /* —— Detalhe / picking (layout) —— */
+    .opl-det-layout { display: flex; flex-direction: column; gap: 16px; }
+    .opl-det-toolbar {
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;
+      padding-bottom: 4px;
+    }
+    .opl-det-toolbar-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .opl-det-hero {
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 18px 20px;
+    }
+    .opl-det-hero h4 {
+      margin: 0 0 10px;
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #0f172a;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+    .opl-det-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+    .opl-det-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border-radius: 9999px; font-size: 12px; font-weight: 600;
+      border: 1px solid transparent;
+    }
+    .opl-det-chip i { font-size: 1rem; }
+    .opl-det-chip--ok { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+    .opl-det-chip--warn { background: #fffbeb; color: #b45309; border-color: #fde68a; }
+    .opl-det-chip--info { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+    .opl-det-chip--muted { background: #f1f5f9; color: #475569; border-color: #e2e8f0; }
+    .opl-det-chip--done { background: #f0fdf4; color: #15803d; border-color: #86efac; }
+    .opl-det-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 10px 16px;
+      font-size: 13px;
+      color: #475569;
+    }
+    .opl-det-meta-grid dt { font-weight: 600; color: #64748b; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 2px; }
+    .opl-det-meta-grid dd { margin: 0; color: #1e293b; font-weight: 500; }
+    .opl-det-alertas { display: flex; flex-direction: column; gap: 10px; }
+    .opl-det-banner {
+      display: flex; gap: 12px; align-items: flex-start;
+      padding: 14px 16px; border-radius: 12px; border: 1px solid;
+      font-size: 14px; line-height: 1.5;
+    }
+    .opl-det-banner[hidden],
+    #oplAssociarDonoWrap[hidden],
+    #oplAplicarReservasWrap[hidden],
+    #oplReabrirPickingWrap[hidden],
+    .opl-det-oculto {
+      display: none !important;
+      visibility: hidden !important;
+      height: 0 !important;
+      overflow: hidden !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border-width: 0 !important;
+    }
+    /* Campos do detalhe (fora de .filtros-grid — ex.: filtro de linhas, romaneio) */
+    .wms-sep-container #painelDetalheSep label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #1e293b;
+      font-size: 14px;
+    }
+    .wms-sep-container #painelDetalheSep .form-control,
+    .wms-sep-container #painelDetalheSep input#oplFiltroPicking {
+      width: 100%;
+      max-width: 100%;
+      padding: 12px 14px;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 15px;
+      font-family: inherit;
+      box-sizing: border-box;
+      background: #fff;
+      color: #1e293b;
+      min-height: 44px;
+    }
+    .wms-sep-container #painelDetalheSep input#oplFiltroPicking::placeholder {
+      color: #94a3b8;
+    }
+    .wms-sep-container #painelDetalheSep select.form-control {
+      cursor: pointer;
+      appearance: auto;
+    }
+    .opl-det-panel-pick {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 16px 18px;
+      background: #fff;
+    }
+    .opl-det-pick-toolbar .opl-pick-filter-grow label {
+      margin-bottom: 6px;
+    }
+    #btnSalvarPicking.opl-det-acao-bloqueada {
+      opacity: 0.45;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    .opl-det-banner > i { font-size: 1.35rem; flex-shrink: 0; margin-top: 1px; }
+    .opl-det-banner--success { background: #ecfdf5; border-color: #6ee7b7; color: #065f46; }
+    .opl-det-banner--warning { background: #fffbeb; border-color: #fcd34d; color: #92400e; }
+    .opl-det-banner--info { background: #f0f9ff; border-color: #7dd3fc; color: #0c4a6e; }
+    .opl-det-banner p { margin: 0; }
+    .opl-det-banner .opl-det-banner-actions { margin-top: 10px; }
+    .opl-det-collapse {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      background: #fff;
+      overflow: hidden;
+    }
+    .opl-det-collapse > summary {
+      cursor: pointer;
+      padding: 14px 18px;
+      font-weight: 600;
+      font-size: 15px;
+      color: #0f172a;
+      list-style: none;
+      display: flex; align-items: center; gap: 8px;
+      user-select: none;
+    }
+    .opl-det-collapse > summary::-webkit-details-marker { display: none; }
+    .opl-det-collapse > summary::before {
+      content: '';
+      width: 0; height: 0;
+      border-left: 6px solid #64748b;
+      border-top: 4px solid transparent;
+      border-bottom: 4px solid transparent;
+      transition: transform 0.15s;
+    }
+    .opl-det-collapse[open] > summary::before { transform: rotate(90deg); }
+    .opl-det-collapse-body { padding: 0 18px 18px; border-top: 1px solid #f1f5f9; }
+    .opl-det-panel-pick h4 {
+      margin: 0 0 12px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #0f172a;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .opl-det-pick-toolbar {
+      display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
+      margin-bottom: 12px;
+    }
+    .opl-det-pick-toolbar .opl-pick-filter-grow { flex: 1; min-width: 160px; }
+    .opl-det-pick-toolbar .opl-pick-filter-pair {
+      display: flex; flex-wrap: wrap; gap: 10px; flex: 1 1 420px; min-width: 280px;
+    }
+    .opl-det-pick-toolbar .opl-pick-filter-pair > div { flex: 1; min-width: 140px; }
+    .opl-sim-cobertura-wrap.opl-sim-cobertura-ok {
+      border-color: #86efac;
+      background: #f0fdf4;
+    }
+    .opl-sim-cobertura-wrap.opl-sim-cobertura-ciclo {
+      border-color: #93c5fd;
+      background: #eff6ff;
+      color: #1e3a8a;
+    }
+    html[data-theme='dark'] .opl-det-hero {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      border-color: #334155;
+    }
+    html[data-theme='dark'] .opl-det-hero h4 { color: #f1f5f9; }
+    html[data-theme='dark'] .opl-det-meta-grid dd { color: #e2e8f0; }
+    html[data-theme='dark'] .opl-det-meta-grid dt { color: #94a3b8; }
+    html[data-theme='dark'] .opl-det-chip--ok { background: rgba(16, 185, 129, 0.18); color: #6ee7b7; border-color: rgba(52, 211, 153, 0.35); }
+    html[data-theme='dark'] .opl-det-chip--warn { background: rgba(245, 158, 11, 0.15); color: #fcd34d; border-color: rgba(251, 191, 36, 0.35); }
+    html[data-theme='dark'] .opl-det-chip--info { background: rgba(59, 130, 246, 0.15); color: #93c5fd; border-color: rgba(96, 165, 250, 0.35); }
+    html[data-theme='dark'] .opl-det-chip--muted { background: #334155; color: #cbd5e1; border-color: #475569; }
+    html[data-theme='dark'] .opl-det-chip--done { background: rgba(16, 185, 129, 0.22); color: #86efac; border-color: rgba(52, 211, 153, 0.4); }
+    html[data-theme='dark'] .opl-det-collapse { background: #0f172a; border-color: #334155; }
+    html[data-theme='dark'] .opl-det-collapse > summary { color: #e2e8f0; }
+    html[data-theme='dark'] .opl-det-collapse-body { border-top-color: #334155; }
+    html[data-theme='dark'] .opl-det-panel-pick h4 { color: #e2e8f0; }
+    html[data-theme='dark'] .wms-sep-container #painelDetalheSep label { color: #cbd5e1; }
+    html[data-theme='dark'] .wms-sep-container #painelDetalheSep .form-control,
+    html[data-theme='dark'] .wms-sep-container #painelDetalheSep input#oplFiltroPicking {
+      background: #1e293b;
+      border-color: #475569;
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] .wms-sep-container #painelDetalheSep input#oplFiltroPicking::placeholder { color: #64748b; }
+    html[data-theme='dark'] .opl-det-panel-pick {
+      background: #0f172a;
+      border-color: #334155;
+    }
+    html[data-theme='dark'] .opl-det-banner--success { background: rgba(6, 78, 59, 0.35); border-color: #059669; color: #a7f3d0; }
+    html[data-theme='dark'] .opl-det-banner--warning { background: rgba(120, 53, 15, 0.35); border-color: #d97706; color: #fde68a; }
+    html[data-theme='dark'] .opl-det-banner--info { background: rgba(30, 58, 138, 0.35); border-color: #2563eb; color: #bfdbfe; }
+    html[data-theme='dark'] .opl-sim-cobertura-wrap.opl-sim-cobertura-ok {
+      border-color: #047857;
+      background: #14532d;
+      color: #d1fae5;
+    }
+    html[data-theme='dark'] .opl-sim-cobertura-wrap.opl-sim-cobertura-ciclo {
+      border-color: #1d4ed8;
+      background: #1e3a8a;
+      color: #dbeafe;
+    }
+
+    /** ============================================================
+     *  Painel "Filtros para impressão específica" (Detalhe e picking)
+     *  Antes era um <fieldset> com <legend> que cruzava a borda do
+     *  contêiner (legenda sobreposta). Refeito como card com cabeçalho
+     *  próprio, multi-selects com altura adequada e contraste no dark.
+     *  ============================================================ */
+    .opl-imp-filtros {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      margin: 0 0 14px;
+      background: #f8fafc;
+      overflow: hidden;
+    }
+    .opl-imp-filtros-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background: #eef2f7;
+      border-bottom: 1px solid #e2e8f0;
+      color: #475569;
+      font-weight: 600;
+      font-size: 13.5px;
+    }
+    .opl-imp-filtros-header i { font-size: 1.15rem; color: #0ea5e9; }
+    .opl-imp-filtros-header em { color: #64748b; font-style: normal; font-weight: 500; font-size: 12.5px; }
+    .opl-imp-filtros-body { padding: 14px 16px 12px; }
+    .opl-imp-filtros-body .filtros-grid { margin-bottom: 12px; }
+    .opl-imp-filtros-body .filtros-grid:last-of-type { margin-bottom: 8px; }
+    .opl-imp-filtros-body label {
+      display: block;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #1e293b;
+      margin-bottom: 5px;
+    }
+    .opl-imp-filtros-cont {
+      margin-left: 6px;
+      font-size: 11.5px;
+      font-weight: 500;
+      color: #64748b;
+    }
+    /** Multi-selects com altura razoável e separação visual entre opções. */
+    .opl-imp-multi {
+      min-height: 110px;
+      padding: 4px 6px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .opl-imp-multi option {
+      padding: 4px 8px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .opl-imp-multi option:last-child { border-bottom: none; }
+    .opl-imp-multi option:checked {
+      background: #e0f2fe linear-gradient(0deg, #e0f2fe 0%, #e0f2fe 100%);
+      color: #075985;
+      font-weight: 600;
+    }
+    .opl-imp-filtros-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding-top: 4px;
+    }
+    .opl-imp-filtros-actions .btn-filtro {
+      padding: 6px 12px;
+      font-size: 12.5px;
+    }
+    .opl-imp-filtros-resumo {
+      font-size: 12.5px;
+      color: #64748b;
+    }
+
+    /* Dark mode */
+    html[data-theme='dark'] .opl-imp-filtros,
+    body[data-theme='dark'] .opl-imp-filtros {
+      background: #0f172a;
+      border-color: #334155;
+    }
+    html[data-theme='dark'] .opl-imp-filtros-header,
+    body[data-theme='dark'] .opl-imp-filtros-header {
+      background: #1e293b;
+      border-bottom-color: #334155;
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] .opl-imp-filtros-header i,
+    body[data-theme='dark'] .opl-imp-filtros-header i { color: #38bdf8; }
+    html[data-theme='dark'] .opl-imp-filtros-header em,
+    body[data-theme='dark'] .opl-imp-filtros-header em { color: #94a3b8; }
+    html[data-theme='dark'] .opl-imp-filtros-body label,
+    body[data-theme='dark'] .opl-imp-filtros-body label { color: #e2e8f0; }
+    html[data-theme='dark'] .opl-imp-filtros-cont,
+    body[data-theme='dark'] .opl-imp-filtros-cont { color: #94a3b8; }
+    html[data-theme='dark'] .opl-imp-multi,
+    body[data-theme='dark'] .opl-imp-multi {
+      background-color: #1e293b;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] .opl-imp-multi option,
+    body[data-theme='dark'] .opl-imp-multi option {
+      background: #1e293b;
+      color: #e2e8f0;
+      border-bottom-color: #334155;
+    }
+    html[data-theme='dark'] .opl-imp-multi option:checked,
+    body[data-theme='dark'] .opl-imp-multi option:checked {
+      background: #0c2740 linear-gradient(0deg, #0c2740 0%, #0c2740 100%);
+      color: #7dd3fc;
+    }
+    html[data-theme='dark'] .opl-imp-filtros-resumo,
+    body[data-theme='dark'] .opl-imp-filtros-resumo { color: #94a3b8; }
+
+    .opl-prog-hero {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin: 16px 0 20px;
+    }
+    .opl-prog-kpi {
+      background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%);
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 14px 16px;
+      min-width: 0;
+    }
+    .opl-prog-kpi-lbl {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #64748b;
+      margin-bottom: 6px;
+    }
+    .opl-prog-kpi-val {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: #0f172a;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.2;
+    }
+    .opl-prog-kpi-val--frio { color: #0369a1; }
+    .opl-prog-kpi-val--seco { color: #b45309; }
+    .opl-prog-kpi-sub { font-size: 11px; color: #64748b; margin-top: 4px; }
+    .opl-prog-veiculo {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-left: 4px solid #2563eb;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 18px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: #1e3a8a;
+    }
+    .opl-prog-veiculo-warn {
+      background: #fffbeb;
+      border-color: #fde68a;
+      border-left-color: #d97706;
+      color: #92400e;
+    }
+    .opl-prog-sec-tit {
+      font-size: 15px;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 18px 0 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .opl-prog-data-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 16px 18px;
+      margin-bottom: 16px;
+      background: #fff;
+    }
+    .opl-prog-data-hd {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .opl-prog-data-hd h4 { margin: 0; font-size: 1.1rem; color: #0f172a; }
+    .opl-prog-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      background: #f1f5f9;
+      color: #475569;
+      border: 1px solid #e2e8f0;
+    }
+    html[data-theme='dark'] .opl-prog-kpi {
+      background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+      border-color: #334155;
+    }
+    html[data-theme='dark'] .opl-prog-kpi-lbl { color: #94a3b8; }
+    html[data-theme='dark'] .opl-prog-kpi-val { color: #f1f5f9; }
+    html[data-theme='dark'] .opl-prog-kpi-val--frio { color: #7dd3fc; }
+    html[data-theme='dark'] .opl-prog-kpi-val--seco { color: #fcd34d; }
+    html[data-theme='dark'] .opl-prog-veiculo {
+      background: #172554;
+      border-color: #1e40af;
+      color: #bfdbfe;
+    }
+    html[data-theme='dark'] .opl-prog-veiculo-warn {
+      background: #422006;
+      border-color: #92400e;
+      color: #fde68a;
+    }
+    html[data-theme='dark'] .opl-prog-data-card {
+      background: #0f172a;
+      border-color: #334155;
+    }
+    html[data-theme='dark'] .opl-prog-data-hd { border-bottom-color: #334155; }
+    html[data-theme='dark'] .opl-prog-data-hd h4 { color: #f1f5f9; }
+    html[data-theme='dark'] .opl-prog-sec-tit { color: #e2e8f0; }
+    html[data-theme='dark'] .opl-prog-badge {
+      background: #1e293b;
+      border-color: #475569;
+      color: #cbd5e1;
+    }
+    .opl-prog-tree-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 8px;
+      justify-content: flex-end;
+    }
+    .opl-prog-tree-parent {
+      cursor: pointer;
+      user-select: none;
+    }
+    .opl-prog-tree-parent:hover td { background: #f1f5f9; }
+    .opl-prog-tree-parent.is-open td { background: #eff6ff; }
+    .opl-prog-tree-parent .opl-prog-chevron {
+      display: inline-block;
+      vertical-align: middle;
+      margin-right: 6px;
+      font-size: 1.1rem;
+      color: #64748b;
+      transition: transform 0.15s ease;
+    }
+    .opl-prog-tree-parent.is-open .opl-prog-chevron { transform: rotate(90deg); color: #2563eb; }
+    .opl-prog-tree-child { display: none; }
+    .opl-prog-tree-child.is-visible { display: table-row; }
+    .opl-prog-tree-child td { background: #fafafa; font-size: 13px; }
+    .opl-prog-tree-child td:first-child {
+      padding-left: 2.2rem;
+      color: #475569;
+    }
+    .opl-prog-tree-child .dest-cod {
+      font-weight: 700;
+      color: #0f172a;
+      margin-right: 6px;
+    }
+    .opl-prog-tree-child .dest-cidade {
+      display: block;
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    .opl-prog-peso-alerta {
+      display: block;
+      margin-top: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      color: #b45309;
+      line-height: 1.35;
+    }
+    .opl-prog-peso-alerta--crit { color: #b91c1c; font-weight: 600; }
+    .opl-prog-peso-alerta .bx { font-size: 12px; vertical-align: -1px; }
+    .opl-prog-tree-parent .opl-prog-peso-alerta { margin-top: 6px; margin-left: 1.5rem; }
+    .opl-prog-peso-cel-warn { color: #b45309 !important; }
+    .opl-prog-peso-cel-warn strong { color: #b91c1c !important; }
+    html[data-theme='dark'] .opl-prog-peso-alerta { color: #fbbf24; }
+    html[data-theme='dark'] .opl-prog-peso-alerta--crit { color: #f87171; }
+    html[data-theme='dark'] .opl-prog-peso-cel-warn,
+    html[data-theme='dark'] .opl-prog-peso-cel-warn strong { color: #fbbf24 !important; }
+    .opl-prog-ver-pend {
+      margin-left: 6px;
+      padding: 0 6px;
+      border: none;
+      background: transparent;
+      color: #2563eb;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+    .opl-prog-pendencias-panel {
+      margin: 14px 0;
+      padding: 12px 14px;
+      border: 1px solid #fcd34d;
+      border-radius: 8px;
+      background: #fffbeb;
+    }
+    .opl-prog-pendencias-hd {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+    .opl-prog-pendencias-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .opl-prog-pendencias-body { margin-top: 12px; }
+    .opl-prog-pend-table code { font-size: 11px; }
+    .opl-prog-pend-mot { font-size: 11px; font-weight: 600; }
+    .opl-prog-pend-mot--sem_peso { color: #b45309; }
+    .opl-prog-pend-mot--sem_cadastro { color: #b91c1c; }
+    .opl-prog-pendencias-row td {
+      background: #fff7ed !important;
+      padding: 8px 12px 12px 2.2rem !important;
+    }
+    .opl-prog-pend-acao { white-space: nowrap; }
+    html[data-theme='dark'] .opl-prog-pendencias-panel {
+      background: #422006;
+      border-color: #92400e;
+    }
+    html[data-theme='dark'] .opl-prog-ver-pend { color: #93c5fd; }
+    html[data-theme='dark'] .opl-prog-pendencias-row td { background: #1c1917 !important; }
+    html[data-theme='dark'] .opl-prog-pend-mot--sem_peso { color: #fbbf24; }
+    html[data-theme='dark'] .opl-prog-pend-mot--sem_cadastro { color: #f87171; }
+    html[data-theme='dark'] .opl-prog-tree-parent:hover td { background: #1e293b; }
+    html[data-theme='dark'] .opl-prog-tree-parent.is-open td { background: #172554; }
+    html[data-theme='dark'] .opl-prog-tree-child td { background: #0f172a; }
+    html[data-theme='dark'] .opl-prog-tree-child td:first-child { color: #94a3b8; }
+    html[data-theme='dark'] .opl-prog-tree-child .dest-cod { color: #e2e8f0; }
+    html[data-theme='dark'] .opl-prog-tree-child .dest-cidade { color: #64748b; }
+  </style>
+</head>
+<body>
+  <div id="loadingOverlay" class="calculando-overlay" style="display: none;">
+    <div class="calculando-content">
+      <div class="calculando-spinner"></div>
+      <h3 id="loadingTitle">Carregando</h3>
+      <p id="loadingText">Aguarde...</p>
+      <p class="calculando-detalhe" id="loadingDetalhe">Isso pode levar alguns segundos.</p>
+    </div>
+  </div>
+
+  <div class="wms-sep-container">
+    <div class="wms-sep-header">
+      <h2><i class="bx bx-list-ul"></i> Separação (OPL)</h2>
+      <button type="button" class="btn-filtro btn-filtro-limpar" id="btnVoltarHub"><i class="bx bx-arrow-back"></i> Estoque</button>
+    </div>
+
+    <div class="tabs tabs-com-icones">
+      <button type="button" class="tab-btn active" data-tab="grid"><i class="bx bx-filter-alt"></i> Filtros</button>
+      <button type="button" class="tab-btn" data-tab="programacao"><i class="bx bx-truck"></i> Programação</button>
+      <button type="button" class="tab-btn" data-tab="import"><i class="bx bx-grid-alt"></i> Grid</button>
+      <button type="button" class="tab-btn" data-tab="detalhe" id="tabBtnDetalhe" style="display: none;"><i class="bx bx-edit"></i> Dados</button>
+    </div>
+
+    <div class="tab-content active" id="tab-grid">
+      <div class="filtros-box">
+        <h3>Espelhos importados</h3>
+        <form id="formFiltrosOplImportacoes">
+          <div class="filtros-grid">
+            <div>
+              <label for="filt_opl_cod_dest">Cód. destinatário</label>
+              <input type="text" id="filt_opl_cod_dest" class="form-control" placeholder="Contém…" autocomplete="off" />
+            </div>
+            <div>
+              <label for="filt_opl_razao">Razão social destino</label>
+              <input type="text" id="filt_opl_razao" class="form-control" placeholder="Contém…" autocomplete="off" />
+            </div>
+            <div>
+              <label for="filt_opl_cidade">Cidade entrega</label>
+              <input type="text" id="filt_opl_cidade" class="form-control" placeholder="Contém…" autocomplete="off" />
+            </div>
+            <div>
+              <label for="filt_opl_uf">UF</label>
+              <input type="text" id="filt_opl_uf" class="form-control" placeholder="SC" maxlength="2" autocomplete="off" />
+            </div>
+            <div>
+              <label for="filt_opl_num_pedido">Nº pedido</label>
+              <input type="text" id="filt_opl_num_pedido" class="form-control" placeholder="Contém…" autocomplete="off" />
+            </div>
+            <div>
+              <label for="filt_opl_nm_arquivo">Nome do arquivo</label>
+              <input type="text" id="filt_opl_nm_arquivo" class="form-control" placeholder="Contém…" autocomplete="off" />
+            </div>
+          </div>
+          <div class="filtros-actions" style="margin-bottom: 14px">
+            <button type="button" id="btnLimparFiltrosOpl" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Limpar</button>
+            <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search"></i> Filtrar</button>
+            <button type="button" id="btnAtualizarLista" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-refresh"></i> Atualizar</button>
+            <button type="button" id="btnIrProgramacaoGrade" class="btn-filtro btn-filtro-novo" title="Estimar peso e veículo pelos espelhos filtrados (antes da NF-e)"><i class="bx bx-truck"></i> Programação antecipada</button>
+            <button type="button" id="btnValidarPedidosEntre" class="btn-filtro btn-filtro-aplicar" title="Compara pedido, destino e volume entre os espelhos marcados (mín. 2)"><i class="bx bx-git-compare"></i> Validar entre selecionados</button>
+            <button type="button" id="btnValidarPedidosHist" class="btn-filtro btn-filtro-limpar" title="Verifica se os pedidos dos espelhos marcados já existem em outro arquivo do histórico"><i class="bx bx-shield-quarter"></i> Validar × histórico</button>
+          </div>
+          <p class="hint" id="oplValidarHint" style="margin:0 0 12px;">Marque 2+ arquivos e use <strong>Validar entre selecionados</strong> (pedido + destino + volume). Ou marque 1+ e use <strong>Validar × histórico</strong>.</p>
+        </form>
+        <div id="listaImportacoes" class="wms-sep-table-wrap wms-sep-table-wrap-scroll">
+          <p class="empty" style="padding: 16px;">Carregando…</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-programacao">
+      <div class="filtros-box">
+        <h3><i class="bx bx-truck"></i> Programação antecipada de embarque</h3>
+        <p class="hint" style="margin: 0 0 16px; line-height: 1.5;">
+          Estime <strong>peso total, seco e frio</strong> e <strong>sugestão de veículo</strong> a partir dos espelhos OPL
+          (<code>QT_PEDIDA</code> × <code>PESO_KG</code>), agrupados por <strong>data de entrega programada</strong> — sem esperar NF-e nem carga montada.
+          Mesma base do resumo logístico de cargas, aplicada à demanda do espelho.
+        </p>
+        <form id="formProgAntecipada" onsubmit="return false;">
+          <div class="filtros-grid">
+            <div>
+              <label for="prog_data_de">Data entrega (de)</label>
+              <input type="date" id="prog_data_de" class="form-control" />
+            </div>
+            <div>
+              <label for="prog_data_ate">Data entrega (até)</label>
+              <input type="date" id="prog_data_ate" class="form-control" />
+            </div>
+            <div>
+              <label for="prog_cd_dono">Dono do estoque</label>
+              <select id="prog_cd_dono" class="form-control"><option value="">Todos</option></select>
+            </div>
+            <div>
+              <label for="prog_nm_arquivo">Nome do arquivo contém</label>
+              <input type="text" id="prog_nm_arquivo" class="form-control" placeholder="ex.: 10.06" autocomplete="off" />
+            </div>
+            <div>
+              <label for="prog_uf">UF entrega</label>
+              <input type="text" id="prog_uf" class="form-control" maxlength="2" placeholder="PR" autocomplete="off" />
+            </div>
+          </div>
+          <div class="filtros-actions">
+            <button type="button" id="btnProgSincGrade" class="btn-filtro btn-filtro-limpar" title="Copia UF e nome do arquivo dos filtros da grade"><i class="bx bx-link"></i> Usar filtros da grade</button>
+            <button type="button" id="btnProgAmanha" class="btn-filtro btn-filtro-limpar"><i class="bx bx-calendar"></i> Amanhã</button>
+            <button type="submit" id="btnProgConsultar" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-calculator"></i> Calcular programação</button>
+            <label class="prog-imprimir-opcao" title="Quando marcado, o relatório impresso lista cada destinatário sob a rota (como ao expandir na tela)">
+              <input type="checkbox" id="prog_imprimir_detalhar_destinos" />
+              Incluir destinatários no relatório impresso
+            </label>
+            <button type="button" id="btnProgImprimir" class="btn-filtro btn-filtro-aplicar" disabled title="Calcule a programação antes de imprimir"><i class="bx bx-printer"></i> Imprimir relatório</button>
+          </div>
+        </form>
+        <div id="progAntecipadaResultado" style="margin-top: 8px;"></div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-import">
+      <div class="filtros-box">
+        <h3>Importar espelho (.txt)</h3>
+        <form id="formImportOpl" encType="multipart/form-data">
+          <div class="filtros-grid">
+            <div>
+              <label for="opl_cd_dono">Dono do estoque *</label>
+              <select id="opl_cd_dono" class="form-control" required><option value="">— Selecione —</option></select>
+            </div>
+            <div>
+              <label for="opl_arquivo">Arquivo *</label>
+              <input type="file" id="opl_arquivo" name="arquivo" accept=".txt,text/plain" class="form-control" required />
+            </div>
+          </div>
+          <div class="filtros-actions">
+            <button type="submit" class="btn-filtro btn-filtro-novo"><i class="bx bx-upload"></i> Importar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-detalhe">
+      <div class="filtros-box" id="painelDetalheSep">
+        <div class="opl-det-layout">
+          <div class="opl-det-toolbar">
+            <h3 style="margin:0;font-size:18px;display:flex;align-items:center;gap:8px;color:inherit">
+              <i class="bx bx-package"></i> Detalhe e picking
+            </h3>
+            <div class="opl-det-toolbar-actions">
+              <button type="button" id="btnFecharDetalhe" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar à lista</button>
+              <button type="button" id="btnSalvarPicking" class="btn-filtro btn-filtro-novo"><i class="bx bx-save"></i> Salvar picking</button>
+              <button type="button" id="btnRegistrarPickingPosExp" class="btn-filtro btn-filtro-aplicar" style="display:none" title="Só preenche qtd coletada no espelho. Não mexe em estoque nem reserva (já baixados na expedição)."><i class="bx bx-history"></i> Registrar picking pós-expedição</button>
+            </div>
+          </div>
+
+          <section class="opl-det-hero">
+            <h4 id="oplDetTituloArquivo">—</h4>
+            <div id="oplDetChips" class="opl-det-chips" aria-label="Status do espelho"></div>
+            <dl class="opl-det-meta-grid" id="oplDetalheMeta"></dl>
+          </section>
+
+          <div id="oplDetAlertas" class="opl-det-alertas"></div>
+
+          <div id="oplAssociarDonoWrap" class="opl-det-banner opl-det-banner--warning opl-det-oculto" hidden aria-hidden="true">
+            <i class="bx bx-error-circle"></i>
+            <div>
+              <p><strong>Dono do estoque obrigatório.</strong> Este espelho foi importado sem dono. Associe o dono para simular saldo, reservar estoque e validar cobertura.</p>
+              <div class="filtros-grid" style="margin-top:12px;max-width:360px">
+                <div>
+                  <label for="opl_cd_dono_detalhe">Dono do estoque</label>
+                  <select id="opl_cd_dono_detalhe" class="form-control"><option value="">— Selecione —</option></select>
+                </div>
+              </div>
+              <div class="opl-det-banner-actions">
+                <button type="button" id="btnAssociarDonoOpl" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-link"></i> Associar dono</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="oplAplicarReservasWrap" class="opl-det-banner opl-det-banner--info opl-det-oculto" hidden aria-hidden="true">
+            <i class="bx bx-lock-alt"></i>
+            <div>
+              <p><strong>Reserva pendente.</strong> Picking concluído, mas a reserva de estoque ainda não foi gravada (comum em importações antigas sem dono). Após associar o dono e conferir a simulação abaixo, aplique a reserva.</p>
+              <div class="opl-det-banner-actions">
+                <button type="button" id="btnAplicarReservasOpl" class="btn-filtro btn-filtro-novo"><i class="bx bx-lock-alt"></i> Aplicar reservas de estoque</button>
+              </div>
+            </div>
+          </div>
+
+          <div id="oplReabrirPickingWrap" class="opl-det-banner opl-det-banner--warning opl-det-oculto" hidden aria-hidden="true">
+            <i class="bx bx-undo"></i>
+            <div style="flex:1">
+              <p><strong>Reabrir picking (supervisor).</strong> Remove a reserva deste espelho, mantém as quantidades coletadas e libera a edição. Depois de corrigir, use <strong>Salvar picking</strong> para gravar de novo e reaplicar as reservas.</p>
+              <p id="oplReabrirPermBadge" class="hint" style="margin:6px 0 10px;font-size:13px">Permissão: —</p>
+              <textarea id="oplJustificativaReabrir" class="form-control" rows="2" maxlength="1000" placeholder="Justificativa obrigatória (mín. 10 caracteres), ex.: correção de item cancelado pelo cliente"></textarea>
+              <div class="filtros-grid" style="margin-top:10px;max-width:520px">
+                <div>
+                  <label for="oplReabrirAutorizadoLogin">Usuário autorizador</label>
+                  <input type="text" id="oplReabrirAutorizadoLogin" class="form-control" maxlength="50" autocomplete="username" />
+                </div>
+                <div>
+                  <label for="oplReabrirAutorizadoSenha">Senha</label>
+                  <input type="password" id="oplReabrirAutorizadoSenha" class="form-control" maxlength="100" autocomplete="current-password" />
+                </div>
+              </div>
+              <div class="opl-det-banner-actions" style="margin-top:10px">
+                <button type="button" id="btnReabrirPickingOpl" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-undo"></i> Reabrir picking</button>
+              </div>
+            </div>
+          </div>
+
+          <details class="opl-det-collapse">
+            <summary><i class="bx bx-printer"></i> Romaneio e impressão</summary>
+            <div class="opl-det-collapse-body">
+              <div class="filtros-grid" style="margin-bottom: 12px">
+                <div>
+                  <label for="romConservacao">Conservação</label>
+                  <select id="romConservacao" class="form-control" title="Filtra o que entra na impressão (NCM, descrição e TIPO_ARMAZENAGEM). Não confundir com «Separadores na lista», que organiza faixas na folha.">
+                    <option value="todos">Todos os produtos</option>
+                    <option value="seco">Só seco / ambiente</option>
+                    <option value="refrigerado">Só refrigerado</option>
+                    <option value="congelado">Só congelado</option>
+                    <option value="refri">Refrigerado + congelado (juntos)</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="romAgruparItens">Linhas</label>
+                  <select id="romAgruparItens" class="form-control">
+                    <option value="1">Somar qtd. por código OL no mesmo destinatário</option>
+                    <option value="0">Uma linha por item de pedido (detalhado)</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="romFolhas">Folhas</label>
+                  <select id="romFolhas" class="form-control">
+                    <option value="dest">Uma folha por destinatário (quebra na impressão)</option>
+                    <option value="continuo">Listagem contínua</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="romSeparadoresGrupo">Separadores na lista</label>
+                  <select id="romSeparadoresGrupo" class="form-control" title="Faixas ▌ na tabela de itens. Não confundir com o filtro Conservação acima.">
+                    <option value="nao">Não usar separadores</option>
+                    <option value="faixas_cons">Só faixas SECO/REFRIG./CONG.</option>
+                    <option value="conservacao">Conservação</option>
+                    <option value="cons_grupo">Conservação + Grupo</option>
+                    <option value="cons_grupo_cat" selected>Conservação + Grupo + Categoria</option>
+                  </select>
+                </div>
+                <div class="rom-col-cad-wrap" style="display:flex;align-items:flex-end;padding-bottom:2px">
+                  <label class="rom-col-cad-label" style="display:flex;align-items:center;gap:8px;margin:0;cursor:pointer;font-size:0.95em">
+                    <input type="checkbox" id="romExibirColunaCad" />
+                    Exibir coluna <strong>Conserv. / Categoria</strong>
+                  </label>
+                </div>
+              </div>
+              <div class="filtros-grid" style="margin-bottom: 12px">
+                <div><label for="romOrd1">Ordenação 1</label>
+                  <select id="romOrd1" class="form-control"></select></div>
+                <div><label for="romOrd2">Ordenação 2</label>
+                  <select id="romOrd2" class="form-control"></select></div>
+                <div><label for="romOrd3">Ordenação 3</label>
+                  <select id="romOrd3" class="form-control"></select></div>
+                <div><label for="romOrd4">Ordenação 4</label>
+                  <select id="romOrd4" class="form-control"></select></div>
+                <div><label for="romOrd5">Ordenação 5</label>
+                  <select id="romOrd5" class="form-control"></select></div>
+              </div>
+              <p class="hint" style="margin: 0 0 10px; font-size: 0.9em; color: #64748b;">
+                <strong>Ordenação:</strong> use <em>Conservação</em>, <em>Grupo</em> e <em>Categoria (cadastro WMS)</em> alinhados aos separadores.
+                Com separadores ativos, campos de quebra faltantes são injetados automaticamente na ordenação (ex.: categoria WMS antes do nome).
+                Opções OL (legado) permanecem para espelhos antigos.
+              </p>
+              <p class="hint" style="margin: 0 0 10px; font-size: 0.9em; color: #64748b;">
+                <strong>Separadores:</strong> <em>Só faixas SECO/REFRIG./CONG.</em> usa rótulos curtos (até 3 faixas por cliente).
+                <em>Conservação</em> e os modos <em>+ Grupo / + Categoria</em> usam nomes completos (SECO, REFRIGERADO, CONGELADO…).
+                Não confundir com o filtro <strong>Conservação</strong> acima (só seco / refrigerado…).
+                Com separadores ativos, a coluna <strong>Conserv. / Categoria</strong> fica oculta por padrão (mais espaço para descrição e qtd. coletada); marque a opção acima se quiser os dois.
+                Rodapé <strong>Entregar</strong>: lida do espelho OPL. Carimbo à direita com <strong>[ Rota de Entrega N ]</strong> (cadastro de endereços de entrega).
+              </p>
+
+              <div class="opl-imp-filtros">
+                <div class="opl-imp-filtros-header">
+                  <i class="bx bx-filter-alt"></i>
+                  <span>Filtros para impressão específica <em>(opcional)</em></span>
+                </div>
+                <div class="opl-imp-filtros-body">
+                  <p class="opl-imp-filtros-dica" style="margin:0 0 10px;font-size:12px;line-height:1.45;opacity:.9">
+                    Para dividir um pedido grande entre operadores: filtre por <strong>Conservação</strong>, <strong>Grupo</strong> e/ou <strong>Categoria</strong>
+                    (ou por destinatário / pedido) e gere uma impressão por fatia — cada operador recebe só a sua lista.
+                    Selecionar conservação limita os grupos; selecionar grupo limita as categorias (só o que existe nessa fatia do espelho).
+                  </p>
+                  <div class="filtros-grid">
+                    <div>
+                      <label for="romFiltroDestinatarios">
+                        Destinatário(s)
+                        <span id="romFiltroDestContador" class="opl-imp-filtros-cont"></span>
+                      </label>
+                      <select id="romFiltroDestinatarios" class="form-control opl-imp-multi" multiple size="5"
+                        title="Mantenha Ctrl (ou Cmd) para selecionar vários. Vazio = todos."></select>
+                    </div>
+                    <div>
+                      <label for="romFiltroUnidades">
+                        Unidade(s) (cidade/UF)
+                        <span id="romFiltroUnidContador" class="opl-imp-filtros-cont"></span>
+                      </label>
+                      <select id="romFiltroUnidades" class="form-control opl-imp-multi" multiple size="5"
+                        title="Mantenha Ctrl (ou Cmd) para selecionar vários. Vazio = todas."></select>
+                    </div>
+                  </div>
+                  <div class="filtros-grid">
+                    <div>
+                      <label for="romFiltroConservacoes">
+                        Conservação
+                        <span id="romFiltroConsContador" class="opl-imp-filtros-cont"></span>
+                      </label>
+                      <select id="romFiltroConservacoes" class="form-control opl-imp-multi" multiple size="4"
+                        title="SECO / REFRIGERADO / CONGELADO presentes no espelho. Vazio = todas as faixas (respeita o filtro Conservação do topo)."></select>
+                    </div>
+                    <div>
+                      <label for="romFiltroGrupos">
+                        Grupo (cadastro WMS)
+                        <span id="romFiltroGrupoContador" class="opl-imp-filtros-cont"></span>
+                      </label>
+                      <select id="romFiltroGrupos" class="form-control opl-imp-multi" multiple size="4"
+                        title="Grupos do cadastro WMS presentes no espelho (ex.: GENEROS, DESCARTAVEL). Vazio = todos."></select>
+                    </div>
+                    <div>
+                      <label for="romFiltroCategorias">
+                        Categoria (cadastro WMS)
+                        <span id="romFiltroCatContador" class="opl-imp-filtros-cont"></span>
+                      </label>
+                      <select id="romFiltroCategorias" class="form-control opl-imp-multi" multiple size="4"
+                        title="Categorias (nv3) do cadastro WMS presentes no espelho. Vazio = todas."></select>
+                    </div>
+                  </div>
+                  <div class="filtros-grid">
+                    <div>
+                      <label for="romFiltroPedidos">Pedido(s)</label>
+                      <input type="text" id="romFiltroPedidos" class="form-control"
+                        placeholder="Ex.: 33, 34 ou 0000068612"
+                        title="Lista separada por vírgula. Aceita o número curto (33) ou completo (0000000033)." />
+                    </div>
+                    <div>
+                      <label for="romFiltroCodigoOl">Código OL (contém)</label>
+                      <input type="text" id="romFiltroCodigoOl" class="form-control"
+                        placeholder="Ex.: 6.03.04 ou 31.09.100"
+                        title="Filtra itens cujo código OL contenha o texto digitado." />
+                    </div>
+                  </div>
+                  <div class="opl-imp-filtros-actions">
+                    <button type="button" id="btnRomLimparFiltros" class="btn-filtro btn-filtro-limpar">
+                      <i class="bx bx-x"></i> Limpar filtros
+                    </button>
+                    <span id="romFiltroResumo" class="opl-imp-filtros-resumo"></span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="filtros-actions" style="justify-content:flex-start;margin-top:8px;flex-wrap:wrap;gap:8px">
+                <button type="button" id="btnRomaneioImprimir" class="btn-filtro btn-filtro-aplicar">
+                  <i class="bx bx-printer"></i> Gerar impressão
+                </button>
+                <button type="button" id="btnAuditoriaCadastroOpl" class="btn-filtro btn-filtro-limpar" title="Códigos sem cadastro ou com SECO no WMS mas frios por NCM/descrição">
+                  <i class="bx bx-list-check"></i> Revisar cadastro do espelho
+                </button>
+              </div>
+            </div>
+          </details>
+
+          <details class="opl-det-collapse" open>
+            <summary><i class="bx bx-cube"></i> Estoque e simulação</summary>
+            <div class="opl-det-collapse-body">
+              <div id="oplSimAbertosWrap" style="display: none; margin-bottom: 12px">
+                <label for="oplSimIncluirRecebAbertos" style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; font-weight: 500; line-height: 1.4; font-size: 13px">
+                  <input type="checkbox" id="oplSimIncluirRecebAbertos" style="margin-top: 3px" />
+                  <span>Incluir NF-e de recebimento <strong>ainda não encerradas</strong> na simulação (pipeline — opcional).</span>
+                </label>
+              </div>
+              <div class="filtros-actions" style="justify-content:flex-start;margin-bottom:12px;flex-wrap:wrap">
+                <button type="button" id="btnExportarCoberturaFisica" class="btn-filtro btn-filtro-aplicar" title="CSV com SKU em falta: NF encerrada, movimentos, NF abertas e posição de estoque">
+                  <i class="bx bx-spreadsheet"></i> Exportar lista conferência física
+                </button>
+                <button type="button" id="btnExportarCoberturaCompleta" class="btn-filtro btn-filtro-limpar" title="Todos os SKU agregados do espelho">
+                  <i class="bx bx-table"></i> Exportar cobertura completa
+                </button>
+              </div>
+              <div id="oplDetSimulacaoHost"></div>
+              <div id="oplLiberacaoCoberturaWrap" class="opl-det-banner opl-det-banner--warning" style="margin-top:14px;display:none">
+                <i class="bx bx-shield-quarter"></i>
+                <div style="flex:1">
+                  <p><strong>Liberação de supervisor</strong> — encerrar picking sem cobertura de estoque (exige permissão <code>wms-separacao-liberar-cobertura-picking</code>).</p>
+                  <p id="oplLiberacaoPermBadge" class="hint" style="margin:6px 0 10px;font-size:13px">Permissão: —</p>
+                  <textarea id="oplJustificativaLiberacao" class="form-control" rows="2" maxlength="1000" placeholder="Justificativa obrigatória (mín. 10 caracteres)"></textarea>
+                  <div class="filtros-grid" style="margin-top:10px;max-width:520px">
+                    <div>
+                      <label for="oplAutorizadoLogin">Usuário autorizador</label>
+                      <input type="text" id="oplAutorizadoLogin" class="form-control" maxlength="50" autocomplete="username" />
+                    </div>
+                    <div>
+                      <label for="oplAutorizadoSenha">Senha</label>
+                      <input type="password" id="oplAutorizadoSenha" class="form-control" maxlength="100" autocomplete="current-password" />
+                    </div>
+                  </div>
+                  <div class="opl-det-banner-actions" style="margin-top:10px">
+                    <button type="button" id="btnSalvarPickingComLiberacao" class="btn-filtro btn-filtro-novo"><i class="bx bx-shield-quarter"></i> Salvar picking com liberação</button>
+                  </div>
+                  <div id="oplHistoricoLiberacaoHost" style="margin-top:12px;font-size:13px"></div>
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <section class="opl-det-panel-pick">
+            <h4><i class="bx bx-list-check"></i> Itens do espelho</h4>
+            <div class="opl-det-pick-toolbar">
+              <div class="opl-pick-filter-pair">
+                <div>
+                  <label for="oplFiltroDestino">Destino / cliente</label>
+                  <input type="search" id="oplFiltroDestino" class="form-control" placeholder="ex.: PERFIMEC ou 1130" autocomplete="off" />
+                </div>
+                <div>
+                  <label for="oplFiltroProduto">Produto</label>
+                  <input type="search" id="oplFiltroProduto" class="form-control" placeholder="ex.: arroz, 6.03.04…" autocomplete="off" />
+                </div>
+                <div class="opl-pick-filter-grow">
+                  <label for="oplFiltroPicking">Busca geral <span class="hint" style="font-weight:400">(opcional)</span></label>
+                  <input type="search" id="oplFiltroPicking" class="form-control" placeholder="Pedido, situação…" autocomplete="off" />
+                </div>
+              </div>
+              <button type="button" id="btnOplLimparFiltrosPick" class="btn-filtro btn-filtro-limpar" title="Limpa destino, produto e busca geral">
+                <i class="bx bx-x"></i> Limpar filtro
+              </button>
+              <button type="button" id="btnOplLimparDivergenciaSel" class="btn-filtro btn-filtro-limpar" title="Limpa «se diferente» (volta a conferir igual ao pedido) nos itens marcados">
+                <i class="bx bx-eraser"></i> Limpar divergência
+              </button>
+              <button type="button" id="btnOplMarcarZeroSel" class="btn-filtro btn-filtro-limpar" title="Registra quantidade coletada = 0 nos itens marcados (não separou / falta)">
+                <i class="bx bx-checkbox-minus"></i> Marcar 0 (não coletado)
+              </button>
+              <button type="button" id="btnOplCancelarClienteSel" class="btn-filtro btn-filtro-limpar" title="Marca itens cancelados pelo cliente (0 + motivo). Diferente de falta de estoque.">
+                <i class="bx bx-trash"></i> Cancelar (cliente)
+              </button>
+            </div>
+            <p id="oplPickDirtyHint" class="opl-pick-dirty-hint" role="status"></p>
+            <div class="wms-sep-table-wrap wms-sep-table-wrap-scroll">
+              <table class="wms-sep-table" id="oplItensTable">
+                <thead>
+                  <tr>
+                    <th style="width: 40px; text-align: center" title="Selecionar linhas visíveis">
+                      <input type="checkbox" id="oplPickSelectAllVis" aria-label="Selecionar visíveis" />
+                    </th>
+                    <th>Ped.</th>
+                    <th>Nº pedido</th>
+                    <th>Destino</th>
+                    <th>Item</th>
+                    <th>Descrição</th>
+                    <th>Cód. OL</th>
+                    <th title="Conferência / picking">Sit.</th>
+                    <th class="opl-pick-qt-pedida">Qtd pedida</th>
+                    <th>Qtd coletada</th>
+                    <th title="Cancelar cliente / Substituir produto">Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="oplItensBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de confirmação — igual Gerenciar Cadastro Geral (confirmModal / modal-content / modal-actions). -->
+  <div id="oplAuditoriaCadModal" class="modal" style="display: none;" aria-hidden="true">
+    <div class="modal-content opl-auditoria-modal" role="dialog" aria-modal="true" aria-labelledby="oplAuditoriaCadTitulo">
+      <h3 id="oplAuditoriaCadTitulo"><i class="bx bx-error-circle"></i> Revisão de cadastro — espelho OPL</h3>
+      <p id="oplAuditoriaCadResumo" class="modal-message-body" style="margin-bottom:12px"></p>
+      <div id="oplAuditoriaCadCorpo" class="opl-auditoria-corpo"></div>
+      <div id="oplCadAutoPreview" class="opl-auditoria-corpo" style="display:none;margin-top:12px;border-top:1px solid #e2e8f0;padding-top:12px"></div>
+      <div class="modal-actions" style="margin-top:14px;flex-wrap:wrap;gap:8px">
+        <button type="button" id="oplAuditoriaCadAutoPreview" class="btn-filtro btn-filtro-aplicar" style="display:none">
+          <i class="bx bx-list-check"></i> Cadastro automático (prévia)
+        </button>
+        <button type="button" id="oplAuditoriaCadAutoAplicar" class="btn-filtro btn-filtro-danger" style="display:none">
+          <i class="bx bx-check-double"></i> Aplicar cadastro
+        </button>
+        <button type="button" id="oplAuditoriaCadFechar" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-check"></i> Entendi</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="oplValidarPedidosModal" class="modal" style="display: none;" aria-hidden="true">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="oplValidarPedidosTitulo" style="max-width: 920px; width: 95%;">
+      <h3 id="oplValidarPedidosTitulo"><i class="bx bx-shield-quarter"></i> Validação de pedidos entre espelhos</h3>
+      <div id="oplValidarPedidosBody" class="modal-message-body" style="max-height: min(70vh, 640px); overflow: auto;"></div>
+      <div class="modal-actions" style="flex-wrap: wrap;">
+        <button type="button" id="oplValidarPedidosHtml" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-printer"></i> Abrir HTML</button>
+        <button type="button" id="oplValidarPedidosCsv" class="btn-filtro btn-filtro-limpar"><i class="bx bx-spreadsheet"></i> CSV</button>
+        <button type="button" id="oplValidarPedidosFechar" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-check"></i> Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="oplExcluirImportModal" class="modal" style="display: none;" aria-hidden="true">
+    <div class="modal-content" role="dialog" aria-modal="true" aria-labelledby="oplExcluirImportTitulo">
+      <h3 id="oplExcluirImportTitulo">Confirmar Ação</h3>
+      <p id="oplExcluirImportMsg" class="modal-message-body"></p>
+      <div class="modal-actions">
+        <button type="button" id="oplExcluirImportConfirmar" class="btn-filtro btn-filtro-danger">
+          <i class="bx bx-check"></i> Excluir
+        </button>
+        <button type="button" id="oplExcluirImportCancelar" class="btn-filtro btn-filtro-limpar">
+          <i class="bx bx-x"></i> Cancelar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="oplSubstituirItemModal" class="modal modal--confirm" style="display: none;" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="oplSubstituirItemTitulo">
+    <div class="modal-content modal-content--confirm opl-subst-modal-content">
+      <h3 id="oplSubstituirItemTitulo"><i class="bx bx-transfer-alt"></i> Substituir item</h3>
+      <p id="oplSubstituirItemOrigem" class="modal-message-body"></p>
+      <div class="opl-subst-form">
+        <div>
+          <label for="oplSubstCodigo">Código que entrou no lugar *</label>
+          <input type="text" id="oplSubstCodigo" class="form-control" maxlength="80" placeholder="Ex.: 6.03.01.001.LA" autocomplete="off" />
+        </div>
+        <div>
+          <label for="oplSubstQtd">Quantidade coletada *</label>
+          <input type="number" id="oplSubstQtd" class="form-control" min="0.000001" step="any" placeholder="Ex.: 4" />
+        </div>
+        <div>
+          <label for="oplSubstObs">Observação (opcional)</label>
+          <input type="text" id="oplSubstObs" class="form-control" maxlength="500" placeholder="Ex.: não tinha mais de 400g" />
+        </div>
+      </div>
+      <div class="modal-actions filtros-actions">
+        <button type="button" id="oplSubstituirItemConfirmar" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-check"></i> Confirmar</button>
+        <button type="button" id="oplSubstituirItemCancelar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="message" class="message" style="display: none;"></div>
+
+  <script src="/js/cache-buster.js?v=202605211400"></script>
+  <script src="/js/utils.js?v=202605201030"></script>
+  <script src="js/script.js?v=202609151400"></script>
+</body>
+</html>

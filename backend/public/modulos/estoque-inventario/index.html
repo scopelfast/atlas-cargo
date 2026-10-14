@@ -1,0 +1,2456 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>WMS — Inventário</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/modulos.css" />
+  <link rel="stylesheet" href="/css/dark-mode.css" />
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+  <style>
+    /* ========== WMS Inventário — padrão Atlas (Situações de Viagem / Cidades) ========== */
+    .wms-inv-container {
+      padding: 20px;
+      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+    }
+    .wms-inv-header {
+      margin-bottom: 25px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
+    }
+    .wms-inv-header h2 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--ac-primary, #0d2137);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .wms-inv-header p {
+      margin: 8px 0 0;
+      color: #64748b;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .wms-inv-container .tabs.tabs-com-icones {
+      display: flex;
+      flex-wrap: wrap;
+      margin-bottom: 25px;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
+      gap: 0;
+    }
+    .wms-inv-container .tabs.tabs-com-icones .tab-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      border: none;
+      background: transparent;
+      color: #94a3b8;
+      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: color 0.2s, border-color 0.2s;
+      font-family: inherit;
+    }
+    .wms-inv-container .tabs.tabs-com-icones .tab-btn i { font-size: 1.15rem; color: inherit; }
+    .wms-inv-container .tabs.tabs-com-icones .tab-btn:hover { color: #64748b; }
+    .wms-inv-container .tabs.tabs-com-icones .tab-btn.active {
+      color: var(--ac-primary, #0d2137);
+      border-bottom-color: var(--ac-primary, #0d2137);
+    }
+    .wms-inv-panel { display: none; }
+    .wms-inv-panel.active { display: block; }
+
+    .filtros-box {
+      background: #fff;
+      border-radius: 12px;
+      padding: 25px;
+      box-shadow: var(--shadow, 0 4px 6px -1px rgba(0, 0, 0, 0.08));
+      margin-bottom: 25px;
+      border: 1px solid var(--border, #e2e8f0);
+    }
+    .filtros-box h3 {
+      margin: 0 0 20px 0;
+      color: var(--ac-primary, #0d2137);
+      font-size: 18px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .filtros-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+    .wms-inv-container .filtros-grid > div {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .wms-inv-container .filtros-grid label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: var(--dark, #1e293b);
+      font-size: 14px;
+    }
+    .wms-inv-container .filtros-grid .form-control,
+    .wms-inv-container .filtros-grid select.form-control,
+    .wms-inv-container .filtros-grid input.form-control {
+      width: 100%;
+      min-height: 46px;
+      padding: 12px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      font-size: 16px;
+      transition: all 0.3s;
+      font-family: inherit;
+      box-sizing: border-box;
+      background-color: #fff;
+      color: var(--ac-primary, #0d2137);
+    }
+    .wms-inv-container .filtros-grid .form-control:focus {
+      outline: none;
+      border-color: var(--ac-accent, #0ea5e9);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+    }
+    .wms-inv-container .filtros-grid .form-control:hover {
+      border-color: var(--gray, #64748b);
+    }
+    .filtros-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 15px;
+    }
+    .filtros-actions--start {
+      justify-content: flex-start;
+    }
+    .filtros-actions--between {
+      justify-content: space-between;
+    }
+
+    .btn-filtro {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 22px;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.15s;
+    }
+    .btn-filtro:hover { transform: translateY(-1px); }
+    .btn-filtro:disabled,
+    .btn-filtro[disabled] {
+      opacity: 0.42;
+      cursor: not-allowed;
+      transform: none !important;
+      box-shadow: none !important;
+      pointer-events: none;
+    }
+    .btn-filtro i { font-size: 1.15rem; }
+    .btn-filtro-limpar { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+    .btn-filtro-limpar:hover { background: #e2e8f0; color: #334155; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06); }
+    .btn-filtro-aplicar { background: var(--ac-accent, #0ea5e9); color: #fff; box-shadow: 0 2px 8px rgba(14, 165, 233, 0.25); }
+    .btn-filtro-aplicar:hover { background: var(--ac-accent-hover, #0284c7); box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35); }
+    .btn-filtro-novo { background: var(--success, #059669); color: #fff; box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25); }
+    .btn-filtro-novo:hover { background: #047857; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35); }
+
+    .inv-doc-readonly-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 12px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid #86efac;
+      background: #ecfdf5;
+      color: #065f46;
+      font-size: 14px;
+      line-height: 1.45;
+    }
+    .inv-doc-readonly-banner i { font-size: 1.35rem; margin-top: 1px; }
+
+    .form-dados-card {
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid var(--border, #e2e8f0);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      margin-bottom: 25px;
+      overflow: hidden;
+    }
+    .form-dados-card-header {
+      padding: 14px 20px;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border, #e2e8f0);
+      font-weight: 600;
+      font-size: 1rem;
+      color: var(--ac-primary, #0d2137);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .form-dados-card-header i { font-size: 1.2rem; color: var(--ac-accent, #0ea5e9); }
+    .form-dados-card-body { padding: 20px; }
+    .form-dados-card-body .filtros-grid { margin-bottom: 0; }
+
+    .wms-inv-table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+    .wms-inv-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    .wms-inv-table th,
+    .wms-inv-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border, #e2e8f0);
+      text-align: left;
+    }
+    .wms-inv-table th {
+      background: #f8fafc;
+      font-weight: 600;
+      color: var(--ac-primary, #0d2137);
+    }
+    .wms-inv-table tr:hover td { background: #f8fafc; }
+
+    .st-badge { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+    .st-EM_CONTAGEM, .st-CONFERIDO { background: #dbeafe; color: #1e40af; }
+    .st-ENCERRADO { background: #d1fae5; color: #065f46; }
+    .st-CANCELADO { background: #f1f5f9; color: #475569; }
+
+    .wms-inv-doc {
+      background: #fff;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 12px;
+      padding: 22px 26px;
+      max-width: 960px;
+      line-height: 1.55;
+      font-size: 15px;
+      color: #334155;
+    }
+    .wms-inv-det-meta {
+      font-size: 14px;
+      color: #64748b;
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+
+    /* ========== Breadcrumb do detalhe ==========
+     * Barra de navegação fixa no topo do bloco do detalhe, com botão grande
+     * "Voltar para a lista". Resolve o problema de o usuário entrar em um
+     * inventário e não enxergar como sair (o botão antigo ficava perdido
+     * no meio de 9 botões de ação). */
+    .wms-inv-breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: linear-gradient(90deg, #f8fafc 0%, #f1f5f9 100%);
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .wms-inv-breadcrumb-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #fff;
+      color: #0d2137;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 7px 14px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .wms-inv-breadcrumb-btn i { font-size: 18px; color: #0ea5e9; }
+    .wms-inv-breadcrumb-btn:hover {
+      background: #f0f9ff;
+      border-color: #0ea5e9;
+      color: #0c4a6e;
+      transform: translateX(-2px);
+      box-shadow: 0 2px 6px rgba(14, 165, 233, 0.18);
+    }
+    .wms-inv-breadcrumb-btn:active { transform: translateX(0); }
+    .wms-inv-breadcrumb-sep {
+      color: #94a3b8;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .wms-inv-breadcrumb-atual {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: #334155;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .wms-inv-breadcrumb-atual i { font-size: 16px; color: #0ea5e9; }
+    html[data-theme='dark'] .wms-inv-breadcrumb,
+    body[data-theme='dark'] .wms-inv-breadcrumb {
+      background: linear-gradient(90deg, #0b1320 0%, #0f172a 100%);
+      border-color: #334155;
+    }
+    html[data-theme='dark'] .wms-inv-breadcrumb-btn,
+    body[data-theme='dark'] .wms-inv-breadcrumb-btn {
+      background: #1e293b;
+      color: #e2e8f0;
+      border-color: #475569;
+    }
+    html[data-theme='dark'] .wms-inv-breadcrumb-btn i,
+    body[data-theme='dark'] .wms-inv-breadcrumb-btn i { color: #38bdf8; }
+    html[data-theme='dark'] .wms-inv-breadcrumb-btn:hover,
+    body[data-theme='dark'] .wms-inv-breadcrumb-btn:hover {
+      background: #0c4a6e;
+      border-color: #38bdf8;
+      color: #f0f9ff;
+      box-shadow: 0 2px 8px rgba(56, 189, 248, 0.3);
+    }
+    html[data-theme='dark'] .wms-inv-breadcrumb-sep,
+    body[data-theme='dark'] .wms-inv-breadcrumb-sep { color: #64748b; }
+    html[data-theme='dark'] .wms-inv-breadcrumb-atual,
+    body[data-theme='dark'] .wms-inv-breadcrumb-atual { color: #cbd5e1; }
+    html[data-theme='dark'] .wms-inv-breadcrumb-atual i,
+    body[data-theme='dark'] .wms-inv-breadcrumb-atual i { color: #38bdf8; }
+
+    .wms-inv-section-title {
+      margin: 16px 0 10px;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--ac-primary, #0d2137);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .hint {
+      font-size: 13px;
+      color: #64748b;
+      line-height: 1.45;
+      margin: 0 0 14px;
+    }
+    .ajuste-pos { color: #059669; font-weight: 600; }
+    .ajuste-neg { color: #dc2626; font-weight: 600; }
+    .ajuste-ok { color: #64748b; font-weight: 600; }
+    #viewDetalhe[hidden], #viewLista[hidden] { display: none !important; }
+    #painelErrosImport[hidden] { display: none !important; }
+    #modalCadProdInv[hidden] { display: none !important; }
+    #modalCadProdInv.modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 10050;
+      background: rgba(15, 23, 42, 0.55);
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    #modalCadProdInv.modal.aberto { display: flex; }
+    #modalCadProdInv .modal-content {
+      max-width: 560px;
+      width: 100%;
+      background: #fff;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.28);
+    }
+    #modalCadProdInv h3 {
+      margin: 0 0 6px;
+      font-size: 1.15rem;
+      color: var(--ac-primary, #0d2137);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #modalCadProdInv h3 i { color: var(--ac-accent, #0ea5e9); }
+    html[data-theme='dark'] #modalCadProdInv h3,
+    body[data-theme='dark'] #modalCadProdInv h3 { color: #f1f5f9; }
+    html[data-theme='dark'] #modalCadProdInv .modal-content,
+    body[data-theme='dark'] #modalCadProdInv .modal-content {
+      background: #0f172a;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+
+    /* Dark mode */
+    html[data-theme='dark'] .wms-inv-header,
+    body[data-theme='dark'] .wms-inv-header { border-bottom-color: #334155; }
+    html[data-theme='dark'] .wms-inv-header h2,
+    body[data-theme='dark'] .wms-inv-header h2 { color: #e2e8f0; }
+    html[data-theme='dark'] .wms-inv-header p,
+    body[data-theme='dark'] .wms-inv-header p { color: #94a3b8; }
+    html[data-theme='dark'] .wms-inv-container .tabs.tabs-com-icones,
+    body[data-theme='dark'] .wms-inv-container .tabs.tabs-com-icones { border-bottom-color: #334155; }
+    html[data-theme='dark'] .wms-inv-container .tabs.tabs-com-icones .tab-btn.active,
+    body[data-theme='dark'] .wms-inv-container .tabs.tabs-com-icones .tab-btn.active {
+      color: #38bdf8;
+      border-bottom-color: #38bdf8;
+    }
+    html[data-theme='dark'] .wms-inv-container .filtros-box,
+    body[data-theme='dark'] .wms-inv-container .filtros-box,
+    html[data-theme='dark'] .wms-inv-container .form-dados-card,
+    body[data-theme='dark'] .wms-inv-container .form-dados-card {
+      background: #0f172a;
+      border-color: #334155;
+    }
+    html[data-theme='dark'] .wms-inv-container .filtros-box h3,
+    body[data-theme='dark'] .wms-inv-container .filtros-box h3,
+    html[data-theme='dark'] .wms-inv-section-title,
+    body[data-theme='dark'] .wms-inv-section-title { color: #e2e8f0; }
+    html[data-theme='dark'] .wms-inv-container .filtros-grid label,
+    body[data-theme='dark'] .wms-inv-container .filtros-grid label { color: #e2e8f0; }
+    html[data-theme='dark'] .wms-inv-container .filtros-grid .form-control,
+    html[data-theme='dark'] .wms-inv-container .filtros-grid select.form-control,
+    html[data-theme='dark'] .wms-inv-container .filtros-grid input.form-control,
+    body[data-theme='dark'] .wms-inv-container .filtros-grid .form-control,
+    body[data-theme='dark'] .wms-inv-container .filtros-grid select.form-control,
+    body[data-theme='dark'] .wms-inv-container .filtros-grid input.form-control {
+      background: #0f172a;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] .wms-inv-container .form-dados-card-header,
+    body[data-theme='dark'] .wms-inv-container .form-dados-card-header {
+      background: #1e293b;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] .wms-inv-table-wrap,
+    body[data-theme='dark'] .wms-inv-table-wrap { background: #0f172a; border-color: #334155; }
+    html[data-theme='dark'] .wms-inv-table th,
+    body[data-theme='dark'] .wms-inv-table th { background: #1e293b; color: #e2e8f0; }
+    html[data-theme='dark'] .wms-inv-table th,
+    html[data-theme='dark'] .wms-inv-table td,
+    body[data-theme='dark'] .wms-inv-table th,
+    body[data-theme='dark'] .wms-inv-table td { border-color: #334155; color: #e2e8f0; }
+    html[data-theme='dark'] .wms-inv-table tr:hover td,
+    body[data-theme='dark'] .wms-inv-table tr:hover td { background: #1e293b; }
+    html[data-theme='dark'] .btn-filtro-limpar,
+    body[data-theme='dark'] .btn-filtro-limpar { background: #1e293b; color: #e2e8f0; border-color: #334155; }
+    html[data-theme='dark'] .btn-filtro:disabled,
+    html[data-theme='dark'] .btn-filtro[disabled],
+    body[data-theme='dark'] .btn-filtro:disabled,
+    body[data-theme='dark'] .btn-filtro[disabled] {
+      opacity: 0.35;
+      filter: grayscale(0.25);
+    }
+    html[data-theme='dark'] .inv-doc-readonly-banner,
+    body[data-theme='dark'] .inv-doc-readonly-banner {
+      background: #064e3b;
+      border-color: #059669;
+      color: #a7f3d0;
+    }
+    html[data-theme='dark'] .wms-inv-doc,
+    body[data-theme='dark'] .wms-inv-doc { background: #0f172a; border-color: #334155; color: #cbd5e1; }
+    html[data-theme='dark'] .wms-inv-det-meta,
+    body[data-theme='dark'] .wms-inv-det-meta { color: #94a3b8; }
+    html[data-theme='dark'] .hint,
+    body[data-theme='dark'] .hint { color: #94a3b8; }
+    html[data-theme='dark'] .st-EM_CONTAGEM,
+    html[data-theme='dark'] .st-CONFERIDO,
+    body[data-theme='dark'] .st-EM_CONTAGEM,
+    body[data-theme='dark'] .st-CONFERIDO { background: #1e3a5f; color: #93c5fd; }
+    html[data-theme='dark'] .st-ENCERRADO,
+    body[data-theme='dark'] .st-ENCERRADO { background: #064e3b; color: #6ee7b7; }
+    html[data-theme='dark'] .ajuste-pos,
+    body[data-theme='dark'] .ajuste-pos { color: #34d399; }
+    html[data-theme='dark'] .ajuste-neg,
+    body[data-theme='dark'] .ajuste-neg { color: #f87171; }
+    html[data-theme='dark'] .ajuste-ok,
+    body[data-theme='dark'] .ajuste-ok { color: #94a3b8; }
+    .wms-inv-check-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: 14px;
+      margin-top: 28px;
+      cursor: pointer;
+    }
+    .wms-inv-check-label input { width: auto; min-height: auto; }
+
+    /* ===== Fase 3b — badges de status e botões de ação por linha ===== */
+    .ciclo-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .ciclo-badge-PENDENTE { background: #f1f5f9; color: #475569; }
+    .ciclo-badge-CONTADO { background: #dcfce7; color: #166534; }
+    .ciclo-badge-DIVERGENTE { background: #fee2e2; color: #b91c1c; }
+    .ciclo-badge-RECONTAR { background: #fef3c7; color: #92400e; }
+    .ciclo-badge-APROVADO { background: #dbeafe; color: #1e40af; }
+
+    html[data-theme='dark'] .ciclo-badge-PENDENTE,
+    body[data-theme='dark'] .ciclo-badge-PENDENTE { background: #1e293b; color: #cbd5e1; }
+    html[data-theme='dark'] .ciclo-badge-CONTADO,
+    body[data-theme='dark'] .ciclo-badge-CONTADO { background: #064e3b; color: #6ee7b7; }
+    html[data-theme='dark'] .ciclo-badge-DIVERGENTE,
+    body[data-theme='dark'] .ciclo-badge-DIVERGENTE { background: #7f1d1d; color: #fca5a5; }
+    html[data-theme='dark'] .ciclo-badge-RECONTAR,
+    body[data-theme='dark'] .ciclo-badge-RECONTAR { background: #78350f; color: #fcd34d; }
+    html[data-theme='dark'] .ciclo-badge-APROVADO,
+    body[data-theme='dark'] .ciclo-badge-APROVADO { background: #1e3a5f; color: #93c5fd; }
+
+    #cicloContadores .ciclo-badge[data-ct] {
+      cursor: pointer;
+      transition: box-shadow 0.15s, transform 0.1s;
+    }
+    #cicloContadores .ciclo-badge[data-ct]:hover {
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.35);
+    }
+    #cicloContadores .ciclo-badge-filtro-ativo {
+      box-shadow: 0 0 0 2px #2563eb;
+      transform: scale(1.04);
+    }
+    html[data-theme='dark'] #cicloContadores .ciclo-badge-filtro-ativo,
+    body[data-theme='dark'] #cicloContadores .ciclo-badge-filtro-ativo {
+      box-shadow: 0 0 0 2px #60a5fa;
+    }
+    .wms-inv-filtro-linhas { margin-bottom: 12px; padding: 12px 14px; }
+    .wms-inv-filtro-linhas .filtros-grid { margin-bottom: 8px; }
+
+    /* Layout tela / resumo / ata — mesmo padrão visual dos blocos de filtro WMS */
+    .inv-layout-box {
+      margin: 12px 0 0;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      background: #f8fafc;
+      overflow: hidden;
+    }
+    .inv-layout-box-summary {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      color: #0f172a;
+      list-style: none;
+      user-select: none;
+    }
+    .inv-layout-box-summary::-webkit-details-marker { display: none; }
+    .inv-layout-box-summary i { color: #0ea5e9; font-size: 1.15rem; }
+    .inv-layout-resumo-compacto {
+      flex: 1 1 220px;
+      font-weight: 500;
+      font-size: 12px;
+      color: #64748b;
+      min-width: 0;
+    }
+    .inv-layout-box-body {
+      padding: 0 14px 14px;
+      border-top: 1px solid #e2e8f0;
+    }
+    .inv-layout-box-body .filtros-grid { margin-top: 12px; margin-bottom: 0; }
+    .inv-layout-box-body .hint { margin: 10px 0 0; font-size: 12px; }
+    .inv-layout-ref {
+      margin: -4px 0 12px;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .inv-layout-ref .inv-layout-link {
+      background: none;
+      border: none;
+      padding: 0;
+      color: #2563eb;
+      cursor: pointer;
+      font: inherit;
+      text-decoration: underline;
+    }
+    .inv-layout-ref .inv-layout-link:hover { color: #1d4ed8; }
+    html[data-theme='dark'] .inv-layout-box,
+    body[data-theme='dark'] .inv-layout-box {
+      background: #0f172a;
+      border-color: #334155;
+    }
+    html[data-theme='dark'] .inv-layout-box-summary,
+    body[data-theme='dark'] .inv-layout-box-summary { color: #e2e8f0; }
+    html[data-theme='dark'] .inv-layout-box-body,
+    body[data-theme='dark'] .inv-layout-box-body { border-top-color: #334155; }
+    html[data-theme='dark'] .inv-layout-resumo-compacto,
+    body[data-theme='dark'] .inv-layout-resumo-compacto { color: #94a3b8; }
+    html[data-theme='dark'] .inv-layout-ref .inv-layout-link,
+    body[data-theme='dark'] .inv-layout-ref .inv-layout-link { color: #60a5fa; }
+
+    .btn-acao-linha {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: #fff;
+      color: #475569;
+      cursor: pointer;
+      padding: 0;
+      transition: all 0.15s;
+    }
+    .btn-acao-linha:hover { transform: translateY(-1px); }
+    .btn-acao-linha i { font-size: 1.05rem; }
+    /** Quatro botões (Dividir/Recontar/Aprovar/Excluir) lado a lado. */
+    #tblLinhasBody td:last-child {
+      min-width: 148px;
+      white-space: nowrap;
+    }
+    #tblLinhasBody .td-produto {
+      min-width: 220px;
+      max-width: 420px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .wms-inv-table tr.inv-grp-sep td {
+      background: #eff6ff;
+      font-weight: 700;
+      font-size: 13px;
+      color: #1e3a8a;
+      border-top: 2px solid #93c5fd;
+      padding: 8px 10px;
+    }
+    .inv-grp-bullet { color: #1d4ed8; margin-right: 4px; }
+    html[data-theme='dark'] .wms-inv-table tr.inv-grp-sep td,
+    body[data-theme='dark'] .wms-inv-table tr.inv-grp-sep td {
+      background: #1e293b;
+      color: #93c5fd;
+      border-top-color: #334155;
+    }
+    .btn-acao-recontar { color: #b45309; border-color: #fcd34d; }
+    .btn-acao-recontar:hover { background: #fef3c7; }
+    .btn-acao-aprovar { color: #1e40af; border-color: #93c5fd; }
+    .btn-acao-aprovar:hover { background: #dbeafe; }
+
+    html[data-theme='dark'] .btn-acao-linha,
+    body[data-theme='dark'] .btn-acao-linha {
+      background: #0f172a;
+      border-color: #334155;
+      color: #cbd5e1;
+    }
+    html[data-theme='dark'] .btn-acao-recontar,
+    body[data-theme='dark'] .btn-acao-recontar { color: #fcd34d; border-color: #78350f; }
+    html[data-theme='dark'] .btn-acao-recontar:hover,
+    body[data-theme='dark'] .btn-acao-recontar:hover { background: #78350f; }
+    html[data-theme='dark'] .btn-acao-aprovar,
+    body[data-theme='dark'] .btn-acao-aprovar { color: #93c5fd; border-color: #1e3a5f; }
+    html[data-theme='dark'] .btn-acao-aprovar:hover,
+    body[data-theme='dark'] .btn-acao-aprovar:hover { background: #1e3a5f; }
+
+    /** Edição inline (Contada / Lote / Validade) — operador digita direto na
+     *  tabela. Visualmente lembra um campo de planilha: borda discreta, hover
+     *  destaca, feedback rápido em verde/vermelho ao salvar. */
+    .inv-qtd-input,
+    .inv-lote-input,
+    .inv-validade-input {
+      width: 100%;
+      max-width: 130px;
+      padding: 5px 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 13.5px;
+      font-family: inherit;
+      background: #fff;
+      color: #0f172a;
+      transition: border-color 0.15s, box-shadow 0.15s, background 0.25s;
+      box-sizing: border-box;
+    }
+    .inv-qtd-input { text-align: right; }
+    .inv-lote-input { max-width: 110px; }
+    .inv-validade-input {
+      max-width: 140px;
+      /** Hint para o browser usar o color-scheme do tema atual ao renderizar
+       *  o ícone do calendário do input[type=date]. Sem isso, em dark mode
+       *  o ícone fica preto sobre fundo escuro e some. */
+      color-scheme: light dark;
+      cursor: pointer; /* dica visual de que o campo abre o seletor */
+    }
+    /** Cursor de mãozinha no ícone do calendário em AMBOS os modos.
+     *  Por padrão o browser não muda o cursor sobre o picker indicator —
+     *  isso confunde o usuário porque o ícone parece decorativo, sendo
+     *  na verdade clicável. */
+    .inv-validade-input::-webkit-calendar-picker-indicator,
+    #modalDividir input[type='date']::-webkit-calendar-picker-indicator {
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 3px;
+      transition: background 0.15s;
+    }
+    .inv-validade-input::-webkit-calendar-picker-indicator:hover,
+    #modalDividir input[type='date']::-webkit-calendar-picker-indicator:hover {
+      background: rgba(14, 165, 233, 0.15);
+    }
+    .inv-qtd-input:hover,
+    .inv-lote-input:hover,
+    .inv-validade-input:hover { border-color: #94a3b8; }
+    .inv-qtd-input:focus,
+    .inv-lote-input:focus,
+    .inv-validade-input:focus {
+      outline: none;
+      border-color: #0ea5e9;
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.18);
+      background: #f0f9ff;
+    }
+    .inv-qtd-input.inv-qtd-salvando,
+    .inv-lote-input.inv-qtd-salvando,
+    .inv-validade-input.inv-qtd-salvando {
+      border-color: #fbbf24;
+      background: #fffbeb;
+    }
+    .inv-qtd-input.inv-qtd-ok,
+    .inv-lote-input.inv-qtd-ok,
+    .inv-validade-input.inv-qtd-ok {
+      border-color: #10b981;
+      background: #ecfdf5;
+      animation: invQtdOk 0.9s ease-out;
+    }
+    .inv-qtd-input.inv-qtd-erro,
+    .inv-lote-input.inv-qtd-erro,
+    .inv-validade-input.inv-qtd-erro {
+      border-color: #ef4444;
+      background: #fef2f2;
+      animation: invQtdErr 0.5s ease-out;
+    }
+    .inv-qtd-readonly { color: #64748b; font-style: italic; }
+    @keyframes invQtdOk {
+      0% { background: #d1fae5; }
+      100% { background: #ecfdf5; }
+    }
+    @keyframes invQtdErr {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-3px); }
+      75% { transform: translateX(3px); }
+    }
+    html[data-theme='dark'] .inv-qtd-input,
+    html[data-theme='dark'] .inv-lote-input,
+    html[data-theme='dark'] .inv-validade-input,
+    body[data-theme='dark'] .inv-qtd-input,
+    body[data-theme='dark'] .inv-lote-input,
+    body[data-theme='dark'] .inv-validade-input {
+      background: #1e293b;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+    /** O ícone do calendário em input[type=date] some no dark mode quando o
+     *  browser usa SVG preto sobre fundo escuro. Tornamos o ícone claro,
+     *  com opacidade total. O cursor pointer e o hover background já estão
+     *  definidos na regra base (acima), aqui só ajustamos cor/contraste. */
+    html[data-theme='dark'] .inv-validade-input,
+    body[data-theme='dark'] .inv-validade-input { color-scheme: dark; }
+    html[data-theme='dark'] .inv-validade-input::-webkit-calendar-picker-indicator,
+    body[data-theme='dark'] .inv-validade-input::-webkit-calendar-picker-indicator {
+      filter: invert(1) brightness(1.3);
+      opacity: 0.95;
+    }
+    html[data-theme='dark'] .inv-validade-input::-webkit-calendar-picker-indicator:hover,
+    body[data-theme='dark'] .inv-validade-input::-webkit-calendar-picker-indicator:hover {
+      background: rgba(56, 189, 248, 0.25);
+    }
+    /** Também aplica no modal "Dividir" (mesmo problema). */
+    html[data-theme='dark'] #modalDividir input[type='date'],
+    body[data-theme='dark'] #modalDividir input[type='date'] { color-scheme: dark; }
+    html[data-theme='dark'] #modalDividir input[type='date']::-webkit-calendar-picker-indicator,
+    body[data-theme='dark'] #modalDividir input[type='date']::-webkit-calendar-picker-indicator {
+      filter: invert(1) brightness(1.3);
+      opacity: 0.95;
+    }
+    html[data-theme='dark'] #modalDividir input[type='date']::-webkit-calendar-picker-indicator:hover,
+    body[data-theme='dark'] #modalDividir input[type='date']::-webkit-calendar-picker-indicator:hover {
+      background: rgba(56, 189, 248, 0.25);
+    }
+    html[data-theme='dark'] .inv-qtd-input:hover,
+    html[data-theme='dark'] .inv-lote-input:hover,
+    html[data-theme='dark'] .inv-validade-input:hover,
+    body[data-theme='dark'] .inv-qtd-input:hover,
+    body[data-theme='dark'] .inv-lote-input:hover,
+    body[data-theme='dark'] .inv-validade-input:hover { border-color: #475569; }
+    html[data-theme='dark'] .inv-qtd-input:focus,
+    html[data-theme='dark'] .inv-lote-input:focus,
+    html[data-theme='dark'] .inv-validade-input:focus,
+    body[data-theme='dark'] .inv-qtd-input:focus,
+    body[data-theme='dark'] .inv-lote-input:focus,
+    body[data-theme='dark'] .inv-validade-input:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.22);
+      background: #0c2740;
+    }
+    html[data-theme='dark'] .inv-qtd-input.inv-qtd-salvando,
+    html[data-theme='dark'] .inv-lote-input.inv-qtd-salvando,
+    html[data-theme='dark'] .inv-validade-input.inv-qtd-salvando,
+    body[data-theme='dark'] .inv-qtd-input.inv-qtd-salvando,
+    body[data-theme='dark'] .inv-lote-input.inv-qtd-salvando,
+    body[data-theme='dark'] .inv-validade-input.inv-qtd-salvando { background: #422006; border-color: #d97706; }
+    html[data-theme='dark'] .inv-qtd-input.inv-qtd-ok,
+    html[data-theme='dark'] .inv-lote-input.inv-qtd-ok,
+    html[data-theme='dark'] .inv-validade-input.inv-qtd-ok,
+    body[data-theme='dark'] .inv-qtd-input.inv-qtd-ok,
+    body[data-theme='dark'] .inv-lote-input.inv-qtd-ok,
+    body[data-theme='dark'] .inv-validade-input.inv-qtd-ok { background: #052e1f; border-color: #34d399; }
+    html[data-theme='dark'] .inv-qtd-input.inv-qtd-erro,
+    html[data-theme='dark'] .inv-lote-input.inv-qtd-erro,
+    html[data-theme='dark'] .inv-validade-input.inv-qtd-erro,
+    body[data-theme='dark'] .inv-qtd-input.inv-qtd-erro,
+    body[data-theme='dark'] .inv-lote-input.inv-qtd-erro,
+    body[data-theme='dark'] .inv-validade-input.inv-qtd-erro { background: #450a0a; border-color: #f87171; }
+    html[data-theme='dark'] .inv-qtd-readonly,
+    body[data-theme='dark'] .inv-qtd-readonly { color: #94a3b8; }
+
+    /** Banner explicativo para SKUs com múltiplas validades. Some quando
+     *  não há SKU multi-linha. Cor azul (informativo, não erro). */
+    .aviso-sku-multi {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 14px;
+      margin: 0 0 12px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-left: 4px solid #3b82f6;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: #1e3a8a;
+    }
+    .aviso-sku-multi i { font-size: 1.2rem; color: #2563eb; flex-shrink: 0; margin-top: 1px; }
+    .aviso-sku-multi strong { color: #1e3a8a; }
+    .aviso-sku-multi em { font-style: italic; }
+    html[data-theme='dark'] .aviso-sku-multi,
+    body[data-theme='dark'] .aviso-sku-multi {
+      background: #0c1e3a;
+      border-color: #1e40af;
+      border-left-color: #60a5fa;
+      color: #bfdbfe;
+    }
+    html[data-theme='dark'] .aviso-sku-multi i,
+    body[data-theme='dark'] .aviso-sku-multi i { color: #60a5fa; }
+    html[data-theme='dark'] .aviso-sku-multi strong,
+    body[data-theme='dark'] .aviso-sku-multi strong { color: #dbeafe; }
+
+    /** Destaque sutil de linhas que pertencem ao mesmo SKU (múltiplas
+     *  validades). Um fundo levemente colorido + uma barra à esquerda na
+     *  primeira linha sinaliza o agrupamento sem poluir a tabela. */
+    tr.sku-multi { background: #f8fafc; }
+    tr.sku-multi.sku-multi-primeira { border-top: 2px solid #cbd5e1; }
+    html[data-theme='dark'] tr.sku-multi,
+    body[data-theme='dark'] tr.sku-multi { background: #161f33; }
+    html[data-theme='dark'] tr.sku-multi.sku-multi-primeira,
+    body[data-theme='dark'] tr.sku-multi.sku-multi-primeira { border-top-color: #475569; }
+
+    /** Modal "Dividir lote/validade". Reusa o .modal/.modal-content base
+     *  do módulo, mas é mais estreito e simples (sem header/body/footer
+     *  separados, pois o conteúdo é curto). */
+    #modalDividir.modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 10060;
+      background: rgba(15, 23, 42, 0.72);
+      /* backdrop-filter removido: causava toast fosco em Chromium */
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    #modalDividir.modal.aberto { display: flex; }
+    #modalDividir[hidden] { display: none !important; }
+    /** Adicionar SKU e transferência entre donos — mesmo padrão do modal Dividir. */
+    #modalAddLinha.modal,
+    #modalTransferencia.modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 10060;
+      background: rgba(15, 23, 42, 0.72);
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    #modalAddLinha.modal.aberto,
+    #modalTransferencia.modal.aberto { display: flex; }
+    #modalAddLinha[hidden],
+    #modalTransferencia[hidden] { display: none !important; }
+    .modal-dividir-content {
+      max-width: 620px;
+      width: 100%;
+      background: #fff;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 14px;
+      padding: 22px 26px;
+      box-shadow: 0 24px 56px rgba(0, 0, 0, 0.32);
+      text-align: left;
+      margin: 0;
+      max-height: none;
+      display: block;
+      overflow: visible;
+    }
+    #modalDividir h3,
+    #modalAddLinha h3 {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 1.15rem;
+      color: var(--ac-primary, #0d2137);
+      margin: 0;
+    }
+    #modalDividir h3 i,
+    #modalAddLinha h3 i { color: var(--ac-accent, #0ea5e9); font-size: 1.3rem; }
+    #modalDividir .hint,
+    #modalAddLinha .hint { font-size: 12.5px; color: #64748b; line-height: 1.5; }
+    #modalDividir label,
+    #modalAddLinha label { display: block; font-size: 12.5px; font-weight: 600; color: #1e293b; margin-bottom: 5px; }
+    #modalDividir .form-control,
+    #modalAddLinha .form-control {
+      width: 100%;
+      min-height: 38px;
+      padding: 8px 11px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      background: #fff;
+      color: #0f172a;
+      box-sizing: border-box;
+    }
+    #modalDividir .form-control:focus,
+    #modalAddLinha .form-control:focus {
+      outline: none;
+      border-color: #0ea5e9;
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+    }
+    /** Modal Adicionar SKU — layout dedicado (evita conflito com .modal-content global). */
+    #modalAddLinha .modal-add-linha-card { max-width: 540px; padding: 0; overflow: hidden; }
+    .modal-add-linha-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 20px 22px 14px;
+      border-bottom: 1px solid var(--border, #e2e8f0);
+    }
+    .modal-add-linha-close {
+      flex-shrink: 0;
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      background: #f8fafc;
+      color: #64748b;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      line-height: 1;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .modal-add-linha-close:hover {
+      background: #e2e8f0;
+      color: #0f172a;
+      border-color: #cbd5e1;
+    }
+    .add-linha-callout {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 16px 22px 0;
+      padding: 10px 12px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      font-size: 12.5px;
+      line-height: 1.45;
+      color: #1e40af;
+    }
+    .add-linha-callout i {
+      flex-shrink: 0;
+      font-size: 1.15rem;
+      margin-top: 1px;
+      color: #2563eb;
+    }
+    #modalAddLinha .add-linha-body { padding: 18px 22px 22px; }
+    .add-linha-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px 14px;
+    }
+    .add-linha-field { min-width: 0; }
+    .add-linha-codigo { grid-column: 1 / -1; }
+    #modalAddLinha label .req { color: #dc2626; font-weight: 700; }
+    #modalAddLinha label .opt {
+      font-weight: 500;
+      color: #94a3b8;
+      font-size: 11px;
+      margin-left: 4px;
+    }
+    #modalAddLinha #addCodigoStatus {
+      display: block;
+      margin-top: 5px;
+      min-height: 16px;
+      font-size: 11.5px;
+      line-height: 1.35;
+    }
+    .modal-add-linha-footer {
+      display: flex;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border, #e2e8f0);
+    }
+    @media (max-width: 520px) {
+      .add-linha-grid { grid-template-columns: 1fr; }
+      .add-linha-codigo { grid-column: auto; }
+    }
+    html[data-theme='dark'] .modal-dividir-content,
+    body[data-theme='dark'] .modal-dividir-content {
+      background: #0f172a;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] #modalDividir h3,
+    body[data-theme='dark'] #modalDividir h3,
+    html[data-theme='dark'] #modalAddLinha h3,
+    body[data-theme='dark'] #modalAddLinha h3 { color: #f1f5f9; }
+    html[data-theme='dark'] #modalDividir .hint,
+    body[data-theme='dark'] #modalDividir .hint,
+    html[data-theme='dark'] #modalAddLinha .hint,
+    body[data-theme='dark'] #modalAddLinha .hint { color: #94a3b8; }
+    html[data-theme='dark'] #modalDividir label,
+    body[data-theme='dark'] #modalDividir label,
+    html[data-theme='dark'] #modalAddLinha label,
+    body[data-theme='dark'] #modalAddLinha label { color: #e2e8f0; }
+    html[data-theme='dark'] #modalDividir .form-control,
+    body[data-theme='dark'] #modalDividir .form-control,
+    html[data-theme='dark'] #modalAddLinha .form-control,
+    body[data-theme='dark'] #modalAddLinha .form-control {
+      background: #1e293b;
+      border-color: #475569;
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] #modalDividir .form-control:focus,
+    body[data-theme='dark'] #modalDividir .form-control:focus,
+    html[data-theme='dark'] #modalAddLinha .form-control:focus,
+    body[data-theme='dark'] #modalAddLinha .form-control:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+    }
+    html[data-theme='dark'] .modal-add-linha-header,
+    body[data-theme='dark'] .modal-add-linha-header { border-bottom-color: #334155; }
+    html[data-theme='dark'] .modal-add-linha-close,
+    body[data-theme='dark'] .modal-add-linha-close {
+      background: #1e293b;
+      border-color: #475569;
+      color: #94a3b8;
+    }
+    html[data-theme='dark'] .modal-add-linha-close:hover,
+    body[data-theme='dark'] .modal-add-linha-close:hover {
+      background: #334155;
+      color: #f1f5f9;
+      border-color: #64748b;
+    }
+    html[data-theme='dark'] .add-linha-callout,
+    body[data-theme='dark'] .add-linha-callout {
+      background: #172554;
+      border-color: #1e40af;
+      color: #bfdbfe;
+    }
+    html[data-theme='dark'] .add-linha-callout i,
+    body[data-theme='dark'] .add-linha-callout i { color: #60a5fa; }
+    html[data-theme='dark'] .modal-add-linha-footer,
+    body[data-theme='dark'] .modal-add-linha-footer { border-top-color: #334155; }
+    html[data-theme='dark'] #modalAddLinha label .opt,
+    body[data-theme='dark'] #modalAddLinha label .opt { color: #64748b; }
+    /* As regras do calendar-picker-indicator do #modalDividir foram unificadas
+     * lá em cima, junto da .inv-validade-input — não duplicar aqui. */
+
+    /** Botão "Dividir" na coluna Ações — fica em laranja para diferenciar
+     *  de Recontar (amarelo) e Aprovar (azul). */
+    .btn-acao-dividir { color: #c2410c; border-color: #fed7aa; }
+    .btn-acao-dividir:hover { background: #ffedd5; }
+    html[data-theme='dark'] .btn-acao-dividir,
+    body[data-theme='dark'] .btn-acao-dividir { color: #fed7aa; border-color: #7c2d12; }
+    html[data-theme='dark'] .btn-acao-dividir:hover,
+    body[data-theme='dark'] .btn-acao-dividir:hover { background: #7c2d12; }
+
+    /** Estado loading dos botões de ação. Aparece quando o operador clica
+     *  e estamos processando o request (aprovar/recontar/excluir). Evita
+     *  duplo-clique e dá feedback discreto sem precisar de overlay grande
+     *  (que atrapalha a UX de aprovar várias divergências em sequência). */
+    .btn-acao-linha.btn-acao-loading {
+      opacity: 0.55;
+      cursor: progress;
+      pointer-events: none;
+    }
+    .btn-acao-linha.btn-acao-loading i {
+      animation: btnAcaoSpin 0.8s linear infinite;
+      display: inline-block;
+    }
+    @keyframes btnAcaoSpin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /** Botão "Excluir linha" — vermelho discreto para diferenciar de
+     *  Dividir (laranja), Recontar (amarelo) e Aprovar (azul). A cor mais
+     *  forte aparece só no hover para evitar pedir confirmação visual a
+     *  toda hora. Borda fica neutra em repouso. */
+    .btn-acao-excluir { color: #b91c1c; border-color: #fecaca; }
+    .btn-acao-excluir:hover { background: #fee2e2; border-color: #f87171; color: #7f1d1d; }
+    html[data-theme='dark'] .btn-acao-excluir,
+    body[data-theme='dark'] .btn-acao-excluir { color: #fca5a5; border-color: #7f1d1d; }
+    html[data-theme='dark'] .btn-acao-excluir:hover,
+    body[data-theme='dark'] .btn-acao-excluir:hover { background: #7f1d1d; color: #fee2e2; }
+
+    /** Indicador "↑ mesmo SKU" nas linhas subsequentes. */
+    .sku-linha-extra {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      background: #e0f2fe;
+      color: #075985;
+      border-radius: 4px;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: help;
+    }
+    html[data-theme='dark'] .sku-linha-extra,
+    body[data-theme='dark'] .sku-linha-extra {
+      background: #0c2740;
+      color: #7dd3fc;
+    }
+
+    /** Banner verde de "próximos passos" exibido quando o inventário cíclico
+     *  acabou de ser criado. Resolve a confusão de "criei, onde foi parar?".
+     *  Some na próxima abertura do detalhe — é one-shot. */
+    .ciclo-proximos-passos {
+      margin: 0 0 14px;
+      padding: 14px 18px;
+      background: #ecfdf5;
+      border: 1px solid #6ee7b7;
+      border-left: 5px solid #10b981;
+      border-radius: 10px;
+      animation: cicloPpEntra 0.4s ease-out;
+    }
+    .ciclo-pp-titulo {
+      font-size: 15px;
+      font-weight: 700;
+      color: #065f46;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .ciclo-pp-titulo i { font-size: 1.25rem; }
+    .ciclo-pp-passos {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 6px 16px;
+      font-size: 12.5px;
+      color: #065f46;
+    }
+    .ciclo-pp-passos span { display: flex; gap: 6px; align-items: flex-start; line-height: 1.4; }
+    .ciclo-pp-passos strong { color: #047857; font-weight: 700; }
+    .ciclo-pp-passos b { color: #064e3b; }
+    @media (max-width: 720px) {
+      .ciclo-pp-passos { grid-template-columns: 1fr; }
+    }
+    @keyframes cicloPpEntra {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    html[data-theme='dark'] .ciclo-proximos-passos,
+    body[data-theme='dark'] .ciclo-proximos-passos {
+      background: #052e1f;
+      border-color: #065f46;
+      border-left-color: #34d399;
+    }
+    html[data-theme='dark'] .ciclo-pp-titulo,
+    body[data-theme='dark'] .ciclo-pp-titulo,
+    html[data-theme='dark'] .ciclo-pp-passos,
+    body[data-theme='dark'] .ciclo-pp-passos { color: #a7f3d0; }
+    html[data-theme='dark'] .ciclo-pp-passos strong,
+    body[data-theme='dark'] .ciclo-pp-passos strong { color: #6ee7b7; }
+    html[data-theme='dark'] .ciclo-pp-passos b,
+    body[data-theme='dark'] .ciclo-pp-passos b { color: #d1fae5; }
+
+    /* ===== Modal Inventário Cíclico ===== */
+    #modalCiclico[hidden] { display: none !important; }
+    /** backdrop-filter foi REMOVIDO de propósito: em Chromium o blur do
+     *  overlay "vaza" para irmãos position:fixed que tenham z-index maior
+     *  (caso do toast-message), deixando-os fosco/escurecido. Usar apenas
+     *  o overlay escuro semi-transparente resolve sem perder o efeito de
+     *  destaque do modal. */
+    #modalCiclico.modal {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 10050;
+      background: rgba(15, 23, 42, 0.72);
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    #modalCiclico.modal.aberto { display: flex; }
+    /** Layout sandwich: cabeçalho sticky no topo, corpo scrollável, ações sticky
+     *  no rodapé. Garante que os botões "Pré-visualizar / Criar / Fechar" e o
+     *  título nunca saiam da viewport, mesmo quando o conteúdo do meio é grande. */
+    #modalCiclico .modal-content {
+      max-width: 1100px;
+      width: 100%;
+      max-height: 92vh;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+      border-radius: 14px;
+      border: 1px solid var(--border, #e2e8f0);
+      padding: 0;
+      box-shadow: 0 24px 56px rgba(0, 0, 0, 0.32);
+      overflow: hidden; /* scroll fica no body interno, não no container */
+    }
+    html[data-theme='dark'] #modalCiclico .modal-content,
+    body[data-theme='dark'] #modalCiclico .modal-content {
+      background: #0f172a;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+
+    /* Header (título + hint) — sempre visível. Compacto: 8px de padding-y. */
+    #modalCiclico .modal-header {
+      padding: 10px 20px 8px;
+      border-bottom: 1px solid var(--border, #e2e8f0);
+      background: #fff;
+      flex: 0 0 auto;
+      border-top-left-radius: 14px;
+      border-top-right-radius: 14px;
+    }
+    html[data-theme='dark'] #modalCiclico .modal-header,
+    body[data-theme='dark'] #modalCiclico .modal-header {
+      background: #0f172a;
+      border-bottom-color: #334155;
+    }
+    #modalCiclico h3 {
+      margin: 0 0 2px;
+      font-size: 1.05rem;
+      color: var(--ac-primary, #0d2137);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #modalCiclico h3 i { font-size: 1.15rem; color: var(--ac-accent, #0ea5e9); }
+    #modalCiclico .modal-header .hint {
+      font-size: 11.5px;
+      line-height: 1.35;
+      color: #64748b;
+      margin: 0;
+    }
+    html[data-theme='dark'] #modalCiclico h3,
+    body[data-theme='dark'] #modalCiclico h3 { color: #f1f5f9; }
+    html[data-theme='dark'] #modalCiclico .modal-header .hint,
+    body[data-theme='dark'] #modalCiclico .modal-header .hint { color: #94a3b8; }
+
+    /* Body — área scrollável (filtros + critérios + status + preview) */
+    #modalCiclico .modal-body {
+      padding: 10px 20px;
+      overflow-y: auto;
+      flex: 1 1 auto;
+      min-height: 0; /* essencial pro flex permitir o overflow funcionar */
+    }
+
+    /* Footer — sempre visível com os botões. Compacto. */
+    #modalCiclico .modal-footer {
+      padding: 10px 20px;
+      border-top: 1px solid var(--border, #e2e8f0);
+      background: #f8fafc;
+      flex: 0 0 auto;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      border-bottom-left-radius: 14px;
+      border-bottom-right-radius: 14px;
+    }
+    html[data-theme='dark'] #modalCiclico .modal-footer,
+    body[data-theme='dark'] #modalCiclico .modal-footer {
+      background: #0b1320;
+      border-top-color: #334155;
+    }
+
+    /* ===== Inputs/labels DENTRO dos modais — espelham o padrão do .wms-inv-container ===== */
+    /** O modal está fora do .wms-inv-container, então as regras escopadas
+     *  daquele container não pegam. Aqui replicamos o estilo (light + dark)
+     *  para os modais #modalCiclico e #modalCadProdInv. */
+    #modalCiclico .filtros-grid > div,
+    #modalCadProdInv .filtros-grid > div {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    #modalCiclico .filtros-grid label,
+    #modalCadProdInv .filtros-grid label {
+      display: block;
+      margin-bottom: 4px;
+      font-weight: 600;
+      color: var(--dark, #1e293b);
+      font-size: 12px;
+    }
+    #modalCiclico .filtros-grid,
+    #modalCadProdInv .filtros-grid {
+      gap: 8px 14px;
+    }
+    /** Filtros do modal cíclico em 6 colunas em telas grandes — cabe tudo em
+     *  uma linha só, deixando mais espaço vertical para a tabela de preview. */
+    #modalCiclico .filtros-grid-ciclico {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+    }
+    #modalCiclico .ciclo-filtros-cadastro {
+      margin: 4px 0 12px;
+      padding: 10px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      background: #f0f9ff;
+    }
+    #modalCiclico .ciclo-filtros-cadastro-titulo {
+      margin: 0 0 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #0c4a6e;
+    }
+    html[data-theme='dark'] #modalCiclico .ciclo-filtros-cadastro,
+    body[data-theme='dark'] #modalCiclico .ciclo-filtros-cadastro {
+      background: #0f172a;
+      border-color: #334155;
+    }
+    html[data-theme='dark'] #modalCiclico .ciclo-filtros-cadastro-titulo,
+    body[data-theme='dark'] #modalCiclico .ciclo-filtros-cadastro-titulo {
+      color: #7dd3fc;
+    }
+    @media (max-width: 1100px) {
+      #modalCiclico .filtros-grid-ciclico { grid-template-columns: repeat(3, 1fr); }
+    }
+    @media (max-width: 720px) {
+      #modalCiclico .filtros-grid-ciclico { grid-template-columns: repeat(2, 1fr); }
+    }
+    #modalCiclico .filtros-grid .form-control,
+    #modalCiclico .filtros-grid select.form-control,
+    #modalCiclico .filtros-grid input.form-control,
+    #modalCadProdInv .filtros-grid .form-control,
+    #modalCadProdInv .filtros-grid select.form-control,
+    #modalCadProdInv .filtros-grid input.form-control {
+      width: 100%;
+      min-height: 34px;
+      padding: 6px 10px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 6px;
+      font-size: 13px;
+      transition: all 0.2s;
+      font-family: inherit;
+      box-sizing: border-box;
+      background-color: #fff;
+      color: var(--ac-primary, #0d2137);
+    }
+    #modalCiclico .filtros-grid .form-control:focus,
+    #modalCadProdInv .filtros-grid .form-control:focus {
+      outline: none;
+      border-color: var(--ac-accent, #0ea5e9);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+    }
+    #modalCiclico .filtros-grid .form-control:hover,
+    #modalCadProdInv .filtros-grid .form-control:hover {
+      border-color: var(--gray, #64748b);
+    }
+    #modalCiclico .filtros-grid .form-control::placeholder,
+    #modalCadProdInv .filtros-grid .form-control::placeholder {
+      color: #94a3b8;
+      opacity: 1;
+    }
+    html[data-theme='dark'] #modalCiclico .filtros-grid label,
+    html[data-theme='dark'] #modalCadProdInv .filtros-grid label,
+    body[data-theme='dark'] #modalCiclico .filtros-grid label,
+    body[data-theme='dark'] #modalCadProdInv .filtros-grid label { color: #e2e8f0; }
+    html[data-theme='dark'] #modalCiclico .filtros-grid .form-control,
+    html[data-theme='dark'] #modalCiclico .filtros-grid select.form-control,
+    html[data-theme='dark'] #modalCiclico .filtros-grid input.form-control,
+    html[data-theme='dark'] #modalCadProdInv .filtros-grid .form-control,
+    html[data-theme='dark'] #modalCadProdInv .filtros-grid select.form-control,
+    html[data-theme='dark'] #modalCadProdInv .filtros-grid input.form-control,
+    body[data-theme='dark'] #modalCiclico .filtros-grid .form-control,
+    body[data-theme='dark'] #modalCiclico .filtros-grid select.form-control,
+    body[data-theme='dark'] #modalCiclico .filtros-grid input.form-control,
+    body[data-theme='dark'] #modalCadProdInv .filtros-grid .form-control,
+    body[data-theme='dark'] #modalCadProdInv .filtros-grid select.form-control,
+    body[data-theme='dark'] #modalCadProdInv .filtros-grid input.form-control {
+      background-color: #1e293b;
+      border-color: #334155;
+      color: #f1f5f9;
+    }
+    html[data-theme='dark'] #modalCiclico .filtros-grid .form-control::placeholder,
+    html[data-theme='dark'] #modalCadProdInv .filtros-grid .form-control::placeholder,
+    body[data-theme='dark'] #modalCiclico .filtros-grid .form-control::placeholder,
+    body[data-theme='dark'] #modalCadProdInv .filtros-grid .form-control::placeholder { color: #64748b; }
+    html[data-theme='dark'] #modalCiclico .filtros-grid .form-control:focus,
+    html[data-theme='dark'] #modalCadProdInv .filtros-grid .form-control:focus,
+    body[data-theme='dark'] #modalCiclico .filtros-grid .form-control:focus,
+    body[data-theme='dark'] #modalCadProdInv .filtros-grid .form-control:focus {
+      border-color: #38bdf8;
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+    }
+
+    /* Título "Critério" — separador visual entre filtros e cards. Compacto. */
+    #modalCiclico .modal-criterio-label {
+      font-weight: 600;
+      font-size: 11.5px;
+      display: block;
+      margin: 8px 0 6px;
+      color: var(--ac-primary, #0d2137);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    html[data-theme='dark'] #modalCiclico .modal-criterio-label,
+    body[data-theme='dark'] #modalCiclico .modal-criterio-label { color: #e2e8f0; }
+
+    /** Critério como cartão informativo: título com ícone + descrição curta.
+     *  Layout em 3 colunas para caber 6 critérios em 2 linhas equilibradas. */
+    #modalCiclico .criterio-card {
+      border: 1.5px solid var(--border, #e2e8f0);
+      border-radius: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s, transform 0.1s;
+      background: #f8fafc;
+      min-height: 64px;
+    }
+    #modalCiclico .criterio-card:hover {
+      border-color: #94a3b8;
+      transform: translateY(-1px);
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
+    }
+    #modalCiclico .criterio-card.selecionado {
+      border-color: #0ea5e9;
+      background: #e0f2fe;
+      box-shadow: 0 3px 10px rgba(14, 165, 233, 0.18);
+      transform: translateY(-1px);
+    }
+    html[data-theme='dark'] #modalCiclico .criterio-card,
+    body[data-theme='dark'] #modalCiclico .criterio-card { background: #1e293b; border-color: #334155; }
+    html[data-theme='dark'] #modalCiclico .criterio-card:hover,
+    body[data-theme='dark'] #modalCiclico .criterio-card:hover { border-color: #64748b; }
+    html[data-theme='dark'] #modalCiclico .criterio-card.selecionado,
+    body[data-theme='dark'] #modalCiclico .criterio-card.selecionado {
+      border-color: #38bdf8;
+      background: #0c2740;
+    }
+    #modalCiclico .criterio-card strong {
+      font-size: 13px;
+      color: var(--ac-primary, #0d2137);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+    }
+    html[data-theme='dark'] #modalCiclico .criterio-card strong,
+    body[data-theme='dark'] #modalCiclico .criterio-card strong { color: #e2e8f0; }
+    /** Descrição curta visível sob o título. */
+    #modalCiclico .criterio-card span {
+      display: block;
+      font-size: 11.5px;
+      color: #64748b;
+      line-height: 1.35;
+    }
+    html[data-theme='dark'] #modalCiclico .criterio-card span,
+    body[data-theme='dark'] #modalCiclico .criterio-card span { color: #94a3b8; }
+    #modalCiclico .criterio-card.selecionado strong { color: #075985; }
+    #modalCiclico .criterio-card.selecionado span { color: #0369a1; }
+    html[data-theme='dark'] #modalCiclico .criterio-card.selecionado strong,
+    body[data-theme='dark'] #modalCiclico .criterio-card.selecionado strong { color: #bae6fd; }
+    html[data-theme='dark'] #modalCiclico .criterio-card.selecionado span,
+    body[data-theme='dark'] #modalCiclico .criterio-card.selecionado span { color: #7dd3fc; }
+    #modalCiclico .criterios-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border, #e2e8f0);
+    }
+    @media (max-width: 720px) {
+      #modalCiclico .criterios-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    html[data-theme='dark'] #modalCiclico .criterios-grid,
+    body[data-theme='dark'] #modalCiclico .criterios-grid { border-bottom-color: #334155; }
+    #modalCiclico .criterio-card strong i { font-size: 1rem; color: var(--ac-accent, #0ea5e9); flex-shrink: 0; }
+    html[data-theme='dark'] #modalCiclico .criterio-card strong i,
+    body[data-theme='dark'] #modalCiclico .criterio-card strong i { color: #38bdf8; }
+    #modalCiclico .preview-table tr.ciclo-grp-sep td {
+      background: #eff6ff; font-weight: 700; color: #1e3a8a; border-top: 2px solid #93c5fd;
+    }
+    html[data-theme='dark'] #modalCiclico .preview-table tr.ciclo-grp-sep td,
+    body[data-theme='dark'] #modalCiclico .preview-table tr.ciclo-grp-sep td {
+      background: #1e3a5f; color: #bae6fd; border-color: #334155;
+    }
+    #modalCiclico .preview-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+    #modalCiclico .preview-table th,
+    #modalCiclico .preview-table td {
+      padding: 5px 8px;
+      border-bottom: 1px solid var(--border, #e2e8f0);
+      text-align: left;
+    }
+    #modalCiclico .preview-table th {
+      background: #f8fafc;
+      font-weight: 600;
+      color: var(--ac-primary, #0d2137);
+      position: sticky;
+      top: 0;
+    }
+    html[data-theme='dark'] #modalCiclico .preview-table th,
+    body[data-theme='dark'] #modalCiclico .preview-table th { background: #1e293b; color: #e2e8f0; }
+    html[data-theme='dark'] #modalCiclico .preview-table th,
+    html[data-theme='dark'] #modalCiclico .preview-table td,
+    body[data-theme='dark'] #modalCiclico .preview-table th,
+    body[data-theme='dark'] #modalCiclico .preview-table td { border-color: #334155; color: #e2e8f0; }
+    #modalCiclico .preview-wrap {
+      max-height: 50vh;
+      overflow: auto;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+    }
+    html[data-theme='dark'] #modalCiclico .preview-wrap,
+    body[data-theme='dark'] #modalCiclico .preview-wrap { border-color: #334155; }
+    #modalCiclico .preview-status {
+      margin: 8px 0;
+      padding: 8px 12px;
+      background: #f1f5f9;
+      border-radius: 6px;
+      font-size: 12.5px;
+      color: #475569;
+      border-left: 3px solid #94a3b8;
+      animation: cicloStatusEntra 0.32s ease-out;
+    }
+    #modalCiclico .preview-status strong { color: #1e293b; }
+    #modalCiclico .preview-status-ok {
+      background: #ecfdf5;
+      color: #065f46;
+      border-left-color: #10b981;
+    }
+    #modalCiclico .preview-status-ok strong { color: #064e3b; }
+    #modalCiclico .preview-status-vazio {
+      background: #fef3c7;
+      color: #92400e;
+      border-left-color: #f59e0b;
+    }
+    #modalCiclico .preview-status-vazio strong { color: #78350f; }
+    @keyframes cicloStatusEntra {
+      from { opacity: 0; transform: translateY(-6px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    html[data-theme='dark'] #modalCiclico .preview-status,
+    body[data-theme='dark'] #modalCiclico .preview-status {
+      background: #1e293b;
+      color: #cbd5e1;
+      border-left-color: #475569;
+    }
+    html[data-theme='dark'] #modalCiclico .preview-status strong,
+    body[data-theme='dark'] #modalCiclico .preview-status strong { color: #e2e8f0; }
+    html[data-theme='dark'] #modalCiclico .preview-status-ok,
+    body[data-theme='dark'] #modalCiclico .preview-status-ok {
+      background: #064e3b;
+      color: #d1fae5;
+      border-left-color: #34d399;
+    }
+    html[data-theme='dark'] #modalCiclico .preview-status-ok strong,
+    body[data-theme='dark'] #modalCiclico .preview-status-ok strong { color: #6ee7b7; }
+    html[data-theme='dark'] #modalCiclico .preview-status-vazio,
+    body[data-theme='dark'] #modalCiclico .preview-status-vazio {
+      background: #78350f;
+      color: #fef3c7;
+      border-left-color: #fbbf24;
+    }
+    html[data-theme='dark'] #modalCiclico .preview-status-vazio strong,
+    body[data-theme='dark'] #modalCiclico .preview-status-vazio strong { color: #fde68a; }
+    #modalCiclico .badge-venc-prox { color: #dc2626; font-weight: 600; }
+    #modalCiclico .badge-venc-ok { color: #475569; }
+    html[data-theme='dark'] #modalCiclico .badge-venc-prox,
+    body[data-theme='dark'] #modalCiclico .badge-venc-prox { color: #f87171; }
+    html[data-theme='dark'] #modalCiclico .badge-venc-ok,
+    body[data-theme='dark'] #modalCiclico .badge-venc-ok { color: #cbd5e1; }
+
+    /** Pré-validação transferência entre donos — contraste light + dark. */
+    .transf-preview-box {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-top: 10px;
+      font-size: 13.5px;
+      line-height: 1.45;
+      color: #0f172a;
+    }
+    .transf-preview-titulo { font-weight: 700; font-size: 14px; margin-bottom: 8px; color: #0f172a; }
+    .transf-preview-linha { margin-bottom: 4px; color: #1e293b; }
+    .transf-preview-linha strong { color: #0f172a; }
+    .transf-preview-ok { color: #15803d; font-weight: 600; margin-top: 6px; }
+    .transf-preview-erro { color: #b91c1c; font-weight: 600; margin-top: 6px; }
+    .transf-preview-info { color: #334155; margin-top: 6px; }
+    .transf-preview-aviso {
+      margin-top: 10px;
+      padding: 10px 12px;
+      background: #fef3c7;
+      border: 1px solid #fbbf24;
+      border-radius: 6px;
+      color: #78350f;
+    }
+    html[data-theme='dark'] .transf-preview-box,
+    body[data-theme='dark'] .transf-preview-box {
+      background: #0f172a;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] .transf-preview-titulo,
+    body[data-theme='dark'] .transf-preview-titulo { color: #f1f5f9; }
+    html[data-theme='dark'] .transf-preview-linha,
+    body[data-theme='dark'] .transf-preview-linha { color: #cbd5e1; }
+    html[data-theme='dark'] .transf-preview-linha strong,
+    body[data-theme='dark'] .transf-preview-linha strong { color: #f1f5f9; }
+    html[data-theme='dark'] .transf-preview-ok,
+    body[data-theme='dark'] .transf-preview-ok { color: #6ee7b7; }
+    html[data-theme='dark'] .transf-preview-erro,
+    body[data-theme='dark'] .transf-preview-erro { color: #fca5a5; }
+    html[data-theme='dark'] .transf-preview-info,
+    body[data-theme='dark'] .transf-preview-info { color: #94a3b8; }
+    html[data-theme='dark'] .transf-preview-aviso,
+    body[data-theme='dark'] .transf-preview-aviso {
+      background: #78350f;
+      border-color: #92400e;
+      color: #fef3c7;
+    }
+    html[data-theme='dark'] #modalAddLinha .modal-content,
+    body[data-theme='dark'] #modalAddLinha .modal-content,
+    html[data-theme='dark'] #modalTransferencia .modal-content,
+    body[data-theme='dark'] #modalTransferencia .modal-content {
+      background: #1e293b;
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] #modalAddLinha h3,
+    body[data-theme='dark'] #modalAddLinha h3,
+    html[data-theme='dark'] #modalTransferencia h3,
+    body[data-theme='dark'] #modalTransferencia h3 { color: #f1f5f9; }
+    html[data-theme='dark'] #modalAddLinha .hint,
+    body[data-theme='dark'] #modalAddLinha .hint,
+    html[data-theme='dark'] #modalTransferencia .hint,
+    body[data-theme='dark'] #modalTransferencia .hint { color: #94a3b8; }
+    html[data-theme='dark'] #modalAddLinha label,
+    body[data-theme='dark'] #modalAddLinha label,
+    html[data-theme='dark'] #modalTransferencia label,
+    body[data-theme='dark'] #modalTransferencia label { color: #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="wms-inv-container">
+    <div id="wmsInvLoadingOverlay" class="calculando-overlay wms-inv-loading-overlay" style="display: none;">
+      <div class="calculando-content">
+        <div class="calculando-spinner"></div>
+        <h3 id="wmsInvLoadingTitle">Carregando</h3>
+        <p id="wmsInvLoadingText">Aguarde...</p>
+        <p id="wmsInvLoadingDetalhe" class="calculando-detalhe"></p>
+      </div>
+    </div>
+
+    <div id="confirmModal" class="modal modal--confirm" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="modalMessage">
+      <div class="modal-content modal-content--confirm">
+        <p id="modalMessage" class="modal-message-body"></p>
+        <div class="modal-actions">
+          <button type="button" id="confirmYes" class="btn-filtro btn-filtro-aplicar"></button>
+          <button type="button" id="confirmNo" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="message" class="message" style="display: none;"></div>
+
+    <div class="wms-inv-header">
+      <h2><i class="bx bx-clipboard"></i> WMS — Inventário</h2>
+      <p>Inventário geral e carga inicial — snapshot, importação CSV e ajuste de saldo por produto (Fase 1).</p>
+    </div>
+
+    <div class="tabs tabs-com-icones">
+      <button type="button" class="tab-btn active" data-tab="operacao"><i class="bx bx-play-circle"></i> Operação</button>
+      <button type="button" class="tab-btn" data-tab="consulta"><i class="bx bx-search-alt-2"></i> Consulta por item</button>
+      <button type="button" class="tab-btn" data-tab="manual"><i class="bx bx-user-voice"></i> Manual operador</button>
+      <button type="button" class="tab-btn" data-tab="orientacao"><i class="bx bx-book-open"></i> Orientação técnica</button>
+      <button type="button" class="tab-btn" data-tab="planilha"><i class="bx bx-spreadsheet"></i> Planilha modelo</button>
+    </div>
+
+    <div id="tab-operacao" class="wms-inv-panel active">
+      <div id="viewLista">
+        <div class="wms-inv-acoes-rapidas" style="display:flex; gap:8px; align-items:center; margin: 0 0 12px; flex-wrap: wrap;">
+          <button type="button" id="btnAbrirTransferencia" class="btn-filtro btn-filtro-novo" title="Mover saldo de um dono para outro (ex.: 100 UN da Mana para a Nutriville). Gera 2 movimentos no ledger + documento auditável."><i class="bx bx-transfer"></i> Transferência entre donos</button>
+          <small class="hint" style="margin: 0;">Use quando o produto está cadastrado no dono errado ou precisa migrar saldo entre clientes do CD.</small>
+        </div>
+        <div class="form-dados-card">
+          <div class="form-dados-card-header"><i class="bx bx-plus-circle"></i> Novo inventário</div>
+          <div class="form-dados-card-body">
+            <form id="formNovoInventario" onsubmit="return false;">
+              <div class="filtros-grid">
+                <div>
+                  <label for="novoCdDono">Dono do estoque</label>
+                  <select id="novoCdDono" class="form-control" required></select>
+                </div>
+                <div>
+                  <label for="novoTp">Tipo</label>
+                  <select id="novoTp" class="form-control">
+                    <option value="GERAL">Geral (ajuste)</option>
+                    <option value="INICIAL">Carga inicial</option>
+                    <option value="CICLICO">Cíclico (use o botão "Gerar lista de ciclo")</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="novoPol">Itens não contados</label>
+                  <select id="novoPol" class="form-control">
+                    <option value="MANTER">Manter saldo (recomendado)</option>
+                    <option value="ZERAR">Zerar (supervisor)</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="novoObs">Observação</label>
+                  <input type="text" id="novoObs" class="form-control" maxlength="500" placeholder="Opcional" />
+                </div>
+              </div>
+              <div class="filtros-actions">
+                <button type="button" id="btnLimparNovo" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Limpar</button>
+                <button type="button" id="btnAbrirCiclico" class="btn-filtro btn-filtro-aplicar" title="Inventário cíclico: gera lista por critério (ABC, vencimento, etc.) e cria o documento já populado"><i class="bx bx-loader-circle"></i> Gerar lista de ciclo</button>
+                <button type="button" id="btnNovoInv" class="btn-filtro btn-filtro-novo"><i class="bx bx-plus"></i> Novo</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <div class="filtros-box">
+          <h3><i class="bx bx-filter"></i> Inventários</h3>
+          <form id="filtroListaForm" onsubmit="return false;">
+            <div class="filtros-grid">
+              <div>
+                <label for="filtroDono">Dono do estoque</label>
+                <select id="filtroDono" class="form-control"><option value="">Todos</option></select>
+              </div>
+            </div>
+            <div class="filtros-actions">
+              <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Limpar</button>
+              <button type="submit" id="btnFiltrarLista" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search"></i> Filtrar</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="wms-inv-table-wrap">
+          <table class="wms-inv-table" id="tblInventarios">
+            <thead>
+              <tr>
+                <th>#</th><th>Dono</th><th>Tipo</th><th>Status</th><th>Corte</th><th>Linhas</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="tblInventariosBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="viewDetalhe" hidden>
+        <!-- Breadcrumb-bar: caminho da navegação + botão "Voltar" em destaque.
+             Resolve a confusão de "como saio daqui?" quando o usuário entra
+             em um inventário e quer voltar à listagem. -->
+        <div class="wms-inv-breadcrumb">
+          <button type="button" id="btnVoltarListaTopo" class="wms-inv-breadcrumb-btn" title="Voltar para a lista de inventários (Alt+←)">
+            <i class="bx bx-arrow-back"></i>
+            <span>Voltar para a lista</span>
+          </button>
+          <span class="wms-inv-breadcrumb-sep">›</span>
+          <span class="wms-inv-breadcrumb-atual">
+            <i class="bx bx-detail"></i>
+            <span id="brdInventarioLabel">Documento de inventário</span>
+          </span>
+        </div>
+
+        <div class="filtros-box">
+          <h3><i class="bx bx-detail"></i> Documento de inventário</h3>
+          <div id="invDocReadonlyBanner" class="inv-doc-readonly-banner" hidden></div>
+          <div id="detMeta" class="wms-inv-det-meta"></div>
+          <details class="inv-layout-box" id="invAtaLayoutBox" open>
+            <summary class="inv-layout-box-summary">
+              <i class="bx bx-layout"></i>
+              <span>Layout da tela, resumo e ata</span>
+              <span id="invLayoutResumoCompacto" class="inv-layout-resumo-compacto"></span>
+            </summary>
+            <div class="inv-layout-box-body">
+              <div class="filtros-grid">
+                <div>
+                  <label for="invAtaSeparadores"><i class="bx bx-list-ul"></i> Separadores na tela</label>
+                  <select id="invAtaSeparadores" class="form-control">
+                    <option value="nao">Não usar separadores</option>
+                    <option value="faixas_cons">Só faixas SECO/REFRIG./CONG.</option>
+                    <option value="conservacao">Conservação</option>
+                    <option value="cons_grupo">Conservação + Grupo</option>
+                    <option value="cons_grupo_cat" selected>Conservação + Grupo + Categoria</option>
+                  </select>
+                </div>
+              </div>
+              <div class="filtros-grid">
+                <div>
+                  <label for="invAtaOrd1"><i class="bx bx-sort"></i> Ordenação 1</label>
+                  <select id="invAtaOrd1" class="form-control">
+                    <option value="conservacao" selected>Conservação</option>
+                    <option value="grupo">Grupo (cadastro WMS)</option>
+                    <option value="subcategoria">Categoria (cadastro WMS)</option>
+                    <option value="codigo">Código</option>
+                    <option value="nome">Descrição</option>
+                    <option value="lote">Lote</option>
+                    <option value="validade">Validade</option>
+                    <option value="saldo">Saldo sist.</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="invAtaOrd2">Ordenação 2</label>
+                  <select id="invAtaOrd2" class="form-control">
+                    <option value="">—</option>
+                    <option value="grupo" selected>Grupo (cadastro WMS)</option>
+                    <option value="subcategoria">Categoria (cadastro WMS)</option>
+                    <option value="codigo">Código</option>
+                    <option value="nome">Descrição</option>
+                    <option value="lote">Lote</option>
+                    <option value="validade">Validade</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="invAtaOrd3">Ordenação 3</label>
+                  <select id="invAtaOrd3" class="form-control">
+                    <option value="">—</option>
+                    <option value="subcategoria" selected>Categoria (cadastro WMS)</option>
+                    <option value="codigo">Código</option>
+                    <option value="nome">Descrição</option>
+                    <option value="lote">Lote</option>
+                    <option value="validade">Validade</option>
+                  </select>
+                </div>
+              </div>
+              <p class="hint">
+                Vale para a <strong>tabela de linhas</strong>, o <strong>resumo por produto</strong> e a <strong>ata</strong> (prévia, PDF e CSV).
+                Faixas <span class="inv-grp-bullet">▌</span> na tabela seguem o modo de separadores escolhido.
+              </p>
+            </div>
+          </details>
+          <input type="file" id="inputCsv" accept=".csv,.txt" hidden />
+          <div class="filtros-actions filtros-actions--start">
+            <button type="button" id="btnVoltarLista" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar</button>
+            <button type="button" id="btnSnapshot" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-camera"></i> Gerar snapshot</button>
+            <button type="button" id="btnImportarCsv" class="btn-filtro btn-filtro-novo"><i class="bx bx-upload"></i> Importar CSV</button>
+            <button type="button" id="btnAddLinhaManual" class="btn-filtro btn-filtro-novo" title="Adicionar um SKU à contagem (digitação manual)"><i class="bx bx-plus-circle"></i> Adicionar SKU</button>
+            <button type="button" id="btnEncerrar" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-check-circle"></i> Encerrar</button>
+            <button type="button" id="btnCancelarInv" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Cancelar doc.</button>
+            <button type="button" id="btnReativarInv" class="btn-filtro btn-filtro-novo" hidden title="Reabre inventário CANCELADO ou ENCERRADO (com estorno dos ajustes)"><i class="bx bx-revision"></i> Reabrir</button>
+            <button type="button" id="btnAtaPrevia" class="btn-filtro btn-filtro-aplicar" title="Conferência antes do encerramento"><i class="bx bx-file-find"></i> Ata prévia</button>
+            <button type="button" id="btnAtaImprimir" class="btn-filtro btn-filtro-novo" title="Assinaturas após encerrar"><i class="bx bx-printer"></i> Ata / PDF</button>
+            <button type="button" id="btnAtaCsv" class="btn-filtro btn-filtro-limpar" title="Exportar ata em CSV"><i class="bx bx-download"></i> Ata CSV</button>
+          </div>
+        </div>
+
+        <div id="painelErrosImport" class="filtros-box" hidden>
+          <h3><i class="bx bx-error-circle"></i> Linhas não importadas</h3>
+          <p class="hint">
+            Cadastre o produto e use <strong>Reimportar linha</strong>, ou reenvie o <strong>CSV completo</strong>
+            (substitui pela mesma chave código+lote+validade — não duplica saldo no encerramento).
+          </p>
+          <div class="wms-inv-table-wrap" style="margin-bottom: 12px;">
+            <table class="wms-inv-table">
+              <thead>
+                <tr>
+                  <th>Linha CSV</th><th>Código</th><th>Qtd</th><th>Lote</th><th>Validade</th><th>Motivo</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="tblErrosImportBody"></tbody>
+            </table>
+          </div>
+          <div class="filtros-actions filtros-actions--start" style="margin-top: 0;">
+            <button type="button" id="btnReimportarCsvPainel" class="btn-filtro btn-filtro-aplicar">
+              <i class="bx bx-upload"></i> Reimportar CSV
+            </button>
+            <button type="button" id="btnFecharPainelErros" class="btn-filtro btn-filtro-limpar">
+              <i class="bx bx-x"></i> Ocultar
+            </button>
+          </div>
+        </div>
+
+        <h4 class="wms-inv-section-title"><i class="bx bx-transfer-alt"></i> Resumo de ajustes (por produto)</h4>
+        <p class="hint" style="margin: -6px 0 10px;">
+          <strong>Sistema</strong> = saldo atual do ledger (mesma base da Movimentação).
+          <strong>Contado</strong> = soma de todas as linhas do mesmo código (cada validade/lote contada separadamente).
+          Se o snapshot da linha divergir do ledger, aparece aviso — o encerramento usa o ledger.
+          <strong>Todo SKU contado entra nesta tabela</strong> — ajuste 0 significa posição OK (não gera movimento no encerramento).
+        </p>
+        <div id="invResumoDivergenciaAlert" style="display:none;margin-bottom:10px;padding:10px 12px;background:#fef3c7;border:1px solid #f59e0b;color:#92400e;border-radius:6px;font-size:13px;"></div>
+        <div class="wms-inv-table-wrap" style="margin-bottom: 20px;">
+          <table class="wms-inv-table">
+            <thead>
+              <tr><th>Código</th><th>Produto</th><th>Sistema (ledger)</th><th>Contado (Σ)</th><th>Ajuste</th></tr>
+            </thead>
+            <tbody id="tblResumoBody"></tbody>
+          </table>
+        </div>
+        <p id="invResumoLegenda" class="hint" style="margin:-8px 0 16px;font-size:12px;"></p>
+
+        <h4 class="wms-inv-section-title"><i class="bx bx-list-ul"></i> Linhas (snapshot / importação / digitação direta)</h4>
+        <p class="hint" style="margin: -8px 0 6px;">
+          Edite <strong>Lote</strong>, <strong>Validade</strong> e <strong>Contada</strong> direto na tabela:
+          tecle <kbd>Enter</kbd> (ou clique fora) para salvar; <kbd>Esc</kbd> cancela.
+          O status muda automaticamente para <strong>CONTADO</strong> (dentro da tolerância) ou <strong>DIVERGENTE</strong>.
+          Use o ícone <i class="bx bx-git-branch" style="color:#c2410c;vertical-align:middle"></i>
+          para <strong>dividir</strong> uma linha em outra com lote/validade diferentes (mesmo SKU).
+          Alternativa: use <strong>Importar CSV</strong> para coletas em massa.
+        </p>
+        <p id="invLayoutResumoLinhas" class="inv-layout-ref hint"></p>
+        <div id="avisoSkuMultiLinha" class="aviso-sku-multi" style="display:none;"></div>
+        <div class="filtros-box wms-inv-filtro-linhas">
+          <h3 style="margin: 0 0 10px; font-size: 15px;"><i class="bx bx-filter-alt"></i> Filtrar linhas</h3>
+          <div class="filtros-grid">
+            <div>
+              <label for="filtroStLinha">Status da linha</label>
+              <select id="filtroStLinha" class="form-control">
+                <option value="">Todos os status</option>
+                <option value="__ACAO__">A tratar (pendente + divergente + recontar)</option>
+                <option value="PENDENTE">Pendente</option>
+                <option value="DIVERGENTE">Divergente</option>
+                <option value="RECONTAR">Recontar</option>
+                <option value="CONTADO">Contado</option>
+                <option value="APROVADO">Aprovado</option>
+              </select>
+            </div>
+            <div>
+              <label for="filtroCodigoLinha">Código contém</label>
+              <input type="text" id="filtroCodigoLinha" class="form-control" placeholder="ex.: 60312010" autocomplete="off" />
+            </div>
+          </div>
+          <div class="filtros-actions" style="margin-top: 0;">
+            <button type="button" id="btnLimparFiltroLinhas" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Limpar filtro</button>
+          </div>
+          <p id="filtroLinhasResumo" class="hint" style="margin: 8px 0 0;"></p>
+        </div>
+        <div class="wms-inv-table-wrap">
+          <table class="wms-inv-table">
+            <thead>
+              <tr>
+                <th>Produto</th>
+                <th>Lote</th>
+                <th>Validade</th>
+                <th>Sist. linha</th>
+                <th>Contada</th>
+                <th title="Status calculado com base na tolerância">Status</th>
+                <th>Origem</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tblLinhasBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-consulta" class="wms-inv-panel">
+      <div class="filtros-box">
+        <h3><i class="bx bx-search-alt-2"></i> Consulta histórico por item</h3>
+        <p class="hint" style="margin: -8px 0 16px;">
+          Localize em quais inventários um produto apareceu (código ou descrição). Informe ao menos
+          <strong>código</strong> (mín. 2 caracteres), <strong>descrição</strong> ou o <strong>nº do inventário</strong>.
+          Padrão: inventários <strong>encerrados</strong>.
+        </p>
+        <form id="consultaItensForm" onsubmit="return false;">
+          <div class="filtros-grid">
+            <div>
+              <label for="consultaDono">Dono do estoque</label>
+              <select id="consultaDono" class="form-control"><option value="">Todos</option></select>
+            </div>
+            <div>
+              <label for="consultaCodigo">Código contém</label>
+              <input type="text" id="consultaCodigo" class="form-control" placeholder="ex.: 6320401600" autocomplete="off" />
+            </div>
+            <div>
+              <label for="consultaDescricao">Descrição contém</label>
+              <input type="text" id="consultaDescricao" class="form-control" placeholder="ex.: PANO LIMPEZA" autocomplete="off" />
+            </div>
+            <div>
+              <label for="consultaCdInv">Inventário nº</label>
+              <input type="number" id="consultaCdInv" class="form-control" min="1" step="1" placeholder="Opcional" />
+            </div>
+            <div>
+              <label for="consultaSt">Status inventário</label>
+              <select id="consultaSt" class="form-control">
+                <option value="ENCERRADO" selected>Encerrado</option>
+                <option value="">Todos</option>
+                <option value="EM_CONTAGEM">Em contagem</option>
+                <option value="CONFERIDO">Conferido</option>
+                <option value="CANCELADO">Cancelado</option>
+              </select>
+            </div>
+            <div>
+              <label for="consultaTp">Tipo</label>
+              <select id="consultaTp" class="form-control">
+                <option value="">Todos</option>
+                <option value="GERAL">Geral</option>
+                <option value="INICIAL">Carga inicial</option>
+                <option value="CICLICO">Cíclico</option>
+              </select>
+            </div>
+            <div>
+              <label for="consultaDtDe">Período de</label>
+              <input type="date" id="consultaDtDe" class="form-control" />
+            </div>
+            <div>
+              <label for="consultaDtAte">Período até</label>
+              <input type="date" id="consultaDtAte" class="form-control" />
+            </div>
+          </div>
+          <div class="filtros-actions">
+            <button type="button" id="btnLimparConsulta" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Limpar</button>
+            <button type="submit" id="btnFiltrarConsulta" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search"></i> Filtrar</button>
+            <button type="button" id="btnExportConsultaCsv" class="btn-filtro btn-filtro-novo" disabled title="Exporta o resultado da última busca"><i class="bx bx-download"></i> Exportar CSV</button>
+          </div>
+        </form>
+        <p id="consultaResumo" class="hint" style="margin: 12px 0 0;"></p>
+      </div>
+      <div class="wms-inv-table-wrap">
+        <table class="wms-inv-table" id="tblConsultaItens">
+          <thead>
+            <tr>
+              <th>Inv. #</th>
+              <th>Dono</th>
+              <th>Tipo</th>
+              <th>Status</th>
+              <th>Encerramento</th>
+              <th>Código</th>
+              <th>Descrição</th>
+              <th>Lote</th>
+              <th>Validade</th>
+              <th>Sist.</th>
+              <th>Contada</th>
+              <th>Ajuste</th>
+              <th>St. linha</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="tblConsultaItensBody">
+            <tr><td colspan="14" class="hint">Use os filtros acima e clique em Filtrar.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="tab-manual" class="wms-inv-panel">
+      <div id="manualLoading" class="hint" style="padding: 24px;">Carregando manual…</div>
+      <article id="manualDoc" class="wms-inv-doc" style="display: none;"></article>
+    </div>
+
+    <div id="tab-orientacao" class="wms-inv-panel">
+      <div class="filtros-box">
+        <h3><i class="bx bx-book-open"></i> Orientação técnica</h3>
+        <div class="filtros-actions filtros-actions--start" style="margin-top: 0;">
+          <button type="button" id="btnRecarregarOrientacao" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-refresh"></i> Recarregar</button>
+        </div>
+      </div>
+      <div id="orientacaoLoading" class="hint" style="padding: 24px;">Carregando…</div>
+      <article id="orientacaoDoc" class="wms-inv-doc" style="display: none;"></article>
+    </div>
+
+    <div id="tab-planilha" class="wms-inv-panel">
+      <div class="filtros-box">
+        <h3><i class="bx bx-spreadsheet"></i> Planilha canônica</h3>
+        <p class="hint">Separador <code>;</code>, UTF-8. Colunas: <code>CODIGO_PRODUTO</code>, <code>QTD_CONTADA</code>, <code>LOTE</code>, <code>VALIDADE</code>, etc. Veja o <strong>Manual operador</strong> para o passo a passo.</p>
+        <div class="filtros-actions filtros-actions--start" style="margin-top: 0;">
+          <button type="button" id="btnDownloadPlanilha" class="btn-filtro btn-filtro-novo"><i class="bx bx-download"></i> Baixar CSV modelo</button>
+        </div>
+      </div>
+    </div>
+  </div>
+    <div id="modalCiclico" class="modal" hidden role="dialog" aria-labelledby="modalCiclicoTitulo">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3 id="modalCiclicoTitulo"><i class="bx bx-loader-circle"></i> Gerar lista de inventário cíclico</h3>
+          <p class="hint">
+            Escolha um critério para selecionar os SKUs do ciclo. O sistema cria um inventário <strong>CICLICO</strong> já com as linhas pré-populadas
+            (snapshot por SKU). Só os itens listados serão ajustados — saldo do restante do armazém é preservado.
+          </p>
+        </div>
+
+        <div class="modal-body">
+        <div class="filtros-grid filtros-grid-ciclico" style="margin-bottom: 8px;">
+          <div>
+            <label for="cicloDono">Dono *</label>
+            <select id="cicloDono" class="form-control" required></select>
+          </div>
+          <div>
+            <label for="cicloLimite">Qtd. máx.</label>
+            <input type="number" id="cicloLimite" class="form-control" min="1" max="2000" value="200" title="Máximo de SKUs na lista (até 2000)." />
+          </div>
+          <div>
+            <label for="cicloJanela">Janela (d)</label>
+            <input type="number" id="cicloJanela" class="form-control" min="1" max="365" value="30" title="Para ABC/Movimentados: período de giro analisado. Para Vencimento: dias até vencer." />
+          </div>
+          <div>
+            <label for="cicloConservacao">Conservação / descartável</label>
+            <input type="text" id="cicloConservacao" class="form-control" maxlength="40" placeholder="SECO, REFRIG, DESCARTAVEL…" title="SECO/REFRIG/CONGEL filtram TIPO_ARMAZENAGEM. DESCARTAVEL (ou DESCART) filtra produtos marcados como descartáveis no cadastro." />
+          </div>
+          <div>
+            <label for="cicloCodigo">Código produto</label>
+            <input type="text" id="cicloCodigo" class="form-control" maxlength="64" placeholder="6.03.14.532.00 (inclui SKU sem saldo)" title="Filtra pelo código interno. Com código informado, o SKU entra na lista mesmo com saldo zero no sistema." />
+          </div>
+          <div>
+            <label for="cicloPalavraChave">Palavra-chave produto</label>
+            <input type="text" id="cicloPalavraChave" class="form-control" maxlength="60" placeholder="leite, café…" title="Substring buscada no nome do produto (não é a categoria WMS)" />
+          </div>
+          <div>
+            <label for="cicloObs">Observação</label>
+            <input type="text" id="cicloObs" class="form-control" maxlength="500" placeholder="Opcional" />
+          </div>
+        </div>
+
+        <div class="ciclo-filtros-cadastro">
+          <p class="ciclo-filtros-cadastro-titulo">
+            <i class="bx bx-filter-alt"></i> Filtros de produto — escolha no combo (cadastro WMS)
+          </p>
+          <div class="filtros-grid" style="grid-template-columns: 1fr 1fr; margin: 0;">
+            <div>
+              <label for="cicloCdGrupo"><i class="bx bx-layer"></i> Grupo (cadastro WMS)</label>
+              <select id="cicloCdGrupo" class="form-control" title="Lista de grupos do cadastro WMS (ex.: LIMPEZA - QUIMICOS).">
+                <option value="">Todos</option>
+              </select>
+            </div>
+            <div>
+              <label for="cicloCdCategoria"><i class="bx bx-category"></i> Categoria (cadastro WMS)</label>
+              <select id="cicloCdCategoria" class="form-control" title="Lista de categorias do cadastro WMS (ex.: DETERGENTES).">
+                <option value="">Todas</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <label class="modal-criterio-label">Critério (clique no card para selecionar)</label>
+        <div class="criterios-grid" id="cicloCriteriosGrid">
+          <div class="criterio-card" data-criterio="ABC">
+            <strong><i class="bx bx-trending-up"></i> ABC (giro)</strong>
+            <span>Top N SKUs com maior giro na janela (princípio de Pareto).</span>
+          </div>
+          <div class="criterio-card" data-criterio="VENCIMENTO">
+            <strong><i class="bx bx-calendar-exclamation"></i> Vencimento próximo</strong>
+            <span>FEFO: SKUs com validade até X dias. Reduz risco de perda.</span>
+          </div>
+          <div class="criterio-card" data-criterio="MAIS_ANTIGOS">
+            <strong><i class="bx bx-history"></i> Não contados há mais tempo</strong>
+            <span>SKUs sem contagem recente. Garante cobertura mensal.</span>
+          </div>
+          <div class="criterio-card" data-criterio="MAIS_MOVIMENTADOS">
+            <strong><i class="bx bx-transfer"></i> Mais movimentados</strong>
+            <span>Top N por volume de entradas + saídas na janela.</span>
+          </div>
+          <div class="criterio-card" data-criterio="ALEATORIO">
+            <strong><i class="bx bx-shuffle"></i> Aleatório (amostragem)</strong>
+            <span>Sorteio estatístico — útil para auditoria sem viés.</span>
+          </div>
+          <div class="criterio-card" data-criterio="CONSERVACAO">
+            <strong><i class="bx bx-fridge"></i> Por conservação</strong>
+            <span>Todos os SKUs do tipo informado (use o filtro Conservação).</span>
+          </div>
+        </div>
+
+        <div id="cicloStatus" class="preview-status" style="display: none;"></div>
+
+        <div class="filtros-grid" style="margin: 8px 0 4px; align-items: end;">
+          <div>
+            <label for="cicloSeparadores"><i class="bx bx-list-ul"></i> Separadores (impressão)</label>
+            <select id="cicloSeparadores" class="form-control">
+              <option value="nao">Não usar separadores</option>
+              <option value="faixas_cons">Só faixas SECO/REFRIG./CONG.</option>
+              <option value="conservacao">Conservação</option>
+              <option value="cons_grupo">Conservação + Grupo</option>
+              <option value="cons_grupo_cat" selected>Conservação + Grupo + Categoria</option>
+            </select>
+          </div>
+          <div>
+            <label for="cicloOrd1"><i class="bx bx-sort"></i> Ordenação 1</label>
+            <select id="cicloOrd1" class="form-control">
+              <option value="conservacao" selected>Conservação</option>
+              <option value="grupo">Grupo (cadastro WMS)</option>
+              <option value="subcategoria">Categoria (cadastro WMS)</option>
+              <option value="codigo">Código</option>
+              <option value="nome">Descrição</option>
+              <option value="lote">Lote</option>
+              <option value="validade">Validade</option>
+              <option value="saldo">Saldo</option>
+            </select>
+          </div>
+          <div>
+            <label for="cicloOrd2">Ordenação 2</label>
+            <select id="cicloOrd2" class="form-control">
+              <option value="">—</option>
+              <option value="grupo" selected>Grupo (cadastro WMS)</option>
+              <option value="subcategoria">Categoria (cadastro WMS)</option>
+              <option value="codigo">Código</option>
+              <option value="nome">Descrição</option>
+              <option value="lote">Lote</option>
+              <option value="validade">Validade</option>
+            </select>
+          </div>
+          <div>
+            <label for="cicloOrd3">Ordenação 3</label>
+            <select id="cicloOrd3" class="form-control">
+              <option value="">—</option>
+              <option value="subcategoria" selected>Categoria (cadastro WMS)</option>
+              <option value="codigo">Código</option>
+              <option value="nome">Descrição</option>
+              <option value="lote">Lote</option>
+              <option value="validade">Validade</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="preview-wrap" style="display: none;" id="cicloPreviewWrap">
+          <table class="preview-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Código</th>
+                <th>Produto</th>
+                <th>Lote</th>
+                <th>Validade</th>
+                <th title="Saldo do sistema no momento da geração">Saldo</th>
+                <th title="Dias até vencer (Vencimento)">Vence em</th>
+                <th title="Movimentos na janela (ABC/Mais mov.)">Movs.</th>
+                <th>Última contagem</th>
+                <th>Conserv.</th>
+              </tr>
+            </thead>
+            <tbody id="cicloPreviewBody"></tbody>
+          </table>
+        </div>
+        </div><!-- /.modal-body -->
+
+        <div class="modal-footer">
+          <button type="button" id="btnCicloPreview" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-show"></i> Pré-visualizar lista</button>
+          <button type="button" id="btnCicloImprimir" class="btn-filtro btn-filtro-aplicar" disabled title="Imprime a lista exibida (com ordenação e separadores)"><i class="bx bx-printer"></i> Imprimir lista</button>
+          <button type="button" id="btnCicloCriar" class="btn-filtro btn-filtro-novo" disabled><i class="bx bx-check-circle"></i> Criar inventário com esta lista</button>
+          <button type="button" id="btnCicloCancelar" class="btn-filtro btn-filtro-limpar" style="margin-left: auto;"><i class="bx bx-x"></i> Fechar</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modalDividir" class="modal" hidden role="dialog" aria-labelledby="modalDividirTitulo">
+      <div class="modal-content modal-dividir-content">
+        <h3 id="modalDividirTitulo" style="margin: 0 0 6px;"><i class="bx bx-git-branch"></i> Dividir lote/validade</h3>
+        <p class="hint" id="divInfo" style="margin: 0 0 4px;">Linha de origem: —</p>
+        <p class="hint" style="margin: 0 0 16px;">
+          Cria uma <strong>nova linha</strong> do <strong>mesmo SKU</strong> com lote/validade
+          diferentes. Útil quando você descobre múltiplas validades reais em campo e o snapshot
+          tinha uma validade genérica. Pelo menos um campo (lote ou validade) precisa ser diferente
+          da linha original.
+        </p>
+        <form id="formDividir" onsubmit="return false;">
+          <div class="filtros-grid" style="margin-bottom: 12px;">
+            <div>
+              <label for="divLote">Novo lote</label>
+              <input type="text" id="divLote" class="form-control" maxlength="60" placeholder="(opcional)" />
+            </div>
+            <div>
+              <label for="divValidade">Nova validade</label>
+              <input type="date" id="divValidade" class="form-control" />
+            </div>
+            <div>
+              <label for="divQtd">Qtd contada nesta nova linha</label>
+              <input type="number" id="divQtd" class="form-control" min="0" step="0.001" placeholder="(opcional — pode preencher depois)" />
+            </div>
+          </div>
+          <div class="filtros-actions" style="justify-content: flex-end; gap: 10px; margin-top: 12px;">
+            <button type="button" id="btnDivCancelar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Cancelar</button>
+            <button type="button" id="btnDivSalvar" class="btn-filtro btn-filtro-novo"><i class="bx bx-check"></i> Criar linha</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="modalAddLinha" class="modal" hidden role="dialog" aria-labelledby="modalAddLinhaTitulo" aria-modal="true">
+      <div class="modal-content modal-dividir-content modal-add-linha-card">
+        <div class="modal-add-linha-header">
+          <h3 id="modalAddLinhaTitulo"><i class="bx bx-plus-circle"></i> Adicionar SKU à contagem</h3>
+          <button type="button" id="btnAddLinhaFechar" class="modal-add-linha-close" aria-label="Fechar"><i class="bx bx-x"></i></button>
+        </div>
+        <div class="add-linha-callout" role="note">
+          <i class="bx bx-info-circle" aria-hidden="true"></i>
+          <div>
+            Para produto encontrado em campo que <strong>não estava na lista</strong>.
+            O SKU precisa estar cadastrado no <strong>dono deste inventário</strong>.
+          </div>
+        </div>
+        <form id="formAddLinha" class="add-linha-body" onsubmit="return false;">
+          <div class="add-linha-grid">
+            <div class="add-linha-field add-linha-codigo">
+              <label for="addCodigo">Código do produto <span class="req">*</span></label>
+              <input type="text" id="addCodigo" class="form-control" maxlength="40" required
+                     placeholder="Ex.: 6031202020 ou 6.03.12.020.20"
+                     list="addCodigoSugestoes"
+                     autocomplete="off" />
+              <datalist id="addCodigoSugestoes"></datalist>
+              <small class="hint" id="addCodigoStatus"></small>
+            </div>
+            <div class="add-linha-field">
+              <label for="addLote">Lote <span class="opt">opcional</span></label>
+              <input type="text" id="addLote" class="form-control" maxlength="60" placeholder="Sem lote" />
+            </div>
+            <div class="add-linha-field">
+              <label for="addValidade">Validade <span class="opt">opcional</span></label>
+              <input type="date" id="addValidade" class="form-control" />
+            </div>
+            <div class="add-linha-field">
+              <label for="addQtd">Qtd. contada <span class="opt">opcional</span></label>
+              <input type="number" id="addQtd" class="form-control" min="0" step="0.001"
+                     placeholder="Preencher depois" />
+            </div>
+          </div>
+          <div class="modal-add-linha-footer">
+            <button type="button" id="btnAddLinhaCancelar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Cancelar</button>
+            <button type="button" id="btnAddLinhaSalvar" class="btn-filtro btn-filtro-novo"><i class="bx bx-check"></i> Adicionar SKU</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="modalTransferencia" class="modal" hidden role="dialog" aria-labelledby="modalTransfTitulo">
+      <div class="modal-content modal-dividir-content" style="max-width: 680px;">
+        <h3 id="modalTransfTitulo" style="margin: 0 0 6px;"><i class="bx bx-transfer"></i> Transferência entre donos</h3>
+        <p class="hint" style="margin: 0 0 14px;">
+          Move saldo de um SKU de um dono para outro. Gera <strong>2 movimentos</strong> no
+          ledger de estoque (saída na origem + entrada no destino) e um documento auditável.
+          Se o SKU não existe no destino, o sistema <strong>pergunta antes</strong> se deve
+          cadastrar automaticamente copiando o cadastro da origem.
+        </p>
+        <form id="formTransferencia" onsubmit="return false;">
+          <div class="filtros-grid" style="margin-bottom: 8px;">
+            <div>
+              <label for="transfDonoOrigem">Dono de origem *</label>
+              <select id="transfDonoOrigem" class="form-control" required></select>
+            </div>
+            <div>
+              <label for="transfDonoDestino">Dono de destino *</label>
+              <select id="transfDonoDestino" class="form-control" required></select>
+            </div>
+            <div style="grid-column: span 2;">
+              <label for="transfCodigo">Código do produto (na origem) *</label>
+              <input type="text" id="transfCodigo" class="form-control" maxlength="40" required
+                     placeholder="Ex.: 6031202020 ou 6.03.12.020.20"
+                     list="transfCodigoSugestoes" autocomplete="off" />
+              <datalist id="transfCodigoSugestoes"></datalist>
+              <small class="hint" id="transfCodigoStatus" style="display: block; margin-top: 4px; min-height: 16px;"></small>
+            </div>
+            <div style="grid-column: span 2;">
+              <label for="transfCodigoDestino">Código no destino (se diferente)</label>
+              <input type="text" id="transfCodigoDestino" class="form-control" maxlength="40"
+                     placeholder="Ex.: 6031200600 — deixe vazio se for o mesmo código da origem"
+                     list="transfCodigoDestinoSugestoes" autocomplete="off" />
+              <datalist id="transfCodigoDestinoSugestoes"></datalist>
+              <small class="hint" id="transfCodigoDestinoStatus" style="display: block; margin-top: 4px; min-height: 16px;"></small>
+            </div>
+            <div>
+              <label for="transfLote">Lote (FEFO / informativo)</label>
+              <input type="text" id="transfLote" class="form-control" maxlength="60" placeholder="Preenchido na pré-validação" />
+            </div>
+            <div>
+              <label for="transfValidade">Validade mais curta com saldo</label>
+              <input type="date" id="transfValidade" class="form-control" title="Sugestão FEFO do saldo de lote da origem" />
+            </div>
+            <div>
+              <label for="transfQtd">Quantidade *</label>
+              <input type="number" id="transfQtd" class="form-control" min="0.001" step="0.001" required placeholder="0" />
+            </div>
+            <div>
+              <label for="transfMotivo">Motivo</label>
+              <input type="text" id="transfMotivo" class="form-control" maxlength="255"
+                     placeholder="Ex.: rótulo trocado, migração de cliente" />
+            </div>
+          </div>
+          <div id="transfResumo" class="transf-preview-box" hidden></div>
+          <div class="filtros-actions" style="justify-content: flex-end; gap: 10px; margin-top: 12px;">
+            <button type="button" id="btnTransfCancelar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Cancelar</button>
+            <button type="button" id="btnTransfPreview" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search-alt"></i> Pré-validar</button>
+            <button type="button" id="btnTransfConfirmar" class="btn-filtro btn-filtro-novo" disabled><i class="bx bx-check"></i> Confirmar transferência</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="modalCadProdInv" class="modal" hidden role="dialog" aria-labelledby="modalCadProdTitulo">
+      <div class="modal-content">
+        <h3 id="modalCadProdTitulo"><i class="bx bx-package"></i> Cadastrar produto do dono</h3>
+        <p class="hint" style="margin-top: 0;">Após salvar, a linha da planilha será reimportada automaticamente.</p>
+        <form id="formCadProdInv" onsubmit="return false;">
+          <div class="filtros-grid" style="margin-bottom: 0;">
+            <div>
+              <label for="cadCodigo">Código</label>
+              <input type="text" id="cadCodigo" class="form-control" readonly />
+            </div>
+            <div>
+              <label for="cadNome">Nome / descrição *</label>
+              <input type="text" id="cadNome" class="form-control" maxlength="200" required placeholder="Descrição do produto" />
+            </div>
+            <div>
+              <label for="cadUnidade">Unidade</label>
+              <input type="text" id="cadUnidade" class="form-control" maxlength="10" placeholder="UN, CX…" />
+            </div>
+            <div>
+              <label class="wms-inv-check-label">
+                <input type="checkbox" id="cadFgLote" /> Controla lote
+              </label>
+            </div>
+            <div>
+              <label class="wms-inv-check-label">
+                <input type="checkbox" id="cadFgVal" /> Controla validade
+              </label>
+            </div>
+          </div>
+          <div class="modal-actions filtros-actions" style="margin-top: 16px;">
+            <button type="button" id="btnCancelarCadProd" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Cancelar</button>
+            <button type="button" id="btnSalvarCadProd" class="btn-filtro btn-filtro-novo"><i class="bx bx-check"></i> Salvar e reimportar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="js/script.js?v=20260812-inv-sku2"></script>
+</body>
+</html>

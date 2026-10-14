@@ -109,6 +109,7 @@
       .form-dados-card-body .filtros-grid { overflow: visible; }
 
       .form-group-toggle-wrap {
+        position: relative;
         margin: 20px 0 8px 0;
         padding: 16px 0 0 0;
         border-top: 1px solid var(--border, #e2e8f0);
@@ -120,46 +121,80 @@
         padding-top: 0;
         margin-top: 0;
       }
-      .form-group-toggle { margin: 0 0 8px 0; }
-      .toggle-label {
-        display: flex;
+      /* Linha do switch: grid fixa [trilho][texto] — evita sobreposição do knob no texto */
+      .tipo-ocorrencia-toggle-row {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
         align-items: center;
-        gap: 16px;
+        column-gap: 14px;
+        row-gap: 8px;
+        width: 100%;
+        box-sizing: border-box;
+        position: relative;
+      }
+      .tipo-ocorrencia-toggle-row .toggle-slider-wrap {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        cursor: pointer;
+        margin: 0;
+        padding: 0;
+        line-height: 0;
+      }
+      .tipo-ocorrencia-toggle-row .toggle-text {
+        display: block;
+        margin: 0;
         cursor: pointer;
         font-weight: 500;
         color: #334155;
-        width: 100%;
-        box-sizing: border-box;
-      }
-      .toggle-label .toggle-slider {
-        flex-shrink: 0;
-        margin: 0;
-      }
-      .toggle-label .toggle-text {
-        flex: 1;
+        line-height: 1.45;
+        user-select: none;
         min-width: 0;
-        line-height: 1.4;
-        padding-left: 0;
       }
       .form-text-toggle {
-        margin: 0;
+        margin: 10px 0 0 0;
         font-size: 13px;
         color: #64748b;
-        line-height: 1.45;
+        line-height: 1.5;
+        max-width: 48rem;
       }
-      .form-group-dependent.form-group-fullwidth {
-        margin-top: 12px;
-        margin-bottom: 16px;
+      .form-group-tempo-maximo {
+        margin-top: 16px;
+        margin-bottom: 8px;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        width: 100%;
+        max-width: 100%;
       }
-      .form-group-dependent.form-group-fullwidth .form-control { max-width: 200px; }
-      .form-control-toggle {
-        position: absolute;
-        opacity: 0;
-        width: 0;
-        height: 0;
+      .form-group-tempo-maximo > label {
+        margin-bottom: 0;
+      }
+      .form-group-tempo-maximo .form-control-tempo {
+        max-width: 220px;
+        width: 100%;
+      }
+      .form-text-help-tempo {
         margin: 0;
+        font-size: 13px;
+        line-height: 1.5;
+        color: #64748b;
+        max-width: 48rem;
+      }
+      /* Checkbox fora do grid: acessível ao foco, invisível na tela */
+      .form-group-toggle-wrap > .form-control-toggle {
+        position: absolute;
+        width: 1px;
+        height: 1px;
         padding: 0;
-        pointer-events: none;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+        opacity: 0;
       }
       .toggle-slider {
         width: 44px;
@@ -168,6 +203,7 @@
         border-radius: 24px;
         position: relative;
         transition: background 0.2s;
+        flex-shrink: 0;
       }
       .toggle-slider::after {
         content: '';
@@ -181,13 +217,12 @@
         box-shadow: 0 1px 3px rgba(0,0,0,0.2);
         transition: transform 0.2s;
       }
-      .form-control-toggle:checked + .toggle-slider {
+      .form-group-toggle-wrap .form-control-toggle:checked ~ .tipo-ocorrencia-toggle-row .toggle-slider-wrap .toggle-slider {
         background: var(--ac-accent, #0ea5e9);
       }
-      .form-control-toggle:checked + .toggle-slider::after {
+      .form-group-toggle-wrap .form-control-toggle:checked ~ .tipo-ocorrencia-toggle-row .toggle-slider-wrap .toggle-slider::after {
         transform: translateX(20px);
       }
-      .toggle-text { user-select: none; }
       .form-group-dependent { margin-top: 8px; margin-bottom: 16px; }
 
       #tiposOcorrenciaGrid .grid-actions-header,
@@ -285,9 +320,9 @@
       </div>
 
       <div class="tabs tabs-com-icones">
-        <button class="tab-btn active" data-tab="filtros"><i class='bx bx-filter-alt'></i> <span data-i18n="web.modulos.tipoOcorrencia.tabFiltros">Filtros</span></button>
-        <button class="tab-btn" data-tab="grid"><i class='bx bx-grid-alt'></i> <span data-i18n="web.modulos.tipoOcorrencia.tabGrid">Grid</span></button>
-        <button class="tab-btn" data-tab="dados"><i class='bx bx-edit'></i> <span data-i18n="web.modulos.tipoOcorrencia.tabDados">Dados</span></button>
+        <button type="button" class="tab-btn active" data-tab="filtros"><i class='bx bx-filter-alt'></i> <span data-i18n="web.modulos.tipoOcorrencia.tabFiltros">Filtros</span></button>
+        <button type="button" class="tab-btn" data-tab="grid"><i class='bx bx-grid-alt'></i> <span data-i18n="web.modulos.tipoOcorrencia.tabGrid">Grid</span></button>
+        <button type="button" class="tab-btn" data-tab="dados"><i class='bx bx-edit'></i> <span data-i18n="web.modulos.tipoOcorrencia.tabDados">Dados</span></button>
       </div>
 
       <!-- Filtros -->
@@ -392,19 +427,17 @@
               <div class="form-dados-card-header"><i class='bx bx-time-five'></i> Tempo para alertas</div>
               <div class="form-dados-card-body">
                 <div class="form-group-toggle-wrap">
-                  <div class="form-group-toggle">
-                    <label class="toggle-label">
-                      <input type="checkbox" id="tipoControleTempo" class="form-control-toggle">
-                      <span class="toggle-slider"></span>
-                      <span class="toggle-text">Controlar tempo para esta situação (alertas)</span>
-                    </label>
+                  <input type="checkbox" id="tipoControleTempo" class="form-control-toggle" aria-describedby="tipoControleTempoHint">
+                  <div class="tipo-ocorrencia-toggle-row">
+                    <label for="tipoControleTempo" class="toggle-slider-wrap"><span class="toggle-slider" aria-hidden="true"></span></label>
+                    <label for="tipoControleTempo" class="toggle-text">Controlar tempo para esta situação (alertas)</label>
                   </div>
-                  <p class="form-text form-text-toggle">Ligado: gera alerta se passar do tempo máximo sem a próxima ação. Ex.: Início/Reinício pode servir para tempo de direção.</p>
+                  <p id="tipoControleTempoHint" class="form-text form-text-toggle">Ligado: gera alerta se passar do tempo máximo sem a próxima ação. Ex.: Início/Reinício pode servir para tempo de direção.</p>
                 </div>
-                <div id="wrapTempoMaximo" class="form-group-dependent form-group-fullwidth" style="display: none;">
+                <div id="wrapTempoMaximo" class="form-group-dependent form-group-tempo-maximo" style="display: none;">
                   <label for="tipoTempoMaximo">Tempo máximo (minutos)</label>
                   <input type="number" id="tipoTempoMaximo" min="0" class="form-control form-control-tempo" placeholder="Ex: 240 (4 horas)">
-                  <small class="form-text text-muted">Se a última macro da viagem for esta e passar deste tempo sem registrar a próxima, o sistema pode gerar alerta.</small>
+                  <p class="form-text form-text-help-tempo text-muted">Se a última macro da viagem for esta e passar deste tempo sem registrar a próxima, o sistema pode gerar alerta.</p>
                 </div>
               </div>
             </div>

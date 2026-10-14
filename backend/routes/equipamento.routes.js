@@ -4,23 +4,27 @@ const sql = require('../config/mssql-compat');
 const XLSX = require('xlsx');
 const router = express.Router();
 const { poolPromise, getFirstNumericValue } = require('../config/db');
+const { towerAuthAndTenant } = require('../middleware/tower-auth-chain.middleware');
+const { tenantIdForRequest } = require('../utils/tenant-context');
+
+router.use(towerAuthAndTenant);
 
 // Função helper para criar rotas de combo (query nativa PostgreSQL com identificadores entre aspas)
 const createComboRoute = (tableName, idField, nameField) => {
   return async (req, res) => {
     try {
       const pool = await poolPromise;
-      
-      let pgQuery = `SELECT "${idField}", "${nameField}" FROM "${tableName}"`;
-      
-      if (tableName === 'TIPOEQUIPAMENTO' || tableName === 'GRUPOEQUIPAMENTO' || 
+      const tenantId = tenantIdForRequest(req);
+
+      const condicoes = [`("TENANT_ID" = $1 OR "TENANT_ID" = 'default')`];
+      if (tableName === 'TIPOEQUIPAMENTO' || tableName === 'GRUPOEQUIPAMENTO' ||
           tableName === 'MARCAEQUIPAMENTO' || tableName === 'CLASSEFROTA') {
-        pgQuery += ` WHERE "FGACTIVE" = 'A' OR "FGACTIVE" = 'S'`;
+        condicoes.push(`("FGACTIVE" = 'A' OR "FGACTIVE" = 'S')`);
       }
-      
-      pgQuery += ` ORDER BY "${nameField}"`;
-      
-      const result = await pool.query(pgQuery, []);
+
+      const pgQuery = `SELECT "${idField}", "${nameField}" FROM "${tableName}" WHERE ${condicoes.join(' AND ')} ORDER BY "${nameField}"`;
+
+      const result = await pool.query(pgQuery, [tenantId]);
       
       if (!result || !result.rows) {
         return res.status(500).json({ error: `Erro: resultado inválido ao carregar ${tableName}.` });
@@ -88,11 +92,16 @@ router.get('/equipamentos', async (req, res) => {
         [e].[FGRASTREADO]
       FROM [dbo].[EQUIPAMENTO] e
       LEFT JOIN [dbo].[GRUPOEQUIPAMENTO] g ON [e].[CDGRUPOEQUIPAMENTO] = [g].[CDGRUPOEQUIPAMENTO]
+        AND ([g].[TENANT_ID] = [e].[TENANT_ID] OR [g].[TENANT_ID] = 'default')
       LEFT JOIN [dbo].[TIPOEQUIPAMENTO] t ON [e].[CDTIPOEQUIPAMENTO] = [t].[CDTIPOEQUIPAMENTO]
+        AND ([t].[TENANT_ID] = [e].[TENANT_ID] OR [t].[TENANT_ID] = 'default')
       LEFT JOIN [dbo].[MARCAEQUIPAMENTO] m ON [e].[CDMARCAEQUIPAMENTO] = [m].[CDMARCAEQUIPAMENTO]
+        AND ([m].[TENANT_ID] = [e].[TENANT_ID] OR [m].[TENANT_ID] = 'default')
       LEFT JOIN [dbo].[MODELOEQUIPAMENTO] mod ON [e].[CDMODELOEQUIPAMENTO] = [mod].[CDMODELOEQUIPAMENTO]
+        AND ([mod].[TENANT_ID] = [e].[TENANT_ID] OR [mod].[TENANT_ID] = 'default')
       LEFT JOIN [dbo].[CLASSEFROTA] c ON [e].[CDCLASSEFROTA] = [c].[CDCLASSEFROTA]
-      WHERE 1=1
+        AND ([c].[TENANT_ID] = [e].[TENANT_ID] OR [c].[TENANT_ID] = 'default')
+      WHERE 1=1 AND [e].[TENANT_ID] = @TENANT_ID
     `;
 
     const params = [];
@@ -145,7 +154,9 @@ router.get('/equipamentos', async (req, res) => {
     query += ` ORDER BY [e].[REFEQUIPAMENTO]`;
 
     const pool = await poolPromise;
+    const tenantId = tenantIdForRequest(req);
     const request = pool.request();
+    request.input('TENANT_ID', sql.VarChar(64), tenantId);
 
     params.forEach(p => {
       request.input(p.name, p.value);
@@ -264,11 +275,16 @@ router.get('/equipamentos/exportar-excel', async (req, res) => {
         END AS 'Veículo Rastreado'
       FROM [dbo].[EQUIPAMENTO] e
       LEFT JOIN [dbo].[GRUPOEQUIPAMENTO] g ON [e].[CDGRUPOEQUIPAMENTO] = [g].[CDGRUPOEQUIPAMENTO]
+        AND ([g].[TENANT_ID] = [e].[TENANT_ID] OR [g].[TENANT_ID] = 'default')
       LEFT JOIN [dbo].[TIPOEQUIPAMENTO] t ON [e].[CDTIPOEQUIPAMENTO] = [t].[CDTIPOEQUIPAMENTO]
+        AND ([t].[TENANT_ID] = [e].[TENANT_ID] OR [t].[TENANT_ID] = 'default')
       LEFT JOIN [dbo].[MARCAEQUIPAMENTO] m ON [e].[CDMARCAEQUIPAMENTO] = [m].[CDMARCAEQUIPAMENTO]
+        AND ([m].[TENANT_ID] = [e].[TENANT_ID] OR [m].[TENANT_ID] = 'default')
       LEFT JOIN [dbo].[MODELOEQUIPAMENTO] mod ON [e].[CDMODELOEQUIPAMENTO] = [mod].[CDMODELOEQUIPAMENTO]
+        AND ([mod].[TENANT_ID] = [e].[TENANT_ID] OR [mod].[TENANT_ID] = 'default')
       LEFT JOIN [dbo].[CLASSEFROTA] c ON [e].[CDCLASSEFROTA] = [c].[CDCLASSEFROTA]
-      WHERE 1=1
+        AND ([c].[TENANT_ID] = [e].[TENANT_ID] OR [c].[TENANT_ID] = 'default')
+      WHERE 1=1 AND [e].[TENANT_ID] = @TENANT_ID
     `;
 
     const params = [];
@@ -321,7 +337,9 @@ router.get('/equipamentos/exportar-excel', async (req, res) => {
     query += ` ORDER BY [e].[REFEQUIPAMENTO]`;
 
     const pool = await poolPromise;
+    const tenantId = tenantIdForRequest(req);
     const request = pool.request();
+    request.input('TENANT_ID', sql.VarChar(64), tenantId);
 
     params.forEach(p => {
       request.input(p.name, p.value);
@@ -387,6 +405,243 @@ router.get('/equipamentos/exportar-excel', async (req, res) => {
   }
 });
 
+/**
+ * Ficha técnica complementar (PostgreSQL — tabela EQUIPAMENTO_FICHA_TECNICA).
+ * Deve vir antes de GET /equipamentos/:id para manter agrupamento de rotas por recurso.
+ */
+router.get('/equipamentos/:id/ficha-tecnica', async (req, res) => {
+  try {
+    const idNum = parseFloat(String(req.params.id || ''));
+    if (!Number.isFinite(idNum) || idNum <= 0) {
+      return res.status(400).json({ error: 'ID inválido.' });
+    }
+    const tenantId = tenantIdForRequest(req);
+    const pool = await poolPromise;
+    const ok = await pool
+      .request()
+      .input('IDEQUIPAMENTO', sql.Decimal(15, 0), idNum)
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
+      .query(
+        `SELECT [IDEQUIPAMENTO], [REFEQUIPAMENTO]
+           FROM [dbo].[EQUIPAMENTO]
+          WHERE [IDEQUIPAMENTO] = @IDEQUIPAMENTO AND [TENANT_ID] = @TENANT_ID`
+      );
+    if (!ok.recordset || ok.recordset.length === 0) {
+      return res.status(404).json({ error: 'Equipamento não encontrado.' });
+    }
+    let rows;
+    try {
+      const r2 = await pool.query(
+        `SELECT "IDEQUIPAMENTO", "NRRENAVAM", "NRCHASSI", "NRFROTA", "NUMEROCARROCERIA", "CATEGORIACNH",
+                "TARA", "CAPACTRACAO", "CAPACTANQUE"
+         FROM "EQUIPAMENTO_FICHA_TECNICA"
+         WHERE "IDEQUIPAMENTO" = $1::numeric AND "TENANT_ID" = $2`,
+        [idNum, tenantId]
+      );
+      rows = r2.rows;
+    } catch (e) {
+      if (e.code === '42P01') {
+        return res.status(503).json({
+          error: 'Execute o script adicionar_equipamento_ficha_tecnica_postgres.sql no banco.',
+        });
+      }
+      throw e;
+    }
+    const row = rows && rows[0];
+    res.json(
+      row || {
+        IDEQUIPAMENTO: idNum,
+        NRRENAVAM: null,
+        NRCHASSI: null,
+        NRFROTA: null,
+        NUMEROCARROCERIA: null,
+        CATEGORIACNH: null,
+        TARA: null,
+        CAPACTRACAO: null,
+        CAPACTANQUE: null,
+      }
+    );
+  } catch (err) {
+    console.error('[Equipamentos] GET ficha-tecnica:', err);
+    res.status(500).json({ error: 'Erro ao carregar ficha técnica.' });
+  }
+});
+
+router.put('/equipamentos/:id/ficha-tecnica', async (req, res) => {
+  try {
+    const idNum = parseFloat(String(req.params.id || ''));
+    if (!Number.isFinite(idNum) || idNum <= 0) {
+      return res.status(400).json({ error: 'ID inválido.' });
+    }
+    const tenantId = tenantIdForRequest(req);
+    const body = req.body || {};
+    const pickStr = (a, b, max) => {
+      const v = body[a] ?? body[b];
+      if (v == null) return null;
+      const s = String(v).trim();
+      if (!s) return null;
+      return max ? s.slice(0, max) : s;
+    };
+    const pickNum = (a, b) => {
+      const v = body[a] ?? body[b];
+      if (v === '' || v == null) return null;
+      const n = parseFloat(String(v));
+      return Number.isFinite(n) ? n : null;
+    };
+    const nrrenavam = pickStr('NRRENAVAM', 'nrrenavam', 20);
+    const nrchassi = pickStr('NRCHASSI', 'nrchassi', 20);
+    const nrfrota = pickStr('NRFROTA', 'nrfrota', 10);
+    const numerocarroceria = pickStr('NUMEROCARROCERIA', 'numerocarroceria', 20);
+    const categoriacnh = pickStr('CATEGORIACNH', 'categoriacnh', 5);
+    const tara = pickNum('TARA', 'tara');
+    const capactracao = pickNum('CAPACTRACAO', 'capactracao');
+    const capactanque = pickNum('CAPACTANQUE', 'capactanque');
+    const sg =
+      req.user && (req.user.login || req.user.nome)
+        ? String(req.user.login || req.user.nome).slice(0, 50)
+        : 'WEB';
+
+    const pool = await poolPromise;
+    const ok = await pool
+      .request()
+      .input('IDEQUIPAMENTO', sql.Decimal(15, 0), idNum)
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
+      .query(
+        `SELECT 1 AS x FROM [dbo].[EQUIPAMENTO] WHERE [IDEQUIPAMENTO] = @IDEQUIPAMENTO AND [TENANT_ID] = @TENANT_ID`
+      );
+    if (!ok.recordset || ok.recordset.length === 0) {
+      return res.status(404).json({ error: 'Equipamento não encontrado.' });
+    }
+
+    try {
+      await pool.query(
+        `INSERT INTO "EQUIPAMENTO_FICHA_TECNICA" (
+          "IDEQUIPAMENTO", "TENANT_ID", "NRRENAVAM", "NRCHASSI", "NRFROTA", "NUMEROCARROCERIA", "CATEGORIACNH",
+          "TARA", "CAPACTRACAO", "CAPACTANQUE", "DHMAINTENANCE", "SGUSER"
+        ) VALUES ($1::numeric, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, $11)
+        ON CONFLICT ("IDEQUIPAMENTO") DO UPDATE SET
+          "NRRENAVAM" = EXCLUDED."NRRENAVAM",
+          "NRCHASSI" = EXCLUDED."NRCHASSI",
+          "NRFROTA" = EXCLUDED."NRFROTA",
+          "NUMEROCARROCERIA" = EXCLUDED."NUMEROCARROCERIA",
+          "CATEGORIACNH" = EXCLUDED."CATEGORIACNH",
+          "TARA" = EXCLUDED."TARA",
+          "CAPACTRACAO" = EXCLUDED."CAPACTRACAO",
+          "CAPACTANQUE" = EXCLUDED."CAPACTANQUE",
+          "DHMAINTENANCE" = CURRENT_TIMESTAMP,
+          "SGUSER" = EXCLUDED."SGUSER"`,
+        [
+          idNum,
+          tenantId,
+          nrrenavam,
+          nrchassi,
+          nrfrota,
+          numerocarroceria,
+          categoriacnh,
+          tara,
+          capactracao,
+          capactanque,
+          sg,
+        ]
+      );
+    } catch (e) {
+      if (e.code === '42P01') {
+        return res.status(503).json({
+          error: 'Execute o script adicionar_equipamento_ficha_tecnica_postgres.sql no banco.',
+        });
+      }
+      throw e;
+    }
+
+    res.json({ success: true, message: 'Ficha técnica salva com sucesso.' });
+  } catch (err) {
+    console.error('[Equipamentos] PUT ficha-tecnica:', err);
+    res.status(500).json({ error: 'Erro ao salvar ficha técnica.' });
+  }
+});
+
+/**
+ * Documentos enviados pelo app (motorista) vinculados a este equipamento — CRLV / foto do veículo em MOTORISTA_VEICULO (PostgreSQL).
+ */
+router.get('/equipamentos/:id/documentos-app', async (req, res) => {
+  try {
+    const idNum = parseFloat(String(req.params.id || ''));
+    if (!Number.isFinite(idNum) || idNum <= 0) {
+      return res.status(400).json({ error: 'ID inválido.' });
+    }
+    const tenantId = tenantIdForRequest(req);
+    const pool = await poolPromise;
+    const ok = await pool
+      .request()
+      .input('IDEQUIPAMENTO', sql.Decimal(15, 0), idNum)
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
+      .query(
+        `SELECT 1 AS x FROM [dbo].[EQUIPAMENTO] WHERE [IDEQUIPAMENTO] = @IDEQUIPAMENTO AND [TENANT_ID] = @TENANT_ID`
+      );
+    if (!ok.recordset || ok.recordset.length === 0) {
+      return res.status(404).json({ error: 'Equipamento não encontrado.' });
+    }
+
+    const refEquip = ok.recordset[0]?.REFEQUIPAMENTO != null
+      ? String(ok.recordset[0].REFEQUIPAMENTO)
+      : '';
+    const placaNorm = refEquip.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10);
+
+    const qComFotoVeiculo = `
+      SELECT mv."IDVEICULOMOTORISTA", mv."PLACA", mv."PLACA_NORMALIZADA",
+             mv."FOTOCRLV", mv."FOTOVEICULO", mv."STATUSAPROVACAO",
+             cg."RZSOCIAL" AS "motorista_nome"
+      FROM "MOTORISTA_VEICULO" mv
+      LEFT JOIN "CADASTROGERAL" cg ON cg."CDCADASTRO" = mv."CDCADASTRO"
+      WHERE (
+          mv."CDEQUIPAMENTO" = $1::numeric
+          OR ($3 <> '' AND mv."PLACA_NORMALIZADA" = $3)
+        )
+        AND mv."TENANT_ID" = $2
+        AND COALESCE(mv."FGACTIVE", 'S') = 'S'
+      ORDER BY mv."IDVEICULOMOTORISTA" DESC NULLS LAST
+      LIMIT 50`;
+    const qSemFotoVeiculo = `
+      SELECT mv."IDVEICULOMOTORISTA", mv."PLACA", mv."PLACA_NORMALIZADA",
+             mv."FOTOCRLV", mv."STATUSAPROVACAO",
+             cg."RZSOCIAL" AS "motorista_nome"
+      FROM "MOTORISTA_VEICULO" mv
+      LEFT JOIN "CADASTROGERAL" cg ON cg."CDCADASTRO" = mv."CDCADASTRO"
+      WHERE (
+          mv."CDEQUIPAMENTO" = $1::numeric
+          OR ($3 <> '' AND mv."PLACA_NORMALIZADA" = $3)
+        )
+        AND mv."TENANT_ID" = $2
+        AND COALESCE(mv."FGACTIVE", 'S') = 'S'
+      ORDER BY mv."IDVEICULOMOTORISTA" DESC NULLS LAST
+      LIMIT 50`;
+
+    let r;
+    try {
+      r = await pool.query(qComFotoVeiculo, [idNum, tenantId, placaNorm]);
+    } catch (e) {
+      if (e.code === '42703') {
+        try {
+          r = await pool.query(qSemFotoVeiculo, [idNum, tenantId, placaNorm]);
+        } catch (e2) {
+          if (e2.code === '42703' || e2.code === '42P01') {
+            return res.json([]);
+          }
+          throw e2;
+        }
+      } else if (e.code === '42P01') {
+        return res.json([]);
+      } else {
+        throw e;
+      }
+    }
+    res.json(r.rows || []);
+  } catch (err) {
+    console.error('[Equipamentos] GET documentos-app:', err);
+    res.status(500).json({ error: 'Erro ao listar documentos do app.' });
+  }
+});
+
 // Buscar equipamento por ID
 router.get('/equipamentos/:id', async (req, res) => {
   try {
@@ -396,10 +651,12 @@ router.get('/equipamentos/:id', async (req, res) => {
       return res.status(400).json({ error: 'ID inválido.' });
     }
 
+    const tenantId = tenantIdForRequest(req);
     const pool = await poolPromise;
     const result = await pool
       .request()
       .input('IDEQUIPAMENTO', sql.Decimal(15, 0), idNum)
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
       .query(`
         SELECT 
           [IDEQUIPAMENTO],
@@ -422,7 +679,7 @@ router.get('/equipamentos/:id', async (req, res) => {
           [MTCUBICO],
           [FGRASTREADO]
         FROM [dbo].[EQUIPAMENTO]
-        WHERE [IDEQUIPAMENTO] = @IDEQUIPAMENTO
+        WHERE [IDEQUIPAMENTO] = @IDEQUIPAMENTO AND [TENANT_ID] = @TENANT_ID
       `);
 
     if (result.recordset.length === 0) {
@@ -468,14 +725,17 @@ router.get('/classes-combo', createComboRoute('CLASSEFROTA', 'CDCLASSEFROTA', 'D
 router.get('/modelos-por-tipo/:tipoId', async (req, res) => {
   try {
     const { tipoId } = req.params;
+    const tenantId = tenantIdForRequest(req);
     const pool = await poolPromise;
     const result = await pool
       .request()
       .input('CDTIPOEQUIPAMENTO', tipoId)
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
       .query(`
         SELECT [CDMODELOEQUIPAMENTO], [DSMODELOEQUIPAMENTO]
         FROM [dbo].[MODELOEQUIPAMENTO]
         WHERE [CDTIPOEQUIPAMENTO] = @CDTIPOEQUIPAMENTO
+          AND ([TENANT_ID] = @TENANT_ID OR [TENANT_ID] = 'default')
         ORDER BY [DSMODELOEQUIPAMENTO]
       `);
     res.json(result.recordset);
@@ -489,14 +749,17 @@ router.get('/modelos-por-tipo/:tipoId', async (req, res) => {
 router.get('/modelos-por-marca/:marcaId', async (req, res) => {
   try {
     const { marcaId } = req.params;
+    const tenantId = tenantIdForRequest(req);
     const pool = await poolPromise;
     const result = await pool
       .request()
       .input('CDMARCAEQUIPAMENTO', marcaId)
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
       .query(`
         SELECT [CDMODELOEQUIPAMENTO], [DSMODELOEQUIPAMENTO]
         FROM [dbo].[MODELOEQUIPAMENTO]
         WHERE [CDMARCAEQUIPAMENTO] = @CDMARCAEQUIPAMENTO
+          AND ([TENANT_ID] = @TENANT_ID OR [TENANT_ID] = 'default')
         ORDER BY [DSMODELOEQUIPAMENTO]
       `);
     res.json(result.recordset);
@@ -522,6 +785,7 @@ router.post('/equipamentos', async (req, res) => {
     // DSEQUIPAMENTO é NOT NULL no banco: usar descrição, senão referência, senão string vazia
     const descricaoEquip = (DSEQUIPAMENTO && String(DSEQUIPAMENTO).trim()) || REFEQUIPAMENTO.trim() || '';
 
+    const tenantId = tenantIdForRequest(req);
     const pool = await poolPromise;
     const maxResult = await pool
       .request()
@@ -548,18 +812,19 @@ router.post('/equipamentos', async (req, res) => {
       .input('COMPRIMENTO', COMPRIMENTO || null)
       .input('MTCUBICO', MTCUBICO || null)
       .input('FGRASTREADO', FGRASTREADO || 'N')
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
       .query(`
         INSERT INTO [dbo].[EQUIPAMENTO] (
           [IDEQUIPAMENTO], [REFEQUIPAMENTO], [DSEQUIPAMENTO], [CDGRUPOEQUIPAMENTO],
           [CDTIPOEQUIPAMENTO], [CDMARCAEQUIPAMENTO], [CDMODELOEQUIPAMENTO], [CDCLASSEFROTA],
           [FGTIPOATUACAO], [FGTIPOCARROCERIA], [NREIXOS], [CAPACIDCARGA], [ANOFABRICA],
-          [ALTURA], [LARGURA], [COMPRIMENTO], [MTCUBICO], [FGRASTREADO], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]
+          [ALTURA], [LARGURA], [COMPRIMENTO], [MTCUBICO], [FGRASTREADO], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG], [TENANT_ID]
         )
         VALUES (
           @IDEQUIPAMENTO, @REFEQUIPAMENTO, @DSEQUIPAMENTO, @CDGRUPOEQUIPAMENTO,
           @CDTIPOEQUIPAMENTO, @CDMARCAEQUIPAMENTO, @CDMODELOEQUIPAMENTO, @CDCLASSEFROTA,
           @FGTIPOATUACAO, @FGTIPOCARROCERIA, @NREIXOS, @CAPACIDCARGA, @ANOFABRICA,
-          @ALTURA, @LARGURA, @COMPRIMENTO, @MTCUBICO, @FGRASTREADO, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas'
+          @ALTURA, @LARGURA, @COMPRIMENTO, @MTCUBICO, @FGRASTREADO, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas', @TENANT_ID
         )
       `);
 
@@ -587,6 +852,7 @@ router.put('/equipamentos/:id', async (req, res) => {
     // DSEQUIPAMENTO é NOT NULL no banco: usar descrição, senão referência, senão string vazia
     const descricaoEquip = (DSEQUIPAMENTO && String(DSEQUIPAMENTO).trim()) || REFEQUIPAMENTO.trim() || '';
 
+    const tenantId = tenantIdForRequest(req);
     const pool = await poolPromise;
     const fgactiveDB = FGACTIVE === 'S' ? 'A' : 'I';
     const idNumerico = parseFloat(id);
@@ -595,9 +861,10 @@ router.put('/equipamentos/:id', async (req, res) => {
       return res.status(400).json({ error: 'ID do equipamento inválido.' });
     }
 
-    await pool
+    const updResult = await pool
       .request()
       .input('IDEQUIPAMENTO', sql.Decimal(15, 0), idNumerico)
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
       .input('REFEQUIPAMENTO', REFEQUIPAMENTO.trim())
       .input('DSEQUIPAMENTO', descricaoEquip)
       .input('CDGRUPOEQUIPAMENTO', CDGRUPOEQUIPAMENTO || null)
@@ -640,8 +907,12 @@ router.put('/equipamentos/:id', async (req, res) => {
           [DHMAINTENANCE] = GETDATE(),
           [SGUSER] = 'SYSTEM',
           [SERVERORIG] = 'AppDVcargas'
-        WHERE [IDEQUIPAMENTO] = @IDEQUIPAMENTO
+        WHERE [IDEQUIPAMENTO] = @IDEQUIPAMENTO AND [TENANT_ID] = @TENANT_ID
       `);
+
+    if (!updResult.rowsAffected || updResult.rowsAffected[0] === 0) {
+      return res.status(404).json({ error: 'Equipamento não encontrado.' });
+    }
 
     res.json({ success: true, message: 'Equipamento atualizado com sucesso!' });
   } catch (err) {
@@ -661,13 +932,15 @@ router.delete('/equipamentos/:id', async (req, res) => {
       return res.status(400).json({ error: 'ID do equipamento inválido.' });
     }
 
+    const tenantId = tenantIdForRequest(req);
     const pool = await poolPromise;
     
     // Verificar status atual
     const checkResult = await pool
       .request()
       .input('IDEQUIPAMENTO', sql.Decimal(15, 0), idNumerico)
-      .query(`SELECT [FGACTIVE] FROM [dbo].[EQUIPAMENTO] WHERE [IDEQUIPAMENTO] = @IDEQUIPAMENTO`);
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
+      .query(`SELECT [FGACTIVE] FROM [dbo].[EQUIPAMENTO] WHERE [IDEQUIPAMENTO] = @IDEQUIPAMENTO AND [TENANT_ID] = @TENANT_ID`);
 
     if (checkResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Equipamento não encontrado.' });
@@ -692,6 +965,7 @@ router.delete('/equipamentos/:id', async (req, res) => {
     const result = await pool
       .request()
       .input('IDEQUIPAMENTO', sql.Decimal(15, 0), idNumerico)
+      .input('TENANT_ID', sql.VarChar(64), tenantId)
       .input('FGACTIVE', sql.Char(1), novaSituacao)
       .query(`
         UPDATE [dbo].[EQUIPAMENTO]
@@ -700,7 +974,7 @@ router.delete('/equipamentos/:id', async (req, res) => {
           [DHMAINTENANCE] = GETDATE(),
           [SGUSER] = 'SYSTEM',
           [SERVERORIG] = 'AppDVcargas'
-        WHERE [IDEQUIPAMENTO] = @IDEQUIPAMENTO
+        WHERE [IDEQUIPAMENTO] = @IDEQUIPAMENTO AND [TENANT_ID] = @TENANT_ID
       `);
 
     if (result.rowsAffected[0] === 0) {

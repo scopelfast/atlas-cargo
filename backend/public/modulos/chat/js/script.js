@@ -65,20 +65,24 @@
         const idioma = select ? select.value : 'pt';
         if (!id || !idioma) return;
         btn.disabled = true;
+        const labelAntes = btn.textContent;
+        btn.textContent = '…';
         try {
           const r = await fetch('/api/chat/transcrever-audio', { method: 'POST', headers: getAuthHeaders(), body: JSON.stringify({ idMensagem: parseInt(id, 10), idioma }) });
-          const data = await r.json();
+          const data = await r.json().catch(function () { return {}; });
           if (data.success && data.message) {
             const idx = mensagens.findIndex(m => (m.ID || m.id) == id);
             if (idx !== -1) { mensagens[idx] = { ...mensagens[idx], CONTENT: data.message.CONTENT }; }
             renderizarMensagens();
+            mostrarMensagem(t('web.modulos.chat.transcricaoOk') || 'Áudio transcrito.', 'success');
           } else {
-            mostrarMensagem(data.error || 'Erro ao transcrever', 'error');
+            mostrarMensagem(data.error || ('Erro ao transcrever (' + r.status + ')'), 'error');
           }
         } catch (err) {
           mostrarMensagem(err.message || 'Erro ao transcrever', 'error');
         }
         btn.disabled = false;
+        if (btn.isConnected) btn.textContent = labelAntes;
       });
     }
 
@@ -102,10 +106,15 @@
           return;
         }
         navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
-          const options = { mimeType: (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4') };
-          mediaRecorderAudio = new MediaRecorder(stream);
+          var mime = '';
+          if (window.MediaRecorder && MediaRecorder.isTypeSupported) {
+            if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mime = 'audio/webm;codecs=opus';
+            else if (MediaRecorder.isTypeSupported('audio/webm')) mime = 'audio/webm';
+            else if (MediaRecorder.isTypeSupported('audio/mp4')) mime = 'audio/mp4';
+          }
+          mediaRecorderAudio = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
           chunksAudio = [];
-          mediaRecorderAudio.ondataavailable = function(e) { if (e.data.size > 0) chunksAudio.push(e.data); };
+          mediaRecorderAudio.ondataavailable = function(e) { if (e.data && e.data.size > 0) chunksAudio.push(e.data); };
           mediaRecorderAudio.onstop = function() {
             stream.getTracks().forEach(function(t) { t.stop(); });
             btnEnviarAudio.classList.remove('recording');
@@ -115,8 +124,14 @@
               btnEnviarAudio.disabled = false;
               return;
             }
-            const blob = new Blob(chunksAudio, { type: mediaRecorderAudio.mimeType || 'audio/webm' });
-            const ext = (mediaRecorderAudio.mimeType || '').indexOf('webm') !== -1 ? '.webm' : '.m4a';
+            const blobType = mediaRecorderAudio.mimeType || mime || 'audio/webm';
+            const blob = new Blob(chunksAudio, { type: blobType });
+            if (blob.size < 400) {
+              mostrarMensagem('Áudio muito curto. Segure o microfone 2–3 segundos falando e solte.', 'warning');
+              btnEnviarAudio.disabled = false;
+              return;
+            }
+            const ext = blobType.indexOf('mp4') !== -1 ? '.m4a' : '.webm';
             const form = new FormData();
             form.append('file', blob, 'audio' + ext);
             form.append('idviagem', idViagem);
@@ -157,7 +172,7 @@
               btnEnviarAudio.disabled = false;
             });
           };
-          mediaRecorderAudio.start();
+          mediaRecorderAudio.start(200);
           btnEnviarAudio.classList.add('recording');
           btnEnviarAudio.querySelector('i').className = 'bx bx-stop';
         }).catch(function(err) {
@@ -524,6 +539,16 @@
           blocoAudio = `<div class="message-audio" style="margin-top:8px;"><audio controls preload="metadata" src="${escapeHtml(audioUrl)}"></audio></div>`;
         }
         if (contentObj.transcricao) {
+          const transcTxt = String(contentObj.transcricao);
+          const alucinacao =
+            /amara\.org|legendas pela comunidade|subtitles by the|thanks for watching|obrigado por assistir/i.test(
+              transcTxt
+            ) && transcTxt.length < 120;
+          if (alucinacao) {
+            contentObj.transcricao = null;
+          }
+        }
+        if (contentObj.transcricao) {
           const labelTransc = t('web.modulos.chat.transcricao') || 'Transcrição';
           blocoAudio += `<div class="message-transcricao" style="margin-top:10px;padding:12px 14px;background:linear-gradient(135deg, #e0f2fe 0%, #f0f9ff 100%);border-left:4px solid #0ea5e9;border-radius:10px;font-size:14px;color:#0c4a6e;box-shadow:0 1px 3px rgba(14,165,233,0.15);"><span style="display:inline-block;font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:0.04em;color:#0369a1;margin-bottom:6px;">📝 ${escapeHtml(labelTransc)}</span><div style="margin-top:4px;line-height:1.5;">${escapeHtml(contentObj.transcricao)}</div></div>`;
           const labelRetrans = t('web.modulos.chat.retranscrever') || 'Re-transcrever em outro idioma';
@@ -535,7 +560,11 @@
           </div>`;
         } else {
           const labelTranscrever = t('web.modulos.chat.transcrever') || 'Transcrever';
-          blocoAudio += `<div class="message-transcrever-actions" style="margin-top:8px;" data-id-mensagem="${escapeHtml(String(msg.ID || msg.id))}">
+          let hintErro = '';
+          if (contentObj.transcricaoErro && contentObj.transcricaoErro.message) {
+            hintErro = `<div style="margin:6px 0;font-size:12px;color:#b45309;">${escapeHtml(contentObj.transcricaoErro.message)}</div>`;
+          }
+          blocoAudio += `${hintErro}<div class="message-transcrever-actions" style="margin-top:8px;" data-id-mensagem="${escapeHtml(String(msg.ID || msg.id))}">
             <select class="transcrever-idioma-select" style="padding:4px 8px;border-radius:6px;margin-right:6px;">
               <option value="pt">Português</option><option value="es">Español</option><option value="en">English</option>
             </select>
@@ -799,6 +828,7 @@
       }
       await atualizarEstatisticas();
       await atualizarContadorMenu();
+      try { document.dispatchEvent(new CustomEvent('chat-contador-atualizado')); } catch (e) {}
     } catch (err) {
       console.warn('Erro ao marcar como lidas:', err);
     }
@@ -906,7 +936,8 @@
   function conectarWebSocket() {
     try {
       socket = io(window.location.origin, {
-        transports: ['websocket', 'polling']
+        transports: ['websocket', 'polling'],
+        auth: { token: localStorage.getItem('token') || '' }
       });
       
       socket.on('connect', () => {
@@ -1065,6 +1096,12 @@
               }
               menuItem.classList.remove('has-badge');
             }
+          }
+          const headerBadgeChat = document.getElementById('headerBadgeChat');
+          if (headerBadgeChat) {
+            headerBadgeChat.textContent = total > 99 ? '99+' : total.toString();
+            headerBadgeChat.style.display = total > 0 ? 'inline-flex' : 'none';
+            headerBadgeChat.setAttribute('data-count', total);
           }
         }
       }

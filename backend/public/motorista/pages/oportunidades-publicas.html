@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0d9488">
+  <title>Oportunidades de Carga — Atlas Cargo</title>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('tema');
+        if (t == null || t === '') t = 'auto';
+        var dark = t === 'escuro' || (t === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.classList.toggle('tema-escuro', !!dark);
+        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+      } catch (e) {
+        var m = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+        if (m) {
+          document.documentElement.classList.toggle('tema-escuro', m.matches);
+          document.documentElement.setAttribute('data-theme', m.matches ? 'dark' : 'light');
+        }
+      }
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/design-system.css">
+  <link rel="stylesheet" href="../css/style.css">
+  <link rel="stylesheet" href="../css/padrao-telas.css">
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+  <style>
+    body.motorista-oport-public-page {
+      min-height: 100vh;
+      background: var(--app-bg) !important;
+      padding-bottom: max(24px, env(safe-area-inset-bottom));
+    }
+
+    body.motorista-oport-public-page .container {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 16px 16px 24px;
+      padding-top: max(16px, env(safe-area-inset-top));
+    }
+
+    /* Bloco único: faixa de login + header dashboard (mesmo app) */
+    .oport-topo-app {
+      border-radius: var(--radius-card);
+      overflow: hidden;
+      box-shadow: var(--shadow-lg);
+      margin-bottom: 20px;
+      border: 1px solid rgba(0, 0, 0, 0.06);
+    }
+    html[data-theme="dark"] .oport-topo-app {
+      border-color: #334155;
+    }
+
+    .oport-topo-app .logo-section {
+      background: linear-gradient(165deg, #134e4a 0%, #0f766e 40%, #0d9488 100%);
+      color: #fff;
+      text-align: center;
+      padding: 22px 20px 18px;
+      position: relative;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .oport-topo-app .logo-section::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(20, 184, 166, 0.22) 0%, transparent 55%);
+      pointer-events: none;
+    }
+    .oport-topo-app .logo-wrap {
+      position: relative;
+      z-index: 1;
+      margin-bottom: 10px;
+    }
+    .oport-topo-app .logo {
+      width: 100%;
+      max-width: 280px;
+      height: auto;
+      min-height: 48px;
+      object-fit: contain;
+      display: block;
+      margin: 0 auto;
+    }
+    .oport-topo-app .app-badge {
+      position: relative;
+      z-index: 1;
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.9);
+      background: rgba(255, 255, 255, 0.15);
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .oport-topo-app .header-motorista {
+      background: var(--app-header-bg);
+      color: var(--app-header-text);
+      padding: 20px 18px 16px;
+      box-shadow: none;
+      margin-bottom: 0;
+      position: relative;
+      overflow: hidden;
+      border-radius: 0;
+      border: none;
+    }
+    .oport-topo-app .header-motorista::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(20, 184, 166, 0.2) 0%, transparent 55%);
+      pointer-events: none;
+    }
+
+    .oport-topo-app .header-badge-app {
+      position: relative;
+      z-index: 1;
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgba(255, 255, 255, 0.9);
+      background: rgba(255, 255, 255, 0.12);
+      padding: 4px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      margin-bottom: 12px;
+    }
+
+    .oport-topo-app .header-content {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      margin-bottom: 12px;
+    }
+
+    .oport-topo-app .avatar {
+      width: 70px;
+      height: 70px;
+      flex-shrink: 0;
+      border-radius: 35px;
+      background: rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      font-weight: bold;
+      color: white;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    .oport-topo-app .header-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .oport-topo-app .header-nome {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 2px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: #fff;
+    }
+
+    .oport-topo-app .header-cpf {
+      font-size: 13px;
+      opacity: 0.92;
+      margin-bottom: 4px;
+      color: rgba(255, 255, 255, 0.95);
+    }
+
+    .oport-campanha-sub {
+      font-size: 12px;
+      line-height: 1.35;
+      opacity: 0.88;
+      color: rgba(255, 255, 255, 0.92);
+      margin-bottom: 6px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .oport-topo-app .status-badge-header {
+      display: inline-flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.2);
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #fff;
+      margin-top: 2px;
+    }
+
+    .oport-topo-app .status-dot-header {
+      width: 8px;
+      height: 8px;
+      border-radius: 4px;
+      background: #7dd3fc;
+      margin-right: 6px;
+      flex-shrink: 0;
+    }
+
+    .oport-topo-app a.logout-btn {
+      text-decoration: none;
+      padding: 10px 14px;
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      color: white;
+      font-size: 20px;
+      cursor: pointer;
+      border-radius: 8px;
+      flex-shrink: 0;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .oport-topo-app a.logout-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    .oport-topo-app .versao-container {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      padding-top: 10px;
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .oport-topo-app .versao-text {
+      font-size: 12px;
+      opacity: 0.85;
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    .oport-secao-lista {
+      margin-top: 4px;
+    }
+    .oport-secao-lista-titulo {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--app-text);
+      margin: 0 0 12px 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .oport-secao-lista-titulo i {
+      color: var(--app-primary);
+      font-size: 1.2rem;
+    }
+    .oport-pub-ajuda-resposta {
+      margin: -4px 4px 14px;
+      padding: 12px 14px;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      line-height: 1.45;
+      color: var(--app-text-muted);
+      background: var(--app-surface);
+      border: 1px solid var(--app-card-border);
+      border-radius: var(--radius-md);
+    }
+    html[data-theme="dark"] .oport-pub-ajuda-resposta {
+      background: rgba(30, 41, 59, 0.65);
+      border-color: #334155;
+      color: #94a3b8;
+    }
+
+    .oport-viagem-card {
+      background: var(--app-card);
+      color: var(--app-text);
+      border-radius: var(--radius-card);
+      margin-bottom: var(--spacing-md);
+      box-shadow: var(--shadow-md);
+      border: 1px solid var(--app-card-border);
+      overflow: hidden;
+      transition: box-shadow 0.2s ease, transform 0.2s ease;
+    }
+    .oport-viagem-card:hover {
+      box-shadow: var(--shadow-lg);
+    }
+    .oport-viagem-card-head {
+      background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);
+      color: #fff;
+      padding: 14px 18px;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .oport-viagem-card-body {
+      padding: 16px 18px 18px;
+    }
+    .oport-viagem-line {
+      font-size: 0.9375rem;
+      color: var(--app-text-secondary);
+      margin-bottom: 6px;
+      line-height: 1.45;
+    }
+    .oport-viagem-frete {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--app-primary);
+      margin-top: 10px;
+      margin-bottom: 4px;
+    }
+    .oport-pub-acoes {
+      display: flex;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .oport-pub-acoes .btn-primary,
+    .oport-pub-acoes .oport-pub-btn-no {
+      flex: 1;
+      width: auto;
+      min-height: 48px;
+      padding: 14px 12px;
+      font-size: 0.9rem;
+    }
+    .oport-pub-btn-no {
+      background: var(--app-surface);
+      color: var(--app-text-secondary);
+      border: 2px solid var(--app-card-border);
+      border-radius: var(--radius-md);
+      font-weight: var(--font-weight-bold);
+      cursor: pointer;
+      box-shadow: var(--shadow-sm);
+      transition: all 0.2s ease;
+      font-family: var(--font-family);
+    }
+    .oport-pub-btn-no:hover {
+      border-color: var(--gray-400);
+      color: var(--app-text);
+    }
+    .oport-pub-btn-no:active {
+      transform: scale(0.98);
+    }
+    html[data-theme="dark"] .oport-pub-btn-no {
+      background: var(--gray-800);
+      color: var(--gray-200);
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+
+    .oport-pub-acoes {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .oport-pub-feedback {
+      display: none;
+      font-size: 0.875rem;
+      font-weight: 600;
+      line-height: 1.35;
+      padding: 10px 12px;
+      border-radius: var(--radius-md);
+      text-align: center;
+      border: 1px solid rgba(13, 148, 136, 0.35);
+      background: rgba(13, 148, 136, 0.12);
+      color: var(--app-text);
+    }
+    .oport-pub-feedback.oport-pub-feedback-ok {
+      border-color: rgba(5, 150, 105, 0.45);
+      background: var(--success-bg, #d1fae5);
+      color: var(--success, #059669);
+    }
+    .oport-pub-feedback.oport-pub-feedback-no {
+      border-color: rgba(100, 116, 139, 0.45);
+      background: var(--app-surface);
+      color: var(--app-text-secondary);
+    }
+    .oport-pub-feedback.oport-pub-feedback-lock {
+      border-color: rgba(59, 130, 246, 0.35);
+      background: rgba(59, 130, 246, 0.1);
+      color: var(--app-text);
+    }
+    html[data-theme="dark"] .oport-pub-feedback.oport-pub-feedback-ok {
+      background: rgba(6, 78, 59, 0.55);
+      color: #a7f3d0;
+    }
+    html[data-theme="dark"] .oport-pub-feedback.oport-pub-feedback-no {
+      background: rgba(30, 41, 59, 0.9);
+      color: #cbd5e1;
+    }
+    .oport-pub-botoes {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .oport-pub-botoes button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .oport-toast {
+      display: none;
+      position: fixed;
+      left: 16px;
+      right: 16px;
+      bottom: max(20px, env(safe-area-inset-bottom));
+      max-width: 440px;
+      margin: 0 auto;
+      padding: 14px 18px;
+      border-radius: var(--radius-md);
+      font-size: 0.9375rem;
+      font-weight: 600;
+      text-align: center;
+      box-shadow: var(--shadow-xl);
+      z-index: 9999;
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid rgba(5, 150, 105, 0.25);
+    }
+    .oport-toast.oport-toast-err {
+      background: var(--error-bg);
+      color: var(--error);
+      border-color: rgba(220, 38, 38, 0.25);
+    }
+    .oport-toast.oport-toast-info {
+      background: var(--info-bg);
+      color: var(--app-primary-dark);
+      border-color: rgba(13, 148, 136, 0.2);
+    }
+  </style>
+</head>
+<body class="motorista-page motorista-oport-public-page">
+  <div class="container">
+    <div class="oport-topo-app">
+      <div class="logo-section">
+        <div class="logo-wrap">
+          <img id="logoImgOport" class="logo" src="/img/logoAtlasTransparente.png" alt="">
+        </div>
+        <span class="app-badge" id="oportPubBadgeMotorista">Motorista</span>
+      </div>
+
+      <div class="header-motorista">
+        <div class="header-badge-app" id="oportPubBadgeOport">Oportunidades de carga</div>
+        <div class="header-content">
+          <div class="avatar" id="avatarOport">?</div>
+          <div class="header-info">
+            <div class="header-nome" id="nomeOport">Carregando…</div>
+            <div class="header-cpf" id="cpfOport">CPF: —</div>
+            <div class="oport-campanha-sub" id="campanhaOport"></div>
+            <div class="status-badge-header">
+              <div class="status-dot-header"></div>
+              <span id="oportPubStatus"></span>
+            </div>
+          </div>
+          <a href="../index.html" class="logout-btn" id="btnAbrirApp" title="" aria-label=""><i class="bx bx-log-in"></i></a>
+        </div>
+        <div class="versao-container">
+          <span class="versao-text" id="oportPubVersao">Versão 1.0.0</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="oport-secao-lista">
+      <h2 class="oport-secao-lista-titulo" id="oportPubTituloLista"><i class="bx bx-package" aria-hidden="true"></i> Suas oportunidades</h2>
+      <p class="oport-pub-ajuda-resposta" id="oportPubAjudaResposta" hidden></p>
+      <div id="lista" role="list"></div>
+    </div>
+  </div>
+
+  <div id="oportToast" class="oport-toast" role="status" aria-live="polite"></div>
+
+  <script src="../js/url-helper.js"></script>
+  <script src="../js/i18n.js"></script>
+  <script>
+    (function () {
+      function baseUrl() {
+        var o = window.location.origin || '';
+        return o.replace(/\/$/, '');
+      }
+
+      function aplicarIdentidade(logoRetangular, logoQuadrada) {
+        var img = document.getElementById('logoImgOport');
+        if (!img) return;
+        var r = (logoRetangular || 'logoAtlasTransparente.png').replace(/[^a-zA-Z0-9._-]/g, '');
+        img.src = baseUrl() + '/img/' + r;
+        img.onerror = function () {
+          img.onerror = null;
+          img.src = baseUrl() + '/img/logoAtlasTransparente.png';
+        };
+      }
+
+      fetch(baseUrl() + '/api/configuracoes/identidade')
+        .then(function (res) { return res.ok ? res.json() : Promise.reject(); })
+        .then(function (data) {
+          aplicarIdentidade(data.logoRetangular, data.logoQuadrada);
+        })
+        .catch(function () {
+          aplicarIdentidade('logoAtlasTransparente.png', 'icon-atlas-motorista.svg');
+        });
+
+      function getToken() {
+        var p = new URLSearchParams(window.location.search);
+        return p.get('t') || '';
+      }
+
+      function setAvatarInicial(nome) {
+        var el = document.getElementById('avatarOport');
+        if (!el) return;
+        var t = (nome || '').trim();
+        el.textContent = t ? t.charAt(0).toUpperCase() : '?';
+      }
+
+      function showToast(text, kind) {
+        var toastEl = document.getElementById('oportToast');
+        if (!toastEl) {
+          window.alert(text);
+          return;
+        }
+        toastEl.textContent = text;
+        toastEl.className = 'oport-toast' + (kind === 'err' ? ' oport-toast-err' : kind === 'info' ? ' oport-toast-info' : '');
+        toastEl.style.display = 'block';
+        clearTimeout(showToast._tm);
+        showToast._tm = setTimeout(function () {
+          toastEl.style.display = 'none';
+        }, kind === 'info' ? 5200 : 4800);
+      }
+
+      function t(key) {
+        return typeof window.t === 'function' ? window.t(key) : key;
+      }
+
+      function tpl(key, map) {
+        var s = t(key);
+        if (!map) return s;
+        Object.keys(map).forEach(function (k) {
+          s = s.split('{' + k + '}').join(String(map[k]));
+        });
+        return s;
+      }
+
+      function localeFmt() {
+        return document.documentElement.getAttribute('lang') === 'es' ? 'es-PY' : 'pt-BR';
+      }
+
+      function estadoManifestacaoDb(st) {
+        var u = String(st || '').toUpperCase().trim();
+        if (!u || u === 'PENDENTE') return 'ABERTO';
+        if (u === 'ACEITA') return 'ACEITA';
+        if (u === 'RECUSADA') return 'RECUSADA';
+        if (u === 'CONFIRMADA') return 'CONFIRMADA';
+        if (u === 'ACEITA_DESCARTADA') return 'ENCERRADA';
+        return 'ABERTO';
+      }
+
+      function aplicarEstadoCard(card, statusDb) {
+        var estado = estadoManifestacaoDb(statusDb);
+        card._manifestacaoStatus = statusDb || null;
+        var fb = card.querySelector('.oport-pub-feedback');
+        var wrap = card.querySelector('.oport-pub-botoes');
+        if (!fb || !wrap) return;
+        var bInt = wrap.querySelector('button[data-acao="interesse"]');
+        var bRec = wrap.querySelector('button[data-acao="recusa"]');
+        fb.classList.remove('oport-pub-feedback-ok', 'oport-pub-feedback-no', 'oport-pub-feedback-lock');
+        if (estado === 'ABERTO') {
+          fb.style.display = 'none';
+          fb.textContent = '';
+          if (bInt) { bInt.disabled = false; bInt.removeAttribute('aria-disabled'); }
+          if (bRec) { bRec.disabled = false; bRec.removeAttribute('aria-disabled'); }
+        } else {
+          fb.style.display = 'block';
+          if (estado === 'ACEITA') {
+            fb.textContent = t('oportunidadesPublicas.feedbackInteresse');
+            fb.classList.add('oport-pub-feedback-ok');
+            if (bInt) { bInt.disabled = false; bInt.removeAttribute('aria-disabled'); }
+            if (bRec) { bRec.disabled = false; bRec.removeAttribute('aria-disabled'); }
+          } else if (estado === 'RECUSADA') {
+            fb.textContent = t('oportunidadesPublicas.feedbackRecusa');
+            fb.classList.add('oport-pub-feedback-no');
+            if (bInt) { bInt.disabled = false; bInt.removeAttribute('aria-disabled'); }
+            if (bRec) { bRec.disabled = true; bRec.setAttribute('aria-disabled', 'true'); }
+          } else if (estado === 'CONFIRMADA') {
+            fb.textContent = t('oportunidadesPublicas.feedbackConfirmada');
+            fb.classList.add('oport-pub-feedback-lock');
+            if (bInt) { bInt.disabled = true; bInt.setAttribute('aria-disabled', 'true'); }
+            if (bRec) { bRec.disabled = true; bRec.setAttribute('aria-disabled', 'true'); }
+          } else if (estado === 'ENCERRADA') {
+            fb.textContent = t('oportunidadesPublicas.feedbackEncerrada');
+            fb.classList.add('oport-pub-feedback-lock');
+            if (bInt) { bInt.disabled = true; bInt.setAttribute('aria-disabled', 'true'); }
+            if (bRec) { bRec.disabled = true; bRec.setAttribute('aria-disabled', 'true'); }
+          }
+        }
+        if (bInt) {
+          bInt.textContent =
+            estado === 'ACEITA'
+              ? t('oportunidadesPublicas.btnAtualizarLocalizacao')
+              : t('oportunidadesPublicas.btnInteresse');
+        }
+        if (bRec) bRec.textContent = t('oportunidadesPublicas.btnNaoInteresse');
+      }
+
+      function obterGeolocalizacaoInteresse() {
+        return new Promise(function (resolve, reject) {
+          if (!navigator.geolocation) {
+            reject(new Error(t('oportunidadesPublicas.geoNaoSuportado')));
+            return;
+          }
+          navigator.geolocation.getCurrentPosition(
+            function (pos) {
+              resolve({
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude
+              });
+            },
+            function (err) {
+              var code = err && err.code;
+              var msg = t('oportunidadesPublicas.geoErroGenerico');
+              if (code === 1) msg = t('oportunidadesPublicas.geoNegado');
+              else if (code === 2) msg = t('oportunidadesPublicas.geoIndisponivel');
+              else if (code === 3) msg = t('oportunidadesPublicas.geoTimeout');
+              reject(new Error(msg));
+            },
+            { enableHighAccuracy: true, timeout: 22000, maximumAge: 0 }
+          );
+        });
+      }
+
+      async function postInteresse(token, idViagem, acao, card, btn) {
+        var prevSt = card._manifestacaoStatus;
+        var wrap = card.querySelector('.oport-pub-botoes');
+        var botoes = wrap ? wrap.querySelectorAll('button') : [];
+        botoes.forEach(function (b) { b.disabled = true; });
+        if (btn) btn.textContent = t('oportunidadesPublicas.enviando');
+        try {
+          var payload = { idViagem: idViagem, acao: acao };
+          if (acao !== 'RECUSA') {
+            try {
+              var geo = await obterGeolocalizacaoInteresse();
+              payload.latitude = geo.lat;
+              payload.longitude = geo.lng;
+            } catch (geoErr) {
+              showToast(geoErr.message || t('oportunidadesPublicas.geoErroGenerico'), 'err');
+              aplicarEstadoCard(card, prevSt);
+              return;
+            }
+          }
+          var r = await fetch('/api/oportunidades-publicas/' + encodeURIComponent(token) + '/interesse', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          var d = await r.json().catch(function () { return {}; });
+          if (!r.ok) {
+            showToast(d.error || t('oportunidadesPublicas.toastFalhaEnvio'), 'err');
+            if (r.status === 409 && d.statusAtual) aplicarEstadoCard(card, d.statusAtual);
+            else aplicarEstadoCard(card, prevSt);
+            return;
+          }
+          if (d.unchanged) {
+            if (d.localizacaoAtualizada) {
+              showToast(t('oportunidadesPublicas.toastLocalAtualizada'), 'ok');
+            } else {
+              var jaMsg =
+                String(d.status || '').toUpperCase() === 'RECUSADA'
+                  ? t('oportunidadesPublicas.toastJaRecusa')
+                  : t('oportunidadesPublicas.toastJaInteresse');
+              showToast(jaMsg, 'info');
+            }
+            aplicarEstadoCard(card, d.status || prevSt);
+          } else {
+            var okMsg =
+              acao === 'RECUSA'
+                ? tpl('oportunidadesPublicas.toastRecusaViagem', { id: idViagem })
+                : tpl('oportunidadesPublicas.toastInteresseViagem', { id: idViagem });
+            showToast(okMsg, 'ok');
+            aplicarEstadoCard(card, d.status || (acao === 'RECUSA' ? 'RECUSADA' : 'ACEITA'));
+          }
+        } catch (e) {
+          showToast(e.message || t('oportunidadesPublicas.toastErroAcao'), 'err');
+          aplicarEstadoCard(card, prevSt);
+        } finally {
+          aplicarEstadoCard(card, card._manifestacaoStatus);
+        }
+      }
+
+      function applyStaticUi() {
+        document.title = t('oportunidadesPublicas.tituloPagina');
+        var logo = document.getElementById('logoImgOport');
+        if (logo) logo.setAttribute('alt', t('oportunidadesPublicas.logoAlt'));
+        var elBm = document.getElementById('oportPubBadgeMotorista');
+        if (elBm) elBm.textContent = t('oportunidadesPublicas.badgeMotorista');
+        var elBo = document.getElementById('oportPubBadgeOport');
+        if (elBo) elBo.textContent = t('oportunidadesPublicas.badgeOportunidades');
+        var nomeEl = document.getElementById('nomeOport');
+        if (nomeEl) nomeEl.textContent = t('oportunidadesPublicas.carregandoNome');
+        var cpfEl = document.getElementById('cpfOport');
+        if (cpfEl) {
+          cpfEl.textContent = t('oportunidadesPublicas.docPadrao') + t('oportunidadesPublicas.docSeparador') + t('oportunidadesPublicas.docVazio');
+        }
+        var st = document.getElementById('oportPubStatus');
+        if (st) st.textContent = t('oportunidadesPublicas.statusRodapePublica');
+        var ver = document.getElementById('oportPubVersao');
+        if (ver) ver.textContent = t('footer.versao');
+        var tit = document.getElementById('oportPubTituloLista');
+        if (tit) {
+          tit.innerHTML = '<i class="bx bx-package" aria-hidden="true"></i> ' + t('oportunidadesPublicas.tituloLista');
+        }
+        var ajuda = document.getElementById('oportPubAjudaResposta');
+        if (ajuda) {
+          ajuda.textContent = t('oportunidadesPublicas.ajudaMudarResposta');
+          ajuda.removeAttribute('hidden');
+        }
+        var btnApp = document.getElementById('btnAbrirApp');
+        if (btnApp) {
+          var tt = t('oportunidadesPublicas.btnAbrirAppTitle');
+          btnApp.setAttribute('title', tt);
+          btnApp.setAttribute('aria-label', t('oportunidadesPublicas.btnAbrirAppAria'));
+        }
+      }
+
+      async function init() {
+        var tok = getToken();
+        var nomeEl = document.getElementById('nomeOport');
+        var ajudaEl = document.getElementById('oportPubAjudaResposta');
+        if (!tok) {
+          if (nomeEl) nomeEl.textContent = t('oportunidadesPublicas.linkInvalido');
+          document.getElementById('campanhaOport').textContent = t('oportunidadesPublicas.abraLinkCompleto');
+          setAvatarInicial('');
+          if (ajudaEl) ajudaEl.setAttribute('hidden', '');
+          return;
+        }
+        var r = await fetch('/api/oportunidades-publicas/' + encodeURIComponent(tok));
+        var d = await r.json().catch(function () { return {}; });
+        if (!r.ok) {
+          if (nomeEl) nomeEl.textContent = t('oportunidadesPublicas.linkInvalidoExpirado');
+          document.getElementById('cpfOport').textContent = '';
+          document.getElementById('campanhaOport').textContent = d.error || t('oportunidadesPublicas.tenteNovoConvite');
+          setAvatarInicial('');
+          if (ajudaEl) ajudaEl.setAttribute('hidden', '');
+          return;
+        }
+        if (ajudaEl) {
+          ajudaEl.removeAttribute('hidden');
+        }
+        var camp = d.campanha || {};
+        var mot = d.motorista || {};
+        var nomeMot = mot.nome || t('oportunidadesPublicas.motoristaFallback');
+        var nomeCamp = camp.NOME || camp.nome || t('oportunidadesPublicas.campanhaVazio');
+        var rot = mot.documentoRotulo || t('oportunidadesPublicas.docPadrao');
+        var doc = mot.documento != null ? mot.documento : t('oportunidadesPublicas.docVazio');
+
+        if (nomeEl) nomeEl.textContent = nomeMot;
+        document.getElementById('cpfOport').textContent = rot + t('oportunidadesPublicas.docSeparador') + doc;
+        document.getElementById('campanhaOport').textContent = t('oportunidadesPublicas.campanhaPrefixo') + nomeCamp;
+        setAvatarInicial(nomeMot);
+
+        var lista = document.getElementById('lista');
+        var viagens = d.viagens || [];
+        if (!viagens.length) {
+          var empty = document.createElement('div');
+          empty.className = 'card';
+          empty.innerHTML = '<div class="card-body" style="text-align:center;color:var(--app-text-muted);">' + t('oportunidadesPublicas.semViagens') + '</div>';
+          lista.appendChild(empty);
+          return;
+        }
+
+        viagens.forEach(function (v) {
+          var idv = v.IDVIAGEM || v.idviagem;
+          var origem = (v.ORIGEM_CIDADE || '') + '/' + (v.ORIGEM_ESTADO || '');
+          var destino = (v.DESTINO_CIDADE || '') + '/' + (v.DESTINO_ESTADO || '');
+          var frete = Number(v.VLFRETE || v.vlfrete || 0).toLocaleString(localeFmt(), {
+            style: 'currency',
+            currency: (v.MOEDA || v.moeda || 'BRL')
+          });
+
+          var card = document.createElement('article');
+          card.className = 'oport-viagem-card';
+          card.setAttribute('role', 'listitem');
+          card.innerHTML =
+            '<div class="oport-viagem-card-head">' + tpl('oportunidadesPublicas.viagemHead', { id: idv }) + '</div>' +
+            '<div class="oport-viagem-card-body">' +
+              '<div class="oport-viagem-line"><i class="bx bx-map" aria-hidden="true"></i> ' + tpl('oportunidadesPublicas.rota', { orig: origem, dest: destino }) + '</div>' +
+              '<div class="oport-viagem-frete">' + tpl('oportunidadesPublicas.frete', { val: frete }) + '</div>' +
+              '<div class="oport-pub-acoes">' +
+                '<div class="oport-pub-feedback" role="status" aria-live="polite"></div>' +
+                '<div class="oport-pub-botoes">' +
+                  '<button type="button" data-acao="interesse" class="btn-primary btn-success">' + t('oportunidadesPublicas.btnInteresse') + '</button>' +
+                  '<button type="button" data-acao="recusa" class="oport-pub-btn-no">' + t('oportunidadesPublicas.btnNaoInteresse') + '</button>' +
+                '</div>' +
+              '</div>' +
+            '</div>';
+
+          var stMan = v.statusManifestacao != null ? v.statusManifestacao : v.STATUSMANIFESTACAO;
+          aplicarEstadoCard(card, stMan);
+          card.querySelector('button[data-acao="interesse"]').onclick = function () {
+            postInteresse(tok, idv, 'INTERESSE', card, this);
+          };
+          card.querySelector('button[data-acao="recusa"]').onclick = function () {
+            postInteresse(tok, idv, 'RECUSA', card, this);
+          };
+          lista.appendChild(card);
+        });
+      }
+
+      function run() {
+        applyStaticUi();
+        init().catch(function () {
+          var nomeEl = document.getElementById('nomeOport');
+          if (nomeEl) nomeEl.textContent = t('oportunidadesPublicas.erroCarregarNome');
+          showToast(t('oportunidadesPublicas.toastErroCarregar'), 'err');
+        });
+      }
+
+      if (window.i18nReady) {
+        window.i18nReady.then(run);
+      } else {
+        run();
+      }
+    })();
+  </script>
+</body>
+</html>

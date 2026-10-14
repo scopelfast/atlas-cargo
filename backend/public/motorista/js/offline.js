@@ -95,14 +95,24 @@
   // ==========================================
   async function salvarCache(store, data) {
     if (!db) await initDB();
-    
+
+    // viagens/macros: schema com keyPath 'key' — um único blob; array da API não pode ir no ramo forEach (put sem .key).
+    if ((store === 'viagens' || store === 'macros') && Array.isArray(data)) {
+      data = {
+        dados: data,
+        timestamp: Date.now(),
+        url: '',
+        version: '2.0'
+      };
+    }
+
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([store], 'readwrite');
       const objectStore = transaction.objectStore(store);
 
       // Se o store é 'viagens' ou 'macros' e o data tem estrutura de cache (com 'dados', 'timestamp', etc)
       // Salvar como cache genérico com key fixa
-      if ((store === 'viagens' || store === 'macros') && data.dados !== undefined) {
+      if ((store === 'viagens' || store === 'macros') && data && data.dados !== undefined) {
         // Formato de cache genérico do cache-helper
         const cacheItem = {
           key: store, // Chave fixa para o cache deste store
@@ -1000,7 +1010,9 @@
 
   // Inicializar automaticamente
   initDB().then(() => {
-    console.log('✅ IndexedDB inicializado');
+    try {
+      if (localStorage.getItem('motorista_debug') === '1') console.log('IndexedDB inicializado');
+    } catch (e) {}
     atualizarIndicador();
     
     // Tentar sincronizar a cada 30 segundos

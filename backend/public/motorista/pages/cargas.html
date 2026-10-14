@@ -107,6 +107,7 @@
 
     const baseUrl = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
     const _t = (typeof window.t === 'function' ? window.t : function(k) { return k; });
+    const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
 
     console.log('🚚 Página Cargas carregada');
     console.log('👤 Motorista:', motorista);
@@ -115,7 +116,7 @@
     let contextoPais = 'BR';
     async function loadContexto() {
       try {
-        const r = await fetch(baseUrl + '/api/contexto');
+        const r = await fetch(baseUrl + '/api/contexto', { headers: authHeaders });
         const d = await r.json();
         if (d && d.pais) contextoPais = String(d.pais).toUpperCase().substring(0, 2);
       } catch (e) {}
@@ -126,7 +127,7 @@
       if (!sel) return;
       try {
         await loadContexto();
-        const r = await fetch(baseUrl + '/api/paises');
+        const r = await fetch(baseUrl + '/api/paises', { headers: authHeaders });
         const paises = await r.json();
         if (!Array.isArray(paises)) return;
         sel.innerHTML = '<option value="">' + _t('cargas.todosPaises') + '</option>';
@@ -156,7 +157,7 @@
       try {
         if (pais === 'BR') {
           if (regiaoWrap) regiaoWrap.style.display = 'block';
-          const r = await fetch(baseUrl + '/api/estados-brasil');
+          const r = await fetch(baseUrl + '/api/estados-brasil', { headers: authHeaders });
           const estados = await r.json();
           if (Array.isArray(estados)) estados.forEach(function(e) {
             const o = document.createElement('option');
@@ -165,7 +166,7 @@
             sel.appendChild(o);
           });
         } else {
-          const r2 = await fetch(baseUrl + '/api/estados?pais=' + encodeURIComponent(pais));
+          const r2 = await fetch(baseUrl + '/api/estados?pais=' + encodeURIComponent(pais), { headers: authHeaders });
           const lista = await r2.json();
           if (Array.isArray(lista)) lista.forEach(function(e) {
             const o = document.createElement('option');
@@ -187,14 +188,14 @@
       let cduf = parseInt(estadoVal, 10);
       if (isNaN(cduf)) {
         try {
-          const r = await fetch(baseUrl + '/api/estado-cduf/' + encodeURIComponent(estadoVal));
+          const r = await fetch(baseUrl + '/api/estado-cduf/' + encodeURIComponent(estadoVal), { headers: authHeaders });
           const d = await r.json();
           if (d && d.CDUF != null) cduf = d.CDUF;
         } catch (e) { return; }
       }
       if (isNaN(cduf)) return;
       try {
-        const r = await fetch(baseUrl + '/api/mesorregioes/' + cduf);
+        const r = await fetch(baseUrl + '/api/mesorregioes/' + cduf, { headers: authHeaders });
         const list = await r.json();
         if (Array.isArray(list)) list.forEach(function(m) {
           const o = document.createElement('option');
@@ -296,6 +297,18 @@
       }
     }
 
+    /** Normaliza objeto para ter chaves em maiúsculas quando a API retorna em minúsculas (ex.: PostgreSQL). */
+    function normalizarCarga(c) {
+      const out = { ...c };
+      for (const key of Object.keys(out)) {
+        if (key === key.toLowerCase() && key !== key.toUpperCase()) {
+          const upper = key.toUpperCase();
+          if (out[upper] === undefined || out[upper] === null) out[upper] = out[key];
+        }
+      }
+      return out;
+    }
+
     function renderizar(cargas) {
       const lista = document.getElementById('cargasList');
       
@@ -308,7 +321,9 @@
         return;
       }
 
-      lista.innerHTML = cargas.map(c => {
+      lista.innerHTML = cargas.map(item => {
+        const c = normalizarCarga(item);
+        const podeAceitar = c.POD_ACEITAR === 1 || c.POD_ACEITAR === true || String(c.POD_ACEITAR) === '1';
         const origem = c.ORIGEM_CIDADE && c.ORIGEM_ESTADO ? `${c.ORIGEM_CIDADE} - ${c.ORIGEM_ESTADO}` : 'Não informado';
         const destino = c.DESTINO_CIDADE && c.DESTINO_ESTADO ? `${c.DESTINO_CIDADE} - ${c.DESTINO_ESTADO}` : 'Não informado';
 
@@ -319,6 +334,9 @@
         const linkWhatsApp = numCont.length >= 10
           ? `https://wa.me/${numCont.length >= 12 ? numCont : '55' + numCont}`
           : null;
+
+        const textoCompartilhar = `Viagem #${c.IDVIAGEM} - ${origem} → ${destino} | ${c.DSTIPOVIAGEM || 'Coleta'} | Classe: ${c.DSCLASSEFROTA || 'N/I'} | ${formatarDistancia(c.DISTANCIAKM)} km | Início: ${formatarData(c.DTPREVINICIO)}. Cargas disponíveis no App Atlas Cargo.`;
+        const linkCompartilharWhatsApp = 'https://wa.me/?text=' + encodeURIComponent(textoCompartilhar);
 
         return `
           <div class="card">
@@ -400,11 +418,39 @@
                   <div class="obs-texto">${c.OBSERV.substring(0, 100)}${c.OBSERV.length > 100 ? '...' : ''}</div>
                 </div>
               ` : ''}
-              <button class="btn-aceitar" onclick="aceitarCarga(${c.IDVIAGEM})">✓ Aceitar Esta Carga</button>
+              ${podeAceitar
+                ? `<button class="btn-aceitar" onclick="aceitarCarga(${c.IDVIAGEM})">✓ Aceitar Esta Carga</button>`
+                : `
+                <div class="carga-incompativel-aviso" style="background: #fef3c7; color: #92400e; padding: 12px; border-radius: 10px; margin: 12px 0; font-size: 13px;">
+                  <strong><i class="bx bx-info-circle"></i> Você não atende à classe de frota desta carga (${c.DSCLASSEFROTA || 'exigida pela viagem'}).</strong><br>
+                  Compartilhe com um colega que tenha o veículo adequado.
+                </div>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                  <a href="${linkCompartilharWhatsApp}" target="_blank" class="btn-compartilhar" style="flex: 1; min-width: 140px; padding: 12px; background: #25D366; color: white; text-align: center; border-radius: 10px; text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 6px;">
+                    <i class="bx bxl-whatsapp"></i> Compartilhar no WhatsApp
+                  </a>
+                  <button type="button" onclick="copiarResumoCarga(this)" data-texto-compartilhar="${(textoCompartilhar || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}" style="padding: 12px 16px; background: #64748b; color: white; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                    <i class="bx bx-copy"></i> Copiar resumo
+                  </button>
+                </div>
+              `}
             </div>
           </div>
         `;
       }).join('');
+    }
+
+    function copiarResumoCarga(btn) {
+      const texto = (btn.getAttribute('data-texto-compartilhar') || '').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+      if (!texto) return;
+      try {
+        navigator.clipboard.writeText(texto).then(() => {
+          if (window.Notificacoes && window.Notificacoes.sucesso) window.Notificacoes.sucesso('Resumo copiado! Cole e envie para um colega.');
+          else alert('Resumo copiado!');
+        }).catch(() => alert('Resumo copiado!'));
+      } catch (e) {
+        alert('Resumo copiado!');
+      }
     }
 
     async function aceitarCarga(idViagem) {
@@ -432,7 +478,9 @@
             window.Notificacoes.sucesso('Carga aceita! Veja em "Minhas Convocações"', 4000);
             aplicarFiltros();
           } else {
-            window.Notificacoes.erro('Erro ao aceitar carga');
+            const errData = await response.json().catch(() => ({}));
+            const msg = errData.error || 'Erro ao aceitar carga';
+            window.Notificacoes.erro(msg);
           }
         } else {
           await window.OfflineDB.adicionarFila('filaAcoes', {

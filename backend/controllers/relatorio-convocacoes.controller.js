@@ -5,6 +5,7 @@
 
 const sql = require('../config/mssql-compat');
 const { poolPromise } = require('../config/db');
+const { tenantIdForRequest } = require('../utils/tenant-context');
 
 const relatorioController = {
   // Buscar dados do relatório com filtros
@@ -19,7 +20,8 @@ const relatorioController = {
         motorista,
         viagemConfirmada,
         motivoRecusa,
-        contratador
+        contratador,
+        divergenciaPlacas
       } = req.query;
 
       const pool = await poolPromise;
@@ -66,9 +68,9 @@ const relatorioController = {
       }
       
       if (viagemConfirmada && (viagemConfirmada === 'true' || viagemConfirmada === '1')) {
-        whereConditions.push('EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] [conv2] WHERE [conv2].[IDVIAGEM] = [conv].[IDVIAGEM] AND [conv2].[STATUS] = \'CONFIRMADA\')');
+        whereConditions.push('EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] [conv2] WHERE [conv2].[IDVIAGEM] = [conv].[IDVIAGEM] AND [conv2].[TENANT_ID] = [conv].[TENANT_ID] AND [conv2].[STATUS] = \'CONFIRMADA\')');
       } else if (viagemConfirmada && (viagemConfirmada === 'false' || viagemConfirmada === '0')) {
-        whereConditions.push('NOT EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] [conv2] WHERE [conv2].[IDVIAGEM] = [conv].[IDVIAGEM] AND [conv2].[STATUS] = \'CONFIRMADA\')');
+        whereConditions.push('NOT EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] [conv2] WHERE [conv2].[IDVIAGEM] = [conv].[IDVIAGEM] AND [conv2].[TENANT_ID] = [conv].[TENANT_ID] AND [conv2].[STATUS] = \'CONFIRMADA\')');
       }
       
       if (isValidValue(motivoRecusa) && !isNaN(motivoRecusa.trim())) {
@@ -78,6 +80,15 @@ const relatorioController = {
       if (isValidValue(contratador) && !isNaN(contratador.trim())) {
         whereConditions.push('[v].[CDCONTRATADOR] = @contratador');
       }
+
+      const divPlacasRaw = divergenciaPlacas != null && String(divergenciaPlacas).trim() !== ''
+        ? String(divergenciaPlacas).trim().toLowerCase()
+        : '';
+      if (['1', 'true', 's', 'sim', 'yes'].includes(divPlacasRaw)) {
+        whereConditions.push("UPPER(TRIM(COALESCE([conv].[FGCONFIRMACAOPLACAS], ''))) = 'D'");
+      }
+
+      whereConditions.unshift('[conv].[TENANT_ID] = @TENANT_ID');
 
       const whereClause = whereConditions.length > 0 
         ? 'WHERE ' + whereConditions.join(' AND ')
@@ -99,6 +110,16 @@ const relatorioController = {
           [conv].[DHACESSO],
           [conv].[LATITUDE],
           [conv].[LONGITUDE],
+          [conv].[SGUSER],
+          [conv].[FGCONFIRMACAOPLACAS],
+          [conv].[TXTPLACASDIVERGENCIA],
+          [conv].[DHMAINTENANCE] AS [DHMAINTENANCE_CONVOCACAO],
+          (
+            SELECT MAX(COALESCE([vr].[DHPOSICAO], [vr].[DHREGISTRO]))
+            FROM [dbo].[VIAGEMRASTREAMENTO] [vr]
+            WHERE [vr].[IDVIAGEM] = [conv].[IDVIAGEM]
+              AND [vr].[CDCADASTRO] = [conv].[CDCADASTRO_MOTORISTA]
+          ) AS [ULTIMA_POSICAO_VIAGEM_DH],
           [v].[IDROTEIRO],
           [v].[DTPREVINICIO],
           [v].[DTPREVFINAL],
@@ -113,18 +134,20 @@ const relatorioController = {
           [v].[VLFRETE],
           COALESCE([v].[MOEDA], 'BRL') AS [MOEDA],
           CASE 
-            WHEN EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] [conv2] WHERE [conv2].[IDVIAGEM] = [conv].[IDVIAGEM] AND [conv2].[STATUS] = 'CONFIRMADA')
+            WHEN EXISTS (SELECT 1 FROM [dbo].[CONVOCACAO] [conv2] WHERE [conv2].[IDVIAGEM] = [conv].[IDVIAGEM] AND [conv2].[TENANT_ID] = [conv].[TENANT_ID] AND [conv2].[STATUS] = 'CONFIRMADA')
             THEN 'S' ELSE 'N'
           END AS [VIAGEM_CONFIRMADA]
         FROM [dbo].[CONVOCACAO] [conv]
-        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [conv].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO]
-        LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [conv].[IDVIAGEM] = [v].[IDVIAGEM]
-        LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO]
+        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [conv].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [conv].[TENANT_ID]
+        LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [conv].[IDVIAGEM] = [v].[IDVIAGEM] AND [conv].[TENANT_ID] = [v].[TENANT_ID]
+        LEFT JOIN [dbo].[ROTEIRO] [r] ON [v].[IDROTEIRO] = [r].[IDROTEIRO] AND ([r].[TENANT_ID] = [v].[TENANT_ID] OR [r].[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[CIDADE] [co] ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
         LEFT JOIN [dbo].[CIDADE] [cd] ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
         LEFT JOIN [dbo].[CLASSEFROTA] [cf] ON [v].[CDCLASSEFROTA] = [cf].[CDCLASSEFROTA]
+          AND ([cf].[TENANT_ID] = [v].[TENANT_ID] OR [cf].[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[TIPOVIAGEM] [tv] ON [v].[CDTIPOVIAGEM] = [tv].[CDTIPOVIAGEM]
-        LEFT JOIN [dbo].[CADASTROGERAL] [cg_contratador] ON [v].[CDCONTRATADOR] = [cg_contratador].[CDCADASTRO]
+          AND ([tv].[TENANT_ID] = [v].[TENANT_ID] OR [tv].[TENANT_ID] = 'default')
+        LEFT JOIN [dbo].[CADASTROGERAL] [cg_contratador] ON [v].[CDCONTRATADOR] = [cg_contratador].[CDCADASTRO] AND [cg_contratador].[TENANT_ID] = [v].[TENANT_ID]
         LEFT JOIN [dbo].[MOTIVORECUSA] [mr] ON [conv].[CDMOTIVORECUSA] = [mr].[CDMOTIVO]
         ${whereClause}
         ORDER BY [conv].[DHCONVOCACAO] DESC
@@ -135,6 +158,20 @@ const relatorioController = {
           COUNT(*) AS [TOTAL],
           COUNT(DISTINCT [conv].[IDVIAGEM]) AS [TOTAL_VIAGENS],
           SUM(CASE WHEN [conv].[STATUS] = 'PENDENTE' THEN 1 ELSE 0 END) AS [PENDENTE],
+          SUM(
+            CASE
+              WHEN [conv].[STATUS] = 'PENDENTE'
+               AND NOT EXISTS (
+                 SELECT 1
+                 FROM [dbo].[CONVOCACAO] [convp]
+                 WHERE [convp].[IDVIAGEM] = [conv].[IDVIAGEM]
+                   AND [convp].[TENANT_ID] = [conv].[TENANT_ID]
+                   AND [convp].[STATUS] = 'CONFIRMADA'
+               )
+              THEN 1
+              ELSE 0
+            END
+          ) AS [PENDENTE_ACIONAVEL],
           SUM(CASE WHEN [conv].[STATUS] = 'ACEITA' THEN 1 ELSE 0 END) AS [ACEITA],
           SUM(CASE WHEN [conv].[STATUS] = 'RECUSADA' THEN 1 ELSE 0 END) AS [RECUSADA],
           SUM(CASE WHEN [conv].[STATUS] = 'CONFIRMADA' THEN 1 ELSE 0 END) AS [CONFIRMADA],
@@ -142,17 +179,32 @@ const relatorioController = {
           SUM(CASE WHEN [conv].[DHACESSO] IS NOT NULL THEN 1 ELSE 0 END) AS [COM_ACESSO],
           SUM(CASE WHEN [conv].[DHACESSO] IS NULL THEN 1 ELSE 0 END) AS [SEM_ACESSO],
           SUM(CASE WHEN [conv].[DHRESPOSTA] IS NOT NULL THEN 1 ELSE 0 END) AS [COM_RESPOSTA],
-          SUM(CASE WHEN [conv].[DHRESPOSTA] IS NULL THEN 1 ELSE 0 END) AS [SEM_RESPOSTA]
+          SUM(CASE WHEN [conv].[DHRESPOSTA] IS NULL THEN 1 ELSE 0 END) AS [SEM_RESPOSTA],
+          SUM(
+            CASE
+              WHEN UPPER(LTRIM(RTRIM(COALESCE([conv].[FGCONFIRMACAOPLACAS], '')))) = 'D'
+               AND [conv].[STATUS] = 'PENDENTE'
+               AND NOT EXISTS (
+                 SELECT 1
+                 FROM [dbo].[CONVOCACAO] [convp]
+                 WHERE [convp].[IDVIAGEM] = [conv].[IDVIAGEM]
+                   AND [convp].[TENANT_ID] = [conv].[TENANT_ID]
+                   AND [convp].[STATUS] = 'CONFIRMADA'
+               )
+              THEN 1
+              ELSE 0
+            END
+          ) AS [DIVERGENCIA_PLACAS]
         FROM [dbo].[CONVOCACAO] [conv]
       `;
       
       if ((motorista && isNaN(motorista)) || (contratador && isValidValue(contratador))) {
         let joins = [];
         if (motorista && isNaN(motorista)) {
-          joins.push('LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [conv].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO]');
+          joins.push('LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [conv].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [conv].[TENANT_ID]');
         }
         if (contratador && isValidValue(contratador)) {
-          joins.push('LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [conv].[IDVIAGEM] = [v].[IDVIAGEM]');
+          joins.push('LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [conv].[IDVIAGEM] = [v].[IDVIAGEM] AND [conv].[TENANT_ID] = [v].[TENANT_ID]');
         }
         if (joins.length > 0) {
           queryEstatisticas = queryEstatisticas.replace(
@@ -169,6 +221,20 @@ const relatorioController = {
           CAST([conv].[DHCONVOCACAO] AS DATE) AS [DATA],
           COUNT(*) AS [TOTAL],
           SUM(CASE WHEN [conv].[STATUS] = 'PENDENTE' THEN 1 ELSE 0 END) AS [PENDENTE],
+          SUM(
+            CASE
+              WHEN [conv].[STATUS] = 'PENDENTE'
+               AND NOT EXISTS (
+                 SELECT 1
+                 FROM [dbo].[CONVOCACAO] [convp]
+                 WHERE [convp].[IDVIAGEM] = [conv].[IDVIAGEM]
+                   AND [convp].[TENANT_ID] = [conv].[TENANT_ID]
+                   AND [convp].[STATUS] = 'CONFIRMADA'
+               )
+              THEN 1
+              ELSE 0
+            END
+          ) AS [PENDENTE_ACIONAVEL],
           SUM(CASE WHEN [conv].[STATUS] = 'ACEITA' THEN 1 ELSE 0 END) AS [ACEITA],
           SUM(CASE WHEN [conv].[STATUS] = 'RECUSADA' THEN 1 ELSE 0 END) AS [RECUSADA],
           SUM(CASE WHEN [conv].[STATUS] = 'CONFIRMADA' THEN 1 ELSE 0 END) AS [CONFIRMADA]
@@ -178,10 +244,10 @@ const relatorioController = {
       if ((motorista && isNaN(motorista)) || (contratador && isValidValue(contratador))) {
         let joins = [];
         if (motorista && isNaN(motorista)) {
-          joins.push('LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [conv].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO]');
+          joins.push('LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [conv].[CDCADASTRO_MOTORISTA] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [conv].[TENANT_ID]');
         }
         if (contratador && isValidValue(contratador)) {
-          joins.push('LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [conv].[IDVIAGEM] = [v].[IDVIAGEM]');
+          joins.push('LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [conv].[IDVIAGEM] = [v].[IDVIAGEM] AND [conv].[TENANT_ID] = [v].[TENANT_ID]');
         }
         if (joins.length > 0) {
           queryEstatisticasPorData = queryEstatisticasPorData.replace(
@@ -199,6 +265,11 @@ const relatorioController = {
       const requestLista = pool.request();
       const requestEstatisticas = pool.request();
       const requestEstatisticasPorData = pool.request();
+
+      const tenantId = String(tenantIdForRequest(req) || 'default').trim();
+      requestLista.input('TENANT_ID', sql.NVarChar(64), tenantId);
+      requestEstatisticas.input('TENANT_ID', sql.NVarChar(64), tenantId);
+      requestEstatisticasPorData.input('TENANT_ID', sql.NVarChar(64), tenantId);
 
       // Aplicar parâmetros em cada request APENAS se forem válidos (mesma lógica do whereClause)
       if (isValidValue(dataInicio)) {
@@ -283,13 +354,26 @@ const relatorioController = {
 
   // Buscar estatísticas resumidas (PostgreSQL - alias entre aspas para preservar caso)
   buscarEstatisticas: async (req, res) => {
-    try {
-      const pool = await poolPromise;
-      const result = await pool.query(`
+    const pool = await poolPromise;
+    const tenantId = String(tenantIdForRequest(req) || 'default').trim();
+    const sqlBase = `
         SELECT 
           COUNT(*)::int AS "TOTAL",
           COUNT(DISTINCT "conv"."IDVIAGEM")::int AS "TOTAL_VIAGENS",
           COALESCE(SUM(CASE WHEN "conv"."STATUS" = 'PENDENTE' THEN 1 ELSE 0 END), 0)::int AS "PENDENTE",
+          COALESCE(SUM(
+            CASE
+              WHEN "conv"."STATUS" = 'PENDENTE'
+               AND NOT EXISTS (
+                 SELECT 1
+                 FROM "CONVOCACAO" "convp"
+                 WHERE "convp"."IDVIAGEM" = "conv"."IDVIAGEM"
+                   AND "convp"."TENANT_ID" = "conv"."TENANT_ID"
+                   AND "convp"."STATUS" = 'CONFIRMADA'
+               )
+              THEN 1 ELSE 0
+            END
+          ), 0)::int AS "PENDENTE_ACIONAVEL",
           COALESCE(SUM(CASE WHEN "conv"."STATUS" = 'ACEITA' THEN 1 ELSE 0 END), 0)::int AS "ACEITA",
           COALESCE(SUM(CASE WHEN "conv"."STATUS" = 'RECUSADA' THEN 1 ELSE 0 END), 0)::int AS "RECUSADA",
           COALESCE(SUM(CASE WHEN "conv"."STATUS" = 'CONFIRMADA' THEN 1 ELSE 0 END), 0)::int AS "CONFIRMADA",
@@ -298,10 +382,69 @@ const relatorioController = {
           COALESCE(SUM(CASE WHEN "conv"."DHACESSO" IS NULL THEN 1 ELSE 0 END), 0)::int AS "SEM_ACESSO",
           COALESCE(SUM(CASE WHEN "conv"."DHRESPOSTA" IS NOT NULL THEN 1 ELSE 0 END), 0)::int AS "COM_RESPOSTA",
           COALESCE(SUM(CASE WHEN "conv"."DHRESPOSTA" IS NULL THEN 1 ELSE 0 END), 0)::int AS "SEM_RESPOSTA",
-          (COUNT(DISTINCT "conv"."IDVIAGEM") - COUNT(DISTINCT CASE WHEN "conv"."STATUS" = 'CONFIRMADA' THEN "conv"."IDVIAGEM" END))::int AS "VIAGENS_PENDENTES"
+          (COUNT(DISTINCT "conv"."IDVIAGEM") - COUNT(DISTINCT CASE WHEN "conv"."STATUS" = 'CONFIRMADA' THEN "conv"."IDVIAGEM" END))::int AS "VIAGENS_COM_CONVOCACAO_SEM_CONFIRMADA"`;
+    const sqlComPlacas = `${sqlBase},
+          COALESCE(SUM(
+            CASE
+              WHEN UPPER(TRIM(COALESCE("conv"."FGCONFIRMACAOPLACAS", ''))) = 'D'
+               AND "conv"."STATUS" = 'PENDENTE'
+               AND NOT EXISTS (
+                 SELECT 1 FROM "CONVOCACAO" "convp"
+                 WHERE "convp"."IDVIAGEM" = "conv"."IDVIAGEM"
+                   AND "convp"."TENANT_ID" = "conv"."TENANT_ID"
+                   AND "convp"."STATUS" = 'CONFIRMADA'
+               )
+              THEN 1 ELSE 0
+            END
+          ), 0)::int AS "DIVERGENCIA_PLACAS"
         FROM "CONVOCACAO" "conv"
-      `);
-      res.json(result.rows[0] || {});
+        WHERE "conv"."TENANT_ID" = $1`;
+    const sqlSemPlacas = `${sqlBase}
+        FROM "CONVOCACAO" "conv"
+        WHERE "conv"."TENANT_ID" = $1`;
+    /** Contagens do cadastro (VIAGEMMESTRE) — alinhadas ao grid Gerenciar Viagens / viagens-pendentes. */
+    const sqlCadastro = `
+        SELECT
+          COUNT(*)::int AS "TOTAL_VIAGENS_CADASTRO",
+          COUNT(*) FILTER (
+            WHERE "v"."FGACTIVE" = 'A'
+              AND "v"."FGSITVIAGEM" IN ('P', 'D')
+              AND NOT EXISTS (
+                SELECT 1
+                FROM "CONVOCACAO" "c"
+                WHERE "c"."IDVIAGEM" = "v"."IDVIAGEM"
+                  AND "c"."TENANT_ID" = "v"."TENANT_ID"
+                  AND "c"."STATUS" IN ('ACEITA', 'CONFIRMADA')
+              )
+          )::int AS "VIAGENS_PENDENTES"
+        FROM "VIAGEMMESTRE" "v"
+        WHERE "v"."TENANT_ID" = $1`;
+    try {
+      let result;
+      let row = {};
+      try {
+        result = await pool.query(sqlComPlacas, [tenantId]);
+        row = result.rows[0] || {};
+      } catch (inner) {
+        if (inner.code === '42703') {
+          result = await pool.query(sqlSemPlacas, [tenantId]);
+          row = result.rows[0] || {};
+          row.DIVERGENCIA_PLACAS = 0;
+        } else {
+          throw inner;
+        }
+      }
+      try {
+        const cad = await pool.query(sqlCadastro, [tenantId]);
+        const cadRow = cad.rows[0] || {};
+        row.TOTAL_VIAGENS_CADASTRO = Number(cadRow.TOTAL_VIAGENS_CADASTRO) || 0;
+        row.VIAGENS_PENDENTES = Number(cadRow.VIAGENS_PENDENTES) || 0;
+      } catch (cadErr) {
+        console.warn('Estatísticas: falha ao contar VIAGEMMESTRE, usando fallback de convocações:', cadErr.message);
+        row.TOTAL_VIAGENS_CADASTRO = Number(row.TOTAL_VIAGENS) || 0;
+        row.VIAGENS_PENDENTES = Number(row.VIAGENS_COM_CONVOCACAO_SEM_CONFIRMADA) || 0;
+      }
+      res.json(row);
     } catch (err) {
       console.error('Erro ao buscar estatísticas:', err);
       res.status(500).json({ error: 'Erro interno ao buscar estatísticas.' });

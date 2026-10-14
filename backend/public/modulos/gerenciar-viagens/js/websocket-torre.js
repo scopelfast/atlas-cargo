@@ -74,10 +74,125 @@
     });
   }
 
+  function executarJoinTorreAposConectar() {
+    if (!socket || !socket.connected) return;
+    estaConectado = true;
+    tentativasReconexao = 0;
+    socket.emit('torre:join-all');
+    viagensAcompanhadas.forEach(idviagem => {
+      socket.emit('torre:join-viagem', idviagem);
+    });
+  }
+
   /**
-   * Conectar ao servidor Socket.io
+   * Liga um listener substituindo apenas a referência anterior deste módulo (não remove handlers do dashboard).
+   */
+  function bindTorreModulo(s, eventName, storageKey, fn) {
+    const prev = s[storageKey];
+    if (typeof prev === 'function') {
+      try {
+        s.off(eventName, prev);
+      } catch (_) {}
+    }
+    s[storageKey] = fn;
+    s.on(eventName, fn);
+  }
+
+  /**
+   * Listeners do módulo Gerenciar Viagens (substitui só os callbacks deste módulo ao reabrir a tela).
+   */
+  function instalarListenersTorreModulo(s) {
+    if (!s) return;
+
+    bindTorreModulo(s, 'connect', '_atlasTorreCb_connect', () => {
+      console.log('✅ WebSocket Torre conectado:', s.id);
+      executarJoinTorreAposConectar();
+    });
+
+    bindTorreModulo(s, 'disconnect', '_atlasTorreCb_disconnect', () => {
+      console.log('📴 WebSocket Torre desconectado');
+      estaConectado = false;
+    });
+
+    bindTorreModulo(s, 'connect_error', '_atlasTorreCb_connect_error', error => {
+      console.error('❌ Erro ao conectar WebSocket Torre:', error);
+      tentativasReconexao++;
+      if (tentativasReconexao >= MAX_TENTATIVAS) {
+        console.warn('⚠️ Máximo de tentativas de reconexão atingido');
+      }
+    });
+
+    bindTorreModulo(s, 'reconnect', '_atlasTorreCb_reconnect', attemptNumber => {
+      console.log(`🔄 WebSocket Torre reconectado (tentativa ${attemptNumber})`);
+      estaConectado = true;
+      tentativasReconexao = 0;
+    });
+
+    bindTorreModulo(s, 'torre:joined-all', '_atlasTorreCb_joined_all', () => {
+      console.log('✅ Entrou na sala de todas as viagens (Torre de Controle)');
+    });
+
+    bindTorreModulo(s, 'torre:joined', '_atlasTorreCb_joined', data => {
+      console.log(`✅ Entrou na sala da viagem ${data.idviagem}`);
+    });
+
+    bindTorreModulo(s, 'torre:gps-update', '_atlasTorreCb_gps', data => {
+      console.log('📍 Atualização GPS recebida:', data.idviagem);
+      atualizarPosicaoGPS(data.idviagem, data.posicao);
+    });
+
+    bindTorreModulo(s, 'torre:viagem-update', '_atlasTorreCb_viagem', data => {
+      console.log('🔄 Atualização de viagem recebida:', data.idviagem);
+      atualizarViagem(data.idviagem, data.viagem);
+    });
+
+    bindTorreModulo(s, 'torre:novo-alerta', '_atlasTorreCb_novo_alerta', data => {
+      console.log('⚠️ Novo alerta recebido:', data.alerta);
+      adicionarNovoAlerta(data.alerta);
+    });
+
+    bindTorreModulo(s, 'torre:alerta-resolvido', '_atlasTorreCb_alerta_resolvido', data => {
+      console.log('✅ Alerta resolvido:', data.idAlerta);
+      removerAlerta(data.idAlerta);
+    });
+
+    bindTorreModulo(s, 'torre:sos-alerta', '_atlasTorreCb_sos', data => {
+      console.log('🆘 Alerta SOS recebido:', data.sos);
+      adicionarSOS(data.sos);
+    });
+
+    bindTorreModulo(s, 'torre:nova-mensagem', '_atlasTorreCb_msg', data => {
+      console.log('💬 Nova mensagem recebida:', data.mensagem);
+      atualizarChat(data.mensagem);
+    });
+
+    bindTorreModulo(s, 'torre:reputacao-update', '_atlasTorreCb_rep', data => {
+      console.log('⭐ Atualização de reputação:', data.cdmotorista);
+      atualizarReputacao(data.cdmotorista, data.reputacao);
+    });
+
+    bindTorreModulo(s, 'torre:lista-viagens-update', '_atlasTorreCb_lista', data => {
+      console.log('📋 Atualização de lista de viagens:', data.count);
+      atualizarListaViagens(data.viagens);
+    });
+  }
+
+  /**
+   * Conectar ao servidor Socket.io (reutiliza o mesmo socket do dashboard quando existir).
    */
   function conectar() {
+    const shared = typeof window !== 'undefined' ? window.__atlasIoShared : null;
+
+    if (shared) {
+      socket = shared;
+      instalarListenersTorreModulo(socket);
+      if (socket.connected) {
+        console.log('✅ WebSocket Torre reutiliza conexão do dashboard:', socket.id);
+        executarJoinTorreAposConectar();
+      }
+      return;
+    }
+
     if (socket && socket.connected) {
       console.log('✅ WebSocket Torre já conectado');
       return;
@@ -87,105 +202,23 @@
       const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
       const host = window.location.host;
       const url = `${protocol}//${host}`;
-
-      socket = io(url, {
-        transports: ['websocket', 'polling'],
+      const pathFn = typeof window.__atlasGetSocketIoPath === 'function' ? window.__atlasGetSocketIoPath : null;
+      const path = pathFn ? pathFn() : '/socket.io';
+      const ioOpts = {
+        transports: ['polling', 'websocket'],
         reconnection: true,
         reconnectionAttempts: MAX_TENTATIVAS,
         reconnectionDelay: 1000,
-        reconnectionDelayMax: 5000
-      });
+        reconnectionDelayMax: 5000,
+        auth: { token: (typeof localStorage !== 'undefined' && localStorage.getItem('token')) || '' }
+      };
+      if (path !== '/socket.io') ioOpts.path = path;
 
-      socket.on('connect', () => {
-        console.log('✅ WebSocket Torre conectado:', socket.id);
-        estaConectado = true;
-        tentativasReconexao = 0;
-
-        // Entrar na sala de todas as viagens (torre de controle)
-        socket.emit('torre:join-all');
-
-        // Reconectar às viagens que estava acompanhando
-        viagensAcompanhadas.forEach(idviagem => {
-          socket.emit('torre:join-viagem', idviagem);
-        });
-      });
-
-      socket.on('disconnect', () => {
-        console.log('📴 WebSocket Torre desconectado');
-        estaConectado = false;
-      });
-
-      socket.on('connect_error', (error) => {
-        console.error('❌ Erro ao conectar WebSocket Torre:', error);
-        tentativasReconexao++;
-        if (tentativasReconexao >= MAX_TENTATIVAS) {
-          console.warn('⚠️ Máximo de tentativas de reconexão atingido');
-        }
-      });
-
-      socket.on('reconnect', (attemptNumber) => {
-        console.log(`🔄 WebSocket Torre reconectado (tentativa ${attemptNumber})`);
-        estaConectado = true;
-        tentativasReconexao = 0;
-      });
-
-      // Eventos da Torre de Controle
-      socket.on('torre:joined-all', () => {
-        console.log('✅ Entrou na sala de todas as viagens (Torre de Controle)');
-      });
-
-      socket.on('torre:joined', (data) => {
-        console.log(`✅ Entrou na sala da viagem ${data.idviagem}`);
-      });
-
-      // Atualização de posição GPS
-      socket.on('torre:gps-update', (data) => {
-        console.log('📍 Atualização GPS recebida:', data.idviagem);
-        atualizarPosicaoGPS(data.idviagem, data.posicao);
-      });
-
-      // Atualização de viagem
-      socket.on('torre:viagem-update', (data) => {
-        console.log('🔄 Atualização de viagem recebida:', data.idviagem);
-        atualizarViagem(data.idviagem, data.viagem);
-      });
-
-      // Novo alerta
-      socket.on('torre:novo-alerta', (data) => {
-        console.log('⚠️ Novo alerta recebido:', data.alerta);
-        adicionarNovoAlerta(data.alerta);
-      });
-
-      // Alerta resolvido
-      socket.on('torre:alerta-resolvido', (data) => {
-        console.log('✅ Alerta resolvido:', data.idAlerta);
-        removerAlerta(data.idAlerta);
-      });
-
-      // Alerta SOS
-      socket.on('torre:sos-alerta', (data) => {
-        console.log('🆘 Alerta SOS recebido:', data.sos);
-        adicionarSOS(data.sos);
-      });
-
-      // Nova mensagem
-      socket.on('torre:nova-mensagem', (data) => {
-        console.log('💬 Nova mensagem recebida:', data.mensagem);
-        atualizarChat(data.mensagem);
-      });
-
-      // Atualização de reputação
-      socket.on('torre:reputacao-update', (data) => {
-        console.log('⭐ Atualização de reputação:', data.cdmotorista);
-        atualizarReputacao(data.cdmotorista, data.reputacao);
-      });
-
-      // Atualização de lista de viagens
-      socket.on('torre:lista-viagens-update', (data) => {
-        console.log('📋 Atualização de lista de viagens:', data.count);
-        atualizarListaViagens(data.viagens);
-      });
-
+      socket = io(url, ioOpts);
+      if (typeof window !== 'undefined') {
+        window.__atlasIoShared = socket;
+      }
+      instalarListenersTorreModulo(socket);
     } catch (error) {
       console.error('❌ Erro ao conectar WebSocket Torre:', error);
     }
@@ -336,10 +369,17 @@
         socket.emit('torre:leave-viagem', idviagem);
       });
       viagensAcompanhadas.clear();
-      socket.disconnect();
-      socket = null;
-      estaConectado = false;
-      console.log('📴 WebSocket Torre desconectado manualmente');
+      const shared = typeof window !== 'undefined' ? window.__atlasIoShared : null;
+      if (socket === shared) {
+        socket = null;
+        estaConectado = false;
+        console.log('📴 WebSocket Torre: saiu das salas (conexão compartilhada mantida para o dashboard).');
+      } else {
+        socket.disconnect();
+        socket = null;
+        estaConectado = false;
+        console.log('📴 WebSocket Torre desconectado manualmente');
+      }
     }
   }
 

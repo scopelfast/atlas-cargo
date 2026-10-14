@@ -5,6 +5,9 @@
 const express = require('express');
 const router = express.Router();
 const { poolPromise } = require('../config/db');
+const { towerAuthAndTenant } = require('../middleware/tower-auth-chain.middleware');
+
+router.use(towerAuthAndTenant);
 
 // Listar mesorregiões com filtros (para o módulo Gerenciar Mesorregião)
 // GET /api/mesorregioes?cdpais=&cduf=&descricao=&situacao=

@@ -9,11 +9,22 @@
   let gridTab = null;
   let lastTipos = null;
 
+  function getAuthHeaders(extra) {
+    var headers = extra || {};
+    var token = localStorage.getItem('token');
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    try {
+      var user = JSON.parse(localStorage.getItem('user') || '{}');
+      if (user && (user.login || user.SGUSUARIO)) headers['user-login'] = user.login || user.SGUSUARIO;
+    } catch (e) {}
+    return headers;
+  }
+
   async function preencherSituacoesViagemCombo() {
     var sel = document.getElementById('tipoSituacaoViagem');
     if (!sel || sel.options.length > 1) return;
     try {
-      var res = await fetch('/api/situacoes-viagem-combo');
+      var res = await fetch('/api/situacoes-viagem-combo', { headers: getAuthHeaders() });
       var list = await res.json();
       if (!Array.isArray(list)) return;
       list.forEach(function(item) {
@@ -90,7 +101,7 @@
     if (situacao && situacao.value) params.append('situacao', situacao.value);
 
     try {
-      var response = await fetch('/api/tipos-ocorrencia?' + params.toString());
+      var response = await fetch('/api/tipos-ocorrencia?' + params.toString(), { headers: getAuthHeaders() });
       var tipos = await response.json();
 
       if (!Array.isArray(tipos)) {
@@ -153,6 +164,7 @@
         }
       ],
       apiEndpoint: '/api/tipos-ocorrencia',
+      buildFetchHeaders: function() { return getAuthHeaders(); },
       onBeforeEdit: function(id) {
         loadTipoParaEdicao(id);
         return false;
@@ -169,7 +181,7 @@
   async function loadTipoParaEdicao(id) {
     try {
       if (tipoOcorrenciaForm) tipoOcorrenciaForm.reset();
-      var response = await fetch('/api/tipos-ocorrencia/' + id);
+      var response = await fetch('/api/tipos-ocorrencia/' + encodeURIComponent(id), { headers: getAuthHeaders() });
       if (!response.ok) throw new Error('Não encontrado');
       var tipo = await response.json();
       document.getElementById('tipoCodigo').value = tipo.CDTIPOOCORRENCIA;
@@ -196,7 +208,7 @@
   }
 
   function executarAlteracaoStatus(deleteId, acao, modalEl) {
-    fetch('/api/tipos-ocorrencia/' + deleteId + '?action=' + acao, { method: 'DELETE' })
+    fetch('/api/tipos-ocorrencia/' + deleteId + '?action=' + acao, { method: 'DELETE', headers: getAuthHeaders() })
       .then(function(res) { return res.json(); })
       .then(function(data) {
         showMessage(data.message || 'Status alterado.', 'success');
@@ -224,7 +236,7 @@
     var confirmNo = document.getElementById('confirmNo');
     var modalEl = document.getElementById('confirmModal');
 
-    fetch('/api/tipos-ocorrencia/' + idStr)
+    fetch('/api/tipos-ocorrencia/' + encodeURIComponent(idStr), { headers: getAuthHeaders() })
       .then(function(r) { return r.ok ? r.json() : Promise.reject(new Error('Não encontrado')); })
       .then(function(tipo) {
         var estaAtivo = tipo.FGACTIVE === 'S';
@@ -232,9 +244,18 @@
         var action = estaAtivo ? 'deactivate' : 'activate';
 
         if (!modalEl || !modalMessage || !confirmYes || !confirmNo) {
-          if (window.confirm(msg)) {
-            executarAlteracaoStatus(idStr, action, null);
-          }
+          var prom =
+            typeof window.confirmPadrao === 'function'
+              ? window.confirmPadrao(msg, {
+                  title: estaAtivo ? 'Desativar tipo de ocorrência' : 'Reativar tipo de ocorrência',
+                  danger: estaAtivo,
+                  confirmText: estaAtivo ? 'Desativar' : 'Reativar',
+                  cancelText: 'Cancelar',
+                })
+              : Promise.resolve(window.confirm(msg));
+          prom.then(function (ok) {
+            if (ok) executarAlteracaoStatus(idStr, action, null);
+          });
           return;
         }
 
@@ -300,9 +321,10 @@
       try {
         var url = id ? '/api/tipos-ocorrencia/' + id : '/api/tipos-ocorrencia';
         var method = id ? 'PUT' : 'POST';
+        var h = getAuthHeaders({ 'Content-Type': 'application/json' });
         var response = await fetch(url, {
           method: method,
-          headers: { 'Content-Type': 'application/json' },
+          headers: h,
           body: JSON.stringify(payload)
         });
         var data = await response.json();

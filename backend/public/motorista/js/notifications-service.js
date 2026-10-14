@@ -1,7 +1,7 @@
 // backend/public/motorista/js/notifications-service.js
 // Serviço Unificado de Notificações
-// Versão: 1.0
-// Data: 2026-01-18
+// Versão: 1.1 — som foreground alinhado à torre (chat ~2s / alerta·SOS ~5s)
+// Data: 2026-07-20
 
 (function() {
   'use strict';
@@ -15,6 +15,43 @@
     GPS: 'gps',
     GERAL: 'geral'
   };
+
+  // AudioContext só após gesto do usuário (política iOS/Android WebView / Chrome)
+  let globalAudioContext = null;
+  let audioContextUnlocked = false;
+
+  function obterAudioContext() {
+    if (!audioContextUnlocked || !globalAudioContext) return null;
+    try {
+      if (globalAudioContext.state === 'suspended') {
+        const pr = globalAudioContext.resume();
+        if (pr && typeof pr.catch === 'function') pr.catch(() => {});
+      }
+      return globalAudioContext;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function inicializarAudioContext() {
+    const eventos = ['click', 'touchstart', 'keydown'];
+    const unlock = () => {
+      eventos.forEach((ev) => document.removeEventListener(ev, unlock));
+      try {
+        if (!globalAudioContext) {
+          globalAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (globalAudioContext.state === 'suspended') {
+          const pr = globalAudioContext.resume();
+          if (pr && typeof pr.catch === 'function') pr.catch(() => {});
+        }
+        audioContextUnlocked = true;
+      } catch (e) {
+        audioContextUnlocked = false;
+      }
+    };
+    eventos.forEach((ev) => document.addEventListener(ev, unlock, { once: true, passive: true }));
+  }
 
   // ==========================================
   // CONFIGURAÇÕES
@@ -342,33 +379,56 @@
     return patterns[tipo] || [200];
   }
 
+  /**
+   * Som in-app (foreground). Mesma lógica da torre/dashboard.
+   * Chat ~2 s; alerta / SOS / demais ~5 s em pulsos.
+   * Não substitui som de notificação do SO quando o app está em background.
+   */
   function tocarSomNotificacao(tipo) {
     try {
-      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
+      const config = getConfig();
+      if (!config.som) return;
 
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
+      const audioContext = obterAudioContext();
+      if (!audioContext) return;
 
-      // Frequências diferentes por tipo
       const frequencies = {
         [NOTIFICATION_TYPES.SOS]: 1000,
         [NOTIFICATION_TYPES.ALERTA]: 800,
         [NOTIFICATION_TYPES.CHAT]: 600,
+        [NOTIFICATION_TYPES.CONVOCACAO]: 700,
+        [NOTIFICATION_TYPES.VIAGEM]: 550,
         [NOTIFICATION_TYPES.GERAL]: 500
       };
+      const freq = frequencies[tipo] || 500;
+      const duracaoSec = tipo === NOTIFICATION_TYPES.CHAT ? 2 : 5;
+      const periodoPulso = 0.4;
+      const now = audioContext.currentTime;
 
-      oscillator.frequency.value = frequencies[tipo] || 500;
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
       oscillator.type = 'sine';
+      oscillator.frequency.value = freq;
 
-      gainNode.gain.setValueAtTime(0.2, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+      gainNode.gain.setValueAtTime(0.0001, now);
+      const nPulsos = Math.max(1, Math.floor(duracaoSec / periodoPulso));
+      for (let i = 0; i < nPulsos; i++) {
+        const t0 = now + i * periodoPulso;
+        gainNode.gain.setValueAtTime(0.0001, t0);
+        gainNode.gain.linearRampToValueAtTime(0.22, t0 + 0.02);
+        gainNode.gain.setValueAtTime(0.22, t0 + 0.16);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.32);
+        if (tipo === NOTIFICATION_TYPES.SOS) {
+          oscillator.frequency.setValueAtTime(i % 2 === 0 ? 1000 : 750, t0);
+        }
+      }
 
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.2);
+      oscillator.start(now);
+      oscillator.stop(now + duracaoSec + 0.05);
     } catch (err) {
-      console.warn('Erro ao tocar som:', err);
+      // Silencioso — sem áudio até gesto do usuário (iOS/Android WebView)
     }
   }
 
@@ -411,7 +471,11 @@
     registrarServiceWorker: registrarServiceWorker,
 
     // Tipos
-    TIPOS: NOTIFICATION_TYPES
+    TIPOS: NOTIFICATION_TYPES,
+
+    // Som foreground (útil para teste / alinhamento com a torre)
+    tocarSom: tocarSomNotificacao,
+    audioLiberado: function() { return audioContextUnlocked; }
   };
 
   // ==========================================
@@ -446,12 +510,14 @@
     document.head.appendChild(style);
   }
 
-  // Inicializar Service Worker ao carregar
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      registrarServiceWorker();
-    });
-  } else {
+  // Inicializar Service Worker + unlock de áudio ao carregar
+  function boot() {
+    inicializarAudioContext();
     registrarServiceWorker();
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
   }
 })();

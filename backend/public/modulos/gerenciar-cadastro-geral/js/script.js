@@ -26,20 +26,143 @@
   let sqlExecutado = false;
   let initExecutado = false;
   let contextoCadastro = { pais: 'BR', tipoDocFisica: 'CPF', tipoDocJuridica: 'CNPJ' };
+  /** Último GET /api/cadastros-gerais/:id (para reexibir anexos ao marcar Motorista de novo). */
+  let ultimoCadastroCarregado = null;
 
-  /** Tipos de cadastro que exibem a aba "Locais preferidos" (convocações/divulgação de cargas). */
-  const TIPOS_COMPATIVEIS_ENVIO = ['M'];
+  /** Abas Classes Frota, Validades e Locais preferidos: M, T, Agente/Parceiro (A) ou Grupo (G). */
+  function temAbasFrotaValidadesLocaisNoForm() {
+    const chkM = document.getElementById('chkM');
+    const chkT = document.getElementById('chkT');
+    const chkA = document.getElementById('chkA');
+    const chkG = document.getElementById('chkG');
+    return !!((chkM && chkM.checked) || (chkT && chkT.checked) || (chkA && chkA.checked) || (chkG && chkG.checked));
+  }
   function temTipoCompativelEnvio(cadastroOrFlags) {
     if (!cadastroOrFlags) return false;
-    return TIPOS_COMPATIVEIS_ENVIO.some(cod => cadastroOrFlags['FGMOTORISTA'] === true || cadastroOrFlags['FGMOTORISTA'] === 'S');
+    const m = cadastroOrFlags.FGMOTORISTA === true || cadastroOrFlags.FGMOTORISTA === 'S';
+    const t = cadastroOrFlags.FGTRANSPORTADOR === true || cadastroOrFlags.FGTRANSPORTADOR === 'S';
+    const a = cadastroOrFlags.FGAGENTE === true || cadastroOrFlags.FGAGENTE === 'S';
+    const g = cadastroOrFlags.FGGRUPO === true || cadastroOrFlags.FGGRUPO === 'S';
+    return m || t || a || g;
+  }
+  const ABAS_FROTA_VALIDADES_LOCAIS = ['classes', 'validades', 'locais-preferidos'];
+  const ABA_ANEXOS_MOTORISTA = 'anexos-motorista';
+  const ABA_VEICULOS_MOTORISTA = 'veiculos-motorista';
+  /** Aba "Endereços de entrega": só Pessoa Jurídica com cadastro já salvo (possui CDCADASTRO). */
+  function atualizarVisibilidadeEnderecosEntrega() {
+    const tab = document.getElementById('tabBtnEnderecosEntrega');
+    if (!tab) return;
+    const tp = document.getElementById('cadastroTipoPessoa')?.value;
+    const id = document.getElementById('cadastroId')?.value?.trim();
+    const mostrar = tp === 'J' && !!id;
+    tab.style.display = mostrar ? 'inline-flex' : 'none';
+    if (!mostrar) {
+      const activeBtn = document.querySelector('.cadastro-geral-container .tab-btn.active');
+      const tid = activeBtn && activeBtn.getAttribute('data-tab');
+      if (tid === 'enderecos-entrega') {
+        showTab('dados').catch(() => {});
+      }
+    }
   }
   function atualizarVisibilidadeLocaisPreferidos() {
-    const chkM = document.getElementById('chkM');
-    const ehMotorista = chkM ? chkM.checked : false;
-    const tabBtn = document.getElementById('tabBtnLocaisPreferidos');
+    const mostrarAbas = temAbasFrotaValidadesLocaisNoForm();
+    const display = mostrarAbas ? 'inline-flex' : 'none';
+    const tabClasses = document.getElementById('tabBtnClassesFrota');
+    const tabVal = document.getElementById('tabBtnValidades');
+    const tabLocais = document.getElementById('tabBtnLocaisPreferidos');
+    const tabAnexos = document.getElementById('tabBtnAnexosMotorista');
+    const tabVeiculos = document.getElementById('tabBtnVeiculosMotorista');
+    const chkMVis = document.getElementById('chkM');
+    if (tabClasses) tabClasses.style.display = display;
+    if (tabVal) tabVal.style.display = display;
+    if (tabLocais) tabLocais.style.display = display;
+    const mostrarMotoristaApp = chkMVis && chkMVis.checked ? 'inline-flex' : 'none';
+    if (tabAnexos) tabAnexos.style.display = mostrarMotoristaApp;
+    if (tabVeiculos) tabVeiculos.style.display = mostrarMotoristaApp;
+
     const divDestinoPreferido = document.getElementById('divDestinoPreferido');
-    if (tabBtn) tabBtn.style.display = ehMotorista ? 'inline-flex' : 'none';
     if (divDestinoPreferido) divDestinoPreferido.style.display = 'none';
+
+    if (!mostrarAbas) {
+      const activeBtn = document.querySelector('.cadastro-geral-container .tab-btn.active');
+      const tid = activeBtn && activeBtn.getAttribute('data-tab');
+      if (tid && ABAS_FROTA_VALIDADES_LOCAIS.includes(tid)) {
+        showTab('dados').catch(() => {});
+      }
+    }
+    if (!chkMVis || !chkMVis.checked) {
+      const activeBtn2 = document.querySelector('.cadastro-geral-container .tab-btn.active');
+      const tid2 = activeBtn2 && activeBtn2.getAttribute('data-tab');
+      if (tid2 === ABA_ANEXOS_MOTORISTA || tid2 === ABA_VEICULOS_MOTORISTA) {
+        showTab('dados').catch(() => {});
+      }
+    }
+    atualizarVisibilidadeEnderecosEntrega();
+  }
+
+  /** Bloco rastreado: M, T, Agente ou Grupo (divulgação). Classificação TAC/ETC: só M ou T. */
+  function atualizarTextosBlocoRastreado() {
+    const chkM = document.getElementById('chkM');
+    const chkT = document.getElementById('chkT');
+    const chkA = document.getElementById('chkA');
+    const chkG = document.getElementById('chkG');
+    const mt = !!(chkM && chkM.checked) || !!(chkT && chkT.checked);
+    const ag = !!(chkA && chkA.checked) || !!(chkG && chkG.checked);
+    const hintIntro = document.getElementById('hintBlocoRastreadoIntro');
+    const lb = document.getElementById('labelCadastroRastreado');
+    const hint = document.getElementById('hintCadastroRastreado');
+    if (hintIntro) {
+      hintIntro.innerHTML =
+        'Estes campos aparecem quando você marca <strong>Motorista</strong>, <strong>Transportador</strong>, <strong>Agente / Parceiro</strong> e/ou <strong>Grupo de Divulgação</strong>. ' +
+        'A <strong>classificação TAC/ETC</strong> (Brasil) só aparece para Motorista e/ou Transportador.';
+    }
+    if (lb) {
+      if (mt) {
+        lb.textContent = 'Possui Veículo Rastreado *';
+      } else if (ag) {
+        lb.textContent = 'Atende cargas com exigência de veículo rastreado *';
+      } else {
+        lb.textContent = 'Possui Veículo Rastreado *';
+      }
+    }
+    if (hint) {
+      if (mt) {
+        hint.textContent =
+          'Obrigatório para os tipos acima. Para motorista/transportador indica veículo rastreado; também usado nas regras de divulgação.';
+      } else if (ag) {
+        hint.textContent =
+          'Obrigatório para Agente/Parceiro e Grupo de Divulgação: usado nas regras de divulgação quando a carga exige veículo rastreado (Sim = elegível; Não = fora desse filtro).';
+      } else {
+        hint.textContent = '';
+      }
+    }
+  }
+
+  function atualizarVisibilidadeTipoTransporteBr(opts) {
+    const clearWhenHidden = opts && opts.clearWhenHidden;
+    const chkM = document.getElementById('chkM');
+    const chkT = document.getElementById('chkT');
+    const chkA = document.getElementById('chkA');
+    const chkG = document.getElementById('chkG');
+    const bloco = document.getElementById('divBlocoTipoTransporteBr');
+    const divClassif = document.getElementById('divClassificacaoTransporteBr');
+    const sel = document.getElementById('cadastroTipoTransporteBr');
+    const selRast = document.getElementById('cadastroRastreado');
+    const mostrarBloco = !!((chkM && chkM.checked) || (chkT && chkT.checked) || (chkA && chkA.checked) || (chkG && chkG.checked));
+    const mostrarClassif = !!((chkM && chkM.checked) || (chkT && chkT.checked));
+    if (bloco) bloco.style.display = mostrarBloco ? 'block' : 'none';
+    if (divClassif) divClassif.style.display = mostrarClassif ? 'block' : 'none';
+    if (selRast) {
+      if (mostrarBloco) {
+        selRast.setAttribute('required', 'required');
+      } else {
+        selRast.removeAttribute('required');
+        if (clearWhenHidden) selRast.value = '';
+      }
+    }
+    if (!mostrarClassif && sel && clearWhenHidden) sel.value = '';
+    if (!mostrarBloco && sel && clearWhenHidden) sel.value = '';
+    atualizarTextosBlocoRastreado();
   }
 
   async function loadContextoCadastro() {
@@ -47,6 +170,9 @@
       const r = await fetch('/api/contexto');
       const d = await r.json();
       contextoCadastro = d;
+      if (d && d.timezone && typeof window.syncAtlasTimezoneInstalacao === 'function') {
+        window.syncAtlasTimezoneInstalacao(d.timezone);
+      }
       updateLabelDocumento();
     } catch (e) {
       console.warn('[Cadastro Geral] Erro ao carregar contexto:', e);
@@ -167,6 +293,572 @@
   }
 
 
+  function escPainelVeiculo(t) {
+    return String(t == null ? '' : t)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function urlPublicaUploadMotorista(relPath) {
+    const p = String(relPath || '').trim();
+    if (!p) return '';
+    if (/^https?:\/\//i.test(p)) return p;
+    const path = p.startsWith('/') ? p : '/' + p;
+    return typeof window.corrigirUrl === 'function' ? window.corrigirUrl(path) : path;
+  }
+
+  function formatarValidadeCnhUi(val) {
+    if (val == null || val === '') return '';
+    const s = String(val).trim();
+    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return m[3] + '/' + m[2] + '/' + m[1];
+    return s;
+  }
+
+  /** Miniaturas / links: CNH e comprovante de endereço (torre). */
+  function atualizarAnexosMotoristaTorre(cadastro) {
+    const wrap = document.getElementById('divAnexosMotoristaAppTorre');
+    if (!wrap) return;
+    const idCad = (document.getElementById('cadastroId') && document.getElementById('cadastroId').value)
+      ? String(document.getElementById('cadastroId').value).trim() : '';
+    const ehM = !!(cadastro && (cadastro.FGMOTORISTA === true || cadastro.FGMOTORISTA === 'S'));
+    if (!ehM || !idCad) {
+      wrap.style.display = 'none';
+      return;
+    }
+    wrap.style.display = 'block';
+
+    const fotoCnh = cadastro.FOTOCNH || cadastro.fotocnh || '';
+    const fotoCnhVerso = cadastro.FOTOCNH_VERSO || cadastro.foto_cnh_verso || '';
+    const fotoComp = cadastro.FOTO_COMPROVANTE_ENDERECO || cadastro.foto_comprovante_endereco || '';
+    const blocoCnh = document.getElementById('torreBlocoFotoCnh');
+    const blocoCnhV = document.getElementById('torreBlocoFotoCnhVerso');
+    const blocoComp = document.getElementById('torreBlocoComprovante');
+    const linkCnh = document.getElementById('torreLinkFotoCnh');
+    const linkCnhV = document.getElementById('torreLinkFotoCnhVerso');
+    const linkComp = document.getElementById('torreLinkComprovante');
+    const imgCnh = document.getElementById('torreImgFotoCnh');
+    const imgCnhV = document.getElementById('torreImgFotoCnhVerso');
+    const imgComp = document.getElementById('torreImgComprovante');
+    const hintSem = document.getElementById('torreHintSemComprovante');
+    const resumo = document.getElementById('torreDadosCnhResumo');
+
+    if (blocoCnh) blocoCnh.style.display = 'block';
+    if (blocoCnhV) blocoCnhV.style.display = 'block';
+    if (blocoComp) blocoComp.style.display = 'block';
+
+    if (resumo) {
+      const bits = [];
+      const nr = cadastro.NRCNH != null && String(cadastro.NRCNH).trim() ? String(cadastro.NRCNH).trim() : '';
+      const cat = cadastro.CATEGORIACNH != null && String(cadastro.CATEGORIACNH).trim() ? String(cadastro.CATEGORIACNH).trim() : '';
+      const val = cadastro.VALIDADECNH != null && String(cadastro.VALIDADECNH).trim() ? String(cadastro.VALIDADECNH).trim() : '';
+      if (nr) bits.push((t('web.modulos.cadastroGeral.cnhRegistro') || 'Registro') + ': ' + nr);
+      if (cat) bits.push((t('web.modulos.cadastroGeral.cnhCategoria') || 'Categoria') + ': ' + cat);
+      if (val) bits.push((t('web.modulos.cadastroGeral.cnhValidade') || 'Validade') + ': ' + formatarValidadeCnhUi(val));
+      resumo.textContent = bits.join(' · ');
+      resumo.style.display = bits.length ? 'block' : 'none';
+    }
+
+    function bindThumb(link, img, url) {
+      if (!link || !img) return;
+      link.style.display = url ? 'inline' : 'none';
+      if (url) {
+        link.href = url;
+        img.src = url;
+        img.style.display = '';
+        img.alt = '';
+        img.setAttribute('aria-hidden', 'true');
+        img.loading = 'lazy';
+        img.onclick = function () { window.open(url, '_blank', 'noopener,noreferrer'); };
+      } else {
+        link.removeAttribute('href');
+        img.removeAttribute('src');
+        img.style.display = 'none';
+        img.onclick = null;
+      }
+    }
+
+    if (fotoCnh && linkCnh && imgCnh) {
+      bindThumb(linkCnh, imgCnh, urlPublicaUploadMotorista(fotoCnh));
+    } else if (linkCnh && imgCnh) {
+      bindThumb(linkCnh, imgCnh, '');
+    }
+
+    if (fotoCnhVerso && linkCnhV && imgCnhV) {
+      bindThumb(linkCnhV, imgCnhV, urlPublicaUploadMotorista(fotoCnhVerso));
+    } else if (linkCnhV && imgCnhV) {
+      bindThumb(linkCnhV, imgCnhV, '');
+    }
+
+    if (fotoComp && linkComp && imgComp) {
+      bindThumb(linkComp, imgComp, urlPublicaUploadMotorista(fotoComp));
+      if (hintSem) hintSem.style.display = 'none';
+    } else if (linkComp && imgComp) {
+      bindThumb(linkComp, imgComp, '');
+      if (hintSem) {
+        hintSem.textContent = t('web.modulos.cadastroGeral.semComprovanteCadastrado')
+          || 'Não há comprovante de endereço cadastrado (cadastro antigo ou ainda não enviado).';
+        hintSem.style.display = 'block';
+      }
+    }
+
+    ['cnh-frente', 'cnh-verso', 'comprovante-endereco'].forEach(function (tipo) {
+      const btnEx = document.querySelector('.btn-torre-anexo-excl[data-anexo-tipo="' + tipo + '"]');
+      if (btnEx) {
+        const tem =
+          (tipo === 'cnh-frente' && !!fotoCnh) ||
+          (tipo === 'cnh-verso' && !!fotoCnhVerso) ||
+          (tipo === 'comprovante-endereco' && !!fotoComp);
+        btnEx.disabled = !tem;
+      }
+    });
+  }
+
+  async function torreExcluirAnexoMotorista(tipo) {
+    const msg =
+      t('web.modulos.cadastroGeral.anexoConfirmaExcluir') || 'Remover este arquivo do cadastro?';
+    const confirmado = await confirmarAcaoPadrao(msg, { danger: true, confirmText: 'OK' });
+    if (!confirmado) return;
+    const idCad = document.getElementById('cadastroId')?.value?.trim();
+    if (!idCad || !tipo) return;
+    const base =
+      typeof window.corrigirUrl === 'function' ? window.corrigirUrl.bind(window) : function (u) {
+        return u;
+      };
+    try {
+      const r = await fetch(
+        base('/api/cadastros-gerais/' + encodeURIComponent(idCad) + '/anexos/' + encodeURIComponent(tipo)),
+        { method: 'DELETE', headers: getAuthHeaders() }
+      );
+      const data = await r.json().catch(function () {
+        return {};
+      });
+      if (!r.ok) {
+        showMessage(data.error || t('web.modulos.cadastroGeral.anexoErroExcluir') || 'Erro ao remover.', 'error');
+        return;
+      }
+      showMessage(data.message || t('web.modulos.cadastroGeral.anexoExcluido') || 'Removido.', 'success');
+      const r2 = await fetch(base('/api/cadastros-gerais/' + encodeURIComponent(idCad)), { headers: getAuthHeaders() });
+      if (r2.ok) atualizarAnexosMotoristaTorre(await r2.json());
+    } catch (_e) {
+      showMessage(t('web.modulos.cadastroGeral.erroConexao') || 'Erro de conexão.', 'error');
+    }
+  }
+
+  async function torreUploadAnexoMotorista(tipo, file) {
+    const idCad = document.getElementById('cadastroId')?.value?.trim();
+    if (!idCad || !tipo || !file) return;
+    const base =
+      typeof window.corrigirUrl === 'function' ? window.corrigirUrl.bind(window) : function (u) {
+        return u;
+      };
+    const fd = new FormData();
+    fd.append('arquivo', file);
+    fd.append('tipo', tipo);
+    try {
+      const r = await fetch(base('/api/cadastros-gerais/' + encodeURIComponent(idCad) + '/anexos'), {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: fd,
+      });
+      const data = await r.json().catch(function () {
+        return {};
+      });
+      if (!r.ok) {
+        showMessage(data.error || t('web.modulos.cadastroGeral.anexoErroUpload') || 'Erro ao enviar.', 'error');
+        return;
+      }
+      showMessage(data.message || t('web.modulos.cadastroGeral.anexoEnviado') || 'Arquivo atualizado.', 'success');
+      const r2 = await fetch(base('/api/cadastros-gerais/' + encodeURIComponent(idCad)), { headers: getAuthHeaders() });
+      if (r2.ok) atualizarAnexosMotoristaTorre(await r2.json());
+    } catch (_e) {
+      showMessage(t('web.modulos.cadastroGeral.erroConexao') || 'Erro de conexão.', 'error');
+    }
+  }
+
+  function limparVeiculosMotoristaAppTorre() {
+    const wrap = document.getElementById('divVeiculosMotoristaAppTorre');
+    const tbody = document.getElementById('torreTbodyVeiculosMotoristaApp');
+    const vazio = document.getElementById('torreVeiculosMotoristaAppVazio');
+    if (wrap) wrap.style.display = 'none';
+    if (tbody) tbody.innerHTML = '';
+    if (vazio) {
+      vazio.style.display = 'none';
+      vazio.textContent = '';
+    }
+    const at = document.getElementById('divTorreAtrelarEquipamentoFrota');
+    if (at) at.style.display = 'none';
+    const sel = document.getElementById('torreSelectEquipFrota');
+    if (sel) {
+      sel.innerHTML =
+        '<option value="">' +
+        escPainelVeiculo(t('web.modulos.cadastroGeral.atrelarEquipPlaceholder') || 'Selecione…') +
+        '</option>';
+    }
+    const papelEl = document.getElementById('torrePapelEquipFrota');
+    if (papelEl) papelEl.value = '';
+    const msgAt = document.getElementById('msgTorreVincularEquipFrota');
+    if (msgAt) {
+      msgAt.textContent = '';
+      msgAt.style.display = 'none';
+      msgAt.className = 'message';
+    }
+  }
+
+  /** CRLV ou foto do veículo por linha (torre): miniatura + Ver + ícones — mesma API de Gerenciar Equipamentos. */
+  function torreMvDocCellHtml(idv, tipo, relPath) {
+    const has = !!(relPath && String(relPath).trim());
+    const u = has ? urlPublicaUploadMotorista(relPath) : '';
+    const idvStr = escPainelVeiculo(String(idv));
+    const tipoEsc = escPainelVeiculo(String(tipo || '').trim());
+    const verLab = t('web.modulos.cadastroGeral.veiculosMvVerArquivo') || 'Ver';
+    const sem = t('web.modulos.cadastroGeral.veiculosMvSemArquivo') || 'Sem arquivo.';
+    const subst = t('web.modulos.cadastroGeral.anexoSubstituir') || 'Substituir';
+    const rem = t('web.modulos.cadastroGeral.anexoExcluir') || 'Remover';
+    const statusHtml = has
+      ? '<span class="torre-mv-doc-preview">' +
+        '<img class="torre-mv-doc-mini" src="' +
+        escPainelVeiculo(u) +
+        '" alt="" loading="lazy" role="presentation" />' +
+        '<a href="' +
+        escPainelVeiculo(u) +
+        '" class="torre-mv-doc-link" target="_blank" rel="noopener noreferrer">' +
+        escPainelVeiculo(verLab) +
+        '</a></span>'
+      : '<span class="torre-mv-doc-empty" title="' + escPainelVeiculo(sem) + '">—</span>';
+    return (
+      '<div class="torre-mv-doc-cell">' +
+      '<div class="torre-mv-doc-toolbar">' +
+      '<div class="torre-mv-doc-status">' +
+      statusHtml +
+      '</div>' +
+      '<div class="torre-mv-doc-btns">' +
+      '<input type="file" class="torre-mv-anexo-file" data-idv="' +
+      idvStr +
+      '" data-tipo="' +
+      tipoEsc +
+      '" accept="image/jpeg,image/png,image/webp" style="display:none" />' +
+      '<button type="button" class="torre-mv-btn torre-mv-btn-sub torre-mv-anexo-subst" data-idv="' +
+      idvStr +
+      '" data-tipo="' +
+      tipoEsc +
+      '" title="' +
+      escPainelVeiculo(subst) +
+      '">' +
+      '<i class="bx bx-upload" aria-hidden="true"></i>' +
+      '</button>' +
+      '<button type="button" class="torre-mv-btn torre-mv-btn-del torre-mv-anexo-del" data-idv="' +
+      idvStr +
+      '" data-tipo="' +
+      tipoEsc +
+      '"' +
+      (has ? '' : ' disabled') +
+      ' title="' +
+      escPainelVeiculo(rem) +
+      '">' +
+      '<i class="bx bx-trash" aria-hidden="true"></i>' +
+      '</button>' +
+      '</div></div></div>'
+    );
+  }
+
+  async function carregarComboEquipamentosFrotaTorre() {
+    const sel = document.getElementById('torreSelectEquipFrota');
+    if (!sel) return;
+    const base = typeof window.corrigirUrl === 'function' ? window.corrigirUrl.bind(window) : function (u) { return u; };
+    const cur = sel.value;
+    try {
+      const r = await fetch(base('/api/cadastros-gerais/equipamentos-frota-combo'), { headers: getAuthHeaders() });
+      if (!r.ok) return;
+      const rows = await r.json();
+      sel.innerHTML =
+        '<option value="">' +
+        escPainelVeiculo(t('web.modulos.cadastroGeral.atrelarEquipPlaceholder') || 'Selecione…') +
+        '</option>';
+      (rows || []).forEach(function (eq) {
+        const id = eq.IDEQUIPAMENTO != null ? eq.IDEQUIPAMENTO : eq.idequipamento;
+        const ref = eq.REFEQUIPAMENTO != null ? String(eq.REFEQUIPAMENTO) : String(eq.refequipamento || '');
+        const ds = eq.DSEQUIPAMENTO != null ? String(eq.DSEQUIPAMENTO) : String(eq.dsequipamento || '');
+        const lab = String(id) + ' — ' + ref.trim() + (ds ? ' (' + ds.trim().slice(0, 48) + ')' : '');
+        const o = document.createElement('option');
+        o.value = String(id);
+        o.textContent = lab;
+        sel.appendChild(o);
+      });
+      if (cur && Array.from(sel.options).some(function (op) { return op.value === cur; })) sel.value = cur;
+    } catch (_e) {}
+  }
+
+  async function atualizarPainelAtrelarEquipamentoTorre() {
+    const at = document.getElementById('divTorreAtrelarEquipamentoFrota');
+    if (!at) return;
+    at.style.display = 'block';
+    await carregarComboEquipamentosFrotaTorre();
+  }
+
+  async function carregarVeiculosMotoristaAppTorre(cadastroId) {
+    const wrap = document.getElementById('divVeiculosMotoristaAppTorre');
+    const tbody = document.getElementById('torreTbodyVeiculosMotoristaApp');
+    const vazio = document.getElementById('torreVeiculosMotoristaAppVazio');
+    if (!wrap || !tbody) return;
+    const idCad = cadastroId != null && String(cadastroId).trim() !== '' ? String(cadastroId).trim() : '';
+    const chkM = document.getElementById('chkM');
+    const ehM = !!(chkM && chkM.checked);
+    if (!ehM || !idCad) {
+      limparVeiculosMotoristaAppTorre();
+      return;
+    }
+    const base = typeof window.corrigirUrl === 'function' ? window.corrigirUrl.bind(window) : function (u) { return u; };
+    let mostrarAtrelar = false;
+    try {
+      const r = await fetch(base('/api/cadastros-gerais/' + encodeURIComponent(idCad) + '/motorista-veiculos'), { headers: getAuthHeaders() });
+      if (r.status === 404) {
+        limparVeiculosMotoristaAppTorre();
+        return;
+      }
+      wrap.style.display = 'block';
+      mostrarAtrelar = true;
+      if (!r.ok) {
+        tbody.innerHTML = '';
+        if (vazio) {
+          vazio.textContent = t('web.modulos.cadastroGeral.veiculosAppErroCarregar') || 'Não foi possível carregar os veículos.';
+          vazio.style.display = 'block';
+        }
+      } else {
+        const rows = await r.json();
+        if (!Array.isArray(rows) || rows.length === 0) {
+          tbody.innerHTML = '';
+          if (vazio) {
+            vazio.textContent = t('web.modulos.cadastroGeral.veiculosAppNenhum') || 'Nenhum veículo ativo neste cadastro.';
+            vazio.style.display = 'block';
+          }
+        } else {
+          if (vazio) vazio.style.display = 'none';
+
+          function statusLabel(s) {
+            const x = String(s == null ? 'P' : s).trim().toUpperCase();
+            if (x === 'A') return t('web.modulos.cadastroGeral.veiculoStatusAprovado') || 'Aprovado';
+            if (x === 'R') return t('web.modulos.cadastroGeral.veiculoStatusRejeitado') || 'Rejeitado';
+            return t('web.modulos.cadastroGeral.veiculoStatusPendente') || 'Pendente';
+          }
+
+          tbody.innerHTML = rows
+        .map(function (row) {
+          const pl = row.PLACA || row.placa || '';
+          const papel = row.PAPEL_CONJUNTO || row.papel_conjunto || '—';
+          const cl =
+            row.ds_classe_frota ||
+            row.DSCLASSEFROTA ||
+            row.dsclassefrota ||
+            (row.CDCLASSEFROTA != null ? String(row.CDCLASSEFROTA) : row.cdclassefrota != null ? String(row.cdclassefrota) : '') ||
+            '—';
+          const st = row.STATUSAPROVACAO || row.statusaprovacao || 'P';
+          const renavam = row.RENAVAM != null && String(row.RENAVAM).trim() !== '' ? String(row.RENAVAM).trim() : (row.renavam != null ? String(row.renavam).trim() : '') || '—';
+          const fotoCrlv = row.FOTOCRLV || row.fotocrlv || '';
+          const fotoVeiculo = row.FOTOVEICULO || row.fotoveiculo || '';
+          const idv = row.IDVEICULOMOTORISTA != null ? row.IDVEICULOMOTORISTA : row.idveiculomotorista;
+          const crlvCell = torreMvDocCellHtml(idv, 'crlv', fotoCrlv);
+          const fotoVeiculoCell = torreMvDocCellHtml(idv, 'foto-veiculo', fotoVeiculo);
+          const cdeq = row.CDEQUIPAMENTO != null ? String(row.CDEQUIPAMENTO) : row.cdequipamento != null ? String(row.cdequipamento) : '';
+          const eqCell = cdeq ? escPainelVeiculo(cdeq) : '—';
+          const titDes =
+            t('web.modulos.cadastroGeral.veiculosConfirmInativar') ||
+            'Remove esta placa da lista deste motorista.';
+          const labDes =
+            t('web.modulos.cadastroGeral.veiculosBtnDesvincularUi') || 'Desvincular';
+          const titFrota = t('web.modulos.cadastroGeral.veiculosBtnFrotaTitle') || 'Gerenciar Equipamentos';
+          const btnEq =
+            cdeq && typeof window.loadModuleContent === 'function'
+              ? '<button type="button" class="btn btn-sm btn-outline-secondary btn-torre-mv-acao btn-torre-mv-acao-icon btn-abrir-equip-mv" data-ideq="' +
+                escPainelVeiculo(String(cdeq)) +
+                '" title="' +
+                escPainelVeiculo(titFrota) +
+                '" aria-label="' +
+                escPainelVeiculo(titFrota) +
+                '"><i class="bx bx-car" aria-hidden="true"></i></button>'
+              : '';
+          const btnIn =
+            '<button type="button" class="btn btn-sm btn-outline-danger btn-torre-mv-acao btn-torre-mv-acao-icon btn-inativar-mv-vinculo" data-idv="' +
+            escPainelVeiculo(String(idv)) +
+            '" title="' +
+            escPainelVeiculo(titDes) +
+            '" aria-label="' +
+            escPainelVeiculo(labDes) +
+            '"><i class="bx bx-unlink" aria-hidden="true"></i></button>';
+          return (
+            '<tr>' +
+            '<td class="torre-mv-col-placa"><strong>' +
+            escPainelVeiculo(pl) +
+            '</strong></td>' +
+            '<td class="torre-mv-col-papel">' +
+            escPainelVeiculo(papel) +
+            '</td>' +
+            '<td class="torre-mv-col-classe">' +
+            escPainelVeiculo(cl) +
+            '</td>' +
+            '<td>' +
+            escPainelVeiculo(statusLabel(st)) +
+            '</td>' +
+            '<td class="torre-mv-col-ren">' +
+            escPainelVeiculo(renavam) +
+            '</td>' +
+            '<td class="torre-mv-doc-td">' +
+            crlvCell +
+            '</td>' +
+            '<td class="torre-mv-doc-td">' +
+            fotoVeiculoCell +
+            '</td>' +
+            '<td class="torre-mv-col-eq">' +
+            eqCell +
+            '</td>' +
+            '<td class="torre-mv-acoes-td"><div class="torre-mv-acoes-wrap">' +
+            btnEq +
+            btnIn +
+            '</div></td>' +
+            '</tr>'
+          );
+        })
+            .join('');
+        }
+      }
+      if (mostrarAtrelar) {
+        await atualizarPainelAtrelarEquipamentoTorre();
+      }
+    } catch (_e) {
+      limparVeiculosMotoristaAppTorre();
+    }
+  }
+
+  document.addEventListener('cadastro-geral-motorista-veiculos-updated', function () {
+    const cid = document.getElementById('cadastroId') && document.getElementById('cadastroId').value
+      ? String(document.getElementById('cadastroId').value).trim() : '';
+    if (cid && document.getElementById('chkM') && document.getElementById('chkM').checked) {
+      carregarVeiculosMotoristaAppTorre(cid).catch(function () {});
+    }
+  });
+
+  async function carregarPainelVeiculosMotoristaApp() {
+    const host = document.getElementById('painelVeiculosMotoristaApp');
+    if (!host) return;
+    const base = typeof window.corrigirUrl === 'function' ? window.corrigirUrl.bind(window) : function (u) { return u; };
+    try {
+      const r = await fetch(base('/api/cadastros-gerais/motorista-veiculos-pendentes'), { headers: getAuthHeaders() });
+      if (!r.ok) {
+        host.style.display = 'none';
+        return;
+      }
+      const rows = await r.json();
+      if (!Array.isArray(rows) || rows.length === 0) {
+        host.style.display = 'none';
+        return;
+      }
+      host.style.display = 'block';
+      host.innerHTML =
+        '<h3 style="margin:0 0 12px 0;font-size:1rem;"><i class="bx bx-car"></i> Veículos pendentes (app motorista)</h3>' +
+        '<p class="hint" style="margin:0 0 10px 0;">Cadastrados pelo app; aprove ou rejeite antes de usar na operação.</p>' +
+        '<div style="overflow-x:auto;"><table class="table" style="width:100%;font-size:13px;">' +
+        '<thead><tr><th>Motorista</th><th>Placa</th><th>Papel</th><th>Classe</th><th>Ações</th></tr></thead><tbody>' +
+        rows
+          .map(function (row) {
+            var id = row.IDVEICULOMOTORISTA != null ? row.IDVEICULOMOTORISTA : row.idveiculomotorista;
+            var nome = row.motorista_nome || row.MOTORISTA_NOME || '';
+            var pl = row.PLACA || row.placa || '';
+            var papel = row.PAPEL_CONJUNTO || row.papel_conjunto || '—';
+            var cl =
+              row.ds_classe_frota ||
+              row.DSCLASSEFROTA ||
+              row.dsclassefrota ||
+              (row.CDCLASSEFROTA != null ? String(row.CDCLASSEFROTA) : row.cdclassefrota != null ? String(row.cdclassefrota) : '') ||
+              '—';
+            return (
+              '<tr>' +
+              '<td>' + escPainelVeiculo(nome) + '</td>' +
+              '<td><strong>' + escPainelVeiculo(pl) + '</strong></td>' +
+              '<td>' + escPainelVeiculo(papel) + '</td>' +
+              '<td>' + escPainelVeiculo(cl) + '</td>' +
+              '<td>' +
+              '<button type="button" class="btn btn-sm btn-success btn-apv-veic" data-id="' +
+              escPainelVeiculo(String(id)) +
+              '">Aprovar</button> ' +
+              '<button type="button" class="btn btn-sm btn-danger btn-rej-veic" data-id="' +
+              escPainelVeiculo(String(id)) +
+              '">Rejeitar</button>' +
+              '</td></tr>'
+            );
+          })
+          .join('') +
+        '</tbody></table></div>';
+
+      host.querySelectorAll('.btn-apv-veic').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+          var idv = btn.getAttribute('data-id');
+          try {
+            var r2 = await fetch(base('/api/cadastros-gerais/motorista-veiculos/' + encodeURIComponent(idv) + '/aprovar'), {
+              method: 'POST',
+              headers: Object.assign({}, getAuthHeaders(), { 'Content-Type': 'application/json' }),
+              body: '{}',
+            });
+            if (r2.ok) {
+              var dataApv = {};
+              try {
+                dataApv = await r2.json();
+              } catch (_j) {}
+              if (typeof showMessage === 'function') {
+                showMessage(dataApv.message || 'Veículo aprovado.', 'success');
+              }
+              document.dispatchEvent(new CustomEvent('motoristas-pendentes-contador-atualizado'));
+              document.dispatchEvent(new CustomEvent('cadastro-geral-motorista-veiculos-updated'));
+              await carregarPainelVeiculosMotoristaApp();
+            } else {
+              var errApv = {};
+              try {
+                errApv = await r2.json();
+              } catch (_j2) {}
+              if (typeof showMessage === 'function') {
+                showMessage(errApv.error || 'Erro ao aprovar veículo.', 'error');
+              }
+            }
+          } catch (e) {
+            if (typeof showMessage === 'function') showMessage('Erro ao aprovar veículo.', 'error');
+          }
+        });
+      });
+      host.querySelectorAll('.btn-rej-veic').forEach(function (btn) {
+        btn.addEventListener('click', async function () {
+          var idv = btn.getAttribute('data-id');
+          var motivoRaw =
+            typeof window.promptPadrao === 'function'
+              ? await window.promptPadrao('Motivo da rejeição (opcional):', {
+                  title: 'Rejeitar veículo',
+                  confirmText: 'Rejeitar',
+                  cancelText: 'Cancelar',
+                })
+              : window.prompt('Motivo da rejeição (opcional):');
+          if (motivoRaw == null) return;
+          var motivo = motivoRaw || '';
+          try {
+            var r2 = await fetch(base('/api/cadastros-gerais/motorista-veiculos/' + encodeURIComponent(idv) + '/rejeitar'), {
+              method: 'POST',
+              headers: Object.assign({}, getAuthHeaders(), { 'Content-Type': 'application/json' }),
+              body: JSON.stringify({ motivo: motivo }),
+            });
+            if (r2.ok) {
+              if (typeof showMessage === 'function') showMessage('Veículo rejeitado.', 'success');
+              document.dispatchEvent(new CustomEvent('motoristas-pendentes-contador-atualizado'));
+              document.dispatchEvent(new CustomEvent('cadastro-geral-motorista-veiculos-updated'));
+              await carregarPainelVeiculosMotoristaApp();
+            } else if (typeof showMessage === 'function') showMessage('Erro ao rejeitar veículo.', 'error');
+          } catch (e) {
+            if (typeof showMessage === 'function') showMessage('Erro ao rejeitar veículo.', 'error');
+          }
+        });
+      });
+    } catch (e) {
+      host.style.display = 'none';
+    }
+  }
+
   // Função de inicialização
   async function init() {
     // Se já foi executado, não executar novamente
@@ -185,7 +877,229 @@
     
     // Mostrar aba de filtros primeiro
     await showTab('filtros');
-    
+
+    carregarPainelVeiculosMotoristaApp().catch(function () {});
+
+    const wrapVeicTorre = document.getElementById('divVeiculosMotoristaAppTorre');
+    if (wrapVeicTorre && !wrapVeicTorre.dataset.clickVeicMvBound) {
+      wrapVeicTorre.dataset.clickVeicMvBound = '1';
+      wrapVeicTorre.addEventListener('click', async function (ev) {
+        const mini =
+          ev.target &&
+          ev.target.classList &&
+          ev.target.classList.contains('torre-mv-doc-mini') &&
+          ev.target.src
+            ? ev.target
+            : ev.target.closest && ev.target.closest('.torre-mv-doc-mini');
+        if (mini && mini.src) {
+          ev.preventDefault();
+          window.open(mini.src, '_blank', 'noopener,noreferrer');
+          return;
+        }
+        const sub = ev.target.closest && ev.target.closest('.torre-mv-anexo-subst');
+        if (sub) {
+          const ac = sub.closest('.torre-mv-doc-btns') || sub.parentElement;
+          const inp = ac && ac.querySelector('input.torre-mv-anexo-file');
+          if (inp) inp.click();
+          return;
+        }
+        const del = ev.target.closest && ev.target.closest('.torre-mv-anexo-del');
+        if (del) {
+          if (del.disabled) return;
+          const idv = del.getAttribute('data-idv');
+          const tipo = del.getAttribute('data-tipo');
+          if (!idv || !tipo) return;
+          const msgConf =
+            t('web.modulos.cadastroGeral.veiculosMvConfirmaExcluir') ||
+            t('web.modulos.cadastroGeral.anexoConfirmaExcluir') ||
+            'Remover este documento do vínculo?';
+          const confirmado = await confirmarAcaoPadrao(msgConf, { danger: true, confirmText: 'OK' });
+          if (!confirmado) return;
+          try {
+            const base = typeof window.corrigirUrl === 'function' ? window.corrigirUrl.bind(window) : function (u) {
+              return u;
+            };
+            const r = await fetch(
+              base(
+                '/api/cadastros-gerais/motorista-veiculos/' +
+                  encodeURIComponent(idv) +
+                  '/anexos/' +
+                  encodeURIComponent(tipo)
+              ),
+              { method: 'DELETE', headers: getAuthHeaders() }
+            );
+            const data = await r.json().catch(function () {
+              return {};
+            });
+            if (r.ok) {
+              if (typeof showMessage === 'function') {
+                showMessage(data.message || t('web.modulos.cadastroGeral.anexoExcluido') || 'Removido.', 'success');
+              }
+              document.dispatchEvent(new CustomEvent('cadastro-geral-motorista-veiculos-updated'));
+              const cid =
+                document.getElementById('cadastroId') && document.getElementById('cadastroId').value
+                  ? String(document.getElementById('cadastroId').value).trim()
+                  : '';
+              if (cid) await carregarVeiculosMotoristaAppTorre(cid);
+            } else if (typeof showMessage === 'function') {
+              showMessage(data.error || t('web.modulos.cadastroGeral.anexoErroExcluir') || 'Erro ao remover.', 'error');
+            }
+          } catch (_eDel) {
+            if (typeof showMessage === 'function') {
+              showMessage(t('web.modulos.cadastroGeral.erroConexao') || 'Erro de conexão.', 'error');
+            }
+          }
+          return;
+        }
+        const bEq = ev.target.closest('.btn-abrir-equip-mv');
+        if (bEq && typeof window.loadModuleContent === 'function') {
+          const ide = bEq.getAttribute('data-ideq');
+          if (ide) window.loadModuleContent('gerenciar-equipamentos', { equipamentoIdFiltro: ide });
+          return;
+        }
+        const bIn = ev.target.closest('.btn-inativar-mv-vinculo');
+        if (bIn) {
+          const idv = bIn.getAttribute('data-idv');
+          if (!idv) return;
+          const msgConf =
+            t('web.modulos.cadastroGeral.veiculosConfirmInativar') ||
+            'Remover esta placa da lista deste motorista? O equipamento em Gerenciar Equipamentos continua ativo; outro motorista pode cadastrar a mesma placa e reutilizar o mesmo registro.';
+          const confirmado = await confirmarAcaoPadrao(msgConf, { danger: true, confirmText: 'OK' });
+          if (!confirmado) return;
+          try {
+            const base = typeof window.corrigirUrl === 'function' ? window.corrigirUrl.bind(window) : function (u) {
+              return u;
+            };
+            const r = await fetch(base('/api/cadastros-gerais/motorista-veiculos/' + encodeURIComponent(idv) + '/inativar-vinculo'), {
+              method: 'POST',
+              headers: Object.assign({}, getAuthHeaders(), { 'Content-Type': 'application/json' }),
+              body: '{}',
+            });
+            const data = await r.json().catch(function () {
+              return {};
+            });
+            if (r.ok) {
+              if (typeof showMessage === 'function') showMessage(data.message || 'Vínculo inativado.', 'success');
+              document.dispatchEvent(new CustomEvent('cadastro-geral-motorista-veiculos-updated'));
+              const cid = document.getElementById('cadastroId') && document.getElementById('cadastroId').value
+                ? String(document.getElementById('cadastroId').value).trim()
+                : '';
+              if (cid) await carregarVeiculosMotoristaAppTorre(cid);
+            } else if (typeof showMessage === 'function') {
+              showMessage(data.error || 'Erro ao inativar.', 'error');
+            }
+          } catch (_e2) {
+            if (typeof showMessage === 'function') showMessage('Erro de conexão.', 'error');
+          }
+        }
+      });
+      wrapVeicTorre.addEventListener('change', async function (ev) {
+        const inp = ev.target;
+        if (!inp || !inp.classList || !inp.classList.contains('torre-mv-anexo-file')) return;
+        const f = inp.files && inp.files[0];
+        inp.value = '';
+        if (!f) return;
+        const idv = inp.getAttribute('data-idv');
+        const tipo = inp.getAttribute('data-tipo');
+        if (!idv || !tipo) return;
+        const fd = new FormData();
+        fd.append('arquivo', f);
+        fd.append('tipo', tipo);
+        try {
+          const base = typeof window.corrigirUrl === 'function' ? window.corrigirUrl.bind(window) : function (u) {
+            return u;
+          };
+          const r = await fetch(base('/api/cadastros-gerais/motorista-veiculos/' + encodeURIComponent(idv) + '/anexos'), {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: fd,
+          });
+          const data = await r.json().catch(function () {
+            return {};
+          });
+          if (r.ok) {
+            if (typeof showMessage === 'function') {
+              showMessage(data.message || t('web.modulos.cadastroGeral.anexoEnviado') || 'Enviado.', 'success');
+            }
+            document.dispatchEvent(new CustomEvent('cadastro-geral-motorista-veiculos-updated'));
+            const cid =
+              document.getElementById('cadastroId') && document.getElementById('cadastroId').value
+                ? String(document.getElementById('cadastroId').value).trim()
+                : '';
+            if (cid) await carregarVeiculosMotoristaAppTorre(cid);
+          } else if (typeof showMessage === 'function') {
+            showMessage(data.error || t('web.modulos.cadastroGeral.anexoErroUpload') || 'Erro ao enviar.', 'error');
+          }
+        } catch (_eUp) {
+          if (typeof showMessage === 'function') {
+            showMessage(t('web.modulos.cadastroGeral.erroConexao') || 'Erro de conexão.', 'error');
+          }
+        }
+      });
+    }
+
+    const btnAtrelarEquip = document.getElementById('btnTorreVincularEquipFrota');
+    if (btnAtrelarEquip && !btnAtrelarEquip.dataset.boundAtrelar) {
+      btnAtrelarEquip.dataset.boundAtrelar = '1';
+      btnAtrelarEquip.addEventListener('click', async function () {
+        const cid =
+          document.getElementById('cadastroId') && document.getElementById('cadastroId').value
+            ? String(document.getElementById('cadastroId').value).trim()
+            : '';
+        const sel = document.getElementById('torreSelectEquipFrota');
+        const ideq = sel && sel.value ? String(sel.value).trim() : '';
+        const papel = document.getElementById('torrePapelEquipFrota') ? String(document.getElementById('torrePapelEquipFrota').value || '').trim() : '';
+        const msg = document.getElementById('msgTorreVincularEquipFrota');
+        const showLocal = function (text, ok) {
+          if (!msg) return;
+          msg.textContent = text;
+          msg.className = 'message' + (ok ? ' success' : ' error');
+          msg.style.display = 'block';
+        };
+        if (!cid) {
+          showLocal(t('web.modulos.cadastroGeral.atrelarEquipErroSemId') || 'Salve o cadastro (código) antes de atrelar.', false);
+          return;
+        }
+        if (!ideq) {
+          showLocal(t('web.modulos.cadastroGeral.atrelarEquipErroSemEquip') || 'Selecione um equipamento.', false);
+          return;
+        }
+        try {
+          const base = typeof window.corrigirUrl === 'function' ? window.corrigirUrl.bind(window) : function (u) {
+            return u;
+          };
+          const r = await fetch(
+            base('/api/cadastros-gerais/' + encodeURIComponent(cid) + '/motorista-veiculos/vincular-equipamento'),
+            {
+              method: 'POST',
+              headers: Object.assign({}, getAuthHeaders(), { 'Content-Type': 'application/json' }),
+              body: JSON.stringify({ idequipamento: Number(ideq), papel: papel || undefined }),
+            }
+          );
+          const data = await r.json().catch(function () {
+            return {};
+          });
+          if (r.ok) {
+            showLocal(data.message || t('web.modulos.cadastroGeral.atrelarEquipSucesso') || 'Atrelado.', true);
+            if (typeof showMessage === 'function') {
+              showMessage(data.message || t('web.modulos.cadastroGeral.atrelarEquipSucesso') || 'Equipamento atrelado.', 'success');
+            }
+            document.dispatchEvent(new CustomEvent('cadastro-geral-motorista-veiculos-updated'));
+            await carregarVeiculosMotoristaAppTorre(cid);
+          } else {
+            showLocal(data.error || t('web.modulos.cadastroGeral.atrelarEquipErro') || 'Não foi possível atrelar.', false);
+            if (typeof showMessage === 'function') {
+              showMessage(data.error || t('web.modulos.cadastroGeral.atrelarEquipErro') || 'Erro ao atrelar.', 'error');
+            }
+          }
+        } catch (_e3) {
+          showLocal(t('web.modulos.cadastroGeral.erroConexao') || 'Erro de conexão.', false);
+        }
+      });
+    }
+
+    atualizarVisibilidadeTipoTransporteBr();
+
     // Executar init.sql em background (não bloqueia)
     executarInitSQL().catch(err => {
       console.error('[Cadastro Geral] Erro ao executar init.sql:', err.message || err);
@@ -202,6 +1116,14 @@
 
   // Função para mudar abas (escopo no container do módulo para não misturar Grid/Dados)
   async function showTab(tabId) {
+    if (ABAS_FROTA_VALIDADES_LOCAIS.includes(tabId) && !temAbasFrotaValidadesLocaisNoForm()) {
+      if (typeof window.showToast === 'function') {
+        window.showToast('Classes Frota, Validades e Locais preferidos ficam disponíveis quando o cadastro for Motorista, Transportador, Agente/Parceiro ou Grupo de Divulgação.', 'info');
+      } else {
+        showMessage('Classes Frota, Validades e Locais preferidos ficam disponíveis quando o cadastro for Motorista, Transportador, Agente/Parceiro ou Grupo de Divulgação.', 'info');
+      }
+      tabId = 'dados';
+    }
     const tabContent = document.getElementById(`tab-${tabId}`);
     const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
     if (!tabContent || !tabBtn) return;
@@ -234,14 +1156,23 @@
           if (!gridTab) inicializarGridTab();
           if (gridTab && lastCadastros && lastCadastros.length > 0) {
             const cadastrosComCidade = lastCadastros.map(c => {
-              if (c.CIDADE) return c; // Já tem o campo
               const estado = c.CIDADE_ESTADO || '';
               const cidade = c.CIDADE_NOME || '';
               const cidadeFormatada = `${estado} - ${cidade}`.trim();
+              const tipoECadastro = `${(c.RZSOCIAL || '').trim()} — ${(c.FGTIPOCADASTRO_NOME || '').trim()}`.replace(/^ — | — $/g, '').trim() || '-';
+              const isMotorista = c.FGMOTORISTA === true || c.FGMOTORISTA === 'S';
+              const stAp = String(c.STATUSAPROVACAO || (isMotorista ? 'P' : '')).toUpperCase();
+              const lblAp = { P: 'Pendente', A: 'Aprovado', R: 'Rejeitado' };
+              const fromApp = String(c.SGUSER || '').toUpperCase() === 'APP_MOTORISTA';
+              let statusAprovacaoGrid = '—';
+              if (isMotorista) {
+                statusAprovacaoGrid = (lblAp[stAp] || stAp || 'Pendente') + (fromApp ? ' · app' : '');
+              }
               return {
                 ...c,
                 CIDADE: cidadeFormatada === '-' ? 'Não informado' : cidadeFormatada,
-                TIPO_E_CADASTRO: `${(c.RZSOCIAL || '').trim()} — ${(c.FGTIPOCADASTRO_NOME || '').trim()}`.replace(/^ — | — $/g, '').trim() || '-'
+                TIPO_E_CADASTRO: c.TIPO_E_CADASTRO || tipoECadastro,
+                STATUSAPROVACAO_GRID: c.STATUSAPROVACAO_GRID != null ? c.STATUSAPROVACAO_GRID : statusAprovacaoGrid
               };
             });
             // Garantir TIPO_E_CADASTRO em todos os itens (quando CIDADE já vinha preenchido)
@@ -410,6 +1341,9 @@
 
   // Inicializar GridEditor
   function inicializarGridTab() {
+    if (!document.getElementById('cadastrosGrid')) {
+      return;
+    }
     // GridEditor já é carregado globalmente pelo dashboard.js
     if (typeof window.GridEditor === 'undefined') {
       console.error('[Cadastros] GridEditor não está disponível');
@@ -418,37 +1352,18 @@
 
     gridTab = new window.GridEditor({
       container: '#cadastrosGrid',
+      actionsWidth: '124px',
       columns: [
-        { field: 'CDCADASTRO', header: 'Código', editable: false, isId: true, width: '80px' },
-        { field: 'TIPO_E_CADASTRO', header: 'Tipo & Cadastro', editable: false, width: '260px' },
+        { field: 'CDCADASTRO', header: 'Código', editable: false, isId: true, width: '12%' },
+        { field: 'TIPO_E_CADASTRO', header: 'Tipo & Cadastro', editable: false, width: '48%' },
         {
-          field: 'CIDADE',
-          header: 'Cidade',
+          field: 'TIPO_TRANSPORTE_BR_NOME',
+          header: 'Tipo BR',
           editable: false,
-          width: '180px',
-          format: (val) => val || 'Não informado'
+          width: '28%',
+          format: (val) => val || '-'
         },
-        {
-          field: 'NRCELULAR',
-          header: 'Celular',
-          width: '130px',
-          editable: true,
-          type: 'text',
-          maxlength: 15,
-          format: (val) => {
-            if (!val) return '-';
-            const numeroLimpo = String(val).replace(/\D/g, '');
-            if (!numeroLimpo || numeroLimpo.length < 10) return val;
-            let numeroFormatado = numeroLimpo;
-            if (numeroLimpo.length === 11) {
-              numeroFormatado = `(${numeroLimpo.substring(0, 2)}) ${numeroLimpo.substring(2, 7)}-${numeroLimpo.substring(7)}`;
-            } else if (numeroLimpo.length === 10) {
-              numeroFormatado = `(${numeroLimpo.substring(0, 2)}) ${numeroLimpo.substring(2, 6)}-${numeroLimpo.substring(6)}`;
-            }
-            return numeroFormatado;
-          }
-        },
-        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '120px', align: 'right',
+        { field: 'FGACTIVE', header: 'Situação', editable: true, type: 'select', width: '12%', align: 'right',
           options: [ { value: 'S', label: 'Ativo' }, { value: 'N', label: 'Inativo' } ],
           format: (val) => val === 'S' ? '✓ Ativo' : '✗ Inativo'
         }
@@ -648,6 +1563,66 @@
     }
   }
 
+  function setEeUfHint(msg, isError) {
+    const hint = document.getElementById('eeUfHint');
+    if (!hint) return;
+    hint.textContent = msg || '';
+    hint.style.color = isError ? '#ef4444' : '';
+  }
+
+  async function loadCidadesEndEntregaPorUf(uf, selectedCdCidade = '', selectedNomeMunicipio = '') {
+    const cidadeSelect = document.getElementById('eeCdCidade');
+    if (!cidadeSelect) return;
+    const ufNorm = (uf || '').trim().toUpperCase();
+    if (!ufNorm) {
+      cidadeSelect.innerHTML = '<option value="">Selecione a UF primeiro</option>';
+      return;
+    }
+    if (!/^[A-Z]{2}$/.test(ufNorm)) {
+      cidadeSelect.innerHTML = '<option value="">UF inválida</option>';
+      setEeUfHint('Informe a UF com 2 letras (ex.: SC).', true);
+      return;
+    }
+    cidadeSelect.innerHTML = '<option value="">Carregando...</option>';
+    setEeUfHint('', false);
+    try {
+      const response = await fetch(`/api/cidades?estado=${encodeURIComponent(ufNorm)}`);
+      const data = await response.json().catch(() => []);
+      const cidadesData = Array.isArray(data) ? data : [];
+      if (!response.ok) {
+        cidadeSelect.innerHTML = '<option value="">Erro ao carregar cidades</option>';
+        setEeUfHint('Nao foi possivel carregar as cidades para esta UF.', true);
+        return;
+      }
+      cidadeSelect.innerHTML = '<option value="">Selecione</option>';
+      let cidadeSelecionada = selectedCdCidade ? String(selectedCdCidade) : '';
+      cidadesData.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.CDCIDADE != null ? String(c.CDCIDADE) : '';
+        opt.textContent = c.NMCIDADE || '';
+        if (!opt.value) return;
+        if (
+          !cidadeSelecionada &&
+          selectedNomeMunicipio &&
+          String(opt.textContent).trim().toUpperCase() === String(selectedNomeMunicipio).trim().toUpperCase()
+        ) {
+          cidadeSelecionada = opt.value;
+        }
+        cidadeSelect.appendChild(opt);
+      });
+      if (cidadesData.length === 0) {
+        cidadeSelect.innerHTML = '<option value="">Nenhuma cidade encontrada</option>';
+        setEeUfHint('UF sem cidades cadastradas. Verifique a sigla ou o cadastro de cidades.', true);
+        return;
+      }
+      if (cidadeSelecionada) cidadeSelect.value = cidadeSelecionada;
+      setEeUfHint('', false);
+    } catch (err) {
+      cidadeSelect.innerHTML = '<option value="">Erro ao carregar cidades</option>';
+      setEeUfHint('Falha de conexao ao buscar cidades da UF.', true);
+    }
+  }
+
   // Formatar CPF/CNPJ
   function formatarCPFCNPJ(cpfCnpj) {
     if (!cpfCnpj) return '';
@@ -821,8 +1796,13 @@
 
   // Aplicar filtros
   async function applyFilters(openTab = 'grid') {
+    if (!document.getElementById('cadastrosGrid')) {
+      return;
+    }
     // Garantir que o overlay do init.sql está escondido antes de mostrar o overlay dos filtros
-    hideLoadingOverlayInitSQL();
+    if (typeof window.hideLoadingOverlayInitSQL === 'function') {
+      window.hideLoadingOverlayInitSQL();
+    }
     
     // Mostrar overlay de carregamento (mesmo padrão do Gerenciar Roteiros)
     showLoadingOverlay('Carregando Cadastros', 'Por favor, aguarde enquanto carregamos os cadastros...');
@@ -876,6 +1856,11 @@
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const cadastros = await response.json();
+
+      if (!document.getElementById('cadastrosGrid')) {
+        hideLoadingOverlay();
+        return;
+      }
       
       // Garantir que cadastros é um array
       const cadastrosArray = Array.isArray(cadastros) ? cadastros : [];
@@ -886,10 +1871,19 @@
         const cidade = c.CIDADE_NOME || '';
         const cidadeFormatada = `${estado} - ${cidade}`.trim();
         const tipoECadastro = `${(c.RZSOCIAL || '').trim()} — ${(c.FGTIPOCADASTRO_NOME || '').trim()}`.replace(/^ — | — $/g, '').trim() || '-';
+        const isMotorista = c.FGMOTORISTA === true || c.FGMOTORISTA === 'S';
+        const stAp = String(c.STATUSAPROVACAO || (isMotorista ? 'P' : '')).toUpperCase();
+        const lblAp = { P: 'Pendente', A: 'Aprovado', R: 'Rejeitado' };
+        const fromApp = String(c.SGUSER || '').toUpperCase() === 'APP_MOTORISTA';
+        let statusAprovacaoGrid = '—';
+        if (isMotorista) {
+          statusAprovacaoGrid = (lblAp[stAp] || stAp || 'Pendente') + (fromApp ? ' · app' : '');
+        }
         return {
           ...c,
           CIDADE: cidadeFormatada === '-' ? 'Não informado' : cidadeFormatada,
-          TIPO_E_CADASTRO: tipoECadastro
+          TIPO_E_CADASTRO: tipoECadastro,
+          STATUSAPROVACAO_GRID: statusAprovacaoGrid
         };
       });
       
@@ -981,6 +1975,15 @@
       if (!cadastroId) {
         return '';
       }
+
+      const isMotorista = cg.FGMOTORISTA === true || cg.FGMOTORISTA === 'S';
+      const stAp = String(cg.STATUSAPROVACAO || (isMotorista ? 'P' : '')).toUpperCase();
+      const mapAp = { P: 'Pendente', A: 'Aprovado', R: 'Rejeitado' };
+      const clsAp = stAp === 'P' ? 'cadastro-aprovacao-pendente' : stAp === 'A' ? 'cadastro-aprovacao-aprovado' : stAp === 'R' ? 'cadastro-aprovacao-rejeitado' : '';
+      const fromApp = String(cg.SGUSER || '').toUpperCase() === 'APP_MOTORISTA';
+      const linhaAprovacao = isMotorista
+        ? `<br><strong>${t('web.modulos.cadastroGeral.aprovacaoApp') || 'Aprovação (app motorista)'}:</strong> <span class="${clsAp}">${mapAp[stAp] || stAp || 'Pendente'}</span>${fromApp ? ` <span class="badge-cadastro-app" title="${t('web.modulos.cadastroGeral.origemAppMotorista') || 'Cadastro enviado pelo app (cadastro.html)'}">${t('web.modulos.cadastroGeral.badgeApp') || 'App'}</span>` : ''}`
+        : '';
       
       return `
       <div class="list-item ${cg.FGACTIVE === 'N' ? 'inactive' : ''}" data-id="${cadastroId}">
@@ -991,7 +1994,7 @@
             <strong>Tipo:</strong> ${cg.FGTIPOCADASTRO_NOME}<br>
             <strong>Localização:</strong> ${cg.CIDADE_ESTADO} - ${cg.CIDADE_NOME}<br>
             <strong>Celular:</strong> ${(function(n){ const p = parseCelularE164(n); return p.numero ? '+' + p.ddi + ' ' + formatarCelular(p.numero, p.ddi) : (n || '—'); })(cg.NRCELULAR)}<br>
-            <strong>Status:</strong> ${cg.FGACTIVE === 'S' ? 'Ativo' : 'Inativo'}
+            <strong>Status:</strong> ${cg.FGACTIVE === 'S' ? 'Ativo' : 'Inativo'}${linhaAprovacao}
           </small>
         </div>
         <div class="actions">
@@ -1012,7 +2015,9 @@
       if (cadastroForm) {
         cadastroForm.reset();
       }
-      
+      ultimoCadastroCarregado = null;
+      atualizarAnexosMotoristaTorre(null);
+
       const response = await fetch(`/api/cadastros-gerais/${id}`);
       const cadastro = await response.json();
 
@@ -1052,11 +2057,17 @@
         }
         updateLabelDocumento();
         // Aplicável para: preencher checkboxes
-        const aplicavelIds = { O: 'chkO', P: 'chkP', M: 'chkM', T: 'chkT', A: 'chkA', G: 'chkG', C: 'chkC', U: 'chkU' };
+        const aplicavelIds = { O: 'chkO', P: 'chkP', M: 'chkM', T: 'chkT', A: 'chkA', G: 'chkG', C: 'chkC', E: 'chkE', U: 'chkU' };
         const aplicavelCols = { O: 'FGOPERADOR', P: 'FGPROGRAMADOR', M: 'FGMOTORISTA', T: 'FGTRANSPORTADOR', A: 'FGAGENTE', G: 'FGGRUPO', C: 'FGCERTIFICADORA', U: 'FGUNIDADENEGOCIO' };
         Object.keys(aplicavelIds).forEach(cod => {
           const el = document.getElementById(aplicavelIds[cod]);
-          if (el) el.checked = cadastro[aplicavelCols[cod]] === true || cadastro[aplicavelCols[cod]] === 'S';
+          if (!el) return;
+          if (cod === 'E') {
+            el.checked = String(cadastro.FGTIPOCADASTRO || '').toUpperCase() === 'E';
+            return;
+          }
+          const col = aplicavelCols[cod];
+          el.checked = cadastro[col] === true || cadastro[col] === 'S';
         });
         
         // Mostrar/esconder campo Transportador baseado em Motorista marcado
@@ -1087,7 +2098,21 @@
             selectTransportador.value = '';
           }
         }
-        
+
+        atualizarVisibilidadeTipoTransporteBr();
+        const selTipoBr = document.getElementById('cadastroTipoTransporteBr');
+        if (selTipoBr) {
+          const v = (cadastro.TIPO_TRANSPORTE_BR != null && cadastro.TIPO_TRANSPORTE_BR !== '')
+            ? String(cadastro.TIPO_TRANSPORTE_BR).trim().toUpperCase() : '';
+          selTipoBr.value = ['TAC', 'ETC', 'CTC', 'TAC_AGG', 'TAC_IND'].includes(v) ? v : '';
+        }
+        const rastreadoSelect = document.getElementById('cadastroRastreado');
+        if (rastreadoSelect) {
+          const fr = cadastro.FGRASTREADO != null && String(cadastro.FGRASTREADO).trim() !== ''
+            ? String(cadastro.FGRASTREADO).trim().toUpperCase() : '';
+          rastreadoSelect.value = fr === 'S' || fr === 'N' ? fr : '';
+        }
+
         // Destino preferido e senha do app motorista: mostrar só quando for motorista
         const divDestinoPreferido = document.getElementById('divDestinoPreferido');
         if (divDestinoPreferido) divDestinoPreferido.style.display = ehMotorista ? 'block' : 'none';
@@ -1122,14 +2147,15 @@
           msgStatusAprovacaoEl.style.display = 'none';
           msgStatusAprovacaoEl.className = 'message';
         }
-        
-        // Preencher FGRASTREADO - campo simples S/N
-        const rastreadoSelect = document.getElementById('cadastroRastreado');
-        if (rastreadoSelect && cadastro.FGRASTREADO) {
-          rastreadoSelect.value = String(cadastro.FGRASTREADO).trim().toUpperCase();
-        } else if (rastreadoSelect) {
-          rastreadoSelect.value = '';
+
+        ultimoCadastroCarregado = cadastro;
+        atualizarAnexosMotoristaTorre(cadastro);
+        if (ehMotorista && cadastro.CDCADASTRO != null) {
+          await carregarVeiculosMotoristaAppTorre(cadastro.CDCADASTRO);
+        } else {
+          limparVeiculosMotoristaAppTorre();
         }
+
         document.getElementById('cadastroSituacao').value = cadastro.FGACTIVE;
         document.getElementById('cadastroCEP').value = cadastro.CEP != null ? String(cadastro.CEP) : '';
         document.getElementById('cadastroEndereco').value = cadastro.ENDERECO;
@@ -1145,7 +2171,8 @@
         document.getElementById('cadastroCelular').value = formatarCelular(parsed.numero, parsed.ddi);
         
         // Mudar para a aba de dados ANTES de carregar estados (para garantir que os elementos estejam visíveis)
-        document.getElementById('formTitle').textContent = t('web.modulos.cadastroGeral.editarCadastro');
+        const formTitleTextEl = document.getElementById('formTitleText');
+        if (formTitleTextEl) formTitleTextEl.textContent = t('web.modulos.cadastroGeral.editarCadastro');
         showTab('dados');
         
         // Preencher Código Cidade diretamente (campo readonly)
@@ -1253,15 +2280,37 @@
     }
   }
 
-  // Modal do módulo: buscar dentro do contentArea para não pegar modal de outro lugar no dashboard
   function getModalElements() {
-    const root = document.getElementById('contentArea') || document.body;
+    if (typeof window.getConfirmModalElements === 'function') {
+      return window.getConfirmModalElements({ rootId: 'contentArea' });
+    }
     return {
-      modalEl: root.querySelector ? root.querySelector('#confirmModal') : document.getElementById('confirmModal'),
-      modalMessage: root.querySelector ? root.querySelector('#modalMessage') : document.getElementById('modalMessage'),
-      confirmYes: root.querySelector ? root.querySelector('#confirmYes') : document.getElementById('confirmYes'),
-      confirmNo: root.querySelector ? root.querySelector('#confirmNo') : document.getElementById('confirmNo')
+      modalEl: document.getElementById('confirmModal'),
+      modalMessage: document.getElementById('modalMessage'),
+      confirmYes: document.getElementById('confirmYes'),
+      confirmNo: document.getElementById('confirmNo')
     };
+  }
+
+  function confirmarAcaoPadrao(msg, opts) {
+    const op = opts || {};
+    return new Promise(function (resolve) {
+      const { modalEl, modalMessage, confirmYes, confirmNo } = getModalElements();
+      if (!modalEl || !modalMessage || !confirmYes || !confirmNo) {
+        resolve(false);
+        return;
+      }
+      modalMessage.textContent = msg || 'Confirmar ação?';
+      confirmYes.className = op.danger === false ? 'btn-filtro btn-filtro-novo' : 'btn-filtro btn-filtro-danger';
+      confirmYes.innerHTML = '<i class=\'bx bx-check\'></i> ' + (op.confirmText || 'OK');
+      confirmNo.className = 'btn-filtro btn-filtro-limpar';
+      confirmNo.innerHTML = '<i class=\'bx bx-x\'></i> ' + (op.cancelText || (t('web.modulos.cadastroGeral.cancelar') || 'Cancelar'));
+      confirmYes.onclick = function () { modalEl.style.display = 'none'; resolve(true); };
+      confirmNo.onclick = function () { modalEl.style.display = 'none'; resolve(false); };
+      if (modalEl.parentNode !== document.body) document.body.appendChild(modalEl);
+      modalEl.style.display = 'block';
+      modalEl.style.zIndex = '99999';
+    });
   }
 
   // Confirmar desativação/reativação de cadastro – mesmo padrão visual do Gerenciar Tipos de Validade (modal estilizado).
@@ -1303,7 +2352,9 @@
         var msg = estaAtivo ? 'Tem certeza que deseja desativar este cadastro?' : 'Tem certeza que deseja reativar este cadastro?';
         var btnText = estaAtivo ? 'Desativar' : 'Reativar';
         if (!modalEl || !modalMessage || !confirmYes || !confirmNo) {
-          if (window.confirm(msg)) executarAcao();
+          confirmarAcaoPadrao(msg, { danger: true, confirmText: btnText || 'OK' }).then(function (ok) {
+            if (ok) executarAcao();
+          });
           return;
         }
         modalMessage.textContent = msg;
@@ -1346,7 +2397,9 @@
     }
 
     if (!modalEl || !modalMessage || !confirmYes || !confirmNo) {
-      if (window.confirm(msg)) executarExcluir();
+      confirmarAcaoPadrao(msg, { danger: true, confirmText: 'Excluir' }).then(function (ok) {
+        if (ok) executarExcluir();
+      });
       return;
     }
 
@@ -1424,7 +2477,29 @@
       showMessage(t('web.modulos.cadastroGeral.celularInvalido') || 'Celular inválido. Verifique o DDI e o número (ex.: Brasil (11) 91234-5678).', 'error', null, 'cadastroCelular');
       return false;
     }
-    
+
+    const chkMVal = document.getElementById('chkM');
+    const chkTVal = document.getElementById('chkT');
+    const chkAVal = document.getElementById('chkA');
+    const chkGVal = document.getElementById('chkG');
+    const precisaRastreado =
+      (chkMVal && chkMVal.checked) ||
+      (chkTVal && chkTVal.checked) ||
+      (chkAVal && chkAVal.checked) ||
+      (chkGVal && chkGVal.checked);
+    if (precisaRastreado) {
+      const rv = (document.getElementById('cadastroRastreado')?.value || '').trim().toUpperCase();
+      if (rv !== 'S' && rv !== 'N') {
+        showMessage(
+          'Selecione Sim ou Não no campo de rastreado/divulgação (obrigatório para Motorista, Transportador, Agente/Parceiro e/ou Grupo de Divulgação).',
+          'error',
+          null,
+          'cadastroRastreado'
+        );
+        return false;
+      }
+    }
+
     return true;
   }
 
@@ -1533,22 +2608,30 @@
     const longitude = document.getElementById('cadastroLongitude').value;
     const email = document.getElementById('cadastroEmail').value.trim();
     const situacao = document.getElementById('cadastroSituacao').value;
-    const aplicavelChecks = { O: 'chkO', P: 'chkP', M: 'chkM', T: 'chkT', A: 'chkA', G: 'chkG', C: 'chkC', U: 'chkU' };
+    const aplicavelChecks = { O: 'chkO', P: 'chkP', M: 'chkM', T: 'chkT', A: 'chkA', G: 'chkG', C: 'chkC', E: 'chkE', U: 'chkU' };
     const aplicavelCols = { O: 'FGOPERADOR', P: 'FGPROGRAMADOR', M: 'FGMOTORISTA', T: 'FGTRANSPORTADOR', A: 'FGAGENTE', G: 'FGGRUPO', C: 'FGCERTIFICADORA', U: 'FGUNIDADENEGOCIO' };
     const flags = {};
     let algumMarcado = false;
+    const codigosMarcados = [];
     Object.keys(aplicavelChecks).forEach(cod => {
       const el = document.getElementById(aplicavelChecks[cod]);
       const checked = el ? el.checked : false;
-      flags[aplicavelCols[cod]] = checked;
+      const col = aplicavelCols[cod];
+      if (col) flags[col] = checked;
       if (checked) algumMarcado = true;
+      if (checked) codigosMarcados.push(cod);
     });
     if (!algumMarcado) {
       showMessage('Marque pelo menos uma opção em "Tipo de Cadastro".', 'error');
       return;
     }
+    const tipoCadastroLegado = codigosMarcados[0] || 'O';
     const transportador = document.getElementById('cadastroTransportador')?.value;
     const ehMotorista = flags.FGMOTORISTA === true;
+    const ehMotoristaOuTransportador = flags.FGMOTORISTA === true || flags.FGTRANSPORTADOR === true;
+    const exigeInfoRastreado =
+      ehMotoristaOuTransportador || flags.FGAGENTE === true || flags.FGGRUPO === true;
+    const tipoTransporteBrVal = (document.getElementById('cadastroTipoTransporteBr')?.value || '').trim() || null;
     
     try {
       const cadastroData = {
@@ -1566,9 +2649,17 @@
         ENDEMAIL: email || null,
         LATITUDE: latitude || null,
         LONGITUDE: longitude || null,
+        FGTIPOCADASTRO: tipoCadastroLegado,
         ...flags,
-        FGRASTREADO: document.getElementById('cadastroRastreado')?.value || null,
-        ...(ehMotorista && transportador ? { CDTRANSPORTADOR: parseFloat(transportador) } : !ehMotorista ? { CDTRANSPORTADOR: null } : {}),
+        TIPO_TRANSPORTE_BR: ehMotoristaOuTransportador ? tipoTransporteBrVal : null,
+        FGRASTREADO: exigeInfoRastreado
+          ? (document.getElementById('cadastroRastreado')?.value || '').trim().toUpperCase() || null
+          : null,
+        // Sempre enviar CDTRANSPORTADOR quando motorista: senão o PUT preservava valor antigo no banco
+        // (combo vazio parecia “sem transportador” na tela, mas compatíveis ainda liam o vínculo antigo).
+        ...(ehMotorista
+          ? { CDTRANSPORTADOR: transportador ? parseFloat(String(transportador)) : null }
+          : { CDTRANSPORTADOR: null }),
         ...(ehMotorista ? (() => {
           const usaAbaLocais = document.getElementById('tabBtnLocaisPreferidos')?.style?.display !== 'none';
           const get = (id) => document.getElementById(id)?.value?.trim() || null;
@@ -1603,7 +2694,18 @@
 
       const data = await response.json();
       if (response.ok) {
+        if (data.CDCADASTRO != null && !id) {
+          const nid = String(data.CDCADASTRO);
+          const idEl = document.getElementById('cadastroId');
+          const codEl = document.getElementById('cadastroCodigo');
+          if (idEl) idEl.value = nid;
+          if (codEl) codEl.value = nid;
+        }
+        atualizarVisibilidadeEnderecosEntrega();
         showMessage(data.message || 'Salvo com sucesso!', 'success');
+        if (ehMotorista) {
+          document.dispatchEvent(new CustomEvent('motoristas-pendentes-contador-atualizado'));
+        }
         showTab('grid');
         applyFilters('grid');
       } else {
@@ -1777,7 +2879,7 @@ document.getElementById('filtroRastreado').value = '';
     document.getElementById('cadastroId').value = '';
     document.getElementById('cadastroCodigo').value = '';
     document.getElementById('cadastroCodigoCidade').value = '';
-    ['chkO','chkP','chkM','chkT','chkA','chkG','chkC','chkU'].forEach(id => {
+    ['chkO','chkP','chkM','chkT','chkA','chkG','chkC','chkE','chkU'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.checked = false;
     });
@@ -1787,11 +2889,21 @@ document.getElementById('filtroRastreado').value = '';
     if (divDestinoPreferido) divDestinoPreferido.style.display = 'none';
     const divSenhaMotorista = document.getElementById('divSenhaMotorista');
     if (divSenhaMotorista) divSenhaMotorista.style.display = 'none';
+    ultimoCadastroCarregado = null;
+    atualizarAnexosMotoristaTorre(null);
+    limparVeiculosMotoristaAppTorre();
+    const divBlocoTipoTransporteBr = document.getElementById('divBlocoTipoTransporteBr');
+    if (divBlocoTipoTransporteBr) divBlocoTipoTransporteBr.style.display = 'none';
+    const selTipoBr = document.getElementById('cadastroTipoTransporteBr');
+    if (selTipoBr) selTipoBr.value = '';
     const msgSenha = document.getElementById('msgSenhaMotorista');
     if (msgSenha) { msgSenha.textContent = ''; msgSenha.style.display = 'none'; }
     const msgStatusAprovacao = document.getElementById('msgStatusAprovacao');
     if (msgStatusAprovacao) { msgStatusAprovacao.textContent = ''; msgStatusAprovacao.style.display = 'none'; }
-    document.getElementById('formTitle').textContent = t('web.modulos.cadastroGeral.novoCadastro');
+    atualizarVisibilidadeLocaisPreferidos();
+    atualizarVisibilidadeTipoTransporteBr({ clearWhenHidden: true });
+    const formTitleTextNovo = document.getElementById('formTitleText');
+    if (formTitleTextNovo) formTitleTextNovo.textContent = t('web.modulos.cadastroGeral.novoCadastro');
     showTab('dados');
   });
   document.getElementById('btnCancelar')?.addEventListener('click', () => showTab('grid'));
@@ -1839,7 +2951,7 @@ document.getElementById('filtroRastreado').value = '';
     document.getElementById('cadastroId').value = '';
     document.getElementById('cadastroCodigo').value = '';
     document.getElementById('cadastroCodigoCidade').value = '';
-    ['chkO','chkP','chkM','chkT','chkA','chkG','chkC','chkU'].forEach(id => {
+    ['chkO','chkP','chkM','chkT','chkA','chkG','chkC','chkE','chkU'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.checked = false;
     });
@@ -1849,11 +2961,21 @@ document.getElementById('filtroRastreado').value = '';
     if (divDestinoPreferido) divDestinoPreferido.style.display = 'none';
     const divSenhaMotorista = document.getElementById('divSenhaMotorista');
     if (divSenhaMotorista) divSenhaMotorista.style.display = 'none';
+    ultimoCadastroCarregado = null;
+    atualizarAnexosMotoristaTorre(null);
+    limparVeiculosMotoristaAppTorre();
+    const divBlocoTipoTransporteBrGrid = document.getElementById('divBlocoTipoTransporteBr');
+    if (divBlocoTipoTransporteBrGrid) divBlocoTipoTransporteBrGrid.style.display = 'none';
+    const selTipoBrGrid = document.getElementById('cadastroTipoTransporteBr');
+    if (selTipoBrGrid) selTipoBrGrid.value = '';
     const msgSenha = document.getElementById('msgSenhaMotorista');
     if (msgSenha) { msgSenha.textContent = ''; msgSenha.style.display = 'none'; }
     const msgStatusAprovacao = document.getElementById('msgStatusAprovacao');
     if (msgStatusAprovacao) { msgStatusAprovacao.textContent = ''; msgStatusAprovacao.style.display = 'none'; }
-    document.getElementById('formTitle').textContent = t('web.modulos.cadastroGeral.novoCadastro');
+    atualizarVisibilidadeLocaisPreferidos();
+    atualizarVisibilidadeTipoTransporteBr({ clearWhenHidden: true });
+    const formTitleTextGrid = document.getElementById('formTitleText');
+    if (formTitleTextGrid) formTitleTextGrid.textContent = t('web.modulos.cadastroGeral.novoCadastro');
     showTab('dados');
   });
 
@@ -1878,12 +3000,13 @@ document.getElementById('filtroRastreado').value = '';
     try {
       const response = await fetch('/api/motorista/aprovar-admin', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ cdCadastro: Number(cdCadastro), status })
       });
       const data = await response.json().catch(() => ({}));
       if (response.ok && data.success) {
         showMsg(data.message || 'Status de aprovação atualizado.', 'success');
+        document.dispatchEvent(new CustomEvent('motoristas-pendentes-contador-atualizado'));
       } else {
         showMsg(data.error || 'Erro ao atualizar status.', 'error');
       }
@@ -1916,7 +3039,7 @@ document.getElementById('filtroRastreado').value = '';
     try {
       const response = await fetch('/api/motorista/definir-senha-admin', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({ cdCadastro: Number(cdCadastro), novaSenha })
       });
       const data = await response.json().catch(() => ({}));
@@ -2000,6 +3123,156 @@ document.getElementById('filtroRastreado').value = '';
       showMessage('Erro ao exportar para Excel. Tente novamente.', 'error');
     }
   });
+
+  function pickEe(row, k) {
+    if (!row) return null;
+    const low = k.toLowerCase();
+    if (Object.prototype.hasOwnProperty.call(row, k)) return row[k];
+    if (Object.prototype.hasOwnProperty.call(row, low)) return row[low];
+    return null;
+  }
+  function limparFormularioEndEntrega() {
+    const tit = document.getElementById('eeFormTitulo');
+    if (tit) tit.textContent = 'Novo ponto de entrega';
+    const hid = document.getElementById('eeEditId');
+    if (hid) hid.value = '';
+    ['eeDsPonto', 'eeUf', 'eeCep', 'eeLogradouro', 'eeNumero', 'eeComplemento', 'eeCoordenadas', 'eeNrRota'].forEach(function (id) {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    const eeCdCidade = document.getElementById('eeCdCidade');
+    if (eeCdCidade) eeCdCidade.innerHTML = '<option value="">Selecione a UF primeiro</option>';
+    setEeUfHint('', false);
+  }
+  async function carregarListaEnderecosEntrega(cadastroId) {
+    const tbody = document.getElementById('eeTabelaBody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="9">Carregando...</td></tr>';
+    try {
+      const r = await fetch('/api/cadastros-gerais/' + encodeURIComponent(cadastroId) + '/enderecos-entrega', {
+        headers: getAuthHeaders(),
+        credentials: 'include',
+      });
+      const data = await r.json().catch(function () {
+        return [];
+      });
+      if (!r.ok) {
+        tbody.innerHTML =
+          '<tr><td colspan="9" class="empty">' + (data && data.error ? String(data.error) : 'Erro ao listar endereços.') + '</td></tr>';
+        return;
+      }
+      const rows = Array.isArray(data) ? data : [];
+      window.__eeUltimaLista = rows;
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="9" class="empty">Nenhum ponto de entrega cadastrado.</td></tr>';
+        return;
+      }
+      function escCell(s) {
+        return String(s == null ? '' : s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+      }
+      function escAttr(s) {
+        return escCell(s).replace(/"/g, '&quot;');
+      }
+      function fmtCep(cep) {
+        const d = String(cep == null ? '' : cep).replace(/\D/g, '');
+        if (d.length !== 8) return escCell(cep || '');
+        return d.replace(/(\d{5})(\d{3})/, '$1-$2');
+      }
+      /** Lat/lon em duas linhas + decimais curtos; valor completo no title (tooltip). */
+      function fmtLlHtml(lat, lon) {
+        if (lat == null || lon == null) return escCell('-');
+        const full = String(lat).trim() + ', ' + String(lon).trim();
+        const na = parseFloat(lat);
+        const nb = parseFloat(lon);
+        if (!Number.isFinite(na) || !Number.isFinite(nb)) {
+          return '<span class="ee-ll-pair" title="' + escAttr(full) + '">' + escCell(full) + '</span>';
+        }
+        const a = na.toFixed(6);
+        const b = nb.toFixed(6);
+        return (
+          '<span class="ee-ll-pair" title="' +
+          escAttr(full) +
+          '">' +
+          '<span class="ee-ll-line">' +
+          escCell(a) +
+          '</span>' +
+          '<span class="ee-ll-line">' +
+          escCell(b) +
+          '</span>' +
+          '</span>'
+        );
+      }
+      tbody.innerHTML = rows
+        .map(function (row) {
+          const cd = pickEe(row, 'CD_ENDERECO_ENTREGA');
+          const lat = pickEe(row, 'LATITUDE');
+          const lon = pickEe(row, 'LONGITUDE');
+          const nrRota = pickEe(row, 'NR_ROTA');
+          const stComp = String(pickEe(row, 'ST_COMPLETUDE') || '').toUpperCase();
+          const rotaHtml =
+            nrRota != null && nrRota !== ''
+              ? escCell(String(nrRota))
+              : '<span class="ee-rota-ausente" title="Sem rota — romaneio de separação não exibirá [ Rota de Entrega ]">—</span>';
+          const rascunhoBadge =
+            stComp === 'RASCUNHO'
+              ? ' <span class="ee-badge-rascunho" title="Criado na importação NF-e — complete rota e coordenadas">Rascunho</span>'
+              : '';
+          return (
+            '<tr>' +
+            '<td class="ee-cell-ponto">' + escCell(pickEe(row, 'DS_PONTO_ENTREGA')) + rascunhoBadge + '</td>' +
+            '<td class="ee-cell-uf"><span>' + escCell(pickEe(row, 'UF_ENTREGA')) + '</span></td>' +
+            '<td class="ee-cell-mun" title="' + escAttr(pickEe(row, 'NM_MUNICIPIO')) + '">' + escCell(pickEe(row, 'NM_MUNICIPIO')) + '</td>' +
+            '<td class="ee-cell-cep">' + fmtCep(pickEe(row, 'CEP')) + '</td>' +
+            '<td class="ee-cell-log">' + escCell(pickEe(row, 'LOGRADOURO')) + '</td>' +
+            '<td class="ee-cell-num">' + escCell(pickEe(row, 'NUMERO')) + '</td>' +
+            '<td class="ee-cell-rota">' + rotaHtml + '</td>' +
+            '<td class="ee-cell-ll">' + fmtLlHtml(lat, lon) + '</td>' +
+            '<td class="ee-cell-acoes"><button type="button" class="btn btn-small btn-secondary btn-ee-edit" data-cd="' +
+            encodeURIComponent(String(cd)) +
+            '"><i class="bx bx-edit"></i> Editar</button> <button type="button" class="btn btn-small btn-remove btn-ee-del" data-cd="' +
+            encodeURIComponent(String(cd)) +
+            '"><i class="bx bx-trash"></i> Inativar</button></td>' +
+            '</tr>'
+          );
+        })
+        .join('');
+    } catch (e) {
+      tbody.innerHTML = '<tr><td colspan="9" class="empty">Erro de conexão.</td></tr>';
+    }
+  }
+  function preencherEdicaoEndEntrega(cd) {
+    const rows = window.__eeUltimaLista || [];
+    const row = rows.find(function (x) {
+      return String(pickEe(x, 'CD_ENDERECO_ENTREGA')) === String(cd);
+    });
+    if (!row) {
+      showMessage('Linha não encontrada na lista. Atualize a aba.', 'error');
+      return;
+    }
+    const tit = document.getElementById('eeFormTitulo');
+    if (tit) tit.textContent = 'Editar ponto de entrega';
+    document.getElementById('eeEditId').value = String(pickEe(row, 'CD_ENDERECO_ENTREGA'));
+    document.getElementById('eeDsPonto').value = pickEe(row, 'DS_PONTO_ENTREGA') || '';
+    const ufEntrega = (pickEe(row, 'UF_ENTREGA') || '').toString().trim().toUpperCase();
+    const cdCidadeEntrega = pickEe(row, 'CDCIDADE');
+    const nmMunicipioEntrega = pickEe(row, 'NM_MUNICIPIO') || '';
+    document.getElementById('eeUf').value = ufEntrega;
+    loadCidadesEndEntregaPorUf(ufEntrega, cdCidadeEntrega != null ? String(cdCidadeEntrega) : '', nmMunicipioEntrega);
+    document.getElementById('eeCep').value = pickEe(row, 'CEP') || '';
+    document.getElementById('eeLogradouro').value = pickEe(row, 'LOGRADOURO') || '';
+    document.getElementById('eeNumero').value = pickEe(row, 'NUMERO') || '';
+    document.getElementById('eeComplemento').value = pickEe(row, 'COMPLEMENTO') || '';
+    const lat = pickEe(row, 'LATITUDE');
+    const lon = pickEe(row, 'LONGITUDE');
+    document.getElementById('eeCoordenadas').value =
+      lat != null && lon != null ? String(lat).trim() + ', ' + String(lon).trim() : '';
+    const nr = pickEe(row, 'NR_ROTA');
+    document.getElementById('eeNrRota').value = nr != null && nr !== '' ? String(nr) : '';
+    document.getElementById('eeDsPonto')?.focus();
+  }
   
   // Eventos de abas
   tabs.forEach(btn => {
@@ -2008,6 +3281,10 @@ document.getElementById('filtroRastreado').value = '';
       
       // Se for a aba "classes", executar a mesma lógica do botão "Gerenciar Classes"
       if (tabId === 'classes') {
+        if (!temAbasFrotaValidadesLocaisNoForm()) {
+          showMessage('Classes Frota está disponível quando o cadastro for Motorista, Transportador, Agente/Parceiro ou Grupo de Divulgação.', 'error');
+          return;
+        }
         const cadastroId = document.getElementById('cadastroId')?.value;
         if (!cadastroId) {
           showMessage('Salve o cadastro antes de gerenciar as classes.', 'error');
@@ -2016,6 +3293,10 @@ document.getElementById('filtroRastreado').value = '';
         loadClassesFrotaParaCadastro(cadastroId);
         await showTab('classes');
       } else if (tabId === 'validades') {
+        if (!temAbasFrotaValidadesLocaisNoForm()) {
+          showMessage('Validades estão disponíveis quando o cadastro for Motorista, Transportador, Agente/Parceiro ou Grupo de Divulgação.', 'error');
+          return;
+        }
         const cadastroId = document.getElementById('cadastroId')?.value;
         const tpCadastro = obterTipoCadastro();
         if (!cadastroId) {
@@ -2026,14 +3307,245 @@ document.getElementById('filtroRastreado').value = '';
         setTimeout(() => {
           inicializarAbaValidades();
         }, 100);
+      } else if (tabId === ABA_ANEXOS_MOTORISTA) {
+        const chkM = document.getElementById('chkM');
+        if (!chkM || !chkM.checked) {
+          showMessage(
+            t('web.modulos.cadastroGeral.anexosSoMotorista') || 'Anexos do app estão disponíveis apenas para cadastro como motorista.',
+            'error'
+          );
+          return;
+        }
+        const idCad = document.getElementById('cadastroId')?.value?.trim();
+        if (!idCad) {
+          showMessage(
+            t('web.modulos.cadastroGeral.anexosSalvarPrimeiro') || 'Salve o cadastro antes de gerenciar anexos.',
+            'error'
+          );
+          return;
+        }
+        await showTab(ABA_ANEXOS_MOTORISTA);
+        try {
+          const base =
+            typeof window.corrigirUrl === 'function' ? window.corrigirUrl.bind(window) : function (u) {
+              return u;
+            };
+          const r = await fetch(base('/api/cadastros-gerais/' + encodeURIComponent(idCad)), { headers: getAuthHeaders() });
+          if (r.ok) {
+            const j = await r.json();
+            atualizarAnexosMotoristaTorre(j);
+          }
+        } catch (_e) {}
+      } else if (tabId === ABA_VEICULOS_MOTORISTA) {
+        const chkM = document.getElementById('chkM');
+        if (!chkM || !chkM.checked) {
+          showMessage(
+            t('web.modulos.cadastroGeral.veiculosTabSoMotorista') ||
+              'Veículos do app estão disponíveis apenas para cadastro como motorista.',
+            'error'
+          );
+          return;
+        }
+        const idCad = document.getElementById('cadastroId')?.value?.trim();
+        if (!idCad) {
+          showMessage(
+            t('web.modulos.cadastroGeral.veiculosTabSalvarPrimeiro') ||
+              t('web.modulos.cadastroGeral.anexosSalvarPrimeiro') ||
+              'Salve o cadastro antes de gerenciar veículos.',
+            'error'
+          );
+          return;
+        }
+        await showTab(ABA_VEICULOS_MOTORISTA);
+        await carregarVeiculosMotoristaAppTorre(idCad);
+      } else if (tabId === 'enderecos-entrega') {
+        const cadastroId = document.getElementById('cadastroId')?.value?.trim();
+        const tp = document.getElementById('cadastroTipoPessoa')?.value;
+        if (tp !== 'J') {
+          showMessage('Endereços de entrega ficam disponíveis para Pessoa Jurídica.', 'error');
+          return;
+        }
+        if (!cadastroId) {
+          showMessage('Salve o cadastro antes de cadastrar endereços de entrega.', 'error');
+          return;
+        }
+        await carregarListaEnderecosEntrega(cadastroId);
+        await showTab('enderecos-entrega');
       } else {
         await showTab(tabId);
       }
     });
   });
 
+  document.getElementById('btnVoltarDadosAnexosMotorista')?.addEventListener('click', function () {
+    showTab('dados').catch(function () {});
+  });
+
+  document.getElementById('btnVoltarDadosVeiculosMotorista')?.addEventListener('click', function () {
+    showTab('dados').catch(function () {});
+  });
+
+  (function wireTorreAnexosMotorista() {
+    const wrapAnexos = document.getElementById('divAnexosMotoristaAppTorre');
+    if (!wrapAnexos) return;
+    wrapAnexos.addEventListener('click', function (ev) {
+      const sub = ev.target.closest && ev.target.closest('.btn-torre-anexo-subst');
+      if (sub) {
+        const tipo = sub.getAttribute('data-anexo-tipo');
+        const wrapBloco = sub.closest('.torre-anexo-bloco-wrap');
+        const inp = wrapBloco && wrapBloco.querySelector('input.torre-anexo-file');
+        if (inp) inp.click();
+        return;
+      }
+      const excl = ev.target.closest && ev.target.closest('.btn-torre-anexo-excl');
+      if (excl) {
+        if (excl.disabled) return;
+        const tipo = excl.getAttribute('data-anexo-tipo');
+        if (tipo) torreExcluirAnexoMotorista(tipo);
+      }
+    });
+    wrapAnexos.addEventListener('change', function (ev) {
+      const inp = ev.target;
+      if (!inp || !inp.classList || !inp.classList.contains('torre-anexo-file')) return;
+      const f = inp.files && inp.files[0];
+      inp.value = '';
+      if (!f) return;
+      const tipo = inp.getAttribute('data-anexo-tipo');
+      if (tipo) torreUploadAnexoMotorista(tipo, f);
+    });
+  })();
+
+  document.getElementById('btnVoltarDadosEndEntrega')?.addEventListener('click', function () {
+    showTab('dados').catch(function () {});
+  });
+  document.getElementById('btnEeLimpar')?.addEventListener('click', limparFormularioEndEntrega);
+  document.getElementById('eeUf')?.addEventListener('input', function () {
+    let uf = (this.value || '').toUpperCase().replace(/[^A-Z]/g, '');
+    if (uf.length > 2) uf = uf.slice(0, 2);
+    this.value = uf;
+    if (!uf) {
+      const eeCdCidade = document.getElementById('eeCdCidade');
+      if (eeCdCidade) eeCdCidade.innerHTML = '<option value="">Selecione a UF primeiro</option>';
+      setEeUfHint('', false);
+      return;
+    }
+    if (uf.length < 2) {
+      setEeUfHint('Informe a UF com 2 letras (ex.: SC).', true);
+      return;
+    }
+    loadCidadesEndEntregaPorUf(uf);
+  });
+  document.getElementById('eeUf')?.addEventListener('change', function () {
+    const uf = (this.value || '').trim().toUpperCase();
+    this.value = uf;
+    loadCidadesEndEntregaPorUf(uf);
+  });
+  document.getElementById('eeTabelaBody')?.addEventListener('click', async function (ev) {
+    const btn = ev.target.closest('.btn-ee-edit, .btn-ee-del');
+    if (!btn) return;
+    const cd = btn.getAttribute('data-cd');
+    if (!cd) return;
+    const cadastroId = document.getElementById('cadastroId')?.value?.trim();
+    if (!cadastroId) return;
+    if (btn.classList.contains('btn-ee-edit')) {
+      preencherEdicaoEndEntrega(decodeURIComponent(cd));
+      return;
+    }
+    if (btn.classList.contains('btn-ee-del')) {
+      const msgInativar = 'Inativar este ponto de entrega? Ele deixará de aparecer na lista ativa.';
+      const confirmadoInativar = await confirmarAcaoPadrao(msgInativar, { danger: true, confirmText: 'Inativar' });
+      if (!confirmadoInativar) return;
+      fetch(
+        '/api/cadastros-gerais/' + encodeURIComponent(cadastroId) + '/enderecos-entrega/' + encodeURIComponent(cd),
+        { method: 'DELETE', headers: getAuthHeaders(), credentials: 'include' }
+      )
+        .then(function (r) {
+          return r.json().then(function (body) {
+            if (!r.ok) throw new Error(body.error || 'HTTP ' + r.status);
+            return body;
+          });
+        })
+        .then(function () {
+          showMessage('Ponto inativado.', 'success');
+          limparFormularioEndEntrega();
+          return carregarListaEnderecosEntrega(cadastroId);
+        })
+        .catch(function (err) {
+          showMessage(err.message || 'Erro ao inativar.', 'error');
+        });
+    }
+  });
+  document.getElementById('btnEeSalvar')?.addEventListener('click', function () {
+    const cadastroId = document.getElementById('cadastroId')?.value?.trim();
+    if (!cadastroId) {
+      showMessage('Salve o cadastro antes.', 'error');
+      return;
+    }
+    const eeCdCidadeEl = document.getElementById('eeCdCidade');
+    const eeCdCidade = (eeCdCidadeEl?.value || '').trim();
+    const eeNmMunicipio = eeCdCidadeEl?.selectedOptions?.[0]?.textContent?.trim() || '';
+    if (!eeCdCidade || !eeNmMunicipio || eeNmMunicipio.toLowerCase().includes('selecione')) {
+      showMessage('Selecione o município da UF informada.', 'error');
+      return;
+    }
+    const body = {
+      DS_PONTO_ENTREGA: (document.getElementById('eeDsPonto')?.value || '').trim(),
+      UF_ENTREGA: (document.getElementById('eeUf')?.value || '').trim().toUpperCase(),
+      NM_MUNICIPIO: eeNmMunicipio,
+      CDCIDADE: eeCdCidade ? parseInt(eeCdCidade, 10) : null,
+      CEP: (document.getElementById('eeCep')?.value || '').replace(/\D/g, ''),
+      LOGRADOURO: (document.getElementById('eeLogradouro')?.value || '').trim(),
+      NUMERO: (document.getElementById('eeNumero')?.value || '').trim(),
+      COMPLEMENTO: (document.getElementById('eeComplemento')?.value || '').trim(),
+      COORDENADAS: (document.getElementById('eeCoordenadas')?.value || '').trim(),
+    };
+    const nr = (document.getElementById('eeNrRota')?.value || '').trim();
+    if (nr) body.NR_ROTA = parseInt(nr, 10);
+    const editId = (document.getElementById('eeEditId')?.value || '').trim();
+    const url =
+      '/api/cadastros-gerais/' +
+      encodeURIComponent(cadastroId) +
+      '/enderecos-entrega' +
+      (editId ? '/' + encodeURIComponent(editId) : '');
+    const method = editId ? 'PUT' : 'POST';
+    fetch(url, {
+      method: method,
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+      credentials: 'include',
+      body: JSON.stringify(body),
+    })
+      .then(function (r) {
+        return r.json().then(function (j) {
+          if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+          return j;
+        });
+      })
+      .then(function () {
+        const filaAtiva = lerFilaNfEePendentes();
+        const naFila =
+          filaAtiva && filaAtiva.ativo && Array.isArray(filaAtiva.itens) && filaAtiva.itens.length;
+        if (naFila) {
+          posSalvarEnderecoEntregaFilaNf(body, editId);
+        } else {
+          showMessage(editId ? 'Ponto atualizado.' : 'Ponto incluído.', 'success');
+        }
+        limparFormularioEndEntrega();
+        return carregarListaEnderecosEntrega(cadastroId);
+      })
+      .catch(function (err) {
+        showMessage(err.message || 'Erro ao salvar.', 'error');
+      });
+  });
+  document.getElementById('cadastroTipoPessoa')?.addEventListener('change', function () {
+    atualizarVisibilidadeLocaisPreferidos();
+  });
+
   document.getElementById('btnBuscarCEP')?.addEventListener('click', buscarCEP);
   document.getElementById('btnGerenciarClasses')?.addEventListener('click', () => {
+    if (!temAbasFrotaValidadesLocaisNoForm()) {
+      showMessage('Classes Frota está disponível quando o cadastro for Motorista, Transportador, Agente/Parceiro ou Grupo de Divulgação.', 'error');
+      return;
+    }
     const cadastroId = document.getElementById('cadastroId')?.value;
     if (!cadastroId) {
       showMessage('Salve o cadastro antes de gerenciar as classes.', 'error');
@@ -2362,7 +3874,7 @@ document.getElementById('filtroRastreado').value = '';
   });
 
   // Event listener para mostrar/esconder campo Transportador e aba Locais preferidos quando [M] Motorista for marcado
-  ['chkM', 'chkO', 'chkP', 'chkT', 'chkA', 'chkG', 'chkC', 'chkU'].forEach(id => {
+  ['chkM', 'chkO', 'chkP', 'chkT', 'chkA', 'chkG', 'chkC', 'chkE', 'chkU'].forEach(id => {
     document.getElementById(id)?.addEventListener('change', function() {
       const chkM = document.getElementById('chkM');
       const divTransportador = document.getElementById('divTransportador');
@@ -2372,11 +3884,22 @@ document.getElementById('filtroRastreado').value = '';
         if (divTransportador) divTransportador.style.display = 'block';
         if (divSenhaMotorista) divSenhaMotorista.style.display = 'block';
         if (selectTransportador && selectTransportador.options.length <= 1) loadTransportadores();
+        const cid = document.getElementById('cadastroId')?.value?.trim();
+        if (cid && ultimoCadastroCarregado && String(ultimoCadastroCarregado.CDCADASTRO) === cid) {
+          atualizarAnexosMotoristaTorre(ultimoCadastroCarregado);
+          carregarVeiculosMotoristaAppTorre(cid).catch(function () {});
+        } else {
+          atualizarAnexosMotoristaTorre(null);
+          limparVeiculosMotoristaAppTorre();
+        }
       } else {
         if (divTransportador) divTransportador.style.display = 'none';
         if (divSenhaMotorista) divSenhaMotorista.style.display = 'none';
         if (selectTransportador) selectTransportador.value = '';
+        atualizarAnexosMotoristaTorre(null);
+        limparVeiculosMotoristaAppTorre();
       }
+      atualizarVisibilidadeTipoTransporteBr({ clearWhenHidden: true });
       atualizarVisibilidadeLocaisPreferidos();
     });
   });
@@ -2547,9 +4070,9 @@ document.getElementById('filtroRastreado').value = '';
   }
   
   function obterTipoCadastro() {
-    const ordem = ['M', 'T', 'C', 'O', 'P', 'A', 'G', 'U'];
-    const chkIds = { M: 'chkM', T: 'chkT', C: 'chkC', O: 'chkO', P: 'chkP', A: 'chkA', G: 'chkG', U: 'chkU' };
-    const mapeamento = { 'M': 'MOT', 'T': 'TRA', 'C': 'CLI', 'O': 'CLI', 'P': 'CLI', 'A': 'CLI', 'G': 'CLI', 'U': 'CLI' };
+    const ordem = ['M', 'T', 'C', 'E', 'O', 'P', 'A', 'G', 'U'];
+    const chkIds = { M: 'chkM', T: 'chkT', C: 'chkC', E: 'chkE', O: 'chkO', P: 'chkP', A: 'chkA', G: 'chkG', U: 'chkU' };
+    const mapeamento = { 'M': 'MOT', 'T': 'TRA', 'C': 'CLI', 'E': 'CLI', 'O': 'CLI', 'P': 'CLI', 'A': 'CLI', 'G': 'CLI', 'U': 'CLI' };
     for (const cod of ordem) {
       const el = document.getElementById(chkIds[cod]);
       if (el && el.checked) return mapeamento[cod] || 'MOT';
@@ -2839,8 +4362,12 @@ document.getElementById('filtroRastreado').value = '';
         // Preencher campos APÓS combos carregados
         document.getElementById('validadeTipo').value = val.CDTIPOVALIDADE;
         document.getElementById('validadeNrLiberacao').value = val.NRLIBERACAO;
-        document.getElementById('validadeDtLiberacao').value = new Date(val.DTLIBERACAO).toISOString().split('T')[0];
-        document.getElementById('validadeDtValidade').value = new Date(val.DTVALIDADE).toISOString().split('T')[0];
+        document.getElementById('validadeDtLiberacao').value = (typeof window.dataApiParaInputDate === 'function')
+          ? window.dataApiParaInputDate(val.DTLIBERACAO, contextoCadastro && contextoCadastro.timezone)
+          : new Date(val.DTLIBERACAO).toISOString().split('T')[0];
+        document.getElementById('validadeDtValidade').value = (typeof window.dataApiParaInputDate === 'function')
+          ? window.dataApiParaInputDate(val.DTVALIDADE, contextoCadastro && contextoCadastro.timezone)
+          : new Date(val.DTVALIDADE).toISOString().split('T')[0];
         document.getElementById('validadeDsLiberacao').value = val.DSLIBERACAO || '';
         
         // Preencher certificadora (campo hidden + mostrar nome)
@@ -3081,8 +4608,9 @@ document.getElementById('filtroRastreado').value = '';
             <li><strong>Filtros:</strong> Buscar e filtrar cadastros</li>
             <li><strong>Grid:</strong> Visualizar cadastros em formato de tabela</li>
             <li><strong>Dados:</strong> Criar e editar cadastros</li>
-            <li><strong>Classes Frota:</strong> Gerenciar classes de frota permitidas</li>
-            <li><strong>Validades:</strong> Gerenciar validades de documentos e certificações</li>
+            <li><strong>Classes Frota, Validades e Locais preferidos:</strong> abas exibidas quando o cadastro for <strong>Motorista</strong>, <strong>Transportador</strong>, <strong>Agente/Parceiro</strong> ou <strong>Grupo de Divulgação</strong>.</li>
+            <li><strong>Classes Frota:</strong> classes de frota permitidas (após salvar o cadastro).</li>
+            <li><strong>Validades:</strong> documentos e certificações.</li>
           </ul>
         </div>
         <div class="modal-footer-tratamento">
@@ -3157,4 +4685,204 @@ document.getElementById('filtroRastreado').value = '';
   };
   document.addEventListener('click', window.__cadastroGeralClickDelegate, true);
   console.log('[CadastroGeral] listener de clique registrado em document (capture=true), .cadastro-geral-container no DOM:', !!document.querySelector('.cadastro-geral-container'));
+
+  /** Chamado pelo dashboard: filtra motoristas com aprovação pendente e atualiza a grid. */
+  window.__aplicarFiltrosCadastroGeralMotoristasPendentes = function() {
+    const elTc = document.getElementById('filtroTipoCadastro');
+    const elSt = document.getElementById('filtroStatusAprovacao');
+    if (elTc) elTc.value = 'M';
+    if (elSt) elSt.value = 'P';
+    const form = document.getElementById('filtroForm');
+    if (form) {
+      if (typeof form.requestSubmit === 'function') form.requestSubmit();
+      else form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    }
+  };
+
+  const NF_EE_PEND_STORAGE = 'wmsNfEePendentes';
+
+  function lerFilaNfEePendentes() {
+    try {
+      const raw = sessionStorage.getItem(NF_EE_PEND_STORAGE);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function salvarFilaNfEePendentes(fila) {
+    if (!fila) return;
+    try {
+      sessionStorage.setItem(NF_EE_PEND_STORAGE, JSON.stringify(fila));
+    } catch (e) {}
+  }
+
+  function atualizarBannerFilaNfPendentes(opts) {
+    const banner = document.getElementById('eeBannerFilaNfPendentes');
+    const txt = document.getElementById('eeBannerFilaNfTxt');
+    const btnProx = document.getElementById('btnEeProximoPendenteNf');
+    if (!banner || !txt) return;
+    const fila = lerFilaNfEePendentes();
+    const ativo = opts && opts.fromNfPendentes && fila && Array.isArray(fila.itens) && fila.itens.length;
+    if (!ativo) {
+      banner.style.display = 'none';
+      return;
+    }
+    const nf = (opts && opts.nf) || fila.nfAtual || '—';
+    const serie = opts && opts.serie ? String(opts.serie) : fila.serieAtual || '';
+    const nfLbl = serie ? nf + ' / ' + serie : nf;
+    const rest = fila.itens.length;
+    txt.textContent =
+      'Fila de NF pendentes: editando NF ' +
+      nfLbl +
+      (rest > 1 ? ' — ' + rest + ' na lista' : ' — última da lista') +
+      '. Após salvar rota e coordenadas, clique em «Próximo da fila».';
+    if (btnProx) {
+      btnProx.innerHTML =
+        '<i class="bx bx-skip-next"></i> Próximo da fila' + (rest > 1 ? ' (' + (rest - 1) + ' restantes)' : '');
+    }
+    banner.style.display = 'block';
+    if (document.documentElement.getAttribute('data-theme') === 'dark') {
+      banner.style.background = '#422006';
+      banner.style.borderColor = '#b45309';
+      banner.style.color = '#fde68a';
+    }
+  }
+
+  async function abrirProximoPendenteNfDaFila() {
+    const fila = lerFilaNfEePendentes();
+    if (!fila || !Array.isArray(fila.itens) || !fila.itens.length) {
+      showMessage('Não há mais itens na fila. Volte à lista em Cargas.', 'info');
+      return;
+    }
+    const cur = fila.indiceAtual || 0;
+    let nextIdx = -1;
+    for (let i = cur + 1; i < fila.itens.length; i++) {
+      if (fila.itens[i].link && fila.itens[i].link.cdCadastro != null) {
+        nextIdx = i;
+        break;
+      }
+    }
+    if (nextIdx < 0) {
+      for (let j = 0; j < cur; j++) {
+        if (fila.itens[j].link && fila.itens[j].link.cdCadastro != null) {
+          nextIdx = j;
+          break;
+        }
+      }
+    }
+    if (nextIdx < 0) {
+      showMessage('Não há mais pendências na fila.', 'success');
+      document.getElementById('eeBannerFilaNfPendentes')?.style.setProperty('display', 'none');
+      return;
+    }
+    const item = fila.itens[nextIdx];
+    fila.indiceAtual = nextIdx;
+    fila.nfAtual = item.nf;
+    fila.serieAtual = item.serie;
+    salvarFilaNfEePendentes(fila);
+    await window.__aplicarAbrirCadastroGeralEnderecoEntrega({
+      cdCadastro: item.link.cdCadastro,
+      cdEndereco: item.link.cdEndereco,
+      fromNfPendentes: true,
+      nf: item.nf,
+      serie: item.serie,
+    });
+  }
+
+  function voltarListaPendenciasNfEmCargas() {
+    if (typeof window.loadModuleContent === 'function') {
+      window.loadModuleContent('estoque-cargas', { nfEnderecoPendentes: true });
+    }
+  }
+
+  function posSalvarEnderecoEntregaFilaNf(body, editId) {
+    const fila = lerFilaNfEePendentes();
+    if (!fila || !fila.ativo || !Array.isArray(fila.itens) || !fila.itens.length) return;
+    const temRota = body.NR_ROTA != null && Number.isFinite(Number(body.NR_ROTA));
+    const coords = (body.COORDENADAS || '').trim();
+    const temCoords = coords.length > 5 && coords.includes(',');
+    if (!temRota || !temCoords) {
+      showMessage('Informe rota e coordenadas antes de avançar na fila.', 'warning');
+      return;
+    }
+    const idx = fila.indiceAtual || 0;
+    const nfAtual = fila.nfAtual || (fila.itens[idx] && fila.itens[idx].nf);
+    const serieAtual = fila.serieAtual || (fila.itens[idx] && fila.itens[idx].serie) || '';
+    fila.itens = fila.itens.filter(function (it) {
+      if (editId && it.link && String(it.link.cdEndereco) === String(editId)) return false;
+      if (nfAtual && String(it.nf) === String(nfAtual) && String(it.serie || '') === String(serieAtual || '')) {
+        return false;
+      }
+      return true;
+    });
+    if (fila.indiceAtual >= fila.itens.length) fila.indiceAtual = 0;
+    salvarFilaNfEePendentes(fila);
+    if (!fila.itens.length) {
+      document.getElementById('eeBannerFilaNfPendentes')?.style.setProperty('display', 'none');
+      showMessage('Todos os pontos da fila foram salvos. Volte a Cargas se precisar conferir as NF.', 'success');
+      return;
+    }
+    const rest = fila.itens.length;
+    showMessage(
+      'Ponto salvo. Clique em «Próximo da fila» para a próxima NF (' + rest + ' restante' + (rest > 1 ? 's' : '') + ').',
+      'success'
+    );
+    atualizarBannerFilaNfPendentes({
+      fromNfPendentes: true,
+      nf: fila.itens[fila.indiceAtual || 0]?.nf,
+      serie: fila.itens[fila.indiceAtual || 0]?.serie,
+    });
+  }
+
+  /** Deep link: abrir cadastro PJ → aba Endereços de entrega → editar ponto (ex.: rascunho da importação NF-e). */
+  window.__aplicarAbrirCadastroGeralEnderecoEntrega = async function (opts) {
+    const cdCad = opts && opts.cdCadastro != null ? String(opts.cdCadastro) : '';
+    const cdEnd = opts && opts.cdEndereco != null ? String(opts.cdEndereco) : '';
+    if (!cdCad) return;
+    if (opts && opts.fromNfPendentes) {
+      const fila = lerFilaNfEePendentes();
+      if (fila) {
+        fila.nfAtual = opts.nf || '';
+        fila.serieAtual = opts.serie || '';
+        fila.cdEnderecoAtual = cdEnd;
+        fila.ativo = true;
+        salvarFilaNfEePendentes(fila);
+      }
+    }
+    try {
+      await loadCadastroParaEdicao(cdCad);
+      atualizarVisibilidadeEnderecosEntrega();
+      await carregarListaEnderecosEntrega(cdCad);
+      await showTab('enderecos-entrega');
+      if (cdEnd) {
+        preencherEdicaoEndEntrega(cdEnd);
+        const painel = document.getElementById('tab-enderecos-entrega');
+        if (painel) painel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+      if (opts && opts.fromNfPendentes) {
+        atualizarBannerFilaNfPendentes(opts);
+        showMessage('Preencha rota e coordenadas, salve e clique em «Próximo da fila».', 'warning');
+      } else {
+        showMessage(
+          cdEnd
+            ? 'Complete a rota e as coordenadas deste ponto de entrega (criado ou vinculado na importação da NF-e).'
+            : 'Revise os endereços de entrega deste cadastro.',
+          'warning'
+        );
+      }
+    } catch (e) {
+      console.error('[CadastroGeral] __aplicarAbrirCadastroGeralEnderecoEntrega:', e);
+      showMessage('Não foi possível abrir o ponto de entrega.', 'error');
+    }
+  };
+
+  document.getElementById('btnEeProximoPendenteNf')?.addEventListener('click', function () {
+    abrirProximoPendenteNfDaFila();
+  });
+  document.getElementById('btnEeVoltarPendenciasNf')?.addEventListener('click', function () {
+    voltarListaPendenciasNfEmCargas();
+  });
+
 })();

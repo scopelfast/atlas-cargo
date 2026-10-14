@@ -2,8 +2,12 @@
 const express = require('express');
 const router = express.Router();
 const usuarioController = require('../controllers/usuario.controller');
+const { towerAuthAndTenant } = require('../middleware/tower-auth-chain.middleware');
 
-// Rotas de CRUD
+router.use(towerAuthAndTenant);
+
+// Rotas de CRUD (contexto antes de :login para não capturar "contexto" como login)
+router.get('/usuarios/contexto', usuarioController.contexto);
 router.get('/usuarios', usuarioController.listar);
 router.get('/usuarios/:login', usuarioController.buscarPorLogin);
 router.post('/usuarios', usuarioController.criar);

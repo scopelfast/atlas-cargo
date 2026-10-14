@@ -285,13 +285,26 @@
         return m ? m[0] : null;
       }
 
-      function render(msgs) {
+      function render(msgs, renderOpts) {
+        renderOpts = renderOpts || {};
         var el = document.getElementById('messages');
         var st = document.getElementById('status');
+        var chatContainer = document.getElementById('chatMessages');
+        var oldScrollH = chatContainer ? chatContainer.scrollHeight : 0;
+        var oldScrollT = chatContainer ? chatContainer.scrollTop : 0;
+        var stickToBottom = true;
+        if (chatContainer && renderOpts.fromPoll) {
+          stickToBottom = (oldScrollH - oldScrollT - chatContainer.clientHeight) < 120;
+        }
         if (!msgs || msgs.length === 0) {
           st.style.display = 'block';
           st.textContent = (typeof window.t === 'function' ? (window.t('chat.nenhumaMensagem') + '. ' + window.t('chat.enviarParaComecar').replace('!', '.')) : 'Nenhuma mensagem ainda. Envie a primeira.');
           el.innerHTML = '';
+          if (chatContainer) {
+            requestAnimationFrame(function() {
+              chatContainer.scrollTop = chatContainer.scrollHeight;
+            });
+          }
           return;
         }
         hideStatus();
@@ -349,25 +362,42 @@
             blocoAudio + blocoLocalizacao +
             '<div class="chat-msg-hora">' + escapeHtml(data) + '</div></div>';
         }).join('');
-        // Rolagem no container que tem overflow (chatMessages), não no div interno
-        var chatContainer = document.getElementById('chatMessages');
         if (chatContainer) {
           requestAnimationFrame(function() {
-            chatContainer.scrollTop = chatContainer.scrollHeight;
+            if (stickToBottom) {
+              chatContainer.scrollTop = chatContainer.scrollHeight;
+            } else {
+              var newH = chatContainer.scrollHeight;
+              chatContainer.scrollTop = oldScrollT + (newH - oldScrollH);
+            }
           });
         }
       }
 
-      function load() {
-        fetch(baseUrl + '/api/messages/viagem/' + idViagem, {
+      var pollInFlight = false;
+      var pollTimer = null;
+      var POLL_MS = 2500;
+
+      function load(opts) {
+        opts = opts || {};
+        if (opts.poll && pollInFlight) return Promise.resolve();
+        if (opts.poll) pollInFlight = true;
+        return fetch(baseUrl + '/api/messages/viagem/' + idViagem, {
           headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' }
         })
-          .then(function(r) { return r.json(); })
+          .then(function(r) {
+            return r.json().then(function(data) {
+              if (!r.ok) {
+                var msg = (data && (data.error || data.message)) ? (data.error || data.message) : ('HTTP ' + r.status);
+                throw new Error(msg);
+              }
+              return data;
+            });
+          })
           .then(function(data) {
             var list = (data && data.messages) ? data.messages : [];
-            render(list);
+            render(list, { fromPoll: !!opts.poll });
             
-            // Marcar como lidas
             if (idMotorista) {
               fetch(baseUrl + '/api/messages/marcar-lidas', {
                 method: 'PUT',
@@ -380,18 +410,46 @@
               }).catch(function(e) { console.warn('Erro ao marcar lidas', e); });
             }
 
-            // Garantir rolar até o fim após carregar (e após layout)
-            var chatContainer = document.getElementById('chatMessages');
-            if (chatContainer) {
+            var chatEl = document.getElementById('chatMessages');
+            if (chatEl && !opts.poll) {
               setTimeout(function() {
-                chatContainer.scrollTop = chatContainer.scrollHeight;
+                chatEl.scrollTop = chatEl.scrollHeight;
               }, 50);
             }
           })
           .catch(function(err) {
-            showStatus('Erro ao carregar: ' + (err.message || 'tente novamente.'));
+            if (!opts.silent) {
+              showStatus('Erro ao carregar: ' + (err.message || 'tente novamente.'));
+            } else {
+              console.warn('[chat standalone] poll:', err);
+            }
+          })
+          .finally(function() {
+            if (opts.poll) pollInFlight = false;
           });
       }
+
+      function startMessagePolling() {
+        stopMessagePolling();
+        pollTimer = setInterval(function() {
+          if (document.hidden) return;
+          load({ poll: true, silent: true });
+        }, POLL_MS);
+      }
+
+      function stopMessagePolling() {
+        if (pollTimer) {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+      }
+
+      document.addEventListener('visibilitychange', function() {
+        if (!document.hidden && token && motorista && idViagem) {
+          load({ poll: true, silent: true });
+        }
+      });
+      window.addEventListener('beforeunload', stopMessagePolling);
 
       function enviarTexto(texto) {
         if (!texto || !idMotorista) return Promise.reject(new Error('Dados inválidos'));
@@ -504,15 +562,21 @@
           }
           navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
             streamAudio = stream;
-            var options = { mimeType: (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4') };
-            mediaRecorder = new MediaRecorder(stream);
+            var mime = '';
+            if (window.MediaRecorder && MediaRecorder.isTypeSupported) {
+              if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mime = 'audio/webm;codecs=opus';
+              else if (MediaRecorder.isTypeSupported('audio/webm')) mime = 'audio/webm';
+              else if (MediaRecorder.isTypeSupported('audio/mp4')) mime = 'audio/mp4';
+            }
+            mediaRecorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
             chunks = [];
-            mediaRecorder.ondataavailable = function(e) { if (e.data.size > 0) chunks.push(e.data); };
+            mediaRecorder.ondataavailable = function(e) { if (e.data && e.data.size > 0) chunks.push(e.data); };
             mediaRecorder.onstop = function() {
               stream.getTracks().forEach(function(t) { t.stop(); });
               if (chunks.length === 0) { showStatus(typeof window.t === 'function' ? window.t('chat.audioGravacaoVazia') : 'Gravação vazia.'); return; }
-              var blob = new Blob(chunks, { type: mediaRecorder.mimeType || 'audio/webm' });
-              var ext = (mediaRecorder.mimeType || '').indexOf('webm') !== -1 ? '.webm' : '.m4a';
+              var blobType = mediaRecorder.mimeType || mime || 'audio/webm';
+              var blob = new Blob(chunks, { type: blobType });
+              var ext = blobType.indexOf('mp4') !== -1 ? '.m4a' : '.webm';
               var form = new FormData();
               form.append('file', blob, 'audio' + ext);
               form.append('idviagem', idViagem);
@@ -530,7 +594,7 @@
                 if (data.success) load(); else showStatus(data.error || 'Erro ao enviar áudio.');
               }).catch(function() { showStatus('Erro ao enviar áudio.'); }).finally(function() { btnAudio.disabled = false; });
             };
-            mediaRecorder.start();
+            mediaRecorder.start(200);
             btnAudio.classList.add('recording');
             btnAudio.querySelector('i').className = 'bx bx-stop';
           }).catch(function(err) {
@@ -556,7 +620,7 @@
         showStatus('Informe a viagem: use ?viagem=1 na URL.');
         return;
       }
-      load();
+      load().then(function() { startMessagePolling(); });
     })();
   </script>
 </body>

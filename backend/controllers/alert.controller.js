@@ -21,6 +21,7 @@
 // - GET    /api/alertas/contador - Contador de pendentes
 
 const alertService = require('../services/alert-service');
+const { tenantIdForRequest } = require('../utils/tenant-context');
 
 const alertController = {
   /**
@@ -36,21 +37,30 @@ const alertController = {
       }
 
       const idViagemNum = parseInt(idviagem, 10);
+      const tid = tenantIdForRequest(req);
+      const { poolPromise } = require('../config/db');
+      const pool = await poolPromise;
+      const vig = await pool.query(
+        'SELECT 1 FROM public."VIAGEMMESTRE" WHERE "IDVIAGEM" = $1 AND "TENANT_ID" = $2 LIMIT 1',
+        [idViagemNum, tid]
+      );
+      if (!vig.rows || vig.rows.length === 0) {
+        return res.status(403).json({ error: 'Viagem não encontrada ou não pertence ao tenant' });
+      }
+
       const alertas = await alertService.buscarAlertasAtivos(idViagemNum);
 
       // Incluir alertas SOS da viagem (mesma fonte das "Notificações Recentes" do dashboard)
       let sosAlertas = [];
       try {
-        const { poolPromise } = require('../config/db');
-        const pool = await poolPromise;
         const sosResult = await pool.query(
           `SELECT sa."ID", sa."CDVIAGEM", sa."CREATED_AT", sa."STATUS", sa."LOCATION",
                   cg."RZSOCIAL" AS nome_motorista
            FROM public."SOS_ALERTS" sa
-           LEFT JOIN public."CADASTROGERAL" cg ON sa."CDMOTORISTA" = cg."CDCADASTRO"
-           WHERE sa."CDVIAGEM" = $1
+           LEFT JOIN public."CADASTROGERAL" cg ON sa."CDMOTORISTA" = cg."CDCADASTRO" AND cg."TENANT_ID" = sa."TENANT_ID"
+           WHERE sa."CDVIAGEM" = $1 AND sa."TENANT_ID" = $2
            ORDER BY sa."CREATED_AT" DESC`,
-          [idViagemNum]
+          [idViagemNum, tid]
         );
         const rows = sosResult.rows || [];
         sosAlertas = rows.map(r => ({
@@ -101,6 +111,17 @@ const alertController = {
         return res.status(400).json({ error: 'ID da viagem é obrigatório' });
       }
 
+      const tid = tenantIdForRequest(req);
+      const { poolPromise } = require('../config/db');
+      const pool = await poolPromise;
+      const vig = await pool.query(
+        'SELECT 1 FROM public."VIAGEMMESTRE" WHERE "IDVIAGEM" = $1 AND "TENANT_ID" = $2 LIMIT 1',
+        [parseInt(idviagem, 10), tid]
+      );
+      if (!vig.rows || vig.rows.length === 0) {
+        return res.status(403).json({ error: 'Viagem não encontrada ou não pertence ao tenant' });
+      }
+
       const alertas = await alertService.verificarAlertas(parseInt(idviagem));
       
       res.json({
@@ -127,14 +148,15 @@ const alertController = {
         return res.status(400).json({ error: 'ID do alerta é obrigatório' });
       }
 
-      const sucesso = await alertService.resolverAlerta(parseInt(id), idusuario);
+      const tid = tenantIdForRequest(req);
+      const sucesso = await alertService.resolverAlerta(parseInt(id), idusuario, tid);
       
       if (sucesso) {
         // Emitir evento WebSocket para Torre de Controle
         if (req.io) {
           const websocketTorre = req.app.get('websocketTorre');
           if (websocketTorre) {
-            const alertaInfo = await alertService.buscarAlertaPorId(parseInt(id));
+            const alertaInfo = await alertService.buscarAlertaPorId(parseInt(id), tid);
             if (alertaInfo && alertaInfo.IDVIAGEM) {
               websocketTorre.emitirAlertaResolvido(parseInt(id), alertaInfo.IDVIAGEM);
             } else {
@@ -163,7 +185,10 @@ const alertController = {
       const { poolPromise } = require('../config/db');
       
       const pool = await poolPromise;
-      const result = await pool.request().query(`
+      const tid = tenantIdForRequest(req);
+      const result = await pool.request()
+        .input('tenantId', sql.NVarChar(64), tid)
+        .query(`
         SELECT 
           [alrt].[ID],
           [alrt].[IDVIAGEM],
@@ -172,13 +197,17 @@ const alertController = {
           [alrt].[MESSAGE],
           [alrt].[SEVERITY],
           [alrt].[DETAILS],
-          [alrt].[CREATED_AT],
+          CASE
+            WHEN [alrt].[CREATED_AT] IS NULL THEN NULL
+            ELSE [alrt].[CREATED_AT] - INTERVAL '3 hours'
+          END AS [CREATED_AT],
           [v].[IDVIAGEM] AS [viagem_codigo],
           [cg].[RZSOCIAL] AS [motorista_nome]
         FROM [dbo].[ALERTS] [alrt]
-        LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [alrt].[IDVIAGEM] = [v].[IDVIAGEM]
-        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [alrt].[CDMOTORISTA] = [cg].[CDCADASTRO]
+        LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [alrt].[IDVIAGEM] = [v].[IDVIAGEM] AND [v].[TENANT_ID] = [alrt].[TENANT_ID]
+        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [alrt].[CDMOTORISTA] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [alrt].[TENANT_ID]
         WHERE [alrt].[RESOLVED] = false
+          AND [alrt].[TENANT_ID] = @tenantId
         ORDER BY 
           CASE [alrt].[SEVERITY]
             WHEN 'high' THEN 1
@@ -246,7 +275,9 @@ const alertController = {
       const { status, tipo, prioridade, dataInicio, dataFim, idViagem, idMotorista, limit = 50, offset = 0 } = req.query;
       
       const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
       const request = pool.request();
+      request.input('tenantId', sql.NVarChar(64), tid);
       
       let query = `
         SELECT 
@@ -259,7 +290,10 @@ const alertController = {
           [alrt].[PRIORIDADE],
           [alrt].[STATUS],
           [alrt].[DETAILS],
-          [alrt].[CREATED_AT],
+          CASE
+            WHEN [alrt].[CREATED_AT] IS NULL THEN NULL
+            ELSE [alrt].[CREATED_AT] - INTERVAL '3 hours'
+          END AS [CREATED_AT],
           [alrt].[ID_USUARIO_LEU],
           [alrt].[DH_LEITURA],
           [alrt].[ID_USUARIO_TRATOU],
@@ -270,11 +304,12 @@ const alertController = {
           [u1].[RZSOCIAL] AS [usuario_leu_nome],
           [u2].[RZSOCIAL] AS [usuario_tratou_nome]
         FROM [dbo].[ALERTS] [alrt]
-        LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [alrt].[IDVIAGEM] = [v].[IDVIAGEM]
-        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [alrt].[CDMOTORISTA] = [cg].[CDCADASTRO]
-        LEFT JOIN [dbo].[CADASTROGERAL] [u1] ON [alrt].[ID_USUARIO_LEU] = [u1].[CDCADASTRO]
-        LEFT JOIN [dbo].[CADASTROGERAL] [u2] ON [alrt].[ID_USUARIO_TRATOU] = [u2].[CDCADASTRO]
+        LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [alrt].[IDVIAGEM] = [v].[IDVIAGEM] AND [v].[TENANT_ID] = [alrt].[TENANT_ID]
+        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [alrt].[CDMOTORISTA] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [alrt].[TENANT_ID]
+        LEFT JOIN [dbo].[CADASTROGERAL] [u1] ON [alrt].[ID_USUARIO_LEU] = [u1].[CDCADASTRO] AND [u1].[TENANT_ID] = [alrt].[TENANT_ID]
+        LEFT JOIN [dbo].[CADASTROGERAL] [u2] ON [alrt].[ID_USUARIO_TRATOU] = [u2].[CDCADASTRO] AND [u2].[TENANT_ID] = [alrt].[TENANT_ID]
         WHERE 1=1
+          AND [alrt].[TENANT_ID] = @tenantId
       `;
 
       if (status) {
@@ -307,14 +342,14 @@ const alertController = {
       }
 
       query += ` ORDER BY 
+        [alrt].[CREATED_AT] DESC,
         CASE [alrt].[PRIORIDADE]
           WHEN 'Urgente' THEN 1
           WHEN 'Alta' THEN 2
           WHEN 'Normal' THEN 3
           WHEN 'Baixa' THEN 4
           ELSE 5
-        END,
-        [alrt].[CREATED_AT] DESC
+        END
         LIMIT @limit OFFSET @offset
       `;
 
@@ -324,8 +359,9 @@ const alertController = {
       const result = await request.query(query);
 
       // Contar total (alias alrt para compatibilidade PostgreSQL)
-      let countQuery = `SELECT COUNT(*) AS [total] FROM [dbo].[ALERTS] [alrt] WHERE 1=1`;
+      let countQuery = `SELECT COUNT(*) AS [total] FROM [dbo].[ALERTS] [alrt] WHERE 1=1 AND [alrt].[TENANT_ID] = @tenantId`;
       const countRequest = pool.request();
+      countRequest.input('tenantId', sql.NVarChar(64), tid);
       if (status) {
         countRequest.input('status', sql.NVarChar(50), status);
         countQuery += ` AND [alrt].[STATUS] = @status`;
@@ -360,9 +396,11 @@ const alertController = {
       const total = row0?.total ?? row0?.TOTAL ?? 0;
 
       // Contar pendentes
-      const pendentesResult = await pool.request().query(`
+      const pendentesResult = await pool.request()
+        .input('tenantId', sql.NVarChar(64), tid)
+        .query(`
         SELECT COUNT(*) AS [total] FROM [dbo].[ALERTS]
-        WHERE [STATUS] = 'Pendente' OR [STATUS] IS NULL
+        WHERE ([STATUS] = 'Pendente' OR [STATUS] IS NULL) AND [TENANT_ID] = @tenantId
       `);
       const pendRow = pendentesResult.recordset[0];
       const pendentes = pendRow?.total ?? pendRow?.TOTAL ?? 0;
@@ -439,8 +477,10 @@ const alertController = {
       const { id } = req.params;
       
       const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
       const result = await pool.request()
         .input('id', sql.Int, parseInt(id))
+        .input('tenantId', sql.NVarChar(64), tid)
         .query(`
           SELECT 
             [alrt].[ID],
@@ -452,7 +492,10 @@ const alertController = {
             [alrt].[PRIORIDADE],
             [alrt].[STATUS],
             [alrt].[DETAILS],
-            [alrt].[CREATED_AT],
+            CASE
+              WHEN [alrt].[CREATED_AT] IS NULL THEN NULL
+              ELSE [alrt].[CREATED_AT] - INTERVAL '3 hours'
+            END AS [CREATED_AT],
             [alrt].[ID_USUARIO_LEU],
             [alrt].[DH_LEITURA],
             [alrt].[ID_USUARIO_TRATOU],
@@ -463,11 +506,11 @@ const alertController = {
             [u1].[RZSOCIAL] AS [usuario_leu_nome],
             [u2].[RZSOCIAL] AS [usuario_tratou_nome]
           FROM [dbo].[ALERTS] [alrt]
-          LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [alrt].[IDVIAGEM] = [v].[IDVIAGEM]
-          LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [alrt].[CDMOTORISTA] = [cg].[CDCADASTRO]
-          LEFT JOIN [dbo].[CADASTROGERAL] [u1] ON [alrt].[ID_USUARIO_LEU] = [u1].[CDCADASTRO]
-          LEFT JOIN [dbo].[CADASTROGERAL] [u2] ON [alrt].[ID_USUARIO_TRATOU] = [u2].[CDCADASTRO]
-          WHERE [alrt].[ID] = @id
+          LEFT JOIN [dbo].[VIAGEMMESTRE] [v] ON [alrt].[IDVIAGEM] = [v].[IDVIAGEM] AND [v].[TENANT_ID] = [alrt].[TENANT_ID]
+          LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [alrt].[CDMOTORISTA] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [alrt].[TENANT_ID]
+          LEFT JOIN [dbo].[CADASTROGERAL] [u1] ON [alrt].[ID_USUARIO_LEU] = [u1].[CDCADASTRO] AND [u1].[TENANT_ID] = [alrt].[TENANT_ID]
+          LEFT JOIN [dbo].[CADASTROGERAL] [u2] ON [alrt].[ID_USUARIO_TRATOU] = [u2].[CDCADASTRO] AND [u2].[TENANT_ID] = [alrt].[TENANT_ID]
+          WHERE [alrt].[ID] = @id AND [alrt].[TENANT_ID] = @tenantId
         `);
 
       if (result.recordset.length === 0) {
@@ -515,8 +558,10 @@ const alertController = {
       const { id } = req.params;
       
       const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
       const result = await pool.request()
         .input('id', sql.Int, parseInt(id))
+        .input('tenantId', sql.NVarChar(64), tid)
         .query(`
           SELECT 
             [h].[ID],
@@ -529,8 +574,12 @@ const alertController = {
             [h].[DH_ACAO],
             [u].[RZSOCIAL] AS [usuario_nome]
           FROM [dbo].[ALERT_HISTORY] [h]
-          LEFT JOIN [dbo].[CADASTROGERAL] [u] ON [h].[ID_USUARIO] = [u].[CDCADASTRO]
+          LEFT JOIN [dbo].[CADASTROGERAL] [u] ON [h].[ID_USUARIO] = [u].[CDCADASTRO] AND [u].[TENANT_ID] = @tenantId
           WHERE [h].[ID_ALERT] = @id
+            AND EXISTS (
+              SELECT 1 FROM [dbo].[ALERTS] [a]
+              WHERE [a].[ID] = @id AND [a].[TENANT_ID] = @tenantId
+            )
           ORDER BY [h].[DH_ACAO] DESC
         `);
 
@@ -586,6 +635,7 @@ const alertController = {
       }
 
       const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
       const transaction = await createTransaction(pool);
       
       await transaction.begin();
@@ -595,11 +645,12 @@ const alertController = {
         await transaction.request()
           .input('id', sql.Int, parseInt(id))
           .input('idUsuario', sql.Decimal(15, 0), parseFloat(idUsuario))
+          .input('tenantId', sql.NVarChar(64), tid)
           .query(`
             UPDATE [dbo].[ALERTS]
             SET [ID_USUARIO_LEU] = @idUsuario,
                 [DH_LEITURA] = SYSUTCDATETIME()
-            WHERE [ID] = @id
+            WHERE [ID] = @id AND [TENANT_ID] = @tenantId
           `);
 
         // Registrar no histórico (se a tabela ALERT_HISTORY existir)
@@ -692,6 +743,7 @@ const alertController = {
       }
 
       const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
       const transaction = await createTransaction(pool);
       
       await transaction.begin();
@@ -700,7 +752,8 @@ const alertController = {
         // Buscar status anterior
         const alertaAnterior = await transaction.request()
           .input('id', sql.Int, parseInt(id))
-          .query(`SELECT [STATUS] FROM [dbo].[ALERTS] WHERE [ID] = @id`);
+          .input('tenantId', sql.NVarChar(64), tid)
+          .query(`SELECT [STATUS] FROM [dbo].[ALERTS] WHERE [ID] = @id AND [TENANT_ID] = @tenantId`);
 
         const statusAnterior = alertaAnterior.recordset[0]?.STATUS || null;
 
@@ -710,13 +763,17 @@ const alertController = {
           .input('status', sql.NVarChar(50), status)
           .input('idUsuario', sql.Decimal(15, 0), parseFloat(idUsuario))
           .input('observacoes', sql.NVarChar(sql.MAX), observacoes || null)
+          .input('tenantId', sql.NVarChar(64), tid)
           .query(`
             UPDATE [dbo].[ALERTS]
             SET [STATUS] = @status,
                 [ID_USUARIO_TRATOU] = @idUsuario,
                 [DH_TRATAMENTO] = SYSUTCDATETIME(),
+                [RESOLVED] = CASE WHEN @status IN ('Tratado', 'Cancelado') THEN true ELSE COALESCE([RESOLVED], false) END,
+                [RESOLVED_AT] = CASE WHEN @status IN ('Tratado', 'Cancelado') THEN SYSUTCDATETIME() ELSE [RESOLVED_AT] END,
+                [RESOLVED_BY] = CASE WHEN @status IN ('Tratado', 'Cancelado') THEN @idUsuario ELSE [RESOLVED_BY] END,
                 [OBSERVACOES] = @observacoes
-            WHERE [ID] = @id
+            WHERE [ID] = @id AND [TENANT_ID] = @tenantId
           `);
 
         // Registrar no histórico (se a tabela ALERT_HISTORY existir)
@@ -804,8 +861,10 @@ const alertController = {
       const idUsuario = req.user?.cdcadastro || req.body.idUsuario;
       
       const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
       const request = pool.request();
       request.input('id', sql.Int, parseInt(id));
+      request.input('tenantId', sql.NVarChar(64), tid);
 
       let updates = [];
       if (status) {
@@ -825,7 +884,7 @@ const alertController = {
         return res.status(400).json({ error: 'Nenhum campo para atualizar' });
       }
 
-      const query = `UPDATE [dbo].[ALERTS] SET ${updates.join(', ')} WHERE [ID] = @id`;
+      const query = `UPDATE [dbo].[ALERTS] SET ${updates.join(', ')} WHERE [ID] = @id AND [TENANT_ID] = @tenantId`;
       await request.query(query);
 
       // Registrar no histórico se houver mudança de status
@@ -899,6 +958,7 @@ const alertController = {
       }
 
       const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
       const transaction = await createTransaction(pool);
       
       await transaction.begin();
@@ -907,19 +967,25 @@ const alertController = {
         // Buscar status anterior
         const alertaAnterior = await transaction.request()
           .input('id', sql.Int, parseInt(id))
-          .query(`SELECT [STATUS] FROM [dbo].[ALERTS] WHERE [ID] = @id`);
+          .input('tenantId', sql.NVarChar(64), tid)
+          .query(`SELECT [STATUS] FROM [dbo].[ALERTS] WHERE [ID] = @id AND [TENANT_ID] = @tenantId`);
 
         const statusAnterior = alertaAnterior.recordset[0]?.STATUS || null;
 
         // Atualizar alerta (colunas entre colchetes para PostgreSQL)
         await transaction.request()
           .input('id', sql.Int, parseInt(id))
+          .input('idUsuario', sql.Decimal(15, 0), parseFloat(idUsuario))
           .input('observacoes', sql.NVarChar(sql.MAX), observacoes || null)
+          .input('tenantId', sql.NVarChar(64), tid)
           .query(`
             UPDATE [dbo].[ALERTS]
             SET [STATUS] = 'Cancelado',
+                [RESOLVED] = true,
+                [RESOLVED_AT] = SYSUTCDATETIME(),
+                [RESOLVED_BY] = @idUsuario,
                 [OBSERVACOES] = @observacoes
-            WHERE [ID] = @id
+            WHERE [ID] = @id AND [TENANT_ID] = @tenantId
           `);
 
         // Registrar no histórico (se a tabela ALERT_HISTORY existir)
@@ -1000,15 +1066,30 @@ const alertController = {
     try {
       const { poolPromise } = require('../config/db');
       const pool = await poolPromise;
-      const insert = await pool.query(`
+      const tid = tenantIdForRequest(req);
+      const vr = await pool.query(
+        'SELECT "IDVIAGEM" FROM public."VIAGEMMESTRE" WHERE "TENANT_ID" = $1 ORDER BY "IDVIAGEM" LIMIT 1',
+        [tid]
+      );
+      const idVig = vr.rows[0]?.IDVIAGEM ?? vr.rows[0]?.idviagem;
+      if (idVig == null) {
+        return res.status(400).json({
+          success: false,
+          error: 'Nenhuma viagem no tenant para anexar o alerta de teste. Crie uma viagem primeiro.'
+        });
+      }
+      const insert = await pool.query(
+        `
         INSERT INTO "ALERTS" (
-          "IDVIAGEM", "TYPE", "MESSAGE", "SEVERITY", "PRIORIDADE", "STATUS", "DETAILS"
+          "IDVIAGEM", "TYPE", "MESSAGE", "SEVERITY", "PRIORIDADE", "STATUS", "DETAILS", "TENANT_ID"
         ) VALUES (
-          1, 'PARADA', 'Alerta de teste - parada prolongada (use para validar a tela)', 'medium', 'Normal', 'Pendente',
-          '{"minutosParado": 45, "origem": "teste"}'
+          $1, 'PARADA', 'Alerta de teste - parada prolongada (use para validar a tela)', 'medium', 'Normal', 'Pendente',
+          '{"minutosParado": 45, "origem": "teste"}', $2
         )
         RETURNING *
-      `);
+      `,
+        [idVig, tid]
+      );
       const row = insert.rows && insert.rows[0];
       if (!row) {
         return res.status(500).json({ success: false, error: 'Falha ao inserir alerta de teste' });
@@ -1027,7 +1108,9 @@ const alertController = {
     try {
       const { poolPromise } = require('../config/db');
       const pool = await poolPromise;
-      const result = await pool.query(`
+      const tid = tenantIdForRequest(req);
+      const result = await pool.query(
+        `
         SELECT 
           COUNT(*)::int AS total,
           COALESCE(SUM(CASE WHEN "STATUS" = 'Pendente' OR "STATUS" IS NULL THEN 1 ELSE 0 END), 0)::int AS pendentes,
@@ -1037,7 +1120,10 @@ const alertController = {
           COALESCE(SUM(CASE WHEN ("STATUS" = 'Pendente' OR "STATUS" IS NULL) AND "PRIORIDADE" = 'Urgente' THEN 1 ELSE 0 END), 0)::int AS urgentes,
           COALESCE(SUM(CASE WHEN ("STATUS" = 'Pendente' OR "STATUS" IS NULL) AND "PRIORIDADE" = 'Alta' THEN 1 ELSE 0 END), 0)::int AS altas
         FROM "ALERTS"
-      `);
+        WHERE "TENANT_ID" = $1
+      `,
+        [tid]
+      );
 
       const stats = result.rows[0] || {};
       
@@ -1059,6 +1145,78 @@ const alertController = {
     } catch (err) {
       console.error('Erro ao buscar contador:', err);
       res.status(500).json({ error: 'Erro ao buscar contador' });
+    }
+  },
+
+  /**
+   * Listar logs de envio de notificação WhatsApp dos alertas
+   * GET /api/alertas/notificacoes-log?limit=100&offset=0&idViagem=2&tipo=PARADA&sucesso=true
+   */
+  listarLogsNotificacao: async (req, res) => {
+    try {
+      const { poolPromise } = require('../config/db');
+      const { limit = 100, offset = 0, idViagem, tipo, sucesso } = req.query;
+      const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS "ALERT_NOTIFICATION_LOG" (
+          "ID" BIGSERIAL PRIMARY KEY,
+          "IDVIAGEM" DECIMAL(15,0),
+          "CDMOTORISTA" DECIMAL(15,0),
+          "TIPO_ALERTA" VARCHAR(50),
+          "DESTINO_CONTEXTO" VARCHAR(30),
+          "DESTINO_NUMERO" VARCHAR(30),
+          "SUCESSO" BOOLEAN NOT NULL DEFAULT false,
+          "STATUS_HTTP" INT,
+          "ERRO" TEXT,
+          "REQUEST_BODY" TEXT,
+          "RESPONSE_BODY" TEXT,
+          "DHREGISTRO" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+
+      let query = `
+        SELECT
+          l."ID",l."IDVIAGEM",l."CDMOTORISTA",l."TIPO_ALERTA",l."DESTINO_CONTEXTO",l."DESTINO_NUMERO",
+          l."SUCESSO",l."STATUS_HTTP",l."ERRO",l."REQUEST_BODY",l."RESPONSE_BODY",l."DHREGISTRO"
+        FROM "ALERT_NOTIFICATION_LOG" l
+        WHERE 1=1
+          AND EXISTS (
+            SELECT 1 FROM public."VIAGEMMESTRE" v
+            WHERE v."IDVIAGEM" = l."IDVIAGEM" AND v."TENANT_ID" = $1
+          )
+      `;
+      const params = [tid];
+      let idx = 2;
+
+      if (idViagem) {
+        query += ` AND "IDVIAGEM" = $${idx++}`;
+        params.push(Number(idViagem));
+      }
+      if (tipo) {
+        query += ` AND UPPER(COALESCE("TIPO_ALERTA", '')) = $${idx++}`;
+        params.push(String(tipo).trim().toUpperCase());
+      }
+      if (sucesso !== undefined) {
+        const ok = String(sucesso).toLowerCase() === 'true' || String(sucesso) === '1';
+        query += ` AND "SUCESSO" = $${idx++}`;
+        params.push(ok);
+      }
+
+      query += ` ORDER BY "DHREGISTRO" DESC LIMIT $${idx++} OFFSET $${idx++}`;
+      params.push(Math.max(1, Math.min(500, Number(limit) || 100)));
+      params.push(Math.max(0, Number(offset) || 0));
+
+      const result = await pool.query(query, params);
+      res.json({
+        success: true,
+        data: result.rows || [],
+        total: (result.rows || []).length
+      });
+    } catch (err) {
+      console.error('Erro ao listar logs de notificação:', err);
+      res.status(500).json({ error: 'Erro ao listar logs de notificação.' });
     }
   }
 };

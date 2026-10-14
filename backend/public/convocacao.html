@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title data-i18n="responderConvocacao.tituloPagina">Responder Convocação - Atlas Cargo</title>
   <link rel="icon" type="image/png" href="/img/logoAtlasTransparenteQuadrada.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -118,10 +118,34 @@
       color: var(--ac-text);
       font-weight: 500;
     }
+    .valor-placas-conjunto-pub .pub-placa-linha {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--ac-text);
+      word-break: break-word;
+      line-height: 1.45;
+    }
+    .valor-placas-conjunto-pub .pub-placa-sep {
+      border: 0;
+      border-top: 1px solid var(--ac-border);
+      margin: 14px 0;
+    }
     .actions {
       display: flex;
       gap: 15px;
       margin-top: 30px;
+    }
+    /* Aceitar / Recusar: mesma largura, empilhados, espaço entre (referência bloco placas) */
+    .actions-convocacao-resposta {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+    }
+    .actions-convocacao-resposta .btn {
+      flex: 0 0 auto;
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
     }
     .btn {
       flex: 1;
@@ -146,10 +170,18 @@
       background: var(--ac-error);
       color: white;
     }
-    .btn-recusar:hover {
-      background: var(--ac-error-hover);
-      transform: translateY(-2px);
-      box-shadow: 0 5px 15px rgba(220, 38, 38, 0.3);
+    .placas-pub-acoes {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .placas-pub-acoes .btn {
+      flex: 0 0 auto !important;
+      width: 100%;
+      min-width: 0 !important;
+      box-sizing: border-box;
     }
     .btn:disabled {
       opacity: 0.5;
@@ -182,8 +214,20 @@
       z-index: 10000;
       left: 0;
       top: 0;
+      right: 0;
+      bottom: 0;
       width: 100%;
       height: 100%;
+      max-height: 100dvh;
+      padding: 12px;
+      padding-top: max(12px, env(safe-area-inset-top, 0px));
+      padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+      box-sizing: border-box;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      align-items: center;
+      justify-content: flex-start;
+      flex-direction: column;
       background-color: rgba(0, 0, 0, 0.6);
       backdrop-filter: blur(4px);
       animation: fadeIn 0.3s ease;
@@ -194,14 +238,18 @@
     }
     .modal-confirm-content {
       background: white;
-      margin: 15% auto;
+      margin: auto;
       padding: 0;
       border-radius: 16px;
-      width: 90%;
+      width: 100%;
       max-width: 450px;
+      max-height: min(88dvh, calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
       box-shadow: var(--ac-shadow-lg);
       animation: slideDown 0.3s ease;
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
     }
     @keyframes slideDown {
       from {
@@ -225,8 +273,12 @@
       font-weight: 600;
     }
     .modal-confirm-body {
-      padding: 30px;
+      padding: 20px 24px;
       text-align: center;
+      overflow-y: auto;
+      flex: 1 1 auto;
+      min-height: 0;
+      -webkit-overflow-scrolling: touch;
     }
     .modal-confirm-body .icon {
       font-size: 64px;
@@ -259,10 +311,79 @@
     }
     .modal-confirm-actions {
       display: flex;
+      flex-wrap: wrap;
       gap: 10px;
-      padding: 20px 30px;
+      padding: 16px 20px max(16px, env(safe-area-inset-bottom, 0px));
       background: var(--ac-bg-card);
       border-top: 1px solid var(--ac-border);
+      flex-shrink: 0;
+    }
+    @media (max-width: 480px) {
+      .modal-confirm-actions {
+        flex-direction: column;
+      }
+      .modal-confirm-body .icon {
+        font-size: 48px;
+      }
+    }
+    .modal-confirm-actions.modal-confirm-actions--stack {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+    }
+    .modal-confirm-actions.modal-confirm-actions--stack .modal-confirm-btn {
+      flex: 0 0 auto;
+      width: 100%;
+    }
+    .modal-divergencia-desc {
+      text-align: left;
+      color: var(--ac-text-secondary);
+      font-size: 14px;
+      line-height: 1.55;
+      margin: 0 0 10px 0;
+    }
+    .modal-divergencia-label {
+      display: block;
+      text-align: left;
+      font-weight: 600;
+      color: var(--ac-text);
+      font-size: 14px;
+      margin-bottom: 8px;
+    }
+    #textareaDivergenciaPlacas {
+      width: 100%;
+      min-height: 140px;
+      padding: 12px 14px;
+      border: 1px solid var(--ac-border);
+      border-radius: 8px;
+      font-size: 15px;
+      font-family: inherit;
+      color: var(--ac-text);
+      resize: vertical;
+      box-sizing: border-box;
+    }
+    #textareaDivergenciaPlacas:focus {
+      outline: none;
+      border-color: var(--ac-accent);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+    }
+    #modalDivergenciaPlacasErro {
+      text-align: left;
+    }
+    #modalDivergenciaPlacasContador {
+      text-align: right;
+      font-size: 12px;
+      color: var(--ac-text-secondary);
+      margin-top: 6px;
+    }
+    .modal-confirm-btn-divergencia {
+      background: #ea580c !important;
+      color: #fff !important;
+    }
+    .modal-confirm-btn-divergencia:hover {
+      background: #c2410c !important;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(234, 88, 12, 0.35);
     }
     .modal-confirm-btn {
       flex: 1;
@@ -358,28 +479,45 @@
       z-index: 20000;
       left: 0;
       top: 0;
+      right: 0;
+      bottom: 0;
       width: 100%;
       height: 100%;
+      max-height: 100dvh;
+      padding: 10px;
+      padding-top: max(10px, env(safe-area-inset-top, 0px));
+      padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+      box-sizing: border-box;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      align-items: center;
+      justify-content: flex-start;
+      flex-direction: column;
       background-color: rgba(0, 0, 0, 0.8);
       backdrop-filter: blur(5px);
       animation: fadeIn 0.3s ease;
     }
     .modal-geolocalizacao-content {
       background: white;
-      margin: 10% auto;
+      margin: auto;
       padding: 0;
       border-radius: 16px;
-      width: 90%;
+      width: 100%;
       max-width: 500px;
+      max-height: min(90dvh, calc(100dvh - 20px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
       box-shadow: 0 20px 60px rgba(0,0,0,0.5);
       animation: slideDown 0.3s ease;
       overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
     }
     .modal-geolocalizacao-header {
       background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
       color: white;
-      padding: 25px;
+      padding: 16px 20px;
       text-align: center;
+      flex-shrink: 0;
     }
     .modal-geolocalizacao-header h3 {
       margin: 0;
@@ -387,12 +525,22 @@
       font-weight: 600;
     }
     .modal-geolocalizacao-body {
-      padding: 30px;
+      padding: 16px 18px;
       text-align: center;
+      overflow-y: auto;
+      flex: 1 1 auto;
+      min-height: 0;
+      -webkit-overflow-scrolling: touch;
     }
     .modal-geolocalizacao-body .icon {
-      font-size: 64px;
-      margin-bottom: 20px;
+      font-size: 48px;
+      margin-bottom: 12px;
+    }
+    @media (min-width: 400px) {
+      .modal-geolocalizacao-body .icon {
+        font-size: 56px;
+        margin-bottom: 16px;
+      }
     }
     .modal-geolocalizacao-body p {
       color: var(--ac-text);
@@ -424,10 +572,20 @@
     }
     .modal-geolocalizacao-actions {
       display: flex;
+      flex-direction: column;
       gap: 10px;
-      padding: 20px 30px;
+      padding: 14px 16px max(14px, env(safe-area-inset-bottom, 0px));
       background: var(--ac-bg-card);
       border-top: 1px solid var(--ac-border);
+      flex-shrink: 0;
+    }
+    .modal-geolocalizacao-btn-secundario {
+      background: #64748b;
+      color: white;
+      order: -1;
+    }
+    .modal-geolocalizacao-btn-secundario:hover {
+      background: #475569;
     }
     .modal-geolocalizacao-btn {
       flex: 1;
@@ -476,7 +634,8 @@
         <p id="pLocalizacaoSemPermitir" style="color: #e74c3c; font-weight: 600; margin-top: 20px;" data-i18n="responderConvocacao.localizacaoSemPermitir">⚠️ Você não poderá continuar sem permitir a localização.</p>
       </div>
       <div class="modal-geolocalizacao-actions">
-        <button id="btnTentarGeolocalizacao" class="modal-geolocalizacao-btn modal-geolocalizacao-btn-tentar" data-i18n="responderConvocacao.tentarNovamente">🔄 Tentar Novamente</button>
+        <button type="button" id="btnContinuarSemLocalizacao" class="modal-geolocalizacao-btn modal-geolocalizacao-btn-secundario">Continuar sem localização</button>
+        <button type="button" id="btnTentarGeolocalizacao" class="modal-geolocalizacao-btn modal-geolocalizacao-btn-tentar" data-i18n="responderConvocacao.tentarNovamente">🔄 Tentar Novamente</button>
       </div>
     </div>
   </div>
@@ -512,6 +671,27 @@
       </div>
     </div>
   </div>
+
+  <!-- Modal divergência de placas (substitui window.prompt — padrão Atlas) -->
+  <div id="modalDivergenciaPlacas" class="modal-confirm" style="display: none; z-index: 10050;" aria-hidden="true" role="dialog" aria-labelledby="modalDivergenciaPlacasTitulo" aria-modal="true">
+    <div class="modal-confirm-content" style="max-width: 520px;">
+      <div class="modal-confirm-header">
+        <h3 id="modalDivergenciaPlacasTitulo" data-i18n="responderConvocacao.modalDivergenciaPlacasTitulo">Divergência de placas</h3>
+      </div>
+      <div class="modal-confirm-body" style="text-align: left;">
+        <p id="modalDivergenciaPlacasDesc" class="modal-divergencia-desc"></p>
+        <label for="textareaDivergenciaPlacas" class="modal-divergencia-label" data-i18n="responderConvocacao.modalDivergenciaPlacasLabel">Sua descrição</label>
+        <textarea id="textareaDivergenciaPlacas" maxlength="2000" rows="6" spellcheck="true" aria-describedby="modalDivergenciaPlacasContador"></textarea>
+        <p id="modalDivergenciaPlacasErro" style="display: none; color: #dc2626; font-size: 14px; margin-top: 10px; font-weight: 500;"></p>
+        <p id="modalDivergenciaPlacasContador">0 / 2000</p>
+      </div>
+      <div class="modal-confirm-actions modal-confirm-actions--stack">
+        <button type="button" id="modalDivergenciaPlacasCancelar" class="modal-confirm-btn modal-confirm-btn-cancelar" data-i18n="responderConvocacao.cancelar">Cancelar</button>
+        <button type="button" id="modalDivergenciaPlacasConfirmar" class="modal-confirm-btn modal-confirm-btn-divergencia" data-i18n="responderConvocacao.modalDivergenciaPlacasBtnRegistrar">Registrar divergência</button>
+      </div>
+    </div>
+  </div>
+
   <div class="container">
     <div id="loading" class="loading">
       <p data-i18n="responderConvocacao.carregando">Carregando convocação...</p>
@@ -543,6 +723,46 @@
         </button>
         <p style="margin-top: 10px; color: #64748b; font-size: 14px;" data-i18n="responderConvocacao.enviarLocalizacaoHint">Clique para compartilhar sua localização atual</p>
       </div>
+
+      <div id="blocoValidacaoAceite" class="info-section" style="display: none;">
+        <h2 data-i18n="responderConvocacao.validacaoAceiteTitulo">🔐 Para aceitar esta carga</h2>
+        <p id="textoLocalizacaoAceite" style="color: #64748b; font-size: 14px; margin-bottom: 12px;">
+          Envie sua localização com o botão acima. Depois confirme o celular cadastrado.
+        </p>
+        <p id="statusLocalizacaoAceite" style="display: none; font-size: 14px; font-weight: 600; margin-bottom: 12px;"></p>
+        <label id="labelTelefoneConfirmacao" for="inputTelefoneConfirmacao" class="info-label" style="display: block; margin-bottom: 6px;">Celular cadastrado (DDD + número)</label>
+        <input type="tel" id="inputTelefoneConfirmacao" inputmode="tel" autocomplete="tel" placeholder="(00) 00000-0000"
+          style="width: 100%; max-width: 320px; padding: 12px 14px; border: 1px solid var(--ac-border); border-radius: 8px; font-size: 16px;" />
+        <p id="hintCelularFinal4" style="margin-top: 8px; font-size: 13px; color: var(--ac-text-secondary);"></p>
+        <label for="inputValorFretePropostoMotorista" class="info-label" style="display: block; margin: 18px 0 6px 0;">
+          Valor de frete pretendido <span style="font-weight: 400; color: var(--ac-text-secondary);">(opcional)</span>
+        </label>
+        <input type="text" id="inputValorFretePropostoMotorista" inputmode="decimal" autocomplete="off"
+          placeholder="Ex.: 1500 ou 1.500,50"
+          style="width: 100%; max-width: 320px; padding: 12px 14px; border: 1px solid var(--ac-border); border-radius: 8px; font-size: 16px;" />
+        <p id="hintValorFretePropostoMotorista" style="margin-top: 6px; font-size: 12px; color: var(--ac-text-secondary); max-width: 420px; line-height: 1.45;"></p>
+        <p id="avisoHttpGeo" style="display: none; margin-top: 10px; font-size: 13px; color: #b45309; font-weight: 600;" data-i18n="responderConvocacao.avisoHttpGeo">
+          Neste endereço (HTTP) o navegador pode não permitir GPS. Use HTTPS ou localhost para enviar localização e aceitar.
+        </p>
+      </div>
+
+      <div id="blocoConfirmacaoPlacasPublic" class="info-section" style="display: none;">
+        <h2 data-i18n="responderConvocacao.placasTitulo">Placas da viagem</h2>
+        <p id="placasPubInstrucao" style="color: #64748b; font-size: 14px; margin-bottom: 10px;" data-i18n="responderConvocacao.placasInstrucao">
+          A empresa cadastrou o(s) veículo(s) abaixo nesta viagem. Confirme se está alinhado ao que você vai operar ou informe divergência.
+        </p>
+        <div id="valorPlacasEsperadasPub" class="valor-placas-conjunto-pub" style="margin: 12px 0;"></div>
+        <p id="statusPlacasSelecaoPub" style="display: none; font-size: 14px; font-weight: 600; margin-bottom: 10px;"></p>
+        <p id="placasPubTxtDivergenciaExtra" style="display: none; font-size: 13px; line-height: 1.45; color: #9a3412; margin-bottom: 10px; padding: 10px 12px; background: #fff7ed; border-radius: 8px; border: 1px solid #fdba74; word-break: break-word;"></p>
+        <div id="placasPubAcoes" class="placas-pub-acoes">
+          <button type="button" id="btnPlacasConfirmaPub" class="btn" style="padding: 12px 16px; background: var(--ac-success); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
+            Confirmo as placas
+          </button>
+          <button type="button" id="btnPlacasDivergePub" class="btn" style="padding: 12px 16px; background: #ea580c; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
+            Minhas placas divergem
+          </button>
+        </div>
+      </div>
       
       <div class="info-section">
         <h2 data-i18n="responderConvocacao.dadosViagem">📋 Dados da Viagem</h2>
@@ -556,8 +776,12 @@
             <span class="info-value" id="tipoViagem">-</span>
           </div>
           <div class="info-item">
-            <span class="info-label" data-i18n="responderConvocacao.classeFrota">Classe de Frota</span>
+            <span class="info-label" data-i18n="responderConvocacao.classeFrotaViagem">Classe de Frota (exigência da viagem)</span>
             <span class="info-value" id="classeFrota">-</span>
+          </div>
+          <div class="info-item" id="itemClasseConjunto" style="display: none;">
+            <span class="info-label" data-i18n="responderConvocacao.classeFrotaConjunto">Classe do conjunto (veículos cadastrados na viagem)</span>
+            <span class="info-value" id="classeFrotaConjunto">-</span>
           </div>
           <div class="info-item">
             <span class="info-label" data-i18n="responderConvocacao.exigeRastreado">Exige Rastreado</span>
@@ -628,15 +852,59 @@
       <!-- Mensagem de Status (quando não está pendente) -->
       <div id="statusMessage" style="display: none; margin: 30px 0;"></div>
       
-      <div id="actionsSection" class="actions">
+      <div id="actionsSection" class="actions actions-convocacao-resposta">
         <button id="btnAceitar" class="btn btn-aceitar" data-i18n="responderConvocacao.aceitarConvocacao">✅ Aceitar Convocação</button>
         <button id="btnRecusar" class="btn btn-recusar" data-i18n="responderConvocacao.recusarConvocacao">❌ Recusar Convocação</button>
       </div>
+      <p id="hintAceiteBloqueado" style="display: none; margin: 10px 0 0 0; font-size: 13px; color: #b45309; font-weight: 600; text-align: center; line-height: 1.45;"></p>
     </div>
   </div>
 
   <script>
-    window.__BASE_URL__ = window.location.protocol + '//' + window.location.host;
+    (function () {
+      window.__BASE_URL__ = window.location.protocol + '//' + window.location.host;
+      function ambienteEhLocal() {
+        var hostname = window.location.hostname;
+        var port = window.location.port;
+        return hostname === 'localhost' ||
+          hostname === '127.0.0.1' ||
+          hostname.startsWith('192.168.') ||
+          hostname.startsWith('10.') ||
+          hostname.startsWith('172.') ||
+          (hostname === '192.168.1.173' && port === '3000');
+      }
+      window.obterAmbiente = function () {
+        if (ambienteEhLocal()) {
+          try {
+            if (localStorage.getItem('ambiente') !== 'local') {
+              localStorage.setItem('ambiente', 'local');
+              localStorage.removeItem('urlBaseProducao');
+            }
+          } catch (e) { /* ignore */ }
+          return 'local';
+        }
+        try {
+          if (localStorage.getItem('ambiente') !== 'producao') {
+            localStorage.setItem('ambiente', 'producao');
+            localStorage.setItem('urlBaseProducao', window.location.origin);
+          }
+        } catch (e2) { /* ignore */ }
+        return 'producao';
+      };
+      window.obterUrlBaseSync = function () {
+        if (window.obterAmbiente() === 'local') return window.location.origin;
+        try {
+          var urlSalva = localStorage.getItem('urlBaseProducao');
+          if (urlSalva) return urlSalva;
+        } catch (e) { /* ignore */ }
+        var orig = window.location.origin;
+        try { localStorage.setItem('urlBaseProducao', orig); } catch (e2) { /* ignore */ }
+        return orig;
+      };
+      window.obterUrlBase = async function () {
+        return window.obterUrlBaseSync();
+      };
+    })();
   </script>
   <script src="/js/ambiente-utils.js"></script>
   <script src="/js/i18n-web.js"></script>
@@ -665,8 +933,533 @@
     // Erro de ID inválido será exibido após i18n pronto (no init)
     
     let convocacaoData = null;
+    var placasPublicModo = '';
+    var placasPublicTextoDiverge = '';
     let localizacaoAtual = null; // Armazenar localização capturada
+    let localizacaoAtualCapturadaEm = null; // epoch ms — evita nova leitura GPS desnecessária no aceite
+    /** True após POST atualizar-localizacao OK ou se o servidor já tinha DH_LOCALIZACAO_MOTORISTA (reload). */
+    let localizacaoMotoristaOk = false;
     const STORAGE_KEY_PERMISSAO_NEGADA = `geolocalizacao_negada_${idConvocacao}`;
+
+    function tConv(k, fallback) {
+      if (typeof window.tWeb === 'function') {
+        var s = window.tWeb(k);
+        if (s && s !== k) return s;
+      }
+      return fallback != null ? fallback : k;
+    }
+
+    /**
+     * Modal nativo da página (padrão Atlas) para texto de divergência de placas.
+     * @returns {Promise<string|null>} texto trimado até 2000 chars, ou null se cancelar.
+     */
+    function abrirModalDivergenciaPlacas(initialText) {
+      return new Promise(function (resolve) {
+        var modal = document.getElementById('modalDivergenciaPlacas');
+        var ta = document.getElementById('textareaDivergenciaPlacas');
+        var err = document.getElementById('modalDivergenciaPlacasErro');
+        var ctr = document.getElementById('modalDivergenciaPlacasContador');
+        var btnC = document.getElementById('modalDivergenciaPlacasCancelar');
+        var btnO = document.getElementById('modalDivergenciaPlacasConfirmar');
+        var desc = document.getElementById('modalDivergenciaPlacasDesc');
+        if (!modal || !ta || !btnC || !btnO) {
+          resolve(null);
+          return;
+        }
+        if (typeof window.applyI18nWeb === 'function') {
+          window.applyI18nWeb(modal);
+        }
+        if (desc) {
+          desc.textContent = tConv(
+            'responderConvocacao.promptTextoDivergenciaPlacas',
+            'Descreva em qual ponto suas placas divergem do cadastro da viagem (até 2000 caracteres):',
+          );
+        }
+        ta.value = String(initialText || '').slice(0, 2000);
+        err.style.display = 'none';
+        err.textContent = '';
+        function updCtr() {
+          if (ctr) ctr.textContent = ta.value.length + ' / 2000';
+        }
+        updCtr();
+        function cleanup() {
+          ta.removeEventListener('input', updCtr);
+          btnC.removeEventListener('click', onCancel);
+          btnO.removeEventListener('click', onOk);
+          modal.removeEventListener('click', onBackdrop);
+          document.removeEventListener('keydown', onKey);
+          // Evita aria-hidden em ancestral do foco (aviso do Chrome / WCAG)
+          var ae = document.activeElement;
+          if (ae && typeof ae.blur === 'function' && modal.contains(ae)) {
+            ae.blur();
+          }
+          modal.style.display = 'none';
+          modal.setAttribute('aria-hidden', 'true');
+          var voltarFoco = document.getElementById('btnPlacasDivergePub');
+          if (voltarFoco && typeof voltarFoco.focus === 'function') {
+            try {
+              voltarFoco.focus({ preventScroll: true });
+            } catch (e2) {
+              voltarFoco.focus();
+            }
+          }
+        }
+        function onCancel() {
+          cleanup();
+          resolve(null);
+        }
+        function onOk() {
+          var t = String(ta.value || '').trim();
+          if (!t) {
+            err.textContent = tConv(
+              'responderConvocacao.alertaDivergenciaTextoVazio',
+              'Informe um texto descrevendo a divergência das placas.',
+            );
+            err.style.display = 'block';
+            return;
+          }
+          cleanup();
+          resolve(t.slice(0, 2000));
+        }
+        function onBackdrop(e) {
+          if (e.target === modal) onCancel();
+        }
+        function onKey(e) {
+          if (e.key === 'Escape') onCancel();
+        }
+        ta.addEventListener('input', updCtr);
+        btnC.addEventListener('click', onCancel);
+        btnO.addEventListener('click', onOk);
+        modal.addEventListener('click', onBackdrop);
+        document.addEventListener('keydown', onKey);
+        modal.style.display = 'flex';
+        modal.setAttribute('aria-hidden', 'false');
+        requestAnimationFrame(function () {
+          ta.focus();
+        });
+      });
+    }
+
+    /** Erro visível no próprio layout (evita alert nativo do navegador). */
+    function mostrarErroInlineConvocacao(texto) {
+      var msg = String(texto || '').trim();
+      if (!msg) return;
+      var ed = document.getElementById('errorMessage');
+      var ok = document.getElementById('successMessage');
+      if (ok) ok.style.display = 'none';
+      if (ed) {
+        ed.style.display = 'block';
+        ed.textContent = msg.indexOf('❌') === 0 || msg.indexOf('⚠️') === 0 ? msg : '❌ ' + msg;
+        ed.style.whiteSpace = 'pre-line';
+        ed.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        return;
+      }
+      alert(msg);
+    }
+
+    /** País padrão do tenant (Configurações » contexto). Sem campo = trata como BR. */
+    function convocacaoEhPaisBR(data) {
+      if (!data || data.paisPadrao == null || String(data.paisPadrao).trim() === '') return true;
+      var p = String(data.paisPadrao).trim().toUpperCase();
+      return p === 'BR' || p === 'BRA';
+    }
+
+    /** Rótulo, placeholder e texto introdutório conforme BR x internacional (DDI). */
+    function aplicarUiTelefoneConvocacao(data) {
+      var br = convocacaoEhPaisBR(data);
+      var tw = typeof window.tWeb === 'function' ? window.tWeb : function (k) { return k; };
+      var lbl = document.getElementById('labelTelefoneConfirmacao');
+      var inp = document.getElementById('inputTelefoneConfirmacao');
+      var txtIntro = document.getElementById('textoLocalizacaoAceite');
+      if (lbl) {
+        var kLb = br ? 'responderConvocacao.labelCelularConfirmacaoBr' : 'responderConvocacao.labelCelularConfirmacaoIntl';
+        var v = tw(kLb);
+        lbl.textContent = v !== kLb ? v : (br ? 'Confirme seu celular (DDD + número)' : 'Confirme seu número com código do país (DDI)');
+      }
+      if (inp) {
+        var kPh = br ? 'responderConvocacao.placeholderCelularConfirmacao' : 'responderConvocacao.placeholderCelularIntl';
+        var pv = tw(kPh);
+        inp.placeholder = pv !== kPh ? pv : (br ? '(00) 00000-0000' : '+595 981 000000');
+      }
+      if (txtIntro) {
+        var kIntro = br ? 'responderConvocacao.validacaoLocalizacaoTexto' : 'responderConvocacao.validacaoLocalizacaoTextoIntl';
+        var iv = tw(kIntro);
+        txtIntro.textContent =
+          iv !== kIntro
+            ? iv
+            : (br
+              ? 'Envie sua localização com o botão acima. Depois, confirme o celular cadastrado na empresa (mesmo número do seu cadastro).'
+              : 'Envie sua localização com o botão acima. Depois, digite o telefone exatamente como está no cadastro, com código do país (DDI) se aplicável.');
+      }
+    }
+
+    /** Monta HTML placa — classe por linha, com separador horizontal entre veículos (dados da empresa). */
+    function montarHtmlPlacasConjuntoPub(plStr, clStr) {
+      function esc(s) {
+        return String(s == null ? '' : s)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+      var plates = String(plStr || '')
+        .split(/[,;]+/)
+        .map(function (t) {
+          return t.trim();
+        })
+        .filter(Boolean);
+      var classes = String(clStr || '')
+        .split(/\s*\|\s*/)
+        .map(function (t) {
+          return t.trim();
+        })
+        .filter(Boolean);
+      if (!plates.length && !classes.length) {
+        return '<div class="pub-placa-linha">' + esc('—') + '</div>';
+      }
+      if (classes.length === 1 && plates.length > 1) {
+        classes = plates.map(function () {
+          return classes[0];
+        });
+      } else if (plates.length === 1 && classes.length > 1) {
+        plates = classes.map(function () {
+          return plates[0];
+        });
+      }
+      var m = Math.max(plates.length, classes.length);
+      var lines = [];
+      for (var i = 0; i < m; i++) {
+        var p = plates[i] || '';
+        var c = classes[i] || '';
+        var line = p && c ? p + ' — ' + c : p || c;
+        if (line) lines.push(line);
+      }
+      if (!lines.length) {
+        return '<div class="pub-placa-linha">' + esc('—') + '</div>';
+      }
+      return lines
+        .map(function (line, idx) {
+          return (
+            (idx ? '<hr class="pub-placa-sep" />' : '') +
+            '<div class="pub-placa-linha">' +
+            esc(line) +
+            '</div>'
+          );
+        })
+        .join('');
+    }
+
+    function publicPrecisaConfirmarPlacas(d) {
+      if (!d || String(d.STATUS || '').trim().toUpperCase() !== 'PENDENTE') return false;
+      var fg = String(d.FGCONFIRMACAOPLACAS != null ? d.FGCONFIRMACAOPLACAS : d.fgconfirmacaoplacas || '')
+        .trim()
+        .toUpperCase();
+      if (fg === 'C') return false;
+      if (fg === 'D') return true;
+      var pl = String(d.PLACASESPERADAS != null ? d.PLACASESPERADAS : d.placasesperadas || '').trim();
+      var cl = String(
+        d.DSCLASSEFROTA_CONJUNTO != null ? d.DSCLASSEFROTA_CONJUNTO : d.dsclassefrota_conjunto || ''
+      ).trim();
+      return !!(pl || cl);
+    }
+
+    function atualizarStatusPlacasPubUi() {
+      var st = document.getElementById('statusPlacasSelecaoPub');
+      if (!st) return;
+      var tw = typeof window.tWeb === 'function' ? window.tWeb : function (k) {
+        return k;
+      };
+      if (!convocacaoData || !publicPrecisaConfirmarPlacas(convocacaoData)) {
+        st.style.display = 'none';
+        return;
+      }
+      if (placasPublicModo === 'CONFIRMA') {
+        st.style.display = 'block';
+        st.style.color = 'var(--ac-success)';
+        st.textContent = '✓ ' + tw('responderConvocacao.placasStatusConfirma');
+      } else if (placasPublicModo === 'DIVERGE' && String(placasPublicTextoDiverge || '').trim()) {
+        st.style.display = 'block';
+        st.style.color = '#ea580c';
+        st.textContent = '⚠ ' + tw('responderConvocacao.placasStatusDiverge');
+      } else {
+        var fgSt = String(
+          (convocacaoData.FGCONFIRMACAOPLACAS != null
+            ? convocacaoData.FGCONFIRMACAOPLACAS
+            : convocacaoData.fgconfirmacaoplacas) || ''
+        )
+          .trim()
+          .toUpperCase();
+        if (fgSt === 'D') {
+          st.style.display = 'block';
+          st.style.color = '#ea580c';
+          var kRh = 'responderConvocacao.placasDivergenciaReconfirmarHint';
+          var txRh = tw(kRh);
+          st.textContent =
+            '⚠ ' +
+            (txRh !== kRh
+              ? txRh
+              : 'Divergência registrada. Se a transportadora já alinhou os dados, use «Confirmo estas placas» e Aceitar.');
+        } else {
+          st.style.display = 'none';
+        }
+      }
+    }
+
+    function esconderPlacasPubTxtDivergenciaExtra() {
+      var ex = document.getElementById('placasPubTxtDivergenciaExtra');
+      if (ex) {
+        ex.style.display = 'none';
+        ex.textContent = '';
+      }
+    }
+
+    function configurarBlocoPlacasPublic(data) {
+      var bloco = document.getElementById('blocoConfirmacaoPlacasPublic');
+      if (!bloco) return;
+      var acoes = document.getElementById('placasPubAcoes');
+      var instr = document.getElementById('placasPubInstrucao');
+      var tw = typeof window.tWeb === 'function' ? window.tWeb : function (k) {
+        return k;
+      };
+      var statusSt = String(data.STATUS != null ? data.STATUS : data.status || '')
+        .trim()
+        .toUpperCase();
+      var fgDiv = String(
+        data.FGCONFIRMACAOPLACAS != null ? data.FGCONFIRMACAOPLACAS : data.fgconfirmacaoplacas || ''
+      )
+        .trim()
+        .toUpperCase();
+      var plStr = String(data.PLACASESPERADAS != null ? data.PLACASESPERADAS : data.placasesperadas || '').trim();
+      var clStr = String(
+        data.DSCLASSEFROTA_CONJUNTO != null ? data.DSCLASSEFROTA_CONJUNTO : data.dsclassefrota_conjunto || ''
+      ).trim();
+      var txtDiv = String(
+        data.TXTPLACASDIVERGENCIA != null ? data.TXTPLACASDIVERGENCIA : data.txtplacasdivergencia || ''
+      ).trim();
+
+      var terminal =
+        statusSt === 'ACEITA' ||
+        statusSt === 'CONFIRMADA' ||
+        statusSt === 'ACEITA_DESCARTADA' ||
+        statusSt === 'RECUSADA';
+      var temSnap = !!(plStr || clStr);
+      var temFgAudit = fgDiv === 'C' || fgDiv === 'D';
+
+      if (terminal && (temSnap || temFgAudit)) {
+        if (acoes) acoes.style.display = 'none';
+        if (instr) {
+          var kIntro = 'responderConvocacao.placasResumoPosRespostaIntro';
+          var txIntro = tw(kIntro);
+          instr.textContent =
+            txIntro !== kIntro
+              ? txIntro
+              : 'Resumo: veículos previstos na viagem e o registro da sua resposta quanto às placas.';
+        }
+        var valR = document.getElementById('valorPlacasEsperadasPub');
+        if (valR) {
+          valR.innerHTML = temSnap ? montarHtmlPlacasConjuntoPub(plStr, clStr) : montarHtmlPlacasConjuntoPub('', '');
+        }
+        var stDivR = document.getElementById('statusPlacasSelecaoPub');
+        var exTxtR = document.getElementById('placasPubTxtDivergenciaExtra');
+        if (fgDiv === 'C') {
+          if (stDivR) {
+            stDivR.style.display = 'block';
+            stDivR.style.color = 'var(--ac-success)';
+            var kC = 'responderConvocacao.placasResumoConfirmadas';
+            var txC = tw(kC);
+            stDivR.textContent =
+              '✓ ' +
+              (txC !== kC
+                ? txC
+                : 'Você confirmou as placas / conjunto informados pela empresa ao aceitar.');
+          }
+          esconderPlacasPubTxtDivergenciaExtra();
+        } else if (fgDiv === 'D') {
+          if (stDivR) {
+            stDivR.style.display = 'block';
+            stDivR.style.color = '#ea580c';
+            var kD = 'responderConvocacao.placasResumoDivergenciaTratamento';
+            var txD = tw(kD);
+            stDivR.textContent =
+              '⚠ ' +
+              (txD !== kD
+                ? txD
+                : 'Divergência de placas registrada. A transportadora está alinhando os dados — aguarde contato.');
+          }
+          if (exTxtR && txtDiv) {
+            exTxtR.style.display = 'block';
+            exTxtR.textContent = txtDiv;
+          } else {
+            esconderPlacasPubTxtDivergenciaExtra();
+          }
+        } else {
+          if (stDivR) {
+            stDivR.style.display = 'block';
+            stDivR.style.color = '#64748b';
+            var kN = 'responderConvocacao.placasResumoSemFgComSnapshot';
+            var txN = tw(kN);
+            stDivR.textContent =
+              'ℹ️ ' +
+              (temSnap
+                ? txN !== kN
+                  ? txN
+                  : 'Veículos previstos na convocação. Não há registro de confirmação de placas neste link (histórico antigo ou resposta por outro canal).'
+                : txN !== kN
+                  ? txN
+                  : 'Sem dados de placas nesta convocação.');
+          }
+          esconderPlacasPubTxtDivergenciaExtra();
+        }
+        bloco.style.display = 'block';
+        placasPublicModo = '';
+        placasPublicTextoDiverge = '';
+        return;
+      }
+
+      if (acoes) acoes.style.display = '';
+
+      esconderPlacasPubTxtDivergenciaExtra();
+      var fgPosDiverg = String(
+        data.FGCONFIRMACAOPLACAS != null ? data.FGCONFIRMACAOPLACAS : data.fgconfirmacaoplacas || ''
+      )
+        .trim()
+        .toUpperCase();
+      var txtPosDiverg = String(
+        data.TXTPLACASDIVERGENCIA != null ? data.TXTPLACASDIVERGENCIA : data.txtplacasdivergencia || ''
+      ).trim();
+      if (fgPosDiverg === 'D' && txtPosDiverg) {
+        var exTxtPos = document.getElementById('placasPubTxtDivergenciaExtra');
+        if (exTxtPos) {
+          exTxtPos.style.display = 'block';
+          exTxtPos.textContent = txtPosDiverg;
+        }
+      }
+      if (!publicPrecisaConfirmarPlacas(data)) {
+        bloco.style.display = 'none';
+        placasPublicModo = '';
+        placasPublicTextoDiverge = '';
+        return;
+      }
+      placasPublicModo = '';
+      placasPublicTextoDiverge = '';
+      var val = document.getElementById('valorPlacasEsperadasPub');
+      if (val) {
+        var plStr2 = String(data.PLACASESPERADAS != null ? data.PLACASESPERADAS : data.placasesperadas || '').trim();
+        var clStr2 = String(
+          data.DSCLASSEFROTA_CONJUNTO != null ? data.DSCLASSEFROTA_CONJUNTO : data.dsclassefrota_conjunto || ''
+        ).trim();
+        val.innerHTML = montarHtmlPlacasConjuntoPub(plStr2, clStr2);
+      }
+      var b1 = document.getElementById('btnPlacasConfirmaPub');
+      var b2 = document.getElementById('btnPlacasDivergePub');
+      if (b1) {
+        b1.disabled = false;
+        b1.textContent = tw('responderConvocacao.btnPlacasConfirma');
+      }
+      if (b2) {
+        b2.disabled = false;
+        b2.textContent = tw('responderConvocacao.btnPlacasDiverge');
+      }
+      if (instr && typeof window.applyI18nWeb === 'function') {
+        try {
+          window.applyI18nWeb(instr);
+        } catch (eI) { /* ignore */ }
+      }
+      bloco.style.display = 'block';
+      if (typeof window.applyI18nWeb === 'function') window.applyI18nWeb(bloco);
+      atualizarStatusPlacasPubUi();
+    }
+
+    function marcarLocalizacaoMotoristaOkUi(msg) {
+      localizacaoMotoristaOk = true;
+      var stLocEl = document.getElementById('statusLocalizacaoAceite');
+      if (stLocEl) {
+        stLocEl.style.display = 'block';
+        stLocEl.style.color = 'var(--ac-success)';
+        stLocEl.textContent =
+          '✓ ' +
+          (msg ||
+            tConv(
+              'responderConvocacao.localizacaoServidorOk',
+              'Localização registrada no servidor. Confirme o celular para aceitar.',
+            ));
+      }
+      var btnEnv = document.getElementById('btnEnviarLocalizacao');
+      if (btnEnv) {
+        btnEnv.textContent =
+          '✅ ' +
+          tConv('responderConvocacao.localizacaoEnviada', 'Localização enviada com sucesso!');
+        btnEnv.style.background = 'linear-gradient(135deg, #2ecc71, #27ae60)';
+      }
+      sincronizarBotoesAceitePendente();
+    }
+
+    function sincronizarBotoesAceitePendente() {
+      if (!convocacaoData || convocacaoData.STATUS !== 'PENDENTE') return;
+      if (Number(convocacaoData.VIAGEM_JA_CONFIRMADA ?? convocacaoData.viagem_ja_confirmada ?? 0) === 1) return;
+      var aceitar = document.getElementById('btnAceitar');
+      var inp = document.getElementById('inputTelefoneConfirmacao');
+      var hintBloq = document.getElementById('hintAceiteBloqueado');
+      if (!aceitar) return;
+      var fgBloq = String(
+        convocacaoData.FGCONFIRMACAOPLACAS != null
+          ? convocacaoData.FGCONFIRMACAOPLACAS
+          : convocacaoData.fgconfirmacaoplacas || ''
+      )
+        .trim()
+        .toUpperCase();
+      var telDigits = inp ? String(inp.value || '').replace(/\D/g, '') : '';
+      var minDig = convocacaoEhPaisBR(convocacaoData) ? 10 : 8;
+      var telOk = telDigits.length >= minDig;
+      var precisaPlacas = publicPrecisaConfirmarPlacas(convocacaoData);
+      var placasOk;
+      if (fgBloq === 'D') {
+        placasOk = placasPublicModo === 'CONFIRMA';
+      } else {
+        placasOk =
+          !precisaPlacas ||
+          placasPublicModo === 'CONFIRMA' ||
+          (placasPublicModo === 'DIVERGE' && String(placasPublicTextoDiverge || '').trim().length > 0);
+      }
+      var liberado = !!(localizacaoMotoristaOk && telOk && placasOk);
+      aceitar.disabled = !liberado;
+      if (hintBloq) {
+        if (liberado) {
+          hintBloq.style.display = 'none';
+          hintBloq.textContent = '';
+        } else {
+          var faltas = [];
+          if (!localizacaoMotoristaOk) {
+            faltas.push(
+              tConv(
+                'responderConvocacao.faltaLocalizacao',
+                'enviar a localização (botão acima ou permita o GPS ao abrir)',
+              ),
+            );
+          }
+          if (!telOk) {
+            faltas.push(
+              tConv(
+                'responderConvocacao.faltaCelular',
+                'digitar o celular cadastrado (termina em ' +
+                  (convocacaoData.celularCadastroFinal4 || '****') +
+                  ')',
+              ),
+            );
+          }
+          if (!placasOk) {
+            faltas.push(
+              tConv('responderConvocacao.faltaPlacas', 'confirmar as placas da viagem'),
+            );
+          }
+          hintBloq.style.display = 'block';
+          hintBloq.textContent =
+            tConv('responderConvocacao.aceiteBloqueadoPrefixo', 'Para liberar «Aceitar»: ') +
+            faltas.join('; ') +
+            '.';
+        }
+      }
+    }
 
     let contextoConvocacao = { locale: 'pt-BR', timezone: 'America/Sao_Paulo' };
     async function loadContextoConvocacao() {
@@ -693,12 +1486,43 @@
       localStorage.removeItem(STORAGE_KEY_PERMISSAO_NEGADA);
     }
 
+    /** Geolocation no navegador só em https:// ou http://localhost / 127.0.0.1 — não em http://192.168.x.x */
+    function browserPodeUsarGeolocalizacao() {
+      try {
+        if (window.location.protocol === 'https:') return true;
+        var h = (window.location.hostname || '').toLowerCase();
+        return h === 'localhost' || h === '127.0.0.1';
+      } catch (e) {
+        return false;
+      }
+    }
+
     // Mostrar modal bloqueante de geolocalização
     function mostrarModalGeolocalizacao() {
       const modal = document.getElementById('modalGeolocalizacao');
       if (modal) {
-        modal.style.display = 'block';
-        // Bloquear scroll do body
+        modal.style.display = 'flex';
+        var btnT = document.getElementById('btnTentarGeolocalizacao');
+        var btnC = document.getElementById('btnContinuarSemLocalizacao');
+        if (!browserPodeUsarGeolocalizacao()) {
+          if (btnT) {
+            btnT.style.display = 'none';
+            btnT.disabled = true;
+          }
+          if (btnC) {
+            btnC.textContent = 'Continuar sem GPS (rede local HTTP)';
+            btnC.style.display = 'block';
+          }
+        } else {
+          if (btnT) {
+            btnT.style.display = '';
+            btnT.disabled = false;
+          }
+          if (btnC) {
+            btnC.textContent = 'Continuar sem localização';
+            btnC.style.display = '';
+          }
+        }
         document.body.style.overflow = 'hidden';
       }
     }
@@ -737,7 +1561,27 @@
     }
 
     // Função para capturar geolocalização do motorista
-    async function capturarGeolocalizacao(mostrarMensagem = false, forcar = false) {
+    async function capturarGeolocalizacao(mostrarMensagem = false, forcar = false, opts) {
+      opts = opts && typeof opts === 'object' ? opts : {};
+      var modoAceite = !!opts.modoAceite;
+      // http:// + IP (192.168, 10.x, etc.): API de geolocalização indisponível — não confundir com permissão negada.
+      if (!browserPodeUsarGeolocalizacao()) {
+        console.warn('[GEOLOCALIZAÇÃO] Geolocalização indisponível neste endereço (use HTTPS ou localhost). Não é possível "forçar" pelo site — é restrição do navegador.');
+        try { limparPermissaoNegada(); } catch (e) {}
+        if (mostrarMensagem) {
+          var infoDivHttp = document.getElementById('geolocalizacaoInfo');
+          if (infoDivHttp) {
+            infoDivHttp.style.display = 'flex';
+            var contentDivHttp = infoDivHttp.querySelector('.content p');
+            if (contentDivHttp) {
+              contentDivHttp.innerHTML = 'Neste endereço (HTTP na rede local) o navegador não permite capturar localização. Você pode aceitar ou recusar a convocação normalmente. Para exigir GPS, use um link HTTPS ou acesse por localhost.';
+            }
+            setTimeout(function () { infoDivHttp.style.display = 'none'; }, 12000);
+          }
+        }
+        return null;
+      }
+
       return new Promise((resolve) => {
         if (!navigator.geolocation) {
           console.warn('[GEOLOCALIZAÇÃO] API de geolocalização não suportada pelo navegador.');
@@ -745,6 +1589,13 @@
             mostrarMensagemGeolocalizacao();
           }
           resolve(null);
+          return;
+        }
+
+        // No aceite: não disparar segunda leitura "fresca" se já há posição recente (evita timeout código 3 à toa).
+        if (modoAceite && localizacaoAtual && Number.isFinite(localizacaoAtual.latitude) && Number.isFinite(localizacaoAtual.longitude) &&
+            localizacaoAtualCapturadaEm && (Date.now() - localizacaoAtualCapturadaEm) <= 15 * 60 * 1000) {
+          resolve(localizacaoAtual);
           return;
         }
 
@@ -757,8 +1608,10 @@
         }
         // Nota: A mensagem informativa será mostrada após o conteúdo carregar (no carregarConvocacao)
 
-        // Opções para melhor precisão
-        const opcoes = {
+        // Carga inicial: alta precisão. Aceite: leitura mais tolerante (cache/rede) para não falhar após sucesso na página.
+        const opcoes = modoAceite
+          ? { enableHighAccuracy: false, timeout: 12000, maximumAge: 120000 }
+          : {
           enableHighAccuracy: true, // Tentar usar GPS
           timeout: 15000, // Timeout de 15 segundos (aumentado para dar mais tempo)
           maximumAge: 0 // Não usar cache, sempre buscar nova localização
@@ -773,6 +1626,7 @@
             };
             console.log('[GEOLOCALIZAÇÃO] Localização capturada:', coords);
             localizacaoAtual = coords;
+            localizacaoAtualCapturadaEm = Date.now();
             
             // Limpar marcação de permissão negada (conseguiu capturar!)
             limparPermissaoNegada();
@@ -784,21 +1638,30 @@
             }
             ocultarModalGeolocalizacao();
             
-            // Reabilitar botões se estavam desabilitados
-            const btnAceitar = document.getElementById('btnAceitar');
             const btnRecusar = document.getElementById('btnRecusar');
-            if (btnAceitar && btnAceitar.disabled) {
-              btnAceitar.disabled = false;
-            }
             if (btnRecusar && btnRecusar.disabled) {
               btnRecusar.disabled = false;
             }
+            sincronizarBotoesAceitePendente();
             
             resolve(coords);
           },
           (error) => {
+            var errLow = (error.message || '').toLowerCase();
+            if (modoAceite && !forcar && localizacaoAtual && Number.isFinite(localizacaoAtual.latitude) &&
+                (error.code === 2 || error.code === 3)) {
+              console.log('[GEOLOCALIZAÇÃO] Nova leitura falhou (código ' + error.code + '); reutilizando posição já obtida nesta sessão.');
+              resolve(localizacaoAtual);
+              return;
+            }
             console.warn('[GEOLOCALIZAÇÃO] Erro ao capturar localização:', error.message, 'Código:', error.code);
             
+            if (errLow.indexOf('secure') !== -1) {
+              try { limparPermissaoNegada(); } catch (e) {}
+              resolve(null);
+              return;
+            }
+
             // Se negou permissão (código 1 = PERMISSION_DENIED)
             if (error.code === 1) {
               // Marcar que foi negada
@@ -899,12 +1762,12 @@
           // Não mostrar erro para o usuário, pois a convocação já foi carregada
         });
         
-        // Se permissão foi negada e não tem localização, desabilitar botões até conseguir
-        if (permissaoNegada && !geolocalizacao) {
+        // Só bloquear aceite se geo obrigatória e negada; recusar permanece disponível
+        if (browserPodeUsarGeolocalizacao() && permissaoNegada && !geolocalizacao) {
           const btnAceitar = document.getElementById('btnAceitar');
           const btnRecusar = document.getElementById('btnRecusar');
           if (btnAceitar) btnAceitar.disabled = true;
-          if (btnRecusar) btnRecusar.disabled = true;
+          if (btnRecusar) btnRecusar.disabled = false;
         }
       } catch (err) {
         console.error('[CONVOCACAO] Erro completo:', err);
@@ -931,15 +1794,65 @@
           errorMsg.style.whiteSpace = 'pre-line';
           errorMsg.style.textAlign = 'left';
         } else {
-          alert((typeof tWeb === 'function' ? tWeb('responderConvocacao.erroCarregar') : 'Erro ao carregar convocação: ') + err.message);
+          mostrarErroInlineConvocacao(
+            (typeof tWeb === 'function' ? tWeb('responderConvocacao.erroCarregar') : 'Erro ao carregar convocação: ') + err.message,
+          );
         }
       }
+    }
+
+    /** Viagem já fechada com outro motorista: mesmo painel ao abrir o link ou após falha no aceite (API). */
+    function aplicarPainelViagemFechadaOutroMotorista() {
+      var t = typeof window.tWeb === 'function' ? window.tWeb : function(k) { return k; };
+      var errEl = document.getElementById('errorMessage');
+      if (errEl) {
+        errEl.style.display = 'none';
+        errEl.textContent = '';
+      }
+      var statusMessageDiv = document.getElementById('statusMessage');
+      var actionsSection = document.getElementById('actionsSection');
+      statusMessageDiv.style.display = 'block';
+      statusMessageDiv.innerHTML =
+        '<div style="background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(13, 33, 55, 0.35);">' +
+        '<div style="font-size: 48px; margin-bottom: 15px;">📋</div>' +
+        '<h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 700;">' +
+        t('responderConvocacao.cargaJaFechada') +
+        '</h3>' +
+        '<p style="margin: 0 0 12px 0; font-size: 15px; line-height: 1.65; opacity: 0.95;">' +
+        t('responderConvocacao.cargaFechadaOutroMotorista') +
+        '</p>' +
+        '<p style="margin: 0; font-size: 14px; line-height: 1.5; opacity: 0.88;">' +
+        t('responderConvocacao.cargaFechadaNovoAceiteBloqueado') +
+        '</p>' +
+        '</div>';
+      actionsSection.style.display = 'none';
+      var blocoFech = document.getElementById('blocoValidacaoAceite');
+      if (blocoFech) blocoFech.style.display = 'none';
+      var blocoPlFech = document.getElementById('blocoConfirmacaoPlacasPublic');
+      if (blocoPlFech) blocoPlFech.style.display = 'none';
+      placasPublicModo = '';
+      placasPublicTextoDiverge = '';
+      esconderPlacasPubTxtDivergenciaExtra();
+      var botLocFech = document.getElementById('botaoEnviarLocalizacao');
+      if (botLocFech) botLocFech.style.display = 'none';
+      var ba = document.getElementById('btnAceitar');
+      var br = document.getElementById('btnRecusar');
+      if (ba) ba.disabled = true;
+      if (br) br.disabled = true;
     }
 
     async function exibirConvocacao(data) {
       var t = typeof window.tWeb === 'function' ? window.tWeb : function(k) { return k; };
       document.getElementById('loading').style.display = 'none';
       document.getElementById('content').style.display = 'block';
+
+      placasPublicModo = '';
+      placasPublicTextoDiverge = '';
+      var blocoPlInit = document.getElementById('blocoConfirmacaoPlacasPublic');
+      if (blocoPlInit) blocoPlInit.style.display = 'none';
+
+      var blocoValInit = document.getElementById('blocoValidacaoAceite');
+      if (blocoValInit) blocoValInit.style.display = 'none';
       
       // Mostrar mensagem de geolocalização após o conteúdo estar visível
       // Sempre mostrar no primeiro acesso para informar o motorista
@@ -961,6 +1874,20 @@
       document.getElementById('idViagem').textContent = data.IDVIAGEM || '-';
       document.getElementById('tipoViagem').textContent = data.DSTIPOVIAGEM || '-';
       document.getElementById('classeFrota').textContent = data.DSCLASSEFROTA || '-';
+      var conjTxt = String(
+        data.DSCLASSEFROTA_CONJUNTO != null ? data.DSCLASSEFROTA_CONJUNTO : data.dsclassefrota_conjunto || ''
+      ).trim();
+      var itemConj = document.getElementById('itemClasseConjunto');
+      var elConj = document.getElementById('classeFrotaConjunto');
+      if (itemConj && elConj) {
+        if (conjTxt) {
+          elConj.textContent = conjTxt;
+          itemConj.style.display = '';
+        } else {
+          elConj.textContent = '-';
+          itemConj.style.display = 'none';
+        }
+      }
       document.getElementById('rastreado').textContent = data.FGRASTREADO === 'S' ? (typeof tWeb === 'function' ? tWeb('responderConvocacao.sim') : 'Sim') : (typeof tWeb === 'function' ? tWeb('responderConvocacao.nao') : 'Não');
       
       // Rota: se tiver origem/destino (cidade ou estado), mostrar em duas linhas; senão usar DSROTEIRO ou "Rota não informada"
@@ -980,15 +1907,14 @@
         rotaTexto.textContent = (data.DSROTEIRO && data.DSROTEIRO.trim()) ? data.DSROTEIRO.trim() : (typeof tWeb === 'function' ? tWeb('responderConvocacao.rotaNaoInformada') : 'Rota não informada');
       }
       
-      // Pontos de parada: buscar se houver IDROTEIRO
+      // Pontos de parada: API pública por ID da convocação (multi-tenant; não usa /api/roteiros/... sem JWT)
       const pontosParadaSection = document.getElementById('pontosParadaSection');
       const pontosParadaList = document.getElementById('pontosParadaList');
       pontosParadaSection.style.display = 'none';
       pontosParadaList.innerHTML = '';
-      const idRoteiro = data.IDROTEIRO != null ? (typeof data.IDROTEIRO === 'number' ? data.IDROTEIRO : parseFloat(data.IDROTEIRO)) : null;
-      if (idRoteiro && !isNaN(idRoteiro)) {
+      if (idConvocacao && !isNaN(parseInt(idConvocacao, 10))) {
         try {
-          const respPontos = await fetch('/api/roteiros/' + encodeURIComponent(idRoteiro) + '/pontos');
+          const respPontos = await fetch('/api/public/convocacao/' + encodeURIComponent(idConvocacao) + '/roteiro-pontos');
           if (respPontos.ok) {
             const pontos = await respPontos.json();
             const lista = Array.isArray(pontos) ? pontos : (pontos.pontos || []);
@@ -1036,6 +1962,28 @@
         return new Intl.NumberFormat(loc, { style: 'currency', currency: moeda }).format(parseFloat(v) || 0);
       };
       document.getElementById('frete').textContent = data.VLFRETE ? fmtFrete(data.VLFRETE) : '-';
+      var hintVp = document.getElementById('hintValorFretePropostoMotorista');
+      if (hintVp) {
+        hintVp.textContent =
+          'Opcional: informe o valor que você espera receber nesta operação (mesma moeda da viagem: ' +
+          moeda +
+          '). Deixe em branco para aceitar apenas registrando interesse ao frete divulgado acima.';
+      }
+      var inpVp = document.getElementById('inputValorFretePropostoMotorista');
+      if (inpVp) inpVp.value = '';
+
+      function linhaFretePropostoMotoristaResumo() {
+        var v = data.VL_FRETE_PROPOSTO_MOTORISTA != null ? data.VL_FRETE_PROPOSTO_MOTORISTA : data.vl_frete_proposto_motorista;
+        if (v == null || v === '') return '';
+        var num = parseFloat(v);
+        if (!Number.isFinite(num)) return '';
+        return (
+          '<p style="margin: 10px 0 0 0; font-size: 14px;"><strong>Frete pretendido (você):</strong> ' +
+          fmtFrete(num) +
+          '</p>'
+        );
+      }
+
       document.getElementById('peso').textContent = data.PESO ? `${parseFloat(data.PESO).toFixed(3).replace('.', ',')} ton` : '-';
       document.getElementById('cubagem').textContent = data.CUBAGEM ? `${parseFloat(data.CUBAGEM).toFixed(3).replace('.', ',')} m³` : '-';
       
@@ -1067,6 +2015,9 @@
       
       // Verificar status e exibir mensagem apropriada
       if (data.STATUS === 'CONFIRMADA') {
+        var blocoValConf = document.getElementById('blocoValidacaoAceite');
+        if (blocoValConf) blocoValConf.style.display = 'none';
+        configurarBlocoPlacasPublic(data);
         // Motorista foi CONFIRMADO - mostrar mensagem de parabéns completa!
         const rotaTexto = data.DSROTEIRO || `${data.ORIGEM_CIDADE || '-'}/${data.ORIGEM_ESTADO || '-'} → ${data.DESTINO_CIDADE || '-'}/${data.DESTINO_ESTADO || '-'}`;
         
@@ -1098,6 +2049,7 @@
                 <p style="margin: 5px 0; font-size: 14px;"><strong>📅 ${t('responderConvocacao.carregamento')}:</strong> ${formatarData(data.DTPREVINICIO)}</p>
                 <p style="margin: 5px 0; font-size: 14px;"><strong>📅 ${t('responderConvocacao.descarga')}:</strong> ${formatarData(data.DTPREVFINAL)}</p>
               </div>
+              ${linhaFretePropostoMotoristaResumo()}
               <p style="margin: 15px 0 0 0; font-size: 15px; line-height: 1.8;">
                 ✅ <strong>${t('responderConvocacao.suaConvocacaoConfirmada')}</strong>
               </p>
@@ -1133,6 +2085,9 @@
         document.getElementById('btnAceitar').disabled = true;
         document.getElementById('btnRecusar').disabled = true;
       } else if (data.STATUS === 'ACEITA_DESCARTADA') {
+        var blocoValDesc = document.getElementById('blocoValidacaoAceite');
+        if (blocoValDesc) blocoValDesc.style.display = 'none';
+        configurarBlocoPlacasPublic(data);
         // Motorista aceitou mas não foi escolhido
         statusMessageDiv.style.display = 'block';
         statusMessageDiv.innerHTML = `
@@ -1142,12 +2097,16 @@
             <p style="margin: 0; font-size: 15px; line-height: 1.6; opacity: 0.95;">
               ${t('responderConvocacao.voceAceitouOutroSelecionado')}
             </p>
+            ${linhaFretePropostoMotoristaResumo()}
           </div>
         `;
         actionsSection.style.display = 'none';
         document.getElementById('btnAceitar').disabled = true;
         document.getElementById('btnRecusar').disabled = true;
       } else if (data.STATUS === 'ACEITA') {
+        var blocoValAce = document.getElementById('blocoValidacaoAceite');
+        if (blocoValAce) blocoValAce.style.display = 'none';
+        configurarBlocoPlacasPublic(data);
         // Motorista aceitou e está aguardando confirmação
         statusMessageDiv.style.display = 'block';
         statusMessageDiv.innerHTML = `
@@ -1157,12 +2116,16 @@
             <p style="margin: 0; font-size: 15px; line-height: 1.6; opacity: 0.95;">
               ${t('responderConvocacao.voceAceitouAguardando')}
             </p>
+            ${linhaFretePropostoMotoristaResumo()}
           </div>
         `;
         actionsSection.style.display = 'none';
         document.getElementById('btnAceitar').disabled = true;
         document.getElementById('btnRecusar').disabled = true;
       } else if (data.STATUS === 'RECUSADA') {
+        var blocoValRec = document.getElementById('blocoValidacaoAceite');
+        if (blocoValRec) blocoValRec.style.display = 'none';
+        configurarBlocoPlacasPublic(data);
         // Motorista recusou
         statusMessageDiv.style.display = 'block';
         statusMessageDiv.innerHTML = `
@@ -1177,33 +2140,87 @@
         actionsSection.style.display = 'none';
         document.getElementById('btnAceitar').disabled = true;
         document.getElementById('btnRecusar').disabled = true;
-      } else if (data.STATUS === 'PENDENTE' && data.VIAGEM_JA_CONFIRMADA === 1) {
-        // PENDENTE mas viagem já foi confirmada para outro motorista (nunca acessou)
-        statusMessageDiv.style.display = 'block';
-        statusMessageDiv.innerHTML = `
-          <div style="background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(13, 33, 55, 0.35);">
-            <div style="font-size: 48px; margin-bottom: 15px;">📋</div>
-            <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 700;">${t('responderConvocacao.cargaJaFechada')}</h3>
-            <p style="margin: 0; font-size: 15px; line-height: 1.6; opacity: 0.95;">
-              ${t('responderConvocacao.cargaFechadaOutroMotorista')}
-            </p>
-          </div>
-        `;
-        actionsSection.style.display = 'none';
-        document.getElementById('btnAceitar').disabled = true;
-        document.getElementById('btnRecusar').disabled = true;
+      } else if (
+        data.STATUS === 'PENDENTE' &&
+        Number(data.VIAGEM_JA_CONFIRMADA ?? data.viagem_ja_confirmada ?? 0) === 1
+      ) {
+        // PENDENTE mas viagem já foi confirmada para outro motorista (nunca acessou / link antigo)
+        aplicarPainelViagemFechadaOutroMotorista();
       } else {
-        // PENDENTE - mostrar botões normalmente
+        // PENDENTE — aceite só com localização enviada + celular confirmado
         statusMessageDiv.style.display = 'none';
-        actionsSection.style.display = 'block';
-        document.getElementById('btnAceitar').disabled = false;
+        actionsSection.style.display = 'flex';
+        var blocoVal = document.getElementById('blocoValidacaoAceite');
+        if (blocoVal) blocoVal.style.display = 'block';
+        aplicarUiTelefoneConvocacao(data);
+        localizacaoMotoristaOk = !!data.localizacaoMotoristaEnviada;
+        var stLoc = document.getElementById('statusLocalizacaoAceite');
+        if (stLoc) {
+          stLoc.style.display = 'block';
+          if (localizacaoMotoristaOk) {
+            stLoc.style.color = 'var(--ac-success)';
+            stLoc.textContent =
+              '✓ ' +
+              tConv(
+                'responderConvocacao.localizacaoJaRegistrada',
+                'Localização já registrada. Confirme o celular abaixo para aceitar.',
+              );
+          } else {
+            stLoc.style.color = '#b45309';
+            stLoc.textContent = tConv(
+              'responderConvocacao.passoEnviarLocalizacao',
+              'Passo 1: toque em «Enviar minha localização» e permita o GPS.',
+            );
+          }
+        }
+        var txtHint = document.getElementById('hintCelularFinal4');
+        if (txtHint) {
+          var brHint = convocacaoEhPaisBR(data);
+          if (data.celularCadastroFinal4) {
+            var kF = brHint ? 'responderConvocacao.hintCelularFinal4' : 'responderConvocacao.hintCelularFinal4Intl';
+            var fbF = brHint
+              ? 'Digite o mesmo celular cadastrado (termina em '
+              : 'Digite o mesmo número cadastrado (termina em ';
+            txtHint.textContent = tConv(kF, fbF) + data.celularCadastroFinal4 + ').';
+          } else {
+            txtHint.textContent = tConv(
+              brHint ? 'responderConvocacao.hintCelularSemMascara' : 'responderConvocacao.hintCelularSemMascaraIntl',
+              brHint
+                ? 'Digite o celular cadastrado na empresa. Se não souber, contate a transportadora.'
+                : 'Digite o número completo do cadastro, com DDI se estiver assim registrado. Em dúvida, contate a transportadora.',
+            );
+          }
+        }
+        var avisoHttp = document.getElementById('avisoHttpGeo');
+        if (avisoHttp && typeof browserPodeUsarGeolocalizacao === 'function' && !browserPodeUsarGeolocalizacao()) {
+          avisoHttp.style.display = 'block';
+        } else if (avisoHttp) {
+          avisoHttp.style.display = 'none';
+        }
+        var inpTel = document.getElementById('inputTelefoneConfirmacao');
+        if (inpTel) {
+          inpTel.oninput = function () {
+            sincronizarBotoesAceitePendente();
+          };
+        }
         document.getElementById('btnRecusar').disabled = false;
+        document.getElementById('btnAceitar').disabled = true;
+        configurarBlocoPlacasPublic(data);
+        sincronizarBotoesAceitePendente();
       }
       
-      // Mostrar botão de enviar localização (sempre visível para permitir atualização)
       const botaoEnviarLocalizacao = document.getElementById('botaoEnviarLocalizacao');
       if (botaoEnviarLocalizacao) {
-        botaoEnviarLocalizacao.style.display = 'block';
+        var stLocFim = String(data.STATUS != null ? data.STATUS : data.status || '')
+          .trim()
+          .toUpperCase();
+        var pendenteNormal =
+          stLocFim === 'PENDENTE' &&
+          Number(data.VIAGEM_JA_CONFIRMADA ?? data.viagem_ja_confirmada ?? 0) !== 1;
+        botaoEnviarLocalizacao.style.display =
+          pendenteNormal && typeof browserPodeUsarGeolocalizacao === 'function' && browserPodeUsarGeolocalizacao()
+            ? 'block'
+            : 'none';
       }
     }
 
@@ -1283,7 +2300,22 @@
           let detalhesStr = '';
           if (convocacaoData.IDVIAGEM) detalhesStr += `Viagem: ${convocacaoData.IDVIAGEM}\n`;
           if (convocacaoData.DSROTEIRO) detalhesStr += `Rota: ${convocacaoData.DSROTEIRO}\n`;
-          if (convocacaoData.VLFRETE) detalhesStr += `Frete: R$ ${parseFloat(convocacaoData.VLFRETE).toFixed(2).replace('.', ',')}`;
+          if (convocacaoData.VLFRETE) detalhesStr += `Frete divulgado: R$ ${parseFloat(convocacaoData.VLFRETE).toFixed(2).replace('.', ',')}`;
+          if (status === 'ACEITA') {
+            var inpDet = document.getElementById('inputValorFretePropostoMotorista');
+            var rawDet = inpDet ? String(inpDet.value || '').trim() : '';
+            if (rawDet) detalhesStr += `\nFrete pretendido (você): ${rawDet}`;
+            if (publicPrecisaConfirmarPlacas(convocacaoData)) {
+              var twDet = typeof window.tWeb === 'function' ? window.tWeb : function (k) {
+                return k;
+              };
+              if (placasPublicModo === 'CONFIRMA') {
+                detalhesStr += '\n' + twDet('responderConvocacao.resumoPlacasConfirma');
+              } else if (placasPublicModo === 'DIVERGE') {
+                detalhesStr += '\n' + twDet('responderConvocacao.resumoPlacasDiverge');
+              }
+            }
+          }
           
           if (detalhesStr) {
             detalhesText.textContent = detalhesStr.trim();
@@ -1295,8 +2327,7 @@
           detalhes.style.display = 'none';
         }
         
-        // Mostrar modal
-        modal.style.display = 'block';
+        modal.style.display = 'flex';
         
         // Event listeners
         const handleConfirmar = () => {
@@ -1339,7 +2370,67 @@
       });
     }
 
+    function parseValorFreteOpcionalCliente(raw) {
+      if (raw == null || String(raw).trim() === '') return { ok: true, value: null };
+      var s = String(raw).trim().replace(/\s/g, '').replace(/[^\d.,-]/g, '');
+      if (s === '' || s === '-') return { ok: false, error: 'Valor de frete inválido.' };
+      if (/,/.test(s) && /\./.test(s)) s = s.replace(/\./g, '').replace(',', '.');
+      else if (/,/.test(s)) s = s.replace(',', '.');
+      var n = parseFloat(s);
+      if (!Number.isFinite(n)) return { ok: false, error: 'Valor de frete inválido.' };
+      if (n < 0) return { ok: false, error: 'O frete não pode ser negativo.' };
+      if (n > 999999999.99) return { ok: false, error: 'Valor acima do limite permitido.' };
+      return { ok: true, value: Math.round(n * 100) / 100 };
+    }
+
     async function responderConvocacao(status) {
+      if (status === 'ACEITA') {
+        if (!localizacaoMotoristaOk) {
+          mostrarErroInlineConvocacao(
+            tConv(
+              'responderConvocacao.alertaSemLocalizacao',
+              'Envie sua localização com o botão «Enviar minha localização» antes de aceitar.',
+            ),
+          );
+          return;
+        }
+        var telEl0 = document.getElementById('inputTelefoneConfirmacao');
+        var telDig0 = telEl0 ? String(telEl0.value || '').replace(/\D/g, '') : '';
+        var brAce = convocacaoEhPaisBR(convocacaoData);
+        var minAlert = brAce ? 10 : 8;
+        if (telDig0.length < minAlert) {
+          mostrarErroInlineConvocacao(
+            tConv(
+              brAce ? 'responderConvocacao.alertaCelularCurto' : 'responderConvocacao.alertaCelularCurtoIntl',
+              brAce
+                ? 'Informe o celular completo (DDD + número), o mesmo do cadastro.'
+                : 'Informe o número completo (mínimo 8 dígitos), igual ao cadastro, com DDI se necessário.',
+            ),
+          );
+          return;
+        }
+        if (publicPrecisaConfirmarPlacas(convocacaoData) || placasPublicModo === 'CONFIRMA' || placasPublicModo === 'DIVERGE') {
+          if (placasPublicModo !== 'CONFIRMA' && placasPublicModo !== 'DIVERGE') {
+            mostrarErroInlineConvocacao(
+              tConv(
+                'responderConvocacao.alertaPlacasObrigatorio',
+                'Confirme as placas desta viagem (botões acima) antes de aceitar.',
+              ),
+            );
+            return;
+          }
+          if (placasPublicModo === 'DIVERGE' && !String(placasPublicTextoDiverge || '').trim()) {
+            mostrarErroInlineConvocacao(
+              tConv(
+                'responderConvocacao.alertaDivergenciaTextoVazio',
+                'Descreva a divergência das placas (use «Minhas placas divergem»).',
+              ),
+            );
+            return;
+          }
+        }
+      }
+
       const resultado = await showConfirmModal(status, convocacaoData);
       if (!resultado || !resultado.confirmado) {
         return;
@@ -1349,13 +2440,47 @@
         document.getElementById('btnAceitar').disabled = true;
         document.getElementById('btnRecusar').disabled = true;
         
-        // Capturar geolocalização atual (pode ter mudado desde o acesso)
-        const geolocalizacao = await capturarGeolocalizacao();
+        // Geolocalização no aceite: reaproveita posição recente / cache; evita segunda leitura GPS que costuma dar timeout (3).
+        const geolocalizacao = await capturarGeolocalizacao(false, false, { modoAceite: true });
         
         const bodyResposta = { status };
         if (geolocalizacao) {
           bodyResposta.latitude = geolocalizacao.latitude;
           bodyResposta.longitude = geolocalizacao.longitude;
+        }
+        if (status === 'ACEITA') {
+          var telEl = document.getElementById('inputTelefoneConfirmacao');
+          bodyResposta.telefoneConfirmacao = telEl ? String(telEl.value || '').trim() : '';
+          var inpFreteProp = document.getElementById('inputValorFretePropostoMotorista');
+          var parsedFp = parseValorFreteOpcionalCliente(inpFreteProp ? inpFreteProp.value : '');
+          if (!parsedFp.ok) {
+            mostrarErroInlineConvocacao(parsedFp.error || 'Valor de frete inválido.');
+            document.getElementById('btnAceitar').disabled = false;
+            document.getElementById('btnRecusar').disabled = false;
+            sincronizarBotoesAceitePendente();
+            return;
+          }
+          if (parsedFp.value != null) bodyResposta.valorFretePropostoMotorista = parsedFp.value;
+          var precisaPlacasApi = publicPrecisaConfirmarPlacas(convocacaoData);
+          if (precisaPlacasApi || placasPublicModo === 'CONFIRMA' || placasPublicModo === 'DIVERGE') {
+            bodyResposta.confirmacaoPlacasModo = placasPublicModo;
+            if (placasPublicModo === 'DIVERGE') {
+              bodyResposta.confirmacaoPlacasTexto = String(placasPublicTextoDiverge || '').trim().slice(0, 2000);
+            }
+          }
+        }
+
+        if (status === 'ACEITA' && (!geolocalizacao || !Number.isFinite(geolocalizacao.latitude))) {
+          mostrarErroInlineConvocacao(
+            tConv(
+              'responderConvocacao.alertaGeoAceite',
+              'Não foi possível obter sua posição agora. Permita a localização e tente aceitar novamente.',
+            ),
+          );
+          document.getElementById('btnAceitar').disabled = false;
+          document.getElementById('btnRecusar').disabled = false;
+          sincronizarBotoesAceitePendente();
+          return;
         }
         
         // Adicionar motivo se for recusa
@@ -1372,7 +2497,81 @@
         });
 
         if (!response.ok) {
-          const error = await response.json();
+          const error = await response.json().catch(function () {
+            return {};
+          });
+          if (error.code === 'VIAGEM_JA_FECHADA') {
+            aplicarPainelViagemFechadaOutroMotorista();
+            document.getElementById('successMessage').style.display = 'none';
+            return;
+          }
+          if (error.code === 'ACEITE_BLOQUEADO_DIVERGENCIA_PLACAS') {
+            var edInf = document.getElementById('errorMessage');
+            var tInf = typeof window.tWeb === 'function' ? window.tWeb : function (k) {
+              return k;
+            };
+            var kFb = 'responderConvocacao.mensagemDivergenciaRegistradaPublico';
+            var msgInf =
+              error.message ||
+              error.error ||
+              (tInf(kFb) !== kFb ? tInf(kFb) : '');
+            if (edInf) {
+              edInf.style.display = 'block';
+              edInf.style.borderLeft = '4px solid #ea580c';
+              edInf.textContent = 'ℹ️ ' + (msgInf || 'Divergência registrada; aceite bloqueado.');
+              edInf.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            convocacaoData.FGCONFIRMACAOPLACAS = 'D';
+            try {
+              if (typeof carregarConvocacao === 'function') {
+                await carregarConvocacao();
+              }
+            } catch (_) {}
+            configurarBlocoPlacasPublic(convocacaoData);
+            sincronizarBotoesAceitePendente();
+            document.getElementById('btnAceitar').disabled = true;
+            document.getElementById('btnRecusar').disabled = false;
+            return;
+          }
+          if (error.code === 'CONVOCACAO_JA_RESPONDIDA' || error.code === 'CONVOCACAO_NAO_ATUALIZADA') {
+            var tJa = typeof window.tWeb === 'function' ? window.tWeb : function (k) {
+              return k;
+            };
+            var ed = document.getElementById('errorMessage');
+            if (ed) {
+              ed.style.display = 'block';
+              ed.textContent =
+                '❌ ' + (error.error || tJa('responderConvocacao.convocacaoJaRespondida'));
+              ed.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            document.getElementById('btnAceitar').disabled = false;
+            document.getElementById('btnRecusar').disabled = false;
+            sincronizarBotoesAceitePendente();
+            return;
+          }
+          if (
+            error.code === 'LOCALIZACAO_NAO_ENVIADA' ||
+            error.code === 'LOCALIZACAO_RESPOSTA_OBRIGATORIA' ||
+            error.code === 'TELEFONE_CONFIRMACAO_OBRIGATORIO' ||
+            error.code === 'TELEFONE_NAO_CONFERE' ||
+            error.code === 'TELEFONE_CADASTRO_INCOMPLETO' ||
+            error.code === 'VALOR_FRETE_INVALIDO' ||
+            error.code === 'COLUNA_FRETE_PROPOSTO_AUSENTE' ||
+            error.code === 'CONFIRMACAO_PLACAS_OBRIGATORIA' ||
+            error.code === 'TEXTO_DIVERGENCIA_PLACAS_OBRIGATORIO' ||
+            error.code === 'COLUNA_CONFIRMACAO_PLACAS_AUSENTE'
+          ) {
+            var ed2 = document.getElementById('errorMessage');
+            if (ed2) {
+              ed2.style.display = 'block';
+              ed2.textContent = '❌ ' + (error.error || 'Não foi possível aceitar.');
+              ed2.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            document.getElementById('btnAceitar').disabled = false;
+            document.getElementById('btnRecusar').disabled = false;
+            sincronizarBotoesAceitePendente();
+            return;
+          }
           throw new Error(error.error || 'Erro ao responder convocação');
         }
 
@@ -1380,12 +2579,20 @@
         
         // Atualizar status
         convocacaoData.STATUS = status;
+        if (status === 'ACEITA' && result && result.FGCONFIRMACAOPLACAS) {
+          convocacaoData.FGCONFIRMACAOPLACAS = result.FGCONFIRMACAOPLACAS;
+        }
         const statusBadge = document.getElementById('statusBadge');
         statusBadge.textContent = status;
         statusBadge.className = 'status-badge status-' + status.toLowerCase();
         
         // Se foi aceitação, mostrar mensagem com dados do contratador
         if (status === 'ACEITA') {
+          configurarBlocoPlacasPublic(convocacaoData);
+          var blocoValPosAce = document.getElementById('blocoValidacaoAceite');
+          if (blocoValPosAce) blocoValPosAce.style.display = 'none';
+          var botLocPosAce = document.getElementById('botaoEnviarLocalizacao');
+          if (botLocPosAce) botLocPosAce.style.display = 'none';
           var tResp = typeof window.tWeb === 'function' ? window.tWeb : function(k) { return k; };
           document.getElementById('actionsSection').style.display = 'none';
           document.getElementById('successMessage').style.display = 'none';
@@ -1411,6 +2618,25 @@
           const linkWhatsApp = numWa ? `https://wa.me/${numWa}` : null;
           
           const statusMessageDiv = document.getElementById('statusMessage');
+          var fgPos = String(
+            (result && result.FGCONFIRMACAOPLACAS != null
+              ? result.FGCONFIRMACAOPLACAS
+              : convocacaoData.FGCONFIRMACAOPLACAS != null
+                ? convocacaoData.FGCONFIRMACAOPLACAS
+                : convocacaoData.fgconfirmacaoplacas || '') + ''
+          )
+            .trim()
+            .toUpperCase();
+          var kPlacasConf = 'responderConvocacao.placasConfirmadasResumoAceite';
+          var txPlacasConf = tResp(kPlacasConf);
+          var blocoPlacasConf =
+            fgPos === 'C'
+              ? `<p style="margin: 0 0 12px 0; font-size: 14px; line-height: 1.55; background: rgba(255,255,255,0.12); padding: 10px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.25);">✓ ${
+                  txPlacasConf !== kPlacasConf
+                    ? txPlacasConf
+                    : 'Placas / conjunto confirmados conforme o cadastro desta viagem.'
+                }</p>`
+              : '';
           statusMessageDiv.style.display = 'block';
           statusMessageDiv.innerHTML = `
             <div style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 25px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);">
@@ -1420,6 +2646,7 @@
                 <p style="margin: 0 0 15px 0; font-size: 16px; line-height: 1.8;">
                   ${tResp('responderConvocacao.olaMotorista')} <strong>${convocacaoData.NOME_MOTORISTA || tResp('responderConvocacao.motorista')}</strong>,
                 </p>
+                ${blocoPlacasConf}
                 <p style="margin: 0 0 15px 0; font-size: 15px; line-height: 1.8;">
                   ${tResp('responderConvocacao.aceitacaoRegistrada')}
                 </p>
@@ -1473,10 +2700,11 @@
           errorDiv.textContent = '❌ ' + errMsg;
           errorDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
         } else {
-          alert(errMsg);
+          mostrarErroInlineConvocacao(errMsg);
         }
         document.getElementById('btnAceitar').disabled = false;
         document.getElementById('btnRecusar').disabled = false;
+        sincronizarBotoesAceitePendente();
       }
     }
 
@@ -1509,11 +2737,43 @@
         } else {
           const acessoData = await acessoResponse.json();
           console.log(`[CONVOCACAO] Acesso registrado com sucesso:`, acessoData);
+          if (
+            geolocalizacao &&
+            Number.isFinite(geolocalizacao.latitude) &&
+            Number.isFinite(geolocalizacao.longitude)
+          ) {
+            localizacaoAtual = geolocalizacao;
+            localizacaoAtualCapturadaEm = Date.now();
+            limparPermissaoNegada();
+            marcarLocalizacaoMotoristaOkUi(
+              tConv(
+                'responderConvocacao.localizacaoJaRegistrada',
+                'Localização já registrada. Confirme o celular abaixo para aceitar.',
+              ),
+            );
+          }
         }
       } catch (err) {
         console.error('[CONVOCACAO] Erro ao registrar acesso:', err);
       }
     }
+
+    document.getElementById('btnContinuarSemLocalizacao').addEventListener('click', function () {
+      limparPermissaoNegada();
+      ocultarModalGeolocalizacao();
+      var ba = document.getElementById('btnAceitar');
+      var br = document.getElementById('btnRecusar');
+      if (ba) {
+        ba.disabled = true;
+        sincronizarBotoesAceitePendente();
+      }
+      if (br) br.disabled = false;
+      var btnT = document.getElementById('btnTentarGeolocalizacao');
+      if (btnT) {
+        btnT.style.display = '';
+        btnT.disabled = false;
+      }
+    });
 
     // Event listener para botão "Tentar Novamente" do modal
     document.getElementById('btnTentarGeolocalizacao').addEventListener('click', async () => {
@@ -1552,15 +2812,13 @@
       
       if (type === 'error') {
         if (errorMsg) {
-          errorMsg.textContent = message;
+          errorMsg.textContent = message.indexOf('❌') === 0 ? message : '❌ ' + message;
           errorMsg.style.display = 'block';
+          errorMsg.style.whiteSpace = 'pre-line';
           successMsg.style.display = 'none';
-          // Ocultar após 5 segundos
-          setTimeout(() => {
-            errorMsg.style.display = 'none';
-          }, 5000);
+          errorMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
         } else {
-          alert(message);
+          mostrarErroInlineConvocacao(message);
         }
       } else if (type === 'success') {
         if (successMsg) {
@@ -1614,18 +2872,14 @@
         
         const result = await response.json();
         
-        // Atualizar localização atual
         localizacaoAtual = geolocalizacao;
+        localizacaoAtualCapturadaEm = Date.now();
         
         // Limpar marcação de permissão negada (conseguiu enviar!)
         limparPermissaoNegada();
         
-        // Reabilitar botões se estavam desabilitados
-        const btnAceitar = document.getElementById('btnAceitar');
+        marcarLocalizacaoMotoristaOkUi();
         const btnRecusar = document.getElementById('btnRecusar');
-        if (btnAceitar && btnAceitar.disabled) {
-          btnAceitar.disabled = false;
-        }
         if (btnRecusar && btnRecusar.disabled) {
           btnRecusar.disabled = false;
         }
@@ -1641,6 +2895,12 @@
           btn.disabled = false;
           btn.textContent = '📍 ' + tLoc('responderConvocacao.enviarLocalizacao');
           btn.style.background = 'linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%)';
+          if (localizacaoMotoristaOk) {
+            btn.textContent =
+              '✅ ' +
+              tConv('responderConvocacao.localizacaoEnviada', 'Localização enviada com sucesso!');
+            btn.style.background = 'linear-gradient(135deg, #2ecc71, #27ae60)';
+          }
         }, 3000);
         
       } catch (err) {
@@ -1659,6 +2919,30 @@
 
     document.getElementById('btnAceitar').addEventListener('click', () => responderConvocacao('ACEITA'));
     document.getElementById('btnRecusar').addEventListener('click', () => responderConvocacao('RECUSADA'));
+
+    (function wirePlacasPubBotoes() {
+      var bc = document.getElementById('btnPlacasConfirmaPub');
+      var bd = document.getElementById('btnPlacasDivergePub');
+      if (bc) {
+        bc.addEventListener('click', function () {
+          placasPublicModo = 'CONFIRMA';
+          placasPublicTextoDiverge = '';
+          atualizarStatusPlacasPubUi();
+          sincronizarBotoesAceitePendente();
+        });
+      }
+      if (bd) {
+        bd.addEventListener('click', function () {
+          abrirModalDivergenciaPlacas(placasPublicTextoDiverge || '').then(function (pr) {
+            if (pr === null) return;
+            placasPublicModo = 'DIVERGE';
+            placasPublicTextoDiverge = pr;
+            atualizarStatusPlacasPubUi();
+            sincronizarBotoesAceitePendente();
+          });
+        });
+      }
+    })();
 
     // Inicializar após i18n estar pronto (traduções e título)
     (function initConvocacao() {

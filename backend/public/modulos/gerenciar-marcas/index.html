@@ -384,15 +384,15 @@
       </div>
 
       <div class="tabs tabs-com-icones">
-        <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.marcas.tabFiltros"><i class='bx bx-filter-alt'></i> Filtros</button>
-        <button class="tab-btn" data-tab="grid" data-i18n="web.modulos.marcas.tabGrid"><i class='bx bx-grid-alt'></i> Grid</button>
-        <button class="tab-btn" data-tab="dados" data-i18n="web.modulos.marcas.tabDados"><i class='bx bx-edit'></i> Dados</button>
+        <button type="button" class="tab-btn active" data-tab="filtros"><i class='bx bx-filter-alt'></i> <span data-i18n="web.modulos.marcas.tabFiltros">Filtros</span></button>
+        <button type="button" class="tab-btn" data-tab="grid"><i class='bx bx-grid-alt'></i> <span data-i18n="web.modulos.marcas.tabGrid">Grid</span></button>
+        <button type="button" class="tab-btn" data-tab="dados"><i class='bx bx-edit'></i> <span data-i18n="web.modulos.marcas.tabDados">Dados</span></button>
       </div>
 
       <!-- Filtros -->
       <div class="tab-content active" id="tab-filtros">
         <div class="filtros-box">
-          <h3><i class='bx bx-filter'></i> Filtros</h3>
+          <h3><i class='bx bx-filter'></i> <span data-i18n="web.modulos.marcas.tabFiltros">Filtros</span></h3>
           <form id="filtroForm" onsubmit="return false;">
             <div class="filtros-grid">
               <div>
@@ -413,9 +413,9 @@
               </div>
             </div>
             <div class="filtros-actions">
-              <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> Limpar</button>
-              <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class='bx bx-search'></i> Filtrar</button>
-              <button type="button" id="btnNovoRegistro" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> Novo</button>
+              <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> <span data-i18n="web.modulos.marcas.limpar">Limpar</span></button>
+              <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class='bx bx-search'></i> <span data-i18n="web.modulos.marcas.filtrar">Filtrar</span></button>
+              <button type="button" id="btnNovoRegistro" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> <span data-i18n="web.modulos.marcas.novo">Novo</span></button>
             </div>
           </form>
         </div>
@@ -424,13 +424,13 @@
       <!-- Grid -->
       <div class="tab-content" id="tab-grid">
         <div class="filtros-box">
-          <h3>Marcas de Equipamento - Visualização em Grid</h3>
+          <h3 data-i18n="web.modulos.marcas.gridTitulo">Marcas de Equipamento - Visualização em Grid</h3>
           <div class="filtros-actions" style="justify-content: space-between; margin-top: 0; margin-bottom: 15px;">
-            <button type="button" id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> Voltar</button>
-            <button type="button" id="btnNovoRegistroGrid" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> Novo</button>
+            <button type="button" id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.marcas.voltar">Voltar</span></button>
+            <button type="button" id="btnNovoRegistroGrid" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> <span data-i18n="web.modulos.marcas.novo">Novo</span></button>
           </div>
           <div id="marcasGridCount" style="padding: 10px 0; color: #666; font-size: 14px; font-weight: 500;">
-            <span id="marcasGridCountText" data-i18n="web.modulos.cidades.registrosEncontrados">0 registro(s) encontrado(s)</span>
+            <span id="marcasGridCountText" data-i18n="web.modulos.marcas.registrosEncontrados">0 registro(s) encontrado(s)</span>
           </div>
           <div id="marcasGrid" class="grid-container">
             <p class="empty">Aplicar filtros para carregar o grid.</p>
@@ -476,11 +476,11 @@
       <!-- Modal -->
       <div id="confirmModal" class="modal">
         <div class="modal-content">
-          <h3 data-i18n="web.modulos.cidades.confirmarAcao">Confirmar Ação</h3>
+          <h3 data-i18n="web.modulos.marcas.confirmarAcao">Confirmar Ação</h3>
           <p id="modalMessage"></p>
           <div class="modal-actions">
-            <button id="confirmYes" class="btn-filtro btn-filtro-danger" data-i18n="web.modulos.marcas.sim"><i class='bx bx-check'></i> Sim</button>
-            <button id="confirmNo" class="btn-filtro btn-filtro-limpar" data-i18n="web.modulos.marcas.cancelar"><i class='bx bx-x'></i> Cancelar</button>
+            <button type="button" id="confirmYes" class="btn-filtro btn-filtro-danger"><i class='bx bx-check'></i> <span data-i18n="web.modulos.marcas.sim">Sim</span></button>
+            <button type="button" id="confirmNo" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> <span data-i18n="web.modulos.marcas.cancelar">Cancelar</span></button>
           </div>
         </div>
       </div>

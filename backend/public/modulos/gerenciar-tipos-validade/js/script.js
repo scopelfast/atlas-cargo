@@ -104,14 +104,14 @@
     if (tipoCadastro) params.append('tipoCadastro', tipoCadastro);
     
     try {
-      const response = await fetch(`/api/tipos-validade?${params.toString()}`);
+      const response = await fetch(`/api/tipos-validade?${params.toString()}`, { headers: getAuthHeaders() });
       const tipos = await response.json();
 
       lastTipos = tipos;
 
       const countEl = document.getElementById('tiposGridCountText');
       if (countEl) {
-        countEl.textContent = (t('web.modulos.cidades.registrosEncontrados') || '{n} registro(s) encontrado(s)').replace('{n}', String(tipos.length || 0));
+        countEl.textContent = (t('web.modulos.tiposValidade.registrosEncontrados') || '{n} registro(s) encontrado(s)').replace('{n}', String(tipos.length || 0));
       }
 
       // Se já existe uma instância do Grid na aba, atualizá-la imediatamente
@@ -283,7 +283,7 @@
     try {
       tipoForm?.reset();
       
-      const response = await fetch(`/api/tipos-validade/${id}`);
+      const response = await fetch(`/api/tipos-validade/${id}`, { headers: getAuthHeaders() });
       const tipo = await response.json();
       
       if (tipo) {

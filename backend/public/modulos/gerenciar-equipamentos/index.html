@@ -34,6 +34,16 @@
         gap: 10px;
       }
 
+      .equipamentos-container .form-box > h2.form-panel-titulo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .equipamentos-container .form-box > h2.form-panel-titulo > i.bx {
+        flex-shrink: 0;
+      }
+
       .equipamentos-container .tabs.tabs-com-icones {
         display: flex;
         margin-bottom: 25px;
@@ -199,6 +209,20 @@
         border: 1px solid var(--border, #e2e8f0);
       }
 
+      /* Resumo do equipamento — mesmo cartão que o restante do módulo */
+      .equipamentos-container .equip-tab-resumo-card {
+        margin-bottom: 20px;
+      }
+      .equipamentos-container .equip-tab-resumo-body {
+        padding-top: 4px;
+        padding-bottom: 8px;
+      }
+      .equipamentos-container .equip-tab-resumo-meta {
+        font-size: 14px;
+        color: var(--gray, #64748b);
+        margin: 0;
+        line-height: 1.45;
+      }
       .filtros-box h3 {
         margin: 0 0 20px 0;
         color: var(--ac-primary, #0d2137);
@@ -207,6 +231,13 @@
         display: flex;
         align-items: center;
         gap: 8px;
+      }
+
+      /* Grid: barra de ações interna sem borda duplicada */
+      .equipamentos-container .equip-grid-filtros-inner {
+        margin: 0 !important;
+        padding: 0 !important;
+        border: none !important;
       }
 
       .filtros-actions {
@@ -218,6 +249,45 @@
 
       .filtros-actions .btn {
         margin-right: 0;
+      }
+
+      .equipamentos-container .filtros-actions-moderno {
+        padding-top: 20px;
+        margin-top: 20px;
+        border-top: 1px solid var(--border, #e2e8f0);
+        gap: 12px;
+      }
+
+      /* Grupo + Rastreado na mesma linha — larguras contidas (não full row cada um) */
+      .equipamentos-container .equip-grupo-rastreado-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 20px;
+        align-items: flex-end;
+        margin-bottom: 0;
+      }
+      .equipamentos-container .equip-grupo-rastreado-row .equip-grupo-col {
+        flex: 1 1 auto;
+        min-width: 160px;
+        max-width: 340px;
+        width: 100%;
+      }
+      .equipamentos-container .equip-grupo-rastreado-row .equip-rastreado-col {
+        flex: 0 1 auto;
+        min-width: 140px;
+        max-width: 220px;
+        width: 100%;
+      }
+      .equipamentos-container .equip-grupo-rastreado-row label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: var(--gray, #64748b);
+        font-size: 14px;
+      }
+      .equipamentos-container .equip-grupo-rastreado-row select {
+        width: 100%;
+        box-sizing: border-box;
       }
 
       /* ========== MODAL DE AJUDA ========== */
@@ -619,9 +689,9 @@
       #equipamentosGrid th:nth-last-child(2),
       #equipamentosGrid td:nth-last-child(2) { width: 120px !important; min-width: 120px !important; max-width: 120px !important; text-align: right !important; }
       #equipamentosGrid .grid-actions-header,
-      #equipamentosGrid th:last-child { width: 88px !important; min-width: 88px !important; max-width: 88px !important; }
+      #equipamentosGrid th:last-child { width: 76px !important; min-width: 76px !important; max-width: 76px !important; padding: 12px 4px !important; }
       #equipamentosGrid .grid-actions,
-      #equipamentosGrid td:last-child { width: 88px !important; min-width: 88px !important; max-width: 88px !important; }
+      #equipamentosGrid td:last-child { width: 76px !important; min-width: 76px !important; max-width: 76px !important; padding: 8px 4px !important; gap: 4px !important; }
     </style>
 </head>
 <body>
@@ -633,10 +703,12 @@
 
         <!-- Abas -->
         <div class="tabs tabs-com-icones">
-            <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.equipamentos.tabFiltros"><i class='bx bx-filter-alt'></i> Filtros</button>
-            <button class="tab-btn" data-tab="grid" data-i18n="web.modulos.equipamentos.tabGrid"><i class='bx bx-grid-alt'></i> Grid</button>
-            <button class="tab-btn" data-tab="dados" data-i18n="web.modulos.equipamentos.tabDados"><i class='bx bx-edit'></i> Dados</button>
-            <button class="tab-btn" data-tab="validades" data-i18n="web.modulos.equipamentos.tabValidades"><i class='bx bx-calendar-check'></i> Validades</button>
+            <button type="button" class="tab-btn active" data-tab="filtros"><i class='bx bx-filter-alt'></i> <span data-i18n="web.modulos.equipamentos.tabFiltros">Filtros</span></button>
+            <button type="button" class="tab-btn" data-tab="grid"><i class='bx bx-grid-alt'></i> <span data-i18n="web.modulos.equipamentos.tabGrid">Grid</span></button>
+            <button type="button" class="tab-btn" data-tab="dados"><i class='bx bx-edit'></i> <span data-i18n="web.modulos.equipamentos.tabDados">Dados</span></button>
+            <button type="button" class="tab-btn" data-tab="ficha-tecnica"><i class='bx bx-wrench'></i> <span data-i18n="web.modulos.equipamentos.tabFichaTecnica">Ficha técnica</span></button>
+            <button type="button" class="tab-btn" data-tab="documentos-app"><i class='bx bx-image'></i> <span data-i18n="web.modulos.equipamentos.tabDocumentosApp">Documentos</span></button>
+            <button type="button" class="tab-btn" data-tab="validades"><i class='bx bx-calendar-check'></i> <span data-i18n="web.modulos.equipamentos.tabValidades">Validades</span></button>
         </div>
 
         <!-- Filtros -->
@@ -737,10 +809,10 @@
                         </div>
                     </div>
 
-                    <div class="filtros-actions">
-                        <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> Limpar</button>
-                        <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class='bx bx-search'></i> Filtrar</button>
-                        <button type="button" id="btnNovoEquipamento" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> Novo</button>
+                    <div class="filtros-actions filtros-actions-moderno">
+                        <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> <span data-i18n="web.modulos.equipamentos.limpar">Limpar</span></button>
+                        <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class='bx bx-search'></i> <span data-i18n="web.modulos.equipamentos.filtrar">Filtrar</span></button>
+                        <button type="button" id="btnNovoEquipamento" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> <span data-i18n="web.modulos.equipamentos.novo">Novo</span></button>
                     </div>
                 </form>
             </div>
@@ -748,17 +820,17 @@
 
         <!-- Grid -->
         <div class="tab-content" id="tab-grid">
-            <div class="filtros-box">
-                <h3 data-i18n="web.modulos.equipamentos.gridTitulo">Grid de Equipamentos</h3>
-                <div class="filtros-actions" style="justify-content: space-between; margin-top: 0; margin-bottom: 15px;">
-                    <div class="filtros-actions" style="margin: 0;">
-                        <button type="button" id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> Voltar</button>
-                        <button type="button" id="btnExportarExcel" class="btn-filtro btn-filtro-aplicar"><i class='bx bx-download'></i> Exportar Excel</button>
+            <div class="form-box">
+                <h2 class="form-panel-titulo" style="margin-bottom: 16px;"><i class='bx bx-grid-alt' aria-hidden="true"></i> <span data-i18n="web.modulos.equipamentos.gridTitulo">Grid de Equipamentos</span></h2>
+                <div class="actions-top" style="margin-bottom: 16px;">
+                    <div class="filtros-actions filtros-actions-moderno equip-grid-filtros-inner">
+                        <button type="button" id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.equipamentos.voltar">Voltar</span></button>
+                        <button type="button" id="btnExportarExcel" class="btn-filtro btn-filtro-aplicar"><i class='bx bx-download'></i> <span data-i18n="web.modulos.equipamentos.exportarExcel">Exportar Excel</span></button>
                     </div>
-                    <button type="button" id="btnNovoEquipamentoGrid" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> Novo</button>
+                    <button type="button" id="btnNovoEquipamentoGrid" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> <span data-i18n="web.modulos.equipamentos.novo">Novo</span></button>
                 </div>
                 <div id="equipamentosGridCount" style="padding: 10px 0; color: var(--gray); font-size: 14px; font-weight: 500;">
-                    <span id="equipamentosGridCountText" data-i18n="web.modulos.cidades.registrosEncontrados">0 registro(s) encontrado(s)</span>
+                    <span id="equipamentosGridCountText" data-i18n="web.modulos.equipamentos.registrosEncontrados">0 registro(s) encontrado(s)</span>
                 </div>
                 <div id="equipamentosGrid" class="grid-container">
                     <p class="empty">Aplicar filtros para carregar o grid.</p>
@@ -769,7 +841,7 @@
         <!-- Dados -->
         <div class="tab-content" id="tab-dados">
             <div class="form-box">
-                <h2 id="formTitle" data-i18n="web.modulos.equipamentos.novoEquipamento">Novo Equipamento</h2>
+                <h2 id="formTitle" class="form-panel-titulo"><i class='bx bx-edit' aria-hidden="true"></i> <span id="formTitleText" data-i18n="web.modulos.equipamentos.novoEquipamento">Novo Equipamento</span></h2>
                 <form id="equipamentoForm">
                     <input type="hidden" id="equipamentoId">
 
@@ -846,11 +918,19 @@
                                     </select>
                                 </div>
                             </div>
-                            <div class="input-group four-row">
-                                <div>
+                            <div class="equip-grupo-rastreado-row input-group" style="margin-bottom: 0;">
+                                <div class="equip-grupo-col">
                                     <label for="equipGrupo">Grupo de Equipamento</label>
                                     <select id="equipGrupo">
                                         <option value="">Selecione</option>
+                                    </select>
+                                </div>
+                                <div class="equip-rastreado-col">
+                                    <label for="equipRastreado">Veículo Rastreado *</label>
+                                    <select id="equipRastreado" required>
+                                        <option value="">Selecione</option>
+                                        <option value="S">Sim</option>
+                                        <option value="N">Não</option>
                                     </select>
                                 </div>
                             </div>
@@ -882,57 +962,161 @@
                         </div>
                     </div>
 
-                    <!-- Card Dimensões e Rastreamento -->
+                    <div class="filtros-actions filtros-actions-moderno">
+                        <button type="submit" class="btn-filtro btn-filtro-novo"><i class='bx bx-save'></i> <span data-i18n="web.modulos.equipamentos.salvar">Salvar</span></button>
+                        <button type="button" id="btnCancelarDados" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> <span data-i18n="web.modulos.equipamentos.cancelar">Cancelar</span></button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Ficha técnica (complemento veicular — mesmos padrões de cards e filtros-actions) -->
+        <div class="tab-content" id="tab-ficha-tecnica">
+            <div class="form-box" style="position: relative;">
+                <div id="overlayFichaTecnica" class="calculando-overlay" style="display: none;" aria-hidden="true">
+                    <div class="calculando-content">
+                        <div class="calculando-spinner"></div>
+                        <h3 data-i18n="web.modulos.equipamentos.fichaTecnicaCarregandoTitulo">Carregando</h3>
+                        <p data-i18n="web.modulos.equipamentos.fichaTecnicaCarregandoSub">Aguarde…</p>
+                        <p class="calculando-detalhe" data-i18n="web.modulos.equipamentos.fichaTecnicaCarregandoDetalhe">Buscando ficha técnica do equipamento.</p>
+                    </div>
+                </div>
+                <h2 class="form-panel-titulo"><i class='bx bx-wrench' aria-hidden="true"></i> <span data-i18n="web.modulos.equipamentos.fichaTecnicaTitulo">Ficha técnica do veículo</span></h2>
+                <div class="actions-top">
+                    <button type="button" id="btnVoltarDadosFichaTecnica" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.equipamentos.voltarAosDados">Voltar aos Dados</span></button>
+                    <button type="submit" form="formFichaTecnica" class="btn-filtro btn-filtro-novo" id="btnSalvarFichaTecnica"><i class='bx bx-save'></i> <span data-i18n="web.modulos.equipamentos.fichaSalvar">Salvar ficha</span></button>
+                </div>
+
+                <div id="fichaTecnicaEquipResumo" class="form-dados-card equip-tab-resumo-card">
+                    <div class="form-dados-card-header"><i class="bx bx-info-circle" aria-hidden="true"></i> <span data-i18n="web.modulos.equipamentos.fichaTecnicaEquipLabel">Equipamento</span></div>
+                    <div class="form-dados-card-body equip-tab-resumo-body">
+                        <p class="equip-tab-resumo-meta">
+                            <span data-i18n="web.modulos.equipamentos.fichaTecnicaPlaca">Placa / referência</span>:
+                            <span id="fichaTecnicaRefEquip">—</span>
+                            · ID: <span id="fichaTecnicaIdEquip">—</span>
+                        </p>
+                    </div>
+                </div>
+
+                <form id="formFichaTecnica">
                     <div class="form-dados-card">
-                        <div class="form-dados-card-header"><i class='bx bx-ruler'></i> Dimensões e Rastreamento</div>
+                        <div class="form-dados-card-header"><i class='bx bx-ruler'></i> <span data-i18n="web.modulos.equipamentos.fichaCardDimensoes">Dimensões (cadastro do equipamento)</span></div>
                         <div class="form-dados-card-body">
                             <div class="input-group six-row">
                                 <div>
-                                    <label for="equipCapacidade">Capacidade de Carga (ton)</label>
-                                    <input type="number" id="equipCapacidade" step="0.01" min="0">
+                                    <label for="equipCapacidade" data-i18n="web.modulos.equipamentos.dimCapacidadeCarga">Capacidade de carga (t)</label>
+                                    <input type="number" id="equipCapacidade" class="form-control" step="0.01" min="0" autocomplete="off">
                                 </div>
                                 <div>
-                                    <label for="equipAltura">Altura (m)</label>
-                                    <input type="number" id="equipAltura" step="0.01" min="0">
+                                    <label for="equipAltura" data-i18n="web.modulos.equipamentos.dimAltura">Altura (m)</label>
+                                    <input type="number" id="equipAltura" class="form-control" step="0.01" min="0" autocomplete="off">
                                 </div>
                                 <div>
-                                    <label for="equipLargura">Largura (m)</label>
-                                    <input type="number" id="equipLargura" step="0.01" min="0">
+                                    <label for="equipLargura" data-i18n="web.modulos.equipamentos.dimLargura">Largura (m)</label>
+                                    <input type="number" id="equipLargura" class="form-control" step="0.01" min="0" autocomplete="off">
                                 </div>
                                 <div>
-                                    <label for="equipComprimento">Comprimento (m)</label>
-                                    <input type="number" id="equipComprimento" step="0.01" min="0">
+                                    <label for="equipComprimento" data-i18n="web.modulos.equipamentos.dimComprimento">Comprimento (m)</label>
+                                    <input type="number" id="equipComprimento" class="form-control" step="0.01" min="0" autocomplete="off">
                                 </div>
                                 <div>
-                                    <label for="equipCubico">M³ Cúbico</label>
-                                    <input type="number" id="equipCubico" step="0.01" min="0">
-                                </div>
-                                <div>
-                                    <label for="equipRastreado">Veículo Rastreado *</label>
-                                    <select id="equipRastreado" required>
-                                        <option value="">Selecione</option>
-                                        <option value="S">Sim</option>
-                                        <option value="N">Não</option>
-                                    </select>
+                                    <label for="equipCubico" data-i18n="web.modulos.equipamentos.dimCubico">M³ cúbico</label>
+                                    <input type="number" id="equipCubico" class="form-control" step="0.01" min="0" autocomplete="off">
                                 </div>
                             </div>
                         </div>
                     </div>
-
-                    <div class="filtros-actions" style="margin-top: 20px;">
-                        <button type="submit" class="btn-filtro btn-filtro-novo"><i class='bx bx-save'></i> Salvar</button>
-                        <button type="button" id="btnCancelarDados" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> Cancelar</button>
+                    <div class="form-dados-card">
+                        <div class="form-dados-card-header"><i class='bx bx-detail'></i> <span data-i18n="web.modulos.equipamentos.fichaCardIdentificacao">Identificação e documentação</span></div>
+                        <div class="form-dados-card-body">
+                            <div class="input-group four-row">
+                                <div>
+                                    <label for="fichaRenavam" data-i18n="web.modulos.equipamentos.fichaRenavam">RENAVAM (frota)</label>
+                                    <input type="text" id="fichaRenavam" class="form-control" maxlength="20" autocomplete="off">
+                                </div>
+                                <div>
+                                    <label for="fichaChassi" data-i18n="web.modulos.equipamentos.fichaChassi">Chassi</label>
+                                    <input type="text" id="fichaChassi" class="form-control" maxlength="20" autocomplete="off">
+                                </div>
+                                <div>
+                                    <label for="fichaNrFrota" data-i18n="web.modulos.equipamentos.fichaNrFrota">Nº frota</label>
+                                    <input type="text" id="fichaNrFrota" class="form-control" maxlength="10" autocomplete="off">
+                                </div>
+                                <div>
+                                    <label for="fichaCategoriaCnh" data-i18n="web.modulos.equipamentos.fichaCategoriaCnh">Categoria CNH</label>
+                                    <input type="text" id="fichaCategoriaCnh" class="form-control" maxlength="5" placeholder="E" autocomplete="off">
+                                </div>
+                            </div>
+                            <div class="input-group four-row">
+                                <div>
+                                    <label for="fichaNumeroCarroceria" data-i18n="web.modulos.equipamentos.fichaNumeroCarroceria">Número carroceria</label>
+                                    <input type="text" id="fichaNumeroCarroceria" class="form-control" maxlength="20" autocomplete="off">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-dados-card">
+                        <div class="form-dados-card-header"><i class='bx bx-tachometer'></i> <span data-i18n="web.modulos.equipamentos.fichaCardPesos">Pesos e capacidades</span></div>
+                        <div class="form-dados-card-body">
+                            <div class="input-group four-row">
+                                <div>
+                                    <label for="fichaTara" data-i18n="web.modulos.equipamentos.fichaTara">Tara (t)</label>
+                                    <input type="number" id="fichaTara" class="form-control" step="0.000001" min="0" placeholder="0">
+                                </div>
+                                <div>
+                                    <label for="fichaCapacTracao" data-i18n="web.modulos.equipamentos.fichaCapacTracao">Capacidade tração (t)</label>
+                                    <input type="number" id="fichaCapacTracao" class="form-control" step="0.000001" min="0" placeholder="0">
+                                </div>
+                                <div>
+                                    <label for="fichaCapacTanque" data-i18n="web.modulos.equipamentos.fichaCapacTanque">Capacidade tanque</label>
+                                    <input type="number" id="fichaCapacTanque" class="form-control" step="0.000001" min="0" placeholder="0">
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- Documentos enviados pelo app (CRLV / foto veículo — MOTORISTA_VEICULO vinculado ao equipamento) -->
+        <div class="tab-content" id="tab-documentos-app">
+            <div class="form-box" style="position: relative;">
+                <div id="overlayEquipDocumentos" class="calculando-overlay" style="display: none;" aria-hidden="true">
+                    <div class="calculando-content">
+                        <div class="calculando-spinner"></div>
+                        <h3 data-i18n="web.modulos.equipamentos.documentosAppCarregandoTitulo">Carregando</h3>
+                        <p data-i18n="web.modulos.equipamentos.documentosAppCarregandoSub">Aguarde…</p>
+                        <p class="calculando-detalhe" data-i18n="web.modulos.equipamentos.documentosAppCarregandoDetalhe">Buscando anexos vinculados ao equipamento.</p>
+                    </div>
+                </div>
+                <h2 class="form-panel-titulo"><i class='bx bx-image' aria-hidden="true"></i> <span data-i18n="web.modulos.equipamentos.documentosAppTitulo">Documentos</span></h2>
+                <div class="actions-top">
+                    <button type="button" id="btnVoltarDadosDocumentosApp" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.equipamentos.voltarAosDados">Voltar aos Dados</span></button>
+                </div>
+
+                <div id="equipDocEquipResumo" class="form-dados-card equip-tab-resumo-card">
+                    <div class="form-dados-card-header"><i class="bx bx-info-circle" aria-hidden="true"></i> <span data-i18n="web.modulos.equipamentos.documentosAppEquipLabel">Equipamento</span></div>
+                    <div class="form-dados-card-body equip-tab-resumo-body">
+                        <p class="equip-tab-resumo-meta">
+                            <span data-i18n="web.modulos.equipamentos.fichaTecnicaPlaca">Placa / referência</span>:
+                            <span id="equipDocRefEquip">—</span>
+                            · ID: <span id="equipDocIdEquip">—</span>
+                        </p>
+                    </div>
+                </div>
+                <div id="equipDocumentosAppLista" class="equip-documentos-app-lista"></div>
+                <p id="equipDocumentosAppVazio" class="empty" style="display: none; margin-top: 12px;" data-i18n="web.modulos.equipamentos.documentosAppVazio">
+                    Nenhum documento do app vinculado a este equipamento (sem linha em motorista–veículo com CDEQUIPAMENTO ou sem arquivos enviados).
+                </p>
             </div>
         </div>
 
         <!-- Validades -->
         <div class="tab-content" id="tab-validades">
           <div class="form-box">
-            <h2><i class='bx bx-calendar-check'></i> Gerenciar Validades do Equipamento</h2>
+            <h2 class="form-panel-titulo"><i class='bx bx-calendar-check' aria-hidden="true"></i> <span data-i18n="web.modulos.equipamentos.tituloPainelValidadesEquipamento">Gerenciar Validades do Equipamento</span></h2>
             <div class="actions-top">
-              <button type="button" id="btnVoltarDadosValidades" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> Voltar aos Dados</button>
+              <button type="button" id="btnVoltarDadosValidades" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.equipamentos.voltarAosDados">Voltar aos Dados</span></button>
               <button type="button" id="btnNovaValidade" class="btn-filtro btn-filtro-novo"><i class='bx bx-plus'></i> Nova Validade</button>
             </div>
 
@@ -1078,8 +1262,8 @@
                 <h3 data-i18n="web.modulos.equipamentos.confirmarAcao">Confirmar Ação</h3>
                 <p id="modalMessage"></p>
                 <div class="modal-actions">
-                    <button id="confirmYes" class="btn-filtro btn-filtro-danger" data-i18n="web.modulos.equipamentos.sim"><i class='bx bx-check'></i> Sim</button>
-                    <button id="confirmNo" class="btn-filtro btn-filtro-limpar" data-i18n="web.modulos.equipamentos.cancelar"><i class='bx bx-x'></i> Cancelar</button>
+                    <button type="button" id="confirmYes" class="btn-filtro btn-filtro-danger"><i class='bx bx-check'></i> <span data-i18n="web.modulos.equipamentos.sim">Sim</span></button>
+                    <button type="button" id="confirmNo" class="btn-filtro btn-filtro-limpar"><i class='bx bx-x'></i> <span data-i18n="web.modulos.equipamentos.cancelar">Cancelar</span></button>
                 </div>
             </div>
         </div>
@@ -1103,6 +1287,7 @@
     <!-- Cache Buster - deve ser o primeiro script -->
     <script src="/js/cache-buster.js?v=202612091200"></script>
     <script src="/js/utils.js"></script>
+    <script src="/js/i18n-web.js"></script>
     <script src="/js/grid-editor.js"></script>
     <script src="/js/log-helper.js"></script>
     <script src="/js/init-overlay-helper.js"></script>

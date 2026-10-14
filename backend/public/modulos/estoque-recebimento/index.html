@@ -1,0 +1,1372 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>WMS — Recebimento</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/modulos.css" />
+  <link rel="stylesheet" href="/css/dark-mode.css" />
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+  <style>
+    .wms-rec-container { padding: 20px; font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif; }
+    .wms-rec-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid var(--light-gray, #e2e8f0); }
+    .wms-rec-header h2 { margin: 0; color: var(--ac-primary, #0d2137); font-size: 28px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+    .wms-rec-container .tabs.tabs-com-icones { display: flex; flex-wrap: wrap; margin-bottom: 25px; border-bottom: 2px solid var(--light-gray, #e2e8f0); gap: 0; }
+    .wms-rec-container .tabs.tabs-com-icones .tab-btn {
+      display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border: none; background: transparent; color: #94a3b8; font-weight: 600; font-size: 15px; cursor: pointer;
+      border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color 0.2s, border-color 0.2s; font-family: inherit;
+    }
+    .wms-rec-container .tabs.tabs-com-icones .tab-btn i { font-size: 1.15rem; color: inherit; }
+    .wms-rec-container .tabs.tabs-com-icones .tab-btn:hover { color: #64748b; }
+    .wms-rec-container .tabs.tabs-com-icones .tab-btn.active { color: var(--ac-primary, #0d2137); border-bottom-color: var(--ac-primary, #0d2137); }
+    html[data-theme='dark'] .wms-rec-container .tabs.tabs-com-icones { border-bottom-color: #334155; }
+    html[data-theme='dark'] .wms-rec-container .tabs.tabs-com-icones .tab-btn { color: #94a3b8; }
+    html[data-theme='dark'] .wms-rec-container .tabs.tabs-com-icones .tab-btn:hover { color: #cbd5e1; }
+    html[data-theme='dark'] .wms-rec-container .tabs.tabs-com-icones .tab-btn.active { color: #38bdf8; border-bottom-color: #38bdf8; }
+    .filtros-box { background: white; border-radius: 12px; padding: 25px; box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08)); margin-bottom: 25px; border: 1px solid var(--border, #e2e8f0); }
+    .filtros-box h3 { margin: 0 0 20px; color: var(--ac-primary, #0d2137); font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .filtros-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 15px; }
+    .filtros-grid > div { display: flex; flex-direction: column; }
+    /* Importar XML: duas colunas com rótulos de alturas diferentes — alinha os controles na base. */
+    .wms-rec-container .wms-import-filtros-grid {
+      align-items: stretch;
+    }
+    .wms-rec-container .wms-import-filtros-grid > div {
+      height: 100%;
+      min-height: 0;
+    }
+    .wms-rec-container .wms-import-filtros-grid > div label {
+      margin-bottom: 8px;
+      line-height: 1.35;
+    }
+    .wms-rec-container .wms-import-filtros-grid > div .form-control,
+    .wms-rec-container .wms-import-filtros-grid > div input.form-control[type='file'] {
+      margin-top: auto;
+      align-self: stretch;
+      min-height: 46px;
+    }
+    .wms-rec-container .wms-import-filtros-grid > div input.form-control[type='file'] {
+      padding: 8px 12px;
+      line-height: 1.3;
+    }
+    .filtros-grid label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--dark, #1e293b); font-size: 14px; }
+    .filtros-grid .form-control { width: 100%; padding: 12px; border: 1px solid var(--border, #e2e8f0); border-radius: 8px; font-size: 16px; font-family: inherit; box-sizing: border-box; }
+    .filtros-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 15px; flex-wrap: wrap; }
+    .btn-filtro { display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; transition: transform 0.15s; }
+    .btn-filtro:hover { transform: translateY(-1px); }
+    .btn-filtro-limpar { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+    .btn-filtro-aplicar { background: var(--ac-accent, #0ea5e9); color: #fff; box-shadow: 0 2px 8px rgba(14, 165, 233, 0.25); }
+    .btn-filtro-novo { background: var(--success, #059669); color: #fff; box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25); }
+    .form-dados-card { background: #fff; border-radius: 12px; border: 1px solid var(--border, #e2e8f0); margin-bottom: 20px; overflow: hidden; }
+    .form-dados-card-header { padding: 14px 20px; background: #f8fafc; border-bottom: 1px solid var(--border, #e2e8f0); font-weight: 600; color: var(--ac-primary, #0d2137); display: flex; align-items: center; gap: 8px; }
+    .form-dados-card-body { padding: 20px; }
+    #wmsRecGrid.grid-container { min-height: 100px; }
+    #wmsRecGrid td[data-field='ST_RECEBIMENTO'] {
+      text-align: center;
+      white-space: nowrap;
+    }
+    #wmsRecGrid th[data-field="DH_IMPORTACAO"],
+    #wmsRecGrid td[data-field="DH_IMPORTACAO"] {
+      width: 170px !important;
+      min-width: 170px !important;
+      max-width: 170px !important;
+      box-sizing: border-box !important;
+    }
+    #wmsRecGrid td[data-field="DH_IMPORTACAO"] .cell-value {
+      white-space: nowrap !important;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.2px;
+    }
+    #wmsRecDetalheMeta {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+      padding: 0;
+    }
+    #wmsRecDetalheMeta .detalhe-meta-item {
+      background: rgba(15, 23, 42, 0.02);
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 10px;
+      padding: 12px;
+      min-width: 0;
+    }
+    #wmsRecDetalheMeta .detalhe-meta-label {
+      display: block;
+      font-size: 12px;
+      color: #64748b;
+      margin-bottom: 6px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    #wmsRecDetalheMeta .detalhe-meta-value {
+      display: block;
+      font-size: 15px;
+      color: var(--dark, #1e293b);
+      line-height: 1.45;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+    }
+    #wmsRecDetalheMeta .detalhe-meta-value.codigo {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 13px;
+      letter-spacing: 0.2px;
+    }
+    #wmsRecDetalheMeta .detalhe-meta-aux {
+      display: block;
+      margin-top: 4px;
+      font-size: 12px;
+      color: #64748b;
+      word-break: break-word;
+    }
+    html[data-theme='dark'] #wmsRecDetalheMeta .detalhe-meta-item {
+      background: #0f172a;
+      border-color: #334155;
+    }
+    html[data-theme='dark'] #wmsRecDetalheMeta .detalhe-meta-label {
+      color: #94a3b8;
+    }
+    html[data-theme='dark'] #wmsRecDetalheMeta .detalhe-meta-value {
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] #wmsRecDetalheMeta .detalhe-meta-aux {
+      color: #94a3b8;
+    }
+    #wmsRecDetalheLinhas {
+      max-height: none;
+      overflow-x: auto;
+      overflow-y: visible;
+      font-size: 13px;
+    }
+    #wmsRecDetalheLinhas table {
+      width: 100%;
+      min-width: 980px;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    #wmsRecDetalheLinhas th,
+    #wmsRecDetalheLinhas td {
+      padding: 6px 8px;
+      border-bottom: 1px solid var(--border, #e2e8f0);
+      text-align: left;
+      vertical-align: middle;
+    }
+    #wmsRecDetalheLinhas thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #23334d;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    #wmsRecDetalheLinhas th.sortable {
+      cursor: pointer;
+      user-select: none;
+    }
+    #wmsRecDetalheLinhas th.sortable:hover {
+      background: #2b4163;
+    }
+    /* # | Produto NF | Descrição | Qtd NF | UM | Produto dono | Fator | Qtd rec. | Lote | Validade */
+    #wmsRecDetalheLinhas th:nth-child(1),
+    #wmsRecDetalheLinhas td:nth-child(1) { width: 3%; }
+    #wmsRecDetalheLinhas th:nth-child(2),
+    #wmsRecDetalheLinhas td:nth-child(2) { width: 6%; word-break: break-all; }
+    #wmsRecDetalheLinhas th:nth-child(3),
+    #wmsRecDetalheLinhas td:nth-child(3) { width: 22%; }
+    #wmsRecDetalheLinhas th:nth-child(4),
+    #wmsRecDetalheLinhas td:nth-child(4) { width: 6%; text-align: right; font-variant-numeric: tabular-nums; }
+    #wmsRecDetalheLinhas th:nth-child(5),
+    #wmsRecDetalheLinhas td:nth-child(5) { width: 4%; }
+    #wmsRecDetalheLinhas th:nth-child(6),
+    #wmsRecDetalheLinhas td:nth-child(6) { width: 20%; min-width: 190px; }
+    #wmsRecDetalheLinhas th:nth-child(7),
+    #wmsRecDetalheLinhas td:nth-child(7) { width: 6%; }
+    #wmsRecDetalheLinhas th:nth-child(8),
+    #wmsRecDetalheLinhas td:nth-child(8) { width: 8%; }
+    #wmsRecDetalheLinhas th:nth-child(9),
+    #wmsRecDetalheLinhas td:nth-child(9) { width: 9%; }
+    #wmsRecDetalheLinhas th:nth-child(10),
+    #wmsRecDetalheLinhas td:nth-child(10) { width: 16%; min-width: 140px; }
+    #wmsRecDetalheLinhas .col-desc-nfe {
+      overflow: hidden;
+    }
+    #wmsRecDetalheLinhas .wms-rec-desc-main {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: inherit;
+    }
+    #wmsRecDetalheLinhas .wms-rec-vunit-hint {
+      display: block;
+      margin-top: 2px;
+      font-size: 11px;
+      line-height: 1.2;
+      color: #64748b;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    html[data-theme='dark'] #wmsRecDetalheLinhas .wms-rec-vunit-hint { color: #94a3b8; }
+    #wmsRecDetalheLinhas .conf-input {
+      width: 100%;
+      min-width: 0;
+      max-width: 100%;
+      box-sizing: border-box;
+      height: 34px;
+      padding: 6px 8px;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      background: #0f172a;
+      color: #e2e8f0;
+      font-size: 13px;
+    }
+    #wmsRecDetalheLinhas .conf-input[type="date"] {
+      min-width: 0;
+      padding-right: 4px;
+    }
+    #wmsRecDetalheLinhas .conf-input[type="number"] {
+      min-width: 0;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    #wmsRecDetalheLinhas .conf-input[data-field="fatorConversao"] {
+      padding-left: 4px;
+      padding-right: 4px;
+    }
+    #wmsRecDetalheLinhas .col-qtd-recebida,
+    #wmsRecDetalheLinhas .col-fator {
+      min-width: 0;
+    }
+    #wmsRecDetalheLinhas .conf-produto {
+      min-width: 0;
+      flex: 1;
+      font-family: ui-monospace, Consolas, monospace;
+      font-size: 12.5px;
+      letter-spacing: -0.2px;
+    }
+    #wmsRecDetalheLinhas .col-produto-dono {
+      min-width: 0;
+      position: relative;
+    }
+    #wmsRecDetalheLinhas .wms-rec-prod-dono-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    #wmsRecDetalheLinhas .wms-rec-prod-suggest {
+      position: absolute; left: 0; right: 0; top: calc(100% + 2px); z-index: 40;
+      max-height: 220px; overflow-y: auto; background: #fff; border: 1px solid #cbd5e1;
+      border-radius: 8px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+    }
+    html[data-theme='dark'] #wmsRecDetalheLinhas .wms-rec-prod-suggest {
+      background: #0f172a; border-color: #334155;
+    }
+    #wmsRecDetalheLinhas .wms-rec-prod-suggest button {
+      display: block; width: 100%; text-align: left; border: none; background: transparent;
+      padding: 8px 10px; font-size: 13px; cursor: pointer; color: inherit; font-family: inherit;
+    }
+    #wmsRecDetalheLinhas .wms-rec-prod-suggest button:hover,
+    #wmsRecDetalheLinhas .wms-rec-prod-suggest button:focus {
+      background: #f1f5f9;
+    }
+    html[data-theme='dark'] #wmsRecDetalheLinhas .wms-rec-prod-suggest button:hover,
+    html[data-theme='dark'] #wmsRecDetalheLinhas .wms-rec-prod-suggest button:focus {
+      background: #1e293b;
+    }
+    #wmsRecDetalheLinhas .conf-produto.wms-rec-depara-ok { border-color: #059669; }
+    #wmsRecDetalheLinhas .depara-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      margin: 0;
+      flex-shrink: 0;
+      font-size: 11px;
+      color: #94a3b8;
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+    }
+    #wmsRecDetalheLinhas .depara-inline input[type="checkbox"] {
+      width: 14px;
+      height: 14px;
+      cursor: pointer;
+      margin: 0;
+      accent-color: #059669;
+    }
+    /* Selects na aba Dados alinhados aos inputs (evita aparência "browser default" só no crossdock/import). */
+    .wms-rec-container #tab-dados select.form-control {
+      width: 100%;
+      min-height: 46px;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-family: inherit;
+      box-sizing: border-box;
+      background-color: #0f172a;
+      color: #e2e8f0;
+      border: 1px solid #334155;
+    }
+    html[data-theme='light'] .wms-rec-container #tab-dados select.form-control {
+      background-color: #fff;
+      color: #1e293b;
+      border-color: #e2e8f0;
+    }
+    .rec-help-wrap { position: relative; display: inline-block; margin: 0 0 10px; }
+    .rec-help-btn {
+      display: inline-flex; align-items: center; gap: 6px; border: 1px solid #334155; background: #0f172a;
+      color: #e2e8f0; border-radius: 8px; padding: 7px 10px; font-size: 12px; font-weight: 600; cursor: pointer;
+    }
+    .rec-help-popover {
+      display: none; position: absolute; top: calc(100% + 8px); left: 0; width: min(760px, calc(100vw - 70px));
+      background: #0b1322; color: #cbd5e1; border: 1px solid #334155; border-radius: 10px; padding: 12px;
+      font-size: 12px; line-height: 1.45; z-index: 9; box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+    }
+    .rec-help-wrap:hover .rec-help-popover, .rec-help-wrap:focus-within .rec-help-popover { display: block; }
+    .rec-top-help {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin: -8px 0 12px;
+    }
+    .rec-top-help .rec-help-wrap { margin: 0; }
+    .rec-top-help .rec-help-popover { left: auto; right: 0; }
+    /* Liberação supervisor — mesmo padrão visual da Expedição (exp-divergencias-wrap). */
+    .wms-rec-liberacao-wrap {
+      display: none;
+      margin: 0 0 16px;
+      border: 1px solid #fecaca;
+      border-radius: 10px;
+      background: #fff5f5;
+      overflow: hidden;
+    }
+    .wms-rec-liberacao-head {
+      padding: 10px 12px;
+      font-weight: 700;
+      color: #991b1b;
+      border-bottom: 1px solid #fecaca;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+    }
+    .wms-rec-liberacao-intro {
+      margin: 0;
+      padding: 10px 12px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #7f1d1d;
+      border-bottom: 1px solid #fecaca;
+      background: #fef2f2;
+    }
+    .wms-rec-liberacao-body { max-height: 200px; overflow: auto; }
+    .wms-rec-liberacao-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .wms-rec-liberacao-table th,
+    .wms-rec-liberacao-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #fecaca;
+      text-align: left;
+      vertical-align: top;
+    }
+    .wms-rec-liberacao-table th {
+      background: #fee2e2;
+      color: #7f1d1d;
+      position: sticky;
+      top: 0;
+      font-weight: 600;
+    }
+    .wms-rec-liberacao-foot {
+      padding: 10px 12px;
+      display: grid;
+      gap: 8px;
+      border-top: 1px solid #fecaca;
+    }
+    .wms-rec-liberacao-foot .form-control,
+    .wms-rec-liberacao-row .form-control {
+      width: 100%;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font: inherit;
+      font-size: 14px;
+      box-sizing: border-box;
+      background: #fff;
+      color: #1e293b;
+    }
+    .wms-rec-liberacao-foot textarea.form-control {
+      min-height: 72px;
+      resize: vertical;
+    }
+    .wms-rec-liberacao-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .wms-rec-liberacao-row .form-control {
+      flex: 1 1 160px;
+      min-width: 140px;
+      max-width: 240px;
+    }
+    html[data-theme='dark'] .wms-rec-liberacao-foot .form-control,
+    html[data-theme='dark'] .wms-rec-liberacao-row .form-control {
+      background: #0f172a;
+      border-color: #475569;
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] .wms-rec-liberacao-foot .form-control::placeholder,
+    html[data-theme='dark'] .wms-rec-liberacao-row .form-control::placeholder {
+      color: #64748b;
+    }
+    .wms-rec-container .btn-filtro.btn-filtro-alerta {
+      background: #b45309;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(180, 83, 9, 0.25);
+    }
+    .wms-rec-liberacao-hint-auth {
+      font-size: 12px;
+      line-height: 1.4;
+      color: #64748b;
+      margin: 0;
+    }
+    .wms-rec-liberacao-hint-auth code { font-size: 11px; }
+    html[data-theme='dark'] .wms-rec-liberacao-wrap { background: #450a0a; border-color: #7f1d1d; }
+    html[data-theme='dark'] .wms-rec-liberacao-head { color: #fecaca; border-bottom-color: #7f1d1d; }
+    html[data-theme='dark'] .wms-rec-liberacao-intro { color: #fecaca; border-bottom-color: #7f1d1d; background: #3f1515; }
+    html[data-theme='dark'] .wms-rec-liberacao-table th,
+    html[data-theme='dark'] .wms-rec-liberacao-table td { border-bottom-color: #7f1d1d; color: #fee2e2; }
+    html[data-theme='dark'] .wms-rec-liberacao-table th { background: #7f1d1d; color: #fee2e2; }
+    html[data-theme='dark'] .wms-rec-liberacao-foot { border-top-color: #7f1d1d; }
+    html[data-theme='dark'] .wms-rec-liberacao-hint-auth { color: #94a3b8; }
+    .wms-rec-historico-wrap {
+      display: none;
+      margin: 0 0 14px;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      background: #f8fafc;
+      overflow: hidden;
+    }
+    .wms-rec-historico-wrap.visivel { display: block; }
+    .wms-rec-historico-head {
+      padding: 10px 12px;
+      border-bottom: 1px solid #e2e8f0;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .wms-rec-historico-title { font-weight: 700; color: #0f172a; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+    .wms-rec-historico-badge {
+      font-size: 12px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid #fcd34d;
+      background: #fef3c7;
+      color: #92400e;
+      font-weight: 600;
+    }
+    .wms-rec-historico-body { max-height: 200px; overflow: auto; padding: 10px 12px; display: grid; gap: 8px; }
+    .wms-rec-historico-item {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: #fff;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .wms-rec-historico-item b { color: #0f172a; }
+    .wms-rec-historico-empty { font-size: 13px; color: #475569; }
+    html[data-theme='dark'] .wms-rec-historico-wrap { background: #0f172a; border-color: #334155; }
+    html[data-theme='dark'] .wms-rec-historico-head { border-bottom-color: #334155; }
+    html[data-theme='dark'] .wms-rec-historico-title { color: #e2e8f0; }
+    html[data-theme='dark'] .wms-rec-historico-badge { border-color: #854d0e; background: #422006; color: #fde68a; }
+    html[data-theme='dark'] .wms-rec-historico-item { border-color: #334155; background: #1e293b; color: #e2e8f0; }
+    html[data-theme='dark'] .wms-rec-historico-item b { color: #f8fafc; }
+    html[data-theme='dark'] .wms-rec-historico-empty { color: #94a3b8; }
+    .wms-rec-farol-legenda {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 12px;
+      padding: 10px 12px;
+      font-size: 13px;
+      color: #475569;
+      background: #f8fafc;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 10px;
+    }
+    .wms-rec-farol-legenda span.wms-rec-farol-leg-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .wms-farol-dot {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      min-width: 14px;
+      min-height: 14px;
+      border-radius: 50%;
+      box-sizing: border-box;
+      box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.35);
+      flex-shrink: 0;
+    }
+    .wms-farol-verde { background: #16a34a; }
+    .wms-farol-amarelo { background: #ca8a04; }
+    .wms-farol-vermelho { background: #dc2626; }
+    html[data-theme='dark'] .wms-rec-farol-legenda {
+      background: #0f172a;
+      border-color: #334155;
+      color: #94a3b8;
+    }
+    html[data-theme='dark'] .wms-farol-dot {
+      box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.9), 0 0 0 3px rgba(148, 163, 184, 0.45);
+    }
+    html[data-theme='light'] .wms-farol-dot {
+      box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95), 0 0 0 3px rgba(15, 23, 42, 0.12);
+    }
+    .wms-rec-farol-legenda-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 14px 20px;
+    }
+    .wms-rec-status-col-hint {
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.45;
+      color: #64748b;
+      max-width: 720px;
+    }
+    html[data-theme='dark'] .wms-rec-status-col-hint {
+      color: #94a3b8;
+    }
+    .wms-rec-status-cell {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      cursor: default;
+    }
+    .wms-rec-status-cell .wms-farol-dot {
+      width: 12px;
+      height: 12px;
+      min-width: 12px;
+      min-height: 12px;
+    }
+    .wms-conf-mini {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 14px;
+      font-size: 11px;
+      font-weight: 800;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .wms-conf-mini-sim {
+      color: #15803d;
+    }
+    .wms-conf-mini-nao {
+      color: #94a3b8;
+    }
+    html[data-theme='dark'] .wms-conf-mini-sim {
+      color: #4ade80;
+    }
+    html[data-theme='dark'] .wms-conf-mini-nao {
+      color: #64748b;
+    }
+    #modalEtqRecebimento.modal--confirm {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    #modalEtqRecebimento .modal-content--etq {
+      max-width: 460px;
+      width: 100%;
+      margin: 0;
+      text-align: left;
+      padding: 20px 22px 18px;
+    }
+    #modalEtqRecebimento .modal-content--etq.etq-modal-wide {
+      max-width: min(720px, 96vw);
+    }
+    #modalEtqRecebimento .modal-content--etq h3 {
+      margin: 0 0 8px;
+      font-size: 17px;
+      text-align: left;
+    }
+    #modalEtqRecebimento .etq-modo-opcoes {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin: 12px 0 14px;
+    }
+    #modalEtqRecebimento .etq-modo-opcoes label {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-weight: 500;
+      font-size: 14px;
+      line-height: 1.45;
+      cursor: pointer;
+    }
+    #modalEtqRecebimento .etq-modo-opcoes input { margin-top: 3px; flex-shrink: 0; }
+    #modalEtqRecebimento .etq-modo-hint {
+      font-size: 12px;
+      color: #64748b;
+      margin: 0 0 12px;
+      line-height: 1.4;
+    }
+    html[data-theme='dark'] #modalEtqRecebimento .modal-content--etq {
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] #modalEtqRecebimento .etq-modo-hint { color: #94a3b8; }
+    #modalEtqRecebimento .etq-modo-fixo-wrap {
+      display: none;
+      margin: 0 0 12px 28px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+    }
+    #modalEtqRecebimento .etq-modo-fixo-wrap.ativo { display: block; }
+    #modalEtqRecebimento .etq-modo-fixo-wrap label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      cursor: default;
+    }
+    #modalEtqRecebimento .etq-modo-fixo-wrap input[type="number"],
+    #modalEtqRecebimento .etq-pers-qtd,
+    #modalEtqRecebimento .etq-pers-toolbar input[type="number"] {
+      width: 100%;
+      max-width: 120px;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      font-size: 15px;
+      font-family: inherit;
+      min-height: 42px;
+      background: #fff;
+      color: #1e293b;
+    }
+    #modalEtqRecebimento .etq-modo-fixo-wrap input:focus,
+    #modalEtqRecebimento .etq-pers-qtd:focus,
+    #modalEtqRecebimento .etq-pers-toolbar input:focus {
+      outline: none;
+      border-color: var(--ac-accent, #0ea5e9);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+    }
+    #modalEtqRecebimento .etq-modo-personalizado-wrap {
+      display: none;
+      margin: 0 0 12px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+    }
+    #modalEtqRecebimento .etq-modo-personalizado-wrap.ativo { display: block; }
+    #modalEtqRecebimento .etq-pers-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 10px;
+      margin-bottom: 10px;
+      font-size: 13px;
+    }
+    #modalEtqRecebimento .etq-pers-toolbar label { font-weight: 600; margin: 0; cursor: default; }
+    #modalEtqRecebimento .etq-pers-table-wrap {
+      max-height: min(42vh, 280px);
+      overflow: auto;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      background: #fff;
+    }
+    #modalEtqRecebimento .etq-pers-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    #modalEtqRecebimento .etq-pers-table th,
+    #modalEtqRecebimento .etq-pers-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #e2e8f0;
+      text-align: left;
+      vertical-align: middle;
+    }
+    #modalEtqRecebimento .etq-pers-table th { background: #f8fafc; font-weight: 600; position: sticky; top: 0; z-index: 1; }
+    #modalEtqRecebimento .etq-pers-table td.etq-pers-col-qtd { width: 100px; text-align: center; }
+    #modalEtqRecebimento .etq-pers-sub { font-size: 11px; color: #64748b; margin-top: 2px; line-height: 1.35; }
+    #modalEtqRecebimento .etq-pers-qtd { max-width: 88px; margin: 0 auto; }
+    /* Modal cadastro rápido de produto (fora de .filtros-grid — estilos próprios) */
+    #modalCadProdRecebimento.modal--confirm {
+      align-items: center;
+      justify-content: center;
+      padding: 20px 16px;
+    }
+    #modalCadProdRecebimento .modal-content--cad-prod {
+      max-width: 640px;
+      width: min(640px, 96vw);
+      text-align: left;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    #modalCadProdRecebimento .modal-content--cad-prod h3 {
+      text-align: left;
+      margin: 0 0 10px;
+      font-size: 1.15rem;
+      line-height: 1.35;
+    }
+    #modalCadProdRecebimento .cad-prod-hint {
+      margin: 0 0 16px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: #64748b;
+      text-align: left;
+    }
+    #modalCadProdRecebimento .cad-prod-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px 16px;
+      margin: 0 0 4px;
+      text-align: left;
+    }
+    #modalCadProdRecebimento .cad-prod-grid > div {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    #modalCadProdRecebimento .cad-prod-grid > div > label:first-child {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 600;
+      font-size: 13px;
+      color: #334155;
+      line-height: 1.35;
+    }
+    #modalCadProdRecebimento .cad-prod-grid .form-control {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px 12px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      font-size: 15px;
+      font-family: inherit;
+      min-height: 42px;
+      background: #fff;
+      color: #1e293b;
+    }
+    #modalCadProdRecebimento .cad-prod-grid .form-control[readonly] {
+      background: #f8fafc;
+      color: #475569;
+    }
+    #modalCadProdRecebimento .cad-prod-grid .span-2 { grid-column: 1 / -1; }
+    #modalCadProdRecebimento .cad-prod-depara {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 0;
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1.45;
+      color: #475569;
+      cursor: pointer;
+    }
+    #modalCadProdRecebimento .cad-prod-depara input[type="checkbox"] {
+      margin-top: 3px;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+    #modalCadProdRecebimento .modal-content--cad-prod .modal-actions {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border, #e2e8f0);
+      justify-content: flex-end;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    @media (max-width: 540px) {
+      #modalCadProdRecebimento .cad-prod-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    html[data-theme='dark'] #modalCadProdRecebimento .modal-content--cad-prod {
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] #modalCadProdRecebimento .modal-content--cad-prod h3 {
+      color: #f1f5f9;
+    }
+    html[data-theme='dark'] #modalCadProdRecebimento .cad-prod-hint {
+      color: #94a3b8;
+    }
+    html[data-theme='dark'] #modalCadProdRecebimento .cad-prod-grid > div > label:first-child {
+      color: #cbd5e1;
+    }
+    html[data-theme='dark'] #modalCadProdRecebimento .cad-prod-grid .form-control {
+      background: #1e293b;
+      border-color: #475569;
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] #modalCadProdRecebimento .cad-prod-grid .form-control[readonly] {
+      background: #0f172a;
+      color: #94a3b8;
+    }
+    html[data-theme='dark'] #modalCadProdRecebimento .cad-prod-depara {
+      color: #94a3b8;
+    }
+    html[data-theme='dark'] #modalCadProdRecebimento .modal-content--cad-prod .modal-actions {
+      border-top-color: #334155;
+    }
+    .wms-rec-cad-wrap {
+      display: none;
+      margin-top: 4px;
+    }
+    .wms-rec-cad-wrap.is-visible {
+      display: block;
+    }
+    .wms-rec-cad-wrap .btn-rec-cad-prod {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 0;
+      margin: 0;
+      border: none;
+      background: transparent;
+      box-shadow: none;
+      color: #38bdf8;
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1.3;
+      cursor: pointer;
+    }
+    .wms-rec-cad-wrap .btn-rec-cad-prod:hover {
+      color: #7dd3fc;
+      text-decoration: underline;
+    }
+    .wms-rec-cad-wrap .btn-rec-cad-prod i {
+      font-size: 13px;
+    }
+    .conf-produto.wms-rec-sem-cadastro { background: #fffbeb; border-color: #f59e0b; }
+    html[data-theme='dark'] .conf-produto.wms-rec-sem-cadastro {
+      background: #422006;
+      border-color: #d97706;
+      color: #fef3c7;
+    }
+    html[data-theme='dark'] #modalEtqRecebimento .etq-modo-fixo-wrap,
+    html[data-theme='dark'] #modalEtqRecebimento .etq-modo-personalizado-wrap {
+      background: #1e293b;
+      border-color: #334155;
+    }
+    html[data-theme='dark'] #modalEtqRecebimento .etq-modo-fixo-wrap input,
+    html[data-theme='dark'] #modalEtqRecebimento .etq-pers-qtd,
+    html[data-theme='dark'] #modalEtqRecebimento .etq-pers-toolbar input {
+      background: #0f172a;
+      border-color: #475569;
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] #modalEtqRecebimento .etq-pers-table-wrap { background: #0f172a; border-color: #334155; }
+    html[data-theme='dark'] #modalEtqRecebimento .etq-pers-table th { background: #1e293b; color: #e2e8f0; }
+    html[data-theme='dark'] #modalEtqRecebimento .etq-pers-table td { border-bottom-color: #334155; color: #e2e8f0; }
+    html[data-theme='dark'] #modalEtqRecebimento .etq-pers-sub { color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div id="loadingOverlay" class="calculando-overlay" style="display: none;">
+    <div class="calculando-content">
+      <div class="calculando-spinner"></div>
+      <h3 id="loadingTitle">Carregando</h3>
+      <p id="loadingText">Aguarde...</p>
+      <p class="calculando-detalhe" id="loadingDetalhe">Isso pode levar alguns segundos.</p>
+    </div>
+  </div>
+
+  <div class="wms-rec-container">
+    <div class="wms-rec-header">
+      <h2><i class="bx bx-download"></i> Recebimento (NF-e)</h2>
+      <button type="button" class="btn-filtro btn-filtro-limpar" id="btnVoltarHub"><i class="bx bx-arrow-back"></i> Estoque</button>
+    </div>
+    <div class="rec-top-help">
+      <div class="rec-help-wrap" id="recHelpConferenciaWrap">
+        <button type="button" class="rec-help-btn" aria-label="Regras da conferência"><i class="bx bx-help-circle"></i> Regras da conferência</button>
+        <div class="rec-help-popover">
+          Preencha os itens e clique em <strong>Salvar conferência</strong> para gravar: na coluna <strong>Status</strong> do grid aparece <strong>✓</strong> (conferência gravada) junto ao farol; passe o mouse na célula para o texto completo.<br/>
+          O nome do <strong>conferente</strong> (quem recebeu na doca) e a <strong>data de recebimento</strong> (dia em que a mercadoria entrou) são obrigatórios ao encerrar; a data pode ser retroativa e passa a valer nos relatórios de estoque/movimentação.<br/>
+          Em <strong>Salvar de-para</strong>, ao salvar, grava o mapeamento código NF → código do dono (desmarque se não quiser alterar).<br/>
+          <strong>Etiquetas:</strong> ao clicar, escolha <strong>1 por item</strong>, <strong>quantidade fixa por item</strong> (ex.: 2 etiquetas/pallet) ou <strong>1 por unidade da Qtd recebida</strong>. NF encerrada também pode imprimir.
+        </div>
+      </div>
+      <div class="rec-help-wrap">
+        <button type="button" class="rec-help-btn" aria-label="Regras de sugestão de produto"><i class="bx bx-help-circle"></i> Regras de sugestão de Produto dono</button>
+        <div class="rec-help-popover">Digite o código de <strong>estoque</strong> completo (ex.: <code>6.03.01.001.BN</code> — sufixo com letras importa; no Mana o sufixo numérico segue o <code>cProd</code>, ex. <code>6210934500</code> → <code>6.21.09.345.00</code>). Busque por nome se não aparecer na lista. Se não existir, use <strong>Cadastrar produto</strong>. Marque <strong>Salvar de-para</strong> para ligar o <code>cProd</code> da NF ao código interno.</div>
+      </div>
+    </div>
+
+    <div class="tabs tabs-com-icones">
+      <button type="button" class="tab-btn active" data-tab="filtros"><i class="bx bx-filter-alt"></i> Filtros</button>
+      <button type="button" class="tab-btn" data-tab="grid"><i class="bx bx-grid-alt"></i> Grid</button>
+      <button type="button" class="tab-btn" data-tab="dados"><i class="bx bx-edit"></i> Dados</button>
+    </div>
+
+    <div class="tab-content active" id="tab-filtros">
+      <div class="filtros-box">
+        <h3><i class="bx bx-filter-alt"></i> Filtros</h3>
+        <form id="filtroForm" onsubmit="return false;">
+          <div class="filtros-grid">
+            <div>
+              <label for="filtro_cd_dono">Dono do estoque (opcional)</label>
+              <select id="filtro_cd_dono" class="form-control"><option value="">Todos</option></select>
+            </div>
+            <div>
+              <label for="filtro_chave" title="Com 44 dígitos, a busca ignora dono, datas e farol.">Chave NF-e (parte ou completa)</label>
+              <input type="text" id="filtro_chave" class="form-control" maxlength="60" placeholder="44 dígitos…" />
+            </div>
+            <div>
+              <label for="filtro_numero">Número NF</label>
+              <input type="text" id="filtro_numero" class="form-control" placeholder="Contém…" />
+            </div>
+            <div>
+              <label for="filtro_dt_receb_de" title="Usa a data da conferência gravada; se ainda não conferiu, usa a data de importação do XML.">Recebimento — de</label>
+              <input type="date" id="filtro_dt_receb_de" class="form-control" />
+            </div>
+            <div>
+              <label for="filtro_dt_receb_ate" title="Usa a data da conferência gravada; se ainda não conferiu, usa a data de importação do XML.">Recebimento — até</label>
+              <input type="date" id="filtro_dt_receb_ate" class="form-control" />
+            </div>
+            <div>
+              <label for="filtro_status_farol" title="Mesma lógica do farol na coluna Status do grid.">Situação (farol)</label>
+              <select id="filtro_status_farol" class="form-control">
+                <option value="">Todas</option>
+                <option value="verde">Verde — só importada</option>
+                <option value="amarelo">Amarelo — conferência gravada, aberta</option>
+                <option value="vermelho">Vermelho — recebimento encerrado</option>
+              </select>
+            </div>
+          </div>
+          <div class="filtros-actions">
+            <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Limpar</button>
+            <button type="submit" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search"></i> Filtrar</button>
+            <button type="button" id="btnExportarListaNf" class="btn-filtro btn-filtro-aplicar" title="Exporta a lista com os filtros atuais (até 10.000 NF-e)">
+              <i class="bx bx-spreadsheet"></i> Exportar CSV (NF)
+            </button>
+            <button type="button" id="btnExportarListaNfItens" class="btn-filtro btn-filtro-aplicar" title="Uma linha por item da NF: fornecedor, destinatário, de-para/dono (até 10.000 NF-e)">
+              <i class="bx bx-list-ul"></i> Exportar CSV (itens)
+            </button>
+            <p class="hint" style="margin:0;flex:1 1 100%;font-size:13px;">
+              Relatórios de saldo, movimentação e shelf-life: use o menu <strong>WMS — Relatórios</strong> (<code>estoque-relatorios</code>).
+              <strong>CSV (NF)</strong> = cabeçalho da nota. <strong>CSV (itens)</strong> = movimentação de entrada linha a linha (quantidades com vírgula decimal para Excel BR).
+            </p>
+            <button type="button" id="btnNovoRegistro" class="btn-filtro btn-filtro-novo"><i class="bx bx-upload"></i> Importar XML</button>
+          </div>
+        </form>
+      </div>
+      <div class="filtros-box" id="wmsRecBoxHistoricoEnvioVenc" style="margin-top: 16px">
+        <h3><i class="bx bx-mail-send"></i> Relatório vencimento — envios automáticos (job)</h3>
+        <p style="font-size: 14px; color: var(--gray, #64748b); margin-bottom: 10px; line-height: 1.45">
+          Auditoria dos ciclos do job com linhas no horizonte (e-mail quando SMTP e destinatários estiverem
+          configurados). Se a lista estiver vazia, execute o script SQL no banco e rode o job ou
+          <code>npm run wms:vencimento-once</code> no servidor.
+        </p>
+        <div class="filtros-actions">
+          <button type="button" id="btnAtualizarHistoricoEnvioVenc" class="btn-filtro btn-filtro-aplicar">
+            <i class="bx bx-refresh"></i> Atualizar
+          </button>
+        </div>
+        <div style="overflow-x: auto; margin-top: 10px">
+          <table class="wms-rec-table-envios" style="width: 100%; min-width: 560px; border-collapse: collapse; font-size: 14px">
+            <thead>
+              <tr style="text-align: left; border-bottom: 1px solid var(--border-color, #e2e8f0)">
+                <th style="padding: 8px 6px">Data/hora</th>
+                <th style="padding: 8px 6px">Linhas</th>
+                <th style="padding: 8px 6px">E-mail</th>
+                <th style="padding: 8px 6px">Anexo</th>
+                <th style="padding: 8px 6px">Detalhe / Message-ID</th>
+              </tr>
+            </thead>
+            <tbody id="wmsRecEnvioVencBody">
+              <tr>
+                <td colspan="5" style="padding: 12px 6px; color: var(--gray, #64748b)">Abra a aba Filtros ou clique em Atualizar.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-grid">
+      <div class="filtros-box">
+        <h3>NF-e importadas</h3>
+        <div class="filtros-actions" style="justify-content: space-between; margin-bottom: 15px;">
+          <button type="button" id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar</button>
+          <span style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" id="btnExportarListaNfGrid" class="btn-filtro btn-filtro-aplicar" title="Exporta cabeçalho das NF-e (até 10.000)">
+              <i class="bx bx-spreadsheet"></i> Exportar CSV (NF)
+            </button>
+            <button type="button" id="btnExportarListaNfItensGrid" class="btn-filtro btn-filtro-aplicar" title="Uma linha por item (até 10.000 NF-e)">
+              <i class="bx bx-list-ul"></i> Exportar CSV (itens)
+            </button>
+            <button type="button" id="btnNovoRegistroGrid" class="btn-filtro btn-filtro-novo"><i class="bx bx-upload"></i> Importar XML</button>
+          </span>
+        </div>
+        <div class="wms-rec-farol-legenda" aria-label="Legenda coluna Status">
+          <div class="wms-rec-farol-legenda-row">
+            <span class="wms-rec-farol-leg-item"><span class="wms-farol-dot wms-farol-verde" aria-hidden="true"></span> Só importada</span>
+            <span class="wms-rec-farol-leg-item"><span class="wms-farol-dot wms-farol-amarelo" aria-hidden="true"></span> Conferência gravada, aberta</span>
+            <span class="wms-rec-farol-leg-item"><span class="wms-farol-dot wms-farol-vermelho" aria-hidden="true"></span> Recebimento encerrado</span>
+          </div>
+        </div>
+        <div style="padding: 10px 0; color: var(--gray, #64748b); font-size: 14px;">
+          <span id="wmsRecGridCountText">0 registro(s) encontrado(s)</span>
+        </div>
+        <div id="wmsRecGrid" class="grid-container">
+          <p class="empty">Aplicar filtros para carregar o grid.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-dados">
+      <div class="filtros-box" id="painelImportar">
+        <h3 id="tituloDados">Importar XML (NF-e)</h3>
+        <form id="importForm" encType="multipart/form-data">
+          <div class="form-dados-card">
+            <div class="form-dados-card-header"><i class="bx bx-file"></i> Arquivo</div>
+            <div class="form-dados-card-body filtros-grid wms-import-filtros-grid">
+              <div>
+                <label for="import_cd_dono">Dono do estoque</label>
+                <select id="import_cd_dono" class="form-control"><option value="">—</option></select>
+              </div>
+              <div>
+                <label for="import_arquivo">XML *</label>
+                <input type="file" id="import_arquivo" name="arquivo" accept=".xml,application/xml,text/xml" class="form-control" required />
+              </div>
+            </div>
+          </div>
+          <div class="filtros-actions" style="margin-top: 16px;">
+            <button type="submit" class="btn-filtro btn-filtro-novo"><i class="bx bx-upload"></i> Enviar</button>
+            <button type="button" id="btnCancelarImport" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Cancelar</button>
+          </div>
+        </form>
+      </div>
+      <div class="filtros-box" id="painelDetalhe" style="display: none;">
+        <h3 id="wmsRecDetalheTitulo"><i class="bx bx-detail"></i> Detalhe da NF-e</h3>
+        <div class="form-dados-card-body filtros-grid" id="wmsRecDetalheMeta"></div>
+        <div id="wmsRecTrocarDonoBox" class="filtros-box" style="display:none; margin-top: 0; padding: 12px 16px; border-style: dashed;">
+          <p class="hint" style="margin: 0 0 10px;">
+            <strong>Dono do estoque incorreto?</strong> Corrija aqui sem excluir a NF nem refazer a conferência.
+            Quantidades, lotes e validades são preservados; os produtos são reapontados para o cadastro do novo dono (de-para + código interno).
+          </p>
+          <div class="filtros-grid" style="max-width: 520px; align-items: end;">
+            <div>
+              <label for="recTrocarDonoSelect"><i class="bx bx-buildings"></i> Novo dono do estoque</label>
+              <select id="recTrocarDonoSelect" class="form-control"><option value="">— Selecione —</option></select>
+            </div>
+            <div class="filtros-actions" style="margin: 0;">
+              <button type="button" id="btnTrocarDonoReceb" class="btn-filtro btn-filtro-aplicar" title="Altera o dono e reaponta os produtos da conferência">
+                <i class="bx bx-transfer"></i> Corrigir dono
+              </button>
+            </div>
+          </div>
+        </div>
+        <h4 style="margin: 16px 0 8px; font-size: 15px;">Itens (XML)</h4>
+        <div id="wmsRecNfEncerradaBanner" style="display: none; margin-bottom: 10px;"></div>
+        <div id="wmsRecHistoricoLiberacaoWrap" class="wms-rec-historico-wrap" aria-live="polite">
+          <div class="wms-rec-historico-head">
+            <span class="wms-rec-historico-title"><i class="bx bx-history"></i> Liberações de validade (supervisor)</span>
+            <span id="wmsRecHistoricoLiberacaoBadge" class="wms-rec-historico-badge"></span>
+          </div>
+          <div id="wmsRecHistoricoLiberacaoBody" class="wms-rec-historico-body">
+            <div class="wms-rec-historico-empty">Sem liberação registrada para esta NF.</div>
+          </div>
+        </div>
+        <div class="filtros-grid" style="margin-bottom: 14px; max-width: 720px;">
+          <div>
+            <label for="wmsRecConferenteNome">Nome do conferente (quem recebeu / conferiu a mercadoria) *</label>
+            <input type="text" id="wmsRecConferenteNome" class="form-control" maxlength="120" placeholder="Ex.: João da Silva" autocomplete="name" required />
+          </div>
+          <div>
+            <label for="wmsRecDtRecebimento">Data de recebimento (mercadoria na doca) *</label>
+            <input type="date" id="wmsRecDtRecebimento" class="form-control" required />
+            <p class="hint" style="margin:6px 0 0;font-size:12px;color:#64748b;">
+              Use a data em que a carga entrou fisicamente (permite lançamento retroativo). Relatórios de estoque/movimentação usam esta data ao encerrar a NF.
+            </p>
+          </div>
+        </div>
+        <div id="wmsRecLiberacaoWrap" class="wms-rec-liberacao-wrap" role="region" aria-labelledby="wmsRecLiberacaoHead">
+          <div id="wmsRecLiberacaoHead" class="wms-rec-liberacao-head">
+            <i class="bx bx-shield-quarter" aria-hidden="true"></i>
+            Validade abaixo do mínimo — liberação de supervisor
+          </div>
+          <p id="wmsRecLiberacaoIntro" class="wms-rec-liberacao-intro"></p>
+          <div class="wms-rec-liberacao-body">
+            <table class="wms-rec-liberacao-table">
+              <thead>
+                <tr>
+                  <th style="width: 56px">Item</th>
+                  <th>Motivo do bloqueio</th>
+                </tr>
+              </thead>
+              <tbody id="wmsRecLiberacaoFalhasBody"></tbody>
+            </table>
+          </div>
+          <div class="wms-rec-liberacao-foot">
+            <textarea
+              id="wmsRecLibJustificativa"
+              class="form-control"
+              maxlength="1000"
+              placeholder="Justificativa para liberar com validade abaixo do mínimo (obrigatória)."
+            ></textarea>
+            <div class="wms-rec-liberacao-row">
+              <input
+                type="text"
+                id="wmsRecLibAutorLogin"
+                class="form-control"
+                maxlength="50"
+                autocomplete="username"
+                placeholder="Usuário autorizador"
+              />
+              <input
+                type="password"
+                id="wmsRecLibAutorSenha"
+                class="form-control"
+                maxlength="128"
+                autocomplete="current-password"
+                placeholder="Senha do autorizador"
+              />
+              <button type="button" id="wmsRecLibConfirmarSalvar" class="btn-filtro btn-filtro-alerta" style="display: none">
+                <i class="bx bx-shield-quarter"></i> Salvar com liberação
+              </button>
+              <button type="button" id="wmsRecLibConfirmarEncerrar" class="btn-filtro btn-filtro-alerta" style="display: none">
+                <i class="bx bx-shield-quarter"></i> Encerrar NF com liberação
+              </button>
+              <button type="button" id="wmsRecLibCancelar" class="btn-filtro btn-filtro-limpar">
+                <i class="bx bx-x"></i> Dispensar
+              </button>
+            </div>
+            <p class="wms-rec-liberacao-hint-auth">
+              Programa exigido no tipo de atividade:
+              <code>wms-recebimento-liberar-validade-min</code>
+              (mesmo cadastro de usuários — tabela <strong>USUARIO</strong>).
+            </p>
+          </div>
+        </div>
+
+        <div id="wmsRecDetalheLinhas"></div>
+        <div class="filtros-actions" style="margin-top: 16px;">
+          <button type="button" id="btnImprimirListaConferencia" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-list-ul"></i> Lista conferência</button>
+          <button type="button" id="btnImprimirEtiquetas" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-printer"></i> Etiquetas</button>
+          <button type="button" id="btnEncerrarRecebimento" class="btn-filtro btn-filtro-novo"><i class="bx bx-lock-alt"></i> Encerrar NF</button>
+          <button type="button" id="btnReabrirRecebimento" class="btn-filtro btn-filtro-aplicar" style="display:none;"><i class="bx bx-lock-open-alt"></i> Reabrir NF</button>
+          <button type="button" id="btnSalvarConferencia" class="btn-filtro btn-filtro-novo"><i class="bx bx-save"></i> Salvar conferência</button>
+          <button type="button" id="btnFecharDetalhe" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar</button>
+        </div>
+      </div>
+      <!-- Painel crossdock: desligado na UI (prioridade estoque de terceiros). Reativar em script: WMS_REC_CROSSDOCK_UI_ENABLED = true -->
+      <div class="filtros-box" id="painelCrossdock" style="display: none;" aria-hidden="true">
+        <h3><i class="bx bx-package"></i> Crossdocking em lote</h3>
+        <div class="filtros-grid" style="grid-template-columns: 1.2fr 1.2fr 1fr 1fr;">
+          <div>
+            <label for="crossdock_codigo">Código do lote *</label>
+            <input type="text" id="crossdock_codigo" class="form-control" maxlength="40" placeholder="Ex.: CDK-2026-04-27-A" />
+          </div>
+          <div>
+            <label for="crossdock_nome">Nome do lote</label>
+            <input type="text" id="crossdock_nome" class="form-control" maxlength="120" placeholder="Ex.: Embarcador Mana — manhã" />
+          </div>
+          <div>
+            <label for="crossdock_janela" title="Opcional. Útil no crossdock para janela de saída; no recebimento puro pode ficar em branco.">Previsão operacional (opcional)</label>
+            <input type="datetime-local" id="crossdock_janela" class="form-control" title="Data/hora de referência para planejamento (ex.: saída prevista no lote crossdock)." />
+          </div>
+          <div>
+            <label for="crossdock_obs">Observação</label>
+            <input type="text" id="crossdock_obs" class="form-control" maxlength="255" placeholder="Opcional" />
+          </div>
+        </div>
+        <div class="filtros-actions" style="margin-top: 6px;">
+          <button type="button" id="btnCriarLoteCrossdock" class="btn-filtro btn-filtro-novo"><i class="bx bx-plus-circle"></i> Criar lote</button>
+          <button type="button" id="btnAtualizarLotesCrossdock" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-refresh"></i> Atualizar lotes</button>
+        </div>
+        <div style="margin-top:14px;">
+          <label for="crossdock_lote_select">Lote selecionado</label>
+          <select id="crossdock_lote_select" class="form-control">
+            <option value="">Selecione...</option>
+          </select>
+        </div>
+        <div class="filtros-grid" style="margin-top:10px; grid-template-columns: 1.5fr 1fr;">
+          <div>
+            <label for="crossdock_nfes">Anexar NF-e no lote (CD_NFE ou chave 44 dígitos; separados por vírgula)</label>
+            <input type="text" id="crossdock_nfes" class="form-control" placeholder="Ex.: 1201 ou NFe-41260405037980000382550020016321681088696246" />
+          </div>
+          <div>
+            <label for="crossdock_fase">Trocar fase do lote</label>
+            <select id="crossdock_fase" class="form-control">
+              <option value="RECEBIMENTO">RECEBIMENTO</option>
+              <option value="SEPARACAO">SEPARACAO</option>
+              <option value="PRE_EMBARQUE">PRE_EMBARQUE</option>
+              <option value="EMBARCADO">EMBARCADO</option>
+              <option value="ENCERRADO">ENCERRADO</option>
+            </select>
+          </div>
+        </div>
+        <div class="filtros-actions">
+          <button type="button" id="btnVincularNfesLote" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-link"></i> Anexar NF-e</button>
+          <button type="button" id="btnMudarFaseLote" class="btn-filtro btn-filtro-novo"><i class="bx bx-transfer"></i> Atualizar fase</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="message" class="message"></div>
+  </div>
+  <div id="modalEtqRecebimento" class="modal modal--confirm" role="dialog" aria-modal="true" aria-labelledby="modalEtqRecebimentoTitulo">
+    <div class="modal-content modal-content--confirm modal-content--etq">
+      <h3 id="modalEtqRecebimentoTitulo"><i class="bx bx-printer"></i> Impressão de etiquetas</h3>
+      <p class="etq-modo-hint">Quantas etiquetas gerar para cada linha desta conferência?</p>
+      <div class="etq-modo-opcoes">
+        <label>
+          <input type="radio" name="etqModoReceb" value="linha" checked />
+          <span><strong>1 etiqueta por item</strong> da NF (uma por linha do XML — padrão anterior).</span>
+        </label>
+        <label>
+          <input type="radio" name="etqModoReceb" value="fixo" />
+          <span><strong>Mesma quantidade em todos os itens</strong> — um número vale para <em>todas</em> as linhas da NF (ex.: 2 etiquetas em cada item).</span>
+        </label>
+        <div id="etqModoFixoWrap" class="etq-modo-fixo-wrap" aria-hidden="true">
+          <label for="etqQtdFixaPorLinha">Etiquetas por item (todas as linhas)</label>
+          <input type="number" id="etqQtdFixaPorLinha" min="1" max="500" step="1" value="1" />
+        </div>
+        <label>
+          <input type="radio" name="etqModoReceb" value="personalizado" />
+          <span><strong>Quantidade por item</strong> — defina abaixo quantas etiquetas para <em>cada linha</em> (0 = não imprimir aquele item).</span>
+        </label>
+        <div id="etqModoPersonalizadoWrap" class="etq-modo-personalizado-wrap" aria-hidden="true">
+          <div class="etq-pers-toolbar">
+            <label for="etqPersAplicarTodas">Definir todas as linhas:</label>
+            <input type="number" id="etqPersAplicarTodas" min="0" max="500" step="1" value="1" />
+            <button type="button" id="etqPersBtnAplicarTodas" class="btn-filtro btn-filtro-limpar">Aplicar</button>
+          </div>
+          <div class="etq-pers-table-wrap">
+            <table class="etq-pers-table">
+              <thead>
+                <tr><th>Item da NF</th><th class="etq-pers-col-qtd">Etiquetas</th></tr>
+              </thead>
+              <tbody id="etqPersonalizadoLinhasBody"></tbody>
+            </table>
+          </div>
+        </div>
+        <label>
+          <input type="radio" name="etqModoReceb" value="qtd" />
+          <span><strong>1 etiqueta por unidade</strong> da coluna <em>Qtd recebida</em> (ex.: 30 UN → 30 etiquetas com seq. 1/30, 2/30…).</span>
+        </label>
+      </div>
+      <p class="etq-modo-hint">Limite: até 500 etiquetas por item e 2.000 no total da impressão (evita travar o navegador).</p>
+      <div class="modal-actions filtros-actions" style="justify-content: flex-end; margin-top: 0;">
+        <button type="button" id="modalEtqRecebCancelar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Cancelar</button>
+        <button type="button" id="modalEtqRecebContinuar" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-printer"></i> Gerar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalCadProdRecebimento" class="modal modal--confirm" role="dialog" aria-modal="true" aria-labelledby="modalCadProdRecebTitulo" style="display: none;">
+    <div class="modal-content modal-content--confirm modal-content--cad-prod">
+      <h3 id="modalCadProdRecebTitulo"><i class="bx bx-plus-circle"></i> Cadastrar produto (sem sair do recebimento)</h3>
+      <p class="cad-prod-hint">
+        Cadastro mínimo para conferir esta NF. Informe o <strong>código do OL</strong> (pode editar se o de-para trouxe um irmão errado, ex. <code>.60</code> em vez de <code>.80</code>). Categoria na árvore pode ser ajustada depois em <strong>Cadastros WMS → Produto</strong>.
+      </p>
+      <div class="cad-prod-grid">
+        <div class="span-2">
+          <label for="cadRec_codigo">Código produto (estoque) *</label>
+          <input type="text" id="cadRec_codigo" class="form-control" maxlength="128" placeholder="Ex.: 6.03.17.071.80" />
+        </div>
+        <div class="span-2">
+          <label for="cadRec_nome">Nome *</label>
+          <input type="text" id="cadRec_nome" class="form-control" maxlength="200" />
+        </div>
+        <div>
+          <label for="cadRec_unidade">Unidade</label>
+          <input type="text" id="cadRec_unidade" class="form-control" maxlength="10" />
+        </div>
+        <div>
+          <label for="cadRec_peso">Peso unitário (kg)</label>
+          <input type="text" id="cadRec_peso" class="form-control" inputmode="decimal" placeholder="Ex.: 2" />
+        </div>
+        <div>
+          <label for="cadRec_ncm">NCM</label>
+          <input type="text" id="cadRec_ncm" class="form-control" maxlength="8" placeholder="8 dígitos" />
+        </div>
+        <div>
+          <label for="cadRec_tipo">Conservação</label>
+          <select id="cadRec_tipo" class="form-control">
+            <option value="">—</option>
+            <option value="SECO">Ambiente (seco)</option>
+            <option value="REFRIGERADO">Refrigerado</option>
+            <option value="CONGELADO">Congelado</option>
+          </select>
+        </div>
+        <div>
+          <label for="cadRec_fg_lote">Controla lote</label>
+          <select id="cadRec_fg_lote" class="form-control">
+            <option value="N">Não</option>
+            <option value="S">Sim</option>
+          </select>
+        </div>
+        <div>
+          <label for="cadRec_fg_val">Controla validade</label>
+          <select id="cadRec_fg_val" class="form-control">
+            <option value="S">Sim</option>
+            <option value="N">Não</option>
+          </select>
+        </div>
+        <div class="span-2">
+          <label class="cad-prod-depara" for="cadRec_salvar_depara">
+            <input type="checkbox" id="cadRec_salvar_depara" checked />
+            <span>Gravar de-para: código NF (<span id="cadRec_cprod_label">—</span>) → este produto</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-actions filtros-actions">
+        <button type="button" id="modalCadProdRecebCancelar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Cancelar</button>
+        <button type="button" id="modalCadProdRecebSalvar" class="btn-filtro btn-filtro-novo"><i class="bx bx-save"></i> Cadastrar e usar na linha</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="confirmModal" class="modal modal--confirm" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle">
+    <div class="modal-content modal-content--confirm">
+      <h3 id="confirmModalTitle">Confirmar Ação</h3>
+      <p id="modalMessage" class="modal-message-body"></p>
+      <input id="confirmModalInput" type="text" maxlength="255" autocomplete="off" aria-label="Resposta" />
+      <div class="modal-actions filtros-actions">
+        <button type="button" id="confirmYes" class="btn-filtro btn-filtro-danger"><i class="bx bx-check"></i> Confirmar</button>
+        <button type="button" id="confirmNo" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/cache-buster.js?v=202612091200"></script>
+  <script src="/js/utils.js"></script>
+  <script>
+    (function () {
+      if (typeof window.GridEditor === 'undefined') {
+        var s = document.createElement('script');
+        s.src = '/js/grid-editor.js';
+        document.head.appendChild(s);
+      }
+    })();
+  </script>
+  <script src="js/script.js?v=20260915-conf-layout"></script>
+</body>
+</html>

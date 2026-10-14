@@ -6,18 +6,17 @@
 const express = require('express');
 const router = express.Router();
 const deliveryProofController = require('../controllers/delivery-proof.controller');
-const { getUsuarioLogado } = require('../middleware/auth.middleware'); // Não requer autenticação obrigatória (pode vir offline)
+const {
+  requireMotoristaAuth,
+  requireMotoristaOrTowerAuth
+} = require('../middleware/auth.middleware');
+const { attachTenantContext } = require('../middleware/tenant.middleware');
 
-// Middleware opcional (não bloqueia se não autenticado)
-router.use(getUsuarioLogado);
+// POST: apenas app motorista (sessão ativa)
+router.post('/', requireMotoristaAuth, attachTenantContext, deliveryProofController.salvar);
 
-// Salvar comprovante de entrega
-router.post('/', deliveryProofController.salvar);
-
-// Buscar comprovantes de uma viagem
-router.get('/viagem/:idviagem', deliveryProofController.buscarPorViagem);
-
-// Buscar foto do comprovante
-router.get('/:id/photo', deliveryProofController.buscarFoto);
+// GET: torre (dashboard) ou motorista — exige JWT válido
+router.get('/viagem/:idviagem', requireMotoristaOrTowerAuth, attachTenantContext, deliveryProofController.buscarPorViagem);
+router.get('/:id/photo', requireMotoristaOrTowerAuth, attachTenantContext, deliveryProofController.buscarFoto);
 
 module.exports = router;

@@ -7,11 +7,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/modulos.css">
+  <link rel="stylesheet" href="/css/dark-mode.css">
   <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
   <style>
     /* ========== Configurações do Sistema - Cards organizados (Atlas Cargo) ========== */
     .configuracoes-container {
-      padding: 24px;
+      padding: 20px;
       font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
       width: 100%;
       max-width: none;
@@ -29,24 +30,29 @@
       width: 100%;
     }
 
+    /* Cabeçalho — mesmo ritmo que Gerenciar Usuários (ícone com cor do título, não accent) */
     .configuracoes-header {
-      margin-bottom: 28px;
-      padding-bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+      padding-bottom: 15px;
       border-bottom: 2px solid var(--light-gray, #e2e8f0);
     }
 
     .configuracoes-header h2 {
       margin: 0;
       color: var(--ac-primary, #0d2137);
-      font-size: 26px;
+      font-size: 28px;
       font-weight: 700;
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
     }
 
     .configuracoes-header h2 i {
-      color: var(--ac-accent, #0ea5e9);
+      color: inherit;
+      font-size: 1em;
     }
 
     /* Grid de cards: 1 coluna em mobile, 2 em telas maiores (usa toda a largura) */
@@ -67,11 +73,46 @@
       }
     }
 
+    /* App + transcrição: duas colunas mais cedo (evita cards “espalhados” em largura total) */
+    .config-cards.config-cards--app-ia-duo {
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+
+    @media (min-width: 768px) {
+      .config-cards.config-cards--app-ia-duo {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: stretch;
+      }
+    }
+
+    /* Formulário só para agrupar campos secretos (exige Chromium: password dentro de <form>) */
+    form.config-sensitive-fields {
+      margin: 0;
+      padding: 0;
+      border: none;
+      display: block;
+      position: relative;
+    }
+
+    /* Evita aviso do Chromium: formulário com senha deve expor um campo username (acessível / gerenciadores de senha) */
+    form.config-sensitive-fields .config-form-username-helper {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
     .config-card {
       background: var(--white, #fff);
       border-radius: 12px;
       border: 1px solid var(--border, #e2e8f0);
-      box-shadow: var(--shadow, 0 1px 3px rgba(0,0,0,0.06));
+      box-shadow: var(--shadow, 0 4px 6px -1px rgba(0,0,0,0.08));
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -84,18 +125,20 @@
       display: flex;
       align-items: center;
       gap: 10px;
+      color: var(--ac-primary, #0d2137);
     }
 
+    /* Ícone com mesma cor do título (herda do header) */
     .config-card-header i {
-      font-size: 22px;
-      color: var(--ac-accent, #0ea5e9);
+      font-size: 1.2rem;
+      color: inherit;
     }
 
     .config-card-header h3 {
       margin: 0;
       font-size: 17px;
       font-weight: 600;
-      color: var(--ac-primary, #0d2137);
+      color: inherit;
     }
 
     .config-card-header-no-icon i {
@@ -110,9 +153,9 @@
 
     .config-card-body .card-desc {
       margin: 0 0 20px 0;
-      font-size: 13px;
+      font-size: 14px;
       color: var(--gray, #64748b);
-      line-height: 1.5;
+      line-height: 1.55;
     }
 
     .config-card .form-group {
@@ -125,19 +168,20 @@
 
     .config-card .form-group label {
       display: block;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
       font-weight: 600;
       color: var(--dark, #1e293b);
-      font-size: 13px;
+      font-size: 14px;
     }
 
     .config-card .form-group input,
-    .config-card .form-group select {
+    .config-card .form-group select,
+    .config-card .form-group textarea {
       width: 100%;
-      padding: 10px 12px;
+      padding: 12px;
       border: 1px solid var(--border, #e2e8f0);
       border-radius: 8px;
-      font-size: 15px;
+      font-size: 16px;
       transition: border-color 0.2s, box-shadow 0.2s;
       font-family: inherit;
       box-sizing: border-box;
@@ -145,8 +189,195 @@
       color: var(--dark, #1e293b);
     }
 
+    .config-card .form-group textarea.template-convocacao {
+      min-height: 140px;
+      resize: vertical;
+      line-height: 1.45;
+      font-size: 13px;
+    }
+
+    .msg-conv-secao {
+      margin-bottom: 28px;
+      padding-bottom: 24px;
+      border-bottom: 1px solid var(--border, #e2e8f0);
+    }
+    .msg-conv-secao:last-of-type {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+    .msg-conv-secao-titulo {
+      margin: 0 0 14px 0;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--dark, #1e293b);
+    }
+    .msg-conv-linha-dupla {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px 28px;
+      align-items: start;
+    }
+    @media (max-width: 960px) {
+      .msg-conv-linha-dupla {
+        grid-template-columns: 1fr;
+      }
+    }
+    .msg-conv-col-esq .template-convocacao {
+      min-height: 240px;
+    }
+    .msg-conv-preview-titulo {
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--dark, #1e293b);
+    }
+    .msg-conv-preview-sub {
+      font-weight: 400;
+      color: var(--gray, #64748b);
+    }
+    .msg-conv-preview-live {
+      margin: 0;
+      min-height: 240px;
+      max-height: min(55vh, 440px);
+      overflow: auto;
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border, #e2e8f0);
+      background: var(--bg-secondary, #f8fafc);
+      white-space: pre-wrap;
+      font-size: 13px;
+      line-height: 1.45;
+      font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+      color: var(--dark, #334155);
+    }
+    .msg-conv-preview-live.msg-conv-preview-loading {
+      color: var(--gray, #94a3b8);
+      font-style: italic;
+    }
+
+    /* Alertas WhatsApp – modelos (layout operacional) */
+    .msg-alert-bloco {
+      --msg-alert-chip-bg: #f1f5f9;
+      --msg-alert-chip-border: #cbd5e1;
+      --msg-alert-chip-hover: #e0f2fe;
+    }
+    .msg-alert-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      gap: 12px 16px;
+      margin-bottom: 14px;
+    }
+    .msg-alert-toolbar .msg-alert-tipo-wrap {
+      flex: 1 1 min(100%, 320px);
+      min-width: 0;
+      margin-bottom: 0;
+    }
+    .msg-alert-toolbar-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .msg-alert-editor-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+      gap: 20px 24px;
+      align-items: start;
+    }
+    @media (max-width: 1100px) {
+      .msg-alert-editor-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .msg-alert-modelo-wrap label {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 6px 12px;
+      margin-bottom: 8px;
+    }
+    .msg-alert-modelo-wrap label span.msg-alert-modelo-hint {
+      font-weight: 400;
+      font-size: 12px;
+      color: var(--gray, #64748b);
+    }
+    textarea#msgAlertCorpo.msg-alert-textarea-editor {
+      min-height: 300px;
+      max-height: min(70vh, 560px);
+      resize: vertical;
+      width: 100%;
+      font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+      font-size: 13px;
+      line-height: 1.5;
+      tab-size: 2;
+    }
+    .msg-alert-placeholders {
+      margin-top: 10px;
+    }
+    .msg-alert-placeholders-titulo {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--gray, #64748b);
+      margin: 0 0 8px 0;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .msg-alert-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 8px;
+      align-items: center;
+    }
+    button.msg-alert-chip {
+      margin: 0;
+      padding: 5px 10px;
+      font-size: 12px;
+      font-family: ui-monospace, monospace;
+      border-radius: 999px;
+      border: 1px solid var(--msg-alert-chip-border);
+      background: var(--msg-alert-chip-bg);
+      color: var(--dark, #334155);
+      cursor: pointer;
+      line-height: 1.3;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    button.msg-alert-chip:hover {
+      background: var(--msg-alert-chip-hover);
+      border-color: #38bdf8;
+      color: #0c4a6e;
+    }
+    button.msg-alert-chip:focus-visible {
+      outline: 2px solid #38bdf8;
+      outline-offset: 2px;
+    }
+    .msg-alert-detalhes-vars {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--gray, #64748b);
+    }
+    .msg-alert-detalhes-vars summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: var(--dark, #475569);
+    }
+    #msgAlertPreview.msg-alert-preview-tall {
+      min-height: 300px;
+      max-height: min(70vh, 560px);
+    }
+    .msg-conv-acoes-linha {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
     .config-card .form-group input:focus,
-    .config-card .form-group select:focus {
+    .config-card .form-group select:focus,
+    .config-card .form-group textarea:focus {
       outline: none;
       border-color: var(--ac-accent, #0ea5e9);
       box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
@@ -158,11 +389,51 @@
       margin-top: 4px;
     }
 
+    .logo-filename-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .logo-filename-row > input[type="text"] {
+      flex: 1 1 180px;
+      min-width: 0;
+    }
+    .config-logo-file-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .config-logo-upload-btn {
+      flex-shrink: 0;
+    }
+
+    .config-external-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--ac-accent, #0ea5e9);
+      font-weight: 500;
+      font-size: 13px;
+      text-decoration: none;
+      margin-top: 6px;
+    }
+
+    .config-external-link:hover {
+      text-decoration: underline;
+    }
+
     /* Mesmo padrão do Cadastro Geral: grid com colunas proporcionais (não esticar demais) */
     .config-card .form-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 16px 20px;
+      gap: 15px;
     }
 
     @media (max-width: 600px) {
@@ -182,49 +453,111 @@
       flex-wrap: wrap;
     }
 
-    .config-card-footer .btn {
-      margin-right: 0;
+    .config-card-footer .message.show {
+      flex: 1 0 100%;
+      order: -1;
+      margin-top: 0;
+      margin-bottom: 4px;
     }
 
-    .btn {
-      padding: 10px 20px;
+    .config-card-footer-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: flex-end;
+      margin-left: auto;
+    }
+
+    /* Botões — padrão Gerenciar Usuários / Situações (btn-filtro) */
+    .configuracoes-container .btn-filtro {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 22px;
       border: none;
-      border-radius: 8px;
+      border-radius: 10px;
       font-size: 15px;
       font-weight: 600;
       cursor: pointer;
-      transition: all 0.2s;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
       font-family: inherit;
-      text-decoration: none;
       box-sizing: border-box;
+      transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.15s;
     }
-
-    .btn:disabled {
-      opacity: 0.6;
+    .configuracoes-container .btn-filtro:hover:not(:disabled) {
+      transform: translateY(-1px);
+    }
+    .configuracoes-container .btn-filtro:disabled {
+      opacity: 0.55;
       cursor: not-allowed;
+      transform: none;
       pointer-events: none;
     }
-
-    .btn-primary {
+    .configuracoes-container .btn-filtro i {
+      font-size: 1.15rem;
+    }
+    .configuracoes-container .btn-filtro-limpar {
+      background: #f1f5f9;
+      color: #475569;
+      border: 1px solid #e2e8f0;
+    }
+    .configuracoes-container .btn-filtro-limpar:hover:not(:disabled) {
+      background: #e2e8f0;
+      color: #334155;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .configuracoes-container .btn-filtro-aplicar {
       background: var(--ac-accent, #0ea5e9);
-      color: white;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(14, 165, 233, 0.25);
     }
-
-    .btn-primary:hover:not(:disabled) {
+    .configuracoes-container .btn-filtro-aplicar:hover:not(:disabled) {
       background: var(--ac-accent-hover, #0284c7);
-      box-shadow: 0 2px 8px rgba(14, 165, 233, 0.35);
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35);
+    }
+    .configuracoes-container .btn-filtro-danger {
+      background: #dc2626;
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
+    }
+    .configuracoes-container .btn-filtro-danger:hover:not(:disabled) {
+      background: #b91c1c;
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
+    }
+    .configuracoes-container .config-btn-compact {
+      padding: 8px 14px;
+      font-size: 13px;
+      border-radius: 8px;
+    }
+    .configuracoes-container .config-btn-compact i {
+      font-size: 1.05rem;
+    }
+    .configuracoes-container .config-btn-block {
+      width: 100%;
+      justify-content: center;
+    }
+    .configuracoes-container .config-card-footer .btn-filtro {
+      padding: 10px 18px;
+      font-size: 14px;
     }
 
-    .btn-secondary {
-      background: var(--light-gray, #e2e8f0);
-      color: var(--dark, #1e293b);
+    .config-hr {
+      margin: 24px 0;
+      border: none;
+      border-top: 1px dashed var(--border, #e2e8f0);
     }
-
-    .btn-secondary:hover:not(:disabled) {
-      background: var(--border, #cbd5e1);
+    .config-subheading {
+      margin: 0 0 14px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--ac-primary, #0d2137);
+    }
+    .config-subheading i {
+      color: inherit;
+      font-size: 1.15rem;
     }
 
     .config-card .message {
@@ -267,8 +600,228 @@
       background: var(--bg-secondary, #f8fafc);
       border: 1px solid var(--border, #e2e8f0);
     }
+
+    /* Card Alertas de viagem – blocos e grid */
+    .form-grid-3 {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    @media (max-width: 900px) {
+      .form-grid-3 {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    @media (max-width: 500px) {
+      .form-grid-3 {
+        grid-template-columns: 1fr;
+      }
+    }
+    .alertas-block {
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border, #e2e8f0);
+    }
+    .alertas-block:first-of-type {
+      margin-top: 0;
+      padding-top: 0;
+      border-top: none;
+    }
+    .alertas-block-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-primary, #1e293b);
+      margin: 0 0 4px 0;
+    }
+    .alertas-block-desc {
+      font-size: 0.875rem;
+      color: var(--text-secondary, #64748b);
+      margin: 0 0 14px 0;
+    }
+    .alertas-block-whatsapp {
+      background: var(--bg-secondary, #f8fafc);
+      padding: 18px;
+      border-radius: 10px;
+      border: 1px solid var(--border, #e2e8f0);
+    }
+    .alertas-subtitle {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text-primary, #1e293b);
+      display: block;
+      margin-bottom: 8px;
+    }
+    .alertas-checkbox-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 10px 20px;
+    }
+    .alertas-checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      margin: 0;
+      font-size: 0.9375rem;
+    }
+    .alertas-checkbox-item input {
+      flex-shrink: 0;
+    }
+    /* Onde gera (FGSIT): distribuição visual mais legível */
+    .alertas-onde-gera .alertas-checkbox-grid {
+      grid-template-columns: repeat(4, minmax(170px, 1fr));
+      gap: 12px 16px;
+      margin-top: 8px;
+    }
+    .alertas-onde-gera .alertas-checkbox-item {
+      padding: 8px 10px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      background: var(--bg-secondary, #f8fafc);
+      min-height: 40px;
+    }
+    .alertas-onde-gera .alertas-checkbox-item input {
+      width: 16px;
+      height: 16px;
+    }
+    .alertas-checkbox-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .alertas-toggle-label {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      margin: 0;
+    }
+    /* Bloco "Quando verificar" — grid denso, aproveita largura do card */
+    .alertas-quando-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px 18px;
+      align-items: stretch;
+      margin-top: 10px;
+    }
+    .alertas-quando-grid .form-group {
+      margin-bottom: 0;
+    }
+    .alertas-quando-grid .hint {
+      font-size: 11px;
+      line-height: 1.35;
+      margin-top: 4px;
+    }
+    .alertas-quando-job {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 4px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border, #e2e8f0);
+      background: var(--bg-secondary, #f8fafc);
+      min-height: 100%;
+      box-sizing: border-box;
+    }
+    .alertas-quando-job label {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      cursor: pointer;
+      margin: 0;
+      font-weight: 600;
+      font-size: 0.9375rem;
+      color: var(--dark, #1e293b);
+    }
+    .alertas-quando-job .hint {
+      margin: 0 0 0 28px;
+      font-size: 11px;
+      line-height: 1.35;
+    }
+    .alertas-quando-job input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
+    @media (max-width: 1024px) {
+      .alertas-quando-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .alertas-quando-job {
+        grid-column: 1 / -1;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        min-height: auto;
+      }
+      .alertas-quando-job .hint {
+        margin-left: 0;
+        flex: 1 1 100%;
+        padding-left: 28px;
+      }
+    }
+    @media (max-width: 520px) {
+      .alertas-quando-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media (max-width: 900px) {
+      .alertas-onde-gera .alertas-checkbox-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 560px) {
+      .alertas-onde-gera .alertas-checkbox-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Abas — padrão Gerenciar Viagens / módulos com tabs-com-icones */
+    .configuracoes-container .tabs.tabs-com-icones {
+      display: flex;
+      flex-wrap: wrap;
+      margin-bottom: 25px;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
+      gap: 0;
+    }
+    .configuracoes-container .tabs.tabs-com-icones .tab-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      border: none;
+      background: transparent;
+      color: #94a3b8;
+      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: color 0.2s, border-color 0.2s;
+      font-family: inherit;
+    }
+    .configuracoes-container .tabs.tabs-com-icones .tab-btn i {
+      font-size: 1.15rem;
+      color: inherit;
+    }
+    .configuracoes-container .tabs.tabs-com-icones .tab-btn:hover {
+      color: var(--dark, #64748b);
+    }
+    .configuracoes-container .tabs.tabs-com-icones .tab-btn.active {
+      color: var(--ac-primary, #0d2137);
+      border-bottom-color: var(--ac-primary, #0d2137);
+    }
+    .configuracoes-container .tabs.tabs-com-icones .tab-btn.active i {
+      color: var(--ac-primary, #0d2137);
+    }
+    .configuracoes-container .tab-content {
+      width: 100%;
+      min-width: 0;
+      display: none !important;
+    }
+    .configuracoes-container .tab-content.active {
+      display: block !important;
+    }
   </style>
-  <link rel="stylesheet" href="/css/dark-mode.css">
 </head>
 <body>
   <div class="configuracoes-container">
@@ -276,6 +829,16 @@
       <h2><i class="bx bx-cog"></i> <span data-i18n="web.modulos.configuracoes.titulo">Configurações do Sistema</span></h2>
     </header>
 
+    <div class="tabs tabs-com-icones" role="tablist" aria-label="Seções de configuração">
+      <button type="button" class="tab-btn active" role="tab" aria-selected="true" aria-controls="tab-contexto" id="tab-btn-contexto" data-tab="contexto"><i class="bx bx-globe"></i> <span>Contexto</span></button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-marca-mapa" id="tab-btn-marca-mapa" data-tab="marca-mapa"><i class="bx bx-palette"></i> <span>Marca e mapa</span></button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-whatsapp" id="tab-btn-whatsapp" data-tab="whatsapp"><i class="bx bxl-whatsapp"></i> <span>Switch / WhatsApp</span></button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-app-ia" id="tab-btn-app-ia" data-tab="app-ia"><i class="bx bx-mobile-alt"></i> <span>App e transcrição</span></button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-convocacoes" id="tab-btn-convocacoes" data-tab="convocacoes"><i class="bx bx-message-rounded-dots"></i> <span>Mensagens convocações</span></button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-alertas" id="tab-btn-alertas" data-tab="alertas"><i class="bx bx-error-circle"></i> <span>Alertas de viagem</span></button>
+    </div>
+
+    <div class="tab-content active" id="tab-contexto" role="tabpanel" aria-labelledby="tab-btn-contexto">
     <div class="config-cards">
       <!-- Card 1: Contexto / Multipaís (largura total) -->
       <article class="config-card card-full" id="boxContexto">
@@ -358,13 +921,17 @@
         </div>
         <div class="config-card-footer">
           <div id="configContextoMessage" class="message" role="alert"></div>
-          <div style="display: flex; gap: 10px; margin-left: auto;">
-            <button type="button" id="btnCarregarContexto" class="btn btn-secondary"><i class="bx bx-refresh"></i> <span data-i18n="web.modulos.configuracoes.recarregar">Recarregar</span></button>
-            <button type="button" id="btnSalvarContexto" class="btn btn-primary"><i class="bx bx-save"></i> <span id="btnSalvarContextoText" data-i18n="web.modulos.configuracoes.salvarContexto">Salvar contexto</span></button>
+          <div class="config-card-footer-actions">
+            <button type="button" id="btnCarregarContexto" class="btn-filtro btn-filtro-limpar"><i class="bx bx-refresh"></i> <span data-i18n="web.modulos.configuracoes.recarregar">Recarregar</span></button>
+            <button type="button" id="btnSalvarContexto" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-save"></i> <span id="btnSalvarContextoText" data-i18n="web.modulos.configuracoes.salvarContexto">Salvar contexto</span></button>
           </div>
         </div>
       </article>
+    </div>
+    </div>
 
+    <div class="tab-content" id="tab-marca-mapa" role="tabpanel" aria-labelledby="tab-btn-marca-mapa">
+    <div class="config-cards">
       <!-- Card 2: Identidade visual -->
       <article class="config-card">
         <div class="config-card-header">
@@ -376,23 +943,31 @@
           <div class="form-grid">
             <div class="form-group">
               <label for="logoRetangular" data-i18n="web.modulos.configuracoes.logoRetangular">Logo retangular (login, sidebar)</label>
-              <input type="text" id="logoRetangular" placeholder="logoAtlasTransparente.png" autocomplete="off">
-              <div class="hint">Nome do arquivo em /img/</div>
+              <div class="logo-filename-row">
+                <input type="text" id="logoRetangular" placeholder="logoAtlasTransparente.png" autocomplete="off">
+                <input type="file" id="fileLogoRetangular" class="config-logo-file-input" accept="image/png,image/jpeg,image/webp" aria-hidden="true" tabindex="-1">
+                <button type="button" id="btnUploadLogoRetangular" class="btn-filtro btn-filtro-novo config-logo-upload-btn" style="display: none;"><i class="bx bx-upload"></i> <span data-i18n="web.modulos.configuracoes.carregarLogo">Carregar imagem</span></button>
+              </div>
+              <div class="hint" data-i18n="web.modulos.configuracoes.logoArquivoHint">Nome do arquivo em /img/ ou envie uma imagem (tenant padrão).</div>
               <img id="previewRetangular" class="logo-preview" alt="Preview" style="display: none;">
             </div>
             <div class="form-group">
               <label for="logoQuadrada" data-i18n="web.modulos.configuracoes.logoQuadrada">Logo quadrada (favicon, PWA)</label>
-              <input type="text" id="logoQuadrada" placeholder="logoAtlasTransparenteQuadrada.png" autocomplete="off">
-              <div class="hint">Nome do arquivo em /img/</div>
+              <div class="logo-filename-row">
+                <input type="text" id="logoQuadrada" placeholder="logoAtlasTransparenteQuadrada.png" autocomplete="off">
+                <input type="file" id="fileLogoQuadrada" class="config-logo-file-input" accept="image/png,image/jpeg,image/webp" aria-hidden="true" tabindex="-1">
+                <button type="button" id="btnUploadLogoQuadrada" class="btn-filtro btn-filtro-novo config-logo-upload-btn" style="display: none;"><i class="bx bx-upload"></i> <span data-i18n="web.modulos.configuracoes.carregarLogo">Carregar imagem</span></button>
+              </div>
+              <div class="hint" data-i18n="web.modulos.configuracoes.logoArquivoHint">Nome do arquivo em /img/ ou envie uma imagem (tenant padrão).</div>
               <img id="previewQuadrada" class="logo-preview" alt="Preview" style="display: none;">
             </div>
           </div>
         </div>
         <div class="config-card-footer">
           <div id="configIdentidadeMessage" class="message" role="alert"></div>
-          <div style="display: flex; gap: 10px; margin-left: auto;">
-            <button type="button" id="btnCarregarIdentidade" class="btn btn-secondary"><i class="bx bx-refresh"></i> <span data-i18n="web.modulos.configuracoes.recarregar">Recarregar</span></button>
-            <button type="button" id="btnSalvarIdentidade" class="btn btn-primary"><i class="bx bx-save"></i> <span id="btnSalvarIdentidadeText" data-i18n="web.modulos.configuracoes.salvarIdentidade">Salvar identidade</span></button>
+          <div class="config-card-footer-actions">
+            <button type="button" id="btnCarregarIdentidade" class="btn-filtro btn-filtro-limpar"><i class="bx bx-refresh"></i> <span data-i18n="web.modulos.configuracoes.recarregar">Recarregar</span></button>
+            <button type="button" id="btnSalvarIdentidade" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-save"></i> <span id="btnSalvarIdentidadeText" data-i18n="web.modulos.configuracoes.salvarIdentidade">Salvar identidade</span></button>
           </div>
         </div>
       </article>
@@ -420,13 +995,17 @@
         </div>
         <div class="config-card-footer">
           <div id="configMapaMessage" class="message" role="alert"></div>
-          <div style="display: flex; gap: 10px; margin-left: auto;">
-            <button type="button" id="btnCarregar" class="btn btn-secondary"><i class="bx bx-refresh"></i> <span data-i18n="web.modulos.configuracoes.recarregar">Recarregar</span></button>
-            <button type="button" id="btnSalvar" class="btn btn-primary"><i class="bx bx-save"></i> <span id="btnSalvarText" data-i18n="web.modulos.configuracoes.salvar">Salvar</span></button>
+          <div class="config-card-footer-actions">
+            <button type="button" id="btnCarregar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-refresh"></i> <span data-i18n="web.modulos.configuracoes.recarregar">Recarregar</span></button>
+            <button type="button" id="btnSalvar" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-save"></i> <span id="btnSalvarText" data-i18n="web.modulos.configuracoes.salvar">Salvar</span></button>
           </div>
         </div>
       </article>
+    </div>
+    </div>
 
+    <div class="tab-content" id="tab-whatsapp" role="tabpanel" aria-labelledby="tab-btn-whatsapp">
+    <div class="config-cards">
       <!-- Card 4: Webhook Switch Digital -->
       <article class="config-card card-full">
         <div class="config-card-header">
@@ -436,6 +1015,9 @@
         <div class="config-card-body">
           <p class="card-desc" data-i18n="web.modulos.configuracoes.switchDesc">Credenciais e parâmetros para envio de mensagens via API Switch Digital.</p>
           
+          <form class="config-sensitive-fields" autocomplete="off" onsubmit="return false;" aria-label="Integração Switch Digital">
+          <label for="switchConfigUsernameDummy" class="config-form-username-helper" aria-hidden="true">Usuário</label>
+          <input type="text" id="switchConfigUsernameDummy" class="config-form-username-helper" name="switch_config_username_dummy" autocomplete="username" tabindex="-1" aria-hidden="true" value="">
           <div class="form-grid">
             <div class="form-group">
               <label for="switchEndpoint" data-i18n="web.modulos.configuracoes.switchEndpoint">Endpoint da API</label>
@@ -453,8 +1035,8 @@
 
             <div class="form-group">
               <label for="switchToken" data-i18n="web.modulos.configuracoes.switchToken">Token de Autorização</label>
-              <input type="password" id="switchToken" class="form-control" placeholder="Seu token de acesso (não digite 'Bearer')">
-              <div class="hint">O sistema adicionará 'Bearer ' automaticamente no cabeçalho.</div>
+              <input type="password" id="switchToken" name="switch_authorization_token" class="form-control" data-i18n-placeholder="web.modulos.configuracoes.switchTokenPlaceholder" placeholder="Seu token de acesso (não digite 'Bearer')" autocomplete="new-password" spellcheck="false">
+              <div class="hint" data-i18n="web.modulos.configuracoes.switchTokenHint">O sistema adicionará 'Bearer ' automaticamente no cabeçalho.</div>
             </div>
 
             <div class="form-group">
@@ -484,62 +1066,493 @@
             </div>
           </div>
 
-          <hr style="margin: 25px 0; border: none; border-top: 1px dashed #e0e0e0;">
+          <hr class="config-hr" aria-hidden="true">
 
-          <h4 style="margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
-            <i class="bx bx-test-tube" style="color: #6366f1;"></i> 
-            Área de Teste Rápido
+          <h4 class="config-subheading">
+            <i class="bx bx-test-tube" aria-hidden="true"></i>
+            <span data-i18n="web.modulos.configuracoes.areaTesteRapido">Área de Teste Rápido</span>
           </h4>
           <div class="form-grid" style="align-items: end;">
              <div class="form-group">
-                <label for="switchTestNumber">Número do WhatsApp (com DDI e DDD)</label>
-                <input type="text" id="switchTestNumber" class="form-control" placeholder="Ex: 558599999999">
+                <label for="switchTestNumber" data-i18n="web.modulos.configuracoes.switchTestNumberLabel">Número do WhatsApp (com DDI e DDD)</label>
+                <input type="text" id="switchTestNumber" class="form-control" data-i18n-placeholder="web.modulos.configuracoes.switchTestNumberPlaceholder" placeholder="Ex: 558599999999">
              </div>
              <div class="form-group">
-                <button type="button" id="btnTestarSwitch" class="btn btn-secondary" style="width: 100%; justify-content: center;">
-                  <i class="bx bx-send"></i> Enviar Mensagem Teste
+                <button type="button" id="btnTestarSwitch" class="btn-filtro btn-filtro-limpar config-btn-block">
+                  <i class="bx bx-send"></i> <span data-i18n="web.modulos.configuracoes.enviarMensagemTeste">Enviar Mensagem Teste</span>
                 </button>
              </div>
              <div class="form-group" style="grid-column: 1 / -1;">
                 <div id="testResultMessage" style="display: none; padding: 10px; border-radius: 4px; font-size: 14px; margin-top: 5px;"></div>
              </div>
           </div>
+          </form>
 
         </div>
         <div class="config-card-footer">
           <div id="configSwitchMessage" class="message" role="alert"></div>
-          <div style="display: flex; gap: 10px; margin-left: auto;">
-            <button type="button" id="btnCarregarSwitch" class="btn btn-secondary"><i class="bx bx-refresh"></i> <span data-i18n="web.modulos.configuracoes.recarregar">Recarregar</span></button>
-            <button type="button" id="btnSalvarSwitch" class="btn btn-primary"><i class="bx bx-save"></i> <span id="btnSalvarSwitchText" data-i18n="web.modulos.configuracoes.salvar">Salvar Configurações</span></button>
-          </div>
-        </div>
-      </article>
-
-      <!-- Card 5: App do Motorista (link na mensagem de confirmação) -->
-      <article class="config-card card-full">
-        <div class="config-card-header">
-          <i class="bx bx-link-alt"></i>
-          <h3>Link do app motorista</h3>
-        </div>
-        <div class="config-card-body">
-          <p class="card-desc">URL do aplicativo do motorista. Esse link é exibido na mensagem de confirmação quando um motorista é selecionado para a viagem (WhatsApp).</p>
-          <div class="form-group">
-            <label for="linkAppMotorista">Link do aplicativo do motorista</label>
-            <input type="url" id="linkAppMotorista" class="form-control" placeholder="Ex: https://meudominio.com/motorista/" autocomplete="off">
-            <div class="hint">Ex.: https://meudominio.com/motorista/ ou o endereço da PWA do app.</div>
-          </div>
-        </div>
-        <div class="config-card-footer">
-          <div id="configAppMotoristaMessage" class="message" role="alert"></div>
-          <div style="display: flex; gap: 10px; margin-left: auto;">
-            <button type="button" id="btnCarregarAppMotorista" class="btn btn-secondary"><i class="bx bx-refresh"></i> Recarregar</button>
-            <button type="button" id="btnSalvarAppMotorista" class="btn btn-primary"><i class="bx bx-save"></i> <span id="btnSalvarAppMotoristaText">Salvar</span></button>
+          <div class="config-card-footer-actions">
+            <button type="button" id="btnCarregarSwitch" class="btn-filtro btn-filtro-limpar"><i class="bx bx-refresh"></i> <span data-i18n="web.modulos.configuracoes.recarregar">Recarregar</span></button>
+            <button type="button" id="btnSalvarSwitch" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-save"></i> <span id="btnSalvarSwitchText" data-i18n="web.modulos.configuracoes.salvarConfiguracoes">Salvar Configurações</span></button>
           </div>
         </div>
       </article>
     </div>
+    </div>
+
+    <div class="tab-content" id="tab-app-ia" role="tabpanel" aria-labelledby="tab-btn-app-ia">
+    <div class="config-cards config-cards--app-ia-duo">
+      <!-- Link do app motorista (usado na confirmação e na pré-visualização das mensagens de convocação) -->
+      <article class="config-card" id="boxLinkAppMotorista">
+        <div class="config-card-header">
+          <i class="bx bx-link-alt"></i>
+          <h3 data-i18n="web.modulos.configuracoes.linkAppMotorista">Link do app motorista</h3>
+        </div>
+        <div class="config-card-body">
+          <div class="form-group">
+            <label for="linkAppMotorista" data-i18n="web.modulos.configuracoes.linkAppMotoristaLabel">Link do app motorista (confirmação WhatsApp)</label>
+            <input type="url" id="linkAppMotorista" class="form-control" data-i18n-placeholder="web.modulos.configuracoes.linkAppMotoristaPlaceholder" placeholder="https://…/motorista/ (PWA ou URL pública)" autocomplete="off">
+            <div class="hint" data-i18n="web.modulos.configuracoes.linkAppMotoristaHint">Incluído na mensagem quando um motorista é selecionado para a viagem.</div>
+          </div>
+        </div>
+        <div class="config-card-footer">
+          <div id="configAppMotoristaMessage" class="message" role="alert"></div>
+          <div class="config-card-footer-actions">
+            <button type="button" id="btnCarregarAppMotorista" class="btn-filtro btn-filtro-limpar"><i class="bx bx-refresh"></i> <span data-i18n="web.modulos.configuracoes.recarregar">Recarregar</span></button>
+            <button type="button" id="btnSalvarAppMotorista" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-save"></i> <span id="btnSalvarAppMotoristaText" data-i18n="web.modulos.configuracoes.salvar">Salvar</span></button>
+          </div>
+        </div>
+      </article>
+
+      <!-- Chave OpenAI (Whisper) — transcrição de áudio no chat -->
+      <article class="config-card" id="boxOpenAiApiKey">
+        <div class="config-card-header">
+          <i class="bx bx-microphone"></i>
+          <h3 data-i18n="web.modulos.configuracoes.openaiApiKeyTitulo">Transcrição de áudio (OpenAI Whisper)</h3>
+        </div>
+        <div class="config-card-body">
+          <form class="config-sensitive-fields" autocomplete="off" onsubmit="return false;" aria-label="Chave API OpenAI">
+          <label for="openaiConfigUsernameDummy" class="config-form-username-helper" aria-hidden="true">Usuário</label>
+          <input type="text" id="openaiConfigUsernameDummy" class="config-form-username-helper" name="openai_config_username_dummy" autocomplete="username" tabindex="-1" aria-hidden="true" value="">
+          <p id="openaiApiKeyStatus" class="hint" style="margin-bottom: 10px;" aria-live="polite"></p>
+          <p class="hint" style="margin-bottom: 14px;">
+            <a href="https://platform.openai.com/api-keys" class="config-external-link" target="_blank" rel="noopener noreferrer">
+              <i class="bx bx-link-external" aria-hidden="true"></i>
+              <span data-i18n="web.modulos.configuracoes.openaiApiKeyLinkCriar">Criar ou gerenciar chaves na OpenAI</span>
+            </a>
+          </p>
+          <div class="form-group">
+            <label for="openaiApiKeyInput" data-i18n="web.modulos.configuracoes.openaiApiKeyLabel">Chave da API (Whisper / transcrição no chat)</label>
+            <input type="password" id="openaiApiKeyInput" name="openai_api_key" class="form-control" data-i18n-placeholder="web.modulos.configuracoes.openaiApiKeyPlaceholder" placeholder="Cole a chave (sk-…)" autocomplete="new-password" spellcheck="false">
+          </div>
+          </form>
+        </div>
+        <div class="config-card-footer">
+          <div id="configOpenAiMessage" class="message" role="alert"></div>
+          <div class="config-card-footer-actions">
+            <button type="button" id="btnCarregarOpenAi" class="btn-filtro btn-filtro-limpar"><i class="bx bx-refresh"></i> <span data-i18n="web.modulos.configuracoes.recarregar">Recarregar</span></button>
+            <button type="button" id="btnRemoverOpenAiBanco" class="btn-filtro btn-filtro-danger"><i class="bx bx-trash"></i> <span data-i18n="web.modulos.configuracoes.openaiApiKeyRemoverBanco">Remover chave do banco</span></button>
+            <button type="button" id="btnSalvarOpenAi" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-save"></i> <span id="btnSalvarOpenAiText" data-i18n="web.modulos.configuracoes.salvar">Salvar</span></button>
+          </div>
+        </div>
+      </article>
+    </div>
+    </div>
+
+    <div class="tab-content" id="tab-convocacoes" role="tabpanel" aria-labelledby="tab-btn-convocacoes">
+    <div class="config-cards">
+      <!-- Mensagens WhatsApp – convocações (templates; vazio = texto padrão do sistema) -->
+      <article class="config-card card-full" id="boxMensagensConvocacao">
+        <div class="config-card-header">
+          <i class="bx bx-message-rounded-dots"></i>
+          <h3>Mensagens WhatsApp – convocações</h3>
+        </div>
+        <div class="config-card-body">
+          <p class="card-desc">À esquerda você edita o modelo (ou deixa vazio para o padrão interno). À direita, pré-visualização com dados de exemplo. Em cada bloco: &quot;Carregar modelo sugerido&quot; preenche o campo; &quot;Salvar só esta&quot; grava só aquela mensagem no banco. No rodapé, &quot;Salvar todas&quot; grava os três campos de uma vez.</p>
+          <p class="hint" id="msgConvLinkAppExemplo" style="margin-top: -8px; margin-bottom: 20px;"></p>
+
+          <section class="msg-conv-secao" aria-labelledby="msgConvTituloDisparo">
+            <h4 class="msg-conv-secao-titulo" id="msgConvTituloDisparo">Disparo de convocação (lista / fila Switch)</h4>
+            <div class="msg-conv-linha-dupla">
+              <div class="msg-conv-col-esq form-group" style="margin-bottom:0;">
+                <label for="msgConvDisparo">Modelo da mensagem</label>
+                <textarea id="msgConvDisparo" class="form-control template-convocacao" rows="10" placeholder="Vazio = mensagem padrão do sistema (carga, rota, link…)."></textarea>
+                <div class="hint">Variáveis: {{MOTORISTA_NOME}}, {{PRIMEIRO_NOME}}, {{ID_VIAGEM}}, {{TIPO_VIAGEM}}, {{DSCLASSEFROTA}}, {{DSROTEIRO}}, {{LINHA_PAIS}}, {{BLOCO_PONTOS_PARADA}}, {{PAIS_ORIGEM_DESTINO}}, {{PONTOS_PARADA}}, {{DTPREVINICIO}}, {{DTPREVFINAL}}, {{REQUISITOS_RASTREADO}}, {{CONTRATADOR_NOME}}, {{VALOR_FRETE}}, {{PESO_TON}}, {{CUBAGEM_M3}}, {{OBSERV_BLOCO}}, {{LINK_CONVOCACAO}}</div>
+                <div class="msg-conv-acoes-linha">
+                  <button type="button" class="btn-filtro btn-filtro-limpar config-btn-compact" id="btnCarregarSugestaoDisparo"><i class="bx bx-import"></i> Carregar modelo sugerido</button>
+                  <button type="button" class="btn-filtro btn-filtro-aplicar config-btn-compact" id="btnSalvarSecaoDisparo"><i class="bx bx-save"></i> Salvar só esta</button>
+                </div>
+              </div>
+              <div class="msg-conv-col-dir form-group" style="margin-bottom:0;">
+                <div class="msg-conv-preview-titulo">Pré-visualização <span class="msg-conv-preview-sub">(dados de exemplo)</span></div>
+                <pre id="msgConvPreviewDisparo" class="msg-conv-preview-live" aria-live="polite"></pre>
+              </div>
+            </div>
+          </section>
+
+          <section class="msg-conv-secao" aria-labelledby="msgConvTituloConfSel">
+            <h4 class="msg-conv-secao-titulo" id="msgConvTituloConfSel">Confirmação – motorista selecionado</h4>
+            <div class="msg-conv-linha-dupla">
+              <div class="msg-conv-col-esq form-group" style="margin-bottom:0;">
+                <label for="msgConvConfirmacaoSel">Modelo da mensagem</label>
+                <textarea id="msgConvConfirmacaoSel" class="form-control template-convocacao" rows="9" placeholder="Vazio = padrão do sistema."></textarea>
+                <div class="hint">Variáveis: {{PRIMEIRO_NOME}}, {{ID_VIAGEM}}, {{LINK_APP_MOTORISTA}}, {{BLOCO_LINK_APP}} (bloco formatado do link; se vazio, sem linha de app)</div>
+                <div class="msg-conv-acoes-linha">
+                  <button type="button" class="btn-filtro btn-filtro-limpar config-btn-compact" id="btnCarregarSugestaoConfirmacaoSel"><i class="bx bx-import"></i> Carregar modelo sugerido</button>
+                  <button type="button" class="btn-filtro btn-filtro-aplicar config-btn-compact" id="btnSalvarSecaoConfirmacaoSel"><i class="bx bx-save"></i> Salvar só esta</button>
+                </div>
+              </div>
+              <div class="msg-conv-col-dir form-group" style="margin-bottom:0;">
+                <div class="msg-conv-preview-titulo">Pré-visualização <span class="msg-conv-preview-sub">(dados de exemplo)</span></div>
+                <pre id="msgConvPreviewConfirmacaoSel" class="msg-conv-preview-live" aria-live="polite"></pre>
+              </div>
+            </div>
+          </section>
+
+          <section class="msg-conv-secao" aria-labelledby="msgConvTituloConfNaoSel">
+            <h4 class="msg-conv-secao-titulo" id="msgConvTituloConfNaoSel">Confirmação – não selecionado (ACEITA_DESCARTADA)</h4>
+            <div class="msg-conv-linha-dupla">
+              <div class="msg-conv-col-esq form-group" style="margin-bottom:0;">
+                <label for="msgConvConfirmacaoNaoSel">Modelo da mensagem</label>
+                <textarea id="msgConvConfirmacaoNaoSel" class="form-control template-convocacao" rows="7" placeholder="Vazio = padrão do sistema."></textarea>
+                <div class="hint">Variáveis: {{PRIMEIRO_NOME}}, {{ID_VIAGEM}}</div>
+                <div class="msg-conv-acoes-linha">
+                  <button type="button" class="btn-filtro btn-filtro-limpar config-btn-compact" id="btnCarregarSugestaoConfirmacaoNaoSel"><i class="bx bx-import"></i> Carregar modelo sugerido</button>
+                  <button type="button" class="btn-filtro btn-filtro-aplicar config-btn-compact" id="btnSalvarSecaoConfirmacaoNaoSel"><i class="bx bx-save"></i> Salvar só esta</button>
+                </div>
+              </div>
+              <div class="msg-conv-col-dir form-group" style="margin-bottom:0;">
+                <div class="msg-conv-preview-titulo">Pré-visualização <span class="msg-conv-preview-sub">(dados de exemplo)</span></div>
+                <pre id="msgConvPreviewConfirmacaoNaoSel" class="msg-conv-preview-live" aria-live="polite"></pre>
+              </div>
+            </div>
+          </section>
+
+          <section class="msg-conv-secao" aria-labelledby="msgConvTituloDivPlacasNotif">
+            <h4 class="msg-conv-secao-titulo" id="msgConvTituloDivPlacasNotif">Divergência de placas (motorista declara no link ou app)</h4>
+            <p class="hint" style="margin-top:0;">Quando o motorista informa que placas/conjunto divergem do cadastro (aceite bloqueado até a torre alinhar). Valores padrão: <strong>Sim</strong> em ambos.</p>
+            <div class="form-grid form-grid-2" style="max-width:720px;">
+              <div class="form-group">
+                <label for="divPlacasNotificarSwitch">WhatsApp ao contratador (Switch Digital)</label>
+                <select id="divPlacasNotificarSwitch" class="form-control">
+                  <option value="S">Sim</option>
+                  <option value="N">Não</option>
+                </select>
+                <div class="hint">Se <strong>Não</strong>, não tenta enviar WhatsApp mesmo com Switch configurado (útil em homologação).</div>
+              </div>
+              <div class="form-group">
+                <label for="divPlacasNotificarTorreWebsocket">Alerta na torre (dashboard com socket conectado)</label>
+                <select id="divPlacasNotificarTorreWebsocket" class="form-control">
+                  <option value="S">Sim</option>
+                  <option value="N">Não</option>
+                </select>
+                <div class="hint">Emite evento WebSocket na torre (toast + som de alerta).</div>
+              </div>
+            </div>
+            <div class="msg-conv-acoes-linha">
+              <button type="button" class="btn-filtro btn-filtro-aplicar config-btn-compact" id="btnSalvarSecaoDivPlacasNotif"><i class="bx bx-save"></i> Salvar só esta</button>
+            </div>
+          </section>
+        </div>
+        <div class="config-card-footer">
+          <div id="configMensagensConvocacaoMessage" class="message" role="alert"></div>
+          <div class="config-card-footer-actions">
+            <button type="button" id="btnCarregarMensagensConvocacao" class="btn-filtro btn-filtro-limpar"><i class="bx bx-refresh"></i> <span data-i18n="web.modulos.configuracoes.recarregar">Recarregar</span></button>
+            <button type="button" id="btnSalvarMensagensConvocacao" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-save"></i> <span id="btnSalvarMensagensConvocacaoText">Salvar todas</span></button>
+          </div>
+        </div>
+      </article>
+    </div>
+    </div>
+
+    <div class="tab-content" id="tab-alertas" role="tabpanel" aria-labelledby="tab-btn-alertas">
+    <div class="config-cards">
+      <!-- Card: Alertas de viagem -->
+      <article class="config-card card-full" id="boxAlertas">
+        <div class="config-card-header">
+          <i class="bx bx-error-circle"></i>
+          <h3>Alertas de viagem</h3>
+        </div>
+        <div class="config-card-body">
+          <p class="card-desc">Regras para geração automática de alertas em viagens ativas e envio de notificações por WhatsApp (Switch).</p>
+
+          <!-- Bloco 1: Tempos e distâncias -->
+          <section class="alertas-block">
+            <h4 class="alertas-block-title">Tempos e distâncias</h4>
+            <p class="alertas-block-desc">Limiares usados para detectar cada tipo de alerta.</p>
+            <div class="hint alertas-precedencia-box">
+              <strong>Regra de precedência (Parada):</strong><br>
+              1) Se a última macro de parada/retido tiver <em>Tempo para alertas</em> ligado no módulo <strong>Gerenciar Tipo de Ocorrência</strong>, vale o <strong>Tempo máximo (minutos)</strong> da macro (ex.: Abastecimento 5 min).<br>
+              2) Se não houver macro elegível com controle de tempo, usa o fallback global abaixo (velocidade + mínimo + janela GPS).<br>
+              3) Cooldown e alerta já aberto podem suprimir novo disparo.
+            </div>
+            <div class="form-grid form-grid-3">
+              <div class="form-group">
+                <label for="alertOfflineMinutos">Offline (min)</label>
+                <input type="number" id="alertOfflineMinutos" class="form-control" min="1" max="1440" placeholder="90">
+                <div class="hint">Sem posição GPS por mais de X minutos.</div>
+              </div>
+              <div class="form-group">
+                <label for="alertParadaVelocidadeMax">Parada – vel. máx. (km/h)</label>
+                <input type="number" id="alertParadaVelocidadeMax" class="form-control" min="0" max="50" placeholder="5">
+                <div class="hint">Abaixo disso = parado.</div>
+              </div>
+              <div class="form-group">
+                <label for="alertParadaMinutosMin">Parada – mín. (min) (fallback GPS)</label>
+                <input type="number" id="alertParadaMinutosMin" class="form-control" min="1" max="120" placeholder="30">
+                <div class="hint">Usado quando não houver macro de parada/retido com controle de tempo aplicável.</div>
+              </div>
+              <div class="form-group">
+                <label for="alertParadaJanelaPosicoes">Parada – janela GPS (posições) (fallback)</label>
+                <input type="number" id="alertParadaJanelaPosicoes" class="form-control" min="2" max="200" placeholder="60">
+                <div class="hint">Quantidade de pontos GPS analisados no fallback de parada por telemetria.</div>
+              </div>
+              <div class="form-group">
+                <label for="alertParadaRaioMetros">Parada – raio GPS (m) (fallback)</label>
+                <input type="number" id="alertParadaRaioMetros" class="form-control" min="20" max="1000" placeholder="200">
+                <div class="hint">Se os pontos ficarem concentrados dentro deste raio por tempo suficiente, considera parado mesmo com velocidade inconsistente.</div>
+              </div>
+              <div class="form-group">
+                <label for="alertDesvioMetros">Desvio (m)</label>
+                <input type="number" id="alertDesvioMetros" class="form-control" min="100" max="5000" placeholder="500">
+                <div class="hint">Distância mínima da rota para alerta.</div>
+              </div>
+              <div class="form-group">
+                <label class="alertas-checkbox-item" style="padding-top: 28px;">
+                  <input type="checkbox" id="alertDesvioSuprimirQuandoParadoAtivo" checked>
+                  Suprimir desvio quando veículo parado no raio
+                </label>
+                <div class="hint">Evita ruído de desvio quando o veículo está claramente parado no mesmo local.</div>
+              </div>
+              <div class="form-group">
+                <label for="alertAtrasoInicioMargemMinutos">Atraso iniciar – margem (min)</label>
+                <input type="number" id="alertAtrasoInicioMargemMinutos" class="form-control" min="0" max="120" placeholder="15">
+                <div class="hint">Após DTPREVINICIO para considerar atraso.</div>
+              </div>
+              <div class="form-group">
+                <label for="alertExcessoVelocidadeKmh">Excesso velocidade – limite (km/h)</label>
+                <input type="number" id="alertExcessoVelocidadeKmh" class="form-control" min="60" max="200" placeholder="100">
+                <div class="hint">Acima disso nas últimas posições.</div>
+              </div>
+              <div class="form-group">
+                <label for="alertExcessoVelocidadeJanela">Excesso velocidade – janela</label>
+                <input type="number" id="alertExcessoVelocidadeJanela" class="form-control" min="2" max="30" placeholder="5">
+                <div class="hint">Posições consideradas.</div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Bloco 2: Quando verificar -->
+          <section class="alertas-block">
+            <h4 class="alertas-block-title">Quando verificar</h4>
+            <div class="alertas-quando-grid">
+              <div class="form-group">
+                <label for="alertJobIntervaloMinutos">Intervalo (min) <span class="alertas-badge-restart">Tenant padrão</span></label>
+                <input type="number" id="alertJobIntervaloMinutos" class="form-control" min="1" max="60" placeholder="5">
+                <div class="hint">Frequência do ciclo global do job (valor lido da config do <strong>tenant padrão</strong>). Ao salvar alertas autenticado nesse tenant, o intervalo é reaplicado automaticamente; se só outro tenant alterar este número na base, o processo pode continuar no intervalo anterior até alinhar o padrão ou reiniciar o backend.</div>
+              </div>
+              <div class="form-group">
+                <label for="alertCooldownMinutos">Repetir mesmo alerta após (min)</label>
+                <input type="number" id="alertCooldownMinutos" class="form-control" min="0" max="1440" placeholder="30">
+                <div class="hint">Cooldown entre alertas do mesmo tipo na mesma viagem (0 = sem cooldown).</div>
+              </div>
+              <div class="form-group">
+                <label for="alertWhatsAppReenvioMinutos">Reenviar WhatsApp após (min)</label>
+                <input type="number" id="alertWhatsAppReenvioMinutos" class="form-control" min="0" max="1440" placeholder="30">
+                <div class="hint">Evita disparos repetidos para o mesmo destino (0 = sem cooldown).</div>
+              </div>
+              <div class="form-group">
+                <label for="alertHeartbeatIntervaloMinutos">Heartbeat lembrete (min)</label>
+                <input type="number" id="alertHeartbeatIntervaloMinutos" class="form-control" min="1" max="1440" placeholder="15">
+                <div class="hint">Com alerta pendente, reenviar lembrete periódico sem criar novo alerta.</div>
+              </div>
+              <div class="form-group">
+                <label for="alertHeartbeatTipos">Heartbeat tipos (CSV)</label>
+                <input type="text" id="alertHeartbeatTipos" class="form-control" placeholder="PARADA">
+                <div class="hint">Ex.: PARADA,OFFLINE. Inicialmente use PARADA.</div>
+              </div>
+              <div class="alertas-quando-job">
+                <label for="alertJobAtivo">
+                  <input type="checkbox" id="alertJobAtivo" checked>
+                  Job de alertas ativo
+                </label>
+                <span class="hint">Desmarque para pausar.</span>
+                <label for="alertHeartbeatAtivo" style="margin-top: 6px;">
+                  <input type="checkbox" id="alertHeartbeatAtivo">
+                  Heartbeat de lembrete ativo
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <!-- Bloco 3: Tipos ativos -->
+          <section class="alertas-block">
+            <h4 class="alertas-block-title">Tipos de alerta ativos</h4>
+            <p class="alertas-block-desc">Quais alertas o sistema deve gerar. Desmarque para desativar um tipo.</p>
+            <div class="alertas-checkbox-grid">
+              <label class="alertas-checkbox-item"><input type="checkbox" id="alertTipoParadaAtivo" checked> Parada prolongada</label>
+              <label class="alertas-checkbox-item"><input type="checkbox" id="alertTipoAtrasoAtivo" checked> Atraso</label>
+              <label class="alertas-checkbox-item"><input type="checkbox" id="alertTipoEtaPrazoAtivo" checked> ETA preventivo</label>
+              <label class="alertas-checkbox-item"><input type="checkbox" id="alertTipoOfflineAtivo" checked> Offline</label>
+              <label class="alertas-checkbox-item"><input type="checkbox" id="alertTipoDesvioAtivo" checked> Desvio de rota</label>
+              <label class="alertas-checkbox-item"><input type="checkbox" id="alertTipoAtrasoInicioAtivo" checked> Atraso para iniciar</label>
+              <label class="alertas-checkbox-item"><input type="checkbox" id="alertTipoExcessoVelocidadeAtivo" checked> Excesso de velocidade</label>
+            </div>
+          </section>
+
+          <!-- Bloco 4: Onde gera -->
+          <section class="alertas-block alertas-onde-gera">
+            <h4 class="alertas-block-title">Onde gera (opcional)</h4>
+            <div class="form-group">
+              <label>Códigos FGSITVIAGEM que entram na verificação</label>
+              <div class="alertas-checkbox-grid">
+                <label class="alertas-checkbox-item"><input type="checkbox" id="alertFgsitviagemP"> P - Programada</label>
+                <label class="alertas-checkbox-item"><input type="checkbox" id="alertFgsitviagemD"> D - Preparação</label>
+                <label class="alertas-checkbox-item"><input type="checkbox" id="alertFgsitviagemT"> T - Em trânsito</label>
+                <label class="alertas-checkbox-item"><input type="checkbox" id="alertFgsitviagemA"> A - Aprovada</label>
+                <label class="alertas-checkbox-item"><input type="checkbox" id="alertFgsitviagemF"> F - Finalizada</label>
+                <label class="alertas-checkbox-item"><input type="checkbox" id="alertFgsitviagemC"> C - Cancelada</label>
+                <label class="alertas-checkbox-item"><input type="checkbox" id="alertFgsitviagemE"> E - Final de rota</label>
+                <label class="alertas-checkbox-item"><input type="checkbox" id="alertFgsitviagemM"> M - Emissão documentos</label>
+              </div>
+              <div class="hint">Se nenhum código estiver marcado, o padrão será: excluir D, E, F e C. O job usa a situação da viagem (cadastro Situação de viagem / FGSITVIAGEM); não é necessário informar código numérico (CDSITUACAOVIAGEM) na tela.</div>
+              <div id="alertFgsitviagemAvisoExplicito" class="hint" style="display: none; margin-top: 8px; color: #b45309; font-weight: 500;"></div>
+            </div>
+          </section>
+
+          <!-- Bloco 5: Ações WhatsApp -->
+          <section class="alertas-block alertas-block-whatsapp">
+            <h4 class="alertas-block-title">Notificações por WhatsApp (Switch)</h4>
+            <p class="alertas-block-desc">Válido apenas para <strong>alertas automáticos de viagem</strong> (parada, offline, desvio, etc.). Não inclui convocações nem confirmação de motorista — esses textos ficam na aba <strong>Mensagens convocações</strong>. Ao gerar alerta, enviar mensagem para motorista, contratador da viagem e/ou central. Defina quem notificar e para quais tipos.</p>
+
+            <div class="form-group" style="margin-bottom: 16px;">
+              <label class="alertas-toggle-label">
+                <input type="checkbox" id="alertWhatsAppAtivo" style="width: 20px; height: 20px; margin-right: 10px;">
+                <strong>Enviar WhatsApp ao gerar alerta</strong>
+              </label>
+              <div class="hint" style="margin-top: 4px; margin-left: 30px;">Requer Switch Digital configurado (aba Switch / WhatsApp).</div>
+            </div>
+
+            <div class="form-grid form-grid-3" style="margin-bottom: 16px;">
+              <div>
+                <span class="alertas-subtitle">Quem notificar</span>
+                <div class="alertas-checkbox-list">
+                  <label class="alertas-checkbox-item"><input type="checkbox" id="alertWhatsAppNotificarMotorista" checked style="width: 16px; height: 16px;"> Motorista</label>
+                  <label class="alertas-checkbox-item"><input type="checkbox" id="alertWhatsAppNotificarProgramador" style="width: 16px; height: 16px;"> Contratador da viagem</label>
+                  <label class="alertas-checkbox-item"><input type="checkbox" id="alertWhatsAppNotificarCentral" style="width: 16px; height: 16px;"> Central</label>
+                </div>
+                <div class="hint" style="margin-top: 6px;">Celular do contratador = cadastro da viagem.</div>
+              </div>
+              <div class="form-group" style="max-width: 280px;">
+                <label for="alertWhatsAppCelularCentral">Celular da central (com DDI e DDD)</label>
+                <input type="text" id="alertWhatsAppCelularCentral" class="form-control" placeholder="Ex: 5541988888888" maxlength="20">
+                <div class="hint">Obrigatório se notificar central. Informe com DDI (ex.: 55 Brasil, 595 Paraguai).</div>
+              </div>
+            </div>
+
+            <div>
+              <span class="alertas-subtitle">Enviar WhatsApp apenas para estes tipos</span>
+              <div class="hint" style="margin-bottom: 8px;">Se nenhum estiver marcado, não envia notificação.</div>
+              <div class="alertas-checkbox-grid">
+                <label class="alertas-checkbox-item"><input type="checkbox" id="alertWhatsAppTipoParada" style="width: 16px; height: 16px;"> Parada prolongada</label>
+                <label class="alertas-checkbox-item"><input type="checkbox" id="alertWhatsAppTipoAtraso" style="width: 16px; height: 16px;"> Atraso</label>
+                <label class="alertas-checkbox-item"><input type="checkbox" id="alertWhatsAppTipoEtaPrazo" style="width: 16px; height: 16px;"> ETA preventivo</label>
+                <label class="alertas-checkbox-item"><input type="checkbox" id="alertWhatsAppTipoOffline" style="width: 16px; height: 16px;"> Offline</label>
+                <label class="alertas-checkbox-item"><input type="checkbox" id="alertWhatsAppTipoDesvio" style="width: 16px; height: 16px;"> Desvio de rota</label>
+                <label class="alertas-checkbox-item"><input type="checkbox" id="alertWhatsAppTipoAtrasoInicio" style="width: 16px; height: 16px;"> Atraso para iniciar</label>
+                <label class="alertas-checkbox-item"><input type="checkbox" id="alertWhatsAppTipoExcessoVelocidade" style="width: 16px; height: 16px;"> Excesso de velocidade</label>
+              </div>
+            </div>
+
+            <div class="msg-alert-bloco" style="margin-top: 28px; padding-top: 22px; border-top: 1px solid var(--border, #e2e8f0);">
+              <h5 class="msg-conv-secao-titulo" style="margin-top: 0;">Modelos de mensagem (opcional)</h5>
+              <p class="hint" style="margin-bottom: 12px;">Deixe em branco para usar o texto padrão do sistema. Monte o texto com os botões abaixo (inserem no cursor) ou digite <code>{{NOME_DA_VARIAVEL}}</code>.</p>
+
+              <div class="msg-alert-toolbar">
+                <div class="form-group msg-alert-tipo-wrap">
+                  <label for="msgAlertTipoSelect">Tipo de alerta</label>
+                  <select id="msgAlertTipoSelect" class="form-control">
+                    <option value="parada">Parada prolongada</option>
+                    <option value="atraso">Atraso</option>
+                    <option value="eta_prazo">ETA preventivo</option>
+                    <option value="offline">Offline</option>
+                    <option value="desvio">Desvio de rota</option>
+                    <option value="atraso_inicio">Atraso para iniciar</option>
+                    <option value="excesso_velocidade">Excesso de velocidade</option>
+                  </select>
+                </div>
+                <div class="msg-alert-toolbar-actions">
+                  <button type="button" id="btnMsgAlertCarregarSugerido" class="btn-filtro btn-filtro-limpar config-btn-compact"><i class="bx bx-download"></i> Carregar sugerido</button>
+                  <button type="button" id="btnMsgAlertSalvar" class="btn-filtro btn-filtro-aplicar config-btn-compact"><i class="bx bx-save"></i> Salvar modelos</button>
+                  <button type="button" id="btnMsgAlertRecarregar" class="btn-filtro btn-filtro-limpar config-btn-compact"><i class="bx bx-refresh"></i> Recarregar do servidor</button>
+                </div>
+              </div>
+
+              <div class="msg-alert-editor-grid">
+                <div class="msg-alert-modelo-wrap">
+                  <label for="msgAlertCorpo">Modelo da mensagem <span class="msg-alert-modelo-hint">Clique nos placeholders para inserir · Ctrl+Z desfaz</span></label>
+                  <textarea id="msgAlertCorpo" class="form-control msg-alert-textarea-editor" spellcheck="false" placeholder="Vazio = padrão do sistema (bloco com tipo, viagem, mensagem e prioridade)."></textarea>
+                  <div class="msg-alert-placeholders" id="msgAlertPlaceholders" aria-label="Inserir placeholder no modelo">
+                    <p class="msg-alert-placeholders-titulo">Inserir no cursor</p>
+                    <div class="msg-alert-chips" role="group">
+                      <button type="button" class="msg-alert-chip" data-ph="{{PREFIXO_ALERTA}}" title="Prefixo [Atlas Cargo – Alerta]">{{PREFIXO_ALERTA}}</button>
+                      <button type="button" class="msg-alert-chip" data-ph="{{TIPO_ALERTA_LEGIVEL}}" title="Nome legível do tipo">{{TIPO_ALERTA_LEGIVEL}}</button>
+                      <button type="button" class="msg-alert-chip" data-ph="{{ID_VIAGEM}}" title="Identificador da viagem">{{ID_VIAGEM}}</button>
+                      <button type="button" class="msg-alert-chip" data-ph="{{MENSAGEM}}" title="Texto gerado pelo sistema">{{MENSAGEM}}</button>
+                      <button type="button" class="msg-alert-chip" data-ph="{{PRIORIDADE_LEGIVEL}}" title="Alta, Média ou Normal">{{PRIORIDADE_LEGIVEL}}</button>
+                      <button type="button" class="msg-alert-chip" data-ph="{{CONTEXTO_DESTINATARIO_LEGIVEL}}" title="Motorista, Contratador ou Central">{{CONTEXTO_DESTINATARIO_LEGIVEL}}</button>
+                    </div>
+                    <details class="msg-alert-detalhes-vars" style="margin-top: 10px;">
+                      <summary>Motorista e contratador (viagem)</summary>
+                      <p class="hint" style="margin: 8px 0 6px;">Preenchidos na hora do envio a partir da convocação aceita e do cadastro (contratador da viagem). Celular em <strong>DDI</strong>, <strong>DDD</strong> e <strong>número</strong> local, além do texto legível (ex.: +55 (11) 98765-4321).</p>
+                      <div class="msg-alert-chips" role="group">
+                        <button type="button" class="msg-alert-chip" data-ph="{{NOME_MOTORISTA}}" title="Nome fantasia ou razão social do motorista">{{NOME_MOTORISTA}}</button>
+                        <button type="button" class="msg-alert-chip" data-ph="{{DDI_MOTORISTA}}" title="Código país (ex.: 55)">{{DDI_MOTORISTA}}</button>
+                        <button type="button" class="msg-alert-chip" data-ph="{{DDD_MOTORISTA}}" title="Área (ex.: 11)">{{DDD_MOTORISTA}}</button>
+                        <button type="button" class="msg-alert-chip" data-ph="{{NUMERO_MOTORISTA}}" title="Número sem DDI/DDD">{{NUMERO_MOTORISTA}}</button>
+                        <button type="button" class="msg-alert-chip" data-ph="{{CELULAR_MOTORISTA_LEGIVEL}}" title="Telefone formatado para leitura">{{CELULAR_MOTORISTA_LEGIVEL}}</button>
+                        <button type="button" class="msg-alert-chip" data-ph="{{DDI_CONTRATADOR}}" title="DDI do contratador">{{DDI_CONTRATADOR}}</button>
+                        <button type="button" class="msg-alert-chip" data-ph="{{DDD_CONTRATADOR}}" title="DDD do contratador">{{DDD_CONTRATADOR}}</button>
+                        <button type="button" class="msg-alert-chip" data-ph="{{NUMERO_CONTRATADOR}}" title="Número local do contratador">{{NUMERO_CONTRATADOR}}</button>
+                        <button type="button" class="msg-alert-chip" data-ph="{{CELULAR_CONTRATADOR_LEGIVEL}}" title="Telefone do contratador formatado">{{CELULAR_CONTRATADOR_LEGIVEL}}</button>
+                      </div>
+                    </details>
+                    <details class="msg-alert-detalhes-vars">
+                      <summary>Variáveis do detalhe do alerta (dependem do tipo)</summary>
+                      <p style="margin: 8px 0 6px;">Inserção rápida:</p>
+                      <div class="msg-alert-chips" role="group">
+                        <button type="button" class="msg-alert-chip" data-ph="{{MINUTOS_PARADO}}">{{MINUTOS_PARADO}}</button>
+                        <button type="button" class="msg-alert-chip" data-ph="{{DISTANCIA_METROS}}">{{DISTANCIA_METROS}}</button>
+                        <button type="button" class="msg-alert-chip" data-ph="{{MINUTOS_OFFLINE}}">{{MINUTOS_OFFLINE}}</button>
+                        <button type="button" class="msg-alert-chip" data-ph="{{VELOCIDADE_MAX_KMH}}">{{VELOCIDADE_MAX_KMH}}</button>
+                        <button type="button" class="msg-alert-chip" data-ph="{{LIMITE_KMH}}">{{LIMITE_KMH}}</button>
+                        <button type="button" class="msg-alert-chip" data-ph="{{ORIGEM_DETECCAO}}">{{ORIGEM_DETECCAO}}</button>
+                      </div>
+                      <p class="hint" style="margin: 10px 0 0;">Outros campos vêm do JSON de detalhes em MAIÚSCULAS (ex.: <code>{{ETA_MINUTOS}}</code>).</p>
+                    </details>
+                  </div>
+                </div>
+                <div>
+                  <div class="msg-conv-preview-titulo">Pré-visualização <span class="msg-conv-preview-sub">(dados de exemplo)</span></div>
+                  <pre id="msgAlertPreview" class="msg-conv-preview-live msg-alert-preview-tall" aria-live="polite"></pre>
+                </div>
+              </div>
+              <div id="configMensagensAlertasMessage" class="message" style="margin-top: 12px; display: none;" role="alert"></div>
+            </div>
+          </section>
+        </div>
+        <div class="config-card-footer">
+          <div id="configAlertasMessage" class="message" role="alert"></div>
+          <div class="config-card-footer-actions">
+            <button type="button" id="btnCarregarAlertas" class="btn-filtro btn-filtro-limpar"><i class="bx bx-refresh"></i> Recarregar</button>
+            <button type="button" id="btnSalvarAlertas" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-save"></i> Salvar</button>
+          </div>
+        </div>
+      </article>
+    </div>
+    </div>
   </div>
   <script src="/js/utils.js"></script>
-  <script src="js/script.js"></script>
+  <script src="js/script.js?v=202604081400"></script>
 </body>
 </html>

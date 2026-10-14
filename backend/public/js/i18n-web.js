@@ -59,14 +59,45 @@
   }
 
   function loadLocale(loc) {
-    return fetch(localePath + '/' + loc + '.json')
-      .then(function(res) { return res.ok ? res.json() : {}; })
-      .then(function(data) {
-        messages = data || {};
-        try { document.documentElement.lang = (loc === 'es-PY' ? 'es' : 'pt-BR'); } catch (e) {}
-        return messages;
-      })
-      .catch(function() { messages = {}; return messages; });
+    var file = '/' + loc + '.json';
+    var urls = [];
+    urls.push(localePath.replace(/\/$/, '') + file);
+    try {
+      var origin = window.location.origin || '';
+      if (origin) urls.push(origin.replace(/\/$/, '') + '/motorista/locales' + file);
+    } catch (e) {}
+    var seen = {};
+    urls = urls.filter(function(u) {
+      if (seen[u]) return false;
+      seen[u] = true;
+      return true;
+    });
+    function tryNext(i) {
+      if (i >= urls.length) {
+        messages = {};
+        return Promise.resolve(messages);
+      }
+      return fetch(urls[i])
+        .then(function(res) {
+          if (!res.ok) return tryNext(i + 1);
+          return res.json();
+        })
+        .then(function(data) {
+          if (data && typeof data === 'object' && Object.keys(data).length) {
+            messages = data;
+            try { document.documentElement.lang = (loc === 'es-PY' ? 'es' : 'pt-BR'); } catch (e2) {}
+            return messages;
+          }
+          return tryNext(i + 1);
+        })
+        .catch(function() {
+          return tryNext(i + 1);
+        });
+    }
+    return tryNext(0).catch(function() {
+      messages = {};
+      return messages;
+    });
   }
 
   function init() {
@@ -77,6 +108,7 @@
 
     loadLocale(preferred).then(function() {
       resolveReady();
+      if (typeof window.applyI18nWeb === 'function') window.applyI18nWeb();
     });
   }
 

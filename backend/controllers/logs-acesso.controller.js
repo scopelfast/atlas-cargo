@@ -5,6 +5,8 @@
 
 const sql = require('../config/mssql-compat');
 const { poolPromise } = require('../config/db');
+const { tenantIdForRequest } = require('../utils/tenant-context');
+const { getDefaultTenantId } = require('../middleware/tenant.middleware');
 
 /**
  * Listar logs de acesso (USUARIOLOGACESSO)
@@ -14,38 +16,46 @@ const listarLogsAcesso = async (req, res) => {
     const { dataInicio, dataFim, operador } = req.query;
     
     const pool = await poolPromise;
+    // Tenant efetivo: coluna do log, senão do USUARIO, senão default — alinha com USUARIOLOGACAO pós-SaaS
     let query = `
       SELECT 
-        [ID],
-        [SGUSUARIO],
-        [DHLOGIN],
-        [DHLOGOUT],
-        [TEMPOSESSAO],
-        [DHMAINTENANCE],
-        [SGUSER],
-        [SERVERORIG]
-      FROM [dbo].[USUARIOLOGACESSO]
-      WHERE 1=1
+        l.[ID],
+        l.[SGUSUARIO],
+        l.[DHLOGIN],
+        l.[DHLOGOUT],
+        l.[TEMPOSESSAO],
+        l.[DHMAINTENANCE],
+        l.[SGUSER],
+        l.[SERVERORIG]
+      FROM [dbo].[USUARIOLOGACESSO] l
+      LEFT JOIN [dbo].[USUARIO] u ON u.[SGUSUARIO] = l.[SGUSUARIO]
+      WHERE COALESCE(
+        NULLIF(LTRIM(RTRIM(l.[TENANT_ID])), ''),
+        NULLIF(LTRIM(RTRIM(u.[TENANT_ID])), ''),
+        @defaultTenant
+      ) = @tenantId
     `;
 
     const request = pool.request();
+    request.input('tenantId', sql.NVarChar(64), tenantIdForRequest(req));
+    request.input('defaultTenant', sql.NVarChar(64), getDefaultTenantId());
 
     if (dataInicio) {
-      query += ` AND CAST([DHLOGIN] AS DATE) >= CAST(@dataInicio AS DATE)`;
+      query += ` AND CAST(l.[DHLOGIN] AS DATE) >= CAST(@dataInicio AS DATE)`;
       request.input('dataInicio', sql.DateTime, new Date(dataInicio));
     }
 
     if (dataFim) {
-      query += ` AND CAST([DHLOGIN] AS DATE) <= CAST(@dataFim AS DATE)`;
+      query += ` AND CAST(l.[DHLOGIN] AS DATE) <= CAST(@dataFim AS DATE)`;
       request.input('dataFim', sql.DateTime, new Date(dataFim));
     }
 
     if (operador) {
-      query += ` AND UPPER([SGUSUARIO]) = UPPER(@operador)`;
+      query += ` AND UPPER(l.[SGUSUARIO]) = UPPER(@operador)`;
       request.input('operador', sql.VarChar(50), operador);
     }
 
-    query += ` ORDER BY [DHLOGIN] DESC`;
+    query += ` ORDER BY l.[DHLOGIN] DESC`;
 
     const result = await request.query(query);
 
@@ -90,10 +100,11 @@ const listarLogsAcoes = async (req, res) => {
         [SGUSER],
         [SERVERORIG]
       FROM [dbo].[USUARIOLOGACAO]
-      WHERE 1=1
+      WHERE [TENANT_ID] = @tenantId
     `;
 
     const request = pool.request();
+    request.input('tenantId', sql.NVarChar(64), tenantIdForRequest(req));
 
     if (dataInicio) {
       query += ` AND CAST([DHAÇÃO] AS DATE) >= CAST(@dataInicio AS DATE)`;
@@ -136,14 +147,25 @@ const listarLogsAcoes = async (req, res) => {
 const listarOperadores = async (req, res) => {
   try {
     const pool = await poolPromise;
-    
+    const tid = tenantIdForRequest(req);
+
     // Buscar operadores únicos das tabelas de log
-    const result = await pool.request().query(`
+    const result = await pool
+      .request()
+      .input('tenantId', sql.NVarChar(64), tid)
+      .input('defaultTenant', sql.NVarChar(64), getDefaultTenantId())
+      .query(`
       SELECT DISTINCT UPPER([SGUSUARIO]) AS [SGUSUARIO]
       FROM (
-        SELECT [SGUSUARIO] FROM [dbo].[USUARIOLOGACESSO]
+        SELECT l.[SGUSUARIO] FROM [dbo].[USUARIOLOGACESSO] l
+        LEFT JOIN [dbo].[USUARIO] u ON u.[SGUSUARIO] = l.[SGUSUARIO]
+        WHERE COALESCE(
+          NULLIF(LTRIM(RTRIM(l.[TENANT_ID])), ''),
+          NULLIF(LTRIM(RTRIM(u.[TENANT_ID])), ''),
+          @defaultTenant
+        ) = @tenantId
         UNION
-        SELECT [SGUSUARIO] FROM [dbo].[USUARIOLOGACAO]
+        SELECT [SGUSUARIO] FROM [dbo].[USUARIOLOGACAO] WHERE [TENANT_ID] = @tenantId
       ) AS [OPERADORES]
       WHERE [SGUSUARIO] IS NOT NULL AND [SGUSUARIO] <> ''
       ORDER BY [SGUSUARIO]

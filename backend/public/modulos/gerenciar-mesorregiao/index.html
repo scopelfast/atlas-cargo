@@ -52,8 +52,8 @@
       .form-dados-card-header i { font-size: 1.2rem; color: var(--ac-accent, #0ea5e9); }
       /* Grid: coluna Situação e Ações no mesmo padrão de Gerenciar Cidades */
       #mesorregiaoGrid th:nth-last-child(2), #mesorregiaoGrid td:nth-last-child(2) { width: 90px !important; min-width: 90px !important; max-width: 90px !important; text-align: right !important; }
-      #mesorregiaoGrid .grid-actions-header, #mesorregiaoGrid th:last-child { width: 88px !important; min-width: 88px !important; max-width: 88px !important; text-align: right !important; }
-      #mesorregiaoGrid .grid-actions, #mesorregiaoGrid td:last-child { width: 88px !important; min-width: 88px !important; max-width: 88px !important; }
+      #mesorregiaoGrid .grid-actions-header, #mesorregiaoGrid th:last-child { width: 76px !important; min-width: 76px !important; max-width: 76px !important; text-align: right !important; padding: 12px 4px !important; }
+      #mesorregiaoGrid .grid-actions, #mesorregiaoGrid td:last-child { width: 76px !important; min-width: 76px !important; max-width: 76px !important; padding: 8px 4px !important; gap: 4px !important; }
     </style>
 </head>
 <body>
@@ -63,9 +63,9 @@
         </div>
 
         <div class="tabs tabs-com-icones">
-            <button class="tab-btn active" data-tab="filtros"><i class="bx bx-filter-alt"></i> <span data-i18n="web.modulos.mesorregiao.tabFiltros">Filtros</span></button>
-            <button class="tab-btn" data-tab="grid"><i class="bx bx-grid-alt"></i> <span data-i18n="web.modulos.mesorregiao.tabGrid">Grid</span></button>
-            <button class="tab-btn" data-tab="dados"><i class="bx bx-edit"></i> <span data-i18n="web.modulos.mesorregiao.tabDados">Dados</span></button>
+            <button type="button" class="tab-btn active" data-tab="filtros"><i class="bx bx-filter-alt"></i> <span data-i18n="web.modulos.mesorregiao.tabFiltros">Filtros</span></button>
+            <button type="button" class="tab-btn" data-tab="grid"><i class="bx bx-grid-alt"></i> <span data-i18n="web.modulos.mesorregiao.tabGrid">Grid</span></button>
+            <button type="button" class="tab-btn" data-tab="dados"><i class="bx bx-edit"></i> <span data-i18n="web.modulos.mesorregiao.tabDados">Dados</span></button>
         </div>
 
         <div class="tab-content active" id="tab-filtros">

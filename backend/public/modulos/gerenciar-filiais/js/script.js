@@ -730,7 +730,16 @@
       }
 
       if (!modalEl || !modalMessage || !confirmYes || !confirmNo) {
-        if (window.confirm(confirmMsg)) {
+        const ok =
+          typeof window.confirmPadrao === 'function'
+            ? await window.confirmPadrao(confirmMsg, {
+                title: estaAtivo ? 'Desativar filial' : 'Reativar filial',
+                danger: estaAtivo,
+                confirmText: btnText,
+                cancelText: 'Cancelar',
+              })
+            : window.confirm(confirmMsg);
+        if (ok) {
           const r = await fetch(`/api/filiais/${empresaNum}/${filialNum}?action=${action}`, { method: 'DELETE' });
           const data = await r.json();
           if (r.ok) { showMessage(data.message || 'Status alterado.', 'success'); showTab('grid'); applyFilters('grid'); }

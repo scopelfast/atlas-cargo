@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Transferências entre donos · WMS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/modulos.css" />
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+  <style>
+    /* ========== Transferências entre Donos (Atlas Cargo) ========== */
+    .wms-transf-container {
+      padding: 20px;
+      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+    }
+    .wms-transf-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 25px;
+      padding-bottom: 15px;
+      border-bottom: 2px solid var(--light-gray, #e2e8f0);
+    }
+    .wms-transf-header h2 {
+      margin: 0;
+      color: var(--ac-primary, #0d2137);
+      font-size: 24px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .wms-transf-header h2 i { color: #0ea5e9; }
+
+    .filtros-box {
+      background: #fff;
+      border-radius: 12px;
+      padding: 18px 22px;
+      margin-bottom: 18px;
+      box-shadow: 0 2px 14px rgba(15, 23, 42, 0.05);
+    }
+    .filtros-box h3 {
+      margin: 0 0 12px;
+      font-size: 16px;
+      font-weight: 600;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .filtros-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .filtros-grid label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: 4px;
+    }
+    .filtros-grid .form-control {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      background: #fff;
+      color: #0f172a;
+      box-sizing: border-box;
+    }
+    .filtros-grid .form-control:focus {
+      outline: none;
+      border-color: #0ea5e9;
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+    }
+    .filtros-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .filtros-actions--end {
+      justify-content: flex-end;
+    }
+    .btn-filtro {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.15s;
+    }
+    .btn-filtro:hover { transform: translateY(-1px); }
+    .btn-filtro i { font-size: 1.1rem; }
+    .btn-filtro-limpar { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+    .btn-filtro-limpar:hover { background: #e2e8f0; color: #334155; }
+    .btn-filtro-aplicar { background: #0ea5e9; color: #fff; }
+    .btn-filtro-aplicar:hover { background: #0284c7; box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35); }
+    .btn-filtro-novo { background: #16a34a; color: #fff; }
+    .btn-filtro-novo:hover { background: #15803d; box-shadow: 0 4px 12px rgba(22, 163, 74, 0.35); }
+    .btn-filtro:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .lista-box {
+      background: #fff;
+      border-radius: 12px;
+      padding: 18px 22px;
+      box-shadow: 0 2px 14px rgba(15, 23, 42, 0.05);
+    }
+    .lista-box .meta {
+      font-size: 13px;
+      color: #475569;
+      margin-bottom: 10px;
+    }
+    table.wms-transf-tabela {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    table.wms-transf-tabela th,
+    table.wms-transf-tabela td {
+      padding: 8px 10px;
+      text-align: left;
+      border-bottom: 1px solid #e2e8f0;
+      vertical-align: top;
+    }
+    table.wms-transf-tabela th {
+      background: #f8fafc;
+      color: #475569;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      border-bottom: 2px solid #cbd5e1;
+    }
+    table.wms-transf-tabela tr:hover td { background: #f8fafc; }
+    .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+    .badge-ok { background: #dcfce7; color: #166534; }
+    .badge-cancel { background: #fee2e2; color: #991b1b; }
+    .acoes-celula { display: flex; gap: 6px; flex-wrap: nowrap; }
+    .btn-acao {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #475569;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .btn-acao:hover { background: #f1f5f9; color: #0f172a; border-color: #94a3b8; }
+    .btn-acao i { font-size: 14px; }
+    .btn-acao-cancel { color: #b91c1c; border-color: #fecaca; }
+    .btn-acao-cancel:hover { background: #fee2e2; border-color: #f87171; color: #7f1d1d; }
+    .btn-acao:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .vazio-msg {
+      padding: 28px 18px;
+      text-align: center;
+      color: #64748b;
+      font-size: 14px;
+    }
+    .vazio-msg i { font-size: 32px; display: block; margin: 0 auto 8px; color: #cbd5e1; }
+
+    /* Modal genérico (mesmo padrão usado em outros módulos WMS) */
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+    .modal[hidden] { display: none; }
+    .modal-content {
+      background: #fff;
+      border-radius: 12px;
+      padding: 22px 26px;
+      max-width: 640px;
+      width: 100%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(15, 23, 42, 0.3);
+    }
+    .modal-content h3 {
+      margin: 0 0 10px;
+      font-size: 18px;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .modal-content .hint {
+      font-size: 12.5px;
+      color: #64748b;
+      line-height: 1.5;
+    }
+
+    /* Overlay de carregamento (padrão Cidades) */
+    .calculando-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.55);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1500;
+    }
+    .calculando-overlay .calculando-content {
+      background: #fff;
+      padding: 28px 36px;
+      border-radius: 14px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      text-align: center;
+      min-width: 260px;
+    }
+    .calculando-overlay .calculando-spinner {
+      width: 42px;
+      height: 42px;
+      border: 4px solid #e2e8f0;
+      border-top-color: #0ea5e9;
+      border-radius: 50%;
+      margin: 0 auto 14px;
+      animation: spinTransf 0.9s linear infinite;
+    }
+    @keyframes spinTransf { to { transform: rotate(360deg); } }
+    .calculando-overlay h3 { margin: 0 0 6px; font-size: 18px; color: #0f172a; }
+    .calculando-overlay p { margin: 0; font-size: 13px; color: #64748b; }
+    .calculando-overlay .calculando-detalhe { font-size: 12px; color: #94a3b8; margin-top: 6px; }
+
+    /* Dark mode */
+    html[data-theme='dark'] .filtros-box,
+    html[data-theme='dark'] .lista-box,
+    html[data-theme='dark'] .modal-content {
+      background: #1e293b;
+      color: #e2e8f0;
+      box-shadow: 0 2px 14px rgba(0, 0, 0, 0.35);
+    }
+    html[data-theme='dark'] .filtros-grid .form-control,
+    html[data-theme='dark'] .form-control {
+      background: #0f172a;
+      color: #e2e8f0;
+      border-color: #334155;
+    }
+    html[data-theme='dark'] .filtros-grid label,
+    html[data-theme='dark'] .lista-box .meta { color: #94a3b8; }
+    html[data-theme='dark'] table.wms-transf-tabela th { background: #0f172a; color: #94a3b8; border-bottom-color: #334155; }
+    html[data-theme='dark'] table.wms-transf-tabela td { border-bottom-color: #334155; color: #e2e8f0; }
+    html[data-theme='dark'] table.wms-transf-tabela tr:hover td { background: #0f172a; }
+    html[data-theme='dark'] .btn-acao { background: #0f172a; color: #94a3b8; border-color: #334155; }
+    html[data-theme='dark'] .btn-acao:hover { background: #334155; color: #e2e8f0; border-color: #475569; }
+    html[data-theme='dark'] .btn-filtro-limpar { background: #334155; color: #e2e8f0; border-color: #475569; }
+    html[data-theme='dark'] .btn-filtro-limpar:hover { background: #475569; }
+    html[data-theme='dark'] .filtros-box h3 { color: #e2e8f0; }
+    html[data-theme='dark'] .wms-transf-header { border-bottom-color: #334155; }
+    html[data-theme='dark'] .wms-transf-header h2 { color: #e2e8f0; }
+    html[data-theme='dark'] .vazio-msg { color: #94a3b8; }
+    html[data-theme='dark'] .calculando-overlay .calculando-content { background: #1e293b; color: #e2e8f0; }
+    html[data-theme='dark'] .calculando-overlay h3 { color: #e2e8f0; }
+    html[data-theme='dark'] .calculando-overlay p { color: #94a3b8; }
+
+    /* Detalhe */
+    .detalhe-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; margin: 12px 0; font-size: 13.5px; }
+    .detalhe-box .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; }
+    .detalhe-box .row .lab { color: #64748b; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.3px; }
+    .detalhe-box .row .val { color: #0f172a; font-weight: 600; }
+    html[data-theme='dark'] .detalhe-box { background: #0f172a; border-color: #334155; }
+    html[data-theme='dark'] .detalhe-box .row .lab { color: #94a3b8; }
+    html[data-theme='dark'] .detalhe-box .row .val { color: #e2e8f0; }
+
+    /** Pré-validação da transferência — contraste explícito (light + dark). */
+    .transf-preview-box {
+      background: #f8fafc;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-top: 10px;
+      font-size: 13.5px;
+      line-height: 1.45;
+      color: #0f172a;
+    }
+    .transf-preview-titulo {
+      font-weight: 700;
+      font-size: 14px;
+      margin-bottom: 8px;
+      color: #0f172a;
+    }
+    .transf-preview-linha {
+      margin-bottom: 4px;
+      color: #1e293b;
+    }
+    .transf-preview-linha strong { color: #0f172a; }
+    .transf-preview-ok { color: #15803d; font-weight: 600; margin-top: 6px; }
+    .transf-preview-erro { color: #b91c1c; font-weight: 600; margin-top: 6px; }
+    .transf-preview-info { color: #334155; margin-top: 6px; }
+    .transf-preview-aviso {
+      margin-top: 10px;
+      padding: 10px 12px;
+      background: #fef3c7;
+      border: 1px solid #fbbf24;
+      border-radius: 6px;
+      color: #78350f;
+    }
+    html[data-theme='dark'] .transf-preview-box {
+      background: #0f172a;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] .transf-preview-titulo { color: #f1f5f9; }
+    html[data-theme='dark'] .transf-preview-linha { color: #cbd5e1; }
+    html[data-theme='dark'] .transf-preview-linha strong { color: #f1f5f9; }
+    html[data-theme='dark'] .transf-preview-ok { color: #6ee7b7; }
+    html[data-theme='dark'] .transf-preview-erro { color: #fca5a5; }
+    html[data-theme='dark'] .transf-preview-info { color: #94a3b8; }
+    html[data-theme='dark'] .transf-preview-aviso {
+      background: #78350f;
+      border-color: #92400e;
+      color: #fef3c7;
+    }
+    html[data-theme='dark'] .modal-content .hint { color: #94a3b8; }
+    html[data-theme='dark'] .modal-content h3 { color: #f1f5f9; }
+    body[data-theme='dark'] .transf-preview-box {
+      background: #0f172a;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+    body[data-theme='dark'] .transf-preview-titulo { color: #f1f5f9; }
+    body[data-theme='dark'] .transf-preview-linha { color: #cbd5e1; }
+    body[data-theme='dark'] .transf-preview-linha strong { color: #f1f5f9; }
+    body[data-theme='dark'] .transf-preview-ok { color: #6ee7b7; }
+    body[data-theme='dark'] .transf-preview-erro { color: #fca5a5; }
+    body[data-theme='dark'] .transf-preview-info { color: #94a3b8; }
+    body[data-theme='dark'] .transf-preview-aviso {
+      background: #78350f;
+      border-color: #92400e;
+      color: #fef3c7;
+    }
+    body[data-theme='dark'] .modal-content { background: #1e293b; color: #e2e8f0; }
+    body[data-theme='dark'] .modal-content .hint { color: #94a3b8; }
+    body[data-theme='dark'] .modal-content h3 { color: #f1f5f9; }
+
+    .btn-filtro-danger {
+      background: #dc2626;
+      color: #fff;
+      border-color: #dc2626;
+      box-shadow: 0 2px 8px rgba(220, 38, 38, 0.25);
+    }
+    .btn-filtro-danger:hover {
+      background: #b91c1c;
+      border-color: #b91c1c;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
+    }
+    html[data-theme='dark'] .btn-filtro-danger,
+    body[data-theme='dark'] .btn-filtro-danger {
+      background: #dc2626;
+      color: #fff;
+      border-color: #b91c1c;
+    }
+    html[data-theme='dark'] .btn-filtro-danger:hover,
+    body[data-theme='dark'] .btn-filtro-danger:hover {
+      background: #b91c1c;
+      color: #fff;
+    }
+
+    /** Modal cancelar transferência */
+    #modalCancelTransf .modal-content { max-width: 560px; }
+    #modalCancelTransf h3 { color: #0f172a; }
+    #modalCancelTransf h3 .modal-icon-danger { color: #dc2626; font-size: 1.35rem; }
+    .transf-cancel-detalhe {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin: 0 0 14px;
+      font-size: 13.5px;
+    }
+    .transf-cancel-detalhe-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px 20px;
+    }
+    .transf-cancel-detalhe-item--full { grid-column: 1 / -1; }
+    .transf-cancel-detalhe-item .lab {
+      display: block;
+      color: #64748b;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+    }
+    .transf-cancel-detalhe-item .val {
+      color: #0f172a;
+      font-weight: 600;
+      font-size: 14px;
+      line-height: 1.35;
+      word-break: break-word;
+    }
+    .transf-cancel-detalhe-item .val--qtd {
+      font-size: 1.15rem;
+      color: #0369a1;
+    }
+    .transf-cancel-alerta {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      margin: 0 0 16px;
+      padding: 12px 14px;
+      background: #eff6ff;
+      border: 1px solid #93c5fd;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: #1e3a5f;
+    }
+    .transf-cancel-alerta i {
+      font-size: 1.35rem;
+      color: #2563eb;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .transf-cancel-alerta strong { color: #0f172a; }
+    .transf-cancel-form label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: 6px;
+    }
+    .transf-cancel-form textarea.form-control {
+      min-height: 72px;
+      resize: vertical;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .transf-cancel-checkbox {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      margin-top: 12px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: #475569;
+      cursor: pointer;
+    }
+    .transf-cancel-checkbox input {
+      margin-top: 3px;
+      flex-shrink: 0;
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+    }
+    #modalCancelTransf .filtros-actions { margin-top: 18px; }
+    html[data-theme='dark'] .transf-cancel-detalhe,
+    body[data-theme='dark'] .transf-cancel-detalhe {
+      background: #0f172a;
+      border-color: #334155;
+    }
+    html[data-theme='dark'] .transf-cancel-detalhe-item .lab,
+    body[data-theme='dark'] .transf-cancel-detalhe-item .lab { color: #94a3b8; }
+    html[data-theme='dark'] .transf-cancel-detalhe-item .val,
+    body[data-theme='dark'] .transf-cancel-detalhe-item .val { color: #f1f5f9; }
+    html[data-theme='dark'] .transf-cancel-detalhe-item .val--qtd,
+    body[data-theme='dark'] .transf-cancel-detalhe-item .val--qtd { color: #7dd3fc; }
+    html[data-theme='dark'] .transf-cancel-alerta,
+    body[data-theme='dark'] .transf-cancel-alerta {
+      background: #1e3a5f;
+      border-color: #334155;
+      color: #cbd5e1;
+    }
+    html[data-theme='dark'] .transf-cancel-alerta i,
+    body[data-theme='dark'] .transf-cancel-alerta i { color: #60a5fa; }
+    html[data-theme='dark'] .transf-cancel-alerta strong,
+    body[data-theme='dark'] .transf-cancel-alerta strong { color: #f1f5f9; }
+    html[data-theme='dark'] .transf-cancel-form label,
+    body[data-theme='dark'] .transf-cancel-form label { color: #e2e8f0; }
+    html[data-theme='dark'] .transf-cancel-checkbox,
+    body[data-theme='dark'] .transf-cancel-checkbox { color: #cbd5e1; }
+    html[data-theme='dark'] #modalCancelTransf h3,
+    body[data-theme='dark'] #modalCancelTransf h3 { color: #f1f5f9; }
+  </style>
+</head>
+<body>
+  <div class="wms-transf-container">
+    <div class="wms-transf-header">
+      <h2><i class="bx bx-transfer"></i> Transferências entre donos</h2>
+      <button type="button" id="btnAbrirNovaTransf" class="btn-filtro btn-filtro-novo">
+        <i class="bx bx-plus"></i> Nova transferência
+      </button>
+    </div>
+
+    <div class="filtros-box">
+      <h3><i class="bx bx-filter"></i> Filtros</h3>
+      <form id="formFiltros" onsubmit="return false;">
+        <div class="filtros-grid">
+          <div>
+            <label for="filtroDono">Dono envolvido (origem ou destino)</label>
+            <select id="filtroDono" class="form-control"><option value="">Todos</option></select>
+          </div>
+          <div>
+            <label for="filtroStatus">Status</label>
+            <select id="filtroStatus" class="form-control">
+              <option value="">Todos</option>
+              <option value="EFETIVADA">Efetivadas</option>
+              <option value="CANCELADA">Canceladas</option>
+            </select>
+          </div>
+          <div>
+            <label for="filtroDataInicio">De</label>
+            <input type="date" id="filtroDataInicio" class="form-control" />
+          </div>
+          <div>
+            <label for="filtroDataFim">Até</label>
+            <input type="date" id="filtroDataFim" class="form-control" />
+          </div>
+          <div>
+            <label for="filtroLimite">Limite</label>
+            <select id="filtroLimite" class="form-control">
+              <option value="100">100 últimas</option>
+              <option value="250">250 últimas</option>
+              <option value="500">500 últimas (máx.)</option>
+            </select>
+          </div>
+        </div>
+        <div class="filtros-actions">
+          <button type="button" id="btnLimpar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Limpar</button>
+          <button type="submit" id="btnFiltrar" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search"></i> Filtrar</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="lista-box">
+      <div class="meta" id="listaMeta">—</div>
+      <div id="listaWrapper">
+        <div class="vazio-msg"><i class="bx bx-loader-alt bx-spin"></i>Carregando…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Nova transferência -->
+  <div id="modalNovaTransf" class="modal" hidden role="dialog" aria-labelledby="modalNovaTransfTitulo">
+    <div class="modal-content">
+      <h3 id="modalNovaTransfTitulo"><i class="bx bx-transfer"></i> Nova transferência entre donos</h3>
+      <p class="hint" style="margin: 0 0 14px;">
+        Move saldo de um SKU de um dono para outro. Gera <strong>2 movimentos no ledger</strong>
+        (saída na origem + entrada no destino) e um documento auditável. Se o SKU não existe
+        no destino, o sistema <strong>pergunta antes</strong> se deve cadastrar automaticamente.
+      </p>
+      <form id="formNovaTransf" onsubmit="return false;">
+        <div class="filtros-grid" style="margin-bottom: 8px;">
+          <div>
+            <label for="ntDonoOrigem">Dono de origem *</label>
+            <select id="ntDonoOrigem" class="form-control" required></select>
+          </div>
+          <div>
+            <label for="ntDonoDestino">Dono de destino *</label>
+            <select id="ntDonoDestino" class="form-control" required></select>
+          </div>
+          <div style="grid-column: span 2;">
+            <label for="ntCodigo">Código do produto (na origem) *</label>
+            <input type="text" id="ntCodigo" class="form-control" maxlength="40" required
+                   placeholder="Ex.: 6031202020 ou 6.03.12.020.20"
+                   list="ntCodigoSugestoes" autocomplete="off" />
+            <datalist id="ntCodigoSugestoes"></datalist>
+            <small class="hint" id="ntCodigoStatus" style="display: block; margin-top: 4px; min-height: 16px;"></small>
+          </div>
+          <div style="grid-column: span 2;">
+            <label for="ntCodigoDestino">Código no destino (se diferente)</label>
+            <input type="text" id="ntCodigoDestino" class="form-control" maxlength="40"
+                   placeholder="Ex.: 6031200600 — deixe vazio se for o mesmo código da origem"
+                   list="ntCodigoDestinoSugestoes" autocomplete="off" />
+            <datalist id="ntCodigoDestinoSugestoes"></datalist>
+            <small class="hint" id="ntCodigoDestinoStatus" style="display: block; margin-top: 4px; min-height: 16px;"></small>
+          </div>
+          <div>
+            <label for="ntLote">Lote (FEFO / informativo)</label>
+            <input type="text" id="ntLote" class="form-control" maxlength="60" placeholder="Preenchido na pré-validação" />
+          </div>
+          <div>
+            <label for="ntValidade">Validade mais curta com saldo</label>
+            <input type="date" id="ntValidade" class="form-control" title="Sugestão FEFO do saldo de lote da origem" />
+          </div>
+          <div>
+            <label for="ntQtd">Quantidade *</label>
+            <input type="number" id="ntQtd" class="form-control" min="0.001" step="0.001" required placeholder="0" />
+          </div>
+          <div>
+            <label for="ntMotivo">Motivo</label>
+            <input type="text" id="ntMotivo" class="form-control" maxlength="255" placeholder="Ex.: rótulo trocado" />
+          </div>
+        </div>
+        <div id="ntResumo" class="transf-preview-box" hidden></div>
+        <div class="filtros-actions" style="justify-content: flex-end; gap: 10px; margin-top: 14px;">
+          <button type="button" id="btnNtCancelar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Cancelar</button>
+          <button type="button" id="btnNtPreview" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search-alt"></i> Pré-validar</button>
+          <button type="button" id="btnNtConfirmar" class="btn-filtro btn-filtro-novo" disabled><i class="bx bx-check"></i> Confirmar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal Cancelar transferência -->
+  <div id="modalCancelTransf" class="modal" hidden role="dialog" aria-labelledby="modalCancelTitulo">
+    <div class="modal-content">
+      <h3 id="modalCancelTitulo"><i class="bx bx-undo modal-icon-danger" aria-hidden="true"></i> Cancelar transferência</h3>
+      <div id="cancelDetalhe" class="transf-cancel-detalhe"></div>
+      <div class="transf-cancel-alerta" id="cancelAlertaEstorno">
+        <i class="bx bx-info-circle" aria-hidden="true"></i>
+        <div>
+          <strong>Sim — a quantidade volta para o dono de origem.</strong>
+          O estorno gera 2 movimentos no ledger:
+          <strong>entrada na origem</strong> (repõe o saldo) e
+          <strong>saída no destino</strong> (retira o que tinha entrado).
+          Informe o motivo abaixo.
+        </div>
+      </div>
+      <div class="transf-cancel-form">
+        <label for="cancelMotivo">Motivo do cancelamento *</label>
+        <textarea id="cancelMotivo" class="form-control" rows="3" maxlength="255" placeholder="Ex.: código errado no destino, duplicada, valor incorreto…"></textarea>
+        <label class="transf-cancel-checkbox" for="cancelNegativar">
+          <input type="checkbox" id="cancelNegativar" />
+          <span>Permitir saldo negativo no destino (só se o estoque no destino já foi consumido/expedido).</span>
+        </label>
+      </div>
+      <div class="filtros-actions filtros-actions--end">
+        <button type="button" id="btnCancelarVoltar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Voltar</button>
+        <button type="button" id="btnCancelarConfirmar" class="btn-filtro btn-filtro-danger"><i class="bx bx-undo"></i> Confirmar cancelamento</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="loadingOverlay" class="calculando-overlay">
+    <div class="calculando-content">
+      <div class="calculando-spinner"></div>
+      <h3 id="loadingTitulo">Carregando…</h3>
+      <p id="loadingDesc">Buscando transferências.</p>
+      <p class="calculando-detalhe" id="loadingDetalhe"></p>
+    </div>
+  </div>
+
+  <div id="message" class="message" style="display:none"></div>
+
+  <script src="/js/utils.js"></script>
+  <script src="js/script.js"></script>
+</body>
+</html>

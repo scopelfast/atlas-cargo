@@ -193,12 +193,13 @@
     if (typeof window.GridEditor === 'undefined') return;
     gridTab = new window.GridEditor({
       container: '#mesorregiaoGrid',
+      actionsWidth: '76px',
       columns: [
         { field: 'id', header: 'Chave', editable: false, isId: true, width: '100px', hidden: true },
-        { field: 'ESTADO_UF', header: 'UF', editable: false, width: '80px' },
-        { field: 'CDMESOREGIAO', header: 'Código', editable: false, width: '90px' },
-        { field: 'DSMESOREGIAO', header: 'Descrição', editable: false, width: '280px' },
-        { field: 'FGACTIVE', header: 'Situação', editable: false, width: '90px', align: 'right', format: (val) => val === 'S' ? 'Ativo' : 'Inativo' }
+        { field: 'ESTADO_UF', header: 'UF', editable: false, width: '12%' },
+        { field: 'CDMESOREGIAO', header: 'Código', editable: false, width: '14%' },
+        { field: 'DSMESOREGIAO', header: 'Descrição', editable: false, width: '64%' },
+        { field: 'FGACTIVE', header: 'Situação', editable: false, width: '10%', align: 'right', format: (val) => val === 'S' ? 'Ativo' : 'Inativo' }
       ],
       apiEndpoint: '/api/mesorregioes',
       onBeforeEdit: async (id) => {

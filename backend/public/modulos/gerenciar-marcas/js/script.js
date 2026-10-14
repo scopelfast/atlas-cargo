@@ -13,6 +13,17 @@
   let sqlExecutado = false;
   let initExecutado = false;
 
+  function getAuthHeaders(extra = {}) {
+    const headers = { ...extra };
+    const token = localStorage.getItem('token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      if (user && (user.login || user.SGUSUARIO)) headers['user-login'] = user.login || user.SGUSUARIO;
+    } catch (e) {}
+    return headers;
+  }
+
   // Funções para controlar overlay de carregamento do init.sql
   function showLoadingOverlayInitSQL(titulo = 'Processando Inicialização', texto = 'Executando scripts de inicialização...', detalhe = 'Isso pode levar alguns segundos.') {
     // Usar função global se disponível, senão usar local
@@ -106,7 +117,7 @@
       try {
         execResponse = await fetch('/api/marcas/executar-init-sql', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({ sql: sqlLimpo }),
           signal: AbortSignal.timeout(120000)
         });
@@ -261,7 +272,7 @@
     if (situacao) params.append('situacao', situacao);
     
     try {
-      const response = await fetch(`/api/marcas?${params.toString()}`);
+      const response = await fetch(`/api/marcas?${params.toString()}`, { headers: getAuthHeaders() });
       const marcas = await response.json();
 
       // salvar cache de resultados
@@ -271,7 +282,7 @@
       const countEl = document.getElementById('marcasGridCountText');
       if (countEl) {
         const count = marcas.length || 0;
-        countEl.textContent = (t('web.modulos.cidades.registrosEncontrados') || '{n} registro(s) encontrado(s)').replace('{n}', String(count));
+        countEl.textContent = (t('web.modulos.marcas.registrosEncontrados') || '{n} registro(s) encontrado(s)').replace('{n}', String(count));
       }
       
       // Se já existe uma instância do Grid na aba, atualizá-la imediatamente
@@ -453,6 +464,7 @@
 
     gridTab = new window.GridEditor({
       container: '#marcasGrid',
+      buildFetchHeaders: () => getAuthHeaders(),
       columns: [
         { field: 'CDMARCAEQUIPAMENTO', header: 'Código', editable: false, isId: true, width: '80px' },
         { field: 'DSMARCAEQUIPAMENTO', header: 'Descrição', editable: true, type: 'text', maxlength: 40 },
@@ -493,11 +505,14 @@
         marcaForm.reset();
       }
       
-      const response = await fetch(`/api/marcas`);
-      const marcas = await response.json();
-      const marca = marcas.find(m => m.CDMARCAEQUIPAMENTO.toString() === id.toString());
+      const response = await fetch(`/api/marcas/${encodeURIComponent(id)}`, { headers: getAuthHeaders() });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || response.statusText);
+      }
+      const marca = await response.json();
       
-      if (marca) {
+      if (marca && marca.CDMARCAEQUIPAMENTO != null) {
         document.getElementById('marcaCodigo').value = marca.CDMARCAEQUIPAMENTO;
         document.getElementById('marcaDescricao').value = marca.DSMARCAEQUIPAMENTO;
         document.getElementById('marcaSituacao').value = marca.FGACTIVE;
@@ -530,7 +545,7 @@
     try {
       // Buscar o status atual da marca
       const idToCheck = isNaN(idStr) ? idStr : parseInt(idStr, 10);
-      const response = await fetch(`/api/marcas/${idToCheck}`);
+      const response = await fetch(`/api/marcas/${idToCheck}`, { headers: getAuthHeaders() });
       if (!response.ok) {
         throw new Error('Erro ao buscar marca');
       }
@@ -577,7 +592,8 @@
           
           const idToDelete = isNaN(deleteId) ? deleteId : parseInt(deleteId, 10);
           const response = await fetch(`/api/marcas/${idToDelete}?action=${acao}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getAuthHeaders()
           });
           
           const data = await response.json();
@@ -646,13 +662,13 @@
         marcaData.FGACTIVE = situacao;
         response = await fetch(`/api/marcas/${id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(marcaData)
         });
       } else {
         response = await fetch('/api/marcas', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(marcaData)
         });
       }

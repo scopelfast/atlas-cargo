@@ -52,7 +52,7 @@ const app = require('./app');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 
-const PORT = process.env.PORT || 3000; // Porta padrão: 3000 (pode ser alterada via .env)
+const PORT = process.env.PORT || 3001; // Padrão 3001 (evita conflito com outro serviço na 3000); override via .env PORT=
 
 // Criar servidor HTTP e Socket.io
 const httpServer = createServer(app);
@@ -72,14 +72,34 @@ app.use((req, res, next) => {
   next();
 });
 
+const { poolPromise } = require('./config/db');
+const { socketTenantId, torreAllViagensRoom, chatDashboardRoom } = require('./services/socket-tenant.service');
+
 // WebSocket: Gerenciar conexões de chat
 io.on('connection', (socket) => {
   console.log('🔌 Cliente conectado:', socket.id);
+  socket.join(torreAllViagensRoom(socketTenantId(socket)));
 
-  // Entrar em sala da viagem (chat)
-  socket.on('join-viagem', (idviagem) => {
-    socket.join(`viagem-${idviagem}`);
-    console.log(`📱 Cliente ${socket.id} entrou na viagem ${idviagem}`);
+  // Entrar em sala da viagem (chat) — só se viagem pertencer ao tenant do token
+  socket.on('join-viagem', async (idviagem) => {
+    try {
+      const id = parseFloat(idviagem);
+      if (!Number.isFinite(id) || id <= 0) return;
+      const tid = socketTenantId(socket);
+      const pool = await poolPromise;
+      const r = await pool.query(
+        'SELECT 1 FROM "VIAGEMMESTRE" WHERE "IDVIAGEM" = $1 AND "TENANT_ID" = $2 LIMIT 1',
+        [id, tid]
+      );
+      if (r.rows && r.rows.length > 0) {
+        socket.join(`viagem-${idviagem}`);
+        console.log(`📱 Cliente ${socket.id} entrou na viagem ${idviagem} (tenant ${tid})`);
+      } else {
+        console.warn(`📱 [WS] join-viagem negado: viagem ${idviagem} não existe ou outro tenant (socket ${socket.id})`);
+      }
+    } catch (e) {
+      console.warn('📱 [WS] join-viagem erro:', e.message);
+    }
   });
 
   // Sair da sala da viagem (chat)
@@ -88,10 +108,31 @@ io.on('connection', (socket) => {
     console.log(`📱 Cliente ${socket.id} saiu da viagem ${idviagem}`);
   });
 
-  // Entrar em sala da conversa (chat)
-  socket.on('join-conversa', (idConversa) => {
-    socket.join(`conversa-${idConversa}`);
-    console.log(`💬 Cliente ${socket.id} entrou na conversa ${idConversa}`);
+  // Entrar em sala da conversa (chat) — só se conversa pertencer ao tenant
+  socket.on('join-conversa', async (idConversa) => {
+    try {
+      const id = parseInt(idConversa, 10);
+      if (!Number.isFinite(id) || id <= 0) return;
+      const tid = socketTenantId(socket);
+      const pool = await poolPromise;
+      const r = await pool.query(
+        'SELECT 1 FROM "CONVERSAS" WHERE "ID" = $1 AND "TENANT_ID" = $2 LIMIT 1',
+        [id, tid]
+      );
+      if (r.rows && r.rows.length > 0) {
+        socket.join(`conversa-${idConversa}`);
+        console.log(`💬 Cliente ${socket.id} entrou na conversa ${idConversa} (tenant ${tid})`);
+      } else {
+        console.warn(`💬 [WS] join-conversa negado: conversa ${idConversa} não existe ou outro tenant (socket ${socket.id})`);
+      }
+    } catch (e) {
+      console.warn('💬 [WS] join-conversa erro:', e.message);
+    }
+  });
+
+  // Dashboard: mensagens de motoristas só na sala do tenant do token (anti-IDOR)
+  socket.on('join-chat-dashboard', () => {
+    socket.join(chatDashboardRoom(socketTenantId(socket)));
   });
 
   // Sair da sala da conversa (chat)
@@ -117,8 +158,20 @@ try {
   console.error('❌ Erro ao inicializar WebSocket Torre:', error);
 }
 
-// Inicializar sistema de alertas (verificação periódica)
-let alertCheckerInterval = null;
+const { startAlertJob, stopAlertJob, restartAlertJob } = require('./jobs/alertas-viagem-job');
+const {
+  startWmsRelatorioVencimentoJob,
+  stopWmsRelatorioVencimentoJob,
+} = require('./jobs/wms-relatorio-vencimento-job');
+const {
+  startWmsCategoriaSugestaoJob,
+  stopWmsCategoriaSugestaoJob,
+} = require('./jobs/wms-categoria-sugestao-job');
+const {
+  startWmsEstoqueValorSnapshotJob,
+  stopWmsEstoqueValorSnapshotJob,
+} = require('./jobs/wms-estoque-valor-snapshot-job');
+const { agendarSincronizarLedgerExpedicaoOnStart } = require('./jobs/wms-sincronizar-ledger-expedicao-job');
 
 // Inicializar sistema de reputação (recálculo periódico)
 const reputationService = require('./services/reputation-service');
@@ -140,98 +193,22 @@ httpServer.listen(PORT, '0.0.0.0', () => {
   console.log('==============================================');
   console.log('');
 
-  // Inicializar job agendado de verificação de alertas (após servidor iniciar)
-  iniciarJobAlertas();
-  
+  startAlertJob(app);
+  startWmsRelatorioVencimentoJob();
+  startWmsCategoriaSugestaoJob();
+  startWmsEstoqueValorSnapshotJob();
+  agendarSincronizarLedgerExpedicaoOnStart();
+  app.set('restartAlertJob', () => {
+    try {
+      restartAlertJob(app);
+    } catch (e) {
+      console.error('❌ Erro ao reiniciar job de alertas:', e.message);
+    }
+  });
+
   // Inicializar job agendado de recálculo de reputação (diário)
   iniciarJobReputacao();
 });
-
-/**
- * Iniciar job agendado para verificar alertas periodicamente
- * Verifica alertas a cada 5 minutos para viagens ativas
- */
-function iniciarJobAlertas() {
-  const alertService = require('./services/alert-service');
-  const { poolPromise } = require('./config/db');
-
-  const INTERVALO_MINUTOS = 5; // Verificar a cada 5 minutos
-  const INTERVALO_MS = INTERVALO_MINUTOS * 60 * 1000;
-
-  console.log(`🔄 Job de alertas iniciado (verificação a cada ${INTERVALO_MINUTOS} minutos)`);
-
-  // Executar imediatamente na inicialização (aguardar 30 segundos para garantir que o banco está pronto)
-  setTimeout(async () => {
-    try {
-      await verificarAlertasViagensAtivas();
-    } catch (err) {
-      console.error('Erro na primeira verificação de alertas:', err.message);
-    }
-  }, 30000); // 30 segundos
-
-  // Agendar verificação periódica
-  alertCheckerInterval = setInterval(async () => {
-    try {
-      await verificarAlertasViagensAtivas();
-    } catch (err) {
-      console.error('Erro ao verificar alertas:', err.message);
-    }
-  }, INTERVALO_MS);
-
-  async function verificarAlertasViagensAtivas() {
-    try {
-      const pool = await poolPromise;
-      // PostgreSQL: tabelas com aspas duplas (identificadores), CURRENT_TIMESTAMP, INTERVAL
-      const result = await pool.query(`
-        SELECT DISTINCT v."IDVIAGEM"
-        FROM "VIAGEMMESTRE" v
-        INNER JOIN "SITUACAOVIAGEM" s ON v."CDSITUACAOVIAGEM" = s."CDSITUACAOVIAGEM"
-        WHERE v."FGACTIVE" = 'A'
-          AND v."CDSITUACAOVIAGEM" NOT IN (14, 15, 16, 17)
-          AND (
-            v."DTPREVINICIO" IS NULL
-            OR v."DTPREVINICIO" >= (CURRENT_TIMESTAMP - INTERVAL '15 days')
-          )
-      `);
-
-      const viagens = result.rows || [];
-      
-      if (viagens.length === 0) {
-        console.log('ℹ️  Nenhuma viagem ativa encontrada para verificação de alertas');
-        return; // Nenhuma viagem ativa
-      }
-
-      console.log(`🔍 Verificando alertas para ${viagens.length} viagem(ns) ativa(s)...`);
-
-      let totalAlertas = 0;
-      const websocketTorre = app.get('websocketTorre');
-      
-      for (const viagem of viagens) {
-        try {
-          const alertas = await alertService.verificarAlertas(viagem.IDVIAGEM ?? viagem.idviagem);
-          totalAlertas += alertas.length;
-          
-          // Emitir eventos WebSocket para novos alertas
-          if (websocketTorre && alertas.length > 0) {
-            alertas.forEach(alerta => {
-              websocketTorre.emitirNovoAlerta(alerta);
-            });
-          }
-        } catch (err) {
-          console.error(`Erro ao verificar alertas da viagem ${viagem.IDVIAGEM}:`, err.message);
-        }
-      }
-
-      if (totalAlertas > 0) {
-        console.log(`⚠️  ${totalAlertas} alerta(s) encontrado(s) em ${viagens.length} viagem(ns)`);
-      } else {
-        console.log(`✅ Nenhum alerta novo encontrado em ${viagens.length} viagem(ns) ativa(s)`);
-      }
-    } catch (err) {
-      console.error('Erro ao verificar alertas de viagens ativas:', err);
-    }
-  }
-}
 
 /**
  * Iniciar job agendado para recalcular reputações periodicamente
@@ -264,10 +241,11 @@ function iniciarJobReputacao() {
 
 // Limpar intervals ao encerrar o servidor
 process.on('SIGTERM', () => {
-  if (alertCheckerInterval) {
-    clearInterval(alertCheckerInterval);
-    console.log('🛑 Job de alertas encerrado');
-  }
+  stopAlertJob();
+  stopWmsRelatorioVencimentoJob();
+  stopWmsCategoriaSugestaoJob();
+  stopWmsEstoqueValorSnapshotJob();
+  console.log('🛑 Job de alertas encerrado');
   if (reputationRecalcInterval) {
     clearInterval(reputationRecalcInterval);
     console.log('🛑 Job de reputação encerrado');
@@ -275,10 +253,11 @@ process.on('SIGTERM', () => {
 });
 
 process.on('SIGINT', () => {
-  if (alertCheckerInterval) {
-    clearInterval(alertCheckerInterval);
-    console.log('🛑 Job de alertas encerrado');
-  }
+  stopAlertJob();
+  stopWmsRelatorioVencimentoJob();
+  stopWmsCategoriaSugestaoJob();
+  stopWmsEstoqueValorSnapshotJob();
+  console.log('🛑 Job de alertas encerrado');
   if (reputationRecalcInterval) {
     clearInterval(reputationRecalcInterval);
     console.log('🛑 Job de reputação encerrado');

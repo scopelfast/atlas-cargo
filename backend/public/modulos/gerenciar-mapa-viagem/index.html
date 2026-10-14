@@ -12,6 +12,7 @@
   <style>
     /* ========== Mapa de Viagem - Identidade Atlas Cargo ========== */
     .mapa-viagem-container {
+      position: relative;
       padding: 20px;
       font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
     }
@@ -104,6 +105,18 @@
 
     .filtros-actions .btn {
       margin-right: 0;
+    }
+
+    .mapa-viagem-container .input-group.mapa-filtros-pais-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      margin-bottom: 10px;
+    }
+    @media (max-width: 720px) {
+      .mapa-viagem-container .input-group.mapa-filtros-pais-row {
+        grid-template-columns: 1fr;
+      }
     }
 
     .btn {
@@ -215,28 +228,609 @@
       display: block;
     }
 
-    #tab-mapa {
-      height: calc(100vh - 200px);
-      min-height: 600px;
+    /* IMPORTANTE: só com .active — senão #tab-mapa vence o display:none e Filtros+Mapa aparecem juntos */
+    #tab-mapa.tab-content.active {
+      display: flex;
+      flex-direction: column;
+      /* Permite coluna crescer além da viewport: mapa alto + painel meta; rolagem fica no dashboard */
+      min-height: calc(100vh - 96px);
+      height: auto;
+    }
+
+    #tab-mapa.tab-content:not(.active) {
+      display: none !important;
     }
 
     #tab-mapa .mapa-container {
-      height: 100%;
+      flex: 1;
+      min-height: 0;
       display: flex;
       flex-direction: column;
     }
 
+    /* Resumo + legendas: compacto para liberar altura ao mapa (anexo 1/2) */
+    .mapa-painel-meta-scroll {
+      flex-shrink: 0;
+      max-height: none;
+      overflow: visible;
+      margin-bottom: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    /* Área Leaflet + FABs: min-height moderado — painel meta já não ocupa ~50% da tela */
+    .mapa-leaflet-com-fabs {
+      position: relative;
+      flex: 1 1 auto;
+      min-height: max(58vh, 440px);
+      height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    #mapaVeiculos.mapa-viagem-leaflet-host {
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100%;
+    }
+    /* FABs só com aba Mapa ativa (fora da tela cheia — lá usamos mapaMaxFabStack) */
+    .mapa-map-fab-stack {
+      display: none;
+      position: absolute;
+      top: max(10px, env(safe-area-inset-top, 0px));
+      right: max(10px, env(safe-area-inset-right, 0px));
+      z-index: 1100;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    #tab-mapa.tab-content.active .mapa-map-fab-stack {
+      display: flex;
+    }
+    .mapa-viagem-container.mapa--maximo .mapa-map-fab-stack {
+      display: none !important;
+    }
+    .mapa-viagem--carregando .mapa-max-fab-btn .bx-refresh {
+      animation: mapaFabSpin 0.75s linear infinite;
+      display: inline-block;
+    }
+    .mapa-max-fab-btn:disabled {
+      opacity: 0.65;
+      cursor: wait;
+    }
+    @keyframes mapaFabSpin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Legenda "Posição no mapa": flutuante na base da área do mapa (normal e tela cheia) */
+    .mapa-legenda-bloco--no-margin {
+      margin-bottom: 0;
+    }
+    .mapa-legenda-posicao-float {
+      display: none;
+      position: absolute;
+      left: max(12px, env(safe-area-inset-left, 0px));
+      bottom: max(12px, env(safe-area-inset-bottom, 0px));
+      z-index: 1090;
+      max-width: min(560px, calc(100% - 24px));
+      width: max-content;
+      pointer-events: none;
+    }
+    .mapa-legenda-posicao-float-inner {
+      pointer-events: auto;
+      background: rgba(255, 255, 255, 0.97);
+      border: 1px solid rgba(226, 232, 240, 0.98);
+      border-radius: 14px;
+      padding: 14px 16px 12px;
+      box-shadow:
+        0 4px 6px -1px rgba(15, 23, 42, 0.07),
+        0 12px 32px -8px rgba(15, 23, 42, 0.2);
+    }
+    .mapa-legenda-posicao-float .mapa-legenda-contagem-posicao {
+      margin: 10px 0 0 0;
+      padding-top: 8px;
+      border-top: 1px solid rgba(226, 232, 240, 0.9);
+    }
+    .mapa-legenda-posicao-cabecalho {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 8px;
+    }
+    .mapa-legenda-posicao-titulo {
+      margin: 0;
+      flex: 1;
+      min-width: 0;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ac-primary, #0d2137);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      line-height: 1.3;
+    }
+    .mapa-legenda-posicao-titulo i {
+      font-size: 1.1rem;
+      color: #64748b;
+      flex-shrink: 0;
+    }
+    .mapa-legenda-dados-atualizados {
+      flex-shrink: 0;
+      max-width: 52%;
+      margin: 0;
+      padding: 2px 0 0 4px;
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1.35;
+      color: #64748b;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.01em;
+    }
+    .mapa-legenda-dados-atualizados.mapa-legenda-dados-atualizados--loading {
+      color: #0ea5e9;
+      font-style: italic;
+      font-weight: 500;
+    }
+    .mapa-legenda-posicao-compact {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      flex-wrap: wrap;
+      gap: 6px 12px;
+      margin: 0;
+      font-size: 12px;
+      color: #334155;
+    }
+    .mapa-legenda-posicao-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .mapa-legenda-posicao-item strong {
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .mapa-legenda-posicao-seta {
+      color: #94a3b8;
+      font-weight: 600;
+      user-select: none;
+      padding: 0 2px;
+    }
+
+    /*
+      Modo maximizar: só o mapa em 100% da viewport (sem abas, resumo, legenda, botões da faixa).
+      Saída: botão flutuante no canto ou tecla Esc.
+    */
+    .mapa-viagem-container.mapa--maximo {
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100vw !important;
+      max-width: 100vw !important;
+      height: 100dvh !important;
+      max-height: 100dvh !important;
+      z-index: 200000 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      box-sizing: border-box !important;
+      display: flex !important;
+      flex-direction: column !important;
+      background: #0f172a !important;
+      box-shadow: none !important;
+    }
+    .mapa-viagem-container.mapa--maximo .mapa-viagem-header,
+    .mapa-viagem-container.mapa--maximo > .tabs.tabs-com-icones {
+      display: none !important;
+    }
+    .mapa-viagem-container.mapa--maximo #tab-filtros {
+      display: none !important;
+    }
+    .mapa-viagem-container.mapa--maximo #tab-mapa {
+      display: flex !important;
+      flex: 1 1 0 !important;
+      min-height: 0 !important;
+      height: 100% !important;
+      max-height: none !important;
+      overflow: hidden !important;
+    }
+    .mapa-viagem-container.mapa--maximo #tab-mapa .mapa-container {
+      flex: 1 1 0 !important;
+      min-height: 0 !important;
+      height: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+    }
+    .mapa-viagem-container.mapa--maximo .mapa-max-toolbar,
+    .mapa-viagem-container.mapa--maximo .mapa-painel-meta-scroll,
+    .mapa-viagem-container.mapa--maximo #mapaInfo {
+      display: none !important;
+    }
+    .mapa-viagem-container.mapa--maximo .mapa-leaflet-com-fabs {
+      flex: 1 1 0 !important;
+      min-height: 0 !important;
+      height: 100% !important;
+      width: 100% !important;
+    }
+    .mapa-viagem-container.mapa--maximo #mapaVeiculos.mapa-viagem-leaflet-host {
+      flex: 1 1 0 !important;
+      min-height: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      border-radius: 0 !important;
+      border: none !important;
+      box-shadow: none !important;
+    }
+    /* Tela cheia só mapa: ações flutuantes (centralizar, atualizar, fechar) */
+    .mapa-max-fab-stack {
+      display: none;
+      position: absolute;
+      top: max(10px, env(safe-area-inset-top, 0px));
+      right: max(10px, env(safe-area-inset-right, 0px));
+      z-index: 201000;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+    .mapa-viagem-container.mapa--maximo .mapa-max-fab-stack {
+      display: flex;
+    }
+    .mapa-max-fab-btn {
+      width: 48px;
+      height: 48px;
+      padding: 0;
+      margin: 0;
+      border: none;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      background: rgba(15, 23, 42, 0.75);
+      color: #f8fafc;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+      font-size: 22px;
+      line-height: 1;
+      transition: background 0.15s ease, transform 0.15s ease;
+    }
+    .mapa-max-fab-btn--fechar {
+      font-size: 26px;
+    }
+    .mapa-max-fab-btn:hover {
+      background: rgba(30, 41, 59, 0.95);
+      color: #fff;
+      transform: scale(1.06);
+    }
+    .mapa-max-fab-btn:focus-visible {
+      outline: 2px solid #38bdf8;
+      outline-offset: 3px;
+    }
+    .mapa-viagem-container .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .mapa-max-toolbar {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 8px 12px;
+      margin: -4px -4px 12px -4px;
+      background: linear-gradient(180deg, #e2e8f0 0%, #f1f5f9 100%);
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+    .mapa-max-toolbar .mapa-max-toolbar-texto {
+      font-weight: 700;
+      font-size: 14px;
+      color: #0f172a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-align: center;
+      line-height: 1.35;
+      max-width: 52rem;
+    }
+
+    /* Resumo: mesmo padrão visual dos cards do dashboard (welcome) — módulo não carrega dashboard.css */
+    .mapa-viagem-container .mapa-resumo-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin: 0;
+    }
+    @media (max-width: 900px) {
+      .mapa-viagem-container .mapa-resumo-stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    .mapa-viagem-container .mapa-resumo-stats-grid .dashboard-stat-card {
+      background: var(--white, #fff);
+      border-radius: 12px;
+      padding: 16px 18px;
+      box-shadow: var(--shadow, 0 2px 8px rgba(0, 0, 0, 0.08));
+      border: 1px solid var(--border-color, #e2e8f0);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border-left: 4px solid var(--ac-accent, #0ea5e9);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .mapa-viagem-container .mapa-resumo-stats-grid .dashboard-stat-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+    }
+    .mapa-viagem-container .mapa-resumo-stats-grid .dashboard-stat-card.primary {
+      border-left-color: var(--ac-accent, #0ea5e9);
+    }
+    .mapa-viagem-container .mapa-resumo-stats-grid .dashboard-stat-card.info {
+      border-left-color: #17a2b8;
+    }
+    .mapa-viagem-container .mapa-resumo-stats-grid .dashboard-stat-card.warning {
+      border-left-color: #f39c12;
+    }
+    .mapa-viagem-container .mapa-resumo-stats-grid .stat-card-icon {
+      width: 52px;
+      height: 52px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .mapa-viagem-container .mapa-resumo-stats-grid .dashboard-stat-card.primary .stat-card-icon {
+      background: linear-gradient(135deg, var(--ac-accent, #0ea5e9), var(--ac-accent-hover, #0284c7));
+    }
+    .mapa-viagem-container .mapa-resumo-stats-grid .dashboard-stat-card.info .stat-card-icon {
+      background: linear-gradient(135deg, #17a2b8, #138496);
+    }
+    .mapa-viagem-container .mapa-resumo-stats-grid .dashboard-stat-card.warning .stat-card-icon {
+      background: linear-gradient(135deg, #f39c12, #e67e22);
+    }
+    .mapa-viagem-container .mapa-resumo-stats-grid .stat-card-content {
+      flex: 1;
+      min-width: 0;
+    }
+    .mapa-viagem-container .mapa-resumo-stats-grid .stat-card-content h4 {
+      margin: 0 0 6px 0;
+      color: var(--text-secondary, #64748b);
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      line-height: 1.25;
+    }
+    .mapa-viagem-container .mapa-resumo-stats-grid .stat-value {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--ac-primary, #0d2137);
+      margin: 0;
+      line-height: 1.15;
+    }
+    .mapa-viagem-container .mapa-resumo-stats-grid .stat-label {
+      font-size: 11px;
+      color: var(--text-secondary, #64748b);
+      display: block;
+      margin-top: 4px;
+      line-height: 1.3;
+      font-weight: 500;
+    }
+    .mapa-viagem-container .mapa-resumo-stats-grid .dashboard-stat-card.info .stat-value {
+      color: #138496;
+    }
+    .mapa-viagem-container .mapa-resumo-stats-grid .dashboard-stat-card.warning .stat-value {
+      color: #c0392b;
+    }
+    .mapa-legenda-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    @media (min-width: 900px) {
+      .mapa-legenda-wrap {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px 14px;
+        align-items: start;
+      }
+    }
+    .mapa-legenda-bloco {
+      margin-bottom: 0;
+    }
+    .mapa-legenda-bloco--fila {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 10px;
+    }
+    .mapa-legenda-bloco--fila h4 {
+      margin: 0;
+      flex-shrink: 0;
+      max-width: 100%;
+    }
+    .mapa-legenda-bloco--fila .mapa-legenda-chips {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .mapa-legenda-bloco h4 {
+      margin: 0 0 6px 0;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ac-primary, #0d2137);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .mapa-legenda-bloco h4 i {
+      font-size: 1.1rem;
+      color: #64748b;
+    }
+    .mapa-legenda-desc {
+      margin: 0 0 10px 0;
+      font-size: 12px;
+      color: #64748b;
+      line-height: 1.45;
+    }
+    .mapa-legenda-estatica {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 10px 12px;
+      background: #f1f5f9;
+      border-radius: 8px;
+      border: 1px solid #e2e8f0;
+    }
+    .mapa-legenda-linha {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 12px;
+      color: #334155;
+      line-height: 1.4;
+    }
+    .mapa-legenda-linha strong {
+      color: #0f172a;
+    }
+    .mapa-pin-amostra {
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .mapa-pin-amostra--ok {
+      width: 18px;
+      height: 18px;
+      background: #3498db;
+      border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg);
+      border: 2px solid #fff;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    }
+    .mapa-pin-amostra--alerta {
+      width: 0;
+      height: 0;
+      border-left: 10px solid transparent;
+      border-right: 10px solid transparent;
+      border-bottom: 0;
+      border-top: 17px solid #f59e0b;
+      filter: drop-shadow(0 1px 3px rgba(0,0,0,0.25));
+      transform: translateY(2px);
+    }
+    .mapa-legenda-contagem-posicao {
+      margin: 10px 0 0 0;
+      font-size: 12px;
+      font-weight: 600;
+      color: #475569;
+    }
+    .mapa-viagem-leaflet-host {
+      box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+    }
+    .mapa-legenda-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .mapa-legenda-chip {
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+      font-family: inherit;
+      color: #334155;
+    }
+    .mapa-legenda-chip:hover {
+      background: #e2e8f0;
+      border-color: #94a3b8;
+    }
+    .mapa-legenda-chip.mapa-legenda-chip--ativo {
+      background: #0d2137;
+      color: #fff;
+      border-color: #0d2137;
+      box-shadow: 0 2px 8px rgba(13, 33, 55, 0.25);
+    }
+    .mapa-legenda-chip .mapa-legenda-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      border: 2px solid rgba(255,255,255,0.85);
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.12);
+    }
+    .mapa-legenda-chip.mapa-legenda-chip--ativo .mapa-legenda-dot {
+      border-color: rgba(255,255,255,0.5);
+    }
+    .mapa-amostras-viagem {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 0;
+    }
+    .mapa-amostras-cols {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .mapa-amostras-cols > details {
+      flex: 1 1 200px;
+      min-width: min(100%, 200px);
+    }
+    .mapa-amostras-viagem details {
+      background: var(--white, #fff);
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 12px;
+    }
+    .mapa-amostras-viagem summary {
+      cursor: pointer;
+      font-weight: 600;
+      color: #475569;
+      font-size: 12px;
+    }
+    .mapa-amostras-viagem ul {
+      margin: 6px 0 0 0;
+      padding-left: 18px;
+      max-height: 88px;
+      overflow-y: auto;
+    }
+    .mapa-amostras-viagem a {
+      color: #0ea5e9;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
     #mapaVeiculos {
       width: 100%;
-      flex: 1;
-      min-height: 0;
       border-radius: 8px;
       border: 1px solid #dee2e6;
     }
 
     #mapaInfo {
-      margin-top: 15px;
-      padding: 15px;
+      margin-top: 10px;
+      padding: 12px 14px;
       background: var(--white, #fff);
       border: 1px solid var(--border, #e2e8f0);
       border-radius: 8px;
@@ -251,6 +845,31 @@
       font-size: 1.25rem;
       color: var(--ac-accent, #0ea5e9);
       flex-shrink: 0;
+    }
+
+    /* Placa sempre visível acima do ícone do veículo */
+    .mapa-viagem-container .leaflet-tooltip.mapa-viagem-placa-legenda {
+      padding: 3px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: #0d2137 !important;
+      background: rgba(255, 255, 255, 0.96) !important;
+      border: 1px solid #cbd5e1 !important;
+      border-radius: 6px !important;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18) !important;
+      pointer-events: none !important;
+    }
+    .mapa-viagem-container .leaflet-tooltip.mapa-viagem-placa-legenda::before {
+      border-top-color: rgba(255, 255, 255, 0.96) !important;
+    }
+    .mapa-viagem-container .leaflet-tooltip.mapa-viagem-placa-legenda--stale {
+      color: #92400e !important;
+      background: rgba(255, 251, 235, 0.98) !important;
+      border-color: #f59e0b !important;
+    }
+    .mapa-viagem-container .leaflet-tooltip.mapa-viagem-placa-legenda--stale::before {
+      border-top-color: rgba(255, 251, 235, 0.98) !important;
     }
 
     /* ========== MODAL DE AJUDA ========== */
@@ -375,8 +994,8 @@
 
     <!-- Abas (padrão com ícones como nos demais módulos) -->
     <div class="tabs tabs-com-icones">
-      <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.mapaViagem.tabFiltros"><i class='bx bx-filter-alt'></i> Filtros</button>
-      <button class="tab-btn" data-tab="mapa" data-i18n="web.modulos.mapaViagem.tabMapa"><i class='bx bx-map'></i> Mapa</button>
+      <button type="button" class="tab-btn active" data-tab="filtros"><i class='bx bx-filter-alt'></i> <span data-i18n="web.modulos.mapaViagem.tabFiltros">Filtros</span></button>
+      <button type="button" class="tab-btn" data-tab="mapa"><i class='bx bx-map'></i> <span data-i18n="web.modulos.mapaViagem.tabMapa">Mapa</span></button>
     </div>
 
     <!-- Aba Filtros -->
@@ -420,6 +1039,22 @@
             <label for="filtroContratador" data-i18n="web.modulos.mapaViagem.contratador">Contratador</label>
             <select id="filtroContratador">
               <option value="">Todos</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- País origem/destino (alinhado a Gerenciar Viagens / cadastro multi-país) -->
+        <div class="input-group mapa-filtros-pais-row">
+          <div>
+            <label for="filtroOrigemPais" data-i18n="web.modulos.mapaViagem.origemPais">Origem — País</label>
+            <select id="filtroOrigemPais">
+              <option value="" data-i18n="web.modulos.mapaViagem.todosPaises">Todos os países</option>
+            </select>
+          </div>
+          <div>
+            <label for="filtroDestinoPais" data-i18n="web.modulos.mapaViagem.destinoPais">Destino — País</label>
+            <select id="filtroDestinoPais">
+              <option value="" data-i18n="web.modulos.mapaViagem.todosPaises">Todos os países</option>
             </select>
           </div>
         </div>
@@ -500,24 +1135,89 @@
 
     <!-- Aba Mapa -->
     <div class="tab-content" id="tab-mapa">
-      <div class="mapa-container" style="padding: 15px;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-shrink: 0;">
-          <h3><i class='bx bx-map'></i> <span data-i18n="web.modulos.mapaViagem.mapaVeiculos">Mapa de Veículos</span></h3>
-          <div class="mapa-actions">
-            <button type="button" id="btnAtualizarMapa" class="btn btn-primary">
-              <i class='bx bx-refresh'></i> <span data-i18n="web.modulos.mapaViagem.atualizarMapa">Atualizar Mapa</span>
-            </button>
-            <button type="button" id="btnCentralizarMapa" class="btn btn-info">
-              <i class='bx bx-crosshair'></i> <span data-i18n="web.modulos.mapaViagem.centralizarMapa">Centralizar</span>
-            </button>
+      <div class="mapa-container mapa-container--aba-mapa" style="padding: 10px 12px;">
+        <div id="mapaMaxToolbar" class="mapa-max-toolbar" aria-hidden="true">
+          <div class="mapa-max-toolbar-texto">
+            <i class='bx bx-expand-alt' aria-hidden="true"></i>
+            <span data-i18n="web.modulos.mapaViagem.mapaMaxToolbarAjuda">Mapa em tela cheia — para voltar ao painel, use o botão «Sair da tela cheia» nos controles abaixo ou a tecla Esc.</span>
           </div>
         </div>
-        <div id="mapaVeiculos"></div>
+        <div class="mapa-painel-meta-scroll">
+        <p id="mapaResumoPlaceholder" class="mapa-resumo-placeholder" style="margin: 0; font-size: 13px; color: #64748b;">
+          Use <strong>Filtrar</strong> na aba <strong>Filtros</strong> para carregar o resumo e as posições no mapa.
+        </p>
+        <div id="mapaResumoCards" class="dashboard-stats-grid mapa-resumo-stats-grid" style="display: none;" aria-live="polite"></div>
+        <div id="mapaAmostrasViagem" class="mapa-amostras-viagem" style="display: none;"></div>
+        <div id="mapaLegendaWrap" class="mapa-legenda-wrap" style="display: none;">
+          <div class="mapa-legenda-bloco mapa-legenda-bloco--fila">
+            <h4><i class='bx bx-pulse'></i> Situação operacional</h4>
+            <div id="mapaLegendaSituacao" class="mapa-legenda-chips"></div>
+          </div>
+          <div class="mapa-legenda-bloco mapa-legenda-bloco--fila">
+            <h4><i class='bx bx-category'></i> Tipo de viagem</h4>
+            <div id="mapaLegendaTipo" class="mapa-legenda-chips"></div>
+          </div>
+        </div>
+        </div>
+        <div class="mapa-leaflet-com-fabs">
+          <div id="mapaVeiculos" class="mapa-viagem-leaflet-host"></div>
+          <div id="mapaNormalFabStack" class="mapa-map-fab-stack" role="toolbar" aria-label="Ações do mapa">
+            <button type="button" id="mapaNormalFabCentralizar" class="mapa-max-fab-btn" data-i18n-title="web.modulos.mapaViagem.mapaMaxFabCentralizarTitle" title="Centralizar nos veículos">
+              <i class="bx bx-crosshair" aria-hidden="true"></i>
+              <span class="visually-hidden" data-i18n="web.modulos.mapaViagem.centralizarMapa">Centralizar Mapa</span>
+            </button>
+            <button type="button" id="mapaNormalFabAtualizar" class="mapa-max-fab-btn" data-i18n-title="web.modulos.mapaViagem.mapaMaxFabAtualizarTitle" title="Atualizar posições">
+              <i class="bx bx-refresh" aria-hidden="true"></i>
+              <span class="visually-hidden" data-i18n="web.modulos.mapaViagem.atualizarMapa">Atualizar Mapa</span>
+            </button>
+            <button type="button" id="mapaNormalFabMax" class="mapa-max-fab-btn" data-i18n-title="web.modulos.mapaViagem.maximizarMapaTitle" title="Só o mapa em tela cheia; ✕ ou Esc para sair.">
+              <i class="bx bx-fullscreen mapa-normal-fab-max-icone" aria-hidden="true"></i>
+              <span class="visually-hidden mapa-normal-fab-max-label" data-i18n="web.modulos.mapaViagem.maximizarMapa">Maximizar mapa</span>
+            </button>
+          </div>
+          <div id="mapaLegendaPosicaoFloat" class="mapa-legenda-posicao-float" style="display: none;" aria-live="polite">
+            <div class="mapa-legenda-posicao-float-inner">
+              <div class="mapa-legenda-bloco mapa-legenda-bloco--posicao mapa-legenda-bloco--no-margin">
+                <div class="mapa-legenda-posicao-cabecalho">
+                  <h4 class="mapa-legenda-posicao-titulo"><i class='bx bx-time-five' aria-hidden="true"></i> Posição no mapa</h4>
+                  <time id="mapaLegendaDadosAtualizados" class="mapa-legenda-dados-atualizados"></time>
+                </div>
+                <div class="mapa-legenda-posicao-compact" role="group" aria-label="Legenda atualizada e desatualizada">
+                  <span class="mapa-legenda-posicao-item">
+                    <strong>Atualizada</strong>
+                    <span class="mapa-pin-amostra mapa-pin-amostra--ok" aria-hidden="true"></span>
+                  </span>
+                  <span class="mapa-legenda-posicao-seta" aria-hidden="true">→</span>
+                  <span class="mapa-legenda-posicao-item">
+                    <strong>Desatualizada</strong>
+                    <span class="mapa-pin-amostra mapa-pin-amostra--alerta" aria-hidden="true"></span>
+                  </span>
+                </div>
+                <p id="mapaLegendaContagemPosicao" class="mapa-legenda-contagem-posicao" aria-live="polite"></p>
+              </div>
+            </div>
+          </div>
+        </div>
         <div id="mapaInfo" style="flex-shrink: 0; margin-top: 15px;">
           <i class='bx bx-info-circle'></i> 
           <span id="mapaInfoText" data-i18n="web.modulos.mapaViagem.mapaInfoApliqueFiltros">Aplique os filtros para carregar as posições dos veículos no mapa.</span>
         </div>
       </div>
+    </div>
+
+    <div id="mapaMaxFabStack" class="mapa-max-fab-stack" aria-hidden="true">
+      <button type="button" id="mapaMaxFabCentralizar" class="mapa-max-fab-btn" data-i18n-title="web.modulos.mapaViagem.mapaMaxFabCentralizarTitle" title="Centralizar nos veículos">
+        <i class="bx bx-crosshair" aria-hidden="true"></i>
+        <span class="visually-hidden" data-i18n="web.modulos.mapaViagem.centralizarMapa">Centralizar Mapa</span>
+      </button>
+      <button type="button" id="mapaMaxFabAtualizar" class="mapa-max-fab-btn" data-i18n-title="web.modulos.mapaViagem.mapaMaxFabAtualizarTitle" title="Atualizar posições">
+        <i class="bx bx-refresh" aria-hidden="true"></i>
+        <span class="visually-hidden" data-i18n="web.modulos.mapaViagem.atualizarMapa">Atualizar Mapa</span>
+      </button>
+      <button type="button" id="mapaMaxSairSoloBtn" class="mapa-max-fab-btn mapa-max-fab-btn--fechar" data-i18n-title="web.modulos.mapaViagem.mapaMaxSairSoloTitle" title="Sair da tela cheia (tecla Esc)">
+        <i class="bx bx-x" aria-hidden="true"></i>
+        <span class="visually-hidden" data-i18n="web.modulos.mapaViagem.sairTelaCheia">Sair da tela cheia</span>
+      </button>
     </div>
   </div>
 
@@ -537,10 +1237,10 @@
   <!-- Scripts -->
   <script src="/js/cache-buster.js?v=202612091200"></script>
   <script src="/js/utils.js"></script>
-  <script src="/js/map-config.js"></script>
-  <script src="/js/map-helper.js"></script>
+  <script src="/js/map-config.js?v=20260915-tiles"></script>
+  <script src="/js/map-helper.js?v=202609151845"></script>
   <script src="/js/log-helper.js"></script>
   <script src="/js/init-overlay-helper.js"></script>
-  <script src="js/script.js"></script>
+  <script src="js/script.js?v=202609151950"></script>
 </body>
 </html>

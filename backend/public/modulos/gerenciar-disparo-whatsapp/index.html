@@ -35,6 +35,32 @@
       display: flex;
       align-items: center;
       gap: 10px;
+      flex-wrap: wrap;
+    }
+    .dw-switch-badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border: 1px solid transparent;
+      line-height: 1.2;
+    }
+    .dw-switch-badge--ok {
+      background: #e8f9ef;
+      color: #0f7a36;
+      border-color: #b7ebca;
+    }
+    .dw-switch-badge--down {
+      background: #fdecec;
+      color: #a91d2f;
+      border-color: #f5c2c7;
+    }
+    .dw-switch-badge--loading {
+      background: #eff6ff;
+      color: #1d4ed8;
+      border-color: #bfdbfe;
     }
 
     .disparo-wa-container .tabs.tabs-com-icones {
@@ -359,6 +385,21 @@
     }
     html[data-theme="dark"] .dw-confirm-dialog h3 { color: #e2e8f0; }
     html[data-theme="dark"] .dw-confirm-msg { color: #94a3b8; }
+    html[data-theme="dark"] .dw-switch-badge--ok {
+      background: rgba(34, 197, 94, 0.2);
+      color: #86efac;
+      border-color: rgba(34, 197, 94, 0.5);
+    }
+    html[data-theme="dark"] .dw-switch-badge--down {
+      background: rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+      border-color: rgba(239, 68, 68, 0.5);
+    }
+    html[data-theme="dark"] .dw-switch-badge--loading {
+      background: rgba(59, 130, 246, 0.2);
+      color: #93c5fd;
+      border-color: rgba(59, 130, 246, 0.5);
+    }
   </style>
 </head>
 <body>
@@ -367,6 +408,7 @@
       <h2>
         <i class="bx bxl-whatsapp" style="font-size: 1.75rem; color: #25D366;" aria-hidden="true"></i>
         <span data-i18n="web.modulos.disparoWhatsappOportunidades.tituloModulo">Disparo WhatsApp (oportunidades)</span>
+        <span id="dwSwitchHealthBadge" class="dw-switch-badge dw-switch-badge--loading">Sessão Switch: verificando...</span>
       </h2>
     </div>
 

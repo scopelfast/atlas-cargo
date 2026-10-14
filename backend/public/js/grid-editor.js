@@ -35,15 +35,26 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
     
     this.columns = options.columns || [];
     this.apiEndpoint = options.apiEndpoint || '';
+    /** Opcional: retorna headers extras para defaultEdit/defaultDelete (ex.: Authorization). */
+    this.buildFetchHeaders = typeof options.buildFetchHeaders === 'function' ? options.buildFetchHeaders : () => ({});
     this.onEdit = options.onEdit || this.defaultEdit.bind(this);
     this.onDelete = options.onDelete || this.defaultDelete.bind(this);
     this.onBeforeEdit = options.onBeforeEdit || (() => true);
     this.onAfterEdit = options.onAfterEdit || (() => {});
+    /** Opcional: (row) => boolean — se retornar false, o botão excluir não é exibido e a exclusão é barrada. */
+    this.canDeleteRow = typeof options.canDeleteRow === 'function' ? options.canDeleteRow : null;
+    /** Opcional: (row) => void — quando canDeleteRow existir e bloquear (ex.: atalho), feedback ao usuário. */
+    this.onDeleteBlocked = typeof options.onDeleteBlocked === 'function' ? options.onDeleteBlocked : null;
     this.customActions = options.customActions || null; // Função que retorna HTML para ações customizadas
+    /** Se true, customActions vêm antes de Editar/Excluir (ex.: alça de reordenar). */
+    this.customActionsBefore = options.customActionsBefore === true;
+    /** Opcional: () => void — chamado após cada render() (ex.: ativar drag-and-drop). */
+    this.onAfterRender = typeof options.onAfterRender === 'function' ? options.onAfterRender : null;
     this.data = [];
     this.editingId = null;
     this.originalData = null;
     this.showActions = options.showActions !== false;
+    this.actionsWidth = options.actionsWidth || null;
     this.autoSave = options.autoSave !== false;
     this.batchSize = options.batchSize || 50;
     
@@ -153,16 +164,22 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
     const sortedData = this.getSortedData();
     
     const visibleColumns = this.columns.filter(col => !col.hidden);
+    const actionsHeaderStyle = this.actionsWidth ? ` style="width:${this.actionsWidth}; min-width:${this.actionsWidth}; max-width:${this.actionsWidth};"` : '';
+    const actionsCellStyle = this.actionsWidth ? ` style="width:${this.actionsWidth}; min-width:${this.actionsWidth}; max-width:${this.actionsWidth};"` : '';
     const html = `
       <table class="grid-table">
+        <colgroup>
+          ${visibleColumns.map(col => `<col${col.width ? ` style="width:${col.width};"` : ''}>`).join('')}
+          ${this.showActions ? `<col${this.actionsWidth ? ` style="width:${this.actionsWidth}; min-width:${this.actionsWidth}; max-width:${this.actionsWidth};"` : ''}>` : ''}
+        </colgroup>
         <thead>
           <tr>
             ${visibleColumns.map(col => this.renderHeader(col)).join('')}
-            ${this.showActions ? '<th class="grid-actions-header grid-col-right">Ações</th>' : ''}
+            ${this.showActions ? `<th class="grid-actions-header grid-col-right"${actionsHeaderStyle}>Ações</th>` : ''}
           </tr>
         </thead>
         <tbody>
-          ${sortedData.map(row => this.renderRow(row)).join('')}
+          ${sortedData.map(row => this.renderRow(row, actionsCellStyle)).join('')}
         </tbody>
       </table>
     `;
@@ -171,6 +188,13 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
     
     // Adicionar event listeners para ordenação
     this.attachSortListeners();
+    if (this.onAfterRender) {
+      try {
+        this.onAfterRender();
+      } catch (e) {
+        console.warn('[GridEditor] onAfterRender:', e);
+      }
+    }
   }
   
   renderHeader(col) {
@@ -266,7 +290,7 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
     return sorted;
   }
 
-  renderRow(row) {
+  renderRow(row, actionsCellStyle = '') {
     const id = this.getRowId(row);
     
     // Se não houver ID válido, não renderizar a linha
@@ -281,7 +305,7 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
     return `
       <tr class="grid-row ${isEditing ? 'editing' : ''}" data-grid-id="${id}">
         ${visibleColumns.map(col => this.renderCell(row, col, isEditing)).join('')}
-        ${this.showActions ? `<td class="grid-actions grid-col-right">${this.renderActions(row, isEditing)}</td>` : ''}
+        ${this.showActions ? `<td class="grid-actions grid-col-right"${actionsCellStyle}>${this.renderActions(row, isEditing)}</td>` : ''}
       </tr>
     `;
   }
@@ -298,7 +322,7 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
     const label = (col.header || col.field).replace(/"/g, '&quot;');
     return `
       <td class="grid-cell${alignClass}" data-field="${col.field}" data-label="${label}">
-        <span class="cell-value">${this.formatCellValue(value, col)}</span>
+        <span class="cell-value">${this.formatCellValue(value, col, row)}</span>
       </td>
     `;
   }
@@ -365,11 +389,18 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
       customActionsHtml = this.customActions(row);
     }
     
-    return `
+    const allowDelete = !this.canDeleteRow || this.canDeleteRow(row);
+    const deleteCell = allowDelete
+      ? '<button type="button" class="btn grid-btn-delete" title="Excluir">🗑</button>'
+      : '<span class="grid-no-delete" title="Exclusão não permitida para este registro">—</span>';
+    const editDelete = `
       <button type="button" class="btn grid-btn-edit" title="Editar">✎</button>
-      <button type="button" class="btn grid-btn-delete" title="Excluir">🗑</button>
-      ${customActionsHtml}
+      ${deleteCell}
     `;
+    if (this.customActionsBefore && customActionsHtml) {
+      return `${customActionsHtml}<span class="grid-actions-sep" aria-hidden="true"></span>${editDelete}`;
+    }
+    return `${editDelete}${customActionsHtml}`;
   }
 
   enterEditMode(id) {
@@ -431,7 +462,7 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
         const visibleCols = this.columns.filter(col => !col.hidden);
         row.innerHTML = `
           ${visibleCols.map(col => this.renderCell(rowData, col, true)).join('')}
-          ${this.showActions ? `<td class="grid-actions grid-col-right">${this.renderActions(rowData, true)}</td>` : ''}
+          ${this.showActions ? `<td class="grid-actions grid-col-right"${this.actionsWidth ? ` style="width:${this.actionsWidth}; min-width:${this.actionsWidth}; max-width:${this.actionsWidth};"` : ''}>${this.renderActions(rowData, true)}</td>` : ''}
         `;
         row.classList.add('editing');
         
@@ -479,8 +510,11 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
         if (rowData && typeof rowData.FGACTIVE !== 'undefined') updatedData.FGACTIVE = rowData.FGACTIVE;
         else updatedData.FGACTIVE = 'S';
       }
-      // Verificar descrição
-      if (!updatedData.DSSITUACAOVIAGEM || !String(updatedData.DSSITUACAOVIAGEM).trim()) {
+      // Validação legada (Situações de Viagem) — só aplica se o campo existir no payload
+      if (
+        Object.prototype.hasOwnProperty.call(updatedData, 'DSSITUACAOVIAGEM') &&
+        (!updatedData.DSSITUACAOVIAGEM || !String(updatedData.DSSITUACAOVIAGEM).trim())
+      ) {
         alert('Descrição é obrigatória.');
         return;
       }
@@ -502,7 +536,7 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
         const visibleCols = this.columns.filter(col => !col.hidden);
         row.innerHTML = `
           ${visibleCols.map(col => this.renderCell(rowData, col, false)).join('')}
-          ${this.showActions ? `<td class="grid-actions grid-col-right">${this.renderActions(rowData, false)}</td>` : ''}
+          ${this.showActions ? `<td class="grid-actions grid-col-right"${this.actionsWidth ? ` style="width:${this.actionsWidth}; min-width:${this.actionsWidth}; max-width:${this.actionsWidth};"` : ''}>${this.renderActions(rowData, false)}</td>` : ''}
         `;
       }
       
@@ -522,7 +556,7 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
       const visibleCols = this.columns.filter(col => !col.hidden);
       row.innerHTML = `
         ${visibleCols.map(col => this.renderCell(rowData, col, false)).join('')}
-        ${this.showActions ? `<td class="grid-actions grid-col-right">${this.renderActions(rowData, false)}</td>` : ''}
+        ${this.showActions ? `<td class="grid-actions grid-col-right"${this.actionsWidth ? ` style="width:${this.actionsWidth}; min-width:${this.actionsWidth}; max-width:${this.actionsWidth};"` : ''}>${this.renderActions(rowData, false)}</td>` : ''}
       `;
     }
     
@@ -540,6 +574,13 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
     
     // Converter ID para string para garantir consistência
     const idStr = String(id).trim();
+
+    const rowData = this.data.find((r) => String(this.getRowId(r)) === String(idStr));
+    if (this.canDeleteRow && rowData != null && !this.canDeleteRow(rowData)) {
+      if (typeof this.onDeleteBlocked === 'function') this.onDeleteBlocked(rowData);
+      else alert('Esta linha não pode ser excluída.');
+      return;
+    }
     
     // Se onDelete foi sobrescrito (customizado), chamar diretamente
     // O módulo que configurou onDelete é responsável por mostrar o modal
@@ -629,7 +670,7 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
     
     const response = await fetch(`${this.apiEndpoint}/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...this.buildFetchHeaders() },
       body: JSON.stringify(updatedData)
     });
 
@@ -653,7 +694,8 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
     }
     
     const response = await fetch(`${this.apiEndpoint}/${id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: { ...this.buildFetchHeaders() }
     });
     
     if (!response.ok) {
@@ -674,8 +716,12 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
     const idColumn = this.columns.find(col => col.isId);
     const idField = idColumn?.field || this.columns[0]?.field || 'id';
     
-    const id = row[idField] !== undefined ? row[idField] : (row.id !== undefined ? row.id : null);
-    
+    let id = row[idField];
+    if (id === undefined && idField) {
+      id = row[String(idField).toLowerCase()];
+    }
+    if (id === undefined) id = row.id;
+
     // Garantir que retornamos um valor válido (não undefined, null, ou string vazia)
     if (id === null || id === undefined || id === '') {
       console.warn('[GridEditor] ID inválido para linha:', row, 'campo:', idField);
@@ -686,44 +732,49 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
   }
 
   getNestedValue(obj, path) {
-    return path.split('.').reduce((current, prop) => current?.[prop], obj);
+    if (!obj || path == null) return undefined;
+    const parts = String(path).split('.');
+    if (parts.length === 1) {
+      const p = parts[0];
+      const v = obj[p] ?? obj[p.toLowerCase()] ?? obj[p.toUpperCase()];
+      return v;
+    }
+    return parts.reduce((current, prop) => current?.[prop], obj);
   }
 
-  formatCellValue(value, col) {
+  formatCellValue(value, col, row) {
+    if (col.format) {
+      // Passa o valor bruto: String() aqui quebrava colunas cujo valor vem só em outras chaves do `row`.
+      return col.format(value, row);
+    }
+
     if (value === null || value === undefined) return '-';
     
     if (col.type === 'date' || col.type === 'datetime-local') {
       if (!value) return '';
-      
-      // Parsear string diretamente sem conversão de fuso horário
-      let str = String(value).trim();
-      str = str.replace(/\.\d{3}/, ''); // Remover milissegundos
-      
-      const match = str.match(/(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}):?(\d{2})?:?(\d{2})?/);
-      if (match) {
-        const [, year, month, day, hours = '00', minutes = '00'] = match;
-        if (col.type === 'datetime-local') {
-          return `${day}/${month}/${year} ${hours}:${minutes}`;
-        }
-        return `${day}/${month}/${year}`;
+
+      if (col.type === 'datetime-local' && typeof window.dataApiParaDatetimeLocal === 'function') {
+        const local = window.dataApiParaDatetimeLocal(value);
+        const m = String(local || '').match(/(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+        if (m) return `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}`;
       }
-      
-      // Fallback - tratar string de data do SQL Server
-      if (typeof value === 'string') {
-        // Remover o Z se existir e tratar como data local
-        let dataStr = value.replace('Z', '').replace('T', ' ');
-        const match = dataStr.match(/(\d{4})-(\d{2})-(\d{2})[\s]?(\d{2}):?(\d{2})?:?(\d{2})?/);
-        if (match) {
-          const [, year, month, day] = match;
-          const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-          if (!isNaN(date.getTime())) {
-            return date.toLocaleDateString('pt-BR');
-          }
-        }
+
+      if (col.type === 'date' && typeof window.dataApiParaInputDate === 'function') {
+        const d = window.dataApiParaInputDate(value);
+        const m = String(d || '').match(/(\d{4})-(\d{2})-(\d{2})/);
+        if (m) return `${m[3]}/${m[2]}/${m[1]}`;
       }
-      
+
       const date = new Date(value);
-      if (isNaN(date.getTime())) return value;
+      if (isNaN(date.getTime())) return String(value);
+      if (col.type === 'datetime-local') {
+        const dd = String(date.getDate()).padStart(2, '0');
+        const mm = String(date.getMonth() + 1).padStart(2, '0');
+        const yyyy = date.getFullYear();
+        const hh = String(date.getHours()).padStart(2, '0');
+        const mi = String(date.getMinutes()).padStart(2, '0');
+        return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+      }
       return date.toLocaleDateString('pt-BR');
     }
     
@@ -735,50 +786,18 @@ if (typeof window === 'undefined' || typeof window.GridEditor === 'undefined') {
       });
     }
     
-    if (col.format) {
-      // Normalizar valor antes de passar para format (tratar null/undefined e espaços)
-      const normalizedValue = value === null || value === undefined ? null : String(value).trim();
-      return col.format(normalizedValue);
-    }
-    
     return String(value).substring(0, col.maxDisplay || 100);
   }
 
   formatDateTimeForInput(dateString) {
     if (!dateString) return '';
-    
-    // Se já está no formato correto (YYYY-MM-DDTHH:mm), retornar direto
-    if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(dateString)) {
-      return dateString.slice(0, 16);
+    if (typeof window.dataApiParaDatetimeLocal === 'function') {
+      return window.dataApiParaDatetimeLocal(dateString);
     }
-    
-    // Parsear string no formato SQL Server: "2026-11-21 08:00:00" ou "2026-11-21T08:00:00"
-    let str = String(dateString).trim();
-    
-    // Remover milissegundos se existirem
-    str = str.replace(/\.\d{3}/, '');
-    
-    // Extrair componentes da data diretamente da string (sem conversão de fuso)
-    const match = str.match(/(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}):(\d{2}):?(\d{2})?/);
-    if (match) {
-      const [, ano, mes, dia, horas, minutos] = match;
-      return `${ano}-${mes}-${dia}T${horas}:${minutos}`;
-    }
-    
-    // Fallback: usar Date apenas se não conseguir parsear
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return '';
-    
-    // Ajustar para fuso horário local (compensar a diferença)
-    const offset = date.getTimezoneOffset(); // diferença em minutos
-    const dLocal = new Date(date.getTime() - (offset * 60 * 1000));
-    
-    const ano = dLocal.getFullYear();
-    const mes = String(dLocal.getMonth() + 1).padStart(2, '0');
-    const dia = String(dLocal.getDate()).padStart(2, '0');
-    const horasLocal = String(dLocal.getHours()).padStart(2, '0');
-    const minutosLocal = String(dLocal.getMinutes()).padStart(2, '0');
-    return `${ano}-${mes}-${dia}T${horasLocal}:${minutosLocal}`;
+    const str = String(dateString).trim().replace(/\.\d+/, '');
+    const match = str.match(/(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}):(\d{2})/);
+    if (!match) return '';
+    return `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}`;
   }
 
   // Métodos públicos adicionais

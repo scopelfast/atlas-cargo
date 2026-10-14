@@ -63,6 +63,7 @@ console.log('📦 [SW] Motorista path:', MOTORISTA_PATH);
 const urlsToCache = [
   `${MOTORISTA_PATH}/index.html`,
   `${MOTORISTA_PATH}/pages/dashboard.html`,
+  `${MOTORISTA_PATH}/pages/perfil.html`,
   `${MOTORISTA_PATH}/js/auth.js`,
   `${MOTORISTA_PATH}/js/offline.js`,
   `${MOTORISTA_PATH}/css/style.css`
@@ -167,7 +168,7 @@ self.addEventListener('fetch', (event) => {
   
   // IMPORTANTE: Corrigir requisições de tiles que tentam usar HTTPS
   // Se for uma requisição para o servidor de tiles via HTTPS, forçar HTTP
-  if ((url.hostname === '186.250.92.131' || url.hostname === 'app.integrabrasil.com') && (url.protocol === 'https:' || event.request.url.includes('https://' + url.hostname))) {
+  if (url.hostname === '186.250.92.131' && (url.protocol === 'https:' || event.request.url.includes('https://' + url.hostname))) {
     const httpUrl = event.request.url.replace(/^https:/, 'http:');
     console.log('🔄 [SW] Convertendo HTTPS para HTTP:', event.request.url, '→', httpUrl);
     event.respondWith(

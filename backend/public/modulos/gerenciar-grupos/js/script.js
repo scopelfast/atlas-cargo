@@ -12,6 +12,17 @@
   let sqlExecutado = false;
   let initExecutado = false;
 
+  function getAuthHeaders(extra = {}) {
+    const headers = { ...extra };
+    const token = localStorage.getItem('token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      if (user && (user.login || user.SGUSUARIO)) headers['user-login'] = user.login || user.SGUSUARIO;
+    } catch (e) {}
+    return headers;
+  }
+
   // Funções para controlar overlay de carregamento do init.sql
   function showLoadingOverlayInitSQL(titulo = 'Processando Inicialização', texto = 'Executando scripts de inicialização...', detalhe = 'Isso pode levar alguns segundos.') {
     // Usar função global se disponível, senão usar local
@@ -104,7 +115,7 @@
       try {
         execResponse = await fetch('/api/grupos/executar-init-sql', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({ sql: sqlLimpo }),
           signal: AbortSignal.timeout(120000)
         });
@@ -249,7 +260,7 @@
     if (situacao) params.append('situacao', situacao);
     
     try {
-      const response = await fetch(`/api/grupos?${params.toString()}`);
+      const response = await fetch(`/api/grupos?${params.toString()}`, { headers: getAuthHeaders() });
       const grupos = await response.json();
 
       // salvar cache de resultados
@@ -425,6 +436,7 @@
 
     gridTab = new window.GridEditor({
       container: '#gruposGrid',
+      buildFetchHeaders: () => getAuthHeaders(),
       columns: [
         { field: 'CDGRUPOEQUIPAMENTO', header: 'Código', editable: false, isId: true, width: '80px' },
         { field: 'DSGRUPOEQUIPAMENTO', header: 'Descrição', editable: true, type: 'text', maxlength: 40 },
@@ -464,11 +476,14 @@
         grupoForm.reset();
       }
       
-      const response = await fetch(`/api/grupos`);
-      const grupos = await response.json();
-      const grupo = grupos.find(g => g.CDGRUPOEQUIPAMENTO.toString() === id.toString());
+      const response = await fetch(`/api/grupos/${encodeURIComponent(id)}`, { headers: getAuthHeaders() });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || response.statusText);
+      }
+      const grupo = await response.json();
       
-      if (grupo) {
+      if (grupo && grupo.CDGRUPOEQUIPAMENTO != null) {
         document.getElementById('grupoCodigo').value = grupo.CDGRUPOEQUIPAMENTO;
         document.getElementById('grupoDescricao').value = grupo.DSGRUPOEQUIPAMENTO;
         document.getElementById('grupoSituacao').value = grupo.FGACTIVE;
@@ -500,7 +515,7 @@
     try {
       // Buscar o status atual do grupo
       const idToCheck = isNaN(idStr) ? idStr : parseInt(idStr, 10);
-      const response = await fetch(`/api/grupos/${idToCheck}`);
+      const response = await fetch(`/api/grupos/${idToCheck}`, { headers: getAuthHeaders() });
       if (!response.ok) {
         throw new Error('Erro ao buscar grupo');
       }
@@ -549,7 +564,8 @@
           
           const idToDelete = isNaN(deleteId) ? deleteId : parseInt(deleteId, 10);
           const response = await fetch(`/api/grupos/${idToDelete}?action=${acao}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getAuthHeaders()
           });
           
           const data = await response.json();
@@ -615,13 +631,13 @@
         grupoData.FGACTIVE = situacao;
         response = await fetch(`/api/grupos/${id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(grupoData)
         });
       } else {
         response = await fetch('/api/grupos', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(grupoData)
         });
       }

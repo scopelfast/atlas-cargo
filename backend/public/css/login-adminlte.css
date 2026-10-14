@@ -1,16 +1,30 @@
-/* Atlas Cargo - Login no estilo AdminLTE 3 (nova cara) */
-/* Mantém todos os IDs e estrutura para login.js e i18n */
+/* Atlas Cargo — Login (layout split, tema claro/escuro)
+ * Preserva IDs e markup para login.js / i18n.
+ * Tema: html sem data-theme = claro; html[data-theme="dark"] = escuro */
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
 body.login-page {
-  font-family: "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: "Plus Jakarta Sans", "Source Sans Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* Fundo suave: cinza claro com toque verde */
-  background: linear-gradient(160deg, #f5f7fa 0%, #e8f0e8 45%, #e2e8e2 100%);
+  margin: 0;
+  color: #0f172a;
+  background:
+    radial-gradient(ellipse 120% 80% at 100% -20%, rgba(14, 165, 233, 0.18), transparent 50%),
+    radial-gradient(ellipse 80% 60% at -10% 80%, rgba(249, 115, 22, 0.08), transparent 45%),
+    linear-gradient(165deg, #f1f5f9 0%, #f8fafc 40%, #e2e8f0 100%);
+}
+
+[data-theme="dark"] body.login-page {
+  color: #e2e8f0;
+  background:
+    radial-gradient(ellipse 100% 70% at 85% 10%, rgba(14, 165, 233, 0.14), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 10% 90%, rgba(249, 115, 22, 0.06), transparent 50%),
+    linear-gradient(165deg, #070d16 0%, #0f172a 35%, #0c1220 100%);
 }
 
 .login-container {
@@ -19,307 +33,620 @@ body.login-page {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2rem;
-  box-sizing: border-box;
+  padding: clamp(1rem, 3vw, 2rem);
+  background: transparent;
 }
 
-/* Área única: logo em destaque + card de login */
 .login-center {
   display: flex;
   flex-direction: column;
   align-items: center;
   width: 100%;
-  max-width: 420px;
+  max-width: 1120px;
 }
 
-/* Logo: só a imagem, sem quadro nem espaços extras */ 
-.login-branding {
-  text-align: center;
-  margin: 0;
-  padding: 0;
-  flex-shrink: 0;
+/* Shell externo: só envolve o split; sem “caixa única” pesada */
+body.login-page .login-center .form-box {
   width: 100%;
-  box-sizing: border-box;
+  max-width: 1120px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
-/* Logo dentro do card: sem quadro, sem espaços */
-.form-box .login-branding {
-  margin: 0;
-  padding: 0;
+.login-main {
+  display: grid;
+  grid-template-columns: minmax(300px, 1.12fr) minmax(300px, 0.88fr);
+  align-items: stretch;
+  min-height: min(600px, calc(100vh - 6rem));
+  border-radius: 24px;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow:
+    0 4px 6px -1px rgba(15, 23, 42, 0.06),
+    0 24px 48px -12px rgba(15, 23, 42, 0.12);
+}
+
+[data-theme="dark"] .login-main {
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 24px 64px rgba(0, 0, 0, 0.45);
+}
+
+/* ——— Painel marca (esquerda) ——— */
+.login-branding {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-height: 100%;
+  padding: clamp(0.25rem, 1vw, 0.5rem);
+  text-align: center;
+  overflow: hidden;
+  background: linear-gradient(155deg, #0e7490 0%, #0c4a6e 42%, #0f172a 100%);
+}
+
+.login-branding::before {
+  content: "";
+  position: absolute;
+  inset: -40%;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.12) 0%, transparent 42%),
+    radial-gradient(circle at 70% 75%, rgba(14, 165, 233, 0.2) 0%, transparent 38%);
+  pointer-events: none;
+}
+
+.login-branding::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 10%;
+  bottom: 10%;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  pointer-events: none;
+}
+
+[data-theme="dark"] .login-branding {
+  background: linear-gradient(155deg, #082f49 0%, #0c4a6e 38%, #020617 100%);
+}
+
+[data-theme="dark"] .login-branding::after {
+  background: linear-gradient(180deg, transparent, rgba(148, 163, 184, 0.2), transparent);
+}
+
+.login-brand-inner {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .logo-box {
   margin: 0;
-}
-
-.logo-box img {
-  max-width: 100%;
-  width: auto;
-  height: auto;
-  max-height: 200px;
-  min-height: 120px;
-  display: block;
-  margin: 0 auto;
-  object-fit: contain;
-}
-
-.form-box {
+  flex: 1 1 auto;
+  min-height: 0;
   width: 100%;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 4px 24px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.06);
-  border-top: 4px solid #28a745;
-  padding: 2rem;
-  box-sizing: border-box;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
 }
-.login-page .form-box form {
+
+/*
+ * O PNG tem bastante área vazia/transparente ao redor da arte. Contain encolhe o arquivo
+ * inteiro no quadro — a arte fica “pequena”. O scale aproxima só o desenho (sem distorcer).
+ */
+.logo-box img {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+  margin: 0;
+  transform: scale(1.32);
+  transform-origin: center center;
+  filter: drop-shadow(0 12px 32px rgba(0, 0, 0, 0.35));
+}
+
+/* ——— Formulário (direita) ——— */
+.login-access {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: clamp(1.75rem, 4vw, 3rem) clamp(1.5rem, 4vw, 3.25rem);
+  background: #ffffff;
+}
+
+/* Coluna do formulário: um pouco mais larga que metade, ainda centrada */
+body.login-page .login-access > .login-access-top,
+body.login-page .login-access > #loginForm,
+body.login-page .login-access > .form-footer {
+  width: 100%;
+  max-width: 64%;
+  min-width: 0;
+  align-self: center;
+}
+
+[data-theme="dark"] .login-access {
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.login-access-top {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1.25rem;
+}
+
+.idioma-selector-web {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  margin: 0;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="dark"] .idioma-selector-web {
+  background: rgba(0, 0, 0, 0.25);
+  border-color: rgba(148, 163, 184, 0.15);
+}
+
+.idioma-selector-web .idioma-label {
+  display: inline;
+  padding: 0 0.45rem 0 0.35rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+[data-theme="dark"] .idioma-selector-web .idioma-label {
+  color: #94a3b8;
+}
+
+.idioma-selector-web .btn-idioma {
+  padding: 0.4rem 0.95rem;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+
+.idioma-selector-web .btn-idioma:hover {
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.65);
+}
+
+[data-theme="dark"] .idioma-selector-web .btn-idioma {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .idioma-selector-web .btn-idioma:hover {
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.idioma-selector-web .btn-idioma.active {
+  background: #ffffff;
+  color: #0c4a6e;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.1);
+}
+
+[data-theme="dark"] .idioma-selector-web .btn-idioma.active {
+  background: #0ea5e9;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+body.login-page .form-box form {
   margin: 0;
   padding: 0;
 }
 
-.form-header { text-align: center; margin-bottom: 1.5rem; }
-.form-header h2 { font-size: 1.5rem; font-weight: 600; color: #495057; margin-bottom: 0.25rem; }
-.form-header p { color: #6c757d; font-size: 0.9rem; margin-bottom: 0; }
-
-/* Inputs no estilo AdminLTE - alinhamento dos 3 pontos: esquerda (label+ícone) e direita (olho) */
-.login-page .form-box .input-box {
-  margin-bottom: 1.25rem;
-  margin-left: 0;
-  margin-right: 0;
-  padding-left: 0;
-  padding-right: 0;
+/* Campos */
+body.login-page .form-box .input-box {
+  margin-bottom: 1.15rem;
   position: relative;
   width: 100%;
-  box-sizing: border-box;
 }
-.login-page .form-box .input-box label {
+
+body.login-page .form-box .input-box label {
   position: static !important;
   transform: none !important;
   left: auto !important;
   top: auto !important;
   display: block !important;
-  margin: 0 0 0.35rem 0;
+  margin: 0 0 0.4rem 0;
   padding: 0;
   font-weight: 600;
-  font-size: 0.875rem;
-  color: #495057;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: #334155;
   text-align: left;
   pointer-events: auto;
   background: transparent;
 }
-/* Ícone à esquerda: alinhado na mesma linha (centro vertical do campo) */
-.login-page .form-box .input-box .input-icon {
+
+[data-theme="dark"] body.login-page .form-box .input-box label {
+  color: #cbd5e1;
+}
+
+/* Centro vertical do input (label acima + metade da altura do campo) */
+body.login-page .form-box .input-box .input-icon {
   position: absolute;
-  left: 0.75rem;
-  top: 2.35rem;
+  left: 0.9rem;
+  top: calc(0.8125rem * 1.4 + 0.4rem + 1.5rem);
   transform: translateY(-50%);
-  color: #6c757d;
+  color: #94a3b8;
   font-size: 1.1rem;
   z-index: 2;
   pointer-events: none;
-  width: 1.1rem;
-  text-align: center;
-  line-height: 1;
 }
-.login-page .form-box .input-box input {
+
+body.login-page .form-box .input-box input {
   width: 100%;
-  min-height: 2.75rem;
-  padding: 0.6rem 2.75rem 0.6rem 2.5rem;
+  min-height: 3rem;
+  padding: 0.65rem 2.75rem 0.65rem 2.65rem;
   font-size: 1rem;
-  border: 1px solid #ced4da;
-  border-radius: 0.25rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
   font-family: inherit;
-  background: #fff;
-  transition: border-color 0.15s, box-shadow 0.15s;
-  color: #495057;
-  box-sizing: border-box;
+  background: #f8fafc;
+  color: #0f172a;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
   line-height: 1.5;
 }
-.login-page .form-box .input-box input::placeholder {
-  color: #adb5bd;
+
+body.login-page .form-box .input-box input::placeholder {
+  color: #94a3b8;
 }
-.login-page .form-box .input-box input:focus {
+
+body.login-page .form-box .input-box input:hover {
+  border-color: #cbd5e1;
+  background: #ffffff;
+}
+
+body.login-page .form-box .input-box input:focus {
   outline: 0;
-  border-color: #80bdff;
-  box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+  border-color: #0ea5e9;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.15);
 }
-/* Botão ver senha: centralizado no campo e alinhado à direita */
-.login-page .form-box .input-box .toggle-password {
+
+[data-theme="dark"] body.login-page .form-box .input-box input {
+  background: rgba(15, 23, 42, 0.65);
+  border-color: #334155;
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] body.login-page .form-box .input-box input:hover {
+  border-color: #475569;
+  background: rgba(15, 23, 42, 0.85);
+}
+
+[data-theme="dark"] body.login-page .form-box .input-box input:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.12);
+}
+
+body.login-page .form-box .input-box .toggle-password {
   position: absolute;
-  right: 0.5rem;
-  top: 2.5rem;
+  right: 0.65rem;
+  top: calc(0.8125rem * 1.4 + 0.4rem + 1.5rem);
   transform: translateY(-50%);
-  color: #6c757d;
+  color: #94a3b8;
   cursor: pointer;
   font-size: 1.15rem;
   z-index: 2;
   padding: 0;
   margin: 0;
-  min-width: 2rem;
-  height: 2rem;
+  min-width: 2.25rem;
+  height: 2.25rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  line-height: 0;
-  box-sizing: border-box;
   border: none;
   background: transparent;
-  border-radius: 0.25rem;
-}
-.login-page .form-box .input-box .toggle-password:hover {
-  color: #495057;
-  background: rgba(0,0,0,0.05);
-}
-.login-page .form-box .input-box .toggle-password i {
-  display: block;
-  line-height: 1;
-  font-size: 1.15rem;
+  border-radius: 8px;
+  transition: color 0.15s, background 0.15s;
 }
 
-/* Botão Entrar - AdminLTE primary (verde) */
-.form-box .btn {
+body.login-page .form-box .input-box .toggle-password:hover {
+  color: #0ea5e9;
+  background: rgba(14, 165, 233, 0.08);
+}
+
+[data-theme="dark"] body.login-page .form-box .input-box .toggle-password:hover {
+  color: #38bdf8;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* CTA */
+body.login-page .form-box .btn[type="submit"],
+.login-center .form-box .btn[type="submit"] {
   width: 100%;
-  padding: 0.5rem 1rem;
+  margin-top: 0.75rem;
+  padding: 0.85rem 1.25rem;
   font-size: 1rem;
   font-weight: 600;
-  border-radius: 0.25rem;
+  border-radius: 12px;
   border: none;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  margin-top: 0.5rem;
-  background: #28a745;
-  color: #fff;
-  transition: background 0.2s;
+  font-family: inherit;
+  color: #ffffff;
+  background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 50%, #0369a1 100%);
+  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.35);
+  transition: transform 0.15s, box-shadow 0.2s, filter 0.2s;
 }
-.form-box .btn:hover { background: #218838; }
-.form-box .btn:disabled { opacity: 0.7; cursor: not-allowed; }
 
-.idioma-selector-web {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+body.login-page .form-box .btn[type="submit"]:hover,
+.login-center .form-box .btn[type="submit"]:hover {
+  filter: brightness(1.05);
+  box-shadow: 0 8px 24px rgba(14, 165, 233, 0.4);
+  transform: translateY(-1px);
 }
-.idioma-selector-web .idioma-label { font-size: 0.875rem; color: #6c757d; }
-.idioma-selector-web .btn-idioma {
-  padding: 0.35rem 0.75rem;
-  border-radius: 0.25rem;
-  border: 1px solid #ced4da;
-  background: #fff;
-  color: #495057;
-  font-size: 0.875rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-.idioma-selector-web .btn-idioma.active { background: #28a745; color: #fff; border-color: #28a745; }
 
-.error-message {
-  font-size: 0.875rem;
-  color: #721c24;
-  background: #f8d7da;
-  border: 1px solid #f5c6cb;
-  border-radius: 0.25rem;
-  padding: 0.5rem 0.75rem;
-  margin-top: 0.5rem;
-  display: none;
+body.login-page .form-box .btn[type="submit"]:active,
+.login-center .form-box .btn[type="submit"]:active {
+  transform: translateY(0);
 }
-.error-message:not(:empty) { display: block; }
+
+body.login-page .form-box .btn:disabled,
+.login-center .form-box .btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
 
 .link-alterar-senha {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  color: #28a745;
+  color: #0284c7;
   text-decoration: none;
   font-size: 0.875rem;
+  font-weight: 600;
   margin-top: 1rem;
+  transition: color 0.15s;
 }
-.link-alterar-senha:hover { color: #1e7e34; text-decoration: underline; }
 
-.form-footer { text-align: center; margin-top: 1.25rem; font-size: 0.8rem; color: #6c757d; }
+.link-alterar-senha:hover {
+  color: #0369a1;
+  text-decoration: underline;
+}
 
-/* Modal Alterar Senha - AdminLTE modal style */
+[data-theme="dark"] .link-alterar-senha {
+  color: #38bdf8;
+}
+
+[data-theme="dark"] .link-alterar-senha:hover {
+  color: #7dd3fc;
+}
+
+.error-message {
+  font-size: 0.875rem;
+  color: #991b1b;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  padding: 0.65rem 0.85rem;
+  margin-top: 0.5rem;
+  margin-bottom: 0.25rem;
+  display: none;
+}
+
+.error-message:not(:empty) {
+  display: block;
+}
+
+[data-theme="dark"] .error-message:not(:empty) {
+  color: #fecaca;
+  background: rgba(127, 29, 29, 0.35);
+  border-color: #7f1d1d;
+}
+
+.error-message.login-msg-info {
+  color: #0c4a6e;
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+}
+
+[data-theme="dark"] .error-message.login-msg-info {
+  color: #bae6fd;
+  background: rgba(12, 74, 110, 0.45);
+  border-color: #0369a1;
+}
+
+.form-footer {
+  text-align: center;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+  font-size: 0.8125rem;
+  color: #64748b;
+}
+
+[data-theme="dark"] .form-footer {
+  border-top-color: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+}
+
+.form-footer p {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+}
+
+.form-footer i {
+  color: #0ea5e9;
+  font-size: 1rem;
+}
+
+/* Toggle tema (canto) */
+.login-theme-toggle {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.25rem;
+  z-index: 1000;
+}
+
+.theme-toggle-btn {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: rgba(255, 255, 255, 0.85);
+  color: #475569;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.08);
+  transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.15s;
+  backdrop-filter: blur(8px);
+}
+
+.theme-toggle-btn:hover {
+  background: #ffffff;
+  color: #0ea5e9;
+  border-color: rgba(14, 165, 233, 0.35);
+  transform: scale(1.03);
+}
+
+[data-theme="dark"] .login-theme-toggle .theme-toggle-btn {
+  background: rgba(30, 41, 59, 0.85);
+  border-color: rgba(148, 163, 184, 0.2);
+  color: #e2e8f0;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="dark"] .login-theme-toggle .theme-toggle-btn:hover {
+  background: #334155;
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+/* ——— Modais ——— */
 .modal-alterar-senha {
   display: none;
   position: fixed;
   z-index: 1050;
-  left: 0; top: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,.5);
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.55);
   align-items: center;
   justify-content: center;
   padding: 1rem;
+  backdrop-filter: blur(4px);
 }
+
 .modal-alterar-senha[style*="block"] {
   display: flex !important;
 }
+
 .modal-alterar-senha-content {
   background: #fff;
-  border-radius: 0.5rem;
-  box-shadow: 0 0 1px rgba(0,0,0,.125), 0 1px 3px rgba(0,0,0,.2);
+  border-radius: 16px;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18);
   max-width: 420px;
   width: 100%;
   max-height: 90vh;
   overflow: auto;
+  border: 1px solid rgba(15, 23, 42, 0.08);
 }
+
 .modal-alterar-senha-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 1rem 1.25rem;
-  border-bottom: 1px solid #dee2e6;
-  background: #f8f9fa;
-  border-radius: 0.5rem 0.5rem 0 0;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 16px 16px 0 0;
 }
-.modal-alterar-senha-header h3 { margin: 0; font-size: 1.1rem; font-weight: 600; color: #495057; }
+
+.modal-alterar-senha-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
 .btn-fechar {
   background: none;
   border: none;
   font-size: 1.5rem;
   line-height: 1;
-  color: #6c757d;
+  color: #64748b;
   cursor: pointer;
   padding: 0 0.25rem;
+  border-radius: 8px;
+  transition: color 0.15s, background 0.15s;
 }
-.btn-fechar:hover { color: #495057; }
-.modal-alterar-senha-body { padding: 1.25rem; }
 
-/* Modal Alterar Senha: labels acima, sem sobreposição (sobrescreve style.css) */
+.btn-fechar:hover {
+  color: #0f172a;
+  background: rgba(15, 23, 42, 0.06);
+}
+
+.modal-alterar-senha-body {
+  padding: 1.25rem;
+}
+
 #modalAlterarSenha .input-box,
 .modal-alterar-senha .input-box,
 .modal-input-box {
   position: relative;
   margin-bottom: 1rem;
 }
+
 #modalAlterarSenha .input-box label,
 .modal-alterar-senha .input-box label,
 .modal-input-box label {
   position: static !important;
   transform: none !important;
-  left: auto !important;
-  top: auto !important;
   display: block !important;
   margin-bottom: 0.35rem;
   font-weight: 600;
   font-size: 0.875rem;
-  color: #495057;
-  pointer-events: auto;
-  background: transparent;
-  padding: 0;
+  color: #334155;
 }
-#modalAlterarSenha .input-box input:focus ~ label,
-#modalAlterarSenha .input-box input:not(:placeholder-shown) ~ label,
-.modal-alterar-senha .input-box input:focus ~ label,
-.modal-input-box input:focus ~ label,
-.modal-input-box input:not(:placeholder-shown) ~ label {
-  position: static !important;
-  transform: none !important;
-  top: auto !important;
-  left: auto !important;
-}
+
 #modalAlterarSenha .input-box .input-icon,
 .modal-alterar-senha .input-box .input-icon,
 .modal-input-box .input-icon {
@@ -327,14 +654,12 @@ body.login-page {
   left: 0.75rem;
   top: 2.35rem;
   transform: translateY(-50%);
-  color: #6c757d;
+  color: #94a3b8;
   font-size: 1.1rem;
   z-index: 2;
   pointer-events: none;
-  width: 1.1rem;
-  text-align: center;
-  line-height: 1;
 }
+
 #modalAlterarSenha .input-box input,
 .modal-alterar-senha .input-box input,
 .modal-input-box input {
@@ -342,68 +667,104 @@ body.login-page {
   min-height: 2.75rem;
   padding: 0.6rem 2.75rem 0.6rem 2.5rem;
   font-size: 1rem;
-  border: 1px solid #ced4da;
-  border-radius: 0.25rem;
-  background: #fff;
-  color: #495057;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #0f172a;
   box-sizing: border-box;
-  line-height: 1.5;
 }
+
 #modalAlterarSenha .input-box .toggle-password,
 .modal-alterar-senha .input-box .toggle-password,
 .modal-input-box .toggle-password {
   position: absolute;
   right: 0.5rem;
-  top: 2.5rem;
+  top: 2.35rem;
   transform: translateY(-50%);
-  color: #6c757d;
+  color: #94a3b8;
   cursor: pointer;
   font-size: 1.15rem;
   z-index: 2;
-  padding: 0;
-  margin: 0;
   min-width: 2rem;
   height: 2rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  line-height: 0;
-  box-sizing: border-box;
   border: none;
   background: transparent;
-  border-radius: 0.25rem;
+  border-radius: 8px;
 }
-#modalAlterarSenha .input-box .toggle-password:hover,
-.modal-input-box .toggle-password:hover {
-  color: #495057;
-  background: rgba(0,0,0,0.05);
-}
-#modalAlterarSenha .input-box .toggle-password i,
-.modal-input-box .toggle-password i {
-  display: block;
-  line-height: 1;
-  font-size: 1.15rem;
-}
+
 .modal-alterar-senha-body .btn {
   width: 100%;
   margin-top: 0.75rem;
-  padding: 0.6rem 1rem;
-  background: #28a745;
+  padding: 0.75rem 1rem;
+  background: linear-gradient(135deg, #0ea5e9, #0369a1);
   color: #fff;
   border: none;
-  border-radius: 0.25rem;
+  border-radius: 12px;
   font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+  font-family: inherit;
 }
-.modal-alterar-senha-body .btn:hover { background: #218838; }
+
+.modal-alterar-senha-body .btn:hover {
+  filter: brightness(1.06);
+}
 
 @media (max-width: 768px) {
-  .login-container { padding: 1rem; }
-  .login-center { max-width: 100%; }
-  .logo-box img { max-height: 140px; min-height: 80px; }
-  .form-box { padding: 1.5rem; }
+  body.login-page .login-access > .login-access-top,
+  body.login-page .login-access > #loginForm,
+  body.login-page .login-access > .form-footer {
+    max-width: 100%;
+  }
+
+  .login-main {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+
+  .login-branding {
+    min-height: 220px;
+    padding: 1rem 1rem;
+  }
+
+  .login-branding::after {
+    display: none;
+  }
+
+  .login-brand-inner {
+    flex: 0 1 auto;
+    min-height: 0;
+  }
+
+  .logo-box {
+    flex: 0 1 auto;
+    height: auto;
+  }
+
+  .logo-box img {
+    width: auto;
+    max-width: 100%;
+    height: auto;
+    max-height: min(42vh, 280px);
+    transform: scale(1.12);
+  }
+
+  .login-access {
+    padding: 1.5rem 1.25rem 2rem;
+  }
+
+  .login-branding {
+    order: 0;
+  }
+
+  .login-access {
+    order: 1;
+  }
+
 }

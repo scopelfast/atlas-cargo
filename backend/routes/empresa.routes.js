@@ -3,6 +3,10 @@ const express = require('express');
 const sql = require('../config/mssql-compat');
 const router = express.Router();
 const { poolPromise, getFirstNumericValue } = require('../config/db');
+const { towerAuthAndTenant } = require('../middleware/tower-auth-chain.middleware');
+const { tenantIdForRequest } = require('../utils/tenant-context');
+
+router.use(towerAuthAndTenant);
 
 // Função para validar CNPJ
 function validarCNPJ(cnpj) {
@@ -43,6 +47,7 @@ function validarCNPJ(cnpj) {
 // Listar empresas com filtros
 router.get('/empresas', async (req, res) => {
   try {
+    const tid = tenantIdForRequest(req);
     const { codigo, razaosocial, nomereduzido, cgcmatriz, situacao } = req.query;
 
     let query = `
@@ -56,10 +61,10 @@ router.get('/empresas', async (req, res) => {
         [SGUSER],
         [SERVERORIG]
       FROM [dbo].[EMPRESA]
-      WHERE 1=1
+      WHERE 1=1 AND [TENANT_ID] = @TENANT_ID
     `;
 
-    const params = [];
+    const params = [{ name: 'TENANT_ID', value: tid }];
 
     if (codigo) {
       query += ` AND [CDEMPRESA] = @CODIGO`;
@@ -86,7 +91,7 @@ router.get('/empresas', async (req, res) => {
 
     const pool = await poolPromise;
     const request = pool.request();
-    params.forEach(p => request.input(p.name, p.value));
+    params.forEach((p) => request.input(p.name, p.value));
 
     const result = await request.query(query);
     const empresas = result.recordset.map(e => ({
@@ -110,6 +115,7 @@ router.get('/empresas', async (req, res) => {
 // Buscar empresa por ID
 router.get('/empresas/:id', async (req, res) => {
   try {
+    const tid = tenantIdForRequest(req);
     const { id } = req.params;
     const idNumerico = parseInt(id);
 
@@ -121,6 +127,7 @@ router.get('/empresas/:id', async (req, res) => {
     const result = await pool
       .request()
       .input('CDEMPRESA', sql.SmallInt, idNumerico)
+      .input('TENANT_ID', tid)
       .query(`
         SELECT 
           [CDEMPRESA],
@@ -132,7 +139,7 @@ router.get('/empresas/:id', async (req, res) => {
           [SGUSER],
           [SERVERORIG]
         FROM [dbo].[EMPRESA]
-        WHERE [CDEMPRESA] = @CDEMPRESA
+        WHERE [CDEMPRESA] = @CDEMPRESA AND [TENANT_ID] = @TENANT_ID
       `);
 
     if (result.recordset.length === 0) {
@@ -159,6 +166,7 @@ router.get('/empresas/:id', async (req, res) => {
 // Inserir nova empresa
 router.post('/empresas', async (req, res) => {
   try {
+    const tid = tenantIdForRequest(req);
     const { RZSOCIAL, NMREDUZIDO, CGCMATRIZ, FGACTIVE } = req.body;
 
     if (!RZSOCIAL?.trim() || !NMREDUZIDO?.trim() || !CGCMATRIZ) {
@@ -173,17 +181,18 @@ router.post('/empresas', async (req, res) => {
 
     const pool = await poolPromise;
 
-    // Verificar duplicidade de CNPJ
+    // Verificar duplicidade de CNPJ (somente no mesmo tenant)
     const checkDuplicate = await pool
       .request()
       .input('CGCMATRIZ', sql.Decimal(15, 0), CGCMATRIZ)
-      .query('SELECT [CDEMPRESA] FROM [dbo].[EMPRESA] WHERE [CGCMATRIZ] = @CGCMATRIZ');
+      .input('TENANT_ID', tid)
+      .query('SELECT [CDEMPRESA] FROM [dbo].[EMPRESA] WHERE [CGCMATRIZ] = @CGCMATRIZ AND [TENANT_ID] = @TENANT_ID');
 
     if (checkDuplicate.recordset.length > 0) {
       return res.status(400).json({ error: 'Já existe uma empresa com este CNPJ Matriz.' });
     }
 
-    // Gerar novo ID (auto-incremento)
+    // Gerar novo ID (auto-incremento global; linhas diferenciadas por TENANT_ID)
     const maxResult = await pool
       .request()
       .query('SELECT COALESCE(MAX([CDEMPRESA]), 0) + 1 AS [maxId] FROM [dbo].[EMPRESA]');
@@ -198,14 +207,15 @@ router.post('/empresas', async (req, res) => {
       .input('NMREDUZIDO', NMREDUZIDO.trim())
       .input('CGCMATRIZ', sql.Decimal(15, 0), CGCMATRIZ)
       .input('FGACTIVE', fgactiveDB)
+      .input('TENANT_ID', tid)
       .query(`
         INSERT INTO [dbo].[EMPRESA] (
           [CDEMPRESA], [RZSOCIAL], [NMREDUZIDO], [CGCMATRIZ], [FGACTIVE],
-          [DHMAINTENANCE], [SGUSER], [SERVERORIG]
+          [DHMAINTENANCE], [SGUSER], [SERVERORIG], [TENANT_ID]
         )
         VALUES (
           @CDEMPRESA, @RZSOCIAL, @NMREDUZIDO, @CGCMATRIZ, @FGACTIVE,
-          GETDATE(), 'SYSTEM', 'AppDVcargas'
+          GETDATE(), 'SYSTEM', 'AppDVcargas', @TENANT_ID
         )
       `);
 
@@ -219,6 +229,7 @@ router.post('/empresas', async (req, res) => {
 // Atualizar empresa
 router.put('/empresas/:id', async (req, res) => {
   try {
+    const tid = tenantIdForRequest(req);
     const { id } = req.params;
     const { RZSOCIAL, NMREDUZIDO, CGCMATRIZ, FGACTIVE } = req.body;
 
@@ -239,12 +250,15 @@ router.put('/empresas/:id', async (req, res) => {
 
     const pool = await poolPromise;
 
-    // Verificar duplicidade de CNPJ (excluindo o próprio registro)
+    // Verificar duplicidade de CNPJ (excluindo o próprio registro, mesmo tenant)
     const checkDuplicate = await pool
       .request()
       .input('CGCMATRIZ', sql.Decimal(15, 0), CGCMATRIZ)
       .input('CDEMPRESA', sql.SmallInt, idNumerico)
-      .query('SELECT [CDEMPRESA] FROM [dbo].[EMPRESA] WHERE [CGCMATRIZ] = @CGCMATRIZ AND [CDEMPRESA] != @CDEMPRESA');
+      .input('TENANT_ID', tid)
+      .query(
+        'SELECT [CDEMPRESA] FROM [dbo].[EMPRESA] WHERE [CGCMATRIZ] = @CGCMATRIZ AND [CDEMPRESA] != @CDEMPRESA AND [TENANT_ID] = @TENANT_ID'
+      );
 
     if (checkDuplicate.recordset.length > 0) {
       return res.status(400).json({ error: 'Já existe outra empresa com este CNPJ Matriz.' });
@@ -259,6 +273,7 @@ router.put('/empresas/:id', async (req, res) => {
       .input('NMREDUZIDO', NMREDUZIDO.trim())
       .input('CGCMATRIZ', sql.Decimal(15, 0), CGCMATRIZ)
       .input('FGACTIVE', fgactiveDB)
+      .input('TENANT_ID', tid)
       .query(`
         UPDATE [dbo].[EMPRESA]
         SET 
@@ -269,7 +284,7 @@ router.put('/empresas/:id', async (req, res) => {
           [DHMAINTENANCE] = GETDATE(),
           [SGUSER] = 'SYSTEM',
           [SERVERORIG] = 'AppDVcargas'
-        WHERE [CDEMPRESA] = @CDEMPRESA
+        WHERE [CDEMPRESA] = @CDEMPRESA AND [TENANT_ID] = @TENANT_ID
       `);
 
     if (result.rowsAffected[0] === 0) {
@@ -286,6 +301,7 @@ router.put('/empresas/:id', async (req, res) => {
 // Desativar/Reativar empresa (soft delete)
 router.delete('/empresas/:id', async (req, res) => {
   try {
+    const tid = tenantIdForRequest(req);
     const { id } = req.params;
     const { action } = req.query;
     const idNumerico = parseInt(id);
@@ -300,7 +316,8 @@ router.delete('/empresas/:id', async (req, res) => {
     const checkResult = await pool
       .request()
       .input('CDEMPRESA', sql.SmallInt, idNumerico)
-      .query(`SELECT [FGACTIVE] FROM [dbo].[EMPRESA] WHERE [CDEMPRESA] = @CDEMPRESA`);
+      .input('TENANT_ID', tid)
+      .query(`SELECT [FGACTIVE] FROM [dbo].[EMPRESA] WHERE [CDEMPRESA] = @CDEMPRESA AND [TENANT_ID] = @TENANT_ID`);
 
     if (checkResult.recordset.length === 0) {
       return res.status(404).json({ error: 'Empresa não encontrada.' });
@@ -326,6 +343,7 @@ router.delete('/empresas/:id', async (req, res) => {
       .request()
       .input('CDEMPRESA', sql.SmallInt, idNumerico)
       .input('FGACTIVE', sql.Char(1), novaSituacao)
+      .input('TENANT_ID', tid)
       .query(`
         UPDATE [dbo].[EMPRESA]
         SET 
@@ -333,7 +351,7 @@ router.delete('/empresas/:id', async (req, res) => {
           [DHMAINTENANCE] = GETDATE(),
           [SGUSER] = 'SYSTEM',
           [SERVERORIG] = 'AppDVcargas'
-        WHERE [CDEMPRESA] = @CDEMPRESA
+        WHERE [CDEMPRESA] = @CDEMPRESA AND [TENANT_ID] = @TENANT_ID
       `);
 
     if (result.rowsAffected[0] === 0) {

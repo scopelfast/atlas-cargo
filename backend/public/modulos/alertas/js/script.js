@@ -29,6 +29,8 @@
   let totalItens = 0;
   let socket = null;
   let estaConectado = false;
+  let filtrosLogNotificacao = { limit: 100 };
+  let heartbeatParadaPorViagem = {};
 
   // Elementos DOM
   const alertasList = document.getElementById('alertasList');
@@ -82,6 +84,7 @@
     console.log('📋 Módulo Alertas inicializando...');
     await loadContextoAlertas();
     carregarAlertas();
+    carregarLogsNotificacao();
     
     // Inicializar WebSocket
     inicializarWebSocket();
@@ -92,6 +95,118 @@
     // Atualizar contador a cada 30 segundos
     setInterval(atualizarContadorMenu, 30000);
   }
+
+  async function carregarLogsNotificacao() {
+    try {
+      const tbody = document.getElementById('logsNotificacaoBody');
+      if (!tbody) return;
+      tbody.innerHTML = `<tr><td colspan="8">${t('web.modulos.alertas.logsCarregando')}</td></tr>`;
+
+      const params = new URLSearchParams();
+      if (filtrosLogNotificacao.idViagem) params.append('idViagem', filtrosLogNotificacao.idViagem);
+      if (filtrosLogNotificacao.tipo) params.append('tipo', filtrosLogNotificacao.tipo);
+      if (filtrosLogNotificacao.sucesso !== undefined && filtrosLogNotificacao.sucesso !== '') {
+        params.append('sucesso', filtrosLogNotificacao.sucesso);
+      }
+      params.append('limit', filtrosLogNotificacao.limit || 100);
+      params.append('offset', 0);
+
+      const response = await fetch(`/api/alertas/notificacoes-log?${params.toString()}`, {
+        headers: getAuthHeaders()
+      });
+      if (!response.ok) throw new Error(`Erro ${response.status}`);
+      const data = await response.json();
+      const logs = (data && data.data) ? data.data : [];
+
+      if (!logs.length) {
+        tbody.innerHTML = `<tr><td colspan="8">${t('web.modulos.alertas.logsNenhum')}</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = logs.map((l) => {
+        const ok = !!l.SUCESSO;
+        const erro = l.ERRO ? String(l.ERRO).replace(/</g, '&lt;').replace(/>/g, '&gt;') : '-';
+        return `
+          <tr>
+            <td>${formatarDataHora(l.DHREGISTRO)}</td>
+            <td>${l.IDVIAGEM ?? '-'}</td>
+            <td>${l.TIPO_ALERTA ?? '-'}</td>
+            <td>${l.DESTINO_CONTEXTO ?? '-'}</td>
+            <td>${l.DESTINO_NUMERO ?? '-'}</td>
+            <td class="${ok ? 'log-ok' : 'log-fail'}">${ok ? t('web.modulos.alertas.logsSucesso') : t('web.modulos.alertas.logsFalha')}</td>
+            <td>${l.STATUS_HTTP ?? '-'}</td>
+            <td title="${erro}">${erro}</td>
+          </tr>
+        `;
+      }).join('');
+    } catch (err) {
+      const tbody = document.getElementById('logsNotificacaoBody');
+      if (tbody) tbody.innerHTML = `<tr><td colspan="8">${t('web.modulos.alertas.logsErroCarregar')}: ${err.message}</td></tr>`;
+    }
+  }
+
+  async function carregarIndicadoresHeartbeatParada() {
+    try {
+      const params = new URLSearchParams();
+      if (filtrosAtivos.idViagem) params.append('idViagem', filtrosAtivos.idViagem);
+      params.append('tipo', 'PARADA_HEARTBEAT');
+      params.append('sucesso', 'true');
+      params.append('limit', '500');
+      params.append('offset', '0');
+      const response = await fetch(`/api/alertas/notificacoes-log?${params.toString()}`, {
+        headers: getAuthHeaders()
+      });
+      if (!response.ok) {
+        heartbeatParadaPorViagem = {};
+        return;
+      }
+      const data = await response.json();
+      const logs = (data && data.data) ? data.data : [];
+      const idx = {};
+      logs.forEach((l) => {
+        const idViagem = l.IDVIAGEM != null ? String(l.IDVIAGEM) : '';
+        if (!idViagem) return;
+        if (!idx[idViagem]) idx[idViagem] = { total: 0, ultimoDh: null };
+        idx[idViagem].total += 1;
+        const dh = l.DHREGISTRO ? new Date(l.DHREGISTRO) : null;
+        if (dh && !Number.isNaN(dh.getTime())) {
+          if (!idx[idViagem].ultimoDh || dh > idx[idViagem].ultimoDh) {
+            idx[idViagem].ultimoDh = dh;
+          }
+        }
+      });
+      heartbeatParadaPorViagem = idx;
+    } catch (_) {
+      heartbeatParadaPorViagem = {};
+    }
+  }
+
+  window.aplicarFiltrosLogsNotificacao = function() {
+    filtrosLogNotificacao = {
+      idViagem: (document.getElementById('logFiltroIdViagem')?.value || '').trim(),
+      tipo: (document.getElementById('logFiltroTipo')?.value || '').trim(),
+      sucesso: (document.getElementById('logFiltroSucesso')?.value || '').trim(),
+      limit: parseInt((document.getElementById('logFiltroLimit')?.value || '100'), 10) || 100
+    };
+    carregarLogsNotificacao();
+  };
+
+  window.limparFiltrosLogsNotificacao = function() {
+    const idViagem = document.getElementById('logFiltroIdViagem');
+    const tipo = document.getElementById('logFiltroTipo');
+    const sucesso = document.getElementById('logFiltroSucesso');
+    const limit = document.getElementById('logFiltroLimit');
+    if (idViagem) idViagem.value = '';
+    if (tipo) tipo.value = '';
+    if (sucesso) sucesso.value = '';
+    if (limit) limit.value = '100';
+    filtrosLogNotificacao = { limit: 100 };
+    carregarLogsNotificacao();
+  };
+
+  window.recarregarLogsNotificacao = function() {
+    carregarLogsNotificacao();
+  };
 
   /**
    * Obter headers de autenticação
@@ -142,6 +257,7 @@
       if (data.success) {
         alertas = data.data || [];
         totalItens = data.total || 0;
+        await carregarIndicadoresHeartbeatParada();
         
         renderizarAlertas();
         atualizarEstatisticas();
@@ -201,12 +317,24 @@
     
     const dataFormatada = formatarData(alerta.CREATED_AT);
     const horaFormatada = formatarHora(alerta.CREATED_AT);
+    const idViagemChave = alerta.IDVIAGEM != null ? String(alerta.IDVIAGEM) : '';
+    const hbInfo = (String(alerta.TYPE || '').toUpperCase() === 'PARADA' && idViagemChave)
+      ? heartbeatParadaPorViagem[idViagemChave]
+      : null;
+    const hbTexto = hbInfo
+      ? `Lembretes ativos via heartbeat${hbInfo.ultimoDh ? ` · último: ${formatarDataHora(hbInfo.ultimoDh)}` : ''}`
+      : '';
+    const isMovimentoIndevido = String(alerta.TYPE || '').toUpperCase() === 'PARADA_SEM_REINICIO';
+    const destaqueMovimentoIndevido = isMovimentoIndevido
+      ? `<div style="font-size: 12px; color: #7c2d12; margin-top: 6px; background: #ffedd5; border: 1px solid #fed7aa; border-radius: 6px; padding: 6px 8px;"><i class='bx bx-error-circle' style="vertical-align: middle;"></i> Movimento indevido sem macro de reinício</div>`
+      : '';
+    const tipoLabel = isMovimentoIndevido ? 'MOVIMENTO_INDEVIDO' : (alerta.TYPE || 'N/A');
     
     return `
       <div class="alerta-card ${prioridadeClass} ${naoLidoClass}" data-id="${alerta.ID}">
         <div class="alerta-header-card">
           <div>
-            <span class="alerta-tipo-badge ${tipoClass}">${alerta.TYPE || 'N/A'}</span>
+            <span class="alerta-tipo-badge ${tipoClass} ${isMovimentoIndevido ? 'parada_sem_reinicio' : ''}">${tipoLabel}</span>
             <span class="alerta-status-badge ${statusClass}">${alerta.STATUS || 'Pendente'}</span>
           </div>
           <div style="text-align: right; font-size: 12px; color: #6c757d;">
@@ -214,6 +342,8 @@
           </div>
         </div>
         <div class="alerta-message">${alerta.MESSAGE || 'Sem mensagem'}</div>
+        ${destaqueMovimentoIndevido}
+        ${hbTexto ? `<div style="font-size: 12px; color: #0c4a6e; margin-top: 6px; background: #e0f2fe; border: 1px solid #bae6fd; border-radius: 6px; padding: 6px 8px;"><i class='bx bx-repeat' style="vertical-align: middle;"></i> ${hbTexto}</div>` : ''}
         ${alerta.DETAILS ? `<div style="font-size: 14px; color: #6c757d; margin-top: 8px;">${alerta.DETAILS}</div>` : ''}
         <div class="alerta-details">
           ${alerta.IDVIAGEM ? `<div class="alerta-detail-item"><i class='bx bx-map'></i> Viagem: ${alerta.IDVIAGEM}</div>` : ''}
@@ -793,7 +923,8 @@
         transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionAttempts: 5,
-        reconnectionDelay: 1000
+        reconnectionDelay: 1000,
+        auth: { token: localStorage.getItem('token') || '' }
       });
 
       socket.on('connect', () => {
@@ -906,7 +1037,7 @@
 
   function formatarData(dataString) {
     if (!dataString) return 'N/A';
-    const data = new Date(dataString);
+    const data = parseDataAlerta(dataString);
     if (Number.isNaN(data.getTime())) return 'N/A';
     const loc = contextoAlertas.locale || 'pt-BR';
     const tz = contextoAlertas.timezone || 'America/Sao_Paulo';
@@ -917,7 +1048,7 @@
 
   function formatarHora(dataString) {
     if (!dataString) return 'N/A';
-    const data = new Date(dataString);
+    const data = parseDataAlerta(dataString);
     if (Number.isNaN(data.getTime())) return 'N/A';
     const loc = contextoAlertas.locale || 'pt-BR';
     const tz = contextoAlertas.timezone || 'America/Sao_Paulo';
@@ -926,12 +1057,39 @@
 
   function formatarDataHora(dataString) {
     if (!dataString) return 'N/A';
-    const data = new Date(dataString);
+    const data = parseDataAlerta(dataString);
     if (Number.isNaN(data.getTime())) return 'N/A';
     if (typeof window.formatarDataHoraComFuso === 'function') {
       return window.formatarDataHoraComFuso(data, contextoAlertas.locale, contextoAlertas.timezone, { dateStyle: 'short', timeStyle: 'short' });
     }
     return data.toLocaleString(contextoAlertas.locale || 'pt-BR', { timeZone: contextoAlertas.timezone || 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });
+  }
+
+  /**
+   * Parse robusto para timestamps do backend.
+   * Quando vier "YYYY-MM-DD HH:mm:ss(.sss)" sem timezone, tratamos como UTC.
+   * Isso evita exibir 12:46 quando o horário correto no contexto local é 09:46.
+   */
+  function parseDataAlerta(dataValue) {
+    if (dataValue instanceof Date) return dataValue;
+    const s = String(dataValue || '').trim();
+    if (!s) return new Date(NaN);
+    // Formato com offset de hora apenas (ex.: -03 / +00) -> normaliza para -03:00 / +00:00
+    const comOffsetHora = s.match(/^(.*)([+-]\d{2})$/);
+    if (comOffsetHora && !/[+-]\d{2}:?\d{2}$/i.test(s) && !/Z$/i.test(s)) {
+      return new Date(`${comOffsetHora[1]}${comOffsetHora[2]}:00`);
+    }
+    const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(s);
+    const semTzMatch = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(\.\d+)?$/);
+    if (!hasTimezone && semTzMatch) {
+      return new Date(`${semTzMatch[1]}T${semTzMatch[2]}${semTzMatch[3] || ''}Z`);
+    }
+    // Formato sem segundos (YYYY-MM-DD HH:mm), também tratado como UTC quando vier sem timezone
+    const semTzSemSeg = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})$/);
+    if (!hasTimezone && semTzSemSeg) {
+      return new Date(`${semTzSemSeg[1]}T${semTzSemSeg[2]}:${semTzSemSeg[3]}:00Z`);
+    }
+    return new Date(s);
   }
 
   // Modal de tratativa: não fechar ao clicar fora (só pelo botão Fechar/Cancelar)

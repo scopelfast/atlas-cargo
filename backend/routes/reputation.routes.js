@@ -6,7 +6,11 @@
 const express = require('express');
 const router = express.Router();
 const reputationController = require('../controllers/reputation.controller');
-const { requireAuth } = require('../middleware/auth.middleware');
+const { towerAuthAndTenant } = require('../middleware/tower-auth-chain.middleware');
+const { requireTenantModule } = require('../middleware/tenant-module.middleware');
+
+router.use(towerAuthAndTenant);
+router.use(requireTenantModule('ranking'));
 
 // ============================================
 // Rotas do módulo separado (novas)
@@ -14,34 +18,34 @@ const { requireAuth } = require('../middleware/auth.middleware');
 // Nota: Estas rotas funcionam quando registradas como /api/ranking no app.js
 
 // Listar ranking completo
-router.get('/', requireAuth, reputationController.listar);
+router.get('/', reputationController.listar);
 
 // Top 10 motoristas
-router.get('/top10', requireAuth, reputationController.top10);
+router.get('/top10', reputationController.top10);
 
 // Dados para gráficos
-router.get('/graficos', requireAuth, reputationController.graficos);
+router.get('/graficos', reputationController.graficos);
 
 // Detalhes de um motorista
-router.get('/motorista/:id', requireAuth, reputationController.detalhesMotorista);
+router.get('/motorista/:id', reputationController.detalhesMotorista);
 
 // Calcular/Recalcular rankings (admin)
-router.post('/calcular', requireAuth, reputationController.calcular);
+router.post('/calcular', reputationController.calcular);
 
 // ============================================
 // Rotas legadas (mantidas para compatibilidade)
 // ============================================
 
 // Buscar reputação de um motorista
-router.get('/motorista/:cdmotorista', requireAuth, reputationController.buscarPorMotorista);
+router.get('/motorista/:cdmotorista', reputationController.buscarPorMotorista);
 
 // Buscar ranking de motoristas
-router.get('/ranking', requireAuth, reputationController.buscarRanking);
+router.get('/ranking', reputationController.buscarRanking);
 
 // Recalcular reputação de um motorista
-router.post('/recalcular/:cdmotorista', requireAuth, reputationController.recalcular);
+router.post('/recalcular/:cdmotorista', reputationController.recalcular);
 
 // Recalcular todas as reputações (admin)
-router.post('/recalcular-todos', requireAuth, reputationController.recalcularTodos);
+router.post('/recalcular-todos', reputationController.recalcularTodos);
 
 module.exports = router;

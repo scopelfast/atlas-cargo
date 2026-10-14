@@ -13,6 +13,13 @@ function verificarAuth() {
   const motorista = localStorage.getItem('motorista');
   if (!token || !motorista) return false;
   if (typeof isTokenExpired === 'function' && isTokenExpired()) return false;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const loginStr = payload.login != null ? String(payload.login).trim() : '';
+    if (loginStr !== '' && payload.tipo !== 'motorista') return false;
+  } catch (e) {
+    return false;
+  }
   return true;
 }
 
@@ -29,6 +36,22 @@ function getToken() {
 function getMotorista() {
   const motorista = localStorage.getItem('motorista');
   return motorista ? JSON.parse(motorista) : null;
+}
+
+/** CDCADASTRO a partir do JWT do app motorista (alinha chamadas à API ao token). */
+function getMotoristaIdDoToken() {
+  const token = localStorage.getItem('token');
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    if (payload.tipo === 'motorista') {
+      const v = payload.id ?? payload.cdcadastro;
+      if (v != null && v !== '') return v;
+    }
+  } catch (e) {
+    /* ignore */
+  }
+  return null;
 }
 
 /**

@@ -3,6 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('tema');
+        if (t == null || t === '') t = 'auto';
+        var dark = t === 'escuro' || (t === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.classList.toggle('tema-escuro', !!dark);
+        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+      } catch (e) {
+        var m = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+        if (m) {
+          document.documentElement.classList.toggle('tema-escuro', m.matches);
+          document.documentElement.setAttribute('data-theme', m.matches ? 'dark' : 'light');
+        }
+      }
+    })();
+  </script>
   <title>Cadastro - Motorista</title>
   <link rel="manifest" href="../manifest.json">
   <link rel="stylesheet" href="../css/design-system.css">
@@ -278,6 +295,129 @@
     #ocrStatus { font-size: 13px; color: #64748b; margin-top: 10px; min-height: 20px; }
     #ocrStatus.ocr-ok { color: #059669; }
     #ocrStatus.ocr-erro { color: #dc2626; }
+
+    .cadastro-muted {
+      color: #64748b;
+    }
+
+    /* Modo escuro: estilos locais usam cores fixas; alinhar superfícies e texto às variáveis do design-system */
+    html.tema-escuro,
+    html[data-theme="dark"] {
+      color-scheme: dark;
+    }
+    html.tema-escuro body.motorista-page,
+    html[data-theme="dark"] body.motorista-page {
+      background: var(--app-bg) !important;
+      color: var(--app-text);
+    }
+    html.tema-escuro body.motorista-page .container,
+    html[data-theme="dark"] body.motorista-page .container {
+      background: var(--app-card) !important;
+      box-shadow: var(--shadow-xl);
+      color: var(--app-text);
+    }
+    html.tema-escuro body.motorista-page .form-section,
+    html[data-theme="dark"] body.motorista-page .form-section {
+      border-color: var(--app-card-border);
+    }
+    html.tema-escuro body.motorista-page .form-section-body,
+    html[data-theme="dark"] body.motorista-page .form-section-body {
+      background: var(--app-surface) !important;
+      color: var(--app-text);
+    }
+    html.tema-escuro body.motorista-page label,
+    html[data-theme="dark"] body.motorista-page label {
+      color: var(--app-text-secondary) !important;
+    }
+    html.tema-escuro body.motorista-page input,
+    html.tema-escuro body.motorista-page select,
+    html[data-theme="dark"] body.motorista-page input,
+    html[data-theme="dark"] body.motorista-page select {
+      background: var(--app-input-bg) !important;
+      border-color: var(--app-input-border) !important;
+      color: var(--app-input-text) !important;
+    }
+    html.tema-escuro body.motorista-page input::placeholder,
+    html[data-theme="dark"] body.motorista-page input::placeholder {
+      color: var(--app-input-placeholder) !important;
+      opacity: 1;
+    }
+    html.tema-escuro body.motorista-page input:focus,
+    html.tema-escuro body.motorista-page select:focus,
+    html[data-theme="dark"] body.motorista-page input:focus,
+    html[data-theme="dark"] body.motorista-page select:focus {
+      border-color: var(--app-input-focus) !important;
+      box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.2);
+    }
+    html.tema-escuro body.motorista-page .btn-secondary,
+    html[data-theme="dark"] body.motorista-page .btn-secondary {
+      background: var(--gray-700) !important;
+      color: var(--app-text) !important;
+    }
+    html.tema-escuro body.motorista-page .btn-secondary:hover,
+    html[data-theme="dark"] body.motorista-page .btn-secondary:hover {
+      background: var(--gray-600) !important;
+    }
+    html.tema-escuro body.motorista-page .locais-hint,
+    html.tema-escuro body.motorista-page .classe-frota-hint,
+    html.tema-escuro body.motorista-page .hint,
+    html[data-theme="dark"] body.motorista-page .locais-hint,
+    html[data-theme="dark"] body.motorista-page .classe-frota-hint,
+    html[data-theme="dark"] body.motorista-page .hint {
+      color: var(--app-text-muted) !important;
+    }
+    html.tema-escuro body.motorista-page .locais-lista .item-local,
+    html[data-theme="dark"] body.motorista-page .locais-lista .item-local {
+      background: var(--gray-800) !important;
+      color: var(--app-text);
+      border: 1px solid var(--app-card-border);
+    }
+    html.tema-escuro body.motorista-page .locais-lista .item-local .remover,
+    html[data-theme="dark"] body.motorista-page .locais-lista .item-local .remover {
+      color: #fca5a5 !important;
+      border-color: #f87171 !important;
+    }
+    html.tema-escuro body.motorista-page .btn-foto-opcao,
+    html[data-theme="dark"] body.motorista-page .btn-foto-opcao {
+      background: rgba(45, 212, 191, 0.12) !important;
+      border-color: var(--app-primary) !important;
+      color: var(--app-accent) !important;
+    }
+    html.tema-escuro body.motorista-page .btn-foto-opcao:hover,
+    html[data-theme="dark"] body.motorista-page .btn-foto-opcao:hover {
+      background: rgba(45, 212, 191, 0.2) !important;
+    }
+    html.tema-escuro body.motorista-page #ocrStatus,
+    html[data-theme="dark"] body.motorista-page #ocrStatus {
+      color: var(--app-text-muted) !important;
+    }
+    html.tema-escuro body.motorista-page .info-box,
+    html[data-theme="dark"] body.motorista-page .info-box {
+      background: var(--warning-bg) !important;
+      color: #fde68a !important;
+      border-left-color: #fbbf24 !important;
+    }
+    html.tema-escuro body.motorista-page .success-message,
+    html[data-theme="dark"] body.motorista-page .success-message {
+      background: var(--success-bg) !important;
+      color: #6ee7b7 !important;
+    }
+    html.tema-escuro body.motorista-page .error-message,
+    html[data-theme="dark"] body.motorista-page .error-message {
+      background: var(--error-bg) !important;
+      color: #fecaca !important;
+    }
+    html.tema-escuro body.motorista-page .spinner,
+    html[data-theme="dark"] body.motorista-page .spinner {
+      border-color: var(--gray-700) !important;
+      border-top-color: var(--app-primary) !important;
+    }
+    html.tema-escuro body.motorista-page #loading p,
+    html[data-theme="dark"] body.motorista-page #loading p,
+    html.tema-escuro body.motorista-page .cadastro-muted,
+    html[data-theme="dark"] body.motorista-page .cadastro-muted {
+      color: var(--app-text-muted) !important;
+    }
   </style>
 </head>
 <body class="motorista-page">
@@ -295,12 +435,16 @@
 
     <div id="loading" class="loading">
       <div class="spinner"></div>
-      <p style="margin-top: 15px; color: #666;">Processando...</p>
+      <p class="cadastro-muted" style="margin-top: 15px;">Processando...</p>
     </div>
 
     <form id="formCadastro" style="display: block;">
       <input type="file" id="fotoDocumentoCamera" accept="image/*" capture="environment" style="display: none;">
       <input type="file" id="fotoDocumentoGaleria" accept="image/*" style="display: none;">
+
+      <div class="info-box" data-i18n="cadastro.infoFluxoSimples">
+        Nesta tela você envia o cadastro pessoal, documentos e pelo menos um veículo (sem precisar estar logado). Depois que a empresa liberar, você entra com a senha e pode complementar ou alterar veículos em «Meu perfil».
+      </div>
 
       <!-- 1. DOCUMENTO (foto + OCR) — oculto por enquanto; API de anexo será usada depois -->
       <div id="blocoAnexo" class="form-section" style="display: none;">
@@ -308,8 +452,8 @@
           <span class="icon">🪪</span> <span data-i18n="cadastro.secDocumento">Documento (CNH ou Licença)</span>
         </div>
         <div class="form-section-body">
-          <p style="font-size: 13px; color: #666; margin-bottom: 8px;" data-i18n="cadastro.documentoIntro">Tire uma foto agora ou use uma foto já salva. A leitura automática preenche os dados abaixo.</p>
-          <p style="font-size: 12px; color: #888; margin-bottom: 12px;" data-i18n="cadastro.documentoOpcional">Você pode preencher todos os campos manualmente. A foto do documento é opcional.</p>
+          <p class="cadastro-muted" style="font-size: 13px; margin-bottom: 8px;" data-i18n="cadastro.documentoIntro">Tire uma foto agora ou use uma foto já salva. A leitura automática preenche os dados abaixo.</p>
+          <p class="cadastro-muted" style="font-size: 12px; margin-bottom: 12px;" data-i18n="cadastro.documentoOpcional">Você pode preencher todos os campos manualmente. A foto do documento é opcional.</p>
           <div>
             <button type="button" class="btn-foto-opcao" id="btnTirarFoto">📷 <span data-i18n="cadastro.tirarFoto">Tirar foto agora</span></button>
             <button type="button" class="btn-foto-opcao" id="btnEscolherFoto">🖼️ <span data-i18n="cadastro.escolherFoto">Escolher foto já salva</span></button>
@@ -367,6 +511,12 @@
             <label for="email" data-i18n="cadastro.email">E-mail</label>
             <input type="email" id="email" autocomplete="email" data-i18n-placeholder="cadastro.emailPlaceholder" placeholder="seu@email.com">
           </div>
+          <div class="form-group">
+            <label for="comprovanteEndereco" data-i18n="cadastro.comprovanteEnderecoLabel">Foto do comprovante de endereço *</label>
+            <input type="file" id="comprovanteEndereco" name="comprovanteEndereco" accept="image/jpeg,image/png,image/webp" capture="environment" required>
+            <p class="cadastro-muted" style="font-size: 12px; margin-top: 8px;" data-i18n="cadastro.comprovanteEnderecoHint">Tire foto de uma conta de luz, água, gás ou uma carta com seu nome e endereço. Só aceitamos imagem (JPEG, PNG ou WebP).</p>
+            <p class="cadastro-muted" style="font-size: 12px; margin-top: 6px;" data-i18n="cadastro.hintCameraCelular">No celular, ao escolher o arquivo, em geral abre a câmera ou a galeria — use boa luz e foto nítida.</p>
+          </div>
         </div>
       </div>
 
@@ -415,7 +565,7 @@
           <span class="icon">🚛</span> <span data-i18n="cadastro.secClasseFrota">Classe de frota</span>
         </div>
         <div class="form-section-body">
-          <p class="hint classe-frota-hint" data-i18n="cadastro.classeFrotaHint">Selecione as classes de veículo que você opera (ex.: 3 eixos, 6 eixos).</p>
+          <p class="hint classe-frota-hint" data-i18n="cadastro.classeFrotaHint">Toque em pelo menos uma opção abaixo (não precisa digitar). Ex.: bitrem, truck, etc.</p>
           <div id="classesFrotaCheckboxes" class="checkbox-list checkbox-list-grid"></div>
         </div>
       </div>
@@ -435,6 +585,40 @@
         </div>
       </div>
 
+      <!-- 6b. VEÍCULOS (mesmo envio do cadastro — sem login) -->
+      <div class="form-section">
+        <div class="form-section-header">
+          <span class="icon">🚚</span> <span data-i18n="cadastro.secVeiculosCadastro">Seus veículos (neste cadastro)</span>
+        </div>
+        <div class="form-section-body">
+          <p class="hint" data-i18n="cadastro.veiculosCadastroIntro">Inclua ao menos um veículo: placa, classe desta placa e, se quiser, CRLV. Cavalo + carreta = dois itens na lista (uma placa por vez). Máximo 15.</p>
+          <div id="listaVeiculosCadastro" class="locais-lista"></div>
+          <div class="form-group">
+            <label for="cadVeicPlaca" data-i18n="veiculos.placa">Placa</label>
+            <input type="text" id="cadVeicPlaca" maxlength="10" autocomplete="off" placeholder="ABC1234 ou ABC1D23">
+          </div>
+          <div class="form-group">
+            <label for="cadVeicClasse" data-i18n="veiculos.classeFrotaDestaPlaca">Classe de frota (desta placa)</label>
+            <select id="cadVeicClasse">
+              <option value="">—</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="cadVeicRenavam" data-i18n="veiculos.renavam">RENAVAM (opcional)</label>
+            <input type="text" id="cadVeicRenavam" maxlength="11" inputmode="numeric">
+          </div>
+          <div class="form-group">
+            <label for="cadVeicPapel" data-i18n="veiculos.papel">Papel no conjunto (ex.: CAVALO, CARRETA)</label>
+            <input type="text" id="cadVeicPapel" maxlength="20" value="CAVALO" placeholder="CAVALO">
+          </div>
+          <div class="form-group">
+            <label for="cadVeicCrlv" data-i18n="veiculos.crlv">Foto do CRLV (opcional)</label>
+            <input type="file" id="cadVeicCrlv" accept="image/jpeg,image/png,image/webp" capture="environment">
+          </div>
+          <button type="button" id="btnAdicionarVeiculoCadastro" class="btn btn-adicionar-local"><span data-i18n="cadastro.adicionarVeiculoLista">Incluir veículo na lista</span></button>
+        </div>
+      </div>
+
       <!-- 7. CNH / LICENÇA -->
       <div class="form-section">
         <div class="form-section-header">
@@ -443,7 +627,7 @@
         <div class="form-section-body">
           <div class="form-group">
             <label for="cnh" data-i18n="cadastro.numeroCnh">Número da CNH / Licença</label>
-            <input type="text" id="cnh" data-i18n-placeholder="cadastro.numeroCnhPlaceholder" placeholder="Número do documento" maxlength="20">
+            <input type="text" id="cnh" data-i18n-placeholder="cadastro.numeroCnhPlaceholder" placeholder="Número do documento" maxlength="11" inputmode="numeric" title="Brasil: até 11 dígitos do registro da CNH">
           </div>
           <div class="form-group">
             <label for="categoriaCNH" data-i18n="cadastro.categoria">Categoria</label>
@@ -460,6 +644,17 @@
             <label for="validadeCnh" data-i18n="cadastro.validade">Validade</label>
             <input type="text" id="validadeCnh" data-i18n-placeholder="cadastro.validadePlaceholder" placeholder="DD/MM/AAAA" maxlength="10" inputmode="numeric" autocomplete="off" title="Digite no formato DD/MM/AAAA">
           </div>
+          <div class="form-group">
+            <label for="cnhFotoFrente" data-i18n="cadastro.cnhFotoFrenteLabel">Foto da CNH — frente (opcional)</label>
+            <input type="file" id="cnhFotoFrente" accept="image/jpeg,image/png,image/webp" capture="environment">
+            <p class="cadastro-muted" style="font-size: 12px; margin-top: 8px;" data-i18n="cadastro.cnhFotoFrenteHint">Se quiser, envie a frente da carteira. Ajuda a empresa a conferir mais rápido. JPEG, PNG ou WebP.</p>
+          </div>
+          <div class="form-group">
+            <label for="cnhFotoVerso" data-i18n="cadastro.cnhFotoVersoLabel">Foto da CNH — verso (opcional)</label>
+            <input type="file" id="cnhFotoVerso" accept="image/jpeg,image/png,image/webp" capture="environment">
+            <p class="cadastro-muted" style="font-size: 12px; margin-top: 8px;" data-i18n="cadastro.cnhFotoVersoHint">Lado de trás da mesma carteira (dados extras / observações). Também opcional.</p>
+          </div>
+          <p class="cadastro-muted" style="font-size: 12px; margin-top: 10px;" data-i18n="cadastro.hintCameraCelular">No celular, ao tocar no campo de arquivo, em geral abre a câmera ou a galeria — use boa luz e foto nítida.</p>
         </div>
       </div>
 
@@ -543,6 +738,8 @@
     }
 
     var locaisPreferidosArray = [];
+    /** Itens para enviar com o cadastro: { placa, cdClasseFrota, renavam, papel, crlvFile } */
+    var veiculosCadastroItens = [];
     var baseUrl = (typeof window.getBaseUrl === 'function') ? window.getBaseUrl() : '';
 
     var tLocais = function(key) { return (typeof window.t === 'function' ? window.t(key) : key); };
@@ -556,7 +753,8 @@
       var isBrasil = (pais === 'BR');
       var temPais = !!pais;
       if (estadoGroup) estadoGroup.style.display = temPais ? '' : 'none';
-      if (mesoGroup) mesoGroup.style.display = temPais ? '' : 'none';
+      /* Mesorregião: cadastro no sistema é por UF brasileira (CDUF); outros países não usam este nível. */
+      if (mesoGroup) mesoGroup.style.display = temPais && isBrasil ? '' : 'none';
       if (estadoSel) {
         estadoSel.innerHTML = temPais ? ('<option value="">' + tLocais('cadastro.locaisTodos') + '</option>') : '<option value="">—</option>';
         estadoSel.title = isBrasil ? tLocais('cadastro.locaisEstadoUFHint') : '';
@@ -588,9 +786,10 @@
             var opt = document.createElement('option');
             var cduf = e.CDUF != null ? e.CDUF : e.cduf;
             var nm = e.NMESTADO || e.nmestado || e.ESTADO || e.estado || cduf;
-            opt.value = cduf != null ? String(cduf) : '';
-            opt.textContent = nm;
-            if (opt.value) sel.appendChild(opt);
+            /* Igual cargas.html: UF/sigla quando CDUF não vier preenchido (evita lista vazia). */
+            opt.value = cduf != null && cduf !== '' ? String(cduf) : String(e.ESTADO || e.estado || e.uf || e.UF || '');
+            opt.textContent = nm || opt.value;
+            if (opt.value || opt.textContent) sel.appendChild(opt);
           });
         }
       } catch (err) { console.warn('Erro ao carregar estados:', err); }
@@ -598,7 +797,9 @@
     async function loadLocaisMesorregioes() {
       var sel = document.getElementById('locaisMesorregiao');
       if (!sel) return;
+      var paisLoc = document.getElementById('locaisPais') && document.getElementById('locaisPais').value;
       sel.innerHTML = '<option value="">' + tLocais('cadastro.locaisTodos') + '</option>';
+      if (paisLoc && paisLoc !== 'BR') return;
       var estadoVal = document.getElementById('locaisEstado') && document.getElementById('locaisEstado').value;
       if (!estadoVal) return;
       var cduf = null;
@@ -648,7 +849,11 @@
     }
     document.getElementById('btnAdicionarLocal') && document.getElementById('btnAdicionarLocal').addEventListener('click', async function() {
       var pais = (document.getElementById('locaisPais') && document.getElementById('locaisPais').value) || '';
-      if (!pais.trim()) { alert('Selecione o país.'); return; }
+      if (!pais.trim()) {
+        if (typeof mostrarMensagem === 'function') mostrarMensagem('error', (typeof window.t === 'function' ? window.t('cadastro.selecionePais') : 'Selecione o país.'));
+        else alert('Selecione o país.');
+        return;
+      }
       var tipo = (document.getElementById('locaisTipo') && document.getElementById('locaisTipo').value) || 'E';
       var estadoSel = document.getElementById('locaisEstado');
       var mesoSel = document.getElementById('locaisMesorregiao');
@@ -677,6 +882,23 @@
     document.getElementById('locaisPais') && document.getElementById('locaisPais').addEventListener('change', toggleLocaisEstadoMesoregiao);
     document.getElementById('locaisEstado') && document.getElementById('locaisEstado').addEventListener('change', loadLocaisMesorregioes);
 
+    function fillCadVeicClasseSelect() {
+      var sel = document.getElementById('cadVeicClasse');
+      var container = document.getElementById('classesFrotaCheckboxes');
+      if (!sel || !container) return;
+      while (sel.options.length > 1) sel.remove(1);
+      container.querySelectorAll('label').forEach(function(lab) {
+        var inp = lab.querySelector('input[name="classeFrota"]');
+        if (!inp) return;
+        var id = inp.value;
+        var txt = (lab.textContent || '').replace(/^\s+/, '').trim();
+        var o = document.createElement('option');
+        o.value = String(id);
+        o.textContent = txt || String(id);
+        sel.appendChild(o);
+      });
+    }
+
     async function loadClassesFrota() {
       var container = document.getElementById('classesFrotaCheckboxes');
       if (!container) return;
@@ -689,8 +911,80 @@
           var nome = c.DSCLASSEFROTA || c.dsclassefrota || id;
           return '<label><input type="checkbox" name="classeFrota" value="' + id + '"> ' + (nome || id) + '</label>';
         }).join('');
+        fillCadVeicClasseSelect();
       } catch (err) { container.innerHTML = '<p style="font-size:13px;color:#666;">Não foi possível carregar as classes.</p>'; }
     }
+
+    function renderVeiculosCadastroLista() {
+      var box = document.getElementById('listaVeiculosCadastro');
+      if (!box) return;
+      var t = typeof window.t === 'function' ? window.t : function(k) { return k; };
+      if (veiculosCadastroItens.length === 0) {
+        box.innerHTML = '';
+        return;
+      }
+      var rem = t('cadastro.remover');
+      box.innerHTML = veiculosCadastroItens.map(function(it, idx) {
+        var pl = String(it.placa || '').toUpperCase();
+        return '<div class="item-local" data-vidx="' + idx + '"><span class="tipo">' + pl + '</span> · ' + t('veiculos.classeFrotaDestaPlaca') + ': ' + String(it.cdClasseFrota) +
+          (it.papel ? ' · ' + String(it.papel) : '') +
+          (it.renavam ? ' · RENAVAM ' + String(it.renavam) : '') +
+          (it.crlvFile ? ' · CRLV' : '') +
+          '<button type="button" class="remover">' + rem + '</button></div>';
+      }).join('');
+      box.querySelectorAll('.remover').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          var row = btn.closest('.item-local');
+          var ix = row ? parseInt(row.getAttribute('data-vidx'), 10) : NaN;
+          if (!isNaN(ix)) {
+            veiculosCadastroItens.splice(ix, 1);
+            renderVeiculosCadastroLista();
+          }
+        });
+      });
+    }
+
+    document.getElementById('btnAdicionarVeiculoCadastro') && document.getElementById('btnAdicionarVeiculoCadastro').addEventListener('click', function() {
+      var t = window.t || function(k) { return k; };
+      if (veiculosCadastroItens.length >= 15) {
+        mostrarMensagem('error', t('cadastro.veiculosLimiteExcedido'));
+        return;
+      }
+      var placaEl = document.getElementById('cadVeicPlaca');
+      var classeEl = document.getElementById('cadVeicClasse');
+      var placa = (placaEl && placaEl.value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (placa.length !== 7) {
+        mostrarMensagem('error', t('veiculos.placaInvalida'));
+        return;
+      }
+      var cf = classeEl && classeEl.value ? parseInt(classeEl.value, 10) : NaN;
+      if (!cf) {
+        mostrarMensagem('error', t('veiculos.classeObrigatoria'));
+        return;
+      }
+      var dup = veiculosCadastroItens.some(function(it) {
+        return String(it.placa || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '') === placa;
+      });
+      if (dup) {
+        mostrarMensagem('error', t('cadastro.veiculosPlacaDuplicadaLista'));
+        return;
+      }
+      var crlvIn = document.getElementById('cadVeicCrlv');
+      var crlvF = (crlvIn && crlvIn.files && crlvIn.files[0]) ? crlvIn.files[0] : null;
+      var ren = (document.getElementById('cadVeicRenavam') && document.getElementById('cadVeicRenavam').value || '').replace(/\D/g, '').slice(0, 11);
+      var pap = (document.getElementById('cadVeicPapel') && document.getElementById('cadVeicPapel').value || 'CAVALO').trim().slice(0, 20) || 'CAVALO';
+      veiculosCadastroItens.push({
+        placa: placa,
+        cdClasseFrota: cf,
+        renavam: ren || '',
+        papel: pap,
+        crlvFile: crlvF
+      });
+      if (placaEl) placaEl.value = '';
+      if (document.getElementById('cadVeicRenavam')) document.getElementById('cadVeicRenavam').value = '';
+      if (crlvIn) crlvIn.value = '';
+      renderVeiculosCadastroLista();
+    });
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function() {
       loadPaisesCadastroMotorista();
@@ -1022,6 +1316,14 @@
       this.value = '';
     });
 
+    var cnhFrenteEl = document.getElementById('cnhFotoFrente');
+    if (cnhFrenteEl) {
+      cnhFrenteEl.addEventListener('change', function() {
+        var f = this.files && this.files[0];
+        if (f) processarFotoDocumento(f);
+      });
+    }
+
     function toggleDddPorPais() {
       var ddiEl = document.getElementById('ddi');
       var dddGroup = document.getElementById('dddGroup');
@@ -1104,6 +1406,20 @@
         mostrarMensagem('error', t('cadastro.celularInvalido') || 'Celular inválido. Brasil: DDD (2 dígitos) e número 9XXXX-XXXX. Ex: DDD 41, número 99837-1769.');
         return;
       }
+      var compEl = document.getElementById('comprovanteEndereco');
+      if (!compEl || !compEl.files || !compEl.files[0]) {
+        mostrarMensagem('error', t('cadastro.comprovanteEnderecoObrigatorio'));
+        return;
+      }
+      var classesFrota = Array.from(document.querySelectorAll('input[name="classeFrota"]:checked')).map(function(cb) { return parseInt(cb.value, 10); }).filter(function(n) { return !isNaN(n); });
+      if (!classesFrota.length) {
+        mostrarMensagem('error', t('cadastro.classeFrotaObrigatoria'));
+        return;
+      }
+      if (!veiculosCadastroItens.length) {
+        mostrarMensagem('error', t('cadastro.veiculosObrigatorioMin1'));
+        return;
+      }
       var fd = new FormData();
       fd.append('ddi', document.getElementById('ddi').value);
       fd.append('ddd', dddRaw);
@@ -1111,7 +1427,6 @@
       fd.append('nome', document.getElementById('nome').value.trim());
       var locaisPayload = locaisPreferidosArray.map(function(item) { return { TIPO: item.TIPO, PAIS: item.PAIS, CDUF: item.CDUF, CDMESOREGIAO: item.CDMESOREGIAO }; });
       fd.append('locaisPreferidos', JSON.stringify(locaisPayload));
-      var classesFrota = Array.from(document.querySelectorAll('input[name="classeFrota"]:checked')).map(function(cb) { return parseInt(cb.value, 10); }).filter(function(n) { return !isNaN(n); });
       fd.append('classesFrota', JSON.stringify(classesFrota));
       fd.append('fgRastreado', (document.getElementById('fgRastreado') && document.getElementById('fgRastreado').value) || 'N');
       fd.append('paisDocumento', document.getElementById('paisDocumento').value);
@@ -1121,13 +1436,39 @@
       fd.append('categoriaCnh', document.getElementById('categoriaCNH').value);
       fd.append('validadeCnh', document.getElementById('validadeCnh').value.trim());
       fd.append('senha', senha);
-      if (arquivoDocumentoParaEnvio) fd.append('documento', arquivoDocumentoParaEnvio);
+      var cnhFrenteInput = document.getElementById('cnhFotoFrente');
+      if (cnhFrenteInput && cnhFrenteInput.files && cnhFrenteInput.files[0]) {
+        fd.append('documento', cnhFrenteInput.files[0]);
+      } else if (arquivoDocumentoParaEnvio) {
+        fd.append('documento', arquivoDocumentoParaEnvio);
+      }
+      var cnhVersoInput = document.getElementById('cnhFotoVerso');
+      if (cnhVersoInput && cnhVersoInput.files && cnhVersoInput.files[0]) {
+        fd.append('documentoVerso', cnhVersoInput.files[0]);
+      }
+      fd.append('comprovanteEndereco', compEl.files[0]);
+      fd.append(
+        'veiculos',
+        JSON.stringify(
+          veiculosCadastroItens.map(function(it) {
+            return {
+              placa: it.placa,
+              cdClasseFrota: it.cdClasseFrota,
+              renavam: it.renavam || '',
+              papel: it.papel || 'CAVALO',
+            };
+          })
+        )
+      );
+      veiculosCadastroItens.forEach(function(it, idx) {
+        if (it.crlvFile) fd.append('veiculoCrlv_' + idx, it.crlvFile);
+      });
       var loading = document.getElementById('loading');
       var form = document.getElementById('formCadastro');
       loading.style.display = 'block';
       form.style.display = 'none';
       try {
-        var response = await fetch('/api/motorista/cadastro', { method: 'POST', body: fd });
+        var response = await fetch((baseUrl || '') + '/api/motorista/cadastro', { method: 'POST', body: fd });
         var data = await response.json();
         loading.style.display = 'none';
         if (response.ok) {
@@ -1135,7 +1476,9 @@
           setTimeout(function() { window.location.href = '../index.html'; }, 3000);
         } else {
           form.style.display = 'block';
-          mostrarMensagem('error', data.error || t('cadastro.erroEnviar'));
+          var errTxt = data.error || t('cadastro.erroEnviar');
+          if (data.errorKey && typeof t === 'function') errTxt = t(data.errorKey) || errTxt;
+          mostrarMensagem('error', errTxt);
         }
       } catch (err) {
         loading.style.display = 'none';

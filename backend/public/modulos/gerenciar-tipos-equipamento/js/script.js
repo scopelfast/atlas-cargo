@@ -15,6 +15,17 @@
   let initExecutado = false;
   let tipoFormSubmitting = false; // evita duplo envio (dois registros no banco)
 
+  function getAuthHeaders(extra = {}) {
+    const headers = { ...extra };
+    const token = localStorage.getItem('token');
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      if (user && (user.login || user.SGUSUARIO)) headers['user-login'] = user.login || user.SGUSUARIO;
+    } catch (e) {}
+    return headers;
+  }
+
   // Função para carregar e executar o arquivo init.sql
   async function executarInitSQL() {
     if (sqlExecutado) return;
@@ -134,7 +145,7 @@
     if (situacao) params.append('situacao', situacao);
     
     try {
-      const response = await fetch(`/api/tipos-equipamento?${params.toString()}`);
+      const response = await fetch(`/api/tipos-equipamento?${params.toString()}`, { headers: getAuthHeaders() });
       const tipos = await response.json();
 
       // salvar cache de resultados
@@ -358,6 +369,7 @@
 
     gridTab = new window.GridEditor({
       container: '#tiposGrid',
+      buildFetchHeaders: () => getAuthHeaders(),
       columns: [
         { field: 'CDTIPOEQUIPAMENTO', header: 'Código', editable: false, isId: true, width: '80px' },
         { field: 'DSTIPOEQUIPAMENTO', header: 'Descrição', editable: true, type: 'text', maxlength: 40 },
@@ -400,11 +412,14 @@
         tipoForm.reset();
       }
       
-      const response = await fetch(`/api/tipos-equipamento`);
-      const tipos = await response.json();
-      const tipo = tipos.find(t => t.CDTIPOEQUIPAMENTO.toString() === id.toString());
+      const response = await fetch(`/api/tipos-equipamento/${encodeURIComponent(id)}`, { headers: getAuthHeaders() });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || response.statusText);
+      }
+      const tipo = await response.json();
       
-      if (tipo) {
+      if (tipo && tipo.CDTIPOEQUIPAMENTO != null) {
         document.getElementById('tipoCodigo').value = tipo.CDTIPOEQUIPAMENTO;
         document.getElementById('tipoDescricao').value = tipo.DSTIPOEQUIPAMENTO;
         document.getElementById('tipoSituacao').value = tipo.FGACTIVE;
@@ -439,7 +454,7 @@
     try {
       // Buscar o status atual do tipo
       const idToCheck = isNaN(idStr) ? idStr : parseInt(idStr, 10);
-      const response = await fetch(`/api/tipos-equipamento/${idToCheck}`);
+      const response = await fetch(`/api/tipos-equipamento/${idToCheck}`, { headers: getAuthHeaders() });
       if (!response.ok) {
         throw new Error('Erro ao buscar tipo');
       }
@@ -482,7 +497,8 @@
           
           const idToDelete = isNaN(deleteId) ? deleteId : parseInt(deleteId, 10);
           const response = await fetch(`/api/tipos-equipamento/${idToDelete}?action=${acao}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getAuthHeaders()
           });
           
           const data = await response.json();
@@ -550,13 +566,13 @@
         tipoData.FGACTIVE = situacao;
         response = await fetch(`/api/tipos-equipamento/${id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(tipoData)
         });
       } else {
         response = await fetch('/api/tipos-equipamento', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify(tipoData)
         });
       }

@@ -18,6 +18,7 @@
 
 const sql = require('../config/mssql-compat');
 const { poolPromise } = require('../config/db');
+const { tenantIdForRequest } = require('../utils/tenant-context');
 const reputationService = require('../services/reputation-service');
 
 const reputationController = {
@@ -32,6 +33,7 @@ const reputationController = {
       const pool = await poolPromise;
       const request = pool.request();
       request.input('cdmotorista', sql.Decimal(15, 0), cdmotorista);
+      request.input('tenantId', sql.NVarChar(64), tenantIdForRequest(req));
 
       const result = await request.query(`
         SELECT 
@@ -46,8 +48,8 @@ const reputationController = {
           dr.LAST_UPDATED,
           cg.RZSOCIAL AS NOME_MOTORISTA
         FROM DRIVER_REPUTATION dr
-        LEFT JOIN CADASTROGERAL cg ON dr.CDMOTORISTA = cg.CDCADASTRO
-        WHERE dr.CDMOTORISTA = @cdmotorista
+        LEFT JOIN CADASTROGERAL cg ON dr.CDMOTORISTA = cg.CDCADASTRO AND cg."TENANT_ID" = @tenantId
+        WHERE dr.CDMOTORISTA = @cdmotorista AND dr."TENANT_ID" = @tenantId
       `);
 
       if (result.recordset.length === 0) {
@@ -83,6 +85,7 @@ const reputationController = {
       const pool = await poolPromise;
       const request = pool.request();
       request.input('limit', sql.Int, parseInt(limit));
+      request.input('tenantId', sql.NVarChar(64), tenantIdForRequest(req));
 
       const result = await request.query(`
         SELECT TOP (@limit)
@@ -102,8 +105,8 @@ const reputationController = {
             ELSE 0
           END AS TAXA_PONTUALIDADE
         FROM DRIVER_REPUTATION dr
-        LEFT JOIN CADASTROGERAL cg ON dr.CDMOTORISTA = cg.CDCADASTRO
-        WHERE dr.TOTAL_DELIVERIES > 0
+        LEFT JOIN CADASTROGERAL cg ON dr.CDMOTORISTA = cg.CDCADASTRO AND cg."TENANT_ID" = @tenantId
+        WHERE dr.TOTAL_DELIVERIES > 0 AND dr."TENANT_ID" = @tenantId
         ORDER BY dr.SCORE DESC, dr.TOTAL_DELIVERIES DESC
       `);
 
@@ -130,7 +133,7 @@ const reputationController = {
     try {
       const { cdmotorista } = req.params;
 
-      const resultado = await reputationService.calcularReputacao(cdmotorista);
+      const resultado = await reputationService.calcularReputacao(cdmotorista, tenantIdForRequest(req));
 
       // Emitir evento WebSocket para Torre de Controle
       try {
@@ -150,9 +153,18 @@ const reputationController = {
 
     } catch (error) {
       console.error('Erro ao recalcular reputação:', error);
-      res.status(500).json({ 
+      if (error.code === 'NOT_IN_TENANT') {
+        return res.status(404).json({
+          error: 'Motorista não encontrado ou não pertence ao seu tenant.',
+          details: error.message
+        });
+      }
+      if (error.code === 'INVALID_CDM') {
+        return res.status(400).json({ error: 'Código de motorista inválido.', details: error.message });
+      }
+      res.status(500).json({
         error: 'Erro ao recalcular reputação',
-        details: error.message 
+        details: error.message
       });
     }
   },
@@ -163,7 +175,7 @@ const reputationController = {
    */
   recalcularTodos: async (req, res) => {
     try {
-      const resultado = await reputationService.recalcularTodasReputacoes();
+      const resultado = await reputationService.recalcularTodasReputacoes(tenantIdForRequest(req));
       
       // Emitir eventos WebSocket para atualizações de reputação
       try {
@@ -238,6 +250,7 @@ const reputationController = {
       
       const pool = await poolPromise;
       const request = pool.request();
+      request.input('tenantId', sql.NVarChar(64), tenantIdForRequest(req));
 
       let query = `
         SELECT 
@@ -255,8 +268,8 @@ const reputationController = {
           cg.RZSOCIAL as NOME_MOTORISTA,
           ROW_NUMBER() OVER (ORDER BY rd.PONTUACAO_GERAL DESC, rd.ENTREGAS_TOTAL DESC) as POSICAO
         FROM [dbo].[RANKING_DATA] rd
-        LEFT JOIN [dbo].[CADASTROGERAL] cg ON rd.ID_MOTORISTA = cg.CDCADASTRO
-        WHERE 1=1
+        LEFT JOIN [dbo].[CADASTROGERAL] cg ON rd.ID_MOTORISTA = cg.CDCADASTRO AND cg."TENANT_ID" = @tenantId
+        WHERE rd."TENANT_ID" = @tenantId
       `;
 
       if (periodoInicio) {
@@ -279,8 +292,9 @@ const reputationController = {
       const result = await request.query(query);
 
       // Contar total
-      let countQuery = `SELECT COUNT(*) as total FROM [dbo].[RANKING_DATA] rd WHERE 1=1`;
+      let countQuery = `SELECT COUNT(*) as total FROM [dbo].[RANKING_DATA] rd WHERE rd."TENANT_ID" = @tenantId`;
       const countRequest = pool.request();
+      countRequest.input('tenantId', sql.NVarChar(64), tenantIdForRequest(req));
       if (periodoInicio) {
         countRequest.input('periodoInicio', sql.Date, periodoInicio);
         countQuery += ` AND rd.PERIODO_INICIO >= @periodoInicio`;
@@ -350,6 +364,7 @@ const reputationController = {
       
       const pool = await poolPromise;
       const request = pool.request();
+      request.input('tenantId', sql.NVarChar(64), tenantIdForRequest(req));
 
       // Top 10
       let top10Query = `
@@ -361,8 +376,8 @@ const reputationController = {
           rd.ENTREGAS_TOTAL,
           rd.AVALIACOES_MEDIA
         FROM [dbo].[RANKING_DATA] rd
-        LEFT JOIN [dbo].[CADASTROGERAL] cg ON rd.ID_MOTORISTA = cg.CDCADASTRO
-        WHERE 1=1
+        LEFT JOIN [dbo].[CADASTROGERAL] cg ON rd.ID_MOTORISTA = cg.CDCADASTRO AND cg."TENANT_ID" = @tenantId
+        WHERE rd."TENANT_ID" = @tenantId
       `;
 
       if (periodoInicio) {
@@ -379,20 +394,34 @@ const reputationController = {
       const top10Result = await request.query(top10Query);
 
       // Evolução mensal (últimos 12 meses)
-      const evolucaoResult = await pool.request().query(`
+      const evolucaoResult = await pool
+        .request()
+        .input('tenantId', sql.NVarChar(64), tenantIdForRequest(req))
+        .query(`
         SELECT 
           FORMAT(PERIODO_INICIO, 'yyyy-MM') as MES,
           AVG(PONTUACAO_GERAL) as PONTUACAO_MEDIA,
           SUM(ENTREGAS_TOTAL) as TOTAL_ENTREGAS,
           AVG(AVALIACOES_MEDIA) as MEDIA_AVALIACOES
         FROM [dbo].[RANKING_DATA]
-        WHERE PERIODO_INICIO >= DATEADD(MONTH, -12, GETDATE())
+        WHERE "TENANT_ID" = @tenantId
+          AND PERIODO_INICIO >= DATEADD(MONTH, -12, GETDATE())
         GROUP BY FORMAT(PERIODO_INICIO, 'yyyy-MM')
         ORDER BY MES
       `);
 
       // Distribuição de pontuação
-      const distribuicaoResult = await pool.request().query(`
+      const distReq = pool.request().input('tenantId', sql.NVarChar(64), tenantIdForRequest(req));
+      let distWhere = `WHERE "TENANT_ID" = @tenantId`;
+      if (periodoInicio) {
+        distReq.input('periodoInicio', sql.Date, periodoInicio);
+        distWhere += ` AND PERIODO_INICIO >= @periodoInicio`;
+      }
+      if (periodoFim) {
+        distReq.input('periodoFim', sql.Date, periodoFim);
+        distWhere += ` AND PERIODO_FIM <= @periodoFim`;
+      }
+      const distribuicaoResult = await distReq.query(`
         SELECT 
           CASE 
             WHEN PONTUACAO_GERAL >= 90 THEN '90-100'
@@ -403,9 +432,7 @@ const reputationController = {
           END as FAIXA,
           COUNT(*) as QUANTIDADE
         FROM [dbo].[RANKING_DATA]
-        WHERE 1=1
-        ${periodoInicio ? `AND PERIODO_INICIO >= '${periodoInicio}'` : ''}
-        ${periodoFim ? `AND PERIODO_FIM <= '${periodoFim}'` : ''}
+        ${distWhere}
         GROUP BY 
           CASE 
             WHEN PONTUACAO_GERAL >= 90 THEN '90-100'
@@ -443,6 +470,7 @@ const reputationController = {
       const pool = await poolPromise;
       const request = pool.request();
       request.input('idMotorista', sql.Decimal(15, 0), parseFloat(id));
+      request.input('tenantId', sql.NVarChar(64), tenantIdForRequest(req));
 
       let query = `
         SELECT 
@@ -451,8 +479,8 @@ const reputationController = {
           cg.[NRCELULAR] as CELULAR,
           ROW_NUMBER() OVER (ORDER BY rd.[PONTUACAO_GERAL] DESC, rd.[ENTREGAS_TOTAL] DESC) as POSICAO
         FROM [dbo].[RANKING_DATA] rd
-        LEFT JOIN [dbo].[CADASTROGERAL] cg ON rd.[ID_MOTORISTA] = cg.[CDCADASTRO]
-        WHERE rd.[ID_MOTORISTA] = @idMotorista
+        LEFT JOIN [dbo].[CADASTROGERAL] cg ON rd.[ID_MOTORISTA] = cg.[CDCADASTRO] AND cg."TENANT_ID" = @tenantId
+        WHERE rd.[ID_MOTORISTA] = @idMotorista AND rd."TENANT_ID" = @tenantId
       `;
 
       if (periodoInicio) {

@@ -9,6 +9,8 @@
   <link rel="stylesheet" href="/css/modulos.css">
   <link rel="stylesheet" href="/css/dark-mode.css">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+  <!-- Leaflet (estático: evita falha do load dinâmico / SRI do unpkg) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
   <style>
     /* ========== Gerenciar Viagens - Identidade Atlas Cargo ========== */
     .viagens-container {
@@ -200,6 +202,27 @@
       border-color: var(--ac-accent, #0ea5e9);
       box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
     }
+    /* Roteiro e valores: mesma grade e tipografia que Identificação; só o par distância+botão precisa de flex */
+    .viagens-container .filtros-grid .distancia-wrap {
+      display: flex;
+      gap: 10px;
+      align-items: stretch;
+      min-width: 0;
+    }
+    .viagens-container .filtros-grid .distancia-wrap .form-control {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .viagens-container .filtros-grid .distancia-wrap .btn-calcular-distancia {
+      flex: 0 0 auto;
+      white-space: nowrap;
+      margin-right: 0;
+    }
+    @media (max-width: 640px) {
+      .viagens-container .filtros-grid .distancia-wrap {
+        flex-direction: column;
+      }
+    }
     .form-dados-card {
       background: #fff;
       border-radius: 12px;
@@ -369,6 +392,66 @@
     .viagens-container .form-box h2 {
       color: var(--ac-primary, #0d2137);
     }
+
+    /* Modal Confirmar Convocação — alertas legíveis em claro e escuro (cores via dark-mode.css) */
+    .convocacao-modal-body {
+      text-align: left;
+      line-height: 1.75;
+    }
+    .convocacao-modal-meta {
+      margin: 0 0 10px 0;
+      color: #475569;
+      font-size: 15px;
+    }
+    .convocacao-modal-meta strong {
+      color: #0f172a;
+      font-weight: 600;
+    }
+    .convocacao-modal-meta-valor {
+      color: #334155;
+      font-weight: 500;
+    }
+    .convocacao-modal-alerta {
+      margin-top: 16px;
+      padding: 14px 16px;
+      background: #fffbeb;
+      border: 1px solid #fcd34d;
+      border-radius: 10px;
+      border-left: 4px solid #f59e0b;
+      box-sizing: border-box;
+    }
+    .convocacao-modal-alerta__titulo {
+      margin: 0 0 10px 0;
+      font-weight: 600;
+      color: #92400e;
+      font-size: 15px;
+    }
+    .convocacao-modal-alerta__titulo .bx {
+      font-size: 1.15em;
+      vertical-align: middle;
+    }
+    .convocacao-modal-alerta__texto {
+      margin: 0 0 12px 0;
+      color: #92400e;
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    .convocacao-modal-alerta__nota {
+      margin: 0;
+      font-size: 13px;
+      font-style: italic;
+      line-height: 1.55;
+      color: #78350f;
+    }
+    .convocacao-modal-alerta__nota .bx {
+      font-size: 1em;
+      vertical-align: middle;
+      margin-right: 4px;
+    }
+    .convocacao-modal-erro {
+      color: #dc3545;
+    }
+
     .grid-count-bar {
       padding: 10px 0;
       color: var(--gray, #64748b);
@@ -433,6 +516,11 @@
       background: rgba(0,0,0,0.5);
       align-items: center;
       justify-content: center;
+    }
+
+    /* Acima do #confirmModal (.modal z-index 9999 em modulos.css) — evita confirmação por cima das validades */
+    #modalValidadesMotorista.modal-tratamento {
+      z-index: 10050;
     }
 
     .modal-content-tratamento {
@@ -672,8 +760,43 @@
     }
     .pod-card-section .pod-value {
       font-size: 14px;
-      color: var(--ac-primary, #0d2137);
+      color: #1e293b;
       font-weight: 500;
+    }
+    .pod-card-section .pod-meta {
+      font-size: 13px;
+      color: #64748b;
+      margin-top: 4px;
+    }
+    .pod-card-section .pod-muted {
+      color: #64748b;
+    }
+    .pod-placeholder {
+      padding: 40px;
+      text-align: center;
+      color: #64748b;
+      background: #f1f3f5;
+      border-radius: 8px;
+    }
+    .pod-modal-loading {
+      margin: 0;
+      color: #64748b;
+    }
+    /* Caixa de coordenadas — modal Localização da Macro (evita fundo claro fixo no dark) */
+    .modal-macro-coords {
+      margin-top: 15px;
+      padding: 10px 12px;
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 6px;
+      color: #212529;
+      font-size: 14px;
+    }
+    .modal-macro-coords strong {
+      color: #0d2137;
+    }
+    .pod-filename {
+      font-size: 12px;
     }
     .pod-card img.pod-foto {
       width: 100%;
@@ -682,6 +805,9 @@
       border-radius: 8px;
       background: #f1f3f5;
       border: 1px solid #dee2e6;
+    }
+    .pod-card img.pod-foto.pod-foto-erro {
+      background: #e9ecef;
     }
     .pod-card .pod-assinatura {
       max-width: 100%;
@@ -733,6 +859,335 @@
       display: flex !important;
     }
     
+    /* Filtro divergência de placas (aba Convocações): mesmo padrão visual dos inputs */
+    .convocacoes-filtro-divergencia-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 42px;
+      padding: 10px 12px;
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 8px;
+      background: #fff;
+      box-sizing: border-box;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--dark, #1e293b);
+      line-height: 1.35;
+    }
+    .convocacoes-filtro-divergencia-wrap input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      margin: 0;
+      accent-color: #ea580c;
+      cursor: pointer;
+    }
+    .convocacoes-filtro-divergencia-wrap span {
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* Convocações — status de confirmação de placas (coluna Placa(s)) */
+    .convocacao-placa-status-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      box-sizing: border-box;
+    }
+    .convocacao-placa-status-dot--ok {
+      background: #28a745;
+      box-shadow: 0 0 0 1px rgba(40, 167, 69, 0.35);
+    }
+    .convocacao-placa-status-dot--div {
+      background: #dc3545;
+      box-shadow: 0 0 0 1px rgba(220, 53, 69, 0.35);
+    }
+
+    #convocacoesGrid tbody tr.convocacao-tr-divergencia-placas td {
+      background: #fef2f2 !important;
+      box-shadow: inset 5px 0 0 0 #dc2626;
+    }
+    .convocacoes-btn-ver-justificativa {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #991b1b;
+      background: #fee2e2;
+      border: 1px solid #fecaca;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .convocacoes-btn-ver-justificativa:hover {
+      background: #fecaca;
+    }
+
+    /* Rastreamento GPS — mapa / legenda */
+    .rastreamento-info-bar {
+      margin-bottom: 20px;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border-left: 4px solid #2563eb;
+    }
+    .rastreamento-info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 15px;
+    }
+    .rastreamento-mapa-card {
+      background: #fff;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    .rastreamento-mapa-cabecalho {
+      padding: 12px 15px;
+      background: #f8f9fa;
+      border-bottom: 1px solid #dee2e6;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: #1e293b;
+    }
+    .rastreamento-legenda {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #475569;
+    }
+    .rastreamento-legenda-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .rastreamento-legenda-linha {
+      display: inline-block;
+      width: 22px;
+      height: 4px;
+      border-radius: 2px;
+    }
+    .rastreamento-legenda-linha--percorrido {
+      background: #059669;
+      box-shadow: 0 0 0 1px #0f172a;
+    }
+    .rastreamento-legenda-linha--restante {
+      background: repeating-linear-gradient(90deg, #ea580c 0 6px, transparent 6px 10px);
+      height: 4px;
+    }
+    .rastreamento-legenda-linha--planejado {
+      background: repeating-linear-gradient(90deg, #64748b 0 5px, transparent 5px 9px);
+      height: 3px;
+      opacity: 0.85;
+    }
+    #mapaRastreamento .leaflet-div-icon.marcador-rastreamento-seq,
+    #mapaRastreamento .leaflet-div-icon.custom-marker {
+      background: transparent !important;
+      border: none !important;
+    }
+    #mapaRastreamento .leaflet-tile,
+    #mapaRastreamento img.leaflet-tile {
+      max-width: none !important;
+      max-height: none !important;
+    }
+    [data-theme="dark"] .rastreamento-info-bar {
+      background: #0f172a;
+      border-left-color: #3b82f6;
+      color: #e2e8f0;
+    }
+    [data-theme="dark"] .rastreamento-mapa-card {
+      background: #1e293b;
+      border-color: #334155;
+    }
+    [data-theme="dark"] .rastreamento-mapa-cabecalho {
+      background: #0f172a;
+      border-bottom-color: #334155;
+      color: #e2e8f0;
+    }
+    [data-theme="dark"] .rastreamento-legenda {
+      color: #94a3b8;
+    }
+
+    /* Convocações — coluna Ações: só o necessário para até 4 ícones + meta */
+    #convocacoesGrid td.convocacoes-td-acoes {
+      width: 1%;
+    }
+    .convocacoes-acoes-cell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 4px;
+      width: fit-content;
+      max-width: 100%;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .convocacoes-acoes-dhconv {
+      font-size: 11px;
+      line-height: 1.35;
+      color: #555;
+      white-space: normal;
+      word-break: break-word;
+      max-width: 100%;
+      text-align: center;
+    }
+
+    /* Convocações — contexto da viagem (classe de frota acima da tabela) */
+    .convocacoes-context-banner {
+      margin-top: 10px;
+      margin-bottom: 0;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(102, 126, 234, 0.35);
+      background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(56, 189, 248, 0.06) 100%);
+      box-sizing: border-box;
+    }
+    .convocacoes-context-banner-inner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px 14px;
+    }
+    .convocacoes-context-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.85);
+      border: 1px solid rgba(102, 126, 234, 0.25);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+      font-size: 13px;
+      color: #334155;
+    }
+    .convocacoes-context-pill > i {
+      font-size: 1.15rem;
+      color: #667eea;
+    }
+    .convocacoes-context-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #64748b;
+    }
+    .convocacoes-context-value {
+      font-weight: 700;
+      color: #1e293b;
+      font-size: 14px;
+    }
+    .convocacoes-context-sub {
+      font-size: 13px;
+      color: #64748b;
+      font-weight: 500;
+    }
+    .convocacoes-context-warn {
+      font-size: 12px;
+      font-weight: 600;
+      color: #c2410c;
+      padding: 4px 10px;
+      border-radius: 6px;
+      background: rgba(251, 146, 60, 0.15);
+      border: 1px solid rgba(234, 88, 12, 0.35);
+    }
+
+    /* Convocações — meta: 2 linhas compactas (rótulo : data), pouca altura */
+    .convocacoes-acoes-meta-stack {
+      align-self: center;
+      margin-top: 0;
+      padding-top: 4px;
+      border-top: 1px dashed rgba(148, 163, 184, 0.65);
+    }
+    .convocacoes-acoes-meta-grid {
+      display: grid;
+      grid-template-columns: minmax(5.25rem, max-content) 6px max-content;
+      row-gap: 2px;
+      column-gap: 0;
+      font-size: 10px;
+      line-height: 1.15;
+      align-items: baseline;
+    }
+    .convocacoes-meta-lbl {
+      justify-self: end;
+      text-align: right;
+      font-weight: 700;
+      color: #64748b;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 4px;
+    }
+    .convocacoes-meta-lbl--acc {
+      color: #15803d;
+    }
+    .convocacoes-meta-lbl--acc i {
+      font-size: 12px;
+      color: #22c55e;
+    }
+    .convocacoes-meta-lbl--acc-pend {
+      color: #64748b;
+    }
+    .convocacoes-meta-lbl--acc-pend i {
+      color: #94a3b8;
+      font-size: 11px;
+    }
+    .convocacoes-meta-sep {
+      justify-self: center;
+      color: #94a3b8;
+      font-weight: 600;
+    }
+    .convocacoes-meta-val {
+      justify-self: start;
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+      color: #475569;
+      white-space: nowrap;
+    }
+    .convocacoes-meta-val--acc {
+      color: #166534;
+    }
+    .convocacoes-meta-val--pend {
+      color: #94a3b8;
+      font-weight: 500;
+      font-style: italic;
+      white-space: normal;
+    }
+
+    .convocacao-placa-stack {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .convocacao-placa-linha {
+      font-size: 12px;
+      line-height: 1.35;
+      word-break: break-word;
+      color: inherit;
+    }
+    .convocacao-placa-sep {
+      border: 0;
+      border-top: 1px solid rgba(148, 163, 184, 0.55);
+      margin: 5px 0 6px 0;
+      padding: 0;
+      height: 0;
+      width: 100%;
+      align-self: stretch;
+      box-sizing: border-box;
+    }
+
     /* Indicador de geolocalização profissional */
     .geoloc-indicator {
       display: inline-block;
@@ -895,7 +1350,7 @@
     }
     
     .modal-dados-completos-table tbody tr {
-      background: white;
+      background: #ffffff;
       border-bottom: 1px solid #f0f0f0;
       transition: background 0.2s ease;
     }
@@ -925,11 +1380,58 @@
     }
     
     .modal-dados-completos-table td:last-child {
-      color: var(--ac-primary, #0d2137);
+      color: #0d2137;
       font-weight: 500;
       font-size: 15px;
       text-align: left;
       padding-left: 20px;
+    }
+
+    /* Dark mode: no próprio módulo (carrega depois do dark-mode.css) */
+    html[data-theme="dark"] .modal-content-tratamento,
+    [data-theme="dark"] .modal-content-tratamento {
+      background: #1e293b !important;
+      color: #e2e8f0 !important;
+    }
+    html[data-theme="dark"] .modal-body-tratamento,
+    [data-theme="dark"] .modal-body-tratamento {
+      background: #1e293b !important;
+      color: #e2e8f0 !important;
+    }
+    html[data-theme="dark"] .modal-dados-completos-nome,
+    [data-theme="dark"] .modal-dados-completos-nome {
+      color: #f1f5f9 !important;
+      border-bottom-color: #334155 !important;
+    }
+    html[data-theme="dark"] .modal-dados-completos-table tbody tr,
+    [data-theme="dark"] .modal-dados-completos-table tbody tr {
+      background: #0f172a !important;
+      border-bottom-color: #334155 !important;
+    }
+    html[data-theme="dark"] .modal-dados-completos-table tbody tr:hover,
+    [data-theme="dark"] .modal-dados-completos-table tbody tr:hover {
+      background: #1e293b !important;
+    }
+    html[data-theme="dark"] .modal-dados-completos-table td:first-child,
+    [data-theme="dark"] .modal-dados-completos-table td:first-child {
+      color: #94a3b8 !important;
+    }
+    html[data-theme="dark"] .modal-dados-completos-table td:last-child,
+    [data-theme="dark"] .modal-dados-completos-table td:last-child {
+      color: #e2e8f0 !important;
+    }
+    html[data-theme="dark"] .modal-footer-tratamento,
+    [data-theme="dark"] .modal-footer-tratamento {
+      background: #1e293b !important;
+      border-top-color: #334155 !important;
+    }
+    html[data-theme="dark"] .modal-header-tratamento,
+    [data-theme="dark"] .modal-header-tratamento {
+      border-bottom-color: #334155 !important;
+    }
+    html[data-theme="dark"] .modal-header-tratamento h3,
+    [data-theme="dark"] .modal-header-tratamento h3 {
+      color: #f1f5f9 !important;
     }
 
     /* Modal de mapa do motorista */
@@ -968,16 +1470,67 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 16px;
       flex-shrink: 0;
     }
-    
-    .modal-mapa-motorista-header h3 {
+
+    .modal-mapa-motorista-header-main {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px 20px;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .modal-mapa-motorista-header-main h3 {
       margin: 0;
       font-size: 20px;
       font-weight: 600;
+      line-height: 1.25;
+    }
+
+    .modal-mapa-motorista-ultima-inline {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 10px;
+      font-size: 13px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+
+    .modal-mapa-motorista-ultima-inline > i.bx {
+      font-size: 1.25rem;
+      line-height: 1;
+      opacity: 0.95;
+    }
+
+    .modal-mapa-motorista-ultima-inline-label {
+      font-weight: 700;
+      opacity: 0.95;
+      white-space: nowrap;
+    }
+
+    .modal-mapa-motorista-ultima-inline-valor {
+      font-weight: 600;
+      line-height: 1.35;
+      flex: 1 1 180px;
+      min-width: 0;
+      word-break: break-word;
+    }
+
+    .modal-mapa-motorista-ultima-inline-valor.banner-sem-dados {
+      opacity: 0.88;
     }
     
     .modal-mapa-motorista-header .btn-fechar {
+      flex-shrink: 0;
+      align-self: center;
       background: rgba(255, 255, 255, 0.2);
       border: 1px solid rgba(255, 255, 255, 0.3);
       color: white;
@@ -1005,12 +1558,28 @@
       background: #f8f9fa;
       border-bottom: 1px solid #dee2e6;
       flex-shrink: 0;
+      overflow-x: hidden;
+      max-width: 100%;
+      box-sizing: border-box;
     }
-    
+
     .modal-mapa-motorista-info-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 15px;
+      gap: 12px;
+      width: 100%;
+      min-width: 0;
+    }
+    /* Uma linha: Motorista, Celular, ID, Roteiro, Distância */
+    .modal-mapa-motorista-info-grid--linha-unica {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+    @media (max-width: 1280px) {
+      .modal-mapa-motorista-info-grid--linha-unica {
+        grid-template-columns: repeat(5, minmax(130px, 1fr));
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 6px;
+      }
     }
     
     .modal-mapa-motorista-info-item {
@@ -1020,6 +1589,7 @@
       border: 1px solid #e9ecef;
       box-shadow: 0 2px 4px rgba(0,0,0,0.05);
       transition: all 0.3s ease;
+      min-width: 0;
     }
     
     .modal-mapa-motorista-info-item:hover {
@@ -1064,12 +1634,142 @@
       .validade-card-footer > div {
         width: 100%;
       }
-    }
     
     .modal-mapa-motorista-map {
       flex: 1;
       min-height: 0;
       position: relative;
+    }
+
+    /* Painel flutuante (estilo Mapa de Viagem): chegada ao carregamento vs previsão */
+    .modal-mapa-motorista-chegada-float {
+      position: absolute;
+      left: max(12px, env(safe-area-inset-left, 0px));
+      bottom: max(12px, env(safe-area-inset-bottom, 0px));
+      z-index: 1090;
+      max-width: min(560px, calc(100% - 24px));
+      width: max-content;
+      pointer-events: none;
+    }
+    .modal-mapa-motorista-chegada-float-inner {
+      pointer-events: auto;
+      background: rgba(255, 255, 255, 0.97);
+      border: 1px solid rgba(226, 232, 240, 0.98);
+      border-radius: 14px;
+      padding: 14px 16px 12px;
+      box-shadow:
+        0 4px 6px -1px rgba(15, 23, 42, 0.07),
+        0 12px 32px -8px rgba(15, 23, 42, 0.2);
+    }
+    .modal-mapa-motorista-chegada-cabecalho {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 8px;
+    }
+    .modal-mapa-motorista-chegada-titulo {
+      margin: 0;
+      flex: 1;
+      min-width: 0;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ac-primary, #0d2137);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      line-height: 1.3;
+    }
+    .modal-mapa-motorista-chegada-titulo i {
+      font-size: 1.1rem;
+      color: #64748b;
+    }
+    .modal-mapa-motorista-chegada-atualizado {
+      flex-shrink: 0;
+      max-width: 52%;
+      margin: 0;
+      padding: 2px 0 0 4px;
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1.35;
+      color: #64748b;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .modal-mapa-motorista-chegada-status {
+      margin: 0 0 10px 0;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.35;
+      display: none;
+    }
+    .modal-mapa-motorista-chegada-float.modal-mapa-motorista-chegada--ok .modal-mapa-motorista-chegada-status {
+      display: block;
+      background: rgba(14, 165, 233, 0.12);
+      color: #0369a1;
+      border: 1px solid rgba(14, 165, 233, 0.35);
+    }
+    .modal-mapa-motorista-chegada-float.modal-mapa-motorista-chegada--atraso .modal-mapa-motorista-chegada-status {
+      display: block;
+      background: rgba(245, 158, 11, 0.14);
+      color: #b45309;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+    .modal-mapa-motorista-chegada-float.modal-mapa-motorista-chegada--incerto .modal-mapa-motorista-chegada-status {
+      display: block;
+      background: rgba(234, 179, 8, 0.12);
+      color: #854d0e;
+      border: 1px solid rgba(234, 179, 8, 0.45);
+    }
+    .modal-mapa-motorista-chegada-float.modal-mapa-motorista-chegada--neutro .modal-mapa-motorista-chegada-status {
+      display: block;
+      background: rgba(100, 116, 139, 0.12);
+      color: #334155;
+      border: 1px solid rgba(100, 116, 139, 0.35);
+    }
+    .modal-mapa-motorista-chegada-resumo {
+      margin: 10px 0 0 0;
+      padding-top: 8px;
+      border-top: 1px solid rgba(226, 232, 240, 0.9);
+      font-size: 12px;
+      font-weight: 600;
+      color: #475569;
+      line-height: 1.45;
+      max-width: 520px;
+    }
+    .modal-mapa-motorista-chegada-float.modal-mapa-motorista-chegada--ok .modal-mapa-motorista-chegada-float-inner {
+      border-left: 4px solid #0ea5e9;
+    }
+    .modal-mapa-motorista-chegada-float.modal-mapa-motorista-chegada--atraso .modal-mapa-motorista-chegada-float-inner {
+      border-left: 4px solid #f59e0b;
+    }
+    .modal-mapa-motorista-chegada-float.modal-mapa-motorista-chegada--incerto .modal-mapa-motorista-chegada-float-inner {
+      border-left: 4px solid #eab308;
+    }
+    .modal-mapa-motorista-chegada-float.modal-mapa-motorista-chegada--neutro .modal-mapa-motorista-chegada-float-inner {
+      border-left: 4px solid #64748b;
+    }
+    .modal-mapa-pin-amostra { flex-shrink: 0; margin-top: 2px; }
+    .modal-mapa-pin-amostra--ok {
+      width: 18px;
+      height: 18px;
+      background: #3498db;
+      border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg);
+      border: 2px solid #fff;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    }
+    .modal-mapa-pin-amostra--alerta {
+      width: 0;
+      height: 0;
+      border-left: 10px solid transparent;
+      border-right: 10px solid transparent;
+      border-top: 17px solid #f59e0b;
+      filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.25));
+      transform: translateY(2px);
     }
     
     #mapaMotorista {
@@ -1104,18 +1804,18 @@
 
     <!-- Abas (padrão do sistema: tabs-com-icones) -->
     <div class="tabs tabs-com-icones">
-      <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.viagens.tabFiltros"><i class='bx bx-filter-alt'></i> Filtros</button>
-      <button class="tab-btn" data-tab="grid" data-i18n="web.modulos.viagens.tabGrid"><i class='bx bx-grid-alt'></i> Grid</button>
-      <button class="tab-btn" data-tab="dados" data-i18n="web.modulos.viagens.tabDados"><i class='bx bx-edit'></i> Dados</button>
-      <button class="tab-btn" data-tab="historico"><i class='bx bx-history'></i> Histórico</button>
-      <button class="tab-btn" data-tab="mapa"><i class='bx bx-map'></i> Mapa</button>
-      <button class="tab-btn" data-tab="compatíveis"><i class='bx bx-user-check'></i> Compatíveis</button>
-      <button class="tab-btn" data-tab="convocações" data-i18n="web.modulos.viagens.tabConvocacoes"><i class="bx bx-megaphone"></i> Convocações</button>
-      <button class="tab-btn" data-tab="veiculo" data-i18n="web.modulos.viagens.tabVeiculo"><i class="bx bx-truck"></i> Veículo</button>
-      <button class="tab-btn" data-tab="motorista"><i class='bx bx-user'></i> Motorista</button>
-      <button class="tab-btn" data-tab="rastreamento"><i class='bx bx-current-location'></i> Rastreamento</button>
-      <button class="tab-btn" data-tab="integracao-switch"><i class="bx bxl-whatsapp"></i> Integração Switch</button>
-      <button class="tab-btn" data-tab="macros"><i class='bx bx-list-check'></i> Macros</button>
+      <button type="button" class="tab-btn active" data-tab="filtros"><i class='bx bx-filter-alt'></i> <span data-i18n="web.modulos.viagens.tabFiltros">Filtros</span></button>
+      <button type="button" class="tab-btn" data-tab="grid"><i class='bx bx-grid-alt'></i> <span data-i18n="web.modulos.viagens.tabGrid">Grid</span></button>
+      <button type="button" class="tab-btn" data-tab="dados"><i class='bx bx-edit'></i> <span data-i18n="web.modulos.viagens.tabDados">Dados</span></button>
+      <button type="button" class="tab-btn" data-tab="historico"><i class='bx bx-history'></i> <span data-i18n="web.modulos.viagens.tabHistorico">Histórico</span></button>
+      <button type="button" class="tab-btn" data-tab="mapa"><i class='bx bx-map'></i> <span data-i18n="web.modulos.viagens.tabMapa">Mapa</span></button>
+      <button type="button" class="tab-btn" data-tab="compatíveis"><i class='bx bx-user-check'></i> <span data-i18n="web.modulos.viagens.tabCompativeis">Compatíveis</span></button>
+      <button type="button" class="tab-btn" data-tab="convocações"><i class="bx bx-megaphone"></i> <span data-i18n="web.modulos.viagens.tabConvocacoes">Convocações</span></button>
+      <button type="button" class="tab-btn" data-tab="veiculo"><i class="bx bx-truck"></i> <span data-i18n="web.modulos.viagens.tabVeiculo">Veículo</span></button>
+      <button type="button" class="tab-btn" data-tab="motorista"><i class='bx bx-user'></i> <span data-i18n="web.modulos.viagens.tabMotorista">Motorista</span></button>
+      <button type="button" class="tab-btn" data-tab="rastreamento"><i class='bx bx-current-location'></i> <span data-i18n="web.modulos.viagens.tabRastreamento">Rastreamento</span></button>
+      <button type="button" class="tab-btn" data-tab="integracao-switch"><i class="bx bxl-whatsapp"></i> <span data-i18n="web.modulos.viagens.tabIntegracaoSwitch">Integração Switch</span></button>
+      <button type="button" class="tab-btn" data-tab="macros"><i class='bx bx-list-check'></i> <span data-i18n="web.modulos.viagens.tabMacros">Macros</span></button>
     </div>
 
     <!-- Filtros -->
@@ -1243,7 +1943,7 @@
     <!-- Dados -->
     <div class="tab-content" id="tab-dados">
       <div class="form-box">
-        <h2 id="formTitle" data-i18n="web.modulos.viagens.novaViagem">Nova Viagem</h2>
+        <h2 id="formTitle" class="form-panel-titulo"><i class='bx bx-edit' aria-hidden="true"></i> <span data-i18n="web.modulos.viagens.novaViagem">Nova Viagem</span></h2>
         <form id="viagemForm">
           <input type="hidden" id="viagemId">
 
@@ -1408,9 +2108,9 @@
                 </div>
                 <div>
                   <label for="viagemDistancia">Distância (km)</label>
-                  <div style="display: flex; gap: 10px; align-items: flex-end;">
-                    <input type="number" id="viagemDistancia" step="0.01" min="0" class="form-control" style="flex: 1;">
-                    <button type="button" id="btnCalcularDistancia" class="btn btn-info" style="white-space: nowrap;" title="Calcular distância entre origem e destino">
+                  <div class="distancia-wrap">
+                    <input type="number" id="viagemDistancia" step="0.01" min="0" class="form-control">
+                    <button type="button" id="btnCalcularDistancia" class="btn btn-info btn-calcular-distancia" title="Calcular distância entre origem e destino">
                       <i class='bx bx-calculator'></i> Calcular
                     </button>
                   </div>
@@ -1464,10 +2164,50 @@
     <!-- Histórico -->
     <div class="tab-content" id="tab-historico">
       <div class="form-box">
-        <h2>Histórico de Viagens do Roteiro</h2>
+        <h2 class="form-panel-titulo"><i class='bx bx-history' aria-hidden="true"></i> <span>Histórico de Viagens do Roteiro</span></h2>
         <div class="actions-top">
           <button type="button" id="btnVoltarHistorico" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar aos Filtros</button>
           <button type="button" id="btnCarregarHistorico" class="btn save">🔄 Carregar Histórico</button>
+        </div>
+
+        <div id="historicoModoFiltroBox" class="historico-modo-filtro-box" style="margin: 16px 0; padding: 16px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
+          <div style="font-weight: 600; margin-bottom: 10px; color: var(--ac-primary, #0d2137);"><i class="bx bx-git-compare" aria-hidden="true"></i> Modo de consulta</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 14px 20px; align-items: center;">
+            <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+              <input type="radio" name="historicoModo" id="historicoModoRoteiro" value="roteiro" checked />
+              <span>Somente o roteiro da aba <strong>Dados</strong></span>
+            </label>
+            <label style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+              <input type="radio" name="historicoModo" id="historicoModoRegional" value="regional" />
+              <span>Referência regional (UF / mesorregião dos roteiros)</span>
+            </label>
+          </div>
+          <p class="hint" style="margin: 10px 0 0; font-size: 13px; color: #64748b; line-height: 1.45;">
+            No modo regional são consideradas viagens de <strong>qualquer roteiro</strong> cujo cadastro (cidades de origem/destino do roteiro) atende aos filtros — útil quando não há histórico na linha exata ou para comparar margens (ex.: SP × PR).
+          </p>
+          <div id="historicoRegionalPainel" style="display: none; margin-top: 14px;">
+            <div class="input-group" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; align-items: end;">
+              <div>
+                <label for="histUfOrigem">UF origem</label>
+                <select id="histUfOrigem" class="form-control"><option value="">(qualquer)</option></select>
+              </div>
+              <div>
+                <label for="histUfDestino">UF destino</label>
+                <select id="histUfDestino" class="form-control"><option value="">(qualquer)</option></select>
+              </div>
+              <div>
+                <label for="histMesoOrigem">Mesorregião origem</label>
+                <select id="histMesoOrigem" class="form-control"><option value="">(qualquer)</option></select>
+              </div>
+              <div>
+                <label for="histMesoDestino">Mesorregião destino</label>
+                <select id="histMesoDestino" class="form-control"><option value="">(qualquer)</option></select>
+              </div>
+            </div>
+            <button type="button" id="btnHistoricoPreencherDoRoteiro" class="btn btn-secondary btn-sm" style="margin-top: 12px;">
+              <i class="bx bx-import"></i> Preencher UF a partir do roteiro selecionado (aba Dados)
+            </button>
+          </div>
         </div>
 
         <!-- Contador de Registros -->
@@ -1517,7 +2257,7 @@
     <!-- Mapa -->
     <div class="tab-content" id="tab-mapa">
       <div class="form-box">
-        <h2>Visualização da Rota no Mapa</h2>
+        <h2 class="form-panel-titulo"><i class='bx bx-map-alt' aria-hidden="true"></i> <span>Visualização da Rota no Mapa</span></h2>
         <p style="margin-bottom: 20px; color: #666;">
           <i class='bx bx-info-circle'></i> Selecione as cidades de origem e destino na aba "Dados" para visualizar a rota no mapa.
         </p>
@@ -1566,7 +2306,7 @@
     <!-- Compatíveis -->
     <div class="tab-content" id="tab-compatíveis">
       <div class="form-box">
-        <h2>Motoristas Compatíveis</h2>
+        <h2 class="form-panel-titulo"><i class='bx bx-user-check' aria-hidden="true"></i> <span>Motoristas Compatíveis</span></h2>
         <div class="actions-top" style="margin-bottom: 16px;">
           <button type="button" id="btnVoltarCompatíveis" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar aos Filtros</button>
           <button type="button" id="btnCarregarViagensPendentes" class="btn info">Carregar Viagens Pendentes</button>
@@ -1578,7 +2318,7 @@
           <div class="form-dados-card-body">
             <p class="hint" style="margin-bottom: 14px;">Marque as validações que devem ser aplicadas ao buscar motoristas compatíveis. As alterações são gravadas para auditoria.</p>
             <div class="regras-compatibilidade-grid">
-              <label class="regra-compat-item">
+              <label class="regra-compat-item" title="Se a viagem estiver como rastreada (FGRASTREADO = Sim), só aparecem motoristas com &quot;Possui Veículo Rastreado = Sim&quot; no cadastro. Desmarque esta regra se quiser listar todos.">
                 <input type="checkbox" id="regraCompativelRastreamento" value="S">
                 <span>Validar exigência de rastreamento</span>
               </label>
@@ -1613,6 +2353,12 @@
           </div>
         </div>
 
+        <div id="resumoClasseExigidaCompativeis" class="resumo-classe-viagem-compat" style="display: none; margin: 12px 0 0 0; padding: 12px 14px; background: #e8f4fc; border: 1px solid #b6d4fe; border-radius: 8px; font-size: 14px; color: #084298;">
+          <strong>Classe exigida na viagem:</strong>
+          <span id="resumoClasseExigidaCompativeisTexto">—</span>
+          <div id="resumoClasseExigidaCompativeisExtra" style="display: none; margin-top: 8px; font-size: 13px; color: #664d03;"></div>
+        </div>
+
         <!-- Contador e Grid -->
         <div id="motoristasCompatíveisCount" style="padding: 8px 0; color: #555; font-size: 14px; font-weight: 500; display: none;">
           <span id="motoristasCompatíveisCountText">0 motorista(s) compatível(is) encontrado(s)</span>
@@ -1642,10 +2388,22 @@
     <div id="confirmModal" class="modal">
       <div class="modal-content">
         <h3 data-i18n="web.modulos.viagens.confirmarAcao">Confirmar Ação</h3>
-        <p id="modalMessage"></p>
+        <div id="modalMessage" class="modal-message-body"></div>
         <div class="modal-actions">
           <button id="confirmYes" class="btn-filtro btn-filtro-danger" type="button"><i class="bx bx-check"></i> Desativar</button>
           <button id="confirmNo" class="btn-filtro btn-filtro-limpar" type="button"><i class="bx bx-x"></i> Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Justificativa divergência de placas (convocações) -->
+    <div id="modalJustificativaDivergenciaPlacas" class="modal" style="display: none; z-index: 11000;" role="dialog" aria-modal="true" aria-labelledby="modalJustificativaDivergenciaPlacasTitulo">
+      <div class="modal-content" style="max-width: 560px;">
+        <h3 id="modalJustificativaDivergenciaPlacasTitulo" style="margin-top: 0; color: #991b1b;">Divergência de placas — justificativa</h3>
+        <p style="font-size: 13px; color: #64748b; margin: 0 0 12px 0;">Texto informado pelo motorista no link ou app. Corrija o cadastro na torre antes de confirmar a programação.</p>
+        <pre id="modalJustificativaDivergenciaPlacasCorpo" style="white-space: pre-wrap; word-break: break-word; max-height: 50vh; overflow: auto; margin: 0; padding: 14px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; font-family: inherit; font-size: 14px; line-height: 1.45; color: #1e293b;"></pre>
+        <div class="modal-actions" style="margin-top: 18px;">
+          <button type="button" class="btn-filtro btn-filtro-aplicar" onclick="fecharModalJustificativaDivergenciaPlacasTorre()"><i class="bx bx-check"></i> Entendi</button>
         </div>
       </div>
     </div>
@@ -1654,7 +2412,7 @@
     <div class="tab-content" id="tab-convocações">
       <div class="form-box">
         <div style="margin-bottom: 20px;">
-          <h2 style="margin: 0;">Gerenciar Convocações</h2>
+          <h2 class="form-panel-titulo" style="margin: 0;"><i class='bx bx-message-dots' aria-hidden="true"></i> <span>Gerenciar Convocações</span></h2>
         </div>
         <div class="actions-top">
           <button id="btnVoltarConvocacoes" type="button" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar aos Filtros</button>
@@ -1676,6 +2434,13 @@
                 <option value="RECUSADA">Recusada</option>
                 <option value="CONFIRMADA">Confirmada</option>
               </select>
+            </div>
+            <div style="flex: 1; min-width: 200px;">
+              <label for="filtroConvocacaoDivergenciaPlacas" style="display: block; margin-bottom: 8px; font-weight: 600;" data-i18n="web.modulos.viagens.filtroConvocacaoDivergenciaPlacasTitulo">Divergência de placas</label>
+              <div class="convocacoes-filtro-divergencia-wrap" title="Lista apenas convocações com FGCONFIRMACAOPLACAS = D (motorista declarou divergência pelo app ou link /convocacao; aceite bloqueado até alinhar na torre).">
+                <input type="checkbox" id="filtroConvocacaoDivergenciaPlacas" value="1" aria-describedby="hintFiltroConvocacaoDivergenciaPlacas">
+                <span id="hintFiltroConvocacaoDivergenciaPlacas" data-i18n="web.modulos.viagens.filtroConvocacaoDivergenciaPlacasLabel">Somente divergência de placas (app ou link — aceite bloqueado)</span>
+              </div>
             </div>
           </div>
         </div>
@@ -1723,7 +2488,7 @@
     <!-- Aba Veículo -->
     <div class="tab-content" id="tab-veiculo">
       <div class="form-box">
-        <h2>Gerenciar Veículo da Viagem</h2>
+        <h2 class="form-panel-titulo"><i class='bx bx-car' aria-hidden="true"></i> <span>Gerenciar Veículo da Viagem</span></h2>
         <div class="actions-top">
           <button id="btnVoltarVeiculo" type="button" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar aos Filtros</button>
         </div>
@@ -1887,7 +2652,7 @@
     <!-- Aba Motorista -->
     <div class="tab-content" id="tab-motorista">
       <div class="form-box">
-        <h2>Gerenciar Motorista da Viagem</h2>
+        <h2 class="form-panel-titulo"><i class='bx bx-id-card' aria-hidden="true"></i> <span>Gerenciar Motorista da Viagem</span></h2>
         <div class="actions-top">
           <button id="btnVoltarMotorista" type="button" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar aos Filtros</button>
         </div>
@@ -2053,20 +2818,23 @@
     <!-- Aba Rastreamento -->
     <div class="tab-content" id="tab-rastreamento">
       <div class="form-box">
-        <h2>Rastreamento GPS da Viagem</h2>
+        <h2 class="form-panel-titulo"><i class='bx bx-current-location' aria-hidden="true"></i> <span>Rastreamento GPS da Viagem</span></h2>
         <div class="actions-top">
           <button id="btnVoltarRastreamento" type="button" class="btn-filtro btn-filtro-limpar"><i class="bx bx-arrow-back"></i> Voltar aos Filtros</button>
           <button id="btnAtualizarRastreamento" type="button" class="btn info">🔄 Atualizar Posições</button>
         </div>
 
         <!-- Informações da Viagem -->
-        <div id="rastreamentoInfoViagem" style="display: none; margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #667eea;">
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+        <div id="rastreamentoInfoViagem" class="rastreamento-info-bar" style="display: none;">
+          <div class="rastreamento-info-grid">
             <div>
               <strong>ID Viagem:</strong> <span id="rastreamentoIdViagem">-</span>
             </div>
             <div>
               <strong>Motorista:</strong> <span id="rastreamentoMotorista">-</span>
+            </div>
+            <div>
+              <strong>Placa:</strong> <span id="rastreamentoPlaca">-</span>
             </div>
             <div>
               <strong>Total de Posições:</strong> <span id="rastreamentoTotalPosicoes">0</span>
@@ -2097,11 +2865,16 @@
         <div id="rastreamentoContainer" style="display: none;">
           <div style="display: grid; grid-template-columns: 1fr 400px; gap: 20px; margin-bottom: 20px;">
             <!-- Mapa -->
-            <div style="background: white; border: 1px solid #dee2e6; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); position: relative;">
-              <div style="padding: 15px; background: #f8f9fa; border-bottom: 1px solid #dee2e6;">
-                <h3 style="margin: 0; font-size: 16px; color: #333;">🗺️ Traçado da Rota</h3>
+            <div class="rastreamento-mapa-card" style="position: relative;">
+              <div class="rastreamento-mapa-cabecalho">
+                <h3 style="margin: 0; font-size: 16px;">🗺️ Traçado da Rota</h3>
+                <div id="rastreamentoLegenda" class="rastreamento-legenda" aria-label="Legenda do mapa">
+                  <span class="rastreamento-legenda-item"><i class="rastreamento-legenda-linha rastreamento-legenda-linha--percorrido"></i> Já percorrido (GPS)</span>
+                  <span class="rastreamento-legenda-item"><i class="rastreamento-legenda-linha rastreamento-legenda-linha--restante"></i> Ainda falta</span>
+                  <span class="rastreamento-legenda-item"><i class="rastreamento-legenda-linha rastreamento-legenda-linha--planejado"></i> Rota cadastrada</span>
+                </div>
               </div>
-              <div id="mapaRastreamento" style="height: 500px; width: 100%;"></div>
+              <div id="mapaRastreamento" style="height: 520px; width: 100%;"></div>
             </div>
 
             <!-- Lista de Posições -->
@@ -2127,12 +2900,19 @@
   <div id="modalMapaMotorista" class="modal-mapa-motorista">
     <div class="modal-mapa-motorista-content">
       <div class="modal-mapa-motorista-header">
-        <h3>📍 Localização do Motorista e Rota até o Carregamento</h3>
+        <div class="modal-mapa-motorista-header-main">
+          <h3>📍 Localização do Motorista e Rota até o Carregamento</h3>
+          <div class="modal-mapa-motorista-ultima-inline" id="mapaBannerUltimaPosicao" aria-live="polite">
+            <i class="bx bx-time-five" aria-hidden="true"></i>
+            <span class="modal-mapa-motorista-ultima-inline-label">Última posição do veículo</span>
+            <span class="modal-mapa-motorista-ultima-inline-valor banner-sem-dados" id="mapaBannerUltimaPosicaoTexto">Carregando…</span>
+          </div>
+        </div>
         <button class="btn-fechar" onclick="fecharModalMapaMotorista()">✕ Fechar</button>
       </div>
       <div class="modal-mapa-motorista-body">
         <div class="modal-mapa-motorista-info">
-          <div class="modal-mapa-motorista-info-grid">
+          <div class="modal-mapa-motorista-info-grid modal-mapa-motorista-info-grid--linha-unica">
             <div class="modal-mapa-motorista-info-item">
               <label>Motorista</label>
               <span id="mapaInfoMotorista">-</span>
@@ -2150,21 +2930,23 @@
               <span id="mapaInfoRoteiro">-</span>
             </div>
             <div class="modal-mapa-motorista-info-item">
-              <label>Frete</label>
-              <span id="mapaInfoFrete">-</span>
-            </div>
-            <div class="modal-mapa-motorista-info-item">
-              <label>Peso</label>
-              <span id="mapaInfoPeso">-</span>
-            </div>
-            <div class="modal-mapa-motorista-info-item">
-              <label>Distância até Origem</label>
+              <label>Distância até a origem</label>
               <span id="mapaInfoDistancia" style="color: #667eea; font-weight: 600;">Calculando...</span>
             </div>
           </div>
         </div>
         <div class="modal-mapa-motorista-map">
           <div id="mapaMotorista"></div>
+          <div id="mapaMotoristaChegadaFloat" class="modal-mapa-motorista-chegada-float" style="display: none;" aria-live="polite">
+            <div class="modal-mapa-motorista-chegada-float-inner">
+              <div class="modal-mapa-motorista-chegada-cabecalho">
+                <h4 class="modal-mapa-motorista-chegada-titulo"><i class="bx bx-trip" aria-hidden="true"></i> Chegada ao carregamento</h4>
+                <time id="mapaMotoristaChegadaAtualizado" class="modal-mapa-motorista-chegada-atualizado"></time>
+              </div>
+              <div id="mapaMotoristaChegadaStatus" class="modal-mapa-motorista-chegada-status" role="status" aria-live="polite"></div>
+              <p id="mapaMotoristaChegadaResumo" class="modal-mapa-motorista-chegada-resumo"></p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -2195,16 +2977,17 @@
   <script src="/js/utils.js"></script>
   <script src="/js/ambiente-utils.js"></script>
   <script src="/js/skeleton-loader.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <!-- Sistema simplificado de mapas -->
-  <script src="/js/map-helper.js"></script>
+  <script src="/js/map-helper.js?v=202609151845"></script>
   <!-- Compatibilidade com código antigo -->
-  <script src="/js/map-config.js"></script>
+  <script src="/js/map-config.js?v=20260915-tiles"></script>
   <script src="/js/log-helper.js"></script>
   <!-- GridEditor -->
-  <script src="/js/grid-editor.js"></script>
+  <script src="/js/grid-editor.js?v=202603311045"></script>
   <!-- Socket.io é carregado por websocket-torre.js quando necessário -->
   <script src="js/websocket-torre.js"></script>
-  <script src="js/script.js?v=202603061900"></script>
+  <script src="js/script.js?v=202609151930"></script>
 
   <!-- Modal Dados Completos do Veículo -->
   <div id="modalDadosVeiculo" class="modal-tratamento" style="display: none;">
@@ -2256,7 +3039,7 @@
         </button>
       </div>
       <div class="modal-body-tratamento">
-        <p id="modalComprovantesCarregando" style="margin: 0; color: #6c757d;">Carregando...</p>
+        <p id="modalComprovantesCarregando" class="pod-modal-loading">Carregando...</p>
         <div id="modalComprovantesLista" style="display: none; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; margin-top: 16px;">
           <!-- Cards de comprovantes preenchidos via JS -->
         </div>
@@ -2290,7 +3073,7 @@
     <div class="modal-content-tratamento" style="max-width: 900px;">
       <div class="modal-header-tratamento">
         <h3><i class='bx bx-file-blank'></i> Validades</h3>
-        <button type="button" id="btnFecharModalValidadesMotorista" class="btn-close-modal" onclick="document.getElementById('modalValidadesMotorista').style.display='none'">
+        <button type="button" id="btnFecharModalValidadesMotorista" class="btn-close-modal">
           <i class='bx bx-x'></i>
         </button>
       </div>
@@ -2303,7 +3086,7 @@
         </div>
       </div>
       <div class="modal-footer-tratamento">
-        <button type="button" onclick="document.getElementById('modalValidadesMotorista').style.display='none'" class="btn btn-secondary">
+        <button type="button" id="btnFecharModalValidadesRodape" class="btn btn-secondary">
           <i class='bx bx-x'></i> Fechar
         </button>
       </div>
@@ -2320,7 +3103,10 @@
     <div class="tab-content" id="tab-integracao-switch">
       <div class="form-box">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-          <h2 style="margin: 0;"><i class="bx bxl-whatsapp" style="color: #25D366;"></i> Switch Digital - Logs de Envio</h2>
+          <h2 style="margin: 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <span><i class="bx bxl-whatsapp" style="color: #25D366;"></i> Switch Digital - Logs de Envio</span>
+            <span id="switchSaudeBadge" class="switch-saude-badge switch-saude-badge--loading">Sessão Switch: verificando...</span>
+          </h2>
           <div style="display: flex; gap: 10px;">
             <button id="btnAtualizarLogsSwitch" type="button" class="btn btn-primary btn-sm">
               <i class='bx bx-refresh'></i> Atualizar Logs
@@ -2395,6 +3181,31 @@
     #logsIntegracaoSwitchParent.switch-logs-viewer { min-width: 0; }
     #logsIntegracaoSwitch.switch-logs-content pre { max-width: 100%; }
     .tab-content#tab-integracao-switch .form-box { min-width: 0; max-width: 100%; overflow: hidden; }
+    #tab-integracao-switch .switch-saude-badge {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border: 1px solid transparent;
+      line-height: 1.2;
+    }
+    #tab-integracao-switch .switch-saude-badge--ok {
+      background: #e8f9ef;
+      color: #0f7a36;
+      border-color: #b7ebca;
+    }
+    #tab-integracao-switch .switch-saude-badge--down {
+      background: #fdecec;
+      color: #a91d2f;
+      border-color: #f5c2c7;
+    }
+    #tab-integracao-switch .switch-saude-badge--loading {
+      background: #eff6ff;
+      color: #1d4ed8;
+      border-color: #bfdbfe;
+    }
   </style>
   <!-- Dark mode: Switch Logs + Macros (forçar fundo escuro) -->
   <style>
@@ -2416,6 +3227,24 @@
     body[data-theme="dark"] #switchLogsStatsBox .text-success { color: #4ade80 !important; }
     html[data-theme="dark"] #switchLogsStatsBox .text-danger,
     body[data-theme="dark"] #switchLogsStatsBox .text-danger { color: #f87171 !important; }
+    html[data-theme="dark"] #tab-integracao-switch .switch-saude-badge--ok,
+    body[data-theme="dark"] #tab-integracao-switch .switch-saude-badge--ok {
+      background: rgba(34, 197, 94, 0.2) !important;
+      color: #86efac !important;
+      border-color: rgba(34, 197, 94, 0.5) !important;
+    }
+    html[data-theme="dark"] #tab-integracao-switch .switch-saude-badge--down,
+    body[data-theme="dark"] #tab-integracao-switch .switch-saude-badge--down {
+      background: rgba(239, 68, 68, 0.2) !important;
+      color: #fca5a5 !important;
+      border-color: rgba(239, 68, 68, 0.5) !important;
+    }
+    html[data-theme="dark"] #tab-integracao-switch .switch-saude-badge--loading,
+    body[data-theme="dark"] #tab-integracao-switch .switch-saude-badge--loading {
+      background: rgba(59, 130, 246, 0.2) !important;
+      color: #93c5fd !important;
+      border-color: rgba(59, 130, 246, 0.5) !important;
+    }
     /* Macros */
     html[data-theme="dark"] .viagens-container #tab-macros .macros-stats-box,
     body[data-theme="dark"] .viagens-container #tab-macros .macros-stats-box {

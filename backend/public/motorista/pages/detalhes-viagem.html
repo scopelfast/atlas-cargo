@@ -244,6 +244,10 @@
       margin-bottom: 12px;
       opacity: 0.5;
     }
+    .detalhes-marker-veiculo {
+      background: transparent !important;
+      border: none !important;
+    }
   </style>
 </head>
 <body class="motorista-page">
@@ -427,10 +431,25 @@
 
     let dadosViagem = null;
 
+    const baseUrlDet = window.__BASE_URL__ || (window.location.protocol + '//' + window.location.host);
+    function urlMotoristaApi(path) {
+      if (typeof window.corrigirUrl === 'function') return window.corrigirUrl(path);
+      return baseUrlDet + path;
+    }
+
+    /** Resposta { posicoes } ou array legado; evita lista vazia por formato inesperado. */
+    function extrairListaPosicoesApi(data) {
+      if (!data) return [];
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data.posicoes)) return data.posicoes;
+      if (data.data && Array.isArray(data.data.posicoes)) return data.data.posicoes;
+      return [];
+    }
+
     // Carregar dados da viagem
     async function carregarDadosViagem() {
       try {
-        const response = await fetch(`/api/motorista/viagem/${idViagem}`, {
+        const response = await fetch(urlMotoristaApi('/api/motorista/viagem/' + encodeURIComponent(idViagem)), {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -491,24 +510,78 @@
     // Carregar posições GPS
     async function carregarPosicoesGPS() {
       try {
-        const response = await fetch(`/api/motorista/posicoes/${idViagem}`, {
+        const response = await fetch(urlMotoristaApi('/api/motorista/posicoes/' + encodeURIComponent(idViagem)), {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          posicoesGPS = data.posicoes || [];
+        if (!response.ok) {
+          let msg = 'HTTP ' + response.status;
+          try {
+            const errBody = await response.json();
+            msg = errBody.error || errBody.message || msg;
+          } catch (_) { /* ignore */ }
+          console.error('[detalhes-viagem] posicoes:', msg);
+          if (typeof mostrarToast === 'function') mostrarToast(msg, 'error');
+          posicoesGPS = [];
+        } else {
+          const data = await response.json().catch(() => ({}));
+          let raw = extrairListaPosicoesApi(data);
+          posicoesGPS = raw.map(function(p) {
+            return {
+              ...p,
+              LATITUDE: p.LATITUDE != null ? p.LATITUDE : p.latitude,
+              LONGITUDE: p.LONGITUDE != null ? p.LONGITUDE : p.longitude,
+              VELOCIDADE: p.VELOCIDADE != null ? p.VELOCIDADE : p.velocidade,
+              DHREGISTRO: p.DHREGISTRO != null ? p.DHREGISTRO : p.dhiregistro,
+              DHPOSICAO: p.DHPOSICAO != null ? p.DHPOSICAO : p.dhposicao,
+            };
+          });
+          // Mesmo critério que gps-visualizacao: índice 0 = posição mais recente
+          posicoesGPS.sort(function(a, b) {
+            var tA = new Date(a.DHPOSICAO || a.DHREGISTRO).getTime();
+            var tB = new Date(b.DHPOSICAO || b.DHREGISTRO).getTime();
+            return tB - tA;
+          });
         }
-        await renderizarMapa();
+        try {
+          await renderizarMapa();
+        } catch (rmErr) {
+          console.error('[detalhes-viagem] renderizarMapa:', rmErr);
+          if (typeof mostrarToast === 'function') {
+            mostrarToast((rmErr && rmErr.message) ? rmErr.message : 'Erro ao desenhar o mapa.', 'error');
+          }
+        }
       } catch (err) {
         console.error('Erro ao carregar posições GPS:', err);
-        await renderizarMapa();
+        posicoesGPS = [];
+        try {
+          await renderizarMapa();
+        } catch (_) { /* ignore */ }
       }
     }
 
-    // Renderizar mapa (origem, destino, rota prevista OSRM/ORS e rota percorrida)
+    /** Rota por estradas via gateway (evita CORS/405 no navegador). */
+    async function obterLatLngsRotaGateway(coordsStr) {
+      if (typeof window.fetchOsrmRouteJsonViaBackend !== 'function') return null;
+      try {
+        const raw = await window.fetchOsrmRouteJsonViaBackend(coordsStr, 70000);
+        var data = raw;
+        if (typeof window.normalizarRespostaGatewayOsrm === 'function') {
+          var n = window.normalizarRespostaGatewayOsrm(raw);
+          if (n) data = n;
+        }
+        if (data && data.routes && data.routes[0] && data.routes[0].geometry && data.routes[0].geometry.coordinates) {
+          return data.routes[0].geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
+        }
+      } catch (e) {
+        console.warn('[detalhes-viagem] Rota gateway:', e && e.message);
+      }
+      return null;
+    }
+
+    // Renderizar mapa (origem, destino, rota prevista via gateway e rota percorrida)
     async function renderizarMapa() {
       if (!map) return;
 
@@ -549,6 +622,11 @@
           .addTo(map);
       }
 
+      function parseCoord(v) {
+        if (v == null || v === '') return NaN;
+        return parseFloat(String(v).replace(',', '.'));
+      }
+
       // Ordem cronológica para a rota percorrida (primeira posição = início do trajeto)
       const posicoesParaRota = posicoesGPS.length > 0
         ? [...posicoesGPS].sort(function(a, b) {
@@ -558,19 +636,26 @@
           })
         : [];
       posicoesParaRota.forEach(function(pos) {
-        const lat = parseFloat(pos.LATITUDE);
-        const lng = parseFloat(pos.LONGITUDE);
+        const lat = parseCoord(pos.LATITUDE);
+        const lng = parseCoord(pos.LONGITUDE);
         if (!isNaN(lat) && !isNaN(lng)) {
           routeCoordinates.push([lat, lng]);
           bounds.push([lat, lng]);
         }
       });
 
+      const iconVeiculoUltimaDet = L.divIcon({
+        className: 'detalhes-marker-veiculo',
+        html: '<div style="font-size:26px;line-height:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))">🚛</div>',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+      });
+
       // Adicionar posições GPS (marcadores)
       if (posicoesGPS.length > 0) {
         posicoesGPS.forEach((pos, index) => {
-          const lat = parseFloat(pos.LATITUDE);
-          const lng = parseFloat(pos.LONGITUDE);
+          const lat = parseCoord(pos.LATITUDE);
+          const lng = parseCoord(pos.LONGITUDE);
           
           if (isNaN(lat) || isNaN(lng)) return;
 
@@ -578,9 +663,12 @@
           bounds.push(position);
 
           const isUltima = index === 0;
-          const marker = L.marker(position, {
+          const markerOptions = {
             title: `Posição ${posicoesGPS.length - index}`
-          });
+          };
+          // Evita passar icon undefined para o Leaflet (pode quebrar em _initIcon/createIcon).
+          if (isUltima) markerOptions.icon = iconVeiculoUltimaDet;
+          const marker = L.marker(position, markerOptions);
 
           var lblPos = (typeof window.t === 'function' ? window.t('detalhesViagem.posicao') : 'Posição') + ' ' + (posicoesGPS.length - index);
           var lblVel = typeof window.t === 'function' ? window.t('detalhesViagem.velocidade') : 'Velocidade';
@@ -592,17 +680,6 @@
             </div>
           `;
           marker.bindPopup(popupContent).addTo(map);
-
-          if (isUltima) {
-            L.circleMarker(position, {
-              radius: 10,
-              fillColor: '#e74c3c',
-              color: '#fff',
-              weight: 2,
-              opacity: 1,
-              fillOpacity: 1
-            }).addTo(map);
-          }
         });
       }
 
@@ -640,38 +717,24 @@
           .addTo(map);
       }
 
-      // Desenhar rota prevista (OSRM/ORS) entre origem e destino para traçar a rota nas estradas
+      // Desenhar rota prevista (gateway) entre origem e destino (nas estradas)
       const origemLat = dadosViagem && dadosViagem.ORIGEM_LATITUDE && dadosViagem.ORIGEM_LATITUDE != 0 ? parseFloat(dadosViagem.ORIGEM_LATITUDE) : null;
       const origemLon = dadosViagem && dadosViagem.ORIGEM_LONGITUDE ? parseFloat(dadosViagem.ORIGEM_LONGITUDE) : null;
       const destinoLat = dadosViagem && dadosViagem.DESTINO_LATITUDE && dadosViagem.DESTINO_LATITUDE != 0 ? parseFloat(dadosViagem.DESTINO_LATITUDE) : null;
       const destinoLon = dadosViagem && dadosViagem.DESTINO_LONGITUDE ? parseFloat(dadosViagem.DESTINO_LONGITUDE) : null;
       if (origemLat != null && origemLon != null && destinoLat != null && destinoLon != null &&
-          !isNaN(origemLat) && !isNaN(origemLon) && !isNaN(destinoLat) && !isNaN(destinoLon) &&
-          typeof window.getOSRMUrl === 'function') {
-        try {
-          const osrmUrl = window.getOSRMUrl([
-            { lat: origemLat, lon: origemLon },
-            { lat: destinoLat, lon: destinoLon }
-          ], { overview: 'full', geometries: 'geojson' });
-          const config = window.MAP_CONFIG || {};
-          const timeout = config.routeTimeout || 15000;
-          const controller = new AbortController();
-          const timeoutId = setTimeout(function() { controller.abort(); }, timeout);
-          const res = await fetch(osrmUrl, { signal: controller.signal });
-          clearTimeout(timeoutId);
-          const data = await res.json();
-          if (data.routes && data.routes[0] && data.routes[0].geometry && data.routes[0].geometry.coordinates) {
-            const coords = data.routes[0].geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
-            coords.forEach(function(p) { bounds.push(p); });
-            L.polyline(coords, {
-              color: '#6366f1',
-              weight: 5,
-              opacity: 0.9,
-              dashArray: '10, 10'
-            }).addTo(map);
-          }
-        } catch (e) {
-          console.warn('Rota prevista (OSRM/ORS) não disponível, desenhando linha reta:', e.message);
+          !isNaN(origemLat) && !isNaN(origemLon) && !isNaN(destinoLat) && !isNaN(destinoLon)) {
+        var coordsStrOD = origemLon + ',' + origemLat + ';' + destinoLon + ',' + destinoLat;
+        var coordsRotaOD = await obterLatLngsRotaGateway(coordsStrOD);
+        if (coordsRotaOD && coordsRotaOD.length) {
+          coordsRotaOD.forEach(function(p) { bounds.push(p); });
+          L.polyline(coordsRotaOD, {
+            color: '#6366f1',
+            weight: 5,
+            opacity: 0.9,
+            dashArray: '10, 10'
+          }).addTo(map);
+        } else {
           L.polyline([[origemLat, origemLon], [destinoLat, destinoLon]], {
             color: '#6366f1',
             weight: 4,
@@ -681,31 +744,18 @@
         }
       }
 
-      // Desenhar rota percorrida: OSRM (seguir ruas) entre primeira e última posição; fallback linha reta
+      // Desenhar rota percorrida: gateway entre primeira e última posição; fallback linha reta
       if (routeCoordinates.length > 1) {
         const primeiro = routeCoordinates[0];
         const ultimo = routeCoordinates[routeCoordinates.length - 1];
-        const getUrl = typeof window.getOSRMUrl === 'function' ? window.getOSRMUrl : null;
-        const config = window.MAP_CONFIG || {};
-        const timeout = config.routeTimeout || 15000;
-        if (getUrl && (primeiro[0] !== ultimo[0] || primeiro[1] !== ultimo[1])) {
-          const coords = [{ lat: primeiro[0], lon: primeiro[1] }, { lat: ultimo[0], lon: ultimo[1] }];
-          const osrmUrl = getUrl(coords, { overview: 'full', geometries: 'geojson' });
-          const controller = new AbortController();
-          const t = setTimeout(function() { controller.abort(); }, timeout);
-          fetch(osrmUrl, { signal: controller.signal })
-            .then(function(r) { clearTimeout(t); return r.json(); })
-            .then(function(data) {
-              if (data && data.routes && data.routes[0] && data.routes[0].geometry && data.routes[0].geometry.coordinates) {
-                const latLngs = data.routes[0].geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
-                L.polyline(latLngs, { color: '#0ea5e9', weight: 4, opacity: 0.8 }).addTo(map);
-              } else {
-                L.polyline(routeCoordinates, { color: '#0ea5e9', weight: 4, opacity: 0.8 }).addTo(map);
-              }
-            })
-            .catch(function() {
-              L.polyline(routeCoordinates, { color: '#0ea5e9', weight: 4, opacity: 0.8 }).addTo(map);
-            });
+        if (primeiro[0] !== ultimo[0] || primeiro[1] !== ultimo[1]) {
+          const coordsStrP = primeiro[1] + ',' + primeiro[0] + ';' + ultimo[1] + ',' + ultimo[0];
+          const latLngsR = await obterLatLngsRotaGateway(coordsStrP);
+          if (latLngsR && latLngsR.length) {
+            L.polyline(latLngsR, { color: '#0ea5e9', weight: 4, opacity: 0.8 }).addTo(map);
+          } else {
+            L.polyline(routeCoordinates, { color: '#0ea5e9', weight: 4, opacity: 0.8 }).addTo(map);
+          }
         } else {
           L.polyline(routeCoordinates, { color: '#0ea5e9', weight: 4, opacity: 0.8 }).addTo(map);
         }
@@ -713,9 +763,14 @@
 
       // Ajustar zoom para mostrar tudo (removendo outliers para não zoomar no hemisfério por causa de 1 ponto errado)
       if (bounds.length > 0) {
-        var boundsParaZoom = filtrarOutliersBounds(bounds, 2500);
-        var boundsGroup = L.latLngBounds(boundsParaZoom);
-        map.fitBounds(boundsGroup, { padding: [30, 30] });
+        try {
+          var boundsParaZoom = filtrarOutliersBounds(bounds, 2500);
+          if (!boundsParaZoom || boundsParaZoom.length === 0) return;
+          var boundsGroup = L.latLngBounds(boundsParaZoom);
+          map.fitBounds(boundsGroup, { padding: [30, 30] });
+        } catch (fbErr) {
+          console.warn('[detalhes-viagem] fitBounds:', fbErr && fbErr.message);
+        }
       }
     }
 
@@ -790,7 +845,7 @@
 
         // Total de macros
         try {
-          const macrosResponse = await fetch(`/api/motorista/historico-macros/${idViagem}`, {
+          const macrosResponse = await fetch(urlMotoristaApi('/api/motorista/historico-macros/' + encodeURIComponent(idViagem)), {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           if (macrosResponse.ok) {
@@ -803,7 +858,7 @@
 
         // Total de fotos
         try {
-          const fotosResponse = await fetch(`/api/motorista/delivery-proof/viagem/${idViagem}`, {
+          const fotosResponse = await fetch(urlMotoristaApi('/api/motorista/delivery-proof/viagem/' + encodeURIComponent(idViagem)), {
             headers: { 'Authorization': `Bearer ${token}` }
           });
           if (fotosResponse.ok) {
@@ -944,7 +999,7 @@
     // Carregar galeria
     async function carregarGaleria() {
       try {
-        const response = await fetch(`/api/motorista/delivery-proof/viagem/${idViagem}`, {
+        const response = await fetch(urlMotoristaApi('/api/motorista/delivery-proof/viagem/' + encodeURIComponent(idViagem)), {
           headers: { 'Authorization': `Bearer ${token}` }
         });
 
@@ -1069,7 +1124,7 @@
     // Carregar histórico
     async function carregarHistorico() {
       try {
-        const response = await fetch(`/api/motorista/historico-macros/${idViagem}`, {
+        const response = await fetch(urlMotoristaApi('/api/motorista/historico-macros/' + encodeURIComponent(idViagem)), {
           headers: { 'Authorization': `Bearer ${token}` }
         });
 
@@ -1096,7 +1151,8 @@
                   day: '2-digit',
                   month: '2-digit',
                   hour: '2-digit',
-                  minute: '2-digit'
+                  minute: '2-digit',
+                  timeZone: 'America/Sao_Paulo'
                 });
                 return `
                   <div class="historico-item">
@@ -1136,7 +1192,7 @@
     // Carregar alertas
     async function carregarAlertas() {
       try {
-        const response = await fetch(`/api/alertas/viagem/${idViagem}`, {
+        const response = await fetch(urlMotoristaApi('/api/alertas/viagem/' + encodeURIComponent(idViagem)), {
           headers: { 'Authorization': `Bearer ${token}` }
         });
 

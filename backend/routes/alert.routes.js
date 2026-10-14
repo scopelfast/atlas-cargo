@@ -6,10 +6,12 @@
 const express = require('express');
 const router = express.Router();
 const alertController = require('../controllers/alert.controller');
-const { requireAuth } = require('../middleware/auth.middleware');
+const { towerAuthAndTenant } = require('../middleware/tower-auth-chain.middleware');
+const { requireTenantModule } = require('../middleware/tenant-module.middleware');
 
-// Todas as rotas requerem autenticação
-router.use(requireAuth);
+// Todas as rotas: JWT torre + tenant + licença do módulo
+router.use(towerAuthAndTenant);
+router.use(requireTenantModule('alertas'));
 
 // ============================================
 // Rotas do módulo separado (novas)
@@ -34,6 +36,9 @@ router.get('/ativos', alertController.buscarAtivos);
 
 // Buscar alertas de uma viagem - DEVE VIR ANTES DE /:id
 router.get('/viagem/:idviagem', alertController.buscarPorViagem);
+
+// Logs de notificação WhatsApp dos alertas
+router.get('/notificacoes-log', alertController.listarLogsNotificacao);
 
 // Buscar detalhes de um alerta (rota com parâmetro dinâmico - DEVE VIR POR ÚLTIMO)
 router.get('/:id', alertController.buscarPorId);

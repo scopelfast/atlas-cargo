@@ -1,0 +1,53 @@
+---
+description: Padrão de cabeçalho/rodapé com data/hora em relatórios HTML imprimíveis (auditoria)
+globs: backend/services/wms-*.service.js, backend/services/wms-opl-relatorio-romaneio.service.js
+alwaysApply: false
+---
+
+# Padrão de relatórios imprimíveis (SysScopel WMS)
+
+Toda função que gera HTML para impressão (`build*Html`) **deve** exibir, de forma visível, a data e hora em que o relatório foi gerado. É requisito de auditoria: facilita identificar qual cópia o operador imprimiu quando o mesmo relatório é gerado várias vezes ao dia.
+
+## Regras
+
+1. **Rótulo padrão**: `Impresso em` (preferido) ou `Gerado em`. **Nunca** usar rótulos ambíguos como `Data`, `Data recebimento`, `Data da carga` para o timestamp da geração — isso confunde com datas operacionais reais.
+2. **Formato**: `dd/mm/aaaa HH:MM` (timezone do servidor). Usar `new Date(geradoEm).toLocaleString('pt-BR')` ou `formatDhBr(geradoEm)`.
+3. **Receber `geradoEm`** como parâmetro do controller (`new Date().toISOString()`); fallback `new Date()` quando ausente.
+4. **Posicionamento**: no cabeçalho do relatório E, em relatórios multi-página com `<tfoot>`/rodapé fixo, também no rodapé — assim sobrevive a recortes/fotocópias parciais.
+
+## Snippet recomendado no service
+
+```javascript
+function buildMeuRelatorioHtml({ /* ...dados, */ geradoEm }) {
+  const dh = geradoEm ? new Date(geradoEm) : new Date();
+  const dhBr = esc(dh.toLocaleString('pt-BR'));
+  // ...
+  return `<!DOCTYPE html>
+    <html>...
+      <p class="meta"><strong>Impresso em:</strong> ${dhBr}</p>
+      <!-- ou no rodapé -->
+      <footer class="rel-foot">Impresso em ${dhBr} — SysScopel WMS</footer>
+    </html>`;
+}
+```
+
+## No controller
+
+```javascript
+const geradoEm = new Date().toISOString();
+const html = buildMeuRelatorioHtml({ /* ...dados, */ geradoEm });
+res.setHeader('Content-Type', 'text/html; charset=utf-8');
+res.send(html);
+```
+
+## Anti-padrões (NÃO fazer)
+
+- ❌ `Data recebimento: ${formatDhBr(geradoEm)}` — rótulo enganoso, o operador acha que é a data da carga real.
+- ❌ Mostrar só `dd/mm/aaaa` sem a hora (não distingue duas impressões no mesmo dia).
+- ❌ `new Date()` direto no template sem passar `geradoEm` (impede reuso/preview com data fixa em testes).
+
+## Referências do projeto
+
+- Bom exemplo (cabeçalho + rodapé): `backend/services/wms-opl-relatorio-romaneio.service.js` (`dhImpressao` + `.rom-foot-impr`).
+- Bom exemplo (cabeçalho): `backend/services/wms-relatorio-posicao-estoque-html.service.js` (`Gerado em: ${dhBr}`).
+- Padrão de rodapé com "Atlas Cargo / WMS": `backend/services/wms-carga-relatorio-html.service.js` linha do `payload.geradoEm`.

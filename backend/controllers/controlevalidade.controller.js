@@ -2,19 +2,22 @@
 const sql = require('../config/mssql-compat');
 const { poolPromise, getFirstNumericValue } = require('../config/db');
 const { getSgUser } = require('../utils/audit');
+const { tenantIdForRequest } = require('../utils/tenant-context');
 
 const controleValidadeController = {
   // Listar validades de um cadastro (TODOS os tipos)
   listarPorCadastro: async (req, res) => {
     try {
       const { tpCadastro, cdCadastro } = req.params;
-      
+      const tenantId = tenantIdForRequest(req);
+
       const pool = await poolPromise;
       // Query em PostgreSQL nativo (aliases em minúsculo para evitar erro "faltando entrada para tabela CV")
       const result = await pool
         .request()
         .input('TPCADASTRO', sql.VarChar, tpCadastro)
         .input('CDCADASTRO', sql.Decimal(15, 0), parseFloat(cdCadastro))
+        .input('TENANT_ID', sql.VarChar(64), tenantId)
         .query(`
           SELECT 
             cv."TPCADASTRO",
@@ -41,8 +44,9 @@ const controleValidadeController = {
             END AS "STATUS_VALIDADE"
           FROM "CONTROLEVALIDADE" cv
           INNER JOIN "TIPOVALIDADE" tv ON cv."CDTIPOVALIDADE" = tv."CDTIPOVALIDADE"
-          LEFT JOIN "CADASTROGERAL" cert ON cv."CDCERTIFICADORA" = cert."CDCADASTRO"
-          WHERE cv."TPCADASTRO" = @TPCADASTRO AND cv."CDCADASTRO" = @CDCADASTRO
+            AND (tv."TENANT_ID" = cv."TENANT_ID" OR tv."TENANT_ID" = 'default')
+          LEFT JOIN "CADASTROGERAL" cert ON cv."CDCERTIFICADORA" = cert."CDCADASTRO" AND cert."TENANT_ID" = cv."TENANT_ID"
+          WHERE cv."TPCADASTRO" = @TPCADASTRO AND cv."CDCADASTRO" = @CDCADASTRO AND cv."TENANT_ID" = @TENANT_ID
           ORDER BY cv."FGATIVO" DESC NULLS FIRST, cv."DTVALIDADE" DESC, cv."TPCADASTRO", cv."SEQUENCIA" DESC
         `);
       
@@ -87,18 +91,34 @@ const controleValidadeController = {
       if (!CDTIPOVALIDADE || !NRLIBERACAO || !DTLIBERACAO || !DTVALIDADE) {
         return res.status(400).json({ error: 'Campos obrigatórios não preenchidos' });
       }
-      
+
+      const tenantId = tenantIdForRequest(req);
       const pool = await poolPromise;
+
+      const tipoOk = await pool
+        .request()
+        .input('CDTIPOVALIDADE', sql.SmallInt, parseInt(CDTIPOVALIDADE, 10))
+        .input('TENANT_ID', sql.VarChar(64), tenantId)
+        .query(`
+          SELECT 1 FROM [dbo].[TIPOVALIDADE]
+          WHERE [CDTIPOVALIDADE] = @CDTIPOVALIDADE
+            AND ([TENANT_ID] = @TENANT_ID OR [TENANT_ID] = 'default')
+          LIMIT 1
+        `);
+      if (!tipoOk.recordset || tipoOk.recordset.length === 0) {
+        return res.status(400).json({ error: 'Tipo de validade inválido ou não pertence ao tenant.' });
+      }
       
-      // Gerar próxima sequência
+      // Gerar próxima sequência (por tenant + cadastro)
       const seqResult = await pool
         .request()
         .input('TPCADASTRO', sql.VarChar, tpCadastro)
         .input('CDCADASTRO', sql.Decimal(15, 0), parseFloat(cdCadastro))
+        .input('TENANT_ID', sql.VarChar(64), tenantId)
         .query(`
           SELECT COALESCE(MAX([SEQUENCIA]), 0) + 1 AS [NOVASEQUENCIA]
           FROM [dbo].[CONTROLEVALIDADE]
-          WHERE [TPCADASTRO] = @TPCADASTRO AND [CDCADASTRO] = @CDCADASTRO
+          WHERE [TPCADASTRO] = @TPCADASTRO AND [CDCADASTRO] = @CDCADASTRO AND [TENANT_ID] = @TENANT_ID
         `);
       
       const novaSeq = getFirstNumericValue(seqResult.recordset, 1);
@@ -117,15 +137,16 @@ const controleValidadeController = {
         .input('DSLIBERACAO', sql.VarChar(256), DSLIBERACAO || null)
         .input('FGTIPOLANCTO', sql.Char(1), 'M')
         .input('SGUSER', sql.VarChar(50), sgUserLiberacao)
+        .input('TENANT_ID', sql.VarChar(64), tenantId)
         .query(`
           INSERT INTO "CONTROLEVALIDADE" (
             "TPCADASTRO", "CDCADASTRO", "SEQUENCIA", "CDTIPOVALIDADE", "NRLIBERACAO",
             "DTLIBERACAO", "DTVALIDADE", "CDCERTIFICADORA", "DSLIBERACAO", "FGTIPOLANCTO",
-            "FGATIVO", "DHMAINTENANCE", "SGUSER"
+            "FGATIVO", "DHMAINTENANCE", "SGUSER", "TENANT_ID"
           ) VALUES (
             @TPCADASTRO, @CDCADASTRO, @SEQUENCIA, @CDTIPOVALIDADE, @NRLIBERACAO,
             @DTLIBERACAO, @DTVALIDADE, @CDCERTIFICADORA, @DSLIBERACAO, @FGTIPOLANCTO,
-            'S', CURRENT_TIMESTAMP, @SGUSER
+            'S', CURRENT_TIMESTAMP, @SGUSER, @TENANT_ID
           )
         `);
       
@@ -145,13 +166,29 @@ const controleValidadeController = {
       const sgUser = getSgUser(req);
       if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
 
+      const tenantId = tenantIdForRequest(req);
       const pool = await poolPromise;
+
+      const tipoOkUpd = await pool
+        .request()
+        .input('CDTIPOVALIDADE', sql.SmallInt, parseInt(CDTIPOVALIDADE, 10))
+        .input('TENANT_ID', sql.VarChar(64), tenantId)
+        .query(`
+          SELECT 1 FROM [dbo].[TIPOVALIDADE]
+          WHERE [CDTIPOVALIDADE] = @CDTIPOVALIDADE
+            AND ([TENANT_ID] = @TENANT_ID OR [TENANT_ID] = 'default')
+          LIMIT 1
+        `);
+      if (!tipoOkUpd.recordset || tipoOkUpd.recordset.length === 0) {
+        return res.status(400).json({ error: 'Tipo de validade inválido ou não pertence ao tenant.' });
+      }
 
       await pool
         .request()
         .input('TPCADASTRO', sql.VarChar, tpCadastro)
         .input('CDCADASTRO', sql.Decimal(15, 0), parseFloat(cdCadastro))
         .input('SEQUENCIA', sql.SmallInt, parseInt(sequencia))
+        .input('TENANT_ID', sql.VarChar(64), tenantId)
         .input('CDTIPOVALIDADE', sql.SmallInt, parseInt(CDTIPOVALIDADE))
         .input('NRLIBERACAO', sql.VarChar(30), NRLIBERACAO)
         .input('DTLIBERACAO', sql.DateTime, new Date(DTLIBERACAO))
@@ -172,6 +209,7 @@ const controleValidadeController = {
           WHERE [TPCADASTRO] = @TPCADASTRO
             AND [CDCADASTRO] = @CDCADASTRO
             AND [SEQUENCIA] = @SEQUENCIA
+            AND [TENANT_ID] = @TENANT_ID
         `);
       
       res.json({ success: true, message: 'Validade atualizada com sucesso!' });
@@ -188,6 +226,7 @@ const controleValidadeController = {
       const usuario = (req.body && req.body.usuario) || getSgUser(req);
       if (!usuario) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
 
+      const tenantId = tenantIdForRequest(req);
       const pool = await poolPromise;
 
       await pool
@@ -195,6 +234,7 @@ const controleValidadeController = {
         .input('TPCADASTRO', sql.VarChar, tpCadastro)
         .input('CDCADASTRO', sql.Decimal(15, 0), parseFloat(cdCadastro))
         .input('SEQUENCIA', sql.SmallInt, parseInt(sequencia))
+        .input('TENANT_ID', sql.VarChar(64), tenantId)
         .input('SGUSER_REMOVIDO', sql.VarChar(50), usuario)
         .query(`
           UPDATE "CONTROLEVALIDADE" SET
@@ -204,6 +244,7 @@ const controleValidadeController = {
           WHERE "TPCADASTRO" = @TPCADASTRO
             AND "CDCADASTRO" = @CDCADASTRO
             AND "SEQUENCIA" = @SEQUENCIA
+            AND "TENANT_ID" = @TENANT_ID
         `);
 
       res.json({ success: true, message: 'Validade desativada. Registro mantido para histórico.' });
@@ -217,9 +258,11 @@ const controleValidadeController = {
   listarTiposParaCombo: async (req, res) => {
     try {
       const { tpCadastro } = req.params;
-      
+      const tenantId = tenantIdForRequest(req);
+
       const pool = await poolPromise;
-      let query = 'SELECT [CDTIPOVALIDADE], [DSTIPOVALIDADE], [FGEXIGECERTIFICADORA] FROM [dbo].[TIPOVALIDADE] WHERE 1=1';
+      let query = `SELECT [CDTIPOVALIDADE], [DSTIPOVALIDADE], [FGEXIGECERTIFICADORA] FROM [dbo].[TIPOVALIDADE]
+        WHERE 1=1 AND ([TENANT_ID] = @TENANT_ID OR [TENANT_ID] = 'default')`;
       
       // Filtrar por tipo de cadastro
       if (tpCadastro === 'MOT') query += ` AND [FGMOTORISTA] = 'S'`;
@@ -229,7 +272,7 @@ const controleValidadeController = {
       
       query += ' ORDER BY [DSTIPOVALIDADE]';
       
-      const result = await pool.request().query(query);
+      const result = await pool.request().input('TENANT_ID', sql.VarChar(64), tenantId).query(query);
       res.json(result.recordset);
     } catch (err) {
       console.error('[ERRO] Listar tipos validade:', err);
@@ -240,12 +283,17 @@ const controleValidadeController = {
   // Buscar certificadoras para combo
   listarCertificadorasCombo: async (req, res) => {
     try {
+      const tenantId = tenantIdForRequest(req);
       const pool = await poolPromise;
-      const result = await pool.request().query(`
+      const result = await pool
+        .request()
+        .input('TENANT_ID', sql.VarChar(64), tenantId)
+        .query(`
         SELECT "CDCADASTRO", "RZSOCIAL", "FGTIPOCADASTRO"
         FROM "CADASTROGERAL"
         WHERE ("FGCERTIFICADORA" = 'S' OR ("FGCERTIFICADORA" IS NULL AND "FGTIPOCADASTRO" IN ('C', 'F', 'U', 'T', 'E')))
           AND "FGACTIVE" = 'A'
+          AND "TENANT_ID" = @TENANT_ID
         ORDER BY "RZSOCIAL"
       `);
       

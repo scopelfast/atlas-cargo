@@ -21,9 +21,109 @@ function tLogin(key) {
     'web.login.senhasNaoCoincidem': 'As senhas não coincidem.',
     'web.login.senhaMinima6': 'A nova senha deve ter no mínimo 6 caracteres.',
     'web.login.senhaAlteradaSucesso': 'Senha alterada com sucesso!',
-    'web.login.erroAlterarSenha': 'Erro ao alterar senha.'
+    'web.login.erroAlterarSenha': 'Erro ao alterar senha.',
+    'web.login.limiteSessaoTitulo': 'Limite de acessos simultâneos',
+    'web.login.limiteSessaoAjuda':
+      'Encerrar a sessão mais antiga libera uma vaga no painel (registro em Logs de Acesso).',
+    'web.login.cancelar': 'Cancelar',
+    'web.login.encerrarMaisAntiga': 'Encerrar a mais antiga e entrar',
+    'web.login.fecharModal': 'Fechar',
+    'web.login.sessaoDeslocada':
+      'Esta conexão ao painel foi encerrada: a vaga de sessão licenciada foi utilizada por outro acesso (por exemplo, o mesmo utilizador noutro navegador ou equipamento, ou limite de sessões do plano). Faça login novamente.'
   };
   return fallback[key] != null ? fallback[key] : key;
+}
+
+/** Garante textos do modal (tWeb pode devolver a chave se o JSON não carregar — ex.: base path errado). */
+function aplicarTextosModalLimiteSessaoComTLogin(modalRoot) {
+  if (!modalRoot || !modalRoot.querySelectorAll) return;
+  modalRoot.querySelectorAll('[data-i18n]').forEach(function (el) {
+    var k = el.getAttribute('data-i18n');
+    if (k) el.textContent = tLogin(k);
+  });
+  modalRoot.querySelectorAll('[data-i18n-title]').forEach(function (el) {
+    var k = el.getAttribute('data-i18n-title');
+    if (k) el.setAttribute('title', tLogin(k));
+  });
+}
+
+/** Modal 409 CONCURRENT_SESSION_LIMIT — retorna true se o usuário escolheu encerrar a mais antiga */
+function openSessionLimitModal(apiData) {
+  return new Promise(function (resolve) {
+    var modal = document.getElementById('modalLimiteSessaoTorre');
+    var texto = document.getElementById('modalLimiteSessaoTexto');
+    var btnC = document.getElementById('btnLimiteSessaoCancelar');
+    var btnE = document.getElementById('btnLimiteSessaoEncerrar');
+    var btnX = document.getElementById('btnFecharModalLimiteSessao');
+    if (!modal || !texto || !btnC || !btnE) {
+      resolve(false);
+      return;
+    }
+    if (typeof window.applyI18nWeb === 'function') {
+      try {
+        window.applyI18nWeb(modal);
+      } catch (e) {}
+    }
+    aplicarTextosModalLimiteSessaoComTLogin(modal);
+    var max = apiData.maxConcurrentSessions;
+    var open = apiData.openSessions;
+    var msg = apiData.message || tLogin('web.login.limiteSessaoTitulo');
+    if (max != null && open != null) {
+      msg = msg + ' (' + String(open) + '/' + String(max) + ' em uso).';
+    }
+    texto.textContent = msg;
+    if (btnX) {
+      btnX.setAttribute('aria-label', tLogin('web.login.fecharModal'));
+    }
+    modal.style.display = 'block';
+
+    function done(result) {
+      modal.style.display = 'none';
+      btnC.removeEventListener('click', onCancel);
+      btnE.removeEventListener('click', onKick);
+      if (btnX) btnX.removeEventListener('click', onCancel);
+      modal.removeEventListener('click', onBackdrop);
+      document.removeEventListener('keydown', onKey);
+      resolve(result);
+    }
+    function onCancel() {
+      done(false);
+    }
+    function onKick() {
+      done(true);
+    }
+    function onBackdrop(ev) {
+      if (ev.target === modal) onCancel();
+    }
+    function onKey(ev) {
+      if (ev.key === 'Escape') onCancel();
+    }
+    btnC.addEventListener('click', onCancel);
+    btnE.addEventListener('click', onKick);
+    if (btnX) btnX.addEventListener('click', onCancel);
+    modal.addEventListener('click', onBackdrop);
+    document.addEventListener('keydown', onKey);
+  });
+}
+
+async function postTowerLogin(username, password, kickOldest) {
+  var apiUrl = corrigirUrl('/api/auth/login');
+  var response = await fetch(apiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: username,
+      password: password,
+      kickOldestSession: !!kickOldest
+    })
+  });
+  var data = {};
+  try {
+    data = await response.json();
+  } catch (parseErr) {
+    data = {};
+  }
+  return { response: response, data: data };
 }
 
 // Função para obter o caminho base da aplicação
@@ -96,6 +196,26 @@ function initLogin() {
     hasPasswordInput: !!passwordInput
   });
 
+  function showError(message) {
+    if (!errorMsg) return;
+    errorMsg.textContent = message;
+    errorMsg.classList.remove('login-msg-info');
+  }
+
+  try {
+    var urlAtual = new URL(window.location.href);
+    if (urlAtual.searchParams.get('atlas_sessao') === 'deslocada') {
+      urlAtual.searchParams.delete('atlas_sessao');
+      var restante = urlAtual.searchParams.toString();
+      var pathOnly = urlAtual.pathname + (restante ? '?' + restante : '') + urlAtual.hash;
+      window.history.replaceState({}, '', pathOnly);
+      if (errorMsg) {
+        errorMsg.textContent = tLogin('web.login.sessaoDeslocada');
+        errorMsg.classList.add('login-msg-info');
+      }
+    }
+  } catch (eU) { /* ignore */ }
+
   if (!form) {
     console.error('[LOGIN] Formulário não encontrado! Tentando novamente...');
     // Tentar novamente após um delay se o formulário não foi encontrado
@@ -144,59 +264,52 @@ function initLogin() {
       const apiUrl = corrigirUrl('/api/auth/login');
       console.log('[LOGIN] Base URL:', baseUrl);
       console.log('[LOGIN] API URL corrigida:', apiUrl);
-      console.log('[LOGIN] Enviando requisição POST para:', apiUrl);
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email: username,
-          password: password
-        })
-      });
+
+      var attempt = await postTowerLogin(username, password, false);
+      var response = attempt.response;
+      var data = attempt.data;
+
+      if (response.status === 409 && data.code === 'CONCURRENT_SESSION_LIMIT') {
+        var querEncerrar = await openSessionLimitModal(data);
+        if (!querEncerrar) {
+          showError(data.message || tLogin('web.login.limiteSessaoTitulo'));
+          return;
+        }
+        attempt = await postTowerLogin(username, password, true);
+        response = attempt.response;
+        data = attempt.data;
+      }
 
       console.log('[LOGIN] Resposta recebida:', {
         status: response.status,
         statusText: response.statusText,
         ok: response.ok
       });
-
-      const data = await response.json();
-      
       console.log('[LOGIN] Resposta do servidor:', { ok: response.ok, success: data.success, hasToken: !!data.token });
 
       if (response.ok && data.success) {
-        // Salvar dados no localStorage ANTES de redirecionar
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
-        // Salvar ID do log de acesso para registrar logout depois
         if (data.idLogAcesso) {
           localStorage.setItem('idLogAcesso', data.idLogAcesso.toString());
         }
-        // Salvar timestamp do login para controle de timeout
         localStorage.setItem('loginTimestamp', Date.now().toString());
-        
+
         console.log('[LOGIN] Dados salvos no localStorage:', {
           hasToken: !!localStorage.getItem('token'),
           hasUser: !!localStorage.getItem('user')
         });
-        
-        // Aguardar um pouco para garantir que localStorage foi salvo
+
         await new Promise(resolve => setTimeout(resolve, 50));
-        
-        // Usar o protocolo atual (HTTP ou HTTPS conforme acessado)
-        // Remover qualquer query string vazia (?) e garantir URL limpa
-        const baseUrl = obterCaminhoBase();
+
         let cleanUrl = baseUrl + '/dashboard.html';
-        // Garantir que não tenha ? no final
         cleanUrl = cleanUrl.replace(/\?+$/, '');
         console.log('[LOGIN] Redirecionando para:', cleanUrl);
-        // Usar replace para não adicionar ao histórico e evitar ?
         window.location.replace(cleanUrl);
       } else {
-        console.error('[LOGIN] Login falhou:', data.message || tLogin('web.login.credenciaisInvalidas'));
-        showError(data.message || tLogin('web.login.credenciaisInvalidas'));
+        var failMsg = data.message || tLogin('web.login.credenciaisInvalidas');
+        console.error('[LOGIN] Login falhou:', failMsg);
+        showError(failMsg);
       }
     } catch (err) {
       console.error('[LOGIN] Erro ao fazer login:', err);
@@ -206,12 +319,6 @@ function initLogin() {
       if (btnSpan) btnSpan.textContent = originalText;
     }
   });
-
-  function showError(message) {
-    if (errorMsg) {
-      errorMsg.textContent = message;
-    }
-  }
 
   // ========== FUNCIONALIDADE ALTERAR SENHA ==========
   const linkAlterarSenha = document.getElementById('linkAlterarSenha');

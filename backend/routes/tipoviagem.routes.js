@@ -1,48 +1,64 @@
+// backend/routes/tipoviagem.routes.js
 const express = require('express');
 const sql = require('../config/mssql-compat');
 const router = express.Router();
 const { poolPromise, getFirstNumericValue } = require('../config/db');
+const { towerAuthAndTenant } = require('../middleware/tower-auth-chain.middleware');
+const { tenantIdForRequest } = require('../utils/tenant-context');
+
+router.use(towerAuthAndTenant);
+
+function rowGet(row, key) {
+  if (!row) return undefined;
+  if (row[key] !== undefined && row[key] !== null) return row[key];
+  const lower = key.toLowerCase();
+  if (row[lower] !== undefined && row[lower] !== null) return row[lower];
+  return undefined;
+}
+
+function mapFgActiveDbToSn(fg) {
+  const v = fg != null ? String(fg).trim().toUpperCase() : '';
+  return v === 'A' || v === 'S' || v === 'T' ? 'S' : 'N';
+}
 
 // Listar tipos de viagem com filtros
 router.get('/tipos-viagem', async (req, res) => {
   try {
+    const tenantId = tenantIdForRequest(req);
     const { codigo, descricao, situacao } = req.query;
-    let query = `
-      SELECT 
-        [CDTIPOVIAGEM],
-        [DSTIPOVIAGEM],
-        [FGACTIVE]
-      FROM [dbo].[TIPOVIAGEM]
-      WHERE 1=1
-    `;
-
-    const params = [];
+    const params = [tenantId];
+    let next = 2;
+    let where = `("TENANT_ID" = $1 OR "TENANT_ID" = 'default')`;
     if (codigo) {
-      query += ` AND [CDTIPOVIAGEM] = @CODIGO`;
-      params.push({ name: 'CODIGO', value: parseInt(codigo) });
+      const n = parseInt(codigo, 10);
+      if (!isNaN(n) && n > 0) {
+        where += ` AND "CDTIPOVIAGEM" = $${next}`;
+        params.push(n);
+        next++;
+      }
     }
-    if (descricao) {
-      query += ` AND [DSTIPOVIAGEM] LIKE @DESCRICAO`;
-      params.push({ name: 'DESCRICAO', value: `%${descricao}%` });
+    if (descricao && String(descricao).trim()) {
+      where += ` AND "DSTIPOVIAGEM" ILIKE $${next}`;
+      params.push(`%${String(descricao).trim()}%`);
+      next++;
     }
-    if (situacao) {
-      query += ` AND [FGACTIVE] = @SITUACAO`;
-      params.push({ name: 'SITUACAO', value: situacao === 'S' ? 'A' : 'I' });
+    if (situacao === 'S') {
+      where += ` AND ("FGACTIVE" = 'A' OR "FGACTIVE" = 'S' OR "FGACTIVE" = 'T')`;
+    } else if (situacao === 'N') {
+      where += ` AND ("FGACTIVE" = 'I' OR "FGACTIVE" = 'N')`;
     }
-
-    query += ` ORDER BY [DSTIPOVIAGEM]`;
 
     const pool = await poolPromise;
-    const request = pool.request();
-    params.forEach(p => request.input(p.name, p.value));
-    
-    const result = await request.query(query);
-    const tipos = result.recordset.map(t => ({
-      CDTIPOVIAGEM: t.CDTIPOVIAGEM,
-      DSTIPOVIAGEM: t.DSTIPOVIAGEM,
-      FGACTIVE: t.FGACTIVE === 'A' ? 'S' : 'N'
+    const result = await pool.query(
+      `SELECT "CDTIPOVIAGEM", "DSTIPOVIAGEM", "FGACTIVE" FROM "TIPOVIAGEM" WHERE ${where} ORDER BY "DSTIPOVIAGEM"`,
+      params
+    );
+    const rows = result.rows || [];
+    const tipos = rows.map((t) => ({
+      CDTIPOVIAGEM: rowGet(t, 'CDTIPOVIAGEM'),
+      DSTIPOVIAGEM: rowGet(t, 'DSTIPOVIAGEM'),
+      FGACTIVE: mapFgActiveDbToSn(rowGet(t, 'FGACTIVE'))
     }));
-    
     res.json(tipos);
   } catch (err) {
     console.error('Erro ao listar tipos de viagem:', err);
@@ -50,7 +66,6 @@ router.get('/tipos-viagem', async (req, res) => {
   }
 });
 
-// Buscar tipo de viagem por ID
 router.get('/tipos-viagem/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -58,29 +73,22 @@ router.get('/tipos-viagem/:id', async (req, res) => {
     if (isNaN(idNum) || idNum <= 0) {
       return res.status(400).json({ error: 'ID inválido.' });
     }
-
     const pool = await poolPromise;
-    const result = await pool
-      .request()
-      .input('CDTIPOVIAGEM', idNum)
-      .query(`
-        SELECT 
-          [CDTIPOVIAGEM],
-          [DSTIPOVIAGEM],
-          [FGACTIVE]
-        FROM [dbo].[TIPOVIAGEM]
-        WHERE [CDTIPOVIAGEM] = @CDTIPOVIAGEM
-      `);
-
-    if (result.recordset.length === 0) {
+    const tenantId = tenantIdForRequest(req);
+    const result = await pool.query(
+      `SELECT "CDTIPOVIAGEM", "DSTIPOVIAGEM", "FGACTIVE" FROM "TIPOVIAGEM"
+       WHERE "CDTIPOVIAGEM" = $1 AND ("TENANT_ID" = $2 OR "TENANT_ID" = 'default')`,
+      [idNum, tenantId]
+    );
+    const rows = result.rows || [];
+    if (rows.length === 0) {
       return res.status(404).json({ error: 'Tipo de viagem não encontrado.' });
     }
-
-    const tipo = result.recordset[0];
+    const tipo = rows[0];
     res.json({
-      CDTIPOVIAGEM: tipo.CDTIPOVIAGEM,
-      DSTIPOVIAGEM: tipo.DSTIPOVIAGEM,
-      FGACTIVE: tipo.FGACTIVE === 'A' ? 'S' : 'N'
+      CDTIPOVIAGEM: rowGet(tipo, 'CDTIPOVIAGEM'),
+      DSTIPOVIAGEM: rowGet(tipo, 'DSTIPOVIAGEM'),
+      FGACTIVE: mapFgActiveDbToSn(rowGet(tipo, 'FGACTIVE'))
     });
   } catch (err) {
     console.error('Erro ao buscar tipo de viagem:', err);
@@ -88,19 +96,18 @@ router.get('/tipos-viagem/:id', async (req, res) => {
   }
 });
 
-// Inserir novo tipo de viagem
 router.post('/tipos-viagem', async (req, res) => {
   try {
     const { DSTIPOVIAGEM } = req.body;
     if (!DSTIPOVIAGEM?.trim()) {
       return res.status(400).json({ error: 'Descrição é obrigatória.' });
     }
-
     const pool = await poolPromise;
+    const tenantId = tenantIdForRequest(req);
     const descricao = DSTIPOVIAGEM.trim();
     const existente = await pool.query(
-      `SELECT 1 FROM "TIPOVIAGEM" WHERE UPPER(TRIM("DSTIPOVIAGEM")) = UPPER(TRIM($1)) LIMIT 1`,
-      [descricao]
+      `SELECT 1 FROM "TIPOVIAGEM" WHERE UPPER(TRIM("DSTIPOVIAGEM")) = UPPER(TRIM($1)) AND "TENANT_ID" = $2 LIMIT 1`,
+      [descricao, tenantId]
     );
     if (existente.rows && existente.rows.length > 0) {
       return res.status(409).json({ error: 'Já existe um tipo de viagem com esta descrição. Não é permitido cadastrar duplicados.' });
@@ -111,11 +118,23 @@ router.post('/tipos-viagem', async (req, res) => {
       return getFirstNumericValue(maxResult.recordset, 1);
     };
     let novoId = await getProximoId();
+    const doInsert = async (nid) => {
+      await pool
+        .request()
+        .input('CDTIPOVIAGEM', sql.Int, nid)
+        .input('DSTIPOVIAGEM', descricao)
+        .input('TENANT_ID', sql.VarChar(64), tenantId)
+        .query(
+          `INSERT INTO [dbo].[TIPOVIAGEM] ([CDTIPOVIAGEM], [DSTIPOVIAGEM], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG], [TENANT_ID]) VALUES (@CDTIPOVIAGEM, @DSTIPOVIAGEM, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas', @TENANT_ID)`
+        );
+    };
     try {
-      await pool.request().input('CDTIPOVIAGEM', sql.Int, novoId).input('DSTIPOVIAGEM', DSTIPOVIAGEM.trim())
-        .query(`INSERT INTO [dbo].[TIPOVIAGEM] ([CDTIPOVIAGEM], [DSTIPOVIAGEM], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]) VALUES (@CDTIPOVIAGEM, @DSTIPOVIAGEM, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas')`);
+      await doInsert(novoId);
     } catch (insertErr) {
-      if (String(insertErr.code) === '23505') { novoId = await getProximoId(); await pool.request().input('CDTIPOVIAGEM', sql.Int, novoId).input('DSTIPOVIAGEM', DSTIPOVIAGEM.trim()).query(`INSERT INTO [dbo].[TIPOVIAGEM] ([CDTIPOVIAGEM], [DSTIPOVIAGEM], [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG]) VALUES (@CDTIPOVIAGEM, @DSTIPOVIAGEM, 'A', GETDATE(), 'SYSTEM', 'AppDVcargas')`); } else throw insertErr;
+      if (String(insertErr.code) === '23505') {
+        novoId = await getProximoId();
+        await doInsert(novoId);
+      } else throw insertErr;
     }
     res.status(201).json({ success: true, message: 'Tipo de viagem cadastrado com sucesso!' });
   } catch (err) {
@@ -124,46 +143,37 @@ router.post('/tipos-viagem', async (req, res) => {
   }
 });
 
-// Atualizar tipo de viagem
 router.put('/tipos-viagem/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { DSTIPOVIAGEM, FGACTIVE } = req.body;
-
     if (!DSTIPOVIAGEM?.trim() || !['S', 'N'].includes(FGACTIVE)) {
       return res.status(400).json({ error: 'Dados inválidos.' });
     }
-
     const pool = await poolPromise;
+    const tenantId = tenantIdForRequest(req);
     const idNumerico = parseInt(id, 10);
     if (isNaN(idNumerico) || idNumerico <= 0) {
       return res.status(400).json({ error: 'ID inválido.' });
     }
     const existente = await pool.query(
-      `SELECT 1 FROM "TIPOVIAGEM" WHERE UPPER(TRIM("DSTIPOVIAGEM")) = UPPER(TRIM($1)) AND "CDTIPOVIAGEM" != $2 LIMIT 1`,
-      [DSTIPOVIAGEM.trim(), idNumerico]
+      `SELECT 1 FROM "TIPOVIAGEM"
+       WHERE UPPER(TRIM("DSTIPOVIAGEM")) = UPPER(TRIM($1)) AND "CDTIPOVIAGEM" != $2 AND "TENANT_ID" = $3 LIMIT 1`,
+      [DSTIPOVIAGEM.trim(), idNumerico, tenantId]
     );
     if (existente.rows && existente.rows.length > 0) {
       return res.status(409).json({ error: 'Já existe outro tipo de viagem com esta descrição. Não é permitido duplicar.' });
     }
     const fgactiveDB = FGACTIVE === 'S' ? 'A' : 'I';
-
-    await pool
-      .request()
-      .input('CDTIPOVIAGEM', sql.Int, idNumerico)
-      .input('DSTIPOVIAGEM', DSTIPOVIAGEM.trim())
-      .input('FGACTIVE', fgactiveDB)
-      .query(`
-        UPDATE [dbo].[TIPOVIAGEM] 
-        SET 
-          [DSTIPOVIAGEM] = @DSTIPOVIAGEM,
-          [FGACTIVE] = @FGACTIVE,
-          [DHMAINTENANCE] = GETDATE(),
-          [SGUSER] = 'SYSTEM',
-          [SERVERORIG] = 'AppDVcargas'
-        WHERE [CDTIPOVIAGEM] = @CDTIPOVIAGEM
-      `);
-
+    const upd = await pool.query(
+      `UPDATE "TIPOVIAGEM"
+       SET "DSTIPOVIAGEM" = $1, "FGACTIVE" = $2, "DHMAINTENANCE" = CURRENT_TIMESTAMP, "SGUSER" = 'SYSTEM', "SERVERORIG" = 'AppDVcargas'
+       WHERE "CDTIPOVIAGEM" = $3 AND "TENANT_ID" = $4`,
+      [DSTIPOVIAGEM.trim(), fgactiveDB, idNumerico, tenantId]
+    );
+    if (!upd.rowCount) {
+      return res.status(404).json({ error: 'Tipo de viagem não encontrado ou não pode ser alterado (catálogo compartilhado).' });
+    }
     res.json({ success: true, message: 'Tipo de viagem atualizado com sucesso!' });
   } catch (err) {
     console.error('Erro ao atualizar tipo de viagem:', err);
@@ -171,34 +181,25 @@ router.put('/tipos-viagem/:id', async (req, res) => {
   }
 });
 
-// Inativar/Reativar tipo de viagem (desativação, não exclusão física)
 router.delete('/tipos-viagem/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { action } = req.query;
-    
-    // Validar e converter ID para número
     const idNumerico = parseInt(id, 10);
     if (isNaN(idNumerico) || idNumerico <= 0) {
       return res.status(400).json({ error: 'ID inválido.' });
     }
-
     const pool = await poolPromise;
-
-    // Verificar status atual
-    const checkResult = await pool
-      .request()
-      .input('CDTIPOVIAGEM', sql.Int, idNumerico)
-      .query(`SELECT [FGACTIVE] FROM [dbo].[TIPOVIAGEM] WHERE [CDTIPOVIAGEM] = @CDTIPOVIAGEM`);
-
-    if (checkResult.recordset.length === 0) {
+    const tenantId = tenantIdForRequest(req);
+    const checkResult = await pool.query(
+      `SELECT "FGACTIVE" FROM "TIPOVIAGEM" WHERE "CDTIPOVIAGEM" = $1 AND "TENANT_ID" = $2`,
+      [idNumerico, tenantId]
+    );
+    if (!checkResult.rows || checkResult.rows.length === 0) {
       return res.status(404).json({ error: 'Tipo não encontrado.' });
     }
-
-    const statusAtual = checkResult.recordset[0].FGACTIVE;
-    const estaAtivo = statusAtual === 'A';
-    
-    // Determinar nova situação
+    const statusAtual = rowGet(checkResult.rows[0], 'FGACTIVE');
+    const estaAtivo = statusAtual === 'A' || statusAtual === 'S' || statusAtual === 'T';
     let novaSituacao, mensagem;
     if (action === 'activate') {
       novaSituacao = 'A';
@@ -210,25 +211,14 @@ router.delete('/tipos-viagem/:id', async (req, res) => {
       novaSituacao = estaAtivo ? 'I' : 'A';
       mensagem = estaAtivo ? 'Tipo de viagem desativado com sucesso!' : 'Tipo de viagem reativado com sucesso!';
     }
-
-    const result = await pool
-      .request()
-      .input('CDTIPOVIAGEM', sql.Int, idNumerico)
-      .input('FGACTIVE', sql.Char(1), novaSituacao)
-      .query(`
-        UPDATE [dbo].[TIPOVIAGEM] 
-        SET 
-          [FGACTIVE] = @FGACTIVE,
-          [DHMAINTENANCE] = GETDATE(),
-          [SGUSER] = 'SYSTEM',
-          [SERVERORIG] = 'AppDVcargas'
-        WHERE [CDTIPOVIAGEM] = @CDTIPOVIAGEM
-      `);
-
-    if (result.rowsAffected[0] === 0) {
+    const updateResult = await pool.query(
+      `UPDATE "TIPOVIAGEM" SET "FGACTIVE" = $1, "DHMAINTENANCE" = CURRENT_TIMESTAMP, "SGUSER" = 'SYSTEM', "SERVERORIG" = 'AppDVcargas'
+       WHERE "CDTIPOVIAGEM" = $2 AND "TENANT_ID" = $3`,
+      [novaSituacao, idNumerico, tenantId]
+    );
+    if (updateResult.rowCount === 0) {
       return res.status(404).json({ error: 'Tipo não encontrado.' });
     }
-
     res.json({ success: true, message: mensagem, newStatus: novaSituacao === 'A' ? 'S' : 'N' });
   } catch (err) {
     console.error('Erro ao alterar status do tipo de viagem:', err);
@@ -236,16 +226,15 @@ router.delete('/tipos-viagem/:id', async (req, res) => {
   }
 });
 
-// Executar init.sql
 router.post('/tipos-viagem/executar-init-sql', async (req, res) => {
   try {
-    const { sql } = req.body;
-    if (!sql || typeof sql !== 'string') {
+    const { sql: sqlBody } = req.body;
+    if (!sqlBody || typeof sqlBody !== 'string') {
       return res.status(400).json({ error: 'SQL é obrigatório.' });
     }
-    const sqlUpper = sql.trim().toUpperCase();
+    const sqlUpper = sqlBody.trim().toUpperCase();
     const comandosBloqueados = [
-      'DROP DATABASE', 'DROP TABLE', 'TRUNCATE TABLE', 
+      'DROP DATABASE', 'DROP TABLE', 'TRUNCATE TABLE',
       'ALTER DATABASE', 'CREATE DATABASE', 'BACKUP DATABASE',
       'RESTORE DATABASE', 'SHUTDOWN', 'KILL'
     ];
@@ -255,7 +244,7 @@ router.post('/tipos-viagem/executar-init-sql', async (req, res) => {
       }
     }
     const pool = await poolPromise;
-    const comandos = sql.split(/\bGO\b/gi).filter(cmd => cmd.trim().length > 0);
+    const comandos = sqlBody.split(/\bGO\b/gi).filter((c) => c.trim().length > 0);
     const resultados = [];
     for (const comando of comandos) {
       const cmdLimpo = comando.trim();
@@ -265,7 +254,7 @@ router.post('/tipos-viagem/executar-init-sql', async (req, res) => {
         request.timeout = 120000;
         const result = await request.query(cmdLimpo);
         if (result.recordset && result.recordset.length > 0) {
-          const rows = result.recordset.map(row => {
+          const rows = result.recordset.map((row) => {
             const obj = {};
             for (const key in row) {
               obj[key] = row[key];

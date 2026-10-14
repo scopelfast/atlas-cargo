@@ -102,6 +102,15 @@
       color: #334155;
       box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     }
+    .btn-filtro-aplicar {
+      background: var(--ac-accent, #0ea5e9);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(14, 165, 233, 0.25);
+    }
+    .btn-filtro-aplicar:hover {
+      background: var(--ac-accent-hover, #0284c7);
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.35);
+    }
 
     /* ========== BOTÕES - Atlas Cargo ========== */
     .btn {
@@ -604,14 +613,14 @@
 
     <!-- Abas (padrão com ícones como nos demais módulos) -->
     <div class="tabs tabs-com-icones">
-      <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.logsAcesso.tabFiltros"><i class='bx bx-filter-alt'></i> Filtros</button>
-      <button class="tab-btn" data-tab="resumo" data-i18n="web.modulos.logsAcesso.tabResumo"><i class='bx bx-bar-chart-alt-2'></i> Resumo</button>
+      <button type="button" class="tab-btn active" data-tab="filtros"><i class='bx bx-filter-alt'></i> <span data-i18n="web.modulos.logsAcesso.tabFiltros">Filtros</span></button>
+      <button type="button" class="tab-btn" data-tab="resumo"><i class='bx bx-bar-chart-alt-2'></i> <span data-i18n="web.modulos.logsAcesso.tabResumo">Resumo</span></button>
     </div>
 
     <!-- Filtros -->
     <div class="tab-content active" id="tab-filtros">
       <div class="filtros-box">
-        <h3><i class='bx bx-filter'></i> <span data-i18n="web.modulos.logsAcesso.filtrosBusca">Filtros de Busca</span></h3>
+        <h3><i class='bx bx-filter'></i> <span data-i18n="web.modulos.logsAcesso.tabFiltros">Filtros</span></h3>
         <form id="filtroForm" onsubmit="return false;">
           <div class="filtros-grid">
             <div>
@@ -630,10 +639,10 @@
             </div>
           </div>
           <div class="filtros-actions">
-            <button type="button" id="btnLimparFiltros" class="btn btn-secondary">
+            <button type="button" id="btnLimparFiltros" class="btn-filtro btn-filtro-limpar">
               <i class='bx bx-x'></i> <span data-i18n="web.modulos.logsAcesso.limpar">Limpar</span>
             </button>
-            <button type="submit" class="btn btn-primary">
+            <button type="submit" class="btn-filtro btn-filtro-aplicar">
               <i class='bx bx-search'></i> <span data-i18n="web.modulos.logsAcesso.filtrar">Filtrar</span>
             </button>
           </div>
@@ -644,7 +653,7 @@
     <!-- Resumo -->
     <div class="tab-content" id="tab-resumo">
       <div class="form-box">
-        <h2 data-i18n="web.modulos.logsAcesso.resumoAcessos">Resumo de Acessos</h2>
+        <h2 class="form-panel-titulo"><i class='bx bx-bar-chart-alt-2' aria-hidden="true"></i> <span data-i18n="web.modulos.logsAcesso.resumoAcessos">Resumo de Acessos</span></h2>
         <div class="filtros-actions" style="justify-content: flex-start; margin-bottom: 20px;">
           <button type="button" id="btnVoltarResumo" class="btn-filtro btn-filtro-limpar">
             <i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.logsAcesso.voltarFiltros">Voltar</span>
@@ -674,7 +683,7 @@
               <div>
                 <p class="resumo-card-title">Tempo Total Logado</p>
                 <p class="resumo-card-value" id="tempoTotalLogado">0h</p>
-                <p class="resumo-card-subtitle">Soma de todas as sessões</p>
+                <p class="resumo-card-subtitle">Máx. 8h por sessão (TTL)</p>
               </div>
             </div>
           </div>
@@ -773,7 +782,7 @@
   <script src="/js/utils.js"></script>
   <script src="/js/log-helper.js"></script>
   <script src="/js/init-overlay-helper.js"></script>
-  <script src="js/script.js"></script>
+  <script src="js/script.js?v=202603311445"></script>
 </body>
 </html>
 

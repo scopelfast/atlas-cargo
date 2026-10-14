@@ -7,7 +7,7 @@
   <link rel="icon" type="image/png" href="/img/logoAtlasTransparente.png" id="faviconLink">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Source+Sans+Pro:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" crossorigin="anonymous">
   <script>
     // INTERCEPTOR GLOBAL: Remover ? de todas as URLs
@@ -138,21 +138,21 @@
         observacao: 'Usando protocolo REAL da página e incluindo caminho base (subdiretório)'
       });
       
-      // Função para garantir que URLs usem o mesmo protocolo da página
-      // SIMPLES: se a URL tem protocolo diferente do atual, corrigir para o protocolo atual
+      // Função para alinhar protocolo da página a recursos mesma-origem.
+      // CDNs externos (Google Fonts, unpkg, jsdelivr) NUNCA viram http: — o CSP (Helmet) só libera https nesses hosts em style-src/font-src.
       function garantirProtocoloConsistente(url) {
         if (!url) return url;
-        
-        // Se já tem protocolo completo e é diferente do protocolo atual, corrigir
-        if (url.startsWith('https://') && protocoloAtual === 'http:') {
-          return url.replace(/^https:/, 'http:');
+        var u = String(url);
+        if (/^https?:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com|unpkg\.com|cdn\.jsdelivr\.net)(\/|$)/i.test(u)) {
+          return u.replace(/^http:\/\//i, 'https://');
         }
-        
-        if (url.startsWith('http://') && protocoloAtual === 'https:') {
-          return url.replace(/^http:/, 'https:');
+        if (u.startsWith('https://') && protocoloAtual === 'http:') {
+          return u.replace(/^https:/, 'http:');
         }
-        
-        return url;
+        if (u.startsWith('http://') && protocoloAtual === 'https:') {
+          return u.replace(/^http:/, 'https:');
+        }
+        return u;
       }
       
       // MutationObserver para interceptar e corrigir URLs automaticamente
@@ -395,51 +395,56 @@
     <!-- Área única: formulário com logo abaixo do subtítulo -->
     <div class="login-center">
       <div class="form-box">
-        <div class="idioma-selector-web">
-          <span class="idioma-label" data-i18n="web.login.idioma">Idioma:</span>
-          <button type="button" class="btn-idioma" data-locale="pt-BR" aria-pressed="true" title="Português" data-i18n="web.login.portugues">Português</button>
-          <button type="button" class="btn-idioma" data-locale="es-PY" aria-pressed="false" title="Español" data-i18n="web.login.espanhol">Español</button>
-        </div>
-        <div class="form-header">
-          <h2 data-i18n="web.login.titulo">Bem-vindo de volta!</h2>
-          <p data-i18n="web.login.descricao">Entre com suas credenciais para acessar o sistema</p>
-        </div>
-        <div class="login-branding">
-          <div class="logo-box">
-            <img id="logoImg" src="/img/logoAtlasTransparenteQuadrada.png?v=2" alt="Atlas Cargo" />
+        <div class="login-main">
+          <div class="login-branding">
+            <div class="login-brand-inner">
+              <div class="logo-box">
+                <img id="logoImg" src="/img/logoAtlasTransparenteQuadrada.png?v=3" alt="Atlas Cargo" />
+              </div>
+            </div>
           </div>
-        </div>
 
-        <form id="loginForm">
-          <div class="input-box">
-            <label for="username" data-i18n="web.login.usuario">Usuário</label>
-            <i class='bx bxs-user input-icon'></i>
-            <input type="text" id="username" placeholder=" " required />
-          </div>
-          <div class="input-box">
-            <label for="password" data-i18n="web.login.senha">Senha</label>
-            <i class='bx bxs-lock-alt input-icon'></i>
-            <input type="password" id="password" placeholder=" " required autocomplete="current-password" />
-            <span class="toggle-password" id="togglePassword">
-              <i class='bx bx-hide'></i>
-            </span>
-          </div>
-          
-          <div class="error-message" id="errorMessage"></div>
-          <button type="submit" class="btn">
-            <span data-i18n="web.login.entrar">Entrar</span>
-            <i class='bx bx-log-in'></i>
-          </button>
-          
-          <div style="text-align: center; margin-top: 15px;">
-            <a href="#" id="linkAlterarSenha" class="link-alterar-senha">
-              <i class='bx bx-key'></i> <span data-i18n="web.login.alterarSenha">Alterar Senha</span>
-            </a>
-          </div>
-        </form>
+          <div class="login-access">
+            <div class="login-access-top">
+              <div class="idioma-selector-web">
+                <span class="idioma-label" data-i18n="web.login.idioma">Idioma</span>
+                <button type="button" class="btn-idioma" data-locale="pt-BR" aria-pressed="true" title="Português" data-i18n="web.login.portugues">Português</button>
+                <button type="button" class="btn-idioma" data-locale="es-PY" aria-pressed="false" title="Español" data-i18n="web.login.espanhol">Español</button>
+              </div>
+            </div>
 
-        <div class="form-footer">
-          <p><i class='bx bx-lock'></i> <span data-i18n="web.login.dadosSeguros">Seus dados estão seguros conosco</span></p>
+            <form id="loginForm">
+              <div class="input-box">
+                <label for="username" data-i18n="web.login.usuario">Usuário</label>
+                <i class='bx bxs-user input-icon'></i>
+                <input type="text" id="username" name="username" placeholder=" " required autocomplete="username" autocapitalize="none" spellcheck="false" />
+              </div>
+              <div class="input-box">
+                <label for="password" data-i18n="web.login.senha">Senha</label>
+                <i class='bx bxs-lock-alt input-icon'></i>
+                <input type="password" id="password" name="password" placeholder=" " required autocomplete="current-password" />
+                <span class="toggle-password" id="togglePassword">
+                  <i class='bx bx-hide'></i>
+                </span>
+              </div>
+              
+              <div class="error-message" id="errorMessage"></div>
+              <button type="submit" class="btn">
+                <span data-i18n="web.login.entrar">Entrar</span>
+                <i class='bx bx-log-in'></i>
+              </button>
+              
+              <div style="text-align: center; margin-top: 15px;">
+                <a href="#" id="linkAlterarSenha" class="link-alterar-senha">
+                  <i class='bx bx-key'></i> <span data-i18n="web.login.alterarSenha">Alterar Senha</span>
+                </a>
+              </div>
+            </form>
+
+            <div class="form-footer">
+              <p><i class='bx bx-lock'></i> <span data-i18n="web.login.dadosSeguros">Seus dados estão seguros conosco</span></p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -457,7 +462,7 @@
           <div class="input-box modal-input-box">
             <label for="alterarSenhaUsuario" data-i18n="web.login.usuarioLogin">Usuário (Login)</label>
             <i class='bx bxs-user input-icon'></i>
-            <input type="text" id="alterarSenhaUsuario" placeholder=" " required />
+            <input type="text" id="alterarSenhaUsuario" name="username" placeholder=" " required autocomplete="username" autocapitalize="none" spellcheck="false" />
           </div>
           <div class="input-box modal-input-box">
             <label for="alterarSenhaAtual" data-i18n="web.login.senhaAtual">Senha Atual</label>
@@ -484,6 +489,24 @@
             <i class='bx bx-check'></i>
           </button>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal limite de sessões simultâneas (torre) -->
+  <div id="modalLimiteSessaoTorre" class="modal-alterar-senha" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="modalLimiteSessaoTitulo">
+    <div class="modal-alterar-senha-content">
+      <div class="modal-alterar-senha-header">
+        <h3 id="modalLimiteSessaoTitulo"><i class="bx bx-group" style="margin-right: 10px;" aria-hidden="true"></i> <span data-i18n="web.login.limiteSessaoTitulo">Limite de acessos simultâneos</span></h3>
+        <button type="button" class="btn-fechar" id="btnFecharModalLimiteSessao" data-i18n-title="web.login.fecharModal" aria-label="Fechar" title="Fechar">&times;</button>
+      </div>
+      <div class="modal-alterar-senha-body">
+        <p id="modalLimiteSessaoTexto" style="margin: 0 0 1rem; line-height: 1.5; color: #495057;"></p>
+        <p class="hint" style="font-size: 13px; color: #6c757d; margin-bottom: 1rem;" data-i18n="web.login.limiteSessaoAjuda">Encerrar a sessão mais antiga libera uma vaga no painel (registro em Logs de Acesso).</p>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end;">
+          <button type="button" class="btn" id="btnLimiteSessaoCancelar" style="background:#6c757d;"><span data-i18n="web.login.cancelar">Cancelar</span></button>
+          <button type="button" class="btn" id="btnLimiteSessaoEncerrar"><span data-i18n="web.login.encerrarMaisAntiga">Encerrar a mais antiga e entrar</span></button>
+        </div>
       </div>
     </div>
   </div>
@@ -602,7 +625,7 @@
       loadScript('/js/login.js');
       
       // Aplicar logos (identidade visual): tenta carregar config, senão usa padrões
-      var logoCacheBust = '?v=2'; // incremente quando trocar a imagem da logo
+      var logoCacheBust = '?v=3'; // incremente quando trocar a imagem da logo
       function aplicarLogos(logoRetangular, logoQuadrada) {
         if (typeof garantirProtocoloConsistente !== 'function') return;
         const q = (logoQuadrada || 'logoAtlasTransparenteQuadrada.png').replace(/[^a-zA-Z0-9._-]/g, '');

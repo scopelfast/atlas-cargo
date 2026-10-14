@@ -9,9 +9,7 @@
   <link rel="stylesheet" href="/css/modulos.css">
   <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
   <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" 
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" 
-        crossorigin=""/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
   <style>
     /* ========== Gerenciar Roteiros - Identidade Atlas Cargo ========== */
     .roteiros-container {
@@ -282,7 +280,7 @@
       box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
     }
 
-    /* Botão verde para "Novo Registro" */
+    /* Botão verde "Novo" (mesmo padrão Limpar / Filtrar) */
     button.btn-primary[id*="NovoRegistro"],
     button.btn-primary[id*="NovoEquipamento"] {
       background: #3DCC7F;
@@ -527,6 +525,189 @@
     .filtros-actions .btn {
       margin-right: 0;
     }
+
+    /* Marcadores do mapa: Leaflet .leaflet-div-icon vem com fundo branco — zerar */
+    #mapaRota .leaflet-div-icon.roteiro-marker-seq,
+    #mapaRota .leaflet-div-icon.custom-marker {
+      background: transparent !important;
+      border: none !important;
+      box-shadow: none !important;
+    }
+
+    /* ========== Grid Pontos — colunas compactas ========== */
+    #pontosGrid.grid-container {
+      overflow-x: auto;
+      width: 100%;
+    }
+    #pontosGrid .grid-table {
+      width: 100% !important;
+      table-layout: auto !important;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    #pontosGrid .grid-table th,
+    #pontosGrid .grid-table td {
+      padding: 10px 10px;
+      vertical-align: middle;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    #pontosGrid .grid-table th {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      color: #64748b;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    #pontosGrid .grid-table th:nth-child(1),
+    #pontosGrid .grid-table td:nth-child(1) { width: 44px; text-align: center; }
+    #pontosGrid .grid-table th:nth-child(2),
+    #pontosGrid .grid-table td:nth-child(2) { width: 108px; white-space: nowrap; }
+    #pontosGrid .grid-table th:nth-child(3),
+    #pontosGrid .grid-table td:nth-child(3) { width: 100px; white-space: nowrap; }
+    #pontosGrid .grid-table th:nth-child(4),
+    #pontosGrid .grid-table td:nth-child(4) { width: auto; min-width: 180px; }
+    #pontosGrid .grid-table th:nth-child(5),
+    #pontosGrid .grid-table td:nth-child(5) { width: 88px; white-space: nowrap; text-align: right; }
+    #pontosGrid .grid-table th:nth-child(6),
+    #pontosGrid .grid-table td:nth-child(6) { width: 44px; white-space: nowrap; text-align: center; }
+    #pontosGrid .grid-actions-header,
+    #pontosGrid .grid-actions {
+      width: 84px !important;
+      min-width: 84px !important;
+      max-width: 84px !important;
+      white-space: nowrap !important;
+      text-align: right !important;
+      padding-left: 8px !important;
+      padding-right: 8px !important;
+      overflow: visible !important;
+    }
+    #pontosGrid .grid-actions-sep { display: none; }
+    #pontosGrid .ponto-reorder-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 0;
+      background: #f1f5f9;
+      border-radius: 8px;
+      padding: 2px;
+      border: 1px solid #e2e8f0;
+    }
+    #pontosGrid .ponto-drag-handle,
+    #pontosGrid .btn-ponto-up,
+    #pontosGrid .btn-ponto-down {
+      border: none;
+      background: transparent;
+      color: #475569;
+      width: 28px;
+      height: 26px;
+      padding: 0;
+      margin: 0;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.05rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+    #pontosGrid .ponto-drag-handle { cursor: grab; color: #64748b; font-size: 1.1rem; letter-spacing: -2px; }
+    #pontosGrid .ponto-drag-handle:active { cursor: grabbing; }
+    #pontosGrid .ponto-drag-handle:hover:not(:disabled),
+    #pontosGrid .btn-ponto-up:hover:not(:disabled),
+    #pontosGrid .btn-ponto-down:hover:not(:disabled) {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+    #pontosGrid .ponto-drag-handle:disabled,
+    #pontosGrid .btn-ponto-up:disabled,
+    #pontosGrid .btn-ponto-down:disabled {
+      opacity: 0.28;
+      cursor: not-allowed;
+    }
+    #pontosGrid .grid-btn-edit,
+    #pontosGrid .grid-btn-delete {
+      width: 30px;
+      height: 28px;
+      padding: 0;
+      margin: 0 1px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #pontosGrid .ponto-passo {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      background: #e2e8f0;
+      color: #334155;
+      font-weight: 700;
+      font-size: 0.85rem;
+    }
+    #pontosGrid .ponto-tipo-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    #pontosGrid .ponto-tipo-o { background: #dcfce7; color: #166534; }
+    #pontosGrid .ponto-tipo-d { background: #fee2e2; color: #991b1b; }
+    #pontosGrid .ponto-tipo-p { background: #e0f2fe; color: #075985; }
+    #pontosGrid .ponto-tipo-r { background: #ffedd5; color: #9a3412; }
+    #pontosGrid .ponto-local-main { font-weight: 600; color: #0f172a; line-height: 1.3; }
+    #pontosGrid .ponto-local-sub {
+      display: block;
+      margin-top: 2px;
+      font-size: 0.8rem;
+      color: #64748b;
+      line-height: 1.35;
+      max-width: 520px;
+      white-space: normal;
+    }
+    #pontosGrid tr.ponto-row-fixo { background: rgba(148, 163, 184, 0.08); }
+    #pontosGrid tr.ponto-dragging { opacity: 0.45; }
+    #pontosGrid tr.ponto-drag-over {
+      box-shadow: inset 0 3px 0 0 var(--ac-accent, #0ea5e9);
+      background: rgba(14, 165, 233, 0.08);
+    }
+    #pontosGridHint {
+      margin: 0 0 12px 0;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      color: #475569;
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+    #pontosGridHint i { color: var(--ac-accent, #0ea5e9); margin-right: 6px; }
+    html[data-theme="dark"] #pontosGrid .grid-table th { color: #94a3b8; border-bottom-color: #334155; }
+    html[data-theme="dark"] #pontosGrid .grid-table td { border-bottom-color: #1e293b; color: #e2e8f0; }
+    html[data-theme="dark"] #pontosGrid .ponto-reorder-actions { background: #1e293b; border-color: #334155; }
+    html[data-theme="dark"] #pontosGrid .ponto-drag-handle,
+    html[data-theme="dark"] #pontosGrid .btn-ponto-up,
+    html[data-theme="dark"] #pontosGrid .btn-ponto-down { color: #94a3b8; }
+    html[data-theme="dark"] #pontosGrid .ponto-drag-handle:hover:not(:disabled),
+    html[data-theme="dark"] #pontosGrid .btn-ponto-up:hover:not(:disabled),
+    html[data-theme="dark"] #pontosGrid .btn-ponto-down:hover:not(:disabled) {
+      background: #334155; color: #f1f5f9;
+    }
+    html[data-theme="dark"] #pontosGrid .ponto-passo { background: #334155; color: #e2e8f0; }
+    html[data-theme="dark"] #pontosGrid .ponto-tipo-o { background: #14532d; color: #bbf7d0; }
+    html[data-theme="dark"] #pontosGrid .ponto-tipo-d { background: #7f1d1d; color: #fecaca; }
+    html[data-theme="dark"] #pontosGrid .ponto-tipo-p { background: #0c4a6e; color: #bae6fd; }
+    html[data-theme="dark"] #pontosGrid .ponto-tipo-r { background: #7c2d12; color: #fed7aa; }
+    html[data-theme="dark"] #pontosGrid .ponto-local-main { color: #f1f5f9; }
+    html[data-theme="dark"] #pontosGrid .ponto-local-sub { color: #94a3b8; }
+    html[data-theme="dark"] #pontosGrid tr.ponto-row-fixo { background: rgba(51, 65, 85, 0.45); }
+    html[data-theme="dark"] #pontosGridHint { background: #0f172a; border-color: #334155; color: #94a3b8; }
+    html[data-theme="dark"] .roteiro-circular-hint { color: #94a3b8 !important; }
+
   </style>
 </head>
 <body>
@@ -538,11 +719,11 @@
 
     <!-- Abas -->
     <div class="tabs tabs-com-icones">
-      <button class="tab-btn active" data-tab="filtros" data-i18n="web.modulos.roteiros.tabFiltros"><i class='bx bx-filter'></i> Filtros</button>
-      <button class="tab-btn" data-tab="grid" data-i18n="web.modulos.roteiros.tabGrid"><i class='bx bx-grid-alt'></i> Grid</button>
-      <button class="tab-btn" data-tab="dados" data-i18n="web.modulos.roteiros.tabDados"><i class='bx bx-edit'></i> Dados</button>
-      <button class="tab-btn" data-tab="pontos" data-i18n="web.modulos.roteiros.tabPontos"><i class='bx bx-map-pin'></i> Pontos</button>
-      <button class="tab-btn" data-tab="mapa" data-i18n="web.modulos.roteiros.tabMapa"><i class='bx bx-map'></i> Mapa</button>
+      <button type="button" class="tab-btn active" data-tab="filtros"><i class='bx bx-filter'></i> <span data-i18n="web.modulos.roteiros.tabFiltros">Filtros</span></button>
+      <button type="button" class="tab-btn" data-tab="grid"><i class='bx bx-grid-alt'></i> <span data-i18n="web.modulos.roteiros.tabGrid">Grid</span></button>
+      <button type="button" class="tab-btn" data-tab="dados"><i class='bx bx-edit'></i> <span data-i18n="web.modulos.roteiros.tabDados">Dados</span></button>
+      <button type="button" class="tab-btn" data-tab="pontos"><i class='bx bx-map-pin'></i> <span data-i18n="web.modulos.roteiros.tabPontos">Pontos</span></button>
+      <button type="button" class="tab-btn" data-tab="mapa"><i class='bx bx-map'></i> <span data-i18n="web.modulos.roteiros.tabMapa">Mapa</span></button>
     </div>
 
     <!-- Filtros -->
@@ -634,7 +815,7 @@
     <!-- Lista -->
     <div class="tab-content" id="tab-lista">
       <div class="form-box">
-        <h2>Roteiros Cadastrados</h2>
+        <h2 class="form-panel-titulo"><i class='bx bx-list-ul' aria-hidden="true"></i> <span>Roteiros Cadastrados</span></h2>
         <div class="actions-top">
           <button id="btnVoltarFiltros" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> Voltar</button>
           <button id="btnNovoRegistro" class="btn-filtro btn-filtro-novo">
@@ -650,7 +831,7 @@
     <!-- Grid -->
     <div class="tab-content" id="tab-grid">
       <div class="form-box">
-        <h2 data-i18n="web.modulos.roteiros.gridTitulo">Roteiros - Visualização em Grid</h2>
+        <h2 class="form-panel-titulo"><i class='bx bx-grid-alt' aria-hidden="true"></i> <span data-i18n="web.modulos.roteiros.gridTitulo">Roteiros - Visualização em Grid</span></h2>
         <div class="actions-top">
           <button id="btnVoltarGrid" class="btn-filtro btn-filtro-limpar"><i class='bx bx-arrow-back'></i> Voltar</button>
           <button id="btnNovoRegistroGrid" class="btn-filtro btn-filtro-novo">
@@ -667,7 +848,7 @@
     <!-- Dados -->
     <div class="tab-content" id="tab-dados">
       <div class="form-box">
-        <h2 id="formTitle" data-i18n="web.modulos.roteiros.novoRoteiro">Novo Roteiro</h2>
+        <h2 id="formTitle" class="form-panel-titulo"><i class='bx bx-edit' aria-hidden="true"></i> <span data-i18n="web.modulos.roteiros.novoRoteiro">Novo Roteiro</span></h2>
         <div class="form-dados-card">
           <div class="form-dados-card-header"><i class='bx bx-file-blank'></i> Dados do Roteiro</div>
           <div class="form-dados-card-body">
@@ -727,6 +908,9 @@
 
           <!-- Linha 3: Destino -->
           <h3>Destino</h3>
+          <p class="roteiro-circular-hint" style="margin: -8px 0 14px 0; font-size: 0.88rem; color: #64748b;">
+            <i class='bx bx-info-circle'></i> Ida e volta ao mesmo CD: origem e destino podem ser a <strong>mesma cidade</strong>. A quilometragem vem da aba <strong>Pontos</strong> (embarque → entregas → retorno).
+          </p>
           <div class="input-group triple">
             <div>
               <label for="destinoPais">País *</label>
@@ -795,7 +979,7 @@
     <!-- Pontos -->
     <div class="tab-content" id="tab-pontos">
       <div class="form-box">
-        <h2 id="pontosTitle" data-i18n="web.modulos.roteiros.pontosDoRoteiro">Pontos do Roteiro</h2>
+        <h2 id="pontosTitle" class="form-panel-titulo"><i class='bx bx-map-pin' aria-hidden="true"></i> <span data-i18n="web.modulos.roteiros.pontosDoRoteiro">Pontos do Roteiro</span></h2>
         <p style="margin-bottom: 20px; color: #666; font-style: italic;" data-i18n="web.modulos.roteiros.selecioneRoteiroPontos">
           <i class='bx bx-info-circle'></i> Selecione um roteiro na aba "Dados" para gerenciar seus pontos.
         </p>
@@ -803,14 +987,18 @@
         <!-- Soma das distâncias -->
         <div id="somaDistancias" style="margin-bottom: 15px; padding: 10px; background: #e8f5e9; border-left: 4px solid #4caf50; border-radius: 4px; font-weight: 500; color: #2e7d32;"></div>
         
-        <!-- Botão Calcular Distâncias -->
-        <div style="margin-bottom: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+        <!-- Botões Calcular Distâncias / Otimizar ordem -->
+        <div style="margin-bottom: 20px; display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap;">
+          <button type="button" id="btnOtimizarOrdemPontos" class="btn btn-secondary" style="white-space: nowrap;" disabled title="Reordena paradas por município e proximidade (Origem e Destino ficam fixos)">
+            <i class='bx bx-sort-alt-2'></i> Otimizar ordem
+          </button>
           <button type="button" id="btnCalcularDistanciaPontos" class="btn btn-info" style="white-space: nowrap;">
             <i class='bx bx-calculator'></i> Calcular Distâncias
           </button>
         </div>
         
         <!-- Grid de Pontos -->
+        <p id="pontosGridHint"><i class='bx bx-info-circle'></i> Coluna <strong>Ord.</strong>: arraste ⠿ ou use ↑↓. Origem e Destino ficam fixos. Lat/lon no formulário de edição.</p>
         <div id="pontosGrid" class="grid-container">
           <p class="empty">Selecione um roteiro para visualizar os pontos.</p>
         </div>
@@ -915,7 +1103,7 @@
           <button id="btnNovoPonto" class="btn-filtro btn-filtro-novo" style="display: none;">
             <i class='bx bx-plus'></i> Novo Ponto
           </button>
-          <button id="btnVoltarPontos" class="btn-filtro btn-filtro-limpar" style="display: none;"><i class='bx bx-arrow-back'></i> Voltar aos Dados</button>
+          <button id="btnVoltarPontos" class="btn-filtro btn-filtro-limpar" style="display: none;"><i class='bx bx-arrow-back'></i> <span data-i18n="web.modulos.roteiros.voltarAosDados">Voltar aos Dados</span></button>
         </div>
       </div>
     </div>
@@ -923,7 +1111,7 @@
     <!-- Mapa -->
     <div class="tab-content" id="tab-mapa">
       <div class="form-box">
-        <h2>Visualização da Rota no Mapa</h2>
+        <h2 class="form-panel-titulo"><i class='bx bx-map-alt' aria-hidden="true"></i> <span>Visualização da Rota no Mapa</span></h2>
         <p style="margin-bottom: 20px; color: #666;">
           <i class='bx bx-info-circle'></i> Selecione as cidades de origem e destino na aba "Dados" para visualizar a rota no mapa.
         </p>
@@ -1025,13 +1213,14 @@
   <!-- Cache Buster - deve ser o primeiro script -->
   <script src="/js/cache-buster.js?v=202612091200"></script>
   <script src="/js/utils.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <!-- GridEditor: carregar diretamente (já tem proteção contra duplicação) -->
   <script src="/js/grid-editor.js"></script>
   <!-- Sistema simplificado de mapas -->
-  <script src="/js/map-helper.js"></script>
+  <script src="/js/map-helper.js?v=202609151845"></script>
   <!-- Compatibilidade com código antigo -->
-  <script src="/js/map-config.js"></script>
+  <script src="/js/map-config.js?v=20260915-tiles"></script>
   <script src="/js/log-helper.js"></script>
-  <script src="js/script.js?v=202506061200"></script>
+  <script src="js/script.js?v=202609151820"></script>
 </body>
 </html>

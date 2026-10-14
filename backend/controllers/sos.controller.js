@@ -19,8 +19,12 @@
 // - PUT    /api/sos/:id - Atualizar SOS
 // - GET    /api/sos/contador - Contador de pendentes
 
+const jwt = require('jsonwebtoken');
 const sql = require('../config/mssql-compat');
 const { poolPromise } = require('../config/db');
+const { tenantIdForRequest } = require('../utils/tenant-context');
+const { getDefaultTenantId } = require('../middleware/tenant.middleware');
+const { torreAllViagensRoom } = require('../services/socket-tenant.service');
 
 /** Resolve ID do usuário: req.user.id/cdcadastro, body.idUsuario, ou busca no banco por login (token antigo sem id). */
 async function resolverIdUsuario(req) {
@@ -78,47 +82,124 @@ const sosController = {
         return res.status(400).json({ error: 'Coordenadas GPS são obrigatórias' });
       }
 
-      const pool = await poolPromise;
-
       const lat = parseFloat(latitude);
       const lon = parseFloat(longitude);
       const cdMot = parseFloat(motoristaId);
+      if (!Number.isFinite(cdMot)) {
+        return res.status(400).json({ error: 'ID do motorista inválido' });
+      }
+
+      const authHdr = req.headers.authorization;
+      if (authHdr && authHdr.startsWith('Bearer ') && process.env.JWT_SECRET) {
+        try {
+          const decoded = jwt.verify(authHdr.slice(7), process.env.JWT_SECRET);
+          if (decoded && decoded.tipo === 'motorista') {
+            const idTok = parseFloat(decoded.id ?? decoded.cdcadastro);
+            if (Number.isFinite(idTok) && idTok !== cdMot) {
+              return res.status(403).json({ error: 'Token não corresponde ao motorista do alerta.' });
+            }
+          }
+        } catch (_) {
+          /* token inválido/expirado: permite SOS sem sessão (fila offline) */
+        }
+      }
+
+      const pool = await poolPromise;
+      const defTid = getDefaultTenantId();
+      let tid = defTid;
+      try {
+        const cgRow = await pool.query(
+          `SELECT COALESCE(NULLIF(TRIM("TENANT_ID"::text), ''), $2::text) AS tid
+           FROM public."CADASTROGERAL" WHERE "CDCADASTRO" = $1 LIMIT 1`,
+          [cdMot, defTid]
+        );
+        if (!cgRow.rows || cgRow.rows.length === 0) {
+          return res.status(400).json({ error: 'Motorista não encontrado' });
+        }
+        tid = String(cgRow.rows[0].tid ?? cgRow.rows[0].TENANT_ID ?? defTid);
+      } catch (eCg) {
+        if (eCg.code === '42703') {
+          const cgRow2 = await pool.query(
+            'SELECT 1 FROM public."CADASTROGERAL" WHERE "CDCADASTRO" = $1 LIMIT 1',
+            [cdMot]
+          );
+          if (!cgRow2.rows || cgRow2.rows.length === 0) {
+            return res.status(400).json({ error: 'Motorista não encontrado' });
+          }
+          tid = tenantIdForRequest(req);
+        } else {
+          throw eCg;
+        }
+      }
+
       const cdVig = idviagem != null ? parseFloat(idviagem) : null;
       const msg = (message || '').substring(0, 500);
+
+      if (cdVig != null && Number.isFinite(cdVig)) {
+        const vRow = await pool.query(
+          'SELECT 1 FROM public."VIAGEMMESTRE" WHERE "IDVIAGEM" = $1 AND "TENANT_ID" = $2 LIMIT 1',
+          [cdVig, tid]
+        );
+        if (!vRow.rows || vRow.rows.length === 0) {
+          return res.status(403).json({ error: 'Viagem não encontrada ou não pertence ao tenant' });
+        }
+      }
 
       // INSERT nativo PostgreSQL (evita erro de sintaxe da conversão db.js)
       let idAlerta;
       try {
-        const res = await pool.query(
+        const qIns = await pool.query(
           `INSERT INTO public."SOS_ALERTS" (
             "CDMOTORISTA", "CDVIAGEM", "LATITUDE", "LONGITUDE", "LOCATION",
-            "MESSAGE", "PRIORITY", "STATUS", "CREATED_AT", "SYNCED"
-          ) VALUES ($1, $2, $3, $4, ST_SetSRID(ST_MakePoint($4, $3), 4326)::geography, $5, $6, 'active', CURRENT_TIMESTAMP, true)
+            "MESSAGE", "PRIORITY", "STATUS", "CREATED_AT", "SYNCED", "TENANT_ID"
+          ) VALUES ($1, $2, $3, $4, ST_SetSRID(ST_MakePoint($4, $3), 4326)::geography, $5, $6, 'active', CURRENT_TIMESTAMP, true, $7)
           RETURNING "ID"`,
-          [cdMot, cdVig, lat, lon, msg, 'critical']
+          [cdMot, cdVig, lat, lon, msg, 'critical', tid]
         );
-        idAlerta = res.rows[0]?.ID ?? res.rows[0]?.id;
+        idAlerta = qIns.rows[0]?.ID ?? qIns.rows[0]?.id;
       } catch (err) {
-        if (err.code === '42P01' || err.code === '42601') {
+        if (err.code === '42P01' || err.code === '42601' || err.code === '42703') {
           try {
-            const res = await pool.query(
+            const qIns2 = await pool.query(
               `INSERT INTO public.sos_alerts (
                 cdmotorista, cdviagem, latitude, longitude, location,
-                message, priority, status, created_at, synced
-              ) VALUES ($1, $2, $3, $4, ST_SetSRID(ST_MakePoint($4, $3), 4326)::geography, $5, $6, 'active', CURRENT_TIMESTAMP, true)
+                message, priority, status, created_at, synced, tenant_id
+              ) VALUES ($1, $2, $3, $4, ST_SetSRID(ST_MakePoint($4, $3), 4326)::geography, $5, $6, 'active', CURRENT_TIMESTAMP, true, $7)
               RETURNING "ID"`,
-              [cdMot, cdVig, lat, lon, msg, 'critical']
+              [cdMot, cdVig, lat, lon, msg, 'critical', tid]
             );
-            idAlerta = res.rows[0]?.ID ?? res.rows[0]?.id;
+            idAlerta = qIns2.rows[0]?.ID ?? qIns2.rows[0]?.id;
           } catch (err2) {
-            if (err2.code === '42P01') {
+            if (err2.code === '42703') {
+              try {
+                const qIns3 = await pool.query(
+                  `INSERT INTO public."SOS_ALERTS" (
+                    "CDMOTORISTA", "CDVIAGEM", "LATITUDE", "LONGITUDE", "LOCATION",
+                    "MESSAGE", "PRIORITY", "STATUS", "CREATED_AT", "SYNCED"
+                  ) VALUES ($1, $2, $3, $4, ST_SetSRID(ST_MakePoint($4, $3), 4326)::geography, $5, $6, 'active', CURRENT_TIMESTAMP, true)
+                  RETURNING "ID"`,
+                  [cdMot, cdVig, lat, lon, msg, 'critical']
+                );
+                idAlerta = qIns3.rows[0]?.ID ?? qIns3.rows[0]?.id;
+              } catch (err3) {
+                if (err3.code === '42P01') {
+                  return res.status(503).json({
+                    error: 'Módulo SOS não disponível',
+                    details: 'Tabela de alertas SOS não existe. Execute: backend/scripts/criar_sos_alerts_postgres.sql',
+                    code: 'TABLE_NOT_FOUND'
+                  });
+                }
+                throw err3;
+              }
+            } else if (err2.code === '42P01') {
               return res.status(503).json({
                 error: 'Módulo SOS não disponível',
                 details: 'Tabela de alertas SOS não existe. Execute: backend/scripts/criar_sos_alerts_postgres.sql',
                 code: 'TABLE_NOT_FOUND'
               });
+            } else {
+              throw err2;
             }
-            throw err2;
           }
         } else {
           throw err;
@@ -130,18 +211,19 @@ const sosController = {
       try {
         const sel = await pool.query(
           `SELECT sa."ID", sa."CDMOTORISTA", sa."CDVIAGEM", sa."LATITUDE", sa."LONGITUDE",
-            sa."STATUS", sa."PRIORITY", sa."MESSAGE", sa."CREATED_AT",
+            sa."STATUS", sa."PRIORITY", sa."MESSAGE", sa."CREATED_AT", sa."TENANT_ID",
             cg."RZSOCIAL" AS "NOME_MOTORISTA", vm."IDVIAGEM",
             COALESCE(co."NMCIDADE" || '/' || co."ESTADO", 'Não informado') AS "ORIGEM",
             COALESCE(cd."NMCIDADE" || '/' || cd."ESTADO", 'Não informado') AS "DESTINO"
            FROM public."SOS_ALERTS" sa
-           LEFT JOIN public."CADASTROGERAL" cg ON sa."CDMOTORISTA" = cg."CDCADASTRO"
-           LEFT JOIN public."VIAGEMMESTRE" vm ON sa."CDVIAGEM" = vm."IDVIAGEM"
+           LEFT JOIN public."CADASTROGERAL" cg ON sa."CDMOTORISTA" = cg."CDCADASTRO" AND cg."TENANT_ID" = sa."TENANT_ID"
+           LEFT JOIN public."VIAGEMMESTRE" vm ON sa."CDVIAGEM" = vm."IDVIAGEM" AND vm."TENANT_ID" = sa."TENANT_ID"
            LEFT JOIN public."ROTEIRO" r ON vm."IDROTEIRO" = r."IDROTEIRO"
+             AND (r."TENANT_ID" = vm."TENANT_ID" OR r."TENANT_ID" = 'default')
            LEFT JOIN public."CIDADE" co ON r."CDCIDADEORIGEM" = co."CDCIDADE"
            LEFT JOIN public."CIDADE" cd ON r."CDCIDADEDESTINO" = cd."CDCIDADE"
-           WHERE sa."ID" = $1`,
-          [idAlerta]
+           WHERE sa."ID" = $1 AND sa."TENANT_ID" = $2`,
+          [idAlerta, tid]
         );
         row = sel.rows[0] || null;
       } catch (err) {
@@ -156,6 +238,7 @@ const sosController = {
             PRIORITY: 'critical',
             MESSAGE: msg,
             CREATED_AT: new Date(),
+            TENANT_ID: tid,
             NOME_MOTORISTA: null,
             IDVIAGEM: cdVig,
             ORIGEM: 'Não informado',
@@ -176,6 +259,7 @@ const sosController = {
           PRIORITY: 'critical',
           MESSAGE: msg,
           CREATED_AT: new Date(),
+          TENANT_ID: tid,
           NOME_MOTORISTA: null,
           IDVIAGEM: cdVig,
           ORIGEM: 'Não informado',
@@ -188,7 +272,9 @@ const sosController = {
         const websocketTorre = req.app ? req.app.get('websocketTorre') : null;
         if (websocketTorre && row) websocketTorre.emitirSOS(row);
         const io = req.app ? req.app.get('io') : null;
-        if (io) io.emit('sos-alerta', { type: 'novo', alerta: row });
+        if (io) {
+          io.to(torreAllViagensRoom(row.TENANT_ID ?? tid)).emit('sos-alerta', { type: 'novo', alerta: row });
+        }
       } catch (err) {
         console.warn('⚠️ Erro ao emitir evento WebSocket SOS:', err.message);
       }
@@ -215,7 +301,9 @@ const sosController = {
   listarAtivos: async (req, res) => {
     try {
       const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
       const request = pool.request();
+      request.input('tenantId', sql.NVarChar(64), tid);
 
       const result = await request.query(`
         SELECT 
@@ -234,12 +322,14 @@ const sosController = {
           COALESCE([co].[NMCIDADE] || '/' || [co].[ESTADO], 'Não informado') AS [ORIGEM],
           COALESCE([cd].[NMCIDADE] || '/' || [cd].[ESTADO], 'Não informado') AS [DESTINO]
         FROM [dbo].[SOS_ALERTS] [sa]
-        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [sa].[CDMOTORISTA] = [cg].[CDCADASTRO]
-        LEFT JOIN [dbo].[VIAGEMMESTRE] [vm] ON [sa].[CDVIAGEM] = [vm].[IDVIAGEM]
+        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [sa].[CDMOTORISTA] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [sa].[TENANT_ID]
+        LEFT JOIN [dbo].[VIAGEMMESTRE] [vm] ON [sa].[CDVIAGEM] = [vm].[IDVIAGEM] AND [sa].[TENANT_ID] = [vm].[TENANT_ID]
         LEFT JOIN [dbo].[ROTEIRO] [r] ON [vm].[IDROTEIRO] = [r].[IDROTEIRO]
+          AND ([r].[TENANT_ID] = [vm].[TENANT_ID] OR [r].[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[CIDADE] [co] ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
         LEFT JOIN [dbo].[CIDADE] [cd] ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
         WHERE [sa].[STATUS] = 'active'
+          AND [sa].[TENANT_ID] = @tenantId
         ORDER BY [sa].[CREATED_AT] DESC
       `);
       
@@ -295,45 +385,32 @@ const sosController = {
     try {
       const { id } = req.params;
       const { notes } = req.body;
-      const { idusuario } = req.user || {}; // Usuário que está resolvendo
-
+      const { idusuario } = req.user || {};
+      const tid = tenantIdForRequest(req);
       const pool = await poolPromise;
-      const request = pool.request();
-      request.input('id', sql.Int, id);
-      request.input('resolvedBy', sql.Decimal(15, 0), idusuario || null);
-      request.input('notes', sql.NVarChar(500), notes || null);
+      const idNum = parseInt(id, 10);
+      const resolvedBy = idusuario != null && idusuario !== '' ? parseFloat(idusuario) : null;
 
-      await request.query(`
-        UPDATE SOS_ALERTS
-        SET 
-          STATUS = 'resolved',
-          RESOLVED_AT = SYSUTCDATETIME(),
-          RESOLVED_BY = @resolvedBy,
-          RESOLUTION_NOTES = @notes
-        WHERE [ID] = @id AND [STATUS] = 'active'
-      `);
+      const up = await pool.query(
+        `UPDATE public."SOS_ALERTS"
+         SET "STATUS" = 'resolved', "RESOLVED_AT" = NOW(),
+             "RESOLVED_BY" = $2, "RESOLUTION_NOTES" = $3
+         WHERE "ID" = $1 AND "STATUS" = 'active' AND "TENANT_ID" = $4`,
+        [idNum, resolvedBy, notes != null ? String(notes).substring(0, 500) : null, tid]
+      );
 
-      // Emitir evento WebSocket
+      if (up.rowCount === 0) {
+        return res.status(404).json({ error: 'SOS não encontrado ou já resolvido' });
+      }
+
       try {
         const websocketTorre = req.app ? req.app.get('websocketTorre') : null;
-        if (websocketTorre) {
-          // Buscar ID da viagem se houver
-          const viagemResult = await pool.request()
-            .input('id', sql.Int, id)
-            .query(`SELECT [CDVIAGEM] FROM [dbo].[SOS_ALERTS] WHERE [ID] = @id LIMIT 1`);
-          const idviagem = viagemResult.recordset.length > 0 
-            ? viagemResult.recordset[0].CDVIAGEM 
-            : null;
-          websocketTorre.emitirAlertaResolvido(id, idviagem);
+        if (websocketTorre && typeof websocketTorre.emitirSOSTratado === 'function') {
+          websocketTorre.emitirSOSTratado(idNum, 'resolved');
         }
-
-        // Também emitir via Socket.io direto (compatibilidade)
         const io = req.app ? req.app.get('io') : null;
         if (io) {
-          io.emit('sos-alerta', {
-            type: 'resolvido',
-            id: id
-          });
+          io.to(torreAllViagensRoom(tid)).emit('sos-alerta', { type: 'resolvido', id: idNum });
         }
       } catch (err) {
         console.warn('⚠️ Erro ao emitir evento WebSocket SOS resolvido:', err.message);
@@ -343,12 +420,11 @@ const sosController = {
         success: true,
         message: 'Alerta SOS resolvido com sucesso'
       });
-
     } catch (error) {
       console.error('Erro ao resolver alerta SOS:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: 'Erro ao resolver alerta SOS',
-        details: error.message 
+        details: error.message
       });
     }
   },
@@ -359,14 +435,16 @@ const sosController = {
    */
   historico: async (req, res) => {
     try {
-      const { idmotorista } = req.user || req.query;
+      const idmotorista = req.user?.cdcadastro ?? req.user?.id;
 
-      if (!idmotorista) {
-        return res.status(400).json({ error: 'ID do motorista é obrigatório' });
+      if (idmotorista == null || idmotorista === '') {
+        return res.status(401).json({ error: 'Sessão inválida.', errorKey: 'login.tokenInvalido' });
       }
 
       const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
       const request = pool.request();
+      request.input('tenantId', sql.NVarChar(64), tid);
       request.input('cdmotorista', sql.Decimal(15, 0), idmotorista);
 
       const result = await request.query(`
@@ -385,11 +463,12 @@ const sosController = {
           COALESCE([co].[NMCIDADE] || '/' || [co].[ESTADO], 'Não informado') AS [ORIGEM],
           COALESCE([cd].[NMCIDADE] || '/' || [cd].[ESTADO], 'Não informado') AS [DESTINO]
         FROM [dbo].[SOS_ALERTS] [sa]
-        LEFT JOIN [dbo].[VIAGEMMESTRE] [vm] ON [sa].[CDVIAGEM] = [vm].[IDVIAGEM]
+        LEFT JOIN [dbo].[VIAGEMMESTRE] [vm] ON [sa].[CDVIAGEM] = [vm].[IDVIAGEM] AND [sa].[TENANT_ID] = [vm].[TENANT_ID]
         LEFT JOIN [dbo].[ROTEIRO] [r] ON [vm].[IDROTEIRO] = [r].[IDROTEIRO]
+          AND ([r].[TENANT_ID] = [vm].[TENANT_ID] OR [r].[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[CIDADE] [co] ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
         LEFT JOIN [dbo].[CIDADE] [cd] ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
-        WHERE [sa].[CDMOTORISTA] = @cdmotorista
+        WHERE [sa].[TENANT_ID] = @tenantId AND [sa].[CDMOTORISTA] = @cdmotorista
         ORDER BY [sa].[CREATED_AT] DESC
       `);
 
@@ -440,7 +519,9 @@ const sosController = {
       const { status, dataInicio, dataFim, idViagem, idMotorista, limit = 50, offset = 0 } = req.query;
       
       const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
       const request = pool.request();
+      request.input('tenantId', sql.NVarChar(64), tid);
 
       let query = `
         SELECT 
@@ -466,14 +547,16 @@ const sosController = {
           [u1].[RZSOCIAL] AS [usuario_leu_nome],
           [u2].[RZSOCIAL] AS [usuario_resolveu_nome]
         FROM [dbo].[SOS_ALERTS] [sa]
-        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [sa].[CDMOTORISTA] = [cg].[CDCADASTRO]
-        LEFT JOIN [dbo].[VIAGEMMESTRE] [vm] ON [sa].[CDVIAGEM] = [vm].[IDVIAGEM]
+        LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [sa].[CDMOTORISTA] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [sa].[TENANT_ID]
+        LEFT JOIN [dbo].[VIAGEMMESTRE] [vm] ON [sa].[CDVIAGEM] = [vm].[IDVIAGEM] AND [sa].[TENANT_ID] = [vm].[TENANT_ID]
         LEFT JOIN [dbo].[ROTEIRO] [r] ON [vm].[IDROTEIRO] = [r].[IDROTEIRO]
+          AND ([r].[TENANT_ID] = [vm].[TENANT_ID] OR [r].[TENANT_ID] = 'default')
         LEFT JOIN [dbo].[CIDADE] [co] ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
         LEFT JOIN [dbo].[CIDADE] [cd] ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
-        LEFT JOIN [dbo].[CADASTROGERAL] [u1] ON [sa].[ID_USUARIO_LEU] = [u1].[CDCADASTRO]
-        LEFT JOIN [dbo].[CADASTROGERAL] [u2] ON [sa].[RESOLVED_BY] = [u2].[CDCADASTRO]
+        LEFT JOIN [dbo].[CADASTROGERAL] [u1] ON [sa].[ID_USUARIO_LEU] = [u1].[CDCADASTRO] AND [u1].[TENANT_ID] = [sa].[TENANT_ID]
+        LEFT JOIN [dbo].[CADASTROGERAL] [u2] ON [sa].[RESOLVED_BY] = [u2].[CDCADASTRO] AND [u2].[TENANT_ID] = [sa].[TENANT_ID]
         WHERE 1=1
+          AND [sa].[TENANT_ID] = @tenantId
       `;
 
       if (status) {
@@ -507,8 +590,9 @@ const sosController = {
       const result = await request.query(query);
 
       // Contar total
-      let countQuery = `SELECT COUNT(*) AS [total] FROM [dbo].[SOS_ALERTS] [sa] WHERE 1=1`;
+      let countQuery = `SELECT COUNT(*) AS [total] FROM [dbo].[SOS_ALERTS] [sa] WHERE 1=1 AND [sa].[TENANT_ID] = @tenantId`;
       const countRequest = pool.request();
+      countRequest.input('tenantId', sql.NVarChar(64), tid);
       if (status) {
         countRequest.input('status', sql.NVarChar(50), status);
         countQuery += ` AND [sa].[STATUS] = @status`;
@@ -535,9 +619,11 @@ const sosController = {
       const total = row0?.total ?? row0?.TOTAL ?? 0;
 
       // Contar pendentes
-      const pendentesResult = await pool.request().query(`
+      const pendentesResult = await pool.request()
+        .input('tenantId', sql.NVarChar(64), tid)
+        .query(`
         SELECT COUNT(*) AS [total] FROM [dbo].[SOS_ALERTS]
-        WHERE [STATUS] = 'active'
+        WHERE [STATUS] = 'active' AND [TENANT_ID] = @tenantId
       `);
       const pendRow = pendentesResult.recordset[0];
       const pendentes = pendRow?.total ?? pendRow?.TOTAL ?? 0;
@@ -581,8 +667,10 @@ const sosController = {
       const { id } = req.params;
       
       const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
       const result = await pool.request()
         .input('id', sql.Int, parseInt(id))
+        .input('tenantId', sql.NVarChar(64), tid)
         .query(`
           SELECT 
             [sa].[ID],
@@ -608,14 +696,15 @@ const sosController = {
             [u1].[RZSOCIAL] AS [usuario_leu_nome],
             [u2].[RZSOCIAL] AS [usuario_resolveu_nome]
           FROM [dbo].[SOS_ALERTS] [sa]
-          LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [sa].[CDMOTORISTA] = [cg].[CDCADASTRO]
-          LEFT JOIN [dbo].[VIAGEMMESTRE] [vm] ON [sa].[CDVIAGEM] = [vm].[IDVIAGEM]
+          LEFT JOIN [dbo].[CADASTROGERAL] [cg] ON [sa].[CDMOTORISTA] = [cg].[CDCADASTRO] AND [cg].[TENANT_ID] = [sa].[TENANT_ID]
+          LEFT JOIN [dbo].[VIAGEMMESTRE] [vm] ON [sa].[CDVIAGEM] = [vm].[IDVIAGEM] AND [sa].[TENANT_ID] = [vm].[TENANT_ID]
           LEFT JOIN [dbo].[ROTEIRO] [r] ON [vm].[IDROTEIRO] = [r].[IDROTEIRO]
+            AND ([r].[TENANT_ID] = [vm].[TENANT_ID] OR [r].[TENANT_ID] = 'default')
           LEFT JOIN [dbo].[CIDADE] [co] ON [r].[CDCIDADEORIGEM] = [co].[CDCIDADE]
           LEFT JOIN [dbo].[CIDADE] [cd] ON [r].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
-          LEFT JOIN [dbo].[CADASTROGERAL] [u1] ON [sa].[ID_USUARIO_LEU] = [u1].[CDCADASTRO]
-          LEFT JOIN [dbo].[CADASTROGERAL] [u2] ON [sa].[RESOLVED_BY] = [u2].[CDCADASTRO]
-          WHERE [sa].[ID] = @id
+          LEFT JOIN [dbo].[CADASTROGERAL] [u1] ON [sa].[ID_USUARIO_LEU] = [u1].[CDCADASTRO] AND [u1].[TENANT_ID] = [sa].[TENANT_ID]
+          LEFT JOIN [dbo].[CADASTROGERAL] [u2] ON [sa].[RESOLVED_BY] = [u2].[CDCADASTRO] AND [u2].[TENANT_ID] = [sa].[TENANT_ID]
+          WHERE [sa].[ID] = @id AND [sa].[TENANT_ID] = @tenantId
         `);
       
       // Adicionar LOCATION_DESCRIPTION se o campo existir (PostgreSQL - não usar sys.columns)
@@ -628,8 +717,8 @@ const sosController = {
           `);
           if (checkField.rows && checkField.rows.length > 0) {
             const descResult = await pool.query(
-              `SELECT "LOCATION_DESCRIPTION" FROM public."SOS_ALERTS" WHERE "ID" = $1`,
-              [parseInt(id, 10)]
+              `SELECT "LOCATION_DESCRIPTION" FROM public."SOS_ALERTS" WHERE "ID" = $1 AND "TENANT_ID" = $2`,
+              [parseInt(id, 10), tid]
             );
             if (descResult.rows && descResult.rows.length > 0) {
               const row = descResult.rows[0];
@@ -664,6 +753,15 @@ const sosController = {
       const { id } = req.params;
       const idNum = parseInt(id, 10);
       const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
+
+      const own = await pool.query(
+        'SELECT 1 FROM public."SOS_ALERTS" WHERE "ID" = $1 AND "TENANT_ID" = $2 LIMIT 1',
+        [idNum, tid]
+      );
+      if (!own.rows || own.rows.length === 0) {
+        return res.status(404).json({ error: 'SOS não encontrado' });
+      }
 
       try {
         const result = await pool.query(
@@ -724,6 +822,7 @@ const sosController = {
       }
 
       const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
       const client = await pool.connect();
       const idNum = parseInt(id, 10);
       const idUsuarioNum = parseFloat(idUsuario);
@@ -733,8 +832,8 @@ const sosController = {
         await client.query(
           `UPDATE public."SOS_ALERTS"
            SET "ID_USUARIO_LEU" = $1, "DH_LEITURA" = NOW()
-           WHERE "ID" = $2`,
-          [idUsuarioNum, idNum]
+           WHERE "ID" = $2 AND "TENANT_ID" = $3`,
+          [idUsuarioNum, idNum, tid]
         );
         try {
           await client.query(
@@ -813,6 +912,7 @@ const sosController = {
       }
 
       const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
       const client = await pool.connect();
       const idNum = parseInt(id, 10);
       const idUsuarioNum = parseFloat(idUsuario);
@@ -822,12 +922,16 @@ const sosController = {
         await client.query('BEGIN');
 
         const sel = await client.query(
-          `SELECT "STATUS", "CREATED_AT" FROM public."SOS_ALERTS" WHERE "ID" = $1`,
-          [idNum]
+          `SELECT "STATUS", "CREATED_AT" FROM public."SOS_ALERTS" WHERE "ID" = $1 AND "TENANT_ID" = $2`,
+          [idNum, tid]
         );
         const row = sel.rows && sel.rows[0];
-        const statusAnterior = row ? (row.STATUS ?? row.status) : null;
-        const createdAt = row ? (row.CREATED_AT ?? row.created_at) : null;
+        if (!row) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ error: 'SOS não encontrado' });
+        }
+        const statusAnterior = row.STATUS ?? row.status;
+        const createdAt = row.CREATED_AT ?? row.created_at;
 
         let updateSql = `UPDATE public."SOS_ALERTS" SET "STATUS" = $1`;
         const params = [statusStr];
@@ -854,8 +958,8 @@ const sosController = {
           idx++;
         }
 
-        updateSql += ` WHERE "ID" = $${idx}`;
-        params.push(idNum);
+        updateSql += ` WHERE "ID" = $${idx} AND "TENANT_ID" = $${idx + 1}`;
+        params.push(idNum, tid);
         await client.query(updateSql, params);
 
         try {
@@ -875,8 +979,8 @@ const sosController = {
         if (locationDescription !== undefined) {
           try {
             await client.query(
-              `UPDATE public."SOS_ALERTS" SET "LOCATION_DESCRIPTION" = $1 WHERE "ID" = $2`,
-              [locationDescription == null ? null : String(locationDescription).substring(0, 500), idNum]
+              `UPDATE public."SOS_ALERTS" SET "LOCATION_DESCRIPTION" = $1 WHERE "ID" = $2 AND "TENANT_ID" = $3`,
+              [locationDescription == null ? null : String(locationDescription).substring(0, 500), idNum, tid]
             );
           } catch (errCol) {
             if (errCol.code === '42703') console.warn('⚠️ Coluna LOCATION_DESCRIPTION não existe em SOS_ALERTS');
@@ -916,6 +1020,7 @@ const sosController = {
       const idUsuario = req.user?.cdcadastro || req.body.idUsuario;
       
       const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
       const idNum = parseInt(id, 10);
       const parts = [];
       const params = [];
@@ -937,17 +1042,17 @@ const sosController = {
       }
 
       if (parts.length > 0) {
-        params.push(idNum);
+        params.push(idNum, tid);
         await pool.query(
-          `UPDATE public."SOS_ALERTS" SET ${parts.join(', ')} WHERE "ID" = $${idx}`,
+          `UPDATE public."SOS_ALERTS" SET ${parts.join(', ')} WHERE "ID" = $${idx} AND "TENANT_ID" = $${idx + 1}`,
           params
         );
       }
       if (locationDescription !== undefined) {
         try {
           await pool.query(
-            `UPDATE public."SOS_ALERTS" SET "LOCATION_DESCRIPTION" = $1 WHERE "ID" = $2`,
-            [locationDescription == null ? null : String(locationDescription).substring(0, 500), idNum]
+            `UPDATE public."SOS_ALERTS" SET "LOCATION_DESCRIPTION" = $1 WHERE "ID" = $2 AND "TENANT_ID" = $3`,
+            [locationDescription == null ? null : String(locationDescription).substring(0, 500), idNum, tid]
           );
         } catch (errCol) {
           if (errCol.code === '42703') console.warn('⚠️ Coluna LOCATION_DESCRIPTION não existe');
@@ -1085,6 +1190,7 @@ const sosController = {
     const zeros = { total: 0, ativos: 0, emTratamento: 0, resolvidos: 0, cancelados: 0 };
     try {
       const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
       let result;
       // Tentar tabela maiúscula (colunas "STATUS") e depois minúscula (coluna status)
       try {
@@ -1095,7 +1201,8 @@ const sosController = {
             COALESCE(SUM(CASE WHEN "STATUS" = 'resolved' THEN 1 ELSE 0 END), 0)::int AS resolvidos,
             COALESCE(SUM(CASE WHEN "STATUS" = 'cancelled' THEN 1 ELSE 0 END), 0)::int AS cancelados
           FROM public."SOS_ALERTS"
-        `);
+          WHERE "TENANT_ID" = $1
+        `, [tid]);
       } catch (qerr1) {
         if (qerr1.code !== '42P01' && qerr1.code !== '42703') throw qerr1;
         try {
@@ -1106,7 +1213,8 @@ const sosController = {
               COALESCE(SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END), 0)::int AS resolvidos,
               COALESCE(SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END), 0)::int AS cancelados
             FROM public.sos_alerts
-          `);
+            WHERE tenant_id = $1
+          `, [tid]);
         } catch (qerr2) {
           if (qerr2.code === '42P01' || qerr2.code === '42703') {
             console.warn('⚠️ [SOS] contador: tabela SOS não encontrada, retornando zeros');

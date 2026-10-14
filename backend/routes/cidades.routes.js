@@ -10,6 +10,8 @@ const axios = require('axios');
 const router = express.Router();
 const { poolPromise } = require('../config/db');
 const { getForwardGeocodingUrl, getNominatimServer } = require('../config/nominatim');
+const { towerAuthAndTenant } = require('../middleware/tower-auth-chain.middleware');
+const { listEstados } = require('../controllers/estado-public.controller');
 
 // Constante de Estados do Brasil
 const ESTADOS_BRASIL = [
@@ -47,6 +49,103 @@ function getNomeEstadoPorUF(uf) {
   const estado = ESTADOS_BRASIL.find(e => e.uf === uf.toUpperCase());
   return estado ? estado.nome : uf;
 }
+
+// Códigos CDUF (IBGE) por UF – fallback quando a tabela ESTADO estiver vazia (usado por /estado-cduf público)
+const UF_PARA_CDUF = {
+  AC: 12, AL: 27, AP: 16, AM: 13, BA: 29, CE: 23, DF: 53, ES: 32, GO: 52,
+  MA: 21, MT: 51, MS: 50, MG: 31, PA: 15, PB: 25, PR: 41, PE: 26, PI: 22,
+  RJ: 33, RN: 24, RS: 43, RO: 11, RR: 14, SC: 42, SP: 35, SE: 28, TO: 17
+};
+
+// --- Rotas públicas (app motorista / cadastro sem JWT da torre): apenas leitura de catálogos ---
+router.get('/paises', async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.query(`
+      SELECT "CDPAIS", "DSPAIS",
+             COALESCE(NULLIF(TRIM("SGPAIS"), ''), "CDPAIS"::TEXT) AS "SGPAIS",
+             NULLIF(TRIM(COALESCE("DDI", '')), '') AS "DDI"
+      FROM "PAIS"
+      ORDER BY "DSPAIS"
+    `);
+    res.json(result.rows || []);
+  } catch (err) {
+    if (err.code === '42703') {
+      try {
+        const pool = await poolPromise;
+        const result = await pool.query(`
+          SELECT "CDPAIS", "DSPAIS", "CDPAIS"::TEXT AS "SGPAIS", NULL AS "DDI"
+          FROM "PAIS"
+          ORDER BY "DSPAIS"
+        `);
+        return res.json(result.rows || []);
+      } catch (e) {
+        console.error('Erro ao buscar países (fallback):', e);
+        return res.status(500).json({ error: 'Erro ao carregar países.' });
+      }
+    }
+    console.error('Erro ao buscar países:', err);
+    res.status(500).json({ error: 'Erro ao carregar países.' });
+  }
+});
+
+router.get('/estados-brasil', (req, res) => {
+  res.json(ESTADOS_BRASIL);
+});
+
+// Estados por país (AR, PY, etc.) — público; deve vir antes de router.use(towerAuthAndTenant).
+router.get('/estados', listEstados);
+
+router.get('/estado-cduf/:estado', async (req, res) => {
+  try {
+    const { estado } = req.params;
+    const uf = (estado || '').toUpperCase().trim();
+    const pool = await poolPromise;
+    const result = await pool.query(
+      `SELECT "CDUF" FROM "ESTADO" WHERE "ESTADO" = $1 LIMIT 1`,
+      [uf]
+    );
+    const rows = result.rows || [];
+    if (rows.length > 0) {
+      const cduf = rows[0].CDUF ?? rows[0].cduf;
+      return res.json({ CDUF: cduf });
+    }
+    const cdufFallback = UF_PARA_CDUF[uf];
+    if (cdufFallback !== undefined) {
+      return res.json({ CDUF: cdufFallback });
+    }
+    res.status(404).json({ error: 'Estado não encontrado.' });
+  } catch (err) {
+    console.error('Erro ao buscar CDUF do estado:', err);
+    res.status(500).json({ error: 'Erro ao buscar código do estado.' });
+  }
+});
+
+router.get('/mesorregioes/:cduf', async (req, res) => {
+  try {
+    const { cduf } = req.params;
+    const cdufNum = parseInt(cduf, 10);
+
+    if (isNaN(cdufNum)) {
+      return res.status(400).json({ error: 'CDUF inválido.' });
+    }
+
+    const pool = await poolPromise;
+    const result = await pool.query(
+      `SELECT "CDUF", "CDMESOREGIAO", "DSMESOREGIAO"
+       FROM "MESOREGIAO"
+       WHERE "CDUF" = $1
+       ORDER BY "DSMESOREGIAO"`,
+      [cdufNum]
+    );
+    res.json(result.rows || []);
+  } catch (err) {
+    console.error('Erro ao buscar mesorregiões:', err);
+    res.status(500).json({ error: 'Erro ao carregar mesorregiões.' });
+  }
+});
+
+router.use(towerAuthAndTenant);
 
 // Listar cidades com filtros (PostgreSQL)
 router.get('/cidades', async (req, res) => {
@@ -494,11 +593,6 @@ router.delete('/cidades/:id', async (req, res) => {
   }
 });
 
-// Endpoint para listar estados do Brasil
-router.get('/estados-brasil', (req, res) => {
-  res.json(ESTADOS_BRASIL);
-});
-
 // Buscar microrregiões por CDUF
 router.get('/microrregioes/:cduf', async (req, res) => {
   try {
@@ -524,31 +618,6 @@ router.get('/microrregioes/:cduf', async (req, res) => {
   }
 });
 
-// Buscar mesorregiões por CDUF
-router.get('/mesorregioes/:cduf', async (req, res) => {
-  try {
-    const { cduf } = req.params;
-    const cdufNum = parseInt(cduf);
-    
-    if (isNaN(cdufNum)) {
-      return res.status(400).json({ error: 'CDUF inválido.' });
-    }
-    
-    const pool = await poolPromise;
-    const result = await pool.query(
-      `SELECT "CDUF", "CDMESOREGIAO", "DSMESOREGIAO"
-       FROM "MESOREGIAO"
-       WHERE "CDUF" = $1
-       ORDER BY "DSMESOREGIAO"`,
-      [cdufNum]
-    );
-    res.json(result.rows || []);
-  } catch (err) {
-    console.error('Erro ao buscar mesorregiões:', err);
-    res.status(500).json({ error: 'Erro ao carregar mesorregiões.' });
-  }
-});
-
 // Buscar todas as regiões fiscais (PostgreSQL)
 router.get('/regioes-fiscais', async (req, res) => {
   try {
@@ -562,72 +631,6 @@ router.get('/regioes-fiscais', async (req, res) => {
   } catch (err) {
     console.error('Erro ao buscar regiões fiscais:', err);
     res.status(500).json({ error: 'Erro ao carregar regiões fiscais.' });
-  }
-});
-
-// Códigos CDUF (IBGE) por UF – fallback quando a tabela ESTADO estiver vazia
-const UF_PARA_CDUF = {
-  AC: 12, AL: 27, AP: 16, AM: 13, BA: 29, CE: 23, DF: 53, ES: 32, GO: 52,
-  MA: 21, MT: 51, MS: 50, MG: 31, PA: 15, PB: 25, PR: 41, PE: 26, PI: 22,
-  RJ: 33, RN: 24, RS: 43, RO: 11, RR: 14, SC: 42, SP: 35, SE: 28, TO: 17
-};
-
-// Buscar CDUF a partir do ESTADO (UF) - PostgreSQL
-router.get('/estado-cduf/:estado', async (req, res) => {
-  try {
-    const { estado } = req.params;
-    const uf = (estado || '').toUpperCase().trim();
-    const pool = await poolPromise;
-    const result = await pool.query(
-      `SELECT "CDUF" FROM "ESTADO" WHERE "ESTADO" = $1 LIMIT 1`,
-      [uf]
-    );
-    const rows = result.rows || [];
-    if (rows.length > 0) {
-      const cduf = rows[0].CDUF ?? rows[0].cduf;
-      return res.json({ CDUF: cduf });
-    }
-    const cdufFallback = UF_PARA_CDUF[uf];
-    if (cdufFallback !== undefined) {
-      return res.json({ CDUF: cdufFallback });
-    }
-    res.status(404).json({ error: 'Estado não encontrado.' });
-  } catch (err) {
-    console.error('Erro ao buscar CDUF do estado:', err);
-    res.status(500).json({ error: 'Erro ao buscar código do estado.' });
-  }
-});
-
-// Buscar todos os países (PostgreSQL)
-// Retorna CDPAIS, DSPAIS, SGPAIS e DDI (quando a coluna existir) para combos e telefone
-router.get('/paises', async (req, res) => {
-  try {
-    const pool = await poolPromise;
-    const result = await pool.query(`
-      SELECT "CDPAIS", "DSPAIS",
-             COALESCE(NULLIF(TRIM("SGPAIS"), ''), "CDPAIS"::TEXT) AS "SGPAIS",
-             NULLIF(TRIM(COALESCE("DDI", '')), '') AS "DDI"
-      FROM "PAIS"
-      ORDER BY "DSPAIS"
-    `);
-    res.json(result.rows || []);
-  } catch (err) {
-    if (err.code === '42703') {
-      try {
-        const pool = await poolPromise;
-        const result = await pool.query(`
-          SELECT "CDPAIS", "DSPAIS", "CDPAIS"::TEXT AS "SGPAIS", NULL AS "DDI"
-          FROM "PAIS"
-          ORDER BY "DSPAIS"
-        `);
-        return res.json(result.rows || []);
-      } catch (e) {
-        console.error('Erro ao buscar países (fallback):', e);
-        return res.status(500).json({ error: 'Erro ao carregar países.' });
-      }
-    }
-    console.error('Erro ao buscar países:', err);
-    res.status(500).json({ error: 'Erro ao carregar países.' });
   }
 });
 

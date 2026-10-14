@@ -22,9 +22,21 @@
     } catch (e) {}
   }
 
+  function parseBackendDateSafe(dataValue) {
+    if (dataValue instanceof Date) return dataValue;
+    const s = String(dataValue || '').trim();
+    if (!s) return new Date(NaN);
+    const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(s);
+    const semTzMatch = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(\.\d+)?$/);
+    if (!hasTimezone && semTzMatch) {
+      return new Date(`${semTzMatch[1]}T${semTzMatch[2]}${semTzMatch[3] || ''}Z`);
+    }
+    return new Date(s);
+  }
+
   function fmtDataHora(data) {
     if (data === null || data === undefined) return '-';
-    const d = data instanceof Date ? data : new Date(data);
+    const d = parseBackendDateSafe(data);
     if (Number.isNaN(d.getTime())) return '-';
     if (typeof window.formatarDataHoraComFuso === 'function') {
       return window.formatarDataHoraComFuso(d, contextoRelatorio.locale, contextoRelatorio.timezone, { dateStyle: 'short', timeStyle: 'short' });
@@ -141,6 +153,7 @@
       const filtroViagemConfirmada = document.getElementById('filtroViagemConfirmada');
       const filtroMotivoRecusa = document.getElementById('filtroMotivoRecusa');
       const filtroContratador = document.getElementById('filtroContratador');
+      const filtroDivergenciaPlacasRel = document.getElementById('filtroDivergenciaPlacasRel');
 
       const filtros = {};
       
@@ -174,6 +187,7 @@
       }
       if (motivoRecusaValue && !isNaN(motivoRecusaValue)) filtros.motivoRecusa = motivoRecusaValue;
       if (contratadorValue && !isNaN(contratadorValue)) filtros.contratador = contratadorValue;
+      if (filtroDivergenciaPlacasRel && filtroDivergenciaPlacasRel.checked) filtros.divergenciaPlacas = '1';
 
       // Construir query string apenas com filtros válidos
       const queryString = new URLSearchParams(filtros).toString();
@@ -258,7 +272,7 @@
       </div>
       <div class="stat-card pendente">
         <div class="stat-label">Pendente</div>
-        <div class="stat-value">${estatisticas.PENDENTE || 0}</div>
+        <div class="stat-value">${estatisticas.PENDENTE_ACIONAVEL ?? estatisticas.PENDENTE ?? 0}</div>
       </div>
       <div class="stat-card aceita">
         <div class="stat-label">Aceita</div>
@@ -283,6 +297,10 @@
       <div class="stat-card com-resposta">
         <div class="stat-label">Com Resposta</div>
         <div class="stat-value">${estatisticas.COM_RESPOSTA || 0}</div>
+      </div>
+      <div class="stat-card divergencia-placas">
+        <div class="stat-label">Divergência placas (app)</div>
+        <div class="stat-value">${estatisticas.DIVERGENCIA_PLACAS ?? estatisticas.divergencia_placas ?? 0}</div>
       </div>
     `;
   }
@@ -522,7 +540,7 @@
       return `${diaStr}/${mesStr}/${anoStr}`;
     }).reverse();
     
-    const dadosPendente = dadosPorData.map(d => d.PENDENTE || 0).reverse();
+    const dadosPendente = dadosPorData.map(d => (d.PENDENTE_ACIONAVEL ?? d.PENDENTE ?? 0)).reverse();
     const dadosAceita = dadosPorData.map(d => d.ACEITA || 0).reverse();
     const dadosRecusada = dadosPorData.map(d => d.RECUSADA || 0).reverse();
     const dadosConfirmada = dadosPorData.map(d => d.CONFIRMADA || 0).reverse();
@@ -618,16 +636,16 @@
           valorB = b.STATUS || '';
           break;
         case 'Convocação':
-          valorA = new Date(a.DHCONVOCACAO || 0);
-          valorB = new Date(b.DHCONVOCACAO || 0);
+          valorA = parseBackendDateSafe(a.DHCONVOCACAO || 0);
+          valorB = parseBackendDateSafe(b.DHCONVOCACAO || 0);
           break;
         case 'Resposta':
-          valorA = new Date(a.DHRESPOSTA || 0);
-          valorB = new Date(b.DHRESPOSTA || 0);
+          valorA = parseBackendDateSafe(a.DHRESPOSTA || 0);
+          valorB = parseBackendDateSafe(b.DHRESPOSTA || 0);
           break;
         case 'Acesso':
-          valorA = new Date(a.DHACESSO || 0);
-          valorB = new Date(b.DHACESSO || 0);
+          valorA = parseBackendDateSafe(a.DHACESSO || 0);
+          valorB = parseBackendDateSafe(b.DHACESSO || 0);
           break;
         case 'Rota':
           const rotaA = `${(a.ORIGEM_CIDADE || '')}/${(a.ORIGEM_ESTADO || '')} → ${(a.DESTINO_CIDADE || '')}/${(a.DESTINO_ESTADO || '')}`;
@@ -739,19 +757,25 @@
 
     // Salvar lista original
     listaOrdenada = lista;
+
+    // Colunas removidas da grade (status / info): não manter ordenação órfã
+    if (ordemAtual.coluna === 'Status' || ordemAtual.coluna === 'Confirmada') {
+      ordemAtual = { coluna: null, direcao: 'asc' };
+    }
     
     // Aplicar ordenação se houver
     if (ordemAtual.coluna) {
       listaOrdenada = ordenarLista(lista, ordemAtual.coluna, ordemAtual.direcao);
     }
 
+    window.__relatorioConvJustificativaPlacas = Object.create(null);
+
     // Função para criar header com ordenação (sem inline background para respeitar dark mode)
-    const criarHeader = (nome, chave, largura = null) => {
+    const criarHeader = (nome, chave) => {
       const isOrdenado = ordemAtual.coluna === nome;
       const seta = isOrdenado ? (ordemAtual.direcao === 'asc' ? ' ▲' : ' ▼') : ' ↕';
-      const styleLargura = largura ? `width: ${largura}; min-width: ${largura};` : '';
       const sortedClass = isOrdenado ? ' th-sorted' : '';
-      return `<th class="th-sortable${sortedClass}" style="padding: 12px; text-align: left; cursor: pointer; user-select: none; ${styleLargura}" 
+      return `<th class="th-sortable${sortedClass}" style="padding: 10px 8px; text-align: left; cursor: pointer; user-select: none; overflow: hidden; text-overflow: ellipsis;" 
                 data-col="${nome}"
                 onclick="ordenarTabela('${nome}')" 
                 title="Clique para ordenar">
@@ -761,49 +785,123 @@
 
     const tabela = `
       <table class="relatorio-table">
+        <colgroup>
+          <col class="rel-col-id" />
+          <col class="rel-col-viagem" />
+          <col class="rel-col-rota" />
+          <col class="rel-col-motorista" />
+          <col class="rel-col-acesso" />
+          <col class="rel-col-resposta" />
+          <col class="rel-col-acoes" />
+        </colgroup>
         <thead>
           <tr class="thead-row">
-            ${criarHeader('ID', 'IDCONVOCACAO', '60px')}
-            ${criarHeader('Viagem', 'IDVIAGEM', '100px')}
-            ${criarHeader('Rota', 'ORIGEM_CIDADE', '150px')}
-            ${criarHeader('Status', 'STATUS', '120px')}
-            ${criarHeader('Motorista', 'NOME_MOTORISTA', '180px')}
-            ${criarHeader('Convocação', 'DHCONVOCACAO', '70px')}
-            ${criarHeader('Acesso', 'DHACESSO', '70px')}
-            ${criarHeader('Resposta', 'DHRESPOSTA', '70px')}
-            <th style="padding: 12px; text-align: left; width: 30px;" title="Indica se a viagem já possui uma convocação confirmada (independente desta convocação)"><i class="bx bx-info-circle th-info-icon"></i></th>
-            <th class="col-acoes" style="padding: 12px; text-align: left;">Ações</th>
+            ${criarHeader('ID', 'IDCONVOCACAO')}
+            ${criarHeader('Viagem', 'IDVIAGEM')}
+            ${criarHeader('Rota', 'ORIGEM_CIDADE')}
+            ${criarHeader('Motorista', 'NOME_MOTORISTA')}
+            ${criarHeader('Acesso', 'DHACESSO')}
+            <th class="th-sortable${ordemAtual.coluna === 'Resposta' ? ' th-sorted' : ''}" style="padding: 10px 8px; text-align: left; cursor: pointer; user-select: none; overflow: hidden; text-overflow: ellipsis;" 
+                data-col="Resposta"
+                onclick="ordenarTabela('Resposta')" 
+                title="GPS + ícone do status + data (DHRESPOSTA). Passe o mouse para texto completo; viagem já confirmada e link campanha aparecem no tooltip.">
+              Resposta${ordemAtual.coluna === 'Resposta' ? (ordemAtual.direcao === 'asc' ? ' ▲' : ' ▼') : ' ↕'}
+            </th>
+            <th class="col-acoes th-sortable${ordemAtual.coluna === 'Convocação' ? ' th-sorted' : ''}" style="padding: 10px 4px; text-align: center; cursor: pointer; user-select: none;" data-col="Convocação" onclick="ordenarTabela('Convocação')" title="Botões de ação; abaixo, data da convocação (DHCONVOCACAO). Clique para ordenar por essa data.">Ações${ordemAtual.coluna === 'Convocação' ? (ordemAtual.direcao === 'asc' ? ' ▲' : ' ▼') : ' ↕'}</th>
           </tr>
         </thead>
         <tbody>
           ${listaOrdenada.map((item, index) => {
             const rowClass = index % 2 === 0 ? 'row-even' : 'row-odd';
-            
-            // Formatar status com classe para dark mode
-            let statusClass = '';
-            let statusSlug = (item.STATUS || 'PENDENTE').toLowerCase().replace('_', '-');
-            let statusDisplay = item.STATUS || 'PENDENTE';
-            
-            if (item.STATUS === 'PENDENTE') {
-              statusClass = 'background: #fff3cd; color: #856404;';
-            } else if (item.STATUS === 'ACEITA') {
-              statusClass = 'background: #d4edda; color: #155724;';
-            } else if (item.STATUS === 'ACEITA_DESCARTADA') {
-              statusClass = 'background: #ffeaa7; color: #856404;';
-              statusDisplay = 'ACEITA (Não Selecionada)';
-            } else if (item.STATUS === 'RECUSADA') {
-              statusClass = 'background: #f8d7da; color: #721c24;';
-              if (item.MOTIVO_RECUSA) {
-                statusDisplay = `RECUSADA - ${item.MOTIVO_RECUSA}`;
-              }
-            } else if (item.STATUS === 'CONFIRMADA') {
-              statusClass = 'background: #cce5ff; color: #004085;';
+            const fgPlacasRel = String(item.FGCONFIRMACAOPLACAS ?? item.fgconfirmacaoplacas ?? '').trim().toUpperCase();
+            const txtPlDivRel = String(item.TXTPLACASDIVERGENCIA ?? item.txtplacasdivergencia ?? '').trim();
+            if (fgPlacasRel === 'D') {
+              const idConvRel = item.IDCONVOCACAO ?? item.idconvocacao;
+              if (idConvRel != null) window.__relatorioConvJustificativaPlacas[idConvRel] = txtPlDivRel;
             }
+            const viagemConf =
+              item.VIAGEM_CONFIRMADA === 'S' ||
+              item.VIAGEM_CONFIRMADA === 's' ||
+              item.viagem_confirmada === 'S' ||
+              item.viagem_confirmada === 's';
+            const statusConv = item.STATUS;
+            let trExtraClass = '';
+            if (fgPlacasRel === 'D') trExtraClass = ' relatorio-row-divergencia-placas';
+            else if (statusConv === 'PENDENTE' && viagemConf) trExtraClass = ' relatorio-row-pendente-viagem-ja-confirmada';
+
+            let statusDisplay = item.STATUS || 'PENDENTE';
+            if (statusConv === 'ACEITA_DESCARTADA') {
+              statusDisplay = 'ACEITA (Não Selecionada)';
+            } else if (statusConv === 'RECUSADA' && item.MOTIVO_RECUSA) {
+              statusDisplay = `RECUSADA - ${item.MOTIVO_RECUSA}`;
+            }
+
+            const sgRel = String(item.SGUSER ?? item.sguser ?? '').trim().toUpperCase();
+            const latR = item.LATITUDE ?? item.latitude;
+            const lngR = item.LONGITUDE ?? item.longitude;
+
+            const linhasTooltip = [String(statusDisplay || '').trim() || statusConv || '—'];
+            if (sgRel === 'APP_MOTORISTA_LINK') {
+              linhasTooltip.push('Última resposta: link público de campanha (oportunidades).');
+            }
+            if (fgPlacasRel === 'D') {
+              linhasTooltip.push(
+                statusConv === 'PENDENTE'
+                  ? 'Divergência de placas — aceite bloqueado até alinhar na torre.'
+                  : 'Divergência de placas registrada (FG = D). Verifique alinhamento com o motorista.',
+              );
+            }
+            if (statusConv === 'PENDENTE' && viagemConf) {
+              linhasTooltip.push('Viagem já confirmada com outro motorista.');
+            }
+            const titleRespostaCel = escAttrRel(linhasTooltip.join(' '));
+
+            let iconStatusConv =
+              '<i class="bx bx-help-circle" aria-hidden="true" style="color:#94a3b8;font-size:1.25rem;flex-shrink:0;"></i>';
+            if (fgPlacasRel === 'D') {
+              iconStatusConv =
+                '<i class="bx bx-error" aria-hidden="true" style="color:#dc2626;font-size:1.35rem;flex-shrink:0;" title="Divergência de placas — confirmar na torre bloqueado até alinhar"></i>';
+            } else if (statusConv === 'ACEITA') {
+              iconStatusConv =
+                '<i class="bx bx-check-circle" aria-hidden="true" style="color:#28a745;font-size:1.3rem;flex-shrink:0;" title="ACEITA"></i>';
+            } else if (statusConv === 'PENDENTE') {
+              iconStatusConv =
+                '<i class="bx bx-time-five" aria-hidden="true" style="color:#b7791f;font-size:1.3rem;flex-shrink:0;" title="PENDENTE"></i>';
+            } else if (statusConv === 'RECUSADA') {
+              iconStatusConv =
+                '<i class="bx bx-x-circle" aria-hidden="true" style="color:#c0392b;font-size:1.3rem;flex-shrink:0;" title="RECUSADA"></i>';
+            } else if (statusConv === 'CONFIRMADA') {
+              iconStatusConv =
+                '<i class="bx bx-badge-check" aria-hidden="true" style="color:#1a5276;font-size:1.3rem;flex-shrink:0;" title="CONFIRMADA"></i>';
+            } else if (statusConv === 'ACEITA_DESCARTADA') {
+              iconStatusConv =
+                '<i class="bx bx-user-x" aria-hidden="true" style="color:#a67c00;font-size:1.25rem;flex-shrink:0;" title="ACEITA (não selecionada)"></i>';
+            }
+
+            const idConvJust = item.IDCONVOCACAO ?? item.idconvocacao;
+            const badgeDivPlacas =
+              fgPlacasRel === 'D'
+                ? '<span class="relatorio-badge-divergencia-placas" style="display:inline-block;margin-top:4px;padding:2px 6px;font-size:10px;font-weight:700;border-radius:4px;background:#fee2e2;color:#991b1b;border:1px solid #fecaca;line-height:1.2;white-space:normal;max-width:100%;" title="Divergência de placas (app/link)">Divergência placas</span>' +
+                  '<button type="button" class="relatorio-btn-ver-justificativa" onclick="abrirJustificativaDivergenciaConvocacaoRelatorio(' +
+                  idConvJust +
+                  ')">Ver justificativa</button>'
+                : '';
+
+            const htmlCelResposta = `<div class="convocacao-cel-resposta" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;max-width:100%;min-width:0;" title="${titleRespostaCel}">
+              <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                ${criarIndicadorGeolocalizacao(latR, lngR)}
+                ${iconStatusConv}
+              </div>
+              <div class="convocacao-cel-resposta-data" style="font-size:12px;line-height:1.35;min-width:0;flex:1 1 100%;">
+                <div>${formatarData(item.DHRESPOSTA ?? item.dhresposta)}</div>
+                ${badgeDivPlacas}
+              </div>
+            </div>`;
             
             return `
-            <tr class="${rowClass}" style="border-bottom: 1px solid var(--border, #eee);">
-              <td style="padding: 12px;">${item.IDCONVOCACAO}</td>
-              <td style="padding: 12px;">
+            <tr class="${rowClass}${trExtraClass}" style="border-bottom: 1px solid var(--border, #eee);">
+              <td style="padding: 10px 8px; vertical-align: top;">${item.IDCONVOCACAO}</td>
+              <td style="padding: 10px 8px; vertical-align: top;">
                 <button onclick="abrirViagem(${item.IDVIAGEM})" 
                         class="btn-link" 
                         style="background: none; border: none; color: var(--ac-accent, #667eea); cursor: pointer; text-decoration: underline; font-weight: 600; padding: 0;"
@@ -812,22 +910,15 @@
                 </button><br>
                 <small class="text-muted">${item.DSCLASSEFROTA || '-'}</small>
               </td>
-              <td style="padding: 12px;">
+              <td class="rel-td-rota" style="padding: 10px 8px; vertical-align: top;">
                 ${item.ORIGEM_CIDADE || '-'}/${item.ORIGEM_ESTADO || '-'}<br>
                 <small class="text-muted">→ ${item.DESTINO_CIDADE || '-'}/${item.DESTINO_ESTADO || '-'}</small>
               </td>
-              <td style="padding: 12px;">
-                ${criarIndicadorGeolocalizacao(item.LATITUDE, item.LONGITUDE)}
-                <span class="status-pill status-${statusSlug}" style="padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; ${statusClass}">
-                  ${statusDisplay}
-                </span>
-              </td>
-              <td style="padding: 12px;">
+              <td class="rel-td-motorista" style="padding: 10px 8px; vertical-align: top;">
                 ${item.NOME_MOTORISTA || 'N/A'}<br>
-                <small class="text-muted" style="font-size: 11px;">${criarLinkWhatsApp(item.NRCELULAR)}</small>
+                <small class="text-muted rel-motorista-tel-line" style="font-size: 11px;" title="Contato — use o botão WhatsApp em Ações para abrir o chat">${item.NRCELULAR ? formatarCelular(item.NRCELULAR) : '—'}</small>
               </td>
-              <td style="padding: 12px; font-size: 12px;">${formatarData(item.DHCONVOCACAO)}</td>
-              <td style="padding: 12px; font-size: 12px;">
+              <td style="padding: 10px 8px; font-size: 12px; vertical-align: top;">
                 ${item.DHACESSO 
                   ? `<div class="cell-acesso cell-ok" style="display: flex; align-items: center; gap: 6px;">
                        <i class="bx bx-check-circle" style="font-size: 1.25rem;"></i>
@@ -844,11 +935,8 @@
                        </div>
                      </div>`}
               </td>
-              <td style="padding: 12px; font-size: 12px;">${formatarData(item.DHRESPOSTA)}</td>
-              <td class="cell-confirmada" style="padding: 12px; text-align: center;" title="${item.VIAGEM_CONFIRMADA === 'S' ? 'Esta viagem já possui uma convocação confirmada' : 'Esta viagem ainda não possui convocação confirmada'}">
-                ${item.VIAGEM_CONFIRMADA === 'S' ? '<i class="bx bx-check-circle icon-ok"></i>' : '<i class="bx bx-x-circle icon-pending"></i>'}
-              </td>
-              <td class="col-acoes" style="padding: 12px;">
+              <td class="rel-td-resposta" style="padding: 10px 8px; font-size: 12px; vertical-align: top;">${htmlCelResposta}</td>
+              <td class="col-acoes relatorio-td-acoes" style="padding: 10px 4px; vertical-align: top; text-align: center;">
                 ${criarBotoesAcoes(item)}
               </td>
             </tr>
@@ -860,6 +948,25 @@
 
     container.innerHTML = tabela;
   }
+
+  window.abrirJustificativaDivergenciaConvocacaoRelatorio = function (idConvocacao) {
+    const id = idConvocacao == null ? '' : String(idConvocacao).trim();
+    const map = window.__relatorioConvJustificativaPlacas || {};
+    const texto = id && map[id] != null ? String(map[id]) : '';
+    const pre = document.getElementById('modalJustificativaDivergenciaPlacasCorpoRel');
+    const modal = document.getElementById('modalJustificativaDivergenciaPlacasRel');
+    if (pre) {
+      pre.textContent = texto.trim() ? texto : '(Sem texto de justificativa gravado.)';
+    }
+    if (modal) {
+      modal.style.display = 'flex';
+    }
+  };
+
+  window.fecharModalJustificativaDivergenciaPlacasRelatorio = function () {
+    const modal = document.getElementById('modalJustificativaDivergenciaPlacasRel');
+    if (modal) modal.style.display = 'none';
+  };
 
   // Função global para ordenar tabela
   window.ordenarTabela = function(coluna) {
@@ -923,77 +1030,51 @@
   function criarBotoesAcoes(item) {
     const baseUrl = window.__BASE_URL__ || window.location.origin;
     const linkConvocacao = baseUrl.replace(/\/$/, '') + '/convocacao/' + (item.IDCONVOCACAO || item.idconvocacao);
-    const btnStyle = 'padding: 6px 8px; font-size: 1rem; color: white; border: none; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; min-width: 32px; margin-right: 2px; transition: opacity 0.2s;';
-    const temMapa = item.IDROTEIRO && item.LATITUDE != null && item.LONGITUDE != null && !isNaN(item.LATITUDE) && !isNaN(item.LONGITUDE);
+    const btnStyle =
+      'box-sizing:border-box;padding:0;width:34px;height:34px;font-size:1.05rem;color:#fff;border:none;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity 0.2s;';
+    const latA = item.LATITUDE ?? item.latitude;
+    const lngA = item.LONGITUDE ?? item.longitude;
+    const idR = item.IDROTEIRO ?? item.idroteiro;
+    const temMapa =
+      idR &&
+      latA != null &&
+      lngA != null &&
+      !isNaN(Number(latA)) &&
+      !isNaN(Number(lngA));
     const temCelular = item.NRCELULAR && item.NRCELULAR !== 'N/A' && String(item.NRCELULAR).replace(/\D/g, '').length >= 10;
 
-    let html = '';
-    // Link da convocação (abrir/copiar link público)
-    html += `<a href="${linkConvocacao}" target="_blank" rel="noopener noreferrer" class="btn btn-acao btn-acao-link" style="${btnStyle} background: #2196F3;" title="Abrir link da convocação"><i class="bx bx-link-alt"></i></a>`;
-    // WhatsApp
+    let inner = '';
+    inner += `<a href="${linkConvocacao}" target="_blank" rel="noopener noreferrer" class="btn btn-acao btn-acao-link" style="${btnStyle} background:#2196F3;" title="Abrir link público da convocação"><i class="bx bx-link-alt" aria-hidden="true"></i></a>`;
     if (temCelular) {
       let num = String(item.NRCELULAR).replace(/\D/g, '');
       if (num.startsWith('0')) num = num.substring(1);
-      // Se já tem 12+ dígitos, número já inclui DDI (ex.: 595981123456); não forçar 55
       if (num.length < 12) num = '55' + num;
       const urlWa = 'https://wa.me/' + num;
-      html += `<a href="${urlWa}" target="_blank" rel="noopener noreferrer" class="btn btn-acao btn-acao-whatsapp" style="${btnStyle} background: #25D366;" title="Abrir WhatsApp"><i class="bx bxl-whatsapp"></i></a>`;
+      const waTitle = escAttrRel('WhatsApp — ' + formatarCelular(item.NRCELULAR));
+      inner += `<a href="${urlWa}" target="_blank" rel="noopener noreferrer" class="btn btn-acao btn-acao-whatsapp" style="${btnStyle} background:#25D366;" title="${waTitle}"><i class="bx bxl-whatsapp" aria-hidden="true"></i></a>`;
     }
-    // Ver no mapa
     if (temMapa) {
-      html += `<button onclick="abrirMapaMotorista(${item.IDCONVOCACAO}, ${item.LATITUDE}, ${item.LONGITUDE}, ${item.IDROTEIRO}, ${item.IDVIAGEM})" class="btn btn-acao btn-acao-mapa" style="${btnStyle} background: #28a745;" title="Ver localização do motorista e rota até o carregamento"><i class="bx bx-map-alt"></i></button>`;
+      inner += `<button type="button" onclick="abrirMapaMotorista(${item.IDCONVOCACAO}, ${latA}, ${lngA}, ${idR}, ${item.IDVIAGEM})" class="btn btn-acao btn-acao-mapa" style="${btnStyle} background:#15803d;" title="Ver motorista no mapa (rota)"><i class="bx bx-map-alt" aria-hidden="true"></i></button>`;
     }
-    return html || '<span class="text-muted" style="font-size: 12px;">-</span>';
+    const dhConvFmt = formatarData(item.DHCONVOCACAO ?? item.dhconvocacao);
+    const botoesRow = inner
+      ? `<div class="relatorio-acoes-row" role="group" aria-label="Ações da convocação" style="display:flex;flex-direction:row;flex-wrap:nowrap;align-items:center;justify-content:center;gap:4px;">${inner}</div>`
+      : '<span class="text-muted" style="font-size: 12px;">-</span>';
+    return `<div class="relatorio-acoes-cell">
+      ${botoesRow}
+      <div class="relatorio-acoes-dhconv" title="Data/hora da convocação (DHCONVOCACAO)">${dhConvFmt}</div>
+    </div>`;
   }
 
-  // Criar link do WhatsApp
-  function criarLinkWhatsApp(celular) {
-    if (!celular) return 'N/A';
-    
-    // Limpar número: remover espaços, parênteses, hífens, pontos
-    let numeroLimpo = String(celular).replace(/\s+/g, '').replace(/[()\-\.]/g, '');
-    
-    // Formatar número para exibição (com parênteses e hífen)
-    let celularFormatado = '';
-    if (numeroLimpo && numeroLimpo.length >= 10) {
-      // Remover código do país (55) se existir para formatação
-      let numeroParaFormatar = numeroLimpo;
-      if (numeroLimpo.startsWith('55') && numeroLimpo.length >= 12) {
-        numeroParaFormatar = numeroLimpo.substring(2); // Remove o 55
-      }
-      
-      if (numeroParaFormatar.length === 11) {
-        // Formato: (41) 99837-1769
-        celularFormatado = `(${numeroParaFormatar.substring(0, 2)}) ${numeroParaFormatar.substring(2, 7)}-${numeroParaFormatar.substring(7)}`;
-      } else if (numeroParaFormatar.length === 10) {
-        // Formato: (41) 9837-1769
-        celularFormatado = `(${numeroParaFormatar.substring(0, 2)}) ${numeroParaFormatar.substring(2, 6)}-${numeroParaFormatar.substring(6)}`;
-      } else {
-        // Formato simples se não tiver 10 ou 11 dígitos
-        celularFormatado = numeroParaFormatar;
-      }
-    } else {
-      celularFormatado = celular; // Retornar original se inválido
-    }
-    
-    // Número pode já vir com DDI (ex.: 595, 54, 55). Só adicionar 55 se tiver 10-11 dígitos (Brasil sem DDI)
-    if (numeroLimpo.startsWith('0')) numeroLimpo = numeroLimpo.substring(1);
-    if (numeroLimpo.length >= 12) {
-      // Já tem DDI; usar como está
-    } else if (numeroLimpo.length >= 10) {
-      numeroLimpo = '55' + numeroLimpo;
-    }
-    if (numeroLimpo.length < 12) return celular;
-    const urlWhatsApp = `https://wa.me/${numeroLimpo}`;
-    
-    return `<a href="${urlWhatsApp}" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                class="link-whatsapp"
-                style="color: #25D366; text-decoration: none; font-weight: 500; font-size: 11px; display: inline-flex; align-items: center; gap: 4px;"
-                title="Abrir WhatsApp">
-                <i class="bx bxl-whatsapp" style="font-size: 1em;"></i> ${celularFormatado}
-              </a>`;
+  function escAttrRel(s) {
+    if (s == null || s === '') return '';
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;')
+      .replace(/</g, '&lt;')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 
   // Criar indicador de geolocalização
@@ -1022,6 +1103,7 @@
     const filtroViagemConfirmada = document.getElementById('filtroViagemConfirmada');
     const filtroMotivoRecusa = document.getElementById('filtroMotivoRecusa');
     const filtroContratador = document.getElementById('filtroContratador');
+    const filtroDivergenciaPlacasRel = document.getElementById('filtroDivergenciaPlacasRel');
     
     // Limpar valores e garantir que estão vazios
     if (filtroDataInicio) {
@@ -1064,6 +1146,9 @@
       filtroContratador.selectedIndex = 0; // Voltar para primeira opção
       filtroContratador.dispatchEvent(new Event('change', { bubbles: true }));
     }
+    if (filtroDivergenciaPlacasRel) {
+      filtroDivergenciaPlacasRel.checked = false;
+    }
     
     // Resetar ordenação
     ordemAtual = { coluna: null, direcao: 'asc' };
@@ -1083,17 +1168,21 @@
     }
 
     // Criar CSV
-    const headers = ['ID', 'Viagem', 'Motorista', 'Celular', 'Status', 'Convocação', 'Resposta', 'Acesso', 'Rota', 'Confirmada'];
+    const headers = ['ID', 'Viagem', 'Motorista', 'Celular', 'Status', 'FG placas', 'Texto divergência', 'Convocação', 'Resposta', 'Acesso', 'Rota', 'Confirmada'];
     const rows = dadosAtuais.lista.map(item => {
       const rota = item.ORIGEM_CIDADE && item.ORIGEM_ESTADO && item.DESTINO_CIDADE && item.DESTINO_ESTADO
         ? `${item.ORIGEM_CIDADE}/${item.ORIGEM_ESTADO} → ${item.DESTINO_CIDADE}/${item.DESTINO_ESTADO}`
         : (item.DSROTEIRO || '');
+      const fgP = item.FGCONFIRMACAOPLACAS ?? item.fgconfirmacaoplacas ?? '';
+      const txtDiv = item.TXTPLACASDIVERGENCIA ?? item.txtplacasdivergencia ?? '';
       return [
         item.IDCONVOCACAO,
         item.IDVIAGEM,
         item.NOME_MOTORISTA || '',
         item.NRCELULAR || '',
         item.STATUS,
+        fgP,
+        String(txtDiv || '').replace(/"/g, '""'),
         formatarData(item.DHCONVOCACAO),
         formatarData(item.DHRESPOSTA),
         formatarData(item.DHACESSO),
@@ -1119,10 +1208,179 @@
     document.body.removeChild(link);
   };
 
+  function getAuthHeadersRel(extra = {}) {
+    const headers = { 'Content-Type': 'application/json', ...extra };
+    const token = localStorage.getItem('token');
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
+  }
 
-  // Variáveis e helpers do mapa (compartilhados com Gerenciar Viagens)
+  function atualizarPainelChegadaMapaMotorista(convocacao, { durationSec, origemOk }) {
+    const floatRoot = document.getElementById('mapaMotoristaChegadaFloat');
+    const timeEl = document.getElementById('mapaMotoristaChegadaAtualizado');
+    const resumoEl = document.getElementById('mapaMotoristaChegadaResumo');
+    const statusEl = document.getElementById('mapaMotoristaChegadaStatus');
+    if (!floatRoot || !resumoEl) return;
+    floatRoot.style.display = 'block';
+    const agoraRelogio = new Date();
+    if (timeEl) {
+      timeEl.textContent = `Dados atualizados às ${String(agoraRelogio.getHours()).padStart(2, '0')}:${String(agoraRelogio.getMinutes()).padStart(2, '0')}:${String(agoraRelogio.getSeconds()).padStart(2, '0')}`;
+    }
+    floatRoot.classList.remove(
+      'modal-mapa-motorista-chegada--ok',
+      'modal-mapa-motorista-chegada--atraso',
+      'modal-mapa-motorista-chegada--incerto',
+      'modal-mapa-motorista-chegada--neutro'
+    );
+
+    const aplicarStatusVisual = (titulo, situacao) => {
+      if (statusEl) {
+        statusEl.textContent = titulo || '';
+        statusEl.style.display = titulo ? 'block' : 'none';
+      }
+      if (situacao === 'ok') floatRoot.classList.add('modal-mapa-motorista-chegada--ok');
+      else if (situacao === 'atraso') floatRoot.classList.add('modal-mapa-motorista-chegada--atraso');
+      else if (situacao === 'incerto') floatRoot.classList.add('modal-mapa-motorista-chegada--incerto');
+      else floatRoot.classList.add('modal-mapa-motorista-chegada--neutro');
+    };
+
+    const staleLimMin = 90;
+    const ultimaDh =
+      convocacao.ULTIMA_POSICAO_VIAGEM_DH ??
+      convocacao.ultima_posicao_viagem_dh ??
+      convocacao.DHMAINTENANCE_CONVOCACAO ??
+      convocacao.dhmaintenance_convocacao;
+    let posicaoDesatualizada = true;
+    if (ultimaDh) {
+      const t = new Date(ultimaDh).getTime();
+      if (!Number.isNaN(t)) posicaoDesatualizada = (Date.now() - t) / 60000 > staleLimMin;
+    }
+
+    const dtPrev = convocacao.DTPREVINICIO ?? convocacao.dtprevinicio;
+    const agoraMs = Date.now();
+    let resumo = '';
+
+    if (!origemOk) {
+      resumo = 'Sem origem do roteiro no mapa. Não é possível estimar se o motorista chega a tempo para o carregamento.';
+      aplicarStatusVisual('Não é possível estimar', 'neutro');
+    } else if (!dtPrev) {
+      resumo = 'Sem data/hora de início da viagem (carregamento) cadastrada. Cadastre a previsão na viagem para comparar com o tempo de rota.';
+      aplicarStatusVisual('Sem previsão de carregamento na viagem', 'neutro');
+    } else if (durationSec == null || !Number.isFinite(durationSec) || durationSec <= 0) {
+      resumo = 'Tempo de percurso até a origem indisponível. Use a distância exibida acima como referência.';
+      aplicarStatusVisual('Tempo de rota indisponível', 'neutro');
+    } else {
+      const chegada = new Date(agoraMs + durationSec * 1000);
+      const limite = new Date(dtPrev);
+      const chegadaStr = fmtDataHora(chegada);
+      const limiteStr = fmtDataHora(limite);
+      const agoraStr = fmtDataHora(new Date(agoraMs));
+      let prefix = '';
+      if (posicaoDesatualizada) {
+        prefix = `Posição pode estar desatualizada (último sinal há mais de ${staleLimMin} min ou sem data). `;
+      }
+      if (Number.isNaN(limite.getTime())) {
+        resumo = prefix + 'Previsão de carregamento em formato não reconhecido.';
+        aplicarStatusVisual('Data de carregamento inválida', 'neutro');
+      } else if (limite.getTime() < agoraMs) {
+        resumo =
+          prefix +
+          `A data/hora de carregamento prevista (${limiteStr}) já foi ultrapassada (referência: agora ${agoraStr}). ` +
+          `Com a posição atual, chegada estimada na origem: ${chegadaStr}. Indicativo: atraso em relação ao agendamento.`;
+        aplicarStatusVisual('Atraso: previsão de carregamento já ultrapassada', 'atraso');
+      } else if (chegada.getTime() <= limite.getTime()) {
+        if (posicaoDesatualizada) {
+          resumo =
+            prefix +
+            `Chegada estimada ${chegadaStr} · Carregamento previsto ${limiteStr} · A rota sugere tempo para chegar antes do limite, mas o sinal de posição está antigo: trate como estimativa incerta.`;
+          aplicarStatusVisual('Prazo provável (estimativa incerta)', 'incerto');
+        } else {
+          resumo =
+            prefix + `Chegada estimada ${chegadaStr} · Carregamento previsto ${limiteStr} · Indicativo: dentro do prazo para chegar a tempo do carregamento.`;
+          aplicarStatusVisual('No prazo (estimativa)', 'ok');
+        }
+      } else {
+        resumo =
+          prefix + `Chegada estimada ${chegadaStr} · Carregamento previsto ${limiteStr} · Indicativo: atraso provável para o carregamento.`;
+        aplicarStatusVisual('Atraso provável', 'atraso');
+      }
+    }
+    resumoEl.textContent = resumo;
+  }
+
+  // Variáveis e helpers do mapa (alinhados ao modal em Gerenciar Viagens)
   let mapaMotorista = null;
   let mapaMotoristaLayer = null;
+
+  function mapaMotoristaColocarCamadaRota(map, geometry, latM, lonM, latO, lonO, opts) {
+    opts = opts || {};
+    const permitirLinhaReta = opts.permitirLinhaReta === true;
+    if (mapaMotoristaLayer) {
+      try {
+        map.removeLayer(mapaMotoristaLayer);
+      } catch (e) {
+        /* ignore */
+      }
+      mapaMotoristaLayer = null;
+    }
+    const okGeom =
+      geometry &&
+      geometry.type === 'LineString' &&
+      geometry.coordinates &&
+      geometry.coordinates.length >= 2;
+    if (okGeom) {
+      mapaMotoristaLayer = L.geoJSON(
+        { type: 'Feature', properties: {}, geometry },
+        { style: { color: '#667eea', weight: 5, opacity: 0.92, lineJoin: 'round' } }
+      ).addTo(map);
+    } else if (permitirLinhaReta) {
+      mapaMotoristaLayer = L.polyline(
+        [
+          [latM, lonM],
+          [latO, lonO],
+        ],
+        {
+          color: '#667eea',
+          weight: 5,
+          opacity: 0.9,
+          dashArray: '10 7',
+          lineJoin: 'round',
+        }
+      ).addTo(map);
+    }
+    return mapaMotoristaLayer;
+  }
+
+  function mapaMotoristaInvalidarEAjustar(map, marcM, marcO) {
+    if (!map) return;
+    const refit = () => {
+      try {
+        map.invalidateSize(true);
+      } catch (e) {
+        /* ignore */
+      }
+      const parts = [marcM, marcO];
+      if (mapaMotoristaLayer) parts.push(mapaMotoristaLayer);
+      const fg = L.featureGroup(parts.filter(Boolean));
+      try {
+        const b = fg.getBounds();
+        if (b && b.isValid()) {
+          map.fitBounds(b.pad(0.1), {
+            maxZoom: 15,
+            padding: [28, 28],
+            animate: false,
+          });
+        }
+      } catch (e) {
+        /* ignore */
+      }
+    };
+    requestAnimationFrame(() => requestAnimationFrame(refit));
+    setTimeout(refit, 120);
+    setTimeout(refit, 450);
+    setTimeout(refit, 900);
+    setTimeout(refit, 1600);
+  }
 
   async function carregarLeaflet() {
     if (typeof L !== 'undefined') {
@@ -1173,8 +1431,11 @@
 
   window.abrirMapaMotorista = async function(idConvocacao, latMotorista, lonMotorista, idRoteiro, idViagem) {
     try {
+      const chFloat = document.getElementById('mapaMotoristaChegadaFloat');
+      if (chFloat) chFloat.style.display = 'none';
+
       const fonteDados = (listaOrdenada && listaOrdenada.length ? listaOrdenada : (dadosAtuais?.lista || []));
-      const convocacao = fonteDados.find(c => c.IDCONVOCACAO === idConvocacao);
+      let convocacao = fonteDados.find(c => Number(c.IDCONVOCACAO) === Number(idConvocacao));
 
       if (!convocacao) {
         if (typeof showMessage !== 'undefined') {
@@ -1184,6 +1445,48 @@
         }
         return;
       }
+
+      const bannerTexto = document.getElementById('mapaBannerUltimaPosicaoTexto');
+      if (bannerTexto) {
+        bannerTexto.textContent = 'Carregando…';
+        bannerTexto.classList.add('banner-sem-dados');
+      }
+
+      try {
+        const respConv = await fetch(`/api/convocacoes/${idConvocacao}`, { headers: getAuthHeadersRel() });
+        if (respConv.ok) {
+          const fresh = await respConv.json();
+          convocacao = { ...convocacao, ...fresh };
+        }
+      } catch (e) {
+        console.warn('Não foi possível atualizar dados da convocação para o mapa:', e);
+      }
+
+      const aplicarTextoUltimaPosicao = () => {
+        const ultimaViagemDh =
+          convocacao.ULTIMA_POSICAO_VIAGEM_DH ??
+          convocacao.ultima_posicao_viagem_dh;
+        const dhMaintConv =
+          convocacao.DHMAINTENANCE_CONVOCACAO ??
+          convocacao.dhmaintenance_convocacao;
+        let texto = '—';
+        let temDados = false;
+        if (ultimaViagemDh) {
+          texto = fmtDataHora(ultimaViagemDh) + ' (rastreamento na viagem)';
+          temDados = true;
+        } else if (dhMaintConv) {
+          texto = fmtDataHora(dhMaintConv) + ' (última atualização no link da convocação)';
+          temDados = true;
+        } else {
+          texto = 'Sem registro de data/hora — ainda não há rastreamento na viagem nem atualização de posição pelo link.';
+        }
+        if (bannerTexto) {
+          bannerTexto.textContent = texto;
+          if (temDados) bannerTexto.classList.remove('banner-sem-dados');
+          else bannerTexto.classList.add('banner-sem-dados');
+        }
+      };
+      aplicarTextoUltimaPosicao();
 
       document.getElementById('mapaInfoMotorista').textContent = convocacao.NOME_MOTORISTA || '-';
       const celularFormatado = formatarCelular(convocacao.CELULAR_MOTORISTA || convocacao.NRCELULAR);
@@ -1216,8 +1519,6 @@
         }
       }
 
-      document.getElementById('mapaInfoFrete').textContent = formatarValor(vlFrete, moeda);
-      document.getElementById('mapaInfoPeso').textContent = formatarPeso(peso);
       const distanciaEl = document.getElementById('mapaInfoDistancia');
       if (distanciaEl) {
         distanciaEl.textContent = 'Calculando...';
@@ -1300,11 +1601,23 @@
 
       // Adicionar camada de tiles do servidor próprio
       // IMPORTANTE: Forçar HTTP (não HTTPS) para evitar ERR_SSL_PROTOCOL_ERROR
-      const tileServer = (window.getTileServerUrl ? window.getTileServerUrl() : (window.MAP_CONFIG?.tileServer || 'http://186.250.92.131:8081/styles/osm-bright/{z}/{x}/{y}.png')).replace(/^https:/, 'http:');
+      const tileServer = window.getTileServerUrl
+        ? window.getTileServerUrl()
+        : (window.MAP_CONFIG?.tileServer || 'https://tile.openstreetmap.de/{z}/{x}/{y}.png');
       L.tileLayer(tileServer, {
         attribution: window.MAP_CONFIG?.attribution || '© OpenStreetMap contributors',
         maxZoom: window.MAP_CONFIG?.maxZoom || 19
       }).addTo(mapaMotorista);
+
+      mapaMotorista.whenReady(() => {
+        requestAnimationFrame(() => {
+          try {
+            mapaMotorista.invalidateSize(true);
+          } catch (e) {
+            /* ignore */
+          }
+        });
+      });
 
       const iconeMotorista = L.divIcon({
         className: 'custom-marker-motorista',
@@ -1363,34 +1676,30 @@
             </div>
           `, { maxWidth: 320 });
 
+        const haversineKm = calcularDistanciaHaversine(latMotorista, lonMotorista, origemLat, origemLon);
+        const distEl = document.getElementById('mapaInfoDistancia');
+        if (distEl) {
+          distEl.textContent = `${haversineKm.toFixed(2)} km (calculando rota por estradas…)`;
+        }
+
         try {
-          const osrmUrl = `https://router.project-osrm.org/route/v1/driving-hgv/${lonMotorista},${latMotorista};${origemLon},${origemLat}?overview=full&geometries=geojson`;
-          const rotaResponse = await fetch(osrmUrl);
-          const rotaData = await rotaResponse.json();
+          const resultado =
+            typeof window.buscarRotaMotoristaParaOrigem === 'function'
+              ? await window.buscarRotaMotoristaParaOrigem(lonMotorista, latMotorista, origemLon, origemLat)
+              : { ok: false };
 
-          if (rotaData.code === 'Ok' && rotaData.routes && rotaData.routes.length > 0) {
-            const rota = rotaData.routes[0];
-            const distanciaKm = (rota.distance / 1000).toFixed(2);
-            const duracaoMin = Math.round(rota.duration / 60);
+          if (resultado.ok && resultado.route) {
+            const route = resultado.route;
+            const distanciaKm = (route.distance / 1000).toFixed(2);
+            const duracaoMin = Math.round(route.duration / 60);
+            if (distEl) distEl.textContent = `${distanciaKm} km (aprox. ${duracaoMin} min)`;
 
-            document.getElementById('mapaInfoDistancia').textContent = `${distanciaKm} km (aprox. ${duracaoMin} min)`;
+            mapaMotoristaColocarCamadaRota(mapaMotorista, route.geometry, latMotorista, lonMotorista, origemLat, origemLon, {
+              permitirLinhaReta: false,
+            });
+            mapaMotoristaInvalidarEAjustar(mapaMotorista, marcadorMotorista, marcadorOrigem);
+            atualizarPainelChegadaMapaMotorista(convocacao, { durationSec: route.duration, origemOk: true });
 
-            if (mapaMotoristaLayer) {
-              mapaMotorista.removeLayer(mapaMotoristaLayer);
-            }
-
-            mapaMotoristaLayer = L.geoJSON(rota.geometry, {
-              style: {
-                color: '#667eea',
-                weight: 5,
-                opacity: 0.7
-              }
-            }).addTo(mapaMotorista);
-
-            const grupo = L.featureGroup([marcadorMotorista, marcadorOrigem, mapaMotoristaLayer]);
-            mapaMotorista.fitBounds(grupo.getBounds().pad(0.15));
-            
-            // Log para validação
             console.log('[MAPA] Rota calculada:', {
               motorista: { lat: latMotorista, lon: lonMotorista },
               origem: { lat: origemLat, lon: origemLon, nome: origemNome },
@@ -1399,35 +1708,52 @@
               roteiro: convocacao.DSROTEIRO
             });
           } else {
-            const distanciaHaversine = calcularDistanciaHaversine(latMotorista, lonMotorista, origemLat, origemLon);
-            document.getElementById('mapaInfoDistancia').textContent = `${distanciaHaversine.toFixed(2)} km (linha reta)`;
-            const grupo = L.featureGroup([marcadorMotorista, marcadorOrigem]);
-            mapaMotorista.fitBounds(grupo.getBounds().pad(0.1));
+            if (distEl) {
+              distEl.textContent = `${haversineKm.toFixed(2)} km (rota por estradas indisponível — verifique o servidor em Configurações » Mapa)`;
+            }
+            mapaMotoristaColocarCamadaRota(mapaMotorista, null, latMotorista, lonMotorista, origemLat, origemLon, {
+              permitirLinhaReta: true,
+            });
+            mapaMotoristaInvalidarEAjustar(mapaMotorista, marcadorMotorista, marcadorOrigem);
+            const durEst = (haversineKm / 50) * 3600;
+            atualizarPainelChegadaMapaMotorista(convocacao, { durationSec: durEst, origemOk: true });
           }
         } catch (err) {
-          console.error('Erro ao calcular rota:', err);
-          const distanciaHaversine = calcularDistanciaHaversine(latMotorista, lonMotorista, origemLat, origemLon);
-          document.getElementById('mapaInfoDistancia').textContent = `${distanciaHaversine.toFixed(2)} km (linha reta)`;
-          const grupo = L.featureGroup([marcadorMotorista, marcadorOrigem]);
-          mapaMotorista.fitBounds(grupo.getBounds().pad(0.15));
-          
-          // Log para validação
-          console.log('[MAPA] Rota (linha reta):', {
-            motorista: { lat: latMotorista, lon: lonMotorista },
-            origem: { lat: origemLat, lon: origemLon, nome: origemNome },
-            distancia: `${distanciaHaversine.toFixed(2)} km (linha reta)`,
-            roteiro: convocacao.DSROTEIRO
+          console.error('[ROTA-OSRM] Erro ao calcular rota:', err);
+          if (distEl) {
+            distEl.textContent = `${haversineKm.toFixed(2)} km (erro ao obter rota — verifique rede/servidor)`;
+          }
+          mapaMotoristaColocarCamadaRota(mapaMotorista, null, latMotorista, lonMotorista, origemLat, origemLon, {
+            permitirLinhaReta: true,
           });
+          mapaMotoristaInvalidarEAjustar(mapaMotorista, marcadorMotorista, marcadorOrigem);
+          const durEst = (haversineKm / 50) * 3600;
+          atualizarPainelChegadaMapaMotorista(convocacao, { durationSec: durEst, origemOk: true });
         }
       } else {
         mapaMotorista.setView([latMotorista, lonMotorista], 12);
         document.getElementById('mapaInfoDistancia').textContent = 'Origem não encontrada no roteiro';
         document.getElementById('mapaInfoDistancia').style.color = '#dc3545';
+        atualizarPainelChegadaMapaMotorista(convocacao, { durationSec: null, origemOk: false });
         console.warn('[MAPA] Origem não encontrada no roteiro:', idRoteiro);
+        setTimeout(() => {
+          try {
+            mapaMotorista.invalidateSize(true);
+          } catch (e) {
+            /* ignore */
+          }
+        }, 200);
       }
 
-      // Não abrir popup automaticamente para não sobrepor o mapa
-      // marcadorMotorista.openPopup();
+      if (mapaMotorista) {
+        setTimeout(() => {
+          try {
+            mapaMotorista.invalidateSize(true);
+          } catch (e) {
+            /* ignore */
+          }
+        }, 300);
+      }
 
     } catch (err) {
       console.error('Erro ao abrir mapa do motorista:', err);
@@ -1442,6 +1768,8 @@
   window.fecharModalMapaMotorista = function() {
     const modal = document.getElementById('modalMapaMotorista');
     modal.style.display = 'none';
+    const chF = document.getElementById('mapaMotoristaChegadaFloat');
+    if (chF) chF.style.display = 'none';
 
     if (mapaMotorista) {
       mapaMotorista.remove();

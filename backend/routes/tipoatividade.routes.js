@@ -2,6 +2,11 @@
 const express = require('express');
 const router = express.Router();
 const tipoAtividadeController = require('../controllers/tipoatividade.controller');
+const { towerAuthAndTenant } = require('../middleware/tower-auth-chain.middleware');
+
+router.use(towerAuthAndTenant);
+
+router.get('/tipos-atividade/catalogo-modulos-licenca', tipoAtividadeController.catalogoModulosLicenca);
 
 // Rotas de CRUD
 router.get('/tipos-atividade', tipoAtividadeController.listar);

@@ -2,6 +2,9 @@
 const express = require('express');
 const router = express.Router();
 const tipoValidadeController = require('../controllers/tipovalidade.controller');
+const { towerAuthAndTenant } = require('../middleware/tower-auth-chain.middleware');
+
+router.use(towerAuthAndTenant);
 
 router.get('/tipos-validade', tipoValidadeController.listar);
 router.get('/tipos-validade/:id', tipoValidadeController.buscarPorId);
