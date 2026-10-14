@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>WMS — Relatórios</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/modulos.css" />
+  <link rel="stylesheet" href="/css/dark-mode.css" />
+  <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" />
+  <style>
+    .wms-rel-container { padding: 14px 16px 20px; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; max-width: 1600px; }
+    .wms-rel-header { margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--light-gray, #e2e8f0); }
+    .wms-rel-header h2 { margin: 0; font-size: 22px; font-weight: 700; color: var(--ac-primary, #0d2137); display: flex; align-items: center; gap: 8px; }
+    .wms-rel-header p { margin: 4px 0 0; color: #64748b; font-size: 13px; line-height: 1.4; max-width: 72rem; }
+    html[data-theme='dark'] .wms-rel-header p { color: #94a3b8; }
+    .wms-rel-container .tabs {
+      display: flex; flex-wrap: nowrap; gap: 2px; overflow-x: auto; overflow-y: hidden;
+      border-bottom: 2px solid #e2e8f0; margin-bottom: 12px; padding-bottom: 0;
+      scrollbar-width: thin; -webkit-overflow-scrolling: touch;
+    }
+    html[data-theme='dark'] .wms-rel-container .tabs { border-bottom-color: #334155; }
+    .wms-rel-container .tab-btn {
+      display: inline-flex; align-items: center; gap: 6px; padding: 9px 12px; border: none; background: transparent;
+      color: #94a3b8; font-weight: 600; font-size: 13px; cursor: pointer; border-bottom: 2px solid transparent;
+      margin-bottom: -2px; white-space: nowrap; flex-shrink: 0;
+    }
+    .wms-rel-container .tab-btn .bx { font-size: 16px; }
+    .wms-rel-container .tab-btn.active { color: var(--ac-primary, #0d2137); border-bottom-color: var(--ac-primary, #0d2137); }
+    html[data-theme='dark'] .wms-rel-container .tab-btn.active { color: #38bdf8; border-bottom-color: #38bdf8; }
+    .filtros-box {
+      background: #fff; border-radius: 10px; padding: 14px 16px; border: 1px solid #e2e8f0;
+      margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    html[data-theme='dark'] .filtros-box { background: #0f172a; border-color: #334155; }
+    .wms-rel-filtros-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .wms-rel-filtros-head h3 { margin: 0; font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+    html[data-theme='dark'] .wms-rel-filtros-head h3 { color: #e2e8f0; }
+    .filtros-grid {
+      display: grid;
+      grid-template-columns: minmax(130px, 1fr) minmax(150px, 1.1fr) minmax(120px, 0.85fr) minmax(120px, 0.85fr);
+      gap: 8px 10px;
+      margin-bottom: 8px;
+    }
+    @media (max-width: 900px) {
+      .filtros-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 720px) {
+      .filtros-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 480px) {
+      .filtros-grid { grid-template-columns: 1fr; }
+    }
+    .wms-rel-filtros-base { margin-bottom: 0; }
+    .wms-rel-filtros-cons-row {
+      margin-top: 2px;
+      padding-top: 8px;
+      border-top: 1px dashed #e2e8f0;
+    }
+    html[data-theme='dark'] .wms-rel-filtros-cons-row { border-top-color: #334155; }
+    .wms-rel-container .filtros-grid > div { display: flex; flex-direction: column; min-width: 0; }
+    .wms-rel-container .filtros-grid label {
+      display: block; margin-bottom: 4px; font-weight: 600; font-size: 12px; color: #1e293b;
+    }
+    html[data-theme='dark'] .wms-rel-container .filtros-grid label { color: #e2e8f0; }
+    html[data-theme='dark'] .wms-rel-header h2 { color: #e2e8f0; }
+    .wms-rel-container .filtros-grid .form-control,
+    .wms-rel-container .filtros-grid select.form-control,
+    .wms-rel-container .filtros-grid input.form-control {
+      width: 100%;
+      min-height: 36px;
+      padding: 7px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 7px;
+      font-size: 14px;
+      font-family: inherit;
+      box-sizing: border-box;
+      background: #fff;
+      color: #1e293b;
+    }
+    html[data-theme='dark'] .wms-rel-container .filtros-grid .form-control,
+    html[data-theme='dark'] .wms-rel-container .filtros-grid select.form-control,
+    html[data-theme='dark'] .wms-rel-container .filtros-grid input.form-control {
+      background: #0f172a; border-color: #334155; color: #e2e8f0;
+    }
+    html[data-theme='dark'] .wms-rel-container .filtros-grid input[type='date'].form-control { color-scheme: dark; }
+    .wms-rel-periodo-filtros[hidden] { display: none !important; }
+    .wms-rel-periodo-filtros { display: none; grid-template-columns: repeat(2, minmax(140px, 220px)); gap: 8px 10px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0; }
+    .wms-rel-periodo-filtros.visivel { display: grid; }
+    html[data-theme='dark'] .wms-rel-periodo-filtros { border-top-color: #334155; }
+    .wms-rel-periodo-filtros > div { display: flex; flex-direction: column; min-width: 0; }
+    .filtros-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start; align-items: center; }
+    .btn-filtro {
+      display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border: none; border-radius: 8px;
+      font-weight: 600; font-size: 13px; cursor: pointer; line-height: 1.2;
+    }
+    .btn-filtro .bx { font-size: 17px; }
+    .btn-filtro-aplicar { background: #0ea5e9; color: #fff; }
+    .btn-filtro-novo { background: #10b981; color: #fff; }
+    .btn-filtro-limpar { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+    html[data-theme='dark'] .btn-filtro-limpar { background: #1e293b; color: #e2e8f0; border-color: #334155; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .hint { font-size: 12px; color: #64748b; line-height: 1.4; margin: 0 0 10px; }
+    html[data-theme='dark'] .hint { color: #94a3b8; }
+    .wms-rel-envios-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .wms-rel-envios-table th, .wms-rel-envios-table td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+    html[data-theme='dark'] .wms-rel-envios-table th, html[data-theme='dark'] .wms-rel-envios-table td { border-color: #334155; }
+    .wms-rel-cons-box { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .wms-rel-cons-grid {
+      display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px;
+      padding: 5px; border: 1px solid #e2e8f0; border-radius: 7px; background: #fff;
+    }
+    @media (max-width: 640px) {
+      .wms-rel-cons-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    html[data-theme='dark'] .wms-rel-cons-grid { background: #0f172a; border-color: #334155; }
+    .wms-rel-cons-chip {
+      position: relative;
+      display: flex; align-items: center; justify-content: center; gap: 4px;
+      padding: 6px 8px; border: 1px solid #e2e8f0; border-radius: 6px;
+      background: #f8fafc; font-size: 11.5px; font-weight: 600; color: #475569;
+      cursor: pointer; user-select: none; text-align: center; min-height: 30px;
+      transition: background-color 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+    }
+    .wms-rel-cons-chip input { position: absolute; opacity: 0; pointer-events: none; }
+    .wms-rel-cons-chip .bx { font-size: 14px; line-height: 1; }
+    .wms-rel-cons-chip:hover { background: #e2e8f0; color: #1e293b; }
+    .wms-rel-cons-chip.is-active {
+      background: linear-gradient(180deg, #0ea5e9 0%, #0284c7 100%);
+      border-color: #0284c7; color: #fff;
+      box-shadow: 0 1px 3px rgba(14,165,233,0.35);
+    }
+    .wms-rel-cons-chip.is-active:hover { filter: brightness(1.05); }
+    .wms-rel-cons-chip[data-cons="SECO"].is-active { background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%); border-color: #d97706; box-shadow: 0 1px 3px rgba(245,158,11,0.35); }
+    .wms-rel-cons-chip[data-cons="REFRIGERADO"].is-active { background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%); border-color: #0284c7; box-shadow: 0 1px 3px rgba(56,189,248,0.35); }
+    .wms-rel-cons-chip[data-cons="CONGELADO"].is-active { background: linear-gradient(180deg, #6366f1 0%, #4338ca 100%); border-color: #4338ca; box-shadow: 0 1px 3px rgba(99,102,241,0.35); }
+    .wms-rel-cons-chip[data-cons="OUTRO"].is-active { background: linear-gradient(180deg, #64748b 0%, #475569 100%); border-color: #475569; box-shadow: 0 1px 3px rgba(100,116,139,0.35); }
+    html[data-theme='dark'] .wms-rel-cons-chip { background: #1e293b; border-color: #334155; color: #cbd5e1; }
+    html[data-theme='dark'] .wms-rel-cons-chip:hover { background: #334155; color: #f1f5f9; }
+    .wms-rel-cons-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 10.5px; color: #64748b; flex-wrap: wrap; }
+    .wms-rel-cons-foot .hint { margin: 0; font-size: 10.5px; line-height: 1.3; }
+    .wms-rel-cons-foot button {
+      background: transparent; border: none; padding: 0; font: inherit;
+      color: #0ea5e9; cursor: pointer; font-size: 10.5px; font-weight: 600;
+      text-decoration: underline; text-underline-offset: 2px; white-space: nowrap;
+    }
+    .wms-rel-cons-foot button:hover { color: #0369a1; }
+    .wms-rel-cons-foot button[disabled] { color: #94a3b8; cursor: default; text-decoration: none; }
+    html[data-theme='dark'] .wms-rel-cons-foot { color: #94a3b8; }
+    html[data-theme='dark'] .wms-rel-cons-foot button { color: #38bdf8; }
+    html[data-theme='dark'] .wms-rel-cons-foot button[disabled] { color: #475569; }
+    .wms-rel-container .filtros-grid label { letter-spacing: 0.01em; }
+    .wms-rel-container .filtros-grid label .bx { font-size: 13px; color: #94a3b8; margin-right: 3px; vertical-align: -1px; }
+    html[data-theme='dark'] .wms-rel-container .filtros-grid label .bx { color: #64748b; }
+    .wms-rel-container .filtros-grid .form-control:focus,
+    .wms-rel-container .filtros-grid .form-control:focus-visible {
+      outline: none; border-color: #0ea5e9; box-shadow: 0 0 0 2px rgba(14,165,233,0.15);
+    }
+    .wms-rel-filtros-head .btn-filtro-limpar { padding: 6px 12px; font-size: 12px; }
+    /* Toolbar de relatórios (Datas críticas e similares) */
+    .wms-rel-report-toolbar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .wms-rel-btn-group {
+      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px;
+    }
+    html[data-theme='dark'] .wms-rel-btn-group { background: #1e293b; border-color: #334155; }
+    .wms-rel-btn-group-label {
+      display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+      color: #64748b; margin-bottom: 8px;
+    }
+    html[data-theme='dark'] .wms-rel-btn-group-label { color: #94a3b8; }
+    .wms-rel-btn-row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .wms-rel-btn-row .btn-filtro { padding: 7px 11px; font-size: 12px; }
+    /* Modal etiquetas (saldo) */
+    #modalEtqSaldo .modal-content--etq {
+      max-width: 480px; width: 100%; margin: 0; padding: 18px 20px;
+      background: #fff; border-radius: 10px; border: 1px solid #e2e8f0;
+    }
+    html[data-theme='dark'] #modalEtqSaldo .modal-content--etq {
+      background: #0f172a; border-color: #334155; color: #e2e8f0;
+    }
+    #modalEtqSaldo .modal-content--etq h3 {
+      margin: 0 0 8px; font-size: 17px; text-align: left;
+    }
+    #modalEtqSaldo .etq-modo-hint { font-size: 12px; color: #64748b; margin: 0 0 12px; }
+    html[data-theme='dark'] #modalEtqSaldo .etq-modo-hint { color: #94a3b8; }
+    #modalEtqSaldo .etq-modo-opcoes { display: flex; flex-direction: column; gap: 10px; }
+    #modalEtqSaldo .etq-modo-opcoes label {
+      display: flex; align-items: flex-start; gap: 10px; font-size: 13px; line-height: 1.35; cursor: pointer;
+    }
+    #modalEtqSaldo .etq-modo-opcoes input { margin-top: 3px; flex-shrink: 0; }
+    #modalEtqSaldo .etq-modo-fixo-wrap {
+      display: none; margin: 0 0 8px 28px; padding: 10px 12px;
+      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+    }
+    #modalEtqSaldo .etq-modo-fixo-wrap.ativo { display: block; }
+    html[data-theme='dark'] #modalEtqSaldo .etq-modo-fixo-wrap {
+      background: #1e293b; border-color: #334155;
+    }
+    #modalEtqSaldo .etq-modo-fixo-wrap label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+    #modalEtqSaldo .etq-modo-fixo-wrap input[type="number"] {
+      width: 100%; max-width: 120px; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 6px;
+      background: #fff; color: #0f172a;
+    }
+    html[data-theme='dark'] #modalEtqSaldo .etq-modo-fixo-wrap input[type="number"] {
+      background: #0f172a; border-color: #475569; color: #e2e8f0;
+    }
+    /* Modal prévia baixa shelf-life */
+    #modalBaixaShelf.modal { display: none; align-items: flex-start; justify-content: center; padding: 24px 12px; overflow-y: auto; }
+    #modalBaixaShelf.modal.aberto { display: flex; }
+    #modalBaixaShelf .modal-content--baixa {
+      max-width: 960px; width: 100%; margin: 0; padding: 18px 20px;
+      background: #fff; border-radius: 10px; border: 1px solid #e2e8f0;
+    }
+    html[data-theme='dark'] #modalBaixaShelf .modal-content--baixa {
+      background: #0f172a; border-color: #334155; color: #e2e8f0;
+    }
+    #modalBaixaShelf .baixa-prev-resumo { font-size: 13px; margin: 0 0 10px; line-height: 1.45; }
+    html[data-theme='dark'] #modalBaixaShelf .baixa-prev-resumo { color: #94a3b8; }
+    #modalBaixaShelf .baixa-prev-avisos {
+      font-size: 12px; color: #b45309; background: #fffbeb; border: 1px solid #fde68a;
+      border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; max-height: 100px; overflow-y: auto;
+    }
+    html[data-theme='dark'] #modalBaixaShelf .baixa-prev-avisos {
+      color: #fcd34d; background: #422006; border-color: #78350f;
+    }
+    #modalBaixaShelf .baixa-prev-table-wrap { max-height: 340px; overflow: auto; margin-bottom: 12px; border: 1px solid #e2e8f0; border-radius: 8px; }
+    html[data-theme='dark'] #modalBaixaShelf .baixa-prev-table-wrap { border-color: #334155; }
+    #modalBaixaShelf .baixa-prev-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    #modalBaixaShelf .baixa-prev-table th, #modalBaixaShelf .baixa-prev-table td {
+      padding: 6px 8px; border-bottom: 1px solid #e2e8f0; text-align: left; vertical-align: top;
+    }
+    html[data-theme='dark'] #modalBaixaShelf .baixa-prev-table th,
+    html[data-theme='dark'] #modalBaixaShelf .baixa-prev-table td { border-color: #334155; }
+    html[data-theme='dark'] #modalBaixaShelf .baixa-prev-table th { background: #1e293b; color: #e2e8f0; }
+    #modalBaixaShelf .baixa-prev-table tr.linha-bloqueada { opacity: 0.55; }
+    #modalBaixaShelf .baixa-prev-table input[type="number"] {
+      width: 88px; padding: 4px 6px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px;
+    }
+    html[data-theme='dark'] #modalBaixaShelf .baixa-prev-table input[type="number"] {
+      background: #1e293b; border-color: #475569; color: #e2e8f0;
+    }
+    .wms-rel-baixa-box {
+      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; margin-bottom: 12px;
+    }
+    html[data-theme='dark'] .wms-rel-baixa-box { background: #1e293b; border-color: #334155; }
+    .wms-rel-baixa-box h4 { margin: 0 0 8px; font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+    html[data-theme='dark'] .wms-rel-baixa-box h4 { color: #e2e8f0; }
+    .wms-rel-baixa-opts { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; margin-bottom: 10px; }
+    .wms-rel-baixa-opts > div { min-width: 160px; flex: 1 1 160px; max-width: 280px; }
+    .wms-rel-baixa-check { display: flex; align-items: center; gap: 8px; font-size: 13px; min-width: 200px; flex: 1 1 200px; max-width: 320px; }
+    .wms-rel-baixa-check input { margin: 0; flex-shrink: 0; }
+    .wms-rel-section-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+      margin: 14px 0 8px;
+    }
+    .wms-rel-section-head h4 { margin: 0; font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+    html[data-theme='dark'] .wms-rel-section-head h4 { color: #e2e8f0; }
+    .wms-rel-panel-title { margin: 0 0 8px; font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
+    html[data-theme='dark'] .wms-rel-panel-title { color: #e2e8f0; }
+    .wms-rel-saldo-opts { grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 8px; }
+    @media (max-width: 900px) { .wms-rel-saldo-opts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .wms-rel-mov-opts { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 640px; margin-bottom: 8px; }
+    .wms-rel-conv-opts { grid-template-columns: minmax(200px, 280px); margin-bottom: 8px; }
+    .wms-rel-saude-opts { grid-template-columns: minmax(200px, 280px); margin-bottom: 8px; }
+    .wms-rel-sep-opts { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 8px; }
+    @media (max-width: 900px) { .wms-rel-sep-opts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .wms-rel-nfopl-opts { grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 8px; margin-bottom: 8px; }
+    @media (max-width: 1200px) { .wms-rel-nfopl-opts { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    @media (max-width: 720px) { .wms-rel-nfopl-opts { grid-template-columns: 1fr 1fr; } }
+    .wms-rel-diverg-opts { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 8px; margin-bottom: 8px; }
+    @media (max-width: 900px) { .wms-rel-diverg-opts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    /* Barra fixa do dono (sempre visível ao trocar de aba / rolar) */
+    .wms-rel-dono-bar {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      margin-bottom: 10px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid #bae6fd;
+      background: linear-gradient(180deg, #f0f9ff 0%, #e0f2fe 100%);
+      box-shadow: 0 2px 8px rgba(14, 165, 233, 0.12);
+    }
+    html[data-theme='dark'] .wms-rel-dono-bar {
+      background: linear-gradient(180deg, #0f2744 0%, #0f172a 100%);
+      border-color: #334155;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.28);
+    }
+    .wms-rel-dono-bar-inner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .wms-rel-dono-bar label {
+      margin: 0;
+      font-size: 12px;
+      font-weight: 700;
+      color: #0369a1;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    html[data-theme='dark'] .wms-rel-dono-bar label { color: #7dd3fc; }
+    .wms-rel-dono-bar select.form-control {
+      min-width: min(320px, 100%);
+      max-width: 420px;
+      flex: 1 1 220px;
+      min-height: 36px;
+      padding: 7px 10px;
+      border: 1px solid #7dd3fc;
+      border-radius: 7px;
+      font-size: 14px;
+      background: #fff;
+      color: #0f172a;
+    }
+    html[data-theme='dark'] .wms-rel-dono-bar select.form-control {
+      background: #0f172a;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+    .wms-rel-dono-resumo {
+      font-size: 12px;
+      color: #0369a1;
+      font-weight: 600;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    html[data-theme='dark'] .wms-rel-dono-resumo { color: #94a3b8; }
+    .wms-rel-dono-resumo.is-empty { color: #b45309; font-weight: 600; }
+    html[data-theme='dark'] .wms-rel-dono-resumo.is-empty { color: #fbbf24; }
+    /* Painel filtros recolhível */
+    .wms-rel-filtros-head-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .wms-rel-filtros-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 6px 10px;
+      border: 1px solid #e2e8f0;
+      border-radius: 7px;
+      background: #f8fafc;
+      color: #475569;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .wms-rel-filtros-toggle:hover { background: #e2e8f0; }
+    html[data-theme='dark'] .wms-rel-filtros-toggle {
+      background: #1e293b;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+    .wms-rel-filtros-resumo {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      flex: 1 1 auto;
+      min-width: 0;
+      margin: 0 4px;
+    }
+    .wms-rel-filtros-resumo:empty { display: none; }
+    .wms-rel-filtro-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      background: #e0f2fe;
+      color: #0369a1;
+      border: 1px solid #bae6fd;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    html[data-theme='dark'] .wms-rel-filtro-chip {
+      background: #1e3a5f;
+      color: #7dd3fc;
+      border-color: #334155;
+    }
+    .wms-rel-filtros-body {
+      overflow: hidden;
+      transition: max-height 0.25s ease, opacity 0.2s ease;
+      max-height: 1200px;
+      opacity: 1;
+    }
+    .wms-rel-filtros-body.is-collapsed {
+      max-height: 0;
+      opacity: 0;
+      pointer-events: none;
+    }
+    #wmsRelFiltrosBox.is-hidden-tab { display: none; }
+    .wms-rel-dono-sync-hidden,
+    .wms-rel-dono-campo-sync { display: none !important; }
+    .wms-demanda-wrap {
+      margin-top: 12px;
+      max-height: calc(100vh - 240px);
+      overflow: auto;
+    }
+    .wms-demanda-table {
+      width: max-content;
+      min-width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      font-size: 13px;
+    }
+    .wms-demanda-table thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #f8fafc;
+      border-bottom: 1px solid #cbd5e1;
+    }
+    .wms-demanda-table th, .wms-demanda-table td {
+      border-bottom: 1px solid #e2e8f0; padding: 6px 8px; text-align: left; vertical-align: top;
+    }
+    .wms-demanda-table th.num, .wms-demanda-table td.num { text-align: right; white-space: nowrap; }
+    .wms-demanda-table tr.total td { font-weight: 700; background: #f8fafc; }
+    .wms-demanda-table tr.total.warn td { background: #fef3c7; }
+    .wms-demanda-table tr.total.ok td { background: #dcfce7; }
+    .wms-demanda-table th { background: #f8fafc; }
+    html[data-theme='dark'] .wms-demanda-table th,
+    html[data-theme='dark'] .wms-demanda-table td { border-color: #334155; color: #e2e8f0; background: #0f172a; }
+    html[data-theme='dark'] .wms-demanda-table thead th {
+      background: #1e293b;
+      border-bottom-color: #475569;
+      color: #e2e8f0;
+    }
+    html[data-theme='dark'] .wms-demanda-table tr.total td { background: #334155; }
+    html[data-theme='dark'] .wms-demanda-table tr.total.warn td { background: #422006; }
+    html[data-theme='dark'] .wms-demanda-table tr.total.ok td { background: #052e16; }
+    .wms-demanda-kpis { display: flex; flex-wrap: wrap; gap: 12px 20px; margin: 8px 0 4px; font-size: 13px; }
+    .wms-demanda-abertura { margin: 8px 0 4px; padding: 8px 10px; font-weight: 600; background: #f8fafc; border: 1px solid #e2e8f0; }
+    .wms-demanda-table tr.leitura td { font-weight: 600; background: #f8fafc; }
+    .wms-demanda-abertura.seco, .wms-demanda-table tr.leitura.seco td { background: #fef3c7; }
+    .wms-demanda-abertura.frio, .wms-demanda-table tr.leitura.frio td { background: #dbeafe; }
+    .wms-demanda-parte { margin-top: 2px; font-size: 11px; color: #64748b; }
+    .wms-demanda-parte.seco { color: #92400e; }
+    .wms-demanda-parte.frio { color: #1d4ed8; }
+    html[data-theme='dark'] .wms-demanda-abertura { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+    html[data-theme='dark'] .wms-demanda-table tr.leitura td { background: #1e293b; color: #e2e8f0; }
+    html[data-theme='dark'] .wms-demanda-abertura.seco,
+    html[data-theme='dark'] .wms-demanda-table tr.leitura.seco td { background: #422006; color: #fde68a; }
+    html[data-theme='dark'] .wms-demanda-abertura.frio,
+    html[data-theme='dark'] .wms-demanda-table tr.leitura.frio td { background: #1e3a5f; color: #bfdbfe; }
+    html[data-theme='dark'] .wms-demanda-parte { color: #94a3b8; }
+    html[data-theme='dark'] .wms-demanda-parte.seco { color: #fcd34d; }
+    html[data-theme='dark'] .wms-demanda-parte.frio { color: #93c5fd; }
+    .wms-demanda-wrap .wms-demanda-table tbody tr:hover td { background: #e0f2fe; }
+    html[data-theme='dark'] .wms-demanda-wrap .wms-demanda-table tbody tr:hover td {
+      background: #1e3a5f;
+      color: #e2e8f0;
+    }
+    .wms-demanda-avisos { margin: 8px 0; padding-left: 18px; color: #92400e; font-size: 12px; }
+    html[data-theme='dark'] .wms-demanda-avisos { color: #fcd34d; }
+  </style>
+</head>
+<body>
+  <div class="wms-rel-container">
+    <div class="wms-rel-header">
+      <h2><i class="bx bx-bar-chart-alt-2"></i> Relatórios WMS</h2>
+      <p>Saldo, movimentação, OPL, DRE, validade, conversão de embalagem e demanda do dia. Filtros: <strong>dono</strong> (recomendado), produto, grupo, categoria e conservação.</p>
+    </div>
+    <div id="message" class="message" style="display: none;"></div>
+    <div class="tabs" role="tablist">
+      <button type="button" class="tab-btn active" data-tab="saldo"><i class="bx bx-package"></i> Saldo de estoque</button>
+      <button type="button" class="tab-btn" data-tab="mov"><i class="bx bx-transfer"></i> Movimentação</button>
+      <button type="button" class="tab-btn" data-tab="separacao"><i class="bx bx-list-check"></i> Separação OPL</button>
+      <button type="button" class="tab-btn" data-tab="dre"><i class="bx bx-line-chart"></i> Demonstrativo (DRE)</button>
+      <button type="button" class="tab-btn" data-tab="shelf"><i class="bx bx-calendar-exclamation"></i> Datas críticas</button>
+      <button type="button" class="tab-btn" data-tab="conversao"><i class="bx bx-layer"></i> Conversão emb.</button>
+      <button type="button" class="tab-btn" data-tab="nfOpl"><i class="bx bx-git-compare"></i> NF × Separação</button>
+      <button type="button" class="tab-btn" data-tab="divergExp"><i class="bx bx-error-circle"></i> Divergências de Expedição</button>
+      <button type="button" class="tab-btn" data-tab="saude"><i class="bx bx-shield-quarter"></i> Auditoria de Saúde</button>
+      <button type="button" class="tab-btn" data-tab="demanda"><i class="bx bx-calendar"></i> Demanda do dia</button>
+    </div>
+    <div class="wms-rel-dono-bar" id="wmsRelDonoBar">
+      <div class="wms-rel-dono-bar-inner">
+        <label for="filtro_cd_dono"><i class="bx bx-buildings"></i> Dono do estoque *</label>
+        <select id="filtro_cd_dono" class="form-control" title="Mantido ao trocar de aba — recomendado selecionar antes de gerar relatórios">
+          <option value="">— Selecione —</option>
+        </select>
+        <span id="wmsRelDonoResumo" class="wms-rel-dono-resumo is-empty">Nenhum dono selecionado — relatórios podem incluir todos os donos.</span>
+      </div>
+    </div>
+    <div class="filtros-box" id="wmsRelFiltrosBox">
+      <div class="wms-rel-filtros-head">
+        <div class="wms-rel-filtros-head-actions">
+          <button type="button" class="wms-rel-filtros-toggle" id="btnToggleFiltrosComuns" aria-expanded="true" title="Recolher ou expandir filtros de produto">
+            <i class="bx bx-chevron-up" id="wmsRelFiltrosToggleIcon"></i>
+            <span id="wmsRelFiltrosToggleLabel">Recolher</span>
+          </button>
+          <h3><i class="bx bx-filter-alt"></i> Filtros de produto</h3>
+        </div>
+        <div class="wms-rel-filtros-resumo" id="wmsRelFiltrosResumo" aria-live="polite"></div>
+        <button type="button" class="btn-filtro btn-filtro-limpar" id="btnLimparFiltrosRel" title="Limpa código, descrição, grupo, categoria e conservação (mantém o dono)">
+          <i class="bx bx-eraser"></i> Limpar filtros
+        </button>
+      </div>
+      <div class="wms-rel-filtros-body" id="wmsRelFiltrosBody">
+      <div class="filtros-grid wms-rel-filtros-base">
+        <div>
+          <label for="filtro_codigo_produto"><i class="bx bx-hash"></i> Código do produto</label>
+          <input type="text" id="filtro_codigo_produto" class="form-control" maxlength="40" placeholder="Ex.: 6.03.12.020.20" autocomplete="off" />
+        </div>
+        <div>
+          <label for="filtro_descricao_produto"><i class="bx bx-text"></i> Descrição do produto</label>
+          <input type="text" id="filtro_descricao_produto" class="form-control" maxlength="120" placeholder="Ex.: MACARRAO" autocomplete="off" />
+        </div>
+        <div>
+          <label for="filtro_cd_grupo"><i class="bx bx-layer"></i> Grupo (cadastro WMS)</label>
+          <select id="filtro_cd_grupo" class="form-control" title="Combo com os grupos do cadastro WMS.">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <div>
+          <label for="filtro_cd_categoria"><i class="bx bx-category"></i> Categoria (cadastro WMS)</label>
+          <select id="filtro_cd_categoria" class="form-control" title="Combo com as categorias do cadastro WMS.">
+            <option value="">Todas</option>
+          </select>
+        </div>
+      </div>
+      <div class="wms-rel-filtros-cons-row">
+        <div class="wms-rel-cons-box">
+          <label><i class="bx bx-fridge"></i> Conservação</label>
+          <div id="wmsRelConservacaoGrid" class="wms-rel-cons-grid" role="group" aria-label="Filtro de conservação">
+            <label class="wms-rel-cons-chip" data-cons="SECO" title="TIPO_ARMAZENAGEM = SECO / AMBIENTE">
+              <input type="checkbox" name="cons" value="SECO" />
+              <i class="bx bx-package"></i><span>Seco</span>
+            </label>
+            <label class="wms-rel-cons-chip" data-cons="REFRIGERADO" title="TIPO_ARMAZENAGEM = REFRIGERADO / RESFRIADO">
+              <input type="checkbox" name="cons" value="REFRIGERADO" />
+              <i class="bx bx-droplet"></i><span>Refrigerado</span>
+            </label>
+            <label class="wms-rel-cons-chip" data-cons="CONGELADO" title="TIPO_ARMAZENAGEM = CONGELADO">
+              <input type="checkbox" name="cons" value="CONGELADO" />
+              <i class="bx bxs-snowflake"></i><span>Congelado</span>
+            </label>
+            <label class="wms-rel-cons-chip" data-cons="OUTRO" title="Sem TIPO_ARMAZENAGEM no cadastro do produto">
+              <input type="checkbox" name="cons" value="OUTRO" />
+              <i class="bx bx-question-mark"></i><span>Outros</span>
+            </label>
+          </div>
+          <div class="wms-rel-cons-foot">
+            <small class="hint">Vazio = todos. Usa <code>TIPO_ARMAZENAGEM</code> do cadastro.</small>
+            <button type="button" id="btnConsTodos">Marcar todos</button>
+          </div>
+        </div>
+      </div>
+      <div id="wmsRelPeriodoWrap" class="filtros-grid wms-rel-periodo-filtros" hidden>
+        <div>
+          <label for="filtro_dt_de">Período — de</label>
+          <input type="date" id="filtro_dt_de" class="form-control" />
+        </div>
+        <div>
+          <label for="filtro_dt_ate">Período — até</label>
+          <input type="date" id="filtro_dt_ate" class="form-control" />
+        </div>
+      </div>
+      </div>
+    </div>
+    <div class="tab-panel active" id="panel-saldo">
+      <div class="filtros-box">
+        <p class="hint">Posição agrupada por SKU: totais (entrada, saídas, reserva, saldo) no cabeçalho; lote/validade só nas linhas filhas. Por padrão <strong>oculta saldo zero</strong>.</p>
+        <div class="filtros-grid wms-rel-saldo-opts">
+          <div>
+            <label for="filtro_saldo_separadores"><i class="bx bx-list-ul"></i> Separadores na lista</label>
+            <select id="filtro_saldo_separadores" class="form-control"
+              title="Faixas na impressão, como no romaneio de separação (Conservação + Grupo + Categoria do cadastro WMS).">
+              <option value="nao">Não usar separadores</option>
+              <option value="faixas_cons">Só faixas SECO/REFRIG./CONG.</option>
+              <option value="conservacao">Conservação</option>
+              <option value="cons_grupo">Conservação + Grupo</option>
+              <option value="cons_grupo_cat" selected>Conservação + Grupo + Categoria</option>
+            </select>
+          </div>
+          <div>
+            <label for="filtro_saldo_ord1"><i class="bx bx-sort"></i> Ordenação 1</label>
+            <select id="filtro_saldo_ord1" class="form-control">
+              <option value="conservacao" selected>Conservação</option>
+              <option value="grupo">Grupo (cadastro WMS)</option>
+              <option value="subcategoria">Categoria (cadastro WMS)</option>
+              <option value="codigo">Código do produto</option>
+              <option value="nome">Descrição do produto</option>
+              <option value="lote">Lote</option>
+              <option value="validade">Validade</option>
+              <option value="saldo">Saldo SKU</option>
+            </select>
+          </div>
+          <div>
+            <label for="filtro_saldo_ord2">Ordenação 2</label>
+            <select id="filtro_saldo_ord2" class="form-control">
+              <option value="">—</option>
+              <option value="grupo" selected>Grupo (cadastro WMS)</option>
+              <option value="subcategoria">Categoria (cadastro WMS)</option>
+              <option value="codigo">Código do produto</option>
+              <option value="nome">Descrição do produto</option>
+              <option value="lote">Lote</option>
+              <option value="validade">Validade</option>
+              <option value="saldo">Saldo SKU</option>
+            </select>
+          </div>
+          <div>
+            <label for="filtro_saldo_ord3">Ordenação 3</label>
+            <select id="filtro_saldo_ord3" class="form-control">
+              <option value="">—</option>
+              <option value="subcategoria" selected>Categoria (cadastro WMS)</option>
+              <option value="codigo">Código do produto</option>
+              <option value="nome">Descrição do produto</option>
+              <option value="lote">Lote</option>
+              <option value="validade">Validade</option>
+              <option value="saldo">Saldo SKU</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin: 8px 0 4px;">
+          <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer; font-weight:500;">
+            <input type="checkbox" id="filtro_saldo_incluir_zerados" />
+            Incluir SKUs com saldo zero (histórico)
+          </label>
+        </div>
+        <p class="hint" style="margin-top:4px;">Ordenação e separadores valem para a impressão HTML.</p>
+        <div class="filtros-actions">
+          <button type="button" class="btn-filtro btn-filtro-aplicar" data-rel="saldo" data-fmt="csv"><i class="bx bx-spreadsheet"></i> CSV</button>
+          <button type="button" class="btn-filtro btn-filtro-aplicar" data-rel="saldo" data-fmt="html"><i class="bx bx-printer"></i> Imprimir</button>
+          <button type="button" class="btn-filtro btn-filtro-novo" id="btnEtiquetasSaldo" title="Gera etiquetas no layout do Recebimento, com base no saldo filtrado"><i class="bx bx-barcode"></i> Etiquetas</button>
+        </div>
+      </div>
+    </div>
+    <div class="tab-panel" id="panel-mov">
+      <div class="filtros-box">
+        <p class="hint">Entradas (recebimento encerrado) e movimentos do ledger (ex.: saída na expedição). Use o período para limitar por data.</p>
+        <div class="filtros-grid wms-rel-mov-opts">
+          <div>
+            <label for="filtro_sentido_mov"><i class="bx bx-transfer"></i> Tipo de movimento</label>
+            <select id="filtro_sentido_mov" class="form-control"
+              title="Filtra apenas entradas (qtd positiva) ou apenas saídas (qtd negativa). Vazio = todos.">
+              <option value="">Todos (entradas + saídas)</option>
+              <option value="entrada">Somente entradas</option>
+              <option value="saida">Somente saídas</option>
+            </select>
+          </div>
+          <div>
+            <label for="filtro_ordem_mov"><i class="bx bx-sort"></i> Ordenar por</label>
+            <select id="filtro_ordem_mov" class="form-control"
+              title="Cronológico = ordem para saldo histórico. Número da NF = confronto com ERP por nota.">
+              <option value="">Data/hora (cronológico)</option>
+              <option value="numero_nf">Número da NF (crescente)</option>
+              <option value="documento">Documento (A–Z)</option>
+              <option value="carga">Carga WMS, depois NF</option>
+              <option value="tipo">Tipo de movimento, depois NF</option>
+            </select>
+          </div>
+        </div>
+        <div class="filtros-actions">
+          <button type="button" class="btn-filtro btn-filtro-aplicar" data-rel="movimentacao" data-fmt="csv"><i class="bx bx-spreadsheet"></i> CSV</button>
+          <button type="button" class="btn-filtro btn-filtro-aplicar" data-rel="movimentacao" data-fmt="html"><i class="bx bx-printer"></i> Imprimir</button>
+        </div>
+      </div>
+    </div>
+    <div class="tab-panel" id="panel-separacao">
+      <div class="filtros-box">
+        <p class="hint">Histórico de demanda e picking nos espelhos OPL. Informe o <strong>código do produto</strong> e use os filtros abaixo para achar o SKU em um <strong>lote/rota</strong> (nome do espelho), pedido ou cliente. O período pode ser por <strong>importação do arquivo</strong> ou por <strong>data de entrega</strong> programada no OPL.</p>
+        <div class="filtros-grid wms-rel-sep-opts">
+          <div>
+            <label for="filtro_sep_espelho"><i class="bx bx-file"></i> Espelho / lote / rota</label>
+            <input type="text" id="filtro_sep_espelho" class="form-control" maxlength="120"
+              placeholder="Ex.: Lote 04, Rota A, Quinzena" autocomplete="off"
+              title="Busca parcial no nome do arquivo OPL importado." />
+          </div>
+          <div>
+            <label for="filtro_sep_cd_opl"><i class="bx bx-hash"></i> Nº espelho (#)</label>
+            <input type="number" id="filtro_sep_cd_opl" class="form-control" min="1" step="1" placeholder="Ex.: 94" />
+          </div>
+          <div>
+            <label for="filtro_sep_pedido"><i class="bx bx-receipt"></i> Pedido OPL</label>
+            <input type="text" id="filtro_sep_pedido" class="form-control" maxlength="20" placeholder="Ex.: 0000074849" autocomplete="off" />
+          </div>
+          <div>
+            <label for="filtro_sep_destino"><i class="bx bx-map"></i> Destino / cliente</label>
+            <input type="text" id="filtro_sep_destino" class="form-control" maxlength="80" placeholder="Código, razão ou cidade" autocomplete="off" />
+          </div>
+          <div>
+            <label for="filtro_sep_tipo_periodo"><i class="bx bx-calendar"></i> Período por</label>
+            <select id="filtro_sep_tipo_periodo" class="form-control">
+              <option value="importacao" selected>Importação do espelho</option>
+              <option value="entrega">Data de entrega (OPL)</option>
+            </select>
+          </div>
+          <div>
+            <label for="filtro_situacao_sep"><i class="bx bx-check-square"></i> Situação picking</label>
+            <select id="filtro_situacao_sep" class="form-control">
+              <option value="">Todas as linhas</option>
+              <option value="com_coleta">Com quantidade coletada</option>
+              <option value="coletado">Coletado (= pedida)</option>
+              <option value="pendente">Pendente (sem coleta)</option>
+              <option value="divergente">Divergente (coleta ≠ pedida)</option>
+            </select>
+          </div>
+        </div>
+        <div class="filtros-actions">
+          <button type="button" class="btn-filtro btn-filtro-aplicar" data-rel="separacao-opl" data-fmt="csv"><i class="bx bx-spreadsheet"></i> CSV detalhado</button>
+          <button type="button" class="btn-filtro btn-filtro-aplicar" data-rel="separacao-opl" data-fmt="csv" data-modo="resumo"><i class="bx bx-cube"></i> CSV resumo por SKU</button>
+          <button type="button" class="btn-filtro btn-filtro-aplicar" data-rel="separacao-opl" data-fmt="html"><i class="bx bx-printer"></i> Imprimir</button>
+        </div>
+      </div>
+    </div>
+    <div class="tab-panel" id="panel-dre">
+      <div class="filtros-box">
+        <p class="hint">Mesmos lançamentos da movimentação, em formato demonstrativo: por dono e produto, com <strong>Entrada</strong> e <strong>Saída</strong> <strong>somadas por dia</strong> e <strong>Saldo</strong> acumulado. Use o período nos filtros comuns.</p>
+        <div class="filtros-actions">
+          <button type="button" class="btn-filtro btn-filtro-aplicar" data-rel="demonstrativo-movimentacao" data-fmt="csv"><i class="bx bx-spreadsheet"></i> CSV</button>
+          <button type="button" class="btn-filtro btn-filtro-aplicar" data-rel="demonstrativo-movimentacao" data-fmt="html"><i class="bx bx-printer"></i> Imprimir</button>
+        </div>
+      </div>
+    </div>
+    <div class="tab-panel" id="panel-conversao">
+      <div class="filtros-box">
+        <h3 class="wms-rel-panel-title"><i class="bx bx-layer"></i> Conversão de embalagem (auditoria)</h3>
+        <p class="hint" style="font-size:13px;line-height:1.5;">
+          Lista SKUs em que o código da NF/OPL <strong>não é o mesmo</strong> do estoque ou o <strong>fator de conversão ≠ 1</strong>
+          (ex.: pacote × caixa, pudim PC × CX). Esses vínculos alimentam a validação NF × separação — revise periodicamente para evitar
+          falsos “OK” ou bloqueios indevidos.
+        </p>
+        <div class="filtros-grid wms-rel-conv-opts">
+          <div>
+            <label for="filtro_conv_origem"><i class="bx bx-filter"></i> Origem do vínculo</label>
+            <select id="filtro_conv_origem" class="form-control">
+              <option value="todos">Catálogo OL + de-para NF</option>
+              <option value="operacional">Somente catálogo OL</option>
+              <option value="depara">Somente de-para NF</option>
+            </select>
+          </div>
+        </div>
+        <div class="filtros-actions">
+          <button type="button" class="btn-filtro btn-filtro-aplicar" data-rel="conversao-embalagem" data-fmt="html">
+            <i class="bx bx-printer"></i> Imprimir
+          </button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" data-rel="conversao-embalagem" data-fmt="csv">
+            <i class="bx bx-spreadsheet"></i> CSV
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="tab-panel" id="panel-nfOpl">
+      <div class="filtros-box">
+        <p class="hint">
+          <strong>Comparativo proativo</strong> entre pedido de separação (OPL/espelho) e NF-e da carga —
+          antes ou depois da expedição. Duas visões principais:
+          <strong>itens separados que não estão na nota</strong> e
+          <strong>itens na nota que não estão no pedido de separação</strong> (ou quantidade NF maior).
+          A validação é feita <em>ao vivo</em> (não depende de histórico persistido).
+        </p>
+        <div class="filtros-grid wms-rel-nfopl-opts">
+          <div>
+            <label for="nfOplCdCarga"><i class="bx bx-hash"></i> Nº carga (opcional)</label>
+            <input type="number" id="nfOplCdCarga" class="form-control" min="1" step="1" placeholder="Ex.: 80" />
+          </div>
+          <div>
+            <label for="nfOplDtIni"><i class="bx bx-calendar"></i> Data início</label>
+            <input type="date" id="nfOplDtIni" class="form-control" />
+          </div>
+          <div>
+            <label for="nfOplDtFim"><i class="bx bx-calendar"></i> Data fim</label>
+            <input type="date" id="nfOplDtFim" class="form-control" />
+          </div>
+          <div>
+            <label for="nfOplCodigo"><i class="bx bx-barcode"></i> Código produto (opc.)</label>
+            <input
+              type="text"
+              id="nfOplCodigo"
+              class="form-control"
+              maxlength="60"
+              placeholder="Ex.: 6030302020 ou 6.03.03.020.20"
+              title="Aceita com ou sem máscara (pontos). Busca parcial nos dígitos/letras do código."
+              autocomplete="off"
+            />
+          </div>
+          <div>
+            <label for="nfOplDescricao"><i class="bx bx-text"></i> Descrição produto (opc.)</label>
+            <input type="text" id="nfOplDescricao" class="form-control" maxlength="120" placeholder="Busca parcial" autocomplete="off" />
+          </div>
+          <div class="wms-rel-dono-campo-sync">
+            <label for="nfOplCdDono"><i class="bx bx-buildings"></i> Dono do estoque</label>
+            <select id="nfOplCdDono" class="form-control"><option value="">— Todos —</option></select>
+          </div>
+          <div>
+            <label for="nfOplStatus"><i class="bx bx-filter"></i> Status expedição</label>
+            <select id="nfOplStatus" class="form-control">
+              <option value="">Todos</option>
+              <option value="PRONTA_EXPEDICAO">Pronta para expedição</option>
+              <option value="EM_EXPEDICAO">Em expedição</option>
+              <option value="EXPEDIDA">Expedida</option>
+            </select>
+          </div>
+          <div>
+            <label for="nfOplExibir"><i class="bx bx-list-check"></i> Exibir cargas</label>
+            <select id="nfOplExibir" class="form-control">
+              <option value="com_divergencia" selected>Só com divergência (recomendado)</option>
+              <option value="todas">Todas (incluir sem divergência)</option>
+              <option value="sem_divergencia">Só sem divergência</option>
+            </select>
+          </div>
+          <div>
+            <label for="nfOplTipoDiv"><i class="bx bx-filter-alt"></i> Tipo de divergência</label>
+            <select id="nfOplTipoDiv" class="form-control">
+              <option value="tudo" selected>Tudo (separação sem NF + NF sem separação)</option>
+              <option value="separacao_sem_nf">Só pedido/separação sem NF</option>
+              <option value="nf_sem_separacao">Só NF sem pedido/separação</option>
+            </select>
+          </div>
+          <div>
+            <label for="nfOplModo"><i class="bx bx-layer"></i> Modo do relatório</label>
+            <select id="nfOplModo" class="form-control">
+              <option value="analitico" selected>Analítico — por item (Nota, Local, Cliente)</option>
+              <option value="sintetico">Sintético — por entrega / nota / pedido</option>
+            </select>
+          </div>
+        </div>
+        <div class="filtros-actions" style="margin-top:4px;">
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnGerarNfOplHtml" title="Abre o comparativo em nova aba, separado por categoria"><i class="bx bx-show"></i> Visualizar / Imprimir</button>
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnGerarNfOplCsv" title="Exporta CSV (UTF-8 BOM) — abre no Excel"><i class="bx bx-spreadsheet"></i> Exportar Excel (CSV)</button>
+        </div>
+      </div>
+    </div>
+    <div class="tab-panel" id="panel-divergExp">
+      <div class="filtros-box">
+        <p class="hint">
+          <strong>Comparativo entre NF-e (saída fiscal) e Separação (saída física)</strong> nas cargas expedidas.
+          Use para validar estoque físico × fiscal contábil. Inclui <strong>impacto monetário</strong> (qtd × valor unitário da NF)
+          e <strong>consolidado por SKU</strong> (todas as cargas do período somadas por código de produto, prontas para cruzar com saldo contábil).
+        </p>
+        <div class="filtros-grid wms-rel-diverg-opts">
+          <div>
+            <label for="divergExpDtIni"><i class="bx bx-calendar"></i> Data início</label>
+            <input type="date" id="divergExpDtIni" class="form-control" />
+          </div>
+          <div>
+            <label for="divergExpDtFim"><i class="bx bx-calendar"></i> Data fim</label>
+            <input type="date" id="divergExpDtFim" class="form-control" />
+          </div>
+          <div class="wms-rel-dono-campo-sync">
+            <label for="divergExpCdDono"><i class="bx bx-buildings"></i> Dono do estoque</label>
+            <select id="divergExpCdDono" class="form-control"><option value="">— Todos —</option></select>
+          </div>
+          <div>
+            <label for="divergExpConferente"><i class="bx bx-user"></i> Conferente (parcial)</label>
+            <input type="text" id="divergExpConferente" class="form-control" placeholder="Ex.: Maranata" maxlength="120" autocomplete="off" />
+          </div>
+          <div>
+            <label for="divergExpStatus"><i class="bx bx-filter"></i> Status</label>
+            <select id="divergExpStatus" class="form-control">
+              <option value="">Todos</option>
+              <option value="EXPEDIDA">Expedida</option>
+              <option value="EM_EXPEDICAO">Em expedição</option>
+              <option value="PRONTA_EXPEDICAO">Pronta para expedição</option>
+            </select>
+          </div>
+          <div>
+            <label for="divergExpExibir"><i class="bx bx-list-check"></i> Exibir cargas</label>
+            <select id="divergExpExibir" class="form-control" title="No detalhamento por carga e no CSV detalhado">
+              <option value="com_divergencia" selected>Só com divergência (recomendado)</option>
+              <option value="todas">Todas (incluir sem divergência)</option>
+              <option value="sem_divergencia">Só sem divergência</option>
+            </select>
+          </div>
+        </div>
+        <div class="filtros-actions" style="margin-top:4px;">
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnGerarDivergExpHtml" title="Abre o relatório completo em nova aba (com resumo, consolidado por SKU e detalhe por carga)"><i class="bx bx-printer"></i> Imprimir / Visualizar</button>
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnGerarDivergExpCsv" title="CSV detalhado: uma linha por divergência (com valor unitário e impacto monetário)"><i class="bx bx-spreadsheet"></i> CSV detalhado</button>
+          <button type="button" class="btn-filtro btn-filtro-novo" id="btnGerarDivergExpSkuCsv" title="CSV consolidado por SKU (uma linha por código) — ideal para cruzar com saldo contábil"><i class="bx bx-cube"></i> CSV por SKU</button>
+        </div>
+      </div>
+    </div>
+    <div class="tab-panel" id="panel-shelf">
+      <div class="filtros-box">
+        <p class="hint">
+          <strong>Saldo por validade</strong> (FEFO): rateia saldo atual entre lotes da NF encerrada.
+          <strong>Entrada NF</strong> = só conferência (sem baixas). Faixas: vencido, crítico (≤30d), curto (horizonte escolhido).
+          Use <strong>A partir de</strong> + <strong>Vence em até (dias)</strong> para a janela à frente
+          (ex.: 28/08/2026 + 15 dias = só o que vence entre 28/08 e 12/09 — <em>não</em> traz vencido antigo).
+          Sem data = a partir de hoje (inclui já vencidos). Dias vazio = política do dono.
+          Gere o relatório, passe ao cliente e depois <strong>Marcar como apontados</strong> — na próxima use <strong>Só não apontados</strong> para não repetir o que já foi passado.
+        </p>
+        <div class="filtros-grid" style="margin-bottom:12px; max-width:720px;">
+          <div>
+            <label for="filtro_shelf_data_referencia"><i class="bx bx-calendar-check"></i> A partir de (data)</label>
+            <input type="date" id="filtro_shelf_data_referencia" class="form-control" title="Data base da contagem. Ex.: 28/08/2026 — os dias do horizonte contam a partir desta data. Vazio = hoje." />
+          </div>
+          <div>
+            <label for="filtro_shelf_horizonte_dias"><i class="bx bx-calendar"></i> Vence em até (dias)</label>
+            <input type="number" id="filtro_shelf_horizonte_dias" class="form-control" min="1" max="1095" placeholder="Ex.: 60 (vazio = dono)" title="Quantos dias à frente a partir da data base (ou de hoje). Em branco usa NU_DIAS_REL_VENCIMENTO do dono." />
+          </div>
+          <div>
+            <label for="filtro_shelf_apontado"><i class="bx bx-check-circle"></i> Apontamento</label>
+            <select id="filtro_shelf_apontado" class="form-control" title="Controla o que já foi passado ao cliente.">
+              <option value="todos">Todos</option>
+              <option value="nao">Só não apontados</option>
+              <option value="sim">Só já apontados</option>
+            </select>
+          </div>
+        </div>
+        <div class="filtros-actions" style="margin-bottom:12px;">
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnMarcarApontadosShelf" title="Marca as linhas da consulta atual (mesmos filtros + horizonte) como já passadas">
+            <i class="bx bx-check-double"></i> Marcar como apontados
+          </button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnAtualizarApontadosShelf">
+            <i class="bx bx-refresh"></i> Atualizar lista de apontados
+          </button>
+        </div>
+        <div class="wms-rel-baixa-box">
+          <h4><i class="bx bx-minus-circle"></i> Lançamento de baixa</h4>
+          <p class="hint" style="font-size:12px;margin:0 0 10px;">
+            Retiradas de estoque (vencido, avaria, segregado, perda…) são registradas no programa
+            <strong>Baixas / Perdas</strong> — documento numerado + movimento no ledger.
+            Use este relatório para identificar vencidos; depois importe as linhas no lançamento.
+          </p>
+          <div class="filtros-actions">
+            <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnIrModuloBaixas">
+              <i class="bx bx-minus-circle"></i> Abrir Baixas / Perdas
+            </button>
+            <button type="button" class="btn-filtro btn-filtro-novo" id="btnIrBaixaComShelf" title="Abre o lançamento e importa linhas vencidas com os filtros atuais">
+              <i class="bx bx-import"></i> Lançar baixa (filtro vencidos atual)
+            </button>
+          </div>
+        </div>
+        <div class="wms-rel-report-toolbar">
+          <div class="wms-rel-btn-group">
+            <span class="wms-rel-btn-group-label">Consultas HTML</span>
+            <div class="wms-rel-btn-row">
+              <button type="button" class="btn-filtro btn-filtro-aplicar" data-rel="shelf-life" data-modo="saldo" data-fmt="html" title="Saldo estimado por lote após baixas no SKU"><i class="bx bx-package"></i> Saldo por validade</button>
+              <button type="button" class="btn-filtro btn-filtro-aplicar" data-rel="shelf-life" data-modo="cobranca" data-fmt="html" title="Todas as validades com saldo FEFO — sem corte de horizonte"><i class="bx bx-receipt"></i> Vencidos p/ cobrança</button>
+              <button type="button" class="btn-filtro btn-filtro-aplicar" data-rel="shelf-life" data-modo="cobranca" data-fmt="html" data-somente-vencidos="1" title="Somente validades já vencidas"><i class="bx bx-error-circle"></i> Só vencidos</button>
+              <button type="button" class="btn-filtro btn-filtro-novo" data-rel="shelf-life" data-modo="validade-audit" data-fmt="html" title="Planilha de coleta: Conservação → Situação → descrição, com espaço para Lote/Validade"><i class="bx bx-search-alt"></i> Sem validade (coleta)</button>
+              <button type="button" class="btn-filtro btn-filtro-limpar" data-rel="shelf-life" data-modo="entrada" data-fmt="html" title="Histórico de entrada na NF"><i class="bx bx-import"></i> Só entrada NF</button>
+            </div>
+          </div>
+          <div class="wms-rel-btn-group">
+            <span class="wms-rel-btn-group-label">Exportar CSV</span>
+            <div class="wms-rel-btn-row">
+              <button type="button" class="btn-filtro btn-filtro-limpar" data-rel="shelf-life" data-modo="saldo" data-fmt="csv"><i class="bx bx-spreadsheet"></i> Saldo</button>
+              <button type="button" class="btn-filtro btn-filtro-limpar" data-rel="shelf-life" data-modo="cobranca" data-fmt="csv"><i class="bx bx-spreadsheet"></i> Cobrança</button>
+              <button type="button" class="btn-filtro btn-filtro-limpar" data-rel="shelf-life" data-modo="validade-audit" data-fmt="csv" title="CSV com colunas vazias LOTE, VALIDADE, QTD_COLETADA e OBS"><i class="bx bx-spreadsheet"></i> Sem validade</button>
+              <button type="button" class="btn-filtro btn-filtro-limpar" data-rel="shelf-life" data-modo="entrada" data-fmt="csv"><i class="bx bx-spreadsheet"></i> Entrada NF</button>
+            </div>
+          </div>
+        </div>
+        <div class="wms-rel-section-head">
+          <h4><i class="bx bx-mail-send"></i> Envios automáticos (job vencimento)</h4>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnAtualizarEnviosShelf"><i class="bx bx-refresh"></i> Atualizar histórico</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="wms-rel-envios-table">
+            <thead>
+              <tr><th>Data/hora</th><th>Linhas</th><th>E-mail</th><th>Anexo</th><th>Detalhe</th></tr>
+            </thead>
+            <tbody id="wmsRelEnviosBody">
+              <tr><td colspan="5">Clique em Atualizar histórico.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="wms-rel-section-head" style="margin-top:18px;">
+          <h4><i class="bx bx-check-circle"></i> Já apontados (passados ao cliente)</h4>
+        </div>
+        <p class="hint" style="font-size:12px;margin-top:0;">Desmarque se apontou por engano — a linha volta a aparecer em «Só não apontados».</p>
+        <div style="overflow-x:auto;">
+          <table class="wms-rel-envios-table">
+            <thead>
+              <tr>
+                <th>Data/hora</th>
+                <th>Dono</th>
+                <th>Código</th>
+                <th>Lote</th>
+                <th>Validade</th>
+                <th>Usuário</th>
+                <th>Origem</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="wmsRelApontadosBody">
+              <tr><td colspan="8">Clique em Atualizar lista de apontados.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="tab-panel" id="panel-saude">
+      <div class="filtros-box">
+        <h3 class="wms-rel-panel-title" style="color:#b91c1c;"><i class="bx bx-shield-quarter"></i> Auditoria de Saúde do Estoque</h3>
+        <p class="hint" style="font-size:13px;line-height:1.5;">
+          Varre o tenant inteiro (ou um dono específico) e lista <strong>todos</strong> os pontos com risco de divergência:
+          NF-e encerradas <strong>sem conferência</strong> (qtdConvertida = 0 — caso típico do PIPOCA DOCE),
+          SKUs com saldo <em>só de movimento</em>, saldo negativo, NF-e abertas há muito tempo e
+          cadastros duplicados no mesmo dono.
+        </p>
+        <div class="filtros-grid wms-rel-saude-opts">
+          <div>
+            <label for="filtro_saude_dias"><i class="bx bx-time"></i> NF aberta há mais de (dias)</label>
+            <input type="number" id="filtro_saude_dias" class="form-control" min="1" max="365" value="7"
+              title="Corte para considerar uma NF-e como 'abandonada' (não encerrada)" />
+          </div>
+        </div>
+        <div class="filtros-actions">
+          <button type="button" class="btn-filtro btn-filtro-aplicar" data-rel="auditoria-saude" data-fmt="html">
+            <i class="bx bx-printer"></i> Gerar auditoria
+          </button>
+        </div>
+        <p class="hint" style="margin-top:12px;font-size:12px;color:#64748b;">
+          Em cada SKU listado, clique no botão <strong>🔍</strong> para abrir o diagnóstico
+          detalhado (NFs no dono errado, cdProduto faltando, cadastros duplicados, etc.).
+        </p>
+      </div>
+    </div>
+    <div class="tab-panel" id="panel-demanda">
+      <div class="filtros-box">
+        <h3 class="wms-rel-panel-title"><i class="bx bx-calendar"></i> Demanda do dia</h3>
+        <p class="hint">
+          Por data de entrega, uma linha por carga. Rotas da mesma carga aparecem juntas (1 / 2).
+          Peso e valor da nota em frio e seco. Receita = valor total das notas × percentual de expedição do dono.
+          Entrega é a parada distinta. O tipo vem só do <code>TIPO_ARMAZENAGEM</code> do cadastro.
+        </p>
+        <div class="filtros-grid wms-rel-demanda-opts">
+          <div>
+            <label for="demandaDtDe"><i class="bx bx-calendar"></i> Entrega — de</label>
+            <input type="date" id="demandaDtDe" class="form-control" />
+          </div>
+          <div>
+            <label for="demandaDtAte">Entrega — até</label>
+            <input type="date" id="demandaDtAte" class="form-control" />
+          </div>
+          <div>
+            <label for="demandaSituacao"><i class="bx bx-package"></i> Situação</label>
+            <select id="demandaSituacao" class="form-control">
+              <option value="ambas" selected>Programadas e expedidas</option>
+              <option value="programada">Só programadas</option>
+              <option value="expedida">Só expedidas</option>
+            </select>
+          </div>
+          <div>
+            <label for="demandaRota"><i class="bx bx-map"></i> Rota</label>
+            <select id="demandaRota" class="form-control">
+              <option value="">Todas</option>
+              <option value="sem">Sem rota</option>
+            </select>
+          </div>
+        </div>
+        <div class="filtros-actions">
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnDemandaConsultar"><i class="bx bx-search"></i> Consultar</button>
+          <button type="button" class="btn-filtro btn-filtro-aplicar" id="btnDemandaCsv" title="CSV (UTF-8 BOM) — abre no Excel"><i class="bx bx-spreadsheet"></i> Exportar Excel (CSV)</button>
+          <button type="button" class="btn-filtro btn-filtro-limpar" id="btnDemandaHtml"><i class="bx bx-printer"></i> Imprimir</button>
+        </div>
+        <div id="demandaDiaResultado"></div>
+      </div>
+    </div>
+  </div>
+  <div id="loadingOverlay" class="calculando-overlay" style="display: none;">
+    <div class="calculando-content">
+      <div class="calculando-spinner"></div>
+      <h3 id="loadingTitle">Carregando</h3>
+      <p id="loadingText">Aguarde...</p>
+      <p class="calculando-detalhe" id="loadingDetalhe"></p>
+    </div>
+  </div>
+  <div id="confirmModal" class="modal">
+    <div class="modal-content">
+      <h3>Confirmar Ação</h3>
+      <p id="modalMessage"></p>
+      <div class="modal-actions">
+        <button type="button" id="confirmYes" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-check"></i> Continuar</button>
+        <button type="button" id="confirmNo" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Cancelar</button>
+      </div>
+    </div>
+  </div>
+  <div id="modalEtqSaldo" class="modal modal--confirm" role="dialog" aria-modal="true" aria-labelledby="modalEtqSaldoTitulo" style="display:none;">
+    <div class="modal-content modal-content--confirm modal-content--etq">
+      <h3 id="modalEtqSaldoTitulo"><i class="bx bx-barcode"></i> Etiquetas do saldo</h3>
+      <p class="etq-modo-hint">Mesmos filtros do <strong>Imprimir</strong> (dono, grupo, categoria, produto…). Uma etiqueta por SKU/lote/validade com saldo &gt; 0 — sem duplicar linha de inventário + NF do mesmo item.</p>
+      <div class="etq-modo-opcoes">
+        <label>
+          <input type="radio" name="etqModoSaldo" value="linha" checked />
+          <span><strong>1 etiqueta por linha</strong> do saldo (SKU + lote + validade).</span>
+        </label>
+        <label>
+          <input type="radio" name="etqModoSaldo" value="fixo" />
+          <span><strong>Mesma quantidade</strong> em todas as linhas (ex.: 2 etiquetas por pallet).</span>
+        </label>
+        <div id="etqSaldoFixoWrap" class="etq-modo-fixo-wrap" aria-hidden="true">
+          <label for="etqSaldoQtdFixa">Etiquetas por linha</label>
+          <input type="number" id="etqSaldoQtdFixa" min="1" max="500" step="1" value="2" />
+        </div>
+        <label>
+          <input type="radio" name="etqModoSaldo" value="qtd" />
+          <span><strong>1 por unidade do saldo SKU</strong> (ex.: saldo 30 → até 30 etiquetas; limite 500/linha e 2.000 no total).</span>
+        </label>
+      </div>
+      <p class="etq-modo-hint">Refine dono/grupo/produto antes de gerar — evita milhares de etiquetas.</p>
+      <div class="modal-actions filtros-actions" style="justify-content: flex-end; margin-top: 12px;">
+        <button type="button" id="modalEtqSaldoCancelar" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Cancelar</button>
+        <button type="button" id="modalEtqSaldoContinuar" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-printer"></i> Gerar</button>
+      </div>
+    </div>
+  </div>
+  <script src="/js/cache-buster.js?v=202605161200"></script>
+  <script src="js/script.js"></script>
+</body>
+</html>
