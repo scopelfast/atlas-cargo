@@ -365,7 +365,7 @@ function chaveConservacaoLinha(linha) {
   if (!linha || linha._bucket !== 'REFRIG_CONG') return '0';
   if (linha._frioTipo === 'CONGELADO') return '2';
   if (linha._frioTipo === 'RESFRIADO') return '1';
-  const t = linha._cadWms && String(linha._cadWms.TIPO_ARMAZENAGEM || '').toUpperCase();
+  const t = String((linha._cadWms && linha._cadWms.TIPO_ARMAZENAGEM) || '').toUpperCase();
   if (t.includes('CONGEL')) return '2';
   return '1';
 }

@@ -2491,9 +2491,23 @@
       <div class="welcome-section">
         <div class="welcome-section-head">
           <h3>${escHtml(_t('web.dashboard.homeEstoqueBemVindo'))}</h3>
-          <a class="welcome-manual-btn" href="/modulos/estoque/manual-operacional-wms.html" target="_blank" rel="noopener">
-            <i class="bx bx-book-open"></i> ${escHtml(_t('web.dashboard.homeEstoqueManualBtn'))}
-          </a>
+          <div class="welcome-section-actions">
+            <a class="welcome-apresentacao-btn" href="/apresentacao-maranata.html" target="_blank" rel="noopener" id="btnApresentacaoMaranataDash" title="Apresentação Mana / Nutriville · 21/10">
+              <i class="bx bx-slideshow"></i> ${escHtml(_t('web.dashboard.homeEstoqueApresentacaoBtn'))}
+            </a>
+            <a class="welcome-bi-btn" href="/bi-volume-pr-sc.html" target="_blank" rel="noopener" id="btnBiVolumePrScDash">
+              <i class="bx bx-line-chart"></i> ${escHtml(_t('web.dashboard.homeEstoqueBiBtn'))}
+            </a>
+            <a class="welcome-cenario-btn" href="/bi-cenario-base.html" target="_blank" rel="noopener" id="btnBiCenarioBaseDash" title="Cenário Colombo → Joinville / Araquari">
+              <i class="bx bx-map-alt"></i> ${escHtml(_t('web.dashboard.homeEstoqueCenarioBtn'))}
+            </a>
+            <a class="welcome-cenario-btn" href="/apresentacao-cenario-cd.html" target="_blank" rel="noopener" id="btnDeckCenarioCdDash" title="Deck pauta · CD Colombo → SC">
+              <i class="bx bx-presentation"></i> Deck Cenário CD
+            </a>
+            <a class="welcome-manual-btn" href="/modulos/estoque/manual-operacional-wms.html" target="_blank" rel="noopener">
+              <i class="bx bx-book-open"></i> ${escHtml(_t('web.dashboard.homeEstoqueManualBtn'))}
+            </a>
+          </div>
         </div>
         <p>${escHtml(_t('web.dashboard.homeEstoqueSub'))}</p>
       </div>
@@ -2611,6 +2625,37 @@
       ${quickEstoque}
     `;
       if (typeof window.applyI18nWeb === 'function') window.applyI18nWeb(contentArea);
+      const biBtn = contentArea.querySelector('#btnBiVolumePrScDash');
+      if (biBtn) {
+        biBtn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          let url = '/bi-volume-pr-sc.html';
+          try {
+            const t = localStorage.getItem('token');
+            if (t) url += '?token=' + encodeURIComponent(t);
+          } catch (e) { /* ignore */ }
+          window.open(url, '_blank', 'noopener');
+        });
+      }
+      const apresBtn = contentArea.querySelector('#btnApresentacaoMaranataDash');
+      if (apresBtn) {
+        apresBtn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          window.open('/apresentacao-maranata/Apresentacao_Maranata_21out2026.html?v=30', '_blank', 'noopener');
+        });
+      }
+      const cenBtn = contentArea.querySelector('#btnBiCenarioBaseDash');
+      if (cenBtn) {
+        cenBtn.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          let url = '/bi-cenario-base.html';
+          try {
+            const t = localStorage.getItem('token');
+            if (t) url += '?token=' + encodeURIComponent(t);
+          } catch (e) { /* ignore */ }
+          window.open(url, '_blank', 'noopener');
+        });
+      }
       /** Cards do painel WMS com data-go-modulo viram clicáveis e navegam ao
        *  módulo correspondente. Cursor + teclado (Enter/Space) suportados. */
       contentArea.querySelectorAll('.dashboard-stat-card[data-go-modulo]').forEach((card) => {

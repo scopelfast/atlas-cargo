@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Abrindo BI Maranata…</title>
+  <style>
+    body { font-family: Segoe UI, sans-serif; background: #0b1220; color: #e2e8f0; display: flex; min-height: 100vh; align-items: center; justify-content: center; margin: 0; }
+    .box { max-width: 420px; text-align: center; padding: 24px; }
+    a { color: #f87171; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <p id="m">Abrindo BI operacional PR/SC (ao vivo)…</p>
+  </div>
+  <script>
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem('token'); } catch (e) {}
+      if (!t) {
+        document.getElementById('m').innerHTML =
+          'Faça login no Atlas Cargo nesta mesma origem e recarregue esta página.<br/><br/>' +
+          'Ou abra <code>/api/wms/bi/volume-pr-sc.html?token=SEU_JWT</code>';
+        return;
+      }
+      location.replace('/api/wms/bi/volume-pr-sc.html?token=' + encodeURIComponent(t));
+    })();
+  </script>
+</body>
+</html>

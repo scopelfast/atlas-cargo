@@ -1010,11 +1010,18 @@ async function carregarNrRotaPorPedidosOpl(pool, tenantId, pedidos) {
 }
 
 /**
- * NR_ROTA para NF-e de saída: chave import / código no nome → match por endereço (CNPJ+CEP+logradouro+nº).
- * Corrige falsos «sem cadastro» quando o XML traz só a razão social (ex.: MANA DO BRASIL S.A.)
- * e o ponto no cadastro tem código (ex.: «1149 - CONSIGAZ»).
+ * NR_ROTA para NF-e de saída: vínculo já gravado → chave import / código → match por endereço.
+ * Pontos Mana/OPL ficam sob o CNPJ do dono (não do destinatário da NF). Por isso passa
+ * cdClienteDono/cnpjDonoMatriz ao match — evita falso «Sem cadastro» (ex.: ALSIM/Newell
+ * no XML vs «1090 - NEWELL BRANDS» no cadastro do dono, mesmo TAKATA 3309).
  */
 async function resolverNrRotaNfSaida(pool, tenantId, n, mapaChaveImport, indiceCodDest, opts = {}) {
+  const cdEnderecoNf = n.CD_ENDERECO_ENTREGA != null ? Number(n.CD_ENDERECO_ENTREGA) : null;
+  if (Number.isFinite(cdEnderecoNf) && cdEnderecoNf > 0) {
+    const nrVinculo = await nrRotaPorCdEndereco(pool, tenantId, cdEnderecoNf);
+    if (nrVinculo != null) return { nrRota: nrVinculo, matchVia: 'CD_ENDERECO_NF' };
+  }
+
   const nrChave = resolveNrRotaCadastroNf(tenantId, n, mapaChaveImport, indiceCodDest);
   if (nrChave != null) return { nrRota: nrChave, matchVia: 'CHAVE_OU_COD' };
 
@@ -1027,6 +1034,18 @@ async function resolverNrRotaNfSaida(pool, tenantId, n, mapaChaveImport, indiceC
   const cep = cepDigitos8(n.CEP_DEST);
   const complemento = String(n.XCPL_DEST || '').trim();
 
+  let cdClienteDono = opts.cdClienteDono != null ? Number(opts.cdClienteDono) : null;
+  let cnpjDonoMatriz = opts.cnpjDonoMatriz || null;
+  if (cdClienteDono == null || !Number.isFinite(cdClienteDono)) {
+    const cdDonoRaw = n.CD_DONO != null ? n.CD_DONO : n.cd_dono;
+    const cdDono = cdDonoRaw != null && cdDonoRaw !== '' ? parseInt(String(cdDonoRaw), 10) : null;
+    if (cdDono != null && Number.isFinite(cdDono)) {
+      const donoCli = await resolveCdClienteDonoPorCdDono(pool, tenantId, cdDono);
+      cdClienteDono = donoCli.cdCliente;
+      cnpjDonoMatriz = donoCli.cnpj14;
+    }
+  }
+
   const hit = await buscarEnderecoEntregaParaParada(pool, tenantId, {
     cnpjEntrega: cnpj,
     nmEntrega: nome,
@@ -1036,6 +1055,8 @@ async function resolverNrRotaNfSaida(pool, tenantId, n, mapaChaveImport, indiceC
     logradouro: logr,
     numero: nro,
     complemento,
+    cdClienteDono,
+    cnpjDonoMatriz,
   });
 
   if (hit.cdEndereco) {
@@ -1058,6 +1079,25 @@ async function resolverNrRotaNfSaida(pool, tenantId, n, mapaChaveImport, indiceC
     opts
   );
   if (nrEnd != null) return { nrRota: nrEnd, matchVia: 'ENDERECO_DESAMB' };
+
+  /** Mesmo endereço físico sob o CNPJ do dono (cadastro Mana/OPL). */
+  if (cnpjDonoMatriz && cnpj14Pad(cnpjDonoMatriz).length === 14 && cnpj14Pad(cnpjDonoMatriz) !== cnpj) {
+    const nrDono = await nrRotaPorEnderecoFisico(
+      pool,
+      tenantId,
+      {
+        cnpjEntrega: cnpjDonoMatriz,
+        nmEntrega: nome,
+        uf: n.UF_DEST,
+        cep,
+        logradouro: logr,
+        numero: nro,
+        complemento,
+      },
+      opts
+    );
+    if (nrDono != null) return { nrRota: nrDono, matchVia: 'ENDERECO_DONO_DESAMB' };
+  }
 
   if (hit.matchStatus === 'AMBIGUO') {
     return { nrRota: null, matchVia: 'AMBIGUO' };

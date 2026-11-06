@@ -632,6 +632,46 @@ const staticHeaders = (res, filePath, stat) => {
   }
 };
 
+// Apresentação Maranata (deck 21/10) — mesma origem do Atlas/ngrok
+{
+  const fsAp = require('fs');
+  const apresentacaoDir =
+    process.env.APRESENTACAO_DIR ||
+    path.join(process.env.USERPROFILE || process.env.HOME || '', 'Downloads', 'Apresentação');
+  if (fsAp.existsSync(apresentacaoDir)) {
+    const deckFile = 'Apresentacao_Maranata_21out2026.html';
+    app.use(
+      '/apresentacao-maranata',
+      express.static(apresentacaoDir, {
+        setHeaders: (res, filePath) => {
+          if (String(filePath).endsWith('.html')) {
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          }
+        },
+      })
+    );
+    const goDeck = (req, res) => {
+      res.redirect(302, '/apresentacao-maranata/' + deckFile + '?v=30');
+    };
+    app.get('/apresentacao-maranata', goDeck);
+    app.get('/apresentacao-maranata/', goDeck);
+    app.get('/apresentacao-maranata.html', goDeck);
+    console.log('📽️  Apresentação Maranata: /apresentacao-maranata →', apresentacaoDir);
+
+    // Deck NOVO — Cenário CD (não altera o deck 21/10)
+    const deckCenario = 'Apresentacao_Cenario_CD_SC.html';
+    const goCenario = (req, res) => {
+      res.redirect(302, '/apresentacao-maranata/' + deckCenario + '?v=7');
+    };
+    app.get('/apresentacao-cenario-cd', goCenario);
+    app.get('/apresentacao-cenario-cd/', goCenario);
+    app.get('/apresentacao-cenario-cd.html', goCenario);
+    console.log('📽️  Apresentação Cenário CD: /apresentacao-cenario-cd →', deckCenario);
+  } else {
+    console.warn('⚠️  Pasta da apresentação não encontrada:', apresentacaoDir);
+  }
+}
+
 // Servir arquivos estáticos na raiz
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders: staticHeaders

@@ -3,9 +3,18 @@
 const express = require('express');
 const router = express.Router();
 const ctrl = require('../controllers/wms-dashboard.controller');
+const biCtrl = require('../controllers/wms-bi-volume-pr-sc.controller');
+const biCenarioCtrl = require('../controllers/wms-bi-cenario-base.controller');
 const { towerAuthAndTenant } = require('../middleware/tower-auth-chain.middleware');
 
 router.use(towerAuthAndTenant);
+
+/** BI operacional PR/SC (Mana+Nutriville) — ao vivo */
+router.get('/wms/bi/volume-pr-sc.html', biCtrl.obterHtml);
+router.get('/wms/bi/volume-pr-sc', biCtrl.obterJson);
+
+/** BI cenário de base Colombo → SC (pauta reunião — separado do volume) */
+router.get('/wms/bi/cenario-base.html', biCenarioCtrl.obterHtml);
 
 router.get('/wms/dashboard/resumo', ctrl.obterResumo);
 router.get('/wms/dashboard/valor-estoque', ctrl.obterValorEstoque);

@@ -31,7 +31,7 @@ async function obterUltimoPrecoSaidaMap(tenantId) {
         n."TENANT_ID",
         n."CD_DONO",
         n."CD_NFE_SAIDA" AS cd_nfe,
-        COALESCE(n."DH_EMISSAO", n."DH_REGISTRO", n."DH_MAINTENANCE") AS dh_ref,
+        COALESCE(n."DH_EMISSAO", n."DH_SAIDA", n."DH_IMPORTACAO") AS dh_ref,
         n."LINHAS_JSON"
       FROM "WMS_NFE_SAIDA" n
       WHERE n."TENANT_ID" = $1

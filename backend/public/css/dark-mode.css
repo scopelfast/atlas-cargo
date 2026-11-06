@@ -89,6 +89,21 @@
   color: #f8fafc;
 }
 
+[data-theme="dark"] .welcome-bi-btn {
+  background: #145c45;
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .welcome-apresentacao-btn {
+  background: linear-gradient(135deg, #145c45 0%, #0A3D2E 55%, #b91c1c 100%);
+  color: #f8fafc;
+}
+
+[data-theme="dark"] .welcome-cenario-btn {
+  background: #0f766e;
+  color: #f8fafc;
+}
+
 [data-theme="dark"] .welcome-section {
   border-bottom-color: #334155;
 }

@@ -15,11 +15,33 @@
     .estoque-hub { padding: 20px; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; width: 100%; max-width: none; margin: 0; box-sizing: border-box; }
     .estoque-hub-header { margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid var(--border, #e2e8f0); display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; }
     .estoque-hub-header-text { min-width: 0; flex: 1; }
-    .estoque-hub-manual {
+    .estoque-hub-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .estoque-hub-manual,
+    .estoque-hub-bi,
+    .estoque-hub-apresentacao,
+    .estoque-hub-cenario,
+    .estoque-hub-cenario-deck {
       display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px;
-      border-radius: 8px; background: var(--ac-accent, #0ea5e9); color: #fff !important;
+      border-radius: 8px; color: #fff !important;
       font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap;
     }
+    .estoque-hub-manual { background: var(--ac-accent, #0ea5e9); }
+    .estoque-hub-bi { background: #0A3D2E; }
+    .estoque-hub-apresentacao { background: linear-gradient(135deg, #0A3D2E 0%, #0A3D2E 55%, #E30613 100%); }
+    .estoque-hub-cenario { background: #134e4a; border: 1px solid rgba(52,211,153,.35); }
+    .estoque-hub-cenario-deck { background: linear-gradient(135deg, #134e4a 0%, #0A3D2E 60%, #E30613 100%); }
+    .estoque-hub-bi:hover,
+    .estoque-hub-apresentacao:hover,
+    .estoque-hub-cenario:hover,
+    .estoque-hub-cenario-deck:hover { filter: brightness(1.08); }
+    html[data-theme='dark'] .estoque-hub-bi { background: #145c45; }
+    html[data-theme='dark'] .estoque-hub-apresentacao { background: linear-gradient(135deg, #145c45 0%, #0A3D2E 55%, #b91c1c 100%); }
+    html[data-theme='dark'] .estoque-hub-cenario { background: #0f766e; }
+    html[data-theme='dark'] .estoque-hub-cenario-deck { background: linear-gradient(135deg, #0f766e 0%, #145c45 55%, #b91c1c 100%); }
+    .estoque-card.estoque-card-bi i { color: #0A3D2E; }
+    html[data-theme='dark'] .estoque-card.estoque-card-bi i { color: #34d399; }
+    .estoque-card.estoque-card-apresentacao i { color: #E30613; }
+    html[data-theme='dark'] .estoque-card.estoque-card-apresentacao i { color: #f87171; }
     .estoque-hub-header h2 { margin: 0; color: var(--ac-primary, #0d2137); font-size: 26px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
     .estoque-hub-header p { margin: 10px 0 0; color: #64748b; font-size: 15px; line-height: 1.5; }
     html[data-theme='dark'] .estoque-hub-header p { color: #94a3b8; }
@@ -45,9 +67,23 @@
         <h2><i class="bx bx-package"></i> Gestão de Estoque (WMS)</h2>
         <p>Painel inicial. Use os atalhos abaixo ou o menu lateral <strong>WMS</strong>. Cada tela será evoluída conforme o <code>docs/RF_WMS_ATLAS_v1.md</code>.</p>
       </div>
-      <a class="estoque-hub-manual" href="/modulos/estoque/manual-operacional-wms.html" target="_blank" rel="noopener">
-        <i class="bx bx-book-open"></i> Manual operacional
-      </a>
+      <div class="estoque-hub-actions">
+        <a class="estoque-hub-apresentacao" href="/apresentacao-maranata/Apresentacao_Maranata_21out2026.html?v=30" target="_blank" rel="noopener" title="Apresentação Mana / Nutriville · 21/10">
+          <i class="bx bx-slideshow"></i> Apresentação Maranata
+        </a>
+        <a class="estoque-hub-bi" href="/bi-volume-pr-sc.html" target="_blank" rel="noopener" title="BI operacional PR/SC — ao vivo">
+          <i class="bx bx-line-chart"></i> BI Volume PR/SC
+        </a>
+        <a class="estoque-hub-cenario" href="/bi-cenario-base.html" target="_blank" rel="noopener" title="Cenário Colombo → Joinville / Araquari">
+          <i class="bx bx-map-alt"></i> Cenário Base SC
+        </a>
+        <a class="estoque-hub-cenario-deck" href="/apresentacao-cenario-cd.html" target="_blank" rel="noopener" title="Deck pauta · CD Colombo → SC">
+          <i class="bx bx-presentation"></i> Deck Cenário CD
+        </a>
+        <a class="estoque-hub-manual" href="/modulos/estoque/manual-operacional-wms.html" target="_blank" rel="noopener">
+          <i class="bx bx-book-open"></i> Manual operacional
+        </a>
+      </div>
     </div>
     <div class="estoque-cards" id="estoqueHubCards"></div>
   </div>
