@@ -1,5 +1,8 @@
 # Restore do banco Atlas Cargo
 
+**Guia completo (Cursor / outro servidor / espelho scopelfast):**  
+veja na raiz do repo → [`INSTALACAO_OUTRO_SERVIDOR.md`](../INSTALACAO_OUTRO_SERVIDOR.md)
+
 Dump gerado em **06/11/2026** a partir de `atlas_cargo_prd` (PostgreSQL, formato custom `-Fc`).
 
 ## Pré-requisitos no servidor novo
