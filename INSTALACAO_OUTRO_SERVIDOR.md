@@ -4,7 +4,10 @@ Use este arquivo na **outra máquina** com o Cursor. Peça ao agente:
 
 > Leia `INSTALACAO_OUTRO_SERVIDOR.md` e execute a restauração do Atlas Cargo passo a passo.
 
-Repo: https://github.com/Scopel2022/atlas-cargo  
+Repos (mesmo conteúdo):
+- https://github.com/scopelfast/atlas-cargo
+- https://github.com/Scopel2022/atlas-cargo
+
 Dump: `backups/atlas_cargo_prd_20261106.dump` (~28 MB, PostgreSQL custom `-Fc`)  
 App: pasta `backend/`
 
@@ -15,9 +18,9 @@ App: pasta `backend/`
 | Item | Onde pegar |
 |------|------------|
 | `backend/.env` | Copiar da máquina atual (senhas, DB, tokens) |
-| Uploads novos (CNH, áudio…) | Copiar `backend/public/uploads` se precisar (USB/SCP) |
+| Uploads (CNH, CRLV, áudio…) | Copiar `backend/public/uploads` se precisar (USB/SCP) — **não** estão no Git de propósito |
 
-**Nunca** commitar `.env` no GitHub.
+**Nunca** commitar `.env` nem documentos pessoais no GitHub.
 
 ---
 
@@ -27,7 +30,7 @@ App: pasta `backend/`
 - Node.js LTS (18+)
 - PostgreSQL 14+ (ideal 16 ou 18), com `pg_restore` / `psql` no PATH  
   Windows típico: `C:\Program Files\PostgreSQL\18\bin\`
-- Acesso ao GitHub (`Scopel2022/atlas-cargo` — repo privado: login/credencial necessária)
+- Acesso ao GitHub (`scopelfast/atlas-cargo` ou `Scopel2022/atlas-cargo`)
 
 ---
 
@@ -35,7 +38,7 @@ App: pasta `backend/`
 
 ```powershell
 cd C:\gitHub
-git clone https://github.com/Scopel2022/atlas-cargo.git SysScopel
+git clone https://github.com/scopelfast/atlas-cargo.git SysScopel
 cd SysScopel
 git checkout main
 git pull

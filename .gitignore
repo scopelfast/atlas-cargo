@@ -77,3 +77,11 @@ coverage/
 migrate_*.js
 update_*.js
 
+# Uploads operacionais (CNH, CRLV, áudio) — copiar à parte, não versionar
+backend/public/uploads/
+
+# Scripts/probes e exports locais
+backend/tmp/
+backend/tmp_nf_export/
+backend/wms_import_cadastro_*.json
+
