@@ -56,6 +56,35 @@ function dadosJsonPedido(p) {
   return typeof dj === 'object' && !Array.isArray(dj) ? dj : {};
 }
 
+function dadosJsonItem(it) {
+  const dj = it && (it.DADOS_JSON ?? it.dados_json);
+  if (dj == null) return {};
+  if (typeof dj === 'string') {
+    try {
+      return JSON.parse(dj);
+    } catch (_) {
+      return {};
+    }
+  }
+  return typeof dj === 'object' && !Array.isArray(dj) ? dj : {};
+}
+
+/** Itens cancelados / substituídos não entram na listagem geral (visão de carga). */
+function itemForaListagemGeral(it) {
+  const d = dadosJsonItem(it);
+  const motivo = String(d.motivoDiverg || d.MOTIVO_DIVERG || '')
+    .trim()
+    .toUpperCase();
+  return motivo === 'CANCELADO_CLIENTE' || motivo === 'SUBSTITUIDO';
+}
+
+/** Qtd efetiva: coletada (ajustada) se já gravada; senão pedida. */
+function qtdEfetivaListagemGeral(it) {
+  const qc = parseQtdRomaneio(it && it.QT_COLETADA);
+  if (qc != null) return qc;
+  return parseQtdRomaneio(it && it.QT_PEDIDA) || 0;
+}
+
 function fldLinha2(p, inicio1, tam) {
   const raw = p.LINHA2_RAW ?? p.linha2_raw ?? '';
   if (!raw) return '';
@@ -630,6 +659,7 @@ function agregarPorCodigo(linhas) {
         DATA_ENTREGA: L.DATA_ENTREGA || '',
         _cadWms: L._cadWms || null,
         _bucket: L._bucket || null,
+        _frioTipo: L._frioTipo || null,
         _destino: L._destino || '',
         _unidade: L._unidade || '',
         UNIDADE_OL: L.UNIDADE_OL || '',
@@ -642,6 +672,7 @@ function agregarPorCodigo(linhas) {
       if (!prev.DATA_ENTREGA && L.DATA_ENTREGA) prev.DATA_ENTREGA = L.DATA_ENTREGA;
       if (!prev._cadWms && L._cadWms) prev._cadWms = L._cadWms;
       if (!prev._bucket && L._bucket) prev._bucket = L._bucket;
+      if (!prev._frioTipo && L._frioTipo) prev._frioTipo = L._frioTipo;
       if (!prev._destino && L._destino) prev._destino = L._destino;
       if (!prev._unidade && L._unidade) prev._unidade = L._unidade;
       if (!prev.UNIDADE_OL && L.UNIDADE_OL) prev.UNIDADE_OL = L.UNIDADE_OL;
@@ -669,6 +700,7 @@ function agregarPorCodigo(linhas) {
  *   conservacao: string,
  *   agruparItens: boolean,
  *   folhasPorDestinatario: boolean,
+ *   modoFolhas?: 'dest' | 'continuo' | 'geral',
  *   produtoPorDigitos?: Record<string, { TIPO_ARMAZENAGEM?: string, NM_CATEGORIA?: string }>,
  *   ordem?: string[],
  *   separadoresGrupo?: 'auto' | 'nao' | 'sim' | 'faixas_cons' | 'conservacao' | 'cons_grupo' | 'cons_grupo_cat',
@@ -681,7 +713,14 @@ function buildRomaneioSeparacaoHtml(data, opts) {
   const pedidos = Array.isArray(data.pedidos) ? data.pedidos : [];
   const conservacao = (opts.conservacao || 'todos').toLowerCase();
   const agruparItens = !!opts.agruparItens;
-  const folhasPorDestinatario = opts.folhasPorDestinatario !== false;
+  const modoFolhasRaw = String(opts.modoFolhas || '').toLowerCase();
+  const modoFolhas = ['dest', 'continuo', 'geral'].includes(modoFolhasRaw)
+    ? modoFolhasRaw
+    : opts.folhasPorDestinatario === false
+      ? 'continuo'
+      : 'dest';
+  const folhasPorDestinatario = modoFolhas === 'dest';
+  const listagemGeral = modoFolhas === 'geral';
   const carimboConferencia = opts.carimboConferencia !== false;
   const produtoPorDigitos = opts.produtoPorDigitos && typeof opts.produtoPorDigitos === 'object' ? opts.produtoPorDigitos : {};
   const nrRotaPorChave =
@@ -858,6 +897,10 @@ function buildRomaneioSeparacaoHtml(data, opts) {
       }
     }
     if (exibirColunaCad) partes.push('Coluna Conserv./Categoria: sim');
+    if (listagemGeral) {
+      partes.push('Folhas: listagem geral consolidada (estilo Cargas)');
+      partes.push('Linhas: somadas por código OL (todos os destinos)');
+    }
     return partes.join(' · ');
   }
   const resumoFiltrosTexto = montarResumoFiltros();
@@ -873,7 +916,11 @@ function buildRomaneioSeparacaoHtml(data, opts) {
       ? 'Refrigerado / Congelado'
       : conservacao === 'seco'
         ? 'Seco / Ambiente'
-        : 'Todos os produtos';
+        : conservacao === 'refrigerado'
+          ? 'Só refrigerado'
+          : conservacao === 'congelado'
+            ? 'Só congelado'
+            : 'Todos os produtos';
 
   /** @type {Map<string, { meta: object, linhas: object[] }>} */
   const grupos = new Map();
@@ -889,6 +936,7 @@ function buildRomaneioSeparacaoHtml(data, opts) {
     const g = grupos.get(k);
     const itens = Array.isArray(p.itens) ? p.itens : [];
     for (const it of itens) {
+      if (listagemGeral && itemForaListagemGeral(it)) continue;
       if (!itemCasaFiltroCodigo(it)) continue;
       const dkey = digitosCodigoOl(it.COD_PRODUTO_OL);
       const cad = dkey ? produtoPorDigitos[dkey] : null;
@@ -897,11 +945,19 @@ function buildRomaneioSeparacaoHtml(data, opts) {
       if (!itemCasaFiltroCadastro(cad, detCons)) continue;
       const entregaOpl = extrairDataEntregaPedidoOpl(p);
       const unidadeOl = unidadeOlDoArquivoTxt(it);
+      let qtPedida = it.QT_PEDIDA;
+      let qtColetada = it.QT_COLETADA;
+      if (listagemGeral) {
+        const qEf = qtdEfetivaListagemGeral(it);
+        if (!(qEf > 0)) continue;
+        qtPedida = qEf;
+        qtColetada = null;
+      }
       g.linhas.push({
         COD_PRODUTO_OL: it.COD_PRODUTO_OL,
         DESCRICAO: it.DESCRICAO,
-        QT_PEDIDA: it.QT_PEDIDA,
-        QT_COLETADA: it.QT_COLETADA,
+        QT_PEDIDA: qtPedida,
+        QT_COLETADA: qtColetada,
         NUM_PEDIDO: p.NUM_PEDIDO,
         DATA_ENTREGA: entregaOpl.data,
         UNIDADE_OL: unidadeOl,
@@ -916,10 +972,13 @@ function buildRomaneioSeparacaoHtml(data, opts) {
   }
 
   const blocos = [];
-  for (const [, g] of grupos) {
-    if (!g.linhas.length) continue;
-    let linhasOut = g.linhas;
-    if (agruparItens) linhasOut = agregarPorCodigo(g.linhas);
+  if (listagemGeral) {
+    /** Uma única “folha”: soma por código OL em todos os destinatários (como Resumo de picking / Cargas). */
+    const todas = [];
+    for (const [, g] of grupos) {
+      for (const L of g.linhas) todas.push(L);
+    }
+    let linhasOut = agregarPorCodigo(todas);
     linhasOut.sort((a, b) => {
       for (const campo of ordemSort) {
         const av = valorOrdemLinha(a, campo);
@@ -929,19 +988,49 @@ function buildRomaneioSeparacaoHtml(data, opts) {
       }
       return cmpText(a.COD_PRODUTO_OL || '', b.COD_PRODUTO_OL || '');
     });
-    blocos.push({ meta: g.meta, linhas: linhasOut });
-  }
-  blocos.sort((a, b) => {
-    const dr = nrRotaOrdenacao(a.meta) - nrRotaOrdenacao(b.meta);
-    if (dr !== 0) return dr;
-    for (const campo of ordemSort) {
-      const av = valorOrdemBloco(a, campo);
-      const bv = valorOrdemBloco(b, campo);
-      const c = cmpText(av, bv);
-      if (c !== 0) return c;
+    if (linhasOut.length) {
+      blocos.push({
+        meta: {
+          COD_DESTINATARIO: '',
+          RAZ_SOC_DEST: 'Listagem geral (todos os destinatários)',
+          CIDADE_ENTREGA: '',
+          UF_ENTREGA: '',
+          ENDE_ENTREGA: '',
+          BAIRRO_ENTREGA: '',
+          CEP_ENTREGA: '',
+        },
+        linhas: linhasOut,
+        _geral: true,
+      });
     }
-    return cmpText(a.meta.COD_DESTINATARIO || '', b.meta.COD_DESTINATARIO || '');
-  });
+  } else {
+    for (const [, g] of grupos) {
+      if (!g.linhas.length) continue;
+      let linhasOut = g.linhas;
+      if (agruparItens) linhasOut = agregarPorCodigo(g.linhas);
+      linhasOut.sort((a, b) => {
+        for (const campo of ordemSort) {
+          const av = valorOrdemLinha(a, campo);
+          const bv = valorOrdemLinha(b, campo);
+          const c = cmpText(av, bv);
+          if (c !== 0) return c;
+        }
+        return cmpText(a.COD_PRODUTO_OL || '', b.COD_PRODUTO_OL || '');
+      });
+      blocos.push({ meta: g.meta, linhas: linhasOut });
+    }
+    blocos.sort((a, b) => {
+      const dr = nrRotaOrdenacao(a.meta) - nrRotaOrdenacao(b.meta);
+      if (dr !== 0) return dr;
+      for (const campo of ordemSort) {
+        const av = valorOrdemBloco(a, campo);
+        const bv = valorOrdemBloco(b, campo);
+        const c = cmpText(av, bv);
+        if (c !== 0) return c;
+      }
+      return cmpText(a.meta.COD_DESTINATARIO || '', b.meta.COD_DESTINATARIO || '');
+    });
+  }
 
   const exibirColunaUnid = blocos.some((bl) =>
     bl.linhas.some((l) => String(l.UNIDADE_OL || '').trim())
@@ -954,8 +1043,174 @@ function buildRomaneioSeparacaoHtml(data, opts) {
    *  qual gerou aquele papel quando há várias impressões do mesmo espelho ao longo do dia. */
   const dhImpressao = `${dataImp} ${String(hoje.getHours()).padStart(2, '0')}:${String(hoje.getMinutes()).padStart(2, '0')}`;
 
+  function buildRodapeDestinosGeralHtml() {
+    const byCity = new Map();
+    for (const [, g] of grupos) {
+      if (!g.linhas.length) continue;
+      const pm = g.meta || {};
+      const city = [pm.CIDADE_ENTREGA, pm.UF_ENTREGA].filter(Boolean).join(' / ').trim() || '(Sem cidade)';
+      const cod = String(pm.COD_DESTINATARIO || '').trim();
+      const raz = String(pm.RAZ_SOC_DEST || '').trim();
+      const label = [cod, raz].filter(Boolean).join(' — ') || '(sem destino)';
+      if (!byCity.has(city)) byCity.set(city, []);
+      const arr = byCity.get(city);
+      if (arr.indexOf(label) === -1) arr.push(label);
+    }
+    if (!byCity.size) return '';
+    let html =
+      '<div class="rom-geral-rota"><div class="rom-geral-hr">================================================================</div>';
+    html += `<div class="rom-geral-rota-tit">Destinos do espelho (por cidade) — ${esc(dhImpressao)}</div>`;
+    html += '<div class="rom-geral-hr">================================================================</div>';
+    html += '<div class="rom-geral-cidades">';
+    for (const [city, units] of byCity) {
+      html += `<div class="rom-geral-cid"><strong>${esc(city)}</strong>`;
+      if (units.length) {
+        html += '<ul>';
+        for (const u of units) html += `<li>${esc(u)}</li>`;
+        html += '</ul>';
+      }
+      html += '</div>';
+    }
+    html += '</div><div class="rom-geral-hr">================================================================</div></div>';
+    return html;
+  }
+
   const sheets = [];
   let page = 0;
+
+  if (listagemGeral) {
+    const bl = blocos[0];
+    const linhasG = bl ? bl.linhas : [];
+    const donoLbl =
+      arquivo.CD_DONO != null && arquivo.CD_DONO !== ''
+        ? `Dono do estoque: ${arquivo.CD_DONO}${arquivo.NM_DONO ? ' — ' + arquivo.NM_DONO : ''}`
+        : arquivo.CLI_NOME
+          ? `Cliente / dono: ${arquivo.CLI_NOME}`
+          : 'Dono do estoque: —';
+
+    function mkRowsGeral(linhasSec) {
+      let rows = '';
+      let chaveGrupoAnterior = null;
+      let vol = 0;
+      for (const it of linhasSec) {
+        if (usarSeparadores && camposQuebra.length) {
+          const chaveAtual = chaveGrupoRomaneio(it, camposQuebra);
+          if (chaveAtual !== chaveGrupoAnterior) {
+            const rotuloGrp = rotuloSeparadorGrupo(it, camposQuebra);
+            const span = 3 + (exibirColunaUnid ? 1 : 0);
+            rows += `<tr class="rom-grp-sep">
+        <td colspan="${span}"><span class="rom-grp-bullet" aria-hidden="true">▌</span>${esc(rotuloGrp)}</td>
+      </tr>`;
+            chaveGrupoAnterior = chaveAtual;
+          }
+        }
+        const qpR = parseQtdRomaneio(it.QT_PEDIDA) || 0;
+        vol += qpR;
+        const unidOl = String(it.UNIDADE_OL || '').trim();
+        const unidCell = exibirColunaUnid
+          ? `<td class="rom-unid cen">${unidOl ? esc(unidOl) : ''}</td>`
+          : '';
+        rows += `<tr>
+        <td>${esc(mascaraCodigoOl(it.COD_PRODUTO_OL))}</td>
+        <td>${esc(it.DESCRICAO)}</td>
+        ${unidCell}
+        <td class="num">${esc(formatQtdRomaneio(qpR))}</td>
+      </tr>`;
+      }
+      return { rows, vol };
+    }
+
+    function secaoConservacao(titulo, pred) {
+      const linhasSec = linhasG.filter(pred);
+      if (!linhasSec.length) return { html: '', vol: 0 };
+      const inner = mkRowsGeral(linhasSec);
+      const thUnid = exibirColunaUnid ? '<th style="width:10%" class="cen">Unid.</th>' : '';
+      const html = `<div class="rom-geral-bloco">
+  <h2 class="rom-geral-tit-sec">${esc(titulo)}</h2>
+  <table class="rom-tbl rom-tbl-geral">
+    <thead><tr>
+      <th style="width:14%">Código</th>
+      <th>Descrição</th>
+      ${thUnid}
+      <th style="width:12%" class="num">Volumes</th>
+    </tr></thead>
+    <tbody>${inner.rows}</tbody>
+  </table>
+  <div class="rom-geral-tot"><strong>${esc(formatQtdRomaneio(inner.vol))} vol.</strong></div>
+</div>`;
+      return { html, vol: inner.vol };
+    }
+
+    const showRef =
+      conservacao === 'todos' ||
+      conservacao === 'refri' ||
+      conservacao === 'refrigerado' ||
+      conservacao === 'congelado';
+    const showSeco = conservacao === 'todos' || conservacao === 'seco';
+
+    let bodyTipo = '';
+    let totVol = 0;
+    if (showRef) {
+      const r = secaoConservacao('RESFRIADO / CONGELADO', (L) => L._bucket === 'REFRIG_CONG');
+      bodyTipo += r.html;
+      totVol += r.vol;
+    }
+    if (showSeco) {
+      const s = secaoConservacao('SECO', (L) => L._bucket === 'SECO_AMB');
+      bodyTipo += s.html;
+      totVol += s.vol;
+    }
+    if (!bodyTipo && linhasG.length) {
+      const t = secaoConservacao(tituloCons || 'PRODUTOS', () => true);
+      bodyTipo += t.html;
+      totVol += t.vol;
+    }
+    if (!bodyTipo) {
+      bodyTipo = `<p class="rom-geral-vazio">${
+        resumoFiltrosTexto
+          ? `Nenhuma linha para os filtros escolhidos.<br><small>${esc(resumoFiltrosTexto)}</small>`
+          : 'Nenhuma linha para os filtros escolhidos.'
+      }</p>`;
+    }
+
+    const rotaHtml = buildRodapeDestinosGeralHtml();
+    const subt =
+      `Conservação: ${tituloCons}` +
+      ' · Folhas: listagem geral consolidada' +
+      ' · Linhas: somadas por código OL' +
+      ' · Cancelados/substituídos excluídos';
+
+    sheets.push(`
+<section class="romaneio-sheet romaneio-sheet-geral">
+  <header class="rom-geral-hdr">
+    <div class="rom-geral-hdr-l">GESTÃO DE ESTOQUE</div>
+    <div class="rom-geral-hdr-m">Atlas Cargo</div>
+    <div class="rom-geral-hdr-r">
+      <div class="rom-geral-hdr-lbl">Espelho OPL</div>
+      <div class="rom-geral-hdr-num">${esc(String(arquivo.CD_OPL_ARQUIVO || '—'))}</div>
+    </div>
+  </header>
+  <h1 class="rom-geral-title">PICKING — Listagem geral (Separação OPL)</h1>
+  <div class="rom-geral-subtit">${esc(subt)}</div>
+  ${resumoFiltrosTexto ? `<div class="rom-filtros-aplicados"><strong>Impressão filtrada:</strong> ${esc(resumoFiltrosTexto)}</div>` : ''}
+  <div class="rom-geral-meta">Impresso em: <strong>${esc(dhImpressao)}</strong></div>
+  <div class="rom-geral-meta">${esc(corrigirNomeArquivoExibicao(arquivo.NM_ARQUIVO || ''))}</div>
+  <div class="rom-geral-meta"><strong>${esc(donoLbl)}</strong></div>
+  <div class="rom-geral-box">
+    <div><strong>Conferência / Separação</strong></div>
+    <div>Data: ___ / ___ / ______ &nbsp; Início: ___:___ &nbsp; Término: ___:___</div>
+    <div>Responsável: ________________________________________________</div>
+  </div>
+  ${bodyTipo}
+  ${
+    totVol > 0
+      ? `<div class="rom-geral-tot-geral"><strong>Total filtrado:</strong> ${esc(formatQtdRomaneio(totVol))} vol.</div>`
+      : ''
+  }
+  ${rotaHtml}
+  <footer class="rom-geral-foot">Listagem geral Separação OPL — visão consolidada antes/durante o picking</footer>
+</section>`);
+  } else {
   for (const bl of blocos) {
     page += 1;
     const p = bl.meta;
@@ -1093,6 +1348,7 @@ function buildRomaneioSeparacaoHtml(data, opts) {
   </table>
 </section>`);
   }
+  }
 
   if (!sheets.length) {
     const aviso = resumoFiltrosTexto
@@ -1106,17 +1362,19 @@ function buildRomaneioSeparacaoHtml(data, opts) {
      então não inserimos rótulo "Folha N de Total" interno (evita confusão com a numeração do navegador). */
   const sheetsHtml = sheets.join('\n');
 
-  const semRotaFolhas = blocos
-    .filter((bl) => {
-      const nr = nrRotaPorChave.get(chaveDestinatario(bl.meta));
-      return nr == null || !Number.isFinite(Number(nr));
-    })
-    .map((bl) => {
-      const m = bl.meta;
-      const cod = (m.COD_DESTINATARIO || '').trim();
-      const raz = (m.RAZ_SOC_DEST || '').trim();
-      return `${cod ? cod + ' — ' : ''}${raz || '(sem nome)'}`;
-    });
+  const semRotaFolhas = listagemGeral
+    ? []
+    : blocos
+        .filter((bl) => {
+          const nr = nrRotaPorChave.get(chaveDestinatario(bl.meta));
+          return nr == null || !Number.isFinite(Number(nr));
+        })
+        .map((bl) => {
+          const m = bl.meta;
+          const cod = (m.COD_DESTINATARIO || '').trim();
+          const raz = (m.RAZ_SOC_DEST || '').trim();
+          return `${cod ? cod + ' — ' : ''}${raz || '(sem nome)'}`;
+        });
   const resumoSemRotaHtml =
     semRotaFolhas.length > 0
       ? `<section class="romaneio-sheet rom-resumo-sem-rota" style="border-color:#d97706">
@@ -1126,11 +1384,15 @@ function buildRomaneioSeparacaoHtml(data, opts) {
 </section>`
       : '';
 
+  const tituloDoc = listagemGeral
+    ? `Listagem geral — ${arquivo.NM_ARQUIVO || 'OPL'}`
+    : `Romaneio — ${arquivo.NM_ARQUIVO || 'OPL'}`;
+
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
-  <title>Romaneio — ${esc(arquivo.NM_ARQUIVO || 'OPL')}</title>
+  <title>${esc(tituloDoc)}</title>
   <style>
     /* A numeração física (1 de 200, 2 de 200, ...) é fornecida pelo próprio diálogo de impressão
        do navegador quando o usuário habilita "Cabeçalhos e rodapés" (Ctrl+P → Mais configurações).
@@ -1260,11 +1522,49 @@ function buildRomaneioSeparacaoHtml(data, opts) {
       page-break-inside: avoid;
     }
     .rom-foot-impr { font-size: 8pt; color: #555; }
+    /* Listagem geral consolidada (estilo Resumo de picking / Cargas) */
+    .romaneio-sheet-geral { max-width: 190mm; }
+    .rom-geral-hdr {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      gap: 10px; border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 8px;
+      font-size: 9pt; font-weight: 700; letter-spacing: 0.02em;
+    }
+    .rom-geral-hdr-m { text-align: center; flex: 1; font-size: 11pt; }
+    .rom-geral-hdr-r { text-align: right; min-width: 90px; }
+    .rom-geral-hdr-lbl { font-size: 7.5pt; font-weight: 600; color: #444; }
+    .rom-geral-hdr-num { font-size: 14pt; line-height: 1.1; }
+    .rom-geral-title { font-size: 13pt; margin: 6px 0 4px; font-weight: 700; }
+    .rom-geral-subtit { font-size: 9pt; color: #333; margin-bottom: 6px; }
+    .rom-geral-meta { font-size: 9pt; margin: 2px 0; }
+    .rom-geral-box {
+      border: 1px solid #333; padding: 8px 10px; margin: 8px 0 12px; font-size: 9pt; line-height: 1.5;
+    }
+    .rom-geral-tit-sec {
+      font-size: 11pt; margin: 12px 0 6px; padding: 4px 8px; background: #e8e8e8;
+      border-left: 4px solid #1d4ed8; font-weight: 700;
+    }
+    .rom-tbl-geral th { text-align: left; }
+    .rom-tbl-geral .cen { text-align: center; }
+    .rom-geral-tot { margin: 4px 0 8px; font-size: 9pt; }
+    .rom-geral-tot-geral {
+      margin: 10px 0; padding: 6px 8px; border: 1px solid #333; font-size: 10pt; background: #f8fafc;
+    }
+    .rom-geral-vazio { color: #666; font-size: 10pt; }
+    .rom-geral-rota { margin-top: 14px; font-size: 9pt; page-break-inside: avoid; }
+    .rom-geral-hr { font-family: Consolas, monospace; font-size: 8pt; color: #333; }
+    .rom-geral-rota-tit { font-weight: 700; margin: 4px 0; }
+    .rom-geral-cidades { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: 6px 0; }
+    .rom-geral-cid { min-width: 180px; max-width: 46%; }
+    .rom-geral-cid ul { margin: 4px 0 0; padding-left: 16px; }
+    .rom-geral-foot { margin-top: 12px; font-size: 8pt; color: #555; border-top: 1px solid #999; padding-top: 6px; }
     @media print {
       .rom-hd-block, .rom-info-row { page-break-inside: avoid; }
       .rom-foot { display: flex !important; visibility: visible !important; }
       .rom-carimbo { border-color: #000; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .rom-sem-rota { background: #fffbeb; border-color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .rom-geral-tit-sec {
+        background: #e8e8e8 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact;
+      }
     }
   </style>
 </head>
@@ -1299,4 +1599,6 @@ module.exports = {
   unidadeOlDoArquivoTxt,
   resolverUnidadeRomaneioOl,
   inferirUnidadeDaDescricaoOl,
+  itemForaListagemGeral,
+  qtdEfetivaListagemGeral,
 };

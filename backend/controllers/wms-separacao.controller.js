@@ -50,7 +50,10 @@ const {
   buildValidacaoPedidosHtml,
   schemaMissing: schemaMissingValidPed,
 } = require('../services/wms-opl-validar-pedidos-arquivos.service');
-const { buildProgramacaoAntecipadaHtml } = require('../services/wms-opl-programacao-antecipada-html.service');
+const {
+  buildProgramacaoAntecipadaHtml,
+  buildProgramacaoListagemGeralHtml,
+} = require('../services/wms-opl-programacao-antecipada-html.service');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -668,9 +671,10 @@ async function buscarImportacao(req, res) {
 }
 
 /**
- * GET …/romaneio?conservacao=todos|seco|refrigerado|congelado|refri&agruparItens=1&folhas=dest|continuo
+ * GET …/romaneio?conservacao=todos|seco|refrigerado|congelado|refri&agruparItens=1&folhas=dest|continuo|geral
  *   &separadores=auto|nao|sim|faixas_cons|conservacao|cons_grupo|cons_grupo_cat&colunaCad=0|1
  * HTML para conferência / separação (impressão).
+ * folhas=geral → listagem consolidada de produtos (estilo Resumo de picking das Cargas).
  */
 async function romaneioSeparacaoHtml(req, res) {
   try {
@@ -683,7 +687,9 @@ async function romaneioSeparacaoHtml(req, res) {
     const conservacaoValidos = new Set(['todos', 'refri', 'seco', 'refrigerado', 'congelado']);
     const conservacao = conservacaoValidos.has(c) ? c : 'todos';
     const agruparItens = req.query.agruparItens === '1' || req.query.agruparItens === 'true';
-    const folhasPorDestinatario = req.query.folhas !== 'continuo';
+    const folhasRaw = String(req.query.folhas || 'dest').toLowerCase();
+    const modoFolhas = ['dest', 'continuo', 'geral'].includes(folhasRaw) ? folhasRaw : 'dest';
+    const folhasPorDestinatario = modoFolhas === 'dest';
     const ordemCamposValidos = new Set([
       'unidade',
       'destino',
@@ -771,6 +777,7 @@ async function romaneioSeparacaoHtml(req, res) {
       conservacao,
       agruparItens,
       folhasPorDestinatario,
+      modoFolhas,
       produtoPorDigitos,
       ordem,
       carimboConferencia,
@@ -1828,8 +1835,17 @@ async function programacaoAntecipadaOpl(req, res) {
     if (r.err) return res.status(r.status || 400).json({ error: r.err });
     const fmt = String(q.formato || q.format || '').toLowerCase();
     if (fmt === 'html') {
+      const tipo = String(q.tipo || q.tipoRelatorio || q.relatorio || 'resumo')
+        .toLowerCase()
+        .trim();
       const detalharDestinos = parseDetalharDestinosQuery(q);
-      const html = buildProgramacaoAntecipadaHtml({ ...r, detalharDestinos });
+      const cRaw = String(q.conservacao || 'todos').toLowerCase().trim();
+      const conservacaoValidos = new Set(['todos', 'refri', 'seco', 'refrigerado', 'congelado']);
+      const conservacao = conservacaoValidos.has(cRaw) ? cRaw : 'todos';
+      const html =
+        tipo === 'geral' || tipo === 'listagem' || tipo === 'produtos'
+          ? buildProgramacaoListagemGeralHtml({ ...r, conservacao })
+          : buildProgramacaoAntecipadaHtml({ ...r, detalharDestinos, conservacao });
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       return res.send(html);
     }

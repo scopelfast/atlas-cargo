@@ -28,18 +28,41 @@
     .filtros-grid label { display: block; margin-bottom: 8px; font-weight: 600; color: var(--dark, #1e293b); font-size: 14px; }
     .filtros-grid .form-control { width: 100%; padding: 12px; border: 1px solid var(--border, #e2e8f0); border-radius: 8px; font-size: 16px; font-family: inherit; box-sizing: border-box; }
     .filtros-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 15px; flex-wrap: wrap; }
+    .opl-prog-impressao {
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border, #e2e8f0);
+    }
+    .opl-prog-impressao-tit {
+      margin: 0 0 12px;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--dark, #1e293b);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .prog-detalhar-wrap {
+      display: flex;
+      align-items: flex-end;
+      padding-bottom: 4px;
+    }
     .prog-imprimir-opcao {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      font-size: 13px;
-      color: #475569;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--dark, #1e293b);
       cursor: pointer;
       margin: 0;
       user-select: none;
+      line-height: 1.35;
     }
     .prog-imprimir-opcao input { margin: 0; cursor: pointer; }
-    html[data-theme='dark'] .prog-imprimir-opcao { color: #94a3b8; }
+    html[data-theme='dark'] .opl-prog-impressao { border-top-color: #334155; }
+    html[data-theme='dark'] .opl-prog-impressao-tit,
+    html[data-theme='dark'] .prog-imprimir-opcao { color: #e2e8f0; }
     .btn-filtro { display: inline-flex; align-items: center; gap: 8px; padding: 12px 22px; border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit; }
     .btn-filtro-limpar { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
     .btn-filtro-aplicar { background: var(--ac-accent, #0ea5e9); color: #fff; }
@@ -1010,11 +1033,38 @@
             <button type="button" id="btnProgSincGrade" class="btn-filtro btn-filtro-limpar" title="Copia UF e nome do arquivo dos filtros da grade"><i class="bx bx-link"></i> Usar filtros da grade</button>
             <button type="button" id="btnProgAmanha" class="btn-filtro btn-filtro-limpar"><i class="bx bx-calendar"></i> Amanhã</button>
             <button type="submit" id="btnProgConsultar" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-calculator"></i> Calcular programação</button>
-            <label class="prog-imprimir-opcao" title="Quando marcado, o relatório impresso lista cada destinatário sob a rota (como ao expandir na tela)">
-              <input type="checkbox" id="prog_imprimir_detalhar_destinos" />
-              Incluir destinatários no relatório impresso
-            </label>
-            <button type="button" id="btnProgImprimir" class="btn-filtro btn-filtro-aplicar" disabled title="Calcule a programação antes de imprimir"><i class="bx bx-printer"></i> Imprimir relatório</button>
+          </div>
+
+          <div class="opl-prog-impressao">
+            <h4 class="opl-prog-impressao-tit"><i class="bx bx-printer"></i> Impressão</h4>
+            <div class="filtros-grid">
+              <div>
+                <label for="prog_imprimir_tipo">Tipo de impressão</label>
+                <select id="prog_imprimir_tipo" class="form-control" title="Resumo = peso/rotas. Listagem geral = produtos consolidados (estilo Cargas).">
+                  <option value="resumo">Resumo (peso / rotas)</option>
+                  <option value="geral">Listagem geral de produtos (estilo Cargas)</option>
+                </select>
+              </div>
+              <div>
+                <label for="prog_conservacao">Conservação</label>
+                <select id="prog_conservacao" class="form-control" title="Filtra o que entra na impressão (mesma regra do romaneio OPL / Cargas).">
+                  <option value="todos">Todos os produtos</option>
+                  <option value="seco">Só seco / ambiente</option>
+                  <option value="refrigerado">Só refrigerado</option>
+                  <option value="congelado">Só congelado</option>
+                  <option value="refri">Refrigerado + congelado (juntos)</option>
+                </select>
+              </div>
+              <div class="prog-detalhar-wrap" id="progDetalharDestinosLabel">
+                <label class="prog-imprimir-opcao" title="Quando marcado, o relatório de resumo lista cada destinatário sob a rota">
+                  <input type="checkbox" id="prog_imprimir_detalhar_destinos" />
+                  Incluir destinatários no resumo
+                </label>
+              </div>
+            </div>
+            <div class="filtros-actions" style="justify-content:flex-start">
+              <button type="button" id="btnProgImprimir" class="btn-filtro btn-filtro-aplicar" disabled title="Calcule a programação antes de imprimir"><i class="bx bx-printer"></i> Imprimir relatório</button>
+            </div>
           </div>
         </form>
         <div id="progAntecipadaResultado" style="margin-top: 8px;"></div>
@@ -1135,9 +1185,10 @@
                 </div>
                 <div>
                   <label for="romFolhas">Folhas</label>
-                  <select id="romFolhas" class="form-control">
+                  <select id="romFolhas" class="form-control" title="Listagem geral = visão consolidada (como Resumo de picking das Cargas): soma produtos sem quebrar por destino.">
                     <option value="dest">Uma folha por destinatário (quebra na impressão)</option>
-                    <option value="continuo">Listagem contínua</option>
+                    <option value="continuo">Listagem contínua (ainda por destinatário, sem quebra de página)</option>
+                    <option value="geral">Listagem geral de produtos (consolidada — estilo Cargas)</option>
                   </select>
                 </div>
                 <div>
@@ -1180,6 +1231,7 @@
                 Não confundir com o filtro <strong>Conservação</strong> acima (só seco / refrigerado…).
                 Com separadores ativos, a coluna <strong>Conserv. / Categoria</strong> fica oculta por padrão (mais espaço para descrição e qtd. coletada); marque a opção acima se quiser os dois.
                 Rodapé <strong>Entregar</strong>: lida do espelho OPL. Carimbo à direita com <strong>[ Rota de Entrega N ]</strong> (cadastro de endereços de entrega).
+                <strong>Listagem geral</strong> (Folhas): consolida produtos de todos os destinos — mesma ideia do Resumo de picking das Cargas; exclui itens cancelados/substituídos.
               </p>
 
               <div class="opl-imp-filtros">

@@ -35,6 +35,27 @@ function fmtFiltros(f) {
   return parts.length ? parts.join(' · ') : 'Sem filtros adicionais';
 }
 
+function rotuloConservacao(c) {
+  const v = String(c || 'todos').toLowerCase();
+  if (v === 'seco') return 'Só seco / ambiente';
+  if (v === 'refrigerado') return 'Só refrigerado';
+  if (v === 'congelado') return 'Só congelado';
+  if (v === 'refri') return 'Refrigerado + congelado';
+  return 'Todos os produtos';
+}
+
+function produtoPassaConservacao(p, conservacao) {
+  const c = String(conservacao || 'todos').toLowerCase();
+  if (!c || c === 'todos') return true;
+  const bucket = p && p.bucket;
+  const frioTipo = p && p.frioTipo;
+  if (c === 'seco') return bucket === 'SECO_AMB';
+  if (c === 'refri') return bucket === 'REFRIG_CONG';
+  if (c === 'refrigerado') return bucket === 'REFRIG_CONG' && frioTipo !== 'CONGELADO';
+  if (c === 'congelado') return bucket === 'REFRIG_CONG' && frioTipo === 'CONGELADO';
+  return true;
+}
+
 function htmlVeiculoSugestao(sug) {
   if (!sug) return '';
   const parts = (sug.sugestoes || []).map((s) => {
@@ -159,9 +180,11 @@ function buildProgramacaoAntecipadaHtml(payload) {
     aviso,
     legenda,
     detalharDestinos = false,
+    conservacao = 'todos',
   } = payload;
 
   const mostrarDestinos = detalharDestinos === true;
+  const cons = String(conservacao || 'todos').toLowerCase();
 
   const dh = geradoEm ? new Date(geradoEm).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR');
   const tg = totaisGeral;
@@ -287,8 +310,12 @@ function buildProgramacaoAntecipadaHtml(payload) {
   <h1>Programação antecipada de embarque (OPL)</h1>
   <p class="meta">Gerado em ${esc(dh)} · <strong>Impressão A4 vertical</strong>${
     mostrarDestinos ? ' · <strong>Com destinatários por rota</strong>' : ' · <strong>Somente rotas (sem destinatários)</strong>'
-  }<br />
-  Filtros: ${fmtFiltros(filtros)}</p>
+  } · Conservação: <strong>${esc(rotuloConservacao(cons))}</strong><br />
+  Filtros: ${fmtFiltros(filtros)}${
+    cons !== 'todos'
+      ? '<br /><em>Nota: o resumo mostra totais do período; use a listagem geral para filtrar produtos por conservação.</em>'
+      : ''
+  }</p>
   ${avisoHtml}
   <div class="sec-tit">Totais no período</div>
   ${heroHtml}
@@ -298,4 +325,204 @@ function buildProgramacaoAntecipadaHtml(payload) {
 </html>`;
 }
 
-module.exports = { buildProgramacaoAntecipadaHtml };
+/**
+ * Listagem geral de produtos (estilo Resumo de picking / Cargas), a partir dos
+ * produtos já agregados em montarProgramacaoAntecipadaOpl.
+ */
+function buildProgramacaoListagemGeralHtml(payload) {
+  const {
+    totaisGeral = {},
+    listagemProdutos = [],
+    destinosPorCidade = [],
+    espelhosConsiderados = [],
+    geradoEm,
+    filtros,
+    aviso,
+    itensCancelSubstExcluidos = 0,
+    legenda,
+    conservacao = 'todos',
+  } = payload;
+
+  const dh = geradoEm ? new Date(geradoEm).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR');
+  const cons = String(conservacao || 'todos').toLowerCase();
+  const produtos = (Array.isArray(listagemProdutos) ? listagemProdutos : []).filter((p) =>
+    produtoPassaConservacao(p, cons)
+  );
+  const showRefri = cons === 'todos' || cons === 'refri' || cons === 'refrigerado' || cons === 'congelado';
+  const showSeco = cons === 'todos' || cons === 'seco';
+  const refri = showRefri ? produtos.filter((p) => p.bucket === 'REFRIG_CONG') : [];
+  const seco = showSeco ? produtos.filter((p) => p.bucket !== 'REFRIG_CONG') : [];
+
+  function fmtVol(n) {
+    const x = Number(n);
+    if (!Number.isFinite(x)) return '0';
+    if (Math.abs(x - Math.round(x)) < 1e-6) return String(Math.round(x));
+    return x.toLocaleString('pt-BR', { maximumFractionDigits: 3 });
+  }
+
+  function secao(titulo, linhas) {
+    if (!linhas.length) return '';
+    let vol = 0;
+    let peso = 0;
+    let rows = '';
+    for (const it of linhas) {
+      const q = Number(it.quantidade) || 0;
+      const w = Number(it.pesoKg) || 0;
+      vol += q;
+      peso += w;
+      rows += `<tr>
+        <td>${esc(it.codigoMascara || it.COD_PRODUTO_OL || '')}</td>
+        <td>${esc(it.DESCRICAO || '')}</td>
+        <td class="num">${esc(fmtVol(q))}</td>
+        <td class="num">${esc(fmtKg(w))}</td>
+      </tr>`;
+    }
+    return `<div class="geral-bloco">
+  <h2 class="geral-tit-sec">${esc(titulo)}</h2>
+  <table class="tbl tbl-geral">
+    <thead><tr>
+      <th style="width:16%">Código</th>
+      <th>Descrição</th>
+      <th style="width:12%" class="num">Volumes</th>
+      <th style="width:16%" class="num">Peso</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="geral-tot"><strong>${esc(fmtVol(vol))} vol.</strong> &nbsp;|&nbsp; <strong>Peso:</strong> ${esc(fmtKg(peso))}</div>
+</div>`;
+  }
+
+  let body = '';
+  body += secao('RESFRIADO / CONGELADO', refri);
+  body += secao('SECO', seco);
+  if (!body) {
+    body = '<p class="aviso">Nenhum produto na listagem para os filtros atuais (ou todos cancelados/substituídos).</p>';
+  }
+
+  let rotaHtml = '';
+  if ((destinosPorCidade || []).length) {
+    rotaHtml =
+      '<div class="geral-rota"><div class="geral-hr">================================================================</div>';
+    rotaHtml += `<div class="geral-rota-tit">Destinos do período (por cidade) — ${esc(dh)}</div>`;
+    rotaHtml += '<div class="geral-hr">================================================================</div>';
+    rotaHtml += '<div class="geral-cidades">';
+    for (const c of destinosPorCidade) {
+      rotaHtml += `<div class="geral-cid"><strong>${esc(c.cidade)}</strong>`;
+      if ((c.destinos || []).length) {
+        rotaHtml += '<ul>';
+        for (const d of c.destinos) rotaHtml += `<li>${esc(d)}</li>`;
+        rotaHtml += '</ul>';
+      }
+      rotaHtml += '</div>';
+    }
+    rotaHtml += '</div><div class="geral-hr">================================================================</div></div>';
+  }
+
+  const espHtml = (espelhosConsiderados || []).length
+    ? `<p class="espelhos">Espelhos: ${espelhosConsiderados
+        .map((e) => `#${esc(e.CD_OPL_ARQUIVO)} ${esc(e.NM_ARQUIVO || '')}`)
+        .join(' · ')}</p>`
+    : '';
+
+  const notaCancel =
+    itensCancelSubstExcluidos > 0
+      ? `<p class="meta">${esc(String(itensCancelSubstExcluidos))} item(ns) cancelado(s)/substituído(s) excluído(s) desta listagem.</p>`
+      : '';
+
+  const legendaTxt =
+    (legenda && legenda.listagemGeral) ||
+    'Listagem consolidada por código OL. Exclui cancelados/substituídos.';
+
+  const tg = totaisGeral || {};
+  const totVol = produtos.reduce((s, p) => s + (Number(p.quantidade) || 0), 0);
+  const totPeso = produtos.reduce((s, p) => s + (Number(p.pesoKg) || 0), 0);
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Listagem geral — Programação antecipada OPL</title>
+  <style>
+    @page { size: A4 portrait; margin: 12mm; }
+    * { box-sizing: border-box; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; font-size: 11px; color: #0f172a; margin: 12px 14px; max-width: 210mm; }
+    h1 { font-size: 16px; margin: 0 0 4px; }
+    .meta { color: #64748b; margin: 4px 0 10px; font-size: 10px; line-height: 1.45; }
+    .aviso { background: #fffbeb; border: 1px solid #fcd34d; padding: 8px 12px; border-radius: 6px; color: #92400e; }
+    .pick-box { border: 1px solid #333; padding: 8px 10px; margin: 8px 0 12px; font-size: 10px; line-height: 1.5; }
+    .geral-tit-sec {
+      font-size: 12px; margin: 14px 0 6px; padding: 4px 8px; background: #e8e8e8;
+      border-left: 4px solid #1d4ed8; font-weight: 700;
+    }
+    table.tbl { width: 100%; border-collapse: collapse; margin: 6px 0 8px; }
+    table.tbl th, table.tbl td { border: 1px solid #333; padding: 4px 6px; vertical-align: top; }
+    table.tbl th { background: #e8e8e8; text-align: left; font-size: 9px; }
+    table.tbl .num { text-align: right; font-variant-numeric: tabular-nums; }
+    table.tbl .cen { text-align: center; }
+    .geral-tot { margin: 2px 0 10px; font-size: 10px; }
+    .geral-tot-geral {
+      margin: 10px 0; padding: 6px 8px; border: 1px solid #333; font-size: 11px; background: #f8fafc;
+    }
+    .geral-rota { margin-top: 14px; font-size: 10px; page-break-inside: avoid; }
+    .geral-hr { font-family: Consolas, monospace; font-size: 8px; color: #333; }
+    .geral-rota-tit { font-weight: 700; margin: 4px 0; }
+    .geral-cidades { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: 6px 0; }
+    .geral-cid { min-width: 180px; max-width: 46%; }
+    .geral-cid ul { margin: 4px 0 0; padding-left: 16px; }
+    .espelhos { font-size: 10px; color: #64748b; margin: 8px 0 0; line-height: 1.4; }
+    .legenda {
+      margin-top: 14px; padding: 10px 12px; border: 1px solid #cbd5e1; border-left: 4px solid #2563eb;
+      background: #f8fafc; font-size: 10px; line-height: 1.45; color: #334155;
+    }
+    .toolbar { margin-bottom: 12px; }
+    .toolbar button {
+      font-size: 12px; padding: 8px 14px; cursor: pointer;
+      background: #2563eb; color: #fff; border: none; border-radius: 6px; font-weight: 600;
+    }
+    .hdr {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      border-bottom: 2px solid #111; padding-bottom: 6px; margin-bottom: 8px; font-weight: 700;
+    }
+    .hdr-m { text-align: center; flex: 1; font-size: 12px; }
+    .hdr-r { text-align: right; font-size: 10px; }
+    @media print {
+      body { margin: 0; max-width: none; }
+      .no-print { display: none !important; }
+      .geral-tit-sec, table.tbl th {
+        -webkit-print-color-adjust: exact; print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar no-print"><button type="button" onclick="window.print()">Imprimir</button></div>
+  <div class="hdr">
+    <div>GESTÃO DE ESTOQUE</div>
+    <div class="hdr-m">Atlas Cargo</div>
+    <div class="hdr-r">Programação OPL<br/><span style="font-size:14px">${esc(fmtVol(totVol))} vol.</span></div>
+  </div>
+  <h1>PICKING — Listagem geral (Programação antecipada)</h1>
+  <p class="meta">Impresso em: <strong>${esc(dh)}</strong> · Conservação: <strong>${esc(
+    rotuloConservacao(cons)
+  )}</strong> · Linhas: somadas por código OL · Cancelados/substituídos excluídos<br/>
+  Filtros: ${fmtFiltros(filtros)}</p>
+  ${aviso ? `<p class="aviso">${esc(aviso)}</p>` : ''}
+  ${notaCancel}
+  <div class="pick-box">
+    <div><strong>Conferência / Separação</strong></div>
+    <div>Data: ___ / ___ / ______ &nbsp; Início: ___:___ &nbsp; Término: ___:___</div>
+    <div>Responsável: ________________________________________________</div>
+  </div>
+  ${body}
+  <div class="geral-tot-geral"><strong>Total filtrado:</strong> ${esc(fmtVol(totVol))} vol. &nbsp;|&nbsp; <strong>Peso:</strong> ${esc(
+    fmtKg(totPeso)
+  )}
+  <span style="color:#64748b;font-size:9px"> · Peso estimado do período (KPIs): ${esc(fmtKg(tg.pesoKg))}</span></div>
+  ${rotaHtml}
+  ${espHtml}
+  <div class="legenda">${esc(legendaTxt)}</div>
+</body>
+</html>`;
+}
+
+module.exports = { buildProgramacaoAntecipadaHtml, buildProgramacaoListagemGeralHtml };

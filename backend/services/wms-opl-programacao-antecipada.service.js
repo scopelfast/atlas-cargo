@@ -6,6 +6,9 @@ const {
   digitosCodigoOl,
   expandirChavesDigitosCodigoOl,
   classificarConservacaoDetalhe,
+  itemForaListagemGeral,
+  qtdEfetivaListagemGeral,
+  mascaraCodigoOl,
 } = require('./wms-opl-relatorio-romaneio.service');
 const { carregarNrRotaPorPedidosOpl } = require('./cadastro-endereco-entrega-match.service');
 const { carregarMapaProdutosDonoPorDigitos } = require('./wms-produto-mapa-codigo.service');
@@ -525,7 +528,7 @@ async function montarProgramacaoAntecipadaOpl(tenantId, query) {
     `SELECT a."CD_OPL_ARQUIVO", a."NM_ARQUIVO", a."CD_DONO", a."CLI_NOME",
             p."CD_OPL_PEDIDO", p."COD_DESTINATARIO", p."RAZ_SOC_DEST", p."CIDADE_ENTREGA",
             p."UF_ENTREGA", p."CNPJ_DEST", p."NUM_PEDIDO", p."DATA_PEDIDO", p."LINHA2_RAW", p."DADOS_JSON",
-            i."COD_PRODUTO_OL", i."DESCRICAO", i."QT_PEDIDA"
+            i."COD_PRODUTO_OL", i."DESCRICAO", i."QT_PEDIDA", i."QT_COLETADA", i."DADOS_JSON" AS "ITEM_DADOS_JSON"
        FROM "WMS_OPL_ARQUIVO" a
        JOIN "WMS_OPL_PEDIDO" p ON p."CD_OPL_ARQUIVO" = a."CD_OPL_ARQUIVO"
        JOIN "WMS_OPL_ITEM" i ON i."CD_OPL_PEDIDO" = p."CD_OPL_PEDIDO"
@@ -559,6 +562,8 @@ async function montarProgramacaoAntecipadaOpl(tenantId, query) {
       COD_PRODUTO_OL: row.COD_PRODUTO_OL,
       DESCRICAO: row.DESCRICAO,
       QT_PEDIDA: row.QT_PEDIDA,
+      QT_COLETADA: row.QT_COLETADA,
+      DADOS_JSON: row.ITEM_DADOS_JSON,
     });
   }
 
@@ -598,7 +603,11 @@ async function montarProgramacaoAntecipadaOpl(tenantId, query) {
   const porData = new Map();
   const espelhosUsados = new Map();
   const pendenciasGeral = criarPendenciaPesoMap();
+  /** Agregado por código OL (listagem geral estilo Cargas / romaneio geral). */
+  const produtosGeral = new Map();
+  const destinosGeral = new Map();
   let linhasSemData = 0;
+  let itensCancelSubstExcluidos = 0;
 
   for (const arq of arquivos) {
     const cdArq = arq.CD_OPL_ARQUIVO;
@@ -702,10 +711,10 @@ async function montarProgramacaoAntecipadaOpl(tenantId, query) {
       blocoDest.pedidos.add(pedKey);
 
       for (const it of p.itens || []) {
-        const qtd = toNumber(it.QT_PEDIDA);
-        if (qtd <= 0) continue;
+        const qtdPedida = toNumber(it.QT_PEDIDA);
+        if (qtdPedida <= 0) continue;
         const cad = resolveCadProdutoOpl(it.COD_PRODUTO_OL, mapasPeso);
-        const { peso, semPeso } = pesoItemOpl(qtd, cad);
+        const { peso, semPeso } = pesoItemOpl(qtdPedida, cad);
         const semCadastro = !cad;
         const det = classificarConservacaoDetalhe(it.DESCRICAO || '', cad);
         const frio = det.bucket === 'REFRIG_CONG';
@@ -713,7 +722,7 @@ async function montarProgramacaoAntecipadaOpl(tenantId, query) {
           pesoKg: peso,
           pesoKgSeco: frio ? 0 : peso,
           pesoKgFrio: frio ? peso : 0,
-          unidades: qtd,
+          unidades: qtdPedida,
           qtdLinhas: 1,
           linhasComPeso: semPeso ? 0 : 1,
           linhasSemPeso: semPeso ? 1 : 0,
@@ -723,6 +732,53 @@ async function montarProgramacaoAntecipadaOpl(tenantId, query) {
         somarTotais(blocoDono.totais, inc);
         somarTotais(blocoRota.totais, inc);
         somarTotais(blocoDest.totais, inc);
+
+        /** Listagem geral: exclui cancelados/substituídos; usa qtd efetiva (coletada se houver). */
+        if (itemForaListagemGeral(it)) {
+          itensCancelSubstExcluidos += 1;
+        } else {
+          const qtdList = qtdEfetivaListagemGeral(it);
+          if (qtdList > 0) {
+            const { peso: pesoList } = pesoItemOpl(qtdList, cad);
+            const codOl = String(it.COD_PRODUTO_OL || '').trim();
+            const dig =
+              digitosCodigoOl(codOl) ||
+              codOl.toLowerCase() ||
+              `__${String(it.DESCRICAO || '').slice(0, 40)}`;
+            const pk = `${cdDono != null ? cdDono : '_'}|${dig}`;
+            if (!produtosGeral.has(pk)) {
+              produtosGeral.set(pk, {
+                COD_PRODUTO_OL: codOl,
+                codigoMascara: mascaraCodigoOl(codOl) || codOl,
+                DESCRICAO: it.DESCRICAO || '',
+                UNIDADE: (cad && (cad.UNIDADE || cad.SG_UNIDADE || cad.UNID)) || '',
+                CD_DONO: cdDono,
+                NM_DONO: donosMap.get(cdDono)?.NOME || arq.CLI_NOME || '',
+                bucket: det.bucket,
+                frioTipo: det.frioTipo,
+                quantidade: 0,
+                pesoKg: 0,
+              });
+            }
+            const prodAgg = produtosGeral.get(pk);
+            prodAgg.quantidade += qtdList;
+            prodAgg.pesoKg += pesoList;
+            if (!prodAgg.DESCRICAO && it.DESCRICAO) prodAgg.DESCRICAO = it.DESCRICAO;
+            if (!prodAgg.UNIDADE && cad && (cad.UNIDADE || cad.SG_UNIDADE || cad.UNID)) {
+              prodAgg.UNIDADE = cad.UNIDADE || cad.SG_UNIDADE || cad.UNID;
+            }
+
+            const city =
+              [p.CIDADE_ENTREGA, p.UF_ENTREGA].filter(Boolean).join(' / ').trim() || '(Sem cidade)';
+            const destLbl =
+              [String(p.COD_DESTINATARIO || '').trim(), String(p.RAZ_SOC_DEST || '').trim()]
+                .filter(Boolean)
+                .join(' — ') || '(sem destino)';
+            if (!destinosGeral.has(city)) destinosGeral.set(city, new Set());
+            destinosGeral.get(city).add(destLbl);
+          }
+        }
+
         const motivoPend = semCadastro ? 'sem_cadastro' : semPeso ? 'sem_peso' : null;
         if (motivoPend) {
           const nmDono = donosMap.get(cdDono)?.NOME || arq.CLI_NOME || '';
@@ -733,7 +789,7 @@ async function montarProgramacaoAntecipadaOpl(tenantId, query) {
             cdDono,
             nmDono,
             cad,
-            qtd,
+            qtd: qtdPedida,
             operacional:
               motivoPend === 'sem_cadastro' && mapasPeso
                 ? hitOperacionalFromMap(mapasPeso.operacional || new Map(), it.COD_PRODUTO_OL)
@@ -832,6 +888,30 @@ async function montarProgramacaoAntecipadaOpl(tenantId, query) {
     aviso = `${linhasSemData} linha(s) ignoradas por falta de data de entrega no pedido OPL.`;
   }
 
+  const listagemProdutos = [...produtosGeral.values()]
+    .map((p) => ({
+      ...p,
+      quantidade: round4(p.quantidade),
+      pesoKg: round3(p.pesoKg),
+    }))
+    .sort((a, b) => {
+      const da = String(a.NM_DONO || '').localeCompare(String(b.NM_DONO || ''), 'pt-BR');
+      if (da !== 0) return da;
+      const ba = a.bucket === 'REFRIG_CONG' ? 0 : 1;
+      const bb = b.bucket === 'REFRIG_CONG' ? 0 : 1;
+      if (ba !== bb) return ba - bb;
+      const na = String(a.DESCRICAO || '').localeCompare(String(b.DESCRICAO || ''), 'pt-BR');
+      if (na !== 0) return na;
+      return String(a.COD_PRODUTO_OL || '').localeCompare(String(b.COD_PRODUTO_OL || ''), 'pt-BR');
+    });
+
+  const destinosPorCidade = [...destinosGeral.entries()]
+    .map(([cidade, set]) => ({
+      cidade,
+      destinos: [...set].sort((a, b) => String(a).localeCompare(String(b), 'pt-BR')),
+    }))
+    .sort((a, b) => String(a.cidade).localeCompare(String(b.cidade), 'pt-BR'));
+
   return {
     filtros: { dataDe, dataAte, cdDono: cdDonoFilt, nmArquivo, uf, cdsOpl },
     geradoEm: new Date().toISOString(),
@@ -842,12 +922,17 @@ async function montarProgramacaoAntecipadaOpl(tenantId, query) {
     espelhosConsiderados: [...espelhosUsados.values()],
     pendenciasPeso: serializarPendenciasPeso(pendenciasGeral),
     linhasSemDataEntrega: linhasSemData,
+    listagemProdutos,
+    destinosPorCidade,
+    itensCancelSubstExcluidos,
     legenda: {
       pesoKg:
         'Estimativa: PESO_KG do cadastro WMS × QT_PEDIDA (via código OL + de-para, como a cobertura OPL). Linhas sem cadastro ou sem PESO_KG entram com 0 kg.',
       unidades: 'Soma das quantidades pedidas no espelho (vol. operacional).',
       conservacao: 'Mesma regra do romaneio OPL e do resumo de cargas (NCM + cadastro + descrição).',
       veiculo: 'Referência operacional — ajuste conforme frota contratada e regras de mistura seco/frio.',
+      listagemGeral:
+        'Listagem consolidada por código OL (soma em todos os destinos). Exclui cancelados/substituídos; usa qtd coletada quando já ajustada.',
     },
     aviso,
   };

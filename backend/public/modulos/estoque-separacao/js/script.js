@@ -1964,12 +1964,29 @@
     if (btn) btn.disabled = !ok;
   }
 
+  function syncProgImprimirTipoUi() {
+    var tipoEl = document.getElementById('prog_imprimir_tipo');
+    var detLbl = document.getElementById('progDetalharDestinosLabel');
+    var geral = tipoEl && tipoEl.value === 'geral';
+    if (detLbl) detLbl.style.display = geral ? 'none' : '';
+  }
+
   function imprimirProgramacaoAntecipada() {
     var qs = montarQueryProgramacaoAntecipada();
     qs.set('formato', 'html');
+    var tipoEl = document.getElementById('prog_imprimir_tipo');
+    var tipo = tipoEl && tipoEl.value ? tipoEl.value : 'resumo';
+    qs.set('tipo', tipo);
+    var consEl = document.getElementById('prog_conservacao');
+    var cons = consEl && consEl.value ? consEl.value : 'todos';
+    qs.set('conservacao', cons);
     var chkDet = document.getElementById('prog_imprimir_detalhar_destinos');
-    if (chkDet && chkDet.checked) qs.set('detalharDestinos', '1');
-    showLoadingOverlay('Relatório', 'Gerando HTML para impressão…', '');
+    if (tipo !== 'geral' && chkDet && chkDet.checked) qs.set('detalharDestinos', '1');
+    showLoadingOverlay(
+      'Relatório',
+      tipo === 'geral' ? 'Gerando listagem geral de produtos…' : 'Gerando HTML para impressão…',
+      ''
+    );
     fetch(apiUrl('/api/wms/separacao/opl/programacao-antecipada?' + qs.toString()), {
       headers: getAuthHeaders(),
     })
@@ -3096,6 +3113,9 @@
     document.getElementById('btnProgAmanha').addEventListener('click', definirProgAmanha);
   document.getElementById('btnProgImprimir') &&
     document.getElementById('btnProgImprimir').addEventListener('click', imprimirProgramacaoAntecipada);
+  document.getElementById('prog_imprimir_tipo') &&
+    document.getElementById('prog_imprimir_tipo').addEventListener('change', syncProgImprimirTipoUi);
+  syncProgImprimirTipoUi();
   function idsArquivosOplSelecionados() {
     var ids = [];
     document.querySelectorAll('#listaImportacoes .opl-chk-arquivo:checked').forEach(function (c) {
@@ -3698,6 +3718,17 @@
     }
   })();
 
+  (function initRomFolhasGeralHint() {
+    var fEl = document.getElementById('romFolhas');
+    var aEl = document.getElementById('romAgruparItens');
+    if (!fEl) return;
+    function sync() {
+      if (fEl.value === 'geral' && aEl) aEl.value = '1';
+    }
+    fEl.addEventListener('change', sync);
+    sync();
+  })();
+
   document.getElementById('btnRomaneioImprimir') &&
     document.getElementById('btnRomaneioImprimir').addEventListener('click', function () {
       if (!cdOplArquivoAtual) return;
@@ -3707,6 +3738,7 @@
       var c = cEl ? cEl.value : 'todos';
       var a = aEl ? aEl.value : '1';
       var f = fEl ? fEl.value : 'dest';
+      if (f === 'geral') a = '1';
       var ordem = getRomaneioOrdemSelecionada();
       var sepEl = document.getElementById('romSeparadoresGrupo');
       var sep = sepEl ? sepEl.value : 'auto';
