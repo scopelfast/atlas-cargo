@@ -1,8 +1,9 @@
 -- =============================================================================
 -- ATLAS_CARGO_PRD - Dados iniciais (espelhando SQL Server para admin funcional)
 -- Execute DEPOIS do script_db_postgres.sql
--- Gera: usuário admin, TIPOATIVIDADE (mesmos IDs do SQL), USUARIOATIVIDADE,
---       USUARIOEMPRESA, USUARIOFILIAL, EMPRESA e FILIAL mínimos
+-- Gera: usuário admin, USUARIOEMPRESA, USUARIOFILIAL, EMPRESA e FILIAL mínimos.
+-- O menu (TIPOATIVIDADE e acessos do admin) vem do dump ou de
+-- backend/scripts/menu_do_banco_local_postgres.sql. Não regravar aqui.
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -63,60 +64,13 @@ ON CONFLICT ("CDEMPRESA", "CDFILIAL") DO UPDATE SET
   "FGACTIVE" = EXCLUDED."FGACTIVE";
 
 -- -----------------------------------------------------------------------------
--- 5. MENU (TIPOATIVIDADE) – mesmos IDs e rótulos do SQL Server
+-- 5 e 6. MENU — coração do painel
+-- TIPOATIVIDADE + USUARIOATIVIDADE do admin (os 47 tipos da tela).
+-- Não fica mais uma lista curta aqui: ela regravava o menu e escondia
+-- Campanha, Estoque, Tenants e Disparo WhatsApp.
+-- Banco novo: o dump backups/atlas_cargo_prd_20261125.dump já traz esses 47.
+-- Banco que já existe: rodar backend/scripts/menu_do_banco_local_postgres.sql
 -- -----------------------------------------------------------------------------
-INSERT INTO "TIPOATIVIDADE" (
-  "CDTIPOATIVIDADE", "DSTIPOATIVIDADE", "FGACTIVE", "DHMAINTENANCE", "SGUSER", "SERVERORIG", "DSPROGRAMA", "FGGRUPO"
-) VALUES
-  (1,  '1.0.Cadastro Geral',     'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'gerenciar-cadastro-geral',  'Cadastros'),
-  (2,  '1.2.Tipo Validade',      'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'gerenciar-tipos-validade', 'Cadastros'),
-  (3,  '9.0.Usuário',            'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'gerenciar-usuarios',         'System'),
-  (4,  '4.6.Logs de Acesso',     'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'gerenciar-logs-acesso',    'Gestão'),
-  (5,  '9.1.Tipo Atividade',      'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'gerenciar-tipos-atividade','System'),
-  (10, '2.1.Marca',              'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'gerenciar-marcas',           'Equipamentos'),
-  (11, '2.2.Tipo',               'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'gerenciar-tipos-equipamento','Equipamentos'),
-  (12, '2.3.Modelo',             'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'gerenciar-modelos-equipamento','Equipamentos'),
-  (13, '2.4.Grupo',              'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'gerenciar-grupos',          'Equipamentos'),
-  (14, '2.0.Veículos',           'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'gerenciar-equipamentos',    'Equipamentos'),
-  (20, '1.1.Cidade',             'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'gerenciar-cidades',         'Cadastros'),
-  (21, '3.1.Tipo',               'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'gerenciar-tipos-viagem',   'Logística'),
-  (22, '3.2.Situação',           'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'gerenciar-situacoes-viagem','Logística'),
-  (23, '2.5.Classe Frota',        'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'gerenciar-classes-frota',  'Equipamentos'),
-  (24, '3.3.Roteiro',            'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'gerenciar-roteiros',        'Logística'),
-  (25, '3.0.Viagem',             'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'gerenciar-viagens',         'Logística'),
-  (30, '4.5.Mapa de Viagem',      'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'gerenciar-mapa-viagem',    'Gestão'),
-  (31, '9.2.Empresas',           'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'gerenciar-empresas',       'System'),
-  (32, '9.3.Filiais',            'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'gerenciar-filiais',         'System'),
-  (33, '4.0.Convocações',        'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'relatorio-convocacoes',     'Gestão'),
-  (40, '4.1.Alertas',            'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'alertas',                   'Gestão'),
-  (41, '4.2.Chat',               'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'chat',                      'Gestão'),
-  (42, '4.3.SOS',                'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'sos',                        'Gestão'),
-  (43, '4.4.Ranking',            'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'ranking',                   'Gestão'),
-  (50, '9.4.Configurações',      'S', CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas', 'gerenciar-configuracoes',   'System')
-ON CONFLICT ("CDTIPOATIVIDADE") DO UPDATE SET
-  "DSTIPOATIVIDADE" = EXCLUDED."DSTIPOATIVIDADE",
-  "DSPROGRAMA"      = EXCLUDED."DSPROGRAMA",
-  "FGGRUPO"         = EXCLUDED."FGGRUPO",
-  "FGACTIVE"        = EXCLUDED."FGACTIVE",
-  "DHMAINTENANCE"   = EXCLUDED."DHMAINTENANCE";
-
--- Corrigir FGGRUPO em todos os registros (evita grupos "1", "4" no menu)
-UPDATE "TIPOATIVIDADE" SET "FGGRUPO" = CASE
-  WHEN "CDTIPOATIVIDADE" IN (1, 2, 20) THEN 'Cadastros'
-  WHEN "CDTIPOATIVIDADE" IN (3, 5, 31, 32, 50) THEN 'System'
-  WHEN "CDTIPOATIVIDADE" IN (4, 30, 33, 40, 41, 42, 43) THEN 'Gestão'
-  WHEN "CDTIPOATIVIDADE" IN (10, 11, 12, 13, 14, 23) THEN 'Equipamentos'
-  WHEN "CDTIPOATIVIDADE" IN (21, 22, 24, 25) THEN 'Logística'
-  ELSE COALESCE(NULLIF(TRIM("FGGRUPO"), ''), 'OUTROS')
-END;
-
--- -----------------------------------------------------------------------------
--- 6. PERMISSÕES MENU (USUARIOATIVIDADE) – admin com as mesmas do SQL Server
--- -----------------------------------------------------------------------------
-INSERT INTO "USUARIOATIVIDADE" ("SGUSUARIO", "CDTIPOATIVIDADE", "DHMAINTENANCE", "SGUSER", "SERVERORIG")
-SELECT 'admin', n, CURRENT_TIMESTAMP, 'SYSTEM', 'AppDVcargas'
-FROM (VALUES (1),(2),(3),(4),(5),(10),(11),(12),(13),(14),(20),(21),(22),(23),(24),(25),(30),(31),(32),(33),(40),(41),(42),(43),(50)) AS t(n)
-ON CONFLICT ("SGUSUARIO", "CDTIPOATIVIDADE") DO NOTHING;
 
 -- -----------------------------------------------------------------------------
 -- 7. EMPRESA do admin (USUARIOEMPRESA)
