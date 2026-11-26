@@ -160,7 +160,7 @@
     const root = document.documentElement;
     const btn = document.getElementById('themeToggleBtn');
     const icon = document.getElementById('themeToggleIcon');
-    function getTheme() { return localStorage.getItem(KEY) || 'dark'; }
+    function getTheme() { try { return localStorage.getItem(KEY) || 'light'; } catch (e) { return 'light'; } }
     function setTheme(theme) {
       if (theme === 'dark') {
         root.setAttribute('data-theme', 'dark');
@@ -482,7 +482,14 @@
       sel.innerHTML = '';
       const optAll = document.createElement('option');
       optAll.value = '';
-      optAll.textContent = _tDash('web.menu.todosModulosMenu');
+      let rotuloTodos = _tDash('web.menu.todosModulosMenu');
+      if (!rotuloTodos || String(rotuloTodos).indexOf('web.') === 0 || /m[oó]dulo base/i.test(rotuloTodos)) {
+        let loc = '';
+        try { loc = String(localStorage.getItem('preferredLocale') || '').toLowerCase(); } catch (e) {}
+        rotuloTodos = loc.indexOf('es') === 0 ? 'Todos los módulos' : 'Todos os Módulos';
+      }
+      optAll.textContent = rotuloTodos;
+      optAll.title = rotuloTodos;
       sel.appendChild(optAll);
       listaModulos.forEach((m) => {
         const opt = document.createElement('option');
@@ -581,6 +588,9 @@
         window.loadModuleContent('gerenciar-cadastro-geral', { cadastroGeralMotoristasPendentes: true });
       }
     });
+    document.getElementById('headerBtnPedidosAcesso')?.addEventListener('click', () => {
+      if (typeof window.loadModuleContent === 'function') window.loadModuleContent('gerenciar-tenants-saas');
+    });
     document.getElementById('headerBtnDivergenciaPlacas')?.addEventListener('click', () => {
       if (typeof window.loadModuleContent === 'function') {
         window.loadModuleContent('gerenciar-viagens', { convocacoesDivergenciaPlacas: true });
@@ -591,12 +601,18 @@
     fetch(corrigirUrl('/api/configuracoes/identidade'), { headers: getAuthHeaders() })
       .then(r => r.json())
       .then(data => {
-        const logoRetangular = (data.logoRetangular || 'logoAtlasTransparente.png').replace(/[^a-zA-Z0-9._-]/g, '');
-        const logoQuadrada = (data.logoQuadrada || 'logoAtlasTransparenteQuadrada.png').replace(/[^a-zA-Z0-9._-]/g, '');
+        const logoRetangular = (data.logoRetangular || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        const logoQuadrada = (data.logoQuadrada || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        const retangularPadrao = !logoRetangular || logoRetangular === 'logoAtlasTransparente.png' || logoRetangular === 'logo-atlas.svg';
+        const quadradaPadrao = !logoQuadrada || logoQuadrada === 'logoAtlasTransparenteQuadrada.png' || logoQuadrada === 'logo-atlas-simbolo.svg';
         const favicon = document.getElementById('faviconLink');
-        if (favicon) favicon.href = corrigirUrl('/img/' + logoQuadrada);
+        if (favicon && !quadradaPadrao) favicon.href = corrigirUrl('/img/' + logoQuadrada);
         const logoImg = document.querySelector('#logoAtlasCargo img.logo-img');
-        if (logoImg) logoImg.src = corrigirUrl('/img/' + logoRetangular);
+        if (logoImg && !retangularPadrao) {
+          logoImg.hidden = false;
+          logoImg.src = corrigirUrl('/img/' + logoRetangular);
+          document.querySelectorAll('#logoAtlasCargo .logo-mark').forEach((el) => { el.style.display = 'none'; });
+        }
       })
       .catch(() => {});
 
@@ -968,6 +984,58 @@
   };
 
   /**
+   * Empresas aguardando liberação do tenant. O selo fica em Tenants e módulos.
+   */
+  const atualizarContadorPedidosAcesso = async () => {
+    try {
+      const response = await fetch(corrigirUrl('/api/saas/pedidos-acesso/contador'), {
+        headers: getAuthHeaders()
+      });
+      if (!response.ok) return 0;
+      const data = await response.json();
+      const n = parseInt(data.count, 10) || 0;
+      window.__pedidosAcessoPendentes = n;
+      const headerBtn = document.getElementById('headerBtnPedidosAcesso');
+      const headerBadge = document.getElementById('headerBadgePedidosAcesso');
+      const headerShortcuts = document.getElementById('headerShortcuts');
+      if (headerBtn) {
+        headerBtn.style.display = n > 0 ? 'inline-flex' : 'none';
+        headerBtn.classList.toggle('has-pending', n > 0);
+      }
+      if (headerBadge) {
+        headerBadge.textContent = n > 99 ? '99+' : String(n);
+        headerBadge.setAttribute('data-count', String(n));
+        headerBadge.style.display = n > 0 ? 'inline-flex' : 'none';
+      }
+      if (headerShortcuts && n > 0) headerShortcuts.style.display = 'flex';
+      pintarAvisoPedidosHome();
+      const menuItem = document.querySelector('[data-programa="gerenciar-tenants-saas"]');
+      if (menuItem) {
+        let badge = menuItem.querySelector('.menu-badge');
+        if (n > 0) {
+          if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'menu-badge';
+            menuItem.appendChild(badge);
+          }
+          badge.textContent = n > 99 ? '99+' : String(n);
+          badge.style.display = 'block';
+          menuItem.classList.add('has-badge');
+        } else if (badge) {
+          badge.remove();
+          menuItem.classList.remove('has-badge');
+        } else {
+          menuItem.classList.remove('has-badge');
+        }
+      }
+      return n;
+    } catch (err) {
+      console.warn('Erro ao atualizar pedidos de acesso:', err);
+      return 0;
+    }
+  };
+
+  /**
    * Atualizar contador de SOS
    */
   const atualizarContadorSOS = async (ultimoContador = {}) => {
@@ -1096,11 +1164,12 @@
       }
       
       // Atualizar todos em paralelo
-      const [chat, alertas, motoristasPendentes, sos] = await Promise.all([
+      const [chat, alertas, motoristasPendentes, sos, pedidosAcesso] = await Promise.all([
         atualizarContadorChat(ultimoContador),
         atualizarContadorAlertas(ultimoContador),
         atualizarContadorMotoristasPendentes(ultimoContador),
-        atualizarContadorSOS(ultimoContador)
+        atualizarContadorSOS(ultimoContador),
+        atualizarContadorPedidosAcesso()
       ]);
       await atualizarBadgeDivergenciaPlacas();
       
@@ -1110,6 +1179,7 @@
         alertas,
         motoristasPendentes,
         sos,
+        pedidosAcesso,
         timestamp: Date.now()
       }));
     } catch (err) {
@@ -1145,6 +1215,10 @@
 
     document.addEventListener('divergencia-placas-contador-atualizado', () => {
       atualizarBadgeDivergenciaPlacas().catch(() => {});
+    });
+
+    document.addEventListener('pedidos-acesso-contador-atualizado', () => {
+      atualizarContadorPedidosAcesso().catch(() => {});
     });
 
     // Socket.IO: receber em tempo real mensagens (chat), alertas e SOS (som + badge) na tela web
@@ -1901,6 +1975,8 @@
               document.head.appendChild(style);
             }
           });
+          const faceCss = document.getElementById('face-deskcomm');
+          if (faceCss) document.head.appendChild(faceCss);
         }
 
         // Inserir apenas o conteúdo do body no DOM
@@ -1916,6 +1992,8 @@
             document.head.appendChild(link);
           }
         });
+        const faceDepoisDosLinks = document.getElementById('face-deskcomm');
+        if (faceDepoisDosLinks) document.head.appendChild(faceDepoisDosLinks);
 
         // Executar scripts que estão dentro do HTML inserido
         const scriptsInHTML = contentArea.querySelectorAll('script[src]');
@@ -2492,18 +2570,6 @@
         <div class="welcome-section-head">
           <h3>${escHtml(_t('web.dashboard.homeEstoqueBemVindo'))}</h3>
           <div class="welcome-section-actions">
-            <a class="welcome-apresentacao-btn" href="/apresentacao-maranata.html" target="_blank" rel="noopener" id="btnApresentacaoMaranataDash" title="Apresentação Mana / Nutriville · 21/10">
-              <i class="bx bx-slideshow"></i> ${escHtml(_t('web.dashboard.homeEstoqueApresentacaoBtn'))}
-            </a>
-            <a class="welcome-bi-btn" href="/bi-volume-pr-sc.html" target="_blank" rel="noopener" id="btnBiVolumePrScDash">
-              <i class="bx bx-line-chart"></i> ${escHtml(_t('web.dashboard.homeEstoqueBiBtn'))}
-            </a>
-            <a class="welcome-cenario-btn" href="/bi-cenario-base.html" target="_blank" rel="noopener" id="btnBiCenarioBaseDash" title="Cenário Colombo → Joinville / Araquari">
-              <i class="bx bx-map-alt"></i> ${escHtml(_t('web.dashboard.homeEstoqueCenarioBtn'))}
-            </a>
-            <a class="welcome-cenario-btn" href="/apresentacao-cenario-cd.html" target="_blank" rel="noopener" id="btnDeckCenarioCdDash" title="Deck pauta · CD Colombo → SC">
-              <i class="bx bx-presentation"></i> Deck Cenário CD
-            </a>
             <a class="welcome-manual-btn" href="/modulos/estoque/manual-operacional-wms.html" target="_blank" rel="noopener">
               <i class="bx bx-book-open"></i> ${escHtml(_t('web.dashboard.homeEstoqueManualBtn'))}
             </a>
@@ -2625,37 +2691,6 @@
       ${quickEstoque}
     `;
       if (typeof window.applyI18nWeb === 'function') window.applyI18nWeb(contentArea);
-      const biBtn = contentArea.querySelector('#btnBiVolumePrScDash');
-      if (biBtn) {
-        biBtn.addEventListener('click', (ev) => {
-          ev.preventDefault();
-          let url = '/bi-volume-pr-sc.html';
-          try {
-            const t = localStorage.getItem('token');
-            if (t) url += '?token=' + encodeURIComponent(t);
-          } catch (e) { /* ignore */ }
-          window.open(url, '_blank', 'noopener');
-        });
-      }
-      const apresBtn = contentArea.querySelector('#btnApresentacaoMaranataDash');
-      if (apresBtn) {
-        apresBtn.addEventListener('click', (ev) => {
-          ev.preventDefault();
-          window.open('/apresentacao-maranata/Apresentacao_Maranata_21out2026.html?v=30', '_blank', 'noopener');
-        });
-      }
-      const cenBtn = contentArea.querySelector('#btnBiCenarioBaseDash');
-      if (cenBtn) {
-        cenBtn.addEventListener('click', (ev) => {
-          ev.preventDefault();
-          let url = '/bi-cenario-base.html';
-          try {
-            const t = localStorage.getItem('token');
-            if (t) url += '?token=' + encodeURIComponent(t);
-          } catch (e) { /* ignore */ }
-          window.open(url, '_blank', 'noopener');
-        });
-      }
       /** Cards do painel WMS com data-go-modulo viram clicáveis e navegam ao
        *  módulo correspondente. Cursor + teclado (Enter/Space) suportados. */
       contentArea.querySelectorAll('.dashboard-stat-card[data-go-modulo]').forEach((card) => {
@@ -3029,8 +3064,34 @@
     restoreDashboardDocTitle();
   };
   
-  // Tornar showWelcomeScreen acessível globalmente
-  window.showWelcomeScreen = showWelcomeScreen;
+  function pintarAvisoPedidosHome() {
+    const area = document.getElementById('contentArea');
+    if (!area || !area.querySelector('.welcome-section')) return;
+    const n = Number(window.__pedidosAcessoPendentes) || 0;
+    let banner = document.getElementById('avisoPedidosAcesso');
+    if (n <= 0) {
+      if (banner) banner.remove();
+      return;
+    }
+    const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
+    const frase = (n === 1 ? t('web.dashboard.pedidosAcessoUm') : t('web.dashboard.pedidosAcessoVarios').replace('{n}', String(n)));
+    if (!banner) {
+      banner = document.createElement('button');
+      banner.type = 'button';
+      banner.id = 'avisoPedidosAcesso';
+      banner.className = 'aviso-pedidos-acesso';
+      banner.addEventListener('click', () => {
+        if (typeof window.loadModuleContent === 'function') window.loadModuleContent('gerenciar-tenants-saas');
+      });
+      area.insertBefore(banner, area.firstChild);
+    }
+    banner.innerHTML = `<i class='bx bx-buildings' aria-hidden='true'></i><span><strong>${frase}</strong> ${t('web.dashboard.pedidosAcessoAbrir')}</span>`;
+  }
+
+  window.showWelcomeScreen = async function () {
+    await showWelcomeScreen();
+    pintarAvisoPedidosHome();
+  };
 
   // Proteção contra múltiplas inicializações
   let dashboardInicializado = false;

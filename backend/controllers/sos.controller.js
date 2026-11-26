@@ -517,6 +517,9 @@ const sosController = {
   listar: async (req, res) => {
     try {
       const { status, dataInicio, dataFim, idViagem, idMotorista, limit = 50, offset = 0 } = req.query;
+      const statusTxt = String(status || '').trim();
+      const statusNorm = statusTxt.toLowerCase();
+      const modoStatus = statusNorm === 'todos' ? 'todos' : (!statusTxt || statusNorm === 'abertos') ? 'abertos' : 'um';
       
       const pool = await poolPromise;
       const tid = tenantIdForRequest(req);
@@ -559,9 +562,11 @@ const sosController = {
           AND [sa].[TENANT_ID] = @tenantId
       `;
 
-      if (status) {
-        request.input('status', sql.NVarChar(50), status);
+      if (modoStatus === 'um') {
+        request.input('status', sql.NVarChar(50), statusTxt);
         query += ` AND [sa].[STATUS] = @status`;
+      } else if (modoStatus === 'abertos') {
+        query += ` AND LOWER(COALESCE([sa].[STATUS], 'active')) NOT IN ('resolved', 'cancelled')`;
       }
       if (dataInicio) {
         request.input('dataInicio', sql.DateTime2, dataInicio);
@@ -593,9 +598,11 @@ const sosController = {
       let countQuery = `SELECT COUNT(*) AS [total] FROM [dbo].[SOS_ALERTS] [sa] WHERE 1=1 AND [sa].[TENANT_ID] = @tenantId`;
       const countRequest = pool.request();
       countRequest.input('tenantId', sql.NVarChar(64), tid);
-      if (status) {
-        countRequest.input('status', sql.NVarChar(50), status);
+      if (modoStatus === 'um') {
+        countRequest.input('status', sql.NVarChar(50), statusTxt);
         countQuery += ` AND [sa].[STATUS] = @status`;
+      } else if (modoStatus === 'abertos') {
+        countQuery += ` AND LOWER(COALESCE([sa].[STATUS], 'active')) NOT IN ('resolved', 'cancelled')`;
       }
       if (dataInicio) {
         countRequest.input('dataInicio', sql.DateTime2, dataInicio);

@@ -4,29 +4,29 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title data-i18n="responderConvocacao.tituloPagina">Responder Convocação - Atlas Cargo</title>
-  <link rel="icon" type="image/png" href="/img/logoAtlasTransparenteQuadrada.png">
+  <link rel="icon" type="image/svg+xml" href="/img/logo-atlas-simbolo.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
   <style>
-    /* ========== Responder Convocação - Identidade Atlas Cargo ========== */
+    /* Responder Convocação — mesmo padrão do login e do cadastro da empresa */
     :root {
-      --ac-primary: #0d2137;
-      --ac-primary-light: #1a365d;
-      --ac-primary-dark: #061428;
-      --ac-accent: #0ea5e9;
-      --ac-accent-hover: #0284c7;
-      --ac-text: #1e293b;
-      --ac-text-secondary: #64748b;
-      --ac-bg-page: #f1f5f9;
-      --ac-bg-card: #f8fafc;
-      --ac-border: #e2e8f0;
-      --ac-success: #059669;
-      --ac-success-hover: #047857;
-      --ac-error: #dc2626;
-      --ac-error-hover: #b91c1c;
-      --ac-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
-      --ac-shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+      --ac-primary: #506d48;
+      --ac-primary-light: #82a077;
+      --ac-primary-dark: #41573b;
+      --ac-accent: #506d48;
+      --ac-accent-hover: #41573b;
+      --ac-text: #1c1a16;
+      --ac-text-secondary: #5d594f;
+      --ac-bg-page: #faf9f6;
+      --ac-bg-card: #f5f3ee;
+      --ac-border: #e7e3da;
+      --ac-success: #506d48;
+      --ac-success-hover: #41573b;
+      --ac-error: #a94a3c;
+      --ac-error-hover: #8d3d32;
+      --ac-shadow: 0 4px 6px -1px rgba(28, 26, 22, 0.06), 0 2px 4px -2px rgba(28, 26, 22, 0.04);
+      --ac-shadow-lg: 0 20px 25px -5px rgba(28, 26, 22, 0.08), 0 8px 10px -6px rgba(28, 26, 22, 0.04);
     }
     * {
       margin: 0;
@@ -34,8 +34,9 @@
       box-sizing: border-box;
     }
     body {
-      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
-      background: linear-gradient(165deg, var(--ac-primary-dark) 0%, var(--ac-primary) 45%, var(--ac-primary-light) 100%);
+      font-family: "Atkinson Hyperlegible", "Segoe UI", sans-serif;
+      background: var(--ac-bg-page);
+      color: var(--ac-text);
       min-height: 100vh;
       display: flex;
       align-items: center;
@@ -43,13 +44,25 @@
       padding: 20px;
     }
     .container {
-      background: white;
-      border-radius: 16px;
+      background: #fff;
+      border: 1px solid var(--ac-border);
+      border-radius: 24px;
       box-shadow: var(--ac-shadow-lg);
       max-width: 800px;
       width: 100%;
       padding: 40px;
     }
+    .marca {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 8px;
+      color: var(--ac-accent);
+      text-decoration: none;
+      margin-bottom: 18px;
+    }
+    .marca strong { color: var(--ac-text); font-size: 22px; }
+    .marca span { color: var(--ac-text-secondary); font-size: 13px; font-weight: 700; }
     .header {
       text-align: center;
       margin-bottom: 30px;
@@ -94,7 +107,7 @@
       color: var(--ac-text);
       font-size: 20px;
       margin-bottom: 20px;
-      border-bottom: 2px solid var(--ac-accent);
+      border-bottom: 2px solid var(--ac-border);
       padding-bottom: 10px;
     }
     .info-grid {
@@ -163,8 +176,16 @@
     }
     .btn-aceitar:hover {
       background: var(--ac-success-hover);
-      transform: translateY(-2px);
-      box-shadow: 0 5px 15px rgba(5, 150, 105, 0.35);
+    }
+    .btn-enviar-local {
+      background: var(--ac-accent);
+      color: #fff;
+      padding: 12px 30px;
+      font-size: 16px;
+      font-weight: 700;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
     }
     .btn-recusar {
       background: var(--ac-error);
@@ -262,8 +283,8 @@
       }
     }
     .modal-confirm-header {
-      background: linear-gradient(165deg, var(--ac-primary-dark) 0%, var(--ac-primary) 50%, var(--ac-primary-light) 100%);
-      color: white;
+      background: var(--ac-accent);
+      color: #fff;
       padding: 25px;
       text-align: center;
     }
@@ -365,7 +386,7 @@
     #textareaDivergenciaPlacas:focus {
       outline: none;
       border-color: var(--ac-accent);
-      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+      box-shadow: 0 0 0 3px rgba(80, 109, 72, 0.18);
     }
     #modalDivergenciaPlacasErro {
       text-align: left;
@@ -401,34 +422,33 @@
     }
     .modal-confirm-btn-confirmar:hover {
       background: var(--ac-success-hover);
-      transform: translateY(-2px);
-      box-shadow: 0 5px 15px rgba(5, 150, 105, 0.35);
     }
     .modal-confirm-btn-cancelar {
-      background: #64748b;
-      color: white;
+      background: #fff;
+      color: var(--ac-text);
+      border: 1px solid #d2cdbf;
     }
     .modal-confirm-btn-cancelar:hover {
-      background: #475569;
-      transform: translateY(-2px);
+      background: var(--ac-bg-card);
     }
     /* Estilo para select de motivo de recusa */
     #selectMotivoRecusa:hover {
       border-color: var(--ac-accent);
-      box-shadow: 0 2px 8px rgba(14, 165, 233, 0.2);
+      box-shadow: 0 2px 8px rgba(80, 109, 72, 0.16);
     }
     #selectMotivoRecusa:focus {
       outline: none;
       border-color: var(--ac-accent);
-      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.2);
+      box-shadow: 0 0 0 3px rgba(80, 109, 72, 0.18);
     }
     #selectMotivoRecusa option {
       padding: 10px;
     }
     /* Mensagem de geolocalização */
     .geolocalizacao-info {
-      background: linear-gradient(165deg, var(--ac-primary-dark) 0%, var(--ac-primary) 50%, var(--ac-primary-light) 100%);
-      color: white;
+      background: #e4ebe0;
+      color: var(--ac-text);
+      border: 1px solid #c9d6c3;
       padding: 20px;
       border-radius: 12px;
       margin-bottom: 25px;
@@ -457,9 +477,9 @@
       opacity: 0.95;
     }
     .geolocalizacao-info .btn-fechar {
-      background: rgba(255, 255, 255, 0.2);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      color: white;
+      background: #fff;
+      border: 1px solid #d2cdbf;
+      color: var(--ac-text);
       padding: 8px 16px;
       border-radius: 6px;
       cursor: pointer;
@@ -513,8 +533,8 @@
       flex-shrink: 0;
     }
     .modal-geolocalizacao-header {
-      background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
-      color: white;
+      background: var(--ac-error);
+      color: #fff;
       padding: 16px 20px;
       text-align: center;
       flex-shrink: 0;
@@ -580,12 +600,13 @@
       flex-shrink: 0;
     }
     .modal-geolocalizacao-btn-secundario {
-      background: #64748b;
-      color: white;
+      background: #fff;
+      color: var(--ac-text);
+      border: 1px solid #d2cdbf;
       order: -1;
     }
     .modal-geolocalizacao-btn-secundario:hover {
-      background: #475569;
+      background: var(--ac-bg-card);
     }
     .modal-geolocalizacao-btn {
       flex: 1;
@@ -598,12 +619,11 @@
       transition: all 0.3s;
     }
     .modal-geolocalizacao-btn-tentar {
-      background: linear-gradient(135deg, #28a745, #218838);
-      color: white;
+      background: var(--ac-accent);
+      color: #fff;
     }
     .modal-geolocalizacao-btn-tentar:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+      background: var(--ac-accent-hover);
     }
     .modal-geolocalizacao-btn-tentar:disabled {
       opacity: 0.6;
@@ -631,7 +651,7 @@
             <li data-i18n="responderConvocacao.comoPermitir4">Recarregue a página ou clique em "Tentar Novamente"</li>
           </ol>
         </div>
-        <p id="pLocalizacaoSemPermitir" style="color: #e74c3c; font-weight: 600; margin-top: 20px;" data-i18n="responderConvocacao.localizacaoSemPermitir">⚠️ Você não poderá continuar sem permitir a localização.</p>
+        <p id="pLocalizacaoSemPermitir" style="color: #a94a3c; font-weight: 700; margin-top: 20px;" data-i18n="responderConvocacao.localizacaoSemPermitir">⚠️ Você não poderá continuar sem permitir a localização.</p>
       </div>
       <div class="modal-geolocalizacao-actions">
         <button type="button" id="btnContinuarSemLocalizacao" class="modal-geolocalizacao-btn modal-geolocalizacao-btn-secundario">Continuar sem localização</button>
@@ -654,10 +674,10 @@
           <span id="modalConfirmDetalhesText"></span>
         </div>
         <div id="modalConfirmMotivoRecusa" style="display: none; margin-top: 25px; text-align: left;">
-          <label for="selectMotivoRecusa" style="display: block; margin-bottom: 12px; font-weight: 600; color: #1e293b; font-size: 15px;">
+          <label for="selectMotivoRecusa" style="display: block; margin-bottom: 12px; font-weight: 700; color: #1c1a16; font-size: 15px;">
             <span data-i18n="responderConvocacao.motivoRecusaLabel">📋 Por favor, informe o motivo da recusa:</span> <span style="color: #dc2626;">*</span>
           </label>
-          <select id="selectMotivoRecusa" style="width: 100%; padding: 14px; border: 2px solid #0ea5e9; border-radius: 8px; font-size: 16px; background: white; color: #1e293b; cursor: pointer; transition: all 0.3s;">
+          <select id="selectMotivoRecusa" style="width: 100%; padding: 14px; border: 1px solid #e7e3da; border-radius: 10px; font-size: 16px; background: #f5f3ee; color: #1c1a16; cursor: pointer; font-family: inherit;">
             <option value="" data-i18n="responderConvocacao.selecioneMotivo">Selecione o motivo...</option>
           </select>
           <p id="erroMotivoRecusa" style="color: #dc2626; font-size: 14px; margin-top: 8px; display: none; font-weight: 500;" data-i18n="responderConvocacao.motivoObrigatorio">
@@ -698,6 +718,13 @@
     </div>
     <div id="content" style="display: none;">
       <div class="header">
+        <a class="marca" href="/">
+          <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true">
+            <path fill="currentColor" fill-rule="evenodd" d="M16 3.2 28.8 28.8h-6.1l-1.95-5.7H11.25l-1.95 5.7H3.2L16 3.2zm0 9.15-3.35 9.75h6.7L16 12.35z"/>
+          </svg>
+          <strong>Atlas</strong>
+          <span>Cargo</span>
+        </a>
         <h1 data-i18n="responderConvocacao.titulo">🚚 Convocação de Carga</h1>
         <p data-i18n="responderConvocacao.subtitulo">Você foi convidado para realizar uma viagem</p>
         <span id="statusBadge" class="status-badge"></span>
@@ -718,15 +745,15 @@
       
       <!-- Botão para enviar localização manualmente -->
       <div id="botaoEnviarLocalizacao" style="display: none; margin-bottom: 20px; text-align: center;">
-        <button id="btnEnviarLocalizacao" class="btn btn-atlas-accent" style="background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); color: white; padding: 12px 30px; font-size: 16px; font-weight: 600; border-radius: 8px; border: none; cursor: pointer; box-shadow: 0 4px 15px rgba(13, 33, 55, 0.35); transition: all 0.3s;" data-i18n="responderConvocacao.enviarLocalizacao">
+        <button id="btnEnviarLocalizacao" class="btn btn-enviar-local" data-i18n="responderConvocacao.enviarLocalizacao">
           📍 Enviar Minha Localização
         </button>
-        <p style="margin-top: 10px; color: #64748b; font-size: 14px;" data-i18n="responderConvocacao.enviarLocalizacaoHint">Clique para compartilhar sua localização atual</p>
+        <p style="margin-top: 10px; color: #5d594f; font-size: 14px;" data-i18n="responderConvocacao.enviarLocalizacaoHint">Clique para compartilhar sua localização atual</p>
       </div>
 
       <div id="blocoValidacaoAceite" class="info-section" style="display: none;">
         <h2 data-i18n="responderConvocacao.validacaoAceiteTitulo">🔐 Para aceitar esta carga</h2>
-        <p id="textoLocalizacaoAceite" style="color: #64748b; font-size: 14px; margin-bottom: 12px;">
+        <p id="textoLocalizacaoAceite" style="color: #5d594f; font-size: 14px; margin-bottom: 12px;">
           Envie sua localização com o botão acima. Depois confirme o celular cadastrado.
         </p>
         <p id="statusLocalizacaoAceite" style="display: none; font-size: 14px; font-weight: 600; margin-bottom: 12px;"></p>
@@ -748,7 +775,7 @@
 
       <div id="blocoConfirmacaoPlacasPublic" class="info-section" style="display: none;">
         <h2 data-i18n="responderConvocacao.placasTitulo">Placas da viagem</h2>
-        <p id="placasPubInstrucao" style="color: #64748b; font-size: 14px; margin-bottom: 10px;" data-i18n="responderConvocacao.placasInstrucao">
+        <p id="placasPubInstrucao" style="color: #5d594f; font-size: 14px; margin-bottom: 10px;" data-i18n="responderConvocacao.placasInstrucao">
           A empresa cadastrou o(s) veículo(s) abaixo nesta viagem. Confirme se está alinhado ao que você vai operar ou informe divergência.
         </p>
         <div id="valorPlacasEsperadasPub" class="valor-placas-conjunto-pub" style="margin: 12px 0;"></div>
@@ -808,7 +835,11 @@
         </div>
         <div id="pontosParadaSection" style="display: none; margin-top: 12px;">
           <span class="info-label" data-i18n="responderConvocacao.pontosParada">Pontos de parada</span>
-          <ul id="pontosParadaList" style="margin: 6px 0 0 0; padding-left: 20px; color: #1e293b; line-height: 1.6;"></ul>
+          <ul id="pontosParadaList" style="margin: 6px 0 0 0; padding-left: 20px; color: #1c1a16; line-height: 1.6;"></ul>
+        </div>
+        <div class="info-item" id="distanciaRotaItem" style="display: none; margin-top: 12px;">
+          <span class="info-label" data-i18n="responderConvocacao.distanciaRota">Distância da rota</span>
+          <span class="info-value" id="distanciaRota">-</span>
         </div>
       </div>
       
@@ -846,7 +877,7 @@
       
       <div id="detalhesSection" class="info-section" style="display: none;">
         <h2 data-i18n="responderConvocacao.detalhesViagem">📝 Detalhes da Viagem</h2>
-        <p id="detalhes" style="color: #1e293b; line-height: 1.6;"></p>
+        <p id="detalhes" style="color: #1c1a16; line-height: 1.6;"></p>
       </div>
       
       <!-- Mensagem de Status (quando não está pendente) -->
@@ -1080,6 +1111,8 @@
         var kPh = br ? 'responderConvocacao.placeholderCelularConfirmacao' : 'responderConvocacao.placeholderCelularIntl';
         var pv = tw(kPh);
         inp.placeholder = pv !== kPh ? pv : (br ? '(00) 00000-0000' : '+595 981 000000');
+        ligarMascaraCelularConfirmacao();
+        if (inp.value) inp.value = mascaraCelularConfirmacao(inp.value, br);
       }
       if (txtIntro) {
         var kIntro = br ? 'responderConvocacao.validacaoLocalizacaoTexto' : 'responderConvocacao.validacaoLocalizacaoTextoIntl';
@@ -1091,6 +1124,42 @@
               ? 'Envie sua localização com o botão acima. Depois, confirme o celular cadastrado na empresa (mesmo número do seu cadastro).'
               : 'Envie sua localização com o botão acima. Depois, digite o telefone exatamente como está no cadastro, com código do país (DDI) se aplicável.');
       }
+    }
+
+    function mascaraCelularConfirmacao(bruto, br) {
+      var v = String(bruto || '').replace(/\D/g, '');
+      if (br) {
+        if (v.indexOf('55') === 0 && v.length > 11) v = v.slice(2);
+        v = v.slice(0, 11);
+        if (!v) return '';
+        if (v.length <= 2) return '(' + v;
+        if (v.length <= 6) return '(' + v.slice(0, 2) + ') ' + v.slice(2);
+        if (v.length <= 10) return '(' + v.slice(0, 2) + ') ' + v.slice(2, 6) + '-' + v.slice(6);
+        return '(' + v.slice(0, 2) + ') ' + v.slice(2, 7) + '-' + v.slice(7);
+      }
+      v = v.slice(0, 15);
+      return v.replace(/(\d{3})(?=\d)/g, '$1 ').trim();
+    }
+
+    function ligarMascaraCelularConfirmacao() {
+      var inp = document.getElementById('inputTelefoneConfirmacao');
+      if (!inp || inp.dataset.mascara === '1') return;
+      inp.dataset.mascara = '1';
+      inp.addEventListener('input', function () {
+        var br = convocacaoEhPaisBR(convocacaoData);
+        var pos = inp.selectionStart || 0;
+        var digitosAntes = String(inp.value.slice(0, pos)).replace(/\D/g, '').length;
+        var formatado = mascaraCelularConfirmacao(inp.value, br);
+        if (inp.value === formatado) return;
+        inp.value = formatado;
+        var novo = 0;
+        var d = 0;
+        while (novo < formatado.length && d < digitosAntes) {
+          if (/\d/.test(formatado.charAt(novo))) d += 1;
+          novo += 1;
+        }
+        try { inp.setSelectionRange(novo, novo); } catch (ePos) { /* campo pode estar fora de foco */ }
+      });
     }
 
     /** Monta HTML placa — classe por linha, com separador horizontal entre veículos (dados da empresa). */
@@ -1295,7 +1364,7 @@
         } else {
           if (stDivR) {
             stDivR.style.display = 'block';
-            stDivR.style.color = '#64748b';
+            stDivR.style.color = '#5d594f';
             var kN = 'responderConvocacao.placasResumoSemFgComSnapshot';
             var txN = tw(kN);
             stDivR.textContent =
@@ -1389,7 +1458,7 @@
         btnEnv.textContent =
           '✅ ' +
           tConv('responderConvocacao.localizacaoEnviada', 'Localização enviada com sucesso!');
-        btnEnv.style.background = 'linear-gradient(135deg, #2ecc71, #27ae60)';
+        btnEnv.style.background = '#41573b';
       }
       sincronizarBotoesAceitePendente();
     }
@@ -1486,6 +1555,23 @@
       localStorage.removeItem(STORAGE_KEY_PERMISSAO_NEGADA);
     }
 
+    function lerPosicaoRegistrada(data) {
+      if (!data) return null;
+      var lat = parseFloat(data.LATITUDE != null ? data.LATITUDE : data.latitude);
+      var lon = parseFloat(data.LONGITUDE != null ? data.LONGITUDE : data.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+      if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+      return { latitude: lat, longitude: lon };
+    }
+
+    function garantirPosicaoRegistrada(data) {
+      var p = lerPosicaoRegistrada(data);
+      if (!p) return null;
+      localizacaoAtual = p;
+      localizacaoAtualCapturadaEm = Date.now();
+      return p;
+    }
+
     /** Geolocation no navegador só em https:// ou http://localhost / 127.0.0.1 — não em http://192.168.x.x */
     function browserPodeUsarGeolocalizacao() {
       try {
@@ -1566,6 +1652,13 @@
       var modoAceite = !!opts.modoAceite;
       // http:// + IP (192.168, 10.x, etc.): API de geolocalização indisponível — não confundir com permissão negada.
       if (!browserPodeUsarGeolocalizacao()) {
+        var posicaoSalva = (localizacaoAtual && Number.isFinite(localizacaoAtual.latitude) && Number.isFinite(localizacaoAtual.longitude))
+          ? localizacaoAtual
+          : garantirPosicaoRegistrada(convocacaoData);
+        if (posicaoSalva) {
+          console.log('[GEOLOCALIZAÇÃO] Navegador sem GPS neste endereço HTTP. Usando a posição já registrada.');
+          return posicaoSalva;
+        }
         console.warn('[GEOLOCALIZAÇÃO] Geolocalização indisponível neste endereço (use HTTPS ou localhost). Não é possível "forçar" pelo site — é restrição do navegador.');
         try { limparPermissaoNegada(); } catch (e) {}
         if (mostrarMensagem) {
@@ -1813,7 +1906,7 @@
       var actionsSection = document.getElementById('actionsSection');
       statusMessageDiv.style.display = 'block';
       statusMessageDiv.innerHTML =
-        '<div style="background: linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(13, 33, 55, 0.35);">' +
+        '<div style="background: #f5f3ee; color: #1c1a16; border: 1px solid #e7e3da; padding: 20px; border-radius: 16px; text-align: center;">' +
         '<div style="font-size: 48px; margin-bottom: 15px;">📋</div>' +
         '<h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 700;">' +
         t('responderConvocacao.cargaJaFechada') +
@@ -1905,6 +1998,21 @@
         rotaGrid.style.display = 'none';
         rotaUnica.style.display = 'block';
         rotaTexto.textContent = (data.DSROTEIRO && data.DSROTEIRO.trim()) ? data.DSROTEIRO.trim() : (typeof tWeb === 'function' ? tWeb('responderConvocacao.rotaNaoInformada') : 'Rota não informada');
+      }
+
+      var kmBruto = data.DISTANCIAKM != null ? data.DISTANCIAKM : data.distanciakm;
+      if (kmBruto == null || String(kmBruto).trim() === '') {
+        kmBruto = data.DISTANCIAKM_ROTEIRO != null ? data.DISTANCIAKM_ROTEIRO : data.distanciakm_roteiro;
+      }
+      var kmNum = parseFloat(kmBruto);
+      var distanciaItem = document.getElementById('distanciaRotaItem');
+      var distanciaEl = document.getElementById('distanciaRota');
+      if (distanciaItem && distanciaEl && Number.isFinite(kmNum) && kmNum > 0) {
+        var localeKm = (typeof localStorage !== 'undefined' && localStorage.getItem('preferredLocale') === 'es-PY') ? 'es-PY' : 'pt-BR';
+        distanciaEl.textContent = kmNum.toLocaleString(localeKm, { minimumFractionDigits: 0, maximumFractionDigits: 1 }) + ' km';
+        distanciaItem.style.display = 'block';
+      } else if (distanciaItem) {
+        distanciaItem.style.display = 'none';
       }
       
       // Pontos de parada: API pública por ID da convocação (multi-tenant; não usa /api/roteiros/... sem JWT)
@@ -2033,7 +2141,7 @@
         
         statusMessageDiv.style.display = 'block';
         statusMessageDiv.innerHTML = `
-          <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); color: white; padding: 25px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(17, 153, 142, 0.4);">
+          <div style="background: #506d48; color: #fff; padding: 25px; border-radius: 16px; text-align: center;">
             <div style="font-size: 56px; margin-bottom: 20px;">🎉</div>
             <h2 style="margin: 0 0 15px 0; font-size: 24px; font-weight: 700;">${t('responderConvocacao.parabensTitulo')}</h2>
             <div style="background: rgba(255, 255, 255, 0.15); padding: 20px; border-radius: 8px; margin: 20px 0; text-align: left; backdrop-filter: blur(10px);">
@@ -2091,7 +2199,7 @@
         // Motorista aceitou mas não foi escolhido
         statusMessageDiv.style.display = 'block';
         statusMessageDiv.innerHTML = `
-          <div style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(255, 152, 0, 0.4);">
+          <div style="background: #f3efe4; color: #1c1a16; border: 1px solid #e4dcc8; padding: 20px; border-radius: 16px; text-align: center;">
             <div style="font-size: 48px; margin-bottom: 15px;">ℹ️</div>
             <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 700;">${t('responderConvocacao.convocacaoNaoSelecionada')}</h3>
             <p style="margin: 0; font-size: 15px; line-height: 1.6; opacity: 0.95;">
@@ -2110,7 +2218,7 @@
         // Motorista aceitou e está aguardando confirmação
         statusMessageDiv.style.display = 'block';
         statusMessageDiv.innerHTML = `
-          <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(79, 172, 254, 0.4);">
+          <div style="background: #e4ebe0; color: #1c1a16; border: 1px solid #c9d6c3; padding: 20px; border-radius: 16px; text-align: center;">
             <div style="font-size: 48px; margin-bottom: 15px;">⏳</div>
             <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 700;">${t('responderConvocacao.aguardandoConfirmacao')}</h3>
             <p style="margin: 0; font-size: 15px; line-height: 1.6; opacity: 0.95;">
@@ -2129,7 +2237,7 @@
         // Motorista recusou
         statusMessageDiv.style.display = 'block';
         statusMessageDiv.innerHTML = `
-          <div style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(250, 112, 154, 0.4);">
+          <div style="background: #f3e4e0; color: #1c1a16; border: 1px solid #e4cfc9; padding: 20px; border-radius: 16px; text-align: center;">
             <div style="font-size: 48px; margin-bottom: 15px;">❌</div>
             <h3 style="margin: 0 0 10px 0; font-size: 20px; font-weight: 700;">${t('responderConvocacao.convocacaoRecusada')}</h3>
             <p style="margin: 0; font-size: 15px; line-height: 1.6; opacity: 0.95;">
@@ -2154,6 +2262,7 @@
         if (blocoVal) blocoVal.style.display = 'block';
         aplicarUiTelefoneConvocacao(data);
         localizacaoMotoristaOk = !!data.localizacaoMotoristaEnviada;
+        if (localizacaoMotoristaOk) garantirPosicaoRegistrada(data);
         var stLoc = document.getElementById('statusLocalizacaoAceite');
         if (stLoc) {
           stLoc.style.display = 'block';
@@ -2192,7 +2301,7 @@
           }
         }
         var avisoHttp = document.getElementById('avisoHttpGeo');
-        if (avisoHttp && typeof browserPodeUsarGeolocalizacao === 'function' && !browserPodeUsarGeolocalizacao()) {
+        if (avisoHttp && typeof browserPodeUsarGeolocalizacao === 'function' && !browserPodeUsarGeolocalizacao() && !localizacaoMotoristaOk) {
           avisoHttp.style.display = 'block';
         } else if (avisoHttp) {
           avisoHttp.style.display = 'none';
@@ -2275,7 +2384,7 @@
           message.textContent = t('responderConvocacao.confirmarRecusarMsg');
           btnConfirmar.textContent = t('responderConvocacao.simRecusar');
           btnConfirmar.className = 'modal-confirm-btn modal-confirm-btn-confirmar';
-          btnConfirmar.style.background = 'linear-gradient(135deg, #dc3545, #c82333)';
+          btnConfirmar.style.background = '#a94a3c';
           btnConfirmar.style.color = 'white';
           motivoRecusaDiv.style.display = 'block';
           
@@ -2441,7 +2550,7 @@
         document.getElementById('btnRecusar').disabled = true;
         
         // Geolocalização no aceite: reaproveita posição recente / cache; evita segunda leitura GPS que costuma dar timeout (3).
-        const geolocalizacao = await capturarGeolocalizacao(false, false, { modoAceite: true });
+        let geolocalizacao = await capturarGeolocalizacao(false, false, { modoAceite: true });
         
         const bodyResposta = { status };
         if (geolocalizacao) {
@@ -2470,6 +2579,13 @@
           }
         }
 
+        if (status === 'ACEITA' && (!geolocalizacao || !Number.isFinite(geolocalizacao.latitude))) {
+          geolocalizacao = garantirPosicaoRegistrada(convocacaoData);
+        }
+        if (status === 'ACEITA' && geolocalizacao && Number.isFinite(geolocalizacao.latitude)) {
+          bodyResposta.latitude = geolocalizacao.latitude;
+          bodyResposta.longitude = geolocalizacao.longitude;
+        }
         if (status === 'ACEITA' && (!geolocalizacao || !Number.isFinite(geolocalizacao.latitude))) {
           mostrarErroInlineConvocacao(
             tConv(
@@ -2639,7 +2755,7 @@
               : '';
           statusMessageDiv.style.display = 'block';
           statusMessageDiv.innerHTML = `
-            <div style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 25px; border-radius: 12px; text-align: center; box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);">
+            <div style="background: #506d48; color: #fff; padding: 25px; border-radius: 16px; text-align: center;">
               <div style="font-size: 56px; margin-bottom: 20px;">✅</div>
               <h2 style="margin: 0 0 15px 0; font-size: 24px; font-weight: 700;">${tResp('responderConvocacao.convocacaoAceitaSucesso')}</h2>
               <div style="background: rgba(255, 255, 255, 0.15); padding: 20px; border-radius: 8px; margin: 20px 0; text-align: left; backdrop-filter: blur(10px);">
@@ -2795,7 +2911,7 @@
         const bodyDiv = document.querySelector('.modal-geolocalizacao-body');
         if (bodyDiv) {
           const msgErro = document.createElement('p');
-          msgErro.style.color = '#e74c3c';
+          msgErro.style.color = '#a94a3c';
           msgErro.style.fontWeight = '600';
           msgErro.style.marginTop = '10px';
           msgErro.textContent = '❌ ' + tBtn('responderConvocacao.erroCapturarLocalizacao');
@@ -2889,17 +3005,17 @@
         
         showMessage('✅ ' + tLoc('responderConvocacao.localizacaoEnviada'), 'success');
         btn.textContent = '✅ ' + tLoc('responderConvocacao.localizacaoEnviada');
-        btn.style.background = 'linear-gradient(135deg, #2ecc71, #27ae60)';
+        btn.style.background = '#41573b';
         
         setTimeout(() => {
           btn.disabled = false;
           btn.textContent = '📍 ' + tLoc('responderConvocacao.enviarLocalizacao');
-          btn.style.background = 'linear-gradient(165deg, #061428 0%, #0d2137 50%, #1a365d 100%)';
+          btn.style.background = '#506d48';
           if (localizacaoMotoristaOk) {
             btn.textContent =
               '✅ ' +
               tConv('responderConvocacao.localizacaoEnviada', 'Localização enviada com sucesso!');
-            btn.style.background = 'linear-gradient(135deg, #2ecc71, #27ae60)';
+            btn.style.background = '#41573b';
           }
         }, 3000);
         

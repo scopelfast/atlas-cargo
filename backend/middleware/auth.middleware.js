@@ -331,6 +331,8 @@ const verifyTowerSessionNotRevoked = async (req, res, next) => {
       '/cargas/api/motorista/redefinir-senha',
       '/api/motorista/cadastro',
       '/cargas/api/motorista/cadastro',
+      '/api/publico/pedido-acesso',
+      '/cargas/api/publico/pedido-acesso',
       '/api/motorista/sos',
       '/cargas/api/motorista/sos',
       '/api/motivos-recusa-combo',

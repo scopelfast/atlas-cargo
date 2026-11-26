@@ -48,13 +48,14 @@
   const ABAS_FROTA_VALIDADES_LOCAIS = ['classes', 'validades', 'locais-preferidos'];
   const ABA_ANEXOS_MOTORISTA = 'anexos-motorista';
   const ABA_VEICULOS_MOTORISTA = 'veiculos-motorista';
-  /** Aba "Endereços de entrega": só Pessoa Jurídica com cadastro já salvo (possui CDCADASTRO). */
+  /** Aba "Endereços de entrega": Cliente, pessoa jurídica, cadastro já salvo. */
   function atualizarVisibilidadeEnderecosEntrega() {
     const tab = document.getElementById('tabBtnEnderecosEntrega');
     if (!tab) return;
     const tp = document.getElementById('cadastroTipoPessoa')?.value;
     const id = document.getElementById('cadastroId')?.value?.trim();
-    const mostrar = tp === 'J' && !!id;
+    const cliente = document.getElementById('chkE')?.checked;
+    const mostrar = tp === 'J' && !!id && !!cliente;
     tab.style.display = mostrar ? 'inline-flex' : 'none';
     if (!mostrar) {
       const activeBtn = document.querySelector('.cadastro-geral-container .tab-btn.active');
@@ -79,6 +80,9 @@
     const mostrarMotoristaApp = chkMVis && chkMVis.checked ? 'inline-flex' : 'none';
     if (tabAnexos) tabAnexos.style.display = mostrarMotoristaApp;
     if (tabVeiculos) tabVeiculos.style.display = mostrarMotoristaApp;
+    const btnClasses = document.getElementById('btnGerenciarClasses');
+    const idSalvo = document.getElementById('cadastroId')?.value?.trim();
+    if (btnClasses) btnClasses.style.display = mostrarAbas && idSalvo ? 'inline-flex' : 'none';
 
     const divDestinoPreferido = document.getElementById('divDestinoPreferido');
     if (divDestinoPreferido) divDestinoPreferido.style.display = 'none';
@@ -1752,30 +1756,24 @@
         document.getElementById('cadastroBairro').value = dados.bairro || '';
         
         if (dados.uf) {
-          // Preencher estado
           document.getElementById('cadastroEstado').value = dados.uf;
-          
-          // Carregar cidades para o estado
           await loadCidadesPorEstado(dados.uf, 'dados');
-          
-          // Encontrar e preencher cidade
-          if (dados.localidade) {
-            setTimeout(() => {
-              const cidadeSelect = document.getElementById('cadastroCidade');
-              const options = Array.from(cidadeSelect.options);
-              const cidadeEncontrada = options.find(opt => 
-                opt.text.toLowerCase() === dados.localidade.toLowerCase()
-              );
-              
-              if (cidadeEncontrada) {
-                cidadeSelect.value = cidadeEncontrada.value;
-                document.getElementById('cadastroCodigoCidade').value = cidadeEncontrada.value;
-              } else {
-                // Se a cidade não estiver cadastrada, limpar os campos
-                cidadeSelect.value = '';
-                document.getElementById('cadastroCodigoCidade').value = '';
-              }
-            }, 100);
+          const cidadeSelect = document.getElementById('cadastroCidade');
+          const idCidade = dados.cidade && (dados.cidade.CDCIDADE != null ? dados.cidade.CDCIDADE : dados.cidade.cdcidade);
+          let cidadeEncontrada = idCidade
+            ? cidadeSelect.querySelector('option[value="' + idCidade + '"]')
+            : null;
+          if (!cidadeEncontrada && dados.localidade) {
+            cidadeEncontrada = Array.from(cidadeSelect.options).find(function (opt) {
+              return opt.text.toLowerCase() === String(dados.localidade).toLowerCase();
+            });
+          }
+          if (cidadeEncontrada) {
+            cidadeSelect.value = cidadeEncontrada.value;
+            document.getElementById('cadastroCodigoCidade').value = cidadeEncontrada.value;
+          } else {
+            cidadeSelect.value = '';
+            document.getElementById('cadastroCodigoCidade').value = '';
           }
         } else {
           // Limpar campos se não houver UF
@@ -2057,15 +2055,11 @@
         }
         updateLabelDocumento();
         // Aplicável para: preencher checkboxes
-        const aplicavelIds = { O: 'chkO', P: 'chkP', M: 'chkM', T: 'chkT', A: 'chkA', G: 'chkG', C: 'chkC', E: 'chkE', U: 'chkU' };
-        const aplicavelCols = { O: 'FGOPERADOR', P: 'FGPROGRAMADOR', M: 'FGMOTORISTA', T: 'FGTRANSPORTADOR', A: 'FGAGENTE', G: 'FGGRUPO', C: 'FGCERTIFICADORA', U: 'FGUNIDADENEGOCIO' };
+        const aplicavelIds = { O: 'chkO', P: 'chkP', M: 'chkM', T: 'chkT', A: 'chkA', G: 'chkG', C: 'chkC', E: 'chkE', U: 'chkU', L: 'chkL' };
+        const aplicavelCols = { O: 'FGOPERADOR', P: 'FGPROGRAMADOR', M: 'FGMOTORISTA', T: 'FGTRANSPORTADOR', A: 'FGAGENTE', G: 'FGGRUPO', C: 'FGCERTIFICADORA', E: 'FGCLIENTE', U: 'FGUNIDADENEGOCIO', L: 'FGLICENCIADO' };
         Object.keys(aplicavelIds).forEach(cod => {
           const el = document.getElementById(aplicavelIds[cod]);
           if (!el) return;
-          if (cod === 'E') {
-            el.checked = String(cadastro.FGTIPOCADASTRO || '').toUpperCase() === 'E';
-            return;
-          }
           const col = aplicavelCols[cod];
           el.checked = cadastro[col] === true || cadastro[col] === 'S';
         });
@@ -2608,8 +2602,8 @@
     const longitude = document.getElementById('cadastroLongitude').value;
     const email = document.getElementById('cadastroEmail').value.trim();
     const situacao = document.getElementById('cadastroSituacao').value;
-    const aplicavelChecks = { O: 'chkO', P: 'chkP', M: 'chkM', T: 'chkT', A: 'chkA', G: 'chkG', C: 'chkC', E: 'chkE', U: 'chkU' };
-    const aplicavelCols = { O: 'FGOPERADOR', P: 'FGPROGRAMADOR', M: 'FGMOTORISTA', T: 'FGTRANSPORTADOR', A: 'FGAGENTE', G: 'FGGRUPO', C: 'FGCERTIFICADORA', U: 'FGUNIDADENEGOCIO' };
+    const aplicavelChecks = { O: 'chkO', P: 'chkP', M: 'chkM', T: 'chkT', A: 'chkA', G: 'chkG', C: 'chkC', E: 'chkE', U: 'chkU', L: 'chkL' };
+    const aplicavelCols = { O: 'FGOPERADOR', P: 'FGPROGRAMADOR', M: 'FGMOTORISTA', T: 'FGTRANSPORTADOR', A: 'FGAGENTE', G: 'FGGRUPO', C: 'FGCERTIFICADORA', E: 'FGCLIENTE', U: 'FGUNIDADENEGOCIO', L: 'FGLICENCIADO' };
     const flags = {};
     let algumMarcado = false;
     const codigosMarcados = [];
@@ -2879,7 +2873,7 @@ document.getElementById('filtroRastreado').value = '';
     document.getElementById('cadastroId').value = '';
     document.getElementById('cadastroCodigo').value = '';
     document.getElementById('cadastroCodigoCidade').value = '';
-    ['chkO','chkP','chkM','chkT','chkA','chkG','chkC','chkE','chkU'].forEach(id => {
+    ['chkO','chkP','chkM','chkT','chkA','chkG','chkC','chkE','chkU','chkL'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.checked = false;
     });
@@ -2951,7 +2945,7 @@ document.getElementById('filtroRastreado').value = '';
     document.getElementById('cadastroId').value = '';
     document.getElementById('cadastroCodigo').value = '';
     document.getElementById('cadastroCodigoCidade').value = '';
-    ['chkO','chkP','chkM','chkT','chkA','chkG','chkC','chkE','chkU'].forEach(id => {
+    ['chkO','chkP','chkM','chkT','chkA','chkG','chkC','chkE','chkU','chkL'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.checked = false;
     });
@@ -3361,6 +3355,10 @@ document.getElementById('filtroRastreado').value = '';
       } else if (tabId === 'enderecos-entrega') {
         const cadastroId = document.getElementById('cadastroId')?.value?.trim();
         const tp = document.getElementById('cadastroTipoPessoa')?.value;
+        if (!document.getElementById('chkE')?.checked) {
+          showMessage('Endereços de entrega ficam disponíveis quando o cadastro é Cliente.', 'error');
+          return;
+        }
         if (tp !== 'J') {
           showMessage('Endereços de entrega ficam disponíveis para Pessoa Jurídica.', 'error');
           return;
@@ -3539,6 +3537,123 @@ document.getElementById('filtroRastreado').value = '';
   document.getElementById('cadastroTipoPessoa')?.addEventListener('change', function () {
     atualizarVisibilidadeLocaisPreferidos();
   });
+
+  function valorSeVazio(id, valor) {
+    const el = document.getElementById(id);
+    if (!el || valor == null || String(valor).trim() === '') return;
+    if (String(el.value || '').trim()) return;
+    el.value = valor;
+  }
+
+  function paisCadastroBrasil() {
+    const sel = document.getElementById('cadastroPais');
+    if (sel && sel.value) return sel.value === 'BR';
+    return !contextoCadastro || contextoCadastro.pais === 'BR';
+  }
+
+  async function aplicarEnderecoCadastro(dados) {
+    if (!dados) return;
+    valorSeVazio('cadastroEndereco', dados.logradouro);
+    valorSeVazio('cadastroBairro', dados.bairro);
+    valorSeVazio('cadastroComplemento', dados.complemento);
+    if (dados.numero && /^\d+$/.test(String(dados.numero).trim())) {
+      valorSeVazio('cadastroNumero', String(dados.numero).trim());
+    }
+    const cepEl = document.getElementById('cadastroCEP');
+    if (cepEl && dados.cep && !String(cepEl.value || '').trim()) {
+      cepEl.value = dados.cep;
+      cepEl.dataset.ultimoCep = String(dados.cep).replace(/\D/g, '');
+    }
+    if (!dados.uf) return;
+    const est = document.getElementById('cadastroEstado');
+    if (est) est.value = dados.uf;
+    await loadCidadesPorEstado(dados.uf, 'dados');
+    const cidadeSelect = document.getElementById('cadastroCidade');
+    const idCidade = dados.cidade && (dados.cidade.CDCIDADE != null ? dados.cidade.CDCIDADE : dados.cidade.cdcidade);
+    if (idCidade && cidadeSelect && cidadeSelect.querySelector('option[value="' + idCidade + '"]')) {
+      cidadeSelect.value = String(idCidade);
+    } else if (cidadeSelect && dados.localidade) {
+      const achou = Array.from(cidadeSelect.options).find(function (opt) {
+        return opt.text.toLowerCase() === String(dados.localidade).toLowerCase();
+      });
+      if (achou) cidadeSelect.value = achou.value;
+    }
+    const cod = document.getElementById('cadastroCodigoCidade');
+    if (cod && cidadeSelect) cod.value = cidadeSelect.value || '';
+  }
+
+  async function aoDocumentoCadastro(data) {
+    const tipo = document.getElementById('cadastroTipoPessoa');
+    if (tipo && !tipo.value && data.tipo) tipo.value = data.tipo;
+    if (data.tipo === 'F') {
+      showMessage(data.mensagem || 'CPF válido.', 'success');
+      return;
+    }
+    const c = data.campos || {};
+    valorSeVazio('cadastroRazaoSocial', c.razaoSocial);
+    valorSeVazio('cadastroEmail', c.email);
+    if (c.celular) {
+      const ddi = document.getElementById('cadastroDDI');
+      if (ddi && !ddi.value) ddi.value = '55';
+      valorSeVazio('cadastroCelular', formatarCelular(c.celular, '55'));
+    }
+    await aplicarEnderecoCadastro(c);
+    showMessage(data.mensagem || 'CNPJ consultado.', 'success');
+  }
+
+  (function ligarConsultaCadastro() {
+    const doc = document.getElementById('cadastroCGCCPF');
+    const cep = document.getElementById('cadastroCEP');
+    const ee = document.getElementById('eeCep');
+    let tDoc = null;
+    let tEe = null;
+    if (doc) {
+      doc.addEventListener('input', function () {
+        if (!paisCadastroBrasil()) return;
+        const d = doc.value.replace(/\D/g, '');
+        if (d.length !== 11 && d.length !== 14) return;
+        if (doc.dataset.ultimoDoc === d) return;
+        clearTimeout(tDoc);
+        tDoc = setTimeout(function () {
+          doc.dataset.ultimoDoc = d;
+          fetch('/api/consulta/documento/' + d, { headers: getAuthHeaders() })
+            .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'Documento não consultado.'); return j; }); })
+            .then(aoDocumentoCadastro)
+            .catch(function (e) { showMessage(e.message, 'error'); });
+        }, 350);
+      });
+    }
+    if (cep) {
+      cep.addEventListener('input', function () {
+        if (!paisCadastroBrasil()) return;
+        const d = cep.value.replace(/\D/g, '');
+        if (d.length !== 8 || cep.dataset.ultimoCep === d) return;
+        cep.dataset.ultimoCep = d;
+        buscarCEP();
+      });
+    }
+    if (ee) {
+      ee.addEventListener('input', function () {
+        const d = ee.value.replace(/\D/g, '');
+        if (d.length !== 8 || ee.dataset.ultimoCep === d) return;
+        clearTimeout(tEe);
+        tEe = setTimeout(function () {
+          ee.dataset.ultimoCep = d;
+          fetch('/api/cep/' + d, { headers: getAuthHeaders() })
+            .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'CEP não encontrado.'); return j; }); })
+            .then(async function (dados) {
+              valorSeVazio('eeLogradouro', dados.logradouro);
+              const uf = document.getElementById('eeUf');
+              if (uf && dados.uf && !uf.value.trim()) uf.value = dados.uf;
+              const idCidade = dados.cidade && (dados.cidade.CDCIDADE != null ? dados.cidade.CDCIDADE : dados.cidade.cdcidade);
+              await loadCidadesEndEntregaPorUf(dados.uf || (uf && uf.value), idCidade || '', dados.localidade || '');
+              showMessage('CEP encontrado.', 'success');
+            })
+            .catch(function (e) { showMessage(e.message, 'error'); });
+        }, 350);
+      });
+    }
+  })();
 
   document.getElementById('btnBuscarCEP')?.addEventListener('click', buscarCEP);
   document.getElementById('btnGerenciarClasses')?.addEventListener('click', () => {
@@ -3874,7 +3989,7 @@ document.getElementById('filtroRastreado').value = '';
   });
 
   // Event listener para mostrar/esconder campo Transportador e aba Locais preferidos quando [M] Motorista for marcado
-  ['chkM', 'chkO', 'chkP', 'chkT', 'chkA', 'chkG', 'chkC', 'chkE', 'chkU'].forEach(id => {
+  ['chkM', 'chkO', 'chkP', 'chkT', 'chkA', 'chkG', 'chkC', 'chkE', 'chkU', 'chkL'].forEach(id => {
     document.getElementById(id)?.addEventListener('change', function() {
       const chkM = document.getElementById('chkM');
       const divTransportador = document.getElementById('divTransportador');
@@ -4071,7 +4186,7 @@ document.getElementById('filtroRastreado').value = '';
   
   function obterTipoCadastro() {
     const ordem = ['M', 'T', 'C', 'E', 'O', 'P', 'A', 'G', 'U'];
-    const chkIds = { M: 'chkM', T: 'chkT', C: 'chkC', E: 'chkE', O: 'chkO', P: 'chkP', A: 'chkA', G: 'chkG', U: 'chkU' };
+    const chkIds = { M: 'chkM', T: 'chkT', C: 'chkC', E: 'chkE', O: 'chkO', P: 'chkP', A: 'chkA', G: 'chkG', U: 'chkU', L: 'chkL' };
     const mapeamento = { 'M': 'MOT', 'T': 'TRA', 'C': 'CLI', 'E': 'CLI', 'O': 'CLI', 'P': 'CLI', 'A': 'CLI', 'G': 'CLI', 'U': 'CLI' };
     for (const cod of ordem) {
       const el = document.getElementById(chkIds[cod]);
@@ -4854,6 +4969,10 @@ document.getElementById('filtroRastreado').value = '';
     try {
       await loadCadastroParaEdicao(cdCad);
       atualizarVisibilidadeEnderecosEntrega();
+      if (!document.getElementById('chkE')?.checked) {
+        showMessage('Endereços de entrega ficam disponíveis quando o cadastro é Cliente.', 'error');
+        return;
+      }
       await carregarListaEnderecosEntrega(cdCad);
       await showTab('enderecos-entrega');
       if (cdEnd) {

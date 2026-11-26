@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Configurações - Motorista</title>
   <script>
-    (function(){ try { var t = localStorage.getItem('tema'); if (t == null || t === '') t = 'auto'; var dark = t === 'escuro' || (t === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.classList.toggle('tema-escuro', !!dark); document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light'); document.documentElement.style.colorScheme = dark ? 'dark' : 'light'; } catch(e) { var m = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)'); if (m) { document.documentElement.classList.toggle('tema-escuro', m.matches); document.documentElement.setAttribute('data-theme', m.matches ? 'dark' : 'light'); document.documentElement.style.colorScheme = m.matches ? 'dark' : 'light'; } } })();
+    (function(){ try { if (localStorage.getItem('temaPadraoClaro') !== '1') { localStorage.setItem('tema', 'claro'); localStorage.setItem('temaPadraoClaro', '1'); } var t = localStorage.getItem('tema'); if (t == null || t === '' || t === 'auto') t = 'claro'; var dark = t === 'escuro'; document.documentElement.classList.toggle('tema-escuro', !!dark); document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light'); document.documentElement.style.colorScheme = dark ? 'dark' : 'light'; } catch(e) { document.documentElement.classList.remove('tema-escuro'); document.documentElement.setAttribute('data-theme', 'light'); document.documentElement.style.colorScheme = 'light'; } })();
   </script>
   <link rel="stylesheet" href="../css/design-system.css">
   <link rel="stylesheet" href="../css/style.css">
@@ -471,7 +471,7 @@
   </div>
 
   <!-- URL Helper - DEVE ser o primeiro script para garantir interceptor de fetch -->
-  <script src="../js/url-helper.js"></script>
+  <script src="../js/url-helper.js?v=20261125claro"></script>
   <script src="../js/notifications.js"></script>
   <script src="../js/auth.js"></script>
   
@@ -506,7 +506,7 @@
       // Carregar configurações salvas
       function carregarConfiguracoes() {
       // Tema: mesmo padrão do index (sem valor salvo = automático)
-      const tema = localStorage.getItem('tema') || 'auto';
+      const tema = localStorage.getItem('tema') || 'claro';
       document.getElementById('selectTema').value = tema;
       aplicarTema(tema);
 

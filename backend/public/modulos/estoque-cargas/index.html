@@ -193,12 +193,14 @@
     html[data-theme='dark'] .wms-carga-header h2 { color: #e2e8f0; }
     html[data-theme='dark'] .wms-carga-header h2 .bx { color: inherit; }
     html[data-theme='dark'] .wms-carga-container .tabs.tabs-com-icones { border-bottom-color: #334155; }
-    html[data-theme='dark'] .wms-carga-container .tabs.tabs-com-icones .tab-btn { color: #94a3b8; }
-    html[data-theme='dark'] .wms-carga-container .tabs.tabs-com-icones .tab-btn:hover { color: #cbd5e1; }
-    /* Mesmo padrão visual das abas Filtros/Grid/Dados. */
-    html[data-theme='dark'] .wms-carga-container .tabs.tabs-com-icones .tab-btn.active {
-      color: #38bdf8 !important;
-      border-bottom-color: #38bdf8 !important;
+    html[data-theme='dark'] .wms-carga-container .tabs.tabs-com-icones .tab-btn,
+    html[data-theme='dark'] .wms-carga-container .tabs.tabs-com-icones .tab-btn span { color: var(--dc-muted, #8e8b7f); }
+    html[data-theme='dark'] .wms-carga-container .tabs.tabs-com-icones .tab-btn:hover,
+    html[data-theme='dark'] .wms-carga-container .tabs.tabs-com-icones .tab-btn:hover span { color: var(--dc-accent-hover, #a4ba9a); }
+    html[data-theme='dark'] .wms-carga-container .tabs.tabs-com-icones .tab-btn.active,
+    html[data-theme='dark'] .wms-carga-container .tabs.tabs-com-icones .tab-btn.active span {
+      color: var(--dc-accent, #82a077) !important;
+      border-bottom-color: var(--dc-accent, #82a077) !important;
     }
     html[data-theme='dark'] .wms-carga-container .tabs.tabs-com-icones .tab-btn.active i {
       color: inherit !important;

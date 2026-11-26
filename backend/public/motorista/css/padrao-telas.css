@@ -1,6 +1,6 @@
 /* ========================================
    CSS PADRÃO - TODAS AS TELAS DO APP
-   Versão: 5.0 - Nova identidade (Teal + Slate)
+   Padrão Deskcomm: sage, creme e Atkinson
    design-system.css deve ser incluído ANTES
    ======================================== */
 
@@ -166,10 +166,10 @@ html, body {
 }
 
 .card-header {
-  background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);
+  background: #506d48;
   color: #fff;
   padding: 18px 20px;
-  box-shadow: 0 2px 8px rgba(13, 148, 136, 0.25);
+  box-shadow: none;
 }
 
 .card-title {

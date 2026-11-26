@@ -92,6 +92,7 @@ function tocarSomOperadorFeedback(tipo = 'error') {
  */
 function showMessage(text, type = 'success', messageElement = null, fieldId = null) {
   const msg = text == null ? '' : String(text).trim();
+  const soToast = messageElement === false;
 
   // Remover toast anterior se existir
   const existingToast = document.getElementById('toast-message');
@@ -99,7 +100,7 @@ function showMessage(text, type = 'success', messageElement = null, fieldId = nu
     existingToast.remove();
   }
 
-  const message = messageElement || document.getElementById('message');
+  const message = soToast ? null : (messageElement || document.getElementById('message'));
   if (!msg) {
     if (message) {
       message.textContent = '';

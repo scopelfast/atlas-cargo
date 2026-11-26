@@ -11,6 +11,7 @@ const { getSgUser } = require('../utils/audit');
 const { tenantIdForRequest } = require('../utils/tenant-context');
 const { getDefaultTenantId } = require('../middleware/tenant.middleware');
 const convocacaoMsgTpl = require('../services/convocacao-mensagem-template.service');
+const loteSaldo = require('../services/viagem-lote-saldo.service');
 const { getContexto } = require('../services/contexto.service');
 
 // Constantes
@@ -35,6 +36,47 @@ function normalizarDigitosTelefoneBR(val) {
 function normalizarDigitosSoNumeros(val) {
   if (val == null || val === '') return '';
   return String(val).replace(/\D/g, '');
+}
+
+const criacoesViagemRecentes = new Map();
+
+function chaveCriacaoViagem(tenant, usuario, body) {
+  const b = body || {};
+  return [
+    tenant || '',
+    usuario || '',
+    b.IDROTEIRO || '',
+    b.DTPREVINICIO || '',
+    b.DTPREVFINAL || '',
+    b.CDCONTRATADOR || '',
+    b.CDTIPOVIAGEM || '',
+    b.CDSITUACAOVIAGEM || '',
+    b.FGSITVIAGEM || '',
+    b.TIPO_SALDO || '',
+    b.SALDO_EMBARQUES || '',
+    b.SALDO_TON || ''
+  ].join('|');
+}
+
+/** Lote opcional. Sem tipo, a viagem continua comum (um aceite confirma). */
+function loteDaViagem(body) {
+  const tipoRaw = String((body && body.TIPO_SALDO) || '').trim().toUpperCase();
+  if (!tipoRaw) return { ok: true, tipo: null, embarques: null, ton: null };
+  if (tipoRaw !== 'EMBARQUES' && tipoRaw !== 'TONELADAS') {
+    return { ok: false, error: 'Tipo de lote inválido. Use cargas ou toneladas.' };
+  }
+  if (tipoRaw === 'EMBARQUES') {
+    const n = parseInt(body.SALDO_EMBARQUES, 10);
+    if (!Number.isInteger(n) || n < 1 || n > 9999) {
+      return { ok: false, error: 'Informe a quantidade de cargas do lote (número inteiro maior que zero).' };
+    }
+    return { ok: true, tipo: 'EMBARQUES', embarques: n, ton: null };
+  }
+  const ton = Number(String(body.SALDO_TON == null ? '' : body.SALDO_TON).replace(',', '.'));
+  if (!Number.isFinite(ton) || ton <= 0 || ton > 999999) {
+    return { ok: false, error: 'Informe as toneladas do lote (número maior que zero).' };
+  }
+  return { ok: true, tipo: 'TONELADAS', embarques: null, ton: Math.round(ton * 1000) / 1000 };
 }
 
 function isPaisBrTelefone(paisPadrao) {
@@ -116,6 +158,26 @@ function resolverBaseUrlPublica(baseUrlBody) {
   return 'http://localhost:3001';
 }
 
+/** Origem https do link do app (Configurações). A torre pode continuar em localhost. */
+async function lerBaseLinkAppMotorista(pool, tenantId) {
+  const tid = String(tenantId || 'default').trim() || 'default';
+  try {
+    const r = await pool.query(
+      `SELECT "VALOR" FROM "CONFIGURACAO" WHERE "CHAVE" = 'link_app_motorista' AND TRIM("TENANT_ID"::text) = $1 LIMIT 1`,
+      [tid]
+    );
+    const row = r.rows && r.rows[0];
+    const val = row && (row.VALOR != null ? row.VALOR : row.valor);
+    const s = String(val || '').trim();
+    if (!s) return '';
+    const origin = new URL(s).origin;
+    if (!origin || isUrlLocalHost(origin)) return '';
+    return origin;
+  } catch (_) {
+    return '';
+  }
+}
+
 /** Reescreve link localhost → PUBLIC_URL quando o .env tem URL pública (ngrok/domínio). */
 function reescreverLinkSeLocal(link, basePublica) {
   const s = String(link || '').trim();
@@ -134,6 +196,16 @@ function reescreverLinkSeLocal(link, basePublica) {
 
 function resolverLinkConvocacaoParaMensagem(convPayload, baseUrl) {
   const base = resolverBaseUrlPublica(baseUrl);
+  const idRaw =
+    convPayload.IDCONVOCACAO ??
+    convPayload.idConvocacao ??
+    convPayload.idconvocacao ??
+    convPayload.ID_CONVOCACAO;
+  const idStr = idRaw == null || idRaw === '' ? '' : String(idRaw).trim();
+  const idOk = idStr && idStr !== 'undefined' && idStr !== 'null';
+  if (base && !isUrlLocalHost(base) && idOk) {
+    return `${base.replace(/\/$/, '')}/convocacao/${idStr}`;
+  }
   const keysLink = ['LINKCONVOCACAO', 'linkconvocacao', 'LINK_CONVOCACAO'];
   for (const k of keysLink) {
     const x = convPayload[k];
@@ -144,14 +216,7 @@ function resolverLinkConvocacaoParaMensagem(convPayload, baseUrl) {
     if (s.startsWith('/') && base) return `${base}${s}`;
     return reescreverLinkSeLocal(s, base);
   }
-  const idRaw =
-    convPayload.IDCONVOCACAO ??
-    convPayload.idConvocacao ??
-    convPayload.idconvocacao ??
-    convPayload.ID_CONVOCACAO;
-  if (idRaw == null || idRaw === '') return '';
-  const idStr = String(idRaw).trim();
-  if (!idStr || idStr === 'undefined' || idStr === 'null') return '';
+  if (!idOk) return '';
   if (!base) return `/convocacao/${idStr}`;
   return `${base}/convocacao/${idStr}`;
 }
@@ -161,6 +226,9 @@ const {
   parseSwitchCloseTicketFromDb,
   registrarResumoEtapaWhatsApp,
   enviarUmaMensagemSwitchDigital,
+  anexarProtocoloWhatsApp,
+  refDeConvocacao,
+  horaMinutoAgora,
 } = require('../services/whatsapp-switch-digital.service');
 const {
   gravarDivergenciaPlacasSomente,
@@ -400,6 +468,12 @@ const viagemController = {
           [v].[PESO],
           [v].[CUBAGEM],
           [v].[OBSERV],
+          [v].[TIPO_SALDO],
+          [v].[SALDO_INICIAL_EMBARQUES],
+          [v].[SALDO_ATUAL_EMBARQUES],
+          [v].[SALDO_INICIAL_TON],
+          [v].[SALDO_ATUAL_TON],
+          [v].[STATUS_DISTRIBUICAO],
           [co].[ESTADO] AS ORIGEM_ESTADO,
           [co].[NMCIDADE] AS ORIGEM_CIDADE,
           [co].[CDCIDADE] AS ORIGEM_CODIGO,
@@ -557,6 +631,12 @@ const viagemController = {
         PESO: v.PESO,
         CUBAGEM: v.CUBAGEM,
         OBSERV: v.OBSERV || 'Não informado',
+        TIPO_SALDO: v.TIPO_SALDO ?? v.tipo_saldo ?? null,
+        SALDO_INICIAL_EMBARQUES: v.SALDO_INICIAL_EMBARQUES ?? v.saldo_inicial_embarques ?? null,
+        SALDO_ATUAL_EMBARQUES: v.SALDO_ATUAL_EMBARQUES ?? v.saldo_atual_embarques ?? null,
+        SALDO_INICIAL_TON: v.SALDO_INICIAL_TON ?? v.saldo_inicial_ton ?? null,
+        SALDO_ATUAL_TON: v.SALDO_ATUAL_TON ?? v.saldo_atual_ton ?? null,
+        STATUS_DISTRIBUICAO: v.STATUS_DISTRIBUICAO ?? v.status_distribuicao ?? null,
         ORIGEM_ESTADO: v.ORIGEM_ESTADO || 'Não informado',
         ORIGEM_CIDADE: v.ORIGEM_CIDADE || 'Não informado',
         ORIGEM_CODIGO: v.ORIGEM_CODIGO,
@@ -580,6 +660,8 @@ const viagemController = {
 
   // Criar nova viagem
   criar: async (req, res) => {
+    let chaveCriar = null;
+    let concluirCriacao = null;
     try {
       const {
         FGSITVIAGEM, CDSITUACAOVIAGEM, CDTIPOVIAGEM, CDCONTRATADOR,
@@ -599,11 +681,30 @@ const viagemController = {
         });
       }
 
-      const pool = await poolPromise;
+      const loteCriar = loteDaViagem(req.body);
+      if (!loteCriar.ok) return res.status(400).json({ error: loteCriar.error });
 
       // Usuário que grava o registro: sempre o logado (req.user do JWT ou header user-login)
       const sgUser = getSgUser(req);
       if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+
+      const tenantCriar = tenantIdForRequest(req);
+      chaveCriar = chaveCriacaoViagem(tenantCriar, sgUser, req.body);
+      const recente = criacoesViagemRecentes.get(chaveCriar);
+      if (recente && (Date.now() - recente.em) < 15000) {
+        const idJa = recente.id || await recente.promise;
+        if (idJa) {
+          return res.status(200).json({
+            success: true,
+            message: 'Viagem cadastrada com sucesso!',
+            IDVIAGEM: idJa
+          });
+        }
+      }
+      const promiseCriacao = new Promise((resolve) => { concluirCriacao = resolve; });
+      criacoesViagemRecentes.set(chaveCriar, { em: Date.now(), promise: promiseCriacao, id: null });
+
+      const pool = await poolPromise;
 
       // Gerar novo ID
       const maxResult = await pool
@@ -629,24 +730,42 @@ const viagemController = {
       request.input('OBSERV', OBSERV?.trim() || null);
       request.input('FGRASTREADO', FGRASTREADO || 'N');
       request.input('MOEDA', (MOEDA && String(MOEDA).trim().substring(0, 3)) || 'BRL');
+      request.input('TIPO_SALDO', sql.VarChar(12), loteCriar.tipo);
+      request.input('SALDO_INICIAL_EMBARQUES', loteCriar.embarques != null ? sql.Int : sql.VarChar, loteCriar.embarques);
+      request.input('SALDO_ATUAL_EMBARQUES', loteCriar.embarques != null ? sql.Int : sql.VarChar, loteCriar.embarques);
+      request.input('SALDO_INICIAL_TON', loteCriar.ton != null ? sql.Decimal(15, 3) : sql.VarChar, loteCriar.ton);
+      request.input('SALDO_ATUAL_TON', loteCriar.ton != null ? sql.Decimal(15, 3) : sql.VarChar, loteCriar.ton);
+      request.input('STATUS_DISTRIBUICAO', sql.VarChar(12), loteCriar.tipo ? 'ABERTA' : null);
+      request.input('PERMITE_EXCEDER_SALDO', sql.Char(1), loteCriar.tipo ? 'N' : null);
       request.input('SGUSERINCLUSAO', sgUser);
       request.input('DHINCLUSAO', new Date());
-      request.input('TENANT_ID', tenantIdForRequest(req));
+      request.input('TENANT_ID', tenantCriar);
 
       await request.query(`
         INSERT INTO [dbo].[VIAGEMMESTRE] (
           [IDVIAGEM], [FGSITVIAGEM], [CDSITUACAOVIAGEM], [CDTIPOVIAGEM], [CDCONTRATADOR],
           [CDCLASSEFROTA], [DTPREVINICIO], [DTPREVFINAL], [IDROTEIRO], [DISTANCIAKM],
           [VLFRETE], [PESO], [CUBAGEM], [OBSERV], [FGRASTREADO], [MOEDA], [SGUSERINCLUSAO], [DHINCLUSAO],
-          [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG], [TENANT_ID]
+          [FGACTIVE], [DHMAINTENANCE], [SGUSER], [SERVERORIG], [TENANT_ID],
+          [TIPO_SALDO], [SALDO_INICIAL_EMBARQUES], [SALDO_ATUAL_EMBARQUES],
+          [SALDO_INICIAL_TON], [SALDO_ATUAL_TON], [STATUS_DISTRIBUICAO], [PERMITE_EXCEDER_SALDO]
         )
         VALUES (
           @IDVIAGEM, @FGSITVIAGEM, @CDSITUACAOVIAGEM, @CDTIPOVIAGEM, @CDCONTRATADOR,
           @CDCLASSEFROTA, @DTPREVINICIO, @DTPREVFINAL, @IDROTEIRO, @DISTANCIAKM,
           @VLFRETE, @PESO, @CUBAGEM, @OBSERV, @FGRASTREADO, @MOEDA, @SGUSERINCLUSAO, @DHINCLUSAO,
-          'A', GETDATE(), @SGUSERINCLUSAO, 'AppDVcargas', @TENANT_ID
+          'A', GETDATE(), @SGUSERINCLUSAO, 'AppDVcargas', @TENANT_ID,
+          @TIPO_SALDO, @SALDO_INICIAL_EMBARQUES, @SALDO_ATUAL_EMBARQUES,
+          @SALDO_INICIAL_TON, @SALDO_ATUAL_TON, @STATUS_DISTRIBUICAO, @PERMITE_EXCEDER_SALDO
         )
       `);
+
+      criacoesViagemRecentes.set(chaveCriar, {
+        em: Date.now(),
+        promise: Promise.resolve(novoId),
+        id: novoId
+      });
+      if (concluirCriacao) concluirCriacao(novoId);
 
       res.status(201).json({
         success: true,
@@ -654,6 +773,8 @@ const viagemController = {
         IDVIAGEM: novoId
       });
     } catch (err) {
+      if (chaveCriar) criacoesViagemRecentes.delete(chaveCriar);
+      if (concluirCriacao) concluirCriacao(null);
       console.error('Erro ao inserir viagem:', err);
       res.status(500).json({ error: 'Erro ao cadastrar viagem.' });
     }
@@ -681,6 +802,9 @@ const viagemController = {
         });
       }
 
+      const loteAtualizar = loteDaViagem(req.body);
+      if (!loteAtualizar.ok) return res.status(400).json({ error: loteAtualizar.error });
+
       const sgUserUpd = getSgUser(req);
       if (!sgUserUpd) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
 
@@ -705,6 +829,9 @@ const viagemController = {
       request.input('FGACTIVE', FGACTIVE === 'S' ? 'A' : 'I');
       request.input('FGRASTREADO', FGRASTREADO || 'N');
       request.input('MOEDA', (MOEDA != null && MOEDA !== '') ? String(MOEDA).trim().substring(0, 3) : null);
+      request.input('TIPO_SALDO', sql.VarChar(12), loteAtualizar.tipo);
+      request.input('SALDO_INICIAL_EMBARQUES', loteAtualizar.embarques != null ? sql.Int : sql.VarChar, loteAtualizar.embarques);
+      request.input('SALDO_INICIAL_TON', loteAtualizar.ton != null ? sql.Decimal(15, 3) : sql.VarChar, loteAtualizar.ton);
       request.input('sgUser', sql.VarChar(50), sgUserUpd);
       request.input('TENANT_ID', tenantIdForRequest(req));
 
@@ -727,6 +854,25 @@ const viagemController = {
           [FGACTIVE] = @FGACTIVE,
           [FGRASTREADO] = @FGRASTREADO,
           [MOEDA] = COALESCE(@MOEDA, [MOEDA], 'BRL'),
+          [TIPO_SALDO] = @TIPO_SALDO,
+          [SALDO_INICIAL_EMBARQUES] = @SALDO_INICIAL_EMBARQUES,
+          [SALDO_ATUAL_EMBARQUES] = CASE
+            WHEN @TIPO_SALDO IS NULL OR @TIPO_SALDO <> 'EMBARQUES' THEN NULL
+            WHEN [SALDO_ATUAL_EMBARQUES] IS NULL OR [SALDO_ATUAL_EMBARQUES] = [SALDO_INICIAL_EMBARQUES] THEN @SALDO_INICIAL_EMBARQUES
+            ELSE [SALDO_ATUAL_EMBARQUES]
+          END,
+          [SALDO_INICIAL_TON] = @SALDO_INICIAL_TON,
+          [SALDO_ATUAL_TON] = CASE
+            WHEN @TIPO_SALDO IS NULL OR @TIPO_SALDO <> 'TONELADAS' THEN NULL
+            WHEN [SALDO_ATUAL_TON] IS NULL OR [SALDO_ATUAL_TON] = [SALDO_INICIAL_TON] THEN @SALDO_INICIAL_TON
+            ELSE [SALDO_ATUAL_TON]
+          END,
+          [STATUS_DISTRIBUICAO] = CASE
+            WHEN @TIPO_SALDO IS NULL THEN NULL
+            WHEN [STATUS_DISTRIBUICAO] IN ('PARCIAL', 'ESGOTADA', 'CANCELADA') THEN [STATUS_DISTRIBUICAO]
+            ELSE 'ABERTA'
+          END,
+          [PERMITE_EXCEDER_SALDO] = CASE WHEN @TIPO_SALDO IS NULL THEN NULL ELSE 'N' END,
           [DHMAINTENANCE] = GETDATE(),
           [SGUSER] = @sgUser,
           [SERVERORIG] = 'AppDVcargas'
@@ -830,6 +976,12 @@ const viagemController = {
             [v].[PESO],
             [v].[CUBAGEM],
             [v].[OBSERV],
+            [v].[TIPO_SALDO],
+            [v].[SALDO_INICIAL_EMBARQUES],
+            [v].[SALDO_ATUAL_EMBARQUES],
+            [v].[SALDO_INICIAL_TON],
+            [v].[SALDO_ATUAL_TON],
+            [v].[STATUS_DISTRIBUICAO],
             [v].[FGRASTREADO],
             [r].[CDCIDADEORIGEM],
             [r].[CDCIDADEDESTINO],
@@ -894,6 +1046,12 @@ const viagemController = {
         PESO: v.PESO ?? v.peso,
         CUBAGEM: v.CUBAGEM ?? v.cubagem,
         OBSERV: v.OBSERV ?? v.observ,
+        TIPO_SALDO: v.TIPO_SALDO ?? v.tipo_saldo ?? null,
+        SALDO_INICIAL_EMBARQUES: v.SALDO_INICIAL_EMBARQUES ?? v.saldo_inicial_embarques ?? null,
+        SALDO_ATUAL_EMBARQUES: v.SALDO_ATUAL_EMBARQUES ?? v.saldo_atual_embarques ?? null,
+        SALDO_INICIAL_TON: v.SALDO_INICIAL_TON ?? v.saldo_inicial_ton ?? null,
+        SALDO_ATUAL_TON: v.SALDO_ATUAL_TON ?? v.saldo_atual_ton ?? null,
+        STATUS_DISTRIBUICAO: v.STATUS_DISTRIBUICAO ?? v.status_distribuicao ?? null,
         FGRASTREADO: (v.FGRASTREADO ?? v.fgrastreado) || 'N',
         ORIGEM_ESTADO: get(v, 'ORIGEM_ESTADO'),
         ORIGEM_CIDADE: get(v, 'ORIGEM_CIDADE'),
@@ -2252,6 +2410,11 @@ const viagemController = {
           [c].[VL_FRETE_PROPOSTO_MOTORISTA],
           [v].[PESO],
           [v].[CUBAGEM],
+          [v].[TIPO_SALDO],
+          [v].[SALDO_ATUAL_EMBARQUES],
+          [v].[SALDO_ATUAL_TON],
+          [v].[STATUS_DISTRIBUICAO],
+          [v].[IDVIAGEM_MAE],
           upper([cg].[RZSOCIAL]) AS NOME_MOTORISTA,
           [cg].[NRCELULAR] AS CELULAR_MOTORISTA,
           [cf].[DSCLASSEFROTA],
@@ -2358,6 +2521,11 @@ const viagemController = {
           cdcadastro_motorista: 'CDCADASTRO_MOTORISTA',
           moeda: 'MOEDA',
           vl_frete_proposto_motorista: 'VL_FRETE_PROPOSTO_MOTORISTA',
+          tipo_saldo: 'TIPO_SALDO',
+          saldo_atual_embarques: 'SALDO_ATUAL_EMBARQUES',
+          saldo_atual_ton: 'SALDO_ATUAL_TON',
+          status_distribuicao: 'STATUS_DISTRIBUICAO',
+          idviagem_mae: 'IDVIAGEM_MAE',
           sguser: 'SGUSER',
           placasesperadas: 'PLACASESPERADAS',
           fgconfirmacaoplacas: 'FGCONFIRMACAOPLACAS',
@@ -2720,6 +2888,31 @@ const viagemController = {
         });
       }
 
+      const loteMae = await pool
+        .request()
+        .input('IDVIAGEM', sql.Decimal(15, 0), convocacao.IDVIAGEM)
+        .input('TENANT_ID', sql.NVarChar(64), tidConfirm)
+        .query(`
+          SELECT [TIPO_SALDO], [IDVIAGEM_MAE]
+          FROM [dbo].[VIAGEMMESTRE]
+          WHERE [IDVIAGEM] = @IDVIAGEM AND [TENANT_ID] = @TENANT_ID
+        `);
+      const tipoLoteMae = String(
+        (loteMae.recordset[0] && (loteMae.recordset[0].TIPO_SALDO ?? loteMae.recordset[0].tipo_saldo)) || ''
+      ).trim().toUpperCase();
+      const loteAtivo = tipoLoteMae === 'EMBARQUES' || tipoLoteMae === 'TONELADAS';
+      if (loteAtivo && tipoLoteMae === 'TONELADAS') {
+        const qtdTon = Number(String((req.body && (req.body.TONELADAS ?? req.body.toneladas)) || '').replace(',', '.'));
+        if (!Number.isFinite(qtdTon) || qtdTon <= 0) {
+          return res.status(400).json({
+            error: 'Informe as toneladas deste caminhão.',
+            code: 'LOTE_TONELADAS_OBRIGATORIAS'
+          });
+        }
+      }
+
+      // Viagem comum: uma confirmação fecha a viagem. Lote: cada confirmação abre uma filha.
+      if (!loteAtivo) {
       // Verificar se já existe outra convocação CONFIRMADA para a mesma viagem
       const confirmadaResult = await pool
         .request()
@@ -2740,6 +2933,7 @@ const viagemController = {
           error: 'Já existe uma convocação confirmada para esta viagem. Não é possível confirmar outra.'
         });
       }
+      }
 
       // Iniciar transação para garantir atomicidade (após todas as validações)
       transaction = await createTransaction(pool);
@@ -2748,6 +2942,19 @@ const viagemController = {
 
       try {
         let veiculosVinculadosConfirmacao = 0;
+        let derivacaoLote = null;
+        if (loteAtivo) {
+          derivacaoLote = await loteSaldo.consumirECriarFilha(transaction, {
+            idViagem: convocacao.IDVIAGEM,
+            idConvocacao: parseInt(id, 10),
+            tenantId: tidConfirm,
+            toneladas: req.body && (req.body.TONELADAS ?? req.body.toneladas),
+            usuario: sgUserConfirm
+          });
+          if (derivacaoLote && derivacaoLote.aplicou) {
+            convocacao.IDVIAGEM = derivacaoLote.idFilha;
+          }
+        }
         // 1. Confirmar a convocação selecionada
         const request1 = transaction.request();
         await request1
@@ -2769,7 +2976,9 @@ const viagemController = {
         // Apenas manter como PENDENTE - não alterar status de quem não respondeu
         // Isso preserva o histórico correto: só marca como RECUSADA se o motorista realmente recusou
 
-        // 3. Marcar outras convocações ACEITAS como DESCARTADAS (mantém histórico de aceite)
+        // 3. Viagem comum: as outras ACEITAS desta viagem ficam não selecionadas.
+        //    Lote: elas continuam aceitas na oferta, para a próxima vaga.
+        if (!loteAtivo) {
         const request3 = transaction.request();
         await request3
           .input('IDVIAGEM_DESCARTAR', sql.Decimal(15, 0), convocacao.IDVIAGEM)
@@ -2788,6 +2997,7 @@ const viagemController = {
               AND [IDCONVOCACAO] != @IDCONVOCACAO_EXCLUIR_DESC
               AND [STATUS] = 'ACEITA'
           `);
+        }
 
         // 4. Definir o motorista confirmado como motorista da viagem (VIAGEMMOTORISTA)
         const cdMotorista = convocacao.CDCADASTRO_MOTORISTA ?? convocacao.cdcadastro_motorista;
@@ -2987,6 +3197,12 @@ const viagemController = {
           `);
 
         let mensagem = `Convocação ${id} confirmada com sucesso!`;
+        if (derivacaoLote && derivacaoLote.aplicou) {
+          const saldoTxt = derivacaoLote.tipo === 'EMBARQUES'
+            ? `${derivacaoLote.saldoDepois} carga(s)`
+            : `${derivacaoLote.saldoDepois} t`;
+          mensagem += `\n\nViagem filha ${derivacaoLote.idFilha} criada. Saldo restante: ${saldoTxt}. Situação da oferta: ${derivacaoLote.statusDistribuicao}.`;
+        }
         const aceitasDescartadas = countAceitasDescartadas.recordset[0]?.TOTAL || 0;
 
         if (aceitasDescartadas > 0) {
@@ -3238,6 +3454,9 @@ const viagemController = {
       }
       console.error(`[CONFIRMAR] Erro ao confirmar convocação ${idConv}:`, err);
       console.error(`[CONFIRMAR] Stack trace:`, err.stack);
+      if (err && err.statusCode) {
+        return res.status(err.statusCode).json({ error: err.message, code: err.code || null });
+      }
       res.status(500).json({
         error: 'Erro ao confirmar convocação.',
         details: err.message,
@@ -3299,6 +3518,8 @@ const viagemController = {
             contratador.[NRCELULAR] AS CONTRATADOR_CELULAR,
             r.[DSROTEIRO],
             v.[IDROTEIRO],
+            v.[DISTANCIAKM],
+            r.[DISTANCIAKM] AS [DISTANCIAKM_ROTEIRO],
             CASE 
               WHEN EXISTS (
                 SELECT 1 
@@ -3738,6 +3959,42 @@ const viagemController = {
   },
 
   // Reativar convocação (reverter CONFIRMADA ou ACEITA_DESCARTADA para ACEITA)
+  desistirLote: async (req, res) => {
+    let transaction = null;
+    try {
+      const { id } = req.params;
+      const sgUser = getSgUser(req);
+      if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+      const motivo = req.body && (req.body.motivo || req.body.MOTIVO);
+      const pool = await poolPromise;
+      transaction = await createTransaction(pool);
+      await transaction.begin();
+      const resultado = await loteSaldo.devolverVaga(transaction, {
+        idConvocacao: parseInt(id, 10),
+        tenantId: tenantIdForRequest(req),
+        motivo,
+        usuario: sgUser
+      });
+      await transaction.commit();
+      transaction = null;
+      const saldoTxt = resultado.tipo === 'EMBARQUES'
+        ? `${resultado.saldoDepois} carga(s)`
+        : `${resultado.saldoDepois} t`;
+      res.json({
+        success: true,
+        message: `Vaga devolvida à oferta ${resultado.idMae}. Saldo: ${saldoTxt}. A viagem ${resultado.idFilha} foi cancelada.`,
+        ...resultado
+      });
+    } catch (err) {
+      if (transaction) await transaction.rollback().catch(() => {});
+      if (err && err.statusCode) {
+        return res.status(err.statusCode).json({ error: err.message, code: err.code || null });
+      }
+      console.error('[DESISTIR LOTE]', err);
+      res.status(500).json({ error: 'Erro ao registrar a desistência.', details: err.message });
+    }
+  },
+
   reativarConvocacao: async (req, res) => {
     let transaction = null;
     try {
@@ -3802,6 +4059,22 @@ const viagemController = {
       if (convocacao.STATUS !== 'CONFIRMADA') {
         return res.status(400).json({
           error: `Apenas convocações com status CONFIRMADA podem ser reativadas. Status atual: ${convocacao.STATUS}`
+        });
+      }
+
+      const filhaReat = await pool
+        .request()
+        .input('IDVIAGEM', sql.Decimal(15, 0), convocacao.IDVIAGEM)
+        .input('TENANT_ID', sql.NVarChar(64), tidReat)
+        .query(`
+          SELECT [IDVIAGEM_MAE] FROM [dbo].[VIAGEMMESTRE]
+          WHERE [IDVIAGEM] = @IDVIAGEM AND [TENANT_ID] = @TENANT_ID
+        `);
+      const idMaeReat = filhaReat.recordset[0] && (filhaReat.recordset[0].IDVIAGEM_MAE ?? filhaReat.recordset[0].idviagem_mae);
+      if (idMaeReat != null) {
+        return res.status(400).json({
+          error: 'Esta confirmação é um atendimento de lote. Para devolver a vaga, use Desistir na linha da filha.',
+          code: 'USAR_DESISTIR_LOTE'
         });
       }
 
@@ -4458,36 +4731,10 @@ const viagemController = {
         });
       }
 
-      // Aceite com placas confirmadas: já grava VIAGEMVEICULO (antes só na confirmação da torre).
-      let veiculosVinculadosAceite = 0;
-      if (status === 'ACEITA' && fgPlacasUpdate === 'C') {
-        const cdMotAceite =
-          convRow.CDCADASTRO_MOTORISTA != null
-            ? convRow.CDCADASTRO_MOTORISTA
-            : convRow.cdcadastro_motorista;
-        if (cdMotAceite != null && idViagem != null) {
-          try {
-            veiculosVinculadosAceite = await vincularVeiculosViagemAoConfirmarConvocacao(pool, {
-              idConvocacao: idInt,
-              idViagem,
-              cdMotorista: cdMotAceite,
-              tenantId: tidConvResp,
-              sgUser: 'MOTORISTA',
-            });
-          } catch (eVincAce) {
-            console.warn(
-              '[ACEITE PUBLICO] Vínculo automático de veículos à viagem ignorado:',
-              eVincAce && eVincAce.message,
-            );
-          }
-        }
-      }
-
       res.json({
         success: true,
         message: status === 'ACEITA' ? 'Convocação aceita com sucesso!' : 'Convocação recusada.',
         ...(fgPlacasUpdate != null ? { FGCONFIRMACAOPLACAS: fgPlacasUpdate } : {}),
-        ...(status === 'ACEITA' ? { veiculosVinculados: veiculosVinculadosAceite } : {}),
       });
     } catch (err) {
       console.error('Erro ao responder convocação:', err);
@@ -4498,7 +4745,10 @@ const viagemController = {
   // Obter URL pública para links de convocação
   obterUrlPublica: async (req, res) => {
     try {
-      // Tentar obter da variável de ambiente primeiro
+      const pool = await poolPromise;
+      const gravada = await lerBaseLinkAppMotorista(pool, 'default');
+      if (gravada) return res.json({ url: gravada });
+
       let publicUrl = process.env.PUBLIC_URL || process.env.APP_URL;
 
       // Se não tiver configurado, usar o host da requisição
@@ -5706,7 +5956,8 @@ const viagemController = {
       }
 
       // URL base para o link de aceitar/recusar (PUBLIC_URL manda se for público; ignora localhost do browser)
-      const baseUrl = resolverBaseUrlPublica(baseUrlBody);
+      const gravada = await lerBaseLinkAppMotorista(pool, tidSwitch);
+      const baseUrl = gravada || resolverBaseUrlPublica(baseUrlBody);
       console.log('[SWITCH DIGITAL] baseUrl link convocação =', baseUrl, '| body=', baseUrlBody || '(vazio)', '| PUBLIC_URL=', process.env.PUBLIC_URL || '(vazio)');
 
       // 2. Buscar dados da viagem para montar a mensagem completa (formato histórico)
@@ -5945,7 +6196,10 @@ const viagemController = {
         // Montar Payload Switch Digital
         const requestBody = {
           number: numeroLimpo,
-          body: textoWhatsApp,
+          body: anexarProtocoloWhatsApp(
+            textoWhatsApp,
+            refDeConvocacao(idConvItem) || `CV-V${viagemId} · ${horaMinutoAgora()}`
+          ),
           sendSignature: config.sendSignature,
           closeTicket: config.closeTicket
         };

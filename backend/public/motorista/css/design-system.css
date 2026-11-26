@@ -1,56 +1,56 @@
 /* ========================================
    DESIGN SYSTEM - APP MOTORISTA
-   Versão 5.0 - Nova identidade (Teal + Slate)
-   Modo claro e escuro completos, mobile-first
+   Padrão Deskcomm: sage, creme e Atkinson
+   Modo claro e escuro, mobile-first
    ======================================== */
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap');
 /* Mesmo arquivo que o dashboard (/css) — evita Tracking Prevention do Edge em unpkg */
 @import url('/css/boxicons.min.css');
 
 /* ==================== TEMA CLARO (padrão) ==================== */
 :root {
-  /* Identidade – Teal + Slate */
-  --app-primary: #0d9488;
-  --app-primary-hover: #0f766e;
-  --app-primary-light: #ccfbf1;
-  --app-primary-dark: #134e4a;
-  --app-accent: #14b8a6;
-  --app-accent-muted: rgba(20, 184, 166, 0.15);
+  /* Identidade – sage */
+  --app-primary: #506d48;
+  --app-primary-hover: #41573b;
+  --app-primary-light: #e4ebe0;
+  --app-primary-dark: #2f4030;
+  --app-accent: #506d48;
+  --app-accent-muted: rgba(80, 109, 72, 0.14);
 
-  /* Superfícies (modo claro: não branco puro para reduzir brilho) */
-  --app-bg: #e8f6f4;
-  --app-bg-alt: #f0faf9;
+  /* Superfícies */
+  --app-bg: #faf9f6;
+  --app-bg-alt: #f5f3ee;
   --app-surface: #ffffff;
   --app-card: #ffffff;
-  --app-card-border: rgba(0, 0, 0, 0.08);
+  --app-card-border: #e7e3da;
 
-  /* Texto (contraste reforçado) */
-  --app-text: #0f172a;
-  --app-text-secondary: #334155;
-  --app-text-muted: #475569;
+  /* Texto */
+  --app-text: #1c1a16;
+  --app-text-secondary: #5d594f;
+  --app-text-muted: #8e8b7f;
 
-  /* Header/Navbar */
-  --app-header-bg: linear-gradient(165deg, #134e4a 0%, #0f766e 40%, #0d9488 100%);
+  /* Header/Navbar: sage sólido, texto claro */
+  --app-header-bg: #506d48;
   --app-header-text: #ffffff;
-  --app-header-badge-bg: rgba(255, 255, 255, 0.2);
+  --app-header-badge-bg: rgba(255, 255, 255, 0.16);
 
   /* Inputs */
-  --app-input-bg: #ffffff;
-  --app-input-border: #e2e8f0;
-  --app-input-focus: #0d9488;
-  --app-input-text: #0f172a;
-  --app-input-placeholder: #94a3b8;
+  --app-input-bg: #f5f3ee;
+  --app-input-border: #e7e3da;
+  --app-input-focus: #506d48;
+  --app-input-text: #1c1a16;
+  --app-input-placeholder: #8e8b7f;
 
   /* Status */
-  --success: #059669;
-  --success-bg: #d1fae5;
-  --warning: #d97706;
-  --warning-bg: #fef3c7;
-  --error: #dc2626;
-  --error-bg: #fee2e2;
-  --info: #0d9488;
-  --info-bg: #ccfbf1;
+  --success: #3d6b45;
+  --success-bg: #e4ebe0;
+  --warning: #8a5a12;
+  --warning-bg: #f8f1e4;
+  --error: #a94a3c;
+  --error-bg: #f8e8e4;
+  --info: #506d48;
+  --info-bg: #e4ebe0;
 
   /* Neutros (compatibilidade) */
   --gray-50: #f8fafc;
@@ -66,25 +66,25 @@
   --white: #ffffff;
   --black: #000000;
 
-  /* Legado (mapeados para nova identidade) */
-  --ac-primary: #0f766e;
-  --ac-primary-light: #0d9488;
-  --ac-primary-dark: #134e4a;
-  --ac-accent: #14b8a6;
-  --ac-accent-hover: #0d9488;
-  --primary-500: #0d9488;
-  --primary-600: #0f766e;
-  --primary-700: #134e4a;
-  --primary-gradient: var(--app-header-bg);
-  --secondary-500: #14b8a6;
-  --secondary-600: #0d9488;
+  /* Legado (mapeados para a identidade sage) */
+  --ac-primary: #41573b;
+  --ac-primary-light: #506d48;
+  --ac-primary-dark: #2f4030;
+  --ac-accent: #506d48;
+  --ac-accent-hover: #41573b;
+  --primary-500: #506d48;
+  --primary-600: #41573b;
+  --primary-700: #2f4030;
+  --primary-gradient: #506d48;
+  --secondary-500: #82a077;
+  --secondary-600: #506d48;
 
   /* Sombras */
-  --shadow-sm: 0 1px 2px rgba(15, 118, 110, 0.06);
-  --shadow-md: 0 4px 14px rgba(15, 118, 110, 0.08);
-  --shadow-lg: 0 12px 28px rgba(15, 118, 110, 0.1);
-  --shadow-xl: 0 20px 50px rgba(15, 118, 110, 0.12);
-  --shadow-glow: 0 0 24px rgba(13, 148, 136, 0.2);
+  --shadow-sm: 0 1px 2px rgba(28, 26, 22, 0.05);
+  --shadow-md: 0 4px 14px rgba(28, 26, 22, 0.06);
+  --shadow-lg: 0 12px 28px rgba(28, 26, 22, 0.08);
+  --shadow-xl: 0 20px 50px rgba(28, 26, 22, 0.1);
+  --shadow-glow: 0 0 24px rgba(80, 109, 72, 0.16);
 
   /* Bordas */
   --radius-sm: 10px;
@@ -102,8 +102,8 @@
   --spacing-xl: 32px;
   --spacing-2xl: 48px;
 
-  /* Tipografia – DM Sans */
-  --font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  /* Tipografia – Atkinson */
+  --font-family: "Atkinson Hyperlegible", "Segoe UI", sans-serif;
   --font-size-xs: 11px;
   --font-size-sm: 13px;
   --font-size-base: 15px;
@@ -131,62 +131,65 @@
 /* ==================== TEMA ESCURO ==================== */
 html.tema-escuro,
 html[data-theme="dark"] {
-  --app-primary: #2dd4bf;
-  --app-primary-hover: #5eead4;
-  --app-primary-light: #134e4a;
-  --app-primary-dark: #0f766e;
-  --app-accent: #5eead4;
-  --app-accent-muted: rgba(45, 212, 191, 0.2);
+  --app-primary: #82a077;
+  --app-primary-hover: #a4ba9a;
+  --app-primary-light: rgba(130, 160, 119, 0.16);
+  --app-primary-dark: #a4ba9a;
+  --app-accent: #a4ba9a;
+  --app-accent-muted: rgba(130, 160, 119, 0.16);
 
-  --app-bg: #0f172a;
-  --app-bg-alt: #0f172a;
-  --app-surface: #1e293b;
-  --app-card: #1e293b;
-  --app-card-border: #334155;
+  --app-bg: #161510;
+  --app-bg-alt: #1d1c17;
+  --app-surface: #1d1c17;
+  --app-card: #1d1c17;
+  --app-card-border: #33312a;
 
-  /* Texto escuro: tons mais claros para não esconder letras */
-  --app-text: #f1f5f9;
-  --app-text-secondary: #e2e8f0;
-  --app-text-muted: #cbd5e1;
+  --app-text: #f5f4ef;
+  --app-text-secondary: #c4c0b4;
+  --app-text-muted: #8e8b7f;
 
-  --app-header-bg: linear-gradient(165deg, #134e4a 0%, #0f766e 40%, #14b8a6 100%);
-  --app-header-text: #f1f5f9;
-  --app-header-badge-bg: rgba(255, 255, 255, 0.2);
+  --app-header-bg: #272620;
+  --app-header-text: #f5f4ef;
+  --app-header-badge-bg: rgba(130, 160, 119, 0.16);
 
-  --app-input-bg: #334155;
-  --app-input-border: #475569;
-  --app-input-focus: #2dd4bf;
-  --app-input-text: #f1f5f9;
-  --app-input-placeholder: #94a3b8;
+  --app-input-bg: #272620;
+  --app-input-border: #33312a;
+  --app-input-focus: #82a077;
+  --app-input-text: #f5f4ef;
+  --app-input-placeholder: #8e8b7f;
 
-  --success-bg: #064e3b;
-  --warning-bg: #78350f;
-  --error-bg: #7f1d1d;
-  --info-bg: #134e4a;
+  --success: #a4ba9a;
+  --success-bg: rgba(130, 160, 119, 0.16);
+  --warning: #e0b56a;
+  --warning-bg: rgba(224, 181, 106, 0.16);
+  --error: #c87263;
+  --error-bg: rgba(200, 114, 99, 0.16);
+  --info: #a4ba9a;
+  --info-bg: rgba(130, 160, 119, 0.16);
 
-  --gray-50: #1e293b;
-  --gray-100: #1e293b;
-  --gray-200: #334155;
-  --gray-300: #475569;
-  --white: #1e293b;
+  --gray-50: #1d1c17;
+  --gray-100: #272620;
+  --gray-200: #33312a;
+  --gray-300: #444239;
+  --white: #1d1c17;
 
-  --ac-primary: #2dd4bf;
-  --ac-primary-light: #134e4a;
-  --ac-primary-dark: #0f766e;
-  --ac-accent: #5eead4;
-  --ac-accent-hover: #2dd4bf;
-  --primary-500: #2dd4bf;
-  --primary-600: #14b8a6;
-  --primary-700: #0f766e;
-  --primary-gradient: var(--app-header-bg);
-  --secondary-500: #5eead4;
-  --secondary-600: #2dd4bf;
+  --ac-primary: #a4ba9a;
+  --ac-primary-light: rgba(130, 160, 119, 0.16);
+  --ac-primary-dark: #82a077;
+  --ac-accent: #a4ba9a;
+  --ac-accent-hover: #82a077;
+  --primary-500: #82a077;
+  --primary-600: #a4ba9a;
+  --primary-700: #506d48;
+  --primary-gradient: #82a077;
+  --secondary-500: #a4ba9a;
+  --secondary-600: #82a077;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.35);
   --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.4);
   --shadow-xl: 0 20px 50px rgba(0, 0, 0, 0.45);
-  --shadow-glow: 0 0 24px rgba(45, 212, 191, 0.15);
+  --shadow-glow: 0 0 24px rgba(130, 160, 119, 0.15);
 }
 
 /* ==================== ANIMAÇÕES ==================== */
@@ -261,7 +264,7 @@ html[data-theme="dark"] {
 .gradient-success { background: linear-gradient(135deg, #059669 0%, #047857 100%); }
 .gradient-warning { background: linear-gradient(135deg, #d97706 0%, #b45309 100%); }
 .gradient-error { background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); }
-.gradient-info { background: linear-gradient(135deg, #0d9488 0%, #14b8a6 100%); }
+.gradient-info { background: #506d48; }
 
 .glass {
   background: rgba(255, 255, 255, 0.7);
@@ -271,7 +274,7 @@ html[data-theme="dark"] {
 }
 html.tema-escuro .glass,
 html[data-theme="dark"] .glass {
-  background: rgba(30, 41, 59, 0.8);
+  background: rgba(29, 28, 23, 0.88);
   border-color: rgba(255, 255, 255, 0.08);
 }
 

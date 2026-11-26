@@ -25,6 +25,7 @@ const { getEntitlementsForTenant } = require('../services/tenant-entitlements.se
 const { fetchRouteMapRaw } = require('../services/mapa-rota-fetch.service');
 const switchDisparoOportunidade = require('../services/switch-disparo-oportunidade.service');
 const alertNotificationService = require('../services/alert-notification-service');
+const { horaMinutoAgora } = require('../services/whatsapp-switch-digital.service');
 const { pool: pgPool } = require('../config/db');
 
 const UPSERT_CONFIG_SQL = `
@@ -893,7 +894,12 @@ router.post('/configuracoes/switch-digital/disparo-oportunidade/enviar', towerAu
       }
       vistos.add(lin.telefoneE164);
       const corpo = switchDisparoOportunidade.aplicarTemplate(String(template), lin.nome);
-      const r = await alertNotificationService.sendViaSwitch(switchCfg, lin.telefoneE164, corpo);
+      const r = await alertNotificationService.sendViaSwitch(
+        switchCfg,
+        lin.telefoneE164,
+        corpo,
+        `DP-${apiCalls + 1} · ${horaMinutoAgora()}`
+      );
       enviados.push({
         nome: lin.nome,
         telefoneE164: lin.telefoneE164,

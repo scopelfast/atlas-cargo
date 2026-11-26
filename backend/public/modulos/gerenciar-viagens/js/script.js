@@ -1908,6 +1908,7 @@
             <strong>Origem:</strong> ${v.ORIGEM_ESTADO} - ${v.ORIGEM_CIDADE}<br>
             <strong>Destino:</strong> ${v.DESTINO_ESTADO} - ${v.DESTINO_CIDADE}<br>
             <strong>Roteiro:</strong> ${v.DSROTEIRO || 'Não informado'}<br>
+            ${textoLoteViagem(v)}
             <strong>Contratador:</strong> ${v.CONTRATADOR_NOME || 'Não informado'}<br>
             <strong>Status:</strong> ${v.FGACTIVE === 'S' ? 'Ativo' : 'Inativo'}
           </small>
@@ -2008,6 +2009,7 @@
         // Formatar Cubagem com 3 casas decimais
         const cubagemValue = viagem.CUBAGEM ? parseFloat(viagem.CUBAGEM).toFixed(3) : '';
         document.getElementById('viagemCubagem').value = cubagemValue;
+        preencherLoteViagem(viagem);
         document.getElementById('viagemObserv').value = viagem.OBSERV || '';
         
         // Preencher campos de select com retry
@@ -2520,6 +2522,84 @@
 
   // Salvar formulário
   // Função de validação de formulário
+  function textoLoteViagem(v) {
+    const tipo = String(v && (v.TIPO_SALDO || v.tipo_saldo) || '').toUpperCase();
+    if (tipo === 'EMBARQUES') {
+      const n = v.SALDO_ATUAL_EMBARQUES ?? v.saldo_atual_embarques ?? v.SALDO_INICIAL_EMBARQUES ?? v.saldo_inicial_embarques;
+      return `<strong>Lote:</strong> ${n != null ? n : '—'} cargas<br>`;
+    }
+    if (tipo === 'TONELADAS') {
+      const n = v.SALDO_ATUAL_TON ?? v.saldo_atual_ton ?? v.SALDO_INICIAL_TON ?? v.saldo_inicial_ton;
+      const txt = n != null && n !== '' ? String(n).replace('.', ',') : '—';
+      return `<strong>Lote:</strong> ${txt} t<br>`;
+    }
+    return '';
+  }
+
+  function atualizarCamposLoteViagem() {
+    const tipo = document.getElementById('viagemTipoSaldo')?.value || '';
+    const wrap = document.getElementById('viagemLoteQtdWrap');
+    const label = document.getElementById('viagemLoteQtdLabel');
+    const input = document.getElementById('viagemLoteQtd');
+    if (!wrap || !input) return;
+    if (tipo !== 'EMBARQUES' && tipo !== 'TONELADAS') {
+      wrap.style.display = 'none';
+      input.value = '';
+      return;
+    }
+    wrap.style.display = '';
+    if (tipo === 'EMBARQUES') {
+      if (label) label.textContent = 'Quantidade de cargas';
+      input.step = '1';
+      input.min = '1';
+      input.placeholder = '10';
+    } else {
+      if (label) label.textContent = 'Toneladas';
+      input.step = '0.001';
+      input.min = '0.001';
+      input.placeholder = '100';
+    }
+  }
+
+  function preencherLoteViagem(viagem) {
+    const tipo = String((viagem && (viagem.TIPO_SALDO || viagem.tipo_saldo)) || '').toUpperCase();
+    const sel = document.getElementById('viagemTipoSaldo');
+    const input = document.getElementById('viagemLoteQtd');
+    const saldo = document.getElementById('viagemLoteSaldoAtual');
+    if (sel) sel.value = (tipo === 'EMBARQUES' || tipo === 'TONELADAS') ? tipo : '';
+    if (input) {
+      if (tipo === 'EMBARQUES') {
+        const n = viagem.SALDO_INICIAL_EMBARQUES ?? viagem.saldo_inicial_embarques;
+        input.value = n != null && n !== '' ? String(parseInt(n, 10)) : '';
+      } else if (tipo === 'TONELADAS') {
+        const n = viagem.SALDO_INICIAL_TON ?? viagem.saldo_inicial_ton;
+        input.value = n != null && n !== '' ? String(parseFloat(n)) : '';
+      } else {
+        input.value = '';
+      }
+    }
+    atualizarCamposLoteViagem();
+    if (!saldo) return;
+    if (tipo !== 'EMBARQUES' && tipo !== 'TONELADAS') {
+      saldo.style.display = 'none';
+      saldo.textContent = '';
+      return;
+    }
+    const atual = tipo === 'EMBARQUES'
+      ? (viagem.SALDO_ATUAL_EMBARQUES ?? viagem.saldo_atual_embarques)
+      : (viagem.SALDO_ATUAL_TON ?? viagem.saldo_atual_ton);
+    if (atual == null || atual === '') {
+      saldo.style.display = 'none';
+      saldo.textContent = '';
+      return;
+    }
+    const txt = tipo === 'EMBARQUES'
+      ? `${atual} cargas`
+      : `${String(atual).replace('.', ',')} t`;
+    saldo.textContent = `Saldo restante: ${txt}. Situação: ${viagem.STATUS_DISTRIBUICAO || viagem.status_distribuicao || 'ABERTA'}.`;
+    saldo.style.display = '';
+  }
+
   function validarFormularioViagem() {
     const erros = [];
     
@@ -2626,16 +2706,40 @@
         setTimeout(() => { campo.style.borderColor = ''; }, 3000);
       }
     }
+
+    const tipoLote = document.getElementById('viagemTipoSaldo')?.value || '';
+    const qtdLote = document.getElementById('viagemLoteQtd')?.value;
+    if (tipoLote === 'EMBARQUES' || tipoLote === 'TONELADAS') {
+      const numero = tipoLote === 'EMBARQUES' ? parseInt(qtdLote, 10) : parseFloat(String(qtdLote || '').replace(',', '.'));
+      const inteiroOk = tipoLote !== 'EMBARQUES' || (Number.isInteger(numero) && String(qtdLote).indexOf('.') === -1);
+      if (!qtdLote || !Number.isFinite(numero) || numero <= 0 || !inteiroOk) {
+        erros.push(tipoLote === 'EMBARQUES'
+          ? 'Informe a quantidade de cargas do lote (número inteiro maior que zero).'
+          : 'Informe as toneladas do lote (número maior que zero).');
+        const campo = document.getElementById('viagemLoteQtd');
+        if (campo) {
+          campo.style.borderColor = '#dc3545';
+          setTimeout(() => { campo.style.borderColor = ''; }, 3000);
+        }
+      }
+    }
     
     return erros;
   }
 
   let viagemFormSubmitting = false;
-  viagemForm?.addEventListener('submit', async (e) => {
+  const liberarSalvarViagem = () => {
+    viagemFormSubmitting = false;
+    window.__atlasViagemSalvando = false;
+  };
+  if (viagemForm && viagemForm.dataset.submitBound !== '1') {
+  viagemForm.dataset.submitBound = '1';
+  viagemForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     e.stopImmediatePropagation();
-    if (viagemFormSubmitting) return;
+    if (viagemFormSubmitting || window.__atlasViagemSalvando) return;
     viagemFormSubmitting = true;
+    window.__atlasViagemSalvando = true;
 
     const btnSalvar = viagemForm.querySelector('button[type="submit"]');
     if (btnSalvar && typeof window.showLoading !== 'undefined') {
@@ -2651,7 +2755,7 @@
         primeiroErro.scrollIntoView({ behavior: 'smooth', block: 'center' });
         primeiroErro.focus();
       }
-      viagemFormSubmitting = false;
+      liberarSalvarViagem();
       if (btnSalvar && typeof window.showLoading !== 'undefined') {
         window.showLoading(btnSalvar, false);
       }
@@ -2686,7 +2790,7 @@
         campo.scrollIntoView({ behavior: 'smooth', block: 'center' });
         campo.focus();
       }
-      viagemFormSubmitting = false;
+      liberarSalvarViagem();
       if (btnSalvar && typeof window.showLoading !== 'undefined') {
         window.showLoading(btnSalvar, false);
       }
@@ -2708,6 +2812,13 @@
         MOEDA: document.getElementById('viagemMoeda')?.value || 'BRL',
         PESO: document.getElementById('viagemPeso')?.value ? parseFloat(document.getElementById('viagemPeso').value) : null,
         CUBAGEM: document.getElementById('viagemCubagem')?.value ? parseFloat(document.getElementById('viagemCubagem').value) : null,
+        TIPO_SALDO: (document.getElementById('viagemTipoSaldo')?.value || '') || null,
+        SALDO_EMBARQUES: document.getElementById('viagemTipoSaldo')?.value === 'EMBARQUES'
+          ? parseInt(document.getElementById('viagemLoteQtd')?.value, 10)
+          : null,
+        SALDO_TON: document.getElementById('viagemTipoSaldo')?.value === 'TONELADAS'
+          ? parseFloat(String(document.getElementById('viagemLoteQtd')?.value || '').replace(',', '.'))
+          : null,
         OBSERV: document.getElementById('viagemObserv')?.value.trim() || null,
         FGRASTREADO: rastreado
       };
@@ -2733,6 +2844,15 @@
 
       const data = await response.json();
       if (response.ok) {
+        if (!id && data.IDVIAGEM != null) {
+          const novoId = String(data.IDVIAGEM);
+          const hid = document.getElementById('viagemId');
+          const vis = document.getElementById('viagemIdViagem');
+          if (hid) hid.value = novoId;
+          if (vis) vis.value = novoId;
+          const titulo = document.querySelector('#formTitle span');
+          if (titulo) titulo.textContent = 'Editar Viagem';
+        }
         const mensagemSucesso = data.message || 'Viagem salva com sucesso!';
         showMessage(`✅ ${mensagemSucesso}`, 'success');
         
@@ -2772,7 +2892,7 @@
       showMessage('Erro de conexão com o servidor.', 'error');
     } finally {
       setTimeout(() => {
-        viagemFormSubmitting = false;
+        liberarSalvarViagem();
         const btn = viagemForm.querySelector('button[type="submit"]');
         if (btn && typeof window.showLoading !== 'undefined') {
           window.showLoading(btn, false);
@@ -2780,6 +2900,7 @@
       }, 600);
     }
   });
+  }
 
   // Submit do form de filtros (padrão Gerenciar Situações de Viagem)
   filtroForm?.addEventListener('submit', async (e) => {
@@ -2905,8 +3026,12 @@
     const selDestinoPais = document.getElementById('viagemDestinoPais');
     if (selOrigemPais && selOrigemPais.querySelector('option[value="BR"]')) selOrigemPais.value = 'BR';
     if (selDestinoPais && selDestinoPais.querySelector('option[value="BR"]')) selDestinoPais.value = 'BR';
+    atualizarCamposLoteViagem();
+    const saldoLoteNovo = document.getElementById('viagemLoteSaldoAtual');
+    if (saldoLoteNovo) { saldoLoteNovo.style.display = 'none'; saldoLoteNovo.textContent = ''; }
     showTab('dados');
   });
+  document.getElementById('viagemTipoSaldo')?.addEventListener('change', atualizarCamposLoteViagem);
   document.getElementById('btnCancelar')?.addEventListener('click', () => showTab('grid'));
 
   // Event listeners para botões do Grid
@@ -2930,6 +3055,9 @@
     const selDestinoPais = document.getElementById('viagemDestinoPais');
     if (selOrigemPais && selOrigemPais.querySelector('option[value="BR"]')) selOrigemPais.value = 'BR';
     if (selDestinoPais && selDestinoPais.querySelector('option[value="BR"]')) selDestinoPais.value = 'BR';
+    atualizarCamposLoteViagem();
+    const saldoLoteNovoGrid = document.getElementById('viagemLoteSaldoAtual');
+    if (saldoLoteNovoGrid) { saldoLoteNovoGrid.style.display = 'none'; saldoLoteNovoGrid.textContent = ''; }
     showTab('dados');
   });
 
@@ -3308,7 +3436,7 @@
   // Nota: utils.js é carregado globalmente no dashboard.html
   const showMessage = (text, type, messageElement = null, fieldId = null) => {
     if (typeof window.showMessage !== 'undefined') {
-      window.showMessage(text, type, messageElement || message, fieldId);
+      window.showMessage(text, type, messageElement || false, fieldId);
     } else if (message) {
       message.textContent = text;
       message.className = `message ${type} show`;
@@ -8831,10 +8959,18 @@
         </button>`;
       }
       if (statusConv === 'CONFIRMADA') {
-        botoesInner += `
+        const idMaeLinha = conv.IDVIAGEM_MAE ?? conv.idviagem_mae;
+        if (idMaeLinha != null && String(idMaeLinha).trim() !== '') {
+          botoesInner += `
+        <button type="button" onclick="desistirLoteConvocacao(${idConv})" class="btn" style="${btnIconStyle} background:#b45309;" title="Desistir: devolve a vaga à oferta se a carga ainda não andou">
+          <i class="bx bx-undo" aria-hidden="true"></i>
+        </button>`;
+        } else {
+          botoesInner += `
         <button type="button" onclick="reativarConvocacao(${idConv})" class="btn" style="${btnIconStyle} background:#ff9800;" title="Reativar convocação">
           <i class="bx bx-refresh" aria-hidden="true"></i>
         </button>`;
+        }
       }
       const dhConvFmt = formatarData(conv.DHCONVOCACAO ?? conv.dhconvocacao);
       const dhAcessoRaw = conv.DHACESSO ?? conv.dhacesso;
@@ -9029,6 +9165,36 @@
   };
 
   // Confirmar convocação (muda para CONFIRMADA e recusa outras da mesma viagem)
+  window.desistirLoteConvocacao = async function(idConvocacao) {
+    const idConvNum = Number(idConvocacao);
+    const motivo = window.prompt('Motivo da desistência. A vaga volta para a oferta se a carga ainda não andou.', '');
+    if (motivo == null) return;
+    if (String(motivo).trim().length < 3) {
+      showMessage('Informe o motivo da desistência.', 'error');
+      return;
+    }
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const response = await fetch(`/api/convocacoes/${idConvNum}/desistir-lote`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'user-login': user.login || 'SYSTEM'
+        },
+        body: JSON.stringify({ motivo: String(motivo).trim() })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        showMessage(data.error || 'Erro ao registrar a desistência.', 'error');
+        return;
+      }
+      showMessage(data.message || 'Vaga devolvida.', 'success');
+      document.getElementById('btnCarregarConvocacoes')?.click();
+    } catch (err) {
+      showMessage('Erro ao registrar a desistência: ' + (err && err.message ? err.message : ''), 'error');
+    }
+  };
+
   window.confirmarConvocacao = async function(idConvocacao) {
     if (!idConvocacao) {
       showMessage('ID da convocação não informado.', 'error');
@@ -9088,8 +9254,11 @@
       return;
     }
 
-    // Verificar se já existe outra convocação confirmada para a mesma viagem
-    const jaConfirmada = convocacoes.find(c =>
+    const tipoLote = statusConvNorm(convocacao.TIPO_SALDO || convocacao.tipo_saldo);
+    const ehLote = tipoLote === 'EMBARQUES' || tipoLote === 'TONELADAS';
+
+    // Viagem comum: uma confirmação fecha. Lote: cada confirmação tira uma vaga da oferta.
+    const jaConfirmada = !ehLote && convocacoes.find(c =>
       Number(c.IDVIAGEM) === Number(convocacao.IDVIAGEM) &&
       Number(c.IDCONVOCACAO) !== idConvNum &&
       statusConvNorm(c.STATUS) === 'CONFIRMADA'
@@ -9098,6 +9267,21 @@
     if (jaConfirmada) {
       showMessage('Já existe uma convocação confirmada para esta viagem. Não é possível confirmar outra.', 'error');
       return;
+    }
+
+    let toneladasLote = null;
+    if (tipoLote === 'TONELADAS') {
+      const saldoTon = convocacao.SALDO_ATUAL_TON ?? convocacao.saldo_atual_ton;
+      const informado = window.prompt(
+        'Toneladas deste caminhão. Saldo restante: ' + (saldoTon != null ? String(saldoTon).replace('.', ',') : '—') + ' t',
+        ''
+      );
+      if (informado == null) return;
+      toneladasLote = parseFloat(String(informado).replace(',', '.'));
+      if (!Number.isFinite(toneladasLote) || toneladasLote <= 0) {
+        showMessage('Informe as toneladas deste caminhão (número maior que zero).', 'error');
+        return;
+      }
     }
 
     // Contar outras convocações ACEITAS
@@ -9109,7 +9293,7 @@
     
     // Mostrar modal de confirmação personalizado
     let mensagemAtencao = '';
-    if (outrasAceitas > 0) {
+    if (!ehLote && outrasAceitas > 0) {
       mensagemAtencao = `
         <div class="convocacao-modal-alerta" role="region" aria-label="Aviso sobre outras convocações">
           <p class="convocacao-modal-alerta__titulo">
@@ -9129,6 +9313,7 @@
       <div class="convocacao-modal-body">
         <p class="convocacao-modal-meta"><strong>Viagem:</strong> <span class="convocacao-modal-meta-valor">${convocacao.IDVIAGEM}</span></p>
         <p class="convocacao-modal-meta"><strong>Motorista:</strong> <span class="convocacao-modal-meta-valor">${convocacao.NOME_MOTORISTA || 'N/A'}</span></p>
+        ${ehLote ? `<p class="convocacao-modal-meta"><strong>Lote:</strong> <span class="convocacao-modal-meta-valor">${tipoLote === 'EMBARQUES' ? 'tira 1 carga. As outras aceitas continuam na oferta.' : ('tira ' + String(toneladasLote).replace('.', ',') + ' t desta oferta.')}</span></p>` : ''}
         ${mensagemAtencao}
       </div>
     `;
@@ -9168,7 +9353,8 @@
         headers: {
           'Content-Type': 'application/json',
           'user-login': userLogin
-        }
+        },
+        body: JSON.stringify(toneladasLote != null ? { TONELADAS: toneladasLote } : {})
       });
 
       if (!response.ok) {
@@ -9929,7 +10115,8 @@
 
     const btnSalvarRegras = document.getElementById('btnSalvarRegrasCompatibilidade');
     if (btnSalvarRegras) {
-      btnSalvarRegras.onclick = async function() {
+      btnSalvarRegras.onclick = async function(e) {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
         const msgEl = document.getElementById('msgRegrasCompatibilidade');
         if (msgEl) { msgEl.style.display = 'none'; msgEl.textContent = ''; }
         try {
@@ -10760,38 +10947,53 @@
         iconAnchor: [15, 15]
       });
 
-      // Adicionar marcador do motorista
+      const escPop = (s) => String(s == null || String(s).trim() === '' ? '—' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const linhaPop = (rotulo, valor) =>
+        `<div class="mapa-viagem-popup-row"><span class="mapa-viagem-popup-label">${escPop(rotulo)}</span><span class="mapa-viagem-popup-value">${valor}</span></div>`;
+      const fecharSvg = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+      const cartaoPop = (cor, titulo, sub, corpo) =>
+        `<div class="atlas-map-popup"><div class="atlas-map-popup-head" style="background:${cor};"><span class="atlas-map-popup-title">${escPop(titulo)}${sub ? `<small>${escPop(sub)}</small>` : ''}</span><button type="button" class="atlas-map-popup-close" aria-label="Fechar" title="Fechar">${fecharSvg}</button></div><div class="atlas-map-popup-body">${corpo}</div></div>`;
+      const ligarPop = (marker, html) => {
+        marker.bindPopup(html, { className: 'atlas-map-popup-wrap', maxWidth: 320, minWidth: 260, closeButton: false });
+        marker.on('popupopen', (e) => {
+          const root = e.popup && e.popup.getElement && e.popup.getElement();
+          const btn = root && root.querySelector('.atlas-map-popup-close');
+          if (!btn) return;
+          btn.onclick = (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            marker.closePopup();
+          };
+        });
+      };
+      const freteTxt = typeof window.fmtMoeda === 'function' ? window.fmtMoeda(vlFrete) : (vlFrete || '—');
+      const pesoTxt = typeof window.fmtPeso === 'function' ? window.fmtPeso(peso) : (peso || '—');
+
       const marcadorMotorista = L.marker([latMotorista, lonMotorista], { icon: iconeMotorista })
-        .addTo(mapaMotorista)
-        .bindPopup(`
-          <div style="min-width: 200px;">
-            <h3 style="margin: 0 0 10px 0; color: #e74c3c;">🚛 Motorista</h3>
-            <p style="margin: 5px 0;"><strong>Nome:</strong> ${convocacao.NOME_MOTORISTA || '-'}</p>
-            <p style="margin: 5px 0;"><strong>Celular:</strong> ${convocacao.CELULAR_MOTORISTA || '-'}</p>
-            <p style="margin: 5px 0;"><strong>Status:</strong> ${convocacao.STATUS || '-'}</p>
-            <p style="margin: 5px 0;"><strong>Referência de posição:</strong> ${textoResumoUltimaPosicao}</p>
-            <hr style="margin: 10px 0;">
-            <h4 style="margin: 10px 0 5px 0; color: #667eea;">📦 Carga</h4>
-            <p style="margin: 5px 0;"><strong>ID Viagem:</strong> ${idViagem || '-'}</p>
-            <p style="margin: 5px 0;"><strong>Roteiro:</strong> ${convocacao.DSROTEIRO || '-'}</p>
-            <p style="margin: 5px 0;"><strong>Frete:</strong> ${typeof window.fmtMoeda === 'function' ? window.fmtMoeda(vlFrete) : vlFrete}</p>
-            <p style="margin: 5px 0;"><strong>Peso:</strong> ${typeof window.fmtPeso === 'function' ? window.fmtPeso(peso) : peso}</p>
-            <p style="margin: 5px 0;"><strong>Classe:</strong> ${convocacao.DSCLASSEFROTA || '-'}</p>
-          </div>
-        `);
+        .addTo(mapaMotorista);
+      ligarPop(marcadorMotorista, cartaoPop('#e74c3c', 'Motorista', convocacao.NOME_MOTORISTA || '', [
+        linhaPop('Celular', escPop(convocacao.CELULAR_MOTORISTA || '—')),
+        linhaPop('Status', `<span class="mapa-viagem-popup-badge">${escPop(convocacao.STATUS || '—')}</span>`),
+        linhaPop('Posição', escPop(textoResumoUltimaPosicao || '—')),
+        '<div class="mapa-viagem-popup-secao">Carga</div>',
+        linhaPop('Viagem', escPop(idViagem || '—')),
+        linhaPop('Roteiro', escPop(convocacao.DSROTEIRO || '—')),
+        linhaPop('Frete', escPop(freteTxt)),
+        linhaPop('Peso', escPop(pesoTxt)),
+        linhaPop('Classe', escPop(convocacao.DSCLASSEFROTA || '—'))
+      ].join('')));
 
       // Adicionar marcador da origem se tiver coordenadas
       let marcadorOrigem = null;
       if (origemLat && origemLon) {
         marcadorOrigem = L.marker([origemLat, origemLon], { icon: iconeOrigem })
-          .addTo(mapaMotorista)
-          .bindPopup(`
-            <div style="min-width: 200px;">
-              <h3 style="margin: 0 0 10px 0; color: #2ecc71;">📍 Local de Carregamento</h3>
-              <p style="margin: 5px 0;"><strong>Local:</strong> ${origemNome}</p>
-              <p style="margin: 5px 0;"><strong>Roteiro:</strong> ${convocacao.DSROTEIRO || '-'}</p>
-            </div>
-          `);
+          .addTo(mapaMotorista);
+        ligarPop(marcadorOrigem, cartaoPop('#16a34a', 'Local de Carregamento', origemNome, [
+          linhaPop('Local', escPop(origemNome)),
+          linhaPop('Roteiro', escPop(convocacao.DSROTEIRO || '—')),
+          linhaPop('Ponto', escPop('Origem do roteiro'))
+        ].join('')));
 
         // Rota por estradas: vários servidores (map-config.js); sem linha reta no mapa se falhar
         const haversineKm = calcularDistanciaHaversine(latMotorista, lonMotorista, origemLat, origemLon);
@@ -13406,6 +13608,19 @@
         };
       }
       posicoes = (posicoes || []).map(normalizarPosicaoGps);
+      const criacaoViagem = dadosViagem && (dadosViagem.DHINCLUSAO || dadosViagem.dhinclusao);
+      const criacaoMs = criacaoViagem ? new Date(criacaoViagem).getTime() : NaN;
+      if (!isNaN(criacaoMs)) {
+        posicoes = posicoes.filter(function (p) {
+          const dh = p.DHPOSICAO || p.DHREGISTRO;
+          const t = dh ? new Date(dh).getTime() : NaN;
+          return !isNaN(t) && t >= criacaoMs;
+        });
+        if (ultimaPosicaoGeral) {
+          const u = new Date(ultimaPosicaoGeral.DHREGISTRO || ultimaPosicaoGeral.dhregistro || 0).getTime();
+          if (!isNaN(u) && u < criacaoMs) ultimaPosicaoGeral = null;
+        }
+      }
       
       if (posicoes.length > 0) {
         _log(`✅ [RASTREAMENTO] ${posicoes.length} posições GPS carregadas para viagem ${idViagem}`);

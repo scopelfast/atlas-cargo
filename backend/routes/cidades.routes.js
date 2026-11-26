@@ -332,6 +332,67 @@ router.get('/cidades/rota', async (req, res) => {
   }
 });
 
+async function geocodificarEndereco(q) {
+  const url = getForwardGeocodingUrl(q, { limit: 1 });
+  try {
+    const response = await axios.get(url, {
+      headers: { 'User-Agent': 'AtlasCargo/2.0 (geocode)', 'Accept': 'application/json' },
+      timeout: 12000,
+      validateStatus: () => true
+    });
+    if (response.status === 200 && Array.isArray(response.data) && response.data[0] && response.data[0].lat != null) {
+      const r = response.data[0];
+      return {
+        lat: parseFloat(r.lat),
+        lon: parseFloat(r.lon),
+        display_name: r.display_name || '',
+        address: r.address || {}
+      };
+    }
+    console.warn('[Geocode] Nominatim sem resultado:', response.status);
+  } catch (err) {
+    console.warn('[Geocode] Nominatim indisponível:', err.message);
+  }
+
+  const photon = await axios.get('https://photon.komoot.io/api/', {
+    params: { q, limit: 1 },
+    timeout: 12000,
+    headers: { 'User-Agent': 'AtlasCargo/2.0', 'Accept': 'application/json' }
+  });
+  const feature = photon.data && photon.data.features && photon.data.features[0];
+  if (!feature || !feature.geometry || !Array.isArray(feature.geometry.coordinates)) return null;
+  const [lon, lat] = feature.geometry.coordinates;
+  const p = feature.properties || {};
+  return {
+    lat: parseFloat(lat),
+    lon: parseFloat(lon),
+    display_name: [p.name, p.street, p.city, p.state, p.country].filter(Boolean).join(', '),
+    address: {
+      country: p.country || '',
+      country_code: p.countrycode || '',
+      state: p.state || '',
+      city: p.city || p.name || ''
+    }
+  };
+}
+
+router.get('/cidades/geocode', async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (!q) {
+    return res.status(400).json({ success: false, error: 'Informe o endereço para buscar.' });
+  }
+  try {
+    const resultado = await geocodificarEndereco(q);
+    if (!resultado || !Number.isFinite(resultado.lat) || !Number.isFinite(resultado.lon)) {
+      return res.json({ success: false, error: 'Nenhuma coordenada encontrada para este endereço.' });
+    }
+    res.json({ success: true, ...resultado });
+  } catch (err) {
+    console.error('Erro ao geocodificar endereço:', err.message);
+    res.status(500).json({ success: false, error: 'Erro ao buscar coordenadas. Tente novamente.' });
+  }
+});
+
 // Endpoint para obter coordenadas de uma cidade usando OpenStreetMap Nominatim
 // IMPORTANTE: Esta rota deve vir ANTES de /cidades/:id para não ser capturada como parâmetro
 router.get('/cidades/coordenadas', async (req, res) => {

@@ -980,6 +980,141 @@
       justify-content: flex-end;
       flex-shrink: 0;
     }
+
+    .painel-tab-count {
+      display: inline-flex;
+      min-width: 1.4em;
+      justify-content: center;
+      margin-left: 6px;
+      padding: 0 6px;
+      border-radius: 999px;
+      background: #506d48;
+      color: #fff;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    #tab-viagens { padding: 4px 2px 12px; }
+    .painel-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 0 10px;
+      flex-wrap: wrap;
+    }
+    .painel-toolbar-texto { margin: 0; color: #5d594f; font-size: 13px; }
+    .painel-toolbar-acoes { display: flex; gap: 8px; }
+    .painel-scroll {
+      overflow: auto;
+      max-height: calc(100vh - 240px);
+      border: 1px solid #e7e3da;
+      border-radius: 12px;
+      background: #fff;
+    }
+    .painel-grade {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .painel-grade th, .painel-grade td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #e7e3da;
+      text-align: left;
+      white-space: nowrap;
+      vertical-align: middle;
+    }
+    .painel-grade th {
+      position: sticky;
+      top: 0;
+      background: #f5f3ee;
+      color: #1c1a16;
+      font-weight: 650;
+      cursor: pointer;
+      z-index: 1;
+    }
+    .painel-grade tbody tr { cursor: pointer; }
+    .painel-grade tbody tr:hover { background: #f5f3ee; }
+    .painel-grade tr.painel-row-sos { box-shadow: inset 3px 0 0 #a94a3c; }
+    .painel-grade tr.painel-row-alerta { box-shadow: inset 3px 0 0 #b7791f; }
+    .painel-grade tr.painel-row-msg { box-shadow: inset 3px 0 0 #506d48; }
+    .painel-vazio { padding: 28px 16px; color: #5d594f; text-align: center; }
+    .painel-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 650;
+    }
+    .painel-pill.rodando { background: #e4ebe0; color: #41573b; }
+    .painel-pill.parado { background: #f8f1e4; color: #8a5a12; }
+    .painel-pill.neutro { background: #f5f3ee; color: #5d594f; }
+    .painel-pill.alerta { background: #fde8e4; color: #a94a3c; }
+    .painel-pill.atraso { background: #fde8d0; color: #9a4d12; }
+    .painel-sort { font-size: 11px; margin-left: 4px; }
+    .painel-modal[hidden] { display: none !important; }
+    .painel-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(28, 26, 22, 0.45);
+      z-index: 80;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .painel-modal-card {
+      width: min(560px, 100%);
+      max-height: min(86vh, 760px);
+      overflow: auto;
+      background: #fff;
+      color: #1c1a16;
+      border-radius: 16px;
+      border: 1px solid #e7e3da;
+      padding: 18px 18px 14px;
+    }
+    .painel-modal-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .painel-modal-head h3 { margin: 0; font-size: 18px; }
+    .painel-modal-ajuda { color: #5d594f; font-size: 13px; margin: 8px 0 12px; }
+    .painel-sort-row, .painel-col-item { display: flex; align-items: center; gap: 8px; }
+    .painel-sort-row { margin-bottom: 10px; flex-wrap: wrap; }
+    .painel-sort-row select, #painelColunasBusca {
+      border: 1px solid #d2cdbf;
+      border-radius: 8px;
+      padding: 6px 8px;
+      background: #fff;
+      color: inherit;
+    }
+    #painelColunasBusca { width: 100%; margin-bottom: 8px; }
+    #painelColunasLista { list-style: none; margin: 0; padding: 0; }
+    .painel-col-item {
+      padding: 6px 4px;
+      border-bottom: 1px solid #e7e3da;
+      cursor: grab;
+    }
+    .painel-col-item label { flex: 1; cursor: pointer; }
+    .painel-col-grupo { font-size: 11px; color: #8e8b7f; min-width: 72px; }
+    .painel-modal-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 12px; }
+    html[data-theme="dark"] .painel-scroll,
+    html[data-theme="dark"] .painel-modal-card,
+    html[data-theme="dark"] .painel-grade th {
+      background: #1e293b;
+      color: #e2e8f0;
+      border-color: #334155;
+    }
+    html[data-theme="dark"] .painel-scroll,
+    html[data-theme="dark"] .painel-grade th,
+    html[data-theme="dark"] .painel-grade td,
+    html[data-theme="dark"] .painel-col-item { border-color: #334155; }
+    html[data-theme="dark"] .painel-toolbar-texto,
+    html[data-theme="dark"] .painel-vazio,
+    html[data-theme="dark"] .painel-modal-ajuda { color: #94a3b8; }
+    html[data-theme="dark"] .painel-grade tbody tr:hover { background: #0f172a; }
+    html[data-theme="dark"] .painel-sort-row select,
+    html[data-theme="dark"] #painelColunasBusca { background: #0f172a; color: #e2e8f0; border-color: #334155; }
+    html[data-theme="dark"] .painel-pill.neutro { background: #0f172a; color: #94a3b8; }
+    html[data-theme="dark"] .painel-pill.atraso { background: #3b2a14; color: #f0c27a; }
   </style>
 </head>
 <body>
@@ -996,6 +1131,7 @@
     <div class="tabs tabs-com-icones">
       <button type="button" class="tab-btn active" data-tab="filtros"><i class='bx bx-filter-alt'></i> <span data-i18n="web.modulos.mapaViagem.tabFiltros">Filtros</span></button>
       <button type="button" class="tab-btn" data-tab="mapa"><i class='bx bx-map'></i> <span data-i18n="web.modulos.mapaViagem.tabMapa">Mapa</span></button>
+      <button type="button" class="tab-btn" data-tab="viagens"><i class='bx bx-table'></i> <span>Viagens</span><span id="painelViagensContagem" class="painel-tab-count" hidden></span></button>
     </div>
 
     <!-- Aba Filtros -->
@@ -1205,6 +1341,47 @@
       </div>
     </div>
 
+    <div class="tab-content" id="tab-viagens">
+      <div class="painel-toolbar">
+        <p class="painel-toolbar-texto" id="painelViagensResumo">Filtre para montar a grade. Parado: última velocidade até 5 km/h. O km segue o roteiro.</p>
+        <div class="painel-toolbar-acoes">
+          <button type="button" class="btn btn-secondary" id="btnPainelColunas"><i class='bx bx-slider-alt'></i> Colunas</button>
+          <button type="button" class="btn btn-secondary" id="btnPainelAtualizar"><i class='bx bx-refresh'></i> Atualizar</button>
+        </div>
+      </div>
+      <div class="painel-scroll" id="painelViagensScroll">
+        <div class="painel-vazio" id="painelViagensVazio">A grade aparece aqui depois de Filtrar.</div>
+        <table class="painel-grade" id="painelViagensTabela" hidden>
+          <thead><tr id="painelViagensHead"></tr></thead>
+          <tbody id="painelViagensBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="painelColunasOverlay" class="painel-modal" hidden>
+      <div class="painel-modal-card" role="dialog" aria-modal="true" aria-labelledby="painelColunasTitulo">
+        <div class="painel-modal-head">
+          <h3 id="painelColunasTitulo">Colunas do painel</h3>
+          <button type="button" class="btn btn-secondary" id="painelColunasFechar" aria-label="Fechar">×</button>
+        </div>
+        <p class="painel-modal-ajuda">Marque o que entra na grade, arraste a ordem e escolha a ordenação. Fica salvo neste usuário.</p>
+        <div class="painel-sort-row">
+          <label for="painelSortKey">Ordenar por</label>
+          <select id="painelSortKey"></select>
+          <select id="painelSortDir" aria-label="Direção da ordenação">
+            <option value="asc">Crescente</option>
+            <option value="desc">Decrescente</option>
+          </select>
+        </div>
+        <input type="search" id="painelColunasBusca" placeholder="Buscar coluna" aria-label="Buscar coluna">
+        <ul id="painelColunasLista"></ul>
+        <div class="painel-modal-foot">
+          <button type="button" class="btn btn-secondary" id="painelColunasPadrao">Restaurar padrão</button>
+          <button type="button" class="btn btn-primary" id="painelColunasSalvar">Salvar</button>
+        </div>
+      </div>
+    </div>
+
     <div id="mapaMaxFabStack" class="mapa-max-fab-stack" aria-hidden="true">
       <button type="button" id="mapaMaxFabCentralizar" class="mapa-max-fab-btn" data-i18n-title="web.modulos.mapaViagem.mapaMaxFabCentralizarTitle" title="Centralizar nos veículos">
         <i class="bx bx-crosshair" aria-hidden="true"></i>
@@ -1241,6 +1418,7 @@
   <script src="/js/map-helper.js?v=202609151845"></script>
   <script src="/js/log-helper.js"></script>
   <script src="/js/init-overlay-helper.js"></script>
-  <script src="js/script.js?v=202609151950"></script>
+  <script src="js/script.js?v=20261125auto"></script>
+  <script src="js/painel.js?v=20261125prazo"></script>
 </body>
 </html>

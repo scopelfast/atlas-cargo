@@ -1633,48 +1633,49 @@
         iconAnchor: [15, 15]
       });
 
+      const escPop = (s) => String(s == null || String(s).trim() === '' ? '—' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const linhaPop = (rotulo, valor) =>
+        `<div class="mapa-viagem-popup-row"><span class="mapa-viagem-popup-label">${escPop(rotulo)}</span><span class="mapa-viagem-popup-value">${valor}</span></div>`;
+      const fecharSvg = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+      const cartaoPop = (cor, titulo, sub, corpo) =>
+        `<div class="atlas-map-popup"><div class="atlas-map-popup-head" style="background:${cor};"><span class="atlas-map-popup-title">${escPop(titulo)}${sub ? `<small>${escPop(sub)}</small>` : ''}</span><button type="button" class="atlas-map-popup-close" aria-label="Fechar" title="Fechar">${fecharSvg}</button></div><div class="atlas-map-popup-body">${corpo}</div></div>`;
+      const ligarPop = (marker, html) => {
+        marker.bindPopup(html, { className: 'atlas-map-popup-wrap', maxWidth: 320, minWidth: 260, closeButton: false });
+        marker.on('popupopen', (e) => {
+          const root = e.popup && e.popup.getElement && e.popup.getElement();
+          const btn = root && root.querySelector('.atlas-map-popup-close');
+          if (!btn) return;
+          btn.onclick = (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            marker.closePopup();
+          };
+        });
+      };
+
       const marcadorMotorista = L.marker([latMotorista, lonMotorista], { icon: iconeMotorista })
-        .addTo(mapaMotorista)
-        .bindPopup(`
-          <div style="min-width: 220px; max-width: 300px;">
-            <div style="background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); color: white; padding: 10px; border-radius: 6px 6px 0 0; margin: -10px -10px 10px -10px;">
-              <h3 style="margin: 0; font-size: 16px; font-weight: 600;">🚛 Motorista</h3>
-            </div>
-            <div style="padding: 5px 0;">
-              <p style="margin: 4px 0; font-size: 13px;"><strong>Nome:</strong> ${convocacao.NOME_MOTORISTA || '-'}</p>
-              <p style="margin: 4px 0; font-size: 13px;"><strong>Celular:</strong> ${(convocacao.CELULAR_MOTORISTA || convocacao.NRCELULAR || '-')}</p>
-              <p style="margin: 4px 0; font-size: 13px;"><strong>Status:</strong> <span style="padding: 2px 6px; border-radius: 3px; background: #fff3cd; color: #856404; font-size: 11px;">${convocacao.STATUS || '-'}</span></p>
-            </div>
-            <hr style="margin: 8px 0; border: none; border-top: 1px solid #e0e0e0;">
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 8px; border-radius: 4px; margin: 5px 0;">
-              <h4 style="margin: 0; font-size: 14px; font-weight: 600;">📦 Carga</h4>
-            </div>
-            <div style="padding: 5px 0;">
-              <p style="margin: 4px 0; font-size: 13px;"><strong>ID Viagem:</strong> ${idViagem || '-'}</p>
-              <p style="margin: 4px 0; font-size: 13px;"><strong>Roteiro:</strong> ${convocacao.DSROTEIRO || '-'}</p>
-              <p style="margin: 4px 0; font-size: 13px;"><strong>Frete:</strong> <span style="color: #28a745; font-weight: 600;">${formatarValor(vlFrete, moeda)}</span></p>
-              <p style="margin: 4px 0; font-size: 13px;"><strong>Peso:</strong> ${formatarPeso(peso)}</p>
-              <p style="margin: 4px 0; font-size: 13px;"><strong>Classe:</strong> ${convocacao.DSCLASSEFROTA || '-'}</p>
-            </div>
-          </div>
-        `, { maxWidth: 320 });
+        .addTo(mapaMotorista);
+      ligarPop(marcadorMotorista, cartaoPop('#e74c3c', 'Motorista', convocacao.NOME_MOTORISTA || '', [
+        linhaPop('Celular', escPop(formatarCelular(convocacao.CELULAR_MOTORISTA || convocacao.NRCELULAR))),
+        linhaPop('Status', `<span class="mapa-viagem-popup-badge">${escPop(convocacao.STATUS || '—')}</span>`),
+        '<div class="mapa-viagem-popup-secao">Carga</div>',
+        linhaPop('Viagem', escPop(idViagem || '—')),
+        linhaPop('Roteiro', escPop(convocacao.DSROTEIRO || '—')),
+        linhaPop('Frete', escPop(formatarValor(vlFrete, moeda))),
+        linhaPop('Peso', escPop(formatarPeso(peso))),
+        linhaPop('Classe', escPop(convocacao.DSCLASSEFROTA || '—'))
+      ].join('')));
 
       let marcadorOrigem = null;
       if (origemLat && origemLon) {
         marcadorOrigem = L.marker([origemLat, origemLon], { icon: iconeOrigem })
-          .addTo(mapaMotorista)
-          .bindPopup(`
-            <div style="min-width: 220px; max-width: 300px;">
-              <div style="background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%); color: white; padding: 10px; border-radius: 6px 6px 0 0; margin: -10px -10px 10px -10px;">
-                <h3 style="margin: 0; font-size: 16px; font-weight: 600;">📍 Local de Carregamento</h3>
-              </div>
-              <div style="padding: 5px 0;">
-                <p style="margin: 4px 0; font-size: 13px;"><strong>Local:</strong> ${origemNome}</p>
-                <p style="margin: 4px 0; font-size: 13px;"><strong>Roteiro:</strong> ${convocacao.DSROTEIRO || '-'}</p>
-                <p style="margin: 4px 0; font-size: 12px; color: #666;"><em>Ponto de origem do roteiro</em></p>
-              </div>
-            </div>
-          `, { maxWidth: 320 });
+          .addTo(mapaMotorista);
+        ligarPop(marcadorOrigem, cartaoPop('#16a34a', 'Local de Carregamento', origemNome, [
+          linhaPop('Local', escPop(origemNome)),
+          linhaPop('Roteiro', escPop(convocacao.DSROTEIRO || '—')),
+          linhaPop('Ponto', escPop('Origem do roteiro'))
+        ].join('')));
 
         const haversineKm = calcularDistanciaHaversine(latMotorista, lonMotorista, origemLat, origemLon);
         const distEl = document.getElementById('mapaInfoDistancia');

@@ -1,0 +1,770 @@
+/* Cara do painel alinhada ao DeskcommCRM.
+   Tokens sage/greige e Atkinson Hyperlegible, claros e escuros desenhados à parte.
+   Entra por último. O !important cobre o CSS que cada módulo injeta depois, com hex fixo. */
+
+:root {
+  --dc-bg: #faf9f6;
+  --dc-surface: #ffffff;
+  --dc-elevated: #f5f3ee;
+  --dc-text: #1c1a16;
+  --dc-muted: #5d594f;
+  --dc-subtle: #7d786c;
+  --dc-border: #e7e3da;
+  --dc-border-strong: #d2cdbf;
+  --dc-accent: #506d48;
+  --dc-accent-hover: #41573b;
+  --dc-accent-fg: #ffffff;
+  --dc-accent-soft: #e4ebe0;
+  --dc-success: #5a8a5f;
+  --dc-warning: #b07a2b;
+  --dc-danger: #a94a3c;
+  --dc-info: #4a7a93;
+  --dc-shadow: 0 1px 2px rgba(20, 18, 14, 0.05), 0 1px 1px rgba(20, 18, 14, 0.03);
+  --dc-font: "Atkinson Hyperlegible", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  --dc-bg: #161510;
+  --dc-surface: #1d1c17;
+  --dc-elevated: #272620;
+  --dc-text: #f5f4ef;
+  --dc-muted: #8e8b7f;
+  --dc-subtle: #605e54;
+  --dc-border: #33312a;
+  --dc-border-strong: #444239;
+  --dc-accent: #82a077;
+  --dc-accent-hover: #a4ba9a;
+  --dc-accent-fg: #161510;
+  --dc-accent-soft: rgba(130, 160, 119, 0.16);
+  --dc-success: #82a077;
+  --dc-warning: #d09455;
+  --dc-danger: #c87263;
+  --dc-info: #7da9bf;
+  --dc-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.45);
+  color-scheme: dark;
+}
+
+:root,
+[data-theme="dark"] {
+  --ac-primary: var(--dc-text);
+  --ac-primary-light: var(--dc-muted);
+  --ac-primary-dark: var(--dc-text);
+  --ac-accent: var(--dc-accent);
+  --ac-accent-hover: var(--dc-accent-hover);
+  --primary: var(--dc-text);
+  --success: var(--dc-success);
+  --danger: var(--dc-danger);
+  --warning: var(--dc-warning);
+  --info: var(--dc-info);
+  --light: var(--dc-elevated);
+  --dark: var(--dc-text);
+  --gray: var(--dc-muted);
+  --light-gray: var(--dc-border);
+  --border: var(--dc-border);
+  --shadow: var(--dc-shadow);
+  --white: var(--dc-surface);
+  --text: var(--dc-text);
+  --light-bg: var(--dc-bg);
+  --bg-primary: var(--dc-surface);
+  --bg-secondary: var(--dc-bg);
+  --bg-tertiary: var(--dc-elevated);
+  --text-primary: var(--dc-text);
+  --text-secondary: var(--dc-muted);
+  --text-muted: var(--dc-subtle);
+  --border-color: var(--dc-border);
+}
+
+:is(html, html[data-theme="dark"]) body,
+:is(html, html[data-theme="dark"]) body .main,
+:is(html, html[data-theme="dark"]) body .sidebar,
+:is(html, html[data-theme="dark"]) body .header,
+:is(html, html[data-theme="dark"]) body #contentArea,
+:is(html, html[data-theme="dark"]) body #contentArea h1,
+:is(html, html[data-theme="dark"]) body #contentArea h2,
+:is(html, html[data-theme="dark"]) body #contentArea h3,
+:is(html, html[data-theme="dark"]) body #contentArea h4,
+:is(html, html[data-theme="dark"]) body #contentArea p,
+:is(html, html[data-theme="dark"]) body #contentArea label,
+:is(html, html[data-theme="dark"]) body #contentArea button,
+:is(html, html[data-theme="dark"]) body #contentArea input,
+:is(html, html[data-theme="dark"]) body #contentArea select,
+:is(html, html[data-theme="dark"]) body #contentArea textarea,
+:is(html, html[data-theme="dark"]) body #contentArea td,
+:is(html, html[data-theme="dark"]) body #contentArea th,
+:is(html, html[data-theme="dark"]) body #contentArea span,
+:is(html, html[data-theme="dark"]) body .menu-item span,
+:is(html, html[data-theme="dark"]) body .menu-category-header span,
+:is(html, html[data-theme="dark"]) body .user-info h2,
+:is(html, html[data-theme="dark"]) body .user-info p {
+  font-family: var(--dc-font) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .bx,
+:is(html, html[data-theme="dark"]) body i.bx,
+:is(html, html[data-theme="dark"]) body [class^="bx-"],
+:is(html, html[data-theme="dark"]) body [class*=" bx-"] {
+  font-family: boxicons !important;
+}
+
+:is(html, html[data-theme="dark"]) body,
+:is(html, html[data-theme="dark"]) body .main {
+  background: var(--dc-bg) !important;
+  color: var(--dc-text) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .sidebar {
+  background: var(--dc-surface) !important;
+  color: var(--dc-text) !important;
+  border-right: 1px solid var(--dc-border) !important;
+  box-shadow: none !important;
+}
+
+:is(html, html[data-theme="dark"]) body .sidebar .menu-category-header,
+:is(html, html[data-theme="dark"]) body .sidebar .menu-category-header span,
+:is(html, html[data-theme="dark"]) body .sidebar .menu-category-header i,
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item,
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item span,
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item i,
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item i.bx,
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item .bx,
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item [class*="bx"] {
+  color: var(--dc-muted) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item {
+  border-left: 3px solid transparent !important;
+  border-radius: 8px;
+  margin: 2px 8px;
+}
+
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item:hover,
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item.active,
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item:hover span,
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item.active span,
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item:hover i,
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item.active i,
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item:hover .bx,
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item.active .bx,
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item:hover [class*="bx"],
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item.active [class*="bx"] {
+  background: var(--dc-accent-soft) !important;
+  color: var(--dc-accent) !important;
+  border-left-color: var(--dc-accent) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .product-module-bar {
+  border-bottom: 1px solid var(--dc-border) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .product-module-label {
+  color: var(--dc-subtle) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .product-module-select {
+  background: var(--dc-elevated) !important;
+  color: var(--dc-text) !important;
+  border: 1px solid var(--dc-border) !important;
+  border-radius: 8px !important;
+}
+
+:is(html, html[data-theme="dark"]) body .header {
+  background: var(--dc-bg) !important;
+  border-bottom: 1px solid var(--dc-border) !important;
+  box-shadow: none !important;
+}
+
+:is(html, html[data-theme="dark"]) body .user-info h2 {
+  color: var(--dc-text) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .user-info p {
+  color: var(--dc-muted) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .toggle-menu-btn,
+:is(html, html[data-theme="dark"]) body .header-icon-btn,
+:is(html, html[data-theme="dark"]) body .btn-idioma-dash {
+  background: var(--dc-surface) !important;
+  color: var(--dc-text) !important;
+  border: 1px solid var(--dc-border) !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+}
+
+:is(html, html[data-theme="dark"]) body .logout-btn:not(.btn-idioma-dash),
+:is(html, html[data-theme="dark"]) body #logoutBtn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  height: 40px !important;
+  padding: 0 14px !important;
+  background: transparent !important;
+  color: var(--dc-danger) !important;
+  border: 1px solid var(--dc-danger) !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  font: 700 14px/1 var(--dc-font) !important;
+  letter-spacing: 0.01em !important;
+  transform: none !important;
+}
+:is(html, html[data-theme="dark"]) body #logoutBtn i {
+  font-size: 18px !important;
+  line-height: 1 !important;
+  color: inherit !important;
+}
+:is(html, html[data-theme="dark"]) body #logoutBtn:hover {
+  background: var(--dc-danger) !important;
+  color: var(--dc-accent-fg) !important;
+  border-color: var(--dc-danger) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .btn-idioma-dash {
+  background: var(--dc-surface) !important;
+  color: var(--dc-text) !important;
+  border: 1px solid var(--dc-border) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .content-box,
+:is(html, html[data-theme="dark"]) body #contentArea {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: var(--dc-text) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .welcome-section {
+  border-bottom: 1px solid var(--dc-border) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .welcome-section h3,
+:is(html, html[data-theme="dark"]) body #contentArea h1,
+:is(html, html[data-theme="dark"]) body #contentArea h2,
+:is(html, html[data-theme="dark"]) body #contentArea h3 {
+  color: var(--dc-text) !important;
+  letter-spacing: -0.02em;
+}
+
+:is(html, html[data-theme="dark"]) body .welcome-section p,
+:is(html, html[data-theme="dark"]) body .dashboard-module-hub-desc,
+:is(html, html[data-theme="dark"]) body .stat-label,
+:is(html, html[data-theme="dark"]) body .stat-kpi-detalhe {
+  color: var(--dc-muted) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .dashboard-quick-links,
+:is(html, html[data-theme="dark"]) body .dashboard-stat-card,
+:is(html, html[data-theme="dark"]) body .stat-card,
+:is(html, html[data-theme="dark"]) body .quick-link-btn,
+:is(html, html[data-theme="dark"]) body .filtros-box,
+:is(html, html[data-theme="dark"]) body .form-box,
+:is(html, html[data-theme="dark"]) body .grid-container,
+:is(html, html[data-theme="dark"]) body .form-dados-card {
+  background: var(--dc-surface) !important;
+  color: var(--dc-text) !important;
+  border: 1px solid var(--dc-border) !important;
+  border-left-width: 1px !important;
+  border-radius: 12px !important;
+  box-shadow: var(--dc-shadow) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .dashboard-stat-card .stat-value,
+:is(html, html[data-theme="dark"]) body .stat-card .stat-value,
+:is(html, html[data-theme="dark"]) body .stat-card-content h4,
+:is(html, html[data-theme="dark"]) body .dashboard-quick-links h4 {
+  color: var(--dc-text) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .stat-card-icon,
+:is(html, html[data-theme="dark"]) body .dashboard-stat-card .stat-card-icon,
+:is(html, html[data-theme="dark"]) body .dashboard-stat-card.primary .stat-card-icon,
+:is(html, html[data-theme="dark"]) body .dashboard-stat-card.success .stat-card-icon,
+:is(html, html[data-theme="dark"]) body .dashboard-stat-card.warning .stat-card-icon,
+:is(html, html[data-theme="dark"]) body .dashboard-stat-card.info .stat-card-icon,
+:is(html, html[data-theme="dark"]) body .dashboard-stat-card.danger .stat-card-icon,
+:is(html, html[data-theme="dark"]) body .dashboard-stat-card.warn .stat-card-icon {
+  background: var(--dc-accent-soft) !important;
+  color: var(--dc-accent) !important;
+  box-shadow: none !important;
+}
+
+:is(html, html[data-theme="dark"]) body .stat-card-icon i,
+:is(html, html[data-theme="dark"]) body .quick-link-btn i,
+:is(html, html[data-theme="dark"]) body .dashboard-quick-links h4 i {
+  color: var(--dc-accent) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .quick-link-btn:hover,
+:is(html, html[data-theme="dark"]) body .dashboard-stat-card:hover {
+  border-color: var(--dc-accent) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .tabs,
+:is(html, html[data-theme="dark"]) body .tabs.tabs-com-icones {
+  border-bottom: 1px solid var(--dc-border) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .tab-btn,
+:is(html, html[data-theme="dark"]) body .tab-btn i,
+:is(html, html[data-theme="dark"]) body .tab-btn span,
+:is(html, html[data-theme="dark"]) body .tabs.tabs-com-icones .tab-btn,
+:is(html, html[data-theme="dark"]) body .tabs.tabs-com-icones .tab-btn i,
+:is(html, html[data-theme="dark"]) body .tabs.tabs-com-icones .tab-btn span {
+  background: transparent !important;
+  color: var(--dc-muted) !important;
+  border: none !important;
+  border-bottom: 2px solid transparent !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  transition: none !important;
+}
+
+:is(html, html[data-theme="dark"]) body .tab-btn.active,
+:is(html, html[data-theme="dark"]) body .tab-btn.active i,
+:is(html, html[data-theme="dark"]) body .tab-btn.active span,
+:is(html, html[data-theme="dark"]) body .tabs.tabs-com-icones .tab-btn.active,
+:is(html, html[data-theme="dark"]) body .tabs.tabs-com-icones .tab-btn.active i,
+:is(html, html[data-theme="dark"]) body .tabs.tabs-com-icones .tab-btn.active span {
+  background: transparent !important;
+  color: var(--dc-accent) !important;
+  border-bottom-color: var(--dc-accent) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .filtros-grid label,
+:is(html, html[data-theme="dark"]) body .input-group label {
+  color: var(--dc-muted) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .form-control,
+:is(html, html[data-theme="dark"]) body .filtros-grid .form-control,
+:is(html, html[data-theme="dark"]) body .input-group input,
+:is(html, html[data-theme="dark"]) body .input-group select,
+:is(html, html[data-theme="dark"]) body .input-group textarea {
+  background: var(--dc-elevated) !important;
+  color: var(--dc-text) !important;
+  border: 1px solid var(--dc-border) !important;
+  border-radius: 8px !important;
+}
+
+:is(html, html[data-theme="dark"]) body .form-control:focus,
+:is(html, html[data-theme="dark"]) body .filtros-grid .form-control:focus,
+:is(html, html[data-theme="dark"]) body .input-group input:focus,
+:is(html, html[data-theme="dark"]) body .input-group select:focus,
+:is(html, html[data-theme="dark"]) body .input-group textarea:focus {
+  border-color: var(--dc-accent) !important;
+  box-shadow: 0 0 0 3px var(--dc-accent-soft) !important;
+  outline: none !important;
+}
+
+:is(html, html[data-theme="dark"]) body .btn,
+:is(html, html[data-theme="dark"]) body .btn-filtro {
+  border-radius: 8px !important;
+  box-shadow: none !important;
+}
+
+:is(html, html[data-theme="dark"]) body .btn-primary,
+:is(html, html[data-theme="dark"]) body .btn-info,
+:is(html, html[data-theme="dark"]) body .btn-filtro-aplicar,
+:is(html, html[data-theme="dark"]) body .btn-filtro-novo,
+:is(html, html[data-theme="dark"]) body .btn-success {
+  background: var(--dc-accent) !important;
+  color: var(--dc-accent-fg) !important;
+  border: 1px solid transparent !important;
+}
+
+:is(html, html[data-theme="dark"]) body .btn-primary:hover,
+:is(html, html[data-theme="dark"]) body .btn-filtro-aplicar:hover,
+:is(html, html[data-theme="dark"]) body .btn-filtro-novo:hover,
+:is(html, html[data-theme="dark"]) body .btn-success:hover {
+  background: var(--dc-accent-hover) !important;
+  color: var(--dc-accent-fg) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .btn-secondary,
+:is(html, html[data-theme="dark"]) body .btn-filtro-limpar {
+  background: transparent !important;
+  color: var(--dc-text) !important;
+  border: 1px solid var(--dc-border-strong) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .btn-danger,
+:is(html, html[data-theme="dark"]) body .btn-filtro-danger {
+  background: var(--dc-danger) !important;
+  color: #ffffff !important;
+  border: 1px solid transparent !important;
+}
+
+:is(html, html[data-theme="dark"]) body .grid-table,
+:is(html, html[data-theme="dark"]) body .grid-table tbody tr {
+  background: var(--dc-surface) !important;
+  color: var(--dc-text) !important;
+  border-bottom-color: var(--dc-border) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .grid-table thead,
+:is(html, html[data-theme="dark"]) body .grid-table thead th {
+  background: var(--dc-elevated) !important;
+  color: var(--dc-muted) !important;
+  border-bottom: 1px solid var(--dc-border) !important;
+  box-shadow: none !important;
+}
+
+:is(html, html[data-theme="dark"]) body .grid-table tbody tr:hover {
+  background: var(--dc-elevated) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .modal-content,
+:is(html, html[data-theme="dark"]) body .modal-body,
+:is(html, html[data-theme="dark"]) body .modal-header,
+:is(html, html[data-theme="dark"]) body .modal-footer {
+  background: var(--dc-surface) !important;
+  color: var(--dc-text) !important;
+  border-color: var(--dc-border) !important;
+}
+
+::selection {
+  background: var(--dc-accent-soft);
+  color: var(--dc-text);
+}
+
+/* O CSS do módulo entra depois e o dark-mode marca a aba ativa com seis classes.
+   O id da área de conteúdo ganha dessa disputa e deixa home e módulo iguais. */
+html #contentArea,
+html #contentArea * {
+  font-family: var(--dc-font) !important;
+}
+
+html #contentArea .bx,
+html #contentArea i.bx,
+html #contentArea [class^="bx-"],
+html #contentArea [class*=" bx-"] {
+  font-family: boxicons !important;
+}
+
+html #contentArea .tab-btn,
+html #contentArea .tab-btn i,
+html #contentArea .tab-btn span,
+html #contentArea .tabs.tabs-com-icones .tab-btn,
+html #contentArea .tabs.tabs-com-icones .tab-btn i,
+html #contentArea .tabs.tabs-com-icones .tab-btn span {
+  color: var(--dc-muted) !important;
+  background: transparent !important;
+  transition: none !important;
+}
+
+html #contentArea .tab-btn.active,
+html #contentArea .tab-btn.active i,
+html #contentArea .tab-btn.active span,
+html #contentArea .tabs.tabs-com-icones .tab-btn.active,
+html #contentArea .tabs.tabs-com-icones .tab-btn.active i,
+html #contentArea .tabs.tabs-com-icones .tab-btn.active span {
+  color: var(--dc-accent) !important;
+  border-bottom-color: var(--dc-accent) !important;
+  background: transparent !important;
+}
+
+html #contentArea .filtros-box h3,
+html #contentArea .form-box h2,
+html #contentArea .form-dados-card-header {
+  background: transparent !important;
+  color: var(--dc-text) !important;
+  border-bottom-color: var(--dc-border) !important;
+}
+
+/* Viagens (e outros) pintam Filtrar/Novo com #tab-grid e !important.
+   Dois ids vencem essa regra nos dois temas. */
+html body #contentArea .btn-filtro-aplicar,
+html body #contentArea .btn-filtro-novo,
+html body #contentArea .btn-filtro-aplicar:hover,
+html body #contentArea .btn-filtro-novo:hover,
+html body #contentArea #tab-grid .filtros-actions .btn-filtro-aplicar,
+html body #contentArea #tab-grid .filtros-actions .btn-filtro-novo,
+html body #contentArea #tab-grid .filtros-actions .btn-filtro-aplicar:hover,
+html body #contentArea #tab-grid .filtros-actions .btn-filtro-novo:hover {
+  background: var(--dc-accent) !important;
+  color: var(--dc-accent-fg) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+html body #contentArea .btn-filtro-limpar,
+html body #contentArea #tab-grid .filtros-actions .btn-filtro-limpar,
+html body #contentArea #tab-grid .filtros-actions .btn-filtro-limpar:hover {
+  background: transparent !important;
+  color: var(--dc-text) !important;
+  border: 1px solid var(--dc-border-strong) !important;
+  box-shadow: none !important;
+}
+
+html body #contentArea input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]):not([type="file"]),
+html body #contentArea select,
+html body #contentArea textarea {
+  background: var(--dc-elevated) !important;
+  color: var(--dc-text) !important;
+  border: 1px solid var(--dc-border) !important;
+  border-radius: 8px !important;
+}
+
+html body #contentArea .filtros-box,
+html body #contentArea .form-box {
+  background: var(--dc-surface) !important;
+  border: 1px solid var(--dc-border) !important;
+  color: var(--dc-text) !important;
+}
+
+/* Logo: símbolo + nome, sem a placa escura. Recolhido, só o símbolo. */
+:is(html, html[data-theme="dark"]) body .sidebar .logo {
+  background: transparent !important;
+  min-height: 56px !important;
+  height: 56px !important;
+  padding: 12px 16px !important;
+  border-bottom: 1px solid var(--dc-border) !important;
+  justify-content: flex-start !important;
+  filter: none !important;
+  overflow: hidden !important;
+}
+
+:is(html, html[data-theme="dark"]) body .sidebar.collapsed .logo {
+  justify-content: center !important;
+  padding: 12px 8px !important;
+}
+
+:is(html, html[data-theme="dark"]) body .logo-mark {
+  display: block;
+  height: 32px;
+  width: auto;
+  max-width: 200px;
+  overflow: visible;
+}
+
+:is(html, html[data-theme="dark"]) body .logo-mark-so {
+  display: none;
+  width: 32px;
+  height: 32px;
+}
+
+:is(html, html[data-theme="dark"]) body .sidebar.collapsed .logo-mark-nome {
+  display: none !important;
+}
+
+:is(html, html[data-theme="dark"]) body .sidebar.collapsed .logo-mark-so {
+  display: block !important;
+}
+
+:is(html, html[data-theme="dark"]) body .logo-simbolo {
+  fill: var(--dc-accent);
+}
+
+:is(html, html[data-theme="dark"]) body .logo-nome,
+:is(html, html[data-theme="dark"]) body .logo-sufixo {
+  font-family: var(--dc-font);
+}
+
+:is(html, html[data-theme="dark"]) body .logo-nome {
+  fill: var(--dc-text);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+:is(html, html[data-theme="dark"]) body .logo-sufixo {
+  fill: var(--dc-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+:is(html, html[data-theme="dark"]) body .logo .logo-img {
+  filter: none !important;
+  max-height: 32px !important;
+  width: auto !important;
+  max-width: 200px !important;
+}
+
+/* O CSS antigo força display:block e vence o atributo hidden: a img sem src vira ícone quebrado + “Atlas Cargo” cortado. */
+:is(html, html[data-theme="dark"]) body .logo .logo-img[hidden] {
+  display: none !important;
+}
+
+:is(html, html[data-theme="dark"]) body .sidebar.collapsed .logo .logo-img {
+  width: 32px !important;
+  max-width: 32px !important;
+  max-height: 32px !important;
+}
+
+/* Menu recolhido: ícones quadrados e o painel ao lado na cor do tema, não a placa #343a40. */
+:is(html, html[data-theme="dark"]) body .sidebar.collapsed .menu-category-header {
+  width: 40px !important;
+  height: 40px !important;
+  margin: 4px auto !important;
+  padding: 0 !important;
+  border-radius: 10px !important;
+  justify-content: center !important;
+  color: var(--dc-muted) !important;
+  border-left: 0 !important;
+}
+
+:is(html, html[data-theme="dark"]) body .sidebar.collapsed .menu-category:hover > .menu-category-header,
+:is(html, html[data-theme="dark"]) body .sidebar.collapsed .menu-category.is-flyout-open > .menu-category-header {
+  background: var(--dc-accent-soft) !important;
+  color: var(--dc-accent) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .sidebar.collapsed .menu-category:hover > .menu-category-header i,
+:is(html, html[data-theme="dark"]) body .sidebar.collapsed .menu-category.is-flyout-open > .menu-category-header i {
+  color: var(--dc-accent) !important;
+  background: transparent !important;
+}
+
+:is(html, html[data-theme="dark"]) body .sidebar.collapsed > .menu > .menu-item,
+:is(html, html[data-theme="dark"]) body .sidebar.collapsed .menu-category-header + .menu-item {
+  width: 40px !important;
+  height: 40px !important;
+  margin: 4px auto !important;
+  padding: 0 !important;
+  border-radius: 10px !important;
+  border-left-width: 0 !important;
+  justify-content: center !important;
+}
+
+:is(html, html[data-theme="dark"]) body .sidebar.collapsed .menu-category:hover .menu-category-items,
+:is(html, html[data-theme="dark"]) body .sidebar.collapsed .menu-category.is-flyout-open .menu-category-items {
+  background: var(--dc-surface) !important;
+  color: var(--dc-text) !important;
+  border: 1px solid var(--dc-border) !important;
+  border-radius: 12px !important;
+  margin-left: 8px !important;
+  padding: 6px !important;
+  box-shadow: 0 12px 32px rgba(28, 26, 22, 0.14) !important;
+}
+
+html[data-theme="dark"] body .sidebar.collapsed .menu-category:hover .menu-category-items,
+html[data-theme="dark"] body .sidebar.collapsed .menu-category.is-flyout-open .menu-category-items {
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .sidebar.collapsed .menu-category-items::before {
+  left: -18px !important;
+  width: 18px !important;
+}
+
+:is(html, html[data-theme="dark"]) body .sidebar.collapsed .menu-category-items .menu-flyout-title {
+  color: var(--dc-subtle) !important;
+  border-bottom: 1px solid var(--dc-border) !important;
+  background: transparent !important;
+}
+
+:is(html, html[data-theme="dark"]) body .sidebar.collapsed .menu-category-items .menu-item {
+  width: auto !important;
+  height: auto !important;
+  margin: 2px 0 !important;
+  padding: 8px 12px !important;
+  border-radius: 8px !important;
+  border-left: 3px solid transparent !important;
+  color: var(--dc-text) !important;
+  background: transparent !important;
+  justify-content: flex-start !important;
+}
+
+:is(html, html[data-theme="dark"]) body .sidebar.collapsed .menu-category-items .menu-item span,
+:is(html, html[data-theme="dark"]) body .sidebar.collapsed .menu-category-items .menu-item i {
+  color: inherit !important;
+}
+
+:is(html, html[data-theme="dark"]) body .sidebar.collapsed .menu-category-items .menu-item:hover,
+:is(html, html[data-theme="dark"]) body .sidebar.collapsed .menu-category-items .menu-item.active {
+  background: var(--dc-accent-soft) !important;
+  color: var(--dc-accent) !important;
+  border-left-color: var(--dc-accent) !important;
+}
+
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item.has-badge:not(:hover):not(.active),
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item[data-programa="alertas"].has-badge:not(:hover):not(.active),
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item[data-programa="chat"].has-badge:not(:hover):not(.active),
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item[data-programa="sos"].has-badge:not(:hover):not(.active) {
+  background: transparent !important;
+  border-left-color: transparent !important;
+}
+
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item:not(.has-badge) .menu-badge {
+  display: none !important;
+}
+
+:is(html, html[data-theme="dark"]) body .sidebar .menu-item .menu-badge {
+  flex: 0 0 auto !important;
+  align-self: center !important;
+  width: auto !important;
+  min-width: 18px !important;
+  height: 18px !important;
+  padding: 0 5px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+  font-size: 11px !important;
+  box-sizing: border-box !important;
+  background: #f3e4e0 !important;
+  color: #a94a3c !important;
+  border: none !important;
+  border-radius: 999px !important;
+  box-shadow: none !important;
+  animation: none !important;
+  font-weight: 700 !important;
+}
+
+html[data-theme="dark"] body .sidebar .menu-item .menu-badge {
+  background: rgba(200, 114, 99, 0.18) !important;
+  color: #f0c2b8 !important;
+}
+
+:is(html, html[data-theme="dark"]) body .sidebar.collapsed .menu-category-items .menu-item .menu-badge {
+  position: static !important;
+  margin-left: auto !important;
+  background: #f3e4e0 !important;
+  color: #a94a3c !important;
+}
+
+html[data-theme="dark"] body .sidebar.collapsed .menu-category-items .menu-item .menu-badge {
+  background: rgba(200, 114, 99, 0.18) !important;
+  color: #f0c2b8 !important;
+}
+
+.aviso-pedidos-acesso {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border: 1px solid #506d48;
+  border-radius: 12px;
+  background: #e4ebe0;
+  color: #1c1a16;
+  font: 500 15px/1.4 "Atkinson Hyperlegible", "Segoe UI", sans-serif;
+  text-align: left;
+  cursor: pointer;
+}
+
+.aviso-pedidos-acesso i { font-size: 22px; color: #41573b; }
+.aviso-pedidos-acesso strong { font-weight: 700; }
+
+html[data-theme="dark"] .aviso-pedidos-acesso {
+  background: rgba(130, 160, 119, 0.16);
+  border-color: #82a077;
+  color: #f5f4ef;
+}
+
+html[data-theme="dark"] .aviso-pedidos-acesso i { color: #d5e3cf; }
+
+.header-icon-btn-pedidos-acesso.has-pending {
+  border-color: #506d48;
+  color: #41573b;
+  background: #e4ebe0;
+}
+
+.header-icon-btn-pedidos-acesso .header-icon-badge { background: #506d48; }
+
+html[data-theme="dark"] .header-icon-btn-pedidos-acesso.has-pending {
+  border-color: #82a077;
+  color: #d5e3cf;
+  background: rgba(130, 160, 119, 0.16);
+}

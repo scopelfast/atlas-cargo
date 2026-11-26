@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cadastrar empresa — Atlas Cargo</title>
+  <link rel="icon" type="image/svg+xml" href="/img/logo-atlas-simbolo.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet" />
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Atkinson Hyperlegible", "Segoe UI", sans-serif;
+      background: #faf9f6;
+      color: #1c1a16;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .cartao {
+      width: min(1040px, 100%);
+      display: grid;
+      grid-template-columns: 0.82fr 1.18fr;
+      background: #fff;
+      border: 1px solid #e7e3da;
+      border-radius: 24px;
+      overflow: hidden;
+    }
+    .lado {
+      background: #f5f3ee;
+      padding: 32px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .marca { display: flex; align-items: baseline; gap: 8px; color: #506d48; text-decoration: none; }
+    .marca strong { color: #1c1a16; font-size: 22px; }
+    .marca span { color: #5d594f; font-size: 13px; font-weight: 700; }
+    .passos { display: flex; flex-direction: column; gap: 12px; flex: 1; }
+    .passo {
+      background: #fff;
+      border: 1px solid #e7e3da;
+      border-radius: 16px;
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 36px 1fr;
+      gap: 12px;
+      align-items: center;
+    }
+    .passo b { display: block; font-size: 14px; }
+    .passo p { margin: 4px 0 0; color: #5d594f; font-size: 13px; }
+    .n {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: #e4ebe0; color: #506d48;
+      display: flex; align-items: center; justify-content: center; font-weight: 700;
+    }
+    form { padding: 28px 28px 24px; display: flex; flex-direction: column; gap: 12px; }
+    label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 700; color: #5d594f; }
+    input, select {
+      height: 42px; border-radius: 10px; border: 1px solid #e7e3da;
+      background: #f5f3ee; padding: 0 12px; font: inherit; color: #1c1a16; width: 100%;
+    }
+    input:focus, select:focus { outline: none; border-color: #506d48; box-shadow: 0 0 0 3px rgba(80, 109, 72, 0.18); }
+    .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .fone { display: grid; grid-template-columns: 1.3fr 72px 1fr; gap: 12px; }
+    .fone.sem-ddd { grid-template-columns: 1fr 1.4fr; }
+    .fone.sem-ddd .campo-ddd { display: none; }
+    button.enviar {
+      margin-top: 6px; height: 46px; border: 0; border-radius: 12px;
+      background: #506d48; color: #fff; font: inherit; font-weight: 700; cursor: pointer;
+    }
+    button.enviar:disabled { opacity: 0.65; cursor: default; }
+    .idioma { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .idioma span { font-size: 13px; font-weight: 700; color: #5d594f; }
+    .btn-idioma {
+      height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid #e7e3da;
+      background: #fff; color: #5d594f; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+    }
+    .btn-idioma.active { background: #506d48; color: #fff; border-color: #506d48; }
+    .hint { margin: 0; font-size: 12px; font-weight: 400; color: #7d786c; }
+    .msg { display: none; border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+    .msg.erro { display: block; background: #f3e4e0; color: #a94a3c; }
+    .msg.ok { display: block; background: #e4ebe0; color: #41573b; }
+    .voltar { text-align: center; font-size: 14px; margin: 0; }
+    .voltar a { color: #506d48; font-weight: 700; text-decoration: none; }
+    @media (max-width: 860px) {
+      .cartao, .grade, .fone, .fone.sem-ddd { grid-template-columns: 1fr; }
+      .fone.sem-ddd .campo-ddd { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="cartao">
+    <aside class="lado">
+      <a class="marca" href="/">
+        <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true">
+          <path fill="currentColor" fill-rule="evenodd" d="M16 3.2 28.8 28.8h-6.1l-1.95-5.7H11.25l-1.95 5.7H3.2L16 3.2zm0 9.15-3.35 9.75h6.7L16 12.35z"/>
+        </svg>
+        <strong>Atlas</strong>
+        <span>Cargo</span>
+      </a>
+      <div class="passos">
+        <div class="passo"><div class="n">1</div><div><b data-i18n="web.cadastroEmpresa.passo1t">Pedido</b><p data-i18n="web.cadastroEmpresa.passo1d">A empresa deixa nome, documento e o celular que recebe o aviso.</p></div></div>
+        <div class="passo"><div class="n">2</div><div><b data-i18n="web.cadastroEmpresa.passo2t">Espera</b><p data-i18n="web.cadastroEmpresa.passo2d">O pedido fica parado até alguém da operação liberar.</p></div></div>
+        <div class="passo"><div class="n">3</div><div><b data-i18n="web.cadastroEmpresa.passo3t">Acesso</b><p data-i18n="web.cadastroEmpresa.passo3d">O WhatsApp avisa a liberação. A entrada usa o usuário escolhido.</p></div></div>
+      </div>
+    </aside>
+    <form id="formEmpresa">
+      <div class="idioma">
+        <span data-i18n="web.cadastroEmpresa.idioma">Idioma</span>
+        <button type="button" class="btn-idioma" data-locale="pt-BR" data-i18n="web.cadastroEmpresa.portugues">Português</button>
+        <button type="button" class="btn-idioma" data-locale="es-PY" data-i18n="web.cadastroEmpresa.espanhol">Español</button>
+      </div>
+      <h1 style="margin:0; font-size:22px;" data-i18n="web.cadastroEmpresa.titulo">Cadastrar empresa</h1>
+      <p style="margin:0; color:#5d594f;" data-i18n="web.cadastroEmpresa.aviso">Isto não é o cadastro do motorista. A empresa pede o tenant e aguarda liberação.</p>
+      <label><span data-i18n="web.cadastroEmpresa.empresa">Empresa</span><input name="empresa" required maxlength="200" autocomplete="organization" /></label>
+      <div class="grade">
+        <label><span data-i18n="web.cadastroEmpresa.pais">País do documento</span>
+          <select name="pais" id="pais" required></select>
+        </label>
+        <label><span data-i18n="web.cadastroEmpresa.documento">Documento</span>
+          <input name="documento" id="documento" required inputmode="numeric" maxlength="22" autocomplete="off" />
+        </label>
+      </div>
+      <div>
+        <div class="fone" id="fone">
+          <label><span data-i18n="web.cadastroEmpresa.ddi">DDI</span>
+            <select name="ddi" id="ddi" required></select>
+          </label>
+          <label class="campo-ddd"><span data-i18n="web.cadastroEmpresa.ddd">DDD</span>
+            <input name="ddd" id="ddd" inputmode="numeric" maxlength="2" autocomplete="tel-area-code" />
+          </label>
+          <label><span data-i18n="web.cadastroEmpresa.numero">Número</span>
+            <input name="telefone" id="telefone" required inputmode="tel" maxlength="16" autocomplete="tel-national" />
+          </label>
+        </div>
+        <p class="hint" data-i18n="web.cadastroEmpresa.hintWhatsapp">Este celular recebe o WhatsApp quando o pedido chega, quando é liberado e quando é recusado.</p>
+      </div>
+      <label><span data-i18n="web.cadastroEmpresa.contato">Contato</span><input name="contato" required maxlength="120" autocomplete="name" /></label>
+      <label><span data-i18n="web.cadastroEmpresa.email">E-mail</span><input name="email" type="email" required maxlength="200" autocomplete="email" /></label>
+      <div class="grade">
+        <label><span data-i18n="web.cadastroEmpresa.usuario">Usuário de acesso</span><input name="login" required minlength="3" maxlength="50" autocapitalize="none" spellcheck="false" /></label>
+        <label><span data-i18n="web.cadastroEmpresa.senha">Senha</span><input name="senha" type="password" required minlength="6" maxlength="72" autocomplete="new-password" /></label>
+      </div>
+      <div class="msg" id="msg" role="status"></div>
+      <button type="submit" class="enviar" id="btn" data-i18n="web.cadastroEmpresa.enviar">Enviar pedido</button>
+      <p class="voltar"><a href="/" data-i18n="web.cadastroEmpresa.voltar">Voltar ao login</a></p>
+    </form>
+  </div>
+  <script src="/js/i18n-web.js"></script>
+  <script>
+    var enviando = false;
+    var ddiAutomatico = '55';
+    var fallbackPaises = [
+      { SGPAIS: 'BR', DSPAIS: 'Brasil', DDI: '55' },
+      { SGPAIS: 'PY', DSPAIS: 'Paraguai', DDI: '595' },
+      { SGPAIS: 'AR', DSPAIS: 'Argentina', DDI: '54' },
+      { SGPAIS: 'UY', DSPAIS: 'Uruguai', DDI: '598' }
+    ];
+
+    function t(chave) {
+      return (typeof window.tWeb === 'function') ? window.tWeb(chave) : chave;
+    }
+    function localeAtual() {
+      try {
+        var loc = localStorage.getItem('preferredLocale') || 'pt-BR';
+        return loc === 'es-PY' ? 'es-PY' : 'pt-BR';
+      } catch (e) { return 'pt-BR'; }
+    }
+    function soDigitos(v) { return String(v || '').replace(/\D/g, ''); }
+
+    function validarCNPJ(cnpj) {
+      cnpj = soDigitos(cnpj);
+      if (cnpj.length !== 14 || /^(\d)\1+$/.test(cnpj)) return false;
+      var tamanho = 12, numeros = cnpj.substring(0, tamanho), digitos = cnpj.substring(tamanho);
+      var soma = 0, pos = tamanho - 7, i, resultado;
+      for (i = tamanho; i >= 1; i--) { soma += parseInt(numeros.charAt(tamanho - i), 10) * pos--; if (pos < 2) pos = 9; }
+      resultado = soma % 11 < 2 ? 0 : 11 - soma % 11;
+      if (resultado !== parseInt(digitos.charAt(0), 10)) return false;
+      tamanho = 13; numeros = cnpj.substring(0, tamanho); soma = 0; pos = tamanho - 7;
+      for (i = tamanho; i >= 1; i--) { soma += parseInt(numeros.charAt(tamanho - i), 10) * pos--; if (pos < 2) pos = 9; }
+      resultado = soma % 11 < 2 ? 0 : 11 - soma % 11;
+      return resultado === parseInt(digitos.charAt(1), 10);
+    }
+    function validarCUIT(n) {
+      n = soDigitos(n);
+      if (n.length !== 11 || /^(\d)\1+$/.test(n)) return false;
+      var pesos = [5, 4, 3, 2, 7, 6, 5, 4, 3, 2], soma = 0, i;
+      for (i = 0; i < 10; i++) soma += parseInt(n.charAt(i), 10) * pesos[i];
+      var resto = soma % 11, dv = 11 - resto;
+      if (dv === 11) dv = 0;
+      if (dv === 10) dv = 9;
+      return dv === parseInt(n.charAt(10), 10);
+    }
+    function validarRUT(n) {
+      n = soDigitos(n);
+      if (n.length !== 12) return false;
+      var pesos = [4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2], soma = 0, i;
+      for (i = 0; i < 11; i++) soma += parseInt(n.charAt(i), 10) * pesos[i];
+      var resto = soma % 11, dv = resto === 0 ? 0 : 11 - resto;
+      if (dv === 10) return false;
+      return dv === parseInt(n.charAt(11), 10);
+    }
+    function documentoValido(pais, doc) {
+      var n = soDigitos(doc);
+      if (pais === 'BR') return validarCNPJ(n);
+      if (pais === 'PY') return n.length >= 8 && n.length <= 9;
+      if (pais === 'AR') return validarCUIT(n);
+      if (pais === 'UY') return validarRUT(n);
+      return n.length >= 5 && n.length <= 20;
+    }
+    function mascaraDocumento(pais, bruto) {
+      var v = soDigitos(bruto);
+      if (pais === 'BR') {
+        v = v.slice(0, 14);
+        if (v.length <= 2) return v;
+        if (v.length <= 5) return v.replace(/(\d{2})(\d+)/, '$1.$2');
+        if (v.length <= 8) return v.replace(/(\d{2})(\d{3})(\d+)/, '$1.$2.$3');
+        if (v.length <= 12) return v.replace(/(\d{2})(\d{3})(\d{3})(\d+)/, '$1.$2.$3/$4');
+        return v.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d+)/, '$1.$2.$3/$4-$5');
+      }
+      if (pais === 'AR') {
+        v = v.slice(0, 11);
+        if (v.length <= 2) return v;
+        if (v.length <= 10) return v.replace(/(\d{2})(\d+)/, '$1-$2');
+        return v.replace(/(\d{2})(\d{8})(\d+)/, '$1-$2-$3');
+      }
+      if (pais === 'PY') v = v.slice(0, 9);
+      else if (pais === 'UY') v = v.slice(0, 12);
+      else v = v.slice(0, 20);
+      if (v.length <= 1) return v;
+      return v.slice(0, -1) + '-' + v.slice(-1);
+    }
+    function mascaraFone(ddi, bruto) {
+      var v = soDigitos(bruto);
+      if (ddi === '55') {
+        v = v.slice(0, 9);
+        return v.length <= 5 ? v : v.slice(0, 5) + '-' + v.slice(5);
+      }
+      if (ddi === '595') {
+        v = v.slice(0, 9);
+        if (v.length <= 3) return v;
+        if (v.length <= 6) return v.slice(0, 3) + ' ' + v.slice(3);
+        return v.slice(0, 3) + ' ' + v.slice(3, 6) + ' ' + v.slice(6);
+      }
+      if (ddi === '598') {
+        v = v.slice(0, 8);
+        return v.length <= 4 ? v : v.slice(0, 4) + ' ' + v.slice(4);
+      }
+      if (ddi === '54') {
+        v = v.slice(0, 12);
+        return v.length <= 4 ? v : v.slice(0, v.length - 4) + '-' + v.slice(-4);
+      }
+      return v.slice(0, 15);
+    }
+    function celularValido(ddi, ddd, numero) {
+      var nacional = ddi === '55' ? soDigitos(ddd) + soDigitos(numero) : soDigitos(numero);
+      if (ddi === '55') return nacional.length === 11 && /^[1-9]\d9\d{8}$/.test(nacional);
+      if (ddi === '54') return nacional.length >= 10 && nacional.length <= 12 && nacional.charAt(0) === '9';
+      if (ddi === '595') return nacional.length >= 8 && nacional.length <= 9 && nacional.charAt(0) === '9';
+      if (ddi === '598') return nacional.length === 8 && nacional.charAt(0) === '9';
+      return nacional.length >= 8 && nacional.length <= 15;
+    }
+
+    function aplicarMascaraPais() {
+      var pais = document.getElementById('pais').value || 'BR';
+      var doc = document.getElementById('documento');
+      var ph = { BR: 'phCnpj', PY: 'phRuc', AR: 'phCuit', UY: 'phRut' };
+      doc.placeholder = t('web.cadastroEmpresa.' + (ph[pais] || 'phDoc'));
+      doc.value = mascaraDocumento(pais, doc.value);
+    }
+    function aplicarMascaraFone() {
+      var ddi = document.getElementById('ddi').value || '55';
+      var fone = document.getElementById('fone');
+      var tel = document.getElementById('telefone');
+      var ddd = document.getElementById('ddd');
+      var brasil = ddi === '55';
+      fone.classList.toggle('sem-ddd', !brasil);
+      ddd.required = brasil;
+      ddd.placeholder = t('web.cadastroEmpresa.phDdd');
+      tel.placeholder = t(brasil ? 'web.cadastroEmpresa.phFoneBr' : 'web.cadastroEmpresa.phFone');
+      tel.value = mascaraFone(ddi, tel.value);
+    }
+
+    function preencherPaises(lista) {
+      var pais = document.getElementById('pais');
+      var ddi = document.getElementById('ddi');
+      var vistos = {};
+      pais.innerHTML = '';
+      ddi.innerHTML = '';
+      lista.forEach(function (p) {
+        var sg = String(p.SGPAIS || p.sgpais || '').trim().toUpperCase();
+        var nome = p.DSPAIS || p.dspais || sg;
+        var cod = String(p.DDI || p.ddi || '').replace(/\D/g, '');
+        if (sg && !vistos['p' + sg]) {
+          vistos['p' + sg] = true;
+          var op = document.createElement('option');
+          op.value = sg;
+          op.textContent = nome;
+          op.setAttribute('data-ddi', cod);
+          pais.appendChild(op);
+        }
+        if (cod && !vistos['d' + cod + sg]) {
+          vistos['d' + cod + sg] = true;
+          var od = document.createElement('option');
+          od.value = cod;
+          od.textContent = '+' + cod + ' ' + nome;
+          ddi.appendChild(od);
+        }
+      });
+      if (!pais.options.length) return;
+      var temBr = Array.prototype.some.call(pais.options, function (o) { return o.value === 'BR'; });
+      pais.value = temBr ? 'BR' : pais.options[0].value;
+      sincronizarDdi(true);
+    }
+    function sincronizarDdi(forcar) {
+      var pais = document.getElementById('pais');
+      var ddi = document.getElementById('ddi');
+      var op = pais.options[pais.selectedIndex];
+      var cod = op ? op.getAttribute('data-ddi') : '';
+      if (cod && (forcar || ddi.value === ddiAutomatico)) {
+        var achou = Array.prototype.some.call(ddi.options, function (o) { return o.value === cod; });
+        if (achou) ddi.value = cod;
+        ddiAutomatico = cod;
+      }
+      aplicarMascaraPais();
+      aplicarMascaraFone();
+    }
+
+    function initIdioma() {
+      var atual = localeAtual();
+      document.documentElement.lang = atual === 'es-PY' ? 'es' : 'pt-BR';
+      document.querySelectorAll('.btn-idioma').forEach(function (btn) {
+        var loc = btn.getAttribute('data-locale');
+        btn.classList.toggle('active', loc === atual);
+        btn.onclick = function () {
+          try { localStorage.setItem('preferredLocale', loc); } catch (e) {}
+          window.location.reload();
+        };
+      });
+    }
+
+    function mostrar(tipo, texto) {
+      var msg = document.getElementById('msg');
+      msg.className = 'msg ' + tipo;
+      msg.textContent = texto;
+    }
+
+    function validarAntes() {
+      var pais = document.getElementById('pais').value;
+      var ddi = document.getElementById('ddi').value;
+      var ddd = document.getElementById('ddd').value;
+      var tel = document.getElementById('telefone').value;
+      var doc = document.getElementById('documento').value;
+      var empresa = document.querySelector('[name="empresa"]').value.trim();
+      var contato = document.querySelector('[name="contato"]').value.trim();
+      var email = document.querySelector('[name="email"]').value.trim();
+      var login = document.querySelector('[name="login"]').value.trim();
+      var senha = document.querySelector('[name="senha"]').value;
+      if (empresa.length < 2) return t('web.cadastroEmpresa.erroEmpresa');
+      if (!pais) return t('web.cadastroEmpresa.erroPais');
+      if (!documentoValido(pais, doc)) return t('web.cadastroEmpresa.erroDocumento');
+      if (ddi === '55' && !/^[1-9]\d$/.test(soDigitos(ddd))) return t('web.cadastroEmpresa.erroDdd');
+      if (!celularValido(ddi, ddd, tel)) return t('web.cadastroEmpresa.erroTelefone');
+      if (contato.length < 2) return t('web.cadastroEmpresa.erroContato');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return t('web.cadastroEmpresa.erroEmail');
+      if (!/^[a-zA-Z0-9._-]{3,50}$/.test(login)) return t('web.cadastroEmpresa.erroLogin');
+      if (senha.length < 6 || senha.length > 72) return t('web.cadastroEmpresa.erroSenha');
+      return '';
+    }
+
+    document.getElementById('pais').addEventListener('change', function () { sincronizarDdi(false); });
+    document.getElementById('ddi').addEventListener('change', function () {
+      ddiAutomatico = '';
+      aplicarMascaraFone();
+    });
+    var ultimoCnpjConsultado = '';
+    document.getElementById('documento').addEventListener('input', function () {
+      var pais = document.getElementById('pais').value || 'BR';
+      this.value = mascaraDocumento(pais, this.value);
+      var d = soDigitos(this.value);
+      if (pais !== 'BR' || d.length !== 14 || d === ultimoCnpjConsultado) return;
+      ultimoCnpjConsultado = d;
+      fetch('/api/publico/consulta-cnpj/' + d)
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ''); return j; }); })
+        .then(function (data) {
+          var c = data.campos || {};
+          var empresa = document.querySelector('[name="empresa"]');
+          var email = document.querySelector('[name="email"]');
+          if (empresa && !empresa.value.trim() && c.razaoSocial) empresa.value = c.razaoSocial;
+          if (email && !email.value.trim() && c.email) email.value = c.email;
+          if (c.ddd && !document.getElementById('ddd').value.trim()) document.getElementById('ddd').value = c.ddd;
+          if (c.telefone && !document.getElementById('telefone').value.trim()) {
+            document.getElementById('telefone').value = mascaraFone(document.getElementById('ddi').value, c.telefone);
+          }
+          if (data.mensagem) mostrar('ok', data.mensagem);
+        })
+        .catch(function () { /* a pessoa segue preenchendo à mão */ });
+    });
+    document.getElementById('ddd').addEventListener('input', function () {
+      this.value = soDigitos(this.value).slice(0, 2);
+    });
+    document.getElementById('telefone').addEventListener('input', function () {
+      this.value = mascaraFone(document.getElementById('ddi').value, this.value);
+    });
+
+    document.getElementById('formEmpresa').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (enviando) return;
+      var erro = validarAntes();
+      if (erro) { mostrar('erro', erro); return; }
+      enviando = true;
+      var btn = document.getElementById('btn');
+      btn.disabled = true;
+      btn.textContent = t('web.cadastroEmpresa.enviando');
+      mostrar('', '');
+      document.getElementById('msg').className = 'msg';
+      var fd = new FormData(e.target);
+      var body = { idioma: localeAtual() };
+      fd.forEach(function (v, k) { body[k] = v; });
+      body.documento = soDigitos(body.documento);
+      body.ddd = soDigitos(body.ddd);
+      body.telefone = soDigitos(body.telefone);
+      try {
+        var r = await fetch('/api/publico/pedido-acesso', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        var data = await r.json().catch(function () { return {}; });
+        if (!r.ok) {
+          var chave = {
+            empresa: 'erroEmpresa', pais: 'erroPais', documento: 'erroDocumento',
+            telefone: 'erroTelefone', ddd: 'erroDdd', contato: 'erroContato',
+            email: 'erroEmail', login: 'erroLogin', senha: 'erroSenha'
+          }[data.code];
+          throw new Error(localeAtual() === 'es-PY' && chave ? t('web.cadastroEmpresa.' + chave) : (data.error || t('web.cadastroEmpresa.erroEnviar')));
+        }
+        mostrar('ok', data.whatsapp === 'ENVIADO' ? t('web.cadastroEmpresa.okWhatsapp') : (data.message || t('web.cadastroEmpresa.okEnviado')));
+        setTimeout(function () { window.location.href = '/?pedido=enviado'; }, 1600);
+        return;
+      } catch (err) {
+        mostrar('erro', err.message || t('web.cadastroEmpresa.erroEnviar'));
+      } finally {
+        if (document.getElementById('msg').classList.contains('ok')) return;
+        setTimeout(function () {
+          enviando = false;
+          btn.disabled = false;
+          btn.textContent = t('web.cadastroEmpresa.enviar');
+        }, 600);
+      }
+    });
+
+    function subir() {
+      initIdioma();
+      if (typeof window.applyI18nWeb === 'function') window.applyI18nWeb();
+      document.title = t('web.cadastroEmpresa.titulo') + ' — Atlas Cargo';
+      fetch('/api/paises').then(function (r) { return r.json(); }).then(function (lista) {
+        preencherPaises(Array.isArray(lista) && lista.length ? lista : fallbackPaises);
+      }).catch(function () { preencherPaises(fallbackPaises); });
+    }
+    if (window.i18nWebReady) window.i18nWebReady.then(subir);
+    else subir();
+  </script>
+</body>
+</html>

@@ -12,7 +12,37 @@ const {
   invalidateTenantEntitlementsCache,
 } = require('../services/tenant-entitlements.service');
 const { getDefaultTenantId } = require('../middleware/tenant.middleware');
+const { listarPedidos, contarPendentes, liberarPedido, recusarPedido, ensureClientePerfil } = require('../services/pedido-acesso.service');
+const { listarGrupos, tabelasValidas, previarLimpeza, executarLimpeza } = require('../services/limpeza-teste.service');
+const { excluirTenantCompleto } = require('../services/excluir-tenant.service');
 const { getTowerSessionTtlHours } = require('../services/tenant-concurrent-sessions.service');
+
+function textoCurto(raw, max) {
+  if (raw == null) return '';
+  return String(raw).trim().slice(0, max);
+}
+
+function aplicarPerfilCliente(body, sets, vals, i) {
+  const campos = [
+    ['documento', 'DOCUMENTO', 20],
+    ['sgpais', 'SGPAIS', 8],
+    ['ddi', 'DDI', 5],
+    ['telefone', 'TELEFONE', 30],
+    ['nm_contato', 'NM_CONTATO', 120],
+    ['email', 'EMAIL', 200],
+  ];
+  for (const [key, col, max] of campos) {
+    if (body[key] === undefined) continue;
+    const valor = textoCurto(body[key], max);
+    if (!valor) {
+      sets.push(`"${col}" = NULL`);
+    } else {
+      sets.push(`"${col}" = $${i++}`);
+      vals.push(valor);
+    }
+  }
+  return i;
+}
 
 function parseMaxAssentos(raw) {
   if (raw === undefined || raw === null || raw === '') return null;
@@ -545,6 +575,7 @@ router.delete('/planos/:cdPlano/modulos', requireSaaSAdmin, async (req, res) => 
 router.get('/clientes', requireSaaSAdmin, async (req, res) => {
   try {
     const pool = await poolPromise;
+    await ensureClientePerfil(pool);
     const defT = getDefaultTenantId();
     const ttlH = getTowerSessionTtlHours();
     let result;
@@ -566,7 +597,15 @@ router.get('/clientes', requireSaaSAdmin, async (req, res) => {
                   WHERE l."DHLOGOUT" IS NULL
                     AND l."DHLOGIN" >= CURRENT_TIMESTAMP - ($2::double precision * INTERVAL '1 hour')
                     AND COALESCE(NULLIF(TRIM(l."TENANT_ID"), ''), $1) = c."TENANT_ID"
-                ) AS qtd_sessoes_torre_abertas
+                ) AS qtd_sessoes_torre_abertas,
+                c."DOCUMENTO", c."SGPAIS", c."DDI", c."TELEFONE", c."NM_CONTATO", c."EMAIL",
+                (
+                  SELECT u."SGUSUARIO" FROM "USUARIO" u
+                  WHERE u."FGACTIVE" = 'S'
+                    AND COALESCE(NULLIF(TRIM(u."TENANT_ID"), ''), $1) = c."TENANT_ID"
+                  ORDER BY u."SGUSUARIO"
+                  LIMIT 1
+                ) AS sgusuario
          FROM "SAAS_CLIENTE_CONTRATANTE" c
          LEFT JOIN "SAAS_PLANO" p ON p."CD_PLANO" = c."CD_PLANO"
          ORDER BY c."NM_CLIENTE"`,
@@ -633,6 +672,11 @@ router.post('/clientes', requireSaaSAdmin, async (req, res) => {
       return res.status(400).json({ error: 'cd_plano inválido.' });
     }
     const pool = await poolPromise;
+    await ensureClientePerfil(pool);
+    const emailNovo = textoCurto(req.body && req.body.email, 200);
+    if (emailNovo && !emailNovo.includes('@')) {
+      return res.status(400).json({ error: 'E-mail inválido.' });
+    }
     const p = await pool.query(`SELECT 1 FROM "SAAS_PLANO" WHERE "CD_PLANO" = $1`, [cp]);
     if (!p.rows.length) {
       return res.status(400).json({ error: 'Plano não existe.' });
@@ -666,9 +710,19 @@ router.post('/clientes', requireSaaSAdmin, async (req, res) => {
     }
     try {
       await pool.query(
-        `INSERT INTO "SAAS_CLIENTE_CONTRATANTE" ("TENANT_ID", "NM_CLIENTE", "CD_PLANO", "CDEMPRESA", "MAX_ASSENTOS_USUARIOS_OVR", "MAX_SESSOES_SIMULTANEAS_OVR", "FGACTIVE")
-         VALUES ($1, $2, $3, $4, $5, $6, 'S')`,
-        [tid, nm, cp, ce, maxOvr, maxSessOvr]
+        `INSERT INTO "SAAS_CLIENTE_CONTRATANTE"
+          ("TENANT_ID", "NM_CLIENTE", "CD_PLANO", "CDEMPRESA", "MAX_ASSENTOS_USUARIOS_OVR", "MAX_SESSOES_SIMULTANEAS_OVR", "FGACTIVE",
+           "DOCUMENTO", "SGPAIS", "DDI", "TELEFONE", "NM_CONTATO", "EMAIL")
+         VALUES ($1, $2, $3, $4, $5, $6, 'S', $7, $8, $9, $10, $11, $12)`,
+        [
+          tid, nm, cp, ce, maxOvr, maxSessOvr,
+          textoCurto(req.body.documento, 20) || null,
+          textoCurto(req.body.sgpais, 8).toUpperCase() || null,
+          textoCurto(req.body.ddi, 5).replace(/\D/g, '') || null,
+          textoCurto(req.body.telefone, 30).replace(/\D/g, '') || null,
+          textoCurto(req.body.nm_contato, 120) || null,
+          emailNovo || null,
+        ]
       );
     } catch (ie) {
       if (ie.code === '42703') {
@@ -726,6 +780,11 @@ router.put('/clientes/:tenantId', requireSaaSAdmin, async (req, res) => {
       max_sessoes_simultaneas_ovr,
     } = req.body || {};
     const pool = await poolPromise;
+    await ensureClientePerfil(pool);
+    const emailEdit = req.body && req.body.email !== undefined ? textoCurto(req.body.email, 200) : null;
+    if (emailEdit && !emailEdit.includes('@')) {
+      return res.status(400).json({ error: 'E-mail inválido.' });
+    }
     const ex = await pool.query(`SELECT 1 FROM "SAAS_CLIENTE_CONTRATANTE" WHERE "TENANT_ID" = $1`, [tenantId]);
     if (!ex.rows.length) {
       return res.status(404).json({ error: 'Cliente não encontrado. Crie o registro via SQL ou expansão futura.' });
@@ -789,6 +848,11 @@ router.put('/clientes/:tenantId', requireSaaSAdmin, async (req, res) => {
         vals.push(ps.value);
       }
     }
+    if (req.body && req.body.documento !== undefined) req.body.documento = textoCurto(req.body.documento, 20).replace(/\D/g, '');
+    if (req.body && req.body.sgpais !== undefined) req.body.sgpais = textoCurto(req.body.sgpais, 8).toUpperCase();
+    if (req.body && req.body.ddi !== undefined) req.body.ddi = textoCurto(req.body.ddi, 5).replace(/\D/g, '');
+    if (req.body && req.body.telefone !== undefined) req.body.telefone = textoCurto(req.body.telefone, 30).replace(/\D/g, '');
+    i = aplicarPerfilCliente(req.body || {}, sets, vals, i);
     sets.push(`"DHMAINTENANCE" = CURRENT_TIMESTAMP`);
     vals.push(tenantId);
     try {
@@ -858,55 +922,23 @@ router.delete('/clientes/:tenantId', requireSaaSAdmin, async (req, res) => {
     });
   }
   const pool = await poolPromise;
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN');
-    const sp = 'sp_saas_del_cli';
-    await client.query(`SAVEPOINT ${sp}`);
-    try {
-      await client.query(`DELETE FROM "SAAS_TENANT_MODULO" WHERE "TENANT_ID" = $1`, [tenantId]);
-      await client.query(`RELEASE SAVEPOINT ${sp}`);
-    } catch (e1) {
-      try {
-        await client.query(`ROLLBACK TO SAVEPOINT ${sp}`);
-      } catch (rb) {
-        /* ignore */
-      }
-      try {
-        await client.query(`RELEASE SAVEPOINT ${sp}`);
-      } catch (rel) {
-        /* ignore */
-      }
-      if (e1.code !== '42P01') throw e1;
-    }
-    const del = await client.query(
-      `DELETE FROM "SAAS_CLIENTE_CONTRATANTE" WHERE "TENANT_ID" = $1 RETURNING "TENANT_ID"`,
-      [tenantId]
-    );
-    const removed = del.rowCount != null ? del.rowCount : (del.rows && del.rows.length) || 0;
-    if (!removed) {
-      await client.query('ROLLBACK');
+    const resultado = await excluirTenantCompleto(pool, tenantId);
+    if (!resultado.apagados.length) {
       return res.status(404).json({ error: 'Cliente não encontrado.' });
     }
-    await client.query('COMMIT');
     invalidateTenantEntitlementsCache(tenantId);
     invalidateTenantEntitlementsCache(null);
-    res.json({ success: true, tenant_id: tenantId });
+    res.json({ success: true, tenant_id: tenantId, apagados: resultado.apagados });
   } catch (err) {
-    try {
-      await client.query('ROLLBACK');
-    } catch (e2) {
-      /* ignore */
-    }
+    if (err.status) return res.status(err.status).json({ error: err.message });
     if (err.code === '23503') {
       return res.status(409).json({
-        error: 'Não foi possível excluir: ainda há referências a este tenant no banco.',
+        error: 'Não foi possível excluir: ainda há referência deste tenant em outro cadastro.',
       });
     }
     console.error('[SaaS admin] delete cliente:', err);
     res.status(500).json({ error: 'Erro ao excluir cliente.' });
-  } finally {
-    client.release();
   }
 });
 
@@ -964,6 +996,125 @@ router.put('/tenants/:tenantId/modules', requireSaaSAdmin, async (req, res) => {
   } catch (err) {
     console.error('[SaaS admin] put modules:', err);
     res.status(500).json({ error: 'Erro ao salvar módulos.' });
+  }
+});
+
+router.get('/pedidos-acesso/contador', requireSaaSAdmin, async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const count = await contarPendentes(pool);
+    res.json({ success: true, count });
+  } catch (err) {
+    console.error('[SaaS admin] contador pedidos:', err);
+    res.status(500).json({ error: 'Erro ao contar pedidos.' });
+  }
+});
+
+router.get('/pedidos-acesso', requireSaaSAdmin, async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const pedidos = await listarPedidos(pool);
+    res.json({ success: true, pedidos });
+  } catch (err) {
+    console.error('[SaaS admin] pedidos-acesso:', err);
+    res.status(500).json({ error: 'Erro ao listar pedidos de acesso.' });
+  }
+});
+
+router.post('/pedidos-acesso/:id/liberar', requireSaaSAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'Pedido inválido.' });
+    const pool = await poolPromise;
+    const operador = req.user && (req.user.login || req.user.email);
+    const tenantInformado = req.body && (req.body.tenantId || req.body.tenant_id);
+    const out = await liberarPedido(pool, id, operador, tenantInformado);
+    if (out.error) return res.status(out.status).json({ error: out.error });
+    const aviso = out.whatsapp === 'ENVIADO'
+      ? ' Aviso enviado no WhatsApp.'
+      : out.whatsapp === 'SEM_CANAL'
+        ? ' O WhatsApp não saiu: o canal Switch Digital do tenant padrão não está configurado.'
+        : ' O WhatsApp não saiu.';
+    res.json({
+      success: true,
+      tenantId: out.tenantId,
+      login: out.login,
+      atividades: out.atividades,
+      whatsapp: out.whatsapp,
+      message: 'Empresa liberada. Ela entra com o usuário que escolheu no cadastro.' + aviso,
+    });
+  } catch (err) {
+    console.error('[SaaS admin] liberar pedido:', err);
+    res.status(500).json({ error: 'Erro ao liberar o pedido.' });
+  }
+});
+
+router.post('/pedidos-acesso/:id/recusar', requireSaaSAdmin, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'Pedido inválido.' });
+    const pool = await poolPromise;
+    const operador = req.user && (req.user.login || req.user.email);
+    const out = await recusarPedido(pool, id, operador, req.body && req.body.motivo);
+    if (out.error) return res.status(out.status).json({ error: out.error });
+    const aviso = out.whatsapp === 'ENVIADO'
+      ? ' Aviso enviado no WhatsApp.'
+      : out.whatsapp === 'SEM_CANAL'
+        ? ' O WhatsApp não saiu: o canal Switch Digital do tenant padrão não está configurado.'
+        : ' O WhatsApp não saiu.';
+    res.json({ success: true, whatsapp: out.whatsapp, message: 'Pedido recusado.' + aviso });
+  } catch (err) {
+    console.error('[SaaS admin] recusar pedido:', err);
+    res.status(500).json({ error: 'Erro ao recusar o pedido.' });
+  }
+});
+
+router.get('/limpeza-teste/grupos', requireSaaSAdmin, (req, res) => {
+  res.json({ grupos: listarGrupos() });
+});
+
+router.post('/limpeza-teste/prever', requireSaaSAdmin, async (req, res) => {
+  try {
+    const tenantId = String((req.body && (req.body.tenantId || req.body.tenant_id)) || '').trim();
+    const tabelas = tabelasValidas(req.body && req.body.tabelas);
+    if (!tenantId) return res.status(400).json({ error: 'Escolha o tenant.' });
+    if (!tabelas.length) return res.status(400).json({ error: 'Marque ao menos uma tabela.' });
+    const pool = await poolPromise;
+    const existe = await pool.query('SELECT 1 FROM "SAAS_CLIENTE_CONTRATANTE" WHERE "TENANT_ID" = $1', [tenantId]);
+    if (!existe.rows.length) return res.status(404).json({ error: 'Tenant não encontrado.' });
+    const out = await previarLimpeza(pool, tenantId, tabelas);
+    res.json({ success: true, tenantId, ...out });
+  } catch (err) {
+    console.error('[SaaS admin] prever limpeza:', err);
+    res.status(500).json({ error: 'Não foi possível contar as linhas.' });
+  }
+});
+
+router.post('/limpeza-teste', requireSaaSAdmin, async (req, res) => {
+  try {
+    const tenantId = String((req.body && (req.body.tenantId || req.body.tenant_id)) || '').trim();
+    const confirmacao = String((req.body && req.body.confirmacao) || '').trim();
+    const tabelas = tabelasValidas(req.body && req.body.tabelas);
+    if (!tenantId) return res.status(400).json({ error: 'Escolha o tenant.' });
+    if (confirmacao !== tenantId) return res.status(400).json({ error: 'Digite o identificador do tenant para confirmar.' });
+    if (!tabelas.length) return res.status(400).json({ error: 'Marque ao menos uma tabela.' });
+    const pool = await poolPromise;
+    const existe = await pool.query('SELECT 1 FROM "SAAS_CLIENTE_CONTRATANTE" WHERE "TENANT_ID" = $1', [tenantId]);
+    if (!existe.rows.length) return res.status(404).json({ error: 'Tenant não encontrado.' });
+    const out = await executarLimpeza(pool, tenantId, tabelas);
+    const total = out.blocos.reduce((s, b) => s + b.total, 0);
+    res.json({
+      success: true,
+      tenantId,
+      total,
+      ...out,
+      message: total
+        ? 'Limpeza feita. O contador de cada tabela volta a 1 só se ela ficou vazia; se ainda há linha de outro tenant, o próximo número é o maior id que restou.'
+        : 'Nada para apagar nesse tenant.',
+    });
+  } catch (err) {
+    console.error('[SaaS admin] limpeza teste:', err);
+    res.status(500).json({ error: 'A limpeza foi desfeita. Alguma ligação entre tabelas impediu a exclusão.' });
   }
 });
 

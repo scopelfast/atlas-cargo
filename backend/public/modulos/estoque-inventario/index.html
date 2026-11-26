@@ -403,9 +403,11 @@
     html[data-theme='dark'] .wms-inv-container .tabs.tabs-com-icones,
     body[data-theme='dark'] .wms-inv-container .tabs.tabs-com-icones { border-bottom-color: #334155; }
     html[data-theme='dark'] .wms-inv-container .tabs.tabs-com-icones .tab-btn.active,
-    body[data-theme='dark'] .wms-inv-container .tabs.tabs-com-icones .tab-btn.active {
-      color: #38bdf8;
-      border-bottom-color: #38bdf8;
+    html[data-theme='dark'] .wms-inv-container .tabs.tabs-com-icones .tab-btn.active span,
+    body[data-theme='dark'] .wms-inv-container .tabs.tabs-com-icones .tab-btn.active,
+    body[data-theme='dark'] .wms-inv-container .tabs.tabs-com-icones .tab-btn.active span {
+      color: var(--dc-accent, #82a077);
+      border-bottom-color: var(--dc-accent, #82a077);
     }
     html[data-theme='dark'] .wms-inv-container .filtros-box,
     body[data-theme='dark'] .wms-inv-container .filtros-box,

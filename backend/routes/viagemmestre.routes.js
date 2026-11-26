@@ -154,6 +154,7 @@ router.post('/viagens/webhook/switch-digital', viagemController.enviarWebhookSwi
 // Rota para receber retorno do webhook Meta (callback)
 router.post('/webhook-meta-callback', viagemController.receberRetornoWebhookMeta);
 router.post('/convocacoes/:id/confirmar', viagemController.confirmarConvocacao);
+router.post('/convocacoes/:id/desistir-lote', viagemController.desistirLote);
 router.post('/convocacoes/:id/reativar', viagemController.reativarConvocacao);
 router.get('/convocacoes/:id/historico-reabertura', viagemController.listarHistoricoReabertura);
 

@@ -329,6 +329,13 @@
       if (!input.value) return;
       input.value = formatCnpj(input.value);
     });
+    if (window.AtlasConsulta) {
+      AtlasConsulta.ligarDocumento(input, function (data) {
+        if (data.tipo !== 'J') return;
+        var c = data.campos || {};
+        AtlasConsulta.preencher('form_nome', c.razaoSocial || c.nomeFantasia);
+      });
+    }
   }
 
   function showLoadingOverlay(titulo, texto, detalhe) {

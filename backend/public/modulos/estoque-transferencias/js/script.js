@@ -189,11 +189,11 @@
       var origemTxt = esc(t.CD_DONO_ORIGEM + ' — ' + (t.NM_DONO_ORIGEM || '?'));
       var destinoTxt = esc(t.CD_DONO_DESTINO + ' — ' + (t.NM_DONO_DESTINO || '?'));
       var skuTxt = esc(t.CODIGO_PRODUTO) +
-        (t.NM_PRODUTO_SNAPSHOT ? '<br/><small style="color:#64748b">' + esc(t.NM_PRODUTO_SNAPSHOT) + '</small>' : '');
+        (t.NM_PRODUTO_SNAPSHOT ? '<br/><small class="linha-sub">' + esc(t.NM_PRODUTO_SNAPSHOT) + '</small>' : '');
       var loteVal = (t.LOTE || t.VALIDADE)
-        ? '<br/><small style="color:#64748b">Lote: ' + esc(t.LOTE || '—') + ' · Val.: ' + esc(fmtData(t.VALIDADE)) + '</small>'
+        ? '<br/><small class="linha-sub">Lote: ' + esc(t.LOTE || '—') + ' · Val.: ' + esc(fmtData(t.VALIDADE)) + '</small>'
         : '';
-      var motivo = t.MOTIVO ? '<br/><small style="color:#64748b" title="' + esc(t.MOTIVO) + '">' +
+      var motivo = t.MOTIVO ? '<br/><small class="linha-sub" title="' + esc(t.MOTIVO) + '">' +
                               esc(t.MOTIVO.length > 60 ? t.MOTIVO.slice(0, 57) + '…' : t.MOTIVO) +
                               '</small>' : '';
 
@@ -203,14 +203,14 @@
           '" title="Cancelar com estorno"><i class="bx bx-undo"></i></button>';
 
       return '<tr>' +
-        '<td><strong>#' + esc(t.CD_TRANSFERENCIA) + '</strong><br/><small style="color:#64748b">' + esc(fmtDh(t.DH_REGISTRO)) + '</small></td>' +
-        '<td>' + origemTxt + '<br/><small style="color:#64748b">→ ' + destinoTxt + '</small>' + motivo + '</td>' +
+        '<td><strong>#' + esc(t.CD_TRANSFERENCIA) + '</strong><br/><small class="linha-sub">' + esc(fmtDh(t.DH_REGISTRO)) + '</small></td>' +
+        '<td>' + origemTxt + '<br/><small class="linha-sub">→ ' + destinoTxt + '</small>' + motivo + '</td>' +
         '<td>' + skuTxt + loteVal + '</td>' +
         '<td class="num"><strong>' + fmtQtd(t.QTD) + '</strong></td>' +
-        '<td>' + badge + (cancelada && t.DH_CANCELAMENTO ? '<br/><small style="color:#64748b">' + esc(fmtDh(t.DH_CANCELAMENTO)) + '</small>' : '') + '</td>' +
+        '<td>' + badge + (cancelada && t.DH_CANCELAMENTO ? '<br/><small class="linha-sub">' + esc(fmtDh(t.DH_CANCELAMENTO)) + '</small>' : '') + '</td>' +
         '<td><div class="acoes-celula">' +
           '<button type="button" class="btn-acao" data-acao="comprovante" data-cd="' + esc(t.CD_TRANSFERENCIA) +
-          '" title="Comprovante imprimível"><i class="bx bx-printer"></i></button>' +
+          '" title="Comprovante imprimível"><i class="bx bx-printer"></i> Imprimir</button>' +
           btnCancel +
         '</div></td>' +
         '</tr>';

@@ -1615,21 +1615,23 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
   border-bottom-color: #334155;
 }
 
-[data-theme="dark"] .tabs.tabs-com-icones .tab-btn {
-  color: #94a3b8;
+[data-theme="dark"] .tabs.tabs-com-icones .tab-btn,
+[data-theme="dark"] .tabs.tabs-com-icones .tab-btn i,
+[data-theme="dark"] .tabs.tabs-com-icones .tab-btn span {
+  color: var(--dc-muted);
 }
 
-[data-theme="dark"] .tabs.tabs-com-icones .tab-btn:hover {
-  color: #cbd5e1;
+[data-theme="dark"] .tabs.tabs-com-icones .tab-btn:hover,
+[data-theme="dark"] .tabs.tabs-com-icones .tab-btn:hover i,
+[data-theme="dark"] .tabs.tabs-com-icones .tab-btn:hover span {
+  color: var(--dc-accent-hover);
 }
 
-[data-theme="dark"] .tabs.tabs-com-icones .tab-btn.active {
-  color: #38bdf8;
-  border-bottom-color: #38bdf8;
-}
-
-[data-theme="dark"] .tabs.tabs-com-icones .tab-btn.active i {
-  color: #38bdf8;
+[data-theme="dark"] .tabs.tabs-com-icones .tab-btn.active,
+[data-theme="dark"] .tabs.tabs-com-icones .tab-btn.active i,
+[data-theme="dark"] .tabs.tabs-com-icones .tab-btn.active span {
+  color: var(--dc-accent);
+  border-bottom-color: var(--dc-accent);
 }
 
 /* Abas: forçar cor da aba ativa em dark (sobrescreve estilos dos módulos carregados depois) */
@@ -1657,8 +1659,8 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
 [data-theme="dark"] .usuarios-container .tabs.tabs-com-icones .tab-btn.active,
 [data-theme="dark"] .configuracoes-container .tabs.tabs-com-icones .tab-btn.active,
 [data-theme="dark"] .logs-acesso-container .tabs.tabs-com-icones .tab-btn.active {
-  color: #38bdf8 !important;
-  border-bottom-color: #38bdf8 !important;
+  color: var(--dc-accent) !important;
+  border-bottom-color: var(--dc-accent) !important;
 }
 [data-theme="dark"] .mapa-viagem-container .tabs.tabs-com-icones .tab-btn.active i,
 [data-theme="dark"] .saas-op-container .tabs.tabs-com-icones .tab-btn.active i,
@@ -1683,8 +1685,9 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
 [data-theme="dark"] .mesorregiao-container .tabs.tabs-com-icones .tab-btn.active i,
 [data-theme="dark"] .usuarios-container .tabs.tabs-com-icones .tab-btn.active i,
 [data-theme="dark"] .configuracoes-container .tabs.tabs-com-icones .tab-btn.active i,
-[data-theme="dark"] .logs-acesso-container .tabs.tabs-com-icones .tab-btn.active i {
-  color: #38bdf8 !important;
+[data-theme="dark"] .logs-acesso-container .tabs.tabs-com-icones .tab-btn.active i,
+[data-theme="dark"] .logs-acesso-container .tabs.tabs-com-icones .tab-btn.active span {
+  color: var(--dc-accent) !important;
 }
 
 /* Gerenciar Equipamentos — form-box de todas as abas: mesmo tratamento do global (sem painel com borda só em Ficha/Documentos/Grid) */
@@ -1744,7 +1747,7 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
   background: transparent !important;
 }
 [data-theme="dark"] .logs-acesso-container .tabs.tabs-com-icones .tab-btn.active span {
-  color: #38bdf8 !important;
+  color: var(--dc-accent) !important;
 }
 
 [data-theme="dark"] .configuracoes-container .tabs.tabs-com-icones {
@@ -1754,15 +1757,15 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
   background: transparent !important;
 }
 [data-theme="dark"] .configuracoes-container .tabs.tabs-com-icones .tab-btn.active span {
-  color: #38bdf8 !important;
+  color: var(--dc-accent) !important;
 }
 
-/* Gerenciar Viagens: mesma faixa de abas que Tipos de Viagem (sem pill; cor ativa #38bdf8) */
+/* Gerenciar Viagens: mesma faixa de abas que Tipos de Viagem */
 [data-theme="dark"] .viagens-container .tabs.tabs-com-icones .tab-btn.active {
   background: transparent !important;
 }
 [data-theme="dark"] .viagens-container .tabs.tabs-com-icones .tab-btn.active span {
-  color: #38bdf8 !important;
+  color: var(--dc-accent) !important;
 }
 
 /* Abas: texto <span> e fundo (var(--ac-primary) claro no dark sobrescrevia só no botão) */
@@ -1778,7 +1781,7 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
 [data-theme="dark"] .empresas-container .tabs.tabs-com-icones .tab-btn.active span,
 [data-theme="dark"] .filiais-container .tabs.tabs-com-icones .tab-btn.active span,
 [data-theme="dark"] .saas-op-container .tabs.tabs-com-icones .tab-btn.active span {
-  color: #38bdf8 !important;
+  color: var(--dc-accent) !important;
 }
 
 /* Abas genéricas (ex.: Gerenciar Viagens) */
@@ -1795,9 +1798,9 @@ body[data-theme="dark"] .sidebar .menu-item[data-programa="gerenciar-cadastro-ge
 }
 /* Só aplica “pill” em .tab-btn fora do padrão tabs-com-icones (se existir) */
 [data-theme="dark"] .viagens-container .tabs:not(.tabs-com-icones) .tab-btn.active {
-  color: #38bdf8;
+  color: var(--dc-accent);
   background: #1e293b;
-  border-bottom-color: #38bdf8;
+  border-bottom-color: var(--dc-accent);
 }
 
 /* Gerenciar Viagens: form-box e grid na aba Grid */
@@ -2678,11 +2681,13 @@ body[data-theme="dark"] .viagens-container .switch-logs-empty {
 [data-theme="dark"] .logs-acesso-container .tabs.tabs-com-icones {
   border-bottom-color: #334155;
 }
-[data-theme="dark"] .logs-acesso-container .tabs.tabs-com-icones .tab-btn {
-  color: #94a3b8;
+[data-theme="dark"] .logs-acesso-container .tabs.tabs-com-icones .tab-btn,
+[data-theme="dark"] .logs-acesso-container .tabs.tabs-com-icones .tab-btn span {
+  color: var(--dc-muted);
 }
-[data-theme="dark"] .logs-acesso-container .tabs.tabs-com-icones .tab-btn:hover {
-  color: #cbd5e1;
+[data-theme="dark"] .logs-acesso-container .tabs.tabs-com-icones .tab-btn:hover,
+[data-theme="dark"] .logs-acesso-container .tabs.tabs-com-icones .tab-btn:hover span {
+  color: var(--dc-accent-hover);
 }
 /* aba ativa: ver bloco global com !important + span (evita var(--ac-primary) claro do <style> do módulo) */
 [data-theme="dark"] .logs-acesso-container .estatisticas-table,
@@ -2800,18 +2805,21 @@ body[data-theme="dark"] .viagens-container .switch-logs-empty {
 [data-theme="dark"] .saas-op-container .tabs.tabs-com-icones {
   border-bottom-color: #334155;
 }
-[data-theme="dark"] .saas-op-container .tabs.tabs-com-icones .tab-btn {
-  color: #94a3b8;
+[data-theme="dark"] .saas-op-container .tabs.tabs-com-icones .tab-btn,
+[data-theme="dark"] .saas-op-container .tabs.tabs-com-icones .tab-btn span {
+  color: var(--dc-muted);
 }
-[data-theme="dark"] .saas-op-container .tabs.tabs-com-icones .tab-btn:hover {
-  color: #cbd5e1;
+[data-theme="dark"] .saas-op-container .tabs.tabs-com-icones .tab-btn:hover,
+[data-theme="dark"] .saas-op-container .tabs.tabs-com-icones .tab-btn:hover span {
+  color: var(--dc-accent-hover);
 }
-[data-theme="dark"] .saas-op-container .tabs.tabs-com-icones .tab-btn.active {
-  color: #38bdf8;
-  border-bottom-color: #38bdf8;
+[data-theme="dark"] .saas-op-container .tabs.tabs-com-icones .tab-btn.active,
+[data-theme="dark"] .saas-op-container .tabs.tabs-com-icones .tab-btn.active span {
+  color: var(--dc-accent);
+  border-bottom-color: var(--dc-accent);
 }
 [data-theme="dark"] .saas-op-container .tabs.tabs-com-icones .tab-btn.active i {
-  color: #38bdf8;
+  color: var(--dc-accent);
 }
 [data-theme="dark"] .saas-op-container .estatisticas-table {
   background: #1e293b;

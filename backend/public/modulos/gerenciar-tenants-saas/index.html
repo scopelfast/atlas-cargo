@@ -160,6 +160,44 @@
     .saas-op-container .estatisticas-table tbody tr:last-child td { border-bottom: none; }
     .saas-op-container .estatisticas-table code { font-size: 13px; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }
 
+    .cliente-lista { display: flex; flex-direction: column; gap: 12px; }
+    .cliente-card {
+      border: 1px solid var(--border, #e2e8f0);
+      border-radius: 12px;
+      background: #fff;
+      padding: 14px 16px;
+    }
+    .cliente-card-topo {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .cliente-card-topo strong {
+      display: block;
+      font-size: 16px;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+    .cliente-card-topo code { font-size: 13px; }
+    .cliente-card-acoes { display: flex; gap: 8px; flex-shrink: 0; }
+    .cliente-dados {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 10px 16px;
+      margin: 12px 0 0;
+    }
+    .cliente-dados div { min-width: 0; }
+    .cliente-dados dt { font-size: 12px; font-weight: 700; color: #64748b; }
+    .cliente-dados dd { margin: 2px 0 0; font-size: 14px; overflow-wrap: anywhere; }
+    html[data-theme="dark"] .cliente-card {
+      background: #1e293b;
+      border-color: #334155;
+      color: #e2e8f0;
+    }
+    html[data-theme="dark"] .cliente-dados dt { color: #94a3b8; }
+    html[data-theme="dark"] .cliente-dados dd { color: #e2e8f0; }
+
     /* Uma coluna (como Gerenciar Cadastro Geral: formulário acima, lista abaixo) */
     .saas-split-layout {
       display: flex;
@@ -403,6 +441,7 @@
       background: #f1f5f9;
       color: #0f172a;
     }
+    .saas-confirm-modal #motivoRecusaPedido { width: 100%; margin-top: 6px; resize: vertical; }
     .saas-confirm-modal .modal-actions {
       display: flex;
       justify-content: flex-end;
@@ -464,6 +503,13 @@
     }
 
     #contentArea .saas-op-container { max-width: none; }
+    .pedido-count {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 18px; height: 18px; padding: 0 5px; margin-left: 6px;
+      border-radius: 999px; background: #f3e4e0; color: #a94a3c;
+      font-size: 11px; font-weight: 700;
+    }
+    .pedido-count[hidden] { display: none !important; }
   </style>
 </head>
 <body>
@@ -473,13 +519,24 @@
     </div>
 
     <div class="tabs tabs-com-icones" role="tablist">
-      <button type="button" class="tab-btn active" data-tab="catalogo"><i class="bx bx-list-ul"></i> <span>Catálogo</span></button>
+      <button type="button" class="tab-btn active" data-tab="pedidos"><i class="bx bx-time-five"></i> <span>Pedidos de acesso</span> <span id="pedidoCount" class="pedido-count" hidden>0</span></button>
+      <button type="button" class="tab-btn" data-tab="catalogo"><i class="bx bx-list-ul"></i> <span>Catálogo</span></button>
       <button type="button" class="tab-btn" data-tab="planos"><i class="bx bx-package"></i> <span>Planos</span></button>
       <button type="button" class="tab-btn" data-tab="clientes"><i class="bx bx-buildings"></i> <span>Clientes</span></button>
       <button type="button" class="tab-btn" data-tab="override"><i class="bx bx-slider-alt"></i> <span>Override tenant</span></button>
+      <button type="button" class="tab-btn" data-tab="limpeza"><i class="bx bx-trash"></i> <span>Limpeza de teste</span></button>
     </div>
 
-    <div id="tab-catalogo" class="tab-content active">
+    <div id="tab-pedidos" class="tab-content active">
+      <div class="filtros-box">
+        <h3><i class="bx bx-buildings"></i> Empresas que pediram acesso</h3>
+        <p class="saas-op-info">O pedido chega de <strong>/cadastro-empresa.html</strong>. Liberar pede um identificador curto e confirmado, cria o tenant e o usuário com a senha que a empresa escolheu. As atividades copiadas são as suas, sem esta tela de tenants e sem Tipos de Atividade. Cada movimento (pedido, liberação e recusa) avisa o celular no WhatsApp, pelo canal Switch Digital do tenant padrão.</p>
+        <div class="saas-msg" id="msgPedidos" style="display:none;"></div>
+        <div id="tablePedidosWrap" style="overflow-x:auto;"><p class="saas-op-info">Carregando…</p></div>
+      </div>
+    </div>
+
+    <div id="tab-catalogo" class="tab-content">
       <div class="saas-split-layout">
         <div class="filtros-box">
           <h3><i class="bx bx-plus-circle"></i> Novo módulo</h3>
@@ -581,15 +638,40 @@
     <div id="tab-clientes" class="tab-content">
       <div class="saas-split-layout">
         <div class="filtros-box">
-          <h3><i class="bx bx-user-plus"></i> Novo cliente</h3>
+          <h3 id="clienteFormTitulo"><i class="bx bx-user-plus"></i> Novo cliente</h3>
+          <p class="saas-op-info">Aqui fica o cadastro da empresa que usa o sistema: nome, documento, contato, e-mail e celular. O plano e os limites continuam neste mesmo formulário.</p>
           <div class="filtros-grid">
             <div>
               <label for="newTenantId">Tenant ID</label>
               <input id="newTenantId" class="form-control" type="text" placeholder="ex.: cliente_x" />
             </div>
             <div>
-              <label for="newClienteNm">Nome</label>
-              <input id="newClienteNm" class="form-control" type="text" />
+              <label for="newClienteNm">Empresa</label>
+              <input id="newClienteNm" class="form-control" type="text" maxlength="200" />
+            </div>
+            <div>
+              <label for="newClientePais">País do documento</label>
+              <select id="newClientePais" class="form-control"></select>
+            </div>
+            <div>
+              <label for="newClienteDoc">Documento</label>
+              <input id="newClienteDoc" class="form-control" type="text" inputmode="numeric" placeholder="CNPJ, RUC, CUIT ou RUT" />
+            </div>
+            <div>
+              <label for="newClienteContato">Contato</label>
+              <input id="newClienteContato" class="form-control" type="text" maxlength="120" />
+            </div>
+            <div>
+              <label for="newClienteEmail">E-mail</label>
+              <input id="newClienteEmail" class="form-control" type="email" maxlength="200" />
+            </div>
+            <div>
+              <label for="newClienteDdi">DDI</label>
+              <input id="newClienteDdi" class="form-control" type="text" inputmode="numeric" maxlength="4" placeholder="55" />
+            </div>
+            <div>
+              <label for="newClienteFone">Celular</label>
+              <input id="newClienteFone" class="form-control" type="text" inputmode="numeric" placeholder="DDD e número" />
             </div>
             <div>
               <label for="newClientePlano">Plano</label>
@@ -610,6 +692,7 @@
           </div>
           <div class="filtros-actions">
             <button type="button" class="btn-filtro btn-filtro-novo" id="btnAddCliente"><i class="bx bx-plus"></i> <span>Cadastrar cliente</span></button>
+            <button type="button" class="btn-filtro btn-filtro-limpar" id="btnCancelCliente" hidden><i class="bx bx-x"></i> <span>Cancelar</span></button>
           </div>
           <div class="saas-msg" id="msgClienteNovo" style="display:none;"></div>
         </div>
@@ -641,6 +724,30 @@
       </div>
     </div>
 
+    <div id="tab-limpeza" class="tab-content">
+      <div class="filtros-box">
+        <h3><i class="bx bx-trash"></i> Limpar dados de teste</h3>
+        <p class="saas-op-info">Marque as tabelas deste tenant. O nome do bloco marca todas dele. Se a tabela escolhida tem filhos que travam a exclusão, esses filhos entram junto e a conta mostra isso. Usuário, plano, cidade e tipo de atividade ficam. O contador volta a 1 só quando a tabela fica vazia.</p>
+        <div class="saas-msg" id="msgLimpeza" style="display:none;"></div>
+        <div class="filtros-grid">
+          <div>
+            <label for="limpezaTenant">Tenant</label>
+            <select id="limpezaTenant" class="form-control"></select>
+          </div>
+          <div>
+            <label for="limpezaConfirmacao">Digite o identificador para confirmar</label>
+            <input id="limpezaConfirmacao" class="form-control" maxlength="64" autocomplete="off" spellcheck="false" placeholder="o mesmo valor do tenant">
+          </div>
+        </div>
+        <div id="limpezaGrupos" style="display:flex;flex-direction:column;gap:8px;margin:8px 0 14px;"></div>
+        <div class="filtros-actions">
+          <button type="button" id="btnLimpezaPrever" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search"></i> Ver quantidades</button>
+          <button type="button" id="btnLimpezaExecutar" class="btn-filtro btn-filtro-danger"><i class="bx bx-trash"></i> Limpar</button>
+        </div>
+        <div id="limpezaResultado" style="margin-top:14px;"></div>
+      </div>
+    </div>
+
     <div id="confirmModal" class="modal saas-confirm-modal" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="saasConfirmTitulo">
       <div class="modal-content">
         <h3 id="saasConfirmTitulo">Excluir módulo do catálogo</h3>
@@ -659,6 +766,7 @@
       </div>
     </div>
   </div>
-  <script src="/modulos/gerenciar-tenants-saas/js/script.js"></script>
+
+  <script src="/modulos/gerenciar-tenants-saas/js/script.js?v=6"></script>
 </body>
 </html>

@@ -198,9 +198,7 @@
   
   if (urlHelperDebugLog()) console.log('[URL HELPER] Base URL:', baseUrl);
 
-  // Aplicar tema (claro/escuro/auto) em todas as páginas que carregam este script.
-  // No celular: aplicar em documentElement (html) também para primeiro paint e quando body ainda não existe;
-  // default 'auto' quando tema não está salvo (segue preferência do sistema).
+  // Tema do app: abre no claro. Escuro só se o motorista escolher em Configurações.
   (function aplicarTemaGlobal() {
     function aplicar(escuro) {
       document.documentElement.classList.toggle('tema-escuro', escuro);
@@ -208,8 +206,12 @@
       if (document.body) document.body.classList.toggle('tema-escuro', escuro);
     }
     try {
+      if (localStorage.getItem('temaPadraoClaro') !== '1') {
+        localStorage.setItem('tema', 'claro');
+        localStorage.setItem('temaPadraoClaro', '1');
+      }
       var tema = localStorage.getItem('tema');
-      if (tema == null || tema === '') tema = 'auto';
+      if (tema == null || tema === '' || tema === 'auto') tema = 'claro';
       var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
       var escuro = tema === 'escuro' || (tema === 'auto' && mq && mq.matches);
       aplicar(escuro);
@@ -219,8 +221,7 @@
         });
       }
     } catch (e) {
-      var mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
-      aplicar(mq && mq.matches);
+      aplicar(false);
     }
   })();
 

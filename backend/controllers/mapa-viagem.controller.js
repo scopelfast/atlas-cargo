@@ -3,22 +3,11 @@ const { poolPromise } = require('../config/db');
 const fs = require('fs').promises;
 const path = require('path');
 const { tenantIdForRequest } = require('../utils/tenant-context');
+const painelMapa = require('../services/mapa-viagem-painel.service');
 
 // Nome da tabela de rastreamento: preferir VIAGEMRASTREAMENTO (onde estão os dados);
 // VIAGEM_RASTREAMENTO costuma estar vazia.
 async function detectarTabelaRastreamento(pool) {
-  // Regra de ouro: se a tabela canônica existir com dados, usar ela.
-  try {
-    const canon = await pool.query(`
-      SELECT COUNT(*)::bigint AS c
-      FROM "public"."VIAGEMRASTREAMENTO"
-    `);
-    const cCanon = Number((canon.rows && canon.rows[0] && (canon.rows[0].c || canon.rows[0].C)) || 0);
-    if (cCanon > 0) return { schema: 'public', tablename: 'VIAGEMRASTREAMENTO' };
-  } catch (_) {
-    // ignore e segue detecção dinâmica
-  }
-
   const candidatas = [];
   for (const name of ['viagemrastreamento', 'viagem_rastreamento']) {
     try {
@@ -46,7 +35,7 @@ async function detectarTabelaRastreamento(pool) {
   const uniq = [];
   const seen = new Set();
   for (const c of candidatas) {
-    const key = `${String(c.schema).toLowerCase()}::${String(c.tablename).toLowerCase()}`;
+    const key = `${String(c.schema).toLowerCase()}::${String(c.tablename)}`;
     if (seen.has(key)) continue;
     seen.add(key);
     uniq.push(c);
@@ -425,6 +414,8 @@ const mapaViagemController = {
           LEFT JOIN [dbo].[VIAGEMVEICULO] [V] ON [RV].[${idColRv}] = [V].[IDVIAGEM]
           LEFT JOIN [dbo].[EQUIPAMENTO] [E] ON [V].[IDEQUIPAMENTO] = [E].[IDEQUIPAMENTO]
           WHERE COALESCE([SV].[FGSITVIAGEM], [VM].[FGSITVIAGEM], '') <> 'F'
+            AND [VM].[TIPO_SALDO] IS NULL
+            AND ([VM].[IDVIAGEM_MAE] IS NULL OR COALESCE([VM].[FGSITVIAGEM], '') <> 'C')
             AND [RV].[${rvLat}] IS NOT NULL
             AND [RV].[${rvLon}] IS NOT NULL
       `;
@@ -492,6 +483,8 @@ const mapaViagemController = {
               LEFT JOIN [dbo].[VIAGEMVEICULO] [V] ON [RV].[${idColRv}] = [V].[IDVIAGEM]
               LEFT JOIN [dbo].[EQUIPAMENTO] [E] ON [V].[IDEQUIPAMENTO] = [E].[IDEQUIPAMENTO]
               WHERE COALESCE([SV].[FGSITVIAGEM], [VM].[FGSITVIAGEM], '') <> 'F'
+            AND [VM].[TIPO_SALDO] IS NULL
+            AND ([VM].[IDVIAGEM_MAE] IS NULL OR COALESCE([VM].[FGSITVIAGEM], '') <> 'C')
                 AND [RV].[${rvLat}] IS NOT NULL AND [RV].[${rvLon}] IS NOT NULL
                 ${fallbackFilters}
             )
@@ -506,7 +499,61 @@ const mapaViagemController = {
         }
       }
 
-      const veiculos = result.recordset || [];
+      const veiculosRastreio = result.recordset || [];
+      const jaNoMapa = new Set(veiculosRastreio.map((v) => String(v.VIAGEM != null ? v.VIAGEM : v.viagem)));
+      let veiculosConvocacao = [];
+      try {
+        const reqConv = pool.request();
+        const filtrosConv = montarFiltrosMapaViagem(reqConv, req.query, 'master', tidMapa);
+        const sqlConv = `
+          SELECT DISTINCT ON ([VM].[IDVIAGEM], [V].[IDEQUIPAMENTO])
+            [VM].[IDVIAGEM] AS [VIAGEM],
+            [C].[LATITUDE] AS [LATITUDE],
+            [C].[LONGITUDE] AS [LONGITUDE],
+            'Posição enviada na convocação' AS [DSPOSICAO],
+            [C].[DH_LOCALIZACAO_MOTORISTA] AS [DHPOSICAO],
+            [NM].[RZSOCIAL] AS [NMMOTORISTA],
+            [E].[REFEQUIPAMENTO] AS [PLACA],
+            [VM].[IDROTEIRO] AS [IDROTEIRO],
+            [R].[DSROTEIRO] AS [DSROTEIRO],
+            [SV].[FGSITVIAGEM] AS [FGSITVIAGEM],
+            [VM].[CDTIPOVIAGEM] AS [CDTIPOVIAGEM],
+            COALESCE([T].[DSTIPOVIAGEM], '') AS [DSTIPOVIAGEM]
+          FROM [dbo].[VIAGEMMESTRE] [VM]
+          INNER JOIN [dbo].[VIAGEMVEICULO] [V] ON [V].[IDVIAGEM] = [VM].[IDVIAGEM]
+          INNER JOIN [dbo].[EQUIPAMENTO] [E] ON [E].[IDEQUIPAMENTO] = [V].[IDEQUIPAMENTO]
+          INNER JOIN [dbo].[CONVOCACAO] [C] ON [C].[IDVIAGEM] = [VM].[IDVIAGEM]
+            AND [C].[LATITUDE] IS NOT NULL AND [C].[LONGITUDE] IS NOT NULL
+            AND ([C].[TENANT_ID] IS NULL OR [C].[TENANT_ID] = @TENANT_ID_MAPA OR [C].[TENANT_ID] = 'default')
+          LEFT JOIN [dbo].[ROTEIRO] [R] ON [VM].[IDROTEIRO] = [R].[IDROTEIRO]
+            AND ([R].[TENANT_ID] = @TENANT_ID_MAPA OR [R].[TENANT_ID] = 'default')
+          LEFT JOIN [dbo].[CIDADE] [co] ON [R].[CDCIDADEORIGEM] = [co].[CDCIDADE]
+          LEFT JOIN [dbo].[CIDADE] [cd] ON [R].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
+          LEFT JOIN [dbo].[TIPOVIAGEM] [T] ON [VM].[CDTIPOVIAGEM] = [T].[CDTIPOVIAGEM]
+            AND ([T].[TENANT_ID] = [VM].[TENANT_ID] OR [T].[TENANT_ID] = 'default')
+          LEFT JOIN [dbo].[SITUACAOVIAGEM] [SV] ON [VM].[CDSITUACAOVIAGEM] = [SV].[CDSITUACAOVIAGEM]
+          LEFT JOIN [dbo].[VIAGEMMOTORISTA] [M] ON [M].[IDVIAGEM] = [VM].[IDVIAGEM]
+          LEFT JOIN [dbo].[CADASTROGERAL] [NM] ON [M].[CDMOTORISTA] = [NM].[CDCADASTRO] AND [NM].[TENANT_ID] = [VM].[TENANT_ID]
+          WHERE COALESCE([SV].[FGSITVIAGEM], [VM].[FGSITVIAGEM], '') <> 'F'
+            AND [VM].[TIPO_SALDO] IS NULL
+            AND ([VM].[IDVIAGEM_MAE] IS NULL OR COALESCE([VM].[FGSITVIAGEM], '') <> 'C')
+            AND NOT EXISTS (
+              SELECT 1 FROM [${rastreamentoSchema}].[${rastreamentoTable}] [RV]
+              WHERE [RV].[${idColRv}] = [VM].[IDVIAGEM]
+                AND [RV].[${rvLat}] IS NOT NULL AND [RV].[${rvLon}] IS NOT NULL
+            )
+            ${filtrosConv}
+          ORDER BY [VM].[IDVIAGEM], [V].[IDEQUIPAMENTO], [C].[DH_LOCALIZACAO_MOTORISTA] DESC NULLS LAST
+        `;
+        const convRes = await reqConv.query(sqlConv);
+        veiculosConvocacao = (convRes.recordset || []).filter((v) => {
+          const id = String(v.VIAGEM != null ? v.VIAGEM : v.viagem);
+          return id && !jaNoMapa.has(id);
+        });
+      } catch (convErr) {
+        console.error('[Mapa Viagem] Posição da convocação ignorada:', convErr.message);
+      }
+      const veiculos = veiculosRastreio.concat(veiculosConvocacao);
       const total = veiculos.length;
 
       console.log(`[Mapa Viagem] Query executada. Total de veículos encontrados: ${total}`);
@@ -554,6 +601,8 @@ const mapaViagemController = {
             LEFT JOIN [dbo].[CIDADE] [co] ON [R].[CDCIDADEORIGEM] = [co].[CDCIDADE]
             LEFT JOIN [dbo].[CIDADE] [cd] ON [R].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
             WHERE COALESCE([SV].[FGSITVIAGEM], [VM].[FGSITVIAGEM], '') <> 'F'
+            AND [VM].[TIPO_SALDO] IS NULL
+            AND ([VM].[IDVIAGEM_MAE] IS NULL OR COALESCE([VM].[FGSITVIAGEM], '') <> 'C')
             ${filtros}
           ),
           [TemGps] AS (
@@ -561,6 +610,12 @@ const mapaViagemController = {
             FROM [${rastreamentoSchema}].[${rastreamentoTable}] [RV]
             INNER JOIN [VMBase] [B] ON [RV].[${idColRv}] = [B].[IDVIAGEM]
             WHERE [RV].[${rvLat}] IS NOT NULL AND [RV].[${rvLon}] IS NOT NULL
+            UNION
+            SELECT DISTINCT [C].[IDVIAGEM]
+            FROM [dbo].[CONVOCACAO] [C]
+            INNER JOIN [VMBase] [B] ON [C].[IDVIAGEM] = [B].[IDVIAGEM]
+            WHERE [C].[LATITUDE] IS NOT NULL AND [C].[LONGITUDE] IS NOT NULL
+              AND ([C].[TENANT_ID] IS NULL OR [C].[TENANT_ID] = @TENANT_ID_MAPA OR [C].[TENANT_ID] = 'default')
           )
         `;
       }
@@ -577,8 +632,7 @@ const mapaViagemController = {
           (SELECT COUNT(*) FROM [VMBase] [B] WHERE EXISTS (
             SELECT 1 FROM [dbo].[VIAGEMVEICULO] [V] WHERE [V].[IDVIAGEM] = [B].[IDVIAGEM]
           ) AND NOT EXISTS (
-            SELECT 1 FROM [${rastreamentoSchema}].[${rastreamentoTable}] [RV] WHERE [RV].[${idColRv}] = [B].[IDVIAGEM]
-              AND [RV].[${rvLat}] IS NOT NULL AND [RV].[${rvLon}] IS NOT NULL
+            SELECT 1 FROM [TemGps] [G] WHERE [G].[IDVIAGEM] = [B].[IDVIAGEM]
           )) AS [ComVeiculoSemPosicao]
       `;
       const r1 = await req1.query(sqlAgregados);
@@ -624,6 +678,11 @@ const mapaViagemController = {
         ) AND NOT EXISTS (
           SELECT 1 FROM [${rastreamentoSchema}].[${rastreamentoTable}] [RV] WHERE [RV].[${idColRv}] = [B].[IDVIAGEM]
             AND [RV].[${rvLat}] IS NOT NULL AND [RV].[${rvLon}] IS NOT NULL
+        ) AND NOT EXISTS (
+          SELECT 1 FROM [dbo].[CONVOCACAO] [C]
+          WHERE [C].[IDVIAGEM] = [B].[IDVIAGEM]
+            AND [C].[LATITUDE] IS NOT NULL AND [C].[LONGITUDE] IS NOT NULL
+            AND ([C].[TENANT_ID] IS NULL OR [C].[TENANT_ID] = @TENANT_ID_MAPA OR [C].[TENANT_ID] = 'default')
         )
         ORDER BY [B].[IDVIAGEM] DESC
         LIMIT 40
@@ -719,6 +778,116 @@ const mapaViagemController = {
         error: 'Erro ao executar init.sql',
         details: process.env.NODE_ENV === 'development' ? err.message : undefined
       });
+    }
+  },
+
+  painelListar: async (req, res) => {
+    try {
+      res.set({ 'Cache-Control': 'no-store', Pragma: 'no-cache' });
+      const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
+      const request = pool.request();
+      const filtros = montarFiltrosMapaViagem(request, req.query, 'master', tid);
+      const sqlViagens = `
+        SELECT DISTINCT ON ([VM].[IDVIAGEM])
+          [VM].[IDVIAGEM],
+          [VM].[DHINCLUSAO],
+          [VM].[DTPREVINICIO],
+          [VM].[DTPREVFINAL],
+          [VM].[IDROTEIRO],
+          [VM].[DISTANCIAKM] AS [DIST_VIAGEM],
+          [R].[DISTANCIAKM] AS [DIST_ROTEIRO],
+          [R].[DSROTEIRO],
+          [SV].[FGSITVIAGEM],
+          COALESCE([T].[DSTIPOVIAGEM], '') AS [DSTIPOVIAGEM],
+          [co].[NMCIDADE] AS [ORIGEM_CIDADE],
+          [co].[ESTADO] AS [ORIGEM_UF],
+          [cd].[NMCIDADE] AS [DESTINO_CIDADE],
+          [cd].[ESTADO] AS [DESTINO_UF],
+          [E].[REFEQUIPAMENTO] AS [PLACA],
+          [NM].[RZSOCIAL] AS [NMMOTORISTA]
+        FROM [dbo].[VIAGEMMESTRE] [VM]
+        LEFT JOIN [dbo].[ROTEIRO] [R] ON [VM].[IDROTEIRO] = [R].[IDROTEIRO]
+          AND ([R].[TENANT_ID] = @TENANT_ID_MAPA OR [R].[TENANT_ID] = 'default')
+        LEFT JOIN [dbo].[CIDADE] [co] ON [R].[CDCIDADEORIGEM] = [co].[CDCIDADE]
+        LEFT JOIN [dbo].[CIDADE] [cd] ON [R].[CDCIDADEDESTINO] = [cd].[CDCIDADE]
+        LEFT JOIN [dbo].[TIPOVIAGEM] [T] ON [VM].[CDTIPOVIAGEM] = [T].[CDTIPOVIAGEM]
+          AND ([T].[TENANT_ID] = [VM].[TENANT_ID] OR [T].[TENANT_ID] = 'default')
+        LEFT JOIN [dbo].[SITUACAOVIAGEM] [SV] ON [VM].[CDSITUACAOVIAGEM] = [SV].[CDSITUACAOVIAGEM]
+        LEFT JOIN [dbo].[VIAGEMVEICULO] [V] ON [V].[IDVIAGEM] = [VM].[IDVIAGEM]
+        LEFT JOIN [dbo].[EQUIPAMENTO] [E] ON [V].[IDEQUIPAMENTO] = [E].[IDEQUIPAMENTO]
+        LEFT JOIN [dbo].[VIAGEMMOTORISTA] [M] ON [M].[IDVIAGEM] = [VM].[IDVIAGEM]
+        LEFT JOIN [dbo].[CADASTROGERAL] [NM] ON [M].[CDMOTORISTA] = [NM].[CDCADASTRO]
+          AND [NM].[TENANT_ID] = [VM].[TENANT_ID]
+        WHERE COALESCE([SV].[FGSITVIAGEM], [VM].[FGSITVIAGEM], '') <> 'F'
+            AND [VM].[TIPO_SALDO] IS NULL
+            AND ([VM].[IDVIAGEM_MAE] IS NULL OR COALESCE([VM].[FGSITVIAGEM], '') <> 'C')
+        ${filtros}
+        ORDER BY [VM].[IDVIAGEM], [E].[REFEQUIPAMENTO] NULLS LAST
+      `;
+      const viagens = await request.query(sqlViagens);
+      const rastreamentoInfo = await detectarTabelaRastreamento(pool);
+      const schema = rastreamentoInfo.schema || 'public';
+      const table = rastreamentoInfo.tablename;
+      const idCol = await detectarColunaIdViagemRastreamento(pool, table, schema);
+      const latLon = await detectarColunasLatLonRastreamento(pool, table, schema);
+      const meta = await detectarColunasMetaRastreamento(pool, table, schema);
+      let vel = null;
+      try {
+        const cols = await pool.query(
+          `SELECT column_name FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2`,
+          [schema, table]
+        );
+        const list = (cols.rows || []).map((r) => String(r.column_name || '').trim());
+        vel = list.find((x) => x.toLowerCase() === 'velocidade') || null;
+      } catch (_) { /* sem coluna de velocidade */ }
+      const rows = await painelMapa.enriquecer(pool, viagens.recordset || [], {
+        schema, table, idCol, lat: latLon.lat, lon: latLon.lon, vel,
+        dhPosicao: meta.dhPosicao, dhRegistro: meta.dhRegistro, dsPosicao: meta.dsPosicao
+      }, tid);
+      res.json({
+        success: true,
+        rows,
+        total: rows.length,
+        truncado: (viagens.recordset || []).length > 300,
+        paradoAteKmh: painelMapa.PARADO_ATE_KMH,
+        geradoEm: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error('[Mapa painel] listar:', err);
+      res.status(500).json({ success: false, error: 'Erro ao montar o painel de viagens' });
+    }
+  },
+
+  painelLayoutLer: async (req, res) => {
+    try {
+      const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
+      const usuarioId = String((req.user && (req.user.id || req.user.login)) || 'anon');
+      const layout = await painelMapa.lerLayout(pool, tid, usuarioId);
+      res.json({
+        success: true,
+        catalogo: painelMapa.CATALOGO,
+        layout,
+        paradoAteKmh: painelMapa.PARADO_ATE_KMH
+      });
+    } catch (err) {
+      console.error('[Mapa painel] layout:', err);
+      res.status(500).json({ success: false, error: 'Erro ao ler o layout do painel' });
+    }
+  },
+
+  painelLayoutSalvar: async (req, res) => {
+    try {
+      const pool = await poolPromise;
+      const tid = tenantIdForRequest(req);
+      const usuarioId = String((req.user && (req.user.id || req.user.login)) || '');
+      if (!usuarioId) return res.status(401).json({ success: false, error: 'Usuário não identificado' });
+      const layout = await painelMapa.salvarLayout(pool, tid, usuarioId, req.body && req.body.layout);
+      res.json({ success: true, layout });
+    } catch (err) {
+      console.error('[Mapa painel] salvar layout:', err);
+      res.status(500).json({ success: false, error: 'Erro ao salvar o layout do painel' });
     }
   }
 };

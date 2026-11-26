@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Atlas Cargo</title>
-  <link rel="icon" type="image/png" href="/img/logoAtlasTransparente.png" id="faviconLink">
+  <link rel="icon" type="image/svg+xml" href="/img/logo-atlas-simbolo.svg" id="faviconLink">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&family=Source+Sans+Pro:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <script>
     // INTERCEPTOR GLOBAL: Remover ? de todas as URLs
     (function() {
@@ -140,9 +140,10 @@
       }
       
       // Função para criar elementos com URLs absolutas
-      function createLink(href) {
+      function createLink(href, id) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
+        if (id) link.id = id;
         let url;
         
         if (href.startsWith('http')) {
@@ -192,7 +193,7 @@
       // Em desenvolvimento: usar timestamp atual (sempre atualizado)
       // Em produção: usar versão fixa (atualizada a cada deploy)
       const isDev = isLocal;
-      const cacheVersion = isDev ? Date.now() : '20260506';
+      const cacheVersion = isDev ? Date.now() : '20261125sair';
       
       // Armazenar globalmente para uso em scripts
       window.__CACHE_VERSION__ = cacheVersion;
@@ -202,11 +203,12 @@
       createLink(`/css/dashboard.css?v=${cacheVersion}`);
       createLink(`/css/dashboard-adminlte.css?v=${cacheVersion}`);
       createLink(`/css/dark-mode.css?v=${cacheVersion}`);
+      createLink(`/css/face-deskcomm.css?v=${cacheVersion}`, 'face-deskcomm');
       
       // Corrigir favicon
       const faviconLink = document.getElementById('faviconLink');
       if (faviconLink) {
-        faviconLink.href = baseUrl + '/img/logoAtlasTransparente.png';
+        faviconLink.href = baseUrl + '/img/logo-atlas-simbolo.svg';
       }
       
       // Armazenar baseUrl globalmente
@@ -349,15 +351,32 @@
 <body>
   <script>
     (function() {
-      var theme = localStorage.getItem('theme');
-      if (theme === 'dark' || theme === null || theme === '') {
+      try {
+        if (localStorage.getItem('atlasThemePadrao') !== 'claro') {
+          localStorage.setItem('theme', 'light');
+          localStorage.setItem('atlasThemePadrao', 'claro');
+        }
+      } catch (e) {}
+      var theme = null;
+      try { theme = localStorage.getItem('theme'); } catch (e2) {}
+      if (theme === 'dark') {
         document.documentElement.setAttribute('data-theme', 'dark');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
       }
     })();
   </script>
   <div class="sidebar">
     <div class="logo" id="logoAtlasCargo" style="cursor: pointer;" title="Voltar ao início - Atlas Cargo">
-      <img src="/img/logoAtlasTransparente.png" alt="Atlas Cargo" class="logo-img">
+      <svg class="logo-mark logo-mark-so" viewBox="0 0 32 32" aria-hidden="true">
+        <path class="logo-simbolo" fill-rule="evenodd" d="M16 3.2 28.8 28.8h-6.1l-1.95-5.7H11.25l-1.95 5.7H3.2L16 3.2zm0 9.15-3.35 9.75h6.7L16 12.35z"/>
+      </svg>
+      <svg class="logo-mark logo-mark-nome" viewBox="0 0 136 32" role="img" aria-label="Atlas Cargo">
+        <path class="logo-simbolo" fill-rule="evenodd" d="M16 3.2 28.8 28.8h-6.1l-1.95-5.7H11.25l-1.95 5.7H3.2L16 3.2zm0 9.15-3.35 9.75h6.7L16 12.35z"/>
+        <text class="logo-nome" x="36" y="23">Atlas</text>
+        <text class="logo-sufixo" x="88" y="23">Cargo</text>
+      </svg>
+      <img alt="Atlas Cargo" class="logo-img" hidden>
     </div>
     <div class="product-module-bar" id="productModuleBar" style="display:none;" aria-label="Módulo do produto">
       <label for="productModuleSelect" class="product-module-label" data-i18n="web.menu.moduloProduto">Módulo</label>
@@ -398,6 +417,10 @@
             <i class='bx bx-id-card'></i>
             <span class="header-icon-badge" id="headerBadgeMotoristasPendentes" data-count="0">0</span>
           </button>
+          <button type="button" class="header-icon-btn header-icon-btn-pedidos-acesso" id="headerBtnPedidosAcesso" title="Empresas aguardando liberação" style="display: none;" aria-label="Empresas aguardando liberação">
+            <i class='bx bx-buildings'></i>
+            <span class="header-icon-badge" id="headerBadgePedidosAcesso" data-count="0">0</span>
+          </button>
           <button type="button" class="header-icon-btn header-icon-btn-divergencia-placas" id="headerBtnDivergenciaPlacas" title="Divergência de placas (convocações pendentes)" style="display: none;" aria-label="Divergência de placas">
             <i class='bx bx-car'></i>
             <span class="header-icon-badge" id="headerBadgeDivergenciaPlacas" data-count="0">0</span>
@@ -412,7 +435,10 @@
           <button type="button" class="logout-btn btn-idioma-dash" data-locale="pt-BR" title="Português" style="padding: 6px 10px; font-size: 0.85rem;">PT</button>
           <button type="button" class="logout-btn btn-idioma-dash" data-locale="es-PY" title="Español" style="padding: 6px 10px; font-size: 0.85rem;">ES</button>
         </div>
-        <button class="logout-btn" id="logoutBtn"><span data-i18n="web.dashboard.sair">Sair</span></button>
+        <button type="button" class="logout-btn" id="logoutBtn" title="Sair" data-i18n-title="web.dashboard.sair">
+          <i class="bx bx-log-out" aria-hidden="true"></i>
+          <span data-i18n="web.dashboard.sair">Sair</span>
+        </button>
       </div>
     </div>
 
@@ -533,7 +559,7 @@
       const isDevScripts = window.location.hostname === 'localhost' || 
                            window.location.hostname === '127.0.0.1' || 
                            window.location.hostname.startsWith('192.168.');
-      const cacheVer = isDevScripts ? Date.now() : '20260102';
+      const cacheVer = isDevScripts ? Date.now() : '20261125viagem';
       
       const scripts = [
         `/js/ambiente-utils.js?v=${cacheVer}`,
@@ -541,6 +567,7 @@
         `/js/permissions.js?v=${cacheVer}`,
         `/js/log-helper.js?v=${cacheVer}`,
         `/js/i18n-web.js?v=${cacheVer}`,
+        `/js/consulta-documento.js?v=${cacheVer}`,
         `/js/dashboard.js?v=${cacheVer}`
       ];
       

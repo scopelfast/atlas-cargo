@@ -11,6 +11,9 @@ router.use(requireTenantModule('mapa_viagem'));
 // Rotas
 router.get('/veiculos', mapaViagemController.listarVeiculos);
 router.get('/resumo', mapaViagemController.resumoMapa);
+router.get('/painel', mapaViagemController.painelListar);
+router.get('/painel/layout', mapaViagemController.painelLayoutLer);
+router.put('/painel/layout', mapaViagemController.painelLayoutSalvar);
 router.post('/executar-init-sql', mapaViagemController.executarInitSQL);
 
 module.exports = router;

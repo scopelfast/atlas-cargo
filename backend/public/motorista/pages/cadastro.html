@@ -6,21 +6,26 @@
   <script>
     (function () {
       try {
+        if (localStorage.getItem('temaPadraoClaro') !== '1') {
+          localStorage.setItem('tema', 'claro');
+          localStorage.setItem('temaPadraoClaro', '1');
+        }
         var t = localStorage.getItem('tema');
-        if (t == null || t === '') t = 'auto';
-        var dark = t === 'escuro' || (t === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (t == null || t === '' || t === 'auto') t = 'claro';
+        var dark = t === 'escuro';
         document.documentElement.classList.toggle('tema-escuro', !!dark);
         document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
       } catch (e) {
-        var m = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
-        if (m) {
-          document.documentElement.classList.toggle('tema-escuro', m.matches);
-          document.documentElement.setAttribute('data-theme', m.matches ? 'dark' : 'light');
-        }
+        document.documentElement.classList.remove('tema-escuro');
+        document.documentElement.setAttribute('data-theme', 'light');
       }
     })();
   </script>
   <title>Cadastro - Motorista</title>
+  <link rel="icon" type="image/svg+xml" href="/img/logo-atlas-simbolo.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet" />
   <link rel="manifest" href="../manifest.json">
   <link rel="stylesheet" href="../css/design-system.css">
   <link rel="stylesheet" href="../css/style.css">
@@ -33,9 +38,9 @@
       box-sizing: border-box;
     }
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+    body.motorista-cadastro-page {
+      font-family: "Atkinson Hyperlegible", "Segoe UI", sans-serif;
+      background: #faf9f6 !important;
       min-height: 100vh;
       padding: 20px;
       padding-left: max(12px, env(safe-area-inset-left));
@@ -44,8 +49,9 @@
 
     .container {
       background: white;
-      border-radius: 20px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      border-radius: 24px;
+      box-shadow: none;
+      border: 1px solid #e7e3da;
       padding: 0 0 40px 0;
       max-width: 500px;
       width: 100%;
@@ -62,38 +68,68 @@
       input, select { padding: 12px 14px; font-size: 16px; }
     }
 
-    /* Topo igual ao index do motorista (logo-section) */
     .logo-section {
-      background: var(--app-header-bg);
-      color: #fff;
+      background: #f5f3ee !important;
+      color: #1c1a16;
       text-align: center;
-      padding: 24px 24px;
-      border-bottom: 1px solid rgba(255,255,255,0.06);
+      padding: 28px 24px 18px;
+      border-bottom: 1px solid #e7e3da;
     }
-    .logo-section .logo-wrap { margin-bottom: 8px; }
-    .logo-section .logo {
-      max-width: 100%;
-      height: auto;
-      min-height: 48px;
-      object-fit: contain;
-      display: block;
-      margin: 0 auto;
+    .logo-section::before { display: none !important; }
+    .marca {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: #506d48;
+      text-decoration: none;
+      margin-bottom: 12px;
     }
+    .marca strong { color: #1c1a16; font-size: 22px; }
+    .marca span { color: #5d594f; font-size: 13px; font-weight: 700; }
     .logo-section .app-badge {
       display: inline-block;
       font-size: 0.75rem;
-      font-weight: 600;
+      font-weight: 700;
       letter-spacing: 0.06em;
-      color: rgba(255,255,255,0.9);
-      background: rgba(255,255,255,0.15);
+      color: #506d48;
+      background: #e4ebe0;
       padding: 6px 14px;
       border-radius: 999px;
+      border: none;
     }
     .logo-section .cadastro-titulo {
-      font-size: 1rem;
-      font-weight: 600;
-      color: rgba(255,255,255,0.95);
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #1c1a16;
       margin: 12px 0 0 0;
+    }
+    html.tema-escuro body.motorista-page .logo-section,
+    html[data-theme="dark"] body.motorista-page .logo-section {
+      background: #272620 !important;
+      border-bottom-color: #33312a;
+    }
+    html.tema-escuro body.motorista-page .marca strong,
+    html[data-theme="dark"] body.motorista-page .marca strong,
+    html.tema-escuro body.motorista-page .logo-section .cadastro-titulo,
+    html[data-theme="dark"] body.motorista-page .logo-section .cadastro-titulo {
+      color: #f5f4ef;
+    }
+    html.tema-escuro body.motorista-page .marca,
+    html[data-theme="dark"] body.motorista-page .marca,
+    html.tema-escuro body.motorista-page .marca span,
+    html[data-theme="dark"] body.motorista-page .marca span {
+      color: #82a077;
+    }
+    html.tema-escuro body.motorista-page .logo-section .app-badge,
+    html[data-theme="dark"] body.motorista-page .logo-section .app-badge {
+      background: rgba(130, 160, 119, 0.16);
+      color: #a4ba9a;
+    }
+    html.tema-escuro body.motorista-page .form-section-header,
+    html[data-theme="dark"] body.motorista-page .form-section-header {
+      background: #272620 !important;
+      color: #f5f4ef !important;
     }
 
     #formCadastro { padding: 24px 24px 40px; box-sizing: border-box; }
@@ -106,24 +142,26 @@
     label {
       display: block;
       font-size: 14px;
-      font-weight: 600;
-      color: #333;
+      font-weight: 700;
+      color: #5d594f;
       margin-bottom: 8px;
     }
 
     input, select {
       width: 100%;
       padding: 14px 16px;
-      border: 2px solid #e0e0e0;
+      border: 1px solid #e7e3da;
       border-radius: 10px;
       font-size: 16px;
-      transition: all 0.3s;
+      background: #f5f3ee;
+      color: #1c1a16;
+      font-family: inherit;
     }
 
     input:focus, select:focus {
       outline: none;
-      border-color: #0ea5e9;
-      box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+      border-color: #506d48;
+      box-shadow: 0 0 0 3px rgba(80, 109, 72, 0.18);
     }
 
     .btn {
@@ -139,13 +177,14 @@
     }
 
     .btn-primary {
-      background: var(--app-header-bg);
+      background: #506d48;
       color: white;
     }
 
     .btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 5px 15px rgba(102,126,234,0.4);
+      background: #41573b;
+      transform: none;
+      box-shadow: none;
     }
 
     .btn-primary:disabled {
@@ -155,8 +194,9 @@
     }
 
     .btn-secondary {
-      background: #f0f2f5;
-      color: #666;
+      background: #f5f3ee;
+      color: #5d594f;
+      border: 1px solid #e7e3da;
     }
 
     .btn-secondary:hover {
@@ -164,13 +204,13 @@
     }
 
     .info-box {
-      background: #fff3cd;
-      border-left: 4px solid #ffc107;
+      background: #e4ebe0;
+      border-left: 4px solid #506d48;
       padding: 15px;
       border-radius: 10px;
       margin-bottom: 20px;
       font-size: 13px;
-      color: #856404;
+      color: #41573b;
       line-height: 1.5;
     }
 
@@ -200,7 +240,7 @@
 
     .spinner {
       border: 4px solid #f3f3f3;
-      border-top: 4px solid #0ea5e9;
+      border-top: 4px solid #506d48;
       border-radius: 50%;
       width: 40px;
       height: 40px;
@@ -257,11 +297,11 @@
       margin: 24px 0 0 0;
       border-radius: 12px;
       overflow: hidden;
-      border: 1px solid #e2e8f0;
+      border: 1px solid #e7e3da;
     }
     .form-section-header {
-      background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
-      color: #f1f5f9;
+      background: #e4ebe0;
+      color: #1c1a16;
       padding: 12px 16px;
       font-size: 15px;
       font-weight: 600;
@@ -283,15 +323,15 @@
       gap: 8px;
       padding: 12px 20px;
       margin: 4px 8px 4px 0;
-      border: 2px solid #0ea5e9;
-      background: #f0f9ff;
-      color: #0369a1;
+      border: 1px solid #506d48;
+      background: #e4ebe0;
+      color: #41573b;
       border-radius: 10px;
       font-weight: 600;
       font-size: 14px;
       cursor: pointer;
     }
-    .btn-foto-opcao:hover { background: #e0f2fe; }
+    .btn-foto-opcao:hover { background: #d5e3cf; }
     #ocrStatus { font-size: 13px; color: #64748b; margin-top: 10px; min-height: 20px; }
     #ocrStatus.ocr-ok { color: #059669; }
     #ocrStatus.ocr-erro { color: #dc2626; }
@@ -305,10 +345,10 @@
     html[data-theme="dark"] {
       color-scheme: dark;
     }
-    html.tema-escuro body.motorista-page,
-    html[data-theme="dark"] body.motorista-page {
-      background: var(--app-bg) !important;
-      color: var(--app-text);
+    html.tema-escuro body.motorista-cadastro-page,
+    html[data-theme="dark"] body.motorista-cadastro-page {
+      background: #161510 !important;
+      color: #f5f4ef;
     }
     html.tema-escuro body.motorista-page .container,
     html[data-theme="dark"] body.motorista-page .container {
@@ -393,9 +433,9 @@
     }
     html.tema-escuro body.motorista-page .info-box,
     html[data-theme="dark"] body.motorista-page .info-box {
-      background: var(--warning-bg) !important;
-      color: #fde68a !important;
-      border-left-color: #fbbf24 !important;
+      background: rgba(130, 160, 119, 0.16) !important;
+      color: #d5e3cf !important;
+      border-left-color: #82a077 !important;
     }
     html.tema-escuro body.motorista-page .success-message,
     html[data-theme="dark"] body.motorista-page .success-message {
@@ -420,12 +460,16 @@
     }
   </style>
 </head>
-<body class="motorista-page">
+<body class="motorista-page motorista-cadastro-page">
   <div class="container">
     <header class="logo-section">
-      <div class="logo-wrap">
-        <img id="logoImg" alt="Atlas Cargo" class="logo" src="/img/logoAtlasTransparente.png">
-      </div>
+      <a class="marca" href="../index.html">
+        <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true">
+          <path fill="currentColor" fill-rule="evenodd" d="M16 3.2 28.8 28.8h-6.1l-1.95-5.7H11.25l-1.95 5.7H3.2L16 3.2zm0 9.15-3.35 9.75h6.7L16 12.35z"/>
+        </svg>
+        <strong>Atlas</strong>
+        <span>Cargo</span>
+      </a>
       <span class="app-badge">Motorista</span>
       <h1 class="cadastro-titulo" data-i18n="cadastro.titulo">Cadastro de Motorista</h1>
     </header>
@@ -685,7 +729,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
-  <script src="../js/url-helper.js"></script>
+  <script src="../js/url-helper.js?v=20261125claro"></script>
   <script>
     var arquivoDocumentoParaEnvio = null;
 

@@ -3,8 +3,10 @@ const express = require('express');
 const router = express.Router();
 const tipoAtividadeController = require('../controllers/tipoatividade.controller');
 const { towerAuthAndTenant } = require('../middleware/tower-auth-chain.middleware');
+const { requireSaaSAdmin } = require('../middleware/saas-admin.middleware');
 
 router.use(towerAuthAndTenant);
+router.use(requireSaaSAdmin);
 
 router.get('/tipos-atividade/catalogo-modulos-licenca', tipoAtividadeController.catalogoModulosLicenca);
 

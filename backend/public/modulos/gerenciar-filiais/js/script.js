@@ -919,7 +919,17 @@
   const filialCgc = document.getElementById('filialCgc');
   const filtroCgc = document.getElementById('filtroCgc');
   
-  if (filialCgc) aplicarMascaraCNPJ(filialCgc);
+  if (filialCgc) {
+    aplicarMascaraCNPJ(filialCgc);
+    if (window.AtlasConsulta) {
+      AtlasConsulta.ligarDocumento(filialCgc, function (data) {
+        if (data.tipo !== 'J') return;
+        var c = data.campos || {};
+        AtlasConsulta.preencher('filialNomeFantasia', AtlasConsulta.cortar(c.nomeFantasia || c.razaoSocial, 20));
+        showMessage(data.mensagem || 'CNPJ consultado.', 'success');
+      });
+    }
+  }
   if (filtroCgc) aplicarMascaraCNPJ(filtroCgc);
 
   let filialFormSubmitting = false;

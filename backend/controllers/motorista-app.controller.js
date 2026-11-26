@@ -373,7 +373,15 @@ const motoristaAppController = {
       const ctx = await getContexto(tenantIdForRequest(req));
       const pais = (ctx && ctx.pais) ? ctx.pais : 'BR';
 
-      const validacao = validarDocumento(pais, 'F', documento);
+      let docParaValidar = String(documento);
+      if (pais === 'BR') {
+        const soDigitos = docParaValidar.replace(/\D/g, '');
+        if (soDigitos.length === 10) docParaValidar = '0' + soDigitos;
+      }
+      let validacao = validarDocumento(pais, 'F', docParaValidar);
+      if (!validacao.valido && pais === 'BR' && String(docParaValidar).replace(/\D/g, '').length === 14) {
+        validacao = validarDocumento(pais, 'J', docParaValidar);
+      }
       if (!validacao.valido) {
         console.log('❌ [LOGIN] Documento inválido:', validacao.mensagem);
         return res.status(400).json({ error: validacao.mensagem || 'Documento inválido.', errorKey: 'login.documentoInvalido' });
@@ -3537,6 +3545,7 @@ const motoristaAppController = {
           request.input('dataLimite', sql.DateTime, dataLimite);
         }
         const filtroData = dataLimite ? `AND ${dhOrdVr} <= @dataLimite` : '';
+        const filtroDesdeCriacao = `AND ${dhOrdVr} >= COALESCE((SELECT [vinc].[DHINCLUSAO] FROM [dbo].[VIAGEMMESTRE] [vinc] WHERE [vinc].[IDVIAGEM] = @idviagem), ${dhOrdVr})`;
         if (dataLimite) {
           console.log(`🔍 Aplicando filtro: posições com DHPOSICAO/DHREGISTRO <= ${dataLimite.toISOString()}`);
         }
@@ -3560,6 +3569,7 @@ const motoristaAppController = {
             FROM ${realTableRef} vr
             WHERE vr.${colsR.idv} = @idviagem
               ${filtroData}
+              ${filtroDesdeCriacao}
             ORDER BY ${dhOrdVr} ASC
           `);
         console.log(`📊 [RASTREAMENTO] Lista direta ${realTableRef} viagem ${idviagem}: ${result.recordset.length} registro(s)`);
@@ -3676,6 +3686,7 @@ const motoristaAppController = {
               ${dhOrdVr} AS DHREGISTRO
             FROM ${realTableRef} vr
             WHERE vr.${colsR.idv} = @idviagem
+              AND ${dhOrdVr} >= COALESCE((SELECT [vinc].[DHINCLUSAO] FROM [dbo].[VIAGEMMESTRE] [vinc] WHERE [vinc].[IDVIAGEM] = @idviagem), ${dhOrdVr})
             ORDER BY ${dhOrdVr} DESC
           `);
           if (ultimaPosicaoResult.recordset.length > 0) {

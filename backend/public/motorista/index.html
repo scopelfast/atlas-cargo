@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0d9488">
+  <meta name="theme-color" content="#506d48">
   <meta name="description" content="App Atlas Cargo para Motoristas">
   <title>Atlas Cargo - Motorista</title>
   <script>
-    (function(){ try { var t = localStorage.getItem('tema'); if (t == null || t === '') t = 'auto'; var dark = t === 'escuro' || (t === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.classList.toggle('tema-escuro', !!dark); document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light'); } catch(e) { var m = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)'); if (m) { document.documentElement.classList.toggle('tema-escuro', m.matches); document.documentElement.setAttribute('data-theme', m.matches ? 'dark' : 'light'); } } })();
+    (function(){ try { if (localStorage.getItem('temaPadraoClaro') !== '1') { localStorage.setItem('tema', 'claro'); localStorage.setItem('temaPadraoClaro', '1'); } var t = localStorage.getItem('tema'); if (t == null || t === '' || t === 'auto') t = 'claro'; var dark = t === 'escuro'; document.documentElement.classList.toggle('tema-escuro', !!dark); document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light'); } catch(e) { document.documentElement.classList.remove('tema-escuro'); document.documentElement.setAttribute('data-theme', 'light'); } })();
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
   <style>
     /* Crítico: estilo mínimo para não ficar “pelado” no celular (mesmo se CSS externo falhar) */
     html, body {
@@ -19,11 +19,11 @@
       padding: 0;
       min-height: 100%;
       -webkit-text-size-adjust: 100%;
-      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #f0fdfa;
-      color: #0f172a;
+      font-family: "Atkinson Hyperlegible", "Segoe UI", sans-serif;
+      background: #faf9f6;
+      color: #1c1a16;
     }
-    html.tema-escuro body { background: #0f172a !important; color: #f1f5f9 !important; }
+    html.tema-escuro body { background: #161510 !important; color: #f5f4ef !important; }
     body {
       padding: 16px;
       padding-left: max(16px, env(safe-area-inset-left));
@@ -35,107 +35,126 @@
       align-items: flex-start;
       justify-content: center;
     }
-    .login-container {
+    body.motorista-login-page .login-container {
       width: 100%;
       max-width: 420px;
       margin-top: 0;
       background: #fff;
       border-radius: 24px;
-      box-shadow: 0 8px 32px rgba(13, 148, 136, 0.12), 0 2px 8px rgba(0,0,0,0.04);
+      box-shadow: none;
       overflow: hidden;
-      border: 1px solid rgba(0,0,0,0.06);
+      border: 1px solid #e7e3da;
     }
-    html.tema-escuro .login-container { background: #1e293b !important; border-color: #334155; }
-    .logo-section {
-      background: linear-gradient(165deg, #134e4a 0%, #0f766e 40%, #0d9488 100%);
-      color: #fff;
+    html.tema-escuro body.motorista-login-page .login-container { background: #1d1c17 !important; border-color: #33312a; }
+    body.motorista-login-page .logo-section {
+      background: #f5f3ee !important;
+      color: #1c1a16;
       text-align: center;
-      padding: 24px 24px;
+      padding: 28px 24px 18px;
       position: relative;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
+      border-bottom: 1px solid #e7e3da;
     }
-    .logo-wrap { margin-bottom: 8px; }
-    .logo {
-      max-width: 100%;
-      height: auto;
-      min-height: 48px;
-      object-fit: contain;
-      display: block;
-      margin: 0 auto;
+    body.motorista-login-page .logo-section::before { display: none !important; }
+    body.motorista-login-page .marca {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: #506d48;
+      text-decoration: none;
+      margin-bottom: 12px;
     }
-    .app-badge {
+    body.motorista-login-page .marca[hidden] { display: none !important; }
+    body.motorista-login-page .marca strong { color: #1c1a16; font-size: 22px; }
+    body.motorista-login-page .marca span { color: #5d594f; font-size: 13px; font-weight: 700; }
+    body.motorista-login-page .logo-custom { max-width: 220px; max-height: 56px; object-fit: contain; display: block; margin: 0 auto 12px; }
+    body.motorista-login-page .logo-custom[hidden] { display: none !important; }
+    body.motorista-login-page .app-badge {
       display: inline-block;
       font-size: 0.75rem;
-      font-weight: 600;
+      font-weight: 700;
       letter-spacing: 0.06em;
-      color: rgba(255,255,255,0.9);
-      background: rgba(255,255,255,0.15);
+      color: #506d48;
+      background: #e4ebe0;
       padding: 6px 14px;
       border-radius: 999px;
+      border: none;
     }
     .form-section { padding: 28px 24px 24px; }
-    .welcome-title { font-size: 1.5rem; font-weight: 700; color: #0f172a; margin: 0 0 6px 0; }
-    .welcome-desc { font-size: 0.9375rem; color: #64748b; margin: 0 0 24px 0; }
-    .login-form .input-group { margin-bottom: 20px; }
-    .login-form label { display: block; font-size: 0.875rem; font-weight: 600; color: #475569; margin-bottom: 8px; }
+    body.motorista-login-page .welcome-title { font-size: 1.5rem; font-weight: 700; color: #1c1a16; margin: 0 0 6px 0; }
+    body.motorista-login-page .welcome-desc { font-size: 0.9375rem; color: #5d594f; margin: 0 0 24px 0; }
+    body.motorista-login-page .login-form .input-group { margin-bottom: 20px; }
+    body.motorista-login-page .login-form label { display: block; font-size: 0.875rem; font-weight: 700; color: #5d594f; margin-bottom: 8px; }
     .input-password-wrap { position: relative; display: flex; align-items: stretch; }
     .input-password-wrap input { flex: 1; padding-right: 48px; }
     .input-password-wrap .btn-toggle-senha {
       position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
       background: none; border: none; padding: 8px; cursor: pointer; color: #64748b;
     }
-    .login-form input[type="tel"],
-    .login-form input[type="password"] {
+    body.motorista-login-page .login-form input[type="tel"],
+    body.motorista-login-page .login-form input[type="password"] {
       width: 100%;
       padding: 14px 16px;
       font-size: 16px;
-      border: 2px solid #e2e8f0;
+      border: 1px solid #e7e3da;
       border-radius: 12px;
       box-sizing: border-box;
-      background: #fff;
-      color: #0f172a;
+      background: #f5f3ee;
+      color: #1c1a16;
     }
-    .login-form input:focus {
+    body.motorista-login-page .login-form input:focus {
       outline: none;
-      border-color: #0d9488;
-      box-shadow: 0 0 0 3px rgba(13, 148, 136, 0.2);
+      border-color: #506d48;
+      box-shadow: 0 0 0 3px rgba(80, 109, 72, 0.18);
     }
-    .btn-primary {
+    body.motorista-login-page .btn-primary {
       width: 100%;
       padding: 16px;
       font-size: 1rem;
-      font-weight: 600;
+      font-weight: 700;
       color: #fff;
-      background: linear-gradient(165deg, #134e4a 0%, #0f766e 50%, #0d9488 100%);
+      background: #506d48;
       border: none;
       border-radius: 12px;
       cursor: pointer;
       margin-top: 8px;
       min-height: 52px;
+      box-shadow: none;
+      transform: none;
     }
+    body.motorista-login-page .btn-primary:hover { background: #41573b; transform: none; box-shadow: none; }
     .btn-primary:active { opacity: 0.9; }
     .idioma-selector { align-items: center; }
-    .idioma-label { font-size: 0.875rem; color: #64748b; font-weight: 500; }
-    .btn-idioma {
-      padding: 8px 16px; border-radius: 999px; border: 1px solid #cbd5e1;
-      background: #fff; color: #475569; font-size: 0.875rem; font-weight: 500;
-      cursor: pointer; transition: background 0.2s, color 0.2s, border-color 0.2s;
+    body.motorista-login-page .idioma-label { font-size: 0.875rem; color: #5d594f; font-weight: 700; }
+    body.motorista-login-page .btn-idioma {
+      padding: 8px 16px; border-radius: 999px; border: 1px solid #e7e3da;
+      background: #fff; color: #5d594f; font-size: 0.875rem; font-weight: 700;
+      cursor: pointer;
     }
-    .btn-idioma:hover { background: #f1f5f9; border-color: #94a3b8; }
-    .btn-idioma.active { background: #0d9488; color: #fff; border-color: #0d9488; }
-    .links { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin-top: 20px; }
-    .links a { color: #0d9488; font-size: 0.9375rem; text-decoration: none; font-weight: 500; }
+    body.motorista-login-page .btn-idioma:hover { background: #f5f3ee; border-color: #d2cdbf; }
+    body.motorista-login-page .btn-idioma.active,
+    body.motorista-login-page .btn-idioma[aria-pressed="true"] { background: #506d48; color: #fff; border-color: #506d48; }
+    body.motorista-login-page .links { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin-top: 20px; border-top: 1px solid #e7e3da; }
+    body.motorista-login-page .links a { color: #506d48; font-size: 0.9375rem; text-decoration: none; font-weight: 700; }
     .links a:hover { text-decoration: underline; }
-    .footer { text-align: center; padding: 20px 16px; color: #64748b; font-size: 0.8125rem; }
+    body.motorista-login-page .footer { text-align: center; padding: 20px 16px; color: #7d786c; font-size: 0.8125rem; background: #fff; }
     .footer .version { margin-top: 4px; opacity: 0.8; }
-    html.tema-escuro .welcome-title { color: #f1f5f9 !important; }
-    html.tema-escuro .welcome-desc { color: #94a3b8 !important; }
-    html.tema-escuro .login-form label { color: #e2e8f0 !important; }
-    html.tema-escuro .login-form input { background: #334155 !important; border-color: #475569 !important; color: #f1f5f9 !important; }
-    html.tema-escuro .btn-idioma { background: #334155 !important; border-color: #475569 !important; color: #e2e8f0 !important; }
-    html.tema-escuro .btn-idioma.active { background: #0f766e !important; border-color: #14b8a6 !important; color: #f0fdfa !important; }
-    html.tema-escuro .footer { color: #94a3b8 !important; }
-    html.tema-escuro .links a { color: #2dd4bf !important; }
+    html.tema-escuro body.motorista-login-page .logo-section { background: #272620 !important; border-bottom-color: #33312a; }
+    html.tema-escuro body.motorista-login-page .marca strong { color: #f5f4ef; }
+    html.tema-escuro body.motorista-login-page .marca span,
+    html.tema-escuro body.motorista-login-page .marca { color: #82a077; }
+    html.tema-escuro body.motorista-login-page .app-badge { background: rgba(130, 160, 119, 0.16); color: #a4ba9a; }
+    html.tema-escuro body.motorista-login-page .welcome-title { color: #f5f4ef !important; }
+    html.tema-escuro body.motorista-login-page .welcome-desc { color: #8e8b7f !important; }
+    html.tema-escuro body.motorista-login-page .login-form label { color: #c4c0b4 !important; }
+    html.tema-escuro body.motorista-login-page .login-form input { background: #272620 !important; border-color: #33312a !important; color: #f5f4ef !important; }
+    html.tema-escuro body.motorista-login-page .btn-primary { background: #82a077 !important; color: #161510 !important; }
+    html.tema-escuro body.motorista-login-page .btn-idioma { background: #272620 !important; border-color: #33312a !important; color: #f5f4ef !important; }
+    html.tema-escuro body.motorista-login-page .btn-idioma.active,
+    html.tema-escuro body.motorista-login-page .btn-idioma[aria-pressed="true"] { background: #82a077 !important; border-color: #82a077 !important; color: #161510 !important; }
+    html.tema-escuro body.motorista-login-page .footer { color: #8e8b7f !important; background: #1d1c17 !important; }
+    html.tema-escuro body.motorista-login-page .links { border-top-color: #33312a; }
+    html.tema-escuro body.motorista-login-page .links a { color: #a4ba9a !important; }
   </style>
   <script>
     // CRÍTICO: Executar ANTES de qualquer outro código para detectar ambiente
@@ -197,7 +216,7 @@
       const favicon = document.createElement('link');
       favicon.rel = 'icon';
       favicon.type = 'image/svg+xml';
-      favicon.href = baseUrl + '/img/icon-atlas-motorista.svg';
+      favicon.href = baseUrl + '/img/logo-atlas-simbolo.svg';
       console.log('📦 Carregando favicon:', favicon.href);
       head.appendChild(favicon);
       
@@ -287,9 +306,14 @@
 <body class="motorista-login-page">
   <div class="login-container">
     <header class="logo-section">
-      <div class="logo-wrap">
-        <img id="logoImg" alt="Atlas Cargo" class="logo" src="/img/logoAtlasTransparente.png">
-      </div>
+      <a class="marca" id="marcaAtlas" href="/motorista/">
+        <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true">
+          <path fill="currentColor" fill-rule="evenodd" d="M16 3.2 28.8 28.8h-6.1l-1.95-5.7H11.25l-1.95 5.7H3.2L16 3.2zm0 9.15-3.35 9.75h6.7L16 12.35z"/>
+        </svg>
+        <strong>Atlas</strong>
+        <span>Cargo</span>
+      </a>
+      <img id="logoImg" alt="" class="logo-custom" hidden>
       <span class="app-badge">Motorista</span>
     </header>
 
@@ -304,8 +328,8 @@
 
       <form id="loginForm" novalidate class="login-form">
         <div class="input-group">
-          <label for="cpf" data-i18n="login.cpf">CPF</label>
-          <input type="tel" id="cpf" autocomplete="username" data-i18n-placeholder="login.cpfPlaceholder" placeholder="000.000.000-00" maxlength="14" inputmode="numeric" required>
+          <label for="cpf" data-i18n="login.cpf">CPF ou CNPJ</label>
+          <input type="tel" id="cpf" autocomplete="username" data-i18n-placeholder="login.cpfPlaceholder" placeholder="000.000.000-00" maxlength="18" inputmode="numeric" required>
         </div>
         <div class="input-group">
           <label for="senha" data-i18n="login.senha">Senha</label>
@@ -381,21 +405,41 @@
       }
       
       // Carregar identidade visual (logos) e aplicar
+      function logoPadrao(nome) {
+        var n = String(nome || '').toLowerCase();
+        return !n || n === 'logoatlastransparente.png' || n === 'logo-atlas.svg' || n === 'logoatlastransparentequadrada.png' || n === 'logo-atlas-simbolo.svg' || n === 'icon-atlas-motorista.svg';
+      }
       function aplicarIdentidade(r, q) {
-        var rr = (r || 'logoAtlasTransparente.png').replace(/[^a-zA-Z0-9._-]/g, '');
-        var qq = (q || 'logoAtlasTransparenteQuadrada.png').replace(/[^a-zA-Z0-9._-]/g, '');
+        var rr = (r || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        var qq = (q || '').replace(/[^a-zA-Z0-9._-]/g, '');
         var linkIcon = document.querySelector('link[rel="icon"]');
         if (linkIcon) {
-          linkIcon.href = baseUrl + '/img/' + qq;
-          linkIcon.type = qq.toLowerCase().endsWith('.svg') ? 'image/svg+xml' : 'image/png';
+          if (logoPadrao(qq)) {
+            linkIcon.href = baseUrl + '/img/logo-atlas-simbolo.svg';
+            linkIcon.type = 'image/svg+xml';
+          } else {
+            linkIcon.href = baseUrl + '/img/' + qq;
+            linkIcon.type = qq.toLowerCase().endsWith('.svg') ? 'image/svg+xml' : 'image/png';
+          }
         }
         var logoImg = document.getElementById('logoImg');
-        if (logoImg) logoImg.src = baseUrl + '/img/' + rr;
+        var marca = document.getElementById('marcaAtlas');
+        if (!logoImg) return;
+        if (logoPadrao(rr)) {
+          logoImg.hidden = true;
+          logoImg.removeAttribute('src');
+          if (marca) marca.hidden = false;
+          return;
+        }
+        logoImg.alt = 'Atlas Cargo';
+        logoImg.src = baseUrl + '/img/' + rr;
+        logoImg.hidden = false;
+        if (marca) marca.hidden = true;
       }
       fetch(baseUrl + '/api/configuracoes/identidade')
         .then(function(res) { return res.ok ? res.json() : Promise.reject(); })
         .then(function(data) { aplicarIdentidade(data.logoRetangular, data.logoQuadrada); })
-        .catch(function() { aplicarIdentidade('logoAtlasTransparente.png', 'icon-atlas-motorista.svg'); });
+        .catch(function() { aplicarIdentidade('', ''); });
       
       // Carregar script usando o protocolo atual (sem conversões)
       function loadScript(src) {

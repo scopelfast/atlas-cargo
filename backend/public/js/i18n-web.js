@@ -77,7 +77,7 @@
         messages = {};
         return Promise.resolve(messages);
       }
-      return fetch(urls[i])
+      return fetch(urls[i] + (urls[i].indexOf('?') >= 0 ? '&' : '?') + 'v=20261125mod')
         .then(function(res) {
           if (!res.ok) return tryNext(i + 1);
           return res.json();

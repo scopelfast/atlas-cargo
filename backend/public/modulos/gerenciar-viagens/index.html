@@ -1641,6 +1641,98 @@
       position: relative;
     }
 
+    .modal-mapa-motorista .leaflet-popup-close-button { display: none; }
+    .modal-mapa-motorista .leaflet-popup.atlas-map-popup-wrap .leaflet-popup-content-wrapper {
+      padding: 0;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+      box-shadow: 0 10px 32px rgba(15, 23, 42, 0.32);
+    }
+    .modal-mapa-motorista .leaflet-popup.atlas-map-popup-wrap .leaflet-popup-content {
+      margin: 0 !important;
+      width: 300px !important;
+    }
+    .modal-mapa-motorista .leaflet-popup.atlas-map-popup-wrap .leaflet-popup-tip { background: #fff; }
+    .modal-mapa-motorista .atlas-map-popup-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 12px 12px 14px;
+      color: #fff;
+      font: 700 15px/1.25 system-ui, Segoe UI, sans-serif;
+    }
+    .modal-mapa-motorista .atlas-map-popup-title { flex: 1; min-width: 0; }
+    .modal-mapa-motorista .atlas-map-popup-title small {
+      display: block;
+      margin-top: 2px;
+      font-weight: 600;
+      font-size: 12px;
+      opacity: 0.92;
+    }
+    .modal-mapa-motorista .atlas-map-popup-close {
+      flex: 0 0 28px;
+      width: 28px;
+      height: 28px;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: rgba(15, 23, 42, 0.35);
+      color: #fff;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-mapa-motorista .atlas-map-popup-close:hover { background: rgba(15, 23, 42, 0.55); }
+    .modal-mapa-motorista .atlas-map-popup-close svg { display: block; width: 12px; height: 12px; }
+    .modal-mapa-motorista .atlas-map-popup-body {
+      padding: 8px 14px 12px;
+      background: #fff;
+      color: #0f172a;
+    }
+    .modal-mapa-motorista .mapa-viagem-popup-row {
+      display: grid;
+      grid-template-columns: 92px 1fr;
+      gap: 8px;
+      padding: 7px 0;
+      border-bottom: 1px solid #e2e8f0;
+      font: 400 13px/1.4 system-ui, Segoe UI, sans-serif;
+    }
+    .modal-mapa-motorista .mapa-viagem-popup-row:last-child { border-bottom: 0; }
+    .modal-mapa-motorista .mapa-viagem-popup-label { color: #64748b; font-weight: 600; font-size: 12px; }
+    .modal-mapa-motorista .mapa-viagem-popup-value { color: #0f172a; word-break: break-word; }
+    .modal-mapa-motorista .mapa-viagem-popup-secao {
+      margin-top: 4px;
+      padding: 10px 0 2px;
+      border-top: 1px solid #e2e8f0;
+      color: #64748b;
+      font: 700 11px/1.3 system-ui, Segoe UI, sans-serif;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .modal-mapa-motorista .mapa-viagem-popup-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font: 700 11px/1.4 system-ui, Segoe UI, sans-serif;
+      color: #fff;
+      background: #2563eb;
+    }
+    html[data-theme="dark"] .modal-mapa-motorista .leaflet-popup.atlas-map-popup-wrap .leaflet-popup-content-wrapper,
+    html[data-theme="dark"] .modal-mapa-motorista .leaflet-popup.atlas-map-popup-wrap .leaflet-popup-tip,
+    html[data-theme="dark"] .modal-mapa-motorista .atlas-map-popup-body {
+      background: #1e293b;
+      color: #e2e8f0;
+    }
+    html[data-theme="dark"] .modal-mapa-motorista .mapa-viagem-popup-row,
+    html[data-theme="dark"] .modal-mapa-motorista .mapa-viagem-popup-secao { border-color: #334155; }
+    html[data-theme="dark"] .modal-mapa-motorista .mapa-viagem-popup-label,
+    html[data-theme="dark"] .modal-mapa-motorista .mapa-viagem-popup-secao { color: #94a3b8; }
+    html[data-theme="dark"] .modal-mapa-motorista .mapa-viagem-popup-value { color: #e2e8f0; }
+
     /* Painel flutuante (estilo Mapa de Viagem): chegada ao carregamento vs previsão */
     .modal-mapa-motorista-chegada-float {
       position: absolute;
@@ -2138,6 +2230,28 @@
                   <input type="number" id="viagemCubagem" step="0.001" min="0" placeholder="0.000" class="form-control">
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div class="form-dados-card">
+            <div class="form-dados-card-header"><i class='bx bx-layer'></i> Lote na rota</div>
+            <div class="form-dados-card-body">
+              <p class="hint" style="margin: 0 0 12px;">Opcional. Em branco, a viagem segue como hoje: um aceite confirma. Com lote, a mesma rota guarda a quantidade de cargas ou as toneladas. O saldo ainda não gera viagens filhas.</p>
+              <div class="filtros-grid">
+                <div>
+                  <label for="viagemTipoSaldo">Divulgar em lote</label>
+                  <select id="viagemTipoSaldo" class="form-control">
+                    <option value="">Não — viagem única</option>
+                    <option value="EMBARQUES">Cargas</option>
+                    <option value="TONELADAS">Toneladas</option>
+                  </select>
+                </div>
+                <div id="viagemLoteQtdWrap" style="display: none;">
+                  <label for="viagemLoteQtd" id="viagemLoteQtdLabel">Quantidade</label>
+                  <input type="number" id="viagemLoteQtd" min="0" step="1" class="form-control" placeholder="10">
+                </div>
+              </div>
+              <p id="viagemLoteSaldoAtual" class="hint" style="display: none; margin: 10px 0 0;"></p>
             </div>
           </div>
 
@@ -2987,7 +3101,7 @@
   <script src="/js/grid-editor.js?v=202603311045"></script>
   <!-- Socket.io é carregado por websocket-torre.js quando necessário -->
   <script src="js/websocket-torre.js"></script>
-  <script src="js/script.js?v=202609151930"></script>
+  <script src="js/script.js?v=20261125lote3"></script>
 
   <!-- Modal Dados Completos do Veículo -->
   <div id="modalDadosVeiculo" class="modal-tratamento" style="display: none;">

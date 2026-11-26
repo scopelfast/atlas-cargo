@@ -1378,6 +1378,7 @@
                 <option value="C">Certificadora</option>
                 <option value="E">Cliente</option>
                 <option value="U">Unidade de Negócio</option>
+                <option value="L">Empresa licenciada</option>
               </select>
             </div>
             <div>
@@ -1599,6 +1600,7 @@
               <label class="check-item"><input type="checkbox" id="chkC" value="C"> Certificadora</label>
               <label class="check-item"><input type="checkbox" id="chkE" value="E"> Cliente</label>
               <label class="check-item"><input type="checkbox" id="chkU" value="U"> Unidade de Negócio</label>
+              <label class="check-item"><input type="checkbox" id="chkL" value="L"> Empresa licenciada</label>
             </div>
             <small class="hint">Marque pelo menos uma opção</small>
           </div>
@@ -1684,7 +1686,7 @@
                 </div>
                 <div class="app-motorista-acoes-col app-motorista-acoes-col--senha">
                   <label class="block-label">Senha do app motorista</label>
-                  <p class="hint" style="margin: 0 0 10px 0;">Define a senha usada no login do app (CPF + esta senha). Mínimo 6 caracteres.</p>
+                  <p class="hint" style="margin: 0 0 10px 0;">Define a senha usada no login do app (CPF ou CNPJ + esta senha). Mínimo 6 caracteres.</p>
                   <div class="input-group" style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
                     <div style="flex: 1; min-width: 160px; max-width: 280px;">
                       <label for="novaSenhaMotorista">Nova senha</label>
@@ -1707,7 +1709,7 @@
             <button type="button" id="btnCancelar" class="btn btn-secondary">
               <i class='bx bx-x'></i> <span data-i18n="web.modulos.cadastroGeral.cancelar">Cancelar</span>
             </button>
-            <button type="button" id="btnGerenciarClasses" class="btn btn-info">
+            <button type="button" id="btnGerenciarClasses" class="btn btn-info" style="display: none;">
               <i class='bx bx-cog'></i> Gerenciar Classes
             </button>
           </div>
@@ -1833,7 +1835,7 @@
       </div>
     </div>
 
-    <!-- Endereços de entrega (pontos adicionais ao CNPJ matriz) — só PJ com cadastro salvo -->
+    <!-- Endereços de entrega: Cliente, pessoa jurídica, cadastro já salvo -->
     <div class="tab-content" id="tab-enderecos-entrega" style="display: none;">
       <div class="form-box">
         <h2 class="form-panel-titulo"><i class='bx bx-package' aria-hidden="true"></i> <span>Endereços de entrega</span></h2>

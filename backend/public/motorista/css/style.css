@@ -10,6 +10,13 @@
   font-family: var(--font-family);
 }
 
+body.motorista-login-page,
+body.motorista-login-page *,
+body.motorista-cadastro-page,
+body.motorista-cadastro-page * {
+  font-family: "Atkinson Hyperlegible", "Segoe UI", sans-serif;
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -27,7 +34,12 @@ body.motorista-login-page {
   justify-content: center;
   padding: 16px;
   padding-top: max(16px, env(safe-area-inset-top));
-  background: var(--app-bg) !important;
+  background: #faf9f6 !important;
+}
+
+html.tema-escuro body.motorista-login-page,
+html[data-theme="dark"] body.motorista-login-page {
+  background: #161510 !important;
 }
 
 /* Todas as telas do app: conteúdo no topo (igual à tela de login), sem centralizar */

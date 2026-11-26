@@ -13,6 +13,7 @@ const { poolPromise, getFirstNumericValue } = require('../config/db');
 const { normalizarPlacaBrasil } = require('../utils/placa-util');
 const { tenantIdForRequest } = require('../utils/tenant-context');
 const { getDefaultTenantId } = require('../middleware/tenant.middleware');
+const consultaPublica = require('../services/consulta-publica.service');
 
 // Constantes (legado: um tipo por cadastro; mantido para compatibilidade de exibição)
 const TIPO_CADASTRO = {
@@ -24,7 +25,8 @@ const TIPO_CADASTRO = {
   'G': 'Grupo de Divulgação',
   'C': 'Certificadora',
   'E': 'Cliente',
-  'U': 'Unidade de Negócio'
+  'U': 'Unidade de Negócio',
+  'L': 'Empresa licenciada'
 };
 
 // Aplicável para: ordem e mapeamento coluna -> código
@@ -36,8 +38,24 @@ const APPLICABLE_OPCOES = [
   { cod: 'A', col: 'FGAGENTE', label: 'Agente / Parceiro' },
   { cod: 'G', col: 'FGGRUPO', label: 'Grupo de Divulgação' },
   { cod: 'C', col: 'FGCERTIFICADORA', label: 'Certificadora' },
-  { cod: 'U', col: 'FGUNIDADENEGOCIO', label: 'Unidade de Negócio' }
+  { cod: 'E', col: 'FGCLIENTE', label: 'Cliente' },
+  { cod: 'U', col: 'FGUNIDADENEGOCIO', label: 'Unidade de Negócio' },
+  { cod: 'L', col: 'FGLICENCIADO', label: 'Empresa licenciada' }
 ];
+
+let colunaLicenciadoOk = false;
+async function garantirColunaLicenciado(pool) {
+  if (colunaLicenciadoOk) return;
+  await pool.query('ALTER TABLE "CADASTROGERAL" ADD COLUMN IF NOT EXISTS "FGLICENCIADO" CHAR(1) DEFAULT \'N\'');
+  colunaLicenciadoOk = true;
+}
+let colunaClienteOk = false;
+async function garantirColunaCliente(pool) {
+  if (colunaClienteOk) return;
+  await pool.query('ALTER TABLE "CADASTROGERAL" ADD COLUMN IF NOT EXISTS "FGCLIENTE" CHAR(1) DEFAULT \'N\'');
+  await pool.query(`UPDATE "CADASTROGERAL" SET "FGCLIENTE" = 'S' WHERE "FGTIPOCADASTRO" = 'E' AND COALESCE("FGCLIENTE", 'N') <> 'S'`);
+  colunaClienteOk = true;
+}
 const APPLICABLE_COL_MAP = Object.fromEntries(APPLICABLE_OPCOES.map(a => [a.cod, a.col]));
 
 /** Classificação de transporte no Brasil (cadastro motorista/transportador). */
@@ -237,15 +255,11 @@ async function resolveCidadeEndereco(pool, uf, municipio) {
   return r.rows[0] || null;
 }
 
-// Buscar CEP via ViaCEP
 async function buscarCEP(cep) {
-  try {
-    const response = await axios.get(`https://viacep.com.br/ws/${cep}/json/`);
-    return response.data;
-  } catch (error) {
-    console.error('Erro ao buscar CEP:', error);
-    return null;
-  }
+  const pool = await poolPromise;
+  const out = await consultaPublica.consultarCep(pool, cep);
+  if (out.status !== 200) return { erro: true };
+  return out.body;
 }
 
 /** Primeiro tipo de equipamento ativo do tenant (fallback default). `db` = pool ou client pg. */
@@ -443,6 +457,8 @@ const cadastroController = {
       } = req.query;
       
       const pool = await poolPromise;
+      await garantirColunaLicenciado(pool);
+      await garantirColunaCliente(pool);
       const tid = tenantIdForRequest(req);
       const values = [];
       let paramIndex = 0;
@@ -470,7 +486,7 @@ const cadastroController = {
           cg."FGACTIVE",
           cg."FGTIPOCADASTRO",
           cg."FGOPERADOR", cg."FGPROGRAMADOR", cg."FGMOTORISTA", cg."FGTRANSPORTADOR",
-          cg."FGAGENTE", cg."FGGRUPO", cg."FGCERTIFICADORA", cg."FGUNIDADENEGOCIO",
+          cg."FGAGENTE", cg."FGGRUPO", cg."FGCERTIFICADORA", cg."FGUNIDADENEGOCIO", cg."FGCLIENTE", cg."FGLICENCIADO",
           cg."CDTRANSPORTADOR",
           cg."TIPO_TRANSPORTE_BR",
           t."RZSOCIAL" AS "TRANSPORTADOR_NOME",
@@ -573,6 +589,8 @@ const cadastroController = {
           FGGRUPO: (cg.FGGRUPO || 'N') === 'S',
           FGCERTIFICADORA: (cg.FGCERTIFICADORA || 'N') === 'S',
           FGUNIDADENEGOCIO: (cg.FGUNIDADENEGOCIO || 'N') === 'S',
+          FGCLIENTE: (cg.FGCLIENTE || 'N') === 'S',
+          FGLICENCIADO: (cg.FGLICENCIADO || 'N') === 'S',
           APLICAVEL_CODIGOS: aplicavel,
           CDTRANSPORTADOR: cg.CDTRANSPORTADOR || null,
           TRANSPORTADOR_NOME: cg.TRANSPORTADOR_NOME || null,
@@ -631,7 +649,7 @@ const cadastroController = {
         ENDERECO, NRENDERECO, COMPLEND, BAIRRO, NRCELULAR, ENDEMAIL,
         LATITUDE, LONGITUDE, FGTIPOCADASTRO, FGRASTREADO, CDTRANSPORTADOR,
         FGOPERADOR, FGPROGRAMADOR, FGMOTORISTA, FGTRANSPORTADOR: FGTRANSP,
-        FGAGENTE, FGGRUPO, FGCERTIFICADORA, FGUNIDADENEGOCIO,
+        FGAGENTE, FGGRUPO, FGCERTIFICADORA, FGUNIDADENEGOCIO, FGCLIENTE, FGLICENCIADO,
         PAIS
       } = req.body;
 
@@ -643,7 +661,9 @@ const cadastroController = {
         FGAGENTE: FGAGENTE === true || FGAGENTE === 'S',
         FGGRUPO: FGGRUPO === true || FGGRUPO === 'S',
         FGCERTIFICADORA: FGCERTIFICADORA === true || FGCERTIFICADORA === 'S',
-        FGUNIDADENEGOCIO: FGUNIDADENEGOCIO === true || FGUNIDADENEGOCIO === 'S'
+        FGUNIDADENEGOCIO: FGUNIDADENEGOCIO === true || FGUNIDADENEGOCIO === 'S',
+        FGCLIENTE: FGCLIENTE === true || FGCLIENTE === 'S',
+        FGLICENCIADO: FGLICENCIADO === true || FGLICENCIADO === 'S'
       };
       const algumAplicavel = Object.values(flags).some(v => v === true);
       if (!algumAplicavel && !FGTIPOCADASTRO) {
@@ -671,6 +691,8 @@ const cadastroController = {
 
       // Verificar duplicidade e gerar novo ID (PostgreSQL)
       const pool = await poolPromise;
+      await garantirColunaLicenciado(pool);
+      await garantirColunaCliente(pool);
       const tid = tenantIdForRequest(req);
       const checkDup = await pool.query(
         'SELECT "CDCADASTRO" FROM "CADASTROGERAL" WHERE "CGCCPF" = $1 AND "TENANT_ID" = $2',
@@ -697,10 +719,10 @@ const cadastroController = {
           "CDCADASTRO", "CGCCPF", "RZSOCIAL", "NMFANTASIA", "FGFISICAJURIDICA", "CEP", "CDCIDADE",
           "ENDERECO", "NRENDERECO", "COMPLEND", "BAIRRO", "NRCELULAR", "ENDEMAIL", "LATITUDE", "LONGITUDE",
           "FGACTIVE", "FGTIPOCADASTRO", "FGOPERADOR", "FGPROGRAMADOR", "FGMOTORISTA", "FGTRANSPORTADOR",
-          "FGAGENTE", "FGGRUPO", "FGCERTIFICADORA", "FGUNIDADENEGOCIO",
+          "FGAGENTE", "FGGRUPO", "FGCERTIFICADORA", "FGUNIDADENEGOCIO", "FGCLIENTE", "FGLICENCIADO",
           "FGRASTREADO", "CDTRANSPORTADOR", "PAIS", "TIPO_TRANSPORTE_BR", "DHMAINTENANCE", "SGUSER", "SERVERORIG", "TENANT_ID"
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'A', $16,
-          $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, CURRENT_TIMESTAMP, $29, 'AppDVcargas', $30)`,
+          $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, CURRENT_TIMESTAMP, $31, 'AppDVcargas', $32)`,
         [
           novoId, cgccpfStr, RZSOCIAL.trim(), NMFANTASIA?.trim() || null, FGFISICAJURIDICA,
           CEP || null, CDCIDADE || null, (ENDERECO && String(ENDERECO).trim()) ? String(ENDERECO).trim() : null, (NRENDERECO !== undefined && NRENDERECO !== null && NRENDERECO !== '') ? NRENDERECO : null, COMPLEND?.trim() || null,
@@ -708,6 +730,7 @@ const cadastroController = {
           tipoLegado,
           toS(flags.FGOPERADOR), toS(flags.FGPROGRAMADOR), toS(flags.FGMOTORISTA), toS(flags.FGTRANSPORTADOR),
           toS(flags.FGAGENTE), toS(flags.FGGRUPO), toS(flags.FGCERTIFICADORA), toS(flags.FGUNIDADENEGOCIO),
+          toS(flags.FGCLIENTE), toS(flags.FGLICENCIADO),
           rastRes.valor, (flags.FGMOTORISTA && CDTRANSPORTADOR) ? CDTRANSPORTADOR : null,
           (PAIS && String(PAIS).trim()) ? String(PAIS).trim().toUpperCase() : null,
           tipoBrRes.valor,
@@ -749,7 +772,7 @@ const cadastroController = {
         ENDERECO, NRENDERECO, COMPLEND, BAIRRO, NRCELULAR, ENDEMAIL,
         LATITUDE, LONGITUDE, FGACTIVE, FGTIPOCADASTRO, FGRASTREADO, CDTRANSPORTADOR,
         FGOPERADOR, FGPROGRAMADOR, FGMOTORISTA, FGTRANSPORTADOR: FGTRANSP,
-        FGAGENTE, FGGRUPO, FGCERTIFICADORA, FGUNIDADENEGOCIO,
+        FGAGENTE, FGGRUPO, FGCERTIFICADORA, FGUNIDADENEGOCIO, FGCLIENTE, FGLICENCIADO,
         PAIS,
         STATUSAPROVACAO, PAIS_DESTINO_PREF, SIGLA_ESTADO_DESTINO_PREF, CIDADE_DESTINO_PREF,
         PAIS_EMBARQUE_PREF, SIGLA_ESTADO_EMBARQUE_PREF, REGIAO_EMBARQUE_PREF, CIDADE_EMBARQUE_PREF
@@ -763,7 +786,9 @@ const cadastroController = {
         FGAGENTE: FGAGENTE === true || FGAGENTE === 'S',
         FGGRUPO: FGGRUPO === true || FGGRUPO === 'S',
         FGCERTIFICADORA: FGCERTIFICADORA === true || FGCERTIFICADORA === 'S',
-        FGUNIDADENEGOCIO: FGUNIDADENEGOCIO === true || FGUNIDADENEGOCIO === 'S'
+        FGUNIDADENEGOCIO: FGUNIDADENEGOCIO === true || FGUNIDADENEGOCIO === 'S',
+        FGCLIENTE: FGCLIENTE === true || FGCLIENTE === 'S',
+        FGLICENCIADO: FGLICENCIADO === true || FGLICENCIADO === 'S'
       };
       const algumAplicavel = Object.values(flags).some(v => v === true);
       if (!algumAplicavel && !FGTIPOCADASTRO) {
@@ -793,6 +818,8 @@ const cadastroController = {
       const sgUserUpd = getSgUser(req);
       if (!sgUserUpd) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
       const pool = await poolPromise;
+      await garantirColunaLicenciado(pool);
+      await garantirColunaCliente(pool);
       const tid = tenantIdForRequest(req);
       const idNumerico = parseFloat(id);
 
@@ -829,9 +856,10 @@ const cadastroController = {
           "LATITUDE" = $13, "LONGITUDE" = $14, "FGACTIVE" = $15, "FGTIPOCADASTRO" = $16,
           "FGOPERADOR" = $17, "FGPROGRAMADOR" = $18, "FGMOTORISTA" = $19, "FGTRANSPORTADOR" = $20,
           "FGAGENTE" = $21, "FGGRUPO" = $22, "FGCERTIFICADORA" = $23, "FGUNIDADENEGOCIO" = $24,
-          "FGRASTREADO" = $25, "CDTRANSPORTADOR" = $26, "PAIS" = $27, "TIPO_TRANSPORTE_BR" = $28,
-          "DHMAINTENANCE" = CURRENT_TIMESTAMP, "SGUSER" = $29, "SERVERORIG" = 'AppDVcargas'
-        WHERE "CDCADASTRO" = $30 AND "TENANT_ID" = $31`,
+          "FGCLIENTE" = $25, "FGLICENCIADO" = $26,
+          "FGRASTREADO" = $27, "CDTRANSPORTADOR" = $28, "PAIS" = $29, "TIPO_TRANSPORTE_BR" = $30,
+          "DHMAINTENANCE" = CURRENT_TIMESTAMP, "SGUSER" = $31, "SERVERORIG" = 'AppDVcargas'
+        WHERE "CDCADASTRO" = $32 AND "TENANT_ID" = $33`,
         [
           cgccpfStr, RZSOCIAL.trim(), NMFANTASIA?.trim() || null, FGFISICAJURIDICA,
           CEP || null, CDCIDADE || null, (ENDERECO && String(ENDERECO).trim()) ? String(ENDERECO).trim() : null, (NRENDERECO !== undefined && NRENDERECO !== null && NRENDERECO !== '') ? NRENDERECO : null,
@@ -840,6 +868,7 @@ const cadastroController = {
           tipoLegado,
           toS(flags.FGOPERADOR), toS(flags.FGPROGRAMADOR), toS(flags.FGMOTORISTA), toS(flags.FGTRANSPORTADOR),
           toS(flags.FGAGENTE), toS(flags.FGGRUPO), toS(flags.FGCERTIFICADORA), toS(flags.FGUNIDADENEGOCIO),
+          toS(flags.FGCLIENTE), toS(flags.FGLICENCIADO),
           rastRes.valor, valorTransportador,
           (PAIS && String(PAIS).trim()) ? String(PAIS).trim().toUpperCase() : null,
           tipoBrRes.valor,
@@ -892,6 +921,8 @@ const cadastroController = {
     try {
       const { id } = req.params;
       const pool = await poolPromise;
+      await garantirColunaLicenciado(pool);
+      await garantirColunaCliente(pool);
       const tid = tenantIdForRequest(req);
       const tenantDefault = getDefaultTenantId();
       const params = [parseFloat(id), tid, tenantDefault];
@@ -904,7 +935,7 @@ const cadastroController = {
           cg."NRCELULAR", cg."ENDEMAIL", cg."LATITUDE", cg."LONGITUDE",
           cg."FGACTIVE", cg."FGTIPOCADASTRO", cg."FGRASTREADO", cg."CDTRANSPORTADOR",
           cg."FGOPERADOR", cg."FGPROGRAMADOR", cg."FGMOTORISTA", cg."FGTRANSPORTADOR",
-          cg."FGAGENTE", cg."FGGRUPO", cg."FGCERTIFICADORA", cg."FGUNIDADENEGOCIO",
+          cg."FGAGENTE", cg."FGGRUPO", cg."FGCERTIFICADORA", cg."FGUNIDADENEGOCIO", cg."FGCLIENTE", cg."FGLICENCIADO",
           cg."TIPO_TRANSPORTE_BR",
           mc."STATUSAPROVACAO", mc."PAIS_DESTINO_PREF", mc."SIGLA_ESTADO_DESTINO_PREF", mc."CIDADE_DESTINO_PREF",
           mc."NRCNH", mc."CATEGORIACNH", mc."VALIDADECNH", mc."FOTOCNH"`;
@@ -979,6 +1010,8 @@ const cadastroController = {
         FGGRUPO: (cg.FGGRUPO || 'N') === 'S',
         FGCERTIFICADORA: (cg.FGCERTIFICADORA || 'N') === 'S',
         FGUNIDADENEGOCIO: (cg.FGUNIDADENEGOCIO || 'N') === 'S',
+        FGCLIENTE: (cg.FGCLIENTE || 'N') === 'S',
+        FGLICENCIADO: (cg.FGLICENCIADO || 'N') === 'S',
         TIPO_TRANSPORTE_BR: cg.TIPO_TRANSPORTE_BR || null,
         STATUSAPROVACAO: cg.STATUSAPROVACAO || 'P',
         PAIS_DESTINO_PREF: cg.PAIS_DESTINO_PREF || null,
@@ -1065,29 +1098,26 @@ const cadastroController = {
     }
   },
 
-  // Buscar CEP
+  // Buscar CEP (BrasilAPI e, se ela falhar, ViaCEP) e achar a cidade já cadastrada
   buscarCEP: async (req, res) => {
     try {
-      const { cep } = req.params;
-      const dadosCEP = await buscarCEP(cep);
-      
-      if (!dadosCEP || dadosCEP.erro) {
-        return res.status(404).json({ error: 'CEP não encontrado.' });
-      }
-
       const pool = await poolPromise;
-      const cidadeResult = await pool.query(
-        `SELECT "CDCIDADE", "ESTADO", "NMCIDADE" FROM "CIDADE" WHERE "ESTADO" = $1 AND "NMCIDADE" = $2 AND "FGACTIVE" = 'A' LIMIT 1`,
-        [dadosCEP.uf, dadosCEP.localidade]
-      );
-      const cidadeRows = cidadeResult.rows || [];
-      res.json({
-        ...dadosCEP,
-        cidade: cidadeRows[0] || null
-      });
+      const out = await consultaPublica.consultarCep(pool, req.params.cep);
+      res.status(out.status).json(out.body);
     } catch (err) {
-      console.error('Erro ao buscar CEP:', err);
+      console.error('Erro ao buscar CEP:', err.message);
       res.status(500).json({ error: 'Erro ao buscar CEP.' });
+    }
+  },
+
+  consultarDocumento: async (req, res) => {
+    try {
+      const pool = await poolPromise;
+      const out = await consultaPublica.consultarDocumento(pool, req.params.doc);
+      res.status(out.status).json(out.body);
+    } catch (err) {
+      console.error('Erro ao consultar documento:', err.message);
+      res.status(500).json({ error: 'Erro ao consultar o documento.' });
     }
   },
 

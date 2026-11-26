@@ -789,6 +789,25 @@
     margin-bottom: 12px;
     gap: 10px;
   }
+  .logs-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .logs-toggle h3 { margin: 0; }
+  .logs-toggle .bx-chevron-down,
+  .logs-toggle .bx-chevron-up { font-size: 22px; color: #5d594f; }
+  #logsNotificacaoPainel[hidden] { display: none !important; }
   .logs-table-wrap {
     overflow-x: auto;
   }
@@ -858,7 +877,8 @@
       <div>
         <label data-i18n="web.modulos.alertas.status">Status</label>
         <select id="filtroStatus" class="form-control">
-          <option value="">Todos</option>
+          <option value="abertos" selected>Em aberto</option>
+          <option value="todos">Todos</option>
           <option value="Pendente">Pendente</option>
           <option value="Em Análise">Em Análise</option>
           <option value="Tratado">Tratado</option>
@@ -909,10 +929,15 @@
   </div>
 
   <!-- Logs de Notificação WhatsApp -->
-  <div class="filtros-box">
+  <div class="filtros-box" id="logsNotificacaoBox">
+    <button type="button" class="logs-toggle" id="btnToggleLogsNotificacao" aria-expanded="false" aria-controls="logsNotificacaoPainel">
+      <h3><i class='bx bx-message-square-detail'></i> <span data-i18n="web.modulos.alertas.logsNotificacaoTitulo">Logs de Notificação WhatsApp</span></h3>
+      <i class='bx bx-chevron-down' id="logsNotificacaoChevron" aria-hidden="true"></i>
+    </button>
+    <div id="logsNotificacaoPainel" hidden>
     <div class="logs-header">
-      <h3 style="margin:0;"><i class='bx bx-message-square-detail'></i> <span data-i18n="web.modulos.alertas.logsNotificacaoTitulo">Logs de Notificação WhatsApp</span></h3>
-      <button class="btn btn-secondary btn-sm" onclick="recarregarLogsNotificacao()">
+      <span></span>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="recarregarLogsNotificacao()">
         <i class='bx bx-refresh'></i> <span data-i18n="web.modulos.alertas.logsAtualizar">Atualizar logs</span>
       </button>
     </div>
@@ -975,6 +1000,7 @@
         </tbody>
       </table>
     </div>
+    </div>
   </div>
 
   <!-- Lista de Alertas -->
@@ -1015,4 +1041,4 @@
   <p data-i18n="web.modulos.alertas.carregandoAlertas">Carregando alertas...</p>
 </div>
 
-<script src="/modulos/alertas/js/script.js?v=202603311735"></script>
+<script src="/modulos/alertas/js/script.js?v=20261125logs"></script>

@@ -273,6 +273,9 @@ const alertController = {
       const sql = require('../config/mssql-compat');
       const { poolPromise } = require('../config/db');
       const { status, tipo, prioridade, dataInicio, dataFim, idViagem, idMotorista, limit = 50, offset = 0 } = req.query;
+      const statusTxt = String(status || '').trim();
+      const statusNorm = statusTxt.toLowerCase();
+      const modoStatus = statusNorm === 'todos' ? 'todos' : (!statusTxt || statusNorm === 'abertos') ? 'abertos' : 'um';
       
       const pool = await poolPromise;
       const tid = tenantIdForRequest(req);
@@ -312,9 +315,11 @@ const alertController = {
           AND [alrt].[TENANT_ID] = @tenantId
       `;
 
-      if (status) {
-        request.input('status', sql.NVarChar(50), status);
+      if (modoStatus === 'um') {
+        request.input('status', sql.NVarChar(50), statusTxt);
         query += ` AND [alrt].[STATUS] = @status`;
+      } else if (modoStatus === 'abertos') {
+        query += ` AND UPPER(COALESCE([alrt].[STATUS], 'PENDENTE')) NOT IN ('TRATADO', 'CANCELADO')`;
       }
       if (tipo) {
         request.input('tipo', sql.NVarChar(50), tipo);
@@ -362,9 +367,11 @@ const alertController = {
       let countQuery = `SELECT COUNT(*) AS [total] FROM [dbo].[ALERTS] [alrt] WHERE 1=1 AND [alrt].[TENANT_ID] = @tenantId`;
       const countRequest = pool.request();
       countRequest.input('tenantId', sql.NVarChar(64), tid);
-      if (status) {
-        countRequest.input('status', sql.NVarChar(50), status);
+      if (modoStatus === 'um') {
+        countRequest.input('status', sql.NVarChar(50), statusTxt);
         countQuery += ` AND [alrt].[STATUS] = @status`;
+      } else if (modoStatus === 'abertos') {
+        countQuery += ` AND UPPER(COALESCE([alrt].[STATUS], 'PENDENTE')) NOT IN ('TRATADO', 'CANCELADO')`;
       }
       if (tipo) {
         countRequest.input('tipo', sql.NVarChar(50), tipo);

@@ -272,6 +272,11 @@ router.get('/user-menu', async (req, res) => {
       );
     }
 
+    // Tipos de Atividade define o cardápio de menus (DSPROGRAMA). Só o dono da plataforma.
+    if (!bypassLicenca) {
+      menu = menu.filter((item) => String(item.programa || '').trim().toLowerCase() !== 'gerenciar-tipos-atividade');
+    }
+
     res.json({ menu, moduloFiltro: moduloCodigo || null });
   } catch (err) {
     console.error('Erro ao carregar menu:', err);

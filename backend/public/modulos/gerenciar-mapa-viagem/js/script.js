@@ -16,6 +16,10 @@
       clearInterval(window.__mapaViagemNormalPollTimer);
       window.__mapaViagemNormalPollTimer = null;
     }
+    if (window.__mapaViagemPainelPollTimer != null) {
+      clearInterval(window.__mapaViagemPainelPollTimer);
+      window.__mapaViagemPainelPollTimer = null;
+    }
   } catch (e) { /* ignore */ }
 
   const t = (k) => (typeof window.tWeb === 'function' ? window.tWeb(k) : k);
@@ -65,6 +69,7 @@
   const MAPA_MAX_AUTO_REFRESH_MS = 60000;
   /** Atualização automática na aba Mapa (modo normal), quando já houve carga com filtros */
   const MAPA_NORMAL_AUTO_REFRESH_MS = 30000;
+  const PAINEL_AUTO_REFRESH_MS = 5 * 60 * 1000;
   let mapaViagemPollPermitido = false;
 
   /** Cor do pin por FGSITVIAGEM (situação operacional) */
@@ -1586,16 +1591,10 @@
       return;
     }
 
-    // Verificar se tem coordenadas
-    if (!veiculo.LATITUDE || !veiculo.LONGITUDE) {
-      console.warn('[Mapa Viagem] Veículo sem coordenadas:', veiculo);
-      return;
-    }
+    const lat = parseFloat(veiculo.LATITUDE != null ? veiculo.LATITUDE : veiculo.latitude);
+    const lon = parseFloat(veiculo.LONGITUDE != null ? veiculo.LONGITUDE : veiculo.longitude);
 
-    const lat = parseFloat(veiculo.LATITUDE);
-    const lon = parseFloat(veiculo.LONGITUDE);
-
-    if (isNaN(lat) || isNaN(lon)) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
       console.warn('[Mapa Viagem] Coordenadas inválidas:', veiculo.LATITUDE, veiculo.LONGITUDE);
       return;
     }
@@ -1677,7 +1676,22 @@
       }
     });
 
+    const idViagemMarker = veiculo.VIAGEM != null ? veiculo.VIAGEM : veiculo.viagem;
+    marker._idViagem = idViagemMarker != null ? String(idViagemMarker) : '';
     marcadoresVeiculos.push(marker);
+  }
+
+  function focarViagemNoMapa(idViagem) {
+    showTab('mapa');
+    const id = idViagem != null ? String(idViagem) : '';
+    const marker = marcadoresVeiculos.find((m) => m && String(m._idViagem) === id);
+    if (!marker || !mapa) {
+      mostrarAvisoMapaInfo('Esta viagem não tem posição no mapa.');
+      return;
+    }
+    const ll = marker.getLatLng();
+    mapa.setView(ll, Math.max(mapa.getZoom(), 13));
+    marker.openPopup();
   }
 
   function agendarCarregarVeiculosAposLegendaOuAmostra() {
@@ -1733,7 +1747,7 @@
       params.append('_ts', String(Date.now()));
       const qs = params.toString();
 
-      const fetchOpts = { cache: 'no-store' };
+      const fetchOpts = { cache: 'no-store', headers: getAuthHeadersMapa() };
       const [response, resResumo] = await Promise.all([
         fetch(`/api/mapa-viagem/veiculos?${qs}`, fetchOpts),
         fetch(`/api/mapa-viagem/resumo?${qs}`, fetchOpts)
@@ -1809,6 +1823,9 @@
       if (!manterVisao) {
         tentarIniciarAutoRefreshMapaNormal();
       }
+      if (typeof window.mapaViagemPainelRecarregar === 'function') {
+        void window.mapaViagemPainelRecarregar({ silent });
+      }
 
     } catch (err) {
       if (myGen !== carregarVeiculosGen) return;
@@ -1830,6 +1847,34 @@
     });
     setTimeout(() => { try { mapa.invalidateSize(); } catch (e) { /* ignore */ } }, 200);
     setTimeout(() => { try { mapa.invalidateSize(); } catch (e) { /* ignore */ } }, 600);
+  }
+
+  function pararAutoRefreshPainel() {
+    try {
+      if (window.__mapaViagemPainelPollTimer != null) {
+        clearInterval(window.__mapaViagemPainelPollTimer);
+        window.__mapaViagemPainelPollTimer = null;
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  function tentarIniciarAutoRefreshPainel() {
+    pararAutoRefreshPainel();
+    if (!mapaViagemPollPermitido) return;
+    const tab = document.getElementById('tab-viagens');
+    if (!tab || !tab.classList.contains('active')) return;
+    window.__mapaViagemPainelPollTimer = setInterval(() => {
+      if (!mapaViagemPollPermitido) {
+        pararAutoRefreshPainel();
+        return;
+      }
+      const t = document.getElementById('tab-viagens');
+      if (!t || !t.classList.contains('active')) {
+        pararAutoRefreshPainel();
+        return;
+      }
+      void carregarVeiculos({ manterVisao: true, silent: true });
+    }, PAINEL_AUTO_REFRESH_MS);
   }
 
   function pararAutoRefreshMapaNormal() {
@@ -1968,6 +2013,7 @@
       setModoMapaMaximizado(false);
       pararAutoRefreshMapaNormal();
     }
+    pararAutoRefreshPainel();
     const tabContent = document.getElementById(`tab-${tabId}`);
     const tabBtn = document.querySelector(`.tab-btn[data-tab="${tabId}"]`);
     if (!tabContent || !tabBtn) return;
@@ -1984,7 +2030,12 @@
       setTimeout(() => invalidarTamanhoMapaLeaflet(), 80);
       tentarIniciarAutoRefreshMapaNormal();
     }
+    if (tabId === 'viagens') tentarIniciarAutoRefreshPainel();
   }
+
+  window.mapaViagemColetarFiltros = coletarFiltrosMapaObjeto;
+  window.mapaViagemShowTab = showTab;
+  window.mapaViagemFocarViagem = focarViagemNoMapa;
 
   // Event listeners para abas
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -2009,6 +2060,7 @@
   document.getElementById('btnLimparFiltros')?.addEventListener('click', () => {
     mapaViagemPollPermitido = false;
     pararAutoRefreshMapaNormal();
+    pararAutoRefreshPainel();
     filtroForm.reset();
     document.getElementById('filtroRoteiroDescricao').value = '';
     void Promise.all([
@@ -2017,6 +2069,7 @@
     ]);
     veiculosData = [];
     limparMarcadores();
+    if (typeof window.mapaViagemPainelLimpar === 'function') window.mapaViagemPainelLimpar();
     esconderResumoMapa();
     const infoText = document.getElementById('mapaInfoText');
     if (infoText) {

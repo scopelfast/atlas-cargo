@@ -21,6 +21,28 @@ function parseSwitchCloseTicketFromDb(val) {
   return true;
 }
 
+function horaMinutoAgora(date = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/** Última linha do texto enviado à Meta. O mesmo aviso deixa de sair byte a byte igual. */
+function anexarProtocoloWhatsApp(corpo, ref) {
+  const texto = String(corpo || '').replace(/\s+$/, '');
+  const codigo = String(ref || '').trim();
+  if (!texto || !codigo) return texto;
+  const linha = `Ref. ${codigo}`;
+  if (texto.endsWith(linha)) return texto;
+  return `${texto}\n\n${linha}`;
+}
+
+function refDeConvocacao(idConvocacao) {
+  if (idConvocacao == null || String(idConvocacao).trim() === '') return '';
+  const n = Number(idConvocacao);
+  if (!Number.isFinite(n)) return '';
+  return `CV-${parseInt(n, 10)}`;
+}
+
 async function registrarResumoEtapaWhatsApp(pool, {
   idConvocacao,
   etapa,
@@ -54,7 +76,7 @@ async function registrarResumoEtapaWhatsApp(pool, {
 /**
  * @returns {Promise<{ ok: boolean, error?: string }>}
  */
-async function enviarUmaMensagemSwitchDigital(pool, req, { idConvocacao, numeroCelular, corpoMensagem, tenantId }) {
+async function enviarUmaMensagemSwitchDigital(pool, req, { idConvocacao, numeroCelular, corpoMensagem, tenantId, jaTemDdi, protocolo }) {
   const fetch = (...args) => import('node-fetch').then(({ default: fetch }) => fetch(...args));
   const tidSw = tenantId != null && String(tenantId).trim() !== ''
     ? String(tenantId).trim()
@@ -96,10 +118,11 @@ async function enviarUmaMensagemSwitchDigital(pool, req, { idConvocacao, numeroC
   }
   const numeroBase = String(numeroCelular || '').replace(/\D/g, '');
   let numeroLimpo = numeroBase;
-  if (numeroLimpo.length === 10 || numeroLimpo.length === 11) {
+  if (!jaTemDdi && (numeroLimpo.length === 10 || numeroLimpo.length === 11)) {
     numeroLimpo = `55${numeroLimpo}`;
   }
-  if (!numeroLimpo || numeroLimpo.length < 12) {
+  const minimo = jaTemDdi ? 10 : 12;
+  if (!numeroLimpo || numeroLimpo.length < minimo || numeroLimpo.length > 15) {
     return { ok: false, error: 'Número de celular inválido' };
   }
   console.log(
@@ -110,9 +133,11 @@ async function enviarUmaMensagemSwitchDigital(pool, req, { idConvocacao, numeroC
     (config.queueId && String(config.queueId).trim()) || '(omitido)',
     (config.endpoint && String(config.endpoint).split('?')[0]) || ''
   );
+  const refEnvio = String(protocolo || '').trim() || refDeConvocacao(idConvocacao);
+  const corpoEnvio = refEnvio ? anexarProtocoloWhatsApp(corpoMensagem, refEnvio) : String(corpoMensagem || '');
   const requestBody = {
     number: numeroLimpo,
-    body: corpoMensagem,
+    body: corpoEnvio,
     sendSignature: config.sendSignature,
     closeTicket: config.closeTicket
   };
@@ -207,6 +232,9 @@ async function enviarUmaMensagemSwitchDigital(pool, req, { idConvocacao, numeroC
 module.exports = {
   parseSwitchSendSignatureFromDb,
   parseSwitchCloseTicketFromDb,
+  horaMinutoAgora,
+  anexarProtocoloWhatsApp,
+  refDeConvocacao,
   registrarResumoEtapaWhatsApp,
   enviarUmaMensagemSwitchDigital,
 };

@@ -2150,7 +2150,7 @@ SELECT [ID] FROM [dbo].[ALERTS]
         prioridade = 'Alta';
       }
 
-      await pool.request()
+      const ins = await pool.request()
         .input('idviagem', sql.Decimal(15, 0), alerta.idviagem)
         .input('cdmotorista', sql.Decimal(15, 0), alerta.cdmotorista || null)
         .input('type', sql.NVarChar(50), typeNorm)
@@ -2166,7 +2166,10 @@ SELECT [ID] FROM [dbo].[ALERTS]
           VALUES (
             @idviagem, @cdmotorista, @type, @message, @severity, @prioridade, @details, 'Pendente', @tenantId
           )
+          RETURNING [ID]
         `);
+      const novoId = ins.recordset && ins.recordset[0] && (ins.recordset[0].ID ?? ins.recordset[0].id);
+      if (novoId != null) alerta.id = novoId;
 
       return true;
     } catch (err) {

@@ -3,28 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0d9488">
+  <meta name="theme-color" content="#506d48">
   <title>Oportunidades de Carga — Atlas Cargo</title>
   <script>
     (function () {
       try {
+        if (localStorage.getItem('temaPadraoClaro') !== '1') {
+          localStorage.setItem('tema', 'claro');
+          localStorage.setItem('temaPadraoClaro', '1');
+        }
         var t = localStorage.getItem('tema');
-        if (t == null || t === '') t = 'auto';
-        var dark = t === 'escuro' || (t === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (t == null || t === '' || t === 'auto') t = 'claro';
+        var dark = t === 'escuro';
         document.documentElement.classList.toggle('tema-escuro', !!dark);
         document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
       } catch (e) {
-        var m = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
-        if (m) {
-          document.documentElement.classList.toggle('tema-escuro', m.matches);
-          document.documentElement.setAttribute('data-theme', m.matches ? 'dark' : 'light');
-        }
+        document.documentElement.classList.remove('tema-escuro');
+        document.documentElement.setAttribute('data-theme', 'light');
       }
     })();
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../css/design-system.css">
   <link rel="stylesheet" href="../css/style.css">
   <link rel="stylesheet" href="../css/padrao-telas.css">
@@ -32,222 +32,178 @@
   <style>
     body.motorista-oport-public-page {
       min-height: 100vh;
-      background: var(--app-bg) !important;
+      margin: 0;
+      background: #faf9f6 !important;
+      color: #1c1a16;
+      font-family: "Atkinson Hyperlegible", "Segoe UI", sans-serif;
+      padding: 16px;
+      padding-top: max(16px, env(safe-area-inset-top));
       padding-bottom: max(24px, env(safe-area-inset-bottom));
+    }
+    html[data-theme="dark"] body.motorista-oport-public-page,
+    html.tema-escuro body.motorista-oport-public-page {
+      background: #161510 !important;
+      color: #f5f4ef;
     }
 
     body.motorista-oport-public-page .container {
-      max-width: 480px;
+      max-width: 420px;
       margin: 0 auto;
-      padding: 16px 16px 24px;
-      padding-top: max(16px, env(safe-area-inset-top));
+      padding: 0;
     }
 
-    /* Bloco único: faixa de login + header dashboard (mesmo app) */
-    .oport-topo-app {
-      border-radius: var(--radius-card);
+    .oport-folha {
+      background: #fff;
+      border: 1px solid #e7e3da;
+      border-radius: 24px;
       overflow: hidden;
-      box-shadow: var(--shadow-lg);
       margin-bottom: 20px;
-      border: 1px solid rgba(0, 0, 0, 0.06);
     }
-    html[data-theme="dark"] .oport-topo-app {
-      border-color: #334155;
+    html[data-theme="dark"] .oport-folha,
+    html.tema-escuro .oport-folha {
+      background: #1d1c17;
+      border-color: #33312a;
     }
 
-    .oport-topo-app .logo-section {
-      background: linear-gradient(165deg, #134e4a 0%, #0f766e 40%, #0d9488 100%);
-      color: #fff;
+    .oport-marca {
+      background: #f5f3ee;
       text-align: center;
-      padding: 22px 20px 18px;
-      position: relative;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 28px 24px 18px;
+      border-bottom: 1px solid #e7e3da;
     }
-    .oport-topo-app .logo-section::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(20, 184, 166, 0.22) 0%, transparent 55%);
-      pointer-events: none;
+    html[data-theme="dark"] .oport-marca,
+    html.tema-escuro .oport-marca {
+      background: #272620;
+      border-bottom-color: #33312a;
     }
-    .oport-topo-app .logo-wrap {
-      position: relative;
-      z-index: 1;
-      margin-bottom: 10px;
+    .oport-marca .marca {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: #506d48;
+      text-decoration: none;
+      margin-bottom: 12px;
     }
-    .oport-topo-app .logo {
-      width: 100%;
-      max-width: 280px;
-      height: auto;
-      min-height: 48px;
+    .oport-marca .marca[hidden],
+    .oport-marca .logo-custom[hidden] { display: none !important; }
+    .oport-marca .marca strong { color: #1c1a16; font-size: 22px; font-weight: 700; }
+    .oport-marca .marca span { color: #5d594f; font-size: 13px; font-weight: 700; }
+    html[data-theme="dark"] .oport-marca .marca strong,
+    html.tema-escuro .oport-marca .marca strong { color: #f5f4ef; }
+    html[data-theme="dark"] .oport-marca .marca,
+    html[data-theme="dark"] .oport-marca .marca span,
+    html.tema-escuro .oport-marca .marca,
+    html.tema-escuro .oport-marca .marca span { color: #82a077; }
+    .oport-marca .logo-custom {
+      max-width: 220px;
+      max-height: 56px;
       object-fit: contain;
       display: block;
-      margin: 0 auto;
+      margin: 0 auto 12px;
     }
-    .oport-topo-app .app-badge {
-      position: relative;
-      z-index: 1;
+    .oport-marca .app-badge {
       display: inline-block;
       font-size: 0.75rem;
-      font-weight: 600;
+      font-weight: 700;
       letter-spacing: 0.06em;
       text-transform: uppercase;
-      color: rgba(255, 255, 255, 0.9);
-      background: rgba(255, 255, 255, 0.15);
+      color: #506d48;
+      background: #e4ebe0;
       padding: 6px 14px;
       border-radius: 999px;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-    }
-
-    .oport-topo-app .header-motorista {
-      background: var(--app-header-bg);
-      color: var(--app-header-text);
-      padding: 20px 18px 16px;
-      box-shadow: none;
-      margin-bottom: 0;
-      position: relative;
-      overflow: hidden;
-      border-radius: 0;
       border: none;
     }
-    .oport-topo-app .header-motorista::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(20, 184, 166, 0.2) 0%, transparent 55%);
-      pointer-events: none;
+    html[data-theme="dark"] .oport-marca .app-badge,
+    html.tema-escuro .oport-marca .app-badge {
+      background: rgba(130, 160, 119, 0.16);
+      color: #a4ba9a;
     }
 
-    .oport-topo-app .header-badge-app {
-      position: relative;
-      z-index: 1;
-      display: inline-block;
+    .oport-quem {
+      padding: 22px 24px 8px;
+    }
+    .oport-kicker {
+      margin: 0 0 14px;
       font-size: 0.75rem;
-      font-weight: 600;
+      font-weight: 700;
+      letter-spacing: 0.06em;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: rgba(255, 255, 255, 0.9);
-      background: rgba(255, 255, 255, 0.12);
-      padding: 4px 12px;
+      color: #506d48;
+    }
+    .oport-quem-linha {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .oport-quem .avatar {
+      width: 40px;
+      height: 40px;
+      flex-shrink: 0;
       border-radius: 999px;
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      margin-bottom: 12px;
-    }
-
-    .oport-topo-app .header-content {
-      position: relative;
-      z-index: 1;
-      display: flex;
-      align-items: center;
-      gap: 15px;
-      margin-bottom: 12px;
-    }
-
-    .oport-topo-app .avatar {
-      width: 70px;
-      height: 70px;
-      flex-shrink: 0;
-      border-radius: 35px;
-      background: rgba(255, 255, 255, 0.2);
+      background: #e4ebe0;
+      color: #506d48;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 32px;
-      font-weight: bold;
-      color: white;
-      border: 3px solid rgba(255, 255, 255, 0.3);
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      font-size: 16px;
+      font-weight: 700;
+      border: none;
+      box-shadow: none;
     }
-
-    .oport-topo-app .header-info {
-      flex: 1;
-      min-width: 0;
+    .oport-quem .header-nome {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 700;
+      line-height: 1.3;
+      color: #1c1a16;
+      white-space: normal;
     }
-
-    .oport-topo-app .header-nome {
-      font-size: 18px;
-      font-weight: bold;
-      margin-bottom: 2px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      color: #fff;
-    }
-
-    .oport-topo-app .header-cpf {
-      font-size: 13px;
-      opacity: 0.92;
-      margin-bottom: 4px;
-      color: rgba(255, 255, 255, 0.95);
-    }
-
+    .oport-quem .header-cpf,
     .oport-campanha-sub {
-      font-size: 12px;
-      line-height: 1.35;
-      opacity: 0.88;
-      color: rgba(255, 255, 255, 0.92);
-      margin-bottom: 6px;
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
+      margin: 4px 0 0;
+      font-size: 0.875rem;
+      font-weight: 700;
+      line-height: 1.4;
+      color: #5d594f;
     }
-
-    .oport-topo-app .status-badge-header {
-      display: inline-flex;
-      align-items: center;
-      background: rgba(255, 255, 255, 0.2);
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-size: 12px;
-      font-weight: 600;
-      color: #fff;
-      margin-top: 2px;
+    html[data-theme="dark"] .oport-quem .header-nome,
+    html.tema-escuro .oport-quem .header-nome { color: #f5f4ef; }
+    html[data-theme="dark"] .oport-quem .header-cpf,
+    html[data-theme="dark"] .oport-campanha-sub,
+    html.tema-escuro .oport-quem .header-cpf,
+    html.tema-escuro .oport-campanha-sub { color: #c4c0b4; }
+    .oport-status {
+      margin: 16px 0 0;
+      font-size: 0.875rem;
+      font-weight: 400;
+      line-height: 1.45;
+      color: #5d594f;
     }
-
-    .oport-topo-app .status-dot-header {
-      width: 8px;
-      height: 8px;
-      border-radius: 4px;
-      background: #7dd3fc;
-      margin-right: 6px;
-      flex-shrink: 0;
-    }
-
-    .oport-topo-app a.logout-btn {
+    .oport-status .status-dot-header { display: none; }
+    html[data-theme="dark"] .oport-status,
+    html.tema-escuro .oport-status { color: #8e8b7f; }
+    .oport-link-app {
+      display: inline-block;
+      margin-top: 14px;
+      color: #506d48;
+      font-size: 0.9375rem;
+      font-weight: 700;
       text-decoration: none;
-      padding: 10px 14px;
-      background: rgba(255, 255, 255, 0.2);
-      border: 1px solid rgba(255, 255, 255, 0.25);
-      color: white;
-      font-size: 20px;
-      cursor: pointer;
-      border-radius: 8px;
-      flex-shrink: 0;
-      line-height: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
     }
-    .oport-topo-app a.logout-btn:hover {
-      background: rgba(255, 255, 255, 0.3);
-    }
-
-    .oport-topo-app .versao-container {
-      position: relative;
-      z-index: 1;
+    html[data-theme="dark"] .oport-link-app,
+    html.tema-escuro .oport-link-app { color: #a4ba9a; }
+    .oport-rodape {
       text-align: center;
-      padding-top: 10px;
-      border-top: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 16px;
+      color: #7d786c;
+      font-size: 0.8125rem;
+      border-top: 1px solid #e7e3da;
     }
-
-    .oport-topo-app .versao-text {
-      font-size: 12px;
-      opacity: 0.85;
-      color: rgba(255, 255, 255, 0.9);
+    html[data-theme="dark"] .oport-rodape,
+    html.tema-escuro .oport-rodape {
+      color: #8e8b7f;
+      border-top-color: #33312a;
     }
 
     .oport-secao-lista {
@@ -297,12 +253,19 @@
       box-shadow: var(--shadow-lg);
     }
     .oport-viagem-card-head {
-      background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);
-      color: #fff;
+      background: #f5f3ee;
+      color: #1c1a16;
       padding: 14px 18px;
       font-size: 1rem;
       font-weight: 700;
       letter-spacing: -0.02em;
+      border-bottom: 1px solid #e7e3da;
+    }
+    html[data-theme="dark"] .oport-viagem-card-head,
+    html.tema-escuro .oport-viagem-card-head {
+      background: #272620;
+      color: #f5f4ef;
+      border-bottom-color: #33312a;
     }
     .oport-viagem-card-body {
       padding: 16px 18px 18px;
@@ -324,6 +287,20 @@
       display: flex;
       gap: 10px;
       margin-top: 16px;
+    }
+    body.motorista-oport-public-page .btn-primary {
+      background: #506d48;
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      box-shadow: none;
+      transform: none;
+      font-weight: 700;
+    }
+    body.motorista-oport-public-page .btn-primary:hover {
+      background: #41573b;
+      transform: none;
+      box-shadow: none;
     }
     .oport-pub-acoes .btn-primary,
     .oport-pub-acoes .oport-pub-btn-no {
@@ -370,8 +347,8 @@
       padding: 10px 12px;
       border-radius: var(--radius-md);
       text-align: center;
-      border: 1px solid rgba(13, 148, 136, 0.35);
-      background: rgba(13, 148, 136, 0.12);
+      border: 1px solid var(--app-card-border);
+      background: var(--app-primary-light);
       color: var(--app-text);
     }
     .oport-pub-feedback.oport-pub-feedback-ok {
@@ -435,40 +412,41 @@
     .oport-toast.oport-toast-info {
       background: var(--info-bg);
       color: var(--app-primary-dark);
-      border-color: rgba(13, 148, 136, 0.2);
+      border-color: var(--app-card-border);
     }
   </style>
 </head>
 <body class="motorista-page motorista-oport-public-page">
-  <div class="container">
-    <div class="oport-topo-app">
-      <div class="logo-section">
-        <div class="logo-wrap">
-          <img id="logoImgOport" class="logo" src="/img/logoAtlasTransparente.png" alt="">
-        </div>
+    <div class="container">
+    <article class="oport-folha">
+      <header class="oport-marca">
+        <a class="marca" id="marcaAtlasOport" href="/motorista/">
+          <svg width="28" height="28" viewBox="0 0 32 32" aria-hidden="true">
+            <path fill="currentColor" fill-rule="evenodd" d="M16 3.2 28.8 28.8h-6.1l-1.95-5.7H11.25l-1.95 5.7H3.2L16 3.2zm0 9.15-3.35 9.75h6.7L16 12.35z"/>
+          </svg>
+          <strong>Atlas</strong>
+          <span>Cargo</span>
+        </a>
+        <img id="logoImgOport" class="logo-custom" alt="" hidden>
         <span class="app-badge" id="oportPubBadgeMotorista">Motorista</span>
-      </div>
-
-      <div class="header-motorista">
-        <div class="header-badge-app" id="oportPubBadgeOport">Oportunidades de carga</div>
-        <div class="header-content">
-          <div class="avatar" id="avatarOport">?</div>
-          <div class="header-info">
-            <div class="header-nome" id="nomeOport">Carregando…</div>
-            <div class="header-cpf" id="cpfOport">CPF: —</div>
-            <div class="oport-campanha-sub" id="campanhaOport"></div>
-            <div class="status-badge-header">
-              <div class="status-dot-header"></div>
-              <span id="oportPubStatus"></span>
-            </div>
+      </header>
+      <section class="oport-quem">
+        <p class="oport-kicker" id="oportPubBadgeOport">Oportunidades de carga</p>
+        <div class="oport-quem-linha">
+          <div class="avatar" id="avatarOport" aria-hidden="true">?</div>
+          <div>
+            <h1 class="header-nome" id="nomeOport">Carregando…</h1>
+            <p class="header-cpf" id="cpfOport">CPF: —</p>
+            <p class="oport-campanha-sub" id="campanhaOport"></p>
           </div>
-          <a href="../index.html" class="logout-btn" id="btnAbrirApp" title="" aria-label=""><i class="bx bx-log-in"></i></a>
         </div>
-        <div class="versao-container">
-          <span class="versao-text" id="oportPubVersao">Versão 1.0.0</span>
-        </div>
-      </div>
-    </div>
+        <p class="oport-status" id="oportPubStatusWrap"><span class="status-dot-header"></span><span id="oportPubStatus"></span></p>
+        <a href="../index.html" class="oport-link-app" id="btnAbrirApp">Abrir o app</a>
+      </section>
+      <footer class="oport-rodape">
+        <span id="oportPubVersao">Versão 1.0.0</span>
+      </footer>
+    </article>
 
     <div class="oport-secao-lista">
       <h2 class="oport-secao-lista-titulo" id="oportPubTituloLista"><i class="bx bx-package" aria-hidden="true"></i> Suas oportunidades</h2>
@@ -479,7 +457,7 @@
 
   <div id="oportToast" class="oport-toast" role="status" aria-live="polite"></div>
 
-  <script src="../js/url-helper.js"></script>
+  <script src="../js/url-helper.js?v=20261125claro"></script>
   <script src="../js/i18n.js"></script>
   <script>
     (function () {
@@ -488,24 +466,34 @@
         return o.replace(/\/$/, '');
       }
 
-      function aplicarIdentidade(logoRetangular, logoQuadrada) {
+      function aplicarIdentidade(logoRetangular) {
         var img = document.getElementById('logoImgOport');
+        var marca = document.getElementById('marcaAtlasOport');
+        var nome = String(logoRetangular || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        var padrao = !nome || nome === 'logoAtlasTransparente.png' || nome === 'logo-atlas.svg' || nome === 'logo-atlas-simbolo.svg';
+        if (padrao) {
+          if (img) img.hidden = true;
+          if (marca) marca.hidden = false;
+          return;
+        }
         if (!img) return;
-        var r = (logoRetangular || 'logoAtlasTransparente.png').replace(/[^a-zA-Z0-9._-]/g, '');
-        img.src = baseUrl() + '/img/' + r;
+        img.hidden = false;
+        if (marca) marca.hidden = true;
+        img.src = baseUrl() + '/img/' + nome;
         img.onerror = function () {
           img.onerror = null;
-          img.src = baseUrl() + '/img/logoAtlasTransparente.png';
+          img.hidden = true;
+          if (marca) marca.hidden = false;
         };
       }
 
       fetch(baseUrl() + '/api/configuracoes/identidade')
         .then(function (res) { return res.ok ? res.json() : Promise.reject(); })
         .then(function (data) {
-          aplicarIdentidade(data.logoRetangular, data.logoQuadrada);
+          aplicarIdentidade(data.logoRetangular);
         })
         .catch(function () {
-          aplicarIdentidade('logoAtlasTransparente.png', 'icon-atlas-motorista.svg');
+          aplicarIdentidade('');
         });
 
       function getToken() {
@@ -745,6 +733,10 @@
           if (nomeEl) nomeEl.textContent = t('oportunidadesPublicas.linkInvalidoExpirado');
           document.getElementById('cpfOport').textContent = '';
           document.getElementById('campanhaOport').textContent = d.error || t('oportunidadesPublicas.tenteNovoConvite');
+          var stErro = document.getElementById('oportPubStatus');
+          if (stErro) stErro.textContent = '';
+          var wrapErro = document.getElementById('oportPubStatusWrap');
+          if (wrapErro) wrapErro.hidden = true;
           setAvatarInicial('');
           if (ajudaEl) ajudaEl.setAttribute('hidden', '');
           return;
@@ -752,6 +744,8 @@
         if (ajudaEl) {
           ajudaEl.removeAttribute('hidden');
         }
+        var stOk = document.getElementById('oportPubStatusWrap');
+        if (stOk) stOk.hidden = true;
         var camp = d.campanha || {};
         var mot = d.motorista || {};
         var nomeMot = mot.nome || t('oportunidadesPublicas.motoristaFallback');

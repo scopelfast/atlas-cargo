@@ -23,7 +23,7 @@
   // Estado do módulo
   let alertas = [];
   let alertasFiltrados = [];
-  let filtrosAtivos = {};
+  let filtrosAtivos = { status: 'abertos' };
   let paginaAtual = 1;
   let itensPorPagina = 20;
   let totalItens = 0;
@@ -84,7 +84,8 @@
     console.log('📋 Módulo Alertas inicializando...');
     await loadContextoAlertas();
     carregarAlertas();
-    carregarLogsNotificacao();
+    const btnLogs = document.getElementById('btnToggleLogsNotificacao');
+    if (btnLogs) btnLogs.addEventListener('click', toggleLogsNotificacao);
     
     // Inicializar WebSocket
     inicializarWebSocket();
@@ -94,6 +95,23 @@
     
     // Atualizar contador a cada 30 segundos
     setInterval(atualizarContadorMenu, 30000);
+  }
+
+  let logsNotificacaoCarregados = false;
+  function toggleLogsNotificacao() {
+    const painel = document.getElementById('logsNotificacaoPainel');
+    const btn = document.getElementById('btnToggleLogsNotificacao');
+    const chevron = document.getElementById('logsNotificacaoChevron');
+    if (!painel || !btn) return;
+    const abrir = painel.hasAttribute('hidden');
+    if (abrir) painel.removeAttribute('hidden');
+    else painel.setAttribute('hidden', '');
+    btn.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+    if (chevron) chevron.className = abrir ? 'bx bx-chevron-up' : 'bx bx-chevron-down';
+    if (abrir && !logsNotificacaoCarregados) {
+      logsNotificacaoCarregados = true;
+      carregarLogsNotificacao();
+    }
   }
 
   async function carregarLogsNotificacao() {
@@ -394,7 +412,7 @@
         return;
       }
       
-      const status = filtroStatusEl.value?.trim() || '';
+      const status = filtroStatusEl.value?.trim() || 'abertos';
       const tipo = filtroTipoEl.value?.trim() || '';
       const prioridade = filtroPrioridadeEl.value?.trim() || '';
       const dataInicio = filtroDataInicioEl?.value?.trim() || '';
@@ -404,8 +422,7 @@
       console.log('📋 Valores dos filtros:', { status, tipo, prioridade, dataInicio, dataFim, idViagem });
       
       // Criar objeto de filtros apenas com valores não vazios
-      filtrosAtivos = {};
-      if (status) filtrosAtivos.status = status;
+      filtrosAtivos = { status: status || 'abertos' };
       if (tipo) filtrosAtivos.tipo = tipo;
       if (prioridade) filtrosAtivos.prioridade = prioridade;
       if (dataInicio) filtrosAtivos.dataInicio = dataInicio;
@@ -437,7 +454,7 @@
       const filtroDataFim = document.getElementById('filtroDataFim');
       const filtroIdViagem = document.getElementById('filtroIdViagem');
       
-      if (filtroStatus) filtroStatus.value = '';
+      if (filtroStatus) filtroStatus.value = 'abertos';
       if (filtroTipo) filtroTipo.value = '';
       if (filtroPrioridade) filtroPrioridade.value = '';
       if (filtroDataInicio) filtroDataInicio.value = '';
@@ -445,7 +462,7 @@
       if (filtroIdViagem) filtroIdViagem.value = '';
       
       // Limpar filtros ativos e recarregar
-      filtrosAtivos = {};
+      filtrosAtivos = { status: 'abertos' };
       paginaAtual = 1;
       
       console.log('✅ Filtros limpos, recarregando alertas...');

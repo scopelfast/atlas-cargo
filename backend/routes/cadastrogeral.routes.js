@@ -249,6 +249,7 @@ router.put('/cadastro-classes/:id', cadastroController.atualizarClassesParaCadas
 
 // Rotas de utilitários
 router.get('/cep/:cep', cadastroController.buscarCEP);
+router.get('/consulta/documento/:doc', cadastroController.consultarDocumento);
 
 // Rotas de combos
 router.get('/tipos-cadastro-combo', cadastroController.listarTiposCadastro);

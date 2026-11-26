@@ -847,7 +847,18 @@
   const empresaCgcMatriz = document.getElementById('empresaCgcMatriz');
   const filtroCgc = document.getElementById('filtroCgc');
   
-  if (empresaCgcMatriz) aplicarMascaraCNPJ(empresaCgcMatriz);
+  if (empresaCgcMatriz) {
+    aplicarMascaraCNPJ(empresaCgcMatriz);
+    if (window.AtlasConsulta) {
+      AtlasConsulta.ligarDocumento(empresaCgcMatriz, function (data) {
+        if (data.tipo !== 'J') return;
+        var c = data.campos || {};
+        AtlasConsulta.preencher('empresaRazaoSocial', AtlasConsulta.cortar(c.razaoSocial, 40));
+        AtlasConsulta.preencher('empresaNomeReduzido', AtlasConsulta.cortar(c.nomeFantasia || c.razaoSocial, 20));
+        showMessage(data.mensagem || 'CNPJ consultado.', 'success');
+      });
+    }
+  }
   if (filtroCgc) aplicarMascaraCNPJ(filtroCgc);
 
   let empresaFormSubmitting = false;

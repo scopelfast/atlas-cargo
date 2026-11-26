@@ -40,6 +40,7 @@ const sosRoutes = require('./routes/sos.routes');
 const reputationRoutes = require('./routes/reputation.routes');
 const configRoutes = require('./routes/config.routes');
 const saasAdminRoutes = require('./routes/saas-admin.routes');
+const pedidoAcessoRoutes = require('./routes/pedido-acesso.routes');
 const oportunidadesCampanhasRoutes = require('./routes/oportunidades-campanhas.routes');
 const wmsCadastroRoutes = require('./routes/wms-cadastro.routes');
 const wmsRecebimentoRoutes = require('./routes/wms-recebimento.routes');
@@ -361,6 +362,7 @@ app.use('/cargas/api', verifyTowerSessionNotRevoked);
 const apiRoutes = [
   // Convocação pública + combo motivos recusa + public-url — sem JWT torre (antes de routers com towerAuth em paths genéricos).
   { path: '/api', route: viagemPublicRoutes },
+  { path: '/api/publico', route: pedidoAcessoRoutes },
   { path: '/api/auth', route: authRoutes },
   { path: '/api/menu', route: menuRoutes },
   { path: '/api/saas', route: saasAdminRoutes },

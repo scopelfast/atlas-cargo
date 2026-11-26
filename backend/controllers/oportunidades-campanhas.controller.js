@@ -9,6 +9,7 @@ const {
 const { tenantIdForRequest } = require('../utils/tenant-context');
 const { getSgUser } = require('../utils/audit');
 const alertNotificationService = require('../services/alert-notification-service');
+const { horaMinutoAgora } = require('../services/whatsapp-switch-digital.service');
 
 let schemaReady = false;
 const runningDispatches = new Set();
@@ -329,22 +330,40 @@ async function registrarEvento(pool, { tenantId, idCampanha, idDestinatario = nu
   );
 }
 
-/**
- * Base URL para links públicos (convocações, campanhas de oportunidades no WhatsApp).
- * Em produção atrás de proxy, defina PUBLIC_URL no .env (ex.: https://app.seudominio.com).
- */
-function getBasePublicUrl(req) {
-  const envUrl = String(process.env.PUBLIC_URL || process.env.PUBLIC_APP_BASE_URL || '').trim();
-  if (envUrl) {
-    return envUrl.replace(/\/$/, '');
-  }
+function hostLocal(u) {
+  const s = String(u || '').trim().toLowerCase();
+  if (!s) return true;
   try {
-    const proto = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-    const host = req.headers['x-forwarded-host'] || req.get('host');
-    return `${proto}://${host}`;
+    const host = new URL(s.includes('://') ? s : `http://${s}`).hostname;
+    return host === 'localhost' || host === '127.0.0.1' || host === '::1';
   } catch (_) {
-    return '';
+    return /localhost|127\.0\.0\.1/.test(s);
   }
+}
+
+/**
+ * Link que o motorista abre no celular.
+ * O valor gravado em Configurações (link do app) vem antes de PUBLIC_URL,
+ * porque PUBLIC_URL local deixa o WhatsApp com http://localhost.
+ */
+async function resolverBasePublicaCampanha(pool, tenantId) {
+  const tid = String(tenantId || 'default').trim() || 'default';
+  try {
+    const r = await pool.query(
+      `SELECT "VALOR" FROM "CONFIGURACAO" WHERE "CHAVE" = 'link_app_motorista' AND TRIM("TENANT_ID"::text) = $1 LIMIT 1`,
+      [tid]
+    );
+    const row = r.rows && r.rows[0];
+    const val = row && (row.VALOR != null ? row.VALOR : row.valor);
+    const s = String(val || '').trim();
+    if (s) {
+      const origin = new URL(s).origin;
+      if (origin && !hostLocal(origin)) return origin;
+    }
+  } catch (_) { /* segue para PUBLIC_URL */ }
+  const envUrl = String(process.env.PUBLIC_URL || process.env.PUBLIC_APP_BASE_URL || '').trim().replace(/\/$/, '');
+  if (envUrl) return envUrl;
+  return '';
 }
 
 function dispatchKey(tenantId, idCampanha) {
@@ -367,6 +386,10 @@ async function processarDisparoCampanha({
   if (runningDispatches.has(key)) return;
   runningDispatches.add(key);
   const pool = await poolPromise;
+  const baseGravada = await resolverBasePublicaCampanha(pool, tenantId);
+  const baseLink = (baseGravada && !hostLocal(baseGravada))
+    ? baseGravada
+    : String(basePublicUrl || baseGravada || '').replace(/\/$/, '');
   try {
     await ensureSchema(pool);
     const campRs = await pool.query(
@@ -426,7 +449,7 @@ async function processarDisparoCampanha({
       if (statusAtual !== 'PROCESSANDO') break;
       const idDest = Number(d.ID || d.id);
       const nome = String(d.NOME_MOTORISTA || d.nome_motorista || 'Motorista').trim();
-      const link = `${basePublicUrl}/motorista/pages/oportunidades-publicas.html?t=${encodeURIComponent(String(d.TOKEN_PUBLICO || d.token_publico || ''))}`;
+      const link = `${baseLink}/motorista/pages/oportunidades-publicas.html?t=${encodeURIComponent(String(d.TOKEN_PUBLICO || d.token_publico || ''))}`;
       let msg = String(campanha.MENSAGEM_TEMPLATE || campanha.mensagem_template || '');
       msg = msg.replace(/\{\{\s*nome\s*\}\}/gi, nome);
       msg = msg.replace(/\{\{\s*link_oportunidades\s*\}\}/gi, link);
@@ -517,7 +540,12 @@ async function processarDisparoCampanha({
       }
 
       const t0 = Date.now();
-      const env = await alertNotificationService.sendViaSwitch(switchCfg, numero, msg);
+      const env = await alertNotificationService.sendViaSwitch(
+        switchCfg,
+        numero,
+        msg,
+        `CP-${idCampanha}-${idDest} · ${horaMinutoAgora()}`
+      );
       const tempoEnvio = Date.now() - t0;
       const tentativas = Number(d.TENTATIVAS || d.tentativas || 0) + 1;
       const convIdsUnicos = [...new Set(convIds.map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0))];
@@ -959,9 +987,8 @@ const controller = {
           WHERE "TENANT_ID"=$5 AND "ID"=$6`,
         [intervaloMs, maxPorExecucao, retryMax, somenteCelularValido, tenantId, idCampanha]
       );
-      const base = getBasePublicUrl(req);
       setTimeout(() => {
-        processarDisparoCampanha({ tenantId, idCampanha, sgUser, basePublicUrl: base }).catch((e) => {
+        processarDisparoCampanha({ tenantId, idCampanha, sgUser }).catch((e) => {
           console.error('[oport] worker disparo:', e);
         });
       }, 0);
@@ -1013,9 +1040,8 @@ const controller = {
           WHERE "TENANT_ID"=$1 AND "ID"=$2`,
         [tenantId, idCampanha]
       );
-      const base = getBasePublicUrl(req);
       setTimeout(() => {
-        processarDisparoCampanha({ tenantId, idCampanha, sgUser, basePublicUrl: base }).catch((e) => {
+        processarDisparoCampanha({ tenantId, idCampanha, sgUser }).catch((e) => {
           console.error('[oport] worker retomar:', e);
         });
       }, 0);
@@ -1174,6 +1200,7 @@ const controller = {
         viagens: viagensRows
       });
     } catch (err) {
+      console.error('[oport] publicoDetalhes:', err);
       return res.status(401).json({ error: 'Link inválido ou expirado.' });
     }
   },
@@ -1424,7 +1451,12 @@ const controller = {
               : '*demonstrou interesse na oportunidade*';
           const msg =
             `Atenção: *${nome}*\n${acaoWhatsapp}\nViagem #${idViagem}\n\nFavor tratar no Relatório de Convocações.`;
-          await alertNotificationService.sendViaSwitch(switchCfg, cel, msg);
+          await alertNotificationService.sendViaSwitch(
+            switchCfg,
+            cel,
+            msg,
+            idDest != null ? `OP-${idDest}` : `OP-V${idViagem}`
+          );
         }
       }
       res.json({ success: true, unchanged: false, status: newStatus });

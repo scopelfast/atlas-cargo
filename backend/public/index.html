@@ -4,10 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Atlas Cargo</title>
-  <link rel="icon" type="image/png" href="/img/logoAtlasTransparente.png" id="faviconLink">
+  <link rel="icon" type="image/svg+xml" href="/img/logo-atlas-simbolo.svg" id="faviconLink">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Source+Sans+Pro:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Plus+Jakarta+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Source+Sans+Pro:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet" crossorigin="anonymous">
   <script>
     // INTERCEPTOR GLOBAL: Remover ? de todas as URLs
@@ -297,6 +297,7 @@
       loadCSS('/css/style.css');
       loadCSS('/css/login-adminlte.css');
       loadCSS('/css/dark-mode.css');
+      loadCSS('/css/login-vitrine.css?v=6');
       
       // Monitorar continuamente e corrigir URLs
       setInterval(function() {
@@ -378,9 +379,18 @@
 <body class="login-page">
   <script>
     (function() {
-      var theme = localStorage.getItem('theme');
-      if (theme === 'dark' || theme === null || theme === '') {
+      try {
+        if (localStorage.getItem('atlasThemePadrao') !== 'claro') {
+          localStorage.setItem('theme', 'light');
+          localStorage.setItem('atlasThemePadrao', 'claro');
+        }
+      } catch (e) {}
+      var theme = null;
+      try { theme = localStorage.getItem('theme'); } catch (e2) {}
+      if (theme === 'dark') {
         document.documentElement.setAttribute('data-theme', 'dark');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
       }
     })();
   </script>
@@ -397,11 +407,62 @@
       <div class="form-box">
         <div class="login-main">
           <div class="login-branding">
-            <div class="login-brand-inner">
-              <div class="logo-box">
-                <img id="logoImg" src="/img/logoAtlasTransparenteQuadrada.png?v=3" alt="Atlas Cargo" />
+            <div class="login-brand-inner" id="loginVitrine">
+              <div class="painel-poster">
+                <header class="painel-topo">
+                  <svg class="painel-caixa" viewBox="0 0 36 36" aria-hidden="true">
+                    <path d="M6 14.5 18 8l12 6.5-12 6.5z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                    <path d="M6 14.5V24l12 6.5V21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                    <path d="M30 14.5V24L18 30.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                    <path d="M18 8v6.5" fill="none" stroke="currentColor" stroke-width="1.7"/>
+                  </svg>
+                  <div>
+                    <strong>Atlas Cargo</strong>
+                    <span data-i18n="web.login.painelSub">Painel Logístico</span>
+                  </div>
+                </header>
+                <section class="painel-card painel-torre">
+                  <h2 data-i18n="web.login.torreTitulo">Torre Logística</h2>
+                  <svg class="painel-mapa" viewBox="0 0 360 132" aria-hidden="true">
+                    <path d="M28 108c28-8 48-34 78-42 28-8 42 10 72 2 26-7 40-28 78-36 22-5 48 6 76-8" fill="none" stroke="currentColor" stroke-width="16" stroke-linecap="round" opacity="0.22"/>
+                    <path d="M46 96c36-6 58-28 96-30 34-2 48 16 86 8 28-6 52-28 96-36" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="5 5"/>
+                    <g class="painel-pin">
+                      <path d="M46 84c-6 0-10 5-10 10 0 8 10 16 10 16s10-8 10-16c0-5-4-10-10-10z"/>
+                      <circle cx="46" cy="94" r="3" class="painel-pin-miolo"/>
+                    </g>
+                    <g class="painel-pin painel-pin-fim">
+                      <path d="M318 42c-6 0-10 5-10 10 0 8 10 16 10 16s10-8 10-16c0-5-4-10-10-10z"/>
+                      <circle cx="318" cy="52" r="3" class="painel-pin-miolo"/>
+                    </g>
+                    <g class="painel-truck" transform="translate(118 62)"><rect x="0" y="4" width="16" height="9" rx="1.5"/><path d="M16 6h7l5 5v2h-12z"/><circle cx="5" cy="14" r="2.2" class="painel-roda"/><circle cx="22" cy="14" r="2.2" class="painel-roda"/></g>
+                    <g class="painel-truck" transform="translate(176 70)"><rect x="0" y="4" width="16" height="9" rx="1.5"/><path d="M16 6h7l5 5v2h-12z"/><circle cx="5" cy="14" r="2.2" class="painel-roda"/><circle cx="22" cy="14" r="2.2" class="painel-roda"/></g>
+                    <g class="painel-truck" transform="translate(236 52)"><rect x="0" y="4" width="16" height="9" rx="1.5"/><path d="M16 6h7l5 5v2h-12z"/><circle cx="5" cy="14" r="2.2" class="painel-roda"/><circle cx="22" cy="14" r="2.2" class="painel-roda"/></g>
+                    <text x="8" y="72" data-i18n="web.login.portoSantos">Porto de Santos</text>
+                    <text x="196" y="24" data-i18n="web.login.cdSaoPaulo">CD São Paulo</text>
+                  </svg>
+                </section>
+                <div class="painel-dupla">
+                  <section class="painel-card">
+                    <h2 data-i18n="web.login.convocacoes">Convocações</h2>
+                    <p class="painel-linha painel-ok"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7"/><path d="M4.5 8.2 7 10.5 11.5 5.5" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg><span data-i18n="web.login.aceitou">Aceitou</span></p>
+                    <p class="painel-linha painel-nao"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7"/><path d="M5.5 5.5 10.5 10.5M10.5 5.5 5.5 10.5" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg><span data-i18n="web.login.recusou">Recusou</span></p>
+                  </section>
+                  <section class="painel-card">
+                    <h2 data-i18n="web.login.viagens">Viagens</h2>
+                    <p class="painel-linha"><svg class="painel-mini" viewBox="0 0 22 16" aria-hidden="true"><rect x="1" y="4" width="10" height="6" rx="1"/><path d="M11 5.5h4.2L18 9v1H11z"/><circle cx="4.2" cy="12" r="1.7" class="painel-roda"/><circle cx="15.2" cy="12" r="1.7" class="painel-roda"/></svg><span data-i18n="web.login.emAndamento">Em andamento</span></p>
+                    <p class="painel-linha painel-alerta"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.2 14.5 13.5H1.5z"/><path d="M8 6.2v3.4" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="11.4" r="0.7" fill="#fff"/></svg><span data-i18n="web.login.pendencias">Pendências</span></p>
+                  </section>
+                </div>
+                <section class="painel-card painel-estoque">
+                  <h2 data-i18n="web.login.estoque">Estoque</h2>
+                  <div class="painel-barra"><span data-i18n="web.login.recebimento">Recebimento</span><i><b style="width:86%"></b></i></div>
+                  <div class="painel-barra"><span data-i18n="web.login.separacao">Separação</span><i><b style="width:72%"></b></i></div>
+                  <div class="painel-barra"><span data-i18n="web.login.expedicao">Expedição</span><i><b style="width:64%"></b></i></div>
+                  <div class="painel-barra"><span data-i18n="web.login.inventario">Inventário</span><i><b style="width:78%"></b></i></div>
+                </section>
               </div>
             </div>
+            <img id="logoImg" alt="" hidden>
           </div>
 
           <div class="login-access">
@@ -412,6 +473,7 @@
                 <button type="button" class="btn-idioma" data-locale="es-PY" aria-pressed="false" title="Español" data-i18n="web.login.espanhol">Español</button>
               </div>
             </div>
+            <p class="aviso-pedido" id="avisoPedido" hidden data-i18n="web.login.pedidoEnviado">Pedido enviado. A empresa fica aguardando liberação.</p>
 
             <form id="loginForm">
               <div class="input-box">
@@ -443,6 +505,11 @@
 
             <div class="form-footer">
               <p><i class='bx bx-lock'></i> <span data-i18n="web.login.dadosSeguros">Seus dados estão seguros conosco</span></p>
+              <div class="login-portas">
+                <a href="/motorista/" data-i18n="web.login.souMotorista">Sou motorista</a>
+                <a href="/motorista/pages/cadastro.html" data-i18n="web.login.cadastrarMotorista">Cadastrar-se</a>
+                <a href="/cadastro-empresa.html" data-i18n="web.login.cadastrarEmpresa">Cadastrar empresa</a>
+              </div>
             </div>
           </div>
         </div>
@@ -628,14 +695,17 @@
       var logoCacheBust = '?v=3'; // incremente quando trocar a imagem da logo
       function aplicarLogos(logoRetangular, logoQuadrada) {
         if (typeof garantirProtocoloConsistente !== 'function') return;
-        const q = (logoQuadrada || 'logoAtlasTransparenteQuadrada.png').replace(/[^a-zA-Z0-9._-]/g, '');
+        const q = (logoQuadrada || '').replace(/[^a-zA-Z0-9._-]/g, '');
+        const padrao = !q || q === 'logoAtlasTransparenteQuadrada.png' || q === 'logo-atlas-simbolo.svg';
         const logoImg = document.getElementById('logoImg');
-        if (logoImg) {
-          const urlCompleta = baseUrl + '/img/' + q + logoCacheBust;
-          logoImg.setAttribute('src', garantirProtocoloConsistente(urlCompleta));
+        const vitrine = document.getElementById('loginVitrine');
+        if (!padrao && logoImg) {
+          logoImg.hidden = false;
+          logoImg.setAttribute('src', garantirProtocoloConsistente(baseUrl + '/img/' + q + logoCacheBust));
+          if (vitrine) vitrine.hidden = true;
         }
         const faviconLink = document.getElementById('faviconLink');
-        if (faviconLink) {
+        if (faviconLink && !padrao) {
           faviconLink.setAttribute('href', garantirProtocoloConsistente(baseUrl + '/img/' + q + logoCacheBust));
         }
       }
@@ -650,7 +720,7 @@
             aplicarLogos(data.logoRetangular, data.logoQuadrada);
           })
           .catch(function() {
-            aplicarLogos('logoAtlasTransparente.png', 'logoAtlasTransparenteQuadrada.png');
+            aplicarLogos('', '');
           });
       }
       
@@ -672,6 +742,15 @@
         try { localStorage.setItem('preferredLocale', loc || ''); } catch (e) {}
         window.location.reload();
       }
+      (function mostrarAvisoPedido() {
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('pedido') !== 'enviado') return;
+        var aviso = document.getElementById('avisoPedido');
+        if (aviso) aviso.hidden = false;
+        params.delete('pedido');
+        var limpa = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+        window.history.replaceState({}, '', limpa);
+      })();
       function initIdiomaSelectorWeb() {
         var current = getPreferredLocaleWeb();
         if (current !== 'pt-BR' && current !== 'es-PY') current = 'pt-BR';
@@ -706,7 +785,7 @@
         var root = document.documentElement;
         var btn = document.getElementById('themeToggleBtn');
         var icon = document.getElementById('themeToggleIcon');
-        function getTheme() { try { return localStorage.getItem(KEY) || 'dark'; } catch (e) { return 'dark'; } }
+        function getTheme() { try { return localStorage.getItem(KEY) || 'light'; } catch (e) { return 'light'; } }
         function setTheme(theme) {
           if (theme === 'dark') {
             root.setAttribute('data-theme', 'dark');

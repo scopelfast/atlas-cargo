@@ -5,6 +5,7 @@
 const { poolPromise } = require('../config/db');
 const { getDefaultTenantId } = require('../middleware/tenant.middleware');
 const alertMsgTpl = require('./alert-mensagem-template.service');
+const { anexarProtocoloWhatsApp, horaMinutoAgora } = require('./whatsapp-switch-digital.service');
 
 const CHAVES_SWITCH = [
   'switch_digital_endpoint', 'switch_digital_metodo', 'switch_digital_content_type',
@@ -320,16 +321,19 @@ function montarMensagem(alerta, contexto) {
  * @param {string} corpoMensagem
  * @returns {Promise<{ ok: boolean, error?: string }>}
  */
-async function sendViaSwitch(switchConfig, numeroCelular, corpoMensagem) {
+async function sendViaSwitch(switchConfig, numeroCelular, corpoMensagem, protocolo) {
   const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
   if (!switchConfig.token || String(switchConfig.token).trim() === '') {
     return { ok: false, error: 'Token Switch Digital não configurado', statusHttp: null, requestBody: null, responseBody: null };
   }
   const numero = formatarNumeroWhatsApp(numeroCelular);
   if (numero.length < 12) return { ok: false, error: 'Número de celular inválido', statusHttp: null, requestBody: null, responseBody: null };
+  const corpoEnvio = protocolo
+    ? anexarProtocoloWhatsApp(corpoMensagem, protocolo)
+    : String(corpoMensagem || '');
   const body = {
     number: numero,
-    body: corpoMensagem,
+    body: corpoEnvio,
     sendSignature: !!switchConfig.sendSignature,
     closeTicket: !!switchConfig.closeTicket
   };
@@ -422,7 +426,11 @@ async function notificarAlertaCriado(pool, alerta) {
         }
       }
       const corpo = alertMsgTpl.resolverMensagemAlerta(templatesMap, alerta, dest.contexto);
-      const result = await sendViaSwitch(switchConfig, dest.numero, corpo);
+      const idAlerta = alerta.id ?? alerta.ID ?? alerta.__existingAlertId;
+      const refAlerta = idAlerta != null && String(idAlerta).trim() !== ''
+        ? `AL-${idAlerta} · ${horaMinutoAgora()}`
+        : `AL-V${alerta.idviagem} · ${horaMinutoAgora()}`;
+      const result = await sendViaSwitch(switchConfig, dest.numero, corpo, refAlerta);
       if (result.ok) {
         console.log(`[AlertNotification] WhatsApp enviado para ${dest.contexto} (viagem ${alerta.idviagem}, tipo ${alerta.type})`);
       } else {
@@ -506,7 +514,11 @@ async function notificarHeartbeatAlerta(pool, alerta, config = null) {
 
       const base = alertMsgTpl.resolverMensagemAlerta(templatesMap, alerta, dest.contexto);
       const corpo = `${base}\n\n[Lembrete automático: alerta ainda pendente]`;
-      const result = await sendViaSwitch(switchConfig, dest.numero, corpo);
+      const idAlerta = alerta.__existingAlertId ?? alerta.id ?? alerta.ID;
+      const refAlerta = idAlerta != null && String(idAlerta).trim() !== ''
+        ? `AL-${idAlerta} · ${horaMinutoAgora()}`
+        : `AL-V${alerta.idviagem} · ${horaMinutoAgora()}`;
+      const result = await sendViaSwitch(switchConfig, dest.numero, corpo, refAlerta);
       await registrarLogEnvio(pool, {
         idviagem: alerta.idviagem,
         cdmotorista: alerta.cdmotorista,

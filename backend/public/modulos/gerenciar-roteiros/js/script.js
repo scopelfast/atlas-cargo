@@ -1840,8 +1840,14 @@ async function loadRoteiroParaEdicao(id) {
   // Usar showMessage do utils.js se disponível, senão usar função local
   // Nota: utils.js é carregado globalmente no dashboard.html
   const showMessage = (text, type, messageElement = null, fieldId = null) => {
+    let alvo = messageElement;
+    let campo = fieldId;
+    if (typeof alvo === 'string') {
+      campo = alvo;
+      alvo = false;
+    }
     if (typeof window.showMessage !== 'undefined') {
-      window.showMessage(text, type, messageElement || message, fieldId);
+      window.showMessage(text, type, alvo || false, campo);
     } else if (message) {
       message.textContent = text;
       message.className = `message ${type} show`;
@@ -2598,8 +2604,21 @@ async function loadRoteiroParaEdicao(id) {
     }
   }
 
+  function coordPontoRoteiro(p) {
+    if (!p) return null;
+    const brutoLat = p.LATITUDE != null && p.LATITUDE !== '' ? p.LATITUDE : p.latitude;
+    const brutoLon = p.LONGITUDE != null && p.LONGITUDE !== '' ? p.LONGITUDE : p.longitude;
+    const lat = parseFloat(String(brutoLat == null ? '' : brutoLat).trim().replace(',', '.'));
+    const lon = parseFloat(String(brutoLon == null ? '' : brutoLon).trim().replace(',', '.'));
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+    if (lat === 0 && lon === 0) return null;
+    return { lat, lon };
+  }
+
   // Função para atualizar o mapa com origem e destino
-  async function atualizarMapa() {
+  async function atualizarMapa(opcoes) {
+    const ignorarPontos = !!(opcoes && opcoes.ignorarPontos);
     // Garantir que overlayMostrado está definida (proteção contra problemas de escopo/cache)
     if (typeof window.overlayMostrado === 'undefined') {
       window.overlayMostrado = false;
@@ -2800,10 +2819,9 @@ async function loadRoteiroParaEdicao(id) {
 
       // A distância já foi calculada e adicionada ao popup acima
 
-      // Se houver pontos cadastrados, usar atualizarMapaComPontos
-      // (o overlay já será mostrado dentro de atualizarMapaComPontos)
-      if (roteiroAtualId && pontosRoteiro.length > 0) {
-        // Esconder overlay se foi mostrado anteriormente
+      // Pontos com coordenada desenham a rota completa. Sem coordenada, fica a rota origem/destino já traçada.
+      const pontosComCoord = (pontosRoteiro || []).filter((p) => coordPontoRoteiro(p));
+      if (!ignorarPontos && roteiroAtualId && pontosComCoord.length >= 2) {
         if (window.overlayMostrado) {
           hideMapaLoading();
         }
@@ -4217,32 +4235,16 @@ async function loadRoteiroParaEdicao(id) {
         window.showLoading(btnBuscar, true);
       }
       
-      // Usar Nominatim para geocodificação (tentar servidor configurado; em caso de falha, API pública)
-      const servers = [
-        (window.MAP_CONFIG?.nominatimServer || 'https://nominatim.openstreetmap.org').replace(/\/$/, ''),
-        'https://nominatim.openstreetmap.org'
-      ];
-      const opts = { headers: { 'User-Agent': 'AtlasCargo/2.0' } };
-      let data = null;
-      for (const base of servers) {
-        try {
-          const url = `${base}/search?format=json&q=${encodeURIComponent(posicao)}&limit=1&addressdetails=1`;
-          const res = await fetch(url, opts);
-          if (!res.ok) continue;
-          data = await res.json();
-          if (data && Array.isArray(data) && data.length > 0) break;
-        } catch (err) {
-          if (base === servers[servers.length - 1]) throw err;
-        }
-      }
+      const res = await fetch(`/api/cidades/geocode?q=${encodeURIComponent(posicao)}`, {
+        headers: getAuthHeaders()
+      });
+      const data = await res.json().catch(() => null);
 
-      if (data && data.length > 0) {
-        const resultado = data[0];
-        const address = resultado.address || {};
-        
-        // Preencher coordenadas
-        document.getElementById('pontoLatitude').value = parseFloat(resultado.lat).toFixed(6);
-        document.getElementById('pontoLongitude').value = parseFloat(resultado.lon).toFixed(6);
+      if (res.ok && data && data.success && data.lat != null && data.lon != null) {
+        const address = data.address || {};
+
+        document.getElementById('pontoLatitude').value = parseFloat(data.lat).toFixed(6);
+        document.getElementById('pontoLongitude').value = parseFloat(data.lon).toFixed(6);
         
         // Extrair e preencher país
         const nomePais = address.country || address.country_code || '';
@@ -4270,7 +4272,7 @@ async function loadRoteiroParaEdicao(id) {
         
         showMessage('Coordenadas, país e estado encontrados com sucesso!', 'success');
       } else {
-        showMessage('Nenhuma coordenada encontrada para este endereço.', 'error');
+        showMessage((data && data.error) || 'Nenhuma coordenada encontrada para este endereço.', 'error');
       }
     } catch (err) {
       console.error('Erro ao buscar coordenadas:', err);
@@ -4827,11 +4829,14 @@ async function loadRoteiroParaEdicao(id) {
       
       // Filtrar pontos com coordenadas e ordenar por ORDEM (garantir ordenação numérica)
       const pontosComCoordenadas = pontosRoteiro
-        .filter(p => p.LATITUDE && p.LONGITUDE)
+        .map((p) => {
+          const c = coordPontoRoteiro(p);
+          return c ? Object.assign({}, p, { LATITUDE: c.lat, LONGITUDE: c.lon }) : null;
+        })
+        .filter(Boolean)
         .sort((a, b) => {
-          // Converter ORDEM para número para ordenação correta
-          const ordemA = parseFloat(a.ORDEM) || 0;
-          const ordemB = parseFloat(b.ORDEM) || 0;
+          const ordemA = parseFloat(a.ORDEM != null ? a.ORDEM : a.ordem) || 0;
+          const ordemB = parseFloat(b.ORDEM != null ? b.ORDEM : b.ordem) || 0;
           return ordemA - ordemB;
         });
       
@@ -4840,21 +4845,11 @@ async function loadRoteiroParaEdicao(id) {
         window._roteirosDebugPontos = JSON.stringify(pontosComCoordenadas.map(p => p.ORDEM));
       }
       
-      if (pontosComCoordenadas.length === 0) {
-        console.log('[MAPA] Nenhum ponto com coordenadas → fallback para atualizarMapa() (origem/destino do formulário)');
+      if (pontosComCoordenadas.length < 2) {
+        console.log('[MAPA] Menos de 2 pontos com coordenadas → rota pela origem e destino do formulário');
         hideMapaLoading();
-        showMessage('Nenhum ponto com coordenadas válidas. Usando origem e destino do formulário...', 'warning');
         atualizandoMapaComPontos = false;
-        await atualizarMapa();
-        return;
-      }
-      
-      if (pontosComCoordenadas.length === 1) {
-        console.log('[MAPA] Apenas 1 ponto com coordenadas → fallback para atualizarMapa()');
-        hideMapaLoading();
-        showMessage('Apenas um ponto com coordenadas. Completando com origem/destino do formulário...', 'warning');
-        atualizandoMapaComPontos = false;
-        await atualizarMapa();
+        await atualizarMapa({ ignorarPontos: true });
         return;
       }
       

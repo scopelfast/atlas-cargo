@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#0d9488">
+  <meta name="theme-color" content="#506d48">
   <title>Dashboard - Motorista</title>
   <script>
-    (function(){ try { var t = localStorage.getItem('tema'); if (t == null || t === '') t = 'auto'; var dark = t === 'escuro' || (t === 'auto' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); document.documentElement.classList.toggle('tema-escuro', !!dark); document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light'); } catch(e) { var m = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)'); if (m) { document.documentElement.classList.toggle('tema-escuro', m.matches); document.documentElement.setAttribute('data-theme', m.matches ? 'dark' : 'light'); } } })();
+    (function(){ try { if (localStorage.getItem('temaPadraoClaro') !== '1') { localStorage.setItem('tema', 'claro'); localStorage.setItem('temaPadraoClaro', '1'); } var t = localStorage.getItem('tema'); if (t == null || t === '' || t === 'auto') t = 'claro'; var dark = t === 'escuro'; document.documentElement.classList.toggle('tema-escuro', !!dark); document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light'); } catch(e) { document.documentElement.classList.remove('tema-escuro'); document.documentElement.setAttribute('data-theme', 'light'); } })();
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../css/design-system.css">
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/design-system.css?v=deskcomm">
   <link rel="stylesheet" href="../css/style.css">
   <link rel="stylesheet" href="../css/padrao-telas.css">
   <script src="../js/i18n.js"></script>
@@ -19,8 +19,15 @@
     /* Dashboard alinhado ao padrão da tela de login (index.html) */
     body.motorista-dashboard-page {
       min-height: 100vh;
-      background: var(--app-bg) !important;
+      background: #faf9f6 !important;
+      color: #1c1a16;
+      font-family: "Atkinson Hyperlegible", "Segoe UI", sans-serif;
       padding-bottom: 24px;
+    }
+    html.tema-escuro body.motorista-dashboard-page,
+    html[data-theme="dark"] body.motorista-dashboard-page {
+      background: #161510 !important;
+      color: #f5f4ef;
     }
 
     /* Container principal: uma coluna, largura máxima, centralizado */
@@ -39,43 +46,34 @@
       border-radius: 12px;
     }
 
-    /* Header: mesmo padrão 480px centralizado (estilo card) */
+    /* Cartão do motorista: creme, texto escuro, marca sage */
     .header-motorista {
-      background: var(--app-header-bg);
-      color: var(--app-header-text);
+      background: #f5f3ee !important;
+      color: #1c1a16 !important;
       padding: 24px 20px 20px;
-      box-shadow: var(--shadow-lg);
+      box-shadow: none;
       margin-bottom: 20px;
       position: relative;
       overflow: hidden;
-      border-radius: var(--radius-card);
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 24px;
+      border: 1px solid #e7e3da;
     }
 
-    .header-motorista::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(20, 184, 166, 0.2) 0%, transparent 55%);
-      pointer-events: none;
-    }
+    .header-motorista::before { display: none; }
 
     .header-badge-app {
       position: relative;
       z-index: 1;
       display: inline-block;
       font-size: 0.75rem;
-      font-weight: 600;
+      font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: rgba(255, 255, 255, 0.9);
-      background: rgba(255, 255, 255, 0.12);
-      padding: 4px 12px;
+      letter-spacing: 0.06em;
+      color: #506d48;
+      background: #e4ebe0;
+      padding: 6px 14px;
       border-radius: 999px;
-      border: 1px solid rgba(255, 255, 255, 0.2);
+      border: none;
       margin-bottom: 12px;
     }
 
@@ -89,20 +87,19 @@
     }
 
     .avatar {
-      width: 70px;
-      height: 70px;
+      width: 56px;
+      height: 56px;
       flex-shrink: 0;
-      border-radius: 35px;
-      background: rgba(255,255,255,0.2);
+      border-radius: 16px;
+      background: #e4ebe0;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 32px;
-      font-weight: bold;
-      color: white;
-      border: 3px solid rgba(255,255,255,0.3);
-      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      color: #506d48;
+      border: none;
+      box-shadow: none;
     }
+    .avatar svg { display: block; }
 
     .header-info {
       flex: 1;
@@ -135,29 +132,30 @@
 
     .logout-btn {
       padding: 10px 14px;
-      background: rgba(255,255,255,0.2);
-      border: 1px solid rgba(255,255,255,0.25);
-      color: white;
+      background: #fff;
+      border: 1px solid #e7e3da;
+      color: #a94a3c;
       font-size: 20px;
       cursor: pointer;
-      border-radius: 8px;
+      border-radius: 12px;
       flex-shrink: 0;
       line-height: 1;
     }
 
     .logout-btn:hover {
-      background: rgba(255,255,255,0.3);
+      background: #f8e8e4;
     }
 
     .reputacao-badge {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      background: rgba(255,255,255,0.2);
+      background: #e4ebe0;
+      color: #41573b;
       padding: 6px 12px;
       border-radius: 12px;
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 700;
     }
 
     .reputacao-score {
@@ -173,11 +171,12 @@
     .status-badge-header {
       display: inline-flex;
       align-items: center;
-      background: rgba(255,255,255,0.2);
+      background: #e4ebe0;
+      color: #41573b;
       padding: 4px 10px;
-      border-radius: 12px;
+      border-radius: 999px;
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 700;
     }
 
     .status-dot-header {
@@ -191,7 +190,7 @@
     .versao-container {
       text-align: center;
       padding-top: 10px;
-      border-top: 1px solid rgba(255,255,255,0.2);
+      border-top: 1px solid #e7e3da;
       position: relative;
       z-index: 1;
     }
@@ -199,6 +198,42 @@
     .versao-text {
       font-size: 12px;
       opacity: 0.8;
+      color: #5d594f;
+    }
+
+    html.tema-escuro body.motorista-dashboard-page .header-motorista,
+    html[data-theme="dark"] body.motorista-dashboard-page .header-motorista {
+      background: #272620 !important;
+      color: #f5f4ef !important;
+      border-color: #33312a;
+    }
+    html.tema-escuro body.motorista-dashboard-page .header-badge-app,
+    html[data-theme="dark"] body.motorista-dashboard-page .header-badge-app,
+    html.tema-escuro body.motorista-dashboard-page .status-badge-header,
+    html[data-theme="dark"] body.motorista-dashboard-page .status-badge-header,
+    html.tema-escuro body.motorista-dashboard-page .reputacao-badge,
+    html[data-theme="dark"] body.motorista-dashboard-page .reputacao-badge {
+      background: rgba(130, 160, 119, 0.16);
+      color: #a4ba9a;
+    }
+    html.tema-escuro body.motorista-dashboard-page .avatar,
+    html[data-theme="dark"] body.motorista-dashboard-page .avatar {
+      background: rgba(130, 160, 119, 0.16);
+      color: #a4ba9a;
+    }
+    html.tema-escuro body.motorista-dashboard-page .logout-btn,
+    html[data-theme="dark"] body.motorista-dashboard-page .logout-btn {
+      background: #1d1c17;
+      border-color: #33312a;
+      color: #c87263;
+    }
+    html.tema-escuro body.motorista-dashboard-page .versao-container,
+    html[data-theme="dark"] body.motorista-dashboard-page .versao-container {
+      border-top-color: #33312a;
+    }
+    html.tema-escuro body.motorista-dashboard-page .versao-text,
+    html[data-theme="dark"] body.motorista-dashboard-page .versao-text {
+      color: #8e8b7f;
     }
 
     /* Menu Grid */
@@ -216,9 +251,10 @@
       text-decoration: none;
       border-radius: var(--radius-card, 20px);
       padding: 18px 16px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.06);
-      transition: all 0.25s ease;
-      border: 1px solid rgba(0,0,0,0.04);
+      background: #fff;
+      color: #1c1a16;
+      border: 1px solid #e7e3da;
+      box-shadow: none;
       overflow: hidden;
       min-height: auto;
       width: 100%;
@@ -249,7 +285,7 @@
     .menu-item:hover {
       box-shadow: 0 12px 28px rgba(0,0,0,0.1);
       transform: translateY(-3px);
-      border-color: rgba(14, 165, 233, 0.3);
+      border-color: #d2cdbf;
     }
 
     .menu-item:active {
@@ -273,43 +309,111 @@
       line-height: 1;
       position: relative;
       z-index: 1;
-      background: var(--app-header-bg);
-      box-shadow: 0 4px 12px rgba(6, 20, 40, 0.25);
+      background: #e4ebe0;
+      box-shadow: none;
     }
     .menu-icon i {
-      color: #fff;
+      color: #506d48;
       font-size: 22px;
     }
 
     .menu-value {
       font-size: 28px;
       font-weight: 700;
-      color: #333;
+      color: #1c1a16;
       line-height: 1;
       position: relative;
       z-index: 1;
     }
 
     .menu-text {
-      color: #666;
+      color: #5d594f;
       font-size: 13px;
-      font-weight: 500;
+      font-weight: 700;
       line-height: 1.2;
       position: relative;
       z-index: 1;
     }
-    
-    /* Ícones específicos para cada botão */
-    .btn-gps .menu-icon { background: var(--app-header-bg); }
-    .btn-posicao .menu-icon { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); }
-    .btn-macros .menu-icon { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); }
-    .btn-chat .menu-icon { background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); }
-    .btn-viagens .menu-icon { background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); }
-    .btn-convocacoes .menu-icon { background: linear-gradient(135deg, #30cfd0 0%, #330867 100%); }
-    .btn-cargas .menu-icon { background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%); }
-    .btn-perfil .menu-icon { background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%); }
-    .btn-config .menu-icon { background: linear-gradient(135deg, #d299c2 0%, #fef9d7 100%); }
 
+    .gps-aviso {
+      background: #f8f1e4;
+      color: #1c1a16;
+      border: 1px solid #e7d7b8;
+      border-radius: 16px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .gps-aviso-btn {
+      background: #506d48;
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      font-family: inherit;
+    }
+    html.tema-escuro body.motorista-dashboard-page .menu-item,
+    html[data-theme="dark"] body.motorista-dashboard-page .menu-item,
+    html.tema-escuro body.motorista-dashboard-page .stat-card,
+    html[data-theme="dark"] body.motorista-dashboard-page .stat-card,
+    html.tema-escuro body.motorista-dashboard-page .btn-gps,
+    html[data-theme="dark"] body.motorista-dashboard-page .btn-gps,
+    html.tema-escuro body.motorista-dashboard-page .btn-posicao,
+    html[data-theme="dark"] body.motorista-dashboard-page .btn-posicao,
+    html.tema-escuro body.motorista-dashboard-page .btn-macros,
+    html[data-theme="dark"] body.motorista-dashboard-page .btn-macros,
+    html.tema-escuro body.motorista-dashboard-page .btn-chat,
+    html[data-theme="dark"] body.motorista-dashboard-page .btn-chat,
+    html.tema-escuro body.motorista-dashboard-page .btn-viagens,
+    html[data-theme="dark"] body.motorista-dashboard-page .btn-viagens,
+    html.tema-escuro body.motorista-dashboard-page .btn-convocacoes,
+    html[data-theme="dark"] body.motorista-dashboard-page .btn-convocacoes,
+    html.tema-escuro body.motorista-dashboard-page .btn-cargas,
+    html[data-theme="dark"] body.motorista-dashboard-page .btn-cargas,
+    html.tema-escuro body.motorista-dashboard-page .btn-perfil,
+    html[data-theme="dark"] body.motorista-dashboard-page .btn-perfil,
+    html.tema-escuro body.motorista-dashboard-page .btn-config,
+    html[data-theme="dark"] body.motorista-dashboard-page .btn-config {
+      background: #1d1c17 !important;
+      border-color: #33312a !important;
+      color: #f5f4ef;
+    }
+    html.tema-escuro body.motorista-dashboard-page .menu-value,
+    html[data-theme="dark"] body.motorista-dashboard-page .menu-value,
+    html.tema-escuro body.motorista-dashboard-page .stat-card-value,
+    html[data-theme="dark"] body.motorista-dashboard-page .stat-card-value {
+      color: #f5f4ef;
+    }
+    html.tema-escuro body.motorista-dashboard-page .menu-text,
+    html[data-theme="dark"] body.motorista-dashboard-page .menu-text,
+    html.tema-escuro body.motorista-dashboard-page .stat-card-label,
+    html[data-theme="dark"] body.motorista-dashboard-page .stat-card-label {
+      color: #8e8b7f;
+    }
+    html.tema-escuro body.motorista-dashboard-page .menu-icon,
+    html[data-theme="dark"] body.motorista-dashboard-page .menu-icon,
+    html.tema-escuro body.motorista-dashboard-page .stat-card-icon,
+    html[data-theme="dark"] body.motorista-dashboard-page .stat-card-icon {
+      background: rgba(130, 160, 119, 0.16);
+      color: #a4ba9a;
+    }
+    html.tema-escuro body.motorista-dashboard-page .menu-icon i,
+    html[data-theme="dark"] body.motorista-dashboard-page .menu-icon i {
+      color: #a4ba9a;
+    }
+    html.tema-escuro body.motorista-dashboard-page .gps-aviso,
+    html[data-theme="dark"] body.motorista-dashboard-page .gps-aviso {
+      background: rgba(224, 181, 106, 0.16);
+      color: #f5f4ef;
+      border-color: #444239;
+    }
+    
     .menu-badge {
       display: none; /* Badge agora será exibido como menu-value */
     }
@@ -339,7 +443,7 @@
     }
     .section-title i {
       font-size: 20px;
-      color: var(--ac-accent, #0ea5e9);
+      color: var(--ac-accent, #506d48);
     }
     .logout-btn i {
       font-size: 22px;
@@ -392,7 +496,7 @@
     .stat-card:hover {
       box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.12));
       transform: translateY(-2px);
-      border-color: var(--ac-accent, #0ea5e9);
+      border-color: var(--ac-accent, #506d48);
     }
 
     .stat-card-header {
@@ -409,21 +513,21 @@
       align-items: center;
       justify-content: center;
       border-radius: 10px;
-      background: var(--app-header-bg);
-      color: #fff;
+      background: #e4ebe0;
+      color: #506d48;
     }
 
     .stat-card-value {
       font-size: 28px;
       font-weight: 700;
-      color: #333;
+      color: #1c1a16;
       line-height: 1;
     }
 
     .stat-card-label {
       font-size: 13px;
-      color: #666;
-      font-weight: 500;
+      color: #5d594f;
+      font-weight: 700;
     }
 
     .stat-card-badge {
@@ -544,7 +648,7 @@
       border-radius: 12px;
       padding: 16px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      border-left: 4px solid #0ea5e9;
+      border-left: 4px solid #506d48;
       cursor: pointer;
       transition: all 0.3s;
       position: relative;
@@ -558,7 +662,7 @@
 
     .notificacao-card.nao-lida {
       background: #f0f7ff;
-      border-left-color: #0ea5e9;
+      border-left-color: #506d48;
     }
 
     .notificacao-card.chat {
@@ -623,7 +727,7 @@
     }
 
     .notificacao-badge {
-      background: #0ea5e9;
+      background: #506d48;
       color: white;
       padding: 2px 8px;
       border-radius: 10px;
@@ -649,7 +753,11 @@
   <div class="header-motorista">
     <div class="header-badge-app">Motorista</div>
     <div class="header-content">
-      <div class="avatar" id="avatarMotorista">?</div>
+      <div class="avatar" id="avatarMotorista" aria-hidden="true">
+        <svg width="28" height="28" viewBox="0 0 32 32">
+          <path fill="currentColor" fill-rule="evenodd" d="M16 3.2 28.8 28.8h-6.1l-1.95-5.7H11.25l-1.95 5.7H3.2L16 3.2zm0 9.15-3.35 9.75h6.7L16 12.35z"/>
+        </svg>
+      </div>
       <div class="header-info">
         <div class="header-nome" id="nomeMotorista">Carregando...</div>
         <div class="header-cpf" id="cpfMotorista">CPF: -</div>
@@ -682,7 +790,7 @@
     <!-- Notificações Recentes -->
     <div class="section-title" style="display: flex; justify-content: space-between; align-items: center;">
       <span><i class="bx bx-bell"></i> <span data-i18n="dashboard.notificacoesRecentes">Notificações Recentes</span></span>
-      <button onclick="carregarNotificacoes()" class="btn-refresh" style="background: none; border: none; color: #0ea5e9; font-size: 12px; cursor: pointer; padding: 6px 10px; display: inline-flex; align-items: center; gap: 4px;"><i class="bx bx-refresh"></i> <span data-i18n="dashboard.atualizar">Atualizar</span></button>
+      <button onclick="carregarNotificacoes()" class="btn-refresh" style="background: none; border: none; color: #506d48; font-size: 12px; cursor: pointer; padding: 6px 10px; display: inline-flex; align-items: center; gap: 4px;"><i class="bx bx-refresh"></i> <span data-i18n="dashboard.atualizar">Atualizar</span></button>
     </div>
     <div id="notificacoesRecentes" style="margin-bottom: 20px;">
       <div class="loading">
@@ -773,7 +881,7 @@
   </div>
 
   <!-- URL Helper - DEVE ser o primeiro script para garantir interceptor de fetch -->
-  <script src="../js/url-helper.js"></script>
+  <script src="../js/url-helper.js?v=20261125claro"></script>
   <script src="../js/notifications.js"></script>
   <script src="../js/auth.js"></script>
   <script src="../js/offline.js"></script>
@@ -870,13 +978,14 @@
     document.getElementById('nomeMotorista').textContent = motorista.nome || 'Motorista';
     
     let cpfFormatado = motorista.cpf || '-';
-    if (cpfFormatado !== '-' && cpfFormatado.length === 11) {
+    if (cpfFormatado !== '-' && cpfFormatado.length === 14) {
+      cpfFormatado = cpfFormatado.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+    } else if (cpfFormatado !== '-' && cpfFormatado.length === 11) {
       cpfFormatado = cpfFormatado.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
     }
-    document.getElementById('cpfMotorista').textContent = `CPF: ${cpfFormatado}`;
-    
-    const primeiraLetra = (motorista.nome || '?').charAt(0).toUpperCase();
-    document.getElementById('avatarMotorista').textContent = primeiraLetra;
+    const docDigitos = String(motorista.cpf || '').replace(/\D/g, '');
+    const rotuloDoc = docDigitos.length === 14 ? 'CNPJ' : 'CPF';
+    document.getElementById('cpfMotorista').textContent = `${rotuloDoc}: ${cpfFormatado}`;
 
     // Carregar reputação
     carregarReputacao();
@@ -1047,7 +1156,7 @@
                     <div class="notificacao-conteudo">
                       <div class="notificacao-titulo">${escaparHtml(notif.titulo || '')}</div>
                       <div class="notificacao-descricao">${descricaoLimpa.replace(/\n/g, '<br>')}</div>
-                      ${notif.roteiro ? `<div style="font-size: 11px; color: #0ea5e9; margin-top: 4px;">🚛 ${escaparHtml(String(notif.roteiro))}</div>` : ''}
+                      ${notif.roteiro ? `<div style="font-size: 11px; color: #506d48; margin-top: 4px;">🚛 ${escaparHtml(String(notif.roteiro))}</div>` : ''}
                       <div class="notificacao-meta">
                         <div class="notificacao-hora">
                           <span>🕐</span>
@@ -1170,17 +1279,15 @@
       // Se não há configurações setadas (null ou vazio)
       if (gpsAtivo === null || gpsIntervalo === null || gpsIntervalo === '') {
         miniDiv.innerHTML = `
-          <div style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%); padding: 14px 16px; border-radius: 10px; box-shadow: 0 2px 8px rgba(255,152,0,0.3); color: white; display: flex; align-items: center; justify-content: space-between; animation: pulse-warning 2s infinite;">
+          <div class="gps-aviso">
             <div style="display: flex; align-items: center; gap: 12px; flex: 1;">
               <div style="font-size: 20px;">⚠️</div>
               <div style="flex: 1;">
-                <div style="font-size: 14px; font-weight: 600; margin-bottom: 2px;">GPS não configurado</div>
-                <div style="font-size: 11px; opacity: 0.9;">Configure o GPS automático para começar</div>
+                <div style="font-size: 14px; font-weight: 700; margin-bottom: 2px;">GPS não configurado</div>
+                <div style="font-size: 12px; color: #5d594f;">Configure o GPS automático para começar</div>
               </div>
             </div>
-            <button onclick="window.location.href='gps.html'" style="background: rgba(255,255,255,0.25); border: 1px solid rgba(255,255,255,0.4); color: white; padding: 8px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; white-space: nowrap; margin-left: 12px;">
-              ⚙️ Configurar
-            </button>
+            <button onclick="window.location.href='gps.html'" class="gps-aviso-btn">Configurar</button>
           </div>
         `;
         return;
@@ -1291,7 +1398,7 @@
           <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
             <div style="font-size:13px;font-weight:700;color:#334155;">Diagnóstico rápido de GPS</div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <button onclick="acionarAtivarGps()" style="background:#0ea5e9;color:#fff;border:none;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:600;cursor:pointer;">Ativar GPS</button>
+              <button onclick="acionarAtivarGps()" style="background:#506d48;color:#fff;border:none;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:600;cursor:pointer;">Ativar GPS</button>
               <button onclick="acionarTesteEnvioGps()" style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:600;cursor:pointer;">Testar envio GPS</button>
             </div>
           </div>

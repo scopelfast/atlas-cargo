@@ -1,6 +1,10 @@
 (function () {
   var catalogoModulos = [];
   var planosList = [];
+  var editandoTenant = null;
+  var salvandoCliente = false;
+  var decidindoPedido = false;
+  var clientesPorId = {};
 
   function apiPrefix() {
     var pn = window.location.pathname || '';
@@ -45,10 +49,12 @@
     btn.addEventListener('click', function () {
       var name = btn.getAttribute('data-tab');
       tabSwitch(name);
+      if (name === 'pedidos') loadPedidos();
       if (name === 'catalogo') loadCatalog();
       if (name === 'planos') loadPlanosPanel();
       if (name === 'clientes') loadClientesPanel();
       if (name === 'override') loadTenantsOverride();
+      if (name === 'limpeza') carregarLimpeza();
     });
   });
 
@@ -180,13 +186,15 @@
         modal.style.display = 'none';
         resolve(aceitou);
       }
-      newYes.addEventListener(
-        'click',
-        function () {
+      newYes.addEventListener('click', function () {
+        if (typeof opts.beforeConfirm !== 'function') {
           fechar(true);
-        },
-        { once: true }
-      );
+          return;
+        }
+        Promise.resolve(opts.beforeConfirm()).then(function (ok) {
+          if (ok) fechar(true);
+        });
+      });
       newNo.addEventListener(
         'click',
         function () {
@@ -624,9 +632,122 @@
     }
   });
 
+  function valorCampo(id) {
+    var el = document.getElementById(id);
+    return el ? String(el.value || '').trim() : '';
+  }
+
+  function setCampo(id, v) {
+    var el = document.getElementById(id);
+    if (el) el.value = v == null ? '' : String(v);
+  }
+
+  function limparFormularioCliente() {
+    editandoTenant = null;
+    ['newTenantId', 'newClienteNm', 'newClienteDoc', 'newClienteContato', 'newClienteEmail', 'newClienteDdi', 'newClienteFone', 'newClienteEmp', 'newClienteMaxAssentos', 'newClienteMaxSessoes'].forEach(function (id) {
+      setCampo(id, '');
+    });
+    var tid = document.getElementById('newTenantId');
+    if (tid) tid.readOnly = false;
+    var titulo = document.getElementById('clienteFormTitulo');
+    if (titulo) titulo.innerHTML = '<i class="bx bx-user-plus"></i> Novo cliente';
+    var btn = document.getElementById('btnAddCliente');
+    if (btn) btn.innerHTML = '<i class="bx bx-plus"></i> <span>Cadastrar cliente</span>';
+    var cancel = document.getElementById('btnCancelCliente');
+    if (cancel) cancel.hidden = true;
+    var pais = document.getElementById('newClientePais');
+    if (pais && pais.querySelector('option[value="BR"]')) pais.value = 'BR';
+  }
+
+  function abrirEdicaoCliente(c) {
+    if (!c) return;
+    editandoTenant = String(c.TENANT_ID || c.tenant_id || '');
+    setCampo('newTenantId', editandoTenant);
+    var tid = document.getElementById('newTenantId');
+    if (tid) tid.readOnly = true;
+    setCampo('newClienteNm', c.NM_CLIENTE || c.nm_cliente || '');
+    setCampo('newClientePais', c.SGPAIS || c.sgpais || 'BR');
+    setCampo('newClienteDoc', c.DOCUMENTO || c.documento || '');
+    setCampo('newClienteContato', c.NM_CONTATO || c.nm_contato || '');
+    setCampo('newClienteEmail', c.EMAIL || c.email || '');
+    setCampo('newClienteDdi', c.DDI || c.ddi || '');
+    setCampo('newClienteFone', c.TELEFONE || c.telefone || '');
+    setCampo('newClientePlano', c.CD_PLANO != null ? c.CD_PLANO : c.cd_plano);
+    var emp = c.CDEMPRESA != null ? c.CDEMPRESA : c.cdempresa;
+    setCampo('newClienteEmp', emp != null ? emp : '');
+    var ovr = c.max_assentos_usuarios_ovr != null ? c.max_assentos_usuarios_ovr : c.MAX_ASSENTOS_USUARIOS_OVR;
+    var ovrS = c.max_sessoes_simultaneas_ovr != null ? c.max_sessoes_simultaneas_ovr : c.MAX_SESSOES_SIMULTANEAS_OVR;
+    setCampo('newClienteMaxAssentos', ovr != null ? ovr : '');
+    setCampo('newClienteMaxSessoes', ovrS != null ? ovrS : '');
+    var titulo = document.getElementById('clienteFormTitulo');
+    if (titulo) titulo.innerHTML = '<i class="bx bx-edit"></i> Editar cadastro';
+    var btn = document.getElementById('btnAddCliente');
+    if (btn) btn.innerHTML = '<i class="bx bx-save"></i> <span>Salvar cadastro</span>';
+    var cancel = document.getElementById('btnCancelCliente');
+    if (cancel) cancel.hidden = false;
+    if (titulo && titulo.scrollIntoView) titulo.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function payloadDoFormulario() {
+    var mx = valorCampo('newClienteMaxAssentos');
+    var mxs = valorCampo('newClienteMaxSessoes');
+    var em = valorCampo('newClienteEmp');
+    var payload = {
+      nm_cliente: valorCampo('newClienteNm'),
+      cd_plano: parseInt(valorCampo('newClientePlano') || '1', 10),
+      documento: valorCampo('newClienteDoc').replace(/\D/g, ''),
+      sgpais: valorCampo('newClientePais'),
+      nm_contato: valorCampo('newClienteContato'),
+      email: valorCampo('newClienteEmail'),
+      ddi: valorCampo('newClienteDdi').replace(/\D/g, ''),
+      telefone: valorCampo('newClienteFone').replace(/\D/g, ''),
+      cdempresa: em ? parseInt(em, 10) : null,
+    };
+    if (mx === '') payload.max_assentos_usuarios_ovr = '';
+    else {
+      var n = parseInt(mx, 10);
+      if (!Number.isFinite(n)) return { error: 'Override máx. usuários: informe um número válido ou deixe vazio.' };
+      payload.max_assentos_usuarios_ovr = n;
+    }
+    if (mxs === '') payload.max_sessoes_simultaneas_ovr = '';
+    else {
+      var ns = parseInt(mxs, 10);
+      if (!Number.isFinite(ns)) return { error: 'Override sessões: informe um número válido ou deixe vazio.' };
+      payload.max_sessoes_simultaneas_ovr = ns;
+    }
+    return { payload: payload };
+  }
+
+  async function carregarPaisesCliente() {
+    var selP = document.getElementById('newClientePais');
+    if (!selP || selP.options.length) return;
+    var lista = [
+      { SGPAIS: 'AR', DSPAIS: 'Argentina', DDI: '54' },
+      { SGPAIS: 'BR', DSPAIS: 'Brasil', DDI: '55' },
+      { SGPAIS: 'PY', DSPAIS: 'Paraguai', DDI: '595' },
+      { SGPAIS: 'UY', DSPAIS: 'Uruguai', DDI: '598' },
+    ];
+    try {
+      var r = await fetch(apiPrefix() + '/api/paises');
+      if (r.ok) {
+        var data = await r.json();
+        if (Array.isArray(data) && data.length) lista = data;
+      }
+    } catch (e) { /* mantém a lista local */ }
+    selP.innerHTML = '';
+    lista.forEach(function (p) {
+      var o = document.createElement('option');
+      o.value = p.SGPAIS || p.sgpais;
+      o.textContent = (p.DSPAIS || p.dspais || o.value) + (p.DDI || p.ddi ? ' +' + (p.DDI || p.ddi) : '');
+      selP.appendChild(o);
+    });
+    if (selP.querySelector('option[value="BR"]')) selP.value = 'BR';
+  }
+
   async function loadClientesPanel() {
     showOverlay();
     try {
+      await carregarPaisesCliente();
       var r = await fetch(apiPrefix() + '/api/saas/clientes', { headers: getAuthJsonHeaders() });
       var data = await r.json();
       if (!r.ok) throw new Error(data.error || 'Erro');
@@ -652,11 +773,12 @@
         hideOverlay();
         return;
       }
-      var html =
-        '<table class="estatisticas-table"><thead><tr><th>Tenant</th><th>Nome</th><th>Plano</th><th>Assentos (uso/lim)</th><th>Ovr. assentos</th><th>Sessões torre</th><th>Ovr. sessões</th><th>CD Empresa</th><th>Ações</th></tr></thead><tbody>';
+      clientesPorId = {};
+      var html = '<div class="cliente-lista">';
       clientes.forEach(function (c) {
-        var tid = c.TENANT_ID || c.tenant_id;
-        var nm = (c.NM_CLIENTE || c.nm_cliente || '').replace(/"/g, '&quot;');
+        var tid = String(c.TENANT_ID || c.tenant_id || '');
+        clientesPorId[tid] = c;
+        var nomeCheio = c.NM_CLIENTE || c.nm_cliente || tid;
         var cdp = c.CD_PLANO != null ? c.CD_PLANO : c.cd_plano;
         var emp = c.CDEMPRESA != null ? c.CDEMPRESA : c.cdempresa;
         var qtd = c.qtd_usuarios_ativos != null ? c.qtd_usuarios_ativos : c.QTD_USUARIOS_ATIVOS;
@@ -667,8 +789,6 @@
         var uso = qtd != null && qtd !== '' ? String(qtd) : '—';
         var usoClass = '';
         if (eff != null && eff !== '' && qtd != null && Number(qtd) > Number(eff)) usoClass = ' style="color:#b45309;font-weight:600;" title="Acima do limite (usuários já ativos)"';
-        var ovrVal =
-          ovr != null && ovr !== '' ? String(ovr).replace(/"/g, '&quot;') : '';
         var qtdS =
           c.qtd_sessoes_torre_abertas != null ? c.qtd_sessoes_torre_abertas : c.QTD_SESSOES_TORRE_ABERTAS;
         var ovrS =
@@ -682,105 +802,61 @@
           usoClassS =
             ' style="color:#b45309;font-weight:600;" title="Acima do limite de sessões (faça logout em outro acesso ou aguarde TTL)"';
         }
-        var ovrValS =
-          ovrS != null && ovrS !== '' ? String(ovrS).replace(/"/g, '&quot;') : '';
-        html += '<tr data-tenant="' + String(tid).replace(/"/g, '') + '">';
-        html += '<td><code>' + escapeHtml(String(tid)) + '</code></td>';
-        html +=
-          '<td><input type="text" class="cli-nm form-control" value="' +
-          nm +
-          '" style="max-width:220px;" /></td>';
-        html += '<td><select class="cli-plano form-control" style="width:auto;min-width:140px;">';
-        planosList.forEach(function (p) {
-          var cd = p.CD_PLANO != null ? p.CD_PLANO : p.cd_plano;
-          var pnm = p.NM_PLANO || p.nm_plano;
-          html +=
-            '<option value="' +
-            cd +
-            '"' +
-            (String(cd) === String(cdp) ? ' selected' : '') +
-            '>' +
-            escapeHtml(String(pnm)) +
-            '</option>';
-        });
-        html += '</select></td>';
-        html += '<td' + usoClass + '>' + escapeHtml(uso) + ' / ' + escapeHtml(limTxt) + '</td>';
-        html +=
-          '<td><input type="number" class="cli-max-assentos form-control" min="1" max="999999" value="' +
-          ovrVal +
-          '" style="width:110px;" placeholder="— usa plano" title="Vazio = usa o limite do plano selecionado" /></td>';
-        html += '<td' + usoClassS + '>' + escapeHtml(usoS) + ' / ' + escapeHtml(limTxtS) + '</td>';
-        html +=
-          '<td><input type="number" class="cli-max-sessoes form-control" min="1" max="999999" value="' +
-          ovrValS +
-          '" style="width:110px;" placeholder="— usa plano" title="Vazio = usa o limite de sessões do plano" /></td>';
-        html +=
-          '<td><input type="number" class="cli-emp form-control" value="' +
-          (emp != null ? emp : '') +
-          '" style="width:100px;" placeholder="—" /></td>';
-        html += '<td class="saas-catalogo-acoes">';
-        html +=
-          '<button type="button" class="btn-filtro btn-filtro-aplicar btn-cli-save"><i class="bx bx-save"></i> Salvar</button> ';
-        if (String(tid) === 'default') {
-          html += '<span class="saas-op-info" style="font-size:13px;" title="Tenant base da instalação">—</span>';
-        } else {
-          html +=
-            '<button type="button" class="btn-filtro saas-btn-excluir btn-cli-del" title="Remover cliente contratante"><i class="bx bx-trash"></i> Excluir</button>';
+        var planoNome = c.nm_plano || c.NM_PLANO || '';
+        if (!planoNome) {
+          planosList.forEach(function (p) {
+            var cd = p.CD_PLANO != null ? p.CD_PLANO : p.cd_plano;
+            if (String(cd) === String(cdp)) planoNome = p.NM_PLANO || p.nm_plano || '';
+          });
         }
-        html += '</td>';
-        html += '</tr>';
+        var doc = c.DOCUMENTO || c.documento || '';
+        var contato = c.NM_CONTATO || c.nm_contato || '';
+        var email = c.EMAIL || c.email || '';
+        var ddi = c.DDI || c.ddi || '';
+        var fone = c.TELEFONE || c.telefone || '';
+        var foneTxt = fone ? (ddi ? '+' + ddi + ' ' : '') + fone : '';
+        var login = c.SGUSUARIO || c.sgusuario || '';
+        function item(rotulo, valor, extra) {
+          return '<div><dt>' + rotulo + '</dt><dd' + (extra || '') + '>' + escapeHtml(valor || '—') + '</dd></div>';
+        }
+        html += '<article class="cliente-card" data-tenant="' + escapeHtml(tid) + '">';
+        html += '<div class="cliente-card-topo"><div><strong>' + escapeHtml(nomeCheio) + '</strong><code>' + escapeHtml(tid) + '</code></div>';
+        html += '<div class="cliente-card-acoes">';
+        html += '<button type="button" class="btn-filtro btn-filtro-aplicar btn-cli-edit"><i class="bx bx-edit"></i> Editar</button>';
+        if (tid === 'default') {
+          html += '<span class="saas-op-info" title="Tenant base da instalação">Base</span>';
+        } else {
+          html += '<button type="button" class="btn-filtro saas-btn-excluir btn-cli-del" title="Remover cliente contratante"><i class="bx bx-trash"></i> Excluir</button>';
+        }
+        html += '</div></div><dl class="cliente-dados">';
+        html += item('Documento', doc);
+        html += item('Contato', contato);
+        html += item('E-mail', email);
+        html += item('Celular', foneTxt);
+        html += item('Usuário de acesso', login);
+        html += item('Plano', planoNome);
+        html += item('Assentos', uso + ' / ' + limTxt, usoClass);
+        html += item('Sessões da torre', usoS + ' / ' + limTxtS, usoClassS);
+        html += item('CD empresa', emp != null && emp !== '' ? String(emp) : '');
+        html += '</dl></article>';
       });
-      html += '</tbody></table>';
+      html += '</div>';
       wrap.innerHTML = html;
-      wrap.querySelectorAll('.btn-cli-save').forEach(function (btn) {
+      wrap.querySelectorAll('.btn-cli-edit').forEach(function (btn) {
         btn.addEventListener('click', function () {
-          var tr = btn.closest('tr');
-          if (!tr) return;
-          var tenant = tr.getAttribute('data-tenant');
-          var nm = tr.querySelector('.cli-nm');
-          var pl = tr.querySelector('.cli-plano');
-          var em = tr.querySelector('.cli-emp');
-          var mx = tr.querySelector('.cli-max-assentos');
-          var mxs = tr.querySelector('.cli-max-sessoes');
-          var payload = { nm_cliente: nm && nm.value };
-          if (pl && pl.value) payload.cd_plano = parseInt(pl.value, 10);
-          if (em && em.value !== '' && em.value != null) payload.cdempresa = parseInt(em.value, 10);
-          else payload.cdempresa = null;
-          if (mx) {
-            var mv = String(mx.value).trim();
-            if (mv === '') payload.max_assentos_usuarios_ovr = '';
-            else {
-              var nOvr = parseInt(mv, 10);
-              if (!Number.isFinite(nOvr)) {
-                showMsg('msgClientesLista', 'Override máx. usuários: informe um número válido ou deixe vazio.', false);
-                return;
-              }
-              payload.max_assentos_usuarios_ovr = nOvr;
-            }
-          }
-          if (mxs) {
-            var mvs = String(mxs.value).trim();
-            if (mvs === '') payload.max_sessoes_simultaneas_ovr = '';
-            else {
-              var nOs = parseInt(mvs, 10);
-              if (!Number.isFinite(nOs)) {
-                showMsg('msgClientesLista', 'Override sessões: informe um número válido ou deixe vazio.', false);
-                return;
-              }
-              payload.max_sessoes_simultaneas_ovr = nOs;
-            }
-          }
-          saveClienteRow(tenant, payload);
+          var card = btn.closest('.cliente-card');
+          if (!card) return;
+          abrirEdicaoCliente(clientesPorId[card.getAttribute('data-tenant')]);
         });
       });
       wrap.querySelectorAll('.btn-cli-del').forEach(function (btn) {
         btn.addEventListener('click', function () {
-          var tr = btn.closest('tr');
-          if (!tr) return;
-          var tenant = tr.getAttribute('data-tenant');
+          var card = btn.closest('.cliente-card');
+          if (!card) return;
+          var tenant = card.getAttribute('data-tenant');
           if (!tenant || tenant === 'default') return;
-          var nmInp = tr.querySelector('.cli-nm');
-          var nm = (nmInp && nmInp.value) || tenant;
+          var nomeEl = card.querySelector('strong');
+          var nm = (nomeEl && nomeEl.textContent) || tenant;
           saasConfirmModal({
             title: 'Excluir cliente contratante',
             html:
@@ -788,7 +864,7 @@
               escapeHtml(nm) +
               '</strong> (<code>' +
               escapeHtml(tenant) +
-              '</code>)?</p><ul style="text-align:left;margin:12px 0;padding-left:1.25rem;line-height:1.5;"><li>Apaga overrides de módulo (<code>SAAS_TENANT_MODULO</code>) deste tenant.</li><li>Não remove usuários nem dados operacionais; apenas o vínculo de licença/plano.</li></ul>',
+              '</code>)?</p><ul style="text-align:left;margin:12px 0;padding-left:1.25rem;line-height:1.5;"><li>Some este identificador por completo: cliente, pedido de acesso, usuários, cadastros, configuração, torre e estoque.</li><li>Cidades, estados e a instalação padrão ficam.</li></ul>',
             plainFallback: 'Excluir cliente contratante ' + tenant + '?',
             confirmHtml: '<i class="bx bx-trash"></i> Excluir',
             confirmClass: 'btn-filtro btn-filtro-danger',
@@ -856,44 +932,53 @@
     }
   }
 
+  document.getElementById('btnCancelCliente').addEventListener('click', function () {
+    limparFormularioCliente();
+    showMsg('msgClienteNovo', '', true);
+  });
+
   document.getElementById('btnAddCliente').addEventListener('click', async function () {
-    var tid = (document.getElementById('newTenantId') && document.getElementById('newTenantId').value) || '';
-    var nm = (document.getElementById('newClienteNm') && document.getElementById('newClienteNm').value) || '';
-    var pl = (document.getElementById('newClientePlano') && document.getElementById('newClientePlano').value) || '1';
-    var em = document.getElementById('newClienteEmp') && document.getElementById('newClienteEmp').value;
-    var mx =
-      document.getElementById('newClienteMaxAssentos') &&
-      String(document.getElementById('newClienteMaxAssentos').value).trim();
-    var mxs =
-      document.getElementById('newClienteMaxSessoes') &&
-      String(document.getElementById('newClienteMaxSessoes').value).trim();
+    if (salvandoCliente) return;
+    var lido = payloadDoFormulario();
+    if (lido.error) {
+      showMsg('msgClienteNovo', lido.error, false);
+      return;
+    }
+    var payload = lido.payload;
+    if (!payload.nm_cliente) {
+      showMsg('msgClienteNovo', 'Informe o nome da empresa.', false);
+      return;
+    }
+    var btn = document.getElementById('btnAddCliente');
+    salvandoCliente = true;
+    if (btn) btn.disabled = true;
     showMsg('msgClienteNovo', 'Salvando…', true);
     try {
-      var payload = { tenant_id: tid.trim(), nm_cliente: nm.trim(), cd_plano: parseInt(pl, 10) };
-      if (em !== '' && em != null) payload.cdempresa = parseInt(em, 10);
-      if (mx) {
-        var nMx = parseInt(mx, 10);
-        if (Number.isFinite(nMx)) payload.max_assentos_usuarios_ovr = nMx;
+      if (editandoTenant) {
+        await saveClienteRow(editandoTenant, payload);
+        limparFormularioCliente();
+        showMsg('msgClienteNovo', 'Cadastro atualizado.', true);
+      } else {
+        payload.tenant_id = valorCampo('newTenantId');
+        if (!payload.tenant_id) throw new Error('Informe o tenant ID.');
+        var r = await fetch(apiPrefix() + '/api/saas/clientes', {
+          method: 'POST',
+          headers: getAuthJsonHeaders(),
+          body: JSON.stringify(payload),
+        });
+        var data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Erro');
+        limparFormularioCliente();
+        showMsg('msgClienteNovo', 'Cliente cadastrado.', true);
+        await loadClientesPanel();
       }
-      if (mxs) {
-        var nMxs = parseInt(mxs, 10);
-        if (Number.isFinite(nMxs)) payload.max_sessoes_simultaneas_ovr = nMxs;
-      }
-      var r = await fetch(apiPrefix() + '/api/saas/clientes', {
-        method: 'POST',
-        headers: getAuthJsonHeaders(),
-        body: JSON.stringify(payload),
-      });
-      var data = await r.json();
-      if (!r.ok) throw new Error(data.error || 'Erro');
-      showMsg('msgClienteNovo', 'Cliente cadastrado.', true);
-      if (document.getElementById('newTenantId')) document.getElementById('newTenantId').value = '';
-      if (document.getElementById('newClienteNm')) document.getElementById('newClienteNm').value = '';
-      if (document.getElementById('newClienteMaxAssentos')) document.getElementById('newClienteMaxAssentos').value = '';
-      if (document.getElementById('newClienteMaxSessoes')) document.getElementById('newClienteMaxSessoes').value = '';
-      await loadClientesPanel();
     } catch (e) {
       showMsg('msgClienteNovo', e.message || 'Erro', false);
+    } finally {
+      setTimeout(function () {
+        salvandoCliente = false;
+        if (btn) btn.disabled = false;
+      }, 600);
     }
   });
 
@@ -1032,5 +1117,459 @@
   }
   if (btnSalvar) btnSalvar.addEventListener('click', salvarOverride);
 
-  loadCatalog();
+  function rotuloWhatsappPedido(status) {
+    if (status === 'ENVIADO') return 'Enviado';
+    if (status === 'SEM_CANAL') return 'Canal não configurado';
+    if (status === 'SEM_NUMERO') return 'Sem número';
+    if (status === 'ERRO') return 'Falhou';
+    return '—';
+  }
+
+  function formatarDocPedido(p) {
+    var pais = String(p.SGPAIS || p.sgpais || '').toUpperCase();
+    var d = String(p.DOCUMENTO || p.documento || '').replace(/\D/g, '');
+    if (pais === 'BR' && d.length === 14) return d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+    if (pais === 'AR' && d.length === 11) return d.replace(/(\d{2})(\d{8})(\d)/, '$1-$2-$3');
+    if ((pais === 'PY' || pais === 'UY') && d.length > 1) return d.slice(0, -1) + '-' + d.slice(-1);
+    return p.DOCUMENTO || p.documento || '';
+  }
+
+  function formatarFonePedido(p) {
+    var ddi = String(p.DDI || p.ddi || '').replace(/\D/g, '');
+    var fone = String(p.TELEFONE || p.telefone || '').replace(/\D/g, '');
+    if (!fone) return '—';
+    if (ddi === '55' && fone.length === 11) {
+      return '+55 (' + fone.slice(0, 2) + ') ' + fone.slice(2, 7) + '-' + fone.slice(7);
+    }
+    return (ddi ? '+' + ddi + ' ' : '') + fone;
+  }
+
+  async function loadPedidos() {
+    var wrap = document.getElementById('tablePedidosWrap');
+    var msg = document.getElementById('msgPedidos');
+    var count = document.getElementById('pedidoCount');
+    if (!wrap) return;
+    try {
+      var r = await fetch(apiPrefix() + '/api/saas/pedidos-acesso', { headers: getAuthJsonHeaders() });
+      var data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Erro ao listar pedidos.');
+      var lista = data.pedidos || [];
+      var pendentes = lista.filter(function (p) { return (p.SITUACAO || p.situacao) === 'PENDENTE'; }).length;
+      if (count) {
+        count.hidden = pendentes < 1;
+        count.textContent = String(pendentes);
+      }
+      if (!lista.length) {
+        wrap.innerHTML = '<p class="saas-op-info">Nenhuma empresa pediu acesso ainda.</p>';
+        return;
+      }
+      var html = '<table class="estatisticas-table"><thead><tr><th>Empresa</th><th>Documento</th><th>Contato</th><th>E-mail</th><th>Usuário</th><th>WhatsApp</th><th>Situação</th><th>Quando</th><th></th></tr></thead><tbody>';
+      lista.forEach(function (p) {
+        var id = p.ID != null ? p.ID : p.id;
+        var sit = p.SITUACAO || p.situacao || '';
+        var quando = p.DH_PEDIDO || p.dh_pedido || '';
+        html += '<tr>';
+        html += '<td>' + escapeHtml(p.NM_EMPRESA || p.nm_empresa || '') + '</td>';
+        html += '<td>' + escapeHtml(formatarDocPedido(p)) + '</td>';
+        html += '<td>' + escapeHtml(p.NM_CONTATO || p.nm_contato || '') + '<br>' + escapeHtml(formatarFonePedido(p)) + '</td>';
+        html += '<td>' + escapeHtml(p.EMAIL || p.email || '') + '</td>';
+        html += '<td><code>' + escapeHtml(p.SGUSUARIO || p.sgusuario || '') + '</code></td>';
+        html += '<td title="' + escapeHtml(p.WHATSAPP_DETALHE || p.whatsapp_detalhe || '') + '">' + escapeHtml(rotuloWhatsappPedido(p.WHATSAPP_STATUS || p.whatsapp_status)) + '</td>';
+        html += '<td>' + escapeHtml(sit) + (p.TENANT_ID || p.tenant_id ? '<br><code>' + escapeHtml(p.TENANT_ID || p.tenant_id) + '</code>' : '') + '</td>';
+        html += '<td>' + escapeHtml(String(quando).replace('T', ' ').slice(0, 16)) + '</td>';
+        html += '<td>';
+        if (sit === 'PENDENTE') {
+          html += '<button type="button" class="btn-filtro btn-filtro-aplicar btn-liberar-pedido" data-id="' + id + '" data-empresa="' + escapeHtml(p.NM_EMPRESA || p.nm_empresa || '') + '" data-usuario="' + escapeHtml(p.SGUSUARIO || p.sgusuario || '') + '">Liberar</button> ';
+          html += '<button type="button" class="btn-filtro btn-filtro-limpar btn-recusar-pedido" data-id="' + id + '">Recusar</button>';
+        }
+        html += '</td></tr>';
+      });
+      html += '</tbody></table>';
+      wrap.innerHTML = html;
+      wrap.querySelectorAll('.btn-liberar-pedido').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          decidirPedido(btn.getAttribute('data-id'), 'liberar', {
+            empresa: btn.getAttribute('data-empresa') || '',
+            usuario: btn.getAttribute('data-usuario') || '',
+          });
+        });
+      });
+      wrap.querySelectorAll('.btn-recusar-pedido').forEach(function (btn) {
+        btn.addEventListener('click', function () { decidirPedido(btn.getAttribute('data-id'), 'recusar'); });
+      });
+      if (msg) msg.style.display = 'none';
+    } catch (e) {
+      wrap.innerHTML = '';
+      if (msg) {
+        msg.style.display = 'block';
+        msg.textContent = e.message || 'Erro ao carregar pedidos.';
+      }
+    }
+  }
+
+  var RUIDO_TENANT = {
+    sa: 1, ltda: 1, me: 1, epp: 1, eireli: 1, ss: 1, cia: 1, companhia: 1,
+    tecnologia: 1, logistica: 1, transportes: 1, transporte: 1, servicos: 1,
+    comercio: 1, comercial: 1, industria: 1, industrial: 1,
+    e: 1, de: 1, da: 1, do: 1, das: 1, dos: 1
+  };
+
+  function sugerirTenantId(nome) {
+    var tokens = String(nome || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/).filter(Boolean);
+    var uteis = tokens.filter(function (t) { return !RUIDO_TENANT[t] && t.length > 1; });
+    var base = (uteis.length ? uteis : tokens).join('-').replace(/^-+|-+$/g, '').slice(0, 24).replace(/-+$/g, '');
+    return base || 'empresa';
+  }
+
+  function lerTenantIdLiberacao() {
+    var campo = document.getElementById('tenantIdLiberacao');
+    var erro = document.getElementById('tenantIdLiberacaoErro');
+    var id = String(campo && campo.value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32).replace(/-+$/g, '');
+    if (campo && id !== campo.value) campo.value = id;
+    var ok = /^[a-z][a-z0-9-]{1,30}[a-z0-9]$/.test(id) && id !== 'default';
+    if (erro) {
+      erro.textContent = ok ? '' : (id === 'default'
+        ? 'default é da instalação padrão. Escolha outro.'
+        : 'Começa com letra, 3 a 32 caracteres, só letras minúsculas, números e hífen.');
+    }
+    return ok ? id : '';
+  }
+
+  async function decidirPedido(id, acao, extra) {
+    if (!id || decidindoPedido) return;
+    var motivo = '';
+    var tenantEscolhido = '';
+    extra = extra || {};
+    if (acao === 'recusar') {
+      var recusou = await saasConfirmModal({
+        title: 'Recusar pedido',
+        html:
+          '<p>A empresa recebe o aviso no WhatsApp.</p>' +
+          '<label for="motivoRecusaPedido">Motivo (opcional)</label>' +
+          '<textarea id="motivoRecusaPedido" class="form-control" rows="3" maxlength="300"></textarea>',
+        confirmHtml: '<i class="bx bx-x"></i> Recusar',
+        confirmClass: 'btn-filtro btn-filtro-danger',
+        plainFallback: 'Recusar este pedido?',
+      });
+      if (!recusou) return;
+      var campo = document.getElementById('motivoRecusaPedido');
+      motivo = campo ? String(campo.value || '').trim() : '';
+    } else {
+      var sugestao = sugerirTenantId(extra.empresa);
+      var liberou = await saasConfirmModal({
+        title: 'Liberar empresa',
+        html:
+          '<p>Confira o identificador antes de liberar. Ele aparece no cabeçalho e na lista de usuários.</p>' +
+          '<p><strong>' + escapeHtml(extra.empresa || 'Empresa') + '</strong> · usuário <code>' + escapeHtml(extra.usuario || '') + '</code></p>' +
+          '<label for="tenantIdLiberacao">Identificador do tenant</label>' +
+          '<input id="tenantIdLiberacao" class="form-control" maxlength="32" autocomplete="off" spellcheck="false" value="' + escapeHtml(sugestao) + '">' +
+          '<p id="tenantIdLiberacaoErro" style="color:#a94a3c;min-height:1.2em;margin:6px 0 0;"></p>' +
+          '<p>A empresa entra com o usuário que escolheu. O celular do pedido recebe o aviso no WhatsApp.</p>',
+        confirmHtml: '<i class="bx bx-check"></i> Liberar',
+        confirmClass: 'btn-filtro btn-filtro-aplicar',
+        plainFallback: 'Liberar esta empresa? Confira o identificador do tenant.',
+        beforeConfirm: function () {
+          tenantEscolhido = lerTenantIdLiberacao();
+          return !!tenantEscolhido;
+        },
+      });
+      if (!liberou || !tenantEscolhido) return;
+    }
+    var msg = document.getElementById('msgPedidos');
+    decidindoPedido = true;
+    try {
+      var r = await fetch(apiPrefix() + '/api/saas/pedidos-acesso/' + encodeURIComponent(id) + '/' + acao, {
+        method: 'POST',
+        headers: getAuthJsonHeaders(),
+        body: JSON.stringify({ motivo: motivo, tenantId: tenantEscolhido })
+      });
+      var data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'Não foi possível decidir o pedido.');
+      if (msg) {
+        msg.style.display = 'block';
+        msg.textContent = data.message || 'Pronto.';
+      }
+      document.dispatchEvent(new CustomEvent('pedidos-acesso-contador-atualizado'));
+      await loadPedidos();
+    } catch (e) {
+      if (msg) {
+        msg.style.display = 'block';
+        msg.textContent = e.message || 'Erro.';
+      }
+    } finally {
+      setTimeout(function () { decidindoPedido = false; }, 600);
+    }
+  }
+
+  var limpandoTeste = false;
+
+  function tabelasLimpezaEscolhidas() {
+    return Array.prototype.map.call(
+      document.querySelectorAll('#limpezaGrupos input.limpeza-tabela[data-usuario="1"]'),
+      function (el) { return el.value; }
+    );
+  }
+
+  function limpezaPrecisaDe(id) {
+    var el = document.querySelector('#limpezaGrupos input.limpeza-tabela[value="' + id + '"]');
+    if (!el || !el.dataset.precisa) return [];
+    return el.dataset.precisa.split(',').filter(Boolean);
+  }
+
+  function expandirLimpeza(ids) {
+    var ativo = {};
+    ids.forEach(function (id) { ativo[id] = true; });
+    var mudou = true;
+    while (mudou) {
+      mudou = false;
+      Object.keys(ativo).forEach(function (id) {
+        limpezaPrecisaDe(id).forEach(function (dep) {
+          if (!ativo[dep]) {
+            ativo[dep] = true;
+            mudou = true;
+          }
+        });
+      });
+    }
+    return ativo;
+  }
+
+  function soltarPaisLimpeza(id) {
+    document.querySelectorAll('#limpezaGrupos input.limpeza-tabela[data-usuario="1"]').forEach(function (el) {
+      if (limpezaPrecisaDe(el.value).indexOf(id) === -1) return;
+      el.dataset.usuario = '';
+      soltarPaisLimpeza(el.value);
+    });
+  }
+
+  function aplicarExpansaoLimpeza() {
+    var ativo = expandirLimpeza(tabelasLimpezaEscolhidas());
+    document.querySelectorAll('#limpezaGrupos input.limpeza-tabela').forEach(function (el) {
+      var on = !!ativo[el.value];
+      el.checked = on;
+      var nota = el.parentNode.querySelector('.limpeza-junto');
+      if (nota) nota.style.display = on && el.dataset.usuario !== '1' ? 'inline' : 'none';
+    });
+    document.querySelectorAll('#limpezaGrupos input.limpeza-bloco').forEach(function (bloco) {
+      var doBloco = document.querySelectorAll('#limpezaGrupos input.limpeza-tabela[data-grupo="' + bloco.value + '"]');
+      var marcadas = 0;
+      doBloco.forEach(function (el) { if (el.checked) marcadas += 1; });
+      bloco.checked = doBloco.length > 0 && marcadas === doBloco.length;
+      bloco.indeterminate = marcadas > 0 && marcadas < doBloco.length;
+    });
+  }
+
+  function renderLimpeza(data) {
+    var el = document.getElementById('limpezaResultado');
+    if (!el) return;
+    var blocos = (data && data.blocos) || [];
+    if (!blocos.length) {
+      el.innerHTML = '';
+      return;
+    }
+    el.innerHTML = blocos.map(function (b) {
+      var itens = (b.linhas || []).map(function (l) {
+        var extra = l.inclusa ? ' <span style="color:#e8c36a;">(entra junto)</span>' : '';
+        return '<li>' + escapeHtml(l.nome) + ': ' + l.n + extra + '</li>';
+      }).join('');
+      return '<p><strong>' + escapeHtml(b.nome) + '</strong>: ' + b.total + '</p>' +
+        (itens ? '<ul style="margin:0 0 12px 18px;">' + itens + '</ul>' : '');
+    }).join('');
+  }
+
+  async function carregarLimpeza() {
+    var sel = document.getElementById('limpezaTenant');
+    var box = document.getElementById('limpezaGrupos');
+    if (!sel || !box) return;
+    try {
+      var rc = await fetch(apiPrefix() + '/api/saas/clientes', { headers: getAuthJsonHeaders() });
+      var dc = await rc.json();
+      if (!rc.ok) throw new Error(dc.error || 'Erro ao listar tenants.');
+      var atual = sel.value;
+      sel.innerHTML = '';
+      (dc.clientes || []).forEach(function (c) {
+        var tid = String(c.TENANT_ID || c.tenant_id || '');
+        var nome = c.NM_CLIENTE || c.nm_cliente || tid;
+        var o = document.createElement('option');
+        o.value = tid;
+        o.textContent = nome + ' · ' + tid;
+        sel.appendChild(o);
+      });
+      if (atual) sel.value = atual;
+      if (!box.querySelector('input.limpeza-tabela')) {
+        var rg = await fetch(apiPrefix() + '/api/saas/limpeza-teste/grupos', { headers: getAuthJsonHeaders() });
+        var dg = await rg.json();
+        if (!rg.ok) throw new Error(dg.error || 'Erro ao listar grupos.');
+        box.innerHTML = '';
+        (dg.grupos || []).forEach(function (g) {
+          var bloco = document.createElement('div');
+          bloco.style.marginTop = '12px';
+          var cab = document.createElement('label');
+          cab.style.display = 'block';
+          cab.style.marginBottom = '6px';
+          var cbBloco = document.createElement('input');
+          cbBloco.type = 'checkbox';
+          cbBloco.className = 'limpeza-bloco';
+          cbBloco.value = g.id;
+          cbBloco.style.marginRight = '8px';
+          var strong = document.createElement('strong');
+          strong.textContent = g.nome || g.id;
+          cab.appendChild(cbBloco);
+          cab.appendChild(strong);
+          cab.appendChild(document.createTextNode(' — ' + (g.detalhe || '')));
+          bloco.appendChild(cab);
+          var lista = document.createElement('div');
+          lista.style.display = 'grid';
+          lista.style.gridTemplateColumns = 'repeat(auto-fill, minmax(240px, 1fr))';
+          lista.style.gap = '4px 12px';
+          lista.style.margin = '0 0 8px 22px';
+          (g.tabelas || []).forEach(function (t) {
+            var lab = document.createElement('label');
+            lab.style.display = 'block';
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.className = 'limpeza-tabela';
+            cb.value = t.id;
+            cb.dataset.grupo = g.id;
+            cb.dataset.precisa = (t.precisa || []).join(',');
+            cb.style.marginRight = '8px';
+            lab.appendChild(cb);
+            lab.appendChild(document.createTextNode(t.nome || t.id));
+            var nota = document.createElement('span');
+            nota.className = 'limpeza-junto';
+            nota.style.display = 'none';
+            nota.style.marginLeft = '6px';
+            nota.style.color = '#e8c36a';
+            nota.textContent = 'entra junto';
+            lab.appendChild(nota);
+            lista.appendChild(lab);
+            cb.addEventListener('change', function () {
+              if (cb.checked) cb.dataset.usuario = '1';
+              else {
+                cb.dataset.usuario = '';
+                soltarPaisLimpeza(cb.value);
+              }
+              aplicarExpansaoLimpeza();
+            });
+          });
+          bloco.appendChild(lista);
+          box.appendChild(bloco);
+          cbBloco.addEventListener('change', function () {
+            lista.querySelectorAll('input.limpeza-tabela').forEach(function (el) {
+              el.dataset.usuario = cbBloco.checked ? '1' : '';
+            });
+            if (!cbBloco.checked) {
+              lista.querySelectorAll('input.limpeza-tabela').forEach(function (el) {
+                soltarPaisLimpeza(el.value);
+              });
+            }
+            aplicarExpansaoLimpeza();
+          });
+        });
+      }
+    } catch (e) {
+      showMsg('msgLimpeza', e.message || 'Erro.', false);
+    }
+  }
+
+  var btnLimpezaPrever = document.getElementById('btnLimpezaPrever');
+  if (btnLimpezaPrever) {
+    btnLimpezaPrever.addEventListener('click', async function () {
+      var sel = document.getElementById('limpezaTenant');
+      var tabelas = tabelasLimpezaEscolhidas();
+      if (!sel || !sel.value) return showMsg('msgLimpeza', 'Escolha o tenant.', false);
+      if (!tabelas.length) return showMsg('msgLimpeza', 'Marque ao menos uma tabela.', false);
+      showMsg('msgLimpeza', '', true);
+      showOverlay();
+      await new Promise(function (r) { requestAnimationFrame(function () { requestAnimationFrame(r); }); });
+      try {
+        var r = await fetch(apiPrefix() + '/api/saas/limpeza-teste/prever', {
+          method: 'POST',
+          headers: getAuthJsonHeaders(),
+          body: JSON.stringify({ tenantId: sel.value, tabelas: tabelas })
+        });
+        var data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Não foi possível contar.');
+        renderLimpeza(data);
+        var total = (data.blocos || []).reduce(function (s, b) { return s + (b.total || 0); }, 0);
+        var juntas = 0;
+        (data.blocos || []).forEach(function (b) {
+          (b.linhas || []).forEach(function (l) { if (l.inclusa) juntas += l.n; });
+        });
+        var texto = total ? (total + ' linhas seriam apagadas.') : 'Nada para apagar nesse tenant.';
+        if (juntas) texto += ' ' + juntas + ' entram junto porque travam outra tabela marcada.';
+        showMsg('msgLimpeza', texto, true);
+      } catch (e) {
+        showMsg('msgLimpeza', e.message || 'Erro.', false);
+      } finally {
+        hideOverlay();
+      }
+    });
+  }
+
+  var btnLimpezaExecutar = document.getElementById('btnLimpezaExecutar');
+  if (btnLimpezaExecutar) {
+    btnLimpezaExecutar.addEventListener('click', async function () {
+      if (limpandoTeste) return;
+      var sel = document.getElementById('limpezaTenant');
+      var conf = document.getElementById('limpezaConfirmacao');
+      var tabelas = tabelasLimpezaEscolhidas();
+      var tid = sel ? sel.value : '';
+      if (!tid) return showMsg('msgLimpeza', 'Escolha o tenant.', false);
+      if (!tabelas.length) return showMsg('msgLimpeza', 'Marque ao menos uma tabela.', false);
+      if (!conf || conf.value.trim() !== tid) {
+        return showMsg('msgLimpeza', 'Digite o identificador ' + tid + ' para confirmar.', false);
+      }
+      var ok = await saasConfirmModal({
+        title: 'Limpar dados de teste',
+        html: '<p>Isso apaga os dados marcados do tenant <strong>' + escapeHtml(tid) + '</strong>. Usuários, plano e cidades ficam.</p>',
+        confirmHtml: '<i class="bx bx-trash"></i> Limpar',
+        confirmClass: 'btn-filtro btn-filtro-danger',
+        plainFallback: 'Limpar os dados de teste do tenant ' + tid + '?'
+      });
+      if (!ok) return;
+      limpandoTeste = true;
+      showMsg('msgLimpeza', '', true);
+      showOverlay();
+      await new Promise(function (r) { requestAnimationFrame(function () { requestAnimationFrame(r); }); });
+      try {
+        var r = await fetch(apiPrefix() + '/api/saas/limpeza-teste', {
+          method: 'POST',
+          headers: getAuthJsonHeaders(),
+          body: JSON.stringify({ tenantId: tid, confirmacao: conf.value.trim(), tabelas: tabelas })
+        });
+        var data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'A limpeza não foi feita.');
+        renderLimpeza(data);
+        conf.value = '';
+        showMsg('msgLimpeza', data.message || 'Limpeza feita.', true);
+      } catch (e) {
+        showMsg('msgLimpeza', e.message || 'Erro.', false);
+      } finally {
+        hideOverlay();
+        setTimeout(function () { limpandoTeste = false; }, 600);
+      }
+    });
+  }
+
+  if (window.AtlasConsulta) {
+    var docCliente = document.getElementById('newClienteDoc');
+    AtlasConsulta.ligarDocumento(docCliente, function (data) {
+      var pais = document.getElementById('newClientePais');
+      if (pais && pais.value && pais.value !== 'BR') return;
+      if (data.tipo !== 'J') {
+        showMsg('msgClienteNovo', data.mensagem || 'CPF válido. O nome da pessoa física não sai em consulta pública.', true);
+        return;
+      }
+      var c = data.campos || {};
+      AtlasConsulta.preencher('newClienteNm', c.razaoSocial);
+      AtlasConsulta.preencher('newClienteEmail', c.email);
+      var ddi = document.getElementById('newClienteDdi');
+      if (ddi && !String(ddi.value || '').trim()) ddi.value = '55';
+      if (c.celular) AtlasConsulta.preencher('newClienteFone', c.celular);
+      showMsg('msgClienteNovo', data.mensagem || 'CNPJ consultado.', true);
+    });
+  }
+
+  loadPedidos();
 })();

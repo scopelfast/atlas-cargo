@@ -23,7 +23,7 @@
 
   // Estado do módulo
   let sosList = [];
-  let filtrosAtivos = {};
+  let filtrosAtivos = { status: 'abertos' };
   let paginaAtual = 1;
   let itensPorPagina = 20;
   let totalItens = 0;
@@ -325,7 +325,7 @@
         return;
       }
       
-      const status = filtroStatusEl.value?.trim() || '';
+      const status = filtroStatusEl.value?.trim() || 'abertos';
       const dataInicio = filtroDataInicioEl?.value?.trim() || '';
       const dataFim = filtroDataFimEl?.value?.trim() || '';
       const idViagem = filtroIdViagemEl?.value?.trim() || '';
@@ -334,8 +334,7 @@
       console.log('📋 Valores dos filtros:', { status, dataInicio, dataFim, idViagem, idMotorista });
       
       // Criar objeto de filtros apenas com valores não vazios
-      filtrosAtivos = {};
-      if (status) filtrosAtivos.status = status;
+      filtrosAtivos = { status: status || 'abertos' };
       if (dataInicio) filtrosAtivos.dataInicio = dataInicio;
       if (dataFim) filtrosAtivos.dataFim = dataFim;
       if (idViagem) filtrosAtivos.idViagem = idViagem;
@@ -365,14 +364,14 @@
       const filtroIdViagem = document.getElementById('filtroIdViagem');
       const filtroIdMotorista = document.getElementById('filtroIdMotorista');
       
-      if (filtroStatus) filtroStatus.value = '';
+      if (filtroStatus) filtroStatus.value = 'abertos';
       if (filtroDataInicio) filtroDataInicio.value = '';
       if (filtroDataFim) filtroDataFim.value = '';
       if (filtroIdViagem) filtroIdViagem.value = '';
       if (filtroIdMotorista) filtroIdMotorista.value = '';
       
       // Limpar filtros ativos e recarregar
-      filtrosAtivos = {};
+      filtrosAtivos = { status: 'abertos' };
       paginaAtual = 1;
       
       console.log('✅ Filtros limpos, recarregando SOS...');
