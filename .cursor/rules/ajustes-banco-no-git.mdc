@@ -1,0 +1,14 @@
+---
+description: Ajustes de banco sobem no Git junto com o código
+alwaysApply: true
+---
+
+# Banco junto com o código
+
+Quando uma alteração muda tabela, coluna, índice, menu (`TIPOATIVIDADE`, `USUARIOATIVIDADE`, `MODULO_PRODUTO`) ou dado que o painel lê do banco, o Git precisa levar isso no mesmo envio do código.
+
+1. Grave um `.sql` idempotente em `backend/scripts/` (pode rodar de novo, sem apagar operação).
+2. Atualize `script_db_postgres.sql` se a estrutura de banco novo mudou.
+3. Gere um dump novo em `backups/atlas_cargo_prd_AAAAMMDD.dump` com `pg_dump -Fc` do `atlas_cargo_prd` e aponte `backups/README_RESTORE.md` para esse arquivo.
+4. Não commite `backend/.env` nem senha em texto.
+5. No commit, diga qual script o outro servidor precisa rodar. Se o dump foi atualizado, o restore usa o arquivo novo.
