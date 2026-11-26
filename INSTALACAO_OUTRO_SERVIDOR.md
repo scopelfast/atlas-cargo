@@ -8,7 +8,7 @@ Repos (mesmo conteúdo):
 - https://github.com/scopelfast/atlas-cargo
 - https://github.com/Scopel2022/atlas-cargo
 
-Dump atual: `backups/atlas_cargo_prd_20261125.dump` (PostgreSQL custom `-Fc`)  
+Dump atual: `backups/atlas_cargo_prd_20261126.dump` (PostgreSQL custom `-Fc`)  
 O de 06/11/2026 continua na pasta como snapshot antigo.  
 App: pasta `backend/`
 
@@ -69,7 +69,7 @@ $env:PGPASSWORD = "SUA_SENHA"
 & "C:\Program Files\PostgreSQL\18\bin\pg_restore.exe" `
   -h localhost -p 5432 -U atlas -d atlas_cargo_prd `
   --no-owner --no-acl --verbose `
-  backups\atlas_cargo_prd_20261125.dump
+  backups\atlas_cargo_prd_20261126.dump
 ```
 
 Se o Postgres **já tem** o Atlas em uso, não restaure o dump por cima. Rode no banco existente, nesta ordem: `backend/scripts/adicionar_viagem_lote_saldo_postgres.sql`, `backend/scripts/adicionar_viagem_filha_auditoria_postgres.sql` e `backend/scripts/menu_do_banco_local_postgres.sql`.
@@ -133,7 +133,7 @@ Prompt sugerido no Cursor da máquina nova:
 ```text
 Siga INSTALACAO_OUTRO_SERVIDOR.md:
 1) confirme clone/pull
-2) restaure backups/atlas_cargo_prd_20261125.dump no Postgres local (banco vazio; não por cima de um banco que já está em uso)
+2) restaure backups/atlas_cargo_prd_20261126.dump no Postgres local (banco vazio; não por cima de um banco que já está em uso)
 3) ajude a montar backend/.env (sem inventar segredos — peça os valores)
 4) rode npm ci e suba o app
 Não commitar .env.

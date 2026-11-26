@@ -126,6 +126,8 @@ router.post('/login', createLoginRateLimiter({ keyPrefix: 'motorista-login' }), 
 router.post('/sos', sosRateLimiter, sosController.criar);
 
 // Cadastro (multipart: CNH frente/verso opcional + comprovante de endereço obrigatório)
+router.get('/empresa-cadastro', motoristaAppController.empresaCadastro);
+
 router.post('/cadastro', (req, res, next) => {
   uploadCadastroMotorista(req, res, (err) => {
     if (err) return res.status(400).json({ error: 'Erro no envio dos arquivos.', errorKey: 'cadastro.uploadErro' });

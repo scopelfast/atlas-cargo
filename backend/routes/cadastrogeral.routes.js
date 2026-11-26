@@ -17,6 +17,11 @@ const uploadEnderecosEntrega = multer({
   limits: { fileSize: 8 * 1024 * 1024 },
 });
 
+const uploadPlanilhaMotoristas = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 8 * 1024 * 1024 },
+});
+
 const uploadMotoristasDirTorre = path.join(__dirname, '..', 'public', 'uploads', 'motoristas');
 const uploadVeiculosDirTorre = path.join(__dirname, '..', 'public', 'uploads', 'veiculos');
 
@@ -96,6 +101,14 @@ router.post(
 router.get('/cadastros-gerais/equipamentos-frota-combo', cadastroController.listarEquipamentosFrotaComboTorre);
 router.get('/cadastros-gerais/transportadores', cadastroController.listarTransportadores);
 router.get('/cadastros-gerais/exportar-excel', cadastroController.exportarExcel);
+router.get('/cadastros-gerais/modelo-planilha-motoristas', cadastroController.modeloPlanilhaMotoristas);
+router.post(
+  '/cadastros-gerais/importar-planilha-motoristas',
+  uploadPlanilhaMotoristas.single('file'),
+  cadastroController.importarPlanilhaMotoristas
+);
+router.post('/cadastros-gerais/:id/usar-bolsao', cadastroController.usarBolsao);
+router.post('/cadastros-gerais/:id/cadastro-proprio', cadastroController.cadastroProprioBolsao);
 router.post(
   '/cadastros-gerais/import-enderecos-entrega',
   uploadEnderecosEntrega.single('file'),

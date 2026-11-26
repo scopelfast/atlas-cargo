@@ -458,6 +458,113 @@
     html[data-theme="dark"] body.motorista-page .cadastro-muted {
       color: var(--app-text-muted) !important;
     }
+
+    /* Celular: uma coluna só, sem cartão dentro de cartão */
+    @media (max-width: 720px) {
+      body.motorista-cadastro-page {
+        padding: 0 !important;
+        background: #faf9f6 !important;
+      }
+      body.motorista-cadastro-page .container {
+        max-width: none;
+        width: 100%;
+        margin: 0;
+        padding: 0 0 calc(20px + env(safe-area-inset-bottom)) !important;
+        border: none;
+        border-radius: 0;
+        background: #faf9f6;
+        box-shadow: none;
+        overflow: visible;
+      }
+      body.motorista-cadastro-page .logo-section {
+        padding: 16px 16px 12px;
+      }
+      body.motorista-cadastro-page .logo-section .cadastro-titulo {
+        font-size: 1.35rem;
+        margin-top: 8px;
+      }
+      body.motorista-cadastro-page #formCadastro {
+        padding: 0 16px 24px;
+      }
+      body.motorista-cadastro-page .info-box {
+        margin: 14px 0 6px;
+        padding: 12px 14px;
+        font-size: 15px;
+        line-height: 1.45;
+      }
+      body.motorista-cadastro-page .form-section {
+        margin: 18px 0 0;
+        border: none;
+        border-radius: 14px;
+        overflow: hidden;
+        background: #fff;
+      }
+      body.motorista-cadastro-page .form-section-header {
+        padding: 14px 14px;
+        font-size: 16px;
+      }
+      body.motorista-cadastro-page .form-section-header .icon {
+        filter: grayscale(1);
+        opacity: 0.8;
+      }
+      body.motorista-cadastro-page .form-section-body {
+        padding: 14px 14px 6px;
+      }
+      body.motorista-cadastro-page .form-group {
+        margin-bottom: 16px;
+      }
+      body.motorista-cadastro-page label {
+        font-size: 15px;
+      }
+      body.motorista-cadastro-page input,
+      body.motorista-cadastro-page select {
+        min-height: 48px;
+        padding: 12px 14px;
+        font-size: 16px;
+        background: #fff;
+        border-radius: 12px;
+      }
+      body.motorista-cadastro-page input[type="file"] {
+        min-height: 48px;
+        padding: 12px;
+        background: #fff;
+        border: 1px dashed #506d48;
+      }
+      body.motorista-cadastro-page .label-nowrap {
+        white-space: normal;
+      }
+      body.motorista-cadastro-page .btn {
+        min-height: 52px;
+        font-size: 17px;
+        border-radius: 12px;
+      }
+      body.motorista-cadastro-page .btn-adicionar-local {
+        max-width: none;
+      }
+      body.motorista-cadastro-page .checkbox-list-grid {
+        grid-template-columns: 1fr 1fr;
+        gap: 12px 10px;
+      }
+    }
+    html[data-theme="dark"] body.motorista-cadastro-page,
+    html.tema-escuro body.motorista-cadastro-page {
+      background: #161510 !important;
+    }
+    @media (max-width: 720px) {
+      html[data-theme="dark"] body.motorista-cadastro-page .container,
+      html.tema-escuro body.motorista-cadastro-page .container {
+        background: #161510;
+      }
+      html[data-theme="dark"] body.motorista-cadastro-page .form-section,
+      html.tema-escuro body.motorista-cadastro-page .form-section {
+        background: #1d1c17;
+        border: 1px solid #33312a;
+      }
+      html[data-theme="dark"] body.motorista-cadastro-page .form-section-body,
+      html.tema-escuro body.motorista-cadastro-page .form-section-body {
+        background: #1d1c17;
+      }
+    }
   </style>
 </head>
 <body class="motorista-page motorista-cadastro-page">
@@ -489,6 +596,7 @@
       <div class="info-box" data-i18n="cadastro.infoFluxoSimples">
         Nesta tela você envia o cadastro pessoal, documentos e pelo menos um veículo (sem precisar estar logado). Depois que a empresa liberar, você entra com a senha e pode complementar ou alterar veículos em «Meu perfil».
       </div>
+      <div id="avisoEmpresaCadastro" class="info-box" style="display:none"></div>
 
       <!-- 1. DOCUMENTO (foto + OCR) — oculto por enquanto; API de anexo será usada depois -->
       <div id="blocoAnexo" class="form-section" style="display: none;">
@@ -947,7 +1055,11 @@
       var container = document.getElementById('classesFrotaCheckboxes');
       if (!container) return;
       try {
-        var r = await fetch(baseUrl + '/api/motorista/classes-frota-combo');
+        var empresaCombo = '';
+        try { empresaCombo = new URLSearchParams(window.location.search).get('empresa') || ''; } catch (eEmp) { empresaCombo = ''; }
+        var urlClasses = baseUrl + '/api/motorista/classes-frota-combo';
+        if (empresaCombo) urlClasses += '?empresa=' + encodeURIComponent(empresaCombo);
+        var r = await fetch(urlClasses);
         var list = await r.json();
         if (!Array.isArray(list)) return;
         container.innerHTML = list.map(function(c) {
@@ -1030,11 +1142,40 @@
       renderVeiculosCadastroLista();
     });
 
+    var empresaCadastroLink = '';
+    try { empresaCadastroLink = new URLSearchParams(window.location.search).get('empresa') || ''; } catch (eEmpLink) { empresaCadastroLink = ''; }
+
+    async function mostrarEmpresaDoLink() {
+      var aviso = document.getElementById('avisoEmpresaCadastro');
+      if (!aviso) return;
+      try {
+        var url = (baseUrl || '') + '/api/motorista/empresa-cadastro';
+        if (empresaCadastroLink) url += '?empresa=' + encodeURIComponent(empresaCadastroLink);
+        var r = await fetch(url);
+        var data = await r.json();
+        if (!r.ok) {
+          aviso.textContent = data.error || 'Empresa do link não encontrada.';
+          aviso.style.display = 'block';
+          var form = document.getElementById('formCadastro');
+          if (form) form.style.display = 'none';
+          return;
+        }
+        aviso.textContent = data.bolsao
+          ? 'Este cadastro entra no Atlas. As empresas licenciadas consultam a ficha. O celular deste cadastro é o login, e continua um só.'
+          : 'Este cadastro entra na empresa ' + (data.nome || '') + '. Só essa empresa vê a ficha e libera o acesso.';
+        aviso.style.display = 'block';
+      } catch (err) {
+        aviso.textContent = 'Não foi possível identificar a empresa deste link.';
+        aviso.style.display = 'block';
+      }
+    }
+
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function() {
       loadPaisesCadastroMotorista();
       loadClassesFrota();
+      mostrarEmpresaDoLink();
     });
-    else { loadPaisesCadastroMotorista(); loadClassesFrota(); }
+    else { loadPaisesCadastroMotorista(); loadClassesFrota(); mostrarEmpresaDoLink(); }
 
     function mostrarMensagem(tipo, mensagem) {
       var successDiv = document.getElementById('successMessage');
@@ -1475,6 +1616,7 @@
       fd.append('fgRastreado', (document.getElementById('fgRastreado') && document.getElementById('fgRastreado').value) || 'N');
       fd.append('paisDocumento', document.getElementById('paisDocumento').value);
       fd.append('numeroDocumento', document.getElementById('cpf').value.replace(/\D/g, ''));
+      if (empresaCadastroLink) fd.append('empresa', empresaCadastroLink);
       fd.append('email', document.getElementById('email').value.trim());
       fd.append('nrCnh', document.getElementById('cnh').value.trim());
       fd.append('categoriaCnh', document.getElementById('categoriaCNH').value);

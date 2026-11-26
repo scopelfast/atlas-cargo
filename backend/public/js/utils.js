@@ -509,7 +509,7 @@ function formatarDataHoraComFuso(data, locale, timezoneId, opts) {
   var d = data instanceof Date ? data : new Date(data);
   if (Number.isNaN(d.getTime())) return '';
   var loc = locale || 'pt-BR';
-  var tz = timezoneId || 'America/Sao_Paulo';
+  var tz = resolveTimezoneInstalacao(timezoneId);
   var o = opts || {};
   return new Intl.DateTimeFormat(loc, {
     timeZone: tz,

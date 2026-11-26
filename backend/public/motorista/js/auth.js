@@ -105,6 +105,68 @@ function isTokenExpired() {
   const cpfInput = document.getElementById('cpf');
   const senhaInput = document.getElementById('senha');
   const messageDiv = document.getElementById('message');
+  const labelIdentificacao = document.getElementById('labelIdentificacao');
+  let modoLogin = 'cpf';
+
+  function textoLogin(chave, fallback) {
+    return (typeof window.t === 'function' && window.t(chave) && window.t(chave) !== chave) ? window.t(chave) : fallback;
+  }
+
+  function paisLogin() {
+    return window.__CONTEXTO_PAIS__ || 'BR';
+  }
+
+  let modoEscolhido = false;
+
+  function aplicarModo(modo, limpar) {
+    var br = paisLogin() === 'BR';
+    if (!br && (modo === 'cpf' || modo === 'cnpj')) modo = 'documento';
+    if (br && modo === 'documento') modo = 'cpf';
+    var mudou = modo !== modoLogin;
+    modoLogin = modo;
+    document.querySelectorAll('.modo-login .btn-modo').forEach(function(btn) {
+      var m = btn.getAttribute('data-modo');
+      var visivel = br ? m !== 'documento' : (m === 'celular' || m === 'documento');
+      btn.hidden = !visivel;
+      var ativo = m === modoLogin;
+      btn.setAttribute('aria-pressed', ativo ? 'true' : 'false');
+    });
+    var rotulos = {
+      celular: ['login.labelCelular', 'Celular', 'login.phCelular', '(00) 00000-0000', 16],
+      cpf: ['login.labelCpf', 'CPF', 'login.phCpf', '000.000.000-00', 14],
+      cnpj: ['login.labelCnpj', 'CNPJ', 'login.phCnpj', '00.000.000/0000-00', 18],
+      documento: ['login.labelDocumento', 'Documento', 'login.phDocumento', 'Número do documento', 14]
+    };
+    var r = rotulos[modoLogin];
+    if (labelIdentificacao) labelIdentificacao.textContent = textoLogin(r[0], r[1]);
+    if (cpfInput) {
+      cpfInput.placeholder = textoLogin(r[2], r[3]);
+      cpfInput.maxLength = r[4];
+      if (limpar && mudou) cpfInput.value = '';
+      cpfInput.setAttribute('autocomplete', modoLogin === 'celular' ? 'tel' : 'username');
+    }
+  }
+
+  document.querySelectorAll('.modo-login .btn-modo').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      modoEscolhido = true;
+      aplicarModo(btn.getAttribute('data-modo'), true);
+      if (cpfInput) cpfInput.focus();
+    });
+  });
+
+  function ajustarModosAoPais() {
+    if (modoEscolhido) {
+      aplicarModo(modoLogin, false);
+      return;
+    }
+    aplicarModo(paisLogin() === 'BR' ? 'cpf' : 'documento', false);
+  }
+  if (window.i18nReady && typeof window.i18nReady.then === 'function') {
+    window.i18nReady.then(ajustarModosAoPais);
+  } else {
+    ajustarModosAoPais();
+  }
 
   // Botão mostrar/ocultar senha
   const btnToggleSenha = document.getElementById('btnToggleSenha');
@@ -120,6 +182,34 @@ function isTokenExpired() {
       }
       btnToggleSenha.setAttribute('title', isPassword ? 'Ocultar senha' : 'Mostrar senha');
       btnToggleSenha.setAttribute('aria-label', isPassword ? 'Ocultar senha' : 'Mostrar senha');
+    });
+  }
+
+  function mascaraCelular(digitos) {
+    var d = String(digitos || '').replace(/\D/g, '').slice(0, 11);
+    if (d.length > 10) return d.replace(/(\d{2})(\d{5})(\d{0,4})/, '($1) $2-$3');
+    if (d.length > 6) return d.replace(/(\d{2})(\d{4})(\d{0,4})/, '($1) $2-$3');
+    if (d.length > 2) return d.replace(/(\d{2})(\d{0,5})/, '($1) $2');
+    return d;
+  }
+
+  function mascaraCpf(digitos) {
+    var d = String(digitos || '').replace(/\D/g, '').slice(0, 11);
+    if (d.length > 9) return d.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
+    if (d.length > 6) return d.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
+    if (d.length > 3) return d.replace(/(\d{3})(\d{1,3})/, '$1.$2');
+    return d;
+  }
+
+  function mascaraCnpj(digitos) {
+    var d = String(digitos || '').replace(/\D/g, '').slice(0, 14);
+    return d.replace(/^(\d{2})(\d{0,3})(\d{0,3})(\d{0,4})(\d{0,2}).*/, function(_, a, b, c, e, f) {
+      var s = a;
+      if (b) s += '.' + b;
+      if (c) s += '.' + c;
+      if (e) s += '/' + e;
+      if (f) s += '-' + f;
+      return s;
     });
   }
 
@@ -180,17 +270,22 @@ function isTokenExpired() {
     return resultado === parseInt(digitos.charAt(1), 10);
   }
 
-  // Máscara: até 11 dígitos fica CPF; do 12º em diante vira CNPJ.
   if (cpfInput) {
     cpfInput.addEventListener('input', (e) => {
-      var pais = window.__CONTEXTO_PAIS__ || 'BR';
       var value = e.target.value.replace(/\D/g, '');
-      if (pais !== 'BR') {
-        if (value.length > 14) value = value.slice(0, 14);
-        e.target.value = value;
+      if (modoLogin === 'celular') {
+        e.target.value = mascaraCelular(value);
         return;
       }
-      e.target.value = mascaraCpfCnpj(value);
+      if (modoLogin === 'cpf') {
+        e.target.value = mascaraCpf(value);
+        return;
+      }
+      if (modoLogin === 'cnpj') {
+        e.target.value = mascaraCnpj(value);
+        return;
+      }
+      e.target.value = value.slice(0, 14);
     });
   }
 
@@ -213,11 +308,20 @@ function isTokenExpired() {
       
       const cpf = cpfInput.value.replace(/\D/g, '');
       const senha = senhaInput.value;
-      var pais = window.__CONTEXTO_PAIS__ || 'BR';
-      var docOk = cpf && cpf.length >= 5 && cpf.length <= 14;
-      if (pais === 'BR') docOk = cpfValido(cpf) || cnpjValido(cpf);
+      var docOk = false;
+      var msgInvalido = textoLogin('login.documentoInvalido', 'Documento inválido!');
+      if (modoLogin === 'celular') {
+        docOk = cpf.length === 10 || cpf.length === 11;
+        msgInvalido = textoLogin('login.celularInvalido', 'Celular inválido. Use o DDD e o número.');
+      } else if (modoLogin === 'cpf') {
+        docOk = cpfValido(cpf);
+      } else if (modoLogin === 'cnpj') {
+        docOk = cnpjValido(cpf);
+      } else {
+        docOk = cpf && cpf.length >= 5 && cpf.length <= 14;
+      }
       if (!docOk) {
-        showMessage(window.t ? window.t('login.documentoInvalido') : 'Documento inválido!', 'error');
+        showMessage(msgInvalido, 'error');
         return;
       }
 
@@ -257,7 +361,7 @@ function isTokenExpired() {
         const response = await fetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ cpf, senha })
+          body: JSON.stringify({ cpf, senha, tipo: modoLogin })
         });
 
         console.log('📡 Resposta do servidor:', response.status, response.statusText);

@@ -530,7 +530,7 @@
     <div id="tab-pedidos" class="tab-content active">
       <div class="filtros-box">
         <h3><i class="bx bx-buildings"></i> Empresas que pediram acesso</h3>
-        <p class="saas-op-info">O pedido chega de <strong>/cadastro-empresa.html</strong>. Liberar pede um identificador curto e confirmado, cria o tenant e o usuário com a senha que a empresa escolheu. As atividades copiadas são as suas, sem esta tela de tenants e sem Tipos de Atividade. Cada movimento (pedido, liberação e recusa) avisa o celular no WhatsApp, pelo canal Switch Digital do tenant padrão.</p>
+        <p class="saas-op-info">O pedido chega de <strong>/cadastro-empresa.html</strong>. Liberar pede um identificador curto e confirmado, cria o tenant e o usuário com a senha que a empresa escolheu. As atividades copiadas são as suas, sem esta tela de tenants e sem Tipos de Atividade. Cada movimento (pedido, liberação e recusa) avisa o celular da empresa no WhatsApp, pelo Switch Digital do tenant padrão. O mesmo canal avisa o celular do cadastro do tenant padrão, para liberar o acesso. Se o envio falhar, a coluna Aviso ao responsável mostra o motivo.</p>
         <div class="saas-msg" id="msgPedidos" style="display:none;"></div>
         <div id="tablePedidosWrap" style="overflow-x:auto;"><p class="saas-op-info">Carregando…</p></div>
       </div>
@@ -767,6 +767,7 @@
     </div>
   </div>
 
-  <script src="/modulos/gerenciar-tenants-saas/js/script.js?v=6"></script>
+  <script src="/js/utils.js"></script>
+  <script src="/modulos/gerenciar-tenants-saas/js/script.js?v=20261126fuso"></script>
 </body>
 </html>

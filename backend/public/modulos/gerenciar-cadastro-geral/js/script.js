@@ -1356,7 +1356,7 @@
 
     gridTab = new window.GridEditor({
       container: '#cadastrosGrid',
-      actionsWidth: '124px',
+      actionsWidth: '220px',
       columns: [
         { field: 'CDCADASTRO', header: 'Código', editable: false, isId: true, width: '12%' },
         { field: 'TIPO_E_CADASTRO', header: 'Tipo & Cadastro', editable: false, width: '48%' },
@@ -1375,14 +1375,22 @@
       apiEndpoint: '/api/cadastros-gerais',
       // Ações customizadas: botão do WhatsApp
       customActions: (row) => {
+        let html = '';
+        const bolsao = row.BOLSAO === true || row.BOLSAO === 'S';
+        if (bolsao) {
+          const id = row.CDCADASTRO != null ? String(row.CDCADASTRO) : '';
+          const ja = row.VINCULADO === true;
+          html += `<button type="button" class="btn btn-usar-bolsao" data-id="${id}" title="Ligar esta ficha à sua empresa, sem criar outro login">${ja ? 'Ligado' : 'Usar'}</button>`;
+          html += `<button type="button" class="btn btn-copia-bolsao" data-id="${id}" title="Criar um cadastro só da sua empresa, com outro celular">Próprio</button>`;
+        }
         const celular = row.NRCELULAR;
-        if (!celular) return '';
+        if (!celular) return html;
         const numeroLimpo = String(celular).replace(/\D/g, '');
-        if (!numeroLimpo || numeroLimpo.length < 10) return '';
+        if (!numeroLimpo || numeroLimpo.length < 10) return html;
         // NRCELULAR já é gravado com DDI (ex.: 5545999999999 ou 595981123456); usar como está
         const numWa = numeroLimpo.length >= 12 ? numeroLimpo : ('55' + numeroLimpo);
         const whatsappLink = `https://wa.me/${numWa}`;
-        return `<a href="${whatsappLink}" target="_blank" rel="noopener noreferrer" class="btn grid-btn-whatsapp" title="Abrir WhatsApp">💬</a>`;
+        return html + `<a href="${whatsappLink}" target="_blank" rel="noopener noreferrer" class="btn grid-btn-whatsapp" title="Abrir WhatsApp">💬</a>`;
       },
       // Ao clicar em editar dentro do Grid, abrir o formulário de edição
       onBeforeEdit: async (id) => {
@@ -1392,6 +1400,11 @@
       // Garantir que a exclusão use o mesmo fluxo/modal da lista
       onDelete: async (id) => {
         if (!id || id === 'undefined' || id === 'null' || id === '') return;
+        const rowBolsao = (lastCadastros || []).find((r) => String(r.CDCADASTRO) === String(id));
+        if (rowBolsao && (rowBolsao.BOLSAO === true || rowBolsao.BOLSAO === 'S')) {
+          showMessage('A ficha do bolsão permanece no Atlas. Ela não é excluída por outra empresa.', 'error');
+          return;
+        }
         try {
           await confirmarExclusao(id);
         } catch (err) {
@@ -1868,7 +1881,10 @@
         const estado = c.CIDADE_ESTADO || '';
         const cidade = c.CIDADE_NOME || '';
         const cidadeFormatada = `${estado} - ${cidade}`.trim();
-        const tipoECadastro = `${(c.RZSOCIAL || '').trim()} — ${(c.FGTIPOCADASTRO_NOME || '').trim()}`.replace(/^ — | — $/g, '').trim() || '-';
+        let tipoECadastro = `${(c.RZSOCIAL || '').trim()} — ${(c.FGTIPOCADASTRO_NOME || '').trim()}`.replace(/^ — | — $/g, '').trim() || '-';
+        if (c.BOLSAO === true || c.BOLSAO === 'S') {
+          tipoECadastro = 'Bolsão — ' + tipoECadastro + (c.VINCULADO ? ' · na minha empresa' : '');
+        }
         const isMotorista = c.FGMOTORISTA === true || c.FGMOTORISTA === 'S';
         const stAp = String(c.STATUSAPROVACAO || (isMotorista ? 'P' : '')).toUpperCase();
         const lblAp = { P: 'Pendente', A: 'Aprovado', R: 'Rejeitado' };
@@ -1979,6 +1995,7 @@
       const mapAp = { P: 'Pendente', A: 'Aprovado', R: 'Rejeitado' };
       const clsAp = stAp === 'P' ? 'cadastro-aprovacao-pendente' : stAp === 'A' ? 'cadastro-aprovacao-aprovado' : stAp === 'R' ? 'cadastro-aprovacao-rejeitado' : '';
       const fromApp = String(cg.SGUSER || '').toUpperCase() === 'APP_MOTORISTA';
+      const bolsao = cg.BOLSAO === true || cg.BOLSAO === 'S';
       const linhaAprovacao = isMotorista
         ? `<br><strong>${t('web.modulos.cadastroGeral.aprovacaoApp') || 'Aprovação (app motorista)'}:</strong> <span class="${clsAp}">${mapAp[stAp] || stAp || 'Pendente'}</span>${fromApp ? ` <span class="badge-cadastro-app" title="${t('web.modulos.cadastroGeral.origemAppMotorista') || 'Cadastro enviado pelo app (cadastro.html)'}">${t('web.modulos.cadastroGeral.badgeApp') || 'App'}</span>` : ''}`
         : '';
@@ -1986,7 +2003,7 @@
       return `
       <div class="list-item ${cg.FGACTIVE === 'N' ? 'inactive' : ''}" data-id="${cadastroId}">
         <div>
-          <strong>${cg.CDCADASTRO} - ${cg.RZSOCIAL}</strong>
+          <strong>${cg.CDCADASTRO} - ${cg.RZSOCIAL}${bolsao ? ' · Bolsão' : ''}${cg.VINCULADO ? ' · na minha empresa' : ''}</strong>
           <small>
             <strong>CPF/CNPJ:</strong> ${formatarCPFCNPJ(cg.CGCCPF.toString())}<br>
             <strong>Tipo:</strong> ${cg.FGTIPOCADASTRO_NOME}<br>
@@ -1996,8 +2013,12 @@
           </small>
         </div>
         <div class="actions">
-          <button class="btn edit" data-id="${cadastroId}">Editar</button>
-          <button class="btn delete" data-id="${cadastroId}">Excluir</button>
+          ${bolsao
+            ? `<button type="button" class="btn btn-usar-bolsao" data-id="${cadastroId}">${cg.VINCULADO ? 'Ligado' : 'Usar na minha empresa'}</button>
+               <button type="button" class="btn btn-copia-bolsao" data-id="${cadastroId}">Cadastro próprio</button>
+               <button class="btn edit" data-id="${cadastroId}">Ver</button>`
+            : `<button class="btn edit" data-id="${cadastroId}">Editar</button>
+               <button class="btn delete" data-id="${cadastroId}">Excluir</button>`}
         </div>
       </div>
     `;
@@ -2027,6 +2048,19 @@
       }
 
       if (cadastro) {
+        cadastroEmBolsao = cadastro.BOLSAO === true || cadastro.BOLSAO === 'S';
+        const avisoBolsao = document.getElementById('avisoBolsaoCadastro');
+        if (avisoBolsao) {
+          if (cadastroEmBolsao) {
+            avisoBolsao.style.display = 'block';
+            avisoBolsao.textContent = cadastro.VINCULADO
+              ? 'Bolsão do Atlas, já ligado à sua empresa. Os dados pessoais continuam na ficha compartilhada. Classes gravadas aqui valem só para a sua torre.'
+              : 'Bolsão do Atlas. Esta ficha é consulta. Use Usar na minha empresa, ou Cadastro próprio com outro celular.';
+          } else {
+            avisoBolsao.style.display = 'none';
+            avisoBolsao.textContent = '';
+          }
+        }
         document.getElementById('cadastroId').value = cadastro.CDCADASTRO;
         document.getElementById('cadastroCodigo').value = cadastro.CDCADASTRO;
         const docVal = String(cadastro.CGCCPF ?? '').trim();
@@ -2559,10 +2593,15 @@
   }
   
   let cadastroFormSubmitting = false;
+  let cadastroEmBolsao = false;
   cadastroForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
     e.stopImmediatePropagation();
     if (cadastroFormSubmitting) return;
+    if (cadastroEmBolsao) {
+      showMessage('A ficha do bolsão não é alterada. Use Usar na minha empresa, ou Cadastro próprio com outro celular.', 'error');
+      return;
+    }
     cadastroFormSubmitting = true;
 
     const btnSalvar = cadastroForm.querySelector('button[type="submit"]');
@@ -2869,6 +2908,9 @@ document.getElementById('filtroRastreado').value = '';
 
   document.getElementById('btnVoltarFiltros')?.addEventListener('click', async () => await showTab('filtros'));
   document.getElementById('btnNovoRegistro')?.addEventListener('click', () => {
+    cadastroEmBolsao = false;
+    const avisoBolsaoNovo = document.getElementById('avisoBolsaoCadastro');
+    if (avisoBolsaoNovo) { avisoBolsaoNovo.style.display = 'none'; avisoBolsaoNovo.textContent = ''; }
     cadastroForm?.reset();
     document.getElementById('cadastroId').value = '';
     document.getElementById('cadastroCodigo').value = '';
@@ -2941,6 +2983,9 @@ document.getElementById('filtroRastreado').value = '';
     }, 100);
   });
   document.getElementById('btnNovoRegistroGrid')?.addEventListener('click', () => {
+    cadastroEmBolsao = false;
+    const avisoBolsaoGrid = document.getElementById('avisoBolsaoCadastro');
+    if (avisoBolsaoGrid) { avisoBolsaoGrid.style.display = 'none'; avisoBolsaoGrid.textContent = ''; }
     cadastroForm?.reset();
     document.getElementById('cadastroId').value = '';
     document.getElementById('cadastroCodigo').value = '';
@@ -3046,6 +3091,111 @@ document.getElementById('filtroRastreado').value = '';
     } catch (err) {
       console.error('Definir senha motorista:', err);
       showMsg('Erro de conexão ao definir senha.', 'error');
+    }
+  });
+
+  function textoRelatorioPlanilha(rel) {
+    const linhas = [];
+    linhas.push(`Criados: ${rel.criados || 0}. Atualizados: ${rel.atualizados || 0}. Veículos: ${rel.veiculos || 0}. Exemplo ignorado: ${rel.ignorados || 0}.`);
+    const lista = (rotulo, itens) => {
+      (itens || []).forEach((item) => {
+        linhas.push(`${rotulo} ${item.aba || ''} linha ${item.linha}: ${item.motivo}`);
+      });
+    };
+    lista('Aviso —', rel.avisos);
+    lista('Erro —', rel.erros);
+    return linhas.join('\n');
+  }
+
+  document.getElementById('btnModeloMotorista')?.addEventListener('click', async () => {
+    const painel = document.getElementById('resultadoImportMotorista');
+    try {
+      showLoadingOverlay('Baixando modelo', 'Gerando a planilha de motoristas...');
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const resp = await fetch('/api/cadastros-gerais/modelo-planilha-motoristas', { headers: getAuthHeaders() });
+      if (!resp.ok) throw new Error('Não foi possível baixar o modelo.');
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'modelo-motoristas.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      if (painel) {
+        painel.style.display = 'block';
+        painel.className = 'message info';
+        painel.textContent = 'Modelo baixado. Apague a linha de exemplo, preencha e use Importar.';
+      }
+    } catch (e) {
+      if (painel) {
+        painel.style.display = 'block';
+        painel.className = 'message error';
+        painel.textContent = e.message || 'Erro ao baixar o modelo.';
+      }
+    } finally {
+      hideLoadingOverlay();
+    }
+  });
+
+  document.getElementById('btnImportarMotorista')?.addEventListener('click', () => {
+    const input = document.getElementById('arquivoPlanilhaMotorista');
+    if (input) {
+      input.value = '';
+      input.click();
+    }
+  });
+
+  document.getElementById('btnLinkMotorista')?.addEventListener('click', async () => {
+    let tenant = 'default';
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || '{}');
+      if (u.tenantId) tenant = String(u.tenantId).trim();
+    } catch (_) {}
+    const url = location.origin + '/motorista/pages/cadastro.html?empresa=' + encodeURIComponent(tenant);
+    let copiou = false;
+    try {
+      await navigator.clipboard.writeText(url);
+      copiou = true;
+    } catch (_) {}
+    const painel = document.getElementById('resultadoImportMotorista');
+    if (painel) {
+      painel.style.display = 'block';
+      painel.className = 'message info';
+      painel.textContent = (copiou ? 'Link copiado. ' : 'Copie o link: ') + url + ' Quem abrir este endereço entra na sua empresa, inativo, até você liberar.';
+    }
+  });
+
+  document.getElementById('arquivoPlanilhaMotorista')?.addEventListener('change', async (ev) => {
+    const arquivo = ev.target.files && ev.target.files[0];
+    const painel = document.getElementById('resultadoImportMotorista');
+    if (!arquivo) return;
+    try {
+      showLoadingOverlay('Importando motoristas', 'Lendo a planilha e gravando só o que veio preenchido...');
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const fd = new FormData();
+      fd.append('file', arquivo);
+      const resp = await fetch('/api/cadastros-gerais/importar-planilha-motoristas', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: fd,
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.error || 'Não foi possível importar a planilha.');
+      if (painel) {
+        painel.style.display = 'block';
+        painel.className = (data.erros && data.erros.length) ? 'message error' : 'message success';
+        painel.textContent = textoRelatorioPlanilha(data);
+      }
+    } catch (e) {
+      if (painel) {
+        painel.style.display = 'block';
+        painel.className = 'message error';
+        painel.textContent = e.message || 'Erro ao importar.';
+      }
+    } finally {
+      hideLoadingOverlay();
     }
   });
 
@@ -4127,6 +4277,44 @@ document.getElementById('filtroRastreado').value = '';
       }
     });
   }
+
+  document.addEventListener('click', async (e) => {
+    const usar = e.target.closest('.btn-usar-bolsao');
+    const copia = e.target.closest('.btn-copia-bolsao');
+    if (!usar && !copia) return;
+    e.preventDefault();
+    const id = (usar || copia).getAttribute('data-id');
+    if (!id) return;
+    if (usar) {
+      try {
+        const r = await fetch('/api/cadastros-gerais/' + encodeURIComponent(id) + '/usar-bolsao', {
+          method: 'POST',
+          headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+          body: '{}'
+        });
+        const data = await r.json().catch(() => ({}));
+        showMessage(data.message || data.error || 'Não foi possível ligar o motorista.', r.ok ? 'success' : 'error');
+        if (r.ok) applyFilters('grid');
+      } catch (err) {
+        showMessage('Erro ao ligar o motorista.', 'error');
+      }
+      return;
+    }
+    const celular = window.prompt('Celular desta empresa, com DDD. Precisa ser diferente do celular do bolsão.');
+    if (!celular) return;
+    try {
+      const r = await fetch('/api/cadastros-gerais/' + encodeURIComponent(id) + '/cadastro-proprio', {
+        method: 'POST',
+        headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ celular })
+      });
+      const data = await r.json().catch(() => ({}));
+      showMessage(data.message || data.error || 'Não foi possível criar o cadastro.', r.ok ? 'success' : 'error');
+      if (r.ok) applyFilters('grid');
+    } catch (err) {
+      showMessage('Erro ao criar o cadastro próprio.', 'error');
+    }
+  });
 
   // =======================
   // ABA VALIDADES

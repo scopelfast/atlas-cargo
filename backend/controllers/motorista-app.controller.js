@@ -11,6 +11,22 @@ const { setCurrentToken } = require('../motorista-session');
 const { getContexto } = require('../services/contexto.service');
 const { validarDocumento, normalizarDocumento } = require('../services/documento.service');
 
+function chavesCelularLogin(raw) {
+  let d = String(raw || '').replace(/\D/g, '').replace(/^0+/, '');
+  if (!d) return [];
+  const set = new Set();
+  if (d.length === 10 || d.length === 11) {
+    set.add(d);
+    set.add('55' + d);
+  } else if (d.startsWith('55') && d.length >= 12 && d.length <= 13) {
+    set.add(d);
+    set.add(d.slice(2));
+  } else if (d.length >= 8 && d.length <= 15) {
+    set.add(d);
+  }
+  return [...set];
+}
+
 // Normaliza objeto para ter chaves em maiúsculas (PostgreSQL retorna minúsculas; frontend espera ROTEIRO, DTCARREGAMENTO, etc.)
 function normalizarChavesViagem(row) {
   if (!row || typeof row !== 'object') return row;
@@ -31,7 +47,10 @@ const axios = require('axios');
 const { getReverseGeocodingUrl } = require('../config/nominatim');
 const alertService = require('../services/alert-service');
 const { getDefaultTenantId } = require('../middleware/tenant.middleware');
+const { enviarUmaMensagemSwitchDigital } = require('../services/whatsapp-switch-digital.service');
 const { tenantIdForRequest } = require('../utils/tenant-context');
+const bolsao = require('../services/cadastro-bolsao.service');
+const recuperacaoLog = require('../services/recuperacao-senha-log.service');
 const { assertViagemTenantAccess } = require('../utils/viagem-tenant-access');
 const {
   resolveViagemRastreamentoPg,
@@ -193,8 +212,63 @@ async function persistVeiculoMotoristaInterno(pool, opts) {
   );
 }
 
-// Códigos de recuperação de senha (em memória, válidos 15 min). Em produção: enviar por SMS/email e usar Redis.
+// Códigos de recuperação de senha (em memória, válidos 15 min). O código sai no WhatsApp do motorista.
 const codigosRecuperacao = new Map();
+
+async function buscarMotoristaParaSenha(pool, identificacao, tipo) {
+  const tipoLogin = String(tipo || '').toLowerCase();
+  const digitos = String(identificacao || '').replace(/\D/g, '');
+  const request = pool.request();
+  let where = '';
+  if (tipoLogin === 'celular') {
+    const chaves = chavesCelularLogin(digitos);
+    if (!chaves.length) return { erro: 'celular' };
+    request.input('cel1', sql.VarChar(20), chaves[0]);
+    request.input('cel2', sql.VarChar(20), chaves[1] || chaves[0]);
+    request.input('cel3', sql.VarChar(20), chaves[2] || chaves[0]);
+    where = `(CAST(cg.[NRCELULAR] AS VARCHAR(20)) = @cel1 OR CAST(cg.[NRCELULAR] AS VARCHAR(20)) = @cel2 OR CAST(cg.[NRCELULAR] AS VARCHAR(20)) = @cel3)`;
+  } else if (tipoLogin === 'cnpj') {
+    if (digitos.length !== 14) return { erro: 'documento' };
+    request.input('doc', sql.VarChar(14), digitos);
+    where = `cg.[CGCCPF] = @doc`;
+  } else if (tipoLogin === 'cpf') {
+    let doc = digitos.length === 10 ? '0' + digitos : digitos;
+    if (doc.length !== 11) return { erro: 'documento' };
+    const alt = doc.startsWith('0') ? doc.substring(1) : doc;
+    request.input('doc1', sql.VarChar(14), doc);
+    request.input('doc2', sql.VarChar(14), alt);
+    where = `(cg.[CGCCPF] = @doc1 OR cg.[CGCCPF] = @doc2)`;
+  } else if (digitos.length === 11 || digitos.length === 10) {
+    const doc = digitos.length === 10 ? '0' + digitos : digitos;
+    const alt = doc.startsWith('0') ? doc.substring(1) : doc;
+    request.input('doc1', sql.VarChar(14), doc);
+    request.input('doc2', sql.VarChar(14), alt);
+    where = `(cg.[CGCCPF] = @doc1 OR cg.[CGCCPF] = @doc2)`;
+  } else if (digitos.length >= 12) {
+    const chaves = chavesCelularLogin(digitos);
+    if (!chaves.length) return { erro: 'documento' };
+    request.input('cel1', sql.VarChar(20), chaves[0]);
+    request.input('cel2', sql.VarChar(20), chaves[1] || chaves[0]);
+    request.input('cel3', sql.VarChar(20), chaves[2] || chaves[0]);
+    where = `(CAST(cg.[NRCELULAR] AS VARCHAR(20)) = @cel1 OR CAST(cg.[NRCELULAR] AS VARCHAR(20)) = @cel2 OR CAST(cg.[NRCELULAR] AS VARCHAR(20)) = @cel3)`;
+  } else {
+    return { erro: 'documento' };
+  }
+  const result = await request.query(`
+    SELECT
+      cg.[CDCADASTRO],
+      cg.[CGCCPF],
+      cg.[RZSOCIAL],
+      cg.[NRCELULAR],
+      cg.[ENDEMAIL],
+      cg.[FGACTIVE]
+    FROM [dbo].[CADASTROGERAL] cg
+    WHERE ${where}
+      AND (cg.[FGMOTORISTA] = 'S' OR (cg.[FGMOTORISTA] IS NULL AND cg.[FGTIPOCADASTRO] = 'M'))
+      AND (cg.[FGACTIVE] = 'S' OR cg.[FGACTIVE] = 'A')
+  `);
+  return { rows: result.recordset || [] };
+}
 
 // Função auxiliar para fazer reverse geocoding
 async function obterEnderecoPorCoordenadas(latitude, longitude) {
@@ -359,11 +433,12 @@ const motoristaAppController = {
   // ==========================================
   login: async (req, res) => {
     try {
-      const { cpf, senha } = req.body;
-      const documento = cpf; // campo pode vir como "cpf" no body; tratamos como documento (Fase 1 multimoeda)
+      const { cpf, senha, tipo } = req.body;
+      const tipoLogin = String(tipo || '').toLowerCase();
+      const documento = cpf; // campo pode vir como "cpf" no body; tratamos como documento ou celular
 
       console.log('🔐 [LOGIN] Tentativa de login recebida');
-      console.log('📝 [LOGIN] Documento recebido:', documento ? String(documento).replace(/\d(?=\d{4})/g, '*') : 'NULL');
+      console.log('📝 [LOGIN] Identificação recebida:', documento ? String(documento).replace(/\d(?=\d{4})/g, '*') : 'NULL', tipoLogin || 'documento');
 
       if (!documento || !senha) {
         console.log('❌ [LOGIN] Documento ou senha não fornecidos');
@@ -373,27 +448,44 @@ const motoristaAppController = {
       const ctx = await getContexto(tenantIdForRequest(req));
       const pais = (ctx && ctx.pais) ? ctx.pais : 'BR';
 
-      let docParaValidar = String(documento);
-      if (pais === 'BR') {
+      let docNormalizado = '';
+      let docAlternativo = '';
+      let cel1 = '';
+      let cel2 = '';
+      let cel3 = '';
+      if (tipoLogin === 'celular') {
+        const chaves = chavesCelularLogin(documento);
+        if (!chaves.length) {
+          return res.status(400).json({ error: 'Celular inválido. Use o DDD e o número.', errorKey: 'login.celularInvalido' });
+        }
+        cel1 = chaves[0];
+        cel2 = chaves[1] || chaves[0];
+        cel3 = chaves[2] || chaves[0];
+      } else {
+        let docParaValidar = String(documento);
         const soDigitos = docParaValidar.replace(/\D/g, '');
-        if (soDigitos.length === 10) docParaValidar = '0' + soDigitos;
-      }
-      let validacao = validarDocumento(pais, 'F', docParaValidar);
-      if (!validacao.valido && pais === 'BR' && String(docParaValidar).replace(/\D/g, '').length === 14) {
-        validacao = validarDocumento(pais, 'J', docParaValidar);
-      }
-      if (!validacao.valido) {
-        console.log('❌ [LOGIN] Documento inválido:', validacao.mensagem);
-        return res.status(400).json({ error: validacao.mensagem || 'Documento inválido.', errorKey: 'login.documentoInvalido' });
-      }
+        if (pais === 'BR' && tipoLogin !== 'cnpj' && soDigitos.length === 10) docParaValidar = '0' + soDigitos;
+        const pessoaForcada = tipoLogin === 'cnpj' ? 'J' : (tipoLogin === 'cpf' ? 'F' : null);
+        let validacao = validarDocumento(pais, pessoaForcada || 'F', docParaValidar);
+        if (!validacao.valido && !pessoaForcada && pais === 'BR' && soDigitos.length === 14) {
+          validacao = validarDocumento(pais, 'J', docParaValidar);
+        }
+        if (!validacao.valido) {
+          console.log('❌ [LOGIN] Documento inválido:', validacao.mensagem);
+          return res.status(400).json({ error: validacao.mensagem || 'Documento inválido.', errorKey: 'login.documentoInvalido' });
+        }
 
-      let docNormalizado = normalizarDocumento(pais, documento);
-      if (pais === 'BR' && docNormalizado.length === 10) {
-        docNormalizado = '0' + docNormalizado;
+        docNormalizado = normalizarDocumento(pais, documento);
+        if (pais === 'BR' && tipoLogin !== 'cnpj' && docNormalizado.length === 10) {
+          docNormalizado = '0' + docNormalizado;
+        }
+        docAlternativo = (pais === 'BR' && docNormalizado.length === 11 && docNormalizado.startsWith('0'))
+          ? docNormalizado.substring(1)
+          : docNormalizado;
       }
-      const docAlternativo = (pais === 'BR' && docNormalizado.length === 11 && docNormalizado.startsWith('0'))
-        ? docNormalizado.substring(1)
-        : docNormalizado;
+      const filtroIdent = tipoLogin === 'celular'
+        ? `(CAST(cg.[NRCELULAR] AS VARCHAR(20)) = @cel1 OR CAST(cg.[NRCELULAR] AS VARCHAR(20)) = @cel2 OR CAST(cg.[NRCELULAR] AS VARCHAR(20)) = @cel3)`
+        : `(cg.[CGCCPF] = @doc1 OR cg.[CGCCPF] = @doc2)`;
 
       const pool = await poolPromise;
 
@@ -417,7 +509,7 @@ const motoristaAppController = {
             mc.[SENHA]
           FROM [dbo].[CADASTROGERAL] cg
           LEFT JOIN [dbo].[MOTORISTA_COMPLEMENTO] mc ON cg.[CDCADASTRO] = mc.[CDCADASTRO]
-          WHERE (cg.[CGCCPF] = @doc1 OR cg.[CGCCPF] = @doc2)
+          WHERE ${filtroIdent}
             AND (cg.[FGMOTORISTA] = 'S' OR (cg.[FGMOTORISTA] IS NULL AND cg.[FGTIPOCADASTRO] = 'M'))
             AND (cg.[FGACTIVE] = 'S' OR cg.[FGACTIVE] = 'A')
         `;
@@ -437,7 +529,7 @@ const motoristaAppController = {
             mc.[SENHA]
           FROM [dbo].[CADASTROGERAL] cg
           LEFT JOIN [dbo].[MOTORISTA_COMPLEMENTO] mc ON cg.[CDCADASTRO] = mc.[CDCADASTRO]
-          WHERE (cg.[CGCCPF] = @doc1 OR cg.[CGCCPF] = @doc2)
+          WHERE ${filtroIdent}
             AND (cg.[FGMOTORISTA] = 'S' OR (cg.[FGMOTORISTA] IS NULL AND cg.[FGTIPOCADASTRO] = 'M'))
             AND (cg.[FGACTIVE] = 'S' OR cg.[FGACTIVE] = 'A')
         `;
@@ -447,6 +539,9 @@ const motoristaAppController = {
             .request()
             .input('doc1', sql.VarChar(14), docNormalizado)
             .input('doc2', sql.VarChar(14), docAlternativo)
+            .input('cel1', sql.VarChar(20), cel1)
+            .input('cel2', sql.VarChar(20), cel2)
+            .input('cel3', sql.VarChar(20), cel3)
             .query(sqlMotoristaComTenant);
         } catch (errCol) {
           if (errCol.code === '42703') {
@@ -454,6 +549,9 @@ const motoristaAppController = {
               .request()
               .input('doc1', sql.VarChar(14), docNormalizado)
               .input('doc2', sql.VarChar(14), docAlternativo)
+              .input('cel1', sql.VarChar(20), cel1)
+              .input('cel2', sql.VarChar(20), cel2)
+              .input('cel3', sql.VarChar(20), cel3)
               .query(sqlMotoristaSemTenant);
           } else {
             throw errCol;
@@ -471,9 +569,19 @@ const motoristaAppController = {
 
       if (result.recordset.length === 0) {
         console.log('❌ [LOGIN] Motorista não encontrado ou não atende aos critérios');
-        console.log('   - Documento procurado:', docNormalizado, docAlternativo !== docNormalizado ? 'ou ' + docAlternativo : '');
+        console.log('   - Identificação procurada:', tipoLogin === 'celular' ? cel1 : docNormalizado);
         console.log('   - Critérios: FGTIPOCADASTRO = M, FGACTIVE = A');
         return res.status(401).json({ error: 'Motorista não encontrado ou inativo.', errorKey: 'login.motoristaNaoEncontrado' });
+      }
+
+      if (tipoLogin === 'celular') {
+        const ids = new Set(result.recordset.map((r) => String(r.CDCADASTRO)));
+        if (ids.size > 1) {
+          return res.status(409).json({
+            error: 'Há mais de um cadastro com este celular. Entre com CPF ou CNPJ.',
+            errorKey: 'login.celularAmbiguo',
+          });
+        }
       }
 
       const motorista = result.recordset[0];
@@ -489,6 +597,13 @@ const motoristaAppController = {
       // Validar senha
       // Se não tiver senha definida, aceitar qualquer senha (modo desenvolvimento)
       // Se tiver senha definida, validar com bcrypt
+      if (tipoLogin === 'celular' && !motorista.SENHA) {
+        return res.status(403).json({
+          error: 'Este celular ainda não tem senha. Complete o cadastro ou recupere a senha.',
+          errorKey: 'login.celularSemSenha',
+        });
+      }
+
       if (motorista.SENHA) {
         console.log('🔐 [LOGIN] Validando senha com bcrypt...');
         // Senha está definida - validar com bcrypt
@@ -1360,13 +1475,24 @@ const motoristaAppController = {
       }
 
       const pool = await poolPromise;
+      const empresaInfo = await bolsao.resolverEmpresaPublica(pool, body.empresa);
+      if (!empresaInfo.ok) {
+        return res.status(empresaInfo.status || 400).json({ error: empresaInfo.error });
+      }
 
       const checkDup = await pool.query(
-        'SELECT "CDCADASTRO" FROM "CADASTROGERAL" WHERE "CGCCPF" = $1',
-        [numeroDocNormalizado]
+        'SELECT "CDCADASTRO" FROM "CADASTROGERAL" WHERE "CGCCPF" = $1 AND "TENANT_ID" = $2',
+        [numeroDocNormalizado, empresaInfo.tenantId]
       );
       if ((checkDup.rows || []).length > 0) {
         return res.status(400).json({ error: 'Já existe um cadastro com este documento.', errorKey: 'cadastro.documentoDuplicado' });
+      }
+      const ocupado = await bolsao.celularOcupado(pool, celularE164);
+      if (ocupado.ocupado) {
+        return res.status(409).json({
+          error: 'Este celular já está no Atlas. O login é um só. Se a pessoa já se cadastrou, a empresa liga essa ficha no Cadastro Geral.',
+          errorKey: 'cadastro.celularDuplicado',
+        });
       }
 
       const maxRes = await pool.query(
@@ -1438,10 +1564,10 @@ const motoristaAppController = {
           "ENDERECO", "NRENDERECO", "COMPLEND", "BAIRRO",
           "NRCELULAR", "ENDEMAIL", "FGACTIVE", "FGTIPOCADASTRO", "FGMOTORISTA",
           "FGOPERADOR", "FGPROGRAMADOR", "FGTRANSPORTADOR", "FGAGENTE", "FGGRUPO", "FGCERTIFICADORA", "FGUNIDADENEGOCIO",
-          "FGRASTREADO", "PAIS", "DHMAINTENANCE", "SGUSER", "SERVERORIG"
-        ) VALUES ($1::bigint, $2::text, $3::text, $4::text, 'F', '', 0, NULL, '', $5::text, $6::text, 'I', 'M', 'S', 'N', 'N', 'N', 'N', 'N', 'N', 'N', $7::text, $8::text, CURRENT_TIMESTAMP, 'APP_MOTORISTA', 'AppMotorista')`,
+          "FGRASTREADO", "PAIS", "DHMAINTENANCE", "SGUSER", "SERVERORIG", "TENANT_ID"
+        ) VALUES ($1::bigint, $2::text, $3::text, $4::text, 'F', '', 0, NULL, '', $5::text, $6::text, 'I', 'M', 'S', 'N', 'N', 'N', 'N', 'N', 'N', 'N', $7::text, $8::text, CURRENT_TIMESTAMP, 'APP_MOTORISTA', 'AppMotorista', $9::text)`,
         [
-          novoId, numeroDocNormalizado, nome, nome, celularE164, email || null, fgRastreado, (paisDocumento && paisDocumento !== 'BR') ? paisDocumento : null
+          novoId, numeroDocNormalizado, nome, nome, celularE164, email || null, fgRastreado, (paisDocumento && paisDocumento !== 'BR') ? paisDocumento : null, empresaInfo.tenantId
         ]
       );
 
@@ -1547,7 +1673,7 @@ const motoristaAppController = {
         }
       }
 
-      const tidCad = tenantIdForRequest(req);
+      const tidCad = empresaInfo.tenantId;
       try {
         for (let i = 0; i < veiculosSan.length; i++) {
           const vs = veiculosSan[i];
@@ -1597,10 +1723,13 @@ const motoristaAppController = {
       console.log('✅ [CADASTRO] Motorista criado:', novoId, nome, '- Pendente de aprovação (com', veiculosSan.length, 'veículo(s))');
       res.status(201).json({
         success: true,
-        message:
-          'Cadastro e veículos enviados com sucesso. Aguarde a validação e liberação pelo administrador.',
+        message: empresaInfo.bolsao
+          ? 'Cadastro enviado ao Atlas. As empresas licenciadas podem consultar esta ficha. Aguarde a liberação para entrar no aplicativo.'
+          : `Cadastro enviado para ${empresaInfo.nome}. Só essa empresa vê a ficha e libera o acesso.`,
         CDCADASTRO: novoId,
         veiculos: veiculosSan.length,
+        tenantId: empresaInfo.tenantId,
+        bolsao: empresaInfo.bolsao,
       });
     } catch (err) {
       console.error('Erro no cadastro:', err);
@@ -1612,7 +1741,11 @@ const motoristaAppController = {
   listarClassesFrotaCombo: async (req, res) => {
     try {
       const pool = await poolPromise;
-      const tenantId = tenantIdForRequest(req);
+      let tenantId = tenantIdForRequest(req);
+      if (String(req.query.empresa || '').trim()) {
+        const info = await bolsao.resolverEmpresaPublica(pool, req.query.empresa);
+        if (info.ok) tenantId = info.tenantId;
+      }
       const result = await pool.query(
         `SELECT "CDCLASSEFROTA", "DSCLASSEFROTA" FROM "CLASSEFROTA"
          WHERE ("FGACTIVE" = 'A' OR "FGACTIVE" = 'S')
@@ -3832,91 +3965,84 @@ const motoristaAppController = {
   // RECUPERAR SENHA
   // ==========================================
   recuperarSenha: async (req, res) => {
+    const pool = await poolPromise;
+    const { identificacao, tipo } = req.body || {};
+    const quem = recuperacaoLog.identificador('motorista', tipo, identificacao);
+    const ip = recuperacaoLog.ipDe(req);
+    const anotar = (evento, resultado, extra) => recuperacaoLog.registrar(pool, {
+      canal: 'motorista', evento, resultado, identificador: quem, ip, ...extra,
+    });
     try {
-      const { identificacao } = req.body; // CPF ou celular
-
       if (!identificacao) {
-        return res.status(400).json({ error: 'CPF ou celular é obrigatório.', errorKey: 'recuperarSenhaErrors.identificacaoObrigatoria' });
+        await anotar('identificacao_invalida', 'N', { detalhe: 'Identificação não informada.' });
+        return res.status(400).json({ error: 'Informe CPF, CNPJ ou celular.', errorKey: 'recuperarSenhaErrors.identificacaoObrigatoria' });
       }
 
-      // Limpar identificação (remover caracteres não numéricos)
-      const identificacaoLimpa = identificacao.replace(/\D/g, '');
-
-      if (identificacaoLimpa.length < 10) {
-        return res.status(400).json({ error: 'CPF ou celular inválido.', errorKey: 'recuperarSenhaErrors.identificacaoInvalida' });
+      const busca = await buscarMotoristaParaSenha(pool, identificacao, tipo);
+      if (busca.erro) {
+        await anotar('identificacao_invalida', 'N', { detalhe: 'CPF, CNPJ ou celular inválido.' });
+        return res.status(400).json({ error: 'CPF, CNPJ ou celular inválido.', errorKey: 'recuperarSenhaErrors.identificacaoInvalida' });
       }
 
-      const pool = await poolPromise;
-
-      // Buscar motorista por CPF ou celular
-      let query = '';
-      let request = pool.request();
-
-      if (identificacaoLimpa.length === 11) {
-        // Provavelmente é CPF
-        const cpfLimpo = identificacaoLimpa.length === 10 ? '0' + identificacaoLimpa : identificacaoLimpa;
-        const cpfSemZero = cpfLimpo.startsWith('0') ? cpfLimpo.substring(1) : cpfLimpo;
-        
-        query = `
-          SELECT 
-            cg.CDCADASTRO,
-            cg.CGCCPF,
-            cg.RZSOCIAL,
-            cg.NRCELULAR,
-            cg.ENDEMAIL,
-            cg.FGACTIVE
-          FROM [dbo].[CADASTROGERAL] cg
-          WHERE (cg.CGCCPF = @cpf1 OR cg.CGCCPF = @cpf2)
-            AND (cg.FGMOTORISTA = 'S' OR (cg.FGMOTORISTA IS NULL AND cg.FGTIPOCADASTRO = 'M'))
-            AND cg.FGACTIVE = 'A'
-        `;
-        request.input('cpf1', sql.VarChar(14), cpfLimpo);
-        request.input('cpf2', sql.VarChar(14), cpfSemZero);
-      } else {
-        // Provavelmente é celular
-        query = `
-          SELECT 
-            cg.CDCADASTRO,
-            cg.CGCCPF,
-            cg.RZSOCIAL,
-            cg.NRCELULAR,
-            cg.ENDEMAIL,
-            cg.FGACTIVE
-          FROM [dbo].[CADASTROGERAL] cg
-          WHERE cg.NRCELULAR LIKE @celular
-            AND (cg.FGMOTORISTA = 'S' OR (cg.FGMOTORISTA IS NULL AND cg.FGTIPOCADASTRO = 'M'))
-            AND cg.FGACTIVE = 'A'
-        `;
-        request.input('celular', sql.VarChar(20), '%' + identificacaoLimpa + '%');
+      const aviso = 'Se o cadastro existir, o código foi para o WhatsApp do celular cadastrado.';
+      if (!busca.rows.length) {
+        await anotar('nao_encontrado', 'N', { detalhe: 'Nenhum cadastro ativo com essa identificação. WhatsApp não enviado.' });
+        return res.json({ success: true, message: aviso });
       }
-
-      const result = await request.query(query);
-
-      if (result.recordset.length === 0) {
-        // Por segurança, sempre retornar sucesso mesmo que não encontre
-        return res.json({
-          success: true,
-          message: 'Se o CPF ou celular estiver cadastrado, você receberá um código de recuperação por SMS ou email.'
+      if (busca.rows.length > 1) {
+        await anotar('ambiguo', 'N', { detalhe: 'Mais de um cadastro com este celular. WhatsApp não enviado.' });
+        return res.status(409).json({
+          error: 'Há mais de um cadastro com este celular. Recupere pelo CPF ou CNPJ.',
+          errorKey: 'recuperarSenhaErrors.celularAmbiguo',
         });
       }
 
-      const motorista = result.recordset[0];
+      const motorista = busca.rows[0];
+      const celular = String(motorista.NRCELULAR || motorista.nrcelular || '').replace(/\D/g, '');
+      const cdCadastro = motorista.CDCADASTRO || motorista.cdcadastro;
+      if (!celular) {
+        await anotar('sem_celular', 'N', { cdCadastro, detalhe: 'Cadastro sem celular. WhatsApp não enviado.' });
+        return res.status(400).json({
+          error: 'Este cadastro não tem celular para receber o código no WhatsApp.',
+          errorKey: 'recuperarSenhaErrors.semCelular',
+        });
+      }
 
-      // Gerar código de 6 dígitos (válido 15 min). Em produção: enviar por SMS/Email.
       const codigo = String(Math.floor(100000 + Math.random() * 900000));
-      const cdCadastro = motorista.CDCADASTRO;
-      codigosRecuperacao.set(cdCadastro, { codigo, expires: Date.now() + 15 * 60 * 1000 });
-      console.log(`📧 [RECUPERAR SENHA] Motorista encontrado: ${cdCadastro} - ${motorista.RZSOCIAL}`);
-      console.log(`📧 [RECUPERAR SENHA] Celular: ${motorista.NRCELULAR || 'N/A'}`);
-      console.log(`📧 [RECUPERAR SENHA] Email: ${motorista.ENDEMAIL || 'N/A'}`);
-      console.log(`📧 [RECUPERAR SENHA] Código (dev): ${codigo}`);
+      codigosRecuperacao.set(String(cdCadastro), { codigo, expires: Date.now() + 15 * 60 * 1000 });
 
-      res.json({
-        success: true,
-        message: 'Se o CPF ou celular estiver cadastrado, você receberá um código de recuperação por SMS ou email.'
+      const envio = await enviarUmaMensagemSwitchDigital(pool, null, {
+        idConvocacao: null,
+        numeroCelular: celular,
+        corpoMensagem: `Atlas Cargo\nSeu código para redefinir a senha é ${codigo}.\nEle vale por 15 minutos.`,
+        tenantId: getDefaultTenantId(),
+        jaTemDdi: celular.startsWith('55') && celular.length >= 12,
       });
+      if (!envio.ok) {
+        codigosRecuperacao.delete(String(cdCadastro));
+        const semCanal = /não configurado|nao configurado/i.test(envio.error || '');
+        await anotar('whatsapp_falhou', 'N', {
+          cdCadastro,
+          destino: celular,
+          detalhe: semCanal ? 'Canal do tenant padrão sem token.' : (envio.error || 'A API recusou o envio.'),
+        });
+        return res.status(semCanal ? 503 : 502).json({
+          error: semCanal
+            ? 'O WhatsApp da Atlas não está configurado. Tente mais tarde.'
+            : 'Não foi possível enviar o código no WhatsApp. Tente de novo.',
+          errorKey: semCanal ? 'recuperarSenhaErrors.canalIndisponivel' : 'recuperarSenhaErrors.envioFalhou',
+        });
+      }
+
+      await anotar('whatsapp_enviado', 'S', {
+        cdCadastro,
+        destino: celular,
+        detalhe: 'Código enviado no WhatsApp. Vale 15 minutos.',
+      });
+      res.json({ success: true, message: aviso });
     } catch (err) {
       console.error('❌ [RECUPERAR SENHA] Erro:', err);
+      await anotar('senha_falhou', 'N', { detalhe: 'Falha ao processar o pedido de código.' });
       res.status(500).json({ error: 'Erro ao processar solicitação de recuperação de senha.', errorKey: 'recuperarSenhaErrors.erroProcessar' });
     }
   },
@@ -3925,78 +4051,57 @@ const motoristaAppController = {
   // REDEFINIR SENHA (com código recebido após recuperar)
   // ==========================================
   redefinirSenha: async (req, res) => {
+    const pool = await poolPromise;
+    const { identificacao, codigo, novaSenha, tipo } = req.body || {};
+    const quem = recuperacaoLog.identificador('motorista', tipo, identificacao);
+    const ip = recuperacaoLog.ipDe(req);
+    const anotar = (evento, resultado, extra) => recuperacaoLog.registrar(pool, {
+      canal: 'motorista', evento, resultado, identificador: quem, ip, ...extra,
+    });
     try {
-      const { identificacao, codigo, novaSenha } = req.body;
-
       if (!identificacao || !codigo || !novaSenha) {
-        return res.status(400).json({ error: 'Identificação (CPF/celular), código e nova senha são obrigatórios.', errorKey: 'redefinirSenhaErrors.camposObrigatorios' });
+        await anotar('senha_falhou', 'N', { detalhe: 'Pedido incompleto. Senha não alterada.' });
+        return res.status(400).json({ error: 'Identificação, código e nova senha são obrigatórios.', errorKey: 'redefinirSenhaErrors.camposObrigatorios' });
       }
 
       if (novaSenha.length < 6) {
+        await anotar('senha_falhou', 'N', { detalhe: 'Senha com menos de 6 caracteres. Não alterada.' });
         return res.status(400).json({ error: 'A nova senha deve ter pelo menos 6 caracteres.', errorKey: 'redefinirSenhaErrors.senhaMinima' });
       }
 
-      const identificacaoLimpa = identificacao.replace(/\D/g, '');
-      if (identificacaoLimpa.length < 10) {
-        return res.status(400).json({ error: 'CPF ou celular inválido.', errorKey: 'redefinirSenhaErrors.identificacaoInvalida' });
-      }
-
-      const pool = await poolPromise;
-      let query = '';
-      let request = pool.request();
-
-      if (identificacaoLimpa.length === 11) {
-        const cpfLimpo = identificacaoLimpa.length === 10 ? '0' + identificacaoLimpa : identificacaoLimpa;
-        const cpfSemZero = cpfLimpo.startsWith('0') ? cpfLimpo.substring(1) : cpfLimpo;
-        query = `
-          SELECT cg.CDCADASTRO FROM [dbo].[CADASTROGERAL] cg
-          WHERE (cg.CGCCPF = @cpf1 OR cg.CGCCPF = @cpf2)
-            AND (cg.FGMOTORISTA = 'S' OR (cg.FGMOTORISTA IS NULL AND cg.FGTIPOCADASTRO = 'M'))
-            AND cg.FGACTIVE = 'A'
-        `;
-        request.input('cpf1', sql.VarChar(14), cpfLimpo);
-        request.input('cpf2', sql.VarChar(14), cpfSemZero);
-      } else {
-        query = `
-          SELECT cg.CDCADASTRO FROM [dbo].[CADASTROGERAL] cg
-          WHERE cg.NRCELULAR LIKE @celular
-            AND (cg.FGMOTORISTA = 'S' OR (cg.FGMOTORISTA IS NULL AND cg.FGTIPOCADASTRO = 'M'))
-            AND cg.FGACTIVE = 'A'
-        `;
-        request.input('celular', sql.VarChar(20), '%' + identificacaoLimpa + '%');
-      }
-
-      const result = await request.query(query);
-      if (result.recordset.length === 0) {
+      const busca = await buscarMotoristaParaSenha(pool, identificacao, tipo);
+      if (busca.erro || !busca.rows.length) {
+        await anotar('codigo_invalido', 'N', { detalhe: 'Cadastro não localizado para este código. Senha não alterada.' });
         return res.status(400).json({ error: 'Código inválido ou expirado.', errorKey: 'redefinirSenhaErrors.codigoInvalido' });
       }
 
-      const cdCadastro = result.recordset[0].CDCADASTRO;
-      const stored = codigosRecuperacao.get(cdCadastro);
-      if (!stored || stored.expires < Date.now()) {
-        codigosRecuperacao.delete(cdCadastro);
-        return res.status(400).json({ error: 'Código inválido ou expirado.', errorKey: 'redefinirSenhaErrors.codigoInvalido' });
-      }
-      if (stored.codigo !== String(codigo).trim()) {
+      const cdCadastro = busca.rows[0].CDCADASTRO || busca.rows[0].cdcadastro;
+      const stored = codigosRecuperacao.get(String(cdCadastro));
+      if (!stored || stored.expires < Date.now() || stored.codigo !== String(codigo).trim()) {
+        if (stored && stored.expires < Date.now()) codigosRecuperacao.delete(String(cdCadastro));
+        await anotar('codigo_invalido', 'N', { cdCadastro, detalhe: 'Código inválido ou expirado. Senha não alterada.' });
         return res.status(400).json({ error: 'Código inválido ou expirado.', errorKey: 'redefinirSenhaErrors.codigoInvalido' });
       }
 
       const senhaHash = await bcrypt.hash(novaSenha, 10);
-      await pool
-        .request()
-        .input('id', sql.Decimal(15, 0), parseFloat(cdCadastro))
-        .input('senha', sql.NVarChar(255), senhaHash)
-        .query(`
-          IF EXISTS (SELECT 1 FROM [dbo].[MOTORISTA_COMPLEMENTO] WHERE CDCADASTRO = @id)
-            UPDATE [dbo].[MOTORISTA_COMPLEMENTO] SET SENHA = @senha WHERE CDCADASTRO = @id
-          ELSE
-            INSERT INTO [dbo].[MOTORISTA_COMPLEMENTO] (CDCADASTRO, SENHA) VALUES (@id, @senha)
-        `);
+      const idNum = parseFloat(cdCadastro);
+      const upd = await pool.query(
+        `UPDATE "MOTORISTA_COMPLEMENTO" SET "SENHA" = $1 WHERE "CDCADASTRO" = $2::numeric`,
+        [senhaHash, idNum]
+      );
+      if (!upd.rowCount) {
+        await pool.query(
+          `INSERT INTO "MOTORISTA_COMPLEMENTO" ("CDCADASTRO", "SENHA", "STATUSAPROVACAO") VALUES ($1::numeric, $2, 'P')`,
+          [idNum, senhaHash]
+        );
+      }
 
-      codigosRecuperacao.delete(cdCadastro);
+      codigosRecuperacao.delete(String(cdCadastro));
+      await anotar('senha_alterada', 'S', { cdCadastro, detalhe: 'Senha do aplicativo alterada.' });
       res.json({ success: true, message: 'Senha redefinida com sucesso.' });
     } catch (err) {
       console.error('❌ [REDEFINIR SENHA] Erro:', err);
+      await anotar('senha_falhou', 'N', { detalhe: 'Falha ao gravar a senha. Não alterada.' });
       res.status(500).json({ error: 'Erro ao redefinir senha.', errorKey: 'redefinirSenhaErrors.erroRedefinir' });
     }
   },
@@ -4061,19 +4166,17 @@ const motoristaAppController = {
       const senhaHash = await bcrypt.hash(novaSenha, 10);
 
       // Atualizar senha
-      const updateResult = await pool
-        .request()
-        .input('id', sql.Decimal(15, 0), parseFloat(idMotorista))
-        .input('senha', sql.NVarChar(255), senhaHash)
-        .query(`
-          IF EXISTS (SELECT 1 FROM [dbo].[MOTORISTA_COMPLEMENTO] WHERE CDCADASTRO = @id)
-            UPDATE [dbo].[MOTORISTA_COMPLEMENTO]
-            SET SENHA = @senha
-            WHERE CDCADASTRO = @id
-          ELSE
-            INSERT INTO [dbo].[MOTORISTA_COMPLEMENTO] (CDCADASTRO, SENHA)
-            VALUES (@id, @senha)
-        `);
+      const idSenha = parseFloat(idMotorista);
+      const updSenha = await pool.query(
+        `UPDATE "MOTORISTA_COMPLEMENTO" SET "SENHA" = $1 WHERE "CDCADASTRO" = $2::numeric`,
+        [senhaHash, idSenha]
+      );
+      if (!updSenha.rowCount) {
+        await pool.query(
+          `INSERT INTO "MOTORISTA_COMPLEMENTO" ("CDCADASTRO", "SENHA", "STATUSAPROVACAO") VALUES ($1::numeric, $2, 'P')`,
+          [idSenha, senhaHash]
+        );
+      }
 
       res.json({
         success: true,
@@ -4522,6 +4625,18 @@ motoristaAppController.config = (req, res) => {
   } catch (err) {
     console.error('Erro ao obter config app motorista:', err);
     res.status(500).json({ error: 'Erro ao obter configurações.' });
+  }
+};
+
+motoristaAppController.empresaCadastro = async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const info = await bolsao.resolverEmpresaPublica(pool, req.query.empresa);
+    if (!info.ok) return res.status(info.status || 400).json({ error: info.error });
+    res.json({ tenantId: info.tenantId, nome: info.nome, bolsao: info.bolsao });
+  } catch (err) {
+    console.error('Erro ao resolver empresa do cadastro:', err);
+    res.status(500).json({ error: 'Erro ao identificar a empresa.' });
   }
 };
 

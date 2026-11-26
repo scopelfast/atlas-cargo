@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Recuperar senha — Atlas Cargo</title>
+  <link rel="icon" type="image/svg+xml" href="/img/logo-atlas-simbolo.svg">
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: #f5f3ee;
+      color: #1c1a16;
+      font-family: "Atkinson Hyperlegible", sans-serif;
+    }
+    .card {
+      width: 100%;
+      max-width: 420px;
+      background: #fff;
+      border: 1px solid #e7e3da;
+      border-radius: 20px;
+      padding: 32px 28px;
+    }
+    h1 { margin: 0 0 8px; font-size: 1.5rem; }
+    p.lead { margin: 0 0 20px; color: #5d594f; }
+    label { display: block; font-weight: 700; margin-bottom: 8px; color: #5d594f; }
+    input {
+      width: 100%;
+      min-height: 48px;
+      padding: 12px 14px;
+      border: 1px solid #e7e3da;
+      border-radius: 12px;
+      font-size: 16px;
+      background: #f5f3ee;
+      color: #1c1a16;
+      margin-bottom: 14px;
+    }
+    button, .link {
+      width: 100%;
+      min-height: 48px;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    button.primary {
+      border: none;
+      background: #506d48;
+      color: #fff;
+      margin-top: 4px;
+    }
+    a.link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 12px;
+      text-decoration: none;
+      color: #5d594f;
+      background: #fff;
+      border: 1px solid #e7e3da;
+    }
+    .msg { margin: 12px 0; white-space: pre-wrap; }
+    .msg.ok { color: #41573b; }
+    .msg.erro { color: #9b2c2c; }
+    .dica { margin-top: 16px; padding: 12px 14px; background: #eef3ea; border-radius: 12px; color: #41573b; }
+    #passoCodigo { display: none; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Recuperar senha</h1>
+    <p class="lead">Informe o usuário, o nome ou o e-mail do painel. O código vai no WhatsApp do celular desse operador.</p>
+    <form id="passoUsuario">
+      <label for="usuario">Usuário</label>
+      <input id="usuario" name="usuario" autocomplete="username" required>
+      <button class="primary" type="submit">Enviar código</button>
+    </form>
+    <form id="passoCodigo">
+      <label for="codigo">Código</label>
+      <input id="codigo" name="codigo" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required>
+      <label for="senha">Nova senha</label>
+      <input id="senha" name="senha" type="password" minlength="6" autocomplete="new-password" required>
+      <label for="confirma">Confirmar senha</label>
+      <input id="confirma" name="confirma" type="password" minlength="6" autocomplete="new-password" required>
+      <button class="primary" type="submit">Redefinir senha</button>
+    </form>
+    <div id="msg" class="msg"></div>
+    <p class="dica">O envio usa o WhatsApp já configurado no tenant padrão.</p>
+    <a class="link" href="/">Voltar ao login</a>
+  </main>
+  <script>
+    var msg = document.getElementById('msg');
+    function mostrar(texto, ok) {
+      msg.textContent = texto || '';
+      msg.className = 'msg ' + (ok ? 'ok' : 'erro');
+    }
+    document.getElementById('passoUsuario').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      mostrar('', true);
+      var usuario = document.getElementById('usuario').value.trim();
+      try {
+        var r = await fetch('/api/auth/recuperar-senha', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ usuario: usuario })
+        });
+        var data = await r.json().catch(function() { return {}; });
+        if (!r.ok) {
+          mostrar(data.message || 'Não foi possível enviar o código.', false);
+          return;
+        }
+        mostrar(data.message || 'Se o usuário existir e tiver celular, o código foi para o WhatsApp.', true);
+        document.getElementById('passoUsuario').style.display = 'none';
+        document.getElementById('passoCodigo').style.display = 'block';
+      } catch (err) {
+        mostrar('Erro de conexão. Tente novamente.', false);
+      }
+    });
+    document.getElementById('passoCodigo').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      var senha = document.getElementById('senha').value;
+      var confirma = document.getElementById('confirma').value;
+      if (senha !== confirma) {
+        mostrar('As senhas não coincidem.', false);
+        return;
+      }
+      try {
+        var r = await fetch('/api/auth/redefinir-senha', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            usuario: document.getElementById('usuario').value.trim(),
+            codigo: document.getElementById('codigo').value.trim(),
+            senhaNova: senha
+          })
+        });
+        var data = await r.json().catch(function() { return {}; });
+        if (!r.ok) {
+          mostrar(data.message || 'Não foi possível redefinir a senha.', false);
+          return;
+        }
+        mostrar(data.message || 'Senha redefinida.', true);
+        setTimeout(function() { window.location.href = '/'; }, 1200);
+      } catch (err) {
+        mostrar('Erro de conexão. Tente novamente.', false);
+      }
+    });
+  </script>
+</body>
+</html>

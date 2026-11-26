@@ -7,6 +7,8 @@ const {
   sqlDsClasseConjuntoPorViagemMotoristaParams,
 } = require('../helpers/convocacao-placas-esperadas.sql');
 const { tenantIdForRequest } = require('../utils/tenant-context');
+const { getDefaultTenantId } = require('../middleware/tenant.middleware');
+const bolsao = require('../services/cadastro-bolsao.service');
 const { getSgUser } = require('../utils/audit');
 const alertNotificationService = require('../services/alert-notification-service');
 const { horaMinutoAgora } = require('../services/whatsapp-switch-digital.service');
@@ -694,6 +696,7 @@ const controller = {
       const tenantId = tenantIdForRequest(req);
       const pool = await poolPromise;
       await ensureSchema(pool);
+      await bolsao.garantirTabela(pool);
       const q = String(req.query.q || '').trim().toUpperCase();
       const page = Math.max(1, Number(req.query.page) || 1);
       const limit = Math.max(20, Math.min(500, Number(req.query.limit) || 100));
@@ -709,13 +712,28 @@ const controller = {
         .filter((x) => x !== '')
         .map((x) => Number(x))
         .filter((n) => Number.isFinite(n) && n > 0);
-      const vals = [tenantId];
+      const vals = [tenantId, getDefaultTenantId()];
       let whereSql = `
         SELECT cg."CDCADASTRO", cg."RZSOCIAL", cg."NRCELULAR", cg."CDCIDADE", c."ESTADO", c."NMCIDADE"
         FROM "CADASTROGERAL" cg
         LEFT JOIN "CIDADE" c ON c."CDCIDADE" = cg."CDCIDADE"
-        WHERE cg."TENANT_ID" = $1
-          AND (cg."FGACTIVE" = 'S' OR cg."FGACTIVE" = 'A')
+        WHERE (
+            (
+              cg."TENANT_ID" = $1
+              AND (cg."FGACTIVE" = 'S' OR cg."FGACTIVE" = 'A')
+            )
+            OR (
+              $1 <> $2
+              AND cg."TENANT_ID" = $2
+              AND COALESCE(cg."FGMOTORISTA", 'N') = 'S'
+              AND EXISTS (
+                SELECT 1 FROM "CADASTRO_TENANT_VINCULO" v
+                 WHERE v."CDCADASTRO" = cg."CDCADASTRO"
+                   AND v."TENANT_ID" = $1
+                   AND (v."FGACTIVE" = 'S' OR v."FGACTIVE" = 'A')
+              )
+            )
+          )
           AND (
             COALESCE(cg."FGMOTORISTA",'N') = 'S'
             OR (cg."FGMOTORISTA" IS NULL AND COALESCE(cg."FGTIPOCADASTRO",'') = 'M')
@@ -723,7 +741,8 @@ const controller = {
       `;
       if (q) {
         vals.push(`%${q}%`);
-        whereSql += ` AND (UPPER(COALESCE(cg."RZSOCIAL",'')) LIKE $2 OR COALESCE(cg."NRCELULAR",'') LIKE $2)`;
+        const pQ = vals.length;
+        whereSql += ` AND (UPPER(COALESCE(cg."RZSOCIAL",'')) LIKE $${pQ} OR COALESCE(cg."NRCELULAR"::text,'') LIKE $${pQ})`;
       }
       if (modoRegras === 'FILTRAR' && viagemIds.length > 0 && (validarClasseFrota || validarRastreamento || validarLocalEmbarque || validarLocalDesembarque)) {
         vals.push(viagemIds);
@@ -746,6 +765,18 @@ const controller = {
                  WHERE ccf."CDCADASTRO" = cg."CDCADASTRO"
                    AND ccf."CDCLASSEFROTA" = v."CDCLASSEFROTA"
                    AND (ccf."FGACTIVE" = 'S' OR ccf."FGACTIVE" = 'A')
+                   AND (
+                     ccf."TENANT_ID" = $1
+                     OR (
+                       ccf."TENANT_ID" = cg."TENANT_ID"
+                       AND NOT EXISTS (
+                         SELECT 1 FROM "CLASSEFROTA_CG" mine
+                          WHERE mine."CDCADASTRO" = cg."CDCADASTRO"
+                            AND mine."TENANT_ID" = $1
+                            AND (mine."FGACTIVE" = 'S' OR mine."FGACTIVE" = 'A')
+                       )
+                     )
+                   )
                 )
               )` : ''}
               ${validarRastreamento ? `AND (
@@ -839,6 +870,7 @@ const controller = {
 
       const pool = await poolPromise;
       await ensureSchema(pool);
+      await bolsao.garantirTabela(pool);
       client = await pool.connect();
       await client.query('BEGIN');
       const camp = await client.query(
@@ -860,10 +892,24 @@ const controller = {
       }
 
       const mot = await client.query(
-        `SELECT cg."CDCADASTRO", COALESCE(NULLIF(TRIM(cg."RZSOCIAL"),''), 'Motorista') AS nome, TRIM(COALESCE(cg."NRCELULAR",'')) AS celular
+        `SELECT cg."CDCADASTRO", COALESCE(NULLIF(TRIM(cg."RZSOCIAL"),''), 'Motorista') AS nome, TRIM(COALESCE(cg."NRCELULAR"::text,'')) AS celular
          FROM "CADASTROGERAL" cg
-         WHERE cg."TENANT_ID" = $1 AND cg."CDCADASTRO" = ANY($2::numeric[])`,
-        [tenantId, motoristaIds]
+         WHERE cg."CDCADASTRO" = ANY($3::numeric[])
+           AND (
+             cg."TENANT_ID" = $1
+             OR (
+               $1 <> $2
+               AND cg."TENANT_ID" = $2
+               AND COALESCE(cg."FGMOTORISTA", 'N') = 'S'
+               AND EXISTS (
+                 SELECT 1 FROM "CADASTRO_TENANT_VINCULO" v
+                  WHERE v."CDCADASTRO" = cg."CDCADASTRO"
+                    AND v."TENANT_ID" = $1
+                    AND (v."FGACTIVE" = 'S' OR v."FGACTIVE" = 'A')
+               )
+             )
+           )`,
+        [tenantId, getDefaultTenantId(), motoristaIds]
       );
       const expira = new Date(Date.now() + expiraHoras * 60 * 60 * 1000);
       for (const r of mot.rows || []) {
@@ -1146,9 +1192,10 @@ const controller = {
       const cgDoc = await pool.query(
         `SELECT TRIM(COALESCE(cg."CGCCPF",'')) AS doc
            FROM "CADASTROGERAL" cg
-          WHERE cg."TENANT_ID"=$1 AND cg."CDCADASTRO"=$2
+          WHERE cg."CDCADASTRO"=$2
+            AND (cg."TENANT_ID"=$1 OR cg."TENANT_ID"=$3)
           LIMIT 1`,
-        [tenantId, idMotorista]
+        [tenantId, idMotorista, getDefaultTenantId()]
       );
       const docRaw = (cgDoc.rows || [])[0]?.doc ?? (cgDoc.rows || [])[0]?.DOC ?? '';
       const docFmt = formatarCpfCnpjMotorista(docRaw);

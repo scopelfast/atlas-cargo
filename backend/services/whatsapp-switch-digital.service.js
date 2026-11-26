@@ -73,6 +73,29 @@ async function registrarResumoEtapaWhatsApp(pool, {
   }
 }
 
+async function gravarLogEnvioWhatsapp(pool, req, { idConvocacao, numero, status, erro, dhEnvio }) {
+  try {
+    const idNum = Number(idConvocacao);
+    await pool.request()
+      .input('IDCONVOCACAO', sql.Int, Number.isFinite(idNum) ? idNum : null)
+      .input('NRCELULAR', String(numero || '').replace(/\D/g, '').slice(0, 20))
+      .input('STATUS_ENVIO', status)
+      .input('MENSAGEM_ERRO', erro ? String(erro).slice(0, 500) : null)
+      .input('DHENVIO', dhEnvio || null)
+      .input('DHRESPOSTA_API', dhEnvio || null)
+      .input('TENTATIVAS', 1)
+      .input('sgUser', getSgUser(req) || 'SYSTEM')
+      .query(`
+        INSERT INTO [dbo].[LOG_ENVIO_WHATSAPP]
+          ([IDCONVOCACAO], [NRCELULAR], [STATUS_ENVIO], [MENSAGEM_ERRO], [DHENVIO], [DHRESPOSTA_API], [TENTATIVAS], [DHMAINTENANCE], [SGUSER], [SERVERORIG])
+        VALUES
+          (@IDCONVOCACAO, @NRCELULAR, @STATUS_ENVIO, @MENSAGEM_ERRO, @DHENVIO, @DHRESPOSTA_API, @TENTATIVAS, CURRENT_TIMESTAMP, @sgUser, 'AppDVcargas')
+      `);
+  } catch (logErr) {
+    console.error('[SWITCH DIGITAL] Erro ao gravar LOG_ENVIO_WHATSAPP:', logErr.message);
+  }
+}
+
 /**
  * @returns {Promise<{ ok: boolean, error?: string }>}
  */
@@ -114,6 +137,12 @@ async function enviarUmaMensagemSwitchDigital(pool, req, { idConvocacao, numeroC
     });
   }
   if (!config.token || String(config.token).trim() === '') {
+    await gravarLogEnvioWhatsapp(pool, req, {
+      idConvocacao,
+      numero: numeroCelular,
+      status: 'ERRO',
+      erro: 'Token Switch Digital não configurado',
+    });
     return { ok: false, error: 'Token Switch Digital não configurado' };
   }
   const numeroBase = String(numeroCelular || '').replace(/\D/g, '');
@@ -123,6 +152,12 @@ async function enviarUmaMensagemSwitchDigital(pool, req, { idConvocacao, numeroC
   }
   const minimo = jaTemDdi ? 10 : 12;
   if (!numeroLimpo || numeroLimpo.length < minimo || numeroLimpo.length > 15) {
+    await gravarLogEnvioWhatsapp(pool, req, {
+      idConvocacao,
+      numero: numeroLimpo || numeroBase,
+      status: 'ERRO',
+      erro: 'Número de celular inválido',
+    });
     return { ok: false, error: 'Número de celular inválido' };
   }
   console.log(
@@ -186,25 +221,13 @@ async function enviarUmaMensagemSwitchDigital(pool, req, { idConvocacao, numeroC
   const sgUserLog = getSgUser(req) || 'SYSTEM';
   const detalhesStr = (logDetalhesJson || '').substring(0, 4000);
 
-  try {
-    await pool.request()
-      .input('IDCONVOCACAO', sql.Int, idConvocacao)
-      .input('NRCELULAR', numeroLimpo)
-      .input('STATUS_ENVIO', logStatusEnvio)
-      .input('MENSAGEM_ERRO', logMensagemErro)
-      .input('DHENVIO', logDhEnvio)
-      .input('DHRESPOSTA_API', logDhEnvio)
-      .input('TENTATIVAS', 1)
-      .input('sgUser', sgUserLog)
-      .query(`
-        INSERT INTO [dbo].[LOG_ENVIO_WHATSAPP]
-          ([IDCONVOCACAO], [NRCELULAR], [STATUS_ENVIO], [MENSAGEM_ERRO], [DHENVIO], [DHRESPOSTA_API], [TENTATIVAS], [DHMAINTENANCE], [SGUSER], [SERVERORIG])
-        VALUES
-          (@IDCONVOCACAO, @NRCELULAR, @STATUS_ENVIO, @MENSAGEM_ERRO, @DHENVIO, @DHRESPOSTA_API, @TENTATIVAS, CURRENT_TIMESTAMP, @sgUser, 'AppDVcargas')
-      `);
-  } catch (logErr) {
-    console.error('[SWITCH DIGITAL] Erro ao gravar LOG_ENVIO_WHATSAPP:', logErr.message);
-  }
+  await gravarLogEnvioWhatsapp(pool, req, {
+    idConvocacao,
+    numero: numeroLimpo,
+    status: logStatusEnvio,
+    erro: logMensagemErro,
+    dhEnvio: logDhEnvio,
+  });
 
   try {
     await pool.request()

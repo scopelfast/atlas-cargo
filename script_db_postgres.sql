@@ -1306,5 +1306,32 @@ EXCEPTION
   WHEN unique_violation THEN
     RAISE NOTICE 'TIPOEQUIPAMENTO: há duplicatas em (TENANT_ID, DSTIPOEQUIPAMENTO). Rode script_tipoequipamento_remover_duplicatas.sql ou corrija dados.';
 END $$;
+-- Motorista do bolsão (tenant default) ligado à torre que vai usá-lo.
+CREATE TABLE IF NOT EXISTS "CADASTRO_TENANT_VINCULO" (
+  "TENANT_ID" varchar(64) NOT NULL,
+  "CDCADASTRO" numeric(15,0) NOT NULL,
+  "FGACTIVE" char(1) NOT NULL DEFAULT 'A',
+  "STATUSAPROVACAO" char(1) NOT NULL DEFAULT 'P',
+  "DHVINCULO" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "SGUSER" varchar(50) NULL,
+  PRIMARY KEY ("TENANT_ID", "CDCADASTRO")
+);
+CREATE INDEX IF NOT EXISTS "IX_CADASTRO_TENANT_VINCULO_CAD" ON "CADASTRO_TENANT_VINCULO" ("CDCADASTRO");
+
+-- Recuperação de senha: WhatsApp e troca de senha. Sem código e sem senha.
+CREATE TABLE IF NOT EXISTS "RECUPERACAO_SENHA_LOG" (
+  "ID" bigserial PRIMARY KEY,
+  "DH" timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "CANAL" varchar(20) NOT NULL,
+  "EVENTO" varchar(40) NOT NULL,
+  "RESULTADO" char(1) NOT NULL,
+  "IDENTIFICADOR" varchar(80) NULL,
+  "CDCADASTRO" numeric(15,0) NULL,
+  "DESTINO" varchar(20) NULL,
+  "DETALHE" varchar(400) NULL,
+  "IP" varchar(64) NULL
+);
+CREATE INDEX IF NOT EXISTS "IX_RECUPERACAO_SENHA_LOG_DH" ON "RECUPERACAO_SENHA_LOG" ("DH" DESC);
+
 -- -----------------------------------------------------------------------------
 -- Fim do script - ATLAS_CARGO_PRD (PostgreSQL)

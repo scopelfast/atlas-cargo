@@ -821,6 +821,20 @@
     .configuracoes-container .tab-content.active {
       display: block !important;
     }
+    .log-senha-filtros { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 12px; }
+    .log-senha-filtros .form-group { margin: 0; min-width: 160px; }
+    .log-senha-tabela-wrap { overflow: auto; border: 1px solid #e7e5e4; border-radius: 10px; }
+    .log-senha-tabela { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .log-senha-tabela th, .log-senha-tabela td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #e7e5e4; vertical-align: top; }
+    .log-senha-tabela th { background: #f5f5f4; color: #44403c; font-weight: 600; }
+    .log-senha-ok { color: #3f6212; font-weight: 600; }
+    .log-senha-falha { color: #9f1239; font-weight: 600; }
+    html[data-theme="dark"] .configuracoes-container .log-senha-tabela-wrap { border-color: #334155 !important; background: #0f172a !important; }
+    html[data-theme="dark"] .configuracoes-container .log-senha-tabela { background: #0f172a !important; }
+    html[data-theme="dark"] .configuracoes-container .log-senha-tabela th { background: #1e293b !important; color: #e2e8f0 !important; }
+    html[data-theme="dark"] .configuracoes-container .log-senha-tabela td { background: #0f172a !important; color: #e2e8f0 !important; border-bottom-color: #334155 !important; }
+    html[data-theme="dark"] .configuracoes-container .log-senha-ok { color: #bef264; }
+    html[data-theme="dark"] .configuracoes-container .log-senha-falha { color: #fda4af; }
   </style>
 </head>
 <body>
@@ -836,6 +850,7 @@
       <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-app-ia" id="tab-btn-app-ia" data-tab="app-ia"><i class="bx bx-mobile-alt"></i> <span>App e transcrição</span></button>
       <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-convocacoes" id="tab-btn-convocacoes" data-tab="convocacoes"><i class="bx bx-message-rounded-dots"></i> <span>Mensagens convocações</span></button>
       <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-alertas" id="tab-btn-alertas" data-tab="alertas"><i class="bx bx-error-circle"></i> <span>Alertas de viagem</span></button>
+      <button type="button" class="tab-btn" role="tab" aria-selected="false" aria-controls="tab-recuperacao-senha" id="tab-btn-recuperacao-senha" data-tab="recuperacao-senha"><i class="bx bx-lock-open"></i> <span>Recuperação de senha</span></button>
     </div>
 
     <div class="tab-content active" id="tab-contexto" role="tabpanel" aria-labelledby="tab-btn-contexto">
@@ -1551,8 +1566,65 @@
       </article>
     </div>
     </div>
+    <div class="tab-content" id="tab-recuperacao-senha" role="tabpanel" aria-labelledby="tab-btn-recuperacao-senha">
+    <div class="config-cards">
+      <article class="config-card card-full">
+        <div class="config-card-header">
+          <i class="bx bx-lock-open"></i>
+          <h3>Recuperação de senha</h3>
+        </div>
+        <div class="config-card-body">
+          <p class="card-desc">Registro do tenant padrão: pedido de código, WhatsApp enviado ou não, e se a senha foi alterada. O código e a senha nova não entram aqui.</p>
+          <form id="formLogSenha" class="log-senha-filtros" onsubmit="return false;">
+            <div class="form-group">
+              <label for="logSenhaCanal">Canal</label>
+              <select id="logSenhaCanal" class="form-control">
+                <option value="">Todos</option>
+                <option value="motorista">Motorista</option>
+                <option value="painel">Painel</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="logSenhaResultado">Resultado</label>
+              <select id="logSenhaResultado" class="form-control">
+                <option value="">Todos</option>
+                <option value="S">Deu certo</option>
+                <option value="N">Não deu certo</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="logSenhaBusca">Busca</label>
+              <input id="logSenhaBusca" class="form-control" placeholder="Login, final do documento ou celular">
+            </div>
+            <div class="filtros-actions">
+              <button type="button" id="btnLimparLogSenha" class="btn-filtro btn-filtro-limpar"><i class="bx bx-x"></i> Limpar</button>
+              <button type="submit" id="btnFiltrarLogSenha" class="btn-filtro btn-filtro-aplicar"><i class="bx bx-search"></i> Filtrar</button>
+            </div>
+          </form>
+          <div class="log-senha-tabela-wrap">
+            <table class="log-senha-tabela">
+              <thead>
+                <tr>
+                  <th>Quando</th>
+                  <th>Canal</th>
+                  <th>Quem</th>
+                  <th>O que aconteceu</th>
+                  <th>Destino</th>
+                  <th>Detalhe</th>
+                </tr>
+              </thead>
+              <tbody id="logSenhaCorpo">
+                <tr><td colspan="6">Abra esta aba para carregar.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </article>
+    </div>
+    </div>
   </div>
+
   <script src="/js/utils.js"></script>
-  <script src="js/script.js?v=202604081400"></script>
+  <script src="js/script.js?v=20261126fuso"></script>
 </body>
 </html>

@@ -3,14 +3,17 @@
 **Guia completo (Cursor / outro servidor / espelho scopelfast):**  
 veja na raiz do repo → [`INSTALACAO_OUTRO_SERVIDOR.md`](../INSTALACAO_OUTRO_SERVIDOR.md)
 
-Dump atual gerado em **25/11/2026** a partir de `atlas_cargo_prd` (PostgreSQL, formato custom `-Fc`).
-O arquivo `atlas_cargo_prd_20261106.dump` é o snapshot anterior.
+Dump atual gerado em **26/11/2026** a partir de `atlas_cargo_prd` (PostgreSQL, formato custom `-Fc`).
+O arquivo `atlas_cargo_prd_20261125.dump` é o snapshot anterior.
 
 Banco que **já existe** não restaura este dump por cima. Rode, nesta ordem:
 
 1. `backend/scripts/adicionar_viagem_lote_saldo_postgres.sql`
 2. `backend/scripts/adicionar_viagem_filha_auditoria_postgres.sql`
 3. `backend/scripts/menu_do_banco_local_postgres.sql`
+4. `backend/scripts/cadastro_tenant_vinculo_postgres.sql`
+5. `backend/scripts/recuperacao_senha_log_postgres.sql`
+6. `backend/scripts/saas_pedido_acesso_postgres.sql`
 
 ## Pré-requisitos no servidor novo
 
@@ -25,13 +28,13 @@ Banco que **já existe** não restaura este dump por cima. Rode, nesta ordem:
 createdb -U postgres atlas_cargo_prd
 
 # restaurar
-pg_restore -h localhost -U postgres -d atlas_cargo_prd --no-owner --no-acl backups/atlas_cargo_prd_20261125.dump
+pg_restore -h localhost -U postgres -d atlas_cargo_prd --no-owner --no-acl backups/atlas_cargo_prd_20261126.dump
 ```
 
 Windows (PowerShell), com `psql`/`pg_restore` no PATH ou em `C:\Program Files\PostgreSQL\*\bin\`:
 
 ```powershell
-& "C:\Program Files\PostgreSQL\18\bin\pg_restore.exe" -h localhost -U postgres -d atlas_cargo_prd --no-owner --no-acl backups\atlas_cargo_prd_20261125.dump
+& "C:\Program Files\PostgreSQL\18\bin\pg_restore.exe" -h localhost -U postgres -d atlas_cargo_prd --no-owner --no-acl backups\atlas_cargo_prd_20261126.dump
 ```
 
 ## App

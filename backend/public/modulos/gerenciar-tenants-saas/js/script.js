@@ -1117,6 +1117,19 @@
   }
   if (btnSalvar) btnSalvar.addEventListener('click', salvarOverride);
 
+  function formatarQuandoPedido(valor) {
+    if (!valor) return '';
+    var tz = (typeof window.resolveTimezoneInstalacao === 'function')
+      ? window.resolveTimezoneInstalacao()
+      : 'America/Sao_Paulo';
+    if (typeof window.formatarDataHoraComFuso === 'function') {
+      return window.formatarDataHoraComFuso(valor, 'pt-BR', tz, { dateStyle: 'short', timeStyle: 'short' });
+    }
+    var d = new Date(valor);
+    if (Number.isNaN(d.getTime())) return String(valor).replace('T', ' ').slice(0, 16);
+    return d.toLocaleString('pt-BR', { timeZone: tz, dateStyle: 'short', timeStyle: 'short' });
+  }
+
   function rotuloWhatsappPedido(status) {
     if (status === 'ENVIADO') return 'Enviado';
     if (status === 'SEM_CANAL') return 'Canal não configurado';
@@ -1163,11 +1176,11 @@
         wrap.innerHTML = '<p class="saas-op-info">Nenhuma empresa pediu acesso ainda.</p>';
         return;
       }
-      var html = '<table class="estatisticas-table"><thead><tr><th>Empresa</th><th>Documento</th><th>Contato</th><th>E-mail</th><th>Usuário</th><th>WhatsApp</th><th>Situação</th><th>Quando</th><th></th></tr></thead><tbody>';
+      var html = '<table class="estatisticas-table"><thead><tr><th>Empresa</th><th>Documento</th><th>Contato</th><th>E-mail</th><th>Usuário</th><th>WhatsApp</th><th>Aviso ao responsável</th><th>Situação</th><th>Quando</th><th></th></tr></thead><tbody>';
       lista.forEach(function (p) {
         var id = p.ID != null ? p.ID : p.id;
         var sit = p.SITUACAO || p.situacao || '';
-        var quando = p.DH_PEDIDO || p.dh_pedido || '';
+        var quando = formatarQuandoPedido(p.DH_PEDIDO || p.dh_pedido || '');
         html += '<tr>';
         html += '<td>' + escapeHtml(p.NM_EMPRESA || p.nm_empresa || '') + '</td>';
         html += '<td>' + escapeHtml(formatarDocPedido(p)) + '</td>';
@@ -1175,8 +1188,9 @@
         html += '<td>' + escapeHtml(p.EMAIL || p.email || '') + '</td>';
         html += '<td><code>' + escapeHtml(p.SGUSUARIO || p.sgusuario || '') + '</code></td>';
         html += '<td title="' + escapeHtml(p.WHATSAPP_DETALHE || p.whatsapp_detalhe || '') + '">' + escapeHtml(rotuloWhatsappPedido(p.WHATSAPP_STATUS || p.whatsapp_status)) + '</td>';
+        html += '<td title="' + escapeHtml(p.WHATSAPP_RESP_DETALHE || p.whatsapp_resp_detalhe || '') + '">' + escapeHtml(rotuloWhatsappPedido(p.WHATSAPP_RESP_STATUS || p.whatsapp_resp_status)) + '</td>';
         html += '<td>' + escapeHtml(sit) + (p.TENANT_ID || p.tenant_id ? '<br><code>' + escapeHtml(p.TENANT_ID || p.tenant_id) + '</code>' : '') + '</td>';
-        html += '<td>' + escapeHtml(String(quando).replace('T', ' ').slice(0, 16)) + '</td>';
+        html += '<td>' + escapeHtml(quando) + '</td>';
         html += '<td>';
         if (sit === 'PENDENTE') {
           html += '<button type="button" class="btn-filtro btn-filtro-aplicar btn-liberar-pedido" data-id="' + id + '" data-empresa="' + escapeHtml(p.NM_EMPRESA || p.nm_empresa || '') + '" data-usuario="' + escapeHtml(p.SGUSUARIO || p.sgusuario || '') + '">Liberar</button> ';

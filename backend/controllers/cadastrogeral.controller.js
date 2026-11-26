@@ -14,6 +14,8 @@ const { normalizarPlacaBrasil } = require('../utils/placa-util');
 const { tenantIdForRequest } = require('../utils/tenant-context');
 const { getDefaultTenantId } = require('../middleware/tenant.middleware');
 const consultaPublica = require('../services/consulta-publica.service');
+const motoristaPlanilha = require('../services/motorista-planilha.service');
+const bolsao = require('../services/cadastro-bolsao.service');
 
 // Constantes (legado: um tipo por cadastro; mantido para compatibilidade de exibição)
 const TIPO_CADASTRO = {
@@ -460,8 +462,10 @@ const cadastroController = {
       await garantirColunaLicenciado(pool);
       await garantirColunaCliente(pool);
       const tid = tenantIdForRequest(req);
-      const values = [];
-      let paramIndex = 0;
+      const tenantDefault = getDefaultTenantId();
+      await bolsao.garantirTabela(pool);
+      const values = [tid, tenantDefault];
+      let paramIndex = 2;
       const pushVal = (v) => { values.push(v); return `$${++paramIndex}`; };
 
       let query = `
@@ -492,15 +496,29 @@ const cadastroController = {
           t."RZSOCIAL" AS "TRANSPORTADOR_NOME",
           cg."PAIS",
           cg."SGUSER",
-          mc."STATUSAPROVACAO"
+          mc."STATUSAPROVACAO",
+          CASE
+            WHEN cg."TENANT_ID" = $2 AND $1 <> $2 AND COALESCE(cg."FGMOTORISTA", 'N') = 'S' THEN 'S'
+            ELSE 'N'
+          END AS "BOLSAO",
+          vbol."STATUSAPROVACAO" AS "STATUS_VINCULO"
         FROM "CADASTROGERAL" cg
         LEFT JOIN "CIDADE" c ON cg."CDCIDADE" = c."CDCIDADE"
         LEFT JOIN "CADASTROGERAL" t ON cg."CDTRANSPORTADOR" = t."CDCADASTRO" AND t."TENANT_ID" = cg."TENANT_ID"
         LEFT JOIN "MOTORISTA_COMPLEMENTO" mc ON cg."CDCADASTRO" = mc."CDCADASTRO"
+        LEFT JOIN "CADASTRO_TENANT_VINCULO" vbol
+          ON vbol."CDCADASTRO" = cg."CDCADASTRO" AND vbol."TENANT_ID" = $1
         WHERE 1=1
       `;
 
-      query += ` AND cg."TENANT_ID" = ${pushVal(tid)}`;
+      query += ` AND (
+        cg."TENANT_ID" = $1
+        OR (
+          $1 <> $2
+          AND cg."TENANT_ID" = $2
+          AND COALESCE(cg."FGMOTORISTA", 'N') = 'S'
+        )
+      )`;
 
       if (codigo) {
         query += ` AND cg."CDCADASTRO" = ${pushVal(parseFloat(codigo))}`;
@@ -598,7 +616,10 @@ const cadastroController = {
           TIPO_TRANSPORTE_BR_NOME: (cg.TIPO_TRANSPORTE_BR && TIPO_TRANSPORTE_BR_LABELS[cg.TIPO_TRANSPORTE_BR]) || null,
           PAIS: cg.PAIS || null,
           SGUSER: cg.SGUSER != null ? String(cg.SGUSER).trim() : null,
-          STATUSAPROVACAO: (cg.STATUSAPROVACAO || (cg.FGMOTORISTA === 'S' ? 'P' : null))
+          STATUSAPROVACAO: (cg.STATUSAPROVACAO || (cg.FGMOTORISTA === 'S' ? 'P' : null)),
+          BOLSAO: cg.BOLSAO === 'S',
+          VINCULADO: cg.STATUS_VINCULO != null && String(cg.STATUS_VINCULO).trim() !== '',
+          STATUS_VINCULO: cg.STATUS_VINCULO || null
         };
       });
       
@@ -638,6 +659,56 @@ const cadastroController = {
     } catch (err) {
       console.error('[CadastroGeral] contador motoristas pendentes:', err);
       res.status(500).json({ error: 'Erro ao contar cadastros pendentes.' });
+    }
+  },
+
+  usarBolsao: async (req, res) => {
+    try {
+      const sg = getSgUser(req);
+      if (!sg) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+      const pool = await poolPromise;
+      const id = parseFloat(req.params.id);
+      if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: 'ID inválido.' });
+      const out = await bolsao.vincular(pool, {
+        tenantId: tenantIdForRequest(req),
+        cdCadastro: id,
+        sgUser: sg,
+      });
+      res.json({
+        success: true,
+        message: out.jaExistia
+          ? 'Este motorista já está ligado à sua empresa. O login continua no celular do bolsão.'
+          : 'Motorista ligado à sua empresa. A ficha do Atlas não muda e o login continua no mesmo celular.',
+      });
+    } catch (err) {
+      const status = err.status || 500;
+      if (status >= 500) console.error('[CadastroGeral] usar bolsão:', err);
+      res.status(status).json({ error: err.status ? err.message : 'Erro ao ligar o motorista.' });
+    }
+  },
+
+  cadastroProprioBolsao: async (req, res) => {
+    try {
+      const sg = getSgUser(req);
+      if (!sg) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
+      const pool = await poolPromise;
+      const id = parseFloat(req.params.id);
+      if (!Number.isFinite(id) || id <= 0) return res.status(400).json({ error: 'ID inválido.' });
+      const out = await bolsao.criarCopia(pool, {
+        tenantId: tenantIdForRequest(req),
+        cdCadastro: id,
+        celular: (req.body || {}).celular,
+        sgUser: sg,
+      });
+      res.status(201).json({
+        success: true,
+        CDCADASTRO: out.id,
+        message: 'Cadastro próprio criado na sua empresa. O celular do bolsão continua no login do motorista.',
+      });
+    } catch (err) {
+      const status = err.status || 500;
+      if (status >= 500) console.error('[CadastroGeral] cadastro próprio:', err);
+      res.status(status).json({ error: err.status ? err.message : 'Erro ao criar o cadastro próprio.' });
     }
   },
 
@@ -829,6 +900,11 @@ const cadastroController = {
       );
       const rowsAtual = cadastroAtual.rows || [];
       if (rowsAtual.length === 0) {
+        if (await bolsao.ehBolsaoParaTenant(pool, idNumerico, tid)) {
+          return res.status(409).json({
+            error: 'Este motorista está no bolsão do Atlas. A ficha compartilhada não é alterada. Use Usar na minha empresa, ou Cadastro próprio com outro celular.',
+          });
+        }
         return res.status(404).json({ error: 'Cadastro não encontrado.' });
       }
 
@@ -923,6 +999,7 @@ const cadastroController = {
       const pool = await poolPromise;
       await garantirColunaLicenciado(pool);
       await garantirColunaCliente(pool);
+      await bolsao.garantirTabela(pool);
       const tid = tenantIdForRequest(req);
       const tenantDefault = getDefaultTenantId();
       const params = [parseFloat(id), tid, tenantDefault];
@@ -938,7 +1015,10 @@ const cadastroController = {
           cg."FGAGENTE", cg."FGGRUPO", cg."FGCERTIFICADORA", cg."FGUNIDADENEGOCIO", cg."FGCLIENTE", cg."FGLICENCIADO",
           cg."TIPO_TRANSPORTE_BR",
           mc."STATUSAPROVACAO", mc."PAIS_DESTINO_PREF", mc."SIGLA_ESTADO_DESTINO_PREF", mc."CIDADE_DESTINO_PREF",
-          mc."NRCNH", mc."CATEGORIACNH", mc."VALIDADECNH", mc."FOTOCNH"`;
+          mc."NRCNH", mc."CATEGORIACNH", mc."VALIDADECNH", mc."FOTOCNH",
+          cg."TENANT_ID" AS "TENANT_CADASTRO",
+          (SELECT v."STATUSAPROVACAO" FROM "CADASTRO_TENANT_VINCULO" v
+            WHERE v."CDCADASTRO" = cg."CDCADASTRO" AND v."TENANT_ID" = $2 LIMIT 1) AS "STATUS_VINCULO"`;
       const fromWhere = `
         FROM "CADASTROGERAL" cg
         LEFT JOIN "CIDADE" c ON cg."CDCIDADE" = c."CDCIDADE"
@@ -1014,6 +1094,9 @@ const cadastroController = {
         FGLICENCIADO: (cg.FGLICENCIADO || 'N') === 'S',
         TIPO_TRANSPORTE_BR: cg.TIPO_TRANSPORTE_BR || null,
         STATUSAPROVACAO: cg.STATUSAPROVACAO || 'P',
+        BOLSAO: String(cg.TENANT_CADASTRO || '') === tenantDefault && tid !== tenantDefault && (cg.FGMOTORISTA || 'N') === 'S',
+        VINCULADO: cg.STATUS_VINCULO != null && String(cg.STATUS_VINCULO).trim() !== '',
+        STATUS_VINCULO: cg.STATUS_VINCULO || null,
         PAIS_DESTINO_PREF: cg.PAIS_DESTINO_PREF || null,
         SIGLA_ESTADO_DESTINO_PREF: cg.SIGLA_ESTADO_DESTINO_PREF || null,
         CIDADE_DESTINO_PREF: cg.CIDADE_DESTINO_PREF || null,
@@ -1059,6 +1142,11 @@ const cadastroController = {
       );
       const checkRows = checkResult.rows || [];
       if (checkRows.length === 0) {
+        if (await bolsao.ehBolsaoParaTenant(pool, idNumerico, tid)) {
+          return res.status(409).json({
+            error: 'A ficha do bolsão permanece no Atlas. Ela não é excluída por outra empresa.',
+          });
+        }
         return res.status(404).json({ error: 'Cadastro não encontrado.' });
       }
 
@@ -1139,8 +1227,21 @@ const cadastroController = {
       const pool = await poolPromise;
       const tid = tenantIdForRequest(req);
       const idNum = parseFloat(id);
-      if (!(await cadastroGeralPertenceAoTenant(pool, idNum, tid))) {
+      const proprio = await cadastroGeralPertenceAoTenant(pool, idNum, tid);
+      const doBolsao = !proprio && await bolsao.ehBolsaoParaTenant(pool, idNum, tid);
+      if (!proprio && !doBolsao) {
         return res.status(404).json({ error: 'Cadastro não encontrado.' });
+      }
+      let tidClasses = tid;
+      if (doBolsao) {
+        const tem = await pool.query(
+          `SELECT 1 FROM "CLASSEFROTA_CG"
+            WHERE "CDCADASTRO" = $1 AND "TENANT_ID" = $2
+              AND ("FGACTIVE" = 'S' OR "FGACTIVE" = 'A')
+            LIMIT 1`,
+          [idNum, tid]
+        );
+        if (!(tem.rows || []).length) tidClasses = getDefaultTenantId();
       }
       const todasClasses = await pool.query(
         `SELECT "CDCLASSEFROTA", "DSCLASSEFROTA" FROM "CLASSEFROTA"
@@ -1151,7 +1252,7 @@ const cadastroController = {
       );
       const classesAssociadas = await pool.query(
         `SELECT "CDCLASSEFROTA", "FGACTIVE" FROM "CLASSEFROTA_CG" WHERE "CDCADASTRO" = $1 AND "TENANT_ID" = $2`,
-        [idNum, tid]
+        [idNum, tidClasses]
       );
       const mapaAssociadas = {};
       (classesAssociadas.rows || []).forEach(row => {
@@ -1188,8 +1289,22 @@ const cadastroController = {
       if (!sgUser) return res.status(401).json({ error: 'Não autorizado. Faça login.' });
       const tid = tenantIdForRequest(req);
       const idNum = parseFloat(id);
-      if (!(await cadastroGeralPertenceAoTenant(pool, idNum, tid))) {
+      const proprio = await cadastroGeralPertenceAoTenant(pool, idNum, tid);
+      const doBolsao = !proprio && await bolsao.ehBolsaoParaTenant(pool, idNum, tid);
+      if (!proprio && !doBolsao) {
         return res.status(404).json({ error: 'Cadastro não encontrado.' });
+      }
+      if (doBolsao) {
+        await bolsao.garantirTabela(pool);
+        const vinculo = await pool.query(
+          `SELECT 1 FROM "CADASTRO_TENANT_VINCULO" WHERE "TENANT_ID" = $1 AND "CDCADASTRO" = $2::numeric`,
+          [tid, idNum]
+        );
+        if (!(vinculo.rows || []).length) {
+          return res.status(409).json({
+            error: 'Use o motorista na sua empresa antes de gravar as classes. As classes do bolsão continuam na ficha do Atlas.',
+          });
+        }
       }
       const existentes = await pool.query(
         'SELECT "CDCLASSEFROTA" FROM "CLASSEFROTA_CG" WHERE "CDCADASTRO" = $1 AND "TENANT_ID" = $2',
@@ -1353,6 +1468,36 @@ const cadastroController = {
     } catch (err) {
       console.error('Erro ao exportar cadastros para Excel:', err);
       res.status(500).json({ error: 'Erro ao exportar dados para Excel.' });
+    }
+  },
+
+  modeloPlanilhaMotoristas: async (req, res) => {
+    try {
+      const buf = motoristaPlanilha.gerarModelo();
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', 'attachment; filename="modelo-motoristas.xlsx"');
+      res.send(buf);
+    } catch (err) {
+      console.error('Erro ao gerar modelo de motoristas:', err);
+      res.status(500).json({ error: 'Erro ao gerar o modelo.' });
+    }
+  },
+
+  importarPlanilhaMotoristas: async (req, res) => {
+    try {
+      if (!req.file || !req.file.buffer) {
+        return res.status(400).json({ error: 'Envie a planilha .xlsx.' });
+      }
+      const usuario = getSgUser(req);
+      if (!usuario) return res.status(401).json({ error: 'Usuário não identificado.' });
+      const relatorio = await motoristaPlanilha.importar(req.file.buffer, {
+        tenantId: tenantIdForRequest(req),
+        usuario,
+      });
+      res.json(relatorio);
+    } catch (err) {
+      console.error('Erro ao importar planilha de motoristas:', err);
+      res.status(500).json({ error: 'Erro ao importar a planilha.' });
     }
   },
 

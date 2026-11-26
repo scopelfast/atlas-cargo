@@ -134,6 +134,29 @@
     body.motorista-login-page .btn-idioma:hover { background: #f5f3ee; border-color: #d2cdbf; }
     body.motorista-login-page .btn-idioma.active,
     body.motorista-login-page .btn-idioma[aria-pressed="true"] { background: #506d48; color: #fff; border-color: #506d48; }
+    body.motorista-login-page .modo-login {
+      display: flex;
+      gap: 8px;
+      margin: 0 0 16px;
+    }
+    body.motorista-login-page .modo-login .btn-modo {
+      flex: 1;
+      min-height: 40px;
+      padding: 8px 6px;
+      border-radius: 999px;
+      border: 1px solid #e7e3da;
+      background: #fff;
+      color: #5d594f;
+      font-size: 0.8125rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    body.motorista-login-page .modo-login .btn-modo[hidden] { display: none; }
+    body.motorista-login-page .modo-login .btn-modo[aria-pressed="true"] {
+      background: #506d48;
+      color: #fff;
+      border-color: #506d48;
+    }
     body.motorista-login-page .links { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; margin-top: 20px; border-top: 1px solid #e7e3da; }
     body.motorista-login-page .links a { color: #506d48; font-size: 0.9375rem; text-decoration: none; font-weight: 700; }
     .links a:hover { text-decoration: underline; }
@@ -152,6 +175,8 @@
     html.tema-escuro body.motorista-login-page .btn-idioma { background: #272620 !important; border-color: #33312a !important; color: #f5f4ef !important; }
     html.tema-escuro body.motorista-login-page .btn-idioma.active,
     html.tema-escuro body.motorista-login-page .btn-idioma[aria-pressed="true"] { background: #82a077 !important; border-color: #82a077 !important; color: #161510 !important; }
+    html.tema-escuro body.motorista-login-page .modo-login .btn-modo { background: #272620 !important; border-color: #33312a !important; color: #f5f4ef !important; }
+    html.tema-escuro body.motorista-login-page .modo-login .btn-modo[aria-pressed="true"] { background: #82a077 !important; border-color: #82a077 !important; color: #161510 !important; }
     html.tema-escuro body.motorista-login-page .footer { color: #8e8b7f !important; background: #1d1c17 !important; }
     html.tema-escuro body.motorista-login-page .links { border-top-color: #33312a; }
     html.tema-escuro body.motorista-login-page .links a { color: #a4ba9a !important; }
@@ -327,9 +352,15 @@
       <p class="welcome-desc" data-i18n="login.descricao">Entre com seus dados para acessar o sistema</p>
 
       <form id="loginForm" novalidate class="login-form">
+        <div class="modo-login" role="group" aria-label="Como entrar">
+          <button type="button" class="btn-modo" data-modo="celular" aria-pressed="false" data-i18n="login.modoCelular">Celular</button>
+          <button type="button" class="btn-modo" data-modo="cpf" aria-pressed="true" data-i18n="login.modoCpf">CPF</button>
+          <button type="button" class="btn-modo" data-modo="cnpj" aria-pressed="false" data-i18n="login.modoCnpj">CNPJ</button>
+          <button type="button" class="btn-modo" data-modo="documento" aria-pressed="false" data-i18n="login.modoDocumento" hidden>Documento</button>
+        </div>
         <div class="input-group">
-          <label for="cpf" data-i18n="login.cpf">CPF ou CNPJ</label>
-          <input type="tel" id="cpf" autocomplete="username" data-i18n-placeholder="login.cpfPlaceholder" placeholder="000.000.000-00" maxlength="18" inputmode="numeric" required>
+          <label for="cpf" id="labelIdentificacao">CPF</label>
+          <input type="tel" id="cpf" autocomplete="username" placeholder="000.000.000-00" maxlength="14" inputmode="numeric" required>
         </div>
         <div class="input-group">
           <label for="senha" data-i18n="login.senha">Senha</label>
@@ -458,7 +489,7 @@
       // Carregar Background Sync Manager (melhoria opcional)
       loadScript('js/background-sync-manager.js');
       
-      loadScript('js/auth.js');
+      loadScript('js/auth.js?v=20261126login');
 
       // Aplicar traduções quando i18n estiver pronto (Fase 0)
       if (window.i18nReady) {

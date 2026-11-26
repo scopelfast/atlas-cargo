@@ -2,7 +2,7 @@
 
 O que já mudou nesta máquina e o que ainda falta. Atualizar este arquivo quando um item sair de “falta” para “feito”.
 
-Atualizado em 25/11/2026.
+Atualizado em 26/11/2026.
 
 Como subir e o padrão visual: `docs/REPAGINACAO_ATLAS_CARGO.md`. Produto e logo: `docs/PRODUTO_E_LOGO.md`.
 
@@ -20,6 +20,12 @@ Como subir e o padrão visual: `docs/REPAGINACAO_ATLAS_CARGO.md`. Produto e logo
 | 25/11 | O cadastro da empresa tem idioma, país, DDI, máscara e validação do documento e do celular. Pedido, liberação e recusa avisam esse celular no WhatsApp. |
 | 25/11 | Login e cadastro do motorista saíram do globo e do verde-água. Usam a marca nova e as cores sage. |
 | 25/11 | O quadro esquerdo do login virou o painel: torre, convocações, viagens e estoque. |
+| 26/11 | Planilha de motoristas no 1.0.Cadastro Geral: Baixar modelo e Importar. Celular é a chave. Célula vazia não apaga. Nome e celular já entram na campanha. O login do app fica pendente. |
+| 26/11 | No login do motorista a pessoa escolhe Celular, CPF ou CNPJ. A máscara muda com a opção. Em espanhol, a escolha é Celular ou Documento. |
+| 26/11 | No login da torre ficam duas portas: Sou motorista abre `/motorista/`. Cadastrar-se abre `/cadastro-empresa.html`. O link Cadastrar empresa saiu. O cadastro do motorista continua dentro do app. |
+| 26/11 | Cadastro do motorista tem dois caminhos. O link da torre (`?empresa=`) nasce na empresa, inativo, e só ela vê. Sem empresa, cai no bolsão do `default`: as outras torres consultam, ligam a ficha sem segundo login, ou criam cadastro próprio com outro celular. |
+| 26/11 | Recuperação de senha do motorista e do painel grava o que aconteceu. Configurações → Recuperação de senha, só no tenant padrão: WhatsApp enviado ou não, senha alterada ou não. Código e senha nova não entram no registro. |
+| 26/11 | Pedido de acesso novo avisa o celular do cadastro do tenant padrão, pelo Switch do `default`. A fila Pedidos de acesso mostra se o aviso saiu ou o motivo da falha. |
 
 ## Login, o que a imagem precisaria ter
 
@@ -55,7 +61,7 @@ A empresa pede o tenant por fora. Quem já opera vê a fila e libera.
 | Celular | DDI do país. No Brasil, DDD separado e número `9XXXX-XXXX`. Número inválido não entra |
 | WhatsApp | Três avisos no celular do pedido: recebido, liberado e recusado. Sai pelo Switch Digital do tenant padrão. A senha não vai na mensagem. Se o canal não estiver configurado, o pedido segue e a fila mostra “Canal não configurado” |
 | Depois do pedido | A tela volta ao login e deixa o aviso “Pedido enviado” |
-| Aviso da Atlas | O menu Tenants e módulos ganha o selo com a quantidade pendente. O topo do painel e a tela inicial mostram a mesma quantidade e abrem Pedidos de acesso. O WhatsApp sai para o celular da central quando a sessão do Switch Digital está no ar |
+| Aviso da Atlas | O menu Tenants e módulos ganha o selo com a quantidade pendente. O topo do painel e a tela inicial mostram a mesma quantidade e abrem Pedidos de acesso. O WhatsApp do pedido novo sai para o celular do cadastro do tenant padrão, pelo Switch do `default`. A fila mostra se esse aviso foi enviado ou por que falhou. A hora do pedido aparece no fuso de Configurações |
 | Cadastro do cliente | A aba Clientes mostra a empresa inteira e tem Editar. Documento, contato, e-mail e celular entram no cadastro. Plano, limites, salvar e excluir continuam |
 | Limpeza de teste | Aba Limpeza de teste em Tenants e módulos, só para o dono. Cada tabela se marca à parte. Filho que trava o pai entra junto. O contador volta a 1 só se a tabela ficar vazia |
 | Excluir cliente | Excluir o cliente apaga o identificador inteiro: ficha, pedido de acesso, usuários, cadastros, configuração, torre e estoque. Instalação padrão, cidades e estados ficam |
@@ -63,6 +69,41 @@ A empresa pede o tenant por fora. Quem já opera vê a fila e libera.
 | Tipo Empresa licenciada | No Cadastro Geral, separa a empresa do Atlas de quem contrata o motorista da viagem. Gerenciar Classes só aparece depois de salvar, e só para motorista, transportador, agente ou grupo |
 | Cliente no cadastro | A opção Cliente grava a própria marca e volta marcada ao abrir. Endereços de entrega só aparecem com Cliente marcado, pessoa jurídica e cadastro já salvo |
 | Link da convocação | `/convocacao` usa a marca, o sage e a Atkinson. O celular da confirmação entra com máscara. A rota mostra a distância programada em km |
-| Login do app | No app do motorista, o campo aceita CPF ou CNPJ. Até 11 dígitos fica `000.000.000-00`; com 14, `00.000.000/0000-00`. Dígito errado não entra |
+| Login do app | No app do motorista, a pessoa escolhe Celular, CPF ou CNPJ. A máscara muda com a opção. Em espanhol, a escolha é Celular ou Documento |
 
 O motorista continua no app (`/motorista/pages/cadastro.html`). Não é o mesmo cadastro.
+
+## Cadastro do motorista e a empresa
+
+Quem abre o link sem empresa entra no bolsão do Atlas (`default`). A ficha fica inativa até a torre padrão liberar o aplicativo. As outras torres veem essa pessoa no Cadastro Geral, marcada como Bolsão, e não alteram nome, documento nem celular.
+
+| Caminho | O que acontece |
+| --- | --- |
+| Link da torre | No Cadastro Geral, **Link do motorista** copia `/motorista/pages/cadastro.html?empresa=` com o tenant de quem está logado. A ficha nasce nessa empresa. |
+| Bolsão | Sem `empresa` no endereço. Todas as torres consultam. **Usar** grava a ligação em `CADASTRO_TENANT_VINCULO`. Campanha dessa torre passa a incluir a pessoa. Senha e celular continuam na ficha do Atlas. |
+| Cadastro próprio | Outro celular, obrigatório. Nasce um cadastro só daquela empresa. O mesmo celular do bolsão não vira um segundo login. |
+
+Quem já tem o banco roda `backend/scripts/cadastro_tenant_vinculo_postgres.sql`. A tabela também é criada na primeira consulta.
+
+## Falta — WhatsApp do tenant padrão
+
+A tela 9.4 Configurações → Switch / WhatsApp não tem recuperação de senha, suporte nem pedido de apoio. Ela guarda o canal: endpoint, método, token, fila, assinatura e teste. Não é uma lista de avisos.
+
+O canal desses avisos é o do tenant padrão (`default`), o mesmo já usado no pedido de acesso da empresa. Não nasce uma segunda credencial.
+
+| Aviso | Hoje | Para onde vai |
+| --- | --- | --- |
+| Recuperação de senha do motorista | A página segue o login: Celular, CPF ou CNPJ. O código sai no WhatsApp do celular do cadastro, pelo canal do `default` | Feito em 26/11 |
+| Recuperação de senha do painel | O login da torre tem Esqueci minha senha em `/recuperar-senha.html`. O código sai no WhatsApp do celular ligado ao usuário, pelo mesmo canal | Feito em 26/11 |
+| Suporte | Não existe | Mensagem pelo canal do `default` |
+| Pedido de apoio | Não existe | Mensagem pelo canal do `default` |
+
+Quando sair de falta para feito, o código de recuperação deixa de ficar só no log e a frase da tela deixa de prometer SMS ou e-mail.
+
+### Como ficou a recuperação de senha
+
+A página do motorista segue o login: Celular, CPF ou CNPJ. Um celular de 11 dígitos deixa de ser lido como CPF. O código de 6 dígitos vale 15 minutos e sai no WhatsApp do celular do cadastro, pelo tenant `default`. Se o token estiver vazio, a tela avisa e não finge que o código saiu.
+
+O login da torre ganhou **Esqueci minha senha**, em `/recuperar-senha.html`. Vale o login, o nome ou o e-mail. O código vai no WhatsApp do celular do cadastro desse operador. Se o usuário não tem cadastro ligado, e é o contato da empresa, o código sai no celular desse cadastro.
+
+Suporte e pedido de apoio continuam faltando. Usam o mesmo canal e precisam de um celular de destino da Atlas.

@@ -1457,12 +1457,113 @@
 
   carregarMensagensConvocacao();
 
+  const ROTULOS_LOG_SENHA = {
+    nao_encontrado: 'Não encontrado',
+    identificacao_invalida: 'Identificação inválida',
+    sem_celular: 'Sem celular',
+    ambiguo: 'Celular em mais de um cadastro',
+    inativo: 'Usuário inativo',
+    whatsapp_enviado: 'WhatsApp enviado',
+    whatsapp_falhou: 'WhatsApp não enviado',
+    senha_alterada: 'Senha alterada',
+    codigo_invalido: 'Código recusado',
+    senha_falhou: 'Senha não alterada',
+  };
+
+  function textoLogSenha(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function quandoLogSenha(v) {
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) return '';
+    var tz = (typeof window.resolveTimezoneInstalacao === 'function')
+      ? window.resolveTimezoneInstalacao()
+      : 'America/Sao_Paulo';
+    return d.toLocaleString('pt-BR', { timeZone: tz, dateStyle: 'short', timeStyle: 'short' });
+  }
+
+  window.carregarLogRecuperacaoSenha = async function carregarLogRecuperacaoSenha() {
+    const corpo = document.getElementById('logSenhaCorpo');
+    if (!corpo) return;
+    corpo.innerHTML = '<tr><td colspan="6">Carregando...</td></tr>';
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const params = new URLSearchParams();
+    const canal = document.getElementById('logSenhaCanal')?.value || '';
+    const resultado = document.getElementById('logSenhaResultado')?.value || '';
+    const q = document.getElementById('logSenhaBusca')?.value || '';
+    if (canal) params.set('canal', canal);
+    if (resultado) params.set('resultado', resultado);
+    if (q.trim()) params.set('q', q.trim());
+    try {
+      const resp = await fetch('/api/configuracoes/recuperacao-senha-log?' + params.toString(), {
+        headers: getAuthBearerHeaders(),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        corpo.innerHTML = '<tr><td colspan="6">' + textoLogSenha(data.error || data.message || 'Não foi possível carregar.') + '</td></tr>';
+        return;
+      }
+      const itens = Array.isArray(data.itens) ? data.itens : [];
+      if (!itens.length) {
+        corpo.innerHTML = '<tr><td colspan="6">Nenhum registro.</td></tr>';
+        return;
+      }
+      corpo.innerHTML = itens.map((item) => {
+        const ok = String(item.RESULTADO || item.resultado || '').toUpperCase() === 'S';
+        const evento = item.EVENTO || item.evento || '';
+        const canalItem = (item.CANAL || item.canal) === 'painel' ? 'Painel' : 'Motorista';
+        const quem = item.IDENTIFICADOR || item.identificador || '';
+        const cd = item.CDCADASTRO || item.cdcadastro;
+        const destino = item.DESTINO || item.destino || '';
+        const detalhe = item.DETALHE || item.detalhe || '';
+        return '<tr>'
+          + '<td>' + textoLogSenha(quandoLogSenha(item.DH || item.dh)) + '</td>'
+          + '<td>' + textoLogSenha(canalItem) + '</td>'
+          + '<td>' + textoLogSenha(quem) + (cd ? '<br><small>Cadastro ' + textoLogSenha(cd) + '</small>' : '') + '</td>'
+          + '<td class="' + (ok ? 'log-senha-ok' : 'log-senha-falha') + '">' + textoLogSenha(ROTULOS_LOG_SENHA[evento] || evento) + '</td>'
+          + '<td>' + textoLogSenha(destino || '—') + '</td>'
+          + '<td>' + textoLogSenha(detalhe) + '</td>'
+          + '</tr>';
+      }).join('');
+    } catch (err) {
+      corpo.innerHTML = '<tr><td colspan="6">Erro de conexão.</td></tr>';
+    }
+  };
+
+  document.getElementById('formLogSenha')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    window.carregarLogRecuperacaoSenha();
+  });
+  document.getElementById('btnLimparLogSenha')?.addEventListener('click', () => {
+    const canal = document.getElementById('logSenhaCanal');
+    const resultado = document.getElementById('logSenhaResultado');
+    const busca = document.getElementById('logSenhaBusca');
+    if (canal) canal.value = '';
+    if (resultado) resultado.value = '';
+    if (busca) busca.value = '';
+    window.carregarLogRecuperacaoSenha();
+  });
+
   (function initConfiguracoesTabs() {
     const root = document.querySelector('.configuracoes-container');
     if (!root) return;
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const tid = String(user.tenantId || 'default').trim() || 'default';
+      if (tid !== 'default') {
+        const aba = document.getElementById('tab-btn-recuperacao-senha');
+        const painel = document.getElementById('tab-recuperacao-senha');
+        if (aba) aba.style.display = 'none';
+        if (painel) painel.style.display = 'none';
+      }
+    } catch (_) {}
     const tabButtons = root.querySelectorAll('.tabs.tabs-com-icones .tab-btn[data-tab]');
     const panels = root.querySelectorAll('.tab-content[id^="tab-"]');
-    const TAB_IDS = ['contexto', 'marca-mapa', 'whatsapp', 'app-ia', 'convocacoes', 'alertas'];
+    const TAB_IDS = ['contexto', 'marca-mapa', 'whatsapp', 'app-ia', 'convocacoes', 'alertas', 'recuperacao-senha'];
 
     function showTab(tabId) {
       const id = TAB_IDS.includes(tabId) ? tabId : 'contexto';
@@ -1475,6 +1576,9 @@
         const suffix = panel.id.replace(/^tab-/, '');
         panel.classList.toggle('active', suffix === id);
       });
+      if (id === 'recuperacao-senha' && typeof window.carregarLogRecuperacaoSenha === 'function') {
+        window.carregarLogRecuperacaoSenha();
+      }
       try {
         const u = new URL(window.location.href);
         u.searchParams.set('tab', id);

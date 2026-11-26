@@ -27,6 +27,8 @@ CREATE TABLE IF NOT EXISTS "SAAS_PEDIDO_ACESSO" (
 `ALTER TABLE "SAAS_PEDIDO_ACESSO" ADD COLUMN IF NOT EXISTS "IDIOMA" varchar(10)`,
 `ALTER TABLE "SAAS_PEDIDO_ACESSO" ADD COLUMN IF NOT EXISTS "WHATSAPP_STATUS" varchar(30)`,
 `ALTER TABLE "SAAS_PEDIDO_ACESSO" ADD COLUMN IF NOT EXISTS "WHATSAPP_DETALHE" varchar(300)`,
+`ALTER TABLE "SAAS_PEDIDO_ACESSO" ADD COLUMN IF NOT EXISTS "WHATSAPP_RESP_STATUS" varchar(30)`,
+`ALTER TABLE "SAAS_PEDIDO_ACESSO" ADD COLUMN IF NOT EXISTS "WHATSAPP_RESP_DETALHE" varchar(300)`,
 `CREATE UNIQUE INDEX IF NOT EXISTS "UX_PEDIDO_LOGIN_ABERTO"
   ON "SAAS_PEDIDO_ACESSO" (lower("SGUSUARIO"))
   WHERE "SITUACAO" IN ('PENDENTE', 'LIBERADO')`,
@@ -234,6 +236,35 @@ async function registrarAviso(pool, id, status, detalhe) {
   }
 }
 
+async function registrarAvisoResponsavel(pool, id, status, detalhe) {
+  try {
+    await pool.query(
+      `UPDATE "SAAS_PEDIDO_ACESSO"
+       SET "WHATSAPP_RESP_STATUS" = $2, "WHATSAPP_RESP_DETALHE" = $3
+       WHERE "ID" = $1`,
+      [id, status, String(detalhe || '').slice(0, 300)]
+    );
+  } catch (e) {
+    console.warn('[pedido-acesso] aviso do responsável não gravado:', e.message);
+  }
+}
+
+function numeroComDdi(ddi, telefone) {
+  const d = soDigitos(ddi);
+  const f = soDigitos(telefone);
+  if (!f) return '';
+  if (d && f.startsWith(d) && f.length >= d.length + 8) return f;
+  if (d) return d + f;
+  if (f.length === 10 || f.length === 11) return `55${f}`;
+  return f;
+}
+
+function mascaraFinal(numero) {
+  const d = soDigitos(numero);
+  if (d.length < 4) return '';
+  return `••••${d.slice(-4)}`;
+}
+
 async function avisarPedido(pool, row, evento, motivo) {
   const id = row.ID ?? row.id;
   const ddi = soDigitos(row.DDI || row.ddi);
@@ -316,18 +347,34 @@ async function criarPedido(pool, body) {
   }
 }
 
+async function celularDoResponsavel(pool, tid) {
+  await ensureClientePerfil(pool);
+  const cliente = await pool.query(
+    `SELECT "DDI", "TELEFONE"
+       FROM "SAAS_CLIENTE_CONTRATANTE"
+      WHERE "TENANT_ID" = $1
+      LIMIT 1`,
+    [tid]
+  );
+  const row = cliente.rows[0];
+  const doCadastro = numeroComDdi(row && (row.DDI || row.ddi), row && (row.TELEFONE || row.telefone));
+  if (doCadastro) return doCadastro;
+  const cfg = await pool.query(
+    `SELECT "VALOR" FROM "CONFIGURACAO"
+      WHERE "TENANT_ID" = $1 AND "CHAVE" = 'alert_whatsapp_celular_central'
+      LIMIT 1`,
+    [tid]
+  );
+  return numeroComDdi('', cfg.rows[0] && (cfg.rows[0].VALOR || cfg.rows[0].valor));
+}
+
 async function avisarOperacao(pool, pedido, idPedido) {
   const tid = process.env.DEFAULT_TENANT_ID || 'default';
   try {
-    const cfg = await pool.query(
-      `SELECT "VALOR" FROM "CONFIGURACAO"
-       WHERE "TENANT_ID" = $1 AND "CHAVE" = 'alert_whatsapp_celular_central'
-       LIMIT 1`,
-      [tid]
-    );
-    const numero = soDigitos(cfg.rows[0] && (cfg.rows[0].VALOR || cfg.rows[0].valor));
+    const numero = await celularDoResponsavel(pool, tid);
+    const final = mascaraFinal(numero);
     if (!numero) {
-      console.warn('[pedido-acesso] central sem celular; o aviso fica só no selo do menu.');
+      await registrarAvisoResponsavel(pool, idPedido, 'SEM_NUMERO', 'O cadastro do tenant padrão não tem celular.');
       return;
     }
     const fone = pedido.ddi ? `+${pedido.ddi} ${pedido.telefone}` : pedido.telefone;
@@ -341,9 +388,15 @@ async function avisarOperacao(pool, pedido, idPedido) {
       jaTemDdi: numero.length >= 12,
       protocolo: refPedido,
     });
-    if (!r.ok) console.warn('[pedido-acesso] WhatsApp da central:', r.error || 'não enviado');
+    if (r.ok) {
+      await registrarAvisoResponsavel(pool, idPedido, 'ENVIADO', `WhatsApp enviado para ${final}.`);
+      return;
+    }
+    const detalhe = r.error || 'Não enviado';
+    const status = /configurado/i.test(detalhe) ? 'SEM_CANAL' : 'ERRO';
+    await registrarAvisoResponsavel(pool, idPedido, status, `${detalhe} Destino ${final}.`);
   } catch (e) {
-    console.warn('[pedido-acesso] aviso da central:', e.message);
+    await registrarAvisoResponsavel(pool, idPedido, 'ERRO', e.message);
   }
 }
 
@@ -360,6 +413,7 @@ async function listarPedidos(pool) {
   const r = await pool.query(
     `SELECT "ID", "NM_EMPRESA", "DOCUMENTO", "NM_CONTATO", "EMAIL", "TELEFONE",
             "SGPAIS", "DDI", "IDIOMA", "WHATSAPP_STATUS", "WHATSAPP_DETALHE",
+            "WHATSAPP_RESP_STATUS", "WHATSAPP_RESP_DETALHE",
             "SGUSUARIO", "SITUACAO", "TENANT_ID", "DS_MOTIVO", "DH_PEDIDO", "DH_DECISAO"
      FROM "SAAS_PEDIDO_ACESSO"
      ORDER BY CASE WHEN "SITUACAO" = 'PENDENTE' THEN 0 ELSE 1 END, "DH_PEDIDO" DESC`

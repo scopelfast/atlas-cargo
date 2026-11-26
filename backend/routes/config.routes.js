@@ -1112,4 +1112,19 @@ router.put('/configuracoes/identidade', towerAuthAndTenant, async (req, res) => 
   }
 });
 
+router.get('/configuracoes/recuperacao-senha-log', towerAuthAndTenant, async (req, res) => {
+  try {
+    if (tenantIdForRequest(req) !== getDefaultTenantId()) {
+      return res.status(403).json({ error: 'Só o tenant padrão consulta a recuperação de senha.' });
+    }
+    const pool = await poolPromise;
+    const recuperacaoLog = require('../services/recuperacao-senha-log.service');
+    const itens = await recuperacaoLog.listar(pool, req.query || {});
+    res.json({ itens });
+  } catch (err) {
+    console.error('Erro ao listar recuperação de senha:', err);
+    res.status(500).json({ error: 'Erro ao listar o registro de recuperação de senha.' });
+  }
+});
+
 module.exports = router;
